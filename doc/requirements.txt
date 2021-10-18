@@ -1,0 +1,10 @@
+sphinx==3.5.4
+sphinx_rtd_theme==0.5.2
+sphinxcontrib-katex==0.8.6
+sphinx-reredirects==0.0.1
+nbsphinx==0.8.0
+pandoc==1.0.2
+pygments==2.7.4
+jq==1.1.1
+Jinja2==2.11.3
+wheel

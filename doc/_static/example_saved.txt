@@ -1,0 +1,678 @@
+MuJoCo version 2.10
+model name     example
+
+nq             15
+nv             13
+nu             0
+na             0
+nbody          5
+njnt           6
+ngeom          4
+nsite          2
+ncam           0
+nlight         1
+nmesh          0
+nmeshvert      0
+nmeshface      0
+nmeshtexvert   0
+nmeshgraph     0
+nskin          0
+nskinvert      0
+nskintexvert   0
+nskinface      0
+nskinbone      0
+nskinbonevert  0
+nhfield        0
+nhfielddata    0
+ntex           1
+ntexdata       1179648
+nmat           0
+npair          0
+nexclude       0
+neq            0
+ntendon        1
+nwrap          2
+nsensor        0
+nnumeric       0
+nnumericdata   0
+ntext          0
+ntextdata      0
+ntuple         0
+ntupledata     0
+nkey           0
+nuser_body     0
+nuser_jnt      0
+nuser_geom     0
+nuser_site     0
+nuser_cam      0
+nuser_tendon   0
+nuser_actuator 0
+nuser_sensor   0
+nnames         41
+
+nM             49
+nemax          0
+njmax          500
+nconmax        100
+nstack         1316805
+nuserdata      0
+nmocap         0
+nsensordata    0
+nbuffer        1185209
+
+timestep       0.002
+apirate        1e+02
+impratio       1
+tolerance      1e-08
+noslip_tolerance  1e-06
+mpr_tolerance     1e-06
+gravity        0         0        -9.8
+wind           0         0         0
+magnetic       0        -0.5       0
+density        0
+viscosity      0
+o_margin       0
+o_solref       0.02      1
+o_solimp       0.9       0.95      0.001     0.5       2
+integrator     0
+collision      0
+collision      0
+cone           0
+jacobian       2
+solver         2
+iterations     100
+noslip_iterations 0
+mpr_iterations 50
+disableflags   0
+enableflags    0
+
+totalmass      11
+
+meaninertia    0.86
+meanmass       2.7
+meansize       0.17
+extent         1.1
+center         0.18      0         0.52
+
+qpos0          1         0         0         0         0         0         0         0         0.5       0         0.1       1         0         0         0
+
+qpos_spring    1         0         0         0         0         0         0         0         0.5       0         0.1       1         0         0         0
+
+
+BODY 0:
+  name         world
+  parentid     0
+  rootid       0
+  weldid       0
+  mocapid      -1
+  jntnum       0
+  jntadr       -1
+  dofnum       0
+  dofadr       -1
+  geomnum      0
+  geomadr      -1
+  simple       1
+  sameframe    1
+  pos          0         0         0
+  quat         1         0         0         0
+  ipos         0         0         0
+  iquat        1         0         0         0
+  mass         0
+  subtreemass  11
+  inertia      0         0         0
+  invweight0   0         0
+
+BODY 1:
+  name
+  parentid     0
+  rootid       1
+  weldid       1
+  mocapid      -1
+  jntnum       1
+  jntadr       0
+  dofnum       3
+  dofadr       0
+  geomnum      1
+  geomadr      0
+  simple       0
+  sameframe    1
+  pos          0         0         0.8
+  quat         1         0         0         0
+  ipos         0         0         0
+  iquat        1         0         0         0
+  mass         5.2
+  subtreemass  7.6
+  inertia      0.096     0.096     0.0094
+  invweight0   0.051     7.3
+
+BODY 2:
+  name
+  parentid     1
+  rootid       1
+  weldid       2
+  mocapid      -1
+  jntnum       2
+  jntadr       1
+  dofnum       2
+  dofadr       3
+  geomnum      1
+  geomadr      1
+  simple       0
+  sameframe    1
+  pos          0.15      0        -0.2
+  quat         0.71      0        -0.71      0
+  ipos         0         0         0
+  iquat        1         0         0         0
+  mass         1.7
+  subtreemass  2.4
+  inertia      0.017     0.017     0.0014
+  invweight0   0.31      1.6e+02
+
+BODY 3:
+  name
+  parentid     2
+  rootid       1
+  weldid       3
+  mocapid      -1
+  jntnum       2
+  jntadr       3
+  dofnum       2
+  dofadr       5
+  geomnum      1
+  geomadr      2
+  simple       0
+  sameframe    1
+  pos          5.6e-17   0        -0.25
+  quat         0.71      0         0.71      0
+  ipos         0         0         0
+  iquat        1         0         0         0
+  mass         0.67
+  subtreemass  0.67
+  inertia      0.00091   0.0014    0.0022
+  invweight0   0.9       2.8e+02
+
+BODY 4:
+  name
+  parentid     0
+  rootid       4
+  weldid       4
+  mocapid      -1
+  jntnum       1
+  jntadr       5
+  dofnum       6
+  dofadr       7
+  geomnum      1
+  geomadr      3
+  simple       1
+  sameframe    1
+  pos          0.5       0         0.1
+  quat         1         0         0         0
+  ipos         0         0         0
+  iquat        1         0         0         0
+  mass         3.1
+  subtreemass  3.1
+  inertia      0.014     0.014     0.0075
+  invweight0   0.32      92
+
+
+JOINT 0:
+  name
+  type         1
+  qposadr      0
+  dofadr       0
+  bodyid       1
+  group        0
+  limited      0
+  pos          0         0         0.2
+  axis         0         0         1
+  stiffness    0
+  range        0         0
+  solref       0.02      1
+  solimp       0.9       0.95      0.001     0.5       2
+  margin       0
+
+JOINT 1:
+  name
+  type         3
+  qposadr      4
+  dofadr       3
+  bodyid       2
+  group        0
+  limited      0
+  pos         -3.3e-17   0         0.15
+  axis         0         1         0
+  stiffness    0
+  range        0         0
+  solref       0.02      1
+  solimp       0.9       0.95      0.001     0.5       2
+  margin       0
+
+JOINT 2:
+  name
+  type         3
+  qposadr      5
+  dofadr       4
+  bodyid       2
+  group        0
+  limited      0
+  pos         -3.3e-17   0         0.15
+  axis         2.2e-16   0        -1
+  stiffness    0
+  range        0         0
+  solref       0.02      1
+  solimp       0.9       0.95      0.001     0.5       2
+  margin       0
+
+JOINT 3:
+  name
+  type         3
+  qposadr      6
+  dofadr       5
+  bodyid       3
+  group        0
+  limited      0
+  pos         -0.1       0         0
+  axis         0         1         0
+  stiffness    0
+  range        0         0
+  solref       0.02      1
+  solimp       0.9       0.95      0.001     0.5       2
+  margin       0
+
+JOINT 4:
+  name
+  type         3
+  qposadr      7
+  dofadr       6
+  bodyid       3
+  group        0
+  limited      0
+  pos         -0.1       0         0
+  axis         0         0         1
+  stiffness    0
+  range        0         0
+  solref       0.02      1
+  solimp       0.9       0.95      0.001     0.5       2
+  margin       0
+
+JOINT 5:
+  name
+  type         0
+  qposadr      8
+  dofadr       7
+  bodyid       4
+  group        0
+  limited      0
+  pos          0         0         0
+  axis         0         0         1
+  stiffness    0
+  range        0         0
+  solref       0.02      1
+  solimp       0.9       0.95      0.001     0.5       2
+  margin       0
+
+
+DOF 0:
+  bodyid       1
+  jntid        0
+  parentid     -1
+  Madr         0
+  simplenum    0
+  solref       0.02      1
+  solimp       0.9       0.95      0.001     0.5       2
+  frictionloss 0
+  armature     0
+  damping      0
+  invweight0   7.3
+  M0           0.69
+
+DOF 1:
+  bodyid       1
+  jntid        0
+  parentid     0
+  Madr         1
+  simplenum    0
+  solref       0.02      1
+  solimp       0.9       0.95      0.001     0.5       2
+  frictionloss 0
+  armature     0
+  damping      0
+  invweight0   7.3
+  M0           0.85
+
+DOF 2:
+  bodyid       1
+  jntid        0
+  parentid     1
+  Madr         3
+  simplenum    0
+  solref       0.02      1
+  solimp       0.9       0.95      0.001     0.5       2
+  frictionloss 0
+  armature     0
+  damping      0
+  invweight0   7.3
+  M0           0.17
+
+DOF 3:
+  bodyid       2
+  jntid        1
+  parentid     2
+  Madr         6
+  simplenum    0
+  solref       0.02      1
+  solimp       0.9       0.95      0.001     0.5       2
+  frictionloss 0
+  armature     0
+  damping      0
+  invweight0   17
+  M0           0.16
+
+DOF 4:
+  bodyid       2
+  jntid        2
+  parentid     3
+  Madr         10
+  simplenum    0
+  solref       0.02      1
+  solimp       0.9       0.95      0.001     0.5       2
+  frictionloss 0
+  armature     0
+  damping      0
+  invweight0   4.4e+02
+  M0           0.0023
+
+DOF 5:
+  bodyid       3
+  jntid        3
+  parentid     4
+  Madr         15
+  simplenum    0
+  solref       0.02      1
+  solimp       0.9       0.95      0.001     0.5       2
+  frictionloss 0
+  armature     0
+  damping      0
+  invweight0   3.1e+02
+  M0           0.0081
+
+DOF 6:
+  bodyid       3
+  jntid        4
+  parentid     5
+  Madr         21
+  simplenum    0
+  solref       0.02      1
+  solimp       0.9       0.95      0.001     0.5       2
+  frictionloss 0
+  armature     0
+  damping      0
+  invweight0   2.5e+02
+  M0           0.0089
+
+DOF 7:
+  bodyid       4
+  jntid        5
+  parentid     -1
+  Madr         28
+  simplenum    6
+  solref       0.02      1
+  solimp       0.9       0.95      0.001     0.5       2
+  frictionloss 0
+  armature     0
+  damping      0
+  invweight0   0.32
+  M0           3.1
+
+DOF 8:
+  bodyid       4
+  jntid        5
+  parentid     7
+  Madr         29
+  simplenum    5
+  solref       0.02      1
+  solimp       0.9       0.95      0.001     0.5       2
+  frictionloss 0
+  armature     0
+  damping      0
+  invweight0   0.32
+  M0           3.1
+
+DOF 9:
+  bodyid       4
+  jntid        5
+  parentid     8
+  Madr         31
+  simplenum    4
+  solref       0.02      1
+  solimp       0.9       0.95      0.001     0.5       2
+  frictionloss 0
+  armature     0
+  damping      0
+  invweight0   0.32
+  M0           3.1
+
+DOF 10:
+  bodyid       4
+  jntid        5
+  parentid     9
+  Madr         34
+  simplenum    3
+  solref       0.02      1
+  solimp       0.9       0.95      0.001     0.5       2
+  frictionloss 0
+  armature     0
+  damping      0
+  invweight0   92
+  M0           0.014
+
+DOF 11:
+  bodyid       4
+  jntid        5
+  parentid     10
+  Madr         38
+  simplenum    2
+  solref       0.02      1
+  solimp       0.9       0.95      0.001     0.5       2
+  frictionloss 0
+  armature     0
+  damping      0
+  invweight0   92
+  M0           0.014
+
+DOF 12:
+  bodyid       4
+  jntid        5
+  parentid     11
+  Madr         43
+  simplenum    1
+  solref       0.02      1
+  solimp       0.9       0.95      0.001     0.5       2
+  frictionloss 0
+  armature     0
+  damping      0
+  invweight0   92
+  M0           0.0075
+
+
+GEOM 0:
+  name
+  type         3
+  contype      1
+  conaffinity  1
+  condim       3
+  bodyid       1
+  dataid       -1
+  matid        -1
+  group        0
+  priority     0
+  sameframe    1
+  solmix       1
+  solref       0.02      1
+  solimp       0.9       0.95      0.001     0.5       2
+  size         0.06      0.2       0
+  rbound       0.26
+  pos          0         0         0
+  quat         1         0         0         0
+  friction     1         0.005     0.0001
+  margin       0
+  gap          0
+  rgba         0.8       0.6       0.4       1
+
+
+GEOM 1:
+  name
+  type         3
+  contype      1
+  conaffinity  1
+  condim       3
+  bodyid       2
+  dataid       -1
+  matid        -1
+  group        0
+  priority     0
+  sameframe    1
+  solmix       1
+  solref       0.02      1
+  solimp       0.9       0.95      0.001     0.5       2
+  size         0.04      0.15      0
+  rbound       0.19
+  pos          0         0         0
+  quat         1         0         0         0
+  friction     1         0.005     0.0001
+  margin       0
+  gap          0
+  rgba         0.8       0.6       0.4       1
+
+
+GEOM 2:
+  name
+  type         4
+  contype      1
+  conaffinity  1
+  condim       3
+  bodyid       3
+  dataid       -1
+  matid        -1
+  group        0
+  priority     0
+  sameframe    1
+  solmix       1
+  solref       0.02      1
+  solimp       0.9       0.95      0.001     0.5       2
+  size         0.1       0.08      0.02
+  rbound       0.1
+  pos          0         0         0
+  quat         1         0         0         0
+  friction     1         0.005     0.0001
+  margin       0
+  gap          0
+  rgba         0.8       0.6       0.4       1
+
+
+GEOM 3:
+  name
+  type         5
+  contype      1
+  conaffinity  1
+  condim       3
+  bodyid       4
+  dataid       -1
+  matid        -1
+  group        0
+  priority     0
+  sameframe    1
+  solmix       1
+  solref       0.02      1
+  solimp       0.9       0.95      0.001     0.5       2
+  size         0.07      0.1       0
+  rbound       0.12
+  pos          0         0         0
+  quat         1         0         0         0
+  friction     1         0.005     0.0001
+  margin       0
+  gap          0
+  rgba         0.8       0.6       0.4       1
+
+
+
+SITE 0:
+  name         end1
+  type         2
+  bodyid       3
+  matid        -1
+  group        0
+  sameframe    0
+  size         0.01      0.005     0.005
+  pos          0.1       0         0
+  quat         1         0         0         0
+  rgba         0.5       0.5       0.5       1
+
+
+SITE 1:
+  name         end2
+  type         2
+  bodyid       4
+  matid        -1
+  group        0
+  sameframe    0
+  size         0.01      0.005     0.005
+  pos          0         0         0.1
+  quat         1         0         0         0
+  rgba         0.5       0.5       0.5       1
+
+
+
+LIGHT 0:
+  name
+  mode         0
+  bodyid       0
+  targetbodyid -1
+  directional  0
+  castshadow   1
+  active       1
+  pos          0         1         1
+  dir          0        -0.71     -0.71
+  poscom0     -0.19      1         0.45
+  pos0         0         1         1
+  dir0         0        -0.71     -0.71
+  attenuation  1         0         0
+  cutoff       45
+  exponent     10
+  ambient      0         0         0
+  diffuse      1         1         1
+  specular     0.3       0.3       0.3
+
+
+TEXTURE 0:
+  name
+  type         2
+  height       1536
+  width        256
+  adr          0
+
+
+TENDON 0:
+  name
+  num          2
+  limited      1
+  matid        -1
+  group        0
+  width        0.005
+  solreflimit  0.02      1
+  solimplimit  0.9       0.95      0.001     0.5       2
+  solreffrctn  0.02      1
+  solimpfrctn  0.9       0.95      0.001     0.5       2
+  range        0         0.6
+  margin       0
+  stiffness    0
+  damping      0
+  frictionloss 0
+  lengthspring 0.4
+  length0      0.4
+  invweight0   5.9
+  rgba         0.5       0.5       0.5       1
+
+  path
+    3 0  0
+    3 1  0

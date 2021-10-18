@@ -1,0 +1,72 @@
+<mujoco model="test">
+    <compiler coordinate="global"/>
+
+    <default>
+        <geom rgba=".9 .7 .1 1" size="0.01"/>
+        <site type="sphere" rgba=".9 .9 .9 1" size="0.005"/>
+        <joint type="hinge" axis="0 1 0" limited="true" range="0 60" solimplimit="0.95 0.95 0.1"/>
+    </default>
+
+    <visual>
+        <headlight diffuse=".7 .7 .7"/>
+    </visual>
+
+    <worldbody>
+        <body>
+            <geom type="cylinder" fromto="-0.03 0 0.2  -0.03 0 0.15"
+                size="0.03" rgba=".2 .2 .5 1" density="5000"/>
+            <joint type="slide" pos="-0.03 0 0.2" axis="0 0 1" limited="false"/>
+            <site name="s1" pos="-0.03 0 0.2"/>
+        </body>
+
+        <site name="s2" pos="-0.03 0 0.32"/>
+
+      <body>
+      <geom type="capsule" fromto="0 0 0.3  0.1 0 0.3"/>
+            <geom name="g1" type="cylinder" fromto="0.0 0.015 0.3  0.0 -0.015 0.3"
+                    size="0.02" rgba=".3 .9 .3 .4"/>
+        <joint pos="0 0 0.3"/>
+            <site name="s3" pos="0.02 0 0.32"/>
+
+            <body>
+                <geom type="capsule" fromto="0.1 0 0.3  0.2 0 0.3"/>
+                <geom name="g2" type="cylinder" fromto="0.1 0.015 0.3  0.1 -0.015 0.3"
+                    size="0.02" rgba=".3 .9 .3 .4"/>
+                <joint pos="0.1 0 0.3"/>
+                <site name="s4" pos="0.13 0 0.31"/>
+                <site name="s5" pos="0.15 0 0.32"/>
+                <site name="side2" pos="0.1 0 0.33"/>
+
+                <body>
+                    <geom type="capsule" fromto="0.2 0 0.3  0.27 0 0.3"/>
+                    <geom name="g3" type="cylinder" fromto="0.2 0.015 0.3  0.2 -0.015 0.3"
+                        size="0.02" rgba=".3 .9 .3 .4"/>
+                    <joint pos="0.2 0 0.3"/>
+                    <site name="s6" pos="0.23 0 0.31"/>
+                    <site name="side3" pos="0.2 0 0.33"/>
+                </body>
+            </body>
+      </body>
+    </worldbody>
+
+    <tendon>
+      <spatial width="0.002" rgba=".95 .3 .3 1" limited="true" range="0 0.33">
+            <site site="s1"/>
+            <site site="s2"/>
+            <geom geom="g1"/>
+            <site site="s3"/>
+
+            <pulley divisor="2"/>
+            <site site="s3"/>
+            <geom geom="g2" sidesite="side2"/>
+            <site site="s4"/>
+
+            <pulley divisor="2"/>
+            <site site="s3"/>
+            <geom geom="g2" sidesite="side2"/>
+            <site site="s5"/>
+            <geom geom="g3" sidesite="side3"/>
+            <site site="s6"/>
+        </spatial>
+    </tendon>
+</mujoco>

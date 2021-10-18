@@ -1,0 +1,44 @@
+<mujoco model="example">
+    <compiler angle="radian" />
+    <size njmax="500" nconmax="100" />
+    <default class="main">
+        <geom size="0" rgba="0.8 0.6 0.4 1" />
+        <site size="0" />
+    </default>
+    <asset>
+        <texture type="skybox" builtin="gradient" rgb1="1 1 1" rgb2="0.6 0.8 1" width="256" height="1536" />
+    </asset>
+    <worldbody>
+        <light pos="0 1 1" dir="0 -0.707107 -0.707107" diffuse="1 1 1" />
+        <body pos="0 0 0.8">
+            <inertial pos="0 0 0" mass="5.20248" diaginertia="0.0964192 0.0964192 0.00936446" />
+            <joint pos="0 0 0.2" type="ball" />
+            <geom type="capsule" size="0.06 0.2" />
+            <body pos="0.15 0 -0.2" quat="0.707107 0 -0.707107 0">
+                <inertial pos="0 0 0" mass="1.70903" diaginertia="0.0171472 0.0171472 0.00136722" />
+                <joint pos="0 0 0.15" axis="0 1 0" />
+                <joint pos="0 0 0.15" axis="0 0 -1" />
+                <geom type="capsule" size="0.04 0.15" />
+                <body pos="0 0 -0.25" quat="0.707107 0 0.707107 0">
+                    <inertial pos="0 0 0" mass="0.670206" diaginertia="0.000911481 0.00139403 0.00219828" />
+                    <joint pos="-0.1 0 0" axis="0 1 0" />
+                    <joint pos="-0.1 0 0" axis="0 0 1" />
+                    <geom type="ellipsoid" size="0.1 0.08 0.02" />
+                    <site name="end1" pos="0.1 0 0" size="0.01" />
+                </body>
+            </body>
+        </body>
+        <body pos="0.5 0 0.1">
+            <inertial pos="0 0 0" mass="3.07876" diaginertia="0.014034 0.014034 0.00754296" />
+            <joint type="free" />
+            <geom type="cylinder" size="0.07 0.1" />
+            <site name="end2" pos="0 0 0.1" size="0.01" />
+        </body>
+    </worldbody>
+    <tendon>
+        <spatial limited="true" width="0.005" range="0 0.6">
+            <site site="end1" />
+            <site site="end2" />
+        </spatial>
+    </tendon>
+</mujoco>

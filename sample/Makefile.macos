@@ -1,0 +1,12 @@
+COMMON=-O2 -I../include -L../bin -std=c++11 -stdlib=libc++ -mavx -pthread
+
+all:
+	clang++ $(COMMON) testxml.cc    -lmujoco210nogl      -o ../bin/testxml
+	clang++ $(COMMON) testspeed.cc  -lmujoco210nogl      -o ../bin/testspeed
+	clang++ $(COMMON) compile.cc    -lmujoco210nogl      -o ../bin/compile
+	clang++ $(COMMON) derivative.cc -lmujoco210nogl      -o ../bin/derivative
+	clang++ $(COMMON) basic.cc      -lmujoco210 -lglfw.3 -o ../bin/basic
+	clang++ $(COMMON) record.cc     -lmujoco210 -lglfw.3 -o ../bin/record
+	clang -c -O2 -mavx -I../include ../include/uitools.c
+	clang++ $(COMMON) uitools.o simulate.cc -lmujoco210 -lglfw.3 -o ../bin/simulate
+	rm *.o

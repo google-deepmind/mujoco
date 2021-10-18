@@ -1,0 +1,11 @@
+COMMON=/O2 /MT /EHsc /arch:AVX /I../include /Fe../bin/
+
+all:
+	cl $(COMMON) testxml.cc                 ../bin/mujoco210nogl.lib
+	cl $(COMMON) testspeed.cc               ../bin/mujoco210nogl.lib
+	cl $(COMMON) compile.cc                 ../bin/mujoco210nogl.lib
+	cl $(COMMON) derivative.cc /openmp      ../bin/mujoco210nogl.lib
+	cl $(COMMON) basic.cc ../bin/glfw3.lib  ../bin/mujoco210.lib
+	cl $(COMMON) record.cc ../bin/glfw3.lib ../bin/mujoco210.lib
+	cl $(COMMON) simulate.cc ../include/uitools.c ../bin/glfw3.lib ../bin/mujoco210.lib
+	del *.obj

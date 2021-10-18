@@ -1,0 +1,350 @@
+// Copyright 2021 DeepMind Technologies Limited
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#ifndef MUJOCO_MJVISUALIZE_H_
+#define MUJOCO_MJVISUALIZE_H_
+
+#define mjNGROUP        6           // number of geom, site, joint groups with visflags
+#define mjMAXOVERLAY    500         // maximum number of characters in overlay text
+#define mjMAXLINE       100         // maximum number of lines per plot
+#define mjMAXLINEPNT    1000        // maximum number points per line
+#define mjMAXPLANEGRID  200         // maximum number of grid divisions for plane
+
+
+typedef enum _mjtCatBit             // bitflags for mjvGeom category
+{
+    mjCAT_STATIC        = 1,        // model elements in body 0
+    mjCAT_DYNAMIC       = 2,        // model elements in all other bodies
+    mjCAT_DECOR         = 4,        // decorative geoms
+    mjCAT_ALL           = 7         // select all categories
+} mjtCatBit;
+
+
+typedef enum _mjtMouse              // mouse interaction mode
+{
+    mjMOUSE_NONE         = 0,       // no action
+    mjMOUSE_ROTATE_V,               // rotate, vertical plane
+    mjMOUSE_ROTATE_H,               // rotate, horizontal plane
+    mjMOUSE_MOVE_V,                 // move, vertical plane
+    mjMOUSE_MOVE_H,                 // move, horizontal plane
+    mjMOUSE_ZOOM,                   // zoom
+    mjMOUSE_SELECT                  // selection
+} mjtMouse;
+
+
+typedef enum _mjtPertBit            // mouse perturbations
+{
+    mjPERT_TRANSLATE    = 1,        // translation
+    mjPERT_ROTATE       = 2         // rotation
+} mjtPertBit;
+
+
+typedef enum _mjtCamera             // abstract camera type
+{
+    mjCAMERA_FREE        = 0,       // free camera
+    mjCAMERA_TRACKING,              // tracking camera; uses trackbodyid
+    mjCAMERA_FIXED,                 // fixed camera; uses fixedcamid
+    mjCAMERA_USER                   // user is responsible for setting OpenGL camera
+} mjtCamera;
+
+
+typedef enum _mjtLabel              // object labeling
+{
+    mjLABEL_NONE        = 0,        // nothing
+    mjLABEL_BODY,                   // body labels
+    mjLABEL_JOINT,                  // joint labels
+    mjLABEL_GEOM,                   // geom labels
+    mjLABEL_SITE,                   // site labels
+    mjLABEL_CAMERA,                 // camera labels
+    mjLABEL_LIGHT,                  // light labels
+    mjLABEL_TENDON,                 // tendon labels
+    mjLABEL_ACTUATOR,               // actuator labels
+    mjLABEL_CONSTRAINT,             // constraint labels
+    mjLABEL_SKIN,                   // skin labels
+    mjLABEL_SELECTION,              // selected object
+    mjLABEL_SELPNT,                 // coordinates of selection point
+    mjLABEL_CONTACTFORCE,           // magnitude of contact force
+
+    mjNLABEL                        // number of label types
+} mjtLabel;
+
+
+typedef enum _mjtFrame              // frame visualization
+{
+    mjFRAME_NONE        = 0,        // no frames
+    mjFRAME_BODY,                   // body frames
+    mjFRAME_GEOM,                   // geom frames
+    mjFRAME_SITE,                   // site frames
+    mjFRAME_CAMERA,                 // camera frames
+    mjFRAME_LIGHT,                  // light frames
+    mjFRAME_WORLD,                  // world frame
+
+    mjNFRAME                        // number of visualization frames
+} mjtFrame;
+
+
+typedef enum _mjtVisFlag            // flags enabling model element visualization
+{
+    mjVIS_CONVEXHULL    = 0,        // mesh convex hull
+    mjVIS_TEXTURE,                  // textures
+    mjVIS_JOINT,                    // joints
+    mjVIS_ACTUATOR,                 // actuators
+    mjVIS_CAMERA,                   // cameras
+    mjVIS_LIGHT,                    // lights
+    mjVIS_TENDON,                   // tendons
+    mjVIS_RANGEFINDER,              // rangefinder sensors
+    mjVIS_CONSTRAINT,               // point constraints
+    mjVIS_INERTIA,                  // equivalent inertia boxes
+    mjVIS_SCLINERTIA,               // scale equivalent inertia boxes with mass
+    mjVIS_PERTFORCE,                // perturbation force
+    mjVIS_PERTOBJ,                  // perturbation object
+    mjVIS_CONTACTPOINT,             // contact points
+    mjVIS_CONTACTFORCE,             // contact force
+    mjVIS_CONTACTSPLIT,             // split contact force into normal and tanget
+    mjVIS_TRANSPARENT,              // make dynamic geoms more transparent
+    mjVIS_AUTOCONNECT,              // auto connect joints and body coms
+    mjVIS_COM,                      // center of mass
+    mjVIS_SELECT,                   // selection point
+    mjVIS_STATIC,                   // static bodies
+    mjVIS_SKIN,                     // skin
+
+    mjNVISFLAG                      // number of visualization flags
+} mjtVisFlag;
+
+
+typedef enum _mjtRndFlag            // flags enabling rendering effects
+{
+    mjRND_SHADOW        = 0,        // shadows
+    mjRND_WIREFRAME,                // wireframe
+    mjRND_REFLECTION,               // reflections
+    mjRND_ADDITIVE,                 // additive transparency
+    mjRND_SKYBOX,                   // skybox
+    mjRND_FOG,                      // fog
+    mjRND_HAZE,                     // haze
+    mjRND_SEGMENT,                  // segmentation with random color
+    mjRND_IDCOLOR,                  // segmentation with segid color
+
+    mjNRNDFLAG                      // number of rendering flags
+} mjtRndFlag;
+
+
+typedef enum _mjtStereo             // type of stereo rendering
+{
+    mjSTEREO_NONE       = 0,        // no stereo; use left eye only
+    mjSTEREO_QUADBUFFERED,          // quad buffered; revert to side-by-side if no hardware support
+    mjSTEREO_SIDEBYSIDE             // side-by-side
+} mjtStereo;
+
+
+struct _mjvPerturb                  // object selection and perturbation
+{
+    int      select;                // selected body id; non-positive: none
+    int      skinselect;            // selected skin id; negative: none
+    int      active;                // perturbation bitmask (mjtPertBit)
+    int      active2;               // secondary perturbation bitmask (mjtPertBit)
+    mjtNum   refpos[3];             // desired position for selected object
+    mjtNum   refquat[4];            // desired orientation for selected object
+    mjtNum   localpos[3];           // selection point in object coordinates
+    mjtNum   scale;                 // relative mouse motion-to-space scaling (set by initPerturb)
+};
+typedef struct _mjvPerturb mjvPerturb;
+
+
+struct _mjvCamera                   // abstract camera
+{
+    // type and ids
+    int      type;                  // camera type (mjtCamera)
+    int      fixedcamid;            // fixed camera id
+    int      trackbodyid;           // body id to track
+
+    // abstract camera pose specification
+    mjtNum   lookat[3];             // lookat point
+    mjtNum   distance;              // distance to lookat point or tracked body
+    mjtNum   azimuth;               // camera azimuth (deg)
+    mjtNum   elevation;             // camera elevation (deg)
+};
+typedef struct _mjvCamera mjvCamera;
+
+
+struct _mjvGLCamera                 // OpenGL camera
+{
+    // camera frame
+    float    pos[3];                // position
+    float    forward[3];            // forward direction
+    float    up[3];                 // up direction
+
+    // camera projection
+    float    frustum_center;        // hor. center (left,right set to match aspect)
+    float    frustum_bottom;        // bottom
+    float    frustum_top;           // top
+    float    frustum_near;          // near
+    float    frustum_far;           // far
+};
+typedef struct _mjvGLCamera mjvGLCamera;
+
+
+struct _mjvGeom                     // abstract geom
+{
+    // type info
+    int      type;                  // geom type (mjtGeom)
+    int      dataid;                // mesh, hfield or plane id; -1: none
+    int      objtype;               // mujoco object type; mjOBJ_UNKNOWN for decor
+    int      objid;                 // mujoco object id; -1 for decor
+    int      category;              // visual category
+    int      texid;                 // texture id; -1: no texture
+    int      texuniform;            // uniform cube mapping
+    int      texcoord;              // mesh geom has texture coordinates
+    int      segid;                 // segmentation id; -1: not shown
+
+    // OpenGL info
+    float    texrepeat[2];          // texture repetition for 2D mapping
+    float    size[3];               // size parameters
+    float    pos[3];                // Cartesian position
+    float    mat[9];                // Cartesian orientation
+    float    rgba[4];               // color and transparency
+    float    emission;              // emission coef
+    float    specular;              // specular coef
+    float    shininess;             // shininess coef
+    float    reflectance;           // reflectance coef
+    char     label[100];            // text label
+
+    // transparency rendering (set internally)
+    float    camdist;               // distance to camera (used by sorter)
+    float    modelrbound;           // geom rbound from model, 0 if not model geom
+    mjtByte  transparent;           // treat geom as transparent
+};
+typedef struct _mjvGeom mjvGeom;
+
+
+struct _mjvLight                    // OpenGL light
+{
+    float    pos[3];                // position rel. to body frame
+    float    dir[3];                // direction rel. to body frame
+    float    attenuation[3];        // OpenGL attenuation (quadratic model)
+    float    cutoff;                // OpenGL cutoff
+    float    exponent;              // OpenGL exponent
+    float    ambient[3];            // ambient rgb (alpha=1)
+    float    diffuse[3];            // diffuse rgb (alpha=1)
+    float    specular[3];           // specular rgb (alpha=1)
+    mjtByte  headlight;             // headlight
+    mjtByte  directional;           // directional light
+    mjtByte  castshadow;            // does light cast shadows
+};
+typedef struct _mjvLight mjvLight;
+
+
+struct _mjvOption                   // abstract visualization options
+{
+    int      label;                 // what objects to label (mjtLabel)
+    int      frame;                 // which frame to show (mjtFrame)
+    mjtByte  geomgroup[mjNGROUP];   // geom visualization by group
+    mjtByte  sitegroup[mjNGROUP];   // site visualization by group
+    mjtByte  jointgroup[mjNGROUP];  // joint visualization by group
+    mjtByte  tendongroup[mjNGROUP];    // tendon visualization by group
+    mjtByte  actuatorgroup[mjNGROUP];  // actuator visualization by group
+    mjtByte  flags[mjNVISFLAG];     // visualization flags (indexed by mjtVisFlag)
+};
+typedef struct _mjvOption mjvOption;
+
+
+struct _mjvScene                    // abstract scene passed to OpenGL renderer
+{
+    // abstract geoms
+    int      maxgeom;               // size of allocated geom buffer
+    int      ngeom;                 // number of geoms currently in buffer
+    mjvGeom* geoms;                 // buffer for geoms
+    int*     geomorder;             // buffer for ordering geoms by distance to camera
+
+    // skin data
+    int      nskin;                 // number of skins
+    int*     skinfacenum;           // number of faces in skin
+    int*     skinvertadr;           // address of skin vertices
+    int*     skinvertnum;           // number of vertices in skin
+    float*   skinvert;              // skin vertex data
+    float*   skinnormal;            // skin normal data
+
+    // OpenGL lights
+    int      nlight;                // number of lights currently in buffer
+    mjvLight lights[8];             // buffer for lights
+
+    // OpenGL cameras
+    mjvGLCamera camera[2];          // left and right camera
+
+    // OpenGL model transformation
+    mjtByte  enabletransform;       // enable model transformation
+    float    translate[3];          // model translation
+    float    rotate[4];             // model quaternion rotation
+    float    scale;                 // model scaling
+
+    // OpenGL rendering effects
+    int      stereo;                // stereoscopic rendering (mjtStereo)
+    mjtByte  flags[mjNRNDFLAG];     // rendering flags (indexed by mjtRndFlag)
+
+    // framing
+    int      framewidth;            // frame pixel width; 0: disable framing
+    float    framergb[3];           // frame color
+};
+typedef struct _mjvScene mjvScene;
+
+
+struct _mjvFigure                   // abstract 2D figure passed to OpenGL renderer
+{
+    // enable flags
+    int     flg_legend;             // show legend
+    int     flg_ticklabel[2];       // show grid tick labels (x,y)
+    int     flg_extend;             // automatically extend axis ranges to fit data
+    int     flg_barplot;            // isolated line segments (i.e. GL_LINES)
+    int     flg_selection;          // vertical selection line
+    int     flg_symmetric;          // symmetric y-axis
+
+    // style settings
+    float   linewidth;              // line width
+    float   gridwidth;              // grid line width
+    int     gridsize[2];            // number of grid points in (x,y)
+    float   gridrgb[3];             // grid line rgb
+    float   figurergba[4];          // figure color and alpha
+    float   panergba[4];            // pane color and alpha
+    float   legendrgba[4];          // legend color and alpha
+    float   textrgb[3];             // text color
+    float   linergb[mjMAXLINE][3];  // line colors
+    float   range[2][2];            // axis ranges; (min>=max) automatic
+    char    xformat[20];            // x-tick label format for sprintf
+    char    yformat[20];            // y-tick label format for sprintf
+    char    minwidth[20];           // string used to determine min y-tick width
+
+    // text labels
+    char    title[1000];            // figure title; subplots separated with 2+ spaces
+    char    xlabel[100];            // x-axis label
+    char    linename[mjMAXLINE][100]; // line names for legend
+
+    // dynamic settings
+    int     legendoffset;           // number of lines to offset legend
+    int     subplot;                // selected subplot (for title rendering)
+    int     highlight[2];           // if point is in legend rect, highlight line
+    int     highlightid;            // if id>=0 and no point, highlight id
+    float   selection;              // selection line x-value
+
+    // line data
+    int     linepnt[mjMAXLINE];     // number of points in line; (0) disable
+    float   linedata[mjMAXLINE][2*mjMAXLINEPNT]; // line data (x,y)
+
+    // output from renderer
+    int     xaxispixel[2];          // range of x-axis in pixels
+    int     yaxispixel[2];          // range of y-axis in pixels
+    float   xaxisdata[2];           // range of x-axis in data units
+    float   yaxisdata[2];           // range of y-axis in data units
+};
+typedef struct _mjvFigure mjvFigure;
+
+#endif  // MUJOCO_MJVISUALIZE_H_
