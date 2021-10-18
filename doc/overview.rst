@@ -8,7 +8,7 @@ Introduction
 aims to facilitate research and development in robotics, biomechanics, graphics and animation, machine learning, and
 other areas that demand fast and accurate simulation of articulated structures interacting with their environment.
 Initially developed by Roboti LLC, it was acquired and made `freely available
-<https://www.github.com/deepmind/mujoco/LICENSE>`__ by DeepMind in October 2021, with the goal of making MuJoCo an
+<https://github.com/deepmind/mujoco/blob/main/LICENSE>`__ by DeepMind in October 2021, with the goal of making MuJoCo an
 open-source project. The MuJoCo codebase will be made available at the `deepmind/mujoco
 <https://github.com/deepmind/mujoco>`__ repository on GitHub.
 
