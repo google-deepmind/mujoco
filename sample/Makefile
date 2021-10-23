@@ -10,3 +10,12 @@ all:
 	gcc -c -O2 -mavx -I../include ../include/uitools.c
 	g++ $(COMMON) uitools.o simulate.cc -lmujoco210 -lGL -lglew ../bin/libglfw.so.3 -o ../bin/simulate
 	rm *.o
+
+clean:
+	rm -rf ../bin
+	
+.PHONY: help
+help:
+	@echo "Available Targets:"
+	@echo "... all"
+	@echo "... clean"
