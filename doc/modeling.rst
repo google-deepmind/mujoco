@@ -144,7 +144,7 @@ the model. We start with an example.
                <geom type="ellipsoid"/>
                <geom type="sphere" rgba="0 0 1 0"/>
                <geom type="cylinder" class="main"/>
-           </geom>
+           </body>
        </worldbody>
    </mujoco>
 
