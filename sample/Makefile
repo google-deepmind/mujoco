@@ -11,6 +11,7 @@ all:
 	g++ $(COMMON) uitools.o simulate.cc -lmujoco210 -lGL -lglew ../bin/libglfw.so.3 -o ../bin/simulate
 	rm *.o
 
+.PHONY: clean
 clean:
 	rm -rf ../bin
 	
