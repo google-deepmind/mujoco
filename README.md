@@ -61,6 +61,25 @@ necessarily in a simulation loop. Features include
 
 MuJoCo binaries are currently built for Linux, macOS (Intel), and Windows.
 
+## CMake-Integration (experimental)
+
+There's a `CMake` file provided that takes care of downloading the current built
+and configures the project such that some targets are exposed for easier `CMake`
+integration. The targets created are the following:
+
+* `mujoco::mujoco`: target configured for the `libmujoco210.so` library.
+* `mujoco::glfw`: target configured for the `libglfw.so.3` library (`glfw`
+  version that comes along the pre-built binaries).
+* `mujoco::glew`: target configured for the `libglew.so` library (`glew` version
+  that comes along the pre-built binaries).
+
+For integrating the library into your `CMake` workflow, just link against these
+targets, as shown in the example below (see bottom of `CMakeLists.txt`):
+
+```cmake
+# Link your target (e.g. ExampleApp) against the exposed mujoco targets
+target_link_libraries(ExampleApp PRIVATE mujoco::glew mujoco::glfw mujoco::mujoco)
+```
 
 ## Documentation
 
@@ -103,4 +122,3 @@ This is not an officially supported Google product.
 [GitHub Issues]: https://github.com/deepmind/mujoco/issues
 [documentation source files]: https://github.com/deepmind/mujoco/tree/main/doc
 [mujoco.org/book]: https://mujoco.org/book
-
