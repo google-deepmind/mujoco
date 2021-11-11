@@ -94,7 +94,7 @@ MJCF Mechanisms
 
 MJCF uses several mechanisms for model creation which span multiple model elements. To avoid repetition we describe them
 in detail only once in this section. These mechanisms do not correspond to new simulation concepts beyond those
-introduced in the Computation chapter. Their role is to simplify the creation of MJFC models, and to enable the use of
+introduced in the Computation chapter. Their role is to simplify the creation of MJCF models, and to enable the use of
 different data formats without need for manual conversion to a canonical format.
 
 .. _CTree:
@@ -189,7 +189,7 @@ Some attributes, such as body position in models defined in global coordinates, 
 This instructs the compiler to infer the corresponding value from other information, in this case the positions of the
 geoms attached to the body. The undefined state cannot be entered in the XML file. Therefore once an attribute is
 defined in a given class, it cannot be undefined in that class or in any of its child classes. So if the goal is to
-leave a certain attribute undefined in a given model element, in must be undefined in the active defaults class.
+leave a certain attribute undefined in a given model element, it must be undefined in the active defaults class.
 
 A final twist here are actuators. They are different because some of the actuator-related elements are actually
 shortcuts, and shortcuts interact with the defaults setting mechanism in a non-obvious way. This is explained in the
@@ -236,7 +236,7 @@ When this model is compiled and saved as MJCF (in local coordinates) the same fr
 The body position was set to the geom position (1 0 0), while the geom and inertial positions were set to (0 0 0)
 relative to the body.
 
-In principle the user always has a choice between local and global coordinates, but in practice this choice if viable
+In principle the user always has a choice between local and global coordinates, but in practice this choice is viable
 only when using geometric primitives rather than meshes. For meshes, the 3D vertex positions are expressed in either
 local and global coordinates depending on how the mesh was designed - effectively forcing the user to adopt the same
 convention for the entire model. The alternative would be to pre-process the mesh data outside MuJoCo so as to change
@@ -261,7 +261,7 @@ rotation, while the others are initialized in the special undefined state. Thus 
 specified by the user, the frame is not rotated.
 
 :at:`quat`: :at-val:`real(4), "1 0 0 0"`
-   If the quaternion is known, this is the preferred was to specify the frame orientation because it does not involve
+   If the quaternion is known, this is the preferred way to specify the frame orientation because it does not involve
    conversions. Instead it is normalized to unit length and copied into mjModel during compilation. When a model is
    saved as MJCF, all frame orientations are expressed as quaternions using this attribute.
 :at:`axisangle`: :at-val:`real(4), optional`
@@ -298,7 +298,7 @@ contact-related solver parameters at runtime, so as to experiment interactively 
 continuation methods for numerical optimization.
 
 Here we focus on a single scalar constraint. Using slightly different notation from the Computation chapter, let a1
-denote the acceleration, v the velocity, r the position or residual (defined as 0 in friction dimensions), b and k the
+denote the acceleration, v the velocity, r the position or residual (defined as 0 in friction dimensions), k and b the
 stiffness and damping of the virtual spring used to define the reference acceleration aref = -b*v - k*r. Let d be the
 constraint impedance, and a0 the acceleration in the absence of constraint force. Our earlier analysis revealed that
 the dynamics in constraint space are approximately
@@ -405,7 +405,7 @@ friction
    function always generates contact frames oriented in the same way - which we do not describe here but it can be seen
    in the visualizer. For individual geoms however, we do not know which other geoms they might collide with and what
    their geom types might be, so there is no way to know how the contact tangent plane will be oriented when specifying
-   an individual geom. This is why MuJoCo does now allow anisotropic friction in the individual geom specifications, but
+   an individual geom. This is why MuJoCo does not allow anisotropic friction in the individual geom specifications, but
    only in the explicit contact pair specifications.
 margin, gap
    The maximum of the two geom margins (or gaps respectively) is used. The geom priority is ignored here, because the
@@ -797,7 +797,7 @@ be 0. This effect can be approximated by scaling down the muscle force and also 
 Tendon wrapping is also more limited in MuJoCo. We allow spheres and infinite cylinders as wrapping objects, and
 require two wrapping objects to be separated by a fixed site in the tendon path. This is to avoid the need for
 iterative computations of tendon paths. As of MuJoCo 2.0 we also allow "side sites" to be placed inside the sphere or
-cylinder, which causes an inverse wrap: the tendon path is constrained to pass through the object instead of go around
+cylinder, which causes an inverse wrap: the tendon path is constrained to pass through the object instead of going around
 it. This can replace torus wrapping objects used in OpenSim to keep the tendon path within a given area. Overall,
 tendon wrapping is the most challenging part of converting an OpenSim model to a MuJoCo model, and requires some
 manual work. On the bright side, there is a small number of high-quality OpenSim models in use, so once they are
@@ -850,7 +850,7 @@ compiler.
 Composite objects are made up of regular MuJoCo bodies, which we call "element bodies" in this context. The element
 bodies are created as children of the body within which :el:`composite` appears; thus a composite object appears in
 the same place in the XML where a regular child body may have been defined. Each automatically-generated element body
-has a single geom attached to it, usually a sphere but could also be capsule or ellipsoid. Thus the composite object
+has a single geom attached to it, usually a sphere but could also be a capsule or an ellipsoid. Thus the composite object
 is essentially a particle system, however the particles can be constrained to move together in ways that simulate
 various flexible objects. The initial positions of the element bodies form a regular grid in 1D, 2D or 3D. They could
 all be children of the parent body (which can be the world or another regular body; composite objects cannot be
@@ -1046,7 +1046,7 @@ points to the outside, thus creating a thicker shell which is harder to penetrat
        </composite>
    </body>
 
-Cylinders and ellipsoids are created in the same was as boxes. The only difference is that the reference positions of
+Cylinders and ellipsoids are created in the same way as boxes. The only difference is that the reference positions of
 the element bodies (relative to the parent) are projected on a cylinder or ellipsoid, with size implied by the
 :at:`count` attribute. The automatic skin generator is aware of the smooth surfaces, and adjusts the skin normals
 accordingly. In the plots we have used the capsule probe to press on each body, then paused the simulation and moved the
@@ -1129,7 +1129,7 @@ modeled. This is why we have implemented support for URDF even though it can onl
 elements available in MuJoCo. In addition to standard URDF files, MuJoCo can load files that have a custom (from the
 viewpoint of URDF) :el:`mujoco` element as a child of the top-level element :el:`robot`. This custom element can have
 sub-elements :ref:`compiler <compiler>`, :ref:`option <option>`,
-:ref:`size <size>` with the same functionality as in MJFC, except that the default compiler settings
+:ref:`size <size>` with the same functionality as in MJCF, except that the default compiler settings
 are modified so as to accomodate the URDF modeling convention. The :ref:`compiler <compiler>` extension
 in particular has proven very useful, and indeed several of its attributes were introduced because a number of
 existing URDF models have non-physical dynamics parameters which MuJoCo's built-in compiler will reject if left
@@ -1300,7 +1300,7 @@ virtual objects cannot push on your physical hand, so your hand (and thereby the
 violate the simulated physics. But at the same time we want the resulting simulation to be reasonable. How do we do
 this?
 
-The first step is to define a mocap body in the MJCF model, and at implement code that reads the data stream at
+The first step is to define a mocap body in the MJCF model, and implement code that reads the data stream at
 runtime and sets mjModel.mocap_pos and mjModel.mocap_quat to the position and orientation received from the motion
 capture system. The `simulate.cc <https://github.com/deepmind/mujoco/blob/main/sample/simulate.cc>`_ code sample uses
 the mouse as a motion capture device, allowing the user to move mocap bodies around.
