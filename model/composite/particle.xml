@@ -14,20 +14,32 @@
 -->
 
 <mujoco model="Particle">
+<!-- Degree of Freedom: 3000
+     Actuators: 0
+-->
+  <include file="scene.xml"/>
 
-    <include file="scene.xml"/>
+  <option solver="CG" tolerance="1e-6" timestep=".01"/>
 
-    <option solver="CG" tolerance="1e-6"/>
+  <size nconmax="6000" njmax="6000" nstack="50000000"/>
 
-    <size nconmax="3000" njmax="3000" nstack="50000000"/>
+  <visual>
+    <map stiffness="100"/>
+  </visual>
 
-    <visual>
-        <map stiffness="100"/>
-    </visual>
+  <default>
+    <default class="wall">
+      <geom type="plane" size=".5 .5 .05"/>
+    </default>
+  </default>
 
-    <worldbody>
-        <composite type="particle" count="10 10 10" spacing="0.07" offset="0 0 1">
-            <geom size=".02" rgba=".8 .2 .1 1"/>
-        </composite>
-    </worldbody>
+  <worldbody>
+    <geom name="+x" class="wall" zaxis="1 0 0"  pos="-.5 0 -.25"/>
+    <geom name="-x" class="wall" zaxis="-1 0 0" pos=".5 0 -.25"/>
+    <geom name="+y" class="wall" zaxis="0 1 0"  pos="0 -.5 -.25"/>
+    <geom name="-y" class="wall" zaxis="0 -1 0" pos="0 .5 -.25"/>
+    <composite type="particle" count="10 10 10" spacing="0.07" offset="0 0 1">
+      <geom size=".025" rgba=".8 .2 .1 1"/>
+    </composite>
+  </worldbody>
 </mujoco>

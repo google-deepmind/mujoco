@@ -60,6 +60,12 @@ redirects = {
     'index': 'overview.html',
 }
 
+rst_prolog = """
+.. include:: includes/macros.rst
+.. include:: includes/roles.rst
+.. include:: <isonum.txt>
+"""
+
 # -- Options for autodoc -----------------------------------------------------
 
 autodoc_default_options = {

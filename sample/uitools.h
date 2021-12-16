@@ -16,14 +16,12 @@
 #define MUJOCO_UITOOLS_H_
 
 
+#include "GLFW/glfw3.h"
 #include "mujoco.h"
-#include "glfw3.h"
-
 
 // this is a C-API
 #if defined(__cplusplus)
-extern "C"
-{
+extern "C" {
 #endif
 
 
@@ -32,12 +30,11 @@ typedef void (*uiEventFn)(mjuiState* state);
 typedef void (*uiLayoutFn)(mjuiState* state);
 
 // Container for GLFW window pointer.
-struct _uiUserPointer
-{
-    mjuiState* state;
-    uiEventFn uiEvent;
-    uiLayoutFn uiLayout;
-    double buffer2window;
+struct _uiUserPointer {
+  mjuiState* state;
+  uiEventFn uiEvent;
+  uiLayoutFn uiLayout;
+  double buffer2window;
 };
 typedef struct _uiUserPointer uiUserPointer;
 

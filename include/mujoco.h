@@ -15,27 +15,16 @@
 #ifndef MUJOCO_MUJOCO_H_
 #define MUJOCO_MUJOCO_H_
 
-// cross-platform import
-#if defined(MJ_STATIC)
-    #define MJAPI
-#else
-    #if defined(_WIN32)
-        #define MJAPI __declspec(dllimport)
-    #else
-        #define MJAPI
-    #endif
-#endif
+#include "mujoco_export.h"
 
 
 // this is a C-API
 #if defined(__cplusplus)
-extern "C"
-{
+extern "C" {
 #endif
 
 // header version; should match the library version as returned by mj_version()
-#define mjVERSION_HEADER 210
-
+#define mjVERSION_HEADER 211
 
 // needed to define size_t, fabs and log10
 #include "stdlib.h"
@@ -89,7 +78,7 @@ MJAPI extern const char* mjVISSTRING[mjNVISFLAG][3];
 MJAPI extern const char* mjRNDSTRING[mjNRNDFLAG][3];
 
 
-//---------------------- Activation -----------------------------------------------------
+//---------------------------------- Activation ----------------------------------------------------
 
 // Return 1 (for backward compatibility).
 MJAPI int mj_activate(const char* filename);
@@ -98,7 +87,7 @@ MJAPI int mj_activate(const char* filename);
 MJAPI void mj_deactivate(void);
 
 
-//---------------------- Virtual file system --------------------------------------------
+//---------------------------------- Virtual file system -------------------------------------------
 
 // Initialize VFS to empty (no deallocation).
 MJAPI void mj_defaultVFS(mjVFS* vfs);
@@ -119,7 +108,7 @@ MJAPI int mj_deleteFileVFS(mjVFS* vfs, const char* filename);
 MJAPI void mj_deleteVFS(mjVFS* vfs);
 
 
-//---------------------- Parse and compile ----------------------------------------------
+//---------------------------------- Parse and compile ---------------------------------------------
 
 // Parse XML file in MJCF or URDF format, compile it, return low-level model.
 // If vfs is not NULL, look up files in vfs before reading from disk.
@@ -140,7 +129,7 @@ MJAPI int mj_printSchema(const char* filename, char* buffer, int buffer_sz,
                          int flg_html, int flg_pad);
 
 
-//---------------------- Main simulation ------------------------------------------------
+//---------------------------------- Main simulation -----------------------------------------------
 
 // Advance simulation, use control callback to obtain external force and control.
 MJAPI void mj_step(const mjModel* m, mjData* d);
@@ -166,7 +155,7 @@ MJAPI void mj_inverseSkip(const mjModel* m, mjData* d,
                           int skipstage, int skipsensor);
 
 
-//---------------------- Initialization -------------------------------------------------
+//---------------------------------- Initialization ------------------------------------------------
 
 // Set default options for length range computation.
 MJAPI void mj_defaultLROpt(mjLROpt* opt);
@@ -228,7 +217,12 @@ MJAPI int mj_setLengthRange(mjModel* m, mjData* d, int index,
                             const mjLROpt* opt, char* error, int error_sz);
 
 
-//---------------------- Printing -------------------------------------------------------
+//---------------------------------- Printing ------------------------------------------------------
+
+// Print mjModel to text file, specifying format.
+// float_format_str must be a valid printf-style format string for a single float value.
+MJAPI void mj_printFormattedModel(const mjModel* m, const char* filename,
+                                  const char* float_format_str);
 
 // Print model to text file.
 MJAPI void mj_printModel(const mjModel* m, const char* filename);
@@ -245,7 +239,7 @@ MJAPI void mju_printMatSparse(const mjtNum* mat, int nr,
                               const int* colind);
 
 
-//---------------------- Components -----------------------------------------------------
+//---------------------------------- Components ----------------------------------------------------
 
 // Run position-dependent computations.
 MJAPI void mj_fwdPosition(const mjModel* m, mjData* d);
@@ -281,7 +275,7 @@ MJAPI void mj_invConstraint(const mjModel* m, mjData* d);
 MJAPI void mj_compareFwdInv(const mjModel* m, mjData* d);
 
 
-//---------------------- Sub components -------------------------------------------------
+//---------------------------------- Sub components ------------------------------------------------
 
 // Evaluate position-dependent sensors.
 MJAPI void mj_sensorPos(const mjModel* m, mjData* d);
@@ -367,7 +361,7 @@ MJAPI void mj_constraintUpdate(const mjModel* m, mjData* d, const mjtNum* jar,
                                mjtNum* cost, int flg_coneHessian);
 
 
-//---------------------- Support --------------------------------------------------------
+//---------------------------------- Support -------------------------------------------------------
 
 // Add contact to d->contact list; return 0 if success; 1 if buffer full.
 MJAPI int mj_addContact(const mjModel* m, mjData* d, const mjContact* con);
@@ -473,8 +467,11 @@ MJAPI void mj_setTotalmass(mjModel* m, mjtNum newmass);
 // Return version number: 1.0.2 is encoded as 102.
 MJAPI int mj_version(void);
 
+// Return the current version of MuJoCo as a null-terminated string.
+MJAPI const char* mj_versionString();
 
-//---------------------- Ray collisions -------------------------------------------------
+
+//---------------------------------- Ray collisions ------------------------------------------------
 
 // Intersect ray (pnt+x*vec, x>=0) with visible geoms, except geoms in bodyexclude.
 // Return geomid and distance (x) to nearest surface, or -1 if no intersection.
@@ -500,7 +497,7 @@ MJAPI mjtNum mju_raySkin(int nface, int nvert, const int* face, const float* ver
                          const mjtNum* pnt, const mjtNum* vec, int* vertid);
 
 
-//---------------------- Interaction ----------------------------------------------------
+//---------------------------------- Interaction ---------------------------------------------------
 
 // Set default camera.
 MJAPI void mjv_defaultCamera(mjvCamera* cam);
@@ -563,7 +560,7 @@ MJAPI int mjv_select(const mjModel* m, const mjData* d, const mjvOption* vopt,
                      const mjvScene* scn, mjtNum* selpnt, int* geomid, int* skinid);
 
 
-//---------------------- Visualization --------------------------------------------------
+//---------------------------------- Visualization -------------------------------------------------
 
 // Set default visualization options.
 MJAPI void mjv_defaultOption(mjvOption* opt);
@@ -608,7 +605,7 @@ MJAPI void mjv_updateCamera(const mjModel* m, mjData* d, mjvCamera* cam, mjvScen
 MJAPI void mjv_updateSkin(const mjModel* m, mjData* d, mjvScene* scn);
 
 
-//---------------------- OpenGL rendering -----------------------------------------------
+//---------------------------------- OpenGL rendering ----------------------------------------------
 
 // Set default mjrContext.
 MJAPI void mjr_defaultContext(mjrContext* con);
@@ -680,7 +677,7 @@ MJAPI void mjr_rectangle(mjrRect viewport, float r, float g, float b, float a);
 // Draw rectangle with centered text.
 MJAPI void mjr_label(mjrRect viewport, int font, const char* txt,
                      float r, float g, float b, float a, float rt, float gt, float bt,
-				     const mjrContext* con);
+                     const mjrContext* con);
 
 // Draw 2D figure.
 MJAPI void mjr_figure(mjrRect viewport, mjvFigure* fig, const mjrContext* con);
@@ -698,7 +695,7 @@ MJAPI int mjr_getError(void);
 MJAPI int mjr_findRect(int x, int y, int nrect, const mjrRect* rect);
 
 
-//---------------------- UI framework ---------------------------------------------------
+//---------------------------------- UI framework --------------------------------------------------
 
 // Get builtin UI theme spacing (ind: 0-1).
 MJAPI mjuiThemeSpacing mjui_themeSpacing(int ind);
@@ -726,7 +723,7 @@ MJAPI mjuiItem* mjui_event(mjUI* ui, mjuiState* state, const mjrContext* con);
 MJAPI void mjui_render(mjUI* ui, const mjuiState* state, const mjrContext* con);
 
 
-//---------------------- Error and memory -----------------------------------------------
+//---------------------------------- Error and memory ----------------------------------------------
 
 // Main error function; does not return to caller.
 MJAPI void mju_error(const char* msg);
@@ -762,48 +759,48 @@ MJAPI void mj_warning(mjData* d, int warning, int info);
 MJAPI void mju_writeLog(const char* type, const char* msg);
 
 
-//---------------------- Standard math --------------------------------------------------
+//---------------------------------- Standard math -------------------------------------------------
 
 #define mjMAX(a,b) (((a) > (b)) ? (a) : (b))
 #define mjMIN(a,b) (((a) < (b)) ? (a) : (b))
 
 #ifdef mjUSEDOUBLE
-    #define mju_sqrt    sqrt
-    #define mju_exp     exp
-    #define mju_sin     sin
-    #define mju_cos     cos
-    #define mju_tan     tan
-    #define mju_asin    asin
-    #define mju_acos    acos
-    #define mju_atan2   atan2
-    #define mju_tanh    tanh
-    #define mju_pow     pow
-    #define mju_abs     fabs
-    #define mju_log     log
-    #define mju_log10   log10
-    #define mju_floor   floor
-    #define mju_ceil    ceil
+#define mju_sqrt    sqrt
+#define mju_exp     exp
+#define mju_sin     sin
+#define mju_cos     cos
+#define mju_tan     tan
+#define mju_asin    asin
+#define mju_acos    acos
+#define mju_atan2   atan2
+#define mju_tanh    tanh
+#define mju_pow     pow
+#define mju_abs     fabs
+#define mju_log     log
+#define mju_log10   log10
+#define mju_floor   floor
+#define mju_ceil    ceil
 
 #else
-    #define mju_sqrt    sqrtf
-    #define mju_exp     expf
-    #define mju_sin     sinf
-    #define mju_cos     cosf
-    #define mju_tan     tanf
-    #define mju_asin    asinf
-    #define mju_acos    acosf
-    #define mju_atan2   atan2f
-    #define mju_tanh    tanhf
-    #define mju_pow     powf
-    #define mju_abs     fabsf
-    #define mju_log     logf
-    #define mju_log10   log10f
-    #define mju_floor   floorf
-    #define mju_ceil    ceilf
+#define mju_sqrt    sqrtf
+#define mju_exp     expf
+#define mju_sin     sinf
+#define mju_cos     cosf
+#define mju_tan     tanf
+#define mju_asin    asinf
+#define mju_acos    acosf
+#define mju_atan2   atan2f
+#define mju_tanh    tanhf
+#define mju_pow     powf
+#define mju_abs     fabsf
+#define mju_log     logf
+#define mju_log10   log10f
+#define mju_floor   floorf
+#define mju_ceil    ceilf
 #endif
 
 
-//------------------------------ Vector math --------------------------------------------
+//---------------------------------- Vector math ---------------------------------------------------
 
 // Set res = 0.
 MJAPI void mju_zero3(mjtNum res[3]);
@@ -940,7 +937,7 @@ MJAPI void mju_transformSpatial(mjtNum res[6], const mjtNum vec[6], int flg_forc
                                 const mjtNum rotnew2old[9]);
 
 
-//---------------------- Quaternions ----------------------------------------------------
+//---------------------------------- Quaternions ---------------------------------------------------
 
 // Rotate vector by quaternion.
 MJAPI void mju_rotVecQuat(mjtNum res[3], const mjtNum vec[3], const mjtNum quat[4]);
@@ -979,7 +976,7 @@ MJAPI void mju_quatIntegrate(mjtNum quat[4], const mjtNum vel[3], mjtNum scale);
 MJAPI void mju_quatZ2Vec(mjtNum quat[4], const mjtNum vec[3]);
 
 
-//---------------------- Poses ----------------------------------------------------------
+//---------------------------------- Poses ---------------------------------------------------------
 
 // Multiply two poses.
 MJAPI void mju_mulPose(mjtNum posres[3], mjtNum quatres[4],
@@ -995,7 +992,7 @@ MJAPI void mju_trnVecPose(mjtNum res[3], const mjtNum pos[3], const mjtNum quat[
                           const mjtNum vec[3]);
 
 
-//---------------------- Decompositions --------------------------------------------------
+//--------------------------------- Decompositions -------------------------------------------------
 
 // Cholesky decomposition: mat = L*L'; return rank.
 MJAPI int mju_cholFactor(mjtNum* mat, int n, mjtNum mindiag);

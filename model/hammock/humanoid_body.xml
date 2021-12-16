@@ -1,11 +1,8 @@
 <!-- Copyright 2021 DeepMind Technologies Limited
-
      Licensed under the Apache License, Version 2.0 (the "License");
      you may not use this file except in compliance with the License.
      You may obtain a copy of the License at
-
          http://www.apache.org/licenses/LICENSE-2.0
-
      Unless required by applicable law or agreed to in writing, software
      distributed under the License is distributed on an "AS IS" BASIS,
      WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -13,7 +10,7 @@
      limitations under the License.
 -->
 
-<mujoco model="Humanoid">
+<mujoco model="Humanoid body">
 <!-- Degree of Freedom: 27
      Actuators: 21
 
@@ -24,7 +21,6 @@
            https://doi.org/10.1109/IROS.2012.6386025
      [2] DeepMind Control Suite, Tassa et al. https://arxiv.org/abs/1801.00690
 -->
-  <option timestep="0.005"/>
 
   <asset>
     <texture type="skybox" builtin="gradient" rgb1=".3 .5 .7" rgb2="0 0 0" width="512" height="512"/>
@@ -57,11 +53,7 @@
   </visual>
 
   <worldbody>
-    <geom name="floor" size="0 0 .05" type="plane" material="grid" condim="3"/>
-    <light name="spotlight" mode="targetbodycom" target="torso"
-           diffuse=".8 .8 .8" specular="0.3 0.3 0.3" pos="0 -20 4" cutoff="10"/>
     <body name="torso" pos="0 0 1.5" childclass="body">
-      <light name="top" pos="0 0 2" mode="trackcom"/>
       <camera name="back" pos="-3 0 1" xyaxes="0 -1 0 1 0 2" mode="trackcom"/>
       <camera name="side" pos="0 -3 1" xyaxes="1 0 0 0 1 2" mode="trackcom"/>
       <freejoint name="root"/>

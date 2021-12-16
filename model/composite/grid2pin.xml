@@ -14,17 +14,16 @@
 -->
 
 <mujoco model="2D grid with pins">
+  <include file="scene.xml"/>
 
-    <include file="scene.xml"/>
+  <size nconmax="200" njmax="1000" nstack="1000000"/>
 
-    <size nconmax="200" njmax="1000" nstack="1000000"/>
-
-    <worldbody>
-        <composite type="grid" count="9 9 1" spacing="0.05" offset="0 0 1">
-            <skin rgba=".6 .1 .6 1" inflate="0.001" subgrid="3"/>
-            <pin coord="0 0"/>
-            <pin coord="8 0"/>
-            <geom size=".02"/>
-        </composite>
-    </worldbody>
+  <worldbody>
+    <composite type="grid" count="9 9 1" spacing="0.05" offset="0 0 1">
+      <skin rgba=".6 .1 .6 1" inflate="0.001" subgrid="3"/>
+      <pin coord="0 0"/>
+      <pin coord="8 0"/>
+      <geom size=".02"/>
+    </composite>
+  </worldbody>
 </mujoco>

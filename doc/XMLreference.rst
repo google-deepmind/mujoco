@@ -1,7 +1,3 @@
-
-.. include:: includes/macros.rst
-.. include:: includes/roles.rst
-
 =============
 XML Reference
 =============
@@ -1512,7 +1508,7 @@ any effect. The settings here are global and apply to the entire model.
    hull computation is the slowest operation performed by the compiler). However once model design is finished, this
    feature should be enabled, because the availability of convex hulls substantially speeds up collision detection with
    large meshes.
-:at:`userthread`: :at-val:`[false, true], "true"`
+:at:`usethread`: :at-val:`[false, true], "true"`
    If this attribute is "true", the model compiler will run in multi-threaded mode. Currently multi-threading is only
    used when computing the length ranges of actuators, but in the future additional compiler phases may be
    multi-threaded.

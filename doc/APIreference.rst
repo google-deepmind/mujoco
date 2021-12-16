@@ -1,7 +1,3 @@
-
-.. include:: includes/macros.rst
-.. include:: includes/roles.rst
-
 =============
 API Reference
 =============
@@ -3205,8 +3201,8 @@ Virtual file system
 | Virtual file system (VFS) functionality was introduced in MuJoCo 1.50. It enables the user to load all necessary files
   in memory, including MJB binary model files, XML files (MJCF, URDF and included files), STL meshes, PNGs for textures
   and height fields, and HF files in our custom height field format. Model and resource files in the VFS can also be
-  constructed programmatically (say using an XML library that writes to memory). Once all desired files are in the VFS,
-  the user can call :ref:`mj_loadModel` or :ref:`mj_loadXML` with a pointer to the VFS. When
+  constructed programmatically (say using a Python library that writes to memory). Once all desired files are in the
+  VFS, the user can call :ref:`mj_loadModel` or :ref:`mj_loadXML` with a pointer to the VFS. When
   this pointer is not NULL, the loaders will first check the VFS for any file they are about to load, and only access
   the disk if the file is not found in the VFS. The file names stored in the VFS have their name and extension but the
   path information is stripped; this can be bypassed however by using a custom path symbol in the file names, say
@@ -5254,7 +5250,7 @@ mjui_add
 Add definitions to UI.
 
 mjui_addToSection
-~~~~~~~~
+~~~~~~~~~~~~~~~~~
 
 .. code-block:: C
 
@@ -6426,7 +6422,7 @@ Insertion sort, resulting list is in increasing order.
 .. _mju_insertionSortInt:
 
 mju_insertionSortInt
-~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~
 
 .. code-block:: C
 

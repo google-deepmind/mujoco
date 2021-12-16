@@ -1,7 +1,3 @@
-
-.. include:: includes/macros.rst
-.. include:: includes/roles.rst
-
 ===========
 Programming
 ===========

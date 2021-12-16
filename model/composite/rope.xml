@@ -14,20 +14,19 @@
 -->
 
 <mujoco model="Rope">
+  <include file="scene.xml"/>
 
-    <include file="scene.xml"/>
+  <option timestep="0.002" jacobian="dense"/>
 
-    <option timestep="0.002" jacobian="dense"/>
+  <size nconmax="100" njmax="300" nstack="50000"/>
 
-    <size nconmax="100" njmax="300" nstack="50000"/>
-
-    <worldbody>
-        <body name="B10" pos="0 0 1">
-            <freejoint/>
-            <composite type="rope" count="21 1 1" spacing="0.04" offset="0 0 2">
-                <joint kind="main" damping="0.005"/>
-                <geom type="capsule" size=".01 .015" rgba=".8 .2 .1 1"/>
-            </composite>
-        </body>
-    </worldbody>
+  <worldbody>
+    <body name="B10" pos="0 0 1">
+      <freejoint/>
+      <composite type="rope" count="21 1 1" spacing="0.04" offset="0 0 2">
+        <joint kind="main" damping="0.005"/>
+        <geom type="capsule" size=".01 .015" rgba=".8 .2 .1 1"/>
+      </composite>
+    </body>
+  </worldbody>
 </mujoco>

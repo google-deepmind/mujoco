@@ -14,23 +14,22 @@
 -->
 
 <mujoco model="Cloth">
+  <include file="scene.xml"/>
 
-    <include file="scene.xml"/>
+  <option timestep="0.002" solver="CG" tolerance="1e-6"/>
 
-    <option timestep="0.002" solver="CG" tolerance="1e-6"/>
+  <size nconmax="300" njmax="1000" nstack="1000000"/>
 
-    <size nconmax="300" njmax="1000" nstack="1000000"/>
+  <worldbody>
 
-    <worldbody>
+    <body name="B3_5" pos="0 0 1">
+      <freejoint/>
+      <composite type="cloth" count="9 9 1" spacing="0.05" flatinertia="0.01">
+        <joint kind="main" damping="0.001"/>
+        <skin material="matcarpet" texcoord="true" inflate="0.005" subgrid="2"/>
+        <geom type="capsule" size="0.015 0.01" rgba=".8 .2 .1 1"/>
+      </composite>
+    </body>
 
-        <body name="B3_5" pos="0 0 1">
-            <freejoint/>
-            <composite type="cloth" count="9 9 1" spacing="0.05" flatinertia="0.01">
-                <joint kind="main" damping="0.001"/>
-                <skin material="matcarpet" texcoord="true" inflate="0.005" subgrid="2"/>
-                <geom type="capsule" size="0.015 0.01" rgba=".8 .2 .1 1"/>
-            </composite>
-        </body>
-
-    </worldbody>
+  </worldbody>
 </mujoco>

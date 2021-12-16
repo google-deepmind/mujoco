@@ -18,7 +18,7 @@
 //-------------------------------- mjOption ---------------------------------------------
 
 // scalar fields of mjOption
-#define MJOPTION_SCALARS          \
+#define MJOPTION_FLOATS           \
     X( mjtNum,  timestep        ) \
     X( mjtNum,  apirate         ) \
     X( mjtNum,  impratio        ) \
@@ -28,6 +28,9 @@
     X( mjtNum,  density         ) \
     X( mjtNum,  viscosity       ) \
     X( mjtNum,  o_margin        ) \
+
+
+#define MJOPTION_INTS             \
     X( int,     integrator      ) \
     X( int,     collision       ) \
     X( int,     cone            ) \
@@ -38,6 +41,11 @@
     X( int,     mpr_iterations  ) \
     X( int,     disableflags    ) \
     X( int,     enableflags     )
+
+
+#define MJOPTION_SCALARS          \
+    MJOPTION_FLOATS               \
+    MJOPTION_INTS
 
 
 // vector fields of mjOption
@@ -111,6 +119,23 @@
     X( nuserdata )          \
     X( nsensordata )        \
     X( nbuffer )
+
+
+// define symbols needed in MJMODEL_POINTERS (corresponding to number of columns)
+#define MJMODEL_POINTERS_PREAMBLE( m ) \
+    int nuser_body = m->nuser_body; \
+    int nuser_jnt = m->nuser_jnt; \
+    int nuser_geom = m->nuser_geom; \
+    int nuser_site = m->nuser_site; \
+    int nuser_cam = m->nuser_cam; \
+    int nuser_tendon = m->nuser_tendon; \
+    int nuser_actuator = m->nuser_actuator; \
+    int nuser_sensor = m->nuser_sensor; \
+    int nq = m->nq; \
+    int nv = m->nv; \
+    int na = m->na; \
+    int nmocap3 = 3*m->nmocap; \
+    int nmocap4 = 4*m->nmocap;
 
 
 // pointer fields of mjModel
@@ -385,6 +410,12 @@
 
 
 //-------------------------------- mjData -----------------------------------------------
+
+
+// define symbols needed in MJDATA_POINTERS (corresponding to number of columns)
+#define MJDATA_POINTERS_PREAMBLE( m ) \
+    int nv = m->nv; \
+    int njmax = m->njmax;
 
 // pointer fields of mjData
 #define MJDATA_POINTERS                                   \
