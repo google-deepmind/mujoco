@@ -635,18 +635,16 @@ void watch(void) {
   MJDATA_POINTERS_PREAMBLE(m);
 
   // find specified field in mjData arrays, update value
-  #define X(TYPE, NAME, NR, NC)                                               \
-          if( !mju::strcmp_arr(#NAME, settings.field) &&                      \
-              !mju::strcmp_arr(#TYPE, "mjtNum") )                             \
-          {                                                                   \
-              if( settings.index>=0 && settings.index<m->NR*NC )              \
-                  printfield(ui0.sect[SECT_WATCH].item[2].multi.name[0],      \
-                             d->NAME + settings.index);                       \
-              else                                                            \
-                  mju::strcpy_arr(ui0.sect[SECT_WATCH].item[2].multi.name[0], \
-                         "invalid index");                                    \
-              return;                                                         \
-          }
+  #define X(TYPE, NAME, NR, NC)                                                             \
+    if (!mju::strcmp_arr(#NAME, settings.field) &&                                          \
+        !mju::strcmp_arr(#TYPE, "mjtNum")) {                                                \
+      if (settings.index>=0 && settings.index<m->NR*NC) {                                   \
+        printfield(ui0.sect[SECT_WATCH].item[2].multi.name[0], d->NAME + settings.index);   \
+      } else {                                                                              \
+        mju::strcpy_arr(ui0.sect[SECT_WATCH].item[2].multi.name[0], "invalid index");       \
+      }                                                                                     \
+      return;                                                                               \
+    }
 
     MJDATA_POINTERS
   #undef X
@@ -654,7 +652,7 @@ void watch(void) {
 
 
 
-//-------------------------------- UI construction --------------------------------------
+//---------------------------------- UI construction -----------------------------------------------
 
 // make physics section of UI
 void makephysics(int oldstate) {

@@ -22,10 +22,9 @@
 #if defined(_OPENMP)
   #include <omp.h>
 #else
-// omp timer replacement
+  // omp timer replacement
   #include <chrono>
-  double omp_get_wtime(void)
-  {
+  double omp_get_wtime(void) {
     static std::chrono::system_clock::time_point _start = std::chrono::system_clock::now();
     std::chrono::duration<double> elapsed = std::chrono::system_clock::now() - _start;
     return elapsed.count();
@@ -34,8 +33,7 @@
   // omp functions used below
   void omp_set_dynamic(int) {}
   void omp_set_num_threads(int) {}
-  int omp_get_num_procs(void)
-  {
+  int omp_get_num_procs(void) {
     return 1;
   }
 #endif

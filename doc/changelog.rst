@@ -24,7 +24,7 @@ General
 
 4. Safer string handling: replaced ``strcat``, ``strcpy``, and ``sprintf`` with ``strncat``, ``strncpy``, and
    ``snprintf`` respectively.
-#. Changed indentation from 4 spaces to 2 spaces everywhere.
+#. Changed indentation from 4 spaces to 2 spaces, K&R bracing style, added braces to one-line conditionals.
 
 Bug Fixes
 ^^^^^^^^^
@@ -40,7 +40,7 @@ Bug Fixes
       This is a minor breaking change. Simulation of a model with automatically-computed capsule inertias will be
       numerically different, leading to, for example, breakage of golden-value tests.
 #. Fixed bug related to :ref:`force <sensor-force>` and :ref:`torque <sensor-torque>` sensors. Until this change, forces
-   torques reported by F/T sensors ignored out-of-tree constraint wrenches except those produced by contacts. Force and
+   and torques reported by F/T sensors ignored out-of-tree constraint wrenches except those produced by contacts. Force
    and torque sensors now correctly take into account the effects of :ref:`connect <equality-connect>` and
    :ref:`weld <equality-weld>` constraints.
 

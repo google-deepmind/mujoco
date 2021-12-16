@@ -765,38 +765,38 @@ MJAPI void mju_writeLog(const char* type, const char* msg);
 #define mjMIN(a,b) (((a) < (b)) ? (a) : (b))
 
 #ifdef mjUSEDOUBLE
-#define mju_sqrt    sqrt
-#define mju_exp     exp
-#define mju_sin     sin
-#define mju_cos     cos
-#define mju_tan     tan
-#define mju_asin    asin
-#define mju_acos    acos
-#define mju_atan2   atan2
-#define mju_tanh    tanh
-#define mju_pow     pow
-#define mju_abs     fabs
-#define mju_log     log
-#define mju_log10   log10
-#define mju_floor   floor
-#define mju_ceil    ceil
+  #define mju_sqrt    sqrt
+  #define mju_exp     exp
+  #define mju_sin     sin
+  #define mju_cos     cos
+  #define mju_tan     tan
+  #define mju_asin    asin
+  #define mju_acos    acos
+  #define mju_atan2   atan2
+  #define mju_tanh    tanh
+  #define mju_pow     pow
+  #define mju_abs     fabs
+  #define mju_log     log
+  #define mju_log10   log10
+  #define mju_floor   floor
+  #define mju_ceil    ceil
 
 #else
-#define mju_sqrt    sqrtf
-#define mju_exp     expf
-#define mju_sin     sinf
-#define mju_cos     cosf
-#define mju_tan     tanf
-#define mju_asin    asinf
-#define mju_acos    acosf
-#define mju_atan2   atan2f
-#define mju_tanh    tanhf
-#define mju_pow     powf
-#define mju_abs     fabsf
-#define mju_log     logf
-#define mju_log10   log10f
-#define mju_floor   floorf
-#define mju_ceil    ceilf
+  #define mju_sqrt    sqrtf
+  #define mju_exp     expf
+  #define mju_sin     sinf
+  #define mju_cos     cosf
+  #define mju_tan     tanf
+  #define mju_asin    asinf
+  #define mju_acos    acosf
+  #define mju_atan2   atan2f
+  #define mju_tanh    tanhf
+  #define mju_pow     powf
+  #define mju_abs     fabsf
+  #define mju_log     logf
+  #define mju_log10   log10f
+  #define mju_floor   floorf
+  #define mju_ceil    ceilf
 #endif
 
 
