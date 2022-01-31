@@ -197,8 +197,6 @@ The built-in OpenGL visualizer renders this model as:
 If this model is simulated, the box will fall on the ground. Basic simulation code for the passive dynamics, without
 rendering, is given below.
 
-`hello.c <_static/hello.c>`__:
-
 .. code:: c
 
    #include "mujoco.h"

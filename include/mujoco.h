@@ -440,7 +440,7 @@ MJAPI void mj_objectVelocity(const mjModel* m, const mjData* d,
 MJAPI void mj_objectAcceleration(const mjModel* m, const mjData* d,
                                  int objtype, int objid, mjtNum* res, int flg_local);
 
-// Extract 6D force:torque for one contact, in contact frame.
+// Extract 6D force:torque given contact id, in the contact frame.
 MJAPI void mj_contactForce(const mjModel* m, const mjData* d, int id, mjtNum* result);
 
 // Compute velocity by finite-differencing two positions.

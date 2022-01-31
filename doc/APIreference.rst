@@ -3142,7 +3142,7 @@ Numeric constants
 +------------------+--------+----------------------------------------------------------------------------------------+
 | mjMAXUIRECT      | 15     | Maximum number of UI rectangles. Defined in mjui.h.                                    |
 +------------------+--------+----------------------------------------------------------------------------------------+
-| mjVERSION_HEADER | 210    | The version of the MuJoCo headers; changes with every release. This is an integer      |
+| mjVERSION_HEADER | 211    | The version of the MuJoCo headers; changes with every release. This is an integer      |
 |                  |        | equal to 100x the software version, so 210 corresponds to version 2.1. Defined in      |
 |                  |        | mujoco.h. The API function :ref:`mj_version` returns a number with the same meaning    |
 |                  |        | but for the compiled library.                                                          |
@@ -3153,16 +3153,11 @@ Numeric constants
 API functions
 -------------
 
-| The main header `mujoco.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco.h>`_ exposes a very large number of functions. However the functions that
-  most users are likely to need are a small fraction. For example, simulate.cc which is as elaborate as a MuJoCo
-  application is likely to get, calls around 40 of these functions, while basic.cc calls around 20. The rest are
-  explosed just in case someone has a use for them. This includes us as users of MuJoCo - we do our own work with the
-  public library instead of relying on internal builds.
-
-| A drawback of this liberal function exposure policy is that documenting of all them properly is not realistic. Of
-  course we can always add documentation, and we encourage users to ask questions on the Forum about functions they
-  would like to use but do not find sufficiently documented. The documentation below contains the comments from the
-  header file, with some additional comments regarding groups of functions or commonly used functions.
+The main header `mujoco.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco.h>`_ exposes a very large number
+of functions. However the functions that most users are likely to need are a small fraction. For example,
+``simulate.cc`` which is as elaborate as a MuJoCo application is likely to get, calls around 40 of these functions,
+while basic.cc calls around 20. The rest are explosed just in case someone has a use for them. This includes us as users
+of MuJoCo -- we do our own work with the public library instead of relying on internal builds.
 
 .. _Activation:
 
@@ -3198,20 +3193,19 @@ Does nothing.
 Virtual file system
 ^^^^^^^^^^^^^^^^^^^
 
-| Virtual file system (VFS) functionality was introduced in MuJoCo 1.50. It enables the user to load all necessary files
-  in memory, including MJB binary model files, XML files (MJCF, URDF and included files), STL meshes, PNGs for textures
-  and height fields, and HF files in our custom height field format. Model and resource files in the VFS can also be
-  constructed programmatically (say using a Python library that writes to memory). Once all desired files are in the
-  VFS, the user can call :ref:`mj_loadModel` or :ref:`mj_loadXML` with a pointer to the VFS. When
-  this pointer is not NULL, the loaders will first check the VFS for any file they are about to load, and only access
-  the disk if the file is not found in the VFS. The file names stored in the VFS have their name and extension but the
-  path information is stripped; this can be bypassed however by using a custom path symbol in the file names, say
-  "mydir_myfile.xml".
+Virtual file system (VFS) functionality was introduced in MuJoCo 1.50. It enables the user to load all necessary files
+in memory, including MJB binary model files, XML files (MJCF, URDF and included files), STL meshes, PNGs for textures
+and height fields, and HF files in our custom height field format. Model and resource files in the VFS can also be
+constructed programmatically (say using a Python library that writes to memory). Once all desired files are in the VFS,
+the user can call :ref:`mj_loadModel` or :ref:`mj_loadXML` with a pointer to the VFS. When this pointer is not NULL, the
+loaders will first check the VFS for any file they are about to load, and only access the disk if the file is not found
+in the VFS. The file names stored in the VFS have their name and extension but the path information is stripped; this
+can be bypassed however by using a custom path symbol in the file names, say "mydir_myfile.xml".
 
-| The entire VFS is contained in the data structure :ref:`mjVFS`. All utility functions for maintaining the VFS
-  operate on this data structure. The common usage pattern is to first clear it with mj_defaultVFS, then add disk files
-  to it with mj_addFileVFS (which allocates memory buffers and loads the file content in memory), then call mj_loadXML
-  or mj_loadModel, and then clear everything with mj_deleteVFS.
+The entire VFS is contained in the data structure :ref:`mjVFS`. All utility functions for maintaining the VFS operate on
+this data structure. The common usage pattern is to first clear it with mj_defaultVFS, then add disk files to it with
+mj_addFileVFS (which allocates memory buffers and loads the file content in memory), then call mj_loadXML or
+mj_loadModel, and then clear everything with mj_deleteVFS.
 
 .. _mj_defaultVFS:
 
@@ -3335,7 +3329,7 @@ mj_printSchema
    int mj_printSchema(const char* filename, char* buffer, int buffer_sz,
                       int flg_html, int flg_pad);
 
-Print internal XML schema as plain text or HTML, with style-padding or  .
+Print internal XML schema as plain text or HTML, with style-padding or ``&nbsp;``.
 
 .. _Mainsimulation:
 
@@ -3670,6 +3664,19 @@ Printing
 
 These functions can be used to print various quantities to the screen for debugging purposes.
 
+
+.. _mj_printFormattedModel:
+
+mj_printFormattedModel
+~~~~~~~~~~~~~~~~~~~~~~
+
+.. code-block:: C
+
+   void mj_printFormattedModel(const mjModel* m, const char* filename, const char* float_format_str);
+
+Print ``mjModel`` to text file, specifying format. ``float_format_str`` must be a valid printf-style format string for a
+single float value.
+
 .. _mj_printModel:
 
 mj_printModel
@@ -3940,6 +3947,8 @@ mj_checkAcc
    void mj_checkAcc(const mjModel* m, mjData* d);
 
 Check qacc, reset if any element is too big or nan.
+
+.. _mj_kinematics:
 
 mj_kinematics
 ~~~~~~~~~~~~~
@@ -4411,7 +4420,7 @@ mj_contactForce
 
    void mj_contactForce(const mjModel* m, const mjData* d, int id, mjtNum* result);
 
-Extract 6D force:torque for one contact, in contact frame.
+Extract 6D force:torque given contact id, in the contact frame.
 
 .. _mj_differentiatePos:
 
@@ -4498,6 +4507,17 @@ mj_version
 
 Return version number: 1.0.2 is encoded as 102.
 
+.. mj_versionString:
+
+mj_versionString
+~~~~~~~~~~~~~~~~
+
+.. code-block:: C
+
+   const char* mj_versionString();
+
+Return the current version of MuJoCo as a null-terminated string.
+
 .. _Raycollisions:
 
 Ray collisions
@@ -4508,6 +4528,9 @@ formulas to intersect a ray (p + x*v, x>=0) with a geom, where p is the origin o
 the direction. All functions in this family return the distance to the nearest geom surface, or -1 if there is no
 intersection. Note that if p is inside a geom, the ray will intersect the surface from the inside which still counts as
 an intersection.
+
+All ray collision functions rely on quantities computed by :ref:`mj_kinematics` (see :ref:`mjData`), so must be called
+after  :ref:`mj_kinematics`, or functions that call it (e.g. :ref:`mj_fwdPosition`).
 
 .. _mj_ray:
 
@@ -4521,8 +4544,12 @@ mj_ray
                  int* geomid);
 
 Intersect ray (pnt+x*vec, x>=0) with visible geoms, except geoms in bodyexclude. Return geomid and distance (x) to
-nearest surface, or -1 if no intersection. geomgroup, flg_static are as in mjvOption; geomgroup==NULL skips group
-exclusion.
+nearest surface, or -1 if no intersection.
+
+geomgroup is an array of length mjNGROUP, where 1 means the group should be included. Pass geomgroup=NULL to skip
+group exclusion.
+If flg_static is 0, static geoms will be excluded.
+bodyexclude=-1 can be used to indicate that all bodies are included.
 
 .. _mj_rayHfield:
 

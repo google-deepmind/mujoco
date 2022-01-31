@@ -492,8 +492,8 @@ model, i.e. a model that is softer than desired, so as to obtain more accurate d
 uitools
 ~~~~~~~
 
-`(uitools.h) <https://github.com/deepmind/mujoco/blob/main/include/uitools.h>`_
-`(uitools.c) <https://github.com/deepmind/mujoco/blob/main/include/uitools.c>`_
+`(uitools.h) <https://github.com/deepmind/mujoco/blob/main/sample/uitools.h>`_
+`(uitools.c) <https://github.com/deepmind/mujoco/blob/main/sample/uitools.c>`_
 This is not a stand-alone code sample, but rather a small utility used to hook up the new UI to GLFW. It is used in
 simulate.cc and can also be used in user projects that involve the new UI. If GLFW is replaced with a different window
 library, this is the only file that would have to be changed in order to access the UI functionality.

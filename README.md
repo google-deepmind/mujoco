@@ -103,4 +103,3 @@ This is not an officially supported Google product.
 [GitHub Issues]: https://github.com/deepmind/mujoco/issues
 [documentation source files]: https://github.com/deepmind/mujoco/tree/main/doc
 [mujoco.org/book]: https://mujoco.org/book
-

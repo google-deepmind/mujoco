@@ -1,0 +1,19 @@
+# Don't commit binaries
+*.a
+*.asm
+*.dll
+*.dylib
+*.exe
+*.lib
+*.out
+*.o
+*.so
+
+# Exclude editor config
+.vscode/
+.vs/
+
+# Exclude temporary folders
+*.egg-info/
+build/
+build_cmake/

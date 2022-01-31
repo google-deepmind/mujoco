@@ -13,7 +13,7 @@ API changes
 #. Added ``mj_versionString``, which returns human-readable string that represents the version of the MuJoCo binary.
 #. Converted leading underscores to trailing underscores in private instances of API struct definitions, to conform to
    reserved identifier directive, see
-   `C standard: Section 7.1.3 <www.open-std.org/jtc1/sc22/wg14/www/docs/n1570.pdf>`__.
+   `C standard: Section 7.1.3 <http://www.open-std.org/jtc1/sc22/wg14/www/docs/n1570.pdf>`__.
 
    .. attention::
       This is a minor breaking change. Code which references private instances will break. To fix, replace leading

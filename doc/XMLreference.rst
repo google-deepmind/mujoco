@@ -1892,9 +1892,7 @@ lower, this means that the GPU is over-loaded and the visualization should someh
    This attribute specifies the size of the square texture used for shadow mapping. Higher values result is smoother
    shadows. The size of the area over which a :ref:`light <light>` can cast shadows also affects smoothness, so these
    settings should be adjusted jointly. The default here is somewhat conservative. Most modern GPUs are able to handle
-   significantly larger textures without slowing down. The OSX version of MuJoCo does not presently render shadows,
-   because Apple does not support the necessary compatibility contexts. When MuJoCo detects that shadow mapping (or any
-   other advanced feature) is not supported by the video driver, it automatically disables that feature.
+   significantly larger textures without slowing down.
 :at:`offsamples`: :at-val:`int, "4"`
    This attribute specifies the number of multi-samples for offscreen rendering. Larger values produce better
    anti-aliasing but can slow down the GPU. Set this to 0 to disable multi-sampling. Note that this attribute only
@@ -3218,7 +3216,30 @@ mjModel. If the XML model is saved, it will appear as a regular joint of type "f
    of that type is fitted to the mesh. In that case the sizes are obtained from the mesh, and the geom size parameters
    are ignored. Thus the number and description of required size parameters in the table below only apply to geoms that
    do not reference meshes.
-   Type
+
+   +---------+--------+------------------------------------------------------------------------------------------------+
+   | Type    | Number | Description                                                                                    |
+   +=========+========+================================================================================================+
+   | plane   | 3      | X half-size; Y half-size; spacing between square grid lines for rendering. If either the X or Y|
+   |         |        | half-size is 0, the plane is rendered as infinite in the dimension(s) with 0 size.             |
+   +---------+--------+------------------------------------------------------------------------------------------------+
+   | hfield  | 0      | The geom sizes are ignored and the height field sizes are used instead.                        |
+   +---------+--------+------------------------------------------------------------------------------------------------+
+   | sphere  | 1      | Radius of the sphere.                                                                          |
+   +---------+--------+------------------------------------------------------------------------------------------------+
+   | capsule | 1 or 2 | Radius of the capsule; half-length of the cylinder part when not using the :at:`fromto`        |
+   |         |        | specification.                                                                                 |
+   +---------+--------+------------------------------------------------------------------------------------------------+
+   |ellipsoid| 1      | X radius; Y radius; Z radius.                                                                  |
+   +---------+--------+------------------------------------------------------------------------------------------------+
+   |cylinder | 1 or 2 | Radius of the cylinder; half-length of the cylinder when not using the :at:`fromto`            |
+   |         |        | specification.                                                                                 |
+   +---------+--------+------------------------------------------------------------------------------------------------+
+   | box     | 3      | X half-size; Y half-size; Z half-size.                                                         |
+   +---------+--------+------------------------------------------------------------------------------------------------+
+   | mesh    | 0      | The geom sizes are ignored and the mesh sizes are used instead.                                |
+   +---------+--------+------------------------------------------------------------------------------------------------+
+
 :at:`material`: :at-val:`string, optional`
    If specified, this attribute applies a material to the geom. The material determines the visual properties of the
    geom. The only exception is color: if the rgba attribute below is different from its internal default, it takes
