@@ -1,0 +1,16 @@
+{
+    "name": "Mujoco.Editor",
+    "rootNamespace": "",
+    "references": [
+        "Mujoco"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": true,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
