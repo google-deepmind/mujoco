@@ -43,12 +43,14 @@ public class MjGeomEditor : MjShapeComponentEditor {
       return;
     }
     var parent = new GameObject(geom.gameObject.name + " Body").transform;
+    parent.position = geom.transform.position;
     var root = geom.transform.root;
     if (root != geom.transform) {
       parent.parent = geom.transform.parent;
     }
     parent.gameObject.AddComponent<MjBody>();
     var joint = new GameObject("Free Joint").AddComponent<MjFreeJoint>();
+    joint.transform.position = geom.transform.position;
     joint.transform.parent = parent;
     geom.transform.parent = parent;
   }
