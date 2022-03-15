@@ -1505,6 +1505,7 @@ mjModel
        mjtNum*   geom_friction;        // friction for (slide, spin, roll)         (ngeom x 3)
        mjtNum*   geom_margin;          // detect contact if dist<margin            (ngeom x 1)
        mjtNum*   geom_gap;             // include in solver if dist<margin-gap     (ngeom x 1)
+       mjtNum*   geom_fluid;           // fluid interaction parameters             (ngeom x mjNFLUID)
        mjtNum*   geom_user;            // user data                                (ngeom x nuser_geom)
        float*    geom_rgba;            // rgba when material is omitted            (ngeom x 4)
 
@@ -3169,6 +3170,8 @@ Numeric constants
 +------------------+--------+----------------------------------------------------------------------------------------+
 | mjNBIAS          | 10     | The maximal number of real-valued parameters used to define the bias of each actuator. |
 |                  |        | Determines the size of mjModel.actuator_biasprm.                                       |
++------------------+--------+----------------------------------------------------------------------------------------+
+| mjNFLUID         | 12     | The number of per-geom fluid interaction parameters required by the ellipsoidal model. |
 +------------------+--------+----------------------------------------------------------------------------------------+
 | mjNREF           | 2      | The maximal number of real-valued parameters used to define the reference acceleration |
 |                  |        | of each scalar constraint. Determines the size of all mjModel.XXX_solref fields.       |

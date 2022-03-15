@@ -274,7 +274,7 @@ XML schema
 |                          |    |    +-------------------------+-------------------------+-------------------------+ |
 |                          |    |    | :at:`mesh`              | :at:`fitscale`          | :at:`rgba`              | |
 |                          |    |    +-------------------------+-------------------------+-------------------------+ |
-|                          |    |    | :at:`user`              |                         |                         | |
+|                          |    |    | :at:`user`              | :at:`fluidshape`        | :at:`fluidcoef`         | |
 |                          |    |    +-------------------------+-------------------------+-------------------------+ |
 +--------------------------+----+------------------------------------------------------------------------------------+
 | |_2|:el:`site`           | ?  | .. table::                                                                         |
@@ -608,6 +608,8 @@ XML schema
 |                          |    |    | :at:`euler`             | :at:`hfield`            | :at:`mesh`              | |
 |                          |    |    +-------------------------+-------------------------+-------------------------+ |
 |                          |    |    | :at:`fitscale`          | :at:`rgba`              | :at:`user`              | |
+|                          |    |    +-------------------------+-------------------------+-------------------------+ |
+|                          |    |    | :at:`fluidshape`        | :at:`fluidcoef`         |                         | |
 |                          |    |    +-------------------------+-------------------------+-------------------------+ |
 +--------------------------+----+------------------------------------------------------------------------------------+
 | |_2|:el:`site`           | \* | .. table::                                                                         |
@@ -3327,6 +3329,30 @@ mjModel. If the XML model is saved, it will appear as a regular joint of type "f
    This attribute is used only when a primitive geometric type is being fitted to a mesh asset. The scale specified here
    is relative to the output of the automated fitting procedure. The default value of 1 leaves the result unchanged, a
    value of 2 makes all sizes of the fitted geom two times larger.
+:at:`fluidshape`: :at-val:`[none, ellipsoid], "none"`
+   "ellipsoid" Activates geom-level stateless fluid interaction model based on an ellipsoidal approximation of the geom
+   shape. When active, the model based on :ref:`body inertia sizes <gePassive>` is disabled for the parent body.
+:at:`fluidcoef`: :at-val:`real(5), "0.5 0.25 1.5 1.0 1.0"`
+   Dimensionless coefficients of fluid interaction model, as follows.
+
+
+.. table::
+   :align: left
+
+   +--------+-----------------------------+----------+
+   | Index  | Description                 | Default  |
+   +========+=============================+==========+
+   | 0      | Blunt drag coefficient.     | 0.5      |
+   +--------+-----------------------------+----------+
+   | 1      | Slender drag coeficient.    | 0.25     |
+   +--------+-----------------------------+----------+
+   | 2      | Angular drag coefficient.   | 1.5      |
+   +--------+-----------------------------+----------+
+   | 3      | Kutta lift coeficient.      | 1.0      |
+   +--------+-----------------------------+----------+
+   | 4      | Magnus lift coeficient.     | 1.0      |
+   +--------+-----------------------------+----------+
+
 :at:`user`: :at-val:`real(nuser_geom), "0 0 ..."`
    See :ref:`CUser`.
 
