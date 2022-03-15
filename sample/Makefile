@@ -1,12 +1,16 @@
-COMMON=-O2 -I../include -L../bin -std=c++11 -mavx -pthread -Wl,-rpath,'$$ORIGIN'
+# This Makefile assumes that you have GLFW libraries and headers installed on,
+# which is commonly available through your distro's package manager.
+# On Debian and Ubuntu, GLFW can be installed via `apt install libglfw3-dev`.
+
+COMMON=-O2 -I../include -L../lib -std=c++11 -pthread -Wl,-rpath,'$$ORIGIN'/../lib
 
 all:
-	g++ $(COMMON) testxml.cc    -lmujoco210nogl                             -o ../bin/testxml
-	g++ $(COMMON) testspeed.cc  -lmujoco210nogl                             -o ../bin/testspeed
-	g++ $(COMMON) compile.cc    -lmujoco210nogl                             -o ../bin/compile
-	g++ $(COMMON) derivative.cc -lmujoco210nogl -fopenmp                    -o ../bin/derivative
-	g++ $(COMMON) basic.cc      -lmujoco210 -lGL -lglew ../bin/libglfw.so.3 -o ../bin/basic
-	g++ $(COMMON) record.cc     -lmujoco210 -lGL -lglew ../bin/libglfw.so.3 -o ../bin/record
-	gcc -c -O2 -mavx -I../include ../include/uitools.c
-	g++ $(COMMON) uitools.o simulate.cc -lmujoco210 -lGL -lglew ../bin/libglfw.so.3 -o ../bin/simulate
+	$(CXX) $(COMMON) testxml.cc    -lmujoco_nogl               -o ../bin/testxml
+	$(CXX) $(COMMON) testspeed.cc  -lmujoco_nogl               -o ../bin/testspeed
+	$(CXX) $(COMMON) compile.cc    -lmujoco_nogl               -o ../bin/compile
+	$(CXX) $(COMMON) derivative.cc -lmujoco_nogl -fopenmp      -o ../bin/derivative
+	$(CXX) $(COMMON) basic.cc      -lmujoco -lGL -lglew -lglfw -o ../bin/basic
+	$(CXX) $(COMMON) record.cc     -lmujoco -lGL -lglew -lglfw -o ../bin/record
+	$(CC) -c -O2 -I../include uitools.c
+	$(CXX) $(COMMON) uitools.o simulate.cc -lmujoco -lGL -lglew -lglfw -o ../bin/simulate
 	rm *.o

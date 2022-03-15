@@ -64,7 +64,7 @@ Tendon geometry
 General actuation model
    Designing a sufficiently rich actuation model while using a model-agnostic API is challenging. MuJoCo achieves this
    goal by adopting an abstract actuation model that can have different types of transmission, force generation, and
-   internal dynamics (i.e. state variables which make the overall dynamics 3rd order). These components can be
+   internal dynamics (i.e., state variables which make the overall dynamics 3rd order). These components can be
    instantiated so as to model motors, pneumatic and hydraulic cylinders, PD controllers, biological muscles and many
    other actuators in a unified way.
 
@@ -89,7 +89,7 @@ Separation of model and data
       this is done by the user.
    -  ``mjData`` contains all dynamic variables and intermediate results. It is used as a scratch pad where all
       functions read their inputs and write their outputs -- which then become the inputs to subsequent stages in the
-      simulation pipeline. It also contains a pre-allocated and internally managed stack, so that the runtime module
+      simulation pipeline. It also contains a preallocated and internally managed stack, so that the runtime module
       does not need to call memory allocation functions after the model is initialized.
 
    ``mjModel`` is constructed by the compiler. :ref:`mjData` is constructed at runtime, given
@@ -593,6 +593,36 @@ section is to preemptively clarify the aspects that are most likely to be confus
 and a tutorial on selected topics. We will need to refer to material covered later in the documentation, but
 nevertheless the text below is as self-contained and introductory as possible.
 
+.. _Units:
+
+Units are undefined
+~~~~~~~~~~~~~~~~~~~
+
+In MuJoCo basic physical units are undefined. The user may interpret the system of units as they choose, as long as it
+is consistent. To understand this, consider an example: the dynamics of a 1 Meter spaceship that weighs 1 Kg and has a 1
+Newton thruster are the same as those of a 1 cm spaceship that weighs 1 gram and has a 1 dyn thruster. This is because
+both `MKS <https://en.wikipedia.org/wiki/MKS_system_of_units>`__ and `CGS
+<https://en.wikipedia.org/wiki/Centimetre%E2%80%93gram%E2%80%93second_system_of_units>`__ are consistent systems of
+units. This property allows the user to scale their model as they choose, which is useful when simulating very small or
+very large things, to improve the numerical properties of the simulation.
+
+That said, users are encouraged to use MKS, as there are two places where MuJoCo uses MKS-like default values:
+
+- The default value of :ref:`gravity<option>` is (0, 0, -9.81), which corresponds to Earth surface gravity in MKS.
+  Note that this does not really define system of units to be MKS, since we might be using CGS on
+  `Enceladus <https://en.wikipedia.org/wiki/Enceladus>`__.
+- The default value of :ref:`geom density<geom>` (used to infer body masses and inertias) is 1000, which corresponds to
+  the density of water in MKS.
+
+Once a consistent system of basic units (length, mass, time) is chosen, all derived units correspond to this system, as
+in `Dimensional Analysis <https://en.wikipedia.org/wiki/Dimensional_analysis>`__. For example if our model is
+interpreted as MKS, then forces and torques are in Newton and Newton-Meter, respectively.
+
+**Angles:** Although angles can be specified using degrees in MJCF (and indeed degrees are the
+:ref:`default <compiler>`), internally all angles are `Radians <https://en.wikipedia.org/wiki/Radian>`__. So e.g., if we
+are using MKS, angular velocities reported by :ref:`gyroscopes<sensor-gyro>` would be in rad/s while stiffness of hinge
+joints would be in Nm/rad.
+
 .. _NotObject:
 
 Not object-oriented
@@ -724,14 +754,14 @@ and two geoms to one body in this case.
 .. code:: XML
 
    <mujoco>
-      <worldbody>
-         <body pos="0 0 0">
-            <geom type="sphere" size=".1" rgba=".9 .9 .1 1"/>
-            <geom type="capsule" pos="0 0 .1" size=".05 .1" rgba=".9 .9 .1 1"/>
-            <site type="box" pos="0 -.1 .3" size=".02 .02 .02" rgba=".9 .1 .9 1"/>
-            <site type="ellipsoid" pos="0 .1 .3" size=".02 .03 .04" rgba=".9 .1 .9 1"/>
-         </body>
-      </worldbody>
+     <worldbody>
+       <body pos="0 0 0">
+         <geom type="sphere" size=".1" rgba=".9 .9 .1 1"/>
+         <geom type="capsule" pos="0 0 .1" size=".05 .1" rgba=".9 .9 .1 1"/>
+         <site type="box" pos="0 -.1 .3" size=".02 .02 .02" rgba=".9 .1 .9 1"/>
+         <site type="ellipsoid" pos="0 .1 .3" size=".02 .03 .04" rgba=".9 .1 .9 1"/>
+       </body>
+     </worldbody>
    </mujoco>
 
 .. figure:: images/overview/bodygeomsite.png
@@ -784,7 +814,7 @@ When working in joint coordinates, you cannot simply set the position and orient
 you want. To achieve that effect you would have to implement some form of inverse kinematics, which computes a (not
 necessarily unique) set of joint coordinates for which the forward kinematics place the body where you want it to be.
 
-The situation is different for floating bodies, i.e. bodies that are connected to the world with a free joint. The
+The situation is different for floating bodies, i.e., bodies that are connected to the world with a free joint. The
 positions and orientations as well as the linear and angular velocities of such bodies are explicitly represented in
 ``mjData.qpos`` and ``mjData.qvel``, and can therefore be manipulated directly. The general approach is to find the
 addresses in qpos and qvel where the body's data are. Of course qpos and qvel represents joints and not bodies, so you
@@ -805,7 +835,7 @@ can be obtained as:
          qveladr = m->jnt_dofadr[m->body_jntadr[bodyid]];
       }
 
-Now if everything went well (i.e. "myfloatingbody" was indeed a floating body), qposadr and qveladr are the addresses in
-qpos and qvel where the data for our floating body/joint lives. The position data is 7 numbers (3D position followed by
-unit quaternion) while the velocity data is 6 numbers (3D linear velocity followed by 3D angular velocity). These
+Now if everything went well (i.e., "myfloatingbody" was indeed a floating body), qposadr and qveladr are the addresses
+in qpos and qvel where the data for our floating body/joint lives. The position data is 7 numbers (3D position followed
+by unit quaternion) while the velocity data is 6 numbers (3D linear velocity followed by 3D angular velocity). These
 numbers can now be set to the desired pose and velocity of the body.

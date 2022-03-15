@@ -15,7 +15,7 @@
 #ifndef MUJOCO_MJUI_H_
 #define MUJOCO_MJUI_H_
 
-#include "mjrender.h"
+#include <mjrender.h>
 
 #define mjMAXUISECT     10      // maximum number of sections
 #define mjMAXUIITEM     80      // maximum number of items per section

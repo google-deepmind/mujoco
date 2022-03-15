@@ -15,9 +15,11 @@
 #ifndef MUJOCO_MJVISUALIZE_H_
 #define MUJOCO_MJVISUALIZE_H_
 
-#include "mjmodel.h"
+#include <mjtnum.h>
+#include <mjmodel.h>
 
 #define mjNGROUP        6         // number of geom, site, joint groups with visflags
+#define mjMAXLIGHT      100       // maximum number of lights in a scene
 #define mjMAXOVERLAY    500       // maximum number of characters in overlay text
 #define mjMAXLINE       100       // maximum number of lines per plot
 #define mjMAXLINEPNT    1000      // maximum number points per line
@@ -278,7 +280,7 @@ struct mjvScene_ {                // abstract scene passed to OpenGL renderer
 
   // OpenGL lights
   int      nlight;                // number of lights currently in buffer
-  mjvLight lights[8];             // buffer for lights
+  mjvLight lights[mjMAXLIGHT];    // buffer for lights
 
   // OpenGL cameras
   mjvGLCamera camera[2];          // left and right camera

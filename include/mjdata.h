@@ -15,7 +15,8 @@
 #ifndef MUJOCO_MJDATA_H_
 #define MUJOCO_MJDATA_H_
 
-#include "mjmodel.h"
+#include <mjtnum.h>
+#include <mjmodel.h>
 
 //---------------------------------- primitive types (mjt) -----------------------------------------
 
@@ -169,19 +170,19 @@ struct mjData_ {
   mjtNum*   qfrc_applied;         // applied generalized force                (nv x 1)
   mjtNum*   xfrc_applied;         // applied Cartesian force/torque           (nbody x 6)
 
+  // mocap data
+  mjtNum*   mocap_pos;            // positions of mocap bodies                (nmocap x 3)
+  mjtNum*   mocap_quat;           // orientations of mocap bodies             (nmocap x 4)
+
   // dynamics
   mjtNum*   qacc;                 // acceleration                             (nv x 1)
   mjtNum*   act_dot;              // time-derivative of actuator activation   (na x 1)
 
-  // mocap data
-  mjtNum*  mocap_pos;             // positions of mocap bodies                (nmocap x 3)
-  mjtNum*  mocap_quat;            // orientations of mocap bodies             (nmocap x 4)
-
   // user data
-  mjtNum*  userdata;              // user data, not touched by engine         (nuserdata x 1)
+  mjtNum*   userdata;             // user data, not touched by engine         (nuserdata x 1)
 
   // sensors
-  mjtNum*  sensordata;            // sensor data array                        (nsensordata x 1)
+  mjtNum*   sensordata;           // sensor data array                        (nsensordata x 1)
 
   //-------------------------------- POSITION dependent
 

@@ -35,6 +35,10 @@ public static class MjEngineTool {
     return name.Replace('/', '_');
   }
 
+  public static string MakeLocaleInvariant(FormattableString interpolated) {
+    return FormattableString.Invariant(interpolated);
+  }
+
   // Loads a model from the specified file.
   // `filename` should contain an absolute path to the file.
   public static unsafe MujocoLib.mjModel_* LoadModelFromFile(string fileName) {
@@ -190,11 +194,11 @@ public static class MjEngineTool {
   }
 
   public static string Vector3ToMjcf(Vector3 vec) {
-    return $"{vec.x} {vec.y} {vec.z}";
+    return MakeLocaleInvariant($"{vec.x} {vec.y} {vec.z}");
   }
 
   public static string QuaternionToMjcf(Quaternion quat) {
-    return $"{quat.w} {quat.x} {quat.y} {quat.z}";
+    return MakeLocaleInvariant($"{quat.w} {quat.x} {quat.y} {quat.z}");
   }
 
   // We can't use transform.localPosition because we allow arbitrary deep gameObject hierarchies
@@ -230,12 +234,20 @@ public static class MjEngineTool {
 
   // Converts an array of floats to an Mjcf.
   public static string ArrayToMjcf(float[] array) {
-    return String.Join(" ", array);
+    String ret = "";
+    foreach (float entry in array) {
+      ret += MakeLocaleInvariant($"{entry} ");
+    }
+    return ret.Substring(startIndex:0, length:ret.Length - 1);
   }
 
   // Converts a list of floats to an Mjcf.
   public static string ListToMjcf(List<float> list) {
-    return String.Join(" ", list);
+    String ret = "";
+    foreach (float entry in list) {
+      ret += MakeLocaleInvariant($"{entry} ");
+    }
+    return ret.Substring(startIndex:0, length:ret.Length - 1);
   }
 
   // Generates an Mjcf of the specified component's transform.

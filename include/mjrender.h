@@ -15,7 +15,11 @@
 #ifndef MUJOCO_MJRENDER_H_
 #define MUJOCO_MJRENDER_H_
 
-#include "mjmodel.h"
+#include <mjmodel.h>
+
+#if defined(__cplusplus)
+extern "C" {
+#endif
 
 #define mjNAUX          10        // number of auxiliary buffers
 #define mjMAXTEXTURE    1000      // maximum number of textures
@@ -148,4 +152,7 @@ struct mjrContext_ {              // custom OpenGL context
 };
 typedef struct mjrContext_ mjrContext;
 
+#if defined(__cplusplus)
+}
+#endif
 #endif  // MUJOCO_MJRENDER_H_

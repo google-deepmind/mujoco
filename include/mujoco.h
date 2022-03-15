@@ -15,7 +15,7 @@
 #ifndef MUJOCO_MUJOCO_H_
 #define MUJOCO_MUJOCO_H_
 
-#include "mujoco_export.h"
+#include <mjexport.h>
 
 
 // this is a C-API
@@ -24,7 +24,7 @@ extern "C" {
 #endif
 
 // header version; should match the library version as returned by mj_version()
-#define mjVERSION_HEADER 211
+#define mjVERSION_HEADER 212
 
 // needed to define size_t, fabs and log10
 #include "stdlib.h"
@@ -32,11 +32,12 @@ extern "C" {
 
 
 // type definitions
-#include "mjmodel.h"
-#include "mjdata.h"
-#include "mjvisualize.h"
-#include "mjrender.h"
-#include "mjui.h"
+#include <mjdata.h>
+#include <mjmodel.h>
+#include <mjrender.h>
+#include <mjtnum.h>
+#include <mjui.h>
+#include <mjvisualize.h>
 
 
 // macros
@@ -186,9 +187,11 @@ MJAPI void mj_deleteModel(mjModel* m);
 MJAPI int mj_sizeModel(const mjModel* m);
 
 // Allocate mjData correponding to given model.
+// If the model buffer is unallocated the initial configuration will not be set.
 MJAPI mjData* mj_makeData(const mjModel* m);
 
 // Copy mjData.
+// m is only required to contain the size fields from MJMODEL_INTS.
 MJAPI mjData* mj_copyData(mjData* dest, const mjModel* m, const mjData* src);
 
 // Reset data to defaults.
@@ -220,12 +223,17 @@ MJAPI int mj_setLengthRange(mjModel* m, mjData* d, int index,
 //---------------------------------- Printing ------------------------------------------------------
 
 // Print mjModel to text file, specifying format.
-// float_format_str must be a valid printf-style format string for a single float value.
+// float_format must be a valid printf-style format string for a single float value.
 MJAPI void mj_printFormattedModel(const mjModel* m, const char* filename,
-                                  const char* float_format_str);
+                                  const char* float_format);
 
 // Print model to text file.
 MJAPI void mj_printModel(const mjModel* m, const char* filename);
+
+// Print mjData to text file, specifying format.
+// float_format must be a valid printf-style format string for a single float value
+MJAPI void mj_printFormattedData(const mjModel* m, mjData* d, const char* filename,
+                                 const char* float_format);
 
 // Print data to text file.
 MJAPI void mj_printData(const mjModel* m, mjData* d, const char* filename);
@@ -358,7 +366,7 @@ MJAPI void mj_referenceConstraint(const mjModel* m, mjData* d);
 // Compute efc_state, efc_force, qfrc_constraint, and (optionally) cone Hessians.
 // If cost is not NULL, set *cost = s(jar) where jar = Jac*qacc-aref.
 MJAPI void mj_constraintUpdate(const mjModel* m, mjData* d, const mjtNum* jar,
-                               mjtNum* cost, int flg_coneHessian);
+                               mjtNum cost[1], int flg_coneHessian);
 
 
 //---------------------------------- Support -------------------------------------------------------
@@ -429,19 +437,19 @@ MJAPI void mj_addM(const mjModel* m, mjData* d, mjtNum* dst,
 
 // Apply cartesian force and torque (outside xfrc_applied mechanism).
 MJAPI void mj_applyFT(const mjModel* m, mjData* d,
-                      const mjtNum* force, const mjtNum* torque,
-                      const mjtNum* point, int body, mjtNum* qfrc_target);
+                      const mjtNum force[3], const mjtNum torque[3],
+                      const mjtNum point[3], int body, mjtNum* qfrc_target);
 
 // Compute object 6D velocity in object-centered frame, world/local orientation.
 MJAPI void mj_objectVelocity(const mjModel* m, const mjData* d,
-                             int objtype, int objid, mjtNum* res, int flg_local);
+                             int objtype, int objid, mjtNum res[6], int flg_local);
 
 // Compute object 6D acceleration in object-centered frame, world/local orientation.
 MJAPI void mj_objectAcceleration(const mjModel* m, const mjData* d,
-                                 int objtype, int objid, mjtNum* res, int flg_local);
+                                 int objtype, int objid, mjtNum res[6], int flg_local);
 
 // Extract 6D force:torque given contact id, in the contact frame.
-MJAPI void mj_contactForce(const mjModel* m, const mjData* d, int id, mjtNum* result);
+MJAPI void mj_contactForce(const mjModel* m, const mjData* d, int id, mjtNum result[6]);
 
 // Compute velocity by finite-differencing two positions.
 MJAPI void mj_differentiatePos(const mjModel* m, mjtNum* qvel, mjtNum dt,
@@ -454,8 +462,8 @@ MJAPI void mj_integratePos(const mjModel* m, mjtNum* qpos, const mjtNum* qvel, m
 MJAPI void mj_normalizeQuat(const mjModel* m, mjtNum* qpos);
 
 // Map from body local to global Cartesian coordinates.
-MJAPI void mj_local2Global(mjData* d, mjtNum* xpos, mjtNum* xmat,
-                           const mjtNum* pos, const mjtNum* quat,
+MJAPI void mj_local2Global(mjData* d, mjtNum xpos[3], mjtNum xmat[9],
+                           const mjtNum pos[3], const mjtNum quat[4],
                            int body, mjtByte sameframe);
 
 // Sum all body masses.
@@ -474,27 +482,28 @@ MJAPI const char* mj_versionString();
 //---------------------------------- Ray collisions ------------------------------------------------
 
 // Intersect ray (pnt+x*vec, x>=0) with visible geoms, except geoms in bodyexclude.
-// Return geomid and distance (x) to nearest surface, or -1 if no intersection.
+// Return distance (x) to nearest surface, or -1 if no intersection and output geomid.
 // geomgroup, flg_static are as in mjvOption; geomgroup==NULL skips group exclusion.
-MJAPI mjtNum mj_ray(const mjModel* m, const mjData* d, const mjtNum* pnt, const mjtNum* vec,
+MJAPI mjtNum mj_ray(const mjModel* m, const mjData* d, const mjtNum pnt[3], const mjtNum vec[3],
                     const mjtByte* geomgroup, mjtByte flg_static, int bodyexclude,
-                    int* geomid);
+                    int geomid[1]);
 
 // Interect ray with hfield, return nearest distance or -1 if no intersection.
 MJAPI mjtNum mj_rayHfield(const mjModel* m, const mjData* d, int geomid,
-                          const mjtNum* pnt, const mjtNum* vec);
+                          const mjtNum pnt[3], const mjtNum vec[3]);
 
 // Interect ray with mesh, return nearest distance or -1 if no intersection.
 MJAPI mjtNum mj_rayMesh(const mjModel* m, const mjData* d, int geomid,
-                        const mjtNum* pnt, const mjtNum* vec);
+                        const mjtNum pnt[3], const mjtNum vec[3]);
 
 // Interect ray with pure geom, return nearest distance or -1 if no intersection.
-MJAPI mjtNum mju_rayGeom(const mjtNum* pos, const mjtNum* mat, const mjtNum* size,
-                         const mjtNum* pnt, const mjtNum* vec, int geomtype);
+MJAPI mjtNum mju_rayGeom(const mjtNum pos[3], const mjtNum mat[9], const mjtNum size[3],
+                         const mjtNum pnt[3], const mjtNum vec[3], int geomtype);
 
-// Interect ray with skin, return nearest vertex id.
+// Interect ray with skin, return nearest distance or -1 if no intersection,
+// and also output nearest vertex id.
 MJAPI mjtNum mju_raySkin(int nface, int nvert, const int* face, const float* vert,
-                         const mjtNum* pnt, const mjtNum* vec, int* vertid);
+                         const mjtNum pnt[3], const mjtNum vec[3], int vertid[1]);
 
 
 //---------------------------------- Interaction ---------------------------------------------------
@@ -506,26 +515,26 @@ MJAPI void mjv_defaultCamera(mjvCamera* cam);
 MJAPI void mjv_defaultPerturb(mjvPerturb* pert);
 
 // Transform pose from room to model space.
-MJAPI void mjv_room2model(mjtNum* modelpos, mjtNum* modelquat, const mjtNum* roompos,
-                          const mjtNum* roomquat, const mjvScene* scn);
+MJAPI void mjv_room2model(mjtNum modelpos[3], mjtNum modelquat[4], const mjtNum roompos[3],
+                          const mjtNum roomquat[4], const mjvScene* scn);
 
 // Transform pose from model to room space.
-MJAPI void mjv_model2room(mjtNum* roompos, mjtNum* roomquat, const mjtNum* modelpos,
-                          const mjtNum* modelquat, const mjvScene* scn);
+MJAPI void mjv_model2room(mjtNum roompos[3], mjtNum roomquat[4], const mjtNum modelpos[3],
+                          const mjtNum modelquat[4], const mjvScene* scn);
 
 // Get camera info in model space; average left and right OpenGL cameras.
-MJAPI void mjv_cameraInModel(mjtNum* headpos, mjtNum* forward, mjtNum* up,
+MJAPI void mjv_cameraInModel(mjtNum headpos[3], mjtNum forward[3], mjtNum up[3],
                              const mjvScene* scn);
 
 // Get camera info in room space; average left and right OpenGL cameras.
-MJAPI void mjv_cameraInRoom(mjtNum* headpos, mjtNum* forward, mjtNum* up,
+MJAPI void mjv_cameraInRoom(mjtNum headpos[3], mjtNum forward[3], mjtNum up[3],
                             const mjvScene* scn);
 
 // Get frustum height at unit distance from camera; average left and right OpenGL cameras.
 MJAPI mjtNum mjv_frustumHeight(const mjvScene* scn);
 
 // Rotate 3D vec in horizontal plane by angle between (0,1) and (forward_x,forward_y).
-MJAPI void mjv_alignToCamera(mjtNum* res, const mjtNum* vec, const mjtNum* forward);
+MJAPI void mjv_alignToCamera(mjtNum res[3], const mjtNum vec[3], const mjtNum forward[3]);
 
 // Move camera with mouse; action is mjtMouse.
 MJAPI void mjv_moveCamera(const mjModel* m, int action, mjtNum reldx, mjtNum reldy,
@@ -537,7 +546,7 @@ MJAPI void mjv_movePerturb(const mjModel* m, const mjData* d, int action, mjtNum
 
 // Move model with mouse; action is mjtMouse.
 MJAPI void mjv_moveModel(const mjModel* m, int action, mjtNum reldx, mjtNum reldy,
-                         const mjtNum* roomup, mjvScene* scn);
+                         const mjtNum roomup[3], mjvScene* scn);
 
 // Copy perturb pos,quat from selected body; set scale for perturbation.
 MJAPI void mjv_initPerturb(const mjModel* m, const mjData* d,
@@ -557,7 +566,7 @@ MJAPI mjvGLCamera mjv_averageCamera(const mjvGLCamera* cam1, const mjvGLCamera* 
 // Select geom or skin with mouse, return bodyid; -1: none selected.
 MJAPI int mjv_select(const mjModel* m, const mjData* d, const mjvOption* vopt,
                      mjtNum aspectratio, mjtNum relx, mjtNum rely,
-                     const mjvScene* scn, mjtNum* selpnt, int* geomid, int* skinid);
+                     const mjvScene* scn, mjtNum selpnt[3], int geomid[1], int skinid[1]);
 
 
 //---------------------------------- Visualization -------------------------------------------------
@@ -569,8 +578,8 @@ MJAPI void mjv_defaultOption(mjvOption* opt);
 MJAPI void mjv_defaultFigure(mjvFigure* fig);
 
 // Initialize given geom fields when not NULL, set the rest to their default values.
-MJAPI void mjv_initGeom(mjvGeom* geom, int type, const mjtNum* size,
-                        const mjtNum* pos, const mjtNum* mat, const float* rgba);
+MJAPI void mjv_initGeom(mjvGeom* geom, int type, const mjtNum size[3],
+                        const mjtNum pos[3], const mjtNum mat[9], const float rgba[4]);
 
 // Set (type, size, pos, mat) for connector-type geom between given points.
 // Assume that mjv_initGeom was already called to set all other properties.
@@ -994,7 +1003,7 @@ MJAPI void mju_trnVecPose(mjtNum res[3], const mjtNum pos[3], const mjtNum quat[
 
 //--------------------------------- Decompositions -------------------------------------------------
 
-// Cholesky decomposition: mat = L*L'; return rank.
+// Cholesky decomposition: mat = L*L'; return rank, decomposition performed in-place into mat.
 MJAPI int mju_cholFactor(mjtNum* mat, int n, mjtNum mindiag);
 
 // Solve mat * res = vec, where mat is Cholesky-factorized
@@ -1004,7 +1013,7 @@ MJAPI void mju_cholSolve(mjtNum* res, const mjtNum* mat, const mjtNum* vec, int 
 MJAPI int mju_cholUpdate(mjtNum* mat, mjtNum* x, int n, int flg_plus);
 
 // Eigenvalue decomposition of symmetric 3x3 matrix.
-MJAPI int mju_eig3(mjtNum* eigval, mjtNum* eigvec, mjtNum* quat, const mjtNum* mat);
+MJAPI int mju_eig3(mjtNum eigval[3], mjtNum eigvec[9], mjtNum quat[4], const mjtNum mat[9]);
 
 
 //---------------------- Miscellaneous --------------------------------------------------

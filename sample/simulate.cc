@@ -19,7 +19,7 @@
 #include <string>
 #include <thread>
 
-#include "mjxmacro.h"
+#include <mjxmacro.h>
 #include "uitools.h"
 
 #include "array_safety.h"
@@ -34,15 +34,17 @@ const int maxgeom = 5000;           // preallocated geom array in mjvScene
 const double syncmisalign = 0.1;    // maximum time mis-alignment before re-sync
 const double refreshfactor = 0.7;   // fraction of refresh available for simulation
 const int max_slow_down = 128;      // maximum slow-down quotient
+const double zoom_increment = 0.02; // ratio of single click-wheel zoom increment to vertical extent
 
 // model and data
 mjModel* m = NULL;
 mjData* d = NULL;
 
 
-// filename strings
+// strings
 char filename[kBufSize] = "";
 char previous_filename[kBufSize] = "";
+char loadError[kBufSize] = "";
 
 
 // control noise variables
@@ -758,7 +760,7 @@ void makerendering(int oldstate) {
     },
     {
       mjITEM_BUTTON,
-      "Print camera",
+      "Copy camera",
       2,
       NULL,
       ""
@@ -1067,20 +1069,29 @@ void cleartimers(void) {
 
 
 
-// print current camera as MJCF specification
+// copy current camera to clipboard as MJCF specification
 void printcamera(mjvGLCamera* camera) {
+  char clipboard[500];
   mjtNum cam_right[3];
   mjtNum cam_forward[3];
   mjtNum cam_up[3];
+
+  // get camera spec from the GLCamera
   mju_f2n(cam_forward, camera[0].forward, 3);
   mju_f2n(cam_up, camera[0].up, 3);
   mju_cross(cam_right, cam_forward, cam_up);
-  std::printf("<camera pos=\"%.3f %.3f %.3f\" xyaxes=\"%.3f %.3f %.3f %.3f %.3f %.3f\"/>\n",
+
+  // make MJCF camera spec
+  mju::sprintf_arr(clipboard,
+               "<camera pos=\"%.3f %.3f %.3f\" xyaxes=\"%.3f %.3f %.3f %.3f %.3f %.3f\"/>\n",
               (camera[0].pos[0] + camera[1].pos[0]) / 2,
               (camera[0].pos[1] + camera[1].pos[1]) / 2,
               (camera[0].pos[2] + camera[1].pos[2]) / 2,
               cam_right[0], cam_right[1], cam_right[2],
               camera[0].up[0], camera[0].up[1], camera[0].up[2]);
+
+  // copy spec into clipboard
+  glfwSetClipboardString(window, clipboard);
 }
 
 
@@ -1134,28 +1145,34 @@ void loadmodel(void) {
   }
 
   // load and compile
-  char error[500] = "";
+  loadError[0] = '\0';
   mjModel* mnew = 0;
   if (mju::strlen_arr(filename)>4 &&
       !std::strncmp(filename+mju::strlen_arr(filename)-4, ".mjb",
                     mju::sizeof_arr(filename)-mju::strlen_arr(filename)+4)) {
     mnew = mj_loadModel(filename, NULL);
     if (!mnew) {
-      mju::strcpy_arr(error, "could not load binary model");
+      mju::strcpy_arr(loadError, "could not load binary model");
     }
   } else {
-    mnew = mj_loadXML(filename, NULL, error, 500);
+    mnew = mj_loadXML(filename, NULL, loadError, kBufSize);
+    // remove trailing newline character from loadError
+    if (loadError[0]) {
+      int error_length = mju::strlen_arr(loadError);
+      if (loadError[error_length-1] == '\n') {
+        loadError[error_length-1] = '\0';
+      }
+    }
   }
   if (!mnew) {
-    std::printf("%s\n", error);
+    std::printf("%s\n", loadError);
     return;
   }
 
   // compiler warning: print and pause
-  if (error[0]) {
+  if (loadError[0]) {
     // mj_forward() below will print the warning message
-    std::printf("Model compiled, but simulation warning (paused):\n  %s\n\n",
-                error);
+    std::printf("Model compiled, but simulation warning (paused):\n  %s\n", loadError);
     settings.run = 0;
   }
 
@@ -1594,8 +1611,8 @@ void uiEvent(mjuiState* state) {
 
   // 3D scroll
   if (state->type==mjEVENT_SCROLL && state->mouserect==3 && m) {
-    // emulate vertical mouse motion = 5% of window height
-    mjv_moveCamera(m, mjMOUSE_ZOOM, 0, -0.05*state->sy, &scn, &cam);
+    // emulate vertical mouse motion = 2% of window height
+    mjv_moveCamera(m, mjMOUSE_ZOOM, 0, -zoom_increment*state->sy, &scn, &cam);
 
     return;
   }
@@ -1797,12 +1814,19 @@ void render(GLFWwindow* window) {
     mjr_rectangle(rect, 0.2f, 0.3f, 0.4f, 1);
 
     // label
-    if (settings.loadrequest)
-      mjr_overlay(mjFONT_BIG, mjGRID_TOPRIGHT, smallrect,
-                  "loading", NULL, &con);
-    else
-      mjr_overlay(mjFONT_NORMAL, mjGRID_TOPLEFT, rect,
-                  "Drag-and-drop model file here", 0, &con);
+    if (settings.loadrequest) {
+      mjr_overlay(mjFONT_BIG, mjGRID_TOPRIGHT, smallrect, "loading", NULL, &con);
+    } else {
+      char intro_message[kBufSize];
+      mju::sprintf_arr(intro_message,
+                       "MuJoCo version %s\nDrag-and-drop model file here", mj_versionString());
+      mjr_overlay(mjFONT_NORMAL, mjGRID_TOPLEFT, rect, intro_message, 0, &con);
+    }
+
+    // show last loading error
+    if (loadError[0]) {
+      mjr_overlay(mjFONT_NORMAL, mjGRID_BOTTOMLEFT, rect, loadError, 0, &con);
+    }
 
     // render uis
     if (settings.ui0) {
@@ -1821,10 +1845,16 @@ void render(GLFWwindow* window) {
   // render scene
   mjr_render(rect, &scn, &con);
 
+  // show last loading error
+  if (loadError[0]) {
+    mjr_overlay(mjFONT_NORMAL, mjGRID_BOTTOMLEFT, rect, loadError, 0, &con);
+  }
+
   // show pause/loading label
-  if (!settings.run || settings.loadrequest)
+  if (!settings.run || settings.loadrequest) {
     mjr_overlay(mjFONT_BIG, mjGRID_TOPRIGHT, smallrect,
                 settings.loadrequest ? "loading" : "pause", NULL, &con);
+  }
 
   // show realtime label
   if (settings.run && settings.slow_down != 1) {

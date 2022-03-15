@@ -8,3 +8,5 @@ pygments==2.7.4
 jq==1.1.1
 Jinja2==2.11.3
 wheel
+# see https://github.com/aws/aws-sam-cli/issues/3661 regarding markupsafe
+markupsafe==2.0.1

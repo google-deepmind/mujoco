@@ -42,15 +42,18 @@ public class MjGeomEditor : MjShapeComponentEditor {
       Debug.LogError("This geom already has a Body parent.", geom.GetComponentInParent<MjBody>());
       return;
     }
-    var parent = new GameObject(geom.gameObject.name + " Body").transform;
+    var parent = new GameObject(geom.gameObject.name + " Body").AddComponent<MjBody>().transform;
+    parent.position = geom.transform.position;
+    geom.transform.parent = parent;
+
     var root = geom.transform.root;
     if (root != geom.transform) {
       parent.parent = geom.transform.parent;
     }
-    parent.gameObject.AddComponent<MjBody>();
-    var joint = new GameObject("Free Joint").AddComponent<MjFreeJoint>();
-    joint.transform.parent = parent;
-    geom.transform.parent = parent;
+
+    var joint = new GameObject("Free Joint").AddComponent<MjFreeJoint>().transform;
+    joint.position = geom.transform.position;
+    joint.parent = parent;
   }
 
   [MenuItem("CONTEXT/Collider/Add a matching MuJoCo geom")]

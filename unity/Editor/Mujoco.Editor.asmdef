@@ -2,7 +2,7 @@
     "name": "Mujoco.Editor",
     "rootNamespace": "",
     "references": [
-        "Mujoco"
+        "Mujoco.Runtime"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

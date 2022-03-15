@@ -15,21 +15,7 @@
 #ifndef MUJOCO_MJMODEL_H_
 #define MUJOCO_MJMODEL_H_
 
-//---------------------------------- floating-point definitions ------------------------------------
-
-// compile-time configuration options
-#define mjUSEDOUBLE               // single or double precision for mjtNum
-
-
-// floating point data type and minval
-#ifdef mjUSEDOUBLE
-  typedef double mjtNum;
-  #define mjMINVAL    1E-15       // minimum value in any denominator
-#else
-  typedef float mjtNum;
-  #define mjMINVAL    1E-15f
-#endif
-
+#include <mjtnum.h>
 
 // global constants
 #define mjPI            3.14159265358979323846
@@ -48,6 +34,7 @@
 #define mjNDYN          10        // number of actuator dynamics parameters
 #define mjNGAIN         10        // number of actuator gain parameters
 #define mjNBIAS         10        // number of actuator bias parameters
+#define mjNFLUID        12        // number of fluid interaction parameters
 #define mjNREF          2         // number of solver reference parameters
 #define mjNIMP          5         // number of solver impedance parameters
 #define mjNSOLVER       1000      // size of mjData.solver_XXX arrays
@@ -677,6 +664,7 @@ struct mjModel_ {
   mjtNum*   geom_friction;        // friction for (slide, spin, roll)         (ngeom x 3)
   mjtNum*   geom_margin;          // detect contact if dist<margin            (ngeom x 1)
   mjtNum*   geom_gap;             // include in solver if dist<margin-gap     (ngeom x 1)
+  mjtNum*   geom_fluid;           // fluid interaction parameters             (ngeom x mjNFLUID)
   mjtNum*   geom_user;            // user data                                (ngeom x nuser_geom)
   float*    geom_rgba;            // rgba when material is omitted            (ngeom x 4)
 
@@ -860,6 +848,8 @@ struct mjModel_ {
   int*      sensor_needstage;     // required compute stage (mjtStage)        (nsensor x 1)
   int*      sensor_objtype;       // type of sensorized object (mjtObj)       (nsensor x 1)
   int*      sensor_objid;         // id of sensorized object                  (nsensor x 1)
+  int*      sensor_reftype;       // type of reference frame (mjtObj)         (nsensor x 1)
+  int*      sensor_refid;         // id of reference frame; -1: global frame  (nsensor x 1)
   int*      sensor_dim;           // number of scalar outputs                 (nsensor x 1)
   int*      sensor_adr;           // address in sensor array                  (nsensor x 1)
   mjtNum*   sensor_cutoff;        // cutoff for real and positive; 0: ignore  (nsensor x 1)

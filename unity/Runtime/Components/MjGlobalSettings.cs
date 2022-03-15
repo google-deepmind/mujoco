@@ -291,14 +291,14 @@ public struct MjOptionStruct {
   }
 
   public XmlElement ToMjcf(XmlElement mjcf) {
-    mjcf.SetAttribute("impratio", $"{ImpRatio}");
+    mjcf.SetAttribute("impratio", MjEngineTool.MakeLocaleInvariant($"{ImpRatio}"));
 
-    mjcf.SetAttribute("magnetic", $"{Magnetic.x} {Magnetic.y} {Magnetic.z}");
-    mjcf.SetAttribute("wind", $"{Wind.x} {Wind.y} {Wind.z}");
+    mjcf.SetAttribute("magnetic", MjEngineTool.MakeLocaleInvariant($"{Magnetic.x} {Magnetic.y} {Magnetic.z}"));
+    mjcf.SetAttribute("wind", MjEngineTool.MakeLocaleInvariant($"{Wind.x} {Wind.y} {Wind.z}"));
 
-    mjcf.SetAttribute("density", $"{Density}");
-    mjcf.SetAttribute("viscosity", $"{Viscosity}");
-    mjcf.SetAttribute("o_margin", $"{OverrideMargin}");
+    mjcf.SetAttribute("density", MjEngineTool.MakeLocaleInvariant($"{Density}"));
+    mjcf.SetAttribute("viscosity", MjEngineTool.MakeLocaleInvariant($"{Viscosity}"));
+    mjcf.SetAttribute("o_margin", MjEngineTool.MakeLocaleInvariant($"{OverrideMargin}"));
 
     OverrideSolRef.ToMjcf(mjcf, "o_solref");
     OverrideSolImp.ToMjcf(mjcf, "o_solimp");
@@ -309,12 +309,12 @@ public struct MjOptionStruct {
     mjcf.SetAttribute("jacobian", Jacobian.ToString());
     mjcf.SetAttribute("solver", Solver.ToString());
 
-    mjcf.SetAttribute("iterations", $"{Iterations}");
-    mjcf.SetAttribute("tolerance", $"{Tolerance}");
-    mjcf.SetAttribute("noslip_iterations", $"{NoSlipIterations}");
-    mjcf.SetAttribute("noslip_tolerance", $"{NoSlipTolerance}");
-    mjcf.SetAttribute("mpr_iterations", $"{MprIterations}");
-    mjcf.SetAttribute("mpr_tolerance", $"{MprTolerance}");
+    mjcf.SetAttribute("iterations", MjEngineTool.MakeLocaleInvariant($"{Iterations}"));
+    mjcf.SetAttribute("tolerance", MjEngineTool.MakeLocaleInvariant($"{Tolerance}"));
+    mjcf.SetAttribute("noslip_iterations", MjEngineTool.MakeLocaleInvariant($"{NoSlipIterations}"));
+    mjcf.SetAttribute("noslip_tolerance", MjEngineTool.MakeLocaleInvariant($"{NoSlipTolerance}"));
+    mjcf.SetAttribute("mpr_iterations", MjEngineTool.MakeLocaleInvariant($"{MprIterations}"));
+    mjcf.SetAttribute("mpr_tolerance", MjEngineTool.MakeLocaleInvariant($"{MprTolerance}"));
 
     var flags = (XmlElement)mjcf.AppendChild(
         mjcf.OwnerDocument.CreateElement("flag"));

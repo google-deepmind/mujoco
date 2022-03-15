@@ -16,7 +16,7 @@
 #include <cstdio>
 #include <cstring>
 
-#include "mujoco.h"
+#include <mujoco.h>
 
 // enable compilation with and without OpenMP support
 #if defined(_OPENMP)
@@ -61,7 +61,7 @@ void worker(const mjModel* m, const mjData* dmain, mjData* d, int id) {
   int nv = m->nv;
 
   // allocate stack space for result at center
-  mjMARKSTACK
+  mjMARKSTACK;
   mjtNum* center = mj_stackAlloc(d, nv);
   mjtNum* warmstart = mj_stackAlloc(d, nv);
 
@@ -188,7 +188,7 @@ void worker(const mjModel* m, const mjData* dmain, mjData* d, int id) {
     }
   }
 
-  mjFREESTACK
+  mjFREESTACK;
 }
 
 
@@ -222,7 +222,7 @@ void checkderiv(const mjModel* m, mjData* d, mjtNum error[7]) {
   int nv = m->nv;
 
   // allocate space
-  mjMARKSTACK
+  mjMARKSTACK;
   mjtNum* mat = mj_stackAlloc(d, nv*nv);
 
   // get pointers to derivative matrices
@@ -275,7 +275,7 @@ void checkderiv(const mjModel* m, mjData* d, mjtNum error[7]) {
   mju_addTo(mat, F0, nv*nv);
   error[7] = relnorm(mat, F0, nv*nv);
 
-  mjFREESTACK
+  mjFREESTACK;
 }
 
 

@@ -189,7 +189,7 @@ change at runtime. In that case there is still a fixed enumeration order (corres
 elements appear in ``mjModel``) but any inactive constraints are omitted.
 
 The number of position coordinates :math:`n_Q` is larger than the number of degrees of freedom :math:`n_V` whenever
-quaternions are used to represent 3D orientations. This occurs when the model contains ball joints or free joints (i.e.
+quaternions are used to represent 3D orientations. This occurs when the model contains ball joints or free joints (i.e.,
 in most models). In that case :math:`\dot{q}` does not equal :math:`v`, at least not in the usual sense. Instead one has
 to consider the group of rigid body orientations :math:`SO(3)` - which has the geometry of a unit sphere in 4D space.
 Velocities live in the 3D tangent space to this sphere. This is taken into account by all internal computations. For
@@ -326,7 +326,7 @@ Passive forces
 Passive forces are defined as forces that depend only on position and velocity, and not on control in forward dynamics
 or acceleration in inverse dynamics. As a result, such forces are inputs to both the forward and inverse dynamics
 computations, and are identical in both cases. They are stored in ``mjData.qfrc_passive``. The passive forces computed
-by MuJoCo are also passive in the sense of physics, i.e. they do not increase energy, however the user can install the
+by MuJoCo are also passive in the sense of physics, i.e., they do not increase energy, however the user can install the
 callback :ref:`mjcb_passive` and add forces to ``mjData.qfrc_passive`` that may increase energy. This will not interfere
 with MuJoCo's operation as long as such user forces depend only on position and velocity.
 
@@ -460,7 +460,7 @@ constraint contributes :math:`\dim(r)` elements to the total constraint count :m
 properties of quaternions, differentiation with respect to :math:`q` produces vectors of size :math:`n_V` rather than
 :math:`n_Q`.
 
-Among other applications, equality constraints can be used to create "loop joints", i.e. joints that cannot be modeled
+Among other applications, equality constraints can be used to create "loop joints", i.e., joints that cannot be modeled
 via the kinematic tree. Gaming engines represent all joints in this way. The same can be done in MuJoCo but is not
 recommended - because it leads to both slower and less accurate simulation, effectively turning MuJoCo into a gaming
 engine. The only reason to represent joints with equality constraints would be to model soft joints - which can be done
@@ -562,7 +562,7 @@ with a 1 at the joint address. For tendons this is known as the moment arm vecto
    spatial tendons this could be used to model friction between the tendon and the surfaces it wraps around. Such
    friction will be load-independent though. To construct a more detailed model of this phenomenon, create several small
    floating spheres and connect them with tendons in series. Then the contacts between the spheres and the surrounding
-   surfaces will have load-dependent (i.e. Coulomb) friction, but this is less efficient to simulate.
+   surfaces will have load-dependent (i.e., Coulomb) friction, but this is less efficient to simulate.
 
 .. _coLimit:
 
@@ -588,7 +588,7 @@ because solving for equality constraint forces is generally faster.
 ``joint`` : 1 or 2
    Limits can be defined for scalar joints (hinge and slide) as well as for ball joints. Scalar joints are treated as
    described above. Ball joint limits are applied to the exponential-map or angle-axis representation of the joint
-   quaternion, i.e. the vector :math:`(\theta x, \theta y, \theta z)` where :math:`\theta` is the rotation angle and
+   quaternion, i.e., the vector :math:`(\theta x, \theta y, \theta z)` where :math:`\theta` is the rotation angle and
    :math:`(x, y, z)` is the unit vector corresponding to the rotation axis. The limit is applied to the absolute value
    of the rotation angle :math:`\theta`. At runtime the limit is determined by the larger of the two range parameters.
    For semantic clarity however, one should use the second range parameter to specify the limit and set the first range
@@ -1022,7 +1022,7 @@ compute it.
 
 Note that the quadratic term in the inverse problem is weighted by :math:`R` instead of :math:`A+R`. This tells us two
 things. First, in the limit :math:`R \to 0` corresponding to hard constraints the inverse is no longer defined, as one
-would expect. Second and more useful, the inverse problem is diagonal, i.e. it decouples into independent optimization
+would expect. Second and more useful, the inverse problem is diagonal, i.e., it decouples into independent optimization
 problems over the individual constraint forces. The only remaining coupling is due to the constraint set :math:`\Omega`,
 but that set is also decoupled over the conceptual constraints discussed earlier. It turns out that all these
 independent optimization problems can be solved analytically. The only non-trivial case is the elliptic friction cone
@@ -1110,7 +1110,7 @@ Substituting :math:`f^+` in the constraint dynamics :eq:`eq:identity` and rearra
 
 Thus the constrained acceleration interpolates between the unconstrained and the reference acceleration. In particular,
 in the limit :math:`R \to 0` we have a hard constraint and :math:`a^1 = a^*`, while in the limit :math:`R \to \infty` we
-have have an infinitely soft constraint (i.e. no constraint) and :math:`a^1 = a^0`. It is then natural to introduce a
+have have an infinitely soft constraint (i.e., no constraint) and :math:`a^1 = a^0`. It is then natural to introduce a
 model parameter which directly controls the interpolation. We call this parameter *impedance* and denote it :math:`d`.
 It is a vector with dimensionality :math:`n_C` satisfying :math:`0<d<1` element-wise. Once it is specified, we compute
 the diagonal elements of the regularizer as

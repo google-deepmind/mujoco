@@ -66,13 +66,13 @@ public class MjActuator : MjComponent {
       mjcf.SetAttribute("forcelimited", $"{ForceLimited}".ToLowerInvariant());
       mjcf.SetAttribute(
           "ctrlrange",
-          $"{MjEngineTool.GetSorted(CtrlRange).x} {MjEngineTool.GetSorted(CtrlRange).y}");
+          MjEngineTool.MakeLocaleInvariant($"{MjEngineTool.GetSorted(CtrlRange).x} {MjEngineTool.GetSorted(CtrlRange).y}"));
       mjcf.SetAttribute(
           "forcerange",
-          $"{MjEngineTool.GetSorted(ForceRange).x} {MjEngineTool.GetSorted(ForceRange).y}");
+          MjEngineTool.MakeLocaleInvariant($"{MjEngineTool.GetSorted(ForceRange).x} {MjEngineTool.GetSorted(ForceRange).y}"));
       mjcf.SetAttribute(
           "lengthrange",
-          $"{MjEngineTool.GetSorted(LengthRange).x} {MjEngineTool.GetSorted(LengthRange).y}");
+          MjEngineTool.MakeLocaleInvariant($"{MjEngineTool.GetSorted(LengthRange).x} {MjEngineTool.GetSorted(LengthRange).y}"));
       mjcf.SetAttribute("gear", MjEngineTool.ListToMjcf(Gear));
     }
 
@@ -162,7 +162,7 @@ public class MjActuator : MjComponent {
     public float Kp = 1.0f;
 
     public void PositionToMjcf(XmlElement mjcf) {
-      mjcf.SetAttribute("kp", $"{Math.Abs(Kp)}");
+      mjcf.SetAttribute("kp", MjEngineTool.MakeLocaleInvariant($"{Math.Abs(Kp)}"));
     }
     public void PositionFromMjcf(XmlElement mjcf) {
       Kp = mjcf.GetFloatAttribute("kp", defaultValue: 1.0f);
@@ -175,7 +175,7 @@ public class MjActuator : MjComponent {
     public float Kv = 1.0f;
 
     public void VelocityToMjcf(XmlElement mjcf) {
-      mjcf.SetAttribute("kv", $"{Math.Abs(Kv)}");
+      mjcf.SetAttribute("kv", MjEngineTool.MakeLocaleInvariant($"{Math.Abs(Kv)}"));
     }
     public void VelocityFromMjcf(XmlElement mjcf) {
       Kv = mjcf.GetFloatAttribute("kv", defaultValue: 1.0f);
@@ -199,9 +199,9 @@ public class MjActuator : MjComponent {
     public float[] Bias = new float[] { 0.0f, 0.0f, 0.0f };
 
     public void CylinderToMjcf(XmlElement mjcf) {
-      mjcf.SetAttribute("timeconst", $"{CylinderTimeConst}");
-      mjcf.SetAttribute("area", $"{Math.Abs(Area)}");
-      mjcf.SetAttribute("diameter", $"{Math.Abs(Diameter)}");
+      mjcf.SetAttribute("timeconst", MjEngineTool.MakeLocaleInvariant($"{CylinderTimeConst}"));
+      mjcf.SetAttribute("area", MjEngineTool.MakeLocaleInvariant($"{Math.Abs(Area)}"));
+      mjcf.SetAttribute("diameter", MjEngineTool.MakeLocaleInvariant($"{Math.Abs(Diameter)}"));
       mjcf.SetAttribute("bias", MjEngineTool.ArrayToMjcf(Bias));
     }
 
@@ -246,16 +246,16 @@ public class MjActuator : MjComponent {
     public float FvMax = 1.2f;
 
     public void MuscleToMjcf(XmlElement mjcf) {
-      mjcf.SetAttribute("timeconst", $"{MuscleTimeConst[0]} {MuscleTimeConst[1]}");
+      mjcf.SetAttribute("timeconst", MjEngineTool.MakeLocaleInvariant($"{MuscleTimeConst[0]} {MuscleTimeConst[1]}"));
       mjcf.SetAttribute(
-        "range", $"{MjEngineTool.GetSorted(Range).x} {MjEngineTool.GetSorted(Range).y}");
-      mjcf.SetAttribute("force", $"{Force}");
-      mjcf.SetAttribute("scale", $"{Scale}");
-      mjcf.SetAttribute("lmin", $"{LMin}");
-      mjcf.SetAttribute("lmax", $"{LMax}");
-      mjcf.SetAttribute("vmax", $"{VMax}");
-      mjcf.SetAttribute("fpmax", $"{FpMax}");
-      mjcf.SetAttribute("fvmax", $"{FvMax}");
+        "range", MjEngineTool.MakeLocaleInvariant($"{MjEngineTool.GetSorted(Range).x} {MjEngineTool.GetSorted(Range).y}"));
+      mjcf.SetAttribute("force", MjEngineTool.MakeLocaleInvariant($"{Force}"));
+      mjcf.SetAttribute("scale", MjEngineTool.MakeLocaleInvariant($"{Scale}"));
+      mjcf.SetAttribute("lmin", MjEngineTool.MakeLocaleInvariant($"{LMin}"));
+      mjcf.SetAttribute("lmax", MjEngineTool.MakeLocaleInvariant($"{LMax}"));
+      mjcf.SetAttribute("vmax", MjEngineTool.MakeLocaleInvariant($"{VMax}"));
+      mjcf.SetAttribute("fpmax", MjEngineTool.MakeLocaleInvariant($"{FpMax}"));
+      mjcf.SetAttribute("fvmax", MjEngineTool.MakeLocaleInvariant($"{FvMax}"));
     }
 
     public void MuscleFromMjcf(XmlElement mjcf) {

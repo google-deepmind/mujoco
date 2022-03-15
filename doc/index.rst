@@ -13,5 +13,6 @@
    XMLreference
    programming
    APIreference
+   python
    unity
    changelog

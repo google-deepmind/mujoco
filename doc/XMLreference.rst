@@ -1214,6 +1214,8 @@ XML schema
 |                          |    |    +-------------------------+-------------------------+-------------------------+ |
 |                          |    |    | :at:`cutoff`            | :at:`noise`             | :at:`user`              | |
 |                          |    |    +-------------------------+-------------------------+-------------------------+ |
+|                          |    |    | :at:`reftype`           | :at:`refname`           |                         | |
+|                          |    |    +-------------------------+-------------------------+-------------------------+ |
 +--------------------------+----+------------------------------------------------------------------------------------+
 | |_2|:el:`framequat`      | \* | .. table::                                                                         |
 |                          |    |    :class: mjcf-attributes                                                         |
@@ -1222,6 +1224,8 @@ XML schema
 |                          |    |    | :at:`name`              | :at:`objtype`           | :at:`objname`           | |
 |                          |    |    +-------------------------+-------------------------+-------------------------+ |
 |                          |    |    | :at:`cutoff`            | :at:`noise`             | :at:`user`              | |
+|                          |    |    +-------------------------+-------------------------+-------------------------+ |
+|                          |    |    | :at:`reftype`           | :at:`refname`           |                         | |
 |                          |    |    +-------------------------+-------------------------+-------------------------+ |
 +--------------------------+----+------------------------------------------------------------------------------------+
 | |_2|:el:`framexaxis`     | \* | .. table::                                                                         |
@@ -1232,6 +1236,8 @@ XML schema
 |                          |    |    +-------------------------+-------------------------+-------------------------+ |
 |                          |    |    | :at:`cutoff`            | :at:`noise`             | :at:`user`              | |
 |                          |    |    +-------------------------+-------------------------+-------------------------+ |
+|                          |    |    | :at:`reftype`           | :at:`refname`           |                         | |
+|                          |    |    +-------------------------+-------------------------+-------------------------+ |
 +--------------------------+----+------------------------------------------------------------------------------------+
 | |_2|:el:`frameyaxis`     | \* | .. table::                                                                         |
 |                          |    |    :class: mjcf-attributes                                                         |
@@ -1240,6 +1246,8 @@ XML schema
 |                          |    |    | :at:`name`              | :at:`objtype`           | :at:`objname`           | |
 |                          |    |    +-------------------------+-------------------------+-------------------------+ |
 |                          |    |    | :at:`cutoff`            | :at:`noise`             | :at:`user`              | |
+|                          |    |    +-------------------------+-------------------------+-------------------------+ |
+|                          |    |    | :at:`reftype`           | :at:`refname`           |                         | |
 |                          |    |    +-------------------------+-------------------------+-------------------------+ |
 +--------------------------+----+------------------------------------------------------------------------------------+
 | |_2|:el:`framezaxis`     | \* | .. table::                                                                         |
@@ -1250,6 +1258,8 @@ XML schema
 |                          |    |    +-------------------------+-------------------------+-------------------------+ |
 |                          |    |    | :at:`cutoff`            | :at:`noise`             | :at:`user`              | |
 |                          |    |    +-------------------------+-------------------------+-------------------------+ |
+|                          |    |    | :at:`reftype`           | :at:`refname`           |                         | |
+|                          |    |    +-------------------------+-------------------------+-------------------------+ |
 +--------------------------+----+------------------------------------------------------------------------------------+
 | |_2|:el:`framelinvel`    | \* | .. table::                                                                         |
 |                          |    |    :class: mjcf-attributes                                                         |
@@ -1259,6 +1269,8 @@ XML schema
 |                          |    |    +-------------------------+-------------------------+-------------------------+ |
 |                          |    |    | :at:`cutoff`            | :at:`noise`             | :at:`user`              | |
 |                          |    |    +-------------------------+-------------------------+-------------------------+ |
+|                          |    |    | :at:`reftype`           | :at:`refname`           |                         | |
+|                          |    |    +-------------------------+-------------------------+-------------------------+ |
 +--------------------------+----+------------------------------------------------------------------------------------+
 | |_2|:el:`frameangvel`    | \* | .. table::                                                                         |
 |                          |    |    :class: mjcf-attributes                                                         |
@@ -1267,6 +1279,8 @@ XML schema
 |                          |    |    | :at:`name`              | :at:`objtype`           | :at:`objname`           | |
 |                          |    |    +-------------------------+-------------------------+-------------------------+ |
 |                          |    |    | :at:`cutoff`            | :at:`noise`             | :at:`user`              | |
+|                          |    |    +-------------------------+-------------------------+-------------------------+ |
+|                          |    |    | :at:`reftype`           | :at:`refname`           |                         | |
 |                          |    |    +-------------------------+-------------------------+-------------------------+ |
 +--------------------------+----+------------------------------------------------------------------------------------+
 | |_2|:el:`framelinacc`    | \* | .. table::                                                                         |
@@ -1641,10 +1655,11 @@ adjust it properly through the XML.
    around this convention (both the camera and perturbation commands are based on it) so we do not recommend deviating
    from it.
 :at:`wind`: :at-val:`real(3), "0 0 0"`
-   Velocity vector of the medium (i.e. wind). This vector is subtracted from the 3D translational velocity of each body,
-   and the result is used to compute viscous, lift and drag forces acting on the body; recall :ref:`Passive forces
+   Velocity vector of the medium (i.e., wind). This vector is subtracted from the 3D translational velocity of each
+   body, and the result is used to compute viscous, lift and drag forces acting on the body; recall :ref:`Passive forces
    <gePassive>` in the Computation chapter. The magnitude of these forces scales with the values of the next two
    attributes.
+
 :at:`magnetic`: :at-val:`real(3), "0 -0.5 0"`
    Global magnetic flux. This vector is used by magnetometer sensors, which are defined as sites and return the magnetic
    flux at the site position expressed in the site frame.
@@ -1744,7 +1759,7 @@ from its default.
    This flag disables the clamping of control inputs to all actuators, even if the actuator-specific attributes are set
    to enable clamping.
 :at:`warmstart`: :at-val:`[disable, enable], "enable"`
-   This flag disables warm-starting of the constraint solver. By default the solver uses the solution (i.e. the
+   This flag disables warm-starting of the constraint solver. By default the solver uses the solution (i.e., the
    constraint force) from the previous time step to initialize the iterative optimization. This feature should be
    disabled when evaluating the dynamics at a collection of states that do not form a trajectory - in which case warm
    starts make no sense and are likely to slow down the solver.
@@ -1785,7 +1800,7 @@ fields of mjOption which can be modified at runtime, sizes are structural parame
 compilation.
 
 :at:`njmax`: :at-val:`int, "-1"`
-   This and the next two attributes specify the maximum sizes of the dynamic arrays in mjData, i.e. arrays whose
+   This and the next two attributes specify the maximum sizes of the dynamic arrays in mjData, i.e., arrays whose
    effective length varies at runtime. This attribute specifies the maximum number of scalar constraints (or
    equivalently, rows of the constraint Jacobian) that can be handled at runtime. If the number of active constraints is
    about to exceed this maximum (usually because too many contacts become active) the extra constraints are discarded
@@ -1801,7 +1816,7 @@ compilation.
    warning is generated. The actual number of contacts is stored in mjData.ncon. If this value is negative, the compiler
    will use a heuristic to guess an appropriate number.
 :at:`nstack`: :at-val:`int, "-1"`
-   This attribute specifies the size of the pre-allocated stack in mjData, in units of sizeof(mjtNum) which is currently
+   This attribute specifies the size of the preallocated stack in mjData, in units of sizeof(mjtNum) which is currently
    defined as double; thus the size in bytes is 8 times larger. The custom stack is used by all MuJoCo functions that
    need dynamically allocated memory. We do not use heap memory allocation at runtime, so as to speed up processing as
    well as avoid heap fragmentation. Note that the internal allocator keeps track of how much stack space has ever been
@@ -1814,23 +1829,23 @@ compilation.
    The number of key frames allocated in mjModel is the larger of this value and the number of :ref:`key <key>` elements
    below. Note that the interactive simulator has the ability to take snapshots of the system state and save them as key
    frames.
-:at:`nuser_body`: :at-val:`int, "0"`
+:at:`nuser_body`: :at-val:`int, "-1"`
    The number of custom user parameters added to the definition of each body. See also :ref:`User parameters <CUser>`.
    The parameter values are set via the user attribute of the :ref:`body <body>` element. These values are not accessed
    by MuJoCo. They can be used to define element properties needed in user callbacks and other custom code.
-:at:`nuser_jnt`: :at-val:`int, "0"`
+:at:`nuser_jnt`: :at-val:`int, "-1"`
    The number of custom user parameters added to the definition of each :ref:`joint <joint>`.
-:at:`nuser_geom`: :at-val:`int, "0"`
+:at:`nuser_geom`: :at-val:`int, "-1"`
    The number of custom user parameters added to the definition of each :ref:`geom <geom>`.
-:at:`nuser_site"`: :at-val:`int, "0"`
+:at:`nuser_site`: :at-val:`int, "-1"`
    The number of custom user parameters added to the definition of each :ref:`site <site>`.
-:at:`nuser_cam"`: :at-val:`int, "0"`
+:at:`nuser_cam`: :at-val:`int, "-1"`
    The number of custom user parameters added to the definition of each :ref:`camera <camera>`.
-:at:`nuser_tendon`: :at-val:`int, "0"`
+:at:`nuser_tendon`: :at-val:`int, "-1"`
    The number of custom user parameters added to the definition of each :ref:`tendon <tendon>`.
-:at:`nuser_actuator`: :at-val:`int, "0"`
+:at:`nuser_actuator`: :at-val:`int, "-1"`
    The number of custom user parameters added to the definition of each :ref:`actuator <actuator>`.
-:at:`nuser_sensor`: :at-val:`int, "0"`
+:at:`nuser_sensor`: :at-val:`int, "-1"`
    The number of custom user parameters added to the definition of each :ref:`sensor <sensor>`.
 
 .. _visual:
@@ -1843,7 +1858,7 @@ compilation.
   yields a list of geometric entities for subsequent rendering. The settings here are global, in contrast with the
   element-specific visual settings. The global and element-specific settings refer to non-overlapping properties. Some
   of the global settings affect properties such as triangulation of geometric primitives that cannot be set per element.
-  Other global settings affect the properties of decorative objects, i.e. objects such as contact points and force
+  Other global settings affect the properties of decorative objects, i.e., objects such as contact points and force
   arrows which do not correspond to model elements. The visual settings are grouped semantically into several
   subsections.
 | This element is a good candidate for the :ref:`file include <CInclude>` mechanism. One can create an XML file with
@@ -1858,7 +1873,7 @@ While all settings in mjVisual are global, the settings here could not be fit in
 is effectively a miscellaneous subsection.
 
 :at:`fovy`: :at-val:`real, "45"`
-   This attribute specifies the vertical field of view of the free camera, i.e. the camera that is always available in
+   This attribute specifies the vertical field of view of the free camera, i.e., the camera that is always available in
    the visualizer even if no cameras are explicitly defined in the model. It is always expressed in degrees, regardless
    of the setting of the angle attribute of :ref:`compiler <compiler>`, and is also represented in the low level model
    in degrees. This is because we pass it to OpenGL which uses degrees. The same convention applies to the fovy
@@ -2013,7 +2028,7 @@ documented below.
 :at:`light`: :at-val:`real, "0.3"`
    The size of the decorative object used to represent model lights in the rendering.
 :at:`selectpoint`: :at-val:`real, "0.2"`
-   The radius of the sphere used to render the selection point (i.e. the point where the user left-double-clicked to
+   The radius of the sphere used to render the selection point (i.e., the point where the user left-double-clicked to
    select a body). Note that the local and global coordinates of this point can be printed in the 3D view by activating
    the corresponding rendering flags. In this way, the coordinates of points of interest can be found.
 :at:`jointlength`: :at-val:`real, "1.0"`
@@ -2093,7 +2108,7 @@ disables the rendering of the corresponding object.
    Color of slider-crank mechanisms.
 :at:`crankbroken`: :at-val:`real(4), "0.9 0 0 1"`
    Color used to render the crank of slide-crank mechanisms, in model configurations where the specified rod length
-   cannot be maintained, i.e. it is "broken".
+   cannot be maintained, i.e., it is "broken".
 
 .. _statistic:
 
@@ -2458,7 +2473,7 @@ chapter.
    different from "none", the texture is treated as procedural and any file names are ignored. The keywords have the
    following meaning:
    The **gradient** type generates a color gradient from rgb1 to rgb2. The interpolation in color space is done through
-   a sigmoid function. For cube and skybox textures the gradient is along the +Y axis, i.e. from top to bottom for
+   a sigmoid function. For cube and skybox textures the gradient is along the +Y axis, i.e., from top to bottom for
    skybox rendering.
 
    The **checker** type generates a 2-by-2 checker pattern with alternating colors given by rgb1 to rgb2. This is
@@ -2486,11 +2501,11 @@ chapter.
    texture size and probability need to be adjusted jointly. Together with a gradient skybox texture, this can create
    the appearance of a night sky with stars.
 :at:`width`: :at-val:`int, "0"`
-   The width of the procedural texture, i.e. the number of columns in the image. For cube and skybox procedural textures
-   the width and height must be equal. Larger values usually result in higher quality images, although in some cases
-   (e.g. checker patterns) small values are sufficient.
+   The width of the procedural texture, i.e., the number of columns in the image. For cube and skybox procedural
+   textures the width and height must be equal. Larger values usually result in higher quality images, although in some
+   cases (e.g. checker patterns) small values are sufficient.
 :at:`height`: :at-val:`int, "0"`
-   The height of the procedural texture, i.e. the number of rows in the image.
+   The height of the procedural texture, i.e., the number of rows in the image.
 :at:`hflip`: :at-val:`[false, true], "false"`
    If true, images loaded from file are flipped in the horizontal direction. Does not affect procedural textures.
 :at:`vflip`: :at-val:`[false, true], "false"`
@@ -2548,7 +2563,7 @@ also known as terrain map, is a 2D matrix of elevation data. The data can be spe
    with the file contents.
 :at:`nrow`: :at-val:`int, "0"`
    This attribute and the next are used to allocate a height field in mjModel and leave the elevation data undefined
-   (i.e. set to 0). This attribute specifies the number of rows in the elevation data matrix. The default value of 0
+   (i.e., set to 0). This attribute specifies the number of rows in the elevation data matrix. The default value of 0
    means that the data will be loaded from a file, which will be used to infer the size of the matrix.
 :at:`ncol`: :at-val:`int, "0"`
    This attribute specifies the number of columns in the elevation data matrix.
@@ -2962,7 +2977,7 @@ axes of inertia of the body. Thus the inertia matrix is diagonal in this frame.
 :at:`fullinertia`: :at-val:`real(6), optional`
    Full inertia matrix M. Since M is 3-by-3 and symmetric, it is specified using only 6 numbers in the following order:
    M(1,1), M(2,2), M(3,3), M(1,2), M(1,3), M(2,3). The compiler computes the eigenvalue decomposition of M and sets the
-   frame orientation and diagonal inertia accordingly. If non-positive eigenvalues are encountered (i.e. if M is not
+   frame orientation and diagonal inertia accordingly. If non-positive eigenvalues are encountered (i.e., if M is not
    positive definite) a compile error is generated.
 
 .. _joint:
@@ -3058,7 +3073,7 @@ unit quaternions.
    Armature inertia (or rotor inertia, or reflected inertia) of all degrees of freedom created by this joint. These are
    constants added to the diagonal of the inertia matrix in generalized coordinates. They make the simulation more
    stable, and often increase physical realism. This is because when a motor is attached to the system with a
-   transmission that amplifies the motor force by c, the inertia of the rotor (i.e. the moving part of the motor) is
+   transmission that amplifies the motor force by c, the inertia of the rotor (i.e., the moving part of the motor) is
    amplified by c*c. The same holds for gears in the early stages of planetary gear boxes. These extra inertias often
    dominate the inertias of the robot parts that are represented explicitly in the model, and the armature attribute is
    the way to model them.
@@ -3280,7 +3295,7 @@ mjModel. If the XML model is saved, it will appear as a regular joint of type "f
    in :ref:`CSolver`. The quantity this function is applied to is the distance between
    the two geoms minus the margin plus the gap.
 :at:`gap`: :at-val:`real, "0"`
-   This attribute is used to enable the generation of inactive contacts, i.e. contacts that are ignored by the
+   This attribute is used to enable the generation of inactive contacts, i.e., contacts that are ignored by the
    constraint solver but are included in mjData.contact for the purpose of custom computations. When this value is
    positive, geom distances between margin and margin-gap correspond to such inactive contacts.
 :at:`fromto`: :at-val:`real(6), optional`
@@ -3380,7 +3395,7 @@ and the +Y axis points up. Thus the frame position and orientation are the key a
 :at:`mode`: :at-val:`[fixed, track, trackcom, targetbody, targetbodycom], "fixed"`
    This attribute specifies how the camera position and orientation in world coordinates are computed in forward
    kinematics (which in turn determine what the camera sees). "fixed" means that the position and orientation specified
-   below are fixed relative to the parent (i.e. the body where the camera is defined). "track" means that the camera
+   below are fixed relative to the parent (i.e., the body where the camera is defined). "track" means that the camera
    position is at a constant offset from the parent in world coordinates, while the camera orientation is constant in
    world coordinates. These constants are determined by applying forward kinematics in qpos0 and treating the camera as
    fixed. Tracking can be used for example to position a camera above a body, point it down so it sees the body, and
@@ -3447,7 +3462,7 @@ the direction specified by the dir attribute. It does not have a full spatial fr
    computed by the compiler but can also be overridden by specifying the extent attribute of :ref:`statistic
    <statistic>`. Internally the shadow-mapping mechanism renders the scene from the light viewpoint (as if it were a
    camera) into a depth texture, and then renders again from the camera viewpoint, using the depth texture to create
-   shadows. The internal rendering pass uses the same near and far clipping planes as regular rendering, i.e. these
+   shadows. The internal rendering pass uses the same near and far clipping planes as regular rendering, i.e., these
    clipping planes bound the cone or box shadow volume in the light direction. As a result, some shadows (especially
    those very close to the light) may be clipped.
 :at:`active`: :at-val:`[false, true], "true"`
@@ -3765,7 +3780,7 @@ element.
 :at:`margin`: :at-val:`real, "0"`
    Distance threshold below which contacts are detected and included in the global array mjData.contact.
 :at:`gap`: :at-val:`real, "0"`
-   This attribute is used to enable the generation of inactive contacts, i.e. contacts that are ignored by the
+   This attribute is used to enable the generation of inactive contacts, i.e., contacts that are ignored by the
    constraint solver but are included in mjData.contact for the purpose of custom computations. When this value is
    positive, geom distances between margin and margin-gap correspond to such inactive contacts.
 
@@ -3850,7 +3865,7 @@ of the other body, without any joint elements in the child body.
    and changing the corresponding component of mjModel.eq_active at runtime can be used to fix the body temporarily.
 :at:`relpose`: :at-val:`real(7), "0 1 0 0 0 0 0"`
    This attribute specifies the relative pose (3D position followed by 4D quaternion orientation) of body2 relative to
-   body1. If the quaternion part (i.e. last 4 components of the vector) are all zeros, as in the default setting, this
+   body1. If the quaternion part (i.e., last 4 components of the vector) are all zeros, as in the default setting, this
    attribute is ignored and the relative pose is the one corresponding to the model reference pose in qpos0. The unusual
    default is because all equality constraint types share the same default for their numeric parameters.
 
@@ -4145,7 +4160,7 @@ specify them independently.
    If specified, the actuator acts on the given tendon. The actuator length equals the tendon length times the gear
    ratio. Both spatial and fixed tendons can be used.
 :at:`cranksite`: :at-val:`string, optional`
-   If specified, the actuator acts on a slider-crank mechanism which is implicitly determined by the actuator (i.e. it
+   If specified, the actuator acts on a slider-crank mechanism which is implicitly determined by the actuator (i.e., it
    is not a separate model element). The specified site corresponds to the pin joining the crank and the connecting rod.
    The actuator length equals the position of the slider-crank mechanism times the gear ratio.
 :at:`slidersite`: :at-val:`string, required for slider-crank transmission`
@@ -4217,7 +4232,7 @@ specify them independently.
   such shortcut is encountered, the parser creates a :el:`general` actuator and sets its dynprm, gainprm and biasprm
   attributes to the internal defaults shown above, regardless of any default settings. It then adjusts dyntype, gaintype
   and biastype depending on the shortcut, parses any custom attributes (beyond the common ones), and translates them
-  into regular attributes (i.e. attributes of the :el:`general` actuator type) as explained here.
+  into regular attributes (i.e., attributes of the :el:`general` actuator type) as explained here.
 | This element creates a direct-drive actuator. The underlying :el:`general` attributes are set as follows:
 
 ========= ======= ========= =======
@@ -4464,7 +4479,7 @@ This element creates a 3-axis force sensor. The sensor outputs three numbers, wh
 child and a parent body, expressed in the site frame defining the sensor. The convention is that the site is attached to
 the child body, and the force points from the child towards the parent. To change the sign of the sensor reading, use
 the scale attribute. The computation here takes into account all forces acting on the system, including contacts as well
-as external perturbations. Using this sensor often requires creating a dummy body welded to its parent (i.e. having no
+as external perturbations. Using this sensor often requires creating a dummy body welded to its parent (i.e., having no
 joint elements).
 
 :at:`name`, :at:`noise`, :at:`cutoff`, :at:`user`
@@ -4724,7 +4739,8 @@ This element creates a tendon limit sensor for constraint force.
 :el-prefix:`sensor/` **framepos** (*)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-This element creates a sensor that returns the 3D position of the spatial frame of the object, in global coordinates.
+This element creates a sensor that returns the 3D position of the spatial frame of the object, in global coordinates or
+optionally with respect to a given frame-of-reference.
 
 :at:`name`, :at:`noise`, :at:`cutoff`, :at:`user`
    See :ref:`CSensor`.
@@ -4734,6 +4750,12 @@ This element creates a sensor that returns the 3D position of the spatial frame 
    the joint with the parent body).
 :at:`objname`: :at-val:`string, required`
    The name of the object to which the sensor is attached.
+:at:`reftype`: :at-val:`[body, xbody, geom, site, camera]`
+   The type of object to which the frame-of-reference is attached. The semantics are identical to the :at:`objtype`
+   attribute. If :at:`reftype` and :at:`refname` are given, the sensor values will be measured with respect to this
+   frame. If they are not given, sensor values will be measured with respect to the global frame.
+:at:`refname`: :at-val:`string`
+   The name of the object to which the frame-of-reference is attached.
 
 .. _sensor-framequat:
 
@@ -4746,11 +4768,13 @@ object, in global coordinates.
 :at:`name`, :at:`noise`, :at:`cutoff`, :at:`user`
    See :ref:`CSensor`.
 :at:`objtype`: :at-val:`[body, xbody, geom, site, camera], required`
-   The type of object to which the sensor is attached. This must be an object type that has a spatial frame. "body"
-   refers to the inertial frame of the body, while "xbody" refers to the regular frame of the body (usually centered at
-   the joint with the parent body).
+   See :ref:`framepos<sensor-framepos>` sensor.
 :at:`objname`: :at-val:`string, required`
-   The name of the object to which the sensor is attached.
+   See :ref:`framepos<sensor-framepos>` sensor.
+:at:`reftype`: :at-val:`[body, xbody, geom, site, camera]`
+   See :ref:`framepos<sensor-framepos>` sensor.
+:at:`refname`: :at-val:`string`
+   See :ref:`framepos<sensor-framepos>` sensor.
 
 .. _sensor-framexaxis:
 
@@ -4763,11 +4787,13 @@ object, in global coordinates.
 :at:`name`, :at:`noise`, :at:`cutoff`, :at:`user`
    See :ref:`CSensor`.
 :at:`objtype`: :at-val:`[body, xbody, geom, site, camera], required`
-   The type of object to which the sensor is attached. This must be an object type that has a spatial frame. "body"
-   refers to the inertial frame of the body, while "xbody" refers to the regular frame of the body (usually centered at
-   the joint with the parent body).
+   See :ref:`framepos<sensor-framepos>` sensor.
 :at:`objname`: :at-val:`string, required`
-   The name of the object to which the sensor is attached.
+   See :ref:`framepos<sensor-framepos>` sensor.
+:at:`reftype`: :at-val:`[body, xbody, geom, site, camera]`
+   See :ref:`framepos<sensor-framepos>` sensor.
+:at:`refname`: :at-val:`string`
+   See :ref:`framepos<sensor-framepos>` sensor.
 
 .. _sensor-frameyaxis:
 
@@ -4780,11 +4806,13 @@ object, in global coordinates.
 :at:`name`, :at:`noise`, :at:`cutoff`, :at:`user`
    See :ref:`CSensor`.
 :at:`objtype`: :at-val:`[body, xbody, geom, site, camera], required`
-   The type of object to which the sensor is attached. This must be an object type that has a spatial frame. "body"
-   refers to the inertial frame of the body, while "xbody" refers to the regular frame of the body (usually centered at
-   the joint with the parent body).
+   See :ref:`framepos<sensor-framepos>` sensor.
 :at:`objname`: :at-val:`string, required`
-   The name of the object to which the sensor is attached.
+   See :ref:`framepos<sensor-framepos>` sensor.
+:at:`reftype`: :at-val:`[body, xbody, geom, site, camera]`
+   See :ref:`framepos<sensor-framepos>` sensor.
+:at:`refname`: :at-val:`string`
+   See :ref:`framepos<sensor-framepos>` sensor.
 
 .. _sensor-framezaxis:
 
@@ -4797,11 +4825,13 @@ object, in global coordinates.
 :at:`name`, :at:`noise`, :at:`cutoff`, :at:`user`
    See :ref:`CSensor`.
 :at:`objtype`: :at-val:`[body, xbody, geom, site, camera], required`
-   The type of object to which the sensor is attached. This must be an object type that has a spatial frame. "body"
-   refers to the inertial frame of the body, while "xbody" refers to the regular frame of the body (usually centered at
-   the joint with the parent body).
+   See :ref:`framepos<sensor-framepos>` sensor.
 :at:`objname`: :at-val:`string, required`
-   The name of the object to which the sensor is attached.
+   See :ref:`framepos<sensor-framepos>` sensor.
+:at:`reftype`: :at-val:`[body, xbody, geom, site, camera]`
+   See :ref:`framepos<sensor-framepos>` sensor.
+:at:`refname`: :at-val:`string`
+   See :ref:`framepos<sensor-framepos>` sensor.
 
 .. _sensor-framelinvel:
 
@@ -4814,11 +4844,13 @@ coordinates.
 :at:`name`, :at:`noise`, :at:`cutoff`, :at:`user`
    See :ref:`CSensor`.
 :at:`objtype`: :at-val:`[body, xbody, geom, site, camera], required`
-   The type of object to which the sensor is attached. This must be an object type that has a spatial frame. "body"
-   refers to the inertial frame of the body, while "xbody" refers to the regular frame of the body (usually centered at
-   the joint with the parent body).
+   See :ref:`framepos<sensor-framepos>` sensor.
 :at:`objname`: :at-val:`string, required`
-   The name of the object to which the sensor is attached.
+   See :ref:`framepos<sensor-framepos>` sensor.
+:at:`reftype`: :at-val:`[body, xbody, geom, site, camera]`
+   See :ref:`framepos<sensor-framepos>` sensor.
+:at:`refname`: :at-val:`string`
+   See :ref:`framepos<sensor-framepos>` sensor.
 
 .. _sensor-frameangvel:
 
@@ -4831,11 +4863,13 @@ coordinates.
 :at:`name`, :at:`noise`, :at:`cutoff`, :at:`user`
    See :ref:`CSensor`.
 :at:`objtype`: :at-val:`[body, xbody, geom, site, camera], required`
-   The type of object to which the sensor is attached. This must be an object type that has a spatial frame. "body"
-   refers to the inertial frame of the body, while "xbody" refers to the regular frame of the body (usually centered at
-   the joint with the parent body).
+   See :ref:`framepos<sensor-framepos>` sensor.
 :at:`objname`: :at-val:`string, required`
-   The name of the object to which the sensor is attached.
+   See :ref:`framepos<sensor-framepos>` sensor.
+:at:`reftype`: :at-val:`[body, xbody, geom, site, camera]`
+   See :ref:`framepos<sensor-framepos>` sensor.
+:at:`refname`: :at-val:`string`
+   See :ref:`framepos<sensor-framepos>` sensor.
 
 .. _sensor-framelinacc:
 
@@ -4848,11 +4882,9 @@ coordinates.
 :at:`name`, :at:`noise`, :at:`cutoff`, :at:`user`
    See :ref:`CSensor`.
 :at:`objtype`: :at-val:`[body, xbody, geom, site, camera], required`
-   The type of object to which the sensor is attached. This must be an object type that has a spatial frame. "body"
-   refers to the inertial frame of the body, while "xbody" refers to the regular frame of the body (usually centered at
-   the joint with the parent body).
+   See :ref:`framepos<sensor-framepos>` sensor.
 :at:`objname`: :at-val:`string, required`
-   The name of the object to which the sensor is attached.
+   See :ref:`framepos<sensor-framepos>` sensor.
 
 .. _sensor-frameangacc:
 
@@ -4865,11 +4897,9 @@ coordinates.
 :at:`name`, :at:`noise`, :at:`cutoff`, :at:`user`
    See :ref:`CSensor`.
 :at:`objtype`: :at-val:`[body, xbody, geom, site, camera], required`
-   The type of object to which the sensor is attached. This must be an object type that has a spatial frame. "body"
-   refers to the inertial frame of the body, while "xbody" refers to the regular frame of the body (usually centered at
-   the joint with the parent body).
+   See :ref:`framepos<sensor-framepos>` sensor.
 :at:`objname`: :at-val:`string, required`
-   The name of the object to which the sensor is attached.
+   See :ref:`framepos<sensor-framepos>` sensor.
 
 .. _sensor-subtreecom:
 

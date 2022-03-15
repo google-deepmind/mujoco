@@ -70,7 +70,7 @@ public class MjcfGenerationContext {
     var optionMjcf = (XmlElement)mjcf.AppendChild(doc.CreateElement("option"));
     optionMjcf.SetAttribute(
         "gravity", MjEngineTool.Vector3ToMjcf(MjEngineTool.MjVector3(Physics.gravity)));
-    optionMjcf.SetAttribute("timestep", $"{Time.fixedDeltaTime}");
+    optionMjcf.SetAttribute("timestep", MjEngineTool.MakeLocaleInvariant($"{Time.fixedDeltaTime}"));
 
     var sizeMjcf = (XmlElement)mjcf.AppendChild(doc.CreateElement("size"));
     sizeMjcf.SetAttribute("nuser_sensor", $"{_nuserSensor}");

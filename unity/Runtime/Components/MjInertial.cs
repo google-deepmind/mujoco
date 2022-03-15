@@ -43,7 +43,7 @@ public class MjInertial : MjComponent {
   protected override XmlElement OnGenerateMjcf(XmlDocument doc) {
     var mjcf = (XmlElement)doc.CreateElement("inertial");
     MjEngineTool.PositionRotationToMjcf(mjcf, this);
-    mjcf.SetAttribute("mass", $"{Mass}");
+    mjcf.SetAttribute("mass", MjEngineTool.MakeLocaleInvariant($"{Mass}"));
     mjcf.SetAttribute("diaginertia",
                       MjEngineTool.Vector3ToMjcf(MjEngineTool.MjExtents(DiagInertia)));
     return mjcf;

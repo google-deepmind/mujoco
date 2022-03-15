@@ -23,10 +23,6 @@ public static class MujocoLib {
 
 // ----------------------------------Constants----------------------------------
 
-public const bool THIRD_PARTY_MUJOCO_MJDATA_H_ = true;
-public const bool THIRD_PARTY_MUJOCO_MJMODEL_H_ = true;
-public const bool mjUSEDOUBLE = true;
-public const double mjMINVAL = 1e-15;
 public const double mjPI = 3.141592653589793;
 public const double mjMAXVAL = 10000000000.0;
 public const double mjMINMU = 1e-05;
@@ -39,13 +35,14 @@ public const int mjNEQDATA = 7;
 public const int mjNDYN = 10;
 public const int mjNGAIN = 10;
 public const int mjNBIAS = 10;
+public const int mjNFLUID = 12;
 public const int mjNREF = 2;
 public const int mjNIMP = 5;
 public const int mjNSOLVER = 1000;
-public const bool THIRD_PARTY_MUJOCO_MJRENDER_H_ = true;
 public const int mjNAUX = 10;
 public const int mjMAXTEXTURE = 1000;
-public const bool THIRD_PARTY_MUJOCO_MJUI_H_ = true;
+public const bool mjUSEDOUBLE = true;
+public const double mjMINVAL = 1e-15;
 public const int mjMAXUISECT = 10;
 public const int mjMAXUIITEM = 80;
 public const int mjMAXUITEXT = 300;
@@ -80,21 +77,13 @@ public const int mjKEY_F9 = 298;
 public const int mjKEY_F10 = 299;
 public const int mjKEY_F11 = 300;
 public const int mjKEY_F12 = 301;
-public const bool THIRD_PARTY_MUJOCO_MJVISUALIZE_H_ = true;
 public const int mjNGROUP = 6;
+public const int mjMAXLIGHT = 100;
 public const int mjMAXOVERLAY = 500;
 public const int mjMAXLINE = 100;
 public const int mjMAXLINEPNT = 1000;
 public const int mjMAXPLANEGRID = 200;
-public const bool THIRD_PARTY_MUJOCO_MJXMACRO_H_ = true;
-public const bool THIRD_PARTY_MUJOCO_MUJOCO_H_ = true;
-public const int mjVERSION_HEADER = 211;
-public const bool THIRD_PARTY_MUJOCO_MUJOCO_EXPORT_H_ = true;
-public const bool MUJOCO_HELPER_DLL_LOCAL = true;
-public const bool MUJOCO_HELPER_DLL_IMPORT = true;
-public const bool MUJOCO_HELPER_DLL_EXPORT = true;
-public const bool MJAPI = true;
-public const bool MJLOCAL = true;
+public const int mjVERSION_HEADER = 212;
 
 
 // ------------------------------------Enums------------------------------------
@@ -1950,6 +1939,7 @@ public unsafe struct mjModel_ {
   public double* geom_friction;
   public double* geom_margin;
   public double* geom_gap;
+  public double* geom_fluid;
   public double* geom_user;
   public float* geom_rgba;
   public int* site_type;
@@ -2103,6 +2093,8 @@ public unsafe struct mjModel_ {
   public int* sensor_needstage;
   public int* sensor_objtype;
   public int* sensor_objid;
+  public int* sensor_reftype;
+  public int* sensor_refid;
   public int* sensor_dim;
   public int* sensor_adr;
   public double* sensor_cutoff;
@@ -2497,6 +2489,98 @@ public unsafe struct mjvScene_ {
   public mjvLight_ lights5;
   public mjvLight_ lights6;
   public mjvLight_ lights7;
+  public mjvLight_ lights8;
+  public mjvLight_ lights9;
+  public mjvLight_ lights10;
+  public mjvLight_ lights11;
+  public mjvLight_ lights12;
+  public mjvLight_ lights13;
+  public mjvLight_ lights14;
+  public mjvLight_ lights15;
+  public mjvLight_ lights16;
+  public mjvLight_ lights17;
+  public mjvLight_ lights18;
+  public mjvLight_ lights19;
+  public mjvLight_ lights20;
+  public mjvLight_ lights21;
+  public mjvLight_ lights22;
+  public mjvLight_ lights23;
+  public mjvLight_ lights24;
+  public mjvLight_ lights25;
+  public mjvLight_ lights26;
+  public mjvLight_ lights27;
+  public mjvLight_ lights28;
+  public mjvLight_ lights29;
+  public mjvLight_ lights30;
+  public mjvLight_ lights31;
+  public mjvLight_ lights32;
+  public mjvLight_ lights33;
+  public mjvLight_ lights34;
+  public mjvLight_ lights35;
+  public mjvLight_ lights36;
+  public mjvLight_ lights37;
+  public mjvLight_ lights38;
+  public mjvLight_ lights39;
+  public mjvLight_ lights40;
+  public mjvLight_ lights41;
+  public mjvLight_ lights42;
+  public mjvLight_ lights43;
+  public mjvLight_ lights44;
+  public mjvLight_ lights45;
+  public mjvLight_ lights46;
+  public mjvLight_ lights47;
+  public mjvLight_ lights48;
+  public mjvLight_ lights49;
+  public mjvLight_ lights50;
+  public mjvLight_ lights51;
+  public mjvLight_ lights52;
+  public mjvLight_ lights53;
+  public mjvLight_ lights54;
+  public mjvLight_ lights55;
+  public mjvLight_ lights56;
+  public mjvLight_ lights57;
+  public mjvLight_ lights58;
+  public mjvLight_ lights59;
+  public mjvLight_ lights60;
+  public mjvLight_ lights61;
+  public mjvLight_ lights62;
+  public mjvLight_ lights63;
+  public mjvLight_ lights64;
+  public mjvLight_ lights65;
+  public mjvLight_ lights66;
+  public mjvLight_ lights67;
+  public mjvLight_ lights68;
+  public mjvLight_ lights69;
+  public mjvLight_ lights70;
+  public mjvLight_ lights71;
+  public mjvLight_ lights72;
+  public mjvLight_ lights73;
+  public mjvLight_ lights74;
+  public mjvLight_ lights75;
+  public mjvLight_ lights76;
+  public mjvLight_ lights77;
+  public mjvLight_ lights78;
+  public mjvLight_ lights79;
+  public mjvLight_ lights80;
+  public mjvLight_ lights81;
+  public mjvLight_ lights82;
+  public mjvLight_ lights83;
+  public mjvLight_ lights84;
+  public mjvLight_ lights85;
+  public mjvLight_ lights86;
+  public mjvLight_ lights87;
+  public mjvLight_ lights88;
+  public mjvLight_ lights89;
+  public mjvLight_ lights90;
+  public mjvLight_ lights91;
+  public mjvLight_ lights92;
+  public mjvLight_ lights93;
+  public mjvLight_ lights94;
+  public mjvLight_ lights95;
+  public mjvLight_ lights96;
+  public mjvLight_ lights97;
+  public mjvLight_ lights98;
+  public mjvLight_ lights99;
   public mjvGLCamera_ camera0;
   public mjvGLCamera_ camera1;
   public byte enabletransform;
@@ -2663,10 +2747,13 @@ public static unsafe extern void mj_setConst(mjModel_* m, mjData_* d);
 public static unsafe extern int mj_setLengthRange(mjModel_* m, mjData_* d, int index, mjLROpt_* opt, StringBuilder error, int error_sz);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
-public static unsafe extern void mj_printFormattedModel(mjModel_* m, [MarshalAs(UnmanagedType.LPStr)]string filename, [MarshalAs(UnmanagedType.LPStr)]string float_format_str);
+public static unsafe extern void mj_printFormattedModel(mjModel_* m, [MarshalAs(UnmanagedType.LPStr)]string filename, [MarshalAs(UnmanagedType.LPStr)]string float_format);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern void mj_printModel(mjModel_* m, [MarshalAs(UnmanagedType.LPStr)]string filename);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern void mj_printFormattedData(mjModel_* m, mjData_* d, [MarshalAs(UnmanagedType.LPStr)]string filename, [MarshalAs(UnmanagedType.LPStr)]string float_format);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern void mj_printData(mjModel_* m, mjData_* d, [MarshalAs(UnmanagedType.LPStr)]string filename);

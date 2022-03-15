@@ -45,7 +45,7 @@ XML file has a unique top-level element. This element must be :el:`mujoco` for M
 Compiling models
 ~~~~~~~~~~~~~~~~
 
-Once a high-level mjCModel is created - by loading an MJCF file or an URDF file, or programmatically when such
+Once a high-level mjCModel is created - by loading an MJCF file or a URDF file, or programmatically when such
 functionality becomes available - it is compiled into mjModel. Even though loading and compilation are presently
 combined in one step, compilation is independent of loading, meaning that the compiler works in the same way
 regardless of how mjCModel was created. Both the parser and the compiler perform extensive error checking, and abort
@@ -159,7 +159,7 @@ cylinder  1 0 0 1
 
 
 The box uses the top-level defaults class "main" to set the values of its undefined attributes, because no other class
-was specified. The body specifies childclass "sub", causing all children of this body (and all their children etc) to
+was specified. The body specifies childclass "sub", causing all children of this body (and all their children etc.) to
 use class "sub" unless specified otherwise. So the ellipsoid uses class "sub". The sphere has explicitly defined rgba
 which overrides the default settings. The cylinder specifies defaults class "main", and so it uses "main" instead of
 "sub", even though the latter was specified in the childclass attribute of the body containing the geom.
@@ -187,7 +187,7 @@ geoms attached to the body. The undefined state cannot be entered in the XML fil
 defined in a given class, it cannot be undefined in that class or in any of its child classes. So if the goal is to
 leave a certain attribute undefined in a given model element, it must be undefined in the active defaults class.
 
-A final twist here are actuators. They are different because some of the actuator-related elements are actually
+A final twist here is actuators. They are different because some of the actuator-related elements are actually
 shortcuts, and shortcuts interact with the defaults setting mechanism in a non-obvious way. This is explained in the
 :ref:`Actuator shortcuts <CActuator>` section below.
 
@@ -234,7 +234,7 @@ relative to the body.
 
 In principle the user always has a choice between local and global coordinates, but in practice this choice is viable
 only when using geometric primitives rather than meshes. For meshes, the 3D vertex positions are expressed in either
-local and global coordinates depending on how the mesh was designed - effectively forcing the user to adopt the same
+local or global coordinates depending on how the mesh was designed - effectively forcing the user to adopt the same
 convention for the entire model. The alternative would be to pre-process the mesh data outside MuJoCo so as to change
 coordinates, but that effort is rarely justified.
 
@@ -308,7 +308,7 @@ First we explain the setting of the impedance d. Recall that d must lie between 
 to the range [:ref:`mjMINIMP mjMAXIMP <glNumeric>`] which is currently set to [0.0001 0.9999]. It
 causes the solver to interpolate between the unforced acceleration a0 and reference acceleration aref. Small values of
 d correspond to soft/weak constraints while large values of d correspond to strong/hard constraints. The user can set
-d to a constant, or take advantage of its interpolating property and make it position-dependent, i.e. a function of r.
+d to a constant, or take advantage of its interpolating property and make it position-dependent, i.e., a function of r.
 Position-dependent impedance can be used to model soft contact layers around objects, or define equality constraints
 that become stronger with larger violation (so as to approximate backlash for example). The shape of the function d(r)
 is determined by the element-specific parameter vector :at:`solimp`.
@@ -408,11 +408,11 @@ margin, gap
    margin and gap are distance properties and a one-sided specification makes little sense.
 solref, solimp
    If one of the two geoms has higher priority, its solref and solimp parameters are used. If both geoms have the same
-   priority, the weighted average is used. The weights are proportional to the solmix attributes, i.e. weight1 = solmix1
-   / (solmix1 + solmix2) and similarly for weight2. There is one important exception to this weighted averaging rule. If
-   solref for either geom is non-positive, i.e. it relies on the new direct format introduced in MuJoCo 2.0, then the
-   element-wise minimum is used regardless of solmix. This is because averaging solref parameters in different formats
-   would be meaningless.
+   priority, the weighted average is used. The weights are proportional to the solmix attributes, i.e., weight1 =
+   solmix1 / (solmix1 + solmix2) and similarly for weight2. There is one important exception to this weighted averaging
+   rule. If solref for either geom is non-positive, i.e., it relies on the new direct format introduced in MuJoCo 2.0,
+   then the element-wise minimum is used regardless of solmix. This is because averaging solref parameters in different
+   formats would be meaningless.
 
 .. _COverride:
 
@@ -443,12 +443,14 @@ User parameters
 ~~~~~~~~~~~~~~~
 
 A number of MJCF elements have the optional attribute :at:`user`, which defines a custom element-specific parameter
-array. This interacts with the corresponding "nuser_XXX" attribute of the :ref:`size <size>` element.
-If for example we set :at:`nuser_geom` to 5, then every geom in mjModel will have a custom array of 5 real-valued
-parameters. These geom-specific parameters are either defined in the MJCF file via the :at:`user` attribute of
-:ref:`geom <geom>`, or set to 0 by the compiler if this attribute is omitted. MuJoCo does not use these
-parameters in any internal computations; instead they are available for custom computations. The parser allows arrays
-of arbitrary length in the XML, and the compiler later resizes them to length nuser_XXX.
+array. This interacts with the corresponding "nuser_XXX" attribute of the :ref:`size <size>` element. If for example we
+set :at:`nuser_geom` to 5, then every geom in mjModel will have a custom array of 5 real-valued parameters. These geom-
+specific parameters are either defined in the MJCF file via the :at:`user` attribute of :ref:`geom <geom>`, or set to 0
+by the compiler if this attribute is omitted. The default value of all "nuser_XXX" attributes is -1, which instructs the
+compiler to automatically set this value to the length of the maximum associated :at:`user` attribute defined in the
+model. MuJoCo does not use these parameters in any internal computations; instead they are available for custom
+computations. The parser allows arrays of arbitrary length in the XML, and the compiler later resizes them to length
+nuser_XXX.
 
 Some element-specific parameters that are normally used in internal computations can also be used in custom
 computations. This is done by installing user callbacks which override parts of the simulation pipeline. For example,
@@ -483,12 +485,12 @@ well as solver statistics per iteration. We can offer the following general guid
 -  The constraint Jacobian should be dense for small models and sparse for large models. The default setting is 'auto';
    it resolves to dense when the number of degrees of freedom is up to 60, and sparse over 60. Note however that the
    threshold is better defined in terms of number of active constraints, which is model and behavior dependent.
--  The choice between pyramidal and elliptic friction cones is a modeling choice rather than an algorithmic choice, i.e.
-   it leads to a different optimization problem solved with the same algorithms. Elliptic cones correspond more closely
-   to physical reality. However pyramidal cones can improve the performance of the algorithms - but not necessarily.
-   While the default is pyramidal, we recommend trying the elliptic cones. When contact slip is a problem, the best way
-   to suppress it is to use elliptic cones, large impratio, and the Newton algorithm with very small tolerance. If that
-   is not sufficient, enable the Noslip solver.
+-  The choice between pyramidal and elliptic friction cones is a modeling choice rather than an algorithmic choice,
+   i.e., it leads to a different optimization problem solved with the same algorithms. Elliptic cones correspond more
+   closely to physical reality. However pyramidal cones can improve the performance of the algorithms - but not
+   necessarily. While the default is pyramidal, we recommend trying the elliptic cones. When contact slip is a problem,
+   the best way to suppress it is to use elliptic cones, large impratio, and the Newton algorithm with very small
+   tolerance. If that is not sufficient, enable the Noslip solver.
 -  The Newton algorithm is the best choice for most models. It has quadratic convergence near the global minimum and
    gets there in surprisingly few iterations - usually around 5, and rarely more than 20. It should be used with
    aggressive tolerance values, say 1e-10, because it is capable of achieving high accuracy without added delay (due to
@@ -635,7 +637,7 @@ the shortcut :ref:`muscle <muscle>` is more convenient. As with all other actuat
 production mechanism and the transmission are defined independently. Nevertheless, muscles only make (bio)physical
 sense when attached to tendon or joint transmissions. For concreteness we will assume a tendon transmission here.
 
-First we discuss length and length scaling. The range of feasible lengths of the transmission (i.e. MuJoCo tendon)
+First we discuss length and length scaling. The range of feasible lengths of the transmission (i.e., MuJoCo tendon)
 will play an important role; see :ref:`Length range <CLengthRange>` section above. In biomechanics, a muscle and a
 tendon are attached in series and form a muscle-tendon actuator. Our convention is somewhat different: in MuJoCo the
 entity that has spatial properties (in particular length and velocity) is the tendon, while the muscle is an abstract
@@ -684,7 +686,7 @@ force. We multiply the scaled force by a muscle-specific constant F0 to obtain t
 actuator_force = - FLV(L, V, act) \* F0
 
 The negative sign is because positive muscle activation generates pulling force. The constant F0 is the peak active
-force at zero velocity. It is related to the muscle thickness (i.e. physiological cross-sectional area or PCSA). If
+force at zero velocity. It is related to the muscle thickness (i.e., physiological cross-sectional area or PCSA). If
 known, it can be set with the attribute force of element :ref:`muscle <muscle>`. If it is not known, we
 set it to -1 which is the default. In that case we rely on the fact that larger muscles tend to act on joints that
 move more weight. The attribute scale defines this relationship as:
@@ -787,7 +789,7 @@ instability. In practice tendons are quite stiff, and their effect can be captur
 curve corresponding to the inelastic case (Zajac 89). This can be done in MuJoCo by shortening the muscle operating
 range.
 
-Pennation angle (i.e. the angle between the muscle and the line of force) is not modeled in MuJoCo and is assumed to
+Pennation angle (i.e., the angle between the muscle and the line of force) is not modeled in MuJoCo and is assumed to
 be 0. This effect can be approximated by scaling down the muscle force and also adjusting the operating range.
 
 Tendon wrapping is also more limited in MuJoCo. We allow spheres and infinite cylinders as wrapping objects, and require
@@ -1064,14 +1066,14 @@ is a grouping element for XML purposes and would violate the MJCF format if incl
 
 This functionality enables modular MJCF models; see the MPL family of models in the model library. One example of
 modularity is constructing a model of a robot (which tends to be elaborate) and then including it in multiple
-"scenes", i.e. MJCF models defining the objects in the robot's environment. Another example is creating a file with
+"scenes", i.e., MJCF models defining the objects in the robot's environment. Another example is creating a file with
 commonly used assets (say materials with carefully adjusted rgba values) and including it in multiple models which
 reference those assets.
 
 The included files are not required to be valid MJCF files on their own, but they usually are. Indeed we have designed
 this mechanism to allow MJCF models to be included in other MJCF models. To make this possible, repeated MJCF sections
 are allowed even when that does not make sense semantically in the context of a single model. For example, we allow
-the kinematic tree to have multiple roots (i.e. multiple :el:`worldbody` elements) which are merged automatically by
+the kinematic tree to have multiple roots (i.e., multiple :el:`worldbody` elements) which are merged automatically by
 the parser. Otherwise including robots into scenes would be impossible.
 
 The flexibility of repeated MCJF sections comes at a price: global settings that apply to the entire model, such as
@@ -1260,7 +1262,7 @@ in a visible way, and the energy fluctuates around the initial value instead of 
 Model sizes
 ~~~~~~~~~~~
 
-MuJoCo pre-allocates all the memory needed at runtime in mjData, and does not access the C/C++ memory manager after
+MuJoCo preallocates all the memory needed at runtime in mjData, and does not access the C/C++ memory manager after
 model creation. It is therefore essential to allocate enough memory. The allocation is controlled by three size
 parameters specified in the :ref:`size <size>` element, namely the stack size :at:`nstack`, the
 maximum number of contacts :at:`nconmax`, and the maximum number of scalar constraints :at:`njmax`. The default
@@ -1287,7 +1289,7 @@ model. If you only intend to use the CG solver, you can get away with significan
 Motion capture
 ~~~~~~~~~~~~~~
 
-Mocap bodies are static children of the world (i.e. have no joints) and their :at:`mocap` attribute is set to
+Mocap bodies are static children of the world (i.e., have no joints) and their :at:`mocap` attribute is set to
 "true". They can be used to input a data stream from a motion capture device into a MuJoCo simulation. Suppose you are
 holding a VR controller, or an object instrumented with motion capture markers (e.g. Vicon), and want to have a
 simulated object moving in the same way but also interacting with other simulated objects. There is a dilemma here:

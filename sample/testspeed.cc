@@ -18,18 +18,21 @@
 #include <string>
 #include <thread>
 
-#include "mujoco.h"
+#include <mujoco.h>
 
+
+// maximum number of threads
+const int maxthread = 512;
 
 // model and per-thread data
 mjModel* m = NULL;
-mjData* d[64];
+mjData* d[maxthread];
 
 
 // per-thread statistics
-int contacts[64];
-int constraints[64];
-double simtime[64];
+int contacts[maxthread];
+int constraints[maxthread];
+double simtime[maxthread];
 
 
 // timer
@@ -121,8 +124,8 @@ int main(int argc, const char** argv) {
   // clamp ctrlnoise to [0.0, 1.0]
   ctrlnoise = mjMAX(0.0, mjMIN(ctrlnoise, 1.0));
 
-  // clamp nthread to [1, 64]
-  nthread = mjMAX(1, mjMIN(64, nthread));
+  // clamp nthread to [1, maxthread]
+  nthread = mjMAX(1, mjMIN(maxthread, nthread));
 
   // get filename, determine file type
   std::string filename(argv[1]);
@@ -169,7 +172,7 @@ int main(int argc, const char** argv) {
   }
 
   // run simulation, record total time
-  std::thread th[64];
+  std::thread th[maxthread];
   double starttime = gettm();
   for (int id=0; id<nthread; id++) {
     th[id] = std::thread(simulate, id, nstep, ctrlnoise);
