@@ -25,7 +25,11 @@
     (defined(__GNUC__) && !defined(__clang__))
 #define MUJOCO_ALWAYS_INLINE __attribute__((always_inline))
 #define MUJOCO_ALWAYS_INLINE_LAMBDA MUJOCO_ALWAYS_INLINE
+#if defined(__clang__)
 #define MUJOCO_ALWAYS_INLINE_LAMBDA_MUTABLE MUJOCO_ALWAYS_INLINE_LAMBDA mutable
+#else
+#define MUJOCO_ALWAYS_INLINE_LAMBDA_MUTABLE mutable MUJOCO_ALWAYS_INLINE_LAMBDA
+#endif
 #elif defined(_MSC_VER)
 #define MUJOCO_ALWAYS_INLINE __forceinline
 #if _MSC_VER >= 1927 && _MSVC_LANG >= 202002L

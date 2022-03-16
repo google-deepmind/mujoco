@@ -119,7 +119,12 @@ struct MjErrorIntercepter {
   template <typename Return, typename... Args, typename Callable>
   MUJOCO_ALWAYS_INLINE
   static constexpr auto WrapFunc(Callable&& callable) {
+#if defined(__GNUC__) && !defined(__clang__)
+    // GCC can't inline functions that call setjmp
+    return [callable](Args... args) mutable {
+#else
     return [callable](Args... args) MUJOCO_ALWAYS_INLINE_LAMBDA_MUTABLE {
+#endif
       _mjPRIVATE__set_tls_error_fn(&MjErrorHandler);
 
       // DON'T MIX RAII WITH SETJMP!

@@ -47,11 +47,11 @@ python "${package_dir}"/mujoco/codegen/generate_function_traits.py > \
 export PYTHONPATH="${old_pythonpath}"
 
 # Copy over the LICENSE file.
-cp "${package_dir}"/../../LICENSE .
+cp "${package_dir}"/../LICENSE .
 
 # Copy over CMake scripts.
 mkdir cmake
-cp "${package_dir}"/../../cmake/*.cmake cmake
+cp "${package_dir}"/../cmake/*.cmake cmake
 
 python setup.py sdist --formats=gztar
 tar -tf dist/mujoco-*.tar.gz
