@@ -7,6 +7,9 @@
 When converting a world geom to a free-moving body, the parent body is created
 where the geom is, rather than at the root.
 
+MJCF XML generation is now locale-invariant, addressing a parsing issue on
+systems with a decimal comma.
+
 File name changes:
 
 - Added `.Runtime` to `Mujoco.asmdef` and the corresponding test file.
