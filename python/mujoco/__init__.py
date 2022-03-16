@@ -27,7 +27,6 @@ _MUJOCO_GL = os.environ.get('MUJOCO_GL', '').lower().strip()
 _MUJOCO_GL_IS_VALID = True
 
 _SYSTEM = platform.system()
-print(_MUJOCO_GL)
 if _SYSTEM == 'Linux':
   libglew_name = None
   if _MUJOCO_GL in _MUJOCO_GL_ENABLE + ('glfw', 'glx'):

@@ -47,8 +47,8 @@ further detail on the package's API.
 
 The `major.minor.micro` portion of the version number matches the version of
 MuJoCo that the bindings provide. Optionally, if we release updates to the
-Python bindings themselves that target the same version of MuJoCo, a `-rN`
-suffix is added, for example `2.1.2-r2` represents the second update to the
+Python bindings themselves that target the same version of MuJoCo, a `.postN`
+suffix is added, for example `2.1.2.post2` represents the second update to the
 bindings for MuJoCo 2.1.2.
 
 ## License and Disclaimer
