@@ -1,0 +1,71 @@
+<mujoco model="mug">
+  <visual>
+    <headlight ambient="0 0 0" diffuse="0 0 0" specular="1 1 1"/>
+    <quality shadowsize="8192"/>
+  </visual>
+
+  <asset>
+    <texture name="mug" file="mug.png" type="2d"/>
+    <material name="mug" texture="mug" specular="1" shininess="1"/>
+    <mesh file="mug.obj" scale=".01 .01 .01"/>
+    <material name="floor" reflectance=".1"/>
+  </asset>
+
+  <default>
+    <default class="collision">
+      <geom type="box" group="3"/>
+      <default class="cup">
+        <geom size="0.0026 0.00704 0.033"/>
+      </default>
+      <default class="handle">
+        <geom size="0.0025 0.00328 0.0055"/>
+      </default>
+    </default>
+  </default>
+
+  <worldbody>
+    <light pos=".4 -.4 .3" dir="-2 2 -1.5" diffuse=".6 .6 .6"/>
+    <light pos="-.2 -.4 .3" dir="1 2 -1.5" diffuse=".6 .6 .6"/>
+    <geom type="plane" size="5 5 .01" rgba="1 1 1 1" material="floor"/>
+    <body name="mug">
+      <freejoint/>
+      <geom type="mesh" mesh="mug" material="mug" euler="90 0 0" group="1" contype="0" conaffinity="0"/>
+      <geom class="cup" pos="0.0418 0 0.038" euler="0 0 0"/>
+      <geom class="cup" pos="0.0398 0.0129 0.038" euler="0 0 18"/>
+      <geom class="cup" pos="0.0339 0.0246 0.038" euler="0 0 36"/>
+      <geom class="cup" pos="0.0246 0.0339 0.038" euler="0 0 54"/>
+      <geom class="cup" pos="0.0129 0.0398 0.038" euler="0 0 72"/>
+      <geom class="cup" pos="0 0.0418 0.038" euler="0 0 90"/>
+      <geom class="cup" pos="-0.0129 0.0398 0.038" euler="0 0 108"/>
+      <geom class="cup" pos="-0.0246 0.0339 0.038" euler="0 0 126"/>
+      <geom class="cup" pos="-0.0339 0.0246 0.038" euler="0 0 144"/>
+      <geom class="cup" pos="-0.0398 0.0129 0.038" euler="0 0 162"/>
+      <geom class="cup" pos="-0.0418 0 0.038" euler="0 0 180"/>
+      <geom class="cup" pos="-0.0398 -0.0129 0.038" euler="0 0 198"/>
+      <geom class="cup" pos="-0.0339 -0.0246 0.038" euler="0 0 216"/>
+      <geom class="cup" pos="-0.0246 -0.0339 0.038" euler="0 0 234"/>
+      <geom class="cup" pos="-0.0129 -0.0398 0.038" euler="0 0 252"/>
+      <geom class="cup" pos="0 -0.0418 0.038" euler="0 0 270"/>
+      <geom class="cup" pos="0.0129 -0.0398 0.038" euler="0 0 288"/>
+      <geom class="cup" pos="0.0246 -0.0339 0.038" euler="0 0 306"/>
+      <geom class="cup" pos="0.0339 -0.0246 0.038" euler="0 0 324"/>
+      <geom class="cup" pos="0.0398 -0.0129 0.038" euler="0 0 342"/>
+      <geom class="cup" type="cylinder" size="0.045 0.0026" pos="0 0 0.0026"/>
+      <body name="handle" pos="0.056 0 0.0395" euler="90 0 0">
+        <geom class="handle" pos="0.0193 0 0" euler="0 0 0"/>
+        <geom class="handle" pos="0.0184 0.00568 0" euler="0 0 17.1"/>
+        <geom class="handle" pos="0.0159 0.0108 0" euler="0 0 34.3"/>
+        <geom class="handle" pos="0.012 0.0151 0" euler="0 0 51.4"/>
+        <geom class="handle" pos="0.00703 0.0179 0" euler="0 0 68.6"/>
+        <geom class="handle" pos="0.00144 0.0192 0" euler="0 0 85.7"/>
+        <geom class="handle" pos="0.00144 -0.0192 0" euler="0 0 274"/>
+        <geom class="handle" pos="0.00703 -0.0179 0" euler="0 0 291"/>
+        <geom class="handle" pos="0.012 -0.0151 0" euler="0 0 309"/>
+        <geom class="handle" pos="0.0159 -0.0108 0" euler="0 0 326"/>
+        <geom class="handle" pos="0.0184 -0.00568 0" euler="0 0 343"/>
+        <geom class="collision" size="0.007 0.0025 0.0055" pos="-0.007 -0.0195 0"/>
+        <geom class="collision" size="0.007 0.0025 0.0055" pos="-0.007 0.0195 0"/>
+      </body>
+    </body>
+  </worldbody>
+</mujoco>
