@@ -32,6 +32,12 @@ General
 
    a. Meshes containing polygons with more than 4 vertices are not supported.
    #. In OBJ files containing multiple object groups, any groups after the first one will be ignored.
+   #. Added (post-release, not included in the 2.1.2 archive) textured
+      `mug <https://github.com/deepmind/mujoco/blob/main/model/mug/mug.xml>`_ example model:
+
+      .. image:: images/changelog/mug.png
+         :width: 300px
+
 
 #. Added optional frame-of-reference specification to :ref:`framepos<sensor-framepos>`,
    :ref:`framequat<sensor-framequat>`, :ref:`framexaxis<sensor-framexaxis>`, :ref:`frameyaxis<sensor-frameyaxis>`,
