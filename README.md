@@ -9,25 +9,28 @@ interacting with their environment.
 DeepMind has acquired MuJoCo, and we are currently making preparations to open
 source the codebase. In the meantime, MuJoCo is available for download as a free
 and unrestricted precompiled binary under the Apache 2.0 license from
-[mujoco.org](https://mujoco.org/).
+the [GitHub Releases page](https://github.com/deepmind/mujoco/releases).
 
 MuJoCo's source code will be released through this GitHub repository once it is
 ready. In the meantime, the repository hosts MuJoCo's documentation, C header
-files for its public API, and sample program code. If you wish to report bugs or
-make feature requests, please file them as [GitHub Issues]. You are also
-welcome to make pull requests for the [documentation source files].
+files for its public API, sample program code, along with the full source code
+for the Python bindings and Unity plugin. If you wish to report bugs or make
+feature requests, please file them as [GitHub Issues]. You are also welcome to
+send us pull requests to improve anything that has been released into this
+repository.
+
 
 ## Overview
 
-MuJoCo is a C/C++ library with a C API, intended for researchers and developers.
-The runtime simulation module is tuned to maximize performance and operates on
-low-level data structures which are preallocated by the built-in XML parser and
-compiler. The user defines models in the native MJCF scene description language
--- an XML file format designed to be as human readable and editable as possible.
-URDF model files can also be loaded. The library includes interactive
-visualization with a native GUI, rendered in OpenGL. MuJoCo further exposes a
-large number of utility functions for computing physics-related quantities, not
-necessarily in a simulation loop. Features include
+MuJoCo is a compiled library with a C API, intended for researchers and
+developers. The runtime simulation module is tuned to maximize performance and
+operates on low-level data structures which are preallocated by the built-in XML
+parser and compiler. The user defines models in the native MJCF scene
+description language -- an XML file format designed to be as human readable and
+editable as possible. URDF model files can also be loaded. The library includes
+interactive visualization with a native GUI, rendered in OpenGL. MuJoCo further
+exposes a large number of utility functions for computing physics-related
+quantities, not necessarily in a simulation loop. Features include
 
 -   Simulation in generalized coordinates, avoiding joint violations.
 
@@ -56,10 +59,17 @@ necessarily in a simulation loop. Features include
 
 -   Run-time module written in ANSI C and hand-tuned for performance.
 
+[Python bindings](https://github.com/deepmind/mujoco/tree/main/python) and a
+[plugin for the Unity game engine](https://github.com/deepmind/mujoco/tree/main/unity)
+are also provided and are actively supported by the MuJoCo development team.
+
 
 ## Requirements
 
-MuJoCo binaries are currently built for Linux, macOS (Intel), and Windows.
+MuJoCo binaries are currently built for Linux (x86-64 and AArch64),
+Windows (x86-64 only), and macOS. If you require a build for a different
+platform, please let us know via [GitHub Issues] or
+[Discussions](https://github.com/deepmind/mujoco/discussions).
 
 
 ## Documentation

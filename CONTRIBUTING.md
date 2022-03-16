@@ -1,10 +1,9 @@
 # How to Contribute
 
-We are in the process of preparing the MuJoCo codebase for open-sourcing.
-When that happens, we will be grateful to receive your contributions.
-Until then, you are welcome to participate in discussions, post
-issues on our tracker, or send us pull requests to improve the sample program
-code or documentation.
+We are still in the process of preparing the MuJoCo codebase for open-sourcing,
+however the full source code for the Python bindings and the Unity plugin are
+already released. You are welcome to send us pull requests to improve any part
+of this repository.
 
 ## Contributor License Agreement
 
