@@ -16,6 +16,8 @@
 #include <sstream>
 #include <type_traits>
 
+#include <Python.h>
+
 #include "util/crossplatform.h"
 #include "enum_traits.h"
 #include "util/tuple_tools.h"
@@ -25,6 +27,22 @@
 namespace mujoco::python {
 namespace {
 namespace py = ::pybind11;
+
+MUJOCO_ALWAYS_INLINE
+void ZeroDenominatorCheck(double b) {
+  if (b == 0) {
+    PyErr_SetString(PyExc_ZeroDivisionError, "division by zero");
+    throw py::error_already_set();
+  }
+}
+
+template <typename T>
+MUJOCO_ALWAYS_INLINE
+T FloorDiv(T a, T b) {
+  ZeroDenominatorCheck(b);
+  return std::floor(static_cast<double>(a) / static_cast<double>(b));
+}
+
 template <typename Trait>
 MUJOCO_ALWAYS_INLINE
 void DefEnum(py::module_& m) {
@@ -45,27 +63,75 @@ void DefEnum(py::module_& m) {
         }),
         py::arg("value"), py::prepend());
 
-  // Comparison operators
-  e.def(py::self == double());
-
   // Arithmetic operators
+  e.def(-py::self);
   e.def(py::self + std::int64_t());
   e.def(py::self + double());
+  e.def(std::int64_t() + py::self);
+  e.def(double() + py::self);
+
   e.def(py::self - std::int64_t());
   e.def(py::self - double());
+  e.def(std::int64_t() - py::self);
+  e.def(double() - py::self);
+
   e.def(py::self * std::int64_t());
   e.def(py::self * double());
+  e.def(std::int64_t() * py::self);
+  e.def(double() * py::self);
+
+  e.def("__truediv__",
+        [](const typename Trait::type& a, double b) -> double {
+          ZeroDenominatorCheck(b);
+          return static_cast<double>(a) / b;
+        });
+  e.def("__rtruediv__",
+        [](const typename Trait::type& b, double a) -> double {
+          ZeroDenominatorCheck(b);
+          return a / static_cast<double>(b);
+        });
   e.def("__floordiv__",
         [](const typename Trait::type& a, std::int64_t b) -> std::int64_t {
-          return static_cast<int>(a) / b;
+          return FloorDiv<std::int64_t>(a, b);
         });
-  e.def(py::self / double());
-  e.def(py::self % std::int64_t());
+  e.def("__floordiv__",
+        [](const typename Trait::type& a, double b) -> double {
+          return FloorDiv<double>(a, b);
+        });
+  e.def("__rfloordiv__",
+        [](const typename Trait::type& b, std::int64_t a) -> std::int64_t {
+          return FloorDiv<std::int64_t>(a, b);
+        });
+  e.def("__rfloordiv__",
+        [](const typename Trait::type& b, double a) -> double {
+          return FloorDiv<double>(a, b);
+        });
+  e.def("__mod__",
+        [](const typename Trait::type& a, std::int64_t b) -> std::int64_t {
+          return a - FloorDiv<std::int64_t>(a, b) * b;
+        });
+  e.def("__mod__",
+        [](const typename Trait::type& a, double b) -> double {
+          return a - FloorDiv<double>(a, b) * b;
+        });
+  e.def("__rmod__",
+        [](const typename Trait::type& b, std::int64_t a) -> std::int64_t {
+          return a - FloorDiv<std::int64_t>(a, b) * b;
+        });
+  e.def("__rmod__",
+        [](const typename Trait::type& b, double a) -> double {
+          return a - FloorDiv<double>(a, b) * b;
+        });
 
   // Bitwise operators
   e.def(py::self & std::int64_t());
+  e.def(std::int64_t() & py::self);
   e.def(py::self | std::int64_t());
+  e.def(std::int64_t() | py::self);
   e.def(py::self ^ std::int64_t());
+  e.def(std::int64_t() ^ py::self);
+
+  // Bit shifts
   e.def(py::self << std::int64_t());
   e.def(py::self >> std::int64_t());
 }
