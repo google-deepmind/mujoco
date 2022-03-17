@@ -12,12 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <cstdint>
 #include <sstream>
 #include <type_traits>
 
 #include "util/crossplatform.h"
 #include "enum_traits.h"
 #include "util/tuple_tools.h"
+#include <pybind11/operators.h>
 #include <pybind11/pybind11.h>
 
 namespace mujoco::python {
@@ -42,6 +44,30 @@ void DefEnum(py::module_& m) {
           throw py::value_error(err.str());
         }),
         py::arg("value"), py::prepend());
+
+  // Comparison operators
+  e.def(py::self == double());
+
+  // Arithmetic operators
+  e.def(py::self + std::int64_t());
+  e.def(py::self + double());
+  e.def(py::self - std::int64_t());
+  e.def(py::self - double());
+  e.def(py::self * std::int64_t());
+  e.def(py::self * double());
+  e.def("__floordiv__",
+        [](const typename Trait::type& a, std::int64_t b) -> std::int64_t {
+          return static_cast<int>(a) / b;
+        });
+  e.def(py::self / double());
+  e.def(py::self % std::int64_t());
+
+  // Bitwise operators
+  e.def(py::self & std::int64_t());
+  e.def(py::self | std::int64_t());
+  e.def(py::self ^ std::int64_t());
+  e.def(py::self << std::int64_t());
+  e.def(py::self >> std::int64_t());
 }
 
 template <typename Tuple>

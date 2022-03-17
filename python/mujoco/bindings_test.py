@@ -663,6 +663,43 @@ Euler integrator, semi-implicit in velocity.
     with self.assertRaises(ValueError):
       mujoco.mjtJoint(-1)
 
+  def test_enum_ops(self):
+    # Note: when modifying this test, make sure the enum value is an odd number
+    #       so that the division tests are correctly exercised.
+    self.assertEqual(mujoco.mjtFrame.mjNFRAME, 7)
+    self.assertEqual(mujoco.mjtFrame.mjNFRAME, 7.0)
+    self.assertEqual(mujoco.mjtFrame.mjNFRAME, mujoco.mjtFrame.mjNFRAME)
+    self.assertNotEqual(mujoco.mjtFrame.mjNFRAME, mujoco.mjtFrame.mjFRAME_NONE)
+
+    self.assertEqual(mujoco.mjtFrame.mjNFRAME + 1, 8)
+    self.assertIsInstance(mujoco.mjtFrame.mjNFRAME + 1, int)
+    self.assertEqual(mujoco.mjtFrame.mjNFRAME + 1.75, 8.75)
+
+    self.assertEqual(mujoco.mjtFrame.mjNFRAME - 2, 5)
+    self.assertIsInstance(mujoco.mjtFrame.mjNFRAME - 2, int)
+    self.assertEqual(mujoco.mjtFrame.mjNFRAME - 2.25, 4.75)
+
+    self.assertEqual(mujoco.mjtFrame.mjNFRAME * 3, 21)
+    self.assertIsInstance(mujoco.mjtFrame.mjNFRAME * 3, int)
+    self.assertEqual(mujoco.mjtFrame.mjNFRAME * 3.5, 24.5)
+
+    self.assertEqual(mujoco.mjtFrame.mjNFRAME / 2, 3.5)
+    self.assertEqual(mujoco.mjtFrame.mjNFRAME // 2, 3)
+    self.assertIsInstance(mujoco.mjtFrame.mjNFRAME // 2, int)
+
+    self.assertEqual(mujoco.mjtFrame.mjNFRAME % 4, 3)
+    self.assertIsInstance(mujoco.mjtFrame.mjNFRAME % 4, int)
+
+    self.assertEqual(
+        mujoco.mjtDisableBit.mjDSBL_GRAVITY | mujoco.mjtDisableBit.mjDSBL_LIMIT,
+        72)
+    self.assertEqual(mujoco.mjtDisableBit.mjDSBL_PASSIVE | 33, 33)
+    self.assertEqual(mujoco.mjtDisableBit.mjDSBL_PASSIVE & 33, 32)
+    self.assertEqual(mujoco.mjtDisableBit.mjDSBL_CLAMPCTRL << 1,
+                     mujoco.mjtDisableBit.mjDSBL_WARMSTART)
+    self.assertEqual(mujoco.mjtDisableBit.mjDSBL_CLAMPCTRL >> 3,
+                     mujoco.mjtDisableBit.mjDSBL_CONTACT)
+
   def test_can_raise_error(self):
     self.data.pstack = self.data.nstack
     with self.assertRaisesWithLiteralMatch(mujoco.FatalError, 'Stack overflow'):
