@@ -49,13 +49,10 @@ class MuJoCoRenderTest(absltest.TestCase):
     scene = mujoco.MjvScene(self.model, maxgeom=0)
     mujoco.mjv_updateScene(
         self.model, self.data, mujoco.MjvOption(), mujoco.MjvPerturb(),
-        mujoco.MjvCamera(), mujoco.mjtCatBit.mjCAT_ALL.value, scene)
+        mujoco.MjvCamera(), mujoco.mjtCatBit.mjCAT_ALL, scene)
 
-    context = mujoco.MjrContext(
-        self.model,
-        mujoco.mjtFontScale.mjFONTSCALE_150.value)
-    mujoco.mjr_setBuffer(
-        mujoco.mjtFramebuffer.mjFB_OFFSCREEN.value, context)
+    context = mujoco.MjrContext(self.model, mujoco.mjtFontScale.mjFONTSCALE_150)
+    mujoco.mjr_setBuffer(mujoco.mjtFramebuffer.mjFB_OFFSCREEN, context)
 
     # MuJoCo's default render buffer size is 640x480.
     full_rect = mujoco.MjrRect(0, 0, 640, 480)
@@ -76,6 +73,22 @@ class MuJoCoRenderTest(absltest.TestCase):
     mujoco.mjr_readPixels(
         np.reshape(upside_down_image, -1), None, full_rect, context)
     np.testing.assert_array_equal(upside_down_image, expected_upside_down_image)
+    context.free()
+
+  def test_safe_to_free_context_twice(self):
+    self.model = mujoco.MjModel.from_xml_string('<mujoco><worldbody/></mujoco>')
+    self.data = mujoco.MjData(self.model)
+
+    scene = mujoco.MjvScene(self.model, maxgeom=0)
+    mujoco.mjv_updateScene(
+        self.model, self.data, mujoco.MjvOption(), None,
+        mujoco.MjvCamera(), mujoco.mjtCatBit.mjCAT_ALL, scene)
+
+    context = mujoco.MjrContext(self.model, mujoco.mjtFontScale.mjFONTSCALE_150)
+    mujoco.mjr_setBuffer(mujoco.mjtFramebuffer.mjFB_OFFSCREEN, context)
+
+    context.free()
+    context.free()
 
 if __name__ == '__main__':
   absltest.main()

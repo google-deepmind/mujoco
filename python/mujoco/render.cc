@@ -37,6 +37,8 @@ class MjWrapper<raw::MjrContext> : public WrapperBase<raw::MjrContext> {
   MjWrapper(MjWrapper&&) = default;
   ~MjWrapper() = default;
 
+  void Free();
+
 #define X(var) py_array_or_tuple_t<mjtNum> var
   X(fogRGBA);
   X(auxWidth);
@@ -121,6 +123,12 @@ MjrContextWrapper::MjWrapper(const MjModelWrapper& model, int fontscale)
       X(charWidthBig) {}
 #undef X_SKIN
 #undef X
+
+void MjrContextWrapper::Free() {
+  // mjr_freeContext is safe to call multiple times.
+  InterceptMjErrors(mjr_freeContext)(ptr_);
+}
+
 }  // namespace _impl
 
 namespace {
@@ -156,6 +164,10 @@ PYBIND11_MODULE(_render, pymodule) {
   py::class_<MjrContextWrapper> mjrContext(pymodule, "MjrContext");
   mjrContext.def(py::init<>());
   mjrContext.def(py::init<const MjModelWrapper&, int>());
+  mjrContext.def(
+      "free", [](MjrContextWrapper& self) { self.Free(); },
+      py::doc("Frees resources in current active OpenGL context, sets struct "
+              "to default."));
 #define X(var)                                                       \
   mjrContext.def_property(                                           \
       #var, [](const MjrContextWrapper& c) { return c.get()->var; }, \
