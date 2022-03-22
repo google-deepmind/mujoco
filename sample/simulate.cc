@@ -197,44 +197,50 @@ const mjuiDef defWatch[] = {
 
 // help strings
 const char help_content[] =
-  "Alt mouse button\n"
-  "UI right hold\n"
-  "UI title double-click\n"
   "Space\n"
-  "Esc\n"
+  "+  -\n"
   "Right arrow\n"
-  "Left arrow\n"
-  "Down arrow\n"
-  "Up arrow\n"
-  "Page Up\n"
+  "[  ]\n"
+  "Esc\n"
   "Double-click\n"
+  "Page Up\n"
   "Right double-click\n"
   "Ctrl Right double-click\n"
   "Scroll, middle drag\n"
   "Left drag\n"
   "[Shift] right drag\n"
   "Ctrl [Shift] drag\n"
-  "Ctrl [Shift] right drag";
+  "Ctrl [Shift] right drag\n"
+  "F1\n"
+  "F2\n"
+  "F3\n"
+  "F4\n"
+  "F5\n"
+  "UI right hold\n"
+  "UI title double-click";
 
 const char help_title[] =
-  "Swap left-right\n"
-  "Show UI shortcuts\n"
-  "Expand/collapse all  \n"
-  "Pause\n"
+  "Play / Pause\n"
+  "Speed up / down\n"
+  "Step\n"
+  "Cycle cameras\n"
   "Free camera\n"
-  "Step forward\n"
-  "Step back\n"
-  "Step forward 100\n"
-  "Step back 100\n"
-  "Select parent\n"
   "Select\n"
+  "Select parent\n"
   "Center\n"
-  "Track camera\n"
+  "Tracking camera\n"
   "Zoom\n"
   "View rotate\n"
   "View translate\n"
   "Object rotate\n"
-  "Object translate";
+  "Object translate\n"
+  "Help\n"
+  "Info\n"
+  "Profiler\n"
+  "Sensors\n"
+  "Full screen\n"
+  "Show UI shortcuts\n"
+  "Expand/collapse all";
 
 
 // info strings
@@ -1070,7 +1076,7 @@ void cleartimers(void) {
 
 
 // copy current camera to clipboard as MJCF specification
-void printcamera(mjvGLCamera* camera) {
+void copycamera(mjvGLCamera* camera) {
   char clipboard[500];
   mjtNum cam_right[3];
   mjtNum cam_forward[3];
@@ -1460,9 +1466,9 @@ void uiEvent(mjuiState* state) {
         cam.type = mjCAMERA_FIXED;
         cam.fixedcamid = settings.camera - 2;
       }
-      // print floating camera as MJCF element
+      // copy camera spec to clipboard (as MJCF element)
       if (it->itemid == 3) {
-        printcamera(scn.camera);
+        copycamera(scn.camera);
       }
     }
 
@@ -1534,44 +1540,6 @@ void uiEvent(mjuiState* state) {
       }
       break;
 
-    case mjKEY_LEFT:            // step back
-      if (m && !settings.run) {
-        m->opt.timestep = -m->opt.timestep;
-        cleartimers();
-        mj_step(m, d);
-        m->opt.timestep = -m->opt.timestep;
-        profilerupdate();
-        sensorupdate();
-        updatesettings();
-      }
-      break;
-
-    case mjKEY_DOWN:            // step forward 100
-      if (m && !settings.run) {
-        cleartimers();
-        for (i=0; i<100; i++) {
-          mj_step(m, d);
-        }
-        profilerupdate();
-        sensorupdate();
-        updatesettings();
-      }
-      break;
-
-    case mjKEY_UP:              // step back 100
-      if (m && !settings.run) {
-        m->opt.timestep = -m->opt.timestep;
-        cleartimers();
-        for (i=0; i<100; i++) {
-          mj_step(m, d);
-        }
-        m->opt.timestep = -m->opt.timestep;
-        profilerupdate();
-        sensorupdate();
-        updatesettings();
-      }
-      break;
-
     case mjKEY_PAGE_UP:         // select parent body
       if (m && pert.select>0) {
         pert.select = m->body_parentid[pert.select];
@@ -1585,20 +1553,48 @@ void uiEvent(mjuiState* state) {
 
       break;
 
+    case ']':                   // cycle up fixed cameras
+      if (m->ncam) {
+        cam.type = mjCAMERA_FIXED;
+        // settings.camera = {0 or 1} are reserved for the free and tracking cameras
+        if (settings.camera < 2 || settings.camera == 2 + m->ncam-1) {
+          settings.camera = 2;
+        } else {
+          settings.camera += 1;
+        }
+        cam.fixedcamid = settings.camera - 2;
+        mjui_update(SECT_RENDERING, -1, &ui0, &uistate, &con);
+      }
+      break;
+
+    case '[':                   // cycle down fixed cameras
+      if (m->ncam) {
+        cam.type = mjCAMERA_FIXED;
+        // settings.camera = {0 or 1} are reserved for the free and tracking cameras
+        if (settings.camera <= 2) {
+          settings.camera = 2 + m->ncam-1;
+        } else {
+          settings.camera -= 1;
+        }
+        cam.fixedcamid = settings.camera - 2;
+        mjui_update(SECT_RENDERING, -1, &ui0, &uistate, &con);
+      }
+      break;
+
     case mjKEY_ESCAPE:          // free camera
       cam.type = mjCAMERA_FREE;
       settings.camera = 0;
       mjui_update(SECT_RENDERING, -1, &ui0, &uistate, &con);
       break;
 
-    case '-':          // slow down
+    case '-':                   // slow down
       if (settings.slow_down < max_slow_down && !state->shift) {
         settings.slow_down *= 2;
         settings.speed_changed = true;
       }
       break;
 
-    case '=':          // speed up
+    case '=':                   // speed up
       if (settings.slow_down > 1 && !state->shift) {
         settings.slow_down /= 2;
         settings.speed_changed = true;
