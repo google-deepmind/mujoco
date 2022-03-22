@@ -17,3 +17,6 @@
 *.egg-info/
 build/
 build_cmake/
+
+# Exclude macOS folder attributes
+.DS_Store
