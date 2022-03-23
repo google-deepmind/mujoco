@@ -1554,7 +1554,7 @@ void uiEvent(mjuiState* state) {
       break;
 
     case ']':                   // cycle up fixed cameras
-      if (m->ncam) {
+      if (m && m->ncam) {
         cam.type = mjCAMERA_FIXED;
         // settings.camera = {0 or 1} are reserved for the free and tracking cameras
         if (settings.camera < 2 || settings.camera == 2 + m->ncam-1) {
@@ -1568,7 +1568,7 @@ void uiEvent(mjuiState* state) {
       break;
 
     case '[':                   // cycle down fixed cameras
-      if (m->ncam) {
+      if (m && m->ncam) {
         cam.type = mjCAMERA_FIXED;
         // settings.camera = {0 or 1} are reserved for the free and tracking cameras
         if (settings.camera <= 2) {
