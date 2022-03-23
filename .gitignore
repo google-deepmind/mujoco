@@ -8,6 +8,7 @@
 *.out
 *.o
 *.so
+*.so.*
 
 # Exclude editor config
 .vscode/
@@ -20,3 +21,8 @@ build_cmake/
 
 # Exclude macOS folder attributes
 .DS_Store
+
+# Python byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
