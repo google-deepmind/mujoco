@@ -18,7 +18,7 @@ DeepMind’s `dm_control <https://github.com/deepmind/dm_control>`__ reinforceme
 version 1.0.0 implemented its own MuJoCo bindings based on ``ctypes``) has been updated to depend on the ``mujoco``
 package and continues to be supported by DeepMind. Changes in dm_control should be largely transparent to users of
 previous versions, however code that depended directly on its low-level API may need to be updated. Consult the
-`migration guide <https://github.com/deepmind/dm_control/blob/main/migration_guide_1.0.md>`__ for detail.
+`migration guide <https://github.com/deepmind/dm_control/blob/master/migration_guide_1.0.md>`__ for detail.
 
 For mujoco-py users, we include :ref:`notes <PyMjpy_migration>` below to aid migration.
 

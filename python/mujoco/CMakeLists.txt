@@ -55,7 +55,7 @@ include(FindOrFetch)
 
 # ==================== MUJOCO LIBRARY ==========================================
 if(NOT TARGET mujoco)
-  find_library(MUJOCO_LIBRARY mujoco mujoco.2.1.2 HINTS ${MUJOCO_LIBRARY_DIR} REQUIRED)
+  find_library(MUJOCO_LIBRARY mujoco mujoco.2.1.3 HINTS ${MUJOCO_LIBRARY_DIR} REQUIRED)
   find_path(MUJOCO_INCLUDE mujoco.h HINTS ${MUJOCO_INCLUDE_DIR} REQUIRED)
   message("MuJoCo is at ${MUJOCO_LIBRARY}")
   message("MuJoCo headers are at ${MUJOCO_INCLUDE}")
@@ -152,7 +152,7 @@ else()
     GIT_REPO
     https://github.com/pybind/pybind11
     GIT_TAG
-    4c4b33f14215f8992e2c67ace2a7a4c114c48bb9
+    08ea85b0ac0d4d46ac081ff24f481b41322d7159
     TARGETS
     pybind11::pybind11_headers
     EXCLUDE_FROM_ALL

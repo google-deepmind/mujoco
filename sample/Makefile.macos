@@ -10,12 +10,12 @@ CFLAGS=-O2 -I$(MUJOCO_INCLUDEDIR) -I$(HOMEBREW)/include -pthread
 ALLFLAGS=$(CFLAGS) -L$(MUJOCO_LIBDIR) -L$(HOMEBREW)/lib -std=c++11 -stdlib=libc++
 
 all:
-	clang++ $(ALLFLAGS) testxml.cc    -lmujoco.2.1.2        -o testxml
-	clang++ $(ALLFLAGS) testspeed.cc  -lmujoco.2.1.2        -o testspeed
-	clang++ $(ALLFLAGS) compile.cc    -lmujoco.2.1.2        -o compile
-	clang++ $(ALLFLAGS) derivative.cc -lmujoco.2.1.2        -o derivative
-	clang++ $(ALLFLAGS) basic.cc      -lmujoco.2.1.2 -lglfw -o basic
-	clang++ $(ALLFLAGS) record.cc     -lmujoco.2.1.2 -lglfw -o record
+	clang++ $(ALLFLAGS) testxml.cc    -lmujoco.2.1.3        -o testxml
+	clang++ $(ALLFLAGS) testspeed.cc  -lmujoco.2.1.3        -o testspeed
+	clang++ $(ALLFLAGS) compile.cc    -lmujoco.2.1.3        -o compile
+	clang++ $(ALLFLAGS) derivative.cc -lmujoco.2.1.3        -o derivative
+	clang++ $(ALLFLAGS) basic.cc      -lmujoco.2.1.3 -lglfw -o basic
+	clang++ $(ALLFLAGS) record.cc     -lmujoco.2.1.3 -lglfw -o record
 	clang -c $(CFLAGS) uitools.c
-	clang++ $(ALLFLAGS) uitools.o simulate.cc -lmujoco.2.1.2 -lglfw -o simulate
+	clang++ $(ALLFLAGS) uitools.o simulate.cc -lmujoco.2.1.3 -lglfw -o simulate
 	rm *.o

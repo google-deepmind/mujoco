@@ -2,6 +2,28 @@
 Changelog
 =========
 
+Version 2.1.3 (Mar. 23, 2022)
+-----------------------------
+
+General
+^^^^^^^
+
+1. ``simulate`` now support cycling through cameras (with ``[`` and ``]`` keys).
+#. ``mjVIS_STATIC`` toggles all static bodies, not just direct children of the world.
+
+Python bindings
+^^^^^^^^^^^^^^^
+
+3. Add a ``free()`` method to ``MjrContext``.
+#. Enums now support arithmetic and bitwise operations with numbers.
+
+Bug fixes
+^^^^^^^^^
+
+5. Fix rendering bug for planes, introduced in 2.1.2. This broke maze environments in
+   `dm_control <https://github.com/deepmind/dm_control>`_.
+
+
 Version 2.1.2 (Mar. 15, 2022)
 -----------------------------
 
@@ -76,7 +98,7 @@ General
    attribute: ``<geom fluidshape="ellipsoid"/>``. The parameters are described succinctly :ref:`here<geom>`, but we
    leave a full description or the model and its parameters to when this feature leaves experimental status.
 
-Bug Fixes
+Bug fixes
 ^^^^^^^^^
 
 16. ``mj_loadXML`` and ``mj_saveLastXML`` are now locale-independent. The Unity plugin should now work correctly for
@@ -247,7 +269,7 @@ License manager
     backward compabitibily, but now they do nothing and it is no longer necessary to call them.
 #. Removed the remote license certificate functions ``mj_certXXX``.
 
-Earlier Versions
+Earlier versions
 ----------------
 
 For changelogs of earlier versions please see `roboti.us <https://www.roboti.us/download.html>`_.

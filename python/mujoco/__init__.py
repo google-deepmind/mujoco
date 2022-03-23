@@ -41,11 +41,11 @@ if _SYSTEM == 'Linux':
     ctypes.CDLL(os.path.join(os.path.dirname(__file__), libglew_name),
                 ctypes.RTLD_GLOBAL)
     ctypes.CDLL(
-        os.path.join(os.path.dirname(__file__), 'libmujoco.so.2.1.2'),
+        os.path.join(os.path.dirname(__file__), 'libmujoco.so.2.1.3'),
         ctypes.RTLD_GLOBAL)
   else:
     ctypes.CDLL(
-        os.path.join(os.path.dirname(__file__), 'libmujoco_nogl.so.2.1.2'),
+        os.path.join(os.path.dirname(__file__), 'libmujoco_nogl.so.2.1.3'),
         ctypes.RTLD_GLOBAL)
 elif _SYSTEM == 'Windows':
   if _MUJOCO_GL in _MUJOCO_GL_ENABLE + ('glfw', 'wgl'):
