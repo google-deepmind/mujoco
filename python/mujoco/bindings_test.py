@@ -665,7 +665,7 @@ Euler integrator, semi-implicit in velocity.
 
   def test_enum_as_index(self):
     x = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k']
-    self.assertEqual(x[mujoco.mjtFrame.mjNFRAME], 'h')
+    self.assertEqual(x[mujoco.mjtFrame.mjFRAME_WORLD], 'h')
     self.assertEqual(
         x[mujoco.mjtFrame.mjFRAME_GEOM:mujoco.mjtFrame.mjFRAME_CAMERA],
         ['c', 'd'])
@@ -673,83 +673,85 @@ Euler integrator, semi-implicit in velocity.
   def test_enum_ops(self):
     # Note: when modifying this test, make sure the enum value is an odd number
     #       so that the division tests are correctly exercised.
-    self.assertEqual(mujoco.mjtFrame.mjNFRAME, 7)
-    self.assertEqual(mujoco.mjtFrame.mjNFRAME, 7.0)
-    self.assertEqual(7, mujoco.mjtFrame.mjNFRAME)
-    self.assertEqual(7.0, mujoco.mjtFrame.mjNFRAME)
-    self.assertEqual(mujoco.mjtFrame.mjNFRAME, mujoco.mjtFrame.mjNFRAME)
-    self.assertNotEqual(mujoco.mjtFrame.mjNFRAME, mujoco.mjtFrame.mjFRAME_NONE)
+    self.assertEqual(mujoco.mjtFrame.mjFRAME_WORLD, 7)
+    self.assertEqual(mujoco.mjtFrame.mjFRAME_WORLD, 7.0)
+    self.assertEqual(7, mujoco.mjtFrame.mjFRAME_WORLD)
+    self.assertEqual(7.0, mujoco.mjtFrame.mjFRAME_WORLD)
+    self.assertEqual(mujoco.mjtFrame.mjFRAME_WORLD,
+                     mujoco.mjtFrame.mjFRAME_WORLD)
+    self.assertNotEqual(mujoco.mjtFrame.mjFRAME_WORLD,
+                        mujoco.mjtFrame.mjFRAME_NONE)
 
-    self.assertEqual(-mujoco.mjtFrame.mjNFRAME, -7)
-    self.assertIsInstance(-mujoco.mjtFrame.mjNFRAME, int)
+    self.assertEqual(-mujoco.mjtFrame.mjFRAME_WORLD, -7)
+    self.assertIsInstance(-mujoco.mjtFrame.mjFRAME_WORLD, int)
 
-    self.assertEqual(mujoco.mjtFrame.mjNFRAME + 1, 8)
-    self.assertIsInstance(mujoco.mjtFrame.mjNFRAME + 1, int)
-    self.assertEqual(2 + mujoco.mjtFrame.mjNFRAME, 9)
-    self.assertIsInstance(2 + mujoco.mjtFrame.mjNFRAME, int)
-    self.assertEqual(mujoco.mjtFrame.mjNFRAME + 1.75, 8.75)
-    self.assertEqual(2.75 + mujoco.mjtFrame.mjNFRAME, 9.75)
+    self.assertEqual(mujoco.mjtFrame.mjFRAME_WORLD + 1, 8)
+    self.assertIsInstance(mujoco.mjtFrame.mjFRAME_WORLD + 1, int)
+    self.assertEqual(2 + mujoco.mjtFrame.mjFRAME_WORLD, 9)
+    self.assertIsInstance(2 + mujoco.mjtFrame.mjFRAME_WORLD, int)
+    self.assertEqual(mujoco.mjtFrame.mjFRAME_WORLD + 1.75, 8.75)
+    self.assertEqual(2.75 + mujoco.mjtFrame.mjFRAME_WORLD, 9.75)
 
-    self.assertEqual(mujoco.mjtFrame.mjNFRAME - 2, 5)
-    self.assertIsInstance(mujoco.mjtFrame.mjNFRAME - 2, int)
-    self.assertEqual(8 - mujoco.mjtFrame.mjNFRAME, 1)
-    self.assertIsInstance(8 - mujoco.mjtFrame.mjNFRAME, int)
-    self.assertEqual(mujoco.mjtFrame.mjNFRAME - 2.25, 4.75)
-    self.assertEqual(8.25 - mujoco.mjtFrame.mjNFRAME, 1.25)
+    self.assertEqual(mujoco.mjtFrame.mjFRAME_WORLD - 2, 5)
+    self.assertIsInstance(mujoco.mjtFrame.mjFRAME_WORLD - 2, int)
+    self.assertEqual(8 - mujoco.mjtFrame.mjFRAME_WORLD, 1)
+    self.assertIsInstance(8 - mujoco.mjtFrame.mjFRAME_WORLD, int)
+    self.assertEqual(mujoco.mjtFrame.mjFRAME_WORLD - 2.25, 4.75)
+    self.assertEqual(8.25 - mujoco.mjtFrame.mjFRAME_WORLD, 1.25)
 
-    self.assertEqual(mujoco.mjtFrame.mjNFRAME * 3, 21)
-    self.assertIsInstance(mujoco.mjtFrame.mjNFRAME * 3, int)
-    self.assertEqual(3 * mujoco.mjtFrame.mjNFRAME, 21)
-    self.assertIsInstance(3 * mujoco.mjtFrame.mjNFRAME, int)
-    self.assertEqual(mujoco.mjtFrame.mjNFRAME * 3.5, 24.5)
-    self.assertEqual(3.5 * mujoco.mjtFrame.mjNFRAME, 24.5)
+    self.assertEqual(mujoco.mjtFrame.mjFRAME_WORLD * 3, 21)
+    self.assertIsInstance(mujoco.mjtFrame.mjFRAME_WORLD * 3, int)
+    self.assertEqual(3 * mujoco.mjtFrame.mjFRAME_WORLD, 21)
+    self.assertIsInstance(3 * mujoco.mjtFrame.mjFRAME_WORLD, int)
+    self.assertEqual(mujoco.mjtFrame.mjFRAME_WORLD * 3.5, 24.5)
+    self.assertEqual(3.5 * mujoco.mjtFrame.mjFRAME_WORLD, 24.5)
 
-    self.assertEqual(mujoco.mjtFrame.mjNFRAME / 2, 3.5)
-    self.assertEqual(17.5 / mujoco.mjtFrame.mjNFRAME, 2.5)
-    self.assertEqual(mujoco.mjtFrame.mjNFRAME // 2, 3)
-    self.assertIsInstance(mujoco.mjtFrame.mjNFRAME // 2, int)
-    self.assertEqual(-mujoco.mjtFrame.mjNFRAME // 2, -4)
-    self.assertIsInstance(-mujoco.mjtFrame.mjNFRAME // 2, int)
-    self.assertEqual(20 // mujoco.mjtFrame.mjNFRAME, 2)
-    self.assertIsInstance(20 // mujoco.mjtFrame.mjNFRAME, int)
-    self.assertEqual(-20 // mujoco.mjtFrame.mjNFRAME, -3)
-    self.assertIsInstance(-20 // mujoco.mjtFrame.mjNFRAME, int)
-    self.assertEqual(mujoco.mjtFrame.mjNFRAME // 2.0, 3)
-    self.assertIsInstance(mujoco.mjtFrame.mjNFRAME // 2.0, float)
-    self.assertEqual(-mujoco.mjtFrame.mjNFRAME // 2.0, -4)
-    self.assertIsInstance(-mujoco.mjtFrame.mjNFRAME // 2.0, float)
-    self.assertEqual(20.0 // mujoco.mjtFrame.mjNFRAME, 2)
-    self.assertIsInstance(20.0 // mujoco.mjtFrame.mjNFRAME, float)
-    self.assertEqual(-20 // mujoco.mjtFrame.mjNFRAME, -3)
-    self.assertIsInstance(-20.0 // mujoco.mjtFrame.mjNFRAME, float)
+    self.assertEqual(mujoco.mjtFrame.mjFRAME_WORLD / 2, 3.5)
+    self.assertEqual(17.5 / mujoco.mjtFrame.mjFRAME_WORLD, 2.5)
+    self.assertEqual(mujoco.mjtFrame.mjFRAME_WORLD // 2, 3)
+    self.assertIsInstance(mujoco.mjtFrame.mjFRAME_WORLD // 2, int)
+    self.assertEqual(-mujoco.mjtFrame.mjFRAME_WORLD // 2, -4)
+    self.assertIsInstance(-mujoco.mjtFrame.mjFRAME_WORLD // 2, int)
+    self.assertEqual(20 // mujoco.mjtFrame.mjFRAME_WORLD, 2)
+    self.assertIsInstance(20 // mujoco.mjtFrame.mjFRAME_WORLD, int)
+    self.assertEqual(-20 // mujoco.mjtFrame.mjFRAME_WORLD, -3)
+    self.assertIsInstance(-20 // mujoco.mjtFrame.mjFRAME_WORLD, int)
+    self.assertEqual(mujoco.mjtFrame.mjFRAME_WORLD // 2.0, 3)
+    self.assertIsInstance(mujoco.mjtFrame.mjFRAME_WORLD // 2.0, float)
+    self.assertEqual(-mujoco.mjtFrame.mjFRAME_WORLD // 2.0, -4)
+    self.assertIsInstance(-mujoco.mjtFrame.mjFRAME_WORLD // 2.0, float)
+    self.assertEqual(20.0 // mujoco.mjtFrame.mjFRAME_WORLD, 2)
+    self.assertIsInstance(20.0 // mujoco.mjtFrame.mjFRAME_WORLD, float)
+    self.assertEqual(-20 // mujoco.mjtFrame.mjFRAME_WORLD, -3)
+    self.assertIsInstance(-20.0 // mujoco.mjtFrame.mjFRAME_WORLD, float)
 
-    self.assertEqual(mujoco.mjtFrame.mjNFRAME % 4, 3)
-    self.assertIsInstance(mujoco.mjtFrame.mjNFRAME % 4, int)
-    self.assertEqual(-mujoco.mjtFrame.mjNFRAME % -4, -3)
-    self.assertIsInstance(-mujoco.mjtFrame.mjNFRAME % -4, int)
-    self.assertEqual(-mujoco.mjtFrame.mjNFRAME % 4, 1)
-    self.assertIsInstance(-mujoco.mjtFrame.mjNFRAME % 4, int)
-    self.assertEqual(mujoco.mjtFrame.mjNFRAME % -4, -1)
-    self.assertIsInstance(mujoco.mjtFrame.mjNFRAME % -4, int)
-    self.assertEqual(9 % mujoco.mjtFrame.mjNFRAME, 2)
-    self.assertIsInstance(9 % mujoco.mjtFrame.mjNFRAME, int)
-    self.assertEqual(-9 % -mujoco.mjtFrame.mjNFRAME, -2)
-    self.assertIsInstance(-9 % -mujoco.mjtFrame.mjNFRAME, int)
-    self.assertEqual(-9 % mujoco.mjtFrame.mjNFRAME, 5)
-    self.assertIsInstance(-9 % mujoco.mjtFrame.mjNFRAME, int)
-    self.assertEqual(9 % -mujoco.mjtFrame.mjNFRAME, -5)
-    self.assertIsInstance(9 % -mujoco.mjtFrame.mjNFRAME, int)
+    self.assertEqual(mujoco.mjtFrame.mjFRAME_WORLD % 4, 3)
+    self.assertIsInstance(mujoco.mjtFrame.mjFRAME_WORLD % 4, int)
+    self.assertEqual(-mujoco.mjtFrame.mjFRAME_WORLD % -4, -3)
+    self.assertIsInstance(-mujoco.mjtFrame.mjFRAME_WORLD % -4, int)
+    self.assertEqual(-mujoco.mjtFrame.mjFRAME_WORLD % 4, 1)
+    self.assertIsInstance(-mujoco.mjtFrame.mjFRAME_WORLD % 4, int)
+    self.assertEqual(mujoco.mjtFrame.mjFRAME_WORLD % -4, -1)
+    self.assertIsInstance(mujoco.mjtFrame.mjFRAME_WORLD % -4, int)
+    self.assertEqual(9 % mujoco.mjtFrame.mjFRAME_WORLD, 2)
+    self.assertIsInstance(9 % mujoco.mjtFrame.mjFRAME_WORLD, int)
+    self.assertEqual(-9 % -mujoco.mjtFrame.mjFRAME_WORLD, -2)
+    self.assertIsInstance(-9 % -mujoco.mjtFrame.mjFRAME_WORLD, int)
+    self.assertEqual(-9 % mujoco.mjtFrame.mjFRAME_WORLD, 5)
+    self.assertIsInstance(-9 % mujoco.mjtFrame.mjFRAME_WORLD, int)
+    self.assertEqual(9 % -mujoco.mjtFrame.mjFRAME_WORLD, -5)
+    self.assertIsInstance(9 % -mujoco.mjtFrame.mjFRAME_WORLD, int)
 
     with self.assertRaises(ZeroDivisionError):
-      _ = mujoco.mjtFrame.mjNFRAME / 0
+      _ = mujoco.mjtFrame.mjFRAME_WORLD / 0
     with self.assertRaises(ZeroDivisionError):
       _ = 1 / mujoco.mjtFrame.mjFRAME_NONE
     with self.assertRaises(ZeroDivisionError):
-      _ = mujoco.mjtFrame.mjNFRAME // 0
+      _ = mujoco.mjtFrame.mjFRAME_WORLD // 0
     with self.assertRaises(ZeroDivisionError):
       _ = 1 // mujoco.mjtFrame.mjFRAME_NONE
     with self.assertRaises(ZeroDivisionError):
-      _ = mujoco.mjtFrame.mjNFRAME % 0
+      _ = mujoco.mjtFrame.mjFRAME_WORLD % 0
     with self.assertRaises(ZeroDivisionError):
       _ = 1 % mujoco.mjtFrame.mjFRAME_NONE
 
