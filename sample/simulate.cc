@@ -23,13 +23,14 @@
 #include "uitools.h"
 
 #include "portable-file-dialogs.h"
-#include <filesystem>
-#define DEFAULT_PATH "."
 
 #include "array_safety.h"
 namespace mju = ::mujoco::sample_util;
 
 //-------------------------------- global -----------------------------------------------
+
+// Default path for file dialogs.
+#define DEFAULT_PATH "."
 
 const bool pfdAvailable = pfd::settings::available();
 
@@ -1315,7 +1316,7 @@ void uiEvent(mjuiState* state) {
       switch (it->itemid) {
         // Open XML/MJB
         case 0: {
-          auto fileName = pfd::open_file("Open XML/MJB", DEFAULT_PATH, { "XML Files", "*.xml", "MJB Files", "*.mjb"}, pfd::opt::none).result();
+          auto fileName = pfd::open_file("Open XML/MJB", DEFAULT_PATH, { "All Files", "*", "XML Files", "*.xml", "MJB Files", "*.mjb"}, pfd::opt::none).result();
           if (!fileName.empty()) {
             mju::strcpy_arr(filename, fileName[0].c_str());
             loadmodel();
@@ -1324,7 +1325,7 @@ void uiEvent(mjuiState* state) {
         }
         // Save XML
         case 1: {
-          auto fileName = pfd::save_file("Save XML", DEFAULT_PATH, { "XML Files", "*.xml" }, pfd::opt::none).result();
+          auto fileName = pfd::save_file("Save XML", DEFAULT_PATH, { "All Files", "*", "XML Files", "*.xml" }, pfd::opt::none).result();
           if (!fileName.empty()) {
             if(fileName.substr(fileName.find_last_of(".") + 1) != "xml")
               fileName += ".xml";
@@ -1335,7 +1336,7 @@ void uiEvent(mjuiState* state) {
         }
         // Save MJB
         case 2: {
-          auto fileName = pfd::save_file("Save MJB", DEFAULT_PATH, { "MJB Files", "*.mjb" }, pfd::opt::none).result();
+          auto fileName = pfd::save_file("Save MJB", DEFAULT_PATH, { "All Files", "*", "MJB Files", "*.mjb" }, pfd::opt::none).result();
           if (!fileName.empty()) {
             if(fileName.substr(fileName.find_last_of(".") + 1) != "mjb")
               fileName += ".mjb";
@@ -1345,7 +1346,7 @@ void uiEvent(mjuiState* state) {
         }
         // Print model
         case 3: {
-          auto fileName = pfd::save_file("Print Model", DEFAULT_PATH, { "Text Files", "*.txt" }, pfd::opt::none).result();
+          auto fileName = pfd::save_file("Print Model", DEFAULT_PATH, { "All Files", "*", "Text Files", "*.txt" }, pfd::opt::none).result();
           if (!fileName.empty()) {
             if(fileName.substr(fileName.find_last_of(".") + 1) != "txt")
               fileName += ".txt";
@@ -1355,7 +1356,7 @@ void uiEvent(mjuiState* state) {
         }
         // Print data
         case 4: {
-          auto fileName = pfd::save_file("Print Data", DEFAULT_PATH, { "Text Files", "*.txt" }, pfd::opt::none).result();
+          auto fileName = pfd::save_file("Print Data", DEFAULT_PATH, { "All Files", "*", "Text Files", "*.txt" }, pfd::opt::none).result();
           if (!fileName.empty()) {
             if(fileName.substr(fileName.find_last_of(".") + 1) != "txt")
               fileName += ".txt";
