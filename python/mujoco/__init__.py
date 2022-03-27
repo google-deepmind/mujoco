@@ -79,3 +79,14 @@ if _MUJOCO_GL not in _MUJOCO_GL_DISABLE:
       from mujoco.egl import GLContext
     else:
       from mujoco.glfw import GLContext
+
+
+def _get_version() -> str:
+  with open(os.path.join(HEADERS_DIR, 'mujoco.h'), 'r') as f:
+    for line in f:
+      if line.startswith('#define mjVERSION_HEADER'):
+        version = line.split()[2]
+        break
+  return '.'.join([d for d in str(version)])
+
+__version__ = _get_version()
