@@ -74,8 +74,8 @@ if _MUJOCO_GL not in _MUJOCO_GL_DISABLE:
   else:
     _dl_handle = ctypes.CDLL(None)
     if hasattr(_dl_handle, 'OSMesaCreateContextExt'):
-      from mujoco.osmesa import GLContext
+      from mujoco.render.osmesa import GLContext
     elif hasattr(_dl_handle, 'eglCreateContext'):
-      from mujoco.egl import GLContext
+      from mujoco.render.egl import GLContext
     else:
-      from mujoco.glfw import GLContext
+      from mujoco.render.glfw import GLContext
