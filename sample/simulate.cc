@@ -22,10 +22,16 @@
 #include <mjxmacro.h>
 #include "uitools.h"
 
+#include "portable-file-dialogs.h"
+#include <filesystem>
+#define DEFAULT_PATH "."
+
 #include "array_safety.h"
 namespace mju = ::mujoco::sample_util;
 
 //-------------------------------- global -----------------------------------------------
+
+const bool pfdAvailable = pfd::settings::available();
 
 static constexpr int kBufSize = 1000;
 
@@ -136,6 +142,7 @@ enum {
 // file section of UI
 const mjuiDef defFile[] = {
   {mjITEM_SECTION,   "File",          1, NULL,                    "AF"},
+  {mjITEM_BUTTON,    "Open",          1, NULL,                    ""},
   {mjITEM_BUTTON,    "Save xml",      2, NULL,                    ""},
   {mjITEM_BUTTON,    "Save mjb",      2, NULL,                    ""},
   {mjITEM_BUTTON,    "Print model",   2, NULL,                    "CM"},
@@ -217,7 +224,8 @@ const char help_content[] =
   "F4\n"
   "F5\n"
   "UI right hold\n"
-  "UI title double-click";
+  "UI title double-click\n"
+  "Q";
 
 const char help_title[] =
   "Play / Pause\n"
@@ -240,7 +248,8 @@ const char help_title[] =
   "Sensors\n"
   "Full screen\n"
   "Show UI shortcuts\n"
-  "Expand/collapse all";
+  "Expand/collapse all\n"
+  "Quit";
 
 
 // info strings
@@ -1304,27 +1313,61 @@ void uiEvent(mjuiState* state) {
     // file section
     if (it && it->sectionid==SECT_FILE) {
       switch (it->itemid) {
-      case 0:             // Save xml
-        if (!mj_saveLastXML("mjmodel.xml", m, err, 200)) {
-          std::printf("Save XML error: %s", err);
+        // Open XML/MJB
+        case 0: {
+          auto fileName = pfd::open_file("Open XML/MJB", DEFAULT_PATH, { "*.mjb", "*.xml" }, pfd::opt::none).result();
+          if (!fileName.empty()) {
+            mju::strcpy_arr(filename, fileName[0].c_str());
+            loadmodel();
+          }
+          break;
         }
-        break;
-
-      case 1:             // Save mjb
-        mj_saveModel(m, "mjmodel.mjb", NULL, 0);
-        break;
-
-      case 2:             // Print model
-        mj_printModel(m, "MJMODEL.TXT");
-        break;
-
-      case 3:             // Print data
-        mj_printData(m, d, "MJDATA.TXT");
-        break;
-
-      case 4:             // Quit
-        settings.exitrequest = 1;
-        break;
+        // Save XML
+        case 1: {
+          auto fileName = pfd::save_file("Save XML", DEFAULT_PATH, { "*.xml" }, pfd::opt::none).result();
+          if (!fileName.empty()) {
+            if(fileName.substr(fileName.find_last_of(".") + 1) != "xml")
+              fileName += ".xml";
+            if (!mj_saveLastXML(fileName.c_str(), m, err, 200))
+              std::printf("Save XML error: %s", err);
+          }
+          break;
+        }
+        // Save MJB
+        case 2: {
+          auto fileName = pfd::save_file("Save MJB", DEFAULT_PATH, { "*.mjb" }, pfd::opt::none).result();
+          if (!fileName.empty()) {
+            if(fileName.substr(fileName.find_last_of(".") + 1) != "mjb")
+              fileName += ".mjb";
+            mj_saveModel(m, fileName.c_str(), NULL, 0);
+          }
+          break;
+        }
+        // Print model
+        case 3: {
+          auto fileName = pfd::save_file("Print Model", DEFAULT_PATH, { "*.txt" }, pfd::opt::none).result();
+          if (!fileName.empty()) {
+            if(fileName.substr(fileName.find_last_of(".") + 1) != "txt")
+              fileName += ".txt";
+            mj_printModel(m, fileName.c_str());
+          }
+          break;
+        }
+        // Print data
+        case 4: {
+          auto fileName = pfd::save_file("Print Data", DEFAULT_PATH, { "*.txt" }, pfd::opt::none).result();
+          if (!fileName.empty()) {
+            if(fileName.substr(fileName.find_last_of(".") + 1) != "txt")
+              fileName += ".txt";
+            mj_printData(m, d, fileName.c_str());
+          }
+          break;
+        }
+        // Quit
+        case 5: {
+          settings.exitrequest = 1;
+          break;
+        }
       }
     }
 
@@ -1600,6 +1643,10 @@ void uiEvent(mjuiState* state) {
         settings.speed_changed = true;
       }
       break;
+
+    case 'Q':                   // quit
+      settings.exitrequest = 1;
+      break;
     }
 
     return;
@@ -1815,7 +1862,7 @@ void render(GLFWwindow* window) {
     } else {
       char intro_message[kBufSize];
       mju::sprintf_arr(intro_message,
-                       "MuJoCo version %s\nDrag-and-drop model file here", mj_versionString());
+                       "MuJoCo version %s\nDrag-and-drop model file here or click Open", mj_versionString());
       mjr_overlay(mjFONT_NORMAL, mjGRID_TOPLEFT, rect, intro_message, 0, &con);
     }
 
