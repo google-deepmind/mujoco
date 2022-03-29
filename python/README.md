@@ -51,7 +51,8 @@ cd mujoco/python
 3. Create a virtual environment:
 
 ```bash
-python3 -m venv /tmp/mujoco && /tmp/mujoco/bin/activate
+python3 -m venv /tmp/mujoco
+source /tmp/mujoco/bin/activate
 ```
 
 4. Generate a [source distribution](https://packaging.python.org/en/latest/glossary/#term-Source-Distribution-or-sdist)
@@ -71,7 +72,7 @@ cd dist
 MUJOCO_PATH=/PATH/TO/MUJOCO pip install mujoco-2.1.X.tar.gz
 ```
 
-The python bindings should now be installed! To check that they've been successfully installed, cd outside of the mujoco directory and run `python -c "import mujoco"`.
+The Python bindings should now be installed! To check that they've been successfully installed, `cd` outside of the `mujoco` directory and run `python -c "import mujoco"`.
 
 ## Usage
 
