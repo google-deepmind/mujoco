@@ -70,7 +70,7 @@ from mujoco._structs import *
 if _MUJOCO_GL not in _MUJOCO_GL_DISABLE:
   from mujoco._render import *
   if _SYSTEM != 'Linux':
-    from mujoco.glfw import GLContext
+    from mujoco.render.glfw import GLContext
   else:
     _dl_handle = ctypes.CDLL(None)
     if hasattr(_dl_handle, 'OSMesaCreateContextExt'):
