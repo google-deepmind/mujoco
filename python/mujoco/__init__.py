@@ -80,5 +80,4 @@ if _MUJOCO_GL not in _MUJOCO_GL_DISABLE:
     else:
       from mujoco.glfw import GLContext
 
-
 __version__ = mj_versionString()
