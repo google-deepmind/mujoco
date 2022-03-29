@@ -162,8 +162,8 @@ const mjuiDef defOption[] = {
 #else
   {mjITEM_CHECKINT,  "Fullscreen",    1, &settings.fullscreen,    " #294"},
 #endif
-  {mjITEM_CHECKINT,  "Vertical Sync", 1, &settings.vsync,         " #295"},
-  {mjITEM_CHECKINT,  "Busy Wait",     1, &settings.busywait,      " #296"},
+  {mjITEM_CHECKINT,  "Vertical Sync", 1, &settings.vsync,         ""},
+  {mjITEM_CHECKINT,  "Busy Wait",     1, &settings.busywait,      ""},
   {mjITEM_END}
 };
 
@@ -177,8 +177,8 @@ const mjuiDef defSimulation[] = {
   {mjITEM_BUTTON,    "Align",         2, NULL,                    "CA"},
   {mjITEM_BUTTON,    "Copy pose",     2, NULL,                    "CC"},
   {mjITEM_SLIDERINT, "Key",           3, &settings.key,           "0 0"},
-  {mjITEM_BUTTON,    "Reset to key",  3},
-  {mjITEM_BUTTON,    "Set key",       3},
+  {mjITEM_BUTTON,    "Load key",      3},
+  {mjITEM_BUTTON,    "Save key",      3},
   {mjITEM_SLIDERNUM, "Noise scale",   2, &settings.ctrlnoisestd,  "0 2"},
   {mjITEM_SLIDERNUM, "Noise rate",    2, &settings.ctrlnoiserate, "0 2"},
   {mjITEM_END}
@@ -1404,7 +1404,7 @@ void uiEvent(mjuiState* state) {
         break;
 
       case 5:             // Adjust key
-      case 6:             // Reset to key
+      case 6:             // Load key
         i = settings.key;
         d->time = m->key_time[i];
         mju_copy(d->qpos, m->key_qpos+i*m->nq, m->nq);
@@ -1418,7 +1418,7 @@ void uiEvent(mjuiState* state) {
         updatesettings();
         break;
 
-      case 7:             // Set key
+      case 7:             // Save key
         i = settings.key;
         m->key_time[i] = d->time;
         mju_copy(m->key_qpos+i*m->nq, d->qpos, m->nq);
@@ -1577,6 +1577,20 @@ void uiEvent(mjuiState* state) {
           settings.camera -= 1;
         }
         cam.fixedcamid = settings.camera - 2;
+        mjui_update(SECT_RENDERING, -1, &ui0, &uistate, &con);
+      }
+      break;
+
+    case mjKEY_F6:                   // cycle frame visualisation
+      if (m) {
+        vopt.frame = (vopt.frame + 1) % mjNFRAME;
+        mjui_update(SECT_RENDERING, -1, &ui0, &uistate, &con);
+      }
+      break;
+
+    case mjKEY_F7:                   // cycle label visualisation
+      if (m) {
+        vopt.label = (vopt.label + 1) % mjNLABEL;
         mjui_update(SECT_RENDERING, -1, &ui0, &uistate, &con);
       }
       break;
