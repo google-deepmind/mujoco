@@ -37,7 +37,7 @@ Before proceeding, make sure you have CMake and a C++17 compiler installed.
 
 1. Download the latest release of the [binary archives](https://github.com/deepmind/mujoco/releases) from GitHub. On macOS, the download corresponds to a DMG file from which you can drag the `MuJoCo` app into your Applications folder.
 
-2. Clone the entire `mujoco` repository from GitHub and cd into the python directory.
+2. Clone the entire `mujoco` repository from GitHub and `cd` into the python directory.
 
 ```bash
 git clone https://github.com/deepmind/mujoco.git
