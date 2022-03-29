@@ -18,9 +18,9 @@ most users who access MuJoCo through Python. For example, the `egl`, `glfw`, and
 
 ## Installation
 
-### PyPI
+### PyPI (Recommended)
 
-The package can be installed from [PyPI](https://pypi.org/project/mujoco/) via
+The recommended way to install this package is via [PyPI](https://pypi.org/project/mujoco/):
 
 ```sh
 pip install mujoco
@@ -31,26 +31,27 @@ need to be downloaded or installed separately.
 
 ### Source
 
-**Note.** CMake and a C++17 compiler are needed to build the bindings from source.
+**Note.** Building from source is only necessary if you are modifying the Python bindings (or are trying to run on exceptionally old Linux systems). If that's not the case, then we recommend installing the prebuilt binaries from PyPI.
 
-1. Download the [latest release](https://github.com/deepmind/mujoco/releases) from GitHub. On macOS, the download corresponds to a DMG file from which you can drag the `MuJoCo` app into your Applications folder.
+Before proceeding, make sure you have CMake and a C++17 compiler installed.
+
+1. Download the latest release of the [binary archives](https://github.com/deepmind/mujoco/releases) from GitHub. On macOS, the download corresponds to a DMG file from which you can drag the `MuJoCo` app into your Applications folder.
 
 <p align="center">
   <img src="../assets/macos_install.png" width=600>
 </p>
 
-2. Clone the entire mujoco repository from Github and cd into the python directory.
+2. Clone the entire `mujoco` repository from GitHub and cd into the python directory.
 
 ```bash
 git clone https://github.com/deepmind/mujoco.git
 cd mujoco/python
 ```
 
-3. Create a virtual environment, for example with conda.
+3. Create a virtual environment:
 
 ```bash
-conda create -n mujoco python=3.8
-conda activate mujoco
+python3 -m venv /tmp/mujoco && /tmp/mujoco/bin/activate
 ```
 
 4. Generate a [source distribution](https://packaging.python.org/en/latest/glossary/#term-Source-Distribution-or-sdist)
