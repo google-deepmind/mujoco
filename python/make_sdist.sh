@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-if [[ -z ${VIRTUAL_ENV} ]]; then
+if [[ -z ${VIRTUAL_ENV} ]] && [[ -z ${CONDA_DEFAULT_ENV} ]]; then
   echo "This script must be run from within a Python virtual environment"
   exit 1
 fi
@@ -28,7 +28,7 @@ else
   readonly tmp_dir="$(mktemp -d)"
 fi
 
-python -m pip install --upgrade pip
+python -m pip install --upgrade pip setuptools
 python -m pip install absl-py
 pushd ${tmp_dir}
 cp -r "${package_dir}"/* .
