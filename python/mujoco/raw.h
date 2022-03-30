@@ -19,6 +19,7 @@
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjrender.h>
 #include <mujoco/mjvisualize.h>
+#include <mujoco/simulate.h>
 
 // Type aliases for MuJoCo C structs to allow us refer to consistently refer
 // to them under the "raw" namespace.
@@ -54,6 +55,9 @@ using MjvLight = ::mjvLight;
 using MjvOption = ::mjvOption;
 using MjvScene = ::mjvScene;
 using MjvFigure = ::mjvFigure;
+
+// From simulate.h
+using Simulate = ::mujoco::Simulate;
 
 }  // namespace mujoco::raw
 

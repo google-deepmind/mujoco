@@ -62,6 +62,7 @@ add_compile_options("${MUJOCO_HARDEN_COMPILE_OPTIONS}")
 add_link_options("${MUJOCO_HARDEN_LINK_OPTIONS}")
 
 find_package(Python3 COMPONENTS Interpreter Development)
+find_package(glfw3 3.3 REQUIRED)
 
 include(FindOrFetch)
 
@@ -112,6 +113,40 @@ if(NOT TARGET mujoco)
       OUTPUT_VARIABLE MUJOCO_SONAME
     )
     set_target_properties(mujoco PROPERTIES IMPORTED_SONAME "${MUJOCO_SONAME}")
+  endif()
+endif()
+
+# ==================== MJSIMULATE LIBRARY ==========================================
+if(NOT TARGET mjsimulate)
+  find_library(MJSIMULATE_LIBRARY mjsimulate mjsimulate HINTS ${MUJOCO_LIBRARY_DIR} REQUIRED)
+  find_path(MJSIMULATE_INCLUDE mujoco/simulate.h mujoco/uitools.h mujoco/array_safety.h HINTS ${MUJOCO_INCLUDE_DIR} REQUIRED)
+  message("MuJoCo Simulate is at ${MJSIMULATE_LIBRARY}")
+  message("MuJoCo Simulate headers are at ${MJSIMULATE_INCLUDE}")
+  add_library(mjsimulate SHARED IMPORTED)
+  if(WIN32)
+    set_target_properties(mjsimulate PROPERTIES IMPORTED_IMPLIB "${MJSIMULATE_LIBRARY}")
+  else()
+    set_target_properties(mjsimulate PROPERTIES IMPORTED_LOCATION "${MJSIMULATE_LIBRARY}")
+  endif()
+  target_include_directories(mjsimulate INTERFACE "${MJSIMULATE_INCLUDE}")
+  if(APPLE)
+    execute_process(
+      COMMAND otool -XD ${MJSIMULATE_LIBRARY}
+      COMMAND head -n 1
+      COMMAND xargs dirname
+      COMMAND xargs echo -n
+      OUTPUT_VARIABLE MJSIMULATE_INSTALL_NAME_DIR
+    )
+    set_target_properties(mjsimulate PROPERTIES INSTALL_NAME_DIR "${MJSIMULATE_INSTALL_NAME_DIR}")
+  elseif(UNIX)
+    execute_process(
+      COMMAND objdump -p ${MJSIMULATE_LIBRARY}
+      COMMAND grep SONAME
+      COMMAND grep -Po [^\\s]+$
+      COMMAND xargs echo -n
+      OUTPUT_VARIABLE MJSIMULATE_SONAME
+    )
+    set_target_properties(mjsimulate PROPERTIES IMPORTED_SONAME "${MJSIMULATE_SONAME}")
   endif()
 endif()
 
@@ -231,7 +266,7 @@ target_link_libraries(errors_header INTERFACE crossplatform func_wrap mujoco)
 add_library(raw INTERFACE)
 target_sources(raw INTERFACE raw.h)
 set_target_properties(raw PROPERTIES PUBLIC_HEADER raw.h)
-target_link_libraries(raw INTERFACE mujoco)
+target_link_libraries(raw INTERFACE mujoco mjsimulate)
 
 add_library(structs_header INTERFACE)
 target_sources(
@@ -309,7 +344,7 @@ target_link_libraries(
 )
 
 mujoco_pybind11_module(_constants constants.cc)
-target_link_libraries(_constants PRIVATE mujoco)
+target_link_libraries(_constants PRIVATE mujoco mjsimulate)
 
 mujoco_pybind11_module(_enums enums.cc)
 target_link_libraries(
@@ -370,6 +405,16 @@ target_link_libraries(
           structs_header
 )
 
+mujoco_pybind11_module(_simulate simulate.cc)
+target_link_libraries(
+  _simulate
+  PRIVATE mjsimulate
+          mujoco
+          raw
+          glfw
+          structs_header)
+target_link_options(_simulate PRIVATE -Wl,-no-as-needed)
+
 set(LIBRARIES_FOR_WHEEL
     "$<TARGET_FILE:_callbacks>"
     "$<TARGET_FILE:_constants>"
@@ -378,8 +423,10 @@ set(LIBRARIES_FOR_WHEEL
     "$<TARGET_FILE:_functions>"
     "$<TARGET_FILE:_render>"
     "$<TARGET_FILE:_rollout>"
+    "$<TARGET_FILE:_simulate>"
     "$<TARGET_FILE:_structs>"
     "$<TARGET_FILE:mujoco>"
+    "$<TARGET_FILE:mjsimulate>"
 )
 
 if(MUJOCO_PYTHON_MAKE_WHEEL)
@@ -405,7 +452,9 @@ if(MUJOCO_PYTHON_MAKE_WHEEL)
     _functions
     _render
     _rollout
+    _simulate
     _structs
     mujoco
+    mjsimulate
   )
 endif()

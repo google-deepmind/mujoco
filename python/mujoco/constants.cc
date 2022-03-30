@@ -15,6 +15,7 @@
 #include <utility>
 #include <vector>
 #include <mujoco/mjmodel.h>
+#include <mujoco/simulate.h>
 #include <mujoco/mjvisualize.h>
 #include <mujoco/mujoco.h>
 #include <pybind11/cast.h>
@@ -77,6 +78,9 @@ PYBIND11_MODULE(_constants, pymodule) {
 
   // from mujoco.h
   X(mjVERSION_HEADER);
+
+  // from simulate.h
+  X(mujoco::Simulate::kMaxFilenameLength);
 
   #undef X
   pymodule.attr("mjDISABLESTRING") = MakeTuple(mjDISABLESTRING);
