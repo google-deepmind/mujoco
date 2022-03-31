@@ -762,7 +762,7 @@ void makerendering(int oldstate) {
       "Frame",
       2,
       &(vopt.frame),
-      "None\nBody\nGeom\nSite\nCamera\nLight\nContact\nWorld"
+      "None\nBody\nGeom\nSite\nCamera\nLight\nWorld"
     },
     {
       mjITEM_BUTTON,
