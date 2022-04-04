@@ -9,4 +9,4 @@ all:
 	$(CXX) -c -O2 -fPIC -I../include simulate.cc
 	$(CXX) -shared -o libmjsimulate.so simulate.o uitools.o
 	mv libmjsimulate.so ../lib/libmjsimulate.so
-	$(CXX) $(COMMON) main.cc -lmjsimulate -lmujoco -lGL -lglfw -o ../bin/simulate
+	$(CXX) $(COMMON) -Wl,-no-as-needed main.cc -lmjsimulate -lmujoco -lGL -lglfw -o ../bin/simulate
