@@ -55,7 +55,7 @@ include(FindOrFetch)
 
 # ==================== MUJOCO LIBRARY ==========================================
 if(NOT TARGET mujoco)
-  find_library(MUJOCO_LIBRARY mujoco mujoco.2.1.3 HINTS ${MUJOCO_LIBRARY_DIR} REQUIRED)
+  find_library(MUJOCO_LIBRARY mujoco mujoco.2.1.4 HINTS ${MUJOCO_LIBRARY_DIR} REQUIRED)
   find_path(MUJOCO_INCLUDE mujoco.h HINTS ${MUJOCO_INCLUDE_DIR} REQUIRED)
   message("MuJoCo is at ${MUJOCO_LIBRARY}")
   message("MuJoCo headers are at ${MUJOCO_INCLUDE}")
@@ -152,7 +152,7 @@ else()
     GIT_REPO
     https://github.com/pybind/pybind11
     GIT_TAG
-    08ea85b0ac0d4d46ac081ff24f481b41322d7159
+    a8f1a5567608f346bdba293b3d062a288ee16cd4
     TARGETS
     pybind11::pybind11_headers
     EXCLUDE_FROM_ALL
@@ -257,12 +257,7 @@ macro(mujoco_pybind11_module name)
         @rpath/$<TARGET_FILE_NAME:mujoco> -add_rpath @loader_path $<TARGET_FILE:${name}>
     )
   elseif(NOT WIN32)
-    add_custom_command(
-      TARGET ${name}
-      POST_BUILD
-      COMMAND patchelf --remove-needed $<TARGET_SONAME_FILE_NAME:mujoco>
-              $<TARGET_FILE_NAME:${name}>
-    )
+    set_target_properties(${name} PROPERTIES INSTALL_RPATH $ORIGIN BUILD_WITH_INSTALL_RPATH TRUE)
   endif()
 endmacro()
 
@@ -347,17 +342,6 @@ set(LIBRARIES_FOR_WHEEL
     "$<TARGET_FILE:_structs>"
     "$<TARGET_FILE:mujoco>"
 )
-if(NOT APPLE)
-  set(LIBRARIES_FOR_WHEEL ${LIBRARIES_FOR_WHEEL} $<TARGET_FILE:mujoco_nogl>)
-endif()
-if(NOT (APPLE OR WIN32))
-  set(LIBRARIES_FOR_WHEEL
-      ${LIBRARIES_FOR_WHEEL}
-      "$<TARGET_FILE:glew>"
-      "$<TARGET_FILE:glewegl>"
-      "$<TARGET_FILE:glewosmesa>"
-  )
-endif()
 
 if(MUJOCO_PYTHON_MAKE_WHEEL)
   add_custom_target(

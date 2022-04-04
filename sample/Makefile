@@ -5,12 +5,12 @@
 COMMON=-O2 -I../include -L../lib -std=c++11 -pthread -Wl,-rpath,'$$ORIGIN'/../lib
 
 all:
-	$(CXX) $(COMMON) testxml.cc    -lmujoco_nogl               -o ../bin/testxml
-	$(CXX) $(COMMON) testspeed.cc  -lmujoco_nogl               -o ../bin/testspeed
-	$(CXX) $(COMMON) compile.cc    -lmujoco_nogl               -o ../bin/compile
-	$(CXX) $(COMMON) derivative.cc -lmujoco_nogl -fopenmp      -o ../bin/derivative
-	$(CXX) $(COMMON) basic.cc      -lmujoco -lGL -lglew -lglfw -o ../bin/basic
-	$(CXX) $(COMMON) record.cc     -lmujoco -lGL -lglew -lglfw -o ../bin/record
+	$(CXX) $(COMMON) testxml.cc    -lmujoco             -o ../bin/testxml
+	$(CXX) $(COMMON) testspeed.cc  -lmujoco             -o ../bin/testspeed
+	$(CXX) $(COMMON) compile.cc    -lmujoco             -o ../bin/compile
+	$(CXX) $(COMMON) derivative.cc -lmujoco -fopenmp    -o ../bin/derivative
+	$(CXX) $(COMMON) basic.cc      -lmujoco -lGL -lglfw -o ../bin/basic
+	$(CXX) $(COMMON) record.cc     -lmujoco -lGL -lglfw -o ../bin/record
 	$(CC) -c -O2 -I../include uitools.c
-	$(CXX) $(COMMON) uitools.o simulate.cc -lmujoco -lGL -lglew -lglfw -o ../bin/simulate
+	$(CXX) $(COMMON) uitools.o simulate.cc -lmujoco -lGL -lglfw -o ../bin/simulate
 	rm *.o

@@ -2,6 +2,49 @@
 Changelog
 =========
 
+Version 2.1.4 (Apr. 4, 2022)
+-----------------------------
+
+General
+^^^^^^^
+
+1. MuJoCo now uses GLAD to manage OpenGL API access instead of GLEW. On Linux, there is no longer a need to link against
+   different GL wrangling libraries depending on whether GLX, EGL, or OSMesa is being used. Instead, users can simply
+   use GLX, EGL, or OSMesa to create a GL context and ``mjr_makeContext`` will detect which one is being used.
+
+#. Add visualisation for contact frames. This is useful when writing or modifying collision functions, when the actual
+   direction of the x and y axes of a contact can be important.
+
+Binary build
+^^^^^^^^^^^^
+
+3. The ``_nogl`` dynamic library is no longer provided on Linux and Windows. The switch to GLAD allows us to resolve
+   OpenGL symbols when ``mjr_makeContext`` is called rather than when the library is loaded. As a result, the MuJoCo
+   library no longer has an explicit dynamic dependency on OpenGL, and can be used on system where OpenGL is not
+   present.
+
+Simulate
+^^^^^^^^
+
+4. Fix a bug in simulate where pressing '[' or ']' when a model is not loaded causes a crash.
+
+#. Contact frame visualisation is added to the Simulate GUI.
+
+#. Rename "set key", "reset to key" to "save key" and "load key", respectively.
+
+#. Change bindings of F6 and F7 from the not very useful "vertical sync" and "busy wait" to the more useful cycling of
+   frames and labels.
+
+Bug fixes
+^^^^^^^^^
+
+8. ``mj_resetData`` zeroes out the ``solver_nnz`` field.
+
+#. Remove a special branch in ``mju_quat2mat`` for unit quaternions. Previously, ``mju_quat2mat`` skipped all
+   computation if the real part of the quaternion equals 1.0. For very small angles (e.g. when finite differencing), the
+   cosine can evaluate to exactly 1.0 at double precision while the sine is still nonzero.
+
+
 Version 2.1.3 (Mar. 23, 2022)
 -----------------------------
 

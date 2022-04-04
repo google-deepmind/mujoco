@@ -2,20 +2,22 @@
 # packages are installed in /usr/local. If your setup is different, you will
 # need to adjust the HOMEBREW variable accordingly.
 
+# This Makefile also assumes that MuJoCo.app is present in /Applications.
+
 HOMEBREW?=/usr/local
 
-MUJOCO_LIBDIR=../MuJoCo.Framework/Versions/A
-MUJOCO_INCLUDEDIR=../MuJoCo.Framework/Versions/A/Headers
+MUJOCO_LIBDIR=/Applications/MuJoCo.app/Contents/Frameworks/MuJoCo.Framework/Versions/A
+MUJOCO_INCLUDEDIR=/Applications/MuJoCo.app/Contents/Frameworks/MuJoCo.Framework/Versions/A/Headers
 CFLAGS=-O2 -I$(MUJOCO_INCLUDEDIR) -I$(HOMEBREW)/include -pthread
-ALLFLAGS=$(CFLAGS) -L$(MUJOCO_LIBDIR) -L$(HOMEBREW)/lib -std=c++11 -stdlib=libc++
+ALLFLAGS=$(CFLAGS) -L$(MUJOCO_LIBDIR) -L$(HOMEBREW)/lib -std=c++11 -stdlib=libc++ -Wl,-rpath,/Applications/MuJoCo.app/Contents/Frameworks
 
 all:
-	clang++ $(ALLFLAGS) testxml.cc    -lmujoco.2.1.3        -o testxml
-	clang++ $(ALLFLAGS) testspeed.cc  -lmujoco.2.1.3        -o testspeed
-	clang++ $(ALLFLAGS) compile.cc    -lmujoco.2.1.3        -o compile
-	clang++ $(ALLFLAGS) derivative.cc -lmujoco.2.1.3        -o derivative
-	clang++ $(ALLFLAGS) basic.cc      -lmujoco.2.1.3 -lglfw -o basic
-	clang++ $(ALLFLAGS) record.cc     -lmujoco.2.1.3 -lglfw -o record
+	clang++ $(ALLFLAGS) testxml.cc    -lmujoco.2.1.4        -o testxml
+	clang++ $(ALLFLAGS) testspeed.cc  -lmujoco.2.1.4        -o testspeed
+	clang++ $(ALLFLAGS) compile.cc    -lmujoco.2.1.4        -o compile
+	clang++ $(ALLFLAGS) derivative.cc -lmujoco.2.1.4        -o derivative
+	clang++ $(ALLFLAGS) basic.cc      -lmujoco.2.1.4 -lglfw -o basic
+	clang++ $(ALLFLAGS) record.cc     -lmujoco.2.1.4 -lglfw -o record
 	clang -c $(CFLAGS) uitools.c
-	clang++ $(ALLFLAGS) uitools.o simulate.cc -lmujoco.2.1.3 -lglfw -o simulate
+	clang++ $(ALLFLAGS) uitools.o simulate.cc -lmujoco.2.1.4 -lglfw -o simulate
 	rm *.o

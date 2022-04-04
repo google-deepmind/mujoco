@@ -206,7 +206,7 @@ PYBIND11_MODULE(_render, pymodule) {
   X(nskin);
   X(charHeight);
   X(charHeightBig);
-  X(glewInitialized);
+  X(glInitialized);
   X(windowAvailable);
   X(windowSamples);
   X(windowStereo);

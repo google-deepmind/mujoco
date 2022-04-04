@@ -19,7 +19,7 @@ import mujoco
 import numpy as np
 
 
-@absltest.skipUnless(hasattr(mujoco, 'mjr_render'),
+@absltest.skipUnless(hasattr(mujoco, 'GLContext'),
                      'MuJoCo rendering is disabled')
 class MuJoCoRenderTest(absltest.TestCase):
 

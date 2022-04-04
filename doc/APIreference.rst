@@ -2437,7 +2437,7 @@ mjrContext
        int     charHeightBig;          // character heights: big
 
        // capabilities
-       int     glewInitialized;        // is glew initialized
+       int     glInitialized;          // is OpenGL initialized
        int     windowAvailable;        // is default/window framebuffer available
        int     windowSamples;          // number of samples for default/window framebuffer
        int     windowStereo;           // is stereo available for default/window framebuffer
@@ -2905,11 +2905,11 @@ mjcb_control
   fields, their values do not correspond to the current time step.
 
 | The control callback is called from within :ref:`mj_forward` and :ref:`mj_step`, just before the controls and applied
-  forces are needed. When using the RK integrator, it will be called 4 times per step. The alternative way of specifying
-  controls and applied forces is to set them before mj_step, or use mj_step1 and mj_step2. The latter approach allows
-  setting the controls after the position and velocity computations have been performed by mj_step1, allowing these
-  results to be utilized in computing the control (similar to using mjcb_control). However, the only way to change the
-  controls between sub-steps of the RK integrator is to define the control callback.
+forces are needed. When using the RK integrator, it will be called 4 times per step. The alternative way of specifying
+controls and applied forces is to set them before ``mj_step``, or use ``mj_step1`` and ``mj_step2``. The latter approach
+allows setting the controls after the position and velocity computations have been performed by ``mj_step1``, allowing
+these results to be utilized in computing the control (similar to using mjcb_control). However, the only way to change
+the controls between sub-steps of the RK integrator is to define the control callback.
 
 .. _mjcb_contactfilter:
 
@@ -3411,15 +3411,15 @@ Print internal XML schema as plain text or HTML, with style-padding or ``&nbsp;`
 Main simulation
 ^^^^^^^^^^^^^^^
 
-| These are the main entry points to the simulator. Most users will only need to call mj_step, which computes everything
-  and advanced the simulation state by one time step. Controls and applied forces must either be set in advance (in
-  mjData.ctrl, qfrc_applied and xfrc_applied), or a control callback mjcb_control must be installed which will be called
-  just before the controls and applied forces are needed. Alternatively, one can use mj_step1 and mj_step2 which break
-  down the simulation pipeline into computations that are executed before and after the controls are needed; in this way
-  one can set controls that depend on the results from mj_step1. Keep in mind though that the RK4 solver does not work
-  with mj_step1/2.
+| These are the main entry points to the simulator. Most users will only need to call ``mj_step``, which computes
+everything and advanced the simulation state by one time step. Controls and applied forces must either be set in advance
+(in mjData.ctrl, qfrc_applied and xfrc_applied), or a control callback mjcb_control must be installed which will be
+called just before the controls and applied forces are needed. Alternatively, one can use ``mj_step1`` and ``mj_step2``
+which break down the simulation pipeline into computations that are executed before and after the controls are needed;
+in this way one can set controls that depend on the results from ``mj_step1``. Keep in mind though that the RK4 solver
+does not work with mj_step1/2.
 
-| mj_forward performs the same computations as mj_step but without the integration. It is useful after loading or
+| mj_forward performs the same computations as ``mj_step`` but without the integration. It is useful after loading or
   resetting a model (to put the entire mjData in a valid state), and also for out-of-order computations that involve
   sampling or finite-difference approximations.
 

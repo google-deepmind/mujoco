@@ -12,29 +12,16 @@ be used in C++ programs.
 
 MuJoCo is a free product currently distributed as a pre-built dynamic library and will soon be made available as an
 open-source project. The software distribution contains a compiled version of GLFW which is used in the code samples to
-create an OpenGL window and direct user input to it. The Linux distribution also contains compiled versions of GLEW
-which is used for OpenGL symbol loading and allow the user to choose between X11, EGL or MESA. For projects where
-rendering is not needed, there is a smaller "nogl" library which does not have a dependence on OpenGL. This is suitable
-for running on headless servers without video drivers installed. The distribution for each platform contains the
-following dynamic libraries:
+create an OpenGL window and direct user input to it. The distribution for each platform contains the following dynamic
+library:
 
 .. code-block:: Text
 
-     Windows:  mujoco210.dll     (stub library: mujoco210.lib)
-               mujoco210nogl.dll (stub library: mujoco210nogl.lib)
-               glfw3.dll         (stub library: glfw3.lib)
+     Windows:  mujoco.dll  (stub library: mujoco.lib)
 
-     Linux:    mujoco210.so
-               mujoco210nogl.so
-               glewXXX.so
-               glfw.so.3
+     Linux:    mujoco.so.2.1.4
 
-     macOS:    mujoco210.dylib
-               mujoco210nogl.dylib
-               glfw.3.dylib
-
-Note that the software :ref:`version <inVersion>` number is contained in the library name (and obviously changes with
-every release), so for example ``mujoco210`` means version 2.1.
+     macOS:    mujoco.2.1.4.dylib
 
 Even though MuJoCo is a single dynamic library with unified C API, it contains several modules, some of which are
 implemented in C++. We have taken advantage of the convenience of C++ for functionality that is used before the
@@ -154,11 +141,6 @@ API. While we encourage users to upgrade to the latest version, we recognize tha
 especially when other developers release software that relies on MuJoCo. Therefore we have introduced simple
 mechanisms to help avoid version conflicts, as follows.
 
-As noted above, the version number is contained in the name of the dynamic library, e.g. mujoco210.dll for version 2.1.
-Thus if an executable was compiled and linked with version 2.1 and the currently installed MuJoCo version is different,
-the dynamic library will not be found. Please avoid the temptation to rename the library so as to fool the dynamic
-linker; this is never a good idea. Instead you should obtain the required version of the library.
-
 The situation is more subtle if existing code was developed with a certain version of MuJoCo, and is now being
 compiled and linked with a different version. If the definitions of the API functions used in that code have changed,
 either the compiler or the linker will generate errors. But even if the function definitions have not changed, it may
@@ -224,55 +206,22 @@ mjcb\_
 Using OpenGL
 ~~~~~~~~~~~~
 
-The use of MuJoCo's native OpenGL renderer will be explained in :ref:`Rendering`. Here we only cover issues
-related to external libraries and resolving dependencies. For projects that do not need rendering, one can use the
-"nogl" version of the MuJoCo library.
+The use of MuJoCo's native OpenGL renderer will be explained in :ref:`Rendering`. For rendering, MuJoCo uses OpenGL 1.5
+in the compatibility profile with the ``ARB_framebuffer_object`` and ``ARB_vertex_buffer_object`` extensions. OpenGL
+symbols are loaded via `GLAD <https://github.com/Dav1dde/glad>`_ the first time the :ref:`mjr_makeContext` function
+is called. This means that the MuJoCo library itself does not have an explicit dependency on OpenGL and can be used
+on systems without OpenGL support, as long as ``mjr_`` functions are not called.
 
-For rendering MuJoCo uses OpenGL 1.5 with the ARB_framebuffer_object extension (provided by all modern drivers.) It
-also uses GLEW 2.0.0 for loading OpenGL symbols. On Windows and macOS, both GLEW and the OpenGL library (OpenGL32.lib
-or OpenGL.framework respectively) are linked with MuJoCo. On these platforms the user does not have to take additional
-steps to resolve dependencies.
+Applications that use MuJoCo's built-in rendering functionalities are responsible for linking against an appropriate
+OpenGL context creation library and for ensuring that there is an OpenGL context that is made current on the running
+thread. On Windows and macOS, there is a canonical OpenGL library provided by the operating system. On Linux, MuJoCo
+currently supports GLX for rendering to an X11 window, OSMesa for headless software rendering, and EGL for hardware
+accelerated headless rendering.
 
-On Linux the situation is more complex, because there are multiple OpenGL implementations and ways to load symbols.
-The renderer and linking process are organized so as to allow multiple use cases shown below. libmujoco210.so calls
-GLEW and OpenGL functions without linking the corresponding libraries. Users must resolve the dependencies by linking
-whatever flavor of GLEW and OpenGL are suitable for their needs. For illustration, see how
-:ref:`record.cc <saRecord>` on Linux is compiled and linked in three different ways (makefile in the sample
-directory).
-
-No OpenGL: link with **libmujoco210nogl**.so
-   This version of the MuJoCo library is compiled without the renderer, so it does not make any calls to OpenGL or GLEW.
-   It can be used on compute servers where graphics drivers are not installed. The main header file mujoco.h still
-   declares the rendering functions (mjr_XXX), but the library does not implement them, therefore calling these
-   functions from user code will result in unresolved symbols at link time. In the code samples, we use this version of
-   the library in text-only applications.
-X11 OpenGL: link with **libmujoco210**.so, **libglew**.so, **libGL**.so
-   This is the most common way of using OpenGL on Linux desktop, with X11 for context creation and symbol loading.
-OSMESA OpenGL: link with **libmujoco210**.so, **libglewosmesa**.so, **libOSMesa**.so
-   This can be used for software rendering with the OSMesa library. Note that we are linking a different version of GLEW
-   here, built with OSMesa support instead of the standard GLX. Ideally users will find a way to avoid software
-   rendering and use hardware acceleration. But OSMesa is a convenient fall-back option when all else fails.
-EGL OpenGL: link with **libmujoco210**.so, **libEGL**.so, **libglewegl**.so, **libOpenGL**.so
-   This is the key feature for headless rendering. It enables hardware-accelerated OpenGL on servers without X11. User
-   code must use EGL for context creation, as illustrated in :ref:`record.cc <saRecord>`. libglewegl.so uses EGL to
-   load OpenGL symbols instead of using GLX. libOpenGL.so is the vendor-independent library which exposes only OpenGL
-   functionality without introducing a dependence on X11 (as opposed to libGL.so which depends on libGLX.so). NVidia's
-   drivers provide libOpenGL.so when installed with the "--install-libglvnd" option. libEGL.so can be obtained from Mesa
-   and is driver-independent (sudo apt-get install libegl1-mesa-dev).
-
-Finally, instead of using the compiled libglew we have provided, users can compile their own, or link glew.c statically
-in their project (it is a single C file). Static linking requires the GLEW_STATIC symbol to be defined. In addition, the
-following symbols must be defined when building GLEW 2.0.0 for different use cases:
-
-::
-
-     libglew.so:        GLEW_NO_GLU
-     libglewegl.so:     GLEW_NO_GLU  GLEW_EGL
-     libgleweomesa.so:  GLEW_NO_GLU  GLEW_OSMESA
-
-For headless rendering to work, it is essential to eliminate the dependence on GLU, because otherwise a dependence on
-X11 will be introduced via libGLU.so. Note that GLEW can also be built for Mir and Wayland. We have not tested these,
-but in theory they should work.
+Before version 2.1.4, MuJoCo used GLEW rather than GLAD to manage OpenGL symbols, which required linking against
+different GLEW libraries at build time depending on the GL implementation used. In order to avoid having manage OpenGL
+dependency when no rendering was required, "nogl" builds of the library was made available. Since OpenGL symbols are
+now lazily resolved at runtime after the switch to GLAD, the "nogl" libraries are no longer provided.
 
 .. _Sample:
 
@@ -641,7 +590,7 @@ but these are finer points).
 
 Instead of relying on a control callback, we could set the control vector ``mjData.ctrl`` directly. Alternatively we
 could set applied forces as explained in :ref:`state and control <siStateControl>`. If we could compute these control-
-related quantities before mj_step is called, then the simulation loop for the controlled dynamics (without using a
+related quantities before ``mj_step`` is called, then the simulation loop for the controlled dynamics (without using a
 control callback) would become
 
 .. code-block:: C
@@ -652,7 +601,7 @@ control callback) would become
        mj_step(m, d);
    }
 
-Why would we not be able to compute the controls before mj_step is called? After all, isn't this what causality means?
+Why would we not be able to compute the controls before ``mj_step`` is called? After all, isn't this what causality means?
 The answer is subtle but important, and has to do with the fact that we are simulating in discrete time. The top-level
 simulation function ``mj_step`` basically does two things: compute the :ref:`forward dynamics <siForward>` in continuous
 time, and then integrate over a time period specified by ``mjModel.opt.timestep``. Forward dynamics computes the

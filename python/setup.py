@@ -30,7 +30,7 @@ from setuptools import find_packages
 from setuptools import setup
 from setuptools.command import build_ext
 
-__version__ = '2.1.3'
+__version__ = '2.1.4'
 
 MUJOCO_CMAKE = 'MUJOCO_CMAKE'
 MUJOCO_CMAKE_ARGS = 'MUJOCO_CMAKE_ARGS'
@@ -54,20 +54,20 @@ def get_long_description():
 
 def get_mujoco_lib_pattern():
   if platform.system() == 'Windows':
-    return 'mujoco*.lib'
+    return 'mujoco.lib'
   elif platform.system() == 'Darwin':
-    return 'libmujoco*.dylib'
+    return 'libmujoco.*.dylib'
   else:
-    return 'libmujoco*.so*'
+    return 'libmujoco.so.*'
 
 
 def get_external_lib_patterns():
   if platform.system() == 'Windows':
-    return ['mujoco*.dll']
+    return ['mujoco.dll']
   elif platform.system() == 'Darwin':
-    return ['libmujoco*.dylib']
+    return ['libmujoco.*.dylib']
   else:
-    return ['libmujoco*.so*', 'libglew*.so']
+    return ['libmujoco.so.*']
 
 
 def start_and_end(iterable):
@@ -290,12 +290,10 @@ setup(
             find_data_files(
                 package_dir='mujoco',
                 patterns=[
-                    'libmujoco*.dylib',
-                    'libmujoco*.so*',
-                    'mujoco*.dll',
-                    'libglew*.so*',
-                    'mujoco.h',
-                    'mj*.h',
+                    'libmujoco.*.dylib',
+                    'libmujoco*.so.*',
+                    'mujoco.dll',
+                    'include/*.h',
                 ]),
     },
 )

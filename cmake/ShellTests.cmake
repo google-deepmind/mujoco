@@ -45,7 +45,7 @@ function(add_mujoco_shell_test TEST_NAME TARGET_BINARY)
       set_property(
         TEST "${TEST_NAME}"
         APPEND
-        PROPERTY ENVIRONMENT "MUJOCO_DLL_DIR=$<TARGET_FILE_DIR:mujoco_nogl>"
+        PROPERTY ENVIRONMENT "MUJOCO_DLL_DIR=$<TARGET_FILE_DIR:mujoco>"
       )
     endif()
   endif()

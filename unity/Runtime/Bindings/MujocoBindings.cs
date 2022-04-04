@@ -83,7 +83,7 @@ public const int mjMAXOVERLAY = 500;
 public const int mjMAXLINE = 100;
 public const int mjMAXLINEPNT = 1000;
 public const int mjMAXPLANEGRID = 200;
-public const int mjVERSION_HEADER = 213;
+public const int mjVERSION_HEADER = 214;
 
 
 // ------------------------------------Enums------------------------------------
@@ -2201,7 +2201,7 @@ public unsafe struct mjrContext_ {
   public fixed int charWidthBig[127];
   public int charHeight;
   public int charHeightBig;
-  public int glewInitialized;
+  public int glInitialized;
   public int windowAvailable;
   public int windowSamples;
   public int windowStereo;

@@ -101,6 +101,23 @@ Functions
   This allows for some thread-based parallelism, however users should bear in mind that the GIL is only released for the
   duration of the MuJoCo C function itself, and not during the execution of any other Python code.
 
+  .. note::
+     One place where the bindings do offer added functionality is the top-level :ref:`mj_step` function. Since it is
+     often called in a loop, we have added an additional ``nstep`` argument, indicating how many times the underlying
+     :ref:`mj_step` should be called. If not specified, ``nstep`` takes the default value of 1. The following two code
+     snippets perform the same computation, but the first one does so without acquiring the GIL in between subsequent
+     physics steps:
+
+     .. code-block:: python
+
+        mj_step(model, data, nstep=20)
+
+     .. code-block:: python
+
+        for _ in range(20):
+          mj_step(model, data)
+
+
 Enums and constants
 ===================
 

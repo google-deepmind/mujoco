@@ -88,6 +88,7 @@ typedef enum mjtFrame_ {          // frame visualization
   mjFRAME_SITE,                   // site frames
   mjFRAME_CAMERA,                 // camera frames
   mjFRAME_LIGHT,                  // light frames
+  mjFRAME_CONTACT,                // contact frames
   mjFRAME_WORLD,                  // world frame
 
   mjNFRAME                        // number of visualization frames

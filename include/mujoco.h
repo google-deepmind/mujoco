@@ -24,7 +24,7 @@ extern "C" {
 #endif
 
 // header version; should match the library version as returned by mj_version()
-#define mjVERSION_HEADER 213
+#define mjVERSION_HEADER 214
 
 // needed to define size_t, fabs and log10
 #include "stdlib.h"
@@ -79,21 +79,12 @@ MJAPI extern const char* mjVISSTRING[mjNVISFLAG][3];
 MJAPI extern const char* mjRNDSTRING[mjNRNDFLAG][3];
 
 
-//---------------------------------- Activation ----------------------------------------------------
-
-// Return 1 (for backward compatibility).
-MJAPI int mj_activate(const char* filename);
-
-// Do nothing (for backward compatibility).
-MJAPI void mj_deactivate(void);
-
-
 //---------------------------------- Virtual file system -------------------------------------------
 
 // Initialize VFS to empty (no deallocation).
 MJAPI void mj_defaultVFS(mjVFS* vfs);
 
-// Add file to VFS, return 0: success, 1: full, 2: repeated name, -1: not found on disk.
+// Add file to VFS, return 0: success, 1: full, 2: repeated name, -1: failed to load.
 MJAPI int mj_addFileVFS(mjVFS* vfs, const char* directory, const char* filename);
 
 // Make empty file in VFS, return 0: success, 1: full, 2: repeated name.
@@ -766,6 +757,15 @@ MJAPI void mj_warning(mjData* d, int warning, int info);
 
 // Write [datetime, type: message] to MUJOCO_LOG.TXT.
 MJAPI void mju_writeLog(const char* type, const char* msg);
+
+
+//---------------------------------- Activation ----------------------------------------------------
+
+// Return 1 (for backward compatibility).
+MJAPI int mj_activate(const char* filename);
+
+// Do nothing (for backward compatibility).
+MJAPI void mj_deactivate(void);
 
 
 //---------------------------------- Standard math -------------------------------------------------

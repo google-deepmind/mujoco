@@ -26,27 +26,6 @@ from .ast_nodes import PointerType
 from .ast_nodes import ValueType
 
 FUNCTIONS: Mapping[str, FunctionDecl] = dict([
-    ('mj_activate',
-     FunctionDecl(
-         name='mj_activate',
-         return_type=ValueType(name='int'),
-         parameters=(
-             FunctionParameterDecl(
-                 name='filename',
-                 type=PointerType(
-                     inner_type=ValueType(name='char', is_const=True),
-                 ),
-             ),
-         ),
-         doc='Return 1 (for backward compatibility).',
-     )),
-    ('mj_deactivate',
-     FunctionDecl(
-         name='mj_deactivate',
-         return_type=ValueType(name='void'),
-         parameters=(),
-         doc='Do nothing (for backward compatibility).',
-     )),
     ('mj_defaultVFS',
      FunctionDecl(
          name='mj_defaultVFS',
@@ -85,7 +64,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  ),
              ),
          ),
-         doc='Add file to VFS, return 0: success, 1: full, 2: repeated name, -1: not found on disk.',  # pylint: disable=line-too-long
+         doc='Add file to VFS, return 0: success, 1: full, 2: repeated name, -1: failed to load.',  # pylint: disable=line-too-long
      )),
     ('mj_makeEmptyFileVFS',
      FunctionDecl(
@@ -4737,6 +4716,27 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
              ),
          ),
          doc='Write [datetime, type: message] to MUJOCO_LOG.TXT.',
+     )),
+    ('mj_activate',
+     FunctionDecl(
+         name='mj_activate',
+         return_type=ValueType(name='int'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='filename',
+                 type=PointerType(
+                     inner_type=ValueType(name='char', is_const=True),
+                 ),
+             ),
+         ),
+         doc='Return 1 (for backward compatibility).',
+     )),
+    ('mj_deactivate',
+     FunctionDecl(
+         name='mj_deactivate',
+         return_type=ValueType(name='void'),
+         parameters=(),
+         doc='Do nothing (for backward compatibility).',
      )),
     ('mju_zero3',
      FunctionDecl(
