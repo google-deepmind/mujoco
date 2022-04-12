@@ -102,6 +102,11 @@ py::array_t<T> MakeArray(T* base_ptr, int index, std::vector<int>&& shape,
     offset = m.tuple_adr[index];
     shape.insert(shape.begin(), m.tuple_size[index]);
   } else {
+    // Do not return a NumPy array with shape () since these aren't very nice
+    // to work with. Instead, always return singleton arrays with shape (1,).
+    if (shape.empty()) {
+      shape.push_back(1);
+    }
     int size = 1;
     for (int s : shape) {
       size *= s;
