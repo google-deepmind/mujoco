@@ -354,15 +354,15 @@ purpose of including an asset is to reference it, and referencing can only be do
 undefined.
 
 Mesh
-   MuJoCo can load triangulated meshes from binary STL files. Software such as `MeshLab <https://www.meshlab.net/>`__
-   can be used to convert from other formats. While any collection of triangles can be loaded and visualized as a mesh,
-   the collision detector works with the convex hull. There are compile-time options for scaling the mesh, as well as
-   fitting a primitive geometric shape to it. The mesh can also be used to automatically infer inertial properties - by
-   treating it as a union of triangular pyramids and combining their masses and inertias. Note that the STL format does
-   not support color; some software packages write color information in unused fields but this is not consistent.
-   Instead the mesh is colored using the material properties of the referencing geom. In contrast, all spatial
-   properties are determined by the mesh data. MuJoCo supports a custom binary file format that can additionally specify
-   normals and texture coordinates. Meshes can also be embedded directly in the XML.
+
+   MuJoCo can load triangulated meshes from OBJ files and binary STL. Software such as `MeshLab
+   <https://www.meshlab.net/>`__ can be used to convert from other formats. While any collection of triangles can be
+   loaded and visualized as a mesh, the collision detector works with the convex hull. There are compile-time options
+   for scaling the mesh, as well as fitting a primitive geometric shape to it. The mesh can also be used to
+   automatically infer inertial properties -- by treating it as a union of triangular pyramids and combining their
+   masses and inertias. Note that meshes have no color, instead the mesh is colored using the material properties of the
+   referencing geom. In contrast, all spatial properties are determined by the mesh data. MuJoCo supports both OBJ and a
+   custom binary file format for normals and texture coordinates. Meshes can also be embedded directly in the XML.
 
 Skin
    Skinned meshes (or skins) are meshes whose shape can deform at runtime. Their vertices are attached to rigid bodies
@@ -592,6 +592,23 @@ programming practices that are not aligned with MuJoCo. This has the potential t
 section is to preemptively clarify the aspects that are most likely to be confusing; it is somewhere in-between a FAQ
 and a tutorial on selected topics. We will need to refer to material covered later in the documentation, but
 nevertheless the text below is as self-contained and introductory as possible.
+
+.. _Divergence:
+
+Divergence
+~~~~~~~~~~
+
+Divergence of a simulation happens when elements of the state tend quickly to infinity. In MuJoCo this is usually
+manifested as an :ref:`mjWARN_BADQACC<mjtwarning>` warning. Divergence is endemic to all physics simulation and is not
+necessarily indicative of a bad model or bug in the simulator, but is rather a hint that the timestep  is too large for
+the given choice of integrator. In physics simulation there is always a tension between speed (large time steps) and
+stabillity (small timesteps). A model which is well-tuned for speed has the largest possible timestep that does not
+diverge, which usually means that it *can* be made to diverge under extreme conditions. In that sense *rare* cases of
+divergence can actually be indicative of a well-tuned model. In all cases it should be possible to prevent divergence by
+reducing the timestep and/or switching to a more stable :ref:`integrator <geIntegration>`. If that fails, the culprit is
+different. For example in models where bodies are initialized in penetration, large repulsive forces could push them
+away and cause divergence.
+
 
 .. _Units:
 

@@ -83,7 +83,7 @@ public const int mjMAXOVERLAY = 500;
 public const int mjMAXLINE = 100;
 public const int mjMAXLINEPNT = 1000;
 public const int mjMAXPLANEGRID = 200;
-public const int mjVERSION_HEADER = 214;
+public const int mjVERSION_HEADER = 215;
 
 
 // ------------------------------------Enums------------------------------------

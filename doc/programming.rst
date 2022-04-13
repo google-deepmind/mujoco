@@ -19,9 +19,9 @@ library:
 
      Windows:  mujoco.dll  (stub library: mujoco.lib)
 
-     Linux:    mujoco.so.2.1.4
+     Linux:    mujoco.so.2.1.5
 
-     macOS:    mujoco.2.1.4.dylib
+     macOS:    mujoco.2.1.5.dylib
 
 Even though MuJoCo is a single dynamic library with unified C API, it contains several modules, some of which are
 implemented in C++. We have taken advantage of the convenience of C++ for functionality that is used before the

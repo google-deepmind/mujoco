@@ -42,7 +42,8 @@ class EnumsTest(absltest.TestCase):
                                           ('mjENBL_ENERGY', 1<<1),
                                           ('mjENBL_FWDINV', 1<<2),
                                           ('mjENBL_SENSORNOISE', 1<<3),
-                                          ('mjNENABLE', 4)))
+                                          ('mjENBL_MULTICCD', 1<<30),
+                                          ('mjNENABLE', 5)))
 
   # values mostly increment by one with occasional overrides
   def test_mjtGeom(self):  # pylint: disable=invalid-name

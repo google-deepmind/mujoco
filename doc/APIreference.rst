@@ -111,7 +111,10 @@ mjtEnableBit
        mjENBL_FWDINV       = 1<<2,     // compare forward and inverse dynamics
        mjENBL_SENSORNOISE  = 1<<3,     // add noise to sensor data
 
-       mjNENABLE           = 4         // number of enable flags
+                                       // experimental features:
+       mjENBL_MULTICCD     = 1<<30,    // multi-point convex collision detection
+
+       mjNENABLE           = 5         // number of enable flags
    } mjtEnableBit;
 
 | Defined in `mjmodel.h <https://github.com/deepmind/mujoco/blob/main/include/mjmodel.h>`_
@@ -2898,13 +2901,13 @@ mjcb_control
 
    extern mjfGeneric mjcb_control;
 
-| This is the most commonly used callback. It implements a control law, by writing in the vector of controls
-  ``mjData.ctrl``. It can also write in ``mjData.qfrc_applied`` and ``mjData.xfrc_applied``. The values written in these
-  vectors can depend on position, velocity and all other quantities derived from them, but cannot depend on contact
-  forces and other quantities that are computed after the control is specified. If the callback accesses the latter
-  fields, their values do not correspond to the current time step.
+This is the most commonly used callback. It implements a control law, by writing in the vector of controls
+``mjData.ctrl``. It can also write in ``mjData.qfrc_applied`` and ``mjData.xfrc_applied``. The values written in these
+vectors can depend on position, velocity and all other quantities derived from them, but cannot depend on contact forces
+and other quantities that are computed after the control is specified. If the callback accesses the latter fields, their
+values do not correspond to the current time step.
 
-| The control callback is called from within :ref:`mj_forward` and :ref:`mj_step`, just before the controls and applied
+The control callback is called from within :ref:`mj_forward` and :ref:`mj_step`, just before the controls and applied
 forces are needed. When using the RK integrator, it will be called 4 times per step. The alternative way of specifying
 controls and applied forces is to set them before ``mj_step``, or use ``mj_step1`` and ``mj_step2``. The latter approach
 allows setting the controls after the position and velocity computations have been performed by ``mj_step1``, allowing
@@ -3411,7 +3414,7 @@ Print internal XML schema as plain text or HTML, with style-padding or ``&nbsp;`
 Main simulation
 ^^^^^^^^^^^^^^^
 
-| These are the main entry points to the simulator. Most users will only need to call ``mj_step``, which computes
+These are the main entry points to the simulator. Most users will only need to call ``mj_step``, which computes
 everything and advanced the simulation state by one time step. Controls and applied forces must either be set in advance
 (in mjData.ctrl, qfrc_applied and xfrc_applied), or a control callback mjcb_control must be installed which will be
 called just before the controls and applied forces are needed. Alternatively, one can use ``mj_step1`` and ``mj_step2``
@@ -3419,21 +3422,21 @@ which break down the simulation pipeline into computations that are executed bef
 in this way one can set controls that depend on the results from ``mj_step1``. Keep in mind though that the RK4 solver
 does not work with mj_step1/2.
 
-| mj_forward performs the same computations as ``mj_step`` but without the integration. It is useful after loading or
-  resetting a model (to put the entire mjData in a valid state), and also for out-of-order computations that involve
-  sampling or finite-difference approximations.
+mj_forward performs the same computations as ``mj_step`` but without the integration. It is useful after loading or
+resetting a model (to put the entire mjData in a valid state), and also for out-of-order computations that involve
+sampling or finite-difference approximations.
 
-| mj_inverse runs the inverse dynamics, and writes its output in mjData.qfrc_inverse. Note that mjData.qacc must be set
-  before calling this function. Given the state (qpos, qvel, act), mj_forward maps from force to acceleration, while
-  mj_inverse maps from acceleration to force. Mathematically these functions are inverse of each other, but numerically
-  this may not always be the case because the forward dynamics rely on a constraint optimization algorithm which is
-  usually terminated early. The difference between the results of forward and inverse dynamics can be computed with the
-  function :ref:`mj_compareFwdInv`, which can be though of as another solver accuracy check (as well as a general sanity
-  check).
+mj_inverse runs the inverse dynamics, and writes its output in mjData.qfrc_inverse. Note that mjData.qacc must be set
+before calling this function. Given the state (qpos, qvel, act), mj_forward maps from force to acceleration, while
+mj_inverse maps from acceleration to force. Mathematically these functions are inverse of each other, but numerically
+this may not always be the case because the forward dynamics rely on a constraint optimization algorithm which is
+usually terminated early. The difference between the results of forward and inverse dynamics can be computed with the
+function :ref:`mj_compareFwdInv`, which can be though of as another solver accuracy check (as well as a general sanity
+check).
 
-| The skip version of mj_forward and mj_inverse are useful for example when qpos was unchanged but qvel was changed
-  (usually in the context of finite differencing). Then there is no point repeating the computations that only depend on
-  qpos. Calling the dynamics with skipstage = mjSTAGE_POS will achieve these savings.
+The skip version of mj_forward and mj_inverse are useful for example when qpos was unchanged but qvel was changed
+(usually in the context of finite differencing). Then there is no point repeating the computations that only depend on
+qpos. Calling the dynamics with skipstage = mjSTAGE_POS will achieve these savings.
 
 .. _mj_step:
 

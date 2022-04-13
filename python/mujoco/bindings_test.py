@@ -660,7 +660,7 @@ Euler integrator, semi-implicit in velocity.
     self.assertEqual(mujoco.mjtEnableBit.mjENBL_ENERGY, 1<<1)
     self.assertEqual(mujoco.mjtEnableBit.mjENBL_FWDINV, 1<<2)
     self.assertEqual(mujoco.mjtEnableBit.mjENBL_SENSORNOISE, 1<<3)
-    self.assertEqual(mujoco.mjtEnableBit.mjNENABLE, 4)
+    self.assertEqual(mujoco.mjtEnableBit.mjNENABLE, 5)
     self.assertEqual(mujoco.mjtGeom.mjGEOM_PLANE, 0)
     self.assertEqual(mujoco.mjtGeom.mjGEOM_HFIELD, 1)
     self.assertEqual(mujoco.mjtGeom.mjGEOM_SPHERE, 2)
@@ -672,11 +672,6 @@ Euler integrator, semi-implicit in velocity.
   def test_enum_from_int(self):
     self.assertEqual(mujoco.mjtJoint.mjJNT_FREE, mujoco.mjtJoint(0))
     self.assertEqual(mujoco.mjtGeom.mjGEOM_ARROW, mujoco.mjtGeom(value=100))
-    # mjENABLE_FWDINV and mjNENABLE have the same int value. Default to the
-    # first defined one.
-    self.assertEqual(
-        mujoco.mjtEnableBit.mjENBL_FWDINV,
-        mujoco.mjtEnableBit(mujoco.mjtEnableBit.mjNENABLE.value))
     with self.assertRaises(ValueError):
       mujoco.mjtJoint(1000)
     with self.assertRaises(ValueError):

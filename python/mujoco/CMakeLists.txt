@@ -55,7 +55,7 @@ include(FindOrFetch)
 
 # ==================== MUJOCO LIBRARY ==========================================
 if(NOT TARGET mujoco)
-  find_library(MUJOCO_LIBRARY mujoco mujoco.2.1.4 HINTS ${MUJOCO_LIBRARY_DIR} REQUIRED)
+  find_library(MUJOCO_LIBRARY mujoco mujoco.2.1.5 HINTS ${MUJOCO_LIBRARY_DIR} REQUIRED)
   find_path(MUJOCO_INCLUDE mujoco.h HINTS ${MUJOCO_INCLUDE_DIR} REQUIRED)
   message("MuJoCo is at ${MUJOCO_LIBRARY}")
   message("MuJoCo headers are at ${MUJOCO_INCLUDE}")

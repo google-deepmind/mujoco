@@ -2,8 +2,29 @@
 Changelog
 =========
 
-Version 2.1.4 (Apr. 4, 2022)
+Version 2.1.5 (Apr. 13, 2022)
 -----------------------------
+
+General
+^^^^^^^
+
+1. Added an experimental feature: multi-contact convex collision detection, activated by an enable flag. See full
+   description :ref:`here <option-flag>`.
+
+Bug fixes
+^^^^^^^^^
+
+2. GLAD initialization logic on Linux now calls ``dlopen`` to load a GL platform dynamic library if a
+   ``*GetProcAddress`` function is not already present in the process' global symbol table. In particular, processes
+   that use GLFW to set up a rendering context that are not explicitly linked against ``libGLX.so`` (this applies to the
+   Python interpreter, for example) will now work correctly rather than fail with a ``gladLoadGL`` error when
+   ``mjr_makeContext`` is called.
+
+#. In the Python bindings, named indexers for scalar fields (e.g. the ``ctrl`` field for actuators) now return a NumPy
+   array of shape ``(1,)`` rather than ``()``. This allows values to be assigned to these fields more straightforwardly.
+
+Version 2.1.4 (Apr. 4, 2022)
+----------------------------
 
 General
 ^^^^^^^
@@ -12,7 +33,7 @@ General
    different GL wrangling libraries depending on whether GLX, EGL, or OSMesa is being used. Instead, users can simply
    use GLX, EGL, or OSMesa to create a GL context and ``mjr_makeContext`` will detect which one is being used.
 
-#. Add visualisation for contact frames. This is useful when writing or modifying collision functions, when the actual
+#. Added visualisation for contact frames. This is useful when writing or modifying collision functions, when the actual
    direction of the x and y axes of a contact can be important.
 
 Binary build
@@ -26,13 +47,13 @@ Binary build
 Simulate
 ^^^^^^^^
 
-4. Fix a bug in simulate where pressing '[' or ']' when a model is not loaded causes a crash.
+4. Fixed a bug in simulate where pressing '[' or ']' when a model is not loaded causes a crash.
 
-#. Contact frame visualisation is added to the Simulate GUI.
+#. Contact frame visualisation was added to the Simulate GUI.
 
-#. Rename "set key", "reset to key" to "save key" and "load key", respectively.
+#. Renamed "set key", "reset to key" to "save key" and "load key", respectively.
 
-#. Change bindings of F6 and F7 from the not very useful "vertical sync" and "busy wait" to the more useful cycling of
+#. Changed bindings of F6 and F7 from the not very useful "vertical sync" and "busy wait" to the more useful cycling of
    frames and labels.
 
 Bug fixes
@@ -40,7 +61,7 @@ Bug fixes
 
 8. ``mj_resetData`` zeroes out the ``solver_nnz`` field.
 
-#. Remove a special branch in ``mju_quat2mat`` for unit quaternions. Previously, ``mju_quat2mat`` skipped all
+#. Removed a special branch in ``mju_quat2mat`` for unit quaternions. Previously, ``mju_quat2mat`` skipped all
    computation if the real part of the quaternion equals 1.0. For very small angles (e.g. when finite differencing), the
    cosine can evaluate to exactly 1.0 at double precision while the sine is still nonzero.
 
@@ -57,13 +78,13 @@ General
 Python bindings
 ^^^^^^^^^^^^^^^
 
-3. Add a ``free()`` method to ``MjrContext``.
+3. Added a ``free()`` method to ``MjrContext``.
 #. Enums now support arithmetic and bitwise operations with numbers.
 
 Bug fixes
 ^^^^^^^^^
 
-5. Fix rendering bug for planes, introduced in 2.1.2. This broke maze environments in
+5. Fixed rendering bug for planes, introduced in 2.1.2. This broke maze environments in
    `dm_control <https://github.com/deepmind/dm_control>`_.
 
 
