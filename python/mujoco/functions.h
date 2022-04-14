@@ -192,6 +192,14 @@ static constexpr void Def(
            ::pybind11::call_guard<::pybind11::gil_scoped_release>());
 }
 
+template <typename MjTraits, typename Func>
+MUJOCO_ALWAYS_INLINE
+static constexpr void DefWithGil(::pybind11::module_& m, Func&& func) {
+  WithNamedArgs(MjTraits::param_names).def(
+      m, MjTraits::name, util::UnwrapArgs(std::forward<Func>(func)),
+      ::pybind11::doc(MjTraits::doc));
+}
+
 // Should only be invoked via the DEF_WITH_OMITTED_PY_ARGS macro.
 template <typename MjTraits, typename OmittedArgsTuple>
 struct DefWithOmittedPyArgsImpl {
