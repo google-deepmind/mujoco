@@ -15,6 +15,9 @@
 #ifndef MUJOCO_SIMULATE_H_
 #define MUJOCO_SIMULATE_H_
 
+#include <mutex>
+#include <thread>
+
 #include "uitools.h"
 
 namespace mujoco {
@@ -27,7 +30,18 @@ class Simulate {
   // create object and initialize the simulate ui
   Simulate(void);
 
-  // load mjb or xml model
+  // Start the Simulate UI thread
+  void startthread(void);
+
+  // Stop the Simulate UI thread
+  void stopthread(void);
+
+  // Request that the Simulate UI thread render a new model
+  // optionally delete the old model and data when done
+  void load(const char* file, mjModel* m, mjData* d, bool delete_old_m_d);
+
+  // functions below are used by the renderthread
+  // load mjb or xml model that has been requested by load()
   void loadmodel(void);
 
   // prepare to render
@@ -39,12 +53,23 @@ class Simulate {
   // clear callbacks registered in external structures
   void clearcallback(void);
 
+  // thread to render the UI
+  void renderthread(void);
+
   // constants
   static constexpr int kMaxFilenameLength = 1000;
 
+  // the UI rendering thread
+  std::thread renderthreadhandle;
+
   // model and data to be visualized
-  mjModel* m;
-  mjData* d;
+  mjModel* mnew = nullptr;
+  mjData* dnew = nullptr;
+  bool delete_old_m_d = false;
+
+  mjModel* m = nullptr;
+  mjData* d = nullptr;
+  std::mutex mtx;
 
   // file
   int exitrequest = 0;
@@ -66,9 +91,11 @@ class Simulate {
   // simulation
   int run = 1;
   int key = 0;
+  int droploadrequest = 0;
   int loadrequest = 0;
   // strings
   char loadError[kMaxFilenameLength] = "";
+  char dropfilename[kMaxFilenameLength] = "";
   char filename[kMaxFilenameLength] = "";
   char previous_filename[kMaxFilenameLength] = "";
   int slow_down = 1;

@@ -1515,8 +1515,8 @@ void uiRender(mjuiState* state) {
 void drop(mj::Simulate* simulate, int count, const char** paths) {
   // make sure list is non-empty
   if (count>0) {
-    mju::strcpy_arr(simulate->filename, paths[0]);
-    simulate->loadrequest = 1;
+    mju::strcpy_arr(simulate->dropfilename, paths[0]);
+    simulate->droploadrequest = 1;
   }
 }
 
@@ -1534,132 +1534,47 @@ namespace mju = ::mujoco::sample_util;
 
 // create object and initialize the simulate ui
 Simulate::Simulate(void) {
-  // init GLFW, set timer callback (milliseconds)
-  if (!glfwInit()) {
-    mju_error("could not initialize GLFW");
-  }
-  mjcb_time = timer;
+} // TODO constructor is now empty...
 
-  // multisampling
-  glfwWindowHint(GLFW_SAMPLES, 4);
-  glfwWindowHint(GLFW_VISIBLE, 1);
+//------------------------ start the render thread -----------------------------
+void Simulate::startthread(void) {
+  this->renderthreadhandle = std::thread(&Simulate::renderthread, this);
+}
 
-  // get videomode and save
-  this->vmode = *glfwGetVideoMode(glfwGetPrimaryMonitor());
+//------------------------ stop the render thread ------------------------------
+void Simulate::stopthread(void) {
+    // stop simulation thread
+  this->exitrequest = 1;
+  this->renderthreadhandle.join();
+}
 
-  // create window
-  this->window = glfwCreateWindow((2*this->vmode.width)/3, (2*this->vmode.height)/3,
-                            "Simulate", nullptr, nullptr);
-  if (!this->window) {
-    glfwTerminate();
-    mju_error("could not create window");
-  }
 
-  // save window position and size
-  glfwGetWindowPos(this->window, this->windowpos, this->windowpos+1);
-  glfwGetWindowSize(this->window, this->windowsize, this->windowsize+1);
-
-  // make context current, set v-sync
-  glfwMakeContextCurrent(this->window);
-  glfwSwapInterval(this->vsync);
-
-  // init abstract visualization
-  mjv_defaultCamera(&this->cam);
-  mjv_defaultOption(&this->vopt);
-  profilerinit(this);
-  sensorinit(this);
-
-  // make empty scene
-  mjv_defaultScene(&this->scn);
-  mjv_makeScene(nullptr, &this->scn, maxgeom);
-
-  // select default font
-  int fontscale = uiFontScale(this->window);
-  this->font = fontscale/50 - 1;
-
-  // make empty context
-  mjr_defaultContext(&this->con);
-  mjr_makeContext(nullptr, &this->con, fontscale);
-
-  // init state and uis
-  std::memset(&this->uistate, 0, sizeof(mjuiState));
-  std::memset(&this->ui0, 0, sizeof(mjUI));
-  std::memset(&this->ui1, 0, sizeof(mjUI));
-  this->ui0.spacing = mjui_themeSpacing(this->spacing);
-  this->ui0.color = mjui_themeColor(this->color);
-  this->ui0.predicate = uiPredicate;
-  this->ui0.rectid = 1;
-  this->ui0.auxid = 0;
-  this->ui1.spacing = mjui_themeSpacing(this->spacing);
-  this->ui1.color = mjui_themeColor(this->color);
-  this->ui1.predicate = uiPredicate;
-  this->ui1.rectid = 2;
-  this->ui1.auxid = 1;
-
-  // set GLFW callbacks
-  this->uistate.userdata = (void*)(this);
-  uiSetCallback(this->window, &this->uistate, uiEvent, uiLayout, uiRender, uiDrop);
-
-  // populate uis with standard sections
-  this->ui0.userdata = (void*)(this);
-  this->ui1.userdata = (void*)(this);
-  mjui_add(&this->ui0, defFile);
-  mjui_add(&this->ui0, this->defOption);
-  mjui_add(&this->ui0, this->defSimulation);
-  mjui_add(&this->ui0, this->defWatch);
-  uiModify(this->window, &this->ui0, &this->uistate, &this->con);
-  uiModify(this->window, &this->ui1, &this->uistate, &this->con);
+//-------------------- Tell the render thread to load a file -------------------
+void Simulate::load(const char* file,
+                    mjModel* mnew,
+                    mjData* dnew,
+                    bool delete_old_m_d) {
+  this->mnew = mnew;
+  this->dnew = dnew;
+  this->delete_old_m_d = delete_old_m_d;
+  mju::strcpy_arr(this->filename, file);
+  this->loadrequest = 2;
 }
 
 //------------------------ load mjb or xml model -------------------------------
 void Simulate::loadmodel(void) {
-  // clear request
-  this->loadrequest = 0;
-
-  // make sure filename is not empty
-  if (!this->filename[0]) {
-    return;
-  }
-
-  // load and compile
-  this->loadError[0] = '\0';
-  mjModel* mnew = 0;
-  if (mju::strlen_arr(this->filename)>4 &&
-      !std::strncmp(this->filename+mju::strlen_arr(this->filename)-4, ".mjb",
-                    mju::sizeof_arr(this->filename)-mju::strlen_arr(this->filename)+4)) {
-    mnew = mj_loadModel(this->filename, nullptr);
-    if (!mnew) {
-      mju::strcpy_arr(this->loadError, "could not load binary model");
+  if (this->delete_old_m_d) {
+    // delete old model if requested
+    if (this->d) {
+      mj_deleteData(d);
     }
-  } else {
-    mnew = mj_loadXML(this->filename, nullptr, this->loadError, Simulate::kMaxFilenameLength);
-    // remove trailing newline character from loadError
-    if (this->loadError[0]) {
-      int error_length = mju::strlen_arr(this->loadError);
-      if (this->loadError[error_length-1] == '\n') {
-        this->loadError[error_length-1] = '\0';
-      }
+    if (this->m) {
+      mj_deleteModel(m);
     }
   }
-  if (!mnew) {
-    std::printf("%s\n", this->loadError);
-    return;
-  }
 
-  // compiler warning: print and pause
-  if (this->loadError[0]) {
-    // mj_forward() below will print the warning message
-    std::printf("Model compiled, but simulation warning (paused):\n  %s\n", this->loadError);
-    this->run = 0;
-  }
-
-  // delete old model, assign new
-  mj_deleteData(this->d);
-  mj_deleteModel(this->m);
-  this->m = nullptr;
-  this->m = mj_copyModel(this->m, mnew);
-  this->d = mj_makeData(this->m);
-  mj_forward(this->m, this->d);
+  this->m = this->mnew;
+  this->d = this->dnew;
 
   // re-create scene and context
   mjv_makeScene(this->m, &this->scn, maxgeom);
@@ -1698,6 +1613,9 @@ void Simulate::loadmodel(void) {
   uiModify(this->window, &this->ui0, &this->uistate, &this->con);
   uiModify(this->window, &this->ui1, &this->uistate, &this->con);
   updatesettings(this);
+
+  // clear request
+  this->loadrequest = 0;
 }
 
 
@@ -1859,6 +1777,110 @@ void Simulate::render(void) {
 // clear callbacks registered in external structures
 void Simulate::clearcallback(void) {
   uiClearCallback(this->window);
+}
+
+void Simulate::renderthread(void) {
+  // Set timer callback (milliseconds)
+  mjcb_time = timer;
+
+  // multisampling
+  glfwWindowHint(GLFW_SAMPLES, 4);
+  glfwWindowHint(GLFW_VISIBLE, 1);
+
+  // get videomode and save
+  this->vmode = *glfwGetVideoMode(glfwGetPrimaryMonitor());
+
+  // create window
+  this->window = glfwCreateWindow((2*this->vmode.width)/3, (2*this->vmode.height)/3,
+                            "Simulate", nullptr, nullptr);
+  if (!this->window) {
+    glfwTerminate();
+    mju_error("could not create window");
+  }
+
+  // save window position and size
+  glfwGetWindowPos(this->window, this->windowpos, this->windowpos+1);
+  glfwGetWindowSize(this->window, this->windowsize, this->windowsize+1);
+
+  // make context current, set v-sync
+  glfwMakeContextCurrent(this->window);
+  glfwSwapInterval(this->vsync);
+
+  // init abstract visualization
+  mjv_defaultCamera(&this->cam);
+  mjv_defaultOption(&this->vopt);
+  profilerinit(this);
+  sensorinit(this);
+
+  // make empty scene
+  mjv_defaultScene(&this->scn);
+  mjv_makeScene(nullptr, &this->scn, maxgeom);
+
+  // select default font
+  int fontscale = uiFontScale(this->window);
+  this->font = fontscale/50 - 1;
+
+  // make empty context
+  mjr_defaultContext(&this->con);
+  mjr_makeContext(nullptr, &this->con, fontscale);
+
+  // init state and uis
+  std::memset(&this->uistate, 0, sizeof(mjuiState));
+  std::memset(&this->ui0, 0, sizeof(mjUI));
+  std::memset(&this->ui1, 0, sizeof(mjUI));
+  this->ui0.spacing = mjui_themeSpacing(this->spacing);
+  this->ui0.color = mjui_themeColor(this->color);
+  this->ui0.predicate = uiPredicate;
+  this->ui0.rectid = 1;
+  this->ui0.auxid = 0;
+  this->ui1.spacing = mjui_themeSpacing(this->spacing);
+  this->ui1.color = mjui_themeColor(this->color);
+  this->ui1.predicate = uiPredicate;
+  this->ui1.rectid = 2;
+  this->ui1.auxid = 1;
+
+  // set GLFW callbacks
+  this->uistate.userdata = (void*)(this);
+  uiSetCallback(this->window, &this->uistate, uiEvent, uiLayout, uiRender, uiDrop);
+
+  // populate uis with standard sections
+  this->ui0.userdata = (void*)(this);
+  this->ui1.userdata = (void*)(this);
+  mjui_add(&this->ui0, defFile);
+  mjui_add(&this->ui0, this->defOption);
+  mjui_add(&this->ui0, this->defSimulation);
+  mjui_add(&this->ui0, this->defWatch);
+  uiModify(this->window, &this->ui0, &this->uistate, &this->con);
+  uiModify(this->window, &this->ui1, &this->uistate, &this->con);
+
+  // run event loop
+  while (!glfwWindowShouldClose(this->window) && !this->exitrequest) {
+    { // start exclusive access (block simulation thread)
+      const std::lock_guard<std::mutex> lock(this->mtx);
+
+      // load model (not on first pass, to show "loading" label)
+      if (this->loadrequest==1) {
+        {
+          this->loadmodel();
+        }
+      } else if (this->loadrequest>1) {
+        this->loadrequest = 1;
+      }
+
+      // handle events (calls all callbacks)
+      glfwPollEvents();
+
+      // prepare to render
+      this->prepare();
+    } // end exclusive access (allow simulation thread to run)
+
+    // render while simulation is running
+    this->render();
+  }
+
+  this->clearcallback();
+  mjv_freeScene(&this->scn);
+  mjr_freeContext(&this->con);
 }
 
 }  // namespace mujoco

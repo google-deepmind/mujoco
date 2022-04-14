@@ -42,50 +42,101 @@ mjtNum* ctrlnoise = nullptr;
 
 //---------------------------------- simulation --------------------------------------
 
-// sim thread synchronization
-std::mutex& GetMutex() {
-  static std::mutex* mtx = new std::mutex();
-  return *mtx;
-}
 
-mj::Simulate& GetInstance() {
-  // the creation of this static member will immediately
-  // initialize the glfw ui
-  static mj::Simulate* simulate = new mj::Simulate();
-  return *simulate;
+mjModel* LoadModel(const char* file, mj::Simulate& simulate) {
+  // this copy is needed so that the mju::strlen call below compiles
+  char filename[mj::Simulate::kMaxFilenameLength];
+  mju::strcpy_arr(filename, file);
+
+  // make sure filename is not empty
+  if (!filename[0]) {
+    return nullptr;
+  }
+
+  // load and compile
+  char loadError[mj::Simulate::kMaxFilenameLength] = "";
+  mjModel* mnew = 0;
+  if (mju::strlen_arr(filename)>4 &&
+      !std::strncmp(filename+mju::strlen_arr(filename)-4, ".mjb",
+                    mju::sizeof_arr(filename)-mju::strlen_arr(filename)+4)) {
+    mnew = mj_loadModel(filename, nullptr);
+    if (!mnew) {
+      mju::strcpy_arr(loadError, "could not load binary model");
+    }
+  } else {
+    mnew = mj_loadXML(filename, nullptr, loadError, mj::Simulate::kMaxFilenameLength);
+    // remove trailing newline character from loadError
+    if (loadError[0]) {
+      int error_length = mju::strlen_arr(loadError);
+      if (loadError[error_length-1] == '\n') {
+        loadError[error_length-1] = '\0';
+      }
+    }
+  }
+
+  mju::strcpy_arr(simulate.loadError, loadError);
+
+  if (!mnew) {
+    std::printf("%s\n", loadError);
+    return nullptr;
+  }
+
+  // compiler warning: print and pause
+  if (loadError[0]) {
+    // mj_forward() below will print the warning message
+    std::printf("Model compiled, but simulation warning (paused):\n  %s\n", loadError);
+    simulate.run = 0;
+  }
+
+  return mnew;
 }
 
 // simulate in background thread (while rendering in main thread)
-void simulate_thread(void) {
+void SimulateLoop(mj::Simulate& simulate) {
   // cpu-sim syncronization point
   double cpusync = 0;
   mjtNum simsync = 0;
 
   // run until asked to exit
-  while (!GetInstance().exitrequest) {
+  while (!simulate.exitrequest) {
+
+    if (simulate.droploadrequest) {
+      mjModel* mnew = LoadModel(simulate.dropfilename, simulate);
+      if (mnew) {
+        mjData* dnew = mj_makeData(mnew);
+        simulate.load(simulate.dropfilename, mnew, dnew, true);
+
+        simulate.droploadrequest = 0;
+
+        m = mnew;
+        d = dnew;
+        mj_forward(m, d);
+      }
+    }
+
     // sleep for 1 ms or yield, to let main thread run
     //  yield results in busy wait - which has better timing but kills battery life
-    if (GetInstance().run && GetInstance().busywait) {
+    if (simulate.run && simulate.busywait) {
       std::this_thread::yield();
     } else {
       std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
 
     { // start exclusive access
-      const std::lock_guard<std::mutex> lock(GetMutex());
+      const std::lock_guard<std::mutex> lock(simulate.mtx);
 
       // run only if model is present
       if (m) {
         // running
-        if (GetInstance().run) {
+        if (simulate.run) {
           // record cpu time at start of iteration
           double tmstart = glfwGetTime();
 
           // inject noise
-          if (GetInstance().ctrlnoisestd) {
+          if (simulate.ctrlnoisestd) {
             // convert rate and scale to discrete time given current timestep
-            mjtNum rate = mju_exp(-m->opt.timestep / GetInstance().ctrlnoiserate);
-            mjtNum scale = GetInstance().ctrlnoisestd * mju_sqrt(1-rate*rate);
+            mjtNum rate = mju_exp(-m->opt.timestep / simulate.ctrlnoiserate);
+            mjtNum scale = simulate.ctrlnoisestd * mju_sqrt(1-rate*rate);
 
             for (int i=0; i<m->nu; i++) {
               // update noise
@@ -96,18 +147,18 @@ void simulate_thread(void) {
           }
 
           // out-of-sync (for any reason)
-          mjtNum offset = mju_abs((d->time*GetInstance().slow_down-simsync)-(tmstart-cpusync));
-          if( d->time*GetInstance().slow_down<simsync || tmstart<cpusync || cpusync==0 ||
-              offset > syncmisalign*GetInstance().slow_down || GetInstance().speed_changed) {
+          mjtNum offset = mju_abs((d->time*simulate.slow_down-simsync)-(tmstart-cpusync));
+          if( d->time*simulate.slow_down<simsync || tmstart<cpusync || cpusync==0 ||
+              offset > syncmisalign*simulate.slow_down || simulate.speed_changed) {
             // re-sync
             cpusync = tmstart;
-            simsync = d->time*GetInstance().slow_down;
-            GetInstance().speed_changed = false;
+            simsync = d->time*simulate.slow_down;
+            simulate.speed_changed = false;
 
             // clear old perturbations, apply new
             mju_zero(d->xfrc_applied, 6*m->nbody);
-            mjv_applyPerturbPose(m, d, &GetInstance().pert, 0);  // move mocap bodies only
-            mjv_applyPerturbForce(m, d, &GetInstance().pert);
+            mjv_applyPerturbPose(m, d, &simulate.pert, 0);  // move mocap bodies only
+            mjv_applyPerturbForce(m, d, &simulate.pert);
 
             // run single step, let next iteration deal with timing
             mj_step(m, d);
@@ -116,19 +167,19 @@ void simulate_thread(void) {
           // in-sync
           else {
             // step while simtime lags behind cputime, and within safefactor
-            while ((d->time*GetInstance().slow_down-simsync) < (glfwGetTime()-cpusync) &&
-                   (glfwGetTime()-tmstart) < refreshfactor/GetInstance().vmode.refreshRate) {
+            while ((d->time*simulate.slow_down-simsync) < (glfwGetTime()-cpusync) &&
+                   (glfwGetTime()-tmstart) < refreshfactor/simulate.vmode.refreshRate) {
               // clear old perturbations, apply new
               mju_zero(d->xfrc_applied, 6*m->nbody);
-              mjv_applyPerturbPose(m, d, &GetInstance().pert, 0);  // move mocap bodies only
-              mjv_applyPerturbForce(m, d, &GetInstance().pert);
+              mjv_applyPerturbPose(m, d, &simulate.pert, 0);  // move mocap bodies only
+              mjv_applyPerturbForce(m, d, &simulate.pert);
 
               // run mj_step
-              mjtNum prevtm = d->time*GetInstance().slow_down;
+              mjtNum prevtm = d->time*simulate.slow_down;
               mj_step(m, d);
 
               // break on reset
-              if (d->time*GetInstance().slow_down<prevtm) {
+              if (d->time*simulate.slow_down<prevtm) {
                 break;
               }
             }
@@ -138,7 +189,7 @@ void simulate_thread(void) {
         // paused
         else {
           // apply pose perturbation
-          mjv_applyPerturbPose(m, d, &GetInstance().pert, 1);      // move mocap and dynamic bodies
+          mjv_applyPerturbPose(m, d, &simulate.pert, 1);      // move mocap and dynamic bodies
 
           // run mj_forward, to update rendering and joint sliders
           mj_forward(m, d);
@@ -159,58 +210,36 @@ int main(int argc, const char** argv) {
     mju_error("Headers and library have different versions");
   }
 
+  // simulate object for encapsulates UI
+  mj::Simulate simulate;
+
   // request loadmodel if file given (otherwise drag-and-drop)
   if (argc>1) {
-    mju::strcpy_arr(GetInstance().filename, argv[1]);
-    GetInstance().loadrequest = 2;
+    m = LoadModel(argv[1], simulate);
+    if (m) {
+      d = mj_makeData(m);
+      simulate.load(argv[1], m, d, true);
+      mj_forward(m, d);
+    }
   }
 
-  // start simulation thread
-  std::thread simthread(simulate_thread);
-
-  // run event loop
-  while (!glfwWindowShouldClose(GetInstance().window) && !GetInstance().exitrequest) {
-    { // start exclusive access (block simulation thread)
-      const std::lock_guard<std::mutex> lock(GetMutex());
-
-      // load model (not on first pass, to show "loading" label)
-      if (GetInstance().loadrequest==1) {
-        {
-          GetInstance().loadmodel();
-          m = GetInstance().m;
-          d = GetInstance().d;
-
-          // allocate ctrlnoise
-          free(ctrlnoise);
-          ctrlnoise = (mjtNum*) malloc(sizeof(mjtNum)*m->nu);
-          mju_zero(ctrlnoise, m->nu);
-        }
-      } else if (GetInstance().loadrequest>1) {
-        GetInstance().loadrequest = 1;
-      }
-
-      // handle events (calls all callbacks)
-      glfwPollEvents();
-
-      // prepare to render
-      GetInstance().prepare();
-    } // end exclusive access (allow simulation thread to run)
-
-    // render while simulation is running
-    GetInstance().render();
+  // init GLFW
+  if (!glfwInit()) {
+    mju_error("could not initialize GLFW");
   }
 
-  // stop simulation thread
-  GetInstance().exitrequest = 1;
-  simthread.join();
+  // start simulation thread (this creates the UI)
+  simulate.startthread();
+
+  SimulateLoop(simulate);
+
+  // If simulate loop exited its time to stop the UI
+  simulate.stopthread();
 
   // delete everything we allocated
-  GetInstance().clearcallback();
   free(ctrlnoise);
   mj_deleteData(d);
   mj_deleteModel(m);
-  mjv_freeScene(&GetInstance().scn);
-  mjr_freeContext(&GetInstance().con);
 
   // terminate GLFW (crashes with Linux NVidia drivers)
 #if defined(__APPLE__) || defined(_WIN32)
