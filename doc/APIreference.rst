@@ -3852,7 +3852,7 @@ mj_fwdActuation
 
    void mj_fwdActuation(const mjModel* m, mjData* d);
 
-Compute actuator force qfrc_actuation.
+Compute actuator force qfrc_actuator.
 
 .. _mj_fwdAcceleration:
 
