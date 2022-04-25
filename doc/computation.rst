@@ -314,7 +314,7 @@ Putting all this together, the net force in generalized coordinates contributed 
 .. math::
    \sum_i \nabla l_i(q) \; p_i \left(u_i, w_i, l_i(q), \dot{l}_i(q, v) \right)
 
-This quantity is stored in ``mjData.qfrc_actuation``. It is added to the applied force vector :math:`\tau`, together
+This quantity is stored in ``mjData.qfrc_actuator``. It is added to the applied force vector :math:`\tau`, together
 with any user-defined forces in joint or Cartesian coordinates (which are stored in ``mjData.qfrc_applied`` and
 ``mjData.xfrc_applied`` respectively).
 
