@@ -36,6 +36,12 @@ class Simulate {
   // Stop the Simulate UI thread
   void stopthread(void);
 
+  // Apply UI pose perturbations to model and data
+  void applyposepertubations(int flg_paused);
+
+  // Apply UI force perturbations to model and data
+  void applyforceperturbations(void);
+
   // Request that the Simulate UI thread render a new model
   // optionally delete the old model and data when done
   void load(const char* file, mjModel* m, mjData* d, bool delete_old_m_d);
@@ -91,6 +97,7 @@ class Simulate {
   // simulation
   int run = 1;
   int key = 0;
+  int uiloadrequest = 0;
   int droploadrequest = 0;
   int loadrequest = 0;
   // strings

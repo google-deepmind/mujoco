@@ -102,15 +102,37 @@ void SimulateLoop(mj::Simulate& simulate) {
 
     if (simulate.droploadrequest) {
       mjModel* mnew = LoadModel(simulate.dropfilename, simulate);
+      simulate.droploadrequest = 0;
       if (mnew) {
         mjData* dnew = mj_makeData(mnew);
         simulate.load(simulate.dropfilename, mnew, dnew, true);
 
-        simulate.droploadrequest = 0;
+        m = mnew;
+        d = dnew;
+        mj_forward(m, d);
+
+        // allocate ctrlnoise
+        free(ctrlnoise);
+        ctrlnoise = (mjtNum*) malloc(sizeof(mjtNum)*m->nu);
+        mju_zero(ctrlnoise, m->nu);
+      }
+    }
+
+    if (simulate.uiloadrequest) {
+      mjModel* mnew = LoadModel(simulate.filename, simulate);
+      simulate.uiloadrequest = 0;
+      if (mnew) {
+        mjData* dnew = mj_makeData(mnew);
+        simulate.load(simulate.filename, mnew, dnew, true);
 
         m = mnew;
         d = dnew;
         mj_forward(m, d);
+
+        // allocate ctrlnoise
+        free(ctrlnoise);
+        ctrlnoise = (mjtNum*) malloc(sizeof(mjtNum)*m->nu);
+        mju_zero(ctrlnoise, m->nu);
       }
     }
 
@@ -157,8 +179,8 @@ void SimulateLoop(mj::Simulate& simulate) {
 
             // clear old perturbations, apply new
             mju_zero(d->xfrc_applied, 6*m->nbody);
-            mjv_applyPerturbPose(m, d, &simulate.pert, 0);  // move mocap bodies only
-            mjv_applyPerturbForce(m, d, &simulate.pert);
+            simulate.applyposepertubations(0); // move mocap bodies only
+            simulate.applyforceperturbations();
 
             // run single step, let next iteration deal with timing
             mj_step(m, d);
@@ -171,8 +193,8 @@ void SimulateLoop(mj::Simulate& simulate) {
                    (glfwGetTime()-tmstart) < refreshfactor/simulate.vmode.refreshRate) {
               // clear old perturbations, apply new
               mju_zero(d->xfrc_applied, 6*m->nbody);
-              mjv_applyPerturbPose(m, d, &simulate.pert, 0);  // move mocap bodies only
-              mjv_applyPerturbForce(m, d, &simulate.pert);
+              simulate.applyposepertubations(0); // move mocap bodies only
+              simulate.applyforceperturbations();
 
               // run mj_step
               mjtNum prevtm = d->time*simulate.slow_down;
@@ -189,7 +211,7 @@ void SimulateLoop(mj::Simulate& simulate) {
         // paused
         else {
           // apply pose perturbation
-          mjv_applyPerturbPose(m, d, &simulate.pert, 1);      // move mocap and dynamic bodies
+          simulate.applyposepertubations(1); // move mocap and dynamic bodies
 
           // run mj_forward, to update rendering and joint sliders
           mj_forward(m, d);
@@ -210,18 +232,8 @@ int main(int argc, const char** argv) {
     mju_error("Headers and library have different versions");
   }
 
-  // simulate object for encapsulates UI
+  // simulate object encapsulates the UI
   mj::Simulate simulate;
-
-  // request loadmodel if file given (otherwise drag-and-drop)
-  if (argc>1) {
-    m = LoadModel(argv[1], simulate);
-    if (m) {
-      d = mj_makeData(m);
-      simulate.load(argv[1], m, d, true);
-      mj_forward(m, d);
-    }
-  }
 
   // init GLFW
   if (!glfwInit()) {
@@ -230,6 +242,21 @@ int main(int argc, const char** argv) {
 
   // start simulation thread (this creates the UI)
   simulate.startthread();
+
+  // request loadmodel if file given (otherwise drag-and-drop)
+  if (argc>1) {
+    m = LoadModel(argv[1], simulate);
+    if (m) {
+      d = mj_makeData(m);
+      simulate.load(argv[1], m, d, true);
+      mj_forward(m, d);
+
+      // allocate ctrlnoise
+      free(ctrlnoise);
+      ctrlnoise = (mjtNum*) malloc(sizeof(mjtNum)*m->nu);
+      mju_zero(ctrlnoise, m->nu);
+    }
+  }
 
   SimulateLoop(simulate);
 

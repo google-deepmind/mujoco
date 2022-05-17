@@ -1150,7 +1150,7 @@ void uiEvent(mjuiState* state) {
         break;
 
       case 2:             // Reload
-        simulate->loadrequest = 1;
+        simulate->uiloadrequest = 1;
         break;
 
       case 3:             // Align
@@ -1548,8 +1548,21 @@ void Simulate::stopthread(void) {
   this->renderthreadhandle.join();
 }
 
+//------------------------ apply pose perturbations ----------------------------
+void Simulate::applyposepertubations(int flg_paused) {
+  if (this->m != nullptr) {
+    mjv_applyPerturbPose(this->m, this->d, &this->pert, flg_paused);  // move mocap bodies only
+  }
+}
 
-//-------------------- Tell the render thread to load a file -------------------
+//------------------------ apply force perturbations ---------------------------
+void Simulate::applyforceperturbations(void) {
+  if (this->m != nullptr) {
+    mjv_applyPerturbForce(this->m, this->d, &this->pert);
+  }
+}
+
+//-------------------- Tell the render thread to load a file and wait ----------
 void Simulate::load(const char* file,
                     mjModel* mnew,
                     mjData* dnew,
@@ -1559,6 +1572,13 @@ void Simulate::load(const char* file,
   this->delete_old_m_d = delete_old_m_d;
   mju::strcpy_arr(this->filename, file);
   this->loadrequest = 2;
+
+  // Wait for the render thread to be done loading
+  // so that we know the old model and data's memory can
+  // be free'd by the other thread (sometimes python)
+  while (this->loadrequest > 0) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(1));
+  }
 }
 
 //------------------------ load mjb or xml model -------------------------------
