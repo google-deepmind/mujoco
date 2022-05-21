@@ -108,7 +108,7 @@ struct mjrContext_ {              // custom OpenGL context
 
   // texture objects and info
   int ntexture;                   // number of allocated textures
-  int textureType[100];           // type of texture (mjtTexture)
+  int textureType[100];           // type of texture (mjtTexture) (ntexture)
   unsigned int texture[100];      // texture names
 
   // displaylist starting positions
@@ -129,10 +129,10 @@ struct mjrContext_ {              // custom OpenGL context
 
   // skin VBOs
   int nskin;                      // number of skins
-  unsigned int* skinvertVBO;      // skin vertex position VBOs
-  unsigned int* skinnormalVBO;    // skin vertex normal VBOs
-  unsigned int* skintexcoordVBO;  // skin vertex texture coordinate VBOs
-  unsigned int* skinfaceVBO;      // skin face index VBOs
+  unsigned int* skinvertVBO;      // skin vertex position VBOs (nskin)
+  unsigned int* skinnormalVBO;    // skin vertex normal VBOs (nskin)
+  unsigned int* skintexcoordVBO;  // skin vertex texture coordinate VBOs (nskin)
+  unsigned int* skinfaceVBO;      // skin face index VBOs (nskin)
 
   // character info
   int charWidth[127];             // character widths: normal and shadow
