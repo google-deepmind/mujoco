@@ -1,0 +1,50 @@
+name: build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  mujoco:
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-20.04
+            cmake_build_args: "-G Ninja -DCMAKE_C_COMPILER=gcc-10 -DCMAKE_CXX_COMPILER=g++-10"
+          - os: macos-12
+            cmake_build_args: "-G Ninja"
+          - os: windows-2022
+
+    name: "MuJoCo on ${{ matrix.os }}"
+    runs-on: ${{ matrix.os }}
+    env:
+      CMAKE_BUILD_ARGS: ${{ matrix.cmake_build_args }}
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: Prepare Linux
+      if: ${{ runner.os == 'Linux' }}
+      run: |
+        sudo apt-get install \
+            libgl1-mesa-dev \
+            libxinerama-dev \
+            libxcursor-dev \
+            libxrandr-dev \
+            libxi-dev \
+            ninja-build
+    - name: Prepare macOS
+      if: ${{ runner.os == 'macOS' }}
+      run: brew install ninja
+    - name: Configure
+      run: |
+        mkdir build
+        cd build
+        cmake -DCMAKE_BUILD_TYPE=Release $CMAKE_BUILD_ARGS ..
+    - name: Build
+      working-directory: build
+      run: cmake --build . --config=Release
+    - name: Test
+      working-directory: build
+      run: ctest -C Release .
