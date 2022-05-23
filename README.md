@@ -1,5 +1,11 @@
 # MuJoCo Physics
 
+<p>
+  <a href="https://github.com/deepmind/mujoco/actions/workflows/build.yml?query=branch%3Amain" alt="GitHub Actions">
+    <img src="https://img.shields.io/github/workflow/status/deepmind/mujoco/build/main">
+  </a>
+</p>
+
 **MuJoCo** stands for **Mu**lti-**Jo**int dynamics with **Co**ntact. It is a
 general purpose physics engine that aims to facilitate research and development
 in robotics, biomechanics, graphics and animation, machine learning, and other
