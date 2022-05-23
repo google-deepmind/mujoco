@@ -24,7 +24,7 @@ set(MSVC_INCREMENTAL_DEFAULT ON)
 
 project(
   mujoco_samples
-  VERSION 2.1.5
+  VERSION 2.2.0
   DESCRIPTION "MuJoCo samples binaries"
   HOMEPAGE_URL "https://mujoco.org"
 )
@@ -161,145 +161,54 @@ if(APPLE)
   target_link_libraries(simulate "-framework Cocoa")
 endif()
 
-if(NOT SAMPLE_STANDALONE)
-  if(APPLE AND MUJOCO_BUILD_MACOS_FRAMEWORKS)
+if(APPLE AND MUJOCO_BUILD_MACOS_FRAMEWORKS)
+  set_target_properties(
+    simulate
+    PROPERTIES INSTALL_RPATH @executable_path/../Frameworks
+               BUILD_WITH_INSTALL_RPATH TRUE
+               RESOURCE ${SIMULATE_RESOURCE_FILES}
+               MACOSX_BUNDLE TRUE
+               MACOSX_BUNDLE_INFO_PLIST ${CMAKE_CURRENT_SOURCE_DIR}/../dist/Info.plist.simulate.in
+               MACOSX_BUNDLE_BUNDLE_NAME "MuJoCo"
+               MACOSX_BUNDLE_GUI_IDENTIFIER "org.mujoco.mujoco"
+               MACOSX_BUNDLE_BUNDLE_VERSION ${PROJECT_VERSION}
+               MACOSX_BUNDLE_INFO_STRING ${PROJECT_VERSION}
+               MACOSX_BUNDLE_LONG_VERSION_STRING ${PROJECT_VERSION}
+               MACOSX_BUNDLE_SHORT_VERSION_STRING ${PROJECT_VERSION}
+               MACOSX_BUNDLE_ICON_FILE "mujoco.icns"
+               MACOSX_BUNDLE_COPYRIGHT "Copyright 2021 DeepMind Technologies Limited."
+  )
 
-    macro(link_to_mujoco_framework target)
-      get_target_property(interface_link_libraries ${target} INTERFACE_LINK_LIBRARIES)
-      get_target_property(link_libraries ${target} LINK_LIBRARIES)
-      # Remove mujoco::mujoco target which is the not-framework library.
-      list(REMOVE_ITEM interface_link_libraries mujoco::mujoco)
-      list(REMOVE_ITEM link_libraries mujoco::mujoco)
-      set_target_properties(
-        ${target} PROPERTIES INTERFACE_LINK_LIBRARIES "${interface_link_libraries}"
-      )
-      set_target_properties(${target} PROPERTIES LINK_LIBRARIES "${link_libraries}")
-
-      # Add mujoco_framework.
-      target_link_libraries(${target} mujoco_framework)
-    endmacro()
-
-    include(DuplicateTarget)
-    duplicate_target(
-      TARGET
-      simulate
-      NEW_TARGET_NAME
-      simulate_macos
-    )
-    link_to_mujoco_framework(simulate_macos)
-
+  macro(embed_in_bundle target)
+    add_dependencies(${target} simulate)
     set_target_properties(
-      simulate_macos
+      ${target}
       PROPERTIES INSTALL_RPATH @executable_path/../Frameworks
                  BUILD_WITH_INSTALL_RPATH TRUE
-                 RESOURCE ${SIMULATE_RESOURCE_FILES}
-                 MACOSX_BUNDLE TRUE
-                 MACOSX_BUNDLE_INFO_PLIST ${CMAKE_CURRENT_SOURCE_DIR}/../dist/Info.plist.simulate.in
-                 MACOSX_BUNDLE_BUNDLE_NAME "MuJoCo"
-                 MACOSX_BUNDLE_GUI_IDENTIFIER "org.mujoco.mujoco"
-                 MACOSX_BUNDLE_BUNDLE_VERSION ${PROJECT_VERSION}
-                 MACOSX_BUNDLE_INFO_STRING ${PROJECT_VERSION}
-                 MACOSX_BUNDLE_LONG_VERSION_STRING ${PROJECT_VERSION}
-                 MACOSX_BUNDLE_SHORT_VERSION_STRING ${PROJECT_VERSION}
-                 MACOSX_BUNDLE_ICON_FILE "mujoco.icns"
-                 MACOSX_BUNDLE_COPYRIGHT "Copyright 2021 DeepMind Technologies Limited."
-                 OUTPUT_NAME "simulate"
+                 RUNTIME_OUTPUT_DIRECTORY $<TARGET_FILE_DIR:simulate>
     )
+  endmacro()
 
-    macro(embed_in_bundle target)
-      add_dependencies(${target} simulate_macos)
-      set_target_properties(
-        ${target}
-        PROPERTIES INSTALL_RPATH @executable_path/../Frameworks
-                   BUILD_WITH_INSTALL_RPATH TRUE
-                   RUNTIME_OUTPUT_DIRECTORY $<TARGET_FILE_DIR:simulate_macos>
-      )
-    endmacro()
+  embed_in_bundle(basic simulate)
+  embed_in_bundle(compile simulate)
+  embed_in_bundle(derivative simulate)
+  embed_in_bundle(record simulate)
+  embed_in_bundle(testspeed simulate)
+  embed_in_bundle(testxml simulate)
 
-    duplicate_target(
-      TARGET
-      basic
-      NEW_TARGET_NAME
-      basic_macos
-    )
-    set_target_properties(basic_macos PROPERTIES OUTPUT_NAME basic)
-    link_to_mujoco_framework(basic_macos)
-    embed_in_bundle(basic_macos simulate_macos)
-
-    duplicate_target(
-      TARGET
-      compile
-      NEW_TARGET_NAME
-      compile_macos
-    )
-    set_target_properties(compile_macos PROPERTIES OUTPUT_NAME compile)
-    link_to_mujoco_framework(compile_macos)
-    embed_in_bundle(compile_macos simulate_macos)
-
-    duplicate_target(
-      TARGET
-      derivative
-      NEW_TARGET_NAME
-      derivative_macos
-    )
-    set_target_properties(derivative_macos PROPERTIES OUTPUT_NAME derivative)
-    link_to_mujoco_framework(derivative_macos)
-    embed_in_bundle(derivative_macos simulate_macos)
-
-    duplicate_target(
-      TARGET
-      record
-      NEW_TARGET_NAME
-      record_macos
-    )
-    set_target_properties(record_macos PROPERTIES OUTPUT_NAME record)
-    link_to_mujoco_framework(record_macos)
-    embed_in_bundle(record_macos simulate_macos)
-
-    duplicate_target(
-      TARGET
-      testspeed
-      NEW_TARGET_NAME
-      testspeed_macos
-    )
-    set_target_properties(testspeed_macos PROPERTIES OUTPUT_NAME testspeed)
-    link_to_mujoco_framework(testspeed_macos)
-    embed_in_bundle(testspeed_macos simulate_macos)
-
-    duplicate_target(
-      TARGET
-      testxml
-      NEW_TARGET_NAME
-      testxml_macos
-    )
-    set_target_properties(testxml_macos PROPERTIES OUTPUT_NAME testxml)
-    link_to_mujoco_framework(testxml_macos)
-    embed_in_bundle(testxml_macos simulate_macos)
-
-    # Do not add the original binaries to the ALL target. We do this to speed up the
-    # build assuming the user is interested in the Frameworks.
-    set_target_properties(simulate PROPERTIES EXCLUDE_FROM_ALL TRUE)
-    set_target_properties(basic PROPERTIES EXCLUDE_FROM_ALL TRUE)
-    set_target_properties(derivative PROPERTIES EXCLUDE_FROM_ALL TRUE)
-    set_target_properties(record PROPERTIES EXCLUDE_FROM_ALL TRUE)
-    set_target_properties(testxml PROPERTIES EXCLUDE_FROM_ALL TRUE)
-    # Note: compile and testspeed are needed by the tests.
-
-    # Embed mujoco.framework inside the App bundle ane move the icon file over too.
-    add_custom_command(
-      TARGET simulate_macos
-      POST_BUILD
-      COMMAND mkdir -p $<TARGET_FILE_DIR:simulate_macos>/../Frameworks
-      COMMAND rm -rf $<TARGET_FILE_DIR:simulate_macos>/../Frameworks/mujoco.framework
-      COMMAND cp -a $<TARGET_FILE_DIR:mujoco_framework>/../../../mujoco.framework
-              $<TARGET_FILE_DIR:simulate_macos>/../Frameworks/
-      # Delete the symlink and the TBD, otherwise we can't sign and notarize.
-      COMMAND rm -rf $<TARGET_FILE_DIR:simulate_macos>/../Frameworks/mujoco.framework/mujoco.tbd
-      COMMAND
-        rm -rf
-        $<TARGET_FILE_DIR:simulate_macos>/../Frameworks/mujoco.framework/Versions/A/libmujoco.dylib
-    )
-  endif()
+  # Embed mujoco.framework inside the App bundle ane move the icon file over too.
+  add_custom_command(
+    TARGET simulate
+    POST_BUILD
+    COMMAND mkdir -p $<TARGET_FILE_DIR:simulate>/../Frameworks
+    COMMAND rm -rf $<TARGET_FILE_DIR:simulate>/../Frameworks/mujoco.framework
+    COMMAND cp -a $<TARGET_FILE_DIR:mujoco::mujoco>/../../../mujoco.framework
+            $<TARGET_FILE_DIR:simulate>/../Frameworks/
+    # Delete the symlink and the TBD, otherwise we can't sign and notarize.
+    COMMAND rm -rf $<TARGET_FILE_DIR:simulate>/../Frameworks/mujoco.framework/mujoco.tbd
+    COMMAND rm -rf
+            $<TARGET_FILE_DIR:simulate>/../Frameworks/mujoco.framework/Versions/A/libmujoco.dylib
+  )
 endif()
 
 # Do not install if macOS Bundles are created as RPATH is managed manually there.

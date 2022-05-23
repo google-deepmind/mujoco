@@ -112,18 +112,6 @@ set_target_properties(
 # CMake's built-in FRAMEWORK option doesn't give us control over the dylib name inside the
 # Framework. We instead make our own Framework here.
 if(APPLE AND MUJOCO_BUILD_MACOS_FRAMEWORKS)
-  include(DuplicateTarget)
-  duplicate_target(
-    TARGET
-    mujoco
-    NEW_TARGET_NAME
-    mujoco_framework
-  )
-
-  # Do not add mujoco::mujoco to the ALL target. We do this to speed up the
-  # build assuming the user is interested in the Frameworks.
-  set_target_properties(mujoco PROPERTIES EXCLUDE_FROM_ALL TRUE)
-
   set(TAPI
       "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/tapi"
   )
@@ -132,31 +120,27 @@ if(APPLE AND MUJOCO_BUILD_MACOS_FRAMEWORKS)
     ${CMAKE_CURRENT_SOURCE_DIR}/dist/Info.framework.plist
   )
   set_target_properties(
-    mujoco_framework
+    mujoco
     PROPERTIES LIBRARY_OUTPUT_DIRECTORY
                "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/mujoco.framework/Versions/A"
                BUILD_WITH_INSTALL_NAME_DIR TRUE
                INSTALL_NAME_DIR "@rpath/mujoco.framework/Versions/A"
-               OUTPUT_NAME "mujoco"
   )
   add_custom_command(
-    TARGET mujoco_framework
+    TARGET mujoco
     POST_BUILD
-    COMMAND mkdir -p $<TARGET_FILE_DIR:mujoco_framework>/Headers
-    COMMAND cd ${CMAKE_CURRENT_SOURCE_DIR} && cp ${MUJOCO_HEADERS}
-            $<TARGET_FILE_DIR:mujoco_framework>/Headers
-    COMMAND mkdir -p $<TARGET_FILE_DIR:mujoco_framework>/Modules
-    COMMAND cp ${CMAKE_CURRENT_SOURCE_DIR}/dist/module.modulemap
-            $<TARGET_FILE_DIR:mujoco_framework>/Modules
-    COMMAND mkdir -p $<TARGET_FILE_DIR:mujoco_framework>/Resources
+    COMMAND mkdir -p $<TARGET_FILE_DIR:mujoco>/Headers
+    COMMAND cd ${CMAKE_CURRENT_SOURCE_DIR} && cp ${MUJOCO_HEADERS} $<TARGET_FILE_DIR:mujoco>/Headers
+    COMMAND mkdir -p $<TARGET_FILE_DIR:mujoco>/Modules
+    COMMAND cp ${CMAKE_CURRENT_SOURCE_DIR}/dist/module.modulemap $<TARGET_FILE_DIR:mujoco>/Modules
+    COMMAND mkdir -p $<TARGET_FILE_DIR:mujoco>/Resources
     COMMAND mv ${CMAKE_CURRENT_SOURCE_DIR}/dist/Info.framework.plist
-            $<TARGET_FILE_DIR:mujoco_framework>/Resources/Info.plist
-    COMMAND ln -fhs A $<TARGET_FILE_DIR:mujoco_framework>/../Current
-    COMMAND ${TAPI} stubify $<TARGET_FILE:mujoco_framework> -o
-            $<TARGET_FILE_DIR:mujoco_framework>/../../mujoco.tbd
-    COMMAND ln -fhs Versions/Current/Headers $<TARGET_FILE_DIR:mujoco_framework>/../../Headers
-    COMMAND ln -fhs Versions/Current/Modules $<TARGET_FILE_DIR:mujoco_framework>/../../Modules
-    COMMAND ln -fhs Versions/Current/Resources $<TARGET_FILE_DIR:mujoco_framework>/../../Resources
+            $<TARGET_FILE_DIR:mujoco>/Resources/Info.plist
+    COMMAND ln -fhs A $<TARGET_FILE_DIR:mujoco>/../Current
+    COMMAND ${TAPI} stubify $<TARGET_FILE:mujoco> -o $<TARGET_FILE_DIR:mujoco>/../../mujoco.tbd
+    COMMAND ln -fhs Versions/Current/Headers $<TARGET_FILE_DIR:mujoco>/../../Headers
+    COMMAND ln -fhs Versions/Current/Modules $<TARGET_FILE_DIR:mujoco>/../../Modules
+    COMMAND ln -fhs Versions/Current/Resources $<TARGET_FILE_DIR:mujoco>/../../Resources
     COMMAND_EXPAND_LISTS
   )
 endif()
@@ -181,48 +165,50 @@ if(BUILD_TESTING AND MUJOCO_TEST_PYTHON_UTIL)
   add_subdirectory(python/mujoco/util)
 endif()
 
-# Install the libraries.
-install(
-  TARGETS mujoco
-  EXPORT ${PROJECT_NAME}
-  RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}" COMPONENT runtime
-  LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}" COMPONENT runtime
-  ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}" COMPONENT dev
-  PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR} COMPONENT dev
-)
+if(NOT (APPLE AND MUJOCO_BUILD_MACOS_FRAMEWORKS))
+  # Install the libraries.
+  install(
+    TARGETS mujoco
+    EXPORT ${PROJECT_NAME}
+    RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}" COMPONENT runtime
+    LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}" COMPONENT runtime
+    ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}" COMPONENT dev
+    PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR} COMPONENT dev
+  )
 
-set(CONFIG_PACKAGE_LOCATION "${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}")
+  set(CONFIG_PACKAGE_LOCATION "${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}")
 
-# Generate and install the mujocoTargets.cmake file. This defines the targets as
-# IMPORTED libraries for downstream users.
-install(
-  EXPORT ${PROJECT_NAME}
-  DESTINATION ${CONFIG_PACKAGE_LOCATION}
-  NAMESPACE mujoco::
-  FILE "${PROJECT_NAME}Targets.cmake"
-)
+  # Generate and install the mujocoTargets.cmake file. This defines the targets as
+  # IMPORTED libraries for downstream users.
+  install(
+    EXPORT ${PROJECT_NAME}
+    DESTINATION ${CONFIG_PACKAGE_LOCATION}
+    NAMESPACE mujoco::
+    FILE "${PROJECT_NAME}Targets.cmake"
+  )
 
-include(CMakePackageConfigHelpers)
+  include(CMakePackageConfigHelpers)
 
-write_basic_package_version_file(
-  "${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}ConfigVersion.cmake"
-  VERSION ${mujoco_VERSION}
-  COMPATIBILITY AnyNewerVersion
-)
+  write_basic_package_version_file(
+    "${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}ConfigVersion.cmake"
+    VERSION ${mujoco_VERSION}
+    COMPATIBILITY AnyNewerVersion
+  )
 
-configure_package_config_file(
-  cmake/${PROJECT_NAME}Config.cmake.in "${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}Config.cmake"
-  INSTALL_DESTINATION ${CONFIG_PACKAGE_LOCATION}
-)
+  configure_package_config_file(
+    cmake/${PROJECT_NAME}Config.cmake.in "${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}Config.cmake"
+    INSTALL_DESTINATION ${CONFIG_PACKAGE_LOCATION}
+  )
 
-install(FILES "${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}Config.cmake"
-              "${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}ConfigVersion.cmake"
-        DESTINATION ${CONFIG_PACKAGE_LOCATION}
-)
+  install(FILES "${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}Config.cmake"
+                "${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}ConfigVersion.cmake"
+          DESTINATION ${CONFIG_PACKAGE_LOCATION}
+  )
 
-# Install also models into share folder.
-install(
-  DIRECTORY model
-  DESTINATION "${CMAKE_INSTALL_DATADIR}/mujoco"
-  PATTERN "CMakeLists.txt" EXCLUDE
-)
+  # Install also models into share folder.
+  install(
+    DIRECTORY model
+    DESTINATION "${CMAKE_INSTALL_DATADIR}/mujoco"
+    PATTERN "CMakeLists.txt" EXCLUDE
+  )
+endif()

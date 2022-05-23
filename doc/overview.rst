@@ -602,7 +602,7 @@ Divergence of a simulation happens when elements of the state tend quickly to in
 manifested as an :ref:`mjWARN_BADQACC<mjtwarning>` warning. Divergence is endemic to all physics simulation and is not
 necessarily indicative of a bad model or bug in the simulator, but is rather a hint that the timestep  is too large for
 the given choice of integrator. In physics simulation there is always a tension between speed (large time steps) and
-stabillity (small timesteps). A model which is well-tuned for speed has the largest possible timestep that does not
+stability (small timesteps). A model which is well-tuned for speed has the largest possible timestep that does not
 diverge, which usually means that it *can* be made to diverge under extreme conditions. In that sense *rare* cases of
 divergence can actually be indicative of a well-tuned model. In all cases it should be possible to prevent divergence by
 reducing the timestep and/or switching to a more stable :ref:`integrator <geIntegration>`. If that fails, the culprit is

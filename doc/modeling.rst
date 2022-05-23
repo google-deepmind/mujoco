@@ -1207,7 +1207,7 @@ existing URDF models have non-physical dynamics parameters which MuJoCo's built-
 unmodified. This extension is also needed to specify mesh directories.
 
 Note that the while MJCF models are checked against a custom XML schema by the parser, URDF models are not. Even the
-MuJoCo-specific elements emebdded in the URDF file are not checked. As a result, mis-typed attribute names are
+MuJoCo-specific elements embedded in the URDF file are not checked. As a result, mis-typed attribute names are
 silently ignored, which can result in major confusion if the typo remains unnoticed.
 
 Here is an example extension section of a URDF model:

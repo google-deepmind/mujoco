@@ -58,9 +58,10 @@ General
 
 Bug fixes
 ^^^^^^^^^
+
 10. Antialiasing was disabled for segmentation rendering. Before this change, if the :ref:`offsamples<quality>`
     attribute was greater than 0 (the default value is 4), pixels that overlapped with multiple geoms would receive
-    averaged segmentation IDs, leading to incorrect or non-existant IDs. After this change :at:`offsamples` is ignored
+    averaged segmentation IDs, leading to incorrect or non-existent IDs. After this change :at:`offsamples` is ignored
     during segmentation rendering.
 
 #.  The value of the enable flag for the experimental multiCCD feature was made sequential with other enable flags.
@@ -397,7 +398,7 @@ License manager
 ^^^^^^^^^^^^^^^
 
 23. Removed the entire license manager. The functions ``mj_activate`` and ``mj_deactivate`` are still there for
-    backward compabitibily, but now they do nothing and it is no longer necessary to call them.
+    backward compatibility, but now they do nothing and it is no longer necessary to call them.
 #. Removed the remote license certificate functions ``mj_certXXX``.
 
 Earlier versions

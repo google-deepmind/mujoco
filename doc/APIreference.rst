@@ -3242,7 +3242,7 @@ users of MuJoCo -- we do our own work with the public library instead of relying
 Activation
 ^^^^^^^^^^
 
-The functions in this section are maintained for backward compatibillity with the now-removed activation mechanism.
+The functions in this section are maintained for backward compatibility with the now-removed activation mechanism.
 
 .. _mj_activate:
 

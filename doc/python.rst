@@ -238,7 +238,7 @@ to terminate the process, otherwise the behavior of MuJoCo after the callback re
 sufficient to ensure that error callbacks do not return *to MuJoCo*, but it is permitted to use
 `longjmp <https://en.cppreference.com/w/c/program/longjmp>`__ to skip MuJoCo's call stack back to the external callsite.
 
-The Python bindings utilises longjmp to allow it to convert irrecoverable MuJoCo errors into Python exceptions of type
+The Python bindings utilizes longjmp to allow it to convert irrecoverable MuJoCo errors into Python exceptions of type
 ``mujoco.FatalError`` that can be caught and processed in the usual Pythonic way. Furthermore, it installs its error
 callback in a thread-local manner using a currently private API, thus allowing for concurrent calls into MuJoCo from
 multiple threads.
@@ -270,7 +270,7 @@ Migration Notes for mujoco-py
 -----------------------------
 
 In mujoco-py, the main entry point is the `MjSim <https://github.com/openai/mujoco-py/blob/master/mujoco_py/mjsim.pyx>`_
-class.  Users constuct a stateful ``MjSim`` instance from an MJCF model (similar to ``dm_control.Physics``), and this
+class.  Users construct a stateful ``MjSim`` instance from an MJCF model (similar to ``dm_control.Physics``), and this
 instance holds references to an ``mjModel`` instance and its associated ``mjData``.  In contrast, the MuJoCo Python
 bindings (``mujoco``) take a more low-level approach, as explained above: following the design principle of the C
 library, the ``mujoco`` module itself is stateless, and merely wraps the underlying native structs and functions.
