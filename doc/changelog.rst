@@ -10,7 +10,7 @@ Open Sourcing
 
 1. MuJoCo is now fully open-source software. Newly available top level directories are:
 
-   a. ``src/``: All source files. Subrirectories correspond to the modules described in the Programming chapter
+   a. ``src/``: All source files. Subdirectories correspond to the modules described in the Programming chapter
    :ref:`introduction<inIntro>`:
 
    - ``src/engine/``: Core engine.
