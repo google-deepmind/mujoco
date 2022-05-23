@@ -23,11 +23,6 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 # INTERPROCEDURAL_OPTIMIZATION is enforced when enabled.
 set(CMAKE_POLICY_DEFAULT_CMP0069 NEW)
 
-if(APPLE)
-  add_compile_options(-Werror=partial-availability -Werror=unguarded-availability)
-  add_link_options(-Wl,-no_weak_imports)
-endif()
-
 add_library(crossplatform INTERFACE)
 target_sources(crossplatform INTERFACE crossplatform.h)
 set_target_properties(crossplatform PROPERTIES PUBLIC_HEADER crossplatform.h)
@@ -62,7 +57,8 @@ target_link_libraries(
             func_traits
 )
 
-if(MUJOCO_TEST_PYTHON_UTIL)
+if(BUILD_TESTING)
+  enable_testing()
   add_executable(array_traits_test array_traits_test.cc)
   target_link_libraries(
     array_traits_test

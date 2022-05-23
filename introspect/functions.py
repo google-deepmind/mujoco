@@ -998,7 +998,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  ),
              ),
          ),
-         doc='Compute actuator force qfrc_actuation.',
+         doc='Compute actuator force qfrc_actuator.',
      )),
     ('mj_fwdAcceleration',
      FunctionDecl(
@@ -5895,7 +5895,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  ),
              ),
          ),
-         doc='Muiltiply quaternions.',
+         doc='Multiply quaternions.',
      )),
     ('mju_mulQuatAxis',
      FunctionDecl(
@@ -5924,7 +5924,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  ),
              ),
          ),
-         doc='Muiltiply quaternion and axis.',
+         doc='Multiply quaternion and axis.',
      )),
     ('mju_axisAngle2Quat',
      FunctionDecl(

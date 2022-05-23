@@ -12,10 +12,10 @@ This chapter is the reference manual for the MJCF modeling language used in MuJo
 XML schema
 ~~~~~~~~~~
 
-| The table below summarizes the XML elements and their attributes in MJCF. It is generated automatically with the
-  function :ref:`mj_printSchema` which prints out the custom schema used by the parser to validate the model file.
-  Note that all information in MJCF is entered through elements and attributes. Text content in elements is not used;
-  if present, the parser ignores it. The symbols in the second column of the table have the following meaning:
+The table below summarizes the XML elements and their attributes in MJCF. It is generated automatically with the
+function :ref:`mj_printSchema` which prints out the custom schema used by the parser to validate the model file.
+Note that all information in MJCF is entered through elements and attributes. Text content in elements is not used;
+if present, the parser ignores it. The symbols in the second column of the table have the following meaning:
 
 ====== ===================================================
 **!**  required element, can appear only once
@@ -23,8 +23,6 @@ XML schema
 **\*** optional element, can appear many times
 **R**  optional element, can appear many times recursively
 ====== ===================================================
-
-|
 
 +--------------------------+----+------------------------------------------------------------------------------------+
 | :el:`mujoco`             | !  | .. table::                                                                         |
@@ -355,15 +353,17 @@ XML schema
 |                          |    |    :class: mjcf-attributes                                                         |
 |                          |    |                                                                                    |
 |                          |    |    +-------------------------+-------------------------+-------------------------+ |
-|                          |    |    | :at:`ctrllimited`       | :at:`forcelimited`      | :at:`ctrlrange`         | |
+|                          |    |    | :at:`ctrllimited`       | :at:`forcelimited`      | :at:`actlimited`        | |
 |                          |    |    +-------------------------+-------------------------+-------------------------+ |
-|                          |    |    | :at:`forcerange`        | :at:`gear`              | :at:`cranklength`       | |
+|                          |    |    | :at:`ctrlrange`         | :at:`forcerange`        | :at:`actrange`          | |
 |                          |    |    +-------------------------+-------------------------+-------------------------+ |
-|                          |    |    | :at:`user`              | :at:`group`             | :at:`dyntype`           | |
+|                          |    |    | :at:`gear`              |  :at:`cranklength`      |                         | |
 |                          |    |    +-------------------------+-------------------------+-------------------------+ |
-|                          |    |    | :at:`gaintype`          | :at:`biastype`          | :at:`dynprm`            | |
+|                          |    |    | :at:`user`              | :at:`group`             |                         | |
 |                          |    |    +-------------------------+-------------------------+-------------------------+ |
-|                          |    |    | :at:`gainprm`           | :at:`biasprm`           |                         | |
+|                          |    |    | :at:`dyntype`           | :at:`gaintype`          | :at:`biastype`          | |
+|                          |    |    +-------------------------+-------------------------+-------------------------+ |
+|                          |    |    | :at:`dynprm`            | :at:`gainprm`           | :at:`biasprm`           | |
 |                          |    |    +-------------------------+-------------------------+-------------------------+ |
 +--------------------------+----+------------------------------------------------------------------------------------+
 | |_2|:el:`motor`          | ?  | .. table::                                                                         |
@@ -891,19 +891,21 @@ XML schema
 |                          |    |    +-------------------------+-------------------------+-------------------------+ |
 |                          |    |    | :at:`name`              | :at:`class`             | :at:`group`             | |
 |                          |    |    +-------------------------+-------------------------+-------------------------+ |
-|                          |    |    | :at:`ctrllimited`       | :at:`forcelimited`      | :at:`ctrlrange`         | |
+|                          |    |    | :at:`ctrllimited`       | :at:`forcelimited`      | :at:`actlimited`        | |
 |                          |    |    +-------------------------+-------------------------+-------------------------+ |
-|                          |    |    | :at:`forcerange`        | :at:`lengthrange`       | :at:`gear`              | |
+|                          |    |    | :at:`ctrlrange`         | :at:`forcerange`        | :at:`actrange`          | |
 |                          |    |    +-------------------------+-------------------------+-------------------------+ |
-|                          |    |    | :at:`cranklength`       | :at:`user`              | :at:`joint`             | |
+|                          |    |    | :at:`joint`             | :at:`tendon`            | :at:`site`              | |
 |                          |    |    +-------------------------+-------------------------+-------------------------+ |
-|                          |    |    | :at:`jointinparent`     | :at:`tendon`            | :at:`slidersite`        | |
+|                          |    |    | :at:`lengthrange`       | :at:`gear`              | :at:`jointinparent`     | |
 |                          |    |    +-------------------------+-------------------------+-------------------------+ |
-|                          |    |    | :at:`cranksite`         | :at:`site`              | :at:`dyntype`           | |
+|                          |    |    | :at:`cranklength`       | :at:`cranksite`         | :at:`slidersite`        | |
 |                          |    |    +-------------------------+-------------------------+-------------------------+ |
-|                          |    |    | :at:`gaintype`          | :at:`biastype`          | :at:`dynprm`            | |
+|                          |    |    | :at:`user`              |                         |                         | |
 |                          |    |    +-------------------------+-------------------------+-------------------------+ |
-|                          |    |    | :at:`gainprm`           | :at:`biasprm`           |                         | |
+|                          |    |    | :at:`dyntype`           | :at:`gaintype`          | :at:`biastype`          | |
+|                          |    |    +-------------------------+-------------------------+-------------------------+ |
+|                          |    |    | :at:`dynprm`            | :at:`gainprm`           | :at:`biasprm`           | |
 |                          |    |    +-------------------------+-------------------------+-------------------------+ |
 +--------------------------+----+------------------------------------------------------------------------------------+
 | |_2|:el:`motor`          | \* | .. table::                                                                         |
@@ -1913,7 +1915,7 @@ possibly slower speed. Note that `simulate.cc <https://github.com/deepmind/mujoc
 displays the frames per second (FPS). The target FPS is 60 Hz; if the number shown in the visualizer is substantially
 lower, this means that the GPU is over-loaded and the visualization should somehow be simplified.
 
-:at:`shadowsize`: :at-val:`int, "1024"`
+:at:`shadowsize`: :at-val:`int, "4096"`
    This attribute specifies the size of the square texture used for shadow mapping. Higher values result is smoother
    shadows. The size of the area over which a :ref:`light <light>` can cast shadows also affects smoothness, so these
    settings should be adjusted jointly. The default here is somewhat conservative. Most modern GPUs are able to handle
@@ -2743,39 +2745,42 @@ practice this is rarely needed.
 :el-prefix:`asset/` **skin** (*)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-| Skinned meshes (or skins) were added in MuJoCo 2.0. These are deformable meshes whose vertex positions and normals are
-  computed each time the model is rendered. MuJoCo skins are only used for visualization and do not affect the physics
-  in any way. In particular, collisions involve the geoms of the bodies to which the skin is attached, and not the skin
-  itself. Unlike regular meshes which are referenced from geoms and participate in collisions, the skin is not
-  referenced from anywhere else in the model. It is a stand-alone asset that is used by renderer and not by the
-  simulator.
-| The skin has vertex positions and normals updated at runtime, and triangle faces and optional texture coordinates
-  which are predefined. It also has "bones" used for updating. Bones are regular MuJoCo bodies referenced with the
-  :el:`bone` subelement. Each bone has a list of vertex indices and corresponding real-valued weights which specify how
-  much the bone position and orientation influence the corresponding vertex. The vertex has local coordinates with
-  respect to every bone that influences it. The local coordinates are computed by the model compiler, given global
-  vertex coordinates and global bind poses for each body. The bind poses do not have to correspond to the model
-  reference configuration qpos0. Note that the vertex positions and bone bind poses provided in the skin definition are
-  always global, even if the model itself is defined in local coordinates.
-| At runtime the local coordinates of each vertex with respect to each bone that influences it are converted to global
-  coordinates, and averaged in proportion to the corresponding weights to obtain a single set of 3D coordinates for each
-  vertex. Normals then are computed automatically given the resulting global vertex positions and face information.
-  Finally, the skin can be inflated by applying an offset to each vertex position along its (computed) normal.
-| Skins are one-sided for rendering purposes; this is because back-face culling is needed to avoid shading and aliasing
-  artifacts. When the skin is a closed 3D shape this does not matter because the back sides cannot be seen. But if the
-  skin is a 2D object, we have to specify both sides and offset them slightly to avoid artifacts. Note that the
-  composite objects introduced in MuJoCo 2.0 generate skins automatically. So one can save an XML model with a composite
-  object, and obtain an elaborate example of how a skin is specified in the XML.
-| Similar to meshes, skins can be specified directly in the XML via attributes documented later, or loaded from a binary
-  SKN file which is in a custom format. The specification of skins is more complex than meshes because of the bone
-  subelements. The file format starts with a header of 4 integers: nvertex, ntexcoord, nface, nbone. The first three are
-  the same as in meshes, and specify the total number of vertices, texture coordinate pairs, and triangle faces in the
-  skin. ntexcoord can be zero or equal to nvertex. nbone specifies the number of MuJoCo bodies that will be used as
-  bones in the skin. The header is followed by the vertex, texcoord and face data, followed by a specification for each
-  bone. The bone specification contains the name of the corresponding model body, 3D bind position, 4D bind quaterion,
-  number of vertices influenced by the bone, and the vertex index array and weight array. Body names are represented as
-  fixed-length character arrays and are expected to be 0-terminated. Characters after the first 0 are ignored. The
-  contents of the SKN file are:
+Skinned meshes (or skins) were added in MuJoCo 2.0. These are deformable meshes whose vertex positions and normals are
+computed each time the model is rendered. MuJoCo skins are only used for visualization and do not affect the physics
+in any way. In particular, collisions involve the geoms of the bodies to which the skin is attached, and not the skin
+itself. Unlike regular meshes which are referenced from geoms and participate in collisions, the skin is not
+referenced from anywhere else in the model. It is a stand-alone asset that is used by renderer and not by the
+simulator.
+
+The skin has vertex positions and normals updated at runtime, and triangle faces and optional texture coordinates
+which are predefined. It also has "bones" used for updating. Bones are regular MuJoCo bodies referenced with the
+:el:`bone` subelement. Each bone has a list of vertex indices and corresponding real-valued weights which specify how
+much the bone position and orientation influence the corresponding vertex. The vertex has local coordinates with
+respect to every bone that influences it. The local coordinates are computed by the model compiler, given global
+vertex coordinates and global bind poses for each body. The bind poses do not have to correspond to the model
+reference configuration qpos0. Note that the vertex positions and bone bind poses provided in the skin definition are
+always global, even if the model itself is defined in local coordinates.
+
+At runtime the local coordinates of each vertex with respect to each bone that influences it are converted to global
+coordinates, and averaged in proportion to the corresponding weights to obtain a single set of 3D coordinates for each
+vertex. Normals then are computed automatically given the resulting global vertex positions and face information.
+Finally, the skin can be inflated by applying an offset to each vertex position along its (computed) normal.
+Skins are one-sided for rendering purposes; this is because back-face culling is needed to avoid shading and aliasing
+artifacts. When the skin is a closed 3D shape this does not matter because the back sides cannot be seen. But if the
+skin is a 2D object, we have to specify both sides and offset them slightly to avoid artifacts. Note that the
+composite objects introduced in MuJoCo 2.0 generate skins automatically. So one can save an XML model with a composite
+object, and obtain an elaborate example of how a skin is specified in the XML.
+
+Similar to meshes, skins can be specified directly in the XML via attributes documented later, or loaded from a binary
+SKN file which is in a custom format. The specification of skins is more complex than meshes because of the bone
+subelements. The file format starts with a header of 4 integers: nvertex, ntexcoord, nface, nbone. The first three are
+the same as in meshes, and specify the total number of vertices, texture coordinate pairs, and triangle faces in the
+skin. ntexcoord can be zero or equal to nvertex. nbone specifies the number of MuJoCo bodies that will be used as
+bones in the skin. The header is followed by the vertex, texcoord and face data, followed by a specification for each
+bone. The bone specification contains the name of the corresponding model body, 3D bind position, 4D bind quaterion,
+number of vertices influenced by the bone, and the vertex index array and weight array. Body names are represented as
+fixed-length character arrays and are expected to be 0-terminated. Characters after the first 0 are ignored. The
+contents of the SKN file are:
 
 .. code:: Text
 
@@ -3030,7 +3035,7 @@ unit quaternions.
 
    The **hinge** type creates a hinge joint with one rotational degree of freedom. The rotation takes place around a
    specified axis through a specified position. This is the most common type of joint and is therefore the default. Most
-   models contact only hinge and free joints.
+   models contain only hinge and free joints.
 :at:`group`: :at-val:`int, "0"`
    Integer group to which the joint belongs. This attribute can be used for custom tags. It is also used by the
    visualizer to enable and disable the rendering of entire groups of joints.
@@ -3121,18 +3126,19 @@ mjModel. If the XML model is saved, it will appear as a regular joint of type "f
 :el-prefix:`body/` **geom** (*)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-| This element creates a geom, and attaches it rigidly to the body within which the geom is defined. Multiple geoms can
-  be attached to the same body. At runtime they determine the appearance and collision properties of the body. At
-  compile time they can also determine the inertial properties of the body, depending on the presence of the
-  :ref:`inertial <inertial>` element and the setting of the inertiafromgeom attribute of :ref:`compiler <compiler>`.
-  This is done by summing the masses and inertias of all geoms attached to the body with geom group in the range
-  specified by the inertiagrouprange attribute of :ref:`compiler <compiler>`. The geom masses and inertias are computed
-  using the geom shape, a specified density or a geom mass which implies a density, and the assumption of uniform
-  density.
-| Geoms are not strictly required for physics simulation. One can create and simulate a model that only has bodies and
-  joints. Such a model can even be visualized, using equivalent inertia boxes to represent bodies. Only contact forces
-  would be missing from such a simulation. We do not recommend using such models, but knowing that this is possible
-  helps clarify the role of bodies and geoms in MuJoCo.
+This element creates a geom, and attaches it rigidly to the body within which the geom is defined. Multiple geoms can
+be attached to the same body. At runtime they determine the appearance and collision properties of the body. At
+compile time they can also determine the inertial properties of the body, depending on the presence of the
+:ref:`inertial <inertial>` element and the setting of the inertiafromgeom attribute of :ref:`compiler <compiler>`.
+This is done by summing the masses and inertias of all geoms attached to the body with geom group in the range
+specified by the inertiagrouprange attribute of :ref:`compiler <compiler>`. The geom masses and inertias are computed
+using the geom shape, a specified density or a geom mass which implies a density, and the assumption of uniform
+density.
+
+Geoms are not strictly required for physics simulation. One can create and simulate a model that only has bodies and
+joints. Such a model can even be visualized, using equivalent inertia boxes to represent bodies. Only contact forces
+would be missing from such a simulation. We do not recommend using such models, but knowing that this is possible
+helps clarify the role of bodies and geoms in MuJoCo.
 
 :at:`name`: :at-val:`string, optional`
    Name of the geom.
@@ -3978,19 +3984,19 @@ can also represent different forms of mechanical coupling.
     :width: 400px
     :align: right
 
-| This element creates a spatial tendon, which is a minimum-length path passing through specified via-points and
-  wrapping around specified obstacle geoms. The objects along the path are defined with the sub-elements
-  :ref:`site <spatial-site>` and :ref:`geom <spatial-geom>` below. One can also define :ref:`pulleys <spatial-pulley>`
-  which split the path in multiple branches. Each branch of the tendon path must start and end with a site, and if it
-  has multiple obstacle geoms they must be separated by sites - so as to avoid the need for an iterative solver at the
-  tendon level. This example illustrates a multi-branch tendon acting as a finger extensor, with a counter-weight
-  instead of an actuator.
+This element creates a spatial tendon, which is a minimum-length path passing through specified via-points and
+wrapping around specified obstacle geoms. The objects along the path are defined with the sub-elements
+:ref:`site <spatial-site>` and :ref:`geom <spatial-geom>` below. One can also define :ref:`pulleys <spatial-pulley>`
+which split the path in multiple branches. Each branch of the tendon path must start and end with a site, and if it
+has multiple obstacle geoms they must be separated by sites - so as to avoid the need for an iterative solver at the
+tendon level. This example illustrates a multi-branch tendon acting as a finger extensor, with a counter-weight
+instead of an actuator.
 
-| MuJoCo 2.0 introduced a second form of wrapping, where the tendon is constrained to pass through a geom rather than
-  wrap around it. This is enabled automatically when a sidesite is specified and its position is inside the volume of
-  the obstacle geom.
+MuJoCo 2.0 introduced a second form of wrapping, where the tendon is constrained to pass through a geom rather than
+wrap around it. This is enabled automatically when a sidesite is specified and its position is inside the volume of
+the obstacle geom.
 
-| `tendon.xml <_static/tendon.xml>`__
+`tendon.xml <_static/tendon.xml>`__
 
 :at:`name`: :at-val:`string, optional`
    Name of the tendon.
@@ -4147,16 +4153,23 @@ specify them independently.
    Integer group to which the actuator belongs. This attribute can be used for custom tags. It is also used by the
    visualizer to enable and disable the rendering of entire groups of actuators.
 :at:`ctrllimited`: :at-val:`[false, true], "false"`
-   If true, the control input to this actuator is automatically clamped to ctrlrange at runtime. If false, control input
-   clamping is disabled. Note that control input clamping can also be globally disabled with the clampctrl attribute of
-   option/ :ref:`flag <option-flag>`.
+   If true, the control input to this actuator is automatically clamped to :at:`ctrlrange` at runtime. If false, control
+   input clamping is disabled. Note that control input clamping can also be globally disabled with the :at:`clampctrl`
+   attribute of :ref:`option/flag <option-flag>`.
 :at:`forcelimited`: :at-val:`[false, true], "false"`
-   If true, the force output of this actuator is automatically clamped to forcerange at runtime. If false, force output
+   If true, the force output of this actuator is automatically clamped to :at:`forcerange` at runtime. If false, force
    clamping is disabled.
+:at:`actlimited`: :at-val:`[false, true], "false"`
+   If true, the internal state (activation) associated with this actuator is automatically clamped to :at:`actrange` at
+   runtime. If false, activation clamping is disabled. See the :ref:`Activation clamping <CActRange>` section for more
+   details.
 :at:`ctrlrange`: :at-val:`real(2), "0 0"`
    Range for clamping the control input. The compiler expects the first value to be smaller than the second value.
 :at:`forcerange`: :at-val:`real(2), "0 0"`
    Range for clamping the force output. The compiler expects the first value to be no greater than the second value.
+:at:`actrange`: :at-val:`real(2), "0 0"`
+   Range for clamping the activation state. The compiler expects the first value to be no greater than the second value.
+   See the :ref:`Activation clamping <CActRange>` section for more details.
 :at:`lengthrange`: :at-val:`real(2), "0 0"`
    Range of feasible lengths of the actuator's transmission. See :ref:`Length Range <CLengthRange>`.
 :at:`gear`: :at-val:`real(6), "1 0 0 0 0 0"`
@@ -4262,12 +4275,13 @@ specify them independently.
 :el-prefix:`actuator/` **motor** (*)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-| This and the next three elements are the :ref:`Actuator shortcuts <CActuator>` discussed earlier. When a
-  such shortcut is encountered, the parser creates a :el:`general` actuator and sets its dynprm, gainprm and biasprm
-  attributes to the internal defaults shown above, regardless of any default settings. It then adjusts dyntype, gaintype
-  and biastype depending on the shortcut, parses any custom attributes (beyond the common ones), and translates them
-  into regular attributes (i.e., attributes of the :el:`general` actuator type) as explained here.
-| This element creates a direct-drive actuator. The underlying :el:`general` attributes are set as follows:
+This and the next three elements are the :ref:`Actuator shortcuts <CActuator>` discussed earlier. When a
+such shortcut is encountered, the parser creates a :el:`general` actuator and sets its dynprm, gainprm and biasprm
+attributes to the internal defaults shown above, regardless of any default settings. It then adjusts dyntype, gaintype
+and biastype depending on the shortcut, parses any custom attributes (beyond the common ones), and translates them
+into regular attributes (i.e., attributes of the :el:`general` actuator type) as explained here.
+
+This element creates a direct-drive actuator. The underlying :el:`general` attributes are set as follows:
 
 ========= ======= ========= =======
 Attribute Setting Attribute Setting
@@ -4277,8 +4291,8 @@ gaintype  fixed   gainprm   1 0 0
 biastype  none    biasprm   0 0 0
 ========= ======= ========= =======
 
-|
-| This element does not have custom attributes. It only has common attributes, which are:
+
+This element does not have custom attributes. It only has common attributes, which are:
 
 
 .. |actuator/motor attrib list| replace::
@@ -4294,7 +4308,7 @@ biastype  none    biasprm   0 0 0
 :el-prefix:`actuator/` **position** (*)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-| This element creates a position servo. The underlying :el:`general` attributes are set as follows:
+This element creates a position servo. The underlying :el:`general` attributes are set as follows:
 
 ========= ======= ========= =======
 Attribute Setting Attribute Setting
@@ -4304,8 +4318,8 @@ gaintype  fixed   gainprm   kp 0 0
 biastype  affine  biasprm   0 -kp 0
 ========= ======= ========= =======
 
-|
-| This element has one custom attribute in addition to the common attributes:
+
+This element has one custom attribute in addition to the common attributes:
 
 .. |actuator/position attrib list| replace::
    :at:`name`, :at:`class`, :at:`group`, :at:`ctrllimited`, :at:`forcelimited`, :at:`ctrlrange`, :at:`forcerange`,
@@ -4322,9 +4336,9 @@ biastype  affine  biasprm   0 -kp 0
 :el-prefix:`actuator/` **velocity** (*)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-| This element creates a velocity servo. Note that in order create a PD controller, one has to define two actuators: a
-  position servo and a velocity servo. This is because MuJoCo actuators are SISO while a PD controller takes two control
-  inputs (reference position and reference velocity). The underlying :el:`general` attributes are set as follows:
+This element creates a velocity servo. Note that in order create a PD controller, one has to define two actuators: a
+position servo and a velocity servo. This is because MuJoCo actuators are SISO while a PD controller takes two control
+inputs (reference position and reference velocity). The underlying :el:`general` attributes are set as follows:
 
 ========= ======= ========= =======
 Attribute Setting Attribute Setting
@@ -4334,8 +4348,8 @@ gaintype  fixed   gainprm   kv 0 0
 biastype  affine  biasprm   0 0 -kv
 ========= ======= ========= =======
 
-|
-| This element has one custom attribute in addition to the common attributes:
+
+This element has one custom attribute in addition to the common attributes:
 
 .. |actuator/velocity attrib list| replace::
    :at:`name`, :at:`class`, :at:`group`, :at:`ctrllimited`, :at:`forcelimited`, :at:`ctrlrange`, :at:`forcerange`,
@@ -4352,8 +4366,8 @@ biastype  affine  biasprm   0 0 -kv
 :el-prefix:`actuator/` **cylinder** (*)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-| This element is suitable for modeling pneumatic or hidraulic cylinders. The underlying :el:`general` attributes are
-  set as follows:
+This element is suitable for modeling pneumatic or hidraulic cylinders. The underlying :el:`general` attributes are
+set as follows:
 
 ========= ======= ========= =============
 Attribute Setting Attribute Setting
@@ -4363,8 +4377,8 @@ gaintype  fixed   gainprm   area 0 0
 biastype  affine  biasprm   bias(3)
 ========= ======= ========= =============
 
-|
-| This element has four custom attributes in addition to the common attributes:
+
+This element has four custom attributes in addition to the common attributes:
 
 .. |actuator/cylinder attrib list| replace::
    :at:`name`, :at:`class`, :at:`group`, :at:`ctrllimited`, :at:`forcelimited`, :at:`ctrlrange`, :at:`forcerange`,
@@ -4387,8 +4401,8 @@ biastype  affine  biasprm   bias(3)
 :el-prefix:`actuator/` **muscle** (*)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-| This element is used to model a muscle actuator, as described in the :ref:`Muscles actuators <CMuscle>`
-  section. The underlying :el:`general` attributes are set as follows:
+This element is used to model a muscle actuator, as described in the :ref:`Muscles actuators <CMuscle>`
+section. The underlying :el:`general` attributes are set as follows:
 
 ========= ======= ========= ======================================================
 Attribute Setting Attribute Setting
@@ -4398,8 +4412,8 @@ gaintype  muscle  gainprm   range(2), force, scale, lmin, lmax, vmax, fpmax, fvm
 biastype  muscle  biasprm   same as gainprm
 ========= ======= ========= ======================================================
 
-|
-| This element has nine custom attributes in addition to the common attributes:
+
+This element has nine custom attributes in addition to the common attributes:
 
 .. |actuator/muscle attrib list| replace::
    :at:`name`, :at:`class`, :at:`group`, :at:`ctrllimited`, :at:`forcelimited`, :at:`ctrlrange`, :at:`forcerange`,
@@ -4436,14 +4450,15 @@ biastype  muscle  biasprm   same as gainprm
 **sensor** (*)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-| This is a grouping element for sensor definitions. It does not have attributes. The outputs of all sensors are
-  concatenated in the field mjData.sensordata which has size mjModel.nsensordata. This data is not used in any internal
-  computations.
-| In addition to the sensors created with the elements below, the top-level function
-  :ref:`mj_step` computes the quantities mjData.cacc, mjData.cfrc_int and mjData.crfc_ext
-  corresponding to body accelerations and interaction forces. Some of these quantities are used to compute the output of
-  certain sensors (force, acceleration etc.) but even if no such sensors are defined in the model, these quantities
-  themselves are "features" that could be of interest to the user.
+This is a grouping element for sensor definitions. It does not have attributes. The outputs of all sensors are
+concatenated in the field mjData.sensordata which has size mjModel.nsensordata. This data is not used in any internal
+computations.
+
+In addition to the sensors created with the elements below, the top-level function
+:ref:`mj_step` computes the quantities mjData.cacc, mjData.cfrc_int and mjData.crfc_ext
+corresponding to body accelerations and interaction forces. Some of these quantities are used to compute the output of
+certain sensors (force, acceleration etc.) but even if no such sensors are defined in the model, these quantities
+themselves are "features" that could be of interest to the user.
 
 .. _sensor-touch:
 
@@ -4511,10 +4526,9 @@ simulate an inertial measurement unit (IMU).
 
 This element creates a 3-axis force sensor. The sensor outputs three numbers, which are the interaction force between a
 child and a parent body, expressed in the site frame defining the sensor. The convention is that the site is attached to
-the child body, and the force points from the child towards the parent. To change the sign of the sensor reading, use
-the scale attribute. The computation here takes into account all forces acting on the system, including contacts as well
-as external perturbations. Using this sensor often requires creating a dummy body welded to its parent (i.e., having no
-joint elements).
+the child body, and the force points from the child towards the parent. The computation here takes into account all
+forces acting on the system, including contacts as well as external perturbations. Using this sensor often requires
+creating a dummy body welded to its parent (i.e., having no joint elements).
 
 :at:`name`, :at:`noise`, :at:`cutoff`, :at:`user`
    See :ref:`CSensor`.

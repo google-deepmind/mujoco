@@ -16,8 +16,8 @@
 #include <cstdint>
 
 #include <Eigen/Core>
-#include <mjrender.h>
-#include <mujoco.h>
+#include <mujoco/mjrender.h>
+#include <mujoco/mujoco.h>
 #include "errors.h"
 #include "function_traits.h"
 #include "functions.h"

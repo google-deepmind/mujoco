@@ -53,6 +53,6 @@ if _MUJOCO_GL not in ('disable', 'disabled', 'off', 'false', '0'):
   else:
     from mujoco.glfw import GLContext
 
-HEADERS_DIR = os.path.join(os.path.dirname(__file__), 'include')
+HEADERS_DIR = os.path.join(os.path.dirname(__file__), 'include/mujoco')
 
 __version__ = mj_versionString()  # pylint: disable=undefined-variable

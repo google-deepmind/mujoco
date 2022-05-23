@@ -1,0 +1,14 @@
+<mujoco model="frameless contact">
+  <asset>
+    <hfield name="hf" nrow="10" ncol="10" size="1 1 0.1 0.01"/>
+  </asset>
+
+  <worldbody>
+    <geom type="hfield" hfield="hf"/>
+    <body>
+      <joint type="slide" axis="1 0 0" damping="1"/>
+      <joint type="slide" axis="0 1 0" damping="1"/>
+      <geom pos="0 0 0.2" size="0.3 0.3 0.2" type="box"/>
+    </body>
+  </worldbody>
+</mujoco>

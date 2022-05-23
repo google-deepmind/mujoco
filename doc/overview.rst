@@ -640,6 +640,32 @@ interpreted as MKS, then forces and torques are in Newton and Newton-Meter, resp
 are using MKS, angular velocities reported by :ref:`gyroscopes<sensor-gyro>` would be in rad/s while stiffness of hinge
 joints would be in Nm/rad.
 
+
+.. _SurprisingCollisions:
+
+Surprising Collisions
+~~~~~~~~~~~~~~~~~~~~~
+
+MuJoCo by default excludes collisions between geoms that belong to body pairs which have a direct parent-child
+relationship. For example, consider the arm model in the :ref:`Examples` section above: there is no collision at the
+"elbow" even though the capsule geoms are penetrating, because the forearm is an immediate child of the upper arm.
+
+However, this exclusion is **not applied if the parent is a static body** i.e., the world body, or a body without any
+degrees of freedom relative to the world body. This behavior, documented in the :ref:`Collision detection<Collision>`
+section, prevents objects from falling through the floor or moving through walls. However, this behavior often leads to
+the following situation:
+
+The user comments out the root joint of a floating-base model, perhaps in order to prevent it from falling; now that the
+base body is counted as static, new collisions appear that were not there before and the user is confused. There are two
+easy ways to avoid this problem:
+
+1. Don't remove the root joint. Perhaps it is enough to :ref:`disable gravity<option-flag>` and possibly add some
+   :ref:`fluid viscosity<option>` in order to prevent your model from moving around too much.
+
+2. Use :ref:`collision filtering<Collision>` to explicitly disable the unwanted collisions, either by setting the
+   relevant :at:`contype` and :at:`conaffinity` attributes, or by using a contact :ref:`exclude <exclude>` directive.
+
+
 .. _NotObject:
 
 Not object-oriented
@@ -707,7 +733,7 @@ first, followed by the limits of the second joint etc. This ordering reflects th
 row-major format.
 
 The available element types are defined in
-`mjmodel.h <https://github.com/deepmind/mujoco/blob/main/include/mjmodel.h#L243>`_, in the enum type :ref:`mjtObj`.
+`mjmodel.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjmodel.h#L243>`_, in the enum type :ref:`mjtObj`.
 These enums are mostly used internally. One exception are the functions :ref:`mj_name2id` and :ref:`mj_id2name` in the
 MuJoCo API, which map element names to integer ids and vice versa. These functions take an element type as input.
 
@@ -761,8 +787,8 @@ properties.
 Sites are light geoms. They have the same appearance properties but cannot participate in collisions and cannot be used
 to infer body masses. On the other hand sites can do things that geoms cannot do: they can specify the volumes of touch
 sensors, the attachment of IMU sensors, the routing of spatial tendons, the end-points of slider-crank actuators. These
-are all spatial quantities, and yet they do not correspond to entities that should have mass or collide other entities -
-which is why the site element was created. Sites can also be used to specify points (or rather frames) of interest to
+are all spatial quantities, and yet they do not correspond to entities that should have mass or collide other entities
+-- which is why the site element was created. Sites can also be used to specify points (or rather frames) of interest to
 the user.
 
 The following example illustrates the point that multiple sites and geoms can be attached to the same body: two sites

@@ -25,8 +25,8 @@
 #include <vector>
 
 #include <absl/types/span.h>
-#include <mujoco.h>
-#include <mjxmacro.h>
+#include <mujoco/mujoco.h>
+#include <mujoco/mjxmacro.h>
 #include "indexers.h"
 #include "mjdata_meta.h"
 #include "raw.h"
@@ -894,7 +894,7 @@ static InitPyArray(Shape&& shape, T* buf, pybind11::handle owner) {
       out.append(InitPyArray(block_shape, &buf[i * block_size], owner));
     }
   }
-  return out;
+  return std::move(out);
 }
 
 // Same as above, but where we can determine array dimensions through the

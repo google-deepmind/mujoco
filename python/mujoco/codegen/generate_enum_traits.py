@@ -71,7 +71,7 @@ struct {enum.name} {{
 #include <tuple>
 #include <utility>
 
-#include <mujoco.h>
+#include <mujoco/mujoco.h>
 
 namespace mujoco::python_traits {{
 

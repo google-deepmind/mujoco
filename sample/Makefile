@@ -2,7 +2,7 @@
 # which is commonly available through your distro's package manager.
 # On Debian and Ubuntu, GLFW can be installed via `apt install libglfw3-dev`.
 
-COMMON=-O2 -I../include -L../lib -std=c++11 -pthread -Wl,-no-as-needed -Wl,-rpath,'$$ORIGIN'/../lib
+COMMON=-O2 -I../include -L../lib -std=c++17 -pthread -Wl,-no-as-needed -Wl,-rpath,'$$ORIGIN'/../lib
 
 all:
 	$(CXX) $(COMMON) testxml.cc            -lmujoco          -o ../bin/testxml

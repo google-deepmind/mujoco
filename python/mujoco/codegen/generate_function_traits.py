@@ -91,7 +91,7 @@ struct {func.name} {{
 
 #include <tuple>
 
-#include <mujoco.h>
+#include <mujoco/mujoco.h>
 #include "util/crossplatform.h"
 
 namespace mujoco::python_traits {{

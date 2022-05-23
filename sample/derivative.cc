@@ -16,7 +16,7 @@
 #include <cstdio>
 #include <cstring>
 
-#include <mujoco.h>
+#include <mujoco/mujoco.h>
 
 // enable compilation with and without OpenMP support
 #if defined(_OPENMP)

@@ -1,0 +1,9 @@
+<mujoco model="frameless contact">
+  <worldbody>
+    <geom type="box" pos="0.0 0.0 -0.46" size="0.4 0.4 0.46"/>
+    <body>
+      <joint type="slide" axis="1 0 0"/>
+      <geom pos="0.2 0 0.02" size="0.062 0.02" type="cylinder"/>
+    </body>
+  </worldbody>
+</mujoco>

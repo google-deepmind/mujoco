@@ -23,7 +23,7 @@
 #include <vector>
 
 #include <absl/container/flat_hash_map.h>
-#include <mjxmacro.h>
+#include <mujoco/mjxmacro.h>
 #include "indexer_xmacro.h"
 #include "mjdata_meta.h"
 #include "raw.h"

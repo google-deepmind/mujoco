@@ -34,8 +34,8 @@
 #include <vector>
 
 #include <absl/container/flat_hash_map.h>
-#include <mjxmacro.h>
-#include <mujoco.h>
+#include <mujoco/mjxmacro.h>
+#include <mujoco/mujoco.h>
 #include "errors.h"
 #include "function_traits.h"
 #include "indexers.h"

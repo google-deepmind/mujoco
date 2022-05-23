@@ -83,7 +83,7 @@ public const int mjMAXOVERLAY = 500;
 public const int mjMAXLINE = 100;
 public const int mjMAXLINEPNT = 1000;
 public const int mjMAXPLANEGRID = 200;
-public const int mjVERSION_HEADER = 215;
+public const int mjVERSION_HEADER = 220;
 
 
 // ------------------------------------Enums------------------------------------
@@ -1635,8 +1635,8 @@ public unsafe struct mjData_ {
   public double* subtree_angmom;
   public double* actuator_force;
   public double* qfrc_actuator;
-  public double* qfrc_unc;
-  public double* qacc_unc;
+  public double* qfrc_smooth;
+  public double* qacc_smooth;
   public double* efc_b;
   public double* efc_force;
   public int* efc_state;

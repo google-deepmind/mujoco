@@ -30,7 +30,7 @@ from setuptools import find_packages
 from setuptools import setup
 from setuptools.command import build_ext
 
-__version__ = '2.1.5'
+__version__ = '2.2.0'
 
 MUJOCO_CMAKE = 'MUJOCO_CMAKE'
 MUJOCO_CMAKE_ARGS = 'MUJOCO_CMAKE_ARGS'
@@ -137,7 +137,10 @@ class BuildCMakeExtension(build_ext.build_ext):
   """Uses CMake to build extensions."""
 
   def run(self):
-    self._mujoco_library_path, self._mujoco_include_path = self._find_mujoco()
+    self._is_apple = (platform.system() == 'Darwin')
+    (self._mujoco_library_path,
+     self._mujoco_include_path,
+     self._mujoco_framework_path) = self._find_mujoco()
     self._configure_cmake()
     for ext in self.extensions:
       assert ext.name.startswith(EXT_PREFIX)
@@ -151,13 +154,17 @@ class BuildCMakeExtension(build_ext.build_ext):
       raise RuntimeError(f'{MUJOCO_PATH} environment variable is not set')
     library_path = None
     include_path = None
-    for directory, _, filenames in os.walk(os.environ['MUJOCO_PATH']):
+    for directory, subdirs, filenames in os.walk(os.environ['MUJOCO_PATH']):
+      if self._is_apple and 'mujoco.framework' in subdirs:
+        return (os.path.join(directory, 'mujoco.framework/Versions/A'),
+                os.path.join(directory, 'mujoco.framework/Headers'),
+                directory)
       if fnmatch.filter(filenames, get_mujoco_lib_pattern()):
         library_path = directory
-      if fnmatch.filter(filenames, 'mujoco.h'):
+      if os.path.exists(os.path.join(directory, 'mujoco/mujoco.h')):
         include_path = directory
       if library_path and include_path:
-        return library_path, include_path
+        return library_path, include_path, None
     raise RuntimeError('Cannot find MuJoCo library and/or include paths')
 
   def _copy_external_libraries(self):
@@ -171,8 +178,8 @@ class BuildCMakeExtension(build_ext.build_ext):
   def _copy_mujoco_headers(self):
     dst = os.path.join(
         os.path.dirname(self.get_ext_fullpath(self.extensions[0].name)),
-        'include')
-    os.mkdir(dst)
+        'include/mujoco')
+    os.makedirs(dst)
     for directory, _, filenames in os.walk(self._mujoco_include_path):
       for filename in fnmatch.filter(filenames, '*.h'):
         shutil.copyfile(os.path.join(directory, filename),
@@ -184,18 +191,27 @@ class BuildCMakeExtension(build_ext.build_ext):
     build_cfg = 'Debug' if self.debug else 'Release'
     cmake_module_path = os.path.join(os.path.dirname(__file__), 'cmake')
     cmake_args = [
-        f'-DPython3_ROOT_DIR={sys.prefix}',
-        f'-DPython3_EXECUTABLE={sys.executable}',
-        f'-DMUJOCO_LIBRARY_DIR={self._mujoco_library_path}',
-        f'-DMUJOCO_INCLUDE_DIR={self._mujoco_include_path}',
-        f'-DCMAKE_MODULE_PATH={cmake_module_path}',
-        f'-DCMAKE_BUILD_TYPE={build_cfg}',
-        f'-DCMAKE_LIBRARY_OUTPUT_DIRECTORY={self.build_temp}',
-        f'-DCMAKE_INTERPROCEDURAL_OPTIMIZATION={"OFF" if self.debug else "ON"}',
+        f'-DPython3_ROOT_DIR:PATH={sys.prefix}',
+        f'-DPython3_EXECUTABLE:STRING={sys.executable}',
+        f'-DCMAKE_MODULE_PATH:PATH={cmake_module_path}',
+        f'-DCMAKE_BUILD_TYPE:STRING={build_cfg}',
+        f'-DCMAKE_LIBRARY_OUTPUT_DIRECTORY:PATH={self.build_temp}',
+        f'-DCMAKE_INTERPROCEDURAL_OPTIMIZATION=:BOOL{"OFF" if self.debug else "ON"}',
         '-DCMAKE_Fortran_COMPILER:STRING=',
-        '-DCMAKE_VERBOSE_MAKEFILE=ON',
-        '-DBUILD_TESTING=OFF',
+        '-DCMAKE_VERBOSE_MAKEFILE:BOOL=ON',
+        '-DBUILD_TESTING:BOOL=OFF',
     ]
+
+    if self._mujoco_framework_path is not None:
+      cmake_args.extend([
+          f'-DMUJOCO_FRAMEWORK_DIR:PATH={self._mujoco_framework_path}',
+      ])
+    else:
+      cmake_args.extend([
+          f'-DMUJOCO_LIBRARY_DIR:PATH={self._mujoco_library_path}',
+          f'-DMUJOCO_INCLUDE_DIR:PATH={self._mujoco_include_path}',
+      ])
+
     if platform.system() != 'Windows':
       cmake_args.extend([
           f'-DPython3_LIBRARY={sysconfig.get_paths()["stdlib"]}',
@@ -293,7 +309,7 @@ setup(
                     'libmujoco.*.dylib',
                     'libmujoco*.so.*',
                     'mujoco.dll',
-                    'include/*.h',
+                    'include/mujoco/*.h',
                 ]),
     },
 )

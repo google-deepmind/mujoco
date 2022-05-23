@@ -15,10 +15,10 @@
 #ifndef MUJOCO_PYTHON_RAW_H_
 #define MUJOCO_PYTHON_RAW_H_
 
-#include <mjdata.h>
-#include <mjmodel.h>
-#include <mjrender.h>
-#include <mjvisualize.h>
+#include <mujoco/mjdata.h>
+#include <mujoco/mjmodel.h>
+#include <mujoco/mjrender.h>
+#include <mujoco/mjvisualize.h>
 
 // Type aliases for MuJoCo C structs to allow us refer to consistently refer
 // to them under the "raw" namespace.

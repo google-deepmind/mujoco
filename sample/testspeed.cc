@@ -18,7 +18,7 @@
 #include <string>
 #include <thread>
 
-#include <mujoco.h>
+#include <mujoco/mujoco.h>
 
 
 // maximum number of threads
@@ -94,7 +94,8 @@ void simulate(int id, int nstep, mjtNum ctrlnoise) {
 
 
 // main function
-int main(int argc, const char** argv) {
+int main(int argc, char** argv) {
+
   // print help if arguments are missing
   if (argc<2 || argc>6) {
     return finish("\n Usage:  testspeed modelfile [nstep nthread ctrlnoise profile]\n");

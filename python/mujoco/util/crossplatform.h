@@ -48,4 +48,29 @@
 #define MUJOCO_ALWAYS_INLINE_LAMBDA_MUTABLE
 #endif
 
+#ifndef MUJOCO_DIAG_IGNORE_UNUSED_LAMBDA_CAPTURE
+#if defined(__clang__)
+#define MUJOCO_DIAG_IGNORE_UNUSED_LAMBDA_CAPTURE                    \
+    _Pragma("clang diagnostic push")                                \
+    _Pragma("clang diagnostic ignored \"-Wunused-lambda-capture\"")
+#define MUJOCO_DIAG_UNIGNORE_UNUSED_LAMBDA_CAPTURE \
+    _Pragma("clang diagnostic pop")
+#elif defined(__GNUC__)
+#define MUJOCO_DIAG_IGNORE_UNUSED_LAMBDA_CAPTURE                  \
+    _Pragma("GCC diagnostic push")                                \
+    _Pragma("GCC diagnostic ignored \"-Wunused-lambda-capture\"")
+#define MUJOCO_DIAG_UNIGNORE_UNUSED_LAMBDA_CAPTURE _Pragma("GCC diagnostic pop")
+#else
+#define MUJOCO_DIAG_IGNORE_UNUSED_LAMBDA_CAPTURE
+#define MUJOCO_DIAG_UNIGNORE_UNUSED_LAMBDA_CAPTURE
+#endif
+#endif
+
+// GCC ignores [[maybe_unused]] and emits a -Wattributes
+#if defined(__GNUC__) && !defined(__clang__)
+#define MUJOCO_MAYBE_UNUSED
+#else
+#define MUJOCO_MAYBE_UNUSED [[maybe_unused]]
+#endif
+
 #endif  // MUJOCO_PYTHON_UTIL_CROSSPLATFORM_H_

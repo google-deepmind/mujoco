@@ -17,7 +17,7 @@
 #include <cstdio>
 #include <cstring>
 
-#include <mujoco.h>
+#include <mujoco/mujoco.h>
 
 // help
 const char helpstring[] =

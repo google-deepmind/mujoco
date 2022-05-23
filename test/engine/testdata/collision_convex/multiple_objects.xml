@@ -1,0 +1,49 @@
+<mujoco>
+  <option noslip_iterations="2">
+    <flag multiccd="enable"/>
+  </option>
+
+  <visual>
+    <quality shadowsize="8192"/>
+    <scale forcewidth="0.01" contactwidth="0.05" contactheight="0.05"/>
+    <map force="0.1"/>
+  </visual>
+
+  <default>
+    <geom solref=".006 1"/>
+  </default>
+
+  <asset>
+      <texture name="skybox" type="skybox" builtin="gradient" rgb1=".4 .6 .8" rgb2="0 0 0"
+               width="256" height="256" mark="random" markrgb="1 1 1" random="0.003"/>
+    <mesh name="box" vertex="-1 -1 -1 1 -1 -1 1 1 -1 1 1 1 1 -1 1 -1 1 -1 -1 1 1 -1 -1 1"
+          scale="1 1 .1"/>
+    <mesh name="boxoid" vertex="-1 -1 -1 1 -1 -1 1 1 -1 1 1 1 1 -1 1 -1 1 -1 -1 1 .5 -1 -1 2"
+          scale=".3 .2 .1"/>
+    <mesh name="pentaprism" vertex="1 0 0 0.309 0.951 0 -0.809 0.588 0 -0.809 -0.588 0 0.309 -0.951 0
+                                    1 0 1 0.309 0.951 1 -0.809 0.588 1 -0.809 -0.588 1 0.309 -0.951 1"
+          scale=".2 .2 .1"/>
+  </asset>
+  <worldbody>
+    <light pos="0 0 3"/>
+    <light pos="2 2 2" dir="-1 -1 -1"/>
+    <geom type="plane" pos="0 0 -.5" size="3 3 .01"/>
+    <geom type="mesh" mesh="box" pos="0 0 -.15" euler="3 7 30"/>
+    <body pos="-.3 -.3 .3">
+      <freejoint/>
+      <geom type="mesh" mesh="boxoid" rgba=".8 0 0 1" euler="3 5 -130"/>
+    </body>
+    <body pos=".3 .3 0.3">
+      <freejoint/>
+      <geom type="box" euler="3 5 -80" size=".3 .2 .1" rgba="0 .8 0 1"/>
+    </body>
+    <body pos=".3 .3 .6">
+      <freejoint/>
+      <geom type="mesh" mesh="pentaprism" rgba="0 0 .8 1"/>
+    </body>
+    <body pos=".6 -.3 .3">
+      <freejoint/>
+      <geom type="cylinder" size=".2 .05" rgba=".6 0 .6 1"/>
+    </body>
+  </worldbody>
+</mujoco>

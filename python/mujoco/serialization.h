@@ -17,7 +17,7 @@
 
 #include <iostream>
 
-#include <mjtnum.h>
+#include <mujoco/mjtnum.h>
 
 namespace mujoco::python::_impl {
 

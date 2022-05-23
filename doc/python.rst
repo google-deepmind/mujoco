@@ -2,9 +2,6 @@
 Python Bindings
 ===============
 
-Introduction
-------------
-
 Starting with version 2.1.2, MuJoCo comes with native Python bindings that are developed in C++ using
 `pybind11 <https://pybind11.readthedocs.io/>`__. Unlike previous Python bindings, these are officially supported by the
 MuJoCo development team and will be kept up-to-date with the latest developments in MuJoCo itself.

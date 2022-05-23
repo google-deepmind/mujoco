@@ -1,23 +1,23 @@
-# This Makefile assumes that GLFW is installed via Homebrew, and that Homebrew
-# packages are installed in /usr/local. If your setup is different, you will
-# need to adjust the HOMEBREW variable accordingly.
+# This Makefile assumes that GLFW is installed via Homebrew.
+# If your setup is different, you will need to set GLFWROOT manually.
 
 # This Makefile also assumes that MuJoCo.app is present in /Applications.
 
-HOMEBREW?=/usr/local
+GLFWROOT?=$(shell brew --prefix)
+MUJOCOPATH?=/Applications/MuJoCo.app/Contents/Frameworks
 
-MUJOCO_LIBDIR=/Applications/MuJoCo.app/Contents/Frameworks/MuJoCo.Framework/Versions/A
-MUJOCO_INCLUDEDIR=/Applications/MuJoCo.app/Contents/Frameworks/MuJoCo.Framework/Versions/A/Headers
-CFLAGS=-O2 -I$(MUJOCO_INCLUDEDIR) -I$(HOMEBREW)/include -pthread
-ALLFLAGS=$(CFLAGS) -L$(MUJOCO_LIBDIR) -L$(HOMEBREW)/lib -std=c++11 -stdlib=libc++ -Wl,-rpath,/Applications/MuJoCo.app/Contents/Frameworks
+CFLAGS=-O2 -F$(MUJOCOPATH) -I$(GLFWROOT)/include -pthread
+CXXFLAGS=$(CFLAGS) -std=c++17 -stdlib=libc++
+ALLFLAGS=$(CXXFLAGS) -L$(GLFWROOT)/lib -Wl,-rpath,$(MUJOCOPATH)
 
 all:
-	clang++ $(ALLFLAGS) testxml.cc            -lmujoco.2.1.5        -o testxml
-	clang++ $(ALLFLAGS) testspeed.cc          -lmujoco.2.1.5        -o testspeed
-	clang++ $(ALLFLAGS) compile.cc            -lmujoco.2.1.5        -o compile
-	clang++ $(ALLFLAGS) derivative.cc         -lmujoco.2.1.5        -o derivative
-	clang++ $(ALLFLAGS) basic.cc              -lmujoco.2.1.5 -lglfw -o basic
-	clang++ $(ALLFLAGS) record.cc             -lmujoco.2.1.5 -lglfw -o record
-	clang -c $(CFLAGS)  uitools.c
-	clang++ $(ALLFLAGS) uitools.o simulate.cc -lmujoco.2.1.5 -lglfw -o simulate
+	clang++ $(ALLFLAGS)    testxml.cc    -framework mujoco        -o testxml
+	clang++ $(ALLFLAGS)    testspeed.cc  -framework mujoco        -o testspeed
+	clang++ $(ALLFLAGS)    compile.cc    -framework mujoco        -o compile
+	clang++ $(ALLFLAGS)    derivative.cc -framework mujoco        -o derivative
+	clang++ $(ALLFLAGS)    basic.cc      -framework mujoco -lglfw -o basic
+	clang++ $(ALLFLAGS)    record.cc     -framework mujoco -lglfw -o record
+	clang   -c $(CFLAGS)   uitools.c
+	clang++ -c $(CXXFLAGS) macos_save.mm
+	clang++ $(ALLFLAGS)    simulate.cc uitools.o macos_save.o -framework mujoco -framework Cocoa -lglfw -o simulate
 	rm *.o

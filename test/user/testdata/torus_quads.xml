@@ -1,0 +1,8 @@
+<mujoco>
+  <asset>
+    <mesh file="torus.obj"/>
+  </asset>
+  <worldbody>
+    <geom type="mesh" mesh="torus"/>
+  </worldbody>
+</mujoco>

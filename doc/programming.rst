@@ -2,6 +2,8 @@
 Programming
 ===========
 
+.. _inIntro:
+
 Introduction
 ------------
 
@@ -10,32 +12,16 @@ is a dynamic library compatible with Windows, Linux and macOS, which requires a 
 library exposes the full functionality of the simulator through a compiler-independent shared-memory C API. It can also
 be used in C++ programs.
 
-MuJoCo is a free product currently distributed as a pre-built dynamic library and will soon be made available as an
-open-source project. The software distribution contains a compiled version of GLFW which is used in the code samples to
-create an OpenGL window and direct user input to it. The distribution for each platform contains the following dynamic
-library:
+The MuJoCo codebase is organized into subdirectories corresponding to different major areas of functionality:
 
-.. code-block:: Text
-
-     Windows:  mujoco.dll  (stub library: mujoco.lib)
-
-     Linux:    mujoco.so.2.1.5
-
-     macOS:    mujoco.2.1.5.dylib
-
-Even though MuJoCo is a single dynamic library with unified C API, it contains several modules, some of which are
-implemented in C++. We have taken advantage of the convenience of C++ for functionality that is used before the
-simulation starts (namely the parser and compiler), and have gone to the trouble of writing carefully-tuned C code for
-all runtime functionality. The modules are:
-
+Engine
+   The simulator (or physics engine) is written in C. It is responsible for all runtime computations.
 Parser
    The XML parser is written in C++. It can parse MJCF models and URDF models, converting them into an internal mjCModel
    C++ object which is not directly exposed to the user.
 Compiler
    The compiler is written in C++. It takes an mjCModel C++ object constructed by the parser, and converts it into an
    mjModel C structure used at runtime.
-Simulator
-   The simulator (or physics engine) is written in C. It is responsible for all runtime computations.
 Abstract visualizer
    The abstract visualizer is written in C. It generates a list of abstract geometric entities representing the
    simulation state, with all information needed for actual rendering. It also provides abstract mouse hooks for camera
@@ -54,18 +40,23 @@ UI framework
 Getting started
 ~~~~~~~~~~~~~~~
 
-The software distribution is a single .zip (Windows) or .tar.gz (Mac and Linux) archive whose name contains the platform
-and software version, e.g. mujoco210_windows.zip. There is no installer. Simply unzip this archive in a directory of
-your choice (where you have write access). You may need to use chmod to set execute permissions or otherwise give
-permissions to run the libraries. From the bin subdirectory, you can now run the precompiled code samples, for example:
+MuJoCo is an open source project. Pre-built dynamic libraries are available for x86_64 and arm64 machines running
+Windows, Linux, and macOS. These can be downloaded from the `GitHub Releases page <https://github.com/deepmind/mujoco/releases>`_.
+Users who do not intend to develop or modify core MuJoCo code are encouraged to use our pre-built libraries, as these
+come bundled with the same versions of dependencies those that we regularly test against, and benefit from build flags
+that have been tuned for performance. Our pre-built libraries are almost entirely self-contained and do not require
+other any library to be present, other than the standard C runtime. We also hide all symbols corresponding apart from
+those that form MuJoCo's public API, thus ensuring that it can coexist with any other libraries that may be loaded into
+the process (including other versions of libraries that MuJoCo depends on).
+
+The pre-built distribution is a single .zip on Windows, .dmg on macOS, and .tar.gz on Linux. There is no installer.
+On Windows and Linux, simply extract the archive in a directory of your choice. From the ``bin`` subdirectory, you can
+now run the precompiled code samples, for example:
 
 .. code-block:: Text
 
      Windows:           simulate ..\model\humanoid.xml
      Linux and macOS:   ./simulate ../model/humanoid.xml
-
-Prior to MuJoCo 2.0, running the code samples needed LD_LIBRARY_PATH on Linux. As of MuJoCo 2.0, they are compiled with
-"rpath $ORIGIN" so the library is found in the executable directory (if it is not in the path).
 
 The directory structure is shown below. Users can re-organize it if needed, as well as install the dynamic libraries in
 other directories and set the path accordingly. The only file created automatically is MUJOCO_LOG.TXT in the executable
@@ -73,24 +64,59 @@ directory; it contains error and warning messages, and can be deleted at any tim
 
 .. code-block:: Text
 
-     mujoco210
-       bin     - dynamic libraries, executables, MUJOCO_LOG.TXT
-       doc     - README.txt and REFERENCE.txt
-       include - header files needed to develop with MuJoCo
-       model   - model collection (extra models available on the Forum)
-       sample  - code samples and makefile need to build them
+     bin     - dynamic libraries, executables, MUJOCO_LOG.TXT
+     doc     - README.txt and REFERENCE.txt
+     include - header files needed to develop with MuJoCo
+     model   - model collection
+     sample  - code samples and makefile need to build them
 
-After verifying that the simulator works, the next step is to re-compile the code samples so as to ensure that the
-development environment is properly installed. The distribution includes a platform-specific makefile in the sample
-subdirectory, which assumes Visual Studio on Windows, GCC on Linux and Clang on macOS. On Windows, remember to open a
-Visual Studio command prompt with native x64 tools. Assuming the compilation succeeded and the resulting executables in
-the bin subdirectory work, you are ready to start developing with MuJoCo.
+After verifying that the simulator works, you may also want to re-compile the code samples to ensure that you have a
+working development environment. We provide Makefiles for `Windows <https://github.com/deepmind/mujoco/blob/main/sample/Makefile.windows>`_,
+`macOS <https://github.com/deepmind/mujoco/blob/main/sample/Makefile.macos>`_, and
+`Linux <https://github.com/deepmind/mujoco/blob/main/sample/Makefile>`_, and also a cross-platform
+`CMake <https://github.com/deepmind/mujoco/blob/main/sample/CMakeLists.txt>`_ setup that can be used to build sample
+applications independently of the MuJoCo library itself. If you are using the vanilla Makefile, we assume that you are
+using Visual Studio on Windows and LLVM/Clang on Linux. On Windows, you also need to either open a Visual Studio command
+prompt with native x64 tools or call the ``vcvarsall.bat`` script that comes with your MSVC installation to set up the
+appropriate environment variables.
 
-As already mentioned, MuJoCo is a compiler-independent library. In theory the user should be able to switch to any
-compiler of their choice. In practice we are using C++11 features as well as std:: functionality internally, and despite
-our efforts to statically link all necessary runtime libraries, this is not always possible - especially on Linux where
-licensing restrictions prevent static linking. If MuJoCo fails to start because of missing or incompatible dynamic
-libraries, please install the necessary libraries.
+On macOS, the DMG disk image contains ``MuJoCo.app``, which you can double-click to launch the ``simulate`` GUI.
+You can also drag ``MuJoCo.app`` into the ``/Application`` on your system, as you would to install any other app.
+While ``MuJoCo.app`` may look like a file, it is in fact an `Application Bundle <https://developer.apple.com/go/?id=bundle-structure>`_,
+which is a directory that contains executable binaries for all of MuJoCo's sample applications, along with an embedded
+`framework <https://developer.apple.com/library/archive/documentation/MacOSX/Conceptual/BPFrameworks/Concepts/WhatAreFrameworks.html>`_,
+which is a subdirectory containing the MuJoCo dynamic library and all of its public headers. In other words,
+``MuJoCo.app`` contains all the same files that are shipped in the archive on Windows and Linux. To see this, right
+click (or control-click) on ``MuJoCo.app`` and click "Show Package Contents".
+
+As mentioned above, ``mujoco.framework`` contains the library and headers that are necessary to build any application
+that depends on MuJoCo. If you are using Xcode, you can import it as a framework dependency on your project. (This also
+works for Swift projects without any modification). If you are building manually, you can use ``-F`` and
+``-framework mujoco`` to specify the header search path and the library search path respectively. The macOS Makefile
+provides an example for this.
+
+.. _inBuild:
+
+Building MuJoCo from source
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+To build MuJoCo from source, you will need CMake and a working C++17 compiler installed. The steps are:
+
+  #. Clone the ``mujoco`` repository from GitHub.
+  #. Create a new build directory somewhere, and ``cd`` into it.
+  #. Run ``cmake $PATH_TO_CLONED_REPO`` to configure the build.
+  #. Run ``cmake --build .`` to build.
+
+MuJoCo's build system automatically fetches dependencies from upstream repositories over the Internet using CMake's
+`FetchContent <https://cmake.org/cmake/help/latest/module/FetchContent.html>`_ module.
+
+The main CMake setup will build the MuJoCo library itself along with all sample applications, but the Python
+bindings are not built. Those come with their own build instructions, which can be found in the :doc:`python`
+section of the documentation.
+
+Additionally, the CMake setup also implements an installation phase which will copy and organize the output files to a
+target directory. Specify the directory using ``cmake $PATH_TO_CLONED_REPO -DCMAKE_INSTALL_PREFIX=<my_install_dir>``.
+After successfully building MuJoCo following the instructions above, you can install it using ``cmake --install .``.
 
 .. _inHeader:
 
@@ -100,29 +126,29 @@ Header files
 The distribution contains several header files which are identical on all platforms. They are also available from the
 links below, to make this documentation self-contained.
 
-mujoco.h   `(source) <https://github.com/deepmind/mujoco/blob/main/include/mujoco.h>`__
+mujoco.h   `(source) <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mujoco.h>`__
    This is the main header file and must be included in all programs using MuJoCo. It defines all API functions and
    global variables, and includes the next 5 files which provide the necessary type definitions.
-mjmodel.h   `(source) <https://github.com/deepmind/mujoco/blob/main/include/mjmodel.h>`__
+mjmodel.h   `(source) <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjmodel.h>`__
    This file defines the C structure :ref:`mjModel` which is the runtime representation of the
    model being simulated. It also defines a number of primitive types and other structures needed to define mjModel.
-mjdata.h   `(source) <https://github.com/deepmind/mujoco/blob/main/include/mjdata.h>`__
+mjdata.h   `(source) <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjdata.h>`__
    This file defines the C structure :ref:`mjData` which is the workspace where all computations
    read their inputs and write their outputs. It also defines primitive types and other structures needed to define
    mjData.
-mjvisualize.h   `(source) <https://github.com/deepmind/mujoco/blob/main/include/mjvisualize.h>`__
+mjvisualize.h   `(source) <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjvisualize.h>`__
    This file defines the primitive types and structures needed by the abstract visualizer.
-mjrender.h   `(source) <https://github.com/deepmind/mujoco/blob/main/include/mjrender.h>`__
+mjrender.h   `(source) <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjrender.h>`__
    This file defines the primitive types and structures needed by the OpenGL renderer.
-mjui.h   `(source) <https://github.com/deepmind/mujoco/blob/main/include/mjui.h>`__
+mjui.h   `(source) <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjui.h>`__
    This file defines the primitive types and structures needed by the UI framework.
-mjtnum.h   `(source) <https://github.com/deepmind/mujoco/blob/main/include/mjtnum.h>`__
+mjtnum.h   `(source) <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjtnum.h>`__
    Defines MuJoCo's ``mjtNum`` floating-point type to be either ``double`` or ``float``. See :ref:`mjtNum`.
-mjxmacro.h   `(source) <https://github.com/deepmind/mujoco/blob/main/include/mjxmacro.h>`__
+mjxmacro.h   `(source) <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjxmacro.h>`__
    This file is optional and is not included by mujoco.h. It defines :ref:`X Macros <tyXMacro>` that can
    automate the mapping of mjModel and mjData into scripting languages, as well as other operations that require
    accessing all fields of mjModel and mjData. See code sample :ref:`testxml.cc <saTestXML>`.
-mjexport.h   `(source) <https://github.com/deepmind/mujoco/blob/main/include/mjexport.h>`__
+mjexport.h   `(source) <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjexport.h>`__
    Macros used for exporting public symbols from the MuJoCo library. This header should not be used directly by client
    code.
 glfw3.h
@@ -152,7 +178,7 @@ the symbol :ref:`mjVERSION_HEADER <glNumeric>` and the library provides the func
 
    // recommended version check
    if( mjVERSION_HEADER!=mj_version() )
-       complain();
+     complain();
 
 Note that only the main header defines this symbol. We assume that the collection of headers released with each software
 version will stay together and will not be mixed between versions. To avoid complications with floating-point
@@ -309,7 +335,10 @@ This code sample is a full-featured interactive simulator. It opens an OpenGL wi
 GLFW library, and renders the simulation state in it. There is built-in help, simulation statistics, profiler, sensor
 data plots. The model file can be specified as a command-line argument, or loaded at runtime using drag-and-drop
 functionality. As of MuJoCo 2.0, this code sample uses the native UI to render various controls, and provides an
-illustration of how the new UI framework is intended to be used.
+illustration of how the new UI framework is intended to be used. Below is a screen-capture of ``simulate`` in action:
+
+..  youtube:: 0ORsj_E17B0
+    :align: center
 
 Interaction is done with the mouse; see the built-in help for summary of available commands. Briefly, an object is
 selected by left-double-click. The user can then apply forces and torques on the selected object by holding Ctrl and
@@ -556,7 +585,7 @@ function :ref:`mj_step` in a loop such as
 
    // simulate until t = 10 seconds
    while( d->time<10 )
-       mj_step(m, d);
+     mj_step(m, d);
 
 This by itself will simulate the passive dynamics, because we have not provided any control signals or applied forces.
 The default (and recommended) way to control the system is to implement a control callback, for example
@@ -566,8 +595,8 @@ The default (and recommended) way to control the system is to implement a contro
    // simple controller applying damping to each dof
    void mycontroller(const mjModel* m, mjData* d)
    {
-       if( m->nu==m->nv )
-           mju_scl(d->ctrl, d->qvel, -0.1, m->nv);
+     if( m->nu==m->nv )
+       mju_scl(d->ctrl, d->qvel, -0.1, m->nv);
    }
 
 This illustrates two concepts. First, we are checking if the number of controls ``mjModel.nu`` equals the number of
@@ -595,10 +624,9 @@ control callback) would become
 
 .. code-block:: C
 
-   while( d->time<10 )
-   {
-       // set d->ctrl or d->qfrc_applied or d->xfrc_applied
-       mj_step(m, d);
+   while( d->time<10 ) {
+     // set d->ctrl or d->qfrc_applied or d->xfrc_applied
+     mj_step(m, d);
    }
 
 Why would we not be able to compute the controls before ``mj_step`` is called? After all, isn't this what causality means?
@@ -619,11 +647,10 @@ before the control is needed, and after the control is needed. The simulation lo
 
 .. code-block:: C
 
-   while( d->time<10 )
-   {
-       mj_step1(m, d);
-       // set d->ctrl or d->qfrc_applied or d->xfrc_applied
-       mj_step2(m, d);
+   while( d->time<10 ) {
+     mj_step1(m, d);
+     // set d->ctrl or d->qfrc_applied or d->xfrc_applied
+     mj_step2(m, d);
    }
 
 There is one complication however: this only works with Euler integration. The Runge-Kutta integrator (as well as other
@@ -637,23 +664,22 @@ omitting some code that computes timing diagnostics. The main simulation functio
 
 .. code-block:: C
 
-   void mj_step(const mjModel* m, mjData* d)
-   {
-       // common to all integrators
-       mj_checkPos(m, d);
-       mj_checkVel(m, d);
-       mj_forward(m, d);
-       mj_checkAcc(m, d);
+   void mj_step(const mjModel* m, mjData* d) {
+     // common to all integrators
+     mj_checkPos(m, d);
+     mj_checkVel(m, d);
+     mj_forward(m, d);
+     mj_checkAcc(m, d);
 
-       // compare forward and inverse solutions if enabled
-       if( mjENABLED(mjENBL_FWDINV) )
-           mj_compareFwdInv(m, d);
+     // compare forward and inverse solutions if enabled
+     if( mjENABLED(mjENBL_FWDINV) )
+       mj_compareFwdInv(m, d);
 
-       // use selected integrator
-       if( m->opt.integrator==mjINT_RK4 )
-           mj_RungeKutta(m, d, 4);
-       else
-           mj_Euler(m, d);
+     // use selected integrator
+     if( m->opt.integrator==mjINT_RK4 )
+       mj_RungeKutta(m, d, 4);
+     else
+       mj_Euler(m, d);
    }
 
 The checking functions reset the simulation automatically if any numerical values have become invalid or too large.
@@ -668,34 +694,34 @@ mj_step2 regardless of the setting of ``mjModel.opt.integrator``.
 
    void mj_step1(const mjModel* m, mjData* d)
    {
-       mj_checkPos(m, d);
-       mj_checkVel(m, d);
-       mj_fwdPosition(m, d);
-       mj_sensorPos(m, d);
-       mj_energyPos(m, d);
-       mj_fwdVelocity(m, d);
-       mj_sensorVel(m, d);
-       mj_energyVel(m, d);
+     mj_checkPos(m, d);
+     mj_checkVel(m, d);
+     mj_fwdPosition(m, d);
+     mj_sensorPos(m, d);
+     mj_energyPos(m, d);
+     mj_fwdVelocity(m, d);
+     mj_sensorVel(m, d);
+     mj_energyVel(m, d);
 
-       // if we had a callback we would be using mj_step, but call it anyway
-       if( mjcb_control )
-           mjcb_control(m, d);
+     // if we had a callback we would be using mj_step, but call it anyway
+     if( mjcb_control )
+       mjcb_control(m, d);
    }
 
    void mj_step2(const mjModel* m, mjData* d)
    {
-       mj_fwdActuation(m, d);
-       mj_fwdAcceleration(m, d);
-       mj_fwdConstraint(m, d);
-       mj_sensorAcc(m, d);
-       mj_checkAcc(m, d);
+     mj_fwdActuation(m, d);
+     mj_fwdAcceleration(m, d);
+     mj_fwdConstraint(m, d);
+     mj_sensorAcc(m, d);
+     mj_checkAcc(m, d);
 
-       // compare forward and inverse solutions if enabled
-       if( mjENABLED(mjENBL_FWDINV) )
-           mj_compareFwdInv(m, d);
+     // compare forward and inverse solutions if enabled
+     if( mjENABLED(mjENBL_FWDINV) )
+       mj_compareFwdInv(m, d);
 
-       // integrate with Euler; ignore integrator option
-       mj_Euler(m, d);
+     // integrate with Euler; ignore integrator option
+     mj_Euler(m, d);
    }
 
 .. _siStateControl:
@@ -830,37 +856,35 @@ skip arguments (mjSTAGE_NONE, 0), where the latter function is implemented as
 
 .. code-block:: C
 
-   void mj_forwardSkip(const mjModel* m, mjData* d,
-                       int skipstage, int skipsensor)
-   {
-       // position-dependent
-       if( skipstage<mjSTAGE_POS )
-       {
-           mj_fwdPosition(m, d);
-           if( !skipsensor )
-               mj_sensorPos(m, d);
-           if( mjENABLED(mjENBL_ENERGY) )
-               mj_energyPos(m, d);
-       }
-
-       // velocity-dependent
-       if( skipstage<mjSTAGE_VEL )
-       {
-           mj_fwdVelocity(m, d);
-           if( !skipsensor )
-               mj_sensorVel(m, d);
-           if( mjENABLED(mjENBL_ENERGY) )
-               mj_energyVel(m, d);
-       }
-
-       // acceleration-dependent
-       if( mjcb_control )
-           mjcb_control(m, d);
-       mj_fwdActuation(m, d);
-       mj_fwdAcceleration(m, d);
-       mj_fwdConstraint(m, d);
+   void mj_forwardSkip(const mjModel* m, mjData* d, int skipstage, int skipsensor) {
+     // position-dependent
+     if( skipstage<mjSTAGE_POS )
+     {
+       mj_fwdPosition(m, d);
        if( !skipsensor )
-           mj_sensorAcc(m, d);
+         mj_sensorPos(m, d);
+       if( mjENABLED(mjENBL_ENERGY) )
+         mj_energyPos(m, d);
+     }
+
+     // velocity-dependent
+     if( skipstage<mjSTAGE_VEL )
+     {
+       mj_fwdVelocity(m, d);
+       if( !skipsensor )
+         mj_sensorVel(m, d);
+       if( mjENABLED(mjENBL_ENERGY) )
+         mj_energyVel(m, d);
+     }
+
+     // acceleration-dependent
+     if( mjcb_control )
+       mjcb_control(m, d);
+     mj_fwdActuation(m, d);
+     mj_fwdAcceleration(m, d);
+     mj_fwdConstraint(m, d);
+     if( !skipsensor )
+       mj_sensorAcc(m, d);
    }
 
 Note that this is the same sequence of calls as in mj_step1 and mj_step2 above, except that checking of real values
@@ -985,17 +1009,17 @@ management.
    // parallel section
    #pragma omp parallel
    {
-       int n = omp_get_thread_num();       // thread-private variable with thread id (0 to nthread-1)
+     int n = omp_get_thread_num();       // thread-private variable with thread id (0 to nthread-1)
 
-       // ... initialize d[n] from results in serial code
+     // ... initialize d[n] from results in serial code
 
-       // thread function
-       worker(m, d[n]);                    // shared mjModel (read-only), per-thread mjData (read-write)
+     // thread function
+     worker(m, d[n]);                    // shared mjModel (read-only), per-thread mjData (read-write)
    }
 
    // delete per-thread mjData
    for( int n=0; n<nthread; n++ )
-       mj_deleteData(d[n]);
+     mj_deleteData(d[n]);
 
 Since all top-level API functions threat mjModel as ``const``, this multi-threading scheme is safe. Each thread only
 writes to its own mjData. Therefore no further synchronization among threads is needed.
@@ -1310,11 +1334,11 @@ the total energy indicate inaccuracies in numerical integration. For such system
 better performance than the default semi-implicit Euler integrator.
 
 Finally, the user can implement additional diagnostics as needed. Two examples were provided in the code samples
-``testxml.cc`` and ``derivative.cc``, where we computed model mismatches after save and load, and assessed the accuracy of the
-numerical derivatives respectively. Key to such diagnostics is to implement two different algorithms or simulation
-paths that compute the same quantity, and compare the results numerically. This type of sanity check is essential when
-dealing with complex dynamical systems where we do not really know what the numerical output should be; if we knew
-that, we would not be using a simulator in the first place.
+``testxml.cc`` and ``derivative.cc``, where we computed model mismatches after save and load, and assessed the accuracy
+of the numerical derivatives respectively. Key to such diagnostics is to implement two different algorithms or
+simulation paths that compute the same quantity, and compare the results numerically. This type of sanity check is
+essential when dealing with complex dynamical systems where we do not really know what the numerical output should be;
+if we knew that, we would not be using a simulator in the first place.
 
 .. _siJacobian:
 
@@ -1529,29 +1553,28 @@ one of its derivatives.
    // ... install GLFW keyboard and mouse callbacks
 
    // run main loop, target real-time simulation and 60 fps rendering
-   while( !glfwWindowShouldClose(window) )
-   {
-       // advance interactive simulation for 1/60 sec
-       //  Assuming MuJoCo can simulate faster than real-time, which it usually can,
-       //  this loop will finish on time for the next frame to be rendered at 60 fps.
-       //  Otherwise add a cpu timer and exit this loop when it is time to render.
-       mjtNum simstart = d->time;
-       while( d->time - simstart < 1.0/60.0 )
-           mj_step(m, d);
+   while( !glfwWindowShouldClose(window) ) {
+     // advance interactive simulation for 1/60 sec
+     //  Assuming MuJoCo can simulate faster than real-time, which it usually can,
+     //  this loop will finish on time for the next frame to be rendered at 60 fps.
+     //  Otherwise add a cpu timer and exit this loop when it is time to render.
+     mjtNum simstart = d->time;
+     while( d->time - simstart < 1.0/60.0 )
+         mj_step(m, d);
 
-       // get framebuffer viewport
-       mjrRect viewport = {0, 0, 0, 0};
-       glfwGetFramebufferSize(window, &viewport.width, &viewport.height);
+     // get framebuffer viewport
+     mjrRect viewport = {0, 0, 0, 0};
+     glfwGetFramebufferSize(window, &viewport.width, &viewport.height);
 
-       // update scene and render
-       mjv_updateScene(m, d, &opt, NULL, &cam, mjCAT_ALL, &scn);
-       mjr_render(viewport, &scn, &con);
+     // update scene and render
+     mjv_updateScene(m, d, &opt, NULL, &cam, mjCAT_ALL, &scn);
+     mjr_render(viewport, &scn, &con);
 
-       // swap OpenGL buffers (blocking call due to v-sync)
-       glfwSwapBuffers(window);
+     // swap OpenGL buffers (blocking call due to v-sync)
+     glfwSwapBuffers(window);
 
-       // process pending GUI events, call GLFW callbacks
-       glfwPollEvents();
+     // process pending GUI events, call GLFW callbacks
+     glfwPollEvents();
    }
 
    // close GLFW, free visualization storage

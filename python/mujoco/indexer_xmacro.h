@@ -15,7 +15,7 @@
 #ifndef MUJOCO_PYTHON_INDEXER_XMACRO_H_
 #define MUJOCO_PYTHON_INDEXER_XMACRO_H_
 
-#include <mjxmacro.h>
+#include <mujoco/mjxmacro.h>
 
 #define MJMODEL_ACTUATOR                                          \
   X( int,     actuator_, trntype,      nu, 1                    ) \
@@ -26,11 +26,13 @@
   X( int,     actuator_, group,        nu, 1                    ) \
   X( mjtByte, actuator_, ctrllimited,  nu, 1                    ) \
   X( mjtByte, actuator_, forcelimited, nu, 1                    ) \
+  X( mjtByte, actuator_, actlimited,   nu, 1                    ) \
   X( mjtNum,  actuator_, dynprm,       nu, mjNDYN               ) \
   X( mjtNum,  actuator_, gainprm,      nu, mjNGAIN              ) \
   X( mjtNum,  actuator_, biasprm,      nu, mjNBIAS              ) \
   X( mjtNum,  actuator_, ctrlrange,    nu, 2                    ) \
   X( mjtNum,  actuator_, forcerange,   nu, 2                    ) \
+  X( mjtNum,  actuator_, actrange,     nu, 2                    ) \
   X( mjtNum,  actuator_, gear,         nu, 6                    ) \
   X( mjtNum,  actuator_, cranklength,  nu, 1                    ) \
   X( mjtNum,  actuator_, acc0,         nu, 1                    ) \
@@ -361,8 +363,8 @@
   X( mjtNum, , qfrc_bias,       nv,   1           ) \
   X( mjtNum, , qfrc_passive,    nv,   1           ) \
   X( mjtNum, , qfrc_actuator,   nv,   1           ) \
-  X( mjtNum, , qfrc_unc,        nv,   1           ) \
-  X( mjtNum, , qacc_unc,        nv,   1           ) \
+  X( mjtNum, , qfrc_smooth,     nv,   1           ) \
+  X( mjtNum, , qacc_smooth,     nv,   1           ) \
   X( mjtNum, , qfrc_constraint, nv,   1           ) \
   X( mjtNum, , qfrc_inverse,    nv,   1           )
 

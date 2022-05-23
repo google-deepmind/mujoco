@@ -1,0 +1,25 @@
+<mujoco>
+  <option>
+    <flag multiccd="enable"/>
+  </option>
+
+  <visual>
+    <quality shadowsize="8192"/>
+    <scale forcewidth="0.01" contactwidth="0.05" contactheight="0.05"/>
+    <map force="0.1"/>
+  </visual>
+
+  <asset>
+    <mesh name="box" vertex="-1 -1 -1 1 -1 -1 1 1 -1 1 1 1 1 -1 1 -1 1 -1 -1 1 1 -1 -1 1"
+          scale="1 1 .3"/>
+  </asset>
+
+  <worldbody>
+    <light pos="0 0 1"/>
+    <geom type="mesh" mesh="box" pos="0 0 -.3"/>
+    <body pos="0 0 .02" euler="90 40 0">
+      <freejoint/>
+      <geom type="capsule" size=".03 .1"/>
+    </body>
+  </worldbody>
+</mujoco>

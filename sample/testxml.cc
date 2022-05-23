@@ -17,8 +17,8 @@
 #include <cstring>
 #include <string>
 
-#include <mjxmacro.h>
-#include <mujoco.h>
+#include <mujoco/mjxmacro.h>
+#include <mujoco/mujoco.h>
 
 #include "array_safety.h"
 namespace mju = ::mujoco::sample_util;

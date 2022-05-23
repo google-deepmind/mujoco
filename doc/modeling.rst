@@ -243,13 +243,13 @@ coordinates, but that effort is rarely justified.
 Frame orientations
 ~~~~~~~~~~~~~~~~~~
 
-Several model elements have right-handed spatial frames associated with them. These are all the elements defined in
-the kinematic tree except for joints. A spatial frame is defined by its position and orientation. Specifying 3D
-positions is straightforward, but specifying 3D orientations can be challenging. This is why MJCF provides several
-alternative mechanisms. No matter which mechanism the user chooses, the frame orientation is always represented as a
-unit quaternion after compilation. Recall that a 3D rotation by angle *a* around axis given by the unit vector (*x, y,
-z*) corresponds to the quaternion (cos(*a*/2), sin(*a*/2) \* (*x, y, z*)). Also recall that every 3D orientation can
-be uniquely specified by a single 3D rotation by some angle around some axis.
+Several model elements have right-handed spatial frames associated with them. These are all the elements defined in the
+kinematic tree except for joints. A spatial frame is defined by its position and orientation. Specifying 3D positions is
+straightforward, but specifying 3D orientations can be challenging. This is why MJCF provides several alternative
+mechanisms. No matter which mechanism the user chooses, the frame orientation is always represented as a unit quaternion
+after compilation. Recall that a 3D rotation by angle :math:`a` around axis given by the unit vector :math:`(x, y, z)`
+corresponds to the quaternion :math:`(\cos(a/2), \: \sin(a/2) \cdot (x, y, z))`. Also recall that every 3D orientation
+can be uniquely specified by a single 3D rotation by some angle around some axis.
 
 All MJCF elements that have spatial frames allow the five attributes listed below. The frame orientation is specified
 using at most one of these attributes. The :at:`quat` attribute has a default value corresponding to the null
@@ -261,12 +261,12 @@ specified by the user, the frame is not rotated.
    conversions. Instead it is normalized to unit length and copied into mjModel during compilation. When a model is
    saved as MJCF, all frame orientations are expressed as quaternions using this attribute.
 :at:`axisangle`: :at-val:`real(4), optional`
-   These are the quantities (*x, y, z, a*) mentioned above. The last number is the angle of rotation, in degrees or
-   radians as specified by the :at:`angle` attribute of :ref:`compiler <compiler>`. The first three
-   numbers determine a 3D vector which is the rotation axis. This vector is normalized to unit length during
-   compilation, so the user can specify a vector of any non-zero length. Keep in mind that the rotation is right-handed;
-   if the direction of the vector (*x, y, z*) is reversed this will result in the opposite rotation. Changing the sign
-   of *a* can also be used to specify the opposite rotation.
+   These are the quantities :math:`(x, y, z, a)` mentioned above. The last number is the angle of rotation, in degrees
+   or radians as specified by the :at:`angle` attribute of :ref:`compiler <compiler>`. The first three numbers determine
+   a 3D vector which is the rotation axis. This vector is normalized to unit length during compilation, so the user can
+   specify a vector of any non-zero length. Keep in mind that the rotation is right-handed; if the direction of the
+   vector :math:`(x, y, z)` is reversed this will result in the opposite rotation. Changing the sign of :math:`a` can
+   also be used to specify the opposite rotation.
 :at:`euler`: :at-val:`real(3), optional`
    Rotation angles around three coordinate axes. The sequence of axes around which these rotations are applied is
    determined by the :at:`eulerseq` attribute of :ref:`compiler <compiler>` and is the same for the
@@ -275,96 +275,110 @@ specified by the user, the frame is not rotated.
    The first 3 numbers are the X axis of the frame. The next 3 numbers are the Y axis of the frame, which is
    automatically made orthogonal to the X axis. The Z axis is then defined as the cross-product of the X and Y axes.
 :at:`zaxis`: :at-val:`real(3), optional`
-   The Z axis of the frame. The compiler finds the minimal rotation that maps the vector (0,0,1) into the vector
-   specified here. This determines the X and Y axes of the frame implicitly. This is useful for geoms with rotational
-   symmetry around the Z axis, as well as lights - which are oriented along the Z axis of their frame.
+   The Z axis of the frame. The compiler finds the minimal rotation that maps the vector :math:`(0, 0, 1)` into the
+   vector specified here. This determines the X and Y axes of the frame implicitly. This is useful for geoms with
+   rotational symmetry around the Z axis, as well as lights - which are oriented along the Z axis of their frame.
 
 .. _CSolver:
 
 Solver parameters
 ~~~~~~~~~~~~~~~~~
 
-The solver :ref:`Parameters <soParameters>` section of the Computation chapter explained the
-mathematical and algorithmic meaning of the quantities d, b, k which determine the behavior of the constraints in
-MuJoCo. Here we explain how to set them. Setting is done indirectly, through the attributes :at:`solref` and
-:at:`solimp` which are available in all MJCF elements involving constraints. These parameters can be adjusted per
-constraint, or per defaults class, or left undefined - in which case MuJoCo uses the internal defaults shown below.
-Note also the override mechanism available in :ref:`option <option>`; it can be used to change all
-contact-related solver parameters at runtime, so as to experiment interactively with parameter settings or implement
-continuation methods for numerical optimization.
+The solver :ref:`Parameters <soParameters>` section of the Computation chapter explained the mathematical and
+algorithmic meaning of the quantities :math:`d, b, k` which determine the behavior of the constraints in MuJoCo. Here we
+explain how to set them. Setting is done indirectly, through the attributes :at:`solref` and :at:`solimp` which are
+available in all MJCF elements involving constraints. These parameters can be adjusted per constraint, or per defaults
+class, or left undefined - in which case MuJoCo uses the internal defaults shown below. Note also the override mechanism
+available in :ref:`option <option>`; it can be used to change all contact-related solver parameters at runtime, so as to
+experiment interactively with parameter settings or implement continuation methods for numerical optimization.
 
-Here we focus on a single scalar constraint. Using slightly different notation from the Computation chapter, let a1
-denote the acceleration, v the velocity, r the position or residual (defined as 0 in friction dimensions), k and b the
-stiffness and damping of the virtual spring used to define the reference acceleration aref = -b*v - k*r. Let d be the
-constraint impedance, and a0 the acceleration in the absence of constraint force. Our earlier analysis revealed that
-the dynamics in constraint space are approximately
+Here we focus on a single scalar constraint. Using slightly different notation from the Computation chapter, let
+:math:`a_1` denote the acceleration, :math:`v` the velocity, :math:`r` the position or residual (defined as 0 in
+friction dimensions), :math:`k` and :math:`b` the stiffness and damping of the virtual spring used to define the
+reference acceleration :math:`a_{\rm ref} = -b v - k r`. Let :math:`d` be the constraint impedance, and :math:`a_0` the
+acceleration in the absence of constraint force. Our earlier analysis revealed that the dynamics in constraint space are
+approximately
 
-a1 + d \* (b v + k r) = (1 - d) \* a0
+.. math::
+   a_1 + d \cdot (b v + k r) = (1 - d)\cdot a_0
 
-Again, the parameters that are under the user's control are d, b, k. The remaining quantities are functions of the
+Again, the parameters that are under the user's control are :math:`d, b, k`. The remaining quantities are functions of the
 system state and are computed automatically at each time step.
 
-First we explain the setting of the impedance d. Recall that d must lie between 0 and 1; internally MuJoCo clamps it
-to the range [:ref:`mjMINIMP mjMAXIMP <glNumeric>`] which is currently set to [0.0001 0.9999]. It
-causes the solver to interpolate between the unforced acceleration a0 and reference acceleration aref. Small values of
-d correspond to soft/weak constraints while large values of d correspond to strong/hard constraints. The user can set
-d to a constant, or take advantage of its interpolating property and make it position-dependent, i.e., a function of r.
-Position-dependent impedance can be used to model soft contact layers around objects, or define equality constraints
-that become stronger with larger violation (so as to approximate backlash for example). The shape of the function d(r)
-is determined by the element-specific parameter vector :at:`solimp`.
+First we explain the setting of the impedance :math:`d`. Recall that :math:`d` must lie between 0 and 1; internally
+MuJoCo clamps it to the range [:ref:`mjMINIMP mjMAXIMP <glNumeric>`] which is currently set to [0.0001 0.9999]. It
+causes the solver to interpolate between the unforced acceleration :math:`a_0` and reference acceleration
+:math:`a_{\rm ref}`. Small values of :math:`d` correspond to soft/weak constraints while large values of :math:`d`
+correspond to strong/hard constraints. The user can set :math:`d` to a constant, or take advantage of its interpolating
+property and make it position-dependent, i.e., a function of :math:`r`. Position-dependent impedance can be used to
+model soft contact layers around objects, or define equality constraints that become stronger with larger violation (so
+as to approximate backlash for example). The shape of the function :math:`d(r)` is determined by the element-specific
+parameter vector :at:`solimp`.
 
 **solimp :** real(5), "0.9 0.95 0.001 0.5 2"
-   The five numbers are (dmin, dmax, width, midpoint, power). They parameterize the function d(r). Prior to MuJoCo 2.0
-   this attribute had three parameters, plus a global option specifying the shape of the function. In MuJoCo 2.0 we
-   expanded the family of impedance functions while keeping it backward-compatible as follows. The user is allowed to
-   set only the first three parameters, whose defaults are the same as in prior releases. The defaults for the last two
-   parameters then generate the same function which was the default in prior releases (a sigmoid). The new
+
+   The five numbers are (dmin, dmax, width, midpoint, power). They parameterize the function :math:`d(r)`. Prior to
+   MuJoCo 2.0 this attribute had three parameters, plus a global option specifying the shape of the function. In MuJoCo
+   2.0 we expanded the family of impedance functions while keeping it backward-compatible as follows. The user is
+   allowed to set only the first three parameters, whose defaults are the same as in prior releases. The defaults for
+   the last two parameters then generate the same function which was the default in prior releases (a sigmoid). The new
    parameterization further allows the sigmoid to become shifted and skewed, as shown in the plots below for different
    values of the additional parameters. The plots actually show two reflected sigmoids, because the impedance function
-   d(r) depends on the absolute value of r. This flexibility was added to allow better control of remote contact forces,
-   and can also be used for other constraints. The power (of the polynomial spline used to generate the function) must
-   be 1 or greater. The midpoint (specifying the inflection point) must be between 0 and 1, and is expressed in units of
-   width. Note that when the power is 1, the function is linear regardless of the midpoint.
+   :math:`d(r)` depends on the absolute value of :math:`r`. This flexibility was added to allow better control of remote
+   contact forces, and can also be used for other constraints. The power (of the polynomial spline used to generate the
+   function) must be 1 or greater. The midpoint (specifying the inflection point) must be between 0 and 1, and is
+   expressed in units of width. Note that when the power is 1, the function is linear regardless of the midpoint.
    |image0|
 
-   These plots show the impedance d(r) on the vertical axis, as a function of the constraint violation r on the
-   horizontal axis. The quantity r is computed as follows. For equality constraints, r equals the constraint violation
-   which can be either positive or negative. For friction loss or friction dimensions of elliptic cones, r is always 0.
-   For limits, normal directions of elliptic cones and all directions of pyramidal cones, r is the (limit or contact)
-   distance minus the margin at which the constraint becomes active; for contacts this margin is actually margin-gap.
-   Therefore limit and contact constraints are active when the corresponding r is negative.
+   These plots show the impedance :math:`d(r)` on the vertical axis, as a function of the constraint violation :math:`r`
+   on the horizontal axis. The quantity :math:`r` is computed as follows. For equality constraints, :math:`r` equals the
+   constraint violation which can be either positive or negative. For friction loss or friction dimensions of elliptic
+   cones, :math:`r` is always 0. For limits, normal directions of elliptic cones and all directions of pyramidal cones,
+   :math:`r` is the (limit or contact) distance minus the margin at which the constraint becomes active; for contacts
+   this margin is actually margin-gap. Therefore limit and contact constraints are active when the corresponding
+   :math:`r` is negative.
 
-Next we explain the setting of the stiffness k and damping b. The idea here is to re-parameterize the model in terms of
-the time constant and damping ratio of the above mass-spring-damper system. By "time constant" we mean the inverse of
-the natural frequency times the damping ratio. Constraints whose residual is identically 0 have first-order dynamics and
-the mass-spring-damper analysis does not apply. In that case the time constant is the rate of exponential decay of the
-constraint velocity, and the damping ratio is ignored. In addition to this format, MuJoCo 2.0 allows a second format
-where stiffness and damping are specified more directly.
+Next we explain the setting of the stiffness :math:`k` and damping :math:`b`. The idea here is to re-parameterize the
+model in terms of the time constant and damping ratio of the above mass-spring-damper system. By "time constant" we mean
+the inverse of the natural frequency times the damping ratio. Constraints whose residual is identically 0 have first-
+order dynamics and the mass-spring-damper analysis does not apply. In that case the time constant is the rate of
+exponential decay of the constraint velocity, and the damping ratio is ignored. In addition to this format, MuJoCo 2.0
+allows a second format where stiffness and damping are specified more directly.
 
 **solref :** real(2), "0.02 1"
    There are two formats for this attribute, determined by the sign of the numbers. If both numbers are positive the
-   specification is considered to be in the (timeconst, dampratio) format which has been available in MuJoCo all along.
-   Otherwise the specification is considered to be in the new (-stiffness, -damping) format introduced in MuJoCo 2.0.
-   We first describe the original format where the two numbers are (timeconst, dampratio). In this case we use a
-   mass-spring-damper model to compute k, b after suitable scaling. Note that the effective stiffness d(r)*k and damping
-   d(r)*b are scaled by the impedance d(r) which is a function of the distance r. Thus we cannot always achieve the
-   specified mass-spring-damper properties, unless we completely undo the scaling by d. But the latter is undesirable
-   because it would ruin the interpolating property, in particular the limit d = 0 would no longer disable the
-   constraint. Instead we scale the stiffness and damping so that the damping ratio remains constant, while the time
-   constant increases when d(r) gets smaller. The scaling formulas are
-   b = 2 / (dmax \* timeconst)
-   k = d(r) / (dmax \* dmax \* timeconst \* timeconst \* dampratio \* dampratio)
+   specification is considered to be in the :math:`(\text{timeconst}, \text{dampratio})` format which has been available
+   in MuJoCo all along. Otherwise the specification is considered to be in the new :math:`(-\text{stiffness}, -
+   \text{damping})`, format introduced in MuJoCo 2.0. We first describe the original format where the two numbers are
+   :math:`(\text{timeconst}, \text{dampratio})`. In this case we use a mass-spring-damper model to compute :math:`k, b`
+   after suitable scaling. Note that the effective stiffness :math:`d(r) \cdot k` and damping :math:`d(r) \cdot b` are
+   scaled by the impedance :math:`d(r)` which is a function of the distance :math:`r`. Thus we cannot always achieve the
+   specified mass-spring-damper properties, unless we completely undo the scaling by :math:`d`. But the latter is
+   undesirable because it would ruin the interpolating property, in particular the limit :math:`d=0` would no longer
+   disable the constraint. Instead we scale the stiffness and damping so that the damping ratio remains constant, while
+   the time constant increases when :math:`d(r)` gets smaller. The scaling formulas are
+
+   .. math::
+      \begin{aligned}
+      b &= 2 / (d_\text{max}\cdot \text{timeconst}) \\
+      k &= d(r) / (d_\text{max}^2 \cdot \text{timeconst}^2 \cdot \text{dampratio}^2) \\
+      \end{aligned}
+
    The timeconst parameter should be at least two times larger than the simulation time step, otherwise the system can
    become too stiff relative to the numerical integrator (especially when Euler integration is used) and the simulation
-   can go unstable. This is enforced internally, unless the :at:`refsafe` attribute of
-   :ref:`flag <option-flag>` is set to false. The dampratio parameter would normally be set to 1,
-   corresponding to critical damping. Smaller values result in under-damped or bouncy constraints, while larger values
-   result in over-damped constraints.
-   Next we describe the new format where the two numbers are (-stiffness, -damping). This allows more direct control
-   over restitution in particular. We still apply some scaling so that the same numbers can be used with different
-   impedances, but the scaling no longer depends on r and the two numbers no longer interact. The scaling formulas are
-   b = damping / dmax
-   k = stiffness / (dmax \* dmax)
+   can go unstable. This is enforced internally, unless the :at:`refsafe` attribute of :ref:`flag <option-flag>` is set
+   to false. The :math:`\text{dampratio}` parameter would normally be set to 1, corresponding to critical damping.
+   Smaller values result in under-damped or bouncy constraints, while larger values result in over-damped constraints.
+   Next we describe the new format where the two numbers are :math:`(-\text{stiffness}, -\text{damping})`. This allows
+   more direct control over restitution in particular. We still apply some scaling so that the same numbers can be used
+   with different impedances, but the scaling no longer depends on :math:`r` and the two numbers no longer interact. The
+   scaling formulas are
+
+   .. math::
+      \begin{aligned}
+      b &= \text{damping} / d_\text{max} \\
+      k &= \text{stiffness} / d_\text{max}^2 \\
+      \end{aligned}
 
 .. _CContact:
 
@@ -530,20 +544,18 @@ well as solver statistics per iteration. We can offer the following general guid
 Actuator shortcuts
 ~~~~~~~~~~~~~~~~~~
 
-As explained in the :ref:`Actuation model <geActuation>` section of the Computation chapter, MuJoCo
-offers a flexible actuator model with transmission, activation dynamics and force generation components that can be
-specified independently. The full functionality can be accessed via the XML element
-:ref:`general <general>` which allows the user to create a variety of custom actuators. In addition,
-MJCF provides shortcuts for configuring common actuators. This is done via the XML elements
-:ref:`motor <motor>`, :ref:`position <position>`,
-:ref:`velocity <velocity>`, :ref:`cylinder <cylinder>`,
-:ref:`muscle <muscle>`. These are *not* separate model elements. Internally MuJoCo supports only one
+As explained in the :ref:`Actuation model <geActuation>` section of the Computation chapter, MuJoCo offers a flexible
+actuator model with transmission, activation dynamics and force generation components that can be specified
+independently. The full functionality can be accessed via the XML element :ref:`general <general>` which allows the user
+to create a variety of custom actuators. In addition, MJCF provides shortcuts for configuring common actuators. This is
+done via the XML elements :ref:`motor <motor>`, :ref:`position <position>`, :ref:`velocity <velocity>`, :ref:`cylinder
+<cylinder>`, :ref:`muscle <muscle>`. These are *not* separate model elements. Internally MuJoCo supports only one
 actuator type - which is why when an MJCF model is saved all actuators are written as :el:`general`. Shortcuts create
 general actuators implicitly, set their attributes to suitable values, and expose a subset of attributes with possibly
-different names. For example, :el:`position` creates a position servo with attribute :at:`kp` which is the servo
-gain. However :el:`general` does not have an attribute :at:`kp`. Instead the parser adjusts the gain and bias
-parameters of the general actuator in a coordinated way so as to mimic a position servo. The same effect could have
-been achieved by using :el:`general` directly, and setting its attributes to certain values as described below.
+different names. For example, :el:`position` creates a position servo with attribute :at:`kp` which is the servo gain.
+However :el:`general` does not have an attribute :at:`kp`. Instead the parser adjusts the gain and bias parameters of
+the general actuator in a coordinated way so as to mimic a position servo. The same effect could have been achieved by
+using :el:`general` directly, and setting its attributes to certain values as described below.
 
 Actuator shortcuts also interact with defaults. Recall that the :ref:`default setting <CDefault>` mechanism involves
 classes, each of which has a complete collection of dummy elements (one of each element type) used to initialize the
@@ -560,6 +572,53 @@ In light of these potential complications, we recommend a simple approach: use t
 defaults class and in the creation of actual model elements. If a given model requires different actuators, either
 create multiple defaults classes, or avoid using defaults for actuators and instead specify all their attributes
 explicitly.
+
+.. _CActRange:
+
+Activation clamping
+~~~~~~~~~~~~~~~~~~~
+
+As described in the :ref:`Actuation model <geActuation>` section of the Computation chapter, MuJoCo supports actuators
+with internal dynamics whose states are called "activations". One useful application of these stateful actuators is the
+"integrated-velocity" actuator. Different from the :ref:`pure velocity<velocity>` actuators, which implement direct
+feedback on transmission target's velocity, *integrated-velocity* actuators couple an *integrator* with a *position-
+feedback* actuator. In this case the semantics of the activation state are "the target of the position actuator", and
+the semantics of the control signal are "the velocity of the target of the position actuator". Note that in real robotic
+systems this integrated-velocity actuator is the most common implementation of actuators with velocity semantics, rather
+than pure feedback on velocity which is often quite unstable (both in real life and in simulation).
+
+In the case of integrated-velocity actuators, it is often desirable to *clamp* the activation state, since otherwise the
+position target would keep integrating beyond the joint limits, leading to loss of controllabillity. To see the effect
+of activation clamping, load the example model below:
+
+.. code-block:: xml
+
+   <mujoco>
+     <default>
+       <joint axis="0 0 1" limited="true" range="-90 90" damping="0.3"/>
+       <geom size=".1 .1 .1" type="box"/>
+       <general gainprm="1" biastype="affine" biasprm="0 -1" dyntype="integrator"/>
+     </default>
+
+     <worldbody>
+       <body>
+         <joint name="joint 1"/>
+         <geom/>
+       </body>
+       <body pos=".3 0 0">
+         <joint name="joint 2"/>
+         <geom/>
+       </body>
+     </worldbody>
+
+     <actuator>
+       <general name="unclamped" joint="joint 1"/>
+       <general name="clamped" actlimited="true" actrange="-1.57 1.57"/>
+     </actuator>
+   </mujoco>
+
+Note that the :at:`actrange` attribute is always specified in native units (radians), even though the joint range
+can be either in degrees (the default) or radians, depending on the :ref:`compiler/angle <compiler>` attribute.
 
 .. _CLengthRange:
 
@@ -637,103 +696,120 @@ the shortcut :ref:`muscle <muscle>` is more convenient. As with all other actuat
 production mechanism and the transmission are defined independently. Nevertheless, muscles only make (bio)physical
 sense when attached to tendon or joint transmissions. For concreteness we will assume a tendon transmission here.
 
-First we discuss length and length scaling. The range of feasible lengths of the transmission (i.e., MuJoCo tendon)
-will play an important role; see :ref:`Length range <CLengthRange>` section above. In biomechanics, a muscle and a
-tendon are attached in series and form a muscle-tendon actuator. Our convention is somewhat different: in MuJoCo the
-entity that has spatial properties (in particular length and velocity) is the tendon, while the muscle is an abstract
-force-generating mechanism that pulls on the tendon. Thus the tendon length in MuJoCo corresponds to the muscle+tendon
-length in biomechanics. We assume that the biological tendon is inelastic, with constant length LT, while the
-biological muscle length LM varies over time. The MuJoCo tendon length is the sum of the biological muscle and tendon
-lengths:
+First we discuss length and length scaling. The range of feasible lengths of the transmission (i.e., MuJoCo tendon) will
+play an important role; see :ref:`Length range <CLengthRange>` section above. In biomechanics, a muscle and a tendon are
+attached in series and form a muscle-tendon actuator. Our convention is somewhat different: in MuJoCo the entity that
+has spatial properties (in particular length and velocity) is the tendon, while the muscle is an abstract force-
+generating mechanism that pulls on the tendon. Thus the tendon length in MuJoCo corresponds to the muscle+tendon length
+in biomechanics. We assume that the biological tendon is inelastic, with constant length :math:`L_T`, while the
+biological muscle length :math:`L_M` varies over time. The MuJoCo tendon length is the sum of the biological muscle and
+tendon lengths:
 
-actuator_length = LT + LM
+.. math::
+   \texttt{actuator\_length} = L_T + L_M
 
-Another important constant is the optimal resting length of the muscle, denoted L0. It equals the length LM at which
-the muscle generates maximum active force at zero velocity. We do not ask the user to specify L0 and LT directly,
-because it is difficult to know their numeric values given the spatial complexity of the tendon routing and wrapping.
-Instead we compute L0 and LT automatically as follows. The length range computation described above already provided
-the operating range for LT + LM. In addition, we ask the user to specify the operating range for the muscle length LM
-scaled by the (still unknown) constant L0. This is done with the attribute range; the default scaled range is (0.75,
-1.05). Now we can compute the two constants, using the fact that the actual and scaled ranges have to map to each
-other:
+Another important constant is the optimal resting length of the muscle, denoted :math:`L_0`. It equals the length
+:math:`L_M` at which the muscle generates maximum active force at zero velocity. We do not ask the user to specify
+:math:`L_0` and :math:`L_T` directly, because it is difficult to know their numeric values given the spatial complexity
+of the tendon routing and wrapping. Instead we compute :math:`L_0` and :math:`L_T` automatically as follows. The length
+range computation described above already provided the operating range for :math:`L_T+L_M`. In addition, we ask the user
+to specify the operating range for the muscle length :math:`L_M` scaled by the (still unknown) constant :math:`L_0`.
+This is done with the attribute range; the default scaled range is :math:`(0.75, 1.05)`. Now we can compute the two
+constants, using the fact that the actual and scaled ranges have to map to each other:
 
-(actuator_lengthrange[0] - LT) / L0 = range[0]
-
-(actuator_lengthrange[1] - LT) / L0 = range[1]
+.. math::
+   \begin{aligned}
+   (\texttt{actuator\_lengthrange[0]} - L_T) / L_0 &= \texttt{range[0]} \\
+   (\texttt{actuator\_lengthrange[1]} - L_T) / L_0 &= \texttt{range[1]} \\
+   \end{aligned}
 
 At runtime, we compute the scaled muscle length and velocity as:
 
-L = (actuator_length - LT) / L0
-
-V = actuator_velocity / L0
+.. math::
+   \begin{aligned}
+   L &= (\texttt{actuator\_length} - L_T) / L_0 \\
+   V &= \texttt{actuator\_velocity} / L_0 \\
+   \end{aligned}
 
 The advantage of the scaled quantities is that all muscles behave similarly in that representation. The behavior is
-captured by the Force-Length-Velocity (FLV) function measured in many experimental papers. We approximate this
-function as follows:
+captured by the Force-Length-Velocity (:math:`\text{\small FLV}`) function measured in many experimental papers. We
+approximate this function as follows:
 
 |image1|
 
 The function is in the form:
 
-FLV(L, V, act) = FL(L)*FV(V)*act + FP(L)
+.. math::
+   \text{\small FLV}(L, V, \texttt{act}) = F_L(L)\cdot F_V(V)\cdot \texttt{act} + F_P(L)
 
-Comparing to the general form of a MuJoCo actuator, we see that FL*FV is the actuator gain and FP is the actuator
-bias. FL is the active force as a function of length, while FV is the active force as a function of velocity. They are
-multiplied to obtain the overall active force (note the scaling by act which is the actuator activation). FP is the
-passive force which is always present regardless of activation. The output of the FLV function is the scaled muscle
-force. We multiply the scaled force by a muscle-specific constant F0 to obtain the actual force:
+Comparing to the general form of a MuJoCo actuator, we see that :math:`F_L\cdot F_V` is the actuator gain and
+:math:`F_P` is the actuator bias. :math:`F_L` is the active force as a function of length, while :math:`F_V` is the
+active force as a function of velocity. They are multiplied to obtain the overall active force (note the scaling by act
+which is the actuator activation). :math:`F_P` is the passive force which is always present regardless of activation.
+The output of the :math:`\text{\small FLV}` function is the scaled muscle force. We multiply the scaled force by a
+muscle-specific constant :math:`F_0` to obtain the actual force:
 
-actuator_force = - FLV(L, V, act) \* F0
+.. math::
+   \texttt{actuator\_force} = -\text{\small FLV}(L, V, \texttt{act}) \cdot F_0
 
-The negative sign is because positive muscle activation generates pulling force. The constant F0 is the peak active
-force at zero velocity. It is related to the muscle thickness (i.e., physiological cross-sectional area or PCSA). If
-known, it can be set with the attribute force of element :ref:`muscle <muscle>`. If it is not known, we
-set it to -1 which is the default. In that case we rely on the fact that larger muscles tend to act on joints that
-move more weight. The attribute scale defines this relationship as:
+The negative sign is because positive muscle activation generates pulling force. The constant :math:`F_0` is the peak
+active force at zero velocity. It is related to the muscle thickness (i.e., physiological cross-sectional area or PCSA).
+If known, it can be set with the attribute force of element :ref:`muscle <muscle>`. If it is not known, we set it to
+:math:`-1` which is the default. In that case we rely on the fact that larger muscles tend to act on joints that move
+more weight. The attribute scale defines this relationship as:
 
-F0 = scale / actuator_acc0
+.. math::
+   F_0 = \text{scale} / \texttt{actuator\_acc0}
 
-The quantity actuator_acc0 is precomputed by the model compiler. It is the norm of the joint acceleration caused by
-unit force acting on the actuator transmission. Intuitively, scale determines how strong the muscle is "on average"
-while its actual strength depends on the geometric and inertial properties of the entire model.
+The quantity :math:`\texttt{actuator\_acc0}` is precomputed by the model compiler. It is the norm of the joint
+acceleration caused by unit force acting on the actuator transmission. Intuitively, :math:`\text{scale}` determines how
+strong the muscle is "on average" while its actual strength depends on the geometric and inertial properties of the
+entire model.
 
-Thus far we encountered three constants that define the properties of an individual muscle: LT, L0, F0. In addition,
-the function FLV itself has several parameters illustrated in the above figure: lmin, lmax, vmax, fpmax, fvmax. These
-are supposed to be the same for all muscles, however different experimental papers suggest different shapes of the FLV
-function, thus users familiar with that literature may want to adjust them. We provide the MATLAB function
-`FLV.m <_static/FLV.m>`__ which was used to generate the above figure and shows how we compute the FLV function.
+Thus far we encountered three constants that define the properties of an individual muscle: :math:`L_T, L_0, F_0`. In
+addition, the function :math:`\text{\small FLV}` itself has several parameters illustrated in the above figure:
+:math:`l_\text{min}, l_\text{max}, v_\text{max}, f_\text{pmax}, f_\text{vmax}`. These are supposed to be the same for
+all muscles, however different experimental papers suggest different shapes of the FLV function, thus users familiar
+with that literature may want to adjust them. We provide the MATLAB function `FLV.m <_static/FLV.m>`__ which was used to
+generate the above figure and shows how we compute the :math:`\text{\small FLV}` function.
 
-Before embarking on a mission to design more accurate FLV functions, consider the fact that the operating range of the
-muscle has a bigger effect than the shape of the FLV function, and in many cases this parameter is unknown. Below is a
-graphical illustration:
+Before embarking on a mission to design more accurate :math:`\text{\small FLV}` functions, consider the fact that the
+operating range of the muscle has a bigger effect than the shape of the :math:`\text{\small FLV}` function, and in many
+cases this parameter is unknown. Below is a graphical illustration:
 
 |image2|
 
-This figure format is common in the biomechanics literature, showing the operating range of each muscle superimposed
-on the normalized FL curve (ignore the vertical displacement). Our default range is shown in black. The blue curves
-are experimental data for two arm muscles. One can find muscles with small range, large range, range spanning the
-ascending portion of the FL curve, or the descending portion, or some of both. Now suppose you have a model with 50
-muscles. Do you believe that someone did careful experiments and measured the operating range for every muscle in your
-model, taking into account all the joints that the muscle spans? If not, then it is better to think of
+This figure format is common in the biomechanics literature, showing the operating range of each muscle superimposed on
+the normalized :math:`\text{FL}` curve (ignore the vertical displacement). Our default range is shown in black. The blue
+curves are experimental data for two arm muscles. One can find muscles with small range, large range, range spanning the
+ascending portion of the :math:`\text{FL}` curve, or the descending portion, or some of both. Now suppose you have a
+model with 50 muscles. Do you believe that someone did careful experiments and measured the operating range for every
+muscle in your model, taking into account all the joints that the muscle spans? If not, then it is better to think of
 musculo-skeletal models as having the same general behavior as the biological system, while being different in various
 details - including details that are of great interest to some research community. For most muscle properties which
-modelers consider constant and known, there is an experimental paper showing that they vary under some conditions.
-This is not to discourage people from building accurate models, but rather to discourage people from believing too
-strongly in their models. Modeling in biology is quite different from modeling in physics and engineering... which is
-why we find it ironic when people in Robotics complain that building accurate robot models is hard.
+modelers consider constant and known, there is an experimental paper showing that they vary under some conditions. This
+is not to discourage people from building accurate models, but rather to discourage people from believing too strongly
+in their models. Modeling in biology is quite different from modeling in physics and engineering... which is why we find
+it ironic when people in Robotics complain that building accurate robot models is hard.
 
 Coming back to our muscle model, there is the muscle activation act. This is the state of a first-order nonlinear
 filter whose input is the control signal. The filter dynamics are:
 
-d act / dt = (ctrl - act) / tau(ctrl, act)
+
+.. math::
+   \frac{\partial}{\partial t}\texttt{act} = \frac{\texttt{ctrl} - \texttt{act}}{\tau(\texttt{ctrl}, \texttt{act})}
 
 Internally the control signal is clamped to [0, 1] even if the actuator does not have a control range specified. There
-are two time constants specified with the attribute timeconst, namely timeconst = (tau_act, tau_deact) with defaults
-(0.01, 0.04). The effective time constant tau is then computed at runtime as:
+are two time constants specified with the attribute timeconst, namely :math:`\text{timeconst} = (\tau_\text{act},
+\tau_\text{deact})` with defaults :math:`(0.01, 0.04)`. Following `Millard et al. (2013)
+<https://doi.org/10.1115/1.4023390>`__, the effective time constant :math:`\tau` is then computed at runtime as:
 
-tau(ctrl, act) = tau_act \* (0.5 + 1.5*act), if ctrl > act
-
-tau(ctrl, act) = tau_deact / (0.5 + 1.5*act), if ctrl <= act
+.. math::
+   \tau(\texttt{ctrl}, \texttt{act}) =
+   \begin{cases}
+      \tau_\text{act} \cdot (0.5 + 1.5\cdot\texttt{act}) & \texttt{ctrl} \gt \texttt{act} \\
+      \tau_\text{deact} / (0.5 + 1.5\cdot\texttt{act}) & \texttt{ctrl} \leq \texttt{act}
+   \end{cases}
 
 Now we summarize the attributes of element :ref:`muscle <muscle>` which users may want to adjust,
 depending on their familiarity with the biomechanics literature and availability of detailed measurements with regard
@@ -747,8 +823,8 @@ scale
    This can be adjusted separately for each muscle, but it makes more sense to set it once in the
    :ref:`default <default>` element.
 force
-   If you know the peak active force F0 of the individual muscles, enter it here. Many experimental papers contain this
-   data.
+   If you know the peak active force :math:`F_0` of the individual muscles, enter it here. Many experimental papers
+   contain this data.
 range
    The operating range of the muscle in scaled lengths is also available in some papers. It is not clear how reliable
    such measurements are (given that muscles act on many joints) but they do exist. Note that the range differs
@@ -756,11 +832,11 @@ range
 timeconst
    Muscles are composed of slow-twitch and fast-twitch fibers. The typical muscle is mixed, but some muscles have a
    higher proportion of one or the other fiber type, making them faster or slower. This can be modeled by adjusting the
-   time constants. The vmax parameter of the FLV function should also be adjusted accordingly.
+   time constants. The vmax parameter of the :math:`\text{\small FLV}` function should also be adjusted accordingly.
 lmin, lmax, vmax, fpmax, fvmax
-   These are the parameters controlling the shape of the FLV function. Advanced users can experiment with them; see
-   MATLAB function `FLV.m <_static/FLV.m>`__. Similar to the scale setting, if you want to change the FLV
-   parameters for all muscles, do so in the :ref:`default <default>` element.
+   These are the parameters controlling the shape of the :math:`\text{\small FLV}` function. Advanced users can
+   experiment with them; see MATLAB function `FLV.m <_static/FLV.m>`__. Similar to the scale setting, if you want to
+   change the :math:`\text{\small FLV}` parameters for all muscles, do so in the :ref:`default <default>` element.
 Custom model
    Instead of adjusting the parameters of our muscle model, users can implement a different model, by setting gaintype,
    biastype and dyntype of a :ref:`general <general>` actuator to "user" and providing callbacks at
@@ -777,17 +853,15 @@ simulations. To help MuJoCo users convert OpenSim models, here we summarize the 
 
 The activation dynamics model is identical to OpenSim, including the default time constants.
 
-The FLV function is not exactly the same, but both MuJoCo and OpenSim approximate the same experimental data, so they
-are very close. For a description of the OpenSim model and summary of relevant experimental data, see:
-
-Millard et al, "Flexing computational muscle: modeling and simulation of musculotendon dynamics", J Biomech Eng. 2013
-Feb;135(2)
+The :math:`\text{\small FLV}` function is not exactly the same, but both MuJoCo and OpenSim approximate the same
+experimental data, so they are very close. For a description of the OpenSim model and summary of relevant experimental
+data, see `Millard et al. (2013) <https://doi.org/10.1115/1.4023390>`__.
 
 We assume inelastic tendons while OpenSim can model tendon elasticity. We decided not to do that here, because tendon
 elasticity requires fast-equilibrium assumptions which in turn require various tweaks and are prone to simulation
-instability. In practice tendons are quite stiff, and their effect can be captured approximately by stretching the FL
-curve corresponding to the inelastic case (Zajac 89). This can be done in MuJoCo by shortening the muscle operating
-range.
+instability. In practice tendons are quite stiff, and their effect can be captured approximately by stretching the
+:math:`\text{FL}` curve corresponding to the inelastic case (`Zajac (1989)
+<https://pubmed.ncbi.nlm.nih.gov/2676342/>`__). This can be done in MuJoCo by shortening the muscle operating range.
 
 Pennation angle (i.e., the angle between the muscle and the line of force) is not modeled in MuJoCo and is assumed to
 be 0. This effect can be approximated by scaling down the muscle force and also adjusting the operating range.
@@ -885,9 +959,9 @@ see the XML model files in the distribution for the complete examples.
 .. code-block:: xml
 
    <worldbody>
-       <composite type="particle" count="10 10 10" spacing="0.07" offset="0 0 1">
-           <geom size=".02" rgba=".8 .2 .1 1"/>
-       </composite>
+     <composite type="particle" count="10 10 10" spacing="0.07" offset="0 0 1">
+       <geom size=".02" rgba=".8 .2 .1 1"/>
+     </composite>
    </worldbody>
 
 The above XML is all it takes to create a system with 1000 particles with initial positions on a 10-10-10 grid, and
@@ -908,11 +982,11 @@ simulation at much larger timesteps (this model is stable at 30 ms timestep and 
 .. code-block:: xml
 
    <composite type="grid" count="20 1 1" spacing="0.045" offset="0 0 1">
-       <joint kind="main" damping="0.001"/>
-       <tendon kind="main" width="0.01"/>
-       <geom size=".02" rgba=".8 .2 .1 1"/>
-       <pin coord="1"/>
-       <pin coord="13"/>
+     <joint kind="main" damping="0.001"/>
+     <tendon kind="main" width="0.01"/>
+     <geom size=".02" rgba=".8 .2 .1 1"/>
+     <pin coord="1"/>
+     <pin coord="13"/>
    </composite>
 
 The grid type can create 1D or 2D grids, depending on the :at:`count` attribute. Here we illustrate 1D grids. These
@@ -930,10 +1004,10 @@ example; in that case the parent body would be moving, and the first element bod
 .. code-block:: xml
 
    <composite type="grid" count="9 9 1" spacing="0.05" offset="0 0 1">
-       <skin material="matcarpet" inflate="0.001" subgrid="3" texcoord="true"/>
-       <geom size=".02"/>
-       <pin coord="0 0"/>
-       <pin coord="8 0"/>
+     <skin material="matcarpet" inflate="0.001" subgrid="3" texcoord="true"/>
+     <geom size=".02"/>
+     <pin coord="0 0"/>
+     <pin coord="8 0"/>
    </composite>
 
 A 2D grid can be used to simulate cloth. What it really simulates is a 2D grid of spheres connected with
@@ -950,11 +1024,11 @@ absence of textures. When textures are present (left) the benefits of subdivisio
 .. code-block:: xml
 
    <body name="B10" pos="0 0 1">
-       <freejoint/>
-       <composite type="rope" count="21 1 1" spacing="0.04" offset="0 0 2">
-           <joint kind="main" damping="0.005"/>
-           <geom type="capsule" size=".01 .015" rgba=".8 .2 .1 1"/>
-       </composite>
+     <freejoint/>
+     <composite type="rope" count="21 1 1" spacing="0.04" offset="0 0 2">
+       <joint kind="main" damping="0.005"/>
+       <geom type="capsule" size=".01 .015" rgba=".8 .2 .1 1"/>
+     </composite>
    </body>
 
 The remaining composite object types create kinematic trees of element bodies, and the parent body becomes the root of
@@ -978,12 +1052,12 @@ The loop is similar to a rope but the first and last element bodies are connecte
 .. code-block:: xml
 
    <body name="B3_5" pos="0 0 1">
-       <freejoint/>
-       <composite type="cloth" count="9 9 1" spacing="0.05" flatinertia="0.01">
-           <joint kind="main" damping="0.001"/>
-           <skin material="matcarpet" texcoord="true" inflate="0.005" subgrid="2"/>
-           <geom type="capsule" size="0.015 0.01" rgba=".8 .2 .1 1"/>
-       </composite>
+     <freejoint/>
+     <composite type="cloth" count="9 9 1" spacing="0.05" flatinertia="0.01">
+       <joint kind="main" damping="0.001"/>
+       <skin material="matcarpet" texcoord="true" inflate="0.005" subgrid="2"/>
+       <geom type="capsule" size="0.015 0.01" rgba=".8 .2 .1 1"/>
+     </composite>
    </body>
 
 The cloth type is an alternative to a 2D grid, and has somewhat different properties. Similar to rope vs. 1D grid, the
@@ -1004,11 +1078,11 @@ some damping for stable integration. The parameters can be found in the XML mode
 .. code-block:: xml
 
    <body pos="0 0 1">
-       <freejoint/>
-       <composite type="box" count="7 7 7" spacing="0.04">
-           <skin texcoord="true" material="matsponge" rgba=".7 .7 .7 1"/>
-           <geom type="capsule" size=".015 0.05" rgba=".8 .2 .1 1"/>
-       </composite>
+     <freejoint/>
+     <composite type="box" count="7 7 7" spacing="0.04">
+       <skin texcoord="true" material="matsponge" rgba=".7 .7 .7 1"/>
+       <geom type="capsule" size=".015 0.05" rgba=".8 .2 .1 1"/>
+     </composite>
    </body>
 
 The box type, as well as the cylinder and ellipsoid types below, are used to model soft 3D objects. The element bodies
@@ -1036,11 +1110,11 @@ points to the outside, thus creating a thicker shell which is harder to penetrat
 .. code-block:: xml
 
    <body pos="0 0 1">
-       <freejoint/>
-       <composite type="ellipsoid" count="5 7 9" spacing="0.05">
-           <skin texcoord="true" material="matsponge" rgba=".7 .7 .7 1"/>
-           <geom type="capsule" size=".015 0.05" rgba=".8 .2 .1 1"/>
-       </composite>
+     <freejoint/>
+     <composite type="ellipsoid" count="5 7 9" spacing="0.05">
+       <skin texcoord="true" material="matsponge" rgba=".7 .7 .7 1"/>
+       <geom type="capsule" size=".015 0.05" rgba=".8 .2 .1 1"/>
+     </composite>
    </body>
 
 Cylinders and ellipsoids are created in the same way as boxes. The only difference is that the reference positions of
@@ -1141,11 +1215,11 @@ Here is an example extension section of a URDF model:
 .. code-block:: xml
 
    <robot name="darwin">
-       <mujoco>
-           <compiler meshdir="../mesh/darwin/" balanceinertia="true"/>
-       </mujoco>
-       <link name="MP_BODY">
-           ...
+     <mujoco>
+       <compiler meshdir="../mesh/darwin/" balanceinertia="true"/>
+     </mujoco>
+     <link name="MP_BODY">
+       ...
    </robot>
 
 The above extensions make URDF more usable but still limited. If the user wants to build models taking full advantage of
@@ -1179,8 +1253,8 @@ orientation:
 .. code-block:: xml
 
    <body>
-       <joint name="J1" type="hinge" pos="0 0 0" axis="0 0 1" armature="0.01"/>
-       <joint name="J2" type="hinge" pos="0 0 0" axis="0 0 1" limited="true" range="-1 1"/>
+     <joint name="J1" type="hinge" pos="0 0 0" axis="0 0 1" armature="0.01"/>
+     <joint name="J2" type="hinge" pos="0 0 0" axis="0 0 1" limited="true" range="-1 1"/>
    </body>
 
 Thus the overall rotation of the body relative to its parent is J1+J2. Now define an actuator acting only on J1. The
@@ -1249,12 +1323,12 @@ in a visible way, and the energy fluctuates around the initial value instead of 
 .. code-block:: xml
 
    <worldbody>
-       <geom type="plane" size="1 1 .1"/>
+     <geom type="plane" size="1 1 .1"/>
 
-       <body pos="0 0 1">
-           <freejoint/>
-           <geom type="sphere" size="0.1" solref="-1000 0"/>
-       </body>
+     <body pos="0 0 1">
+       <freejoint/>
+       <geom type="sphere" size="0.1" solref="-1000 0"/>
+     </body>
    </worldbody>
 
 .. _CSize:

@@ -15,8 +15,9 @@
 #ifndef MUJOCO_PYTHON_MJDATA_META_H_
 #define MUJOCO_PYTHON_MJDATA_META_H_
 
-#include <mjxmacro.h>
+#include <mujoco/mjxmacro.h>
 #include "raw.h"
+#include "util/crossplatform.h"
 
 namespace mujoco::python {
 namespace _impl {
@@ -95,7 +96,8 @@ struct MjDataMetadata {
 #undef X
         dummy_() {}
 
-  bool dummy_;  // Dummy variable to terminate X macro sequences.
+  // Dummy variable to terminate X macro sequences.
+  MUJOCO_MAYBE_UNUSED bool dummy_;
 };
 
 }  // namespace mujoco::python

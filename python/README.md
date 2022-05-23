@@ -31,44 +31,63 @@ need to be downloaded or installed separately.
 
 ### Source
 
-**Note.** Building from source is only necessary if you are modifying the Python bindings (or are trying to run on exceptionally old Linux systems). If that's not the case, then we recommend installing the prebuilt binaries from PyPI.
+**IMPORTANT:** Building from source is only necessary if you are modifying the
+Python bindings (or are trying to run on exceptionally old Linux systems).
+If that's not the case, then we recommend installing the prebuilt binaries from
+PyPI.
 
-Before proceeding, make sure you have CMake and a C++17 compiler installed.
+1. Make sure you have CMake and a C++17 compiler installed.
 
-1. Download the latest release of the [binary archives](https://github.com/deepmind/mujoco/releases) from GitHub. On macOS, the download corresponds to a DMG file from which you can drag the `MuJoCo` app into your Applications folder.
+1. Download the [latest binary release](https://github.com/deepmind/mujoco/releases)
+   from GitHub. On macOS, the download corresponds to a DMG file from which you
+   can drag `MuJoCo.app` into your `/Applications` folder.
 
-2. Clone the entire `mujoco` repository from GitHub and `cd` into the python directory.
+1. Clone the entire `mujoco` repository from GitHub and `cd` into the python
+   directory.
 
-```bash
-git clone https://github.com/deepmind/mujoco.git
-cd mujoco/python
-```
+   ```bash
+   git clone https://github.com/deepmind/mujoco.git
+   cd mujoco/python
+   ```
 
-3. Create a virtual environment:
+1. Create a virtual environment:
 
-```bash
-python3 -m venv /tmp/mujoco
-source /tmp/mujoco/bin/activate
-```
+   ```bash
+   python3 -m venv /tmp/mujoco
+   source /tmp/mujoco/bin/activate
+   ```
 
-4. Generate a [source distribution](https://packaging.python.org/en/latest/glossary/#term-Source-Distribution-or-sdist)
-tarball with the `make_sdist.sh` script.
+1. Generate a [source distribution](https://packaging.python.org/en/latest/glossary/#term-Source-Distribution-or-sdist)
+   tarball with the `make_sdist.sh` script.
 
-```bash
-cd python
-bash make_sdist.sh
-```
+   ```bash
+   cd python
+   bash make_sdist.sh
+   ```
 
-The `make_sdist.sh` script generates additional C++ header files that are needed to build the bindings, and also pulls in required files from elsewhere in the repository outside the `python` directory into the sdist. Upon completion, the script will create a `dist` directory with a `mujoco-2.1.X.tar.gz` file (where X is the version number of the release).
+   The `make_sdist.sh` script generates additional C++ header files that are
+   needed to build the bindings, and also pulls in required files from elsewhere
+   in the repository outside the `python` directory into the sdist. Upon
+   completion, the script will create a `dist` directory with a
+   `mujoco-x.y.z.tar.gz` file (where `x.y.z` is the version number).
 
-5. Install the generated tarball. You'll need to specify the path to the MuJoCo library you downloaded earlier. For example, on macOS, this will be `/Applications/MuJoCo.app/Contents/Frameworks/MuJoCo.framework` if you dragged it to your Applications folder.
+1. Use the generated source distribution to build and install the bindings.
+   You'll need to specify the path to the MuJoCo library you downloaded earlier
+   in the `MUJOCO_PATH` environment variable.
 
-```bash
-cd dist
-MUJOCO_PATH=/PATH/TO/MUJOCO pip install mujoco-2.1.X.tar.gz
-```
+   **Note**: For macOS, this can be the path to a directory that contains the
+   `mujoco.framework`. In particular, you can set
+   `MUJOCO_PATH=/Applications/MuJoCo.app` if you installed MuJoCo as suggested
+   in step 1.
 
-The Python bindings should now be installed! To check that they've been successfully installed, `cd` outside of the `mujoco` directory and run `python -c "import mujoco"`.
+   ```bash
+   cd dist
+   MUJOCO_PATH=/PATH/TO/MUJOCO pip install mujoco-x.y.z.tar.gz
+   ```
+
+The Python bindings should now be installed! To check that they've been
+successfully installed, `cd` outside of the `mujoco` directory and run
+`python -c "import mujoco"`.
 
 ## Usage
 

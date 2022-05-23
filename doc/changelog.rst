@@ -2,6 +2,63 @@
 Changelog
 =========
 
+Version 2.2.0 (May 23, 2022)
+-----------------------------
+
+Open Sourcing
+^^^^^^^^^^^^^
+
+1. MuJoCo is now fully open-source software. Newly available top level directories are:
+
+   a. ``src/``: All source files. Subrirectories correspond to the modules described in the Programming chapter
+   :ref:`introduction<inIntro>`:
+
+   - ``src/engine/``: Core engine.
+   - ``src/xml/``: XML parser.
+   - ``src/user/``: Model compiler.
+   - ``src/visualize/``: Abstract visualizer.
+   - ``src/ui/``: UI framework.
+
+   b. ``test/``: Tests and corresponding asset files.
+
+   c. ``dist/``: Files related to packaging and binary distribution.
+
+#. Added `contributor's guide <https://github.com/deepmind/mujoco/blob/main/CONTRIBUTING.md>`_ and
+   `style guide <https://github.com/deepmind/mujoco/blob/main/STYLEGUIDE.md>`_.
+
+General
+^^^^^^^
+
+3. Added :at:`actlimited` and :at:`actrange` attributes to :ref:`general actuators<general>`, for clamping actuator
+   internal states (activations). This clamping is useful for integrated-velocity actuators, see the :ref:`Activation
+   clamping <CActRange>` section for details.
+
+#. ``mjData`` fields ``qfrc_unc`` (unconstrained forces) and ``qacc_unc`` (unconstrained accelerations) were renamed
+   ``qfrc_smooth`` and ``qacc_smooth``, respectively. While "unconstrained" is precise, "smooth" is more intelligible
+   than "unc".
+
+#. Public headers have been moved from ``/include`` to ``/include/mujoco/``, in line with the directory layout common in
+   other open source projects. Developers are encouraged to include MuJoCo public headers in their own codebase via
+   ``#include <mujoco/filename.h>``.
+
+#. The default shadow resolution specified by the :ref:`shadowsize<quality>` attribute was increased from 1024 to 4096.
+
+#. Saved XMLs now use 2-space indents.
+
+Bug fixes
+^^^^^^^^^
+
+8. Antialiasing was disabled for segmentation rendering. Before this change, if the :ref:`offsamples<quality>`
+   attribute was greater than 0 (the default value is 4), pixels that overlapped with multiple geoms would receive
+   averaged segmentation IDs, leading to incorrect or non-existant IDs. After this change :at:`offsamples` is ignored
+   during segmentation rendering.
+
+#. The value of the enable flag for the experimental multiCCD feature was made sequential with other enable flags.
+   Sequentiality is assumed in the ``simulate`` UI and elsewhere.
+
+#. Fix issue of duplicated meshes when saving models with OBJ meshes using mj_saveLastXML.
+
+
 Version 2.1.5 (Apr. 13, 2022)
 -----------------------------
 
@@ -106,7 +163,7 @@ API changes
 ^^^^^^^^^^^
 
 4. Moved definition of ``mjtNum`` floating point type into a new header
-   `mjtnum.h <https://github.com/deepmind/mujoco/blob/main/include/mjtnum.h>`_.
+   `mjtnum.h <https://github.com/deepmind/mujoco/blob/3577e2cf8bf841475b489aefff52276a39f24d51/include/mjtnum.h>`_.
 #. Renamed header `mujoco_export.h` to :ref:`mjexport.h<inHeader>`.
 #. Added ``mj_printFormattedData``, which accepts a format string for floating point numbers, for example to increase
    precision.

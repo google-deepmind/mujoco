@@ -19,7 +19,7 @@
 #include <sstream>
 #include <type_traits>
 
-#include <mujoco.h>
+#include <mujoco/mujoco.h>
 #include "errors.h"
 #include "structs.h"
 #include "raw.h"

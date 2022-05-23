@@ -20,11 +20,10 @@
 #include <variant>
 #include <vector>
 
-#include "errors.h"
 #include "indexers.h"
 #include "mjdata_meta.h"
 #include "raw.h"
-#include <pybind11/pybind11.h>
+#include "util/crossplatform.h"
 
 namespace mujoco::python {
 
@@ -218,13 +217,15 @@ MJDATA_VIEW_GROUPS
 #undef XGROUP
 
 #define MAKE_SHAPE(dim)                                              \
-  [n = (dim)]() -> std::vector<int> {                                \
+  MUJOCO_DIAG_IGNORE_UNUSED_LAMBDA_CAPTURE                           \
+    [n = (dim)]() -> std::vector<int> {                              \
     if constexpr (std::string_view(#dim) == std::string_view("1")) { \
       return {};                                                     \
     } else {                                                         \
       return {n};                                                    \
     }                                                                \
-  }()
+  }()                                                                \
+  MUJOCO_DIAG_UNIGNORE_UNUSED_LAMBDA_CAPTURE
 
 #undef MJ_M
 #define MJ_M(n) m_->n

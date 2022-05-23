@@ -1,0 +1,8 @@
+<mujoco>
+  <asset>
+    <mesh file="duplicate.obj"/>
+  </asset>
+  <worldbody>
+    <geom type="mesh" mesh="duplicate"/>
+  </worldbody>
+</mujoco>

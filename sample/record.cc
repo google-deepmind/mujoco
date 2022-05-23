@@ -16,7 +16,7 @@
 #include <cstdlib>
 #include <cstring>
 
-#include <mujoco.h>
+#include <mujoco/mujoco.h>
 
 // select EGL, OSMESA or GLFW
 #if defined(MJ_EGL)

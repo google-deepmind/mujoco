@@ -23,7 +23,7 @@
 #include <type_traits>
 
 #include <Eigen/Core>
-#include <mujoco.h>
+#include <mujoco/mujoco.h>
 #include "errors.h"
 #include "structs.h"
 #include "util/array_traits.h"

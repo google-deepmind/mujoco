@@ -26,6 +26,7 @@ sys.path.insert(0, os.path.abspath('../'))
 sys.path.append(os.path.abspath('ext'))
 
 import sphinxcontrib.katex as katex  # pylint: disable=g-import-not-at-top
+import sphinxcontrib.youtube as youtube  # pylint: disable=g-import-not-at-top
 
 # -- Project information -----------------------------------------------------
 
@@ -42,6 +43,7 @@ master_doc = 'index'
 # ones.
 extensions = [
     'sphinxcontrib.katex',
+    'sphinxcontrib.youtube',
     'sphinx_reredirects',
 ]
 

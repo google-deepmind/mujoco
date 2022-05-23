@@ -20,7 +20,7 @@
 #include <string>
 #include <type_traits>
 
-#include <mjexport.h>
+#include <mujoco/mjexport.h>
 #include "util/crossplatform.h"
 #include "util/func_wrap.h"
 #include <pybind11/pybind11.h>
@@ -109,7 +109,7 @@ class ErrorBase : public pybind11::builtin_exception {
 static thread_local std::jmp_buf mju_error_jmp_buf;
 static thread_local std::array<char, 1024> mju_error_msg{0};
 
-static void MjErrorHandler(const char* msg) {
+static inline void MjErrorHandler(const char* msg) {
   std::strncpy(mju_error_msg.data(), msg, mju_error_msg.size());
   std::longjmp(mju_error_jmp_buf, 1);
 }
