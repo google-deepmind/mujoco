@@ -13,8 +13,8 @@ MuJoCo has a C API and is intended for researchers and developers. The runtime
 simulation module is tuned to maximize performance and operates on low-level
 data structures that are preallocated by the built-in XML compiler. The library
 includes interactive visualization with a native GUI, rendered in OpenGL. MuJoCo
-further exposes a large number of utility functions for computing physics-
-related quantities. We also provide Python bindings and a plug-in for the Unity
+further exposes a large number of utility functions for computing physics-related
+quantities. We also provide Python bindings and a plug-in for the [Unity]
 game engine.
 
 ## Documentation
@@ -30,8 +30,7 @@ and macOS (universal). This is the recommended way to use the software.
 
 Users who wish to build MuJoCo from source, please consult the [build from
 source] section of the documentation. However, please note that the commit at
-the tip of the `main` branch branch may be unstable.
-
+the tip of the `main` branch may be unstable.
 
 ## Getting Started
 
@@ -47,10 +46,9 @@ your machine.
 If you are a Python user, you might want to start with our tutorial notebooks,
 running on Google Colab:
 
-  - The first tutorial focuses on the basic MuJoco Python bindings: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/deepmind/dm_control/blob/main/dm_control/mujoco/tutorial.ipynb).
+  - The first tutorial focuses on the basic MuJoco Python bindings: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/deepmind/dm_control/blob/main/dm_control/mujoco/tutorial.ipynb)
 
-  - The second tutorial includes more examples of `dm_control`-specific functionality: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/deepmind/dm_control/blob/main/tutorial.ipynb).
-
+  - The second tutorial includes more examples of `dm_control`-specific functionality: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/deepmind/dm_control/blob/main/tutorial.ipynb)
 
 ## Citation
 
@@ -67,7 +65,6 @@ If you use MuJoCo for published research, please cite:
   doi={10.1109/IROS.2012.6386109}
 }
 ```
-
 
 ## License and Disclaimer
 
@@ -90,6 +87,7 @@ This is not an officially supported Google product.
 [Getting Started]: https://mujoco.readthedocs.io/en/latest/programming.html#getting-started
 [acquisition]: https://www.deepmind.com/blog/opening-up-a-physics-simulator-for-robotics
 [open sourcing]: https://www.deepmind.com/blog/open-sourcing-mujoco
+[Unity]: https://unity.com/
 [releases page]: https://github.com/deepmind/mujoco/releases
 [GitHub Issues]: https://github.com/deepmind/mujoco/issues
 [documentation source files]: https://github.com/deepmind/mujoco/tree/main/doc
