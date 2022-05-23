@@ -40,12 +40,12 @@ UI framework
 Getting started
 ~~~~~~~~~~~~~~~
 
-MuJoCo is an open source project. Pre-built dynamic libraries are available for x86_64 and arm64 machines running
+MuJoCo is an open-source project. Pre-built dynamic libraries are available for x86_64 and arm64 machines running
 Windows, Linux, and macOS. These can be downloaded from the `GitHub Releases page <https://github.com/deepmind/mujoco/releases>`_.
 Users who do not intend to develop or modify core MuJoCo code are encouraged to use our pre-built libraries, as these
-come bundled with the same versions of dependencies those that we regularly test against, and benefit from build flags
+come bundled with the same versions of dependencies that we regularly test against, and benefit from build flags
 that have been tuned for performance. Our pre-built libraries are almost entirely self-contained and do not require
-other any library to be present, other than the standard C runtime. We also hide all symbols corresponding apart from
+any other library to be present, outside the standard C runtime. We also hide all symbols apart from
 those that form MuJoCo's public API, thus ensuring that it can coexist with any other libraries that may be loaded into
 the process (including other versions of libraries that MuJoCo depends on).
 
