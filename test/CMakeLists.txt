@@ -57,6 +57,9 @@ target_link_libraries(fixture_test fixture gmock)
 mujoco_test(header_test)
 target_link_libraries(header_test fixture gmock)
 
+mujoco_test(pipeline_test)
+target_link_libraries(pipeline_test fixture gmock)
+
 add_subdirectory(benchmark)
 add_subdirectory(engine)
 add_subdirectory(sample)

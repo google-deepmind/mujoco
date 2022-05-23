@@ -668,7 +668,7 @@ void makephysics(int oldstate) {
 
   mjuiDef defPhysics[] = {
     {mjITEM_SECTION,   "Physics",       oldstate, NULL,                 "AP"},
-    {mjITEM_SELECT,    "Integrator",    2, &(m->opt.integrator),        "Euler\nRK4"},
+    {mjITEM_SELECT,    "Integrator",    2, &(m->opt.integrator),        "Euler\nRK4\nimplicit"},
     {mjITEM_SELECT,    "Collision",     2, &(m->opt.collision),         "All\nPair\nDynamic"},
     {mjITEM_SELECT,    "Cone",          2, &(m->opt.cone),              "Pyramidal\nElliptic"},
     {mjITEM_SELECT,    "Jacobian",      2, &(m->opt.jacobian),          "Dense\nSparse\nAuto"},

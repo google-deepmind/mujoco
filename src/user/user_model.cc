@@ -267,6 +267,7 @@ void mjCModel::Clear(void) {
   nnames = 0;
   nemax = 0;
   nM = 0;
+  nD = 0;
   njmax = -1;
   nconmax = -1;
 
@@ -1543,6 +1544,10 @@ void mjCModel::CopyTree(mjModel* m) {
   }
   m->nM = nM;
 
+  // set nD
+  nD = 2*nM - nv;
+  m->nD = nD;
+
   // set dof_simplenum
   int scnt = 0;
   for (i=nv-1; i>=0; i--) {
@@ -2637,8 +2642,8 @@ bool mjCModel::CopyBack(const mjModel* m) {
       nmat != m->nmat || ntex != m->ntex || npair!=m->npair || nexclude!=m->nexclude ||
       neq!=m->neq || ntendon!=m->ntendon || nwrap!=m->nwrap || nsensor!=m->nsensor ||
       nnumeric!=m->nnumeric || nnumericdata!=m->nnumericdata || ntext!=m->ntext ||
-      ntextdata!=m->ntextdata || nnames!=m->nnames || nM!=m->nM || nemax!=m->nemax ||
-      nconmax!=m->nconmax || njmax!=m->njmax) {
+      ntextdata!=m->ntextdata || nnames!=m->nnames || nM!=m->nM || nD!=m->nD ||
+      nemax!=m->nemax || nconmax!=m->nconmax || njmax!=m->njmax) {
     errInfo = mjCError(0, "incompatible models in CopyBack");
     return false;
   }

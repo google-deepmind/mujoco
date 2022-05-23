@@ -48,6 +48,15 @@ int mju_cholUpdateSparse(mjtNum* mat, mjtNum* x, int n, int flg_plus,
                          int* rownnz, int* rowadr, int* colind, int x_nnz, int* x_ind,
                          mjData* d);
 
+// sparse reverse-order LU factorization, no fill-in (assuming tree topology)
+//  LU = L + U; original = (U+I) * L; scratch is size n
+void mju_factorLUSparse(mjtNum *LU, int n, int* scratch,
+                        const int *rownnz, const int *rowadr, const int *colind);
+
+// solve mat*res=vec given LU factorization of mat
+void mju_solveLUSparse(mjtNum *res, const mjtNum *LU, const mjtNum* vec, int n,
+                       const int *rownnz, const int *rowadr, const int *colind);
+
 // eigenvalue decomposition of symmetric 3x3 matrix
 MJAPI int mju_eig3(mjtNum* eigval, mjtNum* eigvec, mjtNum quat[4], const mjtNum mat[9]);
 

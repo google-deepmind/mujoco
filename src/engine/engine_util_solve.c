@@ -299,6 +299,128 @@ int mju_cholUpdateSparse(mjtNum* mat, mjtNum* x, int n, int flg_plus,
 
 
 
+//------------------------------ LU factorization --------------------------------------------------
+
+// sparse reverse-order LU factorization, no fill-in (assuming tree topology)
+//   result: LU = L + U; original = (U+I) * L; scratch size is n
+void mju_factorLUSparse(mjtNum* LU, int n, int* scratch,
+                        const int* rownnz, const int* rowadr, const int* colind) {
+  int* remaining = scratch;
+
+  // set remaining = rownnz
+  memcpy(remaining, rownnz, n*sizeof(int));
+
+  // diagonal elements (i,i)
+  for (int i=n-1; i>=0; i--) {
+    // get address of last remaining element of row i, adjust remaining counter
+    int ii = rowadr[i] + remaining[i] - 1;
+    remaining[i]--;
+
+    // make sure ii is on diagonal
+    if (colind[ii]!=i) {
+      mju_error("missing diagonal element in mju_factorLUSparse");
+    }
+
+    // make sure diagonal is not too small
+    if (mju_abs(LU[ii])<mjMINVAL) {
+      mju_error("diagonal element too small in mju_factorLUSparse");
+    }
+
+    // rows j above i
+    for (int j=i-1; j>=0; j--) {
+      // get address of last remaining element of row j
+      int ji = rowadr[j] + remaining[j] - 1;
+
+      // process row j if (j,i) is non-zero
+      if (colind[ji]==i) {
+        // adjust remaining counter
+        remaining[j]--;
+
+        // (j,i) = (j,i) / (i,i)
+        LU[ji] = LU[ji] / LU[ii];
+        mjtNum LUji = LU[ji];
+
+        // (j,k) = (j,k) - (i,k) * (j,i) for k<i; handle incompatible sparsity
+        int icnt = rowadr[i], jcnt = rowadr[j];
+        while (jcnt<rowadr[j]+remaining[j]) {
+          // both non-zero
+          if (colind[icnt]==colind[jcnt]) {
+            // update LU, advance counters
+            LU[jcnt++] -= LU[icnt++] * LUji;
+          }
+
+          // only (j,k) non-zero
+          else if (colind[icnt]>colind[jcnt]) {
+            // advance j counter
+            jcnt++;
+          }
+
+          // only (i,k) non-zero
+          else {
+            mju_error("mju_factorLUSparse requires fill-in");
+          }
+        }
+
+        // make sure both rows fully processed
+        if (icnt!=rowadr[i]+remaining[i] || jcnt!=rowadr[j]+remaining[j]) {
+          mju_error("row processing incomplete in mju_factorLUSparse");
+        }
+      }
+    }
+  }
+
+  // make sure remaining points to diagonal
+  for (int i=0; i<n; i++) {
+    if (remaining[i]<0 || colind[rowadr[i]+remaining[i]]!=i) {
+      mju_error("unexpected sparse matrix structure in mju_factorLUSparse");
+    }
+  }
+}
+
+
+
+// solve mat*res=vec given LU factorization of mat
+void mju_solveLUSparse(mjtNum* res, const mjtNum* LU, const mjtNum* vec, int n,
+                       const int* rownnz, const int* rowadr, const int* colind) {
+  //------------------ solve (U+I)*res = vec
+  for (int i=n-1; i>=0; i--) {
+    // init: diagonal of (U+I) is 1
+    res[i] = vec[i];
+
+    // res[i] -= sum_k>i res[k]*LU(i,k)
+    int j = rownnz[i] - 1;
+    while (colind[rowadr[i]+j]>i) {
+      res[i] -= res[colind[rowadr[i]+j]] * LU[rowadr[i]+j];
+      j--;
+    }
+
+    // make sure j points to diagonal
+    if (colind[rowadr[i]+j]!=i) {
+      mju_error("diagonal of U not reached in mju_factorLUSparse");
+    }
+  }
+
+  //------------------ solve L*res(new) = res
+  for (int i=0; i<n; i++) {
+    // res[i] -= sum_k<i res[k]*LU(i,k)
+    int j = 0;
+    while (colind[rowadr[i]+j]<i) {
+      res[i] -= res[colind[rowadr[i]+j]] * LU[rowadr[i]+j];
+      j++;
+    }
+
+    // divide by diagonal element of L
+    res[i] /= LU[rowadr[i]+j];
+
+    // make sure j points to diagonal
+    if (colind[rowadr[i]+j]!=i) {
+      mju_error("diagonal of L not reached in mju_factorLUSparse");
+    }
+  }
+}
+
+
+
 //--------------------------- eigen decomposition --------------------------------------------------
 
 // eigenvalue decomposition of symmetric 3x3 matrix

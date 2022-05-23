@@ -657,7 +657,7 @@ void mju_printMatSparse(const mjtNum* mat, int nr,
                         const int* colind) {
   for (int r=0; r<nr; r++) {
     for (int adr=rowadr[r]; adr<rowadr[r]+rownnz[r]; adr++) {
-      printf("(%d %d): %.6f  ", r, colind[adr], mat[adr]);
+      printf("(%d %d): %9.6f  ", r, colind[adr], mat[adr]);
     }
     printf("\n");
   }

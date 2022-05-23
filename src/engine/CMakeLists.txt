@@ -28,6 +28,8 @@ set(MUJOCO_ENGINE_SRCS
     engine_core_smooth.c
     engine_core_smooth.h
     engine_crossplatform.h
+    engine_derivative.c
+    engine_derivative.h
     engine_file.c
     engine_file.h
     engine_forward.c

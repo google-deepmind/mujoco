@@ -21,6 +21,9 @@ target_link_libraries(engine_collision_driver_test fixture gmock)
 mujoco_test(engine_core_smooth_test)
 target_link_libraries(engine_core_smooth_test fixture gmock)
 
+mujoco_test(engine_derivative_test)
+target_link_libraries(engine_derivative_test fixture gmock)
+
 mujoco_test(engine_forward_test)
 target_link_libraries(engine_forward_test fixture gmock)
 

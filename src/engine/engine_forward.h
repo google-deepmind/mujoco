@@ -55,6 +55,9 @@ MJAPI void mj_Euler(const mjModel* m, mjData* d);
 // Runge Kutta explicit order-N integrator
 MJAPI void mj_RungeKutta(const mjModel* m, mjData* d, int N);
 
+// fully implicit in velocity
+MJAPI void mj_implicit(const mjModel *m, mjData *d);
+
 
 //-------------------------------- solver components -----------------------------------------------
 

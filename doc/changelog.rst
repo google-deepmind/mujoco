@@ -29,7 +29,18 @@ Open Sourcing
 General
 ^^^^^^^
 
-3. Added :at:`actlimited` and :at:`actrange` attributes to :ref:`general actuators<general>`, for clamping actuator
+3. Added analytic derivatives of smooth (unconstrained) dynamics forces, with respect to velocities:
+
+   - Centripetal and Coriolis forces computed by the Recursive Newton-Euler algorithm.
+   - Damping and fluid-drag passive forces.
+   - Actuation forces.
+
+#. Added ``implicit`` integrator. Using the analytic derivatives above, a new implicit-in-velocity integrator was added.
+   This integrator lies between the Euler and Runge Kutta integrators in terms of both stability and computational
+   cost. It is most useful for models which use fluid drag (e.g. for flying or swimming) and for models which use
+   :ref:`velocity actuators<velocity>`. For more details, see the :ref:`Numerical Integration<geIntegration>` section.
+
+#. Added :at:`actlimited` and :at:`actrange` attributes to :ref:`general actuators<general>`, for clamping actuator
    internal states (activations). This clamping is useful for integrated-velocity actuators, see the :ref:`Activation
    clamping <CActRange>` section for details.
 
@@ -47,16 +58,15 @@ General
 
 Bug fixes
 ^^^^^^^^^
+10. Antialiasing was disabled for segmentation rendering. Before this change, if the :ref:`offsamples<quality>`
+    attribute was greater than 0 (the default value is 4), pixels that overlapped with multiple geoms would receive
+    averaged segmentation IDs, leading to incorrect or non-existant IDs. After this change :at:`offsamples` is ignored
+    during segmentation rendering.
 
-8. Antialiasing was disabled for segmentation rendering. Before this change, if the :ref:`offsamples<quality>`
-   attribute was greater than 0 (the default value is 4), pixels that overlapped with multiple geoms would receive
-   averaged segmentation IDs, leading to incorrect or non-existant IDs. After this change :at:`offsamples` is ignored
-   during segmentation rendering.
+#.  The value of the enable flag for the experimental multiCCD feature was made sequential with other enable flags.
+    Sequentiality is assumed in the ``simulate`` UI and elsewhere.
 
-#. The value of the enable flag for the experimental multiCCD feature was made sequential with other enable flags.
-   Sequentiality is assumed in the ``simulate`` UI and elsewhere.
-
-#. Fix issue of duplicated meshes when saving models with OBJ meshes using mj_saveLastXML.
+#.  Fix issue of duplicated meshes when saving models with OBJ meshes using mj_saveLastXML.
 
 
 Version 2.1.5 (Apr. 13, 2022)

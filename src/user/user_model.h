@@ -218,6 +218,7 @@ class mjCModel {
   int ntupledata;                 // number of objects in all tuple fields
   int nnames;                     // number of chars in all names
   int nM;                         // number of non-zeros in sparse inertia matrix
+  int nD;                         // number of non-zeros in sparse derivative matrix
 
   //------------------------ object lists
   // objects created here

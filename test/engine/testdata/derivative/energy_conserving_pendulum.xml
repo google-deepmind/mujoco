@@ -1,0 +1,25 @@
+<mujoco>
+  <option integrator="implicit">
+    <flag constraint="disable" energy="enable"/>
+  </option>
+  <worldbody>
+    <light pos="0 0 1"/>
+    <geom type="plane" size="1 1 .01" pos="0 0 -1"/>
+    <body pos="0.15 0 0">
+      <joint type="hinge" axis="0 1 0"/>
+      <geom type="capsule" size="0.02" fromto="0 0 0 .1 0 0"/>
+      <body pos="0.1 0 0">
+        <joint type="slide" axis="1 0 0" stiffness="200"/>
+        <geom type="capsule" size="0.015" fromto="-.1 0 0 .1 0 0"/>
+        <body pos=".1 0 0">
+          <joint type="ball"/>
+          <geom type="box" size=".02" fromto="0 0 0 0 .1 0"/>
+          <body pos="0 .1 0">
+            <joint axis="1 0 0"/>
+            <geom type="capsule" size="0.02" fromto="0 0 0 0 .1 0"/>
+          </body>
+        </body>
+      </body>
+    </body>
+  </worldbody>
+</mujoco>

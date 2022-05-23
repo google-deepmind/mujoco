@@ -1,0 +1,24 @@
+<mujoco>
+  <worldbody>
+    <body name="damping in the joints">
+      <joint type="slide" axis="0 0 1" damping="10"/>
+      <geom size=".03"/>
+      <body>
+        <joint axis="0 1 0" damping=".1"/>
+        <geom type="capsule" size=".01" fromto="0 0 0 .1 0 0"/>
+      </body>
+    </body>
+    <body name="damping in the actuators" pos="0 0.1 0">
+      <joint name="slide" type="slide" axis="0 0 1"/>
+      <geom size=".03"/>
+      <body>
+        <joint name="hinge" axis="0 1 0"/>
+        <geom type="capsule" size=".01" fromto="0 0 0 .1 0 0"/>
+      </body>
+    </body>
+  </worldbody>
+  <actuator>
+    <general joint="slide" biastype="affine" biasprm="0 0 -10"/>
+    <general joint="hinge" biastype="affine" biasprm="0 0 -0.1"/>
+  </actuator>
+</mujoco>

@@ -112,6 +112,7 @@
     X( nuser_sensor )       \
     X( nnames )             \
     X( nM )                 \
+    X( nD )                 \
     X( nemax )              \
     X( njmax )              \
     X( nconmax )            \
@@ -508,6 +509,11 @@
     X( mjtNum,    efc_aref,          njmax,       1           ) \
     X( mjtNum,    subtree_linvel,    nbody,       3           ) \
     X( mjtNum,    subtree_angmom,    nbody,       3           ) \
+    X( int,       D_rownnz,          nv,          1           ) \
+    X( int,       D_rowadr,          nv,          1           ) \
+    X( int,       D_colind,          nD,          1           ) \
+    X( mjtNum,    qDeriv,            nD,          1           ) \
+    X( mjtNum,    qLU,               nD,          1           ) \
     X( mjtNum,    actuator_force,    nu,          1           ) \
     X( mjtNum,    qfrc_actuator,     nv,          1           ) \
     X( mjtNum,    qfrc_smooth,       nv,          1           ) \

@@ -28,6 +28,7 @@
 #include "engine/engine_support.h"
 #include "engine/engine_util_errmem.h"
 #include "engine/engine_util_misc.h"
+#include "engine/engine_util_sparse.h"
 
 #define FLOAT_FORMAT "% -9.2g"
 #define FLOAT_FORMAT_MAX_LEN 20
@@ -847,6 +848,36 @@ void mj_printFormattedData(const mjModel* m, mjData* d, const char* filename,
 
   printArray("QLDIAGINV", m->nv, 1, d->qLDiagInv, fp, float_format);
   printArray("QLDIAGSQRTINV", m->nv, 1, d->qLDiagSqrtInv, fp, float_format);
+
+  // D_rownnz
+  fprintf(fp, NAME_FORMAT, "D_rownnz");
+  for (int i = 0; i < m->nv; i++) {
+    fprintf(fp, "%d ", d->D_rownnz[i]);
+  }
+  fprintf(fp, "\n\n");
+
+  // D_rowadr
+  fprintf(fp, NAME_FORMAT, "D_rowadr");
+  for (int i = 0; i < m->nv; i++) {
+    fprintf(fp, "%d ", d->D_rowadr[i]);
+  }
+  fprintf(fp, "\n\n");
+
+  // D_colind
+  fprintf(fp, NAME_FORMAT, "D_colind");
+  for (int i = 0; i < m->nD; i++) {
+    fprintf(fp, "%d ", d->D_colind[i]);
+  }
+  fprintf(fp, "\n\n");
+
+  // print qDeriv
+  mju_sparse2dense(M, d->qDeriv, m->nv, m->nv, d->D_rownnz, d->D_rowadr, d->D_colind);
+  printArray("QDERIV", m->nv, m->nv, M, fp, float_format);
+
+  // print qLU
+  mju_sparse2dense(M, d->qLU, m->nv, m->nv, d->D_rownnz, d->D_rowadr,
+                   d->D_colind);
+  printArray("QLU", m->nv, m->nv, M, fp, float_format);
 
   // contact
   fprintf(fp, "CONTACT\n");

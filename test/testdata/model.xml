@@ -1,0 +1,134 @@
+<mujoco>
+  <option iterations="10" tolerance="0" gravity="-1 0 -10" jacobian="dense">
+    <flag fwdinv="enable" energy="enable"/>
+  </option>
+  <asset>
+    <mesh name="icosahedron" scale=".05 .05 .05"
+          vertex="0         1       1.618
+                  0        -1       1.618
+                  0         1      -1.618
+                  0        -1      -1.618
+                  1         1.618   0
+                 -1         1.618   0
+                  1        -1.618   0
+                 -1        -1.618   0
+                  1.618     0       1
+                  1.618     0      -1
+                 -1.618     0       1
+                 -1.618     0      -1"/>
+    <hfield name="hfield" nrow="3" ncol="3" size=".2 .2 .1 .03"/>
+  </asset>
+  <default>
+    <site rgba=".5 .5 .5 .5"/>
+    <joint armature="1" damping="10"/>
+    <general ctrllimited="true" ctrlrange="-1 1"/>
+    <default class="hip0">
+      <joint springref="30" stiffness="60"/>
+    </default>
+    <default class="hip1">
+      <joint limited="true" range="-60 60" stiffness="10"/>
+    </default>
+    <default class="wheel">
+      <joint damping=".1" armature=".1"/>
+    </default>
+  </default>
+  <worldbody>
+    <light pos="0 0 3"/>
+    <geom type="plane" size="4 4 .1"/>
+    <geom type="hfield" hfield="hfield" pos="-.4 .6 .05" rgba="0 0 1 1"/>
+    <body name="head" pos="0 0 .7">
+      <geom type="ellipsoid" size=".2 .2 .4" rgba="1 1 0 1" density="100"/>
+      <site name="head" pos="0 0 .4" size=".1 .1 .05" type="box"/>
+      <site name="anchor0" pos="0 .2 0"/>
+      <site name="rf" pos="0 0 -0.41" zaxis="0 0 -1"/>
+      <freejoint/>
+      <body euler="0 0 0" pos=".2 0 -.2">
+        <joint name="hipz_0" class="hip1" axis="0 0 1"/>
+        <joint name="hipy_0" class="hip0" axis="0 1 0"/>
+        <geom type="capsule" size=".05" rgba="1 0 0 1" fromto="0 0 0 .3 0 0"/>
+        <body pos=".3 0 0">
+          <site name="knee"/>
+          <geom type="capsule" size=".05" rgba="1 0 0 1" fromto="0 0 0 .1 0 -.3"/>
+          <body pos=".1 0 -.3">
+            <joint name="wheel_0" type="ball" class="wheel"/>
+            <site name="wheel_0" type="box" size=".1 .1 .1"/>
+            <geom size=".1 .2 .1"  rgba="0 1 0 1" type="ellipsoid"/>
+          </body>
+        </body>
+      </body>
+      <body euler="0 0 120" pos="-.15 .2 -.2">
+        <joint name="hipz_1" class="hip1" axis="0 0 1"/>
+        <joint name="hipy_1" class="hip0" axis="0 1 0"/>
+        <geom type="box" size=".05" rgba="1 0 0 1" fromto="0 0 0 .3 0 0"/>
+        <geom type="box" size=".05" rgba="1 0 0 1" fromto=".3 0 0 .4 0 -.3"/>
+        <body pos=".45 0 -.3">
+          <joint name="wheel_1" axis="1 0 0" class="wheel"/>
+          <geom size=".1"  rgba="0 1 0 1" type="cylinder" fromto="0 0 0 .03 0 0"/>
+          <site name="wheel_1" type="box" size=".02 .11 .11" pos=".015 0 0"/>
+        </body>
+      </body>
+      <body euler="0 0 240" pos="-.15 -.2 -.2">
+        <joint name="hipz_2" class="hip1" axis="0 0 1"/>
+        <joint name="hipy_2" class="hip0" axis="0 1 0"/>
+        <geom type="capsule" size=".05" rgba="1 0 0 1" fromto="0 0 0 .3 0 0"/>
+        <geom type="capsule" size=".05" rgba="1 0 0 1" fromto=".3 0 0 .4 0 -.3"/>
+        <body pos=".45 0 -.3">
+          <joint name="wheel_2" axis="1 0 0" class="wheel"/>
+          <geom size=".1"  rgba="0 1 0 1" type="cylinder" fromto="0 0 0 .03 0 0"/>
+          <site name="wheel_2" size=".13"  rgba="0 0 0 0.1" type="cylinder" fromto="-.01 0 0 .04 0 0"/>
+        </body>
+      </body>
+    </body>
+    <body pos="-.33 0 1">
+      <joint name="slider" type="slide" axis="0 0 1" limited="true" range="-.2 .5"/>
+      <joint type="hinge" axis="0 1 0"/>
+      <geom type="mesh" mesh="icosahedron" size=".1" rgba="0 0 1 1"/>
+    </body>
+    <geom name="wrapping" type="cylinder" size=".04" fromto="-.6 .1 .7 -.4 .7 .7"/>
+    <site name="sidesite" pos="-.5 .4 1"/>
+    <body pos="-.3 .6 .8">
+      <freejoint/>
+      <geom type="box" size=".05 .05 .05" rgba="0 0 1 1"/>
+      <site name="anchor1" pos=".05 .05 .05"/>
+    </body>
+    <body pos="-.6 .4 .8">
+      <freejoint/>
+      <geom type="box" size=".05 .05 .05" rgba="0 0 1 1"/>
+      <site name="anchor2" pos=".05 .05 .05"/>
+    </body>
+  </worldbody>
+  <tendon>
+    <spatial name="spatial" limited="true" range="0 .7" rgba="1 0 1 1">
+      <site site="anchor0"/>
+      <site site="anchor1"/>
+      <geom geom="wrapping" sidesite="sidesite"/>
+      <site site="anchor2"/>
+    </spatial>
+    <fixed name="fixed">
+      <joint joint="hipy_0" coef="1"/>
+      <joint joint="hipy_1" coef="1"/>
+    </fixed>
+  </tendon>
+  <actuator>
+    <motor tendon="fixed" gear="100"/>
+    <motor tendon="spatial" gear="10"/>
+    <motor joint="hipy_2" gear="100"/>
+    <position joint="hipz_0" kp="100"/>
+    <position joint="hipz_1" kp="100"/>
+    <position joint="hipz_2" kp="100"/>
+    <velocity joint="wheel_2" kv="1"/>
+    <general site="wheel_0" gear="0 0 0 0 10 0" dyntype="filter" dynprm="1"/>
+    <general joint="wheel_1" biastype="affine" dyntype="integrator" dynprm="1" biasprm="0 -1"/>
+  </actuator>
+  <sensor>
+    <framepos objtype="site" objname="wheel_0"/>
+    <rangefinder site="rf"/>
+    <gyro site="wheel_2"/>
+    <touch site="wheel_1"/>
+    <force site="knee"/>
+    <torque site="knee"/>
+    <jointlimitfrc joint="slider"/>
+    <accelerometer site="head"/>
+    <subtreeangmom body="head"/>
+  </sensor>
+</mujoco>

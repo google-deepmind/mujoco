@@ -15,6 +15,7 @@
 #include "engine/engine_forward.h"
 
 #include <stddef.h>
+#include <stdio.h>
 
 #include <mujoco/mjdata.h>
 #include <mujoco/mjmodel.h>
@@ -22,6 +23,7 @@
 #include "engine/engine_collision_driver.h"
 #include "engine/engine_core_constraint.h"
 #include "engine/engine_core_smooth.h"
+#include "engine/engine_derivative.h"
 #include "engine/engine_inverse.h"
 #include "engine/engine_io.h"
 #include "engine/engine_macro.h"
@@ -31,7 +33,10 @@
 #include "engine/engine_util_blas.h"
 #include "engine/engine_util_errmem.h"
 #include "engine/engine_util_misc.h"
+#include "engine/engine_util_solve.h"
 #include "engine/engine_util_sparse.h"
+
+
 
 //--------------------------- check values ---------------------------------------------------------
 
@@ -145,7 +150,7 @@ void mj_fwdVelocity(const mjModel* m, mjData* d) {
 
 
 
-// (qpos, qvel, crtl, act) => (qfrc_actuator, actuator_force, act_dot)
+// (qpos, qvel, ctrl, act) => (qfrc_actuator, actuator_force, act_dot)
 void mj_fwdActuation(const mjModel* m, mjData* d) {
   TM_START;
   int nv = m->nv, nu = m->nu, na = m->na;
@@ -649,6 +654,52 @@ void mj_RungeKutta(const mjModel* m, mjData* d, int N) {
 
 //-------------------------- top-level API ---------------------------------------------------------
 
+// fully implicit in velocity
+void mj_implicit(const mjModel *m, mjData *d) {
+  int nv = m->nv;
+
+  mjMARKSTACK;
+  mjtNum *qfrc = mj_stackAlloc(d, nv);
+  mjtNum *qacc = mj_stackAlloc(d, nv);
+
+  // construct sparse structure in d->D_xxx
+  mj_makeMSparse(m, d, d->D_rownnz, d->D_rowadr, d->D_colind);
+
+  // compute analytical derivative qDeriv
+  mjd_smooth_vel(m, d);
+
+  // set qLU = qM - dt*qDeriv
+  mj_setMSparse(m, d, d->qLU, d->D_rownnz, d->D_rowadr, d->D_colind);
+  mju_addToScl(d->qLU, d->qDeriv, -m->opt.timestep, m->nD);
+
+  // factorize qLU, use qacc as scratch space
+  mju_factorLUSparse(d->qLU, nv, (int*)qacc, d->D_rownnz, d->D_rowadr, d->D_colind);
+
+  // set qfrc = qfrc_smooth + qfrc_constraint
+  mju_add(qfrc, d->qfrc_smooth, d->qfrc_constraint, nv);
+
+  // solve for qacc: (qM - dt*qDeriv) * qacc = qfrc
+  mju_solveLUSparse(qacc, d->qLU, qfrc, nv, d->D_rownnz, d->D_rowadr, d->D_colind);
+
+  // update qvel
+  mju_addToScl(d->qvel, qacc, m->opt.timestep, nv);
+
+  // update act
+  if (m->na) {
+    mju_addToScl(d->act, d->act_dot, m->opt.timestep, m->na);
+  }
+
+  // update qpos using new qvel
+  mj_integratePos(m, d->qpos, d->qvel, m->opt.timestep);
+
+  // advance time
+  d->time += m->opt.timestep;
+
+  mjFREESTACK
+}
+
+
+
 // forward dynamics with skip; skipstage is mjtStage
 void mj_forwardSkip(const mjModel* m, mjData* d, int skipstage, int skipsensor) {
   TM_START;
@@ -714,10 +765,21 @@ void mj_step(const mjModel* m, mjData* d) {
   }
 
   // use selected integrator
-  if (m->opt.integrator==mjINT_RK4) {
-    mj_RungeKutta(m, d, 4);
-  } else {
-    mj_Euler(m, d);
+  switch(m->opt.integrator) {
+    case mjINT_EULER:
+      mj_Euler(m, d);
+      break;
+
+    case mjINT_RK4:
+      mj_RungeKutta(m, d, 4);
+      break;
+
+    case mjINT_IMPLICIT:
+      mj_implicit(m, d);
+      break;
+
+    default:
+      mju_error("Invalid integrator");
   }
 
   TM_END(mjTIMER_STEP);
@@ -760,8 +822,12 @@ void mj_step2(const mjModel* m, mjData* d) {
     mj_compareFwdInv(m, d);
   }
 
-  // integrate with Euler; ignore integrator option
-  mj_Euler(m, d);
+  // integrate with Euler or implicit; RK4 defaults to Euler
+  if (m->opt.integrator==mjINT_IMPLICIT) {
+    mj_implicit(m, d);
+  } else {
+    mj_Euler(m, d);
+  }
 
   d->timer[mjTIMER_STEP].number--;
   TM_END(mjTIMER_STEP);

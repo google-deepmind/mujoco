@@ -225,10 +225,10 @@ struct mjData_ {
 
   // computed by mj_fwdPosition/mj_crb
   mjtNum*   crb;                  // com-based composite inertia and mass     (nbody x 10)
-  mjtNum*   qM;                   // total inertia                            (nM x 1)
+  mjtNum*   qM;                   // total inertia (sparse)                   (nM x 1)
 
   // computed by mj_fwdPosition/mj_factorM
-  mjtNum*   qLD;                  // L'*D*L factorization of M                (nM x 1)
+  mjtNum*   qLD;                  // L'*D*L factorization of M (sparse)       (nM x 1)
   mjtNum*   qLDiagInv;            // 1/diag(D)                                (nv x 1)
   mjtNum*   qLDiagSqrtInv;        // 1/sqrt(diag(D))                          (nv x 1)
 
@@ -285,6 +285,17 @@ struct mjData_ {
   // computed by mj_sensorVel/mj_subtreeVel if needed
   mjtNum*   subtree_linvel;       // linear velocity of subtree com           (nbody x 3)
   mjtNum*   subtree_angmom;       // angular momentum about subtree com       (nbody x 3)
+
+  // computed by mj_implicit
+  int*      D_rownnz;             // non-zeros in each row                    (nv x 1)
+  int*      D_rowadr;             // address of each row in D_colind          (nv x 1)
+  int*      D_colind;             // column indices of non-zeros              (nD x 1)
+
+  // computed by mj_implicit/mj_derivative
+  mjtNum*   qDeriv;               // d (passive + actuator - bias) / d qvel   (nD x 1)
+
+  // computed by mj_implicit/mju_factorLUSparse
+  mjtNum*   qLU;                  // sparse LU of (qM - dt*qDeriv)            (nD x 1)
 
   //-------------------------------- POSITION, VELOCITY, CONTROL/ACCELERATION dependent
 
