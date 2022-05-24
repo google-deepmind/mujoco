@@ -289,6 +289,11 @@ void mjXWriter::OneGeom(XMLElement* elem, mjCGeom* pgeom, mjCDef* def) {
   WriteAttr(elem, "margin", 1, &pgeom->margin, &def->geom.margin);
   WriteAttr(elem, "gap", 1, &pgeom->gap, &def->geom.gap);
   WriteAttr(elem, "gap", 1, &pgeom->gap, &def->geom.gap);
+  if (mjuu_defined(pgeom->_mass)) {
+    WriteAttr(elem, "mass", 1, &pgeom->mass, &def->geom.mass);
+  } else {
+    WriteAttr(elem, "density", 1, &pgeom->density, &def->geom.density);
+  }
   if (pgeom->material != def->geom.material) {
     WriteAttrTxt(elem, "material", pgeom->material);
   }

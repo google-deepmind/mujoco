@@ -143,6 +143,94 @@ TEST_F(XMLWriterTest, KeepsActlimited) {
   mj_deleteModel(model);
 }
 
+TEST_F(XMLWriterTest, UndefinedMassDensity) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <geom type="box" size=".05 .05 .05"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  mjModel* model = LoadModelFromString(xml);
+  std::string saved_xml = SaveAndReadXml(model);
+  EXPECT_THAT(saved_xml, Not(HasSubstr("density")));
+  EXPECT_THAT(saved_xml, Not(HasSubstr("mass")));
+  mj_deleteModel(model);
+}
+
+TEST_F(XMLWriterTest, WritesDefaults) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <default>
+      <geom density="100"/>
+    </default>
+    <worldbody>
+      <body>
+        <geom type="box" size=".05 .05 .05"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  mjModel* model = LoadModelFromString(xml);
+  std::string saved_xml = SaveAndReadXml(model);
+  EXPECT_THAT(saved_xml, Not(HasSubstr("mass")));
+  EXPECT_THAT(saved_xml, HasSubstr("<geom density=\"100\"/>"));
+  mj_deleteModel(model);
+}
+
+TEST_F(XMLWriterTest, WritesDensity) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <geom type="box" size=".05 .05 .05" density="100"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  mjModel* model = LoadModelFromString(xml);
+  std::string saved_xml = SaveAndReadXml(model);
+  EXPECT_THAT(saved_xml, HasSubstr("density=\"100\""));
+  EXPECT_THAT(saved_xml, Not(HasSubstr("mass")));
+  mj_deleteModel(model);
+}
+
+TEST_F(XMLWriterTest, WritesMass) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <geom type="box" size=".05 .05 .05" mass="0.1"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  mjModel* model = LoadModelFromString(xml);
+  std::string saved_xml = SaveAndReadXml(model);
+  EXPECT_THAT(saved_xml, Not(HasSubstr("density")));
+  EXPECT_THAT(saved_xml, HasSubstr("mass=\"0.1\""));
+  mj_deleteModel(model);
+}
+
+TEST_F(XMLWriterTest, OverwritesDensity) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <geom size="0.2" density="100" mass="100"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  mjModel* model = LoadModelFromString(xml);
+  std::string saved_xml = SaveAndReadXml(model);
+  EXPECT_THAT(saved_xml, Not(HasSubstr("density")));
+  EXPECT_THAT(saved_xml, HasSubstr("mass=\"100\""));
+  mj_deleteModel(model);
+}
+
 TEST_F(XMLWriterTest, UsesTwoSpaces) {
   static constexpr char xml[] = R"(
   <mujoco>
