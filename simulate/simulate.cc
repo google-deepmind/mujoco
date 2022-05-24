@@ -521,7 +521,7 @@ void makephysics(mj::Simulate* simulate, int oldstate) {
 
   mjuiDef defPhysics[] = {
     {mjITEM_SECTION,   "Physics",       oldstate, nullptr,                        "AP"},
-    {mjITEM_SELECT,    "Integrator",    2, &(m->opt.integrator),                  "Euler\nRK4\nimplicit"},
+    {mjITEM_SELECT,    "Integrator",    2, &(simulate->m->opt.integrator),        "Euler\nRK4\nimplicit"},
     {mjITEM_SELECT,    "Collision",     2, &(simulate->m->opt.collision),         "All\nPair\nDynamic"},
     {mjITEM_SELECT,    "Cone",          2, &(simulate->m->opt.cone),              "Pyramidal\nElliptic"},
     {mjITEM_SELECT,    "Jacobian",      2, &(simulate->m->opt.jacobian),          "Dense\nSparse\nAuto"},
@@ -1058,7 +1058,7 @@ void uiEvent(mjuiState* state) {
       case 0:             // Save xml
         {
           const std::string path = getSavePath("mjmodel.xml");
-          if (!path.empty() && !mj_saveLastXML(path.c_str(), m, err, 200)) {
+          if (!path.empty() && !mj_saveLastXML(path.c_str(), simulate->m, err, 200)) {
             std::printf("Save XML error: %s", err);
           }
         }
@@ -1068,7 +1068,7 @@ void uiEvent(mjuiState* state) {
         {
           const std::string path = getSavePath("mjmodel.mjb");
           if (!path.empty()) {
-            mj_saveModel(m, path.c_str(), NULL, 0);
+            mj_saveModel(simulate->m, path.c_str(), NULL, 0);
           }
         }
         break;

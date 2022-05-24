@@ -23,9 +23,9 @@ set(CMAKE_POLICY_DEFAULT_CMP0072 NEW)
 set(MSVC_INCREMENTAL_DEFAULT ON)
 
 project(
-  mujoco_samples
+  mujoco_simulate
   VERSION 2.2.0
-  DESCRIPTION "MuJoCo samples binaries"
+  DESCRIPTION "MuJoCo simulate binaries"
   HOMEPAGE_URL "https://mujoco.org"
 )
 
@@ -37,86 +37,92 @@ if(APPLE)
 endif()
 
 # Check if we are building as standalone project.
-set(SAMPLE_STANDALONE OFF)
-set(_INSTALL_SAMPLES ON)
+set(SIMULATE_STANDALONE OFF)
+set(_INSTALL_SIMULATE ON)
 if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
-  set(SAMPLE_STANDALONE ON)
+  set(SIMULATE_STANDALONE ON)
   # If standalone, do not install the samples.
-  set(_INSTALL_SAMPLES OFF)
+  set(_INSTALL_SIMULATE OFF)
 endif()
 
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
 
-if(SAMPLE_STANDALONE)
-  include(SampleOptions)
+if(SIMULATE_STANDALONE)
+  include(SimulateOptions)
 else()
   enforce_mujoco_macosx_min_version()
 endif()
-include(SampleDependencies)
+include(SimulateDependencies)
 
-set(MUJOCO_SAMPLE_COMPILE_OPTIONS "${AVX_COMPILE_OPTIONS}" "${EXTRA_COMPILE_OPTIONS}")
-set(MUJOCO_SAMPLE_LINK_OPTIONS "${EXTRA_LINK_OPTIONS}")
+set(MUJOCO_SIMULATE_COMPILE_OPTIONS "${AVX_COMPILE_OPTIONS}" "${EXTRA_COMPILE_OPTIONS}")
+set(MUJOCO_SIMULATE_LINK_OPTIONS "${EXTRA_LINK_OPTIONS}")
 
 if(MUJOCO_HARDEN)
   if(WIN32)
-    set(MUJOCO_SAMPLE_LINK_OPTIONS "${MUJOCO_SAMPLE_LINK_OPTIONS}" -Wl,/DYNAMICBASE)
+    set(MUJOCO_SIMULATE_LINK_OPTIONS "${MUJOCO_SIMULATE_LINK_OPTIONS}" -Wl,/DYNAMICBASE)
   else()
-    set(MUJOCO_SAMPLE_COMPILE_OPTIONS "${MUJOCO_SAMPLE_COMPILE_OPTIONS}" -fPIE)
+    set(MUJOCO_SIMULATE_COMPILE_OPTIONS "${MUJOCO_SIMULATE_COMPILE_OPTIONS}" -fPIE)
     if(APPLE)
-      set(MUJOCO_SAMPLE_LINK_OPTIONS "${MUJOCO_SAMPLE_LINK_OPTIONS}" -Wl,-pie)
+      set(MUJOCO_SIMULATE_LINK_OPTIONS "${MUJOCO_SIMULATE_LINK_OPTIONS}" -Wl,-pie)
     else()
-      set(MUJOCO_SAMPLE_LINK_OPTIONS "${MUJOCO_SAMPLE_LINK_OPTIONS}" -pie)
+      set(MUJOCO_SIMULATE_LINK_OPTIONS "${MUJOCO_SIMULATE_LINK_OPTIONS}" -pie)
     endif()
   endif()
 endif()
 
-# Build sample binaries
-add_executable(compile compile.cc)
-target_compile_options(compile PUBLIC ${MUJOCO_SAMPLE_COMPILE_OPTIONS})
-target_link_libraries(compile Threads::Threads)
-target_link_options(compile PRIVATE ${MUJOCO_SAMPLE_LINK_OPTIONS})
+# Utility library
+add_library(uitools STATIC)
+target_sources(uitools PRIVATE uitools.h uitools.c)
+target_include_directories(uitools PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_compile_options(uitools PUBLIC ${MUJOCO_SIMULATE_COMPILE_OPTIONS})
+target_link_libraries(uitools PUBLIC glfw mujoco::mujoco)
+target_link_options(uitools PRIVATE ${MUJOCO_SIMULATE_LINK_OPTIONS})
 
-add_executable(derivative derivative.cc)
-target_compile_options(derivative PUBLIC ${MUJOCO_SAMPLE_COMPILE_OPTIONS})
-target_link_libraries(derivative Threads::Threads)
-target_link_options(derivative PRIVATE ${MUJOCO_SAMPLE_LINK_OPTIONS})
-
-add_executable(testspeed testspeed.cc)
-target_compile_options(testspeed PUBLIC ${MUJOCO_SAMPLE_COMPILE_OPTIONS})
-target_link_libraries(testspeed Threads::Threads)
-target_link_options(testspeed PRIVATE ${MUJOCO_SAMPLE_LINK_OPTIONS})
-
-add_executable(testxml testxml.cc array_safety.h)
-target_compile_options(testxml PUBLIC ${MUJOCO_SAMPLE_COMPILE_OPTIONS})
-target_link_libraries(testxml Threads::Threads)
-target_link_options(testxml PRIVATE ${MUJOCO_SAMPLE_LINK_OPTIONS})
-
-target_link_libraries(compile mujoco::mujoco)
-target_link_libraries(derivative mujoco::mujoco)
-target_link_libraries(testspeed mujoco::mujoco)
-target_link_libraries(testxml mujoco::mujoco)
+# mjsimulate library
+add_library(mjsimulate SHARED)
+target_sources(mjsimulate PUBLIC simulate.h array_safety.h simulate.cc)
+target_include_directories(mjsimulate PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_compile_options(mjsimulate PUBLIC ${MUJOCO_SIMULATE_COMPILE_OPTIONS})
+target_link_libraries(mjsimulate PUBLIC glfw uitools mujoco::mujoco) # TODO is that right 
+target_link_options(mjsimulate PRIVATE ${MUJOCO_SIMULATE_LINK_OPTIONS})
 
 # Build samples that require GLFW.
 
-add_executable(basic basic.cc)
-target_compile_options(basic PUBLIC ${MUJOCO_SAMPLE_COMPILE_OPTIONS})
-target_link_libraries(
-  basic
-  mujoco::mujoco
-  glfw
-  Threads::Threads
-)
-target_link_options(basic PRIVATE ${MUJOCO_SAMPLE_LINK_OPTIONS})
+if(APPLE)
+  set(SIMULATE_RESOURCE_FILES ${CMAKE_CURRENT_SOURCE_DIR}/../dist/mujoco.icns)
+elseif(WIN32)
+  set(SIMULATE_RESOURCE_FILES ${CMAKE_CURRENT_SOURCE_DIR}/../dist/appicon.rc)
+else()
+  set(SIMULATE_RESOURCE_FILES "")
+endif()
 
-add_executable(record record.cc array_safety.h)
-target_compile_options(record PUBLIC ${MUJOCO_SAMPLE_COMPILE_OPTIONS})
+add_executable(simulate main.cc array_safety.h ${SIMULATE_RESOURCE_FILES})
+target_compile_options(simulate PUBLIC ${MUJOCO_SIMULATE_COMPILE_OPTIONS})
+if(WIN32)
+  add_custom_command(
+    TARGET simulate
+    PRE_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/../dist/mujoco.ico
+            ${CMAKE_CURRENT_SOURCE_DIR}
+    POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E rm ${CMAKE_CURRENT_SOURCE_DIR}/mujoco.ico
+  )
+endif()
+
 target_link_libraries(
-  record
+  simulate
+  mjsimulate
   mujoco::mujoco
+  uitools
   glfw
   Threads::Threads
 )
-target_link_options(record PRIVATE ${MUJOCO_SAMPLE_LINK_OPTIONS})
+target_link_options(simulate PRIVATE ${MUJOCO_SAMPLE_LINK_OPTIONS})
+
+if(APPLE)
+  target_sources(simulate PRIVATE macos_save.mm)
+  target_link_libraries(simulate "-framework Cocoa")
+endif()
 
 if(APPLE AND MUJOCO_BUILD_MACOS_FRAMEWORKS)
   set_target_properties(
@@ -127,7 +133,7 @@ if(APPLE AND MUJOCO_BUILD_MACOS_FRAMEWORKS)
                MACOSX_BUNDLE TRUE
                MACOSX_BUNDLE_INFO_PLIST ${CMAKE_CURRENT_SOURCE_DIR}/../dist/Info.plist.simulate.in
                MACOSX_BUNDLE_BUNDLE_NAME "MuJoCo"
-               MACOSX_BUNDLE_GUI_IDENTIFIER "org.mujoco.app"
+               MACOSX_BUNDLE_GUI_IDENTIFIER "org.mujoco.mujoco"
                MACOSX_BUNDLE_BUNDLE_VERSION ${PROJECT_VERSION}
                MACOSX_BUNDLE_INFO_STRING ${PROJECT_VERSION}
                MACOSX_BUNDLE_LONG_VERSION_STRING ${PROJECT_VERSION}
@@ -146,14 +152,7 @@ if(APPLE AND MUJOCO_BUILD_MACOS_FRAMEWORKS)
     )
   endmacro()
 
-  embed_in_bundle(basic simulate)
-  embed_in_bundle(compile simulate)
-  embed_in_bundle(derivative simulate)
-  embed_in_bundle(record simulate)
-  embed_in_bundle(testspeed simulate)
-  embed_in_bundle(testxml simulate)
-
-  # Embed mujoco.framework inside the App bundle.
+  # Embed mujoco.framework inside the App bundle ane move the icon file over too.
   add_custom_command(
     TARGET simulate
     POST_BUILD
@@ -161,27 +160,26 @@ if(APPLE AND MUJOCO_BUILD_MACOS_FRAMEWORKS)
     COMMAND rm -rf $<TARGET_FILE_DIR:simulate>/../Frameworks/mujoco.framework
     COMMAND cp -a $<TARGET_FILE_DIR:mujoco::mujoco>/../../../mujoco.framework
             $<TARGET_FILE_DIR:simulate>/../Frameworks/
+    # Delete the symlink and the TBD, otherwise we can't sign and notarize.
+    COMMAND rm -rf $<TARGET_FILE_DIR:simulate>/../Frameworks/mujoco.framework/mujoco.tbd
+    COMMAND rm -rf
+            $<TARGET_FILE_DIR:simulate>/../Frameworks/mujoco.framework/Versions/A/libmujoco.dylib
   )
 endif()
 
 # Do not install if macOS Bundles are created as RPATH is managed manually there.
 if(APPLE AND MUJOCO_BUILD_MACOS_FRAMEWORKS)
-  set(_INSTALL_SAMPLES OFF)
+  set(_INSTALL_SIMULATE OFF)
 endif()
 
-if(_INSTALL_SAMPLES)
+if(_INSTALL_SIMULATE)
 
   include(TargetAddRpath)
 
   # Add support to RPATH for the samples.
   target_add_rpath(
     TARGETS
-    basic
-    compile
-    derivative
-    record
-    testspeed
-    testxml
+    simulate
     INSTALL_DIRECTORY
     "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_BINDIR}"
     LIB_DIRS
@@ -191,21 +189,16 @@ if(_INSTALL_SAMPLES)
   )
 
   install(
-    TARGETS basic
-            compile
-            derivative
-            record
-            testspeed
-            testxml
+    TARGETS simulate
     EXPORT ${PROJECT_NAME}
-    RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}" COMPONENT samples
-    LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}" COMPONENT samples
-    ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}" COMPONENT samples
-    BUNDLE DESTINATION "${CMAKE_INSTALL_BINDIR}" COMPONENT samples
-    PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR} COMPONENT samples
+    RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}" COMPONENT simulate
+    LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}" COMPONENT simulate
+    ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}" COMPONENT simulate
+    BUNDLE DESTINATION "${CMAKE_INSTALL_BINDIR}" COMPONENT simulate
+    PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR} COMPONENT simulate
   )
 
-  if(NOT MUJOCO_SAMPLES_USE_SYSTEM_GLFW)
+  if(NOT MUJOCO_SIMULATE_USE_SYSTEM_GLFW)
     # We downloaded GLFW. Depending if it is a static or shared LIBRARY we might
     # need to install it.
     get_target_property(MJ_GLFW_LIBRARY_TYPE glfw TYPE)
@@ -213,10 +206,10 @@ if(_INSTALL_SAMPLES)
       install(
         TARGETS glfw
         EXPORT ${PROJECT_NAME}
-        RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}" COMPONENT samples
-        LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}" COMPONENT samples
-        ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}" COMPONENT samples
-        PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR} COMPONENT samples
+        RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}" COMPONENT simulate
+        LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}" COMPONENT simulate
+        ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}" COMPONENT simulate
+        PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR} COMPONENT simulate
       )
     endif()
   endif()

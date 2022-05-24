@@ -19,7 +19,7 @@
 #include <string>
 #include <thread>
 
-#include <mjxmacro.h>
+#include <mujoco/mjxmacro.h>
 #include "uitools.h"
 #include "simulate.h"
 
