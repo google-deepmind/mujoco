@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-cmake_minimum_required(VERSION 3.18)
+cmake_minimum_required(VERSION 3.16)
 
 # Make CMAKE_C_VISIBILITY_PRESET work properly.
 set(CMAKE_POLICY_DEFAULT_CMP0063 NEW)
