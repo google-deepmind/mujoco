@@ -1,6 +1,6 @@
 # This configuration is used to build and test on GitHub Actions only.
 # It is not the same configuration that is used by DeepMind to create release binaries.
-# The "official" binaries are built with LLVM/Clang on all platforms, and are linked against libc++
+# The "official" binaries are built with Clang 13 on all platforms, and are linked against libc++
 # on Linux.
 
 name: build
@@ -17,14 +17,20 @@ jobs:
       matrix:
         include:
           - os: ubuntu-20.04
-            cmake_build_args: "-G Ninja -DCMAKE_C_COMPILER=gcc-10 -DCMAKE_CXX_COMPILER=g++-10"
+            additional_label: "with GCC 10"
+            cmake_args: "-G Ninja -DCMAKE_C_COMPILER:STRING=gcc-10 -DCMAKE_CXX_COMPILER:STRING=g++-10"
+          - os: ubuntu-20.04
+            additional_label: "with Clang 12"
+            cmake_args: "-G Ninja -DCMAKE_C_COMPILER:STRING=clang-12 -DCMAKE_CXX_COMPILER:STRING=clang++-12 -DMUJOCO_HARDEN:BOOL=ON"
           - os: macos-12
-            cmake_build_args: "-G Ninja"
+            cmake_args: "-G Ninja -DMUJOCO_HARDEN:BOOL=ON"
           - os: windows-2022
+            cmake_build_args: "-- /MP"
 
-    name: "MuJoCo on ${{ matrix.os }}"
+    name: "MuJoCo on ${{ matrix.os }} ${{ matrix.additional_label }}"
     runs-on: ${{ matrix.os }}
     env:
+      CMAKE_ARGS: ${{ matrix.cmake_args }}
       CMAKE_BUILD_ARGS: ${{ matrix.cmake_build_args }}
 
     steps:
@@ -46,10 +52,10 @@ jobs:
       run: |
         mkdir build
         cd build
-        cmake -DCMAKE_BUILD_TYPE=Release $CMAKE_BUILD_ARGS ..
+        cmake .. -DCMAKE_BUILD_TYPE:STRING=Release $CMAKE_ARGS
     - name: Build
       working-directory: build
-      run: cmake --build . --config=Release
+      run: cmake --build . --config=Release $CMAKE_BUILD_ARGS
     - name: Test
       working-directory: build
       run: ctest -C Release .
