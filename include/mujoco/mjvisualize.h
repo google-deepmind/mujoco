@@ -268,20 +268,20 @@ struct mjvScene_ {                // abstract scene passed to OpenGL renderer
   // abstract geoms
   int      maxgeom;               // size of allocated geom buffer
   int      ngeom;                 // number of geoms currently in buffer
-  mjvGeom* geoms;                 // buffer for geoms
-  int*     geomorder;             // buffer for ordering geoms by distance to camera
+  mjvGeom* geoms;                 // buffer for geoms (ngeom)
+  int*     geomorder;             // buffer for ordering geoms by distance to camera (ngeom)
 
   // skin data
   int      nskin;                 // number of skins
-  int*     skinfacenum;           // number of faces in skin
-  int*     skinvertadr;           // address of skin vertices
-  int*     skinvertnum;           // number of vertices in skin
-  float*   skinvert;              // skin vertex data
-  float*   skinnormal;            // skin normal data
+  int*     skinfacenum;           // number of faces in skin (nskin)
+  int*     skinvertadr;           // address of skin vertices (nskin)
+  int*     skinvertnum;           // number of vertices in skin (nskin)
+  float*   skinvert;              // skin vertex data (nskin)
+  float*   skinnormal;            // skin normal data (nskin)
 
   // OpenGL lights
   int      nlight;                // number of lights currently in buffer
-  mjvLight lights[mjMAXLIGHT];    // buffer for lights
+  mjvLight lights[mjMAXLIGHT];    // buffer for lights (nlight)
 
   // OpenGL cameras
   mjvGLCamera camera[2];          // left and right camera
