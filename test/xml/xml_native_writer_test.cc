@@ -332,17 +332,17 @@ static constexpr int kFieldSize = 500;
 // The maximum spacing between a normalised floating point number x and an
 // adjacent normalised number is 2 epsilon |x|; a factor 10 is added accounting
 // for losses during non-idempotent operations such as vector normalizations.
-mjtNum Compare(mjtNum val1, mjtNum val2) {
-  mjtNum error;
+template<typename T = mjtNum> T Compare(T val1, T val2) {
+  T error;
   if (mju_abs(val1) <= 1 || mju_abs(val2) <= 1) {
       // Asbolute precision for small numbers
       error = mju_abs(val1-val2);
   } else {
     // Relative precision for larger numbers
-    mjtNum magnitude = mju_max(mju_abs(val1), mju_abs(val2));
+    T magnitude = mju_max(mju_abs(val1), mju_abs(val2));
     error = mju_abs(val1/magnitude - val2/magnitude) / magnitude;
   }
-  return error < 2*10*std::numeric_limits<double>::epsilon() ? 0 : error;
+  return error < 2*10*std::numeric_limits<T>::epsilon() ? 0 : error;
 }
 
 mjtNum CompareModel(const mjModel* m1, const mjModel* m2, char (&field)[kFieldSize]) {
@@ -388,7 +388,7 @@ mjtNum CompareModel(const mjModel* m1, const mjModel* m2, char (&field)[kFieldSi
 TEST_F(XMLWriterTest, WriteReadCompare) {
   FullFloatPrecision increase_precision;
   // Loop over all xml files in data
-  std::vector<std::string> paths = {GetModelPath("humanoid"), GetModelPath("humanoid100")};
+  std::vector<std::string> paths = {GetModelPath("humanoid"), GetModelPath("flag")};
   std::string ext(".xml");
   for (auto const& path : paths) {
     for (auto &p : std::filesystem::recursive_directory_iterator(path)) {

@@ -764,6 +764,8 @@ mjCBody* mjCComposite::AddClothBody(mjCModel* model, mjCBody* body,
     body->inertia[0] = body->mass*(size[1]*size[1]+size[2]*size[2])/3;
     body->inertia[1] = body->mass*(size[0]*size[0]+size[2]*size[2])/3;
     body->inertia[2] = body->mass*(size[0]*size[0]+size[1]*size[1])/3;
+
+    body->MakeInertialExplicit();
   }
 
   // add site

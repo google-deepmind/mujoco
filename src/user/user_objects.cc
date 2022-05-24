@@ -644,6 +644,10 @@ void mjCBody::MakeLocal(double* _locpos, double* _locquat,
   }
 }
 
+// set explicit_inertial to true
+void mjCBody::MakeInertialExplicit() {
+  explicit_inertial = true;
+}
 
 
 // compiler

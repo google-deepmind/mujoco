@@ -160,6 +160,9 @@ class mjCBody : public mjCBase {
   // setup child local frame, take into account change
   void MakeLocal(double* locpos, double* locquat, const double* pos, const double* quat);
 
+  // set explicit_inertial to true
+  void MakeInertialExplicit();
+
   // variables set by user or 'Compile'
   bool mocap;                     // is this a mocap body
   double pos[3];                  // frame position
@@ -188,7 +191,7 @@ class mjCBody : public mjCBase {
   int weldid;                     // top index of body we are welded to
   int dofnum;                     // number of motion dofs for body
   int mocapid;                    // mocap id, -1: not mocap
-  bool explicit_inertial;         // whether inertial clause was explicitly stated
+  bool explicit_inertial;         // whether to save the body with an explicit inertial clause
 
   int lastdof;                    // id of last dof (used by compiler)
 
