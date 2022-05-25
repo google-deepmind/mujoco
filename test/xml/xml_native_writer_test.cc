@@ -18,6 +18,7 @@
 #include <unistd.h>
 #endif
 
+#include <algorithm>
 #include <array>
 #include <clocale>
 #include <cstddef>
@@ -32,7 +33,9 @@
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
+#include <absl/container/flat_hash_set.h>
 #include <mujoco/mjmodel.h>
+#include <mujoco/mjtnum.h>
 #include <mujoco/mjxmacro.h>
 #include <mujoco/mujoco.h>
 #include "src/cc/array_safety.h"
@@ -373,13 +376,14 @@ mjtNum CompareModel(const mjModel* m1, const mjModel* m2, char (&field)[kFieldSi
     if (m1->name != m2->name) {maxdif = 1.0; mju::strcpy_arr(field, #name);}
     MJMODEL_INTS
   #undef X
+  if (maxdif > 0) return maxdif;
 
   // compare arrays
   #define X(type, name, nr, nc)                                    \
     for (int r=0; r < m1->nr; r++)                                 \
       for (int c=0; c < nc; c++) {                                 \
-        dif = Compare(m1->name[r*nc+c], m2->name[r*nc+c]);         \
-        if (dif > maxdif) {maxdif = dif; mju::strcpy_arr(field, #name);} }
+        dif = Compare(m1->name[r*nc+c], m2->name[r*nc+c]);  \
+        if (dif > maxdif) { maxdif = dif; mju::strcpy_arr(field, #name);} }
     MJMODEL_POINTERS
   #undef X
 
@@ -405,7 +409,7 @@ mjtNum CompareModel(const mjModel* m1, const mjModel* m2, char (&field)[kFieldSi
 TEST_F(XMLWriterTest, WriteReadCompare) {
   FullFloatPrecision increase_precision;
   // Loop over all xml files in data
-  std::vector<std::string> paths = {GetModelPath("humanoid"), GetModelPath("flag")};
+  std::vector<std::string> paths = {GetTestDataFilePath("."), GetModelPath(".")};
   std::string ext(".xml");
   for (auto const& path : paths) {
     for (auto &p : std::filesystem::recursive_directory_iterator(path)) {
@@ -419,23 +423,27 @@ TEST_F(XMLWriterTest, WriteReadCompare) {
 
         // make data
         mjData* d = mj_makeData(m);
-        ASSERT_THAT(d, NotNull()) << "Failed to load model: " << error.data();
+        ASSERT_THAT(d, testing::NotNull()) << "Failed to create data" << std::endl;
 
         // save and load back
-        mjModel* mtemp = LoadModelFromString(SaveAndReadXml(m));
-        ASSERT_THAT(mtemp, NotNull()) << "Failed to load model: " << error.data();
+        mjModel* mtemp = LoadModelFromString(SaveAndReadXml(m), error.data(), error.size());
 
-        // compare
+        if (!mtemp) {
+          // if failing because assets are missing, accept the test
+          ASSERT_THAT(error.data(), HasSubstr("file")) << error.data();
+        } else {
+          // compare and delete
         char field[kFieldSize] = "";
         mjtNum result = CompareModel(m, mtemp, field);
         EXPECT_LE(result, 0) << "Loaded and saved models are different!" << std::endl
                              << "Affected file " << p.path().string() << std::endl
                              << "Different field: " << field << std::endl;
+          mj_deleteModel(mtemp);
+        }
 
-        // delete everything
+        // delete original structures
         mj_deleteData(d);
         mj_deleteModel(m);
-        mj_deleteModel(mtemp);
       }
     }
   }

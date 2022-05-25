@@ -19,4 +19,4 @@ mujoco_test(xml_native_reader_test)
 target_link_libraries(xml_native_reader_test fixture gmock)
 
 mujoco_test(xml_native_writer_test)
-target_link_libraries(xml_native_writer_test fixture gmock)
+target_link_libraries(xml_native_writer_test fixture gmock absl::flat_hash_set)
