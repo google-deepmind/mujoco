@@ -28,8 +28,7 @@ namespace mujoco::python {
 namespace {
 namespace py = ::pybind11;
 
-MUJOCO_ALWAYS_INLINE
-void ZeroDenominatorCheck(double b) {
+inline void ZeroDenominatorCheck(double b) {
   if (b == 0) {
     PyErr_SetString(PyExc_ZeroDivisionError, "division by zero");
     throw py::error_already_set();
@@ -37,14 +36,12 @@ void ZeroDenominatorCheck(double b) {
 }
 
 template <typename T>
-MUJOCO_ALWAYS_INLINE
-T FloorDiv(T a, T b) {
+inline T FloorDiv(T a, T b) {
   ZeroDenominatorCheck(b);
   return std::floor(static_cast<double>(a) / static_cast<double>(b));
 }
 
 template <typename Trait>
-MUJOCO_ALWAYS_INLINE
 void DefEnum(py::module_& m) {
   py::enum_<typename Trait::type> e(m, Trait::name);
   for (const auto& [name, enumerator] : Trait::values) {
@@ -137,7 +134,6 @@ void DefEnum(py::module_& m) {
 }
 
 template <typename Tuple>
-MUJOCO_ALWAYS_INLINE
 void DefAllEnums(py::module_& m, Tuple&& tuple) {
   using TupleNoRef = std::remove_reference_t<Tuple>;
   if constexpr (std::tuple_size_v<TupleNoRef> != 0) {

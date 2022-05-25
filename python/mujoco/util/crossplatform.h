@@ -55,11 +55,6 @@
     _Pragma("clang diagnostic ignored \"-Wunused-lambda-capture\"")
 #define MUJOCO_DIAG_UNIGNORE_UNUSED_LAMBDA_CAPTURE \
     _Pragma("clang diagnostic pop")
-#elif defined(__GNUC__)
-#define MUJOCO_DIAG_IGNORE_UNUSED_LAMBDA_CAPTURE                  \
-    _Pragma("GCC diagnostic push")                                \
-    _Pragma("GCC diagnostic ignored \"-Wunused-lambda-capture\"")
-#define MUJOCO_DIAG_UNIGNORE_UNUSED_LAMBDA_CAPTURE _Pragma("GCC diagnostic pop")
 #else
 #define MUJOCO_DIAG_IGNORE_UNUSED_LAMBDA_CAPTURE
 #define MUJOCO_DIAG_UNIGNORE_UNUSED_LAMBDA_CAPTURE

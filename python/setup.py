@@ -196,9 +196,8 @@ class BuildCMakeExtension(build_ext.build_ext):
         f'-DCMAKE_MODULE_PATH:PATH={cmake_module_path}',
         f'-DCMAKE_BUILD_TYPE:STRING={build_cfg}',
         f'-DCMAKE_LIBRARY_OUTPUT_DIRECTORY:PATH={self.build_temp}',
-        f'-DCMAKE_INTERPROCEDURAL_OPTIMIZATION=:BOOL{"OFF" if self.debug else "ON"}',
+        f'-DCMAKE_INTERPROCEDURAL_OPTIMIZATION:BOOL={"OFF" if self.debug else "ON"}',
         '-DCMAKE_Fortran_COMPILER:STRING=',
-        '-DCMAKE_VERBOSE_MAKEFILE:BOOL=ON',
         '-DBUILD_TESTING:BOOL=OFF',
     ]
 

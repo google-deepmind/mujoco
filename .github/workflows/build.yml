@@ -2,6 +2,9 @@
 # It is not the same configuration that is used by DeepMind to create release binaries.
 # The "official" binaries are built with Clang 13 on all platforms, and are linked against libc++
 # on Linux.
+#
+# We set CMAKE_INTERPROCEDURAL_OPTIMIZATION=OFF here to reduce build time.
+# It is highly recommended that this is set to ON for production builds.
 
 name: build
 
@@ -16,46 +19,122 @@ jobs:
     strategy:
       matrix:
         include:
-          - os: ubuntu-20.04
-            additional_label: "with GCC 10"
-            cmake_args: "-G Ninja -DCMAKE_C_COMPILER:STRING=gcc-10 -DCMAKE_CXX_COMPILER:STRING=g++-10"
-          - os: ubuntu-20.04
+          - os: ubuntu-22.04
+            additional_label: "with GCC 11"
+            cmake_args: >-
+              -G Ninja
+              -DCMAKE_C_COMPILER:STRING=gcc-11
+              -DCMAKE_CXX_COMPILER:STRING=g++-11
+            tmpdir: "/tmp"
+          - os: ubuntu-22.04
             additional_label: "with Clang 12"
-            cmake_args: "-G Ninja -DCMAKE_C_COMPILER:STRING=clang-12 -DCMAKE_CXX_COMPILER:STRING=clang++-12 -DMUJOCO_HARDEN:BOOL=ON"
+            cmake_args: >-
+              -G Ninja
+              -DCMAKE_C_COMPILER:STRING=clang-12
+              -DCMAKE_CXX_COMPILER:STRING=clang++-12
+              -DMUJOCO_HARDEN:BOOL=ON
+            tmpdir: "/tmp"
           - os: macos-12
-            cmake_args: "-G Ninja -DMUJOCO_HARDEN:BOOL=ON"
+            cmake_args: >-
+              -G Ninja
+              -DMUJOCO_HARDEN:BOOL=ON
+            tmpdir: "/tmp"
           - os: windows-2022
-            cmake_build_args: "-- /MP"
+            cmake_build_args: "-- -m"
+            tmpdir: "C:/Temp"
 
     name: "MuJoCo on ${{ matrix.os }} ${{ matrix.additional_label }}"
     runs-on: ${{ matrix.os }}
-    env:
-      CMAKE_ARGS: ${{ matrix.cmake_args }}
-      CMAKE_BUILD_ARGS: ${{ matrix.cmake_build_args }}
 
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
     - name: Prepare Linux
       if: ${{ runner.os == 'Linux' }}
-      run: |
-        sudo apt-get install \
-            libgl1-mesa-dev \
-            libxinerama-dev \
-            libxcursor-dev \
-            libxrandr-dev \
-            libxi-dev \
-            ninja-build
+      run: >
+        sudo apt-get install
+        libgl1-mesa-dev
+        libxinerama-dev
+        libxcursor-dev
+        libxrandr-dev
+        libxi-dev
+        ninja-build
     - name: Prepare macOS
       if: ${{ runner.os == 'macOS' }}
       run: brew install ninja
-    - name: Configure
+    - uses: actions/setup-python@v3
+      with:
+        python-version: "3.10"
+    - name: Prepare Python
+      shell: bash
       run: |
-        mkdir build
-        cd build
-        cmake .. -DCMAKE_BUILD_TYPE:STRING=Release $CMAKE_ARGS
-    - name: Build
+        cd ${{ matrix.tmpdir }}
+        python -m venv venv
+        if [[ $RUNNER_OS == "Windows" ]]; then
+        mkdir venv/bin
+        fixpath="$(s="$(cat venv/Scripts/activate | grep VIRTUAL_ENV=)"; echo "${s:13:-1}")"
+        sed -i "s#$(printf "%q" "${fixpath}")#$(cygpath "${fixpath}")#g" venv/Scripts/activate
+        ln -s ../Scripts/activate venv/bin/activate
+        fi
+        source venv/bin/activate
+        python -m pip install --upgrade pip
+        pip install pytest wheel
+    - name: Configure MuJoCo
+      run: >
+        mkdir build &&
+        cd build &&
+        cmake ..
+        -DCMAKE_BUILD_TYPE:STRING=Release
+        -DCMAKE_INSTALL_PREFIX:STRING=${{ matrix.tmpdir }}/mujoco_install
+        -DMUJOCO_BUILD_EXAMPLES:BOOL=OFF
+        ${{ matrix.cmake_args }}
+    - name: Build MuJoCo
       working-directory: build
-      run: cmake --build . --config=Release $CMAKE_BUILD_ARGS
-    - name: Test
+      run: cmake --build . --config=Release ${{ matrix.cmake_build_args }}
+    - name: Test MuJoCo
       working-directory: build
       run: ctest -C Release .
+    - name: Install MuJoCo
+      working-directory: build
+      run: cmake --install .
+    - name: Configure samples
+      working-directory: sample
+      run: >
+        mkdir build &&
+        cd build &&
+        cmake ..
+        -DCMAKE_BUILD_TYPE:STRING=Release
+        -Dmujoco_ROOT:STRING=${{ matrix.tmpdir }}/mujoco_install
+        ${{ matrix.cmake_args }}
+    - name: Build samples
+      working-directory: sample/build
+      run: cmake --build . --config=Release ${{ matrix.cmake_build_args }}
+    - name: Make Python sdist
+      shell: bash
+      working-directory: python
+      run: >
+        source ${{ matrix.tmpdir }}/venv/bin/activate &&
+        ./make_sdist.sh
+    - name: Build Python bindings
+      if: ${{ runner.os != 'Windows' }}
+      shell: bash
+      working-directory: python/dist
+      run: >
+        source ${{ matrix.tmpdir }}/venv/bin/activate &&
+        MUJOCO_PATH="${{ matrix.tmpdir }}/mujoco_install"
+        MUJOCO_CMAKE_ARGS="-DCMAKE_INTERPROCEDURAL_OPTIMIZATION:BOOL=OFF ${{ matrix.cmake_args }}"
+        pip wheel -v --no-deps mujoco-*.tar.gz
+    - name: Install Python bindings
+      if: ${{ runner.os != 'Windows' }}
+      shell: bash
+      working-directory: python/dist
+      run: >
+        source ${{ matrix.tmpdir }}/venv/bin/activate &&
+        pip install mujoco-*.whl
+    - name: Test Python bindings
+      if: ${{ runner.os != 'Windows' }}
+      shell: bash
+      env:
+        MUJOCO_GL: disable
+      run: >
+        source ${{ matrix.tmpdir }}/venv/bin/activate &&
+        pytest -v --pyargs mujoco
