@@ -290,7 +290,8 @@ void mjXWriter::OneGeom(XMLElement* elem, mjCGeom* pgeom, mjCDef* def) {
   WriteAttr(elem, "gap", 1, &pgeom->gap, &def->geom.gap);
   WriteAttr(elem, "gap", 1, &pgeom->gap, &def->geom.gap);
   if (mjuu_defined(pgeom->_mass)) {
-    WriteAttr(elem, "mass", 1, &pgeom->mass, &def->geom.mass);
+    double mass = pgeom->GetVolume() * def->geom.density;
+    WriteAttr(elem, "mass", 1, &pgeom->mass, &mass);
   } else {
     WriteAttr(elem, "density", 1, &pgeom->density, &def->geom.density);
   }

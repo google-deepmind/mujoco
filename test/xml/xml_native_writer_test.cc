@@ -214,6 +214,23 @@ TEST_F(XMLWriterTest, WritesMass) {
   mj_deleteModel(model);
 }
 
+TEST_F(XMLWriterTest, ZeroMass) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <geom type="box" size=".05 .05 .05" mass="0"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  mjModel* model = LoadModelFromString(xml);
+  std::string saved_xml = SaveAndReadXml(model);
+  EXPECT_THAT(saved_xml, Not(HasSubstr("density")));
+  EXPECT_THAT(saved_xml, HasSubstr("mass=\"0\""));
+  mj_deleteModel(model);
+}
+
 TEST_F(XMLWriterTest, OverwritesDensity) {
   static constexpr char xml[] = R"(
   <mujoco>
