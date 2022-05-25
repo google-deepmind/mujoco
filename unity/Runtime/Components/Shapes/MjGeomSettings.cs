@@ -21,6 +21,11 @@ namespace Mujoco {
 // Advanced settings of MjGeom component.
 [Serializable]
 public struct MjGeomSettings {
+
+
+  [Tooltip("Priority")]
+  public int Priority;
+
   [Tooltip("Solver accuracy settings.")]
   public GeomSolver Solver;
 
@@ -38,6 +43,9 @@ public struct MjGeomSettings {
   };
 
   public void FromMjcf(XmlElement mjcf) {
+
+    Priority = (int) mjcf.GetFloatAttribute("priority", 0);
+
     // Contact filtering settings.
     Filtering.Contype = (int)mjcf.GetFloatAttribute("contype", CollisionFiltering.Default.Contype);
     Filtering.Conaffinity = (int)mjcf.GetFloatAttribute(
@@ -71,6 +79,8 @@ public struct MjGeomSettings {
   }
 
   public void ToMjcf(XmlElement mjcf) {
+    mjcf.SetAttribute("priority", $"{Priority}");
+
     // Contact filtering settings.
     mjcf.SetAttribute("contype", $"{Filtering.Contype}");
     mjcf.SetAttribute("conaffinity", $"{Filtering.Conaffinity}");

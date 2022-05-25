@@ -69,7 +69,8 @@ public class MjSiteVectorSensor : MjBaseSensor {
   }
 
   public override unsafe void OnSyncState(MujocoLib.mjData_* data) {
-    SensorReading = MjEngineTool.UnityVector3(data->sensordata, _sensorAddress);
+    Vector3 mjReading = new Vector3((float)data->sensordata[_sensorAddress], (float)data->sensordata[_sensorAddress + 1], (float)data->sensordata[_sensorAddress + 2]);
+    SensorReading = MjEngineTool.UnityVector3(mjReading);
   }
 }
 }

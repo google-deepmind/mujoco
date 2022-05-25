@@ -30,6 +30,9 @@ namespace Mujoco {
     [Tooltip("Joint movement, in rad/sec. Read-only at play time.")]
     public float Velocity;
 
+    [Tooltip("The current joint angle without normalization, in radians. Read-only.")]
+    public double RawConfiguration;
+
     [Tooltip("Joint settings.")]
     public MjJointSettings Settings = MjJointSettings.Default;
 
@@ -42,7 +45,8 @@ namespace Mujoco {
     }
 
     public override unsafe void OnSyncState(MujocoLib.mjData_* data) {
-      var qpos = (float)data->qpos[QposAddress];
+      RawConfiguration = data->qpos[QposAddress];
+      var qpos = (float)RawConfiguration;
       Configuration = (qpos % (2 * Mathf.PI)) * Mathf.Rad2Deg;
       Velocity = (float)data->qvel[DofAddress];
     }

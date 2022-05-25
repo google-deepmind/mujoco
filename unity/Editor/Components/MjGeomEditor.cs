@@ -24,6 +24,7 @@ public class MjGeomEditor : MjShapeComponentEditor {
     serializedObject.Update();
     EditorGUILayout.PropertyField(serializedObject.FindProperty("Mass"));
     EditorGUILayout.PropertyField(serializedObject.FindProperty("Density"));
+    EditorGUILayout.PropertyField(serializedObject.FindProperty("Settings"));
     serializedObject.ApplyModifiedProperties();
     base.OnInspectorGUI();
   }
