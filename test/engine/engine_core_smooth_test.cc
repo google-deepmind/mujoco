@@ -33,6 +33,27 @@ static std::vector<mjtNum> GetVector(const mjtNum* array, int length) {
   return std::vector<mjtNum>(array, array + length);
 }
 
+// --------------------------- mj_kinematics -----------------------------------
+
+TEST_F(CoreSmoothTest, MjKinematicsWorldXipos) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+    </worldbody>
+  </mujoco>
+  )";
+  mjModel* model = LoadModelFromString(xml);
+  ASSERT_THAT(model, testing::NotNull());
+  mjData* data = mj_makeData(model);
+
+  mj_resetDataDebug(model, data, 'd');
+  mj_kinematics(model, data);
+  EXPECT_THAT(GetVector(&data->xipos[0], 3), ElementsAre(0, 0, 0));
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
 // --------------------------- connect constraint ------------------------------
 
 TEST_F(CoreSmoothTest, RnePostConnectForceSlide) {

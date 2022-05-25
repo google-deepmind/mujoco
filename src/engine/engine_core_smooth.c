@@ -40,6 +40,7 @@ void mj_kinematics(const mjModel* m, mjData* d) {
   // set world position and orientation
   mju_zero3(d->xpos);
   mju_unit4(d->xquat);
+  mju_zero3(d->xipos);
   mju_zero(d->xmat, 9);
   mju_zero(d->ximat, 9);
   d->xmat[0] = d->xmat[4] = d->xmat[8] = 1;
