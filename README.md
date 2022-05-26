@@ -52,7 +52,7 @@ your machine.
 If you are a Python user, you might want to start with our tutorial notebooks,
 running on Google Colab:
 
-  - The first tutorial focuses on the basic MuJoco Python bindings: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/deepmind/dm_control/blob/main/dm_control/mujoco/tutorial.ipynb)
+  - The first tutorial focuses on the basic MuJoCo Python bindings: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/deepmind/dm_control/blob/main/dm_control/mujoco/tutorial.ipynb)
 
   - The second tutorial includes more examples of `dm_control`-specific functionality: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/deepmind/dm_control/blob/main/tutorial.ipynb)
 
