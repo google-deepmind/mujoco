@@ -22,7 +22,7 @@
   </default>
 
   <worldbody>
-    <body name="body0" pos="-3 0 ">
+    <body name="body0" pos="-3 0 0">
       <joint name="joint0" type="slide" axis="0 0 1"/>
       <geom/>
     </body>

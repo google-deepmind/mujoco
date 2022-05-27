@@ -128,6 +128,70 @@ TEST_F(UserDataTest, InvalidNUserSensor) {
   EXPECT_THAT(error.data(), HasSubstr("nuser_sensor"));
 }
 
+TEST_F(UserDataTest, InvalidArrayElement) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <geom size="1" axisangle="1.0 0.0 0.0 [[1]]"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("problem reading attribute 'axisangle'"));
+}
+
+TEST_F(UserDataTest, InvalidArrayLength) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <geom size="1" axisangle="1 0 0 0 asd"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("has too much data"));
+}
+
+TEST_F(UserDataTest, InvalidNumber) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <geom size="1" axisangle="1 0.1.2.3"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("problem reading attribute"));
+}
+
+TEST_F(UserDataTest, AllowsSpaces) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <geom size="1" axisangle="1 0   0 0 "/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, Not(IsNull()));
+  mj_deleteModel(model);
+}
+
 // ------------- test relative frame sensor parsing ----------------------------
 
 using RelativeFrameSensorParsingTest = MujocoTest;
@@ -207,7 +271,28 @@ TEST_F(ActuatorTest, IncompleteActlimited) {
   std::array<char, 1024> error;
   mjModel* model = LoadModelFromString(xml, error.data(), error.size());
   ASSERT_THAT(model, IsNull());
-  EXPECT_THAT(error.data(), HasSubstr("actrange"));
+  EXPECT_THAT(error.data(), HasSubstr("attribute 'actrange' does not have enough data"));
+}
+
+TEST_F(ActuatorTest, ReadsByte) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <joint name="hinge"/>
+        <geom size="1"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <general joint="hinge" dyntype="filter" actlimited="true" actrange="-1 1"/>
+    </actuator>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, Not(IsNull()));
+  EXPECT_EQ(*(model->actuator_actlimited), (mjtByte)(1 & 0xFF));
+  mj_deleteModel(model);
 }
 
 }  // namespace
