@@ -19,7 +19,6 @@
 #include <cstdlib>
 #include <cstring>
 #include <iostream>
-#include <ostream>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -551,8 +550,8 @@ string mjXUtil::FindValue(const mjMap* map, int mapsz, int value) {
 //  the content is returned in "text", the numeric data in "data"
 //  return true if attribute found, false if not found and not required
 template<typename T>
-int mjXUtil::ReadAttrCpp(XMLElement* elem, const char* attr, const int len,
-                         T* data, string& text, bool required, bool exact) {
+int mjXUtil::ReadAttr(XMLElement* elem, const char* attr, const int len,
+                      T* data, string& text, bool required, bool exact) {
   const char* pstr = elem->Attribute(attr);
 
   // check if attribute exists
@@ -596,36 +595,17 @@ int mjXUtil::ReadAttrCpp(XMLElement* elem, const char* attr, const int len,
   return i;
 }
 
+template int mjXUtil::ReadAttr(XMLElement* elem, const char* attr, const int len,
+                               double* data, string& text, bool required, bool exact);
 
+template int mjXUtil::ReadAttr(XMLElement* elem, const char* attr, const int len,
+                               float* data, string& text, bool required, bool exact);
 
-int mjXUtil::ReadAttr(XMLElement* elem, const char* attr, const int len,
-                      double* data, string& text, bool required, bool exact) {
-  return ReadAttrCpp(elem, attr, len, data, text, required, exact);
-}
+template int mjXUtil::ReadAttr(XMLElement* elem, const char* attr, const int len,
+                               int* data, string& text, bool required, bool exact);
 
-
-
-// float version
-int mjXUtil::ReadAttr(XMLElement* elem, const char* attr, const int len,
-                      float* data, string& text, bool required, bool exact) {
-  return ReadAttrCpp(elem, attr, len, data, text, required, exact);
-}
-
-
-
-// int version
-int mjXUtil::ReadAttr(XMLElement* elem, const char* attr, const int len,
-                      int* data, string& text, bool required, bool exact) {
-  return ReadAttrCpp(elem, attr, len, data, text, required, exact);
-}
-
-
-
-// byte version
-int mjXUtil::ReadAttr(XMLElement* elem, const char* attr, const int len,
-                      mjtByte* data, string& text, bool required, bool exact) {
-  return ReadAttrCpp(elem, attr, len, data, text, required, exact);
-}
+template int mjXUtil::ReadAttr(XMLElement* elem, const char* attr, const int len,
+                               mjtByte* data, string& text, bool required, bool exact);
 
 
 
