@@ -25,7 +25,11 @@
 #include <string>
 #include <vector>
 
+// This macro is defined when MuJoCo is built with CMake,
+// not defined when MuJoCo is built with other build systems
+#ifndef MUJOCO_DO_NOT_DEFINE_TINYOBJLOADER_IMPLEMENTATION
 #define TINYOBJLOADER_IMPLEMENTATION
+#endif
 
 #include <mujoco/mjmodel.h>
 #include "cc/array_safety.h"
