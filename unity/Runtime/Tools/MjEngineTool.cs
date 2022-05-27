@@ -92,20 +92,23 @@ public static class MjEngineTool {
     mjTarget[startOffset + 3] = mjQuat.z;
   }
 
+  // Returns a pointer to an entry in the MuJoCo field that's 7*offsetEntry down the buffer.
+  public static unsafe double* MjTransformAtEntry(double* mjTarget, int offsetEntry) {
+    return mjTarget + offsetEntry * _elementsPerTransform;
+  }
+
   // Stores a unity transform (position+rotation) in a Mujoco target buffer.
-  // The vector coordinates will be stored at the 'entryIndex * 7' of the 'mjTarget' array.
   public static unsafe void SetMjTransform(
-    double* mjTarget, Vector3 unityVec, Quaternion unityQuat, int entryIndex) {
-    var startOffset = entryIndex * _elementsPerTransform;
+      double* mjTarget, Vector3 unityVec, Quaternion unityQuat) {
     var mjVec = MjVector3(unityVec);
     var mjQuat = MjQuaternion(unityQuat);
-    mjTarget[startOffset] = mjVec[0];
-    mjTarget[startOffset + 1] = mjVec[1];
-    mjTarget[startOffset + 2] = mjVec[2];
-    mjTarget[startOffset + 3] = mjQuat.w;
-    mjTarget[startOffset + 4] = mjQuat.x;
-    mjTarget[startOffset + 5] = mjQuat.y;
-    mjTarget[startOffset + 6] = mjQuat.z;
+    mjTarget[0] = mjVec[0];
+    mjTarget[1] = mjVec[1];
+    mjTarget[2] = mjVec[2];
+    mjTarget[3] = mjQuat.w;
+    mjTarget[4] = mjQuat.x;
+    mjTarget[5] = mjQuat.y;
+    mjTarget[6] = mjQuat.z;
   }
 
   // Converts a Unity Vector3 to a Mujoco vector.
