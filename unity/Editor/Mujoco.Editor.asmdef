@@ -5,7 +5,9 @@
         "Mujoco.Runtime"
     ],
     "includePlatforms": [],
-    "excludePlatforms": [],
+    "excludePlatforms": [
+        "Editor"
+    ],
     "allowUnsafeCode": true,
     "overrideReferences": false,
     "precompiledReferences": [],
