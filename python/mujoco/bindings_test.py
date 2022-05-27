@@ -909,6 +909,7 @@ Euler integrator, semi-implicit in velocity.
   def test_mj_ray(self):
     # mj_ray has tricky argument types
     geomid = np.zeros(1, np.int32)
+    mujoco.mj_forward(self.model, self.data)
     mujoco.mj_ray(self.model, self.data, [0, 0, 0], [0, 0, 1], None, 0, 0,
                   geomid)
     mujoco.mj_ray(self.model, self.data, [0, 0, 0], [0, 0, 1],

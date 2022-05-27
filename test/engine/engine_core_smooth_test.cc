@@ -307,9 +307,6 @@ TEST_F(EllipsoidFluidTest, GeomsEquivalentToBodies) {
   const mjtNum tol = 1e-14;  // tolerance for floating point numbers
 
   EXPECT_EQ(m1->nv, m2->nv);
-  for (int i = 0; i < m1->nv; i++) {
-    EXPECT_NEAR(d2->qfrc_passive[i], d1->qfrc_passive[i], tol);
-  }
 
   mj_forward(m2, d2);
   mj_forward(m1, d1);

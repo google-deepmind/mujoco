@@ -27,9 +27,15 @@
 #include "engine/engine_util_errmem.h"
 #include "engine/engine_vfs.h"
 
+#ifdef MEMORY_SANITIZER
+#include <sanitizer/msan_interface.h>
+#endif
+
 #ifdef _MSC_VER
 #pragma warning (disable: 4305)  // tell MSVC to not complain that float x = 0.1 should be 0.1f
 #endif
+
+#define PTRDIFF(x, y) ((void*)(x) - (void*)(y))
 
 
 //------------------------------ mjLROpt -----------------------------------------------------------
@@ -437,6 +443,10 @@ mjModel* mj_makeModel(int nq, int nv, int nu, int na, int nbody, int njnt,
 
   // clear, set pointers in buffer
   memset(m->buffer, 0, m->nbuffer);
+#ifdef MEMORY_SANITIZER
+  // Tell msan to treat the entire buffer as uninitialized
+  __msan_allocated_memory(m->buffer, m->nbuffer);
+#endif
   mj_setPtrModel(m);
 
   // set default options
@@ -480,8 +490,14 @@ mjModel* mj_copyModel(mjModel* dest, const mjModel* src) {
   dest->buffer = save_bufptr;
   mj_setPtrModel(dest);
 
-  // copy buffer, respect padding
-  memcpy((char*)dest->buffer, (char*)src->buffer, src->nbuffer);
+  // copy buffer
+  {
+    MJMODEL_POINTERS_PREAMBLE(src)
+    #define X(type, name, nr, nc)  \
+      memcpy((char*)dest->name, (const char*)src->name, sizeof(type)*(src->nr)*nc);
+    MJMODEL_POINTERS
+    #undef X
+  }
 
   return dest;
 }
@@ -512,14 +528,26 @@ void mj_saveModel(const mjModel* m, const char* filename, void* buffer, int buff
     fwrite((void*)&m->opt, sizeof(mjOption), 1, fp);
     fwrite((void*)&m->vis, sizeof(mjVisual), 1, fp);
     fwrite((void*)&m->stat, sizeof(mjStatistic), 1, fp);
-    fwrite((void*)m->buffer, 1, m->nbuffer, fp);
+    {
+      MJMODEL_POINTERS_PREAMBLE(m)
+      #define X(type, name, nr, nc)  \
+        fwrite((void*)m->name, sizeof(type), (m->nr)*(nc), fp);
+      MJMODEL_POINTERS
+      #undef X
+    }
   } else {
     bufwrite(header, sizeof(int)*4, buffer_sz, buffer, &ptrbuf);
     bufwrite(m, sizeof(int)*getnint(), buffer_sz, buffer, &ptrbuf);
     bufwrite((void*)&m->opt, sizeof(mjOption), buffer_sz, buffer, &ptrbuf);
     bufwrite((void*)&m->vis, sizeof(mjVisual), buffer_sz, buffer, &ptrbuf);
     bufwrite((void*)&m->stat, sizeof(mjStatistic), buffer_sz, buffer, &ptrbuf);
-    bufwrite((void*)m->buffer, m->nbuffer, buffer_sz, buffer, &ptrbuf);
+    {
+      MJMODEL_POINTERS_PREAMBLE(m)
+      #define X(type, name, nr, nc)  \
+        bufwrite((void*)m->name, sizeof(type)*(m->nr)*(nc), buffer_sz, buffer, &ptrbuf);
+      MJMODEL_POINTERS
+      #undef X
+    }
   }
 
   if (fp) {
@@ -640,15 +668,27 @@ mjModel* mj_loadModel(const char* filename, const mjVFS* vfs) {
       mju_warning("Model file does not have a complete mjStatistic");
       return 0;
     }
-    if (fread(m->buffer, 1, m->nbuffer, fp) != m->nbuffer) {
-      mju_warning("Model file does not contain a large enough buffer");
-      return 0;
+    {
+      MJMODEL_POINTERS_PREAMBLE(m)
+      #define X(type, name, nr, nc)                                            \
+        if (fread(m->name, sizeof(type), (m->nr)*(nc), fp) != (m->nr)*(nc)) {  \
+          mju_warning("Model file does not contain a large enough buffer");    \
+          return 0;                                                            \
+        }
+      MJMODEL_POINTERS
+      #undef X
     }
   } else {
     bufread((void*)&m->opt, sizeof(mjOption), buffer_sz, buffer, &ptrbuf);
     bufread((void*)&m->vis, sizeof(mjVisual), buffer_sz, buffer, &ptrbuf);
     bufread((void*)&m->stat, sizeof(mjStatistic), buffer_sz, buffer, &ptrbuf);
-    bufread(m->buffer, m->nbuffer, buffer_sz, buffer, &ptrbuf);
+    {
+      MJMODEL_POINTERS_PREAMBLE(m)
+      #define X(type, name, nr, nc)  \
+        bufread(m->name, sizeof(type)*(m->nr)*(nc), buffer_sz, buffer, &ptrbuf);
+      MJMODEL_POINTERS
+      #undef X
+    }
   }
 
   // make sure file size is correct
@@ -810,7 +850,13 @@ mjData* mj_copyData(mjData* dest, const mjModel* m, const mjData* src) {
   mj_setPtrData(m, dest);
 
   // copy buffer
-  memcpy((char*)dest->buffer, (char*)src->buffer, src->nbuffer);
+  {
+    MJDATA_POINTERS_PREAMBLE(m)
+    #define X(type, name, nr, nc)  \
+      memcpy((char*)dest->name, (const char*)src->name, sizeof(type)*(m->nr)*nc);
+    MJDATA_POINTERS
+    #undef X
+  }
 
   return dest;
 }
@@ -875,25 +921,29 @@ static void _resetData(const mjModel* m, mjData* d, unsigned char debug_value) {
   // fill buffer with debug_value (normally 0)
   memset(d->buffer, (int)debug_value, d->nbuffer);
 
+#ifdef MEMORY_SANITIZER
+  // Tell msan to treat the entire buffer as uninitialized
+  __msan_allocated_memory(d->buffer, d->nbuffer);
+#endif
+
+  // zero out arrays that are not affected by mj_forward
+  mju_zero(d->qpos, m->nq);
+  mju_zero(d->qvel, m->nv);
+  mju_zero(d->act, m->na);
+  mju_zero(d->ctrl, m->nu);
+  mju_zero(d->qfrc_applied, m->nv);
+  mju_zero(d->xfrc_applied, 6*m->nbody);
+  mju_zero(d->qacc, m->nv);
+  mju_zero(d->qacc_warmstart, m->nv);
+  mju_zero(d->act_dot, m->na);
+  mju_zero(d->userdata, m->nuserdata);
+  mju_zero(d->sensordata, m->nsensordata);
+  mju_zero(d->mocap_pos, 3*m->nmocap);
+  mju_zero(d->mocap_quat, 4*m->nmocap);
+
   // copy qpos0 from model
   if (m->qpos0) {
     memcpy(d->qpos, m->qpos0, m->nq*sizeof(mjtNum));
-  }
-
-  // debugging: zero the rest of the main input section
-  if (debug_value) {
-    mju_zero(d->qvel, m->nv);
-    mju_zero(d->act, m->na);
-    mju_zero(d->ctrl, m->nu);
-    mju_zero(d->qfrc_applied, m->nv);
-    mju_zero(d->xfrc_applied, 6*m->nbody);
-    mju_zero(d->qacc, m->nv);
-    mju_zero(d->qacc_warmstart, m->nv);
-    mju_zero(d->act_dot, m->na);
-    mju_zero(d->userdata, m->nuserdata);
-    mju_zero(d->sensordata, m->nsensordata);
-    mju_zero(d->mocap_pos, 3*m->nmocap);
-    mju_zero(d->mocap_quat, 4*m->nmocap);
   }
 
   // set mocap_pos/quat = body_pos/quat for mocap bodies

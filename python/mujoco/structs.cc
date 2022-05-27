@@ -806,7 +806,13 @@ void MjDataWrapper::Serialize(std::ostream& output) const {
 #undef X
 
   // Write buffer contents
-  WriteBytes(output, ptr_->buffer, ptr_->nbuffer);
+  {
+    MJDATA_POINTERS_PREAMBLE((&this->metadata_))
+#define X(type, name, nr, nc)  \
+    WriteBytes(output, ptr_->name, sizeof(type)*(this->metadata_.nr)*(nc));
+    MJDATA_POINTERS
+#undef X
+  }
 }
 
 MjDataWrapper MjDataWrapper::Deserialize(std::istream& input) {
@@ -857,7 +863,13 @@ MjDataWrapper MjDataWrapper::Deserialize(std::istream& input) {
 #undef X
 
   // Read buffer contents
-  ReadBytes(input, d->buffer, d->nbuffer);
+  {
+    MJDATA_POINTERS_PREAMBLE((&m))
+#define X(type, name, nr, nc)  \
+    ReadBytes(input, d->name, sizeof(type)*(m.nr)*(nc));
+    MJDATA_POINTERS
+#undef X
+  }
   CheckInput(input, "mjData");
 
   // All bytes should have been used.

@@ -70,12 +70,17 @@ TEST_F(EngineIoTest, MakeDataFromPartialModel) {
   ASSERT_THAT(data_from_partial, NotNull());
 
   EXPECT_EQ(data_from_partial->nbuffer, data_from_model->nbuffer);
-  int nbuffer = data_from_partial->nbuffer;
   // If there are no mocap bodies and qpos0 is all zero, mjData should be the
   // same whether it was made from the full model or the partial model.
-  EXPECT_EQ(
-      std::memcmp(data_from_partial->buffer, data_from_model->buffer, nbuffer),
-      0) << "mjData content differs";
+  {
+    MJDATA_POINTERS_PREAMBLE((&partial_model))
+    #define X(type, name, nr, nc)                                              \
+        EXPECT_EQ(std::memcmp(data_from_partial->name, data_from_model->name,  \
+                              sizeof(type)*(partial_model.nr)*(nc)),           \
+                  0) << "mjData::" #name " differs";
+    MJDATA_POINTERS
+    #undef X
+  }
 
   mj_deleteData(data_from_model);
   mj_deleteData(data_from_partial);
@@ -158,10 +163,15 @@ TEST_F(EngineIoTest, CopyDataWithPartialModel) {
 
   EXPECT_EQ(copy->nbuffer, data->nbuffer);
   EXPECT_EQ(copy->qpos[0], 1);
-  int nbuffer = copy->nbuffer;
-  EXPECT_EQ(
-      std::memcmp(copy->buffer, data->buffer, nbuffer),
-      0) << "mjData content differs";
+  {
+    MJDATA_POINTERS_PREAMBLE((&partial_model))
+    #define X(type, name, nr, nc)                                     \
+        EXPECT_EQ(std::memcmp(copy->name, data->name,                 \
+                              sizeof(type)*(partial_model.nr)*(nc)),  \
+                  0) << "mjData::" #name " differs";
+    MJDATA_POINTERS
+    #undef X
+  }
 
   mj_deleteData(data);
   mj_deleteData(copy);
