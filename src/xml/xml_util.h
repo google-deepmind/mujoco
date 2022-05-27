@@ -98,6 +98,12 @@ class mjXUtil {
   // find value in map, return key ("": not found)
   static std::string FindValue(const mjMap* map, int mapsz, int value);
 
+  // read any type from attribute, return number read
+  template<typename T>
+  static int ReadAttrCpp(tinyxml2::XMLElement* elem, const char* attr, const int len,
+                         T* data, std::string& text,
+                         bool required = false, bool exact = true);
+
   // read DOUBLE array from attribute, return number read
   static int ReadAttr(tinyxml2::XMLElement* elem, const char* attr, const int len,
                       double* data, std::string& text,

@@ -549,8 +549,9 @@ string mjXUtil::FindValue(const mjMap* map, int mapsz, int value) {
 //  "len" is the number of floats or doubles to be read
 //  the content is returned in "text", the numeric data in "data"
 //  return true if attribute found, false if not found and not required
-int mjXUtil::ReadAttr(XMLElement* elem, const char* attr, const int len,
-                      double* data, string& text, bool required, bool exact) {
+template<typename T>
+int mjXUtil::ReadAttrCpp(XMLElement* elem, const char* attr, const int len,
+                         T* data, string& text, bool required, bool exact) {
   const char* pstr = elem->Attribute(attr);
 
   // check if attribute exists
@@ -569,36 +570,31 @@ int mjXUtil::ReadAttr(XMLElement* elem, const char* attr, const int len,
   istringstream strm(text);
 
   // read numbers
-  int i;
-  for (i=0; i<len; i++) {
-    strm >> data[i];
-    if (strm.eof()) {
-      i++;
-      break;
-    } else if (strm.bad()) {
+  int i = 0;
+  while (!strm.eof() && i < len) {
+    strm >> data[i++];
+    if (!strm.eof() && strm.fail()) {
       throw mjXError(elem, "problem reading attribute '%s'", attr);
     }
   }
 
-  // determine available length
-  int available = i;
-  if (strm.good()) {
-    double dummy;
-    strm >> dummy;
-    if (!strm.bad() && !strm.fail()) {
-      available++;
-    }
-  }
-
-  // check
-  if (exact && available<len) {
+  // check if there is not enough data
+  if (exact && i < len) {
     throw mjXError(elem, "attribute '%s' does not have enough data", attr);
   }
-  if (available>len) {
+
+  // check if there is too much data
+  if (!strm.eof()) {
     throw mjXError(elem, "attribute '%s' has too much data", attr);
   }
 
   return i;
+}
+
+
+int mjXUtil::ReadAttr(XMLElement* elem, const char* attr, const int len,
+                      double* data, string& text, bool required, bool exact) {
+  return ReadAttrCpp(elem, attr, len, data, text, required, exact);
 }
 
 
@@ -606,55 +602,7 @@ int mjXUtil::ReadAttr(XMLElement* elem, const char* attr, const int len,
 // float version
 int mjXUtil::ReadAttr(XMLElement* elem, const char* attr, const int len,
                       float* data, string& text, bool required, bool exact) {
-  const char* pstr = elem->Attribute(attr);
-
-  // check if attribute exists
-  if (!pstr) {
-    if (required) {
-      throw mjXError(elem, "required attribute missing: '%s'", attr);
-    } else {
-      return 0;
-    }
-  }
-
-  // convert to string, remove trailing white space
-  text = string(pstr);
-  text.erase(text.find_last_not_of(" \t\n\r\f\v") + 1);
-
-  // get input stream
-  istringstream strm(text);
-
-  // read numbers
-  int i;
-  for (i=0; i<len; i++) {
-    strm >> data[i];
-    if (strm.eof()) {
-      i++;
-      break;
-    } else if (strm.bad()) {
-      throw mjXError(elem, "problem reading attribute '%s'", attr);
-    }
-  }
-
-  // determine available length
-  int available = i;
-  if (strm.good()) {
-    float dummy;
-    strm >> dummy;
-    if (!strm.bad() && !strm.fail()) {
-      available++;
-    }
-  }
-
-  // check
-  if (exact && available<len) {
-    throw mjXError(elem, "attribute '%s' does not have enough data", attr);
-  }
-  if (available>len) {
-    throw mjXError(elem, "attribute '%s' has too much data", attr);
-  }
-
-  return i;
+  return ReadAttrCpp(elem, attr, len, data, text, required, exact);
 }
 
 
@@ -662,55 +610,7 @@ int mjXUtil::ReadAttr(XMLElement* elem, const char* attr, const int len,
 // int version
 int mjXUtil::ReadAttr(XMLElement* elem, const char* attr, const int len,
                       int* data, string& text, bool required, bool exact) {
-  const char* pstr = elem->Attribute(attr);
-
-  // check if attribute exists
-  if (!pstr) {
-    if (required) {
-      throw mjXError(elem, "required attribute missing: '%s'", attr);
-    } else {
-      return 0;
-    }
-  }
-
-  // convert to string, remove trailing white space
-  text = string(pstr);
-  text.erase(text.find_last_not_of(" \t\n\r\f\v") + 1);
-
-  // get input stream
-  istringstream strm(text);
-
-  // read numbers
-  int i;
-  for (i=0; i<len; i++) {
-    strm >> data[i];
-    if (strm.eof()) {
-      i++;
-      break;
-    } else if (strm.bad()) {
-      throw mjXError(elem, "problem reading attribute '%s'", attr);
-    }
-  }
-
-  // determine available length
-  int available = i;
-  if (strm.good()) {
-    mjtByte dummy;
-    strm >> dummy;
-    if (!strm.bad() && !strm.fail()) {
-      available++;
-    }
-  }
-
-  // check
-  if (exact && available<len) {
-    throw mjXError(elem, "attribute '%s' does not have enough data", attr);
-  }
-  if (available>len) {
-    throw mjXError(elem, "attribute '%s' has too much data", attr);
-  }
-
-  return i;
+  return ReadAttrCpp(elem, attr, len, data, text, required, exact);
 }
 
 
@@ -718,56 +618,7 @@ int mjXUtil::ReadAttr(XMLElement* elem, const char* attr, const int len,
 // byte version
 int mjXUtil::ReadAttr(XMLElement* elem, const char* attr, const int len,
                       mjtByte* data, string& text, bool required, bool exact) {
-  const char* pstr = elem->Attribute(attr);
-
-  // check if attribute exists
-  if (!pstr) {
-    if (required) {
-      throw mjXError(elem, "required attribute missing: '%s'", attr);
-    } else {
-      return 0;
-    }
-  }
-
-  // convert to string, remove trailing white space
-  text = string(pstr);
-  text.erase(text.find_last_not_of(" \t\n\r\f\v") + 1);
-
-  // get input stream
-  istringstream strm(text);
-
-  // read numbers
-  int i, tmp;
-  for (i=0; i<len; i++) {
-    strm >> tmp;
-    data[i] = (mjtByte)(tmp & 0xFF);
-    if (strm.eof()) {
-      i++;
-      break;
-    } else if (strm.bad()) {
-      throw mjXError(elem, "problem reading attribute '%s'", attr);
-    }
-  }
-
-  // determine available length
-  int available = i;
-  if (strm.good()) {
-    mjtByte dummy;
-    strm >> dummy;
-    if (!strm.bad() && !strm.fail()) {
-      available++;
-    }
-  }
-
-  // check
-  if (exact && available<len) {
-    throw mjXError(elem, "attribute '%s' does not have enough data", attr);
-  }
-  if (available>len) {
-    throw mjXError(elem, "attribute '%s' has too much data", attr);
-  }
-
-  return i;
+  return ReadAttrCpp(elem, attr, len, data, text, required, exact);
 }
 
 
