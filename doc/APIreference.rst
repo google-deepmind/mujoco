@@ -5501,7 +5501,7 @@ mju_malloc
 
    void* mju_malloc(size_t size);
 
-Allocate memory; byte-align on 8; pad size to multiple of 8.
+Allocate memory; byte-align on 64; pad size to multiple of 64.
 
 .. _mju_free:
 

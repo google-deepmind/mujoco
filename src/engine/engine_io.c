@@ -250,13 +250,9 @@ void mj_defaultStatistic(mjStatistic* stat) {
 static const int ID = 54321;
 
 
-// number of bytes to be skipped to achieve alignment
-static unsigned int SKIP(intptr_t offset, unsigned int align) {
-  // replace structure with int size (mjContact starts with int)
-  if (align>sizeof(mjtNum)) {
-    align = sizeof(int);
-  }
-
+// number of bytes to be skipped to achieve 64-byte alignment
+static unsigned int SKIP(intptr_t offset) {
+  const unsigned int align = 64;
   // compute skipped bytes
   return (align - (offset % align)) % align;
 }
@@ -338,10 +334,10 @@ static void mj_setPtrModel(mjModel* m) {
   MJMODEL_POINTERS_PREAMBLE(m);
 
   // assign pointers with padding
-#define X(type, name, nr, nc)                                           \
-  m->name = (type*)(ptr + SKIP((intptr_t)ptr, sizeof(type)));           \
-  ASAN_POISON_MEMORY_REGION(ptr, PTRDIFF(m->name, ptr));                \
-  ptr += SKIP((intptr_t)ptr, sizeof(type)) + sizeof(type)*(m->nr)*(nc);
+#define X(type, name, nr, nc)                             \
+  m->name = (type*)(ptr + SKIP((intptr_t)ptr));           \
+  ASAN_POISON_MEMORY_REGION(ptr, PTRDIFF(m->name, ptr));  \
+  ptr += SKIP((intptr_t)ptr) + sizeof(type)*(m->nr)*(nc);
 
   MJMODEL_POINTERS
 #undef X
@@ -439,9 +435,9 @@ mjModel* mj_makeModel(int nq, int nv, int nu, int na, int nbody, int njnt,
 
   // compute buffer size
   m->nbuffer = 0;
-#define X(type, name, nr, nc)                                            \
-  m->nbuffer += SKIP(offset, sizeof(type)) + sizeof(type)*(m->nr)*(nc);  \
-  offset += SKIP(offset, sizeof(type)) + sizeof(type)*(m->nr)*(nc);
+#define X(type, name, nr, nc)                              \
+  m->nbuffer += SKIP(offset) + sizeof(type)*(m->nr)*(nc);  \
+  offset += SKIP(offset) + sizeof(type)*(m->nr)*(nc);
 
   MJMODEL_POINTERS
 #undef X
@@ -763,10 +759,10 @@ static void mj_setPtrData(const mjModel* m, mjData* d) {
   MJDATA_POINTERS_PREAMBLE(m);
 
   // assign pointers with padding
-#define X(type, name, nr, nc)                                           \
-  d->name = (type*)(ptr + SKIP((intptr_t)ptr, sizeof(type)));           \
-  ASAN_POISON_MEMORY_REGION(ptr, PTRDIFF(d->name, ptr));                \
-  ptr += SKIP((intptr_t)ptr, sizeof(type)) + sizeof(type)*(m->nr)*(nc);
+#define X(type, name, nr, nc)                             \
+  d->name = (type*)(ptr + SKIP((intptr_t)ptr));           \
+  ASAN_POISON_MEMORY_REGION(ptr, PTRDIFF(d->name, ptr));  \
+  ptr += SKIP((intptr_t)ptr) + sizeof(type)*(m->nr)*(nc);
 
   MJDATA_POINTERS
 #undef X
@@ -795,9 +791,9 @@ static mjData* _makeData(const mjModel* m) {
 
   // compute buffer size
   d->nbuffer = 0;
-#define X(type, name, nr, nc)                                            \
-  d->nbuffer += SKIP(offset, sizeof(type)) + sizeof(type)*(m->nr)*(nc);  \
-  offset += SKIP(offset, sizeof(type)) + sizeof(type)*(m->nr)*(nc);
+#define X(type, name, nr, nc)                              \
+  d->nbuffer += SKIP(offset) + sizeof(type)*(m->nr)*(nc);  \
+  offset += SKIP(offset) + sizeof(type)*(m->nr)*(nc);
 
   MJDATA_POINTERS
 #undef X

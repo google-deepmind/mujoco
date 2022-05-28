@@ -4659,7 +4659,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  type=ValueType(name='size_t'),
              ),
          ),
-         doc='Allocate memory; byte-align on 8; pad size to multiple of 8.',
+         doc='Allocate memory; byte-align on 64; pad size to multiple of 64.',
      )),
     ('mju_free',
      FunctionDecl(

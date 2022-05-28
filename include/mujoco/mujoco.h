@@ -732,7 +732,7 @@ MJAPI void mju_warning_s(const char* msg, const char* text);
 // Clear user error and memory handlers.
 MJAPI void mju_clearHandlers(void);
 
-// Allocate memory; byte-align on 8; pad size to multiple of 8.
+// Allocate memory; byte-align on 64; pad size to multiple of 64.
 MJAPI void* mju_malloc(size_t size);
 
 // Free memory, using free() by default.

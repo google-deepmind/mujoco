@@ -626,7 +626,9 @@ void mj_RungeKutta(const mjModel* m, mjData* d, int N) {
 
   // compute Xfinal
   d->time = time + h;
-  mju_copy(d->qpos, X[0], nq+nv+na);
+  mju_copy(d->qpos, X[0], nq);
+  mju_copy(d->qvel, X[0]+nq, nv);
+  mju_copy(d->act, X[0]+nq+nv, na);
   mj_integratePos(m, d->qpos, dX, h);
   mju_addToScl(d->qvel, dX+nv, h, nv);
   if (na) {

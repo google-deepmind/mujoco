@@ -187,7 +187,7 @@ void mju_warning_s(const char* msg, const char* text) {
 
 //------------------------------ malloc and free ---------------------------------------------------
 
-// allocate memory; byte-align on 8; pad size to multiple of 8
+// allocate memory; byte-align on 64; pad size to multiple of 64
 void* mju_malloc(size_t size) {
   void* ptr = 0;
 
@@ -198,13 +198,13 @@ void* mju_malloc(size_t size) {
 
   // default allocator
   else {
-    // pad size to multiple of 8
-    if ((size%8)) {
-      size += 8 - (size%8);
+    // pad size to multiple of 64
+    if ((size%64)) {
+      size += 64 - (size%64);
     }
 
     // allocate
-    ptr = mju_alignedMalloc(size, 8);
+    ptr = mju_alignedMalloc(size, 64);
   }
 
   // error if null pointer
