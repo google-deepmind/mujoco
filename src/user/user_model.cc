@@ -2494,7 +2494,7 @@ mjModel* mjCModel::Compile(const mjVFS* vfs) {
 
         // error
         if (!ok) {
-          throw mjCError(b, "mass and inertia of moving bodies must be positive");
+          throw mjCError(b, "mass and inertia of moving bodies must be larger than mjMINVAL");
         }
       }
     }

@@ -1014,8 +1014,8 @@ void mjCMesh::Process(void) {
   mju_eig3(eigval, eigvec, quattmp, full);
 
   // check eigval - SHOULD NOT OCCUR
-  if (eigval[2]<mjEPS) {
-    throw mjCError(this, "eigenvalue of mesh inertia too small: %s", name.c_str());
+  if (eigval[2]<=0) {
+    throw mjCError(this, "eigenvalue of mesh inertia must be positive: %s", name.c_str());
   }
   if (eigval[0] + eigval[1] < eigval[2] ||
       eigval[0] + eigval[2] < eigval[1] ||

@@ -31,8 +31,6 @@ namespace {
 
 using MjCMeshTest = MujocoTest;
 
-// yuval: why do we want these anyway? why not string literals in the tests?
-// this does not improve readabillity IMO.
 static const char* const kDuplicateVerticesPath =
     "user/testdata/duplicate_vertices.xml";
 static const char* const kCubePath =
@@ -45,6 +43,8 @@ static const char* const kTexturedTorusPath =
     "user/testdata/textured_torus.xml";
 static const char* const kDuplicateOBJPath =
     "user/testdata/duplicate.xml";
+
+using ::testing::HasSubstr;
 
 // ------------- test vertex de-duplication (STL) ------------------------------
 
@@ -114,6 +114,64 @@ TEST_F(MjCMeshTest, SaveMeshOnce) {
   std::string saved_xml = SaveAndReadXml(model);
   EXPECT_THAT(saved_xml, Not(testing::HasSubstr("vertex")));
   mj_deleteModel(model);
+}
+
+TEST_F(MujocoTest, TinyMeshLoads) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="tiny" vertex="0 0 0  1e-4 0 0  0 1e-4 0  0 0 1e-4"/>
+    </asset>
+    <worldbody>
+      <geom type="mesh" mesh="tiny"/>
+    </worldbody>
+  </mujoco>
+  )";
+  mjModel* model = LoadModelFromString(xml, 0, 0);
+  ASSERT_THAT(model, testing::NotNull());
+  mj_deleteModel(model);
+}
+
+TEST_F(MujocoTest, SmallInertiaLoads) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="tiny" vertex="0 0 0  1e-4 0 0  0 1e-4 0  0 0 1e-4"/>
+    </asset>
+    <worldbody>
+      <body>
+        <freejoint/>
+        <geom type="mesh" mesh="tiny"/>
+        <geom name="small" size=".001"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  mjModel* model = LoadModelFromString(xml, 0, 0);
+  ASSERT_THAT(model, testing::NotNull());
+  mj_deleteModel(model);
+}
+
+TEST_F(MujocoTest, TinyInertiaFails) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="tiny" vertex="0 0 0  1e-4 0 0  0 1e-4 0  0 0 1e-4"/>
+    </asset>
+    <worldbody>
+      <body>
+        <freejoint/>
+        <geom type="mesh" mesh="tiny"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(
+      error.data(),
+      HasSubstr(
+          "mass and inertia of moving bodies must be larger than mjMINVAL"));
 }
 
 }  // namespace
