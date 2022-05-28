@@ -28,21 +28,21 @@
 #include "engine/engine_vfs.h"
 
 #ifdef ADDRESS_SANITIZER
-#include <sanitizer/asan_interface.h>
+  #include <sanitizer/asan_interface.h>
 #elif defined(_MSC_VER)
-#define ASAN_POISON_MEMORY_REGION(addr, size)
-#define ASAN_UNPOISON_MEMORY_REGION(addr, size)
+  #define ASAN_POISON_MEMORY_REGION(addr, size)
+  #define ASAN_UNPOISON_MEMORY_REGION(addr, size)
 #else
-#define ASAN_POISON_MEMORY_REGION(addr, size) ((void)(addr), (void)(size))
-#define ASAN_UNPOISON_MEMORY_REGION(addr, size) ((void)(addr), (void)(size))
+  #define ASAN_POISON_MEMORY_REGION(addr, size) ((void)(addr), (void)(size))
+  #define ASAN_UNPOISON_MEMORY_REGION(addr, size) ((void)(addr), (void)(size))
 #endif
 
 #ifdef MEMORY_SANITIZER
-#include <sanitizer/msan_interface.h>
+  #include <sanitizer/msan_interface.h>
 #endif
 
 #ifdef _MSC_VER
-#pragma warning (disable: 4305)  // tell MSVC to not complain that float x = 0.1 should be 0.1f
+  #pragma warning (disable: 4305)  // disable MSVC warning: truncation from 'double' to 'float'
 #endif
 
 #define PTRDIFF(x, y) ((void*)(x) - (void*)(y))

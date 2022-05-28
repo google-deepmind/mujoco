@@ -25,7 +25,7 @@
 #include "engine/engine_util_misc.h"
 
 #ifdef _MSC_VER
-#pragma warning (disable: 4305) // tell MSVC to not complain that float x = 0.1 should be 0.1f
+  #pragma warning (disable: 4305)  // disable MSVC warning: truncation from 'double' to 'float'
 #endif
 
 
