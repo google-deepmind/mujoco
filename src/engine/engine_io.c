@@ -29,6 +29,9 @@
 
 #ifdef ADDRESS_SANITIZER
 #include <sanitizer/asan_interface.h>
+#elif defined(_MSC_VER)
+#define ASAN_POISON_MEMORY_REGION(addr, size)
+#define ASAN_UNPOISON_MEMORY_REGION(addr, size)
 #else
 #define ASAN_POISON_MEMORY_REGION(addr, size) ((void)(addr), (void)(size))
 #define ASAN_UNPOISON_MEMORY_REGION(addr, size) ((void)(addr), (void)(size))
