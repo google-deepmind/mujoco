@@ -104,7 +104,7 @@ void mj_collision(const mjModel* m, mjData* d) {
       // handle exclusion
       if (nexclude) {
         // advance exadr while exclude_signature < signature
-        while (m->exclude_signature[exadr]<signature && exadr<nexclude) {
+        while (exadr<nexclude && m->exclude_signature[exadr]<signature) {
           exadr++;
         }
 
