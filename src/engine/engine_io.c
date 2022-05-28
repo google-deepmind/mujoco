@@ -27,6 +27,13 @@
 #include "engine/engine_util_errmem.h"
 #include "engine/engine_vfs.h"
 
+#ifdef ADDRESS_SANITIZER
+#include <sanitizer/asan_interface.h>
+#else
+#define ASAN_POISON_MEMORY_REGION(addr, size) ((void)(addr), (void)(size))
+#define ASAN_UNPOISON_MEMORY_REGION(addr, size) ((void)(addr), (void)(size))
+#endif
+
 #ifdef MEMORY_SANITIZER
 #include <sanitizer/msan_interface.h>
 #endif
@@ -330,6 +337,7 @@ static void mj_setPtrModel(mjModel* m) {
   // assign pointers with padding
 #define X(type, name, nr, nc)                                           \
   m->name = (type*)(ptr + SKIP((intptr_t)ptr, sizeof(type)));           \
+  ASAN_POISON_MEMORY_REGION(ptr, PTRDIFF(m->name, ptr));                \
   ptr += SKIP((intptr_t)ptr, sizeof(type)) + sizeof(type)*(m->nr)*(nc);
 
   MJMODEL_POINTERS
@@ -754,6 +762,7 @@ static void mj_setPtrData(const mjModel* m, mjData* d) {
   // assign pointers with padding
 #define X(type, name, nr, nc)                                           \
   d->name = (type*)(ptr + SKIP((intptr_t)ptr, sizeof(type)));           \
+  ASAN_POISON_MEMORY_REGION(ptr, PTRDIFF(d->name, ptr));                \
   ptr += SKIP((intptr_t)ptr, sizeof(type)) + sizeof(type)*(m->nr)*(nc);
 
   MJDATA_POINTERS
@@ -919,7 +928,16 @@ static void _resetData(const mjModel* m, mjData* d, unsigned char debug_value) {
   //------------------------------ clear buffer, set defaults
 
   // fill buffer with debug_value (normally 0)
+#ifdef ADDRESS_SANITIZER
+  {
+    #define X(type, name, nr, nc) memset(d->name, (int)debug_value, sizeof(type)*(m->nr)*(nc));
+    MJDATA_POINTERS_PREAMBLE(m)
+    MJDATA_POINTERS
+    #undef X
+  }
+#else
   memset(d->buffer, (int)debug_value, d->nbuffer);
+#endif
 
 #ifdef MEMORY_SANITIZER
   // Tell msan to treat the entire buffer as uninitialized
