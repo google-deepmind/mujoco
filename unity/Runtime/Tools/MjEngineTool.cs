@@ -29,7 +29,6 @@ public static class MjEngineTool {
   private const int _elementsPerTransform = 7;
   private static double[] _mjQuat = new double[4];
   private static double[] _mjMat = new double[9];
-  private const int _MjSuccess = 1;
 
   public static string Sanitize(string name) {
     return name.Replace('/', '_');
@@ -71,30 +70,40 @@ public static class MjEngineTool {
   }
 
   // Stores a unity vector in a Mujoco target buffer.
-  // The vector coordinates will be stored at the 'entryIndex * 3' of the 'mjTarget' array.
-  public static unsafe void SetMjVector3(double* mjTarget, Vector3 unityVec, int entryIndex) {
-    var startOffset = entryIndex * _elementsPerPosition;
+  public static unsafe void SetMjVector3(double* mjTarget, Vector3 unityVec) {
     var mjVec = MjVector3(unityVec);
-    mjTarget[startOffset] = mjVec[0];
-    mjTarget[startOffset + 1] = mjVec[1];
-    mjTarget[startOffset + 2] = mjVec[2];
+    mjTarget[0] = mjVec[0];
+    mjTarget[1] = mjVec[1];
+    mjTarget[2] = mjVec[2];
   }
 
   // Stores a unity quaternion in a Mujoco target buffer.
-  // The vector coordinates will be stored at the 'entryIndex * 4' of the 'mjTarget' array.
-  public static unsafe void SetMjQuaternion(
-    double* mjTarget, Quaternion unityQuat, int entryIndex) {
-    var startOffset = entryIndex * _elementsPerRotation;
+  public static unsafe void SetMjQuaternion(double* mjTarget, Quaternion unityQuat) {
     var mjQuat = MjQuaternion(unityQuat);
-    mjTarget[startOffset] = mjQuat.w;
-    mjTarget[startOffset + 1] = mjQuat.x;
-    mjTarget[startOffset + 2] = mjQuat.y;
-    mjTarget[startOffset + 3] = mjQuat.z;
+    mjTarget[0] = mjQuat.w;
+    mjTarget[1] = mjQuat.x;
+    mjTarget[2] = mjQuat.y;
+    mjTarget[3] = mjQuat.z;
+  }
+
+  // Returns a pointer to an entry in the MuJoCo field that's 3*offsetEntry down the buffer.
+  public static unsafe double* MjVector3AtEntry(double* mjTarget, int offsetEntry) {
+    return mjTarget + offsetEntry * _elementsPerPosition;
+  }
+
+  // Returns a pointer to an entry in the MuJoCo field that's 4*offsetEntry down the buffer.
+  public static unsafe double* MjQuaternionAtEntry(double* mjTarget, int offsetEntry) {
+    return mjTarget + offsetEntry * _elementsPerRotation;
   }
 
   // Returns a pointer to an entry in the MuJoCo field that's 7*offsetEntry down the buffer.
   public static unsafe double* MjTransformAtEntry(double* mjTarget, int offsetEntry) {
     return mjTarget + offsetEntry * _elementsPerTransform;
+  }
+
+  // Returns a pointer to an entry in the MuJoCo field that's 9*offsetEntry down the buffer.
+  public static unsafe double* MjMatrixAtEntry(double* mjTarget, int offsetEntry) {
+    return mjTarget + offsetEntry * _mjMat.Length;
   }
 
   // Stores a unity transform (position+rotation) in a Mujoco target buffer.
@@ -117,10 +126,8 @@ public static class MjEngineTool {
   }
 
   // Converts a Mujoco vector to a Unity vector.
-  public static unsafe Vector3 UnityVector3(double* coords, int entryIndex) {
-    var startOffset = entryIndex * _elementsPerPosition;
-    return new Vector3(
-        (float)coords[startOffset], (float)coords[startOffset + 2], (float)coords[startOffset + 1]);
+  public static unsafe Vector3 UnityVector3(double* mjVector) {
+    return new Vector3((float)mjVector[0], (float)mjVector[2], (float)mjVector[1]);
   }
 
   // Converts a Mujoco vector to a Unity vector.
@@ -142,21 +149,9 @@ public static class MjEngineTool {
   }
 
   // Converts a Mujoco quaternion to a Unity quaternion.
-  // The quaternions is read starting at 'entryIndex * 4' of the 'coords' array.
-  public static Quaternion UnityQuaternion(double[] coords, int entryIndex) {
-    var startOffset = entryIndex * _elementsPerRotation;
+  public static unsafe Quaternion UnityQuaternion(double* mjQuat) {
     return new Quaternion(
-        x:(float)coords[startOffset + 1], y:(float)coords[startOffset + 3],
-        z:(float)coords[startOffset + 2], w:(float)-coords[startOffset]);
-  }
-
-  // Converts a Mujoco quaternion to a Unity quaternion.
-  // The quaternion is read starting at 'entryIndex * 4' of the 'coords' array.
-  public static unsafe Quaternion UnityQuaternion(double* coords, int entryIndex) {
-    var startOffset = entryIndex * _elementsPerRotation;
-    return new Quaternion(
-        x:(float)coords[startOffset + 1], y:(float)coords[startOffset + 3],
-        z:(float)coords[startOffset + 2], w:(float)-coords[startOffset]);
+        x:(float)mjQuat[1], y:(float)mjQuat[3], z:(float)mjQuat[2], w:(float)-mjQuat[0]);
   }
 
   // Converts a Mujoco quaternion to a Unity quaternion.
@@ -166,17 +161,16 @@ public static class MjEngineTool {
   }
 
   // Converts a Mujoco matrix to a Unity quaternion.
-  // The matrix coordinates are at the 'entryIndex * 9' of the 'coords' array.
-  public static unsafe Quaternion UnityQuaternionFromMatrix(double* coords, int entryIndex) {
-    var startOffset = entryIndex * _mjMat.Length;
+  // The matrix coordinates are at the 'entryIndex * 9' of the 'mjMat' array.
+  public static unsafe Quaternion UnityQuaternionFromMatrix(double* mjMat) {
     for (var j = 0; j < _mjMat.Length; ++j) {
-      _mjMat[j] = coords[startOffset + j];
+      _mjMat[j] = mjMat[j];
     }
-    fixed (double* a = _mjQuat)
-    fixed (double* b = _mjMat) {
-      MujocoLib.mju_mat2Quat(a, b);
+    fixed (double* q_out = _mjQuat)
+    fixed (double* m_in = _mjMat) {
+      MujocoLib.mju_mat2Quat(q_out, m_in);
+      return UnityQuaternion(q_out);
     }
-    return UnityQuaternion(_mjQuat, 0);
   }
 
   // Converts a Unity extents Vector3 to a Mujoco extents vector.

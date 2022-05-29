@@ -41,7 +41,7 @@ public class MjGeomQuaternionSensor : MjBaseSensor {
   }
 
   public override unsafe void OnSyncState(MujocoLib.mjData_* data) {
-    SensorReading = MjEngineTool.UnityQuaternion(data->sensordata, _sensorAddress);
+    SensorReading = MjEngineTool.UnityQuaternion(data->sensordata + _sensorAddress);
   }
 }
 }

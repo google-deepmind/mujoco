@@ -40,8 +40,10 @@ public class MjSite : MjShapeComponent {
 
   // Synchronize the state of the component.
   public override unsafe void OnSyncState(MujocoLib.mjData_* data) {
-    transform.position = MjEngineTool.UnityVector3(data->site_xpos, MujocoId);
-    transform.rotation = MjEngineTool.UnityQuaternionFromMatrix(data->site_xmat, MujocoId);
+    transform.position = MjEngineTool.UnityVector3(
+        MjEngineTool.MjVector3AtEntry(data->site_xpos, MujocoId));
+    transform.rotation = MjEngineTool.UnityQuaternionFromMatrix(
+        MjEngineTool.MjMatrixAtEntry(data->site_xmat, MujocoId));
   }
 
   public void OnDrawGizmosSelected() {

@@ -47,7 +47,8 @@ namespace Mujoco {
       var MjVec = MjEngineTool.MjVector3(vec);
       var MjVecAsArray = new double[] { 10, 11, 12, MjVec.x, MjVec.y, MjVec.z };
       fixed (double* MjArrPtr = MjVecAsArray) {
-        var recreatedVec = MjEngineTool.UnityVector3(MjArrPtr, 1);
+        var recreatedVec = MjEngineTool.UnityVector3(
+            MjEngineTool.MjVector3AtEntry(MjArrPtr, 1));
         Assert.That(recreatedVec, Is.EqualTo(vec));
       }
     }
@@ -70,23 +71,6 @@ namespace Mujoco {
     [TestCase(0.1f, -0.2f, 0.3f, 0.4f)]
     [TestCase(0.1f, 0.2f, -0.3f, 0.4f)]
     [TestCase(0.1f, 0.2f, 0.3f, -0.4f)]
-    public unsafe void RoundrobinConversionOfQuaternion(float x, float y, float z, float w) {
-      var quat = new Quaternion(x, y, z, w);
-      var MjQuat = MjEngineTool.MjQuaternion(quat);
-      var MjQuatAsArray =
-          new double[] { 10, 20, 30, 40, MjQuat.w, MjQuat.x, MjQuat.y, MjQuat.z };
-      var recreatedQuat = MjEngineTool.UnityQuaternion(MjQuatAsArray, 1);
-      var q1 = new Vector4(quat.x, quat.y, quat.z, quat.w);
-      var q2 = new Vector4(recreatedQuat.x, recreatedQuat.y, recreatedQuat.z, recreatedQuat.w);
-      Assert.That(q1, Is.EqualTo(q2));
-    }
-
-    [TestCase(0.1f, 0.2f, 0.3f, 0.4f)]
-    [TestCase(-0.1f, -0.2f, -0.3f, -0.4f)]
-    [TestCase(-0.1f, 0.2f, 0.3f, 0.4f)]
-    [TestCase(0.1f, -0.2f, 0.3f, 0.4f)]
-    [TestCase(0.1f, 0.2f, -0.3f, 0.4f)]
-    [TestCase(0.1f, 0.2f, 0.3f, -0.4f)]
     public unsafe void RoundrobinConversionOfQuaternionUsingUnsafeArrays(float x, float y, float z,
                                                                          float w) {
       var quat = new Quaternion(x, y, z, w);
@@ -94,7 +78,8 @@ namespace Mujoco {
       var MjQuatAsArray =
           new double[] { 10, 20, 30, 40, MjQuat.w, MjQuat.x, MjQuat.y, MjQuat.z };
       fixed (double* MjArrPtr = MjQuatAsArray) {
-        var recreatedQuat = MjEngineTool.UnityQuaternion(MjArrPtr, 1);
+        var recreatedQuat = MjEngineTool.UnityQuaternion(
+            MjEngineTool.MjQuaternionAtEntry(MjArrPtr, 1));
         var q1 = new Vector4(quat.x, quat.y, quat.z, quat.w);
         var q2 = new Vector4(recreatedQuat.x, recreatedQuat.y, recreatedQuat.z, recreatedQuat.w);
         Assert.That(q1, Is.EqualTo(q2));
@@ -138,8 +123,8 @@ namespace Mujoco {
       var result = Quaternion.identity;
       var buffer = new double[4];
       fixed (double* unsafeBuffer = buffer) {
-        MjEngineTool.SetMjQuaternion(unsafeBuffer, quat, entryIndex: 0);
-        result = MjEngineTool.UnityQuaternion(unsafeBuffer, entryIndex: 0);
+        MjEngineTool.SetMjQuaternion(unsafeBuffer, quat);
+        result = MjEngineTool.UnityQuaternion(unsafeBuffer);
       }
       Assert.That(quat, Is.EqualTo(result));
     }
@@ -154,8 +139,8 @@ namespace Mujoco {
       var result = Vector3.zero;
       double[] buffer = new double[3];
       fixed (double* unsafeBuffer = buffer) {
-        MjEngineTool.SetMjVector3(unsafeBuffer, vec, entryIndex: 0);
-        result = MjEngineTool.UnityVector3(unsafeBuffer, entryIndex: 0);
+        MjEngineTool.SetMjVector3(unsafeBuffer, vec);
+        result = MjEngineTool.UnityVector3(unsafeBuffer);
       }
       Assert.That(vec, Is.EqualTo(result));
     }

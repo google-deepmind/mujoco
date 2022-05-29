@@ -48,8 +48,10 @@ public class MjGeom : MjShapeComponent {
     var MjParent = MjHierarchyTool.FindParentComponent<MjBaseBody>(this);
     if (MjParent != null) {
       var comInParentFrame = new MjTransformation(
-          translation: MjEngineTool.UnityVector3(model->geom_pos, MujocoId),
-          rotation: MjEngineTool.UnityQuaternion(model->geom_quat, MujocoId));
+          translation: MjEngineTool.UnityVector3(
+              MjEngineTool.MjVector3AtEntry(model->geom_pos, MujocoId)),
+          rotation: MjEngineTool.UnityQuaternion(
+              MjEngineTool.MjQuaternionAtEntry(model->geom_quat, MujocoId)));
 
       // We don't want to bother calculating global transform in mujoco from mjModel,
       // so we'll assume it's the same as the Unity transfor (it's the beginning of simulation after
@@ -78,13 +80,17 @@ public class MjGeom : MjShapeComponent {
   public override unsafe void OnSyncState(MujocoLib.mjData_* data) {
     if (ShapeType == ShapeTypes.Mesh) {
       _geomInGlobalFrame.Set(
-          translation: MjEngineTool.UnityVector3(data->geom_xpos, MujocoId),
-          rotation: MjEngineTool.UnityQuaternionFromMatrix(data->geom_xmat, MujocoId));
+          translation: MjEngineTool.UnityVector3(
+              MjEngineTool.MjVector3AtEntry(data->geom_xpos, MujocoId)),
+          rotation: MjEngineTool.UnityQuaternionFromMatrix(
+              MjEngineTool.MjMatrixAtEntry(data->geom_xmat, MujocoId)));
       var comInGlobalFrame = _geomInGlobalFrame * _comTransform;
       comInGlobalFrame.StoreGlobal(transform);
     } else {
-      transform.position = MjEngineTool.UnityVector3(data->geom_xpos, MujocoId);
-      transform.rotation = MjEngineTool.UnityQuaternionFromMatrix(data->geom_xmat, MujocoId);
+      transform.position = MjEngineTool.UnityVector3(
+          MjEngineTool.MjVector3AtEntry(data->geom_xpos, MujocoId));
+      transform.rotation = MjEngineTool.UnityQuaternionFromMatrix(
+          MjEngineTool.MjMatrixAtEntry(data->geom_xmat, MujocoId));
     }
   }
 

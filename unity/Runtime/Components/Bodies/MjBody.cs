@@ -35,8 +35,10 @@ namespace Mujoco {
     }
 
     public override unsafe void OnSyncState(MujocoLib.mjData_* data) {
-      transform.position = MjEngineTool.UnityVector3(data->xpos, MujocoId);
-      transform.rotation = MjEngineTool.UnityQuaternion(data->xquat, MujocoId);
+      transform.position = MjEngineTool.UnityVector3(
+          MjEngineTool.MjVector3AtEntry(data->xpos, MujocoId));
+      transform.rotation = MjEngineTool.UnityQuaternion(
+          MjEngineTool.MjQuaternionAtEntry(data->xquat, MujocoId));
     }
   }
 }

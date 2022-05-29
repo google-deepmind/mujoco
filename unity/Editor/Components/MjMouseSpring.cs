@@ -159,7 +159,8 @@ namespace Mujoco {
               MujocoLib.mj_objectVelocity(
                   scene.Model, scene.Data, (int)MujocoLib.mjtObj.mjOBJ_BODY, body.MujocoId, res, 0);
               // linear velocity is in the last 3 entries
-              bodyVel = MjEngineTool.UnityVector3(res, 1);
+              bodyVel = MjEngineTool.UnityVector3(
+                  MjEngineTool.MjVector3AtEntry(res, 1));
             }
 
             float springStiffness = 100;

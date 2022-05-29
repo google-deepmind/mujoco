@@ -115,8 +115,10 @@ public class MjSpatialTendon : MjBaseTendon {
         if (data->wrap_obj[readHead] == -2 || data->wrap_obj[readHead + 1] == -2) {
           readHead += 1;
         } else {
-          Vector3 start = MjEngineTool.UnityVector3(data->wrap_xpos, readHead);
-          Vector3 end = MjEngineTool.UnityVector3(data->wrap_xpos, readHead + 1);
+          Vector3 start = MjEngineTool.UnityVector3(
+              MjEngineTool.MjVector3AtEntry(data->wrap_xpos, readHead));
+          Vector3 end = MjEngineTool.UnityVector3(
+              MjEngineTool.MjVector3AtEntry(data->wrap_xpos, readHead + 1));
           Gizmos.DrawLine(start, end);
           if (data->wrap_obj[readHead + 1] >= 0) { // a wrap geom
             readHead += 2;
