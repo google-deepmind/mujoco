@@ -556,11 +556,13 @@ MJAPI void mjv_defaultOption(mjvOption* opt);
 MJAPI void mjv_defaultFigure(mjvFigure* fig);
 
 // Initialize given geom fields when not NULL, set the rest to their default values.
+// type is mjtGeom.
 MJAPI void mjv_initGeom(mjvGeom* geom, int type, const mjtNum size[3],
                         const mjtNum pos[3], const mjtNum mat[9], const float rgba[4]);
 
 // Set (type, size, pos, mat) for connector-type geom between given points.
 // Assume that mjv_initGeom was already called to set all other properties.
+// type is mjtGeom.
 MJAPI void mjv_makeConnector(mjvGeom* geom, int type, mjtNum width,
                              mjtNum a0, mjtNum a1, mjtNum a2,
                              mjtNum b0, mjtNum b1, mjtNum b2);
@@ -574,11 +576,11 @@ MJAPI void mjv_makeScene(const mjModel* m, mjvScene* scn, int maxgeom);
 // Free abstract scene.
 MJAPI void mjv_freeScene(mjvScene* scn);
 
-// Update entire scene given model state.
+// Update entire scene given model state. catmask is mjtCatBit.
 MJAPI void mjv_updateScene(const mjModel* m, mjData* d, const mjvOption* opt,
                            const mjvPerturb* pert, mjvCamera* cam, int catmask, mjvScene* scn);
 
-// Add geoms from selected categories.
+// Add geoms from selected categories. catmask is mjtCatBit.
 MJAPI void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* opt,
                         const mjvPerturb* pert, int catmask, mjvScene* scn);
 
@@ -600,7 +602,7 @@ MJAPI void mjr_defaultContext(mjrContext* con);
 // Allocate resources in custom OpenGL context; fontscale is mjtFontScale.
 MJAPI void mjr_makeContext(const mjModel* m, mjrContext* con, int fontscale);
 
-// Change font of existing context.
+// Change font of existing context; fontscale is mjtFontScale.
 MJAPI void mjr_changeFont(int fontscale, mjrContext* con);
 
 // Add Aux buffer with given index to context; free previous Aux buffer.
@@ -621,7 +623,7 @@ MJAPI void mjr_uploadHField(const mjModel* m, const mjrContext* con, int hfieldi
 // Make con->currentBuffer current again.
 MJAPI void mjr_restoreBuffer(const mjrContext* con);
 
-// Set OpenGL framebuffer for rendering: mjFB_WINDOW or mjFB_OFFSCREEN.
+// Set OpenGL framebuffer for rendering: mjFB_WINDOW or mjFB_OFFSCREEN. framebuffer is mjtFramebuffer.
 // If only one buffer is available, set that buffer and ignore framebuffer argument.
 MJAPI void mjr_setBuffer(int framebuffer, mjrContext* con);
 
@@ -660,7 +662,7 @@ MJAPI mjrRect mjr_maxViewport(const mjrContext* con);
 // Draw rectangle.
 MJAPI void mjr_rectangle(mjrRect viewport, float r, float g, float b, float a);
 
-// Draw rectangle with centered text.
+// Draw rectangle with centered text. font is mjtFont.
 MJAPI void mjr_label(mjrRect viewport, int font, const char* txt,
                      float r, float g, float b, float a, float rt, float gt, float bt,
                      const mjrContext* con);
