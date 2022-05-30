@@ -264,7 +264,7 @@ TEST_F(ActuatorTest, IncompleteActlimited) {
       </body>
     </worldbody>
     <actuator>
-      <general joint="hinge" actlimited="true" actrange="-1"/>
+      <general joint="hinge" actlimited="true" dyntype="filter" actrange="-1"/>
     </actuator>
   </mujoco>
   )";
