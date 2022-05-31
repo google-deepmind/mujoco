@@ -2236,7 +2236,8 @@ void mjCTexture::LoadCustom(string filename, const mjVFS* vfs,
       mju_free(buffer);
     }
 
-    throw mjCError(this, "non-positive texture dimensions in file '%s'", filename.c_str());
+    throw mjCError(this, "Non-PNG texture, assuming custom binary file format,\n"
+                         "non-positive texture dimensions in file '%s'", filename.c_str());
   }
 
   // check buffer size
@@ -2245,7 +2246,8 @@ void mjCTexture::LoadCustom(string filename, const mjVFS* vfs,
       mju_free(buffer);
     }
 
-    throw mjCError(this, "unexpected file size in file '%s'", filename.c_str());
+    throw mjCError(this, "Non-PNG texture, assuming custom binary file format,\n"
+                         "unexpected file size in file '%s'", filename.c_str());
   }
 
   // allocate and copy
