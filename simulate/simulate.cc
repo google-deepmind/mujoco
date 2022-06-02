@@ -1901,6 +1901,12 @@ void Simulate::renderthread(void) {
   this->clearcallback();
   mjv_freeScene(&this->scn);
   mjr_freeContext(&this->con);
+
+  // terminate GLFW (crashes with Linux NVidia drivers)
+  // Must call terminate in this thread on Windows with NVidia drivers (Intel is fine)
+#if defined(__APPLE__) || defined(_WIN32)
+  glfwTerminate();
+#endif
 }
 
 }  // namespace mujoco

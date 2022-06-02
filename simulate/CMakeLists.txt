@@ -82,6 +82,7 @@ target_link_options(uitools PRIVATE ${MUJOCO_SIMULATE_LINK_OPTIONS})
 add_library(mjsimulate SHARED)
 target_sources(mjsimulate PUBLIC simulate.h array_safety.h simulate.cc)
 target_include_directories(mjsimulate PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_compile_definitions(mjsimulate PUBLIC MJSIMULATE_DLL_EXPORTS)
 target_compile_options(mjsimulate PUBLIC ${MUJOCO_SIMULATE_COMPILE_OPTIONS})
 target_link_libraries(mjsimulate PUBLIC glfw uitools mujoco::mujoco) # TODO is that right 
 target_link_options(mjsimulate PRIVATE ${MUJOCO_SIMULATE_LINK_OPTIONS})
@@ -117,7 +118,12 @@ target_link_libraries(
   glfw
   Threads::Threads
 )
-target_link_options(simulate PRIVATE ${MUJOCO_SAMPLE_LINK_OPTIONS})
+
+if(WIN32)
+    target_link_options(simulate PRIVATE ${MUJOCO_SIMULATE_LINK_OPTIONS} /STACK:8000000)
+else()
+    target_link_options(simulate PRIVATE ${MUJOCO_SIMULATE_LINK_OPTIONS})
+endif()
 
 if(APPLE)
   target_sources(simulate PRIVATE macos_save.mm)

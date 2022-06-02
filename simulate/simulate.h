@@ -20,12 +20,25 @@
 
 #include "uitools.h"
 
+#ifdef MJSIMULATE_STATIC
+  // static library
+#define MJSIMULATEAPI
+#define MJSIMULATELOCAL
+#else
+#ifdef MJSIMULATE_DLL_EXPORTS
+#define MJSIMULATEAPI MUJOCO_HELPER_DLL_EXPORT
+#else
+#define MJSIMULATEAPI MUJOCO_HELPER_DLL_IMPORT
+#endif
+#define MJSIMULATELOCAL MUJOCO_HELPER_DLL_LOCAL
+#endif
+
 namespace mujoco {
 
 //-------------------------------- global -----------------------------------------------
 
 // Simulate states not contained in MuJoCo structures
-class Simulate {
+class MJSIMULATEAPI Simulate {
  public:
   // create object and initialize the simulate ui
   Simulate(void);
