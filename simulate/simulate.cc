@@ -24,6 +24,18 @@
 #include <mujoco/mjxmacro.h>
 #include "array_safety.h"
 
+// When launched via an App Bundle on macOS, the working directory is the path to the App Bundle's
+// resource directory. This causes files to be saved into the bundle, which is not the desired
+// behavior. Instead, we open a save dialog box to ask the user where to put the file.
+// Since the dialog box logic needs to be written in Objective-C, we separate it into a different
+// source file.
+#ifdef __APPLE__
+std::string getSavePath(const char* filename);
+#else
+static std::string getSavePath(const char* filename) {
+  return filename;
+}
+#endif
 
 namespace {
 namespace mj = ::mujoco;
@@ -1025,19 +1037,6 @@ void uiLayout(mjuiState* state) {
   rect[3].bottom = 0;
   rect[3].height = rect[0].height;
 }
-
-// When launched via an App Bundle on macOS, the working directory is the path to the App Bundle's
-// resource directory. This causes files to be saved into the bundle, which is not the desired
-// behavior. Instead, we open a save dialog box to ask the user where to put the file.
-// Since the dialog box logic needs to be written in Objective-C, we separate it into a different
-// source file.
-#ifdef __APPLE__
-std::string getSavePath(const char* filename);
-#else
-static std::string getSavePath(const char* filename) {
-  return filename;
-}
-#endif
 
 // handle UI event
 void uiEvent(mjuiState* state) {
