@@ -1458,9 +1458,10 @@ This element is used to set options for the built-in parser and compiler. After 
 any effect. The settings here are global and apply to the entire model.
 
 :at:`boundmass`: :at-val:`real, "0"`
-   This attribute imposes a lower bound on the mass of each body except for the world body. It can be used as a quick
-   fix for poorly designed models that contain massless moving bodies, such as the dummy bodies often used in URDF
-   models to attach sensors. Note that in MuJoCo there is no need to create dummy bodies.
+   This attribute imposes a lower bound on the mass of each body except for the world body. Setting this attribute to
+   a value greater than 0 can be used as a quick fix for poorly designed models that contain massless moving bodies,
+   such as the dummy bodies often used in URDF models to attach sensors. Note that in MuJoCo there is no need to create
+   dummy bodies.
 :at:`boundinertia`: :at-val:`real, "0"`
    This attribute imposes a lower bound on the diagonal inertia components of each body except for the world body. Its
    use is similar to boundmass above.
