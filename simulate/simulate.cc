@@ -1535,18 +1535,6 @@ namespace mju = ::mujoco::sample_util;
 Simulate::Simulate(void) {
 } // TODO constructor is now empty...
 
-//------------------------ start the render thread -----------------------------
-void Simulate::startthread(void) {
-  this->renderthreadhandle = std::thread(&Simulate::renderthread, this);
-}
-
-//------------------------ stop the render thread ------------------------------
-void Simulate::stopthread(void) {
-    // stop simulation thread
-  this->exitrequest = 1;
-  this->renderthreadhandle.join();
-}
-
 //------------------------ apply pose perturbations ----------------------------
 void Simulate::applyposepertubations(int flg_paused) {
   if (this->m != nullptr) {
@@ -1798,7 +1786,7 @@ void Simulate::clearcallback(void) {
   uiClearCallback(this->window);
 }
 
-void Simulate::renderthread(void) {
+void Simulate::renderloop(void) {
   // Set timer callback (milliseconds)
   mjcb_time = timer;
 
@@ -1900,12 +1888,6 @@ void Simulate::renderthread(void) {
   this->clearcallback();
   mjv_freeScene(&this->scn);
   mjr_freeContext(&this->con);
-
-  // terminate GLFW (crashes with Linux NVidia drivers)
-  // Must call terminate in this thread on Windows with NVidia drivers (Intel is fine)
-#if defined(__APPLE__) || defined(_WIN32)
-  glfwTerminate();
-#endif
 }
 
 }  // namespace mujoco

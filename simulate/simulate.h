@@ -44,7 +44,7 @@ class MJSIMULATEAPI Simulate {
   Simulate(void);
 
   // Start the Simulate UI thread
-  void startthread(void);
+  // void startthread(void);
 
   // Stop the Simulate UI thread
   void stopthread(void);
@@ -72,14 +72,12 @@ class MJSIMULATEAPI Simulate {
   // clear callbacks registered in external structures
   void clearcallback(void);
 
-  // thread to render the UI
-  void renderthread(void);
+  // loop to render the UI (must be called from main thread because of MacOS)
+  // https://discourse.glfw.org/t/multithreading-glfw/573/5
+  void renderloop(void);
 
   // constants
   static constexpr int kMaxFilenameLength = 1000;
-
-  // the UI rendering thread
-  std::thread renderthreadhandle;
 
   // model and data to be visualized
   mjModel* mnew = nullptr;

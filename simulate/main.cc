@@ -92,7 +92,7 @@ mjModel* LoadModel(const char* file, mj::Simulate& simulate) {
 }
 
 // simulate in background thread (while rendering in main thread)
-void SimulateLoop(mj::Simulate& simulate) {
+void PhysicsLoop(mj::Simulate& simulate) {
   // cpu-sim syncronization point
   double cpusync = 0;
   mjtNum simsync = 0;
@@ -222,6 +222,31 @@ void SimulateLoop(mj::Simulate& simulate) {
 }
 } // end unnamed namespace
 
+//---------------------------------- physics_thread ---------------------------------------
+void PhysicsThread(mj::Simulate* simulate, const char* filename) {
+  // request loadmodel if file given (otherwise drag-and-drop)
+  if (filename != nullptr) {
+    m = LoadModel(filename, *simulate);
+    if (m) {
+      d = mj_makeData(m);
+      simulate->load(filename, m, d, true);
+      mj_forward(m, d);
+
+      // allocate ctrlnoise
+      free(ctrlnoise);
+      ctrlnoise = (mjtNum*) malloc(sizeof(mjtNum)*m->nu);
+      mju_zero(ctrlnoise, m->nu);
+    }
+  }
+
+  PhysicsLoop(*simulate);
+
+  // delete everything we allocated
+  free(ctrlnoise);
+  mj_deleteData(d);
+  mj_deleteModel(m);
+}
+
 //---------------------------------- main -------------------------------------------------
 
 // run event loop
@@ -240,33 +265,17 @@ int main(int argc, const char** argv) {
     mju_error("could not initialize GLFW");
   }
 
-  // start simulation thread (this creates the UI)
-  simulate.startthread();
-
-  // request loadmodel if file given (otherwise drag-and-drop)
-  if (argc>1) {
-    m = LoadModel(argv[1], simulate);
-    if (m) {
-      d = mj_makeData(m);
-      simulate.load(argv[1], m, d, true);
-      mj_forward(m, d);
-
-      // allocate ctrlnoise
-      free(ctrlnoise);
-      ctrlnoise = (mjtNum*) malloc(sizeof(mjtNum)*m->nu);
-      mju_zero(ctrlnoise, m->nu);
-    }
+  const char* filename = nullptr;
+  if (argc >  1) {
+    filename = argv[1];
   }
 
-  SimulateLoop(simulate);
+  // start physics thread
+  std::thread physicsthreadhandle = std::thread(&PhysicsThread, &simulate, filename);
 
-  // If simulate loop exited its time to stop the UI
-  simulate.stopthread();
-
-  // delete everything we allocated
-  free(ctrlnoise);
-  mj_deleteData(d);
-  mj_deleteModel(m);
+  // start simulation UI loop (blocking call)
+  simulate.renderloop();
+  physicsthreadhandle.join();
 
   // terminate GLFW (crashes with Linux NVidia drivers)
 #if defined(__APPLE__) || defined(_WIN32)
