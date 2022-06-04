@@ -71,26 +71,26 @@ if(MUJOCO_HARDEN)
 endif()
 
 # Utility library
-add_library(uitools STATIC)
-target_sources(uitools PRIVATE uitools.h uitools.c)
-target_include_directories(uitools PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-target_compile_options(uitools PUBLIC ${MUJOCO_SIMULATE_COMPILE_OPTIONS})
-target_link_libraries(uitools PUBLIC glfw mujoco::mujoco)
-target_link_options(uitools PRIVATE ${MUJOCO_SIMULATE_LINK_OPTIONS})
+#add_library(uitools STATIC)
+#target_sources(uitools PRIVATE uitools.h uitools.c)
+#target_include_directories(uitools PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+#target_compile_options(uitools PUBLIC ${MUJOCO_SIMULATE_COMPILE_OPTIONS})
+#target_link_libraries(uitools PUBLIC glfw mujoco::mujoco)
+#target_link_options(uitools PRIVATE ${MUJOCO_SIMULATE_LINK_OPTIONS})
 
 # mjsimulate library
-add_library(mjsimulate SHARED)
-target_sources(mjsimulate PUBLIC simulate.h array_safety.h simulate.cc)
-target_include_directories(mjsimulate PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-target_compile_definitions(mjsimulate PUBLIC MJSIMULATE_DLL_EXPORTS)
-target_compile_options(mjsimulate PUBLIC ${MUJOCO_SIMULATE_COMPILE_OPTIONS})
-target_link_libraries(mjsimulate PUBLIC glfw uitools mujoco::mujoco)
-target_link_options(mjsimulate PRIVATE ${MUJOCO_SIMULATE_LINK_OPTIONS})
+#add_library(mjsimulate SHARED)
+#target_sources(mjsimulate PUBLIC simulate.h array_safety.h simulate.cc)
+#target_include_directories(mjsimulate PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+#target_compile_definitions(mjsimulate PUBLIC MJSIMULATE_DLL_EXPORTS)
+#target_compile_options(mjsimulate PUBLIC ${MUJOCO_SIMULATE_COMPILE_OPTIONS})
+#target_link_libraries(mjsimulate PUBLIC glfw uitools mujoco::mujoco)
+#target_link_options(mjsimulate PRIVATE ${MUJOCO_SIMULATE_LINK_OPTIONS})
 
-if(APPLE)
-  target_sources(mjsimulate PRIVATE macos_save.mm)
-  target_link_libraries(mjsimulate PUBLIC  "-framework Cocoa")
-endif()
+#if(APPLE)
+#  target_sources(mjsimulate PRIVATE macos_save.mm)
+#  target_link_libraries(mjsimulate PUBLIC  "-framework Cocoa")
+#endif()
 
 # Build samples that require GLFW.
 
@@ -102,7 +102,10 @@ else()
   set(SIMULATE_RESOURCE_FILES "")
 endif()
 
-add_executable(simulate main.cc array_safety.h ${SIMULATE_RESOURCE_FILES})
+add_executable(simulate main.cc array_safety.h
+                        uitools.h uitools.c
+                        simulate.h array_safety.h simulate.cc
+                        ${SIMULATE_RESOURCE_FILES})
 target_compile_options(simulate PUBLIC ${MUJOCO_SIMULATE_COMPILE_OPTIONS})
 if(WIN32)
   add_custom_command(
@@ -117,12 +120,17 @@ endif()
 
 target_link_libraries(
   simulate
-  mjsimulate
+# mjsimulate
+# uitools
   mujoco::mujoco
-  uitools
   glfw
   Threads::Threads
 )
+
+if(APPLE)
+  target_sources(simulate PRIVATE macos_save.mm)
+  target_link_libraries(simulate  "-framework Cocoa")
+endif()
 
 if(WIN32)
     target_link_options(simulate PRIVATE ${MUJOCO_SIMULATE_LINK_OPTIONS} /STACK:8000000)
