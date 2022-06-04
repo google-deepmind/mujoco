@@ -19,8 +19,8 @@
 #include <string>
 #include <thread>
 
+#include <mujoco/mujoco.h>
 #include <mujoco/mjxmacro.h>
-#include "uitools.h"
 #include "simulate.h"
 
 #include "array_safety.h"

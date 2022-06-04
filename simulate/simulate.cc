@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include "simulate.h"
+#include "uitools.h"
 
 #include <chrono>
 #include <cstdio>

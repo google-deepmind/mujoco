@@ -17,8 +17,8 @@
 
 #include <mutex>
 #include <thread>
-
-#include "uitools.h"
+#include <mujoco/mujoco.h>
+#include <GLFW/glfw3.h>
 
 #ifdef MJSIMULATE_STATIC
   // static library
