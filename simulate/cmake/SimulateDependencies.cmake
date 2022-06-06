@@ -58,8 +58,8 @@ findorfetch(
   EXCLUDE_FROM_ALL
 )
 
-option(MUJOCO_SIMULATE_STATIC_GLFW "Link MuJoCo simulate library and app against GLFW statically." ON)
-if(MUJOCO_SIMULATE_STATIC_GLFW)
+option(MUJOCO_EXTRAS_STATIC_GLFW "Link MuJoCo sample apps and simulate libraries against GLFW statically." OFF)
+if(MUJOCO_EXTRAS_STATIC_GLFW)
   set(BUILD_SHARED_LIBS_OLD ${BUILD_SHARED_LIBS})
   set(BUILD_SHARED_LIBS
       OFF
@@ -88,7 +88,7 @@ findorfetch(
   EXCLUDE_FROM_ALL
 )
 
-if(MUJOCO_SIMULATE_STATIC_GLFW)
+if(MUJOCO_EXTRAS_STATIC_GLFW)
   set(BUILD_SHARED_LIBS
       ${BUILD_SHARED_LIBS_OLD}
       CACHE BOOL "Build SHARED libraries" FORCE

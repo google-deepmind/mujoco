@@ -38,7 +38,7 @@ namespace mujoco {
 //-------------------------------- global -----------------------------------------------
 
 // Simulate states not contained in MuJoCo structures
-class Simulate {
+class MJSIMULATEAPI Simulate {
  public:
   // create object and initialize the simulate ui
   Simulate(void);
