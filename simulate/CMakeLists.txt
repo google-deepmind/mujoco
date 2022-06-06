@@ -79,6 +79,10 @@ target_compile_options(mjsimulate PUBLIC ${MUJOCO_SIMULATE_COMPILE_OPTIONS})
 target_link_libraries(mjsimulate PUBLIC glfw mujoco::mujoco)
 target_link_options(mjsimulate PRIVATE ${MUJOCO_SIMULATE_LINK_OPTIONS})
 
+set_target_properties(
+  mjsimulate PROPERTIES VERSION "${mujoco_VERSION}" PUBLIC_HEADER "simulate.h"
+)
+
 if(APPLE)
   target_sources(mjsimulate PRIVATE macos_save.mm)
   target_link_libraries(mjsimulate PUBLIC  "-framework Cocoa")
@@ -186,6 +190,17 @@ if(_INSTALL_SIMULATE)
     MUJOCO_ENABLE_RPATH
   )
 
+  target_add_rpath(
+    TARGETS
+    mjsimulate
+    INSTALL_DIRECTORY
+    "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_BINDIR}"
+    LIB_DIRS
+    "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR}"
+    DEPENDS
+    MUJOCO_ENABLE_RPATH
+  )
+
   install(
     TARGETS simulate
     EXPORT ${PROJECT_NAME}
@@ -194,6 +209,16 @@ if(_INSTALL_SIMULATE)
     ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}" COMPONENT simulate
     BUNDLE DESTINATION "${CMAKE_INSTALL_BINDIR}" COMPONENT simulate
     PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR} COMPONENT simulate
+  )
+
+  install(
+    TARGETS mjsimulate
+    EXPORT ${PROJECT_NAME}
+    RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}" COMPONENT simulate
+    LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}" COMPONENT simulate
+    ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}" COMPONENT simulate
+    BUNDLE DESTINATION "${CMAKE_INSTALL_BINDIR}" COMPONENT simulate
+    PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/mujoco COMPONENT simulate
   )
 
   if(NOT MUJOCO_SIMULATE_USE_SYSTEM_GLFW)
