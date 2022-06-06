@@ -56,6 +56,45 @@ running on Google Colab:
 
   - The second tutorial includes more examples of `dm_control`-specific functionality: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/deepmind/dm_control/blob/main/tutorial.ipynb)
 
+## Asking Questions
+
+We welcome community engagement: questions, requests for help, bug reports and
+feature requests. To read more about bug reports, feature requests and more
+ambitious contributions, please see our [contributors guide](CONTRIBUTING.md).
+
+Questions and requests for help are welcome on the
+GitHub [issues](https://github.com/deepmind/mujoco/issues) and
+[discussions](https://github.com/deepmind/mujoco/discussions) pages. Issues
+should be focused on a specific problem or question, while discussions should
+address wider concerns that might require input from multiple participants.
+
+Here are some guidelines for asking good questions:
+
+1. Search for existing questions or issues that touch on the same subject.
+
+   You can add comments to existing threads or start new ones. If you start a
+   new thread and there are existing relevant threads, please link to them.
+
+2. Use a clear and descriptive title.
+
+3. Introduce yourself and your project more generally.
+
+   If your level of expertise is exceptional (either high or low), and it might
+   be relevant to what we can assume you know, please state that as well.
+
+4. Make it easy for others to reproduce the problem or understand your question.
+
+   If this requires a model, please include it. Short, minimal, pure XML models
+   (the preferred format) should be pasted inline. Longer XML models should be
+   attached as a `.txt` file (GitHub does not accept `.xml`) or in a `.zip`.
+   Models requiring binary assets (meshes, textures), should be attached as
+   `.zip` files. Please remember to make sure the included model is loadable
+   before you attach it.
+
+5. Include an illustrative screenshot or video, if relevant.
+
+6. Tell us which MuJoCo version and operating system you are using.
+
 ## Citation
 
 If you use MuJoCo for published research, please cite:
