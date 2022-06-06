@@ -49,7 +49,7 @@ void mj_kinematics(const mjModel* m, mjData* d) {
   // normalize all quaternions in qpos
   mj_normalizeQuat(m, d->qpos);
 
-  // normalize mocap quaterions
+  // normalize mocap quaternions
   for (int i=0; i<m->nmocap; i++) {
     mju_normalize4(d->mocap_quat+4*i);
   }

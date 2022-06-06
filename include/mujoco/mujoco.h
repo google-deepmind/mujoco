@@ -437,7 +437,7 @@ MJAPI void mj_differentiatePos(const mjModel* m, mjtNum* qvel, mjtNum dt,
 // Integrate position with given velocity.
 MJAPI void mj_integratePos(const mjModel* m, mjtNum* qpos, const mjtNum* qvel, mjtNum dt);
 
-// Normalize all quaterions in qpos-type vector.
+// Normalize all quaternions in qpos-type vector.
 MJAPI void mj_normalizeQuat(const mjModel* m, mjtNum* qpos);
 
 // Map from body local to global Cartesian coordinates.
@@ -956,13 +956,13 @@ MJAPI void mju_subQuat(mjtNum res[3], const mjtNum qa[4], const mjtNum qb[4]);
 // Convert quaternion to 3D rotation matrix.
 MJAPI void mju_quat2Mat(mjtNum res[9], const mjtNum quat[4]);
 
-// Convert 3D rotation matrix to quaterion.
+// Convert 3D rotation matrix to quaternion.
 MJAPI void mju_mat2Quat(mjtNum quat[4], const mjtNum mat[9]);
 
 // Compute time-derivative of quaternion, given 3D rotational velocity.
 MJAPI void mju_derivQuat(mjtNum res[4], const mjtNum quat[4], const mjtNum vel[3]);
 
-// Integrate quaterion given 3D angular velocity.
+// Integrate quaternion given 3D angular velocity.
 MJAPI void mju_quatIntegrate(mjtNum quat[4], const mjtNum vel[3], mjtNum scale);
 
 // Construct quaternion performing rotation from z-axis to given vector.

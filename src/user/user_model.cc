@@ -2548,7 +2548,7 @@ mjModel* mjCModel::Compile(const mjVFS* vfs) {
       throw mjCError(0, "could not create mjData");
     }
 
-    // normalize keyframe quaterions
+    // normalize keyframe quaternions
     for (i=0; i<m->nkey; i++) {
       mj_normalizeQuat(m, m->key_qpos+i*m->nq);
     }

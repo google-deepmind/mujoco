@@ -1136,7 +1136,7 @@ the standard convention, we set A_rowadr[r] = r*n. MuJoCo uses sparse matrices i
 To represent 3D orientations and rotations, MuJoCo uses unit quaternions - namely 4D unit vectors arranged as q = (w,
 x, y, z). Here (x, y, z) is the rotation axis unit vector scaled by sin(a/2), where a is the rotation angle in
 radians, and w = cos(a/2). Thus the quaternion corresponding to a null rotation is (1, 0, 0, 0). This is the default
-setting of all quaterions in MJCF.
+setting of all quaternions in MJCF.
 
 MuJoCo also uses 6D spatial vectors internally. These are quantities in mjData prefixed with 'c', namely cvel, cacc,
 cdot, etc. They are spatial motion and force vectors that combine a 3D rotational component followed by a 3D

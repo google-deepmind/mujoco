@@ -72,7 +72,7 @@ static void add_noise(const mjModel* m, mjData* d, mjtStage stage) {
         rnd[0] = mju_standardNormal(rnd+1);
         rnd[2] = mju_standardNormal(rnd+3);
 
-        // scale angle, normalize axis, make quaterion
+        // scale angle, normalize axis, make quaternion
         rnd[0] *= noise;
         mju_normalize3(rnd+1);
         mju_axisAngle2Quat(quat, rnd+1, rnd[0]);

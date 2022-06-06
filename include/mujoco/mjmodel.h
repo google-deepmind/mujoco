@@ -282,7 +282,7 @@ typedef enum mjtSensor_ {         // type of sensor
   mjSENS_ACTUATORFRC,             // scalar actuator force
 
   // sensors related to ball joints
-  mjSENS_BALLQUAT,                // 4D ball joint quaterion
+  mjSENS_BALLQUAT,                // 4D ball joint quaternion
   mjSENS_BALLANGVEL,              // 3D ball joint angular velocity
 
   // joint and tendon limit sensors, in constraint space

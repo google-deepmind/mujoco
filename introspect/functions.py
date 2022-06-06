@@ -2558,7 +2558,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  ),
              ),
          ),
-         doc='Normalize all quaterions in qpos-type vector.',
+         doc='Normalize all quaternions in qpos-type vector.',
      )),
     ('mj_local2Global',
      FunctionDecl(
@@ -6049,7 +6049,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  ),
              ),
          ),
-         doc='Convert 3D rotation matrix to quaterion.',
+         doc='Convert 3D rotation matrix to quaternion.',
      )),
     ('mju_derivQuat',
      FunctionDecl(
@@ -6104,7 +6104,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  type=ValueType(name='mjtNum'),
              ),
          ),
-         doc='Integrate quaterion given 3D angular velocity.',
+         doc='Integrate quaternion given 3D angular velocity.',
      )),
     ('mju_quatZ2Vec',
      FunctionDecl(

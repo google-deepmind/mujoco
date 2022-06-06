@@ -543,7 +543,7 @@ mjtSensor
        mjSENS_ACTUATORFRC,             // scalar actuator force
 
        // sensors related to ball joints
-       mjSENS_BALLQUAT,                // 4D ball joint quaterion
+       mjSENS_BALLQUAT,                // 4D ball joint quaternion
        mjSENS_BALLANGVEL,              // 3D ball joint angular velocity
 
        // joint and tendon limit sensors, in constraint space
@@ -3162,7 +3162,7 @@ Numeric constants
 |                  |        | array sizes which we have not fully settled. There may be reasons to increase them in  |
 |                  |        | the future, so as to accommodate extra parameters needed for more elaborate            |
 |                  |        | computations. This is why we maintain them as symbolic constants that can be easily    |
-|                  |        | changed, as opposed to the array size for representing quaterions for example - which  |
+|                  |        | changed, as opposed to the array size for representing quaternions for example - which |
 |                  |        | has no reason to change.                                                               |
 +------------------+--------+----------------------------------------------------------------------------------------+
 | mjNDYN           | 10     | The maximal number of real-valued parameters used to define the activation dynamics of |
@@ -4549,7 +4549,7 @@ mj_normalizeQuat
 
    void mj_normalizeQuat(const mjModel* m, mjtNum* qpos);
 
-Normalize all quaterions in qpos-type vector.
+Normalize all quaternions in qpos-type vector.
 
 .. _mj_local2Global:
 
@@ -6184,7 +6184,7 @@ mju_mat2Quat
 
    void mju_mat2Quat(mjtNum quat[4], const mjtNum mat[9]);
 
-Convert 3D rotation matrix to quaterion.
+Convert 3D rotation matrix to quaternion.
 
 .. _mju_derivQuat:
 
@@ -6206,7 +6206,7 @@ mju_quatIntegrate
 
    void mju_quatIntegrate(mjtNum quat[4], const mjtNum vel[3], mjtNum scale);
 
-Integrate quaterion given 3D angular velocity.
+Integrate quaternion given 3D angular velocity.
 
 .. _mju_quatZ2Vec:
 
