@@ -353,7 +353,6 @@ purpose of including an asset is to reference it, and referencing can only be do
 undefined.
 
 Mesh
-
    MuJoCo can load triangulated meshes from OBJ files and binary STL. Software such as `MeshLab
    <https://www.meshlab.net/>`__ can be used to convert from other formats. While any collection of triangles can be
    loaded and visualized as a mesh, the collision detector works with the convex hull. There are compile-time options
