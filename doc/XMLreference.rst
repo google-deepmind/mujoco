@@ -3115,11 +3115,17 @@ unit quaternions.
 :el-prefix:`body/` **freejoint** (*)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-This element creates a free joint whose only attribute is name. The same effect can be achieved with the :ref:`joint
-<joint>` element, however in that case default settings intended for actuated joints may also affect the free joint
-(depending on how the defaults classes are specified), which is usually undesirable. To avoid this complication, the
-freejoint element was introduced. It is merely an XML shortcut. The compiler transforms it into a regular joint in
-mjModel. If the XML model is saved, it will appear as a regular joint of type "free".
+This element creates a free joint whose only attributes are :at:`name` and :at:`group`. The :el:`freejoint` element is
+an XML shortcut for
+
+.. code-block:: xml
+
+   <joint type="free" stiffness="0" damping="0" frictionloss="0" armature="0"/>
+
+While this joint can evidently be created with the :ref:`joint <joint>` element, default joint settings could affect it.
+This is usually undesirable as physical free bodies do not have nonzero stiffness, damping, friction or armature. To
+avoid this complication, the :el:`freejoint` element was introduced, ensuring joint defaults are *not inherited*. If
+the XML model is saved, it will appear as a regular joint of type :at:`free`.
 
 :at:`name`: :at-val:`string, optional`
    Name of the joint.
