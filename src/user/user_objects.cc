@@ -120,16 +120,6 @@ mjCAlternative::mjCAlternative() {
 // used for geom, site, body and camera frames
 const char* mjCAlternative::Set(double* quat, double* inertia,
                                 bool degree, const char* sequence) {
-  // check for multiple defitions
-  int ndef = (int)mjuu_defined(axisangle[0]) +
-             (int)mjuu_defined(xyaxes[0]) +
-             (int)mjuu_defined(zaxis[0]) +
-             (int)mjuu_defined(euler[0]) +
-             (int)mjuu_defined(fullinertia[0]);
-  if (ndef>1) {
-    return "too many alternative definitions";
-  }
-
   // set quat using axisangle
   if (mjuu_defined(axisangle[0])) {
     // convert to radians if necessary, normalize axis

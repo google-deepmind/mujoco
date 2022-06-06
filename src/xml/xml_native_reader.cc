@@ -1120,9 +1120,9 @@ void mjXReader::OneGeom(XMLElement* elem, mjCGeom* pgeom) {
   ReadAttr(elem, "mass", 1, &pgeom->_mass, text);
   ReadAttr(elem, "density", 1, &pgeom->density, text);
   ReadAttr(elem, "fromto", 6, pgeom->fromto, text);
-  ReadAlternative(elem, pgeom->alt);
   ReadAttr(elem, "pos", 3, pgeom->pos, text);
   ReadAttr(elem, "quat", 4, pgeom->quat, text);
+  ReadAlternative(elem, pgeom->alt);
 
   GetXMLPos(elem, pgeom);
 }

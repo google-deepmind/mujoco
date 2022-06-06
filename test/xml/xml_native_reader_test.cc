@@ -192,6 +192,49 @@ TEST_F(UserDataTest, AllowsSpaces) {
   mj_deleteModel(model);
 }
 
+TEST_F(UserDataTest, InvalidDoubleOrientation) {
+  std::string prefix = "<mujoco><worldbody><";
+  std::string suffix = "/></worldbody></mujoco>";
+  std::vector<std::string> orientations = {
+    R"( quat="0 1 0 0" )",
+    R"( euler="1.7 2.9 0.1" )",
+    R"( zaxis="1.7 2.9 0.1" )",
+    R"( axisangle="1.7 2.9 0.1 0" )",
+    R"( xyaxes="1.7 2.9 0.1 0.4 1.4 0.6" )",
+  };
+  std::vector<std::string> fields = {
+    "geom", "body", "camera", "site"
+  };
+  for (auto const& field : fields) {
+    for (auto const& orient1 : orientations) {
+      for (auto const& orient2 : orientations) {
+        if (orient1 == orient2) continue;
+        std::string xml = prefix + field + orient1 + orient2 + suffix;
+        std::array<char, 1024> error;
+        mjModel* model = LoadModelFromString(xml.c_str(), error.data(), error.size());
+        ASSERT_THAT(model, IsNull());
+        EXPECT_THAT(error.data(), HasSubstr("multiple orientation specifiers for the same field"));
+      }
+    }
+  }
+}
+
+TEST_F(UserDataTest, InvalidInertialOrientation) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <inertial pos="0 0 0" mass="1" quat="1 0 0 0" fullinertia="1 1 1 0 0 0"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("multiple orientation specifiers for the same field"));
+}
+
 // ------------- test relative frame sensor parsing ----------------------------
 
 using RelativeFrameSensorParsingTest = MujocoTest;
