@@ -1216,7 +1216,7 @@ Here is an example extension section of a URDF model:
 
    <robot name="darwin">
      <mujoco>
-       <compiler meshdir="../mesh/darwin/" balanceinertia="true"/>
+       <compiler meshdir="../mesh/darwin/" balanceinertia="true" discardvisual="false"/>
      </mujoco>
      <link name="MP_BODY">
        ...
