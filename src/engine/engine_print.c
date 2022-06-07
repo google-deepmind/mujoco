@@ -787,7 +787,7 @@ void mj_printFormattedData(const mjModel* m, mjData* d, const char* filename,
   printArray("ACT", m->na, 1, d->act, fp, float_format);
   printArray("QACC_WARMSTART", m->nv, 1, d->qacc_warmstart, fp, float_format);
   printArray("CTRL", m->nu, 1, d->ctrl, fp, float_format);
-  printArray("QFRC_APPLIED", m->nq, 1, d->qfrc_applied, fp, float_format);
+  printArray("QFRC_APPLIED", m->nv, 1, d->qfrc_applied, fp, float_format);
   printArray("XFRC_APPLIED", m->nbody, 6, d->xfrc_applied, fp, float_format);
   printArray("MOCAP_POS", m->nmocap, 3, d->mocap_pos, fp, float_format);
   printArray("MOCAP_QUAT", m->nmocap, 4, d->mocap_quat, fp, float_format);
