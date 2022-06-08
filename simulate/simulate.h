@@ -43,12 +43,6 @@ class MJSIMULATEAPI Simulate {
   // create object and initialize the simulate ui
   Simulate(void);
 
-  // Start the Simulate UI thread
-  // void startthread(void);
-
-  // Stop the Simulate UI thread
-  void stopthread(void);
-
   // Apply UI pose perturbations to model and data
   void applyposepertubations(int flg_paused);
 
@@ -126,31 +120,32 @@ class MJSIMULATEAPI Simulate {
   int index = 0;
 
   // physics: need sync
-  int disable[mjNDISABLE];
-  int enable[mjNENABLE];
+  int disable[mjNDISABLE] = {0};
+  int enable[mjNENABLE] = {0};
 
   // rendering: need sync
   int camera = 0;
 
   // abstract visualization
-  mjvScene scn;
-  mjvCamera cam;
-  mjvOption vopt;
-  mjvPerturb pert;
-  mjvFigure figconstraint;
-  mjvFigure figcost;
-  mjvFigure figtimer;
-  mjvFigure figsize;
-  mjvFigure figsensor;
+  mjvScene scn = {};
+  mjvCamera cam = {};
+  mjvOption vopt = {};
+  mjvPerturb pert = {};
+  mjvFigure figconstraint = {};
+  mjvFigure figcost = {};
+  mjvFigure figtimer = {};
+  mjvFigure figsize = {};
+  mjvFigure figsensor = {};
 
   // OpenGL rendering and UI
-  GLFWvidmode vmode;
-  int windowpos[2];
-  int windowsize[2];
-  mjrContext con;
-  GLFWwindow* window;
-  mjuiState uistate;
-  mjUI ui0, ui1;
+  GLFWvidmode vmode = {};
+  int windowpos[2] = {0};
+  int windowsize[2] = {0};
+  mjrContext con = {};
+  GLFWwindow* window = nullptr;
+  mjuiState uistate = {};
+  mjUI ui0 = {};
+  mjUI ui1 = {};
 
   // Constant arrays needed for the option section of UI and the UI interface
   // TODO setting the size here is not ideal
@@ -203,8 +198,8 @@ class MJSIMULATEAPI Simulate {
   };
 
   // info strings
-  char info_title[Simulate::kMaxFilenameLength];
-  char info_content[Simulate::kMaxFilenameLength];
+  char info_title[Simulate::kMaxFilenameLength] = {0};
+  char info_content[Simulate::kMaxFilenameLength] = {0};
 };
 
 }  // namespace mujoco
