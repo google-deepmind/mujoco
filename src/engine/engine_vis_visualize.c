@@ -774,23 +774,26 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
       if (vopt->actuatorgroup[mjMAX(0, mjMIN(mjNGROUP-1, m->actuator_group[i]))]) {
         // determine extended range
         mjtNum rng[3] = {-1, 0, +1};
+        mjtNum rmin = -1, rmax = 1, act;
         if (m->actuator_ctrllimited[i]) {
-          mjtNum rmin = m->actuator_ctrlrange[2*i];
-          mjtNum rmax = m->actuator_ctrlrange[2*i+1];
-
-          if (rmin>=0) {
-            rng[0] = -1;
-            rng[1] = rmin;
-            rng[2] = rmax;
-          } else if (rmax<=0) {
-            rng[0] = rmin;
-            rng[1] = rmax;
-            rng[2] = +1;
-          } else {
-            rng[0] = rmin;
-            rng[1] = 0;
-            rng[2] = rmax;
-          }
+          rmin = m->actuator_ctrlrange[2*i];
+          rmax = m->actuator_ctrlrange[2*i+1];
+        } else if (vopt->flags[mjVIS_ACTIVATION] && m->actuator_actlimited[i]) {
+          rmin = m->actuator_actrange[2*i];
+          rmax = m->actuator_actrange[2*i+1];
+        }
+        if (rmin>=0) {
+          rng[0] = -1;
+          rng[1] = rmin;
+          rng[2] = rmax;
+        } else if (rmax<=0) {
+          rng[0] = rmin;
+          rng[1] = rmax;
+          rng[2] = +1;
+        } else {
+          rng[0] = rmin;
+          rng[1] = 0;
+          rng[2] = rmax;
         }
 
         // adjust small ranges
@@ -801,8 +804,12 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
           rng[2] = rng[1] + mjMINVAL;
         }
 
-        // clamp ctrl to extended range
-        mjtNum act = mjMIN(rng[2], mjMAX(rng[0], d->ctrl[i]));
+        // clamp act to extended range
+        if (vopt->flags[mjVIS_ACTIVATION] && m->actuator_dyntype[i]) {
+          act = mjMIN(rng[2], mjMAX(rng[0], d->act[i-(m->nu-m->na)]));
+        } else {
+          act = mjMIN(rng[2], mjMAX(rng[0], d->ctrl[i]));
+        }
 
         // compute interpolants
         float amin, amean, amax;

@@ -99,8 +99,9 @@ typedef enum mjtVisFlag_ {        // flags enabling model element visualization
   mjVIS_CONVEXHULL    = 0,        // mesh convex hull
   mjVIS_TEXTURE,                  // textures
   mjVIS_JOINT,                    // joints
-  mjVIS_ACTUATOR,                 // actuators
   mjVIS_CAMERA,                   // cameras
+  mjVIS_ACTUATOR,                 // actuators
+  mjVIS_ACTIVATION,               // activations
   mjVIS_LIGHT,                    // lights
   mjVIS_TENDON,                   // tendons
   mjVIS_RANGEFINDER,              // rangefinder sensors
