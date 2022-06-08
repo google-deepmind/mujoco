@@ -857,6 +857,31 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
           FINISH
         }
 
+        // site actuators
+        if (m->actuator_trntype[i]==mjTRN_SITE) {
+          // actuator size is site size scaled by 1.1
+          mju_scl3(sz, m->site_size+3*j, 1.1);
+
+          START
+
+          // make geom overlapping the actuated site
+          mjv_initGeom(thisgeom,
+                       m->site_type[j], sz,
+                       d->site_xpos + 3*j,
+                       d->site_xmat + 9*j,
+                       thisgeom->rgba);
+
+          // set interpolated color
+          f2f(thisgeom->rgba, rgba, 4);
+
+          // vopt->label
+          if (vopt->label==mjLABEL_ACTUATOR) {
+            makeLabel(m, mjOBJ_ACTUATOR, i, thisgeom->label);
+          }
+
+          FINISH
+        }
+
         // spatial tendon actuators
         else if (m->actuator_trntype[i]==mjTRN_TENDON && d->ten_wrapnum[j]) {
           for (int k=d->ten_wrapadr[j]; k<d->ten_wrapadr[j]+d->ten_wrapnum[j]-1; k++) {
