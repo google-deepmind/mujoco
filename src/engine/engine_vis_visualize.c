@@ -835,48 +835,50 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
         int j = m->actuator_trnid[2*i];
 
         // slide and hinge joint actuators
-        if ((m->actuator_trntype[i]==mjTRN_JOINT || m->actuator_trntype[i]==mjTRN_JOINTINPARENT) &&
-            (m->jnt_type[j]==mjJNT_HINGE || m->jnt_type[j]==mjJNT_SLIDE)) {
-          // set length(1) and width(0) of the connectors
-          sz[1] = m->vis.scale.actuatorlength * scl;
-          sz[0] = m->vis.scale.actuatorwidth * scl;
+        if (m->actuator_trntype[i]==mjTRN_JOINT ||
+            m->actuator_trntype[i]==mjTRN_JOINTINPARENT ||
+            m->actuator_trntype[i]==mjTRN_SITE) {
 
           START
 
-          // make geom
-          mjv_makeConnector(thisgeom,
-                            m->jnt_type[j]==mjJNT_SLIDE ? mjGEOM_ARROW : mjGEOM_ARROW1, sz[0],
-                            d->xanchor[3*j+0],
-                            d->xanchor[3*j+1],
-                            d->xanchor[3*j+2],
-                            d->xanchor[3*j+0] + sz[1]*d->xaxis[3*j+0],
-                            d->xanchor[3*j+1] + sz[1]*d->xaxis[3*j+1],
-                            d->xanchor[3*j+2] + sz[1]*d->xaxis[3*j+2]);
+          // site actuators
+          if (m->actuator_trntype[i]==mjTRN_SITE) {
+            // set size of the geometry
+            mju_scl3(sz, m->site_size+3*j, 1.1);
 
-          // set interpolated color
-          f2f(thisgeom->rgba, rgba, 4);
+            // make geom
+            mjv_initGeom(thisgeom,
+                         m->site_type[j], sz,
+                         d->site_xpos + 3*j,
+                         d->site_xmat + 9*j,
+                         thisgeom->rgba);
+          } else if (m->jnt_type[j]==mjJNT_HINGE || m->jnt_type[j]==mjJNT_SLIDE) {
+            // set length(1) and width(0) of the connectors
+            sz[1] = m->vis.scale.actuatorlength * scl;
+            sz[0] = m->vis.scale.actuatorwidth * scl;
 
-          // vopt->label
-          if (vopt->label==mjLABEL_ACTUATOR) {
-            makeLabel(m, mjOBJ_ACTUATOR, i, thisgeom->label);
+            // make geom
+            mjv_makeConnector(thisgeom,
+                              m->jnt_type[j]==mjJNT_SLIDE ? mjGEOM_ARROW : mjGEOM_ARROW1, sz[0],
+                              d->xanchor[3*j+0],
+                              d->xanchor[3*j+1],
+                              d->xanchor[3*j+2],
+                              d->xanchor[3*j+0] + sz[1]*d->xaxis[3*j+0],
+                              d->xanchor[3*j+1] + sz[1]*d->xaxis[3*j+1],
+                              d->xanchor[3*j+2] + sz[1]*d->xaxis[3*j+2]);
           }
 
-          FINISH
-        }
+          // ball or free joint
+          else if (m->jnt_type[j]==mjJNT_BALL || m->jnt_type[j]==mjJNT_FREE) {
+            sz[0] = sz[1] = sz[2] = m->vis.scale.jointlength * scl * 0.33;
 
-        // site actuators
-        if (m->actuator_trntype[i]==mjTRN_SITE) {
-          // actuator size is site size scaled by 1.1
-          mju_scl3(sz, m->site_size+3*j, 1.1);
-
-          START
-
-          // make geom overlapping the actuated site
-          mjv_initGeom(thisgeom,
-                       m->site_type[j], sz,
-                       d->site_xpos + 3*j,
-                       d->site_xmat + 9*j,
-                       thisgeom->rgba);
+            // make geom
+            mjv_initGeom(thisgeom,
+                         m->jnt_type[j]==mjJNT_BALL ? mjGEOM_SPHERE : mjGEOM_BOX, sz,
+                         d->xanchor + 3*j,
+                         d->xmat + 9*m->jnt_bodyid[j],
+                         thisgeom->rgba);
+          }
 
           // set interpolated color
           f2f(thisgeom->rgba, rgba, 4);
