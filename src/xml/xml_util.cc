@@ -494,7 +494,7 @@ bool mjXUtil::SameVector(const T* vec1, const T* vec2, int n) {
 
   bool same = true;
   for (int i=0; i<n; i++) {
-    if (fabs(vec1[i] - vec2[i]) > std::numeric_limits<T>::epsilon()) {
+    if (std::abs(vec1[i] - vec2[i]) > std::numeric_limits<T>::epsilon()) {
       same = false;
     }
   }
@@ -783,13 +783,13 @@ bool mjXUtil::MapValue(XMLElement* elem, const char* attr, int* data,
 
 // check if double is int
 static bool isint(double x) {
-  return ((fabs(x - floor(x)) < 1E-12) || (fabs(x - ceil(x)) < 1E-12));
+  return ((std::abs(x - floor(x)) < 1E-12) || (std::abs(x - ceil(x)) < 1E-12));
 }
 
 
 // round to nearest int
 static int Round(double x) {
-  if (fabs(x - floor(x)) < fabs(x - ceil(x))) {
+  if (std::abs(x - floor(x)) < std::abs(x - ceil(x))) {
     return (int)floor(x);
   } else {
     return (int)ceil(x);
