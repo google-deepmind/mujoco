@@ -121,7 +121,7 @@
     <general joint="wheel_1" biastype="affine" dyntype="integrator" dynprm="1" biasprm="0 -1"/>
   </actuator>
   <sensor>
-    <framepos objtype="site" objname="wheel_0"/>
+    <framepos objtype="site" objname="wheel_0" reftype="site" refname="wheel_2"/>
     <rangefinder site="rf"/>
     <gyro site="wheel_2"/>
     <touch site="wheel_1"/>

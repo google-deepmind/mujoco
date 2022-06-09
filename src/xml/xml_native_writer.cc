@@ -1559,6 +1559,12 @@ void mjXWriter::Sensor(XMLElement* root) {
     WriteAttr(elem, "cutoff", 1, &psen->cutoff, &zero);
     WriteAttr(elem, "noise", 1, &psen->noise, &zero);
     WriteVector(elem, "user", psen->userdata);
+
+    // add reference if present
+    if (psen->reftype > 0) {
+      WriteAttrTxt(elem, "reftype", mju_type2Str(psen->reftype));
+      WriteAttrTxt(elem, "refname", psen->refname);
+    }
   }
 
   // remove section if empty
