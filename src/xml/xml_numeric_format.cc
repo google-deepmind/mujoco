@@ -17,14 +17,14 @@
 namespace mujoco {
 
 namespace {
-  thread_local const char* precision = "%g";
+  thread_local int precision = 6;
 }
 
-const char* _mjPRIVATE__get_xml_precision() {
+int _mjPRIVATE__get_xml_precision() {
   return precision;
 }
 
-void _mjPRIVATE__set_xml_precision(const char* new_precision) {
+void _mjPRIVATE__set_xml_precision(const int new_precision) {
   precision = new_precision;
 }
 
