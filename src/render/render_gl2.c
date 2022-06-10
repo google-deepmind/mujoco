@@ -711,7 +711,7 @@ static void maketext(const char* format, char* txt, float num, int txt_sz) {
     }
 
     // '.' found: strip
-    if (txt[j]=='.') {
+    if (j>=0 && txt[j]=='.') {
       txt[i] = 0;
     }
   }
