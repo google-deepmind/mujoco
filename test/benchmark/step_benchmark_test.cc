@@ -30,6 +30,18 @@ namespace {
 
 using ::testing::NotNull;
 
+// number of steps to roll out before benhmarking
+static const int kNumWarmupSteps = 500;
+
+// number of steps to benchmark
+static const int kNumBenchmarkSteps = 50;
+
+
+// copy array into vector
+std::vector<mjtNum> AsVector(const mjtNum* array, int n) {
+  return std::vector<mjtNum>(array, array + n);
+}
+
 static void add_ctrl_noise(const mjModel* m, mjData* d, int step) {
   for (int i = 0; i < m->nu; i++) {
     mjtNum center = 0.0;
@@ -59,13 +71,34 @@ static mjModel* load_model(const char* model_path) {
 
 static void run_step_benchmark(const mjModel* model, benchmark::State& state) {
   mjData* data = mj_makeData(model);
-  int i = 0;
-  for (auto s : state) {
-    add_ctrl_noise(model, data, i++);
+
+  // warm-up rollout to get a typcal state
+  for (int i=0; i < kNumWarmupSteps; i++) {
+    add_ctrl_noise(model, data, i);
     mj_step(model, data);
   }
+  // save state
+  std::vector<mjtNum> qpos = AsVector(data->qpos, model->nq);
+  std::vector<mjtNum> qvel = AsVector(data->qvel, model->nv);
+  std::vector<mjtNum> act = AsVector(data->act, model->na);
+  std::vector<mjtNum> warmstart = AsVector(data->qacc_warmstart, model->nv);
+
+  // reset state, benchmark subsequent kNumBenchmarkSteps steps
+  for (auto s : state) {
+    mju_copy(data->qpos, qpos.data(), model->nq);
+    mju_copy(data->qvel, qvel.data(), model->nv);
+    mju_copy(data->act, act.data(), model->na);
+    mju_copy(data->qacc_warmstart, warmstart.data(), model->nv);
+
+    for (int i=0; i < kNumBenchmarkSteps; i++) {
+      add_ctrl_noise(model, data, i+kNumWarmupSteps);
+      mj_step(model, data);
+    }
+  }
+
+  // finalize
   mj_deleteData(data);
-  state.SetItemsProcessed(state.iterations());
+  state.SetItemsProcessed(kNumBenchmarkSteps * state.iterations());
 }
 
 // Use ABSL_ATTRIBUTE_NO_TAIL_CALL to make sure the benchmark functions appear
@@ -85,7 +118,6 @@ void ABSL_ATTRIBUTE_NO_TAIL_CALL BM_StepHumanoid(benchmark::State& state) {
   run_step_benchmark(model, state);
 }
 BENCHMARK(BM_StepHumanoid);
-BENCHMARK(BM_StepHumanoid)->ThreadRange(2, 16);
 
 void ABSL_ATTRIBUTE_NO_TAIL_CALL BM_StepHumanoid100(benchmark::State& state) {
   MujocoErrorTestGuard guard;
