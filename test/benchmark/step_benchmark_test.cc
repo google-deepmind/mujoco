@@ -84,7 +84,7 @@ static void run_step_benchmark(const mjModel* model, benchmark::State& state) {
   std::vector<mjtNum> warmstart = AsVector(data->qacc_warmstart, model->nv);
 
   // reset state, benchmark subsequent kNumBenchmarkSteps steps
-  for (auto s : state) {
+  while (state.KeepRunningBatch(kNumBenchmarkSteps)) {
     mju_copy(data->qpos, qpos.data(), model->nq);
     mju_copy(data->qvel, qvel.data(), model->nv);
     mju_copy(data->act, act.data(), model->na);
@@ -98,7 +98,7 @@ static void run_step_benchmark(const mjModel* model, benchmark::State& state) {
 
   // finalize
   mj_deleteData(data);
-  state.SetItemsProcessed(kNumBenchmarkSteps * state.iterations());
+  state.SetItemsProcessed(state.iterations());
 }
 
 // Use ABSL_ATTRIBUTE_NO_TAIL_CALL to make sure the benchmark functions appear
