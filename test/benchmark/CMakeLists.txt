@@ -55,3 +55,11 @@ target_link_libraries(
   gmock
   benchmark::benchmark
 )
+
+mujoco_benchmark_test(engine_util_spatial_benchmark_test)
+target_link_libraries(
+  engine_util_spatial_benchmark_test
+  fixture
+  gmock
+  benchmark::benchmark
+)

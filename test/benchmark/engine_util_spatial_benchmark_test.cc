@@ -34,7 +34,7 @@ void BM_RotVecQuat(benchmark::State& state) {
 
   // Create axis-angle and convert to a quaternion
   mjtNum quat[4];
-  const mjtNum angle = 33 * M_PI / 180;
+  const mjtNum angle = 33 * mjPI / 180;
   mjtNum vec[] = {0.2672612419124244, 0.5345224838248488, 0.8017837257372732};
   mju_axisAngle2Quat(quat, vec, angle);
 
