@@ -62,9 +62,8 @@ void GlobalModel::Clear() {
 
 
 // single instance of global model, protected with mutex
-GlobalModel themodel;
-std::mutex themutex;
-
+static GlobalModel themodel;
+static std::mutex themutex;
 
 //---------------------------------- Functions -----------------------------------------------------
 

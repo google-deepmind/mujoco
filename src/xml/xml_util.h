@@ -76,7 +76,7 @@ class mjXSchema {
 
 // key(string) : value(int) map
 struct _mjMap {
-  std::string key;
+  const char* key;
   int value;
 };
 typedef struct _mjMap mjMap;
