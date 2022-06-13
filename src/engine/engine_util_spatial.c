@@ -32,9 +32,15 @@ void mju_rotVecQuat(mjtNum res[3], const mjtNum vec[3], const mjtNum quat[4]) {
 
   // regular processing
   else {
-    mjtNum mat[9];
-    mju_quat2Mat(mat, quat);
-    mju_rotVecMat(res, vec, mat);
+    mjtNum tmp[3];
+    // tmp = q_w * v + cross(q_xyz, v)
+    tmp[0] = quat[0]*vec[0] + quat[2]*vec[2] - quat[3]*vec[1];
+    tmp[1] = quat[0]*vec[1] + quat[3]*vec[0] - quat[1]*vec[2];
+    tmp[2] = quat[0]*vec[2] + quat[1]*vec[1] - quat[2]*vec[0];
+    // res = v + 2 * cross(q_xyz, t)
+    res[0] = vec[0] + 2 * (quat[2]*tmp[2] - quat[3]*tmp[1]);
+    res[1] = vec[1] + 2 * (quat[3]*tmp[0] - quat[1]*tmp[2]);
+    res[2] = vec[2] + 2 * (quat[1]*tmp[1] - quat[2]*tmp[0]);
   }
 }
 
