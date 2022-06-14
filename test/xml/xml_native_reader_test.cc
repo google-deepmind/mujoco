@@ -338,5 +338,104 @@ TEST_F(ActuatorTest, ReadsByte) {
   mj_deleteModel(model);
 }
 
+// ------------- test intvelocity parsing ---------------------------------------
+
+using IntegratedVelocityTest = MujocoTest;
+
+TEST_F(IntegratedVelocityTest, CheckEquivalence) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <joint name="hinge"/>
+        <geom size="1"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <intvelocity joint="hinge" kp="2.5" actrange="-1.57 1.57"/>
+      <general joint="hinge" actlimited="true" actrange="-1.57 1.57" dyntype="integrator"
+        biastype="affine" gainprm="2.5" biasprm="0 -2.5 0"/>
+    </actuator>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, testing::NotNull());
+  // same actlimited
+  EXPECT_EQ(model->actuator_actlimited[0], 1);
+  EXPECT_EQ(model->actuator_actlimited[1], 1);
+  // same dyntype
+  EXPECT_EQ(model->actuator_dyntype[0], mjDYN_INTEGRATOR);
+  EXPECT_EQ(model->actuator_dyntype[1], mjDYN_INTEGRATOR);
+  // same biastype
+  EXPECT_EQ(model->actuator_biastype[0], mjBIAS_AFFINE);
+  EXPECT_EQ(model->actuator_biastype[1], mjBIAS_AFFINE);
+  // same gaintype
+  EXPECT_EQ(model->actuator_gaintype[0], mjGAIN_FIXED);
+  EXPECT_EQ(model->actuator_gaintype[1], mjGAIN_FIXED);
+  // same gainprm
+  EXPECT_DOUBLE_EQ(model->actuator_gainprm[0], 2.5);
+  EXPECT_DOUBLE_EQ(model->actuator_gainprm[mjNGAIN], 2.5);
+  // same biasprm
+  EXPECT_DOUBLE_EQ(model->actuator_biasprm[0], 0.0);
+  EXPECT_DOUBLE_EQ(model->actuator_biasprm[1], -2.5);
+  EXPECT_DOUBLE_EQ(model->actuator_biasprm[2], 0.0);
+  EXPECT_DOUBLE_EQ(model->actuator_biasprm[mjNBIAS], 0.0);
+  EXPECT_DOUBLE_EQ(model->actuator_biasprm[mjNBIAS + 1], -2.5);
+  EXPECT_DOUBLE_EQ(model->actuator_biasprm[mjNBIAS + 2], 0.0);
+  // same actrange
+  EXPECT_DOUBLE_EQ(model->actuator_actrange[0 + 0], -1.57);
+  EXPECT_DOUBLE_EQ(model->actuator_actrange[0 + 1], 1.57);
+  EXPECT_DOUBLE_EQ(model->actuator_actrange[0 + 2], -1.57);
+  EXPECT_DOUBLE_EQ(model->actuator_actrange[0 + 3], 1.57);
+  mj_deleteModel(model);
+}
+
+TEST_F(IntegratedVelocityTest, CheckDefaultsIfNotSpecified) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <joint name="hinge"/>
+        <geom size="1"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <intvelocity joint="hinge" actrange="-1 1"/>
+    </actuator>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, testing::NotNull());
+  // check that by default kp = 1
+  EXPECT_DOUBLE_EQ(model->actuator_gainprm[0], 1.0);
+  // check that biasprm is (0, -1, 0)
+  EXPECT_DOUBLE_EQ(model->actuator_biasprm[0], 0.0);
+  EXPECT_DOUBLE_EQ(model->actuator_biasprm[1], -1.0);
+  EXPECT_DOUBLE_EQ(model->actuator_biasprm[2], 0.0);
+  mj_deleteModel(model);
+}
+
+TEST_F(IntegratedVelocityTest, NoActrangeThrowsError) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <joint name="hinge"/>
+        <geom size="1"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <intvelocity joint="hinge"/>
+    </actuator>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("actrange is required for an intvelocity actuator"));
+}
+
 }  // namespace
 }  // namespace mujoco

@@ -41,7 +41,7 @@ using tinyxml2::XMLElement;
 
 //---------------------------------- MJCF schema ---------------------------------------------------
 
-static const int nMJCF = 158;
+static const int nMJCF = 160;
 static const char* MJCF[nMJCF][mjXATTRNUM] = {
 {"mujoco", "!", "1", "model"},
 {"<"},
@@ -130,6 +130,10 @@ static const char* MJCF[nMJCF][mjXATTRNUM] = {
         {"velocity", "?", "9", "ctrllimited", "forcelimited", "ctrlrange", "forcerange",
             "gear", "cranklength", "user", "group",
             "kv"},
+        {"intvelocity", "?", "10", "ctrllimited", "forcelimited",
+            "ctrlrange", "forcerange", "actrange",
+            "gear", "cranklength", "user", "group",
+            "kp"},
         {"cylinder", "?", "12", "ctrllimited", "forcelimited", "ctrlrange", "forcerange",
             "gear", "cranklength", "user", "group",
             "timeconst", "area", "diameter", "bias"},
@@ -273,6 +277,12 @@ static const char* MJCF[nMJCF][mjXATTRNUM] = {
             "lengthrange", "gear", "cranklength", "user",
             "joint", "jointinparent", "tendon", "slidersite", "cranksite", "site",
             "kv"},
+        {"intvelocity", "*", "19", "name", "class", "group",
+            "ctrllimited", "forcelimited",
+            "ctrlrange", "forcerange", "actrange", "lengthrange",
+            "gear", "cranklength", "user",
+            "joint", "jointinparent", "tendon", "slidersite", "cranksite", "site",
+            "kp"},
         {"cylinder", "*", "21", "name", "class", "group",
             "ctrllimited", "forcelimited", "ctrlrange", "forcerange",
             "lengthrange", "gear", "cranklength", "user",
@@ -1460,6 +1470,26 @@ void mjXReader::OneActuator(XMLElement* elem, mjCActuator* pact) {
     pact->biastype = mjBIAS_AFFINE;
   }
 
+  // integrated velocity
+  else if (type=="intvelocity") {
+    // clear bias
+    mjuu_zerovec(pact->biasprm, mjNBIAS);
+
+    // explicit attributes
+    ReadAttr(elem, "kp", 1, pact->gainprm, text);
+
+    // implied parameters
+    pact->dyntype = mjDYN_INTEGRATOR;
+    pact->gaintype = mjGAIN_FIXED;
+    pact->biastype = mjBIAS_AFFINE;
+    pact->actlimited = true;
+    pact->biasprm[1] = -pact->gainprm[0];
+    // require actrange
+    if (!ReadAttr(elem, "actrange", 2, pact->actrange, text)) {
+      throw mjXError(elem, "actrange is required for an intvelocity actuator", type.c_str());
+    }
+  }
+
   // cylinder
   else if (type=="cylinder") {
     // explicit attributes
@@ -1761,11 +1791,12 @@ void mjXReader::Default(XMLElement* section, int parentid) {
     else if (name=="tendon") OneTendon(elem, &def->tendon);
 
     // read actuator: general, motor, position, velocity, cylinder
-    else if (name=="general"  ||
-             name=="motor"    ||
-             name=="position" ||
-             name=="velocity" ||
-             name=="cylinder" ||
+    else if (name=="general"     ||
+             name=="motor"       ||
+             name=="position"    ||
+             name=="velocity"    ||
+             name=="intvelocity" ||
+             name=="cylinder"    ||
              name=="muscle") {
       OneActuator(elem, &def->actuator);
     }

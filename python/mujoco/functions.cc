@@ -65,7 +65,7 @@ PYBIND11_MODULE(_functions, pymodule) {
   DEF_WITH_OMITTED_PY_ARGS(traits::mj_printSchema,
                            "filename", "buffer", "buffer_sz")(
       pymodule, [](bool flg_html, bool flg_pad) {
-        constexpr int kBufferSize = 27000;
+        constexpr int kBufferSize = 28000;
         auto buffer = std::unique_ptr<char[]>(new char[kBufferSize]);
         const int out_length = InterceptMjErrors(::mj_printSchema)(
             nullptr, buffer.get(), kBufferSize, flg_html, flg_pad);

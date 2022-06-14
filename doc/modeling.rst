@@ -548,14 +548,15 @@ As explained in the :ref:`Actuation model <geActuation>` section of the Computat
 actuator model with transmission, activation dynamics and force generation components that can be specified
 independently. The full functionality can be accessed via the XML element :ref:`general <general>` which allows the user
 to create a variety of custom actuators. In addition, MJCF provides shortcuts for configuring common actuators. This is
-done via the XML elements :ref:`motor <motor>`, :ref:`position <position>`, :ref:`velocity <velocity>`, :ref:`cylinder
-<cylinder>`, :ref:`muscle <muscle>`. These are *not* separate model elements. Internally MuJoCo supports only one
-actuator type - which is why when an MJCF model is saved all actuators are written as :el:`general`. Shortcuts create
-general actuators implicitly, set their attributes to suitable values, and expose a subset of attributes with possibly
-different names. For example, :el:`position` creates a position servo with attribute :at:`kp` which is the servo gain.
-However :el:`general` does not have an attribute :at:`kp`. Instead the parser adjusts the gain and bias parameters of
-the general actuator in a coordinated way so as to mimic a position servo. The same effect could have been achieved by
-using :el:`general` directly, and setting its attributes to certain values as described below.
+done via the XML elements :ref:`motor <motor>`, :ref:`position <position>`, :ref:`velocity <velocity>`,
+:ref:`intvelocity <intvelocity>`, :ref:`cylinder<cylinder>`, and :ref:`muscle <muscle>`. These are *not* separate model
+elements. Internally MuJoCo supports only one actuator type - which is why when an MJCF model is saved all actuators are
+written as :el:`general`. Shortcuts create general actuators implicitly, set their attributes to suitable values, and
+expose a subset of attributes with possibly different names. For example, :el:`position` creates a position servo with
+attribute :at:`kp` which is the servo gain. However :el:`general` does not have an attribute :at:`kp`. Instead the parser
+adjusts the gain and bias parameters of the general actuator in a coordinated way so as to mimic a position servo. The
+same effect could have been achieved by using :el:`general` directly, and setting its attributes to certain values as
+described below.
 
 Actuator shortcuts also interact with defaults. Recall that the :ref:`default setting <CDefault>` mechanism involves
 classes, each of which has a complete collection of dummy elements (one of each element type) used to initialize the
@@ -585,7 +586,8 @@ feedback on transmission target's velocity, *integrated-velocity* actuators coup
 feedback* actuator. In this case the semantics of the activation state are "the target of the position actuator", and
 the semantics of the control signal are "the velocity of the target of the position actuator". Note that in real robotic
 systems this integrated-velocity actuator is the most common implementation of actuators with velocity semantics, rather
-than pure feedback on velocity which is often quite unstable (both in real life and in simulation).
+than pure feedback on velocity which is often quite unstable (both in real life and in simulation). This actuator type
+is implemented by the :ref:`intvelocity<intvelocity>` shortcut.
 
 In the case of integrated-velocity actuators, it is often desirable to *clamp* the activation state, since otherwise the
 position target would keep integrating beyond the joint limits, leading to loss of controllabillity. To see the effect
@@ -597,23 +599,25 @@ of activation clamping, load the example model below:
      <default>
        <joint axis="0 0 1" limited="true" range="-90 90" damping="0.3"/>
        <geom size=".1 .1 .1" type="box"/>
-       <general gainprm="1" biastype="affine" biasprm="0 -1" dyntype="integrator"/>
      </default>
 
      <worldbody>
        <body>
-         <joint name="joint 1"/>
+         <joint name="joint1"/>
          <geom/>
        </body>
        <body pos=".3 0 0">
-         <joint name="joint 2"/>
+         <joint name="joint2"/>
          <geom/>
        </body>
      </worldbody>
 
      <actuator>
-       <general name="unclamped" joint="joint 1"/>
-       <general name="clamped" actlimited="true" actrange="-1.57 1.57"/>
+       <general name="unclamped" joint="joint1"/>
+       <general name="clamped" joint="joint2" actlimited="true" actrange="-1.57 1.57"/>
+       <general name="unclamped" joint="joint1" gainprm="1" biastype="affine"
+         biasprm="0 -1" dyntype="integrator"/>
+       <intvelocity name="clamped" joint="joint2" actrange="-1.57 1.57"/>
      </actuator>
    </mujoco>
 
