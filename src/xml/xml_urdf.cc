@@ -307,6 +307,9 @@ void mjXURDF::Joint(XMLElement* joint_elem) {
   // get type and name
   ReadAttrTxt(joint_elem, "type", text, true);
   jointtype = FindKey(urJoint_map, urJoint_sz, text);
+  if (jointtype < 0) {
+    mjXError(joint_elem, "invalid joint type in URDF joint definition");
+  }
   ReadAttrTxt(joint_elem, "name", jntname, true);
 
   // get parent, check
