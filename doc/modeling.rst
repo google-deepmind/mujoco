@@ -613,8 +613,6 @@ of activation clamping, load the example model below:
      </worldbody>
 
      <actuator>
-       <general name="unclamped" joint="joint1"/>
-       <general name="clamped" joint="joint2" actlimited="true" actrange="-1.57 1.57"/>
        <general name="unclamped" joint="joint1" gainprm="1" biastype="affine"
          biasprm="0 -1" dyntype="integrator"/>
        <intvelocity name="clamped" joint="joint2" actrange="-1.57 1.57"/>
