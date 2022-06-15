@@ -75,25 +75,30 @@ Here are some guidelines for asking good questions:
    You can add comments to existing threads or start new ones. If you start a
    new thread and there are existing relevant threads, please link to them.
 
-2. Use a clear and descriptive title.
+2. Use a clear and specific title. Try to include keywords that will make your
+   question easy for other to find in the future.
 
 3. Introduce yourself and your project more generally.
 
    If your level of expertise is exceptional (either high or low), and it might
    be relevant to what we can assume you know, please state that as well.
 
-4. Make it easy for others to reproduce the problem or understand your question.
+4. Take a step back and tell us what you're trying to accomplish, if we
+   understand you goal we might suggest a different type of solution than the
+   one you are having problems with
 
-   If this requires a model, please include it. Short, minimal, pure XML models
-   (the preferred format) should be pasted inline. Longer XML models should be
-   attached as a `.txt` file (GitHub does not accept `.xml`) or in a `.zip`.
-   Models requiring binary assets (meshes, textures), should be attached as
-   `.zip` files. Please remember to make sure the included model is loadable
+5. Make it easy for others to reproduce the problem or understand your question.
+
+   If this requires a model, please include it. Try to make the model minimal:
+   remove elements that are unrelated to your question. Pure XML models should
+   be inlined. Models requiring binary assets (meshes, textures), should be
+   attached as a `.zip` file. Please make sure the included model is loadable
    before you attach it.
 
-5. Include an illustrative screenshot or video, if relevant.
+6. Include an illustrative screenshot or video, if relevant.
 
-6. Tell us which MuJoCo version and operating system you are using.
+7. Tell us how you are accessing MuJoCo (C API, Python bindings, etc.) and which
+   MuJoCo version and operating system you are using.
 
 ## Citation
 
