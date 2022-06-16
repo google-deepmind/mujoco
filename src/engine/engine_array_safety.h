@@ -15,6 +15,10 @@
 #ifndef MUJOCO_SRC_ENGINE_ENGINE_ARRAY_SAFETY_H_
 #define MUJOCO_SRC_ENGINE_ENGINE_ARRAY_SAFETY_H_
 
+#ifdef __cplusplus
+#error This file should not be used from C++ code.
+#endif
+
 #include <stdio.h>
 #include <string.h>
 

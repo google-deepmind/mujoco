@@ -22,7 +22,7 @@
 #include <gtest/gtest.h>
 #include <mujoco/mjmodel.h>
 #include <mujoco/mujoco.h>
-#include "src/engine/engine_array_safety.h"
+#include "src/cc/array_safety.h"
 #include "src/engine/engine_util_errmem.h"
 #include "test/fixture.h"
 
@@ -147,7 +147,7 @@ TEST_F(UserDataTest, RaiseNanWarning) {
   static char warning[1024];
   warning[0] = '\0';
   mju_user_warning = [](const char* msg) {
-    mjSTRNCPY(warning, msg);
+    util::strcpy_arr(warning, msg);
   };
   mjModel* model = LoadModelFromString(xml, error.data(), error.size());
 #if defined(_WIN32) || defined(__CYGWIN__)
