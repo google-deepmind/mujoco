@@ -16,6 +16,7 @@
 
 #include <array>
 #include <cstddef>
+#include <limits>
 #include <string>
 
 #include <gmock/gmock.h>
@@ -32,6 +33,7 @@ namespace {
 using ::std::string;
 using ::testing::Eq;
 using ::testing::HasSubstr;
+using ::testing::IsNan;
 using ::testing::IsNull;
 using ::testing::NotNull;
 
@@ -133,12 +135,36 @@ TEST_F(UserDataTest, InvalidNUserSensor) {
   EXPECT_THAT(error.data(), HasSubstr("nuser_sensor"));
 }
 
-TEST_F(UserDataTest, RaiseNanWarning) {
+TEST_F(UserDataTest, CanParseInf) {
   static constexpr char xml[] = R"(
   <mujoco>
     <worldbody>
       <body>
-        <geom size="1" axisangle="1.0 0.0 0.0 nan"/>
+        <geom size="1" pos="5e-1 -INF iNf"/>
+        <geom size="1" pos="inF -inf Inf"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  const double inf = std::numeric_limits<double>::infinity();
+  mjModel* model = LoadModelFromString(xml);
+  ASSERT_THAT(model, NotNull());
+  EXPECT_EQ(model->geom_pos[0], 0.5);
+  EXPECT_EQ(model->geom_pos[1], -inf);
+  EXPECT_THAT(model->geom_pos[2], inf);
+  EXPECT_EQ(model->geom_pos[3], inf);
+  EXPECT_EQ(model->geom_pos[4], -inf);
+  EXPECT_EQ(model->geom_pos[5], inf);
+  mj_deleteModel(model);
+}
+
+TEST_F(UserDataTest, CanParseNanAndRaisesWarning) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <geom size="1" pos="nan NaN NAN"/>
+        <geom size="1" pos="1.0 0.0 nAn"/>
       </body>
     </worldbody>
   </mujoco>
@@ -150,14 +176,15 @@ TEST_F(UserDataTest, RaiseNanWarning) {
     util::strcpy_arr(warning, msg);
   };
   mjModel* model = LoadModelFromString(xml, error.data(), error.size());
-#if defined(_WIN32) || defined(__CYGWIN__)
-    ASSERT_THAT(model, IsNull());
-    EXPECT_THAT(error.data(), HasSubstr("problem reading attribute 'axisangle'"));
-#else
-    ASSERT_THAT(model, NotNull());
-    EXPECT_THAT(warning, HasSubstr("XML contains a 'NaN'"));
-    mj_deleteModel(model);
-#endif
+  ASSERT_THAT(model, NotNull());
+  EXPECT_THAT(warning, HasSubstr("XML contains a 'NaN'"));
+  EXPECT_THAT(model->geom_pos[0], IsNan());
+  EXPECT_THAT(model->geom_pos[1], IsNan());
+  EXPECT_THAT(model->geom_pos[2], IsNan());
+  EXPECT_EQ(model->geom_pos[3], 1);
+  EXPECT_EQ(model->geom_pos[4], 0);
+  EXPECT_THAT(model->geom_pos[5], IsNan());
+  mj_deleteModel(model);
 }
 
 TEST_F(UserDataTest, InvalidArrayElement) {
