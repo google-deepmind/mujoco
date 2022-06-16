@@ -197,6 +197,10 @@ void mj_fwdActuation(const mjModel* m, mjData* d) {
       gain = prm[0];
       break;
 
+    case mjGAIN_AFFINE:             // affine: prm = [const, kp, kv]
+      gain = prm[0] + prm[1]*d->actuator_length[i] + prm[2]*d->actuator_velocity[i];
+      break;
+
     case mjGAIN_MUSCLE:             // muscle gain
       gain = mju_muscleGain(d->actuator_length[i],
                             d->actuator_velocity[i],

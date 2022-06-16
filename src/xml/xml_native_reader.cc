@@ -41,7 +41,7 @@ using tinyxml2::XMLElement;
 
 //---------------------------------- MJCF schema ---------------------------------------------------
 
-static const int nMJCF = 160;
+static const int nMJCF = 162;
 static const char* MJCF[nMJCF][mjXATTRNUM] = {
 {"mujoco", "!", "1", "model"},
 {"<"},
@@ -134,6 +134,9 @@ static const char* MJCF[nMJCF][mjXATTRNUM] = {
             "ctrlrange", "forcerange", "actrange",
             "gear", "cranklength", "user", "group",
             "kp"},
+        {"damper", "?", "8", "forcelimited", "ctrlrange", "forcerange",
+            "gear", "cranklength", "user", "group",
+            "kv"},
         {"cylinder", "?", "12", "ctrllimited", "forcelimited", "ctrlrange", "forcerange",
             "gear", "cranklength", "user", "group",
             "timeconst", "area", "diameter", "bias"},
@@ -283,6 +286,11 @@ static const char* MJCF[nMJCF][mjXATTRNUM] = {
             "gear", "cranklength", "user",
             "joint", "jointinparent", "tendon", "slidersite", "cranksite", "site",
             "kp"},
+        {"damper", "*", "17", "name", "class", "group",
+            "forcelimited", "ctrlrange", "forcerange",
+            "lengthrange", "gear", "cranklength", "user",
+            "joint", "jointinparent", "tendon", "slidersite", "cranksite", "site",
+            "kv"},
         {"cylinder", "*", "21", "name", "class", "group",
             "ctrllimited", "forcelimited", "ctrlrange", "forcerange",
             "lengthrange", "gear", "cranklength", "user",
@@ -521,9 +529,10 @@ const mjMap dyn_map[dyn_sz] = {
 
 
 // gain type
-const int gain_sz = 3;
+const int gain_sz = 4;
 const mjMap gain_map[gain_sz] = {
   {"fixed",       mjGAIN_FIXED},
+  {"affine",      mjGAIN_AFFINE},
   {"muscle",      mjGAIN_MUSCLE},
   {"user",        mjGAIN_USER}
 };
@@ -1490,6 +1499,30 @@ void mjXReader::OneActuator(XMLElement* elem, mjCActuator* pact) {
     }
   }
 
+  // damper
+  else if (type=="damper") {
+    // clear bias
+    mjuu_zerovec(pact->gainprm, mjNGAIN);
+
+    // explicit attributes
+    ReadAttr(elem, "kv", 1, pact->gainprm+2, text);
+    if (pact->gainprm[2]<0)
+      throw mjXError(elem, "damping coefficient cannot be negative");
+    pact->gainprm[2] = -pact->gainprm[2];
+
+    // Require nonnegative range
+    ReadAttr(elem, "ctrlrange", 2, pact->ctrlrange, text);
+    if (pact->ctrlrange[0]<0 || pact->ctrlrange[1]<0) {
+      throw mjXError(elem, "control range cannot be negative");
+    }
+
+    // implied parameters
+    pact->ctrllimited = true;
+    pact->dyntype = mjDYN_NONE;
+    pact->gaintype = mjGAIN_AFFINE;
+    pact->biastype = mjBIAS_NONE;
+  }
+
   // cylinder
   else if (type=="cylinder") {
     // explicit attributes
@@ -1795,6 +1828,7 @@ void mjXReader::Default(XMLElement* section, int parentid) {
              name=="motor"       ||
              name=="position"    ||
              name=="velocity"    ||
+             name=="damper"      ||
              name=="intvelocity" ||
              name=="cylinder"    ||
              name=="muscle") {

@@ -71,13 +71,16 @@ static const char* const kTumblingThinObjectPath =
     "engine/testdata/derivative/tumbling_thin_object.xml";
 static const char* const kDampedActuatorsPath =
     "engine/testdata/derivative/damped_actuators.xml";
+static const char* const kDamperActuatorsPath =
+    "engine/testdata/damper.xml";
 
 // compare analytic and finite-difference d_smooth/d_qvel
 TEST_F(DerivativeTest, SmoothDvel) {
   // run test on all models
   for (const char* local_path : {kEnergyConservingPendulumPath,
                                  kTumblingThinObjectPath,
-                                 kDampedActuatorsPath}) {
+                                 kDampedActuatorsPath,
+                                 kDamperActuatorsPath}) {
     const std::string xml_path = GetTestDataFilePath(local_path);
     mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, nullptr, 0);
     mjData* data = mj_makeData(model);
@@ -88,6 +91,9 @@ TEST_F(DerivativeTest, SmoothDvel) {
 
       // take 100 steps so we have some velocities, then call forward
       mj_resetData(model, data);
+      if (model->nu) {
+        data->ctrl[0]=0.1;
+      }
       for (int i=0; i<100; i++) {
         mj_step(model, data);
       }

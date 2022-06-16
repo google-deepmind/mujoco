@@ -412,6 +412,17 @@ if present, the parser ignores it. The symbols in the second column of the table
 |                          |    |    | :at:`actrange`          |                         |                         | |
 |                          |    |    +-------------------------+-------------------------+-------------------------+ |
 +--------------------------+----+------------------------------------------------------------------------------------+
+| |_2|:el:`damper`         | ?  | .. table::                                                                         |
+|                          |    |    :class: mjcf-attributes                                                         |
+|                          |    |                                                                                    |
+|                          |    |    +-------------------------+-------------------------+-------------------------+ |
+|                          |    |    | :at:`ctrllimited`       | :at:`forcelimited`      | :at:`ctrlrange`         | |
+|                          |    |    +-------------------------+-------------------------+-------------------------+ |
+|                          |    |    | :at:`forcerange`        | :at:`gear`              | :at:`cranklength`       | |
+|                          |    |    +-------------------------+-------------------------+-------------------------+ |
+|                          |    |    | :at:`user`              | :at:`group`             | :at:`kv`                | |
+|                          |    |    +-------------------------+-------------------------+-------------------------+ |
++--------------------------+----+------------------------------------------------------------------------------------+
 | |_2|:el:`cylinder`       | ?  | .. table::                                                                         |
 |                          |    |    :class: mjcf-attributes                                                         |
 |                          |    |                                                                                    |
@@ -989,6 +1000,23 @@ if present, the parser ignores it. The symbols in the second column of the table
 |                          |    |    | :at:`slidersite`        | :at:`cranksite`         | :at:`site`              | |
 |                          |    |    +-------------------------+-------------------------+-------------------------+ |
 |                          |    |    | :at:`kp`                |                         |                         | |
+|                          |    |    +-------------------------+-------------------------+-------------------------+ |
++--------------------------+----+------------------------------------------------------------------------------------+
+| |_2|:el:`damper`         | \* | .. table::                                                                         |
+|                          |    |    :class: mjcf-attributes                                                         |
+|                          |    |                                                                                    |
+|                          |    |    +-------------------------+-------------------------+-------------------------+ |
+|                          |    |    | :at:`name`              | :at:`class`             | :at:`group`             | |
+|                          |    |    +-------------------------+-------------------------+-------------------------+ |
+|                          |    |    | :at:`ctrllimited`       | :at:`forcelimited`      | :at:`ctrlrange`         | |
+|                          |    |    +-------------------------+-------------------------+-------------------------+ |
+|                          |    |    | :at:`forcerange`        | :at:`lengthrange`       | :at:`gear`              | |
+|                          |    |    +-------------------------+-------------------------+-------------------------+ |
+|                          |    |    | :at:`cranklength`       | :at:`user`              | :at:`joint`             | |
+|                          |    |    +-------------------------+-------------------------+-------------------------+ |
+|                          |    |    | :at:`jointinparent`     | :at:`tendon`            | :at:`slidersite`        | |
+|                          |    |    +-------------------------+-------------------------+-------------------------+ |
+|                          |    |    | :at:`cranksite`         | :at:`site`              | :at:`kv`                | |
 |                          |    |    +-------------------------+-------------------------+-------------------------+ |
 +--------------------------+----+------------------------------------------------------------------------------------+
 | |_2|:el:`cylinder`       | \* | .. table::                                                                         |
@@ -2326,6 +2354,14 @@ slidersite, cranksite.
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 All :ref:`intvelocity <intvelocity>` attributes are available here except: name, class, joint, jointinparent, site, tendon,
+slidersite, cranksite.
+
+.. _default-damper:
+
+:el-prefix:`default/` **damper** (?)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+All :ref:`damper <damper>` attributes are available here except: name, class, joint, jointinparent, site, tendon,
 slidersite, cranksite.
 
 .. _default-cylinder:
@@ -4401,7 +4437,6 @@ gaintype  fixed   gainprm   kv 0 0
 biastype  affine  biasprm   0 0 -kv
 ========= ======= ========= =======
 
-
 This element has one custom attribute in addition to the common attributes:
 
 .. |actuator/velocity attrib list| replace::
@@ -4423,13 +4458,14 @@ This element creates an integrated-velocity servo. For more information, see the
 :ref:`Activation clamping <CActRange>` section of the Modeling chapter. The underlying
 :el:`general` attributes are set as follows:
 
-========= =========== ========= =======
-Attribute Setting     Attribute Setting
-========= =========== ========= =======
-dyntype   integrator  dynprm    1 0 0
-gaintype  fixed       gainprm   kp 0 0
-biastype  affine      biasprm   0 -kp 0
-========= =========== ========= =======
+==========   =========== ========= =======
+Attribute    Setting     Attribute Setting
+==========   =========== ========= =======
+dyntype      integrator  dynprm    1 0 0
+gaintype     fixed       gainprm   kp 0 0
+biastype     affine      biasprm   0 -kp 0
+actlimited   true
+==========   =========== ========= =======
 
 This element has one custom attribute in addition to the common attributes:
 
@@ -4442,6 +4478,33 @@ This element has one custom attribute in addition to the common attributes:
    Same as in actuator/ :ref:`general <general>`.
 :at:`kp`: :at-val:`real, "1"`
    Position feedback gain.
+
+.. _damper:
+
+:el-prefix:`actuator/` **damper** (*)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+This element is an active damper which produces a force proportional to both velocity and control: ``F = - kv * velocity * control``, where ``kv`` must be nonnegative. :at:`ctrlrange` is required and must also be nonnegative. The underlying :el:`general` attributes are set as follows: 
+
+=========== ======= ========= =======
+Attribute   Setting Attribute Setting
+=========== ======= ========= =======
+dyntype     none    dynprm    1 0 0
+gaintype    affine  gainprm   0 0 kv
+biastype    none    biasprm   0 0 0
+ctrllimited true
+=========== ======= ========= =======
+
+
+This element has one custom attribute in addition to the common attributes:
+
+.. |actuator/damper attrib list| replace::
+   :at:`name`, :at:`class`, :at:`group`, :at:`ctrllimited`, :at:`forcelimited`, :at:`ctrlrange`, :at:`forcerange`, :at:`lengthrange`, :at:`gear`, :at:`cranklength`, :at:`joint`, :at:`jointinparent`, :at:`tendon`, :at:`cranksite`, :at:`slidersite`, :at:`site`, :at:`user`
+
+|actuator/damper attrib list|
+   Same as in actuator/ :ref:`general <general>`.
+:at:`kv`: :at-val:`real, "1"`
+   Velocity feedback gain.
 
 .. _cylinder:
 

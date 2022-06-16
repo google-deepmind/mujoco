@@ -165,6 +165,7 @@ public class MjGeneralActuatorTests {
   }
 
   [TestCase(MujocoLib.mjtGain.mjGAIN_FIXED, "fixed")]
+  [TestCase(MujocoLib.mjtGain.mjGAIN_AFFINE, "affine")]
   [TestCase(MujocoLib.mjtGain.mjGAIN_MUSCLE, "muscle")]
   [TestCase(MujocoLib.mjtGain.mjGAIN_USER, "user")]
   public void GainTypeMjcf(MujocoLib.mjtGain value, string expected) {

@@ -216,8 +216,9 @@ ENUMS: Mapping[str, EnumDecl] = dict([
          declname='enum mjtGain_',
          values=dict([
              ('mjGAIN_FIXED', 0),
-             ('mjGAIN_MUSCLE', 1),
-             ('mjGAIN_USER', 2),
+             ('mjGAIN_AFFINE', 1),
+             ('mjGAIN_MUSCLE', 2),
+             ('mjGAIN_USER', 3),
          ]),
      )),
     ('mjtBias',

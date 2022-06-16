@@ -199,6 +199,7 @@ typedef enum mjtDyn_ {            // type of actuator dynamics
 
 typedef enum mjtGain_ {           // type of actuator gain
   mjGAIN_FIXED        = 0,        // fixed gain
+  mjGAIN_AFFINE,                  // const + kp*length + kv*velocity
   mjGAIN_MUSCLE,                  // muscle FLV curve computed by mju_muscleGain()
   mjGAIN_USER                     // user-defined gain type
 } mjtGain;

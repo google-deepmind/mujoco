@@ -30,6 +30,7 @@ namespace mujoco {
 namespace {
 
 using ::std::string;
+using ::testing::Eq;
 using ::testing::HasSubstr;
 using ::testing::IsNull;
 using ::testing::NotNull;
@@ -264,6 +265,91 @@ TEST_F(UserDataTest, InvalidInertialOrientation) {
   mjModel* model = LoadModelFromString(xml, error.data(), error.size());
   ASSERT_THAT(model, IsNull());
   EXPECT_THAT(error.data(), HasSubstr("multiple orientation specifiers for the same field"));
+}
+
+TEST_F(UserDataTest, ReadsDamper) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <geom size="1"/>
+        <joint name="jnt" type="slide" axis="1 0 0" range="-10 10"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <damper joint="jnt" ctrlrange="0 1"/>
+      <general joint="jnt" ctrllimited="true" ctrlrange="0 1" gaintype="affine" biastype="none"/>
+    </actuator>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, NotNull());
+  EXPECT_THAT(model->actuator_gaintype[0], Eq(mjGAIN_AFFINE));
+  EXPECT_THAT(model->actuator_gaintype[1], Eq(mjGAIN_AFFINE));
+  EXPECT_THAT(model->actuator_biastype[0], Eq(mjBIAS_NONE));
+  EXPECT_THAT(model->actuator_biastype[1], Eq(mjBIAS_NONE));
+  mj_deleteModel(model);
+}
+
+TEST_F(UserDataTest, RequiresPoisitiveDamping) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <geom size="1"/>
+        <joint name="jnt" type="slide" axis="1 0 0" range="-10 10"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <damper joint="jnt" kv="-1"/>
+    </actuator>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("damping coefficient cannot be negative"));
+}
+
+TEST_F(UserDataTest, RequiresControlRange) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <geom size="1"/>
+        <joint name="jnt" type="slide" axis="1 0 0" range="-10 10"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <damper joint="jnt" kv="1"/>
+    </actuator>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("invalid control range for actuator"));
+}
+
+TEST_F(UserDataTest, PositiveControlRange) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <geom size="1"/>
+        <joint name="jnt" type="slide" axis="1 0 0" range="-10 10"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <damper joint="jnt" kv="1" ctrlrange="-1 0"/>
+    </actuator>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("control range cannot be negative"));
 }
 
 // ------------- test relative frame sensor parsing ----------------------------

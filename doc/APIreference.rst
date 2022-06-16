@@ -403,6 +403,7 @@ mjtGain
    typedef enum _mjtGain
    {
        mjGAIN_FIXED        = 0,        // fixed gain
+       mjGAIN_AFFINE,                  // const + kp*length + kv*velocity
        mjGAIN_MUSCLE,                  // muscle FLV curve computed by mju_muscleGain()
        mjGAIN_USER                     // user-defined gain type
    } mjtGain;

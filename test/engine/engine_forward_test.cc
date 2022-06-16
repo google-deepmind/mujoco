@@ -89,6 +89,43 @@ TEST_F(ForwardTest, ActLimited) {
   mj_deleteModel(model);
 }
 
+// --------------------------- damping actuator --------------------------------
+
+TEST_F(ForwardTest, DamperDampens) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <geom size="1"/>
+        <joint name="jnt" type="slide" axis="1 0 0" range="-10 10"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <motor joint="jnt"/>
+      <damper joint="jnt" kv="1000" ctrlrange="0 100"/>
+    </actuator>
+  </mujoco>
+  )";
+  mjModel* model = LoadModelFromString(xml);
+  mjData* data = mj_makeData(model);
+
+  // move the joint
+  data->ctrl[0] = 100.0;
+  data->ctrl[1] = 0.0;
+  for (int i=0; i<100; i++)
+    mj_step(model, data);
+
+  // stop the joint with damping
+  data->ctrl[0] = 0.0;
+  data->ctrl[1] = 100.0;
+  for (int i=0; i<1000; i++)
+    mj_step(model, data);
+
+  EXPECT_LE(data->qvel[0], std::numeric_limits<double>::epsilon());
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
 // --------------------------- implicit integrator -----------------------------
 
 using ImplicitIntegratorTest = MujocoTest;

@@ -735,33 +735,41 @@ static void mjd_actuator_vel(const mjModel* m, mjData* d, mjtNum* DfDv) {
 
   // process actuators
   for (int i=0; i<m->nu; i++) {
+    mjtNum bias_vel = 0, gain_vel = 0;
+
     // affine bias
     if (m->actuator_biastype[i]==mjBIAS_AFFINE) {
       // extract bias info: prm = [const, kp, kv]
-      mjtNum* prm = m->actuator_biasprm + mjNBIAS*i;
+      bias_vel = (m->actuator_biasprm + mjNBIAS*i)[2];
+    }
 
-      // add
-      mjtNum B = prm[2];
-      addJTBJ(DfDv, d->actuator_moment+i*nv, &B, 1, nv);
+    // affine gain
+    if (m->actuator_gaintype[i]==mjGAIN_AFFINE) {
+      // extract bias info: prm = [const, kp, kv]
+      gain_vel = (m->actuator_gainprm + mjNGAIN*i)[2];
     }
 
     // muscle gain
     else if (m->actuator_gaintype[i]==mjGAIN_MUSCLE) {
-      mjtNum B = mjd_muscleGain_vel(d->actuator_length[i],
+      gain_vel = mjd_muscleGain_vel(d->actuator_length[i],
                                     d->actuator_velocity[i],
                                     m->actuator_lengthrange+2*i,
                                     m->actuator_acc0[i],
                                     m->actuator_gainprm + mjNGAIN*i);
+    }
 
-      // force = gain .* [ctrl/act]
+    // force = gain .* [ctrl/act]
+    if (gain_vel!=0) {
       if (m->actuator_dyntype[i]==mjDYN_NONE) {
-        B *= d->ctrl[i];
+        bias_vel += gain_vel * d->ctrl[i];
       } else {
-        B *= d->act[i-(m->nu - m->na)];
+        bias_vel += gain_vel * d->act[i-(m->nu - m->na)];
       }
+    }
 
-      // add
-      addJTBJ(DfDv, d->actuator_moment+i*nv, &B, 1, nv);
+    // add
+    if (bias_vel!=0) {
+      addJTBJ(DfDv, d->actuator_moment+i*nv, &bias_vel, 1, nv);
     }
   }
 }

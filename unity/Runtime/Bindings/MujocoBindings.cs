@@ -227,6 +227,7 @@ public enum mjtDyn : int{
 }
 public enum mjtGain : int{
   mjGAIN_FIXED = 0,
+  mjGAIN_AFFINE = 1,
   mjGAIN_MUSCLE = 1,
   mjGAIN_USER = 2,
 }

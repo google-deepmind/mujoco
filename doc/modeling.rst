@@ -545,18 +545,9 @@ Actuator shortcuts
 ~~~~~~~~~~~~~~~~~~
 
 As explained in the :ref:`Actuation model <geActuation>` section of the Computation chapter, MuJoCo offers a flexible
-actuator model with transmission, activation dynamics and force generation components that can be specified
-independently. The full functionality can be accessed via the XML element :ref:`general <general>` which allows the user
+actuator model with transmission, activation dynamics and force generation components that can be specified independently. The full functionality can be accessed via the XML element :ref:`general <general>` which allows the user
 to create a variety of custom actuators. In addition, MJCF provides shortcuts for configuring common actuators. This is
-done via the XML elements :ref:`motor <motor>`, :ref:`position <position>`, :ref:`velocity <velocity>`,
-:ref:`intvelocity <intvelocity>`, :ref:`cylinder<cylinder>`, and :ref:`muscle <muscle>`. These are *not* separate model
-elements. Internally MuJoCo supports only one actuator type - which is why when an MJCF model is saved all actuators are
-written as :el:`general`. Shortcuts create general actuators implicitly, set their attributes to suitable values, and
-expose a subset of attributes with possibly different names. For example, :el:`position` creates a position servo with
-attribute :at:`kp` which is the servo gain. However :el:`general` does not have an attribute :at:`kp`. Instead the parser
-adjusts the gain and bias parameters of the general actuator in a coordinated way so as to mimic a position servo. The
-same effect could have been achieved by using :el:`general` directly, and setting its attributes to certain values as
-described below.
+done via the XML elements :ref:`motor <motor>`, :ref:`position <position>`, :ref:`velocity <velocity>`, :ref:`intvelocity <intvelocity>`, :ref:`damper<damper>`, :ref:`cylinder<cylinder>`, and :ref:`muscle <muscle>`. These are *not* separate model elements. Internally MuJoCo supports only one actuator type - which is why when an MJCF model is saved all actuators are written as :el:`general`. Shortcuts create general actuators implicitly, set their attributes to suitable values, and expose a subset of attributes with possibly different names. For example, :el:`position` creates a position servo with attribute :at:`kp` which is the servo gain. However :el:`general` does not have an attribute :at:`kp`. Instead the parser adjusts the gain and bias parameters of the general actuator in a coordinated way so as to mimic a position servo. The same effect could have been achieved by using :el:`general` directly, and setting its attributes to certain values as described below.
 
 Actuator shortcuts also interact with defaults. Recall that the :ref:`default setting <CDefault>` mechanism involves
 classes, each of which has a complete collection of dummy elements (one of each element type) used to initialize the
