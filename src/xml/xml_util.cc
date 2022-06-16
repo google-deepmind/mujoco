@@ -20,6 +20,7 @@
 #include <cstring>
 #include <iostream>
 #include <limits>
+#include <optional>
 #include <sstream>
 #include <string>
 #include <type_traits>
@@ -41,6 +42,32 @@ using tinyxml2::XMLAttribute;
 using tinyxml2::XMLElement;
 
 namespace mju = ::mujoco::util;
+
+template <typename T>
+std::optional<T> ParseInfOrNan(const std::string& s) {
+  const char* str = s.c_str();
+  if constexpr (std::is_floating_point_v<T>) {
+    T sign = 1;
+    if (s.size() == 4 && s[0] == '-') {
+      sign = -1;
+      ++str;
+    } else if (s.size() != 3) {
+      return std::nullopt;
+    }
+    if (std::numeric_limits<T>::has_infinity &&
+        (str[0] == 'i' || str[0] == 'I') &&
+        (str[1] == 'n' || str[1] == 'N') &&
+        (str[2] == 'f' || str[2] == 'F')) {
+      return sign * std::numeric_limits<T>::infinity();
+    } else if (std::numeric_limits<T>::has_quiet_NaN &&
+               (str[0] == 'n' || str[0] == 'N') &&
+               (str[1] == 'a' || str[1] == 'A') &&
+               (str[2] == 'n' || str[2] == 'N')) {
+      return sign * std::numeric_limits<T>::quiet_NaN();
+    }
+  }
+  return std::nullopt;
+}
 
 }  // namespace
 
@@ -565,14 +592,22 @@ int mjXUtil::ReadAttr(XMLElement* elem, const char* attr, const int len,
   while (!strm.eof() && i < len) {
     strm >> token;
     istringstream token_strm(token);
-    token_strm >> data[i++];
+    token_strm >> data[i];
     if (token_strm.fail() || !token_strm.eof()) {
-      throw mjXError(elem, "problem reading attribute '%s'", attr);
-    } else if constexpr (std::is_floating_point_v<T>) {
-      if (std::isnan(data[i-1])) {
+      // C++ standard libraries do not always parse inf and nan as valid floating point values.
+      std::optional<T> maybe_result = ParseInfOrNan<T>(token);
+      if (maybe_result.has_value()) {
+        data[i] = *maybe_result;
+      } else {
+        throw mjXError(elem, "problem reading attribute '%s'", attr);
+      }
+    }
+    if constexpr (std::is_floating_point_v<T>) {
+      if (std::isnan(data[i])) {
         mju_warning("XML contains a 'NaN'. Please check it carefully.");
       }
     }
+    ++i;
   }
   strm >> std::ws;
 
