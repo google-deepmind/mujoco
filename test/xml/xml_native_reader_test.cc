@@ -22,13 +22,17 @@
 #include <gtest/gtest.h>
 #include <mujoco/mjmodel.h>
 #include <mujoco/mujoco.h>
+#include "src/engine/engine_array_safety.h"
+#include "src/engine/engine_util_errmem.h"
 #include "test/fixture.h"
 
 namespace mujoco {
 namespace {
 
+using ::std::string;
 using ::testing::HasSubstr;
 using ::testing::IsNull;
+using ::testing::NotNull;
 
 using UserDataTest = MujocoTest;
 
@@ -128,6 +132,33 @@ TEST_F(UserDataTest, InvalidNUserSensor) {
   EXPECT_THAT(error.data(), HasSubstr("nuser_sensor"));
 }
 
+TEST_F(UserDataTest, RaiseNanWarning) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <geom size="1" axisangle="1.0 0.0 0.0 nan"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  static char warning[1024];
+  warning[0] = '\0';
+  mju_user_warning = [](const char* msg) {
+    mjSTRNCPY(warning, msg);
+  };
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+#if defined(_WIN32) || defined(__CYGWIN__)
+    ASSERT_THAT(model, IsNull());
+    EXPECT_THAT(error.data(), HasSubstr("problem reading attribute 'axisangle'"));
+#else
+    ASSERT_THAT(model, NotNull());
+    EXPECT_THAT(warning, HasSubstr("XML contains a 'NaN'"));
+    mj_deleteModel(model);
+#endif
+}
+
 TEST_F(UserDataTest, InvalidArrayElement) {
   static constexpr char xml[] = R"(
   <mujoco>
@@ -188,7 +219,7 @@ TEST_F(UserDataTest, AllowsSpaces) {
   )";
   std::array<char, 1024> error;
   mjModel* model = LoadModelFromString(xml, error.data(), error.size());
-  ASSERT_THAT(model, Not(IsNull()));
+  ASSERT_THAT(model, NotNull());
   mj_deleteModel(model);
 }
 
@@ -333,7 +364,7 @@ TEST_F(ActuatorTest, ReadsByte) {
   )";
   std::array<char, 1024> error;
   mjModel* model = LoadModelFromString(xml, error.data(), error.size());
-  ASSERT_THAT(model, Not(IsNull()));
+  ASSERT_THAT(model, NotNull());
   EXPECT_EQ(*(model->actuator_actlimited), (mjtByte)(1 & 0xFF));
   mj_deleteModel(model);
 }

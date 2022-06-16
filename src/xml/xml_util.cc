@@ -26,6 +26,7 @@
 #include <vector>
 
 #include "cc/array_safety.h"
+#include "engine/engine_util_errmem.h"
 #include "xml/xml_util.h"
 #include "xml/xml_numeric_format.h"
 
@@ -567,6 +568,10 @@ int mjXUtil::ReadAttr(XMLElement* elem, const char* attr, const int len,
     token_strm >> data[i++];
     if (token_strm.fail() || !token_strm.eof()) {
       throw mjXError(elem, "problem reading attribute '%s'", attr);
+    } else if constexpr (std::is_floating_point_v<T>) {
+      if (std::isnan(data[i-1])) {
+        mju_warning("XML contains a 'NaN'. Please check it carefully.");
+      }
     }
   }
   strm >> std::ws;
