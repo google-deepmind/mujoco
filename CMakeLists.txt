@@ -136,8 +136,9 @@ if(APPLE AND MUJOCO_BUILD_MACOS_FRAMEWORKS)
     COMMAND mkdir -p $<TARGET_FILE_DIR:mujoco>/Resources
     COMMAND mv ${CMAKE_CURRENT_SOURCE_DIR}/dist/Info.framework.plist
             $<TARGET_FILE_DIR:mujoco>/Resources/Info.plist
+    COMMAND ${TAPI} stubify $<TARGET_FILE:mujoco> -o $<TARGET_FILE_DIR:mujoco>/mujoco.tbd
     COMMAND ln -fhs A $<TARGET_FILE_DIR:mujoco>/../Current
-    COMMAND ${TAPI} stubify $<TARGET_FILE:mujoco> -o $<TARGET_FILE_DIR:mujoco>/../../mujoco.tbd
+    COMMAND ln -fhs Versions/Current/mujoco.tbd $<TARGET_FILE_DIR:mujoco>/../../mujoco.tbd
     COMMAND ln -fhs Versions/Current/Headers $<TARGET_FILE_DIR:mujoco>/../../Headers
     COMMAND ln -fhs Versions/Current/Modules $<TARGET_FILE_DIR:mujoco>/../../Modules
     COMMAND ln -fhs Versions/Current/Resources $<TARGET_FILE_DIR:mujoco>/../../Resources

@@ -170,7 +170,7 @@ if(APPLE AND MUJOCO_BUILD_MACOS_FRAMEWORKS)
                MACOSX_BUNDLE TRUE
                MACOSX_BUNDLE_INFO_PLIST ${CMAKE_CURRENT_SOURCE_DIR}/../dist/Info.plist.simulate.in
                MACOSX_BUNDLE_BUNDLE_NAME "MuJoCo"
-               MACOSX_BUNDLE_GUI_IDENTIFIER "org.mujoco.mujoco"
+               MACOSX_BUNDLE_GUI_IDENTIFIER "org.mujoco.app"
                MACOSX_BUNDLE_BUNDLE_VERSION ${PROJECT_VERSION}
                MACOSX_BUNDLE_INFO_STRING ${PROJECT_VERSION}
                MACOSX_BUNDLE_LONG_VERSION_STRING ${PROJECT_VERSION}
@@ -196,7 +196,7 @@ if(APPLE AND MUJOCO_BUILD_MACOS_FRAMEWORKS)
   embed_in_bundle(testspeed simulate)
   embed_in_bundle(testxml simulate)
 
-  # Embed mujoco.framework inside the App bundle ane move the icon file over too.
+  # Embed mujoco.framework inside the App bundle.
   add_custom_command(
     TARGET simulate
     POST_BUILD
@@ -204,10 +204,6 @@ if(APPLE AND MUJOCO_BUILD_MACOS_FRAMEWORKS)
     COMMAND rm -rf $<TARGET_FILE_DIR:simulate>/../Frameworks/mujoco.framework
     COMMAND cp -a $<TARGET_FILE_DIR:mujoco::mujoco>/../../../mujoco.framework
             $<TARGET_FILE_DIR:simulate>/../Frameworks/
-    # Delete the symlink and the TBD, otherwise we can't sign and notarize.
-    COMMAND rm -rf $<TARGET_FILE_DIR:simulate>/../Frameworks/mujoco.framework/mujoco.tbd
-    COMMAND rm -rf
-            $<TARGET_FILE_DIR:simulate>/../Frameworks/mujoco.framework/Versions/A/libmujoco.dylib
   )
 endif()
 
