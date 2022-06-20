@@ -30,6 +30,10 @@
 #include "engine/engine_util_misc.h"
 #include "engine/engine_util_sparse.h"
 
+#ifdef MEMORY_SANITIZER
+  #include <sanitizer/msan_interface.h>
+#endif
+
 #define FLOAT_FORMAT "% -9.2g"
 #define FLOAT_FORMAT_MAX_LEN 20
 #define INT_FORMAT " %d"
@@ -717,6 +721,16 @@ void mj_printFormattedData(const mjModel* m, mjData* d, const char* filename,
   // allocate full inertia
   M = mj_stackAlloc(d, m->nv*m->nv);
 
+#ifdef MEMORY_SANITIZER
+  // If memory sanitizer is active, d->buffer will be marked as poisoned, even
+  // though it's really initialized to 0. This catches unintentionally
+  // using uninitialized values, but in engine_print it's OK to output zeroes.
+
+  // save current poison status of buffer before marking unpoisoned
+  void* shadow = mju_malloc(d->nbuffer);
+  __msan_copy_shadow(shadow, d->buffer, d->nbuffer);
+  __msan_unpoison(d->buffer, d->nbuffer);
+#endif
   // ---------------------------------- print mjData fields
 
   fprintf(fp, "SIZES\n");
@@ -965,6 +979,12 @@ void mj_printFormattedData(const mjModel* m, mjData* d, const char* filename,
   printArray("CACC", m->nbody, 6, d->cacc, fp, float_format);
   printArray("CFRC_INT", m->nbody, 6, d->cfrc_int, fp, float_format);
   printArray("CFRC_EXT", m->nbody, 6, d->cfrc_ext, fp, float_format);
+
+#ifdef MEMORY_SANITIZER
+  // restore poisoned status
+  __msan_copy_shadow(d->buffer, shadow, d->nbuffer);
+  mju_free(shadow);
+#endif
 
   if (filename) {
     fclose(fp);
