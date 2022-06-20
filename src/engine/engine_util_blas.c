@@ -154,18 +154,28 @@ mjtNum mju_dist3(const mjtNum pos1[3], const mjtNum pos2[3]) {
 
 // multiply vector by 3D rotation matrix
 void mju_rotVecMat(mjtNum res[3], const mjtNum vec[3], const mjtNum mat[9]) {
-  res[0] = mat[0]*vec[0] + mat[1]*vec[1] + mat[2]*vec[2];
-  res[1] = mat[3]*vec[0] + mat[4]*vec[1] + mat[5]*vec[2];
-  res[2] = mat[6]*vec[0] + mat[7]*vec[1] + mat[8]*vec[2];
+  mjtNum tmp[3] = {
+    mat[0]*vec[0] + mat[1]*vec[1] + mat[2]*vec[2],
+    mat[3]*vec[0] + mat[4]*vec[1] + mat[5]*vec[2],
+    mat[6]*vec[0] + mat[7]*vec[1] + mat[8]*vec[2]
+  };
+  res[0] = tmp[0];
+  res[1] = tmp[1];
+  res[2] = tmp[2];
 }
 
 
 
 // multiply vector by transposed 3D rotation matrix
 void mju_rotVecMatT(mjtNum res[3], const mjtNum vec[3], const mjtNum mat[9]) {
-  res[0] = mat[0]*vec[0] + mat[3]*vec[1] + mat[6]*vec[2];
-  res[1] = mat[1]*vec[0] + mat[4]*vec[1] + mat[7]*vec[2];
-  res[2] = mat[2]*vec[0] + mat[5]*vec[1] + mat[8]*vec[2];
+  mjtNum tmp[3] = {
+    mat[0]*vec[0] + mat[3]*vec[1] + mat[6]*vec[2],
+    mat[1]*vec[0] + mat[4]*vec[1] + mat[7]*vec[2],
+    mat[2]*vec[0] + mat[5]*vec[1] + mat[8]*vec[2]
+  };
+  res[0] = tmp[0];
+  res[1] = tmp[1];
+  res[2] = tmp[2];
 }
 
 
