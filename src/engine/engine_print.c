@@ -306,17 +306,23 @@ void mj_printFormattedModel(const mjModel* m, const char* filename, const char* 
   //   note that comparison is based on the integer address, not its value
   const int* object_class;
 
-#define X( type, name, num, sz )                                              \
-  if (&m->num == object_class && (strncmp(#name, "name_", 5)!=0) && sz) {     \
-    fprintf(fp, "  ");                                                        \
-    fprintf(fp, NAME_FORMAT, #name);                                          \
-    for (int j=0; j < sz; j++) {                                              \
-       ((strcmp(#type, "mjtNum") == 0) || (strcmp(#type, "float") == 0)) ?    \
-          (fprintf(fp, float_format, (mjtNum)m->name[sz*i+j]),                \
-           fprintf(fp, " ")) :                                                \
-          fprintf(fp, INT_FORMAT " ", (int)m->name[sz*i+j]);                  \
-    }                                                                         \
-    fprintf(fp, "\n");                                                        \
+#define X(type, name, num, sz)                                              \
+  if (&m->num == object_class && (strncmp(#name, "name_", 5) != 0) && sz) { \
+    const char* format = _Generic(*m->name,                                 \
+                                  double:  float_format,                    \
+                                  float:   float_format,                    \
+                                  int:     INT_FORMAT,                      \
+                                  mjtByte: INT_FORMAT,                      \
+                                  default: NULL);                           \
+    if (format) {                                                           \
+      fprintf(fp, "  ");                                                    \
+      fprintf(fp, NAME_FORMAT, #name);                                      \
+      for (int j = 0; j < sz; j++) {                                        \
+          fprintf(fp, format, m->name[sz * i + j]);                         \
+          fprintf(fp, " ");                                                 \
+      }                                                                     \
+      fprintf(fp, "\n");                                                    \
+    }                                                                       \
   }
 
   // bodies
@@ -714,11 +720,15 @@ void mj_printFormattedData(const mjModel* m, mjData* d, const char* filename,
   // ---------------------------------- print mjData fields
 
   fprintf(fp, "SIZES\n");
-#define X( type, name )                          \
-  if(strcmp(#type, "int")==0) {                  \
-    fprintf(fp, "  ");                           \
-    fprintf(fp, NAME_FORMAT, #name);             \
-    fprintf(fp, INT_FORMAT "\n", (int)d->name);  \
+#define X(type, name)                                                         \
+  {                                                                           \
+    const char* format = _Generic(d->name, int : INT_FORMAT, default : NULL); \
+    if (format) {                                                             \
+      fprintf(fp, "  ");                                                      \
+      fprintf(fp, NAME_FORMAT, #name);                                        \
+      fprintf(fp, format, d->name);                                           \
+      fprintf(fp, "\n");                                                      \
+    }                                                                         \
   }
 
   MJDATA_SCALAR
