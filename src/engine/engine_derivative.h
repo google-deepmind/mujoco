@@ -24,7 +24,7 @@ extern "C" {
 #endif
 
 // analytical derivative of smooth forces w.r.t velocities:
-//   d->qDeriv = d (qfrc_actuator + qfrc_passive - qfrc_bias) / d qvel.
+//   d->qDeriv = d (qfrc_actuator + qfrc_passive - qfrc_bias) / d qvel
 MJAPI void mjd_smooth_vel(const mjModel* m, mjData* d);
 
 // centered finite difference approximation to mjd_smooth_vel
@@ -36,6 +36,12 @@ MJAPI void mjd_passive_vel(const mjModel* m, mjData* d, mjtNum* DfDv);
 // add forward finite difference approximation of (d qfrc_passive / d qvel) to DfDv
 MJAPI void mjd_passive_velFD(const mjModel* m, mjData* d, mjtNum eps, mjtNum* DfDv);
 
+// advance simulation using control callback, skipstage is mjtStage
+MJAPI void mj_stepSkip(const mjModel* m, mjData* d, int skipstage, int skipsensor);
+
+// finite differenced state-transition and control-transition matrices dy = A*dx + B*du
+MJAPI void mjd_transitionFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte centered,
+                            mjtNum* A, mjtNum* B);
 
 #ifdef __cplusplus
 }

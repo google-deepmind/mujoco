@@ -21,6 +21,7 @@
 #include <gtest/gtest.h>
 #include <mujoco/mjmodel.h>
 #include <mujoco/mujoco.h>
+#include "src/engine/engine_core_smooth.h"
 #include "src/engine/engine_derivative.h"
 #include "src/engine/engine_io.h"
 #include "src/engine/engine_support.h"
@@ -33,10 +34,12 @@ namespace {
 
 using ::testing::Pointwise;
 using ::testing::DoubleNear;
+using ::testing::Eq;
+using ::testing::Each;
 using DerivativeTest = MujocoTest;
 
 // errors smaller than this are ignored
-static const mjtNum absolute_tolerance = 1e-7;
+static const mjtNum absolute_tolerance = 1e-9;
 
 // corrected relative error
 static mjtNum RelativeError(mjtNum a, mjtNum b) {
@@ -46,10 +49,12 @@ static mjtNum RelativeError(mjtNum a, mjtNum b) {
 }
 
 // expect two 2D arrays to have elementwise relative error smaller than eps
-static void CompareMatrices(mjtNum* Actual, mjtNum* Expected,
-                               int nrow, int ncol, mjtNum eps) {
-  for (int i=0; i<nrow; i++) {
-    for (int j=0; j<ncol; j++) {
+// return maximum absolute error
+static mjtNum CompareMatrices(mjtNum* Actual, mjtNum* Expected,
+                              int nrow, int ncol, mjtNum eps) {
+  mjtNum max_error = 0;
+  for (int i=0; i < nrow; i++) {
+    for (int j=0; j < ncol; j++) {
       mjtNum actual = Actual[i*ncol+j];
       mjtNum expected = Expected[i*ncol+j];
       EXPECT_LT(RelativeError(actual, expected), eps)
@@ -57,9 +62,24 @@ static void CompareMatrices(mjtNum* Actual, mjtNum* Expected,
           << "\nexpected = " << expected
           << "\nactual   = " << actual
           << "\ndiff     = " << expected-actual;
+      max_error = mjMAX(mju_abs(actual-expected), max_error);
     }
   }
+  return max_error;
 }
+
+// utility function for matrix printing
+static void PrintMatrix(mjtNum* mat, int nrow, int ncol) {
+  std::cerr.precision(5);
+  std::cerr << "\n";
+  for (int r=0; r < nrow; r++) {
+    for (int c=0; c < ncol; c++) {
+      std::cerr << std::fixed << std::setw(9) << mat[c + r*ncol] << " ";
+    }
+    std::cerr << "\n";
+  }
+}
+
 
 std::vector<mjtNum> AsVector(const mjtNum* array, int n) {
   return std::vector<mjtNum>(array, array + n);
@@ -73,7 +93,10 @@ static const char* const kDampedActuatorsPath =
     "engine/testdata/derivative/damped_actuators.xml";
 static const char* const kDamperActuatorsPath =
     "engine/testdata/damper.xml";
-
+static const char* const kDampedPendulumPath =
+    "engine/testdata/derivative/damped_pendulum.xml";
+static const char* const kLinearPath =
+    "engine/testdata/derivative/linear.xml";
 // compare analytic and finite-difference d_smooth/d_qvel
 TEST_F(DerivativeTest, SmoothDvel) {
   // run test on all models
@@ -92,9 +115,9 @@ TEST_F(DerivativeTest, SmoothDvel) {
       // take 100 steps so we have some velocities, then call forward
       mj_resetData(model, data);
       if (model->nu) {
-        data->ctrl[0]=0.1;
+        data->ctrl[0] = 0.1;
       }
-      for (int i=0; i<100; i++) {
+      for (int i=0; i < 100; i++) {
         mj_step(model, data);
       }
       mj_forward(model, data);
@@ -141,7 +164,7 @@ TEST_F(DerivativeTest, PassiveDvel) {
 
     // take 100 steps so we have some velocities, then call forward
     mj_resetData(model, data);
-    for (int i=0; i<100; i++) {
+    for (int i=0; i < 100; i++) {
       mj_step(model, data);
     }
     mj_forward(model, data);
@@ -163,7 +186,249 @@ TEST_F(DerivativeTest, PassiveDvel) {
   mju_free(DfDv_analytic);
   mj_deleteData(data);
   mj_deleteModel(model);
+}
 
+// ----------------------- derivatives of mj_step() ----------------------------
+
+// mj_stepSkip computes the same next state as mj_step
+TEST_F(DerivativeTest, StepSkip) {
+  const std::string xml_path = GetTestDataFilePath(kDampedPendulumPath);
+  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, nullptr, 0);
+  mjData* data = mj_makeData(model);
+  int nq = model->nq;
+  int nv = model->nv;
+
+  // disable warmstarts so we don't need to save qacc_warmstart
+  model->opt.disableflags |= mjDSBL_WARMSTART;
+
+  for (const mjtIntegrator integrator : {mjINT_EULER, mjINT_IMPLICIT}) {
+    model->opt.integrator = integrator;
+
+    // reset, take 20 steps, save initial state
+    mj_resetData(model, data);
+    for (int i=0; i < 20; i++) {
+      mj_step(model, data);
+    }
+    std::vector<mjtNum> qpos = AsVector(data->qpos, nq);
+    std::vector<mjtNum> qvel = AsVector(data->qvel, nv);
+
+    // take one more step, save next state
+    mj_step(model, data);
+    std::vector<mjtNum> qpos_next = AsVector(data->qpos, nq);
+    std::vector<mjtNum> qvel_next = AsVector(data->qvel, nv);
+
+    // reset state, take step again, compare (assert mj_step is deterministic)
+    mju_copy(data->qpos, qpos.data(), nq);
+    mju_copy(data->qvel, qvel.data(), nv);
+    mj_step(model, data);
+    EXPECT_THAT(AsVector(data->qpos, nq), Pointwise(Eq(), qpos_next));
+    EXPECT_THAT(AsVector(data->qvel, nv), Pointwise(Eq(), qvel_next));
+
+    // reset state, change ctrl, call mj_stepSkip, save next state
+    mju_copy(data->qpos, qpos.data(), nq);
+    mju_copy(data->qvel, qvel.data(), nv);
+    data->ctrl[0] = 1;
+    mj_stepSkip(model, data, mjSTAGE_VEL, 0);  // skipping both POS and VEL
+    std::vector<mjtNum> qpos_next_dctrl = AsVector(data->qpos, nq);
+    std::vector<mjtNum> qvel_next_dctrl = AsVector(data->qvel, nv);
+
+    // reset state (ctrl remains unchanged), call full mj_step, compare
+    mju_copy(data->qpos, qpos.data(), nq);
+    mju_copy(data->qvel, qvel.data(), nv);
+    mj_step(model, data);
+    EXPECT_THAT(AsVector(data->qpos, nq), Pointwise(Eq(), qpos_next_dctrl));
+    EXPECT_THAT(AsVector(data->qvel, nv), Pointwise(Eq(), qvel_next_dctrl));
+
+    // reset state, change velocity, call mj_stepSkip, save next state
+    mju_copy(data->qpos, qpos.data(), nq);
+    mju_copy(data->qvel, qvel.data(), nv);
+    data->qvel[0] += 1;
+    mj_stepSkip(model, data, mjSTAGE_POS, 0);  // skipping POS
+    std::vector<mjtNum> qpos_next_dvel = AsVector(data->qpos, nq);
+    std::vector<mjtNum> qvel_next_dvel = AsVector(data->qvel, nv);
+
+    // reset state, change velocity, call full mj_step, compare
+    mju_copy(data->qpos, qpos.data(), nq);
+    mju_copy(data->qvel, qvel.data(), nv);
+    data->qvel[0] += 1;
+    mj_step(model, data);
+    EXPECT_THAT(AsVector(data->qpos, nq), Pointwise(Eq(), qpos_next_dvel));
+    EXPECT_THAT(AsVector(data->qvel, nv), Pointwise(Eq(), qvel_next_dvel));
+  }
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
+
+// Analytic transition matrices for linear dynamical system xn = A*x + B*u
+//   given modified mass matrix H (`data->qH`) and
+//   Ac = H^-1 [diag(-stiffness) diag(-damping)]
+//   we have
+//   A  = eye(2*nv) + dt [dt*Ac + [zeros(3) eye(3)]; Ac]
+//   given the moment arm matrix K (`data->actuator_moment`) and Bc = H^-1 K
+//   B  = dt*[Bc*dt; Bc]
+static void LinearSystem(const mjModel* m, mjData* d, mjtNum* A, mjtNum* B) {
+  int nv = m->nv, nu = m->nu;
+  mjtNum dt = m->opt.timestep;
+  mjMARKSTACK;
+
+  // === state-transition matrix A
+  if (A) {
+    mjtNum *Ac = mj_stackAlloc(d, 2*nv*nv);
+    // Ac = H^-1 [diag(-stiffness) diag(-damping)]
+    mju_zero(Ac, 2*nv*nv);
+    for (int i=0; i < nv; i++) {
+      Ac[i*nv + i]  = -m->jnt_stiffness[i];
+      Ac[nv*nv + i*nv + i] = -m->dof_damping[i];
+    }
+    mj_solveLD(m, d, Ac, Ac, 2*nv, d->qH, d->qHDiagInv);
+
+    // A = [dt*Ac; Ac]
+    mju_transpose(A, Ac, 2*nv, nv);
+    mju_scl(A, A, dt, nv*2*nv);
+    mju_transpose(A+2*nv*nv, Ac, 2*nv, nv);
+
+    // Add eye(nv) to top right quadrant of A
+    for (int i=0; i < nv; i++) {
+      A[i*2*nv + nv + i] += 1;
+    }
+
+    // A *= dt
+    mju_scl(A, A, dt, 2*nv*2*nv);
+
+    // A += eye(2*nv)
+    for (int i=0; i < 2*nv; i++) {
+      A[i*2*nv + i] += 1;
+    }
+  }
+
+  // === control-transition matrix B
+  if (B) {
+    mjtNum *Bc = mj_stackAlloc(d, nu*nv);
+    mjtNum *BcT = mj_stackAlloc(d, nv*nu);
+    mj_solveLD(m, d, Bc, d->actuator_moment, nu, d->qH, d->qHDiagInv);
+    mju_transpose(BcT, Bc, nu, nv);
+    mju_scl(B, BcT, dt*dt, nu*nv);
+    mju_scl(B+nu*nv, BcT, dt, nu*nv);
+  }
+
+  mjFREESTACK;
+}
+
+// compare FD derivatives to analytic derivatives of linear dynamical system
+TEST_F(DerivativeTest, LinearSystem) {
+  const std::string xml_path = GetTestDataFilePath(kLinearPath);
+  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, nullptr, 0);
+  mjData* data = mj_makeData(model);
+  int nv = model->nv, nu = model->nu;
+
+  // set ctrl, integrate for 20 steps
+  data->ctrl[0] =  .1;
+  data->ctrl[1] = -.1;
+  for (int i=0; i < 20; i++) {
+    mj_step(model, data);
+  }
+
+  // analytic A and B
+  mjtNum* A = (mjtNum*) mju_malloc(sizeof(mjtNum)*2*nv*2*nv);
+  mjtNum* B = (mjtNum*) mju_malloc(sizeof(mjtNum)*2*nv*nu);
+
+  LinearSystem(model, data, A, B);
+
+  PrintMatrix(A, 2*nv, 2*nv);
+  PrintMatrix(B, 2*nv, nu);
+
+  // forward differenced A and B
+  mjtNum eps = 1e-6;
+  mjtNum* AFD = (mjtNum*) mju_malloc(sizeof(mjtNum)*2*nv*2*nv);
+  mjtNum* BFD = (mjtNum*) mju_malloc(sizeof(mjtNum)*2*nv*nu);
+
+  mjd_transitionFD(model, data, eps, /*centered=*/0, AFD, BFD);
+
+  PrintMatrix(AFD, 2*nv, 2*nv);
+  PrintMatrix(BFD, 2*nv, nu);
+
+  // expect FD and analytic derivatives to be similar to eps precision
+  CompareMatrices(A, AFD, 2*nv, 2*nv, eps);
+  CompareMatrices(B, BFD, 2*nv, nu, eps);
+
+  // central differenced A and B
+  mjtNum* AFDc = (mjtNum*) mju_malloc(sizeof(mjtNum)*2*nv*2*nv);
+  mjtNum* BFDc = (mjtNum*) mju_malloc(sizeof(mjtNum)*2*nv*nu);
+  mjd_transitionFD(model, data, eps, /*centered=*/1, AFDc, BFDc);
+
+  // expect central derivatives to be closer to analytic solution
+  EXPECT_LT(CompareMatrices(A, AFDc, 2*nv, 2*nv, eps),
+            CompareMatrices(A, AFD, 2*nv, 2*nv, eps));
+  EXPECT_LT(CompareMatrices(B, BFDc, 2*nv, nu, eps),
+            CompareMatrices(B, BFD, 2*nv, nu, eps));
+
+  mju_free(BFDc);
+  mju_free(AFDc);
+  mju_free(BFD);
+  mju_free(AFD);
+  mju_free(B);
+  mju_free(A);
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
+// check ctrl derivatives at the range limit
+TEST_F(DerivativeTest, ClampedCtrlDerivatives) {
+  const std::string xml_path = GetTestDataFilePath(kLinearPath);
+  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, nullptr, 0);
+  mjData* data = mj_makeData(model);
+  int nv = model->nv, nu = model->nu;
+
+  // set ctrl, integrate for 20 steps
+  data->ctrl[0] =  .1;
+  data->ctrl[1] = -.1;
+  for (int i=0; i < 20; i++) {
+    mj_step(model, data);
+  }
+
+  // analytic B
+  mjtNum* B = (mjtNum*) mju_malloc(sizeof(mjtNum)*2*nv*nu);
+
+  LinearSystem(model, data, NULL, B);
+
+  // forward differenced A and B
+  mjtNum eps = 1e-6;
+  mjtNum* BFD = (mjtNum*) mju_malloc(sizeof(mjtNum)*2*nv*nu);
+
+  // set ctrl to the limits, request forward differences
+  data->ctrl[0] =  1;
+  data->ctrl[1] = -1;
+  mjd_transitionFD(model, data, eps, /*centered=*/0, NULL, BFD);
+  // expect FD and analytic derivatives to be similar to eps precision
+  CompareMatrices(B, BFD, 2*nv, nu, eps);
+
+  // ctrl remains at limits, request central differences
+  mjd_transitionFD(model, data, eps, /*centered=*/1, NULL, BFD);
+  // expect FD and analytic derivatives to be similar to eps precision
+  CompareMatrices(B, BFD, 2*nv, nu, eps);
+
+  // set ctrl beyond limits, request forward differences
+  data->ctrl[0] =  2;
+  data->ctrl[1] = -2;
+  mjd_transitionFD(model, data, eps, /*centered=*/0, NULL, BFD);
+  // expect derivatives to be 0
+  EXPECT_THAT(AsVector(BFD, 2*nv*nu), Each(Eq(0.0)));
+
+  // expect ctrl to remain unchanged (despite intenal clamping)
+  EXPECT_EQ(data->ctrl[0],  2.0);
+  EXPECT_EQ(data->ctrl[1], -2.0);
+
+  // ctrl remains beyond limits, request centered differences
+  mjd_transitionFD(model, data, eps, /*centered=*/1, NULL, BFD);
+  // expect derivatives to be 0
+  EXPECT_THAT(AsVector(BFD, 2*nv*nu), Each(Eq(0.0)));
+
+  mju_free(BFD);
+  mju_free(B);
+  mj_deleteData(data);
+  mj_deleteModel(model);
 }
 
 }  // namespace

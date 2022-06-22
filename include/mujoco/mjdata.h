@@ -286,6 +286,10 @@ struct mjData_ {
   mjtNum*   subtree_linvel;       // linear velocity of subtree com           (nbody x 3)
   mjtNum*   subtree_angmom;       // angular momentum about subtree com       (nbody x 3)
 
+  // computed by mj_Euler
+  mjtNum*   qH;                   // L'*D*L factorization of modified M       (nM x 1)
+  mjtNum*   qHDiagInv;            // 1/diag(D) of modified M                  (nv x 1)
+
   // computed by mj_implicit
   int*      D_rownnz;             // non-zeros in each row                    (nv x 1)
   int*      D_rowadr;             // address of each row in D_colind          (nv x 1)

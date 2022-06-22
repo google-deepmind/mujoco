@@ -485,16 +485,11 @@ static void mj_advance(const mjModel* m, mjData* d,
   d->time += m->opt.timestep;
 }
 
+// Euler integrator, semi-implicit in velocity, possibly skipping factorisation
+void mj_EulerSkip(const mjModel* m, mjData* d, int skipfactor) {
 
-
-// Euler integrator, semi-implicit in velocity
-void mj_Euler(const mjModel* m, mjData* d) {
   int i, nv = m->nv, nM = m->nM;
   mjMARKSTACK;
-  mjtNum* saveM = mj_stackAlloc(d, nM);
-  mjtNum* saveLD = mj_stackAlloc(d, nM);
-  mjtNum* saveLDiagInv = mj_stackAlloc(d, nv);
-  mjtNum* saveLDiagSqrtInv = mj_stackAlloc(d, nv);
   mjtNum* qfrc = mj_stackAlloc(d, nv);
   mjtNum* qacc = mj_stackAlloc(d, nv);
 
@@ -512,35 +507,35 @@ void mj_Euler(const mjModel* m, mjData* d) {
 
   // damping: integrate implicitly
   else {
-    // save M and factorization
-    mju_copy(saveM, d->qM, nM);
-    mju_copy(saveLD, d->qLD, nM);
-    mju_copy(saveLDiagInv, d->qLDiagInv, nv);
-    mju_copy(saveLDiagSqrtInv, d->qLDiagSqrtInv, nv);
+    if (!skipfactor) {
+      mjtNum* MhB = mj_stackAlloc(d, nM);
 
-    // add hB to diagonal of M
-    for (i=0; i<nv; i++) {
-      d->qM[m->dof_Madr[i]] += m->opt.timestep * m->dof_damping[i];
+      // MhB = M + h*diag(B)
+      mju_copy(MhB, d->qM, m->nM);
+      for (i=0; i<nv; i++) {
+        MhB[m->dof_Madr[i]] += m->opt.timestep * m->dof_damping[i];
+      }
+
+      // factor
+      mj_factorI(m, d, MhB, d->qH, d->qHDiagInv, 0);
     }
-
-    // factor
-    mj_factorM(m, d);
 
     // solve
     mju_add(qfrc, d->qfrc_smooth, d->qfrc_constraint, nv);
-    mj_solveM(m, d, qacc, qfrc, 1);
-
-    // restore M and factorization
-    mju_copy(d->qM, saveM, nM);
-    mju_copy(d->qLD, saveLD, nM);
-    mju_copy(d->qLDiagInv, saveLDiagInv, nv);
-    mju_copy(d->qLDiagSqrtInv, saveLDiagSqrtInv, nv);
+    mj_solveLD(m, d, qacc, qfrc, 1, d->qH, d->qHDiagInv);
   }
 
   // advance state and time
   mj_advance(m, d, d->act_dot, qacc, NULL);
 
   mjFREESTACK;
+}
+
+
+
+// Euler integrator, semi-implicit in velocity
+void mj_Euler(const mjModel* m, mjData* d) {
+  mj_EulerSkip(m, d, 0);
 }
 
 
@@ -653,26 +648,28 @@ void mj_RungeKutta(const mjModel* m, mjData* d, int N) {
 
 //-------------------------- top-level API ---------------------------------------------------------
 
-// fully implicit in velocity
-void mj_implicit(const mjModel *m, mjData *d) {
+// fully implicit in velocity, possibly skipping factorization
+void mj_implicitSkip(const mjModel *m, mjData *d, int skipfactor) {
   int nv = m->nv;
 
   mjMARKSTACK;
   mjtNum *qfrc = mj_stackAlloc(d, nv);
   mjtNum *qacc = mj_stackAlloc(d, nv);
 
-  // construct sparse structure in d->D_xxx
-  mj_makeMSparse(m, d, d->D_rownnz, d->D_rowadr, d->D_colind);
+  if (!skipfactor) {
+    // construct sparse structure in d->D_xxx
+    mj_makeMSparse(m, d, d->D_rownnz, d->D_rowadr, d->D_colind);
 
-  // compute analytical derivative qDeriv
-  mjd_smooth_vel(m, d);
+    // compute analytical derivative qDeriv
+    mjd_smooth_vel(m, d);
 
-  // set qLU = qM - dt*qDeriv
-  mj_setMSparse(m, d, d->qLU, d->D_rownnz, d->D_rowadr, d->D_colind);
-  mju_addToScl(d->qLU, d->qDeriv, -m->opt.timestep, m->nD);
+    // set qLU = qM - dt*qDeriv
+    mj_setMSparse(m, d, d->qLU, d->D_rownnz, d->D_rowadr, d->D_colind);
+    mju_addToScl(d->qLU, d->qDeriv, -m->opt.timestep, m->nD);
 
-  // factorize qLU, use qacc as scratch space
-  mju_factorLUSparse(d->qLU, nv, (int*)qacc, d->D_rownnz, d->D_rowadr, d->D_colind);
+    // factorize qLU, use qacc as scratch space
+    mju_factorLUSparse(d->qLU, nv, (int*)qacc, d->D_rownnz, d->D_rowadr, d->D_colind);
+  }
 
   // set qfrc = qfrc_smooth + qfrc_constraint
   mju_add(qfrc, d->qfrc_smooth, d->qfrc_constraint, nv);
@@ -684,6 +681,13 @@ void mj_implicit(const mjModel *m, mjData *d) {
   mj_advance(m, d, d->act_dot, qacc, NULL);
 
   mjFREESTACK
+}
+
+
+
+// fully implicit in velocity
+void mj_implicit(const mjModel *m, mjData *d) {
+  mj_implicitSkip(m, d, 0);
 }
 
 

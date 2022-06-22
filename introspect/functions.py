@@ -6873,4 +6873,44 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
          ),
          doc='Sigmoid function over 0<=x<=1 constructed from half-quadratics.',
      )),
+    ('mjd_transitionFD',
+     FunctionDecl(
+         name='mjd_transitionFD',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='m',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjModel', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='d',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjData'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='eps',
+                 type=ValueType(name='mjtNum'),
+             ),
+             FunctionParameterDecl(
+                 name='centered',
+                 type=ValueType(name='mjtByte'),
+             ),
+             FunctionParameterDecl(
+                 name='A',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='B',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+             ),
+         ),
+         doc='finite differenced state-transition and control-transition matrices dy = A*dx + B*du',  # pylint: disable=line-too-long
+     )),
 ])

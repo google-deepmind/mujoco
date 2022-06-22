@@ -43,20 +43,26 @@ MJAPI void mj_step2(const mjModel* m, mjData* d);
 MJAPI void mj_forward(const mjModel* m, mjData* d);
 
 // forward dynamics with skip; skipstage is mjtStage
-MJAPI void mj_forwardSkip(const mjModel* m, mjData* d,
-                          int skipstage, int skipsensor);
+MJAPI void mj_forwardSkip(const mjModel* m, mjData* d, int skipstage, int skipsensor);
+
 
 
 //-------------------------------- integrators -----------------------------------------------------
 
-// Euler integrator, semi-implicit in velocity
-MJAPI void mj_Euler(const mjModel* m, mjData* d);
-
 // Runge Kutta explicit order-N integrator
 MJAPI void mj_RungeKutta(const mjModel* m, mjData* d, int N);
 
+// Euler integrator, semi-implicit in velocity
+MJAPI void mj_Euler(const mjModel* m, mjData* d);
+
+// Euler integrator, semi-implicit in velocity, possibly skipping factorisation
+MJAPI void mj_EulerSkip(const mjModel* m, mjData* d, int skipfactor);
+
 // fully implicit in velocity
 MJAPI void mj_implicit(const mjModel *m, mjData *d);
+
+// fully implicit in velocity, possibly skipping factorization
+MJAPI void mj_implicitSkip(const mjModel *m, mjData *d, int skipfactor);
 
 
 //-------------------------------- solver components -----------------------------------------------

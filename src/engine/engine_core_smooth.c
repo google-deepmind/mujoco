@@ -855,20 +855,20 @@ void mj_crb(const mjModel* m, mjData* d) {
 
 
 
-// sparse L'*D*L factorizaton of the inertia matrix M, assumed spd
-void mj_factorM(const mjModel* m, mjData* d) {
+// sparse L'*D*L factorizaton of inertia-like matrix M, assumed spd
+void mj_factorI(const mjModel* m, mjData* d, const mjtNum* M, mjtNum* qLD, mjtNum* qLDiagInv,
+                mjtNum* qLDiagSqrtInv) {
   int cnt;
   int Madr_kk, Madr_ki;
   mjtNum tmp;
 
   // local copies of key variables
-  mjtNum* qLD = d->qLD;
   int* dof_Madr = m->dof_Madr;
   int* dof_parentid = m->dof_parentid;
   int nv = m->nv;
 
   // copy M into LD
-  mju_copy(d->qLD, d->qM, m->nM);
+  mju_copy(qLD, M, m->nM);
 
   // dense backward loop over dofs (regular only, simple diagonal already copied)
   for (int k=nv-1; k>=0; k--) {
@@ -912,9 +912,19 @@ void mj_factorM(const mjModel* m, mjData* d) {
 
   // compute 1/diag(D), 1/sqrt(diag(D))
   for (int i=0; i<nv; i++) {
-    d->qLDiagInv[i] = 1.0/qLD[dof_Madr[i]];
-    d->qLDiagSqrtInv[i] = 1.0/mju_sqrt(qLD[dof_Madr[i]]);
+    mjtNum qLDi = qLD[dof_Madr[i]];
+    qLDiagInv[i] = 1.0/qLDi;
+    if (qLDiagSqrtInv) {
+      qLDiagSqrtInv[i] = 1.0/mju_sqrt(qLDi);
+    }
   }
+}
+
+
+
+// sparse L'*D*L factorizaton of the inertia matrix M, assumed spd
+void mj_factorM(const mjModel* m, mjData* d) {
+  mj_factorI(m, d, d->qM, d->qLD, d->qLDiagInv, d->qLDiagSqrtInv);
 }
 
 
@@ -922,11 +932,11 @@ void mj_factorM(const mjModel* m, mjData* d) {
 // sparse backsubstitution:  x = inv(L'*D*L)*y
 //  L is in lower triangle of qLD; D is on diagonal of qLD
 //  handle n vectors at once
-void mj_solveM(const mjModel* m, mjData* d, mjtNum* x, const mjtNum* y, int n) {
+void mj_solveLD(const mjModel* m, mjData* d, mjtNum* x, const mjtNum* y, int n,
+                const mjtNum* qLD, const mjtNum* qLDiagInv) {
   mjtNum tmp;
 
   // local copies of key variables
-  mjtNum *qLD = d->qLD, *qLDiagInv = d->qLDiagInv;
   int* dof_Madr = m->dof_Madr;
   int* dof_parentid = m->dof_parentid;
   int nv = m->nv;
@@ -1035,6 +1045,14 @@ void mj_solveM(const mjModel* m, mjData* d, mjtNum* x, const mjtNum* y, int n) {
       }
     }
   }
+}
+
+
+
+// sparse backsubstitution:  x = inv(L'*D*L)*y
+//  use factorization in d
+void mj_solveM(const mjModel* m, mjData* d, mjtNum* x, const mjtNum* y, int n) {
+  mj_solveLD(m, d, x, y, n, d->qLD, d->qLDiagInv);
 }
 
 

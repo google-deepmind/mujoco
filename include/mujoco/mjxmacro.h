@@ -509,6 +509,8 @@
     X( mjtNum,    efc_aref,          njmax,       1           ) \
     X( mjtNum,    subtree_linvel,    nbody,       3           ) \
     X( mjtNum,    subtree_angmom,    nbody,       3           ) \
+    X( mjtNum,    qH,                nM,          1           ) \
+    X( mjtNum,    qHDiagInv,         nv,          1           ) \
     X( int,       D_rownnz,          nv,          1           ) \
     X( int,       D_rowadr,          nv,          1           ) \
     X( int,       D_colind,          nD,          1           ) \
