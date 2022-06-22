@@ -453,6 +453,40 @@ void mj_fwdConstraint(const mjModel* m, mjData* d) {
 
 //-------------------------- integrators  ----------------------------------------------------------
 
+// advance state and time given activation derivatives, acceleration, and optional velocity
+static void mj_advance(const mjModel* m, mjData* d,
+                       const mjtNum* act_dot, const mjtNum* qacc, const mjtNum* qvel) {
+  // advance activations and clamp
+  if (m->na) {
+    mju_addToScl(d->act, act_dot, m->opt.timestep, m->na);
+
+    // clamp activations
+    for (int i=0; i<m->na; i++) {
+      int iu = i + m->nu - m->na;
+      if (m->actuator_actlimited[iu]) {
+        mjtNum min = m->actuator_actrange[2*iu];
+        mjtNum max = m->actuator_actrange[2*iu+1];
+        if (d->act[i]<min) {
+          d->act[i] = min;
+        } else if (d->act[i]>max) {
+          d->act[i] = max;
+        }
+      }
+    }
+  }
+
+  // advance velocities
+  mju_addToScl(d->qvel, qacc, m->opt.timestep, m->nv);
+
+  // advance positions with qvel if given, d->qvel otherwise (semi-implicit)
+  mj_integratePos(m, d->qpos, qvel ? qvel : d->qvel, m->opt.timestep);
+
+  // advance time
+  d->time += m->opt.timestep;
+}
+
+
+
 // Euler integrator, semi-implicit in velocity
 void mj_Euler(const mjModel* m, mjData* d) {
   int i, nv = m->nv, nM = m->nM;
@@ -473,7 +507,7 @@ void mj_Euler(const mjModel* m, mjData* d) {
 
   // no damping: explicit velocity integration
   if (i>=nv) {
-    mju_addToScl(d->qvel, d->qacc, m->opt.timestep, nv);
+    mju_copy(qacc, d->qacc, nv);
   }
 
   // damping: integrate implicitly
@@ -496,9 +530,6 @@ void mj_Euler(const mjModel* m, mjData* d) {
     mju_add(qfrc, d->qfrc_smooth, d->qfrc_constraint, nv);
     mj_solveM(m, d, qacc, qfrc, 1);
 
-    // integrate velocity
-    mju_addToScl(d->qvel, qacc, m->opt.timestep, nv);
-
     // restore M and factorization
     mju_copy(d->qM, saveM, nM);
     mju_copy(d->qLD, saveLD, nM);
@@ -506,30 +537,8 @@ void mj_Euler(const mjModel* m, mjData* d) {
     mju_copy(d->qLDiagSqrtInv, saveLDiagSqrtInv, nv);
   }
 
-  // update act
-  if (m->na) {
-    mju_addToScl(d->act, d->act_dot, m->opt.timestep, m->na);
-
-    // clamp activations
-    for (i=0; i<m->na; i++) {
-      int iu = i + m->nu - m->na;
-      if (m->actuator_actlimited[iu]) {
-        mjtNum min = m->actuator_actrange[2*iu];
-        mjtNum max = m->actuator_actrange[2*iu+1];
-        if (d->act[i]<min) {
-          d->act[i] = min;
-        } else if (d->act[i]>max) {
-          d->act[i] = max;
-        }
-      }
-    }
-  }
-
-  // update qpos using new qvel
-  mj_integratePos(m, d->qpos, d->qvel, m->opt.timestep);
-
-  // advance time
-  d->time += m->opt.timestep;
+  // advance state and time
+  mj_advance(m, d, d->act_dot, qacc, NULL);
 
   mjFREESTACK;
 }
@@ -628,30 +637,14 @@ void mj_RungeKutta(const mjModel* m, mjData* d, int N) {
     mju_addToScl(dX+nv, F[j], B[j], nv+na);
   }
 
-  // compute Xfinal
-  d->time = time + h;
+  // reset state and time
+  d->time = time;
   mju_copy(d->qpos, X[0], nq);
   mju_copy(d->qvel, X[0]+nq, nv);
   mju_copy(d->act, X[0]+nq+nv, na);
-  mj_integratePos(m, d->qpos, dX, h);
-  mju_addToScl(d->qvel, dX+nv, h, nv);
-  if (na) {
-    mju_addToScl(d->act, dX+2*nv, h, na);
 
-    // clamp activations
-    for (int i=0; i<m->na; i++) {
-      int iu = i + m->nu - m->na;
-      if (m->actuator_actlimited[iu]) {
-        mjtNum min = m->actuator_actrange[2*iu];
-        mjtNum max = m->actuator_actrange[2*iu+1];
-        if (d->act[i]<min) {
-          d->act[i] = min;
-        } else if (d->act[i]>max) {
-          d->act[i] = max;
-        }
-      }
-    }
-  }
+  // advance state and time
+  mj_advance(m, d, dX+2*nv, dX+nv, dX);
 
   mjFREESTACK;
 }
@@ -687,19 +680,8 @@ void mj_implicit(const mjModel *m, mjData *d) {
   // solve for qacc: (qM - dt*qDeriv) * qacc = qfrc
   mju_solveLUSparse(qacc, d->qLU, qfrc, nv, d->D_rownnz, d->D_rowadr, d->D_colind);
 
-  // update qvel
-  mju_addToScl(d->qvel, qacc, m->opt.timestep, nv);
-
-  // update act
-  if (m->na) {
-    mju_addToScl(d->act, d->act_dot, m->opt.timestep, m->na);
-  }
-
-  // update qpos using new qvel
-  mj_integratePos(m, d->qpos, d->qvel, m->opt.timestep);
-
-  // advance time
-  d->time += m->opt.timestep;
+  // advance state and time
+  mj_advance(m, d, d->act_dot, qacc, NULL);
 
   mjFREESTACK
 }

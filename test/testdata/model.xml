@@ -113,10 +113,10 @@
     <motor tendon="fixed" gear="100"/>
     <motor tendon="spatial" gear="10"/>
     <motor joint="hipy_2" gear="100"/>
-    <position joint="hipz_0" kp="100"/>
     <position joint="hipz_1" kp="100"/>
     <position joint="hipz_2" kp="100"/>
     <velocity joint="wheel_2" kv="1"/>
+    <intvelocity joint="hipz_0" kp="100" actrange="-1 1"/>
     <general site="wheel_0" gear="0 0 0 0 10 0" dyntype="filter" dynprm="1"/>
     <general joint="wheel_1" biastype="affine" dyntype="integrator" dynprm="1" biasprm="0 -1"/>
   </actuator>

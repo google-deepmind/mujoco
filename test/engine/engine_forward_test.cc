@@ -38,11 +38,17 @@ static const char* const kDampedActuatorsPath =
 using ::testing::Pointwise;
 using ::testing::DoubleNear;
 using ::testing::Ne;
-using ForwardTest = MujocoTest;
 
 // --------------------------- activation limits -------------------------------
 
-TEST_F(ForwardTest, ActLimited) {
+struct ActLimitedTestCase {
+  std::string test_name;
+  mjtIntegrator integrator;
+};
+
+using ParametrizedForwardTest = ::testing::TestWithParam<ActLimitedTestCase>;
+
+TEST_P(ParametrizedForwardTest, ActLimited) {
   static constexpr char xml[] = R"(
   <mujoco>
     <option timestep="0.01"/>
@@ -63,15 +69,17 @@ TEST_F(ForwardTest, ActLimited) {
   mjModel* model = LoadModelFromString(xml);
   mjData* data = mj_makeData(model);
 
+  model->opt.integrator = GetParam().integrator;
+
   data->ctrl[0] = 1.0;
   // integrating up from 0, we will hit the clamp after 99 steps
   for (int i=0; i<200; i++) {
     mj_step(model, data);
     // always greater than lower bound
-    ASSERT_GT(data->act[0], -1);
+    EXPECT_GT(data->act[0], -1);
     // after 99 steps we hit the upper bound
-    if (i < 99) ASSERT_LT(data->act[0], 1);
-    if (i >= 99) ASSERT_EQ(data->act[0], 1);
+    if (i < 99) EXPECT_LT(data->act[0], 1);
+    if (i >= 99) EXPECT_EQ(data->act[0], 1);
   }
 
   data->ctrl[0] = -1.0;
@@ -79,17 +87,30 @@ TEST_F(ForwardTest, ActLimited) {
   for (int i=0; i<300; i++) {
     mj_step(model, data);
     // always smaller than upper bound
-    ASSERT_LT(data->act[0], model->actuator_actrange[1]);
+    EXPECT_LT(data->act[0], model->actuator_actrange[1]);
     // after 199 steps we hit the lower bound
-    if (i < 199) ASSERT_GT(data->act[0], model->actuator_actrange[0]);
-    if (i >= 199) ASSERT_EQ(data->act[0], model->actuator_actrange[0]);
+    if (i < 199) EXPECT_GT(data->act[0], model->actuator_actrange[0]);
+    if (i >= 199) EXPECT_EQ(data->act[0], model->actuator_actrange[0]);
   }
 
   mj_deleteData(data);
   mj_deleteModel(model);
 }
 
+INSTANTIATE_TEST_SUITE_P(
+    ParametrizedForwardTest, ParametrizedForwardTest,
+    testing::ValuesIn<ActLimitedTestCase>({
+        {"Euler", mjINT_EULER},
+        {"Implicit", mjINT_IMPLICIT},
+        {"RK4", mjINT_RK4},
+    }),
+    [](const testing::TestParamInfo<ParametrizedForwardTest::ParamType>& info) {
+      return info.param.test_name;
+    });
+
 // --------------------------- damping actuator --------------------------------
+
+using ForwardTest = MujocoTest;
 
 TEST_F(ForwardTest, DamperDampens) {
   static constexpr char xml[] = R"(
