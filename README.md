@@ -100,6 +100,39 @@ Here are some guidelines for asking good questions:
 7. Tell us how you are accessing MuJoCo (C API, Python bindings, etc.) and which
    MuJoCo version and operating system you are using.
 
+## Related software
+MuJoCo forms the backbone of many environment packages, but these are too many
+to list here individually. Below we focus on bindings and converters.
+
+### Bindings
+
+These packages give users of various languages access to MuJoCo functionality:
+
+#### First-party bindings
+
+- [Python bindings](https://mujoco.readthedocs.io/en/latest/python.html)
+  - [dm_control](https://github.com/deepmind/dm_control), DeepMind's related
+  environment stack, includes [PyMJCF](https://github.com/deepmind/dm_control/blob/main/dm_control/mjcf/README.md),
+  a module for procedural manipulation of MuJoCo models.
+- [C# bindings and Unity plug-in](https://mujoco.readthedocs.io/en/latest/unity.html)
+
+#### Third-party bindings
+
+- **Swift**: [swift-mujoco](https://github.com/liuliu/swift-mujoco)
+- **Java**: [mujoco-java](https://github.com/CommonWealthRobotics/mujoco-java)
+- **Python**: [mujoco-py](https://github.com/openai/mujoco-py) (unmaintained)
+- **Julia**: [Lyceum](https://github.com/Lyceum/MuJoCo.jl) (unmaintained)
+
+
+### Converters
+
+- **OpenSim**: [O2MConverter](https://github.com/aikkala/O2MConverter) converts
+  openSIM models to MJCF.
+- **SDFormat**: [gz-mujoco](https://github.com/gazebosim/gz-mujoco/) is a
+  two-way SDFormat <-> MJCF conversion tool.
+- **OBJ**: [obj2mjcf](https://github.com/kevinzakka/obj2mjcf)
+  a script for converting composite OBJ files into a loadable MJCF model.
+
 ## Citation
 
 If you use MuJoCo for published research, please cite:
