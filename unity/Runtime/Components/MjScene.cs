@@ -450,13 +450,9 @@ public class MjScene : MonoBehaviour {
   }
   public unsafe void ResetScene()
   {
-    if (default_mjcf != null)
+    if (default_mjcf == null)
     {
-        CompileScene(default_mjcf, _orderedComponents);
-    }
-    else
-    {
-        default_mjcf = CreateScene();
+      default_mjcf = CreateScene();
     }
     MujocoLib.mj_resetData(Model, Data);
     MujocoLib.mj_kinematics(Model, Data);
