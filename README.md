@@ -23,20 +23,38 @@ further exposes a large number of utility functions for computing physics-relate
 quantities. We also provide Python bindings and a plug-in for the [Unity]
 game engine.
 
-## Documentation
+## Installation
 
-MuJoCo's documentation is available at [mujoco.readthedocs.io], which serves
-webpages derived from the [documentation source files].
-
-## Releases
+### Prebuilt binaries
 
 Versioned releases are available as precompiled binaries from the GitHub
 [releases page], built for Linux (x86-64 and AArch64), Windows (x86-64 only),
 and macOS (universal). This is the recommended way to use the software.
 
-Users who wish to build MuJoCo from source, please consult the [build from
+### Building from source
+
+Users who wish to build MuJoCo from source should consult the [build from
 source] section of the documentation. However, please note that the commit at
 the tip of the `main` branch may be unstable.
+
+### Python (>= 3.7)
+
+The native Python bindings, which come pre-packaged with a copy of MuJoCo, can
+be installed from [PyPI] via:
+
+```bash
+pip install mujoco
+```
+
+Note that Pre-built Linux wheels target `manylinux2014`, see
+[here](https://github.com/pypa/manylinux) for compatible distributions. For more
+information such as building the bindings from source, see the [Python Bindings]
+section of the documentation.
+
+## Documentation
+
+MuJoCo's documentation is available at [mujoco.readthedocs.io], which serves
+webpages derived from the [documentation source files].
 
 ## Getting Started
 
@@ -175,3 +193,5 @@ This is not an officially supported Google product.
 [GitHub Issues]: https://github.com/deepmind/mujoco/issues
 [documentation source files]: https://github.com/deepmind/mujoco/tree/main/doc
 [mujoco.readthedocs.io]: https://mujoco.readthedocs.io
+[Python Bindings]: https://mujoco.readthedocs.io/en/latest/python.html#python-bindings
+[PyPI]: https://pypi.org/project/mujoco/
