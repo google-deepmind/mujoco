@@ -19,7 +19,7 @@
 # unless BUILD_SHARED_LIBS is set.
 
 set(MUJOCO_DEP_VERSION_lodepng
-    48e5364ef48ec2408f44c727657ac1b6703185f8
+    b4ed2cd7ecf61d29076169b49199371456d4f90b
     CACHE STRING "Version of `lodepng` to be fetched."
 )
 set(MUJOCO_DEP_VERSION_tinyxml2
