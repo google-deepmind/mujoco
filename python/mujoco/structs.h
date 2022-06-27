@@ -973,6 +973,90 @@ static void DefinePyStr(pybind11::class_<C, O...> c, const char* name,
       });
 }
 
+// An equals operator that works for comparing numpy arrays too.
+// Unlike other objects, the equality operator for numpy arrays returns a
+// numpy array.
+inline bool FieldsEqual(pybind11::handle lhs, pybind11::handle rhs,
+                        pybind11::handle array_equal) {
+  // np.array_equal handles non-arrays.
+  return PyObject_IsTrue(array_equal(lhs, rhs).ptr());
+}
+
+// Returns an iterable object for iterating over attributes of T.
+template <typename T>
+pybind11::object Dir() {
+  pybind11::object type = pybind11::type::of<T>();
+  auto dir =
+      pybind11::reinterpret_steal<pybind11::object>(PyObject_Dir(type.ptr()));
+  if (PyErr_Occurred()) {
+    throw pybind11::error_already_set();
+  }
+  return dir;
+}
+
+// Returns true if all public fields in lhs and rhs are equal.
+template <typename T>
+bool StructsEqual(pybind11::object lhs, pybind11::object rhs) {
+  // Equivalent to the following python code:
+  // if type(lhs) != type(rhs):
+  //   return False
+  // for field in dir(lhs):
+  //   if field.startswith("_"):
+  //     continue
+  //   # equal() handles equality of numpy arrays
+  //   if not equal(getattr(lhs, field, None), getattr(rhs, field, None)):
+  //     return False
+  //
+  // return True
+
+  auto np = pybind11::module::import("numpy");
+  auto array_equal = np.attr("array_equal");
+
+  const pybind11::handle lhs_t = pybind11::type::handle_of(lhs);
+  const pybind11::handle rhs_t = pybind11::type::handle_of(rhs);
+  if (!lhs_t.is(rhs_t)) {
+    return false;
+  }
+  for (pybind11::handle f : Dir<T>()) {
+    auto name = f.cast<std::string_view>();
+
+    if (name.empty() || name[0] == '_') {
+      continue;
+    }
+    pybind11::object l = pybind11::getattr(lhs, f, pybind11::none());
+    pybind11::object r = pybind11::getattr(rhs, f, pybind11::none());
+    if (!FieldsEqual(l, r, array_equal)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+// Returns a string representation of a struct like object.
+template <typename T>
+std::string StructRepr(pybind11::object self) {
+  std::ostringstream result;
+  result << "<"
+         << self.attr("__class__").attr("__name__").cast<std::string_view>();
+  for (pybind11::handle f : Dir<T>()) {
+    auto name = f.cast<std::string_view>();
+    if (name.empty() || name[0] == '_') {
+      continue;
+    }
+
+    result << "\n  " << name << ": "
+           << self.attr(f).attr("__repr__")().cast<std::string_view>();
+  }
+  result << "\n>";
+  return result.str();
+}
+
+template <typename C, typename... O>
+void DefineStructFunctions(pybind11::class_<C, O...> c) {
+  c.def("__eq__", StructsEqual<C>);
+  c.def("__repr__", StructRepr<C>);
+}
+
 }  // namespace mujoco::python
 
 #endif  // MUJOCO_PYTHON_STRUCTS_H_

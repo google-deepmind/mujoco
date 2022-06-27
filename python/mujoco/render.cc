@@ -155,6 +155,7 @@ PYBIND11_MODULE(_render, pymodule) {
   mjrRect.def("__deepcopy__", [](const raw::MjrRect& other, py::dict) {
     return raw::MjrRect(other);
   });
+  DefineStructFunctions(mjrRect);
 #define X(var) mjrRect.def_readwrite(#var, &raw::MjrRect::var)
   X(left);
   X(bottom);

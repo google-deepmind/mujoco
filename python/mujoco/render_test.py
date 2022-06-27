@@ -90,5 +90,12 @@ class MuJoCoRenderTest(absltest.TestCase):
     context.free()
     context.free()
 
+  def test_mjrrect_repr(self):
+    rect = mujoco.MjrRect(1, 2, 3, 4)
+    rect_repr = repr(rect)
+    self.assertIn('MjrRect', rect_repr)
+    self.assertIn('left: 1', rect_repr)
+
+
 if __name__ == '__main__':
   absltest.main()
