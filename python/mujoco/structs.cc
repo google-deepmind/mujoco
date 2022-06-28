@@ -1499,11 +1499,12 @@ This is useful for example when the MJB is not available as a file on disk.)"));
   MJMODEL_VIEW_GROUPS_ALTNAMES
 #undef XGROUP
 
-#define XGROUP(MjModelGroupedViews, field, nfield, FIELD_XMACROS)           \
-  {                                                                         \
-    using GroupedViews = MjModelGroupedViews;                               \
+#define XGROUP(MjModelGroupedViews, field, nfield, FIELD_XMACROS)              \
+  {                                                                            \
+    using GroupedViews = MjModelGroupedViews;                                  \
     py::class_<MjModelGroupedViews> groupedViews(m, "_" #MjModelGroupedViews); \
-    FIELD_XMACROS                                                           \
+    FIELD_XMACROS                                                              \
+    groupedViews.def("__repr__", StructRepr<GroupedViews>);                    \
   }
 #define X(type, prefix, var, dim0, dim1)                                    \
   groupedViews.def_property(                                                \
@@ -1777,6 +1778,7 @@ This is useful for example when the MJB is not available as a file on disk.)"));
     using GroupedViews = MjDataGroupedViews;                                 \
     py::class_<MjDataGroupedViews> groupedViews(m, "_" #MjDataGroupedViews); \
     FIELD_XMACROS                                                            \
+    groupedViews.def("__repr__", StructRepr<GroupedViews>);                  \
   }
 #define X(type, prefix, var, dim0, dim1)                                    \
   groupedViews.def_property(                                                \
