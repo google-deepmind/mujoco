@@ -185,6 +185,12 @@ class MjDataIndexer {
   MJDATA_VIEW_GROUPS
 #undef XGROUP
 };
+
+// Returns an error message when a nonexistent name is requested from an
+// indexer, which includes all valid names.
+std::string KeyErrorMessage(const NameToIDMap& map, std::string_view name);
+// Returns an error message when an invalid numeric index is provided.
+std::string IndexErrorMessage(int index, int size);
 }  // namespace mujoco::python
 
 #endif  // MUJOCO_PYTHON_INDEXERS_H_

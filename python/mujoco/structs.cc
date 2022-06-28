@@ -1479,7 +1479,8 @@ This is useful for example when the MJB is not available as a file on disk.)"));
       #field, [](MjModelWrapper& m, std::string_view name) -> auto& {         \
         return m.indexer().field##_by_name(name);                             \
       },                                                                      \
-      py::return_value_policy::reference_internal);
+      py::return_value_policy::reference_internal, py::arg_v("name", ""));
+
 
   MJMODEL_VIEW_GROUPS
 #undef XGROUP
@@ -1493,7 +1494,7 @@ This is useful for example when the MJB is not available as a file on disk.)"));
       #altname, [](MjModelWrapper& m, std::string_view name) -> auto& {       \
         return m.indexer().field##_by_name(name);                             \
       },                                                                      \
-      py::return_value_policy::reference_internal);
+      py::return_value_policy::reference_internal, py::arg_v("name", ""));
 
   MJMODEL_VIEW_GROUPS_ALTNAMES
 #undef XGROUP
@@ -1752,7 +1753,7 @@ This is useful for example when the MJB is not available as a file on disk.)"));
       #field, [](MjDataWrapper& d, std::string_view name) -> auto& {         \
         return d.indexer().field##_by_name(name);                            \
       },                                                                     \
-      py::return_value_policy::reference_internal);
+      py::return_value_policy::reference_internal, py::arg_v("name", ""));
 
   MJDATA_VIEW_GROUPS
 #undef XGROUP
@@ -1766,7 +1767,7 @@ This is useful for example when the MJB is not available as a file on disk.)"));
       #altname, [](MjDataWrapper& d, std::string_view name) -> auto& {       \
         return d.indexer().field##_by_name(name);                            \
       },                                                                     \
-      py::return_value_policy::reference_internal);
+      py::return_value_policy::reference_internal, py::arg_v("name", ""));
 
   MJDATA_VIEW_GROUPS_ALTNAMES
 #undef XGROUP

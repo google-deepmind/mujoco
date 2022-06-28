@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <algorithm>
 #include <memory>
 #include <optional>
 #include <string>
@@ -154,8 +155,8 @@ MjModelIndexer::MjModelIndexer(raw::MjModel* m, py::handle owner)
 
 #define XGROUP(MjModelFieldGroupedViews, field, nfield, FIELD_XMACROS) \
   MjModelFieldGroupedViews& MjModelIndexer::field(int i) {             \
-    if (i > field##_.size()) {                                         \
-      throw py::index_error("index out of range");                     \
+    if (i >= field##_.size() || i < 0) {                               \
+      throw py::index_error(IndexErrorMessage(i, field##_.size()));    \
     }                                                                  \
     auto& indexer = field##_[i];                                       \
     if (!indexer.has_value()) {                                        \
@@ -169,11 +170,11 @@ MJMODEL_VIEW_GROUPS
 #define XGROUP(MjModelFieldGroupedViews, field, nfield, FIELD_XMACROS) \
   MjModelFieldGroupedViews& MjModelIndexer::field##_by_name(           \
       std::string_view name) {                                         \
-    try {                                                              \
-      return field(name_to_id_.field.at(name));                        \
-    } catch (...) {                                                    \
-      throw py::key_error(std::string(name));                          \
+    auto item = name_to_id_.field.find(name);                          \
+    if (item == name_to_id_.field.end()) {                             \
+      throw py::key_error(KeyErrorMessage(name_to_id_.field, name));   \
     }                                                                  \
+    return field(item->second);                                        \
   }
 MJMODEL_VIEW_GROUPS
 #undef XGROUP
@@ -190,28 +191,27 @@ MjDataIndexer::MjDataIndexer(raw::MjData* d, const MjDataMetadata* m,
 #undef XGROUP
 {}
 
-#define XGROUP(MjDataGroupedViews, field, nfield, FIELD_XMACROS) \
-  MjDataGroupedViews& MjDataIndexer::field(int i) {              \
-    if (i > field##_.size()) {                                   \
-      throw py::index_error("index out of range");               \
-    }                                                            \
-    auto& indexer = field##_[i];                                 \
-    if (!indexer.has_value()) {                                  \
-      indexer.emplace(i, d_, m_, owner_);                        \
-    }                                                            \
-    return *indexer;                                             \
+#define XGROUP(MjDataGroupedViews, field, nfield, FIELD_XMACROS)    \
+  MjDataGroupedViews& MjDataIndexer::field(int i) {                 \
+    if (i >= field##_.size() || i < 0) {                            \
+      throw py::index_error(IndexErrorMessage(i, field##_.size())); \
+    }                                                               \
+    auto& indexer = field##_[i];                                    \
+    if (!indexer.has_value()) {                                     \
+      indexer.emplace(i, d_, m_, owner_);                           \
+    }                                                               \
+    return *indexer;                                                \
   }
 MJDATA_VIEW_GROUPS
 #undef XGROUP
 
-#define XGROUP(MjDataGroupedViews, field, nfield, FIELD_XMACROS) \
-  MjDataGroupedViews& MjDataIndexer::field##_by_name(            \
-      std::string_view name) {                                   \
-    try {                                                        \
-      return field(name_to_id_.field.at(name));                  \
-    } catch (...) {                                              \
-      throw py::key_error(std::string(name));                    \
-    }                                                            \
+#define XGROUP(MjDataGroupedViews, field, nfield, FIELD_XMACROS)              \
+  MjDataGroupedViews& MjDataIndexer::field##_by_name(std::string_view name) { \
+    auto item = name_to_id_.field.find(name);                                 \
+    if (item == name_to_id_.field.end()) {                                    \
+      throw py::key_error(KeyErrorMessage(name_to_id_.field, name));          \
+    }                                                                         \
+    return field(item->second);                                               \
   }
 MJDATA_VIEW_GROUPS
 #undef XGROUP
@@ -369,4 +369,34 @@ MJDATA_TENDON
 #undef MJ_M
 #define MJ_M(n) n
 
+// Returns an error message when a non-existent name is requested from an
+// indexer, which includes all valid names.
+std::string KeyErrorMessage(const NameToIDMap& map, std::string_view name) {
+  // Make a sorted list of valid names
+  std::vector<std::string_view> valid_names;
+  valid_names.reserve(map.size());
+  for (const auto& [key, value] : map) {
+    valid_names.push_back(key);
+  }
+  std::sort(valid_names.begin(), valid_names.end());
+
+  // Construct the error message
+  std::ostringstream message;
+  message << "Invalid name '" << name << "'. Valid names: [";
+  int i = 0;
+  for (const auto& key : valid_names) {
+    message << "'" << key << "'";
+    if (i < map.size() - 1) message << ", ";
+    i++;
+  }
+  message << "]";
+  return message.str();
+}
+
+std::string IndexErrorMessage(int index, int size) {
+  std::ostringstream message;
+  message << "Invalid index " << index << ". Valid indices from 0 to "
+          << size - 1;
+  return message.str();
+}
 }  // namespace mujoco::python

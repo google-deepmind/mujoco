@@ -163,6 +163,46 @@ class MuJoCoBindingsTest(parameterized.TestCase):
     self.data.actuator('myactuator').ctrl = 7
     np.testing.assert_array_equal(self.data.ctrl[actuator_id], [7])
 
+  def test_named_indexing_invalid_names_in_model(self):
+    with self.assertRaisesRegex(
+        KeyError,
+        r"Invalid name 'badgeom'\. Valid names: \['mybox', 'myplane'\]"):
+      self.model.geom('badgeom')
+
+  def test_named_indexing_no_name_argument_in_model(self):
+    with self.assertRaisesRegex(
+        KeyError,
+        r"Invalid name ''\. Valid names: \['myball', 'myfree', 'myhinge'\]"):
+      self.model.joint()
+
+  def test_named_indexing_invalid_names_in_data(self):
+    with self.assertRaisesRegex(
+        KeyError,
+        r"Invalid name 'badgeom'\. Valid names: \['mybox', 'myplane'\]"):
+      self.data.geom('badgeom')
+
+  def test_named_indexing_no_name_argument_in_model(self):
+    with self.assertRaisesRegex(
+        KeyError,
+        r"Invalid name ''\. Valid names: \['myball', 'myfree', 'myhinge'\]"):
+      self.data.jnt()
+
+  def test_named_indexing_invalid_index_in_model(self):
+    with self.assertRaisesRegex(
+      IndexError, r'Invalid index 3\. Valid indices from 0 to 2'):
+      self.model.geom(3)
+    with self.assertRaisesRegex(
+        IndexError, r'Invalid index -1\. Valid indices from 0 to 2'):
+      self.model.geom(-1)
+
+  def test_named_indexing_invalid_index_in_data(self):
+    with self.assertRaisesRegex(
+      IndexError, r'Invalid index 3\. Valid indices from 0 to 2'):
+      self.data.geom(3)
+    with self.assertRaisesRegex(
+        IndexError, r'Invalid index -1\. Valid indices from 0 to 2'):
+      self.data.geom(-1)
+
   def test_named_indexing_geom_size(self):
     box_id = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_GEOM, 'mybox')
     self.assertIs(self.model.geom('mybox'), self.model.geom(box_id))
