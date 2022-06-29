@@ -485,9 +485,13 @@ mjModel* mj_copyModel(mjModel* dest, const mjModel* src) {
                         src->nuser_cam, src->nuser_tendon, src->nuser_actuator, src->nuser_sensor,
                         src->nnames);
   }
+  if (!dest) {
+    mju_error("Failed to make mjModel. Invalid sizes.");
+  }
 
   // check sizes
   if (dest->nbuffer != src->nbuffer) {
+    mj_deleteModel(dest);
     mju_error("dest and src models have different buffer size");
   }
 
@@ -649,7 +653,7 @@ mjModel* mj_loadModel(const char* filename, const mjVFS* vfs) {
                    info[28], info[29], info[30], info[31], info[32], info[33], info[34],
                    info[35], info[36], info[37], info[38], info[39], info[40], info[41],
                    info[42], info[43], info[44], info[45], info[46], info[47], info[48]);
-  if (m->nbuffer!=info[getnint()-1]) {
+  if (!m || m->nbuffer!=info[getnint()-1]) {
     if (fp) {
       fclose(fp);
     }
