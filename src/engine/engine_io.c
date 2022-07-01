@@ -669,14 +669,17 @@ mjModel* mj_loadModel(const char* filename, const mjVFS* vfs) {
   if (fp) {
     if (fread((void*)&m->opt, sizeof(mjOption), 1, fp) != 1) {
       mju_warning("Model file does not have a complete mjOption");
+      mj_deleteModel(m);
       return 0;
     }
     if (fread((void*)&m->vis, sizeof(mjVisual), 1, fp) != 1) {
       mju_warning("Model file does not have a complete mjVisual");
+      mj_deleteModel(m);
       return 0;
     }
     if (fread((void*)&m->stat, sizeof(mjStatistic), 1, fp) != 1) {
       mju_warning("Model file does not have a complete mjStatistic");
+      mj_deleteModel(m);
       return 0;
     }
     {
@@ -684,6 +687,7 @@ mjModel* mj_loadModel(const char* filename, const mjVFS* vfs) {
       #define X(type, name, nr, nc)                                            \
         if (fread(m->name, sizeof(type), (m->nr)*(nc), fp) != (m->nr)*(nc)) {  \
           mju_warning("Model file does not contain a large enough buffer");    \
+          mj_deleteModel(m);                                                   \
           return 0;                                                            \
         }
       MJMODEL_POINTERS
