@@ -217,6 +217,7 @@ void mjv_defaultOption(mjvOption* vopt) {
     vopt->jointgroup[i] = state;
     vopt->tendongroup[i] = state;
     vopt->actuatorgroup[i] = state;
+    vopt->skingroup[i] = state;
   }
 
   for (int i=0; i<mjNVISFLAG; i++) {

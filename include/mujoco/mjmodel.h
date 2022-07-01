@@ -732,6 +732,7 @@ struct mjModel_ {
 
   // skins
   int*      skin_matid;           // skin material id; -1: none               (nskin x 1)
+  int*      skin_group;           // group for visibility                     (nskin x 1)
   float*    skin_rgba;            // skin rgba                                (nskin x 4)
   float*    skin_inflate;         // inflate skin in normal direction         (nskin x 1)
   int*      skin_vertadr;         // first vertex address                     (nskin x 1)

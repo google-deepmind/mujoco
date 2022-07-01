@@ -1408,6 +1408,7 @@ mjCSkin::mjCSkin(mjCModel* _model) {
   rgba[0] = rgba[1] = rgba[2] = 0.5f;
   rgba[3] = 1.0f;
   inflate = 0;
+  group = 0;
 
   vert.clear();
   texcoord.clear();
@@ -1529,7 +1530,6 @@ void mjCSkin::Compile(const mjVFS* vfs) {
   } else if (!material.empty()) {
       throw mjCError(this, "unkown material '%s' in skin", material.c_str());
   }
-
 
   // set total vertex weights to 0
   vector<float> vw;

@@ -379,6 +379,57 @@ TEST_F(UserDataTest, PositiveControlRange) {
   EXPECT_THAT(error.data(), HasSubstr("control range cannot be negative"));
 }
 
+TEST_F(UserDataTest, ReadsSkinGroups) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <composite prefix="B0" type="box" count="4 4 4" spacing=".2">
+          <geom size=".1" group="2"/>
+          <skin group="4"/>
+        </composite>
+      </body>
+      <body>
+        <composite prefix="B1" type="box" count="4 4 4" spacing=".2">
+          <geom size=".1" group="4"/>
+          <skin group="2"/>
+        </composite>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, NotNull());
+  int geomid1 = mj_name2id(model, mjOBJ_GEOM, "B0G0_0_0");
+  int geomid2 = mj_name2id(model, mjOBJ_GEOM, "B1G0_0_0");
+  EXPECT_THAT(model->geom_group[geomid1], 2);
+  EXPECT_THAT(model->skin_group[0], 4);
+  EXPECT_THAT(model->geom_group[geomid2], 4);
+  EXPECT_THAT(model->skin_group[1], 2);
+  mj_deleteModel(model);
+}
+
+TEST_F(UserDataTest, InvalidSkinGroup) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <composite prefix="B0" type="box" count="6 6 6" spacing=".2">
+          <geom size=".1"/>
+          <skin group="6"/>
+        </composite>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("skin group must be between 0 and 5\nElement 'skin', line 7"));
+  mj_deleteModel(model);
+}
+
 // ------------- test relative frame sensor parsing ----------------------------
 
 using RelativeFrameSensorParsingTest = MujocoTest;

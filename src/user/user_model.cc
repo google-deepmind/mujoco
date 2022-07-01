@@ -1628,6 +1628,7 @@ void mjCModel::CopyObjects(mjModel* m) {
     // set fields
     m->skin_matid[i] = psk->matid;
     copyvec(m->skin_rgba+4*i, psk->rgba, 4);
+    m->skin_group[i] = psk->group;
     m->skin_inflate[i] = psk->inflate;
     m->skin_vertadr[i] = vert_adr;
     m->skin_vertnum[i] = psk->vert.size()/3;

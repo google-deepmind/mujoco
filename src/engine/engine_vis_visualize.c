@@ -1767,9 +1767,18 @@ void mjv_updateCamera(const mjModel* m, mjData* d, mjvCamera* cam, mjvScene* scn
 }
 
 
-
-// update skins only
+// update all skins, here for backward API compatibility
 void mjv_updateSkin(const mjModel* m, mjData* d, mjvScene* scn) {
+  mjvOption opt;
+  mjv_defaultOption(&opt);
+  mjv_updateActiveSkin(m, d, scn, &opt);
+  mju_warning("mjv_updateSkin is deprecated, please use mjv_updateActiveSkin.");
+}
+
+
+// update visible skins only
+void mjv_updateActiveSkin(const mjModel* m, mjData* d, mjvScene* scn, const mjvOption* opt) {
+
   // process skins
   for (int i=0; i<m->nskin; i++) {
     // get info
@@ -1782,111 +1791,113 @@ void mjv_updateSkin(const mjModel* m, mjData* d, mjvScene* scn) {
     memset(scn->skinvert + 3*vertadr, 0, 3*vertnum*sizeof(float));
     memset(scn->skinnormal + 3*vertadr, 0, 3*vertnum*sizeof(float));
 
-    // accumulate positions from all bones
-    for (int j=m->skin_boneadr[i];
-         j<m->skin_boneadr[i]+m->skin_bonenum[i];
-         j++) {
-      // get bind pose
-      mjtNum bindpos[3] = {
-        (mjtNum) m->skin_bonebindpos[3*j],
-        (mjtNum) m->skin_bonebindpos[3*j+1],
-        (mjtNum) m->skin_bonebindpos[3*j+2]
-      };
-      mjtNum bindquat[4] = {
-        (mjtNum) m->skin_bonebindquat[4*j],
-        (mjtNum) m->skin_bonebindquat[4*j+1],
-        (mjtNum) m->skin_bonebindquat[4*j+2],
-        (mjtNum) m->skin_bonebindquat[4*j+3]
-      };
-
-      // compute rotation
-      int bodyid = m->skin_bonebodyid[j];
-      mjtNum quat[4], quatneg[4], rotate[9];
-      mju_negQuat(quatneg, bindquat);
-      mju_mulQuat(quat, d->xquat+4*bodyid, quatneg);
-      mju_quat2Mat(rotate, quat);
-
-      // compute translation
-      mjtNum translate[3];
-      mju_rotVecMat(translate, bindpos, rotate);
-      mju_sub3(translate, d->xpos+3*bodyid, translate);
-
-      // process all bone vertices
-      for (int k=m->skin_bonevertadr[j];
-           k<m->skin_bonevertadr[j]+m->skin_bonevertnum[j];
-           k++) {
-        // vertex id and weight
-        int vid = m->skin_bonevertid[k];
-        float vweight = m->skin_bonevertweight[k];
-
-        // get original position
-        mjtNum pos[3] = {
-          (mjtNum) m->skin_vert[3*(vertadr+vid)],
-          (mjtNum) m->skin_vert[3*(vertadr+vid)+1],
-          (mjtNum) m->skin_vert[3*(vertadr+vid)+2],
+    if (opt->skingroup[m->skin_group[i]]) {
+      // accumulate positions from all bones
+      for (int j=m->skin_boneadr[i];
+          j<m->skin_boneadr[i]+m->skin_bonenum[i];
+          j++) {
+        // get bind pose
+        mjtNum bindpos[3] = {
+          (mjtNum) m->skin_bonebindpos[3*j],
+          (mjtNum) m->skin_bonebindpos[3*j+1],
+          (mjtNum) m->skin_bonebindpos[3*j+2]
+        };
+        mjtNum bindquat[4] = {
+          (mjtNum) m->skin_bonebindquat[4*j],
+          (mjtNum) m->skin_bonebindquat[4*j+1],
+          (mjtNum) m->skin_bonebindquat[4*j+2],
+          (mjtNum) m->skin_bonebindquat[4*j+3]
         };
 
-        // transform
-        mjtNum pos1[3];
-        mju_rotVecMat(pos1, pos, rotate);
-        mju_addTo3(pos1, translate);
+        // compute rotation
+        int bodyid = m->skin_bonebodyid[j];
+        mjtNum quat[4], quatneg[4], rotate[9];
+        mju_negQuat(quatneg, bindquat);
+        mju_mulQuat(quat, d->xquat+4*bodyid, quatneg);
+        mju_quat2Mat(rotate, quat);
 
-        // accumulate position
-        scn->skinvert[3*(vertadr+vid)] += vweight*(float)pos1[0];
-        scn->skinvert[3*(vertadr+vid)+1] += vweight*(float)pos1[1];
-        scn->skinvert[3*(vertadr+vid)+2] += vweight*(float)pos1[2];
-      }
-    }
+        // compute translation
+        mjtNum translate[3];
+        mju_rotVecMat(translate, bindpos, rotate);
+        mju_sub3(translate, d->xpos+3*bodyid, translate);
 
-    // compute vertex normals from face normals
-    for (int k=faceadr; k<faceadr+facenum; k++) {
-      // get face vertex indices
-      int vid[3] = {
-        m->skin_face[3*k],
-        m->skin_face[3*k+1],
-        m->skin_face[3*k+2]
-      };
+        // process all bone vertices
+        for (int k=m->skin_bonevertadr[j];
+            k<m->skin_bonevertadr[j]+m->skin_bonevertnum[j];
+            k++) {
+          // vertex id and weight
+          int vid = m->skin_bonevertid[k];
+          float vweight = m->skin_bonevertweight[k];
 
-      // get triangle edges
-      mjtNum vec01[3], vec02[3];
-      for (int r=0; r<3; r++) {
-        vec01[r] = scn->skinvert[3*(vertadr+vid[1])+r] - scn->skinvert[3*(vertadr+vid[0])+r];
-        vec02[r] = scn->skinvert[3*(vertadr+vid[2])+r] - scn->skinvert[3*(vertadr+vid[0])+r];
-      }
+          // get original position
+          mjtNum pos[3] = {
+            (mjtNum) m->skin_vert[3*(vertadr+vid)],
+            (mjtNum) m->skin_vert[3*(vertadr+vid)+1],
+            (mjtNum) m->skin_vert[3*(vertadr+vid)+2],
+          };
 
-      // compute face normal
-      mjtNum nrm[3];
-      mju_cross(nrm, vec01, vec02);
+          // transform
+          mjtNum pos1[3];
+          mju_rotVecMat(pos1, pos, rotate);
+          mju_addTo3(pos1, translate);
 
-      // add normal to each vertex with weight = area
-      for (int r=0; r<3; r++) {
-        for (int t=0; t<3; t++) {
-          scn->skinnormal[3*(vertadr+vid[r])+t] += nrm[t];
+          // accumulate position
+          scn->skinvert[3*(vertadr+vid)] += vweight*(float)pos1[0];
+          scn->skinvert[3*(vertadr+vid)+1] += vweight*(float)pos1[1];
+          scn->skinvert[3*(vertadr+vid)+2] += vweight*(float)pos1[2];
         }
       }
-    }
 
-    // normalize normals
-    for (int k=vertadr; k<vertadr+vertnum; k++) {
-      float s = sqrtf(
-                  scn->skinnormal[3*k]*scn->skinnormal[3*k] +
-                  scn->skinnormal[3*k+1]*scn->skinnormal[3*k+1] +
-                  scn->skinnormal[3*k+2]*scn->skinnormal[3*k+2]
-                );
-      float scl = 1/mjMAX(mjMINVAL, s);
+      // compute vertex normals from face normals
+      for (int k=faceadr; k<faceadr+facenum; k++) {
+        // get face vertex indices
+        int vid[3] = {
+          m->skin_face[3*k],
+          m->skin_face[3*k+1],
+          m->skin_face[3*k+2]
+        };
 
-      scn->skinnormal[3*k] *= scl;
-      scn->skinnormal[3*k+1] *= scl;
-      scn->skinnormal[3*k+2] *= scl;
-    }
+        // get triangle edges
+        mjtNum vec01[3], vec02[3];
+        for (int r=0; r<3; r++) {
+          vec01[r] = scn->skinvert[3*(vertadr+vid[1])+r] - scn->skinvert[3*(vertadr+vid[0])+r];
+          vec02[r] = scn->skinvert[3*(vertadr+vid[2])+r] - scn->skinvert[3*(vertadr+vid[0])+r];
+        }
 
-    // inflate
-    if (m->skin_inflate[i]) {
-      float inflate = m->skin_inflate[i];
+        // compute face normal
+        mjtNum nrm[3];
+        mju_cross(nrm, vec01, vec02);
+
+        // add normal to each vertex with weight = area
+        for (int r=0; r<3; r++) {
+          for (int t=0; t<3; t++) {
+            scn->skinnormal[3*(vertadr+vid[r])+t] += nrm[t];
+          }
+        }
+      }
+
+      // normalize normals
       for (int k=vertadr; k<vertadr+vertnum; k++) {
-        scn->skinvert[3*k]   += inflate*scn->skinnormal[3*k];
-        scn->skinvert[3*k+1] += inflate*scn->skinnormal[3*k+1];
-        scn->skinvert[3*k+2] += inflate*scn->skinnormal[3*k+2];
+        float s = sqrtf(
+                    scn->skinnormal[3*k]*scn->skinnormal[3*k] +
+                    scn->skinnormal[3*k+1]*scn->skinnormal[3*k+1] +
+                    scn->skinnormal[3*k+2]*scn->skinnormal[3*k+2]
+                  );
+        float scl = 1/mjMAX(mjMINVAL, s);
+
+        scn->skinnormal[3*k] *= scl;
+        scn->skinnormal[3*k+1] *= scl;
+        scn->skinnormal[3*k+2] *= scl;
+      }
+
+      // inflate
+      if (m->skin_inflate[i]) {
+        float inflate = m->skin_inflate[i];
+        for (int k=vertadr; k<vertadr+vertnum; k++) {
+          scn->skinvert[3*k]   += inflate*scn->skinnormal[3*k];
+          scn->skinvert[3*k+1] += inflate*scn->skinnormal[3*k+1];
+          scn->skinvert[3*k+2] += inflate*scn->skinnormal[3*k+2];
+        }
       }
     }
   }
@@ -1909,6 +1920,6 @@ void mjv_updateScene(const mjModel* m, mjData* d, const mjvOption* opt,
 
   // update skins
   if (opt->flags[mjVIS_SKIN]) {
-    mjv_updateSkin(m, d, scn);
+    mjv_updateActiveSkin(m, d, scn, opt);
   }
 }

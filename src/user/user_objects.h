@@ -504,6 +504,7 @@ class mjCSkin: public mjCBase {
   std::string material;               // name of material used for rendering
   float rgba[4];                      // rgba when material is omitted
   float inflate;                      // inflate in normal direction
+  int group;                          // group for visualization
 
   // mesh
   std::vector<float> vert;            // vertex positions

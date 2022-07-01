@@ -2222,16 +2222,17 @@ mjvOption
 
 .. code-block:: C
 
-   struct _mjvOption                   // abstract visualization options
+   struct _mjvOption                      // abstract visualization options
    {
-       int      label;                 // what objects to label (mjtLabel)
-       int      frame;                 // which frame to show (mjtFrame)
-       mjtByte  geomgroup[mjNGROUP];   // geom visualization by group
-       mjtByte  sitegroup[mjNGROUP];   // site visualization by group
-       mjtByte  jointgroup[mjNGROUP];  // joint visualization by group
+       int      label;                    // what objects to label (mjtLabel)
+       int      frame;                    // which frame to show (mjtFrame)
+       mjtByte  geomgroup[mjNGROUP];      // geom visualization by group
+       mjtByte  sitegroup[mjNGROUP];      // site visualization by group
+       mjtByte  jointgroup[mjNGROUP];     // joint visualization by group
        mjtByte  tendongroup[mjNGROUP];    // tendon visualization by group
        mjtByte  actuatorgroup[mjNGROUP];  // actuator visualization by group
-       mjtByte  flags[mjNVISFLAG];     // visualization flags (indexed by mjtVisFlag)
+       mjtByte  skingroup[mjNGROUP];      // skin visualization by group
+       mjtByte  flags[mjNVISFLAG];        // visualization flags (indexed by mjtVisFlag)
    };
    typedef struct _mjvOption mjvOption;
 

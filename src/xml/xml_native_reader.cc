@@ -22,6 +22,7 @@
 #include <vector>
 
 #include <mujoco/mjmodel.h>
+#include <mujoco/mjvisualize.h>
 #include "engine/engine_macro.h"
 #include "engine/engine_util_errmem.h"
 #include "engine/engine_util_misc.h"
@@ -165,8 +166,8 @@ static const char* MJCF[nMJCF][mjXATTRNUM] = {
         {"hfield", "*", "5", "name", "file", "nrow", "ncol", "size"},
         {"mesh", "*", "11", "name", "class", "file", "vertex", "normal",
             "texcoord", "face", "refpos", "refquat", "scale", "smoothnormal"},
-        {"skin", "*", "8", "name", "file", "material", "rgba", "inflate",
-            "vertex", "texcoord", "face"},
+        {"skin", "*", "9", "name", "file", "material", "rgba", "inflate",
+            "vertex", "texcoord", "face", "group"},
         {"<"},
             {"bone", "*", "5", "body", "bindpos", "bindquat", "vertid", "vertweight"},
         {">"},
@@ -210,7 +211,7 @@ static const char* MJCF[nMJCF][mjXATTRNUM] = {
                 "limited", "range", "margin", "solreflimit", "solimplimit",
                 "frictionloss", "solreffriction", "solimpfriction",
                 "material", "rgba", "width"},
-            {"skin", "?", "5", "texcoord", "material", "rgba", "inflate", "subgrid"},
+            {"skin", "?", "6", "texcoord", "material", "group", "rgba", "inflate", "subgrid"},
             {"geom", "?", "17", "type", "contype", "conaffinity", "condim",
                 "group", "priority", "size", "material", "rgba", "friction", "mass",
                 "density", "solmix", "solref", "solimp", "margin", "gap"},
@@ -983,6 +984,10 @@ void mjXReader::OneSkin(XMLElement* elem, mjCSkin* pskin) {
   ReadAttrTxt(elem, "name", pskin->name);
   ReadAttrTxt(elem, "file", pskin->file);
   ReadAttrTxt(elem, "material", pskin->material);
+  ReadAttrInt(elem, "group", &pskin->group);
+  if (pskin->group<0 || pskin->group>=mjNGROUP) {
+    throw mjXError(elem, "skin group must be between 0 and 5");
+  }
   ReadAttr(elem, "rgba", 4, pskin->rgba, text);
   ReadAttr(elem, "inflate", 1, &pskin->inflate, text);
 
@@ -1617,6 +1622,10 @@ void mjXReader::OneComposite(XMLElement* elem, mjCBody* pbody, mjCDef* def) {
     ReadAttr(eskin, "rgba", 4, comp.skinrgba, text);
     ReadAttr(eskin, "inflate", 1, &comp.skininflate, text);
     ReadAttrInt(eskin, "subgrid", &comp.skinsubgrid);
+    ReadAttrInt(eskin, "group", &comp.skingroup, 0);
+    if (comp.skingroup<0 || comp.skingroup>=mjNGROUP) {
+      throw mjXError(eskin, "skin group must be between 0 and 5");
+    }
   }
 
   // set type-specific defaults

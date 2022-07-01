@@ -1,0 +1,44 @@
+<mujoco>
+  <asset>
+    <skin name="skin" rgba="1 0 1 1" inflate="0.01"
+    vertex="
+    -.5 -.5 -.5
+     .5 -.5 -.5
+    -.5  .5 -.5
+     .5  .5 -.5
+    -.5 -.5  .5
+     .5 -.5  .5
+    -.5  .5  .5
+     .5  .5  .5"
+    texcoord=".1 .1 .1 .1 .1 .1 .1 .1 .1 .1 .1 .1 .1 .1 .1 .1"
+    face="0 1 4 4 1 5 5 1 3 5 3 7 7 3 2 7 2 6 6 2 0 6 0 4 4 5 7 4 7 6">
+      <bone body="box" bindpos="0 0 .5" bindquat="1 0 0 0" vertid="4 5 6 7" vertweight="1 1 1 1"/>
+      <bone body="world" bindpos="0 0 -.5" bindquat="1 0 0 0" vertid="0 1 2 3" vertweight="1 1 1 1"/>
+    </skin>
+  </asset>
+
+
+  <worldbody>
+    <geom type="plane" size="2 2 .01"/>
+    <light pos="0 1 3" dir="0 -1 -2"/>
+    <light pos="0 -1 3" dir="0 1 -2"/>
+    <body name="box" pos="0 0 .9">
+      <joint limited="true" range="-45 45"/>
+      <geom type="box" size=".5 .5 .1"/>
+    </body>
+    <body pos="1 -1 .6">
+      <freejoint/>
+      <composite prefix="B0" type="box" count="4 4 4" spacing=".2">
+        <geom group="4" size=".1"/>
+        <skin rgba="1 1 0 1" group="2"/>
+      </composite>
+    </body>
+    <body pos="-1 1 .6">
+      <freejoint/>
+      <composite prefix="B1" type="box" count="4 4 4" spacing=".2">
+        <geom group="2" size=".1"/>
+        <skin rgba="0 1 1 1" group="4"/>
+      </composite>
+    </body>
+  </worldbody>
+</mujoco>

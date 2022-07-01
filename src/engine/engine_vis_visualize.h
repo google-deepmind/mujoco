@@ -51,6 +51,9 @@ MJAPI void mjv_updateCamera(const mjModel* m, mjData* d, mjvCamera* cam, mjvScen
 // update skins only
 MJAPI void mjv_updateSkin(const mjModel* m, mjData* d, mjvScene* scn);
 
+// update visible skins only
+MJAPI void mjv_updateActiveSkin(const mjModel* m, mjData* d, mjvScene* scn, const mjvOption* opt);
+
 #ifdef __cplusplus
 }
 #endif

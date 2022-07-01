@@ -1053,6 +1053,7 @@ MjvOptionWrapper::MjWrapper()
       X(jointgroup),
       X(tendongroup),
       X(actuatorgroup),
+      X(skingroup),
       X(flags) {}
 #undef X
 
@@ -2037,6 +2038,7 @@ This is useful for example when the MJB is not available as a file on disk.)"));
   X(jointgroup);
   X(tendongroup);
   X(actuatorgroup);
+  X(skingroup);
   X(flags);
 #undef X
 

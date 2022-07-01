@@ -94,6 +94,7 @@ class mjCComposite {
   float skinrgba[4];              // skin rgba
   float skininflate;              // inflate skin
   int skinsubgrid;                // number of skin subgrid points; 0: none (2D only)
+  int skingroup;                  // skin group of the composite object
 
   // element options
   bool add[mjNCOMPKINDS];         // add element

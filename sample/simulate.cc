@@ -877,6 +877,13 @@ void makegroup(int oldstate) {
     {mjITEM_CHECKBYTE,  "Actuator 3",       2, vopt.actuatorgroup+3,    ""},
     {mjITEM_CHECKBYTE,  "Actuator 4",       2, vopt.actuatorgroup+4,    ""},
     {mjITEM_CHECKBYTE,  "Actuator 5",       2, vopt.actuatorgroup+5,    ""},
+    {mjITEM_SEPARATOR,  "Skin groups", 1},
+    {mjITEM_CHECKBYTE,  "Skin 0",           2, vopt.skingroup,          ""},
+    {mjITEM_CHECKBYTE,  "Skin 1",           2, vopt.skingroup+1,        ""},
+    {mjITEM_CHECKBYTE,  "Skin 2",           2, vopt.skingroup+2,        ""},
+    {mjITEM_CHECKBYTE,  "Skin 3",           2, vopt.skingroup+3,        ""},
+    {mjITEM_CHECKBYTE,  "Skin 4",           2, vopt.skingroup+4,        ""},
+    {mjITEM_CHECKBYTE,  "Skin 5",           2, vopt.skingroup+5,        ""},
     {mjITEM_END}
   };
 

@@ -18,7 +18,7 @@
 #include <mujoco/mjtnum.h>
 #include <mujoco/mjmodel.h>
 
-#define mjNGROUP        6         // number of geom, site, joint groups with visflags
+#define mjNGROUP        6         // number of geom, site, joint, skin groups with visflags
 #define mjMAXLIGHT      100       // maximum number of lights in a scene
 #define mjMAXOVERLAY    500       // maximum number of characters in overlay text
 #define mjMAXLINE       100       // maximum number of lines per plot
@@ -250,15 +250,16 @@ typedef struct mjvLight_ mjvLight;
 
 //---------------------------------- mjvOption -----------------------------------------------------
 
-struct mjvOption_ {               // abstract visualization options
-  int      label;                 // what objects to label (mjtLabel)
-  int      frame;                 // which frame to show (mjtFrame)
-  mjtByte  geomgroup[mjNGROUP];   // geom visualization by group
-  mjtByte  sitegroup[mjNGROUP];   // site visualization by group
-  mjtByte  jointgroup[mjNGROUP];  // joint visualization by group
-  mjtByte  tendongroup[mjNGROUP]; // tendon visualization by group
+struct mjvOption_ {                  // abstract visualization options
+  int      label;                    // what objects to label (mjtLabel)
+  int      frame;                    // which frame to show (mjtFrame)
+  mjtByte  geomgroup[mjNGROUP];      // geom visualization by group
+  mjtByte  sitegroup[mjNGROUP];      // site visualization by group
+  mjtByte  jointgroup[mjNGROUP];     // joint visualization by group
+  mjtByte  tendongroup[mjNGROUP];    // tendon visualization by group
   mjtByte  actuatorgroup[mjNGROUP];  // actuator visualization by group
-  mjtByte  flags[mjNVISFLAG];     // visualization flags (indexed by mjtVisFlag)
+  mjtByte  skingroup[mjNGROUP];      // skin visualization by group
+  mjtByte  flags[mjNVISFLAG];        // visualization flags (indexed by mjtVisFlag)
 };
 typedef struct mjvOption_ mjvOption;
 

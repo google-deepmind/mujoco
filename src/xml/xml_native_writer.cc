@@ -125,6 +125,7 @@ void mjXWriter::OneSkin(XMLElement* elem, mjCSkin* pskin) {
   WriteAttrTxt(elem, "name", pskin->name);
   WriteAttrTxt(elem, "file", pskin->file);
   WriteAttrTxt(elem, "material", pskin->material);
+  WriteAttrInt(elem, "group", pskin->group, 0);
   WriteAttr(elem, "rgba", 4, pskin->rgba, mydef.geom.rgba);
   WriteAttr(elem, "inflate", 1, &pskin->inflate, &zero);
 

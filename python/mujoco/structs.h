@@ -700,6 +700,7 @@ class MjWrapper<raw::MjvOption> : public WrapperBase<raw::MjvOption> {
   X(jointgroup);
   X(tendongroup);
   X(actuatorgroup);
+  X(skingroup);
   X(flags);
   #undef X
 };

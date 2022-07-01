@@ -267,6 +267,7 @@
     X( int,     mesh_face,             nmeshface,     3                    ) \
     X( int,     mesh_graph,            nmeshgraph,    1                    ) \
     X( int,     skin_matid,            nskin,         1                    ) \
+    X( int,     skin_group,            nskin,         1                    ) \
     X( float,   skin_rgba,             nskin,         4                    ) \
     X( float,   skin_inflate,          nskin,         1                    ) \
     X( int,     skin_vertadr,          nskin,         1                    ) \

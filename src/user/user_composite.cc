@@ -67,6 +67,7 @@ mjCComposite::mjCComposite(void) {
   mjuu_setvec(skinrgba, 1, 1, 1, 1);
   skininflate = 0;
   skinsubgrid = 0;
+  skingroup = 0;
 
   // clear add flags
   for (int i=0; i<mjNCOMPKINDS; i++) {
@@ -1053,6 +1054,7 @@ void mjCComposite::MakeSkin2(mjCModel* model) {
   skin->material = skinmaterial;
   mjuu_copyvec(skin->rgba, skinrgba, 4);
   skin->inflate = skininflate;
+  skin->group = skingroup;
 
   // populate mesh: two sides
   for (int i=0; i<2; i++) {
@@ -1473,6 +1475,7 @@ void mjCComposite::MakeSkin2Subgrid(mjCModel* model) {
   skin->material = skinmaterial;
   mjuu_copyvec(skin->rgba, skinrgba, 4);
   skin->inflate = skininflate;
+  skin->group = skingroup;
 
   // populate mesh: two sides
   mjtNum S = spacing/(1+skinsubgrid);
@@ -1643,6 +1646,7 @@ void mjCComposite::MakeSkin3(mjCModel* model) {
   skin->material = skinmaterial;
   mjuu_copyvec(skin->rgba, skinrgba, 4);
   skin->inflate = skininflate;
+  skin->group = skingroup;
 
   // box
   if (type==mjCOMPTYPE_BOX) {
