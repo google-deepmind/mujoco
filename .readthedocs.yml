@@ -3,12 +3,15 @@
 
 version: 2
 
+build:
+  tools:
+    python: "3.10"
+
 sphinx:
   builder: html
   configuration: doc/conf.py
   fail_on_warning: false
 
 python:
-  version: 3.7
   install:
     - requirements: doc/requirements.txt
