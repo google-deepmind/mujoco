@@ -1,17 +1,18 @@
-// Copyright 2019 DeepMind Technologies Limited
+// Copyright 2022 DeepMind Technologies Limited
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-//      http://www.apache.org/licenses/LICENSE-2.0
+//     http://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-
+// ==============================================================================
+// THIS FILE IS AUTO-GENERATED
 using System;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -23,6 +24,14 @@ public static class MujocoLib {
 
 // ----------------------------------Constants----------------------------------
 
+public const bool THIRD_PARTY_MUJOCO_MJDATA_H_ = true;
+public const bool THIRD_PARTY_MUJOCO_MJEXPORT_H_ = true;
+public const bool MUJOCO_HELPER_DLL_LOCAL = true;
+public const bool MUJOCO_HELPER_DLL_IMPORT = true;
+public const bool MUJOCO_HELPER_DLL_EXPORT = true;
+public const bool MJAPI = true;
+public const bool MJLOCAL = true;
+public const bool THIRD_PARTY_MUJOCO_MJMODEL_H_ = true;
 public const double mjPI = 3.141592653589793;
 public const double mjMAXVAL = 10000000000.0;
 public const double mjMINMU = 1e-05;
@@ -39,10 +48,13 @@ public const int mjNFLUID = 12;
 public const int mjNREF = 2;
 public const int mjNIMP = 5;
 public const int mjNSOLVER = 1000;
+public const bool THIRD_PARTY_MUJOCO_MJRENDER_H_ = true;
 public const int mjNAUX = 10;
 public const int mjMAXTEXTURE = 1000;
+public const bool THIRD_PARTY_MUJOCO_INCLUDE_MJTNUM_H_ = true;
 public const bool mjUSEDOUBLE = true;
 public const double mjMINVAL = 1e-15;
+public const bool THIRD_PARTY_MUJOCO_MJUI_H_ = true;
 public const int mjMAXUISECT = 10;
 public const int mjMAXUIITEM = 80;
 public const int mjMAXUITEXT = 300;
@@ -77,12 +89,15 @@ public const int mjKEY_F9 = 298;
 public const int mjKEY_F10 = 299;
 public const int mjKEY_F11 = 300;
 public const int mjKEY_F12 = 301;
+public const bool THIRD_PARTY_MUJOCO_MJVISUALIZE_H_ = true;
 public const int mjNGROUP = 6;
 public const int mjMAXLIGHT = 100;
 public const int mjMAXOVERLAY = 500;
 public const int mjMAXLINE = 100;
 public const int mjMAXLINEPNT = 1000;
 public const int mjMAXPLANEGRID = 200;
+public const bool THIRD_PARTY_MUJOCO_MJXMACRO_H_ = true;
+public const bool THIRD_PARTY_MUJOCO_MUJOCO_H_ = true;
 public const int mjVERSION_HEADER = 220;
 
 
@@ -134,7 +149,8 @@ public enum mjtEnableBit : int{
   mjENBL_ENERGY = 2,
   mjENBL_FWDINV = 4,
   mjENBL_SENSORNOISE = 8,
-  mjNENABLE = 4,
+  mjENBL_MULTICCD = 16,
+  mjNENABLE = 5,
 }
 public enum mjtJoint : int{
   mjJNT_FREE = 0,
@@ -175,6 +191,7 @@ public enum mjtTexture : int{
 public enum mjtIntegrator : int{
   mjINT_EULER = 0,
   mjINT_RK4 = 1,
+  mjINT_IMPLICIT = 2,
 }
 public enum mjtCollision : int{
   mjCOL_ALL = 0,
@@ -228,8 +245,8 @@ public enum mjtDyn : int{
 public enum mjtGain : int{
   mjGAIN_FIXED = 0,
   mjGAIN_AFFINE = 1,
-  mjGAIN_MUSCLE = 1,
-  mjGAIN_USER = 2,
+  mjGAIN_MUSCLE = 2,
+  mjGAIN_USER = 3,
 }
 public enum mjtBias : int{
   mjBIAS_NONE = 0,
@@ -423,33 +440,35 @@ public enum mjtFrame : int{
   mjFRAME_SITE = 3,
   mjFRAME_CAMERA = 4,
   mjFRAME_LIGHT = 5,
-  mjFRAME_WORLD = 6,
-  mjNFRAME = 7,
+  mjFRAME_CONTACT = 6,
+  mjFRAME_WORLD = 7,
+  mjNFRAME = 8,
 }
 public enum mjtVisFlag : int{
   mjVIS_CONVEXHULL = 0,
   mjVIS_TEXTURE = 1,
   mjVIS_JOINT = 2,
-  mjVIS_ACTUATOR = 3,
-  mjVIS_CAMERA = 4,
-  mjVIS_LIGHT = 5,
-  mjVIS_TENDON = 6,
-  mjVIS_RANGEFINDER = 7,
-  mjVIS_CONSTRAINT = 8,
-  mjVIS_INERTIA = 9,
-  mjVIS_SCLINERTIA = 10,
-  mjVIS_PERTFORCE = 11,
-  mjVIS_PERTOBJ = 12,
-  mjVIS_CONTACTPOINT = 13,
-  mjVIS_CONTACTFORCE = 14,
-  mjVIS_CONTACTSPLIT = 15,
-  mjVIS_TRANSPARENT = 16,
-  mjVIS_AUTOCONNECT = 17,
-  mjVIS_COM = 18,
-  mjVIS_SELECT = 19,
-  mjVIS_STATIC = 20,
-  mjVIS_SKIN = 21,
-  mjNVISFLAG = 22,
+  mjVIS_CAMERA = 3,
+  mjVIS_ACTUATOR = 4,
+  mjVIS_ACTIVATION = 5,
+  mjVIS_LIGHT = 6,
+  mjVIS_TENDON = 7,
+  mjVIS_RANGEFINDER = 8,
+  mjVIS_CONSTRAINT = 9,
+  mjVIS_INERTIA = 10,
+  mjVIS_SCLINERTIA = 11,
+  mjVIS_PERTFORCE = 12,
+  mjVIS_PERTOBJ = 13,
+  mjVIS_CONTACTPOINT = 14,
+  mjVIS_CONTACTFORCE = 15,
+  mjVIS_CONTACTSPLIT = 16,
+  mjVIS_TRANSPARENT = 17,
+  mjVIS_AUTOCONNECT = 18,
+  mjVIS_COM = 19,
+  mjVIS_SELECT = 20,
+  mjVIS_STATIC = 21,
+  mjVIS_SKIN = 22,
+  mjNVISFLAG = 23,
 }
 public enum mjtRndFlag : int{
   mjRND_SHADOW = 0,
@@ -1634,6 +1653,13 @@ public unsafe struct mjData_ {
   public double* efc_aref;
   public double* subtree_linvel;
   public double* subtree_angmom;
+  public double* qH;
+  public double* qHDiagInv;
+  public int* D_rownnz;
+  public int* D_rowadr;
+  public int* D_colind;
+  public double* qDeriv;
+  public double* qLU;
   public double* actuator_force;
   public double* qfrc_actuator;
   public double* qfrc_smooth;
@@ -1860,6 +1886,7 @@ public unsafe struct mjModel_ {
   public int nuser_sensor;
   public int nnames;
   public int nM;
+  public int nD;
   public int nemax;
   public int njmax;
   public int nconmax;
@@ -2078,11 +2105,13 @@ public unsafe struct mjModel_ {
   public int* actuator_group;
   public byte* actuator_ctrllimited;
   public byte* actuator_forcelimited;
+  public byte* actuator_actlimited;
   public double* actuator_dynprm;
   public double* actuator_gainprm;
   public double* actuator_biasprm;
   public double* actuator_ctrlrange;
   public double* actuator_forcerange;
+  public double* actuator_actrange;
   public double* actuator_gear;
   public double* actuator_cranklength;
   public double* actuator_acc0;
@@ -2466,7 +2495,7 @@ public unsafe struct mjvOption_ {
   public fixed byte jointgroup[6];
   public fixed byte tendongroup[6];
   public fixed byte actuatorgroup[6];
-  public fixed byte flags[22];
+  public fixed byte flags[23];
 }
 
 [StructLayout(LayoutKind.Sequential)]
@@ -2632,12 +2661,6 @@ public unsafe struct mjvFigure_ {
 }public struct mjuiItem_ {}public struct mjfItemEnable {}
 
 // ----------------------------Function declarations----------------------------
-
-[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
-public static unsafe extern int mj_activate([MarshalAs(UnmanagedType.LPStr)]string filename);
-
-[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
-public static unsafe extern void mj_deactivate();
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern void mj_defaultVFS(void* vfs);
@@ -3199,6 +3222,12 @@ public static unsafe extern void mj_warning(mjData_* d, int warning, int info);
 public static unsafe extern void mju_writeLog([MarshalAs(UnmanagedType.LPStr)]string type, [MarshalAs(UnmanagedType.LPStr)]string msg);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern int mj_activate([MarshalAs(UnmanagedType.LPStr)]string filename);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern void mj_deactivate();
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern void mju_zero3(double* res);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
@@ -3458,5 +3487,8 @@ public static unsafe extern string mju_strncpy(StringBuilder dst, [MarshalAs(Unm
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern double mju_sigmoid(double x);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern void mjd_transitionFD(mjModel_* m, mjData_* d, double eps, byte centered, double* A, double* B);
 }
 }
