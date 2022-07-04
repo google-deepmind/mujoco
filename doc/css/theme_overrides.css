@@ -23,9 +23,15 @@ body {
   color: rgb(18, 54, 147);
 }
 
-/* Adjust paragraph margins to make top and bottom of images more symmetric. */
-p {
-  margin: 20px 0px 20px 0px;
+/* Decrease bottom margin of some headings for tighter vertical spacing. */
+.rst-content h2 {
+  margin-bottom: 20px;
+}
+.rst-content h3 {
+  margin-bottom: 10px;
+}
+.rst-content h4 {
+  margin-bottom: 5px;
 }
 
 /* Paragraph margins don't apply to table cell contents. */
