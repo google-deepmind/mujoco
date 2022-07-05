@@ -6573,6 +6573,26 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
          ),
          doc='Return max(a,b) with single evaluation of a and b.',
      )),
+    ('mju_clip',
+     FunctionDecl(
+         name='mju_clip',
+         return_type=ValueType(name='mjtNum'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='x',
+                 type=ValueType(name='mjtNum'),
+             ),
+             FunctionParameterDecl(
+                 name='min',
+                 type=ValueType(name='mjtNum'),
+             ),
+             FunctionParameterDecl(
+                 name='max',
+                 type=ValueType(name='mjtNum'),
+             ),
+         ),
+         doc='Clip x to the range [min, max].',
+     )),
     ('mju_sign',
      FunctionDecl(
          name='mju_sign',

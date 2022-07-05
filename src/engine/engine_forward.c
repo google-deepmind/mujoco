@@ -157,37 +157,43 @@ void mj_fwdActuation(const mjModel* m, mjData* d) {
   mjtNum gain, bias, tau;
   mjtNum *prm, *moment = d->actuator_moment, *force = d->actuator_force;
 
-  // clear results
+  // clear outputs
   mju_zero(d->qfrc_actuator, nv);
-  if (nu) {
-    mju_zero(d->actuator_force, nu);
-  }
-
-  // check controls, set to 0 if any are bad
-  for (int i=0; i<nu; i++) {
-    if (mju_isBad(d->ctrl[i])) {
-      mj_warning(d, mjWARN_BADCTRL, i);
-      mju_zero(d->ctrl, nu);
-      break;
-    }
-  }
+  mju_zero(d->actuator_force, nu);
 
   // disabled or no actuation: return
   if (nu==0 || mjDISABLED(mjDSBL_ACTUATION)) {
     return;
   }
 
-  // force = gain .* [ctrl/act] + bias
-  for (int i=0; i<nu; i++) {
-    // clamp ctrl
-    if (m->actuator_ctrllimited[i] && !mjDISABLED(mjDSBL_CLAMPCTRL)) {
-      if (d->ctrl[i] < m->actuator_ctrlrange[2*i]) {
-        d->ctrl[i] = m->actuator_ctrlrange[2*i];
-      } else if (d->ctrl[i] > m->actuator_ctrlrange[2*i+1]) {
-        d->ctrl[i] = m->actuator_ctrlrange[2*i+1];
+  // local, clamped copy of ctrl
+  mjMARKSTACK;
+  mjtNum *ctrl = mj_stackAlloc(d, nu);
+  if (mjDISABLED(mjDSBL_CLAMPCTRL)) {
+    mju_copy(ctrl, d->ctrl, nu);
+  } else {
+    for (int i=0; i<nu; i++) {
+      // clamp ctrl
+      if (m->actuator_ctrllimited[i]) {
+        mjtNum *ctrlrange = m->actuator_ctrlrange + 2*i;
+        ctrl[i] = mju_clip(d->ctrl[i], ctrlrange[0], ctrlrange[1]);
+      } else {
+        ctrl[i] = d->ctrl[i];
       }
     }
+  }
 
+  // check controls, set all to 0 if any are bad
+  for (int i=0; i<nu; i++) {
+    if (mju_isBad(ctrl[i])) {
+      mj_warning(d, mjWARN_BADCTRL, i);
+      mju_zero(ctrl, nu);
+      break;
+    }
+  }
+
+  // force = gain .* [ctrl/act] + bias
+  for (int i=0; i<nu; i++) {
     // extract gain info
     prm = m->actuator_gainprm + mjNGAIN*i;
 
@@ -219,7 +225,7 @@ void mj_fwdActuation(const mjModel* m, mjData* d) {
 
     // set force = gain .* [ctrl/act]
     if (m->actuator_dyntype[i]==mjDYN_NONE) {
-      force[i] = gain * d->ctrl[i];
+      force[i] = gain * ctrl[i];
     } else {
       force[i] = gain * d->act[i-(nu-na)];
     }
@@ -259,11 +265,8 @@ void mj_fwdActuation(const mjModel* m, mjData* d) {
   // clamp actuator_force
   for (int i=0; i<nu; i++) {
     if (m->actuator_forcelimited[i]) {
-      if (force[i]<m->actuator_forcerange[2*i]) {
-        force[i] = m->actuator_forcerange[2*i];
-      } else if (force[i]>m->actuator_forcerange[2*i+1]) {
-        force[i] = m->actuator_forcerange[2*i+1];
-      }
+      mjtNum *forcerange = m->actuator_forcerange + 2*i;
+      force[i] = mju_clip(force[i], forcerange[0], forcerange[1]);
     }
   }
 
@@ -279,16 +282,16 @@ void mj_fwdActuation(const mjModel* m, mjData* d) {
     // compute act_dot according to dynamics type
     switch (m->actuator_dyntype[i]) {
     case mjDYN_INTEGRATOR:          // simple integrator
-      d->act_dot[j] = d->ctrl[i];
+      d->act_dot[j] = ctrl[i];
       break;
 
     case mjDYN_FILTER:              // linear filter: prm = tau
       tau = mju_max(mjMINVAL, prm[0]);
-      d->act_dot[j] = (d->ctrl[i] - d->act[j]) / tau;
+      d->act_dot[j] = (ctrl[i] - d->act[j]) / tau;
       break;
 
     case mjDYN_MUSCLE:              // muscle model: prm = (tau_act, tau_deact)
-      d->act_dot[j] = mju_muscleDynamics(d->ctrl[i], d->act[j], prm);
+      d->act_dot[j] = mju_muscleDynamics(ctrl[i], d->act[j], prm);
       break;
 
     default:                        // user dynamics
@@ -299,7 +302,7 @@ void mj_fwdActuation(const mjModel* m, mjData* d) {
       }
     }
   }
-
+  mjFREESTACK;
   TM_END(mjTIMER_ACTUATION);
 }
 
@@ -464,13 +467,8 @@ static void mj_advance(const mjModel* m, mjData* d,
     for (int i=0; i<m->na; i++) {
       int iu = i + m->nu - m->na;
       if (m->actuator_actlimited[iu]) {
-        mjtNum min = m->actuator_actrange[2*iu];
-        mjtNum max = m->actuator_actrange[2*iu+1];
-        if (d->act[i]<min) {
-          d->act[i] = min;
-        } else if (d->act[i]>max) {
-          d->act[i] = max;
-        }
+        mjtNum* actrange = m->actuator_actrange + 2*iu;
+        d->act[i] = mju_clip(d->act[i], actrange[0], actrange[1]);
       }
     }
   }

@@ -69,6 +69,9 @@ MJAPI mjtNum mju_min(mjtNum a, mjtNum b);
 // max function, single evaluation of a and b
 MJAPI mjtNum mju_max(mjtNum a, mjtNum b);
 
+// clip x to the range [min, max]
+MJAPI mjtNum mju_clip(mjtNum x, mjtNum min, mjtNum max);
+
 // sign function
 MJAPI mjtNum mju_sign(mjtNum x);
 
