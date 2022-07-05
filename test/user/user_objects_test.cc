@@ -28,9 +28,8 @@
 namespace mujoco {
 namespace {
 
-static std::vector<mjtNum> GetRow(const mjtNum* array, int ncolumn, int row) {
-  return std::vector<mjtNum>(array + ncolumn * row,
-                             array + ncolumn * (row + 1));
+std::vector<mjtNum> AsVector(const mjtNum* array, int n) {
+  return std::vector<mjtNum>(array, array + n);
 }
 
 using ::testing::ElementsAre;
@@ -38,6 +37,59 @@ using ::testing::HasSubstr;
 using ::testing::IsNull;
 using ::testing::NotNull;
 
+// ------------------------ test keyframes -------------------------------------
+
+static const char* const kKeyframePath = "user/testdata/keyframe.xml";
+
+TEST_F(MujocoTest, KeyFrameTest) {
+  const std::string xml_path = GetTestDataFilePath(kKeyframePath);
+  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, nullptr, 0);
+  ASSERT_THAT(model, NotNull());
+  EXPECT_EQ(model->nkey, 7);
+  EXPECT_EQ(model->key_time[0 * 1], 0.1);
+  EXPECT_EQ(model->key_qpos[1 * model->nq], 0.2);
+  EXPECT_EQ(model->key_qvel[2 * model->nv], 0.3);
+  EXPECT_EQ(model->key_act[3 * model->na], 0.4);
+  EXPECT_THAT(AsVector(model->key_ctrl + 4*model->nu, model->nu),
+              ElementsAre(0.5, 0.6));
+  EXPECT_THAT(AsVector(model->key_mpos + 3*model->nmocap*5, 3),
+              ElementsAre(.1, .2, .3));
+  EXPECT_THAT(AsVector(model->key_mquat + 4*model->nmocap*6, 4),
+              ElementsAre(.5, .5, .5, .5));
+  mj_deleteModel(model);
+}
+
+TEST_F(MujocoTest, ResetDataKeyframeTest) {
+  const std::string xml_path = GetTestDataFilePath(kKeyframePath);
+  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, nullptr, 0);
+  ASSERT_THAT(model, NotNull());
+  mjData* data = mj_makeData(model);
+
+  mj_resetDataKeyframe(model, data, 0);
+  EXPECT_EQ(data->time, 0.1);
+
+  mj_resetDataKeyframe(model, data, 1);
+  EXPECT_EQ(data->qpos[0], 0.2);
+
+  mj_resetDataKeyframe(model, data, 2);
+  EXPECT_EQ(data->qvel[0], 0.3);
+
+  mj_resetDataKeyframe(model, data, 3);
+  EXPECT_EQ(data->act[0], 0.4);
+
+  mj_resetDataKeyframe(model, data, 4);
+  EXPECT_EQ(data->ctrl[0], 0.5);
+  EXPECT_EQ(data->ctrl[1], 0.6);
+
+  mj_resetDataKeyframe(model, data, 5);
+  EXPECT_THAT(AsVector(data->mocap_pos, 3), ElementsAre(.1, .2, .3));
+
+  mj_resetDataKeyframe(model, data, 6);
+  EXPECT_THAT(AsVector(data->mocap_quat, 4), ElementsAre(.5, .5, .5, .5));
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
 
 // ------------- test relative frame sensor compilation-------------------------
 
@@ -214,10 +266,10 @@ TEST_F(QuatNorm, QuatNotNormalized) {
   )";
   std::array<char, 1024> error;
   mjModel* m = LoadModelFromString(xml, error.data(), error.size());
-  EXPECT_THAT(GetRow(m->body_quat, 4, 1), ElementsAre(1./5, 2./5, 2./5, 4./5));
-  EXPECT_THAT(GetRow(m->geom_quat, 4, 0), ElementsAre(1./5, 2./5, 2./5, 4./5));
-  EXPECT_THAT(GetRow(m->site_quat, 4, 0), ElementsAre(1./5, 2./5, 2./5, 4./5));
-  EXPECT_THAT(GetRow(m->cam_quat, 4, 0), ElementsAre(1./5, 2./5, 2./5, 4./5));
+  EXPECT_THAT(AsVector(m->body_quat+4, 4), ElementsAre(1./5, 2./5, 2./5, 4./5));
+  EXPECT_THAT(AsVector(m->geom_quat, 4), ElementsAre(1./5, 2./5, 2./5, 4./5));
+  EXPECT_THAT(AsVector(m->site_quat, 4), ElementsAre(1./5, 2./5, 2./5, 4./5));
+  EXPECT_THAT(AsVector(m->cam_quat, 4), ElementsAre(1./5, 2./5, 2./5, 4./5));
   mj_deleteModel(m);
 }
 

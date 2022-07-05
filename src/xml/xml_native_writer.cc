@@ -1662,6 +1662,15 @@ void mjXWriter::Keyframe(XMLElement* root) {
       }
     }
 
+    // check ctrl and write
+    for (int j=0; j<model->nu; j++) {
+      if (pk->ctrl[j]!=0) {
+        WriteAttr(elem, "ctrl", model->nu, pk->ctrl.data());
+        change = true;
+        break;
+      }
+    }
+
     // remove elem if empty
     if (!change) {
       section->DeleteChild(elem);

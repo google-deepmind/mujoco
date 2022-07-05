@@ -592,7 +592,7 @@ void mj_printFormattedModel(const mjModel* m, const char* filename, const char* 
         k = 2;
       }
 
-    // print if nozero
+    // print if nonzero
     if (k==2) {
       fprintf(fp, "key_qvel%d   ", i);
       for (int j=0; j<m->nv; j++) {
@@ -664,6 +664,24 @@ void mj_printFormattedModel(const mjModel* m, const char* filename, const char* 
       }
       fprintf(fp, "\n");
     }
+
+    // check ctrl for nonzero
+    for (int j=0; j<m->nu; j++) {
+      if (m->key_ctrl[i*m->nu + j]) {
+        k = 6;
+        break;
+      }
+    }
+
+    // print if nonzero
+    if (k==6) {
+      fprintf(fp, "key_ctrl%d   ", i);
+      for (int j=0; j<m->nu; j++) {
+        fprintf(fp, float_format, m->key_ctrl[i*m->nu + j]);
+      }
+      fprintf(fp, "\n");
+    }
+
 
     // new line if any data was written
     if (k) {

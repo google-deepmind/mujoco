@@ -3980,6 +3980,7 @@ mjCKey::mjCKey(mjCModel* _model) {
   act.clear();
   mpos.clear();
   mquat.clear();
+  ctrl.clear();
 }
 
 
@@ -3991,6 +3992,7 @@ mjCKey::~mjCKey() {
   act.clear();
   mpos.clear();
   mquat.clear();
+  ctrl.clear();
 }
 
 
@@ -4063,4 +4065,15 @@ void mjCKey::Compile(const mjModel* m) {
   } else if (mquat.size()!=4*m->nmocap) {
     throw mjCError(this, "key %d: invalid mquat size", 0, id);
   }
+
+  // ctrl: allocate or check size
+  if (ctrl.empty()) {
+    ctrl.resize(m->nu);
+    for (i=0; i<m->nu; i++) {
+      ctrl[i] = 0;
+    }
+  } else if (ctrl.size()!=m->nu) {
+    throw mjCError(this, "key %d: invalid ctrl size", 0, id);
+  }
+
 }

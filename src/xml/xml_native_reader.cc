@@ -348,7 +348,7 @@ static const char* MJCF[nMJCF][mjXATTRNUM] = {
 
     {"keyframe", "*", "0"},
     {"<"},
-        {"key", "*", "7", "name", "time", "qpos", "qvel", "act", "mpos", "mquat"},
+        {"key", "*", "8", "name", "time", "qpos", "qvel", "act", "mpos", "mquat", "ctrl"},
     {">"},
 {">"}
 };
@@ -2788,7 +2788,7 @@ void mjXReader::Keyframe(XMLElement* section) {
       mjuu_copyvec(pk->qvel.data(), data, n);
     }
 
-    // read qvel
+    // read act
     n = ReadAttr(elem, "act", 1000, data, text, false, false);
     if (n) {
       pk->act.resize(n);
@@ -2807,6 +2807,13 @@ void mjXReader::Keyframe(XMLElement* section) {
     if (n) {
       pk->mquat.resize(n);
       mjuu_copyvec(pk->mquat.data(), data, n);
+    }
+
+    // read ctrl
+    n = ReadAttr(elem, "ctrl", 1000, data, text, false, false);
+    if (n) {
+      pk->ctrl.resize(n);
+      mjuu_copyvec(pk->ctrl.data(), data, n);
     }
 
     // advance to next element

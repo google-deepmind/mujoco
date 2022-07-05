@@ -1016,6 +1016,7 @@ void mj_resetDataKeyframe(const mjModel* m, mjData* d, int key) {
     mju_copy(d->act,  m->key_act+ key*m->na, m->na);
     mju_copy(d->mocap_pos,  m->key_mpos+key*3*m->nmocap, 3*m->nmocap);
     mju_copy(d->mocap_quat, m->key_mquat+key*4*m->nmocap, 4*m->nmocap);
+    mju_copy(d->ctrl, m->key_ctrl+key*m->nu, m->nu);
   }
 }
 

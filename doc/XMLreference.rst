@@ -1411,7 +1411,9 @@ if present, the parser ignores it. The symbols in the second column of the table
 |                          |    |    +-------------------------+-------------------------+-------------------------+ |
 |                          |    |    | :at:`name`              | :at:`time`              | :at:`qpos`              | |
 |                          |    |    +-------------------------+-------------------------+-------------------------+ |
-|                          |    |    | :at:`qvel`              | :at:`act`               |                         | |
+|                          |    |    | :at:`qvel`              | :at:`act`               | :at:`ctrl`              | |
+|                          |    |    +-------------------------+-------------------------+-------------------------+ |
+|                          |    |    | :at:`mpos`              | :at:`mquat`             |                         | |
 |                          |    |    +-------------------------+-------------------------+-------------------------+ |
 +--------------------------+----+------------------------------------------------------------------------------------+
 
@@ -5194,3 +5196,9 @@ This element sets the data for one of the keyframes. They are set in the order i
    Vector of joint velocities, copied into mjData.qvel when the simulation state is set to this keyframe.
 :at:`act`: :at-val:`real(mjModel.na), "0 0 ..."`
    Vector of actuator activations, copied into mjData.act when the simulation state is set to this keyframe.
+:at:`ctrl`: :at-val:`real(mjModel.nu), "0 0 ..."`
+   Vector of controls, copied into mjData.ctrl when the simulation state is set to this keyframe.
+:at:`mpos`: :at-val:`real(3*mjModel.nmocap), default = mjModel.body_pos`
+   Vector of mocap body positions, copied into mjData.mocap_pos when the simulation state is set to this keyframe.
+:at:`mquat`: :at-val:`real(4*mjModel.nmocap), default = mjModel.body_quat`
+   Vector of mocap body quaternions, copied into mjData.mocap_quat when the simulation state is set to this keyframe.

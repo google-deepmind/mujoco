@@ -2147,6 +2147,7 @@ public unsafe struct mjModel_ {
   public double* key_act;
   public double* key_mpos;
   public double* key_mquat;
+  public double* key_ctrl;
   public int* name_bodyadr;
   public int* name_jntadr;
   public int* name_geomadr;

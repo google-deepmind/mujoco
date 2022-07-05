@@ -951,6 +951,7 @@ class mjCKey : public mjCBase {
   std::vector<double> act;        // act
   std::vector<double> mpos;       // mocap pos
   std::vector<double> mquat;      // mocap quat
+  std::vector<double> ctrl;       // ctrl
 
  private:
   mjCKey(mjCModel*);              // constructor

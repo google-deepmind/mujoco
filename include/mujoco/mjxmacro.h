@@ -135,6 +135,7 @@
     int nq = m->nq;                         \
     int nv = m->nv;                         \
     int na = m->na;                         \
+    int nu = m->nu;                         \
     int nmocap = m->nmocap;
 
 
@@ -395,6 +396,7 @@
     X( mjtNum,  key_act,               nkey,          MJ_M(na)             ) \
     X( mjtNum,  key_mpos,              nkey,          MJ_M(nmocap)*3       ) \
     X( mjtNum,  key_mquat,             nkey,          MJ_M(nmocap)*4       ) \
+    X( mjtNum,  key_ctrl,              nkey,          MJ_M(nu)             ) \
     X( int,     name_bodyadr,          nbody,         1                    ) \
     X( int,     name_jntadr,           njnt,          1                    ) \
     X( int,     name_geomadr,          ngeom,         1                    ) \

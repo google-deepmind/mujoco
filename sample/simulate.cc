@@ -1442,6 +1442,7 @@ void uiEvent(mjuiState* state) {
         mju_copy(d->act, m->key_act+i*m->na, m->na);
         mju_copy(d->mocap_pos, m->key_mpos+i*3*m->nmocap, 3*m->nmocap);
         mju_copy(d->mocap_quat, m->key_mquat+i*4*m->nmocap, 4*m->nmocap);
+        mju_copy(d->ctrl, m->key_ctrl+i*m->nu, m->nu);
         mj_forward(m, d);
         profilerupdate();
         sensorupdate();
@@ -1456,6 +1457,7 @@ void uiEvent(mjuiState* state) {
         mju_copy(m->key_act+i*m->na, d->act, m->na);
         mju_copy(m->key_mpos+i*3*m->nmocap, d->mocap_pos, 3*m->nmocap);
         mju_copy(m->key_mquat+i*4*m->nmocap, d->mocap_quat, 4*m->nmocap);
+        mju_copy(m->key_ctrl+i*m->nu, d->ctrl, m->nu);
         break;
       }
     }
