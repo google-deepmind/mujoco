@@ -507,6 +507,97 @@ Implicit-in-velocity Euler method (implicit)
    time will be wasted without meaningful improvement in accuracy. There is always a comfortable range where the time
    step is "just right", but that range is model-dependent.
 
+
+.. _geState:
+
+The **state**
+~~~~~~~~~~~~~
+
+To complete our description of the general framework we will now discuss the notion of *state*. MuJoCo has a compact,
+well-defined internal state which, together with the deterministic computational pipeline, means that operations like
+resetting the state and computing dynamics derivatives are also well-defined. The state is entirely encapsulated in the
+``mjData`` struct and consists of several components:
+
+.. _gePhysicsState:
+
+Physics state
+^^^^^^^^^^^^^
+| The *physics state* contains all quantities which are time-integrated during stepping.
+| They are ``mjData.{qpos, qvel, act, time}``:
+
+  Mechanical state: ``qpos`` and ``qvel``
+    The *mechanical state* of a simulation is given by the generalized position (``mjData.qpos``) and velocity
+    (``mjData.qvel``) vectors, denoted above as :math:`q` and :math:`v`, respectively.
+
+  Actuator activations: ``act``
+    ``mjData.act`` contains the internal states of stateful actuators, denoted above as :math:`w`.
+
+  Time: ``time``
+    The time of the simulation is given by the scalar ``mjData.time``. Since physics is time-invariant, it is
+    often excluded from the *physics state*; an exception could be a time-dependent user callback (e.g., an open-loop
+    controller), in which case time should be included.
+
+.. _geInput:
+
+User inputs
+^^^^^^^^^^^
+These input fields are set by the user and affect the physics simulation, but are untouched by the simulator.
+
+  Controls: ``ctrl``
+    Controls are defined by the :ref:`actuator<actuator>` section of the XML. ``mjData.ctrl`` values either produce
+    generalized forces directly (stateless actuators), or affects the actuator activations in ``mjData.act``, which then
+    produce forces.
+
+  Auxillary Controls: ``qfrc_applied`` and ``xfrc_applied``
+    | ``mjData.qfrc_applied`` are directly applied generalised forces.
+    | ``mjData.xfrc_applied`` are Cartesian wrenches applied to the CoM of individual bodies. This field is used for
+      example, by the :ref:`native viewer<saSimulate>` to apply mouse perturbations.
+    | Note that the effects of ``qfrc_applied`` and ``xfrc_applied`` can usually be recreated by appropriate actuator
+      definitions.
+
+  MoCap poses: ``mocap_pos`` and ``mocap_quat``
+    ``mjData.mocap_pos`` and ``mjData.mocap_quat`` are special optional kinematic states :ref:`described here<CMocap>`,
+    which allow the user to set the positions and orientations of static bodies in real-time, for example when streaming
+    6D poses from a motion-capture device.
+
+  User data: ``userdata``
+    ``mjData.userdata`` acts as a user-defined memory space untouched by the engine. For example it can be used by
+    callbacks. This is described in more detail in the :ref:`Programming chapter<siSimulation>`.
+
+.. _geWarmstart:
+
+Warmstart accelerations
+^^^^^^^^^^^^^^^^^^^^^^^
+
+  ``qacc_warmstart``
+    ``mjData.qacc_warmstart`` are accelerations used to warmstart the constraint solver, saved from the previous step.
+    When using a slowly-converging :ref:`constraint solver<Solver>` like PGS, these can speed up simulation by reducing
+    the number of iterations required for convergence. Note however that the default Newton solver converges so quickly
+    (usually 2-3 iterations), that warmstarts often have no effect on speed and can be disabled.
+
+    Different warmstarts have no preceptible effect on the dynamics but should be saved if perfect numerical
+    reproducibility is required when loading a non-initial state. Note that even though their effect on physics is
+    negligible, many physical systems will accumulate small differences  `exponentially
+    <https://en.wikipedia.org/wiki/Lyapunov_exponent>`__ when time-stepping, quickly leading to divergent trajectories
+    for different warmstarts.
+
+.. _geIntegrationState:
+
+Integration state
+^^^^^^^^^^^^^^^^^
+The *integration state* is the union of all the above ``mjData`` fields and constitutes the entire set of inputs to
+the *forward dynamics*. In the case of *inverse dynamics*, ``mjData.qacc`` is also treated as an input variable. All
+other ``mjData`` fields are functions of the integration state.
+
+.. _geSimulationState:
+
+Simulation state: ``mjData``
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+The *simulation state* is the entirety of the ``mjData`` struct and associated memory buffer. This state includes
+all derived quantities computed during dynamics computation. Because the ``mjData`` buffers are preallocated for the
+worst case, it is often significantly faster to recompute derived quantities from the *integration state* rather than
+using ``mj_copyData``.
+
 .. _Constraint:
 
 Constraint model
@@ -1421,6 +1512,35 @@ The top-level function :ref:`mj_inverse` invokes the following sequence of compu
 #. Compute sensor data that depends on force and acceleration if enabled.
 #. Compute the vector ``mjData.qfrc_inverse`` by combining all results. This is the main output of inverse dynamics. It
    equals the sum of external and actuation forces.
+
+
+.. _derivatives:
+
+Derivatives
+-----------
+
+MuJoCo's entire computational pipline and uniquely -- its contraint solver -- are analytically differentiable. Writing
+efficient implementations of these derivatives is a long term goal of the development team. Analytic derivatives of the
+smooth dynamics with respect to velocity are already in place and power the :ref:`implicit integrator<geIntegration>`.
+
+The function ``mjd_transitionFD`` computes state-transition and control-transition Jacobians. Given any valid MuJoCo
+model ``mjModel* m`` with an initial :ref:`simulation state<geState>` in ``mjData* d``,
+
+- let :math:`x` denote the *physics state* of the simulation at time :math:`t` -- the concatenation of positions,
+  velocities and actuator states ``[d->qpos; d->qvel; d->act]``.
+- Let :math:`u` denote the vector of controls at time :math:`t`, corresponding to ``d->ctrl``.
+- Let :math:`y` denote the physical state of the simulation at time :math:`t+h`, where :math:`h` corresponds to
+  ``m->opt.timstep``.
+- The high level function ``mj_step(m, d)`` computes :math:`y(x, u)` -- the next state as a function of
+  the current state and control.
+- ``mjd_transitionFD`` computes the Jacobians :math:`A = \frac{\partial y}{\partial x}` and
+  :math:`B = \frac{\partial y}{\partial u}` using efficient finite-differencing of ``mj_step``.
+
+These derivatives are efficient by exploiting MuJoCo's configurable computation pipeline so that quantities are not
+recomputed when not required. For example when differencing with respect to controls, quantities which depend only on
+position and velocity are not recomputed. Additionally, solver warmstarts, quaternions and control clamping are handled
+correctly. Both forward and centered differences are supported.
+
 
 .. _References:
 

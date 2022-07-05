@@ -6931,6 +6931,6 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  ),
              ),
          ),
-         doc='finite differenced state-transition and control-transition matrices dy = A*dx + B*du',  # pylint: disable=line-too-long
+         doc='Finite differenced state-transition and control-transition matrices dx(t+h) = A*dx(t) + B*du(t).   required output matrix dimensions:      A: (2*nv+na x 2*nv+na)      B: (2*nv+na x nu)',  # pylint: disable=line-too-long
      )),
 ])

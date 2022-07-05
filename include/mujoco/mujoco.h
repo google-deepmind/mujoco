@@ -1085,7 +1085,10 @@ MJAPI mjtNum mju_sigmoid(mjtNum x);
 
 //---------------------- Derivatives ---------------------------------------------------------------
 
-// finite differenced state-transition and control-transition matrices dy = A*dx + B*du
+// Finite differenced state-transition and control-transition matrices dx(t+h) = A*dx(t) + B*du(t).
+//   required output matrix dimensions:
+//      A: (2*nv+na x 2*nv+na)
+//      B: (2*nv+na x nu)
 MJAPI void mjd_transitionFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte centered,
                             mjtNum* A, mjtNum* B);
 

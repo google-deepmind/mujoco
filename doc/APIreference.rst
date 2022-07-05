@@ -6579,6 +6579,18 @@ mju_sigmoid
 
 Sigmoid function over 0<=x<=1 constructed from half-quadratics.
 
+mjd_transitionFD
+~~~~~~~~~~~~~~~~
+
+.. code-block:: C
+
+   void mjd_transitionFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte centered, mjtNum* A, mjtNum* B);
+
+Finite differenced state-transition and control-transition matrices dx(t+h) = A*dx(t) + B*du(t).
+  required output matrix dimensions:
+     A: (2*nv+na x 2*nv+na)
+     B: (2*nv+na x nu)
+
 .. _Macros:
 
 Macros

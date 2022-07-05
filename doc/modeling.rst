@@ -572,13 +572,13 @@ Activation clamping
 
 As described in the :ref:`Actuation model <geActuation>` section of the Computation chapter, MuJoCo supports actuators
 with internal dynamics whose states are called "activations". One useful application of these stateful actuators is the
-"integrated-velocity" actuator. Different from the :ref:`pure velocity<velocity>` actuators, which implement direct
-feedback on transmission target's velocity, *integrated-velocity* actuators couple an *integrator* with a *position-
-feedback* actuator. In this case the semantics of the activation state are "the target of the position actuator", and
-the semantics of the control signal are "the velocity of the target of the position actuator". Note that in real robotic
-systems this integrated-velocity actuator is the most common implementation of actuators with velocity semantics, rather
-than pure feedback on velocity which is often quite unstable (both in real life and in simulation). This actuator type
-is implemented by the :ref:`intvelocity<intvelocity>` shortcut.
+"integrated-velocity" actuator, implemented by the :ref:`intvelocity<intvelocity>` shortcut. Different from the
+:ref:`pure velocity<velocity>` actuators, which implement direct feedback on transmission target's velocity,
+*integrated-velocity* actuators couple an *integrator* with a *position-feedback* actuator. In this case the semantics
+of the activation state are "the target of the position actuator", and the semantics of the control signal are "the
+velocity of the target of the position actuator". Note that in real robotic systems this integrated-velocity actuator is
+the most common implementation of actuators with velocity semantics, rather than pure feedback on velocity which is
+often quite unstable (both in real life and in simulation).
 
 In the case of integrated-velocity actuators, it is often desirable to *clamp* the activation state, since otherwise the
 position target would keep integrating beyond the joint limits, leading to loss of controllabillity. To see the effect
@@ -1223,6 +1223,49 @@ corresponding MJCF can be easily re-created. In our experience though, URDF file
 often edited. Thus in practice it is usually sufficient to convert the URDF to MJCF once and after that only work with
 the MJCF.
 
+.. _CMocap:
+
+MoCap bodies
+~~~~~~~~~~~~
+
+``mocap`` bodies are static children of the world (i.e., have no joints) and their :at:`mocap` attribute is set to
+"true". They can be used to input a data stream from a motion capture device into a MuJoCo simulation. Suppose you are
+holding a VR controller, or an object instrumented with motion capture markers (e.g. Vicon), and want to have a
+simulated object moving in the same way but also interacting with other simulated objects. There is a dilemma here:
+virtual objects cannot push on your physical hand, so your hand (and thereby the object you are controlling) can
+violate the simulated physics. But at the same time we want the resulting simulation to be reasonable. How do we do
+this?
+
+The first step is to define a mocap body in the MJCF model, and implement code that reads the data stream at runtime and
+sets mjModel.mocap_pos and mjModel.mocap_quat to the position and orientation received from the motion capture system.
+The `simulate.cc <https://github.com/deepmind/mujoco/blob/main/sample/simulate.cc>`_ code sample uses the mouse as a
+motion capture device, allowing the user to move mocap bodies around:
+
+|particle|
+
+The key thing to understand about mocap bodies is that the simulator treats them as being fixed. We are causing them
+to move from one simulation time step to the next by updating their position and orientation directly, but as far as
+the physics model is concerned their position and orientation are constant. So what happens if we make contact with a
+regular dynamic body, as in the composite object examples provided with the MuJoCo 2.0 distribution (recall that in
+those example we have a capsule probe which is a mocap body that we move with the mouse). A contact between two
+regular bodies will experience penetration as well as relative velocity, while contact with a mocap body is missing
+the relative velocity component because the simulator does not know that the mocap body itself is moving. So the
+resulting contact force is smaller and it takes longer for the contact to push the dynamic object away. Also, in more
+complex simulations the fact that we are doing something inconsistent with the physics can cause instabilities.
+
+There is however a better-behaved alternative. In addition to the mocap body, we include a second regular body and
+connect it to the mocap body with a weld equality constraint. In the plots below, the pink box is the mocap body and
+it is connected to the base of the hand. In the absence of other constraints, the hand tracks the mocap body almost
+perfectly (and much better than a spring-damper would) because the constraints are handled implicitly and can produce
+large forces without destabilizing the simulation. But if the hand is forced to make contact with the table for example
+(right plot) it cannot simultaneously respect the contact constraint and track the mocap body. This is because the
+mocap body is free to go through the table. So which constraint wins? That depends on the softness of the weld
+constraint realtive to the contact constraint. The corresponding :at:`solref` and :at:`solimp` parameters need to be
+adjusted so as to achieve the desired trade-off. See the Modular Prosthetic Limb (MPL) hand model available on the
+MuJoCo Forum for an example; the plots below are generated with that model.
+
+|image18| |image19|
+
 .. _Tips:
 
 Tips and tricks
@@ -1351,47 +1394,6 @@ For example if the stack size is just sufficient for the CG solver, the Newton a
 When we design models, we usually aim for 50% utilization in the worst-case scenario encountered while exploring the
 model. If you only intend to use the CG solver, you can get away with significantly smaller stack allocation.
 
-.. _CMocap:
-
-Motion capture
-~~~~~~~~~~~~~~
-
-Mocap bodies are static children of the world (i.e., have no joints) and their :at:`mocap` attribute is set to
-"true". They can be used to input a data stream from a motion capture device into a MuJoCo simulation. Suppose you are
-holding a VR controller, or an object instrumented with motion capture markers (e.g. Vicon), and want to have a
-simulated object moving in the same way but also interacting with other simulated objects. There is a dilemma here:
-virtual objects cannot push on your physical hand, so your hand (and thereby the object you are controlling) can
-violate the simulated physics. But at the same time we want the resulting simulation to be reasonable. How do we do
-this?
-
-The first step is to define a mocap body in the MJCF model, and implement code that reads the data stream at runtime and
-sets mjModel.mocap_pos and mjModel.mocap_quat to the position and orientation received from the motion capture system.
-The `simulate.cc <https://github.com/deepmind/mujoco/blob/main/sample/simulate.cc>`_ code sample uses the mouse as a
-motion capture device, allowing the user to move mocap bodies around.
-
-The key thing to understand about mocap bodies is that the simulator treats them as being fixed. We are causing them
-to move from one simulation time step to the next by updating their position and orientation directly, but as far as
-the physics model is concerned their position and orientation are constant. So what happens if we make contact with a
-regular dynamic body, as in the composite object examples provided with the MuJoCo 2.0 distribution (recall that in
-those example we have a capsule probe which is a mocap body that we move with the mouse). A contact between two
-regular bodies will experience penetration as well as relative velocity, while contact with a mocap body is missing
-the relative velocity component because the simulator does not know that the mocap body itself is moving. So the
-resulting contact force is smaller and it takes longer for the contact to push the dynamic object away. Also, in more
-complex simulations the fact that we are doing something inconsistent with the physics can cause instabilities.
-
-There is however a better-behaved alternative. In addition to the mocap body, we include a second regular body and
-connect it to the mocap body with a weld equality constraint. In the plots below, the pink box is the mocap body and
-it is connected to the base of the hand. In the absence of other constraints, the hand tracks the mocap body almost
-perfectly (and much better than a spring-damper would) because the constraints are handled implicitly and can produce
-large forces without destabilizing the simulation. But if the hand is forced to make contact with the table for example
-(right plot) it cannot simultaneously respect the contact constraint and track the mocap body. This is because the
-mocap body is free to go through the table. So which constraint wins? That depends on the softness of the weld
-constraint realtive to the contact constraint. The corresponding :at:`solref` and :at:`solimp` parameters need to be
-adjusted so as to achieve the desired trade-off. See the Modular Prosthetic Limb (MPL) hand model available on the
-MuJoCo Forum for an example; the plots below are generated with that model.
-
-|image18| |image19|
-
 .. |image0| image:: images/modeling/impedance.png
    :width: 600px
 .. |image1| image:: images/modeling/musclemodel.png
@@ -1432,4 +1434,6 @@ MuJoCo Forum for an example; the plots below are generated with that model.
    :height: 250px
 .. |image19| image:: images/modeling/mocap2.png
    :height: 250px
+.. |particle| image:: images/models/particle.gif
+   :width: 270px
 .. _simulate.cc: https://github.com/deepmind/mujoco/blob/main/sample/simulate.cc
