@@ -24,6 +24,7 @@
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjtnum.h>
 #include <mujoco/mujoco.h>
+#include "src/engine/engine_support.h"
 #include "src/engine/engine_util_blas.h"
 #include "src/engine/engine_util_spatial.h"
 #include "test/fixture.h"
@@ -42,6 +43,7 @@ static std::vector<mjtNum> GetSensor(const mjModel* model, const mjData* data, i
 
 using ::testing::Pointwise;
 using ::testing::DoubleNear;
+using ::testing::StrEq;
 using RelativeFrameSensorTest = MujocoTest;
 
 const mjtNum tol = 1e-14;  // nearness tolerance for floating point numbers
@@ -356,6 +358,40 @@ TEST_F(RelativeFrameSensorTest, FrameVelGeneral) {
   mj_deleteModel(model);
 }
 
+// ------------------------- general sensor tests  -----------------------------
+using SensorTest = MujocoTest;
+
+// test clock sensor
+TEST_F(SensorTest, Clock) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <option timestep="1e-3"/>
+    <sensor>
+      <clock/>
+      <clock name="clampedclock" cutoff="3e-3"/>
+    </sensor>
+  </mujoco>
+  )";
+  mjModel* model = LoadModelFromString(xml, 0, 0);
+  mjData* data = mj_makeData(model);
+
+  // call step 4 times, checking that clock works as expected
+  for (int i=0; i<5; i++) {
+    mj_step(model, data);
+    mj_step1(model, data); // update values of position-based sensors
+    EXPECT_EQ(data->sensordata[0], data->time);
+    EXPECT_EQ(data->sensordata[1], mju_min(data->time, 3e-3));
+  }
+
+  // chack names
+  const char* name0 = mj_id2name(model, mjOBJ_SENSOR, 0);
+  EXPECT_EQ(name0, nullptr);
+  const char* name1 = mj_id2name(model, mjOBJ_SENSOR, 1);
+  EXPECT_THAT(name1, StrEq("clampedclock"));
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
 
 }  // namespace
 }  // namespace mujoco

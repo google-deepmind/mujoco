@@ -1541,6 +1541,11 @@ void mjXWriter::Sensor(XMLElement* root) {
       WriteAttrTxt(elem, "body", psen->objname);
       break;
 
+    // global sensors
+    case mjSENS_CLOCK:
+      elem = InsertEnd(section, "clock");
+      break;
+
     // user-defined sensor
     case mjSENS_USER:
       elem = InsertEnd(section, "user");

@@ -310,6 +310,9 @@ typedef enum mjtSensor_ {         // type of sensor
   mjSENS_SUBTREELINVEL,           // 3D linear velocity of subtree
   mjSENS_SUBTREEANGMOM,           // 3D angular momentum of subtree
 
+  // global sensors
+  mjSENS_CLOCK,                   // simulation time
+
   // user-defined sensor
   mjSENS_USER                     // sensor data provided by mjcb_sensor callback
 } mjtSensor;

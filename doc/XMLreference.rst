@@ -5135,6 +5135,16 @@ at a specified body, in global coordinates.
 :at:`body`: :at-val:`string, required`
    Name of the body where the kinematic subtree is rooted.
 
+.. _sensor-clock:
+
+:el-prefix:`sensor/` **clock** (*)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+This element creates sensor that returns the simulation time.
+
+:at:`name`, :at:`noise`, :at:`cutoff`, :at:`user`
+   See :ref:`CSensor`.
+
 .. _sensor-user:
 
 :el-prefix:`sensor/` **user** (*)

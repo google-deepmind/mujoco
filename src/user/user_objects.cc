@@ -3533,7 +3533,7 @@ void mjCSensor::Compile(void) {
 
     // get sensorized object id
     objid = pobj->id;
-  } else {
+  } else if (type != mjSENS_CLOCK) {
     throw mjCError(this, "invalid type in sensor '%s' (id = %d)", name.c_str(), id);
   }
 
@@ -3802,6 +3802,12 @@ void mjCSensor::Compile(void) {
     } else {
       needstage = mjSTAGE_VEL;
     }
+    break;
+
+  case mjSENS_CLOCK:
+    dim = 1;
+    needstage = mjSTAGE_POS;
+    datatype = mjDATATYPE_REAL;
     break;
 
   case mjSENS_USER:

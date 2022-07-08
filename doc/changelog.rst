@@ -11,6 +11,7 @@ General
 - Added ``mjd_transitionFD`` to compute efficient finite difference approximations of the state-transition and
   control-transition matrices, :ref:`see here<derivatives>` for more details.
 - Added ``ctrl`` attribute to :ref:`keyframes<keyframe>`.
+- Added ``clock`` sensor which :ref:`measures time<sensor-clock>`.
 - Added visualisation groups to skins.
 - Added actuator visualisation for ``free`` and ``ball`` joints and for actuators with ``site`` transmission.
 - Added visualisation for actuator activations.

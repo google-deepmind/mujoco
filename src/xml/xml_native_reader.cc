@@ -42,7 +42,7 @@ using tinyxml2::XMLElement;
 
 //---------------------------------- MJCF schema ---------------------------------------------------
 
-static const int nMJCF = 162;
+static const int nMJCF = 163;
 static const char* MJCF[nMJCF][mjXATTRNUM] = {
 {"mujoco", "!", "1", "model"},
 {"<"},
@@ -342,6 +342,7 @@ static const char* MJCF[nMJCF][mjXATTRNUM] = {
         {"subtreecom", "*", "5", "name", "body", "cutoff", "noise", "user"},
         {"subtreelinvel", "*", "5", "name", "body", "cutoff", "noise", "user"},
         {"subtreeangmom", "*", "5", "name", "body", "cutoff", "noise", "user"},
+        {"clock", "*", "4", "name", "cutoff", "noise", "user"},
         {"user", "*", "9", "name", "objtype", "objname", "datatype", "needstage",
             "dim", "cutoff", "noise", "user"},
     {">"},
@@ -2733,6 +2734,12 @@ void mjXReader::Sensor(XMLElement* section) {
       psen->type = mjSENS_SUBTREEANGMOM;
       psen->objtype = mjOBJ_BODY;
       ReadAttrTxt(elem, "body", psen->objname, true);
+    }
+
+    // global sensors
+    else if (type=="clock") {
+      psen->type = mjSENS_CLOCK;
+      psen->objtype = mjOBJ_UNKNOWN;
     }
 
     // user-defined sensor
