@@ -419,6 +419,37 @@ mjtNum mju_wrap(mjtNum* wpnt, const mjtNum* x0, const mjtNum* x1,
 
 
 
+// all 3 semi-axes of a geom
+void mju_geomSemiAxes(const mjModel* m, int geom_id, mjtNum semiaxes[3]) {
+  mjtNum* size = m->geom_size + 3*geom_id;
+  switch (m->geom_type[geom_id]) {
+  case mjGEOM_SPHERE:
+    semiaxes[0] = size[0];
+    semiaxes[1] = size[0];
+    semiaxes[2] = size[0];
+    break;
+
+  case mjGEOM_CAPSULE:
+    semiaxes[0] = size[0];
+    semiaxes[1] = size[0];
+    semiaxes[2] = size[1] + size[0];
+    break;
+
+  case mjGEOM_CYLINDER:
+    semiaxes[0] = size[0];
+    semiaxes[1] = size[0];
+    semiaxes[2] = size[1];
+    break;
+
+  default:
+    semiaxes[0] = size[0];
+    semiaxes[1] = size[1];
+    semiaxes[2] = size[2];
+  }
+}
+
+
+
 //------------------------------ actuator models ---------------------------------------------------
 
 // muscle active force, prm = (range[2], force, scale, lmin, lmax, vmax, fpmax, fvmax)

@@ -379,7 +379,7 @@ const mjMap bool_map[2] = {
 };
 
 
-// bool type
+// fluidshape type
 const mjMap fluid_map[2] = {
   {"none",      0},
   {"ellipsoid", 1}

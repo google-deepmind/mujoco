@@ -290,6 +290,8 @@ void mjXWriter::OneGeom(XMLElement* elem, mjCGeom* pgeom, mjCDef* def) {
   WriteAttr(elem, "margin", 1, &pgeom->margin, &def->geom.margin);
   WriteAttr(elem, "gap", 1, &pgeom->gap, &def->geom.gap);
   WriteAttr(elem, "gap", 1, &pgeom->gap, &def->geom.gap);
+  WriteAttrKey(elem, "fluidshape", fluid_map, 2, pgeom->fluid_switch, def->geom.fluid_switch);
+  WriteAttr(elem, "fluidcoef", 5, pgeom->fluid_coefs, def->geom.fluid_coefs);
   if (mjuu_defined(pgeom->_mass)) {
     double mass = pgeom->GetVolume() * def->geom.density;
     WriteAttr(elem, "mass", 1, &pgeom->mass, &mass);

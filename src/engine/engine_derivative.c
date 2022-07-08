@@ -19,6 +19,7 @@
 
 #include <mujoco/mjdata.h>
 #include <mujoco/mjmodel.h>
+#include "engine/engine_core_smooth.h"
 #include "engine/engine_forward.h"
 #include "engine/engine_core_constraint.h"
 #include "engine/engine_io.h"
@@ -33,6 +34,36 @@
 
 
 //------------------------- derivatives of spatial algebra -----------------------------------------
+
+
+
+// derivatives of cross product
+static void mjd_cross(const mjtNum a[3], const mjtNum b[3],
+                      mjtNum Da[restrict 9], mjtNum Db[restrict 9]) {
+  // derivative w.r.t a
+  if (Da) {
+    mju_zero(Da, 9);
+    Da[1] =  b[2];
+    Da[2] = -b[1];
+    Da[3] = -b[2];
+    Da[5] =  b[0];
+    Da[6] =  b[1];
+    Da[7] = -b[0];
+  }
+
+  // derivative w.r.t b
+  if (Db) {
+    mju_zero(Db, 9);
+    Db[1] = -a[2];
+    Db[2] =  a[1];
+    Db[3] =  a[2];
+    Db[5] = -a[0];
+    Db[6] = -a[1];
+    Db[7] =  a[0];
+  }
+}
+
+
 
 // derivative of mju_crossMotion w.r.t velocity
 static void mjd_crossMotion_vel(mjtNum D[36], const mjtNum v[6])
@@ -478,6 +509,8 @@ static void mjd_rne_vel(const mjModel* m, mjData* d, mjtNum* DfDv) {
 
 
 
+//--------------------- utility functions for (d force / d vel) Jacobians --------------------------
+
 // construct sparse Jacobian structure of body; return nnz
 static int bodyJacSparse(const mjModel* m, int body, int* ind) {
   // skip fixed bodies
@@ -562,242 +595,7 @@ static void addJTBJSparse(mjtNum* DfDv, const mjtNum* J, const mjtNum* B,
 
 
 
-// add (d qfrc_passive / d qvel) to DfDv
-void mjd_passive_vel(const mjModel* m, mjData* d, mjtNum* DfDv) {
-  mjMARKSTACK;
-  int nv = m->nv;
-
-  // disabled: nothing to add
-  if (mjDISABLED(mjDSBL_PASSIVE)) {
-    return;
-  }
-
-  // dof damping
-  for (int i=0; i<nv; i++) {
-    DfDv[i*(nv+1)] -= m->dof_damping[i];
-  }
-
-  // tendon damping
-  for (int i=0; i<m->ntendon; i++) {
-    if (m->tendon_damping[i]>0) {
-      mjtNum B = -m->tendon_damping[i];
-
-      // add sparse or dense
-      if (mj_isSparse(m)) {
-        addJTBJSparse(DfDv, d->ten_J, &B, 1, nv, i,
-                      d->ten_J_rownnz, d->ten_J_rowadr, d->ten_J_colind);
-      } else {
-        addJTBJ(DfDv, d->ten_J+i*nv, &B, 1, nv);
-      }
-    }
-  }
-
-  // body viscosity, lift and drag
-  if (m->opt.viscosity>0 || m->opt.density>0) {
-    int rownnz[6], rowadr[6];
-    mjtNum* J = mj_stackAlloc(d, 6*nv);
-    mjtNum* tmp = mj_stackAlloc(d, 3*nv);
-    int* colind = (int*) mj_stackAlloc(d, 6*nv);
-
-    for (int i=1; i<m->nbody; i++) {
-      if (m->body_mass[i]>mjMINVAL) {
-        mjtNum lvel[6], wind[6], lwind[6], box[3], B;
-        mjtNum* inertia = m->body_inertia + 3*i;
-
-        // equivalent inertia box
-        box[0] = mju_sqrt(mju_max(mjMINVAL,
-                                  (inertia[1] + inertia[2] - inertia[0])) / m->body_mass[i] * 6.0);
-        box[1] = mju_sqrt(mju_max(mjMINVAL,
-                                  (inertia[0] + inertia[2] - inertia[1])) / m->body_mass[i] * 6.0);
-        box[2] = mju_sqrt(mju_max(mjMINVAL,
-                                  (inertia[0] + inertia[1] - inertia[2])) / m->body_mass[i] * 6.0);
-
-        // map from CoM-centered to local body-centered 6D velocity
-        mj_objectVelocity(m, d, mjOBJ_BODY, i, lvel, 1);
-
-        // compute wind in local coordinates
-        mju_zero(wind, 6);
-        mju_copy3(wind+3, m->opt.wind);
-        mju_transformSpatial(lwind, wind, 0, d->xipos+3*i,
-                             d->subtree_com+3*m->body_rootid[i], d->ximat+9*i);
-
-        // subtract translational component from body velocity
-        mju_subFrom3(lvel+3, lwind+3);
-
-        // get body global Jacobian: rotation then translation
-        mj_jacBodyCom(m, d, J+3*nv, J, i);
-
-        // init with dense
-        int nnz = nv;
-
-        // prepare for sparse
-        if (mj_isSparse(m)) {
-          // get sparse body Jacobian structure
-          nnz = bodyJacSparse(m, i, colind);
-
-          // compress body Jacobian in-place
-          for (int j=0; j<6; j++) {
-            for (int k=0; k<nnz; k++) {
-              J[j*nnz+k] = J[j*nv+colind[k]];
-            }
-          }
-
-          // prepare rownnz, rowadr, colind for all 6 rows
-          rownnz[0] = nnz;
-          rowadr[0] = 0;
-          for (int j=1; j<6; j++) {
-            rownnz[j] = nnz;
-            rowadr[j] = rowadr[j-1] + nnz;
-            for (int k=0; k<nnz; k++) {
-              colind[j*nnz+k] = colind[k];
-            }
-          }
-        }
-
-        // rotate (compressed) Jacobian to local frame
-        mju_mulMatTMat(tmp, d->ximat+9*i, J, 3, 3, nnz);
-        mju_copy(J, tmp, 3*nnz);
-        mju_mulMatTMat(tmp, d->ximat+9*i, J+3*nnz, 3, 3, nnz);
-        mju_copy(J+3*nnz, tmp, 3*nnz);
-
-        // add viscous force and torque
-        if (m->opt.viscosity>0) {
-          // diameter of sphere approximation
-          mjtNum diam = (box[0] + box[1] + box[2])/3.0;
-
-          // mju_scl3(lfrc, lvel, -mjPI*diam*diam*diam*m->opt.viscosity)
-          B = -mjPI*diam*diam*diam*m->opt.viscosity;
-          for (int j=0; j<3; j++) {
-            if (mj_isSparse(m)) {
-              addJTBJSparse(DfDv, J, &B, 1, nv, j,
-                            rownnz, rowadr, colind);
-            } else {
-              addJTBJ(DfDv, J+j*nv, &B, 1, nv);
-            }
-          }
-
-          // mju_scl3(lfrc+3, lvel+3, -3.0*mjPI*diam*m->opt.viscosity);
-          B = -3.0*mjPI*diam*m->opt.viscosity;
-          for (int j=0; j<3; j++) {
-            if (mj_isSparse(m)) {
-              addJTBJSparse(DfDv, J, &B, 1, nv, 3+j,
-                            rownnz, rowadr, colind);
-            } else {
-              addJTBJ(DfDv, J+3*nv+j*nv, &B, 1, nv);
-            }
-          }
-        }
-
-        // add lift and drag force and torque
-        if (m->opt.density>0) {
-          // lfrc[0] -= m->opt.density*box[0]*(box[1]*box[1]*box[1]*box[1]+box[2]*box[2]*box[2]*box[2])*
-          //            mju_abs(lvel[0])*lvel[0]/64.0;
-          B = -m->opt.density*box[0]*(box[1]*box[1]*box[1]*box[1]+box[2]*box[2]*box[2]*box[2])*
-              2*mju_abs(lvel[0])/64.0;
-          if (mj_isSparse(m)) {
-            addJTBJSparse(DfDv, J, &B, 1, nv, 0,
-                          rownnz, rowadr, colind);
-          } else {
-            addJTBJ(DfDv, J, &B, 1, nv);
-          }
-
-          // lfrc[1] -= m->opt.density*box[1]*(box[0]*box[0]*box[0]*box[0]+box[2]*box[2]*box[2]*box[2])*
-          //            mju_abs(lvel[1])*lvel[1]/64.0;
-          B = -m->opt.density*box[1]*(box[0]*box[0]*box[0]*box[0]+box[2]*box[2]*box[2]*box[2])*
-              2*mju_abs(lvel[1])/64.0;
-          if (mj_isSparse(m)) {
-            addJTBJSparse(DfDv, J, &B, 1, nv, 1,
-                          rownnz, rowadr, colind);
-          } else {
-            addJTBJ(DfDv, J+nv, &B, 1, nv);
-          }
-
-          // lfrc[2] -= m->opt.density*box[2]*(box[0]*box[0]*box[0]*box[0]+box[1]*box[1]*box[1]*box[1])*
-          //            mju_abs(lvel[2])*lvel[2]/64.0;
-          B = -m->opt.density*box[2]*(box[0]*box[0]*box[0]*box[0]+box[1]*box[1]*box[1]*box[1])*
-              2*mju_abs(lvel[2])/64.0;
-          if (mj_isSparse(m)) {
-            addJTBJSparse(DfDv, J, &B, 1, nv, 2,
-                          rownnz, rowadr, colind);
-          } else {
-            addJTBJ(DfDv, J+2*nv, &B, 1, nv);
-          }
-
-          // lfrc[3] -= 0.5*m->opt.density*box[1]*box[2]*mju_abs(lvel[3])*lvel[3];
-          B = -0.5*m->opt.density*box[1]*box[2]*2*mju_abs(lvel[3]);
-          if (mj_isSparse(m)) {
-            addJTBJSparse(DfDv, J, &B, 1, nv, 3,
-                          rownnz, rowadr, colind);
-          } else {
-            addJTBJ(DfDv, J+3*nv, &B, 1, nv);
-          }
-
-          // lfrc[4] -= 0.5*m->opt.density*box[0]*box[2]*mju_abs(lvel[4])*lvel[4];
-          B = -0.5*m->opt.density*box[0]*box[2]*2*mju_abs(lvel[4]);
-          if (mj_isSparse(m)) {
-            addJTBJSparse(DfDv, J, &B, 1, nv, 4,
-                          rownnz, rowadr, colind);
-          } else {
-            addJTBJ(DfDv, J+4*nv, &B, 1, nv);
-          }
-
-          // lfrc[5] -= 0.5*m->opt.density*box[0]*box[1]*mju_abs(lvel[5])*lvel[5];
-          B = -0.5*m->opt.density*box[0]*box[1]*2*mju_abs(lvel[5]);
-          if (mj_isSparse(m)) {
-            addJTBJSparse(DfDv, J, &B, 1, nv, 5,
-                          rownnz, rowadr, colind);
-          } else {
-            addJTBJ(DfDv, J+5*nv, &B, 1, nv);
-          }
-        }
-      }
-    }
-  }
-  mjFREESTACK;
-}
-
-
-
-// add forward fin-diff approximation of (d qfrc_passive / d qvel) to DfDv
-void mjd_passive_velFD(const mjModel* m, mjData* d, mjtNum eps, mjtNum* DfDv) {
-  int nv = m->nv;
-
-  mjMARKSTACK;
-  mjtNum* qfrc_passive = mj_stackAlloc(d, nv);
-  mjtNum* fd = mj_stackAlloc(d, nv);
-
-  // save qfrc_passive, assume mj_fwdVelocity was called
-  mju_copy(qfrc_passive, d->qfrc_passive, nv);
-
-  // loop over dofs
-  for (int i=0; i<nv; i++) {
-    // save qvel[i]
-    mjtNum saveqvel = d->qvel[i];
-
-    // eval at qvel[i]+eps
-    d->qvel[i] = saveqvel + eps;
-    mj_fwdVelocity(m, d);
-
-    // restore qvel[i]
-    d->qvel[i] = saveqvel;
-
-    // finite difference result in fd
-    mju_sub(fd, d->qfrc_passive, qfrc_passive, nv);
-    mju_scl(fd, fd, 1/eps, nv);
-
-    // copy to i-th column of DfDv
-    for (int j=0; j<nv; j++) {
-      DfDv[j*nv+i] += fd[j];
-    }
-  }
-
-  // restore
-  mj_fwdVelocity(m, d);
-
-  mjFREESTACK;
-}
-
-
+//----------------------------- derivatives of actuator forces -------------------------------------
 
 // derivative of mju_muscleGain w.r.t velocity
 static mjtNum mjd_muscleGain_vel(mjtNum len, mjtNum vel, const mjtNum lengthrange[2], mjtNum acc0,
@@ -917,6 +715,656 @@ static void mjd_actuator_vel(const mjModel* m, mjData* d, mjtNum* DfDv) {
   }
 }
 
+
+
+//----------------- utilities for ellipsoid-based fluid force derivatives --------------------------
+
+static inline mjtNum pow2(const mjtNum val) {
+  return val*val;
+}
+
+
+
+static inline mjtNum ellipsoid_max_moment(const mjtNum size[3], const int dir) {
+  const mjtNum d0 = size[dir];
+  const mjtNum d1 = size[(dir+1) % 3];
+  const mjtNum d2 = size[(dir+2) % 3];
+  return 8.0/15.0 * mjPI * d0 * pow2(pow2(mju_max(d1, d2)));
+}
+
+
+
+// add 3x3 matrix D to one of the four quadrants of the 6x6 matrix B
+//   row_quad and col_quad should be either 0 or 1 (not checked)
+static void addToQuadrant(mjtNum B[restrict 36], const mjtNum D[9], int col_quad, int row_quad) {
+  int r = 3*row_quad, c = 3*col_quad;
+  B[6*(c+0) + r+0] += D[0];
+  B[6*(c+0) + r+1] += D[1];
+  B[6*(c+0) + r+2] += D[2];
+  B[6*(c+1) + r+0] += D[3];
+  B[6*(c+1) + r+1] += D[4];
+  B[6*(c+1) + r+2] += D[5];
+  B[6*(c+2) + r+0] += D[6];
+  B[6*(c+2) + r+1] += D[7];
+  B[6*(c+2) + r+2] += D[8];
+}
+
+
+
+//----------------- components of ellipsoid-based fluid force derivatives --------------------------
+
+// forces due to fluid mass moving with the body
+static void mjd_addedMassForces(
+    mjtNum B[restrict 36], const mjtNum local_vels[6], const mjtNum fluid_density,
+    const mjtNum virtual_mass[3], const mjtNum virtual_inertia[3]) {
+  const mjtNum lin_vel[3] = {local_vels[3], local_vels[4], local_vels[5]};
+  const mjtNum ang_vel[3] = {local_vels[0], local_vels[1], local_vels[2]};;
+  const mjtNum virtual_lin_mom[3] = {
+    fluid_density * virtual_mass[0] * lin_vel[0],
+    fluid_density * virtual_mass[1] * lin_vel[1],
+    fluid_density * virtual_mass[2] * lin_vel[2]
+  };
+  const mjtNum virtual_ang_mom[3] = {
+    fluid_density * virtual_inertia[0] * ang_vel[0],
+    fluid_density * virtual_inertia[1] * ang_vel[1],
+    fluid_density * virtual_inertia[2] * ang_vel[2]
+  };
+  mjtNum Da[9];
+  mjtNum Db[9];
+
+  // force[:3] += cross(virtual_ang_mom, ang_vel)
+  mjd_cross(virtual_ang_mom, ang_vel, Da, Db);
+  addToQuadrant(B, Db, 0, 0);
+  for (int i=0; i<9; ++i) {
+    Da[i] *= fluid_density * virtual_inertia[i % 3];
+  }
+  addToQuadrant(B, Da, 0, 0);
+
+  // force[:3] += cross(virtual_lin_mom, lin_vel)
+  mjd_cross(virtual_lin_mom, lin_vel, Da, Db);
+  addToQuadrant(B, Db, 0, 1);
+  for (int i=0; i<9; ++i) {
+    Da[i] *= fluid_density * virtual_mass[i % 3];
+  }
+  addToQuadrant(B, Da, 0, 1);
+
+  // force[3:] += cross(virtual_lin_mom, ang_vel)
+  mjd_cross(virtual_lin_mom, ang_vel, Da, Db);
+  addToQuadrant(B, Db, 1, 0);
+  for (int i=0; i<9; ++i) {
+    Da[i] *= fluid_density * virtual_mass[i % 3];
+  }
+  addToQuadrant(B, Da, 1, 1);
+}
+
+
+
+// torque due to motion in the fluid
+static inline void mjd_viscous_torque(
+    mjtNum D[restrict 9], const mjtNum lvel[6], const mjtNum fluid_density,
+    const mjtNum fluid_viscosity, const mjtNum size[3],
+    const mjtNum slender_drag_coef, const mjtNum ang_drag_coef)
+{
+  const mjtNum d_max = mju_max(mju_max(size[0], size[1]), size[2]);
+  const mjtNum d_min = mju_min(mju_min(size[0], size[1]), size[2]);
+  const mjtNum d_mid = size[0] + size[1] + size[2] - d_max - d_min;
+  // viscous force and torque in Stokes flow, analytical for spherical bodies
+  const mjtNum eq_sphere_D = 2.0/3.0 * (size[0] + size[1] + size[2]);
+  const mjtNum lin_visc_torq_coef = mjPI * eq_sphere_D*eq_sphere_D*eq_sphere_D;
+
+  // moments of inertia used to compute angular quadratic drag
+  const mjtNum I_max = 8.0/15.0 * mjPI * d_mid * (d_max*d_max)*(d_max*d_max);
+  const mjtNum II[3] = {
+    ellipsoid_max_moment(size, 0),
+    ellipsoid_max_moment(size, 1),
+    ellipsoid_max_moment(size, 2)
+  };
+  const mjtNum x = lvel[0], y = lvel[1], z = lvel[2];
+  const mjtNum mom_coef[3] = {
+    ang_drag_coef*II[0] + slender_drag_coef*(I_max - II[0]),
+    ang_drag_coef*II[1] + slender_drag_coef*(I_max - II[1]),
+    ang_drag_coef*II[2] + slender_drag_coef*(I_max - II[2])
+  };
+  const mjtNum mom_visc[3] = {
+    x * mom_coef[0],
+    y * mom_coef[1],
+    z * mom_coef[2]
+  };
+  const mjtNum density = fluid_density / mju_max(mjMINVAL, mju_norm3(mom_visc));
+
+  // -density * [x, y, z] * mom_coef^2
+  const mjtNum mom_sq[3] = {
+    -density * x * mom_coef[0] * mom_coef[0],
+    -density * y * mom_coef[1] * mom_coef[1],
+    -density * z * mom_coef[2] * mom_coef[2]
+  };
+  const mjtNum lin_coef = fluid_viscosity * lin_visc_torq_coef;
+
+  // initialize
+  mju_zero(D, 9);
+
+  // set diagonal
+  D[0] = D[4] = D[8] = x*mom_sq[0] + y*mom_sq[1] + z*mom_sq[2] - lin_coef;
+
+  // add outer product
+  mju_addToScl3(D, mom_sq, x);
+  mju_addToScl3(D+3, mom_sq, y);
+  mju_addToScl3(D+6, mom_sq, z);
+}
+
+
+
+// drag due to motion in the fluid
+static inline void mjd_viscous_drag(
+    mjtNum D[restrict 9], const mjtNum lvel[6], const mjtNum fluid_density,
+    const mjtNum fluid_viscosity, const mjtNum size[3],
+    const mjtNum blunt_drag_coef, const mjtNum slender_drag_coef) {
+  const mjtNum d_max = mju_max(mju_max(size[0], size[1]), size[2]);
+  const mjtNum d_min = mju_min(mju_min(size[0], size[1]), size[2]);
+  const mjtNum d_mid = size[0] + size[1] + size[2] - d_max - d_min;
+  // viscous force and torque in Stokes flow, analytical for spherical bodies
+  const mjtNum eq_sphere_D = 2.0/3.0 * (size[0] + size[1] + size[2]);
+  const mjtNum A_max = mjPI * d_max * d_mid;
+
+  const mjtNum a = pow2(size[1] * size[2]);
+  const mjtNum b = pow2(size[2] * size[0]);
+  const mjtNum c = pow2(size[0] * size[1]);
+  const mjtNum aa = a*a, bb = b*b, cc = c*c;
+
+  const mjtNum x = lvel[3], y = lvel[4], z = lvel[5];
+  const mjtNum xx = x*x, yy = y*y, zz = z*z, xy=x*y, yz=y*z, xz=x*z;
+
+  const mjtNum proj_denom = aa*xx + bb*yy + cc*zz;
+  const mjtNum proj_num = a*xx + b*yy + c*zz;
+  const mjtNum dA_coef = mjPI / mju_max(mjMINVAL,
+                                        mju_sqrt(proj_num*proj_num*proj_num * proj_denom));
+
+  const mjtNum A_proj = mjPI * mju_sqrt(proj_denom/mju_max(mjMINVAL, proj_num));
+
+  const mjtNum norm = mju_sqrt(xx + yy + zz);
+  const mjtNum inv_norm = 1.0 / mju_max(mjMINVAL, norm);
+
+  const mjtNum lin_coef = fluid_viscosity * 3.0 * mjPI * eq_sphere_D;
+  const mjtNum quad_coef = fluid_density * (
+      A_proj*blunt_drag_coef + slender_drag_coef*(A_max - A_proj));
+  const mjtNum Aproj_coef = fluid_density * norm * (blunt_drag_coef - slender_drag_coef);
+
+  const mjtNum dAproj_dv[3] = {
+    Aproj_coef * dA_coef * a * x * (b * yy * (a - b) + c * zz * (a - c)),
+    Aproj_coef * dA_coef * b * y * (a * xx * (b - a) + c * zz * (b - c)),
+    Aproj_coef * dA_coef * c * z * (a * xx * (c - a) + b * yy * (c - b))
+  };
+
+  // outer product
+  D[0] = xx;  D[1] = xy;  D[2] = xz;
+  D[3] = xy;  D[4] = yy;  D[5] = yz;
+  D[6] = xz;  D[7] = yz;  D[8] = zz;
+
+  // diag(D) += dot([x y z], [x y z])
+  mjtNum inner = xx + yy + zz;
+  D[0] += inner;
+  D[4] += inner;
+  D[8] += inner;
+
+  // scale by -quad_coef*inv_norm
+  mju_scl(D, D, -quad_coef*inv_norm, 9);
+
+  // D += outer_product(-[x y z], dAproj_dv)
+  mju_addToScl3(D+0, dAproj_dv, -x);
+  mju_addToScl3(D+3, dAproj_dv, -y);
+  mju_addToScl3(D+6, dAproj_dv, -z);
+
+  // diag(D) -= lin_coef
+  D[0] -= lin_coef;
+  D[4] -= lin_coef;
+  D[8] -= lin_coef;
+}
+
+
+
+// Kutta lift due to motion in the fluid
+static inline void mjd_kutta_lift(
+    mjtNum D[restrict 9], const mjtNum lvel[6], const mjtNum fluid_density,
+    const mjtNum size[3], const mjtNum kutta_lift_coef) {
+  const mjtNum a = pow2(size[1] * size[2]);
+  const mjtNum b = pow2(size[2] * size[0]);
+  const mjtNum c = pow2(size[0] * size[1]);
+  const mjtNum aa = a*a, bb = b*b, cc = c*c;
+  const mjtNum x = lvel[3], y = lvel[4], z = lvel[5];
+  const mjtNum xx = x*x, yy = y*y, zz = z*z, xy=x*y, yz=y*z, xz=x*z;
+
+  const mjtNum proj_denom = aa * xx + bb * yy + cc * zz;
+  const mjtNum proj_num = a * xx + b * yy + c * zz;
+  const mjtNum norm2 = xx + yy + zz;
+  const mjtNum df_denom = mjPI * kutta_lift_coef * fluid_density / mju_max(
+      mjMINVAL, mju_sqrt(proj_denom * proj_num * norm2));
+
+  const mjtNum dfx_coef = yy * (a - b) + zz * (a - c);
+  const mjtNum dfy_coef = xx * (b - a) + zz * (b - c);
+  const mjtNum dfz_coef = xx * (c - a) + yy * (c - b);
+  const mjtNum proj_term = proj_num / mju_max(mjMINVAL, proj_denom);
+  const mjtNum cos_term = proj_num / mju_max(mjMINVAL, norm2);
+
+  // cosA = proj_num/(norm*proj_denom), A_proj = pi*sqrt(proj_denom/proj_num)
+  // F = cosA * A_proj * (([a,b,c] * vel) \times vel) \times vel
+  // derivative obtained with SymPy
+
+  D[0] = a-a;  D[1] = b-a;  D[2] = c-a;
+  D[3] = a-b;  D[4] = b-b;  D[5] = c-b;
+  D[6] = a-c;  D[7] = b-c;  D[8] = c-c;
+  mju_scl(D, D, 2 * proj_num, 9);
+
+  const mjtNum inner_term[3] = {
+    aa * proj_term - a + cos_term,
+    bb * proj_term - b + cos_term,
+    cc * proj_term - c + cos_term
+  };
+  mju_addToScl3(D + 0, inner_term, dfx_coef);
+  mju_addToScl3(D + 3, inner_term, dfy_coef);
+  mju_addToScl3(D + 6, inner_term, dfz_coef);
+
+  D[0] *= xx;  D[1] *= xy;  D[2] *= xz;
+  D[3] *= xy;  D[4] *= yy;  D[5] *= yz;
+  D[6] *= xz;  D[7] *= yz;  D[8] *= zz;
+
+  D[0] -= dfx_coef * proj_num;
+  D[4] -= dfy_coef * proj_num;
+  D[8] -= dfz_coef * proj_num;
+
+  mju_scl(D, D, df_denom, 9);
+}
+
+
+
+// Magnus force due to motion in the fluid
+static inline void mjd_magnus_force(
+    mjtNum B[restrict 36], const mjtNum lvel[6], const mjtNum fluid_density,
+    const mjtNum size[3], const mjtNum magnus_lift_coef) {
+  const mjtNum volume = 4.0/3.0 * mjPI * size[0] * size[1] * size[2];
+
+  // magnus_coef = magnus_lift_coef * fluid_density * volume
+  const mjtNum magnus_coef = magnus_lift_coef * fluid_density * volume;
+
+  mjtNum D_lin[9], D_ang[9];
+
+  // premultiply by magnus_coef
+  const mjtNum lin_vel[3] = {
+    magnus_coef * lvel[3], magnus_coef * lvel[4], magnus_coef * lvel[5]};
+  const mjtNum ang_vel[3] = {
+    magnus_coef * lvel[0], magnus_coef * lvel[1], magnus_coef * lvel[2]};
+
+  // force[3:] += magnus_coef * cross(ang_vel, lin_vel)
+  mjd_cross(ang_vel, lin_vel, D_ang, D_lin);
+
+  addToQuadrant(B, D_ang, 1, 0);
+  addToQuadrant(B, D_lin, 1, 1);
+}
+
+
+
+//----------------- fluid force derivatives, ellipsoid and inertia-box models ----------------------
+
+// fluid forces based on ellipsoid approximation
+void mjd_ellipsoidFluid(const mjModel* m, mjData* d, mjtNum* DfDv, int bodyid) {
+  mjMARKSTACK;
+
+  int nv = m->nv;
+  int nnz = nv;
+  int rownnz[6], rowadr[6];
+  mjtNum* J = mj_stackAlloc(d, 6*nv);
+  mjtNum* tmp = mj_stackAlloc(d, 3*nv);
+  int* colind = (int*) mj_stackAlloc(d, 6*nv);
+  int* colind_compressed = (int*) mj_stackAlloc(d, 6*nv);
+
+  mjtNum lvel[6], wind[6], lwind[6];
+  mjtNum geom_interaction_coef, magnus_lift_coef, kutta_lift_coef;
+  mjtNum semiaxes[3], virtual_mass[3], virtual_inertia[3];
+  mjtNum blunt_drag_coef, slender_drag_coef, ang_drag_coef;
+
+  if (mj_isSparse(m)) {
+    // get sparse body Jacobian structure
+    nnz = bodyJacSparse(m, bodyid, colind);
+
+    // prepare rownnz, rowadr, colind for all 6 rows
+    for (int i=0; i<6; i++) {
+      rownnz[i] = nnz;
+      rowadr[i] = i == 0 ? 0 : rowadr[i-1] + nnz;
+      for (int k=0; k<nnz; k++) {
+        colind_compressed[i*nnz+k] = colind[k];
+      }
+    }
+  }
+
+  for (int j=0; j<m->body_geomnum[bodyid]; j++) {
+    const int geomid = m->body_geomadr[bodyid] + j;
+
+    mju_geomSemiAxes(m, geomid, semiaxes);
+
+    readFluidGeomInteraction(
+        m->geom_fluid + mjNFLUID*geomid, &geom_interaction_coef,
+        &blunt_drag_coef, &slender_drag_coef, &ang_drag_coef,
+        &kutta_lift_coef, &magnus_lift_coef,
+        virtual_mass, virtual_inertia);
+
+    // scales all forces, read from MJCF as boolean (0.0 or 1.0)
+    if (geom_interaction_coef == 0.0) {
+      continue;
+    }
+
+    // map from CoM-centered to local body-centered 6D velocity
+    mj_objectVelocity(m, d, mjOBJ_GEOM, geomid, lvel, 1);
+    // compute wind in local coordinates
+    mju_zero(wind, 6);
+    mju_copy3(wind+3, m->opt.wind);
+    mju_transformSpatial(lwind, wind, 0,
+                         d->geom_xpos + 3*geomid, // Frame of ref's origin.
+                         d->subtree_com + 3*m->body_rootid[bodyid],
+                         d->geom_xmat + 9*geomid); // Frame of ref's orientation.
+    // subtract translational component from grom velocity
+    mju_subFrom3(lvel+3, lwind+3);
+
+    // get body global Jacobian: rotation then translation
+    mj_jacGeom(m, d, J+3*nv, J, geomid);
+
+    // compress geom Jacobian in-place
+    if (mj_isSparse(m)) {
+      for (int i=0; i<6; i++) {
+        for (int k=0; k<nnz; k++) {
+          J[i*nnz+k] = J[i*nv+colind[k]];
+        }
+      }
+    }
+
+    // rotate (compressed) Jacobian to local frame
+    mju_mulMatTMat(tmp, d->geom_xmat+9*geomid, J, 3, 3, nnz);
+    mju_copy(J, tmp, 3*nnz);
+    mju_mulMatTMat(tmp, d->geom_xmat+9*geomid, J+3*nnz, 3, 3, nnz);
+    mju_copy(J+3*nnz, tmp, 3*nnz);
+
+    mjtNum B[36], D[9];
+    mju_zero(B, 36);
+    mjd_magnus_force(B, lvel, m->opt.density, semiaxes, magnus_lift_coef);
+
+    mjd_kutta_lift(D, lvel, m->opt.density, semiaxes, kutta_lift_coef);
+    addToQuadrant(B, D, 1, 1);
+
+    mjd_viscous_drag(D, lvel, m->opt.density, m->opt.viscosity, semiaxes,
+                     blunt_drag_coef, slender_drag_coef);
+    addToQuadrant(B, D, 1, 1);
+
+    mjd_viscous_torque(D, lvel, m->opt.density, m->opt.viscosity, semiaxes,
+                       slender_drag_coef, ang_drag_coef);
+    addToQuadrant(B, D, 0, 0);
+
+    mjd_addedMassForces(B, lvel, m->opt.density, virtual_mass, virtual_inertia);
+
+    if (mj_isSparse(m)) {
+      addJTBJSparse(DfDv, J, B, 6, nv, 0, rownnz, rowadr, colind_compressed);
+    } else {
+      addJTBJ(DfDv, J, B, 6, nv);
+    }
+  }
+
+  mjFREESTACK;
+}
+
+
+// fluid forces based on inertia-box approximation
+void mjd_inertiaBoxFluid(const mjModel* m, mjData* d, mjtNum* DfDv, int i)
+{
+  mjMARKSTACK;
+
+  int nv = m->nv;
+  int rownnz[6], rowadr[6];
+  mjtNum* J = mj_stackAlloc(d, 6*nv);
+  mjtNum* tmp = mj_stackAlloc(d, 3*nv);
+  int* colind = (int*) mj_stackAlloc(d, 6*nv);
+
+  mjtNum lvel[6], wind[6], lwind[6], box[3], B;
+  mjtNum* inertia = m->body_inertia + 3*i;
+
+  // equivalent inertia box
+  box[0] = mju_sqrt(mju_max(mjMINVAL,
+                            (inertia[1] + inertia[2] - inertia[0])) / m->body_mass[i] * 6.0);
+  box[1] = mju_sqrt(mju_max(mjMINVAL,
+                            (inertia[0] + inertia[2] - inertia[1])) / m->body_mass[i] * 6.0);
+  box[2] = mju_sqrt(mju_max(mjMINVAL,
+                            (inertia[0] + inertia[1] - inertia[2])) / m->body_mass[i] * 6.0);
+
+  // map from CoM-centered to local body-centered 6D velocity
+  mj_objectVelocity(m, d, mjOBJ_BODY, i, lvel, 1);
+
+  // compute wind in local coordinates
+  mju_zero(wind, 6);
+  mju_copy3(wind+3, m->opt.wind);
+  mju_transformSpatial(lwind, wind, 0, d->xipos+3*i,
+                       d->subtree_com+3*m->body_rootid[i], d->ximat+9*i);
+
+  // subtract translational component from body velocity
+  mju_subFrom3(lvel+3, lwind+3);
+
+  // get body global Jacobian: rotation then translation
+  mj_jacBodyCom(m, d, J+3*nv, J, i);
+
+  // init with dense
+  int nnz = nv;
+
+  // prepare for sparse
+  if (mj_isSparse(m)) {
+    // get sparse body Jacobian structure
+    nnz = bodyJacSparse(m, i, colind);
+
+    // compress body Jacobian in-place
+    for (int j=0; j<6; j++) {
+      for (int k=0; k<nnz; k++) {
+        J[j*nnz+k] = J[j*nv+colind[k]];
+      }
+    }
+
+    // prepare rownnz, rowadr, colind for all 6 rows
+    rownnz[0] = nnz;
+    rowadr[0] = 0;
+    for (int j=1; j<6; j++) {
+      rownnz[j] = nnz;
+      rowadr[j] = rowadr[j-1] + nnz;
+      for (int k=0; k<nnz; k++) {
+        colind[j*nnz+k] = colind[k];
+      }
+    }
+  }
+
+  // rotate (compressed) Jacobian to local frame
+  mju_mulMatTMat(tmp, d->ximat+9*i, J, 3, 3, nnz);
+  mju_copy(J, tmp, 3*nnz);
+  mju_mulMatTMat(tmp, d->ximat+9*i, J+3*nnz, 3, 3, nnz);
+  mju_copy(J+3*nnz, tmp, 3*nnz);
+
+  // add viscous force and torque
+  if (m->opt.viscosity>0) {
+    // diameter of sphere approximation
+    mjtNum diam = (box[0] + box[1] + box[2])/3.0;
+
+    // mju_scl3(lfrc, lvel, -mjPI*diam*diam*diam*m->opt.viscosity)
+    B = -mjPI*diam*diam*diam*m->opt.viscosity;
+    for (int j=0; j<3; j++) {
+      if (mj_isSparse(m)) {
+        addJTBJSparse(DfDv, J, &B, 1, nv, j, rownnz, rowadr, colind);
+      } else {
+        addJTBJ(DfDv, J+j*nv, &B, 1, nv);
+      }
+    }
+
+    // mju_scl3(lfrc+3, lvel+3, -3.0*mjPI*diam*m->opt.viscosity);
+    B = -3.0*mjPI*diam*m->opt.viscosity;
+    for (int j=0; j<3; j++) {
+      if (mj_isSparse(m)) {
+        addJTBJSparse(DfDv, J, &B, 1, nv, 3+j, rownnz, rowadr, colind);
+      } else {
+        addJTBJ(DfDv, J+3*nv+j*nv, &B, 1, nv);
+      }
+    }
+  }
+
+  // add lift and drag force and torque
+  if (m->opt.density>0) {
+    // lfrc[0] -= m->opt.density*box[0]*(box[1]*box[1]*box[1]*box[1]+box[2]*box[2]*box[2]*box[2])*
+    //            mju_abs(lvel[0])*lvel[0]/64.0;
+    B = -m->opt.density*box[0]*(box[1]*box[1]*box[1]*box[1]+box[2]*box[2]*box[2]*box[2])*
+        2*mju_abs(lvel[0])/64.0;
+    if (mj_isSparse(m)) {
+      addJTBJSparse(DfDv, J, &B, 1, nv, 0, rownnz, rowadr, colind);
+    } else {
+      addJTBJ(DfDv, J, &B, 1, nv);
+    }
+
+    // lfrc[1] -= m->opt.density*box[1]*(box[0]*box[0]*box[0]*box[0]+box[2]*box[2]*box[2]*box[2])*
+    //            mju_abs(lvel[1])*lvel[1]/64.0;
+    B = -m->opt.density*box[1]*(box[0]*box[0]*box[0]*box[0]+box[2]*box[2]*box[2]*box[2])*
+        2*mju_abs(lvel[1])/64.0;
+    if (mj_isSparse(m)) {
+      addJTBJSparse(DfDv, J, &B, 1, nv, 1, rownnz, rowadr, colind);
+    } else {
+      addJTBJ(DfDv, J+nv, &B, 1, nv);
+    }
+
+    // lfrc[2] -= m->opt.density*box[2]*(box[0]*box[0]*box[0]*box[0]+box[1]*box[1]*box[1]*box[1])*
+    //            mju_abs(lvel[2])*lvel[2]/64.0;
+    B = -m->opt.density*box[2]*(box[0]*box[0]*box[0]*box[0]+box[1]*box[1]*box[1]*box[1])*
+        2*mju_abs(lvel[2])/64.0;
+    if (mj_isSparse(m)) {
+      addJTBJSparse(DfDv, J, &B, 1, nv, 2, rownnz, rowadr, colind);
+    } else {
+      addJTBJ(DfDv, J+2*nv, &B, 1, nv);
+    }
+
+    // lfrc[3] -= 0.5*m->opt.density*box[1]*box[2]*mju_abs(lvel[3])*lvel[3];
+    B = -0.5*m->opt.density*box[1]*box[2]*2*mju_abs(lvel[3]);
+    if (mj_isSparse(m)) {
+      addJTBJSparse(DfDv, J, &B, 1, nv, 3, rownnz, rowadr, colind);
+    } else {
+      addJTBJ(DfDv, J+3*nv, &B, 1, nv);
+    }
+
+    // lfrc[4] -= 0.5*m->opt.density*box[0]*box[2]*mju_abs(lvel[4])*lvel[4];
+    B = -0.5*m->opt.density*box[0]*box[2]*2*mju_abs(lvel[4]);
+    if (mj_isSparse(m)) {
+      addJTBJSparse(DfDv, J, &B, 1, nv, 4, rownnz, rowadr, colind);
+    } else {
+      addJTBJ(DfDv, J+4*nv, &B, 1, nv);
+    }
+
+    // lfrc[5] -= 0.5*m->opt.density*box[0]*box[1]*mju_abs(lvel[5])*lvel[5];
+    B = -0.5*m->opt.density*box[0]*box[1]*2*mju_abs(lvel[5]);
+    if (mj_isSparse(m)) {
+      addJTBJSparse(DfDv, J, &B, 1, nv, 5, rownnz, rowadr, colind);
+    } else {
+      addJTBJ(DfDv, J+5*nv, &B, 1, nv);
+    }
+  }
+
+  mjFREESTACK;
+}
+
+
+
+//------------------------- derivatives of passive forces ------------------------------------------
+
+// add (d qfrc_passive / d qvel) to DfDv
+void mjd_passive_vel(const mjModel* m, mjData* d, mjtNum* DfDv) {
+  int nv = m->nv;
+
+  // disabled: nothing to add
+  if (mjDISABLED(mjDSBL_PASSIVE)) {
+    return;
+  }
+
+  // dof damping
+  for (int i=0; i<nv; i++) {
+    DfDv[i*(nv+1)] -= m->dof_damping[i];
+  }
+
+  // tendon damping
+  for (int i=0; i<m->ntendon; i++) {
+    if (m->tendon_damping[i]>0) {
+      mjtNum B = -m->tendon_damping[i];
+
+      // add sparse or dense
+      if (mj_isSparse(m)) {
+        addJTBJSparse(DfDv, d->ten_J, &B, 1, nv, i,
+                      d->ten_J_rownnz, d->ten_J_rowadr, d->ten_J_colind);
+      } else {
+        addJTBJ(DfDv, d->ten_J+i*nv, &B, 1, nv);
+      }
+    }
+  }
+
+  // fluid drag model, either body-level (inertia box) or geom-level (ellipsoid)
+  if (m->opt.viscosity>0 || m->opt.density>0) {
+    for (int i=1; i<m->nbody; i++) {
+      if (m->body_mass[i]<mjMINVAL) {
+        continue;
+      }
+
+      int use_ellipsoid_model = 0;
+      // if any child geom uses the ellipsoid model, inertia-box model is disabled for parent body
+      for (int j=0; j<m->body_geomnum[i] && use_ellipsoid_model==0; j++) {
+        const int geomid = m->body_geomadr[i] + j;
+        use_ellipsoid_model += (m->geom_fluid[mjNFLUID*geomid] > 0);
+      }
+      if (use_ellipsoid_model) {
+        mjd_ellipsoidFluid(m, d, DfDv, i);
+      } else {
+        mjd_inertiaBoxFluid(m, d, DfDv, i);
+      }
+    }
+  }
+}
+
+
+
+// add forward fin-diff approximation of (d qfrc_passive / d qvel) to DfDv
+void mjd_passive_velFD(const mjModel* m, mjData* d, mjtNum eps, mjtNum* DfDv) {
+  int nv = m->nv;
+
+  mjMARKSTACK;
+  mjtNum* qfrc_passive = mj_stackAlloc(d, nv);
+  mjtNum* fd = mj_stackAlloc(d, nv);
+
+  // save qfrc_passive, assume mj_fwdVelocity was called
+  mju_copy(qfrc_passive, d->qfrc_passive, nv);
+
+  // loop over dofs
+  for (int i=0; i<nv; i++) {
+    // save qvel[i]
+    mjtNum saveqvel = d->qvel[i];
+
+    // eval at qvel[i]+eps
+    d->qvel[i] = saveqvel + eps;
+    mj_fwdVelocity(m, d);
+
+    // restore qvel[i]
+    d->qvel[i] = saveqvel;
+
+    // finite difference result in fd
+    mju_sub(fd, d->qfrc_passive, qfrc_passive, nv);
+    mju_scl(fd, fd, 1/eps, nv);
+
+    // copy to i-th column of DfDv
+    for (int j=0; j<nv; j++) {
+      DfDv[j*nv+i] += fd[j];
+    }
+  }
+
+  // restore
+  mj_fwdVelocity(m, d);
+
+  mjFREESTACK;
+}
+
+
+
+
+//-------------------- derivatives of all smooth (unconstrained) forces ----------------------------
 
 
 // centered finite difference approximation to mjd_smooth_vel

@@ -1338,7 +1338,7 @@ void mj_subtreeVel(const mjModel* m, mjData* d) {
 
 //---------------------------------- fluid models --------------------------------------------------
 
-
+// fluid forces based on inertia-box approximation
 void mj_inertiaBoxFluidModel(const mjModel* m, mjData* d, int i) {
   mjtNum lvel[6], wind[6], lwind[6], lfrc[6], bfrc[6], box[3], diam, *inertia;
   inertia = m->body_inertia + 3*i;
@@ -1399,38 +1399,7 @@ void mj_inertiaBoxFluidModel(const mjModel* m, mjData* d, int i) {
 
 
 
-// all semi-axes of a geom
-static void geomSemiaxes(const mjModel* m, int geom_id, mjtNum semiaxes[3]) {
-  mjtNum* size = m->geom_size + 3*geom_id;
-  switch (m->geom_type[geom_id]) {
-  case mjGEOM_SPHERE:
-    semiaxes[0] = size[0];
-    semiaxes[1] = size[0];
-    semiaxes[2] = size[0];
-    break;
-
-  case mjGEOM_CAPSULE:
-    semiaxes[0] = size[0];
-    semiaxes[1] = size[0];
-    semiaxes[2] = size[1] + size[0];
-    break;
-
-  case mjGEOM_CYLINDER:
-    semiaxes[0] = size[0];
-    semiaxes[1] = size[0];
-    semiaxes[2] = size[1];
-    break;
-
-  default:
-    semiaxes[0] = size[0];
-    semiaxes[1] = size[1];
-    semiaxes[2] = size[2];
-  }
-}
-
-
-
-// fluid interaction forces based on ellipsoid approximation
+// fluid forces based on ellipsoid approximation
 void mj_ellipsoidFluidModel(const mjModel* m, mjData* d, int bodyid) {
   mjtNum lvel[6], wind[6], lwind[6], lfrc[6], bfrc[6];
   mjtNum geom_interaction_coef, magnus_lift_coef, kutta_lift_coef;
@@ -1440,7 +1409,7 @@ void mj_ellipsoidFluidModel(const mjModel* m, mjData* d, int bodyid) {
   for (int j=0; j<m->body_geomnum[bodyid]; j++) {
     const int geomid = m->body_geomadr[bodyid] + j;
 
-    geomSemiaxes(m, geomid, semiaxes);
+    mju_geomSemiAxes(m, geomid, semiaxes);
 
     readFluidGeomInteraction(
         m->geom_fluid + mjNFLUID*geomid, &geom_interaction_coef,
@@ -1623,7 +1592,7 @@ void mj_viscousForces(
           A_proj*blunt_drag_coef + slender_drag_coef*(A_max - A_proj));
   const mjtNum drag_ang_coef =  // linear plus quadratic
       fluid_viscosity * lin_visc_torq_coef +
-      fluid_density * mju_norm3(mom_visc) * ang_drag_coef;
+      fluid_density * mju_norm3(mom_visc);
 
   local_force[0] -= drag_ang_coef * ang_vel[0];
   local_force[1] -= drag_ang_coef * ang_vel[1];

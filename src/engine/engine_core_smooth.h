@@ -80,9 +80,10 @@ MJAPI void mj_subtreeVel(const mjModel* m, mjData* d);
 
 //------------------------- fluid model ------------------------------------------------------------
 
-
+// fluid forces based on inertia-box approximation
 void mj_inertiaBoxFluidModel(const mjModel* m, mjData* d, int i);
 
+// fluid forces based on ellipsoid approximation
 void mj_ellipsoidFluidModel(const mjModel* m, mjData* d, int bodyid);
 
 // compute forces due to added mass (potential flow)

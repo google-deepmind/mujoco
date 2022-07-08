@@ -89,6 +89,8 @@ static const char* const kEnergyConservingPendulumPath =
     "engine/testdata/derivative/energy_conserving_pendulum.xml";
 static const char* const kTumblingThinObjectPath =
     "engine/testdata/derivative/tumbling_thin_object.xml";
+static const char* const kTumblingThinObjectEllipsoidPath =
+    "engine/testdata/derivative/tumbling_thin_object_ellipsoid.xml";
 static const char* const kDampedActuatorsPath =
     "engine/testdata/derivative/damped_actuators.xml";
 static const char* const kDamperActuatorsPath =
@@ -150,42 +152,47 @@ TEST_F(DerivativeTest, SmoothDvel) {
 
 // compare analytic and fin-diff d_qfrc_passive/d_qvel
 TEST_F(DerivativeTest, PassiveDvel) {
-  const std::string xml_path = GetTestDataFilePath(kTumblingThinObjectPath);
-  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, nullptr, 0);
-  int nv = model->nv;
-  mjData* data = mj_makeData(model);
-  // allocate d_qfrc_passive/d_qvel Jacobians
-  mjtNum* DfDv_analytic = (mjtNum*) mju_malloc(sizeof(mjtNum)*nv*nv);
-  mjtNum* DfDv_FD = (mjtNum*) mju_malloc(sizeof(mjtNum)*nv*nv);
+  for (const char* local_path : {kTumblingThinObjectPath,
+                                 kTumblingThinObjectEllipsoidPath}) {
+    // load model
+    const std::string xml_path = GetTestDataFilePath(local_path);
+    mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, nullptr, 0);
+    int nv = model->nv;
+    mjData* data = mj_makeData(model);
+    // allocate Jacobians
+    mjtNum* DfDv_analytic = (mjtNum*) mju_malloc(sizeof(mjtNum)*nv*nv);
+    mjtNum* DfDv_FD = (mjtNum*) mju_malloc(sizeof(mjtNum)*nv*nv);
 
-  for (mjtJacobian sparsity : {mjJAC_DENSE, mjJAC_SPARSE}) {
-    // set sparsity
-    model->opt.jacobian = sparsity;
+    for (mjtJacobian sparsity : {mjJAC_DENSE, mjJAC_SPARSE}) {
+      // set sparsity
+      model->opt.jacobian = sparsity;
 
-    // take 100 steps so we have some velocities, then call forward
-    mj_resetData(model, data);
-    for (int i=0; i < 100; i++) {
-      mj_step(model, data);
+      // take 100 steps so we have some velocities, then call forward
+      mj_resetData(model, data);
+      for (int i=0; i < 100; i++) {
+        mj_step(model, data);
+      }
+      mj_forward(model, data);
+
+      // clear DfDv, get analytic derivatives
+      mju_zero(DfDv_analytic, nv*nv);
+      mjd_passive_vel(model, data, DfDv_analytic);
+
+      // clear DfDv, get finite-difference derivatives
+      mju_zero(DfDv_FD, nv*nv);
+      mjtNum eps = 1e-6;
+      mjd_passive_velFD(model, data, eps, DfDv_FD);
+
+      // expect FD and analytic derivatives to be similar to tol precision
+      mjtNum tol = 1e-4;
+      CompareMatrices(DfDv_analytic, DfDv_FD, nv, nv, tol);
     }
-    mj_forward(model, data);
 
-    // clear DfDv, get analytic derivatives
-    mju_zero(DfDv_analytic, nv*nv);
-    mjd_passive_vel(model, data, DfDv_analytic);
-
-    // clear DfDv, get finite-difference derivatives
-    mju_zero(DfDv_FD, nv*nv);
-    mjtNum eps = 1e-6;
-    mjd_passive_velFD(model, data, eps, DfDv_FD);
-
-    // expect FD and analytic derivatives to be similar to eps precision
-    CompareMatrices(DfDv_analytic, DfDv_FD, nv, nv, eps);
+    mju_free(DfDv_FD);
+    mju_free(DfDv_analytic);
+    mj_deleteData(data);
+    mj_deleteModel(model);
   }
-
-  mju_free(DfDv_FD);
-  mju_free(DfDv_analytic);
-  mj_deleteData(data);
-  mj_deleteModel(model);
 }
 
 // ----------------------- derivatives of mj_step() ----------------------------
@@ -336,8 +343,9 @@ TEST_F(DerivativeTest, LinearSystem) {
 
   LinearSystem(model, data, A, B);
 
-  PrintMatrix(A, 2*nv, 2*nv);
-  PrintMatrix(B, 2*nv, nu);
+  // uncomment for debugging:
+  // PrintMatrix(A, 2*nv, 2*nv);
+  // PrintMatrix(B, 2*nv, nu);
 
   // forward differenced A and B
   mjtNum eps = 1e-6;
@@ -346,8 +354,9 @@ TEST_F(DerivativeTest, LinearSystem) {
 
   mjd_transitionFD(model, data, eps, /*centered=*/0, AFD, BFD);
 
-  PrintMatrix(AFD, 2*nv, 2*nv);
-  PrintMatrix(BFD, 2*nv, nu);
+  // uncomment for debugging:
+  // PrintMatrix(AFD, 2*nv, 2*nv);
+  // PrintMatrix(BFD, 2*nv, nu);
 
   // expect FD and analytic derivatives to be similar to eps precision
   CompareMatrices(A, AFD, 2*nv, 2*nv, eps);
