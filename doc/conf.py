@@ -27,6 +27,7 @@ sys.path.append(os.path.abspath('ext'))
 
 import sphinxcontrib.katex as katex  # pylint: disable=g-import-not-at-top
 import sphinxcontrib.youtube as youtube  # pylint: disable=g-import-not-at-top
+import sphinx_rtd_dark_mode
 
 # -- Project information -----------------------------------------------------
 
@@ -45,6 +46,7 @@ extensions = [
     'sphinxcontrib.katex',
     'sphinxcontrib.youtube',
     'sphinx_reredirects',
+    "sphinx_rtd_dark_mode",
 ]
 
 # Add any paths that contain templates here, relative to this directory.
@@ -80,6 +82,7 @@ autodoc_default_options = {
 # a list of builtin themes.
 #
 html_theme = 'sphinx_rtd_theme'
+sphinx_rtd_dark_mode.default_dark_mode = False
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
