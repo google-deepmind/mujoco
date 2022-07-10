@@ -37,9 +37,9 @@
 
 
 
-// derivatives of cross product
+// derivatives of cross product, Da and Db are 3x3
 static void mjd_cross(const mjtNum a[3], const mjtNum b[3],
-                      mjtNum Da[restrict 9], mjtNum Db[restrict 9]) {
+                      mjtNum* restrict Da, mjtNum* restrict Db) {
   // derivative w.r.t a
   if (Da) {
     mju_zero(Da, 9);
@@ -736,7 +736,7 @@ static inline mjtNum ellipsoid_max_moment(const mjtNum size[3], const int dir) {
 
 // add 3x3 matrix D to one of the four quadrants of the 6x6 matrix B
 //   row_quad and col_quad should be either 0 or 1 (not checked)
-static void addToQuadrant(mjtNum B[restrict 36], const mjtNum D[9], int col_quad, int row_quad) {
+static void addToQuadrant(mjtNum* restrict B, const mjtNum D[9], int col_quad, int row_quad) {
   int r = 3*row_quad, c = 3*col_quad;
   B[6*(c+0) + r+0] += D[0];
   B[6*(c+0) + r+1] += D[1];
@@ -753,9 +753,9 @@ static void addToQuadrant(mjtNum B[restrict 36], const mjtNum D[9], int col_quad
 
 //----------------- components of ellipsoid-based fluid force derivatives --------------------------
 
-// forces due to fluid mass moving with the body
+// forces due to fluid mass moving with the body, B is 6x6
 static void mjd_addedMassForces(
-    mjtNum B[restrict 36], const mjtNum local_vels[6], const mjtNum fluid_density,
+    mjtNum* restrict B, const mjtNum local_vels[6], const mjtNum fluid_density,
     const mjtNum virtual_mass[3], const mjtNum virtual_inertia[3]) {
   const mjtNum lin_vel[3] = {local_vels[3], local_vels[4], local_vels[5]};
   const mjtNum ang_vel[3] = {local_vels[0], local_vels[1], local_vels[2]};;
@@ -799,9 +799,9 @@ static void mjd_addedMassForces(
 
 
 
-// torque due to motion in the fluid
+// torque due to motion in the fluid, D is 3x3
 static inline void mjd_viscous_torque(
-    mjtNum D[restrict 9], const mjtNum lvel[6], const mjtNum fluid_density,
+    mjtNum* restrict D, const mjtNum lvel[6], const mjtNum fluid_density,
     const mjtNum fluid_viscosity, const mjtNum size[3],
     const mjtNum slender_drag_coef, const mjtNum ang_drag_coef)
 {
@@ -854,9 +854,9 @@ static inline void mjd_viscous_torque(
 
 
 
-// drag due to motion in the fluid
+// drag due to motion in the fluid, D is 3x3
 static inline void mjd_viscous_drag(
-    mjtNum D[restrict 9], const mjtNum lvel[6], const mjtNum fluid_density,
+    mjtNum* restrict D, const mjtNum lvel[6], const mjtNum fluid_density,
     const mjtNum fluid_viscosity, const mjtNum size[3],
     const mjtNum blunt_drag_coef, const mjtNum slender_drag_coef) {
   const mjtNum d_max = mju_max(mju_max(size[0], size[1]), size[2]);
@@ -922,9 +922,9 @@ static inline void mjd_viscous_drag(
 
 
 
-// Kutta lift due to motion in the fluid
+// Kutta lift due to motion in the fluid, D is 3x3
 static inline void mjd_kutta_lift(
-    mjtNum D[restrict 9], const mjtNum lvel[6], const mjtNum fluid_density,
+    mjtNum* restrict D, const mjtNum lvel[6], const mjtNum fluid_density,
     const mjtNum size[3], const mjtNum kutta_lift_coef) {
   const mjtNum a = pow2(size[1] * size[2]);
   const mjtNum b = pow2(size[2] * size[0]);
@@ -976,9 +976,9 @@ static inline void mjd_kutta_lift(
 
 
 
-// Magnus force due to motion in the fluid
+// Magnus force due to motion in the fluid, B is 6x6
 static inline void mjd_magnus_force(
-    mjtNum B[restrict 36], const mjtNum lvel[6], const mjtNum fluid_density,
+    mjtNum* restrict B, const mjtNum lvel[6], const mjtNum fluid_density,
     const mjtNum size[3], const mjtNum magnus_lift_coef) {
   const mjtNum volume = 4.0/3.0 * mjPI * size[0] * size[1] * size[2];
 
