@@ -1564,7 +1564,7 @@ mjModel
        int*      mesh_faceadr;         // first face address                       (nmesh x 1)
        int*      mesh_facenum;         // number of faces                          (nmesh x 1)
        int*      mesh_graphadr;        // graph data address; -1: no graph         (nmesh x 1)
-       float*    mesh_vert;            // vertex positions for all meshe           (nmeshvert x 3)
+       float*    mesh_vert;            // vertex positions for all meshes          (nmeshvert x 3)
        float*    mesh_normal;          // vertex normals for all meshes            (nmeshvert x 3)
        float*    mesh_texcoord;        // vertex texcoords for all meshes          (nmeshtexvert x 2)
        int*      mesh_face;            // triangle face data                       (nmeshface x 3)
