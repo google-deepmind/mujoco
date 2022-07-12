@@ -351,6 +351,31 @@ static void mj_setPtrModel(mjModel* m) {
 }
 
 
+// increases buffer size without causing integer overflow, returns 0 if
+// operation would cause overflow
+// performs the following operations:
+// *nbuffer += SKIP(*offset) + type_size*nr*nc;
+// *offset += SKIP(*offset) + type_size*nr*nc;
+static int safeAddToBufferSize(intptr_t* offset, int* nbuffer, size_t type_size, int nr, int nc) {
+#if defined(__has_builtin) \
+    && __has_builtin(__builtin_add_overflow) && __has_builtin(__builtin_mul_overflow)
+  // supported by GCC and Clang
+  int to_add = 0;
+  if (__builtin_mul_overflow(nc, nr, &to_add)) return 0;
+  if (__builtin_mul_overflow(to_add, type_size, &to_add)) return 0;
+  if (__builtin_add_overflow(to_add, SKIP(*offset), &to_add)) return 0;
+  if (__builtin_add_overflow(*nbuffer, to_add, nbuffer)) return 0;
+  if (__builtin_add_overflow(*offset, to_add, offset)) return 0;
+#else
+  // TODO: offer a safe implementation for MSVC or other compilers that don't have the builtins
+  *nbuffer += SKIP(*offset) + type_size*nr*nc;
+  *offset += SKIP(*offset) + type_size*nr*nc;
+#endif
+
+  return 1;
+}
+
+
 
 // allocate and initialize mjModel structure
 mjModel* mj_makeModel(int nq, int nv, int nu, int na, int nbody, int njnt,
@@ -435,9 +460,12 @@ mjModel* mj_makeModel(int nq, int nv, int nu, int na, int nbody, int njnt,
 
   // compute buffer size
   m->nbuffer = 0;
-#define X(type, name, nr, nc)                              \
-  m->nbuffer += SKIP(offset) + sizeof(type)*(m->nr)*(nc);  \
-  offset += SKIP(offset) + sizeof(type)*(m->nr)*(nc);
+#define X(type, name, nr, nc)                                                \
+  if (!safeAddToBufferSize(&offset, &m->nbuffer, sizeof(type), m->nr, nc)) { \
+    mju_warning("Invalid model: " #name " too large.");                      \
+    mj_deleteModel(m);                                                       \
+    return 0;                                                                \
+  }
 
   MJMODEL_POINTERS
 #undef X
@@ -799,9 +827,12 @@ static mjData* _makeData(const mjModel* m) {
 
   // compute buffer size
   d->nbuffer = 0;
-#define X(type, name, nr, nc)                              \
-  d->nbuffer += SKIP(offset) + sizeof(type)*(m->nr)*(nc);  \
-  offset += SKIP(offset) + sizeof(type)*(m->nr)*(nc);
+#define X(type, name, nr, nc)                                                \
+  if (!safeAddToBufferSize(&offset, &d->nbuffer, sizeof(type), m->nr, nc)) { \
+    mju_warning("Invalid data: " #name " too large.");                       \
+    mj_deleteData(d);                                                        \
+    return 0;                                                                \
+  }
 
   MJDATA_POINTERS
 #undef X
