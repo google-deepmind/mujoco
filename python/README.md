@@ -1,5 +1,12 @@
 # MuJoCo Python Bindings
 
+<!-- [![PyPI Python Version][pypi-versions-badge]][pypi] -->
+[![PyPI version][pypi-badge]][pypi]
+
+[pypi-versions-badge]: https://img.shields.io/pypi/pyversions/mujoco
+[pypi-badge]: https://badge.fury.io/py/mujoco.svg
+[pypi]: https://pypi.org/project/mujoco/
+
 This package is the canonical Python bindings for the
 [MuJoCo physics engine](https://github.com/deepmind/mujoco).
 These bindings are developed and maintained by DeepMind, and is kept up-to-date
