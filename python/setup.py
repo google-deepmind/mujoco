@@ -272,7 +272,17 @@ setup(
     url='https://github.com/deepmind/mujoco',
     license='Apache License 2.0',
     classifiers=[
+        'Development Status :: 5 - Production/Stable',
+        'Intended Audience :: Developers',
+        'Intended Audience :: Science/Research',
         'License :: OSI Approved :: Apache Software License',
+        'Natural Language :: English',
+        'Programming Language :: Python :: 3',
+        'Programming Language :: Python :: 3.7',
+        'Programming Language :: Python :: 3.8',
+        'Programming Language :: Python :: 3.9',
+        'Programming Language :: Python :: 3.10',
+        'Topic :: Scientific/Engineering',
     ],
     cmdclass=dict(build_ext=BuildCMakeExtension),
     ext_modules=[
