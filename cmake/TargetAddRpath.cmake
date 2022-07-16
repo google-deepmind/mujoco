@@ -181,6 +181,7 @@ function(target_add_rpath)
       ${_target}
       PROPERTIES INSTALL_RPATH ${_install_rpath}
                  INSTALL_RPATH_USE_LINK_PATH ${_ARGS_USE_LINK_PATH}
+                 BUILD_WITH_INSTALL_RPATH TRUE
                  MACOSX_RPATH ON # This is ON by default.
     )
   endforeach()
