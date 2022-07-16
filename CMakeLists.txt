@@ -160,7 +160,7 @@ if(BUILD_TESTING AND MUJOCO_BUILD_TESTS)
   enable_testing()
   add_subdirectory(test)
   if(MUJOCO_TEST_PYTHON_UTIL)
-    add_subdirectory(python/mujoco/utils)
+    add_subdirectory(python/mujoco/util)
   endif()
 endif()
 
