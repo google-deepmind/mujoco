@@ -60,7 +60,6 @@
     }
   }
 
-
   function set_maintained_theme(theme) {
     localStorage.setItem('maintained-theme', theme);
   }
@@ -82,7 +81,7 @@
     }
   };
 
-    document.addEventListener('DOMContentLoaded', (event) => {
+  document.addEventListener('DOMContentLoaded', (event) => {
         let home_link = document.querySelector('a.icon');
         {# Be extra safe and don't break the page if theme changes and querySelector can't match. #}
         if (home_link) {
