@@ -45,6 +45,10 @@
   #pragma warning (disable: 4305)  // disable MSVC warning: truncation from 'double' to 'float'
 #endif
 
+#ifndef __has_builtin
+#define __has_builtin(x) 0
+#endif
+
 #define PTRDIFF(x, y) ((void*)(x) - (void*)(y))
 
 
@@ -357,8 +361,8 @@ static void mj_setPtrModel(mjModel* m) {
 // *nbuffer += SKIP(*offset) + type_size*nr*nc;
 // *offset += SKIP(*offset) + type_size*nr*nc;
 static int safeAddToBufferSize(intptr_t* offset, int* nbuffer, size_t type_size, int nr, int nc) {
-#if defined(__has_builtin) \
-    && __has_builtin(__builtin_add_overflow) && __has_builtin(__builtin_mul_overflow)
+#if (__has_builtin(__builtin_add_overflow) && __has_builtin(__builtin_mul_overflow)) \
+    || (defined(__GNUC__) && __GNUC__ >= 5)
   // supported by GCC and Clang
   int to_add = 0;
   if (__builtin_mul_overflow(nc, nr, &to_add)) return 0;
