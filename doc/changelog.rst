@@ -2,14 +2,18 @@
 Changelog
 =========
 
-Upcoming version (not yet released)
------------------------------------
+.. Upcoming version (not yet released)
+.. -----------------------------------
+
+Version 2.2.1 (July 18, 2022)
+-----------------------------
 
 General
 ^^^^^^^
 
 - Added ``mjd_transitionFD`` to compute efficient finite difference approximations of the state-transition and
   control-transition matrices, :ref:`see here<derivatives>` for more details.
+- Added derivatives for the ellipsoid fluid model.
 - Added ``ctrl`` attribute to :ref:`keyframes<keyframe>`.
 - Added ``clock`` sensor which :ref:`measures time<sensor-clock>`.
 - Added visualisation groups to skins.
@@ -23,7 +27,7 @@ General
 - Add memory poisoning when building with Address Sanitizer (ASAN) and Memory Sanitizer (MSAN). This allows ASAN to
   detect reads and writes to regions in ``mjModel.buffer`` and ``mjData.buffer`` that do not lie within an array, and
   for MSAN to detect reads from uninitialised fields in ``mjData`` following ``mj_resetData``.
-
+- Add a `slider-crank example <https://github.com/deepmind/mujoco/tree/2.2.1/model/slider_crank>`_ to ``model/``.
 
 Bug fixes
 ^^^^^^^^^

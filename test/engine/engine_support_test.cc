@@ -26,7 +26,7 @@ namespace {
 
 using VersionTest = MujocoTest;
 
-const char *const kExpectedVersionString = "2.2.0";
+const char *const kExpectedVersionString = "2.2.1";
 
 TEST_F(VersionTest, MjVersion) {
   EXPECT_EQ(mj_version(), mjVERSION_HEADER);
