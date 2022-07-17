@@ -1,6 +1,6 @@
 # MuJoCo Python Bindings
 
-<!-- [![PyPI Python Version][pypi-versions-badge]][pypi] -->
+[![PyPI Python Version][pypi-versions-badge]][pypi]
 [![PyPI version][pypi-badge]][pypi]
 
 [pypi-versions-badge]: https://img.shields.io/pypi/pyversions/mujoco
