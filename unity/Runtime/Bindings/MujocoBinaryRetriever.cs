@@ -30,30 +30,34 @@ public class MujocoBinaryRetriever {
 
   static void RegisteredPackagesEventHandler(
       PackageRegistrationEventArgs packageRegistrationEventArgs) {
-    var mujocoPath = packageRegistrationEventArgs.added[0].assetPath;
-    if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX)) {
-      if (AssetDatabase.LoadMainAssetAtPath(mujocoPath + "/mujoco.dylib") == null) {
-        File.Copy(
-            "/Applications/MuJoCo.app/Contents/Frameworks" +
-            "/mujoco.framework/Versions/Current/libmujoco.2.2.1.dylib",
-            mujocoPath + "/mujoco.dylib");
-        AssetDatabase.Refresh();
-      }
-    } else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux)) {
-      if (AssetDatabase.LoadMainAssetAtPath(mujocoPath + "/libmujoco.so") == null) {
-        File.Copy(
-            Environment.GetFolderPath(Environment.SpecialFolder.UserProfile) +
-            "/.mujoco/mujoco-2.2.1/lib/libmujoco.so.2.2.1",
-            mujocoPath + "/libmujoco.so");
-        AssetDatabase.Refresh();
-      }
-    } else {
-      if (AssetDatabase.LoadMainAssetAtPath(mujocoPath + "/mujoco.dll") == null) {
-        File.Copy(
-            Environment.GetFolderPath(Environment.SpecialFolder.UserProfile) +
-            "\\MuJoCo\\bin\\mujoco.dll",
-            mujocoPath + "\\mujoco.dll");
-        AssetDatabase.Refresh();
+    foreach (var packageInfo in packageRegistrationEventArgs.added) {
+      if (packageInfo.name.Equals("org.mujoco")) {
+        var mujocoPath = packageInfo.assetPath;
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX)) {
+          if (AssetDatabase.LoadMainAssetAtPath(mujocoPath + "/mujoco.dylib") == null) {
+            File.Copy(
+                "/Applications/MuJoCo.app/Contents/Frameworks" +
+                "/mujoco.framework/Versions/Current/libmujoco.2.2.1.dylib",
+                mujocoPath + "/mujoco.dylib");
+            AssetDatabase.Refresh();
+          }
+        } else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux)) {
+          if (AssetDatabase.LoadMainAssetAtPath(mujocoPath + "/libmujoco.so") == null) {
+            File.Copy(
+                Environment.GetFolderPath(Environment.SpecialFolder.UserProfile) +
+                "/.mujoco/mujoco-2.2.1/lib/libmujoco.so.2.2.1",
+                mujocoPath + "/libmujoco.so");
+            AssetDatabase.Refresh();
+          }
+        } else {
+          if (AssetDatabase.LoadMainAssetAtPath(mujocoPath + "/mujoco.dll") == null) {
+            File.Copy(
+                Environment.GetFolderPath(Environment.SpecialFolder.UserProfile) +
+                "\\MuJoCo\\bin\\mujoco.dll",
+                mujocoPath + "\\mujoco.dll");
+            AssetDatabase.Refresh();
+          }
+        }
       }
     }
   }
