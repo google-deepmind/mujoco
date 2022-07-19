@@ -21,7 +21,6 @@
 #include "engine/engine_io.h"
 #include "engine/engine_macro.h"
 #include "engine/engine_util_blas.h"
-#include "engine/engine_util_errmem.h"
 
 #ifdef mjUSEPLATFORMSIMD
   #if defined(__AVX__) && defined(mjUSEDOUBLE)

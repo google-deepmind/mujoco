@@ -27,7 +27,6 @@
 #include "engine/engine_util_blas.h"
 #include "engine/engine_util_errmem.h"
 #include "engine/engine_util_misc.h"
-#include "engine/engine_util_solve.h"
 #include "engine/engine_util_sparse.h"
 #include "engine/engine_util_spatial.h"
 
