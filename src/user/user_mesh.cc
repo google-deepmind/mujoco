@@ -62,6 +62,7 @@ mjCMesh::mjCMesh(mjCModel* _model, mjCDef* _def) {
   usernormal.clear();
   usertexcoord.clear();
   userface.clear();
+  useredge.clear();
 
   // clear internal variables
   mjuu_setvec(pos, 0, 0, 0);
@@ -97,6 +98,7 @@ mjCMesh::~mjCMesh() {
   usernormal.clear();
   usertexcoord.clear();
   userface.clear();
+  useredge.clear();
 
   if (vert) mju_free(vert);
   if (normal) mju_free(normal);
@@ -200,6 +202,26 @@ void mjCMesh::Compile(const mjVFS* vfs) {
     nface = (int)userface.size()/3;
     face = (int*) mju_malloc(3*nface*sizeof(int));
     memcpy(face, userface.data(), 3*nface*sizeof(int));
+
+    // create half-edge structure (if mesh was in XML)
+    if (useredge.empty()) {
+      for (int i=0; i<nface; i++) {
+        int v0 = userface[3*i+0];
+        int v1 = userface[3*i+1];
+        int v2 = userface[3*i+2];
+        useredge.push_back(std::pair(v0, v1));
+        useredge.push_back(std::pair(v1, v2));
+        useredge.push_back(std::pair(v2, v0));
+      }
+    }
+  }
+
+  // check for inconsistent face orientations
+  if (!useredge.empty()) {
+    std::sort(useredge.begin(), useredge.end());
+    auto iterator = std::adjacent_find(useredge.begin(), useredge.end());
+    if (iterator != useredge.end())
+      throw mjCError(this, "faces have inconsistent orientation");
   }
 
   // require vertices
@@ -525,18 +547,25 @@ void mjCMesh::LoadOBJ(const mjVFS* vfs) {
             this, "only tri or quad meshes are supported for OBJ (file '%s')",
             filename.c_str());
       }
+      // add face
       std::vector<std::array<tinyobj::index_t, 3>> faces;
-      std::array<tinyobj::index_t, 3> face1 = {
-          mesh.indices[index_in_mesh_indices],
-          mesh.indices[index_in_mesh_indices+1],
-          mesh.indices[index_in_mesh_indices+2]};
+      tinyobj::index_t v0 = mesh.indices[index_in_mesh_indices];
+      tinyobj::index_t v1 = mesh.indices[index_in_mesh_indices+1];
+      tinyobj::index_t v2 = mesh.indices[index_in_mesh_indices+2];
+      std::array<tinyobj::index_t, 3> face1 = {v0, v1, v2};
       faces.push_back(face1);
-      if (mesh.num_face_vertices[face] == 4) {  // add second triangle with 4th vertex
-        std::array<tinyobj::index_t, 3> face2 = {
-            mesh.indices[index_in_mesh_indices],
-            mesh.indices[index_in_mesh_indices+2],
-            mesh.indices[index_in_mesh_indices+3]};
+      // add edges
+      useredge.push_back(std::pair(v0.vertex_index, v1.vertex_index));
+      useredge.push_back(std::pair(v1.vertex_index, v2.vertex_index));
+      useredge.push_back(std::pair(v2.vertex_index, v0.vertex_index));
+      // handle quad: add second triangle with 4th vertex
+      if (mesh.num_face_vertices[face] == 4) {
+        tinyobj::index_t v3 = mesh.indices[index_in_mesh_indices+3];
+        std::array<tinyobj::index_t, 3> face2 = {v0, v2, v3};
         faces.push_back(face2);
+        useredge.push_back(std::pair(v0.vertex_index, v2.vertex_index));
+        useredge.push_back(std::pair(v2.vertex_index, v3.vertex_index));
+        useredge.push_back(std::pair(v3.vertex_index, v0.vertex_index));
       }
       for (const auto& face_indices : faces) {
         int index_of_first_vertex = uservert.size()/3;

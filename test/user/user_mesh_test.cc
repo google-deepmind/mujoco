@@ -43,6 +43,8 @@ static const char* const kTexturedTorusPath =
     "user/testdata/textured_torus.xml";
 static const char* const kDuplicateOBJPath =
     "user/testdata/duplicate.xml";
+static const char* const kMalformedFaceOBJPath =
+    "user/testdata/malformed_face.xml";
 
 using ::testing::HasSubstr;
 
@@ -172,6 +174,32 @@ TEST_F(MujocoTest, TinyInertiaFails) {
       error.data(),
       HasSubstr(
           "mass and inertia of moving bodies must be larger than mjMINVAL"));
+}
+
+TEST_F(MujocoTest, MalformedFaceFails) {
+  const std::string xml_path = GetTestDataFilePath(kMalformedFaceOBJPath);
+  std::array<char, 1024> error;
+  mjModel* model = mj_loadXML(xml_path.c_str(), 0, error.data(), error.size());
+  ASSERT_THAT(model, testing::IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("faces have inconsistent orientation"));
+}
+
+TEST_F(MujocoTest, FlippedFaceFails) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="example_mesh"
+        vertex="0 0 0  1 0 0  0 1 0  0 0 1"
+        face="2 0 3  0 1 3  1 2 3  0 1 2" />
+    </asset>
+    <worldbody>
+      <geom type="mesh" mesh="example_mesh"/>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(error.data(), HasSubstr("faces have inconsistent orientation"));
 }
 
 }  // namespace
