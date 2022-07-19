@@ -1519,14 +1519,14 @@ The top-level function :ref:`mj_inverse` invokes the following sequence of compu
 Derivatives
 -----------
 
-MuJoCo's entire computational pipline and uniquely -- its contraint solver -- are analytically differentiable. Writing
+MuJoCo's entire computational pipline and uniquely -- its constraint solver -- are analytically differentiable. Writing
 efficient implementations of these derivatives is a long term goal of the development team. Analytic derivatives of the
 smooth dynamics with respect to velocity are already in place and power the :ref:`implicit integrator<geIntegration>`.
 
 The function ``mjd_transitionFD`` computes state-transition and control-transition Jacobians. Given any valid MuJoCo
 model ``mjModel* m`` with an initial :ref:`simulation state<geState>` in ``mjData* d``,
 
-- let :math:`x` denote the *physics state* of the simulation at time :math:`t` -- the concatenation of positions,
+- Let :math:`x` denote the *physics state* of the simulation at time :math:`t` -- the concatenation of positions,
   velocities and actuator states ``[d->qpos; d->qvel; d->act]``.
 - Let :math:`u` denote the vector of controls at time :math:`t`, corresponding to ``d->ctrl``.
 - Let :math:`y` denote the physical state of the simulation at time :math:`t+h`, where :math:`h` corresponds to
