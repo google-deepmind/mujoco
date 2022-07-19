@@ -34,6 +34,7 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 #include <absl/container/flat_hash_set.h>
+#include <absl/strings/match.h>
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjtnum.h>
 #include <mujoco/mjxmacro.h>
@@ -416,10 +417,15 @@ TEST_F(XMLWriterTest, WriteReadCompare) {
       if (p.path().extension() == ext) {
         std::string xml = p.path().string();
 
+        // if file is meant to fail, skip it
+        if (absl::StrContains(p.path().string(), "malformed_")) {
+          continue;
+        }
+
         // load model
         std::array<char, 1000> error;
         mjModel* m = mj_loadXML(xml.c_str(), nullptr, error.data(), error.size());
-        ASSERT_THAT(m, NotNull()) << "Failed to load model: " << error.data();
+        ASSERT_THAT(m, NotNull()) << "Failed to load " << xml.c_str() << ": " << error.data();
 
         // make data
         mjData* d = mj_makeData(m);

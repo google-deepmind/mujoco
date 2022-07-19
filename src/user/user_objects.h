@@ -453,10 +453,11 @@ class mjCMesh: public mjCBase {
   double scale[3];                    // rescale mesh
   bool smoothnormal;                  // do not exclude large-angle faces from normals
 
-  std::vector<float> uservert;        // user vertex data
-  std::vector<float> usernormal;      // user normal data
-  std::vector<float> usertexcoord;    // user texcoord data
-  std::vector<int> userface;          // user face data
+  std::vector<float> uservert;                   // user vertex data
+  std::vector<float> usernormal;                 // user normal data
+  std::vector<float> usertexcoord;               // user texcoord data
+  std::vector<int> userface;                     // user face data
+  std::vector< std::pair<int, int> > useredge;   // user half-edge data
 
  private:
   mjCMesh(mjCModel* = 0, mjCDef* = 0);        // constructor
