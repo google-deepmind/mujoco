@@ -26,12 +26,58 @@ jobs:
               -DCMAKE_C_COMPILER:STRING=gcc-11
               -DCMAKE_CXX_COMPILER:STRING=g++-11
             tmpdir: "/tmp"
+          - os: ubuntu-20.04
+            additional_label: "with GCC 10"
+            cmake_args: >-
+              -G Ninja
+              -DCMAKE_C_COMPILER:STRING=gcc-10
+              -DCMAKE_CXX_COMPILER:STRING=g++-10
+            tmpdir: "/tmp"
+          - os: ubuntu-20.04
+            additional_label: "with GCC 9"
+            cmake_args: >-
+              -G Ninja
+              -DCMAKE_C_COMPILER:STRING=gcc-9
+              -DCMAKE_CXX_COMPILER:STRING=g++-9
+            tmpdir: "/tmp"
+          - os: ubuntu-22.04
+            additional_label: "with Clang 14"
+            cmake_args: >-
+              -G Ninja
+              -DCMAKE_C_COMPILER:STRING=clang-14
+              -DCMAKE_CXX_COMPILER:STRING=clang++-14
+              -DMUJOCO_HARDEN:BOOL=ON
+            tmpdir: "/tmp"
+          - os: ubuntu-22.04
+            additional_label: "with Clang 13"
+            cmake_args: >-
+              -G Ninja
+              -DCMAKE_C_COMPILER:STRING=clang-13
+              -DCMAKE_CXX_COMPILER:STRING=clang++-13
+              -DMUJOCO_HARDEN:BOOL=ON
+            tmpdir: "/tmp"
           - os: ubuntu-22.04
             additional_label: "with Clang 12"
             cmake_args: >-
               -G Ninja
               -DCMAKE_C_COMPILER:STRING=clang-12
               -DCMAKE_CXX_COMPILER:STRING=clang++-12
+              -DMUJOCO_HARDEN:BOOL=ON
+            tmpdir: "/tmp"
+          - os: ubuntu-20.04
+            additional_label: "with Clang 11"
+            cmake_args: >-
+              -G Ninja
+              -DCMAKE_C_COMPILER:STRING=clang-11
+              -DCMAKE_CXX_COMPILER:STRING=clang++-11
+              -DMUJOCO_HARDEN:BOOL=ON
+            tmpdir: "/tmp"
+          - os: ubuntu-20.04
+            additional_label: "with Clang 10"
+            cmake_args: >-
+              -G Ninja
+              -DCMAKE_C_COMPILER:STRING=clang-10
+              -DCMAKE_CXX_COMPILER:STRING=clang++-10
               -DMUJOCO_HARDEN:BOOL=ON
             tmpdir: "/tmp"
           - os: macos-12
