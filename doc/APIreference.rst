@@ -6579,6 +6579,8 @@ mju_sigmoid
 
 Sigmoid function over 0<=x<=1 constructed from half-quadratics.
 
+.. _mjd_transitionFD:
+
 mjd_transitionFD
 ~~~~~~~~~~~~~~~~
 
