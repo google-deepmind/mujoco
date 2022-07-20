@@ -226,6 +226,8 @@ mjui\_
 mjcb\_
    Global callback function pointer, for example :ref:`mjcb_control`. The user can install
    custom callbacks by setting these global pointers to user-defined functions.
+mjd\_
+   Functions for computing derivatives, for example :ref:`mjd_transitionFD`.
 
 .. _inOpenGL:
 
