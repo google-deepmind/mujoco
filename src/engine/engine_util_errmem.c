@@ -102,15 +102,24 @@ void _mjPRIVATE__set_tls_warning_fn(callback_fn h) {
 // write datetime, type: message to MUJOCO_LOG.TXT
 void mju_writeLog(const char* type, const char* msg) {
   time_t rawtime;
-  struct tm *timeinfo;
+  struct tm timeinfo;
   FILE* fp = fopen("MUJOCO_LOG.TXT", "a+t");
   if (fp) {
     // get time
     time(&rawtime);
-    timeinfo = localtime(&rawtime);
+
+#if defined(_POSIX_C_SOURCE) || defined(__APPLE__) || defined(__STDC_VERSION_TIME_H__)
+    localtime_r(&rawtime, &timeinfo);
+#elif _MSC_VER
+    localtime_s(&timeinfo, &rawtime);
+#elif __STDC_LIB_EXT1__
+    localtime_s(&rawtime, &timeinfo);
+#else
+    #error "Thread-safe version of `localtime` is not present in the standard C library"
+#endif
 
     // write to log file
-    fprintf(fp, "%s%s: %s\n\n", asctime(timeinfo), type, msg);
+    fprintf(fp, "%s%s: %s\n\n", asctime(&timeinfo), type, msg);
     fclose(fp);
   }
 }
@@ -151,7 +160,7 @@ void mju_warning(const char* msg) {
 // error with int argument
 void mju_error_i(const char* msg, int i) {
   char errmsg[1000];
-  snprintf(errmsg, 1000, msg, i);
+  snprintf(errmsg, sizeof(errmsg), msg, i);
   errmsg[999] = '\0';
   mju_error(errmsg);
 }
@@ -160,7 +169,7 @@ void mju_error_i(const char* msg, int i) {
 // warning with int argument
 void mju_warning_i(const char* msg, int i) {
   char wrnmsg[1000];
-  snprintf(wrnmsg, 1000, msg, i);
+  snprintf(wrnmsg, sizeof(wrnmsg), msg, i);
   wrnmsg[999] = '\0';
   mju_warning(wrnmsg);
 }
@@ -169,7 +178,7 @@ void mju_warning_i(const char* msg, int i) {
 // error string argument
 void mju_error_s(const char* msg, const char* text) {
   char errmsg[1000];
-  snprintf(errmsg, 1000, msg, text);
+  snprintf(errmsg, sizeof(errmsg), msg, text);
   errmsg[999] = '\0';
   mju_error(errmsg);
 }
@@ -178,7 +187,7 @@ void mju_error_s(const char* msg, const char* text) {
 // warning string argument
 void mju_warning_s(const char* msg, const char* text) {
   char wrnmsg[1000];
-  snprintf(wrnmsg, 1000, msg, text);
+  snprintf(wrnmsg, sizeof(wrnmsg), msg, text);
   wrnmsg[999] = '\0';
   mju_warning(wrnmsg);
 }

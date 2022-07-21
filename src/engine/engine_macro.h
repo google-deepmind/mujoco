@@ -15,7 +15,7 @@
 #ifndef MUJOCO_SRC_ENGINE_ENGINE_MACRO_H_
 #define MUJOCO_SRC_ENGINE_ENGINE_MACRO_H_
 
-#include "engine/engine_callback.h"
+#include "engine/engine_callback.h"  // IWYU pragma: export
 
 //-------------------------------- utility macros --------------------------------------------------
 
@@ -28,8 +28,8 @@
 #define mjENABLED(x)  (m->opt.enableflags & (x))
 
 // max and min macros
-#define mjMAX(a,b)    (((a) > (b)) ? (a) : (b))
-#define mjMIN(a,b)    (((a) < (b)) ? (a) : (b))
+#define mjMAX(a, b)    (((a) > (b)) ? (a) : (b))
+#define mjMIN(a, b)    (((a) < (b)) ? (a) : (b))
 
 
 //-------------------------- timer macros ----------------------------------------------------------

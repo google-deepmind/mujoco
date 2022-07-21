@@ -18,7 +18,6 @@
 #include <string.h>
 
 #include <mujoco/mjdata.h>
-#include <mujoco/mjmodel.h>
 #include "engine/engine_io.h"
 #include "engine/engine_macro.h"
 #include "engine/engine_util_blas.h"
@@ -116,13 +115,15 @@ int mju_cholUpdate(mjtNum* mat, mjtNum* x, int n, int flg_plus) {
       mat[k*(n+1)] = r;
 
       // update mat
-      if (flg_plus)
+      if (flg_plus) {
         for (int i=k+1; i<n; i++) {
           mat[i*n+k] = (mat[i*n+k] + s*x[i])*cinv;
-        } else
+        }
+      } else {
         for (int i=k+1; i<n; i++) {
           mat[i*n+k] = (mat[i*n+k] - s*x[i])*cinv;
         }
+      }
 
       // update x
       for (int i=k+1; i<n; i++) {

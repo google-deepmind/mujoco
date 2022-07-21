@@ -47,4 +47,4 @@ MJAPI void mjd_transitionFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte cen
 }
 #endif
 
-#endif // MUJOCO_SRC_ENGINE_ENGINE_DERIVATIVE_H_
+#endif  // MUJOCO_SRC_ENGINE_ENGINE_DERIVATIVE_H_

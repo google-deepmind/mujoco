@@ -1181,7 +1181,6 @@ static int numObjects(const mjModel* m, mjtObj objtype) {
 
 // validate reference fields in a model; return null if valid, error message otherwise
 const char* mj_validateReferences(const mjModel* m) {
-
   // for each field in mjModel that refers to another field, call X with:
   //   adrarray: array containing the references
   //   nadrs:    number of elements in refarray

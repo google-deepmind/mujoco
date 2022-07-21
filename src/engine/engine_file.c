@@ -35,7 +35,7 @@ void* mju_fileToMemory(const char* filename, int* filesize) {
   }
 
   // ensure file size fits in int
-  long long_filesize = ftell(fp);
+  long long_filesize = ftell(fp);  // NOLINT(runtime/int)
   if (long_filesize > INT_MAX) {
     fclose(fp);
     mju_warning_s("File size over 2GB is not supported. File: '%s'", filename);
@@ -62,7 +62,7 @@ void* mju_fileToMemory(const char* filename, int* filesize) {
   size_t bytes_read = fread(buffer, 1, *filesize, fp);
 
   // check that read data matches file size
-  if (bytes_read != *filesize) { // SHOULD NOT OCCUR
+  if (bytes_read != *filesize) {  // SHOULD NOT OCCUR
     if (ferror(fp)) {
       fclose(fp);
       mju_free(buffer);
