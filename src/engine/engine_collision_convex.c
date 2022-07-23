@@ -183,10 +183,11 @@ void mjccd_support(const void *obj, const ccd_vec3_t *_dir, ccd_vec3_t *vec) {
     }
 
     // copy best vertex
-    else
+    else {
       for (int i=0; i<3; i++) {
         res[i] = (mjtNum)vertdata[3*ibest + i];
       }
+    }
     break;
 
   default:
@@ -295,10 +296,9 @@ int mjc_Convex(const mjModel* m, const mjData* d,
   int ncon = mjc_MPRIteration(&obj1, &obj2, &ccd, m, d, con, g1, g2, margin);
 
   // look for additional contacts
-  if (ncon && mjENABLED(mjENBL_MULTICCD) // TODO(tassa) leave as bitflag or make geom attribute (?)
+  if (ncon && mjENABLED(mjENBL_MULTICCD)  // TODO(tassa) leave as bitflag or make geom attribute (?)
       && m->geom_type[g1] != mjGEOM_ELLIPSOID && m->geom_type[g1] != mjGEOM_SPHERE
       && m->geom_type[g2] != mjGEOM_ELLIPSOID && m->geom_type[g2] != mjGEOM_SPHERE) {
-
     // multiCCD parameters
     const mjtNum relative_tolerance = 1e-3;
     const mjtNum perturbation_angle = 1e-3;
@@ -614,10 +614,10 @@ int mjc_ConvexHField(const mjModel* m, const mjData* d,
   }
 
   // box-sphere test in: vertical direction
-  if (size1[2] < pos[2]-r2-margin) {  // up
+  if (size1[2] < pos[2]-r2-margin) {   // up
     return 0;
   }
-  if (-size1[3] > pos[2]+r2+margin) { // down
+  if (-size1[3] > pos[2]+r2+margin) {  // down
     return 0;
   }
 

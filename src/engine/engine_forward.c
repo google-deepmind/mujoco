@@ -485,7 +485,6 @@ static void mj_advance(const mjModel* m, mjData* d,
 
 // Euler integrator, semi-implicit in velocity, possibly skipping factorisation
 void mj_EulerSkip(const mjModel* m, mjData* d, int skipfactor) {
-
   int i, nv = m->nv, nM = m->nM;
   mjMARKSTACK;
   mjtNum* qfrc = mj_stackAlloc(d, nv);
@@ -755,7 +754,7 @@ void mj_step(const mjModel* m, mjData* d) {
   }
 
   // use selected integrator
-  switch(m->opt.integrator) {
+  switch (m->opt.integrator) {
     case mjINT_EULER:
       mj_Euler(m, d);
       break;

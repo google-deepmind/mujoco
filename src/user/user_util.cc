@@ -20,6 +20,7 @@
 #include <limits>
 #include <string>
 
+#include <mujoco/mjtnum.h>
 #include "engine/engine_macro.h"
 
 using std::isnan;

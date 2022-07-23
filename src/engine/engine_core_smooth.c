@@ -178,7 +178,6 @@ void mj_kinematics(const mjModel* m, mjData* d) {
 
 // map inertias and motion dofs to global frame centered at subtree-CoM
 void mj_comPos(const mjModel* m, mjData* d) {
-
   mjtNum offset[3], axis[3];
   mjMARKSTACK;
   mjtNum* mass_subtree = mj_stackAlloc(d, m->nbody);
@@ -538,7 +537,7 @@ void mj_tendon(const mjModel* m, mjData* d) {
       }
 
       // accumulate moments if consequtive points are in different bodies
-      for (int k=0; k<(wlen<0 ? 1:3); k++) {
+      for (int k=0; k<(wlen<0 ? 1 : 3); k++) {
         if (wbody[k]!=wbody[k+1]) {
           // get 3D position difference, normalize
           mju_sub3(dif, wpnt+3*k+3, wpnt+3*k);
@@ -787,7 +786,7 @@ void mj_transmission(const mjModel* m, mjData* d) {
       break;
 
     default:
-      mju_error_i("Unknown transmission type %d", m->actuator_trntype[i]); // SHOULD NOT OCCUR
+      mju_error_i("Unknown transmission type %d", m->actuator_trntype[i]);  // SHOULD NOT OCCUR
     }
   }
 
@@ -1429,9 +1428,9 @@ void mj_ellipsoidFluidModel(const mjModel* m, mjData* d, int bodyid) {
     mju_zero(wind, 6);
     mju_copy3(wind+3, m->opt.wind);
     mju_transformSpatial(lwind, wind, 0,
-                         d->geom_xpos + 3*geomid, // Frame of ref's origin.
+                         d->geom_xpos + 3*geomid,  // Frame of ref's origin.
                          d->subtree_com + 3*m->body_rootid[bodyid],
-                         d->geom_xmat + 9*geomid); // Frame of ref's orientation.
+                         d->geom_xmat + 9*geomid);  // Frame of ref's orientation.
 
     // subtract translational component from grom velocity
     mju_subFrom3(lvel+3, lwind+3);
@@ -1455,7 +1454,7 @@ void mj_ellipsoidFluidModel(const mjModel* m, mjData* d, int bodyid) {
 
     // apply force and torque to body com
     mj_applyFT(m, d, bfrc+3, bfrc,
-               d->geom_xpos + 3*geomid, // point where FT is generated
+               d->geom_xpos + 3*geomid,  // point where FT is generated
                bodyid, d->qfrc_passive);
   }
 }
@@ -1798,7 +1797,6 @@ void mj_rnePostConstraint(const mjModel* m, mjData* d) {
 
       // body 1
       if ((k = m->eq_obj1id[id])) {
-
         // transform connect point on body1: local -> global
         mju_rotVecMat(pos, eq_data, d->xmat+9*k);
         mju_addTo3(pos, d->xpos+3*k);
@@ -1812,7 +1810,6 @@ void mj_rnePostConstraint(const mjModel* m, mjData* d) {
 
       // body 2
       if ((k = m->eq_obj2id[id])) {
-
         // transform connect point on body2: local -> global
         mju_rotVecMat(pos, eq_data + 3, d->xmat+9*k);
         mju_addTo3(pos, d->xpos+3*k);
@@ -1836,7 +1833,6 @@ void mj_rnePostConstraint(const mjModel* m, mjData* d) {
 
       // body 1
       if ((k = m->eq_obj1id[id])) {
-
         // transform weld point on body1: local -> global
         mju_rotVecMat(pos, eq_data, d->xmat+9*k);
         mju_addTo3(pos, d->xpos+3*k);
@@ -1850,7 +1846,6 @@ void mj_rnePostConstraint(const mjModel* m, mjData* d) {
 
       // body 2
       if ((k = m->eq_obj2id[id])) {
-
         // weld force on body2 is always applied at body root
         mju_copy3(pos, d->xpos+3*k);
 

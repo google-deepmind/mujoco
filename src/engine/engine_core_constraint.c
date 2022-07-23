@@ -145,12 +145,14 @@ int mj_addConstraint(const mjModel* m, mjData* d,
   // dense: copy entire Jacobian
   if (!mj_isSparse(m)) {
     // make sure jac is not empty
-    if (empty)
-      for (int i=0; i<size*nv; i++)
+    if (empty) {
+      for (int i=0; i<size*nv; i++) {
         if (jac[i]) {
           empty = 0;
           break;
         }
+      }
+    }
 
     // copy if not empty
     if (!empty) {
@@ -506,11 +508,11 @@ void mj_instantiateEquality(const mjModel* m, mjData* d) {
           deriv = data[1] + 2*data[2]*dif + 3*data[3]*dif*dif + 4*data[4]*dif*dif*dif;
 
           // compute Jacobian: sparse or dense
-          if (issparse)
+          if (issparse) {
             NV = mju_combineSparse(jac[0], jac[1], nv, 1, -deriv,
                                    NV, NV2, chain, chain2,
                                    sparse_buf, buf_ind);
-          else {
+          } else {
             mju_addToScl(jac[0], jac[1], -deriv, nv);
           }
         }
@@ -948,7 +950,7 @@ void mj_diagApprox(const mjModel* m, mjData* d) {
         dA[i] = m->body_invweight0[2*b1] + m->body_invweight0[2*b2];
         break;
 
-      case mjEQ_WELD: // distingush translation and rotation inertia
+      case mjEQ_WELD:  // distingush translation and rotation inertia
         // body translation or rotation depending on weldcnt
         b1 = m->eq_obj1id[id];
         b2 = m->eq_obj2id[id];
@@ -1117,7 +1119,7 @@ static void getposdim(const mjModel* m, const mjData* d, int i, mjtNum* pos, int
   case mjCNSTR_EQUALITY:
     if (m->eq_type[id]==mjEQ_WELD) {
       *dim = 6;
-      *pos = mju_norm(d->efc_pos+i, 6); // mixes translation and rotation!
+      *pos = mju_norm(d->efc_pos+i, 6);  // mixes translation and rotation!
     } else if (m->eq_type[id]==mjEQ_CONNECT) {
       *dim = 3;
       *pos = mju_norm(d->efc_pos+i, 3);

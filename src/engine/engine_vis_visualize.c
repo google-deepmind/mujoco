@@ -32,7 +32,9 @@
 
 //----------------------------- utility functions and macros ---------------------------------------
 
-static const mjtNum IDENTITY[9] = {1,0,0, 0,1,0, 0,0,1};
+static const mjtNum IDENTITY[9] = {1, 0, 0,
+                                   0, 1, 0,
+                                   0, 0, 1};
 
 
 // copy float array
@@ -64,16 +66,18 @@ static void makeLabel(const mjModel* m, mjtObj type, int id, char* label) {
 
 
 // return if there is no space in buffer
-#define START                                                           \
-    if( scn->ngeom>=scn->maxgeom )                                      \
-         { mj_warning(d, mjWARN_VGEOMFULL, scn->maxgeom);               \
-           return; }                                                    \
-    else { thisgeom = scn->geoms + scn->ngeom;                          \
-           mjv_initGeom(thisgeom, mjGEOM_NONE, NULL, NULL, NULL, NULL); \
-           thisgeom->objtype = objtype;                                 \
-           thisgeom->objid = i;                                         \
-           thisgeom->category = category;                               \
-           thisgeom->segid = scn->ngeom;    }
+#define START                                                      \
+    if ( scn->ngeom>=scn->maxgeom ) {                              \
+      mj_warning(d, mjWARN_VGEOMFULL, scn->maxgeom);               \
+      return;                                                      \
+    } else {                                                       \
+      thisgeom = scn->geoms + scn->ngeom;                          \
+      mjv_initGeom(thisgeom, mjGEOM_NONE, NULL, NULL, NULL, NULL); \
+      thisgeom->objtype = objtype;                                 \
+      thisgeom->objid = i;                                         \
+      thisgeom->category = category;                               \
+      thisgeom->segid = scn->ngeom;                                \
+    }
 
 
 // advance counter
@@ -327,29 +331,30 @@ void mjv_initGeom(mjvGeom* geom, int type, const mjtNum* size,
   geom->type = type;
 
   // set size (for XYZ scaling)
-  if (size)
+  if (size) {
     switch (type) {
-    case mjGEOM_SPHERE:
-      geom->size[0] = (float)size[0];
-      geom->size[1] = (float)size[0];
-      geom->size[2] = (float)size[0];
-      break;
+      case mjGEOM_SPHERE:
+        geom->size[0] = (float)size[0];
+        geom->size[1] = (float)size[0];
+        geom->size[2] = (float)size[0];
+        break;
 
-    case mjGEOM_CAPSULE:
-      geom->size[0] = (float)size[0];
-      geom->size[1] = (float)size[0];
-      geom->size[2] = (float)size[1];
-      break;
+      case mjGEOM_CAPSULE:
+        geom->size[0] = (float)size[0];
+        geom->size[1] = (float)size[0];
+        geom->size[2] = (float)size[1];
+        break;
 
-    case mjGEOM_CYLINDER:
-      geom->size[0] = (float)size[0];
-      geom->size[1] = (float)size[0];
-      geom->size[2] = (float)size[1];
-      break;
+      case mjGEOM_CYLINDER:
+        geom->size[0] = (float)size[0];
+        geom->size[1] = (float)size[0];
+        geom->size[2] = (float)size[1];
+        break;
 
-    default:
-      mju_n2f(geom->size, size, 3);
-    } else {
+      default:
+        mju_n2f(geom->size, size, 3);
+    }
+  } else {
     geom->size[0] = 0.1f;
     geom->size[1] = 0.1f;
     geom->size[2] = 0.1f;
@@ -838,7 +843,6 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
         if (m->actuator_trntype[i]==mjTRN_JOINT ||
             m->actuator_trntype[i]==mjTRN_JOINTINPARENT ||
             m->actuator_trntype[i]==mjTRN_SITE) {
-
           START
 
           // site actuators
@@ -1355,8 +1359,8 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
   // slider-crank
   objtype = mjOBJ_ACTUATOR;
   category = mjCAT_DYNAMIC;
-  if ((category & catmask))
-    for (int i=0; i<m->nu; i++)
+  if ((category & catmask)) {
+    for (int i=0; i<m->nu; i++) {
       if (m->actuator_trntype[i]==mjTRN_SLIDERCRANK) {
         // get data
         int j = m->actuator_trnid[2*i];                 // crank
@@ -1404,6 +1408,8 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
         }
         FINISH
       }
+    }
+  }
 
   // center of mass for root bodies
   objtype = mjOBJ_UNKNOWN;
@@ -1778,7 +1784,6 @@ void mjv_updateSkin(const mjModel* m, mjData* d, mjvScene* scn) {
 
 // update visible skins only
 void mjv_updateActiveSkin(const mjModel* m, mjData* d, mjvScene* scn, const mjvOption* opt) {
-
   // process skins
   for (int i=0; i<m->nskin; i++) {
     // get info

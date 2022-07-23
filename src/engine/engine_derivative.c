@@ -345,7 +345,7 @@ void mj_stepSkip(const mjModel* m, mjData* d, int skipstage, int skipsensor) {
   }
 
   // use selected integrator
-  switch(m->opt.integrator) {
+  switch (m->opt.integrator) {
     case mjINT_EULER:
       mj_EulerSkip(m, d, skipstage >= mjSTAGE_POS);
       break;
@@ -573,7 +573,6 @@ static void addJTBJSparse(mjtNum* DfDv, const mjtNum* J, const mjtNum* B,
   for (int i=0; i<n; i++) {
     for (int j=0; j<n; j++) {
       if (B[i*n+j]) {
-
         // process non-zero elements of J(i,k)
         for (int k=0; k<rownnz[offset+i]; k++) {
           int ik = rowadr[offset+i] + k;
@@ -660,7 +659,7 @@ static mjtNum mjd_muscleGain_vel(mjtNum len, mjtNum vel, const mjtNum lengthrang
   }
 
   // compute FVL and scale, make it negative
-  return -force*FL*dFV/mjMAX(mjMINVAL,L0*vmax);
+  return -force*FL*dFV/mjMAX(mjMINVAL, L0*vmax);
 }
 
 
@@ -758,7 +757,7 @@ static void mjd_addedMassForces(
     mjtNum* restrict B, const mjtNum local_vels[6], const mjtNum fluid_density,
     const mjtNum virtual_mass[3], const mjtNum virtual_inertia[3]) {
   const mjtNum lin_vel[3] = {local_vels[3], local_vels[4], local_vels[5]};
-  const mjtNum ang_vel[3] = {local_vels[0], local_vels[1], local_vels[2]};;
+  const mjtNum ang_vel[3] = {local_vels[0], local_vels[1], local_vels[2]};
   const mjtNum virtual_lin_mom[3] = {
     fluid_density * virtual_mass[0] * lin_vel[0],
     fluid_density * virtual_mass[1] * lin_vel[1],
@@ -1057,9 +1056,9 @@ void mjd_ellipsoidFluid(const mjModel* m, mjData* d, mjtNum* DfDv, int bodyid) {
     mju_zero(wind, 6);
     mju_copy3(wind+3, m->opt.wind);
     mju_transformSpatial(lwind, wind, 0,
-                         d->geom_xpos + 3*geomid, // Frame of ref's origin.
+                         d->geom_xpos + 3*geomid,  // Frame of ref's origin.
                          d->subtree_com + 3*m->body_rootid[bodyid],
-                         d->geom_xmat + 9*geomid); // Frame of ref's orientation.
+                         d->geom_xmat + 9*geomid);  // Frame of ref's orientation.
     // subtract translational component from grom velocity
     mju_subFrom3(lvel+3, lwind+3);
 
@@ -1484,10 +1483,10 @@ void mjd_stepFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte centered,
   mjMARKSTACK;
 
   // states
-  mjtNum *state      = mj_stackAlloc(d, nq+nv+na); // current state
-  mjtNum *next       = mj_stackAlloc(d, nq+nv+na); // next state
-  mjtNum *next_plus  = mj_stackAlloc(d, nq+nv+na); // forward-nudged next state
-  mjtNum *next_minus = mj_stackAlloc(d, nq+nv+na); // backward-nudged next state
+  mjtNum *state      = mj_stackAlloc(d, nq+nv+na);  // current state
+  mjtNum *next       = mj_stackAlloc(d, nq+nv+na);  // next state
+  mjtNum *next_plus  = mj_stackAlloc(d, nq+nv+na);  // forward-nudged next state
+  mjtNum *next_minus = mj_stackAlloc(d, nq+nv+na);  // backward-nudged next state
 
   // warmstart accelerations
   mjtNum *warmstart = mjDISABLED(mjDSBL_WARMSTART) ? NULL : mj_stackAlloc(d, nv);
@@ -1567,7 +1566,6 @@ void mjd_stepFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte centered,
   // finite-difference activations: skip=mjSTAGE_VEL
   if (DyDa || DsDa) {
     for (int i=0; i<na; i++) {
-
       // nudge forward
       d->act[i] += eps;
 
