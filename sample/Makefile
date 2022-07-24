@@ -14,3 +14,13 @@ all:
 	$(CC) -c -O2 -I../include uitools.c
 	$(CXX) $(COMMON) uitools.o simulate.cc -lmujoco -lglfw   -o ../bin/simulate
 	rm *.o
+
+.PHONY: clean
+clean:
+	rm -rf ../bin
+	
+.PHONY: help
+help:
+	@echo "Available Targets:"
+	@echo "... all"
+	@echo "... clean"
