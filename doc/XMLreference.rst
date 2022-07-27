@@ -4486,13 +4486,13 @@ This element has one custom attribute in addition to the common attributes:
 :el-prefix:`actuator/` **damper** (*)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-This element is an active damper which produces a force proportional to both velocity and control: ``F = - kv * velocity * control``, where ``kv`` must be nonnegative. :at:`ctrlrange` is required and must also be nonnegative. The underlying :el:`general` attributes are set as follows: 
+This element is an active damper which produces a force proportional to both velocity and control: ``F = - kv * velocity * control``, where ``kv`` must be nonnegative. :at:`ctrlrange` is required and must also be nonnegative. The underlying :el:`general` attributes are set as follows:
 
 =========== ======= ========= =======
 Attribute   Setting Attribute Setting
 =========== ======= ========= =======
 dyntype     none    dynprm    1 0 0
-gaintype    affine  gainprm   0 0 kv
+gaintype    affine  gainprm   0 0 -kv
 biastype    none    biasprm   0 0 0
 ctrllimited true
 =========== ======= ========= =======
