@@ -2,8 +2,10 @@
 Changelog
 =========
 
-.. Upcoming version (not yet released)
-.. -----------------------------------
+Upcoming version (not yet released)
+-----------------------------------
+
+- Added :ref:`mj_jacSubtreeCom` for computing the translational Jacobian of the center-of-mass of a subtree. 
 
 Version 2.2.1 (July 18, 2022)
 -----------------------------

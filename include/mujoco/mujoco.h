@@ -386,6 +386,9 @@ MJAPI void mj_jacBody(const mjModel* m, const mjData* d, mjtNum* jacp, mjtNum* j
 // Compute body center-of-mass end-effector Jacobian.
 MJAPI void mj_jacBodyCom(const mjModel* m, const mjData* d, mjtNum* jacp, mjtNum* jacr, int body);
 
+// Compute subtree center-of-mass end-effector Jacobian.
+MJAPI void mj_jacSubtreeCom(const mjModel* m, mjData* d, mjtNum* jacp, int body);
+
 // Compute geom end-effector Jacobian.
 MJAPI void mj_jacGeom(const mjModel* m, const mjData* d, mjtNum* jacp, mjtNum* jacr, int geom);
 

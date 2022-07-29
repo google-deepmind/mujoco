@@ -2010,6 +2010,36 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
          ),
          doc='Compute body center-of-mass end-effector Jacobian.',
      )),
+    ('mj_jacSubtreeCom',
+     FunctionDecl(
+         name='mj_jacSubtreeCom',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='m',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjModel', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='d',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjData'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='jacp',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='body',
+                 type=ValueType(name='int'),
+             ),
+         ),
+         doc='Compute subtree center-of-mass end-effector Jacobian.',
+     )),
     ('mj_jacGeom',
      FunctionDecl(
          name='mj_jacGeom',
