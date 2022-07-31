@@ -4358,6 +4358,17 @@ mj_jacBodyCom
 
 Compute body center-of-mass end-effector Jacobian.
 
+.. _mj_jacSubtreeCom:
+
+mj_jacSubtreeCom
+~~~~~~~~~~~~~~~~
+
+.. code-block:: C
+
+   void mj_jacSubtreeCom(const mjModel* m, mjData* d, mjtNum* jacp, int body);
+
+Compute subtree center-of-mass end-effector Jacobian. ``jacp`` is 3 x nv.
+
 .. _mj_jacGeom:
 
 mj_jacGeom

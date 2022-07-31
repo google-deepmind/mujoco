@@ -1463,8 +1463,8 @@ static int glDebugEnabled() {
 
 
 
-// allocate resources in custom OpenGL context
-void mjr_makeContext(const mjModel* m, mjrContext* con, int fontscale) {
+void mjr_makeContext_offSize(const mjModel* m, mjrContext* con, int fontscale,
+                             int default_offwidth, int default_offheight) {
   // fix fontscale
   fontscale = 50 * mju_round(((mjtNum)fontscale)/50.0);
   if (fontscale<100) {
@@ -1539,8 +1539,8 @@ void mjr_makeContext(const mjModel* m, mjrContext* con, int fontscale) {
   // no model: offscreen and font only
   if (!m) {
     // default offscreen
-    con->offWidth = 800;
-    con->offHeight = 600;
+    con->offWidth = default_offwidth;
+    con->offHeight = default_offheight;
     con->offSamples = 0;
     makeOff(con);
 
@@ -1602,6 +1602,13 @@ void mjr_makeContext(const mjModel* m, mjrContext* con, int fontscale) {
   while ((err = glGetError())) {
     mju_warning_i("OpenGL error 0x%x in or before mjr_makeContext", err);
   }
+}
+
+
+
+// allocate resources in custom OpenGL context
+void mjr_makeContext(const mjModel* m, mjrContext* con, int fontscale) {
+  mjr_makeContext_offSize(m, con, fontscale, 800, 600);
 }
 
 

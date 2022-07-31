@@ -688,6 +688,17 @@ void mjCMesh::LoadSTL(const mjVFS* vfs) {
       // get pointer to vertex coordiates
       float* v = (float*)(stl+50*i+12*(j+1));
 
+      // check if vertex coordinates can be cast to an int safely
+      if (fabs(v[0])>pow(2, 30) || fabs(v[1])>pow(2, 30) || fabs(v[2])>pow(2, 30)) {
+        if (!flag_existing) {
+          mju_free(buffer);
+        }
+
+        throw mjCError(this,
+                      "vertex coordinates in STL file '%s' exceed maximum bounds",
+                      filename.c_str());
+      }
+
       // add vertex address in face; change order if scale makes it lefthanded
       if (righthand || j==0) {
         face[3*i+j] = nvert;

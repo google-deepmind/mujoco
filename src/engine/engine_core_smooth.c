@@ -931,7 +931,7 @@ void mj_factorM(const mjModel* m, mjData* d) {
 // sparse backsubstitution:  x = inv(L'*D*L)*y
 //  L is in lower triangle of qLD; D is on diagonal of qLD
 //  handle n vectors at once
-void mj_solveLD(const mjModel* m, mjData* d, mjtNum* x, const mjtNum* y, int n,
+void mj_solveLD(const mjModel* m, mjtNum* x, const mjtNum* y, int n,
                 const mjtNum* qLD, const mjtNum* qLDiagInv) {
   mjtNum tmp;
 
@@ -1051,7 +1051,7 @@ void mj_solveLD(const mjModel* m, mjData* d, mjtNum* x, const mjtNum* y, int n,
 // sparse backsubstitution:  x = inv(L'*D*L)*y
 //  use factorization in d
 void mj_solveM(const mjModel* m, mjData* d, mjtNum* x, const mjtNum* y, int n) {
-  mj_solveLD(m, d, x, y, n, d->qLD, d->qLDiagInv);
+  mj_solveLD(m, x, y, n, d->qLD, d->qLDiagInv);
 }
 
 
