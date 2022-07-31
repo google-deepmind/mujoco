@@ -37,6 +37,12 @@ static const char* const kCubePath =
     "user/testdata/cube.xml";
 static const char* const kTorusPath =
     "user/testdata/torus.xml";
+static const char* const kConvexInertiaPath =
+    "user/testdata/inertia_convex.xml";
+static const char* const kConcaveInertiaPath =
+    "user/testdata/inertia_concave.xml";
+static const char* const kShellInertiaPath =
+    "user/testdata/inertia_shell.xml";
 static const char* const kTorusQuadsPath =
     "user/testdata/torus_quads.xml";
 static const char* const kTexturedTorusPath =
@@ -134,6 +140,8 @@ TEST_F(MujocoTest, TinyMeshLoads) {
   mj_deleteModel(model);
 }
 
+// ------------- test inertia -------------------------------------------------
+
 TEST_F(MujocoTest, SmallInertiaLoads) {
   static constexpr char xml[] = R"(
   <mujoco>
@@ -200,6 +208,65 @@ TEST_F(MujocoTest, FlippedFaceFails) {
   std::array<char, 1024> error;
   LoadModelFromString(xml, error.data(), error.size());
   EXPECT_THAT(error.data(), HasSubstr("faces have inconsistent orientation"));
+}
+
+const mjtNum max_abs_err = std::numeric_limits<float>::epsilon();
+
+TEST_F(MujocoTest, ExactConcaveInertia) {
+  const std::string xml_path = GetTestDataFilePath(kConcaveInertiaPath);
+  std::array<char, 1024> error;
+  mjModel* model = mj_loadXML(xml_path.c_str(), 0, error.data(), error.size());
+  // analytic computation of 1x1x1 cube with a .8x.8x.9 hole
+  // see https://en.wikipedia.org/wiki/List_of_moments_of_inertia
+  mjtNum m_hole = .9 * .8 * .8;
+  mjtNum m_cube = 1.;
+  mjtNum m_concave_cube = m_cube - m_hole;
+  mjtNum I_cube = m_cube/6.;
+  // due to the asymmetric hole, the com position has changed
+  // so we need to use https://en.wikipedia.org/wiki/Parallel_axis_theorem
+  mjtNum d_cube = .5 - model->body_ipos[5];
+  mjtNum d_hole = .55 - model->body_ipos[5];
+  mjtNum I1 = I_cube - m_hole*(.8*.8 + .8*.8)/12;
+  mjtNum I2 = I_cube - m_hole*(.8*.8 + .9*.9)/12 + m_cube*d_cube*d_cube - m_hole*d_hole*d_hole;
+  EXPECT_LE(fabs(model->body_mass[1] - m_concave_cube), max_abs_err);
+  EXPECT_LE(fabs(model->body_mass[2] - m_concave_cube), max_abs_err);
+  EXPECT_LE(fabs(model->body_mass[3] - m_concave_cube), max_abs_err);
+  EXPECT_LE(fabs(model->body_mass[4] - m_concave_cube), max_abs_err);
+  for (int i=3; i<15; i+=3) {
+    EXPECT_LE(fabs(model->body_inertia[i] - I1), max_abs_err);
+    EXPECT_LE(fabs(model->body_inertia[i+1] - I2), max_abs_err);
+    EXPECT_LE(fabs(model->body_inertia[i+2] - I2), max_abs_err);
+  }
+  mj_deleteModel(model);
+}
+
+TEST_F(MujocoTest, ExactConvexInertia) {
+  const std::string xml_path = GetTestDataFilePath(kConvexInertiaPath);
+  std::array<char, 1024> error;
+  mjModel* model = mj_loadXML(xml_path.c_str(), 0, error.data(), error.size());
+  // https://en.wikipedia.org/wiki/List_of_moments_of_inertia
+  mjtNum m_solid_cube = 1.;
+  mjtNum I_solid_cube = 1./6. * m_solid_cube;
+  EXPECT_LE(fabs(model->body_mass[1] - m_solid_cube), max_abs_err);
+  EXPECT_LE(fabs(model->body_mass[2] - m_solid_cube), max_abs_err);
+  for (int i=3; i<9; i++) {
+    EXPECT_LE(fabs(model->body_inertia[i] - I_solid_cube), max_abs_err);
+  }
+  mj_deleteModel(model);
+}
+
+TEST_F(MujocoTest, ExactShellInertia) {
+  const std::string xml_path = GetTestDataFilePath(kShellInertiaPath);
+  std::array<char, 1024> error;
+  mjModel* model = mj_loadXML(xml_path.c_str(), 0, error.data(), error.size());
+  // see https://en.wikipedia.org/wiki/List_of_moments_of_inertia
+  mjtNum m_hollow_cube = 6.;
+  mjtNum I_hollow_cube = 5./18. * m_hollow_cube;
+  EXPECT_LE(fabs(model->body_mass[1] - m_hollow_cube), max_abs_err);
+  EXPECT_LE(fabs(model->body_inertia[3] - I_hollow_cube), max_abs_err);
+  EXPECT_LE(fabs(model->body_inertia[4] - I_hollow_cube), max_abs_err);
+  EXPECT_LE(fabs(model->body_inertia[5] - I_hollow_cube), max_abs_err);
+  mj_deleteModel(model);
 }
 
 }  // namespace

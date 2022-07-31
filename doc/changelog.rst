@@ -5,7 +5,18 @@ Changelog
 Upcoming version (not yet released)
 -----------------------------------
 
-- Added :ref:`mj_jacSubtreeCom` for computing the translational Jacobian of the center-of-mass of a subtree. 
+General
+^^^^^^^
+- Added :ref:`mj_jacSubtreeCom` for computing the translational Jacobian of the center-of-mass of a subtree.
+- Added moment of inertia computation for concave meshes. This is a breaking change, to get back to the previous
+  behavior set the compiler flag :at:`exactmeshinertia` to false.
+- Added parameter :at:`shellinertia` in :at:`geom` for treating a mesh as a boundary mesh (shell) for inertia
+  computations. This is currently supported only for meshes.
+- Raise error if the orientation of mesh faces is not consistent, which causes the inertia computations to be
+  inaccurate. If this occurs, open the mesh in MeshLab or Blender and recalculate the faces.
+
+Bug fixes
+^^^^^^^^^
 
 Version 2.2.1 (July 18, 2022)
 -----------------------------

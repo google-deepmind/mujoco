@@ -68,6 +68,7 @@ extern const mjMap gain_map[];
 extern const mjMap bias_map[];
 extern const mjMap stage_map[];
 extern const mjMap datatype_map[];
+extern const mjMap meshtype_map[];
 
 
 //---------------------------------- Base XML class ------------------------------------------------

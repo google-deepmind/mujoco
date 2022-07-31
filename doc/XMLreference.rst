@@ -12,10 +12,9 @@ This chapter is the reference manual for the MJCF modeling language used in MuJo
 XML schema
 ~~~~~~~~~~
 
-The table below summarizes the XML elements and their attributes in MJCF. It is generated automatically with the
-function :ref:`mj_printSchema` which prints out the custom schema used by the parser to validate the model file.
-Note that all information in MJCF is entered through elements and attributes. Text content in elements is not used;
-if present, the parser ignores it. The symbols in the second column of the table have the following meaning:
+The table below summarizes the XML elements and their attributes in MJCF. Note that all information in MJCF is entered
+through elements and attributes. Text content in elements is not used; if present, the parser ignores it. The symbols
+in the second column of the table have the following meaning:
 
 ====== ===================================================
 **!**  required element, can appear only once
@@ -46,7 +45,7 @@ if present, the parser ignores it. The symbols in the second column of the table
 |                          |    |    +-------------------------+-------------------------+-------------------------+ |
 |                          |    |    | :at:`convexhull`        | :at:`usethread`         | :at:`fusestatic`        | |
 |                          |    |    +-------------------------+-------------------------+-------------------------+ |
-|                          |    |    | :at:`inertiafromgeom`   | :at:`inertiagrouprange` |                         | |
+|                          |    |    | :at:`inertiafromgeom`   | :at:`inertiagrouprange` | :at:`exactmeshinertia`  | |
 |                          |    |    +-------------------------+-------------------------+-------------------------+ |
 +--------------------------+----+------------------------------------------------------------------------------------+
 | |_2|:el:`lengthrange`    | ?  | .. table::                                                                         |
@@ -273,6 +272,8 @@ if present, the parser ignores it. The symbols in the second column of the table
 |                          |    |    | :at:`mesh`              | :at:`fitscale`          | :at:`rgba`              | |
 |                          |    |    +-------------------------+-------------------------+-------------------------+ |
 |                          |    |    | :at:`user`              | :at:`fluidshape`        | :at:`fluidcoef`         | |
+|                          |    |    +-------------------------+-------------------------+-------------------------+ |
+|                          |    |    | :at:`shellinertia`      |                         |                         | |
 |                          |    |    +-------------------------+-------------------------+-------------------------+ |
 +--------------------------+----+------------------------------------------------------------------------------------+
 | |_2|:el:`site`           | ?  | .. table::                                                                         |
@@ -633,7 +634,7 @@ if present, the parser ignores it. The symbols in the second column of the table
 |                          |    |    +-------------------------+-------------------------+-------------------------+ |
 |                          |    |    | :at:`fitscale`          | :at:`rgba`              | :at:`user`              | |
 |                          |    |    +-------------------------+-------------------------+-------------------------+ |
-|                          |    |    | :at:`fluidshape`        | :at:`fluidcoef`         |                         | |
+|                          |    |    | :at:`fluidshape`        | :at:`fluidcoef`         | :at:`shellinertia`      | |
 |                          |    |    +-------------------------+-------------------------+-------------------------+ |
 +--------------------------+----+------------------------------------------------------------------------------------+
 | |_2|:el:`site`           | \* | .. table::                                                                         |
@@ -1612,6 +1613,9 @@ any effect. The settings here are global and apply to the entire model.
    particular, a number of publicly available URDF models have seemingly arbitrary inertias which are too large compared
    to the mass. This results in equivalent inertia boxes which extend far beyond the geometric boundaries of the model.
    Note that the built-in OpenGL visualizer can render equivalent inertia boxes.
+:at:`exactmeshinertia`: :at-val:`[false, true], "false"`
+   If this attribute is set to false, computes mesh inertia with the legacy algorithm, which is exact only for convex
+   meshes. If set to true, it is exact for any closed mesh geometry.
 :at:`inertiagrouprange`: :at-val:`int(2), "0 5"`
    This attribute specifies the range of geom groups that are used to infer body masses and inertias (when such
    inference is enabled). The group attribute of :ref:`geom <geom>` is an integer. If this integer falls in the range
@@ -2722,7 +2726,7 @@ MSH file format
 Poorly designed meshes can display rendering artifacts. In particular, the shadow mapping mechanism relies on having
 some distance between front and back-facing triangle faces. If the faces are repeated, with opposite normals as
 determined by the vertex order in each triangle, this causes shadow aliasing. The solution is to remove the repeated
-faces (which can be done in MeshLab) or use a better designed mesh.
+faces (which can be done in MeshLab) or use a better designed mesh. Flipped faces are checked by MuJoCo for meshes specified as OBJ or XML and an error message is returned.
 
 The size of the mesh is determined by the 3D coordinates of the vertex data in the mesh file, multiplied by the
 components of the :at:`scale` attribute below. Scaling is applied separately for each coordinate axis. Note that
@@ -2767,12 +2771,7 @@ practice this is rarely needed.
 
 The inertial computation mentioned above is part of an algorithm used not only to center and align the mesh, but also
 to infer the mass and inertia of the body to which it is attached. This is done by computing the centroid of the
-triangle faces, connecting each face with the centroid to form a triangular pyramid, computing the mass and inertia of
-all pyramids and accumulating them. This algorithm comes from Astronomy where it is used to estimate inertial
-properties of asteroids. It is exact for convex meshes but is not always exact for non-convex meshes; indeed no
-algorithm can be exact when the notion of interior is ill-defined. Thus for non-convex models designed in CAD software
-(which usually knows what the interior is) it is better to ask that software to compute the inertial properties of the
-body and enter them in the MJCF file explicitly via the :ref:`inertial <inertial>` element.
+triangle faces, connecting each face with the centroid to form a triangular pyramid, computing the mass and signed inertia of all pyramids (considered solid or hollow if :at:`shellinertia` is true) and accumulating them. The sign ensures that pyramids on the outside of the surfaces are subtracted, as it can occur with concave geometries. This algorithm can be found in section 1.3.8 of Computational Geometry in C (Second Edition) by Joseph O'Rourke.
 
 The full list of processing steps applied by the compiler to each mesh is as follows:
 
@@ -3390,6 +3389,8 @@ helps clarify the role of bodies and geoms in MuJoCo.
    Material density used to compute the geom mass and inertia. The computation is based on the geom shape and the
    assumption of uniform density. The internal default of 1000 is the density of water in SI units. This attribute is
    used only when the mass attribute above is unspecified.
+:at:`shellinertia` :at-val:`[false, true], "false"`
+   If true, the geom's inertia is computed assuming that all the mass is concentrated on the boundary. In this case :at:`density` is interpreted as surface density rather than volumetric density.
 :at:`solmix`: :at-val:`real, "1"`
    This attribute specifies the weight used for averaging of contact parameters, and interacts with the priority
    attribute. See :ref:`CContact`.

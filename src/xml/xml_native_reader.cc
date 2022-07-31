@@ -46,10 +46,10 @@ static const int nMJCF = 163;
 static const char* MJCF[nMJCF][mjXATTRNUM] = {
 {"mujoco", "!", "1", "model"},
 {"<"},
-    {"compiler", "*", "17", "boundmass", "boundinertia", "settotalmass", "balanceinertia",
+    {"compiler", "*", "18", "boundmass", "boundinertia", "settotalmass", "balanceinertia",
         "strippath", "coordinate", "angle", "fitaabb", "eulerseq",
         "meshdir", "texturedir", "discardvisual", "convexhull", "usethread",
-        "fusestatic", "inertiafromgeom", "inertiagrouprange"},
+        "fusestatic", "inertiafromgeom", "inertiagrouprange", "exactmeshinertia"},
     {"<"},
         {"lengthrange", "?", "10", "mode", "useexisting", "uselimit",
             "accel", "maxforce", "timeconst", "timestep",
@@ -103,9 +103,9 @@ static const char* MJCF[nMJCF][mjXATTRNUM] = {
             "limited", "solreflimit", "solimplimit",
             "solreffriction", "solimpfriction", "stiffness", "range", "margin",
             "ref", "springref", "armature", "damping", "frictionloss", "user"},
-        {"geom", "?", "30", "type", "pos", "quat", "contype", "conaffinity", "condim",
+        {"geom", "?", "31", "type", "pos", "quat", "contype", "conaffinity", "condim",
             "group", "priority", "size", "material", "friction", "mass", "density",
-            "solmix", "solref", "solimp",
+            "shellinertia", "solmix", "solref", "solimp",
             "margin", "gap", "fromto", "axisangle", "xyaxes", "zaxis", "euler",
             "hfield", "mesh", "fitscale", "rgba", "fluidshape", "fluidcoef", "user"},
         {"site", "?", "13", "type", "group", "pos", "quat", "material",
@@ -160,7 +160,7 @@ static const char* MJCF[nMJCF][mjXATTRNUM] = {
     {"asset", "*", "0"},
     {"<"},
         {"texture", "*", "21", "name", "type", "file", "gridsize", "gridlayout",
-            "fileright", "fileleft", "fileup", "filedown","filefront", "fileback",
+            "fileright", "fileleft", "fileup", "filedown", "filefront", "fileback",
             "builtin", "rgb1", "rgb2", "mark", "markrgb", "random", "width", "height",
             "hflip", "vflip"},
         {"hfield", "*", "5", "name", "file", "nrow", "ncol", "size"},
@@ -186,9 +186,9 @@ static const char* MJCF[nMJCF][mjXATTRNUM] = {
             "stiffness", "range", "margin", "ref", "springref", "armature", "damping",
             "frictionloss", "user"},
         {"freejoint", "*", "2", "name", "group"},
-        {"geom", "*", "32", "name", "class", "type", "contype", "conaffinity", "condim",
+        {"geom", "*", "33", "name", "class", "type", "contype", "conaffinity", "condim",
             "group", "priority", "size", "material", "friction", "mass", "density",
-            "solmix", "solref", "solimp",
+            "shellinertia", "solmix", "solref", "solimp",
             "margin", "gap", "fromto", "pos", "quat", "axisangle", "xyaxes", "zaxis", "euler",
             "hfield", "mesh", "fitscale", "rgba", "fluidshape", "fluidcoef", "user"},
         {"site", "*", "15", "name", "class", "type", "group", "pos", "quat",
@@ -608,6 +608,13 @@ const mjMap tkind_map[2] = {
 };
 
 
+// mesh type
+const mjMap  meshtype_map[2] = {
+    {"false", mjVOLUME_MESH},
+    {"true",  mjSHELL_MESH},
+  };
+
+
 
 //---------------------------------- class mjXReader implementation --------------------------------
 
@@ -793,6 +800,9 @@ void mjXReader::Compiler(XMLElement* section, mjCModel* mod) {
   }
   MapValue(section, "inertiafromgeom", &mod->inertiafromgeom, TFAuto_map, 3);
   ReadAttr(section, "inertiagrouprange", 2, mod->inertiagrouprange, text);
+  if (MapValue(section, "exactmeshinertia", &n, bool_map, 2)){
+    mod->exactmeshinertia = (n==1);
+  }
 
   // lengthrange subelement
   XMLElement* elem = FindSubElem(section, "lengthrange");
@@ -1148,6 +1158,11 @@ void mjXReader::OneGeom(XMLElement* elem, mjCGeom* pgeom) {
   ReadAttr(elem, "pos", 3, pgeom->pos, text);
   ReadAttr(elem, "quat", 4, pgeom->quat, text);
   ReadAlternative(elem, pgeom->alt);
+
+  // compute inertia using either solid or shell geometry
+  if (MapValue(elem, "shellinertia", &n, meshtype_map, 2)) {
+    pgeom->typeinertia = (mjtMeshType)n;
+  }
 
   GetXMLPos(elem, pgeom);
 }

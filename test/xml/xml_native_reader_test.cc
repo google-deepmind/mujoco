@@ -294,6 +294,25 @@ TEST_F(UserDataTest, InvalidInertialOrientation) {
   EXPECT_THAT(error.data(), HasSubstr("multiple orientation specifiers for the same field"));
 }
 
+TEST_F(UserDataTest, ReadShellParameter) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="example_mesh"
+        vertex="0 0 0  1 0 0  0 1 0  0 0 1"
+        face="0 2 1  2 0 3" />
+    </asset>
+    <worldbody>
+      <geom type="mesh" mesh="example_mesh" shellinertia="true"/>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, NotNull());
+  mj_deleteModel(model);
+}
+
 TEST_F(UserDataTest, ReadsDamper) {
   static constexpr char xml[] = R"(
   <mujoco>
