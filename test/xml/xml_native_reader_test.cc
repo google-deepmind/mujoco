@@ -375,7 +375,7 @@ TEST_F(UserDataTest, RequiresControlRange) {
   std::array<char, 1024> error;
   mjModel* model = LoadModelFromString(xml, error.data(), error.size());
   ASSERT_THAT(model, IsNull());
-  EXPECT_THAT(error.data(), HasSubstr("invalid control range for actuator"));
+  EXPECT_THAT(error.data(), HasSubstr("required attribute missing: 'ctrlrange'"));
 }
 
 TEST_F(UserDataTest, PositiveControlRange) {

@@ -256,12 +256,28 @@ actuator works. The user can set them independently for maximum flexibility, or 
 <CActuator>` which instantiate common actuator types.
 
 Transmission
+
    Each actuator has a scalar length :math:`l_i(q)` defined by the type of transmission and its parameters. The gradient
-   :math:`\nabla l_i` is an :math:`n_V`-dimensional column vector of moment arms. It determines the mapping from scalar
+   :math:`\nabla l_i` is an :math:`n_V`-dimensional vector of moment arms. It determines the mapping from scalar
    actuator force to joint force. The transmission properties are determined by the MuJoCo object to which the actuator
-   is attached; the possible attachment object types are joint, tendon, site and slider-crank. The latter can also be
-   modeled explicitly by creating MuJoCo bodies and coupling them with equality constraints to the rest of the system,
-   but that would be less efficient.
+   is attached; the possible attachment object types are :at:`joint`, :at:`tendon`, :at:`jointinparent`,
+   :at:`slider-crank`, :at:`site`, and :at:`body`. The :at:`joint` and :at:`tendon` transmission types act as expected
+   mechanically and correspond to the actuator applying forces or torques to the target object.
+
+   The :at:`jointinparent` transmission is unique to ball and free joint and asserts that rotation should be measured
+   in the parent rather than child frame.
+
+   :at:`slider-crank` `transmissions <https://en.wikipedia.org/wiki/Slider-crank_linkage>`_ transform a linear force to
+   a torque, as in a piston-driven combustion engine. `This model
+   <https://github.com/deepmind/mujoco/tree/main/model/slider_crank>`_ contains pedagogical examples. Slider-cranks can
+   also be modeled explicitly by creating MuJoCo bodies and coupling them with equality constraints to the rest of the
+   system, but that would be less efficient.
+
+   :at:`site` and :at:`body` are degenerate transmission targets, as their length :math:`l_i(q)` is always 0.
+   They can therefore not be used to maintain a desired length value, as with a position actuator. Site
+   transmissions correspond to applying a Cartsian force/torque at the site, while :el:`body` transmissions correspond
+   to applying forces at contact points belonging to a body. For more information about adhesion, see the
+   :ref:`adhesion<adhesion>` shorcut documentation.
 
 Activation dynamics
    Some actuators such as pneumatic and hydraulic cylinders as well as biological muscles have an internal state called
@@ -1458,14 +1474,14 @@ The top-level function :ref:`mj_step` invokes the sequence of computations below
    cameras and lights. It also normalizes all quaternions, just in case.
 #. Compute the body inertias and joint axes, in global frames centered at the centers of mass of the corresponding
    kinematic subtrees (to improve floating-point accuracy).
-#. Compute the tendon lengths and moment arms. This includes the computation of minimal-length paths for spatial
-   tendons.
 #. Compute the actuator lengths and moment arms.
 #. Compute the composite rigid body inertias and construct the joint-space inertia matrix.
 #. Compute the sparse factorization of the joint-space inertia matrix.
 #. Construct the list of active contacts. This includes both broad-phase and near-phase collision detection.
 #. Construct the constraint Jacobian and compute the constraint residuals.
 #. Compute the matrices and vectors needed by the constraint solvers.
+#. Compute the tendon lengths and moment arms. This includes the computation of minimal-length paths for spatial
+   tendons.
 #. Compute sensor data that only depends on position, and the potential energy if enabled.
 #. Compute the tendon and actuator velocities.
 #. Compute the body velocities and rates of change of the joint axes, again in the global coordinate frames centered at

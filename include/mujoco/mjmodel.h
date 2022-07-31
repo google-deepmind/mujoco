@@ -183,6 +183,7 @@ typedef enum mjtTrn_ {            // type of actuator transmission
   mjTRN_SLIDERCRANK,              // force via slider-crank linkage
   mjTRN_TENDON,                   // force on tendon
   mjTRN_SITE,                     // force on site
+  mjTRN_BODY,                     // adhesion force on a body's geoms
 
   mjTRN_UNDEFINED     = 1000      // undefined transmission type
 } mjtTrn;

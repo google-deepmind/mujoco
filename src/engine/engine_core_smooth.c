@@ -785,6 +785,48 @@ void mj_transmission(const mjModel* m, mjData* d) {
       mju_addTo(moment+i*nv, jac, nv);                            // add the two
       break;
 
+    case mjTRN_BODY:                  // body (adhesive contacts)
+      // cannot compute meaningful length, set to 0
+      length[i] = 0;
+
+      // moment is average of all contact normal Jacobians
+      {
+        // find and count all relevant contacts, mark them in efc_force
+        int counter = 0;
+        mjtNum* efc_force = mj_stackAlloc(d, d->nefc);
+        mju_zero(efc_force, d->nefc);
+        for (int j=0; j<d->ncon; j++) {
+          const mjContact* con = d->contact+j;
+          if (m->geom_bodyid[con->geom1]==id || m->geom_bodyid[con->geom2]==id) {
+            if (!con->exclude) {
+              counter++;
+
+              // condim 1 or elliptic cones: normal is in the first row
+              if (con->dim == 1 || m->opt.cone==mjCONE_ELLIPTIC) {
+                efc_force[con->efc_address] = 1;
+              }
+
+              // pyramidal cones: average all pyramid directions
+              else {
+                int npyramid = con->dim-1;  // number of frictional directions
+                for (int k=0; k<2*npyramid; k++) {
+                  efc_force[con->efc_address+k] = 0.5/npyramid;
+                }
+              }
+            } else if (con->exclude == 1) {
+              //  TODO(b/240848298): compute Jacobians for excluded contact (in gap)
+            }
+          }
+        }
+
+        // moment is average over contact normal Jacobians, make negative for adhesion
+        if (counter) {
+          mj_mulJacTVec(m, d, moment+i*nv, efc_force);
+          mju_scl(moment+i*nv, moment+i*nv, -1.0/counter, nv);
+        }
+      }
+      break;
+
     default:
       mju_error_i("Unknown transmission type %d", m->actuator_trntype[i]);  // SHOULD NOT OCCUR
     }

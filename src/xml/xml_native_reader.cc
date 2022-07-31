@@ -42,7 +42,7 @@ using tinyxml2::XMLElement;
 
 //---------------------------------- MJCF schema ---------------------------------------------------
 
-static const int nMJCF = 163;
+static const int nMJCF = 165;
 static const char* MJCF[nMJCF][mjXATTRNUM] = {
 {"mujoco", "!", "1", "model"},
 {"<"},
@@ -145,6 +145,8 @@ static const char* MJCF[nMJCF][mjXATTRNUM] = {
             "gear", "cranklength", "user", "group",
             "timeconst", "range", "force", "scale",
             "lmin", "lmax", "vmax", "fpmax", "fvmax"},
+        {"adhesion", "?", "6", "forcelimited", "ctrlrange", "forcerange",
+            "gain", "user", "group"},
     {">"},
 
     {"custom", "*", "0"},
@@ -262,10 +264,10 @@ static const char* MJCF[nMJCF][mjXATTRNUM] = {
 
     {"actuator", "*", "0"},
     {"<"},
-        {"general", "*", "25", "name", "class", "group",
+        {"general", "*", "26", "name", "class", "group",
             "ctrllimited", "forcelimited", "actlimited", "ctrlrange", "forcerange", "actrange",
             "lengthrange", "gear", "cranklength", "user",
-            "joint", "jointinparent", "tendon", "slidersite", "cranksite", "site",
+            "joint", "jointinparent", "tendon", "slidersite", "cranksite", "site", "body",
             "dyntype", "gaintype", "biastype", "dynprm", "gainprm", "biasprm"},
         {"motor", "*", "17", "name", "class", "group",
             "ctrllimited", "forcelimited", "ctrlrange", "forcerange",
@@ -303,6 +305,8 @@ static const char* MJCF[nMJCF][mjXATTRNUM] = {
             "joint", "jointinparent", "tendon", "slidersite", "cranksite",
             "timeconst", "range", "force", "scale",
             "lmin", "lmax", "vmax", "fpmax", "fvmax"},
+        {"adhesion", "*", "9", "name", "class", "group",
+            "forcelimited", "ctrlrange", "forcerange", "user", "body", "gain"},
     {">"},
 
     {"sensor", "*", "0"},
@@ -1426,7 +1430,10 @@ void mjXReader::OneActuator(XMLElement* elem, mjCActuator* pact) {
     pact->trntype = mjTRN_SITE;
     cnt++;
   }
-
+  if (ReadAttrTxt(elem, "body", pact->target)) {
+    pact->trntype = mjTRN_BODY;
+    cnt++;
+  }
   // check for repeated transmission
   if (cnt>1) {
     throw mjXError(elem, "actuator can have at most one of transmission target");
@@ -1522,7 +1529,7 @@ void mjXReader::OneActuator(XMLElement* elem, mjCActuator* pact) {
 
   // damper
   else if (type=="damper") {
-    // clear bias
+    // clear gain
     mjuu_zerovec(pact->gainprm, mjNGAIN);
 
     // explicit attributes
@@ -1531,10 +1538,10 @@ void mjXReader::OneActuator(XMLElement* elem, mjCActuator* pact) {
       throw mjXError(elem, "damping coefficient cannot be negative");
     pact->gainprm[2] = -pact->gainprm[2];
 
-    // Require nonnegative range
-    ReadAttr(elem, "ctrlrange", 2, pact->ctrlrange, text);
+    // require nonnegative range
+    ReadAttr(elem, "ctrlrange", 2, pact->ctrlrange, text, true);
     if (pact->ctrlrange[0]<0 || pact->ctrlrange[1]<0) {
-      throw mjXError(elem, "control range cannot be negative");
+      throw mjXError(elem, "damper control range cannot be negative");
     }
 
     // implied parameters
@@ -1595,6 +1602,31 @@ void mjXReader::OneActuator(XMLElement* elem, mjCActuator* pact) {
     pact->dyntype = mjDYN_MUSCLE;
     pact->gaintype = mjGAIN_MUSCLE;
     pact->biastype = mjBIAS_MUSCLE;
+  }
+
+  // adhesion
+  else if (type=="adhesion") {
+    // clear bias, set default gain
+    mjuu_zerovec(pact->biasprm, mjNBIAS);
+    mjuu_zerovec(pact->gainprm, mjNGAIN);
+    pact->gainprm[0] = 1;
+
+    // explicit attributes
+    ReadAttr(elem, "gain", 1, pact->gainprm, text);
+    if (pact->gainprm[0]<0)
+      throw mjXError(elem, "adhesion gain cannot be negative");
+
+    // require nonnegative range
+    ReadAttr(elem, "ctrlrange", 2, pact->ctrlrange, text, true);
+    if (pact->ctrlrange[0]<0 || pact->ctrlrange[1]<0) {
+      throw mjXError(elem, "adhesion control range cannot be negative");
+    }
+
+    // implied parameters
+    pact->ctrllimited = true;
+    pact->dyntype = mjDYN_NONE;
+    pact->gaintype = mjGAIN_FIXED;
+    pact->biastype = mjBIAS_NONE;
   }
 
   else {          // SHOULD NOT OCCUR

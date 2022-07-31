@@ -3461,6 +3461,11 @@ void mjCActuator::Compile(void) {
     ptarget = model->FindObject(mjOBJ_SITE, target);
     break;
 
+  case mjTRN_BODY:
+    // get body
+    ptarget = model->FindObject(mjOBJ_BODY, target);
+    break;
+
   default:
     throw mjCError(this, "invalid transmission type in actuator '%s' (id = %d)", name.c_str(), id);
   }

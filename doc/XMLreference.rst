@@ -2386,6 +2386,11 @@ slidersite, cranksite.
 All :ref:`muscle <muscle>` attributes are available here except: name, class, joint, jointinparent, site, tendon,
 slidersite, cranksite.
 
+:el-prefix:`default/` **adhesion** (?)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+All :ref:`adhesion <adhesion>` attributes are available here except: name, class, body.
+
 .. _custom:
 
 **custom** (*)
@@ -4287,7 +4292,7 @@ specify them independently.
    Identical to joint, except that for ball and free joints, the 3d rotation axis given by gear is defined in the parent
    frame (which is the world frame for free joints) rather than the child frame.
 :at:`site`: :at-val:`string, optional`
-   This actuator can applies force and torque at a site. The gear vector defines a 3d translation axis followed by a 3d
+   This transmission can apply force and torque at a site. The gear vector defines a 3d translation axis followed by a 3d
    rotation axis. Both are defined in the site's frame. This can be used to model jets and propellers. The effect is
    similar to actuating a free joint, and the actuator length is again defined as zero. One difference from the joint
    and jointinparent transmissions above is that here the actuator operates on a site rather than a joint, but this
@@ -4295,6 +4300,11 @@ specify them independently.
    that for site transmissions both the translation and rotation axes are defined in local coordinates. In contrast,
    translation is global and rotation is local for joint, and both translation and rotation are global for
    jointinparent.
+:at:`body`: :at-val:`string, optional`
+   This transmission can apply linear forces at contact points in the direction of the contact normal. The set of
+   contacts is all those belonging to the specified :at:`body`. This can be used to model natural active adhesion
+   mechanisms like the feet of geckos and insects. The actuator length is again defined as zero. For more information,
+   see the :ref:`adhesion<adhesion>` shortcut below.
 :at:`tendon`: :at-val:`string, optional`
    If specified, the actuator acts on the given tendon. The actuator length equals the tendon length times the gear
    ratio. Both spatial and fixed tendons can be used.
@@ -4487,7 +4497,9 @@ This element has one custom attribute in addition to the common attributes:
 :el-prefix:`actuator/` **damper** (*)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-This element is an active damper which produces a force proportional to both velocity and control: ``F = - kv * velocity * control``, where ``kv`` must be nonnegative. :at:`ctrlrange` is required and must also be nonnegative. The underlying :el:`general` attributes are set as follows:
+This element is an active damper which produces a force proportional to both velocity and control: ``F = - kv * velocity
+* control``, where ``kv`` must be nonnegative. :at:`ctrlrange` is required and must also be nonnegative. The underlying
+:el:`general` attributes are set as follows:
 
 =========== ======= ========= =======
 Attribute   Setting Attribute Setting
@@ -4501,8 +4513,9 @@ ctrllimited true
 
 This element has one custom attribute in addition to the common attributes:
 
-.. |actuator/damper attrib list| replace::
-   :at:`name`, :at:`class`, :at:`group`, :at:`ctrllimited`, :at:`forcelimited`, :at:`ctrlrange`, :at:`forcerange`, :at:`lengthrange`, :at:`gear`, :at:`cranklength`, :at:`joint`, :at:`jointinparent`, :at:`tendon`, :at:`cranksite`, :at:`slidersite`, :at:`site`, :at:`user`
+.. |actuator/damper attrib list| replace:: :at:`name`, :at:`class`, :at:`group`, :at:`ctrllimited`, :at:`forcelimited`,
+   :at:`ctrlrange`, :at:`forcerange`, :at:`lengthrange`, :at:`gear`, :at:`cranklength`, :at:`joint`,
+   :at:`jointinparent`, :at:`tendon`, :at:`cranksite`, :at:`slidersite`, :at:`site`, :at:`user`
 
 |actuator/damper attrib list|
    Same as in actuator/ :ref:`general <general>`.
@@ -4593,10 +4606,52 @@ This element has nine custom attributes in addition to the common attributes:
 :at:`fvmax`: :at-val:`real, "1.2"`
    Active force generated at saturating lengthening velocity, relative to the peak rest force.
 
+.. _adhesion:
+
+:el-prefix:`actuator/` **adhesion** (*)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+..  youtube:: HdBue4MUZys
+    :align: right
+    :height: 200px
+
+This element defines an active adhesion actuator which injects force at contacts in the normal direction. On the right
+is a video demonstrating the this actuator type. The model shown in the video can be found `here
+<https://github.com/deepmind/mujoco/tree/main/model/adhesion>`_. The transmission target is a :el:`body`, and adhesive
+forces are injected into all contacts invloving geoms which belong to this body. The force is devided equally between
+multiple active contacts. Because it requires contact, it cannot apply force at a distance, and is more like the active
+adhesion on the feet of geckos and insects rather than an industrial vaccum gripper. Adhesion actuators' length is
+always 0. :at:`ctrlrange` is required and must also be nonnegative (no repulsive forces are allowed). The underlying
+:el:`general` attributes are set as follows:
+
+=========== ======= =========== ========
+Attribute   Setting Attribute   Setting
+=========== ======= =========== ========
+dyntype     none    dynprm      1 0 0
+gaintype    fixed   gainprm     gain 0 0
+biastype    none    biasprm     0 0 0
+trntype     body    ctrllimited true
+=========== ======= =========== ========
+
+
+This element has a subset of the common attributes and two custom attributes.
+
+.. |actuator/adhesion attrib list| replace:: :at:`name`, :at:`class`, :at:`group`,
+   :at:`forcelimited`, :at:`ctrlrange`, :at:`forcerange`, :at:`user`
+
+|actuator/adhesion attrib list|
+   Same as in actuator/ :ref:`general <general>`.
+:at:`body`: :at-val:`string, required`
+   The actuator acts on all contacts involving this body's geoms.
+:at:`gain`: :at-val:`real, "1"`
+   Gain of the adhesion actuator, units of force. The total adhesion force applied by the actuator is the control value
+   multiplied by the gain. This force is distributed equally between all the contacts involving geoms belonging to the
+   target body.
+
 .. _sensor:
 
 **sensor** (*)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~
 
 This is a grouping element for sensor definitions. It does not have attributes. The outputs of all sensors are
 concatenated in the field mjData.sensordata which has size mjModel.nsensordata. This data is not used in any internal

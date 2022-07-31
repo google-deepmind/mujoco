@@ -554,6 +554,10 @@ void mjXWriter::OneActuator(XMLElement* elem, mjCActuator* pact, mjCDef* def) {
       WriteAttrTxt(elem, "site", pact->target);
       break;
 
+    case mjTRN_BODY:
+      WriteAttrTxt(elem, "body", pact->target);
+      break;
+
     default:        // SHOULD NOT OCCUR
       break;
     }

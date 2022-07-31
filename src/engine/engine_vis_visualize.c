@@ -847,8 +847,8 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
 
           // site actuators
           if (m->actuator_trntype[i]==mjTRN_SITE) {
-            // set size of the geometry
-            mju_scl3(sz, m->site_size+3*j, 1.1);
+            // inflate sizes by 5%
+            mju_scl3(sz, m->site_size+3*j, 1.05);
 
             // make geom
             mjv_initGeom(thisgeom,
@@ -893,6 +893,34 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
           }
 
           FINISH
+        }
+
+        // body actuators
+        else if (m->actuator_trntype[i]==mjTRN_BODY) {
+          // iterate over body's geoms
+          int geomnum = m->body_geomnum[j];
+          int geomadr = m->body_geomadr[j];
+          for (int k=geomadr; k<geomadr+geomnum; k++) {
+            int geomtype = m->geom_type[k];
+            // add inflated geom if it is a regular primitive
+            if (geomtype != mjGEOM_PLANE && geomtype != mjGEOM_HFIELD && geomtype != mjGEOM_MESH) {
+              START
+              // inflate sizes by 5%
+              mju_scl3(sz, m->geom_size+3*k, 1.05);
+
+              // make geom
+              mjv_initGeom(thisgeom,
+                           m->geom_type[k], sz,
+                           d->geom_xpos + 3*k,
+                           d->geom_xmat + 9*k,
+                           thisgeom->rgba);
+
+              // set interpolated color
+              f2f(thisgeom->rgba, rgba, 4);
+
+              FINISH
+            }
+          }
         }
 
         // spatial tendon actuators
