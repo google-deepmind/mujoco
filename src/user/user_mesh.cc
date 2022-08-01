@@ -993,9 +993,14 @@ void mjCMesh::Process() {
       // compute and add volume
       const double vec[3] = {cen[0]-facecen[0], cen[1]-facecen[1], cen[2]-facecen[2]};
       double vol = type==mjSHELL_MESH ? a : mjuu_dot3(vec, nrm) * a / 3;
-      GetVolumeRef(type) += vol;
+
+      // if legacy computation requested, then always positive
+      if (!model->exactmeshinertia) {
+        vol = fabs(vol);
+      }
 
       // add pyramid com
+      GetVolumeRef(type) += vol;
       for (j=0; j<3; j++) {
         CoM[j] += vol*(cen[j]*3.0/4.0 + facecen[j]/4.0);
       }
