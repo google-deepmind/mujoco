@@ -19,7 +19,7 @@ General
 
 Bug fixes
 ^^^^^^^^^
-- Fixed rendering of some transparent geoms in relflection.
+- Fixed rendering of some transparent geoms in reflection.
 
 Version 2.2.1 (July 18, 2022)
 -----------------------------

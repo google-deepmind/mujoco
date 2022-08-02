@@ -4527,7 +4527,7 @@ This element has one custom attribute in addition to the common attributes:
 :el-prefix:`actuator/` **cylinder** (*)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-This element is suitable for modeling pneumatic or hidraulic cylinders. The underlying :el:`general` attributes are
+This element is suitable for modeling pneumatic or hydraulic cylinders. The underlying :el:`general` attributes are
 set as follows:
 
 ========= ======= ========= =============
@@ -4616,11 +4616,11 @@ This element has nine custom attributes in addition to the common attributes:
     :height: 200px
 
 This element defines an active adhesion actuator which injects force at contacts in the normal direction. On the right
-is a video demonstrating the this actuator type. The model shown in the video can be found `here
+is a video demonstrating this actuator type. The model shown in the video can be found `here
 <https://github.com/deepmind/mujoco/tree/main/model/adhesion>`_. The transmission target is a :el:`body`, and adhesive
-forces are injected into all contacts invloving geoms which belong to this body. The force is devided equally between
-multiple active contacts. Because it requires contact, it cannot apply force at a distance, and is more like the active
-adhesion on the feet of geckos and insects rather than an industrial vaccum gripper. Adhesion actuators' length is
+forces are injected into all contacts involving geoms which belong to this body. The force is divided equally between
+multiple active contacts. Because it requires contact, it cannot apply a force at a distance, and is more like the active
+adhesion on the feet of geckos and insects rather than an industrial vacuum gripper. Adhesion actuators' length is
 always 0. :at:`ctrlrange` is required and must also be nonnegative (no repulsive forces are allowed). The underlying
 :el:`general` attributes are set as follows:
 
@@ -4633,7 +4633,6 @@ biastype    none    biasprm     0 0 0
 trntype     body    ctrllimited true
 =========== ======= =========== ========
 
-
 This element has a subset of the common attributes and two custom attributes.
 
 .. |actuator/adhesion attrib list| replace:: :at:`name`, :at:`class`, :at:`group`,
@@ -4644,9 +4643,9 @@ This element has a subset of the common attributes and two custom attributes.
 :at:`body`: :at-val:`string, required`
    The actuator acts on all contacts involving this body's geoms.
 :at:`gain`: :at-val:`real, "1"`
-   Gain of the adhesion actuator, units of force. The total adhesion force applied by the actuator is the control value
-   multiplied by the gain. This force is distributed equally between all the contacts involving geoms belonging to the
-   target body.
+   Gain of the adhesion actuator, in units of force. The total adhesion force applied by the actuator is the control
+   value multiplied by the gain. This force is distributed equally between all the contacts involving geoms belonging
+   to the target body.
 
 .. _sensor:
 
