@@ -39,10 +39,11 @@ enable_language(CXX)
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
 
 option(MUJOCO_BUILD_EXAMPLES "Build samples for MuJoCo" ON)
+option(MUJOCO_BUILD_SIMULATE "Build simulate library for MuJoCo" ON)
 option(MUJOCO_BUILD_TESTS "Build tests for MuJoCo" ON)
 option(MUJOCO_TEST_PYTHON_UTIL "Build and test utility libraries for Python bindings" ON)
 
-if(APPLE AND MUJOCO_BUILD_EXAMPLES)
+if(APPLE AND (MUJOCO_BUILD_EXAMPLES OR MUJOCO_BUILD_SIMULATE))
   enable_language(OBJC)
   enable_language(OBJCXX)
 endif()
@@ -151,6 +152,13 @@ endif()
 add_library(mujoco::mujoco ALIAS mujoco)
 
 add_subdirectory(model)
+
+# `simulate` defines a macro, embed_in_bundle, that's used by `sample`, so that
+# subdirectory needs to be added first.
+# TODO: Remove this order dependency.
+if(MUJOCO_BUILD_SIMULATE)
+  add_subdirectory(simulate)
+endif()
 
 if(MUJOCO_BUILD_EXAMPLES)
   add_subdirectory(sample)

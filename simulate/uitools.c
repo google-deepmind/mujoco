@@ -13,11 +13,12 @@
 // limitations under the License.
 
 #include "uitools.h"
+
 #include <stdio.h>
 #include <string.h>
 
 
-//-------------------------------- Internal GLFW callbacks ------------------------------
+//------------------------------------ internal GLFW callbacks -------------------------------------
 
 // update state
 static void uiUpdateState(GLFWwindow* wnd) {
@@ -226,8 +227,19 @@ static void uiResize(GLFWwindow* wnd, int width, int height) {
 }
 
 
+static void uiRender(GLFWwindow* wnd) {
+  uiUserPointer* ptr = (uiUserPointer*)glfwGetWindowUserPointer(wnd);
+  mjuiState* state = ptr->state;
+  ptr->uiRender(state);
+}
 
-//----------------------------------- Public API ----------------------------------------
+static void uiDrop(GLFWwindow* wnd, int count, const char** paths) {
+  uiUserPointer* ptr = (uiUserPointer*)glfwGetWindowUserPointer(wnd);
+  mjuiState* state = ptr->state;
+  ptr->uiDrop(state, count, paths);
+}
+
+//------------------------------------------- public API -------------------------------------------
 
 // Compute suitable font scale.
 int uiFontScale(GLFWwindow* wnd) {
@@ -262,12 +274,15 @@ int uiFontScale(GLFWwindow* wnd) {
 
 // Set internal and user-supplied UI callbacks in GLFW window.
 void uiSetCallback(GLFWwindow* wnd, mjuiState* state,
-                   uiEventFn uiEvent, uiLayoutFn uiLayout) {
+                   uiEventFn uiEvent, uiLayoutFn uiLayout,
+                   uiRenderFn uiUserRender, uiDropFn uiUserDrop) {
   // make container with user-supplied objects and set window pointer
   uiUserPointer* ptr = (uiUserPointer*) mju_malloc(sizeof(uiUserPointer));
   ptr->state = state;
   ptr->uiEvent = uiEvent;
   ptr->uiLayout = uiLayout;
+  ptr->uiRender = uiUserRender;
+  ptr->uiDrop = uiUserDrop;
   glfwSetWindowUserPointer(wnd, ptr);
 
   // compute framebuffer-to-window pixel ratio
@@ -282,6 +297,8 @@ void uiSetCallback(GLFWwindow* wnd, mjuiState* state,
   glfwSetMouseButtonCallback(wnd, uiMouseButton);
   glfwSetScrollCallback(wnd, uiScroll);
   glfwSetWindowSizeCallback(wnd, uiResize);
+  glfwSetWindowRefreshCallback(wnd, uiRender);
+  glfwSetDropCallback(wnd, uiDrop);
 }
 
 
@@ -300,6 +317,8 @@ void uiClearCallback(GLFWwindow* wnd) {
   glfwSetMouseButtonCallback(wnd, NULL);
   glfwSetScrollCallback(wnd, NULL);
   glfwSetWindowSizeCallback(wnd, NULL);
+  glfwSetWindowRefreshCallback(wnd, NULL);
+  glfwSetDropCallback(wnd, NULL);
 }
 
 
