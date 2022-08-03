@@ -5,7 +5,21 @@ Changelog
 Upcoming version (not yet released)
 -----------------------------------
 
-- Added :ref:`mj_jacSubtreeCom` for computing the translational Jacobian of the center-of-mass of a subtree. 
+General
+^^^^^^^
+- Added :ref:`adhesion actuators<adhesion>`.
+- Added an `active adhesion example model <https://github.com/deepmind/mujoco/tree/main/model/adhesion>`_.
+- Added :ref:`mj_jacSubtreeCom` for computing the translational Jacobian of the center-of-mass of a subtree.
+- Added moment of inertia computation for concave meshes. This is currently activated by setting the compiler flag
+  :at:`exactmeshinertia` to ``true`` (defaults to ``false``). This default may change in the future.
+- Added parameter :at:`shellinertia` in :at:`geom` for treating a mesh as a boundary mesh (shell) for inertia
+  computations. This is currently supported only for meshes.
+- Raise error if the orientation of mesh faces is not consistent, which causes the inertia computations to be
+  inaccurate. If this occurs, open the mesh in MeshLab or Blender and recalculate the faces.
+
+Bug fixes
+^^^^^^^^^
+- Fixed rendering of some transparent geoms in reflection.
 
 Version 2.2.1 (July 18, 2022)
 -----------------------------
@@ -13,45 +27,45 @@ Version 2.2.1 (July 18, 2022)
 General
 ^^^^^^^
 
-- Added ``mjd_transitionFD`` to compute efficient finite difference approximations of the state-transition and
-  control-transition matrices, :ref:`see here<derivatives>` for more details.
-- Added derivatives for the ellipsoid fluid model.
-- Added ``ctrl`` attribute to :ref:`keyframes<keyframe>`.
-- Added ``clock`` sensor which :ref:`measures time<sensor-clock>`.
-- Added visualisation groups to skins.
-- Added actuator visualisation for ``free`` and ``ball`` joints and for actuators with ``site`` transmission.
-- Added visualisation for actuator activations.
-- Added ``<intvelocity>`` actuator shortcut for "integrated velocity" actuators, documented :ref:`here <intvelocity>`.
-- Added ``<damper>`` actuator shortcut for active-damping actuators, documented :ref:`here <damper>`.
-- ``mju_rotVecMat`` and ``mju_rotVecMatT`` now support in-place multiplication.
-- ``mjData.ctrl`` values are no longer clamped in-place, remain untouched by the engine.
-- Arrays in mjData's buffer now align to 64-byte boundaries rather than 8-byte.
-- Add memory poisoning when building with Address Sanitizer (ASAN) and Memory Sanitizer (MSAN). This allows ASAN to
-  detect reads and writes to regions in ``mjModel.buffer`` and ``mjData.buffer`` that do not lie within an array, and
-  for MSAN to detect reads from uninitialised fields in ``mjData`` following ``mj_resetData``.
-- Add a `slider-crank example <https://github.com/deepmind/mujoco/tree/2.2.1/model/slider_crank>`_ to ``model/``.
+1. Added ``mjd_transitionFD`` to compute efficient finite difference approximations of the state-transition and
+   control-transition matrices, :ref:`see here<derivatives>` for more details.
+#. Added derivatives for the ellipsoid fluid model.
+#. Added ``ctrl`` attribute to :ref:`keyframes<keyframe>`.
+#. Added ``clock`` sensor which :ref:`measures time<sensor-clock>`.
+#. Added visualisation groups to skins.
+#. Added actuator visualisation for ``free`` and ``ball`` joints and for actuators with ``site`` transmission.
+#. Added visualisation for actuator activations.
+#. Added ``<intvelocity>`` actuator shortcut for "integrated velocity" actuators, documented :ref:`here <intvelocity>`.
+#. Added ``<damper>`` actuator shortcut for active-damping actuators, documented :ref:`here <damper>`.
+#. ``mju_rotVecMat`` and ``mju_rotVecMatT`` now support in-place multiplication.
+#. ``mjData.ctrl`` values are no longer clamped in-place, remain untouched by the engine.
+#. Arrays in mjData's buffer now align to 64-byte boundaries rather than 8-byte.
+#. Added memory poisoning when building with Address Sanitizer (ASAN) and Memory Sanitizer (MSAN). This allows ASAN to
+   detect reads and writes to regions in ``mjModel.buffer`` and ``mjData.buffer`` that do not lie within an array, and
+   for MSAN to detect reads from uninitialised fields in ``mjData`` following ``mj_resetData``.
+#. Added a `slider-crank example model <https://github.com/deepmind/mujoco/tree/main/model/slider_crank>`_.
 
 Bug fixes
 ^^^^^^^^^
 
-- :ref:`Activation clamping <CActRange>` was not being applied in the :ref:`implicit integrator<geIntegration>`.
-- Stricter parsing of orientation specifiers. Before this change, a specification that included both ``quat`` and an
-  :ref:`alternative specifier<COrientation>` e.g., ``<geom ... quat=".1 .2 .3 .4" euler="10 20 30">``, would lead to the
-  ``quat`` being ignored and only ``euler`` being used. After this change a parse error will be thrown.
-- Stricter parsing of XML attributes. Before this change an erroneous XML snippet like ``<geom size="1/2 3 4">`` would
-  have been parsed as ``size="1 0 0"`` and no error would have been thrown. Now throws an error.
-- Trying to load a ``NaN`` via XML like ``<geom size="1 NaN 4">``, while allowed for debugging purposes, will now print
-  a warning.
-- Fixed null pointer dereference in ``mj_loadModel``.
-- Fixed memory leaks when loading an invalid model from MJB.
-- Integer overflows are now avoided when computing ``mjModel`` buffer sizes.
-- Added missing warning string for ``mjWARN_BADCTRL``.
+15. :ref:`Activation clamping <CActRange>` was not being applied in the :ref:`implicit integrator<geIntegration>`.
+#. Stricter parsing of orientation specifiers. Before this change, a specification that included both ``quat`` and an
+   :ref:`alternative specifier<COrientation>` e.g., ``<geom ... quat=".1 .2 .3 .4" euler="10 20 30">``, would lead to
+   the ``quat`` being ignored and only ``euler`` being used. After this change a parse error will be thrown.
+#. Stricter parsing of XML attributes. Before this change an erroneous XML snippet like ``<geom size="1/2 3 4">`` would
+   have been parsed as ``size="1 0 0"`` and no error would have been thrown. Now throws an error.
+#. Trying to load a ``NaN`` via XML like ``<geom size="1 NaN 4">``, while allowed for debugging purposes, will now print
+   a warning.
+#. Fixed null pointer dereference in ``mj_loadModel``.
+#. Fixed memory leaks when loading an invalid model from MJB.
+#. Integer overflows are now avoided when computing ``mjModel`` buffer sizes.
+#. Added missing warning string for ``mjWARN_BADCTRL``.
 
 Packaging
 ^^^^^^^^^
 
-- Changed MacOS packaging so that the copy of ``mujoco.framework`` embedded in ``MuJoCo.app`` can be used to build
-  applications externally.
+23. Changed MacOS packaging so that the copy of ``mujoco.framework`` embedded in ``MuJoCo.app`` can be used to build
+    applications externally.
 
 
 Version 2.2.0 (May 23, 2022)

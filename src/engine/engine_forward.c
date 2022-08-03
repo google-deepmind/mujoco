@@ -97,7 +97,6 @@ void mj_fwdPosition(const mjModel* m, mjData* d) {
   mj_comPos(m, d);
   mj_camlight(m, d);
   mj_tendon(m, d);
-  mj_transmission(m, d);
   TM_END(mjTIMER_POS_KINEMATICS);
 
   TM_RESTART;
@@ -111,6 +110,7 @@ void mj_fwdPosition(const mjModel* m, mjData* d) {
 
   TM_RESTART;
   mj_makeConstraint(m, d);
+  mj_transmission(m, d);
   TM_END(mjTIMER_POS_MAKE);
 
   TM_RESTART;

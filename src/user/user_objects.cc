@@ -967,6 +967,7 @@ mjCGeom::mjCGeom(mjCModel* _model, mjCDef* _def) {
   rgba[0] = rgba[1] = rgba[2] = 0.5f;
   rgba[3] = 1.0f;
   userdata.clear();
+  typeinertia = mjVOLUME_MESH;
 
   // clear internal variables
   mjuu_setvec(quat, 1, 0, 0, 0);
@@ -1003,7 +1004,11 @@ double mjCGeom::GetVolume(void) {
     }
 
     mjCMesh* pmesh = model->meshes[meshid];
-    return pmesh->boxsz[0]*pmesh->boxsz[1]*pmesh->boxsz[2]*8;
+    if (model->exactmeshinertia) {
+      return pmesh->GetVolumeRef(typeinertia);
+    } else {
+      return pmesh->boxsz_volume[0]*pmesh->boxsz_volume[1]*pmesh->boxsz_volume[2]*8;
+    }
   }
 
   // compute from geom shape
@@ -1045,13 +1050,17 @@ void mjCGeom::SetInertia(void) {
     }
 
     mjCMesh* pmesh = model->meshes[meshid];
-    inertia[0] = mass*(pmesh->boxsz[1]*pmesh->boxsz[1] + pmesh->boxsz[2]*pmesh->boxsz[2]) / 3;
-    inertia[1] = mass*(pmesh->boxsz[0]*pmesh->boxsz[0] + pmesh->boxsz[2]*pmesh->boxsz[2]) / 3;
-    inertia[2] = mass*(pmesh->boxsz[0]*pmesh->boxsz[0] + pmesh->boxsz[1]*pmesh->boxsz[1]) / 3;
+    double* boxsz = pmesh->GetInertiaBoxPtr(typeinertia);
+    inertia[0] = mass*(boxsz[1]*boxsz[1] + boxsz[2]*boxsz[2]) / 3;
+    inertia[1] = mass*(boxsz[0]*boxsz[0] + boxsz[2]*boxsz[2]) / 3;
+    inertia[2] = mass*(boxsz[0]*boxsz[0] + boxsz[1]*boxsz[1]) / 3;
   }
 
   // compute from geom shape
   else {
+    if (typeinertia)
+      throw mjCError(this, "typeinertia currently only available for meshes'%s' (id = %d)",
+                     name.c_str(), id);
     switch (type) {
     case mjGEOM_SPHERE:
       inertia[0] = inertia[1] = inertia[2] = 2*mass*size[0]*size[0]/5;
@@ -1068,7 +1077,7 @@ void mjCGeom::SetInertia(void) {
       // add two hemispheres, displace along third axis
       double sphere_inertia = 2*sphere_mass*radius*radius/5;
       inertia[0] += sphere_inertia + sphere_mass*height*(3*radius + 2*height)/8;
-      inertia[1] += sphere_inertia + sphere_mass*height*(3*radius + 2*height)/8;;
+      inertia[1] += sphere_inertia + sphere_mass*height*(3*radius + 2*height)/8;
       inertia[2] += sphere_inertia;
       return;
     }
@@ -1354,11 +1363,11 @@ void mjCGeom::Compile(void) {
       mesh.clear();
       meshid = -1;
     } else {
-      mjuu_copyvec(meshpos, pmesh->pos, 3);
+      mjuu_copyvec(meshpos, pmesh->GetPosPtr(typeinertia), 3);
     }
 
     // apply geom pos/quat as offset
-    mjuu_frameaccum(pos, quat, meshpos, pmesh->quat);
+    mjuu_frameaccum(pos, quat, meshpos, pmesh->GetQuatPtr(typeinertia));
   }
 
   // check size parameters
@@ -3450,6 +3459,11 @@ void mjCActuator::Compile(void) {
   case mjTRN_SITE:
     // get site
     ptarget = model->FindObject(mjOBJ_SITE, target);
+    break;
+
+  case mjTRN_BODY:
+    // get body
+    ptarget = model->FindObject(mjOBJ_BODY, target);
     break;
 
   default:

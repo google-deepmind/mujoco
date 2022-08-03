@@ -65,9 +65,12 @@ mjCMesh::mjCMesh(mjCModel* _model, mjCDef* _def) {
   useredge.clear();
 
   // clear internal variables
-  mjuu_setvec(pos, 0, 0, 0);
-  mjuu_setvec(quat, 1, 0, 0, 0);
-  mjuu_setvec(boxsz, 0, 0, 0);
+  mjuu_setvec(pos_surface, 0, 0, 0);
+  mjuu_setvec(pos_volume, 0, 0, 0);
+  mjuu_setvec(quat_surface, 1, 0, 0, 0);
+  mjuu_setvec(quat_volume, 1, 0, 0, 0);
+  mjuu_setvec(boxsz_surface, 0, 0, 0);
+  mjuu_setvec(boxsz_volume, 0, 0, 0);
   mjuu_setvec(aabb, 0, 0, 0);
   nvert = 0;
   nface = 0;
@@ -251,20 +254,23 @@ void mjCMesh::Compile(const mjVFS* vfs) {
 
 
 // get position
-void mjCMesh::GetPos(double* _pos) {
-  _pos[0] = pos[0];
-  _pos[1] = pos[1];
-  _pos[2] = pos[2];
+double* mjCMesh::GetPosPtr(mjtMeshType type) {
+  if (type==mjSHELL_MESH) {
+    return pos_surface;
+  } else {
+    return pos_volume;
+  }
 }
 
 
 
 // get orientation
-void mjCMesh::GetQuat(double* _quat) {
-  _quat[0] = quat[0];
-  _quat[1] = quat[1];
-  _quat[2] = quat[2];
-  _quat[3] = quat[3];
+double* mjCMesh::GetQuatPtr(mjtMeshType type) {
+  if (type==mjSHELL_MESH) {
+    return quat_surface;
+  } else {
+    return quat_volume;
+  }
 }
 
 
@@ -275,7 +281,8 @@ void mjCMesh::FitGeom(mjCGeom* geom, double* meshpos) {
 
   // use inertial box
   if (!model->fitaabb) {
-    // compute depending on type
+    // get inertia box type (shell or volume)
+    double* boxsz = GetInertiaBoxPtr(geom->typeinertia);
     switch (geom->type) {
     case mjGEOM_SPHERE:
       geom->size[0] = (boxsz[0] + boxsz[1] + boxsz[2])/3;
@@ -303,7 +310,7 @@ void mjCMesh::FitGeom(mjCGeom* geom, double* meshpos) {
     }
 
     // copy mesh pos into meshpos
-    mjuu_copyvec(meshpos, pos, 3);
+    mjuu_copyvec(meshpos, GetPosPtr(geom->typeinertia), 3);
   }
 
   // use AABB
@@ -860,251 +867,288 @@ static double _areaNrmCen(double* normal, double* center,
 
 
 // apply transformations
-void mjCMesh::Process(void) {
-  double CoM[3] = {0, 0, 0};
-  double facecen[3] = {0, 0, 0};
-  double area = 0;
-  double inert[6] = {0, 0, 0, 0, 0, 0};
-  double volume;
+void mjCMesh::Process() {
+  for ( const auto type : { mjtMeshType::mjVOLUME_MESH, mjtMeshType::mjSHELL_MESH } ) {
+    double CoM[3] = {0, 0, 0};
+    double facecen[3] = {0, 0, 0};
+    double area = 0;
+    double inert[6] = {0, 0, 0, 0, 0, 0};
 
-  int i, j;
-  double nrm[3];
-  double cen[3];
+    int i, j;
+    double nrm[3];
+    double cen[3];
 
-  // translate
-  if (refpos[0]!=0 || refpos[1]!=0 || refpos[2]!=0) {
-    // prepare translation
-    float rp[3] = {(float)refpos[0], (float)refpos[1], (float)refpos[2]};
+    if (type==mjVOLUME_MESH) {
+      // translate
+      if (refpos[0]!=0 || refpos[1]!=0 || refpos[2]!=0) {
+        // prepare translation
+        float rp[3] = {(float)refpos[0], (float)refpos[1], (float)refpos[2]};
 
-    // process vertices
-    for (i=0; i<nvert; i++) {
-      // positions
-      vert[3*i] -= rp[0];
-      vert[3*i+1] -= rp[1];
-      vert[3*i+2] -= rp[2];
+        // process vertices
+        for (i=0; i<nvert; i++) {
+          // positions
+          vert[3*i] -= rp[0];
+          vert[3*i+1] -= rp[1];
+          vert[3*i+2] -= rp[2];
 
-      // normals not affected by translation
-    }
-  }
+          // normals not affected by translation
+        }
+      }
 
-  // rotate
-  if (refquat[0]!=1 || refquat[1]!=0 || refquat[2]!=0 || refquat[3]!=0) {
-    // prepare rotation
-    mjtNum quat[4] = {refquat[0], refquat[1], refquat[2], refquat[3]};
-    mjtNum mat[9];
-    mju_normalize4(quat);
-    mju_quat2Mat(mat, quat);
+      // rotate
+      if (refquat[0]!=1 || refquat[1]!=0 || refquat[2]!=0 || refquat[3]!=0) {
+        // prepare rotation
+        mjtNum quat[4] = {refquat[0], refquat[1], refquat[2], refquat[3]};
+        mjtNum mat[9];
+        mju_normalize4(quat);
+        mju_quat2Mat(mat, quat);
 
-    // process vertices
-    for (i=0; i<nvert; i++) {
-      // positions
-      mjtNum p1[3], p0[3] = {vert[3*i], vert[3*i+1], vert[3*i+2]};
-      mju_rotVecMatT(p1, p0, mat);
-      vert[3*i] = (float) p1[0];
-      vert[3*i+1] = (float) p1[1];
-      vert[3*i+2] = (float) p1[2];
+        // process vertices
+        for (i=0; i<nvert; i++) {
+          // positions
+          mjtNum p1[3], p0[3] = {vert[3*i], vert[3*i+1], vert[3*i+2]};
+          mju_rotVecMatT(p1, p0, mat);
+          vert[3*i] = (float) p1[0];
+          vert[3*i+1] = (float) p1[1];
+          vert[3*i+2] = (float) p1[2];
 
-      // nromals
-      mjtNum n1[3], n0[3] = {normal[3*i], normal[3*i+1], normal[3*i+2]};
-      mju_rotVecMatT(n1, n0, mat);
-      normal[3*i] = (float) n1[0];
-      normal[3*i+1] = (float) n1[1];
-      normal[3*i+2] = (float) n1[2];
-    }
-  }
+          // nromals
+          mjtNum n1[3], n0[3] = {normal[3*i], normal[3*i+1], normal[3*i+2]};
+          mju_rotVecMatT(n1, n0, mat);
+          normal[3*i] = (float) n1[0];
+          normal[3*i+1] = (float) n1[1];
+          normal[3*i+2] = (float) n1[2];
+        }
+      }
 
-  // scale
-  if (scale[0]!=1 || scale[1]!=1 || scale[2]!=1) {
-    for (i=0; i<nvert; i++) {
-      // positions
-      vert[3*i] *= scale[0];
-      vert[3*i+1] *= scale[1];
-      vert[3*i+2] *= scale[2];
+      // scale
+      if (scale[0]!=1 || scale[1]!=1 || scale[2]!=1) {
+        for (i=0; i<nvert; i++) {
+          // positions
+          vert[3*i] *= scale[0];
+          vert[3*i+1] *= scale[1];
+          vert[3*i+2] *= scale[2];
 
-      // normals
-      normal[3*i] *= scale[0];
-      normal[3*i+1] *= scale[1];
-      normal[3*i+2] *= scale[2];
-    }
-  }
+          // normals
+          normal[3*i] *= scale[0];
+          normal[3*i+1] *= scale[1];
+          normal[3*i+2] *= scale[2];
+        }
+      }
 
-  // normalize normals
-  for (i=0; i<nvert; i++) {
-    // compute length
-    float len = normal[3*i]*normal[3*i] + normal[3*i+1]*normal[3*i+1] + normal[3*i+2]*normal[3*i+2];
+      // normalize normals
+      for (i=0; i<nvert; i++) {
+        // compute length
+        float len = normal[3*i]*normal[3*i] + normal[3*i+1]*normal[3*i+1] + normal[3*i+2]*normal[3*i+2];
 
-    // rescale
-    if (len>mjMINVAL) {
-      float scl = 1/sqrtf(len);
-      normal[3*i] *= scl;
-      normal[3*i+1] *= scl;
-      normal[3*i+2] *= scl;
-    } else {
-      normal[3*i] = 0;
-      normal[3*i+1] = 0;
-      normal[3*i+2] = 1;
-    }
-  }
+        // rescale
+        if (len>mjMINVAL) {
+          float scl = 1/sqrtf(len);
+          normal[3*i] *= scl;
+          normal[3*i+1] *= scl;
+          normal[3*i+2] *= scl;
+        } else {
+          normal[3*i] = 0;
+          normal[3*i+1] = 0;
+          normal[3*i+2] = 1;
+        }
+      }
 
-  // find centroid of faces
-  for (i=0; i<nface; i++) {
-    // check vertex indices
-    for (j=0; j<3; j++) {
-      if (face[3*i+j]<0 || face[3*i+j]>=nvert) {
-        throw mjCError(this, "vertex index out of range in %s (index = %d)", name.c_str(), i);
+      // find centroid of faces
+      for (i=0; i<nface; i++) {
+        // check vertex indices
+        for (j=0; j<3; j++) {
+          if (face[3*i+j]<0 || face[3*i+j]>=nvert) {
+            throw mjCError(this, "vertex index out of range in %s (index = %d)", name.c_str(), i);
+          }
+        }
+
+        // get area and center
+        double a = _areaNrmCen(nrm, cen, vert+3*face[3*i], vert+3*face[3*i+1], vert+3*face[3*i+2]);
+
+        // accumulate
+        for (j=0; j<3; j++) {
+          facecen[j] += a*cen[j];
+        }
+        area += a;
+      }
+
+      // require positive area
+      if (area < mjMINVAL) {
+        throw mjCError(this, "mesh surface area is too small: %s", name.c_str());
+      }
+
+      // finalize centroid of faces
+      for (j=0; j<3; j++) {
+        facecen[j] /= area;
       }
     }
 
-    // get area and center
-    double a = _areaNrmCen(nrm, cen, vert+3*face[3*i], vert+3*face[3*i+1], vert+3*face[3*i+2]);
+    // compute CoM and volume from pyramid volumes
+    GetVolumeRef(type) = 0;
+    for (i=0; i<nface; i++) {
+      // get area, normal and center
+      double a = _areaNrmCen(nrm, cen, vert+3*face[3*i], vert+3*face[3*i+1], vert+3*face[3*i+2]);
 
-    // accumulate
-    for (j=0; j<3; j++) {
-      facecen[j] += a*cen[j];
-    }
-    area += a;
-  }
+      // compute and add volume
+      const double vec[3] = {cen[0]-facecen[0], cen[1]-facecen[1], cen[2]-facecen[2]};
+      double vol = type==mjSHELL_MESH ? a : mjuu_dot3(vec, nrm) * a / 3;
 
-  // require positive area
-  if (area < mjMINVAL) {
-    throw mjCError(this, "mesh surface area is too small: %s", name.c_str());
-  }
+      // if legacy computation requested, then always positive
+      if (!model->exactmeshinertia) {
+        vol = fabs(vol);
+      }
 
-  // finalize centroid of faces
-  for (j=0; j<3; j++) {
-    facecen[j] /= area;
-  }
-
-  // compute CoM and volume from pyramid volumes
-  volume = 0;
-  for (i=0; i<nface; i++) {
-    // get area, normal and center
-    double a = _areaNrmCen(nrm, cen, vert+3*face[3*i], vert+3*face[3*i+1], vert+3*face[3*i+2]);
-
-    // compute and add volume
-    const double vec[3] = {cen[0]-facecen[0], cen[1]-facecen[1], cen[2]-facecen[2]};
-    double vol = fabs(mjuu_dot3(vec, nrm)) * a / 3;
-    volume += vol;
-
-    // add pyramid com
-    for (j=0; j<3; j++) {
-      CoM[j] += vol*(cen[j]*3.0/4.0 + facecen[j]/4.0);
-    }
-  }
-
-  // require positive volume
-  if (volume < mjMINVAL) {
-    throw mjCError(this, "mesh volume is too small: %s", name.c_str());
-  }
-
-  // finalize CoM, save as mesh center
-  for (j=0; j<3; j++) {
-    CoM[j] /= volume;
-  }
-  mjuu_copyvec(pos, CoM, 3);
-
-  // re-center mesh at CoM
-  for (i=0; i<nvert; i++) {
-    for (j=0; j<3; j++) {
-      vert[3*i+j] -= CoM[j];
-    }
-  }
-
-  // accumulate products of inertia, recompute volume
-  const int k[6][2] = {{0, 0}, {1, 1}, {2, 2}, {0, 1}, {0, 2}, {1, 2}};
-  double P[6] = {0, 0, 0, 0, 0, 0};
-  volume = 0;
-  for (i=0; i<nface; i++) {
-    float* D = vert+3*face[3*i];
-    float* E = vert+3*face[3*i+1];
-    float* F = vert+3*face[3*i+2];
-
-    // get area, normal and center; update volume
-    double a = _areaNrmCen(nrm, cen, D, E, F);
-    double vol = fabs(mjuu_dot3(cen, nrm)) * a / 3;
-    volume += vol;
-
-    // apply formula, accumulate
-    for (j=0; j<6; j++) {
-      P[j] += def->geom.density*vol/20 * (
-                2*(D[k[j][0]] * D[k[j][1]] +
-                   E[k[j][0]] * E[k[j][1]] +
-                   F[k[j][0]] * F[k[j][1]]) +
-                D[k[j][0]] * E[k[j][1]]  +  D[k[j][1]] * E[k[j][0]] +
-                D[k[j][0]] * F[k[j][1]]  +  D[k[j][1]] * F[k[j][0]] +
-                E[k[j][0]] * F[k[j][1]]  +  E[k[j][1]] * F[k[j][0]]);
-    }
-  }
-
-  // convert from products of inertia to moments of inertia
-  inert[0] = P[1] + P[2];
-  inert[1] = P[0] + P[2];
-  inert[2] = P[0] + P[1];
-  inert[3] = -P[3];
-  inert[4] = -P[4];
-  inert[5] = -P[5];
-
-  // get quaternion and diagonal inertia
-  mjtNum eigval[3], eigvec[9], quattmp[4];
-  mjtNum full[9] = {
-    inert[0], inert[3], inert[4],
-    inert[3], inert[1], inert[5],
-    inert[4], inert[5], inert[2]
-  };
-  mju_eig3(eigval, eigvec, quattmp, full);
-
-  // check eigval - SHOULD NOT OCCUR
-  if (eigval[2]<=0) {
-    throw mjCError(this, "eigenvalue of mesh inertia must be positive: %s", name.c_str());
-  }
-  if (eigval[0] + eigval[1] < eigval[2] ||
-      eigval[0] + eigval[2] < eigval[1] ||
-      eigval[1] + eigval[2] < eigval[0]) {
-    throw mjCError(this,
-                   "eigenvalues of mesh inertia violate A + B >= C condition: %s", name.c_str());
-  }
-
-  // compute sizes of equivalent inertia box
-  double mass = volume * def->geom.density;
-  boxsz[0] = sqrt(6*(eigval[1]+eigval[2]-eigval[0])/mass)/2;
-  boxsz[1] = sqrt(6*(eigval[0]+eigval[2]-eigval[1])/mass)/2;
-  boxsz[2] = sqrt(6*(eigval[0]+eigval[1]-eigval[2])/mass)/2;
-
-  // copy quat
-  for (j=0; j<4; j++) {
-    quat[j] = quattmp[j];
-  }
-
-  // rotate vertices and normals into axis-aligned frame
-  double neg[4] = {quattmp[0], -quattmp[1], -quattmp[2], -quattmp[3]};
-  double mat[9];
-  mjuu_quat2mat(mat, neg);
-  for (i=0; i<nvert; i++) {
-    // vertices
-    const double vec[3] = {vert[3*i], vert[3*i+1], vert[3*i+2]};
-    double res[3];
-    mjuu_mulvecmat(res, vec, mat);
-    for (j=0; j<3; j++) {
-      vert[3*i+j] = (float) res[j];
+      // add pyramid com
+      GetVolumeRef(type) += vol;
+      for (j=0; j<3; j++) {
+        CoM[j] += vol*(cen[j]*3.0/4.0 + facecen[j]/4.0);
+      }
     }
 
-    // normals
-    const double nrm[3] = {normal[3*i], normal[3*i+1], normal[3*i+2]};
-    mjuu_mulvecmat(res, nrm, mat);
-    for (j=0; j<3; j++) {
-      normal[3*i+j] = (float) res[j];
+    // require positive volume
+    if (GetVolumeRef(type) < mjMINVAL) {
+      throw mjCError(this, "mesh volume is too small: %s", name.c_str());
     }
-  }
 
-  // compute axis-aligned bounding box
-  for (i=0; i<nvert; i++) {
-    float* v = vert+3*i;
+    // finalize CoM, save as mesh center
     for (j=0; j<3; j++) {
-      aabb[j] = mjMAX(aabb[j], fabs(v[j]));
+      CoM[j] /= GetVolumeRef(type);
+    }
+    mjuu_copyvec(GetPosPtr(type), CoM, 3);
+
+    // re-center mesh at CoM
+    if (type==mjVOLUME_MESH) {
+      for (i=0; i<nvert; i++) {
+        for (j=0; j<3; j++) {
+          vert[3*i+j] -= CoM[j];
+        }
+      }
+    }
+
+    // accumulate products of inertia, recompute volume
+    const int k[6][2] = {{0, 0}, {1, 1}, {2, 2}, {0, 1}, {0, 2}, {1, 2}};
+    double P[6] = {0, 0, 0, 0, 0, 0};
+    GetVolumeRef(type) = 0;
+    for (i=0; i<nface; i++) {
+      float* D = vert+3*face[3*i];
+      float* E = vert+3*face[3*i+1];
+      float* F = vert+3*face[3*i+2];
+
+      // get area, normal and center; update volume
+      double a = _areaNrmCen(nrm, cen, D, E, F);
+      double vol = type==mjSHELL_MESH ? a : mjuu_dot3(cen, nrm) * a / 3;
+
+      // if legacy computation requested, then always positive
+      if (!model->exactmeshinertia) {
+        vol = fabs(vol);
+      }
+
+      // apply formula, accumulate
+      GetVolumeRef(type) += vol;
+      for (j=0; j<6; j++) {
+        P[j] += def->geom.density*vol /
+                  (type==mjSHELL_MESH ? 12 : 20) * (
+                  2*(D[k[j][0]] * D[k[j][1]] +
+                    E[k[j][0]] * E[k[j][1]] +
+                    F[k[j][0]] * F[k[j][1]]) +
+                  D[k[j][0]] * E[k[j][1]]  +  D[k[j][1]] * E[k[j][0]] +
+                  D[k[j][0]] * F[k[j][1]]  +  D[k[j][1]] * F[k[j][0]] +
+                  E[k[j][0]] * F[k[j][1]]  +  E[k[j][1]] * F[k[j][0]]);
+      }
+    }
+
+    // convert from products of inertia to moments of inertia
+    inert[0] = P[1] + P[2];
+    inert[1] = P[0] + P[2];
+    inert[2] = P[0] + P[1];
+    inert[3] = -P[3];
+    inert[4] = -P[4];
+    inert[5] = -P[5];
+
+    // get quaternion and diagonal inertia
+    mjtNum eigval[3], eigvec[9], quattmp[4];
+    mjtNum full[9] = {
+      inert[0], inert[3], inert[4],
+      inert[3], inert[1], inert[5],
+      inert[4], inert[5], inert[2]
+    };
+    mju_eig3(eigval, eigvec, quattmp, full);
+
+    // check eigval - SHOULD NOT OCCUR
+    if (eigval[2]<=0) {
+      throw mjCError(this, "eigenvalue of mesh inertia must be positive: %s", name.c_str());
+    }
+    if (eigval[0] + eigval[1] < eigval[2] ||
+        eigval[0] + eigval[2] < eigval[1] ||
+        eigval[1] + eigval[2] < eigval[0]) {
+      throw mjCError(this,
+                    "eigenvalues of mesh inertia violate A + B >= C condition: %s", name.c_str());
+    }
+
+    // compute sizes of equivalent inertia box
+    double mass = GetVolumeRef(type) * def->geom.density;
+    double* boxsz = GetInertiaBoxPtr(type);
+    boxsz[0] = sqrt(6*(eigval[1]+eigval[2]-eigval[0])/mass)/2;
+    boxsz[1] = sqrt(6*(eigval[0]+eigval[2]-eigval[1])/mass)/2;
+    boxsz[2] = sqrt(6*(eigval[0]+eigval[1]-eigval[2])/mass)/2;
+
+    // copy quat
+    for (j=0; j<4; j++) {
+      GetQuatPtr(type)[j] = quattmp[j];
+    }
+
+    // rotate vertices and normals into axis-aligned frame
+    if (type==mjVOLUME_MESH) {
+      double neg[4] = {quattmp[0], -quattmp[1], -quattmp[2], -quattmp[3]};
+      double mat[9];
+      mjuu_quat2mat(mat, neg);
+      for (i=0; i<nvert; i++) {
+        // vertices
+        const double vec[3] = {vert[3*i], vert[3*i+1], vert[3*i+2]};
+        double res[3];
+        mjuu_mulvecmat(res, vec, mat);
+        for (j=0; j<3; j++) {
+          vert[3*i+j] = (float) res[j];
+        }
+
+        // normals
+        const double nrm[3] = {normal[3*i], normal[3*i+1], normal[3*i+2]};
+        mjuu_mulvecmat(res, nrm, mat);
+        for (j=0; j<3; j++) {
+          normal[3*i+j] = (float) res[j];
+        }
+      }
+
+      // compute axis-aligned bounding box
+      for (i=0; i<nvert; i++) {
+        float* v = vert+3*i;
+        for (j=0; j<3; j++) {
+          aabb[j] = mjMAX(aabb[j], fabs(v[j]));
+        }
+      }
     }
   }
 }
 
+
+// compute inertia
+double* mjCMesh::GetInertiaBoxPtr(mjtMeshType type) {
+  if (type==mjSHELL_MESH) {
+    return boxsz_surface;
+  } else {
+    return boxsz_volume;
+  }
+}
+
+
+double& mjCMesh::GetVolumeRef(mjtMeshType type) {
+  if (type) {
+    return surface;
+  } else {
+    return volume;
+  }
+}
 
 
 // make graph describing convex hull

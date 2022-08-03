@@ -12,9 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef MUJOCO_UITOOLS_H_
-#define MUJOCO_UITOOLS_H_
-
+#ifndef MUJOCO_SIMULATE_UITOOLS_H_
+#define MUJOCO_SIMULATE_UITOOLS_H_
 
 #include <GLFW/glfw3.h>
 #include <mujoco/mujoco.h>
@@ -28,19 +27,24 @@ extern "C" {
 // User-supplied callback function types.
 typedef void (*uiEventFn)(mjuiState* state);
 typedef void (*uiLayoutFn)(mjuiState* state);
+typedef void (*uiRenderFn)(mjuiState* state);
+typedef void (*uiDropFn)  (mjuiState* state, int count, const char** paths);
 
 // Container for GLFW window pointer.
 struct _uiUserPointer {
   mjuiState* state;
   uiEventFn uiEvent;
   uiLayoutFn uiLayout;
+  uiRenderFn uiRender;
+  uiDropFn   uiDrop;
   double buffer2window;
 };
 typedef struct _uiUserPointer uiUserPointer;
 
 // Set internal and user-supplied UI callbacks in GLFW window.
 void uiSetCallback(GLFWwindow* wnd, mjuiState* state,
-                   uiEventFn uiEvent, uiLayoutFn uiLayout);
+                   uiEventFn uiEvent, uiLayoutFn uiLayout,
+                   uiRenderFn uiUserRender, uiDropFn uiUserDrop);
 
 // Clear UI callbacks in GLFW window.
 void uiClearCallback(GLFWwindow* wnd);

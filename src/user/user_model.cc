@@ -99,6 +99,7 @@ mjCModel::mjCModel() {
   inertiafromgeom = mjINERTIAFROMGEOM_AUTO;
   inertiagrouprange[0] = 0;
   inertiagrouprange[1] = mjNGROUP-1;
+  exactmeshinertia = false;
   mj_defaultLROpt(&LRopt);
 
   //------------------------ statistics override

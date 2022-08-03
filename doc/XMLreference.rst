@@ -12,10 +12,9 @@ This chapter is the reference manual for the MJCF modeling language used in MuJo
 XML schema
 ~~~~~~~~~~
 
-The table below summarizes the XML elements and their attributes in MJCF. It is generated automatically with the
-function :ref:`mj_printSchema` which prints out the custom schema used by the parser to validate the model file.
-Note that all information in MJCF is entered through elements and attributes. Text content in elements is not used;
-if present, the parser ignores it. The symbols in the second column of the table have the following meaning:
+The table below summarizes the XML elements and their attributes in MJCF. Note that all information in MJCF is entered
+through elements and attributes. Text content in elements is not used; if present, the parser ignores it. The symbols
+in the second column of the table have the following meaning:
 
 ====== ===================================================
 **!**  required element, can appear only once
@@ -46,7 +45,7 @@ if present, the parser ignores it. The symbols in the second column of the table
 |                          |    |    +-------------------------+-------------------------+-------------------------+ |
 |                          |    |    | :at:`convexhull`        | :at:`usethread`         | :at:`fusestatic`        | |
 |                          |    |    +-------------------------+-------------------------+-------------------------+ |
-|                          |    |    | :at:`inertiafromgeom`   | :at:`inertiagrouprange` |                         | |
+|                          |    |    | :at:`inertiafromgeom`   | :at:`inertiagrouprange` | :at:`exactmeshinertia`  | |
 |                          |    |    +-------------------------+-------------------------+-------------------------+ |
 +--------------------------+----+------------------------------------------------------------------------------------+
 | |_2|:el:`lengthrange`    | ?  | .. table::                                                                         |
@@ -273,6 +272,8 @@ if present, the parser ignores it. The symbols in the second column of the table
 |                          |    |    | :at:`mesh`              | :at:`fitscale`          | :at:`rgba`              | |
 |                          |    |    +-------------------------+-------------------------+-------------------------+ |
 |                          |    |    | :at:`user`              | :at:`fluidshape`        | :at:`fluidcoef`         | |
+|                          |    |    +-------------------------+-------------------------+-------------------------+ |
+|                          |    |    | :at:`shellinertia`      |                         |                         | |
 |                          |    |    +-------------------------+-------------------------+-------------------------+ |
 +--------------------------+----+------------------------------------------------------------------------------------+
 | |_2|:el:`site`           | ?  | .. table::                                                                         |
@@ -633,7 +634,7 @@ if present, the parser ignores it. The symbols in the second column of the table
 |                          |    |    +-------------------------+-------------------------+-------------------------+ |
 |                          |    |    | :at:`fitscale`          | :at:`rgba`              | :at:`user`              | |
 |                          |    |    +-------------------------+-------------------------+-------------------------+ |
-|                          |    |    | :at:`fluidshape`        | :at:`fluidcoef`         |                         | |
+|                          |    |    | :at:`fluidshape`        | :at:`fluidcoef`         | :at:`shellinertia`      | |
 |                          |    |    +-------------------------+-------------------------+-------------------------+ |
 +--------------------------+----+------------------------------------------------------------------------------------+
 | |_2|:el:`site`           | \* | .. table::                                                                         |
@@ -1612,6 +1613,9 @@ any effect. The settings here are global and apply to the entire model.
    particular, a number of publicly available URDF models have seemingly arbitrary inertias which are too large compared
    to the mass. This results in equivalent inertia boxes which extend far beyond the geometric boundaries of the model.
    Note that the built-in OpenGL visualizer can render equivalent inertia boxes.
+:at:`exactmeshinertia`: :at-val:`[false, true], "false"`
+   If this attribute is set to false, computes mesh inertia with the legacy algorithm, which is exact only for convex
+   meshes. If set to true, it is exact for any closed mesh geometry.
 :at:`inertiagrouprange`: :at-val:`int(2), "0 5"`
    This attribute specifies the range of geom groups that are used to infer body masses and inertias (when such
    inference is enabled). The group attribute of :ref:`geom <geom>` is an integer. If this integer falls in the range
@@ -2382,6 +2386,11 @@ slidersite, cranksite.
 All :ref:`muscle <muscle>` attributes are available here except: name, class, joint, jointinparent, site, tendon,
 slidersite, cranksite.
 
+:el-prefix:`default/` **adhesion** (?)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+All :ref:`adhesion <adhesion>` attributes are available here except: name, class, body.
+
 .. _custom:
 
 **custom** (*)
@@ -2722,7 +2731,7 @@ MSH file format
 Poorly designed meshes can display rendering artifacts. In particular, the shadow mapping mechanism relies on having
 some distance between front and back-facing triangle faces. If the faces are repeated, with opposite normals as
 determined by the vertex order in each triangle, this causes shadow aliasing. The solution is to remove the repeated
-faces (which can be done in MeshLab) or use a better designed mesh.
+faces (which can be done in MeshLab) or use a better designed mesh. Flipped faces are checked by MuJoCo for meshes specified as OBJ or XML and an error message is returned.
 
 The size of the mesh is determined by the 3D coordinates of the vertex data in the mesh file, multiplied by the
 components of the :at:`scale` attribute below. Scaling is applied separately for each coordinate axis. Note that
@@ -2767,12 +2776,7 @@ practice this is rarely needed.
 
 The inertial computation mentioned above is part of an algorithm used not only to center and align the mesh, but also
 to infer the mass and inertia of the body to which it is attached. This is done by computing the centroid of the
-triangle faces, connecting each face with the centroid to form a triangular pyramid, computing the mass and inertia of
-all pyramids and accumulating them. This algorithm comes from Astronomy where it is used to estimate inertial
-properties of asteroids. It is exact for convex meshes but is not always exact for non-convex meshes; indeed no
-algorithm can be exact when the notion of interior is ill-defined. Thus for non-convex models designed in CAD software
-(which usually knows what the interior is) it is better to ask that software to compute the inertial properties of the
-body and enter them in the MJCF file explicitly via the :ref:`inertial <inertial>` element.
+triangle faces, connecting each face with the centroid to form a triangular pyramid, computing the mass and signed inertia of all pyramids (considered solid or hollow if :at:`shellinertia` is true) and accumulating them. The sign ensures that pyramids on the outside of the surfaces are subtracted, as it can occur with concave geometries. This algorithm can be found in section 1.3.8 of Computational Geometry in C (Second Edition) by Joseph O'Rourke.
 
 The full list of processing steps applied by the compiler to each mesh is as follows:
 
@@ -3390,6 +3394,8 @@ helps clarify the role of bodies and geoms in MuJoCo.
    Material density used to compute the geom mass and inertia. The computation is based on the geom shape and the
    assumption of uniform density. The internal default of 1000 is the density of water in SI units. This attribute is
    used only when the mass attribute above is unspecified.
+:at:`shellinertia` :at-val:`[false, true], "false"`
+   If true, the geom's inertia is computed assuming that all the mass is concentrated on the boundary. In this case :at:`density` is interpreted as surface density rather than volumetric density.
 :at:`solmix`: :at-val:`real, "1"`
    This attribute specifies the weight used for averaging of contact parameters, and interacts with the priority
    attribute. See :ref:`CContact`.
@@ -4286,7 +4292,7 @@ specify them independently.
    Identical to joint, except that for ball and free joints, the 3d rotation axis given by gear is defined in the parent
    frame (which is the world frame for free joints) rather than the child frame.
 :at:`site`: :at-val:`string, optional`
-   This actuator can applies force and torque at a site. The gear vector defines a 3d translation axis followed by a 3d
+   This transmission can apply force and torque at a site. The gear vector defines a 3d translation axis followed by a 3d
    rotation axis. Both are defined in the site's frame. This can be used to model jets and propellers. The effect is
    similar to actuating a free joint, and the actuator length is again defined as zero. One difference from the joint
    and jointinparent transmissions above is that here the actuator operates on a site rather than a joint, but this
@@ -4294,6 +4300,11 @@ specify them independently.
    that for site transmissions both the translation and rotation axes are defined in local coordinates. In contrast,
    translation is global and rotation is local for joint, and both translation and rotation are global for
    jointinparent.
+:at:`body`: :at-val:`string, optional`
+   This transmission can apply linear forces at contact points in the direction of the contact normal. The set of
+   contacts is all those belonging to the specified :at:`body`. This can be used to model natural active adhesion
+   mechanisms like the feet of geckos and insects. The actuator length is again defined as zero. For more information,
+   see the :ref:`adhesion<adhesion>` shortcut below.
 :at:`tendon`: :at-val:`string, optional`
    If specified, the actuator acts on the given tendon. The actuator length equals the tendon length times the gear
    ratio. Both spatial and fixed tendons can be used.
@@ -4486,7 +4497,9 @@ This element has one custom attribute in addition to the common attributes:
 :el-prefix:`actuator/` **damper** (*)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-This element is an active damper which produces a force proportional to both velocity and control: ``F = - kv * velocity * control``, where ``kv`` must be nonnegative. :at:`ctrlrange` is required and must also be nonnegative. The underlying :el:`general` attributes are set as follows:
+This element is an active damper which produces a force proportional to both velocity and control: ``F = - kv * velocity
+* control``, where ``kv`` must be nonnegative. :at:`ctrlrange` is required and must also be nonnegative. The underlying
+:el:`general` attributes are set as follows:
 
 =========== ======= ========= =======
 Attribute   Setting Attribute Setting
@@ -4500,8 +4513,9 @@ ctrllimited true
 
 This element has one custom attribute in addition to the common attributes:
 
-.. |actuator/damper attrib list| replace::
-   :at:`name`, :at:`class`, :at:`group`, :at:`ctrllimited`, :at:`forcelimited`, :at:`ctrlrange`, :at:`forcerange`, :at:`lengthrange`, :at:`gear`, :at:`cranklength`, :at:`joint`, :at:`jointinparent`, :at:`tendon`, :at:`cranksite`, :at:`slidersite`, :at:`site`, :at:`user`
+.. |actuator/damper attrib list| replace:: :at:`name`, :at:`class`, :at:`group`, :at:`ctrllimited`, :at:`forcelimited`,
+   :at:`ctrlrange`, :at:`forcerange`, :at:`lengthrange`, :at:`gear`, :at:`cranklength`, :at:`joint`,
+   :at:`jointinparent`, :at:`tendon`, :at:`cranksite`, :at:`slidersite`, :at:`site`, :at:`user`
 
 |actuator/damper attrib list|
    Same as in actuator/ :ref:`general <general>`.
@@ -4513,7 +4527,7 @@ This element has one custom attribute in addition to the common attributes:
 :el-prefix:`actuator/` **cylinder** (*)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-This element is suitable for modeling pneumatic or hidraulic cylinders. The underlying :el:`general` attributes are
+This element is suitable for modeling pneumatic or hydraulic cylinders. The underlying :el:`general` attributes are
 set as follows:
 
 ========= ======= ========= =============
@@ -4592,10 +4606,51 @@ This element has nine custom attributes in addition to the common attributes:
 :at:`fvmax`: :at-val:`real, "1.2"`
    Active force generated at saturating lengthening velocity, relative to the peak rest force.
 
+.. _adhesion:
+
+:el-prefix:`actuator/` **adhesion** (*)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+..  youtube:: HdBue4MUZys
+    :align: right
+    :height: 200px
+
+This element defines an active adhesion actuator which injects force at contacts in the normal direction. On the right
+is a video demonstrating this actuator type. The model shown in the video can be found `here
+<https://github.com/deepmind/mujoco/tree/main/model/adhesion>`_. The transmission target is a :el:`body`, and adhesive
+forces are injected into all contacts involving geoms which belong to this body. The force is divided equally between
+multiple active contacts. Because it requires contact, it cannot apply a force at a distance, and is more like the active
+adhesion on the feet of geckos and insects rather than an industrial vacuum gripper. Adhesion actuators' length is
+always 0. :at:`ctrlrange` is required and must also be nonnegative (no repulsive forces are allowed). The underlying
+:el:`general` attributes are set as follows:
+
+=========== ======= =========== ========
+Attribute   Setting Attribute   Setting
+=========== ======= =========== ========
+dyntype     none    dynprm      1 0 0
+gaintype    fixed   gainprm     gain 0 0
+biastype    none    biasprm     0 0 0
+trntype     body    ctrllimited true
+=========== ======= =========== ========
+
+This element has a subset of the common attributes and two custom attributes.
+
+.. |actuator/adhesion attrib list| replace:: :at:`name`, :at:`class`, :at:`group`,
+   :at:`forcelimited`, :at:`ctrlrange`, :at:`forcerange`, :at:`user`
+
+|actuator/adhesion attrib list|
+   Same as in actuator/ :ref:`general <general>`.
+:at:`body`: :at-val:`string, required`
+   The actuator acts on all contacts involving this body's geoms.
+:at:`gain`: :at-val:`real, "1"`
+   Gain of the adhesion actuator, in units of force. The total adhesion force applied by the actuator is the control
+   value multiplied by the gain. This force is distributed equally between all the contacts involving geoms belonging
+   to the target body.
+
 .. _sensor:
 
 **sensor** (*)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~
 
 This is a grouping element for sensor definitions. It does not have attributes. The outputs of all sensors are
 concatenated in the field mjData.sensordata which has size mjModel.nsensordata. This data is not used in any internal

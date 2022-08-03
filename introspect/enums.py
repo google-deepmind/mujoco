@@ -195,6 +195,7 @@ ENUMS: Mapping[str, EnumDecl] = dict([
              ('mjTRN_SLIDERCRANK', 2),
              ('mjTRN_TENDON', 3),
              ('mjTRN_SITE', 4),
+             ('mjTRN_BODY', 5),
              ('mjTRN_UNDEFINED', 1000),
          ]),
      )),

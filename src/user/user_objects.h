@@ -76,6 +76,13 @@ typedef enum _mjtMark {
 } mjtMark;
 
 
+// type of mesh
+typedef enum _mjtMeshType {
+  mjVOLUME_MESH,
+  mjSHELL_MESH,
+} mjtMeshType;
+
+
 // error information
 class mjCError {
  public:
@@ -298,6 +305,7 @@ class mjCGeom : public mjCBase {
   std::string material;           // name of material used for rendering
   std::vector<double> userdata;   // user data
   float rgba[4];                  // rgba when material is omitted
+  mjtMeshType typeinertia;        // selects between surface and volume inertia
 
   // variables set by user and used during compilation
   double _mass;                   // used to compute density
@@ -443,9 +451,11 @@ class mjCMesh: public mjCBase {
   friend class mjXWriter;
 
  public:
-  void GetPos(double* pos);                   // get position
-  void GetQuat(double* quat);                 // get orientation
-  void FitGeom(mjCGeom* geom, double* meshpos); // approximate mesh with simple geom
+  double* GetPosPtr(mjtMeshType type);              // get position
+  double* GetQuatPtr(mjtMeshType type);             // get orientation
+  double* GetInertiaBoxPtr(mjtMeshType type);       // get inertia box
+  double& GetVolumeRef(mjtMeshType type);           // get volume
+  void FitGeom(mjCGeom* geom, double* meshpos);   // approximate mesh with simple geom
 
   std::string file;                   // mesh file
   double refpos[3];                   // reference position (translate)
@@ -469,14 +479,20 @@ class mjCMesh: public mjCBase {
   void MakeGraph(void);                       // make graph of convex hull
   void CopyGraph(void);                       // copy graph into face data
   void MakeNormal(void);                      // compute vertex normals
-  void Process(void);                         // apply transformations
+  void Process();                             // apply transformations
   void RemoveRepeated(void);                  // remove repeated vertices
+  void ComputeInertia(mjtMeshType type);     // compute inertia
 
   // mesh properties computed by Compile
-  double pos[3];                      // CoM position
-  double quat[4];                     // inertia orientation
-  double boxsz[3];                    // half-sizes of equivalent inertia box
+  double pos_volume[3];               // CoM position
+  double pos_surface[3];              // CoM position
+  double quat_volume[4];              // inertia orientation
+  double quat_surface[4];             // inertia orientation
+  double boxsz_volume[3];             // half-sizes of equivalent inertia box (volume)
+  double boxsz_surface[3];            // half-sizes of equivalent inertia box (surface)
   double aabb[3];                     // half-sizes of axis-aligned bounding box
+  double volume;                      // volume of the mesh
+  double surface;                     // surface of the mesh
 
   // mesh data to be copied into mjModel
   int nvert;                          // number of vertices

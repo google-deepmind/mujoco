@@ -97,7 +97,7 @@ jobs:
     - name: Prepare Linux
       if: ${{ runner.os == 'Linux' }}
       run: >
-        sudo apt-get install
+        sudo apt-get update && sudo apt-get install
         libgl1-mesa-dev
         libxinerama-dev
         libxcursor-dev
