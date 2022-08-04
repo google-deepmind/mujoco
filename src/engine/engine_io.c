@@ -462,6 +462,13 @@ mjModel* mj_makeModel(int nq, int nv, int nu, int na, int nbody, int njnt,
   MJMODEL_INTS;
 #undef X
 
+  // nbody should always be positive
+  if (m->nbody == 0) {
+    mju_warning("Invalid model: nbody == 0");
+    mj_deleteModel(m);
+    return 0;
+  }
+
   // compute buffer size
   m->nbuffer = 0;
 #define X(type, name, nr, nc)                                                \
