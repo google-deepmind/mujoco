@@ -838,6 +838,7 @@ static mjData* _makeData(const mjModel* m) {
 
   // compute buffer size
   d->nbuffer = 0;
+  d->buffer = d->stack = NULL;
 #define X(type, name, nr, nc)                                                \
   if (!safeAddToBufferSize(&offset, &d->nbuffer, sizeof(type), m->nr, nc)) { \
     mju_warning("Invalid data: " #name " too large.");                       \
@@ -871,7 +872,9 @@ static mjData* _makeData(const mjModel* m) {
 
 mjData* mj_makeData(const mjModel* m) {
   mjData* d = _makeData(m);
-  mj_resetData(m, d);
+  if (d) {
+    mj_resetData(m, d);
+  }
   return d;
 }
 

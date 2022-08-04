@@ -17,6 +17,7 @@
 #include "src/engine/engine_io.h"
 
 #include <array>
+#include <climits>
 #include <cstring>
 #include <string>
 
@@ -24,6 +25,7 @@
 #include <gtest/gtest.h>
 #include <absl/strings/str_format.h>
 #include <mujoco/mjxmacro.h>
+#include "src/engine/engine_util_errmem.h"
 #include "test/fixture.h"
 
 namespace mujoco {
@@ -175,6 +177,28 @@ TEST_F(EngineIoTest, CopyDataWithPartialModel) {
 
   mj_deleteData(data);
   mj_deleteData(copy);
+}
+
+TEST_F(EngineIoTest, MakeDataReturnsNullOnFailure) {
+  constexpr char xml[] = "<mujoco/>";
+
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error.data();
+
+  // trigger overflow intentionally
+  model->nbody = INT_MAX;
+  static bool warning = false;
+  warning = false;
+  mju_user_warning = [](const char* error) {
+    warning = true;
+  };
+  mjData* data = mj_makeData(model);
+  EXPECT_THAT(data, IsNull());
+  EXPECT_TRUE(warning) << "Expecting warning to be triggered.";
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
 }
 
 using ValidateReferencesTest = MujocoTest;
