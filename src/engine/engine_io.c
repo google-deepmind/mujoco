@@ -15,6 +15,7 @@
 
 #include "engine/engine_io.h"
 
+#include <limits.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -361,6 +362,9 @@ static void mj_setPtrModel(mjModel* m) {
 // *nbuffer += SKIP(*offset) + type_size*nr*nc;
 // *offset += SKIP(*offset) + type_size*nr*nc;
 static int safeAddToBufferSize(intptr_t* offset, int* nbuffer, size_t type_size, int nr, int nc) {
+  if (type_size < 0 || nr < 0 || nc < 0) {
+    return 0;
+  }
 #if (__has_builtin(__builtin_add_overflow) && __has_builtin(__builtin_mul_overflow)) \
     || (defined(__GNUC__) && __GNUC__ >= 5)
   // supported by GCC and Clang
@@ -465,6 +469,13 @@ mjModel* mj_makeModel(int nq, int nv, int nu, int na, int nbody, int njnt,
   // nbody should always be positive
   if (m->nbody == 0) {
     mju_warning("Invalid model: nbody == 0");
+    mj_deleteModel(m);
+    return 0;
+  }
+
+  // nmocap is going to get multiplied by 4, and shouldn't overflow
+  if (m->nmocap >= INT_MAX / 4) {
+    mju_warning("Invalid model: nmocap too large");
     mj_deleteModel(m);
     return 0;
   }
