@@ -623,7 +623,6 @@ void mjCMesh::LoadOBJ(const mjVFS* vfs) {
 // load STL binary mesh
 void mjCMesh::LoadSTL(const mjVFS* vfs) {
   bool righthand = (scale[0]*scale[1]*scale[2]>0);
-  int i, j;
 
   // make filename
   string filename = mjuu_makefullname(model->modelfiledir, model->meshdir, file);
@@ -690,20 +689,29 @@ void mjCMesh::LoadSTL(const mjVFS* vfs) {
   vert = (float*) mju_malloc(9*nface*sizeof(float));
 
   // add vertices and faces, including repeated for now
-  for (i=0; i<nface; i++) {
-    for (j=0; j<3; j++) {
+  for (int i=0; i<nface; i++) {
+    for (int j=0; j<3; j++) {
       // get pointer to vertex coordiates
       float* v = (float*)(stl+50*i+12*(j+1));
+      for (int k=0; k < 3; k++) {
+        if (std::isnan(v[k]) || std::isinf(v[k])) {
+          if (!flag_existing) {
+            mju_free(buffer);
+          }
 
-      // check if vertex coordinates can be cast to an int safely
-      if (fabs(v[0])>pow(2, 30) || fabs(v[1])>pow(2, 30) || fabs(v[2])>pow(2, 30)) {
-        if (!flag_existing) {
-          mju_free(buffer);
+          throw mjCError(this, "STL file '%s' contains invalid vertices.",
+                         filename.c_str());
         }
+        // check if vertex coordinates can be cast to an int safely
+        if (fabs(v[k])>pow(2, 30)) {
+          if (!flag_existing) {
+            mju_free(buffer);
+          }
 
-        throw mjCError(this,
-                      "vertex coordinates in STL file '%s' exceed maximum bounds",
-                      filename.c_str());
+          throw mjCError(this,
+                        "vertex coordinates in STL file '%s' exceed maximum bounds",
+                        filename.c_str());
+        }
       }
 
       // add vertex address in face; change order if scale makes it lefthanded
