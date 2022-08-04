@@ -706,7 +706,9 @@ void makerendering(mj::Simulate* sim, int oldstate) {
   mjui_add(&sim->ui0, defOpenGL);
   for (i=0; i<mjNRNDFLAG; i++) {
     mju::strcpy_arr(defFlag[0].name, mjRNDSTRING[i][0]);
-    mju::sprintf_arr(defFlag[0].other, " %s", mjRNDSTRING[i][2]);
+    if (mjRNDSTRING[i][2][0]) {
+      mju::sprintf_arr(defFlag[0].other, " %s", mjRNDSTRING[i][2]);
+    }
     defFlag[0].pdata = sim->scn.flags + i;
     mjui_add(&sim->ui0, defFlag);
   }
