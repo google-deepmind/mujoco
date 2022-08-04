@@ -138,7 +138,7 @@ jobs:
       run: cmake --build . --config=Release ${{ matrix.cmake_build_args }}
     - name: Test MuJoCo
       working-directory: build
-      run: ctest -C Release .
+      run: ctest -C Release --output-on-failure .
     - name: Install MuJoCo
       working-directory: build
       run: cmake --install .
