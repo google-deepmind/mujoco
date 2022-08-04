@@ -3,24 +3,29 @@
 @import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital,wght@0,400;1,400&display=swap');
 @import url('https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,400;0,500;1,400;1,500&display=swap');
 
+/* Disable scroll on anchor. */
+html {
+  scroll-behavior: auto;
+}
+
 body {
   font-family: 'DM Sans', 'Helvetica Neue', 'Arial', sans-serif;
   -webkit-font-smoothing: antialiased;
-  color: rgb(20, 35, 75);
+  color: var(--body-color);
 }
 
 .rst-content .toctree-wrapper>p.caption,h1 {
   font-size: 250%;
   font-family: 'DM Serif Display', 'Times New Roman', serif;
   font-weight: 400;
-  color: rgb(0, 83, 214);
+  color: var(--rst-content-toctree-wrapper-h1-color);
 }
 
 .rst-content .toctree-wrapper>p.caption,h2,h3,h4,h5,h6,legend {
   font-family: 'DM Sans', 'Helvetica Neue', 'Arial', sans-serif;
   -webkit-font-smoothing: antialiased;
   font-weight: 700;
-  color: rgb(18, 54, 147);
+  color: var(--rst-content-toctree-wrapper-h2-color);
 }
 
 /* Decrease bottom margin of some headings for tighter vertical spacing. */
@@ -46,7 +51,7 @@ body {
 
 /* Don't change color of visited links. */
 .rst-content a.reference:visited {
-  color: #2980b9;
+  color: var(--rst-content-a-color);
 }
 
 .rst-content code, .rst-content tt {
@@ -73,7 +78,7 @@ ul.simple li {
 .wy-side-nav-search,
 .wy-nav-top,
 .wy-nav-side {
-  background-color: rgb(0, 83, 214);
+  background-color: var(--wy-nav-side-background-color);
 }
 
 /* Make text wrap in table cells. */
@@ -121,7 +126,7 @@ html.writer-html5 .rst-content table.docutils th>p {
 .wy-menu-vertical li.toctree-l8 a:hover span.toctree-expand,
 .wy-menu-vertical li.toctree-l9 a:hover span.toctree-expand,
 .wy-menu-vertical li.toctree-l10 a:hover span.toctree-expand {
-  color: white;
+  color: var(--wy-menu-vertical-color);
 }
 
 /* Change color of TOC background. */
@@ -139,7 +144,7 @@ html.writer-html5 .rst-content table.docutils th>p {
 .wy-menu-vertical li.toctree-l7.current li.toctree-l8>a,
 .wy-menu-vertical li.toctree-l8.current li.toctree-l9>a,
 .wy-menu-vertical li.toctree-l9.current li.toctree-l10>a {
-  background-color: rgb(0, 83, 214);
+  background-color: var(--wy-menu-vertical-background-color);
   border: none;
 }
 
@@ -154,7 +159,7 @@ html.writer-html5 .rst-content table.docutils th>p {
 .rst-content table.mjcf-attributes:not(.field-list) tr td,
 .rst-content table.mjcf-attributes:not(.field-list) tr:nth-child(2n-1) td {
   border-style: none;
-  background-color: rgba(255, 255, 255, 0);
+  background-color: var(--rst-content-table-mjcf-attributes-background-color);
   padding: 0px 0px 0px 0px;
   width: 33%;
 }
@@ -170,12 +175,12 @@ table td > div.wy-table-responsive {
 
 /* MJCF attribute names. */
 .at {
-  color: darkred;
+  color: var(--at-color);
 }
 
 /* MJCF attribute value specs. */
 .at-val {
-  color: darkred;
+  color: var(--at-val-color);
   font-weight: normal;
 }
 

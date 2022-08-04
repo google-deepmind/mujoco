@@ -79,7 +79,34 @@ autodoc_default_options = {
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
 #
-html_theme = 'sphinx_rtd_theme'
+html_theme = 'furo'
+
+html_theme_options = {
+    "light_css_variables": {
+        "body-color": "#14234b",
+        "at-color": "darkred",
+        "at-val-color": "darkred",
+        "rst-content-table-mjcf-attributes-background-color": "#ffffff00",
+        "wy-menu-vertical-background-color": "#0053d6",
+        "wy-menu-vertical-color": "white",
+        "wy-nav-side-background-color": "#0053d6",
+        "rst-content-a-color": "#2980b9",
+        "rst-content-toctree-wrapper-h2-color": "#123693",
+        "rst-content-toctree-wrapper-h1-color": "#0053d6",
+    },
+    "dark_css_variables": {
+        "body-color": "#14234b",
+        "at-color": "darkblue",
+        "at-val-color": "darkblue",
+        "rst-content-table-mjcf-attributes-background-color": "#ffffff00",
+        "wy-menu-vertical-background-color": "#0053d6",
+        "wy-menu-vertical-color": "white",
+        "wy-nav-side-background-color": "#0053d6",
+        "rst-content-a-color": "#2980b9",
+        "rst-content-toctree-wrapper-h2-color": "#123693",
+        "rst-content-toctree-wrapper-h1-color": "#0053d6",
+    },
+}
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
