@@ -1574,7 +1574,7 @@ void Simulate::load(const char* file,
     // Wait for the render thread to be done loading
     // so that we know the old model and data's memory can
     // be free'd by the other thread (sometimes python)
-    cond_loadrequest.wait(lock, [this]() { return this->loadrequest > 0; });
+    cond_loadrequest.wait(lock, [this]() { return this->loadrequest == 0; });
   }
 }
 
