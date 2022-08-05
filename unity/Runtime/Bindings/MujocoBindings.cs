@@ -3010,6 +3010,9 @@ public static unsafe extern double mju_raySkin(int nface, int nvert, int* face, 
 public static unsafe extern void mjv_defaultCamera(mjvCamera_* cam);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern void mjv_defaultFreeCamera(mjModel_* m, mjvCamera_* cam);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern void mjv_defaultPerturb(mjvPerturb_* pert);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]

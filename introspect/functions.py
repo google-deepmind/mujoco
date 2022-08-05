@@ -2929,6 +2929,26 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
          ),
          doc='Set default camera.',
      )),
+    ('mjv_defaultFreeCamera',
+     FunctionDecl(
+         name='mjv_defaultFreeCamera',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='m',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjModel', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='cam',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjvCamera'),
+                 ),
+             ),
+         ),
+         doc='Set default free camera.',
+     )),
     ('mjv_defaultPerturb',
      FunctionDecl(
          name='mjv_defaultPerturb',

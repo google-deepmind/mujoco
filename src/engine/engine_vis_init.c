@@ -241,6 +241,23 @@ void mjv_defaultCamera(mjvCamera* cam) {
 
 
 
+// set default free camera
+void mjv_defaultFreeCamera(const mjModel* m, mjvCamera* cam) {
+  memset(cam, 0, sizeof(mjvCamera));
+
+  cam->type        = mjCAMERA_FREE;
+  cam->fixedcamid  = -1;
+  cam->trackbodyid = -1;
+  cam->lookat[0]   = m->stat.center[0];
+  cam->lookat[1]   = m->stat.center[1];
+  cam->lookat[2]   = m->stat.center[2];
+  cam->distance    = 1.5 * m->stat.extent;
+  cam->azimuth     = m->vis.global.azimuth;
+  cam->elevation   = m->vis.global.elevation;
+}
+
+
+
 // set default perturbation
 void mjv_defaultPerturb(mjvPerturb* pert) {
   memset(pert, 0, sizeof(mjvPerturb));

@@ -546,6 +546,7 @@ PYBIND11_MODULE(_functions, pymodule) {
 
   // Interaction
   Def<traits::mjv_defaultCamera>(pymodule);
+  Def<traits::mjv_defaultFreeCamera>(pymodule);
   Def<traits::mjv_defaultPerturb>(pymodule);
   Def<traits::mjv_room2model>(pymodule);
   Def<traits::mjv_model2room>(pymodule);

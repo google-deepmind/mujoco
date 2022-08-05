@@ -1230,7 +1230,7 @@ mjVisual
    {
        struct                          // global parameters
        {
-           float fovy;                 // y-field of view (deg) for free camera
+           float fovy;                 // y-field of view for free camera (degrees)
            float ipd;                  // inter-pupilary distance for free camera
            float linewidth;            // line width for wireframe and ray rendering
            float glow;                 // glow coefficient for selected body
@@ -4721,6 +4721,17 @@ mjv_defaultCamera
    void mjv_defaultCamera(mjvCamera* cam);
 
 Set default camera.
+
+.. _mjv_defaultFreeCamera:
+
+mjv_defaultFreeCamera
+~~~~~~~~~~~~~~~~~~~~~
+
+.. code-block:: C
+
+   void mjv_defaultFreeCamera(const mjModel* m, mjvCamera* cam);
+
+Set default free camera.
 
 .. _mjv_defaultPerturb:
 

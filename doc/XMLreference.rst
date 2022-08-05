@@ -120,9 +120,11 @@ in the second column of the table have the following meaning:
 |                          |    |    :class: mjcf-attributes                                                         |
 |                          |    |                                                                                    |
 |                          |    |    +-------------------------+-------------------------+-------------------------+ |
-|                          |    |    | :at:`fovy`              | :at:`ipd`               | :at:`linewidth`         | |
+|                          |    |    | :at:`fovy`              | :at:`ipd`               | :at:`azimuth`           | |
 |                          |    |    +-------------------------+-------------------------+-------------------------+ |
-|                          |    |    | :at:`glow`              | :at:`offwidth`          | :at:`offheight`         | |
+|                          |    |    | :at:`elevation`         | :at:`linewidth`         | :at:`glow`              | |
+|                          |    |    +-------------------------+-------------------------+-------------------------+ |
+|                          |    |    | :at:`offwidth`          | :at:`offheight`         |                         | |
 |                          |    |    +-------------------------+-------------------------+-------------------------+ |
 +--------------------------+----+------------------------------------------------------------------------------------+
 | |_2|:el:`quality`        | ?  | .. table::                                                                         |
@@ -1960,6 +1962,14 @@ is effectively a miscellaneous subsection.
 :at:`ipd`: :at-val:`real, "0.068"`
    This attribute specifies the inter-pupilary distance of the free camera. It only affects the rendering in
    stereoscopic mode. The left and right viewpoints are offset by half of this value in the corresponding direction.
+:at:`azimuth`: :at-val:`real, "90"`
+   This attribute specifies the initial azimuth of the free camera around the vertical z-axis, in degrees. A value of 0
+   corresponds to looking in the positive x direction, while the default value of 90 corresponds to looking in the
+   positive y direction.
+:at:`elevation`: :at-val:`real, "-45"`
+   This attribute specifies the initial elevation of the free camera with respect to the lookat point. Note that since
+   this is a rotation around a vector parallel to the camera's X-axis (right in pixel space), *negative* numbers
+   correspond to moving the camera *up* from the horizontal plane, and vice-versa.
 :at:`linewidth`: :at-val:`real, "1"`
    This attribute specifies the line-width in the sense of OpenGL. It affects the rendering in wire-frame mode.
 :at:`glow`: :at-val:`real, "0.3"`
@@ -2216,7 +2226,8 @@ parameters.
 :at:`extent`: :at-val:`real, optional`
    If this attribute is specified, it replaces the value of mjModel.stat.extent computed by the compiler. The computed
    value is half the side of the bounding box of the model in the initial configuration. At runtime this value is
-   multiplied by some of the attributes of the :ref:`map <map>` element above.
+   multiplied by some of the attributes of the :ref:`map <map>` element above. When the model is first loaded, the free
+   camera's initial distance from the :at:`center` (see below) is 1.5 times the :at:`extent`.
 :at:`center`: :at-val:`real(3), optional`
    If this attribute is specified, it replaces the value of mjModel.stat.center computed by the compiler. The computed
    value is the center of the bounding box of the entire model in the initial configuration. This 3D vector is used to

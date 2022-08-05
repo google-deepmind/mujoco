@@ -418,8 +418,10 @@ typedef struct mjOption_ mjOption;
 
 struct mjVisual_ {                // visualization options
   struct {                        // global parameters
-    float fovy;                   // y-field of view (deg) for free camera
+    float fovy;                   // y-field of view for free camera (degrees)
     float ipd;                    // inter-pupilary distance for free camera
+    float azimuth;                // initial azimuth of free camera (degrees)
+    float elevation;              // initial elevation of free camera (degrees)
     float linewidth;              // line width for wireframe and ray rendering
     float glow;                   // glow coefficient for selected body
     int offwidth;                 // width of offscreen buffer

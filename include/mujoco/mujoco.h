@@ -492,6 +492,9 @@ MJAPI mjtNum mju_raySkin(int nface, int nvert, const int* face, const float* ver
 // Set default camera.
 MJAPI void mjv_defaultCamera(mjvCamera* cam);
 
+// Set default free camera.
+MJAPI void mjv_defaultFreeCamera(const mjModel* m, mjvCamera* cam);
+
 // Set default perturbation.
 MJAPI void mjv_defaultPerturb(mjvPerturb* pert);
 

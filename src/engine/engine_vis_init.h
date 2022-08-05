@@ -43,6 +43,9 @@ MJAPI void mjv_freeScene(mjvScene* scn);
 // set default visualization options
 MJAPI void mjv_defaultOption(mjvOption* vopt);
 
+// set default free camera
+MJAPI void mjv_defaultFreeCamera(const mjModel* m, mjvCamera* cam);
+
 // set default camera
 MJAPI void mjv_defaultCamera(mjvCamera* cam);
 

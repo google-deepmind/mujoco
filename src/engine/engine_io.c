@@ -152,6 +152,8 @@ void mj_defaultVisual(mjVisual* vis) {
   // global
   vis->global.fovy                = 45;
   vis->global.ipd                 = 0.068;
+  vis->global.azimuth             = 90;
+  vis->global.elevation           = -45;
   vis->global.linewidth           = 1.0;
   vis->global.glow                = 0.3;
   vis->global.offwidth            = 640;

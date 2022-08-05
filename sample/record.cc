@@ -74,11 +74,8 @@ void initMuJoCo(const char* filename) {
   mjv_makeScene(m, &scn, 2000);
   mjr_makeContext(m, &con, 200);
 
-  // center and scale view
-  cam.lookat[0] = m->stat.center[0];
-  cam.lookat[1] = m->stat.center[1];
-  cam.lookat[2] = m->stat.center[2];
-  cam.distance = 1.5 * m->stat.extent;
+  // default free camera
+  mjv_defaultFreeCamera(m, &cam);
 }
 
 

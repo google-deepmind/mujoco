@@ -16,6 +16,9 @@ General
   computations. This is currently supported only for meshes.
 - Raise error if the orientation of mesh faces is not consistent, which causes the inertia computations to be
   inaccurate. If this occurs, open the mesh in MeshLab or Blender and recalculate the faces.
+- Added ``azimuth`` and ``elevation`` attributes to :ref:`visual/global<global>`, defining the initial orientation of
+  the free camera at model load time.
+ - Added ``mjv_defaultFreeCamera`` which sets the default free camera, respecting the above attributes.
 
 Bug fixes
 ^^^^^^^^^

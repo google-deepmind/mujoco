@@ -796,6 +796,8 @@ void mjXWriter::Visual(XMLElement* root) {
   elem = InsertEnd(section, "global");
   WriteAttr(elem,    "fovy",      1,   &vis->global.fovy,       &visdef.global.fovy);
   WriteAttr(elem,    "ipd",       1,   &vis->global.ipd,        &visdef.global.ipd);
+  WriteAttr(elem,    "azimuth",   1,   &vis->global.azimuth,    &visdef.global.azimuth);
+  WriteAttr(elem,    "elevation", 1,   &vis->global.elevation,  &visdef.global.elevation);
   WriteAttr(elem,    "linewidth", 1,   &vis->global.linewidth,  &visdef.global.linewidth);
   WriteAttr(elem,    "glow",      1,   &vis->global.glow,       &visdef.global.glow);
   WriteAttrInt(elem, "offwidth",       vis->global.offwidth,    visdef.global.offwidth);

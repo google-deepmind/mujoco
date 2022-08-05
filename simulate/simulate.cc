@@ -904,15 +904,10 @@ void makesections(mj::Simulate* sim) {
 
 // align and scale view
 void alignscale(mj::Simulate* sim) {
-  // autoscale
-  sim->cam.lookat[0] = sim->m->stat.center[0];
-  sim->cam.lookat[1] = sim->m->stat.center[1];
-  sim->cam.lookat[2] = sim->m->stat.center[2];
-  sim->cam.distance = 1.5 * sim->m->stat.extent;
-
-  // set to free camera
-  sim->cam.type = mjCAMERA_FREE;
+  // use default free camera parameters
+  mjv_defaultFreeCamera(sim->m, &sim->cam);
 }
+
 
 // copy qpos to clipboard as key
 void copykey(mj::Simulate* sim) {
