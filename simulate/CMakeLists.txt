@@ -84,7 +84,7 @@ target_sources(
 target_include_directories(mjsimulate PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_compile_definitions(mjsimulate PUBLIC MJSIMULATE_STATIC)
 target_compile_options(mjsimulate PUBLIC ${MUJOCO_SIMULATE_COMPILE_OPTIONS})
-target_link_libraries(mjsimulate PUBLIC glfw mujoco::mujoco)
+target_link_libraries(mjsimulate PUBLIC glfw lodepng mujoco::mujoco)
 target_link_options(mjsimulate PRIVATE ${MUJOCO_SIMULATE_LINK_OPTIONS})
 
 if(APPLE)
@@ -120,6 +120,7 @@ target_link_libraries(
   mujoco::mujoco
   glfw
   Threads::Threads
+  lodepng
 )
 
 target_link_options(simulate PRIVATE ${MUJOCO_SIMULATE_LINK_OPTIONS})

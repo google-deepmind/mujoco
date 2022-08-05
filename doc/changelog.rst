@@ -19,6 +19,7 @@ General
 - Added ``azimuth`` and ``elevation`` attributes to :ref:`visual/global<global>`, defining the initial orientation of
   the free camera at model load time.
  - Added ``mjv_defaultFreeCamera`` which sets the default free camera, respecting the above attributes.
+ - ``simulate`` now supports taking a screenshot via a button in the File section or via ``Ctrl-P``.
 
 Bug fixes
 ^^^^^^^^^
@@ -209,7 +210,7 @@ Version 2.1.3 (Mar. 23, 2022)
 General
 ^^^^^^^
 
-1. ``simulate`` now support cycling through cameras (with ``[`` and ``]`` keys).
+1. ``simulate`` now supports cycling through cameras (with the ``[`` and ``]`` keys).
 #. ``mjVIS_STATIC`` toggles all static bodies, not just direct children of the world.
 
 Python bindings

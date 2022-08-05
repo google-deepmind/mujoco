@@ -20,6 +20,7 @@
 #include <mutex>
 #include <thread>
 
+#include "lodepng.h"
 #include <GLFW/glfw3.h>
 #include <mujoco/mujoco.h>
 
@@ -112,6 +113,7 @@ class MJSIMULATEAPI Simulate {
   // 1: showing "loading" label, about to load
   // 0: model loaded or no load requested.
   int loadrequest = 0;
+  std::atomic_bool screenshotrequest = false;
   // strings
   char loadError[kMaxFilenameLength] = "";
   char dropfilename[kMaxFilenameLength] = "";

@@ -18,10 +18,10 @@
 #include <chrono>
 #include <cstdio>
 #include <cstring>
+#include <memory>
 #include <mutex>
 #include <string>
 #include <thread>
-
 
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjvisualize.h>
@@ -78,6 +78,7 @@ const mjuiDef defFile[] = {
   {mjITEM_BUTTON,    "Print model",   2, nullptr,                    "CM"},
   {mjITEM_BUTTON,    "Print data",    2, nullptr,                    "CD"},
   {mjITEM_BUTTON,    "Quit",          1, nullptr,                    "CQ"},
+  {mjITEM_BUTTON,    "Screenshot",    2, NULL,                       "CP"},
   {mjITEM_END}
 };
 
@@ -1091,6 +1092,10 @@ void uiEvent(mjuiState* state) {
       case 4:             // Quit
         sim->exitrequest.store(1);
         break;
+
+      case 5:             // Screenshot
+        sim->screenshotrequest.store(true);
+        break;
       }
     }
 
@@ -1780,6 +1785,38 @@ void Simulate::render() {
   // show sensor
   if (this->sensor) {
     sensorshow(this, smallrect);
+  }
+
+  // take screenshot, save to file
+  if (this->screenshotrequest.exchange(false)) {
+    const unsigned int h = uistate.rect[0].height;
+    const unsigned int w = uistate.rect[0].width;
+    std::unique_ptr<unsigned char[]> rgb(new unsigned char[3*w*h]);
+    if (!rgb) {
+      mju_error("could not allocate buffer for screenshot");
+    }
+    mjr_readPixels(rgb.get(), NULL, uistate.rect[0], &con);
+
+    // flip up-down
+    for (int r = 0; r < h/2; ++r) {
+      unsigned char* top_row = &rgb[3*w*r];
+      unsigned char* bottom_row = &rgb[3*w*(h-1-r)];
+      std::swap_ranges(top_row, top_row+3*w, bottom_row);
+    }
+
+    // save as PNG
+    // TODO(b/241577466): Parse the stem of the filename and use a .PNG extension.
+    // Unfortunately, if we just yank ".xml"/".mjb" from the filename and append .PNG, the macOS
+    // file dialog does not automatically open that location. Thus, we defer to a default
+    // "screenshot.png" for now.
+    const std::string path = getSavePath("screenshot.png");
+    if (!path.empty()) {
+      if (lodepng::encode(path, rgb.get(), w, h, LCT_RGB)) {
+        mju_error("could not save screenshot");
+      } else {
+        std::printf("saved screenshot: %s\n", path.c_str());
+      }
+    }
   }
 
   // finalize
