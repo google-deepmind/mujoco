@@ -133,7 +133,7 @@ typedef enum mjtRndFlag_ {        // flags enabling rendering effects
   mjRND_FOG,                      // fog
   mjRND_HAZE,                     // haze
   mjRND_SEGMENT,                  // segmentation with random color
-  mjRND_IDCOLOR,                  // segmentation with segid color
+  mjRND_IDCOLOR,                  // segmentation with segid+1 color
 
   mjNRNDFLAG                      // number of rendering flags
 } mjtRndFlag;
