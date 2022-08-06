@@ -1613,7 +1613,7 @@ void Simulate::loadmodel() {
 
   // set window title to model name
   if (this->window && this->m->names) {
-    char title[200] = "this : ";
+    char title[200] = "Simulate : ";
     mju::strcat_arr(title, this->m->names);
     glfwSetWindowTitle(this->window, title);
   }
