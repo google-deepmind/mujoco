@@ -1744,12 +1744,11 @@ adjust it properly through the XML.
 :at:`viscosity`: :at-val:`real, "0"`
    Viscosity of the medium. This parameter is used to simulate viscous forces, which scale linearly with velocity. In SI
    units the viscosity of air is around 0.00002 while the viscosity of water is around 0.0009 depending on temperature.
-   Setting viscosity to 0 disables viscous forces. Note that the Euler :ref:`integrator <geIntegration>` handles damping
-   in the joints implicitly - which improves stability and accuracy. It does not presently do this with body viscosity.
-   Therefore, if the goal is merely to create a damped simulation (as opposed to modeling the specific effects of
-   viscosity), we recommend using joint damping rather than body viscosity. There is a plan to develop an integrator
-   that is fully implicit in velocity, which will make joint damping and body viscosity equally stable, but this feature
-   is not yet available.
+   Setting viscosity to 0 disables viscous forces. Note that the default Euler :ref:`integrator <geIntegration>` handles
+   damping in the joints implicitly – which improves stability and accuracy. It does not presently do this with body
+   viscosity. Therefore, if the goal is merely to create a damped simulation (as opposed to modeling the specific
+   effects of viscosity), we recommend using joint damping rather than body viscosity, or switching to the
+   :at:`implicit` integrator.
 :at:`o_margin`: :at-val:`real, "0"`
    This attribute replaces the margin parameter of all active contact pairs when :ref:`Contact override <COverride>` is
    enabled. Otherwise MuJoCo uses the element-specific margin attribute of :ref:`geom <geom>` or :ref:`pair <pair>`
