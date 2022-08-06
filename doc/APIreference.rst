@@ -232,6 +232,7 @@ mjtIntegrator
    {
        mjINT_EULER         = 0,        // semi-implicit Euler
        mjINT_RK4                       // 4th-order Runge Kutta
+       mjINT_IMPLICIT                  // implicit in velocity
    } mjtIntegrator;
 
 | Defined in `mjmodel.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjmodel.h>`_

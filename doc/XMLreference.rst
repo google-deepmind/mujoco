@@ -1758,9 +1758,10 @@ adjust it properly through the XML.
 :at:`o_solref`, :at:`o_solimp`
    These attributes replace the solref and solimp parameters of all active contact pairs when contact override is
    enabled. See :ref:`CSolver` for details.
-:at:`integrator`: :at-val:`[Euler, RK4], "Euler"`
+:at:`integrator`: :at-val:`[Euler, RK4, implicit], "Euler"`
    This attribute selects the numerical :ref:`integrator <geIntegration>` to be used. Currently the available
-   integrators are the semi-implicit Euler method and the fixed-step 4-th order Runge Kutta method.
+   integrators are the semi-implicit Euler method, the fixed-step 4-th order Runge Kutta method, and
+   the Implicit-in-velocity Euler method.
 :at:`collision`: :at-val:`[all, predefined, dynamic], "all"`
    This attribute specifies which geom pairs should be checked for collision; recall :ref:`Collision` in the Computation
    chapter. "predefined" means that only the explicitly-defined contact :ref:`pairs <pair>` are checked. "dynamic" means

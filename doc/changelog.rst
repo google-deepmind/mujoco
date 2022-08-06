@@ -19,7 +19,7 @@ General
 - Added ``azimuth`` and ``elevation`` attributes to :ref:`visual/global<global>`, defining the initial orientation of
   the free camera at model load time.
  - Added ``mjv_defaultFreeCamera`` which sets the default free camera, respecting the above attributes.
- - ``simulate`` now supports taking a screenshot via a button in the File section or via ``Ctrl-P``.
+- ``simulate`` now supports taking a screenshot via a button in the File section or via ``Ctrl-P``.
 
 Bug fixes
 ^^^^^^^^^
