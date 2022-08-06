@@ -4,6 +4,9 @@
   <a href="https://github.com/deepmind/mujoco/actions/workflows/build.yml?query=branch%3Amain" alt="GitHub Actions">
     <img src="https://img.shields.io/github/workflow/status/deepmind/mujoco/build/main">
   </a>
+  <a href="https://mujoco.readthedocs.io/" alt="Documentation">
+    <img src="https://readthedocs.org/projects/mujoco/badge/?version=latest">
+  </a>
   <a href="https://github.com/deepmind/mujoco/blob/main/LICENSE" alt="License">
     <img src="https://img.shields.io/github/license/deepmind/mujoco">
   </a>
