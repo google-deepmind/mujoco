@@ -643,8 +643,6 @@ void mj_RungeKutta(const mjModel* m, mjData* d, int N) {
 
 
 
-//-------------------------- top-level API ---------------------------------------------------------
-
 // fully implicit in velocity, possibly skipping factorization
 void mj_implicitSkip(const mjModel *m, mjData *d, int skipfactor) {
   int nv = m->nv;
@@ -688,6 +686,8 @@ void mj_implicit(const mjModel *m, mjData *d) {
 }
 
 
+
+//-------------------------- top-level API ---------------------------------------------------------
 
 // forward dynamics with skip; skipstage is mjtStage
 void mj_forwardSkip(const mjModel* m, mjData* d, int skipstage, int skipsensor) {
