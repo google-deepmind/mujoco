@@ -2218,11 +2218,13 @@ parameters.
    computed value is the average diagonal element of the joint-space inertia matrix when the model is in qpos0. At
    runtime this value scales the solver cost and gradient used for early termination.
 :at:`meansize`: :at-val:`real, optional`
-   If this attribute is specified, it replaces the value of mjModel.stat.meansize computed by the compiler. The computed
-   value is heuristic representing the average body radius. This is not easily determined because bodies may not have
-   geoms with spatial properties. The heuristic is based on the geoms sizes when present, the distances between joints
-   when present, and the sizes of the body equivalent inertia boxes. At runtime this value is multiplied by the
-   attributes of the :ref:`scale <scale>` element above.
+   If this attribute is specified, it replaces the value of ``mjModel.stat.meansize`` computed by the compiler. At
+   runtime this value multiplies the attributes of the :ref:`scale <scale>` element above, and acts as their length
+   unit. If specific lengths are desired, it can be convenient to set :at:`meansize` to a round number like 1 or 0.01 so
+   that :ref:`scale <scale>` values are in recognized length units. This is the only semantic of :at:`meansize` and
+   setting it has no other side-effect. The automatically computed value is heuristic, representing the average body
+   radius. The heuristic is based on geom sizes when present, the distances between joints when present, and the sizes
+   of the body equivalent inertia boxes.
 :at:`extent`: :at-val:`real, optional`
    If this attribute is specified, it replaces the value of mjModel.stat.extent computed by the compiler. The computed
    value is half the side of the bounding box of the model in the initial configuration. At runtime this value is
