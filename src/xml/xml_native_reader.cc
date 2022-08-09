@@ -2284,7 +2284,7 @@ void mjXReader::Body(XMLElement* section, mjCBody* pbody) {
       if (pbody->id==0) {
         throw mjXError(elem, "World body cannot have inertia");
       }
-      pbody->explicit_inertial = true;
+      pbody->explicitinertial = true;
       ReadAttr(elem, "pos", 3, pbody->ipos, text, true);
       ReadAttr(elem, "quat", 4, pbody->iquat, text);
       ReadAttr(elem, "mass", 1, &pbody->mass, text, true);

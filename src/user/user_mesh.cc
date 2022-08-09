@@ -81,6 +81,11 @@ mjCMesh::mjCMesh(mjCModel* _model, mjCDef* _def) {
   face = NULL;
   graph = NULL;
   needhull = false;
+  validorientation = true;
+  validarea = true;
+  validvolume = true;
+  valideigenvalue = true;
+  validinequality = true;
 
   // reset to default if given
   if (_def) {
@@ -223,8 +228,9 @@ void mjCMesh::Compile(const mjVFS* vfs) {
   if (!useredge.empty()) {
     std::sort(useredge.begin(), useredge.end());
     auto iterator = std::adjacent_find(useredge.begin(), useredge.end());
-    if (iterator != useredge.end())
-      throw mjCError(this, "faces have inconsistent orientation");
+    if (iterator != useredge.end()) {
+      validorientation = false;
+    }
   }
 
   // require vertices
@@ -248,7 +254,9 @@ void mjCMesh::Compile(const mjVFS* vfs) {
   }
 
   // scale, center, orient, compute mass and inertia
-  Process();
+  if (validorientation) {
+    Process();
+  }
 }
 
 
@@ -920,7 +928,7 @@ void mjCMesh::Process() {
           vert[3*i+1] = (float) p1[1];
           vert[3*i+2] = (float) p1[2];
 
-          // nromals
+          // normals
           mjtNum n1[3], n0[3] = {normal[3*i], normal[3*i+1], normal[3*i+2]};
           mju_rotVecMatT(n1, n0, mat);
           normal[3*i] = (float) n1[0];
@@ -983,7 +991,8 @@ void mjCMesh::Process() {
 
       // require positive area
       if (area < mjMINVAL) {
-        throw mjCError(this, "mesh surface area is too small: %s", name.c_str());
+        validarea = false;
+        return;
       }
 
       // finalize centroid of faces
@@ -1016,7 +1025,8 @@ void mjCMesh::Process() {
 
     // require positive volume
     if (GetVolumeRef(type) < mjMINVAL) {
-      throw mjCError(this, "mesh volume is too small: %s", name.c_str());
+      validvolume = false;
+      return;
     }
 
     // finalize CoM, save as mesh center
@@ -1085,13 +1095,14 @@ void mjCMesh::Process() {
 
     // check eigval - SHOULD NOT OCCUR
     if (eigval[2]<=0) {
-      throw mjCError(this, "eigenvalue of mesh inertia must be positive: %s", name.c_str());
+      valideigenvalue = false;
+      return;
     }
     if (eigval[0] + eigval[1] < eigval[2] ||
         eigval[0] + eigval[2] < eigval[1] ||
         eigval[1] + eigval[2] < eigval[0]) {
-      throw mjCError(this,
-                    "eigenvalues of mesh inertia violate A + B >= C condition: %s", name.c_str());
+      validinequality = false;
+      return;
     }
 
     // compute sizes of equivalent inertia box
@@ -1140,8 +1151,24 @@ void mjCMesh::Process() {
 }
 
 
+// check that the mesh is valid
+void mjCMesh::CheckMesh() {
+  if (!validorientation)
+    throw mjCError(this, "faces have inconsistent orientation: %s", name.c_str());
+  if (!validarea)
+    throw mjCError(this, "mesh surface area is too small: %s", name.c_str());
+  if (!validvolume)
+    throw mjCError(this, "mesh volume is too small: %s", name.c_str());
+  if (!valideigenvalue)
+    throw mjCError(this, "eigenvalue of mesh inertia must be positive: %s", name.c_str());
+  if (!validinequality)
+    throw mjCError(this, "eigenvalues of mesh inertia violate A + B >= C: %s", name.c_str());
+}
+
+
 // compute inertia
 double* mjCMesh::GetInertiaBoxPtr(mjtMeshType type) {
+  CheckMesh();
   if (type==mjSHELL_MESH) {
     return boxsz_surface;
   } else {
@@ -1151,6 +1178,7 @@ double* mjCMesh::GetInertiaBoxPtr(mjtMeshType type) {
 
 
 double& mjCMesh::GetVolumeRef(mjtMeshType type) {
+  CheckMesh();
   if (type) {
     return surface;
   } else {

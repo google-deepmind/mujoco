@@ -207,7 +207,7 @@ void mjXURDF::Body(XMLElement* body_elem) {
 
   // inertial element: copy into alternative body frame
   if ((elem = FindSubElem(body_elem, "inertial"))) {
-    pbody->explicit_inertial = true;
+    pbody->explicitinertial = true;
     // origin- relative to joint frame for now
     Origin(elem, pbody->ipos, pbody->iquat);
 

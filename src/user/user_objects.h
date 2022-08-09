@@ -167,7 +167,7 @@ class mjCBody : public mjCBase {
   // setup child local frame, take into account change
   void MakeLocal(double* locpos, double* locquat, const double* pos, const double* quat);
 
-  // set explicit_inertial to true
+  // set explicitinertial to true
   void MakeInertialExplicit();
 
   // variables set by user or 'Compile'
@@ -198,7 +198,7 @@ class mjCBody : public mjCBase {
   int weldid;                     // top index of body we are welded to
   int dofnum;                     // number of motion dofs for body
   int mocapid;                    // mocap id, -1: not mocap
-  bool explicit_inertial;         // whether to save the body with an explicit inertial clause
+  bool explicitinertial;          // whether to save the body with an explicit inertial clause
 
   int lastdof;                    // id of last dof (used by compiler)
 
@@ -306,6 +306,7 @@ class mjCGeom : public mjCBase {
   std::vector<double> userdata;   // user data
   float rgba[4];                  // rgba when material is omitted
   mjtMeshType typeinertia;        // selects between surface and volume inertia
+  bool inferinertia;              // true if inertia has to be computed from geom
 
   // variables set by user and used during compilation
   double _mass;                   // used to compute density
@@ -481,7 +482,15 @@ class mjCMesh: public mjCBase {
   void MakeNormal(void);                      // compute vertex normals
   void Process();                             // apply transformations
   void RemoveRepeated(void);                  // remove repeated vertices
-  void ComputeInertia(mjtMeshType type);     // compute inertia
+  void ComputeInertia(mjtMeshType type);      // compute inertia
+  void CheckMesh(void);                       // check if the mesh is valid
+
+  // mesh properties that indicate a well-formed mesh
+  bool validorientation;              // false if mesh have inconsistent faces
+  bool validarea;                     // false if the area is too small
+  bool validvolume;                   // false if the volume is too small
+  bool valideigenvalue;               // false if inertia eigenvalue is too small
+  bool validinequality;               // false if inertia inequality is not satisfied
 
   // mesh properties computed by Compile
   double pos_volume[3];               // CoM position

@@ -3,6 +3,8 @@
     <mesh file="malformed_face.obj"/>
   </asset>
   <worldbody>
-    <geom type="mesh" mesh="malformed_face"/>
+    <body>
+      <geom type="mesh" mesh="malformed_face"/>
+    </body>
   </worldbody>
 </mujoco>

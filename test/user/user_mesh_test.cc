@@ -188,11 +188,32 @@ TEST_F(MujocoTest, MalformedFaceFails) {
   const std::string xml_path = GetTestDataFilePath(kMalformedFaceOBJPath);
   std::array<char, 1024> error;
   mjModel* model = mj_loadXML(xml_path.c_str(), 0, error.data(), error.size());
-  ASSERT_THAT(model, testing::IsNull());
+  EXPECT_THAT(model, testing::IsNull());
   EXPECT_THAT(error.data(), HasSubstr("faces have inconsistent orientation"));
 }
 
 TEST_F(MujocoTest, FlippedFaceFails) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="example_mesh"
+        vertex="0 0 0  1 0 0  0 1 0  0 0 1"
+        face="2 0 3  0 1 3  1 2 3  0 1 2" />
+    </asset>
+    <worldbody>
+      <body>
+        <geom type="mesh" mesh="example_mesh"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(model, testing::IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("faces have inconsistent orientation"));
+}
+
+TEST_F(MujocoTest, FlippedFaceAllowedWorld) {
   static constexpr char xml[] = R"(
   <mujoco>
     <asset>
@@ -206,9 +227,135 @@ TEST_F(MujocoTest, FlippedFaceFails) {
   </mujoco>
   )";
   std::array<char, 1024> error;
-  LoadModelFromString(xml, error.data(), error.size());
-  EXPECT_THAT(error.data(), HasSubstr("faces have inconsistent orientation"));
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(model, testing::NotNull());
+  mj_deleteModel(model);
 }
+
+TEST_F(MujocoTest, FlippedFaceAllowedNoMass) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="example_mesh"
+        vertex="0 0 0  1 0 0  0 1 0  0 0 1"
+        face="2 0 3  0 1 3  1 2 3  0 1 2" />
+    </asset>
+    <worldbody>
+      <body>
+        <geom type="mesh" mesh="example_mesh" mass="0"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(model, testing::NotNull());
+  mj_deleteModel(model);
+}
+
+TEST_F(MujocoTest, FlippedFaceAllowedInertial) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="example_mesh"
+        vertex="0 0 0  1 0 0  0 1 0  0 0 1"
+        face="2 0 3  0 1 3  1 2 3  0 1 2" />
+    </asset>
+    <worldbody>
+      <body>
+        <inertial pos="0 0 0" mass="1"/>
+        <geom type="mesh" mesh="example_mesh"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(model, testing::NotNull());
+  mj_deleteModel(model);
+}
+
+TEST_F(MujocoTest, AreaTooSmall) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="example_mesh"
+        vertex="0 0 0  1e-8 0 0  0 1e-8 0  0 0 1e-8"
+        face="2 0 3  0 1 3  1 2 3  0 2 1" />
+    </asset>
+    <worldbody>
+      <body>
+        <geom type="mesh" mesh="example_mesh"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(model, testing::IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("mesh surface area is too small"));
+}
+
+TEST_F(MujocoTest, AreaTooSmallAllowedWorld) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="example_mesh"
+        vertex="0 0 0  1e-8 0 0  0 1e-8 0  0 0 1e-8"
+        face="2 0 3  0 1 3  1 2 3  0 2 1" />
+    </asset>
+    <worldbody>
+      <geom type="mesh" mesh="example_mesh"/>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(model, testing::NotNull());
+  mj_deleteModel(model);
+}
+
+TEST_F(MujocoTest, VolumeTooSmall) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="example_mesh"
+        vertex="0 0 0  1 0 0  0 1 0  0 0 1"
+        face="0 2 1" />
+    </asset>
+    <worldbody>
+      <body>
+        <geom type="mesh" mesh="example_mesh"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(model, testing::IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("mesh volume is too small"));
+}
+
+  TEST_F(MujocoTest, VolumeTooSmallAllowedWorld) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="example_mesh"
+        vertex="0 0 0  1 0 0  0 1 0  0 0 1"
+        face="0 2 1" />
+    </asset>
+    <worldbody>
+      <geom type="mesh" mesh="example_mesh"/>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(model, testing::NotNull());
+  mj_deleteModel(model);
+}
+
+// ------------- test concave and shell inertia --------------------------------
 
 const mjtNum max_abs_err = std::numeric_limits<float>::epsilon();
 

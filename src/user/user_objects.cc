@@ -295,7 +295,7 @@ mjCBody::mjCBody(mjCModel* _model) {
   pos[0] = ipos[0] = mjNAN;
 
   // clear variables
-  explicit_inertial = false;
+  explicitinertial = false;
   mocap = false;
   mjuu_setvec(quat, 1, 0, 0, 0);
   mjuu_setvec(iquat, 1, 0, 0, 0);
@@ -634,9 +634,9 @@ void mjCBody::MakeLocal(double* _locpos, double* _locquat,
   }
 }
 
-// set explicit_inertial to true
+// set explicitinertial to true
 void mjCBody::MakeInertialExplicit() {
-  explicit_inertial = true;
+  explicitinertial = true;
 }
 
 
@@ -680,6 +680,8 @@ void mjCBody::Compile(void) {
 
   // compile all geoms, phase 1
   for (i=0; i<geoms.size(); i++) {
+    geoms[i]->inferinertia = id>0 && (!explicitinertial ||
+                                      model->inertiafromgeom==mjINERTIAFROMGEOM_TRUE);
     geoms[i]->Compile();
   }
 
@@ -968,6 +970,7 @@ mjCGeom::mjCGeom(mjCModel* _model, mjCDef* _def) {
   rgba[3] = 1.0f;
   userdata.clear();
   typeinertia = mjVOLUME_MESH;
+  inferinertia = true;
 
   // clear internal variables
   mjuu_setvec(quat, 1, 0, 0, 0);
@@ -1385,18 +1388,26 @@ void mjCGeom::Compile(void) {
   }
 
   // compute geom mass and inertia
-  if (mjuu_defined(_mass) && GetVolume()>mjMINVAL) {
-    mass = _mass;
-    density = _mass / GetVolume();
-  } else {
-    mass = density * GetVolume();
-  }
-  SetInertia();
+  if (inferinertia) {
+    if (mjuu_defined(_mass)) {
+      if (_mass==0) {
+        mass = 0;
+        density = 0;
+      } else if (GetVolume()>mjMINVAL) {
+        mass = _mass;
+        density = _mass / GetVolume();
+        SetInertia();
+      }
+    } else {
+      mass = density * GetVolume();
+      SetInertia();
+    }
 
-  // check for negative values
-  if (mass<0 || inertia[0]<0 || inertia[1]<0 || inertia[2]<0 || density<0)
-    throw mjCError(this, "mass, inertia or density are negative in geom '%s' (id = %d)",
-                   name.c_str(), id);
+    // check for negative values
+    if (mass<0 || inertia[0]<0 || inertia[1]<0 || inertia[2]<0 || density<0)
+      throw mjCError(this, "mass, inertia or density are negative in geom '%s' (id = %d)",
+                    name.c_str(), id);
+  }
 
   // fluid-interaction coefficients, requires computed inertia and mass
   if (fluid_switch > 0) {

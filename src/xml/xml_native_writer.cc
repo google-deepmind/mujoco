@@ -1178,7 +1178,7 @@ void mjXWriter::Body(XMLElement* elem, mjCBody* body) {
     WriteVector(elem, "user", body->userdata);
 
     // write inertial
-    if (body->explicit_inertial &&
+    if (body->explicitinertial &&
         model->inertiafromgeom!=mjINERTIAFROMGEOM_TRUE) {
       XMLElement* inertial = InsertEnd(elem, "inertial");
       WriteAttr(inertial, "pos", 3, body->locipos);
