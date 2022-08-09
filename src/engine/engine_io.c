@@ -461,8 +461,8 @@ mjModel* mj_makeModel(int nq, int nv, int nu, int na, int nbody, int njnt,
 
 #define X(name)                                    \
   if ((m->name) < 0) {                             \
+    mju_free(m);                                   \
     mju_warning("Invalid model: negative " #name); \
-    mj_deleteModel(m);                             \
     return 0;                                      \
   }
   MJMODEL_INTS;
@@ -470,15 +470,15 @@ mjModel* mj_makeModel(int nq, int nv, int nu, int na, int nbody, int njnt,
 
   // nbody should always be positive
   if (m->nbody == 0) {
+    mju_free(m);
     mju_warning("Invalid model: nbody == 0");
-    mj_deleteModel(m);
     return 0;
   }
 
   // nmocap is going to get multiplied by 4, and shouldn't overflow
   if (m->nmocap >= INT_MAX / 4) {
+    mju_free(m);
     mju_warning("Invalid model: nmocap too large");
-    mj_deleteModel(m);
     return 0;
   }
 
@@ -486,8 +486,8 @@ mjModel* mj_makeModel(int nq, int nv, int nu, int na, int nbody, int njnt,
   m->nbuffer = 0;
 #define X(type, name, nr, nc)                                                \
   if (!safeAddToBufferSize(&offset, &m->nbuffer, sizeof(type), m->nr, nc)) { \
+    mju_free(m);                                                             \
     mju_warning("Invalid model: " #name " too large.");                      \
-    mj_deleteModel(m);                                                       \
     return 0;                                                                \
   }
 
@@ -497,6 +497,7 @@ mjModel* mj_makeModel(int nq, int nv, int nu, int na, int nbody, int njnt,
   // allocate buffer
   m->buffer = mju_malloc(m->nbuffer);
   if (!m->buffer) {
+    mju_free(m);
     mju_error("Could not allocate mjModel buffer");
   }
 
@@ -854,8 +855,8 @@ static mjData* _makeData(const mjModel* m) {
   d->buffer = d->stack = NULL;
 #define X(type, name, nr, nc)                                                \
   if (!safeAddToBufferSize(&offset, &d->nbuffer, sizeof(type), m->nr, nc)) { \
+    mju_free(d);                                                             \
     mju_warning("Invalid data: " #name " too large.");                       \
-    mj_deleteData(d);                                                        \
     return 0;                                                                \
   }
 
@@ -868,12 +869,15 @@ static mjData* _makeData(const mjModel* m) {
   // allocate buffer
   d->buffer = mju_malloc(d->nbuffer);
   if (!d->buffer) {
+    mju_free(d);
     mju_error("Could not allocate mjData buffer");
   }
 
   // allocate stack
   d->stack = (mjtNum*) mju_malloc(d->nstack * sizeof(mjtNum));
   if (!d->stack) {
+    mju_free(d->buffer);
+    mju_free(d);
     mju_error("Could not allocate mjData stack");
   }
 
