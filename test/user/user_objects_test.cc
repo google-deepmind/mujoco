@@ -17,7 +17,6 @@
 #include <array>
 #include <cstddef>
 #include <string>
-#include <iostream>
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
