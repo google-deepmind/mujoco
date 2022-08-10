@@ -1282,7 +1282,11 @@ const char* mj_validateReferences(const mjModel* m) {
     int *nums = (numarray);                                   \
     for (int i=0; i<m->nadrs; i++) {                          \
       int adrsmin = m->adrarray[i];                           \
-      int adrsmax = m->adrarray[i] + (nums ? nums[i] : 1);    \
+      int num = (nums ? nums[i] : 1);                         \
+      if (num < 0) {                                          \
+        return "Invalid model: " #numarray " is negative.";   \
+      }                                                       \
+      int adrsmax = m->adrarray[i] + num;                     \
       if (adrsmax > m->ntarget || adrsmin < -1) {             \
         return "Invalid model: " #adrarray " out of bounds."; \
       }                                                       \

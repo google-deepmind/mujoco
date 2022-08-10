@@ -257,6 +257,32 @@ TEST_F(ValidateReferencesTest, AddressRange) {
   mj_deleteModel(model);
 }
 
+TEST_F(ValidateReferencesTest, AddressRangeNegativeNum) {
+  static const char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <joint/>
+        <joint/>
+        <geom size="1"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error.data();
+
+  EXPECT_THAT(mj_validateReferences(model), IsNull());
+
+  // jntadr + jntnum is within safe range, but jntnum is negative.
+  model->body_jntadr[1] += 5;
+  model->body_jntnum[1] -= 5;
+  EXPECT_THAT(mj_validateReferences(model), HasSubstr("body_jntnum"));
+  mj_deleteModel(model);
+}
+
 TEST_F(ValidateReferencesTest, GeomCondim) {
   static const char xml[] = R"(
   <mujoco>
