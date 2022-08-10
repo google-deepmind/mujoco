@@ -630,7 +630,7 @@ void mj_instantiateFriction(const mjModel* m, mjData* d) {
   jac = mj_stackAlloc(d, nv);
 
   // find frictional dofs
-  for (int i=0; i<nv; i++)
+  for (int i=0; i<nv; i++) {
     if (m->dof_frictionloss[i]>0) {
       // prepare Jacobian: sparse or dense
       if (issparse) {
@@ -648,6 +648,7 @@ void mj_instantiateFriction(const mjModel* m, mjData* d) {
         break;
       }
     }
+  }
 
   // find frictional tendons
   for (int i=0; i<m->ntendon; i++) {
@@ -684,7 +685,7 @@ void mj_instantiateLimit(const mjModel* m, mjData* d) {
   jac = mj_stackAlloc(d, nv);
 
   // find joint limits
-  for (int i=0; i<m->njnt; i++)
+  for (int i=0; i<m->njnt; i++) {
     if (m->jnt_limited[i]) {
       // get margin
       margin = m->jnt_margin[i];
@@ -767,9 +768,10 @@ void mj_instantiateLimit(const mjModel* m, mjData* d) {
         }
       }
     }
+  }
 
   // find tendon limits
-  for (int i=0; i<m->ntendon; i++)
+  for (int i=0; i<m->ntendon; i++) {
     if (m->tendon_limited[i]) {
       // get value = lenth, margin
       value = d->ten_length[i];
@@ -799,6 +801,7 @@ void mj_instantiateLimit(const mjModel* m, mjData* d) {
         }
       }
     }
+  }
 
   mjFREESTACK;
 }
