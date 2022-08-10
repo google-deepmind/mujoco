@@ -1092,9 +1092,7 @@ void mjXReader::OneJoint(XMLElement* elem, mjCJoint* pjoint) {
   if (MapValue(elem, "type", &n, joint_map, joint_sz)) {
     pjoint->type = (mjtJoint)n;
   }
-  if (MapValue(elem, "limited", &n, bool_map, 2)) {
-    pjoint->limited = (n==1);
-  }
+  MapValue(elem, "limited", &pjoint->limited, TFAuto_map, 3);
   ReadAttrInt(elem, "group", &pjoint->group);
   ReadAttr(elem, "solreflimit", mjNREF, pjoint->solref_limit, text, false, false);
   ReadAttr(elem, "solimplimit", mjNIMP, pjoint->solimp_limit, text, false, false);
@@ -1394,15 +1392,9 @@ void mjXReader::OneActuator(XMLElement* elem, mjCActuator* pact) {
   ReadAttrTxt(elem, "name", pact->name);
   ReadAttrTxt(elem, "class", pact->classname);
   ReadAttrInt(elem, "group", &pact->group);
-  if (MapValue(elem, "ctrllimited", &n, bool_map, 2)) {
-    pact->ctrllimited = (n==1);
-  }
-  if (MapValue(elem, "forcelimited", &n, bool_map, 2)) {
-    pact->forcelimited = (n==1);
-  }
-  if (MapValue(elem, "actlimited", &n, bool_map, 2)) {
-    pact->actlimited = (n==1);
-  }
+  MapValue(elem, "ctrllimited", &pact->ctrllimited, TFAuto_map, 3);
+  MapValue(elem, "forcelimited", &pact->forcelimited, TFAuto_map, 3);
+  MapValue(elem, "actlimited", &pact->actlimited, TFAuto_map, 3);
   ReadAttr(elem, "ctrlrange", 2, pact->ctrlrange, text);
   ReadAttr(elem, "forcerange", 2, pact->forcerange, text);
   ReadAttr(elem, "actrange", 2, pact->actrange, text);
