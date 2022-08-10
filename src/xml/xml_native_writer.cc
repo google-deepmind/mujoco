@@ -214,7 +214,7 @@ void mjXWriter::OneJoint(XMLElement* elem, mjCJoint* pjoint, mjCDef* def) {
   WriteAttrInt(elem, "group", pjoint->group, def->joint.group);
   WriteAttr(elem, "ref", 1, &pjoint->ref, &zero);
   WriteAttr(elem, "springref", 1, &pjoint->springref, &zero);
-  WriteAttrKey(elem, "limited", bool_map, 2, pjoint->limited, def->joint.limited);
+  WriteAttrKey(elem, "limited", TFAuto_map, 3, pjoint->limited, def->joint.limited);
   WriteAttr(elem, "solreflimit", mjNREF, pjoint->solref_limit, def->joint.solref_limit);
   WriteAttr(elem, "solimplimit", mjNIMP, pjoint->solimp_limit, def->joint.solimp_limit);
   WriteAttr(elem, "solreffriction", mjNREF, pjoint->solref_friction, def->joint.solref_friction);
@@ -493,7 +493,7 @@ void mjXWriter::OneTendon(XMLElement* elem, mjCTendon* pten, mjCDef* def) {
 
   // defaults and regular
   WriteAttrInt(elem, "group", pten->group, def->tendon.group);
-  WriteAttrKey(elem, "limited", bool_map, 2, pten->limited, def->tendon.limited);
+  WriteAttrKey(elem, "limited", TFAuto_map, 3, pten->limited, def->tendon.limited);
   WriteAttr(elem, "solreflimit", mjNREF, pten->solref_limit, def->tendon.solref_limit);
   WriteAttr(elem, "solimplimit", mjNIMP, pten->solimp_limit, def->tendon.solimp_limit);
   WriteAttr(elem, "solreffriction", mjNREF, pten->solref_friction, def->tendon.solref_friction);
@@ -565,9 +565,9 @@ void mjXWriter::OneActuator(XMLElement* elem, mjCActuator* pact, mjCDef* def) {
 
   // defaults and regular
   WriteAttrInt(elem, "group", pact->group, def->actuator.group);
-  WriteAttrKey(elem, "ctrllimited", bool_map, 2, pact->ctrllimited, def->actuator.ctrllimited);
-  WriteAttrKey(elem, "forcelimited", bool_map, 2, pact->forcelimited, def->actuator.forcelimited);
-  WriteAttrKey(elem, "actlimited", bool_map, 2, pact->actlimited, def->actuator.actlimited);
+  WriteAttrKey(elem, "ctrllimited", TFAuto_map, 3, pact->ctrllimited, def->actuator.ctrllimited);
+  WriteAttrKey(elem, "forcelimited", TFAuto_map, 3, pact->forcelimited, def->actuator.forcelimited);
+  WriteAttrKey(elem, "actlimited", TFAuto_map, 3, pact->actlimited, def->actuator.actlimited);
   WriteAttr(elem, "ctrlrange", 2, pact->ctrlrange, def->actuator.ctrlrange);
   WriteAttr(elem, "forcerange", 2, pact->forcerange, def->actuator.forcerange);
   WriteAttr(elem, "actrange", 2, pact->actrange, def->actuator.actrange);
