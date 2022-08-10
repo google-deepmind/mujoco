@@ -851,9 +851,12 @@ int mjCJoint::Compile(void) {
     }
   }
 
-  // if limited is auto, resolve based on existence of range
   if (limited==2) {
-    limited = (range[0]==0 && range[1]==0 ? 0 : 1);
+    if (range[0]==0 && range[1]==0) {
+      limited = 0;
+    } else {
+      limited = 1;
+    }
   }
 
   // resolve limits
@@ -3210,9 +3213,12 @@ void mjCTendon::Compile(void) {
     }
   }
 
-  // if limited is auto, resolve based on existence of range
   if (limited==2) {
-    limited = (range[0]==0 && range[1]==0 ? 0 : 1);
+    if (range[0]==0 && range[1]==0) {
+      limited = 0;
+    } else {
+      limited = 1;
+    }
   }
 
   // check limits
@@ -3376,15 +3382,26 @@ void mjCActuator::Compile(void) {
   }
   userdata.resize(model->nuser_actuator);
 
-  // if limited is auto, resolve based on existence of range
   if (forcelimited==2) {
-    forcelimited = (forcerange[0]==0 && forcerange[1]==0 ? 0 : 1);
+    if (forcerange[0]==0 && forcerange[1]==0) {
+      forcelimited = 0;
+    } else {
+      forcelimited = 1;
+    }
   }
   if (ctrllimited==2) {
-    ctrllimited = (ctrlrange[0]==0 && ctrlrange[1]==0 ? 0 : 1);
+    if (ctrlrange[0]==0 && ctrlrange[1]==0) {
+      ctrllimited = 0;
+    } else {
+      ctrllimited = 1;
+    }
   }
   if (actlimited==2) {
-    actlimited = (actrange[0]==0 && actrange[1]==0 ? 0 : 1);
+    if (actrange[0]==0 && actrange[1]==0) {
+      actlimited = 0;
+    } else {
+      actlimited = 1;
+    }
   }
 
   // check limits
@@ -3458,7 +3475,7 @@ void mjCActuator::Compile(void) {
     if (pjnt->urdfeffort>0) {
       forcerange[0] = -pjnt->urdfeffort;
       forcerange[1] = pjnt->urdfeffort;
-      forcelimited = true;
+      forcelimited = 1;
     }
     break;
 

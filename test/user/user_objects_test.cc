@@ -17,6 +17,7 @@
 #include <array>
 #include <cstddef>
 #include <string>
+#include <iostream>
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
@@ -565,6 +566,42 @@ TEST_F(UserDataTest, NSensorTooSmall) {
   mjModel* model = LoadModelFromString(xml, error.data(), error.size());
   ASSERT_THAT(model, IsNull());
   EXPECT_THAT(error.data(), HasSubstr("nuser_sensor"));
+}
+
+// ------------- test *limited  fields -----------------------------------------
+
+using LimitedTest = MujocoTest;
+
+TEST_F(LimitedTest, JointLimited) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <default>
+      <default class="disabled">
+        <joint limited="false"/>
+      </default>
+    </default>
+    <worldbody>
+      <body>
+        <joint name="hinge0" range="0 1.57"/>
+        <joint name="hinge1"/>
+        <joint name="hinge2" range="0 1.57" class="disabled"/>
+        <joint name="hinge3" range="0 1.57" limited="false"/>
+        <joint name="hinge4" range="0 1.57" limited="true"/>
+        <joint name="hinge5"/>
+        <geom size="1"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  mjModel* m = LoadModelFromString(xml, nullptr, 0);
+  EXPECT_EQ(m->jnt_limited[0], 1);
+  EXPECT_EQ(m->jnt_limited[1], 0);
+  EXPECT_EQ(m->jnt_limited[2], 0);
+  EXPECT_EQ(m->jnt_limited[3], 0);
+  EXPECT_EQ(m->jnt_limited[4], 1);
+  EXPECT_EQ(m->jnt_limited[5], 0);
+
+  mj_deleteModel(m);
 }
 
 }  // namespace

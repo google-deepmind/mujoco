@@ -1092,7 +1092,14 @@ void mjXReader::OneJoint(XMLElement* elem, mjCJoint* pjoint) {
   if (MapValue(elem, "type", &n, joint_map, joint_sz)) {
     pjoint->type = (mjtJoint)n;
   }
-  MapValue(elem, "limited", &pjoint->limited, TFAuto_map, 3);
+
+  int hasrange = ReadAttr(elem, "range", 2, pjoint->range, text);
+  if (MapValue(elem, "limited", &pjoint->limited, TFAuto_map, 3)) {
+    if (pjoint->limited == 2) {
+      pjoint->limited = hasrange;
+    }
+  }
+
   ReadAttrInt(elem, "group", &pjoint->group);
   ReadAttr(elem, "solreflimit", mjNREF, pjoint->solref_limit, text, false, false);
   ReadAttr(elem, "solimplimit", mjNIMP, pjoint->solimp_limit, text, false, false);
@@ -1102,7 +1109,6 @@ void mjXReader::OneJoint(XMLElement* elem, mjCJoint* pjoint) {
   ReadAttr(elem, "axis", 3, pjoint->axis, text);
   ReadAttr(elem, "springdamper", 2, pjoint->springdamper, text);
   ReadAttr(elem, "stiffness", 1, &pjoint->stiffness, text);
-  ReadAttr(elem, "range", 2, pjoint->range, text);
   ReadAttr(elem, "margin", 1, &pjoint->margin, text);
   ReadAttr(elem, "ref", 1, &pjoint->ref, text);
   ReadAttr(elem, "springref", 1, &pjoint->springref, text);
@@ -1387,19 +1393,33 @@ void mjXReader::OneActuator(XMLElement* elem, mjCActuator* pact) {
   int n;
   string text, type;
   double diameter;
+  int hasrange;
 
   // common attributes
   ReadAttrTxt(elem, "name", pact->name);
   ReadAttrTxt(elem, "class", pact->classname);
   ReadAttrInt(elem, "group", &pact->group);
-  MapValue(elem, "ctrllimited", &pact->ctrllimited, TFAuto_map, 3);
-  MapValue(elem, "forcelimited", &pact->forcelimited, TFAuto_map, 3);
-  MapValue(elem, "actlimited", &pact->actlimited, TFAuto_map, 3);
-  ReadAttr(elem, "ctrlrange", 2, pact->ctrlrange, text);
-  ReadAttr(elem, "forcerange", 2, pact->forcerange, text);
-  ReadAttr(elem, "actrange", 2, pact->actrange, text);
   ReadAttr(elem, "lengthrange", 2, pact->lengthrange, text);
   ReadAttr(elem, "gear", 6, pact->gear, text, false, false);
+
+  hasrange = ReadAttr(elem, "ctrlrange", 2, pact->ctrlrange, text);
+  if (MapValue(elem, "ctrllimited", &pact->ctrllimited, TFAuto_map, 3)) {
+    if (pact->ctrllimited == 2) {
+      pact->ctrllimited = hasrange;
+    }
+  }
+  hasrange = ReadAttr(elem, "forcerange", 2, pact->forcerange, text);
+  if (MapValue(elem, "forcelimited", &pact->forcelimited, TFAuto_map, 3)) {
+    if (pact->forcelimited == 2) {
+      pact->forcelimited = hasrange;
+    }
+  }
+  hasrange = ReadAttr(elem, "actrange", 2, pact->actrange, text);
+  if (MapValue(elem, "actlimited", &pact->actlimited, TFAuto_map, 3)) {
+    if (pact->actlimited == 2) {
+      pact->actlimited = hasrange;
+    }
+  }
 
   // transmission target and type
   int cnt = 0;
