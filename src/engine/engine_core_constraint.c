@@ -342,11 +342,10 @@ void mj_mulJacTVec(const mjModel* m, mjData* d, mjtNum* res, const mjtNum* vec) 
 // equality constraints
 void mj_instantiateEquality(const mjModel* m, mjData* d) {
   int issparse = mj_isSparse(m), nv = m->nv;
-  int oldncon, id[2], size, NV, NV2, *chain = NULL, *chain2 = NULL, *buf_ind = NULL;
-  mjtNum cpos[6], pos[2][3], ref[2], dif, deriv, dist;
+  int id[2], size, NV, NV2, *chain = NULL, *chain2 = NULL, *buf_ind = NULL;
+  mjtNum cpos[6], pos[2][3], ref[2], dif, deriv;
   mjtNum quat[4], quat1[4], quat2[4], quat3[4], axis[3];
   mjtNum *jac[2], *jacdif, *data, *sparse_buf = NULL;
-  mjContact *con;
   mjMARKSTACK;
 
   // disabled or no equality contraints: return
@@ -529,70 +528,7 @@ void mj_instantiateEquality(const mjModel* m, mjData* d) {
         break;
 
       case mjEQ_DISTANCE:
-        // find contacts between constrained geoms
-        oldncon = d->ncon;
-        mj_collideGeoms(m, d, id[0], id[1], 1,
-                        mju_dist3(d->geom_xpos+3*id[0], d->geom_xpos+3*id[1]));
-
-        // make sure we got some contacts
-        if (oldncon==d->ncon) {
-          size = 0;
-          break;
-        }
-
-        // find smallest dist
-        dist = d->contact[oldncon].dist;
-        for (int j=1; j<d->ncon-oldncon; j++) {
-          if (d->contact[oldncon+j].dist<dist) {
-            dist = d->contact[oldncon+j].dist;
-          }
-        }
-
-        // collide again with adjusted distance (because libccd messes up with big margin)
-        d->ncon = oldncon;
-        mjtNum adjustment = 0.01;
-        mj_collideGeoms(m, d, id[0], id[1], 1, dist + adjustment);
-
-        // make sure we still got some contacts
-        if (oldncon==d->ncon) {
-          size = 0;
-          break;
-        }
-
-        // find smallest-dist contact
-        int k = 0;
-        dist = d->contact[oldncon].dist;
-        for (int j=1; j<d->ncon-oldncon; j++)
-          if (d->contact[oldncon+j].dist<dist) {
-            dist = d->contact[oldncon+j].dist;
-            k = j;
-          }
-
-        // move smallest-dist contact to first position, discard the rest
-        if (k>0) {
-          d->contact[oldncon] = d->contact[oldncon+k];
-        }
-        d->ncon = oldncon+1;
-        con = d->contact + oldncon;
-
-        // label contact, make sure solver does not include it
-        con->efc_address = -2-i;
-        con->exclude = 3;
-
-        // compute position error
-        cpos[0] = dist - data[0];
-
-        // compute Jacobian difference
-        NV = mj_jacDifPair(m, d, chain,
-                           m->geom_bodyid[con->geom1], m->geom_bodyid[con->geom2],
-                           con->pos, con->pos,
-                           jac[0], jac[1], jacdif, NULL, NULL, NULL);
-
-        // construct contact normal Jacobian
-        mju_mulMatMat(jac[0], con->frame, jacdif, 1, 3, NV);
-
-        size = 1;
-        break;
+        mju_error("distance equality constraints are no longer supported");
 
       default:                    // SHOULD NOT OCCUR
         mju_error_i("Invalid equality constraint type %d", m->eq_type[i]);
@@ -977,10 +913,7 @@ void mj_diagApprox(const mjModel* m, mjData* d) {
         break;
 
       case mjEQ_DISTANCE:
-        // body translation
-        b1 = m->geom_bodyid[m->eq_obj1id[id]];
-        b2 = m->geom_bodyid[m->eq_obj2id[id]];
-        dA[i] = m->body_invweight0[2*b1] + m->body_invweight0[2*b2];
+        mju_error("distance equality constraints are no longer supported");
       }
       break;
 

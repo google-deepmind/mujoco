@@ -1370,13 +1370,7 @@ const char* mj_validateReferences(const mjModel* m) {
         }
         break;
       case mjEQ_DISTANCE:
-        if (obj1id >= m->ngeom || obj1id < 0) {
-          return "Invalid model: eq_obj1id out of bounds.";
-        }
-        if (obj2id >= m->ngeom || obj2id < 0) {
-          return "Invalid model: eq_obj2id out of bounds.";
-        }
-        break;
+        return "distance equality constraints are no longer supported";
       case mjEQ_WELD:
       case mjEQ_CONNECT:
         if (obj1id >= m->nbody || obj1id < 0) {

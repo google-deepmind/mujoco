@@ -1904,10 +1904,12 @@ void mj_rnePostConstraint(const mjModel* m, mjData* d) {
 
     case mjEQ_JOINT:
     case mjEQ_TENDON:
-    case mjEQ_DISTANCE:
       // increment 1 row
       i++;
       break;
+
+    case mjEQ_DISTANCE:
+      mju_error("distance equality constraints are no longer supported");
 
     default:
       mju_error_i("Unknown constraint type type %d", m->eq_type[id]);    // SHOULD NOT OCCUR

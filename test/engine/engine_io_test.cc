@@ -549,7 +549,6 @@ TEST_F(ValidateReferencesTest, EqualityConstraints) {
     <equality>
       <connect anchor="0 0 0" body1="body1" />
       <weld body1="body1" body2="body2" />
-      <distance geom1="geom1" geom2="geom2" />
       <joint joint1="joint1"/>
       <joint joint1="joint1" joint2="joint2"/>
       <tendon tendon1="tendon1"/>
@@ -590,18 +589,6 @@ TEST_F(ValidateReferencesTest, EqualityConstraints) {
   EXPECT_THAT(mj_validateReferences(model), HasSubstr("eq_obj2id"));
   model->eq_obj2id[1] = model->nbody - 1;
 
-  // distance constraint
-  model->eq_obj1id[2] = -1;
-  EXPECT_THAT(mj_validateReferences(model), HasSubstr("eq_obj1id"));
-  model->eq_obj1id[2] = model->ngeom;
-  EXPECT_THAT(mj_validateReferences(model), HasSubstr("eq_obj1id"));
-  model->eq_obj1id[2] = 1;
-
-  model->eq_obj2id[2] = -1;
-  EXPECT_THAT(mj_validateReferences(model), HasSubstr("eq_obj2id"));
-  model->eq_obj2id[2] = model->ngeom;
-  EXPECT_THAT(mj_validateReferences(model), HasSubstr("eq_obj2id"));
-  model->eq_obj2id[2] = model->ngeom - 1;
   mj_deleteModel(model);
 }
 

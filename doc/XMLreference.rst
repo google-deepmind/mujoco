@@ -4061,20 +4061,8 @@ This element constrains the length of one tendon to be a quartic polynomial of a
 :el-prefix:`equality/` **distance** (*)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-This element constrains the nearest distance between two geoms. When the distance attribute is set to 0 the two geom
-surfaces slide over each other, otherwise they slide over a virtual cushion with depth equal to the specified distance.
-This mechanism is implemented as a modification to the collision detector. For geom pairs handled by the general-purpose
-convex collider, large distance values in this constraint are handled approximately, due to the nature of the underlying
-collision algorithm.
-
-:at:`name`, :at:`class`, :at:`active`, :at:`solref`, :at:`solimp`
-   Same as in :ref:`connect <equality-connect>` element.
-:at:`geom1`: :at-val:`string, required`
-   Name of the first geom.
-:at:`geom2`: :at-val:`string, required`
-   Name of the second geom.
-:at:`distance`: :at-val:`real, "0"`
-   Desired distance between the two geom surfaces. The constraint solver enforces this distance softly.
+Distance equality constraints were removed in MuJoCo version 2.2.2. If you are using an earlier version, please switch
+to the corresponding version of the documentation.
 
 .. _tendon:
 

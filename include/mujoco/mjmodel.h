@@ -163,7 +163,7 @@ typedef enum mjtEq_ {             // type of equality constraint
   mjEQ_WELD,                      // fix relative position and orientation of two bodies
   mjEQ_JOINT,                     // couple the values of two scalar joints with cubic
   mjEQ_TENDON,                    // couple the lengths of two tendons with cubic
-  mjEQ_DISTANCE                   // fix the contact distance betweent two geoms
+  mjEQ_DISTANCE                   // unsupported, will cause an error if used
 } mjtEq;
 
 

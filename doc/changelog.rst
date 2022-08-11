@@ -18,8 +18,12 @@ General
   inaccurate. If this occurs, open the mesh in MeshLab or Blender and recalculate the faces.
 - Added ``azimuth`` and ``elevation`` attributes to :ref:`visual/global<global>`, defining the initial orientation of
   the free camera at model load time.
- - Added ``mjv_defaultFreeCamera`` which sets the default free camera, respecting the above attributes.
+- Added ``mjv_defaultFreeCamera`` which sets the default free camera, respecting the above attributes.
 - ``simulate`` now supports taking a screenshot via a button in the File section or via ``Ctrl-P``.
+
+Deleted/deprecated features
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
+- Removed ``distance`` constraints.
 
 Bug fixes
 ^^^^^^^^^

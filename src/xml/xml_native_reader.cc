@@ -1328,9 +1328,7 @@ void mjXReader::OneEquality(XMLElement* elem, mjCEquality* pequality) {
       break;
 
     case mjEQ_DISTANCE:
-      ReadAttrTxt(elem, "geom1", pequality->name1, true);
-      ReadAttrTxt(elem, "geom2", pequality->name2, true);
-      ReadAttr(elem, "distance", 1, pequality->data, text);
+      throw mjXError(elem, "support for distance equality contraints was removed in MuJoCo 2.2.2");
       break;
 
     default:                    // SHOULD NOT OCCUR
