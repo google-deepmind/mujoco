@@ -480,7 +480,8 @@ public enum mjtRndFlag : int{
   mjRND_HAZE = 6,
   mjRND_SEGMENT = 7,
   mjRND_IDCOLOR = 8,
-  mjNRNDFLAG = 9,
+  mjRND_CULL_FACE = 9,
+  mjNRNDFLAG = 10,
 }
 public enum mjtStereo : int{
   mjSTEREO_NONE = 0,
