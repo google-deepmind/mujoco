@@ -1298,6 +1298,17 @@ const char* mj_validateReferences(const mjModel* m) {
 #undef MJMODEL_REFERENCES
 
   // special logic that doesn't fit in the macro:
+  for (int i=0; i<m->nbody; i++) {
+    if (i > 0 && m->body_parentid[i] >= i) {
+      return "Invalid model: bad body_parentid.";
+    }
+    if (m->body_rootid[i] > i) {
+      return "Invalid model: bad body_rootid.";
+    }
+    if (m->body_weldid[i] > i) {
+      return "Invalid model: bad body_weldid.";
+    }
+  }
   for (int i=0; i<m->njnt; i++) {
     if (m->jnt_type[i] >= 4 || m->jnt_type[i] < 0) {
       return "Invalid model: jnt_type out of bounds.";
@@ -1309,6 +1320,11 @@ const char* mj_validateReferences(const mjModel* m) {
     int jnt_dofadr = m->jnt_dofadr[i] + nVEL[m->jnt_type[i]];
     if (jnt_dofadr > m->nv || m->jnt_dofadr[i] < 0) {
       return "Invalid model: jnt_dofadr out of bounds.";
+    }
+  }
+  for (int i=0; i<m->nv; i++) {
+    if (m->dof_parentid[i] >= i) {
+      return "Invalid model: bad dof_parentid.";
     }
   }
   for (int i=0; i<m->ngeom; i++) {
