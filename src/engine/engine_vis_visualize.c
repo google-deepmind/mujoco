@@ -415,8 +415,6 @@ void mjv_initGeom(mjvGeom* geom, int type, const mjtNum* size,
 static void markselected(const mjVisual* vis, mjvGeom* geom) {
   // add emission
   geom->emission += vis->global.glow;
-  // make opaque
-  geom->rgba[3] = 1;
 }
 
 
