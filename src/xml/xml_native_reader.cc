@@ -1092,9 +1092,7 @@ void mjXReader::OneJoint(XMLElement* elem, mjCJoint* pjoint) {
   if (MapValue(elem, "type", &n, joint_map, joint_sz)) {
     pjoint->type = (mjtJoint)n;
   }
-  if (MapValue(elem, "limited", &n, bool_map, 2)) {
-    pjoint->limited = (n==1);
-  }
+  MapValue(elem, "limited", &pjoint->limited, TFAuto_map, 3);
   ReadAttrInt(elem, "group", &pjoint->group);
   ReadAttr(elem, "solreflimit", mjNREF, pjoint->solref_limit, text, false, false);
   ReadAttr(elem, "solimplimit", mjNIMP, pjoint->solimp_limit, text, false, false);
@@ -1350,7 +1348,6 @@ void mjXReader::OneEquality(XMLElement* elem, mjCEquality* pequality) {
 
 // tendon element parser
 void mjXReader::OneTendon(XMLElement* elem, mjCTendon* pten) {
-  int n;
   string text;
 
   // read attributes
@@ -1358,9 +1355,7 @@ void mjXReader::OneTendon(XMLElement* elem, mjCTendon* pten) {
   ReadAttrTxt(elem, "class", pten->classname);
   ReadAttrInt(elem, "group", &pten->group);
   ReadAttrTxt(elem, "material", pten->material);
-  if (MapValue(elem, "limited", &n, bool_map, 2)) {
-    pten->limited = (n==1);
-  }
+  MapValue(elem, "limited", &pten->limited, TFAuto_map, 3);
   ReadAttr(elem, "width", 1, &pten->width, text);
   ReadAttr(elem, "solreflimit", mjNREF, pten->solref_limit, text, false, false);
   ReadAttr(elem, "solimplimit", mjNIMP, pten->solimp_limit, text, false, false);
@@ -1392,15 +1387,9 @@ void mjXReader::OneActuator(XMLElement* elem, mjCActuator* pact) {
   ReadAttrTxt(elem, "name", pact->name);
   ReadAttrTxt(elem, "class", pact->classname);
   ReadAttrInt(elem, "group", &pact->group);
-  if (MapValue(elem, "ctrllimited", &n, bool_map, 2)) {
-    pact->ctrllimited = (n==1);
-  }
-  if (MapValue(elem, "forcelimited", &n, bool_map, 2)) {
-    pact->forcelimited = (n==1);
-  }
-  if (MapValue(elem, "actlimited", &n, bool_map, 2)) {
-    pact->actlimited = (n==1);
-  }
+  MapValue(elem, "ctrllimited", &pact->ctrllimited, TFAuto_map, 3);
+  MapValue(elem, "forcelimited", &pact->forcelimited, TFAuto_map, 3);
+  MapValue(elem, "actlimited", &pact->actlimited, TFAuto_map, 3);
   ReadAttr(elem, "ctrlrange", 2, pact->ctrlrange, text);
   ReadAttr(elem, "forcerange", 2, pact->forcerange, text);
   ReadAttr(elem, "actrange", 2, pact->actrange, text);
@@ -1518,7 +1507,7 @@ void mjXReader::OneActuator(XMLElement* elem, mjCActuator* pact) {
     pact->dyntype = mjDYN_INTEGRATOR;
     pact->gaintype = mjGAIN_FIXED;
     pact->biastype = mjBIAS_AFFINE;
-    pact->actlimited = true;
+    pact->actlimited = 1;
     pact->biasprm[1] = -pact->gainprm[0];
     // require actrange
     if (!ReadAttr(elem, "actrange", 2, pact->actrange, text)) {
@@ -1544,7 +1533,7 @@ void mjXReader::OneActuator(XMLElement* elem, mjCActuator* pact) {
     }
 
     // implied parameters
-    pact->ctrllimited = true;
+    pact->ctrllimited = 1;
     pact->dyntype = mjDYN_NONE;
     pact->gaintype = mjGAIN_AFFINE;
     pact->biastype = mjBIAS_NONE;
@@ -1622,7 +1611,7 @@ void mjXReader::OneActuator(XMLElement* elem, mjCActuator* pact) {
     }
 
     // implied parameters
-    pact->ctrllimited = true;
+    pact->ctrllimited = 1;
     pact->dyntype = mjDYN_NONE;
     pact->gaintype = mjGAIN_FIXED;
     pact->biastype = mjBIAS_NONE;
@@ -1728,9 +1717,7 @@ void mjXReader::OneComposite(XMLElement* elem, mjCBody* pbody, mjCDef* def) {
     ReadAttr(ejnt, "solimpfix", mjNIMP, comp.def[kind].equality.solimp, text, false, false);
 
     // joint attributes
-    if (MapValue(ejnt, "limited", &n, bool_map, 2)) {
-      comp.def[kind].joint.limited = (n==1);
-    }
+    MapValue(elem, "limited", &comp.def[kind].joint.limited, TFAuto_map, 3);
     ReadAttrInt(ejnt, "group", &comp.def[kind].joint.group);
     ReadAttr(ejnt, "solreflimit", mjNREF, comp.def[kind].joint.solref_limit, text, false, false);
     ReadAttr(ejnt, "solimplimit", mjNIMP, comp.def[kind].joint.solimp_limit, text, false, false);
@@ -1762,9 +1749,7 @@ void mjXReader::OneComposite(XMLElement* elem, mjCBody* pbody, mjCDef* def) {
     ReadAttr(eten, "solimpfix", mjNIMP, comp.def[kind].equality.solimp, text, false, false);
 
     // tendon attributes
-    if (MapValue(eten, "limited", &n, bool_map, 2)) {
-      comp.def[kind].tendon.limited = (n==1);
-    }
+    MapValue(elem, "limited", &comp.def[kind].tendon.limited, TFAuto_map, 3);
     ReadAttrInt(eten, "group", &comp.def[kind].tendon.group);
     ReadAttr(eten, "solreflimit", mjNREF, comp.def[kind].tendon.solref_limit, text, false, false);
     ReadAttr(eten, "solimplimit", mjNIMP, comp.def[kind].tendon.solimp_limit, text, false, false);

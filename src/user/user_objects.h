@@ -228,7 +228,7 @@ class mjCJoint : public mjCBase {
   // variables set by user: joint properties
   mjtJoint type;                  // type of Joint
   int group;                      // used for rendering
-  bool limited;                   // does joint have limits
+  int limited;                    // does joint have limits: 0 false, 1 true, 2 auto
   double pos[3];                  // anchor position
   double axis[3];                 // joint axis
   double stiffness;               // stiffness coefficient
@@ -783,7 +783,7 @@ class mjCTendon : public mjCBase {
   // variables set by user
   int group;                      // group for visualization
   std::string material;           // name of material for rendering
-  bool limited;                   // does tendon have limits
+  int limited;                    // does tendon have limits: 0 false, 1 true, 2 auto
   double width;                   // width for rendering
   mjtNum solref_limit[mjNREF];    // solver reference: tendon limits
   mjtNum solimp_limit[mjNIMP];    // solver impedance: tendon limits
@@ -843,9 +843,9 @@ class mjCActuator : public mjCBase {
  public:
   // variables set by user or API
   int group;                      // group for visualization
-  bool ctrllimited;               // are control limits defined
-  bool forcelimited;              // are force limits defined
-  bool actlimited;                // are activation limits defined
+  int ctrllimited;               // are control limits defined: 0 false, 1 true, 2 auto
+  int forcelimited;              // are force limits defined: 0 false, 1 true, 2 auto
+  int actlimited;                // are activation limits defined: 0 false, 1 true, 2 auto
   mjtDyn dyntype;                 // dynamics type
   mjtTrn trntype;                 // transmission type
   mjtGain gaintype;               // gain type

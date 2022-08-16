@@ -20,6 +20,13 @@ General
   the free camera at model load time.
 - Added ``mjv_defaultFreeCamera`` which sets the default free camera, respecting the above attributes.
 - ``simulate`` now supports taking a screenshot via a button in the File section or via ``Ctrl-P``.
+- Joint and tendon ``limited`` attribute and actuator ``ctrllimited``, ``forcelimited`` and ``actlimited`` attributes
+  now default to ``"auto"``, which means they are automatically set to ``true`` if the corresponding range is
+  defined and disabled otherwise.
+
+   .. attention::
+      This is a minor breaking change. Code where a range was defined and limited was unspecified will now
+      be limited. Please explicitly set limited to ``false`` to revert to the previous behavior.
 
 Deleted/deprecated features
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^

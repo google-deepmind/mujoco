@@ -3154,9 +3154,10 @@ unit quaternions.
    the desired time constant (first value) and damping ratio (second value). This is done by taking into account the
    joint inertia in the model reference configuration. Note that the format is the same as the solref parameter of the
    constraint solver.
-:at:`limited`: :at-val:`[false, true], "false"`
-   This attribute specifies if the joint has limits. It interacts with the range attribute below. Both must be set to
-   enable joint limits. If this attribute is "false", any joint range data will be ignored.
+:at:`limited`: :at-val:`[false, true, auto], "auto"`
+   This attribute specifies if the joint has limits. It interacts with the range attribute below. If this attribute
+   is "false", joint limits are disabled. If this attribute is "true", joint limits are enabled. If this
+   attribute is "auto", joint limits will be enabled if range is defined and disabled otherwise.
 :at:`solreflimit`, :at:`solimplimit`
    Constraint solver parameters for simulating joint limits. See :ref:`CSolver`.
 :at:`solreffriction`, :at:`solimpfriction`
@@ -3167,7 +3168,7 @@ unit quaternions.
 :at:`range`: :at-val:`real(2), "0 0"`
    The joint limits. Limits can be imposed on all joint types except for free joints. For hinge and ball joints, the
    range is specified in degrees or radians depending on the angle attribute of :ref:`compiler <compiler>`. For ball
-   joints, the limit is imposed on the angle of rotation (relative to the the reference configuration) regardless of the
+   joints, the limit is imposed on the angle of rotation (relative to the reference configuration) regardless of the
    axis of rotation. Only the second range parameter is used for ball joints; the first range parameter should be set to
    0. See the :ref:`Limit <coLimit>` section in the Computation chapter for more information.
 :at:`margin`: :at-val:`real, "0"`
@@ -4103,9 +4104,9 @@ the obstacle geom.
 :at:`group`: :at-val:`int, "0"`
    Integer group to which the tendon belongs. This attribute can be used for custom tags. It is also used by the
    visualizer to enable and disable the rendering of entire groups of tendons.
-:at:`limited`: :at-val:`[false, true], "false"`
+:at:`limited`: :at-val:`[false, true, auto], "auto"`
    If this attribute is "true", the length limits defined by the range attribute below are imposed by the constraint
-   solver.
+   solver. If this attribute is "auto", length limits will be enabled if range is defined and disabled otherwise.
 :at:`range`: :at-val:`real(2), "0 0"`
    Range of allowed tendon lengths. To enable length limits, set the limited attribute to "true" in addition to defining
    the present value.
@@ -4250,17 +4251,20 @@ specify them independently.
 :at:`group`: :at-val:`int, "0"`
    Integer group to which the actuator belongs. This attribute can be used for custom tags. It is also used by the
    visualizer to enable and disable the rendering of entire groups of actuators.
-:at:`ctrllimited`: :at-val:`[false, true], "false"`
+:at:`ctrllimited`: :at-val:`[false, true, auto], "auto"`
    If true, the control input to this actuator is automatically clamped to :at:`ctrlrange` at runtime. If false, control
-   input clamping is disabled. Note that control input clamping can also be globally disabled with the :at:`clampctrl`
-   attribute of :ref:`option/flag <option-flag>`.
-:at:`forcelimited`: :at-val:`[false, true], "false"`
+   input clamping is disabled. If auto, control clamping will automatically be set to true if :at:`ctrlrange` is
+   defined without explicitly setting this attribute to "true". Note that control input clamping can also be globally
+   disabled with the :at:`clampctrl` attribute of :ref:`option/flag <option-flag>`.
+:at:`forcelimited`: :at-val:`[false, true, auto], "auto"`
    If true, the force output of this actuator is automatically clamped to :at:`forcerange` at runtime. If false, force
-   clamping is disabled.
-:at:`actlimited`: :at-val:`[false, true], "false"`
+   clamping is disabled. If auto, force clamping will automatically be set to true if :at:`forcerange` is
+   defined without explicitly setting this attribute to "true".
+:at:`actlimited`: :at-val:`[false, true, auto], "auto"`
    If true, the internal state (activation) associated with this actuator is automatically clamped to :at:`actrange` at
-   runtime. If false, activation clamping is disabled. See the :ref:`Activation clamping <CActRange>` section for more
-   details.
+   runtime. If false, activation clamping is disabled. If auto, activation clamping will automatically be set to true
+   if :at:`actrange` is defined without explicitly setting this attribute to "true". See the :ref:`Activation clamping <CActRange>`
+   section for more details. 
 :at:`ctrlrange`: :at-val:`real(2), "0 0"`
    Range for clamping the control input. The compiler expects the first value to be smaller than the second value.
 :at:`forcerange`: :at-val:`real(2), "0 0"`
