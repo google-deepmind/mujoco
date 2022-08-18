@@ -7,15 +7,20 @@ Upcoming version (not yet released)
 
 General
 ^^^^^^^
+
+..  youtube:: BcHZ5BFeTmU
+    :align: right
+    :height: 150px
+
 - Added :ref:`adhesion actuators<adhesion>`.
-- Added an `active adhesion example model <https://github.com/deepmind/mujoco/tree/main/model/adhesion>`_.
+- Added an `active adhesion example <https://github.com/deepmind/mujoco/tree/main/model/adhesion>`_ and video:
 - Added :ref:`mj_jacSubtreeCom` for computing the translational Jacobian of the center-of-mass of a subtree.
 - Added moment of inertia computation for concave meshes. This is currently activated by setting the compiler flag
   :at:`exactmeshinertia` to ``true`` (defaults to ``false``). This default may change in the future.
-- Added parameter :at:`shellinertia` in :at:`geom` for treating a mesh as a boundary mesh (shell) for inertia
-  computations. This is currently supported only for meshes.
-- Raise error if the orientation of mesh faces is not consistent, which causes the inertia computations to be
-  inaccurate. If this occurs, open the mesh in MeshLab or Blender and recalculate the faces.
+- Added parameter :at:`shellinertia` to :at:`geom`, for locating the inferred inertia on the boundary (shell).
+  Currently only meshes are supported.
+- For meshes from which volumetric inertia is inferred, raise error if the orientation of mesh faces is not consistent.
+  If this occurs, fix the mesh in e.g., MeshLab or Blender.
 - Added ``azimuth`` and ``elevation`` attributes to :ref:`visual/global<global>`, defining the initial orientation of
   the free camera at model load time.
 - Added ``mjv_defaultFreeCamera`` which sets the default free camera, respecting the above attributes.

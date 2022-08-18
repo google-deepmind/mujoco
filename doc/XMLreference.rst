@@ -3409,7 +3409,8 @@ helps clarify the role of bodies and geoms in MuJoCo.
    assumption of uniform density. The internal default of 1000 is the density of water in SI units. This attribute is
    used only when the mass attribute above is unspecified.
 :at:`shellinertia` :at-val:`[false, true], "false"`
-   If true, the geom's inertia is computed assuming that all the mass is concentrated on the boundary. In this case :at:`density` is interpreted as surface density rather than volumetric density.
+   If true, the geom's inertia is computed assuming that all the mass is concentrated on the boundary. In this case
+   :at:`density` is interpreted as surface density rather than volumetric density.
 :at:`solmix`: :at-val:`real, "1"`
    This attribute specifies the weight used for averaging of contact parameters, and interacts with the priority
    attribute. See :ref:`CContact`.
@@ -4616,18 +4617,22 @@ This element has nine custom attributes in addition to the common attributes:
 :el-prefix:`actuator/` **adhesion** (*)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-..  youtube:: HdBue4MUZys
+..  youtube:: BcHZ5BFeTmU
     :align: right
-    :height: 200px
+    :height: 150px
 
-This element defines an active adhesion actuator which injects force at contacts in the normal direction. On the right
-is a video demonstrating this actuator type. The model shown in the video can be found `here
-<https://github.com/deepmind/mujoco/tree/main/model/adhesion>`_. The transmission target is a :el:`body`, and adhesive
-forces are injected into all contacts involving geoms which belong to this body. The force is divided equally between
-multiple active contacts. Because it requires contact, it cannot apply a force at a distance, and is more like the active
-adhesion on the feet of geckos and insects rather than an industrial vacuum gripper. Adhesion actuators' length is
-always 0. :at:`ctrlrange` is required and must also be nonnegative (no repulsive forces are allowed). The underlying
-:el:`general` attributes are set as follows:
+This element defines an active adhesion actuator which injects forces at contacts in the normal direction, see
+illustration video. The model shown in the video can be found `here
+<https://github.com/deepmind/mujoco/tree/main/model/adhesion>`_ and includes inline annotations. The transmission target
+is a :el:`body`, and adhesive forces are injected into all contacts involving geoms which belong to this body. The force
+is divided equally between multiple contacts. When the :at:`gap` attribute is not used, this actuator requires active
+contacts and cannot apply a force at a distance, more like the active adhesion on the feet of geckos and insects rather
+than an industrial vacuum gripper. In order to enable "suction at a distance", "inflate" the body's geoms by
+:at:`margin` and add a corresponding :at:`gap` which activates contacts only after :at:`gap` penetration distance. This
+will create a layer around the geom where contacts are detected but are inactive, and can be used for
+applying the adhesive force. In the video above, such inactive contacts are blue, while active contacts are orange.
+An adhesion actuator's length is always 0. :at:`ctrlrange` is required and must also be nonnegative (no repulsive forces
+are allowed). The underlying :el:`general` attributes are set as follows:
 
 =========== ======= =========== ========
 Attribute   Setting Attribute   Setting

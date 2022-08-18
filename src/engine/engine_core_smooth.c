@@ -626,6 +626,12 @@ void mj_transmission(const mjModel* m, mjData* d) {
   jacS = mj_stackAlloc(d, 3*nv);
   mju_zero(moment, nu*nv);
 
+  // define variables required for body transmission, don't allocate
+  int issparse = mj_isSparse(m);
+  mjtNum* efc_force = NULL;  // used as marker for allocation requirement
+  mjtNum *moment_exclude, *jacdifp, *jac1p, *jac2p;
+  int *chain;
+
   // compute lengths and moments
   for (int i=0; i<nu; i++) {
     // extract info
@@ -791,37 +797,81 @@ void mj_transmission(const mjModel* m, mjData* d) {
 
       // moment is average of all contact normal Jacobians
       {
-        // find and count all relevant contacts, mark them in efc_force
-        int counter = 0;
-        mjtNum* efc_force = mj_stackAlloc(d, d->nefc);
+        // allocate stack variables for the first mjTRN_BODY
+        if (!efc_force) {
+          efc_force = mj_stackAlloc(d, d->nefc);
+          moment_exclude = mj_stackAlloc(d, nv);
+          jacdifp = mj_stackAlloc(d, 3*nv);
+          jac1p = mj_stackAlloc(d, 3*nv);
+          jac2p = mj_stackAlloc(d, 3*nv);
+          chain = issparse ? (int*)mj_stackAlloc(d, nv) : NULL;
+        }
+
+        // clear efc_force and moment_exclude
         mju_zero(efc_force, d->nefc);
+        mju_zero(moment_exclude, nv);
+
+        // count all relevant contacts, accumulate Jacobians
+        int counter = 0;
         for (int j=0; j<d->ncon; j++) {
           const mjContact* con = d->contact+j;
-          if (m->geom_bodyid[con->geom1]==id || m->geom_bodyid[con->geom2]==id) {
-            if (!con->exclude) {
-              counter++;
+          int b1 = m->geom_bodyid[con->geom1];
+          int b2 = m->geom_bodyid[con->geom2];
 
-              // condim 1 or elliptic cones: normal is in the first row
-              if (con->dim == 1 || m->opt.cone==mjCONE_ELLIPTIC) {
-                efc_force[con->efc_address] = 1;
-              }
+          // irrelevant contact, continue
+          if (b1 != id && b2 != id) {
+            continue;
+          }
 
-              // pyramidal cones: average all pyramid directions
-              else {
-                int npyramid = con->dim-1;  // number of frictional directions
-                for (int k=0; k<2*npyramid; k++) {
-                  efc_force[con->efc_address+k] = 0.5/npyramid;
-                }
+          // mark contact normals in efc_force
+          if (!con->exclude) {
+            counter++;
+
+            // condim 1 or elliptic cones: normal is in the first row
+            if (con->dim == 1 || m->opt.cone==mjCONE_ELLIPTIC) {
+              efc_force[con->efc_address] = 1;
+            }
+
+            // pyramidal cones: average all pyramid directions
+            else {
+              int npyramid = con->dim-1;  // number of frictional directions
+              for (int k=0; k<2*npyramid; k++) {
+                efc_force[con->efc_address+k] = 0.5/npyramid;
               }
-            } else if (con->exclude == 1) {
-              //  TODO(b/240848298): compute Jacobians for excluded contact (in gap)
+            }
+          }
+
+          // excluded contact, get sparse or dense Jacobian, accumulate
+          else if (con->exclude == 1) {
+            counter++;
+
+            // get Jacobian difference
+            int NV = mj_jacDifPair(m, d, chain, b1, b2, con->pos, con->pos,
+                                   jac1p, jac2p, jacdifp, NULL, NULL, NULL);
+
+            // project Jacobian along the normal of the contact frame
+            mju_mulMatMat(jac, con->frame, jacdifp, 1, 3, NV);
+
+            // accumulate in moment_exclude
+            if (issparse) {
+              for (int k=0; k<NV; k++) {
+                moment_exclude[chain[k]] += jac[k];
+              }
+            } else {
+              mju_addTo(moment_exclude, jac, nv);
             }
           }
         }
 
         // moment is average over contact normal Jacobians, make negative for adhesion
         if (counter) {
+          // accumulate active contact Jacobians into moment
           mj_mulJacTVec(m, d, moment+i*nv, efc_force);
+
+          // add Jacobians from excluded contacts
+          mju_addTo(moment+i*nv, moment_exclude, nv);
+
+          // normalize by total contacts, flip sign
           mju_scl(moment+i*nv, moment+i*nv, -1.0/counter, nv);
         }
       }
