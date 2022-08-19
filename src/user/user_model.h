@@ -153,7 +153,7 @@ class mjCModel {
   int nuser_sensor;               // number of mjtNums in sensor_user
 
  private:
-  void TryCompile(mjModel** m, mjData** data, const mjVFS* vfs);
+  void TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs);
 
   void Clear(void);               // clear objects allocated by Compile
 

@@ -2301,7 +2301,7 @@ mjModel* mjCModel::Compile(const mjVFS* vfs) {
       // TryCompile resulted in an mju_error which was converted to a longjmp.
       throw mjCError(0, "engine error: %s", errortext);
     }
-    TryCompile(const_cast<mjModel**>(&m), const_cast<mjData**>(&data), vfs);
+    TryCompile(*const_cast<mjModel**>(&m), *const_cast<mjData**>(&data), vfs);
   } catch (mjCError err) {
     // deallocate everything allocated in Compile
     mj_deleteModel(m);
@@ -2327,7 +2327,7 @@ mjModel* mjCModel::Compile(const mjVFS* vfs) {
 }
 
 
-void mjCModel::TryCompile(mjModel** m, mjData** data, const mjVFS* vfs) {
+void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
   // check if nan test works
   double test = mjNAN;
   if (mjuu_defined(test)) {
@@ -2537,88 +2537,88 @@ void mjCModel::TryCompile(mjModel** m, mjData** data, const mjVFS* vfs) {
   }
 
   // create low-level model
-  *m = mj_makeModel(nq, nv, nu, na, nbody, njnt, ngeom, nsite, ncam, nlight,
-                    nmesh, nmeshvert, nmeshtexvert, nmeshface, nmeshgraph,
-                    nskin, nskinvert, nskintexvert, nskinface, nskinbone, nskinbonevert,
-                    nhfield, nhfielddata, ntex, ntexdata, nmat, npair, nexclude,
-                    neq, ntendon, nwrap, nsensor,
-                    nnumeric, nnumericdata, ntext, ntextdata,
-                    ntuple, ntupledata, nkey, nmocap,
-                    nuser_body, nuser_jnt, nuser_geom, nuser_site, nuser_cam,
-                    nuser_tendon, nuser_actuator, nuser_sensor, nnames);
-  if (!*m) {
+  m = mj_makeModel(nq, nv, nu, na, nbody, njnt, ngeom, nsite, ncam, nlight,
+                   nmesh, nmeshvert, nmeshtexvert, nmeshface, nmeshgraph,
+                   nskin, nskinvert, nskintexvert, nskinface, nskinbone, nskinbonevert,
+                   nhfield, nhfielddata, ntex, ntexdata, nmat, npair, nexclude,
+                   neq, ntendon, nwrap, nsensor,
+                   nnumeric, nnumericdata, ntext, ntextdata,
+                   ntuple, ntupledata, nkey, nmocap,
+                   nuser_body, nuser_jnt, nuser_geom, nuser_site, nuser_cam,
+                   nuser_tendon, nuser_actuator, nuser_sensor, nnames);
+  if (!m) {
     throw mjCError(0, "could not create mjModel");
   }
 
   // copy everything into low-level model
-  (*m)->opt = option;
-  (*m)->vis = visual;
-  CopyNames(*m);
-  CopyTree(*m);
+  m->opt = option;
+  m->vis = visual;
+  CopyNames(m);
+  CopyTree(m);
 
   // keyframe compilation needs access to nq, nv, na, nmocap, qpos0
   for (int i=0; i<keys.size(); i++) {
-    keys[i]->Compile(*m);
+    keys[i]->Compile(m);
   }
 
   // copy objects outsite kinematic tree (including keyframes)
-  CopyObjects(*m);
+  CopyObjects(m);
 
   // scale mass
   if (settotalmass>0) {
-    mj_setTotalmass(*m, settotalmass);
+    mj_setTotalmass(m, settotalmass);
   }
 
   // set stack size: user-specified or conservative heuristic
   if (nstack>0) {
-    (*m)->nstack = nstack;
+    m->nstack = nstack;
   } else {
-    (*m)->nstack = mjMAX(
+    m->nstack = mjMAX(
         1000,
-        5*((*m)->njmax + (*m)->neq + (*m)->nv)*((*m)->njmax + (*m)->neq + (*m)->nv) +
-        20*((*m)->nq + (*m)->nv + (*m)->nu + (*m)->na + (*m)->nbody + (*m)->njnt +
-            (*m)->ngeom + (*m)->nsite + (*m)->neq + (*m)->ntendon +  (*m)->nwrap));
+        5*(m->njmax + m->neq + m->nv)*(m->njmax + m->neq + m->nv) +
+        20*(m->nq + m->nv + m->nu + m->na + m->nbody + m->njnt +
+            m->ngeom + m->nsite + m->neq + m->ntendon +  m->nwrap));
   }
 
   // create data
-  *data = mj_makeData(*m);
-  if (!data) {
+  d = mj_makeData(m);
+  if (!d) {
     throw mjCError(0, "could not create mjData");
   }
 
   // normalize keyframe quaternions
-  for (int i=0; i<(*m)->nkey; i++) {
-    mj_normalizeQuat(*m, (*m)->key_qpos+i*(*m)->nq);
+  for (int i=0; i<m->nkey; i++) {
+    mj_normalizeQuat(m, m->key_qpos+i*m->nq);
   }
 
   // set constant fields
-  mj_setConst(*m, *data);
+  mj_setConst(m, d);
 
   // automatic spring-damper adjustment
-  AutoSpringDamper(*m);
+  AutoSpringDamper(m);
 
   // actuator lengthrange computation
-  LengthRange(*m, *data);
+  LengthRange(m, d);
 
   // override model statistics if defined by user
-  if (mjuu_defined(extent)) (*m)->stat.extent = (mjtNum)extent;
-  if (mjuu_defined(meaninertia)) (*m)->stat.meaninertia = (mjtNum)meaninertia;
-  if (mjuu_defined(meanmass)) (*m)->stat.meanmass = (mjtNum)meanmass;
-  if (mjuu_defined(meansize)) (*m)->stat.meansize = (mjtNum)meansize;
-  if (mjuu_defined(center[0])) copyvec((*m)->stat.center, center, 3);
+  if (mjuu_defined(extent)) m->stat.extent = (mjtNum)extent;
+  if (mjuu_defined(meaninertia)) m->stat.meaninertia = (mjtNum)meaninertia;
+  if (mjuu_defined(meanmass)) m->stat.meanmass = (mjtNum)meanmass;
+  if (mjuu_defined(meansize)) m->stat.meansize = (mjtNum)meansize;
+  if (mjuu_defined(center[0])) copyvec(m->stat.center, center, 3);
 
   // assert that model has valid references
-  const char* validationerr = mj_validateReferences(*m);
+  const char* validationerr = mj_validateReferences(m);
   if (validationerr) {  // SHOULD NOT OCCUR
     throw mjCError(0, validationerr);
   }
   // test forward simulation
-  mj_resetData(*m, *data);
-  mj_step(*m, *data);
+  mj_resetData(m, d);
+  mj_step(m, d);
 
   // delete data
-  mj_deleteData(*data);
-  data = nullptr;
+  mj_deleteData(d);
+  d = nullptr;
 
   // pass warning back
   if (warningtext[0]) {
