@@ -1509,10 +1509,6 @@ void mjXReader::OneActuator(XMLElement* elem, mjCActuator* pact) {
     pact->biastype = mjBIAS_AFFINE;
     pact->actlimited = 1;
     pact->biasprm[1] = -pact->gainprm[0];
-    // require actrange
-    if (!ReadAttr(elem, "actrange", 2, pact->actrange, text)) {
-      throw mjXError(elem, "actrange is required for an intvelocity actuator", type.c_str());
-    }
   }
 
   // damper

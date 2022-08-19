@@ -12,7 +12,7 @@ General
     :align: right
     :height: 150px
 
-- Added :ref:`adhesion actuators<adhesion>` mimicking vaccum grippers and adhesive biomechanical appendages.
+- Added :ref:`adhesion actuators<adhesion>` mimicking vacuum grippers and adhesive biomechanical appendages.
 - Added related `example model <https://github.com/deepmind/mujoco/tree/main/model/adhesion>`_ and video:
 - Added :ref:`mj_jacSubtreeCom` for computing the translational Jacobian of the center-of-mass of a subtree.
 - Added moment of inertia computation for concave meshes. This is currently activated by setting the compiler flag
@@ -48,6 +48,7 @@ Deleted/deprecated features
 Bug fixes
 ^^^^^^^^^
 - Fixed rendering of some transparent geoms in reflection.
+- Fixed ``intvelocity`` defaults parsing.
 
 Version 2.2.1 (July 18, 2022)
 -----------------------------

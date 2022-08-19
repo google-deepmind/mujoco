@@ -648,7 +648,41 @@ TEST_F(IntegratedVelocityTest, NoActrangeThrowsError) {
   std::array<char, 1024> error;
   mjModel* model = LoadModelFromString(xml, error.data(), error.size());
   ASSERT_THAT(model, IsNull());
-  EXPECT_THAT(error.data(), HasSubstr("actrange is required for an intvelocity actuator"));
+  EXPECT_THAT(error.data(), HasSubstr("invalid activation range for actuator"));
+}
+
+TEST_F(IntegratedVelocityTest, DefaultsPropagate) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <default>
+      <intvelocity kp="5"/>
+      <default class="withactrange">
+        <intvelocity kp="1" actrange="-1 1"/>
+      </default>
+    </default>
+    <worldbody>
+      <body>
+        <joint name="hinge1"/>
+        <joint name="hinge2"/>
+        <geom type="box" size=".025 .025 .025"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <intvelocity joint="hinge1" actrange="0 1"/>
+      <intvelocity joint="hinge2" class="withactrange"/>
+    </actuator>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, testing::NotNull());
+  EXPECT_DOUBLE_EQ(model->actuator_gainprm[0], 5);
+  EXPECT_DOUBLE_EQ(model->actuator_gainprm[mjNGAIN], 1);
+  EXPECT_DOUBLE_EQ(model->actuator_actrange[0 + 0], 0);
+  EXPECT_DOUBLE_EQ(model->actuator_actrange[0 + 1], 1);
+  EXPECT_DOUBLE_EQ(model->actuator_actrange[0 + 2], -1);
+  EXPECT_DOUBLE_EQ(model->actuator_actrange[0 + 3], 1);
+  mj_deleteModel(model);
 }
 
 }  // namespace
