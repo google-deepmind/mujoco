@@ -120,6 +120,8 @@ mjModel* mj_loadXML(const char* filename, const mjVFS* vfs,
 
 
 // update XML data structures with info from low-level model, save as MJCF
+//  returns 1 if successful, 0 otherwise
+//  error can be NULL; otherwise assumed to have size error_sz
 int mj_saveLastXML(const char* filename, const mjModel* m, char* error, int error_sz) {
   // serialize access to themodel
   std::lock_guard<std::mutex> lock(themutex);
