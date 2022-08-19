@@ -446,13 +446,12 @@ static int bodycategory(const mjModel* m, int bodyid) {
   }
 }
 
-
-
 // add abstract geoms
 void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
                   const mjvPerturb* pert, int catmask, mjvScene* scn) {
   int objtype, category;
   mjtNum sz[3], mat[9], selpos[3];
+  mjtNum catenary[3*mjNCATENARY];
   mjtNum *cur, *nxt, *xpos, *xfrc;
   mjtNum vec[3], end[3], axis[3], rod, len, det, tmp[9], quat[4];
   mjtByte broken;
@@ -1351,27 +1350,77 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
   if (vopt->flags[mjVIS_TENDON] && (category & catmask)) {
     for (int i=0; i<m->ntendon; i++) {
       if (vopt->tendongroup[mjMAX(0, mjMIN(mjNGROUP-1, m->tendon_group[i]))]) {
-        for (int j=d->ten_wrapadr[i]; j<d->ten_wrapadr[i]+d->ten_wrapnum[i]-1; j++) {
-          if (d->wrap_obj[j]!=-2 && d->wrap_obj[j+1]!=-2) {
+        // conditions for drawing a catenary
+        int draw_catenary =
+            !mjDISABLED(mjDSBL_GRAVITY)           &&  // gravity enabled
+            mju_norm3(m->opt.gravity) > mjMINVAL  &&  // gravity strictly nonzero
+            m->tendon_num[i] == 2                 &&  // only two sites on the tendon
+            m->tendon_limited[i] == 1             &&  // limited length range
+            m->tendon_range[2*i] == 0             &&  // range lower-bound is 0
+            m->tendon_stiffness[i] == 0           &&  // no stiffness
+            m->tendon_damping[i] == 0             &&  // no damping
+            m->tendon_frictionloss[i] == 0;           // no frictionloss
+
+        // conditions not met: draw straight lines
+        if (!draw_catenary) {
+          for (int j=d->ten_wrapadr[i]; j<d->ten_wrapadr[i]+d->ten_wrapnum[i]-1; j++) {
+            if (d->wrap_obj[j]!=-2 && d->wrap_obj[j+1]!=-2) {
+              START
+
+              // determine width: smaller for segments inside wrapping objects
+              if (d->wrap_obj[j]>=0 && d->wrap_obj[j+1]>=0) {
+                sz[0] = 0.5 * m->tendon_width[i];
+              } else {
+                sz[0] = m->tendon_width[i];
+              }
+
+              // construct geom
+              mjv_makeConnector(thisgeom, mjGEOM_CAPSULE, sz[0],
+                                d->wrap_xpos[3*j], d->wrap_xpos[3*j+1], d->wrap_xpos[3*j+2],
+                                d->wrap_xpos[3*j+3], d->wrap_xpos[3*j+4], d->wrap_xpos[3*j+5]);
+
+              // set material if given
+              setMaterial(m, thisgeom, m->tendon_matid[i], m->tendon_rgba+4*i, vopt->flags);
+
+              // vopt->label: only the first segment
+              if (vopt->label==mjLABEL_TENDON && j==d->ten_wrapadr[i]) {
+                makeLabel(m, mjOBJ_TENDON, i, thisgeom->label);
+              }
+
+              FINISH
+            }
+          }
+        }
+
+        // special case handling of string-like tendons under gravity
+        else {
+          // two hanging points: x0, x1
+          mjtNum x0[3], x1[3];
+          mju_copy3(x0, d->wrap_xpos + 3*d->ten_wrapadr[i]);
+          mju_copy3(x1, d->wrap_xpos + 3*d->ten_wrapadr[i] + 3);
+
+          // length of the tendon
+          mjtNum length = m->tendon_range[2*i+1];
+
+          // points along catenary path
+          int npoints = mjv_catenary(x0, x1, m->opt.gravity, length, catenary);
+
+          // draw npoints-1 segments
+          for (int j=0; j<npoints-1; j++) {
             START
 
-            // determine width: smaller for segments inside wrapping objects
-            if (d->wrap_obj[j]>=0 && d->wrap_obj[j+1]>=0) {
-              sz[0] = 0.5 * m->tendon_width[i];
-            } else {
-              sz[0] = m->tendon_width[i];
-            }
+            sz[0] = m->tendon_width[i];
 
             // construct geom
             mjv_makeConnector(thisgeom, mjGEOM_CAPSULE, sz[0],
-                              d->wrap_xpos[3*j], d->wrap_xpos[3*j+1], d->wrap_xpos[3*j+2],
-                              d->wrap_xpos[3*j+3], d->wrap_xpos[3*j+4], d->wrap_xpos[3*j+5]);
+                              catenary[3*j], catenary[3*j+1], catenary[3*j+2],
+                              catenary[3*j+3], catenary[3*j+4], catenary[3*j+5]);
 
             // set material if given
             setMaterial(m, thisgeom, m->tendon_matid[i], m->tendon_rgba+4*i, vopt->flags);
 
             // vopt->label: only the first segment
-            if (vopt->label==mjLABEL_TENDON && j==d->ten_wrapadr[i]) {
+            if (vopt->label==mjLABEL_TENDON && npoints/2) {
               makeLabel(m, mjOBJ_TENDON, i, thisgeom->label);
             }
 
@@ -1954,3 +2003,178 @@ void mjv_updateScene(const mjModel* m, mjData* d, const mjvOption* opt,
     mjv_updateActiveSkin(m, d, scn, opt);
   }
 }
+
+
+
+//----------------------------------- catenary functions -------------------------------------------
+
+// returns hyperbolic cosine and optionally computes hyperbolic sine
+static inline mjtNum cosh_sinh(mjtNum x, mjtNum *sinh) {
+  mjtNum expx = mju_exp(x);
+  if (sinh) {
+    *sinh = 0.5 * (expx - 1/expx);
+  }
+  return 0.5 * (expx + 1/expx);
+}
+
+
+
+// returns intercept of the catenary equation
+static inline mjtNum catenary_intercept(mjtNum v, mjtNum h, mjtNum length) {
+  return 1/mju_sqrt(mju_sqrt(length*length - v*v)/h - 1);
+}
+
+
+
+// returns residual of catenary equation and optionally computes its gradient w.r.t b
+static inline mjtNum catenary_residual(mjtNum b, mjtNum intercept, mjtNum *grad) {
+  mjtNum a = 0.5 / b;
+  mjtNum sinh, cosh = cosh_sinh(a, &sinh);
+  if (grad) {
+    *grad = (a*cosh - sinh) * mju_pow(2*b*sinh - 1, -1.5);
+  }
+  return 1/mju_sqrt(2*b*sinh - 1) - intercept;
+}
+
+
+
+// convergence tolerance for catenary solver
+static const mjtNum tolerance = 1e-9;
+
+
+
+// solve trancendental catenary equation using change of variables proposed in
+//   https://math.stackexchange.com/a/1002996
+static inline mjtNum solve_catenary(mjtNum v, mjtNum h, mjtNum length) {
+  mjtNum intercept = catenary_intercept(v, h, length);
+
+  // initial guess using linear approximation to catenary_residual
+  mjtNum b = intercept / mju_sqrt(24);
+
+  // Newton steps to convergence (usually ~ 5 steps)
+  for (int i=0; i<50; i++) {
+    // get value and gradient
+    mjtNum grad;
+    mjtNum res = catenary_residual(b, intercept, &grad);
+
+    if (mju_abs(res) < tolerance) {
+      break;
+    }
+
+    // Newton step
+    mjtNum step = -res / grad;
+
+    // backtracking line-search is not essential but can reduce number of iterations
+    for (int j=0; j<10; j++) {
+      mjtNum new_res = catenary_residual(b + step, intercept, NULL);
+      if (mju_abs(new_res) < mju_abs(res)) {
+        break;
+      } else {
+        step *= 0.5;
+      }
+    }
+
+    // take step
+    b += step;
+  }
+
+  return b;
+}
+
+
+
+// points along catenary of given length between x0 and x1, returns number of points
+int mjv_catenary(const mjtNum x0[3], const mjtNum x1[3], const mjtNum gravity[3], mjtNum length,
+                 mjtNum catenary[3*mjNCATENARY]) {
+  mjtNum dist = mju_dist3(x0, x1);
+
+  // tendon is stretched longer than length: draw straight line
+  if (dist > length) {
+    // copy start and end points
+    mju_copy3(catenary+0, x0);
+    mju_copy3(catenary+3, x1);
+
+    return 2;
+  }
+
+  // tendon is shorter than length
+  else {
+    // normalized up vector
+    mjtNum up[3];
+    mju_scl3(up, gravity, -1);
+    mju_normalize3(up);
+
+    // x0 to x1
+    mjtNum x01[3];
+    mju_sub3(x01, x1, x0);
+
+    // make across orthonormal to up, points from x0 to x1
+    mjtNum across[3];
+    mju_copy3(across, x01);
+    mjtNum tmp[3];
+    mju_scl3(tmp, up, mju_dot3(up, across));
+    mju_subFrom3(across, tmp);
+    mjtNum norm = mju_normalize3(across);
+
+    // if across is numerically tiny, just set to 0
+    if (norm < mjMINVAL) {
+      mju_zero3(across);
+    }
+
+    // extents in the suspension plane
+    mjtNum h = mju_dot3(x01, across);  // horizontal suspension extent
+    mjtNum v = mju_dot3(x01, up);      // vertical height difference of x1 and x0
+
+    // near vertical tendon, use hanging bead approximation: 3 points
+    if (length > 100*h) {
+      // solve for location of bead hanging on tendon
+      mjtNum d_up = -0.5*(mju_sqrt(length*length - h*h) - v);  // down from x0
+      mjtNum d_across = h*d_up / (2*d_up - v);                 // across from x0
+
+      // start point
+      mju_copy3(catenary+0, x0);
+
+      // midpoint: bead location
+      mju_copy3(catenary+3, x0);
+      mju_addToScl3(catenary+3, up, d_up);
+      mju_addToScl3(catenary+3, across, d_across);
+
+      // end point
+      mju_copy3(catenary+6, x1);
+
+      return 3;
+    }
+
+    // compute catenary: mjNCATENARY points
+    else {
+      // b*h: scaled catenary flatness
+      mjtNum bh = solve_catenary(v, h, length) * h;
+
+      // horizontal and vertical offsets
+      mjtNum h_offset = -0.5 * (mju_log((length+v) / (length-v)) * bh - h);
+      mjtNum v_offset = -cosh_sinh(h_offset / bh, NULL) * bh;
+
+      // start point
+      mju_copy3(catenary+0, x0);
+
+      // hanging points
+      for (int i=1; i<mjNCATENARY-1; i++) {
+        // linearly spaced horizontal offset
+        mjtNum horizontal = i*h/mjNCATENARY;
+        mju_addScl3(catenary+3*i, x0, across, horizontal);
+
+        // vertical offset, evaluate catenary values
+        mjtNum vertical = bh * cosh_sinh((horizontal - h_offset) / bh, NULL) + v_offset;
+        mju_addToScl3(catenary+3*i, up, vertical);
+      }
+
+      // end point
+      mju_copy3(catenary+3*(mjNCATENARY-1), x1);
+
+      return mjNCATENARY;
+    }
+  }
+
+  return 0;  // SHOULD NOT OCCUR
+}
+

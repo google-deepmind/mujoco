@@ -12,26 +12,34 @@ General
     :align: right
     :height: 150px
 
-- Added :ref:`adhesion actuators<adhesion>`.
-- Added an `active adhesion example <https://github.com/deepmind/mujoco/tree/main/model/adhesion>`_ and video:
+- Added :ref:`adhesion actuators<adhesion>` mimicking vaccum grippers and adhesive biomechanical appendages.
+- Added related `example model <https://github.com/deepmind/mujoco/tree/main/model/adhesion>`_ and video:
 - Added :ref:`mj_jacSubtreeCom` for computing the translational Jacobian of the center-of-mass of a subtree.
 - Added moment of inertia computation for concave meshes. This is currently activated by setting the compiler flag
   :at:`exactmeshinertia` to ``true`` (defaults to ``false``). This default may change in the future.
+- Joint and tendon ``limited`` attribute and actuator ``ctrllimited``, ``forcelimited`` and ``actlimited`` attributes
+  now default to ``auto`` rather than ``false``. Limits are automatically set to ``true`` if the corresponding range *is
+  defined* and ``false`` otherwise.
+
+  .. attention::
+    This is a minor breaking change. In models where a range was defined but :at:`limited` was unspecified, the target
+    element will now be limited. Explicitly set limited to ``false`` to revert to the previous behavior.
+
 - Added parameter :at:`shellinertia` to :at:`geom`, for locating the inferred inertia on the boundary (shell).
   Currently only meshes are supported.
 - For meshes from which volumetric inertia is inferred, raise error if the orientation of mesh faces is not consistent.
   If this occurs, fix the mesh in e.g., MeshLab or Blender.
+
+  ..  youtube:: I2q7D0Vda-A
+      :align: right
+      :height: 150px
+
+- Added catenary visualisation for hanging tendons. The model seen in the video can be found
+  `here <https://github.com/deepmind/mujoco/tree/main/test/engine/testdata/catenary.xml>`_.
 - Added ``azimuth`` and ``elevation`` attributes to :ref:`visual/global<global>`, defining the initial orientation of
   the free camera at model load time.
 - Added ``mjv_defaultFreeCamera`` which sets the default free camera, respecting the above attributes.
 - ``simulate`` now supports taking a screenshot via a button in the File section or via ``Ctrl-P``.
-- Joint and tendon ``limited`` attribute and actuator ``ctrllimited``, ``forcelimited`` and ``actlimited`` attributes
-  now default to ``"auto"``, which means they are automatically set to ``true`` if the corresponding range is
-  defined and disabled otherwise.
-
-   .. attention::
-      This is a minor breaking change. Code where a range was defined and limited was unspecified will now
-      be limited. Please explicitly set limited to ``false`` to revert to the previous behavior.
 
 Deleted/deprecated features
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
