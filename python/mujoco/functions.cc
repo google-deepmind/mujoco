@@ -1029,6 +1029,24 @@ PYBIND11_MODULE(_functions, pymodule) {
         return InterceptMjErrors(::mju_insertionSortInt)(
             res.data(), res.size());
       });
+  Def<traits::mjd_transitionFD>(
+      pymodule,
+      [](const raw::MjModel* m, raw::MjData* d, mjtNum eps, mjtByte centered,
+         std::optional<Eigen::Ref<EigenArrayXX>> A,
+         std::optional<Eigen::Ref<EigenArrayXX>> B) {
+        if (A.has_value() &&
+            (A->rows() != 2*m->nv+m->na || A->cols() != 2*m->nv+m->na)) {
+          throw py::type_error("A should be of shape (2*nv+na, 2*nv+na)");
+        }
+        if (B.has_value() &&
+            (B->rows() != 2*m->nv+m->na || B->cols() != m->nu)) {
+          throw py::type_error("B should be of shape (2*nv+na, nu)");
+        }
+        return InterceptMjErrors(::mjd_transitionFD)(
+            m, d, eps, centered,
+            A.has_value() ? A->data() : nullptr,
+            B.has_value() ? B->data() : nullptr);
+      });
   Def<traits::mju_Halton>(pymodule);
   // Skipped: mju_strncpy (doesn't make sense in Python)
   Def<traits::mju_sigmoid>(pymodule);
