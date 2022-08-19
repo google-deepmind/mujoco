@@ -22,6 +22,11 @@ set(CMAKE_POLICY_DEFAULT_CMP0072 NEW)
 # This line has to appear before 'PROJECT' in order to be able to disable incremental linking
 set(MSVC_INCREMENTAL_DEFAULT ON)
 
+set(MUJOCO_DEP_VERSION_lodepng
+    b4ed2cd7ecf61d29076169b49199371456d4f90b
+    CACHE STRING "Version of `lodepng` to be fetched."
+)
+
 project(
   mujoco_simulate
   VERSION 2.2.1
@@ -68,6 +73,27 @@ if(MUJOCO_HARDEN)
     else()
       set(MUJOCO_SIMULATE_LINK_OPTIONS "${MUJOCO_SIMULATE_LINK_OPTIONS}" -pie)
     endif()
+  endif()
+endif()
+
+# Fetch lodepng dependency.
+if(NOT TARGET lodepng)
+  FetchContent_Declare(
+    lodepng
+    GIT_REPOSITORY https://github.com/lvandeve/lodepng.git
+    GIT_TAG ${MUJOCO_DEP_VERSION_lodepng}
+  )
+
+  FetchContent_GetProperties(lodepng)
+  if(NOT lodepng_POPULATED)
+    FetchContent_Populate(lodepng)
+    # This is not a CMake project.
+    set(LODEPNG_SRCS ${lodepng_SOURCE_DIR}/lodepng.cpp)
+    set(LODEPNG_HEADERS ${lodepng_SOURCE_DIR}/lodepng.h)
+    add_library(lodepng STATIC ${LODEPNG_HEADERS} ${LODEPNG_SRCS})
+    target_compile_options(lodepng PRIVATE ${MUJOCO_MACOS_COMPILE_OPTIONS})
+    target_link_options(lodepng PRIVATE ${MUJOCO_MACOS_LINK_OPTIONS})
+    target_include_directories(lodepng PUBLIC ${lodepng_SOURCE_DIR})
   endif()
 endif()
 

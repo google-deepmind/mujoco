@@ -154,6 +154,18 @@ jobs:
     - name: Build samples
       working-directory: sample/build
       run: cmake --build . --config=Release ${{ matrix.cmake_build_args }}
+    - name: Configure simulate
+      working-directory: simulate
+      run: >
+        mkdir build &&
+        cd build &&
+        cmake ..
+        -DCMAKE_BUILD_TYPE:STRING=Release
+        -Dmujoco_ROOT:STRING=${{ matrix.tmpdir }}/mujoco_install
+        ${{ matrix.cmake_args }}
+    - name: Build simulate
+      working-directory: simulate/build
+      run: cmake --build . --config=Release ${{ matrix.cmake_build_args }}
     - name: Make Python sdist
       shell: bash
       working-directory: python
