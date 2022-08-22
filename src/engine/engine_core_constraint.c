@@ -398,17 +398,15 @@ void mj_instantiateEquality(const mjModel* m, mjData* d) {
         break;
 
       case mjEQ_WELD:                 // fix relative position and orientation
-        // find global points and their Jacobians
+        // find global points
         for (int j=0; j<2; j++) {
-          // position offset for body1 only
-          if (j==0) {
-            mju_rotVecMat(pos[j], data, d->xmat + 9*id[j]);
-          } else {
-            mju_zero3(pos[j]);
-          }
-
+          mjtNum* anchor = data + 3*(1-j);
+          mju_rotVecMat(pos[j], anchor, d->xmat + 9*id[j]);
           mju_addTo3(pos[j], d->xpos + 3*id[j]);
         }
+
+        // compute position error
+        mju_sub3(cpos, pos[0], pos[1]);
 
         // compute error Jacobian (opposite of contact: 0 - 1)
         NV = mj_jacDifPair(m, d, chain, id[1], id[0], pos[1], pos[0],
@@ -419,19 +417,14 @@ void mj_instantiateEquality(const mjModel* m, mjData* d) {
         mju_copy(jac[0], jacdif, 3*NV);
         mju_copy(jac[0]+3*NV, jacdif+3*nv, 3*NV);
 
-        // get desired position offset in global frame
-        mju_rotVecMat(cpos, data, d->xmat+9*id[0]);
-
-        // compute position error: p0 - p1 - data
-        mju_sub3(cpos, pos[0], pos[1]);
-
-        // compute orientation error: neg(q1) * q0 * data (axis components only)
-        mju_mulQuat(quat, d->xquat+4*id[0], data+3);    // quat = q0*data
+        // compute orientation error: neg(q1) * q0 * relpose (axis components only)
+        mjtNum* relpose = data+6;
+        mju_mulQuat(quat, d->xquat+4*id[0], relpose);   // quat = q0*relpose
         mju_negQuat(quat1, d->xquat+4*id[1]);           // quat1 = neg(q1)
-        mju_mulQuat(quat2, quat1, quat);                // quat2 = neg(q1)*q0*data
+        mju_mulQuat(quat2, quat1, quat);                // quat2 = neg(q1)*q0*relpose
         mju_copy3(cpos+3, quat2+1);                     // copy axis components
 
-        // correct rotation Jacobian: 0.5 * neg(q1) * (jac0-jac1) * q0 * data
+        // correct rotation Jacobian: 0.5 * neg(q1) * (jac0-jac1) * q0 * relpose
         for (int j=0; j<NV; j++) {
           // axis = [jac0-jac1]_col(j)
           axis[0] = jac[0][3*NV+j];
@@ -440,13 +433,17 @@ void mj_instantiateEquality(const mjModel* m, mjData* d) {
 
           // apply formula
           mju_mulQuatAxis(quat2, quat1, axis);    // quat2 = neg(q1)*(jac0-jac1)
-          mju_mulQuat(quat3, quat2, quat);        // quat3 = neg(q1)*(jac0-jac1)*q0*data
+          mju_mulQuat(quat3, quat2, quat);        // quat3 = neg(q1)*(jac0-jac1)*q0*relpose
 
           // correct Jacobian
           jac[0][3*NV+j] = 0.5*quat3[1];
           jac[0][4*NV+j] = 0.5*quat3[2];
           jac[0][5*NV+j] = 0.5*quat3[3];
         }
+
+        // scale rotational jacobian by tfratio factor
+        mjtNum tfratio = data[10];
+        mju_scl(jac[0]+3*NV, jac[0]+3*NV, tfratio, 3*NV);
 
         size = 6;
         break;
@@ -1054,8 +1051,16 @@ static void getposdim(const mjModel* m, const mjData* d, int i, mjtNum* pos, int
 
   case mjCNSTR_EQUALITY:
     if (m->eq_type[id]==mjEQ_WELD) {
+      mjtNum rotlinratio = m->eq_data[mjNEQDATA*id+10];
+      mjtNum efc_pos[6];
+
+      // copy translational residual
+      mju_copy3(efc_pos, d->efc_pos+i);
+
+      // multiply orientations by tfratio
+      mju_scl3(efc_pos+3, d->efc_pos+i+3, rotlinratio);
       *dim = 6;
-      *pos = mju_norm(d->efc_pos+i, 6);  // mixes translation and rotation!
+      *pos = mju_norm(efc_pos, 6);
     } else if (m->eq_type[id]==mjEQ_CONNECT) {
       *dim = 3;
       *pos = mju_norm(d->efc_pos+i, 3);

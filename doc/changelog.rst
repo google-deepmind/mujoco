@@ -15,8 +15,13 @@ General
 - Added :ref:`adhesion actuators<adhesion>` mimicking vacuum grippers and adhesive biomechanical appendages.
 - Added related `example model <https://github.com/deepmind/mujoco/tree/main/model/adhesion>`_ and video:
 - Added :ref:`mj_jacSubtreeCom` for computing the translational Jacobian of the center-of-mass of a subtree.
-- Added moment of inertia computation for concave meshes. This is currently activated by setting the compiler flag
-  :at:`exactmeshinertia` to ``true`` (defaults to ``false``). This default may change in the future.
+- Added :at:`tfratio` and :at:`anchor` attributes to :el:`weld` constraints. :at:`tfratio` sets the torque-to-force
+  ratio exerted by the constraint, :at:`anchor` sets the point at which the weld wrench is applied. See
+  :ref:`weld <equality-weld>` for more details.
+- Added visualisation of anchor points for both :el:`connect` and :el:`weld` constraints (activated by the 'N' key in
+  ``simulate``).
+- Added `example model <https://github.com/deepmind/mujoco/tree/main/test/engine/testdata/weld.xml>`_ showing different
+  uses of new weld attributes.
 - Joint and tendon ``limited`` attribute and actuator ``ctrllimited``, ``forcelimited`` and ``actlimited`` attributes
   now default to ``auto`` rather than ``false``. Limits are automatically set to ``true`` if the corresponding range *is
   defined* and ``false`` otherwise.
@@ -25,6 +30,8 @@ General
     This is a minor breaking change. In models where a range was defined but :at:`limited` was unspecified, the target
     element will now be limited. Explicitly set limited to ``false`` to revert to the previous behavior.
 
+- Added moment of inertia computation for all well-formed meshes. This option is activated by setting the compiler
+  flag :at:`exactmeshinertia` to ``true`` (defaults to ``false``). This default may change in the future.
 - Added parameter :at:`shellinertia` to :at:`geom`, for locating the inferred inertia on the boundary (shell).
   Currently only meshes are supported.
 - For meshes from which volumetric inertia is inferred, raise error if the orientation of mesh faces is not consistent.

@@ -3162,7 +3162,7 @@ Numeric constants
 +------------------+--------+----------------------------------------------------------------------------------------+
 | mjMAXVFSNAME     | 100    | The maximal number of characters in the name of each file in the virtual file system.  |
 +------------------+--------+----------------------------------------------------------------------------------------+
-| mjNEQDATA        | 7      | The maximal number of real-valued parameters used to define each equality constraint.  |
+| mjNEQDATA        | 11     | The maximal number of real-valued parameters used to define each equality constraint.  |
 |                  |        | Determines the size of mjModel.eq_data. This and the next five constants correspond to |
 |                  |        | array sizes which we have not fully settled. There may be reasons to increase them in  |
 |                  |        | the future, so as to accommodate extra parameters needed for more elaborate            |

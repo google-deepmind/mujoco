@@ -812,7 +812,9 @@ in the second column of the table have the following meaning:
 |                          |    |    +-------------------------+-------------------------+-------------------------+ |
 |                          |    |    | :at:`body2`             | :at:`relpose`           | :at:`active`            | |
 |                          |    |    +-------------------------+-------------------------+-------------------------+ |
-|                          |    |    | :at:`solref`            | :at:`solimp`            |                         | |
+|                          |    |    | :at:`solref`            | :at:`solimp`            | :at:`anchor`            | |
+|                          |    |    +-------------------------+-------------------------+-------------------------+ |
+|                          |    |    | :at:`tfratio`           |                         |                         | |
 |                          |    |    +-------------------------+-------------------------+-------------------------+ |
 +--------------------------+----+------------------------------------------------------------------------------------+
 | |_2|:el:`joint`          | \* | .. table::                                                                         |
@@ -4020,6 +4022,16 @@ of the other body, without any joint elements in the child body.
    body1. If the quaternion part (i.e., last 4 components of the vector) are all zeros, as in the default setting, this
    attribute is ignored and the relative pose is the one corresponding to the model reference pose in qpos0. The unusual
    default is because all equality constraint types share the same default for their numeric parameters.
+:at:`anchor`: :at-val:`real(3), "0 0 0"`
+   Coordinates of the weld point relative to body2. If :at:`relpose` is not specified, the meaning of
+   this parameter is the same as for connect constraints, except that is relative to body2. If :at:`relpose` is
+   specified, body1 will use the pose to compute its anchor point.
+:at:`tfratio`: :at-val:`real, "1"`
+   Relative torque-to-force ratio. This ratio is used by the weld to scale how much it "cares" about rotational
+   displacements vs. translational displacements. Setting this value to 0 makes the :el:`weld` behave like a
+   :el:`connect` constraint. Note that this value has units of length and can therefore be interpreted as follows.
+   Imagining that the weld is implemented by a patch of glue sticking the two bodies together, :at:`tfratio` can be
+   interpreted as the diameter of this glue patch.
 
 .. _equality-joint:
 
@@ -4265,7 +4277,7 @@ specify them independently.
    If true, the internal state (activation) associated with this actuator is automatically clamped to :at:`actrange` at
    runtime. If false, activation clamping is disabled. If auto, activation clamping will automatically be set to true
    if :at:`actrange` is defined without explicitly setting this attribute to "true". See the :ref:`Activation clamping <CActRange>`
-   section for more details. 
+   section for more details.
 :at:`ctrlrange`: :at-val:`real(2), "0 0"`
    Range for clamping the control input. The compiler expects the first value to be smaller than the second value.
 :at:`forcerange`: :at-val:`real(2), "0 0"`

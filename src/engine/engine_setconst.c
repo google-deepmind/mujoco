@@ -185,22 +185,25 @@ static void set0(mjModel* m, mjData* d) {
     // weld constraint
     else if (m->eq_type[i]==mjEQ_WELD) {
       // skip if user has set any quaternion data
-      if (m->eq_data[mjNEQDATA*i+3] ||
-          m->eq_data[mjNEQDATA*i+4] ||
-          m->eq_data[mjNEQDATA*i+5] ||
-          m->eq_data[mjNEQDATA*i+6]) {
+      if (m->eq_data[mjNEQDATA*i+6] ||
+          m->eq_data[mjNEQDATA*i+7] ||
+          m->eq_data[mjNEQDATA*i+8] ||
+          m->eq_data[mjNEQDATA*i+9]) {
         // normalize quaternion just in case
-        mju_normalize4(m->eq_data+mjNEQDATA*i+3);
+        mju_normalize4(m->eq_data+mjNEQDATA*i+6);
         continue;
       }
 
-      // data[0-2] = xpos2-xpos1 in body1 local frame
-      mju_sub3(pos, d->xpos+3*id2, d->xpos+3*id1);
-      mju_rotVecMatT(m->eq_data+mjNEQDATA*i, pos, d->xmat+9*id1);
+      // anchor position is in body2 local frame
+      mj_local2Global(d, pos, 0, m->eq_data+mjNEQDATA*i, 0, id2, 0);
 
-      // data[3-6] = neg(xquat1)*xquat2 = "xquat2-xquat1" in body1 local frame
+      // data[3-5] = anchor position in body1 local frame
+      mju_subFrom3(pos, d->xpos+3*id1);
+      mju_rotVecMatT(m->eq_data+mjNEQDATA*i+3, pos, d->xmat+9*id1);
+
+      // data[6-9] = neg(xquat1)*xquat2 = "xquat2-xquat1" in body1 local frame
       mju_negQuat(quat, d->xquat+4*id1);
-      mju_mulQuat(m->eq_data+mjNEQDATA*i+3, quat, d->xquat+4*id2);
+      mju_mulQuat(m->eq_data+mjNEQDATA*i+6, quat, d->xquat+4*id2);
     }
   }
 
