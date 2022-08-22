@@ -1814,7 +1814,7 @@ void mj_rne(const mjModel* m, mjData* d, int flg_acc, mjtNum* result) {
 // RNE with complete data: compute cacc, cfrc_ext, cfrc_int
 void mj_rnePostConstraint(const mjModel* m, mjData* d) {
   int nbody=m->nbody;
-  mjtNum cfrc_com[6], cfrc[6], lfrc[6];
+  mjtNum cfrc_body[6], tmp[6], tmp1[6];
   mjContact* con;
 
   // clear cacc, set world acceleration to -gravity
@@ -1828,14 +1828,14 @@ void mj_rnePostConstraint(const mjModel* m, mjData* d) {
   for (int i=1; i<nbody; i++)
     if (!mju_isZero(d->xfrc_applied+6*i, 6)) {
       // rearrange as torque:force
-      mju_copy3(cfrc, d->xfrc_applied+6*i+3);
-      mju_copy3(cfrc+3, d->xfrc_applied+6*i);
+      mju_copy3(tmp1, d->xfrc_applied+6*i+3);
+      mju_copy3(tmp1+3, d->xfrc_applied+6*i);
 
       // map force from application point to com; both world-oriented
-      mju_transformSpatial(cfrc_com, cfrc, 1, d->subtree_com+3*m->body_rootid[i], d->xipos+3*i, 0);
+      mju_transformSpatial(tmp, tmp1, 1, d->subtree_com+3*m->body_rootid[i], d->xipos+3*i, 0);
 
       // accumulate
-      mju_addTo(d->cfrc_ext+6*i, cfrc_com, 6);
+      mju_addTo(d->cfrc_ext+6*i, tmp, 6);
     }
 
   // cfrc_ext += contacts
@@ -1845,29 +1845,29 @@ void mj_rnePostConstraint(const mjModel* m, mjData* d) {
       con = d->contact+i;
 
       // tmp = contact-local force:torque vector
-      mj_contactForce(m, d, i, lfrc);
+      mj_contactForce(m, d, i, tmp);
 
-      // cfrc = world-oriented torque:force vector (swap in the process)
-      mju_rotVecMatT(cfrc, lfrc+3, con->frame);
-      mju_rotVecMatT(cfrc+3, lfrc, con->frame);
+      // tmp1 = world-oriented torque:force vector (swap in the process)
+      mju_rotVecMatT(tmp1, tmp+3, con->frame);
+      mju_rotVecMatT(tmp1+3, tmp, con->frame);
 
       // body 1
       int k;
       if ((k = m->geom_bodyid[con->geom1])) {
         // tmp = subtree CoM-based torque_force vector
-        mju_transformSpatial(cfrc_com, cfrc, 1, d->subtree_com+3*m->body_rootid[k], con->pos, 0);
+        mju_transformSpatial(tmp, tmp1, 1, d->subtree_com+3*m->body_rootid[k], con->pos, 0);
 
         // apply (opposite for body 1)
-        mju_subFrom(d->cfrc_ext+6*k, cfrc_com, 6);
+        mju_subFrom(d->cfrc_ext+6*k, tmp, 6);
       }
 
       // body 2
       if ((k = m->geom_bodyid[con->geom2])) {
         // tmp = subtree CoM-based torque_force vector
-        mju_transformSpatial(cfrc_com, cfrc, 1, d->subtree_com+3*m->body_rootid[k], con->pos, 0);
+        mju_transformSpatial(tmp, tmp1, 1, d->subtree_com+3*m->body_rootid[k], con->pos, 0);
 
         // apply
-        mju_addTo(d->cfrc_ext+6*k, cfrc_com, 6);
+        mju_addTo(d->cfrc_ext+6*k, tmp, 6);
       }
     }
 
@@ -1883,41 +1883,73 @@ void mj_rnePostConstraint(const mjModel* m, mjData* d) {
     int k;
     switch (m->eq_type[id]) {
     case mjEQ_CONNECT:
-    case mjEQ_WELD:
-      // cfrc = world-oriented torque:force vector
-      mju_copy3(cfrc + 3, d->efc_force + i);
-      if (m->eq_type[id]==mjEQ_WELD) {
-        mju_copy3(cfrc, d->efc_force + i + 3);
-      } else {
-        mju_zero3(cfrc);  // no torque from connect
-      }
+      // tmp1 = world-oriented torque:force vector
+      mju_zero3(tmp1);  // no torque from connect
+      mju_copy3(tmp1 + 3, d->efc_force + i);
 
       // body 1
       if ((k = m->eq_obj1id[id])) {
-        // transform point on body1: local -> global
-        mj_local2Global(d, pos, 0, eq_data + 3*(m->eq_type[id]==mjEQ_WELD), 0, k, 0);
+        // transform connect point on body1: local -> global
+        mju_rotVecMat(pos, eq_data, d->xmat+9*k);
+        mju_addTo3(pos, d->xpos+3*k);
 
         // tmp = subtree CoM-based torque_force vector
-        mju_transformSpatial(cfrc_com, cfrc, 1, d->subtree_com+3*m->body_rootid[k], pos, 0);
+        mju_transformSpatial(tmp, tmp1, 1, d->subtree_com+3*m->body_rootid[k], pos, 0);
 
         // apply (opposite for body 1)
-        mju_addTo(d->cfrc_ext+6*k, cfrc_com, 6);
+        mju_addTo(d->cfrc_ext+6*k, tmp, 6);
       }
 
       // body 2
       if ((k = m->eq_obj2id[id])) {
-        // transform point on body2: local -> global
-        mj_local2Global(d, pos, 0, eq_data + 3*(m->eq_type[id]==mjEQ_CONNECT), 0, k, 0);
+        // transform connect point on body2: local -> global
+        mju_rotVecMat(pos, eq_data + 3, d->xmat+9*k);
+        mju_addTo3(pos, d->xpos+3*k);
 
         // tmp = subtree CoM-based torque_force vector
-        mju_transformSpatial(cfrc_com, cfrc, 1, d->subtree_com+3*m->body_rootid[k], pos, 0);
+        mju_transformSpatial(tmp, tmp1, 1, d->subtree_com+3*m->body_rootid[k], pos, 0);
 
         // apply
-        mju_subFrom(d->cfrc_ext+6*k, cfrc_com, 6);
+        mju_subFrom(d->cfrc_ext+6*k, tmp, 6);
       }
 
-      // increment rows
-      i += m->eq_type[id]==mjEQ_WELD ? 6 : 3;
+      // increment 3 rows of connect
+      i += 3;
+
+      break;
+
+    case mjEQ_WELD:
+      // tmp1 = world-oriented torque:force vector (efc is f:t, so swap)
+      mju_copy3(tmp1, d->efc_force + i + 3);
+      mju_copy3(tmp1 + 3, d->efc_force + i);
+
+      // body 1
+      if ((k = m->eq_obj1id[id])) {
+        // transform weld point on body1: local -> global
+        mju_rotVecMat(pos, eq_data, d->xmat+9*k);
+        mju_addTo3(pos, d->xpos+3*k);
+
+        // tmp = subtree CoM-based torque_force vector
+        mju_transformSpatial(tmp, tmp1, 1, d->subtree_com+3*m->body_rootid[k], pos, 0);
+
+        // apply (opposite for body 1)
+        mju_addTo(d->cfrc_ext+6*k, tmp, 6);
+      }
+
+      // body 2
+      if ((k = m->eq_obj2id[id])) {
+        // weld force on body2 is always applied at body root
+        mju_copy3(pos, d->xpos+3*k);
+
+        // tmp = subtree CoM-based torque_force vector
+        mju_transformSpatial(tmp, tmp1, 1, d->subtree_com+3*m->body_rootid[k], pos, 0);
+
+        // apply
+        mju_subFrom(d->cfrc_ext+6*k, tmp, 6);
+      }
+
+      // increment 6 rows of weld
+      i += 6;
       break;
 
     case mjEQ_JOINT:
@@ -1935,23 +1967,22 @@ void mj_rnePostConstraint(const mjModel* m, mjData* d) {
   }
 
   // forward pass over bodies: compute cacc, cfrc_int
-  mjtNum cacc[6], cfrc_body[6], cfrc_corr[6];
   mju_zero(d->cfrc_int, 6);
   for (int i=1; i<m->nbody; i++) {
     // get body's first dof address
     int bda = m->body_dofadr[i];
 
     // cacc = cacc_parent + cdofdot * qvel + cdof * qacc
-    mju_mulDofVec(cacc, d->cdof_dot+6*bda, d->qvel+bda, m->body_dofnum[i]);
-    mju_add(d->cacc+6*i, d->cacc+6*m->body_parentid[i], cacc, 6);
-    mju_mulDofVec(cacc, d->cdof+6*bda, d->qacc+bda, m->body_dofnum[i]);
-    mju_addTo(d->cacc+6*i, cacc, 6);
+    mju_mulDofVec(tmp, d->cdof_dot+6*bda, d->qvel+bda, m->body_dofnum[i]);
+    mju_add(d->cacc+6*i, d->cacc+6*m->body_parentid[i], tmp, 6);
+    mju_mulDofVec(tmp, d->cdof+6*bda, d->qacc+bda, m->body_dofnum[i]);
+    mju_addTo(d->cacc+6*i, tmp, 6);
 
     // cfrc_body = cinert * cacc + cvel x (cinert * cvel)
     mju_mulInertVec(cfrc_body, d->cinert+10*i, d->cacc+6*i);
-    mju_mulInertVec(cfrc_corr, d->cinert+10*i, d->cvel+6*i);
-    mju_crossForce(cfrc, d->cvel+6*i, cfrc_corr);
-    mju_addTo(cfrc_body, cfrc, 6);
+    mju_mulInertVec(tmp, d->cinert+10*i, d->cvel+6*i);
+    mju_crossForce(tmp1, d->cvel+6*i, tmp);
+    mju_addTo(cfrc_body, tmp1, 6);
 
     // set cfrc_int = cfrc_body - cfrc_ext
     mju_sub(d->cfrc_int+6*i, cfrc_body, d->cfrc_ext+6*i, 6);

@@ -2884,7 +2884,6 @@ mjCEquality::mjCEquality(mjCModel* _model, mjCDef* _def) {
 
   mjuu_zerovec(data, mjNEQDATA);
   data[1] = 1;
-  data[10] = 1;  // torque:force ratio
 
   // clear internal variables
   obj1id = obj2id = -1;
@@ -2972,11 +2971,6 @@ void mjCEquality::Compile(void) {
   if (type==mjEQ_CONNECT) {
     ((mjCBody*)px1)->MakeLocal(anchor, qdummy, data, qunit);
     mjuu_copyvec(data, anchor, 3);
-  } else if (type==mjEQ_WELD) {
-    if (px2) {
-      ((mjCBody*)px2)->MakeLocal(anchor, qdummy, data, qunit);
-      mjuu_copyvec(data, anchor, 3);
-    }
   }
 }
 

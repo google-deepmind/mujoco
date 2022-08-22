@@ -752,8 +752,8 @@ class mjCEquality : public mjCBase {
   double data[mjNEQDATA];         // type-dependent data
 
  private:
-  mjCEquality(mjCModel* = 0, mjCDef* = 0);  // constructor
-  void Compile(void);                       // compiler
+  mjCEquality(mjCModel* = 0, mjCDef* = 0);// constructor
+  void Compile(void);                     // compiler
 
   int obj1id;                     // id of object 1
   int obj2id;                     // id of object 2

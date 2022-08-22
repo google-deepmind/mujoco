@@ -1606,31 +1606,33 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
   objtype = mjOBJ_EQUALITY;
   category = mjCAT_DECOR;
   if (vopt->flags[mjVIS_CONSTRAINT] && (category & catmask) && m->neq) {
-    // connect or weld
+    // connect
     for (int i=0; i<m->neq; i++) {
-      if (m->eq_active[i] && (m->eq_type[i]==mjEQ_CONNECT || m->eq_type[i]==mjEQ_WELD)) {
+      if (m->eq_active[i] && m->eq_type[i]==mjEQ_CONNECT) {
         // compute endpoints in global coordinates
-        int j = m->eq_obj1id[i], k = m->eq_obj2id[i];
-        mju_rotVecMat(vec, m->eq_data+mjNEQDATA*i+3*(m->eq_type[i]==mjEQ_WELD), d->xmat+9*j);
+        int j = m->eq_obj1id[i];
+        int k = m->eq_obj2id[i];
+        mju_rotVecMat(vec, m->eq_data+mjNEQDATA*i, d->xmat+9*j);
         mju_addTo3(vec, d->xpos+3*j);
-        mju_rotVecMat(end, m->eq_data+mjNEQDATA*i+3*(m->eq_type[i]==mjEQ_CONNECT), d->xmat+9*k);
+        mju_rotVecMat(end, m->eq_data+mjNEQDATA*i+3, d->xmat+9*k);
         mju_addTo3(end, d->xpos+3*k);
+
+        // connect endpoints
+        START
 
         // construct geom
         sz[0] = scl * m->vis.scale.constraint;
+        mjv_makeConnector(thisgeom, mjGEOM_CAPSULE, sz[0],
+                          vec[0], vec[1], vec[2],
+                          end[0], end[1], end[2]);
 
-        START
-        mjv_initGeom(thisgeom, mjGEOM_SPHERE, sz, vec, d->xmat+9*j, m->vis.rgba.connect);
+        f2f(thisgeom->rgba, m->vis.rgba.constraint, 4);
+
+        // label flag
         if (vopt->label==mjLABEL_CONSTRAINT) {
           makeLabel(m, mjOBJ_EQUALITY, i, thisgeom->label);
         }
-        FINISH
 
-        START
-        mjv_initGeom(thisgeom, mjGEOM_SPHERE, sz, end, d->xmat+9*k, m->vis.rgba.constraint);
-        if (vopt->label==mjLABEL_CONSTRAINT) {
-          makeLabel(m, mjOBJ_EQUALITY, i, thisgeom->label);
-        }
         FINISH
       }
     }
