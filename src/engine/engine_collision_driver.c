@@ -725,7 +725,7 @@ void mj_collideGeoms(const mjModel* m, mjData* d, int g1, int g2, int flg_user, 
   // add contact returned by collision detector
   for (i=0; i<num; i++) {
     // set contact data
-    if (condim > 6 || condim < 0) {  // SHOULD NOT OCCUR
+    if (condim > 6 || condim < 1) {  // SHOULD NOT OCCUR
       mju_error_i("Invalid condim value: %d", i);
     }
     con[i].dim = condim;
