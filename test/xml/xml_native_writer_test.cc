@@ -52,6 +52,20 @@ using ::testing::NotNull;
 
 using XMLWriterTest = MujocoTest;
 
+TEST_F(XMLWriterTest, SavesDisableSensor) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option>
+      <flag sensor="disable"/>
+    </option>
+  </mujoco>
+  )";
+  mjModel* model = LoadModelFromString(xml);
+  std::string saved_xml = SaveAndReadXml(model);
+  EXPECT_THAT(saved_xml, HasSubstr("sensor=\"disable\""));
+  mj_deleteModel(model);
+}
+
 TEST_F(XMLWriterTest, KeepsEmptyClasses) {
   static constexpr char xml[] = R"(
   <mujoco>

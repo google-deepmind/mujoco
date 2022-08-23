@@ -752,6 +752,7 @@ void mjXWriter::Option(XMLElement* root) {
     WRITEDSBL("filterparent",   mjDSBL_FILTERPARENT)
     WRITEDSBL("actuation",      mjDSBL_ACTUATION)
     WRITEDSBL("refsafe",        mjDSBL_REFSAFE)
+    WRITEDSBL("sensor",         mjDSBL_SENSOR)
 #undef WRITEDSBL
 
 #define WRITEENBL(NAME, MASK) \

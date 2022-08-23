@@ -86,8 +86,9 @@ mjtDisableBit
        mjDSBL_FILTERPARENT = 1<<9,     // remove collisions with parent body
        mjDSBL_ACTUATION    = 1<<10,    // apply actuation forces
        mjDSBL_REFSAFE      = 1<<11,    // integrator safety: make ref[0]>=2*timestep
+       mjDSBL_SENSOR       = 1<<12,    // sensors
 
-       mjNDISABLE          = 12        // number of disable flags
+       mjNDISABLE          = 13        // number of disable flags
    } mjtDisableBit;
 
 | Defined in `mjmodel.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjmodel.h>`_

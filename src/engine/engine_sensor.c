@@ -193,6 +193,11 @@ void mj_sensorPos(const mjModel* m, mjData* d) {
   int ne = d->ne, nf = d->nf, nefc = d->nefc;
   mjtNum rvec[3], *xpos, *xmat, *xpos_ref, *xmat_ref;
 
+  // disabled sensors: return
+  if (mjDISABLED(mjDSBL_SENSOR)) {
+    return;
+  }
+
   // process sensors matching stage
   for (int i=0; i<m->nsensor; i++) {
     if (m->sensor_needstage[i]==mjSTAGE_POS) {
@@ -349,6 +354,11 @@ void mj_sensorVel(const mjModel* m, mjData* d) {
   int ne = d->ne, nf = d->nf, nefc = d->nefc;
   mjtNum xvel[6];
 
+  // disabled sensors: return
+  if (mjDISABLED(mjDSBL_SENSOR)) {
+    return;
+  }
+
   // process sensors matching stage
   int subtreeVel = 0;
   for (int i=0; i<m->nsensor; i++) {
@@ -501,6 +511,11 @@ void mj_sensorAcc(const mjModel* m, mjData* d) {
   int ne = d->ne, nf = d->nf, nefc = d->nefc;
   mjtNum tmp[6], conforce[6], conray[3];
   mjContact* con;
+
+  // disabled sensors: return
+  if (mjDISABLED(mjDSBL_SENSOR)) {
+    return;
+  }
 
   // process sensors matching stage
   int rnePost = 0;

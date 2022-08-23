@@ -51,7 +51,8 @@ const char* mjDISABLESTRING[mjNDISABLE] = {
   "Warmstart",
   "Filterparent",
   "Actuation",
-  "Refsafe"
+  "Refsafe",
+  "Sensor"
 };
 
 

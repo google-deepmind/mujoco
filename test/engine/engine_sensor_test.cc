@@ -32,21 +32,65 @@
 namespace mujoco {
 namespace {
 
+const mjtNum tol = 1e-14;  // nearness tolerance for floating point numbers
+
 // returns as a vector the measured values from sensor with index `id`
-static std::vector<mjtNum> GetSensor(const mjModel* model, const mjData* data, int id) {
-  return std::vector<mjtNum>(data->sensordata + model->sensor_adr[id],
-                             data->sensordata + model->sensor_adr[id] + model->sensor_dim[id]);
+static std::vector<mjtNum> GetSensor(const mjModel* model,
+                                     const mjData* data,
+                                     int id) {
+  return std::vector<mjtNum>(
+      data->sensordata + model->sensor_adr[id],
+      data->sensordata + model->sensor_adr[id] + model->sensor_dim[id]);
 }
-
-
-// --------------------- test relative frame sensors  --------------------------
 
 using ::testing::Pointwise;
 using ::testing::DoubleNear;
 using ::testing::StrEq;
-using RelativeFrameSensorTest = MujocoTest;
 
-const mjtNum tol = 1e-14;  // nearness tolerance for floating point numbers
+using SensorTest = MujocoTest;
+
+// --------------------- test sensor disableflag  -----------------------------
+
+// hand-picked positions and orientations for simple expected values
+TEST_F(SensorTest, DisableSensors) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <sensor>
+      <clock/>
+    </sensor>
+  </mujoco>
+  )";
+  mjModel* model = LoadModelFromString(xml, 0, 0);
+  mjData* data = mj_makeData(model);
+
+  // before calling anything, check that sensors are initialised to 0
+  EXPECT_EQ(data->sensordata[0], 0.0);
+
+  // call mj_step, mj_step1, expect clock to be incremented by timestep
+  mj_step(model, data);
+  mj_step1(model, data);
+  EXPECT_EQ(data->sensordata[0], model->opt.timestep);
+
+  // disable sensors, call mj_step, mj_step1, expect clock to not increment
+  model->opt.disableflags |= mjDSBL_SENSOR;
+  mj_step(model, data);
+  mj_step1(model, data);
+  EXPECT_EQ(data->time, 2*model->opt.timestep);
+  EXPECT_EQ(data->sensordata[0], model->opt.timestep);
+
+  // re-enable sensors, call mj_step, mj_step1, expect clock to match time
+  model->opt.disableflags = 0;
+  mj_step(model, data);
+  mj_step1(model, data);
+  EXPECT_EQ(data->time, data->sensordata[0]);
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
+// --------------------- test relative frame sensors  --------------------------
+
+using RelativeFrameSensorTest = MujocoTest;
 
 // hand-picked positions and orientations for simple expected values
 TEST_F(RelativeFrameSensorTest, ReferencePosMat) {
@@ -161,7 +205,7 @@ TEST_F(RelativeFrameSensorTest, ReferencePosMatQuat) {
   std::vector expected_values(data->sensordata, data->sensordata+nsensordata/2);
 
   // set qpos to arbitrary values, call mj_forward
-  for (int i=0; i<7; i++) {
+  for (int i=0; i < 7; i++) {
     data->qpos[i] = i+1;
   }
   mj_forward(model, data);

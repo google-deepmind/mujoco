@@ -94,9 +94,9 @@ in the second column of the table have the following meaning:
 |                          |    |    +-------------------------+-------------------------+-------------------------+ |
 |                          |    |    | :at:`filterparent`      | :at:`actuation`         | :at:`refsafe`           | |
 |                          |    |    +-------------------------+-------------------------+-------------------------+ |
-|                          |    |    | :at:`override`          | :at:`energy`            | :at:`fwdinv`            | |
+|                          |    |    | :at:`sensor`            | :at:`override`          | :at:`energy`            | |
 |                          |    |    +-------------------------+-------------------------+-------------------------+ |
-|                          |    |    | :at:`sensornoise`       | :at:`multiccd`          |                         | |
+|                          |    |    | :at:`fwdinv`            | :at:`sensornoise`       | :at:`multiccd`          | |
 |                          |    |    +-------------------------+-------------------------+-------------------------+ |
 +--------------------------+----+------------------------------------------------------------------------------------+
 | |_|:el:`size`            | \* | .. table::                                                                         |
@@ -1847,6 +1847,9 @@ from its default.
    simulation timestep. Recall that solref[0] is the stiffness of the virtual spring-damper used for constraint
    stabilization. If this setting is enabled, the solver uses max(solref[0], 2*timestep) in place of solref[0]
    separately for each active constraint.
+:at:`sensor`: :at-val:`[disable, enable], "enable"`
+   This flag disables all computations related to sensors. When disabled, sensor values will remain constant, either
+   zeros if disabled at the start of simulation, or, if disabled at runtime, whatever value was last computed.
 :at:`override`: :at-val:`[disable, enable], "disable"`
    This flag enables to :ref:`Contact override <COverride>` mechanism explained above.
 :at:`energy`: :at-val:`[disable, enable], "disable"`
@@ -4265,7 +4268,7 @@ specify them independently.
    If true, the internal state (activation) associated with this actuator is automatically clamped to :at:`actrange` at
    runtime. If false, activation clamping is disabled. If auto, activation clamping will automatically be set to true
    if :at:`actrange` is defined without explicitly setting this attribute to "true". See the :ref:`Activation clamping <CActRange>`
-   section for more details. 
+   section for more details.
 :at:`ctrlrange`: :at-val:`real(2), "0 0"`
    Range for clamping the control input. The compiler expects the first value to be smaller than the second value.
 :at:`forcerange`: :at-val:`real(2), "0 0"`
