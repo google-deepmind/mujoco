@@ -213,6 +213,16 @@ TEST_F(MujocoTest, FlippedFaceFails) {
   EXPECT_THAT(error.data(), HasSubstr("faces have inconsistent orientation"));
 }
 
+void CheckTetrahedronWasRescaled(mjModel* model) {
+  // the rotated and rescaled positions of the standard tetrahedron
+  mjtNum vert[] = {
+    -mju_sqrt(3)/4, 0., 0, mju_sqrt(3)/12, 0, mju_sqrt(6)/3, mju_sqrt(3)/12,
+    -mju_sqrt(2)/2, -mju_sqrt(6)/6, mju_sqrt(3)/12, mju_sqrt(2)/2, -mju_sqrt(6)/6};
+  for (int i=0; i<12; ++i) {
+    EXPECT_NEAR(model->mesh_vert[i], vert[i], std::numeric_limits<float>::epsilon());
+  }
+}
+
 TEST_F(MujocoTest, FlippedFaceAllowedWorld) {
   static constexpr char xml[] = R"(
   <mujoco>
@@ -229,6 +239,7 @@ TEST_F(MujocoTest, FlippedFaceAllowedWorld) {
   std::array<char, 1024> error;
   mjModel* model = LoadModelFromString(xml, error.data(), error.size());
   EXPECT_THAT(model, testing::NotNull());
+  CheckTetrahedronWasRescaled(model);
   mj_deleteModel(model);
 }
 
@@ -250,6 +261,7 @@ TEST_F(MujocoTest, FlippedFaceAllowedNoMass) {
   std::array<char, 1024> error;
   mjModel* model = LoadModelFromString(xml, error.data(), error.size());
   EXPECT_THAT(model, testing::NotNull());
+  CheckTetrahedronWasRescaled(model);
   mj_deleteModel(model);
 }
 
@@ -272,6 +284,7 @@ TEST_F(MujocoTest, FlippedFaceAllowedInertial) {
   std::array<char, 1024> error;
   mjModel* model = LoadModelFromString(xml, error.data(), error.size());
   EXPECT_THAT(model, testing::NotNull());
+  CheckTetrahedronWasRescaled(model);
   mj_deleteModel(model);
 }
 

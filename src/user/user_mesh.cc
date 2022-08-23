@@ -86,6 +86,7 @@ mjCMesh::mjCMesh(mjCModel* _model, mjCDef* _def) {
   validvolume = true;
   valideigenvalue = true;
   validinequality = true;
+  processed = false;
 
   // reset to default if given
   if (_def) {
@@ -254,9 +255,8 @@ void mjCMesh::Compile(const mjVFS* vfs) {
   }
 
   // scale, center, orient, compute mass and inertia
-  if (validorientation) {
-    Process();
-  }
+  Process();
+  processed = true;
 }
 
 
@@ -1165,6 +1165,9 @@ void mjCMesh::Process() {
 
 // check that the mesh is valid
 void mjCMesh::CheckMesh() {
+  if (!processed) {
+    return;
+  }
   if (!validorientation)
     throw mjCError(this, "faces have inconsistent orientation: %s", name.c_str());
   if (!validarea)
@@ -1178,24 +1181,16 @@ void mjCMesh::CheckMesh() {
 }
 
 
-// compute inertia
+// get inertia pointer
 double* mjCMesh::GetInertiaBoxPtr(mjtMeshType type) {
   CheckMesh();
-  if (type==mjSHELL_MESH) {
-    return boxsz_surface;
-  } else {
-    return boxsz_volume;
-  }
+  return type==mjSHELL_MESH ? boxsz_surface : boxsz_volume;
 }
 
 
 double& mjCMesh::GetVolumeRef(mjtMeshType type) {
   CheckMesh();
-  if (type) {
-    return surface;
-  } else {
-    return volume;
-  }
+  return type==mjSHELL_MESH ? surface : volume;
 }
 
 
