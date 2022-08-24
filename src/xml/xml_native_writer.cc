@@ -690,7 +690,9 @@ void mjXWriter::Compiler(XMLElement* root) {
   if (!model->usethread) {
     WriteAttrTxt(section, "usethread", "false");
   }
-  WriteAttrTxt(section, "exactmeshinertia", FindValue(bool_map, 2, model->exactmeshinertia));
+  if (model->exactmeshinertia) {
+    WriteAttrTxt(section, "exactmeshinertia", "true");
+  }
 }
 
 
