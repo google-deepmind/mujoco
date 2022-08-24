@@ -44,10 +44,12 @@ General
 
 Deleted/deprecated features
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
 - Removed ``distance`` constraints.
 
 Bug fixes
 ^^^^^^^^^
+
 - Fixed rendering of some transparent geoms in reflection.
 - Fixed ``intvelocity`` defaults parsing.
 
