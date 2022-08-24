@@ -540,7 +540,7 @@ void mjCMesh::LoadOBJ(const mjVFS* vfs) {
     std::stringstream msg;
     msg << "could not parse OBJ file '" << filename << "': \n"
         << objReader.Error();
-    throw mjCError(this, msg.str().c_str());
+    throw mjCError(this, "%s", msg.str().c_str());
   }
 
   auto attrib = objReader.GetAttrib();
