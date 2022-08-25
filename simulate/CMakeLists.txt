@@ -97,25 +97,29 @@ if(NOT TARGET lodepng)
   endif()
 endif()
 
-# mjsimulate library
-add_library(mjsimulate STATIC)
+# Simulate library
+add_library(libsimulate STATIC)
+add_library(mujoco::libsimulate ALIAS libsimulate)
+
 target_sources(
-  mjsimulate
+  libsimulate
   PUBLIC simulate.h
          array_safety.h
+         glfw_dispatch.h
+         glfw_dispatch.cc
          simulate.cc
          uitools.h
-         uitools.c
+         uitools.cc
 )
-target_include_directories(mjsimulate PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-target_compile_definitions(mjsimulate PUBLIC MJSIMULATE_STATIC)
-target_compile_options(mjsimulate PUBLIC ${MUJOCO_SIMULATE_COMPILE_OPTIONS})
-target_link_libraries(mjsimulate PUBLIC glfw lodepng mujoco::mujoco)
-target_link_options(mjsimulate PRIVATE ${MUJOCO_SIMULATE_LINK_OPTIONS})
+target_include_directories(libsimulate PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_compile_definitions(libsimulate PUBLIC MJSIMULATE_STATIC)
+target_compile_options(libsimulate PUBLIC ${MUJOCO_SIMULATE_COMPILE_OPTIONS})
+target_link_libraries(libsimulate PUBLIC glfw lodepng mujoco::mujoco)
+target_link_options(libsimulate PRIVATE ${MUJOCO_SIMULATE_LINK_OPTIONS})
 
 if(APPLE)
-  target_sources(mjsimulate PRIVATE macos_save.mm)
-  target_link_libraries(mjsimulate PUBLIC "-framework Cocoa")
+  target_sources(libsimulate PRIVATE macos_save.mm)
+  target_link_libraries(libsimulate PUBLIC "-framework Cocoa")
 endif()
 
 # Build simulate executable
@@ -142,7 +146,7 @@ endif()
 
 target_link_libraries(
   simulate
-  mjsimulate
+  libsimulate
   mujoco::mujoco
   glfw
   Threads::Threads

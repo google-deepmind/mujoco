@@ -23,12 +23,15 @@
 
 #include <mujoco/mujoco.h>
 #include <mujoco/mjxmacro.h>
+#include "glfw_dispatch.h"
 #include "simulate.h"
 #include "array_safety.h"
 
 namespace {
 namespace mj = ::mujoco;
 namespace mju = ::mujoco::sample_util;
+
+using ::mujoco::Glfw;
 
 // constants
 const double syncmisalign = 0.1;    // maximum time mis-alignment before re-sync
@@ -158,7 +161,7 @@ void PhysicsLoop(mj::Simulate& sim) {
         // running
         if (sim.run) {
           // record cpu time at start of iteration
-          double tmstart = glfwGetTime();
+          double tmstart = Glfw().glfwGetTime();
 
           // inject noise
           if (sim.ctrlnoisestd) {
@@ -195,8 +198,8 @@ void PhysicsLoop(mj::Simulate& sim) {
           // in-sync
           else {
             // step while simtime lags behind cputime, and within safefactor
-            while ((d->time*sim.slow_down-simsync) < (glfwGetTime()-cpusync) &&
-                   (glfwGetTime()-tmstart) < refreshfactor/sim.vmode.refreshRate) {
+            while ((d->time*sim.slow_down-simsync) < (Glfw().glfwGetTime()-cpusync) &&
+                   (Glfw().glfwGetTime()-tmstart) < refreshfactor/sim.vmode.refreshRate) {
               // clear old perturbations, apply new
               mju_zero(d->xfrc_applied, 6*m->nbody);
               sim.applyposepertubations(0);  // move mocap bodies only
@@ -268,7 +271,7 @@ int main(int argc, const char** argv) {
   auto sim = std::make_unique<mj::Simulate>();
 
   // init GLFW
-  if (!glfwInit()) {
+  if (!Glfw().glfwInit()) {
     mju_error("could not initialize GLFW");
   }
 
@@ -286,7 +289,7 @@ int main(int argc, const char** argv) {
 
   // terminate GLFW (crashes with Linux NVidia drivers)
 #if defined(__APPLE__) || defined(_WIN32)
-  glfwTerminate();
+  Glfw().glfwTerminate();
 #endif
 
   return 0;

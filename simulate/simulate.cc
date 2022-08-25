@@ -23,9 +23,12 @@
 #include <string>
 #include <thread>
 
+#include <GLFW/glfw3.h>
+#include "lodepng.h"
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjvisualize.h>
 #include <mujoco/mjxmacro.h>
+#include "glfw_dispatch.h"
 #include "uitools.h"
 #include "array_safety.h"
 
@@ -45,6 +48,8 @@ static std::string getSavePath(const char* filename) {
 namespace {
 namespace mj = ::mujoco;
 namespace mju = ::mujoco::sample_util;
+
+using ::mujoco::Glfw;
 
 //------------------------------------------- global -----------------------------------------------
 
@@ -925,12 +930,12 @@ void copykey(mj::Simulate* sim) {
   mju::strcat_arr(clipboard, "'/>");
 
   // copy to clipboard
-  glfwSetClipboardString(sim->window, clipboard);
+  Glfw().glfwSetClipboardString(sim->window, clipboard);
 }
 
 // millisecond timer, for MuJoCo built-in profiler
 mjtNum timer() {
-  return 1000*glfwGetTime();
+  return 1000*Glfw().glfwGetTime();
 }
 
 // clear all times
@@ -965,7 +970,7 @@ void copycamera(mj::Simulate* sim) {
                    camera[0].up[0], camera[0].up[1], camera[0].up[2]);
 
   // copy spec into clipboard
-  glfwSetClipboardString(sim->window, clipboard);
+  Glfw().glfwSetClipboardString(sim->window, clipboard);
 }
 
 // update UI 0 when MuJoCo structures change (except for joint sliders)
@@ -1026,7 +1031,7 @@ void uiLayout(mjuiState* state) {
   // rect 0: entire framebuffer
   rect[0].left = 0;
   rect[0].bottom = 0;
-  glfwGetFramebufferSize(sim->window, &rect[0].width, &rect[0].height);
+  Glfw().glfwGetFramebufferSize(sim->window, &rect[0].width, &rect[0].height);
 
   // rect 1: UI 0
   rect[1].left = 0;
@@ -1119,29 +1124,29 @@ void uiEvent(mjuiState* state) {
         break;
 
       case 9:             // Full screen
-        if (glfwGetWindowMonitor(sim->window)) {
+        if (Glfw().glfwGetWindowMonitor(sim->window)) {
           // restore window from saved data
-          glfwSetWindowMonitor(sim->window, nullptr, sim->windowpos[0], sim->windowpos[1],
-                               sim->windowsize[0], sim->windowsize[1], 0);
+          Glfw().glfwSetWindowMonitor(sim->window, nullptr, sim->windowpos[0], sim->windowpos[1],
+                                      sim->windowsize[0], sim->windowsize[1], 0);
         }
 
         // currently windowed: switch to full screen
         else {
           // save window data
-          glfwGetWindowPos(sim->window, sim->windowpos, sim->windowpos+1);
-          glfwGetWindowSize(sim->window, sim->windowsize, sim->windowsize+1);
+          Glfw().glfwGetWindowPos(sim->window, sim->windowpos, sim->windowpos+1);
+          Glfw().glfwGetWindowSize(sim->window, sim->windowsize, sim->windowsize+1);
 
           // switch
-          glfwSetWindowMonitor(sim->window, glfwGetPrimaryMonitor(), 0, 0,
-                               sim->vmode.width, sim->vmode.height, sim->vmode.refreshRate);
+          Glfw().glfwSetWindowMonitor(sim->window, Glfw().glfwGetPrimaryMonitor(), 0, 0,
+                                      sim->vmode.width, sim->vmode.height, sim->vmode.refreshRate);
         }
 
         // reinstante vsync, just in case
-        glfwSwapInterval(sim->vsync);
+        Glfw().glfwSwapInterval(sim->vsync);
         break;
 
       case 10:            // Vertical sync
-        glfwSwapInterval(sim->vsync);
+        Glfw().glfwSwapInterval(sim->vsync);
         break;
       }
 
@@ -1617,7 +1622,7 @@ void Simulate::loadmodel() {
   if (this->window && this->m->names) {
     char title[200] = "Simulate : ";
     mju::strcat_arr(title, this->m->names);
-    glfwSetWindowTitle(this->window, title);
+    Glfw().glfwSetWindowTitle(this->window, title);
   }
 
   // set keyframe range and divisions
@@ -1648,7 +1653,7 @@ void Simulate::prepare() {
   static double lastupdatetm = 0;
 
   // update interval, save update time
-  double tmnow = glfwGetTime();
+  double tmnow = Glfw().glfwGetTime();
   double interval = tmnow - lastupdatetm;
   interval = mjMIN(1, mjMAX(0.0001, interval));
   lastupdatetm = tmnow;
@@ -1734,7 +1739,7 @@ void Simulate::render() {
     }
 
     // finalize
-    glfwSwapBuffers(this->window);
+    Glfw().glfwSwapBuffers(this->window);
 
     return;
   }
@@ -1822,7 +1827,7 @@ void Simulate::render() {
   }
 
   // finalize
-  glfwSwapBuffers(this->window);
+  Glfw().glfwSwapBuffers(this->window);
 }
 
 
@@ -1836,27 +1841,27 @@ void Simulate::renderloop() {
   mjcb_time = timer;
 
   // multisampling
-  glfwWindowHint(GLFW_SAMPLES, 4);
-  glfwWindowHint(GLFW_VISIBLE, 1);
+  Glfw().glfwWindowHint(GLFW_SAMPLES, 4);
+  Glfw().glfwWindowHint(GLFW_VISIBLE, 1);
 
   // get videomode and save
-  this->vmode = *glfwGetVideoMode(glfwGetPrimaryMonitor());
+  this->vmode = *Glfw().glfwGetVideoMode(Glfw().glfwGetPrimaryMonitor());
 
   // create window
-  this->window = glfwCreateWindow((2*this->vmode.width)/3, (2*this->vmode.height)/3,
-                                  "Simulate", nullptr, nullptr);
+  this->window = Glfw().glfwCreateWindow((2*this->vmode.width)/3, (2*this->vmode.height)/3,
+                                         "Simulate", nullptr, nullptr);
   if (!this->window) {
-    glfwTerminate();
+    Glfw().glfwTerminate();
     mju_error("could not create window");
   }
 
   // save window position and size
-  glfwGetWindowPos(this->window, this->windowpos, this->windowpos+1);
-  glfwGetWindowSize(this->window, this->windowsize, this->windowsize+1);
+  Glfw().glfwGetWindowPos(this->window, this->windowpos, this->windowpos+1);
+  Glfw().glfwGetWindowSize(this->window, this->windowsize, this->windowsize+1);
 
   // make context current, set v-sync
-  glfwMakeContextCurrent(this->window);
-  glfwSwapInterval(this->vsync);
+  Glfw().glfwMakeContextCurrent(this->window);
+  Glfw().glfwSwapInterval(this->vsync);
 
   // init abstract visualization
   mjv_defaultCamera(&this->cam);
@@ -1906,7 +1911,7 @@ void Simulate::renderloop() {
   uiModify(this->window, &this->ui1, &this->uistate, &this->con);
 
   // run event loop
-  while (!glfwWindowShouldClose(this->window) && !this->exitrequest.load()) {
+  while (!Glfw().glfwWindowShouldClose(this->window) && !this->exitrequest.load()) {
     {
       const std::lock_guard<std::mutex> lock(this->mtx);
 
@@ -1918,7 +1923,7 @@ void Simulate::renderloop() {
       }
 
       // handle events (calls all callbacks)
-      glfwPollEvents();
+      Glfw().glfwPollEvents();
 
       // prepare to render
       this->prepare();
