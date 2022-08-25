@@ -3538,7 +3538,7 @@ This element creates a camera, which moves with the body where it is defined. To
 world body. The cameras created here are in addition to the default free camera which is always defined and is adjusted
 via the :ref:`visual <visual>` element. Internally MuJoCo uses a flexible camera model, where the viewpoint and
 projection surface are adjusted independently so as to obtain oblique projections needed for virtual environments. This
-functionality however is not accessible through MJCF. Instead, the cameras created with this element (as well as3 the
+functionality however is not accessible through MJCF. Instead, the cameras created with this element (as well as the
 free camera) have a viewpoint that is always centered in front of the projection surface. The viewpoint coincides with
 the center of the camera frame. The camera is looking along the -Z axis of its frame. The +X axis points to the right,
 and the +Y axis points up. Thus the frame position and orientation are the key adjustments that need to be made here.
