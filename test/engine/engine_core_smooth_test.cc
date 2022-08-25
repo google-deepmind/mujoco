@@ -56,10 +56,9 @@ TEST_F(CoreSmoothTest, MjKinematicsWorldXipos) {
 
 // --------------------------- connect constraint ------------------------------
 
-TEST_F(CoreSmoothTest, RnePostConnectForceSlide) {
-  static const char* const kModelFilePath =
-      "engine/testdata/core_smooth/rne_post/connect/force_slide.xml";
-  const std::string xml_path = GetTestDataFilePath(kModelFilePath);
+// test that bodies hanging on connects lead to expected force sensor readings
+void TestConnect(const char* const filepath) {
+  const std::string xml_path = GetTestDataFilePath(filepath);
   mjModel* model =
       mj_loadXML(xml_path.c_str(), nullptr, 0, 0);
   mjData* data = mj_makeData(model);
@@ -72,91 +71,49 @@ TEST_F(CoreSmoothTest, RnePostConnectForceSlide) {
   }
   mj_deleteData(data);
   mj_deleteModel(model);
+}
+
+
+TEST_F(CoreSmoothTest, RnePostConnectForceSlide) {
+  constexpr char kModelFilePath[] =
+      "engine/testdata/core_smooth/rne_post/connect/force_slide.xml";
+  TestConnect(kModelFilePath);
 }
 
 
 TEST_F(CoreSmoothTest, RnePostConnectForceSlideRotated) {
-  static const char* const kModelFilePath =
+  constexpr char kModelFilePath[] =
       "engine/testdata/core_smooth/rne_post/connect/force_slide_rotated.xml";
-  const std::string xml_path = GetTestDataFilePath(kModelFilePath);
-  mjModel* model =
-      mj_loadXML(xml_path.c_str(), nullptr, 0, 0);
-  mjData* data = mj_makeData(model);
-  // settle physics:
-  for (int i=0; i < 1000; i++) {
-    mj_step(model, data);
-  }
-  for (int i=0; i < 3; i++) {
-    EXPECT_NEAR(data->sensordata[i], model->sensor_user[i], 1e-6);
-  }
-  mj_deleteData(data);
-  mj_deleteModel(model);
+  TestConnect(kModelFilePath);
 }
 
 
 TEST_F(CoreSmoothTest, RnePostConnectForceFree) {
-  static const char* const kModelFilePath =
+  constexpr char kModelFilePath[] =
       "engine/testdata/core_smooth/rne_post/connect/force_free.xml";
-  const std::string xml_path = GetTestDataFilePath(kModelFilePath);
-  mjModel* model =
-      mj_loadXML(xml_path.c_str(), nullptr, 0, 0);
-  mjData* data = mj_makeData(model);
-  // settle physics:
-  for (int i=0; i < 1000; i++) {
-    mj_step(model, data);
-  }
-  for (int i=0; i < 3; i++) {
-    EXPECT_NEAR(data->sensordata[i], model->sensor_user[i], 1e-6);
-  }
-  mj_deleteData(data);
-  mj_deleteModel(model);
+  TestConnect(kModelFilePath);
 }
 
 
 TEST_F(CoreSmoothTest, RnePostConnectTorque) {
-  static const char* const kModelFilePath =
+  constexpr char kModelFilePath[] =
       "engine/testdata/core_smooth/rne_post/connect/torque_free.xml";
-  const std::string xml_path = GetTestDataFilePath(kModelFilePath);
-  mjModel* model =
-      mj_loadXML(xml_path.c_str(), nullptr, 0, 0);
-  mjData* data = mj_makeData(model);
-  // settle physics:
-  for (int i=0; i < 1000; i++) {
-    mj_step(model, data);
-  }
-  for (int i=0; i < 3; i++) {
-    EXPECT_NEAR(data->sensordata[i], model->sensor_user[i], 1e-6);
-  }
-  mj_deleteData(data);
-  mj_deleteModel(model);
+  TestConnect(kModelFilePath);
 }
 
 
 TEST_F(CoreSmoothTest, RnePostConnectMultipleConstraints) {
-  static const char* const kModelFilePath =
+  constexpr char kModelFilePath[] =
       "engine/testdata/core_smooth/rne_post/connect/multiple_constraints.xml";
-  const std::string xml_path = GetTestDataFilePath(kModelFilePath);
-  mjModel* model =
-      mj_loadXML(xml_path.c_str(), nullptr, 0, 0);
-  mjData* data = mj_makeData(model);
-  // settle physics:
-  for (int i=0; i < 1000; i++) {
-    mj_step(model, data);
-  }
-  for (int i=0; i < 3; i++) {
-    EXPECT_NEAR(data->sensordata[i], model->sensor_user[i], 1e-6);
-  }
-  mj_deleteData(data);
-  mj_deleteModel(model);
+  TestConnect(kModelFilePath);
 }
 
 
 // --------------------------- weld constraint ---------------------------------
 
-TEST_F(CoreSmoothTest, RnePostWeldForceFree) {
-  static const char* const kModelFilePath =
-      "engine/testdata/core_smooth/rne_post/weld/force_free.xml";
-  const std::string xml_path = GetTestDataFilePath(kModelFilePath);
+// test that bodies attached with welds lead to expected force sensor readings
+void TestWeld(const char* const filepath) {
+  const std::string xml_path = GetTestDataFilePath(filepath);
   mjModel* model =
       mj_loadXML(xml_path.c_str(), nullptr, 0, 0);
   mjData* data = mj_makeData(model);
@@ -177,75 +134,65 @@ TEST_F(CoreSmoothTest, RnePostWeldForceFree) {
 }
 
 
-TEST_F(CoreSmoothTest, RnePostWeldForceFreeRotatoed) {
-  static const char* const kModelFilePath =
+TEST_F(CoreSmoothTest, RnePostWeldForceFree) {
+  constexpr char kModelFilePath[] =
+      "engine/testdata/core_smooth/rne_post/weld/force_free.xml";
+  TestWeld(kModelFilePath);
+}
+
+
+TEST_F(CoreSmoothTest, RnePostWeldForceFreeRotated) {
+  constexpr char kModelFilePath[] =
       "engine/testdata/core_smooth/rne_post/weld/force_free_rotated.xml";
-  const std::string xml_path = GetTestDataFilePath(kModelFilePath);
-  mjModel* model =
-      mj_loadXML(xml_path.c_str(), nullptr, 0, 0);
-  mjData* data = mj_makeData(model);
-  // settle physics:
-  for (int i=0; i < 1000; i++) {
-    mj_step(model, data);
-  }
-  for (int sensor_index=0; sensor_index < model->nsensor; sensor_index++) {
-    for (int i=0; i < 3; i++) {
-      EXPECT_NEAR(
-          data->sensordata[model->sensor_adr[sensor_index] + i],
-          model->sensor_user[model->nuser_sensor*sensor_index + i],
-          1e-6);
-    }
-  }
-  mj_deleteData(data);
-  mj_deleteModel(model);
+  TestWeld(kModelFilePath);
 }
 
 
 TEST_F(CoreSmoothTest, RnePostWeldForceTorqueFree) {
-  static const char* const kModelFilePath =
+  constexpr char kModelFilePath[] =
       "engine/testdata/core_smooth/rne_post/weld/force_torque_free.xml";
-  const std::string xml_path = GetTestDataFilePath(kModelFilePath);
-  mjModel* model =
-      mj_loadXML(xml_path.c_str(), nullptr, 0, 0);
-  mjData* data = mj_makeData(model);
-  // settle physics:
-  for (int i=0; i < 1000; i++) {
-    mj_step(model, data);
-  }
-  for (int sensor_index=0; sensor_index < model->nsensor; sensor_index++) {
-    for (int i=0; i < 3; i++) {
-      EXPECT_NEAR(
-          data->sensordata[model->sensor_adr[sensor_index] + i],
-          model->sensor_user[model->nuser_sensor*sensor_index + i],
-          1e-6);
-    }
-  }
-  mj_deleteData(data);
-  mj_deleteModel(model);
+  TestWeld(kModelFilePath);
 }
 
 
 TEST_F(CoreSmoothTest, RnePostWeldForceTorqueFreeRotated) {
-  static const char* const kModelFilePath =
+  constexpr char kModelFilePath[] =
       "engine/testdata/core_smooth/rne_post/weld/force_torque_free_rotated.xml";
-  const std::string xml_path = GetTestDataFilePath(kModelFilePath);
-  mjModel* model =
-      mj_loadXML(xml_path.c_str(), nullptr, 0, 0);
-  mjData* data = mj_makeData(model);
-  // settle physics:
-  for (int i=0; i < 1000; i++) {
-    mj_step(model, data);
-  }
-  for (int sensor_index=0; sensor_index < model->nsensor; sensor_index++) {
-    for (int i=0; i < 3; i++) {
-      EXPECT_NEAR(
-          data->sensordata[model->sensor_adr[sensor_index] + i],
-          model->sensor_user[model->nuser_sensor*sensor_index + i],
-          1e-6);
-    }
-  }
-  mj_deleteData(data);
-  mj_deleteModel(model);
+  TestWeld(kModelFilePath);
+}
+
+
+TEST_F(CoreSmoothTest, WeldRatioForceFree) {
+  constexpr char kModelFilePath[] =
+      "engine/testdata/core_smooth/rne_post/weld/tfratio0_force_free.xml";
+  TestConnect(kModelFilePath);
+}
+
+
+TEST_F(CoreSmoothTest, WeldRatioForceSlide) {
+  constexpr char kModelFilePath[] =
+      "engine/testdata/core_smooth/rne_post/weld/tfratio0_force_slide.xml";
+  TestConnect(kModelFilePath);
+}
+
+
+TEST_F(CoreSmoothTest, WeldRatioTorqueFree) {
+  constexpr char kModelFilePath[] =
+      "engine/testdata/core_smooth/rne_post/weld/tfratio0_torque_free.xml";
+  TestConnect(kModelFilePath);
+}
+
+
+TEST_F(CoreSmoothTest, WeldRatioForceSlideRotated) {
+  constexpr char kModelFilePath[] =
+      "engine/testdata/core_smooth/rne_post/weld/tfratio0_force_slide_rotated.xml";
+  TestConnect(kModelFilePath);
+}
+
+TEST_F(CoreSmoothTest, WeldRatioMultipleConstraints) {
+  constexpr char kModelFilePath[] =
+      "engine/testdata/core_smooth/rne_post/weld/tfratio0_multiple_constraints.xml";
+  TestConnect(kModelFilePath);
 }
 
 

@@ -456,7 +456,9 @@ void mjXWriter::OneEquality(XMLElement* elem, mjCEquality* peq, mjCDef* def) {
     case mjEQ_WELD:
       WriteAttrTxt(elem, "body1", peq->name1);
       WriteAttrTxt(elem, "body2", peq->name2);
-      WriteAttr(elem, "relpose", 7, peq->data);
+      WriteAttr(elem, "anchor", 3, peq->data);
+      WriteAttr(elem, "torquescale", 1, peq->data+10);
+      WriteAttr(elem, "relpose", 7, peq->data+3);
       break;
 
     case mjEQ_JOINT:

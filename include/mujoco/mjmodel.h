@@ -30,7 +30,7 @@
 
 //---------------------------------- sizes ---------------------------------------------------------
 
-#define mjNEQDATA       7         // number of eq_data fields
+#define mjNEQDATA       11        // number of eq_data fields
 #define mjNDYN          10        // number of actuator dynamics parameters
 #define mjNGAIN         10        // number of actuator gain parameters
 #define mjNBIAS         10        // number of actuator bias parameters

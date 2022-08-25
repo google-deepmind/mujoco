@@ -234,8 +234,8 @@ static const char* MJCF[nMJCF][mjXATTRNUM] = {
     {"<"},
         {"connect", "*", "8", "name", "class", "body1", "body2", "anchor",
             "active", "solref", "solimp"},
-        {"weld", "*", "8", "name", "class", "body1", "body2", "relpose",
-            "active", "solref", "solimp"},
+        {"weld", "*", "10", "name", "class", "body1", "body2", "relpose", "anchor",
+            "active", "solref", "solimp", "torquescale"},
         {"joint", "*", "8", "name", "class", "joint1", "joint2", "polycoef",
             "active", "solref", "solimp"},
         {"tendon", "*", "8", "name", "class", "tendon1", "tendon2", "polycoef",
@@ -1311,7 +1311,11 @@ void mjXReader::OneEquality(XMLElement* elem, mjCEquality* pequality) {
     case mjEQ_WELD:
       ReadAttrTxt(elem, "body1", pequality->name1, true);
       ReadAttrTxt(elem, "body2", pequality->name2);
-      ReadAttr(elem, "relpose", mjNEQDATA, pequality->data, text);
+      ReadAttr(elem, "relpose", 7, pequality->data+3, text);
+      ReadAttr(elem, "torquescale", 1, pequality->data+10, text);
+      if (!ReadAttr(elem, "anchor", 3, pequality->data, text)) {
+        mjuu_zerovec(pequality->data, 3);
+      }
       break;
 
     case mjEQ_JOINT:
