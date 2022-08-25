@@ -4064,7 +4064,7 @@ void mjCKey::Compile(const mjModel* m) {
       qpos[i] = (double)m->qpos0[i];
     }
   } else if (qpos.size()!=m->nq) {
-    throw mjCError(this, "key %d: invalid qpos size", 0, id);
+    throw mjCError(this, "key %d: invalid qpos size, expected length %d", nullptr, id, m->nq);
   }
 
   // qvel: allocate or check size
@@ -4074,7 +4074,7 @@ void mjCKey::Compile(const mjModel* m) {
       qvel[i] = 0;
     }
   } else if (qvel.size()!=m->nv) {
-    throw mjCError(this, "key %d: invalid qvel size", 0, id);
+    throw mjCError(this, "key %d: invalid qvel size, expected length %d", nullptr, id, m->nv);
   }
 
   // act: allocate or check size
@@ -4084,7 +4084,7 @@ void mjCKey::Compile(const mjModel* m) {
       act[i] = 0;
     }
   } else if (act.size()!=m->na) {
-    throw mjCError(this, "key %d: invalid act size", 0, id);
+    throw mjCError(this, "key %d: invalid act size, expected length %d", nullptr, id, m->na);
   }
 
   // mpos: allocate or check size
@@ -4101,7 +4101,7 @@ void mjCKey::Compile(const mjModel* m) {
       }
     }
   } else if (mpos.size()!=3*m->nmocap) {
-    throw mjCError(this, "key %d: invalid mpos size", 0, id);
+    throw mjCError(this, "key %d: invalid mpos size, expected length %d", nullptr, id, 3*m->nmocap);
   }
 
   // mquat: allocate or check size
@@ -4119,7 +4119,7 @@ void mjCKey::Compile(const mjModel* m) {
       }
     }
   } else if (mquat.size()!=4*m->nmocap) {
-    throw mjCError(this, "key %d: invalid mquat size", 0, id);
+    throw mjCError(this, "key %d: invalid mquat size, expected length %d", nullptr, id, 4*m->nmocap);
   }
 
   // ctrl: allocate or check size
@@ -4129,7 +4129,7 @@ void mjCKey::Compile(const mjModel* m) {
       ctrl[i] = 0;
     }
   } else if (ctrl.size()!=m->nu) {
-    throw mjCError(this, "key %d: invalid ctrl size", 0, id);
+    throw mjCError(this, "key %d: invalid ctrl size, expected length %d", nullptr, id, m->nu);
   }
 
 }

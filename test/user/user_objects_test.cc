@@ -39,9 +39,11 @@ using ::testing::NotNull;
 
 // ------------------------ test keyframes -------------------------------------
 
+using KeyframeTest = MujocoTest;
+
 constexpr char kKeyframePath[] = "user/testdata/keyframe.xml";
 
-TEST_F(MujocoTest, KeyFrameTest) {
+TEST_F(KeyframeTest, CheckValues) {
   const std::string xml_path = GetTestDataFilePath(kKeyframePath);
   mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, nullptr, 0);
   ASSERT_THAT(model, NotNull());
@@ -59,7 +61,7 @@ TEST_F(MujocoTest, KeyFrameTest) {
   mj_deleteModel(model);
 }
 
-TEST_F(MujocoTest, ResetDataKeyframeTest) {
+TEST_F(KeyframeTest, ResetDataKeyframe) {
   const std::string xml_path = GetTestDataFilePath(kKeyframePath);
   mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, nullptr, 0);
   ASSERT_THAT(model, NotNull());
@@ -89,6 +91,21 @@ TEST_F(MujocoTest, ResetDataKeyframeTest) {
 
   mj_deleteData(data);
   mj_deleteModel(model);
+}
+
+TEST_F(KeyframeTest, BadSize) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <keyframe>
+      <key qpos="1"/>
+    </keyframe>
+  </mujoco>
+  )";
+  char error[1024];
+  size_t error_sz = 1024;
+  mjModel* model = LoadModelFromString(xml, error, error_sz);
+  EXPECT_THAT(model, ::testing::IsNull());
+  EXPECT_THAT(error, HasSubstr("invalid qpos size, expected length 0"));
 }
 
 // ------------- test relative frame sensor compilation-------------------------
