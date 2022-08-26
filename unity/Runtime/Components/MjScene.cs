@@ -462,6 +462,9 @@ public class MjScene : MonoBehaviour {
     }
   }
 
+
+}
+
   public class MjStepArgs : EventArgs
   {
     public unsafe MjStepArgs(MujocoLib.mjModel_* model, MujocoLib.mjData_* data){
@@ -471,5 +474,5 @@ public class MjScene : MonoBehaviour {
     public readonly unsafe MujocoLib.mjModel_* model;
     public readonly unsafe MujocoLib.mjData_* data;
   }
-}
+
 }
