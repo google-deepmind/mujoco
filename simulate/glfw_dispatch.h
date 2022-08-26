@@ -22,7 +22,7 @@ namespace mujoco {
 // This allows us to use GLFW without introducing a link-time dependency on the
 // library, which is useful e.g. when using GLFW via Python.
 struct Glfw {
-#define mjGLFW_DECLARE_SYMBOL(func) decltype(&func) func
+#define mjGLFW_DECLARE_SYMBOL(func) decltype(&::func) func
   // go/keep-sorted start
   mjGLFW_DECLARE_SYMBOL(glfwCreateWindow);
   mjGLFW_DECLARE_SYMBOL(glfwGetCursorPos);

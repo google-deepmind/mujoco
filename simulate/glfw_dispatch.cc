@@ -60,7 +60,7 @@ const struct Glfw& Glfw(void* dlhandle) {
       glfw.func = reinterpret_cast<decltype(glfw.func)>(dlsym(dlhandle, #func))
   #endif
 #else
-  #define mjGLFW_RESOLVE_SYMBOL(func) glfw.func = &func
+  #define mjGLFW_RESOLVE_SYMBOL(func) glfw.func = &::func
 #endif
 
 #define mjGLFW_INITIALIZE_SYMBOL(func)                  \
