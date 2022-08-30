@@ -14,8 +14,8 @@ MJCF models can represent complex dynamical systems with a wide range of feature
 these features requires a rich modeling format, which can become cumbersome if it is not designed with usability in
 mind. Therefore we have made an effort to design MJCF as a scalable format, allowing users to start small and build
 more detailed models later. Particularly helpful in this regard is the extensive :ref:`default setting <CDefault>`
-mechanism inspired by the idea of Cascading Style Sheets (CSS) in HTML. It enables users to rapidly create new models
-and experiment with them. Experimentation is further aided by numerous :ref:`options <option>` which
+mechanism inspired by the idea of Cascading Style Sheets (CSS) inlined in HTML. It enables users to rapidly create
+new models and experiment with them. Experimentation is further aided by numerous :ref:`options <option>` which
 can be used to reconfigure the simulation pipeline, and by quick re-loading that makes model editing an interactive
 process.
 
