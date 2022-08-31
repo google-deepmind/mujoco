@@ -27,9 +27,14 @@
 #include <iostream>
 
 namespace mujoco {
+
+// return dispatch table for glfw functions
 const struct Glfw& Glfw(void* dlhandle) {
   {
+    // set static init_dlhandle
     static const void* init_dlhandle = dlhandle;
+
+    // check that not already initialized
     if (dlhandle && dlhandle != init_dlhandle) {
       std::cerr << "dlhandle is specified when GLFW dispatch table is already "
                    "initialized\n";
@@ -37,9 +42,12 @@ const struct Glfw& Glfw(void* dlhandle) {
     }
   }
 
-  static const struct Glfw glfw = [&]() {
+  // make and intialize dispatch table
+  static const struct Glfw glfw = [&]() {  // create and call constructor
+    // allocate
     struct Glfw glfw;
 
+    // load glfw dynamically
 #ifdef mjGLFW_DYNAMIC_SYMBOLS
   #ifdef _MSC_VER
     if (!dlhandle) dlhandle = LoadLibraryA("glfw3.dll");
@@ -63,11 +71,12 @@ const struct Glfw& Glfw(void* dlhandle) {
   #define mjGLFW_RESOLVE_SYMBOL(func) glfw.func = &::func
 #endif
 
+    // set pointers in dispatch table
 #define mjGLFW_INITIALIZE_SYMBOL(func)                  \
-  if (!(mjGLFW_RESOLVE_SYMBOL(func))) {                 \
-    std::cerr << "cannot dlsym " #func "\n"; \
-    abort();                                            \
-  }
+    if (!(mjGLFW_RESOLVE_SYMBOL(func))) {               \
+      std::cerr << "cannot dlsym " #func "\n";          \
+      abort();                                          \
+    }
 
     // go/keep-sorted start
     mjGLFW_INITIALIZE_SYMBOL(glfwCreateWindow);
