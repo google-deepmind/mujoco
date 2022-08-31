@@ -49,7 +49,8 @@ General
 - Added ``mjv_defaultFreeCamera`` which sets the default free camera, respecting the above attributes.
 - ``simulate`` now supports taking a screenshot via a button in the File section or via ``Ctrl-P``.
 - Added a disable flag for sensors.
-
+- :ref:`mju_mulQuat` and :ref:`mju_mulQuatAxis` support in place computation. For example
+  |br| ``mju_mulQuat(a, a, b);`` sets the quaternion ``a`` equal to the product of ``a`` and ``b``.
 Deleted/deprecated features
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
