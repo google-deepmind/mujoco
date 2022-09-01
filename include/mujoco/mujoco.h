@@ -1091,12 +1091,17 @@ MJAPI mjtNum mju_sigmoid(mjtNum x);
 
 //---------------------- Derivatives ---------------------------------------------------------------
 
-// Finite differenced state-transition and control-transition matrices dx(t+h) = A*dx(t) + B*du(t).
+// Finite differenced transition matrices (control theory notation)
+//   d(x_next) = A*dx + B*du
+//   d(sensor) = C*dx + D*du
 //   required output matrix dimensions:
 //      A: (2*nv+na x 2*nv+na)
 //      B: (2*nv+na x nu)
-MJAPI void mjd_transitionFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte centered,
-                            mjtNum* A, mjtNum* B);
+//      D: (nsensordata x 2*nv+na)
+//      C: (nsensordata x nu)
+void mjd_transitionFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte centered,
+                      mjtNum* A, mjtNum* B, mjtNum* C, mjtNum* D);
+
 
 
 #if defined(__cplusplus)

@@ -61,6 +61,7 @@ General
 - Added a disable flag for sensors.
 - :ref:`mju_mulQuat` and :ref:`mju_mulQuatAxis` support in place computation. For example
   |br| ``mju_mulQuat(a, a, b);`` sets the quaternion ``a`` equal to the product of ``a`` and ``b``.
+- Added sensor matrices to ``mjd_transitionFD`` (note this is an API change).
 
 Deleted/deprecated features
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^

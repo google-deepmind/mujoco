@@ -355,6 +355,17 @@ PYBIND11_MODULE(_functions, pymodule) {
             m, d, jacp.has_value() ? jacp->data() : nullptr,
             jacr.has_value() ? jacr->data() : nullptr, body);
       });
+  Def<traits::mj_jacSubtreeCom>(
+      pymodule,
+      [](const raw::MjModel* m, raw::MjData* d,
+         std::optional<Eigen::Ref<EigenArrayXX>> jacp, int body) {
+        if (jacp.has_value() &&
+            (jacp->rows() != 3 || jacp->cols() != m->nv)) {
+          throw py::type_error("jacp should be of shape (3, nv)");
+        }
+        return InterceptMjErrors(::mj_jacSubtreeCom)(
+            m, d, jacp.has_value() ? jacp->data() : nullptr, body);
+      });
   Def<traits::mj_jacGeom>(
       pymodule,
       [](const raw::MjModel* m, raw::MjData* d,
@@ -1033,7 +1044,9 @@ PYBIND11_MODULE(_functions, pymodule) {
       pymodule,
       [](const raw::MjModel* m, raw::MjData* d, mjtNum eps, mjtByte centered,
          std::optional<Eigen::Ref<EigenArrayXX>> A,
-         std::optional<Eigen::Ref<EigenArrayXX>> B) {
+         std::optional<Eigen::Ref<EigenArrayXX>> B,
+         std::optional<Eigen::Ref<EigenArrayXX>> C,
+         std::optional<Eigen::Ref<EigenArrayXX>> D) {
         if (A.has_value() &&
             (A->rows() != 2*m->nv+m->na || A->cols() != 2*m->nv+m->na)) {
           throw py::type_error("A should be of shape (2*nv+na, 2*nv+na)");
@@ -1042,10 +1055,20 @@ PYBIND11_MODULE(_functions, pymodule) {
             (B->rows() != 2*m->nv+m->na || B->cols() != m->nu)) {
           throw py::type_error("B should be of shape (2*nv+na, nu)");
         }
+        if (C.has_value() &&
+            (C->rows() != m->nsensordata || C->cols() != 2*m->nv+m->na)) {
+          throw py::type_error("C should be of shape (nsensordata, 2*nv+na)");
+        }
+        if (D.has_value() &&
+            (D->rows() != m->nsensordata || D->cols() != m->nu)) {
+          throw py::type_error("D should be of shape (nsensordata, nu)");
+        }
         return InterceptMjErrors(::mjd_transitionFD)(
             m, d, eps, centered,
             A.has_value() ? A->data() : nullptr,
-            B.has_value() ? B->data() : nullptr);
+            B.has_value() ? B->data() : nullptr,
+            C.has_value() ? C->data() : nullptr,
+            D.has_value() ? D->data() : nullptr);
       });
   Def<traits::mju_Halton>(pymodule);
   // Skipped: mju_strncpy (doesn't make sense in Python)

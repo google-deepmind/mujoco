@@ -39,9 +39,9 @@ MJAPI void mjd_passive_velFD(const mjModel* m, mjData* d, mjtNum eps, mjtNum* Df
 // advance simulation using control callback, skipstage is mjtStage
 MJAPI void mj_stepSkip(const mjModel* m, mjData* d, int skipstage, int skipsensor);
 
-// finite differenced state-transition and control-transition matrices dy = A*dx + B*du
+// finite differenced transition matrices (control theory notation)
 MJAPI void mjd_transitionFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte centered,
-                            mjtNum* A, mjtNum* B);
+                            mjtNum* A, mjtNum* B, mjtNum* C, mjtNum* D);
 
 #ifdef __cplusplus
 }
