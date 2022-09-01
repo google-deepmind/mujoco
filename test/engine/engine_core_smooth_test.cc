@@ -21,12 +21,16 @@
 #include <gtest/gtest.h>
 #include <mujoco/mjmodel.h>
 #include <mujoco/mujoco.h>
+#include "src/engine/engine_util_blas.h"
+#include "src/engine/engine_util_spatial.h"
 #include "test/fixture.h"
 
 namespace mujoco {
 namespace {
 
 using ::testing::ElementsAre;
+using ::testing::Pointwise;
+using ::testing::DoubleNear;
 using CoreSmoothTest = MujocoTest;
 
 static std::vector<mjtNum> GetVector(const mjtNum* array, int length) {
@@ -193,6 +197,48 @@ TEST_F(CoreSmoothTest, WeldRatioMultipleConstraints) {
   constexpr char kModelFilePath[] =
       "engine/testdata/core_smooth/rne_post/weld/tfratio0_multiple_constraints.xml";
   TestConnect(kModelFilePath);
+}
+
+// --------------------------- site actuators ----------------------------------
+
+// Test Cartesian position control using site transmission with refsite
+TEST_F(CoreSmoothTest, RefsiteBringsToPose) {
+  constexpr char kRefsitePath[] = "engine/testdata/refsite.xml";
+  const std::string xml_path = GetTestDataFilePath(kRefsitePath);
+  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, 0, 0);
+  mjData* data = mj_makeData(model);
+
+  // set pose target in ctrl (3 positions, 3 rotations)
+  mjtNum targetpos[] = {.01, .02, .03};
+  mjtNum targetrot[] = {.1, .2, .3};
+  mju_copy3(data->ctrl, targetpos);
+  mju_copy3(data->ctrl+3, targetrot);
+
+  // step for 5 seconds
+  while (data->time < 5) {
+    mj_step(model, data);
+  }
+
+  // get site IDs
+  int refsite_id = mj_name2id(model, mjOBJ_SITE, "reference");
+  int site_id = mj_name2id(model, mjOBJ_SITE, "end_effector");
+
+  // check that position matches target to within 1e-5 length units
+  double tol_pos = 1e-5;
+  mjtNum relpos[3];
+  mju_sub3(relpos, data->site_xpos+3*site_id, data->site_xpos+3*refsite_id);
+  EXPECT_THAT(relpos, Pointwise(DoubleNear(tol_pos), targetpos));
+
+  // check that orientation matches target to within 1e-3 radians
+  double tol_rot = 1e-3;
+  mjtNum site_xquat[4], refsite_xquat[4], relrot[3];
+  mju_mat2Quat(refsite_xquat, data->site_xmat+9*refsite_id);
+  mju_mat2Quat(site_xquat, data->site_xmat+9*site_id);
+  mju_subQuat(relrot, site_xquat, refsite_xquat);
+  EXPECT_THAT(relrot, Pointwise(DoubleNear(tol_rot), targetrot));
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
 }
 
 

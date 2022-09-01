@@ -3358,6 +3358,7 @@ mjCActuator::mjCActuator(mjCModel* _model, mjCDef* _def) {
   cranklength = 0;
   target.clear();
   slidersite.clear();
+  refsite.clear();
   userdata.clear();
 
   // clear private variables
@@ -3499,7 +3500,16 @@ void mjCActuator::Compile(void) {
     break;
 
   case mjTRN_SITE:
-    // get site
+    // get refsite, copy into trnid[1]
+    if (!refsite.empty()) {
+      ptarget = model->FindObject(mjOBJ_SITE, refsite);
+      if (!ptarget) {
+        throw mjCError(this, "reference site '%s' not found for actuator %d", refsite.c_str(), id);
+      }
+      trnid[1] = ptarget->id;
+    }
+
+    // proceed with regular site target
     ptarget = model->FindObject(mjOBJ_SITE, target);
     break;
 

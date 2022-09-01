@@ -4302,25 +4302,42 @@ specify them independently.
 :at:`joint`: :at-val:`string, optional`
    This and the next four attributes determine the type of actuator transmission. All of them are optional, and exactly
    one of them must be specified. If this attribute is specified, the actuator acts on the given joint. For **hinge**
-   and **slide** joints, the actuator length equals the joint position/angle times the first element of gear. For
+   and **slide** joints, the actuator length equals the joint position/angle times the first element of :at:`gear`. For
    **ball** joints, the first three elements of gear define a 3d rotation axis in the child frame around which the
    actuator produces torque. The actuator length is defined as the dot-product between this gear axis and the angle-axis
-   representation of the joint quaternion position. For **free** joints, gear defines a 3d translation axis in the world
-   frame followed by a 3d rotation axis in the child frame. The actuator generates force and torque relative to the
-   specified axes. The actuator length for free joints is defined as zero (so it should not be used with position
-   servos).
+   representation of the joint quaternion, and is in units of radian if :at:`gear` is normalized (generally scaled by
+   by the norm of :at:`gear`). Note that after total rotation of more than :math:`\pi`, the length will wrap to :math:`-
+   \pi`, and vice-versa. Therefore :el:`position` servos for ball joints should generally use tighter limits which
+   prevent this wrapping. For **free** joints, gear defines a 3d translation axis in the world frame followed by a 3d
+   rotation axis in the child frame. The actuator generates force and torque relative to the specified axes. The
+   actuator length for free joints is defined as zero (so it should not be used with position servos).
 :at:`jointinparent`: :at-val:`string, optional`
    Identical to joint, except that for ball and free joints, the 3d rotation axis given by gear is defined in the parent
    frame (which is the world frame for free joints) rather than the child frame.
 :at:`site`: :at-val:`string, optional`
-   This transmission can apply force and torque at a site. The gear vector defines a 3d translation axis followed by a 3d
-   rotation axis. Both are defined in the site's frame. This can be used to model jets and propellers. The effect is
-   similar to actuating a free joint, and the actuator length is again defined as zero. One difference from the joint
-   and jointinparent transmissions above is that here the actuator operates on a site rather than a joint, but this
-   difference disappears when the site is defined at the frame origin of the free-floating body. The other difference is
-   that for site transmissions both the translation and rotation axes are defined in local coordinates. In contrast,
-   translation is global and rotation is local for joint, and both translation and rotation are global for
-   jointinparent.
+   This transmission can apply force and torque at a site. The gear vector defines a 3d translation axis followed by a
+   3d rotation axis. Both are defined in the site's frame. This can be used to model jets and propellers. The effect is
+   similar to actuating a free joint, and the actuator length is defined as zero unless a :at:`refsite` is defined (see
+   below). One difference from the :at:`joint` and :at:`jointinparent` transmissions above is that here the actuator
+   operates on a site rather than a joint, but this difference disappears when the site is defined at the frame origin
+   of the free-floating body. The other difference is that for site transmissions both the translation and rotation axes
+   are defined in local coordinates. In contrast, translation is global and rotation is local for :at:`joint`, and both
+   translation and rotation are global for :at:`jointinparent`.
+
+..  youtube:: s-0JHanqV1A
+    :align: right
+    :height: 150px
+
+:at:`refsite`: :at-val:`string, optional`
+   When using a :at:`site` transmission, measure the translation and rotation w.r.t the frame of the :at:`refsite`. In
+   this case the actuator *does* have length and :el:`position` actuators can be used to directly control an end
+   effector, see `refsite.xml <https://github.com/deepmind/mujoco/tree/main/test/engine/testdata/refsite.xml>`_ example
+   model. As above, the length is the dot product of the :at:`gear` vector and the frame difference. So ``gear="0 1 0 0
+   0 0"`` means "Y-offset of :at:`site` in the :at:`refsite` frame", while ``gear="0 0 0 0 0 1"`` means rotation "Z-
+   rotation of :at:`site` in the :at:`refsite` frame". It is recommended to use a normalized :at:`gear` vector with
+   nonzeros in only the first 3 *or* the last 3 elements of :at:`gear`, so the actuator length will be in either length
+   units or radians, respectively. As with ball joints (see :at:`joint` above), for rotations which exceed a total angle
+   of :math:`\pi` will wrap around, so tighter limits are recommended.
 :at:`body`: :at-val:`string, optional`
    This transmission can apply linear forces at contact points in the direction of the contact normal. The set of
    contacts is all those belonging to the specified :at:`body`. This can be used to model natural active adhesion

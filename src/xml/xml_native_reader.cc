@@ -265,40 +265,40 @@ static const char* MJCF[nMJCF][mjXATTRNUM] = {
 
     {"actuator", "*", "0"},
     {"<"},
-        {"general", "*", "26", "name", "class", "group",
+        {"general", "*", "27", "name", "class", "group",
             "ctrllimited", "forcelimited", "actlimited", "ctrlrange", "forcerange", "actrange",
             "lengthrange", "gear", "cranklength", "user",
-            "joint", "jointinparent", "tendon", "slidersite", "cranksite", "site", "body",
-            "dyntype", "gaintype", "biastype", "dynprm", "gainprm", "biasprm"},
-        {"motor", "*", "17", "name", "class", "group",
+            "joint", "jointinparent", "tendon", "slidersite", "cranksite", "site", "refsite",
+            "body", "dyntype", "gaintype", "biastype", "dynprm", "gainprm", "biasprm"},
+        {"motor", "*", "18", "name", "class", "group",
             "ctrllimited", "forcelimited", "ctrlrange", "forcerange",
             "lengthrange", "gear", "cranklength", "user",
-            "joint", "jointinparent", "tendon", "slidersite", "cranksite", "site"},
-        {"position", "*", "18", "name", "class", "group",
+            "joint", "jointinparent", "tendon", "slidersite", "cranksite", "site", "refsite"},
+        {"position", "*", "19", "name", "class", "group",
             "ctrllimited", "forcelimited", "ctrlrange", "forcerange",
             "lengthrange", "gear", "cranklength", "user",
-            "joint", "jointinparent", "tendon", "slidersite", "cranksite", "site",
+            "joint", "jointinparent", "tendon", "slidersite", "cranksite", "site", "refsite",
             "kp"},
-        {"velocity", "*", "18", "name", "class", "group",
+        {"velocity", "*", "19", "name", "class", "group",
             "ctrllimited", "forcelimited", "ctrlrange", "forcerange",
             "lengthrange", "gear", "cranklength", "user",
-            "joint", "jointinparent", "tendon", "slidersite", "cranksite", "site",
+            "joint", "jointinparent", "tendon", "slidersite", "cranksite", "site", "refsite",
             "kv"},
-        {"intvelocity", "*", "19", "name", "class", "group",
+        {"intvelocity", "*", "20", "name", "class", "group",
             "ctrllimited", "forcelimited",
             "ctrlrange", "forcerange", "actrange", "lengthrange",
             "gear", "cranklength", "user",
-            "joint", "jointinparent", "tendon", "slidersite", "cranksite", "site",
+            "joint", "jointinparent", "tendon", "slidersite", "cranksite", "site", "refsite",
             "kp"},
-        {"damper", "*", "17", "name", "class", "group",
+        {"damper", "*", "18", "name", "class", "group",
             "forcelimited", "ctrlrange", "forcerange",
             "lengthrange", "gear", "cranklength", "user",
-            "joint", "jointinparent", "tendon", "slidersite", "cranksite", "site",
+            "joint", "jointinparent", "tendon", "slidersite", "cranksite", "site", "refsite",
             "kv"},
-        {"cylinder", "*", "21", "name", "class", "group",
+        {"cylinder", "*", "22", "name", "class", "group",
             "ctrllimited", "forcelimited", "ctrlrange", "forcerange",
             "lengthrange", "gear", "cranklength", "user",
-            "joint", "jointinparent", "tendon", "slidersite", "cranksite", "site",
+            "joint", "jointinparent", "tendon", "slidersite", "cranksite", "site", "refsite",
             "timeconst", "area", "diameter", "bias"},
         {"muscle", "*", "25",  "name", "class", "group",
             "ctrllimited", "forcelimited", "ctrlrange", "forcerange",
@@ -1437,6 +1437,12 @@ void mjXReader::OneActuator(XMLElement* elem, mjCActuator* pact) {
   int r2 = ReadAttrTxt(elem, "slidersite", pact->slidersite);
   if ((r1 || r2) && pact->trntype!=mjTRN_SLIDERCRANK && pact->trntype!=mjTRN_UNDEFINED) {
     throw mjXError(elem, "cranklength and slidersite can only be used in slidercrank transmission");
+  }
+
+  // site-specific parameters (refsite)
+  int r3 = ReadAttrTxt(elem, "refsite", pact->refsite);
+  if (r3 && pact->trntype!=mjTRN_SITE && pact->trntype!=mjTRN_UNDEFINED) {
+    throw mjXError(elem, "refsite can only be used with site transmission");
   }
 
   // get predefined type

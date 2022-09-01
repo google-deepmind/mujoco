@@ -863,6 +863,7 @@ class mjCActuator : public mjCBase {
   std::vector<double> userdata;   // user data
   std::string target;             // transmission target name
   std::string slidersite;         // site defining cylinder, for slider-crank only
+  std::string refsite;            // reference site, for site transmission only
 
  private:
   mjCActuator(mjCModel* = 0, mjCDef* = 0);// constructor

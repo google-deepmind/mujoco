@@ -566,6 +566,7 @@ void mjXWriter::OneActuator(XMLElement* elem, mjCActuator* pact, mjCDef* def) {
 
     case mjTRN_SITE:
       WriteAttrTxt(elem, "site", pact->target);
+      WriteAttrTxt(elem, "refsite", pact->refsite);
       break;
 
     case mjTRN_BODY:

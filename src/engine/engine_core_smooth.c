@@ -614,6 +614,7 @@ void mj_transmission(const mjModel* m, mjData* d) {
   mjtNum wrench[6], gearAxis[3];
   mjtNum *jac, *jacA, *jacS;
   mjtNum *length = d->actuator_length, *moment = d->actuator_moment, *gear;
+  mjtNum *jacref = NULL, *moment_tmp = NULL;  // required for site actuators
   mjMARKSTACK;
 
   if (!nu) {
@@ -763,7 +764,7 @@ void mj_transmission(const mjModel* m, mjData* d) {
     case mjTRN_TENDON:                  // tendon
       length[i] = d->ten_length[id]*gear[0];
 
-      // moment: dense or sparse
+      // moment: sparse or dense
       if (mj_isSparse(m)) {
         int end = d->ten_J_rowadr[id] + d->ten_J_rownnz[id];
         for (int j=d->ten_J_rowadr[id]; j<end; j++) {
@@ -775,20 +776,84 @@ void mj_transmission(const mjModel* m, mjData* d) {
       break;
 
     case mjTRN_SITE:                    // site
-      // cannot compute meaningful length, set to 0
-      length[i] = 0;
-
-      // get site translation and rotation global Jacobians
+      // get site translation (jac) and rotation (jacS) Jacobians in global frame
       mj_jacSite(m, d, jac, jacS, id);
 
-      // wrench: site gear vector in global coordinates
-      mju_mulMatVec(wrench, d->site_xmat+9*id, gear, 3, 3);      // translation
-      mju_mulMatVec(wrench+3, d->site_xmat+9*id, gear+3, 3, 3);  // rotation
+      // reference site undefined
+      if (m->actuator_trnid[2*i+1] == -1) {
+        // cannot compute meaningful length, set to 0
+        length[i] = 0;
 
-      // moment: global Jacobian projected on wrench
-      mju_mulMatTVec(moment+i*nv, jac, wrench, 3, nv);            // translation
-      mju_mulMatTVec(jac, jacS, wrench+3, 3, nv);                 // rotation
-      mju_addTo(moment+i*nv, jac, nv);                            // add the two
+        // wrench: gear expressed in global frame
+        mju_rotVecMat(wrench, gear, d->site_xmat+9*id);      // translation
+        mju_rotVecMat(wrench+3, gear+3, d->site_xmat+9*id);  // rotation
+
+        // moment: global Jacobian projected on wrench
+        mju_mulMatTVec(moment+i*nv, jac, wrench, 3, nv);     // translation
+        mju_mulMatTVec(jac, jacS, wrench+3, 3, nv);          // rotation
+        mju_addTo(moment+i*nv, jac, nv);                     // add the two
+      }
+
+      // reference site defined
+      else {
+        int refid = m->actuator_trnid[2*i+1];
+        if (!jacref) jacref = mj_stackAlloc(d, 3*nv);
+
+        // clear length
+        length[i] = 0;
+
+        // translational transmission
+        if (!mju_isZero(gear, 3)) {
+          // vec: site position in reference site frame
+          mju_sub3(vec, d->site_xpos+3*id, d->site_xpos+3*refid);
+          mju_rotVecMatT(vec, vec, d->site_xmat+9*refid);
+
+          // length: dot product with gear
+          length[i] += mju_dot3(vec, gear);
+
+          // jacref: global Jacobian of reference site
+          mj_jacSite(m, d, jacref, NULL, refid);
+
+          // subtract jacref from jac
+          mju_subFrom(jac, jacref, 3*nv);
+
+          // wrench: translational gear expressed in global frame
+          mju_rotVecMat(wrench, gear, d->site_xmat+9*refid);
+
+          // moment: global Jacobian projected on wrench
+          mju_mulMatTVec(moment+i*nv, jac, wrench, 3, nv);
+        }
+
+        // rotational transmission
+        if (!mju_isZero(gear+3, 3)) {
+          mjtNum refquat[4];
+
+          // get site and refsite quats from parent bodies (avoiding mju_mat2Quat)
+          mju_mulQuat(quat, m->site_quat+4*id, d->xquat+4*m->site_bodyid[id]);
+          mju_mulQuat(refquat, m->site_quat+4*refid, d->xquat+4*m->site_bodyid[refid]);
+
+          // convert difference to expmap (axis-angle)
+          mju_subQuat(vec, quat, refquat);
+
+          // add length: dot product with gear
+          length[i] += mju_dot3(vec, gear+3);
+
+          // jacref: global rotational Jacobian of reference site
+          mj_jacSite(m, d, NULL, jacref, refid);
+
+          // subtract jacref from jacS
+          mju_subFrom(jacS, jacref, 3*nv);
+
+          // wrench: rotational gear expressed in global frame
+          mju_rotVecMat(wrench, gear+3, d->site_xmat+9*refid);
+
+          // moment_tmp: global Jacobian projected on wrench, add to moment
+          if (!moment_tmp) moment_tmp = mj_stackAlloc(d, nv);
+          mju_mulMatTVec(moment_tmp, jacS, wrench, 3, nv);
+          mju_addTo(moment+i*nv, moment_tmp, nv);
+        }
+      }
+
       break;
 
     case mjTRN_BODY:                  // body (adhesive contacts)

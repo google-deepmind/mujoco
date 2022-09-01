@@ -21,8 +21,16 @@ General
 - Increased ``mjNEQDATA``, the row length of equality constraint parameters in ``mjModel.eq_data``, from 7 to 11.
 - Added visualisation of anchor points for both :el:`connect` and :el:`weld` constraints (activated by the 'N' key in
   ``simulate``).
-- Added `example model <https://github.com/deepmind/mujoco/tree/main/test/engine/testdata/weld.xml>`_ showing different
+- Added `weld.xml <https://github.com/deepmind/mujoco/tree/main/test/engine/testdata/weld.xml>`_ showing different
   uses of new weld attributes.
+
+  ..  youtube:: s-0JHanqV1A
+      :align: right
+      :height: 150px
+
+- Cartesian 6D end-effector control is now possible by adding a reference site to actuators with :at:`site`
+  transmission. See description of new :at:`refsite` attribute in the :ref:`actuator<general>` documentation and
+  `refsite.xml <https://github.com/deepmind/mujoco/tree/main/test/engine/testdata/refsite.xml>`_ example model.
 - Joint and tendon ``limited`` attribute and actuator ``ctrllimited``, ``forcelimited`` and ``actlimited`` attributes
   now default to ``auto`` rather than ``false``. Limits are automatically set to ``true`` if the corresponding range *is
   defined* and ``false`` otherwise.
@@ -49,7 +57,7 @@ General
 - Added ``mjv_defaultFreeCamera`` which sets the default free camera, respecting the above attributes.
 - ``simulate`` now supports taking a screenshot via a button in the File section or via ``Ctrl-P``.
 - Improvements to time synchronisation in `simulate`, in particular report actual real-time factor if different from
-  requested factor.
+  requested factor (if e.g., the timestep is so small that simulation cannot keep up with real-time).
 - Added a disable flag for sensors.
 - :ref:`mju_mulQuat` and :ref:`mju_mulQuatAxis` support in place computation. For example
   |br| ``mju_mulQuat(a, a, b);`` sets the quaternion ``a`` equal to the product of ``a`` and ``b``.
