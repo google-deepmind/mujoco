@@ -54,7 +54,6 @@ using ::mujoco::Glfw;
 //------------------------------------------- global -----------------------------------------------
 
 const int maxgeom = 5000;            // preallocated geom array in mjvScene
-const int max_slow_down = 128;       // maximum slow-down quotient
 const double zoom_increment = 0.02;  // ratio of one click-wheel zoom increment to vertical extent
 
 // section ids
@@ -476,11 +475,10 @@ void infotext(mj::Simulate* sim,
   solerr = mju_log10(mju_max(mjMINVAL, solerr));
 
   // prepare info text
-  const std::string realtime_nominator = sim->slow_down == 1 ? "" : "1/";
   mju::strcpy_arr(title, "Time\nSize\nCPU\nSolver   \nFPS\nstack\nconbuf\nefcbuf");
   mju::sprintf_arr(content,
-                   "%-9.3f %s%d x\n%d  (%d con)\n%.3f\n%.1f  (%d it)\n%.0f\n%.3f\n%.3f\n%.3f",
-                   d->time, realtime_nominator.c_str(), sim->slow_down,
+                   "%-9.3f\n%d  (%d con)\n%.3f\n%.1f  (%d it)\n%.0f\n%.3f\n%.3f\n%.3f",
+                   d->time,
                    d->nefc, d->ncon,
                    sim->run ?
                    d->timer[mjTIMER_STEP].duration / mjMAX(1, d->timer[mjTIMER_STEP].number) :
@@ -1382,16 +1380,19 @@ void uiEvent(mjuiState* state) {
       break;
 
     case '-':                   // slow down
-      if (sim->slow_down < max_slow_down && !state->shift) {
-        sim->slow_down *= 2;
-        sim->speed_changed = true;
+      {
+        int numclicks = sizeof(sim->percentRealTime) / sizeof(sim->percentRealTime[0]);
+        if (sim->realTimeIndex < numclicks-1 && !state->shift) {
+          sim->realTimeIndex++;
+          sim->speedChanged = true;
+        }
       }
       break;
 
     case '=':                   // speed up
-      if (sim->slow_down > 1 && !state->shift) {
-        sim->slow_down /= 2;
-        sim->speed_changed = true;
+      if (sim->realTimeIndex > 0 && !state->shift) {
+        sim->realTimeIndex--;
+        sim->speedChanged = true;
       }
       break;
     }
@@ -1759,9 +1760,24 @@ void Simulate::render() {
   }
 
   // show realtime label
-  if (this->run && this->slow_down != 1) {
-    std::string realtime_label = "1/" + std::to_string(this->slow_down) + " x";
-    mjr_overlay(mjFONT_BIG, mjGRID_TOPRIGHT, smallrect, realtime_label.c_str(), nullptr, &this->con);
+  if (this->run) {
+    // get desired and actual percent-of-real-time
+    float desiredRealtime = this->percentRealTime[this->realTimeIndex];
+    float actualRealtime = 100 / this->measuredSlowdown;
+
+    // check if real-time tracking is misaligned by more than than 10%
+    bool misalignment = mju_abs(actualRealtime - desiredRealtime) > 0.1 * desiredRealtime;
+
+    // display realtime overlay if not 100% or there is misalignment
+    if (desiredRealtime != 100.0 || misalignment) {
+      char overlay[30];
+      if (misalignment) {
+        std::snprintf(overlay, sizeof(overlay), "%g%% (%-.1f%%)", desiredRealtime, actualRealtime);
+      } else {
+        std::snprintf(overlay, sizeof(overlay), "%g%%", desiredRealtime);
+      }
+      mjr_overlay(mjFONT_BIG, mjGRID_TOPLEFT, smallrect, overlay, nullptr, &this->con);
+    }
   }
 
   // show ui 0
@@ -1846,6 +1862,9 @@ void Simulate::renderloop() {
 
   // get videomode and save
   this->vmode = *Glfw().glfwGetVideoMode(Glfw().glfwGetPrimaryMonitor());
+
+  // use videomode refreshrate if nonzero
+  if (this->vmode.refreshRate) this->refreshRate = this->vmode.refreshRate;
 
   // create window
   this->window = Glfw().glfwCreateWindow((2*this->vmode.width)/3, (2*this->vmode.height)/3,
