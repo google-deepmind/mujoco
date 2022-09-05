@@ -40,7 +40,7 @@ public const double mjMAXIMP = 0.9999;
 public const int mjMAXCONPAIR = 50;
 public const int mjMAXVFS = 2000;
 public const int mjMAXVFSNAME = 1000;
-public const int mjNEQDATA = 7;
+public const int mjNEQDATA = 11;
 public const int mjNDYN = 10;
 public const int mjNGAIN = 10;
 public const int mjNBIAS = 10;
@@ -98,7 +98,7 @@ public const int mjMAXLINEPNT = 1000;
 public const int mjMAXPLANEGRID = 200;
 public const bool THIRD_PARTY_MUJOCO_MJXMACRO_H_ = true;
 public const bool THIRD_PARTY_MUJOCO_MUJOCO_H_ = true;
-public const int mjVERSION_HEADER = 220;
+public const int mjVERSION_HEADER = 221;
 
 
 // ------------------------------------Enums------------------------------------
@@ -480,7 +480,8 @@ public enum mjtRndFlag : int{
   mjRND_HAZE = 6,
   mjRND_SEGMENT = 7,
   mjRND_IDCOLOR = 8,
-  mjNRNDFLAG = 9,
+  mjRND_CULL_FACE = 9,
+  mjNRNDFLAG = 10,
 }
 public enum mjtStereo : int{
   mjSTEREO_NONE = 0,
@@ -3008,6 +3009,9 @@ public static unsafe extern double mju_raySkin(int nface, int nvert, int* face, 
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern void mjv_defaultCamera(mjvCamera_* cam);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern void mjv_defaultFreeCamera(mjModel_* m, mjvCamera_* cam);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern void mjv_defaultPerturb(mjvPerturb_* pert);

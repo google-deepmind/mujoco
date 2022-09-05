@@ -58,9 +58,8 @@ spot such a pattern, feel free to send a PR to update the guide.
 
 Line length is 100 characters. In rare situations, like the collision table at
 the top of
-[engine_collision_driver.c](https://github.com/deepmind/mujoco/search?q=repo%3Ad
-eepmind%2Fmujoco+filename%3Aengine_collision_driver.c), longer lines are alowed
-for readability.
+[engine_collision_driver.c](https://github.com/deepmind/mujoco/blob/c8ff7b3d341560e8cc33fbdcaffbcdbc4c32327c/src/engine/engine_collision_driver.c#L36),
+longer lines are alowed for readability.
 
 #### Comments
 

@@ -35,8 +35,8 @@
   #endif
 #endif
 
-#define mjVERSION 220
-#define mjVERSIONSTRING "2.2.0"
+#define mjVERSION 221
+#define mjVERSIONSTRING "2.2.1"
 
 // names of disable flags
 const char* mjDISABLESTRING[mjNDISABLE] = {
@@ -51,7 +51,8 @@ const char* mjDISABLESTRING[mjNDISABLE] = {
   "Warmstart",
   "Filterparent",
   "Actuation",
-  "Refsafe"
+  "Refsafe",
+  "Sensor"
 };
 
 
@@ -150,6 +151,35 @@ void mj_jacBody(const mjModel* m, const mjData* d, mjtNum* jacp, mjtNum* jacr, i
 // compute body-com Jacobian
 void mj_jacBodyCom(const mjModel* m, const mjData* d, mjtNum* jacp, mjtNum* jacr, int body) {
   mj_jac(m, d, jacp, jacr, d->xipos+3*body, body);
+}
+
+
+
+// compute subtree-com Jacobian
+void mj_jacSubtreeCom(const mjModel* m, mjData* d, mjtNum* jacp, int body) {
+  int nv = m->nv;
+  mjMARKSTACK;
+  mjtNum* jacp_b = mj_stackAlloc(d, 3*nv);
+
+  // clear output
+  mju_zero(jacp, 3*nv);
+
+  // forward pass starting from body
+  for (int b=body; b<m->nbody; b++) {
+    // end of body subtree, break from the loop
+    if (b > body && m->body_parentid[b] < body) {
+      break;
+    }
+
+    // b is in the body subtree, add mass-weighted Jacobian into jacp
+    mj_jac(m, d, jacp_b, NULL, d->xipos+3*b, b);
+    mju_addToScl(jacp, jacp_b, m->body_mass[b], 3*nv);
+  }
+
+  // normalize by subtree mass
+  mju_scl(jacp, jacp, 1/m->body_subtreemass[body], 3*nv);
+
+  mjFREESTACK;
 }
 
 

@@ -295,7 +295,7 @@ mjCBody::mjCBody(mjCModel* _model) {
   pos[0] = ipos[0] = mjNAN;
 
   // clear variables
-  explicit_inertial = false;
+  explicitinertial = false;
   mocap = false;
   mjuu_setvec(quat, 1, 0, 0, 0);
   mjuu_setvec(iquat, 1, 0, 0, 0);
@@ -634,9 +634,9 @@ void mjCBody::MakeLocal(double* _locpos, double* _locquat,
   }
 }
 
-// set explicit_inertial to true
+// set explicitinertial to true
 void mjCBody::MakeInertialExplicit() {
-  explicit_inertial = true;
+  explicitinertial = true;
 }
 
 
@@ -680,6 +680,8 @@ void mjCBody::Compile(void) {
 
   // compile all geoms, phase 1
   for (i=0; i<geoms.size(); i++) {
+    geoms[i]->inferinertia = id>0 && (!explicitinertial ||
+                                      model->inertiafromgeom==mjINERTIAFROMGEOM_TRUE);
     geoms[i]->Compile();
   }
 
@@ -795,7 +797,7 @@ mjCJoint::mjCJoint(mjCModel* _model, mjCDef* _def) {
   group = 0;
   mjuu_setvec(pos, 0, 0, 0);
   mjuu_setvec(axis, 0, 0, 1);
-  limited = false;
+  limited = 2;
   stiffness = 0;
   range[0] = 0;
   range[1] = 0;
@@ -847,6 +849,15 @@ int mjCJoint::Compile(void) {
                      "when defined, springdamper values must be positive in joint '%s' (id = %d)",
                      name.c_str(), id);
     }
+  }
+
+  // free joints cannot be limited
+  if (type==mjJNT_FREE) {
+    limited = 0;
+  }
+  // otherwise if limited is auto, set according to whether range is specified
+  else if (limited==2) {
+    limited = (range[0]==0 && range[1]==0) ? 0 : 1;
   }
 
   // resolve limits
@@ -967,6 +978,8 @@ mjCGeom::mjCGeom(mjCModel* _model, mjCDef* _def) {
   rgba[0] = rgba[1] = rgba[2] = 0.5f;
   rgba[3] = 1.0f;
   userdata.clear();
+  typeinertia = mjVOLUME_MESH;
+  inferinertia = true;
 
   // clear internal variables
   mjuu_setvec(quat, 1, 0, 0, 0);
@@ -1003,7 +1016,11 @@ double mjCGeom::GetVolume(void) {
     }
 
     mjCMesh* pmesh = model->meshes[meshid];
-    return pmesh->boxsz[0]*pmesh->boxsz[1]*pmesh->boxsz[2]*8;
+    if (model->exactmeshinertia) {
+      return pmesh->GetVolumeRef(typeinertia);
+    } else {
+      return pmesh->boxsz_volume[0]*pmesh->boxsz_volume[1]*pmesh->boxsz_volume[2]*8;
+    }
   }
 
   // compute from geom shape
@@ -1045,13 +1062,17 @@ void mjCGeom::SetInertia(void) {
     }
 
     mjCMesh* pmesh = model->meshes[meshid];
-    inertia[0] = mass*(pmesh->boxsz[1]*pmesh->boxsz[1] + pmesh->boxsz[2]*pmesh->boxsz[2]) / 3;
-    inertia[1] = mass*(pmesh->boxsz[0]*pmesh->boxsz[0] + pmesh->boxsz[2]*pmesh->boxsz[2]) / 3;
-    inertia[2] = mass*(pmesh->boxsz[0]*pmesh->boxsz[0] + pmesh->boxsz[1]*pmesh->boxsz[1]) / 3;
+    double* boxsz = pmesh->GetInertiaBoxPtr(typeinertia);
+    inertia[0] = mass*(boxsz[1]*boxsz[1] + boxsz[2]*boxsz[2]) / 3;
+    inertia[1] = mass*(boxsz[0]*boxsz[0] + boxsz[2]*boxsz[2]) / 3;
+    inertia[2] = mass*(boxsz[0]*boxsz[0] + boxsz[1]*boxsz[1]) / 3;
   }
 
   // compute from geom shape
   else {
+    if (typeinertia)
+      throw mjCError(this, "typeinertia currently only available for meshes'%s' (id = %d)",
+                     name.c_str(), id);
     switch (type) {
     case mjGEOM_SPHERE:
       inertia[0] = inertia[1] = inertia[2] = 2*mass*size[0]*size[0]/5;
@@ -1068,7 +1089,7 @@ void mjCGeom::SetInertia(void) {
       // add two hemispheres, displace along third axis
       double sphere_inertia = 2*sphere_mass*radius*radius/5;
       inertia[0] += sphere_inertia + sphere_mass*height*(3*radius + 2*height)/8;
-      inertia[1] += sphere_inertia + sphere_mass*height*(3*radius + 2*height)/8;;
+      inertia[1] += sphere_inertia + sphere_mass*height*(3*radius + 2*height)/8;
       inertia[2] += sphere_inertia;
       return;
     }
@@ -1354,11 +1375,11 @@ void mjCGeom::Compile(void) {
       mesh.clear();
       meshid = -1;
     } else {
-      mjuu_copyvec(meshpos, pmesh->pos, 3);
+      mjuu_copyvec(meshpos, pmesh->GetPosPtr(typeinertia), 3);
     }
 
     // apply geom pos/quat as offset
-    mjuu_frameaccum(pos, quat, meshpos, pmesh->quat);
+    mjuu_frameaccum(pos, quat, meshpos, pmesh->GetQuatPtr(typeinertia));
   }
 
   // check size parameters
@@ -1376,18 +1397,26 @@ void mjCGeom::Compile(void) {
   }
 
   // compute geom mass and inertia
-  if (mjuu_defined(_mass) && GetVolume()>mjMINVAL) {
-    mass = _mass;
-    density = _mass / GetVolume();
-  } else {
-    mass = density * GetVolume();
-  }
-  SetInertia();
+  if (inferinertia) {
+    if (mjuu_defined(_mass)) {
+      if (_mass==0) {
+        mass = 0;
+        density = 0;
+      } else if (GetVolume()>mjMINVAL) {
+        mass = _mass;
+        density = _mass / GetVolume();
+        SetInertia();
+      }
+    } else {
+      mass = density * GetVolume();
+      SetInertia();
+    }
 
-  // check for negative values
-  if (mass<0 || inertia[0]<0 || inertia[1]<0 || inertia[2]<0 || density<0)
-    throw mjCError(this, "mass, inertia or density are negative in geom '%s' (id = %d)",
-                   name.c_str(), id);
+    // check for negative values
+    if (mass<0 || inertia[0]<0 || inertia[1]<0 || inertia[2]<0 || density<0)
+      throw mjCError(this, "mass, inertia or density are negative in geom '%s' (id = %d)",
+                    name.c_str(), id);
+  }
 
   // fluid-interaction coefficients, requires computed inertia and mass
   if (fluid_switch > 0) {
@@ -2855,6 +2884,7 @@ mjCEquality::mjCEquality(mjCModel* _model, mjCDef* _def) {
 
   mjuu_zerovec(data, mjNEQDATA);
   data[1] = 1;
+  data[10] = 1;  // torque:force ratio
 
   // clear internal variables
   obj1id = obj2id = -1;
@@ -2942,6 +2972,11 @@ void mjCEquality::Compile(void) {
   if (type==mjEQ_CONNECT) {
     ((mjCBody*)px1)->MakeLocal(anchor, qdummy, data, qunit);
     mjuu_copyvec(data, anchor, 3);
+  } else if (type==mjEQ_WELD) {
+    if (px2) {
+      ((mjCBody*)px2)->MakeLocal(anchor, qdummy, data, qunit);
+      mjuu_copyvec(data, anchor, 3);
+    }
   }
 }
 
@@ -2955,7 +2990,7 @@ mjCTendon::mjCTendon(mjCModel* _model, mjCDef* _def) {
   group = 0;
   material.clear();
   width = 0.003;
-  limited = false;
+  limited = 2;
   range[0] = 0;
   range[1] = 0;
   mj_defaultSolRefImp(solref_limit, solimp_limit);
@@ -3185,6 +3220,11 @@ void mjCTendon::Compile(void) {
     }
   }
 
+  // if limited is auto, set to 1 if range is specified, otherwise unlimited
+  if (limited==2) {
+    limited = (range[0]==0 && range[1]==0) ? 0 : 1;
+  }
+
   // check limits
   if (range[0]>=range[1] && limited) {
     throw mjCError(this, "invalid limits in tendon '%s (id = %d)'", name.c_str(), id);
@@ -3297,9 +3337,9 @@ void mjCWrap::Compile(void) {
 mjCActuator::mjCActuator(mjCModel* _model, mjCDef* _def) {
   // actuator defaults
   group = 0;
-  ctrllimited = false;
-  forcelimited = false;
-  actlimited = false;
+  ctrllimited = 2;
+  forcelimited = 2;
+  actlimited = 2;
   trntype = mjTRN_UNDEFINED;
   dyntype = mjDYN_NONE;
   gaintype = mjGAIN_FIXED;
@@ -3318,6 +3358,7 @@ mjCActuator::mjCActuator(mjCModel* _model, mjCDef* _def) {
   cranklength = 0;
   target.clear();
   slidersite.clear();
+  refsite.clear();
   userdata.clear();
 
   // clear private variables
@@ -3345,6 +3386,17 @@ void mjCActuator::Compile(void) {
                    name.c_str(), id);
   }
   userdata.resize(model->nuser_actuator);
+
+  // if limited is auto, set to 1 if range is specified, otherwise unlimited
+  if (forcelimited==2) {
+    forcelimited = (forcerange[0]==0 && forcerange[1]==0) ? 0 : 1;
+  }
+  if (ctrllimited==2) {
+    ctrllimited = (ctrlrange[0]==0 && ctrlrange[1]==0) ? 0 : 1;
+  }
+  if (actlimited==2) {
+    actlimited = (actrange[0]==0 && actrange[1]==0) ? 0 : 1;
+  }
 
   // check limits
   if (forcerange[0]>=forcerange[1] && forcelimited) {
@@ -3417,7 +3469,7 @@ void mjCActuator::Compile(void) {
     if (pjnt->urdfeffort>0) {
       forcerange[0] = -pjnt->urdfeffort;
       forcerange[1] = pjnt->urdfeffort;
-      forcelimited = true;
+      forcelimited = 1;
     }
     break;
 
@@ -3448,8 +3500,22 @@ void mjCActuator::Compile(void) {
     break;
 
   case mjTRN_SITE:
-    // get site
+    // get refsite, copy into trnid[1]
+    if (!refsite.empty()) {
+      ptarget = model->FindObject(mjOBJ_SITE, refsite);
+      if (!ptarget) {
+        throw mjCError(this, "reference site '%s' not found for actuator %d", refsite.c_str(), id);
+      }
+      trnid[1] = ptarget->id;
+    }
+
+    // proceed with regular site target
     ptarget = model->FindObject(mjOBJ_SITE, target);
+    break;
+
+  case mjTRN_BODY:
+    // get body
+    ptarget = model->FindObject(mjOBJ_BODY, target);
     break;
 
   default:
@@ -4014,7 +4080,7 @@ void mjCKey::Compile(const mjModel* m) {
       qpos[i] = (double)m->qpos0[i];
     }
   } else if (qpos.size()!=m->nq) {
-    throw mjCError(this, "key %d: invalid qpos size", 0, id);
+    throw mjCError(this, "key %d: invalid qpos size, expected length %d", nullptr, id, m->nq);
   }
 
   // qvel: allocate or check size
@@ -4024,7 +4090,7 @@ void mjCKey::Compile(const mjModel* m) {
       qvel[i] = 0;
     }
   } else if (qvel.size()!=m->nv) {
-    throw mjCError(this, "key %d: invalid qvel size", 0, id);
+    throw mjCError(this, "key %d: invalid qvel size, expected length %d", nullptr, id, m->nv);
   }
 
   // act: allocate or check size
@@ -4034,7 +4100,7 @@ void mjCKey::Compile(const mjModel* m) {
       act[i] = 0;
     }
   } else if (act.size()!=m->na) {
-    throw mjCError(this, "key %d: invalid act size", 0, id);
+    throw mjCError(this, "key %d: invalid act size, expected length %d", nullptr, id, m->na);
   }
 
   // mpos: allocate or check size
@@ -4051,7 +4117,7 @@ void mjCKey::Compile(const mjModel* m) {
       }
     }
   } else if (mpos.size()!=3*m->nmocap) {
-    throw mjCError(this, "key %d: invalid mpos size", 0, id);
+    throw mjCError(this, "key %d: invalid mpos size, expected length %d", nullptr, id, 3*m->nmocap);
   }
 
   // mquat: allocate or check size
@@ -4069,7 +4135,7 @@ void mjCKey::Compile(const mjModel* m) {
       }
     }
   } else if (mquat.size()!=4*m->nmocap) {
-    throw mjCError(this, "key %d: invalid mquat size", 0, id);
+    throw mjCError(this, "key %d: invalid mquat size, expected length %d", nullptr, id, 4*m->nmocap);
   }
 
   // ctrl: allocate or check size
@@ -4079,7 +4145,7 @@ void mjCKey::Compile(const mjModel* m) {
       ctrl[i] = 0;
     }
   } else if (ctrl.size()!=m->nu) {
-    throw mjCError(this, "key %d: invalid ctrl size", 0, id);
+    throw mjCError(this, "key %d: invalid ctrl size, expected length %d", nullptr, id, m->nu);
   }
 
 }

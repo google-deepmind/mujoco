@@ -42,14 +42,14 @@ using tinyxml2::XMLElement;
 
 //---------------------------------- MJCF schema ---------------------------------------------------
 
-static const int nMJCF = 163;
+static const int nMJCF = 165;
 static const char* MJCF[nMJCF][mjXATTRNUM] = {
 {"mujoco", "!", "1", "model"},
 {"<"},
-    {"compiler", "*", "17", "boundmass", "boundinertia", "settotalmass", "balanceinertia",
+    {"compiler", "*", "18", "boundmass", "boundinertia", "settotalmass", "balanceinertia",
         "strippath", "coordinate", "angle", "fitaabb", "eulerseq",
         "meshdir", "texturedir", "discardvisual", "convexhull", "usethread",
-        "fusestatic", "inertiafromgeom", "inertiagrouprange"},
+        "fusestatic", "inertiafromgeom", "inertiagrouprange", "exactmeshinertia"},
     {"<"},
         {"lengthrange", "?", "10", "mode", "useexisting", "uselimit",
             "accel", "maxforce", "timeconst", "timestep",
@@ -63,9 +63,9 @@ static const char* MJCF[nMJCF][mjXATTRNUM] = {
         "integrator", "collision", "cone", "jacobian",
         "solver", "iterations", "noslip_iterations", "mpr_iterations"},
     {"<"},
-        {"flag", "?", "17", "constraint", "equality", "frictionloss", "limit", "contact",
+        {"flag", "?", "18", "constraint", "equality", "frictionloss", "limit", "contact",
             "passive", "gravity", "clampctrl", "warmstart",
-            "filterparent", "actuation", "refsafe",
+            "filterparent", "actuation", "refsafe", "sensor",
             "override", "energy", "fwdinv", "sensornoise", "multiccd"},
     {">"},
 
@@ -75,7 +75,8 @@ static const char* MJCF[nMJCF][mjXATTRNUM] = {
 
     {"visual", "*", "0"},
     {"<"},
-        {"global", "?", "6", "fovy", "ipd", "linewidth", "glow", "offwidth", "offheight"},
+        {"global", "?", "8", "fovy", "ipd", "azimuth", "elevation", "linewidth", "glow", "offwidth",
+            "offheight"},
         {"quality", "?", "5", "shadowsize", "offsamples", "numslices", "numstacks",
             "numquads"},
         {"headlight", "?", "4", "ambient", "diffuse", "specular", "active"},
@@ -103,9 +104,9 @@ static const char* MJCF[nMJCF][mjXATTRNUM] = {
             "limited", "solreflimit", "solimplimit",
             "solreffriction", "solimpfriction", "stiffness", "range", "margin",
             "ref", "springref", "armature", "damping", "frictionloss", "user"},
-        {"geom", "?", "30", "type", "pos", "quat", "contype", "conaffinity", "condim",
+        {"geom", "?", "31", "type", "pos", "quat", "contype", "conaffinity", "condim",
             "group", "priority", "size", "material", "friction", "mass", "density",
-            "solmix", "solref", "solimp",
+            "shellinertia", "solmix", "solref", "solimp",
             "margin", "gap", "fromto", "axisangle", "xyaxes", "zaxis", "euler",
             "hfield", "mesh", "fitscale", "rgba", "fluidshape", "fluidcoef", "user"},
         {"site", "?", "13", "type", "group", "pos", "quat", "material",
@@ -145,6 +146,8 @@ static const char* MJCF[nMJCF][mjXATTRNUM] = {
             "gear", "cranklength", "user", "group",
             "timeconst", "range", "force", "scale",
             "lmin", "lmax", "vmax", "fpmax", "fvmax"},
+        {"adhesion", "?", "6", "forcelimited", "ctrlrange", "forcerange",
+            "gain", "user", "group"},
     {">"},
 
     {"custom", "*", "0"},
@@ -160,7 +163,7 @@ static const char* MJCF[nMJCF][mjXATTRNUM] = {
     {"asset", "*", "0"},
     {"<"},
         {"texture", "*", "21", "name", "type", "file", "gridsize", "gridlayout",
-            "fileright", "fileleft", "fileup", "filedown","filefront", "fileback",
+            "fileright", "fileleft", "fileup", "filedown", "filefront", "fileback",
             "builtin", "rgb1", "rgb2", "mark", "markrgb", "random", "width", "height",
             "hflip", "vflip"},
         {"hfield", "*", "5", "name", "file", "nrow", "ncol", "size"},
@@ -186,9 +189,9 @@ static const char* MJCF[nMJCF][mjXATTRNUM] = {
             "stiffness", "range", "margin", "ref", "springref", "armature", "damping",
             "frictionloss", "user"},
         {"freejoint", "*", "2", "name", "group"},
-        {"geom", "*", "32", "name", "class", "type", "contype", "conaffinity", "condim",
+        {"geom", "*", "33", "name", "class", "type", "contype", "conaffinity", "condim",
             "group", "priority", "size", "material", "friction", "mass", "density",
-            "solmix", "solref", "solimp",
+            "shellinertia", "solmix", "solref", "solimp",
             "margin", "gap", "fromto", "pos", "quat", "axisangle", "xyaxes", "zaxis", "euler",
             "hfield", "mesh", "fitscale", "rgba", "fluidshape", "fluidcoef", "user"},
         {"site", "*", "15", "name", "class", "type", "group", "pos", "quat",
@@ -231,8 +234,8 @@ static const char* MJCF[nMJCF][mjXATTRNUM] = {
     {"<"},
         {"connect", "*", "8", "name", "class", "body1", "body2", "anchor",
             "active", "solref", "solimp"},
-        {"weld", "*", "8", "name", "class", "body1", "body2", "relpose",
-            "active", "solref", "solimp"},
+        {"weld", "*", "10", "name", "class", "body1", "body2", "relpose", "anchor",
+            "active", "solref", "solimp", "torquescale"},
         {"joint", "*", "8", "name", "class", "joint1", "joint2", "polycoef",
             "active", "solref", "solimp"},
         {"tendon", "*", "8", "name", "class", "tendon1", "tendon2", "polycoef",
@@ -262,40 +265,40 @@ static const char* MJCF[nMJCF][mjXATTRNUM] = {
 
     {"actuator", "*", "0"},
     {"<"},
-        {"general", "*", "25", "name", "class", "group",
+        {"general", "*", "27", "name", "class", "group",
             "ctrllimited", "forcelimited", "actlimited", "ctrlrange", "forcerange", "actrange",
             "lengthrange", "gear", "cranklength", "user",
-            "joint", "jointinparent", "tendon", "slidersite", "cranksite", "site",
-            "dyntype", "gaintype", "biastype", "dynprm", "gainprm", "biasprm"},
-        {"motor", "*", "17", "name", "class", "group",
+            "joint", "jointinparent", "tendon", "slidersite", "cranksite", "site", "refsite",
+            "body", "dyntype", "gaintype", "biastype", "dynprm", "gainprm", "biasprm"},
+        {"motor", "*", "18", "name", "class", "group",
             "ctrllimited", "forcelimited", "ctrlrange", "forcerange",
             "lengthrange", "gear", "cranklength", "user",
-            "joint", "jointinparent", "tendon", "slidersite", "cranksite", "site"},
-        {"position", "*", "18", "name", "class", "group",
+            "joint", "jointinparent", "tendon", "slidersite", "cranksite", "site", "refsite"},
+        {"position", "*", "19", "name", "class", "group",
             "ctrllimited", "forcelimited", "ctrlrange", "forcerange",
             "lengthrange", "gear", "cranklength", "user",
-            "joint", "jointinparent", "tendon", "slidersite", "cranksite", "site",
+            "joint", "jointinparent", "tendon", "slidersite", "cranksite", "site", "refsite",
             "kp"},
-        {"velocity", "*", "18", "name", "class", "group",
+        {"velocity", "*", "19", "name", "class", "group",
             "ctrllimited", "forcelimited", "ctrlrange", "forcerange",
             "lengthrange", "gear", "cranklength", "user",
-            "joint", "jointinparent", "tendon", "slidersite", "cranksite", "site",
+            "joint", "jointinparent", "tendon", "slidersite", "cranksite", "site", "refsite",
             "kv"},
-        {"intvelocity", "*", "19", "name", "class", "group",
+        {"intvelocity", "*", "20", "name", "class", "group",
             "ctrllimited", "forcelimited",
             "ctrlrange", "forcerange", "actrange", "lengthrange",
             "gear", "cranklength", "user",
-            "joint", "jointinparent", "tendon", "slidersite", "cranksite", "site",
+            "joint", "jointinparent", "tendon", "slidersite", "cranksite", "site", "refsite",
             "kp"},
-        {"damper", "*", "17", "name", "class", "group",
+        {"damper", "*", "18", "name", "class", "group",
             "forcelimited", "ctrlrange", "forcerange",
             "lengthrange", "gear", "cranklength", "user",
-            "joint", "jointinparent", "tendon", "slidersite", "cranksite", "site",
+            "joint", "jointinparent", "tendon", "slidersite", "cranksite", "site", "refsite",
             "kv"},
-        {"cylinder", "*", "21", "name", "class", "group",
+        {"cylinder", "*", "22", "name", "class", "group",
             "ctrllimited", "forcelimited", "ctrlrange", "forcerange",
             "lengthrange", "gear", "cranklength", "user",
-            "joint", "jointinparent", "tendon", "slidersite", "cranksite", "site",
+            "joint", "jointinparent", "tendon", "slidersite", "cranksite", "site", "refsite",
             "timeconst", "area", "diameter", "bias"},
         {"muscle", "*", "25",  "name", "class", "group",
             "ctrllimited", "forcelimited", "ctrlrange", "forcerange",
@@ -303,6 +306,8 @@ static const char* MJCF[nMJCF][mjXATTRNUM] = {
             "joint", "jointinparent", "tendon", "slidersite", "cranksite",
             "timeconst", "range", "force", "scale",
             "lmin", "lmax", "vmax", "fpmax", "fvmax"},
+        {"adhesion", "*", "9", "name", "class", "group",
+            "forcelimited", "ctrlrange", "forcerange", "user", "body", "gain"},
     {">"},
 
     {"sensor", "*", "0"},
@@ -608,6 +613,13 @@ const mjMap tkind_map[2] = {
 };
 
 
+// mesh type
+const mjMap  meshtype_map[2] = {
+    {"false", mjVOLUME_MESH},
+    {"true",  mjSHELL_MESH},
+  };
+
+
 
 //---------------------------------- class mjXReader implementation --------------------------------
 
@@ -793,6 +805,9 @@ void mjXReader::Compiler(XMLElement* section, mjCModel* mod) {
   }
   MapValue(section, "inertiafromgeom", &mod->inertiafromgeom, TFAuto_map, 3);
   ReadAttr(section, "inertiagrouprange", 2, mod->inertiagrouprange, text);
+  if (MapValue(section, "exactmeshinertia", &n, bool_map, 2)){
+    mod->exactmeshinertia = (n==1);
+  }
 
   // lengthrange subelement
   XMLElement* elem = FindSubElem(section, "lengthrange");
@@ -872,6 +887,7 @@ void mjXReader::Option(XMLElement* section, mjOption* opt) {
     READDSBL("filterparent", mjDSBL_FILTERPARENT)
     READDSBL("actuation",    mjDSBL_ACTUATION)
     READDSBL("refsafe",      mjDSBL_REFSAFE)
+    READDSBL("sensor",       mjDSBL_SENSOR)
 #undef READDSBL
 
 #define READENBL(NAME, MASK) \
@@ -1077,9 +1093,7 @@ void mjXReader::OneJoint(XMLElement* elem, mjCJoint* pjoint) {
   if (MapValue(elem, "type", &n, joint_map, joint_sz)) {
     pjoint->type = (mjtJoint)n;
   }
-  if (MapValue(elem, "limited", &n, bool_map, 2)) {
-    pjoint->limited = (n==1);
-  }
+  MapValue(elem, "limited", &pjoint->limited, TFAuto_map, 3);
   ReadAttrInt(elem, "group", &pjoint->group);
   ReadAttr(elem, "solreflimit", mjNREF, pjoint->solref_limit, text, false, false);
   ReadAttr(elem, "solimplimit", mjNIMP, pjoint->solimp_limit, text, false, false);
@@ -1148,6 +1162,11 @@ void mjXReader::OneGeom(XMLElement* elem, mjCGeom* pgeom) {
   ReadAttr(elem, "pos", 3, pgeom->pos, text);
   ReadAttr(elem, "quat", 4, pgeom->quat, text);
   ReadAlternative(elem, pgeom->alt);
+
+  // compute inertia using either solid or shell geometry
+  if (MapValue(elem, "shellinertia", &n, meshtype_map, 2)) {
+    pgeom->typeinertia = (mjtMeshType)n;
+  }
 
   GetXMLPos(elem, pgeom);
 }
@@ -1292,7 +1311,11 @@ void mjXReader::OneEquality(XMLElement* elem, mjCEquality* pequality) {
     case mjEQ_WELD:
       ReadAttrTxt(elem, "body1", pequality->name1, true);
       ReadAttrTxt(elem, "body2", pequality->name2);
-      ReadAttr(elem, "relpose", mjNEQDATA, pequality->data, text);
+      ReadAttr(elem, "relpose", 7, pequality->data+3, text);
+      ReadAttr(elem, "torquescale", 1, pequality->data+10, text);
+      if (!ReadAttr(elem, "anchor", 3, pequality->data, text)) {
+        mjuu_zerovec(pequality->data, 3);
+      }
       break;
 
     case mjEQ_JOINT:
@@ -1308,9 +1331,7 @@ void mjXReader::OneEquality(XMLElement* elem, mjCEquality* pequality) {
       break;
 
     case mjEQ_DISTANCE:
-      ReadAttrTxt(elem, "geom1", pequality->name1, true);
-      ReadAttrTxt(elem, "geom2", pequality->name2, true);
-      ReadAttr(elem, "distance", 1, pequality->data, text);
+      throw mjXError(elem, "support for distance equality contraints was removed in MuJoCo 2.2.2");
       break;
 
     default:                    // SHOULD NOT OCCUR
@@ -1332,7 +1353,6 @@ void mjXReader::OneEquality(XMLElement* elem, mjCEquality* pequality) {
 
 // tendon element parser
 void mjXReader::OneTendon(XMLElement* elem, mjCTendon* pten) {
-  int n;
   string text;
 
   // read attributes
@@ -1340,9 +1360,7 @@ void mjXReader::OneTendon(XMLElement* elem, mjCTendon* pten) {
   ReadAttrTxt(elem, "class", pten->classname);
   ReadAttrInt(elem, "group", &pten->group);
   ReadAttrTxt(elem, "material", pten->material);
-  if (MapValue(elem, "limited", &n, bool_map, 2)) {
-    pten->limited = (n==1);
-  }
+  MapValue(elem, "limited", &pten->limited, TFAuto_map, 3);
   ReadAttr(elem, "width", 1, &pten->width, text);
   ReadAttr(elem, "solreflimit", mjNREF, pten->solref_limit, text, false, false);
   ReadAttr(elem, "solimplimit", mjNIMP, pten->solimp_limit, text, false, false);
@@ -1374,15 +1392,9 @@ void mjXReader::OneActuator(XMLElement* elem, mjCActuator* pact) {
   ReadAttrTxt(elem, "name", pact->name);
   ReadAttrTxt(elem, "class", pact->classname);
   ReadAttrInt(elem, "group", &pact->group);
-  if (MapValue(elem, "ctrllimited", &n, bool_map, 2)) {
-    pact->ctrllimited = (n==1);
-  }
-  if (MapValue(elem, "forcelimited", &n, bool_map, 2)) {
-    pact->forcelimited = (n==1);
-  }
-  if (MapValue(elem, "actlimited", &n, bool_map, 2)) {
-    pact->actlimited = (n==1);
-  }
+  MapValue(elem, "ctrllimited", &pact->ctrllimited, TFAuto_map, 3);
+  MapValue(elem, "forcelimited", &pact->forcelimited, TFAuto_map, 3);
+  MapValue(elem, "actlimited", &pact->actlimited, TFAuto_map, 3);
   ReadAttr(elem, "ctrlrange", 2, pact->ctrlrange, text);
   ReadAttr(elem, "forcerange", 2, pact->forcerange, text);
   ReadAttr(elem, "actrange", 2, pact->actrange, text);
@@ -1411,7 +1423,10 @@ void mjXReader::OneActuator(XMLElement* elem, mjCActuator* pact) {
     pact->trntype = mjTRN_SITE;
     cnt++;
   }
-
+  if (ReadAttrTxt(elem, "body", pact->target)) {
+    pact->trntype = mjTRN_BODY;
+    cnt++;
+  }
   // check for repeated transmission
   if (cnt>1) {
     throw mjXError(elem, "actuator can have at most one of transmission target");
@@ -1422,6 +1437,12 @@ void mjXReader::OneActuator(XMLElement* elem, mjCActuator* pact) {
   int r2 = ReadAttrTxt(elem, "slidersite", pact->slidersite);
   if ((r1 || r2) && pact->trntype!=mjTRN_SLIDERCRANK && pact->trntype!=mjTRN_UNDEFINED) {
     throw mjXError(elem, "cranklength and slidersite can only be used in slidercrank transmission");
+  }
+
+  // site-specific parameters (refsite)
+  int r3 = ReadAttrTxt(elem, "refsite", pact->refsite);
+  if (r3 && pact->trntype!=mjTRN_SITE && pact->trntype!=mjTRN_UNDEFINED) {
+    throw mjXError(elem, "refsite can only be used with site transmission");
   }
 
   // get predefined type
@@ -1497,17 +1518,13 @@ void mjXReader::OneActuator(XMLElement* elem, mjCActuator* pact) {
     pact->dyntype = mjDYN_INTEGRATOR;
     pact->gaintype = mjGAIN_FIXED;
     pact->biastype = mjBIAS_AFFINE;
-    pact->actlimited = true;
+    pact->actlimited = 1;
     pact->biasprm[1] = -pact->gainprm[0];
-    // require actrange
-    if (!ReadAttr(elem, "actrange", 2, pact->actrange, text)) {
-      throw mjXError(elem, "actrange is required for an intvelocity actuator", type.c_str());
-    }
   }
 
   // damper
   else if (type=="damper") {
-    // clear bias
+    // clear gain
     mjuu_zerovec(pact->gainprm, mjNGAIN);
 
     // explicit attributes
@@ -1516,14 +1533,14 @@ void mjXReader::OneActuator(XMLElement* elem, mjCActuator* pact) {
       throw mjXError(elem, "damping coefficient cannot be negative");
     pact->gainprm[2] = -pact->gainprm[2];
 
-    // Require nonnegative range
-    ReadAttr(elem, "ctrlrange", 2, pact->ctrlrange, text);
+    // require nonnegative range
+    ReadAttr(elem, "ctrlrange", 2, pact->ctrlrange, text, true);
     if (pact->ctrlrange[0]<0 || pact->ctrlrange[1]<0) {
-      throw mjXError(elem, "control range cannot be negative");
+      throw mjXError(elem, "damper control range cannot be negative");
     }
 
     // implied parameters
-    pact->ctrllimited = true;
+    pact->ctrllimited = 1;
     pact->dyntype = mjDYN_NONE;
     pact->gaintype = mjGAIN_AFFINE;
     pact->biastype = mjBIAS_NONE;
@@ -1580,6 +1597,31 @@ void mjXReader::OneActuator(XMLElement* elem, mjCActuator* pact) {
     pact->dyntype = mjDYN_MUSCLE;
     pact->gaintype = mjGAIN_MUSCLE;
     pact->biastype = mjBIAS_MUSCLE;
+  }
+
+  // adhesion
+  else if (type=="adhesion") {
+    // clear bias, set default gain
+    mjuu_zerovec(pact->biasprm, mjNBIAS);
+    mjuu_zerovec(pact->gainprm, mjNGAIN);
+    pact->gainprm[0] = 1;
+
+    // explicit attributes
+    ReadAttr(elem, "gain", 1, pact->gainprm, text);
+    if (pact->gainprm[0]<0)
+      throw mjXError(elem, "adhesion gain cannot be negative");
+
+    // require nonnegative range
+    ReadAttr(elem, "ctrlrange", 2, pact->ctrlrange, text, true);
+    if (pact->ctrlrange[0]<0 || pact->ctrlrange[1]<0) {
+      throw mjXError(elem, "adhesion control range cannot be negative");
+    }
+
+    // implied parameters
+    pact->ctrllimited = 1;
+    pact->dyntype = mjDYN_NONE;
+    pact->gaintype = mjGAIN_FIXED;
+    pact->biastype = mjBIAS_NONE;
   }
 
   else {          // SHOULD NOT OCCUR
@@ -1682,9 +1724,7 @@ void mjXReader::OneComposite(XMLElement* elem, mjCBody* pbody, mjCDef* def) {
     ReadAttr(ejnt, "solimpfix", mjNIMP, comp.def[kind].equality.solimp, text, false, false);
 
     // joint attributes
-    if (MapValue(ejnt, "limited", &n, bool_map, 2)) {
-      comp.def[kind].joint.limited = (n==1);
-    }
+    MapValue(elem, "limited", &comp.def[kind].joint.limited, TFAuto_map, 3);
     ReadAttrInt(ejnt, "group", &comp.def[kind].joint.group);
     ReadAttr(ejnt, "solreflimit", mjNREF, comp.def[kind].joint.solref_limit, text, false, false);
     ReadAttr(ejnt, "solimplimit", mjNIMP, comp.def[kind].joint.solimp_limit, text, false, false);
@@ -1716,9 +1756,7 @@ void mjXReader::OneComposite(XMLElement* elem, mjCBody* pbody, mjCDef* def) {
     ReadAttr(eten, "solimpfix", mjNIMP, comp.def[kind].equality.solimp, text, false, false);
 
     // tendon attributes
-    if (MapValue(eten, "limited", &n, bool_map, 2)) {
-      comp.def[kind].tendon.limited = (n==1);
-    }
+    MapValue(elem, "limited", &comp.def[kind].tendon.limited, TFAuto_map, 3);
     ReadAttrInt(eten, "group", &comp.def[kind].tendon.group);
     ReadAttr(eten, "solreflimit", mjNREF, comp.def[kind].tendon.solref_limit, text, false, false);
     ReadAttr(eten, "solimplimit", mjNIMP, comp.def[kind].tendon.solimp_limit, text, false, false);
@@ -1987,6 +2025,8 @@ void mjXReader::Visual(XMLElement* section) {
     if (name=="global") {
       ReadAttr(elem,    "fovy",      1, &vis->global.fovy,      text);
       ReadAttr(elem,    "ipd",       1, &vis->global.ipd,       text);
+      ReadAttr(elem,    "azimuth",   1, &vis->global.azimuth,   text);
+      ReadAttr(elem,    "elevation", 1, &vis->global.elevation, text);
       ReadAttr(elem,    "linewidth", 1, &vis->global.linewidth, text);
       ReadAttr(elem,    "glow",      1, &vis->global.glow,      text);
       ReadAttrInt(elem, "offwidth",     &vis->global.offwidth);
@@ -2234,7 +2274,7 @@ void mjXReader::Body(XMLElement* section, mjCBody* pbody) {
       if (pbody->id==0) {
         throw mjXError(elem, "World body cannot have inertia");
       }
-      pbody->explicit_inertial = true;
+      pbody->explicitinertial = true;
       ReadAttr(elem, "pos", 3, pbody->ipos, text, true);
       ReadAttr(elem, "quat", 4, pbody->iquat, text);
       ReadAttr(elem, "mass", 1, &pbody->mass, text, true);

@@ -76,6 +76,13 @@ typedef enum _mjtMark {
 } mjtMark;
 
 
+// type of mesh
+typedef enum _mjtMeshType {
+  mjVOLUME_MESH,
+  mjSHELL_MESH,
+} mjtMeshType;
+
+
 // error information
 class mjCError {
  public:
@@ -160,7 +167,7 @@ class mjCBody : public mjCBase {
   // setup child local frame, take into account change
   void MakeLocal(double* locpos, double* locquat, const double* pos, const double* quat);
 
-  // set explicit_inertial to true
+  // set explicitinertial to true
   void MakeInertialExplicit();
 
   // variables set by user or 'Compile'
@@ -191,7 +198,7 @@ class mjCBody : public mjCBase {
   int weldid;                     // top index of body we are welded to
   int dofnum;                     // number of motion dofs for body
   int mocapid;                    // mocap id, -1: not mocap
-  bool explicit_inertial;         // whether to save the body with an explicit inertial clause
+  bool explicitinertial;          // whether to save the body with an explicit inertial clause
 
   int lastdof;                    // id of last dof (used by compiler)
 
@@ -221,7 +228,7 @@ class mjCJoint : public mjCBase {
   // variables set by user: joint properties
   mjtJoint type;                  // type of Joint
   int group;                      // used for rendering
-  bool limited;                   // does joint have limits
+  int limited;                    // does joint have limits: 0 false, 1 true, 2 auto
   double pos[3];                  // anchor position
   double axis[3];                 // joint axis
   double stiffness;               // stiffness coefficient
@@ -298,6 +305,8 @@ class mjCGeom : public mjCBase {
   std::string material;           // name of material used for rendering
   std::vector<double> userdata;   // user data
   float rgba[4];                  // rgba when material is omitted
+  mjtMeshType typeinertia;        // selects between surface and volume inertia
+  bool inferinertia;              // true if inertia has to be computed from geom
 
   // variables set by user and used during compilation
   double _mass;                   // used to compute density
@@ -443,9 +452,11 @@ class mjCMesh: public mjCBase {
   friend class mjXWriter;
 
  public:
-  void GetPos(double* pos);                   // get position
-  void GetQuat(double* quat);                 // get orientation
-  void FitGeom(mjCGeom* geom, double* meshpos); // approximate mesh with simple geom
+  double* GetPosPtr(mjtMeshType type);              // get position
+  double* GetQuatPtr(mjtMeshType type);             // get orientation
+  double* GetInertiaBoxPtr(mjtMeshType type);       // get inertia box
+  double& GetVolumeRef(mjtMeshType type);           // get volume
+  void FitGeom(mjCGeom* geom, double* meshpos);   // approximate mesh with simple geom
 
   std::string file;                   // mesh file
   double refpos[3];                   // reference position (translate)
@@ -453,10 +464,11 @@ class mjCMesh: public mjCBase {
   double scale[3];                    // rescale mesh
   bool smoothnormal;                  // do not exclude large-angle faces from normals
 
-  std::vector<float> uservert;        // user vertex data
-  std::vector<float> usernormal;      // user normal data
-  std::vector<float> usertexcoord;    // user texcoord data
-  std::vector<int> userface;          // user face data
+  std::vector<float> uservert;                   // user vertex data
+  std::vector<float> usernormal;                 // user normal data
+  std::vector<float> usertexcoord;               // user texcoord data
+  std::vector<int> userface;                     // user face data
+  std::vector< std::pair<int, int> > useredge;   // user half-edge data
 
  private:
   mjCMesh(mjCModel* = 0, mjCDef* = 0);        // constructor
@@ -468,14 +480,29 @@ class mjCMesh: public mjCBase {
   void MakeGraph(void);                       // make graph of convex hull
   void CopyGraph(void);                       // copy graph into face data
   void MakeNormal(void);                      // compute vertex normals
-  void Process(void);                         // apply transformations
+  void Process();                             // apply transformations
   void RemoveRepeated(void);                  // remove repeated vertices
+  void ComputeInertia(mjtMeshType type);      // compute inertia
+  void CheckMesh(void);                       // check if the mesh is valid
+
+  // mesh properties that indicate a well-formed mesh
+  bool validorientation;              // false if mesh have inconsistent faces
+  bool validarea;                     // false if the area is too small
+  bool validvolume;                   // false if the volume is too small
+  bool valideigenvalue;               // false if inertia eigenvalue is too small
+  bool validinequality;               // false if inertia inequality is not satisfied
+  bool processed;                     // false if the mesh has not been processed yet
 
   // mesh properties computed by Compile
-  double pos[3];                      // CoM position
-  double quat[4];                     // inertia orientation
-  double boxsz[3];                    // half-sizes of equivalent inertia box
+  double pos_volume[3];               // CoM position
+  double pos_surface[3];              // CoM position
+  double quat_volume[4];              // inertia orientation
+  double quat_surface[4];             // inertia orientation
+  double boxsz_volume[3];             // half-sizes of equivalent inertia box (volume)
+  double boxsz_surface[3];            // half-sizes of equivalent inertia box (surface)
   double aabb[3];                     // half-sizes of axis-aligned bounding box
+  double volume;                      // volume of the mesh
+  double surface;                     // surface of the mesh
 
   // mesh data to be copied into mjModel
   int nvert;                          // number of vertices
@@ -726,8 +753,8 @@ class mjCEquality : public mjCBase {
   double data[mjNEQDATA];         // type-dependent data
 
  private:
-  mjCEquality(mjCModel* = 0, mjCDef* = 0);// constructor
-  void Compile(void);                     // compiler
+  mjCEquality(mjCModel* = 0, mjCDef* = 0);  // constructor
+  void Compile(void);                       // compiler
 
   int obj1id;                     // id of object 1
   int obj2id;                     // id of object 2
@@ -757,7 +784,7 @@ class mjCTendon : public mjCBase {
   // variables set by user
   int group;                      // group for visualization
   std::string material;           // name of material for rendering
-  bool limited;                   // does tendon have limits
+  int limited;                    // does tendon have limits: 0 false, 1 true, 2 auto
   double width;                   // width for rendering
   mjtNum solref_limit[mjNREF];    // solver reference: tendon limits
   mjtNum solimp_limit[mjNIMP];    // solver impedance: tendon limits
@@ -817,9 +844,9 @@ class mjCActuator : public mjCBase {
  public:
   // variables set by user or API
   int group;                      // group for visualization
-  bool ctrllimited;               // are control limits defined
-  bool forcelimited;              // are force limits defined
-  bool actlimited;                // are activation limits defined
+  int ctrllimited;               // are control limits defined: 0 false, 1 true, 2 auto
+  int forcelimited;              // are force limits defined: 0 false, 1 true, 2 auto
+  int actlimited;                // are activation limits defined: 0 false, 1 true, 2 auto
   mjtDyn dyntype;                 // dynamics type
   mjtTrn trntype;                 // transmission type
   mjtGain gaintype;               // gain type
@@ -836,6 +863,7 @@ class mjCActuator : public mjCBase {
   std::vector<double> userdata;   // user data
   std::string target;             // transmission target name
   std::string slidersite;         // site defining cylinder, for slider-crank only
+  std::string refsite;            // reference site, for site transmission only
 
  private:
   mjCActuator(mjCModel* = 0, mjCDef* = 0);// constructor

@@ -450,6 +450,27 @@ static void renderGeom(const mjvGeom* geom, int mode, const float* headpos,
 
 
 
+void renderGeomReflection(int id, float reflectance, float headpos[3],
+                          mjvScene* scn, const mjrContext* con) {
+  float old_rgb[3];
+
+  // save rgb, modulate rgb by this->reflectance
+  for (int k=0; k<3; k++) {
+    old_rgb[k] = scn->geoms[id].rgba[k];
+    scn->geoms[id].rgba[k] *= reflectance;
+  }
+
+  // render
+  renderGeom(scn->geoms+id, mjrRND_NORMAL, headpos, scn, con);
+
+  // restore rgb
+  for (int k=0; k<3; k++) {
+    scn->geoms[id].rgba[k] = old_rgb[k];
+  }
+}
+
+
+
 //----------------------------- high-level 3D rendering --------------------------------------------
 
 // init, with or without special effects
@@ -470,7 +491,11 @@ static void initGL3(const mjvScene* scn, const mjrContext* con) {
   glEnable(GL_NORMALIZE);
   glEnable(GL_DEPTH_TEST);
   glDepthMask(GL_TRUE);
-  glEnable(GL_CULL_FACE);
+  if (scn->flags[mjRND_CULL_FACE]) {
+    glEnable(GL_CULL_FACE);
+  } else {
+    glDisable(GL_CULL_FACE);
+  }
   glShadeModel(GL_SMOOTH);
   glDepthFunc(GL_LEQUAL);
   glDepthRange(0, 1);
@@ -890,23 +915,35 @@ void mjr_render(mjrRect viewport, mjvScene* scn, const mjrContext* con) {
             glEnable(GL_LIGHT0+j);
           }
 
-          // render reflected scene except for thisgeom
-          for (int j=0; j<ngeom; j++)
-            if (i!=j) {
-              // save rgb, modulate rgb by this->reflectance
-              for (int k=0; k<3; k++) {
-                temp[k] = scn->geoms[j].rgba[k];
-                scn->geoms[j].rgba[k] *= thisgeom->reflectance;
-              }
+          // render reflected non-transparent geoms, except for thisgeom
+          for (int j=0; j<ngeom; j++) {
+            if (!scn->geoms[j].transparent && i!=j) {
+              renderGeomReflection(j, thisgeom->reflectance, headpos, scn, con);
+            }
+          }
 
-              // render
-              renderGeom(scn->geoms+j, mjrRND_NORMAL, headpos, scn, con);
-
-              // restore rgb
-              for (int k=0; k<3; k++) {
-                scn->geoms[j].rgba[k] = temp[k];
+          // render reflected transparent geoms, except for thisgeom
+          glDepthMask(GL_FALSE);
+          glEnable(GL_BLEND);
+          if (scn->flags[mjRND_ADDITIVE]) {
+            glBlendFunc(GL_SRC_ALPHA, GL_ONE);
+          } else {
+            glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+          }
+          for (int j=0; j<nt; j++) {
+            if (i!=scn->geomorder[j]) {
+              renderGeomReflection(scn->geomorder[j], thisgeom->reflectance, headpos, scn, con);
+            }
+          }
+          if (!scn->flags[mjRND_ADDITIVE]) {
+            for (int j=nt-1; j>=0; j--) {
+              if (i!=scn->geomorder[j]) {
+                renderGeomReflection(scn->geomorder[j], thisgeom->reflectance, headpos, scn, con);
               }
             }
+          }
+          glDepthMask(GL_TRUE);
+          glDisable(GL_BLEND);
 
           // disable lights
           for (int j=0; j<nlight; j++) {

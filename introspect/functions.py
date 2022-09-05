@@ -2010,6 +2010,36 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
          ),
          doc='Compute body center-of-mass end-effector Jacobian.',
      )),
+    ('mj_jacSubtreeCom',
+     FunctionDecl(
+         name='mj_jacSubtreeCom',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='m',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjModel', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='d',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjData'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='jacp',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='body',
+                 type=ValueType(name='int'),
+             ),
+         ),
+         doc='Compute subtree center-of-mass end-effector Jacobian.',
+     )),
     ('mj_jacGeom',
      FunctionDecl(
          name='mj_jacGeom',
@@ -2898,6 +2928,26 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
              ),
          ),
          doc='Set default camera.',
+     )),
+    ('mjv_defaultFreeCamera',
+     FunctionDecl(
+         name='mjv_defaultFreeCamera',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='m',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjModel', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='cam',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjvCamera'),
+                 ),
+             ),
+         ),
+         doc='Set default free camera.',
      )),
     ('mjv_defaultPerturb',
      FunctionDecl(
@@ -6930,7 +6980,19 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                      inner_type=ValueType(name='mjtNum'),
                  ),
              ),
+             FunctionParameterDecl(
+                 name='C',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='D',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+             ),
          ),
-         doc='Finite differenced state-transition and control-transition matrices dx(t+h) = A*dx(t) + B*du(t).   required output matrix dimensions:      A: (2*nv+na x 2*nv+na)      B: (2*nv+na x nu)',  # pylint: disable=line-too-long
+         doc='Finite differenced transition matrices (control theory notation)   d(x_next) = A*dx + B*du   d(sensor) = C*dx + D*du   required output matrix dimensions:      A: (2*nv+na x 2*nv+na)      B: (2*nv+na x nu)      D: (nsensordata x 2*nv+na)      C: (nsensordata x nu)',  # pylint: disable=line-too-long
      )),
 ])

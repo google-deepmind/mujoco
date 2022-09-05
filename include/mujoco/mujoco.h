@@ -24,7 +24,7 @@ extern "C" {
 #endif
 
 // header version; should match the library version as returned by mj_version()
-#define mjVERSION_HEADER 220
+#define mjVERSION_HEADER 221
 
 // needed to define size_t, fabs and log10
 #include "stdlib.h"
@@ -386,6 +386,9 @@ MJAPI void mj_jacBody(const mjModel* m, const mjData* d, mjtNum* jacp, mjtNum* j
 // Compute body center-of-mass end-effector Jacobian.
 MJAPI void mj_jacBodyCom(const mjModel* m, const mjData* d, mjtNum* jacp, mjtNum* jacr, int body);
 
+// Compute subtree center-of-mass end-effector Jacobian.
+MJAPI void mj_jacSubtreeCom(const mjModel* m, mjData* d, mjtNum* jacp, int body);
+
 // Compute geom end-effector Jacobian.
 MJAPI void mj_jacGeom(const mjModel* m, const mjData* d, mjtNum* jacp, mjtNum* jacr, int geom);
 
@@ -488,6 +491,9 @@ MJAPI mjtNum mju_raySkin(int nface, int nvert, const int* face, const float* ver
 
 // Set default camera.
 MJAPI void mjv_defaultCamera(mjvCamera* cam);
+
+// Set default free camera.
+MJAPI void mjv_defaultFreeCamera(const mjModel* m, mjvCamera* cam);
 
 // Set default perturbation.
 MJAPI void mjv_defaultPerturb(mjvPerturb* pert);
@@ -1085,12 +1091,17 @@ MJAPI mjtNum mju_sigmoid(mjtNum x);
 
 //---------------------- Derivatives ---------------------------------------------------------------
 
-// Finite differenced state-transition and control-transition matrices dx(t+h) = A*dx(t) + B*du(t).
+// Finite differenced transition matrices (control theory notation)
+//   d(x_next) = A*dx + B*du
+//   d(sensor) = C*dx + D*du
 //   required output matrix dimensions:
 //      A: (2*nv+na x 2*nv+na)
 //      B: (2*nv+na x nu)
+//      D: (nsensordata x 2*nv+na)
+//      C: (nsensordata x nu)
 MJAPI void mjd_transitionFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte centered,
-                            mjtNum* A, mjtNum* B);
+                            mjtNum* A, mjtNum* B, mjtNum* C, mjtNum* D);
+
 
 
 #if defined(__cplusplus)

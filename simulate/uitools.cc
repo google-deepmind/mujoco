@@ -13,30 +13,37 @@
 // limitations under the License.
 
 #include "uitools.h"
+
 #include <stdio.h>
 #include <string.h>
 
+#include <GLFW/glfw3.h>
+#include "glfw_dispatch.h"
 
-//-------------------------------- Internal GLFW callbacks ------------------------------
+namespace {
+using ::mujoco::Glfw;
+}
+
+//------------------------------------ internal GLFW callbacks -------------------------------------
 
 // update state
 static void uiUpdateState(GLFWwindow* wnd) {
   // extract data from user pointer
-  uiUserPointer* ptr = (uiUserPointer*)glfwGetWindowUserPointer(wnd);
+  uiUserPointer* ptr = (uiUserPointer*)Glfw().glfwGetWindowUserPointer(wnd);
   mjuiState* state = ptr->state;
 
   // mouse buttons
-  state->left =   (glfwGetMouseButton(wnd, GLFW_MOUSE_BUTTON_LEFT)==GLFW_PRESS);
-  state->right =  (glfwGetMouseButton(wnd, GLFW_MOUSE_BUTTON_RIGHT)==GLFW_PRESS);
-  state->middle = (glfwGetMouseButton(wnd, GLFW_MOUSE_BUTTON_MIDDLE)==GLFW_PRESS);
+  state->left =   (Glfw().glfwGetMouseButton(wnd, GLFW_MOUSE_BUTTON_LEFT)==GLFW_PRESS);
+  state->right =  (Glfw().glfwGetMouseButton(wnd, GLFW_MOUSE_BUTTON_RIGHT)==GLFW_PRESS);
+  state->middle = (Glfw().glfwGetMouseButton(wnd, GLFW_MOUSE_BUTTON_MIDDLE)==GLFW_PRESS);
 
   // keyboard modifiers
-  state->control = (glfwGetKey(wnd, GLFW_KEY_LEFT_CONTROL)==GLFW_PRESS ||
-                    glfwGetKey(wnd, GLFW_KEY_RIGHT_CONTROL)==GLFW_PRESS);
-  state->shift =   (glfwGetKey(wnd, GLFW_KEY_LEFT_SHIFT)==GLFW_PRESS ||
-                    glfwGetKey(wnd, GLFW_KEY_RIGHT_SHIFT)==GLFW_PRESS);
-  state->alt =     (glfwGetKey(wnd, GLFW_KEY_LEFT_ALT)==GLFW_PRESS ||
-                    glfwGetKey(wnd, GLFW_KEY_RIGHT_ALT)==GLFW_PRESS);
+  state->control = (Glfw().glfwGetKey(wnd, GLFW_KEY_LEFT_CONTROL)==GLFW_PRESS ||
+                    Glfw().glfwGetKey(wnd, GLFW_KEY_RIGHT_CONTROL)==GLFW_PRESS);
+  state->shift =   (Glfw().glfwGetKey(wnd, GLFW_KEY_LEFT_SHIFT)==GLFW_PRESS ||
+                    Glfw().glfwGetKey(wnd, GLFW_KEY_RIGHT_SHIFT)==GLFW_PRESS);
+  state->alt =     (Glfw().glfwGetKey(wnd, GLFW_KEY_LEFT_ALT)==GLFW_PRESS ||
+                    Glfw().glfwGetKey(wnd, GLFW_KEY_RIGHT_ALT)==GLFW_PRESS);
 
   // swap left and right if Alt
   if (state->alt) {
@@ -47,7 +54,7 @@ static void uiUpdateState(GLFWwindow* wnd) {
 
   // get mouse position, scale by buffer-to-window ratio
   double x, y;
-  glfwGetCursorPos(wnd, &x, &y);
+  Glfw().glfwGetCursorPos(wnd, &x, &y);
   x *= ptr->buffer2window;
   y *= ptr->buffer2window;
 
@@ -74,7 +81,7 @@ static void uiKeyboard(GLFWwindow* wnd, int key, int scancode, int act, int mods
   }
 
   // extract data from user pointer
-  uiUserPointer* ptr = (uiUserPointer*)glfwGetWindowUserPointer(wnd);
+  uiUserPointer* ptr = (uiUserPointer*)Glfw().glfwGetWindowUserPointer(wnd);
   mjuiState* state = ptr->state;
 
   // update state
@@ -83,7 +90,7 @@ static void uiKeyboard(GLFWwindow* wnd, int key, int scancode, int act, int mods
   // set key info
   state->type = mjEVENT_KEY;
   state->key = key;
-  state->keytime = glfwGetTime();
+  state->keytime = Glfw().glfwGetTime();
 
   // application-specific processing
   ptr->uiEvent(state);
@@ -94,7 +101,7 @@ static void uiKeyboard(GLFWwindow* wnd, int key, int scancode, int act, int mods
 // mouse button
 static void uiMouseButton(GLFWwindow* wnd, int button, int act, int mods) {
   // extract data from user pointer
-  uiUserPointer* ptr = (uiUserPointer*)glfwGetWindowUserPointer(wnd);
+  uiUserPointer* ptr = (uiUserPointer*)Glfw().glfwGetWindowUserPointer(wnd);
   mjuiState* state = ptr->state;
 
   // update state
@@ -110,8 +117,8 @@ static void uiMouseButton(GLFWwindow* wnd, int button, int act, int mods) {
   }
 
   // swap left and right if Alt
-  if (glfwGetKey(wnd, GLFW_KEY_LEFT_ALT)==GLFW_PRESS ||
-      glfwGetKey(wnd, GLFW_KEY_RIGHT_ALT)==GLFW_PRESS) {
+  if (Glfw().glfwGetKey(wnd, GLFW_KEY_LEFT_ALT)==GLFW_PRESS ||
+      Glfw().glfwGetKey(wnd, GLFW_KEY_RIGHT_ALT)==GLFW_PRESS) {
     if (button==mjBUTTON_LEFT) {
       button = mjBUTTON_RIGHT;
     } else if (button==mjBUTTON_RIGHT) {
@@ -122,7 +129,7 @@ static void uiMouseButton(GLFWwindow* wnd, int button, int act, int mods) {
   // press
   if (act==GLFW_PRESS) {
     // detect doubleclick: 250 ms
-    if (button==state->button && glfwGetTime()-state->buttontime<0.25) {
+    if (button==state->button && Glfw().glfwGetTime()-state->buttontime<0.25) {
       state->doubleclick = 1;
     } else {
       state->doubleclick = 0;
@@ -131,7 +138,7 @@ static void uiMouseButton(GLFWwindow* wnd, int button, int act, int mods) {
     // set info
     state->type = mjEVENT_PRESS;
     state->button = button;
-    state->buttontime = glfwGetTime();
+    state->buttontime = Glfw().glfwGetTime();
 
     // start dragging
     if (state->mouserect) {
@@ -160,7 +167,7 @@ static void uiMouseButton(GLFWwindow* wnd, int button, int act, int mods) {
 // mouse move
 static void uiMouseMove(GLFWwindow* wnd, double xpos, double ypos) {
   // extract data from user pointer
-  uiUserPointer* ptr = (uiUserPointer*)glfwGetWindowUserPointer(wnd);
+  uiUserPointer* ptr = (uiUserPointer*)Glfw().glfwGetWindowUserPointer(wnd);
   mjuiState* state = ptr->state;
 
   // no buttons down: nothing to do
@@ -183,7 +190,7 @@ static void uiMouseMove(GLFWwindow* wnd, double xpos, double ypos) {
 // scroll
 static void uiScroll(GLFWwindow* wnd, double xoffset, double yoffset) {
   // extract data from user pointer
-  uiUserPointer* ptr = (uiUserPointer*)glfwGetWindowUserPointer(wnd);
+  uiUserPointer* ptr = (uiUserPointer*)Glfw().glfwGetWindowUserPointer(wnd);
   mjuiState* state = ptr->state;
 
   // update state
@@ -203,7 +210,7 @@ static void uiScroll(GLFWwindow* wnd, double xoffset, double yoffset) {
 // resize
 static void uiResize(GLFWwindow* wnd, int width, int height) {
   // extract data from user pointer
-  uiUserPointer* ptr = (uiUserPointer*)glfwGetWindowUserPointer(wnd);
+  uiUserPointer* ptr = (uiUserPointer*)Glfw().glfwGetWindowUserPointer(wnd);
   mjuiState* state = ptr->state;
 
   // set layout
@@ -226,21 +233,32 @@ static void uiResize(GLFWwindow* wnd, int width, int height) {
 }
 
 
+static void uiRender(GLFWwindow* wnd) {
+  uiUserPointer* ptr = (uiUserPointer*)Glfw().glfwGetWindowUserPointer(wnd);
+  mjuiState* state = ptr->state;
+  ptr->uiRender(state);
+}
 
-//----------------------------------- Public API ----------------------------------------
+static void uiDrop(GLFWwindow* wnd, int count, const char** paths) {
+  uiUserPointer* ptr = (uiUserPointer*)Glfw().glfwGetWindowUserPointer(wnd);
+  mjuiState* state = ptr->state;
+  ptr->uiDrop(state, count, paths);
+}
+
+//------------------------------------------- public API -------------------------------------------
 
 // Compute suitable font scale.
 int uiFontScale(GLFWwindow* wnd) {
   // compute framebuffer-to-window ratio
   int width_win, width_buf, height;
-  glfwGetWindowSize(wnd, &width_win, &height);
-  glfwGetFramebufferSize(wnd, &width_buf, &height);
+  Glfw().glfwGetWindowSize(wnd, &width_win, &height);
+  Glfw().glfwGetFramebufferSize(wnd, &width_buf, &height);
   double b2w = (double)width_buf / (double)width_win;
 
   // compute PPI
   int width_MM, height_MM;
-  glfwGetMonitorPhysicalSize(glfwGetPrimaryMonitor(), &width_MM, &height_MM);
-  int width_vmode = glfwGetVideoMode(glfwGetPrimaryMonitor())->width;
+  Glfw().glfwGetMonitorPhysicalSize(Glfw().glfwGetPrimaryMonitor(), &width_MM, &height_MM);
+  int width_vmode = Glfw().glfwGetVideoMode(Glfw().glfwGetPrimaryMonitor())->width;
   double PPI = 25.4 * b2w * (double)width_vmode / (double)width_MM;
 
   // estimate font scaling, guard against unrealistic PPI
@@ -262,26 +280,31 @@ int uiFontScale(GLFWwindow* wnd) {
 
 // Set internal and user-supplied UI callbacks in GLFW window.
 void uiSetCallback(GLFWwindow* wnd, mjuiState* state,
-                   uiEventFn uiEvent, uiLayoutFn uiLayout) {
+                   uiEventFn uiEvent, uiLayoutFn uiLayout,
+                   uiRenderFn uiUserRender, uiDropFn uiUserDrop) {
   // make container with user-supplied objects and set window pointer
   uiUserPointer* ptr = (uiUserPointer*) mju_malloc(sizeof(uiUserPointer));
   ptr->state = state;
   ptr->uiEvent = uiEvent;
   ptr->uiLayout = uiLayout;
-  glfwSetWindowUserPointer(wnd, ptr);
+  ptr->uiRender = uiUserRender;
+  ptr->uiDrop = uiUserDrop;
+  Glfw().glfwSetWindowUserPointer(wnd, ptr);
 
   // compute framebuffer-to-window pixel ratio
   int width_win, width_buf, height;
-  glfwGetWindowSize(wnd, &width_win, &height);
-  glfwGetFramebufferSize(wnd, &width_buf, &height);
+  Glfw().glfwGetWindowSize(wnd, &width_win, &height);
+  Glfw().glfwGetFramebufferSize(wnd, &width_buf, &height);
   ptr->buffer2window = (double)width_buf / (double)width_win;
 
   // set internal callbacks
-  glfwSetKeyCallback(wnd, uiKeyboard);
-  glfwSetCursorPosCallback(wnd, uiMouseMove);
-  glfwSetMouseButtonCallback(wnd, uiMouseButton);
-  glfwSetScrollCallback(wnd, uiScroll);
-  glfwSetWindowSizeCallback(wnd, uiResize);
+  Glfw().glfwSetKeyCallback(wnd, uiKeyboard);
+  Glfw().glfwSetCursorPosCallback(wnd, uiMouseMove);
+  Glfw().glfwSetMouseButtonCallback(wnd, uiMouseButton);
+  Glfw().glfwSetScrollCallback(wnd, uiScroll);
+  Glfw().glfwSetWindowSizeCallback(wnd, uiResize);
+  Glfw().glfwSetWindowRefreshCallback(wnd, uiRender);
+  Glfw().glfwSetDropCallback(wnd, uiDrop);
 }
 
 
@@ -289,17 +312,19 @@ void uiSetCallback(GLFWwindow* wnd, mjuiState* state,
 // Clear UI callbacks in GLFW window.
 void uiClearCallback(GLFWwindow* wnd) {
   // clear container
-  if (glfwGetWindowUserPointer(wnd)) {
-    mju_free(glfwGetWindowUserPointer(wnd));
-    glfwSetWindowUserPointer(wnd, NULL);
+  if (Glfw().glfwGetWindowUserPointer(wnd)) {
+    mju_free(Glfw().glfwGetWindowUserPointer(wnd));
+    Glfw().glfwSetWindowUserPointer(wnd, NULL);
   }
 
   // clear internal callbacks
-  glfwSetKeyCallback(wnd, NULL);
-  glfwSetCursorPosCallback(wnd, NULL);
-  glfwSetMouseButtonCallback(wnd, NULL);
-  glfwSetScrollCallback(wnd, NULL);
-  glfwSetWindowSizeCallback(wnd, NULL);
+  Glfw().glfwSetKeyCallback(wnd, NULL);
+  Glfw().glfwSetCursorPosCallback(wnd, NULL);
+  Glfw().glfwSetMouseButtonCallback(wnd, NULL);
+  Glfw().glfwSetScrollCallback(wnd, NULL);
+  Glfw().glfwSetWindowSizeCallback(wnd, NULL);
+  Glfw().glfwSetWindowRefreshCallback(wnd, NULL);
+  Glfw().glfwSetDropCallback(wnd, NULL);
 }
 
 

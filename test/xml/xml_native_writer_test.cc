@@ -34,6 +34,7 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 #include <absl/container/flat_hash_set.h>
+#include <absl/strings/match.h>
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjtnum.h>
 #include <mujoco/mjxmacro.h>
@@ -50,6 +51,20 @@ using ::testing::Not;
 using ::testing::NotNull;
 
 using XMLWriterTest = MujocoTest;
+
+TEST_F(XMLWriterTest, SavesDisableSensor) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option>
+      <flag sensor="disable"/>
+    </option>
+  </mujoco>
+  )";
+  mjModel* model = LoadModelFromString(xml);
+  std::string saved_xml = SaveAndReadXml(model);
+  EXPECT_THAT(saved_xml, HasSubstr("sensor=\"disable\""));
+  mj_deleteModel(model);
+}
 
 TEST_F(XMLWriterTest, KeepsEmptyClasses) {
   static constexpr char xml[] = R"(
@@ -126,7 +141,164 @@ TEST_F(XMLWriterTest, DropsInertialIfFromGeom) {
   mj_deleteModel(model);
 }
 
-TEST_F(XMLWriterTest, KeepsActlimited) {
+TEST_F(XMLWriterTest, DoesNotKeepInferredJointLimited) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <compiler angle="radian"/>
+    <worldbody>
+      <body>
+        <joint name="hinge" range="-1 1"/>
+        <geom size="1"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  mjModel* model = LoadModelFromString(xml);
+  std::string saved_xml = SaveAndReadXml(model);
+  EXPECT_THAT(saved_xml, HasSubstr("range=\"-1 1\""));
+  EXPECT_THAT(saved_xml, Not(HasSubstr("limited=\"true\"")));
+  mj_deleteModel(model);
+}
+
+TEST_F(XMLWriterTest, DoesNotKeepExplicitJointLimited) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <compiler angle="radian"/>
+    <worldbody>
+      <body>
+        <joint name="hinge" limited="true" range="-1 1"/>
+        <geom size="1"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  mjModel* model = LoadModelFromString(xml);
+  std::string saved_xml = SaveAndReadXml(model);
+  EXPECT_THAT(saved_xml, HasSubstr("range=\"-1 1\""));
+  EXPECT_THAT(saved_xml, Not(HasSubstr("limited=\"true\"")));
+  mj_deleteModel(model);
+}
+
+TEST_F(XMLWriterTest, KeepsJointLimitedFalse) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <compiler angle="radian"/>
+    <worldbody>
+      <body>
+        <joint name="hinge" limited="false" range="-1 1"/>
+        <geom size="1"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  mjModel* model = LoadModelFromString(xml);
+  std::string saved_xml = SaveAndReadXml(model);
+  EXPECT_THAT(saved_xml, HasSubstr("limited=\"false\" range=\"-1 1\""));
+  mj_deleteModel(model);
+}
+
+TEST_F(XMLWriterTest, DoesNotKeepInferredTendonLimited) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <compiler angle="radian"/>
+    <worldbody>
+      <body>
+        <joint type="slide"/>
+        <geom size="1"/>
+        <site name="s1"/>
+      </body>
+      <site name="s2"/>
+    </worldbody>
+    <tendon>
+      <spatial range="-1 1">
+        <site site="s1"/>
+        <site site="s2"/>
+      </spatial>
+    </tendon>
+  </mujoco>
+  )";
+  mjModel* model = LoadModelFromString(xml);
+  std::string saved_xml = SaveAndReadXml(model);
+  EXPECT_THAT(saved_xml, HasSubstr("range=\"-1 1\""));
+  EXPECT_THAT(saved_xml, Not(HasSubstr("limited=\"true\"")));
+  mj_deleteModel(model);
+}
+
+TEST_F(XMLWriterTest, DoesNotKeepExplicitTendonLimited) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <compiler angle="radian"/>
+    <worldbody>
+      <body>
+        <joint type="slide"/>
+        <geom size="1"/>
+        <site name="s1"/>
+      </body>
+      <site name="s2"/>
+    </worldbody>
+    <tendon>
+      <spatial limited="true" range="-1 1">
+        <site site="s1"/>
+        <site site="s2"/>
+      </spatial>
+    </tendon>
+  </mujoco>
+  )";
+  mjModel* model = LoadModelFromString(xml);
+  std::string saved_xml = SaveAndReadXml(model);
+  EXPECT_THAT(saved_xml, HasSubstr("range=\"-1 1\""));
+  EXPECT_THAT(saved_xml, Not(HasSubstr("limited=\"true\"")));
+  mj_deleteModel(model);
+}
+
+TEST_F(XMLWriterTest, KeepsTendonLimitedFalse) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <compiler angle="radian"/>
+    <worldbody>
+      <body>
+        <joint type="slide"/>
+        <geom size="1"/>
+        <site name="s1"/>
+      </body>
+      <site name="s2"/>
+    </worldbody>
+    <tendon>
+      <spatial limited="false" range="-1 1">
+        <site site="s1"/>
+        <site site="s2"/>
+      </spatial>
+    </tendon>
+  </mujoco>
+  )";
+  mjModel* model = LoadModelFromString(xml);
+  std::string saved_xml = SaveAndReadXml(model);
+  EXPECT_THAT(saved_xml, HasSubstr("limited=\"false\" range=\"-1 1\""));
+  mj_deleteModel(model);
+}
+
+TEST_F(XMLWriterTest, DoesNotKeepInferredActlimited) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <joint name="hinge"/>
+        <geom size="1"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <general dyntype="filter" joint="hinge" actrange="-1 1"/>
+    </actuator>
+  </mujoco>
+  )";
+  mjModel* model = LoadModelFromString(xml);
+  std::string saved_xml = SaveAndReadXml(model);
+  EXPECT_THAT(saved_xml, HasSubstr("actrange=\"-1 1\""));
+  EXPECT_THAT(saved_xml, Not(HasSubstr("actlimited=\"true\"")));
+  mj_deleteModel(model);
+}
+
+TEST_F(XMLWriterTest, DoesNotKeepExplicitActlimited) {
   static constexpr char xml[] = R"(
   <mujoco>
     <worldbody>
@@ -142,7 +314,152 @@ TEST_F(XMLWriterTest, KeepsActlimited) {
   )";
   mjModel* model = LoadModelFromString(xml);
   std::string saved_xml = SaveAndReadXml(model);
-  EXPECT_THAT(saved_xml, HasSubstr("actlimited=\"true\" actrange=\"-1 1\""));
+  EXPECT_THAT(saved_xml, HasSubstr("actrange=\"-1 1\""));
+  EXPECT_THAT(saved_xml, Not(HasSubstr("actlimited=\"true\"")));
+  mj_deleteModel(model);
+}
+
+TEST_F(XMLWriterTest, KeepsActlimitedFalse) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <joint name="hinge"/>
+        <geom size="1"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <general dyntype="filter" joint="hinge" actlimited="false" actrange="-1 1"/>
+    </actuator>
+  </mujoco>
+  )";
+  mjModel* model = LoadModelFromString(xml);
+  std::string saved_xml = SaveAndReadXml(model);
+  EXPECT_THAT(saved_xml, HasSubstr("actlimited=\"false\" actrange=\"-1 1\""));
+  mj_deleteModel(model);
+}
+
+TEST_F(XMLWriterTest, DoesNotKeepInferredCtrllimited) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <joint name="hinge"/>
+        <geom size="1"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <general joint="hinge" ctrlrange="-1 1"/>
+    </actuator>
+  </mujoco>
+  )";
+  mjModel* model = LoadModelFromString(xml);
+  std::string saved_xml = SaveAndReadXml(model);
+  EXPECT_THAT(saved_xml, HasSubstr("ctrlrange=\"-1 1\""));
+  EXPECT_THAT(saved_xml, Not(HasSubstr("ctrllimited=\"true\"")));
+  mj_deleteModel(model);
+}
+
+TEST_F(XMLWriterTest, DoesNotKeepExplicitCtrllimited) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <joint name="hinge"/>
+        <geom size="1"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <general joint="hinge" ctrllimited="true" ctrlrange="-1 1"/>
+    </actuator>
+  </mujoco>
+  )";
+  mjModel* model = LoadModelFromString(xml);
+  std::string saved_xml = SaveAndReadXml(model);
+  EXPECT_THAT(saved_xml, HasSubstr("ctrlrange=\"-1 1\""));
+  EXPECT_THAT(saved_xml, Not(HasSubstr("ctrllimited=\"true\"")));
+  mj_deleteModel(model);
+}
+
+TEST_F(XMLWriterTest, KeepsCtrllimitedFalse) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <joint name="hinge"/>
+        <geom size="1"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <general joint="hinge" ctrllimited="false" ctrlrange="-1 1"/>
+    </actuator>
+  </mujoco>
+  )";
+  mjModel* model = LoadModelFromString(xml);
+  std::string saved_xml = SaveAndReadXml(model);
+  EXPECT_THAT(saved_xml, HasSubstr("ctrllimited=\"false\" ctrlrange=\"-1 1\""));
+  mj_deleteModel(model);
+}
+
+TEST_F(XMLWriterTest, DoesNotKeepInferredForcelimited) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <joint name="hinge"/>
+        <geom size="1"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <general joint="hinge" forcerange="-1 1"/>
+    </actuator>
+  </mujoco>
+  )";
+  mjModel* model = LoadModelFromString(xml);
+  std::string saved_xml = SaveAndReadXml(model);
+  EXPECT_THAT(saved_xml, HasSubstr("forcerange=\"-1 1\""));
+  EXPECT_THAT(saved_xml, Not(HasSubstr("forcelimited=\"true\"")));
+  mj_deleteModel(model);
+}
+
+TEST_F(XMLWriterTest, DoesNotKeepExplicitForcelimited) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <joint name="hinge"/>
+        <geom size="1"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <general joint="hinge" forcelimited="true" forcerange="-1 1"/>
+    </actuator>
+  </mujoco>
+  )";
+  mjModel* model = LoadModelFromString(xml);
+  std::string saved_xml = SaveAndReadXml(model);
+  EXPECT_THAT(saved_xml, HasSubstr("forcerange=\"-1 1\""));
+  EXPECT_THAT(saved_xml, Not(HasSubstr("forcelimited=\"true\"")));
+  mj_deleteModel(model);
+}
+
+TEST_F(XMLWriterTest, KeepsForcelimitedFalse) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <joint name="hinge"/>
+        <geom size="1"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <general joint="hinge" forcelimited="false" forcerange="-1 1"/>
+    </actuator>
+  </mujoco>
+  )";
+  mjModel* model = LoadModelFromString(xml);
+  std::string saved_xml = SaveAndReadXml(model);
+  EXPECT_THAT(saved_xml, HasSubstr("forcelimited=\"false\" forcerange=\"-1 1\""));
   mj_deleteModel(model);
 }
 
@@ -416,10 +733,15 @@ TEST_F(XMLWriterTest, WriteReadCompare) {
       if (p.path().extension() == ext) {
         std::string xml = p.path().string();
 
+        // if file is meant to fail, skip it
+        if (absl::StrContains(p.path().string(), "malformed_")) {
+          continue;
+        }
+
         // load model
         std::array<char, 1000> error;
         mjModel* m = mj_loadXML(xml.c_str(), nullptr, error.data(), error.size());
-        ASSERT_THAT(m, NotNull()) << "Failed to load model: " << error.data();
+        ASSERT_THAT(m, NotNull()) << "Failed to load " << xml.c_str() << ": " << error.data();
 
         // make data
         mjData* d = mj_makeData(m);

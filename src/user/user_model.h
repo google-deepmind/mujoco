@@ -124,6 +124,7 @@ class mjCModel {
   bool fusestatic;                // fuse static bodies with parent
   int inertiafromgeom;            // use geom inertias (mjtInertiaFromGeom)
   int inertiagrouprange[2];       // range of geom groups used to compute inertia
+  bool exactmeshinertia;          // if false, use old formula
   mjLROpt LRopt;                  // options for lengthrange computation
 
   //------------------------ statistics override (if defined)
@@ -152,6 +153,8 @@ class mjCModel {
   int nuser_sensor;               // number of mjtNums in sensor_user
 
  private:
+  void TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs);
+
   void Clear(void);               // clear objects allocated by Compile
 
   template <class T>              // add object of any type

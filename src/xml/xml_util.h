@@ -46,7 +46,7 @@ class mjXError {
 
 
 // max number of attribute fields in schema (plus 3)
-#define mjXATTRNUM 35
+#define mjXATTRNUM 36
 
 
 // Custom XML file validation

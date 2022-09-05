@@ -30,7 +30,7 @@
 
 //---------------------------------- sizes ---------------------------------------------------------
 
-#define mjNEQDATA       7         // number of eq_data fields
+#define mjNEQDATA       11        // number of eq_data fields
 #define mjNDYN          10        // number of actuator dynamics parameters
 #define mjNGAIN         10        // number of actuator gain parameters
 #define mjNBIAS         10        // number of actuator bias parameters
@@ -58,8 +58,9 @@ typedef enum mjtDisableBit_ {     // disable default feature bitflags
   mjDSBL_FILTERPARENT = 1<<9,     // remove collisions with parent body
   mjDSBL_ACTUATION    = 1<<10,    // apply actuation forces
   mjDSBL_REFSAFE      = 1<<11,    // integrator safety: make ref[0]>=2*timestep
+  mjDSBL_SENSOR       = 1<<12,    // sensors
 
-  mjNDISABLE          = 12        // number of disable flags
+  mjNDISABLE          = 13        // number of disable flags
 } mjtDisableBit;
 
 
@@ -163,7 +164,7 @@ typedef enum mjtEq_ {             // type of equality constraint
   mjEQ_WELD,                      // fix relative position and orientation of two bodies
   mjEQ_JOINT,                     // couple the values of two scalar joints with cubic
   mjEQ_TENDON,                    // couple the lengths of two tendons with cubic
-  mjEQ_DISTANCE                   // fix the contact distance betweent two geoms
+  mjEQ_DISTANCE                   // unsupported, will cause an error if used
 } mjtEq;
 
 
@@ -183,6 +184,7 @@ typedef enum mjtTrn_ {            // type of actuator transmission
   mjTRN_SLIDERCRANK,              // force via slider-crank linkage
   mjTRN_TENDON,                   // force on tendon
   mjTRN_SITE,                     // force on site
+  mjTRN_BODY,                     // adhesion force on a body's geoms
 
   mjTRN_UNDEFINED     = 1000      // undefined transmission type
 } mjtTrn;
@@ -417,8 +419,10 @@ typedef struct mjOption_ mjOption;
 
 struct mjVisual_ {                // visualization options
   struct {                        // global parameters
-    float fovy;                   // y-field of view (deg) for free camera
+    float fovy;                   // y-field of view for free camera (degrees)
     float ipd;                    // inter-pupilary distance for free camera
+    float azimuth;                // initial azimuth of free camera (degrees)
+    float elevation;              // initial elevation of free camera (degrees)
     float linewidth;              // line width for wireframe and ray rendering
     float glow;                   // glow coefficient for selected body
     int offwidth;                 // width of offscreen buffer
@@ -727,7 +731,7 @@ struct mjModel_ {
   int*      mesh_faceadr;         // first face address                       (nmesh x 1)
   int*      mesh_facenum;         // number of faces                          (nmesh x 1)
   int*      mesh_graphadr;        // graph data address; -1: no graph         (nmesh x 1)
-  float*    mesh_vert;            // vertex positions for all meshe           (nmeshvert x 3)
+  float*    mesh_vert;            // vertex positions for all meshes          (nmeshvert x 3)
   float*    mesh_normal;          // vertex normals for all meshes            (nmeshvert x 3)
   float*    mesh_texcoord;        // vertex texcoords for all meshes          (nmeshtexvert x 2)
   int*      mesh_face;            // triangle face data                       (nmeshface x 3)

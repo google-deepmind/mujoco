@@ -34,7 +34,6 @@
 
 // table of pair-wise collision functions
 mjfCollision mjCOLLISIONFUNC[mjNGEOMTYPES][mjNGEOMTYPES] = {
-
   /*               PLANE  HFIELD  SPHERE              CAPSULE             ELLIPSOID           CYLINDER            BOX                 MESH      */
   /*PLANE     */  {0,     0,      mjc_PlaneSphere,    mjc_PlaneCapsule,   mjc_PlaneConvex,    mjc_PlaneCylinder,  mjc_PlaneBox,       mjc_PlaneConvex},
   /*HFIELD    */  {0,     0,      mjc_ConvexHField,   mjc_ConvexHField,   mjc_ConvexHField,   mjc_ConvexHField,   mjc_ConvexHField,   mjc_ConvexHField},
@@ -44,7 +43,6 @@ mjfCollision mjCOLLISIONFUNC[mjNGEOMTYPES][mjNGEOMTYPES] = {
   /*CYLINDER  */  {0,     0,      0,                  0,                  0,                  mjc_Convex,         mjc_Convex,         mjc_Convex},
   /*BOX       */  {0,     0,      0,                  0,                  0,                  0,                  mjc_BoxBox,         mjc_Convex},
   /*MESH      */  {0,     0,      0,                  0,                  0,                  0,                  0,                  mjc_Convex}
-
 };
 
 
@@ -146,10 +144,11 @@ void mj_collision(const mjModel* m, mjData* d) {
     }
 
     // finish merging predefined pairs
-    if (npair && m->opt.collision==mjCOL_ALL)
+    if (npair && m->opt.collision==mjCOL_ALL) {
       while (pairadr<npair) {
         mj_collideGeoms(m, d, pairadr++, -1, 0, 0);
       }
+    }
   }
 
   mjFREESTACK;
@@ -726,7 +725,7 @@ void mj_collideGeoms(const mjModel* m, mjData* d, int g1, int g2, int flg_user, 
   // add contact returned by collision detector
   for (i=0; i<num; i++) {
     // set contact data
-    if (condim > 6 || condim < 0) {  // SHOULD NOT OCCUR
+    if (condim > 6 || condim < 1) {  // SHOULD NOT OCCUR
       mju_error_i("Invalid condim value: %d", i);
     }
     con[i].dim = condim;

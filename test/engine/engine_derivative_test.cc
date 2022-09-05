@@ -289,7 +289,7 @@ static void LinearSystem(const mjModel* m, mjData* d, mjtNum* A, mjtNum* B) {
       Ac[i*nv + i]  = -m->jnt_stiffness[i];
       Ac[nv*nv + i*nv + i] = -m->dof_damping[i];
     }
-    mj_solveLD(m, d, Ac, Ac, 2*nv, d->qH, d->qHDiagInv);
+    mj_solveLD(m, Ac, Ac, 2*nv, d->qH, d->qHDiagInv);
 
     // A = [dt*Ac; Ac]
     mju_transpose(A, Ac, 2*nv, nv);
@@ -314,7 +314,7 @@ static void LinearSystem(const mjModel* m, mjData* d, mjtNum* A, mjtNum* B) {
   if (B) {
     mjtNum *Bc = mj_stackAlloc(d, nu*nv);
     mjtNum *BcT = mj_stackAlloc(d, nv*nu);
-    mj_solveLD(m, d, Bc, d->actuator_moment, nu, d->qH, d->qHDiagInv);
+    mj_solveLD(m, Bc, d->actuator_moment, nu, d->qH, d->qHDiagInv);
     mju_transpose(BcT, Bc, nu, nv);
     mju_scl(B, BcT, dt*dt, nu*nv);
     mju_scl(B+nu*nv, BcT, dt, nu*nv);
@@ -352,7 +352,8 @@ TEST_F(DerivativeTest, LinearSystem) {
   mjtNum* AFD = (mjtNum*) mju_malloc(sizeof(mjtNum)*2*nv*2*nv);
   mjtNum* BFD = (mjtNum*) mju_malloc(sizeof(mjtNum)*2*nv*nu);
 
-  mjd_transitionFD(model, data, eps, /*centered=*/0, AFD, BFD);
+  mjd_transitionFD(model, data, eps, /*centered=*/0,
+                   AFD, BFD, nullptr, nullptr);
 
   // uncomment for debugging:
   // PrintMatrix(AFD, 2*nv, 2*nv);
@@ -365,13 +366,12 @@ TEST_F(DerivativeTest, LinearSystem) {
   // central differenced A and B
   mjtNum* AFDc = (mjtNum*) mju_malloc(sizeof(mjtNum)*2*nv*2*nv);
   mjtNum* BFDc = (mjtNum*) mju_malloc(sizeof(mjtNum)*2*nv*nu);
-  mjd_transitionFD(model, data, eps, /*centered=*/1, AFDc, BFDc);
+  mjd_transitionFD(model, data, eps, /*centered=*/1,
+                   AFDc, BFDc, nullptr, nullptr);
 
-  // expect central derivatives to be closer to analytic solution
-  EXPECT_LT(CompareMatrices(A, AFDc, 2*nv, 2*nv, eps),
-            CompareMatrices(A, AFD, 2*nv, 2*nv, eps));
-  EXPECT_LT(CompareMatrices(B, BFDc, 2*nv, nu, eps),
-            CompareMatrices(B, BFD, 2*nv, nu, eps));
+  // expect central derivatives to be equal to forward differences
+  CompareMatrices(AFD, AFDc, 2*nv, 2*nv, eps);
+  CompareMatrices(BFD, BFDc, 2*nv, nu, eps);
 
   mju_free(BFDc);
   mju_free(AFDc);
@@ -400,7 +400,7 @@ TEST_F(DerivativeTest, ClampedCtrlDerivatives) {
   // analytic B
   mjtNum* B = (mjtNum*) mju_malloc(sizeof(mjtNum)*2*nv*nu);
 
-  LinearSystem(model, data, NULL, B);
+  LinearSystem(model, data, nullptr, B);
 
   // forward differenced A and B
   mjtNum eps = 1e-6;
@@ -409,19 +409,22 @@ TEST_F(DerivativeTest, ClampedCtrlDerivatives) {
   // set ctrl to the limits, request forward differences
   data->ctrl[0] =  1;
   data->ctrl[1] = -1;
-  mjd_transitionFD(model, data, eps, /*centered=*/0, NULL, BFD);
+  mjd_transitionFD(model, data, eps, /*centered=*/0,
+                   nullptr, BFD, nullptr, nullptr);
   // expect FD and analytic derivatives to be similar to eps precision
   CompareMatrices(B, BFD, 2*nv, nu, eps);
 
   // ctrl remains at limits, request central differences
-  mjd_transitionFD(model, data, eps, /*centered=*/1, NULL, BFD);
+  mjd_transitionFD(model, data, eps, /*centered=*/1,
+                   nullptr, BFD, nullptr, nullptr);
   // expect FD and analytic derivatives to be similar to eps precision
   CompareMatrices(B, BFD, 2*nv, nu, eps);
 
   // set ctrl beyond limits, request forward differences
   data->ctrl[0] =  2;
   data->ctrl[1] = -2;
-  mjd_transitionFD(model, data, eps, /*centered=*/0, NULL, BFD);
+  mjd_transitionFD(model, data, eps, /*centered=*/0,
+                   nullptr, BFD, nullptr, nullptr);
   // expect derivatives to be 0
   EXPECT_THAT(AsVector(BFD, 2*nv*nu), Each(Eq(0.0)));
 
@@ -430,7 +433,8 @@ TEST_F(DerivativeTest, ClampedCtrlDerivatives) {
   EXPECT_EQ(data->ctrl[1], -2.0);
 
   // ctrl remains beyond limits, request centered differences
-  mjd_transitionFD(model, data, eps, /*centered=*/1, NULL, BFD);
+  mjd_transitionFD(model, data, eps, /*centered=*/1,
+                   nullptr, BFD, nullptr, nullptr);
   // expect derivatives to be 0
   EXPECT_THAT(AsVector(BFD, 2*nv*nu), Each(Eq(0.0)));
 
@@ -439,6 +443,64 @@ TEST_F(DerivativeTest, ClampedCtrlDerivatives) {
   mj_deleteData(data);
   mj_deleteModel(model);
 }
+
+// compare FD sensor derivatives to analytic derivatives
+TEST_F(DerivativeTest, SensorDerivatives) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <joint name="joint" type="slide"/>
+        <geom size=".1"/>
+      </body>
+    </worldbody>
+
+    <actuator>
+      <general name="actuator" joint="joint" gainprm="3"/>
+    </actuator>
+
+    <sensor>
+      <jointpos joint="joint"/>
+      <jointvel joint="joint"/>
+      <actuatorfrc actuator="actuator"/>
+    </sensor>
+  </mujoco>
+  )";
+
+  mjModel* model = LoadModelFromString(xml);
+  int nv = model->nv, nu = model->nu, ns = model->nsensordata;
+  mjData* data = mj_makeData(model);
+
+  // finite differenced C and D
+  mjtNum eps = 1e-6;
+  mjtNum* CFD = (mjtNum*) mju_malloc(sizeof(mjtNum)*ns*2*nv);
+  mjtNum* DFD = (mjtNum*) mju_malloc(sizeof(mjtNum)*ns*nu);
+  mjd_transitionFD(model, data, eps, /*centered=*/0,
+                   nullptr, nullptr, CFD, DFD);
+
+  // expected analytic C and D
+  mjtNum C[6] = {
+    1, 0,
+    0, 1,
+    0, 0
+  };
+
+  mjtNum D[3] = {
+    0,
+    0,
+    3,
+  };
+
+  // compare expected and actual values
+  CompareMatrices(CFD, C, ns, 2*nv, eps);
+  CompareMatrices(DFD, D, ns, nu, eps);
+
+  mju_free(DFD);
+  mju_free(CFD);
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
 
 }  // namespace
 }  // namespace mujoco

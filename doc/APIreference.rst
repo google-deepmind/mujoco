@@ -86,8 +86,9 @@ mjtDisableBit
        mjDSBL_FILTERPARENT = 1<<9,     // remove collisions with parent body
        mjDSBL_ACTUATION    = 1<<10,    // apply actuation forces
        mjDSBL_REFSAFE      = 1<<11,    // integrator safety: make ref[0]>=2*timestep
+       mjDSBL_SENSOR       = 1<<12,    // sensors
 
-       mjNDISABLE          = 12        // number of disable flags
+       mjNDISABLE          = 13        // number of disable flags
    } mjtDisableBit;
 
 | Defined in `mjmodel.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjmodel.h>`_
@@ -232,6 +233,7 @@ mjtIntegrator
    {
        mjINT_EULER         = 0,        // semi-implicit Euler
        mjINT_RK4                       // 4th-order Runge Kutta
+       mjINT_IMPLICIT                  // implicit in velocity
    } mjtIntegrator;
 
 | Defined in `mjmodel.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjmodel.h>`_
@@ -323,7 +325,7 @@ mjtEq
        mjEQ_WELD,                      // fix relative position and orientation of two bodies
        mjEQ_JOINT,                     // couple the values of two scalar joints with cubic
        mjEQ_TENDON,                    // couple the lengths of two tendons with cubic
-       mjEQ_DISTANCE                   // fix the contact distance betweent two geoms
+       mjEQ_DISTANCE                   // unsupported, will cause an error if used
    } mjtEq;
 
 | Defined in `mjmodel.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjmodel.h>`_
@@ -873,7 +875,8 @@ mjtRndFlag
        mjRND_FOG,                      // fog
        mjRND_HAZE,                     // haze
        mjRND_SEGMENT,                  // segmentation with random color
-       mjRND_IDCOLOR,                  // segmentation with segid color
+       mjRND_IDCOLOR,                  // segmentation with segid+1 color
+       mjRND_CULL_FACE,                // cull backward faces
 
        mjNRNDFLAG                      // number of rendering flags
    } mjtRndFlag;
@@ -1230,7 +1233,7 @@ mjVisual
    {
        struct                          // global parameters
        {
-           float fovy;                 // y-field of view (deg) for free camera
+           float fovy;                 // y-field of view for free camera (degrees)
            float ipd;                  // inter-pupilary distance for free camera
            float linewidth;            // line width for wireframe and ray rendering
            float glow;                 // glow coefficient for selected body
@@ -1564,7 +1567,7 @@ mjModel
        int*      mesh_faceadr;         // first face address                       (nmesh x 1)
        int*      mesh_facenum;         // number of faces                          (nmesh x 1)
        int*      mesh_graphadr;        // graph data address; -1: no graph         (nmesh x 1)
-       float*    mesh_vert;            // vertex positions for all meshe           (nmeshvert x 3)
+       float*    mesh_vert;            // vertex positions for all meshes          (nmeshvert x 3)
        float*    mesh_normal;          // vertex normals for all meshes            (nmeshvert x 3)
        float*    mesh_texcoord;        // vertex texcoords for all meshes          (nmeshtexvert x 2)
        int*      mesh_face;            // triangle face data                       (nmeshface x 3)
@@ -3160,7 +3163,7 @@ Numeric constants
 +------------------+--------+----------------------------------------------------------------------------------------+
 | mjMAXVFSNAME     | 100    | The maximal number of characters in the name of each file in the virtual file system.  |
 +------------------+--------+----------------------------------------------------------------------------------------+
-| mjNEQDATA        | 7      | The maximal number of real-valued parameters used to define each equality constraint.  |
+| mjNEQDATA        | 11     | The maximal number of real-valued parameters used to define each equality constraint.  |
 |                  |        | Determines the size of mjModel.eq_data. This and the next five constants correspond to |
 |                  |        | array sizes which we have not fully settled. There may be reasons to increase them in  |
 |                  |        | the future, so as to accommodate extra parameters needed for more elaborate            |
@@ -4358,6 +4361,17 @@ mj_jacBodyCom
 
 Compute body center-of-mass end-effector Jacobian.
 
+.. _mj_jacSubtreeCom:
+
+mj_jacSubtreeCom
+~~~~~~~~~~~~~~~~
+
+.. code-block:: C
+
+   void mj_jacSubtreeCom(const mjModel* m, mjData* d, mjtNum* jacp, int body);
+
+Compute subtree center-of-mass end-effector Jacobian. ``jacp`` is 3 x nv.
+
 .. _mj_jacGeom:
 
 mj_jacGeom
@@ -4710,6 +4724,17 @@ mjv_defaultCamera
    void mjv_defaultCamera(mjvCamera* cam);
 
 Set default camera.
+
+.. _mjv_defaultFreeCamera:
+
+mjv_defaultFreeCamera
+~~~~~~~~~~~~~~~~~~~~~
+
+.. code-block:: C
+
+   void mjv_defaultFreeCamera(const mjModel* m, mjvCamera* cam);
+
+Set default free camera.
 
 .. _mjv_defaultPerturb:
 
@@ -6579,6 +6604,8 @@ mju_sigmoid
 
 Sigmoid function over 0<=x<=1 constructed from half-quadratics.
 
+.. _mjd_transitionFD:
+
 mjd_transitionFD
 ~~~~~~~~~~~~~~~~
 
@@ -6586,10 +6613,8 @@ mjd_transitionFD
 
    void mjd_transitionFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte centered, mjtNum* A, mjtNum* B);
 
-Finite differenced state-transition and control-transition matrices dx(t+h) = A*dx(t) + B*du(t).
-  required output matrix dimensions:
-     A: (2*nv+na x 2*nv+na)
-     B: (2*nv+na x nu)
+Finite differenced state-transition and control-transition matrices dx(t+h) = A*dx(t) + B*du(t). Required output matrix
+dimensions: A: (2*nv+na x 2*nv+na), B: (2*nv+na x nu).
 
 .. _Macros:
 

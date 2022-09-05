@@ -30,7 +30,7 @@ from setuptools import find_packages
 from setuptools import setup
 from setuptools.command import build_ext
 
-__version__ = '2.2.0'
+__version__ = '2.2.1'
 
 MUJOCO_CMAKE = 'MUJOCO_CMAKE'
 MUJOCO_CMAKE_ARGS = 'MUJOCO_CMAKE_ARGS'
@@ -246,8 +246,7 @@ class BuildCMakeExtension(build_ext.build_ext):
   def build_extension(self, ext):
     dest_path = self.get_ext_fullpath(ext.name)
     build_path = os.path.join(self.build_temp, os.path.basename(dest_path))
-    subprocess.check_call(['cp', build_path, dest_path])
-
+    shutil.copyfile(build_path, dest_path)
 
 def find_data_files(package_dir, patterns):
   """Recursively finds files whose names match the given shell patterns."""
@@ -272,7 +271,17 @@ setup(
     url='https://github.com/deepmind/mujoco',
     license='Apache License 2.0',
     classifiers=[
+        'Development Status :: 5 - Production/Stable',
+        'Intended Audience :: Developers',
+        'Intended Audience :: Science/Research',
         'License :: OSI Approved :: Apache Software License',
+        'Natural Language :: English',
+        'Programming Language :: Python :: 3',
+        'Programming Language :: Python :: 3.7',
+        'Programming Language :: Python :: 3.8',
+        'Programming Language :: Python :: 3.9',
+        'Programming Language :: Python :: 3.10',
+        'Topic :: Scientific/Engineering',
     ],
     cmdclass=dict(build_ext=BuildCMakeExtension),
     ext_modules=[

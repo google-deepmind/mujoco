@@ -97,7 +97,6 @@ void mj_fwdPosition(const mjModel* m, mjData* d) {
   mj_comPos(m, d);
   mj_camlight(m, d);
   mj_tendon(m, d);
-  mj_transmission(m, d);
   TM_END(mjTIMER_POS_KINEMATICS);
 
   TM_RESTART;
@@ -111,6 +110,7 @@ void mj_fwdPosition(const mjModel* m, mjData* d) {
 
   TM_RESTART;
   mj_makeConstraint(m, d);
+  mj_transmission(m, d);
   TM_END(mjTIMER_POS_MAKE);
 
   TM_RESTART;
@@ -485,7 +485,6 @@ static void mj_advance(const mjModel* m, mjData* d,
 
 // Euler integrator, semi-implicit in velocity, possibly skipping factorisation
 void mj_EulerSkip(const mjModel* m, mjData* d, int skipfactor) {
-
   int i, nv = m->nv, nM = m->nM;
   mjMARKSTACK;
   mjtNum* qfrc = mj_stackAlloc(d, nv);
@@ -520,7 +519,7 @@ void mj_EulerSkip(const mjModel* m, mjData* d, int skipfactor) {
 
     // solve
     mju_add(qfrc, d->qfrc_smooth, d->qfrc_constraint, nv);
-    mj_solveLD(m, d, qacc, qfrc, 1, d->qH, d->qHDiagInv);
+    mj_solveLD(m, qacc, qfrc, 1, d->qH, d->qHDiagInv);
   }
 
   // advance state and time
@@ -644,8 +643,6 @@ void mj_RungeKutta(const mjModel* m, mjData* d, int N) {
 
 
 
-//-------------------------- top-level API ---------------------------------------------------------
-
 // fully implicit in velocity, possibly skipping factorization
 void mj_implicitSkip(const mjModel *m, mjData *d, int skipfactor) {
   int nv = m->nv;
@@ -689,6 +686,8 @@ void mj_implicit(const mjModel *m, mjData *d) {
 }
 
 
+
+//-------------------------- top-level API ---------------------------------------------------------
 
 // forward dynamics with skip; skipstage is mjtStage
 void mj_forwardSkip(const mjModel* m, mjData* d, int skipstage, int skipsensor) {
@@ -755,7 +754,7 @@ void mj_step(const mjModel* m, mjData* d) {
   }
 
   // use selected integrator
-  switch(m->opt.integrator) {
+  switch (m->opt.integrator) {
     case mjINT_EULER:
       mj_Euler(m, d);
       break;

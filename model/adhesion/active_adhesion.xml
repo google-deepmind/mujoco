@@ -1,0 +1,139 @@
+<mujoco model="Active adhesion example">
+  <!--
+    Adding some fluid viscosity to prevent the hanging sphere from jiggling too much.
+  -->
+  <option viscosity="1"/>
+
+  <size nconmax="500" njmax="1000"/>
+
+  <visual>
+    <headlight diffuse=".2 .2 .2"/>
+  </visual>
+
+  <default>
+    <joint damping=".3" axis="0 1 0"/>
+    <geom type="box" friction=".5"/>
+    <default class="wall">
+      <geom rgba=".5 .5 .5 .4"/>
+    </default>
+    <default class="mechanical">
+      <geom rgba=".5 .5 .8 1"/>
+      <tendon rgba=".5 .5 .8 1"/>
+    </default>
+    <default class="active_adhesion">
+      <!--
+        Geoms in the active_adhesion class are "inflated" with a margin of 1cm, but contacts are
+        activated only at a depth gap of 1cm, leading to a layer of inactive contacts at a 1cm
+        distance from the surface. However the contacts can be used by the adhesion actuator.
+      -->
+      <geom rgba=".8 .5 .5 1" margin=".01" gap=".01"/>
+    </default>
+    <default class="object">
+      <geom rgba=".5 .8 .5 1" density="100"/>
+    </default>
+  </default>
+
+  <worldbody>
+    <light pos="0.4 -.15 .6" dir="-1 .5 -1" diffuse=".7 .7 .7"/>
+    <light pos="-.4 -.15 .6" dir="1 .5 -1" diffuse=".7 .7 .7"/>
+
+    <body name="two crates">
+      <joint name="conveyor" type="slide" damping="100" axis="1 0 0"/>
+      <geom size=".2 .1 .01" pos="0 0 -.01"/>
+      <geom size=".01 .08 .031" pos="-.19 0 .03" class="wall"/>
+      <geom size=".01 .08 .031" pos="0  0 .03" class="wall"/>
+      <geom size=".01 .08 .031" pos="0.19 0 .03" class="wall"/>
+      <geom size="0.2 .01 .031" pos="0 -.09 .03" class="wall"/>
+      <geom size="0.2 .01 .031" pos="0 0.09 .03" class="wall"/>
+    </body>
+
+    <body name="arm1" pos="-.1 0 .3" childclass="mechanical">
+      <joint name="arm1"/>
+      <geom type="cylinder" size=".015 .01" zaxis="0 1 0"/>
+      <geom type="capsule" size=".01" fromto="0 0 0 -.12 0 -.07"/>
+      <body name="arm2" pos="-.12 0 -.07">
+        <joint name="arm2"/>
+        <geom type="cylinder" size=".015 .01" zaxis="0 1 0"/>
+        <geom type="capsule" size=".01" fromto="0 0 0 .12 0 -.07"/>
+        <body name="4boxes" pos=".12 0 -.08" childclass="active_adhesion">
+          <site name="force_sensor" group="3"/>
+          <joint name="arm3" damping=".01" pos="0 -.03 0"/>
+          <geom size=".015 .015 .01" pos="0.015 0.015 0"/>
+          <geom size=".015 .015 .01" pos="0.015 -.015 0"/>
+          <geom size=".015 .015 .01" pos="-.015 0.015 0"/>
+          <geom size=".015 .015 .01" pos="-.015 -.015 0"/>
+        </body>
+      </body>
+    </body>
+
+    <body name="box" pos="-.1 0 .05">
+      <freejoint/>
+      <geom size=".05 .05 .05" class="object"/>
+    </body>
+
+    <body name="winch" pos="-.01 0 .35" childclass="mechanical">
+      <joint name="winch" damping="1"/>
+      <geom type="cylinder" size=".015 .01" zaxis="0 1 0"/>
+      <geom type="capsule" size=".01" fromto="0 0 0 .1 0 .05"/>
+      <site name="anchor" pos=".1 0 .04"/>
+    </body>
+    <site name="pulley" pos=".1 0 .32"/>
+    <site name="hook_left" pos=".08 0 .3"/>
+    <site name="hook_right" pos=".12 0 .3"/>
+    <body name="sphere" pos=".1 0 .2" childclass="active_adhesion">
+      <freejoint/>
+      <!--
+        The composite balls in the crate have only 3 linear DoFs with condim=1, effectively
+        frictionless point particles. In order to make them stick to the sphere we give the sphere
+        priority 2, to force condim=3.
+
+        Also note the sphere has a margin+gap of 3cm as opposed to the 1cm of the arm box.
+      -->
+      <geom type="sphere" size=".03" priority="2" margin=".03" gap=".03"/>
+      <site name="pin_left" pos="-.025 0 .025"/>
+      <site name="pin_right" pos=".025 0 .025"/>
+    </body>
+
+    <composite type="particle" count="4 4 4" spacing="0.025" offset=".11 .01 .1">
+      <geom size=".012" rgba=".5 .8 .5 1" solref=".005 1"/>
+    </composite>
+  </worldbody>
+
+  <equality>
+    <joint joint1="arm1" joint2="arm2" polycoef="0 -.5 0 0 0"/>
+    <joint joint1="arm3" joint2="arm1"/>
+  </equality>
+
+  <!--
+    By using divisor=3 in the pullies we increase the distance by which the hanging sphere moves
+    relative to the motion of the winch arm. One should imagine a double spindle with two radii that
+    creates a ratio of 1.5 between the motion of tendon before the pullies and after the pullies.
+    (1.5 rather than 3 because the tendon has 2 branches and the length is split between them)
+  -->
+  <tendon>
+    <spatial range="0 .19" limited="true" solreflimit=".01 2" class="mechanical">
+      <site site="anchor"/>
+      <site site="pulley"/>
+      <pulley divisor="3"/>
+      <site site="pulley"/>
+      <site site="hook_left"/>
+      <site site="pin_left"/>
+      <pulley divisor="3"/>
+      <site site="pulley"/>
+      <site site="hook_right"/>
+      <site site="pin_right"/>
+    </spatial>
+  </tendon>
+
+  <actuator>
+    <position name="conveyor" joint="conveyor" ctrlrange="-.2 .2" ctrllimited="true" kp="400"/>
+    <position name="arm" joint="arm2" ctrlrange="-.8 1" ctrllimited="true" kp="10"/>
+    <adhesion name="adhere_arm" body="4boxes" ctrlrange="0 1" gain="5"/>
+    <position name="winch" joint="winch" ctrlrange="-.7 .5" ctrllimited="true" kp="10"/>
+    <adhesion name="adhere_winch" body="sphere" ctrlrange="0 1" gain="5"/>
+  </actuator>
+
+  <sensor>
+    <force site="force_sensor"/>
+  </sensor>
+</mujoco>

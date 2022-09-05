@@ -63,10 +63,10 @@ int mj_addConstraint(const mjModel* m, mjData* d,
                      int size, int type, int id, int NV, const int* chain);
 
 // merge dof chains for two bodies
-int mj_mergeChain(const mjModel* m, int* dofid, int b1, int b2);
+int mj_mergeChain(const mjModel* m, int* chain, int b1, int b2);
 
 // merge dof chains for two simple bodies
-int mj_mergeChainSimple(const mjModel* m, int* dofid, int b1, int b2);
+int mj_mergeChainSimple(const mjModel* m, int* chain, int b1, int b2);
 
 
 //-------------------------- constraint instantiation ----------------------------------------------

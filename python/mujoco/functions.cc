@@ -65,7 +65,7 @@ PYBIND11_MODULE(_functions, pymodule) {
   DEF_WITH_OMITTED_PY_ARGS(traits::mj_printSchema,
                            "filename", "buffer", "buffer_sz")(
       pymodule, [](bool flg_html, bool flg_pad) {
-        constexpr int kBufferSize = 28000;
+        constexpr int kBufferSize = 30000;
         auto buffer = std::unique_ptr<char[]>(new char[kBufferSize]);
         const int out_length = InterceptMjErrors(::mj_printSchema)(
             nullptr, buffer.get(), kBufferSize, flg_html, flg_pad);
@@ -355,6 +355,17 @@ PYBIND11_MODULE(_functions, pymodule) {
             m, d, jacp.has_value() ? jacp->data() : nullptr,
             jacr.has_value() ? jacr->data() : nullptr, body);
       });
+  Def<traits::mj_jacSubtreeCom>(
+      pymodule,
+      [](const raw::MjModel* m, raw::MjData* d,
+         std::optional<Eigen::Ref<EigenArrayXX>> jacp, int body) {
+        if (jacp.has_value() &&
+            (jacp->rows() != 3 || jacp->cols() != m->nv)) {
+          throw py::type_error("jacp should be of shape (3, nv)");
+        }
+        return InterceptMjErrors(::mj_jacSubtreeCom)(
+            m, d, jacp.has_value() ? jacp->data() : nullptr, body);
+      });
   Def<traits::mj_jacGeom>(
       pymodule,
       [](const raw::MjModel* m, raw::MjData* d,
@@ -546,6 +557,7 @@ PYBIND11_MODULE(_functions, pymodule) {
 
   // Interaction
   Def<traits::mjv_defaultCamera>(pymodule);
+  Def<traits::mjv_defaultFreeCamera>(pymodule);
   Def<traits::mjv_defaultPerturb>(pymodule);
   Def<traits::mjv_room2model>(pymodule);
   Def<traits::mjv_model2room>(pymodule);
@@ -1027,6 +1039,36 @@ PYBIND11_MODULE(_functions, pymodule) {
       [](Eigen::Ref<Eigen::Vector<int, Eigen::Dynamic>> res) {
         return InterceptMjErrors(::mju_insertionSortInt)(
             res.data(), res.size());
+      });
+  Def<traits::mjd_transitionFD>(
+      pymodule,
+      [](const raw::MjModel* m, raw::MjData* d, mjtNum eps, mjtByte centered,
+         std::optional<Eigen::Ref<EigenArrayXX>> A,
+         std::optional<Eigen::Ref<EigenArrayXX>> B,
+         std::optional<Eigen::Ref<EigenArrayXX>> C,
+         std::optional<Eigen::Ref<EigenArrayXX>> D) {
+        if (A.has_value() &&
+            (A->rows() != 2*m->nv+m->na || A->cols() != 2*m->nv+m->na)) {
+          throw py::type_error("A should be of shape (2*nv+na, 2*nv+na)");
+        }
+        if (B.has_value() &&
+            (B->rows() != 2*m->nv+m->na || B->cols() != m->nu)) {
+          throw py::type_error("B should be of shape (2*nv+na, nu)");
+        }
+        if (C.has_value() &&
+            (C->rows() != m->nsensordata || C->cols() != 2*m->nv+m->na)) {
+          throw py::type_error("C should be of shape (nsensordata, 2*nv+na)");
+        }
+        if (D.has_value() &&
+            (D->rows() != m->nsensordata || D->cols() != m->nu)) {
+          throw py::type_error("D should be of shape (nsensordata, nu)");
+        }
+        return InterceptMjErrors(::mjd_transitionFD)(
+            m, d, eps, centered,
+            A.has_value() ? A->data() : nullptr,
+            B.has_value() ? B->data() : nullptr,
+            C.has_value() ? C->data() : nullptr,
+            D.has_value() ? D->data() : nullptr);
       });
   Def<traits::mju_Halton>(pymodule);
   // Skipped: mju_strncpy (doesn't make sense in Python)

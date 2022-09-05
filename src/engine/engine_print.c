@@ -224,7 +224,7 @@ void mj_printFormattedModel(const mjModel* m, const char* filename, const char* 
 
   // sizes
 #define X( name )                                 \
-  if(m->name) {                                   \
+  if (m->name) {                                  \
     fprintf(fp, NAME_FORMAT, #name);              \
     fprintf(fp, INT_FORMAT "\n", m->name);        \
   }
@@ -789,7 +789,7 @@ void mj_printFormattedData(const mjModel* m, mjData* d, const char* filename,
   if (active_timers) {
     fprintf(fp, "TIMER\n");
     for (int i=0; i<mjNTIMER; i++) {
-      fprintf(fp, "    %d:  duration = ",i);
+      fprintf(fp, "    %d:  duration = ", i);
       fprintf(fp, float_format, d->timer[i].duration);
       fprintf(fp, "   number = %d\n", d->timer[i].number);
     }

@@ -28,7 +28,7 @@ set(MSVC_INCREMENTAL_DEFAULT ON)
 
 project(
   mujoco
-  VERSION 2.2.0
+  VERSION 2.2.1
   DESCRIPTION "MuJoCo Physics Simulator"
   HOMEPAGE_URL "https://mujoco.org"
 )
@@ -39,10 +39,11 @@ enable_language(CXX)
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
 
 option(MUJOCO_BUILD_EXAMPLES "Build samples for MuJoCo" ON)
+option(MUJOCO_BUILD_SIMULATE "Build simulate library for MuJoCo" ON)
 option(MUJOCO_BUILD_TESTS "Build tests for MuJoCo" ON)
 option(MUJOCO_TEST_PYTHON_UTIL "Build and test utility libraries for Python bindings" ON)
 
-if(APPLE AND MUJOCO_BUILD_EXAMPLES)
+if(APPLE AND (MUJOCO_BUILD_EXAMPLES OR MUJOCO_BUILD_SIMULATE))
   enable_language(OBJC)
   enable_language(OBJCXX)
 endif()
@@ -152,6 +153,13 @@ add_library(mujoco::mujoco ALIAS mujoco)
 
 add_subdirectory(model)
 
+# `simulate` defines a macro, embed_in_bundle, that's used by `sample`, so that
+# subdirectory needs to be added first.
+# TODO: Remove this order dependency.
+if(MUJOCO_BUILD_SIMULATE)
+  add_subdirectory(simulate)
+endif()
+
 if(MUJOCO_BUILD_EXAMPLES)
   add_subdirectory(sample)
 endif()
@@ -159,11 +167,9 @@ endif()
 if(BUILD_TESTING AND MUJOCO_BUILD_TESTS)
   enable_testing()
   add_subdirectory(test)
-endif()
-
-if(BUILD_TESTING AND MUJOCO_TEST_PYTHON_UTIL)
-  enable_testing()
-  add_subdirectory(python/mujoco/util)
+  if(MUJOCO_TEST_PYTHON_UTIL)
+    add_subdirectory(python/mujoco/util)
+  endif()
 endif()
 
 if(NOT (APPLE AND MUJOCO_BUILD_MACOS_FRAMEWORKS))

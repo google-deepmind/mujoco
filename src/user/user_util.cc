@@ -20,10 +20,8 @@
 #include <limits>
 #include <string>
 
-#include <mujoco/mjmodel.h>
-#include "engine/engine_file.h"
+#include <mujoco/mjtnum.h>
 #include "engine/engine_macro.h"
-#include "engine/engine_util_errmem.h"
 
 using std::isnan;
 using std::string;

@@ -121,7 +121,7 @@ TEST_F(ForwardTest, DamperDampens) {
     <worldbody>
       <body>
         <geom size="1"/>
-        <joint name="jnt" type="slide" axis="1 0 0" range="-10 10"/>
+        <joint name="jnt" type="slide" axis="1 0 0"/>
       </body>
     </worldbody>
     <actuator>

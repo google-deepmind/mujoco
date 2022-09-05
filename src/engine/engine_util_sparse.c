@@ -21,7 +21,6 @@
 #include "engine/engine_io.h"
 #include "engine/engine_macro.h"
 #include "engine/engine_util_blas.h"
-#include "engine/engine_util_errmem.h"
 
 #ifdef mjUSEPLATFORMSIMD
   #if defined(__AVX__) && defined(mjUSEDOUBLE)
@@ -263,16 +262,19 @@ void mju_mulMatVecSparse(mjtNum* res, const mjtNum* mat, const mjtNum* vec,
                          const int* colind, const int* rowsuper) {
   // no supernodes, or no AVX
 #ifdef mjUSEAVX
-  if (!rowsuper)
+  if (!rowsuper) {
 #endif
-  {
+
     // regular sparse dot-product
     for (int r=0; r<nr; r++) {
       res[r] = mju_dotSparse(mat+rowadr[r], vec, rownnz[r], colind+rowadr[r]);
     }
 
     return;
+
+#ifdef mjUSEAVX
   }
+#endif
 
   // regular or supernode
   for (int r=0; r<nr; r++) {

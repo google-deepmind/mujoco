@@ -14,8 +14,8 @@ MJCF models can represent complex dynamical systems with a wide range of feature
 these features requires a rich modeling format, which can become cumbersome if it is not designed with usability in
 mind. Therefore we have made an effort to design MJCF as a scalable format, allowing users to start small and build
 more detailed models later. Particularly helpful in this regard is the extensive :ref:`default setting <CDefault>`
-mechanism inspired by the idea of Cascading Style Sheets (CSS) in HTML. It enables users to rapidly create new models
-and experiment with them. Experimentation is further aided by numerous :ref:`options <option>` which
+mechanism inspired by the idea of Cascading Style Sheets (CSS) inlined in HTML. It enables users to rapidly create
+new models and experiment with them. Experimentation is further aided by numerous :ref:`options <option>` which
 can be used to reconfigure the simulation pipeline, and by quick re-loading that makes model editing an interactive
 process.
 
@@ -170,10 +170,10 @@ attribute except for the top-level class whose name is "main" if left undefined.
 collection of dummy model elements, with their attributes set as follows. When a defaults class is defined within
 another defaults class, the child automatically inherits all attribute values from the parent. It can then override
 some or all of them by defining the corresponding attributes. The top-level defaults class does not have a parent, and
-so its attributes are initialized to internal defaults which are shown in the reference documentation below.
+so its attributes are initialized to internal defaults which are shown in the :doc:`Reference chapter<XMLreference>`.
 
 The dummy elements contained in the defaults classes are not part of the model; they are only used to initialize the
-attribute values of the actual model elements. When an actual element if first created, all its attributes are copied
+attribute values of the actual model elements. When an actual element is first created, all its attributes are copied
 from the corresponding dummy element in the defaults class that is currently active. There is always an active
 defaults class, which can be determined in one of three ways. If no class is specified in the present element or any
 of its ancestor bodies, the top-level class is used (regardless of whether it is called "main" or something else). If
@@ -492,9 +492,10 @@ addition, the user can specify the maximum number of iterations, and tolerance l
 There is also a second Noslip solver, which is a post-processing step enabled by specifying a positive number of
 noslip iterations. All these algorithm settings can be specified in the :ref:`option <option>` element.
 
-The default settings work well for most models, but in some cases it is necessary to tune the algorithm. The best way
-to do this is to experiment with the relevant settings and use the visual profiler in `simulate.cc`_, which shows the timing of different computations as
-well as solver statistics per iteration. We can offer the following general guidelines and observations:
+The default settings work well for most models, but in some cases it is necessary to tune the algorithm. The best way to
+do this is to experiment with the relevant settings and use the visual profiler in `simulate.cc`_, which shows the
+timing of different computations as well as solver statistics per iteration. We can offer the following general
+guidelines and observations:
 
 -  The constraint Jacobian should be dense for small models and sparse for large models. The default setting is 'auto';
    it resolves to dense when the number of degrees of freedom is up to 60, and sparse over 60. Note however that the
@@ -545,9 +546,18 @@ Actuator shortcuts
 ~~~~~~~~~~~~~~~~~~
 
 As explained in the :ref:`Actuation model <geActuation>` section of the Computation chapter, MuJoCo offers a flexible
-actuator model with transmission, activation dynamics and force generation components that can be specified independently. The full functionality can be accessed via the XML element :ref:`general <general>` which allows the user
+actuator model with transmission, activation dynamics and force generation components that can be specified
+independently. The full functionality can be accessed via the XML element :ref:`general <general>` which allows the user
 to create a variety of custom actuators. In addition, MJCF provides shortcuts for configuring common actuators. This is
-done via the XML elements :ref:`motor <motor>`, :ref:`position <position>`, :ref:`velocity <velocity>`, :ref:`intvelocity <intvelocity>`, :ref:`damper<damper>`, :ref:`cylinder<cylinder>`, and :ref:`muscle <muscle>`. These are *not* separate model elements. Internally MuJoCo supports only one actuator type - which is why when an MJCF model is saved all actuators are written as :el:`general`. Shortcuts create general actuators implicitly, set their attributes to suitable values, and expose a subset of attributes with possibly different names. For example, :el:`position` creates a position servo with attribute :at:`kp` which is the servo gain. However :el:`general` does not have an attribute :at:`kp`. Instead the parser adjusts the gain and bias parameters of the general actuator in a coordinated way so as to mimic a position servo. The same effect could have been achieved by using :el:`general` directly, and setting its attributes to certain values as described below.
+done via the XML elements :ref:`motor <motor>`, :ref:`position <position>`, :ref:`velocity <velocity>`,
+:ref:`intvelocity <intvelocity>`, :ref:`damper<damper>`, :ref:`cylinder<cylinder>`, :ref:`muscle <muscle>`, and
+:ref:`adhesion <adhesion>`. These are *not* separate model elements. Internally MuJoCo supports only one actuator type -
+which is why when an MJCF model is saved all actuators are written as :el:`general`. Shortcuts create general actuators
+implicitly, set their attributes to suitable values, and expose a subset of attributes with possibly different names.
+For example, :el:`position` creates a position servo with attribute :at:`kp` which is the servo gain. However
+:el:`general` does not have an attribute :at:`kp`. Instead the parser adjusts the gain and bias parameters of the
+general actuator in a coordinated way so as to mimic a position servo. The same effect could have been achieved by using
+:el:`general` directly, and setting its attributes to certain values as described below.
 
 Actuator shortcuts also interact with defaults. Recall that the :ref:`default setting <CDefault>` mechanism involves
 classes, each of which has a complete collection of dummy elements (one of each element type) used to initialize the

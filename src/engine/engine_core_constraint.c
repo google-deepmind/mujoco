@@ -27,7 +27,6 @@
 #include "engine/engine_util_blas.h"
 #include "engine/engine_util_errmem.h"
 #include "engine/engine_util_misc.h"
-#include "engine/engine_util_solve.h"
 #include "engine/engine_util_sparse.h"
 #include "engine/engine_util_spatial.h"
 
@@ -146,12 +145,14 @@ int mj_addConstraint(const mjModel* m, mjData* d,
   // dense: copy entire Jacobian
   if (!mj_isSparse(m)) {
     // make sure jac is not empty
-    if (empty)
-      for (int i=0; i<size*nv; i++)
+    if (empty) {
+      for (int i=0; i<size*nv; i++) {
         if (jac[i]) {
           empty = 0;
           break;
         }
+      }
+    }
 
     // copy if not empty
     if (!empty) {
@@ -341,11 +342,10 @@ void mj_mulJacTVec(const mjModel* m, mjData* d, mjtNum* res, const mjtNum* vec) 
 // equality constraints
 void mj_instantiateEquality(const mjModel* m, mjData* d) {
   int issparse = mj_isSparse(m), nv = m->nv;
-  int oldncon, id[2], size, NV, NV2, *chain = NULL, *chain2 = NULL, *buf_ind = NULL;
-  mjtNum cpos[6], pos[2][3], ref[2], dif, deriv, dist;
+  int id[2], size, NV, NV2, *chain = NULL, *chain2 = NULL, *buf_ind = NULL;
+  mjtNum cpos[6], pos[2][3], ref[2], dif, deriv;
   mjtNum quat[4], quat1[4], quat2[4], quat3[4], axis[3];
   mjtNum *jac[2], *jacdif, *data, *sparse_buf = NULL;
-  mjContact *con;
   mjMARKSTACK;
 
   // disabled or no equality contraints: return
@@ -398,17 +398,15 @@ void mj_instantiateEquality(const mjModel* m, mjData* d) {
         break;
 
       case mjEQ_WELD:                 // fix relative position and orientation
-        // find global points and their Jacobians
+        // find global points
         for (int j=0; j<2; j++) {
-          // position offset for body1 only
-          if (j==0) {
-            mju_rotVecMat(pos[j], data, d->xmat + 9*id[j]);
-          } else {
-            mju_zero3(pos[j]);
-          }
-
+          mjtNum* anchor = data + 3*(1-j);
+          mju_rotVecMat(pos[j], anchor, d->xmat + 9*id[j]);
           mju_addTo3(pos[j], d->xpos + 3*id[j]);
         }
+
+        // compute position error
+        mju_sub3(cpos, pos[0], pos[1]);
 
         // compute error Jacobian (opposite of contact: 0 - 1)
         NV = mj_jacDifPair(m, d, chain, id[1], id[0], pos[1], pos[0],
@@ -419,19 +417,14 @@ void mj_instantiateEquality(const mjModel* m, mjData* d) {
         mju_copy(jac[0], jacdif, 3*NV);
         mju_copy(jac[0]+3*NV, jacdif+3*nv, 3*NV);
 
-        // get desired position offset in global frame
-        mju_rotVecMat(cpos, data, d->xmat+9*id[0]);
-
-        // compute position error: p0 - p1 - data
-        mju_sub3(cpos, pos[0], pos[1]);
-
-        // compute orientation error: neg(q1) * q0 * data (axis components only)
-        mju_mulQuat(quat, d->xquat+4*id[0], data+3);    // quat = q0*data
+        // compute orientation error: neg(q1) * q0 * relpose (axis components only)
+        mjtNum* relpose = data+6;
+        mju_mulQuat(quat, d->xquat+4*id[0], relpose);   // quat = q0*relpose
         mju_negQuat(quat1, d->xquat+4*id[1]);           // quat1 = neg(q1)
-        mju_mulQuat(quat2, quat1, quat);                // quat2 = neg(q1)*q0*data
+        mju_mulQuat(quat2, quat1, quat);                // quat2 = neg(q1)*q0*relpose
         mju_copy3(cpos+3, quat2+1);                     // copy axis components
 
-        // correct rotation Jacobian: 0.5 * neg(q1) * (jac0-jac1) * q0 * data
+        // correct rotation Jacobian: 0.5 * neg(q1) * (jac0-jac1) * q0 * relpose
         for (int j=0; j<NV; j++) {
           // axis = [jac0-jac1]_col(j)
           axis[0] = jac[0][3*NV+j];
@@ -440,13 +433,17 @@ void mj_instantiateEquality(const mjModel* m, mjData* d) {
 
           // apply formula
           mju_mulQuatAxis(quat2, quat1, axis);    // quat2 = neg(q1)*(jac0-jac1)
-          mju_mulQuat(quat3, quat2, quat);        // quat3 = neg(q1)*(jac0-jac1)*q0*data
+          mju_mulQuat(quat3, quat2, quat);        // quat3 = neg(q1)*(jac0-jac1)*q0*relpose
 
           // correct Jacobian
           jac[0][3*NV+j] = 0.5*quat3[1];
           jac[0][4*NV+j] = 0.5*quat3[2];
           jac[0][5*NV+j] = 0.5*quat3[3];
         }
+
+        // scale rotational jacobian by torquescale factor
+        mjtNum torquescale = data[10];
+        mju_scl(jac[0]+3*NV, jac[0]+3*NV, torquescale, 3*NV);
 
         size = 6;
         break;
@@ -507,11 +504,11 @@ void mj_instantiateEquality(const mjModel* m, mjData* d) {
           deriv = data[1] + 2*data[2]*dif + 3*data[3]*dif*dif + 4*data[4]*dif*dif*dif;
 
           // compute Jacobian: sparse or dense
-          if (issparse)
+          if (issparse) {
             NV = mju_combineSparse(jac[0], jac[1], nv, 1, -deriv,
                                    NV, NV2, chain, chain2,
                                    sparse_buf, buf_ind);
-          else {
+          } else {
             mju_addToScl(jac[0], jac[1], -deriv, nv);
           }
         }
@@ -528,70 +525,7 @@ void mj_instantiateEquality(const mjModel* m, mjData* d) {
         break;
 
       case mjEQ_DISTANCE:
-        // find contacts between constrained geoms
-        oldncon = d->ncon;
-        mj_collideGeoms(m, d, id[0], id[1], 1,
-                        mju_dist3(d->geom_xpos+3*id[0], d->geom_xpos+3*id[1]));
-
-        // make sure we got some contacts
-        if (oldncon==d->ncon) {
-          size = 0;
-          break;
-        }
-
-        // find smallest dist
-        dist = d->contact[oldncon].dist;
-        for (int j=1; j<d->ncon-oldncon; j++) {
-          if (d->contact[oldncon+j].dist<dist) {
-            dist = d->contact[oldncon+j].dist;
-          }
-        }
-
-        // collide again with adjusted distance (because libccd messes up with big margin)
-        d->ncon = oldncon;
-        mjtNum adjustment = 0.01;
-        mj_collideGeoms(m, d, id[0], id[1], 1, dist + adjustment);
-
-        // make sure we still got some contacts
-        if (oldncon==d->ncon) {
-          size = 0;
-          break;
-        }
-
-        // find smallest-dist contact
-        int k = 0;
-        dist = d->contact[oldncon].dist;
-        for (int j=1; j<d->ncon-oldncon; j++)
-          if (d->contact[oldncon+j].dist<dist) {
-            dist = d->contact[oldncon+j].dist;
-            k = j;
-          }
-
-        // move smallest-dist contact to first position, discard the rest
-        if (k>0) {
-          d->contact[oldncon] = d->contact[oldncon+k];
-        }
-        d->ncon = oldncon+1;
-        con = d->contact + oldncon;
-
-        // label contact, make sure solver does not include it
-        con->efc_address = -2-i;
-        con->exclude = 3;
-
-        // compute position error
-        cpos[0] = dist - data[0];
-
-        // compute Jacobian difference
-        NV = mj_jacDifPair(m, d, chain,
-                           m->geom_bodyid[con->geom1], m->geom_bodyid[con->geom2],
-                           con->pos, con->pos,
-                           jac[0], jac[1], jacdif, NULL, NULL, NULL);
-
-        // construct contact normal Jacobian
-        mju_mulMatMat(jac[0], con->frame, jacdif, 1, 3, NV);
-
-        size = 1;
-        break;
+        mju_error("distance equality constraints are no longer supported");
 
       default:                    // SHOULD NOT OCCUR
         mju_error_i("Invalid equality constraint type %d", m->eq_type[i]);
@@ -629,7 +563,7 @@ void mj_instantiateFriction(const mjModel* m, mjData* d) {
   jac = mj_stackAlloc(d, nv);
 
   // find frictional dofs
-  for (int i=0; i<nv; i++)
+  for (int i=0; i<nv; i++) {
     if (m->dof_frictionloss[i]>0) {
       // prepare Jacobian: sparse or dense
       if (issparse) {
@@ -647,6 +581,7 @@ void mj_instantiateFriction(const mjModel* m, mjData* d) {
         break;
       }
     }
+  }
 
   // find frictional tendons
   for (int i=0; i<m->ntendon; i++) {
@@ -683,7 +618,7 @@ void mj_instantiateLimit(const mjModel* m, mjData* d) {
   jac = mj_stackAlloc(d, nv);
 
   // find joint limits
-  for (int i=0; i<m->njnt; i++)
+  for (int i=0; i<m->njnt; i++) {
     if (m->jnt_limited[i]) {
       // get margin
       margin = m->jnt_margin[i];
@@ -766,9 +701,10 @@ void mj_instantiateLimit(const mjModel* m, mjData* d) {
         }
       }
     }
+  }
 
   // find tendon limits
-  for (int i=0; i<m->ntendon; i++)
+  for (int i=0; i<m->ntendon; i++) {
     if (m->tendon_limited[i]) {
       // get value = lenth, margin
       value = d->ten_length[i];
@@ -798,6 +734,7 @@ void mj_instantiateLimit(const mjModel* m, mjData* d) {
         }
       }
     }
+  }
 
   mjFREESTACK;
 }
@@ -949,7 +886,7 @@ void mj_diagApprox(const mjModel* m, mjData* d) {
         dA[i] = m->body_invweight0[2*b1] + m->body_invweight0[2*b2];
         break;
 
-      case mjEQ_WELD: // distingush translation and rotation inertia
+      case mjEQ_WELD:  // distingush translation and rotation inertia
         // body translation or rotation depending on weldcnt
         b1 = m->eq_obj1id[id];
         b2 = m->eq_obj2id[id];
@@ -973,10 +910,7 @@ void mj_diagApprox(const mjModel* m, mjData* d) {
         break;
 
       case mjEQ_DISTANCE:
-        // body translation
-        b1 = m->geom_bodyid[m->eq_obj1id[id]];
-        b2 = m->geom_bodyid[m->eq_obj2id[id]];
-        dA[i] = m->body_invweight0[2*b1] + m->body_invweight0[2*b2];
+        mju_error("distance equality constraints are no longer supported");
       }
       break;
 
@@ -1117,8 +1051,16 @@ static void getposdim(const mjModel* m, const mjData* d, int i, mjtNum* pos, int
 
   case mjCNSTR_EQUALITY:
     if (m->eq_type[id]==mjEQ_WELD) {
+      mjtNum rotlinratio = m->eq_data[mjNEQDATA*id+10];
+      mjtNum efc_pos[6];
+
+      // copy translational residual
+      mju_copy3(efc_pos, d->efc_pos+i);
+
+      // multiply orientations by torquescale
+      mju_scl3(efc_pos+3, d->efc_pos+i+3, rotlinratio);
       *dim = 6;
-      *pos = mju_norm(d->efc_pos+i, 6); // mixes translation and rotation!
+      *pos = mju_norm(efc_pos, 6);
     } else if (m->eq_type[id]==mjEQ_CONNECT) {
       *dim = 3;
       *pos = mju_norm(d->efc_pos+i, 3);

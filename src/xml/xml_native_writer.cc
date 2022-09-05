@@ -207,6 +207,13 @@ void mjXWriter::OneJoint(XMLElement* elem, mjCJoint* pjoint, mjCDef* def) {
     }
   }
 
+  // special handling of limits
+  bool range_defined = pjoint->range[0]!=0 || pjoint->range[1]!=0;
+  bool limited_inferred = def->joint.limited==2 && pjoint->limited==range_defined;
+  if (writingdefaults || !limited_inferred) {
+    WriteAttrKey(elem, "limited", TFAuto_map, 3, pjoint->limited, def->joint.limited);
+  }
+
   // defaults and regular
   if (pjoint->type != def->joint.type) {
     WriteAttrTxt(elem, "type", FindValue(joint_map, joint_sz, pjoint->type));
@@ -214,7 +221,6 @@ void mjXWriter::OneJoint(XMLElement* elem, mjCJoint* pjoint, mjCDef* def) {
   WriteAttrInt(elem, "group", pjoint->group, def->joint.group);
   WriteAttr(elem, "ref", 1, &pjoint->ref, &zero);
   WriteAttr(elem, "springref", 1, &pjoint->springref, &zero);
-  WriteAttrKey(elem, "limited", bool_map, 2, pjoint->limited, def->joint.limited);
   WriteAttr(elem, "solreflimit", mjNREF, pjoint->solref_limit, def->joint.solref_limit);
   WriteAttr(elem, "solimplimit", mjNIMP, pjoint->solimp_limit, def->joint.solimp_limit);
   WriteAttr(elem, "solreffriction", mjNREF, pjoint->solref_friction, def->joint.solref_friction);
@@ -253,13 +259,14 @@ void mjXWriter::OneGeom(XMLElement* elem, mjCGeom* pgeom, mjCDef* def) {
       mjCMesh* pmesh = model->meshes[pgeom->meshid];
 
       // write pos/quat if there is a difference
-      if (!SameVector(pgeom->locpos, pmesh->pos, 3) ||
-          !SameVector(pgeom->locquat, pmesh->quat, 4)) {
+      if (!SameVector(pgeom->locpos, pmesh->GetPosPtr(pgeom->typeinertia), 3) ||
+          !SameVector(pgeom->locquat, pmesh->GetQuatPtr(pgeom->typeinertia), 4)) {
         // recover geom pos/quat before mesh frame transformation
         double p[3], q[4];
         mjuu_copyvec(p, pgeom->locpos, 3);
         mjuu_copyvec(q, pgeom->locquat, 4);
-        mjuu_frameaccuminv(p, q, pmesh->pos, pmesh->quat);
+        mjuu_frameaccuminv(p, q, pmesh->GetPosPtr(pgeom->typeinertia),
+                           pmesh->GetQuatPtr(pgeom->typeinertia));
 
         // write
         WriteAttr(elem, "pos", 3, p, unitq+1);
@@ -292,6 +299,7 @@ void mjXWriter::OneGeom(XMLElement* elem, mjCGeom* pgeom, mjCDef* def) {
   WriteAttr(elem, "gap", 1, &pgeom->gap, &def->geom.gap);
   WriteAttrKey(elem, "fluidshape", fluid_map, 2, pgeom->fluid_switch, def->geom.fluid_switch);
   WriteAttr(elem, "fluidcoef", 5, pgeom->fluid_coefs, def->geom.fluid_coefs);
+  WriteAttrKey(elem, "shellinertia", meshtype_map, 2, pgeom->typeinertia, def->geom.typeinertia);
   if (mjuu_defined(pgeom->_mass)) {
     double mass = pgeom->GetVolume() * def->geom.density;
     WriteAttr(elem, "mass", 1, &pgeom->mass, &mass);
@@ -448,7 +456,9 @@ void mjXWriter::OneEquality(XMLElement* elem, mjCEquality* peq, mjCDef* def) {
     case mjEQ_WELD:
       WriteAttrTxt(elem, "body1", peq->name1);
       WriteAttrTxt(elem, "body2", peq->name2);
-      WriteAttr(elem, "relpose", 7, peq->data);
+      WriteAttr(elem, "anchor", 3, peq->data);
+      WriteAttr(elem, "torquescale", 1, peq->data+10);
+      WriteAttr(elem, "relpose", 7, peq->data+3);
       break;
 
     case mjEQ_JOINT:
@@ -489,9 +499,15 @@ void mjXWriter::OneTendon(XMLElement* elem, mjCTendon* pten, mjCDef* def) {
     WriteAttrTxt(elem, "class", pten->classname);
   }
 
+  // special handling of limits
+  bool range_defined = pten->range[0]!=0 || pten->range[1]!=0;
+  bool limited_inferred = def->tendon.limited==2 && pten->limited==range_defined;
+  if (writingdefaults || !limited_inferred) {
+    WriteAttrKey(elem, "limited", TFAuto_map, 3, pten->limited, def->tendon.limited);
+  }
+
   // defaults and regular
   WriteAttrInt(elem, "group", pten->group, def->tendon.group);
-  WriteAttrKey(elem, "limited", bool_map, 2, pten->limited, def->tendon.limited);
   WriteAttr(elem, "solreflimit", mjNREF, pten->solref_limit, def->tendon.solref_limit);
   WriteAttr(elem, "solimplimit", mjNIMP, pten->solimp_limit, def->tendon.solimp_limit);
   WriteAttr(elem, "solreffriction", mjNREF, pten->solref_friction, def->tendon.solref_friction);
@@ -550,6 +566,11 @@ void mjXWriter::OneActuator(XMLElement* elem, mjCActuator* pact, mjCDef* def) {
 
     case mjTRN_SITE:
       WriteAttrTxt(elem, "site", pact->target);
+      WriteAttrTxt(elem, "refsite", pact->refsite);
+      break;
+
+    case mjTRN_BODY:
+      WriteAttrTxt(elem, "body", pact->target);
       break;
 
     default:        // SHOULD NOT OCCUR
@@ -557,11 +578,26 @@ void mjXWriter::OneActuator(XMLElement* elem, mjCActuator* pact, mjCDef* def) {
     }
   }
 
+  // special handling of limits
+  bool range_defined, limited_inferred;
+  range_defined = pact->ctrlrange[0]!=0 || pact->ctrlrange[1]!=0;
+  limited_inferred = def->actuator.ctrllimited==2 && pact->ctrllimited==range_defined;
+  if (writingdefaults || !limited_inferred) {
+    WriteAttrKey(elem, "ctrllimited", TFAuto_map, 3, pact->ctrllimited, def->actuator.ctrllimited);
+  }
+  range_defined = pact->forcerange[0]!=0 || pact->forcerange[1]!=0;
+  limited_inferred = def->actuator.forcelimited==2 && pact->forcelimited==range_defined;
+  if (writingdefaults || !limited_inferred) {
+    WriteAttrKey(elem, "forcelimited", TFAuto_map, 3, pact->forcelimited, def->actuator.forcelimited);
+  }
+  range_defined = pact->actrange[0]!=0 || pact->actrange[1]!=0;
+  limited_inferred = def->actuator.actlimited==2 && pact->actlimited==range_defined;
+  if (writingdefaults || !limited_inferred) {
+    WriteAttrKey(elem, "actlimited", TFAuto_map, 3, pact->actlimited, def->actuator.actlimited);
+  }
+
   // defaults and regular
   WriteAttrInt(elem, "group", pact->group, def->actuator.group);
-  WriteAttrKey(elem, "ctrllimited", bool_map, 2, pact->ctrllimited, def->actuator.ctrllimited);
-  WriteAttrKey(elem, "forcelimited", bool_map, 2, pact->forcelimited, def->actuator.forcelimited);
-  WriteAttrKey(elem, "actlimited", bool_map, 2, pact->actlimited, def->actuator.actlimited);
   WriteAttr(elem, "ctrlrange", 2, pact->ctrlrange, def->actuator.ctrlrange);
   WriteAttr(elem, "forcerange", 2, pact->forcerange, def->actuator.forcerange);
   WriteAttr(elem, "actrange", 2, pact->actrange, def->actuator.actrange);
@@ -657,6 +693,9 @@ void mjXWriter::Compiler(XMLElement* root) {
   if (!model->usethread) {
     WriteAttrTxt(section, "usethread", "false");
   }
+  if (model->exactmeshinertia) {
+    WriteAttrTxt(section, "exactmeshinertia", "true");
+  }
 }
 
 
@@ -718,6 +757,7 @@ void mjXWriter::Option(XMLElement* root) {
     WRITEDSBL("filterparent",   mjDSBL_FILTERPARENT)
     WRITEDSBL("actuation",      mjDSBL_ACTUATION)
     WRITEDSBL("refsafe",        mjDSBL_REFSAFE)
+    WRITEDSBL("sensor",         mjDSBL_SENSOR)
 #undef WRITEDSBL
 
 #define WRITEENBL(NAME, MASK) \
@@ -789,6 +829,8 @@ void mjXWriter::Visual(XMLElement* root) {
   elem = InsertEnd(section, "global");
   WriteAttr(elem,    "fovy",      1,   &vis->global.fovy,       &visdef.global.fovy);
   WriteAttr(elem,    "ipd",       1,   &vis->global.ipd,        &visdef.global.ipd);
+  WriteAttr(elem,    "azimuth",   1,   &vis->global.azimuth,    &visdef.global.azimuth);
+  WriteAttr(elem,    "elevation", 1,   &vis->global.elevation,  &visdef.global.elevation);
   WriteAttr(elem,    "linewidth", 1,   &vis->global.linewidth,  &visdef.global.linewidth);
   WriteAttr(elem,    "glow",      1,   &vis->global.glow,       &visdef.global.glow);
   WriteAttrInt(elem, "offwidth",       vis->global.offwidth,    visdef.global.offwidth);
@@ -1169,7 +1211,7 @@ void mjXWriter::Body(XMLElement* elem, mjCBody* body) {
     WriteVector(elem, "user", body->userdata);
 
     // write inertial
-    if (body->explicit_inertial &&
+    if (body->explicitinertial &&
         model->inertiafromgeom!=mjINERTIAFROMGEOM_TRUE) {
       XMLElement* inertial = InsertEnd(elem, "inertial");
       WriteAttr(inertial, "pos", 3, body->locipos);

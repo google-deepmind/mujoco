@@ -296,9 +296,6 @@ public class MjcfImporter {
       case "tendon":
         equalityType = typeof(MjTendonConstraint);
         break;
-      case "distance":
-        equalityType = typeof(MjDistance);
-        break;
       default:
         Debug.Log($"The importer does not yet support equality <{node.Name}>.");
         break;

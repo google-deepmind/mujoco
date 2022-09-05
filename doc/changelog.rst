@@ -8,44 +8,117 @@ Upcoming version (not yet released)
 General
 ^^^^^^^
 
-- Added ``mjd_transitionFD`` to compute efficient finite difference approximations of the state-transition and
-  control-transition matrices, :ref:`see here<derivatives>` for more details.
-- Added ``ctrl`` attribute to :ref:`keyframes<keyframe>`.
-- Added ``clock`` sensor which :ref:`measures time<sensor-clock>`.
-- Added visualisation groups to skins.
-- Added actuator visualisation for ``free`` and ``ball`` joints and for actuators with ``site`` transmission.
-- Added visualisation for actuator activations.
-- Added ``<intvelocity>`` actuator shortcut for "integrated velocity" actuators, documented :ref:`here <intvelocity>`.
-- Added ``<damper>`` actuator shortcut for active-damping actuators, documented :ref:`here <damper>`.
-- ``mju_rotVecMat`` and ``mju_rotVecMatT`` now support in-place multiplication.
-- ``mjData.ctrl`` values are no longer clamped in-place, remain untouched by the engine.
-- Arrays in mjData's buffer now align to 64-byte boundaries rather than 8-byte.
-- Add memory poisoning when building with Address Sanitizer (ASAN) and Memory Sanitizer (MSAN). This allows ASAN to
-  detect reads and writes to regions in ``mjModel.buffer`` and ``mjData.buffer`` that do not lie within an array, and
-  for MSAN to detect reads from uninitialised fields in ``mjData`` following ``mj_resetData``.
+..  youtube:: BcHZ5BFeTmU
+    :align: right
+    :height: 150px
 
+- Added :ref:`adhesion actuators<adhesion>` mimicking vacuum grippers and adhesive biomechanical appendages.
+- Added related `example model <https://github.com/deepmind/mujoco/tree/main/model/adhesion>`_ and video:
+- Added :ref:`mj_jacSubtreeCom` for computing the translational Jacobian of the center-of-mass of a subtree.
+- Added :at:`torquescale` and :at:`anchor` attributes to :el:`weld` constraints. :at:`torquescale` sets the
+  torque-to-force ratio exerted by the constraint, :at:`anchor` sets the point at which the weld wrench is
+  applied. See :ref:`weld <equality-weld>` for more details.
+- Increased ``mjNEQDATA``, the row length of equality constraint parameters in ``mjModel.eq_data``, from 7 to 11.
+- Added visualisation of anchor points for both :el:`connect` and :el:`weld` constraints (activated by the 'N' key in
+  ``simulate``).
+- Added `weld.xml <https://github.com/deepmind/mujoco/tree/main/test/engine/testdata/weld.xml>`_ showing different
+  uses of new weld attributes.
+
+  ..  youtube:: s-0JHanqV1A
+      :align: right
+      :height: 150px
+
+- Cartesian 6D end-effector control is now possible by adding a reference site to actuators with :at:`site`
+  transmission. See description of new :at:`refsite` attribute in the :ref:`actuator<general>` documentation and
+  `refsite.xml <https://github.com/deepmind/mujoco/tree/main/test/engine/testdata/refsite.xml>`_ example model.
+- Joint and tendon ``limited`` attribute and actuator ``ctrllimited``, ``forcelimited`` and ``actlimited`` attributes
+  now default to ``auto`` rather than ``false``. Limits are automatically set to ``true`` if the corresponding range *is
+  defined* and ``false`` otherwise.
+
+  .. attention::
+    This is a minor breaking change. In models where a range was defined but :at:`limited` was unspecified, the target
+    element will now be limited. Explicitly set limited to ``false`` to revert to the previous behavior.
+
+- Added moment of inertia computation for all well-formed meshes. This option is activated by setting the compiler
+  flag :at:`exactmeshinertia` to ``true`` (defaults to ``false``). This default may change in the future.
+- Added parameter :at:`shellinertia` to :at:`geom`, for locating the inferred inertia on the boundary (shell).
+  Currently only meshes are supported.
+- For meshes from which volumetric inertia is inferred, raise error if the orientation of mesh faces is not consistent.
+  If this occurs, fix the mesh in e.g., MeshLab or Blender.
+
+  ..  youtube:: I2q7D0Vda-A
+      :align: right
+      :height: 150px
+
+- Added catenary visualisation for hanging tendons. The model seen in the video can be found
+  `here <https://github.com/deepmind/mujoco/tree/main/test/engine/testdata/catenary.xml>`_.
+- Added ``azimuth`` and ``elevation`` attributes to :ref:`visual/global<global>`, defining the initial orientation of
+  the free camera at model load time.
+- Added ``mjv_defaultFreeCamera`` which sets the default free camera, respecting the above attributes.
+- ``simulate`` now supports taking a screenshot via a button in the File section or via ``Ctrl-P``.
+- Improvements to time synchronisation in `simulate`, in particular report actual real-time factor if different from
+  requested factor (if e.g., the timestep is so small that simulation cannot keep up with real-time).
+- Added a disable flag for sensors.
+- :ref:`mju_mulQuat` and :ref:`mju_mulQuatAxis` support in place computation. For example
+  |br| ``mju_mulQuat(a, a, b);`` sets the quaternion ``a`` equal to the product of ``a`` and ``b``.
+- Added sensor matrices to ``mjd_transitionFD`` (note this is an API change).
+
+Deleted/deprecated features
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+- Removed ``distance`` constraints.
 
 Bug fixes
 ^^^^^^^^^
 
-- :ref:`Activation clamping <CActRange>` was not being applied in the :ref:`implicit integrator<geIntegration>`.
-- Stricter parsing of orientation specifiers. Before this change, a specification that included both ``quat`` and an
-  :ref:`alternative specifier<COrientation>` e.g., ``<geom ... quat=".1 .2 .3 .4" euler="10 20 30">``, would lead to the
-  ``quat`` being ignored and only ``euler`` being used. After this change a parse error will be thrown.
-- Stricter parsing of XML attributes. Before this change an erroneous XML snippet like ``<geom size="1/2 3 4">`` would
-  have been parsed as ``size="1 0 0"`` and no error would have been thrown. Now throws an error.
-- Trying to load a ``NaN`` via XML like ``<geom size="1 NaN 4">``, while allowed for debugging purposes, will now print
-  a warning.
-- Fixed null pointer dereference in ``mj_loadModel``.
-- Fixed memory leaks when loading an invalid model from MJB.
-- Integer overflows are now avoided when computing ``mjModel`` buffer sizes.
-- Added missing warning string for ``mjWARN_BADCTRL``.
+- Fixed rendering of some transparent geoms in reflection.
+- Fixed ``intvelocity`` defaults parsing.
+
+Version 2.2.1 (July 18, 2022)
+-----------------------------
+
+General
+^^^^^^^
+
+1. Added ``mjd_transitionFD`` to compute efficient finite difference approximations of the state-transition and
+   control-transition matrices, :ref:`see here<derivatives>` for more details.
+#. Added derivatives for the ellipsoid fluid model.
+#. Added ``ctrl`` attribute to :ref:`keyframes<keyframe>`.
+#. Added ``clock`` sensor which :ref:`measures time<sensor-clock>`.
+#. Added visualisation groups to skins.
+#. Added actuator visualisation for ``free`` and ``ball`` joints and for actuators with ``site`` transmission.
+#. Added visualisation for actuator activations.
+#. Added ``<intvelocity>`` actuator shortcut for "integrated velocity" actuators, documented :ref:`here <intvelocity>`.
+#. Added ``<damper>`` actuator shortcut for active-damping actuators, documented :ref:`here <damper>`.
+#. ``mju_rotVecMat`` and ``mju_rotVecMatT`` now support in-place multiplication.
+#. ``mjData.ctrl`` values are no longer clamped in-place, remain untouched by the engine.
+#. Arrays in mjData's buffer now align to 64-byte boundaries rather than 8-byte.
+#. Added memory poisoning when building with Address Sanitizer (ASAN) and Memory Sanitizer (MSAN). This allows ASAN to
+   detect reads and writes to regions in ``mjModel.buffer`` and ``mjData.buffer`` that do not lie within an array, and
+   for MSAN to detect reads from uninitialised fields in ``mjData`` following ``mj_resetData``.
+#. Added a `slider-crank example model <https://github.com/deepmind/mujoco/tree/main/model/slider_crank>`_.
+
+Bug fixes
+^^^^^^^^^
+
+15. :ref:`Activation clamping <CActRange>` was not being applied in the :ref:`implicit integrator<geIntegration>`.
+#. Stricter parsing of orientation specifiers. Before this change, a specification that included both ``quat`` and an
+   :ref:`alternative specifier<COrientation>` e.g., ``<geom ... quat=".1 .2 .3 .4" euler="10 20 30">``, would lead to
+   the ``quat`` being ignored and only ``euler`` being used. After this change a parse error will be thrown.
+#. Stricter parsing of XML attributes. Before this change an erroneous XML snippet like ``<geom size="1/2 3 4">`` would
+   have been parsed as ``size="1 0 0"`` and no error would have been thrown. Now throws an error.
+#. Trying to load a ``NaN`` via XML like ``<geom size="1 NaN 4">``, while allowed for debugging purposes, will now print
+   a warning.
+#. Fixed null pointer dereference in ``mj_loadModel``.
+#. Fixed memory leaks when loading an invalid model from MJB.
+#. Integer overflows are now avoided when computing ``mjModel`` buffer sizes.
+#. Added missing warning string for ``mjWARN_BADCTRL``.
 
 Packaging
 ^^^^^^^^^
 
-- Changed MacOS packaging so that the copy of ``mujoco.framework`` embedded in ``MuJoCo.app`` can be used to build
-  applications externally.
+23. Changed MacOS packaging so that the copy of ``mujoco.framework`` embedded in ``MuJoCo.app`` can be used to build
+    applications externally.
 
 
 Version 2.2.0 (May 23, 2022)
@@ -186,7 +259,7 @@ Version 2.1.3 (Mar. 23, 2022)
 General
 ^^^^^^^
 
-1. ``simulate`` now support cycling through cameras (with ``[`` and ``]`` keys).
+1. ``simulate`` now supports cycling through cameras (with the ``[`` and ``]`` keys).
 #. ``mjVIS_STATIC`` toggles all static bodies, not just direct children of the world.
 
 Python bindings

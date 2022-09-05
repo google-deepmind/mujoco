@@ -43,6 +43,9 @@ MJAPI void mj_jacBody(const mjModel* m, const mjData* d,
 MJAPI void mj_jacBodyCom(const mjModel* m, const mjData* d,
                          mjtNum* jacp, mjtNum* jacr, int body);
 
+// compute subtree center-of-mass Jacobian
+MJAPI void mj_jacSubtreeCom(const mjModel* m, mjData* d, mjtNum* jacp, int body);
+
 // compute geom Jacobian
 MJAPI void mj_jacGeom(const mjModel* m, const mjData* d,
                       mjtNum* jacp, mjtNum* jacr, int geom);
@@ -67,10 +70,10 @@ void mj_jacSparseSimple(const mjModel* m, const mjData* d,
                         int body, int flg_second, int NV, int start);
 
 // dense or sparse Jacobian difference for two body points: pos2 - pos1, global
-int mj_jacDifPair(const mjModel* m, const mjData* d, int* chain,
-                  int b1, int b2, const mjtNum pos1[3], const mjtNum pos2[3],
-                  mjtNum* jac1p, mjtNum* jac2p, mjtNum* jacdifp,
-                  mjtNum* jac1r, mjtNum* jac2r, mjtNum* jacdifr);
+MJAPI int mj_jacDifPair(const mjModel* m, const mjData* d, int* chain,
+                        int b1, int b2, const mjtNum pos1[3], const mjtNum pos2[3],
+                        mjtNum* jac1p, mjtNum* jac2p, mjtNum* jacdifp,
+                        mjtNum* jac1r, mjtNum* jac2r, mjtNum* jacdifr);
 
 
 //-------------------------- name functions --------------------------------------------------------

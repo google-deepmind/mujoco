@@ -32,7 +32,9 @@
 
 //----------------------------- utility functions and macros ---------------------------------------
 
-static const mjtNum IDENTITY[9] = {1,0,0, 0,1,0, 0,0,1};
+static const mjtNum IDENTITY[9] = {1, 0, 0,
+                                   0, 1, 0,
+                                   0, 0, 1};
 
 
 // copy float array
@@ -64,16 +66,18 @@ static void makeLabel(const mjModel* m, mjtObj type, int id, char* label) {
 
 
 // return if there is no space in buffer
-#define START                                                           \
-    if( scn->ngeom>=scn->maxgeom )                                      \
-         { mj_warning(d, mjWARN_VGEOMFULL, scn->maxgeom);               \
-           return; }                                                    \
-    else { thisgeom = scn->geoms + scn->ngeom;                          \
-           mjv_initGeom(thisgeom, mjGEOM_NONE, NULL, NULL, NULL, NULL); \
-           thisgeom->objtype = objtype;                                 \
-           thisgeom->objid = i;                                         \
-           thisgeom->category = category;                               \
-           thisgeom->segid = scn->ngeom;    }
+#define START                                                      \
+    if ( scn->ngeom>=scn->maxgeom ) {                              \
+      mj_warning(d, mjWARN_VGEOMFULL, scn->maxgeom);               \
+      return;                                                      \
+    } else {                                                       \
+      thisgeom = scn->geoms + scn->ngeom;                          \
+      mjv_initGeom(thisgeom, mjGEOM_NONE, NULL, NULL, NULL, NULL); \
+      thisgeom->objtype = objtype;                                 \
+      thisgeom->objid = i;                                         \
+      thisgeom->category = category;                               \
+      thisgeom->segid = scn->ngeom;                                \
+    }
 
 
 // advance counter
@@ -327,29 +331,30 @@ void mjv_initGeom(mjvGeom* geom, int type, const mjtNum* size,
   geom->type = type;
 
   // set size (for XYZ scaling)
-  if (size)
+  if (size) {
     switch (type) {
-    case mjGEOM_SPHERE:
-      geom->size[0] = (float)size[0];
-      geom->size[1] = (float)size[0];
-      geom->size[2] = (float)size[0];
-      break;
+      case mjGEOM_SPHERE:
+        geom->size[0] = (float)size[0];
+        geom->size[1] = (float)size[0];
+        geom->size[2] = (float)size[0];
+        break;
 
-    case mjGEOM_CAPSULE:
-      geom->size[0] = (float)size[0];
-      geom->size[1] = (float)size[0];
-      geom->size[2] = (float)size[1];
-      break;
+      case mjGEOM_CAPSULE:
+        geom->size[0] = (float)size[0];
+        geom->size[1] = (float)size[0];
+        geom->size[2] = (float)size[1];
+        break;
 
-    case mjGEOM_CYLINDER:
-      geom->size[0] = (float)size[0];
-      geom->size[1] = (float)size[0];
-      geom->size[2] = (float)size[1];
-      break;
+      case mjGEOM_CYLINDER:
+        geom->size[0] = (float)size[0];
+        geom->size[1] = (float)size[0];
+        geom->size[2] = (float)size[1];
+        break;
 
-    default:
-      mju_n2f(geom->size, size, 3);
-    } else {
+      default:
+        mju_n2f(geom->size, size, 3);
+    }
+  } else {
     geom->size[0] = 0.1f;
     geom->size[1] = 0.1f;
     geom->size[2] = 0.1f;
@@ -410,8 +415,6 @@ void mjv_initGeom(mjvGeom* geom, int type, const mjtNum* size,
 static void markselected(const mjVisual* vis, mjvGeom* geom) {
   // add emission
   geom->emission += vis->global.glow;
-  // make opaque
-  geom->rgba[3] = 1;
 }
 
 
@@ -443,13 +446,12 @@ static int bodycategory(const mjModel* m, int bodyid) {
   }
 }
 
-
-
 // add abstract geoms
 void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
                   const mjvPerturb* pert, int catmask, mjvScene* scn) {
   int objtype, category;
   mjtNum sz[3], mat[9], selpos[3];
+  mjtNum catenary[3*mjNCATENARY];
   mjtNum *cur, *nxt, *xpos, *xfrc;
   mjtNum vec[3], end[3], axis[3], rod, len, det, tmp[9], quat[4];
   mjtByte broken;
@@ -838,13 +840,12 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
         if (m->actuator_trntype[i]==mjTRN_JOINT ||
             m->actuator_trntype[i]==mjTRN_JOINTINPARENT ||
             m->actuator_trntype[i]==mjTRN_SITE) {
-
           START
 
           // site actuators
           if (m->actuator_trntype[i]==mjTRN_SITE) {
-            // set size of the geometry
-            mju_scl3(sz, m->site_size+3*j, 1.1);
+            // inflate sizes by 5%
+            mju_scl3(sz, m->site_size+3*j, 1.05);
 
             // make geom
             mjv_initGeom(thisgeom,
@@ -889,6 +890,34 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
           }
 
           FINISH
+        }
+
+        // body actuators
+        else if (m->actuator_trntype[i]==mjTRN_BODY) {
+          // iterate over body's geoms
+          int geomnum = m->body_geomnum[j];
+          int geomadr = m->body_geomadr[j];
+          for (int k=geomadr; k<geomadr+geomnum; k++) {
+            int geomtype = m->geom_type[k];
+            // add inflated geom if it is a regular primitive
+            if (geomtype != mjGEOM_PLANE && geomtype != mjGEOM_HFIELD && geomtype != mjGEOM_MESH) {
+              START
+              // inflate sizes by 5%
+              mju_scl3(sz, m->geom_size+3*k, 1.05);
+
+              // make geom
+              mjv_initGeom(thisgeom,
+                           m->geom_type[k], sz,
+                           d->geom_xpos + 3*k,
+                           d->geom_xmat + 9*k,
+                           thisgeom->rgba);
+
+              // set interpolated color
+              f2f(thisgeom->rgba, rgba, 4);
+
+              FINISH
+            }
+          }
         }
 
         // spatial tendon actuators
@@ -1321,27 +1350,77 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
   if (vopt->flags[mjVIS_TENDON] && (category & catmask)) {
     for (int i=0; i<m->ntendon; i++) {
       if (vopt->tendongroup[mjMAX(0, mjMIN(mjNGROUP-1, m->tendon_group[i]))]) {
-        for (int j=d->ten_wrapadr[i]; j<d->ten_wrapadr[i]+d->ten_wrapnum[i]-1; j++) {
-          if (d->wrap_obj[j]!=-2 && d->wrap_obj[j+1]!=-2) {
+        // conditions for drawing a catenary
+        int draw_catenary =
+            !mjDISABLED(mjDSBL_GRAVITY)           &&  // gravity enabled
+            mju_norm3(m->opt.gravity) > mjMINVAL  &&  // gravity strictly nonzero
+            m->tendon_num[i] == 2                 &&  // only two sites on the tendon
+            m->tendon_limited[i] == 1             &&  // limited length range
+            m->tendon_range[2*i] == 0             &&  // range lower-bound is 0
+            m->tendon_stiffness[i] == 0           &&  // no stiffness
+            m->tendon_damping[i] == 0             &&  // no damping
+            m->tendon_frictionloss[i] == 0;           // no frictionloss
+
+        // conditions not met: draw straight lines
+        if (!draw_catenary) {
+          for (int j=d->ten_wrapadr[i]; j<d->ten_wrapadr[i]+d->ten_wrapnum[i]-1; j++) {
+            if (d->wrap_obj[j]!=-2 && d->wrap_obj[j+1]!=-2) {
+              START
+
+              // determine width: smaller for segments inside wrapping objects
+              if (d->wrap_obj[j]>=0 && d->wrap_obj[j+1]>=0) {
+                sz[0] = 0.5 * m->tendon_width[i];
+              } else {
+                sz[0] = m->tendon_width[i];
+              }
+
+              // construct geom
+              mjv_makeConnector(thisgeom, mjGEOM_CAPSULE, sz[0],
+                                d->wrap_xpos[3*j], d->wrap_xpos[3*j+1], d->wrap_xpos[3*j+2],
+                                d->wrap_xpos[3*j+3], d->wrap_xpos[3*j+4], d->wrap_xpos[3*j+5]);
+
+              // set material if given
+              setMaterial(m, thisgeom, m->tendon_matid[i], m->tendon_rgba+4*i, vopt->flags);
+
+              // vopt->label: only the first segment
+              if (vopt->label==mjLABEL_TENDON && j==d->ten_wrapadr[i]) {
+                makeLabel(m, mjOBJ_TENDON, i, thisgeom->label);
+              }
+
+              FINISH
+            }
+          }
+        }
+
+        // special case handling of string-like tendons under gravity
+        else {
+          // two hanging points: x0, x1
+          mjtNum x0[3], x1[3];
+          mju_copy3(x0, d->wrap_xpos + 3*d->ten_wrapadr[i]);
+          mju_copy3(x1, d->wrap_xpos + 3*d->ten_wrapadr[i] + 3);
+
+          // length of the tendon
+          mjtNum length = m->tendon_range[2*i+1];
+
+          // points along catenary path
+          int npoints = mjv_catenary(x0, x1, m->opt.gravity, length, catenary);
+
+          // draw npoints-1 segments
+          for (int j=0; j<npoints-1; j++) {
             START
 
-            // determine width: smaller for segments inside wrapping objects
-            if (d->wrap_obj[j]>=0 && d->wrap_obj[j+1]>=0) {
-              sz[0] = 0.5 * m->tendon_width[i];
-            } else {
-              sz[0] = m->tendon_width[i];
-            }
+            sz[0] = m->tendon_width[i];
 
             // construct geom
             mjv_makeConnector(thisgeom, mjGEOM_CAPSULE, sz[0],
-                              d->wrap_xpos[3*j], d->wrap_xpos[3*j+1], d->wrap_xpos[3*j+2],
-                              d->wrap_xpos[3*j+3], d->wrap_xpos[3*j+4], d->wrap_xpos[3*j+5]);
+                              catenary[3*j], catenary[3*j+1], catenary[3*j+2],
+                              catenary[3*j+3], catenary[3*j+4], catenary[3*j+5]);
 
             // set material if given
             setMaterial(m, thisgeom, m->tendon_matid[i], m->tendon_rgba+4*i, vopt->flags);
 
             // vopt->label: only the first segment
-            if (vopt->label==mjLABEL_TENDON && j==d->ten_wrapadr[i]) {
+            if (vopt->label==mjLABEL_TENDON && npoints/2) {
               makeLabel(m, mjOBJ_TENDON, i, thisgeom->label);
             }
 
@@ -1355,8 +1434,8 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
   // slider-crank
   objtype = mjOBJ_ACTUATOR;
   category = mjCAT_DYNAMIC;
-  if ((category & catmask))
-    for (int i=0; i<m->nu; i++)
+  if ((category & catmask)) {
+    for (int i=0; i<m->nu; i++) {
       if (m->actuator_trntype[i]==mjTRN_SLIDERCRANK) {
         // get data
         int j = m->actuator_trnid[2*i];                 // crank
@@ -1404,6 +1483,8 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
         }
         FINISH
       }
+    }
+  }
 
   // center of mass for root bodies
   objtype = mjOBJ_UNKNOWN;
@@ -1525,33 +1606,31 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
   objtype = mjOBJ_EQUALITY;
   category = mjCAT_DECOR;
   if (vopt->flags[mjVIS_CONSTRAINT] && (category & catmask) && m->neq) {
-    // connect
+    // connect or weld
     for (int i=0; i<m->neq; i++) {
-      if (m->eq_active[i] && m->eq_type[i]==mjEQ_CONNECT) {
+      if (m->eq_active[i] && (m->eq_type[i]==mjEQ_CONNECT || m->eq_type[i]==mjEQ_WELD)) {
         // compute endpoints in global coordinates
-        int j = m->eq_obj1id[i];
-        int k = m->eq_obj2id[i];
-        mju_rotVecMat(vec, m->eq_data+mjNEQDATA*i, d->xmat+9*j);
+        int j = m->eq_obj1id[i], k = m->eq_obj2id[i];
+        mju_rotVecMat(vec, m->eq_data+mjNEQDATA*i+3*(m->eq_type[i]==mjEQ_WELD), d->xmat+9*j);
         mju_addTo3(vec, d->xpos+3*j);
-        mju_rotVecMat(end, m->eq_data+mjNEQDATA*i+3, d->xmat+9*k);
+        mju_rotVecMat(end, m->eq_data+mjNEQDATA*i+3*(m->eq_type[i]==mjEQ_CONNECT), d->xmat+9*k);
         mju_addTo3(end, d->xpos+3*k);
-
-        // connect endpoints
-        START
 
         // construct geom
         sz[0] = scl * m->vis.scale.constraint;
-        mjv_makeConnector(thisgeom, mjGEOM_CAPSULE, sz[0],
-                          vec[0], vec[1], vec[2],
-                          end[0], end[1], end[2]);
 
-        f2f(thisgeom->rgba, m->vis.rgba.constraint, 4);
-
-        // label flag
+        START
+        mjv_initGeom(thisgeom, mjGEOM_SPHERE, sz, vec, d->xmat+9*j, m->vis.rgba.connect);
         if (vopt->label==mjLABEL_CONSTRAINT) {
           makeLabel(m, mjOBJ_EQUALITY, i, thisgeom->label);
         }
+        FINISH
 
+        START
+        mjv_initGeom(thisgeom, mjGEOM_SPHERE, sz, end, d->xmat+9*k, m->vis.rgba.constraint);
+        if (vopt->label==mjLABEL_CONSTRAINT) {
+          makeLabel(m, mjOBJ_EQUALITY, i, thisgeom->label);
+        }
         FINISH
       }
     }
@@ -1778,7 +1857,6 @@ void mjv_updateSkin(const mjModel* m, mjData* d, mjvScene* scn) {
 
 // update visible skins only
 void mjv_updateActiveSkin(const mjModel* m, mjData* d, mjvScene* scn, const mjvOption* opt) {
-
   // process skins
   for (int i=0; i<m->nskin; i++) {
     // get info
@@ -1923,3 +2001,178 @@ void mjv_updateScene(const mjModel* m, mjData* d, const mjvOption* opt,
     mjv_updateActiveSkin(m, d, scn, opt);
   }
 }
+
+
+
+//----------------------------------- catenary functions -------------------------------------------
+
+// returns hyperbolic cosine and optionally computes hyperbolic sine
+static inline mjtNum cosh_sinh(mjtNum x, mjtNum *sinh) {
+  mjtNum expx = mju_exp(x);
+  if (sinh) {
+    *sinh = 0.5 * (expx - 1/expx);
+  }
+  return 0.5 * (expx + 1/expx);
+}
+
+
+
+// returns intercept of the catenary equation
+static inline mjtNum catenary_intercept(mjtNum v, mjtNum h, mjtNum length) {
+  return 1/mju_sqrt(mju_sqrt(length*length - v*v)/h - 1);
+}
+
+
+
+// returns residual of catenary equation and optionally computes its gradient w.r.t b
+static inline mjtNum catenary_residual(mjtNum b, mjtNum intercept, mjtNum *grad) {
+  mjtNum a = 0.5 / b;
+  mjtNum sinh, cosh = cosh_sinh(a, &sinh);
+  if (grad) {
+    *grad = (a*cosh - sinh) * mju_pow(2*b*sinh - 1, -1.5);
+  }
+  return 1/mju_sqrt(2*b*sinh - 1) - intercept;
+}
+
+
+
+// convergence tolerance for catenary solver
+static const mjtNum tolerance = 1e-9;
+
+
+
+// solve trancendental catenary equation using change of variables proposed in
+//   https://math.stackexchange.com/a/1002996
+static inline mjtNum solve_catenary(mjtNum v, mjtNum h, mjtNum length) {
+  mjtNum intercept = catenary_intercept(v, h, length);
+
+  // initial guess using linear approximation to catenary_residual
+  mjtNum b = intercept / mju_sqrt(24);
+
+  // Newton steps to convergence (usually ~ 5 steps)
+  for (int i=0; i<50; i++) {
+    // get value and gradient
+    mjtNum grad;
+    mjtNum res = catenary_residual(b, intercept, &grad);
+
+    if (mju_abs(res) < tolerance) {
+      break;
+    }
+
+    // Newton step
+    mjtNum step = -res / grad;
+
+    // backtracking line-search is not essential but can reduce number of iterations
+    for (int j=0; j<10; j++) {
+      mjtNum new_res = catenary_residual(b + step, intercept, NULL);
+      if (mju_abs(new_res) < mju_abs(res)) {
+        break;
+      } else {
+        step *= 0.5;
+      }
+    }
+
+    // take step
+    b += step;
+  }
+
+  return b;
+}
+
+
+
+// points along catenary of given length between x0 and x1, returns number of points
+int mjv_catenary(const mjtNum x0[3], const mjtNum x1[3], const mjtNum gravity[3], mjtNum length,
+                 mjtNum catenary[3*mjNCATENARY]) {
+  mjtNum dist = mju_dist3(x0, x1);
+
+  // tendon is stretched longer than length: draw straight line
+  if (dist > length) {
+    // copy start and end points
+    mju_copy3(catenary+0, x0);
+    mju_copy3(catenary+3, x1);
+
+    return 2;
+  }
+
+  // tendon is shorter than length
+  else {
+    // normalized up vector
+    mjtNum up[3];
+    mju_scl3(up, gravity, -1);
+    mju_normalize3(up);
+
+    // x0 to x1
+    mjtNum x01[3];
+    mju_sub3(x01, x1, x0);
+
+    // make across orthonormal to up, points from x0 to x1
+    mjtNum across[3];
+    mju_copy3(across, x01);
+    mjtNum tmp[3];
+    mju_scl3(tmp, up, mju_dot3(up, across));
+    mju_subFrom3(across, tmp);
+    mjtNum norm = mju_normalize3(across);
+
+    // if across is numerically tiny, just set to 0
+    if (norm < mjMINVAL) {
+      mju_zero3(across);
+    }
+
+    // extents in the suspension plane
+    mjtNum h = mju_dot3(x01, across);  // horizontal suspension extent
+    mjtNum v = mju_dot3(x01, up);      // vertical height difference of x1 and x0
+
+    // near vertical tendon, use hanging bead approximation: 3 points
+    if (length > 100*h) {
+      // solve for location of bead hanging on tendon
+      mjtNum d_up = -0.5*(mju_sqrt(length*length - h*h) - v);  // down from x0
+      mjtNum d_across = h*d_up / (2*d_up - v);                 // across from x0
+
+      // start point
+      mju_copy3(catenary+0, x0);
+
+      // midpoint: bead location
+      mju_copy3(catenary+3, x0);
+      mju_addToScl3(catenary+3, up, d_up);
+      mju_addToScl3(catenary+3, across, d_across);
+
+      // end point
+      mju_copy3(catenary+6, x1);
+
+      return 3;
+    }
+
+    // compute catenary: mjNCATENARY points
+    else {
+      // b*h: scaled catenary flatness
+      mjtNum bh = solve_catenary(v, h, length) * h;
+
+      // horizontal and vertical offsets
+      mjtNum h_offset = -0.5 * (mju_log((length+v) / (length-v)) * bh - h);
+      mjtNum v_offset = -cosh_sinh(h_offset / bh, NULL) * bh;
+
+      // start point
+      mju_copy3(catenary+0, x0);
+
+      // hanging points
+      for (int i=1; i<mjNCATENARY-1; i++) {
+        // linearly spaced horizontal offset
+        mjtNum horizontal = i*h/mjNCATENARY;
+        mju_addScl3(catenary+3*i, x0, across, horizontal);
+
+        // vertical offset, evaluate catenary values
+        mjtNum vertical = bh * cosh_sinh((horizontal - h_offset) / bh, NULL) + v_offset;
+        mju_addToScl3(catenary+3*i, up, vertical);
+      }
+
+      // end point
+      mju_copy3(catenary+3*(mjNCATENARY-1), x1);
+
+      return mjNCATENARY;
+    }
+  }
+
+  return 0;  // SHOULD NOT OCCUR
+}
+

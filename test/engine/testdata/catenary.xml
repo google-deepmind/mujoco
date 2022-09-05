@@ -1,0 +1,34 @@
+<mujoco>
+  <visual>
+    <global elevation="-20"/>
+  </visual>
+
+  <worldbody>
+    <geom type="plane" size="1 1 .1"/>
+    <light pos="0 -.2 2" dir="0 1 -4" diffuse="1 1 1"/>
+    <body pos="0 0 .8">
+      <joint type="slide" stiffness="1000"/>
+      <geom size=".05" mass="20"/>
+      <site name="hook" pos="0 0 -.05"/>
+    </body>
+
+    <body pos="-.15 -.15 .3">
+      <joint name="hinge" type="hinge" axis="0 0 1" damping=".5"/>
+      <geom type="cylinder" size=".01" fromto="0 0 0 0 0 .1"/>
+      <geom type="capsule" size=".01" fromto="0 0 0 .25 0 0"/>
+      <geom size=".02" pos=".25 0 0"/>
+      <site name="corner" pos=".25 0 .02"/>
+    </body>
+  </worldbody>
+
+  <tendon>
+    <spatial limited="true" range="0 .5" rgba="0 .1 1 1" width=".005">
+      <site site="hook"/>
+      <site site="corner"/>
+    </spatial>
+  </tendon>
+
+  <actuator>
+    <general joint="hinge" biasprm="2" biastype="affine"/>
+  </actuator>
+</mujoco>

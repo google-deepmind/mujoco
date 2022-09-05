@@ -345,7 +345,7 @@ void mj_stepSkip(const mjModel* m, mjData* d, int skipstage, int skipsensor) {
   }
 
   // use selected integrator
-  switch(m->opt.integrator) {
+  switch (m->opt.integrator) {
     case mjINT_EULER:
       mj_EulerSkip(m, d, skipstage >= mjSTAGE_POS);
       break;
@@ -573,7 +573,6 @@ static void addJTBJSparse(mjtNum* DfDv, const mjtNum* J, const mjtNum* B,
   for (int i=0; i<n; i++) {
     for (int j=0; j<n; j++) {
       if (B[i*n+j]) {
-
         // process non-zero elements of J(i,k)
         for (int k=0; k<rownnz[offset+i]; k++) {
           int ik = rowadr[offset+i] + k;
@@ -660,7 +659,7 @@ static mjtNum mjd_muscleGain_vel(mjtNum len, mjtNum vel, const mjtNum lengthrang
   }
 
   // compute FVL and scale, make it negative
-  return -force*FL*dFV/mjMAX(mjMINVAL,L0*vmax);
+  return -force*FL*dFV/mjMAX(mjMINVAL, L0*vmax);
 }
 
 
@@ -758,7 +757,7 @@ static void mjd_addedMassForces(
     mjtNum* restrict B, const mjtNum local_vels[6], const mjtNum fluid_density,
     const mjtNum virtual_mass[3], const mjtNum virtual_inertia[3]) {
   const mjtNum lin_vel[3] = {local_vels[3], local_vels[4], local_vels[5]};
-  const mjtNum ang_vel[3] = {local_vels[0], local_vels[1], local_vels[2]};;
+  const mjtNum ang_vel[3] = {local_vels[0], local_vels[1], local_vels[2]};
   const mjtNum virtual_lin_mom[3] = {
     fluid_density * virtual_mass[0] * lin_vel[0],
     fluid_density * virtual_mass[1] * lin_vel[1],
@@ -1057,9 +1056,9 @@ void mjd_ellipsoidFluid(const mjModel* m, mjData* d, mjtNum* DfDv, int bodyid) {
     mju_zero(wind, 6);
     mju_copy3(wind+3, m->opt.wind);
     mju_transformSpatial(lwind, wind, 0,
-                         d->geom_xpos + 3*geomid, // Frame of ref's origin.
+                         d->geom_xpos + 3*geomid,  // Frame of ref's origin.
                          d->subtree_com + 3*m->body_rootid[bodyid],
-                         d->geom_xmat + 9*geomid); // Frame of ref's orientation.
+                         d->geom_xmat + 9*geomid);  // Frame of ref's orientation.
     // subtract translational component from grom velocity
     mju_subFrom3(lvel+3, lwind+3);
 
@@ -1464,7 +1463,7 @@ void mjd_smooth_vel(const mjModel *m, mjData *d) {
 
 // finite differenced Jacobian of  (next_state, sensors) = mj_step(state, control)
 //   all outputs are optional
-//   output dimensions (transposed w.r.t common convention):
+//   output dimensions (transposed w.r.t Control Theory convention):
 //     DyDq: (nv x 2*nv+na)
 //     DyDv: (nv x 2*nv+na)
 //     DyDa: (na x 2*nv+na)
@@ -1484,10 +1483,10 @@ void mjd_stepFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte centered,
   mjMARKSTACK;
 
   // states
-  mjtNum *state      = mj_stackAlloc(d, nq+nv+na); // current state
-  mjtNum *next       = mj_stackAlloc(d, nq+nv+na); // next state
-  mjtNum *next_plus  = mj_stackAlloc(d, nq+nv+na); // forward-nudged next state
-  mjtNum *next_minus = mj_stackAlloc(d, nq+nv+na); // backward-nudged next state
+  mjtNum *state      = mj_stackAlloc(d, nq+nv+na);  // current state
+  mjtNum *next       = mj_stackAlloc(d, nq+nv+na);  // next state
+  mjtNum *next_plus  = mj_stackAlloc(d, nq+nv+na);  // forward-nudged next state
+  mjtNum *next_minus = mj_stackAlloc(d, nq+nv+na);  // backward-nudged next state
 
   // warmstart accelerations
   mjtNum *warmstart = mjDISABLED(mjDSBL_WARMSTART) ? NULL : mj_stackAlloc(d, nv);
@@ -1567,7 +1566,6 @@ void mjd_stepFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte centered,
   // finite-difference activations: skip=mjSTAGE_VEL
   if (DyDa || DsDa) {
     for (int i=0; i<na; i++) {
-
       // nudge forward
       d->act[i] += eps;
 
@@ -1714,30 +1712,53 @@ void mjd_stepFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte centered,
 
 
 
-// finite differenced state-transition and control-transition matrices dy = A*dx + B*du
+// finite differenced transition matrices (control theory notation)
+//   d(x_next) = A*dx + B*du
+//   d(sensor) = C*dx + D*du
 //   required output matrix dimensions:
 //      A: (2*nv+na x 2*nv+na)
 //      B: (2*nv+na x nu)
+//      D: (nsensordata x 2*nv+na)
+//      C: (nsensordata x nu)
 void mjd_transitionFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte centered,
-                      mjtNum* A, mjtNum* B) {
-  int nv = m->nv, na = m->na, nu = m->nu;
-  int ndx = 2*nv+na;  // row length of Jacobians
+                      mjtNum* A, mjtNum* B, mjtNum* C, mjtNum* D) {
+  int nv = m->nv, na = m->na, nu = m->nu, ns = m->nsensordata;
+  int ndx = 2*nv+na;  // row length of state Jacobians
+
+  // stepFD() offset pointers, initialised to NULL
+  mjtNum *DyDq, *DyDv, *DyDa, *DsDq, *DsDv, *DsDa;
+  DyDq = DyDv = DyDa = DsDq = DsDv = DsDa = NULL;
+
   mjMARKSTACK;
 
   // allocate transposed matrices
-  mjtNum *AT = mj_stackAlloc(d, ndx*ndx);            // state-transition matrix   (transposed)
+  mjtNum *AT = A ? mj_stackAlloc(d, ndx*ndx) : NULL; // state-transition matrix   (transposed)
   mjtNum *BT = B ? mj_stackAlloc(d, nu*ndx) : NULL;  // control-transition matrix (transposed)
+  mjtNum *CT = C ? mj_stackAlloc(d, ndx*ns) : NULL;  // state-observation matrix   (transposed)
+  mjtNum *DT = D ? mj_stackAlloc(d, nu*ns) : NULL;   // control-observation matrix (transposed)
+
+  // set offset pointers
+  if (A) {
+    DyDq = AT;
+    DyDv = AT+ndx*nv;
+    DyDa = AT+ndx*2*nv;
+  }
+
+  if (C) {
+    DsDq = CT;
+    DsDv = CT + ns*nv;
+    DsDa = CT + ns*2*nv;
+  }
 
   // get Jacobians
-  if (A) {
-    mjd_stepFD(m, d, eps, centered, AT, AT+ndx*nv, AT+ndx*2*nv, BT, NULL, NULL, NULL, NULL);
-  } else {
-    mjd_stepFD(m, d, eps, centered, NULL, NULL, NULL, BT, NULL, NULL, NULL, NULL);
-  }
+  mjd_stepFD(m, d, eps, centered, DyDq, DyDv, DyDa, BT, DsDq, DsDv, DsDa, DT);
+
 
   // transpose
   if (A) mju_transpose(A, AT, ndx, ndx);
   if (B) mju_transpose(B, BT, nu, ndx);
+  if (C) mju_transpose(C, CT, ndx, ns);
+  if (D) mju_transpose(D, DT, nu, ns);
 
   mjFREESTACK;
 }
