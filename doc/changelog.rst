@@ -2,82 +2,83 @@
 Changelog
 =========
 
-Upcoming version (not yet released)
------------------------------------
+
+Version 2.2.2 (September 7, 2022)
+---------------------------------
 
 General
 ^^^^^^^
 
-..  youtube:: BcHZ5BFeTmU
-    :align: right
-    :height: 150px
+.. youtube:: BcHZ5BFeTmU
+   :align: right
+   :height: 150px
 
-- Added :ref:`adhesion actuators<adhesion>` mimicking vacuum grippers and adhesive biomechanical appendages.
-- Added related `example model <https://github.com/deepmind/mujoco/tree/main/model/adhesion>`_ and video:
-- Added :ref:`mj_jacSubtreeCom` for computing the translational Jacobian of the center-of-mass of a subtree.
-- Added :at:`torquescale` and :at:`anchor` attributes to :el:`weld` constraints. :at:`torquescale` sets the
-  torque-to-force ratio exerted by the constraint, :at:`anchor` sets the point at which the weld wrench is
-  applied. See :ref:`weld <equality-weld>` for more details.
-- Increased ``mjNEQDATA``, the row length of equality constraint parameters in ``mjModel.eq_data``, from 7 to 11.
-- Added visualisation of anchor points for both :el:`connect` and :el:`weld` constraints (activated by the 'N' key in
-  ``simulate``).
-- Added `weld.xml <https://github.com/deepmind/mujoco/tree/main/test/engine/testdata/weld.xml>`_ showing different
-  uses of new weld attributes.
+1. Added :ref:`adhesion actuators<adhesion>` mimicking vacuum grippers and adhesive biomechanical appendages.
+#. Added related `example model <https://github.com/deepmind/mujoco/tree/main/model/adhesion>`_ and video:
+#. Added :ref:`mj_jacSubtreeCom` for computing the translational Jacobian of the center-of-mass of a subtree.
+#. Added :at:`torquescale` and :at:`anchor` attributes to :el:`weld` constraints. :at:`torquescale` sets the
+   torque-to-force ratio exerted by the constraint, :at:`anchor` sets the point at which the weld wrench is
+   applied. See :ref:`weld <equality-weld>` for more details.
+#. Increased ``mjNEQDATA``, the row length of equality constraint parameters in ``mjModel.eq_data``, from 7 to 11.
+#. Added visualisation of anchor points for both :el:`connect` and :el:`weld` constraints (activated by the 'N' key in
+   ``simulate``).
+#. Added `weld.xml <https://github.com/deepmind/mujoco/tree/main/test/engine/testdata/weld.xml>`_ showing different
+   uses of new weld attributes.
 
-  ..  youtube:: s-0JHanqV1A
+   .. youtube:: s-0JHanqV1A
       :align: right
       :height: 150px
 
-- Cartesian 6D end-effector control is now possible by adding a reference site to actuators with :at:`site`
-  transmission. See description of new :at:`refsite` attribute in the :ref:`actuator<general>` documentation and
-  `refsite.xml <https://github.com/deepmind/mujoco/tree/main/test/engine/testdata/refsite.xml>`_ example model.
+#. Cartesian 6D end-effector control is now possible by adding a reference site to actuators with :at:`site`
+   transmission. See description of new :at:`refsite` attribute in the :ref:`actuator<general>` documentation and
+   `refsite.xml <https://github.com/deepmind/mujoco/tree/main/test/engine/testdata/refsite.xml>`_ example model.
+#. Added :at:`autolimits` compiler option. If ``true``, joint and tendon :at:`limited` attributes and actuator
+   :at:`ctrllimited`, :at:`forcelimited` and :at:`actlimited` attributes will automatically be set to ``true`` if the
+   corresponding range *is defined* and ``false`` otherwise.
 
-- Added :at:`autolimits` compiler option. If ``true``, joint and tendon :at:`limited` attributes and actuator
-  :at:`ctrllimited`, :at:`forcelimited` and :at:`actlimited` attributes will automatically be set to ``true`` if the
-  corresponding range *is defined* and ``false`` otherwise.
+   If ``autolimits="false"`` (the default) models where a :at:`range` attribute is specified without the :at:`limited`
+   attribute will fail to compile. A future release will change the default of :at:`autolimits` to ``true``, and this
+   compilation error allows users to catch this future change of behavior.
 
-  If ``autolimits="false"`` (the default) models where a :at:`range` attribute is specified without the :at:`limited`
-  attribute will fail to compile. A future release will change the default of :at:`autolimits` to ``true``, and this
-  compilation error allows users to catch this future change of behavior.
+   .. attention::
+     This is a breaking change. In models where a range was defined but :at:`limited` was unspecified, explicitly set
+     limited to ``false`` or remove the range to maintain the current behavior of your model.
 
-  .. attention::
-    This is a breaking change. In models where a range was defined but :at:`limited` was unspecified, explicitly set
-    limited to ``false`` or remove the range to maintain the current behavior of your model.
+#. Added moment of inertia computation for all well-formed meshes. This option is activated by setting the compiler
+   flag :at:`exactmeshinertia` to ``true`` (defaults to ``false``). This default may change in the future.
+#. Added parameter :at:`shellinertia` to :at:`geom`, for locating the inferred inertia on the boundary (shell).
+   Currently only meshes are supported.
+#. For meshes from which volumetric inertia is inferred, raise error if the orientation of mesh faces is not consistent.
+   If this occurs, fix the mesh in e.g., MeshLab or Blender.
 
-- Added moment of inertia computation for all well-formed meshes. This option is activated by setting the compiler
-  flag :at:`exactmeshinertia` to ``true`` (defaults to ``false``). This default may change in the future.
-- Added parameter :at:`shellinertia` to :at:`geom`, for locating the inferred inertia on the boundary (shell).
-  Currently only meshes are supported.
-- For meshes from which volumetric inertia is inferred, raise error if the orientation of mesh faces is not consistent.
-  If this occurs, fix the mesh in e.g., MeshLab or Blender.
-
-  ..  youtube:: I2q7D0Vda-A
+   .. youtube:: I2q7D0Vda-A
       :align: right
       :height: 150px
 
-- Added catenary visualisation for hanging tendons. The model seen in the video can be found
-  `here <https://github.com/deepmind/mujoco/tree/main/test/engine/testdata/catenary.xml>`_.
-- Added ``azimuth`` and ``elevation`` attributes to :ref:`visual/global<global>`, defining the initial orientation of
-  the free camera at model load time.
-- Added ``mjv_defaultFreeCamera`` which sets the default free camera, respecting the above attributes.
-- ``simulate`` now supports taking a screenshot via a button in the File section or via ``Ctrl-P``.
-- Improvements to time synchronisation in `simulate`, in particular report actual real-time factor if different from
-  requested factor (if e.g., the timestep is so small that simulation cannot keep up with real-time).
-- Added a disable flag for sensors.
-- :ref:`mju_mulQuat` and :ref:`mju_mulQuatAxis` support in place computation. For example
-  |br| ``mju_mulQuat(a, a, b);`` sets the quaternion ``a`` equal to the product of ``a`` and ``b``.
-- Added sensor matrices to ``mjd_transitionFD`` (note this is an API change).
+#. Added catenary visualisation for hanging tendons. The model seen in the video can be found
+   `here <https://github.com/deepmind/mujoco/tree/main/test/engine/testdata/catenary.xml>`_.
+#. Added ``azimuth`` and ``elevation`` attributes to :ref:`visual/global<global>`, defining the initial orientation of
+   the free camera at model load time.
+#. Added ``mjv_defaultFreeCamera`` which sets the default free camera, respecting the above attributes.
+#. ``simulate`` now supports taking a screenshot via a button in the File section or via ``Ctrl-P``.
+#. Improvements to time synchronisation in `simulate`, in particular report actual real-time factor if different from
+   requested factor (if e.g., the timestep is so small that simulation cannot keep up with real-time).
+#. Added a disable flag for sensors.
+#. :ref:`mju_mulQuat` and :ref:`mju_mulQuatAxis` support in place computation. For example
+   |br| ``mju_mulQuat(a, a, b);`` sets the quaternion ``a`` equal to the product of ``a`` and ``b``.
+#. Added sensor matrices to ``mjd_transitionFD`` (note this is an API change).
 
 Deleted/deprecated features
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-- Removed ``distance`` constraints.
+21. Removed ``distance`` constraints.
 
 Bug fixes
 ^^^^^^^^^
 
-- Fixed rendering of some transparent geoms in reflection.
-- Fixed ``intvelocity`` defaults parsing.
+22. Fixed rendering of some transparent geoms in reflection.
+#.  Fixed ``intvelocity`` defaults parsing.
+
 
 Version 2.2.1 (July 18, 2022)
 -----------------------------
