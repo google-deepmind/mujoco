@@ -31,13 +31,18 @@ General
 - Cartesian 6D end-effector control is now possible by adding a reference site to actuators with :at:`site`
   transmission. See description of new :at:`refsite` attribute in the :ref:`actuator<general>` documentation and
   `refsite.xml <https://github.com/deepmind/mujoco/tree/main/test/engine/testdata/refsite.xml>`_ example model.
-- Joint and tendon ``limited`` attribute and actuator ``ctrllimited``, ``forcelimited`` and ``actlimited`` attributes
-  now default to ``auto`` rather than ``false``. Limits are automatically set to ``true`` if the corresponding range *is
-  defined* and ``false`` otherwise.
+
+- Added :at:`autolimits` compiler option. If ``true``, joint and tendon :at:`limited` attributes and actuator
+  :at:`ctrllimited`, :at:`forcelimited` and :at:`actlimited` attributes will automatically be set to ``true`` if the
+  corresponding range *is defined* and ``false`` otherwise.
+
+  If ``autolimits="false"`` (the default) models where a :at:`range` attribute is specified without the :at:`limited`
+  attribute will fail to compile. A future release will change the default of :at:`autolimits` to ``true``, and this
+  compilation error allows users to catch this future change of behavior.
 
   .. attention::
-    This is a minor breaking change. In models where a range was defined but :at:`limited` was unspecified, the target
-    element will now be limited. Explicitly set limited to ``false`` to revert to the previous behavior.
+    This is a breaking change. In models where a range was defined but :at:`limited` was unspecified, explicitly set
+    limited to ``false`` or remove the range to maintain the current behavior of your model.
 
 - Added moment of inertia computation for all well-formed meshes. This option is activated by setting the compiler
   flag :at:`exactmeshinertia` to ``true`` (defaults to ``false``). This default may change in the future.

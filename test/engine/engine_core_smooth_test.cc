@@ -206,6 +206,7 @@ TEST_F(CoreSmoothTest, RefsiteBringsToPose) {
   constexpr char kRefsitePath[] = "engine/testdata/refsite.xml";
   const std::string xml_path = GetTestDataFilePath(kRefsitePath);
   mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, 0, 0);
+  ASSERT_THAT(model, ::testing::NotNull());
   mjData* data = mj_makeData(model);
 
   // set pose target in ctrl (3 positions, 3 rotations)

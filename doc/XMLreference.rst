@@ -47,6 +47,8 @@ in the second column of the table have the following meaning:
 |                          |    |    +-------------------------+-------------------------+-------------------------+ |
 |                          |    |    | :at:`inertiafromgeom`   | :at:`inertiagrouprange` | :at:`exactmeshinertia`  | |
 |                          |    |    +-------------------------+-------------------------+-------------------------+ |
+|                          |    |    | :at:`autolimits`        |                         |                         | |
+|                          |    |    +-------------------------+-------------------------+-------------------------+ |
 +--------------------------+----+------------------------------------------------------------------------------------+
 | |_2|:el:`lengthrange`    | ?  | .. table::                                                                         |
 |                          |    |    :class: mjcf-attributes                                                         |
@@ -1524,6 +1526,13 @@ The unique top-level element, identifying the XML file as an MJCF model file.
 This element is used to set options for the built-in parser and compiler. After parsing and compilation it no longer has
 any effect. The settings here are global and apply to the entire model.
 
+:at:`autolimits`: :at-val:`[false, true], "false"`
+   This attribute affects the behavior of attributes such as "limited" (on <joint> or <tendon>), "forcelimited",
+   "ctrllimited", and "actlimited" (on <actuator>). If "true", these attributes are unnecessary and their value
+   will be inferred from the presence of their corresponding "range" attribute.
+   If "false", no such inference will happen: For a joint to be limited, both limited="true" and range="min max" must
+   be specified. In this mode, it is an error to specify a range without a limit.
+   |br| The default for this option will be set to "true" in an upcoming release.
 :at:`boundmass`: :at-val:`real, "0"`
    This attribute imposes a lower bound on the mass of each body except for the world body. Setting this attribute to
    a value greater than 0 can be used as a quick fix for poorly designed models that contain massless moving bodies,
@@ -3162,7 +3171,8 @@ unit quaternions.
 :at:`limited`: :at-val:`[false, true, auto], "auto"`
    This attribute specifies if the joint has limits. It interacts with the range attribute below. If this attribute
    is "false", joint limits are disabled. If this attribute is "true", joint limits are enabled. If this
-   attribute is "auto", joint limits will be enabled if range is defined and disabled otherwise.
+   attribute is "auto", and :at:`autolimits` is set in :ref:`compiler <compiler>`, joint limits will be enabled
+   if range is defined.
 :at:`solreflimit`, :at:`solimplimit`
    Constraint solver parameters for simulating joint limits. See :ref:`CSolver`.
 :at:`solreffriction`, :at:`solimpfriction`
@@ -3176,6 +3186,8 @@ unit quaternions.
    joints, the limit is imposed on the angle of rotation (relative to the reference configuration) regardless of the
    axis of rotation. Only the second range parameter is used for ball joints; the first range parameter should be set to
    0. See the :ref:`Limit <coLimit>` section in the Computation chapter for more information.
+   |br| Setting this attribute without specifying :at:`limited` is an error, unless :at:`autolimits` is set in
+   :ref:`compiler <compiler>`.
 :at:`margin`: :at-val:`real, "0"`
    The distance threshold below which limits become active. Recall that the :ref:`Constraint solver <Solver>` normally
    generates forces as soon as a constraint becomes active, even if the margin parameter makes that happen at a
@@ -4122,10 +4134,11 @@ the obstacle geom.
    visualizer to enable and disable the rendering of entire groups of tendons.
 :at:`limited`: :at-val:`[false, true, auto], "auto"`
    If this attribute is "true", the length limits defined by the range attribute below are imposed by the constraint
-   solver. If this attribute is "auto", length limits will be enabled if range is defined and disabled otherwise.
+   solver. If this attribute is "auto", and :at:`autolimits` is set in :ref:`compiler <compiler>`, length limits
+   will be enabled if range is defined.
 :at:`range`: :at-val:`real(2), "0 0"`
-   Range of allowed tendon lengths. To enable length limits, set the limited attribute to "true" in addition to defining
-   the present value.
+   Range of allowed tendon lengths. Setting this attribute without specifying :at:`limited` is an error, unless
+   :at:`autolimits` is set in :ref:`compiler <compiler>`.
 :at:`solreflimit`, :at:`solimplimit`
    Constraint solver parameters for simulating tendon limits. See :ref:`CSolver`.
 :at:`solreffriction`, :at:`solimpfriction`
@@ -4269,25 +4282,33 @@ specify them independently.
    visualizer to enable and disable the rendering of entire groups of actuators.
 :at:`ctrllimited`: :at-val:`[false, true, auto], "auto"`
    If true, the control input to this actuator is automatically clamped to :at:`ctrlrange` at runtime. If false, control
-   input clamping is disabled. If auto, control clamping will automatically be set to true if :at:`ctrlrange` is
-   defined without explicitly setting this attribute to "true". Note that control input clamping can also be globally
-   disabled with the :at:`clampctrl` attribute of :ref:`option/flag <option-flag>`.
+   input clamping is disabled. If "auto" and :at:`autolimits` is set in :ref:`compiler <compiler>`, control
+   clamping will automatically be set to true if :at:`ctrlrange` is defined without explicitly setting this attribute
+   to "true". Note that control input clamping can also be globally disabled with the :at:`clampctrl` attribute of
+   :ref:`option/flag <option-flag>`.
 :at:`forcelimited`: :at-val:`[false, true, auto], "auto"`
    If true, the force output of this actuator is automatically clamped to :at:`forcerange` at runtime. If false, force
-   clamping is disabled. If auto, force clamping will automatically be set to true if :at:`forcerange` is
-   defined without explicitly setting this attribute to "true".
+   clamping is disabled. If "auto" and :at:`autolimits` is set in :ref:`compiler <compiler>`, force clamping will
+   automatically be set to true if :at:`forcerange` is defined without explicitly setting this attribute to "true".
 :at:`actlimited`: :at-val:`[false, true, auto], "auto"`
    If true, the internal state (activation) associated with this actuator is automatically clamped to :at:`actrange` at
-   runtime. If false, activation clamping is disabled. If auto, activation clamping will automatically be set to true
-   if :at:`actrange` is defined without explicitly setting this attribute to "true". See the :ref:`Activation clamping <CActRange>`
-   section for more details.
+   runtime. If false, activation clamping is disabled. If "auto" and :at:`autolimits` is set in
+   :ref:`compiler <compiler>`, activation clamping will automatically be set to true if :at:`actrange` is defined
+   without explicitly setting this attribute to "true". See the :ref:`Activation clamping <CActRange>` section for more
+   details.
 :at:`ctrlrange`: :at-val:`real(2), "0 0"`
    Range for clamping the control input. The compiler expects the first value to be smaller than the second value.
+   |br| Setting this attribute without specifying :at:`ctrllimited` is an error, unless :at:`autolimits` is set in
+   :ref:`compiler <compiler>`.
 :at:`forcerange`: :at-val:`real(2), "0 0"`
    Range for clamping the force output. The compiler expects the first value to be no greater than the second value.
+   |br| Setting this attribute without specifying :at:`forcelimited` is an error, unless :at:`autolimits` is set in
+   :ref:`compiler <compiler>`.
 :at:`actrange`: :at-val:`real(2), "0 0"`
    Range for clamping the activation state. The compiler expects the first value to be no greater than the second value.
    See the :ref:`Activation clamping <CActRange>` section for more details.
+   |br| Setting this attribute without specifying :at:`actlimited` is an error, unless :at:`autolimits` is set in
+   :ref:`compiler <compiler>`.
 :at:`lengthrange`: :at-val:`real(2), "0 0"`
    Range of feasible lengths of the actuator's transmission. See :ref:`Length Range <CLengthRange>`.
 :at:`gear`: :at-val:`real(6), "1 0 0 0 0 0"`

@@ -1,4 +1,5 @@
 <mujoco>
+  <compiler autolimits="true"/>
   <!--
   Adding a high fluid viscosity and using implicit integration for extra stabillity.
   Extra stabillity is required because the abstract "arm" model is not very realistic.

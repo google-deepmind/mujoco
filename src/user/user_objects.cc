@@ -19,6 +19,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <iostream>
+#include <sstream>
 #include <string>
 #include <vector>
 
@@ -62,6 +63,18 @@ static void checksize(double* size, mjtGeom type, mjCBase* object, const char* n
   }
 }
 
+// error message for missing "limited" attribute
+static void checklimited(
+    const mjCBase* obj,
+    bool autolimits, const char* entity, const char* attr, int limited, bool hasrange) {
+  if (!autolimits && limited == 2 && hasrange) {
+    std::stringstream ss;
+    ss << entity << " has `" << attr << "range` but not `" << attr << "limited`. "
+       << "set the autolimits=\"true\" compiler option, specify `" << attr << "limited` "
+       << "explicitly (\"true\" or \"false\"), or remove the `" << attr << "range` attribute.";
+    throw mjCError(obj, "%s", ss.str().c_str());
+  }
+}
 
 
 //------------------------- class mjCError implementation ------------------------------------------
@@ -857,7 +870,9 @@ int mjCJoint::Compile(void) {
   }
   // otherwise if limited is auto, set according to whether range is specified
   else if (limited==2) {
-    limited = (range[0]==0 && range[1]==0) ? 0 : 1;
+    bool hasrange = !(range[0]==0 && range[1]==0);
+    checklimited(this, model->autolimits, "joint", "", limited, hasrange);
+    limited = hasrange ? 1 : 0;
   }
 
   // resolve limits
@@ -3222,7 +3237,9 @@ void mjCTendon::Compile(void) {
 
   // if limited is auto, set to 1 if range is specified, otherwise unlimited
   if (limited==2) {
-    limited = (range[0]==0 && range[1]==0) ? 0 : 1;
+    bool hasrange = !(range[0]==0 && range[1]==0);
+    checklimited(this, model->autolimits, "tendon", "", limited, hasrange);
+    limited = hasrange ? 1 : 0;
   }
 
   // check limits
@@ -3389,13 +3406,19 @@ void mjCActuator::Compile(void) {
 
   // if limited is auto, set to 1 if range is specified, otherwise unlimited
   if (forcelimited==2) {
-    forcelimited = (forcerange[0]==0 && forcerange[1]==0) ? 0 : 1;
+    bool hasrange = !(forcerange[0]==0 && forcerange[1]==0);
+    checklimited(this, model->autolimits, "actuator", "force", forcelimited, hasrange);
+    forcelimited = hasrange ? 1 : 0;
   }
   if (ctrllimited==2) {
-    ctrllimited = (ctrlrange[0]==0 && ctrlrange[1]==0) ? 0 : 1;
+    bool hasrange = !(ctrlrange[0]==0 && ctrlrange[1]==0);
+    checklimited(this, model->autolimits, "actuator", "ctrl", ctrllimited, hasrange);
+    ctrllimited = hasrange ? 1 : 0;
   }
   if (actlimited==2) {
-    actlimited = (actrange[0]==0 && actrange[1]==0) ? 0 : 1;
+    bool hasrange = !(actrange[0]==0 && actrange[1]==0);
+    checklimited(this, model->autolimits, "actuator", "act", actlimited, hasrange);
+    actlimited = hasrange ? 1 : 0;
   }
 
   // check limits

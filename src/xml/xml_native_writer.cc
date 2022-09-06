@@ -696,6 +696,9 @@ void mjXWriter::Compiler(XMLElement* root) {
   if (model->exactmeshinertia) {
     WriteAttrTxt(section, "exactmeshinertia", "true");
   }
+  // always enable autolimits. limited attributes will be written appropriately
+  // TODO(b/245077553): Remove this when the default is true.
+  WriteAttrTxt(section, "autolimits", "true");
 }
 
 
