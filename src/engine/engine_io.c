@@ -1254,7 +1254,7 @@ const char* mj_validateReferences(const mjModel* m) {
   X(tendon_adr,         ntendon,       nwrap        , m->tendon_num          ) \
   X(tendon_matid,       ntendon,       nmat         , 0                      ) \
   X(numeric_adr,        nnumeric,      nnumericdata , m->numeric_size        ) \
-  X(text_adr,           ntext,         ntexdata     , m->text_size           ) \
+  X(text_adr,           ntext,         ntextdata    , m->text_size           ) \
   X(tuple_adr,          ntuple,        ntupledata   , m->tuple_size          ) \
   X(name_bodyadr,       nbody,         nnames       , 0                      ) \
   X(name_jntadr,        njnt,          nnames       , 0                      ) \
