@@ -1,5 +1,6 @@
-![MuJoCo](banner.png)
-=====================
+<h1>
+  <a href="#"><img alt="MuJoCo" src="banner.png" width="100%"/></a>
+</h1>
 
 <p>
   <a href="https://github.com/deepmind/mujoco/actions/workflows/build.yml?query=branch%3Amain" alt="GitHub Actions">
