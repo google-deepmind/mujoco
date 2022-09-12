@@ -3,6 +3,19 @@ Changelog
 =========
 
 
+Upcoming version (not yet released)
+-----------------------------------
+
+General
+^^^^^^^
+
+- Updates to humanoid model:
+
+   - Added two keyframes (stand-on-one-leg and squat).
+   - Increased maximum hip flexion angle.
+   - Added hamstring tendons which couple the hip and knee at high hip flexion angles.
+   - General cosmetic improvements, including improved use of defaults and better naming scheme.
+
 Version 2.2.2 (September 7, 2022)
 ---------------------------------
 
