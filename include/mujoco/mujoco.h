@@ -991,7 +991,7 @@ MJAPI void mju_trnVecPose(mjtNum res[3], const mjtNum pos[3], const mjtNum quat[
                           const mjtNum vec[3]);
 
 
-//--------------------------------- Decompositions -------------------------------------------------
+//--------------------------------- Decompositions / Solvers ---------------------------------------
 
 // Cholesky decomposition: mat = L*L'; return rank, decomposition performed in-place into mat.
 MJAPI int mju_cholFactor(mjtNum* mat, int n, mjtNum mindiag);
@@ -1005,6 +1005,34 @@ MJAPI int mju_cholUpdate(mjtNum* mat, mjtNum* x, int n, int flg_plus);
 // Eigenvalue decomposition of symmetric 3x3 matrix.
 MJAPI int mju_eig3(mjtNum eigval[3], mjtNum eigvec[9], mjtNum quat[4], const mjtNum mat[9]);
 
+// minimize 0.5*x'*H*x + x'*g  s.t. lower <= x <= upper, return rank or -1 if failed
+//   inputs:
+//     n           - problem dimension
+//     H           - SPD matrix                n*n
+//     g           - bias vector               n
+//     lower       - lower bounds              n
+//     upper       - upper bounds              n
+//     res         - solution warmstart        n
+//   return value:
+//     nfree <= n  - rank of unconstrained subspace, -1 if failure
+//   outputs (required):
+//     res         - solution                  n
+//     R           - subspace Cholesky factor  nfree*nfree    allocated: n*(n+7)
+//   outputs (optional):
+//     index       - set of free dimensions    nfree          allocated: n
+//   notes:
+//     the initial value of res is used to warmstart the solver
+//     R must have allocatd size n*(n+7), but only nfree*nfree values are used in output
+//     index (if given) must have allocated size n, but only nfree values are used in output
+//     the convenience function mju_boxQPmalloc allocates the required data structures
+MJAPI int mju_boxQP(mjtNum* res, mjtNum* R, int* index, const mjtNum* H, const mjtNum* g, int n,
+                    const mjtNum* lower, const mjtNum* upper);
+
+// allocate heap memory for box-constrained Quadratic Program
+//   as in mju_boxQP, index, lower, and upper are optional
+//   free all pointers with mju_free()
+MJAPI void mju_boxQPmalloc(mjtNum** res, mjtNum** R, int** index, mjtNum** H, mjtNum** g, int n,
+                           mjtNum** lower, mjtNum** upper);
 
 //---------------------- Miscellaneous -------------------------------------------------------------
 

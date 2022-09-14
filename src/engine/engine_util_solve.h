@@ -75,6 +75,26 @@ MJAPI int mju_QCQP3(mjtNum* res, const mjtNum* Ain, const mjtNum* bin, const mjt
 // return 0 if unconstrained, 1 if constrained
 int mju_QCQP(mjtNum* res, const mjtNum* Ain, const mjtNum* bin, const mjtNum* d, mjtNum r, int n);
 
+// solve box-constrained Quadratic Program
+//  min 0.5*x'*H*x + x'*g  s.t. lower <= x <=upper
+// return rank of unconstrained subspace or -1 on failure
+MJAPI int mju_boxQP(mjtNum* res, mjtNum* R, int* index,
+                    const mjtNum* H, const mjtNum* g, int n,
+                    const mjtNum* lower, const mjtNum* upper);
+
+// allocate memory for box-constrained Quadratic Program
+MJAPI void mju_boxQPmalloc(mjtNum** res, mjtNum** R, int** index,
+                           mjtNum** H, mjtNum** g, int n,
+                           mjtNum** lower, mjtNum** upper);
+
+// minimize 0.5*x'*H*x + x'*g  s.t. lower <= x <=upper, explicit options (see implemetation)
+MJAPI int mju_boxQPoption(mjtNum* res, mjtNum* R, int* index,
+                          const mjtNum* H, const mjtNum* g, int n,
+                          const mjtNum* lower, const mjtNum* upper,
+                          int maxiter, mjtNum mingrad, mjtNum backtrack,
+                          mjtNum minstep, mjtNum armijo,
+                          char* log, int logsz);
+
 #ifdef __cplusplus
 }
 #endif

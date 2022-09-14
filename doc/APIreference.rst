@@ -6336,6 +6336,62 @@ mju_eig3
 
 Eigenvalue decomposition of symmetric 3x3 matrix.
 
+.. _mju_boxQP:
+
+mju_boxQP
+~~~~~~~~~
+
+.. code-block:: C
+
+   int mju_boxQP(mjtNum* res, mjtNum* R, int* index, const mjtNum* H, const mjtNum* g, int n,
+                 const mjtNum* lower, const mjtNum* upper);
+
+Minimize :math:`\tfrac{1}{2} x^T H x + x^T g \quad \text{s.t.} \quad l \le x \le u`, return rank or -1 if failed.
+
+inputs:
+  ``n``           - problem dimension
+
+  ``H``           - SPD matrix                ``n*n``
+
+  ``g``           - bias vector               ``n``
+
+  ``lower``       - lower bounds              ``n``
+
+  ``upper``       - upper bounds              ``n``
+
+  ``res``         - solution warmstart        ``n``
+
+return value:
+  ``nfree <= n``  - rank of unconstrained subspace, -1 if failure
+
+outputs (required):
+  ``res``         - solution                  ``n``
+
+  ``R``           - subspace Cholesky factor  ``nfree*nfree``,    allocated: ``n*(n+7)``
+
+outputs (optional):
+  ``index``       - set of free dimensions    ``nfree``,          allocated: ``n``
+
+notes:
+  The initial value of ``res`` is used to warmstart the solver.
+  ``R`` must have allocatd size ``n*(n+7)``, but only ``nfree*nfree`` values are used in output.
+  ``index`` (if given) must have allocated size ``n``, but only ``nfree`` values are used in output.
+  The convenience function :ref:`mju_boxQPmalloc` allocates the required data structures.
+
+.. _mju_boxQPmalloc:
+
+mju_boxQPmalloc
+~~~~~~~~~~~~~~~
+
+.. code-block:: C
+
+   void mju_boxQPmalloc(mjtNum** res, mjtNum** R, int** index, mjtNum** H, mjtNum** g, int n,
+                        mjtNum** lower, mjtNum** upper);
+
+Allocate heap memory for box-constrained Quadratic Program.
+As in :ref:`mju_boxQP`, ``index``, ``lower``, and ``upper`` are optional.
+Free all pointers with ``mju_free()``.
+
 .. _Miscellaneous:
 
 Miscellaneous

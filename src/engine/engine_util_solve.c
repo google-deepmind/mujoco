@@ -15,6 +15,7 @@
 #include "engine/engine_util_solve.h"
 
 #include <math.h>
+#include <stdio.h>
 #include <string.h>
 
 #include <mujoco/mjdata.h>
@@ -22,6 +23,7 @@
 #include "engine/engine_macro.h"
 #include "engine/engine_util_blas.h"
 #include "engine/engine_util_errmem.h"
+#include "engine/engine_util_misc.h"
 #include "engine/engine_util_sparse.h"
 #include "engine/engine_util_spatial.h"
 
@@ -753,3 +755,349 @@ int mju_QCQP(mjtNum* res, const mjtNum* Ain, const mjtNum* bin,
 
   return (la!=0);
 }
+
+
+
+//--------------------------- box-constrained quadratic program ------------------------------------
+
+// minimize 0.5*x'*H*x + x'*g  s.t. lower <= x <= upper, return rank or -1 if failed
+//   inputs:
+//     n           - problem dimension
+//     H           - SPD matrix                n*n
+//     g           - bias vector               n
+//     lower       - lower bounds              n
+//     upper       - upper bounds              n
+//     res         - solution warmstart        n
+//   return value:
+//     nfree <= n  - rank of unconstrained subspace, -1 if failure
+//   outputs (required):
+//     res         - solution                  n
+//     R           - subspace Cholesky factor  nfree*nfree    allocated: n*(n+7)
+//   outputs (optional):
+//     index       - set of free dimensions    nfree          allocated: n
+//   notes:
+//     the initial value of res is used to warmstart the solver
+//     R must have allocatd size n*(n+7), but only nfree*nfree values are used in output
+//     index (if given) must have allocated size n, but only nfree values are used in output
+int mju_boxQP(mjtNum* res, mjtNum* R, int* index,        // outputs
+              const mjtNum* H, const mjtNum* g, int n,   // QP definition
+              const mjtNum* lower, const mjtNum* upper)  // bounds
+{
+  // algorithm options
+  int    maxiter    = 100;    // maximum number of iterations
+  mjtNum mingrad    = 1E-16;  // minimum squared norm of (unclamped) gradient
+  mjtNum backtrack  = 0.5;    // backtrack factor for decreasing stepsize
+  mjtNum minstep    = 1E-22;  // minimum stepsize for linesearch
+  mjtNum armijo     = 0.1;    // Armijo parameter (fraction of expected linear improvement)
+
+  // logging (disabled)
+  char*  log        = NULL;   // buffer to write log messages into
+  int    logsz      = 0;      // size of log buffer
+
+  return mju_boxQPoption(res, R, index, H, g, n, lower, upper,
+                         maxiter, mingrad, backtrack, minstep, armijo, log, logsz);
+}
+
+
+
+// allocate heap memory for box-constrained Quadratic Program
+//   as in mju_boxQP, index, lower and upper are optional
+//   free all pointers with mju_free()
+void mju_boxQPmalloc(mjtNum** res, mjtNum** R, int** index,
+                     mjtNum** H, mjtNum** g, int n,
+                     mjtNum** lower, mjtNum** upper) {
+  // required arrays
+  *res = (mjtNum*) mju_malloc(sizeof(mjtNum)*n);
+  *R   = (mjtNum*) mju_malloc(sizeof(mjtNum)*n*(n+7));
+  *H   = (mjtNum*) mju_malloc(sizeof(mjtNum)*n*n);
+  *g   = (mjtNum*) mju_malloc(sizeof(mjtNum)*n);
+
+  // optional arrays
+  if (lower) *lower = (mjtNum*) mju_malloc(sizeof(mjtNum)*n);
+  if (upper) *upper = (mjtNum*) mju_malloc(sizeof(mjtNum)*n);
+  if (index) *index = (int*) mju_malloc(sizeof(int)*n);
+}
+
+
+
+// local enum encoding mju_boxQP solver status (purely for readability)
+enum mjtStatusBoxQP {
+  mjBOXQP_NOT_SPD     = -1,        //  Hessian is not positive definite
+  mjBOXQP_NO_DESCENT  = 0,         //  no descent direction found
+  mjBOXQP_MAX_ITER    = 1,         //  maximum main iterations exceeded
+  mjBOXQP_MAX_LS_ITER = 2,         //  maximum line-search iterations exceeded
+  mjBOXQP_TOL_GRAD    = 3,         //  gradient norm smaller than tolerance
+  mjBOXQP_UNBOUNDED   = 4,         //  no dimensions clamped, returning Newton point
+  mjBOXQP_ALL_CLAMPED = 5,         //  all dimensions clamped
+
+  mjNBOXQP            = 7          //  number of boxQP status values
+};
+
+
+
+// minimize 0.5*x'*H*x + x'*g  s.t. lower <= x <=upper, explicit options
+//  additional arguments to mju_boxQP (see mju_boxQP documentation):
+//   maxiter     maximum number of iterations
+//   mingrad     minimum squared norm of (unclamped) gradient
+//   backtrack   backtrack factor for decreasing stepsize
+//   minstep     minimum stepsize for linesearch
+//   armijo      Armijo parameter (fraction of expected linear improvement)
+//   log         buffer to write log messages into
+//   logsz       size of log buffer
+int mju_boxQPoption(mjtNum* res, mjtNum* R, int* index,               // outputs
+                    const mjtNum* H, const mjtNum* g, int n,          // QP definition
+                    const mjtNum* lower, const mjtNum* upper,         // bounds
+                    int maxiter, mjtNum mingrad, mjtNum backtrack,    // options
+                    mjtNum minstep, mjtNum armijo,                    // options
+                    char* log, int logsz)                             // logging
+{
+  int status = mjBOXQP_NO_DESCENT;  // initial status: no descent direction found
+  int factorize = 1;                // always factorize on the first iteration
+  int nfree = n;                    // initialise nfree with n
+  int nfactor = 0;
+  mjtNum sdotg, improvement=0, value=0, norm2=0;
+
+  // basic checks
+  if (n<=0) {
+    mju_error("mju_boxQP: problem size n must be positive");
+  }
+  if (upper && lower) {
+    for (int i=0; i<n; i++) {
+      if (lower[i] >= upper[i]) {
+        mju_error("mju_boxQP: upper bounds must be stricly larger than lower bounds");
+      }
+    }
+  }
+
+  // local scratch vectors, allocate in R
+  mjtNum* scratch   = R + n*n;
+  mjtNum* grad      = scratch + 0*n;
+  mjtNum* search    = scratch + 1*n;
+  mjtNum* candidate = scratch + 2*n;
+  mjtNum* temp      = scratch + 3*n;
+  int* clamped      = (int*) (scratch + 4*n);
+  int* oldclamped   = (int*) (scratch + 5*n);
+
+  // if index vector not given, use scratch space
+  if (!index) {
+    index = (int*) (scratch + 6*n);
+  }
+
+  static const char status_string[mjNBOXQP][50]= {
+    "Hessian is not positive definite",
+    "No descent direction found",
+    "Maximum main iterations exceeded",
+    "Maximum line-search iterations exceeded",
+    "Gradient norm smaller than tolerance",
+    "No dimensions clamped, returning Newton point",
+    "All dimensions clamped"
+  };
+
+  // no bounds: return Newton point
+  if (!lower && !upper) {
+    // try to factorize
+    mju_copy(R, H, n*n);
+    int rank = mju_cholFactor(R, n, mjMINVAL);
+    if (rank == n) {
+      mju_cholSolve(res, R, g, n);
+      mju_scl(res, res, -1, n);
+      nfactor = 1;
+      status = mjBOXQP_UNBOUNDED;
+    } else {
+      status = mjBOXQP_NOT_SPD;
+    }
+
+    // full index set (no clamping)
+    for (int i=0; i<n; i++) {
+      index[i] = i;
+    }
+  }
+
+  // have bounds: clamp res
+  else {
+    for (int i=0; i<n; i++) {
+      if (lower) {
+        res[i] = mju_max(res[i], lower[i]);
+      }
+      if (upper) {
+        res[i] = mju_min(res[i], upper[i]);
+      }
+    }
+  }
+
+  // ------ main loop
+  int iter, logptr = 0;
+  mjtNum oldvalue;
+  for (iter=0; iter<maxiter; iter++) {
+    if (status != mjBOXQP_NO_DESCENT) {
+      break;
+    }
+
+    // compute objective: value = 0.5*res'*H*res + res'*g
+    mju_mulMatVec(temp, H, res, n, n);  // TODO(b/246267542): do this in one call
+    value = 0.5 * mju_dot(res, temp, n) + mju_dot(res, g, n);
+
+    // save last value
+    oldvalue = value;
+
+    // compute gradient
+    mju_mulMatVec(grad, H, res, n, n);
+    mju_addTo(grad, g, n);
+
+    // find clamped dimensions
+    for (int i=0; i<n; i++) {
+      clamped[i] = ( lower && res[i] == lower[i] && grad[i] > 0 ) ||
+                   ( upper && res[i] == upper[i] && grad[i] < 0 );
+    }
+
+    // build index of free dimensions, count them
+    nfree = 0;
+    for (int i=0; i<n; i++) {
+      if (!clamped[i]) {
+        index[nfree++] = i;
+      }
+    }
+
+    // all dimensions are clamped: minimum found
+    if (!nfree) {
+      status = mjBOXQP_ALL_CLAMPED;
+      break;
+    }
+
+    // re-factorize if clamped dimensions have changed
+    if (iter) {
+      factorize = 0;
+      for (int i=0; i<n; i++) {
+        if (clamped[i] != oldclamped[i]) {
+          factorize = 1;
+          break;
+        }
+      }
+    }
+
+    // save last clamped
+    for (int i=0; i<n; i++) {
+      oldclamped[i] = clamped[i];
+    }
+
+    // get search direction: search = g + H_all,clamped * res_clamped
+    for (int i=0; i<n; i++) {
+      temp[i] = clamped[i] ? res[i] : 0;
+    }
+    mju_mulMatVec(search, H, temp, n, n);
+    mju_addTo(search, g, n);
+
+    // search = compress_free(search)
+    for (int i=0; i<nfree; i++) {
+      search[i] = search[index[i]];
+    }
+
+    // R = compress_free(H)
+    if (factorize) {
+      for (int i=0; i<nfree; i++) {
+        for (int j=0; j<nfree; j++) {
+          R[i*nfree+j] = H[index[i]*n+index[j]];
+        }
+      }
+    }
+
+    // re-factorize and increment counter, if required
+    int rank = factorize ? mju_cholFactor(R, nfree, mjMINVAL) : nfree;
+    nfactor += factorize;
+
+    // abort if factorization failed
+    if (rank != nfree) {
+      status = mjBOXQP_NOT_SPD;
+      break;
+    }
+
+    // temp = H_free,free \ search_free
+    mju_cholSolve(temp, R, search, nfree);
+
+    // search_free = expand_free(-temp) - x_free
+    mju_zero(search, n);
+    for (int i=0; i<nfree; i++) {
+      search[index[i]] = -temp[i] -res[index[i]];
+    }
+
+    // ------ check gradient
+
+    // squared norm of free gradient
+    norm2 = 0;
+    for (int i=0; i<nfree; i++) {
+      mjtNum grad_i = grad[index[i]];
+      norm2 += grad_i*grad_i;
+    }
+
+    // small gradient: minimum found
+    if (norm2<mingrad) {
+      status = nfree == n ? mjBOXQP_UNBOUNDED : mjBOXQP_TOL_GRAD;
+      break;
+    }
+
+    // sanity check: make sure we have a descent direction
+    if ((sdotg = mju_dot(search, grad, n)) >= 0) {
+      break;  // SHOULD NOT OCCUR
+    }
+
+    // ------ projected Armijo line search
+    mjtNum step = 1;
+    int nstep = 0;
+    do {
+      // candidate = clamp(x + step*search)
+      mju_scl(candidate, search, step, n);
+      mju_addTo(candidate, res, n);
+      for (int i=0; i<n; i++) {
+        if (lower && candidate[i]<lower[i]) {
+          candidate[i] = lower[i];
+        } else if (upper && candidate[i]>upper[i]) {
+          candidate[i] = upper[i];
+        }
+      }
+
+      // new objective value
+      mju_mulMatVec(temp, H, candidate, n, n);
+      value = 0.5 * mju_dot(candidate, temp, n) + mju_dot(candidate, g, n);
+
+      // increment and break if step is too small
+      nstep++;
+      step = step*backtrack;
+      if (step<minstep) {
+        status = mjBOXQP_MAX_LS_ITER;
+        break;
+      }
+
+      // repeat until relative improvement >= Armijo
+      improvement = (value - oldvalue) / (step*sdotg);
+    } while (improvement < armijo);
+
+
+    // print iteration info
+    if (log) {
+      logptr += snprintf(log+logptr, logsz-logptr,
+                         "iter %-3d:  |grad|: %-8.2g  reduction: %-8.2g  improvement: %-8.4g  "
+                         "linesearch: %g^%-2d  factorized: %d  nfree: %d\n",
+                         iter+1, mju_sqrt(norm2), oldvalue-value, improvement,
+                         backtrack, nstep-1, factorize, nfree);
+    }
+
+    // accept candidate
+    mju_copy(res, candidate, n);
+  }
+
+  // max iterations exceeded
+  if (iter==maxiter) {
+    status = mjBOXQP_MAX_ITER;
+  }
+
+  // print final info
+  if (log) {
+    snprintf(log+logptr, logsz-logptr, "BOXQP: %s.\n"
+             "iterations= %d,  factorizations= %d,  |grad|= %-12.6g, final value= %-12.6g\n",
+             status_string[status+1], iter, nfactor, mju_sqrt(norm2), value);
+  }
+
+  // return nf or -1 if failure
+  return (status == mjBOXQP_NO_DESCENT || status == mjBOXQP_NOT_SPD) ? -1 : nfree;
+}
+

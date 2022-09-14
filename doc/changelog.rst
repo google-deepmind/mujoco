@@ -16,6 +16,16 @@ General
    - Added hamstring tendons which couple the hip and knee at high hip flexion angles.
    - General cosmetic improvements, including improved use of defaults and better naming scheme.
 
+- Added :ref:`mju_boxQP` and allocation function :ref:`mju_boxQPmalloc` for solving the box-constrained
+  Quadratic Program:
+
+   .. math::
+
+      x^* = \text{argmin} \; \tfrac{1}{2} x^T H x + x^T g \quad \text{s.t.} \quad l \le x \le u
+
+   - The algorithm, introduced in `Tassa et al. 2014 <https://doi.org/10.1109/ICRA.2014.6907001>`_,
+     converges after 2-5 Cholesky factorisations, independent of problem size.
+
 Version 2.2.2 (September 7, 2022)
 ---------------------------------
 
