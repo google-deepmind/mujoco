@@ -1707,7 +1707,7 @@ disable length range computations altogether, include this element and set mode=
 **option** (*)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-This element is is one-to-one correspondence with the low level structure mjOption contained in the field mjModel.opt of
+This element is in one-to-one correspondence with the low level structure mjOption contained in the field mjModel.opt of
 mjModel. These are simulation options and do not affect the compilation process in any way; they are simply copied into
 the low level model. Even though mjOption can be modified by the user at runtime, it is nevertheless a good idea to
 adjust it properly through the XML.
@@ -1948,7 +1948,7 @@ compilation.
 **visual** (*)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-| This element is is one-to-one correspondence with the low level structure mjVisual contained in the field mjModel.vis
+| This element is in one-to-one correspondence with the low level structure mjVisual contained in the field mjModel.vis
   of mjModel. The settings here affect the visualizer, or more precisely the abstract phase of visualization which
   yields a list of geometric entities for subsequent rendering. The settings here are global, in contrast with the
   element-specific visual settings. The global and element-specific settings refer to non-overlapping properties. Some
