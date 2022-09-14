@@ -6040,6 +6040,17 @@ mju_mulMatTVec
 
 Multiply transposed matrix and vector: res = mat' \* vec.
 
+.. _mju_mulVecMatVec:
+
+mju_mulVecMatVec
+~~~~~~~~~~~~~~~~
+
+.. code-block:: C
+
+   mjtNum mju_mulVecMatVec(const mjtNum* vec1, const mjtNum* mat, const mjtNum* vec2, int n);
+
+Multiply square matrix with vectors on both sides: return vec1' \* mat \* vec2.
+
 mju_transpose
 ~~~~~~~~~~~~~
 

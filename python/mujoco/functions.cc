@@ -784,6 +784,26 @@ PYBIND11_MODULE(_functions, pymodule) {
         return InterceptMjErrors(::mju_mulMatTVec)(
             res.data(), mat.data(), vec.data(), mat.rows(), mat.cols());
       });
+  DEF_WITH_OMITTED_PY_ARGS(traits::mju_mulVecMatVec, "n")(
+      pymodule,
+      [](Eigen::Ref<const EigenVectorX> vec1,
+         Eigen::Ref<const EigenArrayXX> mat,
+         Eigen::Ref<const EigenVectorX> vec2) {
+        if (vec1.size() != vec2.size()) {
+          throw py::type_error(
+              "size of vec1 should equal the size of vec2");
+        }
+        if (vec1.size() != mat.cols()) {
+          throw py::type_error(
+              "size of vectors should equal the number of columns in mat");
+        }
+        if (vec1.size() != mat.rows()) {
+          throw py::type_error(
+              "size of vectors should equal the number of rows in mat");
+        }
+        return InterceptMjErrors(::mju_mulVecMatVec)(
+            vec1.data(), mat.data(), vec2.data(), vec1.size());
+      });
   DEF_WITH_OMITTED_PY_ARGS(traits::mju_transpose, "nr", "nc")(
       pymodule,
       [](Eigen::Ref<EigenArrayXX> res,

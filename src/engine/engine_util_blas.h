@@ -180,6 +180,9 @@ MJAPI void mju_mulMatVec(mjtNum* res, const mjtNum* mat, const mjtNum* vec,
 MJAPI void mju_mulMatTVec(mjtNum* res, const mjtNum* mat, const mjtNum* vec,
                           int nr, int nc);
 
+// multiply square matrix with vectors on both sides: return vec1'*mat*vec2
+MJAPI mjtNum mju_mulVecMatVec(const mjtNum* vec1, const mjtNum* mat, const mjtNum* vec2, int n);
+
 
 //------------------------------ matrix-matrix operations ------------------------------------------
 

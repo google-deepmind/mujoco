@@ -1006,6 +1006,12 @@ Euler integrator, semi-implicit in velocity.
     rank = mujoco.mju_boxQP(res, r, index, h, g, lower, upper)
     self.assertGreater(rank, -1)
 
+  def test_mju_mul_vec_mat_vec(self):
+    vec1 = np.array([1., 2., 3.])
+    vec2 = np.array([3., 2., 1.])
+    mat = np.array([[1., 2., 3.], [4., 5., 6.], [7., 8., 9.]])
+    self.assertEqual(mujoco.mju_mulVecMatVec(vec1, mat, vec2), 204.)
+
   @parameterized.product(flg_html=(False, True), flg_pad=(False, True))
   def test_mj_printSchema(self, flg_html, flg_pad):  # pylint: disable=invalid-name
     # Make sure that mj_printSchema doesn't raise an exception

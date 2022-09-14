@@ -25,6 +25,8 @@ General
 
    - The algorithm, introduced in `Tassa et al. 2014 <https://doi.org/10.1109/ICRA.2014.6907001>`_,
      converges after 2-5 Cholesky factorisations, independent of problem size.
+- Added :ref:`mju_mulVecMatVec` to multiply a square matrix :math:`M` with vectors :math:`x` and :math:`y` on both
+  sides. The function returns :math:`x^TMy`.
 
 Version 2.2.2 (September 7, 2022)
 ---------------------------------

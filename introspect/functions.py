@@ -5644,6 +5644,36 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
          ),
          doc="Multiply transposed matrix and vector: res = mat' * vec.",
      )),
+    ('mju_mulVecMatVec',
+     FunctionDecl(
+         name='mju_mulVecMatVec',
+         return_type=ValueType(name='mjtNum'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='vec1',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='mat',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='vec2',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='n',
+                 type=ValueType(name='int'),
+             ),
+         ),
+         doc="Multiply square matrix with vectors on both sides: returns vec1'*mat*vec2.",  # pylint: disable=line-too-long
+     )),
     ('mju_transpose',
      FunctionDecl(
          name='mju_transpose',

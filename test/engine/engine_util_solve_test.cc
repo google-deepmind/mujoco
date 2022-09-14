@@ -75,10 +75,8 @@ TEST_F(QCQP3Test, DegenerateAMatrix) {
 using BoxQPTest = MujocoTest;
 
 // utility: compute QP objective = 0.5*x'*H*x + x'*g
-mjtNum objective(const mjtNum* x, const mjtNum* H, const mjtNum* g, int n,
-                 mjtNum* temp) {
-  mju_mulMatVec(temp, H, x, n, n);
-  return 0.5 * mju_dot(x, temp, n) + mju_dot(x, g, n);
+mjtNum objective(const mjtNum* x, const mjtNum* H, const mjtNum* g, int n) {
+  return 0.5 * mju_mulVecMatVec(x, H, x, n) + mju_dot(x, g, n);
 }
 
 // utility: test if res is the minimum of a given box-QP problem
@@ -86,11 +84,10 @@ bool isQPminimum(const mjtNum* res, const mjtNum* H, const mjtNum* g, int n,
                  const mjtNum* lower, const mjtNum* upper) {
   static const mjtNum eps = 1e-4;  // epsilon used for nudging
   bool is_minimum = true;
-  mjtNum* temp = (mjtNum*) mju_malloc(sizeof(mjtNum)*n);
   mjtNum* res_nudge = (mjtNum*) mju_malloc(sizeof(mjtNum)*n);
 
   // get solution value
-  mjtNum value = objective(res, H, g, n, temp);
+  mjtNum value = objective(res, H, g, n);
   mjtNum value_nudge;
 
   // compare to nudged solution
@@ -102,7 +99,7 @@ bool isQPminimum(const mjtNum* res, const mjtNum* H, const mjtNum* g, int n,
     if (lower) {
       res_nudge[i] = mju_max(lower[i], res_nudge[i]);
     }
-    value_nudge = objective(res_nudge, H, g, n, temp);
+    value_nudge = objective(res_nudge, H, g, n);
     if (value_nudge - value < 0) {
       is_minimum = false;
       break;
@@ -113,7 +110,7 @@ bool isQPminimum(const mjtNum* res, const mjtNum* H, const mjtNum* g, int n,
     if (upper) {
       res_nudge[i] = mju_min(upper[i], res_nudge[i]);
     }
-    value_nudge = objective(res_nudge, H, g, n, temp);
+    value_nudge = objective(res_nudge, H, g, n);
     if (value_nudge - value < 0) {
       is_minimum = false;
       break;
@@ -124,7 +121,6 @@ bool isQPminimum(const mjtNum* res, const mjtNum* H, const mjtNum* g, int n,
   }
 
   mju_free(res_nudge);
-  mju_free(temp);
   return is_minimum;
 }
 

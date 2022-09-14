@@ -934,8 +934,7 @@ int mju_boxQPoption(mjtNum* res, mjtNum* R, int* index,               // outputs
     }
 
     // compute objective: value = 0.5*res'*H*res + res'*g
-    mju_mulMatVec(temp, H, res, n, n);  // TODO(b/246267542): do this in one call
-    value = 0.5 * mju_dot(res, temp, n) + mju_dot(res, g, n);
+    value = 0.5 * mju_mulVecMatVec(res, H, res, n) + mju_dot(res, g, n);
 
     // save last value
     oldvalue = value;
@@ -1056,8 +1055,7 @@ int mju_boxQPoption(mjtNum* res, mjtNum* R, int* index,               // outputs
       }
 
       // new objective value
-      mju_mulMatVec(temp, H, candidate, n, n);
-      value = 0.5 * mju_dot(candidate, temp, n) + mju_dot(candidate, g, n);
+      value = 0.5 * mju_mulVecMatVec(candidate, H, candidate, n) + mju_dot(candidate, g, n);
 
       // increment and break if step is too small
       nstep++;
