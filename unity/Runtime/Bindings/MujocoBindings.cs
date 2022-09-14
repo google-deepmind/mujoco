@@ -3352,6 +3352,9 @@ public static unsafe extern void mju_mulMatVec(double* res, double* mat, double*
 public static unsafe extern void mju_mulMatTVec(double* res, double* mat, double* vec, int nr, int nc);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern double mju_mulVecMatVec(double* vec1, double* mat, double* vec2, int n);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern void mju_transpose(double* res, double* mat, int nr, int nc);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
