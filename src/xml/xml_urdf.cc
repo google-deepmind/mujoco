@@ -308,7 +308,7 @@ void mjXURDF::Joint(XMLElement* joint_elem) {
   ReadAttrTxt(joint_elem, "type", text, true);
   jointtype = FindKey(urJoint_map, urJoint_sz, text);
   if (jointtype < 0) {
-    mjXError(joint_elem, "invalid joint type in URDF joint definition");
+    throw mjXError(joint_elem, "invalid joint type in URDF joint definition");
   }
   ReadAttrTxt(joint_elem, "name", jntname, true);
 
@@ -317,7 +317,7 @@ void mjXURDF::Joint(XMLElement* joint_elem) {
   ReadAttrTxt(elem, "link", name, true);
   parent = (mjCBody*) model->GetWorld()->FindObject(mjOBJ_BODY, name);
   if (!parent) {                      // SHOULD NOT OCCUR
-    mjXError(elem, "invalid parent name in URDF joint definition");
+    throw mjXError(elem, "invalid parent name in URDF joint definition");
   }
 
   // get child=this, check

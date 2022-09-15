@@ -84,7 +84,7 @@ typedef enum _mjtMeshType {
 
 
 // error information
-class mjCError {
+class [[nodiscard]] mjCError {
  public:
   mjCError(const mjCBase* obj = 0,
            const char* msg = 0,
