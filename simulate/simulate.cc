@@ -1759,26 +1759,30 @@ void Simulate::render() {
                 this->loadrequest ? "loading" : "pause", nullptr, &this->con);
   }
 
-  // show realtime label
-  if (this->run) {
-    // get desired and actual percent-of-real-time
-    float desiredRealtime = this->percentRealTime[this->realTimeIndex];
-    float actualRealtime = 100 / this->measuredSlowdown;
+  // get desired and actual percent-of-real-time
+  float desiredRealtime = this->percentRealTime[this->realTimeIndex];
+  float actualRealtime = 100 / this->measuredSlowdown;
 
-    // check if real-time tracking is misaligned by more than than 10%
-    bool misalignment = mju_abs(actualRealtime - desiredRealtime) > 0.1 * desiredRealtime;
+  // if running, check for misalignment of more than 10%
+  float realtime_offset = mju_abs(actualRealtime - desiredRealtime);
+  bool misaligned = this->run && realtime_offset > 0.1 * desiredRealtime;
 
-    // display realtime overlay if not 100% or there is misalignment
-    if (desiredRealtime != 100.0 || misalignment) {
-      char overlay[30];
-      if (misalignment) {
-        std::snprintf(overlay, sizeof(overlay), "%g%% (%-.1f%%)", desiredRealtime, actualRealtime);
-      } else {
-        std::snprintf(overlay, sizeof(overlay), "%g%%", desiredRealtime);
-      }
-      mjr_overlay(mjFONT_BIG, mjGRID_TOPLEFT, smallrect, overlay, nullptr, &this->con);
+  // draw realtime overlay
+  if (desiredRealtime != 100.0 || misaligned) {
+    char rtlabel[30];
+
+    // print desired realtime
+    int labelsize = std::snprintf(rtlabel, sizeof(rtlabel), "%g%%", desiredRealtime);
+
+    // if misaligned, append to label
+    if (misaligned) {
+      std::snprintf(rtlabel+labelsize, sizeof(rtlabel)-labelsize, " (%-4.1f%%)", actualRealtime);
     }
+
+    // draw overlay
+    mjr_overlay(mjFONT_BIG, mjGRID_TOPLEFT, smallrect, rtlabel, nullptr, &this->con);
   }
+
 
   // show ui 0
   if (this->ui0_enable) {
