@@ -19,6 +19,7 @@
 #include <cstdio>
 #include <limits>
 #include <string>
+#include <string_view>
 
 #include <mujoco/mjtnum.h>
 #include "engine/engine_macro.h"
@@ -488,9 +489,16 @@ string mjuu_stripext(string filename) {
   }
 
   // return name without extension
-  else {
-    return filename.substr(0, end);
+  return filename.substr(0, end);
+}
+
+string mjuu_getext(std::string_view filename) {
+  size_t dot = filename.find_last_of('.');
+
+  if (dot==string::npos) {
+    return "";
   }
+  return string(filename.substr(dot, filename.size() - dot));
 }
 
 

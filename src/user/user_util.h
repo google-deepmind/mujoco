@@ -16,6 +16,7 @@
 #define MUJOCO_SRC_USER_USER_UTIL_H_
 
 #include <string>
+#include <string_view>
 
 
 extern const double mjNAN;                      // used to mark undefined fields
@@ -128,6 +129,9 @@ std::string mjuu_strippath(std::string filename);
 
 // strip extension from filename
 std::string mjuu_stripext(std::string filename);
+
+// get the extension of a filename
+std::string mjuu_getext(std::string_view filename);
 
 // check if path is absolute
 bool mjuu_isabspath(std::string path);

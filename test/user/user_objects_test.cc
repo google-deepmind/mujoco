@@ -265,6 +265,22 @@ TEST_F(MjCGeomTest, CapsuleInertiaX) {
   mj_deleteModel(model);
 }
 
+// ------------- test height fields --------------------------------------------
+
+using MjCHFieldTest = MujocoTest;
+
+TEST_F(MjCHFieldTest, PngMap) {
+  const std::string xml_path =
+      GetTestDataFilePath("user/testdata/png_hfield.xml");
+  std::array<char, 1024> error;
+  mjModel* model =
+      mj_loadXML(xml_path.c_str(), nullptr, error.data(), error.size());
+  ASSERT_THAT(model, ::testing::NotNull()) << error.data();
+  EXPECT_EQ(model->nhfield, 1);
+  EXPECT_EQ(model->geom_type[0], mjGEOM_HFIELD);
+  mj_deleteModel(model);
+}
+
 // ------------- test quaternion normalization----------------------------------
 
 using QuatNorm = MujocoTest;

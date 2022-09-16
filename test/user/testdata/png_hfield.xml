@@ -1,0 +1,9 @@
+<mujoco>
+  <asset>
+    <hfield name="hfield" file="hfield.png" size="0.5 0.5 1 0.1"/>
+  </asset>
+
+  <worldbody>
+    <geom type="hfield" hfield="hfield" pos="-.4 .6 .05"/>
+  </worldbody>
+</mujoco>

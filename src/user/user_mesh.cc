@@ -160,12 +160,12 @@ void mjCMesh::Compile(const mjVFS* vfs) {
     }
 
     // load STL, OBJ or MSH
-    string ext = file.substr(file.size()-3, 3);
-    if (!strcasecmp(ext.c_str(), "stl")) {
+    string ext = mjuu_getext(file);
+    if (!strcasecmp(ext.c_str(), ".stl")) {
       LoadSTL(vfs);
-    } else if (!strcasecmp(ext.c_str(), "obj")) {
+    } else if (!strcasecmp(ext.c_str(), ".obj")) {
       LoadOBJ(vfs);
-    } else if (!strcasecmp(ext.c_str(), "msh")) {
+    } else if (!strcasecmp(ext.c_str(), ".msh")) {
       LoadMSH(vfs);
     } else {
       throw mjCError(this, "Unknown mesh file type: %s", file.c_str());
@@ -1621,8 +1621,8 @@ void mjCSkin::Compile(const mjVFS* vfs) {
     }
 
     // load SKN
-    string ext = file.substr(file.size()-3, 3);
-    if (!strcasecmp(ext.c_str(), "skn")) {
+    string ext = mjuu_getext(file);
+    if (!strcasecmp(ext.c_str(), ".skn")) {
       LoadSKN(vfs);
     } else {
       throw mjCError(this, "Unknown skin file type: %s", file.c_str());

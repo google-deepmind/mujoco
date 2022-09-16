@@ -1879,7 +1879,8 @@ void mjCHField::Compile(const mjVFS* vfs) {
     string filename = mjuu_makefullname(model->modelfiledir, model->meshdir, file);
 
     // load depending on format
-    if (!strcasecmp(filename.substr(filename.length()-4, 5).c_str(), ".png")) {
+    string ext = mjuu_getext(filename);
+    if (!strcasecmp(ext.c_str(), ".png")) {
       LoadPNG(filename, vfs);
     } else {
       LoadCustom(filename, vfs);
@@ -2301,7 +2302,8 @@ void mjCTexture::LoadFlip(string filename, const mjVFS* vfs,
                           std::vector<unsigned char>& image,
                           unsigned int& w, unsigned int& h) {
   // dispatch to PNG or Custom loaded
-  if (!strcasecmp(filename.substr(filename.length()-4, 5).c_str(), ".png")) {
+  string ext = mjuu_getext(filename);
+  if (!strcasecmp(ext.c_str(), ".png")) {
     LoadPNG(filename, vfs, image, w, h);
   } else {
     LoadCustom(filename, vfs, image, w, h);

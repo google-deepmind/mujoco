@@ -21,6 +21,7 @@
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
+#include <absl/strings/str_format.h>
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjtnum.h>
 #include <mujoco/mujoco.h>
@@ -53,6 +54,38 @@ static const char* const kMalformedFaceOBJPath =
     "user/testdata/malformed_face.xml";
 
 using ::testing::HasSubstr;
+
+// ------------- test invalid filenames ----------------------------------------
+
+TEST_F(MjCMeshTest, UnknownMeshFormat) {
+  static constexpr char xml_format[] = R"(
+    <mujoco>
+      <asset>
+        <mesh name="m" file="%s"/>
+      </asset>
+      <worldbody>
+        <geom type="mesh" mesh="m"/>
+      </worldbody>
+    </mujoco>
+  )";
+  std::vector<std::string> invalid_names = {
+    "noextension",
+    "anobj",
+    "f",
+    "mesh.exe",
+    "file%s"
+  };
+  for (const auto& name : invalid_names) {
+    std::string xml = absl::StrFormat(xml_format, name);
+    std::array<char, 1024> error;
+    mjModel* model =
+        LoadModelFromString(xml.c_str(), error.data(), error.size());
+    ASSERT_THAT(model, testing::IsNull())
+        << "Should fail to load a mesh named: " << name;
+    EXPECT_THAT(error.data(), HasSubstr("Unknown mesh file type"));
+    EXPECT_THAT(error.data(), HasSubstr(name));
+  }
+}
 
 // ------------- test vertex de-duplication (STL) ------------------------------
 
@@ -124,7 +157,7 @@ TEST_F(MjCMeshTest, SaveMeshOnce) {
   mj_deleteModel(model);
 }
 
-TEST_F(MujocoTest, TinyMeshLoads) {
+TEST_F(MjCMeshTest, TinyMeshLoads) {
   static constexpr char xml[] = R"(
   <mujoco>
     <asset>
@@ -142,7 +175,7 @@ TEST_F(MujocoTest, TinyMeshLoads) {
 
 // ------------- test inertia -------------------------------------------------
 
-TEST_F(MujocoTest, SmallInertiaLoads) {
+TEST_F(MjCMeshTest, SmallInertiaLoads) {
   static constexpr char xml[] = R"(
   <mujoco>
     <asset>
@@ -162,7 +195,7 @@ TEST_F(MujocoTest, SmallInertiaLoads) {
   mj_deleteModel(model);
 }
 
-TEST_F(MujocoTest, TinyInertiaFails) {
+TEST_F(MjCMeshTest, TinyInertiaFails) {
   static constexpr char xml[] = R"(
   <mujoco>
     <asset>
@@ -184,7 +217,7 @@ TEST_F(MujocoTest, TinyInertiaFails) {
           "mass and inertia of moving bodies must be larger than mjMINVAL"));
 }
 
-TEST_F(MujocoTest, MalformedFaceFails) {
+TEST_F(MjCMeshTest, MalformedFaceFails) {
   const std::string xml_path = GetTestDataFilePath(kMalformedFaceOBJPath);
   std::array<char, 1024> error;
   mjModel* model = mj_loadXML(xml_path.c_str(), 0, error.data(), error.size());
@@ -192,7 +225,7 @@ TEST_F(MujocoTest, MalformedFaceFails) {
   EXPECT_THAT(error.data(), HasSubstr("faces have inconsistent orientation"));
 }
 
-TEST_F(MujocoTest, FlippedFaceFails) {
+TEST_F(MjCMeshTest, FlippedFaceFails) {
   static constexpr char xml[] = R"(
   <mujoco>
     <asset>
@@ -223,7 +256,7 @@ void CheckTetrahedronWasRescaled(mjModel* model) {
   }
 }
 
-TEST_F(MujocoTest, FlippedFaceAllowedWorld) {
+TEST_F(MjCMeshTest, FlippedFaceAllowedWorld) {
   static constexpr char xml[] = R"(
   <mujoco>
     <asset>
@@ -243,7 +276,7 @@ TEST_F(MujocoTest, FlippedFaceAllowedWorld) {
   mj_deleteModel(model);
 }
 
-TEST_F(MujocoTest, FlippedFaceAllowedNoMass) {
+TEST_F(MjCMeshTest, FlippedFaceAllowedNoMass) {
   static constexpr char xml[] = R"(
   <mujoco>
     <asset>
@@ -265,7 +298,7 @@ TEST_F(MujocoTest, FlippedFaceAllowedNoMass) {
   mj_deleteModel(model);
 }
 
-TEST_F(MujocoTest, FlippedFaceAllowedInertial) {
+TEST_F(MjCMeshTest, FlippedFaceAllowedInertial) {
   static constexpr char xml[] = R"(
   <mujoco>
     <asset>
@@ -288,7 +321,7 @@ TEST_F(MujocoTest, FlippedFaceAllowedInertial) {
   mj_deleteModel(model);
 }
 
-TEST_F(MujocoTest, FlippedFaceAllowedNegligibleArea) {
+TEST_F(MjCMeshTest, FlippedFaceAllowedNegligibleArea) {
   static constexpr char xml[] = R"(
   <mujoco>
     <asset>
@@ -310,7 +343,7 @@ TEST_F(MujocoTest, FlippedFaceAllowedNegligibleArea) {
   mj_deleteModel(model);
 }
 
-TEST_F(MujocoTest, AreaTooSmall) {
+TEST_F(MjCMeshTest, AreaTooSmall) {
   static constexpr char xml[] = R"(
   <mujoco>
     <asset>
@@ -331,7 +364,7 @@ TEST_F(MujocoTest, AreaTooSmall) {
   EXPECT_THAT(error.data(), HasSubstr("mesh surface area is too small"));
 }
 
-TEST_F(MujocoTest, AreaTooSmallAllowedWorld) {
+TEST_F(MjCMeshTest, AreaTooSmallAllowedWorld) {
   static constexpr char xml[] = R"(
   <mujoco>
     <asset>
@@ -350,7 +383,7 @@ TEST_F(MujocoTest, AreaTooSmallAllowedWorld) {
   mj_deleteModel(model);
 }
 
-TEST_F(MujocoTest, VolumeTooSmall) {
+TEST_F(MjCMeshTest, VolumeTooSmall) {
   static constexpr char xml[] = R"(
   <mujoco>
     <asset>
@@ -371,7 +404,7 @@ TEST_F(MujocoTest, VolumeTooSmall) {
   EXPECT_THAT(error.data(), HasSubstr("mesh volume is too small"));
 }
 
-  TEST_F(MujocoTest, VolumeTooSmallAllowedWorld) {
+  TEST_F(MjCMeshTest, VolumeTooSmallAllowedWorld) {
   static constexpr char xml[] = R"(
   <mujoco>
     <asset>
@@ -394,7 +427,7 @@ TEST_F(MujocoTest, VolumeTooSmall) {
 
 const mjtNum max_abs_err = std::numeric_limits<float>::epsilon();
 
-TEST_F(MujocoTest, ExactConcaveInertia) {
+TEST_F(MjCMeshTest, ExactConcaveInertia) {
   const std::string xml_path = GetTestDataFilePath(kConcaveInertiaPath);
   std::array<char, 1024> error;
   mjModel* model = mj_loadXML(xml_path.c_str(), 0, error.data(), error.size());
@@ -422,7 +455,7 @@ TEST_F(MujocoTest, ExactConcaveInertia) {
   mj_deleteModel(model);
 }
 
-TEST_F(MujocoTest, ExactConvexInertia) {
+TEST_F(MjCMeshTest, ExactConvexInertia) {
   const std::string xml_path = GetTestDataFilePath(kConvexInertiaPath);
   std::array<char, 1024> error;
   mjModel* model = mj_loadXML(xml_path.c_str(), 0, error.data(), error.size());
@@ -437,7 +470,7 @@ TEST_F(MujocoTest, ExactConvexInertia) {
   mj_deleteModel(model);
 }
 
-TEST_F(MujocoTest, ExactShellInertia) {
+TEST_F(MjCMeshTest, ExactShellInertia) {
   const std::string xml_path = GetTestDataFilePath(kShellInertiaPath);
   std::array<char, 1024> error;
   mjModel* model = mj_loadXML(xml_path.c_str(), 0, error.data(), error.size());
