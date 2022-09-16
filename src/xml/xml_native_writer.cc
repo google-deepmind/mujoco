@@ -18,10 +18,15 @@
 #include <cstddef>
 #include <cstdio>
 #include <string>
+#include <unordered_set>
 
+#include <mujoco/mjmodel.h>
+#include <mujoco/mjplugin.h>
 #include "engine/engine_io.h"
+#include "engine/engine_plugin.h"
 #include "engine/engine_util_errmem.h"
 #include "engine/engine_util_misc.h"
+#include "user/user_objects.h"
 #include "user/user_util.h"
 #include "xml/xml_util.h"
 #include "tinyxml2.h"
@@ -604,12 +609,38 @@ void mjXWriter::OneActuator(XMLElement* elem, mjCActuator* pact, mjCDef* def) {
   WriteAttr(elem, "lengthrange", 2, pact->lengthrange, def->actuator.lengthrange);
   WriteAttr(elem, "gear", 6, pact->gear, def->actuator.gear);
   WriteAttr(elem, "cranklength", 1, &pact->cranklength, &def->actuator.cranklength);
-  WriteAttrKey(elem, "dyntype", dyn_map, dyn_sz, pact->dyntype, def->actuator.dyntype);
-  WriteAttrKey(elem, "gaintype", gain_map, gain_sz, pact->gaintype, def->actuator.gaintype);
-  WriteAttrKey(elem, "biastype", bias_map, bias_sz, pact->biastype, def->actuator.biastype);
-  WriteAttr(elem, "dynprm", mjNDYN, pact->dynprm, def->actuator.dynprm);
-  WriteAttr(elem, "gainprm", mjNGAIN, pact->gainprm, def->actuator.gainprm);
-  WriteAttr(elem, "biasprm", mjNBIAS, pact->biasprm, def->actuator.biasprm);
+
+  // plugins: write config attributes
+  if (pact->is_plugin) {
+    if (!pact->plugin_instance_name.empty()) {
+      WriteAttrTxt(elem, "instance", pact->plugin_instance_name);
+    } else {
+      WriteAttrTxt(elem, "plugin", pact->plugin_name);
+      const mjpPlugin* plugin = mjp_getPluginAtSlot(
+          pact->plugin_instance->plugin_slot);
+      const char* c = &pact->plugin_instance->flattened_attributes[0];
+      for (int i = 0; i < plugin->nattribute; ++i) {
+        std::string value(c);
+        if (!value.empty()) {
+          XMLElement* config_elem = InsertEnd(elem, "config");
+          WriteAttrTxt(config_elem, "key", plugin->attributes[i]);
+          WriteAttrTxt(config_elem, "value", value);
+          c += value.size();
+        }
+        ++c;
+      }
+    }
+  }
+
+  // non-plugins: write actuator parameters
+  else {
+    WriteAttrKey(elem, "dyntype", dyn_map, dyn_sz, pact->dyntype, def->actuator.dyntype);
+    WriteAttrKey(elem, "gaintype", gain_map, gain_sz, pact->gaintype, def->actuator.gaintype);
+    WriteAttrKey(elem, "biastype", bias_map, bias_sz, pact->biastype, def->actuator.biastype);
+    WriteAttr(elem, "dynprm", mjNDYN, pact->dynprm, def->actuator.dynprm);
+    WriteAttr(elem, "gainprm", mjNGAIN, pact->gainprm, def->actuator.gainprm);
+    WriteAttr(elem, "biasprm", mjNBIAS, pact->biasprm, def->actuator.biasprm);
+  }
 
   // userdata
   if (writingdefaults) {
@@ -659,6 +690,7 @@ void mjXWriter::Write(FILE* fp) {
   writingdefaults = true;
   Default(root, model->defaults[0]);
   writingdefaults = false;
+  Extension(root);
   Custom(root);
   Asset(root);
   Body(InsertEnd(root, "worldbody"), model->GetWorld());
@@ -1015,6 +1047,69 @@ void mjXWriter::Default(XMLElement* root, mjCDef* def) {
   // delete parent defaults if allocated here
   if (def->parentid<0) {
     delete par;
+  }
+}
+
+
+
+// extension section
+void mjXWriter::Extension(XMLElement* root) {
+  // skip section if there is no required plugin
+  if (model->active_plugins.empty()) {
+    return;
+  }
+
+  // create section
+  XMLElement* section = InsertEnd(root, "extension");
+
+  // keep track of plugins whose <required> section have been created
+  std::unordered_set<const mjpPlugin*> seen_plugins;
+
+  // write all plugins
+  const mjpPlugin* last_plugin = nullptr;
+  XMLElement* required_elem = nullptr;
+  for (int i = 0; i < model->plugins.size(); ++i) {
+    mjCPlugin* pp = static_cast<mjCPlugin*>(model->GetObject(mjOBJ_PLUGIN, i));
+
+    if (pp->name.empty()) {
+      // reached the first unnamed plugin instance, meaning that it was created through an
+      // "implicit" plugin element, e.g. sensor or actuator
+      break;
+    }
+
+    // check if we need to open a new <required> section
+    const mjpPlugin* plugin = mjp_getPluginAtSlot(pp->plugin_slot);
+    if (plugin != last_plugin) {
+      required_elem = InsertEnd(section, "required");
+      WriteAttrTxt(required_elem, "plugin", plugin->name);
+      seen_plugins.insert(plugin);
+      last_plugin = plugin;
+    }
+
+    // write instance element
+    XMLElement* elem = InsertEnd(required_elem, "instance");
+    WriteAttrTxt(elem, "name", pp->name);
+
+    // write plugin config attributes
+    const char* c = &pp->flattened_attributes[0];
+    for (int i = 0; i < plugin->nattribute; ++i) {
+      std::string value(c);
+      if (!value.empty()) {
+        XMLElement* config_elem = InsertEnd(elem, "config");
+        WriteAttrTxt(config_elem, "key", plugin->attributes[i]);
+        WriteAttrTxt(config_elem, "value", value);
+        c += value.size();
+      }
+      ++c;
+    }
+  }
+
+  // write <required> elements for plugins without explicit instances
+  for (const auto& [plugin, slot] : model->active_plugins) {
+    if (seen_plugins.find(plugin) == seen_plugins.end()) {
+      required_elem = InsertEnd(section, "required");
+      WriteAttrTxt(required_elem, "plugin", plugin->name);
+    }
   }
 }
 
@@ -1400,7 +1495,12 @@ void mjXWriter::Actuator(XMLElement* root) {
   // write all actuators
   for (int i=0; i<num; i++) {
     mjCActuator* pact = (mjCActuator*)model->GetObject(mjOBJ_ACTUATOR, i);
-    XMLElement* elem = InsertEnd(section, "general");
+    XMLElement* elem;
+    if (pact->is_plugin) {
+      elem = InsertEnd(section, "plugin");
+    } else {
+      elem = InsertEnd(section, "general");
+    }
     OneActuator(elem, pact, pact->def);
   }
 }
@@ -1593,6 +1693,34 @@ void mjXWriter::Sensor(XMLElement* root) {
       elem = InsertEnd(section, "clock");
       break;
 
+
+    // plugin-controlled sensor
+    case mjSENS_PLUGIN:
+      elem = InsertEnd(section, "plugin");
+      if (psen->objtype != mjOBJ_UNKNOWN) {
+        WriteAttrTxt(elem, "objtype", mju_type2Str(psen->objtype));
+        WriteAttrTxt(elem, "objname", psen->objname);
+      }
+      if (!psen->plugin_instance_name.empty()) {
+        WriteAttrTxt(elem, "instance", psen->plugin_instance_name);
+      } else {
+        WriteAttrTxt(elem, "plugin", psen->plugin_name);
+        const mjpPlugin* plugin = mjp_getPluginAtSlot(
+            psen->plugin_instance->plugin_slot);
+        const char* c = &psen->plugin_instance->flattened_attributes[0];
+        for (int i = 0; i < plugin->nattribute; ++i) {
+          std::string value(c);
+          if (!value.empty()) {
+            XMLElement* config_elem = InsertEnd(elem, "config");
+            WriteAttrTxt(config_elem, "key", plugin->attributes[i]);
+            WriteAttrTxt(config_elem, "value", value);
+            c += value.size();
+          }
+          ++c;
+        }
+      }
+      break;
+
     // user-defined sensor
     case mjSENS_USER:
       elem = InsertEnd(section, "user");
@@ -1610,11 +1738,13 @@ void mjXWriter::Sensor(XMLElement* root) {
     // write name, noise, userdata
     WriteAttrTxt(elem, "name", psen->name);
     WriteAttr(elem, "cutoff", 1, &psen->cutoff, &zero);
-    WriteAttr(elem, "noise", 1, &psen->noise, &zero);
+    if (psen->type != mjSENS_PLUGIN) {
+      WriteAttr(elem, "noise", 1, &psen->noise, &zero);
+    }
     WriteVector(elem, "user", psen->userdata);
 
     // add reference if present
-    if (psen->reftype > 0) {
+    if (psen->reftype != mjOBJ_UNKNOWN) {
       WriteAttrTxt(elem, "reftype", mju_type2Str(psen->reftype));
       WriteAttrTxt(elem, "refname", psen->refname);
     }

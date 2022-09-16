@@ -239,7 +239,8 @@ typedef enum mjtObj_ {            // type of MujoCo object
   mjOBJ_NUMERIC,                  // numeric
   mjOBJ_TEXT,                     // text
   mjOBJ_TUPLE,                    // tuple
-  mjOBJ_KEY                       // keyframe
+  mjOBJ_KEY,                      // keyframe
+  mjOBJ_PLUGIN                    // plugin instance
 } mjtObj;
 
 
@@ -314,6 +315,9 @@ typedef enum mjtSensor_ {         // type of sensor
 
   // global sensors
   mjSENS_CLOCK,                   // simulation time
+
+  // plugin-controlled sensors
+  mjSENS_PLUGIN,                  // plugin-controlled
 
   // user-defined sensor
   mjSENS_USER                     // sensor data provided by mjcb_sensor callback
@@ -565,6 +569,8 @@ struct mjModel_ {
   int ntupledata;                 // number of objects in all tuple fields
   int nkey;                       // number of keyframes
   int nmocap;                     // number of mocap bodies
+  int nplugin;                    // number of plugin instances
+  int npluginattr;                // number of chars in all plugin config attributes
   int nuser_body;                 // number of mjtNums in body_user
   int nuser_jnt;                  // number of mjtNums in jnt_user
   int nuser_geom;                 // number of mjtNums in geom_user
@@ -584,6 +590,7 @@ struct mjModel_ {
   int nstack;                     // number of fields in mjData stack
   int nuserdata;                  // number of extra fields in mjData
   int nsensordata;                // number of fields in sensor data vector
+  int npluginstate;               // number of fields in the plugin state vector
 
   int nbuffer;                    // number of bytes in buffer
 
@@ -856,6 +863,7 @@ struct mjModel_ {
   mjtNum*   actuator_length0;     // actuator length in qpos0                 (nu x 1)
   mjtNum*   actuator_lengthrange; // feasible actuator length range           (nu x 2)
   mjtNum*   actuator_user;        // user data                                (nu x nuser_actuator)
+  int*      actuator_plugin;      // plugin instance id; -1: not a plugin actuator  (nu x 1)
 
   // sensors
   int*      sensor_type;          // sensor type (mjtSensor)                  (nsensor x 1)
@@ -870,6 +878,13 @@ struct mjModel_ {
   mjtNum*   sensor_cutoff;        // cutoff for real and positive; 0: ignore  (nsensor x 1)
   mjtNum*   sensor_noise;         // noise standard deviation                 (nsensor x 1)
   mjtNum*   sensor_user;          // user data                                (nsensor x nuser_sensor)
+  int*      sensor_plugin;        // plugin instance id; -1: not a plugin sensor  (nsensor x 1)
+
+  // plugin instances
+  int*      plugin;               // globally registered plugin slot number   (nplugin x 1)
+  int*      plugin_stateadr;      // address in the plugin state array        (nplugin x 1)
+  char*     plugin_attr;          // config attributes of plugin instances    (npluginattr x 1)
+  int*      plugin_attradr;       // address to each instance's config attrib (nplugin x 1)
 
   // custom numeric fields
   int*      numeric_adr;          // address of field in numeric_data         (nnumeric x 1)
@@ -919,6 +934,7 @@ struct mjModel_ {
   int*      name_textadr;         // text name pointers                       (ntext x 1)
   int*      name_tupleadr;        // tuple name pointers                      (ntuple x 1)
   int*      name_keyadr;          // keyframe name pointers                   (nkey x 1)
+  int*      name_pluginadr;       // plugin instance name pointers            (nplugin x 1)
   char*     names;                // names of all objects, 0-terminated       (nnames x 1)
 };
 typedef struct mjModel_ mjModel;

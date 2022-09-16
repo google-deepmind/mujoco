@@ -25,12 +25,14 @@
 
 #include "lodepng.h"
 #include <mujoco/mjmodel.h>
+#include <mujoco/mjplugin.h>
 #include "cc/array_safety.h"
 #include "engine/engine_core_smooth.h"
 #include "engine/engine_crossplatform.h"
 #include "engine/engine_file.h"
 #include "engine/engine_io.h"
 #include "engine/engine_macro.h"
+#include "engine/engine_plugin.h"
 #include "engine/engine_util_errmem.h"
 #include "engine/engine_util_misc.h"
 #include "engine/engine_util_solve.h"
@@ -3391,6 +3393,11 @@ mjCActuator::mjCActuator(mjCModel* _model, mjCDef* _def) {
   // set model, def
   model = _model;
   def = (_def ? _def : (_model ? _model->defaults[0] : 0));
+
+  is_plugin = false;
+  plugin_instance = nullptr;
+  plugin_name = "";
+  plugin_instance_name = "";
 }
 
 
@@ -3553,6 +3560,21 @@ void mjCActuator::Compile(void) {
   } else {
     trnid[0] = ptarget->id;
   }
+
+  // plugin
+  if (is_plugin) {
+    if (plugin_name.empty() && plugin_instance_name.empty()) {
+      throw mjCError(
+          this, "neither 'plugin' nor 'instance' is specified for actuator '%s', (id = %d)",
+          name.c_str(), id);
+    }
+
+    model->ResolvePlugin(this, plugin_name, plugin_instance_name, &plugin_instance);
+    const mjpPlugin* plugin = mjp_getPluginAtSlot(plugin_instance->plugin_slot);
+    if (!(plugin->type & mjPLUGIN_ACTUATOR)) {
+      throw mjCError(this, "plugin '%s' does not support actuators", plugin->name);
+    }
+  }
 }
 
 
@@ -3580,6 +3602,10 @@ mjCSensor::mjCSensor(mjCModel* _model) {
   // clear private variables
   objid = -1;
   refid = -1;
+
+  plugin_instance = nullptr;
+  plugin_name = "";
+  plugin_instance_name = "";
 }
 
 
@@ -3624,7 +3650,7 @@ void mjCSensor::Compile(void) {
 
     // get sensorized object id
     objid = pobj->id;
-  } else if (type != mjSENS_CLOCK) {
+  } else if (type != mjSENS_CLOCK && type != mjSENS_PLUGIN) {
     throw mjCError(this, "invalid type in sensor '%s' (id = %d)", name.c_str(), id);
   }
 
@@ -3919,6 +3945,28 @@ void mjCSensor::Compile(void) {
     }
     break;
 
+  case mjSENS_PLUGIN:
+    dim = 0;  // to be filled in by the plugin later
+    datatype = mjDATATYPE_REAL;  // no noise added to plugin sensors, this attribute is unused
+
+    if (plugin_name.empty() && plugin_instance_name.empty()) {
+      throw mjCError(
+          this, "neither 'plugin' nor 'instance' is specified for sensor '%s', (id = %d)",
+          name.c_str(), id);
+    }
+
+    // resolve plugin instance, or create one if using the "plugin" attribute shortcut
+    {
+      model->ResolvePlugin(this, plugin_name, plugin_instance_name, &plugin_instance);
+      const mjpPlugin* plugin = mjp_getPluginAtSlot(plugin_instance->plugin_slot);
+      if (!(plugin->type & mjPLUGIN_SENSOR)) {
+        throw mjCError(this, "plugin '%s' does not support sensors", plugin->name);
+      }
+      needstage = static_cast<mjtStage>(plugin->needstage);
+    }
+
+    break;
+
   default:
     throw mjCError(this, "invalid type in sensor '%s' (id = %d)", name.c_str(), id);
   }
@@ -4173,4 +4221,48 @@ void mjCKey::Compile(const mjModel* m) {
     throw mjCError(this, "key %d: invalid ctrl size, expected length %d", nullptr, id, m->nu);
   }
 
+}
+
+
+//------------------ class mjCPlugin implementation ------------------------------------------------
+
+// initialize defaults
+mjCPlugin::mjCPlugin(mjCModel* _model) {
+  name = "";
+  plugin_slot = -1;
+  nstate = 0;
+  parent = this;
+  model = _model;
+}
+
+
+
+// compiler
+void mjCPlugin::Compile(void) {
+  const mjpPlugin* plugin = mjp_getPluginAtSlot(this->plugin_slot);
+
+  // concatenate all of the plugin's attribute values (as null-terminated strings) into
+  // flattened_attributes, in the order declared in the mjpPlugin
+  // each valid attribute found is appended to flattened_attributes and removed from xml_attributes
+  for (int i = 0; i < plugin->nattribute; ++i) {
+    std::string_view attr(plugin->attributes[i]);
+    auto it = config_attribs.find(attr);
+    if (it == config_attribs.end()) {
+      flattened_attributes.push_back('\0');
+    } else {
+      auto original_size = flattened_attributes.size();
+      flattened_attributes.resize(original_size + it->second.size() + 1);
+      std::memcpy(&flattened_attributes[original_size], it->second.c_str(),
+                  it->second.size() + 1);
+      config_attribs.erase(it);
+    }
+  }
+
+  // anything left in xml_attributes at this stage is not a valid attribute
+  if (!config_attribs.empty()) {
+    std::string error =
+        "unrecognized attribute 'plugin:" + config_attribs.begin()->first +
+        "' for plugin " + std::string(plugin->name) + "'";
+    throw mjCError(parent, error.c_str());
+  }
 }

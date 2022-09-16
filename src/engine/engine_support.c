@@ -440,107 +440,90 @@ static int _getnumadr(const mjModel* m, mjtObj type, int** padr) {
   case mjOBJ_XBODY:
     *padr = m->name_bodyadr;
     return m->nbody;
-    break;
 
   case mjOBJ_JOINT:
     *padr = m->name_jntadr;
     return m->njnt;
-    break;
 
   case mjOBJ_GEOM:
     *padr = m->name_geomadr;
     return m->ngeom;
-    break;
 
   case mjOBJ_SITE:
     *padr = m->name_siteadr;
     return m->nsite;
-    break;
 
   case mjOBJ_CAMERA:
     *padr = m->name_camadr;
     return m->ncam;
-    break;
 
   case mjOBJ_LIGHT:
     *padr = m->name_lightadr;
     return m->nlight;
-    break;
 
   case mjOBJ_MESH:
     *padr = m->name_meshadr;
     return m->nmesh;
-    break;
 
   case mjOBJ_SKIN:
     *padr = m->name_skinadr;
     return m->nskin;
-    break;
 
   case mjOBJ_HFIELD:
     *padr = m->name_hfieldadr;
     return m->nhfield;
-    break;
 
   case mjOBJ_TEXTURE:
     *padr = m->name_texadr;
     return m->ntex;
-    break;
 
   case mjOBJ_MATERIAL:
     *padr = m->name_matadr;
     return m->nmat;
-    break;
 
   case mjOBJ_PAIR:
     *padr = m->name_pairadr;
     return m->npair;
-    break;
 
   case mjOBJ_EXCLUDE:
     *padr = m->name_excludeadr;
     return m->nexclude;
-    break;
 
   case mjOBJ_EQUALITY:
     *padr = m->name_eqadr;
     return m->neq;
-    break;
 
   case mjOBJ_TENDON:
     *padr = m->name_tendonadr;
     return m->ntendon;
-    break;
 
   case mjOBJ_ACTUATOR:
     *padr = m->name_actuatoradr;
     return m->nu;
-    break;
 
   case mjOBJ_SENSOR:
     *padr = m->name_sensoradr;
     return m->nsensor;
-    break;
 
   case mjOBJ_NUMERIC:
     *padr = m->name_numericadr;
     return m->nnumeric;
-    break;
 
   case mjOBJ_TEXT:
     *padr = m->name_textadr;
     return m->ntext;
-    break;
 
   case mjOBJ_TUPLE:
     *padr = m->name_tupleadr;
     return m->ntuple;
-    break;
 
   case mjOBJ_KEY:
     *padr = m->name_keyadr;
     return m->nkey;
-    break;
+
+  case mjOBJ_PLUGIN:
+    *padr = m->name_pluginadr;
+    return m->nplugin;
 
   default:
     *padr = 0;

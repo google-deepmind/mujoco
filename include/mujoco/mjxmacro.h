@@ -102,6 +102,8 @@
     X( ntupledata )         \
     X( nkey )               \
     X( nmocap )             \
+    X( nplugin )            \
+    X( npluginattr )        \
     X( nuser_body )         \
     X( nuser_jnt )          \
     X( nuser_geom )         \
@@ -119,6 +121,7 @@
     X( nstack )             \
     X( nuserdata )          \
     X( nsensordata )        \
+    X( npluginstate )       \
     X( nbuffer )
 
 
@@ -137,7 +140,6 @@
     int na = m->na;                         \
     int nu = m->nu;                         \
     int nmocap = m->nmocap;
-
 
 // macro for annotating that an array size in an X macro is a member of mjModel
 // by default this macro does nothing, but users can redefine it as necessary
@@ -367,6 +369,7 @@
     X( mjtNum,  actuator_length0,      nu,            1                    ) \
     X( mjtNum,  actuator_lengthrange,  nu,            2                    ) \
     X( mjtNum,  actuator_user,         nu,            MJ_M(nuser_actuator) ) \
+    X( int,     actuator_plugin,       nu,            1                    ) \
     X( int,     sensor_type,           nsensor,       1                    ) \
     X( int,     sensor_datatype,       nsensor,       1                    ) \
     X( int,     sensor_needstage,      nsensor,       1                    ) \
@@ -379,6 +382,11 @@
     X( mjtNum,  sensor_cutoff,         nsensor,       1                    ) \
     X( mjtNum,  sensor_noise,          nsensor,       1                    ) \
     X( mjtNum,  sensor_user,           nsensor,       MJ_M(nuser_sensor)   ) \
+    X( int,     sensor_plugin,         nsensor,       1                    ) \
+    X( int,     plugin,                nplugin,       1                    ) \
+    X( int,     plugin_stateadr,       nplugin,       1                    ) \
+    X( char,    plugin_attr,           npluginattr,   1                    ) \
+    X( int,     plugin_attradr,        nplugin,       1                    ) \
     X( int,     numeric_adr,           nnumeric,      1                    ) \
     X( int,     numeric_size,          nnumeric,      1                    ) \
     X( mjtNum,  numeric_data,          nnumericdata,  1                    ) \
@@ -418,6 +426,7 @@
     X( int,     name_textadr,          ntext,         1                    ) \
     X( int,     name_tupleadr,         ntuple,        1                    ) \
     X( int,     name_keyadr,           nkey,          1                    ) \
+    X( int,     name_pluginadr,        nplugin,       1                    ) \
     X( char,    names,                 nnames,        1                    )
 
 
@@ -435,6 +444,7 @@
     X( mjtNum,    qvel,              nv,          1           ) \
     X( mjtNum,    act,               na,          1           ) \
     X( mjtNum,    qacc_warmstart,    nv,          1           ) \
+    X( mjtNum,    plugin_state,      npluginstate, 1          ) \
     X( mjtNum,    ctrl,              nu,          1           ) \
     X( mjtNum,    qfrc_applied,      nv,          1           ) \
     X( mjtNum,    xfrc_applied,      nbody,       6           ) \
@@ -444,6 +454,8 @@
     X( mjtNum,    act_dot,           na,          1           ) \
     X( mjtNum,    userdata,          nuserdata,   1           ) \
     X( mjtNum,    sensordata,        nsensordata, 1           ) \
+    X( int,       plugin,            nplugin,     1           ) \
+    X( uintptr_t, plugin_data,       nplugin,     1           ) \
     X( mjtNum,    xpos,              nbody,       3           ) \
     X( mjtNum,    xquat,             nbody,       4           ) \
     X( mjtNum,    xmat,              nbody,       9           ) \

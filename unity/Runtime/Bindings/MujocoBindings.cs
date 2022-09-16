@@ -49,6 +49,7 @@ public const int mjNFLUID = 12;
 public const int mjNREF = 2;
 public const int mjNIMP = 5;
 public const int mjNSOLVER = 1000;
+public const bool THIRD_PARTY_MUJOCO_INCLUDE_MJPLUGIN_H_ = true;
 public const bool THIRD_PARTY_MUJOCO_MJRENDER_H_ = true;
 public const int mjNAUX = 10;
 public const int mjMAXTEXTURE = 1000;
@@ -282,6 +283,7 @@ public enum mjtObj : int{
   mjOBJ_TEXT = 21,
   mjOBJ_TUPLE = 22,
   mjOBJ_KEY = 23,
+  mjOBJ_PLUGIN = 24,
 }
 public enum mjtConstraint : int{
   mjCNSTR_EQUALITY = 0,
@@ -337,7 +339,8 @@ public enum mjtSensor : int{
   mjSENS_SUBTREELINVEL = 33,
   mjSENS_SUBTREEANGMOM = 34,
   mjSENS_CLOCK = 35,
-  mjSENS_USER = 36,
+  mjSENS_PLUGIN = 36,
+  mjSENS_USER = 37,
 }
 public enum mjtStage : int{
   mjSTAGE_NONE = 0,
@@ -356,6 +359,10 @@ public enum mjtLRMode : int{
   mjLRMODE_MUSCLE = 1,
   mjLRMODE_MUSCLEUSER = 2,
   mjLRMODE_ALL = 3,
+}
+public enum mjtPluginTypeBit : int{
+  mjPLUGIN_ACTUATOR = 1,
+  mjPLUGIN_SENSOR = 2,
 }
 public enum mjtGridPos : int{
   mjGRID_TOPLEFT = 0,
@@ -541,6 +548,7 @@ public unsafe struct mjSolverStat_ {
 public unsafe struct mjData_ {
   public int nstack;
   public int nbuffer;
+  public int nplugin;
   public int pstack;
   public int maxuse_stack;
   public int maxuse_con;
@@ -1581,6 +1589,7 @@ public unsafe struct mjData_ {
   public double* qvel;
   public double* act;
   public double* qacc_warmstart;
+  public double* plugin_state;
   public double* ctrl;
   public double* qfrc_applied;
   public double* xfrc_applied;
@@ -1590,6 +1599,8 @@ public unsafe struct mjData_ {
   public double* act_dot;
   public double* userdata;
   public double* sensordata;
+  public int* plugin;
+  public UIntPtr* plugin_data;
   public double* xpos;
   public double* xquat;
   public double* xmat;
@@ -1883,6 +1894,8 @@ public unsafe struct mjModel_ {
   public int ntupledata;
   public int nkey;
   public int nmocap;
+  public int nplugin;
+  public int npluginattr;
   public int nuser_body;
   public int nuser_jnt;
   public int nuser_geom;
@@ -1900,6 +1913,7 @@ public unsafe struct mjModel_ {
   public int nstack;
   public int nuserdata;
   public int nsensordata;
+  public int npluginstate;
   public int nbuffer;
   public mjOption_ opt;
   public mjVisual_ vis;
@@ -2126,6 +2140,7 @@ public unsafe struct mjModel_ {
   public double* actuator_length0;
   public double* actuator_lengthrange;
   public double* actuator_user;
+  public int* actuator_plugin;
   public int* sensor_type;
   public int* sensor_datatype;
   public int* sensor_needstage;
@@ -2138,6 +2153,11 @@ public unsafe struct mjModel_ {
   public double* sensor_cutoff;
   public double* sensor_noise;
   public double* sensor_user;
+  public int* sensor_plugin;
+  public int* plugin;
+  public int* plugin_stateadr;
+  public char* plugin_attr;
+  public int* plugin_attradr;
   public int* numeric_adr;
   public int* numeric_size;
   public double* numeric_data;
@@ -2177,6 +2197,7 @@ public unsafe struct mjModel_ {
   public int* name_textadr;
   public int* name_tupleadr;
   public int* name_keyadr;
+  public int* name_pluginadr;
   public char* names;
 }
 
@@ -2999,6 +3020,10 @@ public static unsafe extern double mj_getTotalmass(mjModel_* m);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern void mj_setTotalmass(mjModel_* m, double newmass);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+[return: MarshalAs(UnmanagedType.LPStr)]
+public static unsafe extern string mj_getPluginConfig(mjModel_* m, int plugin_id, [MarshalAs(UnmanagedType.LPStr)]string attrib);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern int mj_version();

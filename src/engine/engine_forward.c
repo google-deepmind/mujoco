@@ -19,6 +19,7 @@
 
 #include <mujoco/mjdata.h>
 #include <mujoco/mjmodel.h>
+#include <mujoco/mjplugin.h>
 #include "engine/engine_callback.h"
 #include "engine/engine_collision_driver.h"
 #include "engine/engine_core_constraint.h"
@@ -27,6 +28,7 @@
 #include "engine/engine_inverse.h"
 #include "engine/engine_io.h"
 #include "engine/engine_macro.h"
+#include "engine/engine_plugin.h"
 #include "engine/engine_sensor.h"
 #include "engine/engine_solver.h"
 #include "engine/engine_support.h"
@@ -194,6 +196,11 @@ void mj_fwdActuation(const mjModel* m, mjData* d) {
 
   // force = gain .* [ctrl/act] + bias
   for (int i=0; i<nu; i++) {
+    // skip actuator plugins -- these are handled after builtin actuator types
+    if (m->actuator_plugin[i] >= 0) {
+      continue;
+    }
+
     // extract gain info
     prm = m->actuator_gainprm + mjNGAIN*i;
 
@@ -262,6 +269,24 @@ void mj_fwdActuation(const mjModel* m, mjData* d) {
     force[i] += bias;
   }
 
+  // handle actuator plugins
+  if (m->nplugin) {
+    const int nslot = mjp_pluginCount();
+    for (int i=0; i<m->nplugin; i++) {
+      const int slot = m->plugin[i];
+      const mjpPlugin* plugin = mjp_getPluginAtSlotUnsafe(slot, nslot);
+      if (!plugin) {
+        mju_error_i("invalid plugin slot: %d", slot);
+      }
+      if (plugin->type & mjPLUGIN_ACTUATOR) {
+        if (!plugin->compute) {
+          mju_error_i("`compute` is a null function pointer for plugin at slot %d", slot);
+        }
+        plugin->compute(m, d, i, mjPLUGIN_ACTUATOR);
+      }
+    }
+  }
+
   // clamp actuator_force
   for (int i=0; i<nu; i++) {
     if (m->actuator_forcelimited[i]) {
@@ -275,6 +300,10 @@ void mj_fwdActuation(const mjModel* m, mjData* d) {
 
   // act_dot for stateful actuators
   for (int i=nu-na; i<nu; i++) {
+    if (m->actuator_plugin[i] >= 0) {
+      continue;
+    }
+
     // extract info
     prm = m->actuator_dynprm + i*mjNDYN;
     int j = i-(nu-na);
@@ -481,6 +510,21 @@ static void mj_advance(const mjModel* m, mjData* d,
 
   // advance time
   d->time += m->opt.timestep;
+
+  // advance plugin states
+  if (m->nplugin) {
+    const int nslot = mjp_pluginCount();
+    for (int i = 0; i < m->nplugin; ++i) {
+      const int slot = m->plugin[i];
+      const mjpPlugin* plugin = mjp_getPluginAtSlotUnsafe(slot, nslot);
+      if (!plugin) {
+        mju_error_i("invalid plugin slot: %d", slot);
+      }
+      if (plugin->advance) {
+        plugin->advance(m, d, i);
+      }
+    }
+  }
 }
 
 // Euler integrator, semi-implicit in velocity, possibly skipping factorisation

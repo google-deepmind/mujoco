@@ -17,32 +17,65 @@
 #include <cfloat>
 #include <cstdio>
 #include <cstring>
+#include <functional>
+#include <iostream>
+#include <map>
 #include <sstream>
 #include <string>
+#include <string_view>
+#include <utility>
 #include <vector>
 
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjvisualize.h>
 #include "engine/engine_macro.h"
+#include "engine/engine_plugin.h"
 #include "engine/engine_util_errmem.h"
 #include "engine/engine_util_misc.h"
 #include "user/user_composite.h"
 #include "user/user_model.h"
+#include "user/user_objects.h"
 #include "user/user_util.h"
+#include "xml/xml_util.h"
 #include "tinyxml2.h"
 
 namespace {
-
 using std::string;
 using std::vector;
 using tinyxml2::XMLElement;
 
+void ReadPluginConfigs(tinyxml2::XMLElement* elem, mjCPlugin* pp) {
+  std::map<std::string, std::string, std::less<>> config_attribs;
+  XMLElement* child = elem->FirstChildElement();
+  while (child) {
+    std::string_view name = child->Value();
+    if (name == "config") {
+      std::string key, value;
+      mjXUtil::ReadAttrTxt(child, "key", key, /* required = */ true);
+      if (config_attribs.find(key) != config_attribs.end()) {
+        std::string err = "duplicate config key: " + key;
+        throw mjXError(child, err.c_str());
+      }
+      mjXUtil::ReadAttrTxt(child, "value", value, /* required = */ true);
+      config_attribs[key] = value;
+    }
+    child = child->NextSiblingElement();
+  }
+
+  if (!pp && !config_attribs.empty()) {
+    throw mjXError(elem,
+                   "plugin configuration attributes cannot be used in an "
+                   "element that references a predefined plugin instance");
+  } else if (pp) {
+    pp->config_attribs = std::move(config_attribs);
+  }
+}
 }  // namespace
 
 
 //---------------------------------- MJCF schema ---------------------------------------------------
 
-static const int nMJCF = 165;
+static const int nMJCF = 183;
 static const char* MJCF[nMJCF][mjXATTRNUM] = {
 {"mujoco", "!", "1", "model"},
 {"<"},
@@ -148,6 +181,17 @@ static const char* MJCF[nMJCF][mjXATTRNUM] = {
             "lmin", "lmax", "vmax", "fpmax", "fvmax"},
         {"adhesion", "?", "6", "forcelimited", "ctrlrange", "forcerange",
             "gain", "user", "group"},
+    {">"},
+
+    {"extension", "*", "0"},
+    {"<"},
+        {"required", "*", "1", "plugin"},
+        {"<"},
+            {"instance", "*", "1", "name"},
+            {"<"},
+              {"config", "*", "2", "key", "value"},
+            {">"},
+        {">"},
     {">"},
 
     {"custom", "*", "0"},
@@ -308,6 +352,13 @@ static const char* MJCF[nMJCF][mjXATTRNUM] = {
             "lmin", "lmax", "vmax", "fpmax", "fvmax"},
         {"adhesion", "*", "9", "name", "class", "group",
             "forcelimited", "ctrlrange", "forcerange", "user", "body", "gain"},
+        {"plugin", "*", "19", "name", "class",  "plugin", "instance", "group",
+            "ctrllimited", "forcelimited", "ctrlrange", "forcerange",
+            "lengthrange", "gear", "cranklength", "joint", "jointinparent",
+            "site", "tendon", "cranksite", "slidersite", "user"},
+        {"<"},
+          {"config", "*", "2", "key", "value"},
+        {">"},
     {">"},
 
     {"sensor", "*", "0"},
@@ -350,6 +401,11 @@ static const char* MJCF[nMJCF][mjXATTRNUM] = {
         {"clock", "*", "4", "name", "cutoff", "noise", "user"},
         {"user", "*", "9", "name", "objtype", "objname", "datatype", "needstage",
             "dim", "cutoff", "noise", "user"},
+        {"plugin", "*", "9", "name", "plugin", "instance", "cutoff", "objtype", "objname", "reftype", "refname",
+            "user"},
+        {"<"},
+          {"config", "*", "2", "key", "value"},
+        {">"},
     {">"},
 
     {"keyframe", "*", "0"},
@@ -710,6 +766,11 @@ void mjXReader::Parse(XMLElement* root) {
     Default(section, -1);
   }
   readingdefaults = false;
+
+  for (section = root->FirstChildElement("extension"); section;
+       section = section->NextSiblingElement("extension")) {
+    Extension(section);
+  }
 
   for (section = root->FirstChildElement("custom"); section;
        section = section->NextSiblingElement("custom")) {
@@ -1627,6 +1688,18 @@ void mjXReader::OneActuator(XMLElement* elem, mjCActuator* pact) {
     pact->biastype = mjBIAS_NONE;
   }
 
+  else if (type == "plugin") {
+    pact->is_plugin = true;
+    ReadAttrTxt(elem, "plugin", pact->plugin_name);
+    ReadAttrTxt(elem, "instance", pact->plugin_instance_name);
+    if (pact->plugin_instance_name.empty()) {
+      pact->plugin_instance = model->AddPlugin();
+    } else {
+      model->hasImplicitPluginElem = true;
+    }
+    ReadPluginConfigs(elem, pact->plugin_instance);
+  }
+
   else {          // SHOULD NOT OCCUR
     throw mjXError(elem, "unrecognized actuator type: %s", type.c_str());
   }
@@ -1902,6 +1975,61 @@ void mjXReader::Default(XMLElement* section, int parentid) {
     }
 
     // advance
+    elem = elem->NextSiblingElement();
+  }
+}
+
+
+
+// extension section parser
+void mjXReader::Extension(XMLElement* section) {
+  XMLElement* elem = section->FirstChildElement();
+  while (elem) {
+    // get sub-element name
+    std::string_view name = elem->Value();
+
+    if (name == "required") {
+      std::string plugin_name;
+      int plugin_slot = -1;
+      ReadAttrTxt(elem, "plugin", plugin_name, /* required = */ true);
+      const mjpPlugin* plugin = mjp_getPlugin(plugin_name.c_str(), &plugin_slot);
+      if (!plugin) {
+        throw mjXError(elem, "unknown plugin '%s'", plugin_name.c_str());
+      }
+
+      bool already_declared = false;
+      for (const auto& [existing_plugin, existing_slot] : model->active_plugins) {
+        if (plugin == existing_plugin) {
+          already_declared = true;
+          break;
+        }
+      }
+      if (!already_declared) {
+        model->active_plugins.emplace_back(std::make_pair(plugin, plugin_slot));
+      }
+
+      XMLElement* child = elem->FirstChildElement();
+      while (child) {
+        if (std::string(child->Value())=="instance") {
+          if (model->hasImplicitPluginElem) {
+            throw mjXError(
+                child, "explicit plugin instance must appear before implicit plugin elements");
+          }
+          mjCPlugin* pp = model->AddPlugin();
+          GetXMLPos(child, pp);
+          ReadAttrTxt(child, "name", pp->name, /* required = */ true);
+          if (pp->name.empty()) {
+            throw mjXError(child, "plugin instance must have a name");
+          }
+          ReadPluginConfigs(child, pp);
+          pp->plugin_slot = plugin_slot;
+          pp->nstate = -1;  // actual value to be filled in by the plugin later
+        }
+        child = child->NextSiblingElement();
+      }
+    }
+
+    // advance to next element
     elem = elem->NextSiblingElement();
   }
 }
@@ -2799,6 +2927,38 @@ void mjXReader::Sensor(XMLElement* section) {
       MapValue(elem, "datatype", &n, datatype_map, datatype_sz, true);
       psen->datatype = (mjtDataType)n;
     }
+
+    else if (type=="plugin") {
+      psen->type = mjSENS_PLUGIN;
+      ReadAttrTxt(elem, "plugin", psen->plugin_name);
+      ReadAttrTxt(elem, "instance", psen->plugin_instance_name);
+      if (psen->plugin_instance_name.empty()) {
+        psen->plugin_instance = model->AddPlugin();
+      } else {
+        model->hasImplicitPluginElem = true;
+      }
+      ReadPluginConfigs(elem, psen->plugin_instance);
+      ReadAttrTxt(elem, "objtype", text);
+      psen->objtype = (mjtObj)mju_str2Type(text.c_str());
+      ReadAttrTxt(elem, "objname", psen->objname);
+      if (psen->objtype != mjOBJ_UNKNOWN && psen->objname.empty()) {
+        throw mjXError(elem, "objtype is specified but objname is not");
+      }
+      if (psen->objtype == mjOBJ_UNKNOWN && !psen->objname.empty()) {
+        throw mjXError(elem, "objname is specified but objtype is not");
+      }
+      ReadAttrTxt(elem, "reftype", text);
+      psen->reftype = (mjtObj)mju_str2Type(text.c_str());
+      ReadAttrTxt(elem, "refname", psen->refname);
+      if (psen->reftype != mjOBJ_UNKNOWN && psen->refname.empty()) {
+        throw mjXError(elem, "reftype is specified but refname is not");
+      }
+      if (psen->reftype == mjOBJ_UNKNOWN && !psen->refname.empty()) {
+        throw mjXError(elem, "refname is specified but reftype is not");
+      }
+    }
+
+    GetXMLPos(elem, psen);
 
     // advance to next element
     elem = elem->NextSiblingElement();

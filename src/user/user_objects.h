@@ -15,6 +15,7 @@
 #ifndef MUJOCO_SRC_USER_USER_OBJECTS_H_
 #define MUJOCO_SRC_USER_USER_OBJECTS_H_
 
+#include <map>
 #include <string>
 #include <vector>
 
@@ -833,6 +834,27 @@ class mjCWrap : public mjCBase {
 
 
 
+//------------------------- class mjCPlugin --------------------------------------------------------
+// Describes an instance of a plugin
+
+class mjCPlugin : public mjCBase {
+  friend class mjCModel;
+  friend class mjXWriter;
+
+ public:
+  int plugin_slot;   // global registered slot number of the plugin
+  int nstate;        // state size for the plugin instance
+  mjCBase* parent;   // parent object (only used when generating error message)
+  std::map<std::string, std::string, std::less<>> config_attribs;  // raw config attributes from XML
+  std::vector<char> flattened_attributes;  // config attributes flattened in plugin-declared order
+
+ private:
+  mjCPlugin(mjCModel*);            // constructor
+  void Compile(void);              // compiler
+};
+
+
+
 //------------------------- class mjCActuator ------------------------------------------------------
 // Describes an actuator
 
@@ -865,6 +887,12 @@ class mjCActuator : public mjCBase {
   std::string slidersite;         // site defining cylinder, for slider-crank only
   std::string refsite;            // reference site, for site transmission only
 
+  // plugin support
+  bool is_plugin;
+  std::string plugin_name;
+  std::string plugin_instance_name;
+  mjCPlugin* plugin_instance;
+
  private:
   mjCActuator(mjCModel* = 0, mjCDef* = 0);// constructor
   void Compile(void);                     // compiler
@@ -895,6 +923,11 @@ class mjCSensor : public mjCBase {
   double cutoff;                  // cutoff for real and positive datatypes
   double noise;                   // noise stdev
   std::vector<double> userdata;   // user data
+
+  // plugin support
+  std::string plugin_name;
+  std::string plugin_instance_name;
+  mjCPlugin* plugin_instance;
 
  private:
   mjCSensor(mjCModel*);           // constructor

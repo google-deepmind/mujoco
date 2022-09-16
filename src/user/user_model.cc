@@ -24,11 +24,13 @@
 
 #include <mujoco/mjdata.h>
 #include <mujoco/mjmodel.h>
+#include <mujoco/mjplugin.h>
 #include <mujoco/mjvisualize.h>
 #include "cc/array_safety.h"
 #include "engine/engine_forward.h"
 #include "engine/engine_io.h"
 #include "engine/engine_macro.h"
+#include "engine/engine_plugin.h"
 #include "engine/engine_setconst.h"
 #include "engine/engine_support.h"
 #include "engine/engine_util_blas.h"
@@ -123,6 +125,7 @@ mjCModel::mjCModel() {
   nuserdata = 0;
   nkey = 0;
   nmocap = 0;
+  nplugin = 0;
   nuser_body = -1;
   nuser_jnt = -1;
   nuser_geom = -1;
@@ -198,6 +201,7 @@ mjCModel::~mjCModel() {
   for (i=0; i<texts.size(); i++) delete texts[i];
   for (i=0; i<tuples.size(); i++) delete tuples[i];
   for (i=0; i<keys.size(); i++) delete keys[i];
+  for (i=0; i<plugins.size(); i++) delete plugins[i];
   for (i=0; i<defaults.size(); i++) delete defaults[i];
 
   // clear pointer lists created in model construction
@@ -216,6 +220,7 @@ mjCModel::~mjCModel() {
   texts.clear();
   tuples.clear();
   keys.clear();
+  plugins.clear();
   defaults.clear();
 
   // clear sizes and pointer lists created in Compile
@@ -267,6 +272,7 @@ void mjCModel::Clear(void) {
   nnumericdata = 0;
   ntextdata = 0;
   ntupledata = 0;
+  npluginattr = 0;
   nnames = 0;
   nemax = 0;
   nM = 0;
@@ -283,6 +289,7 @@ void mjCModel::Clear(void) {
   lights.clear();
 
   // internal variables
+  hasImplicitPluginElem = false;
   compiled = false;
   errInfo = mjCError();
   fixCount = 0;
@@ -405,6 +412,12 @@ mjCKey* mjCModel::AddKey(void) {
 }
 
 
+// add plugin instance
+mjCPlugin* mjCModel::AddPlugin(void) {
+  return AddObject(plugins, "plugin");
+}
+
+
 
 
 //------------------------ API FOR ACCESS TO MODEL ELEMENTS  ---------------------------------------
@@ -455,6 +468,8 @@ int mjCModel::NumObjects(mjtObj type) {
     return (int)tuples.size();
   case mjOBJ_KEY:
     return (int)keys.size();
+  case mjOBJ_PLUGIN:
+    return (int)plugins.size();
   default:
     return 0;
   }
@@ -509,6 +524,8 @@ mjCBase* mjCModel::GetObject(mjtObj type, int id) {
       return tuples[id];
     case mjOBJ_KEY:
       return keys[id];
+    case mjOBJ_PLUGIN:
+      return plugins[id];
     default:
       return 0;
     }
@@ -646,6 +663,8 @@ mjCBase* mjCModel::FindObject(mjtObj type, string name) {
     return findobject(name, texts);
   case mjOBJ_TUPLE:
     return findobject(name, tuples);
+  case mjOBJ_PLUGIN:
+    return findobject(name, plugins);
   default:
     return 0;
   }
@@ -893,6 +912,7 @@ void mjCModel::SetSizes(void) {
   ntext = (int)texts.size();
   ntuple = (int)tuples.size();
   nkey = (int)keys.size();
+  nplugin = (int)plugins.size();
 
   // nq, nv
   for (i=0; i<njnt; i++) {
@@ -955,6 +975,9 @@ void mjCModel::SetSizes(void) {
   // ntupledata
   for (i=0; i<ntuple; i++) ntupledata += (int)tuples[i]->objtype.size();
 
+  // npluginattr
+  for (i=0; i<nplugin; i++) npluginattr += (int)plugins[i]->flattened_attributes.size();
+
   // nnames
   nnames = (int)modelname.size() + 1;
   for (i=0; i<nbody; i++)    nnames += (int)bodies[i]->name.length() + 1;
@@ -978,6 +1001,7 @@ void mjCModel::SetSizes(void) {
   for (i=0; i<ntext; i++)    nnames += (int)texts[i]->name.length() + 1;
   for (i=0; i<ntuple; i++)   nnames += (int)tuples[i]->name.length() + 1;
   for (i=0; i<nkey; i++)     nnames += (int)keys[i]->name.length() + 1;
+  for (i=0; i<nplugin; i++)  nnames += (int)plugins[i]->name.length() + 1;
 
   // nemax
   for (i=0; i<neq; i++)
@@ -1234,6 +1258,7 @@ void mjCModel::CopyNames(mjModel* m) {
   adr = namelist(texts, adr, m->name_textadr, m->names);
   adr = namelist(tuples, adr, m->name_tupleadr, m->names);
   adr = namelist(keys, adr, m->name_keyadr, m->names);
+  adr = namelist(plugins, adr, m->name_pluginadr, m->names);
 
   // check size, SHOULD NOT OCCUR
   if (adr != nnames) {
@@ -1776,7 +1801,7 @@ void mjCModel::CopyObjects(mjModel* m) {
     m->tendon_adr[i] = adr;
     m->tendon_num[i] = (int)pte->path.size();
     m->tendon_matid[i] = pte->matid;
-    m->tendon_group[i] = pte->group;;
+    m->tendon_group[i] = pte->group;
     m->tendon_limited[i] = pte->limited;
     m->tendon_width[i] = (mjtNum)pte->width;
     copyvec(m->tendon_solref_lim+mjNREF*i, pte->solref_limit, mjNREF);
@@ -2390,6 +2415,7 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
   processlist(texts, "text");
   processlist(tuples, "tuple");
   processlist(keys, "key");
+  processlist(plugins, "plugin");
 
   // set default names, convert names into indices
   SetDefaultNames();
@@ -2477,6 +2503,7 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
   for (int i=0; i<numerics.size(); i++) numerics[i]->Compile();
   for (int i=0; i<texts.size(); i++) texts[i]->Compile();
   for (int i=0; i<tuples.size(); i++) tuples[i]->Compile();
+  for (int i=0; i<plugins.size(); i++) plugins[i]->Compile();
 
   // compile defaults: to enforce userdata length for writer
   for (int i=0; i<defaults.size(); i++) {
@@ -2545,7 +2572,7 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
                    nhfield, nhfielddata, ntex, ntexdata, nmat, npair, nexclude,
                    neq, ntendon, nwrap, nsensor,
                    nnumeric, nnumericdata, ntext, ntextdata,
-                   ntuple, ntupledata, nkey, nmocap,
+                   ntuple, ntupledata, nkey, nmocap, nplugin, npluginattr,
                    nuser_body, nuser_jnt, nuser_geom, nuser_site, nuser_cam,
                    nuser_tendon, nuser_actuator, nuser_sensor, nnames);
   if (!m) {
@@ -2557,6 +2584,69 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
   m->vis = visual;
   CopyNames(m);
   CopyTree(m);
+
+  // assign plugin slots and copy plugin config attributes
+  {
+    int adr = 0;
+    for (int i = 0; i < nplugin; ++i) {
+      m->plugin[i] = plugins[i]->plugin_slot;
+      const int size = plugins[i]->flattened_attributes.size();
+      std::memcpy(m->plugin_attr + adr,
+                  plugins[i]->flattened_attributes.data(), size);
+      m->plugin_attradr[i] = adr;
+      adr += size;
+    }
+  }
+
+  // query and set plugin-related information
+  {
+    // set actuator_plugin to the plugin instance ID
+    for (int i = 0; i < nu; ++i) {
+      if (actuators[i]->is_plugin) {
+        m->actuator_plugin[i] = actuators[i]->plugin_instance->id;
+      } else {
+        m->actuator_plugin[i] = -1;
+      }
+    }
+
+    // set sensor_plugin to the plugin instance ID
+    std::vector<std::vector<int>> plugin_to_sensors(nplugin);
+    for (int i = 0; i < nsensor; ++i) {
+      if (sensors[i]->type == mjSENS_PLUGIN) {
+        int sensor_plugin = sensors[i]->plugin_instance->id;
+        m->sensor_plugin[i] = sensor_plugin;
+        plugin_to_sensors[sensor_plugin].push_back(i);
+      } else {
+        m->sensor_plugin[i] = -1;
+      }
+    }
+
+    // query plugin->nstate, compute and set plugin_state and plugin_stateadr
+    // for sensor plugins, also query plugin->nsensordata and set nsensordata
+    int stateadr = 0;
+    for (int i = 0; i < nplugin; ++i) {
+      const mjpPlugin* plugin = mjp_getPluginAtSlot(m->plugin[i]);
+      if (!plugin->nstate) {
+        mju_error_i("`nstate` is null for plugin at slot %d", m->plugin[i]);
+      }
+      int nstate = plugin->nstate(m, i);
+      m->plugin_stateadr[i] = stateadr;
+      stateadr += nstate;
+      if (plugin->type & mjPLUGIN_SENSOR) {
+        for (int sensor_id : plugin_to_sensors[i]) {
+          if (!plugin->nsensordata) {
+            mju_error_i("`reset` is null for plugin at slot %d", m->plugin[i]);
+          }
+          int nsensordata = plugin->nsensordata(m, i, sensor_id);
+          sensors[sensor_id]->dim = nsensordata;
+          sensors[sensor_id]->needstage =
+              static_cast<mjtStage>(plugin->needstage);
+          this->nsensordata += nsensordata;
+        }
+      }
+    }
+    m->npluginstate = stateadr;
+  }
 
   // keyframe compilation needs access to nq, nv, na, nmocap, qpos0
   for (int i=0; i<keys.size(); i++) {
@@ -2898,4 +2988,43 @@ bool mjCModel::CopyBack(const mjModel* m) {
   }
 
   return true;
+}
+
+void mjCModel::ResolvePlugin(mjCBase* obj, const std::string& plugin_name,
+                             const std::string& plugin_instance_name, mjCPlugin** plugin_instance) {
+  // if plugin_name is specified, check if it is in the list of active plugins
+  // (in XML, active plugins are those declared as <required>)
+  int plugin_slot = -1;
+  if (!plugin_name.empty()) {
+    for (int i = 0; i < active_plugins.size(); ++i) {
+      if (active_plugins[i].first->name == plugin_name) {
+        plugin_slot = active_plugins[i].second;
+        break;
+      }
+    }
+    if (plugin_slot == -1) {
+      throw mjCError(obj, "unrecognized plugin '%s'", plugin_name.c_str());
+    }
+  }
+
+  // implicit plugin instance
+  if (*plugin_instance && (*plugin_instance)->plugin_slot == -1) {
+      (*plugin_instance)->plugin_slot = plugin_slot;
+      (*plugin_instance)->parent = obj;
+  }
+
+  // explicit plugin instance, look up existing mjCPlugin by instance name
+  else if (!*plugin_instance) {
+    *plugin_instance =
+        static_cast<mjCPlugin*>(FindObject(mjOBJ_PLUGIN, plugin_instance_name));
+    if (!*plugin_instance) {
+      throw mjCError(
+          obj, "unrecognized name '%s' for plugin instance", plugin_instance_name.c_str());
+    }
+    if (plugin_slot != -1 && plugin_slot != (*plugin_instance)->plugin_slot) {
+      throw mjCError(
+          obj, "'plugin' attribute does not match that of the instance");
+    }
+    plugin_slot = (*plugin_instance)->plugin_slot;
+  }
 }

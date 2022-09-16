@@ -34,6 +34,7 @@ extern "C" {
 // type definitions
 #include <mujoco/mjdata.h>
 #include <mujoco/mjmodel.h>
+#include <mujoco/mjplugin.h>
 #include <mujoco/mjrender.h>
 #include <mujoco/mjtnum.h>
 #include <mujoco/mjui.h>
@@ -452,6 +453,10 @@ MJAPI mjtNum mj_getTotalmass(const mjModel* m);
 
 // Scale body masses and inertias to achieve specified total mass.
 MJAPI void mj_setTotalmass(mjModel* m, mjtNum newmass);
+
+// Return a config attribute value of a plugin instance;
+// NULL: invalid plugin instance ID or attribute name
+MJAPI const char* mj_getPluginConfig(const mjModel* m, int plugin_id, const char* attrib);
 
 // Return version number: 1.0.2 is encoded as 102.
 MJAPI int mj_version(void);
@@ -1133,6 +1138,29 @@ MJAPI mjtNum mju_sigmoid(mjtNum x);
 MJAPI void mjd_transitionFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte centered,
                             mjtNum* A, mjtNum* B, mjtNum* C, mjtNum* D);
 
+
+
+//---------------------- Plugins -------------------------------------------------------------------
+
+// Set default plugin definition.
+MJAPI void mjp_defaultPlugin(mjpPlugin* plugin);
+
+// Globally register a plugin. This function is thread-safe.
+// If an identical mjpPlugin is already registered, this function does nothing.
+// If a non-identical mjpPlugin with the same name is already registered, an mju_error is raised.
+// Two mjpPlugins are considered identical if all member function pointers and numbers are equal,
+// and the name and attribute strings are all identical, however the char pointers to the strings
+// need not be the same.
+MJAPI int mjp_registerPlugin(const mjpPlugin* plugin);
+
+// Return the number of globally registered plugins.
+MJAPI int mjp_pluginCount();
+
+// Look up a plugin by name. If slot is not NULL, also write its registered slot number into it.
+MJAPI const mjpPlugin* mjp_getPlugin(const char* name, int* slot);
+
+// Look up a plugin by the registered slot number that was returned by mjp_registerPlugin.
+MJAPI const mjpPlugin* mjp_getPluginAtSlot(int slot);
 
 
 #if defined(__cplusplus)

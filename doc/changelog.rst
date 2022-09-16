@@ -28,6 +28,14 @@ General
 - Added :ref:`mju_mulVecMatVec` to multiply a square matrix :math:`M` with vectors :math:`x` and :math:`y` on both
   sides. The function returns :math:`x^TMy`.
 
+- Added new plugin API. Plugins allow developers to extend MuJoCo's capability without modifying core engine code.
+  The plugin mechanism is intended to replace the existing callbacks, though these will remain for the time being as an
+  option for simple use cases and backward compatibility. The new mechanism manages stateful plugins and supports
+  multiple plugins from different sources, allowing MuJoCo extensions to be introduced in a modular fashion, rather than
+  as global overrides. Note the new mechanism is currently undocumented except in code, as we test it internally.
+  If you are interested in using the pluging mechanism, please get in touch first.
+
+
 Version 2.2.2 (September 7, 2022)
 ---------------------------------
 
