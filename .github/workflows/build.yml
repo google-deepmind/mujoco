@@ -17,6 +17,7 @@ on:
 jobs:
   mujoco:
     strategy:
+      fail-fast: false
       matrix:
         include:
           - os: ubuntu-22.04

@@ -31,7 +31,6 @@
 
 namespace mujoco {
 namespace {
-using PluginTest = MujocoTest;
 using ::testing::HasSubstr;
 using ::testing::NotNull;
 
@@ -271,19 +270,23 @@ int RegisterActuatorPlugin() {
   return mjp_registerPlugin(&plugin);
 }
 
-__attribute__((constructor)) void RegisterAllPlugins() {
-  RegisterSensorPlugin();
+class PluginTest : public MujocoTest {
+ public:
+  // register all plugins
+  PluginTest() : MujocoTest() {
+    RegisterSensorPlugin();
 
-  for (int i = 1; i <= kNumFakePlugins; ++i) {
-    mjpPlugin plugin;
-    mjp_defaultPlugin(&plugin);
-    std::string name = absl::StrFormat("mujoco.test.fake%u", i);
-    plugin.name = name.c_str();
-    mjp_registerPlugin(&plugin);
+    for (int i = 1; i <= kNumFakePlugins; ++i) {
+      mjpPlugin plugin;
+      mjp_defaultPlugin(&plugin);
+      std::string name = absl::StrFormat("mujoco.test.fake%u", i);
+      plugin.name = name.c_str();
+      mjp_registerPlugin(&plugin);
+    }
+
+    RegisterActuatorPlugin();
   }
-
-  RegisterActuatorPlugin();
-}
+};
 
 constexpr char xml[] = R"(
 <mujoco>
