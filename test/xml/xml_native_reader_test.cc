@@ -316,6 +316,7 @@ TEST_F(UserDataTest, ReadShellParameter) {
 TEST_F(UserDataTest, ReadsDamper) {
   static constexpr char xml[] = R"(
   <mujoco>
+    <compiler autolimits="true"/>
     <worldbody>
       <body>
         <geom size="1"/>

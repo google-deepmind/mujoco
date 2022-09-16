@@ -1,0 +1,27 @@
+MUJOCO ICON "mujoco.ico"
+
+1 VERSIONINFO
+FILEVERSION 2,2,2,0
+PRODUCTVERSION 2,2,2,0
+FILEOS 0x4
+FILETYPE 0x1
+{
+  BLOCK "StringFileInfo"
+  {
+    BLOCK "040904b0"
+    {
+      VALUE "ProductName", "MuJoCo"
+      VALUE "ProductVersion", "2.2.2"
+      VALUE "FileDescription", "MuJoCo"
+      VALUE "FileVersion", "2.2.2"
+      VALUE "InternalName", "simulate.exe"
+      VALUE "OriginalFilename", "simulate.exe"
+      VALUE "CompanyName", "DeepMind"
+      VALUE "LegalCopyright", "Copyright 2021 DeepMind Technologies Limited."
+    }
+  }
+  BLOCK "VarFileInfo"
+  {
+    VALUE "Translation", 0x0409 0x04B0
+  }
+}

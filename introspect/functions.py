@@ -5644,6 +5644,36 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
          ),
          doc="Multiply transposed matrix and vector: res = mat' * vec.",
      )),
+    ('mju_mulVecMatVec',
+     FunctionDecl(
+         name='mju_mulVecMatVec',
+         return_type=ValueType(name='mjtNum'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='vec1',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='mat',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='vec2',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='n',
+                 type=ValueType(name='int'),
+             ),
+         ),
+         doc="Multiply square matrix with vectors on both sides: returns vec1'*mat*vec2.",  # pylint: disable=line-too-long
+     )),
     ('mju_transpose',
      FunctionDecl(
          name='mju_transpose',
@@ -6415,6 +6445,128 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
              ),
          ),
          doc='Eigenvalue decomposition of symmetric 3x3 matrix.',
+     )),
+    ('mju_boxQP',
+     FunctionDecl(
+         name='mju_boxQP',
+         return_type=ValueType(name='int'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='res',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='R',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='index',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='H',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='g',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='n',
+                 type=ValueType(name='int'),
+             ),
+             FunctionParameterDecl(
+                 name='lower',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='upper',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum', is_const=True),
+                 ),
+             ),
+         ),
+         doc="minimize 0.5*x'*H*x + x'*g  s.t. lower <= x <= upper, return rank or -1 if failed   inputs:     n           - problem dimension     H           - SPD matrix                n*n     g           - bias vector               n     lower       - lower bounds              n     upper       - upper bounds              n     res         - solution warmstart        n   return value:     nfree <= n  - rank of unconstrained subspace, -1 if failure   outputs (required):     res         - solution                  n     R           - subspace Cholesky factor  nfree*nfree    allocated: n*(n+7)   outputs (optional):     index       - set of free dimensions    nfree          allocated: n   notes:     the initial value of res is used to warmstart the solver     R must have allocatd size n*(n+7), but only nfree*nfree values are used in output     index (if given) must have allocated size n, but only nfree values are used in output     the convenience function mju_boxQPmalloc allocates the required data structures",  # pylint: disable=line-too-long
+     )),
+    ('mju_boxQPmalloc',
+     FunctionDecl(
+         name='mju_boxQPmalloc',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='res',
+                 type=PointerType(
+                     inner_type=PointerType(
+                         inner_type=ValueType(name='mjtNum'),
+                     ),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='R',
+                 type=PointerType(
+                     inner_type=PointerType(
+                         inner_type=ValueType(name='mjtNum'),
+                     ),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='index',
+                 type=PointerType(
+                     inner_type=PointerType(
+                         inner_type=ValueType(name='int'),
+                     ),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='H',
+                 type=PointerType(
+                     inner_type=PointerType(
+                         inner_type=ValueType(name='mjtNum'),
+                     ),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='g',
+                 type=PointerType(
+                     inner_type=PointerType(
+                         inner_type=ValueType(name='mjtNum'),
+                     ),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='n',
+                 type=ValueType(name='int'),
+             ),
+             FunctionParameterDecl(
+                 name='lower',
+                 type=PointerType(
+                     inner_type=PointerType(
+                         inner_type=ValueType(name='mjtNum'),
+                     ),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='upper',
+                 type=PointerType(
+                     inner_type=PointerType(
+                         inner_type=ValueType(name='mjtNum'),
+                     ),
+                 ),
+             ),
+         ),
+         doc='allocate heap memory for box-constrained Quadratic Program   as in mju_boxQP, index, lower, and upper are optional   free all pointers with mju_free()',  # pylint: disable=line-too-long
      )),
     ('mju_muscleGain',
      FunctionDecl(

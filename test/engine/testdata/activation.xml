@@ -1,4 +1,5 @@
 <mujoco>
+  <compiler autolimits="true"/>
   <option density="1000"/>
 
   <worldbody>

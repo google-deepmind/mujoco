@@ -79,6 +79,8 @@ mjCModel::mjCModel() {
   modelfiledir.clear();
 
   //------------------------ compiler settings
+  // TODO(b/245077553): Toggle to true by default.
+  autolimits = false;
   boundmass = 0;
   boundinertia = 0;
   settotalmass = -1;

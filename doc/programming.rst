@@ -1677,7 +1677,7 @@ Prior to MuJoCo version 1.40, user code had to maintain a collection of objects 
 All these objects are now grouped into the data structure :ref:`mjvPerturb`. Its use is illustrated in
 :ref:`simulate.cc <saSimulate>`.
 The idea is to select a MuJoCo body of interest, and provide a reference pose (i.e., a 3D position and quaternion
-orientation) for that body. These are stored in mjPerturb.respos/quat. The function :ref:`mjv_movePerturb` is a mouse
+orientation) for that body. These are stored in mjPerturb.refpos/quat. The function :ref:`mjv_movePerturb` is a mouse
 hook for controlling the reference pose with the mouse. The function :ref:`mjv_initPerturb` is used to set the
 reference pose equal to the selected body pose at the onset of perturbation, so as to avoid jumps.
 

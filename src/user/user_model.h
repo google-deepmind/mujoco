@@ -107,6 +107,7 @@ class mjCModel {
   std::vector<mjCDef*> defaults;  // settings for each defaults class
 
   //------------------------ compiler settings
+  bool autolimits;                // infer "limited" attribute based on range
   double boundmass;               // enfore minimum body mass
   double boundinertia;            // enfore minimum body diagonal inertia
   double settotalmass;            // rescale masses and inertias; <=0: ignore

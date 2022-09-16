@@ -1,4 +1,6 @@
-# MuJoCo Physics
+<h1>
+  <a href="#"><img alt="MuJoCo" src="banner.png" width="100%"/></a>
+</h1>
 
 <p>
   <a href="https://github.com/deepmind/mujoco/actions/workflows/build.yml?query=branch%3Amain" alt="GitHub Actions">
@@ -25,9 +27,9 @@ MuJoCo has a C API and is intended for researchers and developers. The runtime
 simulation module is tuned to maximize performance and operates on low-level
 data structures that are preallocated by the built-in XML compiler. The library
 includes interactive visualization with a native GUI, rendered in OpenGL. MuJoCo
-further exposes a large number of utility functions for computing physics-related
-quantities. We also provide Python bindings and a plug-in for the [Unity]
-game engine.
+further exposes a large number of utility functions for computing
+physics-related quantities. We also provide Python bindings and a plug-in for
+the [Unity] game engine.
 
 ## Installation
 

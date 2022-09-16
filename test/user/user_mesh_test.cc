@@ -288,6 +288,28 @@ TEST_F(MujocoTest, FlippedFaceAllowedInertial) {
   mj_deleteModel(model);
 }
 
+TEST_F(MujocoTest, FlippedFaceAllowedNegligibleArea) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="example_mesh"
+        vertex="0 0 0  1 0 0  0 1 0  0 0 1  0 0 1"
+        face="2 0 3  0 1 3  1 2 3  0 2 1  0 3 4" />
+    </asset>
+    <worldbody>
+      <body>
+        <geom type="mesh" mesh="example_mesh"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(model, testing::NotNull());
+  CheckTetrahedronWasRescaled(model);
+  mj_deleteModel(model);
+}
+
 TEST_F(MujocoTest, AreaTooSmall) {
   static constexpr char xml[] = R"(
   <mujoco>

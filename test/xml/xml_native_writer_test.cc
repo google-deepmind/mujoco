@@ -144,7 +144,7 @@ TEST_F(XMLWriterTest, DropsInertialIfFromGeom) {
 TEST_F(XMLWriterTest, DoesNotKeepInferredJointLimited) {
   static constexpr char xml[] = R"(
   <mujoco>
-    <compiler angle="radian"/>
+    <compiler angle="radian" autolimits="true" />
     <worldbody>
       <body>
         <joint name="hinge" range="-1 1"/>
@@ -160,10 +160,10 @@ TEST_F(XMLWriterTest, DoesNotKeepInferredJointLimited) {
   mj_deleteModel(model);
 }
 
-TEST_F(XMLWriterTest, DoesNotKeepExplicitJointLimited) {
+TEST_F(XMLWriterTest, DoesNotKeepExplicitJointLimitedIfAutoLimits) {
   static constexpr char xml[] = R"(
   <mujoco>
-    <compiler angle="radian"/>
+    <compiler angle="radian" autolimits="true" />
     <worldbody>
       <body>
         <joint name="hinge" limited="true" range="-1 1"/>
@@ -174,15 +174,16 @@ TEST_F(XMLWriterTest, DoesNotKeepExplicitJointLimited) {
   )";
   mjModel* model = LoadModelFromString(xml);
   std::string saved_xml = SaveAndReadXml(model);
+  EXPECT_THAT(saved_xml, HasSubstr("autolimits=\"true\""));
   EXPECT_THAT(saved_xml, HasSubstr("range=\"-1 1\""));
   EXPECT_THAT(saved_xml, Not(HasSubstr("limited=\"true\"")));
   mj_deleteModel(model);
 }
 
-TEST_F(XMLWriterTest, KeepsJointLimitedFalse) {
+TEST_F(XMLWriterTest, KeepsJointLimitedFalseIfAutoLimits) {
   static constexpr char xml[] = R"(
   <mujoco>
-    <compiler angle="radian"/>
+    <compiler angle="radian" autolimits="true" />
     <worldbody>
       <body>
         <joint name="hinge" limited="false" range="-1 1"/>
@@ -200,7 +201,7 @@ TEST_F(XMLWriterTest, KeepsJointLimitedFalse) {
 TEST_F(XMLWriterTest, DoesNotKeepInferredTendonLimited) {
   static constexpr char xml[] = R"(
   <mujoco>
-    <compiler angle="radian"/>
+    <compiler angle="radian" autolimits="true" />
     <worldbody>
       <body>
         <joint type="slide"/>
@@ -219,15 +220,16 @@ TEST_F(XMLWriterTest, DoesNotKeepInferredTendonLimited) {
   )";
   mjModel* model = LoadModelFromString(xml);
   std::string saved_xml = SaveAndReadXml(model);
+  EXPECT_THAT(saved_xml, HasSubstr("autolimits=\"true\""));
   EXPECT_THAT(saved_xml, HasSubstr("range=\"-1 1\""));
   EXPECT_THAT(saved_xml, Not(HasSubstr("limited=\"true\"")));
   mj_deleteModel(model);
 }
 
-TEST_F(XMLWriterTest, DoesNotKeepExplicitTendonLimited) {
+TEST_F(XMLWriterTest, DoesNotKeepExplicitTendonLimitedIfAutoLimits) {
   static constexpr char xml[] = R"(
   <mujoco>
-    <compiler angle="radian"/>
+    <compiler angle="radian" autolimits="true" />
     <worldbody>
       <body>
         <joint type="slide"/>
@@ -246,15 +248,16 @@ TEST_F(XMLWriterTest, DoesNotKeepExplicitTendonLimited) {
   )";
   mjModel* model = LoadModelFromString(xml);
   std::string saved_xml = SaveAndReadXml(model);
+  EXPECT_THAT(saved_xml, HasSubstr("autolimits=\"true\""));
   EXPECT_THAT(saved_xml, HasSubstr("range=\"-1 1\""));
   EXPECT_THAT(saved_xml, Not(HasSubstr("limited=\"true\"")));
   mj_deleteModel(model);
 }
 
-TEST_F(XMLWriterTest, KeepsTendonLimitedFalse) {
+TEST_F(XMLWriterTest, KeepsTendonLimitedFalseIfAutoLimits) {
   static constexpr char xml[] = R"(
   <mujoco>
-    <compiler angle="radian"/>
+    <compiler angle="radian" autolimits="true" />
     <worldbody>
       <body>
         <joint type="slide"/>
@@ -280,6 +283,7 @@ TEST_F(XMLWriterTest, KeepsTendonLimitedFalse) {
 TEST_F(XMLWriterTest, DoesNotKeepInferredActlimited) {
   static constexpr char xml[] = R"(
   <mujoco>
+    <compiler autolimits="true" />
     <worldbody>
       <body>
         <joint name="hinge"/>
@@ -293,14 +297,16 @@ TEST_F(XMLWriterTest, DoesNotKeepInferredActlimited) {
   )";
   mjModel* model = LoadModelFromString(xml);
   std::string saved_xml = SaveAndReadXml(model);
+  EXPECT_THAT(saved_xml, HasSubstr("autolimits=\"true\""));
   EXPECT_THAT(saved_xml, HasSubstr("actrange=\"-1 1\""));
   EXPECT_THAT(saved_xml, Not(HasSubstr("actlimited=\"true\"")));
   mj_deleteModel(model);
 }
 
-TEST_F(XMLWriterTest, DoesNotKeepExplicitActlimited) {
+TEST_F(XMLWriterTest, DoesNotKeepExplicitActlimitedIfAutoLimits) {
   static constexpr char xml[] = R"(
   <mujoco>
+    <compiler autolimits="true" />
     <worldbody>
       <body>
         <joint name="hinge"/>
@@ -314,6 +320,7 @@ TEST_F(XMLWriterTest, DoesNotKeepExplicitActlimited) {
   )";
   mjModel* model = LoadModelFromString(xml);
   std::string saved_xml = SaveAndReadXml(model);
+  EXPECT_THAT(saved_xml, HasSubstr("autolimits=\"true\""));
   EXPECT_THAT(saved_xml, HasSubstr("actrange=\"-1 1\""));
   EXPECT_THAT(saved_xml, Not(HasSubstr("actlimited=\"true\"")));
   mj_deleteModel(model);
@@ -322,6 +329,7 @@ TEST_F(XMLWriterTest, DoesNotKeepExplicitActlimited) {
 TEST_F(XMLWriterTest, KeepsActlimitedFalse) {
   static constexpr char xml[] = R"(
   <mujoco>
+    <compiler autolimits="true" />
     <worldbody>
       <body>
         <joint name="hinge"/>
@@ -342,6 +350,7 @@ TEST_F(XMLWriterTest, KeepsActlimitedFalse) {
 TEST_F(XMLWriterTest, DoesNotKeepInferredCtrllimited) {
   static constexpr char xml[] = R"(
   <mujoco>
+    <compiler autolimits="true" />
     <worldbody>
       <body>
         <joint name="hinge"/>
@@ -360,9 +369,10 @@ TEST_F(XMLWriterTest, DoesNotKeepInferredCtrllimited) {
   mj_deleteModel(model);
 }
 
-TEST_F(XMLWriterTest, DoesNotKeepExplicitCtrllimited) {
+TEST_F(XMLWriterTest, DoesNotKeepExplicitCtrllimitedIfAutoLimits) {
   static constexpr char xml[] = R"(
   <mujoco>
+    <compiler autolimits="true" />
     <worldbody>
       <body>
         <joint name="hinge"/>
@@ -404,6 +414,7 @@ TEST_F(XMLWriterTest, KeepsCtrllimitedFalse) {
 TEST_F(XMLWriterTest, DoesNotKeepInferredForcelimited) {
   static constexpr char xml[] = R"(
   <mujoco>
+    <compiler autolimits="true" />
     <worldbody>
       <body>
         <joint name="hinge"/>
@@ -417,6 +428,7 @@ TEST_F(XMLWriterTest, DoesNotKeepInferredForcelimited) {
   )";
   mjModel* model = LoadModelFromString(xml);
   std::string saved_xml = SaveAndReadXml(model);
+  EXPECT_THAT(saved_xml, HasSubstr("autolimits=\"true\""));
   EXPECT_THAT(saved_xml, HasSubstr("forcerange=\"-1 1\""));
   EXPECT_THAT(saved_xml, Not(HasSubstr("forcelimited=\"true\"")));
   mj_deleteModel(model);
@@ -438,6 +450,7 @@ TEST_F(XMLWriterTest, DoesNotKeepExplicitForcelimited) {
   )";
   mjModel* model = LoadModelFromString(xml);
   std::string saved_xml = SaveAndReadXml(model);
+  EXPECT_THAT(saved_xml, HasSubstr("autolimits=\"true\""));
   EXPECT_THAT(saved_xml, HasSubstr("forcerange=\"-1 1\""));
   EXPECT_THAT(saved_xml, Not(HasSubstr("forcelimited=\"true\"")));
   mj_deleteModel(model);

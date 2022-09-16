@@ -784,6 +784,26 @@ PYBIND11_MODULE(_functions, pymodule) {
         return InterceptMjErrors(::mju_mulMatTVec)(
             res.data(), mat.data(), vec.data(), mat.rows(), mat.cols());
       });
+  DEF_WITH_OMITTED_PY_ARGS(traits::mju_mulVecMatVec, "n")(
+      pymodule,
+      [](Eigen::Ref<const EigenVectorX> vec1,
+         Eigen::Ref<const EigenArrayXX> mat,
+         Eigen::Ref<const EigenVectorX> vec2) {
+        if (vec1.size() != vec2.size()) {
+          throw py::type_error(
+              "size of vec1 should equal the size of vec2");
+        }
+        if (vec1.size() != mat.cols()) {
+          throw py::type_error(
+              "size of vectors should equal the number of columns in mat");
+        }
+        if (vec1.size() != mat.rows()) {
+          throw py::type_error(
+              "size of vectors should equal the number of rows in mat");
+        }
+        return InterceptMjErrors(::mju_mulVecMatVec)(
+            vec1.data(), mat.data(), vec2.data(), vec1.size());
+      });
   DEF_WITH_OMITTED_PY_ARGS(traits::mju_transpose, "nr", "nc")(
       pymodule,
       [](Eigen::Ref<EigenArrayXX> res,
@@ -938,7 +958,41 @@ PYBIND11_MODULE(_functions, pymodule) {
             mat.data(), x.data(), mat.rows(), flg_plus);
       });
   Def<traits::mju_eig3>(pymodule);
-
+  DEF_WITH_OMITTED_PY_ARGS(traits::mju_boxQP, "n")(
+      pymodule,
+      [](Eigen::Ref<EigenVectorX> res,
+         Eigen::Ref<EigenArrayXX> R,
+         std::optional<Eigen::Ref<Eigen::Vector<int, Eigen::Dynamic>>> index,
+         Eigen::Ref<const EigenArrayXX> H,
+         Eigen::Ref<const EigenVectorX> g,
+         std::optional<Eigen::Ref<const EigenVectorX>> lower,
+         std::optional<Eigen::Ref<const EigenVectorX>> upper) {
+        int n = res.size();
+        if (R.size() != n*(n+7)) {
+          throw py::type_error("size of R should be n*(n+7)");
+        }
+        if (index.has_value() && (index->size() != n)) {
+          throw py::type_error("size of index should equal n");
+        }
+        if (H.rows() != n || H.cols() != n) {
+          throw py::type_error("H should be of shape (n, n)");
+        }
+        if (g.size() != n) {
+          throw py::type_error("size of g should equal n");
+        }
+        if (lower.has_value() && (lower->size() != n)) {
+          throw py::type_error("size of lower should equal n");
+        }
+        if (upper.has_value() && (upper->size() != n)) {
+          throw py::type_error("size of upper should equal n");
+        }
+        return InterceptMjErrors(::mju_boxQP)(
+            res.data(), R.data(),
+            index.has_value() ? index->data() : nullptr,
+            H.data(), g.data(), n,
+            lower.has_value() ? lower->data() : nullptr,
+            upper.has_value() ? upper->data() : nullptr);
+      });
   // Miscellaneous
   Def<traits::mju_muscleGain>(pymodule);
   Def<traits::mju_muscleBias>(pymodule);

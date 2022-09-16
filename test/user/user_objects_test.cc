@@ -604,5 +604,97 @@ TEST_F(LimitedTest, JointLimited) {
   mj_deleteModel(model);
 }
 
+TEST_F(LimitedTest, ErrorIfLimitedMissingOnJoint) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <compiler autolimits="false"/>
+    <worldbody>
+      <body>
+        <joint user="1" range="0 1"/>
+        <geom size="1"/>
+      </body>
+    </worldbody>
+  </mujoco>
+
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("limited"));
+}
+
+TEST_F(LimitedTest, ExplicitLimitedFalseIsOk) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <compiler autolimits="false"/>
+    <worldbody>
+      <body>
+        <joint user="1" limited="false" range="0 1"/>
+        <geom size="1"/>
+      </body>
+    </worldbody>
+  </mujoco>
+
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, NotNull()) << error.data();
+
+  EXPECT_EQ(model->jnt_limited[0], 0);
+  mj_deleteModel(model);
+}
+
+TEST_F(LimitedTest, ErrorIfLimitedMissingOnTendon) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <compiler autolimits="false"/>
+    <worldbody>
+      <body>
+        <joint type="slide"/>
+        <geom size="1"/>
+        <site name="s1"/>
+      </body>
+      <site name="s2"/>
+    </worldbody>
+    <tendon>
+      <spatial range="-1 1">
+        <site site="s1"/>
+        <site site="s2"/>
+      </spatial>
+    </tendon>
+  </mujoco>
+
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("limited"));
+  EXPECT_THAT(error.data(), HasSubstr("tendon"));
+}
+
+TEST_F(LimitedTest, ErrorIfForceLimitedMissingOnActuator) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <compiler autolimits="false"/>
+    <worldbody>
+      <body>
+        <joint type="slide" name="J1"/>
+        <geom size="1"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <position joint="J1" forcerange="0 100"/>
+    </actuator>
+  </mujoco>
+
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("forcelimited"));
+  EXPECT_THAT(error.data(), HasSubstr("forcerange"));
+  EXPECT_THAT(error.data(), HasSubstr("actuator"));
+}
+
 }  // namespace
 }  // namespace mujoco

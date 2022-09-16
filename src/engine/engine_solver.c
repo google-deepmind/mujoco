@@ -190,7 +190,7 @@ static void residual(const mjModel* m, mjData* d, mjtNum* res, int i, int dim, i
 // compute cost change
 static mjtNum costChange(const mjtNum* A, mjtNum* force, const mjtNum* oldforce,
                          const mjtNum* res, int dim) {
-  mjtNum delta[6], v[6], change;
+  mjtNum delta[6], change;
 
   // compute change
   if (dim==1) {
@@ -198,8 +198,7 @@ static mjtNum costChange(const mjtNum* A, mjtNum* force, const mjtNum* oldforce,
     change = 0.5*delta[0]*delta[0]*A[0] + delta[0]*res[0];
   } else {
     mju_sub(delta, force, oldforce, dim);
-    mju_mulMatVec(v, A, delta, dim, dim);
-    change = 0.5*mju_dot(delta, v, dim) + mju_dot(delta, res, dim);
+    change = 0.5*mju_mulVecMatVec(delta, A, delta, dim) + mju_dot(delta, res, dim);
   }
 
   // positive change: restore

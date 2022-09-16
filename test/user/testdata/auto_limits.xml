@@ -1,4 +1,5 @@
 <mujoco>
+  <compiler autolimits="true" />
   <default>
     <default class="limited_false">
       <joint limited="false"/>

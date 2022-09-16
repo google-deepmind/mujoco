@@ -46,8 +46,8 @@ static const int nMJCF = 165;
 static const char* MJCF[nMJCF][mjXATTRNUM] = {
 {"mujoco", "!", "1", "model"},
 {"<"},
-    {"compiler", "*", "18", "boundmass", "boundinertia", "settotalmass", "balanceinertia",
-        "strippath", "coordinate", "angle", "fitaabb", "eulerseq",
+    {"compiler", "*", "19", "autolimits", "boundmass", "boundinertia", "settotalmass",
+        "balanceinertia", "strippath", "coordinate", "angle", "fitaabb", "eulerseq",
         "meshdir", "texturedir", "discardvisual", "convexhull", "usethread",
         "fusestatic", "inertiafromgeom", "inertiagrouprange", "exactmeshinertia"},
     {"<"},
@@ -765,6 +765,9 @@ void mjXReader::Compiler(XMLElement* section, mjCModel* mod) {
   int n;
 
   // top-level attributes
+  if (MapValue(section, "autolimits", &n, bool_map, 2)) {
+    mod->autolimits = (n==1);
+  }
   ReadAttr(section, "boundmass", 1, &mod->boundmass, text);
   ReadAttr(section, "boundinertia", 1, &mod->boundinertia, text);
   ReadAttr(section, "settotalmass", 1, &mod->settotalmass, text);
