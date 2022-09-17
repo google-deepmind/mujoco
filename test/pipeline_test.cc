@@ -36,7 +36,7 @@ using PipelineTest = MujocoTest;
 
 
 // Joint and actuator damping should integrate identically under implicit
-TEST_F(PipelineTest, SparseDenseEqivalent) {
+TEST_F(PipelineTest, SparseDenseEquivalent) {
   const std::string xml_path = GetTestDataFilePath(kDefaultModel);
   mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, nullptr, 0);
   mjData* data = mj_makeData(model);
