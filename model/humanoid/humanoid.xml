@@ -19,7 +19,7 @@
   <visual>
     <map force="0.1" zfar="30"/>
     <rgba haze="0.15 0.25 0.35 1"/>
-    <global offwidth="800" offheight="800" elevation="-20" azimuth="120"/>
+    <global offwidth="2560" offheight="1440" elevation="-20" azimuth="120"/>
   </visual>
 
   <statistic center="0 0 0.7"/>
