@@ -1598,7 +1598,7 @@ void mjXReader::OneActuator(XMLElement* elem, mjCActuator* pact) {
     pact->gainprm[2] = -pact->gainprm[2];
 
     // require nonnegative range
-    ReadAttr(elem, "ctrlrange", 2, pact->ctrlrange, text, true);
+    ReadAttr(elem, "ctrlrange", 2, pact->ctrlrange, text);
     if (pact->ctrlrange[0]<0 || pact->ctrlrange[1]<0) {
       throw mjXError(elem, "damper control range cannot be negative");
     }
@@ -1676,7 +1676,7 @@ void mjXReader::OneActuator(XMLElement* elem, mjCActuator* pact) {
       throw mjXError(elem, "adhesion gain cannot be negative");
 
     // require nonnegative range
-    ReadAttr(elem, "ctrlrange", 2, pact->ctrlrange, text, true);
+    ReadAttr(elem, "ctrlrange", 2, pact->ctrlrange, text);
     if (pact->ctrlrange[0]<0 || pact->ctrlrange[1]<0) {
       throw mjXError(elem, "adhesion control range cannot be negative");
     }
@@ -1947,7 +1947,7 @@ void mjXReader::Default(XMLElement* section, int parentid) {
     // read tendon
     else if (name=="tendon") OneTendon(elem, &def->tendon);
 
-    // read actuator: general, motor, position, velocity, cylinder
+    // read actuator
     else if (name=="general"     ||
              name=="motor"       ||
              name=="position"    ||
@@ -1955,7 +1955,8 @@ void mjXReader::Default(XMLElement* section, int parentid) {
              name=="damper"      ||
              name=="intvelocity" ||
              name=="cylinder"    ||
-             name=="muscle") {
+             name=="muscle"      ||
+             name=="adhesion") {
       OneActuator(elem, &def->actuator);
     }
 

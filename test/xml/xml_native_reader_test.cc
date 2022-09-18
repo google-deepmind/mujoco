@@ -365,7 +365,7 @@ TEST_F(UserDataTest, RequiresControlRange) {
     <worldbody>
       <body>
         <geom size="1"/>
-        <joint name="jnt" type="slide" axis="1 0 0" range="-10 10"/>
+        <joint name="jnt" type="slide" axis="1 0 0" range="-10 10" limited="true"/>
       </body>
     </worldbody>
     <actuator>
@@ -376,7 +376,7 @@ TEST_F(UserDataTest, RequiresControlRange) {
   std::array<char, 1024> error;
   mjModel* model = LoadModelFromString(xml, error.data(), error.size());
   ASSERT_THAT(model, IsNull());
-  EXPECT_THAT(error.data(), HasSubstr("required attribute missing: 'ctrlrange'"));
+  EXPECT_THAT(error.data(), HasSubstr("invalid control range"));
 }
 
 TEST_F(UserDataTest, PositiveControlRange) {
@@ -553,11 +553,11 @@ TEST_F(ActuatorTest, ReadsByte) {
   mj_deleteModel(model);
 }
 
-// ------------- test intvelocity parsing ---------------------------------------
+// ---------------- test actuator parsing --------------------------------------
 
-using IntegratedVelocityTest = MujocoTest;
+using ActuatorParseTest = MujocoTest;
 
-TEST_F(IntegratedVelocityTest, CheckEquivalence) {
+TEST_F(ActuatorParseTest, IntvelocityCheckEquivalence) {
   static constexpr char xml[] = R"(
   <mujoco>
     <worldbody>
@@ -568,14 +568,14 @@ TEST_F(IntegratedVelocityTest, CheckEquivalence) {
     </worldbody>
     <actuator>
       <intvelocity joint="hinge" kp="2.5" actrange="-1.57 1.57"/>
-      <general joint="hinge" actlimited="true" actrange="-1.57 1.57" dyntype="integrator"
-        biastype="affine" gainprm="2.5" biasprm="0 -2.5 0"/>
+      <general joint="hinge" actlimited="true" actrange="-1.57 1.57"
+      dyntype="integrator" biastype="affine" gainprm="2.5" biasprm="0 -2.5 0"/>
     </actuator>
   </mujoco>
   )";
   std::array<char, 1024> error;
   mjModel* model = LoadModelFromString(xml, error.data(), error.size());
-  ASSERT_THAT(model, testing::NotNull());
+  ASSERT_THAT(model, NotNull());
   // same actlimited
   EXPECT_EQ(model->actuator_actlimited[0], 1);
   EXPECT_EQ(model->actuator_actlimited[1], 1);
@@ -606,7 +606,7 @@ TEST_F(IntegratedVelocityTest, CheckEquivalence) {
   mj_deleteModel(model);
 }
 
-TEST_F(IntegratedVelocityTest, CheckDefaultsIfNotSpecified) {
+TEST_F(ActuatorParseTest, IntvelocityCheckDefaultsIfNotSpecified) {
   static constexpr char xml[] = R"(
   <mujoco>
     <worldbody>
@@ -622,7 +622,7 @@ TEST_F(IntegratedVelocityTest, CheckDefaultsIfNotSpecified) {
   )";
   std::array<char, 1024> error;
   mjModel* model = LoadModelFromString(xml, error.data(), error.size());
-  ASSERT_THAT(model, testing::NotNull());
+  ASSERT_THAT(model, NotNull());
   // check that by default kp = 1
   EXPECT_DOUBLE_EQ(model->actuator_gainprm[0], 1.0);
   // check that biasprm is (0, -1, 0)
@@ -632,7 +632,7 @@ TEST_F(IntegratedVelocityTest, CheckDefaultsIfNotSpecified) {
   mj_deleteModel(model);
 }
 
-TEST_F(IntegratedVelocityTest, NoActrangeThrowsError) {
+TEST_F(ActuatorParseTest, IntvelocityNoActrangeThrowsError) {
   static constexpr char xml[] = R"(
   <mujoco>
     <worldbody>
@@ -652,7 +652,7 @@ TEST_F(IntegratedVelocityTest, NoActrangeThrowsError) {
   EXPECT_THAT(error.data(), HasSubstr("invalid activation range for actuator"));
 }
 
-TEST_F(IntegratedVelocityTest, DefaultsPropagate) {
+TEST_F(ActuatorParseTest, IntvelocityDefaultsPropagate) {
   static constexpr char xml[] = R"(
   <mujoco>
     <default>
@@ -676,7 +676,7 @@ TEST_F(IntegratedVelocityTest, DefaultsPropagate) {
   )";
   std::array<char, 1024> error;
   mjModel* model = LoadModelFromString(xml, error.data(), error.size());
-  ASSERT_THAT(model, testing::NotNull());
+  ASSERT_THAT(model, NotNull());
   EXPECT_DOUBLE_EQ(model->actuator_gainprm[0], 5);
   EXPECT_DOUBLE_EQ(model->actuator_gainprm[mjNGAIN], 1);
   EXPECT_DOUBLE_EQ(model->actuator_actrange[0 + 0], 0);
@@ -685,6 +685,83 @@ TEST_F(IntegratedVelocityTest, DefaultsPropagate) {
   EXPECT_DOUBLE_EQ(model->actuator_actrange[0 + 3], 1);
   mj_deleteModel(model);
 }
+
+
+// ------------- test adhesion parsing -----------------------------------------
+
+TEST_F(ActuatorParseTest, AdhesionDefaultsPropagate) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <default>
+      <adhesion ctrlrange="0 3"/>
+    </default>
+    <worldbody>
+      <body name="sphere">
+        <geom size="1"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <adhesion body="sphere"/>
+    </actuator>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, NotNull());
+  EXPECT_EQ(model->actuator_ctrlrange[0], 0);
+  EXPECT_EQ(model->actuator_ctrlrange[1], 3);
+  mj_deleteModel(model);
+}
+
+TEST_F(ActuatorParseTest, ErrorBadAdhesionDefaults) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <default>
+      <adhesion ctrlrange="-1 0"/>
+    </default>
+    <worldbody>
+      <body name="sphere">
+        <geom size="1"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <adhesion body="sphere"/>
+    </actuator>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, IsNull());
+  EXPECT_THAT(error.data(),
+              HasSubstr("adhesion control range cannot be negative"));
+}
+
+// make sure range requirement is not enforced at parse time
+TEST_F(ActuatorParseTest, DampersDontRequireRange) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <default>
+      <damper ctrlrange="0 2"/>
+    </default>
+    <worldbody>
+      <body name="sphere">
+        <joint name="hinge"/>
+        <geom size="1"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <damper joint="hinge"/>
+    </actuator>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, NotNull());
+  EXPECT_EQ(model->actuator_ctrlrange[0], 0);
+  EXPECT_EQ(model->actuator_ctrlrange[1], 2);
+  mj_deleteModel(model);
+}
+
 
 }  // namespace
 }  // namespace mujoco
