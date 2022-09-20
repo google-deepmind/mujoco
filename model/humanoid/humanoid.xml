@@ -171,7 +171,7 @@
       <body name="upper_arm_left" pos="0 .17 .06">
         <joint name="shoulder1_left" axis="-2 1 -1" class="shoulder"/>
         <joint name="shoulder2_left" axis="0 -1 -1"  class="shoulder"/>
-        <geom name="upper_arm_left" fromto="0 0 0 .16 .16 -.16" size=".04"/>
+        <geom name="upper_arm_left" fromto="0 0 0 .16 .16 -.16" class="arm_upper"/>
         <body name="lower_arm_left" pos=".18 .18 -.18">
           <joint name="elbow_left" axis="0 -1 -1" class="elbow"/>
           <geom name="lower_arm_left" fromto=".01 -.01 .01 .17 -.17 .17" class="arm_lower"/>
