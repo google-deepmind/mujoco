@@ -9,12 +9,20 @@ Upcoming version (not yet released)
 General
 ^^^^^^^
 
+.. youtube:: RHnXD6uO3Mg
+   :align: right
+   :height: 150px
+
+- Added colab notebook tutorial showing how to balance the humanoid on one leg with a Linear Quadratic Regulator. The
+  notebook uses MuJoCo's native Python bindings, and includes a draft ``Renderer`` class, for easy rendering in Python.
+  |br| Try it yourself:  |LQRopenincolab|
+
 - Updates to humanoid model:
 
-   - Added two keyframes (stand-on-one-leg and squat).
-   - Increased maximum hip flexion angle.
-   - Added hamstring tendons which couple the hip and knee at high hip flexion angles.
-   - General cosmetic improvements, including improved use of defaults and better naming scheme.
+ - Added two keyframes (stand-on-one-leg and squat).
+ - Increased maximum hip flexion angle.
+ - Added hamstring tendons which couple the hip and knee at high hip flexion angles.
+ - General cosmetic improvements, including improved use of defaults and better naming scheme.
 
 - Added :ref:`mju_boxQP` and allocation function :ref:`mju_boxQPmalloc` for solving the box-constrained
   Quadratic Program:
@@ -23,8 +31,8 @@ General
 
       x^* = \text{argmin} \; \tfrac{1}{2} x^T H x + x^T g \quad \text{s.t.} \quad l \le x \le u
 
-   - The algorithm, introduced in `Tassa et al. 2014 <https://doi.org/10.1109/ICRA.2014.6907001>`_,
-     converges after 2-5 Cholesky factorisations, independent of problem size.
+  The algorithm, introduced in `Tassa et al. 2014 <https://doi.org/10.1109/ICRA.2014.6907001>`_,
+  converges after 2-5 Cholesky factorisations, independent of problem size.
 - Added :ref:`mju_mulVecMatVec` to multiply a square matrix :math:`M` with vectors :math:`x` and :math:`y` on both
   sides. The function returns :math:`x^TMy`.
 
@@ -35,6 +43,8 @@ General
   as global overrides. Note the new mechanism is currently undocumented except in code, as we test it internally.
   If you are interested in using the pluging mechanism, please get in touch first.
 
+.. |LQRopenincolab| image:: https://colab.research.google.com/assets/colab-badge.svg
+                    :target: https://colab.research.google.com/github/deepmind/mujoco/blob/main/python/LQR.ipynb
 
 Version 2.2.2 (September 7, 2022)
 ---------------------------------
