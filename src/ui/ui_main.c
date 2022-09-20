@@ -2115,7 +2115,7 @@ mjuiItem* mjui_event(mjUI* ui, mjuiState* state, const mjrContext* con) {
   int item_cur = -1;
   mjuiItem* it_cur = NULL;
   findmouse(ui, state, con, &sect_cur, &item_cur);
-  if (sect_cur>0) {
+  if (sect_cur>0 && item_cur >= 0) {
     it_cur = ui->sect[sect_cur-1].item + item_cur;
   }
 

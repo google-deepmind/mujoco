@@ -86,9 +86,7 @@ class MJSIMULATEAPI Simulate {
   std::mutex mtx;
   std::condition_variable cond_loadrequest;
 
-  std::atomic_bool exitrequest = false;
-
-  // option
+  // options
   int spacing = 0;
   int color = 0;
   int font = 0;
@@ -102,23 +100,43 @@ class MJSIMULATEAPI Simulate {
   int vsync = 1;
   int busywait = 0;
 
-  // simulation
-  int run = 1;
   // keyframe index
   int key = 0;
-  std::atomic_int uiloadrequest = 0;
+
+  // simulation
+  int run = 1;
+
+  // atomics for cross-thread messages
+  std::atomic_bool exitrequest = false;
   std::atomic_bool droploadrequest = false;
-  // 2: render thread asked to update its model
-  // 1: showing "loading" label, about to load
-  // 0: model loaded or no load requested.
+  std::atomic_bool screenshotrequest = false;
+  std::atomic_int uiloadrequest = 0;
+
+  // loadrequest
+  //   2: render thread asked to update its model
+  //   1: showing "loading" label, about to load
+  //   0: model loaded or no load requested.
   int loadrequest = 0;
+
   // strings
   char loadError[kMaxFilenameLength] = "";
   char dropfilename[kMaxFilenameLength] = "";
   char filename[kMaxFilenameLength] = "";
   char previous_filename[kMaxFilenameLength] = "";
-  int slow_down = 1;
-  bool speed_changed = true;
+
+  // time synchronization
+  int realTimeIndex = 0;
+  bool speedChanged = true;
+  float measuredSlowdown = 1.0;
+  // logarithmically spaced realtime slow-down coefficients (percent)
+  static constexpr float percentRealTime[] = {
+      100, 80, 66,  50,  40, 33,  25,  20, 16,  13,
+      10,  8,  6.6, 5.0, 4,  3.3, 2.5, 2,  1.6, 1.3,
+      1,  .8, .66, .5,  .4, .33, .25, .2, .16, .13,
+     .1
+  };
+
+  // control noise
   double ctrlnoisestd = 0.0;
   double ctrlnoiserate = 0.0;
 
@@ -146,6 +164,7 @@ class MJSIMULATEAPI Simulate {
 
   // OpenGL rendering and UI
   GLFWvidmode vmode = {};
+  int refreshRate = 60;
   int windowpos[2] = {0};
   int windowsize[2] = {0};
   mjrContext con = {};

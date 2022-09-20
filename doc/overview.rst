@@ -119,8 +119,8 @@ Powerful yet intuitive modeling language
    MuJoCo has its own modeling language called MJCF. The goal of MJCF is to provide access to all of MuJoCo's compute
    capabilities, and at the same time enable users to develop new models quickly and experiment with them. This goal is
    achieved in large part due to an extensive :ref:`default setting <CDefault>` mechanism that resembles Cascading Style
-   Sheets (CSS) in HTML. While MJCF has many elements and attributes, the user needs to set surprisingly few of them in
-   any given model. This makes MJCF files shorter and more readable than many other formats.
+   Sheets (CSS) inlined in HTML. While MJCF has many elements and attributes, the user needs to set surprisingly few of
+   them in any given model. This makes MJCF files shorter and more readable than many other formats.
 
 Automated generation of composite flexible objects
    MuJoCo's soft constraints can be used to model ropes, cloth, and deformable 3D objects. This requires a large

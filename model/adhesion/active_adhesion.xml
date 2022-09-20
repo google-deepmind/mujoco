@@ -1,4 +1,8 @@
 <mujoco model="Active adhesion example">
+  <!--
+    Adding some fluid viscosity to prevent the hanging sphere from jiggling too much.
+  -->
+  <option viscosity="1"/>
 
   <size nconmax="500" njmax="1000"/>
 
@@ -8,12 +12,7 @@
 
   <default>
     <joint damping=".3" axis="0 1 0"/>
-    <!--
-      By adding 3mm of margin yet making solimp barely apply any force until 3mm penetration, we get
-      3mm of "action at a distance". This is important so that small changes in distance don't lead
-      to loss of adhesion
-    -->
-    <geom type="box" friction=".5" margin=".003" solimp="0 .99 .003 .9 6"/>
+    <geom type="box" friction=".5"/>
     <default class="wall">
       <geom rgba=".5 .5 .5 .4"/>
     </default>
@@ -22,7 +21,12 @@
       <tendon rgba=".5 .5 .8 1"/>
     </default>
     <default class="active_adhesion">
-      <geom rgba=".8 .5 .5 1"/>
+      <!--
+        Geoms in the active_adhesion class are "inflated" with a margin of 1cm, but contacts are
+        activated only at a depth gap of 1cm, leading to a layer of inactive contacts at a 1cm
+        distance from the surface. However the contacts can be used by the adhesion actuator.
+      -->
+      <geom rgba=".8 .5 .5 1" margin=".01" gap=".01"/>
     </default>
     <default class="object">
       <geom rgba=".5 .8 .5 1" density="100"/>
@@ -77,18 +81,15 @@
     <site name="hook_left" pos=".08 0 .3"/>
     <site name="hook_right" pos=".12 0 .3"/>
     <body name="sphere" pos=".1 0 .2" childclass="active_adhesion">
-      <!--
-        Note we are adding damping to a free joint. This is an easy yet unphysical way to prevent
-        the sphere from jiggling too much on the winch tendons. An alternative would be to add fluid
-        density or viscosity.
-      -->
-      <joint type="free" damping=".1"/>
+      <freejoint/>
       <!--
         The composite balls in the crate have only 3 linear DoFs with condim=1, effectively
         frictionless point particles. In order to make them stick to the sphere we give the sphere
         priority 2, to force condim=3.
+
+        Also note the sphere has a margin+gap of 3cm as opposed to the 1cm of the arm box.
       -->
-      <geom type="sphere" size=".03" priority="2"/>
+      <geom type="sphere" size=".03" priority="2" margin=".03" gap=".03"/>
       <site name="pin_left" pos="-.025 0 .025"/>
       <site name="pin_right" pos=".025 0 .025"/>
     </body>
@@ -127,9 +128,9 @@
   <actuator>
     <position name="conveyor" joint="conveyor" ctrlrange="-.2 .2" ctrllimited="true" kp="400"/>
     <position name="arm" joint="arm2" ctrlrange="-.8 1" ctrllimited="true" kp="10"/>
-    <adhesion name="adhere_arm" body="4boxes" ctrlrange="0 1" gain="20"/>
+    <adhesion name="adhere_arm" body="4boxes" ctrlrange="0 1" gain="5"/>
     <position name="winch" joint="winch" ctrlrange="-.7 .5" ctrllimited="true" kp="10"/>
-    <adhesion name="adhere_winch" body="sphere" ctrlrange="0 1" gain="20"/>
+    <adhesion name="adhere_winch" body="sphere" ctrlrange="0 1" gain="5"/>
   </actuator>
 
   <sensor>

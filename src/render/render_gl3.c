@@ -491,7 +491,11 @@ static void initGL3(const mjvScene* scn, const mjrContext* con) {
   glEnable(GL_NORMALIZE);
   glEnable(GL_DEPTH_TEST);
   glDepthMask(GL_TRUE);
-  glEnable(GL_CULL_FACE);
+  if (scn->flags[mjRND_CULL_FACE]) {
+    glEnable(GL_CULL_FACE);
+  } else {
+    glDisable(GL_CULL_FACE);
+  }
   glShadeModel(GL_SMOOTH);
   glDepthFunc(GL_LEQUAL);
   glDepthRange(0, 1);

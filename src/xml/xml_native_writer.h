@@ -37,6 +37,7 @@ class mjXWriter : public mjXBase {
   void Visual(tinyxml2::XMLElement* root);                      // visual section
   void Statistic(tinyxml2::XMLElement* root);                   // statistic section
   void Default(tinyxml2::XMLElement* root, mjCDef* def);        // default section
+  void Extension(tinyxml2::XMLElement* root);                   // extension section
   void Custom(tinyxml2::XMLElement* root);                      // custom section
   void Asset(tinyxml2::XMLElement* root);                       // asset section
   void Body(tinyxml2::XMLElement* elem, mjCBody* body);         // body/world section

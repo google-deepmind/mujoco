@@ -48,6 +48,38 @@ extern "C" {
 using std::string;
 using std::vector;
 
+// compute triangle area, surface normal, center
+static mjtNum _triangle(mjtNum* normal, mjtNum* center,
+                        const float* v1, const float* v2, const float* v3) {
+  // center
+  if (center) {
+    for (int i=0; i<3; i++) {
+      center[i] = (v1[i] + v2[i] + v3[i])/3;
+    }
+  }
+
+  // normal = (v2-v1) cross (v3-v1)
+  double b[3] = { v2[0]-v1[0], v2[1]-v1[1], v2[2]-v1[2] };
+  double c[3] = { v3[0]-v1[0], v3[1]-v1[1], v3[2]-v1[2] };
+  mju_cross(normal, b, c);
+
+  // get length
+  double len = mju_norm3(normal);
+
+  // ignore small faces
+  if (len<mjMINVAL) {
+    return 0;
+  }
+
+  // normalize
+  normal[0] /= len;
+  normal[1] /= len;
+  normal[2] /= len;
+
+  // return area
+  return len/2;
+}
+
 //------------------ class mjCMesh implementation --------------------------------------------------
 
 // constructor
@@ -81,6 +113,12 @@ mjCMesh::mjCMesh(mjCModel* _model, mjCDef* _def) {
   face = NULL;
   graph = NULL;
   needhull = false;
+  validorientation = true;
+  validarea = true;
+  validvolume = true;
+  valideigenvalue = true;
+  validinequality = true;
+  processed = false;
 
   // reset to default if given
   if (_def) {
@@ -122,12 +160,12 @@ void mjCMesh::Compile(const mjVFS* vfs) {
     }
 
     // load STL, OBJ or MSH
-    string ext = file.substr(file.size()-3, 3);
-    if (!strcasecmp(ext.c_str(), "stl")) {
+    string ext = mjuu_getext(file);
+    if (!strcasecmp(ext.c_str(), ".stl")) {
       LoadSTL(vfs);
-    } else if (!strcasecmp(ext.c_str(), "obj")) {
+    } else if (!strcasecmp(ext.c_str(), ".obj")) {
       LoadOBJ(vfs);
-    } else if (!strcasecmp(ext.c_str(), "msh")) {
+    } else if (!strcasecmp(ext.c_str(), ".msh")) {
       LoadMSH(vfs);
     } else {
       throw mjCError(this, "Unknown mesh file type: %s", file.c_str());
@@ -206,15 +244,27 @@ void mjCMesh::Compile(const mjVFS* vfs) {
     face = (int*) mju_malloc(3*nface*sizeof(int));
     memcpy(face, userface.data(), 3*nface*sizeof(int));
 
+    // check vertices exist
+    for (auto vertex_index : userface) {
+      if (vertex_index>=nvert || vertex_index < 0) {
+        throw mjCError(this, "found index in userface that exceeds uservert size.");
+      }
+    }
+
     // create half-edge structure (if mesh was in XML)
     if (useredge.empty()) {
       for (int i=0; i<nface; i++) {
         int v0 = userface[3*i+0];
         int v1 = userface[3*i+1];
         int v2 = userface[3*i+2];
-        useredge.push_back(std::pair(v0, v1));
-        useredge.push_back(std::pair(v1, v2));
-        useredge.push_back(std::pair(v2, v0));
+        mjtNum normal[3];
+        if (_triangle(normal, nullptr, vert+3*v0, vert+3*v1, vert+3*v2)>sqrt(mjMINVAL)) {
+          useredge.push_back(std::pair(v0, v1));
+          useredge.push_back(std::pair(v1, v2));
+          useredge.push_back(std::pair(v2, v0));
+        } else {
+          mju_warning("Degenerate triangle found, its orientation will not be checked.");
+        }
       }
     }
   }
@@ -223,8 +273,9 @@ void mjCMesh::Compile(const mjVFS* vfs) {
   if (!useredge.empty()) {
     std::sort(useredge.begin(), useredge.end());
     auto iterator = std::adjacent_find(useredge.begin(), useredge.end());
-    if (iterator != useredge.end())
-      throw mjCError(this, "faces have inconsistent orientation");
+    if (iterator != useredge.end()) {
+      validorientation = false;
+    }
   }
 
   // require vertices
@@ -249,6 +300,7 @@ void mjCMesh::Compile(const mjVFS* vfs) {
 
   // scale, center, orient, compute mass and inertia
   Process();
+  processed = true;
 }
 
 
@@ -532,7 +584,7 @@ void mjCMesh::LoadOBJ(const mjVFS* vfs) {
     std::stringstream msg;
     msg << "could not parse OBJ file '" << filename << "': \n"
         << objReader.Error();
-    throw mjCError(this, msg.str().c_str());
+    throw mjCError(this, "%s", msg.str().c_str());
   }
 
   auto attrib = objReader.GetAttrib();
@@ -546,6 +598,7 @@ void mjCMesh::LoadOBJ(const mjVFS* vfs) {
     bool has_normals = !attrib.normals.empty();
     bool has_texcoords = !attrib.texcoords.empty();
     bool righthand = (scale[0]*scale[1]*scale[2] > 0);
+
     // iterate over mesh faces
     int index_in_mesh_indices = 0;
     for (int face = 0; face < mesh.num_face_vertices.size(); face++) {
@@ -554,6 +607,7 @@ void mjCMesh::LoadOBJ(const mjVFS* vfs) {
             this, "only tri or quad meshes are supported for OBJ (file '%s')",
             filename.c_str());
       }
+
       // add face
       std::vector<std::array<tinyobj::index_t, 3>> faces;
       tinyobj::index_t v0 = mesh.indices[index_in_mesh_indices];
@@ -561,18 +615,12 @@ void mjCMesh::LoadOBJ(const mjVFS* vfs) {
       tinyobj::index_t v2 = mesh.indices[index_in_mesh_indices+2];
       std::array<tinyobj::index_t, 3> face1 = {v0, v1, v2};
       faces.push_back(face1);
-      // add edges
-      useredge.push_back(std::pair(v0.vertex_index, v1.vertex_index));
-      useredge.push_back(std::pair(v1.vertex_index, v2.vertex_index));
-      useredge.push_back(std::pair(v2.vertex_index, v0.vertex_index));
+
       // handle quad: add second triangle with 4th vertex
       if (mesh.num_face_vertices[face] == 4) {
         tinyobj::index_t v3 = mesh.indices[index_in_mesh_indices+3];
         std::array<tinyobj::index_t, 3> face2 = {v0, v2, v3};
         faces.push_back(face2);
-        useredge.push_back(std::pair(v0.vertex_index, v2.vertex_index));
-        useredge.push_back(std::pair(v2.vertex_index, v3.vertex_index));
-        useredge.push_back(std::pair(v3.vertex_index, v0.vertex_index));
       }
       for (const auto& face_indices : faces) {
         int index_of_first_vertex = uservert.size()/3;
@@ -582,6 +630,7 @@ void mjCMesh::LoadOBJ(const mjVFS* vfs) {
               uservert.end(),
               attrib.vertices.begin() + 3*tinyobj_index.vertex_index,
               attrib.vertices.begin() + 3*tinyobj_index.vertex_index + 3);
+
           // for each vertex, add its normal
           if (has_normals) {
             usernormal.insert(
@@ -589,6 +638,7 @@ void mjCMesh::LoadOBJ(const mjVFS* vfs) {
                 attrib.normals.begin() + 3*tinyobj_index.normal_index,
                 attrib.normals.begin() + 3*tinyobj_index.normal_index + 3);
           }
+
           // for each vertex, add two entries to usertexcoord
           if (has_texcoords) {
             usertexcoord.push_back(
@@ -597,14 +647,33 @@ void mjCMesh::LoadOBJ(const mjVFS* vfs) {
                 1-attrib.texcoords[2*tinyobj_index.texcoord_index + 1]);
           }
         }
-        // add vertex indices (in uservert) to userface
-        userface.push_back(index_of_first_vertex);
-        if (righthand) {
-          userface.push_back(index_of_first_vertex+1);
-          userface.push_back(index_of_first_vertex+2);
+        int i0 = index_of_first_vertex;
+        int i1 = index_of_first_vertex+1;
+        int i2 = index_of_first_vertex+2;
+
+        // add edges
+        const float *v0 = uservert.data() + 3*i0;
+        const float *v1 = uservert.data() + 3*i1;
+        const float *v2 = uservert.data() + 3*i2;
+        mjtNum normal[3];
+
+        // only consider edges if the face contribution is significant
+        if (_triangle(normal, nullptr, v0, v1, v2)>sqrt(mjMINVAL)) {
+          useredge.push_back(std::pair(face_indices[0].vertex_index, face_indices[1].vertex_index));
+          useredge.push_back(std::pair(face_indices[1].vertex_index, face_indices[2].vertex_index));
+          useredge.push_back(std::pair(face_indices[2].vertex_index, face_indices[0].vertex_index));
         } else {
-          userface.push_back(index_of_first_vertex+2);
-          userface.push_back(index_of_first_vertex+1);
+          mju_warning("Degenerate triangle found, its orientation will not be checked.");
+        }
+
+        // add vertex indices (in uservert) to userface
+        userface.push_back(i0);
+        if (righthand) {
+          userface.push_back(i1);
+          userface.push_back(i2);
+        } else {
+          userface.push_back(i2);
+          userface.push_back(i1);
         }
       }
       index_in_mesh_indices += mesh.num_face_vertices[face];
@@ -623,36 +692,41 @@ void mjCMesh::LoadOBJ(const mjVFS* vfs) {
 // load STL binary mesh
 void mjCMesh::LoadSTL(const mjVFS* vfs) {
   bool righthand = (scale[0]*scale[1]*scale[2]>0);
-  int i, j;
 
   // make filename
   string filename = mjuu_makefullname(model->modelfiledir, model->meshdir, file);
 
   // get file data in buffer
   char* buffer = 0;
-  int buffer_sz = 0, flag_existing = 0;
+  int buffer_sz = 0;
+  bool own_buffer = false;
   if (vfs) {
     int id = mj_findFileVFS(vfs, filename.c_str());
     if (id>=0) {
       buffer = (char*)vfs->filedata[id];
       buffer_sz = vfs->filesize[id];
-      flag_existing = 1;
     }
   }
 
   // if not found in vfs, read from file
   if (!buffer) {
     buffer = (char*) mju_fileToMemory(filename.c_str(), &buffer_sz);
+    own_buffer = true;
   }
 
   // still not found
-  if (!buffer || !buffer_sz) {
+  if (!buffer) {
     throw mjCError(this, "could not open STL file '%s'", filename.c_str());
+  } else if (!buffer_sz) {
+    if (own_buffer) {
+      mju_free(buffer);
+    }
+    throw mjCError(this, "STL file '%s' is empty", filename.c_str());
   }
 
   // make sure there is enough data for header
   if (buffer_sz<84) {
-    if (!flag_existing) {
+    if (own_buffer) {
       mju_free(buffer);
     }
 
@@ -662,7 +736,7 @@ void mjCMesh::LoadSTL(const mjVFS* vfs) {
   // get number of triangles, check bounds
   nface = *(unsigned int*)(buffer+80);
   if (nface<1 || nface>200000) {
-    if (!flag_existing) {
+    if (own_buffer) {
       mju_free(buffer);
     }
 
@@ -673,7 +747,7 @@ void mjCMesh::LoadSTL(const mjVFS* vfs) {
 
   // check remaining buffer size
   if (nface*50 != buffer_sz-84) {
-    if (!flag_existing) {
+    if (own_buffer) {
       mju_free(buffer);
     }
 
@@ -690,20 +764,29 @@ void mjCMesh::LoadSTL(const mjVFS* vfs) {
   vert = (float*) mju_malloc(9*nface*sizeof(float));
 
   // add vertices and faces, including repeated for now
-  for (i=0; i<nface; i++) {
-    for (j=0; j<3; j++) {
+  for (int i=0; i<nface; i++) {
+    for (int j=0; j<3; j++) {
       // get pointer to vertex coordiates
       float* v = (float*)(stl+50*i+12*(j+1));
+      for (int k=0; k < 3; k++) {
+        if (std::isnan(v[k]) || std::isinf(v[k])) {
+          if (own_buffer) {
+            mju_free(buffer);
+          }
 
-      // check if vertex coordinates can be cast to an int safely
-      if (fabs(v[0])>pow(2, 30) || fabs(v[1])>pow(2, 30) || fabs(v[2])>pow(2, 30)) {
-        if (!flag_existing) {
-          mju_free(buffer);
+          throw mjCError(this, "STL file '%s' contains invalid vertices.",
+                         filename.c_str());
         }
+        // check if vertex coordinates can be cast to an int safely
+        if (fabs(v[k])>pow(2, 30)) {
+          if (own_buffer) {
+            mju_free(buffer);
+          }
 
-        throw mjCError(this,
-                      "vertex coordinates in STL file '%s' exceed maximum bounds",
-                      filename.c_str());
+          throw mjCError(this,
+                        "vertex coordinates in STL file '%s' exceed maximum bounds",
+                        filename.c_str());
+        }
       }
 
       // add vertex address in face; change order if scale makes it lefthanded
@@ -720,7 +803,7 @@ void mjCMesh::LoadSTL(const mjVFS* vfs) {
   }
 
   // free buffer if allocated here
-  if (!flag_existing) {
+  if (own_buffer) {
     mju_free(buffer);
   }
 
@@ -738,29 +821,35 @@ void mjCMesh::LoadMSH(const mjVFS* vfs) {
 
   // get file data in buffer
   char* buffer = 0;
-  int buffer_sz = 0, flag_existing = 0;
+  int buffer_sz = 0;
+  bool own_buffer = false;
   if (vfs) {
     int id = mj_findFileVFS(vfs, filename.c_str());
     if (id>=0) {
       buffer = (char*)vfs->filedata[id];
       buffer_sz = vfs->filesize[id];
-      flag_existing = 1;
     }
   }
 
   // if not found in vfs, read from file
   if (!buffer) {
     buffer = (char*) mju_fileToMemory(filename.c_str(), &buffer_sz);
+    own_buffer = true;
   }
 
   // still not found
-  if (!buffer || !buffer_sz) {
+  if (!buffer) {
     throw mjCError(this, "could not open MSH file '%s'", filename.c_str());
+  } else if (!buffer_sz) {
+    if (own_buffer) {
+      mju_free(buffer);
+    }
+    throw mjCError(this, "MSH file '%s' is empty", filename.c_str());
   }
 
   // make sure header is present
   if (buffer_sz<4*sizeof(int)) {
-    if (!flag_existing) {
+    if (own_buffer) {
       mju_free(buffer);
     }
     throw mjCError(this, "missing header in MSH file '%s'", filename.c_str());
@@ -776,7 +865,7 @@ void mjCMesh::LoadMSH(const mjVFS* vfs) {
   if (nvert<4 || nface<0 || nnormal<0 || ntexcoord<0 ||
       (nnormal>0 && nnormal!=nvert) ||
       (ntexcoord>0 && ntexcoord!=nvert)) {
-    if (!flag_existing) {
+    if (own_buffer) {
       mju_free(buffer);
     }
     throw mjCError(this, "invalid sizes in MSH file '%s'", filename.c_str());
@@ -785,7 +874,7 @@ void mjCMesh::LoadMSH(const mjVFS* vfs) {
   // check file size
   if (buffer_sz != 4*sizeof(int) + 3*nvert*sizeof(float) + 3*nnormal*sizeof(float) +
       2*ntexcoord*sizeof(float) + 3*nface*sizeof(int)) {
-    if (!flag_existing) {
+    if (own_buffer) {
       mju_free(buffer);
     }
     throw mjCError(this, "unexpected file size in MSH file '%s'", filename.c_str());
@@ -824,46 +913,11 @@ void mjCMesh::LoadMSH(const mjVFS* vfs) {
   }
 
   // free buffer if allocated here
-  if (!flag_existing) {
+  if (own_buffer) {
     mju_free(buffer);
   }
 }
 
-
-
-// compute triangle area, surface normal, center
-static double _areaNrmCen(double* normal, double* center,
-                          const float* v1, const float* v2, const float* v3) {
-  // center
-  if (center) {
-    for (int i=0; i<3; i++) {
-      center[i] = (v1[i] + v2[i] + v3[i])/3;
-    }
-  }
-
-  // normal = (v2-v1) cross (v3-v1)
-  double b[3] = { v2[0]-v1[0], v2[1]-v1[1], v2[2]-v1[2] };
-  double c[3] = { v3[0]-v1[0], v3[1]-v1[1], v3[2]-v1[2] };
-  normal[0] = b[1]*c[2] - b[2]*c[1];
-  normal[1] = b[2]*c[0] - b[0]*c[2];
-  normal[2] = b[0]*c[1] - b[1]*c[0];
-
-  // get length
-  double len = sqrt(normal[0]*normal[0] + normal[1]*normal[1] + normal[2]*normal[2]);
-
-  // ignore small faces
-  if (len<mjMINVAL) {
-    return 0;
-  }
-
-  // normalize
-  normal[0] /= len;
-  normal[1] /= len;
-  normal[2] /= len;
-
-  // return area
-  return len/2;
-}
 
 
 // apply transformations
@@ -912,7 +966,7 @@ void mjCMesh::Process() {
           vert[3*i+1] = (float) p1[1];
           vert[3*i+2] = (float) p1[2];
 
-          // nromals
+          // normals
           mjtNum n1[3], n0[3] = {normal[3*i], normal[3*i+1], normal[3*i+2]};
           mju_rotVecMatT(n1, n0, mat);
           normal[3*i] = (float) n1[0];
@@ -964,7 +1018,7 @@ void mjCMesh::Process() {
         }
 
         // get area and center
-        double a = _areaNrmCen(nrm, cen, vert+3*face[3*i], vert+3*face[3*i+1], vert+3*face[3*i+2]);
+        double a = _triangle(nrm, cen, vert+3*face[3*i], vert+3*face[3*i+1], vert+3*face[3*i+2]);
 
         // accumulate
         for (j=0; j<3; j++) {
@@ -975,7 +1029,8 @@ void mjCMesh::Process() {
 
       // require positive area
       if (area < mjMINVAL) {
-        throw mjCError(this, "mesh surface area is too small: %s", name.c_str());
+        validarea = false;
+        return;
       }
 
       // finalize centroid of faces
@@ -988,7 +1043,7 @@ void mjCMesh::Process() {
     GetVolumeRef(type) = 0;
     for (i=0; i<nface; i++) {
       // get area, normal and center
-      double a = _areaNrmCen(nrm, cen, vert+3*face[3*i], vert+3*face[3*i+1], vert+3*face[3*i+2]);
+      double a = _triangle(nrm, cen, vert+3*face[3*i], vert+3*face[3*i+1], vert+3*face[3*i+2]);
 
       // compute and add volume
       const double vec[3] = {cen[0]-facecen[0], cen[1]-facecen[1], cen[2]-facecen[2]};
@@ -1008,7 +1063,8 @@ void mjCMesh::Process() {
 
     // require positive volume
     if (GetVolumeRef(type) < mjMINVAL) {
-      throw mjCError(this, "mesh volume is too small: %s", name.c_str());
+      validvolume = false;
+      return;
     }
 
     // finalize CoM, save as mesh center
@@ -1036,7 +1092,7 @@ void mjCMesh::Process() {
       float* F = vert+3*face[3*i+2];
 
       // get area, normal and center; update volume
-      double a = _areaNrmCen(nrm, cen, D, E, F);
+      double a = _triangle(nrm, cen, D, E, F);
       double vol = type==mjSHELL_MESH ? a : mjuu_dot3(cen, nrm) * a / 3;
 
       // if legacy computation requested, then always positive
@@ -1077,13 +1133,14 @@ void mjCMesh::Process() {
 
     // check eigval - SHOULD NOT OCCUR
     if (eigval[2]<=0) {
-      throw mjCError(this, "eigenvalue of mesh inertia must be positive: %s", name.c_str());
+      valideigenvalue = false;
+      return;
     }
     if (eigval[0] + eigval[1] < eigval[2] ||
         eigval[0] + eigval[2] < eigval[1] ||
         eigval[1] + eigval[2] < eigval[0]) {
-      throw mjCError(this,
-                    "eigenvalues of mesh inertia violate A + B >= C condition: %s", name.c_str());
+      validinequality = false;
+      return;
     }
 
     // compute sizes of equivalent inertia box
@@ -1132,22 +1189,34 @@ void mjCMesh::Process() {
 }
 
 
-// compute inertia
-double* mjCMesh::GetInertiaBoxPtr(mjtMeshType type) {
-  if (type==mjSHELL_MESH) {
-    return boxsz_surface;
-  } else {
-    return boxsz_volume;
+// check that the mesh is valid
+void mjCMesh::CheckMesh() {
+  if (!processed) {
+    return;
   }
+  if (!validorientation)
+    throw mjCError(this, "faces have inconsistent orientation: %s", name.c_str());
+  if (!validarea)
+    throw mjCError(this, "mesh surface area is too small: %s", name.c_str());
+  if (!validvolume)
+    throw mjCError(this, "mesh volume is too small: %s", name.c_str());
+  if (!valideigenvalue)
+    throw mjCError(this, "eigenvalue of mesh inertia must be positive: %s", name.c_str());
+  if (!validinequality)
+    throw mjCError(this, "eigenvalues of mesh inertia violate A + B >= C: %s", name.c_str());
+}
+
+
+// get inertia pointer
+double* mjCMesh::GetInertiaBoxPtr(mjtMeshType type) {
+  CheckMesh();
+  return type==mjSHELL_MESH ? boxsz_surface : boxsz_volume;
 }
 
 
 double& mjCMesh::GetVolumeRef(mjtMeshType type) {
-  if (type) {
-    return surface;
-  } else {
-    return volume;
-  }
+  CheckMesh();
+  return type==mjSHELL_MESH ? surface : volume;
 }
 
 
@@ -1552,8 +1621,8 @@ void mjCSkin::Compile(const mjVFS* vfs) {
     }
 
     // load SKN
-    string ext = file.substr(file.size()-3, 3);
-    if (!strcasecmp(ext.c_str(), "skn")) {
+    string ext = mjuu_getext(file);
+    if (!strcasecmp(ext.c_str(), ".skn")) {
       LoadSKN(vfs);
     } else {
       throw mjCError(this, "Unknown skin file type: %s", file.c_str());
@@ -1682,29 +1751,35 @@ void mjCSkin::LoadSKN(const mjVFS* vfs) {
 
   // get file data in buffer
   char* buffer = NULL;
-  int buffer_sz = 0, flag_existing = 0;
+  int buffer_sz = 0;
+  bool own_buffer = false;
   if (vfs) {
     int id = mj_findFileVFS(vfs, filename.c_str());
     if (id>=0) {
       buffer = (char*)vfs->filedata[id];
       buffer_sz = vfs->filesize[id];
-      flag_existing = 1;
     }
   }
 
   // if not found in vfs, read from file
   if (!buffer) {
     buffer = (char*) mju_fileToMemory(filename.c_str(), &buffer_sz);
+    own_buffer = true;
   }
 
   // still not found
-  if (!buffer || !buffer_sz) {
+  if (!buffer) {
     throw mjCError(this, "could not open SKN file '%s'", filename.c_str());
+  } else if (!buffer_sz) {
+    if (own_buffer) {
+      mju_free(buffer);
+    }
+    throw mjCError(this, "SKN file '%s' is empty", filename.c_str());
   }
 
   // make sure header is present
   if (buffer_sz<16) {
-    if (!flag_existing) {
+    if (own_buffer) {
       mju_free(buffer);
     }
     throw mjCError(this, "missing header in SKN file '%s'", filename.c_str());
@@ -1718,7 +1793,7 @@ void mjCSkin::LoadSKN(const mjVFS* vfs) {
 
   // negative sizes not allowed
   if (nvert<0 || ntexcoord<0 || nface<0 || nbone<0) {
-    if (!flag_existing) {
+    if (own_buffer) {
       mju_free(buffer);
     }
     throw mjCError(this, "negative size in header of SKN file '%s'", filename.c_str());
@@ -1726,7 +1801,7 @@ void mjCSkin::LoadSKN(const mjVFS* vfs) {
 
   // make sure we have data for vert, texcoord, face
   if (buffer_sz < 16 + 12*nvert + 8*ntexcoord + 12*nface) {
-    if (!flag_existing) {
+    if (own_buffer) {
       mju_free(buffer);
     }
     throw mjCError(this, "insufficient data in SKN file '%s'", filename.c_str());
@@ -1768,7 +1843,7 @@ void mjCSkin::LoadSKN(const mjVFS* vfs) {
   for (int i=0; i<nbone; i++) {
     // check size
     if (buffer_sz/4-4-cnt < 18) {
-      if (!flag_existing) {
+      if (own_buffer) {
         mju_free(buffer);
       }
       throw mjCError(this, "insufficient data in SKN file '%s', bone %d", filename.c_str(), i);
@@ -1795,7 +1870,7 @@ void mjCSkin::LoadSKN(const mjVFS* vfs) {
 
     // check for negative
     if (vcount<1) {
-      if (!flag_existing) {
+      if (own_buffer) {
         mju_free(buffer);
       }
       throw mjCError(this, "vertex count must be positive in SKN file '%s', bone %d",
@@ -1804,7 +1879,7 @@ void mjCSkin::LoadSKN(const mjVFS* vfs) {
 
     // check size
     if (buffer_sz/4-4-cnt < 2*vcount) {
-      if (!flag_existing) {
+      if (own_buffer) {
         mju_free(buffer);
       }
       throw mjCError(this, "insufficient vertex data in SKN file '%s', bone %d",
@@ -1823,7 +1898,7 @@ void mjCSkin::LoadSKN(const mjVFS* vfs) {
   }
 
   // free buffer if allocated here
-  if (!flag_existing) {
+  if (own_buffer) {
     mju_free(buffer);
   }
 

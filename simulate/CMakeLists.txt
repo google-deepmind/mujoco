@@ -22,9 +22,14 @@ set(CMAKE_POLICY_DEFAULT_CMP0072 NEW)
 # This line has to appear before 'PROJECT' in order to be able to disable incremental linking
 set(MSVC_INCREMENTAL_DEFAULT ON)
 
+set(MUJOCO_DEP_VERSION_lodepng
+    b4ed2cd7ecf61d29076169b49199371456d4f90b
+    CACHE STRING "Version of `lodepng` to be fetched."
+)
+
 project(
   mujoco_simulate
-  VERSION 2.2.1
+  VERSION 2.2.2
   DESCRIPTION "MuJoCo simulate binaries"
   HOMEPAGE_URL "https://mujoco.org"
 )
@@ -71,32 +76,57 @@ if(MUJOCO_HARDEN)
   endif()
 endif()
 
-# mjsimulate library
-add_library(mjsimulate STATIC)
+# Fetch lodepng dependency.
+if(NOT TARGET lodepng)
+  FetchContent_Declare(
+    lodepng
+    GIT_REPOSITORY https://github.com/lvandeve/lodepng.git
+    GIT_TAG ${MUJOCO_DEP_VERSION_lodepng}
+  )
+
+  FetchContent_GetProperties(lodepng)
+  if(NOT lodepng_POPULATED)
+    FetchContent_Populate(lodepng)
+    # This is not a CMake project.
+    set(LODEPNG_SRCS ${lodepng_SOURCE_DIR}/lodepng.cpp)
+    set(LODEPNG_HEADERS ${lodepng_SOURCE_DIR}/lodepng.h)
+    add_library(lodepng STATIC ${LODEPNG_HEADERS} ${LODEPNG_SRCS})
+    target_compile_options(lodepng PRIVATE ${MUJOCO_MACOS_COMPILE_OPTIONS})
+    target_link_options(lodepng PRIVATE ${MUJOCO_MACOS_LINK_OPTIONS})
+    target_include_directories(lodepng PUBLIC ${lodepng_SOURCE_DIR})
+  endif()
+endif()
+
+# Simulate library
+add_library(libsimulate STATIC)
+add_library(mujoco::libsimulate ALIAS libsimulate)
+
 target_sources(
-  mjsimulate
+  libsimulate
   PUBLIC simulate.h
          array_safety.h
+         glfw_dispatch.h
+         glfw_dispatch.cc
          simulate.cc
          uitools.h
-         uitools.c
+         uitools.cc
 )
-target_include_directories(mjsimulate PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-target_compile_definitions(mjsimulate PUBLIC MJSIMULATE_STATIC)
-target_compile_options(mjsimulate PUBLIC ${MUJOCO_SIMULATE_COMPILE_OPTIONS})
-target_link_libraries(mjsimulate PUBLIC glfw mujoco::mujoco)
-target_link_options(mjsimulate PRIVATE ${MUJOCO_SIMULATE_LINK_OPTIONS})
+target_include_directories(libsimulate PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_compile_definitions(libsimulate PUBLIC MJSIMULATE_STATIC)
+target_compile_options(libsimulate PUBLIC ${MUJOCO_SIMULATE_COMPILE_OPTIONS})
+target_link_libraries(libsimulate PUBLIC glfw lodepng mujoco::mujoco)
+target_link_options(libsimulate PRIVATE ${MUJOCO_SIMULATE_LINK_OPTIONS})
 
 if(APPLE)
-  target_sources(mjsimulate PRIVATE macos_save.mm)
-  target_link_libraries(mjsimulate PUBLIC "-framework Cocoa")
+  target_sources(libsimulate PRIVATE macos_save.mm)
+  target_link_libraries(libsimulate PUBLIC "-framework Cocoa")
 endif()
 
 # Build simulate executable
 if(APPLE)
   set(SIMULATE_RESOURCE_FILES ${CMAKE_CURRENT_SOURCE_DIR}/../dist/mujoco.icns)
 elseif(WIN32)
-  set(SIMULATE_RESOURCE_FILES ${CMAKE_CURRENT_SOURCE_DIR}/../dist/appicon.rc)
+  set(SIMULATE_RESOURCE_FILES ${CMAKE_CURRENT_SOURCE_DIR}/../dist/simulate.rc)
 else()
   set(SIMULATE_RESOURCE_FILES "")
 endif()
@@ -116,10 +146,11 @@ endif()
 
 target_link_libraries(
   simulate
-  mjsimulate
+  libsimulate
   mujoco::mujoco
   glfw
   Threads::Threads
+  lodepng
 )
 
 target_link_options(simulate PRIVATE ${MUJOCO_SIMULATE_LINK_OPTIONS})

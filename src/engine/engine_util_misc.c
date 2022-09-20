@@ -831,6 +831,9 @@ const char* mju_type2Str(int type) {
   case mjOBJ_KEY:
     return "key";
 
+  case mjOBJ_PLUGIN:
+    return "plugin";
+
   default:
     return 0;
   }
@@ -930,6 +933,10 @@ int mju_str2Type(const char* str) {
 
   else if (!strcmp(str, "key")) {
     return mjOBJ_KEY;
+  }
+
+  else if (!strcmp(str, "plugin")) {
+    return mjOBJ_PLUGIN;
   }
 
   else {

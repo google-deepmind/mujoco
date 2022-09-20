@@ -75,13 +75,13 @@ if(NOT TARGET mujoco)
     find_path(MUJOCO_FRAMEWORK mujoco.Framework HINTS ${MUJOCO_FRAMEWORK_DIR})
     if(MUJOCO_FRAMEWORK)
       message("MuJoCo framework is at ${MUJOCO_FRAMEWORK}/mujoco.framework")
-      set(MUJOCO_LIBRARY ${MUJOCO_FRAMEWORK}/mujoco.framework/Versions/A/libmujoco.2.2.1.dylib)
+      set(MUJOCO_LIBRARY ${MUJOCO_FRAMEWORK}/mujoco.framework/Versions/A/libmujoco.2.2.2.dylib)
       target_compile_options(mujoco INTERFACE -F${MUJOCO_FRAMEWORK})
     endif()
   endif()
 
   if(NOT MUJOCO_FRAMEWORK)
-    find_library(MUJOCO_LIBRARY mujoco mujoco.2.2.1 HINTS ${MUJOCO_LIBRARY_DIR} REQUIRED)
+    find_library(MUJOCO_LIBRARY mujoco mujoco.2.2.2 HINTS ${MUJOCO_LIBRARY_DIR} REQUIRED)
     find_path(MUJOCO_INCLUDE mujoco/mujoco.h HINTS ${MUJOCO_INCLUDE_DIR} REQUIRED)
     message("MuJoCo is at ${MUJOCO_LIBRARY}")
     message("MuJoCo headers are at ${MUJOCO_INCLUDE}")
@@ -127,7 +127,7 @@ findorfetch(
   GIT_REPO
   https://github.com/abseil/abseil-cpp
   GIT_TAG
-  78f9680225b9792c26dfdd99d0bd26c96de53dd4 # # Fixes universal builds for macOS
+  8c0b94e793a66495e0b1f34a5eb26bd7dc672db0 # LTS 20220623.1
   TARGETS
   ${MUJOCO_PYTHON_ABSL_TARGETS}
   EXCLUDE_FROM_ALL
@@ -160,7 +160,7 @@ findorfetch(
   GIT_REPO
   https://gitlab.com/libeigen/eigen
   GIT_TAG
-  3147391d946bb4b6c68edd901f2add6ac1f31f8c # 3.4.0
+  34780d8bd13d0af0cf17a22789ef286e8512594d
   TARGETS
   Eigen3::Eigen
   EXCLUDE_FROM_ALL
@@ -177,7 +177,7 @@ findorfetch(
   GIT_REPO
   https://github.com/pybind/pybind11
   GIT_TAG
-  a8f1a5567608f346bdba293b3d062a288ee16cd4
+  6df86934c258d8cd99acf192f6d3f4d1289b5d68
   TARGETS
   pybind11::pybind11_headers
   EXCLUDE_FROM_ALL

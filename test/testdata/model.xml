@@ -2,6 +2,7 @@
   <option iterations="10" tolerance="0" gravity="-1 0 -10" jacobian="dense">
     <flag fwdinv="enable" energy="enable"/>
   </option>
+
   <asset>
     <mesh name="icosahedron" scale=".05 .05 .05"
           vertex="0         1       1.618
@@ -18,6 +19,7 @@
                  -1.618     0      -1"/>
     <hfield name="hfield" nrow="3" ncol="3" size=".2 .2 .1 .03"/>
   </asset>
+
   <default>
     <site rgba=".5 .5 .5 .5"/>
     <joint armature="1" damping="10"/>
@@ -32,6 +34,7 @@
       <joint damping=".1" armature=".1"/>
     </default>
   </default>
+
   <worldbody>
     <light pos="0 0 3"/>
     <geom type="plane" size="4 4 .1"/>
@@ -84,7 +87,11 @@
       <joint type="hinge" axis="0 1 0"/>
       <geom type="mesh" mesh="icosahedron" size=".1" rgba="0 0 1 1"/>
     </body>
-    <geom name="wrapping" type="cylinder" size=".04" fromto="-.6 .1 .7 -.4 .7 .7"/>
+    <body name="cylinder" pos="-.5 .3 .7">
+      <freejoint/>
+      <geom name="wrapping" type="cylinder" size=".04" fromto="-.1 -.2 0 .1 .4 0"/>
+      <site name="cylinder"/>
+    </body>
     <site name="sidesite" pos="-.5 .4 1"/>
     <body pos="-.3 .6 .8">
       <freejoint/>
@@ -97,6 +104,11 @@
       <site name="anchor2" pos=".05 .05 .05"/>
     </body>
   </worldbody>
+
+  <equality>
+    <weld body1="cylinder" body2="world"/>
+  </equality>
+
   <tendon>
     <spatial name="spatial" limited="true" range="0 .7" rgba="1 0 1 1">
       <site site="anchor0"/>
@@ -109,6 +121,7 @@
       <joint joint="hipy_1" coef="1"/>
     </fixed>
   </tendon>
+
   <actuator>
     <motor tendon="fixed" gear="100"/>
     <motor tendon="spatial" gear="10"/>
@@ -120,6 +133,7 @@
     <general site="wheel_0" gear="0 0 0 0 10 0" dyntype="filter" dynprm="1"/>
     <general joint="wheel_1" biastype="affine" dyntype="integrator" dynprm="1" biasprm="0 -1"/>
   </actuator>
+
   <sensor>
     <framepos objtype="site" objname="wheel_0" reftype="site" refname="wheel_2"/>
     <rangefinder site="rf"/>
@@ -127,6 +141,8 @@
     <touch site="wheel_1"/>
     <force site="knee"/>
     <torque site="knee"/>
+    <force site="cylinder"/>
+    <torque site="cylinder"/>
     <jointlimitfrc joint="slider"/>
     <accelerometer site="head"/>
     <subtreeangmom body="head"/>

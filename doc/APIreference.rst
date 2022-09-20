@@ -86,8 +86,9 @@ mjtDisableBit
        mjDSBL_FILTERPARENT = 1<<9,     // remove collisions with parent body
        mjDSBL_ACTUATION    = 1<<10,    // apply actuation forces
        mjDSBL_REFSAFE      = 1<<11,    // integrator safety: make ref[0]>=2*timestep
+       mjDSBL_SENSOR       = 1<<12,    // sensors
 
-       mjNDISABLE          = 12        // number of disable flags
+       mjNDISABLE          = 13        // number of disable flags
    } mjtDisableBit;
 
 | Defined in `mjmodel.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjmodel.h>`_
@@ -232,6 +233,7 @@ mjtIntegrator
    {
        mjINT_EULER         = 0,        // semi-implicit Euler
        mjINT_RK4                       // 4th-order Runge Kutta
+       mjINT_IMPLICIT                  // implicit in velocity
    } mjtIntegrator;
 
 | Defined in `mjmodel.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjmodel.h>`_
@@ -323,7 +325,7 @@ mjtEq
        mjEQ_WELD,                      // fix relative position and orientation of two bodies
        mjEQ_JOINT,                     // couple the values of two scalar joints with cubic
        mjEQ_TENDON,                    // couple the lengths of two tendons with cubic
-       mjEQ_DISTANCE                   // fix the contact distance betweent two geoms
+       mjEQ_DISTANCE                   // unsupported, will cause an error if used
    } mjtEq;
 
 | Defined in `mjmodel.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjmodel.h>`_
@@ -873,7 +875,8 @@ mjtRndFlag
        mjRND_FOG,                      // fog
        mjRND_HAZE,                     // haze
        mjRND_SEGMENT,                  // segmentation with random color
-       mjRND_IDCOLOR,                  // segmentation with segid color
+       mjRND_IDCOLOR,                  // segmentation with segid+1 color
+       mjRND_CULL_FACE,                // cull backward faces
 
        mjNRNDFLAG                      // number of rendering flags
    } mjtRndFlag;
@@ -1230,7 +1233,7 @@ mjVisual
    {
        struct                          // global parameters
        {
-           float fovy;                 // y-field of view (deg) for free camera
+           float fovy;                 // y-field of view for free camera (degrees)
            float ipd;                  // inter-pupilary distance for free camera
            float linewidth;            // line width for wireframe and ray rendering
            float glow;                 // glow coefficient for selected body
@@ -3160,7 +3163,7 @@ Numeric constants
 +------------------+--------+----------------------------------------------------------------------------------------+
 | mjMAXVFSNAME     | 100    | The maximal number of characters in the name of each file in the virtual file system.  |
 +------------------+--------+----------------------------------------------------------------------------------------+
-| mjNEQDATA        | 7      | The maximal number of real-valued parameters used to define each equality constraint.  |
+| mjNEQDATA        | 11     | The maximal number of real-valued parameters used to define each equality constraint.  |
 |                  |        | Determines the size of mjModel.eq_data. This and the next five constants correspond to |
 |                  |        | array sizes which we have not fully settled. There may be reasons to increase them in  |
 |                  |        | the future, so as to accommodate extra parameters needed for more elaborate            |
@@ -4722,6 +4725,17 @@ mjv_defaultCamera
 
 Set default camera.
 
+.. _mjv_defaultFreeCamera:
+
+mjv_defaultFreeCamera
+~~~~~~~~~~~~~~~~~~~~~
+
+.. code-block:: C
+
+   void mjv_defaultFreeCamera(const mjModel* m, mjvCamera* cam);
+
+Set default free camera.
+
 .. _mjv_defaultPerturb:
 
 mjv_defaultPerturb
@@ -6026,6 +6040,17 @@ mju_mulMatTVec
 
 Multiply transposed matrix and vector: res = mat' \* vec.
 
+.. _mju_mulVecMatVec:
+
+mju_mulVecMatVec
+~~~~~~~~~~~~~~~~
+
+.. code-block:: C
+
+   mjtNum mju_mulVecMatVec(const mjtNum* vec1, const mjtNum* mat, const mjtNum* vec2, int n);
+
+Multiply square matrix with vectors on both sides: return vec1' \* mat \* vec2.
+
 mju_transpose
 ~~~~~~~~~~~~~
 
@@ -6321,6 +6346,62 @@ mju_eig3
    int mju_eig3(mjtNum[3] eigval, mjtNum[9] eigvec, mjtNum[4] quat, const mjtNum[9] mat);
 
 Eigenvalue decomposition of symmetric 3x3 matrix.
+
+.. _mju_boxQP:
+
+mju_boxQP
+~~~~~~~~~
+
+.. code-block:: C
+
+   int mju_boxQP(mjtNum* res, mjtNum* R, int* index, const mjtNum* H, const mjtNum* g, int n,
+                 const mjtNum* lower, const mjtNum* upper);
+
+Minimize :math:`\tfrac{1}{2} x^T H x + x^T g \quad \text{s.t.} \quad l \le x \le u`, return rank or -1 if failed.
+
+inputs:
+  ``n``           - problem dimension
+
+  ``H``           - SPD matrix                ``n*n``
+
+  ``g``           - bias vector               ``n``
+
+  ``lower``       - lower bounds              ``n``
+
+  ``upper``       - upper bounds              ``n``
+
+  ``res``         - solution warmstart        ``n``
+
+return value:
+  ``nfree <= n``  - rank of unconstrained subspace, -1 if failure
+
+outputs (required):
+  ``res``         - solution                  ``n``
+
+  ``R``           - subspace Cholesky factor  ``nfree*nfree``,    allocated: ``n*(n+7)``
+
+outputs (optional):
+  ``index``       - set of free dimensions    ``nfree``,          allocated: ``n``
+
+notes:
+  The initial value of ``res`` is used to warmstart the solver.
+  ``R`` must have allocatd size ``n*(n+7)``, but only ``nfree*nfree`` values are used in output.
+  ``index`` (if given) must have allocated size ``n``, but only ``nfree`` values are used in output.
+  The convenience function :ref:`mju_boxQPmalloc` allocates the required data structures.
+
+.. _mju_boxQPmalloc:
+
+mju_boxQPmalloc
+~~~~~~~~~~~~~~~
+
+.. code-block:: C
+
+   void mju_boxQPmalloc(mjtNum** res, mjtNum** R, int** index, mjtNum** H, mjtNum** g, int n,
+                        mjtNum** lower, mjtNum** upper);
+
+Allocate heap memory for box-constrained Quadratic Program.
+As in :ref:`mju_boxQP`, ``index``, ``lower``, and ``upper`` are optional.
+Free all pointers with ``mju_free()``.
 
 .. _Miscellaneous:
 

@@ -19,17 +19,20 @@
 #include <cstdlib>
 #include <cstring>
 #include <iostream>
+#include <sstream>
 #include <string>
 #include <vector>
 
 #include "lodepng.h"
 #include <mujoco/mjmodel.h>
+#include <mujoco/mjplugin.h>
 #include "cc/array_safety.h"
 #include "engine/engine_core_smooth.h"
 #include "engine/engine_crossplatform.h"
 #include "engine/engine_file.h"
 #include "engine/engine_io.h"
 #include "engine/engine_macro.h"
+#include "engine/engine_plugin.h"
 #include "engine/engine_util_errmem.h"
 #include "engine/engine_util_misc.h"
 #include "engine/engine_util_solve.h"
@@ -62,6 +65,18 @@ static void checksize(double* size, mjtGeom type, mjCBase* object, const char* n
   }
 }
 
+// error message for missing "limited" attribute
+static void checklimited(
+    const mjCBase* obj,
+    bool autolimits, const char* entity, const char* attr, int limited, bool hasrange) {
+  if (!autolimits && limited == 2 && hasrange) {
+    std::stringstream ss;
+    ss << entity << " has `" << attr << "range` but not `" << attr << "limited`. "
+       << "set the autolimits=\"true\" compiler option, specify `" << attr << "limited` "
+       << "explicitly (\"true\" or \"false\"), or remove the `" << attr << "range` attribute.";
+    throw mjCError(obj, "%s", ss.str().c_str());
+  }
+}
 
 
 //------------------------- class mjCError implementation ------------------------------------------
@@ -295,7 +310,7 @@ mjCBody::mjCBody(mjCModel* _model) {
   pos[0] = ipos[0] = mjNAN;
 
   // clear variables
-  explicit_inertial = false;
+  explicitinertial = false;
   mocap = false;
   mjuu_setvec(quat, 1, 0, 0, 0);
   mjuu_setvec(iquat, 1, 0, 0, 0);
@@ -634,9 +649,9 @@ void mjCBody::MakeLocal(double* _locpos, double* _locquat,
   }
 }
 
-// set explicit_inertial to true
+// set explicitinertial to true
 void mjCBody::MakeInertialExplicit() {
-  explicit_inertial = true;
+  explicitinertial = true;
 }
 
 
@@ -680,6 +695,8 @@ void mjCBody::Compile(void) {
 
   // compile all geoms, phase 1
   for (i=0; i<geoms.size(); i++) {
+    geoms[i]->inferinertia = id>0 && (!explicitinertial ||
+                                      model->inertiafromgeom==mjINERTIAFROMGEOM_TRUE);
     geoms[i]->Compile();
   }
 
@@ -795,7 +812,7 @@ mjCJoint::mjCJoint(mjCModel* _model, mjCDef* _def) {
   group = 0;
   mjuu_setvec(pos, 0, 0, 0);
   mjuu_setvec(axis, 0, 0, 1);
-  limited = false;
+  limited = 2;
   stiffness = 0;
   range[0] = 0;
   range[1] = 0;
@@ -847,6 +864,17 @@ int mjCJoint::Compile(void) {
                      "when defined, springdamper values must be positive in joint '%s' (id = %d)",
                      name.c_str(), id);
     }
+  }
+
+  // free joints cannot be limited
+  if (type==mjJNT_FREE) {
+    limited = 0;
+  }
+  // otherwise if limited is auto, set according to whether range is specified
+  else if (limited==2) {
+    bool hasrange = !(range[0]==0 && range[1]==0);
+    checklimited(this, model->autolimits, "joint", "", limited, hasrange);
+    limited = hasrange ? 1 : 0;
   }
 
   // resolve limits
@@ -968,6 +996,7 @@ mjCGeom::mjCGeom(mjCModel* _model, mjCDef* _def) {
   rgba[3] = 1.0f;
   userdata.clear();
   typeinertia = mjVOLUME_MESH;
+  inferinertia = true;
 
   // clear internal variables
   mjuu_setvec(quat, 1, 0, 0, 0);
@@ -1385,18 +1414,26 @@ void mjCGeom::Compile(void) {
   }
 
   // compute geom mass and inertia
-  if (mjuu_defined(_mass) && GetVolume()>mjMINVAL) {
-    mass = _mass;
-    density = _mass / GetVolume();
-  } else {
-    mass = density * GetVolume();
-  }
-  SetInertia();
+  if (inferinertia) {
+    if (mjuu_defined(_mass)) {
+      if (_mass==0) {
+        mass = 0;
+        density = 0;
+      } else if (GetVolume()>mjMINVAL) {
+        mass = _mass;
+        density = _mass / GetVolume();
+        SetInertia();
+      }
+    } else {
+      mass = density * GetVolume();
+      SetInertia();
+    }
 
-  // check for negative values
-  if (mass<0 || inertia[0]<0 || inertia[1]<0 || inertia[2]<0 || density<0)
-    throw mjCError(this, "mass, inertia or density are negative in geom '%s' (id = %d)",
-                   name.c_str(), id);
+    // check for negative values
+    if (mass<0 || inertia[0]<0 || inertia[1]<0 || inertia[2]<0 || density<0)
+      throw mjCError(this, "mass, inertia or density are negative in geom '%s' (id = %d)",
+                    name.c_str(), id);
+  }
 
   // fluid-interaction coefficients, requires computed inertia and mass
   if (fluid_switch > 0) {
@@ -1844,7 +1881,8 @@ void mjCHField::Compile(const mjVFS* vfs) {
     string filename = mjuu_makefullname(model->modelfiledir, model->meshdir, file);
 
     // load depending on format
-    if (!strcasecmp(filename.substr(filename.length()-4, 5).c_str(), ".png")) {
+    string ext = mjuu_getext(filename);
+    if (!strcasecmp(ext.c_str(), ".png")) {
       LoadPNG(filename, vfs);
     } else {
       LoadCustom(filename, vfs);
@@ -2266,7 +2304,8 @@ void mjCTexture::LoadFlip(string filename, const mjVFS* vfs,
                           std::vector<unsigned char>& image,
                           unsigned int& w, unsigned int& h) {
   // dispatch to PNG or Custom loaded
-  if (!strcasecmp(filename.substr(filename.length()-4, 5).c_str(), ".png")) {
+  string ext = mjuu_getext(filename);
+  if (!strcasecmp(ext.c_str(), ".png")) {
     LoadPNG(filename, vfs, image, w, h);
   } else {
     LoadCustom(filename, vfs, image, w, h);
@@ -2864,6 +2903,7 @@ mjCEquality::mjCEquality(mjCModel* _model, mjCDef* _def) {
 
   mjuu_zerovec(data, mjNEQDATA);
   data[1] = 1;
+  data[10] = 1;  // torque:force ratio
 
   // clear internal variables
   obj1id = obj2id = -1;
@@ -2951,6 +2991,11 @@ void mjCEquality::Compile(void) {
   if (type==mjEQ_CONNECT) {
     ((mjCBody*)px1)->MakeLocal(anchor, qdummy, data, qunit);
     mjuu_copyvec(data, anchor, 3);
+  } else if (type==mjEQ_WELD) {
+    if (px2) {
+      ((mjCBody*)px2)->MakeLocal(anchor, qdummy, data, qunit);
+      mjuu_copyvec(data, anchor, 3);
+    }
   }
 }
 
@@ -2964,7 +3009,7 @@ mjCTendon::mjCTendon(mjCModel* _model, mjCDef* _def) {
   group = 0;
   material.clear();
   width = 0.003;
-  limited = false;
+  limited = 2;
   range[0] = 0;
   range[1] = 0;
   mj_defaultSolRefImp(solref_limit, solimp_limit);
@@ -3194,6 +3239,13 @@ void mjCTendon::Compile(void) {
     }
   }
 
+  // if limited is auto, set to 1 if range is specified, otherwise unlimited
+  if (limited==2) {
+    bool hasrange = !(range[0]==0 && range[1]==0);
+    checklimited(this, model->autolimits, "tendon", "", limited, hasrange);
+    limited = hasrange ? 1 : 0;
+  }
+
   // check limits
   if (range[0]>=range[1] && limited) {
     throw mjCError(this, "invalid limits in tendon '%s (id = %d)'", name.c_str(), id);
@@ -3306,9 +3358,9 @@ void mjCWrap::Compile(void) {
 mjCActuator::mjCActuator(mjCModel* _model, mjCDef* _def) {
   // actuator defaults
   group = 0;
-  ctrllimited = false;
-  forcelimited = false;
-  actlimited = false;
+  ctrllimited = 2;
+  forcelimited = 2;
+  actlimited = 2;
   trntype = mjTRN_UNDEFINED;
   dyntype = mjDYN_NONE;
   gaintype = mjGAIN_FIXED;
@@ -3327,6 +3379,7 @@ mjCActuator::mjCActuator(mjCModel* _model, mjCDef* _def) {
   cranklength = 0;
   target.clear();
   slidersite.clear();
+  refsite.clear();
   userdata.clear();
 
   // clear private variables
@@ -3340,6 +3393,11 @@ mjCActuator::mjCActuator(mjCModel* _model, mjCDef* _def) {
   // set model, def
   model = _model;
   def = (_def ? _def : (_model ? _model->defaults[0] : 0));
+
+  is_plugin = false;
+  plugin_instance = nullptr;
+  plugin_name = "";
+  plugin_instance_name = "";
 }
 
 
@@ -3354,6 +3412,23 @@ void mjCActuator::Compile(void) {
                    name.c_str(), id);
   }
   userdata.resize(model->nuser_actuator);
+
+  // if limited is auto, set to 1 if range is specified, otherwise unlimited
+  if (forcelimited==2) {
+    bool hasrange = !(forcerange[0]==0 && forcerange[1]==0);
+    checklimited(this, model->autolimits, "actuator", "force", forcelimited, hasrange);
+    forcelimited = hasrange ? 1 : 0;
+  }
+  if (ctrllimited==2) {
+    bool hasrange = !(ctrlrange[0]==0 && ctrlrange[1]==0);
+    checklimited(this, model->autolimits, "actuator", "ctrl", ctrllimited, hasrange);
+    ctrllimited = hasrange ? 1 : 0;
+  }
+  if (actlimited==2) {
+    bool hasrange = !(actrange[0]==0 && actrange[1]==0);
+    checklimited(this, model->autolimits, "actuator", "act", actlimited, hasrange);
+    actlimited = hasrange ? 1 : 0;
+  }
 
   // check limits
   if (forcerange[0]>=forcerange[1] && forcelimited) {
@@ -3426,7 +3501,7 @@ void mjCActuator::Compile(void) {
     if (pjnt->urdfeffort>0) {
       forcerange[0] = -pjnt->urdfeffort;
       forcerange[1] = pjnt->urdfeffort;
-      forcelimited = true;
+      forcelimited = 1;
     }
     break;
 
@@ -3457,7 +3532,16 @@ void mjCActuator::Compile(void) {
     break;
 
   case mjTRN_SITE:
-    // get site
+    // get refsite, copy into trnid[1]
+    if (!refsite.empty()) {
+      ptarget = model->FindObject(mjOBJ_SITE, refsite);
+      if (!ptarget) {
+        throw mjCError(this, "reference site '%s' not found for actuator %d", refsite.c_str(), id);
+      }
+      trnid[1] = ptarget->id;
+    }
+
+    // proceed with regular site target
     ptarget = model->FindObject(mjOBJ_SITE, target);
     break;
 
@@ -3475,6 +3559,21 @@ void mjCActuator::Compile(void) {
     throw mjCError(this, "transmission target '%s' not found in actuator %d", target.c_str(), id);
   } else {
     trnid[0] = ptarget->id;
+  }
+
+  // plugin
+  if (is_plugin) {
+    if (plugin_name.empty() && plugin_instance_name.empty()) {
+      throw mjCError(
+          this, "neither 'plugin' nor 'instance' is specified for actuator '%s', (id = %d)",
+          name.c_str(), id);
+    }
+
+    model->ResolvePlugin(this, plugin_name, plugin_instance_name, &plugin_instance);
+    const mjpPlugin* plugin = mjp_getPluginAtSlot(plugin_instance->plugin_slot);
+    if (!(plugin->type & mjPLUGIN_ACTUATOR)) {
+      throw mjCError(this, "plugin '%s' does not support actuators", plugin->name);
+    }
   }
 }
 
@@ -3503,6 +3602,10 @@ mjCSensor::mjCSensor(mjCModel* _model) {
   // clear private variables
   objid = -1;
   refid = -1;
+
+  plugin_instance = nullptr;
+  plugin_name = "";
+  plugin_instance_name = "";
 }
 
 
@@ -3547,7 +3650,7 @@ void mjCSensor::Compile(void) {
 
     // get sensorized object id
     objid = pobj->id;
-  } else if (type != mjSENS_CLOCK) {
+  } else if (type != mjSENS_CLOCK && type != mjSENS_PLUGIN) {
     throw mjCError(this, "invalid type in sensor '%s' (id = %d)", name.c_str(), id);
   }
 
@@ -3842,6 +3945,28 @@ void mjCSensor::Compile(void) {
     }
     break;
 
+  case mjSENS_PLUGIN:
+    dim = 0;  // to be filled in by the plugin later
+    datatype = mjDATATYPE_REAL;  // no noise added to plugin sensors, this attribute is unused
+
+    if (plugin_name.empty() && plugin_instance_name.empty()) {
+      throw mjCError(
+          this, "neither 'plugin' nor 'instance' is specified for sensor '%s', (id = %d)",
+          name.c_str(), id);
+    }
+
+    // resolve plugin instance, or create one if using the "plugin" attribute shortcut
+    {
+      model->ResolvePlugin(this, plugin_name, plugin_instance_name, &plugin_instance);
+      const mjpPlugin* plugin = mjp_getPluginAtSlot(plugin_instance->plugin_slot);
+      if (!(plugin->type & mjPLUGIN_SENSOR)) {
+        throw mjCError(this, "plugin '%s' does not support sensors", plugin->name);
+      }
+      needstage = static_cast<mjtStage>(plugin->needstage);
+    }
+
+    break;
+
   default:
     throw mjCError(this, "invalid type in sensor '%s' (id = %d)", name.c_str(), id);
   }
@@ -4028,7 +4153,7 @@ void mjCKey::Compile(const mjModel* m) {
       qpos[i] = (double)m->qpos0[i];
     }
   } else if (qpos.size()!=m->nq) {
-    throw mjCError(this, "key %d: invalid qpos size", 0, id);
+    throw mjCError(this, "key %d: invalid qpos size, expected length %d", nullptr, id, m->nq);
   }
 
   // qvel: allocate or check size
@@ -4038,7 +4163,7 @@ void mjCKey::Compile(const mjModel* m) {
       qvel[i] = 0;
     }
   } else if (qvel.size()!=m->nv) {
-    throw mjCError(this, "key %d: invalid qvel size", 0, id);
+    throw mjCError(this, "key %d: invalid qvel size, expected length %d", nullptr, id, m->nv);
   }
 
   // act: allocate or check size
@@ -4048,7 +4173,7 @@ void mjCKey::Compile(const mjModel* m) {
       act[i] = 0;
     }
   } else if (act.size()!=m->na) {
-    throw mjCError(this, "key %d: invalid act size", 0, id);
+    throw mjCError(this, "key %d: invalid act size, expected length %d", nullptr, id, m->na);
   }
 
   // mpos: allocate or check size
@@ -4065,7 +4190,7 @@ void mjCKey::Compile(const mjModel* m) {
       }
     }
   } else if (mpos.size()!=3*m->nmocap) {
-    throw mjCError(this, "key %d: invalid mpos size", 0, id);
+    throw mjCError(this, "key %d: invalid mpos size, expected length %d", nullptr, id, 3*m->nmocap);
   }
 
   // mquat: allocate or check size
@@ -4083,7 +4208,7 @@ void mjCKey::Compile(const mjModel* m) {
       }
     }
   } else if (mquat.size()!=4*m->nmocap) {
-    throw mjCError(this, "key %d: invalid mquat size", 0, id);
+    throw mjCError(this, "key %d: invalid mquat size, expected length %d", nullptr, id, 4*m->nmocap);
   }
 
   // ctrl: allocate or check size
@@ -4093,7 +4218,51 @@ void mjCKey::Compile(const mjModel* m) {
       ctrl[i] = 0;
     }
   } else if (ctrl.size()!=m->nu) {
-    throw mjCError(this, "key %d: invalid ctrl size", 0, id);
+    throw mjCError(this, "key %d: invalid ctrl size, expected length %d", nullptr, id, m->nu);
   }
 
+}
+
+
+//------------------ class mjCPlugin implementation ------------------------------------------------
+
+// initialize defaults
+mjCPlugin::mjCPlugin(mjCModel* _model) {
+  name = "";
+  plugin_slot = -1;
+  nstate = 0;
+  parent = this;
+  model = _model;
+}
+
+
+
+// compiler
+void mjCPlugin::Compile(void) {
+  const mjpPlugin* plugin = mjp_getPluginAtSlot(this->plugin_slot);
+
+  // concatenate all of the plugin's attribute values (as null-terminated strings) into
+  // flattened_attributes, in the order declared in the mjpPlugin
+  // each valid attribute found is appended to flattened_attributes and removed from xml_attributes
+  for (int i = 0; i < plugin->nattribute; ++i) {
+    std::string_view attr(plugin->attributes[i]);
+    auto it = config_attribs.find(attr);
+    if (it == config_attribs.end()) {
+      flattened_attributes.push_back('\0');
+    } else {
+      auto original_size = flattened_attributes.size();
+      flattened_attributes.resize(original_size + it->second.size() + 1);
+      std::memcpy(&flattened_attributes[original_size], it->second.c_str(),
+                  it->second.size() + 1);
+      config_attribs.erase(it);
+    }
+  }
+
+  // anything left in xml_attributes at this stage is not a valid attribute
+  if (!config_attribs.empty()) {
+    std::string error =
+        "unrecognized attribute 'plugin:" + config_attribs.begin()->first +
+        "' for plugin " + std::string(plugin->name) + "'";
+    throw mjCError(parent, error.c_str());
+  }
 }

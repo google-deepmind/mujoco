@@ -1463,7 +1463,7 @@ void mjd_smooth_vel(const mjModel *m, mjData *d) {
 
 // finite differenced Jacobian of  (next_state, sensors) = mj_step(state, control)
 //   all outputs are optional
-//   output dimensions (transposed w.r.t common convention):
+//   output dimensions (transposed w.r.t Control Theory convention):
 //     DyDq: (nv x 2*nv+na)
 //     DyDv: (nv x 2*nv+na)
 //     DyDa: (na x 2*nv+na)
@@ -1712,30 +1712,53 @@ void mjd_stepFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte centered,
 
 
 
-// finite differenced state-transition and control-transition matrices dy = A*dx + B*du
+// finite differenced transition matrices (control theory notation)
+//   d(x_next) = A*dx + B*du
+//   d(sensor) = C*dx + D*du
 //   required output matrix dimensions:
 //      A: (2*nv+na x 2*nv+na)
 //      B: (2*nv+na x nu)
+//      D: (nsensordata x 2*nv+na)
+//      C: (nsensordata x nu)
 void mjd_transitionFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte centered,
-                      mjtNum* A, mjtNum* B) {
-  int nv = m->nv, na = m->na, nu = m->nu;
-  int ndx = 2*nv+na;  // row length of Jacobians
+                      mjtNum* A, mjtNum* B, mjtNum* C, mjtNum* D) {
+  int nv = m->nv, na = m->na, nu = m->nu, ns = m->nsensordata;
+  int ndx = 2*nv+na;  // row length of state Jacobians
+
+  // stepFD() offset pointers, initialised to NULL
+  mjtNum *DyDq, *DyDv, *DyDa, *DsDq, *DsDv, *DsDa;
+  DyDq = DyDv = DyDa = DsDq = DsDv = DsDa = NULL;
+
   mjMARKSTACK;
 
   // allocate transposed matrices
-  mjtNum *AT = mj_stackAlloc(d, ndx*ndx);            // state-transition matrix   (transposed)
+  mjtNum *AT = A ? mj_stackAlloc(d, ndx*ndx) : NULL; // state-transition matrix   (transposed)
   mjtNum *BT = B ? mj_stackAlloc(d, nu*ndx) : NULL;  // control-transition matrix (transposed)
+  mjtNum *CT = C ? mj_stackAlloc(d, ndx*ns) : NULL;  // state-observation matrix   (transposed)
+  mjtNum *DT = D ? mj_stackAlloc(d, nu*ns) : NULL;   // control-observation matrix (transposed)
+
+  // set offset pointers
+  if (A) {
+    DyDq = AT;
+    DyDv = AT+ndx*nv;
+    DyDa = AT+ndx*2*nv;
+  }
+
+  if (C) {
+    DsDq = CT;
+    DsDv = CT + ns*nv;
+    DsDa = CT + ns*2*nv;
+  }
 
   // get Jacobians
-  if (A) {
-    mjd_stepFD(m, d, eps, centered, AT, AT+ndx*nv, AT+ndx*2*nv, BT, NULL, NULL, NULL, NULL);
-  } else {
-    mjd_stepFD(m, d, eps, centered, NULL, NULL, NULL, BT, NULL, NULL, NULL, NULL);
-  }
+  mjd_stepFD(m, d, eps, centered, DyDq, DyDv, DyDa, BT, DsDq, DsDv, DsDa, DT);
+
 
   // transpose
   if (A) mju_transpose(A, AT, ndx, ndx);
   if (B) mju_transpose(B, BT, nu, ndx);
+  if (C) mju_transpose(C, CT, ndx, ns);
+  if (D) mju_transpose(D, DT, nu, ns);
 
   mjFREESTACK;
 }

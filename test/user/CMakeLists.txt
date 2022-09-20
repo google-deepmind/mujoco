@@ -19,4 +19,4 @@ mujoco_test(user_objects_test)
 target_link_libraries(user_objects_test fixture gmock)
 
 mujoco_test(user_mesh_test)
-target_link_libraries(user_mesh_test fixture gmock)
+target_link_libraries(user_mesh_test fixture gmock absl::str_format)

@@ -255,14 +255,20 @@ These three components of an actuator - transmission, activation dynamics, and f
 actuator works. The user can set them independently for maximum flexibility, or use :ref:`Actuator shortcuts
 <CActuator>` which instantiate common actuator types.
 
-Transmission
+.. _geTransmission:
 
-   Each actuator has a scalar length :math:`l_i(q)` defined by the type of transmission and its parameters. The gradient
-   :math:`\nabla l_i` is an :math:`n_V`-dimensional vector of moment arms. It determines the mapping from scalar
-   actuator force to joint force. The transmission properties are determined by the MuJoCo object to which the actuator
-   is attached; the possible attachment object types are :at:`joint`, :at:`tendon`, :at:`jointinparent`,
-   :at:`slider-crank`, :at:`site`, and :at:`body`. The :at:`joint` and :at:`tendon` transmission types act as expected
-   mechanically and correspond to the actuator applying forces or torques to the target object.
+Transmission
+~~~~~~~~~~~~
+
+Each actuator has a scalar length :math:`l_i(q)` defined by the type of transmission and its parameters. The gradient
+:math:`\nabla l_i` is an :math:`n_V`-dimensional vector of moment arms. It determines the mapping from scalar
+actuator force to joint force. The transmission properties are determined by the MuJoCo object to which the actuator
+is attached; the possible attachment object types are :at:`joint`, :at:`tendon`, :at:`jointinparent`,
+:at:`slider-crank`, :at:`site`, and :at:`body`.
+
+   The :at:`joint` and :at:`tendon` transmission types act as expected and correspond to the actuator applying forces or
+   torques to the target object. Ball joints are special, see the :at:`joint` documentation in :ref:`actuator<general>`
+   reference for more details.
 
    The :at:`jointinparent` transmission is unique to ball and free joint and asserts that rotation should be measured
    in the parent rather than child frame.
@@ -273,11 +279,18 @@ Transmission
    also be modeled explicitly by creating MuJoCo bodies and coupling them with equality constraints to the rest of the
    system, but that would be less efficient.
 
-   :at:`site` and :at:`body` are degenerate transmission targets, as their length :math:`l_i(q)` is always 0.
-   They can therefore not be used to maintain a desired length value, as with a position actuator. Site
-   transmissions correspond to applying a Cartsian force/torque at the site, while :el:`body` transmissions correspond
-   to applying forces at contact points belonging to a body. For more information about adhesion, see the
-   :ref:`adhesion<adhesion>` shorcut documentation.
+   :at:`site` transmission (without a :at:`refsite`, see below) and :at:`body` transmission targets have a fixed zero
+   length :math:`l_i(q) = 0`. They can therefore not be used to maintain a desired length, but can be used to apply
+   forces. Site transmissions correspond to applying a Cartsian force/torque at the site, and are useful for modeling
+   jets and propellors. :el:`body` transmissions correspond to applying forces at contact points belonging to a body, in
+   order to model vacuum grippers and biomechanical adhesive appendages. For more information about adhesion, see the
+   :ref:`adhesion<adhesion>` actuator documentation.
+
+   If a :at:`site` transmission target is defined with the optional :at:`refsite` attribute, forces and torques are
+   applied in the frame of the reference site rather than the the site's own frame. If a reference site is defined then
+   the length of the actuator is nonzero and corresponds to the pose difference of the two sites. This length can then
+   be controlled with a :el:`position` actuator, enabling Cartesian end-effector control. See the :at:`refsite`
+   documentation in :ref:`actuator<general>` reference for more details.
 
 Activation dynamics
    Some actuators such as pneumatic and hydraulic cylinders as well as biological muscles have an internal state called

@@ -207,7 +207,7 @@ void mjXURDF::Body(XMLElement* body_elem) {
 
   // inertial element: copy into alternative body frame
   if ((elem = FindSubElem(body_elem, "inertial"))) {
-    pbody->explicit_inertial = true;
+    pbody->explicitinertial = true;
     // origin- relative to joint frame for now
     Origin(elem, pbody->ipos, pbody->iquat);
 
@@ -255,7 +255,7 @@ void mjXURDF::Body(XMLElement* body_elem) {
       if ((temp = FindSubElem(elem, "material"))) {
         // if color specified - use directly
         if ((temp1 = FindSubElem(temp, "color"))) {
-          ReadAttr(temp1, "rgba", 4, rgba, text);
+          ReadAttr(temp1, "rgba", 4, rgba, text, /*required=*/true);
         }
 
         // otherwise use material table
@@ -308,7 +308,7 @@ void mjXURDF::Joint(XMLElement* joint_elem) {
   ReadAttrTxt(joint_elem, "type", text, true);
   jointtype = FindKey(urJoint_map, urJoint_sz, text);
   if (jointtype < 0) {
-    mjXError(joint_elem, "invalid joint type in URDF joint definition");
+    throw mjXError(joint_elem, "invalid joint type in URDF joint definition");
   }
   ReadAttrTxt(joint_elem, "name", jntname, true);
 
@@ -317,7 +317,7 @@ void mjXURDF::Joint(XMLElement* joint_elem) {
   ReadAttrTxt(elem, "link", name, true);
   parent = (mjCBody*) model->GetWorld()->FindObject(mjOBJ_BODY, name);
   if (!parent) {                      // SHOULD NOT OCCUR
-    mjXError(elem, "invalid parent name in URDF joint definition");
+    throw mjXError(elem, "invalid parent name in URDF joint definition");
   }
 
   // get child=this, check
@@ -332,7 +332,7 @@ void mjXURDF::Joint(XMLElement* joint_elem) {
   double axis[3] = {1, 0, 0};
   Origin(joint_elem, pbody->pos, pbody->quat);
   if ((elem = FindSubElem(joint_elem, "axis"))) {
-    ReadAttr(elem, "xyz", 3, axis, text);
+    ReadAttr(elem, "xyz", 3, axis, text, /*required=*/true);
   }
 
   // create joint (unless fixed)
@@ -626,7 +626,7 @@ void mjXURDF::MakeMaterials(XMLElement* elem) {
       if (FindName(name, urMat) < 0) {
         // add rgba value if available
         if ((color = FindSubElem(elem, "color"))) {
-          ReadAttr(color, "rgba", 4, rgba.val, text);
+          ReadAttr(color, "rgba", 4, rgba.val, text, /*required=*/true);
           AddName(name, urMat);
           urRGBA.push_back(rgba);
         }

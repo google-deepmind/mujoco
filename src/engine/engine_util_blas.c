@@ -685,8 +685,7 @@ mjtNum mju_dot(const mjtNum* vec1, const mjtNum* vec2, const int n) {
 //------------------------------ matrix-vector operations ------------------------------------------
 
 // multiply matrix and vector
-void mju_mulMatVec(mjtNum* res, const mjtNum* mat, const mjtNum* vec,
-                   int nr, int nc) {
+void mju_mulMatVec(mjtNum* res, const mjtNum* mat, const mjtNum* vec, int nr, int nc) {
   for (int r=0; r<nr; r++) {
     res[r] = mju_dot(mat + r*nc, vec, nc);
   }
@@ -695,8 +694,7 @@ void mju_mulMatVec(mjtNum* res, const mjtNum* mat, const mjtNum* vec,
 
 
 // multiply transposed matrix and vector
-void mju_mulMatTVec(mjtNum* res, const mjtNum* mat, const mjtNum* vec,
-                    int nr, int nc) {
+void mju_mulMatTVec(mjtNum* res, const mjtNum* mat, const mjtNum* vec, int nr, int nc) {
   mjtNum tmp;
   mju_zero(res, nc);
 
@@ -705,6 +703,17 @@ void mju_mulMatTVec(mjtNum* res, const mjtNum* mat, const mjtNum* vec,
       mju_addToScl(res, mat+r*nc, tmp, nc);
     }
   }
+}
+
+
+
+// multiply square matrix with vectors on both sides: return vec1'*mat*vec2
+mjtNum mju_mulVecMatVec(const mjtNum* vec1, const mjtNum* mat, const mjtNum* vec2, int n) {
+  mjtNum res = 0;
+  for (int i=0; i<n; i++) {
+    res += vec1[i] * mju_dot(mat + i*n, vec2, n);
+  }
+  return res;
 }
 
 

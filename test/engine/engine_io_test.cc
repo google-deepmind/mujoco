@@ -17,6 +17,7 @@
 #include "src/engine/engine_io.h"
 
 #include <array>
+#include <climits>
 #include <cstring>
 #include <string>
 
@@ -24,6 +25,7 @@
 #include <gtest/gtest.h>
 #include <absl/strings/str_format.h>
 #include <mujoco/mjxmacro.h>
+#include "src/engine/engine_util_errmem.h"
 #include "test/fixture.h"
 
 namespace mujoco {
@@ -177,6 +179,28 @@ TEST_F(EngineIoTest, CopyDataWithPartialModel) {
   mj_deleteData(copy);
 }
 
+TEST_F(EngineIoTest, MakeDataReturnsNullOnFailure) {
+  constexpr char xml[] = "<mujoco/>";
+
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error.data();
+
+  // fail mj_makeData intentionally with a bad size
+  model->nbody = -1;
+  static bool warning;
+  warning = false;
+  mju_user_warning = [](const char* error) {
+    warning = true;
+  };
+  mjData* data = mj_makeData(model);
+  EXPECT_THAT(data, IsNull());
+  EXPECT_TRUE(warning) << "Expecting warning to be triggered.";
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
 using ValidateReferencesTest = MujocoTest;
 
 TEST_F(ValidateReferencesTest, BodyReferences) {
@@ -230,6 +254,32 @@ TEST_F(ValidateReferencesTest, AddressRange) {
   model->body_jntadr[1] = -2;
   EXPECT_THAT(mj_validateReferences(model), HasSubstr("body_jntadr"));
 
+  mj_deleteModel(model);
+}
+
+TEST_F(ValidateReferencesTest, AddressRangeNegativeNum) {
+  static const char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <joint/>
+        <joint/>
+        <geom size="1"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error.data();
+
+  EXPECT_THAT(mj_validateReferences(model), IsNull());
+
+  // jntadr + jntnum is within safe range, but jntnum is negative.
+  model->body_jntadr[1] += 5;
+  model->body_jntnum[1] -= 5;
+  EXPECT_THAT(mj_validateReferences(model), HasSubstr("body_jntnum"));
   mj_deleteModel(model);
 }
 
@@ -499,7 +549,6 @@ TEST_F(ValidateReferencesTest, EqualityConstraints) {
     <equality>
       <connect anchor="0 0 0" body1="body1" />
       <weld body1="body1" body2="body2" />
-      <distance geom1="geom1" geom2="geom2" />
       <joint joint1="joint1"/>
       <joint joint1="joint1" joint2="joint2"/>
       <tendon tendon1="tendon1"/>
@@ -540,18 +589,6 @@ TEST_F(ValidateReferencesTest, EqualityConstraints) {
   EXPECT_THAT(mj_validateReferences(model), HasSubstr("eq_obj2id"));
   model->eq_obj2id[1] = model->nbody - 1;
 
-  // distance constraint
-  model->eq_obj1id[2] = -1;
-  EXPECT_THAT(mj_validateReferences(model), HasSubstr("eq_obj1id"));
-  model->eq_obj1id[2] = model->ngeom;
-  EXPECT_THAT(mj_validateReferences(model), HasSubstr("eq_obj1id"));
-  model->eq_obj1id[2] = 1;
-
-  model->eq_obj2id[2] = -1;
-  EXPECT_THAT(mj_validateReferences(model), HasSubstr("eq_obj2id"));
-  model->eq_obj2id[2] = model->ngeom;
-  EXPECT_THAT(mj_validateReferences(model), HasSubstr("eq_obj2id"));
-  model->eq_obj2id[2] = model->ngeom - 1;
   mj_deleteModel(model);
 }
 

@@ -141,9 +141,9 @@ TEST_F(JacobianTest, SubtreeJacNoInternalAcc) {
   // the CoM should accelerate the whole mechanism without any internal motion
   int body_dofadr = model->body_dofadr[bodyid];
   mjtNum invtreemass = 1.0/model->body_subtreemass[bodyid];
-  for (int r=0; r<3; r++) {
-    for (int c=0; c<nv; c++) {
-      mjtNum expected = c-body_dofadr==r ? invtreemass : 0.0;
+  for (int r = 0; r < 3; r++) {
+    for (int c = 0; c < nv; c++) {
+      mjtNum expected = c - body_dofadr == r ? invtreemass : 0.0;
       EXPECT_THAT(jac_subtree[nv*r+c], DoubleNear(expected, max_abs_err));
     }
   }
@@ -155,7 +155,7 @@ TEST_F(JacobianTest, SubtreeJacNoInternalAcc) {
 
 using VersionTest = MujocoTest;
 
-const char *const kExpectedVersionString = "2.2.1";
+const char *const kExpectedVersionString = "2.2.2";
 
 TEST_F(VersionTest, MjVersion) {
   EXPECT_EQ(mj_version(), mjVERSION_HEADER);

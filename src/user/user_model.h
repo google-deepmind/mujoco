@@ -16,10 +16,12 @@
 #define MUJOCO_SRC_USER_USER_MODEL_H_
 
 #include <string>
+#include <utility>
 #include <vector>
 
 #include <mujoco/mjdata.h>
 #include <mujoco/mjmodel.h>
+#include <mujoco/mjplugin.h>
 #include "user/user_objects.h"
 
 typedef enum _mjtInertiaFromGeom {
@@ -85,6 +87,7 @@ class mjCModel {
   mjCText*    AddText(void);                          // custom text
   mjCTuple*   AddTuple(void);                         // custom tuple
   mjCKey*     AddKey(void);                           // keyframe
+  mjCPlugin*  AddPlugin(void);                        // plugin instance
 
   //------------------------ API for access to model elements (outside tree)
   int         NumObjects(mjtObj type);                // number of objects in specified list
@@ -100,6 +103,12 @@ class mjCModel {
   mjCBase*    FindObject(mjtObj type, std::string name);  // find object given type and name
   bool        IsNullPose(const mjtNum* pos, const mjtNum* quat); // detect null pose
 
+  //------------------------ API for plugins
+  void        ResolvePlugin(mjCBase* obj,     // resolve plugin instance, create a new one if needed
+                            const std::string& plugin_name,
+                            const std::string& plugin_instance_name,
+                            mjCPlugin** plugin_instance);
+
 
   //------------------------ global data
   std::string comment;            // comment at top of XML
@@ -107,6 +116,7 @@ class mjCModel {
   std::vector<mjCDef*> defaults;  // settings for each defaults class
 
   //------------------------ compiler settings
+  bool autolimits;                // infer "limited" attribute based on range
   double boundmass;               // enfore minimum body mass
   double boundinertia;            // enfore minimum body diagonal inertia
   double settotalmass;            // rescale masses and inertias; <=0: ignore
@@ -153,6 +163,8 @@ class mjCModel {
   int nuser_sensor;               // number of mjtNums in sensor_user
 
  private:
+  void TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs);
+
   void Clear(void);               // clear objects allocated by Compile
 
   template <class T>              // add object of any type
@@ -195,6 +207,7 @@ class mjCModel {
   int ntuple;                     // number of tuple fields
   int nkey;                       // number of keyframes
   int nmocap;                     // number of mocap bodies
+  int nplugin;                    // number of plugin instances
 
   // sizes computed by Compile
   int nq;                         // number of generalized coordinates = dim(qpos)
@@ -217,6 +230,7 @@ class mjCModel {
   int nnumericdata;               // number of mjtNums in all custom fields
   int ntextdata;                  // number of chars in all text fields, including 0
   int ntupledata;                 // number of objects in all tuple fields
+  int npluginattr;                // number of chars in all plugin config attributes
   int nnames;                     // number of chars in all names
   int nM;                         // number of non-zeros in sparse inertia matrix
   int nD;                         // number of non-zeros in sparse derivative matrix
@@ -239,6 +253,9 @@ class mjCModel {
   std::vector<mjCTuple*>    tuples;      // list of tuple fields
   std::vector<mjCKey*>      keys;        // list of keyframe fields
 
+  std::vector<std::pair<const mjpPlugin*, int>> active_plugins;  // list of active plugins
+  std::vector<mjCPlugin*>   plugins;     // list of plugin instances
+
   // pointers to objects created inside kinematic tree
   std::vector<mjCBody*>   bodies;   // list of bodies
   std::vector<mjCJoint*>  joints;   // list of joints allowing motion relative to parent
@@ -248,6 +265,7 @@ class mjCModel {
   std::vector<mjCLight*>  lights;   // list of lights
 
   //------------------------ internal variables
+  bool hasImplicitPluginElem;     // already encountered an implicit plugin sensor/actuator
   bool compiled;                  // already compiled flag (cannot be compiled again)
   mjCError errInfo;               // last error info
   int fixCount;                   // how many bodies have been fixed

@@ -15,6 +15,7 @@
 #ifndef MUJOCO_SRC_USER_USER_OBJECTS_H_
 #define MUJOCO_SRC_USER_USER_OBJECTS_H_
 
+#include <map>
 #include <string>
 #include <vector>
 
@@ -84,7 +85,7 @@ typedef enum _mjtMeshType {
 
 
 // error information
-class mjCError {
+class [[nodiscard]] mjCError {
  public:
   mjCError(const mjCBase* obj = 0,
            const char* msg = 0,
@@ -167,7 +168,7 @@ class mjCBody : public mjCBase {
   // setup child local frame, take into account change
   void MakeLocal(double* locpos, double* locquat, const double* pos, const double* quat);
 
-  // set explicit_inertial to true
+  // set explicitinertial to true
   void MakeInertialExplicit();
 
   // variables set by user or 'Compile'
@@ -198,7 +199,7 @@ class mjCBody : public mjCBase {
   int weldid;                     // top index of body we are welded to
   int dofnum;                     // number of motion dofs for body
   int mocapid;                    // mocap id, -1: not mocap
-  bool explicit_inertial;         // whether to save the body with an explicit inertial clause
+  bool explicitinertial;          // whether to save the body with an explicit inertial clause
 
   int lastdof;                    // id of last dof (used by compiler)
 
@@ -228,7 +229,7 @@ class mjCJoint : public mjCBase {
   // variables set by user: joint properties
   mjtJoint type;                  // type of Joint
   int group;                      // used for rendering
-  bool limited;                   // does joint have limits
+  int limited;                    // does joint have limits: 0 false, 1 true, 2 auto
   double pos[3];                  // anchor position
   double axis[3];                 // joint axis
   double stiffness;               // stiffness coefficient
@@ -306,6 +307,7 @@ class mjCGeom : public mjCBase {
   std::vector<double> userdata;   // user data
   float rgba[4];                  // rgba when material is omitted
   mjtMeshType typeinertia;        // selects between surface and volume inertia
+  bool inferinertia;              // true if inertia has to be computed from geom
 
   // variables set by user and used during compilation
   double _mass;                   // used to compute density
@@ -481,7 +483,16 @@ class mjCMesh: public mjCBase {
   void MakeNormal(void);                      // compute vertex normals
   void Process();                             // apply transformations
   void RemoveRepeated(void);                  // remove repeated vertices
-  void ComputeInertia(mjtMeshType type);     // compute inertia
+  void ComputeInertia(mjtMeshType type);      // compute inertia
+  void CheckMesh(void);                       // check if the mesh is valid
+
+  // mesh properties that indicate a well-formed mesh
+  bool validorientation;              // false if mesh have inconsistent faces
+  bool validarea;                     // false if the area is too small
+  bool validvolume;                   // false if the volume is too small
+  bool valideigenvalue;               // false if inertia eigenvalue is too small
+  bool validinequality;               // false if inertia inequality is not satisfied
+  bool processed;                     // false if the mesh has not been processed yet
 
   // mesh properties computed by Compile
   double pos_volume[3];               // CoM position
@@ -743,8 +754,8 @@ class mjCEquality : public mjCBase {
   double data[mjNEQDATA];         // type-dependent data
 
  private:
-  mjCEquality(mjCModel* = 0, mjCDef* = 0);// constructor
-  void Compile(void);                     // compiler
+  mjCEquality(mjCModel* = 0, mjCDef* = 0);  // constructor
+  void Compile(void);                       // compiler
 
   int obj1id;                     // id of object 1
   int obj2id;                     // id of object 2
@@ -774,7 +785,7 @@ class mjCTendon : public mjCBase {
   // variables set by user
   int group;                      // group for visualization
   std::string material;           // name of material for rendering
-  bool limited;                   // does tendon have limits
+  int limited;                    // does tendon have limits: 0 false, 1 true, 2 auto
   double width;                   // width for rendering
   mjtNum solref_limit[mjNREF];    // solver reference: tendon limits
   mjtNum solimp_limit[mjNIMP];    // solver impedance: tendon limits
@@ -823,6 +834,27 @@ class mjCWrap : public mjCBase {
 
 
 
+//------------------------- class mjCPlugin --------------------------------------------------------
+// Describes an instance of a plugin
+
+class mjCPlugin : public mjCBase {
+  friend class mjCModel;
+  friend class mjXWriter;
+
+ public:
+  int plugin_slot;   // global registered slot number of the plugin
+  int nstate;        // state size for the plugin instance
+  mjCBase* parent;   // parent object (only used when generating error message)
+  std::map<std::string, std::string, std::less<>> config_attribs;  // raw config attributes from XML
+  std::vector<char> flattened_attributes;  // config attributes flattened in plugin-declared order
+
+ private:
+  mjCPlugin(mjCModel*);            // constructor
+  void Compile(void);              // compiler
+};
+
+
+
 //------------------------- class mjCActuator ------------------------------------------------------
 // Describes an actuator
 
@@ -834,9 +866,9 @@ class mjCActuator : public mjCBase {
  public:
   // variables set by user or API
   int group;                      // group for visualization
-  bool ctrllimited;               // are control limits defined
-  bool forcelimited;              // are force limits defined
-  bool actlimited;                // are activation limits defined
+  int ctrllimited;               // are control limits defined: 0 false, 1 true, 2 auto
+  int forcelimited;              // are force limits defined: 0 false, 1 true, 2 auto
+  int actlimited;                // are activation limits defined: 0 false, 1 true, 2 auto
   mjtDyn dyntype;                 // dynamics type
   mjtTrn trntype;                 // transmission type
   mjtGain gaintype;               // gain type
@@ -853,6 +885,13 @@ class mjCActuator : public mjCBase {
   std::vector<double> userdata;   // user data
   std::string target;             // transmission target name
   std::string slidersite;         // site defining cylinder, for slider-crank only
+  std::string refsite;            // reference site, for site transmission only
+
+  // plugin support
+  bool is_plugin;
+  std::string plugin_name;
+  std::string plugin_instance_name;
+  mjCPlugin* plugin_instance;
 
  private:
   mjCActuator(mjCModel* = 0, mjCDef* = 0);// constructor
@@ -884,6 +923,11 @@ class mjCSensor : public mjCBase {
   double cutoff;                  // cutoff for real and positive datatypes
   double noise;                   // noise stdev
   std::vector<double> userdata;   // user data
+
+  // plugin support
+  std::string plugin_name;
+  std::string plugin_instance_name;
+  mjCPlugin* plugin_instance;
 
  private:
   mjCSensor(mjCModel*);           // constructor

@@ -181,7 +181,7 @@ class MuJoCoBindingsTest(parameterized.TestCase):
         r"Invalid name 'badgeom'\. Valid names: \['mybox', 'myplane'\]"):
       self.data.geom('badgeom')
 
-  def test_named_indexing_no_name_argument_in_model(self):
+  def test_named_indexing_no_name_argument_in_data(self):
     with self.assertRaisesRegex(
         KeyError,
         r"Invalid name ''\. Valid names: \['myball', 'myfree', 'myhinge'\]"):
@@ -189,7 +189,7 @@ class MuJoCoBindingsTest(parameterized.TestCase):
 
   def test_named_indexing_invalid_index_in_model(self):
     with self.assertRaisesRegex(
-      IndexError, r'Invalid index 3\. Valid indices from 0 to 2'):
+        IndexError, r'Invalid index 3\. Valid indices from 0 to 2'):
       self.model.geom(3)
     with self.assertRaisesRegex(
         IndexError, r'Invalid index -1\. Valid indices from 0 to 2'):
@@ -197,7 +197,7 @@ class MuJoCoBindingsTest(parameterized.TestCase):
 
   def test_named_indexing_invalid_index_in_data(self):
     with self.assertRaisesRegex(
-      IndexError, r'Invalid index 3\. Valid indices from 0 to 2'):
+        IndexError, r'Invalid index 3\. Valid indices from 0 to 2'):
       self.data.geom(3)
     with self.assertRaisesRegex(
         IndexError, r'Invalid index -1\. Valid indices from 0 to 2'):
@@ -586,6 +586,7 @@ class MuJoCoBindingsTest(parameterized.TestCase):
     class MjWarningStatSubclass(mujoco.MjWarningStat):
       # ptr attribute could cause an infinite recursion, if the repr
       # implementation simply looked at all attributes.
+
       @property
       def ptr(self):
         return self
@@ -597,6 +598,7 @@ class MuJoCoBindingsTest(parameterized.TestCase):
 >"""
 
     self.assertEqual(repr(MjWarningStatSubclass()), expected_repr)
+
   def test_mju_rotVecQuat(self):  # pylint: disable=invalid-name
     vec = [1, 0, 0]
     quat = [np.cos(np.pi/8), 0, 0, np.sin(np.pi/8)]
@@ -623,9 +625,13 @@ class MuJoCoBindingsTest(parameterized.TestCase):
     with self.assertRaises(TypeError):
       mujoco.mju_rotVecQuat(res, vec, [1, 2, 3])
 
+    # The following check needs to be done with a fully initialized array,
+    # since pybind11 prints out the array's contents when generating TypeErrors.
+    # Using `np.empty` here results in msan errors.
+
     # Check that the output argument must have the correct dtype.
     with self.assertRaises(TypeError):
-      mujoco.mju_rotVecQuat(vec, quat, res=np.empty(3, int))
+      mujoco.mju_rotVecQuat(vec, quat, res=np.zeros(3, int))
 
   def test_mj_jacSite(self):  # pylint: disable=invalid-name
     mujoco.mj_forward(self.model, self.data)
@@ -668,15 +674,19 @@ class MuJoCoBindingsTest(parameterized.TestCase):
       mujoco.mj_jacSite(
           self.model, self.data, None, np.empty((4, 7), jacr.dtype), site_id)
 
-    # Check that the jacp argument must have the right dtype.
-    with self.assertRaises(TypeError):
-      mujoco.mj_jacSite(
-          self.model, self.data, np.empty(jacp.shape, int), None, site_id)
+    # The following two checks need to be done with fully initialized arrays,
+    # since pybind11 prints out the array's contents when generating TypeErrors.
+    # Using `np.empty` here results in msan errors.
 
     # Check that the jacp argument must have the right dtype.
     with self.assertRaises(TypeError):
       mujoco.mj_jacSite(
-          self.model, self.data, None, np.empty(jacr.shape, int), site_id)
+          self.model, self.data, np.zeros(jacp.shape, int), None, site_id)
+
+    # Check that the jacr argument must have the right dtype.
+    with self.assertRaises(TypeError):
+      mujoco.mj_jacSite(
+          self.model, self.data, None, np.zeros(jacr.shape, int), site_id)
 
   def test_docstrings(self):  # pylint: disable=invalid-name
     self.assertEqual(
@@ -983,6 +993,24 @@ Euler integrator, semi-implicit in velocity.
         flg_static=0,
         bodyexclude=0,
         geomid=geomid)
+
+  def test_mju_box_qp(self):
+    n = 5
+    res = np.zeros(n)
+    r = np.zeros((n, n+7))
+    index = np.zeros(n, np.int32)
+    h = np.eye(n)
+    g = np.ones((n,))
+    lower = -np.ones((n,))
+    upper = np.ones((n,))
+    rank = mujoco.mju_boxQP(res, r, index, h, g, lower, upper)
+    self.assertGreater(rank, -1)
+
+  def test_mju_mul_vec_mat_vec(self):
+    vec1 = np.array([1., 2., 3.])
+    vec2 = np.array([3., 2., 1.])
+    mat = np.array([[1., 2., 3.], [4., 5., 6.], [7., 8., 9.]])
+    self.assertEqual(mujoco.mju_mulVecMatVec(vec1, mat, vec2), 204.)
 
   @parameterized.product(flg_html=(False, True), flg_pad=(False, True))
   def test_mj_printSchema(self, flg_html, flg_pad):  # pylint: disable=invalid-name

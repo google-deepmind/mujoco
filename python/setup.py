@@ -30,7 +30,7 @@ from setuptools import find_packages
 from setuptools import setup
 from setuptools.command import build_ext
 
-__version__ = '2.2.1'
+__version__ = '2.2.2'
 
 MUJOCO_CMAKE = 'MUJOCO_CMAKE'
 MUJOCO_CMAKE_ARGS = 'MUJOCO_CMAKE_ARGS'
@@ -246,8 +246,7 @@ class BuildCMakeExtension(build_ext.build_ext):
   def build_extension(self, ext):
     dest_path = self.get_ext_fullpath(ext.name)
     build_path = os.path.join(self.build_temp, os.path.basename(dest_path))
-    subprocess.check_call(['cp', build_path, dest_path])
-
+    shutil.copyfile(build_path, dest_path)
 
 def find_data_files(package_dir, patterns):
   """Recursively finds files whose names match the given shell patterns."""

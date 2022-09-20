@@ -15,6 +15,8 @@
 #ifndef MUJOCO_MJDATA_H_
 #define MUJOCO_MJDATA_H_
 
+#include <stdint.h>
+
 #include <mujoco/mjtnum.h>
 #include <mujoco/mjmodel.h>
 
@@ -124,6 +126,7 @@ struct mjData_ {
   // constant sizes
   int nstack;                     // number of mjtNums that can fit in stack
   int nbuffer;                    // size of main buffer in bytes
+  int nplugin;                    // number of plugin instances
 
   // stack pointer
   int pstack;                     // first available mjtNum address in stack
@@ -164,6 +167,7 @@ struct mjData_ {
   mjtNum*   qvel;                 // velocity                                 (nv x 1)
   mjtNum*   act;                  // actuator activation                      (na x 1)
   mjtNum*   qacc_warmstart;       // acceleration used for warmstart          (nv x 1)
+  mjtNum*   plugin_state;         // plugin state                             (npluginstate x 1)
 
   // control
   mjtNum*   ctrl;                 // control                                  (nu x 1)
@@ -183,6 +187,10 @@ struct mjData_ {
 
   // sensors
   mjtNum*   sensordata;           // sensor data array                        (nsensordata x 1)
+
+  // plugins
+  int*          plugin;           // copy of m->plugin, required for deletion (nplugin x 1)
+  uintptr_t*    plugin_data;      // pointer to plugin-managed data structure (nplugin x 1)
 
   //-------------------------------- POSITION dependent
 

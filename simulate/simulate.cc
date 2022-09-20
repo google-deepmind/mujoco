@@ -18,14 +18,17 @@
 #include <chrono>
 #include <cstdio>
 #include <cstring>
+#include <memory>
 #include <mutex>
 #include <string>
 #include <thread>
 
-
+#include <GLFW/glfw3.h>
+#include "lodepng.h"
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjvisualize.h>
 #include <mujoco/mjxmacro.h>
+#include "glfw_dispatch.h"
 #include "uitools.h"
 #include "array_safety.h"
 
@@ -46,10 +49,11 @@ namespace {
 namespace mj = ::mujoco;
 namespace mju = ::mujoco::sample_util;
 
+using ::mujoco::Glfw;
+
 //------------------------------------------- global -----------------------------------------------
 
 const int maxgeom = 5000;            // preallocated geom array in mjvScene
-const int max_slow_down = 128;       // maximum slow-down quotient
 const double zoom_increment = 0.02;  // ratio of one click-wheel zoom increment to vertical extent
 
 // section ids
@@ -78,6 +82,7 @@ const mjuiDef defFile[] = {
   {mjITEM_BUTTON,    "Print model",   2, nullptr,                    "CM"},
   {mjITEM_BUTTON,    "Print data",    2, nullptr,                    "CD"},
   {mjITEM_BUTTON,    "Quit",          1, nullptr,                    "CQ"},
+  {mjITEM_BUTTON,    "Screenshot",    2, NULL,                       "CP"},
   {mjITEM_END}
 };
 
@@ -470,11 +475,10 @@ void infotext(mj::Simulate* sim,
   solerr = mju_log10(mju_max(mjMINVAL, solerr));
 
   // prepare info text
-  const std::string realtime_nominator = sim->slow_down == 1 ? "" : "1/";
   mju::strcpy_arr(title, "Time\nSize\nCPU\nSolver   \nFPS\nstack\nconbuf\nefcbuf");
   mju::sprintf_arr(content,
-                   "%-9.3f %s%d x\n%d  (%d con)\n%.3f\n%.1f  (%d it)\n%.0f\n%.3f\n%.3f\n%.3f",
-                   d->time, realtime_nominator.c_str(), sim->slow_down,
+                   "%-9.3f\n%d  (%d con)\n%.3f\n%.1f  (%d it)\n%.0f\n%.3f\n%.3f\n%.3f",
+                   d->time,
                    d->nefc, d->ncon,
                    sim->run ?
                    d->timer[mjTIMER_STEP].duration / mjMAX(1, d->timer[mjTIMER_STEP].number) :
@@ -706,7 +710,9 @@ void makerendering(mj::Simulate* sim, int oldstate) {
   mjui_add(&sim->ui0, defOpenGL);
   for (i=0; i<mjNRNDFLAG; i++) {
     mju::strcpy_arr(defFlag[0].name, mjRNDSTRING[i][0]);
-    mju::sprintf_arr(defFlag[0].other, " %s", mjRNDSTRING[i][2]);
+    if (mjRNDSTRING[i][2][0]) {
+      mju::sprintf_arr(defFlag[0].other, " %s", mjRNDSTRING[i][2]);
+    }
     defFlag[0].pdata = sim->scn.flags + i;
     mjui_add(&sim->ui0, defFlag);
   }
@@ -904,15 +910,10 @@ void makesections(mj::Simulate* sim) {
 
 // align and scale view
 void alignscale(mj::Simulate* sim) {
-  // autoscale
-  sim->cam.lookat[0] = sim->m->stat.center[0];
-  sim->cam.lookat[1] = sim->m->stat.center[1];
-  sim->cam.lookat[2] = sim->m->stat.center[2];
-  sim->cam.distance = 1.5 * sim->m->stat.extent;
-
-  // set to free camera
-  sim->cam.type = mjCAMERA_FREE;
+  // use default free camera parameters
+  mjv_defaultFreeCamera(sim->m, &sim->cam);
 }
+
 
 // copy qpos to clipboard as key
 void copykey(mj::Simulate* sim) {
@@ -927,12 +928,12 @@ void copykey(mj::Simulate* sim) {
   mju::strcat_arr(clipboard, "'/>");
 
   // copy to clipboard
-  glfwSetClipboardString(sim->window, clipboard);
+  Glfw().glfwSetClipboardString(sim->window, clipboard);
 }
 
 // millisecond timer, for MuJoCo built-in profiler
 mjtNum timer() {
-  return 1000*glfwGetTime();
+  return 1000*Glfw().glfwGetTime();
 }
 
 // clear all times
@@ -967,7 +968,7 @@ void copycamera(mj::Simulate* sim) {
                    camera[0].up[0], camera[0].up[1], camera[0].up[2]);
 
   // copy spec into clipboard
-  glfwSetClipboardString(sim->window, clipboard);
+  Glfw().glfwSetClipboardString(sim->window, clipboard);
 }
 
 // update UI 0 when MuJoCo structures change (except for joint sliders)
@@ -1028,7 +1029,7 @@ void uiLayout(mjuiState* state) {
   // rect 0: entire framebuffer
   rect[0].left = 0;
   rect[0].bottom = 0;
-  glfwGetFramebufferSize(sim->window, &rect[0].width, &rect[0].height);
+  Glfw().glfwGetFramebufferSize(sim->window, &rect[0].width, &rect[0].height);
 
   // rect 1: UI 0
   rect[1].left = 0;
@@ -1096,6 +1097,10 @@ void uiEvent(mjuiState* state) {
       case 4:             // Quit
         sim->exitrequest.store(1);
         break;
+
+      case 5:             // Screenshot
+        sim->screenshotrequest.store(true);
+        break;
       }
     }
 
@@ -1117,29 +1122,29 @@ void uiEvent(mjuiState* state) {
         break;
 
       case 9:             // Full screen
-        if (glfwGetWindowMonitor(sim->window)) {
+        if (Glfw().glfwGetWindowMonitor(sim->window)) {
           // restore window from saved data
-          glfwSetWindowMonitor(sim->window, nullptr, sim->windowpos[0], sim->windowpos[1],
-                               sim->windowsize[0], sim->windowsize[1], 0);
+          Glfw().glfwSetWindowMonitor(sim->window, nullptr, sim->windowpos[0], sim->windowpos[1],
+                                      sim->windowsize[0], sim->windowsize[1], 0);
         }
 
         // currently windowed: switch to full screen
         else {
           // save window data
-          glfwGetWindowPos(sim->window, sim->windowpos, sim->windowpos+1);
-          glfwGetWindowSize(sim->window, sim->windowsize, sim->windowsize+1);
+          Glfw().glfwGetWindowPos(sim->window, sim->windowpos, sim->windowpos+1);
+          Glfw().glfwGetWindowSize(sim->window, sim->windowsize, sim->windowsize+1);
 
           // switch
-          glfwSetWindowMonitor(sim->window, glfwGetPrimaryMonitor(), 0, 0,
-                               sim->vmode.width, sim->vmode.height, sim->vmode.refreshRate);
+          Glfw().glfwSetWindowMonitor(sim->window, Glfw().glfwGetPrimaryMonitor(), 0, 0,
+                                      sim->vmode.width, sim->vmode.height, sim->vmode.refreshRate);
         }
 
         // reinstante vsync, just in case
-        glfwSwapInterval(sim->vsync);
+        Glfw().glfwSwapInterval(sim->vsync);
         break;
 
       case 10:            // Vertical sync
-        glfwSwapInterval(sim->vsync);
+        Glfw().glfwSwapInterval(sim->vsync);
         break;
       }
 
@@ -1375,16 +1380,19 @@ void uiEvent(mjuiState* state) {
       break;
 
     case '-':                   // slow down
-      if (sim->slow_down < max_slow_down && !state->shift) {
-        sim->slow_down *= 2;
-        sim->speed_changed = true;
+      {
+        int numclicks = sizeof(sim->percentRealTime) / sizeof(sim->percentRealTime[0]);
+        if (sim->realTimeIndex < numclicks-1 && !state->shift) {
+          sim->realTimeIndex++;
+          sim->speedChanged = true;
+        }
       }
       break;
 
     case '=':                   // speed up
-      if (sim->slow_down > 1 && !state->shift) {
-        sim->slow_down /= 2;
-        sim->speed_changed = true;
+      if (sim->realTimeIndex > 0 && !state->shift) {
+        sim->realTimeIndex--;
+        sim->speedChanged = true;
       }
       break;
     }
@@ -1613,9 +1621,9 @@ void Simulate::loadmodel() {
 
   // set window title to model name
   if (this->window && this->m->names) {
-    char title[200] = "this : ";
+    char title[200] = "Simulate : ";
     mju::strcat_arr(title, this->m->names);
-    glfwSetWindowTitle(this->window, title);
+    Glfw().glfwSetWindowTitle(this->window, title);
   }
 
   // set keyframe range and divisions
@@ -1646,7 +1654,7 @@ void Simulate::prepare() {
   static double lastupdatetm = 0;
 
   // update interval, save update time
-  double tmnow = glfwGetTime();
+  double tmnow = Glfw().glfwGetTime();
   double interval = tmnow - lastupdatetm;
   interval = mjMIN(1, mjMAX(0.0001, interval));
   lastupdatetm = tmnow;
@@ -1732,7 +1740,7 @@ void Simulate::render() {
     }
 
     // finalize
-    glfwSwapBuffers(this->window);
+    Glfw().glfwSwapBuffers(this->window);
 
     return;
   }
@@ -1751,11 +1759,30 @@ void Simulate::render() {
                 this->loadrequest ? "loading" : "pause", nullptr, &this->con);
   }
 
-  // show realtime label
-  if (this->run && this->slow_down != 1) {
-    std::string realtime_label = "1/" + std::to_string(this->slow_down) + " x";
-    mjr_overlay(mjFONT_BIG, mjGRID_TOPRIGHT, smallrect, realtime_label.c_str(), nullptr, &this->con);
+  // get desired and actual percent-of-real-time
+  float desiredRealtime = this->percentRealTime[this->realTimeIndex];
+  float actualRealtime = 100 / this->measuredSlowdown;
+
+  // if running, check for misalignment of more than 10%
+  float realtime_offset = mju_abs(actualRealtime - desiredRealtime);
+  bool misaligned = this->run && realtime_offset > 0.1 * desiredRealtime;
+
+  // draw realtime overlay
+  if (desiredRealtime != 100.0 || misaligned) {
+    char rtlabel[30];
+
+    // print desired realtime
+    int labelsize = std::snprintf(rtlabel, sizeof(rtlabel), "%g%%", desiredRealtime);
+
+    // if misaligned, append to label
+    if (misaligned) {
+      std::snprintf(rtlabel+labelsize, sizeof(rtlabel)-labelsize, " (%-4.1f%%)", actualRealtime);
+    }
+
+    // draw overlay
+    mjr_overlay(mjFONT_BIG, mjGRID_TOPLEFT, smallrect, rtlabel, nullptr, &this->con);
   }
+
 
   // show ui 0
   if (this->ui0_enable) {
@@ -1787,8 +1814,40 @@ void Simulate::render() {
     sensorshow(this, smallrect);
   }
 
+  // take screenshot, save to file
+  if (this->screenshotrequest.exchange(false)) {
+    const unsigned int h = uistate.rect[0].height;
+    const unsigned int w = uistate.rect[0].width;
+    std::unique_ptr<unsigned char[]> rgb(new unsigned char[3*w*h]);
+    if (!rgb) {
+      mju_error("could not allocate buffer for screenshot");
+    }
+    mjr_readPixels(rgb.get(), NULL, uistate.rect[0], &con);
+
+    // flip up-down
+    for (int r = 0; r < h/2; ++r) {
+      unsigned char* top_row = &rgb[3*w*r];
+      unsigned char* bottom_row = &rgb[3*w*(h-1-r)];
+      std::swap_ranges(top_row, top_row+3*w, bottom_row);
+    }
+
+    // save as PNG
+    // TODO(b/241577466): Parse the stem of the filename and use a .PNG extension.
+    // Unfortunately, if we just yank ".xml"/".mjb" from the filename and append .PNG, the macOS
+    // file dialog does not automatically open that location. Thus, we defer to a default
+    // "screenshot.png" for now.
+    const std::string path = getSavePath("screenshot.png");
+    if (!path.empty()) {
+      if (lodepng::encode(path, rgb.get(), w, h, LCT_RGB)) {
+        mju_error("could not save screenshot");
+      } else {
+        std::printf("saved screenshot: %s\n", path.c_str());
+      }
+    }
+  }
+
   // finalize
-  glfwSwapBuffers(this->window);
+  Glfw().glfwSwapBuffers(this->window);
 }
 
 
@@ -1802,27 +1861,30 @@ void Simulate::renderloop() {
   mjcb_time = timer;
 
   // multisampling
-  glfwWindowHint(GLFW_SAMPLES, 4);
-  glfwWindowHint(GLFW_VISIBLE, 1);
+  Glfw().glfwWindowHint(GLFW_SAMPLES, 4);
+  Glfw().glfwWindowHint(GLFW_VISIBLE, 1);
 
   // get videomode and save
-  this->vmode = *glfwGetVideoMode(glfwGetPrimaryMonitor());
+  this->vmode = *Glfw().glfwGetVideoMode(Glfw().glfwGetPrimaryMonitor());
+
+  // use videomode refreshrate if nonzero
+  if (this->vmode.refreshRate) this->refreshRate = this->vmode.refreshRate;
 
   // create window
-  this->window = glfwCreateWindow((2*this->vmode.width)/3, (2*this->vmode.height)/3,
-                                  "Simulate", nullptr, nullptr);
+  this->window = Glfw().glfwCreateWindow((2*this->vmode.width)/3, (2*this->vmode.height)/3,
+                                         "Simulate", nullptr, nullptr);
   if (!this->window) {
-    glfwTerminate();
+    Glfw().glfwTerminate();
     mju_error("could not create window");
   }
 
   // save window position and size
-  glfwGetWindowPos(this->window, this->windowpos, this->windowpos+1);
-  glfwGetWindowSize(this->window, this->windowsize, this->windowsize+1);
+  Glfw().glfwGetWindowPos(this->window, this->windowpos, this->windowpos+1);
+  Glfw().glfwGetWindowSize(this->window, this->windowsize, this->windowsize+1);
 
   // make context current, set v-sync
-  glfwMakeContextCurrent(this->window);
-  glfwSwapInterval(this->vsync);
+  Glfw().glfwMakeContextCurrent(this->window);
+  Glfw().glfwSwapInterval(this->vsync);
 
   // init abstract visualization
   mjv_defaultCamera(&this->cam);
@@ -1872,7 +1934,7 @@ void Simulate::renderloop() {
   uiModify(this->window, &this->ui1, &this->uistate, &this->con);
 
   // run event loop
-  while (!glfwWindowShouldClose(this->window) && !this->exitrequest.load()) {
+  while (!Glfw().glfwWindowShouldClose(this->window) && !this->exitrequest.load()) {
     {
       const std::lock_guard<std::mutex> lock(this->mtx);
 
@@ -1884,7 +1946,7 @@ void Simulate::renderloop() {
       }
 
       // handle events (calls all callbacks)
-      glfwPollEvents();
+      Glfw().glfwPollEvents();
 
       // prepare to render
       this->prepare();

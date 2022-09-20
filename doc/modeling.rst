@@ -14,8 +14,8 @@ MJCF models can represent complex dynamical systems with a wide range of feature
 these features requires a rich modeling format, which can become cumbersome if it is not designed with usability in
 mind. Therefore we have made an effort to design MJCF as a scalable format, allowing users to start small and build
 more detailed models later. Particularly helpful in this regard is the extensive :ref:`default setting <CDefault>`
-mechanism inspired by the idea of Cascading Style Sheets (CSS) in HTML. It enables users to rapidly create new models
-and experiment with them. Experimentation is further aided by numerous :ref:`options <option>` which
+mechanism inspired by the idea of Cascading Style Sheets (CSS) inlined in HTML. It enables users to rapidly create
+new models and experiment with them. Experimentation is further aided by numerous :ref:`options <option>` which
 can be used to reconfigure the simulation pipeline, and by quick re-loading that makes model editing an interactive
 process.
 
@@ -170,10 +170,10 @@ attribute except for the top-level class whose name is "main" if left undefined.
 collection of dummy model elements, with their attributes set as follows. When a defaults class is defined within
 another defaults class, the child automatically inherits all attribute values from the parent. It can then override
 some or all of them by defining the corresponding attributes. The top-level defaults class does not have a parent, and
-so its attributes are initialized to internal defaults which are shown in the reference documentation below.
+so its attributes are initialized to internal defaults which are shown in the :doc:`Reference chapter<XMLreference>`.
 
 The dummy elements contained in the defaults classes are not part of the model; they are only used to initialize the
-attribute values of the actual model elements. When an actual element if first created, all its attributes are copied
+attribute values of the actual model elements. When an actual element is first created, all its attributes are copied
 from the corresponding dummy element in the defaults class that is currently active. There is always an active
 defaults class, which can be determined in one of three ways. If no class is specified in the present element or any
 of its ancestor bodies, the top-level class is used (regardless of whether it is called "main" or something else). If

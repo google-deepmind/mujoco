@@ -39,6 +39,8 @@ set(MUJOCO_ENGINE_SRCS
     engine_io.c
     engine_io.h
     engine_macro.h
+    engine_plugin.cc
+    engine_plugin.h
     engine_print.c
     engine_print.h
     engine_ray.c

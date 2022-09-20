@@ -18,6 +18,9 @@ target_link_libraries(engine_collision_convex_test fixture gmock)
 mujoco_test(engine_collision_driver_test)
 target_link_libraries(engine_collision_driver_test fixture gmock)
 
+mujoco_test(engine_core_constraint_test)
+target_link_libraries(engine_core_constraint_test fixture gmock)
+
 mujoco_test(engine_core_smooth_test)
 target_link_libraries(engine_core_smooth_test fixture gmock)
 
@@ -30,6 +33,14 @@ target_link_libraries(engine_forward_test fixture gmock)
 mujoco_test(engine_io_test)
 target_link_libraries(
   engine_io_test
+  fixture
+  gmock
+  absl::str_format
+)
+
+mujoco_test(engine_plugin_test)
+target_link_libraries(
+  engine_plugin_test
   fixture
   gmock
   absl::str_format

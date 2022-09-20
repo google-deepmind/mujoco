@@ -41,5 +41,17 @@ TEST_F(EngineUtilBlasTest, MjuDot) {
   EXPECT_EQ(mju_dot(a, b, 7), 7 + 2*6 + 3*5 + 4*4 + 5*3 + 6*2 + 7);
 }
 
+TEST_F(EngineUtilBlasTest, MjuMulVecMatVec) {
+  mjtNum vec1[] = {1, 2, 3};
+  mjtNum vec2[] = {3, 2, 1};
+  mjtNum mat[] = {
+    1, 2, 3,
+    4, 5, 6,
+    7, 8, 9
+  };
+
+  EXPECT_EQ(mju_mulVecMatVec(vec1, mat, vec2, 3), 204);
+}
+
 }  // namespace
 }  // namespace mujoco

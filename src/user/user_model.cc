@@ -24,11 +24,13 @@
 
 #include <mujoco/mjdata.h>
 #include <mujoco/mjmodel.h>
+#include <mujoco/mjplugin.h>
 #include <mujoco/mjvisualize.h>
 #include "cc/array_safety.h"
 #include "engine/engine_forward.h"
 #include "engine/engine_io.h"
 #include "engine/engine_macro.h"
+#include "engine/engine_plugin.h"
 #include "engine/engine_setconst.h"
 #include "engine/engine_support.h"
 #include "engine/engine_util_blas.h"
@@ -79,6 +81,8 @@ mjCModel::mjCModel() {
   modelfiledir.clear();
 
   //------------------------ compiler settings
+  // TODO(b/245077553): Toggle to true by default.
+  autolimits = false;
   boundmass = 0;
   boundinertia = 0;
   settotalmass = -1;
@@ -121,6 +125,7 @@ mjCModel::mjCModel() {
   nuserdata = 0;
   nkey = 0;
   nmocap = 0;
+  nplugin = 0;
   nuser_body = -1;
   nuser_jnt = -1;
   nuser_geom = -1;
@@ -196,6 +201,7 @@ mjCModel::~mjCModel() {
   for (i=0; i<texts.size(); i++) delete texts[i];
   for (i=0; i<tuples.size(); i++) delete tuples[i];
   for (i=0; i<keys.size(); i++) delete keys[i];
+  for (i=0; i<plugins.size(); i++) delete plugins[i];
   for (i=0; i<defaults.size(); i++) delete defaults[i];
 
   // clear pointer lists created in model construction
@@ -214,6 +220,7 @@ mjCModel::~mjCModel() {
   texts.clear();
   tuples.clear();
   keys.clear();
+  plugins.clear();
   defaults.clear();
 
   // clear sizes and pointer lists created in Compile
@@ -265,6 +272,7 @@ void mjCModel::Clear(void) {
   nnumericdata = 0;
   ntextdata = 0;
   ntupledata = 0;
+  npluginattr = 0;
   nnames = 0;
   nemax = 0;
   nM = 0;
@@ -281,6 +289,7 @@ void mjCModel::Clear(void) {
   lights.clear();
 
   // internal variables
+  hasImplicitPluginElem = false;
   compiled = false;
   errInfo = mjCError();
   fixCount = 0;
@@ -403,6 +412,12 @@ mjCKey* mjCModel::AddKey(void) {
 }
 
 
+// add plugin instance
+mjCPlugin* mjCModel::AddPlugin(void) {
+  return AddObject(plugins, "plugin");
+}
+
+
 
 
 //------------------------ API FOR ACCESS TO MODEL ELEMENTS  ---------------------------------------
@@ -453,6 +468,8 @@ int mjCModel::NumObjects(mjtObj type) {
     return (int)tuples.size();
   case mjOBJ_KEY:
     return (int)keys.size();
+  case mjOBJ_PLUGIN:
+    return (int)plugins.size();
   default:
     return 0;
   }
@@ -507,6 +524,8 @@ mjCBase* mjCModel::GetObject(mjtObj type, int id) {
       return tuples[id];
     case mjOBJ_KEY:
       return keys[id];
+    case mjOBJ_PLUGIN:
+      return plugins[id];
     default:
       return 0;
     }
@@ -644,6 +663,8 @@ mjCBase* mjCModel::FindObject(mjtObj type, string name) {
     return findobject(name, texts);
   case mjOBJ_TUPLE:
     return findobject(name, tuples);
+  case mjOBJ_PLUGIN:
+    return findobject(name, plugins);
   default:
     return 0;
   }
@@ -891,6 +912,7 @@ void mjCModel::SetSizes(void) {
   ntext = (int)texts.size();
   ntuple = (int)tuples.size();
   nkey = (int)keys.size();
+  nplugin = (int)plugins.size();
 
   // nq, nv
   for (i=0; i<njnt; i++) {
@@ -953,6 +975,9 @@ void mjCModel::SetSizes(void) {
   // ntupledata
   for (i=0; i<ntuple; i++) ntupledata += (int)tuples[i]->objtype.size();
 
+  // npluginattr
+  for (i=0; i<nplugin; i++) npluginattr += (int)plugins[i]->flattened_attributes.size();
+
   // nnames
   nnames = (int)modelname.size() + 1;
   for (i=0; i<nbody; i++)    nnames += (int)bodies[i]->name.length() + 1;
@@ -976,6 +1001,7 @@ void mjCModel::SetSizes(void) {
   for (i=0; i<ntext; i++)    nnames += (int)texts[i]->name.length() + 1;
   for (i=0; i<ntuple; i++)   nnames += (int)tuples[i]->name.length() + 1;
   for (i=0; i<nkey; i++)     nnames += (int)keys[i]->name.length() + 1;
+  for (i=0; i<nplugin; i++)  nnames += (int)plugins[i]->name.length() + 1;
 
   // nemax
   for (i=0; i<neq; i++)
@@ -1232,6 +1258,7 @@ void mjCModel::CopyNames(mjModel* m) {
   adr = namelist(texts, adr, m->name_textadr, m->names);
   adr = namelist(tuples, adr, m->name_tupleadr, m->names);
   adr = namelist(keys, adr, m->name_keyadr, m->names);
+  adr = namelist(plugins, adr, m->name_pluginadr, m->names);
 
   // check size, SHOULD NOT OCCUR
   if (adr != nnames) {
@@ -1774,7 +1801,7 @@ void mjCModel::CopyObjects(mjModel* m) {
     m->tendon_adr[i] = adr;
     m->tendon_num[i] = (int)pte->path.size();
     m->tendon_matid[i] = pte->matid;
-    m->tendon_group[i] = pte->group;;
+    m->tendon_group[i] = pte->group;
     m->tendon_limited[i] = pte->limited;
     m->tendon_width[i] = (mjtNum)pte->width;
     copyvec(m->tendon_solref_lim+mjNREF*i, pte->solref_limit, mjNREF);
@@ -2271,9 +2298,16 @@ static void warninghandler(const char* msg) {
 
 // compiler
 mjModel* mjCModel::Compile(const mjVFS* vfs) {
-  unsigned int i;
-  mjModel* m = 0;
-  mjData* data = 0;
+  // The volatile keyword is necessary to prevent a possible memory leak due to
+  // an interaction between longjmp and compiler optimization. Specifically, at
+  // the point where the setjmp takes places, these pointers have never been
+  // reassigned from their nullptr initialization. Without the volatile keyword,
+  // the compiler is free to assume that these pointers remain nullptr when the
+  // setjmp returns, and therefore to pass nullptr directly to the
+  // mj_deleteModel and mj_deleteData calls in the subsequent catch block,
+  // without ever reading the actual pointer values.
+  mjModel* volatile m = nullptr;
+  mjData* volatile data = nullptr;
 
   // save error and warning handlers
   void (*save_error)(const char*) = _mjPRIVATE__get_tls_error_fn();
@@ -2289,312 +2323,13 @@ mjModel* mjCModel::Compile(const mjVFS* vfs) {
   // init random number generator, to make textures reproducible
   srand(123);
 
-  // guard for exceptions
   try {
     if (setjmp(error_jmp_buf) != 0) {
+      // TryCompile resulted in an mju_error which was converted to a longjmp.
       throw mjCError(0, "engine error: %s", errortext);
     }
-
-    // check if nan test works
-    double test = mjNAN;
-    if (mjuu_defined(test)) {
-      throw mjCError(0, "NaN test does not work for present compiler/options");
-    }
-
-    // check for repeated compilation
-    if (compiled) {
-      throw mjCError(0, "model already compiled");
-    }
-
-    // check for joints in world body
-    if (!bodies[0]->joints.empty()) {
-      throw mjCError(0, "joint found in world body");
-    }
-
-    // append directory separator
-    if (!meshdir.empty()) {
-      int n = meshdir.length();
-      if (meshdir[n-1]!='/' && meshdir[n-1]!='\\') {
-        meshdir += '/';
-      }
-    }
-    if (!texturedir.empty()) {
-      int n = texturedir.length();
-      if (texturedir[n-1]!='/' && texturedir[n-1]!='\\') {
-        texturedir += '/';
-      }
-    }
-
-    // add missing keyframes
-    for (i=keys.size(); i<nkey; i++) {
-      AddKey();
-    }
-
-    // make lists of objects created in kinematic tree
-    MakeLists(bodies[0]);
-
-    // set object ids and default names, check for repeated names
-    processlist(bodies, "body");
-    processlist(joints, "joint");
-    processlist(geoms, "geom");
-    processlist(sites, "site");
-    processlist(cameras, "camera");
-    processlist(lights, "light");
-    processlist(meshes, "mesh");
-    processlist(skins, "skin");
-    processlist(hfields, "hfield");
-    processlist(textures, "texture");
-    processlist(materials, "material");
-    processlist(pairs, "pair");
-    processlist(excludes, "exclude");
-    processlist(equalities, "equality");
-    processlist(tendons, "tendon");
-    processlist(actuators, "actuator");
-    processlist(sensors, "sensor");
-    processlist(numerics, "numeric");
-    processlist(texts, "text");
-    processlist(tuples, "tuple");
-    processlist(keys, "key");
-
-    // set default names, convert names into indices
-    SetDefaultNames();
-    IndexAssets();
-
-    // mark meshes that need convex hull
-    for (i=0; i<geoms.size(); i++) {
-      if (geoms[i]->meshid>=0 && geoms[i]->type==mjGEOM_MESH &&
-          (geoms[i]->contype || geoms[i]->conaffinity)) {
-        meshes[geoms[i]->meshid]->needhull = true;
-      }
-    }
-
-    // compile meshes (needed for geom compilation)
-    for (i=0; i<meshes.size(); i++) {
-      meshes[i]->Compile(vfs);
-    }
-
-    // automatically set nuser fields
-    if (nuser_body == -1) {
-      nuser_body = 0;
-      for (i=0; i<bodies.size(); i++) {
-        nuser_body = mjMAX(nuser_body, bodies[i]->userdata.size());
-      }
-    }
-    if (nuser_jnt == -1) {
-      nuser_jnt = 0;
-      for (i=0; i<joints.size(); i++) {
-        nuser_jnt = mjMAX(nuser_jnt, joints[i]->userdata.size());
-      }
-    }
-    if (nuser_geom == -1) {
-      nuser_geom = 0;
-      for (i=0; i<geoms.size(); i++) {
-        nuser_geom = mjMAX(nuser_geom, geoms[i]->userdata.size());
-      }
-    }
-    if (nuser_site == -1) {
-      nuser_site = 0;
-      for (i=0; i<sites.size(); i++) {
-        nuser_site = mjMAX(nuser_site, sites[i]->userdata.size());
-      }
-    }
-    if (nuser_cam == -1) {
-      nuser_cam = 0;
-      for (i=0; i<cameras.size(); i++) {
-        nuser_cam = mjMAX(nuser_cam, cameras[i]->userdata.size());
-      }
-    }
-    if (nuser_tendon == -1) {
-      nuser_tendon = 0;
-      for (i=0; i<tendons.size(); i++) {
-        nuser_tendon = mjMAX(nuser_tendon, tendons[i]->userdata.size());
-      }
-    }
-    if (nuser_actuator == -1) {
-      nuser_actuator = 0;
-      for (i=0; i<actuators.size(); i++) {
-        nuser_actuator = mjMAX(nuser_actuator, actuators[i]->userdata.size());
-      }
-    }
-    if (nuser_sensor == -1) {
-      nuser_sensor = 0;
-      for (i=0; i<sensors.size(); i++) {
-        nuser_sensor = mjMAX(nuser_sensor, sensors[i]->userdata.size());
-      }
-    }
-
-    // compile objects in kinematic tree
-    for (i=0; i<bodies.size(); i++) {
-      bodies[i]->Compile();  // also compiles joints, geoms, sites, cameras, lights
-    }
-
-    // compile all other objects except for keyframes
-    for (i=0; i<skins.size(); i++) skins[i]->Compile(vfs);
-    for (i=0; i<hfields.size(); i++) hfields[i]->Compile(vfs);
-    for (i=0; i<textures.size(); i++) textures[i]->Compile(vfs);
-    for (i=0; i<materials.size(); i++) materials[i]->Compile();
-    for (i=0; i<pairs.size(); i++) pairs[i]->Compile();
-    for (i=0; i<excludes.size(); i++) excludes[i]->Compile();
-    for (i=0; i<equalities.size(); i++) equalities[i]->Compile();
-    for (i=0; i<tendons.size(); i++) tendons[i]->Compile();
-    for (i=0; i<actuators.size(); i++) actuators[i]->Compile();
-    for (i=0; i<sensors.size(); i++) sensors[i]->Compile();
-    for (i=0; i<numerics.size(); i++) numerics[i]->Compile();
-    for (i=0; i<texts.size(); i++) texts[i]->Compile();
-    for (i=0; i<tuples.size(); i++) tuples[i]->Compile();
-
-    // compile defaults: to enforce userdata length for writer
-    for (i=0; i<defaults.size(); i++) {
-      defaults[i]->Compile(this);
-    }
-
-    // sort pair, exclude in increasing signature order; reassign ids
-    sort(pairs.begin(), pairs.end(), comparePair);
-    sort(excludes.begin(), excludes.end(), compareBodyPair);
-    reassignid(pairs);
-    reassignid(excludes);
-
-    // resolve asset references, compute sizes
-    IndexAssets();
-    SetSizes();
-
-    // fuse static if enabled
-    if (fusestatic) {
-      FuseStatic();
-    }
-
-    // set nmocap and body.mocapid
-    for (i=0; i<bodies.size(); i++) {
-      if (bodies[i]->mocap) {
-        bodies[i]->mocapid = nmocap;
-        nmocap++;
-      } else {
-        bodies[i]->mocapid = -1;
-      }
-    }
-
-    // check body mass and inertia
-    for (i=1; i<bodies.size(); i++) {
-      mjCBody* b = bodies[i];
-
-      // find moving body with small mass or inertia
-      if (!b->joints.empty() &&
-          (b->mass<mjMINVAL ||
-           b->inertia[0]<mjMINVAL ||
-           b->inertia[1]<mjMINVAL ||
-           b->inertia[2]<mjMINVAL)) {
-        // does it have static children with mass and inertia
-        bool ok = false;
-        for (size_t j=0; j<b->bodies.size(); j++) {
-          if (b->bodies[j]->joints.empty() &&
-              b->bodies[j]->mass>=mjMINVAL &&
-              b->bodies[j]->inertia[0]>=mjMINVAL &&
-              b->bodies[j]->inertia[1]>=mjMINVAL &&
-              b->bodies[j]->inertia[2]>=mjMINVAL) {
-            ok = true;
-            break;
-          }
-        }
-
-        // error
-        if (!ok) {
-          throw mjCError(b, "mass and inertia of moving bodies must be larger than mjMINVAL");
-        }
-      }
-    }
-
-    // create low-level model
-    m = mj_makeModel(nq, nv, nu, na, nbody, njnt, ngeom, nsite, ncam, nlight,
-                     nmesh, nmeshvert, nmeshtexvert, nmeshface, nmeshgraph,
-                     nskin, nskinvert, nskintexvert, nskinface, nskinbone, nskinbonevert,
-                     nhfield, nhfielddata, ntex, ntexdata, nmat, npair, nexclude,
-                     neq, ntendon, nwrap, nsensor,
-                     nnumeric, nnumericdata, ntext, ntextdata,
-                     ntuple, ntupledata, nkey, nmocap,
-                     nuser_body, nuser_jnt, nuser_geom, nuser_site, nuser_cam,
-                     nuser_tendon, nuser_actuator, nuser_sensor, nnames);
-    if (!m) {
-      throw mjCError(0, "could not create mjModel");
-    }
-
-    // copy everything into low-level model
-    m->opt = option;
-    m->vis = visual;
-    CopyNames(m);
-    CopyTree(m);
-
-    // keyframe compilation needs access to nq, nv, na, nmocap, qpos0
-    for (i=0; i<keys.size(); i++) {
-      keys[i]->Compile(m);
-    }
-
-    // copy objects outsite kinematic tree (including keyframes)
-    CopyObjects(m);
-
-    // scale mass
-    if (settotalmass>0) {
-      mj_setTotalmass(m, settotalmass);
-    }
-
-    // set stack size: user-specified or conservative heuristic
-    if (nstack>0) {
-      m->nstack = nstack;
-    } else {
-      m->nstack = mjMAX(1000,
-                        5*(m->njmax + m->neq + m->nv)*(m->njmax + m->neq + m->nv) +
-                        20*(m->nq + m->nv + m->nu + m->na + m->nbody + m->njnt +
-                            m->ngeom + m->nsite + m->neq + m->ntendon +  m->nwrap));
-    }
-
-    // create data
-    data = mj_makeData(m);
-    if (!data) {
-      throw mjCError(0, "could not create mjData");
-    }
-
-    // normalize keyframe quaternions
-    for (i=0; i<m->nkey; i++) {
-      mj_normalizeQuat(m, m->key_qpos+i*m->nq);
-    }
-
-    // set constant fields
-    mj_setConst(m, data);
-
-    // automatic spring-damper adjustment
-    AutoSpringDamper(m);
-
-    // actuator lengthrange computation
-    LengthRange(m, data);
-
-    // override model statistics if defined by user
-    if (mjuu_defined(extent)) m->stat.extent = (mjtNum)extent;
-    if (mjuu_defined(meaninertia)) m->stat.meaninertia = (mjtNum)meaninertia;
-    if (mjuu_defined(meanmass)) m->stat.meanmass = (mjtNum)meanmass;
-    if (mjuu_defined(meansize)) m->stat.meansize = (mjtNum)meansize;
-    if (mjuu_defined(center[0])) copyvec(m->stat.center, center, 3);
-
-    // assert that model has valid references
-    const char* validationerr = mj_validateReferences(m);
-    if (validationerr) {  // SHOULD NOT OCCUR
-      throw mjCError(0, validationerr);
-    }
-    // test forward simulation
-    mj_resetData(m, data);
-    mj_step(m, data);
-
-    // delete data
-    mj_deleteData(data);
-    data = NULL;
-
-    // pass warning back
-    if (warningtext[0]) {
-      mju::strcpy_arr(errInfo.message, warningtext);
-      errInfo.warning = true;
-    }
-  }
-
-  // handle mjCError exceptions
-  catch (mjCError err) {
+    TryCompile(*const_cast<mjModel**>(&m), *const_cast<mjData**>(&data), vfs);
+  } catch (mjCError err) {
     // deallocate everything allocated in Compile
     mj_deleteModel(m);
     mj_deleteData(data);
@@ -2616,6 +2351,372 @@ mjModel* mjCModel::Compile(const mjVFS* vfs) {
   _mjPRIVATE__set_tls_warning_fn(save_warning);
   compiled = true;
   return m;
+}
+
+
+void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
+  // check if nan test works
+  double test = mjNAN;
+  if (mjuu_defined(test)) {
+    throw mjCError(0, "NaN test does not work for present compiler/options");
+  }
+
+  // check for repeated compilation
+  if (compiled) {
+    throw mjCError(0, "model already compiled");
+  }
+
+  // check for joints in world body
+  if (!bodies[0]->joints.empty()) {
+    throw mjCError(0, "joint found in world body");
+  }
+
+  // append directory separator
+  if (!meshdir.empty()) {
+    int n = meshdir.length();
+    if (meshdir[n-1]!='/' && meshdir[n-1]!='\\') {
+      meshdir += '/';
+    }
+  }
+  if (!texturedir.empty()) {
+    int n = texturedir.length();
+    if (texturedir[n-1]!='/' && texturedir[n-1]!='\\') {
+      texturedir += '/';
+    }
+  }
+
+  // add missing keyframes
+  for (int i=keys.size(); i<nkey; i++) {
+    AddKey();
+  }
+
+  // make lists of objects created in kinematic tree
+  MakeLists(bodies[0]);
+
+  // set object ids and default names, check for repeated names
+  processlist(bodies, "body");
+  processlist(joints, "joint");
+  processlist(geoms, "geom");
+  processlist(sites, "site");
+  processlist(cameras, "camera");
+  processlist(lights, "light");
+  processlist(meshes, "mesh");
+  processlist(skins, "skin");
+  processlist(hfields, "hfield");
+  processlist(textures, "texture");
+  processlist(materials, "material");
+  processlist(pairs, "pair");
+  processlist(excludes, "exclude");
+  processlist(equalities, "equality");
+  processlist(tendons, "tendon");
+  processlist(actuators, "actuator");
+  processlist(sensors, "sensor");
+  processlist(numerics, "numeric");
+  processlist(texts, "text");
+  processlist(tuples, "tuple");
+  processlist(keys, "key");
+  processlist(plugins, "plugin");
+
+  // set default names, convert names into indices
+  SetDefaultNames();
+  IndexAssets();
+
+  // mark meshes that need convex hull
+  for (int i=0; i<geoms.size(); i++) {
+    if (geoms[i]->meshid>=0 && geoms[i]->type==mjGEOM_MESH &&
+        (geoms[i]->contype || geoms[i]->conaffinity)) {
+      meshes[geoms[i]->meshid]->needhull = true;
+    }
+  }
+
+  // compile meshes (needed for geom compilation)
+  for (int i=0; i<meshes.size(); i++) {
+    meshes[i]->Compile(vfs);
+  }
+
+  // automatically set nuser fields
+  if (nuser_body == -1) {
+    nuser_body = 0;
+    for (int i=0; i<bodies.size(); i++) {
+      nuser_body = mjMAX(nuser_body, bodies[i]->userdata.size());
+    }
+  }
+  if (nuser_jnt == -1) {
+    nuser_jnt = 0;
+    for (int i=0; i<joints.size(); i++) {
+      nuser_jnt = mjMAX(nuser_jnt, joints[i]->userdata.size());
+    }
+  }
+  if (nuser_geom == -1) {
+    nuser_geom = 0;
+    for (int i=0; i<geoms.size(); i++) {
+      nuser_geom = mjMAX(nuser_geom, geoms[i]->userdata.size());
+    }
+  }
+  if (nuser_site == -1) {
+    nuser_site = 0;
+    for (int i=0; i<sites.size(); i++) {
+      nuser_site = mjMAX(nuser_site, sites[i]->userdata.size());
+    }
+  }
+  if (nuser_cam == -1) {
+    nuser_cam = 0;
+    for (int i=0; i<cameras.size(); i++) {
+      nuser_cam = mjMAX(nuser_cam, cameras[i]->userdata.size());
+    }
+  }
+  if (nuser_tendon == -1) {
+    nuser_tendon = 0;
+    for (int i=0; i<tendons.size(); i++) {
+      nuser_tendon = mjMAX(nuser_tendon, tendons[i]->userdata.size());
+    }
+  }
+  if (nuser_actuator == -1) {
+    nuser_actuator = 0;
+    for (int i=0; i<actuators.size(); i++) {
+      nuser_actuator = mjMAX(nuser_actuator, actuators[i]->userdata.size());
+    }
+  }
+  if (nuser_sensor == -1) {
+    nuser_sensor = 0;
+    for (int i=0; i<sensors.size(); i++) {
+      nuser_sensor = mjMAX(nuser_sensor, sensors[i]->userdata.size());
+    }
+  }
+
+  // compile objects in kinematic tree
+  for (int i=0; i<bodies.size(); i++) {
+    bodies[i]->Compile();  // also compiles joints, geoms, sites, cameras, lights
+  }
+
+  // compile all other objects except for keyframes
+  for (int i=0; i<skins.size(); i++) skins[i]->Compile(vfs);
+  for (int i=0; i<hfields.size(); i++) hfields[i]->Compile(vfs);
+  for (int i=0; i<textures.size(); i++) textures[i]->Compile(vfs);
+  for (int i=0; i<materials.size(); i++) materials[i]->Compile();
+  for (int i=0; i<pairs.size(); i++) pairs[i]->Compile();
+  for (int i=0; i<excludes.size(); i++) excludes[i]->Compile();
+  for (int i=0; i<equalities.size(); i++) equalities[i]->Compile();
+  for (int i=0; i<tendons.size(); i++) tendons[i]->Compile();
+  for (int i=0; i<actuators.size(); i++) actuators[i]->Compile();
+  for (int i=0; i<sensors.size(); i++) sensors[i]->Compile();
+  for (int i=0; i<numerics.size(); i++) numerics[i]->Compile();
+  for (int i=0; i<texts.size(); i++) texts[i]->Compile();
+  for (int i=0; i<tuples.size(); i++) tuples[i]->Compile();
+  for (int i=0; i<plugins.size(); i++) plugins[i]->Compile();
+
+  // compile defaults: to enforce userdata length for writer
+  for (int i=0; i<defaults.size(); i++) {
+    defaults[i]->Compile(this);
+  }
+
+  // sort pair, exclude in increasing signature order; reassign ids
+  sort(pairs.begin(), pairs.end(), comparePair);
+  sort(excludes.begin(), excludes.end(), compareBodyPair);
+  reassignid(pairs);
+  reassignid(excludes);
+
+  // resolve asset references, compute sizes
+  IndexAssets();
+  SetSizes();
+
+  // fuse static if enabled
+  if (fusestatic) {
+    FuseStatic();
+  }
+
+  // set nmocap and body.mocapid
+  for (int i=0; i<bodies.size(); i++) {
+    if (bodies[i]->mocap) {
+      bodies[i]->mocapid = nmocap;
+      nmocap++;
+    } else {
+      bodies[i]->mocapid = -1;
+    }
+  }
+
+  // check body mass and inertia
+  for (int i=1; i<bodies.size(); i++) {
+    mjCBody* b = bodies[i];
+
+    // find moving body with small mass or inertia
+    if (!b->joints.empty() &&
+        (b->mass<mjMINVAL ||
+          b->inertia[0]<mjMINVAL ||
+          b->inertia[1]<mjMINVAL ||
+          b->inertia[2]<mjMINVAL)) {
+      // does it have static children with mass and inertia
+      bool ok = false;
+      for (size_t j=0; j<b->bodies.size(); j++) {
+        if (b->bodies[j]->joints.empty() &&
+            b->bodies[j]->mass>=mjMINVAL &&
+            b->bodies[j]->inertia[0]>=mjMINVAL &&
+            b->bodies[j]->inertia[1]>=mjMINVAL &&
+            b->bodies[j]->inertia[2]>=mjMINVAL) {
+          ok = true;
+          break;
+        }
+      }
+
+      // error
+      if (!ok) {
+        throw mjCError(b, "mass and inertia of moving bodies must be larger than mjMINVAL");
+      }
+    }
+  }
+
+  // create low-level model
+  m = mj_makeModel(nq, nv, nu, na, nbody, njnt, ngeom, nsite, ncam, nlight,
+                   nmesh, nmeshvert, nmeshtexvert, nmeshface, nmeshgraph,
+                   nskin, nskinvert, nskintexvert, nskinface, nskinbone, nskinbonevert,
+                   nhfield, nhfielddata, ntex, ntexdata, nmat, npair, nexclude,
+                   neq, ntendon, nwrap, nsensor,
+                   nnumeric, nnumericdata, ntext, ntextdata,
+                   ntuple, ntupledata, nkey, nmocap, nplugin, npluginattr,
+                   nuser_body, nuser_jnt, nuser_geom, nuser_site, nuser_cam,
+                   nuser_tendon, nuser_actuator, nuser_sensor, nnames);
+  if (!m) {
+    throw mjCError(0, "could not create mjModel");
+  }
+
+  // copy everything into low-level model
+  m->opt = option;
+  m->vis = visual;
+  CopyNames(m);
+  CopyTree(m);
+
+  // assign plugin slots and copy plugin config attributes
+  {
+    int adr = 0;
+    for (int i = 0; i < nplugin; ++i) {
+      m->plugin[i] = plugins[i]->plugin_slot;
+      const int size = plugins[i]->flattened_attributes.size();
+      std::memcpy(m->plugin_attr + adr,
+                  plugins[i]->flattened_attributes.data(), size);
+      m->plugin_attradr[i] = adr;
+      adr += size;
+    }
+  }
+
+  // query and set plugin-related information
+  {
+    // set actuator_plugin to the plugin instance ID
+    for (int i = 0; i < nu; ++i) {
+      if (actuators[i]->is_plugin) {
+        m->actuator_plugin[i] = actuators[i]->plugin_instance->id;
+      } else {
+        m->actuator_plugin[i] = -1;
+      }
+    }
+
+    // set sensor_plugin to the plugin instance ID
+    std::vector<std::vector<int>> plugin_to_sensors(nplugin);
+    for (int i = 0; i < nsensor; ++i) {
+      if (sensors[i]->type == mjSENS_PLUGIN) {
+        int sensor_plugin = sensors[i]->plugin_instance->id;
+        m->sensor_plugin[i] = sensor_plugin;
+        plugin_to_sensors[sensor_plugin].push_back(i);
+      } else {
+        m->sensor_plugin[i] = -1;
+      }
+    }
+
+    // query plugin->nstate, compute and set plugin_state and plugin_stateadr
+    // for sensor plugins, also query plugin->nsensordata and set nsensordata
+    int stateadr = 0;
+    for (int i = 0; i < nplugin; ++i) {
+      const mjpPlugin* plugin = mjp_getPluginAtSlot(m->plugin[i]);
+      if (!plugin->nstate) {
+        mju_error_i("`nstate` is null for plugin at slot %d", m->plugin[i]);
+      }
+      int nstate = plugin->nstate(m, i);
+      m->plugin_stateadr[i] = stateadr;
+      stateadr += nstate;
+      if (plugin->type & mjPLUGIN_SENSOR) {
+        for (int sensor_id : plugin_to_sensors[i]) {
+          if (!plugin->nsensordata) {
+            mju_error_i("`reset` is null for plugin at slot %d", m->plugin[i]);
+          }
+          int nsensordata = plugin->nsensordata(m, i, sensor_id);
+          sensors[sensor_id]->dim = nsensordata;
+          sensors[sensor_id]->needstage =
+              static_cast<mjtStage>(plugin->needstage);
+          this->nsensordata += nsensordata;
+        }
+      }
+    }
+    m->npluginstate = stateadr;
+  }
+
+  // keyframe compilation needs access to nq, nv, na, nmocap, qpos0
+  for (int i=0; i<keys.size(); i++) {
+    keys[i]->Compile(m);
+  }
+
+  // copy objects outsite kinematic tree (including keyframes)
+  CopyObjects(m);
+
+  // scale mass
+  if (settotalmass>0) {
+    mj_setTotalmass(m, settotalmass);
+  }
+
+  // set stack size: user-specified or conservative heuristic
+  if (nstack>0) {
+    m->nstack = nstack;
+  } else {
+    m->nstack = mjMAX(
+        1000,
+        5*(m->njmax + m->neq + m->nv)*(m->njmax + m->neq + m->nv) +
+        20*(m->nq + m->nv + m->nu + m->na + m->nbody + m->njnt +
+            m->ngeom + m->nsite + m->neq + m->ntendon +  m->nwrap));
+  }
+
+  // create data
+  d = mj_makeData(m);
+  if (!d) {
+    throw mjCError(0, "could not create mjData");
+  }
+
+  // normalize keyframe quaternions
+  for (int i=0; i<m->nkey; i++) {
+    mj_normalizeQuat(m, m->key_qpos+i*m->nq);
+  }
+
+  // set constant fields
+  mj_setConst(m, d);
+
+  // automatic spring-damper adjustment
+  AutoSpringDamper(m);
+
+  // actuator lengthrange computation
+  LengthRange(m, d);
+
+  // override model statistics if defined by user
+  if (mjuu_defined(extent)) m->stat.extent = (mjtNum)extent;
+  if (mjuu_defined(meaninertia)) m->stat.meaninertia = (mjtNum)meaninertia;
+  if (mjuu_defined(meanmass)) m->stat.meanmass = (mjtNum)meanmass;
+  if (mjuu_defined(meansize)) m->stat.meansize = (mjtNum)meansize;
+  if (mjuu_defined(center[0])) copyvec(m->stat.center, center, 3);
+
+  // assert that model has valid references
+  const char* validationerr = mj_validateReferences(m);
+  if (validationerr) {  // SHOULD NOT OCCUR
+    throw mjCError(0, validationerr);
+  }
+  // test forward simulation
+  mj_resetData(m, d);
+  mj_step(m, d);
+
+  // delete data
+  mj_deleteData(d);
+  d = nullptr;
+
+  // pass warning back
+  if (warningtext[0]) {
+    mju::strcpy_arr(errInfo.message, warningtext);
+    errInfo.warning = true;
+  }
 }
 
 
@@ -2887,4 +2988,43 @@ bool mjCModel::CopyBack(const mjModel* m) {
   }
 
   return true;
+}
+
+void mjCModel::ResolvePlugin(mjCBase* obj, const std::string& plugin_name,
+                             const std::string& plugin_instance_name, mjCPlugin** plugin_instance) {
+  // if plugin_name is specified, check if it is in the list of active plugins
+  // (in XML, active plugins are those declared as <required>)
+  int plugin_slot = -1;
+  if (!plugin_name.empty()) {
+    for (int i = 0; i < active_plugins.size(); ++i) {
+      if (active_plugins[i].first->name == plugin_name) {
+        plugin_slot = active_plugins[i].second;
+        break;
+      }
+    }
+    if (plugin_slot == -1) {
+      throw mjCError(obj, "unrecognized plugin '%s'", plugin_name.c_str());
+    }
+  }
+
+  // implicit plugin instance
+  if (*plugin_instance && (*plugin_instance)->plugin_slot == -1) {
+      (*plugin_instance)->plugin_slot = plugin_slot;
+      (*plugin_instance)->parent = obj;
+  }
+
+  // explicit plugin instance, look up existing mjCPlugin by instance name
+  else if (!*plugin_instance) {
+    *plugin_instance =
+        static_cast<mjCPlugin*>(FindObject(mjOBJ_PLUGIN, plugin_instance_name));
+    if (!*plugin_instance) {
+      throw mjCError(
+          obj, "unrecognized name '%s' for plugin instance", plugin_instance_name.c_str());
+    }
+    if (plugin_slot != -1 && plugin_slot != (*plugin_instance)->plugin_slot) {
+      throw mjCError(
+          obj, "'plugin' attribute does not match that of the instance");
+    }
+    plugin_slot = (*plugin_instance)->plugin_slot;
+  }
 }

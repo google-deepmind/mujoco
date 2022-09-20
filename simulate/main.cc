@@ -22,7 +22,7 @@
 #include <thread>
 
 #include <mujoco/mujoco.h>
-#include <mujoco/mjxmacro.h>
+#include "glfw_dispatch.h"
 #include "simulate.h"
 #include "array_safety.h"
 
@@ -30,10 +30,12 @@ namespace {
 namespace mj = ::mujoco;
 namespace mju = ::mujoco::sample_util;
 
+using ::mujoco::Glfw;
+
 // constants
-const double syncmisalign = 0.1;    // maximum time mis-alignment before re-sync
-const double refreshfactor = 0.7;   // fraction of refresh available for simulation
-const int kErrorLength = 1024;
+const double syncMisalign = 0.1;        // maximum mis-alignment before re-sync (simulation seconds)
+const double simRefreshFraction = 0.7;  // fraction of refresh available for simulation
+const int kErrorLength = 1024;          // load error string length
 
 // model and data
 mjModel* m = nullptr;
@@ -98,8 +100,8 @@ mjModel* LoadModel(const char* file, mj::Simulate& sim) {
 // simulate in background thread (while rendering in main thread)
 void PhysicsLoop(mj::Simulate& sim) {
   // cpu-sim syncronization point
-  double cpusync = 0;
-  mjtNum simsync = 0;
+  double syncCPU = 0;
+  mjtNum syncSim = 0;
 
   // run until asked to exit
   while (!sim.exitrequest.load()) {
@@ -151,6 +153,7 @@ void PhysicsLoop(mj::Simulate& sim) {
     }
 
     {
+      // lock the sim mutex
       const std::lock_guard<std::mutex> lock(sim.mtx);
 
       // run only if model is present
@@ -158,30 +161,39 @@ void PhysicsLoop(mj::Simulate& sim) {
         // running
         if (sim.run) {
           // record cpu time at start of iteration
-          double tmstart = glfwGetTime();
+          double startCPU = Glfw().glfwGetTime();
+
+          // elapsed CPU and simulation time since last sync
+          double elapsedCPU = startCPU - syncCPU;
+          double elapsedSim = d->time - syncSim;
 
           // inject noise
           if (sim.ctrlnoisestd) {
-            // convert rate and scale to discrete time given current timestep
+            // convert rate and scale to discrete time (Ornstein–Uhlenbeck)
             mjtNum rate = mju_exp(-m->opt.timestep / sim.ctrlnoiserate);
             mjtNum scale = sim.ctrlnoisestd * mju_sqrt(1-rate*rate);
 
             for (int i=0; i<m->nu; i++) {
               // update noise
               ctrlnoise[i] = rate * ctrlnoise[i] + scale * mju_standardNormal(nullptr);
+
               // apply noise
               d->ctrl[i] = ctrlnoise[i];
             }
           }
 
-          // out-of-sync (for any reason)
-          mjtNum offset = mju_abs((d->time*sim.slow_down-simsync)-(tmstart-cpusync));
-          if (d->time*sim.slow_down<simsync || tmstart<cpusync || cpusync==0 ||
-              offset > syncmisalign*sim.slow_down || sim.speed_changed) {
+          // requested slow-down factor
+          double slowdown = 100 / sim.percentRealTime[sim.realTimeIndex];
+
+          // misalignment condition: distance from target sim time is bigger than syncmisalign
+          bool misaligned = mju_abs(elapsedCPU/slowdown - elapsedSim) > syncMisalign;
+
+          // out-of-sync (for any reason): reset sync times, step
+          if (elapsedSim < 0 || elapsedCPU < 0 || syncCPU == 0 || misaligned || sim.speedChanged) {
             // re-sync
-            cpusync = tmstart;
-            simsync = d->time*sim.slow_down;
-            sim.speed_changed = false;
+            syncCPU = startCPU;
+            syncSim = d->time;
+            sim.speedChanged = false;
 
             // clear old perturbations, apply new
             mju_zero(d->xfrc_applied, 6*m->nbody);
@@ -192,22 +204,31 @@ void PhysicsLoop(mj::Simulate& sim) {
             mj_step(m, d);
           }
 
-          // in-sync
+          // in-sync: step until ahead of cpu
           else {
-            // step while simtime lags behind cputime, and within safefactor
-            while ((d->time*sim.slow_down-simsync) < (glfwGetTime()-cpusync) &&
-                   (glfwGetTime()-tmstart) < refreshfactor/sim.vmode.refreshRate) {
+            bool measured = false;
+            mjtNum prevSim = d->time;
+            double refreshTime = simRefreshFraction/sim.refreshRate;
+
+            // step while sim lags behind cpu and within refreshTime
+            while ((d->time - syncSim)*slowdown < (Glfw().glfwGetTime()-syncCPU) &&
+                   (Glfw().glfwGetTime()-startCPU) < refreshTime) {
+              // measure slowdown before first step
+              if (!measured && elapsedSim) {
+                sim.measuredSlowdown = elapsedCPU / elapsedSim;
+                measured = true;
+              }
+
               // clear old perturbations, apply new
               mju_zero(d->xfrc_applied, 6*m->nbody);
               sim.applyposepertubations(0);  // move mocap bodies only
               sim.applyforceperturbations();
 
-              // run mj_step
-              mjtNum prevtm = d->time*sim.slow_down;
+              // call mj_step
               mj_step(m, d);
 
-              // break on reset
-              if (d->time*sim.slow_down<prevtm) {
+              // break if reset
+              if (d->time < prevSim) {
                 break;
               }
             }
@@ -223,7 +244,7 @@ void PhysicsLoop(mj::Simulate& sim) {
           mj_forward(m, d);
         }
       }
-    }  // std::lock_guard<std::mutex>
+    }  // release std::lock_guard<std::mutex>
   }
 }
 }  // namespace
@@ -268,7 +289,7 @@ int main(int argc, const char** argv) {
   auto sim = std::make_unique<mj::Simulate>();
 
   // init GLFW
-  if (!glfwInit()) {
+  if (!Glfw().glfwInit()) {
     mju_error("could not initialize GLFW");
   }
 
@@ -286,7 +307,7 @@ int main(int argc, const char** argv) {
 
   // terminate GLFW (crashes with Linux NVidia drivers)
 #if defined(__APPLE__) || defined(_WIN32)
-  glfwTerminate();
+  Glfw().glfwTerminate();
 #endif
 
   return 0;

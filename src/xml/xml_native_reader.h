@@ -37,6 +37,7 @@ class mjXReader : public mjXBase {
  private:
   // XML section specific to MJCF
   void Default(tinyxml2::XMLElement* section,   int parentid);         // default section
+  void Extension(tinyxml2::XMLElement* section);                       // extension section
   void Custom(tinyxml2::XMLElement* section);                          // custom section
   void Visual(tinyxml2::XMLElement* section);                          // visual section
   void Statistic(tinyxml2::XMLElement* section);                       // statistic section

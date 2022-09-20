@@ -17,6 +17,7 @@ on:
 jobs:
   mujoco:
     strategy:
+      fail-fast: false
       matrix:
         include:
           - os: ubuntu-22.04
@@ -138,7 +139,7 @@ jobs:
       run: cmake --build . --config=Release ${{ matrix.cmake_build_args }}
     - name: Test MuJoCo
       working-directory: build
-      run: ctest -C Release .
+      run: ctest -C Release --output-on-failure .
     - name: Install MuJoCo
       working-directory: build
       run: cmake --install .
@@ -153,6 +154,18 @@ jobs:
         ${{ matrix.cmake_args }}
     - name: Build samples
       working-directory: sample/build
+      run: cmake --build . --config=Release ${{ matrix.cmake_build_args }}
+    - name: Configure simulate
+      working-directory: simulate
+      run: >
+        mkdir build &&
+        cd build &&
+        cmake ..
+        -DCMAKE_BUILD_TYPE:STRING=Release
+        -Dmujoco_ROOT:STRING=${{ matrix.tmpdir }}/mujoco_install
+        ${{ matrix.cmake_args }}
+    - name: Build simulate
+      working-directory: simulate/build
       run: cmake --build . --config=Release ${{ matrix.cmake_build_args }}
     - name: Make Python sdist
       shell: bash

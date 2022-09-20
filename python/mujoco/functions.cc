@@ -355,6 +355,17 @@ PYBIND11_MODULE(_functions, pymodule) {
             m, d, jacp.has_value() ? jacp->data() : nullptr,
             jacr.has_value() ? jacr->data() : nullptr, body);
       });
+  Def<traits::mj_jacSubtreeCom>(
+      pymodule,
+      [](const raw::MjModel* m, raw::MjData* d,
+         std::optional<Eigen::Ref<EigenArrayXX>> jacp, int body) {
+        if (jacp.has_value() &&
+            (jacp->rows() != 3 || jacp->cols() != m->nv)) {
+          throw py::type_error("jacp should be of shape (3, nv)");
+        }
+        return InterceptMjErrors(::mj_jacSubtreeCom)(
+            m, d, jacp.has_value() ? jacp->data() : nullptr, body);
+      });
   Def<traits::mj_jacGeom>(
       pymodule,
       [](const raw::MjModel* m, raw::MjData* d,
@@ -546,6 +557,7 @@ PYBIND11_MODULE(_functions, pymodule) {
 
   // Interaction
   Def<traits::mjv_defaultCamera>(pymodule);
+  Def<traits::mjv_defaultFreeCamera>(pymodule);
   Def<traits::mjv_defaultPerturb>(pymodule);
   Def<traits::mjv_room2model>(pymodule);
   Def<traits::mjv_model2room>(pymodule);
@@ -772,6 +784,26 @@ PYBIND11_MODULE(_functions, pymodule) {
         return InterceptMjErrors(::mju_mulMatTVec)(
             res.data(), mat.data(), vec.data(), mat.rows(), mat.cols());
       });
+  DEF_WITH_OMITTED_PY_ARGS(traits::mju_mulVecMatVec, "n")(
+      pymodule,
+      [](Eigen::Ref<const EigenVectorX> vec1,
+         Eigen::Ref<const EigenArrayXX> mat,
+         Eigen::Ref<const EigenVectorX> vec2) {
+        if (vec1.size() != vec2.size()) {
+          throw py::type_error(
+              "size of vec1 should equal the size of vec2");
+        }
+        if (vec1.size() != mat.cols()) {
+          throw py::type_error(
+              "size of vectors should equal the number of columns in mat");
+        }
+        if (vec1.size() != mat.rows()) {
+          throw py::type_error(
+              "size of vectors should equal the number of rows in mat");
+        }
+        return InterceptMjErrors(::mju_mulVecMatVec)(
+            vec1.data(), mat.data(), vec2.data(), vec1.size());
+      });
   DEF_WITH_OMITTED_PY_ARGS(traits::mju_transpose, "nr", "nc")(
       pymodule,
       [](Eigen::Ref<EigenArrayXX> res,
@@ -926,7 +958,41 @@ PYBIND11_MODULE(_functions, pymodule) {
             mat.data(), x.data(), mat.rows(), flg_plus);
       });
   Def<traits::mju_eig3>(pymodule);
-
+  DEF_WITH_OMITTED_PY_ARGS(traits::mju_boxQP, "n")(
+      pymodule,
+      [](Eigen::Ref<EigenVectorX> res,
+         Eigen::Ref<EigenArrayXX> R,
+         std::optional<Eigen::Ref<Eigen::Vector<int, Eigen::Dynamic>>> index,
+         Eigen::Ref<const EigenArrayXX> H,
+         Eigen::Ref<const EigenVectorX> g,
+         std::optional<Eigen::Ref<const EigenVectorX>> lower,
+         std::optional<Eigen::Ref<const EigenVectorX>> upper) {
+        int n = res.size();
+        if (R.size() != n*(n+7)) {
+          throw py::type_error("size of R should be n*(n+7)");
+        }
+        if (index.has_value() && (index->size() != n)) {
+          throw py::type_error("size of index should equal n");
+        }
+        if (H.rows() != n || H.cols() != n) {
+          throw py::type_error("H should be of shape (n, n)");
+        }
+        if (g.size() != n) {
+          throw py::type_error("size of g should equal n");
+        }
+        if (lower.has_value() && (lower->size() != n)) {
+          throw py::type_error("size of lower should equal n");
+        }
+        if (upper.has_value() && (upper->size() != n)) {
+          throw py::type_error("size of upper should equal n");
+        }
+        return InterceptMjErrors(::mju_boxQP)(
+            res.data(), R.data(),
+            index.has_value() ? index->data() : nullptr,
+            H.data(), g.data(), n,
+            lower.has_value() ? lower->data() : nullptr,
+            upper.has_value() ? upper->data() : nullptr);
+      });
   // Miscellaneous
   Def<traits::mju_muscleGain>(pymodule);
   Def<traits::mju_muscleBias>(pymodule);
@@ -1027,6 +1093,36 @@ PYBIND11_MODULE(_functions, pymodule) {
       [](Eigen::Ref<Eigen::Vector<int, Eigen::Dynamic>> res) {
         return InterceptMjErrors(::mju_insertionSortInt)(
             res.data(), res.size());
+      });
+  Def<traits::mjd_transitionFD>(
+      pymodule,
+      [](const raw::MjModel* m, raw::MjData* d, mjtNum eps, mjtByte centered,
+         std::optional<Eigen::Ref<EigenArrayXX>> A,
+         std::optional<Eigen::Ref<EigenArrayXX>> B,
+         std::optional<Eigen::Ref<EigenArrayXX>> C,
+         std::optional<Eigen::Ref<EigenArrayXX>> D) {
+        if (A.has_value() &&
+            (A->rows() != 2*m->nv+m->na || A->cols() != 2*m->nv+m->na)) {
+          throw py::type_error("A should be of shape (2*nv+na, 2*nv+na)");
+        }
+        if (B.has_value() &&
+            (B->rows() != 2*m->nv+m->na || B->cols() != m->nu)) {
+          throw py::type_error("B should be of shape (2*nv+na, nu)");
+        }
+        if (C.has_value() &&
+            (C->rows() != m->nsensordata || C->cols() != 2*m->nv+m->na)) {
+          throw py::type_error("C should be of shape (nsensordata, 2*nv+na)");
+        }
+        if (D.has_value() &&
+            (D->rows() != m->nsensordata || D->cols() != m->nu)) {
+          throw py::type_error("D should be of shape (nsensordata, nu)");
+        }
+        return InterceptMjErrors(::mjd_transitionFD)(
+            m, d, eps, centered,
+            A.has_value() ? A->data() : nullptr,
+            B.has_value() ? B->data() : nullptr,
+            C.has_value() ? C->data() : nullptr,
+            D.has_value() ? D->data() : nullptr);
       });
   Def<traits::mju_Halton>(pymodule);
   // Skipped: mju_strncpy (doesn't make sense in Python)

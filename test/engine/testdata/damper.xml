@@ -1,4 +1,5 @@
 <mujoco>
+  <compiler autolimits="true" />
   <worldbody>
     <geom type="plane" size="1 1 .01"/>
     <light pos="0 0 2"/>
