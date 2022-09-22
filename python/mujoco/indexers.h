@@ -31,34 +31,63 @@
 #include <pybind11/pybind11.h>
 
 namespace mujoco::python {
-using NameToIDMap = absl::flat_hash_map<std::string, int>;
+using NameToID = absl::flat_hash_map<std::string, int>;
+using IDToName = std::vector<std::string>;
 
-struct NameToIDMaps {
+struct NameToIDMappings {
   // M is either a raw::MjModel or MjDataMetadata.
   template <typename M>
-  explicit NameToIDMaps(const M& m);
+  explicit NameToIDMappings(const M& m);
 
-  NameToIDMap body;
-  NameToIDMap jnt;
-  NameToIDMap geom;
-  NameToIDMap site;
-  NameToIDMap cam;
-  NameToIDMap light;
-  NameToIDMap mesh;
-  NameToIDMap skin;
-  NameToIDMap hfield;
-  NameToIDMap tex;
-  NameToIDMap mat;
-  NameToIDMap pair;
-  NameToIDMap exclude;
-  NameToIDMap eq;
-  NameToIDMap tendon;
-  NameToIDMap actuator;
-  NameToIDMap sensor;
-  NameToIDMap numeric;
-  NameToIDMap text;
-  NameToIDMap tuple;
-  NameToIDMap key;
+  NameToID body;
+  NameToID jnt;
+  NameToID geom;
+  NameToID site;
+  NameToID cam;
+  NameToID light;
+  NameToID mesh;
+  NameToID skin;
+  NameToID hfield;
+  NameToID tex;
+  NameToID mat;
+  NameToID pair;
+  NameToID exclude;
+  NameToID eq;
+  NameToID tendon;
+  NameToID actuator;
+  NameToID sensor;
+  NameToID numeric;
+  NameToID text;
+  NameToID tuple;
+  NameToID key;
+};
+
+struct IDToNameMappings {
+  // M is either a raw::MjModel or MjDataMetadata.
+  template <typename M>
+  explicit IDToNameMappings(const M& m);
+
+  IDToName body;
+  IDToName jnt;
+  IDToName geom;
+  IDToName site;
+  IDToName cam;
+  IDToName light;
+  IDToName mesh;
+  IDToName skin;
+  IDToName hfield;
+  IDToName tex;
+  IDToName mat;
+  IDToName pair;
+  IDToName exclude;
+  IDToName eq;
+  IDToName tendon;
+  IDToName actuator;
+  IDToName sensor;
+  IDToName numeric;
+  IDToName text;
+  IDToName tuple;
+  IDToName key;
 };
 
 
@@ -67,12 +96,16 @@ struct NameToIDMaps {
 // geom, or a particular joint).
 class MjModelGroupedViewsBase {
  public:
-  MjModelGroupedViewsBase(int index, raw::MjModel* m,
+  MjModelGroupedViewsBase(int index, std::string_view name, raw::MjModel* m,
                           pybind11::handle owner)
-      : index_(index), m_(m), owner_(owner) {}
+      : index_(index), name_(name), m_(m), owner_(owner) {}
+
+  int index() const { return index_; }
+  const std::string& name() const { return name_; }
 
  protected:
   int index_;
+  std::string name_;
   raw::MjModel* m_;
   pybind11::handle owner_;
 };
@@ -111,7 +144,8 @@ class MjModelIndexer {
  private:
   raw::MjModel* m_;
   pybind11::handle owner_;
-  NameToIDMaps name_to_id_;
+  NameToIDMappings name_to_id_;
+  IDToNameMappings id_to_name_;
 
   // Lazily instantiate a grouped views object when accessed from Python, but
   // cache it once made so that we can return the same one if requested again.
@@ -127,13 +161,17 @@ class MjModelIndexer {
 // geom, or a particular joint).
 class MjDataGroupedViewsBase {
  public:
-  MjDataGroupedViewsBase(int index, raw::MjData* d,
+  MjDataGroupedViewsBase(int index, std::string_view name, raw::MjData* d,
                          const MjDataMetadata* m,
                          pybind11::handle owner)
-      : index_(index), d_(d), m_(m), owner_(owner) {}
+      : index_(index), name_(name), d_(d), m_(m), owner_(owner) {}
+
+  int index() const { return index_; }
+  const std::string& name() const { return name_; }
 
  protected:
   int index_;
+  std::string name_;
   raw::MjData* d_;
   const MjDataMetadata* m_;
   pybind11::handle owner_;
@@ -175,7 +213,8 @@ class MjDataIndexer {
   raw::MjData* d_;
   const MjDataMetadata* m_;
   pybind11::handle owner_;
-  NameToIDMaps name_to_id_;
+  NameToIDMappings name_to_id_;
+  IDToNameMappings id_to_name_;
 
   // Lazily instantiate a grouped views object when accessed from Python, but
   // cache it once made so that we can return the same one if requested again.
@@ -188,7 +227,7 @@ class MjDataIndexer {
 
 // Returns an error message when a nonexistent name is requested from an
 // indexer, which includes all valid names.
-std::string KeyErrorMessage(const NameToIDMap& map, std::string_view name);
+std::string KeyErrorMessage(const NameToID& map, std::string_view name);
 // Returns an error message when an invalid numeric index is provided.
 std::string IndexErrorMessage(int index, int size);
 }  // namespace mujoco::python

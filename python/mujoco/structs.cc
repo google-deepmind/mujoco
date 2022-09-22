@@ -1506,6 +1506,12 @@ This is useful for example when the MJB is not available as a file on disk.)"));
     py::class_<MjModelGroupedViews> groupedViews(m, "_" #MjModelGroupedViews); \
     FIELD_XMACROS                                                              \
     groupedViews.def("__repr__", StructRepr<GroupedViews>);                    \
+    groupedViews.def_property_readonly("id", [](GroupedViews& views) {         \
+      return views.index();                                                    \
+    });                                                                        \
+    groupedViews.def_property_readonly("name", [](GroupedViews& views) {       \
+      return views.name();                                                     \
+    });                                                                        \
   }
 #define X(type, prefix, var, dim0, dim1)                                    \
   groupedViews.def_property(                                                \
@@ -1780,6 +1786,12 @@ This is useful for example when the MJB is not available as a file on disk.)"));
     py::class_<MjDataGroupedViews> groupedViews(m, "_" #MjDataGroupedViews); \
     FIELD_XMACROS                                                            \
     groupedViews.def("__repr__", StructRepr<GroupedViews>);                  \
+    groupedViews.def_property_readonly("id", [](GroupedViews& views) {       \
+      return views.index();                                                  \
+    });                                                                      \
+    groupedViews.def_property_readonly("name", [](GroupedViews& views) {     \
+      return views.name();                                                   \
+    });                                                                      \
   }
 #define X(type, prefix, var, dim0, dim1)                                    \
   groupedViews.def_property(                                                \

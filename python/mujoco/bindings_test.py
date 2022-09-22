@@ -265,6 +265,8 @@ class MuJoCoBindingsTest(parameterized.TestCase):
 
   def test_named_indexing_repr_in_data(self):
     expected_repr = '''<_MjDataGeomViews
+  id: 1
+  name: 'mybox'
   xmat: array([0., 0., 0., 0., 0., 0., 0., 0., 0.])
   xpos: array([0., 0., 0.])
 >'''
@@ -1037,6 +1039,48 @@ Euler integrator, semi-implicit in velocity.
         'nq', 'nmat', 'body_pos', 'names',
     )
     self._assert_attributes_equal(model2, self.model, attr_to_compare)
+
+  def test_indexer_name_id(self):
+    xml = r"""
+<mujoco>
+  <worldbody>
+    <geom name="mygeom" size="1" pos="0 0 1"/>
+    <geom size="2" pos="0 0 2"/>
+    <geom size="3" pos="0 0 3"/>
+    <geom name="myothergeom" size="4" pos="0 0 4"/>
+    <geom size="5" pos="0 0 5"/>
+  </worldbody>
+</mujoco>
+"""
+
+    model = mujoco.MjModel.from_xml_string(xml)
+    self.assertEqual(model.geom('mygeom').id, 0)
+    self.assertEqual(model.geom('myothergeom').id, 3)
+    self.assertEqual(model.geom(0).name, 'mygeom')
+    self.assertEqual(model.geom(1).name, '')
+    self.assertEqual(model.geom(2).name, '')
+    self.assertEqual(model.geom(3).name, 'myothergeom')
+    self.assertEqual(model.geom(4).name, '')
+    self.assertEqual(model.geom(0).size[0], 1)
+    self.assertEqual(model.geom(1).size[0], 2)
+    self.assertEqual(model.geom(2).size[0], 3)
+    self.assertEqual(model.geom(3).size[0], 4)
+    self.assertEqual(model.geom(4).size[0], 5)
+
+    data = mujoco.MjData(model)
+    mujoco.mj_forward(model, data)
+    self.assertEqual(data.geom('mygeom').id, 0)
+    self.assertEqual(data.geom('myothergeom').id, 3)
+    self.assertEqual(data.geom(0).name, 'mygeom')
+    self.assertEqual(data.geom(1).name, '')
+    self.assertEqual(data.geom(2).name, '')
+    self.assertEqual(data.geom(3).name, 'myothergeom')
+    self.assertEqual(data.geom(4).name, '')
+    self.assertEqual(data.geom(0).xpos[2], 1)
+    self.assertEqual(data.geom(1).xpos[2], 2)
+    self.assertEqual(data.geom(2).xpos[2], 3)
+    self.assertEqual(data.geom(3).xpos[2], 4)
+    self.assertEqual(data.geom(4).xpos[2], 5)
 
   def _assert_attributes_equal(self, actual_obj, expected_obj, attr_to_compare):
     for name in attr_to_compare:

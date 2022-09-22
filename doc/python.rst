@@ -165,13 +165,16 @@ various array members. For convenience and code readability, the Python bindings
 For each name category ``foo``, ``mujoco.MjModel`` and ``mujoco.MjData`` objects provide a method ``foo`` that takes
 a single string argument, and returns an accessor object for all arrays corresponding to the entity ``foo`` of the
 given name. The accessor object contains attributes whose names correspond to the fields of either ``mujoco.MjModel`` or
-``mujoco.MjData`` but with the part before the underscore removed. For example:
+``mujoco.MjData`` but with the part before the underscore removed. In addition, accessor objects also provide ``id`` and
+``name`` properties, which can be used as replacements for ``mj_name2id`` and ``mj_id2name`` respectively. For example:
 
 - ``m.geom('gizmo')`` returns an accessor for arrays in the ``MjModel`` object ``m`` associated with the geom named
   "gizmo".
 - ``m.geom('gizmo').rgba`` is a NumPy array view of length 4 that specifies the RGBA color for the geom.
   Specifically, it corresponds to the portion of ``m.geom_rgba[4*i:4*i+4]`` where
   ``i = mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_GEOM, 'gizmo')``.
+- ``m.geom('gizmo').id`` is the same number as returned by ``mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_GEOM, 'gizmo')``.
+- ``m.geom(i).name`` is ``'gizmo'``, where ``i = mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_GEOM, 'gizmo')``.
 
 Additionally, the Python API define a number of aliases for some name categories corresponding to the XML element name
 in the MJCF schema that defines an entity of that category. For example, ``m.joint('foo')`` is the same as

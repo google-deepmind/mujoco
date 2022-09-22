@@ -46,6 +46,14 @@ General
 .. |LQRopenincolab| image:: https://colab.research.google.com/assets/colab-badge.svg
                     :target: https://colab.research.google.com/github/deepmind/mujoco/blob/main/python/LQR.ipynb
 
+Python bindings
+^^^^^^^^^^^^^^^
+
+- Added ``id`` and ``name`` properties to
+  `named accessor <https://mujoco.readthedocs.io/en/latest/python.html#named-access>`_ objects. These provide more
+  Pythonic API access to ``mj_name2id`` and ``mj_id2name`` respectively.
+
+
 Version 2.2.2 (September 7, 2022)
 ---------------------------------
 
