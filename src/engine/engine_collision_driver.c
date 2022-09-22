@@ -491,6 +491,12 @@ static mjtNum plane_geom(const mjModel* m, mjData* d, int g1, int g2) {
   return mju_dot3(dif, norm);
 }
 
+// squared Euclidean distance between 3D vectors
+static inline mjtNum squaredDist3(const mjtNum pos1[3], const mjtNum pos2[3]) {
+  mjtNum dif[3] = {pos1[0]-pos2[0], pos1[1]-pos2[1], pos1[2]-pos2[2]};
+  return dif[0]*dif[0] + dif[1]*dif[1] + dif[2]*dif[2];
+}
+
 
 // test two geoms for collision, apply filters, add to contact list
 //  flg_user disables filters and uses usermargin
@@ -576,10 +582,11 @@ void mj_collideGeoms(const mjModel* m, mjData* d, int g1, int g2, int flg_user, 
   }
 
   // bounding sphere filter
-  if (m->geom_rbound[g1]>0 && m->geom_rbound[g2]>0 &&
-      (mju_dist3(d->geom_xpos+3*g1, d->geom_xpos+3*g2) >
-       m->geom_rbound[g1] + m->geom_rbound[g2] + margin)) {
-    return;
+  if (m->geom_rbound[g1]>0 && m->geom_rbound[g2]>0) {
+    mjtNum bound = m->geom_rbound[g1] + m->geom_rbound[g2] + margin;
+    if (squaredDist3(d->geom_xpos+3*g1, d->geom_xpos+3*g2) > bound*bound) {
+      return;
+    }
   }
 
   // plane : bounding sphere filter
