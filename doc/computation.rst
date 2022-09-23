@@ -232,7 +232,7 @@ description of the general framework by summarizing how the above quantities up 
    a way that preserves sparsity. When a quantity of the form :math:`M^{-1} x` is needed later, it is computed via
    sparse back-substitution.
 
-Before any of these computations we apply forward kinematics, which compute the global position and orientation of all
+Before any of these computations we apply forward kinematics, which computes the global position and orientation of all
 spatial objects as well as the joint axes. While it is often recommended to apply RNE and CRB in local coordinates, here
 we are setting the stage for collision detection which is done in global coordinates, thus RNE and CRB are also
 implemented in global coordinates. Nevertheless, to improve floating point accuracy, we represent the data for each
@@ -574,11 +574,11 @@ These input fields are set by the user and affect the physics simulation, but ar
 
   Controls: ``ctrl``
     Controls are defined by the :ref:`actuator<actuator>` section of the XML. ``mjData.ctrl`` values either produce
-    generalized forces directly (stateless actuators), or affects the actuator activations in ``mjData.act``, which then
+    generalized forces directly (stateless actuators), or affect the actuator activations in ``mjData.act``, which then
     produce forces.
 
   Auxillary Controls: ``qfrc_applied`` and ``xfrc_applied``
-    | ``mjData.qfrc_applied`` are directly applied generalised forces.
+    | ``mjData.qfrc_applied`` are directly applied generalized forces.
     | ``mjData.xfrc_applied`` are Cartesian wrenches applied to the CoM of individual bodies. This field is used for
       example, by the :ref:`native viewer<saSimulate>` to apply mouse perturbations.
     | Note that the effects of ``qfrc_applied`` and ``xfrc_applied`` can usually be recreated by appropriate actuator
@@ -604,7 +604,7 @@ Warmstart accelerations
     the number of iterations required for convergence. Note however that the default Newton solver converges so quickly
     (usually 2-3 iterations), that warmstarts often have no effect on speed and can be disabled.
 
-    Different warmstarts have no preceptible effect on the dynamics but should be saved if perfect numerical
+    Different warmstarts have no perceptible effect on the dynamics but should be saved if perfect numerical
     reproducibility is required when loading a non-initial state. Note that even though their effect on physics is
     negligible, many physical systems will accumulate small differences  `exponentially
     <https://en.wikipedia.org/wiki/Lyapunov_exponent>`__ when time-stepping, quickly leading to divergent trajectories
@@ -706,20 +706,14 @@ dimensionality of the constraint residual in each case.
    linear combination of scalar joint positions, or a minimal-length string wrapping around spatial obstacles. Unlike
    joints whose positions in model configuration ``mjModel.qpos0`` can be read directly from the position vector, the
    computation of tendon lengths is less trivial. This is why the "resting lengths" of all tendons are computed by the
-   compiler and stored in ``mjModel``. In general, all field of ``mjModel`` whose names end with 0 are quantities
+   compiler and stored in ``mjModel``. In general, all fields of ``mjModel`` whose names end with 0 are quantities
    computed by the compiler in the initial model configuration ``mjModel.qpos0``.
 
 ``distance`` : 1
-   In its default form, this constraint forces two geoms to always touch each other - as if they are magnets but without
-   poles. The point of contact is not specified, so the two geoms are free to slide and rotate relative to each other.
-   The scalar residual is computed by using the collision detector in a special mode, where it returns the nearest
-   distance between the geoms even when they do not collide. A target value is then subtracted from this nearest
-   distance. By default the target value is 0, but we could for example create a distance constraint forcing the two
-   geom surfaces to remain 1 cm apart at all times. The specific reason we introduced this constraint was to estimate
-   the position and orientation of a body from motion capture markers attached to its surface, without knowing where
-   exactly the markers are attached. In that case the physics simulation ends up solving the estimation problem for us.
-   This could more generally be used when an object is supposed to slide over a surface and remain in contact with it;
-   for example the scapula in biomechanical models of the arm can be modeled as such a surface.
+
+   .. attention::
+      Distance equality constraints were removed in MuJoCo version 2.2.2. If you are using an earlier version, please
+      switch to the corresponding version of the documentation.
 
 .. _coFriction:
 
@@ -738,7 +732,7 @@ with it; so we formally set the corresponding components of :math:`r(q)` to zero
 constraint solver formulation needs to be extended in an unusual way to incorporate this constraint. Nevertheless the
 velocity of the affected joint or tendon acts as a velocity "residual" - because the effect of the constraint is to
 reduce this velocity and ideally keep it at zero. Thus the corresponding block in the constraint Jacobian is simply the
-Jacobian of the joint position (or tendon length) with respect to :math:`q`. For scalar joints this is a vector of 0's
+Jacobian of the joint position (or tendon length) with respect to :math:`q`. For scalar joints this is a vector of 0s
 with a 1 at the joint address. For tendons this is known as the moment arm vector.
 
 ``joint`` : 1, 3 or 6
