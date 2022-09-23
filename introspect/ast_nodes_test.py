@@ -16,7 +16,7 @@
 
 from absl.testing import absltest
 
-from google3.third_party.mujoco.introspect import ast_nodes
+from . import ast_nodes
 
 
 class AstNodesTest(absltest.TestCase):

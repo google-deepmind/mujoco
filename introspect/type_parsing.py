@@ -18,7 +18,7 @@ import collections
 import re
 from typing import Mapping, MutableSequence, Optional, Sequence, Tuple, Union
 
-from google3.third_party.mujoco.introspect import ast_nodes
+from . import ast_nodes
 
 ARRAY_EXTENTS_PATTERN = re.compile(r'(\[[^\]]+\]\s*)+\Z')
 ARRAY_N_PATTERN = re.compile(r'\[([^\]]+)\]')

@@ -16,7 +16,7 @@
 
 from absl.testing import absltest
 
-from google3.third_party.mujoco.introspect import enums
+from . import enums
 
 
 class EnumsTest(absltest.TestCase):
