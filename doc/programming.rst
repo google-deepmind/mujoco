@@ -1023,7 +1023,7 @@ management.
    for( int n=0; n<nthread; n++ )
      mj_deleteData(d[n]);
 
-Since all top-level API functions threat mjModel as ``const``, this multi-threading scheme is safe. Each thread only
+Since all top-level API functions treat mjModel as ``const``, this multi-threading scheme is safe. Each thread only
 writes to its own mjData. Therefore no further synchronization among threads is needed.
 
 The above template reflects a particular style of parallel processing. Instead of creating a large number of threads,

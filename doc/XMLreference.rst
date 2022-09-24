@@ -3093,7 +3093,7 @@ axes of inertia of the body. Thus the inertia matrix is diagonal in this frame.
 
 :at:`pos`: :at-val:`real(3), required`
    Position of the inertial frame. This attribute is required even when the inertial properties can be inferred from
-   geoms. This is because the presence of the :el:`inertial` element itself disabled the automatic inference mechanism.
+   geoms. This is because the presence of the :el:`inertial` element itself disables the automatic inference mechanism.
 :at:`quat`, :at:`axisangle`, :at:`xyaxes`, :at:`zaxis`, :at:`euler`
    Orientation of the inertial frame. See :ref:`COrientation`.
 :at:`mass`: :at-val:`real, required`
