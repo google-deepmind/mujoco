@@ -10,6 +10,7 @@ CFLAGS=-O2 -F$(MUJOCOPATH) -I$(GLFWROOT)/include -pthread
 CXXFLAGS=$(CFLAGS) -std=c++17 -stdlib=libc++
 ALLFLAGS=$(CXXFLAGS) -L$(GLFWROOT)/lib -Wl,-rpath,$(MUJOCOPATH)
 
+.PHONY: all
 all:
 	clang++ $(ALLFLAGS)    testxml.cc    -framework mujoco        -o testxml
 	clang++ $(ALLFLAGS)    testspeed.cc  -framework mujoco        -o testspeed
