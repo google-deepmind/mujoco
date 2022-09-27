@@ -779,6 +779,7 @@ int mju_QCQP(mjtNum* res, const mjtNum* Ain, const mjtNum* bin,
 //     the initial value of res is used to warmstart the solver
 //     R must have allocatd size n*(n+7), but only nfree*nfree values are used in output
 //     index (if given) must have allocated size n, but only nfree values are used in output
+//     only lower triangles of H and R and read from and written to, respectively
 int mju_boxQP(mjtNum* res, mjtNum* R, int* index,        // outputs
               const mjtNum* H, const mjtNum* g, int n,   // QP definition
               const mjtNum* lower, const mjtNum* upper)  // bounds
@@ -833,6 +834,17 @@ enum mjtStatusBoxQP {
   mjNBOXQP            = 7          //  number of boxQP status values
 };
 
+
+// multiply symmetric matrix with vector on both sides: return vec'*mat*vec
+//   assumes symmetry of mat, ignores upper triangle
+static mjtNum mulVecMatVecSym(const mjtNum* vec, const mjtNum* mat, int n) {
+  mjtNum res = 0;
+  for (int i=0; i<n; i++) {
+    res += vec[i] * mat[n*i+i] * vec[i];           // diagonal
+    res += 2 * vec[i] * mju_dot(mat+n*i, vec, i);  // off-diagonal
+  }
+  return res;
+}
 
 
 // minimize 0.5*x'*H*x + x'*g  s.t. lower <= x <=upper, explicit options
@@ -934,7 +946,7 @@ int mju_boxQPoption(mjtNum* res, mjtNum* R, int* index,               // outputs
     }
 
     // compute objective: value = 0.5*res'*H*res + res'*g
-    value = 0.5 * mju_mulVecMatVec(res, H, res, n) + mju_dot(res, g, n);
+    value = 0.5 * mulVecMatVecSym(res, H, n) + mju_dot(res, g, n);
 
     // save last value
     oldvalue = value;
@@ -994,7 +1006,7 @@ int mju_boxQPoption(mjtNum* res, mjtNum* R, int* index,               // outputs
     // R = compress_free(H)
     if (factorize) {
       for (int i=0; i<nfree; i++) {
-        for (int j=0; j<nfree; j++) {
+        for (int j=0; j<i+1; j++) {
           R[i*nfree+j] = H[index[i]*n+index[j]];
         }
       }
@@ -1055,7 +1067,7 @@ int mju_boxQPoption(mjtNum* res, mjtNum* R, int* index,               // outputs
       }
 
       // new objective value
-      value = 0.5 * mju_mulVecMatVec(candidate, H, candidate, n) + mju_dot(candidate, g, n);
+      value = 0.5 * mulVecMatVecSym(candidate, H, n) + mju_dot(candidate, g, n);
 
       // increment and break if step is too small
       nstep++;

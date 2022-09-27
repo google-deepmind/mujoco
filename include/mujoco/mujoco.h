@@ -1032,6 +1032,7 @@ MJAPI int mju_eig3(mjtNum eigval[3], mjtNum eigvec[9], mjtNum quat[4], const mjt
 //     the initial value of res is used to warmstart the solver
 //     R must have allocatd size n*(n+7), but only nfree*nfree values are used in output
 //     index (if given) must have allocated size n, but only nfree values are used in output
+//     only the lower triangles of H and R and are read from and written to, respectively
 //     the convenience function mju_boxQPmalloc allocates the required data structures
 MJAPI int mju_boxQP(mjtNum* res, mjtNum* R, int* index, const mjtNum* H, const mjtNum* g, int n,
                     const mjtNum* lower, const mjtNum* upper);

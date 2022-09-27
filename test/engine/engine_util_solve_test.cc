@@ -194,6 +194,30 @@ TEST_F(BoxQPTest, UnboundedQP) {
   EXPECT_EQ(nfree, -1);
 }
 
+// small bounded QP with asymmetric Hessian (upper triangle ignored)
+TEST_F(BoxQPTest, AsymmetricUpperIgnored) {
+  // small arrays, allocate on stack
+  static const int n = 2;
+  mjtNum H[n*n] = {
+    1, -400,
+    0, 1
+  };
+  mjtNum g[n] = {1, 3};
+  mjtNum res[n] = {0, 0};
+  mjtNum lower[n] = {-2, -2};
+  mjtNum upper[n] = {0, 0};
+  int index[n];
+  mjtNum R[n*(n+7)];
+
+  // solve box-QP
+  int nfree = mju_boxQP(res, R, index, H, g, n, lower, upper);
+
+  EXPECT_EQ(nfree, 1);
+
+  EXPECT_THAT(res[0], DoubleEq(-g[0]/H[0]));
+  EXPECT_THAT(res[1], DoubleEq(lower[1]));
+}
+
 // test mju_boxQP on a single random bounded QP
 TEST_F(BoxQPTest, BoundedQP) {
   int n = 50;                     // problem size
