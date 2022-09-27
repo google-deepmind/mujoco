@@ -12,12 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#if UNITY_EDITOR
+
+
 using System;
 using System.IO;
 using System.Runtime.InteropServices;
+////using UnityEditor.PackageManager;
+using UnityEngine;
+
+
 using UnityEditor;
 using UnityEditor.PackageManager;
-using UnityEngine;
+
+
 
 namespace Mujoco {
 public class MujocoBinaryRetriever {
@@ -59,3 +67,4 @@ public class MujocoBinaryRetriever {
   }
 }
 }
+#endif
