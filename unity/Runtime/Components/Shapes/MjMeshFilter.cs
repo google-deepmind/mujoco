@@ -18,61 +18,75 @@ using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
 
-namespace Mujoco {
+namespace Mujoco
+{
 
-[RequireComponent(typeof(MjShapeComponent))]
-[RequireComponent(typeof(MeshFilter))]
-[ExecuteInEditMode]
-public class MjMeshFilter : MonoBehaviour {
-  private MjShapeComponent _geom;
-  private Vector4 _shapeChangeStamp;
-  private MeshFilter _meshFilter;
+    [RequireComponent(typeof(MjShapeComponent))]
+    [RequireComponent(typeof(MeshFilter))]
+    [ExecuteInEditMode]
+    public class MjMeshFilter : MonoBehaviour
+    {
+        private MjShapeComponent _geom;
+        private Vector4 _shapeChangeStamp;
+        private MeshFilter _meshFilter;
 
-  protected void Awake() {
-    _geom = GetComponent<MjShapeComponent>();
-    _shapeChangeStamp = new Vector4(0, 0, 0, -1);
-    _meshFilter = GetComponent<MeshFilter>();
-  }
+        protected void Awake()
+        {
+            _geom = GetComponent<MjShapeComponent>();
+            _shapeChangeStamp = new Vector4(0, 0, 0, -1);
+            _meshFilter = GetComponent<MeshFilter>();
+        }
 
-  protected void Update() {
-    var currentChangeStamp = _geom.GetChangeStamp();
-    if ((_shapeChangeStamp - currentChangeStamp).magnitude <= 1e-3f) {
-      return;
-    }
+        protected void Update()
+        {
+            var currentChangeStamp = _geom.GetChangeStamp();
+            if ((_shapeChangeStamp - currentChangeStamp).magnitude <= 1e-3f)
+            {
+                return;
+            }
 
-    _shapeChangeStamp = currentChangeStamp;
-    Tuple<Vector3[], int[]> meshData = _geom.BuildMesh();
+            _shapeChangeStamp = currentChangeStamp;
+            Tuple<Vector3[], int[]> meshData = _geom.BuildMesh();
 
-    if (meshData == null) {
-      throw new ArgumentException("Unsupported geom shape detected");
-    }
+            if (meshData == null)
+            {
+                throw new ArgumentException("Unsupported geom shape detected");
+            }
 
-    DisposeCurrentMesh();
+            if (Application.isPlaying)
+            {
+                DisposeCurrentMesh();
 
-    var mesh = new Mesh();
-    // Name this mesh to easily track resources in Unity analysis tools.
-    mesh.name = $"Mujoco mesh for {gameObject.name}, id:{mesh.GetInstanceID()}";
-    _meshFilter.sharedMesh = mesh;
-    mesh.vertices = meshData.Item1;
-    mesh.triangles = meshData.Item2;
-    mesh.RecalculateNormals();
-    mesh.RecalculateTangents();
-  }
+            }
+            //DisposeCurrentMesh();
 
-  protected void OnDestroy() {
-    DisposeCurrentMesh();
-  }
+            var mesh = new Mesh();
+            // Name this mesh to easily track resources in Unity analysis tools.
+            mesh.name = $"Mujoco mesh for {gameObject.name}, id:{mesh.GetInstanceID()}";
+            _meshFilter.sharedMesh = mesh;
+            mesh.vertices = meshData.Item1;
+            mesh.triangles = meshData.Item2;
+            mesh.RecalculateNormals();
+            mesh.RecalculateTangents();
+        }
 
-  // Dynamically created meshes with no references are only disposed automatically on scene changes.
-  // This prevents resource leaks in case the host environment doesn't reload scenes.
-  private void DisposeCurrentMesh() {
-    if (_meshFilter.sharedMesh != null) {
+        protected void OnDestroy()
+        {
+            DisposeCurrentMesh();
+        }
+
+        // Dynamically created meshes with no references are only disposed automatically on scene changes.
+        // This prevents resource leaks in case the host environment doesn't reload scenes.
+        private void DisposeCurrentMesh()
+        {
+            if (_meshFilter.sharedMesh != null)
+            {
 #if UNITY_EDITOR
-      DestroyImmediate(_meshFilter.sharedMesh);
+                DestroyImmediate(_meshFilter.sharedMesh);
 #else
       Destroy(_meshFilter.sharedMesh);
 #endif
+            }
+        }
     }
-  }
-}
 }
