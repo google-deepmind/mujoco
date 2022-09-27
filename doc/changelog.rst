@@ -17,12 +17,15 @@ General
   notebook uses MuJoCo's native Python bindings, and includes a draft ``Renderer`` class, for easy rendering in Python.
   |br| Try it yourself:  |LQRopenincolab|
 
+   .. |LQRopenincolab| image:: https://colab.research.google.com/assets/colab-badge.svg
+                    :target: https://colab.research.google.com/github/deepmind/mujoco/blob/main/python/LQR.ipynb
+
 - Updates to humanoid model:
 
- - Added two keyframes (stand-on-one-leg and squat).
- - Increased maximum hip flexion angle.
- - Added hamstring tendons which couple the hip and knee at high hip flexion angles.
- - General cosmetic improvements, including improved use of defaults and better naming scheme.
+ * Added two keyframes (stand-on-one-leg and squat).
+ * Increased maximum hip flexion angle.
+ * Added hamstring tendons which couple the hip and knee at high hip flexion angles.
+ * General cosmetic improvements, including improved use of defaults and better naming scheme.
 
 - Added :ref:`mju_boxQP` and allocation function :ref:`mju_boxQPmalloc` for solving the box-constrained
   Quadratic Program:
@@ -33,6 +36,7 @@ General
 
   The algorithm, introduced in `Tassa et al. 2014 <https://doi.org/10.1109/ICRA.2014.6907001>`_,
   converges after 2-5 Cholesky factorisations, independent of problem size.
+
 - Added :ref:`mju_mulVecMatVec` to multiply a square matrix :math:`M` with vectors :math:`x` and :math:`y` on both
   sides. The function returns :math:`x^TMy`.
 
@@ -41,10 +45,7 @@ General
   option for simple use cases and backward compatibility. The new mechanism manages stateful plugins and supports
   multiple plugins from different sources, allowing MuJoCo extensions to be introduced in a modular fashion, rather than
   as global overrides. Note the new mechanism is currently undocumented except in code, as we test it internally.
-  If you are interested in using the pluging mechanism, please get in touch first.
-
-.. |LQRopenincolab| image:: https://colab.research.google.com/assets/colab-badge.svg
-                    :target: https://colab.research.google.com/github/deepmind/mujoco/blob/main/python/LQR.ipynb
+  If you are interested in using the plugin mechanism, please get in touch first.
 
 Python bindings
 ^^^^^^^^^^^^^^^
