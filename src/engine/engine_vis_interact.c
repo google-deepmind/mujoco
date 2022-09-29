@@ -374,7 +374,7 @@ void mjv_moveCamera(const mjModel* m, int action, mjtNum reldx, mjtNum reldy,
 void mjv_movePerturb(const mjModel* m, const mjData* d, int action, mjtNum reldx,
                      mjtNum reldy, const mjvScene* scn, mjvPerturb* pert) {
   int sel = pert->select;
-  mjtNum forward[3], vec[3], dif[3], scl, q1[4], q2[4], xiquat[4];
+  mjtNum forward[3], vec[3], scl, q1[4], xiquat[4];
 
   // get camera info and align
   mjv_cameraInModel(NULL, forward, NULL, scn);
@@ -394,8 +394,7 @@ void mjv_movePerturb(const mjModel* m, const mjData* d, int action, mjtNum reldx
 
     // make quaternion and apply
     mju_axisAngle2Quat(q1, vec, scl*mjPI*2);
-    mju_mulQuat(q2, q1, pert->refquat);
-    mju_copy4(pert->refquat, q2);
+    mju_mulQuat(pert->refquat, q1, pert->refquat);
     mju_normalize4(pert->refquat);
 
     // compute xiquat
@@ -404,10 +403,12 @@ void mjv_movePerturb(const mjModel* m, const mjData* d, int action, mjtNum reldx
     // limit rotation relative to selected body
     if (sel>0 && sel<m->nbody) {
       // q2 = neg(selbody) * refquat
+      mjtNum q2[4];
       mju_negQuat(q1, xiquat);
       mju_mulQuat(q2, q1, pert->refquat);
 
       // convert q2 to axis-angle
+      mjtNum dif[3];
       mju_quat2Vel(dif, q2, 1);
       scl = mju_normalize3(dif);
 

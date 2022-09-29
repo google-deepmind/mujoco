@@ -35,7 +35,7 @@
 // forward kinematics
 void mj_kinematics(const mjModel* m, mjData* d) {
   mjtNum pos[3], quat[4], *bodypos, *bodyquat;
-  mjtNum qloc[4], qtmp[4], vec[3], vec1[3], xanchor[3], xaxis[3];
+  mjtNum qloc[4], vec[3], vec1[3], xanchor[3], xaxis[3];
 
   // set world position and orientation
   mju_zero3(d->xpos);
@@ -124,8 +124,7 @@ void mj_kinematics(const mjModel* m, mjData* d) {
           }
 
           // apply rotation
-          mju_mulQuat(qtmp, quat, qloc);
-          mju_copy4(quat, qtmp);
+          mju_mulQuat(quat, quat, qloc);
 
           // correct for off-center rotation
           mju_sub3(vec, xanchor, pos);

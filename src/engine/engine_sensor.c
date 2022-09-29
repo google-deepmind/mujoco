@@ -90,8 +90,7 @@ static void add_noise(const mjModel* m, mjData* d, mjtStage stage) {
         // quaternion
         else if (m->sensor_datatype[i]==mjDATATYPE_QUATERNION) {
           // apply quaternion rotation to quaternion, assign
-          mju_mulQuat(res, d->sensordata+adr, quat);
-          mju_copy4(d->sensordata+adr, res);
+          mju_mulQuat(d->sensordata+adr, d->sensordata+adr, quat);
         }
 
         // unknown datatype

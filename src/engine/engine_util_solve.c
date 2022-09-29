@@ -493,8 +493,7 @@ int mju_eig3(mjtNum* eigval, mjtNum* eigvec, mjtNum quat[4], const mjtNum mat[9]
     mju_normalize4(tmp);
 
     // accumulate quaternion rotation
-    mju_mulQuat(tmp+4, quat, tmp);
-    mju_copy4(quat, tmp+4);
+    mju_mulQuat(quat, quat, tmp);
     mju_normalize4(quat);
   }
 
@@ -512,8 +511,7 @@ int mju_eig3(mjtNum* eigval, mjtNum* eigvec, mjtNum quat[4], const mjtNum mat[9]
       tmp[0] = 0.707106781186548;     // mju_cos(pi/4) = mju_sin(pi/4)
       tmp[1] = tmp[2] = tmp[3] = 0;
       tmp[(j1+2)%3+1] = tmp[0];
-      mju_mulQuat(tmp+4, quat, tmp);
-      mju_copy4(quat, tmp+4);
+      mju_mulQuat(quat, quat, tmp);
       mju_normalize4(quat);
     }
   }

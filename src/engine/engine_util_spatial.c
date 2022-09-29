@@ -240,9 +240,8 @@ void mju_quatIntegrate(mjtNum quat[4], const mjtNum vel[3], mjtNum scale) {
   mju_copy3(tmp, vel);
   angle = scale * mju_normalize3(tmp);
   mju_axisAngle2Quat(qrot, tmp, angle);
-  mju_mulQuat(tmp, quat, qrot);
-  mju_normalize4(tmp);
-  mju_copy4(quat, tmp);
+  mju_mulQuat(quat, quat, qrot);
+  mju_normalize4(quat);
 }
 
 
