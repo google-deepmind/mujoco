@@ -1016,6 +1016,9 @@ void mjXReader::Statistic(XMLElement* section) {
   ReadAttr(section, "meanmass", 1, &model->meanmass, text);
   ReadAttr(section, "meansize", 1, &model->meansize, text);
   ReadAttr(section, "extent", 1, &model->extent, text);
+  if (mjuu_defined(model->extent) && model->extent<=0) {
+    throw mjXError(section, "extent must be strictly positive");
+  }
   ReadAttr(section, "center", 3, model->center, text);
 }
 
@@ -2192,6 +2195,9 @@ void mjXReader::Visual(XMLElement* section) {
       ReadAttr(elem, "fogstart",       1, &vis->map.fogstart,  text);
       ReadAttr(elem, "fogend",         1, &vis->map.fogend,    text);
       ReadAttr(elem, "znear",          1, &vis->map.znear,     text);
+      if (vis->map.znear<=0) {
+        throw mjXError(elem, "znear must be strictly positive");
+      }
       ReadAttr(elem, "zfar",           1, &vis->map.zfar,      text);
       ReadAttr(elem, "haze",           1, &vis->map.haze,      text);
       ReadAttr(elem, "shadowclip",     1, &vis->map.shadowclip, text);

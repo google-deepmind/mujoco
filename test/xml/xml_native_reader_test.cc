@@ -762,6 +762,58 @@ TEST_F(ActuatorParseTest, DampersDontRequireRange) {
   mj_deleteModel(model);
 }
 
+TEST_F(UserDataTest, ZnearZeroNotAllowed) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <visual>
+      <map znear="0"/>
+    </visual>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("znear must be strictly positive"));
+}
+
+TEST_F(UserDataTest, ZnearNegativeNotAllowed) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <visual>
+      <map znear="-1"/>
+    </visual>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("znear must be strictly positive"));
+}
+
+TEST_F(UserDataTest, ExtentZeroNotAllowed) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <statistic extent="0"/>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("extent must be strictly positive"));
+}
+
+TEST_F(UserDataTest, ExtentNegativeNotAllowed) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <statistic extent="-1"/>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("extent must be strictly positive"));
+}
+
 
 }  // namespace
 }  // namespace mujoco

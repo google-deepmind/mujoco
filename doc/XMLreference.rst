@@ -2086,7 +2086,7 @@ miscellaneous.
    This and the next attribute determine the clipping planes of the OpenGL projection. The near clipping plane is
    particularly important: setting it too close causes (often severe) loss of resolution in the depth buffer, while
    setting it too far causes objects of interest to be clipped, making it impossible to zoom in. The distance to the
-   near clipping plane is the model extent multiplied by the value of this attribute.
+   near clipping plane is the model extent multiplied by the value of this attribute. Must be strictly positive.
 :at:`zfar`: :at-val:`real, "50"`
    The distance to the far clipping plane is the model extent multiplied by the value of this attribute.
 :at:`haze`: :at-val:`real, "0.3"`
@@ -2243,7 +2243,7 @@ parameters.
    If this attribute is specified, it replaces the value of mjModel.stat.extent computed by the compiler. The computed
    value is half the side of the bounding box of the model in the initial configuration. At runtime this value is
    multiplied by some of the attributes of the :ref:`map <map>` element above. When the model is first loaded, the free
-   camera's initial distance from the :at:`center` (see below) is 1.5 times the :at:`extent`.
+   camera's initial distance from the :at:`center` (see below) is 1.5 times the :at:`extent`. Must be strictly positive.
 :at:`center`: :at-val:`real(3), optional`
    If this attribute is specified, it replaces the value of mjModel.stat.center computed by the compiler. The computed
    value is the center of the bounding box of the entire model in the initial configuration. This 3D vector is used to
