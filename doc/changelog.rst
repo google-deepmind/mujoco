@@ -47,6 +47,9 @@ General
   as global overrides. Note the new mechanism is currently undocumented except in code, as we test it internally.
   If you are interested in using the plugin mechanism, please get in touch first.
 
+- Added :at:`assetdir` compiler option, which sets the values of both :at:`meshdir` and :at:`texturedir`. Values in
+  the latter attributes take precedence over :at:`assetdir`.
+
 Python bindings
 ^^^^^^^^^^^^^^^
 

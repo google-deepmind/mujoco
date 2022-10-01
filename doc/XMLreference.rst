@@ -47,7 +47,7 @@ in the second column of the table have the following meaning:
 |                          |    |    +-------------------------+-------------------------+-------------------------+ |
 |                          |    |    | :at:`inertiafromgeom`   | :at:`inertiagrouprange` | :at:`exactmeshinertia`  | |
 |                          |    |    +-------------------------+-------------------------+-------------------------+ |
-|                          |    |    | :at:`autolimits`        |                         |                         | |
+|                          |    |    | :at:`autolimits`        | :at:`assetdir`          |                         | |
 |                          |    |    +-------------------------+-------------------------+-------------------------+ |
 +--------------------------+----+------------------------------------------------------------------------------------+
 | |_2|:el:`lengthrange`    | ?  | .. table::                                                                         |
@@ -1549,11 +1549,11 @@ any effect. The settings here are global and apply to the entire model.
    :ref:`mj_setTotalmass`.
 :at:`balanceinertia`: :at-val:`[false, true], "false"`
    A valid diagonal inertia matrix must satisfy A+B>=C for all permutations of the three diagonal elements. Some poorly
-   designed models violate this constraint, which will normally result in compile error. If this attribute is set to
+   designed models violate this constraint, which will normally result in a compile error. If this attribute is set to
    "true", the compiler will silently set all three diagonal elements to their average value whenever the above
    condition is violated.
 :at:`strippath`: :at-val:`[false, true], "false" for MJCF, "true" for URDF`
-   The this attribute is "true", the parser will remove any path information in file names specified in the model. This
+   When this attribute is "true", the parser will remove any path information in file names specified in the model. This
    is useful for loading models created on a different system using a different directory structure.
 :at:`coordinate`: :at-val:`[local, global], "local" for MJCF, always "local" for URDF`
    This attribute specifies whether the frame positions and orientations in the MJCF model are expressed in local or
@@ -1585,6 +1585,9 @@ any effect. The settings here are global and apply to the entire model.
 :at:`texturedir`: :at-val:`string, optional`
    This attribute is used to instruct the compiler where to look for texture files. It works in the same way as meshdir
    above.
+:at:`assetdir`: :at-val:`string, optional`
+   This attribute sets the values of both :at:`meshdir` and :at:`texturedir` above. Values in the latter attributes take
+   precedence over :at:`assetdir`.
 :at:`discardvisual`: :at-val:`[false, true], "false" for MJCF, "true" for URDF`
    This attribute instructs the parser to discard "visual geoms", defined as geoms whose contype and conaffinity
    attributes are both set to 0. This functionality is useful for models that contain two sets of geoms, one for

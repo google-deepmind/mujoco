@@ -117,8 +117,8 @@ class mjCModel {
 
   //------------------------ compiler settings
   bool autolimits;                // infer "limited" attribute based on range
-  double boundmass;               // enfore minimum body mass
-  double boundinertia;            // enfore minimum body diagonal inertia
+  double boundmass;               // enforce minimum body mass
+  double boundinertia;            // enforce minimum body diagonal inertia
   double settotalmass;            // rescale masses and inertias; <=0: ignore
   bool balanceinertia;            // automatically impose A + B >= C rule
   bool strippath;                 // automatically strip paths from mesh files

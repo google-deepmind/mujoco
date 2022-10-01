@@ -1,5 +1,5 @@
 <mujoco>
-  <compiler meshdir="textured_torus" texturedir="textured_torus"/>
+  <compiler assetdir="textured_torus"/>
   <asset>
     <mesh name="torus" file="textured_torus.obj"/>
     <mesh name="flipped_torus" file="textured_torus.obj" scale="-1 1 1"/>

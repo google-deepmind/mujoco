@@ -96,7 +96,7 @@ void mjXURDF::Parse(XMLElement* root) {
     }
   }
 
-  // enfore required compiler defaults for URDF
+  // enforce required compiler defaults for URDF
   model->global = false;
   model->degree = false;
 

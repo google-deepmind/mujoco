@@ -79,10 +79,11 @@ static const int nMJCF = 183;
 static const char* MJCF[nMJCF][mjXATTRNUM] = {
 {"mujoco", "!", "1", "model"},
 {"<"},
-    {"compiler", "*", "19", "autolimits", "boundmass", "boundinertia", "settotalmass",
+    {"compiler", "*", "20", "autolimits", "boundmass", "boundinertia", "settotalmass",
         "balanceinertia", "strippath", "coordinate", "angle", "fitaabb", "eulerseq",
         "meshdir", "texturedir", "discardvisual", "convexhull", "usethread",
-        "fusestatic", "inertiafromgeom", "inertiagrouprange", "exactmeshinertia"},
+        "fusestatic", "inertiafromgeom", "inertiagrouprange", "exactmeshinertia",
+        "assetdir"},
     {"<"},
         {"lengthrange", "?", "10", "mode", "useexisting", "uselimit",
             "accel", "maxforce", "timeconst", "timestep",
@@ -853,6 +854,11 @@ void mjXReader::Compiler(XMLElement* section, mjCModel* mod) {
     }
     memcpy(mod->euler, text.c_str(), 3);
   }
+  if (ReadAttrTxt(section, "assetdir", text)) {
+    mod->meshdir = text;
+    mod->texturedir = text;
+  }
+  // meshdir and texturedir take precedence over assetdir
   ReadAttrTxt(section, "meshdir", mod->meshdir);
   ReadAttrTxt(section, "texturedir", mod->texturedir);
   if (MapValue(section, "discardvisual", &n, bool_map, 2)) {
