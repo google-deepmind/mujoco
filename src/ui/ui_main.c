@@ -1027,7 +1027,7 @@ static void setcursor(mjrRect r, mjUI* ui, const mjuiState* ins, const mjrContex
 
 // parse modifier and shortcut
 static void parseshortcut(const char* text, int* mod, int* key) {
-  // cleear
+  // clear
   *mod = 0;
   *key = 0;
 

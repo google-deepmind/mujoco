@@ -703,7 +703,11 @@ void makerendering(mj::Simulate* sim, int oldstate) {
       }
 
     // set shortcut and data
-    mju::sprintf_arr(defFlag[0].other, " %s", mjVISSTRING[i][2]);
+    if (mjVISSTRING[i][2][0]) {
+      mju::sprintf_arr(defFlag[0].other, " %s", mjVISSTRING[i][2]);
+    } else {
+      mju::sprintf_arr(defFlag[0].other, "");
+    }
     defFlag[0].pdata = sim->vopt.flags + i;
     mjui_add(&sim->ui0, defFlag);
   }
@@ -712,6 +716,8 @@ void makerendering(mj::Simulate* sim, int oldstate) {
     mju::strcpy_arr(defFlag[0].name, mjRNDSTRING[i][0]);
     if (mjRNDSTRING[i][2][0]) {
       mju::sprintf_arr(defFlag[0].other, " %s", mjRNDSTRING[i][2]);
+    } else {
+      mju::sprintf_arr(defFlag[0].other, "");
     }
     defFlag[0].pdata = sim->scn.flags + i;
     mjui_add(&sim->ui0, defFlag);
