@@ -58,4 +58,31 @@ struct mjpPlugin_ {
 };
 typedef struct mjpPlugin_ mjpPlugin;
 
+#if defined(__has_attribute)
+
+#if __has_attribute(constructor)
+#define mjPLUGIN_DYNAMIC_LIBRARY_INIT \
+  __attribute__((constructor)) static void _mjplugin_init(void)
+#endif
+
+#elif defined(_MSC_VER)
+
+#ifndef mjDLLMAIN
+#define mjDLLMAIN DllMain
+#endif
+
+// NOLINTBEGIN(runtime/int)
+#define mjPLUGIN_DYNAMIC_LIBRARY_INIT                                                 \
+  static void _mjplugin_dllmain(void);                                                \
+  static int __stdcall mjDLLMAIN(void* hinst, unsigned long reason, void* reserved) { \
+    if (reason == 1) {                                                                \
+      _mjplugin_dllmain();                                                            \
+    }                                                                                 \
+    return 1;                                                                         \
+  }                                                                                   \
+  static void _mjplugin_dllmain(void)
+// NOLINTEND(runtime/int)
+
+#endif  // defined(_MSC_VER)
+
 #endif  // MUJOCO_INCLUDE_MJPLUGIN_H_
