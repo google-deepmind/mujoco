@@ -529,8 +529,7 @@ Sensor
    are copied from the corresponding fields of ``mjData``. There is also a user sensor, allowing user code to insert any
    other quantity of interest in the sensor data array. MuJoCo also has off-screen rendering capabilities, making it
    straightforward to simulate both color and depth camera sensors. This is not included in the standard sensor model
-   and instead has to be done programmatically, as illustrated in the code sample `simulate.cc
-   <https://github.com/deepmind/mujoco/blob/main/sample/simulate.cc>`_.
+   and instead has to be done programmatically, as illustrated in the code sample :ref:`simulate.cc <saSimulate>`.
 
 Equality
    Equality constraints can impose additional constraints beyond those already imposed by the kinematic tree structure

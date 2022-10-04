@@ -116,8 +116,7 @@ how to use includes and how to modularize large files if desired.
 The unique top-level element, identifying the XML file as an MJCF model file.
 
 :at:`model`: :at-val:`string, "MuJoCo Model"`
-   The name of the model. This name is shown in the title bar of `simulate.cc
-   <https://github.com/deepmind/mujoco/blob/main/sample/simulate.cc>`_.
+   The name of the model. This name is shown in the title bar of :ref:`simulate.cc <saSimulate>`.
 
 .. _compiler:
 
@@ -606,9 +605,9 @@ is effectively a miscellaneous subsection.
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element specifies settings that affect the quality of the rendering. Larger values result in higher quality but
-possibly slower speed. Note that `simulate.cc <https://github.com/deepmind/mujoco/blob/main/sample/simulate.cc>`_
-displays the frames per second (FPS). The target FPS is 60 Hz; if the number shown in the visualizer is substantially
-lower, this means that the GPU is over-loaded and the visualization should somehow be simplified.
+possibly slower speed. Note that :ref:`simulate.cc <saSimulate>` displays the frames per second (FPS). The target FPS is 60 Hz; if the
+number shown in the visualizer is substantially lower, this means that the GPU is over-loaded and the visualization
+should somehow be simplified.
 
 :at:`shadowsize`: :at-val:`int, "4096"`
    This attribute specifies the size of the square texture used for shadow mapping. Higher values result is smoother
@@ -3908,8 +3907,7 @@ the nkey attribute of :ref:`size <size>`, and the number of elements defined her
 defined here, the undefined keyframes have all their data set to 0, except for the qpos attribute which is set to
 mjModel.qpos0.
 The user can also set keyframe data in mjModel at runtime; this data will then appear in the saved MJCF model. Note that
-in `simulate.cc <https://github.com/deepmind/mujoco/blob/main/sample/simulate.cc>`_ the simulation state can be copied
-into a selected keyframe and vice versa.
+in :ref:`simulate.cc <saSimulate>` the simulation state can be copied into a selected keyframe and vice versa.
 
 .. _key:
 

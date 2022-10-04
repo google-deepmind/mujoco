@@ -723,7 +723,7 @@ mjtMouse
 | Defined in `mjvisualize.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjvisualize.h>`_
 
 | These are the mouse actions that the abstract visualizer recognizes. It is up to the user to intercept mouse events
-  and translate them into these actions, as illustrated in ``simulate.cc``.
+  and translate them into these actions, as illustrated in :ref:`simulate.cc <saSimulate>`.
 
 .. _mjtPertBit:
 
@@ -2960,9 +2960,9 @@ mjcb_time
    extern mjfTime mjcb_time;
 
 Installing this callback enables the built-in profiler, and keeps timing statistics in ``mjData.timer``. The return type
-is mjtNum, while the time units are up to the user. ``simulate.cc`` assumes the unit is 1 millisecond. In order to be
-useful, the callback should use high-resolution timers with at least microsecond precision. This is because the
-computations being timed are very fast.
+is mjtNum, while the time units are up to the user. :ref:`simulate.cc <saSimulate>` assumes the unit is 1 millisecond.
+In order to be useful, the callback should use high-resolution timers with at least microsecond precision. This is
+because the computations being timed are very fast.
 
 .. _mjcb_act_dyn:
 
@@ -3029,8 +3029,8 @@ String constants
 ^^^^^^^^^^^^^^^^
 
 The string constants described here are provided for user convenience. They correspond to the English names of lists of
-options, and can be displayed in menus or dialogs in a GUI. The code sample :ref:`saSimulate` illustrates how they can
-be used.
+options, and can be displayed in menus or dialogs in a GUI. The code sample :ref:`simulate.cc <saSimulate>` illustrates
+how they can be used.
 
 .. _mjDISABLESTRING:
 
@@ -3104,7 +3104,7 @@ mjVISSTRING
 | [1]: the string "0" or "1" indicating if the flag is on or off by default, as set by
   :ref:`mjv_defaultOption`;
 
-| [2]: one-character string with a suggested keyboard shortcut, used in ``simulate.cc``.
+| [2]: one-character string with a suggested keyboard shortcut, used in :ref:`simulate.cc <saSimulate>`.
 
 .. _mjRNDSTRING:
 
@@ -3239,9 +3239,10 @@ API functions
 
 The main header `mujoco.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mujoco.h>`_ exposes a very large number
 of functions. However the functions that most users are likely to need are a small fraction. For example,
-``simulate.cc`` which is as elaborate as a MuJoCo application is likely to get, calls around 40 of these functions,
-while ``basic.cc`` calls around 20. The rest are explosed just in case someone has a use for them. This includes us as
-users of MuJoCo -- we do our own work with the public library instead of relying on internal builds.
+:ref:`simulate.cc <saSimulate>` which is as elaborate as a MuJoCo application is likely to get, calls around 40
+of these functions, while ``basic.cc`` calls around 20. The rest are explosed just in case someone has a use for
+them. This includes us as users of MuJoCo -- we do our own work with the public library instead of relying on
+internal builds.
 
 .. _Activation:
 
@@ -4712,7 +4713,7 @@ Interaction
 ^^^^^^^^^^^
 
 These function implement abstract mouse interactions, allowing control over cameras and perturbations. Their use is well
-illustrated in ``simulate.cc``.
+illustrated in :ref:`simulate.cc <saSimulate>`.
 
 .. _mjv_defaultCamera:
 
@@ -4915,7 +4916,7 @@ This function is used for mouse selection. Previously selection was done via Ope
 ray intersections which are much more efficient. aspectratio is the viewport width/height. relx and rely are the
 relative coordinates of the 2D point of interest in the viewport (usually mouse cursor). The function returns the id of
 the geom under the specified 2D point, or -1 if there is no geom (note that they skybox if present is not a model geom).
-The 3D coordinates of the clicked point are returned in selpnt. See ``simulate.cc`` for an illustration.
+The 3D coordinates of the clicked point are returned in selpnt. See :ref:`simulate.cc <saSimulate>` for an illustration.
 
 .. _Visualization-api:
 
@@ -4924,7 +4925,7 @@ Visualization
 
 The functions in this section implement abstract visualization. The results are used by the OpenGL rendered, and can
 also be used by users wishing to implement their own rendered, or hook up MuJoCo to advanced rendering tools such as
-Unity or Unreal Engine. See ``simulate.cc`` for illustration of how to use these functions.
+Unity or Unreal Engine. See :ref:`simulate.cc <saSimulate>` for illustration of how to use these functions.
 
 .. _mjv_defaultOption:
 
@@ -5069,7 +5070,8 @@ Update skins.
 OpenGL rendering
 ^^^^^^^^^^^^^^^^
 
-These functions expose the OpenGL renderer. See ``simulate.cc`` for illustration of how to use these functions.
+These functions expose the OpenGL renderer. See :ref:`simulate.cc <saSimulate>` for an illustration
+of how to use these functions.
 
 .. _mjr_defaultContext:
 

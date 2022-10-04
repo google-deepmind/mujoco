@@ -58,8 +58,8 @@ exceptions; the user can implement similar error-interception functionality at r
 
 The entire process of parsing and compilation is very fast - less than a second if the model does not contain large
 meshes or actuator lengthranges that need to be computed via simulation. This makes it possible to design models
-interactively, by re-loading often and visualizing the changes. Note that the `simulate.cc`_ code sample has a
-keyboard shortcut for re-loading the current model (Ctrl+L).
+interactively, by re-loading often and visualizing the changes. Note that the :ref:`simulate.cc <saSimulate>` code
+sample has a keyboard shortcut for re-loading the current model (Ctrl+L).
 
 .. _Save:
 
@@ -493,8 +493,8 @@ There is also a second Noslip solver, which is a post-processing step enabled by
 noslip iterations. All these algorithm settings can be specified in the :ref:`option <option>` element.
 
 The default settings work well for most models, but in some cases it is necessary to tune the algorithm. The best way to
-do this is to experiment with the relevant settings and use the visual profiler in `simulate.cc`_, which shows the
-timing of different computations as well as solver statistics per iteration. We can offer the following general
+do this is to experiment with the relevant settings and use the visual profiler in :ref:`simulate.cc <saSimulate>`, which
+shows the timing of different computations as well as solver statistics per iteration. We can offer the following general
 guidelines and observations:
 
 -  The constraint Jacobian should be dense for small models and sparse for large models. The default setting is 'auto';
@@ -903,7 +903,7 @@ Here we describe the XML attributes common to all sensor types, so as to avoid r
    quaternions and unit vectors remain normalized, non-negative quantities remain non-negative.
 :at:`cutoff`: :at-val:`real, "0"`
    When this value is positive, it limits the absolute value of the sensor output. It is also used to normalize the
-   sensor output in the sensor data plots in `simulate.cc`_.
+   sensor output in the sensor data plots in :ref:`simulate.cc <saSimulate>`.
 :at:`user`: :at-val:`real(nuser_sensor), "0 0 ..."`
    See :ref:`User parameters <CUser>`.
 
@@ -1248,8 +1248,8 @@ this?
 
 The first step is to define a mocap body in the MJCF model, and implement code that reads the data stream at runtime and
 sets mjModel.mocap_pos and mjModel.mocap_quat to the position and orientation received from the motion capture system.
-The `simulate.cc <https://github.com/deepmind/mujoco/blob/main/sample/simulate.cc>`_ code sample uses the mouse as a
-motion capture device, allowing the user to move mocap bodies around:
+The :ref:`simulate.cc <saSimulate>` code sample uses the mouse as a motion capture device, allowing the user to move mocap
+bodies around:
 
 |particle|
 
@@ -1395,8 +1395,8 @@ memory, or cache performance could be adversely affected. And even if nothing ba
 memory than needed is just poor style.
 
 So how do we know how much memory to allocate? mjData has fields maxuse_stack, maxuse_con and maxuse_efc which keep
-track of the maximum memory utilization in each category since the last reset. The code sample `simulate.cc`_ shows
-this data as a fraction of the maximum allocation (in the info window in the lower-left corner). So one can start with
+track of the maximum memory utilization in each category since the last reset. The code sample :ref:`simulate.cc <saSimulate>`
+shows this data as a fraction of the maximum allocation (in the info window in the lower-left corner). So one can start with
 the defaults, simulate for a while, and if the fractions are too small go back to the XML and set the allocation sizes
 explicitly. Keep in mind though that memory utilization can change dramatically in the course of the simulation,
 depending on how many constraints are active and also which constraint solver is used.
@@ -1446,4 +1446,3 @@ model. If you only intend to use the CG solver, you can get away with significan
    :height: 250px
 .. |particle| image:: images/models/particle.gif
    :width: 270px
-.. _simulate.cc: https://github.com/deepmind/mujoco/blob/main/sample/simulate.cc

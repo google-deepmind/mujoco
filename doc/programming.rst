@@ -330,10 +330,10 @@ illustration of the concepts in that guide.
 
 .. _saSimulate:
 
-`simulate.cc <https://github.com/deepmind/mujoco/blob/main/sample/simulate.cc>`_
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+`simulate.cc <https://github.com/deepmind/mujoco/blob/main/simulate>`_
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-This code sample is a full-featured interactive simulator. It opens an OpenGL window using the platform-independent
+This code sample is a fully-featured interactive simulator. It opens an OpenGL window using the platform-independent
 GLFW library, and renders the simulation state in it. There is built-in help, simulation statistics, profiler, sensor
 data plots. The model file can be specified as a command-line argument, or loaded at runtime using drag-and-drop
 functionality. As of MuJoCo 2.0, this code sample uses the native UI to render various controls, and provides an
@@ -342,7 +342,7 @@ illustration of how the new UI framework is intended to be used. Below is a scre
 ..  youtube:: 0ORsj_E17B0
     :align: center
 
-Interaction is done with the mouse; built-in help with a summary of available commands is available by pressing the 'F1'
+Interaction is done with the mouse; built-in help with a summary of available commands is available by pressing the ``F1``
 key. Briefly, an object is selected by left-double-click. The user can then apply forces and torques on the selected
 object by holding Ctrl and dragging the mouse. Dragging the mouse alone (without Ctrl) moves the camera. There are
 keyboard shortcuts for pausing the simulation, resetting, and re-loading the model file. The latter functionality is
@@ -364,10 +364,9 @@ is extracted from the diagnostic fields of mjData. It is a very useful tool for 
 constraint solver algorithms. The outputs of the sensors defined in the model are visualized as a bar graph.
 
 Note that the profiler shows timing information collected with high-resolution timers. On Windows, depending on the
-power settings, the OS may reduce the CPU frequency; this is because `simulate.cc
-<https://github.com/deepmind/mujoco/blob/main/sample/simulate.cc>`_ sleeps most of the time in order to slow down to
-realtime. This results in inaccurate timings. To avoid this problem, change the Windows power plan so that the minimum
-processor state is 100%.
+power settings, the OS may reduce the CPU frequency; this is because :ref:`simulate.cc <saSimulate>` sleeps most of
+the time in order to slow down to realtime. This results in inaccurate timings. To avoid this problem, change the
+Windows power plan so that the minimum processor state is 100%.
 
 .. _saRecord:
 
@@ -376,12 +375,11 @@ processor state is 100%.
 
 This code sample simulates the passive dynamics of a given model, renders it offscreen, reads the color and depth pixel
 values, and saves them into a raw data file that can then be converted into a movie file with tools such as ffmpeg. The
-rendering is simplified compared to `simulate.cc <https://github.com/deepmind/mujoco/blob/main/sample/simulate.cc>`_
-because there is no user interaction, visualization options or timing; instead we simply render with the default
-settings as fast as possible. The dimensions and number of multi-samples for the offscreen buffer are specified in the
-MuJoCo model, while the simulation duration, frames-per-second to be rendered (usually much less than the physics
-simulation rate), and output file name are specified as command-line arguments. For example, a 5 second animation at 60
-frames per second is created with:
+rendering is simplified compared to :ref:`simulate.cc <saSimulate>` because there is no user interaction, visualization
+options or timing; instead we simply render with the default settings as fast as possible. The dimensions and number of
+multi-samples for the offscreen buffer are specified in the MuJoCo model, while the simulation duration, frames-per-second
+to be rendered (usually much less than the physics simulation rate), and output file name are specified as command-line
+arguments. For example, a 5 second animation at 60 frames per second is created with:
 
 .. code-block:: Shell
 
@@ -479,12 +477,11 @@ model, i.e., a model that is softer than desired, so as to obtain more accurate 
 uitools
 ~~~~~~~
 
-`(uitools.h) <https://github.com/deepmind/mujoco/blob/main/sample/uitools.h>`_ `(uitools.c)
-<https://github.com/deepmind/mujoco/blob/main/sample/uitools.c>`_ This is not a stand-alone code sample, but rather a
-small utility used to hook up the new UI to GLFW. It is used in `simulate.cc
-<https://github.com/deepmind/mujoco/blob/main/sample/simulate.cc>`_ and can also be used in user projects that involve
-the new UI. If GLFW is replaced with a different window library, this is the only file that would have to be changed in
-order to access the UI functionality.
+`(uitools.h) <https://github.com/deepmind/mujoco/blob/main/simulate/uitools.h>`_ `(uitools.cc)
+<https://github.com/deepmind/mujoco/blob/main/simulate/uitools.cc>`_ This is not a stand-alone code sample, but rather
+a small utility used to hook up the new UI to GLFW. It is used in :ref:`simulate.cc <saSimulate>` and can also be used
+in user projects that involve the new UI. If GLFW is replaced with a different window library, this is the only file
+that would have to be changed in order to access the UI functionality.
 
 .. _Simulation:
 
@@ -1922,11 +1919,12 @@ can be the entire active buffer, or part of it for custom effects. A viewport co
 be obtained with the function :ref:`mjr_maxViewport`. Note that while the offscreen buffer size does not change, the
 window buffer size changes whenever the user resizes or maximizes the window. Therefore user code should not assume
 fixed viewport size. In the code sample :ref:`simulate.cc <saSimulate>` we use a callback which is triggered whenever
-the window size changes, while in :ref:`basic.cc <saBasic>` we simply check the window size every time we render. On certain scaled
-displays (only on OSX it seems) the window size and framebuffer size can be different. So if you are getting the size
-with GLFW functions, use glfwGetFramebuferSize rather than glfwGetWindowSize. On the other hand, mouse coordinates are
-returned by the operating system in window rather than framebuffer units; thus the mouse interaction functions discussed
-earlier should use glfwGetWindowSize to obtain the window height needed to normalize the mouse displacement data.
+the window size changes, while in :ref:`basic.cc <saBasic>` we simply check the window size every time we render. On
+certain scaled displays (only on OSX it seems) the window size and framebuffer size can be different. So if you are
+getting the size with GLFW functions, use glfwGetFramebuferSize rather than glfwGetWindowSize. On the other hand,
+mouse coordinates are returned by the operating system in window rather than framebuffer units; thus the mouse
+interaction functions discussed earlier should use glfwGetWindowSize to obtain the window height needed to normalize
+the mouse displacement data.
 
 mjr_render renders all mjvGeoms from the list mjvScene.geom. The abstract visualization options mjvOption are no
 longer relevant here; they are used by mjv_updateScene to determine which geoms to add, and as far as mjr_render is
