@@ -2673,6 +2673,8 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
   }
 
   // create data
+  int disableflags = m->opt.disableflags;
+  m->opt.disableflags |= mjDSBL_CONTACT;
   d = mj_makeData(m);
   if (!d) {
     throw mjCError(0, "could not create mjData");
@@ -2710,6 +2712,7 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
 
   // delete data
   mj_deleteData(d);
+  m->opt.disableflags = disableflags;
   d = nullptr;
 
   // pass warning back
