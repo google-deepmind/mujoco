@@ -20,7 +20,6 @@
 #include <mutex>
 #include <thread>
 
-#include <GLFW/glfw3.h>
 #include <mujoco/mujoco.h>
 
 #ifdef LIBSIMULATE_STATIC
