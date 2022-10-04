@@ -160,6 +160,7 @@ void mj_defaultVisual(mjVisual* vis) {
   vis->global.glow                = 0.3;
   vis->global.offwidth            = 640;
   vis->global.offheight           = 480;
+  vis->global.realtime            = 1.0;
 
   // rendering quality
   vis->quality.shadowsize         = 4096;

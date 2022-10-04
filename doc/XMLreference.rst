@@ -592,6 +592,9 @@ is effectively a miscellaneous subsection.
 :at:`glow`: :at-val:`real, "0.3"`
    The value of this attribute is added to the emission coefficient of all geoms attached to the selected body. As a
    result, the selected body appears to glow.
+:at:`realtime`: :at-val:`real, "1"`
+   This value sets the initial real-time factor of the model, when loaded in `simulate`. 1: real time. Less than 1:
+   slower than real time. Must be greater than 0.
 :at:`offwidth`: :at-val:`int, "640"`
    This and the next attribute specify the size in pixels of the off-screen OpenGL rendering buffer. This attribute
    specifies the width of the buffer. The size of this buffer can also be adjusted at runtime, but it is usually more

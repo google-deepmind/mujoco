@@ -125,7 +125,7 @@ class MJSIMULATEAPI Simulate {
   char previous_filename[kMaxFilenameLength] = "";
 
   // time synchronization
-  int realTimeIndex = 0;
+  int realTimeIndex;
   bool speedChanged = true;
   float measuredSlowdown = 1.0;
   // logarithmically spaced realtime slow-down coefficients (percent)

@@ -1749,6 +1749,7 @@ public unsafe struct global {
   public float elevation;
   public float linewidth;
   public float glow;
+  public float realtime;
   public int offwidth;
   public int offheight;
 }

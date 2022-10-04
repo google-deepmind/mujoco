@@ -868,6 +868,7 @@ void mjXWriter::Visual(XMLElement* root) {
   WriteAttr(elem,    "elevation", 1,   &vis->global.elevation,  &visdef.global.elevation);
   WriteAttr(elem,    "linewidth", 1,   &vis->global.linewidth,  &visdef.global.linewidth);
   WriteAttr(elem,    "glow",      1,   &vis->global.glow,       &visdef.global.glow);
+  WriteAttr(elem,    "realtime",  1,   &vis->global.realtime,   &visdef.global.realtime);
   WriteAttrInt(elem, "offwidth",       vis->global.offwidth,    visdef.global.offwidth);
   WriteAttrInt(elem, "offheight",      vis->global.offheight,   visdef.global.offheight);
   if (!elem->FirstAttribute()) {

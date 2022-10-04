@@ -109,8 +109,8 @@ static const char* MJCF[nMJCF][mjXATTRNUM] = {
 
     {"visual", "*", "0"},
     {"<"},
-        {"global", "?", "8", "fovy", "ipd", "azimuth", "elevation", "linewidth", "glow", "offwidth",
-            "offheight"},
+        {"global", "?", "9", "fovy", "ipd", "azimuth", "elevation", "linewidth", "glow", "offwidth",
+            "offheight", "realtime"},
         {"quality", "?", "5", "shadowsize", "offsamples", "numslices", "numstacks",
             "numquads"},
         {"headlight", "?", "4", "ambient", "diffuse", "specular", "active"},
@@ -2172,6 +2172,10 @@ void mjXReader::Visual(XMLElement* section) {
       ReadAttr(elem,    "glow",      1, &vis->global.glow,      text);
       ReadAttrInt(elem, "offwidth",     &vis->global.offwidth);
       ReadAttrInt(elem, "offheight",    &vis->global.offheight);
+      if (ReadAttr(elem, "realtime", 1, &vis->global.realtime, text))
+        if (vis->global.realtime<=0) {
+          throw mjXError(elem, "realtime must be greater than 0");
+        }
     }
 
     // quality sub-element

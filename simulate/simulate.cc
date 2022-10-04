@@ -1648,6 +1648,18 @@ void Simulate::loadmodel() {
   // clear request
   this->loadrequest = 0;
   cond_loadrequest.notify_all();
+
+  // set real time index
+  int numclicks = sizeof(this->percentRealTime) / sizeof(this->percentRealTime[0]);
+  float min_error = 1e6;
+  float desired = mju_log(100*this->m->vis.global.realtime);
+  for (int click=0; click<numclicks; click++) {
+    float error = mju_abs(mju_log(this->percentRealTime[click]) - desired);
+    if (error < min_error) {
+      min_error = error;
+      this->realTimeIndex = click;
+    }
+  }
 }
 
 

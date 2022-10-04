@@ -1237,6 +1237,7 @@ mjVisual
            float ipd;                  // inter-pupilary distance for free camera
            float linewidth;            // line width for wireframe and ray rendering
            float glow;                 // glow coefficient for selected body
+           float realtime;             // initial real-time factor (1: real time)
            int offwidth;               // width of offscreen buffer
            int offheight;              // height of offscreen buffer
        } global;
