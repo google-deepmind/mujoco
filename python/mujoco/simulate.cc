@@ -34,107 +34,101 @@ namespace {
 
 namespace py = ::pybind11;
 
-const auto simulate_doc = R"(
-Python wrapper for the Simulate class
-)";
-
-// We define SimulateWrapper here instead of in structs because
-// we do not want to make _structs dependent on gflw
-
 PYBIND11_MODULE(_simulate, pymodule) {
   namespace py = ::pybind11;
 
-  py::class_<mujoco::raw::Simulate>(pymodule, "Simulate")
+  py::class_<mujoco::Simulate>(pymodule, "Simulate")
     .def(py::init<>())
     .def("renderloop",
-          [](mujoco::raw::Simulate& simulate) {
+          [](mujoco::Simulate& simulate) {
             simulate.renderloop();
           },
       py::call_guard<py::gil_scoped_release>())
     .def("load",
-          [](mujoco::raw::Simulate& simulate, std::string filename, const MjModelWrapper& m, MjDataWrapper& d, bool delete_old_m_d) {
+          [](mujoco::Simulate& simulate, std::string filename, const MjModelWrapper& m, MjDataWrapper& d) {
             const raw::MjModel* m_ptr = m.get();
             raw::MjData* d_ptr = d.get();
-            simulate.load(filename.c_str(), (mjModel*)m_ptr, d_ptr, delete_old_m_d);
+            simulate.load(filename.c_str(), (mjModel*)m_ptr, d_ptr);
           },
       py::call_guard<py::gil_scoped_release>())
-    .def("applyposepertubations", &mujoco::raw::Simulate::applyposepertubations)
-    .def("applyforceperturbations", &mujoco::raw::Simulate::applyforceperturbations)
+    .def("applyposepertubations", &mujoco::Simulate::applyposepertubations)
+    .def("applyforceperturbations", &mujoco::Simulate::applyforceperturbations)
 
     .def("lock", // TODO wrap mutex properly as as seperate pybind11 object?
-      [](mujoco::raw::Simulate& simulate) {
+      [](mujoco::Simulate& simulate) {
             simulate.mtx.lock();
           },
       py::call_guard<py::gil_scoped_release>())
     .def("unlock",
-      [](mujoco::raw::Simulate& simulate) {
+      [](mujoco::Simulate& simulate) {
             simulate.mtx.unlock();
           },
       py::call_guard<py::gil_scoped_release>())
-    .def_readwrite("ctrlnoisestd", &mujoco::raw::Simulate::ctrlnoisestd)
-    .def_readwrite("ctrlnoiserate", &mujoco::raw::Simulate::ctrlnoiserate)
-    .def_readwrite("slow_down", &mujoco::raw::Simulate::slow_down)
-    .def_readwrite("speed_changed", &mujoco::raw::Simulate::speed_changed)
-    .def("getrefreshRate",
-      [](mujoco::raw::Simulate& simulate) {
-            return simulate.vmode.refreshRate;
-          })
+    .def_readwrite("ctrlnoisestd", &mujoco::Simulate::ctrlnoisestd)
+    .def_readwrite("ctrlnoiserate", &mujoco::Simulate::ctrlnoiserate)
 
-    .def_readwrite("busywait", &mujoco::raw::Simulate::busywait)
-    .def_readwrite("run", &mujoco::raw::Simulate::run)
-    //.def_readwrite("exitrequest", &mujoco::raw::Simulate::exitrequest)
+    .def_readwrite("realtimeindex", &mujoco::Simulate::realTimeIndex)
+    .def_readwrite("speedchanged", &mujoco::Simulate::speedChanged)
+    .def_readwrite("measuredslowdown", &mujoco::Simulate::measuredSlowdown)
+    .def_readwrite("refreshrate", &mujoco::Simulate::refreshRate)
+
+    .def_readwrite("busywait", &mujoco::Simulate::busywait)
+    .def_readwrite("run", &mujoco::Simulate::run)
+
     .def("getexitrequest",
-      [](mujoco::raw::Simulate& simulate) {
+      [](mujoco::Simulate& simulate) {
         return simulate.exitrequest.load();
       }
     )
     .def("setexitrequest",
-      [](mujoco::raw::Simulate& simulate, bool exitrequest) {
+      [](mujoco::Simulate& simulate, bool exitrequest) {
         simulate.exitrequest.store(exitrequest);
       }
     )
-    // .def_readwrite("uiloadrequest", &mujoco::raw::Simulate::uiloadrequest)
+
     .def("getuiloadrequest",
-      [](mujoco::raw::Simulate& simulate) {
+      [](mujoco::Simulate& simulate) {
         return simulate.uiloadrequest.load();
       }
     )
     .def("setuiloadrequest",
-      [](mujoco::raw::Simulate& simulate, int uiloadrequest) {
+      [](mujoco::Simulate& simulate, int uiloadrequest) {
         simulate.uiloadrequest.store(uiloadrequest);
       }
     )
     .def("uiloadrequest_fetch_sub",
-      [](mujoco::raw::Simulate& simulate, int arg) {
+      [](mujoco::Simulate& simulate, int arg) {
         simulate.uiloadrequest.fetch_sub(arg);
       }
     )
-    // .def_readwrite("droploadrequest", &mujoco::raw::Simulate::droploadrequest)
+
     .def("getdroploadrequest",
-      [](mujoco::raw::Simulate& simulate) {
+      [](mujoco::Simulate& simulate) {
         return simulate.droploadrequest.load();
       }
     )
     .def("setdroploadrequest",
-      [](mujoco::raw::Simulate& simulate, bool droploadrequest) {
+      [](mujoco::Simulate& simulate, bool droploadrequest) {
         simulate.droploadrequest.store(droploadrequest);
       }
     )
     .def("getdropfilename",
-      [](mujoco::raw::Simulate& simulate) {
+      [](mujoco::Simulate& simulate) {
         return (char*)simulate.dropfilename;
       }
     )
     .def("getfilename",
-      [](mujoco::raw::Simulate& simulate) {
+      [](mujoco::Simulate& simulate) {
         return (char*)simulate.filename;
       }
     )
     .def("setloadError",
-      [](mujoco::raw::Simulate& simulate, std::string& loadError) {
+      [](mujoco::Simulate& simulate, std::string& loadError) {
         strncpy(simulate.loadError, loadError.c_str(), simulate.kMaxFilenameLength);
       }
     );
+
+  pymodule.def("setglfwdlhandle", [](std::uintptr_t dlhandle) { mujoco::setglfwdlhandle(reinterpret_cast<void*>(dlhandle)); });
 }
 
 }  // namespace

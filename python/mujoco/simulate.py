@@ -18,6 +18,9 @@ import mujoco
 from mujoco import _simulate
 
 import glfw
+from glfw import _glfw
+_simulate.setglfwdlhandle(_glfw._handle)
+
 import numpy as np
 
 import ctypes
@@ -28,6 +31,14 @@ import time
 class Simulate(_simulate.Simulate):
   def __init__(self):
     super().__init__()
+
+    # logarithmically spaced realtime slow-down coefficients (percent)
+    self.percentrealtime = [
+      100, 80, 66,  50,  40, 33,  25,  20, 16,  13,
+      10,  8,  6.6, 5.0, 4,  3.3, 2.5, 2,  1.6, 1.3,
+      1,  .8, .66, .5,  .4, .33, .25, .2, .16, .13,
+     .1
+    ]
 
   def _get_refreshRate(self):
     return self.getrefreshRate()
@@ -107,14 +118,14 @@ def load_and_step_model(m, d, simulate, filename, preload_callback=None, load_ca
 
   if mnew is not None:
     dnew = mujoco.MjData(mnew)
-    simulate.load(filename, mnew, dnew, False)
+    simulate.load(filename, mnew, dnew)
     mujoco.mj_forward(mnew, dnew)
   else:
     mnew = None
     dnew = None
 
   if load_callback is not None:
-    load_callback(mnew, dnew, loadError)
+    load_callback(mnew, dnew)
 
   return mnew, dnew, loadError
 
@@ -132,11 +143,11 @@ def run_physics_loop(simulate, preload_callback=None, load_callback=None, file=N
 
   # constants
   syncmisalign = 0.1    # maximum time mis-alignment before re-sync
-  refreshfactor = 0.7   # fraction of refresh available for simulation
+  simrefreshfraction = 0.7   # fraction of refresh available for simulation
 
   # cpu-sim synchronization point
-  cpusync = 0.0
-  simsync = 0.0
+  synccpu = 0.0
+  syncsim = 0.0
 
   # run until asked to exit
   while not simulate.exitrequest:
@@ -144,7 +155,6 @@ def run_physics_loop(simulate, preload_callback=None, load_callback=None, file=N
       simulate.droploadrequest = 0
       m_, d_, loadError = load_and_step_model(m, d, simulate, simulate.dropfilename,
                                               preload_callback, load_callback)
-
       if m_ is not None:
         m = m_
         d = d_
@@ -178,28 +188,36 @@ def run_physics_loop(simulate, preload_callback=None, load_callback=None, file=N
       # running
       if simulate.run != 0:
         # record cpu time at start of iteration
-        tmstart = glfw.get_time()
+        startcpu = glfw.get_time()
+
+        elapsedcpu = startcpu - synccpu
+        elapsedsim = d.time - syncsim
 
         # inject noise
         if simulate.ctrlnoisestd != 0.0:
-          # convert rate and scale to discrete time given current timestep
+          # convert rate and scale to discrete time (Ornstein–Uhlenbeck)
           rate = math.exp(-m.opt.timestep / simulate.ctrlnoiserate)
           scale = simulate.ctrlnoisestd * math.sqrt(1-rate*rate)
 
           for i in range(m.nu):
             # update noise
             ctrlnoise[i] = rate * ctrlnoise[i] + scale * mujoco.mju_standardNormal(None)
+
             # apply noise
             d.ctrl[i] = ctrlnoise[i]
 
-        # out-of-sync (for any reason)
-        offset = abs((d.time*simulate.slow_down - simsync) - (tmstart - cpusync))
-        if (d.time*simulate.slow_down < simsync or tmstart < cpusync or cpusync == 0.0 or
-            offset > syncmisalign*simulate.slow_down or simulate.speed_changed):
+        # requested slow-down factor
+        slowdown = 100 / simulate.percentrealtime[simulate.realtimeindex]
+
+        # misalignment condition: distance from target sim time is bigger than syncmisalign
+        misaligned = abs(elapsedcpu/slowdown - elapsedsim) > syncmisalign
+
+        # out-of-sync (for any reason): reset sync times, step
+        if elapsedsim < 0 or elapsedcpu < 0 or synccpu == 0 or misaligned or simulate.speedchanged:
           # re-sync
-          cpusync = tmstart
-          simsync = d.time*simulate.slow_down
-          simulate.speed_changed = False
+          synccpu = startcpu
+          syncsim = d.time
+          simulate.speedchanged = False
 
           # clear old perturbations, apply new
           d.xfrc_applied[:, :] = 0
@@ -209,21 +227,30 @@ def run_physics_loop(simulate, preload_callback=None, load_callback=None, file=N
           # run single step, let next iteration deal with timing
           mujoco.mj_step(m, d)
 
-        # in-sync
+        # in-sync: step until ahead of cpu
         else:
-          while ((d.time*simulate.slow_down - simsync) < (glfw.get_time() - cpusync) and
-                 (glfw.get_time() - tmstart) < (refreshfactor/simulate.refreshRate)):
+          measured = False
+          prevsim = d.time
+          refreshtime = simrefreshfraction/simulate.refreshrate;
+
+          # step while sim lags behind cpu and within refreshtime
+          while (((d.time - syncsim)*slowdown < (glfw.get_time() - synccpu))
+                and ((glfw.get_time() - startcpu) < refreshtime)):
+            # measure slowdown before first step
+            if not measured and elapsedsim:
+              simulate.measuredslowdown = elapsedcpu / elapsedsim
+              measured = True
+
             # clear old perturbations, apply new
             d.xfrc_applied[:, :] = 0
             simulate.applyposepertubations(0) # move mocap bodies only
             simulate.applyforceperturbations()
 
-            # run mj_step
-            prevtm = d.time*simulate.slow_down
+            # call mj_step
             mujoco.mj_step(m, d)
 
-            # break on reset
-            if d.time*simulate.slow_down < prevtm:
+            # break if reset
+            if d.time < prevsim:
               break
 
       # paused
@@ -237,13 +264,14 @@ def run_physics_loop(simulate, preload_callback=None, load_callback=None, file=N
     # end exclusive access
     simulate.unlock()
 
-def run_simulate_and_physics(file=None, preload_callback=None, load_callback=None):
+def run_simulate_and_physics(file=None, preload_callback=None, load_callback=None, init=True, terminate=True):
   # simulate object encapsulates the UI
   simulate = Simulate()
 
   # init GLFW
-  if not glfw.init():
-    raise mujoco.FatalError('could not initialize GLFW')
+  if init:
+    if not glfw.init():
+      raise mujoco.FatalError('could not initialize GLFW')
 
   # if m is not None:
   physics_thread = threading.Thread(target=lambda: run_physics_loop(simulate, preload_callback=preload_callback, load_callback=load_callback, file=file))
@@ -253,4 +281,5 @@ def run_simulate_and_physics(file=None, preload_callback=None, load_callback=Non
   simulate.renderloop()
   physics_thread.join()
 
-  glfw.terminate()
+  if terminate:
+    glfw.terminate()

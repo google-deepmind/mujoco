@@ -97,8 +97,8 @@ if(NOT TARGET lodepng)
   endif()
 endif()
 
-# Simulate library
-add_library(libsimulate STATIC)
+# Simulate shared library
+add_library(libsimulate SHARED simulate.cc uitools.cc glfw_dispatch.cc)
 add_library(mujoco::libsimulate ALIAS libsimulate)
 
 target_sources(
@@ -106,24 +106,46 @@ target_sources(
   PUBLIC simulate.h
          array_safety.h
          glfw_dispatch.h
-         glfw_dispatch.cc
-         simulate.cc
          uitools.h
-         uitools.cc
 )
 target_include_directories(libsimulate PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-target_compile_definitions(libsimulate PUBLIC MJSIMULATE_STATIC)
+target_compile_definitions(libsimulate PUBLIC LIBSIMULATE_DLL_EXPORTS mjGLFW_DYNAMIC_SYMBOLS)
 target_compile_options(libsimulate PUBLIC ${MUJOCO_SIMULATE_COMPILE_OPTIONS})
-target_link_libraries(libsimulate PUBLIC glfw lodepng mujoco::mujoco)
+target_link_libraries(libsimulate PUBLIC lodepng glfw mujoco::mujoco)
 target_link_options(libsimulate PRIVATE ${MUJOCO_SIMULATE_LINK_OPTIONS})
 
 set_target_properties(
-  mjsimulate PROPERTIES VERSION "${mujoco_VERSION}" PUBLIC_HEADER "simulate.h"
+  libsimulate PROPERTIES VERSION "${mujoco_VERSION}" PUBLIC_HEADER "simulate.h"
 )
 
 if(APPLE)
   target_sources(libsimulate PRIVATE macos_save.mm)
   target_link_libraries(libsimulate PUBLIC "-framework Cocoa")
+endif()
+
+# Simulate static library
+add_library(libsimulatestatic STATIC simulate.cc uitools.cc glfw_dispatch.cc)
+add_library(mujoco::libsimulatestatic ALIAS libsimulatestatic)
+target_sources(
+  libsimulatestatic
+  PUBLIC simulate.h
+         array_safety.h
+         glfw_dispatch.h
+         uitools.h
+)
+target_include_directories(libsimulatestatic PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_compile_definitions(libsimulatestatic PUBLIC LIBSIMULATE_STATIC)
+target_compile_options(libsimulatestatic PUBLIC ${MUJOCO_SIMULATE_COMPILE_OPTIONS})
+target_link_libraries(libsimulatestatic PUBLIC lodepng glfw mujoco::mujoco)
+target_link_options(libsimulatestatic PRIVATE ${MUJOCO_SIMULATE_LINK_OPTIONS})
+
+set_target_properties(
+  libsimulatestatic PROPERTIES VERSION "${mujoco_VERSION}" PUBLIC_HEADER "simulate.h"
+)
+
+if(APPLE)
+  target_sources(libsimulatestatic PRIVATE macos_save.mm)
+  target_link_libraries(libsimulatestatic PUBLIC "-framework Cocoa")
 endif()
 
 # Build simulate executable
@@ -150,7 +172,7 @@ endif()
 
 target_link_libraries(
   simulate
-  libsimulate
+  libsimulatestatic
   mujoco::mujoco
   glfw
   Threads::Threads
@@ -225,7 +247,7 @@ if(_INSTALL_SIMULATE)
 
   target_add_rpath(
     TARGETS
-    mjsimulate
+    libsimulate
     INSTALL_DIRECTORY
     "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_BINDIR}"
     LIB_DIRS
@@ -245,7 +267,7 @@ if(_INSTALL_SIMULATE)
   )
 
   install(
-    TARGETS mjsimulate
+    TARGETS libsimulate
     EXPORT ${PROJECT_NAME}
     RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}" COMPONENT simulate
     LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}" COMPONENT simulate

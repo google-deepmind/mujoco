@@ -934,7 +934,7 @@ void copykey(mj::Simulate* sim) {
   mju::strcat_arr(clipboard, "'/>");
 
   // copy to clipboard
-  Glfw().glfwSetClipboardString(sim->window, clipboard);
+  Glfw().glfwSetClipboardString(reinterpret_cast<GLFWwindow*>(sim->window), clipboard);
 }
 
 // millisecond timer, for MuJoCo built-in profiler
@@ -974,7 +974,7 @@ void copycamera(mj::Simulate* sim) {
                    camera[0].up[0], camera[0].up[1], camera[0].up[2]);
 
   // copy spec into clipboard
-  Glfw().glfwSetClipboardString(sim->window, clipboard);
+  Glfw().glfwSetClipboardString(reinterpret_cast<GLFWwindow*>(sim->window), clipboard);
 }
 
 // update UI 0 when MuJoCo structures change (except for joint sliders)
@@ -1035,7 +1035,7 @@ void uiLayout(mjuiState* state) {
   // rect 0: entire framebuffer
   rect[0].left = 0;
   rect[0].bottom = 0;
-  Glfw().glfwGetFramebufferSize(sim->window, &rect[0].width, &rect[0].height);
+  Glfw().glfwGetFramebufferSize(reinterpret_cast<GLFWwindow*>(sim->window), &rect[0].width, &rect[0].height);
 
   // rect 1: UI 0
   rect[1].left = 0;
@@ -1128,21 +1128,24 @@ void uiEvent(mjuiState* state) {
         break;
 
       case 9:             // Full screen
-        if (Glfw().glfwGetWindowMonitor(sim->window)) {
+        if (Glfw().glfwGetWindowMonitor(reinterpret_cast<GLFWwindow*>(sim->window))) {
           // restore window from saved data
-          Glfw().glfwSetWindowMonitor(sim->window, nullptr, sim->windowpos[0], sim->windowpos[1],
+          Glfw().glfwSetWindowMonitor(reinterpret_cast<GLFWwindow*>(sim->window),
+                                      nullptr, sim->windowpos[0], sim->windowpos[1],
                                       sim->windowsize[0], sim->windowsize[1], 0);
         }
 
         // currently windowed: switch to full screen
         else {
           // save window data
-          Glfw().glfwGetWindowPos(sim->window, sim->windowpos, sim->windowpos+1);
-          Glfw().glfwGetWindowSize(sim->window, sim->windowsize, sim->windowsize+1);
+          Glfw().glfwGetWindowPos(reinterpret_cast<GLFWwindow*>(sim->window), sim->windowpos, sim->windowpos+1);
+          Glfw().glfwGetWindowSize(reinterpret_cast<GLFWwindow*>(sim->window), sim->windowsize, sim->windowsize+1);
 
           // switch
-          Glfw().glfwSetWindowMonitor(sim->window, Glfw().glfwGetPrimaryMonitor(), 0, 0,
-                                      sim->vmode.width, sim->vmode.height, sim->vmode.refreshRate);
+          Glfw().glfwSetWindowMonitor(reinterpret_cast<GLFWwindow*>(sim->window), Glfw().glfwGetPrimaryMonitor(), 0, 0,
+                                      reinterpret_cast<const GLFWvidmode*>(sim->vmode)->width,
+                                      reinterpret_cast<const GLFWvidmode*>(sim->vmode)->height,
+                                      reinterpret_cast<const GLFWvidmode*>(sim->vmode)->refreshRate);
         }
 
         // reinstante vsync, just in case
@@ -1155,8 +1158,8 @@ void uiEvent(mjuiState* state) {
       }
 
       // modify UI
-      uiModify(sim->window, &sim->ui0, state, &sim->con);
-      uiModify(sim->window, &sim->ui1, state, &sim->con);
+      uiModify(reinterpret_cast<GLFWwindow*>(sim->window), &sim->ui0, state, &sim->con);
+      uiModify(reinterpret_cast<GLFWwindow*>(sim->window), &sim->ui1, state, &sim->con);
     }
 
     // simulation section
@@ -1263,7 +1266,7 @@ void uiEvent(mjuiState* state) {
         sim->ui1.nsect = SECT_JOINT;
         makejoint(sim, sim->ui1.sect[SECT_JOINT].state);
         sim->ui1.nsect = NSECT1;
-        uiModify(sim->window, &sim->ui1, state, &sim->con);
+        uiModify(reinterpret_cast<GLFWwindow*>(sim->window), &sim->ui1, state, &sim->con);
       }
 
       // remake control section if actuator group changed
@@ -1271,7 +1274,7 @@ void uiEvent(mjuiState* state) {
         sim->ui1.nsect = SECT_CONTROL;
         makecontrol(sim, sim->ui1.sect[SECT_CONTROL].state);
         sim->ui1.nsect = NSECT1;
-        uiModify(sim->window, &sim->ui1, state, &sim->con);
+        uiModify(reinterpret_cast<GLFWwindow*>(sim->window), &sim->ui1, state, &sim->con);
       }
     }
 
@@ -1574,11 +1577,9 @@ void Simulate::applyforceperturbations() {
 //------------------------- Tell the render thread to load a file and wait -------------------------
 void Simulate::load(const char* file,
                     mjModel* mnew,
-                    mjData* dnew,
-                    bool delete_old_m_d) {
+                    mjData* dnew) {
   this->mnew = mnew;
   this->dnew = dnew;
-  this->delete_old_m_d = delete_old_m_d;
   mju::strcpy_arr(this->filename, file);
 
   {
@@ -1594,16 +1595,6 @@ void Simulate::load(const char* file,
 
 //------------------------------------- load mjb or xml model --------------------------------------
 void Simulate::loadmodel() {
-  if (this->delete_old_m_d) {
-    // delete old model if requested
-    if (this->d) {
-      mj_deleteData(d);
-    }
-    if (this->m) {
-      mj_deleteModel(m);
-    }
-  }
-
   this->m = this->mnew;
   this->d = this->dnew;
 
@@ -1626,10 +1617,10 @@ void Simulate::loadmodel() {
   mjv_updateScene(this->m, this->d, &this->vopt, &this->pert, &this->cam, mjCAT_ALL, &this->scn);
 
   // set window title to model name
-  if (this->window && this->m->names) {
+  if (reinterpret_cast<GLFWwindow*>(this->window) && this->m->names) {
     char title[200] = "Simulate : ";
     mju::strcat_arr(title, this->m->names);
-    Glfw().glfwSetWindowTitle(this->window, title);
+    Glfw().glfwSetWindowTitle(reinterpret_cast<GLFWwindow*>(this->window), title);
   }
 
   // set keyframe range and divisions
@@ -1641,8 +1632,8 @@ void Simulate::loadmodel() {
   makesections(this);
 
   // full ui update
-  uiModify(this->window, &this->ui0, &this->uistate, &this->con);
-  uiModify(this->window, &this->ui1, &this->uistate, &this->con);
+  uiModify(reinterpret_cast<GLFWwindow*>(this->window), &this->ui0, &this->uistate, &this->con);
+  uiModify(reinterpret_cast<GLFWwindow*>(this->window), &this->ui1, &this->uistate, &this->con);
   updatesettings(this);
 
   // clear request
@@ -1758,7 +1749,7 @@ void Simulate::render() {
     }
 
     // finalize
-    Glfw().glfwSwapBuffers(this->window);
+    Glfw().glfwSwapBuffers(reinterpret_cast<GLFWwindow*>(this->window));
 
     return;
   }
@@ -1865,13 +1856,13 @@ void Simulate::render() {
   }
 
   // finalize
-  Glfw().glfwSwapBuffers(this->window);
+  Glfw().glfwSwapBuffers(reinterpret_cast<GLFWwindow*>(this->window));
 }
 
 
 // clear callbacks registered in external structures
 void Simulate::clearcallback() {
-  uiClearCallback(this->window);
+  uiClearCallback(reinterpret_cast<GLFWwindow*>(this->window));
 }
 
 void Simulate::renderloop() {
@@ -1883,25 +1874,27 @@ void Simulate::renderloop() {
   Glfw().glfwWindowHint(GLFW_VISIBLE, 1);
 
   // get videomode and save
-  this->vmode = *Glfw().glfwGetVideoMode(Glfw().glfwGetPrimaryMonitor());
+  this->vmode = Glfw().glfwGetVideoMode(Glfw().glfwGetPrimaryMonitor());
 
   // use videomode refreshrate if nonzero
-  if (this->vmode.refreshRate) this->refreshRate = this->vmode.refreshRate;
+  if (reinterpret_cast<const GLFWvidmode*>(this->vmode)->refreshRate)
+    this->refreshRate = reinterpret_cast<const GLFWvidmode*>(this->vmode)->refreshRate;
 
   // create window
-  this->window = Glfw().glfwCreateWindow((2*this->vmode.width)/3, (2*this->vmode.height)/3,
+  this->window = Glfw().glfwCreateWindow((2*reinterpret_cast<const GLFWvidmode*>(this->vmode)->width)/3,
+                                         (2*reinterpret_cast<const GLFWvidmode*>(this->vmode)->height)/3,
                                          "Simulate", nullptr, nullptr);
-  if (!this->window) {
+  if (!reinterpret_cast<GLFWwindow*>(this->window)) {
     Glfw().glfwTerminate();
     mju_error("could not create window");
   }
 
   // save window position and size
-  Glfw().glfwGetWindowPos(this->window, this->windowpos, this->windowpos+1);
-  Glfw().glfwGetWindowSize(this->window, this->windowsize, this->windowsize+1);
+  Glfw().glfwGetWindowPos(reinterpret_cast<GLFWwindow*>(this->window), this->windowpos, this->windowpos+1);
+  Glfw().glfwGetWindowSize(reinterpret_cast<GLFWwindow*>(this->window), this->windowsize, this->windowsize+1);
 
   // make context current, set v-sync
-  Glfw().glfwMakeContextCurrent(this->window);
+  Glfw().glfwMakeContextCurrent(reinterpret_cast<GLFWwindow*>(this->window));
   Glfw().glfwSwapInterval(this->vsync);
 
   // init abstract visualization
@@ -1915,7 +1908,7 @@ void Simulate::renderloop() {
   mjv_makeScene(nullptr, &this->scn, maxgeom);
 
   // select default font
-  int fontscale = uiFontScale(this->window);
+  int fontscale = uiFontScale(reinterpret_cast<GLFWwindow*>(this->window));
   this->font = fontscale/50 - 1;
 
   // make empty context
@@ -1939,7 +1932,7 @@ void Simulate::renderloop() {
 
   // set GLFW callbacks
   this->uistate.userdata = this;
-  uiSetCallback(this->window, &this->uistate, uiEvent, uiLayout, uiRender, uiDrop);
+  uiSetCallback(reinterpret_cast<GLFWwindow*>(this->window), &this->uistate, uiEvent, uiLayout, uiRender, uiDrop);
 
   // populate uis with standard sections
   this->ui0.userdata = this;
@@ -1948,11 +1941,11 @@ void Simulate::renderloop() {
   mjui_add(&this->ui0, this->defOption);
   mjui_add(&this->ui0, this->defSimulation);
   mjui_add(&this->ui0, this->defWatch);
-  uiModify(this->window, &this->ui0, &this->uistate, &this->con);
-  uiModify(this->window, &this->ui1, &this->uistate, &this->con);
+  uiModify(reinterpret_cast<GLFWwindow*>(this->window), &this->ui0, &this->uistate, &this->con);
+  uiModify(reinterpret_cast<GLFWwindow*>(this->window), &this->ui1, &this->uistate, &this->con);
 
   // run event loop
-  while (!Glfw().glfwWindowShouldClose(this->window) && !this->exitrequest.load()) {
+  while (!Glfw().glfwWindowShouldClose(reinterpret_cast<GLFWwindow*>(this->window)) && !this->exitrequest.load()) {
     {
       const std::lock_guard<std::mutex> lock(this->mtx);
 
@@ -1979,6 +1972,13 @@ void Simulate::renderloop() {
   this->clearcallback();
   mjv_freeScene(&this->scn);
   mjr_freeContext(&this->con);
+
+  Glfw().glfwDestroyWindow(reinterpret_cast<GLFWwindow*>(this->window));
+}
+
+//------------------------------------ setup the glfw dispatch table -------------------------------
+void setglfwdlhandle(void* dlhandle) {
+  Glfw(dlhandle);
 }
 
 }  // namespace mujoco

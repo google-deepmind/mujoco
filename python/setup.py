@@ -63,11 +63,11 @@ def get_mujoco_lib_pattern():
 
 def get_external_lib_patterns():
   if platform.system() == 'Windows':
-    return ['mujoco.dll', 'mjsimulate.dll']
+    return ['mujoco.dll', 'libsimulate.dll']
   elif platform.system() == 'Darwin':
-    return ['libmujoco.*.dylib', 'libmjsimulate.*.dylib']
+    return ['libmujoco.*.dylib', 'liblibsimulate.*.dylib']
   else:
-    return ['libmujoco.so.*', 'libmjsimulate.so*']
+    return ['libmujoco.so.*', 'liblibsimulate.so*']
 
 def start_and_end(iterable):
   it = iter(iterable)
@@ -318,7 +318,8 @@ setup(
                     'libmujoco*.so.*',
                     'mujoco.dll',
                     'include/mujoco/*.h',
-                    'libmjsimulate*.so*',
+                    'liblibsimulate.*.dylib',
+                    'liblibsimulate*.so*',
                 ]),
     },
 )

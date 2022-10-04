@@ -23,17 +23,17 @@
 #include <GLFW/glfw3.h>
 #include <mujoco/mujoco.h>
 
-#ifdef MJSIMULATE_STATIC
+#ifdef LIBSIMULATE_STATIC
   // static library
-  #define MJSIMULATEAPI
-  #define MJSIMULATELOCAL
+  #define LIBSIMULATEAPI
+  #define LIBSIMULATELOCAL
 #else
-  #ifdef MJSIMULATE_DLL_EXPORTS
-    #define MJSIMULATEAPI MUJOCO_HELPER_DLL_EXPORT
+  #ifdef LIBSIMULATE_DLL_EXPORTS
+    #define LIBSIMULATEAPI MUJOCO_HELPER_DLL_EXPORT
   #else
-    #define MJSIMULATEAPI MUJOCO_HELPER_DLL_IMPORT
+    #define LIBSIMULATEAPI MUJOCO_HELPER_DLL_IMPORT
   #endif
-  #define MJSIMULATELOCAL MUJOCO_HELPER_DLL_LOCAL
+  #define LIBSIMULATELOCAL MUJOCO_HELPER_DLL_LOCAL
 #endif
 
 namespace mujoco {
@@ -41,7 +41,7 @@ namespace mujoco {
 //-------------------------------- global -----------------------------------------------
 
 // Simulate states not contained in MuJoCo structures
-class MJSIMULATEAPI Simulate {
+class LIBSIMULATEAPI Simulate {
  public:
   // create object and initialize the simulate ui
   Simulate() = default;
@@ -54,7 +54,7 @@ class MJSIMULATEAPI Simulate {
 
   // Request that the Simulate UI thread render a new model
   // optionally delete the old model and data when done
-  void load(const char* file, mjModel* m, mjData* d, bool delete_old_m_d);
+  void load(const char* file, mjModel* m, mjData* d);
 
   // functions below are used by the renderthread
   // load mjb or xml model that has been requested by load()
@@ -79,7 +79,6 @@ class MJSIMULATEAPI Simulate {
   // model and data to be visualized
   mjModel* mnew = nullptr;
   mjData* dnew = nullptr;
-  bool delete_old_m_d = false;
 
   mjModel* m = nullptr;
   mjData* d = nullptr;
@@ -163,12 +162,14 @@ class MJSIMULATEAPI Simulate {
   mjvFigure figsensor = {};
 
   // OpenGL rendering and UI
-  GLFWvidmode vmode = {};
+  // Use void* for GLFW objects to avoid requiring users of the shared library
+  // from needing GLFW headers (in particular Python should not need them)
+  const void* vmode = {}; // const GLFWvidmode*
   int refreshRate = 60;
   int windowpos[2] = {0};
   int windowsize[2] = {0};
   mjrContext con = {};
-  GLFWwindow* window = nullptr;
+  void* window = nullptr; // GLFWwindow*
   mjuiState uistate = {};
   mjUI ui0 = {};
   mjUI ui1 = {};
@@ -227,6 +228,10 @@ class MJSIMULATEAPI Simulate {
   char info_title[Simulate::kMaxFilenameLength] = {0};
   char info_content[Simulate::kMaxFilenameLength] = {0};
 };
+
+// setup the glfw dispatch table
+// if set, must be called prior to other Simulate functions
+LIBSIMULATEAPI void setglfwdlhandle(void* dlhandle);
 
 }  // namespace mujoco
 

@@ -337,7 +337,10 @@ void PhysicsLoop(mj::Simulate& sim) {
       mjData* dnew = nullptr;
       if (mnew) dnew = mj_makeData(mnew);
       if (dnew) {
-        sim.load(sim.dropfilename, mnew, dnew, true);
+        sim.load(sim.dropfilename, mnew, dnew);
+
+        if (d) mj_deleteData(d);
+        if (m) mj_deleteModel(m);
 
         m = mnew;
         d = dnew;
@@ -356,7 +359,10 @@ void PhysicsLoop(mj::Simulate& sim) {
       mjData* dnew = nullptr;
       if (mnew) dnew = mj_makeData(mnew);
       if (dnew) {
-        sim.load(sim.filename, mnew, dnew, true);
+        sim.load(sim.filename, mnew, dnew);
+
+        if (d) mj_deleteData(d);
+        if (m) mj_deleteModel(m);
 
         m = mnew;
         d = dnew;
@@ -482,7 +488,7 @@ void PhysicsThread(mj::Simulate* sim, const char* filename) {
     m = LoadModel(filename, *sim);
     if (m) d = mj_makeData(m);
     if (d) {
-      sim->load(filename, m, d, true);
+      sim->load(filename, m, d);
       mj_forward(m, d);
 
       // allocate ctrlnoise
