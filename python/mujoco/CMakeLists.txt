@@ -411,7 +411,6 @@ target_link_libraries(
           mujoco
           raw
           structs_header)
-target_link_options(_simulate PRIVATE -Wl,-no-as-needed)
 
 set(LIBRARIES_FOR_WHEEL
     "$<TARGET_FILE:_callbacks>"
