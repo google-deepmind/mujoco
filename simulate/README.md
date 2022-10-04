@@ -7,4 +7,6 @@ sensor data plots. The model file can be specified as a command-line argument,
 or loaded at runtime using drag-and-drop functionality. Below is a
 screen-capture of simulate in action:
 
-<iframe width="560" height="315" src="https://www.youtube.com/embed/0ORsj_E17B0" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+<a href="https://youtu.be/0ORsj_E17B0" target="_blank">
+ <img src="http://img.youtube.com/vi/0ORsj_E17B0/hqdefault.jpg" alt="Watch the video" width="560" height="315"/>
+</a>
