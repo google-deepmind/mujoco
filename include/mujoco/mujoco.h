@@ -27,8 +27,8 @@ extern "C" {
 #define mjVERSION_HEADER 222
 
 // needed to define size_t, fabs and log10
-#include "stdlib.h"
-#include "math.h"
+#include <stdlib.h>
+#include <math.h>
 
 
 // type definitions
