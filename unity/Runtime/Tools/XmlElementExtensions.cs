@@ -15,6 +15,7 @@
 using System;
 using System.Linq;
 using System.Xml;
+using System.Globalization;
 using UnityEngine;
 
 namespace Mujoco {
@@ -43,7 +44,7 @@ public static class XmlElementExtensions {
     }
     var strValue = element.GetAttribute(name);
     float parsedValue;
-    if (float.TryParse(strValue, out parsedValue)) {
+    if (float.TryParse(strValue, NumberStyles.Any, CultureInfo.InvariantCulture, out parsedValue)) {
       return parsedValue;
     } else {
       throw new ArgumentException($"'{strValue}' is not a float.");
@@ -151,7 +152,7 @@ public static class XmlElementExtensions {
     var result = new float[resultLength];
     for (var i = 0; i < components.Length; ++i) {
       float componentValue;
-      if (float.TryParse(components[i], out componentValue)) {
+      if (float.TryParse(components[i], NumberStyles.Any, CultureInfo.InvariantCulture, out componentValue)) {
         result[i] = componentValue;
       } else {
         throw new ArgumentException($"'{components[i]}' is not a float.");
