@@ -26,6 +26,7 @@
 #include <GLFW/glfw3.h>
 #include "lodepng.h"
 #include <mujoco/mjmodel.h>
+#include <mujoco/mjtnum.h>
 #include <mujoco/mjvisualize.h>
 #include <mujoco/mjxmacro.h>
 #include "glfw_dispatch.h"
@@ -475,9 +476,9 @@ void infotext(mj::Simulate* sim,
   solerr = mju_log10(mju_max(mjMINVAL, solerr));
 
   // prepare info text
-  mju::strcpy_arr(title, "Time\nSize\nCPU\nSolver   \nFPS\nstack\nconbuf\nefcbuf");
+  mju::strcpy_arr(title, "Time\nSize\nCPU\nSolver   \nFPS\nMemory");
   mju::sprintf_arr(content,
-                   "%-9.3f\n%d  (%d con)\n%.3f\n%.1f  (%d it)\n%.0f\n%.3f\n%.3f\n%.3f",
+                   "%-9.3f\n%d  (%d con)\n%.3f\n%.1f  (%d it)\n%.0f\n%.3f",
                    d->time,
                    d->nefc, d->ncon,
                    sim->run ?
@@ -485,9 +486,7 @@ void infotext(mj::Simulate* sim,
                    d->timer[mjTIMER_FORWARD].duration / mjMAX(1, d->timer[mjTIMER_FORWARD].number),
                    solerr, d->solver_iter,
                    1/interval,
-                   d->maxuse_stack/(double)d->nstack,
-                   d->maxuse_con/(double)m->nconmax,
-                   d->maxuse_efc/(double)m->njmax);
+                   d->maxuse_arena/(double)(d->nstack * sizeof(mjtNum)));
 
   // add Energy if enabled
   {

@@ -37,6 +37,7 @@
 #define FLOAT_FORMAT "% -9.2g"
 #define FLOAT_FORMAT_MAX_LEN 20
 #define INT_FORMAT " %d"
+#define SIZE_T_FORMAT " %zu"
 #define NAME_FORMAT "%-21s"
 
 
@@ -46,6 +47,9 @@
 // print 2D array of mjtNum into file
 static void printArray(const char* str, int nr, int nc, const mjtNum* data, FILE* fp,
                        const char* float_format) {
+  if (!data) {
+    return;
+  }
   if (nr && nc) {
     fprintf(fp, "%s\n  ", str);
     for (int r=0; r<nr; r++) {
@@ -62,6 +66,9 @@ static void printArray(const char* str, int nr, int nc, const mjtNum* data, FILE
 
 // print 2D array of int into file
 static void printArrayInt(const char* str, int nr, int nc, const int* data, FILE* fp) {
+  if (!data) {
+    return;
+  }
   if (nr && nc) {
     fprintf(fp, "%s\n  ", str);
     for (int r=0; r<nr; r++) {
@@ -80,6 +87,9 @@ static void printArrayInt(const char* str, int nr, int nc, const int* data, FILE
 static void printSparse(const char* str, const mjtNum* mat, int nr,
                         const int* rownnz, const int* rowadr,
                         const int* colind, FILE* fp, const char* float_format) {
+  if (!mat) {
+    return;
+  }
   fprintf(fp, "%s\n  ", str);
 
   for (int r=0; r<nr; r++) {
@@ -98,6 +108,9 @@ static void printSparse(const char* str, const mjtNum* mat, int nr,
 // print vector
 static void printVector(const char* str, const mjtNum* data, int n, FILE* fp,
                         const char* float_format) {
+  if (!data) {
+    return;
+  }
   // print str
   fprintf(fp, "%s", str);
 
@@ -754,7 +767,11 @@ void mj_printFormattedData(const mjModel* m, mjData* d, const char* filename,
   fprintf(fp, "SIZES\n");
 #define X(type, name)                                                         \
   {                                                                           \
-    const char* format = _Generic(d->name, int : INT_FORMAT, default : NULL); \
+    const char* format = _Generic(                                            \
+        d->name,                                                              \
+        int : INT_FORMAT,                                                     \
+        size_t : SIZE_T_FORMAT,                                               \
+        default : NULL);                                                      \
     if (format) {                                                             \
       fprintf(fp, "  ");                                                      \
       fprintf(fp, NAME_FORMAT, #name);                                        \

@@ -459,9 +459,9 @@ TEST_F(ActRangeTest, ActRangeDefaultsPropagate) {
 
 // ------------- test nuser_xxx fields -----------------------------------------
 
-using UserDataTest = MujocoTest;
+using XMLReaderTest = MujocoTest;
 
-TEST_F(UserDataTest, NBodyTooSmall) {
+TEST_F(XMLReaderTest, NBodyTooSmall) {
   static constexpr char xml[] = R"(
   <mujoco>
     <size nuser_body="2"/>
@@ -476,7 +476,7 @@ TEST_F(UserDataTest, NBodyTooSmall) {
   EXPECT_THAT(error.data(), HasSubstr("nuser_body"));
 }
 
-TEST_F(UserDataTest, NJointTooSmall) {
+TEST_F(XMLReaderTest, NJointTooSmall) {
   static constexpr char xml[] = R"(
   <mujoco>
     <size nuser_jnt="2"/>
@@ -494,7 +494,7 @@ TEST_F(UserDataTest, NJointTooSmall) {
   EXPECT_THAT(error.data(), HasSubstr("nuser_jnt"));
 }
 
-TEST_F(UserDataTest, NGeomTooSmall) {
+TEST_F(XMLReaderTest, NGeomTooSmall) {
   static constexpr char xml[] = R"(
   <mujoco>
     <size nuser_geom="2"/>
@@ -509,7 +509,7 @@ TEST_F(UserDataTest, NGeomTooSmall) {
   EXPECT_THAT(error.data(), HasSubstr("nuser_geom"));
 }
 
-TEST_F(UserDataTest, NSiteTooSmall) {
+TEST_F(XMLReaderTest, NSiteTooSmall) {
   static constexpr char xml[] = R"(
   <mujoco>
     <size nuser_site="2"/>
@@ -524,7 +524,7 @@ TEST_F(UserDataTest, NSiteTooSmall) {
   EXPECT_THAT(error.data(), HasSubstr("nuser_site"));
 }
 
-TEST_F(UserDataTest, NCameraTooSmall) {
+TEST_F(XMLReaderTest, NCameraTooSmall) {
   static constexpr char xml[] = R"(
   <mujoco>
     <size nuser_cam="2"/>
@@ -539,7 +539,7 @@ TEST_F(UserDataTest, NCameraTooSmall) {
   EXPECT_THAT(error.data(), HasSubstr("nuser_cam"));
 }
 
-TEST_F(UserDataTest, NTendonTooSmall) {
+TEST_F(XMLReaderTest, NTendonTooSmall) {
   static constexpr char xml[] = R"(
   <mujoco>
     <size nuser_tendon="2"/>
@@ -561,7 +561,7 @@ TEST_F(UserDataTest, NTendonTooSmall) {
   EXPECT_THAT(error.data(), HasSubstr("nuser_tendon"));
 }
 
-TEST_F(UserDataTest, NActuatorTooSmall) {
+TEST_F(XMLReaderTest, NActuatorTooSmall) {
   static constexpr char xml[] = R"(
   <mujoco>
     <size nuser_actuator="2"/>
@@ -582,7 +582,7 @@ TEST_F(UserDataTest, NActuatorTooSmall) {
   EXPECT_THAT(error.data(), HasSubstr("nuser_actuator"));
 }
 
-TEST_F(UserDataTest, NSensorTooSmall) {
+TEST_F(XMLReaderTest, NSensorTooSmall) {
   static constexpr char xml[] = R"(
   <mujoco>
     <size nuser_sensor="2"/>

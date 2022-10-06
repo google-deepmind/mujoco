@@ -24,36 +24,16 @@
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjplugin.h>
 #include <mujoco/mjxmacro.h>
+#include "engine/engine_array_safety.h"
 #include "engine/engine_macro.h"
 #include "engine/engine_plugin.h"
 #include "engine/engine_util_blas.h"
 #include "engine/engine_util_errmem.h"
 #include "engine/engine_vfs.h"
 
-#ifdef ADDRESS_SANITIZER
-  #include <sanitizer/asan_interface.h>
-#elif defined(_MSC_VER)
-  #define ASAN_POISON_MEMORY_REGION(addr, size)
-  #define ASAN_UNPOISON_MEMORY_REGION(addr, size)
-#else
-  #define ASAN_POISON_MEMORY_REGION(addr, size) ((void)(addr), (void)(size))
-  #define ASAN_UNPOISON_MEMORY_REGION(addr, size) ((void)(addr), (void)(size))
-#endif
-
-#ifdef MEMORY_SANITIZER
-  #include <sanitizer/msan_interface.h>
-#endif
-
 #ifdef _MSC_VER
   #pragma warning (disable: 4305)  // disable MSVC warning: truncation from 'double' to 'float'
 #endif
-
-#ifndef __has_builtin
-#define __has_builtin(x) 0
-#endif
-
-#define PTRDIFF(x, y) ((void*)(x) - (void*)(y))
-
 
 //------------------------------ mjLROpt -----------------------------------------------------------
 
@@ -258,14 +238,6 @@ void mj_defaultStatistic(mjStatistic* stat) {
 
 // id used to indentify binary mjModel file/buffer
 static const int ID = 54321;
-
-
-// number of bytes to be skipped to achieve 64-byte alignment
-static unsigned int SKIP(intptr_t offset) {
-  const unsigned int align = 64;
-  // compute skipped bytes
-  return (align - (offset % align)) % align;
-}
 
 
 
@@ -840,6 +812,13 @@ static void mj_setPtrData(const mjModel* m, mjData* d) {
   if (d->nbuffer != sz) {
     mju_error("mjData buffer size mismatch");
   }
+
+  // zero-initialize arena pointers
+#define X(type, name, nr, nc) d->name = NULL;
+  MJDATA_ARENA_POINTERS
+#undef X
+
+  d->contact = d->arena;
 }
 
 
@@ -859,7 +838,7 @@ static mjData* _makeData(const mjModel* m) {
 
   // compute buffer size
   d->nbuffer = 0;
-  d->buffer = d->stack = NULL;
+  d->buffer = d->arena = NULL;
 #define X(type, name, nr, nc)                                                \
   if (!safeAddToBufferSize(&offset, &d->nbuffer, sizeof(type), m->nr, nc)) { \
     mju_free(d);                                                             \
@@ -880,12 +859,12 @@ static mjData* _makeData(const mjModel* m) {
     mju_error("Could not allocate mjData buffer");
   }
 
-  // allocate stack
-  d->stack = (mjtNum*) mju_malloc(d->nstack * sizeof(mjtNum));
-  if (!d->stack) {
+  // allocate arena
+  d->arena = mju_malloc(d->nstack * sizeof(mjtNum));
+  if (!d->arena) {
     mju_free(d->buffer);
     mju_free(d);
-    mju_error("Could not allocate mjData stack");
+    mju_error("Could not allocate mjData arena");
   }
 
   // set pointers into buffer, reset data
@@ -917,7 +896,7 @@ mjData* mj_makeData(const mjModel* m) {
 // copy mjData, if dest==NULL create new data
 mjData* mj_copyData(mjData* dest, const mjModel* m, const mjData* src) {
   void* save_buffer;
-  mjtNum* save_stack;
+  void* save_arena;
 
   // allocate new data if needed
   if (!dest) {
@@ -939,10 +918,10 @@ mjData* mj_copyData(mjData* dest, const mjModel* m, const mjData* src) {
 
   // save pointers, copy everything, restore pointers
   save_buffer = dest->buffer;
-  save_stack = dest->stack;
+  save_arena = dest->arena;
   *dest = *src;
   dest->buffer = save_buffer;
-  dest->stack = save_stack;
+  dest->arena = save_arena;
   mj_setPtrData(m, dest);
 
   // save plugin_data, since the X macro copying block below will override it
@@ -965,6 +944,16 @@ mjData* mj_copyData(mjData* dest, const mjModel* m, const mjData* src) {
     #undef X
   }
 
+  // copy arena memory
+  memcpy(dest->arena, src->arena, src->nstack * sizeof(mjtNum));
+#define X(type, name, nr, nc)  \
+  dest->name = src->name ? (type*)((char*)dest->arena + PTRDIFF(src->name, src->arena)) : NULL;
+  MJDATA_ARENA_POINTERS
+#undef X
+
+  // restore contact pointer
+  dest->contact = dest->arena;
+
   // restore plugin_data
   if (plugin_data_size) {
     memcpy(dest->plugin_data, save_plugin_data, plugin_data_size);
@@ -986,25 +975,60 @@ mjData* mj_copyData(mjData* dest, const mjModel* m, const mjData* src) {
 
 
 
+// allocate memory from the mjData arena
+void* mj_arenaAlloc(mjData* d, int bytes, int alignment) {
+  int misalignment = d->parena % alignment;
+  int padding = misalignment ? alignment - misalignment : 0;
+
+  // check size
+  size_t bytes_available = (d->nstack - d->pstack) * sizeof(mjtNum);
+  if (d->parena + padding + bytes > bytes_available) {
+    return NULL;
+  }
+
+  // allocate, update max, return pointer to buffer
+  void* result = (char*)d->arena + d->parena + padding;
+  d->parena += padding + bytes;
+  d->maxuse_arena = mjMAX(d->maxuse_arena, d->pstack*sizeof(mjtNum) + d->parena);
+  return result;
+}
+
+
+
 // allocate size mjtNums on the mjData stack
 mjtNum* mj_stackAlloc(mjData* d, int size) {
-  mjtNum* result;
-
   // return NULL if empty
   if (!size) {
     return 0;
   }
 
   // check size
-  if (d->pstack + size > d->nstack) {
-    mju_error("Stack overflow");
+  size_t stack_available_bytes = d->nstack * sizeof(mjtNum) - d->parena;
+  size_t stack_required_bytes = (d->pstack + size) * sizeof(mjtNum);
+  if (stack_required_bytes > stack_available_bytes) {
+    char err[256];
+    mjSNPRINTF(err, "stack overflow: max = %zu, available = %zu, requested = %zu "
+                    "(ne = %d, nf = %d, nefc = %d, ncon = %d)",
+               d->nstack * sizeof(mjtNum), stack_available_bytes, stack_required_bytes,
+               d->ne, d->nf, d->nefc, d->ncon);
+    mju_error(err);
   }
 
-  // allocate, update max, return pointer to buffer
-  result = (mjtNum*)d->stack + d->pstack;
+  // allocate at end of arena
+  char* end_ptr = (char*)d->arena + d->nstack * sizeof(mjtNum);
+  char* result = end_ptr - (d->pstack + size + 1) * sizeof(mjtNum);
+
+#ifdef ADDRESS_SANITIZER
+  if ((uintptr_t)result % sizeof(mjtNum)) {
+    mju_error("mj_stackAlloc fails to align to sizeof(mjtNum)");
+  }
+#endif
+
+  // update max, return pointer to buffer
   d->pstack += size;
   d->maxuse_stack = mjMAX(d->maxuse_stack, d->pstack);
-  return result;
+  d->maxuse_arena = mjMAX(d->maxuse_arena, d->pstack*sizeof(mjtNum) + d->parena);
+  return (mjtNum*)result;
 }
 
 
@@ -1022,8 +1046,16 @@ static void _resetData(const mjModel* m, mjData* d, unsigned char debug_value) {
   // clear stack pointer
   d->pstack = 0;
 
+  // clear arena pointers
+  d->parena = 0;
+#define X(type, name, nr, nc) d->name = NULL;
+  MJDATA_ARENA_POINTERS
+#undef X
+  d->contact = d->arena;
+
   // clear memory utilization stats
   d->maxuse_stack = 0;
+  d->maxuse_arena = 0;
   d->maxuse_con = 0;
   d->maxuse_efc = 0;
 
@@ -1162,7 +1194,7 @@ void mj_deleteData(mjData* d) {
       }
     }
     mju_free(d->buffer);
-    mju_free(d->stack);
+    mju_free(d->arena);
     mju_free(d);
   }
 }

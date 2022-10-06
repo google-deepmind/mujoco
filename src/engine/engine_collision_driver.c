@@ -19,6 +19,7 @@
 
 #include <mujoco/mjdata.h>
 #include <mujoco/mjmodel.h>
+#include <mujoco/mjxmacro.h>
 #include "engine/engine_callback.h"
 #include "engine/engine_collision_convex.h"
 #include "engine/engine_collision_primitive.h"
@@ -55,7 +56,7 @@ void mj_collision(const mjModel* m, mjData* d) {
   int *broadphasepair = 0;
   mjMARKSTACK;
 
-  // clear size
+  // reset the size of the contact array
   d->ncon = 0;
 
   // return if disabled

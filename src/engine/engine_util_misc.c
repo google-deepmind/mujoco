@@ -956,11 +956,16 @@ const char* mju_warningText(int warning, int info) {
     break;
 
   case mjWARN_CONTACTFULL:
-    mjSNPRINTF(str, "Pre-allocated contact buffer is full. Increase nconmax above %d.", info);
+    mjSNPRINTF(str,
+               "Too many contacts. Either the arena memory is full, or nconmax is specified and is "
+               "exceeded. Increase arena memory allocation, or increase/remove nconmax. "
+               "(ncon = %d)", info);
     break;
 
   case mjWARN_CNSTRFULL:
-    mjSNPRINTF(str, "Pre-allocated constraint buffer is full. Increase njmax above %d.", info);
+    mjSNPRINTF(str,
+               "Insufficient arena memory for the number of constraints generated. "
+               "Increase arena memory allocation above %d bytes.", info);
     break;
 
   case mjWARN_VGEOMFULL:

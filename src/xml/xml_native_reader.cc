@@ -15,11 +15,15 @@
 #include "xml/xml_native_reader.h"
 
 #include <cfloat>
+#include <cstddef>
+#include <cstdint>
 #include <cstdio>
 #include <cstring>
 #include <functional>
 #include <iostream>
+#include <limits>
 #include <map>
+#include <optional>
 #include <sstream>
 #include <string>
 #include <string_view>
@@ -103,7 +107,7 @@ static const char* MJCF[nMJCF][mjXATTRNUM] = {
             "override", "energy", "fwdinv", "sensornoise", "multiccd"},
     {">"},
 
-    {"size", "*", "13", "njmax", "nconmax", "nstack", "nuserdata", "nkey",
+    {"size", "*", "14", "memory", "njmax", "nconmax", "nstack", "nuserdata", "nkey",
         "nuser_body", "nuser_jnt", "nuser_geom", "nuser_site", "nuser_cam",
         "nuser_tendon", "nuser_actuator", "nuser_sensor"},
 
@@ -978,12 +982,133 @@ void mjXReader::Option(XMLElement* section, mjOption* opt) {
 
 // size section parser
 void mjXReader::Size(XMLElement* section, mjCModel* mod) {
+  // read memory bytes
+  {
+    constexpr char err_msg[] =
+        "unsigned integer with an optional suffix {K,M,G,T,P,E} is expected in "
+        "attribute 'memory' (or the size specified is too big)";
+
+    auto memory = [&]() -> std::optional<std::size_t> {
+      const char* pstr = section->Attribute("memory");
+      if (!pstr) {
+        return std::nullopt;
+      }
+
+      // trim entire string
+      std::string trimmed;
+      {
+        std::istringstream strm((std::string(pstr)));
+        strm >> trimmed;
+        std::string trailing;
+        strm >> trailing;
+        if (!trailing.empty() || !strm.eof()) {
+          throw mjXError(section, err_msg);
+        }
+
+        // allow explicit specification of the default "-1" value
+        if (trimmed == "-1") {
+          return std::nullopt;
+        }
+      }
+
+      std::istringstream strm(trimmed);
+
+      // check that the number is not negative
+      if (strm.peek() == '-') {
+        throw mjXError(section, err_msg);
+      }
+
+      std::size_t base_size;
+      strm >> base_size;
+      if (strm.fail()) {
+        // either not an integer or the number without the suffix is already bigger than size_t
+        throw mjXError(section, err_msg);
+      }
+
+      // parse the multiplier suffix
+      int multiplier_bit = 0;
+      if (!strm.eof()) {
+        char suffix = strm.get();
+        if (suffix == 'K' || suffix == 'k') {
+          multiplier_bit = 10;
+        } else if (suffix == 'M' || suffix == 'm') {
+          multiplier_bit = 20;
+        } else if (suffix == 'G' || suffix == 'g') {
+          multiplier_bit = 30;
+        } else if (suffix == 'T' || suffix == 't') {
+          multiplier_bit = 40;
+        } else if (suffix == 'P' || suffix == 'p') {
+          multiplier_bit = 50;
+        } else if (suffix == 'E' || suffix == 'e') {
+          multiplier_bit = 60;
+        }
+
+        // check for invalid suffix, or suffix longer than one character
+        strm.get();
+        if (!multiplier_bit || !strm.eof()) {
+          throw mjXError(section, err_msg);
+        }
+      }
+
+      // check that the specified suffix isn't bigger than size_t
+      if (multiplier_bit + 1 > std::numeric_limits<std::size_t>::digits) {
+        throw mjXError(section, err_msg);
+      }
+
+      // check that the suffix won't take the total size beyond size_t
+      const std::size_t max_base_size =
+          (std::numeric_limits<std::size_t>::max() << multiplier_bit) >> multiplier_bit;
+      if (base_size > max_base_size) {
+        throw mjXError(section, err_msg);
+      }
+
+      const std::size_t total_size = base_size << multiplier_bit;
+      return total_size;
+    }();
+
+    if (memory.has_value()) {
+      if (*memory / sizeof(mjtNum) > std::numeric_limits<int>::max()) {
+        throw mjXError(section, err_msg);
+      }
+      mod->memory = static_cast<int>(*memory);
+    }
+  }
+
   // read sizes
-  ReadAttrInt(section, "njmax", &mod->njmax);
-  ReadAttrInt(section, "nconmax", &mod->nconmax);
-  ReadAttrInt(section, "nstack", &mod->nstack);
   ReadAttrInt(section, "nuserdata", &mod->nuserdata);
   ReadAttrInt(section, "nkey", &mod->nkey);
+
+  ReadAttrInt(section, "nconmax", &mod->nconmax);
+  if (mod->nconmax < -1) throw mjXError(section, "nconmax must be >= -1");
+
+  {
+    int nstack = -1;
+    const bool has_nstack = ReadAttrInt(section, "nstack", &nstack);
+    if (has_nstack) {
+      if (mod->nstack < -1) {
+        throw mjXError(section, "nstack must be >= -1");
+      }
+      if (mod->memory != -1 && nstack != -1) {
+        throw mjXError(section,
+                       "either 'memory' and 'nstack' attribute can be specified, not both");
+      }
+      mod->nstack = nstack;
+    }
+  }
+  {
+    int njmax = -1;
+    const bool has_njmax = ReadAttrInt(section, "njmax", &njmax);
+    if (has_njmax) {
+      if (mod->njmax < -1) {
+        throw mjXError(section, "njmax must be >= -1");
+      }
+      if (mod->memory != -1 && njmax != -1) {
+        throw mjXError(section,
+                       "either 'memory' and 'njmax' attribute can be specified, not both");
+      }
+      mod->njmax = njmax;
+    }
+  }
 
   ReadAttrInt(section, "nuser_body", &mod->nuser_body);
   if (mod->nuser_body < -1) throw mjXError(section, "nuser_body must be >= -1");

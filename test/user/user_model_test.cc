@@ -27,7 +27,7 @@ namespace mujoco {
 namespace {
 
 using ::testing::ElementsAre;
-using UserDataTest = MujocoTest;
+using XMLReaderTest = MujocoTest;
 
 static std::vector<mjtNum> GetRow(const mjtNum* array, int ncolumn, int row) {
   return std::vector<mjtNum>(array + ncolumn * row,
@@ -36,7 +36,7 @@ static std::vector<mjtNum> GetRow(const mjtNum* array, int ncolumn, int row) {
 
 // ------------- test automatic inference of nuser_xxx -------------------------
 
-TEST_F(UserDataTest, AutoNUserBody) {
+TEST_F(XMLReaderTest, AutoNUserBody) {
   static constexpr char xml[] = R"(
   <mujoco>
     <worldbody>
@@ -52,7 +52,7 @@ TEST_F(UserDataTest, AutoNUserBody) {
   mj_deleteModel(m);
 }
 
-TEST_F(UserDataTest, AutoNUserJoint) {
+TEST_F(XMLReaderTest, AutoNUserJoint) {
   static constexpr char xml[] = R"(
   <mujoco>
     <worldbody>
@@ -71,7 +71,7 @@ TEST_F(UserDataTest, AutoNUserJoint) {
   mj_deleteModel(m);
 }
 
-TEST_F(UserDataTest, AutoNUserGeom) {
+TEST_F(XMLReaderTest, AutoNUserGeom) {
   static constexpr char xml[] = R"(
   <mujoco>
     <worldbody>
@@ -87,7 +87,7 @@ TEST_F(UserDataTest, AutoNUserGeom) {
   mj_deleteModel(m);
 }
 
-TEST_F(UserDataTest, AutoNUserSite) {
+TEST_F(XMLReaderTest, AutoNUserSite) {
   static constexpr char xml[] = R"(
   <mujoco>
     <worldbody>
@@ -103,7 +103,7 @@ TEST_F(UserDataTest, AutoNUserSite) {
   mj_deleteModel(m);
 }
 
-TEST_F(UserDataTest, AutoNUserCamera) {
+TEST_F(XMLReaderTest, AutoNUserCamera) {
   static constexpr char xml[] = R"(
   <mujoco>
     <worldbody>
@@ -119,7 +119,7 @@ TEST_F(UserDataTest, AutoNUserCamera) {
   mj_deleteModel(m);
 }
 
-TEST_F(UserDataTest, AutoNUserTendon) {
+TEST_F(XMLReaderTest, AutoNUserTendon) {
   static constexpr char xml[] = R"(
   <mujoco>
     <worldbody>
@@ -145,7 +145,7 @@ TEST_F(UserDataTest, AutoNUserTendon) {
   mj_deleteModel(m);
 }
 
-TEST_F(UserDataTest, AutoNUserActuator) {
+TEST_F(XMLReaderTest, AutoNUserActuator) {
   static constexpr char xml[] = R"(
   <mujoco>
     <worldbody>
@@ -169,7 +169,7 @@ TEST_F(UserDataTest, AutoNUserActuator) {
   mj_deleteModel(m);
 }
 
-TEST_F(UserDataTest, AutoNUserSensor) {
+TEST_F(XMLReaderTest, AutoNUserSensor) {
   static constexpr char xml[] = R"(
   <mujoco>
     <worldbody>

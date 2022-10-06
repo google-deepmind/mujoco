@@ -503,10 +503,10 @@ preallocated data arrays for all intermediate results, as well as an :ref:`inter
 to allocate all necessary heap memory at the beginning of the simulation, and free it after the simulation is done, so
 that we never have to call the C memory allocation and deallocation functions during the simulation. This is done for
 speed, avoidance of memory fragmentation, future GPU portability, and ease of managing the state of the entire
-simulator during a reset. It also means however that the maximal sizes :at:`njmax`, :at:`nconmax` and
-:at:`nstack` in the XML element :ref:`size <size>`, which affect the allocation of mjData, must be
-set to sufficiently large values. If these maximal sizes are exceeded during the simulation, they are not increased
-dynamically, but instead errors or warnings are generated. See also :ref:`diagnostics <siDiagnostics>` below.
+simulator during a reset. It also means however that the maximal variable-memory allocation given by the
+:at:`memory` attribute in the :ref:`size <size>` MJCF element, which affects the allocation of ``mjData``, must be
+set to a sufficiently large value. If this maximal size is exceeded during simulation, it is not increased
+dynamically, but instead an error is generated. See also :ref:`diagnostics <siDiagnostics>` below.
 
 First we must call one of the functions that allocates and initializes mjModel and returns a pointer to it. The
 available options are
@@ -1308,22 +1308,15 @@ termination have similar order-of-magnitude as the numbers in ``mjData.fwdinv``,
 different diagnostics.
 
 Since MuJoCo's runtime works with compiled models, memory is preallocated when a model is compiled or loaded. Recall the
-:ref:`size <size>` element in MJCF, which has the attributes :at:`njmax`, :at:`nconmax` and :at:`nstack`. They determine
-the maximum number of scalar constraints that can be active simultaneously, the maximum number of contact points that
-can be included in ``mjData.contact``, and the size of the internal stack. How is the user supposed to know what the
-appropriate settings are? If there were a reliable recipe we would have implemented it in the compiler, but there isn't
-one. The theoretical worst-case, namely all geoms contacting all other geoms, calls for huge allocation which is almost
-never needed in practice. So our approach is to provide default settings in MJCF which are sufficient for most models,
-and allow the user to adjust them manually with the above attributes. If the simulator runs out of stack space at
-runtime it will trigger an error. If it runs out of space for contacts or scalar constraints, it will trigger a warning
-and omit the contacts and constraints that do not fit in the allocated buffers. When such errors or warnings are
-triggered, the user should adjust the sizes. The fields ``mjData.maxuse_stack``, ``mjData.maxuse_con``,
-``mjData.maxuse_efc`` are designed to help with this adjustment. They keep track of the maximum stack allocation,
-number of contacts and number of scalar constraints respectively since the last reset. So one strategy is to make very
-large allocation, then monitor these ``maxuse_XXX`` statistics during typical simulations, and use them to reduce the
-allocation. Of course modern computers have so much memory that most users will not bother with such adjustment once
-they get rid of the out-of-memory errors and warnings, but nevertheless we provide this mechanism for the
-perfectionist.
+:at:`memory` attribute of the :ref:`size <size>` element in MJCF. It determines the preallocated space for dynamic
+arrays. How is the user supposed to know what the appropriate value is? If there were a reliable recipe we would have
+implemented it in the compiler, but there isn't one. The theoretical worst-case, namely all geoms contacting all other
+geoms, calls for huge allocation which is almost never needed in practice. Our approach is to provide default settings
+in MJCF which are sufficient for most models, and allow the user to adjust them manually with the above attribute. If
+the simulator runs out of dynamic memory at runtime it will trigger an error. When such errors are triggered, the user
+should increase :at:`memory`. The field ``mjData.maxuse_arena`` is designed to help with this adjustment. It keeps track
+of the maximum arena use since the last reset. So one strategy is to make very large allocation, then monitor
+``mjData.maxuse_memory`` statistics during typical simulations, and use it to reduce the allocation.
 
 The kinetic and potential energy are computed and stored in ``mjData.energy`` when the corresponding flag in
 ``mjModel.opt.enableflags`` is set. This can be used as another diagnostic. In general, simulation instability is

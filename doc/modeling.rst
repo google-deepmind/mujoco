@@ -1276,6 +1276,57 @@ MuJoCo Forum for an example; the plots below are generated with that model.
 
 |image18| |image19|
 
+.. _CSize:
+
+Memory allocation
+~~~~~~~~~~~~~~~~~
+
+MuJoCo preallocates all the memory needed at runtime in ``mjData``, and does not access the heap allocator after
+model creation. Memory in ``mjData`` is allocated by :ref:`mj_makeData` in two contiguous blocks:
+
+  - ``mjData.buffer`` contains fixed-size arrays.
+  - ``mjData.arena`` contains dynamically-sized arrays.
+
+There are two types of dynamic arrays allocated in the ``arena`` memory space.
+
+  - contacts and constraint-related arrays are laid out from the beginning of the ``arena``.
+  - :ref:`stack <siStack>` arrays are laid out from the end of the ``arena``.
+
+By allocating dynamic quantities from both sides of the ``arena`` space, variable-sized memory allocation is controlled
+by a single number: the :at:`memory` attribute of the :ref:`size <size>` MJCF element. Unlike the fixed-size arrays in
+the ``buffer``, variable-sized arrays in the arena can be ``NULL``, for example after a call to :ref:`mj_resetData`.
+When ``arena`` memory runs out, one of three things will happen, depending on the type of memory requested:
+
+  - If memory runs out during contact allocation, a warning will be raised and subsequent contacts will not be added in
+    this step, but simulation continues as usual.
+  - If memory runs out during constraint-related allocation, a warning will be raised and the constraint solver will be
+    disabled in this step, but simulation continues as usual. Note that physics without the constraint solver will
+    generally be very different, but allowing the simulation to continue can still be useful, e.g. during
+    scene initialization when many bodies are temporarily overlapping.
+  - If memory runs out during stack array allocation, a hard error will occur.
+
+Unlike the size of the ``buffer``, the size of the ``arena`` cannot be pre-computed, since the number of contacts and
+stack usage is not known in advance. So how should one choose it? The following simple heuristic is currently used,
+though it may be improved in the future: enough memory is allocated for 100 contacts and 500 scalar constraints, under
+worst-case conditions. If this heuristic is insufficient, we recommend the following procedure. Increase the ``arena``
+memory significantly using the :at:`memory` attribute, and inspect the actual memory used at runtime.
+``mjData.maxuse_arena`` keeps track of the maximum ``arena`` memory utilization since the last reset. The :ref:`simulate
+<saSimulate>` viewer shows this number as a fraction of the total arena space (in the info window in the lower-left
+corner). So one can start with a large number, simulate for a while, and if the fractions are small go back to the XML
+and reduce the allocation size. Keep in mind though that memory utilization can change dramatically in the course of the
+simulation, depending on how many constraints are active and which constraint solver is used. The CG solver is the most
+memory efficient, followed by the Newton solver, while the PGS solver is the most memory intensive. When we design
+models, we usually aim for 50% utilization in the worst-case scenario encountered while exploring the model. If you only
+intend to use the CG solver, you can get away with significantly smaller arena allocation.
+
+.. attention::
+
+   Memory allocation behaviour changed in MuJoCo 2.3.0. Before this version, the :at:`njmax`, :at:`nconmax` and
+   :at:`nstack` attributes of the :ref:`size <size>` MJCF element had the semantics of maximum memory allocated for
+   contacts, constraints and stack, respectively. If you are using an earlier version of MuJoCo, please switch to an
+   `earlier <https://mujoco.readthedocs.io/en/2.2.2/modeling.html#model-sizes>`_ documentation version to read about the
+   previous behaviour.
+
 .. _Tips:
 
 Tips and tricks
@@ -1377,32 +1428,6 @@ in a visible way, and the energy fluctuates around the initial value instead of 
      </body>
    </worldbody>
 
-.. _CSize:
-
-Model sizes
-~~~~~~~~~~~
-
-MuJoCo preallocates all the memory needed at runtime in mjData, and does not access the C/C++ memory manager after
-model creation. It is therefore essential to allocate enough memory. The allocation is controlled by three size
-parameters specified in the :ref:`size <size>` element, namely the stack size :at:`nstack`, the
-maximum number of contacts :at:`nconmax`, and the maximum number of scalar constraints :at:`njmax`. The default
-size settings use heuristics to allocate sufficient memory, but the true memory needs for a given model can only be
-determined during simulation. If nstack is insufficient the simulator calls mju_error and gives up. If nconmax or
-njmax are insufficient the remaining contacts or other constraints are discarded, and the simulation continues but the
-results are not as desired. If on the other hand the allocation is too large, clearing mjData with mj_reset takes
-longer, and in multi-threaded applications simulating many large models in parallel the machine could run out of
-memory, or cache performance could be adversely affected. And even if nothing bad happens, allocating a lot more
-memory than needed is just poor style.
-
-So how do we know how much memory to allocate? mjData has fields maxuse_stack, maxuse_con and maxuse_efc which keep
-track of the maximum memory utilization in each category since the last reset. The code sample :ref:`simulate.cc <saSimulate>`
-shows this data as a fraction of the maximum allocation (in the info window in the lower-left corner). So one can start with
-the defaults, simulate for a while, and if the fractions are too small go back to the XML and set the allocation sizes
-explicitly. Keep in mind though that memory utilization can change dramatically in the course of the simulation,
-depending on how many constraints are active and also which constraint solver is used.
-For example if the stack size is just sufficient for the CG solver, the Newton and PGS solvers will run out of stack.
-When we design models, we usually aim for 50% utilization in the worst-case scenario encountered while exploring the
-model. If you only intend to use the CG solver, you can get away with significantly smaller stack allocation.
 
 .. |image0| image:: images/modeling/impedance.png
    :width: 600px

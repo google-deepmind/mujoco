@@ -15,6 +15,8 @@
 #ifndef MUJOCO_SRC_ENGINE_ENGINE_MACRO_H_
 #define MUJOCO_SRC_ENGINE_ENGINE_MACRO_H_
 
+#include <stdint.h>
+
 #include "engine/engine_callback.h"  // IWYU pragma: export
 
 //-------------------------------- utility macros --------------------------------------------------
@@ -39,5 +41,36 @@
 #define TM_END(i) {d->timer[i].duration += ((mjcb_time ? mjcb_time() : 0) - _tm); d->timer[i].number++;}
 #define TM_START1 mjtNum _tm1 = (mjcb_time ? mjcb_time() : 0);
 #define TM_END1(i) {d->timer[i].duration += ((mjcb_time ? mjcb_time() : 0) - _tm1); d->timer[i].number++;}
+
+//-------------------------- sanitizer macros ------------------------------------------------------
+
+#ifdef ADDRESS_SANITIZER
+  #include <sanitizer/asan_interface.h>
+#elif defined(_MSC_VER)
+  #define ASAN_POISON_MEMORY_REGION(addr, size)
+  #define ASAN_UNPOISON_MEMORY_REGION(addr, size)
+#else
+  #define ASAN_POISON_MEMORY_REGION(addr, size) ((void)(addr), (void)(size))
+  #define ASAN_UNPOISON_MEMORY_REGION(addr, size) ((void)(addr), (void)(size))
+#endif
+
+#ifdef MEMORY_SANITIZER
+  #include <sanitizer/msan_interface.h>
+#endif
+
+#ifndef __has_builtin
+#define __has_builtin(x) 0
+#endif
+
+//-------------------------- pointer arithmetic ----------------------------------------------------
+
+#define PTRDIFF(x, y) ((char*)(x) - (char*)(y))
+
+// number of bytes to be skipped to achieve 64-byte alignment
+static inline unsigned int SKIP(intptr_t offset) {
+  const unsigned int align = 64;
+  // compute skipped bytes
+  return (align - (offset % align)) % align;
+}
 
 #endif  // MUJOCO_SRC_ENGINE_ENGINE_MACRO_H_

@@ -549,8 +549,10 @@ public unsafe struct mjData_ {
   public int nstack;
   public int nbuffer;
   public int nplugin;
-  public int pstack;
+  public UIntPtr pstack;
+  public UIntPtr parena;
   public int maxuse_stack;
+  public UIntPtr maxuse_arena;
   public int maxuse_con;
   public int maxuse_efc;
   public mjWarningStat_ warning0;
@@ -1584,7 +1586,7 @@ public unsafe struct mjData_ {
   public double time;
   public fixed double energy[2];
   public void* buffer;
-  public double* stack;
+  public void* arena;
   public double* qpos;
   public double* qvel;
   public double* act;
@@ -1635,30 +1637,6 @@ public unsafe struct mjData_ {
   public double* qLD;
   public double* qLDiagInv;
   public double* qLDiagSqrtInv;
-  public mjContact_* contact;
-  public int* efc_type;
-  public int* efc_id;
-  public int* efc_J_rownnz;
-  public int* efc_J_rowadr;
-  public int* efc_J_rowsuper;
-  public int* efc_J_colind;
-  public int* efc_JT_rownnz;
-  public int* efc_JT_rowadr;
-  public int* efc_JT_rowsuper;
-  public int* efc_JT_colind;
-  public double* efc_J;
-  public double* efc_JT;
-  public double* efc_pos;
-  public double* efc_margin;
-  public double* efc_frictionloss;
-  public double* efc_diagApprox;
-  public double* efc_KBIP;
-  public double* efc_D;
-  public double* efc_R;
-  public int* efc_AR_rownnz;
-  public int* efc_AR_rowadr;
-  public int* efc_AR_colind;
-  public double* efc_AR;
   public double* ten_velocity;
   public double* actuator_velocity;
   public double* cvel;
@@ -1680,14 +1658,38 @@ public unsafe struct mjData_ {
   public double* qfrc_actuator;
   public double* qfrc_smooth;
   public double* qacc_smooth;
-  public double* efc_b;
-  public double* efc_force;
-  public int* efc_state;
   public double* qfrc_constraint;
   public double* qfrc_inverse;
   public double* cacc;
   public double* cfrc_int;
   public double* cfrc_ext;
+  public mjContact_* contact;
+  public int* efc_type;
+  public int* efc_id;
+  public int* efc_J_rownnz;
+  public int* efc_J_rowadr;
+  public int* efc_J_rowsuper;
+  public int* efc_J_colind;
+  public int* efc_JT_rownnz;
+  public int* efc_JT_rowadr;
+  public int* efc_JT_rowsuper;
+  public int* efc_JT_colind;
+  public double* efc_J;
+  public double* efc_JT;
+  public double* efc_pos;
+  public double* efc_margin;
+  public double* efc_frictionloss;
+  public double* efc_diagApprox;
+  public double* efc_KBIP;
+  public double* efc_D;
+  public double* efc_R;
+  public double* efc_b;
+  public double* efc_force;
+  public int* efc_state;
+  public int* efc_AR_rownnz;
+  public int* efc_AR_rowadr;
+  public int* efc_AR_colind;
+  public double* efc_AR;
 }
 
 [StructLayout(LayoutKind.Sequential)]
@@ -3252,7 +3254,7 @@ public static unsafe extern void mju_warning_s([MarshalAs(UnmanagedType.LPStr)]s
 public static unsafe extern void mju_clearHandlers();
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
-public static unsafe extern void* mju_malloc(uint size);
+public static unsafe extern void* mju_malloc(UIntPtr size);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern void mju_free(void* ptr);

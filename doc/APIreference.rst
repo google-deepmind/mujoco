@@ -4188,6 +4188,8 @@ mj_rnePostConstraint
 
 RNE with complete data: compute cacc, cfrc_ext, cfrc_int.
 
+.. _mj_collision:
+
 mj_collision
 ~~~~~~~~~~~~
 

@@ -457,18 +457,22 @@ class MuJoCoBindingsTest(parameterized.TestCase):
 
     # Grab a reference to the contacts upfront so that we know that they're
     # a view into mjData rather than a copy.
-    contact = self.data.contact[:4]
+    contact = self.data.contact
 
     self.model.opt.timestep = 2**-9  # 0.001953125; allows exact comparisons
     self.assertEqual(self.data.time, 0)
     while self.data.time < expected_contact_time:
       self.assertEqual(self.data.ncon, 0)
+      self.assertEmpty(self.data.efc_type)
+      self.assertTrue(self.data.efc_type.flags['OWNDATA'])
       prev_time = self.data.time
       mujoco.mj_step(self.model, self.data)
       self.assertEqual(self.data.time, prev_time + self.model.opt.timestep)
 
     mujoco.mj_forward(self.model, self.data)
     self.assertEqual(self.data.ncon, 4)
+    self.assertLen(self.data.efc_type, 16)
+    self.assertFalse(self.data.efc_type.flags['OWNDATA'])
 
     # Sort contacts in anticlockwise order
     sorted_contact = sorted(
@@ -477,6 +481,11 @@ class MuJoCoBindingsTest(parameterized.TestCase):
     np.testing.assert_allclose(sorted_contact[1].pos[:2], [0.1, -0.1])
     np.testing.assert_allclose(sorted_contact[2].pos[:2], [0.1, 0.1])
     np.testing.assert_allclose(sorted_contact[3].pos[:2], [-0.1, 0.1])
+
+    mujoco.mj_resetData(self.model, self.data)
+    self.assertEqual(self.data.ncon, 0)
+    self.assertEmpty(self.data.efc_type)
+    self.assertTrue(self.data.efc_type.flags['OWNDATA'])
 
   def test_mj_step_multiple(self):
     self.model.opt.timestep = 2**-9  # 0.001953125; allows exact comparisons
@@ -488,24 +497,31 @@ class MuJoCoBindingsTest(parameterized.TestCase):
     self.assertIn('Optionally, repeat nstep times.', mujoco.mj_step.__doc__)
 
   def test_mj_contact_list(self):
-    self.assertLen(self.data.contact, self.model.nconmax)
+    self.assertEmpty(self.data.contact)
+
+    expected_ncon = 1234
+    self.data.ncon = expected_ncon
+    self.assertLen(self.data.contact, expected_ncon)
 
     expected_pos = []
     for contact in self.data.contact:
       expected_pos.append(np.random.uniform(size=3))
       contact.pos = expected_pos[-1]
+    self.assertLen(expected_pos, expected_ncon)
     np.testing.assert_array_equal(self.data.contact.pos, expected_pos)
 
     expected_friction = []
     for contact in self.data.contact:
       expected_friction.append(np.random.uniform(size=5))
       contact.friction = expected_friction[-1]
+    self.assertLen(expected_friction, expected_ncon)
     np.testing.assert_array_equal(self.data.contact.friction, expected_friction)
 
     expected_H = []  # pylint: disable=invalid-name
     for contact in self.data.contact:
       expected_H.append(np.random.uniform(size=36))
       contact.H = expected_H[-1]
+    self.assertLen(expected_H, expected_ncon)
     np.testing.assert_array_equal(self.data.contact.H, expected_H)
 
   def test_mj_struct_list_equality(self):
@@ -516,16 +532,16 @@ class MuJoCoBindingsTest(parameterized.TestCase):
     self.assertEqual(self.data.ncon, 4)
     mujoco.mj_forward(model2, data2)
     self.assertEqual(data2.ncon, 4)
-    self.assertEqual(data2.contact[:4], self.data.contact[:4])
+    self.assertEqual(data2.contact, self.data.contact)
 
     self.data.qpos[3:7] = [np.cos(np.pi/8), np.sin(np.pi/8), 0, 0]
     self.data.qpos[2] *= (np.sqrt(2) - 1) * 0.1 - 1e-6
     mujoco.mj_forward(self.model, self.data)
     self.assertEqual(self.data.ncon, 2)
-    self.assertNotEqual(data2.contact[:2], self.data.contact[:2])
+    self.assertNotEqual(data2.contact, self.data.contact)
 
     # Check that we can compare slices of different lengths
-    self.assertNotEqual(data2.contact[:2], self.data.contact[:4])
+    self.assertNotEqual(data2.contact, self.data.contact)
 
     # Check that comparing things of different types do not raise an error
     self.assertNotEqual(self.data.contact, self.data.warning)
@@ -856,7 +872,7 @@ Euler integrator, semi-implicit in velocity.
 
   def test_can_raise_error(self):
     self.data.pstack = self.data.nstack
-    with self.assertRaisesWithLiteralMatch(mujoco.FatalError, 'Stack overflow'):
+    with self.assertRaisesRegex(mujoco.FatalError, r'\Astack overflow'):
       mujoco.mj_forward(self.model, self.data)
 
   def test_mjcb_time(self):

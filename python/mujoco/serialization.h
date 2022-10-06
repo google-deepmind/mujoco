@@ -41,25 +41,26 @@ inline char ReadChar(std::istream& input) {
   return c;
 }
 
-inline void WriteInt(std::ostream& output, int i) {
-  output.write(reinterpret_cast<char*>(&i), sizeof(int));
+inline void WriteInt(std::ostream& output, std::size_t i) {
+  output.write(reinterpret_cast<char*>(&i), sizeof(std::size_t));
 }
 
-inline int ReadInt(std::istream& input) {
-  int i = 0;
-  input.read(reinterpret_cast<char*>(&i), sizeof(int));
+inline std::size_t ReadInt(std::istream& input) {
+  std::size_t i = 0;
+  input.read(reinterpret_cast<char*>(&i), sizeof(std::size_t));
   return i;
 }
 
-inline void WriteBytes(std::ostream& output, const void* src, size_t nbytes) {
+inline void WriteBytes(std::ostream& output, const void* src,
+                       std::size_t nbytes) {
   // Start by writing nbytes itself, so it can be validated at the time of
   // reading.
   WriteInt(output, nbytes);
   output.write(reinterpret_cast<const char*>(src), nbytes);
 }
 
-inline void ReadBytes(std::istream& input, void* dest, size_t nbytes) {
-  size_t actual_nbytes = ReadInt(input);
+inline void ReadBytes(std::istream& input, void* dest, std::size_t nbytes) {
+  std::size_t actual_nbytes = ReadInt(input);
   if (actual_nbytes != nbytes) {
     input.setstate(input.rdstate() | std::ios_base::failbit);
     return;

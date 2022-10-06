@@ -9,9 +9,17 @@ Upcoming version (not yet released)
 General
 ^^^^^^^
 
-.. youtube:: RHnXD6uO3Mg
-   :align: right
-   :height: 150px
+- The ``contact`` array and arrays prefixed with ``efc_`` in ``mjData`` were moved out of the ``buffer`` into a new
+  ``arena`` memory space. These arrays are no longer allocated with fixed sizes when ``mjData`` is created.
+  Instead, the exact memory requirement is determined during each call to :ref:`mj_forward` (specifically,
+  in :ref:`mj_collision` and :ref:`mj_makeConstraint`) and the arrays are allocated from the ``arena`` space. The
+  ``stack`` now also shares its available memory with ``arena``. This change reduces the memory footprint of ``mjData``
+  in models that do not use the PGS solver, and will allow for significant memory reductions in the future.
+  See the :ref:`Memory allocation <CSize>` section for details.
+
+  .. youtube:: RHnXD6uO3Mg
+     :align: right
+     :height: 150px
 
 - Added colab notebook tutorial showing how to balance the humanoid on one leg with a Linear Quadratic Regulator. The
   notebook uses MuJoCo's native Python bindings, and includes a draft ``Renderer`` class, for easy rendering in Python.
@@ -58,6 +66,9 @@ Python bindings
 - Added ``id`` and ``name`` properties to
   `named accessor <https://mujoco.readthedocs.io/en/latest/python.html#named-access>`_ objects. These provide more
   Pythonic API access to ``mj_name2id`` and ``mj_id2name`` respectively.
+
+- The length of ``MjData.contact`` is now ``ncon`` rather than ``nconmax``, allowing it to be straightforwardly used as
+  an iterator without needing to check ``ncon``.
 
 
 Version 2.2.2 (September 7, 2022)

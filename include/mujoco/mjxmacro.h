@@ -434,8 +434,7 @@
 
 // define symbols needed in MJDATA_POINTERS (corresponding to number of columns)
 #define MJDATA_POINTERS_PREAMBLE( m ) \
-    int nv = m->nv;                   \
-    int njmax = m->njmax;
+    int nv = m->nv;
 
 
 // pointer fields of mjData
@@ -490,38 +489,12 @@
     X( mjtNum,    qLD,               nM,          1           ) \
     X( mjtNum,    qLDiagInv,         nv,          1           ) \
     X( mjtNum,    qLDiagSqrtInv,     nv,          1           ) \
-    X( mjContact, contact,           nconmax,     1           ) \
-    X( int,       efc_type,          njmax,       1           ) \
-    X( int,       efc_id,            njmax,       1           ) \
-    X( int,       efc_J_rownnz,      njmax,       1           ) \
-    X( int,       efc_J_rowadr,      njmax,       1           ) \
-    X( int,       efc_J_rowsuper,    njmax,       1           ) \
-    X( int,       efc_J_colind,      njmax,       MJ_M(nv)    ) \
-    X( int,       efc_JT_rownnz,     nv,          1           ) \
-    X( int,       efc_JT_rowadr,     nv,          1           ) \
-    X( int,       efc_JT_rowsuper,   nv,          1           ) \
-    X( int,       efc_JT_colind,     nv,          MJ_M(njmax) ) \
-    X( mjtNum,    efc_J,             njmax,       MJ_M(nv)    ) \
-    X( mjtNum,    efc_JT,            nv,          MJ_M(njmax) ) \
-    X( mjtNum,    efc_pos,           njmax,       1           ) \
-    X( mjtNum,    efc_margin,        njmax,       1           ) \
-    X( mjtNum,    efc_frictionloss,  njmax,       1           ) \
-    X( mjtNum,    efc_diagApprox,    njmax,       1           ) \
-    X( mjtNum,    efc_KBIP,          njmax,       4           ) \
-    X( mjtNum,    efc_D,             njmax,       1           ) \
-    X( mjtNum,    efc_R,             njmax,       1           ) \
-    X( int,       efc_AR_rownnz,     njmax,       1           ) \
-    X( int,       efc_AR_rowadr,     njmax,       1           ) \
-    X( int,       efc_AR_colind,     njmax,       MJ_M(njmax) ) \
-    X( mjtNum,    efc_AR,            njmax,       MJ_M(njmax) ) \
     X( mjtNum,    ten_velocity,      ntendon,     1           ) \
     X( mjtNum,    actuator_velocity, nu,          1           ) \
     X( mjtNum,    cvel,              nbody,       6           ) \
     X( mjtNum,    cdof_dot,          nv,          6           ) \
     X( mjtNum,    qfrc_bias,         nv,          1           ) \
     X( mjtNum,    qfrc_passive,      nv,          1           ) \
-    X( mjtNum,    efc_vel,           njmax,       1           ) \
-    X( mjtNum,    efc_aref,          njmax,       1           ) \
     X( mjtNum,    subtree_linvel,    nbody,       3           ) \
     X( mjtNum,    subtree_angmom,    nbody,       3           ) \
     X( mjtNum,    qH,                nM,          1           ) \
@@ -535,14 +508,60 @@
     X( mjtNum,    qfrc_actuator,     nv,          1           ) \
     X( mjtNum,    qfrc_smooth,       nv,          1           ) \
     X( mjtNum,    qacc_smooth,       nv,          1           ) \
-    X( mjtNum,    efc_b,             njmax,       1           ) \
-    X( mjtNum,    efc_force,         njmax,       1           ) \
-    X( int,       efc_state,         njmax,       1           ) \
     X( mjtNum,    qfrc_constraint,   nv,          1           ) \
     X( mjtNum,    qfrc_inverse,      nv,          1           ) \
     X( mjtNum,    cacc,              nbody,       6           ) \
     X( mjtNum,    cfrc_int,          nbody,       6           ) \
     X( mjtNum,    cfrc_ext,          nbody,       6           )
+
+
+// macro for annotating that an array size in an X macro is a member of mjData
+// by default this macro does nothing, but users can redefine it as necessary
+#define MJ_D(n) n
+
+// array of contacts
+#define MJDATA_ARENA_POINTERS_CONTACT      \
+    X( mjContact, contact, MJ_D(ncon), 1 )
+
+// array fields of mjData that are used in the primal problem
+#define MJDATA_ARENA_POINTERS_PRIMAL                          \
+    X( int,       efc_type,          MJ_D(nefc), 1          ) \
+    X( int,       efc_id,            MJ_D(nefc), 1          ) \
+    X( int,       efc_J_rownnz,      MJ_D(nefc), 1          ) \
+    X( int,       efc_J_rowadr,      MJ_D(nefc), 1          ) \
+    X( int,       efc_J_rowsuper,    MJ_D(nefc), 1          ) \
+    X( int,       efc_J_colind,      MJ_D(nefc), MJ_M(nv)   ) \
+    X( int,       efc_JT_rownnz,     MJ_M(nv),   1          ) \
+    X( int,       efc_JT_rowadr,     MJ_M(nv),   1          ) \
+    X( int,       efc_JT_rowsuper,   MJ_M(nv),   1          ) \
+    X( int,       efc_JT_colind,     MJ_M(nv),   MJ_D(nefc) ) \
+    X( mjtNum,    efc_J,             MJ_D(nefc), MJ_M(nv)   ) \
+    X( mjtNum,    efc_JT,            MJ_M(nv),   MJ_D(nefc) ) \
+    X( mjtNum,    efc_pos,           MJ_D(nefc), 1          ) \
+    X( mjtNum,    efc_margin,        MJ_D(nefc), 1          ) \
+    X( mjtNum,    efc_frictionloss,  MJ_D(nefc), 1          ) \
+    X( mjtNum,    efc_diagApprox,    MJ_D(nefc), 1          ) \
+    X( mjtNum,    efc_KBIP,          MJ_D(nefc), 4          ) \
+    X( mjtNum,    efc_D,             MJ_D(nefc), 1          ) \
+    X( mjtNum,    efc_R,             MJ_D(nefc), 1          ) \
+    X( mjtNum,    efc_vel,           MJ_D(nefc), 1          ) \
+    X( mjtNum,    efc_aref,          MJ_D(nefc), 1          ) \
+    X( mjtNum,    efc_b,             MJ_D(nefc), 1          ) \
+    X( mjtNum,    efc_force,         MJ_D(nefc), 1          ) \
+    X( int,       efc_state,         MJ_D(nefc), 1          ) \
+
+// array fields of mjData that are used in the dual problem
+#define MJDATA_ARENA_POINTERS_DUAL                            \
+    X( int,       efc_AR_rownnz,     MJ_D(nefc), 1          ) \
+    X( int,       efc_AR_rowadr,     MJ_D(nefc), 1          ) \
+    X( int,       efc_AR_colind,     MJ_D(nefc), MJ_D(nefc) ) \
+    X( mjtNum,    efc_AR,            MJ_D(nefc), MJ_D(nefc) )
+
+// array fields of mjData that live in d->arena
+#define MJDATA_ARENA_POINTERS              \
+    MJDATA_ARENA_POINTERS_CONTACT          \
+    MJDATA_ARENA_POINTERS_PRIMAL           \
+    MJDATA_ARENA_POINTERS_DUAL
 
 
 // scalar fields of mjData

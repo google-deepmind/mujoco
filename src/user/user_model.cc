@@ -118,6 +118,7 @@ mjCModel::mjCModel() {
   modelname = "MuJoCo Model";
   mj_defaultOption(&option);
   mj_defaultVisual(&visual);
+  memory = -1;
   nemax = 0;
   njmax = -1;
   nconmax = -1;
@@ -274,6 +275,8 @@ void mjCModel::Clear(void) {
   ntupledata = 0;
   npluginattr = 0;
   nnames = 0;
+  memory = -1;
+  nstack = -1;
   nemax = 0;
   nM = 0;
   nD = 0;
@@ -1012,16 +1015,6 @@ void mjCModel::SetSizes(void) {
     } else {
       nemax += 1;
     }
-
-  // nconmax
-  if (nconmax<0) {
-    nconmax = 100;
-  }
-
-  // njmax
-  if (njmax<0) {
-    njmax = 500;
-  }
 }
 
 
@@ -1604,7 +1597,6 @@ void mjCModel::CopyObjects(mjModel* m) {
   m->nemax = nemax;
   m->njmax = njmax;
   m->nconmax = nconmax;
-  m->nstack = nstack;
   m->nsensordata = nsensordata;
   m->nuserdata = nuserdata;
 
@@ -2661,15 +2653,33 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
     mj_setTotalmass(m, settotalmass);
   }
 
-  // set stack size: user-specified or conservative heuristic
-  if (nstack>0) {
-    m->nstack = nstack;
+  // set arena size into m->nstack
+  if (memory != -1) {
+    // memory size is user-specified in bytes, round down to nearest sizeof(mjtNum)
+    m->nstack = memory / sizeof(mjtNum);
   } else {
-    m->nstack = mjMAX(
-        1000,
-        5*(m->njmax + m->neq + m->nv)*(m->njmax + m->neq + m->nv) +
-        20*(m->nq + m->nv + m->nu + m->na + m->nbody + m->njnt +
-            m->ngeom + m->nsite + m->neq + m->ntendon +  m->nwrap));
+    const int nconmax = m->nconmax == -1 ? 100 : m->nconmax;
+    const int njmax = m->njmax == -1 ? 500 : m->njmax;
+    if (nstack != -1) {
+      // (legacy) stack size is user-specified, already as multiple of sizeof(mjtNum)
+      m->nstack = nstack;
+    } else {
+      // use a conservative heuristic if neither memory nor nstack is specified in XML
+      m->nstack = mjMAX(
+          1000,
+          5*(njmax + m->neq + m->nv)*(njmax + m->neq + m->nv) +
+          20*(m->nq + m->nv + m->nu + m->na + m->nbody + m->njnt +
+              m->ngeom + m->nsite + m->neq + m->ntendon +  m->nwrap));
+    }
+
+    // add an arena space equal to memory footprint prior to the introduction of the arena
+    const std::size_t arena_bytes = (
+        nconmax * sizeof(mjContact) +
+        njmax * (8 * sizeof(int) + 14 * sizeof(mjtNum)) +
+        m->nv * (3 * sizeof(int)) +
+        njmax * m->nv * (2 * sizeof(int) + 2 * sizeof(mjtNum)) +
+        njmax * njmax * (sizeof(int) + sizeof(mjtNum)));
+    m->nstack += (arena_bytes / sizeof(mjtNum)) + (arena_bytes % sizeof(mjtNum) ? 1 : 0);
   }
 
   // create data

@@ -52,6 +52,9 @@ namespace mujoco::python::_impl {
 namespace py = ::pybind11;
 
 namespace {
+#define PTRDIFF(x, y) \
+  reinterpret_cast<const char*>(x) - reinterpret_cast<const char*>(y)
+
 // Returns the shape of a NumPy array given the dimensions from an X Macro.
 // If dim1 is a _literal_ constant 1, the resulting array is 1-dimensional of
 // length dim0, otherwise the resulting array is 2-dimensional of shape
@@ -74,6 +77,9 @@ constexpr auto XArrayShapeImpl(const std::string_view dim1_str) {
   }
 }
 
+inline std::size_t NConMax(const mjData* d) {
+  return d->nstack * sizeof(mjtNum) / sizeof(mjContact);
+}
 }  // namespace
 
 // ==================== MJOPTION ===============================================
@@ -498,51 +504,15 @@ MjContactWrapper::MjWrapper(const MjContactWrapper& other)
   *this->ptr_ = *other.ptr_;
 }
 
-#define X(type, var)                                                   \
-  var(std::vector<int>{num}, std::vector<int>{sizeof(raw::MjContact)}, \
-      &ptr->var, owner)
-#define XN(type, var)                                                       \
-  var(std::vector<int>{num, sizeof(raw::MjContact::var) / sizeof(type)},    \
-      std::vector<int>{sizeof(raw::MjContact), sizeof(type)}, &ptr->var[0], \
-      owner)
-MjContactList::MjStructList(raw::MjContact* ptr, int num, py::handle owner)
-    : StructListBase(ptr, num, owner),
-      X(mjtNum, dist),
-      XN(mjtNum, pos),
-      XN(mjtNum, frame),
-      X(mjtNum, includemargin),
-      XN(mjtNum, friction),
-      XN(mjtNum, solref),
-      XN(mjtNum, solimp),
-      X(mjtNum, mu),
-      XN(mjtNum, H),
-      X(int, dim),
-      X(int, geom1),
-      X(int, geom2),
-      X(int, exclude),
-      X(int, efc_address) {}
-#undef X
-#undef XN
+MjContactList::MjStructList(raw::MjContact* ptr, int nconmax,
+                            int* ncon, py::handle owner)
+    : StructListBase(ptr, nconmax, owner, /* lazy = */ true),
+      ncon_(ncon) {}
 
 // Slicing
-#define X(type, var) var(other.var[slice])
 MjContactList::MjStructList(MjContactList& other, py::slice slice)
     : StructListBase(other, slice),
-      X(mjtNum, dist),
-      X(mjtNum, pos),
-      X(mjtNum, frame),
-      X(mjtNum, includemargin),
-      X(mjtNum, friction),
-      X(mjtNum, solref),
-      X(mjtNum, solimp),
-      X(mjtNum, mu),
-      X(mjtNum, H),
-      X(int, dim),
-      X(int, geom1),
-      X(int, geom2),
-      X(int, exclude),
-      X(int, efc_address) {}
-#undef X
+      ncon_(other.ncon_) {}
 
 // ==================== MJDATA =================================================
 static void MjDataCapsuleDestructor(PyObject* pyobj) {
@@ -579,8 +549,10 @@ MjDataWrapper::MjWrapper(const MjModelWrapper& model)
   var(InitPyArray(X_ARRAY_SHAPE(model.get()->dim0, dim1), ptr_->var, owner_)),
       MJDATA_POINTERS
 #undef MJ_M
-#define MJ_M(x) x
+#define MJ_M(x) (x)
 #undef X
+
+  contact(MjContactList(ptr_->contact, NConMax(ptr_), &ptr_->ncon, owner_)),
 
 #define X(dtype, var, dim0, dim1) var(InitPyArray(ptr_->var, owner_)),
       MJDATA_VECTOR
@@ -607,8 +579,10 @@ MjDataWrapper::MjWrapper(const MjDataWrapper& other)
                   owner_)),
       MJDATA_POINTERS
 #undef MJ_M
-#define MJ_M(x) x
+#define MJ_M(x) (x)
 #undef X
+
+  contact(MjContactList(ptr_->contact, NConMax(ptr_), &ptr_->ncon, owner_)),
 
 #define X(dtype, var, dim0, dim1) var(InitPyArray(ptr_->var, owner_)),
       MJDATA_VECTOR
@@ -635,8 +609,10 @@ MjDataWrapper::MjWrapper(MjDataWrapper&& other)
                   owner_)),
       MJDATA_POINTERS
 #undef MJ_M
-#define MJ_M(x) x
+#define MJ_M(x) (x)
 #undef X
+
+  contact(MjContactList(ptr_->contact, NConMax(ptr_), &ptr_->ncon,owner_)),
 
 #define X(dtype, var, dim0, dim1) var(InitPyArray(ptr_->var, owner_)),
       MJDATA_VECTOR
@@ -664,8 +640,10 @@ MjDataWrapper::MjWrapper(MjDataMetadata&& metadata, raw::MjData* d)
   var(InitPyArray(X_ARRAY_SHAPE(metadata.dim0, dim1), ptr_->var, owner_)),
       MJDATA_POINTERS
 #undef MJ_M
-#define MJ_M(x) x
+#define MJ_M(x) (x)
 #undef X
+
+  contact(MjContactList(ptr_->contact, NConMax(ptr_), &ptr_->ncon, owner_)),
 
 #define X(dtype, var, dim0, dim1) var(InitPyArray(ptr_->var, owner_)),
       MJDATA_VECTOR
@@ -707,6 +685,8 @@ void MjDataWrapper::Serialize(std::ostream& output) const {
   MJMODEL_INTS
 #undef X
 
+  WriteInt(output, this->metadata_.is_dual);
+
 #define X(dtype, var, n)                        \
   WriteBytes(output, this->metadata_.var.get(), \
              this->metadata_.n * sizeof(dtype));
@@ -716,9 +696,17 @@ void MjDataWrapper::Serialize(std::ostream& output) const {
 
   // Write struct and scalar fields
 #define X(var) WriteBytes(output, &ptr_->var, sizeof(ptr_->var))
+  X(parena);
+  X(maxuse_stack);
+  X(maxuse_arena);
+  X(maxuse_con);
+  X(maxuse_efc);
   X(solver);
   X(timer);
   X(warning);
+  X(ne);
+  X(nf);
+  X(nefc);
   X(ncon);
   X(time);
   X(energy);
@@ -727,9 +715,32 @@ void MjDataWrapper::Serialize(std::ostream& output) const {
   // Write buffer contents
   {
     MJDATA_POINTERS_PREAMBLE((&this->metadata_))
+
 #define X(type, name, nr, nc)  \
     WriteBytes(output, ptr_->name, sizeof(type)*(this->metadata_.nr)*(nc));
     MJDATA_POINTERS
+#undef X
+
+#undef MJ_M
+#define MJ_M(x) this->metadata_.x
+#undef MJ_D
+#define MJ_D(x) this->ptr_->x
+#define X(type, name, nr, nc)                                   \
+  if ((nr) * (nc)) {                                            \
+    WriteInt(output, PTRDIFF(ptr_->name, ptr_->arena));         \
+    WriteBytes(output, ptr_->name, sizeof(type) * (nr) * (nc)); \
+  }
+
+    MJDATA_ARENA_POINTERS_CONTACT
+    MJDATA_ARENA_POINTERS_PRIMAL
+
+    if (this->metadata_.is_dual) {
+      MJDATA_ARENA_POINTERS_DUAL
+    }
+#undef MJ_M
+#define MJ_M(x) x
+#undef MJ_D
+#define MJ_D(x) x
 #undef X
   }
 }
@@ -754,6 +765,8 @@ MjDataWrapper MjDataWrapper::Deserialize(std::istream& input) {
   MJMODEL_INTS
 #undef X
 
+  metadata.is_dual = ReadInt(input);
+
 #define X(dtype, var, n)                                            \
   metadata.var.reset(new dtype[metadata.n]);                        \
   ReadBytes(input, metadata.var.get(), metadata.n * sizeof(dtype)); \
@@ -773,9 +786,17 @@ MjDataWrapper MjDataWrapper::Deserialize(std::istream& input) {
   ReadBytes(input, (void*) &d->var, sizeof(d->var)); \
   CheckInput(input, "mjData");
 
+  X(parena);
+  X(maxuse_stack);
+  X(maxuse_arena);
+  X(maxuse_con);
+  X(maxuse_efc);
   X(solver);
   X(timer);
   X(warning);
+  X(ne);
+  X(nf);
+  X(nefc);
   X(ncon);
   X(time);
   X(energy);
@@ -784,9 +805,33 @@ MjDataWrapper MjDataWrapper::Deserialize(std::istream& input) {
   // Read buffer contents
   {
     MJDATA_POINTERS_PREAMBLE((&m))
+
 #define X(type, name, nr, nc)  \
     ReadBytes(input, d->name, sizeof(type)*(m.nr)*(nc));
     MJDATA_POINTERS
+#undef X
+
+#undef MJ_M
+#define MJ_M(x) m.x
+#undef MJ_D
+#define MJ_D(x) d->x
+#define X(type, name, nr, nc)                              \
+  if ((nr) * (nc)) {                                       \
+    d->name = reinterpret_cast<decltype(d->name)>(         \
+        static_cast<char*>(d->arena) + ReadInt(input));    \
+    ReadBytes(input, d->name, sizeof(type) * (nr) * (nc)); \
+  }
+
+    MJDATA_ARENA_POINTERS_CONTACT
+    MJDATA_ARENA_POINTERS_PRIMAL
+
+    if (metadata.is_dual) {
+      MJDATA_ARENA_POINTERS_DUAL
+    }
+#undef MJ_M
+#define MJ_M(x) x
+#undef MJ_D
+#define MJ_D(x) x
 #undef X
   }
   CheckInput(input, "mjData");
@@ -1697,22 +1742,36 @@ This is useful for example when the MJB is not available as a file on disk.)"));
   mjContactList.def("__len__", &MjContactList::size);
   DefineStructFunctions(mjContactList);
 
-#define X(type, var) mjContactList.def_readonly(#var, &MjContactList::var)
+#define X(type, var)                                                     \
+  mjContactList.def_property_readonly(#var, [](const MjContactList& c) { \
+    return py::array_t<type>(std::vector<int>{c.size()},                 \
+                             std::vector<int>{sizeof(raw::MjContact)},   \
+                             &c.get()->var, c.owner());                  \
+  });
+#define XN(type, var)                                                    \
+  mjContactList.def_property_readonly(#var, [](const MjContactList& c) { \
+    return py::array_t<type>(                                            \
+        std::vector<int>{c.size(),                                       \
+                         sizeof(raw::MjContact::var) / sizeof(type)},    \
+        std::vector<int>{sizeof(raw::MjContact), sizeof(type)},          \
+        &c.get()->var[0], c.owner());                                    \
+  });
   X(mjtNum, dist);
-  X(mjtNum, pos);
-  X(mjtNum, frame);
+  XN(mjtNum, pos);
+  XN(mjtNum, frame);
   X(mjtNum, includemargin);
-  X(mjtNum, friction);
-  X(mjtNum, solref);
-  X(mjtNum, solimp);
+  XN(mjtNum, friction);
+  XN(mjtNum, solref);
+  XN(mjtNum, solimp);
   X(mjtNum, mu);
-  X(mjtNum, H);
+  XN(mjtNum, H);
   X(int, dim);
   X(int, geom1);
   X(int, geom2);
   X(int, exclude);
   X(int, efc_address);
 #undef X
+#undef XN
 
   // ==================== MJDATA ===============================================
   py::class_<MjDataWrapper> mjData(m, "MjData");
@@ -1749,6 +1808,29 @@ This is useful for example when the MJB is not available as a file on disk.)"));
 #define X(dtype, var, dim0, dim1) \
   DefinePyArray(mjData, #var, &MjDataWrapper::var);
   MJDATA_POINTERS
+  MJDATA_ARENA_POINTERS_CONTACT
+#undef X
+
+#undef MJ_M
+#define MJ_M(x) d.metadata().x
+#undef MJ_D
+#define MJ_D(x) d.get()->x
+#define X(dtype, var, dim0, dim1)                                           \
+  mjData.def_property_readonly(#var, [](const MjDataWrapper& d) {           \
+    return InitPyArray(X_ARRAY_SHAPE(dim0, dim1), d.get()->var, d.owner()); \
+  });
+
+  MJDATA_ARENA_POINTERS_PRIMAL
+  MJDATA_ARENA_POINTERS_DUAL
+
+#undef MJ_M
+#define MJ_M(x) (x)
+#undef MJ_D
+#define MJ_D(x) (x)
+#undef X
+
+#define X(dtype, var, dim0, dim1) \
+  DefinePyArray(mjData, #var, &MjDataWrapper::var);
   MJDATA_VECTOR
 #undef X
 

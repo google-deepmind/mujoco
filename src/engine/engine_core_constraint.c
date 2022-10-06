@@ -13,13 +13,15 @@
 // limitations under the License.
 
 #include "engine/engine_core_constraint.h"
+#include <stdio.h>
 
 #include <stddef.h>
 #include <string.h>
 
 #include <mujoco/mjdata.h>
 #include <mujoco/mjmodel.h>
-#include "engine/engine_collision_driver.h"
+#include <mujoco/mjxmacro.h>
+#include "engine/engine_array_safety.h"
 #include "engine/engine_core_smooth.h"
 #include "engine/engine_io.h"
 #include "engine/engine_macro.h"
@@ -101,14 +103,27 @@ mjtNum mj_assignMargin(const mjModel* m, mjtNum source) {
 
 // add contact to d->contact list; return 0 if success; 1 if buffer full
 int mj_addContact(const mjModel* m, mjData* d, const mjContact* con) {
-  // if out of space, warn and return error
-  if (d->ncon >= m->nconmax) {
-    mj_warning(d, mjWARN_CONTACTFULL, m->nconmax);
+  // if nconmax is specified and ncon >= nconmax, warn and return error
+  if (m->nconmax != -1 && d->ncon >= m->nconmax) {
+    mj_warning(d, mjWARN_CONTACTFULL, d->ncon);
     return 1;
   }
 
+  // move arena pointer back to the end of the existing contact array and invalidate efc_ arrays
+  d->parena = d->ncon * sizeof(mjContact);
+  d->nefc = 0;
+#define X(type, name, nr, nc) d->name = NULL;
+  MJDATA_ARENA_POINTERS
+#undef X
+  d->contact = d->arena;
+
   // copy contact
-  d->contact[d->ncon] = *con;
+  mjContact* dst = mj_arenaAlloc(d, sizeof(mjContact), _Alignof(mjContact));
+  if (!dst) {
+    mj_warning(d, mjWARN_CONTACTFULL, d->ncon);
+    return 1;
+  }
+  *dst = *con;
 
   // increase counter, return success
   d->ncon++;
@@ -126,12 +141,6 @@ int mj_addConstraint(const mjModel* m, mjData* d,
   int empty, nv = m->nv, nefc = d->nefc;
   int *nnz = d->efc_J_rownnz, *adr = d->efc_J_rowadr, *ind = d->efc_J_colind;
   mjtNum *J = d->efc_J;
-
-  // if out of space, warn and return error
-  if (nefc+size > m->njmax) {
-    mj_warning(d, mjWARN_CNSTRFULL, m->njmax);
-    return 1;
-  }
 
   // init empty guard for constraints other than contact
   if (type==mjCNSTR_CONTACT_FRICTIONLESS ||
@@ -348,7 +357,7 @@ void mj_instantiateEquality(const mjModel* m, mjData* d) {
   mjtNum *jac[2], *jacdif, *data, *sparse_buf = NULL;
   mjMARKSTACK;
 
-  // disabled or no equality contraints: return
+  // disabled or no equality constraints: return
   if (mjDISABLED(mjDSBL_EQUALITY) || m->nemax==0) {
     return;
   }
@@ -773,12 +782,6 @@ void mj_instantiateContact(const mjModel* m, mjData* d) {
       dim = con->dim;
       b1 = m->geom_bodyid[con->geom1];
       b2 = m->geom_bodyid[con->geom2];
-
-      // check size here, because pyramid rows are added incrementally
-      if (d->nefc + (dim==1 ? 1 : (ispyramid ? 2*(dim-1) : dim)) > m->njmax) {
-        mj_warning(d, mjWARN_CNSTRFULL, m->njmax);
-        break;
-      }
 
       // save efc_address
       con->efc_address = d->nefc;
@@ -1238,6 +1241,164 @@ void mj_makeImpedance(const mjModel* m, mjData* d) {
 
 
 
+//------------------------------------- constraint counting ----------------------------------------
+
+// count equality constraints
+static inline int mj_ne(const mjModel* m, const mjData* d) {
+  // disabled or no equality constraints: return
+  if (mjDISABLED(mjDSBL_EQUALITY) || m->nemax==0) {
+    return 0;
+  }
+
+  int ne = 0;
+
+  for (int i=0; i<m->neq; i++) {
+    if (!m->eq_active[i]) {
+      continue;
+    }
+
+    // process according to type
+    switch (m->eq_type[i]) {
+    case mjEQ_CONNECT:
+      ne += 3;
+      break;
+
+    case mjEQ_WELD:
+      ne += 6;
+      break;
+
+    case mjEQ_JOINT:
+    case mjEQ_TENDON:
+      ne++;
+      break;
+
+    default:                        // SHOULD NOT OCCUR
+      mju_error_i("Invalid equality constraint type %d", m->eq_type[i]);
+    }
+  }
+
+  return ne;
+}
+
+
+
+// count frictional constraints
+static inline int mj_nf(const mjModel* m, const mjData* d) {
+  // disabled: return
+  if (mjDISABLED(mjDSBL_FRICTIONLOSS)) {
+    return 0;
+  }
+
+  int nf = 0;
+  const int nv = m->nv;
+  const int ntendon = m->ntendon;
+
+  // count frictional dofs
+  for (int i=0; i<nv; i++) {
+    nf += (m->dof_frictionloss[i] > 0);
+  }
+
+  // count frictional tendons
+  for (int i=0; i<ntendon; i++) {
+    nf += (m->tendon_frictionloss[i] > 0);
+  }
+
+  return nf;
+}
+
+
+
+// count limit constraints
+static inline int mj_nl(const mjModel* m, const mjData* d) {
+  // disabled: return
+  if (mjDISABLED(mjDSBL_LIMIT)) {
+    return 0;
+  }
+
+  int nl = 0;
+  const int njnt = m->njnt;
+  const int ntendon = m->ntendon;
+
+  // count limited joints
+  for (int i=0; i<njnt; i++) {
+    if (!m->jnt_limited[i]) {
+      continue;
+    }
+
+    // slides and hinges can have active limits on two sides, check both
+    if (m->jnt_type[i]==mjJNT_SLIDE || m->jnt_type[i]==mjJNT_HINGE) {
+      // get margin
+      mjtNum margin = m->jnt_margin[i];
+
+      // get joint value
+      mjtNum value = d->qpos[m->jnt_qposadr[i]];
+
+      // check lower and upper limits
+      for (int side=-1; side<=1; side+=2) {
+        // compute distance (negative: penetration)
+        mjtNum dist = side * (m->jnt_range[2*i+(side+1)/2] - value);
+
+        // detect joint limit
+        if (dist<margin) {
+          nl++;
+        }
+      }
+    } else {
+      nl++;
+    }
+  }
+
+  // count limited tendons
+  for (int i=0; i<ntendon; i++) {
+    nl += m->tendon_limited[i];
+  }
+
+  return nl;
+}
+
+
+
+// count contact constraints
+static inline int mj_nc(const mjModel* m, const mjData* d) {
+  // disabled or no contacts: return
+  int ncon = d->ncon;
+  if (mjDISABLED(mjDSBL_CONTACT) || ncon==0) {
+    return 0;
+  }
+
+  int nc = 0;
+  int ispyramid = mj_isPyramidal(m);
+
+  // find contacts to be counted
+  for (int i=0; i<ncon; i++) {
+    mjContact* con = d->contact + i;
+    if (con->exclude) {
+      continue;
+    }
+
+    int dim = con->dim;
+
+    // dim 1: single constraint
+    if (dim==1) {
+      nc++;
+    }
+
+    // dim > 1: depends on cone type
+    else {
+      nc += (ispyramid ? 2*(dim-1) : dim);
+    }
+  }
+
+  return nc;
+}
+
+
+
+// count all constraints
+static inline int mj_nefc(const mjModel* m, const mjData* d) {
+  return mj_ne(m, d) + mj_nf(m, d) + mj_nl(m, d) + mj_nc(m, d);
+}
+
 //---------------------------- top-level API for constraint construction ---------------------------
 
 // driver: call all functions above
@@ -1246,15 +1407,55 @@ void mj_makeConstraint(const mjModel* m, mjData* d) {
   d->ne = d->nf = d->nefc = 0;
 
   // disabled or Jacobian not allocated: return
-  if (mjDISABLED(mjDSBL_CONSTRAINT) || m->njmax==0) {
+  if (mjDISABLED(mjDSBL_CONSTRAINT)) {
     return;
   }
+
+  int nefc_allocated = mj_nefc(m, d);
+  d->nefc = nefc_allocated;
+
+#undef MJ_M
+#define MJ_M(n) m->n
+#undef MJ_D
+#define MJ_D(n) d->n
+
+  // move arena pointer to end of contact array
+  d->parena = d->ncon * sizeof(mjContact);
+
+#define X(type, name, nr, nc)                                             \
+  d->name = mj_arenaAlloc(d, sizeof(type) * (nr) * (nc), _Alignof(type)); \
+  if (!d->name) {                                                         \
+    mj_warning(d, mjWARN_CNSTRFULL, d->nstack * sizeof(mjtNum));          \
+    d->nefc = 0;                                                          \
+    return;                                                               \
+  }
+
+  MJDATA_ARENA_POINTERS_PRIMAL
+  if (mj_isDual(m)) {
+    MJDATA_ARENA_POINTERS_DUAL
+  }
+
+#undef X
+
+#undef MJ_M
+#define MJ_M(n) n
+#undef MJ_D
+#define MJ_D(n) n
+
+  d->nefc = 0;
 
   // instantiate all elements of Jacobian
   mj_instantiateEquality(m, d);
   mj_instantiateFriction(m, d);
   mj_instantiateLimit(m, d);
   mj_instantiateContact(m, d);
+
+  if (d->nefc > nefc_allocated) {
+    char msg[1024];
+    mjSNPRINTF(
+        msg, "nefc under-allocation: found nefc=%d but allocated only %d", d->nefc, nefc_allocated);
+    mju_error(msg);
+  }
 
   // collect memory use statistics
   d->maxuse_con = mjMAX(d->maxuse_con, d->ncon);
