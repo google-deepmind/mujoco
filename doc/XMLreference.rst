@@ -514,8 +514,9 @@ compilation.
    compatibillity and debugging purposes.
 :at:`nstack`: :at-val:`int, "-1"` |nbsp| |nbsp| |nbsp| (legacy)
    This is a deprecated legacy attribute. In versions prior to 2.3.0, it determined the maximum size of the
-   :ref:`stack <siStack>`. Currently it is synonymous with the :at:`memory` attribute above, but is in units of
-   ``sizeof(mjtNum)`` rather than bytes. Specifying both :at:`nstack` and :at:`memory` leads to an error.
+   :ref:`stack <siStack>`. After version 2.3.0, if :at:`nstack` is specified, then the size of ``mjData.arena`` is
+   ``nstack * sizeof(mjtNum)`` bytes, plus an additional space for the constraint solver. Specifying both :at:`nstack`
+   and :at:`memory` leads to an error.
 :at:`nuserdata`: :at-val:`int, "0"`
    The size of the field mjData.userdata of mjData. This field should be used to store custom dynamic variables. See
    also :ref:`CUser`.
