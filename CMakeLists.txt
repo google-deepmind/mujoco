@@ -65,7 +65,14 @@ set(MUJOCO_HEADERS
     include/mujoco/mujoco.h
 )
 
-add_library(mujoco SHARED)
+# Add metadata to mujoco.dll when building on Windows.
+if(WIN32)
+  set(MUJOCO_RESOURCE_FILES ${CMAKE_CURRENT_SOURCE_DIR}/dist/mujoco.rc)
+else()
+  set(MUJOCO_RESOURCE_FILES "")
+endif()
+
+add_library(mujoco SHARED ${MUJOCO_RESOURCE_FILES})
 target_include_directories(
   mujoco
   PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
