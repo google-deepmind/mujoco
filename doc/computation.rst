@@ -267,7 +267,7 @@ is attached; the possible attachment object types are :at:`joint`, :at:`tendon`,
 :at:`slider-crank`, :at:`site`, and :at:`body`.
 
    The :at:`joint` and :at:`tendon` transmission types act as expected and correspond to the actuator applying forces or
-   torques to the target object. Ball joints are special, see the :at:`joint` documentation in :ref:`actuator<general>`
+   torques to the target object. Ball joints are special, see the :at:`joint` documentation in :ref:`actuator<actuator-general>`
    reference for more details.
 
    The :at:`jointinparent` transmission is unique to ball and free joint and asserts that rotation should be measured
@@ -284,13 +284,13 @@ is attached; the possible attachment object types are :at:`joint`, :at:`tendon`,
    forces. Site transmissions correspond to applying a Cartsian force/torque at the site, and are useful for modeling
    jets and propellors. :el:`body` transmissions correspond to applying forces at contact points belonging to a body, in
    order to model vacuum grippers and biomechanical adhesive appendages. For more information about adhesion, see the
-   :ref:`adhesion<adhesion>` actuator documentation.
+   :ref:`adhesion<actuator-adhesion>` actuator documentation.
 
    If a :at:`site` transmission target is defined with the optional :at:`refsite` attribute, forces and torques are
    applied in the frame of the reference site rather than the the site's own frame. If a reference site is defined then
    the length of the actuator is nonzero and corresponds to the pose difference of the two sites. This length can then
    be controlled with a :el:`position` actuator, enabling Cartesian end-effector control. See the :at:`refsite`
-   documentation in :ref:`actuator<general>` reference for more details.
+   documentation in :ref:`actuator<actuator-general>` reference for more details.
 
 Activation dynamics
    Some actuators such as pneumatic and hydraulic cylinders as well as biological muscles have an internal state called
@@ -362,7 +362,7 @@ with MuJoCo's operation as long as such user forces depend only on position and 
 MuJoCo can compute two types of passive forces: spring-dampers in joints and tendons, and fluid dynamics. When Euler
 integration is used, joint damping is integrated implicitly (by modifying the inertia matrix internally) which
 significantly increases stability. Thus, even though damping can be alternatively modeled as an actuator property, it is
-better to model it as a joint property. Note also the XML :ref:`joint <joint>` attribute springdamper which automates
+better to model it as a joint property. Note also the XML :ref:`joint <body-joint>` attribute springdamper which automates
 the creation of mass-spring-dampers with desired time constants and damping ratios; in that case the compiler computes
 the stiffness and damping coefficients of the joint by taking the joint inertia into account.
 
@@ -1395,7 +1395,7 @@ checked in detail. The decision process involves two stages: generation and filt
 Generation
    First we generate a list of candidate geom pairs in one of two ways: "pair" or "dynamic". The user can also specify
    "all" which merges both sources (and is the default). This is done via the setting ``mjModel.opt.collision``. "Pair"
-   refers to an explicit list of geom pairs defined with the :ref:`pair <pair>` element in MJCF. It gives the user full
+   refers to an explicit list of geom pairs defined with the :ref:`pair <contact-pair>` element in MJCF. It gives the user full
    control, however it is a static mechanism (independent of the spatial arrangement of the geoms at runtime) and can be
    tedious for large models. It is normally used to supplement the output of the "dynamic" mechanism. Dynamic generation
    works with bodies rather than geoms; when a body pair is included this means that all geoms attached to one body can
@@ -1404,7 +1404,7 @@ Generation
    principal eigenvector of the covariance matrix of all geom centers - which maximizes the spread. If broad-phase
    collision detection is disabled by the user, all body pairs are included in this step.
 
-   Finally, the user can explicitly exclude certain body pairs using the :ref:`exclude <exclude>` element
+   Finally, the user can explicitly exclude certain body pairs using the :ref:`exclude <contact-exclude>` element
    in MJCF. Exclusion is applied when "dynamic" or "all" are selected, but not when "pair" is selected. At the end of
    this step we have a list of geoms pairs that is typically much smaller than :math:`n (n-1)/2`, but can still be
    pruned further before detailed collision checking.

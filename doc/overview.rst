@@ -483,7 +483,7 @@ Reference pose
    of the joints when the model is in its initial configuration. In our earlier example the elbow was created in a bent
    configuration at 90° angle. But MuJoCo does not know what an elbow is, and so by default it treats this joint
    configuration as having numeric value of 0. We can override the default behavior and specify that the initial
-   configuration corresponds to 90°, using the ref attribute of :ref:`joint <joint>`. The reference values of all joints
+   configuration corresponds to 90°, using the ref attribute of :ref:`joint <body-joint>`. The reference values of all joints
    are assembled into the vector ``mjModel.qpos0``. Whenever the simulation is reset, the joint configuration
    ``mjData.qpos`` is set to ``mjModel.qpos0``. At runtime the joint position vector is interpreted relative to the
    reference pose. In particular, the amount of spatial transformation applied by the joints is ``mjData.qpos -
@@ -625,7 +625,7 @@ That said, users are encouraged to use MKS, as there are two places where MuJoCo
 - The default value of :ref:`gravity<option>` is (0, 0, -9.81), which corresponds to Earth surface gravity in MKS.
   Note that this does not really define system of units to be MKS, since we might be using CGS on
   `Enceladus <https://en.wikipedia.org/wiki/Enceladus>`__.
-- The default value of :ref:`geom density<geom>` (used to infer body masses and inertias) is 1000, which corresponds to
+- The default value of :ref:`geom density<body-geom>` (used to infer body masses and inertias) is 1000, which corresponds to
   the density of water in MKS.
 
 Once a consistent system of basic units (length, mass, time) is chosen, all derived units correspond to this system, as
@@ -660,7 +660,7 @@ easy ways to avoid this problem:
    :ref:`fluid viscosity<option>` in order to prevent your model from moving around too much.
 
 2. Use :ref:`collision filtering<Collision>` to explicitly disable the unwanted collisions, either by setting the
-   relevant :at:`contype` and :at:`conaffinity` attributes, or by using a contact :ref:`exclude <exclude>` directive.
+   relevant :at:`contype` and :at:`conaffinity` attributes, or by using a contact :ref:`exclude <contact-exclude>` directive.
 
 
 .. _NotObject:

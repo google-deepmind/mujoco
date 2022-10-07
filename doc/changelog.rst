@@ -81,7 +81,7 @@ General
    :align: right
    :height: 150px
 
-1. Added :ref:`adhesion actuators<adhesion>` mimicking vacuum grippers and adhesive biomechanical appendages.
+1. Added :ref:`adhesion actuators<actuator-adhesion>` mimicking vacuum grippers and adhesive biomechanical appendages.
 #. Added related `example model <https://github.com/deepmind/mujoco/tree/main/model/adhesion>`_ and video:
 #. Added :ref:`mj_jacSubtreeCom` for computing the translational Jacobian of the center-of-mass of a subtree.
 #. Added :at:`torquescale` and :at:`anchor` attributes to :el:`weld` constraints. :at:`torquescale` sets the
@@ -98,7 +98,7 @@ General
       :height: 150px
 
 #. Cartesian 6D end-effector control is now possible by adding a reference site to actuators with :at:`site`
-   transmission. See description of new :at:`refsite` attribute in the :ref:`actuator<general>` documentation and
+   transmission. See description of new :at:`refsite` attribute in the :ref:`actuator<actuator-general>` documentation and
    `refsite.xml <https://github.com/deepmind/mujoco/tree/main/test/engine/testdata/refsite.xml>`_ example model.
 #. Added :at:`autolimits` compiler option. If ``true``, joint and tendon :at:`limited` attributes and actuator
    :at:`ctrllimited`, :at:`forcelimited` and :at:`actlimited` attributes will automatically be set to ``true`` if the
@@ -125,8 +125,8 @@ General
 
 #. Added catenary visualisation for hanging tendons. The model seen in the video can be found
    `here <https://github.com/deepmind/mujoco/tree/main/test/engine/testdata/catenary.xml>`_.
-#. Added ``azimuth`` and ``elevation`` attributes to :ref:`visual/global<global>`, defining the initial orientation of
-   the free camera at model load time.
+#. Added ``azimuth`` and ``elevation`` attributes to :ref:`visual/global<visual-global>`, defining the initial
+   orientation of the free camera at model load time.
 #. Added ``mjv_defaultFreeCamera`` which sets the default free camera, respecting the above attributes.
 #. ``simulate`` now supports taking a screenshot via a button in the File section or via ``Ctrl-P``.
 #. Improvements to time synchronisation in `simulate`, in particular report actual real-time factor if different from
@@ -162,8 +162,8 @@ General
 #. Added visualisation groups to skins.
 #. Added actuator visualisation for ``free`` and ``ball`` joints and for actuators with ``site`` transmission.
 #. Added visualisation for actuator activations.
-#. Added ``<intvelocity>`` actuator shortcut for "integrated velocity" actuators, documented :ref:`here <intvelocity>`.
-#. Added ``<damper>`` actuator shortcut for active-damping actuators, documented :ref:`here <damper>`.
+#. Added ``<actuator-intvelocity>`` actuator shortcut for "integrated velocity" actuators, documented :ref:`here <actuator-intvelocity>`.
+#. Added ``<actuator-damper>`` actuator shortcut for active-damping actuators, documented :ref:`here <actuator-damper>`.
 #. ``mju_rotVecMat`` and ``mju_rotVecMatT`` now support in-place multiplication.
 #. ``mjData.ctrl`` values are no longer clamped in-place, remain untouched by the engine.
 #. Arrays in mjData's buffer now align to 64-byte boundaries rather than 8-byte.
@@ -231,9 +231,9 @@ General
 #. Added ``implicit`` integrator. Using the analytic derivatives above, a new implicit-in-velocity integrator was added.
    This integrator lies between the Euler and Runge Kutta integrators in terms of both stability and computational
    cost. It is most useful for models which use fluid drag (e.g. for flying or swimming) and for models which use
-   :ref:`velocity actuators<velocity>`. For more details, see the :ref:`Numerical Integration<geIntegration>` section.
+   :ref:`velocity actuators<actuator-velocity>`. For more details, see the :ref:`Numerical Integration<geIntegration>` section.
 
-#. Added :at:`actlimited` and :at:`actrange` attributes to :ref:`general actuators<general>`, for clamping actuator
+#. Added :at:`actlimited` and :at:`actrange` attributes to :ref:`general actuators<actuator-general>`, for clamping actuator
    internal states (activations). This clamping is useful for integrated-velocity actuators, see the :ref:`Activation
    clamping <CActRange>` section for details.
 
@@ -245,14 +245,14 @@ General
    other open source projects. Developers are encouraged to include MuJoCo public headers in their own codebase via
    ``#include <mujoco/filename.h>``.
 
-#. The default shadow resolution specified by the :ref:`shadowsize<quality>` attribute was increased from 1024 to 4096.
+#. The default shadow resolution specified by the :ref:`shadowsize<visual-quality>` attribute was increased from 1024 to 4096.
 
 #. Saved XMLs now use 2-space indents.
 
 Bug fixes
 ^^^^^^^^^
 
-10. Antialiasing was disabled for segmentation rendering. Before this change, if the :ref:`offsamples<quality>`
+10. Antialiasing was disabled for segmentation rendering. Before this change, if the :ref:`offsamples<visual-quality>`
     attribute was greater than 0 (the default value is 4), pixels that overlapped with multiple geoms would receive
     averaged segmentation IDs, leading to incorrect or non-existent IDs. After this change :at:`offsamples` is ignored
     during segmentation rendering.
@@ -403,12 +403,12 @@ General
 
 #. Increased the maximum number of lights in an :ref:`mjvScene` from 8 to 100.
 
-#. Saved XML files only contain explicit :ref:`inertial <inertial>` elements if the original XML included them. Inertias
+#. Saved XML files only contain explicit :ref:`inertial <body-inertial>` elements if the original XML included them. Inertias
    that were automatically inferred by the compiler's :ref:`inertiafromgeom <compiler>` mechanism remain unspecified.
 
 #. User-selected geoms are always rendered as opaque. This is useful in interactive visualizers.
 
-#. Static geoms now respect their :ref:`geom group<geom>` for visualisation. Until this change rendering of static geoms
+#. Static geoms now respect their :ref:`geom group<body-geom>` for visualisation. Until this change rendering of static geoms
    could only be toggled using the :ref:`mjVIS_STATIC<mjtVisFlag>` visualisation flag . After this change, both the geom
    group and the visualisation flag need to be enabled for the geom to be rendered.
 
@@ -420,7 +420,7 @@ General
 #. Experimental stateless fluid interaction model. As described :ref:`here <gePassive>`, fluid forces use sizes computed
    from body inertia. While sometimes convenient, this is very rarely a good approximation. In the new model forces act
    on geoms, rather than bodies, and have a several user-settable parameters. The model is activated by setting a new
-   attribute: ``<geom fluidshape="ellipsoid"/>``. The parameters are described succinctly :ref:`here<geom>`, but we
+   attribute: ``<geom fluidshape="ellipsoid"/>``. The parameters are described succinctly :ref:`here<body-geom>`, but we
    leave a full description or the model and its parameters to when this feature leaves experimental status.
 
 Bug fixes
@@ -481,7 +481,7 @@ Bug Fixes
    :ref:`weld <equality-weld>` constraints.
 
    .. note::
-      Forces generated by :ref:`spatial tendons <spatial>` which are outside the kinematic tree (i.e., between bodies
+      Forces generated by :ref:`spatial tendons <tendon-spatial>` which are outside the kinematic tree (i.e., between bodies
       which have no ancestral relationship) are still not taken into account by force and torque sensors. This remains a
       future work item.
 

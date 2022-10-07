@@ -144,7 +144,7 @@ effects:
   material assets for geom RGBA specification.
 - It allows the importer to handle :ref:`\<include\> <include>` elements without replicating MuJoCo’s file-system
   workflow.
-- The current version of MuJoCo generates MJCF files with explicit :ref:`\<inertial\> <inertial>` elements, even when
+- The current version of MuJoCo generates MJCF files with explicit :ref:`\<inertial\> <body-inertial>` elements, even when
   the original model uses geoms for implicit definition of the body inertia.  If you plan to change geom properties of
   an imported model, remove these auto-generated ``MjInertial`` components manually.  We plan to address this in a
   future release of MuJoCo.
