@@ -5,9 +5,10 @@ Unity Plug-in
 Introduction
 ------------
 
-The MuJoCo `Unity plug-in <https://github.com/deepmind/mujoco/tree/main/unity>`_ allows the Unity Editor and runtime to use the MuJoCo physics engine.  Users can import MJCF
-files and edit the models in the Editor.  The plug-in relies on Unity for most aspects -- assets, game logic, simulation
-time -- but uses MuJoCo to determine how objects move, giving the designer access to MuJoCo's full API.
+The MuJoCo `Unity plug-in <https://github.com/deepmind/mujoco/tree/main/unity>`_ allows the Unity Editor and runtime to
+use the MuJoCo physics engine.  Users can import MJCF files and edit the models in the Editor.  The plug-in relies on
+Unity for most aspects -- assets, game logic, simulation time -- but uses MuJoCo to determine how objects move, giving
+the designer access to MuJoCo's full API.
 
 .. _UInstallation:
 

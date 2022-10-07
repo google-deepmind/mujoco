@@ -41,13 +41,13 @@ Getting started
 ~~~~~~~~~~~~~~~
 
 MuJoCo is an open-source project. Pre-built dynamic libraries are available for x86_64 and arm64 machines running
-Windows, Linux, and macOS. These can be downloaded from the `GitHub Releases page <https://github.com/deepmind/mujoco/releases>`_.
-Users who do not intend to develop or modify core MuJoCo code are encouraged to use our pre-built libraries, as these
-come bundled with the same versions of dependencies that we regularly test against, and benefit from build flags
-that have been tuned for performance. Our pre-built libraries are almost entirely self-contained and do not require
-any other library to be present, outside the standard C runtime. We also hide all symbols apart from
-those that form MuJoCo's public API, thus ensuring that it can coexist with any other libraries that may be loaded into
-the process (including other versions of libraries that MuJoCo depends on).
+Windows, Linux, and macOS. These can be downloaded from the `GitHub Releases page
+<https://github.com/deepmind/mujoco/releases>`_. Users who do not intend to develop or modify core MuJoCo code are
+encouraged to use our pre-built libraries, as these come bundled with the same versions of dependencies that we
+regularly test against, and benefit from build flags that have been tuned for performance. Our pre-built libraries are
+almost entirely self-contained and do not require any other library to be present, outside the standard C runtime. We
+also hide all symbols apart from those that form MuJoCo's public API, thus ensuring that it can coexist with any other
+libraries that may be loaded into the process (including other versions of libraries that MuJoCo depends on).
 
 The pre-built distribution is a single .zip on Windows, .dmg on macOS, and .tar.gz on Linux. There is no installer.
 On Windows and Linux, simply extract the archive in a directory of your choice. From the ``bin`` subdirectory, you can
@@ -71,20 +71,22 @@ directory; it contains error and warning messages, and can be deleted at any tim
      sample  - code samples and makefile need to build them
 
 After verifying that the simulator works, you may also want to re-compile the code samples to ensure that you have a
-working development environment. We provide Makefiles for `Windows <https://github.com/deepmind/mujoco/blob/main/sample/Makefile.windows>`_,
-`macOS <https://github.com/deepmind/mujoco/blob/main/sample/Makefile.macos>`_, and
-`Linux <https://github.com/deepmind/mujoco/blob/main/sample/Makefile>`_, and also a cross-platform
-`CMake <https://github.com/deepmind/mujoco/blob/main/sample/CMakeLists.txt>`_ setup that can be used to build sample
+working development environment. We provide Makefiles for `Windows
+<https://github.com/deepmind/mujoco/blob/main/sample/Makefile.windows>`_, `macOS
+<https://github.com/deepmind/mujoco/blob/main/sample/Makefile.macos>`_, and `Linux
+<https://github.com/deepmind/mujoco/blob/main/sample/Makefile>`_, and also a cross-platform `CMake
+<https://github.com/deepmind/mujoco/blob/main/sample/CMakeLists.txt>`_ setup that can be used to build sample
 applications independently of the MuJoCo library itself. If you are using the vanilla Makefile, we assume that you are
 using Visual Studio on Windows and LLVM/Clang on Linux. On Windows, you also need to either open a Visual Studio command
 prompt with native x64 tools or call the ``vcvarsall.bat`` script that comes with your MSVC installation to set up the
 appropriate environment variables.
 
-On macOS, the DMG disk image contains ``MuJoCo.app``, which you can double-click to launch the ``simulate`` GUI.
-You can also drag ``MuJoCo.app`` into the ``/Application`` on your system, as you would to install any other app.
-While ``MuJoCo.app`` may look like a file, it is in fact an `Application Bundle <https://developer.apple.com/go/?id=bundle-structure>`_,
-which is a directory that contains executable binaries for all of MuJoCo's sample applications, along with an embedded
-`framework <https://developer.apple.com/library/archive/documentation/MacOSX/Conceptual/BPFrameworks/Concepts/WhatAreFrameworks.html>`_,
+On macOS, the DMG disk image contains ``MuJoCo.app``, which you can double-click to launch the ``simulate`` GUI. You can
+also drag ``MuJoCo.app`` into the ``/Application`` on your system, as you would to install any other app. While
+``MuJoCo.app`` may look like a file, it is in fact an `Application Bundle <https://developer.apple.com/go/?id=bundle-
+structure>`_, which is a directory that contains executable binaries for all of MuJoCo's sample applications, along with
+an embedded `framework
+<https://developer.apple.com/library/archive/documentation/MacOSX/Conceptual/BPFrameworks/Concepts/WhatAreFrameworks.html>`_,
 which is a subdirectory containing the MuJoCo dynamic library and all of its public headers. In other words,
 ``MuJoCo.app`` contains all the same files that are shipped in the archive on Windows and Linux. To see this, right
 click (or control-click) on ``MuJoCo.app`` and click "Show Package Contents".
@@ -342,10 +344,10 @@ illustration of how the new UI framework is intended to be used. Below is a scre
 ..  youtube:: 0ORsj_E17B0
     :align: center
 
-Interaction is done with the mouse; built-in help with a summary of available commands is available by pressing the ``F1``
-key. Briefly, an object is selected by left-double-click. The user can then apply forces and torques on the selected
-object by holding Ctrl and dragging the mouse. Dragging the mouse alone (without Ctrl) moves the camera. There are
-keyboard shortcuts for pausing the simulation, resetting, and re-loading the model file. The latter functionality is
+Interaction is done with the mouse; built-in help with a summary of available commands is available by pressing the
+``F1`` key. Briefly, an object is selected by left-double-click. The user can then apply forces and torques on the
+selected object by holding Ctrl and dragging the mouse. Dragging the mouse alone (without Ctrl) moves the camera. There
+are keyboard shortcuts for pausing the simulation, resetting, and re-loading the model file. The latter functionality is
 very useful while editing the model in an XML editor.
 
 The code is quite long yet reasonably commented, so it is best to just read it. Here we provide a high-level overview.
@@ -377,9 +379,9 @@ This code sample simulates the passive dynamics of a given model, renders it off
 values, and saves them into a raw data file that can then be converted into a movie file with tools such as ffmpeg. The
 rendering is simplified compared to :ref:`simulate.cc <saSimulate>` because there is no user interaction, visualization
 options or timing; instead we simply render with the default settings as fast as possible. The dimensions and number of
-multi-samples for the offscreen buffer are specified in the MuJoCo model, while the simulation duration, frames-per-second
-to be rendered (usually much less than the physics simulation rate), and output file name are specified as command-line
-arguments. For example, a 5 second animation at 60 frames per second is created with:
+multi-samples for the offscreen buffer are specified in the MuJoCo model, while the simulation duration, frames-per-
+second to be rendered (usually much less than the physics simulation rate), and output file name are specified as
+command-line arguments. For example, a 5 second animation at 60 frames per second is created with:
 
 .. code-block:: Shell
 
@@ -628,11 +630,11 @@ control callback) would become
      mj_step(m, d);
    }
 
-Why would we not be able to compute the controls before ``mj_step`` is called? After all, isn't this what causality means?
-The answer is subtle but important, and has to do with the fact that we are simulating in discrete time. The top-level
-simulation function ``mj_step`` basically does two things: compute the :ref:`forward dynamics <siForward>` in continuous
-time, and then integrate over a time period specified by ``mjModel.opt.timestep``. Forward dynamics computes the
-acceleration ``mjData.qacc`` at time ``mjData.time``, given the :ref:`state and control <siStateControl>` at time
+Why would we not be able to compute the controls before ``mj_step`` is called? After all, isn't this what causality
+means? The answer is subtle but important, and has to do with the fact that we are simulating in discrete time. The top-
+level simulation function ``mj_step`` basically does two things: compute the :ref:`forward dynamics <siForward>` in
+continuous time, and then integrate over a time period specified by ``mjModel.opt.timestep``. Forward dynamics computes
+the acceleration ``mjData.qacc`` at time ``mjData.time``, given the :ref:`state and control <siStateControl>` at time
 ``mjData.time``. The numerical integrator then advances the state and time to ``mjData.time + mjModel.opt.timestep``.
 Now, the control is required to be a function of the state at time ``mjData.time``. However a general feedback
 controller can be a very complex function, depending on various features of the state - in particular all the features
@@ -1025,9 +1027,9 @@ writes to its own mjData. Therefore no further synchronization among threads is 
 
 The above template reflects a particular style of parallel processing. Instead of creating a large number of threads,
 one for each work item, and letting OpenMP distribute them among processors, we rely on manual scheduling. More
-precisely, we create as many threads as there are processors, and then within the ``worker`` function we distribute
-the work explicitly among threads (not shown here, but see :ref:`derivative.cc <saDerivative>` for an example). This approach is more
-efficient because the thread-specific mjData is large compared to the processor cache.
+precisely, we create as many threads as there are processors, and then within the ``worker`` function we distribute the
+work explicitly among threads (not shown here, but see :ref:`derivative.cc <saDerivative>` for an example). This
+approach is more efficient because the thread-specific mjData is large compared to the processor cache.
 
 We also use a shared mjModel for cache-efficiency. In some situations it may not be possible to use the same mjModel
 for all threads. One obvious reason is that mjModel may need to be modified within the thread function. Another reason
@@ -1065,8 +1067,8 @@ Arrays of type mjtByte can be changed safely, since they are binary indicators t
 features. The only exception here is ``mjModel.tex_rgb`` which is texture data represented as mjtByte.
 
 When changing mjModel fields that corresponds to resources uploaded to the GPU, the user must also call the
-corresponding upload function: ``mjr_uploadTexture``, ``mjr_uploadMesh``, ``mjr_uploadHField``. Otherwise the data used for
-simulation and for rendering will no longer be consistent.
+corresponding upload function: ``mjr_uploadTexture``, ``mjr_uploadMesh``, ``mjr_uploadHField``. Otherwise the data used
+for simulation and for rendering will no longer be consistent.
 
 A related consideration has to do with changing real-valued fields of mjModel that have been used by the compiler to
 compute other real-valued fields: if we make a change, we want it to propagate. That is what the function
@@ -1659,9 +1661,9 @@ use the hand-held controller as a "laser pointer" that can select objects.
 Perturbations
 '''''''''''''
 
-Interactive perturbations have proven very useful in exploring the model dynamics as well as probing closed-loop
-control systems. The user is free to implement any perturbation mechanism of their choice by setting
-``mjData.qfrc_applied`` or ``mjData.xfrc_applied`` to suitable forces (in generalized and Cartesian coordinates respectively).
+Interactive perturbations have proven very useful in exploring the model dynamics as well as probing closed-loop control
+systems. The user is free to implement any perturbation mechanism of their choice by setting ``mjData.qfrc_applied`` or
+``mjData.xfrc_applied`` to suitable forces (in generalized and Cartesian coordinates respectively).
 
 Prior to MuJoCo version 1.40, user code had to maintain a collection of objects in order to implement perturbations.
 All these objects are now grouped into the data structure :ref:`mjvPerturb`. Its use is illustrated in

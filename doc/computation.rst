@@ -267,8 +267,8 @@ is attached; the possible attachment object types are :at:`joint`, :at:`tendon`,
 :at:`slider-crank`, :at:`site`, and :at:`body`.
 
    The :at:`joint` and :at:`tendon` transmission types act as expected and correspond to the actuator applying forces or
-   torques to the target object. Ball joints are special, see the :at:`joint` documentation in :ref:`actuator<actuator-general>`
-   reference for more details.
+   torques to the target object. Ball joints are special, see the :at:`joint` documentation in
+   :ref:`actuator<actuator-general>` reference for more details.
 
    The :at:`jointinparent` transmission is unique to ball and free joint and asserts that rotation should be measured
    in the parent rather than child frame.
@@ -362,9 +362,9 @@ with MuJoCo's operation as long as such user forces depend only on position and 
 MuJoCo can compute two types of passive forces: spring-dampers in joints and tendons, and fluid dynamics. When Euler
 integration is used, joint damping is integrated implicitly (by modifying the inertia matrix internally) which
 significantly increases stability. Thus, even though damping can be alternatively modeled as an actuator property, it is
-better to model it as a joint property. Note also the XML :ref:`joint <body-joint>` attribute springdamper which automates
-the creation of mass-spring-dampers with desired time constants and damping ratios; in that case the compiler computes
-the stiffness and damping coefficients of the joint by taking the joint inertia into account.
+better to model it as a joint property. Note also the XML :ref:`joint <body-joint>` attribute springdamper which
+automates the creation of mass-spring-dampers with desired time constants and damping ratios; in that case the compiler
+computes the stiffness and damping coefficients of the joint by taking the joint inertia into account.
 
 Proper simulation of fluid dynamics is beyond the scope of MuJoCo, and would be too slow for the applications we aim to
 facilitate. Nevertheless we provide a phenomenological model which is sufficient for simulating behaviors such as flying
@@ -1395,14 +1395,14 @@ checked in detail. The decision process involves two stages: generation and filt
 Generation
    First we generate a list of candidate geom pairs in one of two ways: "pair" or "dynamic". The user can also specify
    "all" which merges both sources (and is the default). This is done via the setting ``mjModel.opt.collision``. "Pair"
-   refers to an explicit list of geom pairs defined with the :ref:`pair <contact-pair>` element in MJCF. It gives the user full
-   control, however it is a static mechanism (independent of the spatial arrangement of the geoms at runtime) and can be
-   tedious for large models. It is normally used to supplement the output of the "dynamic" mechanism. Dynamic generation
-   works with bodies rather than geoms; when a body pair is included this means that all geoms attached to one body can
-   collide with all geoms attached to the other body. The body pairs are generated via broad-phase collision detection
-   based on a modified sweep-and-prune algorithm. The modification is that the axis for sorting is chosen as the
-   principal eigenvector of the covariance matrix of all geom centers - which maximizes the spread. If broad-phase
-   collision detection is disabled by the user, all body pairs are included in this step.
+   refers to an explicit list of geom pairs defined with the :ref:`pair <contact-pair>` element in MJCF. It gives the
+   user full control, however it is a static mechanism (independent of the spatial arrangement of the geoms at runtime)
+   and can be tedious for large models. It is normally used to supplement the output of the "dynamic" mechanism. Dynamic
+   generation works with bodies rather than geoms; when a body pair is included this means that all geoms attached to
+   one body can collide with all geoms attached to the other body. The body pairs are generated via broad-phase
+   collision detection based on a modified sweep-and-prune algorithm. The modification is that the axis for sorting is
+   chosen as the principal eigenvector of the covariance matrix of all geom centers - which maximizes the spread. If
+   broad-phase collision detection is disabled by the user, all body pairs are included in this step.
 
    Finally, the user can explicitly exclude certain body pairs using the :ref:`exclude <contact-exclude>` element
    in MJCF. Exclusion is applied when "dynamic" or "all" are selected, but not when "pair" is selected. At the end of

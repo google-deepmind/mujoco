@@ -375,11 +375,11 @@ Height field
    format described later. A height field is a rectangular grid of elevation data. The compiler normalizes the data to
    the range [0-1]. The actual spatial extent of the height field is then determined by the size parameters of the
    referencing geom. Height fields can only be referenced from geoms that are attached to the world body. For rendering
-   and collision detection purposes, the grid rectangles are automatically triangulated, thus the height field is treated
-   as a union of triangular prisms. Collision detection with such a composite object can in principle generate a large
-   number of contact points for a single geom pair. If that happens, only the first 64 contact points are kept. The
-   rationale is that height fields should be used to model terrain maps whose spatial features are large compared to the
-   other objects in the simulation, so the number of contacts will be small for well-designed models.
+   and collision detection purposes, the grid rectangles are automatically triangulated, thus the height field is
+   treated as a union of triangular prisms. Collision detection with such a composite object can in principle generate a
+   large number of contact points for a single geom pair. If that happens, only the first 64 contact points are kept.
+   The rationale is that height fields should be used to model terrain maps whose spatial features are large compared to
+   the other objects in the simulation, so the number of contacts will be small for well-designed models.
 
 Texture
    Textures can be loaded from PNG files or synthesized by the compiler based on user-defined procedural parameters.
@@ -483,8 +483,8 @@ Reference pose
    of the joints when the model is in its initial configuration. In our earlier example the elbow was created in a bent
    configuration at 90° angle. But MuJoCo does not know what an elbow is, and so by default it treats this joint
    configuration as having numeric value of 0. We can override the default behavior and specify that the initial
-   configuration corresponds to 90°, using the ref attribute of :ref:`joint <body-joint>`. The reference values of all joints
-   are assembled into the vector ``mjModel.qpos0``. Whenever the simulation is reset, the joint configuration
+   configuration corresponds to 90°, using the ref attribute of :ref:`joint <body-joint>`. The reference values of all
+   joints are assembled into the vector ``mjModel.qpos0``. Whenever the simulation is reset, the joint configuration
    ``mjData.qpos`` is set to ``mjModel.qpos0``. At runtime the joint position vector is interpreted relative to the
    reference pose. In particular, the amount of spatial transformation applied by the joints is ``mjData.qpos -
    mjModel.qpos0``. This transformation is in addition to the parent-child translation and rotation offsets stored in
@@ -625,8 +625,8 @@ That said, users are encouraged to use MKS, as there are two places where MuJoCo
 - The default value of :ref:`gravity<option>` is (0, 0, -9.81), which corresponds to Earth surface gravity in MKS.
   Note that this does not really define system of units to be MKS, since we might be using CGS on
   `Enceladus <https://en.wikipedia.org/wiki/Enceladus>`__.
-- The default value of :ref:`geom density<body-geom>` (used to infer body masses and inertias) is 1000, which corresponds to
-  the density of water in MKS.
+- The default value of :ref:`geom density<body-geom>` (used to infer body masses and inertias) is 1000, which
+  corresponds to the density of water in MKS.
 
 Once a consistent system of basic units (length, mass, time) is chosen, all derived units correspond to this system, as
 in `Dimensional Analysis <https://en.wikipedia.org/wiki/Dimensional_analysis>`__. For example if our model is
@@ -660,7 +660,8 @@ easy ways to avoid this problem:
    :ref:`fluid viscosity<option>` in order to prevent your model from moving around too much.
 
 2. Use :ref:`collision filtering<Collision>` to explicitly disable the unwanted collisions, either by setting the
-   relevant :at:`contype` and :at:`conaffinity` attributes, or by using a contact :ref:`exclude <contact-exclude>` directive.
+   relevant :at:`contype` and :at:`conaffinity` attributes, or by using a contact :ref:`exclude <contact-exclude>`
+   directive.
 
 
 .. _NotObject:
@@ -729,10 +730,10 @@ The size of each array (``njnt`` in this case) is also given in ``mjModel``. The
 first, followed by the limits of the second joint etc. This ordering reflects the fact that all matrices in MuJoCo have
 row-major format.
 
-The available element types are defined in
-`mjmodel.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjmodel.h#L243>`_, in the enum type :ref:`mjtObj`.
-These enums are mostly used internally. One exception are the functions :ref:`mj_name2id` and :ref:`mj_id2name` in the
-MuJoCo API, which map element names to integer ids and vice versa. These functions take an element type as input.
+The available element types are defined in `mjmodel.h
+<https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjmodel.h#L243>`_, in the enum type :ref:`mjtObj`. These
+enums are mostly used internally. One exception are the functions :ref:`mj_name2id` and :ref:`mj_id2name` in the MuJoCo
+API, which map element names to integer ids and vice versa. These functions take an element type as input.
 
 Naming model elements in the XML is optional. Two elements of the same type (e.g. two joints) cannot have the same name.
 Naming is required only when a given element needs to be referenced elsewhere in the model; referencing in the XML can

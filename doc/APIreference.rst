@@ -2736,10 +2736,10 @@ X Macros
 ^^^^^^^^
 
 The X Macros are not needed in most user projects. They are used internally to allocate the model, and are also
-available for users who know how to use this programming technique. See the header file
-`mjxmacro.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjxmacro.h>`_ for the actual definitions. They are particularly useful in writing MuJoCo wrappers
-for scripting languages, where dynamic structures matching the MuJoCo data structures need to be constructed
-programmatically.
+available for users who know how to use this programming technique. See the header file `mjxmacro.h
+<https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjxmacro.h>`_ for the actual definitions. They are
+particularly useful in writing MuJoCo wrappers for scripting languages, where dynamic structures matching the MuJoCo
+data structures need to be constructed programmatically.
 
 .. _MJOPTION_SCALARS:
 
@@ -3238,12 +3238,11 @@ Numeric constants
 API functions
 -------------
 
-The main header `mujoco.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mujoco.h>`_ exposes a very large number
-of functions. However the functions that most users are likely to need are a small fraction. For example,
-:ref:`simulate.cc <saSimulate>` which is as elaborate as a MuJoCo application is likely to get, calls around 40
-of these functions, while ``basic.cc`` calls around 20. The rest are explosed just in case someone has a use for
-them. This includes us as users of MuJoCo -- we do our own work with the public library instead of relying on
-internal builds.
+The main header `mujoco.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mujoco.h>`_ exposes a very large
+number of functions. However the functions that most users are likely to need are a small fraction. For example,
+:ref:`simulate.cc <saSimulate>` which is as elaborate as a MuJoCo application is likely to get, calls around 40 of these
+functions, while ``basic.cc`` calls around 20. The rest are explosed just in case someone has a use for them. This
+includes us as users of MuJoCo -- we do our own work with the public library instead of relying on internal builds.
 
 .. _Activation:
 

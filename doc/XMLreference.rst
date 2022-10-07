@@ -79,12 +79,13 @@ MJCF Reference
 
 -  The order of :ref:`joint <body-joint>` elements within a :ref:`body <body>` matters because joint transformations are
    performed in sequence.
--  The order of elements in a :ref:`spatial <tendon-spatial>` tendon matters because it determines the sequence of objects that
-   the tendon passes through or wraps around.
+-  The order of elements in a :ref:`spatial <tendon-spatial>` tendon matters because it determines the sequence of
+   objects that the tendon passes through or wraps around.
 -  The order of repeated sections matters when the same attribute is set multiple times to different values. In that
    case the last setting takes effect for the entire model.
 -  The order of multiple actuator shortcuts in the same defaults class matters, because each shortcut sets the
-   attributes of the single :ref:`general <actuator-general>` element in that defaults class, overriding the previous settings.
+   attributes of the single :ref:`general <actuator-general>` element in that defaults class, overriding the previous
+   settings.
 
 In the remainder of this chapter we describe all valid MJCF elements and their attributes. Some elements can be used in
 multiple contexts, in which case their meaning depends on the parent element. This is why we always show the parent as a
@@ -165,10 +166,10 @@ any effect. The settings here are global and apply to the entire model.
    compiler converts degrees into radians, and mjModel always uses radians. For URDF models the parser sets this
    attribute to "radian" internally, regardless of the XML setting.
 :at:`fitaabb`: :at-val:`[false, true], "false"`
-   The compiler is able to replace a mesh with a geometric primitive fitted to that mesh; see :ref:`geom <body-geom>` below.
-   If this attribute is "true", the fitting procedure uses the axis-aligned bounding box (aabb) of the mesh. Otherwise
-   it uses the equivalent-inertia box of the mesh. The type of geometric primitive used for fitting is specified
-   separately for each geom.
+   The compiler is able to replace a mesh with a geometric primitive fitted to that mesh; see :ref:`geom <body-geom>`
+   below. If this attribute is "true", the fitting procedure uses the axis-aligned bounding box (aabb) of the mesh.
+   Otherwise it uses the equivalent-inertia box of the mesh. The type of geometric primitive used for fitting is
+   specified separately for each geom.
 :at:`eulerseq`: :at-val:`string, "xyz"`
    This attribute specifies the sequence of Euler rotations for all euler attributes of elements that have spatial
    frames, as explained in :ref:`COrientation`. This must be a string with exactly 3
@@ -365,9 +366,9 @@ adjust it properly through the XML.
    :at:`implicit` integrator.
 :at:`o_margin`: :at-val:`real, "0"`
    This attribute replaces the margin parameter of all active contact pairs when :ref:`Contact override <COverride>` is
-   enabled. Otherwise MuJoCo uses the element-specific margin attribute of :ref:`geom <body-geom>` or :ref:`pair <contact-pair>`
-   depending on how the contact pair was generated. See also :ref:`Collision` in the Computation chapter. The related
-   gap parameter does not have a global override.
+   enabled. Otherwise MuJoCo uses the element-specific margin attribute of :ref:`geom <body-geom>` or :ref:`pair
+   <contact-pair>` depending on how the contact pair was generated. See also :ref:`Collision` in the Computation
+   chapter. The related gap parameter does not have a global override.
 :at:`o_solref`, :at:`o_solimp`
    These attributes replace the solref and solimp parameters of all active contact pairs when contact override is
    enabled. See :ref:`CSolver` for details.
@@ -377,9 +378,9 @@ adjust it properly through the XML.
    the Implicit-in-velocity Euler method.
 :at:`collision`: :at-val:`[all, predefined, dynamic], "all"`
    This attribute specifies which geom pairs should be checked for collision; recall :ref:`Collision` in the Computation
-   chapter. "predefined" means that only the explicitly-defined contact :ref:`pairs <contact-pair>` are checked. "dynamic" means
-   that only the contact pairs generated dynamically are checked. "all" means that the contact pairs from both sources
-   are checked.
+   chapter. "predefined" means that only the explicitly-defined contact :ref:`pairs <contact-pair>` are checked.
+   "dynamic" means that only the contact pairs generated dynamically are checked. "all" means that the contact pairs
+   from both sources are checked.
 :at:`cone`: :at-val:`[pyramidal, elliptic], "pyramidal"`
    The type of contact friction cone. Elliptic cones are a better model of the physical reality, but pyramidal cones
    sometimes make the solver faster and more robust.
@@ -521,9 +522,9 @@ compilation.
    The size of the field mjData.userdata of mjData. This field should be used to store custom dynamic variables. See
    also :ref:`CUser`.
 :at:`nkey`: :at-val:`int, "0"`
-   The number of key frames allocated in mjModel is the larger of this value and the number of :ref:`key <keyframe-key>` elements
-   below. Note that the interactive simulator has the ability to take snapshots of the system state and save them as key
-   frames.
+   The number of key frames allocated in mjModel is the larger of this value and the number of :ref:`key <keyframe-key>`
+   elements below. Note that the interactive simulator has the ability to take snapshots of the system state and save
+   them as key frames.
 :at:`nuser_body`: :at-val:`int, "-1"`
    The number of custom user parameters added to the definition of each body. See also :ref:`User parameters <CUser>`.
    The parameter values are set via the user attribute of the :ref:`body <body>` element. These values are not accessed
@@ -605,15 +606,15 @@ is effectively a miscellaneous subsection.
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element specifies settings that affect the quality of the rendering. Larger values result in higher quality but
-possibly slower speed. Note that :ref:`simulate.cc <saSimulate>` displays the frames per second (FPS). The target FPS is 60 Hz; if the
-number shown in the visualizer is substantially lower, this means that the GPU is over-loaded and the visualization
-should somehow be simplified.
+possibly slower speed. Note that :ref:`simulate.cc <saSimulate>` displays the frames per second (FPS). The target FPS is
+60 Hz; if the number shown in the visualizer is substantially lower, this means that the GPU is over-loaded and the
+visualization should somehow be simplified.
 
 :at:`shadowsize`: :at-val:`int, "4096"`
    This attribute specifies the size of the square texture used for shadow mapping. Higher values result is smoother
-   shadows. The size of the area over which a :ref:`light <body-light>` can cast shadows also affects smoothness, so these
-   settings should be adjusted jointly. The default here is somewhat conservative. Most modern GPUs are able to handle
-   significantly larger textures without slowing down.
+   shadows. The size of the area over which a :ref:`light <body-light>` can cast shadows also affects smoothness, so
+   these settings should be adjusted jointly. The default here is somewhat conservative. Most modern GPUs are able to
+   handle significantly larger textures without slowing down.
 :at:`offsamples`: :at-val:`int, "4"`
    This attribute specifies the number of multi-samples for offscreen rendering. Larger values produce better
    anti-aliasing but can slow down the GPU. Set this to 0 to disable multi-sampling. Note that this attribute only
@@ -836,17 +837,18 @@ parameters.
    runtime this value scales the solver cost and gradient used for early termination.
 :at:`meansize`: :at-val:`real, optional`
    If this attribute is specified, it replaces the value of ``mjModel.stat.meansize`` computed by the compiler. At
-   runtime this value multiplies the attributes of the :ref:`scale <visual-scale>` element above, and acts as their length
-   unit. If specific lengths are desired, it can be convenient to set :at:`meansize` to a round number like 1 or 0.01 so
-   that :ref:`scale <visual-scale>` values are in recognized length units. This is the only semantic of :at:`meansize` and
-   setting it has no other side-effect. The automatically computed value is heuristic, representing the average body
-   radius. The heuristic is based on geom sizes when present, the distances between joints when present, and the sizes
-   of the body equivalent inertia boxes.
+   runtime this value multiplies the attributes of the :ref:`scale <visual-scale>` element above, and acts as their
+   length unit. If specific lengths are desired, it can be convenient to set :at:`meansize` to a round number like 1 or
+   0.01 so that :ref:`scale <visual-scale>` values are in recognized length units. This is the only semantic of
+   :at:`meansize` and setting it has no other side-effect. The automatically computed value is heuristic, representing
+   the average body radius. The heuristic is based on geom sizes when present, the distances between joints when
+   present, and the sizes of the body equivalent inertia boxes.
 :at:`extent`: :at-val:`real, optional`
    If this attribute is specified, it replaces the value of mjModel.stat.extent computed by the compiler. The computed
    value is half the side of the bounding box of the model in the initial configuration. At runtime this value is
-   multiplied by some of the attributes of the :ref:`map <visual-map>` element above. When the model is first loaded, the free
-   camera's initial distance from the :at:`center` (see below) is 1.5 times the :at:`extent`. Must be strictly positive.
+   multiplied by some of the attributes of the :ref:`map <visual-map>` element above. When the model is first loaded,
+   the free camera's initial distance from the :at:`center` (see below) is 1.5 times the :at:`extent`. Must be strictly
+   positive.
 :at:`center`: :at-val:`real(3), optional`
    If this attribute is specified, it replaces the value of mjModel.stat.center computed by the compiler. The computed
    value is the center of the bounding box of the entire model in the initial configuration. This 3D vector is used to
@@ -962,59 +964,59 @@ if omitted.
 :el-prefix:`default/` **motor** (?)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-| This and the next three elements set the attributes of the :ref:`general <actuator-general>` element using :ref:`Actuator
-  shortcuts <CActuator>`. It does not make sense to use more than one such shortcut in the same defaults
-  class, because they set the same underlying attributes, replacing any previous settings.
-| All :ref:`motor <actuator-motor>` attributes are available here except: name, class, joint, jointinparent, site, tendon,
-  slidersite, cranksite.
+This and the next three elements set the attributes of the :ref:`general <actuator-general>` element using
+:ref:`Actuator shortcuts <CActuator>`. It does not make sense to use more than one such shortcut in the same defaults
+class, because they set the same underlying attributes, replacing any previous settings. All
+:ref:`motor <actuator-motor>` attributes are available here except: name, class, joint, jointinparent, site, tendon,
+slidersite, cranksite.
 
 .. _default-position:
 
 :el-prefix:`default/` **position** (?)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-All :ref:`position <actuator-position>` attributes are available here except: name, class, joint, jointinparent, site, tendon,
-slidersite, cranksite.
+All :ref:`position <actuator-position>` attributes are available here except: name, class, joint, jointinparent, site,
+tendon, slidersite, cranksite.
 
 .. _default-velocity:
 
 :el-prefix:`default/` **velocity** (?)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-All :ref:`velocity <actuator-velocity>` attributes are available here except: name, class, joint, jointinparent, site, tendon,
-slidersite, cranksite.
+All :ref:`velocity <actuator-velocity>` attributes are available here except: name, class, joint, jointinparent, site,
+tendon, slidersite, cranksite.
 
 .. _default-intvelocity:
 
 :el-prefix:`default/` **intvelocity** (?)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-All :ref:`intvelocity <actuator-intvelocity>` attributes are available here except: name, class, joint, jointinparent, site, tendon,
-slidersite, cranksite.
+All :ref:`intvelocity <actuator-intvelocity>` attributes are available here except: name, class, joint, jointinparent,
+site, tendon, slidersite, cranksite.
 
 .. _default-damper:
 
 :el-prefix:`default/` **damper** (?)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-All :ref:`damper <actuator-damper>` attributes are available here except: name, class, joint, jointinparent, site, tendon,
-slidersite, cranksite.
+All :ref:`damper <actuator-damper>` attributes are available here except: name, class, joint, jointinparent, site,
+tendon, slidersite, cranksite.
 
 .. _default-cylinder:
 
 :el-prefix:`default/` **cylinder** (?)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-All :ref:`cylinder <actuator-cylinder>` attributes are available here except: name, class, joint, jointinparent, site, tendon,
-slidersite, cranksite.
+All :ref:`cylinder <actuator-cylinder>` attributes are available here except: name, class, joint, jointinparent, site,
+tendon, slidersite, cranksite.
 
 .. _default-muscle:
 
 :el-prefix:`default/` **muscle** (?)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-All :ref:`muscle <actuator-muscle>` attributes are available here except: name, class, joint, jointinparent, site, tendon,
-slidersite, cranksite.
+All :ref:`muscle <actuator-muscle>` attributes are available here except: name, class, joint, jointinparent, site,
+tendon, slidersite, cranksite.
 
 :el-prefix:`default/` **adhesion** (?)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -1156,7 +1158,8 @@ chapter.
    stretched. For planes this is not an issue because the plane is always normal to the local Z axis. For height fields
    the sides enclosing the terrain map appear stretched, but in that case the effect is actually desirable. 2d textures
    can be rectangular, unlike the sides of cube textures which must be square. The scaling can be controlled with the
-   texrepeat attribute of :ref:`material <asset-material>`. The data can be loaded from a singlefile or created procedurally.
+   texrepeat attribute of :ref:`material <asset-material>`. The data can be loaded from a singlefile or created
+   procedurally.
 :at:`file`: :at-val:`string, optional`
    If this attribute is specified, and the builtin attribute below is set to "none", the texture data is loaded from a
    single file. See the texturedir attribute of :ref:`compiler <compiler>` regarding the file path.
@@ -1361,7 +1364,8 @@ MSH file format
 Poorly designed meshes can display rendering artifacts. In particular, the shadow mapping mechanism relies on having
 some distance between front and back-facing triangle faces. If the faces are repeated, with opposite normals as
 determined by the vertex order in each triangle, this causes shadow aliasing. The solution is to remove the repeated
-faces (which can be done in MeshLab) or use a better designed mesh. Flipped faces are checked by MuJoCo for meshes specified as OBJ or XML and an error message is returned.
+faces (which can be done in MeshLab) or use a better designed mesh. Flipped faces are checked by MuJoCo for meshes
+specified as OBJ or XML and an error message is returned.
 
 The size of the mesh is determined by the 3D coordinates of the vertex data in the mesh file, multiplied by the
 components of the :at:`scale` attribute below. Scaling is applied separately for each coordinate axis. Note that
@@ -1384,14 +1388,14 @@ whose origin is not inside the mesh. In contrast, MuJoCo expects the origin of a
 geometric center of the shape. We resolve this discrepancy by pre-processing the mesh in the compiler, so that it is
 centered around (0,0,0) and its principal axes of inertia are the coordinate axes. We also save the translation and
 rotation offsets needed to achieve such alignment. These offsets are then applied to the referencing geom's position and
-orientation; see also :at:`mesh` attribute of :ref:`geom <body-geom>` below. Fortunately most meshes used in robot models are
-designed in a coordinate frame centered at the joint. This makes the corresponding MJCF model intuitive: we set the body
-frame at the joint, so that the joint position is (0,0,0) in the body frame, and simply reference the mesh. Below is an
-MJCF model fragment of a forearm, containing all the information needed to put the mesh where one would expect it to be.
-The body position is specified relative to the parent body, namely the upper arm (not shown). It is offset by 35 cm
-which is the typical length of the human upper arm. If the mesh vertex data were not designed in the above convention,
-we would have to use the geom position and orientation (or the new refpos, refquat mechanism) to compensate, but in
-practice this is rarely needed.
+orientation; see also :at:`mesh` attribute of :ref:`geom <body-geom>` below. Fortunately most meshes used in robot
+models are designed in a coordinate frame centered at the joint. This makes the corresponding MJCF model intuitive: we
+set the body frame at the joint, so that the joint position is (0,0,0) in the body frame, and simply reference the mesh.
+Below is an MJCF model fragment of a forearm, containing all the information needed to put the mesh where one would
+expect it to be. The body position is specified relative to the parent body, namely the upper arm (not shown). It is
+offset by 35 cm which is the typical length of the human upper arm. If the mesh vertex data were not designed in the
+above convention, we would have to use the geom position and orientation (or the new refpos, refquat mechanism) to
+compensate, but in practice this is rarely needed.
 
 .. code-block:: xml
 
@@ -1404,9 +1408,12 @@ practice this is rarely needed.
        <geom type="mesh" mesh="forearm"/>
    </body>
 
-The inertial computation mentioned above is part of an algorithm used not only to center and align the mesh, but also
-to infer the mass and inertia of the body to which it is attached. This is done by computing the centroid of the
-triangle faces, connecting each face with the centroid to form a triangular pyramid, computing the mass and signed inertia of all pyramids (considered solid or hollow if :at:`shellinertia` is true) and accumulating them. The sign ensures that pyramids on the outside of the surfaces are subtracted, as it can occur with concave geometries. This algorithm can be found in section 1.3.8 of Computational Geometry in C (Second Edition) by Joseph O'Rourke.
+The inertial computation mentioned above is part of an algorithm used not only to center and align the mesh, but also to
+infer the mass and inertia of the body to which it is attached. This is done by computing the centroid of the triangle
+faces, connecting each face with the centroid to form a triangular pyramid, computing the mass and signed inertia of all
+pyramids (considered solid or hollow if :at:`shellinertia` is true) and accumulating them. The sign ensures that
+pyramids on the outside of the surfaces are subtracted, as it can occur with concave geometries. This algorithm can be
+found in section 1.3.8 of Computational Geometry in C (Second Edition) by Joseph O'Rourke.
 
 The full list of processing steps applied by the compiler to each mesh is as follows:
 
@@ -1576,12 +1583,12 @@ This element defines a bone of the skin. The bone is a regular MuJoCo body which
 :el-prefix:`asset/` **material** (*)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-This element creates a material asset. It can be referenced from :ref:`skins <asset-skin>`, :ref:`geoms <body-geom>`, :ref:`sites
-<body-site>` and :ref:`tendons <tendon>` to set their appearance. Note that all these elements also have a local rgba
-attribute, which is more convenient when only colors need to be adjusted, because it does not require creating materials
-and referencing them. Materials are useful for adjusting appearance properties beyond color. However once a material is
-created, it is more natural the specify the color using the material, so that all appearance properties are grouped
-together.
+This element creates a material asset. It can be referenced from :ref:`skins <asset-skin>`, :ref:`geoms <body-geom>`,
+:ref:`sites <body-site>` and :ref:`tendons <tendon>` to set their appearance. Note that all these elements also have a
+local rgba attribute, which is more convenient when only colors need to be adjusted, because it does not require
+creating materials and referencing them. Materials are useful for adjusting appearance properties beyond color. However
+once a material is created, it is more natural the specify the color using the material, so that all appearance
+properties are grouped together.
 
 :at:`name`: :at-val:`string, required`
    Name of the material, used for referencing.
@@ -1637,9 +1644,9 @@ together.
 
 This element is used to construct the :ref:`kinematic tree <CTree>` via nesting. The element :el:`worldbody` is used for
 the top-level body, while the element :el:`body` is used for all other bodies. The top-level body is a restricted type
-of body: it cannot have child elements :ref:`inertial <body-inertial>` and :ref:`joint <body-joint>`, and also cannot have any
-attributes. It corresponds to the origin of the world frame, within which the rest of the kinematic tree is defined. Its
-body name is automatically defined as "world".
+of body: it cannot have child elements :ref:`inertial <body-inertial>` and :ref:`joint <body-joint>`, and also cannot
+have any attributes. It corresponds to the origin of the world frame, within which the rest of the kinematic tree is
+defined. Its body name is automatically defined as "world".
 
 :at:`name`: :at-val:`string, optional`
    Name of the body.
@@ -1661,9 +1668,9 @@ body name is automatically defined as "world".
    <CFrame>`. In local coordinates, if the body position is left undefined it defaults to (0,0,0). In global
    coordinates, an undefined body position is inferred by the compiler through the following steps:
 
-   #. If the inertial frame is not defined via the :ref:`inertial <body-inertial>` element, it is inferred from the geoms
-      attached to the body. If there are no geoms, the inertial frame remains undefined. This step is applied in both
-      local and global coordinates.
+   #. If the inertial frame is not defined via the :ref:`inertial <body-inertial>` element, it is inferred from the
+      geoms attached to the body. If there are no geoms, the inertial frame remains undefined. This step is applied in
+      both local and global coordinates.
    #. If both the body frame and the inertial frame are undefined, a compile error is generated.
    #. If one of these two frames is defined and the other is not, the defined one is copied into the undefined one. At
       this point both frames are defined, in global coordinates.
@@ -1839,10 +1846,10 @@ an XML shortcut for
 
    <joint type="free" stiffness="0" damping="0" frictionloss="0" armature="0"/>
 
-While this joint can evidently be created with the :ref:`joint <body-joint>` element, default joint settings could affect it.
-This is usually undesirable as physical free bodies do not have nonzero stiffness, damping, friction or armature. To
-avoid this complication, the :el:`freejoint` element was introduced, ensuring joint defaults are *not inherited*. If
-the XML model is saved, it will appear as a regular joint of type :at:`free`.
+While this joint can evidently be created with the :ref:`joint <body-joint>` element, default joint settings could
+affect it. This is usually undesirable as physical free bodies do not have nonzero stiffness, damping, friction or
+armature. To avoid this complication, the :el:`freejoint` element was introduced, ensuring joint defaults are *not
+inherited*. If the XML model is saved, it will appear as a regular joint of type :at:`free`.
 
 :at:`name`: :at-val:`string, optional`
    Name of the joint.
@@ -1874,38 +1881,38 @@ helps clarify the role of bodies and geoms in MuJoCo.
 :at:`class`: :at-val:`string, optional`
    Defaults class for setting unspecified attributes.
 :at:`type`: :at-val:`[plane, hfield, sphere, capsule, ellipsoid, cylinder, box, mesh], "sphere"`
-   Type of geometric shape. The keywords have the following meaning:
-   The **plane** type defines a plane which is infinite for collision detection purposes. It can only be attached to the
-   world body or static children of the world. The plane passes through a point specified via the pos attribute. It is
-   normal to the Z axis of the geom's local frame. The +Z direction corresponds to empty space. Thus the position and
-   orientation defaults of (0,0,0) and (1,0,0,0) would create a ground plane at Z=0 elevation, with +Z being the
-   vertical direction in the world (which is MuJoCo's convention). Since the plane is infinite, it could have been
-   defined using any other point in the plane. The specified position however has additional meaning with regard to
-   rendering. If either of the first two size parameters are positive, the plane is rendered as a rectangle of finite
-   size (in the positive dimensions). This rectangle is centered at the specified position. Three size parameters are
-   required. The first two specify the half-size of the rectangle along the X and Y axes. The third size parameter is
-   unusual: it specifies the spacing between the grid subdivisions of the plane for rendering purposes. The subdivisions
-   are revealed in wireframe rendering mode, but in general they should not be used to paint a grid over the ground
-   plane (textures should be used for that purpose). Instead their role is to improve lighting and shadows, similar to
-   the subdivisions used to render boxes. When planes are viewed from the back, the are automatically made
-   semi-transparent. Planes and the +Z faces of boxes are the only surfaces that can show reflections, if the
-   :ref:`material <asset-material>` applied to the geom has positive reflection. To render an infinite plane, set the first
-   two size parameters to zero.
+   Type of geometric shape. The keywords have the following meaning: The **plane** type defines a plane which is
+   infinite for collision detection purposes. It can only be attached to the world body or static children of the world.
+   The plane passes through a point specified via the pos attribute. It is normal to the Z axis of the geom's local
+   frame. The +Z direction corresponds to empty space. Thus the position and orientation defaults of (0,0,0) and
+   (1,0,0,0) would create a ground plane at Z=0 elevation, with +Z being the vertical direction in the world (which is
+   MuJoCo's convention). Since the plane is infinite, it could have been defined using any other point in the plane. The
+   specified position however has additional meaning with regard to rendering. If either of the first two size
+   parameters are positive, the plane is rendered as a rectangle of finite size (in the positive dimensions). This
+   rectangle is centered at the specified position. Three size parameters are required. The first two specify the half-
+   size of the rectangle along the X and Y axes. The third size parameter is unusual: it specifies the spacing between
+   the grid subdivisions of the plane for rendering purposes. The subdivisions are revealed in wireframe rendering mode,
+   but in general they should not be used to paint a grid over the ground plane (textures should be used for that
+   purpose). Instead their role is to improve lighting and shadows, similar to the subdivisions used to render boxes.
+   When planes are viewed from the back, the are automatically made semi-transparent. Planes and the +Z faces of boxes
+   are the only surfaces that can show reflections, if the :ref:`material <asset-material>` applied to the geom has
+   positive reflection. To render an infinite plane, set the first two size parameters to zero.
 
    The **hfield** type defines a height field geom. The geom must reference the desired height field asset with the
    hfield attribute below. The position and orientation of the geom set the position and orientation of the height
    field. The size of the geom is ignored, and the size parameters of the height field asset are used instead. See the
-   description of the :ref:`hfield <asset-hfield>` element. Similar to planes, height field geoms can only be attached to the
-   world body or to static children of the world.
+   description of the :ref:`hfield <asset-hfield>` element. Similar to planes, height field geoms can only be attached
+   to the world body or to static children of the world.
 
    The **sphere** type defines a sphere. This and the next four types correspond to built-in geometric primitives. These
-   primitives are treated as analytic surfaces for collision detection purposes, in many cases relying on custom
-   pair-wise collision routines. Models including only planes, spheres, capsules and boxes are the most efficient in
-   terms of collision detection. Other geom types invoke the general-purpose convex collider. The sphere is centered at
-   the geom's position. Only one size parameter is used, specifying the radius of the sphere. Rendering of geometric
-   primitives is done with automatically generated meshes whose density can be adjusted via :ref:`quality <visual-quality>`.
-   The sphere mesh is triangulated along the lines of latitude and longitude, with the Z axis passing through the north
-   and south pole. This can be useful in wireframe mode for visualizing frame orientation.
+   primitives are treated as analytic surfaces for collision detection purposes, in many cases relying on custom pair-
+   wise collision routines. Models including only planes, spheres, capsules and boxes are the most efficient in terms of
+   collision detection. Other geom types invoke the general-purpose convex collider. The sphere is centered at the
+   geom's position. Only one size parameter is used, specifying the radius of the sphere. Rendering of geometric
+   primitives is done with automatically generated meshes whose density can be adjusted via
+   :ref:`quality <visual-quality>`. The sphere mesh is triangulated along the lines of latitude and longitude,
+   with the Z axis passing through the north and south pole. This can be useful in wireframe mode for visualizing frame
+   orientation.
 
    The **capsule** type defines a capsule, which is a cylinder capped with two half-spheres. It is oriented along the Z
    axis of the geom's frame. When the geom frame is specified in the usual way, two size parameters are required: the
@@ -2214,29 +2221,29 @@ the direction specified by the dir attribute. It does not have a full spatial fr
 :at:`class`: :at-val:`string, optional`
    Defaults class for setting unspecified attributes.
 :at:`mode`: :at-val:`[fixed, track, trackcom, targetbody, targetbodycom], "fixed"`
-   This is identical to the mode attribute of :ref:`camera <body-camera>` above. It specifies the how the light position and
-   orientation in world coordinates are computed in forward kinematics (which in turn determine what the light
+   This is identical to the mode attribute of :ref:`camera <body-camera>` above. It specifies the how the light position
+   and orientation in world coordinates are computed in forward kinematics (which in turn determine what the light
    illuminates).
 :at:`target`: :at-val:`string, optional`
-   This is identical to the target attribute of :ref:`camera <body-camera>` above. It specifies which body should be targeted
-   in "targetbody" and "targetbodycom" modes.
+   This is identical to the target attribute of :ref:`camera <body-camera>` above. It specifies which body should be
+   targeted in "targetbody" and "targetbodycom" modes.
 :at:`directional`: :at-val:`[false, true], "false"`
    The light is directional if this attribute is "true", otherwise it is a spotlight.
 :at:`castshadow`: :at-val:`[false, true], "true"`
    If this attribute is "true" the light will cast shadows. More precisely, the geoms illuminated by the light will cast
    shadows, however this is a property of lights rather than geoms. Since each shadow-casting light causes one extra
    rendering pass through all geoms, this attribute should be used with caution. Higher quality of the shadows is
-   achieved by increasing the value of the shadowsize attribute of :ref:`quality <visual-quality>`, as well as positioning
-   spotlights closer to the surface on which shadows appear, and limiting the volume in which shadows are cast. For
-   spotlights this volume is a cone, whose angle is the cutoff attribute below multiplied by the shadowscale attribute
-   of :ref:`map <visual-map>`. For directional lights this volume is a box, whose half-sizes in the directions orthogonal to
-   the light are the model extent multiplied by the shadowclip attribute of :ref:`map <visual-map>`. The model extent is
-   computed by the compiler but can also be overridden by specifying the extent attribute of :ref:`statistic
-   <statistic>`. Internally the shadow-mapping mechanism renders the scene from the light viewpoint (as if it were a
-   camera) into a depth texture, and then renders again from the camera viewpoint, using the depth texture to create
-   shadows. The internal rendering pass uses the same near and far clipping planes as regular rendering, i.e., these
-   clipping planes bound the cone or box shadow volume in the light direction. As a result, some shadows (especially
-   those very close to the light) may be clipped.
+   achieved by increasing the value of the shadowsize attribute of :ref:`quality <visual-quality>`, as well as
+   positioning spotlights closer to the surface on which shadows appear, and limiting the volume in which shadows are
+   cast. For spotlights this volume is a cone, whose angle is the cutoff attribute below multiplied by the shadowscale
+   attribute of :ref:`map <visual-map>`. For directional lights this volume is a box, whose half-sizes in the directions
+   orthogonal to the light are the model extent multiplied by the shadowclip attribute of :ref:`map <visual-map>`. The
+   model extent is computed by the compiler but can also be overridden by specifying the extent attribute of
+   :ref:`statistic <statistic>`. Internally the shadow-mapping mechanism renders the scene from the light viewpoint (as
+   if it were a camera) into a depth texture, and then renders again from the camera viewpoint, using the depth texture
+   to create shadows. The internal rendering pass uses the same near and far clipping planes as regular rendering, i.e.,
+   these clipping planes bound the cone or box shadow volume in the light direction. As a result, some shadows
+   (especially those very close to the light) may be clipped.
 :at:`active`: :at-val:`[false, true], "true"`
    The light is active if this attribute is "true". This can be used at runtime to turn lights on and off.
 :at:`pos`: :at-val:`real(3), "0 0 0"`

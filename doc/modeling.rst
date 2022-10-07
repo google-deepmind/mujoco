@@ -103,16 +103,17 @@ special and is called :el:`worldbody`. This tree organization is in contrast wit
 links and then connects them with joints that specify a child and a parent link. In MJCF the child body is literally a
 child of the parent body, in the sense of XML.
 
-When a :ref:`joint <body-joint>` is defined inside a body, its function is not to connect the parent and child but rather to
-create motion degrees of freedom between them. If no joints are defined within a given body, that body is welded to its
-parent. A body in MJCF can contain multiple joints, thus there is no need to introduce dummy bodies for creating
-composite joints. Instead simply define all the primitive joints that form the desired composite joint within the same
-body. For example, two sliders and one hinge can be used to model a body moving in a plane.
+When a :ref:`joint <body-joint>` is defined inside a body, its function is not to connect the parent and child but
+rather to create motion degrees of freedom between them. If no joints are defined within a given body, that body is
+welded to its parent. A body in MJCF can contain multiple joints, thus there is no need to introduce dummy bodies for
+creating composite joints. Instead simply define all the primitive joints that form the desired composite joint within
+the same body. For example, two sliders and one hinge can be used to model a body moving in a plane.
 
-Other MJCF elements can be defined within the tree created by nested body elements, in particular :ref:`joint <body-joint>`,
-:ref:`geom <body-geom>`, :ref:`site <body-site>`, :ref:`camera <body-camera>`, :ref:`light <body-light>`. When an element is defined within
-a body, it is fixed to the local frame of that body and always moves with it. Elements that refer to multiple bodies, or
-do not refer to bodies at all, are defined in separate sections outside the kinematic tree.
+Other MJCF elements can be defined within the tree created by nested body elements, in particular
+:ref:`joint <body-joint>`, :ref:`geom <body-geom>`, :ref:`site <body-site>`, :ref:`camera <body-camera>`, :ref:`light
+<body-light>`. When an element is defined within a body, it is fixed to the local frame of that body and always moves
+with it. Elements that refer to multiple bodies, or do not refer to bodies at all, are defined in separate sections
+outside the kinematic tree.
 
 .. _CDefault:
 
@@ -302,8 +303,8 @@ approximately
 .. math::
    a_1 + d \cdot (b v + k r) = (1 - d)\cdot a_0
 
-Again, the parameters that are under the user's control are :math:`d, b, k`. The remaining quantities are functions of the
-system state and are computed automatically at each time step.
+Again, the parameters that are under the user's control are :math:`d, b, k`. The remaining quantities are functions of
+the system state and are computed automatically at each time step.
 
 First we explain the setting of the impedance :math:`d`. Recall that :math:`d` must lie between 0 and 1; internally
 MuJoCo clamps it to the range [:ref:`mjMINIMP mjMAXIMP <glNumeric>`] which is currently set to [0.0001 0.9999]. It
@@ -459,12 +460,12 @@ User parameters
 A number of MJCF elements have the optional attribute :at:`user`, which defines a custom element-specific parameter
 array. This interacts with the corresponding "nuser_XXX" attribute of the :ref:`size <size>` element. If for example we
 set :at:`nuser_geom` to 5, then every geom in mjModel will have a custom array of 5 real-valued parameters. These geom-
-specific parameters are either defined in the MJCF file via the :at:`user` attribute of :ref:`geom <body-geom>`, or set to 0
-by the compiler if this attribute is omitted. The default value of all "nuser_XXX" attributes is -1, which instructs the
-compiler to automatically set this value to the length of the maximum associated :at:`user` attribute defined in the
-model. MuJoCo does not use these parameters in any internal computations; instead they are available for custom
-computations. The parser allows arrays of arbitrary length in the XML, and the compiler later resizes them to length
-nuser_XXX.
+specific parameters are either defined in the MJCF file via the :at:`user` attribute of :ref:`geom <body-geom>`, or set
+to 0 by the compiler if this attribute is omitted. The default value of all "nuser_XXX" attributes is -1, which
+instructs the compiler to automatically set this value to the length of the maximum associated :at:`user` attribute
+defined in the model. MuJoCo does not use these parameters in any internal computations; instead they are available for
+custom computations. The parser allows arrays of arbitrary length in the XML, and the compiler later resizes them to
+length nuser_XXX.
 
 Some element-specific parameters that are normally used in internal computations can also be used in custom
 computations. This is done by installing user callbacks which override parts of the simulation pipeline. For example,
@@ -493,9 +494,9 @@ There is also a second Noslip solver, which is a post-processing step enabled by
 noslip iterations. All these algorithm settings can be specified in the :ref:`option <option>` element.
 
 The default settings work well for most models, but in some cases it is necessary to tune the algorithm. The best way to
-do this is to experiment with the relevant settings and use the visual profiler in :ref:`simulate.cc <saSimulate>`, which
-shows the timing of different computations as well as solver statistics per iteration. We can offer the following general
-guidelines and observations:
+do this is to experiment with the relevant settings and use the visual profiler in :ref:`simulate.cc <saSimulate>`,
+which shows the timing of different computations as well as solver statistics per iteration. We can offer the following
+general guidelines and observations:
 
 -  The constraint Jacobian should be dense for small models and sparse for large models. The default setting is 'auto';
    it resolves to dense when the number of degrees of freedom is up to 60, and sparse over 60. Note however that the
@@ -547,17 +548,18 @@ Actuator shortcuts
 
 As explained in the :ref:`Actuation model <geActuation>` section of the Computation chapter, MuJoCo offers a flexible
 actuator model with transmission, activation dynamics and force generation components that can be specified
-independently. The full functionality can be accessed via the XML element :ref:`general <actuator-general>` which allows the user
-to create a variety of custom actuators. In addition, MJCF provides shortcuts for configuring common actuators. This is
-done via the XML elements :ref:`motor <actuator-motor>`, :ref:`position <actuator-position>`, :ref:`velocity <actuator-velocity>`,
-:ref:`intvelocity <actuator-intvelocity>`, :ref:`damper<actuator-damper>`, :ref:`cylinder<actuator-cylinder>`, :ref:`muscle <actuator-muscle>`, and
-:ref:`adhesion <actuator-adhesion>`. These are *not* separate model elements. Internally MuJoCo supports only one actuator type -
-which is why when an MJCF model is saved all actuators are written as :el:`general`. Shortcuts create general actuators
-implicitly, set their attributes to suitable values, and expose a subset of attributes with possibly different names.
-For example, :el:`position` creates a position servo with attribute :at:`kp` which is the servo gain. However
-:el:`general` does not have an attribute :at:`kp`. Instead the parser adjusts the gain and bias parameters of the
-general actuator in a coordinated way so as to mimic a position servo. The same effect could have been achieved by using
-:el:`general` directly, and setting its attributes to certain values as described below.
+independently. The full functionality can be accessed via the XML element :ref:`general <actuator-general>` which allows
+the user to create a variety of custom actuators. In addition, MJCF provides shortcuts for configuring common actuators.
+This is done via the XML elements :ref:`motor <actuator-motor>`, :ref:`position <actuator-position>`, :ref:`velocity
+<actuator-velocity>`, :ref:`intvelocity <actuator-intvelocity>`, :ref:`damper<actuator-damper>`,
+:ref:`cylinder<actuator-cylinder>`, :ref:`muscle <actuator-muscle>`, and :ref:`adhesion <actuator-adhesion>`. These are
+*not* separate model elements. Internally MuJoCo supports only one actuator type -which is why when an MJCF model is
+saved all actuators are written as :el:`general`. Shortcuts create general actuators implicitly, set their attributes to
+suitable values, and expose a subset of attributes with possibly different names. For example, :el:`position` creates a
+position servo with attribute :at:`kp` which is the servo gain. However :el:`general` does not have an attribute
+:at:`kp`. Instead the parser adjusts the gain and bias parameters of the general actuator in a coordinated way so as to
+mimic a position servo. The same effect could have been achieved by using :el:`general` directly, and setting its
+attributes to certain values as described below.
 
 Actuator shortcuts also interact with defaults. Recall that the :ref:`default setting <CDefault>` mechanism involves
 classes, each of which has a complete collection of dummy elements (one of each element type) used to initialize the
@@ -757,9 +759,9 @@ muscle-specific constant :math:`F_0` to obtain the actual force:
 
 The negative sign is because positive muscle activation generates pulling force. The constant :math:`F_0` is the peak
 active force at zero velocity. It is related to the muscle thickness (i.e., physiological cross-sectional area or PCSA).
-If known, it can be set with the attribute force of element :ref:`muscle <actuator-muscle>`. If it is not known, we set it to
-:math:`-1` which is the default. In that case we rely on the fact that larger muscles tend to act on joints that move
-more weight. The attribute scale defines this relationship as:
+If known, it can be set with the attribute force of element :ref:`muscle <actuator-muscle>`. If it is not known, we set
+it to :math:`-1` which is the default. In that case we rely on the fact that larger muscles tend to act on joints that
+move more weight. The attribute scale defines this relationship as:
 
 .. math::
    F_0 = \text{scale} / \texttt{actuator\_acc0}
@@ -1248,8 +1250,8 @@ this?
 
 The first step is to define a mocap body in the MJCF model, and implement code that reads the data stream at runtime and
 sets mjModel.mocap_pos and mjModel.mocap_quat to the position and orientation received from the motion capture system.
-The :ref:`simulate.cc <saSimulate>` code sample uses the mouse as a motion capture device, allowing the user to move mocap
-bodies around:
+The :ref:`simulate.cc <saSimulate>` code sample uses the mouse as a motion capture device, allowing the user to move
+mocap bodies around:
 
 |particle|
 

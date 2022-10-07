@@ -98,8 +98,9 @@ General
       :height: 150px
 
 #. Cartesian 6D end-effector control is now possible by adding a reference site to actuators with :at:`site`
-   transmission. See description of new :at:`refsite` attribute in the :ref:`actuator<actuator-general>` documentation and
-   `refsite.xml <https://github.com/deepmind/mujoco/tree/main/test/engine/testdata/refsite.xml>`_ example model.
+   transmission. See description of new :at:`refsite` attribute in the :ref:`actuator<actuator-general>` documentation
+   and `refsite.xml <https://github.com/deepmind/mujoco/tree/main/test/engine/testdata/refsite.xml>`_ example model.
+
 #. Added :at:`autolimits` compiler option. If ``true``, joint and tendon :at:`limited` attributes and actuator
    :at:`ctrllimited`, :at:`forcelimited` and :at:`actlimited` attributes will automatically be set to ``true`` if the
    corresponding range *is defined* and ``false`` otherwise.
@@ -162,7 +163,8 @@ General
 #. Added visualisation groups to skins.
 #. Added actuator visualisation for ``free`` and ``ball`` joints and for actuators with ``site`` transmission.
 #. Added visualisation for actuator activations.
-#. Added ``<actuator-intvelocity>`` actuator shortcut for "integrated velocity" actuators, documented :ref:`here <actuator-intvelocity>`.
+#. Added ``<actuator-intvelocity>`` actuator shortcut for "integrated velocity" actuators, documented
+   :ref:`here <actuator-intvelocity>`.
 #. Added ``<actuator-damper>`` actuator shortcut for active-damping actuators, documented :ref:`here <actuator-damper>`.
 #. ``mju_rotVecMat`` and ``mju_rotVecMatT`` now support in-place multiplication.
 #. ``mjData.ctrl`` values are no longer clamped in-place, remain untouched by the engine.
@@ -231,11 +233,12 @@ General
 #. Added ``implicit`` integrator. Using the analytic derivatives above, a new implicit-in-velocity integrator was added.
    This integrator lies between the Euler and Runge Kutta integrators in terms of both stability and computational
    cost. It is most useful for models which use fluid drag (e.g. for flying or swimming) and for models which use
-   :ref:`velocity actuators<actuator-velocity>`. For more details, see the :ref:`Numerical Integration<geIntegration>` section.
+   :ref:`velocity actuators<actuator-velocity>`. For more details, see the :ref:`Numerical Integration<geIntegration>`
+   section.
 
-#. Added :at:`actlimited` and :at:`actrange` attributes to :ref:`general actuators<actuator-general>`, for clamping actuator
-   internal states (activations). This clamping is useful for integrated-velocity actuators, see the :ref:`Activation
-   clamping <CActRange>` section for details.
+#. Added :at:`actlimited` and :at:`actrange` attributes to :ref:`general actuators<actuator-general>`, for clamping
+   actuator internal states (activations). This clamping is useful for integrated-velocity actuators, see the
+   :ref:`Activation clamping <CActRange>` section for details.
 
 #. ``mjData`` fields ``qfrc_unc`` (unconstrained forces) and ``qacc_unc`` (unconstrained accelerations) were renamed
    ``qfrc_smooth`` and ``qacc_smooth``, respectively. While "unconstrained" is precise, "smooth" is more intelligible
@@ -245,7 +248,8 @@ General
    other open source projects. Developers are encouraged to include MuJoCo public headers in their own codebase via
    ``#include <mujoco/filename.h>``.
 
-#. The default shadow resolution specified by the :ref:`shadowsize<visual-quality>` attribute was increased from 1024 to 4096.
+#. The default shadow resolution specified by the :ref:`shadowsize<visual-quality>` attribute was increased from 1024 to
+   4096.
 
 #. Saved XMLs now use 2-space indents.
 
@@ -403,14 +407,15 @@ General
 
 #. Increased the maximum number of lights in an :ref:`mjvScene` from 8 to 100.
 
-#. Saved XML files only contain explicit :ref:`inertial <body-inertial>` elements if the original XML included them. Inertias
-   that were automatically inferred by the compiler's :ref:`inertiafromgeom <compiler>` mechanism remain unspecified.
+#. Saved XML files only contain explicit :ref:`inertial <body-inertial>` elements if the original XML included them.
+   Inertias that were automatically inferred by the compiler's :ref:`inertiafromgeom <compiler>` mechanism remain
+   unspecified.
 
 #. User-selected geoms are always rendered as opaque. This is useful in interactive visualizers.
 
-#. Static geoms now respect their :ref:`geom group<body-geom>` for visualisation. Until this change rendering of static geoms
-   could only be toggled using the :ref:`mjVIS_STATIC<mjtVisFlag>` visualisation flag . After this change, both the geom
-   group and the visualisation flag need to be enabled for the geom to be rendered.
+#. Static geoms now respect their :ref:`geom group<body-geom>` for visualisation. Until this change rendering of static
+   geoms could only be toggled using the :ref:`mjVIS_STATIC<mjtVisFlag>` visualisation flag . After this change, both
+   the geom group and the visualisation flag need to be enabled for the geom to be rendered.
 
 #. Pointer parameters in function declarations in :ref:`mujoco.h<inHeader>` that are supposed to represent fixed-length
    arrays are now spelled as arrays with extents, e.g. ``mjtNum quat[4]`` rather than ``mjtNum* quat``. From the
@@ -481,9 +486,9 @@ Bug Fixes
    :ref:`weld <equality-weld>` constraints.
 
    .. note::
-      Forces generated by :ref:`spatial tendons <tendon-spatial>` which are outside the kinematic tree (i.e., between bodies
-      which have no ancestral relationship) are still not taken into account by force and torque sensors. This remains a
-      future work item.
+      Forces generated by :ref:`spatial tendons <tendon-spatial>` which are outside the kinematic tree (i.e., between
+      bodies which have no ancestral relationship) are still not taken into account by force and torque sensors. This
+      remains a future work item.
 
 Code samples
 ^^^^^^^^^^^^
@@ -510,11 +515,11 @@ Binary build
 
 15. MacOS packaging. We now ship Universal binaries that natively support both Apple Silicon and Intel CPUs.
 
-    a. MuJoCo library is now packaged as a
-       `Framework Bundle <https://developer.apple.com/library/archive/documentation/MacOSX/Conceptual/BPFrameworks/Concepts/FrameworkAnatomy.html>`_,
-       allowing it to be incorporated more easily into Xcode projects (including Swift projects). Developers are
-       encouraged to compile and link against MuJoCo using the ``-framework mujoco`` flag, however all header files and
-       the ``libmujoco.2.1.1.dylib`` library can still be directly accessed inside the framework.
+    a. MuJoCo library is now packaged as a `Framework Bundle
+       <https://developer.apple.com/library/archive/documentation/MacOSX/Conceptual/BPFrameworks/Concepts/FrameworkAnato
+       my.html>`_, allowing it to be incorporated more easily into Xcode projects (including Swift projects). Developers
+       are encouraged to compile and link against MuJoCo using the ``-framework mujoco`` flag, however all header files
+       and the ``libmujoco.2.1.1.dylib`` library can still be directly accessed inside the framework.
     #. Sample applications are now packaged into an Application Bundle called ``MuJoCo.app``. When launched via GUI,
        the bundle launches the ``simulate`` executable. Other precompiled sample programs are shipped inside that bundle
        (in ``MuJoCo.app/Contents/MacOS``) and can be launched via command line.
