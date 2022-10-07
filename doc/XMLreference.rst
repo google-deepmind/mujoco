@@ -1018,6 +1018,8 @@ tendon, slidersite, cranksite.
 All :ref:`muscle <actuator-muscle>` attributes are available here except: name, class, joint, jointinparent, site,
 tendon, slidersite, cranksite.
 
+.. _default-adhesion:
+
 :el-prefix:`default/` **adhesion** (?)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
