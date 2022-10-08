@@ -253,7 +253,13 @@ public class MjcfImporter {
         break;
       }
       case "body": {
-        var childObject = CreateGameObjectWithUniqueName<MjBody>(parentObject, child);
+        GameObject childObject;
+        if (child.HasAttribute("mocap") && child.GetBoolAttribute("mocap", defaultValue: false)) { 
+          childObject = CreateGameObjectWithUniqueName<MjMocapBody>(parentObject, child);
+        }
+        else {
+          childObject = CreateGameObjectWithUniqueName<MjBody>(parentObject, child);
+        }
         ParseBodyChildren(childObject, child);
         break;
       }
