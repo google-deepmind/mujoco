@@ -106,7 +106,7 @@ public static class MjEngineTool {
   public static unsafe double* MjMatrixAtEntry(double* mjTarget, int offsetEntry) {
     return mjTarget + offsetEntry * _mjMat.Length;
   }
-  
+
   // Returns a pointer to an entry in the MuJoCo field that's 11*offsetEntry down the buffer.
   public static unsafe double* MjEqualityAtEntry(double* mjTarget, int offsetEntry) {
     return mjTarget + offsetEntry * _elementsPerEquality;
