@@ -1087,7 +1087,7 @@ MJAPI const char* mju_type2Str(int type);
 MJAPI int mju_str2Type(const char* str);
 
 // Construct a warning message given the warning type and info.
-MJAPI const char* mju_warningText(int warning, int info);
+MJAPI const char* mju_warningText(int warning, size_t info);
 
 // Return 1 if nan or abs(x)>mjMAXVAL, 0 otherwise. Used by check functions.
 MJAPI int mju_isBad(mjtNum x);

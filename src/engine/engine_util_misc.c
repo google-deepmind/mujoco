@@ -947,45 +947,45 @@ int mju_str2Type(const char* str) {
 
 
 // warning text
-const char* mju_warningText(int warning, int info) {
+const char* mju_warningText(int warning, size_t info) {
   static char str[1000];
 
   switch (warning) {
   case mjWARN_INERTIA:
-    mjSNPRINTF(str, "Inertia matrix is too close to singular at DOF %d. Check model.", info);
+    mjSNPRINTF(str, "Inertia matrix is too close to singular at DOF %zu. Check model.", info);
     break;
 
   case mjWARN_CONTACTFULL:
     mjSNPRINTF(str,
                "Too many contacts. Either the arena memory is full, or nconmax is specified and is "
                "exceeded. Increase arena memory allocation, or increase/remove nconmax. "
-               "(ncon = %d)", info);
+               "(ncon = %zu)", info);
     break;
 
   case mjWARN_CNSTRFULL:
     mjSNPRINTF(str,
                "Insufficient arena memory for the number of constraints generated. "
-               "Increase arena memory allocation above %d bytes.", info);
+               "Increase arena memory allocation above %zu bytes.", info);
     break;
 
   case mjWARN_VGEOMFULL:
-    mjSNPRINTF(str, "Pre-allocated visual geom buffer is full. Increase maxgeom above %d.", info);
+    mjSNPRINTF(str, "Pre-allocated visual geom buffer is full. Increase maxgeom above %zu.", info);
     break;
 
   case mjWARN_BADQPOS:
-    mjSNPRINTF(str, "Nan, Inf or huge value in QPOS at DOF %d. The simulation is unstable.", info);
+    mjSNPRINTF(str, "Nan, Inf or huge value in QPOS at DOF %zu. The simulation is unstable.", info);
     break;
 
   case mjWARN_BADQVEL:
-    mjSNPRINTF(str, "Nan, Inf or huge value in QVEL at DOF %d. The simulation is unstable.", info);
+    mjSNPRINTF(str, "Nan, Inf or huge value in QVEL at DOF %zu. The simulation is unstable.", info);
     break;
 
   case mjWARN_BADQACC:
-    mjSNPRINTF(str, "Nan, Inf or huge value in QACC at DOF %d. The simulation is unstable.", info);
+    mjSNPRINTF(str, "Nan, Inf or huge value in QACC at DOF %zu. The simulation is unstable.", info);
     break;
 
   case mjWARN_BADCTRL:
-    mjSNPRINTF(str, "Nan, Inf or huge value in CTRL at ACTUATOR %d. The simulation is unstable.",
+    mjSNPRINTF(str, "Nan, Inf or huge value in CTRL at ACTUATOR %zu. The simulation is unstable.",
                info);
     break;
 
