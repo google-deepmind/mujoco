@@ -34,6 +34,15 @@
 
 //-------------------------- utility functions -----------------------------------------------------
 
+// internal function for clearing arena pointers for efc_ arrays in mjData
+static inline void clearEfc(mjData* d) {
+#define X(type, name, nr, nc) d->name = NULL;
+  MJDATA_ARENA_POINTERS
+#undef X
+  d->nefc = 0;
+  d->contact = d->arena;
+}
+
 // determine type of friction cone
 int mj_isPyramidal(const mjModel* m) {
   if (m->opt.cone==mjCONE_PYRAMIDAL) {
@@ -111,11 +120,7 @@ int mj_addContact(const mjModel* m, mjData* d, const mjContact* con) {
 
   // move arena pointer back to the end of the existing contact array and invalidate efc_ arrays
   d->parena = d->ncon * sizeof(mjContact);
-  d->nefc = 0;
-#define X(type, name, nr, nc) d->name = NULL;
-  MJDATA_ARENA_POINTERS
-#undef X
-  d->contact = d->arena;
+  clearEfc(d);
 
   // copy contact
   mjContact* dst = mj_arenaAlloc(d, sizeof(mjContact), _Alignof(mjContact));
@@ -1426,7 +1431,8 @@ void mj_makeConstraint(const mjModel* m, mjData* d) {
   d->name = mj_arenaAlloc(d, sizeof(type) * (nr) * (nc), _Alignof(type)); \
   if (!d->name) {                                                         \
     mj_warning(d, mjWARN_CNSTRFULL, d->nstack * sizeof(mjtNum));          \
-    d->nefc = 0;                                                          \
+    clearEfc(d);                                                          \
+    d->parena = d->ncon * sizeof(mjContact);                              \
     return;                                                               \
   }
 
