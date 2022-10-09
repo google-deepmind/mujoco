@@ -96,6 +96,17 @@ TEST_F(XMLReaderTest, MemorySize) {
     EXPECT_EQ(model->nstack, 1024*1024*1024 / sizeof(mjtNum));
     mj_deleteModel(model);
   }
+  {
+    static constexpr char xml[] = R"(
+    <mujoco>
+      <size memory="1073741824"/>
+    </mujoco>
+    )";
+    mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+    ASSERT_THAT(model, NotNull());
+    EXPECT_EQ(model->nstack, 1024*1024*1024 / sizeof(mjtNum));
+    mj_deleteModel(model);
+  }
 }
 
 TEST_F(XMLReaderTest, InvalidMemorySize) {
