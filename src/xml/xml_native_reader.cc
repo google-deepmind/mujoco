@@ -1070,7 +1070,7 @@ void mjXReader::Size(XMLElement* section, mjCModel* mod) {
       if (*memory / sizeof(mjtNum) > std::numeric_limits<int>::max()) {
         throw mjXError(section, err_msg);
       }
-      mod->memory = static_cast<int>(*memory);
+      mod->memory = *memory;
     }
   }
 
