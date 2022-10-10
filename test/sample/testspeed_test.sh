@@ -54,6 +54,9 @@ for model_dir in ${MODEL_DIRS[@]}; do
       echo "Skipping $model" >&2
       continue
     fi
+    if grep -q "plugin" $model; then
+      continue
+    fi
     test_model "$model"
   done
 done

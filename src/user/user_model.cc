@@ -2601,7 +2601,14 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
       }
     }
 
-    // set sensor_plugin to the plugin instance ID
+    for (int i = 0; i < nbody; ++i) {
+      if (bodies[i]->is_plugin) {
+        m->body_plugin[i] = bodies[i]->plugin_instance->id;
+      } else {
+        m->body_plugin[i] = -1;
+      }
+    }
+
     std::vector<std::vector<int>> plugin_to_sensors(nplugin);
     for (int i = 0; i < nsensor; ++i) {
       if (sensors[i]->type == mjSENS_PLUGIN) {
@@ -2623,6 +2630,7 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
       }
       int nstate = plugin->nstate(m, i);
       m->plugin_stateadr[i] = stateadr;
+      m->plugin_statenum[i] = nstate;
       stateadr += nstate;
       if (plugin->type & mjPLUGIN_SENSOR) {
         for (int sensor_id : plugin_to_sensors[i]) {

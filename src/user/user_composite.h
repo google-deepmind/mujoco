@@ -26,6 +26,7 @@
 typedef enum _mjtCompType {
   mjCOMPTYPE_PARTICLE = 0,
   mjCOMPTYPE_GRID,
+  mjCOMPTYPE_CABLE,
   mjCOMPTYPE_ROPE,
   mjCOMPTYPE_LOOP,
   mjCOMPTYPE_CLOTH,
@@ -48,6 +49,16 @@ typedef enum _mjtCompKind {
 } mjtCompKind;
 
 
+typedef enum _mjtCompShape {
+  mjCOMPSHAPE_LINE = 0,
+  mjCOMPSHAPE_COS,
+  mjCOMPSHAPE_SIN,
+  mjCOMPSHAPE_ZERO,
+
+  mjNCOMPSHAPES
+} mjtCompShape;
+
+
 class mjCComposite {
  public:
   mjCComposite(void);
@@ -60,19 +71,22 @@ class mjCComposite {
   bool MakeParticle(mjCModel* model, mjCBody* body, char* error, int error_sz);
   bool MakeGrid(mjCModel* model, mjCBody* body, char* error, int error_sz);
   bool MakeRope(mjCModel* model, mjCBody* body, char* error, int error_sz);
+  bool MakeCable(mjCModel* model, mjCBody* body, char* error, int error_sz);
   bool MakeCloth(mjCModel* model, mjCBody* body, char* error, int error_sz);
   bool MakeBox(mjCModel* model, mjCBody* body, char* error, int error_sz);
-
   void MakeShear(mjCModel* model);
-  void MakeSkin2(mjCModel* model);
-  void MakeSkin2Subgrid(mjCModel* model);
+
+  void MakeSkin2(mjCModel* model, mjtNum inflate);
+  void MakeSkin2Subgrid(mjCModel* model, mjtNum inflate);
+  void MakeClothBones(mjCModel* model, mjCSkin* skin);
+  void MakeClothBonesSubgrid(mjCModel* model, mjCSkin* skin);
+  void MakeCableBones(mjCModel* model, mjCSkin* skin);
+  void MakeCableBonesSubgrid(mjCModel* model, mjCSkin* skin);
 
   void MakeSkin3(mjCModel* model);
   void MakeSkin3Box(mjCSkin* skin, int c0, int c1, int side, int& vcnt, const char* format);
   void MakeSkin3Smooth(mjCSkin* skin, int c0, int c1, int side,
                        const std::map<std::string, int>& vmap, const char* format);
-  mjCBody* AddClothBody(mjCModel* model, mjCBody* body, int ix, int iy, int ix1, int iy1);
-  mjCBody* AddRopeBody(mjCModel* model, mjCBody* body, int ix, int ix1);
 
   void BoxProject(double* pos);
 
@@ -86,6 +100,18 @@ class mjCComposite {
   double flatinertia;             // flatten ineria of cloth elements; 0: disable
   mjtNum solrefsmooth[mjNREF];    // solref for smoothing equality
   mjtNum solimpsmooth[mjNIMP];    // solimp for smoothing equality
+
+  // currently used only for cable
+  std::string initial;            // root boundary type
+  std::vector<float> uservert;    // user-specified vertex positions
+  mjtNum size[3];                 // rope size (meaning depends on the shape)
+  mjtCompShape curve[3];          // geometric shape
+
+  // plugin support
+  bool is_plugin;
+  std::string plugin_name;
+  std::string plugin_instance_name;
+  mjCPlugin* plugin_instance;
 
   // skin
   bool skin;                      // generate skin
@@ -102,6 +128,11 @@ class mjCComposite {
 
   // computed internally
   int dim;                        // dimensionality
+
+ private:
+  mjCBody* AddRopeBody(mjCModel* model, mjCBody* body, int ix, int ix1);
+  mjCBody* AddClothBody(mjCModel* model, mjCBody* body, int ix, int iy, int ix1, int iy1);
+  mjCBody* AddCableBody(mjCModel* model, mjCBody* body, int ix, mjtNum normal[3], mjtNum prev_quat[4]);
 };
 
 #endif  // MUJOCO_SRC_USER_USER_COMPOSITE_H_

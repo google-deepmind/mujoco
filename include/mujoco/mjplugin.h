@@ -20,7 +20,8 @@
 
 typedef enum mjtPluginTypeBit_ {
   mjPLUGIN_ACTUATOR = 1<<0,
-  mjPLUGIN_SENSOR   = 1<<1
+  mjPLUGIN_SENSOR   = 1<<1,
+  mjPLUGIN_PASSIVE  = 1<<2,
 } mjtPluginTypeBit;
 
 struct mjpPlugin_ {
@@ -38,8 +39,8 @@ struct mjpPlugin_ {
   // dimension of the specified sensor's output (required only for sensor plugins)
   int (*nsensordata)(const mjModel* m, int instance, int sensor_id);
 
-  // called when a new mjData is being created (required)
-  void (*init)(const mjModel* m, mjData* d, int instance);
+  // called when a new mjData is being created (required), returns 0 on success or -1 on failure
+  int (*init)(const mjModel* m, mjData* d, int instance);
 
   // called when an mjData is being freed (optional)
   void (*destroy)(mjData* d, int instance);

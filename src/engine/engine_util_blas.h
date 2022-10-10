@@ -91,7 +91,7 @@ MJAPI void mju_addToScl3(mjtNum res[3], const mjtNum vec[3], mjtNum scl);
 // res = vec1 + vec2*scl
 MJAPI void mju_addScl3(mjtNum res[3], const mjtNum vec1[3], const mjtNum vec2[3], mjtNum scl);
 
-// normalize vector, return length before normalization
+// normalize vector, return length before normalization, set to [1, 0, 0] if norm is tiny
 MJAPI mjtNum mju_normalize3(mjtNum vec[3]);
 
 // compute vector length (without normalizing)

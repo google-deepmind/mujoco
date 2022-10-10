@@ -415,6 +415,7 @@ ENUMS: Mapping[str, EnumDecl] = dict([
          values=dict([
              ('mjPLUGIN_ACTUATOR', 1),
              ('mjPLUGIN_SENSOR', 2),
+             ('mjPLUGIN_PASSIVE', 4),
          ]),
      )),
     ('mjtGridPos',

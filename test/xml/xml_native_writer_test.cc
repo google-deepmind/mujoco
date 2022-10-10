@@ -848,7 +848,8 @@ TEST_F(XMLWriterTest, WriteReadCompare) {
         std::string xml = p.path().string();
 
         // if file is meant to fail, skip it
-        if (absl::StrContains(p.path().string(), "malformed_")) {
+        if (absl::StrContains(p.path().string(), "malformed_") ||
+            absl::StrContains(p.path().string(), "plugin")) {
           continue;
         }
 

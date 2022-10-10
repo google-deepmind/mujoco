@@ -171,6 +171,7 @@
     X( mjtNum,  body_inertia,          nbody,         3                    ) \
     X( mjtNum,  body_invweight0,       nbody,         2                    ) \
     X( mjtNum,  body_user,             nbody,         MJ_M(nuser_body)     ) \
+    X( int,     body_plugin,           nbody,         1                    ) \
     X( int,     jnt_type,              njnt,          1                    ) \
     X( int,     jnt_qposadr,           njnt,          1                    ) \
     X( int,     jnt_dofadr,            njnt,          1                    ) \
@@ -385,6 +386,7 @@
     X( int,     sensor_plugin,         nsensor,       1                    ) \
     X( int,     plugin,                nplugin,       1                    ) \
     X( int,     plugin_stateadr,       nplugin,       1                    ) \
+    X( int,     plugin_statenum,       nplugin,       1                    ) \
     X( char,    plugin_attr,           npluginattr,   1                    ) \
     X( int,     plugin_attradr,        nplugin,       1                    ) \
     X( int,     numeric_adr,           nnumeric,      1                    ) \

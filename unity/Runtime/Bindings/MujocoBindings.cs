@@ -363,6 +363,7 @@ public enum mjtLRMode : int{
 public enum mjtPluginTypeBit : int{
   mjPLUGIN_ACTUATOR = 1,
   mjPLUGIN_SENSOR = 2,
+  mjPLUGIN_PASSIVE = 4,
 }
 public enum mjtGridPos : int{
   mjGRID_TOPLEFT = 0,
@@ -1945,6 +1946,7 @@ public unsafe struct mjModel_ {
   public double* body_inertia;
   public double* body_invweight0;
   public double* body_user;
+  public int* body_plugin;
   public int* jnt_type;
   public int* jnt_qposadr;
   public int* jnt_dofadr;
@@ -2159,6 +2161,7 @@ public unsafe struct mjModel_ {
   public int* sensor_plugin;
   public int* plugin;
   public int* plugin_stateadr;
+  public int* plugin_statenum;
   public char* plugin_attr;
   public int* plugin_attradr;
   public int* numeric_adr;

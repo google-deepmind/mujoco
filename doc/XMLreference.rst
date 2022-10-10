@@ -2286,7 +2286,7 @@ coordinates results in compiler error. See :ref:`CComposite` in the modeling gui
    All automatically generated model elements have names indicating the element type and index. For example, the body at
    coordinates (2, 0) in a 2D grid is named "B2_0" by default. If prefix="C" is specified, the same body is named
    "CB2_0". The prefix is needed when multiple composite objects are used in the same model, to avoid name conflicts.
-:at:`type`: :at-val:`[particle, grid, rope, loop, cloth, box, cylinder, ellipsoid], required`
+:at:`type`: :at-val:`[particle, grid, cable, rope, loop, cloth, box, cylinder, ellipsoid], required`
    This attribute determines the type of composite object. The remaining attributes and sub-elements are then
    interpreted according to the type. Default settings are also adjusted depending on the type.
 
@@ -2315,6 +2315,12 @@ coordinates results in compiler error. See :ref:`CComposite` in the modeling gui
    The **loop** type is the same as the rope type except the elements are arranged in a circle, and the first and last
    elements are equality-constrained to remain connected (using the "connect" constraint type). The softness of this
    equality constraint is adjusted with the attributes solrefsmooth and solimpsmooth.
+
+   The **cable** type creates a 1D chain of bodies connected with ball joints, each having a geom with user-defined type
+   (cylinder, capsule or box). The geometry can either be defined with an array of 3D vertex coordinates :at:`vertex`
+   or with prescribed functions with the option :at:`curve`. Currently, only linear and trigonometric functions are
+   supported. For example, an helix can be obtained with curve="cos(s) sin(s) s". The size is set with the option
+   :at:`size`, resulting in :math:`f(s)=(size[1]*\cos(2*\pi*size[2]), size[1]*\sin(2*\pi*size[2]), size[0]*s)`.
 
    The **cloth** type is a different way to model cloth, beyond type="grid". Here the elements are connected with
    universal joints and form a kinematic spanning tree. The root of the tree is the parent body, and its coordinates in
@@ -2370,6 +2376,16 @@ coordinates results in compiler error. See :ref:`CComposite` in the modeling gui
    smoothness-preserving equality constraint for box, cylinder and ellipsoid types. For all other types they have no
    effect. They obey the same rules as all other solref and solimp attributes in MJCF, except their defaults here are
    adjusted depending on the composite type. See :ref:`CSolver`.
+:at:`vertex`: :at-val:`real(3*nvert), optional`
+   Vertex 3D positions in global coordinates (cable only).
+:at:`initial`: :at-val:`[free, ball, none], "0"`
+   Behavior of the first point (cable only). Free: free joint. Ball: ball joint. None: no dof.
+:at:`curve`: :at-val:`string(3), optional`
+   Functions specifying the vertex positions (cable only). Available functions are `s`, `cos(s)`, and `sin(s)`, where
+   `s` is the arc length parameter.
+:at:`size`: :at-val:`int(3), optional`
+   Scaling of the curve functions (cable only). `size[0]` is the scaling of `s`, `size[1]` is the radius of `\cos(s)`
+   and `\sin(s)`, and `size[2]` is the speed of the argument (i.e. `\cos(2*\pi*size[2]*s)`).
 
 .. _composite-joint:
 

@@ -35,6 +35,8 @@ using ::testing::HasSubstr;
 using ::testing::NotNull;
 
 constexpr int kNumFakePlugins = 30;
+constexpr int kNumTestPlugins = 3;
+const int kNumTruePlugins = mjp_pluginCount();
 
 class BaseTestPlugin {
  public:
@@ -186,6 +188,14 @@ class TestActuator : public BaseTestPlugin {
   }
 };
 
+class TestPassive {
+ public:
+  TestPassive(const mjModel* m, mjData* d, int instance) {}
+  void Reset() {}
+  void Compute() {}
+  void Advance() {}
+};
+
 int RegisterSensorPlugin() {
   mjpPlugin plugin;
   mjp_defaultPlugin(&plugin);
@@ -206,6 +216,7 @@ int RegisterSensorPlugin() {
     auto* sensor = new TestSensor(m, d, instance);
     d->plugin_data[instance] = reinterpret_cast<uintptr_t>(sensor);
     TestSensor::InitCount()++;
+    return 0;
   };
   plugin.destroy = +[](mjData* d, int instance) {
     delete reinterpret_cast<TestSensor*>(d->plugin_data[instance]);
@@ -247,6 +258,7 @@ int RegisterActuatorPlugin() {
     auto* actuator = new TestActuator(m, d, instance);
     d->plugin_data[instance] = reinterpret_cast<uintptr_t>(actuator);
     TestActuator::InitCount()++;
+    return 0;
   };
   plugin.destroy = +[](mjData* d, int instance) {
     delete reinterpret_cast<TestActuator*>(d->plugin_data[instance]);
@@ -270,6 +282,42 @@ int RegisterActuatorPlugin() {
   return mjp_registerPlugin(&plugin);
 }
 
+int RegisterPassivePlugin() {
+  mjpPlugin plugin;
+  mjp_defaultPlugin(&plugin);
+
+  plugin.name = "mujoco.test.passive";
+
+  const char* attributes[] = {"attribute"};
+  plugin.nattribute = sizeof(attributes) / sizeof(*attributes);
+  plugin.attributes = attributes;
+
+  plugin.type |= mjPLUGIN_PASSIVE;
+
+  plugin.nstate = +[](const mjModel* m, int instance) { return 0; };
+
+  plugin.init = +[](const mjModel* m, mjData* d, int instance) {
+    auto* passive = new TestPassive(m, d, instance);
+    d->plugin_data[instance] = reinterpret_cast<uintptr_t>(passive);
+    return 0;
+  };
+  plugin.destroy = +[](mjData* d, int instance) {
+    delete reinterpret_cast<TestPassive*>(d->plugin_data[instance]);
+    d->plugin_data[instance] = 0;
+  };
+
+  plugin.reset = +[](const mjModel* m, mjData* d, int instance) {
+    auto passive = reinterpret_cast<TestPassive*>(d->plugin_data[instance]);
+    passive->Reset();
+  };
+  plugin.compute = +[](const mjModel* m, mjData* d, int instance, int type) {
+    auto passive = reinterpret_cast<TestPassive*>(d->plugin_data[instance]);
+    passive->Compute();
+  };
+
+  return mjp_registerPlugin(&plugin);
+}
+
 class PluginTest : public MujocoTest {
  public:
   // register all plugins
@@ -285,6 +333,7 @@ class PluginTest : public MujocoTest {
     }
 
     RegisterActuatorPlugin();
+    RegisterPassivePlugin();
   }
 };
 
@@ -303,9 +352,13 @@ constexpr char xml[] = R"(
         <config key="multiplier" value="0.125"/>
       </instance>
     </required>
+    <required plugin="mujoco.test.passive"/>
   </extension>
   <worldbody>
     <body>
+      <plugin plugin="mujoco.test.passive">
+        <config key="attribute" value="0"/>
+      </plugin>
       <geom type="capsule" size="0.1" fromto="-1 0 0 -1 0 -1"/>
       <joint name="h1" type="hinge"/>
     </body>
@@ -335,7 +388,7 @@ constexpr char xml[] = R"(
 )";
 
 TEST_F(PluginTest, MultiplePluginTableBlocks) {
-  EXPECT_EQ(mjp_pluginCount(), kNumFakePlugins + 2);
+  EXPECT_EQ(mjp_pluginCount(), kNumTruePlugins + kNumFakePlugins + kNumTestPlugins);
 
   const mjpPlugin* last_plugin = nullptr;
   int table_count = 0;
@@ -343,7 +396,7 @@ TEST_F(PluginTest, MultiplePluginTableBlocks) {
     int slot;
     std::string name = absl::StrFormat("mujoco.test.fake%u", i);
     const mjpPlugin* plugin = mjp_getPlugin(name.c_str(), &slot);
-    EXPECT_EQ(slot, i);
+    EXPECT_EQ(slot, kNumTruePlugins+i);
     EXPECT_THAT(plugin, NotNull());
     if (plugin - last_plugin != 1) {
       ++table_count;
@@ -359,9 +412,10 @@ TEST_F(PluginTest, MultiplePluginTableBlocks) {
 }
 
 TEST_F(PluginTest, RegisterIdenticalPlugin) {
-  EXPECT_EQ(RegisterSensorPlugin(), 0);
-  EXPECT_EQ(RegisterActuatorPlugin(), kNumFakePlugins + 1);
-  EXPECT_EQ(mjp_pluginCount(), kNumFakePlugins + 2);
+  EXPECT_EQ(RegisterSensorPlugin(), kNumTruePlugins);
+  EXPECT_EQ(RegisterActuatorPlugin(), kNumTruePlugins + kNumFakePlugins + 1);
+  EXPECT_EQ(RegisterPassivePlugin(), kNumTruePlugins + kNumFakePlugins + 2);
+  EXPECT_EQ(mjp_pluginCount(), kNumTruePlugins + kNumFakePlugins + kNumTestPlugins);
 }
 
 TEST_F(PluginTest, SaveXml) {
@@ -431,7 +485,7 @@ TEST_F(PluginTest, SensorPlugin) {
   EXPECT_EQ(TestSensor::InitCount(), expected_init_count);
   EXPECT_EQ(TestSensor::DestroyCount(), expected_destroy_count);
 
-  EXPECT_EQ(m->nplugin, 5);
+  EXPECT_EQ(m->nplugin, 6);
   EXPECT_EQ(mj_name2id(m, mjOBJ_PLUGIN, "twosensors"), 0);
   EXPECT_EQ(mj_name2id(m, mjOBJ_PLUGIN, "threesensors"), 1);
 
@@ -450,7 +504,7 @@ TEST_F(PluginTest, SensorPlugin) {
                   testing::ElementsAreArray<int>({3*(i+1), 6*j, 3*j}));
       EXPECT_THAT(*reinterpret_cast<mjtNum(*)[3]>(d->plugin_state +
                                                   m->plugin_stateadr[4]),
-                  testing::ElementsAreArray<int>({5*(i+1), 10*j, 5*j}));
+                  testing::ElementsAreArray<int>({4*(i+1), 8*j, 4*j}));
       EXPECT_THAT(*reinterpret_cast<mjtNum(*)[18]>(d->sensordata),
                   testing::ElementsAreArray<int>({   i+1,   2*j,   j,
                                                   5*(i+1), 10*j, 5*j,
@@ -489,7 +543,7 @@ TEST_F(PluginTest, ActuatorPlugin) {
   EXPECT_EQ(TestActuator::InitCount(), expected_init_count);
   EXPECT_EQ(TestActuator::DestroyCount(), expected_destroy_count);
 
-  EXPECT_EQ(m->nplugin, 5);
+  EXPECT_EQ(m->nplugin, 6);
   EXPECT_EQ(mj_name2id(m, mjOBJ_PLUGIN, "actuator2"), 2);
 
   mjData* d = mj_makeData(m);

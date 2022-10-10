@@ -118,6 +118,7 @@ class mjCAlternative {
 //------------------------- class mjCBase ----------------------------------------------------------
 // Generic functionality for all derived classes
 
+class mjCPlugin;
 class mjCBase {
   friend class mjCDef;
 
@@ -127,10 +128,16 @@ class mjCBase {
   int id;                         // object id
   int xmlpos[2];                  // row and column in xml file
   mjCDef* def;                    // defaults class used to init this object
+  mjCModel* model;                // pointer to model that created object
+
+  // plugin support
+  bool is_plugin;
+  std::string plugin_name;
+  std::string plugin_instance_name;
+  mjCPlugin* plugin_instance;
 
  protected:
   mjCBase();                      // constructor
-  mjCModel* model;                // pointer to model that created object
 };
 
 

@@ -23,6 +23,7 @@
 #include "engine/engine_core_constraint.h"
 #include "engine/engine_io.h"
 #include "engine/engine_macro.h"
+#include "engine/engine_plugin.h"
 #include "engine/engine_support.h"
 #include "engine/engine_util_blas.h"
 #include "engine/engine_util_errmem.h"
@@ -1421,6 +1422,25 @@ void mj_passive(const mjModel* m, mjData* d) {
   // user callback: add custom passive forces
   if (mjcb_passive) {
     mjcb_passive(m, d);
+  }
+
+  // plugin
+  if (m->nplugin) {
+    const int nslot = mjp_pluginCount();
+    // iterate over plugins, call compute if type is mjPLUGIN_PASSIVE
+    for (int i=0; i<m->nplugin; i++) {
+      const int slot = m->plugin[i];
+      const mjpPlugin* plugin = mjp_getPluginAtSlotUnsafe(slot, nslot);
+      if (!plugin) {
+        mju_error_i("invalid plugin slot: %d", slot);
+      }
+      if (plugin->type & mjPLUGIN_PASSIVE) {
+        if (!plugin->compute) {
+          mju_error_i("`compute` is a null function pointer for plugin at slot %d", slot);
+        }
+        plugin->compute(m, d, i, mjPLUGIN_PASSIVE);
+      }
+    }
   }
 }
 

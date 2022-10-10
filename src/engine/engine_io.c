@@ -875,10 +875,14 @@ static mjData* _makeData(const mjModel* m) {
   for (int i = 0; i < m->nplugin; ++i) {
     d->plugin[i] = m->plugin[i];
     const mjpPlugin* plugin = mjp_getPluginAtSlot(m->plugin[i]);
-    if (!plugin->init) {
-      mju_error_i("`init` is a null function pointer for plugin at slot %d", m->plugin[i]);
+    if (plugin->init) {
+      if (plugin->init(m, d, i) < 0) {
+        mju_free(d->buffer);
+        mju_free(d->arena);
+        mju_free(d);
+        mju_error_i("plugin->init failed for plugin id %d", i);
+      }
     }
-    plugin->init(m, d, i);
   }
 
   return d;
@@ -1142,10 +1146,9 @@ static void _resetData(const mjModel* m, mjData* d, unsigned char debug_value) {
   for (int i = 0; i < m->nplugin; ++i) {
     d->plugin[i] = m->plugin[i];
     const mjpPlugin* plugin = mjp_getPluginAtSlot(m->plugin[i]);
-    if (!plugin->reset) {
-      mju_error_i("`reset` is a null function pointer for plugin at slot %d", m->plugin[i]);
+    if (plugin->reset) {
+      plugin->reset(m, d, i);
     }
-    plugin->reset(m, d, i);
   }
 }
 
@@ -1333,6 +1336,7 @@ const char* mj_validateReferences(const mjModel* m) {
   X(body_jntadr,        nbody,         njnt         , m->body_jntnum         ) \
   X(body_dofadr,        nbody,         nv           , m->body_dofnum         ) \
   X(body_geomadr,       nbody,         ngeom        , m->body_geomnum        ) \
+  X(body_plugin,        nbody,         nplugin      , 0                      ) \
   X(jnt_qposadr,        njnt,          nq           , 0                      ) \
   X(jnt_dofadr,         njnt,          nv           , 0                      ) \
   X(jnt_bodyid,         njnt,          nbody        , 0                      ) \
@@ -1364,7 +1368,7 @@ const char* mj_validateReferences(const mjModel* m) {
   X(pair_geom2,         npair,         ngeom        , 0                      ) \
   X(actuator_plugin,    nu,            nplugin      , 0                      ) \
   X(sensor_plugin,      nsensor,       nplugin      , 0                      ) \
-  X(plugin_stateadr,    nplugin,       npluginstate , 0                      ) \
+  X(plugin_stateadr,    nplugin,       npluginstate , m->plugin_statenum     ) \
   X(plugin_attradr,     nplugin,       npluginattr  , 0                      ) \
   X(tendon_adr,         ntendon,       nwrap        , m->tendon_num          ) \
   X(tendon_matid,       ntendon,       nmat         , 0                      ) \

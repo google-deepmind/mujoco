@@ -328,6 +328,12 @@ mjCBody::mjCBody(mjCModel* _model) {
   lastdof = -1;
   userdata.clear();
 
+  // plugin variables
+  is_plugin = false;
+  plugin_instance = nullptr;
+  plugin_name = "";
+  plugin_instance_name = "";
+
   // clear object lists
   bodies.clear();
   geoms.clear();
@@ -799,6 +805,21 @@ void mjCBody::Compile(void) {
 
   // compile all lights
   for (i=0; i<lights.size(); i++) lights[i]->Compile();
+
+  // plugin
+  if (is_plugin) {
+    if (plugin_name.empty() && plugin_instance_name.empty()) {
+      throw mjCError(
+          this, "neither 'plugin' nor 'instance' is specified for body '%s', (id = %d)",
+          name.c_str(), id);
+    }
+
+    model->ResolvePlugin(this, plugin_name, plugin_instance_name, &plugin_instance);
+    const mjpPlugin* plugin = mjp_getPluginAtSlot(plugin_instance->plugin_slot);
+    if (!(plugin->type & mjPLUGIN_PASSIVE)) {
+      throw mjCError(this, "plugin '%s' does not support passive forces", plugin->name);
+    }
+  }
 }
 
 

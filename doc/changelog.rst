@@ -60,6 +60,24 @@ General
 
 - Added :at:`realtime` option to :ref:`visual` for starting a simulation at a slower speed.
 
+- Added new :at:`cable` composite type:
+ * Cable elements are connected with ball joints.
+ * The `initial` parameter specifies the joint at the starting boundary: :at:`free`, :at:`ball`, or :at:`none`.
+ * The boundary bodies are exposed with the names :at:`B_left` and :at:`B_right`.
+ * The vertex initial positions can be specified directly in the XML with the parameter :at:`vertex`.
+ * The orientation of the body frame **is** the orientation of the material frame of the curve.
+
+- Added new :at:`cable` passive force plugin:
+ * Twist and bending stiffness can be set separately with the parameters :at:`twist` and :at:`bend`.
+ * The stress-free configuration can be set to be the initial one or flat with the flag :at:`flat`.
+ * New `cable.xml <https://github.com/deepmind/mujoco/tree/main/model/plugin/cable.xml>`_ example
+   showing the formation of plectoneme.
+ * New `coil.xml <https://github.com/deepmind/mujoco/tree/main/model/plugin/coil.xml>`_  example
+   showing a curved equilibrium configuration.
+ * New `belt.xml <https://github.com/deepmind/mujoco/tree/main/model/plugin/belt.xml>`_  example
+   showing interaction between twist and anisotropy.
+ * Added test using cantilever exact solution.
+
 Python bindings
 ^^^^^^^^^^^^^^^
 

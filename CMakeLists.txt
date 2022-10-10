@@ -80,6 +80,7 @@ target_include_directories(
   PRIVATE src
 )
 
+add_subdirectory(plugin/elasticity)
 add_subdirectory(src/engine)
 add_subdirectory(src/user)
 add_subdirectory(src/xml)

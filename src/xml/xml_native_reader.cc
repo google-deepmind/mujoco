@@ -79,7 +79,7 @@ void ReadPluginConfigs(tinyxml2::XMLElement* elem, mjCPlugin* pp) {
 
 //---------------------------------- MJCF schema ---------------------------------------------------
 
-static const int nMJCF = 183;
+static const int nMJCF = 191;
 static const char* MJCF[nMJCF][mjXATTRNUM] = {
 {"mujoco", "!", "1", "model"},
 {"<"},
@@ -230,6 +230,10 @@ static const char* MJCF[nMJCF][mjXATTRNUM] = {
     {"body", "R", "10", "name", "childclass", "pos", "quat", "mocap",
         "axisangle", "xyaxes", "zaxis", "euler", "user"},
     {"<"},
+        {"plugin", "*", "3", "name", "plugin", "instance"},
+        {"<"},
+          {"config", "*", "2", "key", "value"},
+        {">"},
         {"inertial", "?", "9", "pos", "quat", "mass", "diaginertia",
             "axisangle", "xyaxes", "zaxis", "euler", "fullinertia"},
         {"joint", "*", "21", "name", "class", "type", "group", "pos", "axis",
@@ -251,9 +255,14 @@ static const char* MJCF[nMJCF][mjXATTRNUM] = {
         {"light", "*", "15", "name", "class", "directional", "castshadow", "active",
             "pos", "dir", "attenuation", "cutoff", "exponent", "ambient", "diffuse", "specular",
             "mode", "target"},
-        {"composite", "*", "8", "prefix", "type", "count", "spacing", "offset",
-            "flatinertia", "solrefsmooth", "solimpsmooth"},
+        {"composite", "*", "13", "prefix", "type", "count", "spacing", "offset",
+            "flatinertia", "solrefsmooth", "solimpsmooth", "vertex",
+            "flat", "initial", "curve", "size"},
         {"<"},
+            {"plugin", "*", "3", "name", "plugin", "instance"},
+            {"<"},
+              {"config", "*", "2", "key", "value"},
+            {">"},
             {"joint", "*", "15", "kind", "group", "stiffness", "damping", "armature",
                 "solreffix", "solimpfix",
                 "limited", "range", "margin", "solreflimit", "solimplimit",
@@ -652,6 +661,7 @@ const mjMap comp_map[mjNCOMPTYPES] = {
   {"grid",        mjCOMPTYPE_GRID},
   {"rope",        mjCOMPTYPE_ROPE},
   {"loop",        mjCOMPTYPE_LOOP},
+  {"cable",       mjCOMPTYPE_CABLE},
   {"cloth",       mjCOMPTYPE_CLOTH},
   {"box",         mjCOMPTYPE_BOX},
   {"cylinder",    mjCOMPTYPE_CYLINDER},
@@ -664,6 +674,15 @@ const mjMap jkind_map[3] = {
   {"main",        mjCOMPKIND_JOINT},
   {"twist",       mjCOMPKIND_TWIST},
   {"stretch",     mjCOMPKIND_STRETCH}
+};
+
+
+// composite rope shape
+const mjMap shape_map[mjNCOMPSHAPES] = {
+  {"s",           mjCOMPSHAPE_LINE},
+  {"cos(s)",      mjCOMPSHAPE_COS},
+  {"sin(s)",      mjCOMPSHAPE_SIN},
+  {"0",           mjCOMPSHAPE_ZERO}
 };
 
 
@@ -1859,10 +1878,45 @@ void mjXReader::OneComposite(XMLElement* elem, mjCBody* pbody, mjCDef* def) {
   if (MapValue(elem, "type", &n, comp_map, mjNCOMPTYPES, true)) {
     comp.type = (mjtCompType)n;
   }
-  ReadAttr(elem, "count", 3, comp.count, text, true, false);
-  ReadAttr(elem, "spacing", 1, &comp.spacing, text, true);
+  ReadAttr(elem, "count", 3, comp.count, text, false, false);
+  ReadAttr(elem, "spacing", 1, &comp.spacing, text, false);
   ReadAttr(elem, "offset", 3, comp.offset, text);
   ReadAttr(elem, "flatinertia", 1, &comp.flatinertia, text);
+
+  // plugin
+  XMLElement* eplugin = elem->FirstChildElement("plugin");
+  if (eplugin) {
+    ReadAttrTxt(eplugin, "plugin", comp.plugin_name);
+    ReadAttrTxt(eplugin, "instance", comp.plugin_instance_name);
+    if (comp.plugin_instance_name.empty()) {
+      comp.plugin_instance = model->AddPlugin();
+      comp.plugin_instance->name = "composite"+comp.prefix;
+      comp.plugin_instance_name = comp.plugin_instance->name;
+    } else {
+      model->hasImplicitPluginElem = true;
+    }
+    ReadPluginConfigs(eplugin, comp.plugin_instance);
+  }
+
+  // cable
+  std::string curves;
+  ReadAttrTxt(elem, "curve", curves);
+  ReadAttrTxt(elem, "initial", comp.initial);
+  ReadAttr(elem, "size", 3, comp.size, text, false, false);
+  if (ReadAttrTxt(elem, "vertex", text)){
+    String2Vector(text, comp.uservert);
+  }
+
+  // process curve string
+  std::istringstream iss(curves);
+  int i = 0;
+  while (iss) {
+    iss >> text;
+    comp.curve[i++] = (mjtCompShape)FindKey(shape_map, mjNCOMPSHAPES, text);
+    if (iss.eof()){
+      break;
+    }
+  };
 
   // skin
   XMLElement* eskin = elem->FirstChildElement("skin");
@@ -2617,6 +2671,19 @@ void mjXReader::Body(XMLElement* section, mjCBody* pbody) {
       // create light and parse
       mjCLight* plight = pbody->AddLight(def);
       OneLight(elem, plight);
+    }
+
+    // plugin sub-element
+    else if (name == "plugin") {
+      pbody->is_plugin = true;
+      ReadAttrTxt(elem, "plugin", pbody->plugin_name);
+      ReadAttrTxt(elem, "instance", pbody->plugin_instance_name);
+      if (pbody->plugin_instance_name.empty()) {
+        pbody->plugin_instance = model->AddPlugin();
+      } else {
+        model->hasImplicitPluginElem = true;
+      }
+      ReadPluginConfigs(elem, pbody->plugin_instance);
     }
 
     // composite sub-element

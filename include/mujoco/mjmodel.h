@@ -632,6 +632,7 @@ struct mjModel_ {
   mjtNum*   body_inertia;         // diagonal inertia in ipos/iquat frame     (nbody x 3)
   mjtNum*   body_invweight0;      // mean inv inert in qpos0 (trn, rot)       (nbody x 2)
   mjtNum*   body_user;            // user data                                (nbody x nuser_body)
+  int*      body_plugin;          // plugin instance id (-1 if not in use)    (nbody x 1)
 
   // joints
   int*      jnt_type;             // type of joint (mjtJoint)                 (njnt x 1)
@@ -864,7 +865,7 @@ struct mjModel_ {
   mjtNum*   actuator_length0;     // actuator length in qpos0                 (nu x 1)
   mjtNum*   actuator_lengthrange; // feasible actuator length range           (nu x 2)
   mjtNum*   actuator_user;        // user data                                (nu x nuser_actuator)
-  int*      actuator_plugin;      // plugin instance id; -1: not a plugin actuator  (nu x 1)
+  int*      actuator_plugin;      // plugin instance id; -1: not a plugin     (nu x 1)
 
   // sensors
   int*      sensor_type;          // sensor type (mjtSensor)                  (nsensor x 1)
@@ -879,11 +880,12 @@ struct mjModel_ {
   mjtNum*   sensor_cutoff;        // cutoff for real and positive; 0: ignore  (nsensor x 1)
   mjtNum*   sensor_noise;         // noise standard deviation                 (nsensor x 1)
   mjtNum*   sensor_user;          // user data                                (nsensor x nuser_sensor)
-  int*      sensor_plugin;        // plugin instance id; -1: not a plugin sensor  (nsensor x 1)
+  int*      sensor_plugin;        // plugin instance id; -1: not a plugin     (nsensor x 1)
 
   // plugin instances
   int*      plugin;               // globally registered plugin slot number   (nplugin x 1)
   int*      plugin_stateadr;      // address in the plugin state array        (nplugin x 1)
+  int*      plugin_statenum;      // number of states in the plugin instance  (nplugin x 1)
   char*     plugin_attr;          // config attributes of plugin instances    (npluginattr x 1)
   int*      plugin_attradr;       // address to each instance's config attrib (nplugin x 1)
 

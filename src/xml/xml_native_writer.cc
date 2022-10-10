@@ -1373,6 +1373,28 @@ void mjXWriter::Body(XMLElement* elem, mjCBody* body) {
     OneLight(InsertEnd(elem, "light"), body->lights[i], body->lights[i]->def);
   }
 
+  // write plugin
+  if (body->is_plugin) {
+    XMLElement *child = InsertEnd(elem, "plugin");
+    if (!body->plugin_instance_name.empty()) {
+      WriteAttrTxt(child, "instance", body->plugin_instance_name);
+    } else {
+      WriteAttrTxt(child, "plugin", body->plugin_name);
+      const mjpPlugin* plugin = mjp_getPluginAtSlot(
+          body->plugin_instance->plugin_slot);
+      const char* c = &body->plugin_instance->flattened_attributes[0];
+      for (int i = 0; i < plugin->nattribute; ++i) {
+        std::string value(c);
+        if (!value.empty()) {
+          WriteAttrTxt(child, std::string("plugin:") + plugin->attributes[i],
+                        value);
+          c += value.size();
+        }
+        ++c;
+      }
+    }
+  }
+
   // write child bodies recursively
   for (i=0; i<body->bodies.size(); i++) {
     Body(InsertEnd(elem, "body"), body->bodies[i]);
