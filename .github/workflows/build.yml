@@ -179,7 +179,8 @@ jobs:
       working-directory: python/dist
       run: >
         source ${{ matrix.tmpdir }}/venv/bin/activate &&
-        MUJOCO_PATH="${{ matrix.tmpdir }}/mujoco_install"
+        MUJOCO_PATH="${{ matrix.tmpdir }}/mujoco_install" &&
+        PLUGIN_PATH="${{ matrix.tmpdir }}/mujoco_install/bin/plugin"
         MUJOCO_CMAKE_ARGS="-DCMAKE_INTERPROCEDURAL_OPTIMIZATION:BOOL=OFF ${{ matrix.cmake_args }}"
         pip wheel -v --no-deps mujoco-*.tar.gz
     - name: Install Python bindings
