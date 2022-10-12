@@ -1818,11 +1818,6 @@ void mjXReader::OneActuator(XMLElement* elem, mjCActuator* pact) {
 
   // adhesion
   else if (type=="adhesion") {
-    // clear bias, set default gain
-    mjuu_zerovec(pact->biasprm, mjNBIAS);
-    mjuu_zerovec(pact->gainprm, mjNGAIN);
-    pact->gainprm[0] = 1;
-
     // explicit attributes
     ReadAttr(elem, "gain", 1, pact->gainprm, text);
     if (pact->gainprm[0]<0)
@@ -1836,7 +1831,6 @@ void mjXReader::OneActuator(XMLElement* elem, mjCActuator* pact) {
 
     // implied parameters
     pact->ctrllimited = 1;
-    pact->dyntype = mjDYN_NONE;
     pact->gaintype = mjGAIN_FIXED;
     pact->biastype = mjBIAS_NONE;
   }

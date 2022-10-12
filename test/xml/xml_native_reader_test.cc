@@ -804,9 +804,6 @@ TEST_F(ActuatorParseTest, IntvelocityDefaultsPropagate) {
   mj_deleteModel(model);
 }
 
-
-// ------------- test adhesion parsing -----------------------------------------
-
 TEST_F(ActuatorParseTest, AdhesionDefaultsPropagate) {
   static constexpr char xml[] = R"(
   <mujoco>
@@ -879,6 +876,41 @@ TEST_F(ActuatorParseTest, DampersDontRequireRange) {
   EXPECT_EQ(model->actuator_ctrlrange[1], 2);
   mj_deleteModel(model);
 }
+
+// make sure range requirement is not enforced at parse time
+TEST_F(ActuatorParseTest, AdhesionInheritsFromGeneral) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <default>
+      <general dyntype="filter" dynprm="123" gainprm="5"/>
+      <adhesion ctrlrange="0 2"/>
+    </default>
+    <worldbody>
+      <body name="sphere">
+        <geom name="sphere" size="1"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <adhesion name="adhere" body="sphere"/>
+    </actuator>
+  </mujoco>
+  )";
+
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, NotNull()) << error.data();
+
+  // expect that gainprm was inherited from the general default
+  EXPECT_EQ(model->actuator_gainprm[0], 5);
+  // expect that dynprm was inherited from the general default
+  EXPECT_EQ(model->actuator_dynprm[0], 123);
+  // expect that dyntype was inherited from the general default
+  EXPECT_EQ(model->actuator_dyntype[0], mjDYN_FILTER);
+  mj_deleteModel(model);
+}
+
+
+// ------------- test general parsing ------------------------------------------
 
 TEST_F(XMLReaderTest, ZnearZeroNotAllowed) {
   static constexpr char xml[] = R"(
