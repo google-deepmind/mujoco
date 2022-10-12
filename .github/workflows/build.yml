@@ -143,6 +143,16 @@ jobs:
     - name: Install MuJoCo
       working-directory: build
       run: cmake --install .
+    - name: Copy plugins (POSIX)
+      if: ${{ runner.os != 'Windows' }}
+      working-directory: build
+      run: mkdir -p ${{ matrix.tmpdir }}/mujoco_install/plugin &&
+           cp lib/libcable.* ${{ matrix.tmpdir }}/mujoco_install/plugin
+    - name: Copy plugins (Windows)
+      if: ${{ runner.os == 'Windows' }}
+      working-directory: build
+      run: mkdir -p ${{ matrix.tmpdir }}/mujoco_install/plugin &&
+           cp bin/Release/cable.dll ${{ matrix.tmpdir }}/mujoco_install/plugin
     - name: Configure samples
       working-directory: sample
       run: >
@@ -180,7 +190,7 @@ jobs:
       run: >
         source ${{ matrix.tmpdir }}/venv/bin/activate &&
         MUJOCO_PATH="${{ matrix.tmpdir }}/mujoco_install"
-        PLUGIN_PATH="${{ matrix.tmpdir }}/mujoco_install/bin/plugin"
+        PLUGIN_PATH="${{ matrix.tmpdir }}/mujoco_install/plugin"
         MUJOCO_CMAKE_ARGS="-DCMAKE_INTERPROCEDURAL_OPTIMIZATION:BOOL=OFF ${{ matrix.cmake_args }}"
         pip wheel -v --no-deps mujoco-*.tar.gz
     - name: Install Python bindings
