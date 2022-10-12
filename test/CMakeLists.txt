@@ -65,3 +65,7 @@ add_subdirectory(engine)
 add_subdirectory(sample)
 add_subdirectory(user)
 add_subdirectory(xml)
+
+if(NOT WIN32)
+  add_subdirectory(plugin/elasticity)
+endif()
