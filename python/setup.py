@@ -35,7 +35,7 @@ __version__ = '2.2.2'
 MUJOCO_CMAKE = 'MUJOCO_CMAKE'
 MUJOCO_CMAKE_ARGS = 'MUJOCO_CMAKE_ARGS'
 MUJOCO_PATH = 'MUJOCO_PATH'
-PLUGIN_PATH = 'PLUGIN_PATH'
+MUJOCO_PLUGIN_PATH = 'MUJOCO_PLUGIN_PATH'
 
 EXT_PREFIX = 'mujoco.'
 
@@ -163,23 +163,26 @@ class BuildCMakeExtension(build_ext.build_ext):
 
   def _find_mujoco(self):
     if MUJOCO_PATH not in os.environ:
-      raise RuntimeError(f'{MUJOCO_PATH} environment variable is not set')
-    if PLUGIN_PATH not in os.environ:
-      raise RuntimeError(f'{PLUGIN_PATH} environment variable is not set')
+      raise RuntimeError(
+          f'{MUJOCO_PATH} environment variable is not set')
+    if MUJOCO_PLUGIN_PATH not in os.environ:
+      raise RuntimeError(
+          f'{MUJOCO_PLUGIN_PATH} environment variable is not set')
     library_path = None
     include_path = None
+    plugin_path = os.environ['MUJOCO_PLUGIN_PATH']
     for directory, subdirs, filenames in os.walk(os.environ['MUJOCO_PATH']):
       if self._is_apple and 'mujoco.framework' in subdirs:
         return (os.path.join(directory, 'mujoco.framework/Versions/A'),
                 os.path.join(directory, 'mujoco.framework/Headers'),
-                os.path.normpath(os.path.join(directory, '../MacOS/plugin')),
+                plugin_path,
                 directory)
       if fnmatch.filter(filenames, get_mujoco_lib_pattern()):
         library_path = directory
       if os.path.exists(os.path.join(directory, 'mujoco/mujoco.h')):
         include_path = directory
       if library_path and include_path:
-        return library_path, include_path, os.environ['PLUGIN_PATH'], None
+        return library_path, include_path, plugin_path, None
     raise RuntimeError('Cannot find MuJoCo library and/or include paths')
 
   def _copy_external_libraries(self):
