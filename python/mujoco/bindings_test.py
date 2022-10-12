@@ -16,6 +16,8 @@
 
 import contextlib
 import copy
+import ctypes  # copybara:strip
+import os  # copybara:strip
 import pickle
 import sys
 
@@ -66,6 +68,14 @@ TEST_XML_SENSOR = r"""
     <user objtype="geom" objname="myplane"
           datatype="real" needstage="vel" dim="1"/>
   </sensor>
+</mujoco>
+"""
+
+TEST_XML_PLUGIN = r"""
+<mujoco model="test">
+  <extension>
+    <required plugin="mujoco.elasticity.cable"/>
+  </extension>
 </mujoco>
 """
 
@@ -706,6 +716,15 @@ class MuJoCoBindingsTest(parameterized.TestCase):
       mujoco.mj_jacSite(
           self.model, self.data, None, np.zeros(jacr.shape, int), site_id)
 
+  # copybara:strip_begin(b/220716896)
+  def test_mj_saveLastXML(self):  # pylint: disable=invalid-name
+    output = os.path.join(
+        self.create_tempdir('test_mj_saveLastXML'), 'output.xml')
+    mujoco.mj_saveLastXML(output, self.model)
+    with open(output, 'rb') as f:
+      self.assertStartsWith(f.read(), b'<mujoco')
+
+  # copybara:strip_end
   def test_docstrings(self):  # pylint: disable=invalid-name
     self.assertEqual(
         mujoco.mj_versionString.__doc__,
@@ -954,6 +973,21 @@ Euler integrator, semi-implicit in velocity.
     self.assertEqual(sensor_callback.count, 1)
     self.assertEqual(data_with_sensor.sensordata[0], 17)
 
+  # copybara:strip_begin
+  def test_mjcb_sensor_ctypes(self):
+    model_with_sensor = mujoco.MjModel.from_xml_string(TEST_XML_SENSOR)
+    data_with_sensor = mujoco.MjData(model_with_sensor)
+    self.assertEqual(data_with_sensor.sensordata[0], 0)
+
+    dl = ctypes.CDLL('')
+    sensor_callback = dl.sensor_callback_check_no_gil
+    with temporary_callback(mujoco.set_mjcb_sensor, sensor_callback):
+      self.assertIs(mujoco.get_mjcb_sensor(), sensor_callback)
+      mujoco.mj_forward(model_with_sensor, data_with_sensor)
+    self.assertIsNone(mujoco.get_mjcb_sensor())
+    self.assertEqual(data_with_sensor.sensordata[0], 3.9375)
+
+  # copybara:strip_end
   def test_can_initialize_mjv_structs(self):
     self.assertIsInstance(mujoco.MjvScene(), mujoco.MjvScene)
     self.assertIsInstance(mujoco.MjvCamera(), mujoco.MjvCamera)
@@ -1110,6 +1144,9 @@ Euler integrator, semi-implicit in velocity.
       except AssertionError as e:
         self.fail("Attribute '{}' differs from expected value: {}".format(
             name, str(e)))
+
+  def test_load_plugin(self):
+    mujoco.MjModel.from_xml_string(TEST_XML_PLUGIN)
 
 if __name__ == '__main__':
   absltest.main()
