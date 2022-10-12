@@ -26,6 +26,7 @@ jobs:
               -G Ninja
               -DCMAKE_C_COMPILER:STRING=gcc-11
               -DCMAKE_CXX_COMPILER:STRING=g++-11
+              -DCMAKE_EXE_LINKER_FLAGS:STRING=-Wl,--no-as-needed
             tmpdir: "/tmp"
           - os: ubuntu-20.04
             additional_label: "with GCC 10"
@@ -33,6 +34,7 @@ jobs:
               -G Ninja
               -DCMAKE_C_COMPILER:STRING=gcc-10
               -DCMAKE_CXX_COMPILER:STRING=g++-10
+              -DCMAKE_EXE_LINKER_FLAGS:STRING=-Wl,--no-as-needed
             tmpdir: "/tmp"
           - os: ubuntu-20.04
             additional_label: "with GCC 9"
@@ -40,6 +42,7 @@ jobs:
               -G Ninja
               -DCMAKE_C_COMPILER:STRING=gcc-9
               -DCMAKE_CXX_COMPILER:STRING=g++-9
+              -DCMAKE_EXE_LINKER_FLAGS:STRING=-Wl,--no-as-needed
             tmpdir: "/tmp"
           - os: ubuntu-22.04
             additional_label: "with Clang 14"
