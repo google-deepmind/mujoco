@@ -69,6 +69,14 @@ TEST_XML_SENSOR = r"""
 </mujoco>
 """
 
+TEST_XML_PLUGIN = r"""
+<mujoco model="test">
+  <extension>
+    <required plugin="mujoco.elasticity.cable"/>
+  </extension>
+</mujoco>
+"""
+
 
 @contextlib.contextmanager
 def temporary_callback(setter, callback):
@@ -1110,6 +1118,9 @@ Euler integrator, semi-implicit in velocity.
       except AssertionError as e:
         self.fail("Attribute '{}' differs from expected value: {}".format(
             name, str(e)))
+
+  def test_load_plugin(self):
+    mujoco.MjModel.from_xml_string(TEST_XML_PLUGIN)
 
 if __name__ == '__main__':
   absltest.main()

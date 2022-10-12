@@ -35,6 +35,7 @@ __version__ = '2.2.2'
 MUJOCO_CMAKE = 'MUJOCO_CMAKE'
 MUJOCO_CMAKE_ARGS = 'MUJOCO_CMAKE_ARGS'
 MUJOCO_PATH = 'MUJOCO_PATH'
+MUJOCO_PLUGIN_PATH = 'MUJOCO_PLUGIN_PATH'
 
 EXT_PREFIX = 'mujoco.'
 
@@ -68,6 +69,15 @@ def get_external_lib_patterns():
     return ['libmujoco.*.dylib']
   else:
     return ['libmujoco.so.*']
+
+
+def get_plugin_lib_patterns():
+  if platform.system() == 'Windows':
+    return ['*.dll']
+  elif platform.system() == 'Darwin':
+    return ['lib*.dylib']
+  else:
+    return ['lib*']
 
 
 def start_and_end(iterable):
@@ -140,6 +150,7 @@ class BuildCMakeExtension(build_ext.build_ext):
     self._is_apple = (platform.system() == 'Darwin')
     (self._mujoco_library_path,
      self._mujoco_include_path,
+     self._mujoco_plugins_path,
      self._mujoco_framework_path) = self._find_mujoco()
     self._configure_cmake()
     for ext in self.extensions:
@@ -148,29 +159,47 @@ class BuildCMakeExtension(build_ext.build_ext):
       self.build_extension(ext)
     self._copy_external_libraries()
     self._copy_mujoco_headers()
+    self._copy_plugin_libraries()
 
   def _find_mujoco(self):
     if MUJOCO_PATH not in os.environ:
-      raise RuntimeError(f'{MUJOCO_PATH} environment variable is not set')
+      raise RuntimeError(
+          f'{MUJOCO_PATH} environment variable is not set')
+    if MUJOCO_PLUGIN_PATH not in os.environ:
+      raise RuntimeError(
+          f'{MUJOCO_PLUGIN_PATH} environment variable is not set')
     library_path = None
     include_path = None
+    plugin_path = os.environ['MUJOCO_PLUGIN_PATH']
     for directory, subdirs, filenames in os.walk(os.environ['MUJOCO_PATH']):
       if self._is_apple and 'mujoco.framework' in subdirs:
         return (os.path.join(directory, 'mujoco.framework/Versions/A'),
                 os.path.join(directory, 'mujoco.framework/Headers'),
+                plugin_path,
                 directory)
       if fnmatch.filter(filenames, get_mujoco_lib_pattern()):
         library_path = directory
       if os.path.exists(os.path.join(directory, 'mujoco/mujoco.h')):
         include_path = directory
       if library_path and include_path:
-        return library_path, include_path, None
+        return library_path, include_path, plugin_path, None
     raise RuntimeError('Cannot find MuJoCo library and/or include paths')
 
   def _copy_external_libraries(self):
     dst = os.path.dirname(self.get_ext_fullpath(self.extensions[0].name))
     for directory, _, filenames in os.walk(os.environ['MUJOCO_PATH']):
       for pattern in get_external_lib_patterns():
+        for filename in fnmatch.filter(filenames, pattern):
+          shutil.copyfile(os.path.join(directory, filename),
+                          os.path.join(dst, filename))
+
+  def _copy_plugin_libraries(self):
+    dst = os.path.join(
+        os.path.dirname(self.get_ext_fullpath(self.extensions[0].name)),
+        'plugin')
+    os.makedirs(dst)
+    for directory, _, filenames in os.walk(self._mujoco_plugins_path):
+      for pattern in get_plugin_lib_patterns():
         for filename in fnmatch.filter(filenames, pattern):
           shutil.copyfile(os.path.join(directory, filename),
                           os.path.join(dst, filename))
