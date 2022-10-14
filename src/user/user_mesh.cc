@@ -28,6 +28,7 @@
 #define TINYOBJLOADER_IMPLEMENTATION
 
 #include <mujoco/mjmodel.h>
+#include "cc/array_safety.h"
 #include "engine/engine_crossplatform.h"
 #include "engine/engine_file.h"
 #include "engine/engine_macro.h"
@@ -263,7 +264,11 @@ void mjCMesh::Compile(const mjVFS* vfs) {
           useredge.push_back(std::pair(v1, v2));
           useredge.push_back(std::pair(v2, v0));
         } else {
-          mju_warning("Degenerate triangle found, its orientation will not be checked.");
+          char message[100];
+          ::mujoco::util::sprintf_arr(message,
+            "Degenerate triangle found in mesh `%s`, its orientation will not be checked.",
+            name.c_str());
+          mju_warning(message);
         }
       }
     }
@@ -663,7 +668,11 @@ void mjCMesh::LoadOBJ(const mjVFS* vfs) {
           useredge.push_back(std::pair(face_indices[1].vertex_index, face_indices[2].vertex_index));
           useredge.push_back(std::pair(face_indices[2].vertex_index, face_indices[0].vertex_index));
         } else {
-          mju_warning("Degenerate triangle found, its orientation will not be checked.");
+          char message[100];
+          ::mujoco::util::sprintf_arr(message,
+            "Degenerate triangle found in mesh `%s`, its orientation will not be checked.",
+            name.c_str());
+          mju_warning(message);
         }
 
         // add vertex indices (in uservert) to userface
