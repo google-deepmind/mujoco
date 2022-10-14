@@ -102,6 +102,8 @@ Python bindings
 - The length of ``MjData.contact`` is now ``ncon`` rather than ``nconmax``, allowing it to be straightforwardly used as
   an iterator without needing to check ``ncon``.
 
+- Fix a memory leak when a Python callable is installed as callback
+  (`#527 <https://github.com/deepmind/mujoco/issues/527>`_).
 
 Version 2.2.2 (September 7, 2022)
 ---------------------------------

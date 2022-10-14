@@ -962,6 +962,23 @@ Euler integrator, semi-implicit in velocity.
     self.assertEqual(sensor_callback.count, 1)
     self.assertEqual(data_with_sensor.sensordata[0], 17)
 
+  def test_mjcb_control_not_leak_memory(self):
+    model_instances = []
+    data_instances = []
+    for _ in range(10):
+      mujoco.set_mjcb_control(None)
+      model_instances.append(mujoco.MjModel.from_xml_string('<mujoco/>'))
+      data_instances.append(mujoco.MjData(model_instances[-1]))
+      mujoco.set_mjcb_control(lambda m, d: None)
+      mujoco.mj_step(model_instances[-1], data_instances[-1])
+    mujoco.set_mjcb_control(None)
+    while data_instances:
+      d = data_instances.pop()
+      self.assertEqual(sys.getrefcount(d), 2)
+    while model_instances:
+      m = model_instances.pop()
+      self.assertEqual(sys.getrefcount(m), 2)
+
   def test_can_initialize_mjv_structs(self):
     self.assertIsInstance(mujoco.MjvScene(), mujoco.MjvScene)
     self.assertIsInstance(mujoco.MjvCamera(), mujoco.MjvCamera)
