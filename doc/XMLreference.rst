@@ -58,24 +58,25 @@ real(N)   An array of N real-valued numbers. If N is omitted it equals 1.
 | "..."       | The attribute is optional. The internal default is given in quotes.                              |
 +-------------+--------------------------------------------------------------------------------------------------+
 
-|
-| In the reference documentation below the attribute name is shown in boldface, followed by its data type, followed by
-  the required/optional status including the internal default if any. For example, the attribute angle is a keyword
-  attribute whose value can be "radian" or "degree". It is an optional attribute and has internal default "degree".
-  Therefore it will appear in the reference documentation as
+
+In the reference documentation below the attribute name is shown in boldface, followed by its data type, followed by the
+required/optional status including the internal default if any. For example, the attribute angle is a keyword attribute
+whose value can be "radian" or "degree". It is an optional attribute and has internal default "degree". Therefore it
+will appear in the reference documentation as
 
 :at:`angle`: :at-val:`[radian, degree], "degree"`
+   |br|
 
 .. _Reference:
 
 MJCF Reference
 --------------
 
-| MJCF files have a unique top-level element :ref:`mujoco <mujoco>`. The next-level elements are referred to as
-  *sections*. They are all optional. Some sections are merely used for grouping and have no attributes. Sections can be
-  repeated, to facilitate merging of models via the :ref:`include <include>` element.
-| The *order* of attributes within an element can be arbitrary. The order of child elements within a parent element can
-  also be arbitrary, with four exceptions:
+MJCF files have a unique top-level element :ref:`mujoco <mujoco>`. The next-level elements are referred to as
+*sections*. They are all optional. Some sections are merely used for grouping and have no attributes. Sections can be
+repeated, to facilitate merging of models via the :ref:`include <include>` element. The *order* of attributes within an
+element can be arbitrary. The order of child elements within a parent element can also be arbitrary, with four
+exceptions:
 
 -  The order of :ref:`joint <body-joint>` elements within a :ref:`body <body>` matters because joint transformations are
    performed in sequence.
