@@ -18,6 +18,7 @@
 #include <limits>
 #include <sstream>
 #include <type_traits>
+#include <utility>
 
 #include <mujoco/mujoco.h>
 #include "errors.h"
@@ -46,7 +47,7 @@ using enable_if_not_const_t =
 // table that associates raw MuJoCo struct pointers back to the pointers to
 // their corresponding wrappers.
 template <typename Raw>
-static enable_if_not_const_t<Raw, py::object> MjWrapperLookup(Raw* ptr) {
+static enable_if_not_const_t<Raw, py::handle> MjWrapperLookup(Raw* ptr) {
   using LookupFnType = MjWrapper<Raw>* (Raw*);
   static LookupFnType* const lookup = []() -> LookupFnType* {
     py::gil_scoped_acquire gil;
@@ -102,7 +103,7 @@ static enable_if_not_const_t<Raw, py::object> MjWrapperLookup(Raw* ptr) {
               "cannot find the Python instance of the MjWrapper");
         }
       } else {
-        return instance;
+        return std::move(instance);
       }
     } else {
       if (!PyErr_Occurred()) {
@@ -117,7 +118,7 @@ static enable_if_not_const_t<Raw, py::object> MjWrapperLookup(Raw* ptr) {
 }
 
 template <typename Raw>
-static const py::object MjWrapperLookup(const Raw* ptr) {
+static const py::handle MjWrapperLookup(const Raw* ptr) {
   return MjWrapperLookup(const_cast<Raw*>(ptr));
 }
 
