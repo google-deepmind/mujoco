@@ -24,7 +24,7 @@ extern "C" {
 #endif
 
 // header version; should match the library version as returned by mj_version()
-#define mjVERSION_HEADER 222
+#define mjVERSION_HEADER 230
 
 // needed to define size_t, fabs and log10
 #include <stdlib.h>

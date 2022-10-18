@@ -30,7 +30,7 @@ from setuptools import find_packages
 from setuptools import setup
 from setuptools.command import build_ext
 
-__version__ = '2.2.2'
+__version__ = '2.3.0'
 
 MUJOCO_CMAKE = 'MUJOCO_CMAKE'
 MUJOCO_CMAKE_ARGS = 'MUJOCO_CMAKE_ARGS'

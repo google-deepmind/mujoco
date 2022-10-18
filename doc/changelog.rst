@@ -3,82 +3,81 @@ Changelog
 =========
 
 
-Upcoming version (not yet released)
------------------------------------
+Version 2.3.0 (October 18, 2022)
+--------------------------------
 
 General
 ^^^^^^^
 
-- The ``contact`` array and arrays prefixed with ``efc_`` in ``mjData`` were moved out of the ``buffer`` into a new
-  ``arena`` memory space. These arrays are no longer allocated with fixed sizes when ``mjData`` is created.
-  Instead, the exact memory requirement is determined during each call to :ref:`mj_forward` (specifically,
-  in :ref:`mj_collision` and :ref:`mj_makeConstraint`) and the arrays are allocated from the ``arena`` space. The
-  ``stack`` now also shares its available memory with ``arena``. This change reduces the memory footprint of ``mjData``
-  in models that do not use the PGS solver, and will allow for significant memory reductions in the future.
-  See the :ref:`Memory allocation <CSize>` section for details.
+1. The ``contact`` array and arrays prefixed with ``efc_`` in ``mjData`` were moved out of the ``buffer`` into a new
+   ``arena`` memory space. These arrays are no longer allocated with fixed sizes when ``mjData`` is created.
+   Instead, the exact memory requirement is determined during each call to :ref:`mj_forward` (specifically,
+   in :ref:`mj_collision` and :ref:`mj_makeConstraint`) and the arrays are allocated from the ``arena`` space. The
+   ``stack`` now also shares its available memory with ``arena``. This change reduces the memory footprint of ``mjData``
+   in models that do not use the PGS solver, and will allow for significant memory reductions in the future.
+   See the :ref:`Memory allocation <CSize>` section for details.
 
-  .. youtube:: RHnXD6uO3Mg
-     :align: right
-     :height: 150px
+   .. youtube:: RHnXD6uO3Mg
+      :align: right
+      :height: 150px
 
-- Added colab notebook tutorial showing how to balance the humanoid on one leg with a Linear Quadratic Regulator. The
-  notebook uses MuJoCo's native Python bindings, and includes a draft ``Renderer`` class, for easy rendering in Python.
-  |br| Try it yourself:  |LQRopenincolab|
+#. Added colab notebook tutorial showing how to balance the humanoid on one leg with a Linear Quadratic Regulator. The
+   notebook uses MuJoCo's native Python bindings, and includes a draft ``Renderer`` class, for easy rendering in Python.
+   |br| Try it yourself:  |LQRopenincolab|
 
    .. |LQRopenincolab| image:: https://colab.research.google.com/assets/colab-badge.svg
-                    :target: https://colab.research.google.com/github/deepmind/mujoco/blob/main/python/LQR.ipynb
+                       :target: https://colab.research.google.com/github/deepmind/mujoco/blob/main/python/LQR.ipynb
 
-- Updates to humanoid model:
+#. Updates to humanoid model:
+   - Added two keyframes (stand-on-one-leg and squat).
+   - Increased maximum hip flexion angle.
+   - Added hamstring tendons which couple the hip and knee at high hip flexion angles.
+   - General cosmetic improvements, including improved use of defaults and better naming scheme.
 
-  * Added two keyframes (stand-on-one-leg and squat).
-  * Increased maximum hip flexion angle.
-  * Added hamstring tendons which couple the hip and knee at high hip flexion angles.
-  * General cosmetic improvements, including improved use of defaults and better naming scheme.
-
-- Added :ref:`mju_boxQP` and allocation function :ref:`mju_boxQPmalloc` for solving the box-constrained
-  Quadratic Program:
+#. Added :ref:`mju_boxQP` and allocation function :ref:`mju_boxQPmalloc` for solving the box-constrained
+   Quadratic Program:
 
    .. math::
 
       x^* = \text{argmin} \; \tfrac{1}{2} x^T H x + x^T g \quad \text{s.t.} \quad l \le x \le u
 
-  The algorithm, introduced in `Tassa et al. 2014 <https://doi.org/10.1109/ICRA.2014.6907001>`_,
-  converges after 2-5 Cholesky factorisations, independent of problem size.
+   The algorithm, introduced in `Tassa et al. 2014 <https://doi.org/10.1109/ICRA.2014.6907001>`_,
+   converges after 2-5 Cholesky factorisations, independent of problem size.
 
-- Added :ref:`mju_mulVecMatVec` to multiply a square matrix :math:`M` with vectors :math:`x` and :math:`y` on both
-  sides. The function returns :math:`x^TMy`.
+#. Added :ref:`mju_mulVecMatVec` to multiply a square matrix :math:`M` with vectors :math:`x` and :math:`y` on both
+   sides. The function returns :math:`x^TMy`.
 
-- Added new plugin API. Plugins allow developers to extend MuJoCo's capability without modifying core engine code.
-  The plugin mechanism is intended to replace the existing callbacks, though these will remain for the time being as an
-  option for simple use cases and backward compatibility. The new mechanism manages stateful plugins and supports
-  multiple plugins from different sources, allowing MuJoCo extensions to be introduced in a modular fashion, rather than
-  as global overrides. Note the new mechanism is currently undocumented except in code, as we test it internally.
-  If you are interested in using the plugin mechanism, please get in touch first.
+#. Added new plugin API. Plugins allow developers to extend MuJoCo's capability without modifying core engine code.
+   The plugin mechanism is intended to replace the existing callbacks, though these will remain for the time being as an
+   option for simple use cases and backward compatibility. The new mechanism manages stateful plugins and supports
+   multiple plugins from different sources, allowing MuJoCo extensions to be introduced in a modular fashion, rather
+   than as global overrides. Note the new mechanism is currently undocumented except in code, as we test it internally.
+   If you are interested in using the plugin mechanism, please get in touch first.
 
-- Added :at:`assetdir` compiler option, which sets the values of both :at:`meshdir` and :at:`texturedir`. Values in
-  the latter attributes take precedence over :at:`assetdir`.
+#. Added :at:`assetdir` compiler option, which sets the values of both :at:`meshdir` and :at:`texturedir`. Values in
+   the latter attributes take precedence over :at:`assetdir`.
 
-- Added :at:`realtime` option to :ref:`visual` for starting a simulation at a slower speed.
+#. Added :at:`realtime` option to :ref:`visual` for starting a simulation at a slower speed.
 
-- Added new :at:`cable` composite type:
+#. Added new :at:`cable` composite type:
 
-  * Cable elements are connected with ball joints.
-  * The `initial` parameter specifies the joint at the starting boundary: :at:`free`, :at:`ball`, or :at:`none`.
-  * The boundary bodies are exposed with the names :at:`B_left` and :at:`B_right`.
-  * The vertex initial positions can be specified directly in the XML with the parameter :at:`vertex`.
-  * The orientation of the body frame **is** the orientation of the material frame of the curve.
+   - Cable elements are connected with ball joints.
+   - The `initial` parameter specifies the joint at the starting boundary: :at:`free`, :at:`ball`, or :at:`none`.
+   - The boundary bodies are exposed with the names :at:`B_left` and :at:`B_right`.
+   - The vertex initial positions can be specified directly in the XML with the parameter :at:`vertex`.
+   - The orientation of the body frame **is** the orientation of the material frame of the curve.
 
-- Added new :at:`cable` passive force plugin:
+#. Added new :at:`cable` passive force plugin:
 
-  * Twist and bending stiffness can be set separately with the parameters :at:`twist` and :at:`bend`.
-  * The stress-free configuration can be set to be the initial one or flat with the flag :at:`flat`.
-  * New `cable.xml <https://github.com/deepmind/mujoco/tree/main/model/plugin/cable.xml>`_ example
-    showing the formation of plectoneme.
-  * New `coil.xml <https://github.com/deepmind/mujoco/tree/main/model/plugin/coil.xml>`_  example
-    showing a curved equilibrium configuration.
-  * New `belt.xml <https://github.com/deepmind/mujoco/tree/main/model/plugin/belt.xml>`_  example
-    showing interaction between twist and anisotropy.
-  * Added test using cantilever exact solution.
+   - Twist and bending stiffness can be set separately with the parameters :at:`twist` and :at:`bend`.
+   - The stress-free configuration can be set to be the initial one or flat with the flag :at:`flat`.
+   - New `cable.xml <https://github.com/deepmind/mujoco/tree/main/model/plugin/cable.xml>`_ example showing the
+     formation of plectoneme.
+   - New `coil.xml <https://github.com/deepmind/mujoco/tree/main/model/plugin/coil.xml>`_  example showing a curved
+     equilibrium configuration.
+   - New `belt.xml <https://github.com/deepmind/mujoco/tree/main/model/plugin/belt.xml>`_  example showing interaction
+     between twist and anisotropy.
+   - Added test using cantilever exact solution.
 
 .. youtube:: 25kQP671fJE
    :align: right
@@ -94,16 +93,16 @@ General
 
 Python bindings
 ^^^^^^^^^^^^^^^
+11. Added ``id`` and ``name`` properties to
+    `named accessor <https://mujoco.readthedocs.io/en/latest/python.html#named-access>`_ objects.
+    These provide more Pythonic API access to ``mj_name2id`` and ``mj_id2name`` respectively.
 
-- Added ``id`` and ``name`` properties to
-  `named accessor <https://mujoco.readthedocs.io/en/latest/python.html#named-access>`_ objects. These provide more
-  Pythonic API access to ``mj_name2id`` and ``mj_id2name`` respectively.
+#. The length of ``MjData.contact`` is now ``ncon`` rather than ``nconmax``, allowing it to be straightforwardly used as
+   an iterator without needing to check ``ncon``.
 
-- The length of ``MjData.contact`` is now ``ncon`` rather than ``nconmax``, allowing it to be straightforwardly used as
-  an iterator without needing to check ``ncon``.
+#. Fix a memory leak when a Python callable is installed as callback
+   (`#527 <https://github.com/deepmind/mujoco/issues/527>`_).
 
-- Fix a memory leak when a Python callable is installed as callback
-  (`#527 <https://github.com/deepmind/mujoco/issues/527>`_).
 
 Version 2.2.2 (September 7, 2022)
 ---------------------------------
