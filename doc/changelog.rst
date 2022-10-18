@@ -57,7 +57,7 @@ General
 #. Added :at:`assetdir` compiler option, which sets the values of both :at:`meshdir` and :at:`texturedir`. Values in
    the latter attributes take precedence over :at:`assetdir`.
 
-#. Added :at:`realtime` option to :ref:`visual` for starting a simulation at a slower speed.
+#. Added :at:`realtime` option to :ref:`visual<visual>` for starting a simulation at a slower speed.
 
 #. Added new :at:`cable` composite type:
 
