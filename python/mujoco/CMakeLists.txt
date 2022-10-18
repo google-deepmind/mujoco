@@ -160,7 +160,7 @@ findorfetch(
   GIT_REPO
   https://gitlab.com/libeigen/eigen
   GIT_TAG
-  b3bf8d6a13585ff248c079402654647d298de60b
+  3bb6a48d8c171cf20b5f8e48bfb4e424fbd4f79e
   TARGETS
   Eigen3::Eigen
   EXCLUDE_FROM_ALL
@@ -177,7 +177,7 @@ findorfetch(
   GIT_REPO
   https://github.com/pybind/pybind11
   GIT_TAG
-  4e1e2fe62ae8d16e305ed6ca67891b955b41645d
+  0aa8c9452803604b8e65a624c28f6ba89bd6499a
   TARGETS
   pybind11::pybind11_headers
   EXCLUDE_FROM_ALL
