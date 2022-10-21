@@ -63,7 +63,7 @@ General
 
    - Cable elements are connected with ball joints.
    - The `initial` parameter specifies the joint at the starting boundary: :at:`free`, :at:`ball`, or :at:`none`.
-   - The boundary bodies are exposed with the names :at:`B_left` and :at:`B_right`.
+   - The boundary bodies are exposed with the names :at:`B_last` and :at:`B_first`.
    - The vertex initial positions can be specified directly in the XML with the parameter :at:`vertex`.
    - The orientation of the body frame **is** the orientation of the material frame of the curve.
 
