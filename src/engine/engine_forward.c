@@ -760,7 +760,7 @@ void mj_forwardSkip(const mjModel* m, mjData* d, int skipstage, int skipsensor) 
   }
 
   // acceleration-dependent
-  if (mjcb_control) {
+  if (mjcb_control && !mjDISABLED(mjDSBL_ACTUATION)) {
     mjcb_control(m, d);
   }
   mj_fwdActuation(m, d);

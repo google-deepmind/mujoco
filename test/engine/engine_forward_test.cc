@@ -15,6 +15,7 @@
 // Tests for engine/engine_forward.c.
 
 #include "src/engine/engine_forward.h"
+#include <cstddef>
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
@@ -22,6 +23,7 @@
 #include <mujoco/mjtnum.h>
 #include <mujoco/mujoco.h>
 #include "src/cc/array_safety.h"
+#include "src/engine/engine_callback.h"
 #include "src/engine/engine_io.h"
 #include "test/fixture.h"
 
@@ -274,8 +276,6 @@ TEST_F(ImplicitIntegratorTest, EnergyConservation) {
   mj_deleteModel(model);
 }
 
-// --------------------------- control clamping --------------------------------
-
 TEST_F(ForwardTest, ControlClamping) {
   static constexpr char xml[] = R"(
   <mujoco>
@@ -339,6 +339,49 @@ TEST_F(ForwardTest, ControlClamping) {
   data->ctrl[1] = std::numeric_limits<double>::quiet_NaN();
   mj_forward(model, data);
   EXPECT_THAT(warning, HasSubstr("Nan, Inf or huge value in CTRL at ACTUATOR 1"));
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
+void control_callback(const mjModel* m, mjData *d) {
+  d->ctrl[0] = 2;
+}
+
+TEST_F(ForwardTest, MjcbControlDisabled) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <geom size="1"/>
+        <joint name="hinge"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <motor joint="hinge"/>
+    </actuator>
+  </mujoco>
+  )";
+  mjModel* model = LoadModelFromString(xml);
+  mjData* data = mj_makeData(model);
+
+  // install global control callback
+  mjcb_control = control_callback;
+
+  // call forward
+  mj_forward(model, data);
+  // expect that callback was used
+  EXPECT_EQ(data->ctrl[0], 2.0);
+
+  // reset, disable actuation, call forward
+  mj_resetData(model, data);
+  model->opt.disableflags |= mjDSBL_ACTUATION;
+  mj_forward(model, data);
+  // expect that callback was not used
+  EXPECT_EQ(data->ctrl[0], 0.0);
+
+  // remove global control callback
+  mjcb_control = nullptr;
 
   mj_deleteData(data);
   mj_deleteModel(model);
