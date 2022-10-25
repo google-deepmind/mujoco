@@ -264,11 +264,7 @@ void mjCMesh::Compile(const mjVFS* vfs) {
           useredge.push_back(std::pair(v1, v2));
           useredge.push_back(std::pair(v2, v0));
         } else {
-          char message[100];
-          ::mujoco::util::sprintf_arr(message,
-            "Degenerate triangle found in mesh `%s`, its orientation will not be checked.",
-            name.c_str());
-          mju_warning(message);
+          // TODO(b/255525326)
         }
       }
     }
@@ -668,11 +664,7 @@ void mjCMesh::LoadOBJ(const mjVFS* vfs) {
           useredge.push_back(std::pair(face_indices[1].vertex_index, face_indices[2].vertex_index));
           useredge.push_back(std::pair(face_indices[2].vertex_index, face_indices[0].vertex_index));
         } else {
-          char message[100];
-          ::mujoco::util::sprintf_arr(message,
-            "Degenerate triangle found in mesh `%s`, its orientation will not be checked.",
-            name.c_str());
-          mju_warning(message);
+          // TODO(b/255525326)
         }
 
         // add vertex indices (in uservert) to userface
