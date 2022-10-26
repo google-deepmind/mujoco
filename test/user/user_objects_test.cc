@@ -265,6 +265,44 @@ TEST_F(MjCGeomTest, CapsuleInertiaX) {
   mj_deleteModel(model);
 }
 
+// ------------- test inertiagrouprange ----------------------------------------
+TEST_F(MjCGeomTest, IgnoreGeomOutsideInertiagrouprange) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <compiler inertiagrouprange="0 1"/>
+    <worldbody>
+      <body>
+        <geom size="1" group="3"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  mjModel* m = LoadModelFromString(xml, nullptr, 0);
+  EXPECT_THAT(m->body_mass[1], 0);
+  mj_deleteModel(m);
+}
+
+TEST_F(MjCGeomTest, IgnoreBadGeomOutsideInertiagrouprange) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <compiler inertiagrouprange="0 1"/>
+    <asset>
+      <mesh name="malformed_mesh"
+        vertex="0 0 0  1 0 0  0 1 0  0 0 1"
+        face="2 0 3  0 1 3  1 2 3  0 1 2" />
+    </asset>
+    <worldbody>
+      <body>
+        <geom type="mesh" mesh="malformed_mesh" group="3"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  mjModel* m = LoadModelFromString(xml, nullptr, 0);
+  EXPECT_THAT(m->body_mass[1], 0);
+  mj_deleteModel(m);
+}
+
 // ------------- test height fields --------------------------------------------
 
 using MjCHFieldTest = MujocoTest;

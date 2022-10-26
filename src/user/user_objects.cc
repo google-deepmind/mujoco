@@ -701,8 +701,10 @@ void mjCBody::Compile(void) {
 
   // compile all geoms, phase 1
   for (i=0; i<geoms.size(); i++) {
-    geoms[i]->inferinertia = id>0 && (!explicitinertial ||
-                                      model->inertiafromgeom==mjINERTIAFROMGEOM_TRUE);
+    geoms[i]->inferinertia = id>0 &&
+      (!explicitinertial || model->inertiafromgeom == mjINERTIAFROMGEOM_TRUE) &&
+      geoms[i]->group >= model->inertiagrouprange[0] &&
+      geoms[i]->group <= model->inertiagrouprange[1];
     geoms[i]->Compile();
   }
 
