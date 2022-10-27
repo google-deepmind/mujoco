@@ -5284,6 +5284,28 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
          ),
          doc='Set res = 0.',
      )),
+    ('mju_fill',
+     FunctionDecl(
+         name='mju_fill',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='res',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='n',
+                 type=ValueType(name='int'),
+             ),
+             FunctionParameterDecl(
+                 name='val',
+                 type=ValueType(name='mjtNum'),
+             ),
+         ),
+         doc='Set res = val.',
+     )),
     ('mju_copy',
      FunctionDecl(
          name='mju_copy',
@@ -5698,7 +5720,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  type=ValueType(name='int'),
              ),
          ),
-         doc="Multiply square matrix with vectors on both sides: returns vec1'*mat*vec2.",  # pylint: disable=line-too-long
+         doc="Multiply square matrix with vectors on both sides: returns vec1' * mat * vec2.",  # pylint: disable=line-too-long
      )),
     ('mju_transpose',
      FunctionDecl(
@@ -5727,6 +5749,42 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
              ),
          ),
          doc="Transpose matrix: res = mat'.",
+     )),
+    ('mju_symmetrize',
+     FunctionDecl(
+         name='mju_symmetrize',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='mat',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='n',
+                 type=ValueType(name='int'),
+             ),
+         ),
+         doc="Symmetrize square matrix M = (M + M')/2.",
+     )),
+    ('mju_eye',
+     FunctionDecl(
+         name='mju_eye',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='mat',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='n',
+                 type=ValueType(name='int'),
+             ),
+         ),
+         doc='Set mat to the identity matrix.',
      )),
     ('mju_mulMatMat',
      FunctionDecl(

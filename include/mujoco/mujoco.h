@@ -871,6 +871,9 @@ MJAPI mjtNum mju_normalize4(mjtNum res[4]);
 // Set res = 0.
 MJAPI void mju_zero(mjtNum* res, int n);
 
+// Set res = val.
+MJAPI void mju_fill(mjtNum* res, int n, mjtNum val);
+
 // Set res = vec.
 MJAPI void mju_copy(mjtNum* res, const mjtNum* data, int n);
 
@@ -916,11 +919,17 @@ MJAPI void mju_mulMatVec(mjtNum* res, const mjtNum* mat, const mjtNum* vec, int 
 // Multiply transposed matrix and vector: res = mat' * vec.
 MJAPI void mju_mulMatTVec(mjtNum* res, const mjtNum* mat, const mjtNum* vec, int nr, int nc);
 
-// Multiply square matrix with vectors on both sides: returns vec1'*mat*vec2.
+// Multiply square matrix with vectors on both sides: returns vec1' * mat * vec2.
 MJAPI mjtNum mju_mulVecMatVec(const mjtNum* vec1, const mjtNum* mat, const mjtNum* vec2, int n);
 
 // Transpose matrix: res = mat'.
 MJAPI void mju_transpose(mjtNum* res, const mjtNum* mat, int nr, int nc);
+
+// Symmetrize square matrix M = (M + M')/2.
+MJAPI void mju_symmetrize(mjtNum* mat, int n);
+
+// Set mat to the identity matrix.
+MJAPI void mju_eye(mjtNum* mat, int n);
 
 // Multiply matrices: res = mat1 * mat2.
 MJAPI void mju_mulMatMat(mjtNum* res, const mjtNum* mat1, const mjtNum* mat2,

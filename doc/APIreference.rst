@@ -5909,6 +5909,17 @@ mju_zero
 
 Set res = 0.
 
+.. _mju_fill:
+
+mju_fill
+~~~~~~~~
+
+.. code-block:: C
+
+   void mju_fill(mjtNum* res, int n, mjtNum val);
+
+Set res = val.
+
 mju_copy
 ~~~~~~~~
 
@@ -6081,6 +6092,28 @@ mju_transpose
    void mju_transpose(mjtNum* res, const mjtNum* mat, int nr, int nc);
 
 Transpose matrix: res = mat'.
+
+.. _mju_symmetrize:
+
+mju_symmetrize
+~~~~~~~~~~~~~~
+
+.. code-block:: C
+
+   void mju_symmetrize(mjtNum* mat, int n);
+
+Symmetrize square matrix :math:`M = \frac{1}{2}(M + M^T)`.
+
+.. _mju_eye:
+
+mju_eye
+~~~~~~~
+
+.. code-block:: C
+
+   void mju_eye(mjtNum* mat, int n);
+
+Set mat to the identity matrix.
 
 .. _mju_mulMatMat:
 

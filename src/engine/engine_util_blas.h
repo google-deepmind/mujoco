@@ -18,7 +18,7 @@
 #include <math.h>
 
 #include <mujoco/mjexport.h>
-#include <mujoco/mjmodel.h>
+#include <mujoco/mjtnum.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -130,6 +130,9 @@ MJAPI mjtNum mju_normalize4(mjtNum vec[4]);
 // res = 0
 MJAPI void mju_zero(mjtNum* res, int n);
 
+// res = val
+MJAPI void mju_fill(mjtNum* res, int n, mjtNum val);
+
 // res = vec
 MJAPI void mju_copy(mjtNum* res, const mjtNum* vec, int n);
 
@@ -184,10 +187,18 @@ MJAPI void mju_mulMatTVec(mjtNum* res, const mjtNum* mat, const mjtNum* vec,
 MJAPI mjtNum mju_mulVecMatVec(const mjtNum* vec1, const mjtNum* mat, const mjtNum* vec2, int n);
 
 
-//------------------------------ matrix-matrix operations ------------------------------------------
+//------------------------------ matrix operations -------------------------------------------------
 
 // transpose matrix
 MJAPI void mju_transpose(mjtNum* res, const mjtNum* mat, int nr, int nc);
+
+// symmetrize square matrix M = (M + M')/2
+MJAPI void mju_symmetrize(mjtNum* mat, int n);
+
+// identity matrix
+MJAPI void mju_eye(mjtNum* mat, int n);
+
+//------------------------------ matrix-matrix operations ------------------------------------------
 
 // multiply matrices
 MJAPI void mju_mulMatMat(mjtNum* res, const mjtNum* mat1, const mjtNum* mat2,

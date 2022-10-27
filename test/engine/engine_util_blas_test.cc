@@ -24,6 +24,8 @@
 namespace mujoco {
 namespace {
 
+using ::testing::ElementsAre;
+
 using EngineUtilBlasTest = MujocoTest;
 
 TEST_F(EngineUtilBlasTest, MjuDot) {
@@ -51,6 +53,39 @@ TEST_F(EngineUtilBlasTest, MjuMulVecMatVec) {
   };
 
   EXPECT_EQ(mju_mulVecMatVec(vec1, mat, vec2, 3), 204);
+}
+
+TEST_F(EngineUtilBlasTest, MjuFill) {
+  mjtNum vec[] = {0, 1, 4};
+  mju_fill(vec, 3, 4.5);
+
+  EXPECT_EQ(vec[0], 4.5);
+  EXPECT_EQ(vec[1], 4.5);
+  EXPECT_EQ(vec[2], 4.5);
+}
+
+TEST_F(EngineUtilBlasTest, MjuEye) {
+  mjtNum mat1[1];
+  mju_eye(mat1, 1);
+  EXPECT_EQ(mat1[0], 1);
+
+  mjtNum mat3[9];
+  mju_eye(mat3, 3);
+  EXPECT_THAT(mat3, ElementsAre(1, 0, 0,
+                                0, 1, 0,
+                                0, 0, 1));
+}
+
+TEST_F(EngineUtilBlasTest, MjuSymmetrize) {
+  mjtNum mat[] = {
+    1,   2.5, 3.5,
+    1.5, 2,   4,
+    2.5, 3,   3
+  };
+  mju_symmetrize(mat, 3);
+  EXPECT_THAT(mat, ElementsAre(1, 2,   3,
+                               2, 2,   3.5,
+                               3, 3.5, 3));
 }
 
 }  // namespace

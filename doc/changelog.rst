@@ -3,6 +3,14 @@ Changelog
 =========
 
 
+Upcoming version (not yet released)
+-----------------------------------
+
+General
+^^^^^^^
+
+- Added :ref:`mju_fill`, :ref:`mju_symmetrize` and :ref:`mju_eye` utility functions.
+
 Version 2.3.0 (October 18, 2022)
 --------------------------------
 
