@@ -926,11 +926,6 @@ void mjCModel::SetSizes(void) {
   // nu, na
   for (i=0; i<(int)actuators.size(); i++) {
     if (actuators[i]->dyntype == mjDYN_NONE) {
-      //  make sure all 2nd-order come before all 3rd-order
-      if (na) {
-        throw mjCError(0, "stateless actuators must come before stateful actuators");
-      }
-
       nu++;
     } else {
       nu++;
@@ -1825,6 +1820,7 @@ void mjCModel::CopyObjects(mjModel* m) {
   }
 
   // actuators
+  adr = 0;
   for (i=0; i<nu; i++) {
     // get pointer
     mjCActuator* pac = actuators[i];
@@ -1836,6 +1832,7 @@ void mjCModel::CopyObjects(mjModel* m) {
     m->actuator_biastype[i] = pac->biastype;
     m->actuator_trnid[2*i] = pac->trnid[0];
     m->actuator_trnid[2*i+1] = pac->trnid[1];
+    m->actuator_actadr[i] = pac->dyntype == mjDYN_NONE ? -1 : adr++;
     m->actuator_group[i] = pac->group;
     m->actuator_ctrllimited[i] = pac->ctrllimited;
     m->actuator_forcelimited[i] = pac->forcelimited;

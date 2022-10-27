@@ -10,6 +10,7 @@ General
 ^^^^^^^
 
 - Added :ref:`mju_fill`, :ref:`mju_symmetrize` and :ref:`mju_eye` utility functions.
+- Removed the requirement that stateless actuators come before stateful actuators.
 
 Version 2.3.0 (October 18, 2022)
 --------------------------------

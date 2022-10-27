@@ -1369,6 +1369,7 @@ const char* mj_validateReferences(const mjModel* m) {
   X(pair_geom1,         npair,         ngeom        , 0                      ) \
   X(pair_geom2,         npair,         ngeom        , 0                      ) \
   X(actuator_plugin,    nu,            nplugin      , 0                      ) \
+  X(actuator_actadr,    nu,            na           , 0                      ) \
   X(sensor_plugin,      nsensor,       nplugin      , 0                      ) \
   X(plugin_stateadr,    nplugin,       npluginstate , m->plugin_statenum     ) \
   X(plugin_attradr,     nplugin,       npluginattr  , 0                      ) \

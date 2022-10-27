@@ -808,7 +808,7 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
 
         // clamp act to extended range
         if (vopt->flags[mjVIS_ACTIVATION] && m->actuator_dyntype[i]) {
-          act = mju_clip(d->act[i-(m->nu-m->na)], rng[0], rng[2]);
+          act = mju_clip(d->act[m->actuator_actadr[i]], rng[0], rng[2]);
         } else {
           act = mju_clip(d->ctrl[i], rng[0], rng[2]);
         }

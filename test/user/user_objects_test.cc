@@ -104,7 +104,7 @@ TEST_F(KeyframeTest, BadSize) {
   char error[1024];
   size_t error_sz = 1024;
   mjModel* model = LoadModelFromString(xml, error, error_sz);
-  EXPECT_THAT(model, ::testing::IsNull());
+  EXPECT_THAT(model, IsNull());
   EXPECT_THAT(error, HasSubstr("invalid qpos size, expected length 0"));
 }
 
@@ -313,7 +313,7 @@ TEST_F(MjCHFieldTest, PngMap) {
   std::array<char, 1024> error;
   mjModel* model =
       mj_loadXML(xml_path.c_str(), nullptr, error.data(), error.size());
-  ASSERT_THAT(model, ::testing::NotNull()) << error.data();
+  ASSERT_THAT(model, NotNull()) << error.data();
   EXPECT_EQ(model->nhfield, 1);
   EXPECT_EQ(model->geom_type[0], mjGEOM_HFIELD);
   mj_deleteModel(model);
@@ -348,8 +348,8 @@ TEST_F(QuatNorm, QuatNotNormalized) {
 
 using ActuatorTest = MujocoTest;
 
-TEST_F(ActuatorTest, BadOrder) {
-  static constexpr char xml[] = R"(
+TEST_F(ActuatorTest, ActuatorOrderDoesntMatter) {
+  static constexpr char xml1[] = R"(
   <mujoco>
     <worldbody>
       <body>
@@ -363,11 +363,52 @@ TEST_F(ActuatorTest, BadOrder) {
     </actuator>
   </mujoco>
   )";
-  char error[1024];
-  size_t error_sz = 1024;
-  mjModel* model = LoadModelFromString(xml, error, error_sz);
-  EXPECT_THAT(model, ::testing::IsNull());
-  EXPECT_THAT(error, HasSubstr("stateless actuators must come before"));
+  static constexpr char xml2[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <joint name="hinge"/>
+        <geom size="1"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <general joint="hinge"/>
+      <general joint="hinge" dyntype="filter"/>
+    </actuator>
+  </mujoco>
+  )";
+  mjModel* model1 = LoadModelFromString(xml1, nullptr, 0);
+  mjData* data1 = mj_makeData(model1);
+  mjModel* model2 = LoadModelFromString(xml2, nullptr, 0);
+  mjData* data2 = mj_makeData(model2);
+
+  // check activation indexing
+  EXPECT_EQ(model1->actuator_actadr[0], 0);
+  EXPECT_EQ(model1->actuator_actadr[1], -1);
+  EXPECT_EQ(model2->actuator_actadr[0], -1);
+  EXPECT_EQ(model2->actuator_actadr[1], 0);
+
+  // integrate both models, flipping the controls
+  while (data1->time < 1) {
+    data1->ctrl[0] = data1->time;
+    data1->ctrl[1] = -data1->time;
+    mj_step(model1, data1);
+  }
+  while (data2->time < 1) {
+    data2->ctrl[0] = -data2->time;
+    data2->ctrl[1] = data2->time;
+    mj_step(model2, data2);
+  }
+
+  // expect states to match exactly
+  EXPECT_EQ(data1->qpos[0], data2->qpos[0]);
+  EXPECT_EQ(data1->qvel[0], data2->qvel[0]);
+  EXPECT_EQ(data1->act[0], data2->act[0]);
+
+  mj_deleteData(data2);
+  mj_deleteModel(model2);
+  mj_deleteData(data1);
+  mj_deleteModel(model1);
 }
 
 

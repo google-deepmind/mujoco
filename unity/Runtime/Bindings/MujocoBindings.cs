@@ -2129,6 +2129,7 @@ public unsafe struct mjModel_ {
   public int* actuator_gaintype;
   public int* actuator_biastype;
   public int* actuator_trnid;
+  public int* actuator_actadr;
   public int* actuator_group;
   public byte* actuator_ctrllimited;
   public byte* actuator_forcelimited;

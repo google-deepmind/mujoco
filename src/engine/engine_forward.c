@@ -155,7 +155,7 @@ void mj_fwdVelocity(const mjModel* m, mjData* d) {
 // (qpos, qvel, ctrl, act) => (qfrc_actuator, actuator_force, act_dot)
 void mj_fwdActuation(const mjModel* m, mjData* d) {
   TM_START;
-  int nv = m->nv, nu = m->nu, na = m->na;
+  int nv = m->nv, nu = m->nu;
   mjtNum gain, bias, tau;
   mjtNum *prm, *moment = d->actuator_moment, *force = d->actuator_force;
 
@@ -231,10 +231,10 @@ void mj_fwdActuation(const mjModel* m, mjData* d) {
     }
 
     // set force = gain .* [ctrl/act]
-    if (m->actuator_dyntype[i]==mjDYN_NONE) {
+    if (m->actuator_actadr[i] == -1) {
       force[i] = gain * ctrl[i];
     } else {
-      force[i] = gain * d->act[i-(nu-na)];
+      force[i] = gain * d->act[m->actuator_actadr[i]];
     }
 
     // extract bias info
@@ -299,14 +299,18 @@ void mj_fwdActuation(const mjModel* m, mjData* d) {
   mju_mulMatTVec(d->qfrc_actuator, moment, force, nu, nv);
 
   // act_dot for stateful actuators
-  for (int i=nu-na; i<nu; i++) {
+  for (int i=0; i<nu; i++) {
     if (m->actuator_plugin[i] >= 0) {
+      continue;
+    }
+
+    int j = m->actuator_actadr[i];
+    if (j < 0) {
       continue;
     }
 
     // extract info
     prm = m->actuator_dynprm + i*mjNDYN;
-    int j = i-(nu-na);
 
     // compute act_dot according to dynamics type
     switch (m->actuator_dyntype[i]) {
@@ -493,11 +497,11 @@ static void mj_advance(const mjModel* m, mjData* d,
     mju_addToScl(d->act, act_dot, m->opt.timestep, m->na);
 
     // clamp activations
-    for (int i=0; i<m->na; i++) {
-      int iu = i + m->nu - m->na;
-      if (m->actuator_actlimited[iu]) {
-        mjtNum* actrange = m->actuator_actrange + 2*iu;
-        d->act[i] = mju_clip(d->act[i], actrange[0], actrange[1]);
+    for (int i=0; i<m->nu; i++) {
+      int j = m->actuator_actadr[i];
+      if (j > -1 && m->actuator_actlimited[i]) {
+        mjtNum* actrange = m->actuator_actrange + 2*i;
+        d->act[j] = mju_clip(d->act[j], actrange[0], actrange[1]);
       }
     }
   }
