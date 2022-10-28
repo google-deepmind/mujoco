@@ -1588,7 +1588,10 @@ void mjXReader::OneTendon(XMLElement* elem, mjCTendon* pten) {
   ReadAttr(elem, "stiffness", 1, &pten->stiffness, text);
   ReadAttr(elem, "damping", 1, &pten->damping, text);
   ReadAttr(elem, "frictionloss", 1, &pten->frictionloss, text);
-  ReadAttr(elem, "springlength", 1, &pten->springlength, text);
+  // read springlength, either one or two values; if one, copy to second value
+  if (ReadAttr(elem, "springlength", 2, pten->springlength, text, false, false) == 1) {
+    pten->springlength[1] = pten->springlength[0];
+  }
   ReadAttr(elem, "rgba", 4, pten->rgba, text);
 
   // read userdata

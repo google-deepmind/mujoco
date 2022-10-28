@@ -341,7 +341,7 @@
     X( mjtNum,  tendon_stiffness,      ntendon,       1                    ) \
     X( mjtNum,  tendon_damping,        ntendon,       1                    ) \
     X( mjtNum,  tendon_frictionloss,   ntendon,       1                    ) \
-    X( mjtNum,  tendon_lengthspring,   ntendon,       1                    ) \
+    X( mjtNum,  tendon_lengthspring,   ntendon,       2                    ) \
     X( mjtNum,  tendon_length0,        ntendon,       1                    ) \
     X( mjtNum,  tendon_invweight0,     ntendon,       1                    ) \
     X( mjtNum,  tendon_user,           ntendon,       MJ_M(nuser_tendon)   ) \

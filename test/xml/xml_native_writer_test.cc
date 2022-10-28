@@ -708,6 +708,52 @@ TEST_F(XMLWriterTest, WritesSkin) {
   mj_deleteModel(mtemp);
 }
 
+TEST_F(XMLWriterTest, SpringlengthOneValue) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <site name="1"/>
+      <site name="2" pos="0 0 1"/>
+    </worldbody>
+
+    <tendon>
+      <spatial springlength="0.5">
+        <site site="1"/>
+        <site site="2"/>
+      </spatial>
+    </tendon>
+  </mujoco>
+  )";
+  mjModel* model = LoadModelFromString(xml);
+  ASSERT_THAT(model, NotNull());
+  std::string saved_xml = SaveAndReadXml(model);
+  EXPECT_THAT(saved_xml, HasSubstr("springlength=\"0.5\""));
+  mj_deleteModel(model);
+}
+
+TEST_F(XMLWriterTest, SpringlengthTwoValues) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <site name="1"/>
+      <site name="2" pos="0 0 1"/>
+    </worldbody>
+
+    <tendon>
+      <spatial springlength="0 0.5">
+        <site site="1"/>
+        <site site="2"/>
+      </spatial>
+    </tendon>
+  </mujoco>
+  )";
+  mjModel* model = LoadModelFromString(xml);
+  ASSERT_THAT(model, NotNull());
+  std::string saved_xml = SaveAndReadXml(model);
+  EXPECT_THAT(saved_xml, HasSubstr("springlength=\"0 0.5\""));
+  mj_deleteModel(model);
+}
+
 // check that no precision is lost when saving XMLs with FullFloatPrecision
 TEST_F(XMLWriterTest, SetPrecision) {
   static constexpr char xml[] = R"(

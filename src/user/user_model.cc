@@ -1801,7 +1801,8 @@ void mjCModel::CopyObjects(mjModel* m) {
     m->tendon_stiffness[i] = (mjtNum)pte->stiffness;
     m->tendon_damping[i] = (mjtNum)pte->damping;
     m->tendon_frictionloss[i] = (mjtNum)pte->frictionloss;
-    m->tendon_lengthspring[i] = (mjtNum)pte->springlength;
+    m->tendon_lengthspring[2*i] = (mjtNum)pte->springlength[0];
+    m->tendon_lengthspring[2*i+1] = (mjtNum)pte->springlength[1];
     copyvec(m->tendon_user+nuser_tendon*i, pte->userdata.data(), nuser_tendon);
     copyvec(m->tendon_rgba+4*i, pte->rgba, 4);
 

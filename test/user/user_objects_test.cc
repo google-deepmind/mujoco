@@ -679,7 +679,7 @@ TEST_F(UserDataTest, NSensorTooSmall) {
   EXPECT_THAT(error.data(), HasSubstr("nuser_sensor"));
 }
 
-// ------------- test for auto parsing of *limited fields -------------
+// ------------- test for auto parsing of *limited fields ----------------------
 
 using LimitedTest = MujocoTest;
 
@@ -789,6 +789,60 @@ TEST_F(LimitedTest, ErrorIfForceLimitedMissingOnActuator) {
   EXPECT_THAT(error.data(), HasSubstr("forcelimited"));
   EXPECT_THAT(error.data(), HasSubstr("forcerange"));
   EXPECT_THAT(error.data(), HasSubstr("actuator"));
+}
+
+// ------------- tests for tendon springrange ----------------------------------
+
+using SpringrangeTest = MujocoTest;
+
+TEST_F(SpringrangeTest, DefaultsPropagate) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <default>
+      <tendon springlength=".2 .5"/>
+    </default>
+
+    <worldbody>
+      <site name="0"/>
+      <site name="1" pos="1 0 0"/>
+    </worldbody>
+
+    <tendon>
+      <spatial>
+        <site site="0"/>
+        <site site="1"/>
+      </spatial>
+    </tendon>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, NotNull()) << error.data();
+  EXPECT_EQ(model->tendon_lengthspring[0], .2);
+  EXPECT_EQ(model->tendon_lengthspring[1], .5);
+  mj_deleteModel(model);
+}
+
+TEST_F(SpringrangeTest, InvalidRange) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <site name="0"/>
+      <site name="1" pos="1 0 0"/>
+    </worldbody>
+
+    <tendon>
+      <spatial springlength="1 0">
+        <site site="0"/>
+        <site site="1"/>
+      </spatial>
+    </tendon>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("invalid springlength in tendon"));
 }
 
 }  // namespace

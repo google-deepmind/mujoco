@@ -565,7 +565,7 @@ string mjXUtil::FindValue(const mjMap* map, int mapsz, int value) {
 // read attribute "attr" of element "elem"
 //  "len" is the number of floats or doubles to be read
 //  the content is returned in "text", the numeric data in "data"
-//  return true if attribute found, false if not found and not required
+//  return number of elements found
 template<typename T>
 int mjXUtil::ReadAttr(XMLElement* elem, const char* attr, const int len,
                       T* data, string& text, bool required, bool exact) {

@@ -802,7 +802,7 @@ class mjCTendon : public mjCBase {
   double stiffness;               // stiffness coefficient
   double damping;                 // damping coefficient
   double frictionloss;            // friction loss
-  double springlength;            // spring length; -1: use qpos_spring
+  double springlength[2];         // spring resting length; {-1, -1}: use qpos_spring
   std::vector<double> userdata;   // user data
   float rgba[4];                  // rgba when material is omitted
 

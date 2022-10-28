@@ -877,7 +877,7 @@ TEST_F(ActuatorParseTest, DampersDontRequireRange) {
   mj_deleteModel(model);
 }
 
-// make sure range requirement is not enforced at parse time
+// adhesion actuators inherit from general defaults
 TEST_F(ActuatorParseTest, AdhesionInheritsFromGeneral) {
   static constexpr char xml[] = R"(
   <mujoco>

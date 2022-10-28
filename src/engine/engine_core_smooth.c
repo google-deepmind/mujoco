@@ -1383,9 +1383,20 @@ void mj_passive(const mjModel* m, mjData* d) {
     stiffness = m->tendon_stiffness[i];
     damping = m->tendon_damping[i];
 
-    // compute spring-damper linear force along tendon
-    frc = -stiffness * (d->ten_length[i] - m->tendon_lengthspring[i])
-          -damping * d->ten_velocity[i];
+    // compute spring force along tendon
+    mjtNum length = d->ten_length[i];
+    mjtNum lower = m->tendon_lengthspring[2*i];
+    mjtNum upper = m->tendon_lengthspring[2*i+1];
+    if (length > upper) {
+      frc = stiffness * (upper - length);
+    } else if (length < lower) {
+      frc = stiffness * (lower - length);
+    } else {
+      frc = 0;
+    }
+
+    // compute damper linear force along tendon
+    frc -= damping * d->ten_velocity[i];
 
     // transform to joint torque, add to qfrc_passive: dense or sparse
     if (issparse) {

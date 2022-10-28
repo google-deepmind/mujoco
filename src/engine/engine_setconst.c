@@ -368,10 +368,11 @@ static void setSpring(mjModel* m, mjData* d) {
   mj_tendon(m, d);
   mj_transmission(m, d);
 
-  // copy if model spring length is negative
+  // copy if model spring length is -1
   for (int i=0; i<m->ntendon; i++) {
-    if (m->tendon_lengthspring[i]<0) {
-      m->tendon_lengthspring[i] = d->ten_length[i];
+    if (m->tendon_lengthspring[2*i] == -1 && m->tendon_lengthspring[2*i+1] == -1) {
+      // explicit springlength unused, set equal to ten_length
+      m->tendon_lengthspring[2*i] = m->tendon_lengthspring[2*i+1] = d->ten_length[i];
     }
   }
 }

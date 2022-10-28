@@ -2788,9 +2788,16 @@ the obstacle geom.
 :at:`rgba`: :at-val:`real(4), "0.5 0.5 0.5 1"`
    Color and transparency of the tendon. When this value is different from the internal default, it overrides the
    corresponding material properties.
-:at:`springlength`: :at-val:`real, "-1"`
-   The length of the tendon corresponding to the spring resting position. If this value is negative, the tendon resting
-   length is determined from the model reference configuration in qpos0.
+:at:`springlength`: :at-val:`real(2), "-1 -1"`
+   Spring resting position, can take either one or two values. If one value is given, it corresponds to the length of
+   the tendon at rest. If it is ``-1``, the tendon resting length is determined from the model reference configuration
+   in ``mjModel.qpos0``.  |br| Note that the default value of ``-1``, which invokes the automatic length computation,
+   was designed with :ref:`spatial<tendon-spatial>` tendons in mind, which can only have nonegative length. In order to
+   set the :at:`springlength` of a :ref:`fixed<tendon-fixed>` tendon to ``-1``, use a nearby value like ``-0.99999``.
+   |br| If two non-decreasing values are given, they define a `dead-band <https://en.wikipedia.org/wiki/Deadband>`_
+   range. If the tendon length is between the two values, the force is 0. If it is outside this range, the force behaves
+   like a regular spring, with the rest-point corresponding to the nearest :at:`springlength` value. A deadband can be
+   used to define tendons whose limits are enforced by springs rather than constraints.
 :at:`stiffness`: :at-val:`real, "0"`
    Stiffness coefficient. A positive value generates a spring force (linear in position) acting along the tendon.
 :at:`damping`: :at-val:`real, "0"`

@@ -3041,7 +3041,7 @@ mjCTendon::mjCTendon(mjCModel* _model, mjCDef* _def) {
   stiffness = 0;
   damping = 0;
   frictionloss = 0;
-  springlength = -1;
+  springlength[0] = springlength[1] = -1;
   rgba[0] = rgba[1] = rgba[2] = 0.5f;
   rgba[3] = 1.0f;
   userdata.clear();
@@ -3272,6 +3272,11 @@ void mjCTendon::Compile(void) {
   // check limits
   if (range[0]>=range[1] && limited) {
     throw mjCError(this, "invalid limits in tendon '%s (id = %d)'", name.c_str(), id);
+  }
+
+  // check springlength
+  if (springlength[0] > springlength[1]) {
+    throw mjCError(this, "invalid springlength in tendon '%s (id = %d)'", name.c_str(), id);
   }
 }
 

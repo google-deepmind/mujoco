@@ -51,7 +51,7 @@ class TINYXML2_LIB mj_XMLPrinter : public tinyxml2::XMLPrinter {
 
   public:
     void PrintSpace( int depth ) {
-      for( int i=0; i<depth; ++i ) {
+      for (int i=0; i<depth; ++i) {
           Write( "  " );
       }
     }
@@ -524,8 +524,12 @@ void mjXWriter::OneTendon(XMLElement* elem, mjCTendon* pten, mjCDef* def) {
   WriteAttr(elem, "stiffness", 1, &pten->stiffness, &def->tendon.stiffness);
   WriteAttr(elem, "damping", 1, &pten->damping, &def->tendon.damping);
   WriteAttr(elem, "frictionloss", 1, &pten->frictionloss, &def->tendon.frictionloss);
-  WriteAttr(elem, "springlength", 1, &pten->springlength, &def->tendon.springlength);
-
+  if (pten->springlength[0] != pten->springlength[1] ||
+      def->tendon.springlength[0] != def->tendon.springlength[1]) {
+    WriteAttr(elem, "springlength", 2, pten->springlength, def->tendon.springlength);
+  } else {
+    WriteAttr(elem, "springlength", 1, pten->springlength, def->tendon.springlength);
+  }
   // spatial only
   if (!fixed) {
     if (pten->material!=def->tendon.material) {

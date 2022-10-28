@@ -1,0 +1,30 @@
+<mujoco>
+  <!-- use Runge-Kutta for better energy conservation -->
+  <option integrator="RK4">
+    <flag energy="enable"/>
+  </option>
+
+  <statistic center="0 0 0"/>
+
+  <worldbody>
+    <site name="origin" size=".01" rgba="1 0 0 1"/>
+    <light pos="0 0 3"/>
+
+    <body pos="1 0 .06">
+      <joint type="slide" axis="1 0 0"/>
+      <geom size=".05"/>
+      <site name="attachment" size=".01" pos="0 0 -.06" rgba="1 0 0 1"/>
+    </body>
+  </worldbody>
+
+  <tendon>
+    <spatial name="tendon" stiffness="10" springlength="0 .5">
+      <site site="origin"/>
+      <site site="attachment"/>
+    </spatial>
+  </tendon>
+
+  <sensor>
+    <tendonpos tendon="tendon"/>
+  </sensor>
+</mujoco>

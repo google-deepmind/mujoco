@@ -1350,14 +1350,24 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
   if (vopt->flags[mjVIS_TENDON] && (category & catmask)) {
     for (int i=0; i<m->ntendon; i++) {
       if (vopt->tendongroup[mjMAX(0, mjMIN(mjNGROUP-1, m->tendon_group[i]))]) {
+        // stiff tendon has a deadband spring
+        int limitedspring =
+            m->tendon_stiffness[i] > 0            &&  // positive stiffness
+            m->tendon_lengthspring[2*i] == 0      &&  // range lower-bound is 0
+            m->tendon_lengthspring[2*i+1] > 0;        // range upper-bound is positive
+
+        // non-stiff tendon has a length constraint
+        int limitedconstraint =
+            m->tendon_stiffness[i] == 0           &&  // zero stiffness
+            m->tendon_limited[i] == 1             &&  // limited length range
+            m->tendon_range[2*i] == 0;                // range lower-bound is 0
+
         // conditions for drawing a catenary
         int draw_catenary =
             !mjDISABLED(mjDSBL_GRAVITY)           &&  // gravity enabled
             mju_norm3(m->opt.gravity) > mjMINVAL  &&  // gravity strictly nonzero
             m->tendon_num[i] == 2                 &&  // only two sites on the tendon
-            m->tendon_limited[i] == 1             &&  // limited length range
-            m->tendon_range[2*i] == 0             &&  // range lower-bound is 0
-            m->tendon_stiffness[i] == 0           &&  // no stiffness
+            (limitedspring || limitedconstraint)  &&  // either spring or constraint length limits
             m->tendon_damping[i] == 0             &&  // no damping
             m->tendon_frictionloss[i] == 0;           // no frictionloss
 
@@ -1400,7 +1410,12 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
           mju_copy3(x1, d->wrap_xpos + 3*d->ten_wrapadr[i] + 3);
 
           // length of the tendon
-          mjtNum length = m->tendon_range[2*i+1];
+          mjtNum length;
+          if (limitedconstraint) {
+            length = m->tendon_range[2*i+1];
+          } else {
+            length = m->tendon_lengthspring[2*i+1];
+          }
 
           // points along catenary path
           int npoints = mjv_catenary(x0, x1, m->opt.gravity, length, catenary);

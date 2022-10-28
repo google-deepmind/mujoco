@@ -31,6 +31,7 @@ namespace {
 using ::testing::ElementsAre;
 using ::testing::Pointwise;
 using ::testing::DoubleNear;
+using ::testing::NotNull;
 using CoreSmoothTest = MujocoTest;
 
 static std::vector<mjtNum> GetVector(const mjtNum* array, int length) {
@@ -47,7 +48,7 @@ TEST_F(CoreSmoothTest, MjKinematicsWorldXipos) {
   </mujoco>
   )";
   mjModel* model = LoadModelFromString(xml);
-  ASSERT_THAT(model, testing::NotNull());
+  ASSERT_THAT(model, NotNull());
   mjData* data = mj_makeData(model);
 
   mj_resetDataDebug(model, data, 'd');
@@ -206,7 +207,7 @@ TEST_F(CoreSmoothTest, RefsiteBringsToPose) {
   constexpr char kRefsitePath[] = "engine/testdata/refsite.xml";
   const std::string xml_path = GetTestDataFilePath(kRefsitePath);
   mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, 0, 0);
-  ASSERT_THAT(model, ::testing::NotNull());
+  ASSERT_THAT(model, NotNull());
   mjData* data = mj_makeData(model);
 
   // set pose target in ctrl (3 positions, 3 rotations)
@@ -406,6 +407,34 @@ TEST_F(AdhesionTest, ExpectedAdhesionForce) {
       }
     }
   }
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
+
+// ------------------------------ tendons --------------------------------------
+
+using TendonTest = MujocoTest;
+
+// check tendon spring deadband using example model
+TEST_F(TendonTest, SpringrangeDeadband) {
+  const std::string xml_path =
+      GetTestDataFilePath("engine/testdata/tendon_springlength.xml");
+  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, nullptr, 0);
+  ASSERT_THAT(model, NotNull());
+  mjData* data = mj_makeData(model);
+
+  // initial state outside deadband: spring is active
+  mj_forward(model, data);
+  mjtNum expected_force = model->tendon_stiffness[0] *
+      (model->tendon_lengthspring[1] - data->ten_length[0]);
+  EXPECT_EQ(expected_force, data->qfrc_passive[0]);
+
+  // put body inside deadband: spring is inactive
+  data->qpos[0] = -1;
+  mj_forward(model, data);
+  EXPECT_EQ(0, data->qfrc_passive[0]);
+
   mj_deleteData(data);
   mj_deleteModel(model);
 }

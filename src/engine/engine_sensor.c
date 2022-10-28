@@ -825,9 +825,19 @@ void mj_energyPos(const mjModel* m, mjData* d) {
   if (!mjDISABLED(mjDSBL_PASSIVE)) {
     for (int i=0; i<m->ntendon; i++) {
       stiffness = m->tendon_stiffness[i];
+      mjtNum length = d->ten_length[i];
+      mjtNum displacement = 0;
 
-      d->energy[0] += 0.5*stiffness*(d->ten_length[i] - m->tendon_lengthspring[i])*
-                      (d->ten_length[i] - m->tendon_lengthspring[i]);
+      // compute spring displacement
+      mjtNum lower = m->tendon_lengthspring[2*i];
+      mjtNum upper = m->tendon_lengthspring[2*i+1];
+      if (length > upper) {
+        displacement = upper - length;
+      } else if (length < lower) {
+        displacement = lower - length;
+      }
+
+      d->energy[0] += 0.5*stiffness*displacement*displacement;
     }
   }
 }

@@ -9,8 +9,20 @@ Upcoming version (not yet released)
 General
 ^^^^^^^
 
-- Added :ref:`mju_fill`, :ref:`mju_symmetrize` and :ref:`mju_eye` utility functions.
+- The tendon :at:`springlength` attribute can now take two values. Given two non-decreasing values, `springlength`
+  specifies a `deadband  <https://en.wikipedia.org/wiki/Deadband>`_ range for spring stiffness. If the tendon length is
+  between the two values, the force is 0. If length is outside this range, the force behaves like a regular spring, with
+  the spring resting length corresponding to the nearest :at:`springlength` value. This can be used to create tendons
+  whose limits are enforced by springs rather than constraints, which are cheaper and easier to analyse. See
+  `tendon_springlength.xml <https://github.com/deepmind/mujoco/tree/main/test/engine/testdata/tendon_springlength.xml>`_
+  example model.
+
+  .. attention::
+    This is a minor breaking API change. ``mjModel.tendon_lengthspring`` now has size ``ntendon x 2`` rather than
+    ``ntendon x 1``.
+
 - Removed the requirement that stateless actuators come before stateful actuators.
+- Added :ref:`mju_fill`, :ref:`mju_symmetrize` and :ref:`mju_eye` utility functions.
 
 Version 2.3.0 (October 18, 2022)
 --------------------------------
