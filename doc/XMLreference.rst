@@ -2321,7 +2321,8 @@ coordinates results in compiler error. See :ref:`CComposite` in the modeling gui
    (cylinder, capsule or box). The geometry can either be defined with an array of 3D vertex coordinates :at:`vertex`
    or with prescribed functions with the option :at:`curve`. Currently, only linear and trigonometric functions are
    supported. For example, an helix can be obtained with curve="cos(s) sin(s) s". The size is set with the option
-   :at:`size`, resulting in :math:`f(s)=(size[1]*\cos(2*\pi*size[2]), size[1]*\sin(2*\pi*size[2]), size[0]*s)`.
+   :at:`size`, resulting in :math:`f(s)=\{\text{size}[1]\cdot\cos(2\pi\cdot\text{size}[2]),\;
+   \text{size}[1]\cdot\sin(2\pi\cdot\text{size}[2]),\; \text{size}[0]\cdot s\}`.
 
    The **cloth** type is a different way to model cloth, beyond type="grid". Here the elements are connected with
    universal joints and form a kinematic spanning tree. The root of the tree is the parent body, and its coordinates in
