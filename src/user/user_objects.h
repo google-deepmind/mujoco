@@ -490,7 +490,6 @@ class mjCMesh: public mjCBase {
   void MakeNormal(void);                      // compute vertex normals
   void Process();                             // apply transformations
   void RemoveRepeated(void);                  // remove repeated vertices
-  void ComputeInertia(mjtMeshType type);      // compute inertia
   void CheckMesh(void);                       // check if the mesh is valid
 
   // mesh properties that indicate a well-formed mesh
