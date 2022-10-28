@@ -72,15 +72,23 @@ typedef struct mjpPlugin_ mjpPlugin;
 #define mjDLLMAIN DllMain
 #endif
 
+#if !defined(mjEXTERNC)
+#if defined(__cplusplus)
+#define mjEXTERNC extern "C"
+#else
+#define mjEXTERNC
+#endif  // defined(__cplusplus)
+#endif  // !defined(mjEXTERNC)
+
 // NOLINTBEGIN(runtime/int)
-#define mjPLUGIN_DYNAMIC_LIBRARY_INIT                                                 \
-  static void _mjplugin_dllmain(void);                                                \
-  static int __stdcall mjDLLMAIN(void* hinst, unsigned long reason, void* reserved) { \
-    if (reason == 1) {                                                                \
-      _mjplugin_dllmain();                                                            \
-    }                                                                                 \
-    return 1;                                                                         \
-  }                                                                                   \
+#define mjPLUGIN_DYNAMIC_LIBRARY_INIT                                                     \
+  static void _mjplugin_dllmain(void);                                                    \
+  mjEXTERNC int __stdcall mjDLLMAIN(void* hinst, unsigned long reason, void* reserved) {  \
+    if (reason == 1) {                                                                    \
+      _mjplugin_dllmain();                                                                \
+    }                                                                                     \
+    return 1;                                                                             \
+  }                                                                                       \
   static void _mjplugin_dllmain(void)
 // NOLINTEND(runtime/int)
 

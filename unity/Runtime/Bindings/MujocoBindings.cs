@@ -50,6 +50,7 @@ public const int mjNREF = 2;
 public const int mjNIMP = 5;
 public const int mjNSOLVER = 1000;
 public const bool THIRD_PARTY_MUJOCO_INCLUDE_MJPLUGIN_H_ = true;
+public const bool mjEXTERNC = true;
 public const bool THIRD_PARTY_MUJOCO_MJRENDER_H_ = true;
 public const int mjNAUX = 10;
 public const int mjMAXTEXTURE = 1000;
