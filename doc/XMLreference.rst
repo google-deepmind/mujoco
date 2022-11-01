@@ -1690,6 +1690,11 @@ defined. Its body name is automatically defined as "world".
    unit quaternion, thus specifying it is optional even in local coordinates. If the body frame was copied from the body
    inertial frame per the above rules, the copy operation applies to both position and orientation, and the setting of
    the orientation-related attributes is ignored.
+:at:`gravcomp`: :at-val:`real, "0"`
+  Gravity compensation force, specified as fraction of body weight. This attribute creates an upwards force applied to
+  the body's center of mass, countering the force of gravity. As an example, a value of ``1`` creates an upward force
+  equal to the body's weight and compensates for gravity exactly. Values greater than ``1`` will create a net upwards
+  force or buoyancy effect.
 :at:`user`: :at-val:`real(nbody_user), "0 0 ..."`
    See :ref:`CUser`.
 

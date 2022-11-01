@@ -170,6 +170,7 @@
     X( mjtNum,  body_subtreemass,      nbody,         1                    ) \
     X( mjtNum,  body_inertia,          nbody,         3                    ) \
     X( mjtNum,  body_invweight0,       nbody,         2                    ) \
+    X( mjtNum,  body_gravcomp,         nbody,         1                    ) \
     X( mjtNum,  body_user,             nbody,         MJ_M(nuser_body)     ) \
     X( int,     body_plugin,           nbody,         1                    ) \
     X( int,     jnt_type,              njnt,          1                    ) \

@@ -361,6 +361,21 @@ TEST_F(XMLReaderTest, AllowsSpaces) {
   mj_deleteModel(model);
 }
 
+TEST_F(XMLReaderTest, gravcomp) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body gravcomp="1.01">
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  mjModel* model = LoadModelFromString(xml);
+  ASSERT_THAT(model, NotNull());
+  EXPECT_EQ(model->body_gravcomp[1], 1.01);
+  mj_deleteModel(model);
+}
+
 TEST_F(XMLReaderTest, InvalidDoubleOrientation) {
   std::string prefix = "<mujoco><worldbody><";
   std::string suffix = "/></worldbody></mujoco>";

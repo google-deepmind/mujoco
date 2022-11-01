@@ -21,8 +21,14 @@ General
     This is a minor breaking API change. ``mjModel.tendon_lengthspring`` now has size ``ntendon x 2`` rather than
     ``ntendon x 1``.
 
+  .. youtube:: -PJ6afdETUg
+     :align: right
+     :height: 150px
+
 - Removed the requirement that stateless actuators come before stateful actuators.
 - Added :ref:`mju_fill`, :ref:`mju_symmetrize` and :ref:`mju_eye` utility functions.
+- Added :at:`gravcomp` attribute to :ref:`body<body>`, implementing gravity compensation and bouyancy.
+  See `balloons.xml <https://github.com/deepmind/mujoco/tree/main/model/balloons/balloons.xml>`_ example model.
 
 Version 2.3.0 (October 18, 2022)
 --------------------------------

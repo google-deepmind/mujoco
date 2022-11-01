@@ -1409,6 +1409,19 @@ void mj_passive(const mjModel* m, mjData* d) {
     }
   }
 
+  // body-level gravity compensation
+  if (!mjDISABLED(mjDSBL_GRAVITY) && mju_norm3(m->opt.gravity)) {
+    mjtNum force[3], torque[3]={0};
+
+    // apply per-body gravity compensation
+    for (int i=1; i<m->nbody; i++) {
+      if (m->body_gravcomp[i]) {
+        mju_scl3(force, m->opt.gravity, -(m->body_mass[i]*m->body_gravcomp[i]));
+        mj_applyFT(m, d, force, torque, d->xipos+3*i, i, d->qfrc_passive);
+      }
+    }
+  }
+
   // body-level viscosity, lift and drag
   if (m->opt.viscosity>0 || m->opt.density>0) {
     for (int i=1; i<m->nbody; i++) {

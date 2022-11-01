@@ -186,6 +186,7 @@ class mjCBody : public mjCBase {
   double iquat[4];                // inertial frame orientation
   double mass;                    // mass
   double inertia[3];              // diagonal inertia (in i-frame)
+  double gravcomp;                // gravity compensation
   std::vector<double> userdata;   // user data
   mjCAlternative alt;             // alternative orientation specification
   mjCAlternative ialt;            // alternative for inertial frame

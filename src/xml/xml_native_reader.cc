@@ -227,8 +227,8 @@ static const char* MJCF[nMJCF][mjXATTRNUM] = {
             "emission", "specular", "shininess", "reflectance", "rgba"},
     {">"},
 
-    {"body", "R", "10", "name", "childclass", "pos", "quat", "mocap",
-        "axisangle", "xyaxes", "zaxis", "euler", "user"},
+    {"body", "R", "11", "name", "childclass", "pos", "quat", "mocap",
+        "axisangle", "xyaxes", "zaxis", "euler", "gravcomp", "user"},
     {"<"},
         {"plugin", "*", "3", "name", "plugin", "instance"},
         {"<"},
@@ -2713,6 +2713,9 @@ void mjXReader::Body(XMLElement* section, mjCBody* pbody) {
         pchild->mocap = (n==1);
       }
       ReadAlternative(elem, pchild->alt);
+
+      // read gravcomp
+      ReadAttr(elem, "gravcomp", 1, &pchild->gravcomp, text);
 
       // read userdata
       ReadVector(elem, "user", pchild->userdata, text);

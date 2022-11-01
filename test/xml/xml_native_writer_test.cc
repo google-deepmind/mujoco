@@ -557,6 +557,22 @@ TEST_F(XMLWriterTest, KeepsForcelimitedFalse) {
   mj_deleteModel(model);
 }
 
+TEST_F(XMLWriterTest, WritesGravComp) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body gravcomp=".25">
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  mjModel* model = LoadModelFromString(xml);
+  ASSERT_THAT(model, NotNull());
+  std::string saved_xml = SaveAndReadXml(model);
+  EXPECT_THAT(saved_xml, HasSubstr("gravcomp=\"0.25\""));
+  mj_deleteModel(model);
+}
+
 TEST_F(XMLWriterTest, UndefinedMassDensity) {
   static constexpr char xml[] = R"(
   <mujoco>

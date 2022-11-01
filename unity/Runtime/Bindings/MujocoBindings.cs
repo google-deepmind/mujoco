@@ -1946,6 +1946,7 @@ public unsafe struct mjModel_ {
   public double* body_subtreemass;
   public double* body_inertia;
   public double* body_invweight0;
+  public double* body_gravcomp;
   public double* body_user;
   public int* body_plugin;
   public int* jnt_type;

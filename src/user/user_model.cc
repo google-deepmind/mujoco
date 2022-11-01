@@ -1285,6 +1285,7 @@ void mjCModel::CopyTree(mjModel* m) {
     copyvec(m->body_iquat+4*i, pb->lociquat, 4);
     m->body_mass[i] = (mjtNum)pb->mass;
     copyvec(m->body_inertia+3*i, pb->inertia, 3);
+    m->body_gravcomp[i] = pb->gravcomp;
     copyvec(m->body_user+nuser_body*i, pb->userdata.data(), nuser_body);
 
     // count free joints

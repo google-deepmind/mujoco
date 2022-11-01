@@ -43,6 +43,7 @@ using ::testing::Pointwise;
 using ::testing::DoubleNear;
 using ::testing::Ne;
 using ::testing::HasSubstr;
+using ::testing::NotNull;
 
 // --------------------------- activation limits -------------------------------
 
@@ -382,6 +383,47 @@ TEST_F(ForwardTest, MjcbControlDisabled) {
 
   // remove global control callback
   mjcb_control = nullptr;
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
+TEST_F(ForwardTest, gravcomp) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option gravity="0 0 -10" />
+    <worldbody>
+      <body>
+        <joint type="slide" axis="0 0 1"/>
+        <geom size="1"/>
+      </body>
+      <body pos="3 0 0" gravcomp="1">
+        <joint type="slide" axis="0 0 1"/>
+        <geom size="1"/>
+      </body>
+      <body pos="6 0 0" gravcomp="2">
+        <joint type="slide" axis="0 0 1"/>
+        <geom size="1"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  mjModel* model = LoadModelFromString(xml);
+  ASSERT_THAT(model, NotNull());
+
+  mjData* data = mj_makeData(model);
+  while(data->time < 1) { mj_step(model, data); }
+
+  mjtNum dist = 0.5*mju_norm3(model->opt.gravity)*(data->time*data->time);
+
+  // expect that body 1 moves down allowing some slack from our estimated distance moved
+  EXPECT_NEAR(data->qpos[0], -dist, 0.011);
+
+  // expect that body 2 does not move
+  EXPECT_EQ(data->qpos[1], 0.0);
+
+  // expect that body 3 moves up the same distance that body 0 moved down
+  EXPECT_EQ(data->qpos[0], -data->qpos[2]);
 
   mj_deleteData(data);
   mj_deleteModel(model);

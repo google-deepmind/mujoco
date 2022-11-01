@@ -359,17 +359,22 @@ by MuJoCo are also passive in the sense of physics, i.e., they do not increase e
 callback :ref:`mjcb_passive` and add forces to ``mjData.qfrc_passive`` that may increase energy. This will not interfere
 with MuJoCo's operation as long as such user forces depend only on position and velocity.
 
-MuJoCo can compute two types of passive forces: spring-dampers in joints and tendons, and fluid dynamics. When Euler
-integration is used, joint damping is integrated implicitly (by modifying the inertia matrix internally) which
-significantly increases stability. Thus, even though damping can be alternatively modeled as an actuator property, it is
-better to model it as a joint property. Note also the XML :ref:`joint <body-joint>` attribute springdamper which
-automates the creation of mass-spring-dampers with desired time constants and damping ratios; in that case the compiler
-computes the stiffness and damping coefficients of the joint by taking the joint inertia into account.
+MuJoCo can compute three types of passive forces: spring-dampers in joints and tendons, gravity compensation forces, and
+fluid dynamics.
+
+When Euler or the implicit integator are used, joint damping is integrated implicitly which significantly increases
+stability. Thus, even though damping can be modeled as an actuator property, it is better to model it as a joint
+property. Note also the XML :ref:`joint <body-joint>` attribute springdamper which automates the creation of mass-
+spring-dampers with desired time constants and damping ratios; in that case the compiler computes the stiffness and
+damping coefficients of the joint by taking the joint inertia into account.
+
+Gravity compensation is a force applied to a body's center of mass opposing gravity, see :ref:`body gravcomp<body>` for
+details.
 
 Proper simulation of fluid dynamics is beyond the scope of MuJoCo, and would be too slow for the applications we aim to
 facilitate. Nevertheless we provide a phenomenological model which is sufficient for simulating behaviors such as flying
 and swimming. It is enabled by setting ``mjModel.opt.viscosity`` and ``mjModel.opt.density`` to positive values (they
-are zero by default.) These parameters specify the viscosity :math:`\beta` and density :math:`\rho` of the medium and
+are zero by default). These parameters specify the viscosity :math:`\beta` and density :math:`\rho` of the medium and
 apply to all bodies. The shape of each body for fluid dynamics purposes is assumed to be the equivalent inertia box,
 which can also be visualized. Each forward-facing (relative to the linear velocity) face of the box experiences force
 along its normal direction. All faces also experience torque due to the angular velocity; this torque is obtained by
