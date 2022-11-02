@@ -89,10 +89,10 @@ bool CheckAttr(const char* name, const mjModel* m, int instance) {
 
 
 // factory function
-std::optional<Elasticity> Elasticity::Create(
+std::optional<Cable> Cable::Create(
   const mjModel* m, mjData* d, int instance) {
   if (CheckAttr("twist", m, instance) && CheckAttr("bend", m, instance)) {
-    return Elasticity(m, d, instance);
+    return Cable(m, d, instance);
   } else {
     mju_warning("Invalid parameter specification in cable plugin");
     return std::nullopt;
@@ -100,7 +100,7 @@ std::optional<Elasticity> Elasticity::Create(
 }
 
 // plugin constructor
-Elasticity::Elasticity(const mjModel* m, mjData* d, int instance) {
+Cable::Cable(const mjModel* m, mjData* d, int instance) {
   // parameters were validated by the factor function
   std::string flat = mj_getPluginConfig(m, instance, "flat");
   mjtNum G = strtod(mj_getPluginConfig(m, instance, "twist"), nullptr);
@@ -173,7 +173,7 @@ Elasticity::Elasticity(const mjModel* m, mjData* d, int instance) {
   }
 }
 
-void Elasticity::Compute(const mjModel* m, mjData* d, int instance) {
+void Cable::Compute(const mjModel* m, mjData* d, int instance) {
   for (int b = 0; b < n; b++)  {
     // index into body array
     int i = i0 + b;
@@ -234,20 +234,20 @@ mjPLUGIN_DYNAMIC_LIBRARY_INIT {
   plugin.nstate = +[](const mjModel* m, int instance) { return 0; };
 
   plugin.init = +[](const mjModel* m, mjData* d, int instance) {
-    auto elasticity_or_null = Elasticity::Create(m, d, instance);
+    auto elasticity_or_null = Cable::Create(m, d, instance);
     if (!elasticity_or_null.has_value()) {
       return -1;
     }
     d->plugin_data[instance] = reinterpret_cast<uintptr_t>(
-        new Elasticity(std::move(*elasticity_or_null)));
+        new Cable(std::move(*elasticity_or_null)));
 return 0;
   };
   plugin.destroy = +[](mjData* d, int instance) {
-    delete reinterpret_cast<Elasticity*>(d->plugin_data[instance]);
+    delete reinterpret_cast<Cable*>(d->plugin_data[instance]);
     d->plugin_data[instance] = 0;
   };
   plugin.compute = +[](const mjModel* m, mjData* d, int instance, int type) {
-    auto* elasticity = reinterpret_cast<Elasticity*>(d->plugin_data[instance]);
+    auto* elasticity = reinterpret_cast<Cable*>(d->plugin_data[instance]);
     elasticity->Compute(m, d, instance);
   };
 

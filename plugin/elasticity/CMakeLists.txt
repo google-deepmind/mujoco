@@ -22,19 +22,19 @@ set(MUJOCO_ELASTICITY_SRCS
     cable.h
 )
 
-add_library(cable SHARED)
-target_sources(cable PRIVATE ${MUJOCO_ELASTICITY_SRCS})
-target_include_directories(cable PRIVATE ${MUJOCO_ELASTICITY_INCLUDE})
-target_link_libraries(cable PRIVATE mujoco)
+add_library(elasticity SHARED)
+target_sources(elasticity PRIVATE ${MUJOCO_ELASTICITY_SRCS})
+target_include_directories(elasticity PRIVATE ${MUJOCO_ELASTICITY_INCLUDE})
+target_link_libraries(elasticity PRIVATE mujoco)
 target_compile_options(
-  cable
+  elasticity
   PRIVATE ${AVX_COMPILE_OPTIONS}
           ${MUJOCO_MACOS_COMPILE_OPTIONS}
           ${EXTRA_COMPILE_OPTIONS}
           ${MUJOCO_CXX_FLAGS}
 )
 target_link_options(
-  cable
+  elasticity
   PRIVATE
   ${MUJOCO_MACOS_LINK_OPTIONS}
   ${EXTRA_LINK_OPTIONS}

@@ -25,14 +25,14 @@
 
 namespace mujoco::plugin::elasticity {
 
-class Elasticity {
+class Cable {
  public:
-  // Creates a new Elasticity instance (allocated with `new`) or
+  // Creates a new Cable instance (allocated with `new`) or
   // returns null on failure.
-  static std::optional<Elasticity> Create(const mjModel* m, mjData* d,
+  static std::optional<Cable> Create(const mjModel* m, mjData* d,
                                           int instance);
-  Elasticity(Elasticity&&) = default;
-  ~Elasticity() = default;
+  Cable(Cable&&) = default;
+  ~Cable() = default;
 
   void Compute(const mjModel* m, mjData* d, int instance);
 
@@ -44,7 +44,7 @@ class Elasticity {
   std::vector<mjtNum> omega0;     // reference curvature          (n x 3)
 
  private:
-  Elasticity(const mjModel* m, mjData* d, int instance);
+  Cable(const mjModel* m, mjData* d, int instance);
 };
 
 }  // namespace mujoco::plugin::elasticity

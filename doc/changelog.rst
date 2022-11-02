@@ -29,6 +29,7 @@ General
 - Added :ref:`mju_fill`, :ref:`mju_symmetrize` and :ref:`mju_eye` utility functions.
 - Added :at:`gravcomp` attribute to :ref:`body<body>`, implementing gravity compensation and bouyancy.
   See `balloons.xml <https://github.com/deepmind/mujoco/tree/main/model/balloons/balloons.xml>`_ example model.
+- Renamed the cable plugin library to elasticity.
 
 Version 2.3.0 (October 18, 2022)
 --------------------------------
