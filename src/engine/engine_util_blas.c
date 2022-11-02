@@ -245,7 +245,7 @@ void mju_zero(mjtNum* res, int n) {
 
 
 // res = val
-void mju_fill(mjtNum* res, int n, mjtNum val) {
+void mju_fill(mjtNum* res, mjtNum val, int n) {
   for (int i=0; i<n; i++) {
     res[i] = val;
   }
@@ -740,12 +740,12 @@ void mju_transpose(mjtNum* res, const mjtNum* mat, int nr, int nc) {
 
 
 
-// symmetrize square matrix M = (M + M')/2
-void mju_symmetrize(mjtNum* mat, int n) {
+// symmetrize square matrix res = (mat + mat')/2
+void mju_symmetrize(mjtNum* res, const mjtNum* mat, int n) {
   for (int i=0; i<n; i++) {
+    res[i*(n+1)] = mat[i*(n+1)];
     for (int j=0; j<i; j++) {
-      mjtNum tmp = 0.5 * (mat[i*n+j] + mat[j*n+i]);
-      mat[i*n+j] = mat[j*n+i] = tmp;
+      res[i*n+j] = res[j*n+i] = 0.5 * (mat[i*n+j] + mat[j*n+i]);
     }
   }
 }

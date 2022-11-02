@@ -3341,7 +3341,7 @@ public static unsafe extern double mju_normalize4(double* res);
 public static unsafe extern void mju_zero(double* res, int n);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
-public static unsafe extern void mju_fill(double* res, int n, double val);
+public static unsafe extern void mju_fill(double* res, double val, int n);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern void mju_copy(double* res, double* data, int n);
@@ -3395,7 +3395,7 @@ public static unsafe extern double mju_mulVecMatVec(double* vec1, double* mat, d
 public static unsafe extern void mju_transpose(double* res, double* mat, int nr, int nc);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
-public static unsafe extern void mju_symmetrize(double* mat, int n);
+public static unsafe extern void mju_symmetrize(double* res, double* mat, int n);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern void mju_eye(double* mat, int n);

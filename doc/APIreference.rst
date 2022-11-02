@@ -5917,7 +5917,7 @@ mju_fill
 
 .. code-block:: C
 
-   void mju_fill(mjtNum* res, int n, mjtNum val);
+   void mju_fill(mjtNum* res, mjtNum val, int n);
 
 Set res = val.
 
@@ -6101,9 +6101,9 @@ mju_symmetrize
 
 .. code-block:: C
 
-   void mju_symmetrize(mjtNum* mat, int n);
+   void mju_symmetrize(mjtNum* res, const mjtNum* mat, int n);
 
-Symmetrize square matrix :math:`M = \frac{1}{2}(M + M^T)`.
+Symmetrize square matrix :math:`R = \frac{1}{2}(M + M^T)`.
 
 .. _mju_eye:
 

@@ -57,7 +57,7 @@ TEST_F(EngineUtilBlasTest, MjuMulVecMatVec) {
 
 TEST_F(EngineUtilBlasTest, MjuFill) {
   mjtNum vec[] = {0, 1, 4};
-  mju_fill(vec, 3, 4.5);
+  mju_fill(vec, 4.5, 3);
 
   EXPECT_EQ(vec[0], 4.5);
   EXPECT_EQ(vec[1], 4.5);
@@ -82,7 +82,14 @@ TEST_F(EngineUtilBlasTest, MjuSymmetrize) {
     1.5, 2,   4,
     2.5, 3,   3
   };
-  mju_symmetrize(mat, 3);
+  mjtNum res[9] = {0};
+  mju_symmetrize(res, mat, 3);
+  EXPECT_THAT(res, ElementsAre(1, 2,   3,
+                               2, 2,   3.5,
+                               3, 3.5, 3));
+
+  // test for the case res==mat
+  mju_symmetrize(mat, mat, 3);
   EXPECT_THAT(mat, ElementsAre(1, 2,   3,
                                2, 2,   3.5,
                                3, 3.5, 3));

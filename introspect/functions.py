@@ -5296,12 +5296,12 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  ),
              ),
              FunctionParameterDecl(
-                 name='n',
-                 type=ValueType(name='int'),
-             ),
-             FunctionParameterDecl(
                  name='val',
                  type=ValueType(name='mjtNum'),
+             ),
+             FunctionParameterDecl(
+                 name='n',
+                 type=ValueType(name='int'),
              ),
          ),
          doc='Set res = val.',
@@ -5756,9 +5756,15 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
          return_type=ValueType(name='void'),
          parameters=(
              FunctionParameterDecl(
-                 name='mat',
+                 name='res',
                  type=PointerType(
                      inner_type=ValueType(name='mjtNum'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='mat',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum', is_const=True),
                  ),
              ),
              FunctionParameterDecl(
@@ -5766,7 +5772,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  type=ValueType(name='int'),
              ),
          ),
-         doc="Symmetrize square matrix M = (M + M')/2.",
+         doc="Symmetrize square matrix res = (mat + mat')/2.",
      )),
     ('mju_eye',
      FunctionDecl(

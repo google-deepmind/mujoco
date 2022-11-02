@@ -632,6 +632,11 @@ PYBIND11_MODULE(_functions, pymodule) {
       [](Eigen::Ref<EigenVectorX> res) {
         return InterceptMjErrors(::mju_zero)(res.data(), res.size());
       });
+  DEF_WITH_OMITTED_PY_ARGS(traits::mju_fill, "n")(
+      pymodule,
+      [](Eigen::Ref<EigenVectorX> res, mjtNum val) {
+        return InterceptMjErrors(::mju_fill)(res.data(), val, res.size());
+      });
   DEF_WITH_OMITTED_PY_ARGS(traits::mju_copy, "n")(
       pymodule,
       [](Eigen::Ref<EigenVectorX> res,
@@ -816,6 +821,27 @@ PYBIND11_MODULE(_functions, pymodule) {
         }
         return InterceptMjErrors(::mju_transpose)(
             res.data(), mat.data(), mat.rows(), mat.cols());
+      });
+  DEF_WITH_OMITTED_PY_ARGS(traits::mju_symmetrize, "n")(
+      pymodule,
+      [](Eigen::Ref<EigenArrayXX> res,
+         Eigen::Ref<const EigenArrayXX> mat) {
+        if (mat.cols() != mat.rows()) {
+          throw py::type_error("mat should be square");
+        }
+        if (res.cols() != mat.cols() || res.rows() != mat.rows()) {
+          throw py::type_error("res and mat should have the same shape");
+        }
+        return InterceptMjErrors(::mju_symmetrize)(
+            res.data(), mat.data(), mat.rows());
+      });
+  DEF_WITH_OMITTED_PY_ARGS(traits::mju_eye, "n")(
+      pymodule,
+      [](Eigen::Ref<EigenArrayXX> mat) {
+        if (mat.cols() != mat.rows()) {
+          throw py::type_error("mat should be square");
+        }
+        return InterceptMjErrors(::mju_eye)(mat.data(), mat.rows());
       });
   DEF_WITH_OMITTED_PY_ARGS(traits::mju_mulMatMat, "r1", "c1", "c2")(
       pymodule,
@@ -1030,6 +1056,7 @@ PYBIND11_MODULE(_functions, pymodule) {
   Def<traits::mju_springDamper>(pymodule);
   Def<traits::mju_min>(pymodule);
   Def<traits::mju_max>(pymodule);
+  Def<traits::mju_clip>(pymodule);
   Def<traits::mju_sign>(pymodule);
   Def<traits::mju_round>(pymodule);
   Def<traits::mju_type2Str>(pymodule);
