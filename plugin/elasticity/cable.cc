@@ -26,6 +26,29 @@
 namespace mujoco::plugin::elasticity {
 namespace {
 
+
+//create color scale palette 
+void scalar2rgba(float rgba[4], mjtNum Scalar, mjtNum min, mjtNum max) {
+        mjtNum tmp;
+        tmp = (Scalar - min) / (max - min);
+        if (tmp < 0.2) {
+            rgba[0] = 0.90 - 0.70 * (tmp / 0.2);
+            rgba[2] = 0.80 * (tmp / 0.2) + 0.05;
+            rgba[1] = 0.0;
+        }
+        else if (tmp > 0.8) {
+            rgba[0] = 0.65 * ((tmp - 0.2) / 0.8) + 0.20;
+            rgba[2] = 0.2 * ((tmp - 0.8) / 0.2) + 0.75;
+            rgba[1] = 0.95;
+        }
+        else {
+            rgba[0] = 0.65 * ((tmp - 0.2) / 0.8) + 0.20;
+            rgba[2] = 0.85;            
+            rgba[1] = (tmp-0.2)/0.6 * 0.95;
+        }
+}     
+       
+
 // compute quaternion difference between two frames in joint coordinates
 void QuatDiff(mjtNum* quat, const mjtNum body_quat[4],
               const mjtNum joint_quat[4], bool pullback) {
@@ -50,27 +73,73 @@ void QuatDiff(mjtNum* quat, const mjtNum body_quat[4],
 //     scl         - scaling of the force
 //   outputs:
 //     qfrc        - local torque contribution
-void LocalForce(mjtNum qfrc[3], const mjtNum stiffness[4],
-                const mjtNum quat[4], const mjtNum omega0[3],
-                const mjtNum xquat[4], mjtNum scl) {
-  mjtNum omega[3], lfrc[3];
+void LocalForce(mjtNum qfrc[3], const mjtNum stiffness[9],
+    const mjtNum quat[4], mjtNum omega0[3], mjtNum userdata[3], mjtNum userdatamin[3], mjtNum userdatamax[3],
+    const mjtNum xquat[4], mjtNum scl) {
+    mjtNum omega[3], lfrc[3];
+    mjtNum Yield = stiffness[7]; //material yield stress limits   
 
-  // compute curvature
-  mju_quat2Vel(omega, quat, scl);
+    // compute curvature
+    mju_quat2Vel(omega, quat, scl);
 
-  // subtract omega0 in reference configuration
-  mjtNum tmp[] = {
-      - stiffness[0]*(omega[0] - omega0[0]) / stiffness[3],
-      - stiffness[1]*(omega[1] - omega0[1]) / stiffness[3],
-      - stiffness[2]*(omega[2] - omega0[2]) / stiffness[3],
-  };
+    // change of curvature from reference configuration ==> acts as strain component
+    mjtNum d_omega[] = {
+        omega[0] - omega0[0],
+        omega[1] - omega0[1],
+        omega[2] - omega0[2],
+    };
 
+    mjtNum trq[] = {
+       -stiffness[0] * d_omega[0] / stiffness[3],
+       -stiffness[1] * d_omega[1] / stiffness[3],
+       -stiffness[2] * d_omega[2] / stiffness[3],
+    }; // torque
+
+    //compute maximum |stress| on the surface for each bending axis and the torsion
+    mjtNum stress[] = {
+       (-trq[0] * stiffness[4]), // sigma_t = Mt * z / J      
+       (-trq[1] * stiffness[5]), // sigma_y = My * w / G
+       (-trq[2] * stiffness[6]), // sigma_z = Mz * h / G
+    };
+
+
+    for (int u = 0; u < 3; u++) {
+        //stress element exceeds yield stress level ==> end of elastic domain
+        if (abs(stress[u]) > Yield) {
+
+            //scaling principle of plastic deformation is idealized and varies in reality with material types
+            //strain hardening and transition effects are not considered
+
+            //change of cuvature scaled by stress relative to yield      
+            omega0[u] += d_omega[u] * (stress[u] - Yield) / (stress[u]);
+
+            // stress exceeds elastic domain ==> reduce torque
+            trq[u] = -(Yield + stress[u]) / 2.0 / stiffness[u + 4];
+
+        }
+    }
+            
+    //calculate scalar data for visualization and readout
+    userdata[0] = mju_sqrt((pow(stress[0] - stress[1], 2) + pow(stress[1] - stress[2], 2) + pow(stress[2] - stress[0], 2)) / 2); //von Mieses principal stress
+    userdata[1] = mju_sqrt(pow(omega0[0], 2) + pow(omega0[1], 2) + pow(omega0[2], 2));  //element reference curvature 
+    userdata[2] = mju_sqrt(pow(d_omega[0], 2) + pow(d_omega[1], 2) + pow(d_omega[2], 2));  //momentary curvature change
+
+    userdatamax[0] = (userdata[0] > userdatamax[0]) ? userdata[0] : userdatamax[0]; //store maximum stress
+    userdatamin[0] = (userdata[0] < userdatamin[0]) ? userdata[0] : userdatamin[0]; //store minimum stress
+    userdatamax[1] = (userdata[1] > userdatamax[1]) ? userdata[1] : userdatamax[1]; //store maximum ref curvature
+    userdatamin[1] = (userdata[1] < userdatamin[1]) ? userdata[1] : userdatamin[1]; //store minimum ref curvature
+    userdatamax[2] = (userdata[2] > userdatamax[2]) ? userdata[2] : userdatamax[2]; //store maximum ref curvature change
+    userdatamin[2] = (userdata[2] < userdatamin[2]) ? userdata[2] : userdatamin[2]; //store minimum ref curvature change
+
+  
+  
   // rotate into global frame
   if (xquat) {
-    mju_rotVecQuat(lfrc, tmp, xquat);
+    mju_rotVecQuat(lfrc, trq, xquat);
   } else {
-    mju_copy3(lfrc, tmp);
+    mju_copy3(lfrc, trq);
   }
+
 
   // add to total qfrc
   mju_addToScl3(qfrc, lfrc, scl);
@@ -87,11 +156,10 @@ bool CheckAttr(const char* name, const mjModel* m, int instance) {
 
 }  // namespace
 
-
 // factory function
 std::optional<Cable> Cable::Create(
   const mjModel* m, mjData* d, int instance) {
-  if (CheckAttr("twist", m, instance) && CheckAttr("bend", m, instance)) {
+  if (CheckAttr("twist", m, instance) && CheckAttr("bend", m, instance) && CheckAttr("yield", m, instance) ) {
     return Cable(m, d, instance);
   } else {
     mju_warning("Invalid parameter specification in cable plugin");
@@ -105,6 +173,7 @@ Cable::Cable(const mjModel* m, mjData* d, int instance) {
   std::string flat = mj_getPluginConfig(m, instance, "flat");
   mjtNum G = strtod(mj_getPluginConfig(m, instance, "twist"), nullptr);
   mjtNum E = strtod(mj_getPluginConfig(m, instance, "bend"), nullptr);
+  mjtNum Yield = strtod(mj_getPluginConfig(m, instance, "yield"), nullptr);
 
   // count plugin bodies
   n = 0;
@@ -120,7 +189,11 @@ Cable::Cable(const mjModel* m, mjData* d, int instance) {
   prev.assign(n, 0);         // index of previous body
   next.assign(n, 0);         // index of next body
   omega0.assign(3*n, 0);     // reference curvature
-  stiffness.assign(4*n, 0);  // material parameters
+  userdata.assign(3 * n, 0);     // stress, reference curvature, curvature change
+  userdatamin.assign(3, 0);     // 
+  userdatamax.assign(3, 1);     // 
+  stiffness.assign(9*n, 0);  // material parameters
+  
 
   // run forward kinematics to populate xquat (mjData not yet initialized)
   mju_zero(d->mocap_quat, 4*m->nmocap);
@@ -147,30 +220,44 @@ Cable::Cable(const mjModel* m, mjData* d, int instance) {
 
     // compute physical parameters
     int geom_i = m->body_geomadr[i];
-    mjtNum J = 0, Iy = 0, Iz = 0;
-    if (m->geom_type[geom_i] == mjGEOM_CYLINDER ||
+    mjtNum J = 0, Iy = 0, Iz = 0, L = 0, a_J = 0, a_Iy = 0, a_Iz = 0;
+        L = mju_dist3(d->xpos + 3 * i, d->xpos + 3 * (i + prev[b])); // distance from previous body
+        if (m->geom_type[geom_i] == mjGEOM_CYLINDER ||
         m->geom_type[geom_i] == mjGEOM_CAPSULE) {
       // https://en.wikipedia.org/wiki/Torsion_constant#Circle
       // https://en.wikipedia.org/wiki/List_of_second_moments_of_area
-      J = mjPI * pow(m->geom_size[3*geom_i+0], 4) / 2;
-      Iy = Iz = mjPI * pow(m->geom_size[3*geom_i+0], 4) / 4.;
+      mjtNum r= m->geom_size[3*geom_i+0]; //radius
+      J = mjPI * pow(r, 4) / 2;
+      Iy = Iz = mjPI * pow(r, 4) / 4.;
+      a_J = r / J;
+      a_Iy = a_Iz = r / Iy;
+
     } else if (m->geom_type[geom_i] == mjGEOM_BOX) {
       // https://en.wikipedia.org/wiki/Torsion_constant#Rectangle
       // https://en.wikipedia.org/wiki/List_of_second_moments_of_area
-      mjtNum h = m->geom_size[3*geom_i+1];
-      mjtNum w = m->geom_size[3*geom_i+2];
+      mjtNum h = m->geom_size[3*geom_i+1]; //half size height !
+      mjtNum w = m->geom_size[3*geom_i+2]; //half size width !
       mjtNum a = std::max(h, w);
       mjtNum b = std::min(h, w);
       J = a*pow(b, 3)*(16./3.-3.36*b/a*(1-pow(b, 4)/pow(a, 4)/12));
-      Iy = pow(2 * w, 3) * 2 * h / 12.;
-      Iz = pow(2 * h, 3) * 2 * w / 12.;
+      Iy = pow(2 * w, 3) * 2 * h / 12.; 
+      Iz = pow(2 * h, 3) * 2 * w / 12.; 
+      a_J = sqrt(pow(h,2)+ pow(w,2)) / J;
+      a_Iy = w / Iy;
+      a_Iz = h / Iz;
     }
-    stiffness[4*b+0] = J * G;
-    stiffness[4*b+1] = Iy * E;
-    stiffness[4*b+2] = Iz * E;
-    stiffness[4*b+3] =
-      prev[b] ? mju_dist3(d->xpos+3*i, d->xpos+3*(i+prev[b])) : 0;
+    
+    stiffness[9*b+0] = J * G;  //torsional stiffness = J * G / curvature
+    stiffness[9*b+1] = Iy * E; //bending stiffness horizontal = E * Iy / curvature
+    stiffness[9*b+2] = Iz * E; //bending stiffness vertical = E * Iz / curvature
+    stiffness[9*b+3] = prev[b] ? L : 0; //Element length 
+    stiffness[9*b+4] = a_J;    //factor a/J for calculation of sigma_t(curvature) torsional stress from torque Mt
+    stiffness[9*b+5] = a_Iy;   //factor a/Iy for calculation of sigma_b(curvature) bending stress from torque My
+    stiffness[9*b+6] = a_Iz;   //factor a/Iz for calculation of sigma_b(curvature) bending stress from torque Mz
+    stiffness[9*b+7] = Yield;
   }
+  //point userdata for visualization of skin colors to data->userdata
+  d->userdata = userdata.data();
 }
 
 void Cable::Compute(const mjModel* m, mjData* d, int instance) {
@@ -183,7 +270,7 @@ void Cable::Compute(const mjModel* m, mjData* d, int instance) {
     }
 
     // if no stiffness, skip body
-    if (!stiffness[b*4+0] && !stiffness[b*4+1] && !stiffness[b*4+2]) {
+    if (!stiffness[b*9+0] && !stiffness[b*9+1] && !stiffness[b*9+2]) {
       continue;
     }
 
@@ -197,8 +284,11 @@ void Cable::Compute(const mjModel* m, mjData* d, int instance) {
       QuatDiff(quat, m->body_quat+4*i, d->qpos+qadr, 0);
 
       // contribution of orientation i-1 to xfrc i
-      LocalForce(xfrc, stiffness.data()+4*b, quat, omega0.data()+3*b,
-                 d->xquat+4*(i+prev[b]), 1);
+      LocalForce(xfrc, stiffness.data()+9*b, quat, omega0.data() + 3 * b, userdata.data() + 3 * b, 
+            userdatamin.data(), userdatamax.data(), d->xquat+4*(i+prev[b]), 1);      
+      //scalar2rgba(&m->geom_rgba[b * 4], userdata[b * 3], userdatamin[0], userdatamax[0]); //dynamic legend range
+      scalar2rgba(&m->geom_rgba[b * 4], userdata[b * 3], 0, stiffness[9 * b + 7]*1.0); //fixed legend range 0...yield + 20%
+
     }
 
     if (next[b]) {
@@ -210,8 +300,11 @@ void Cable::Compute(const mjModel* m, mjData* d, int instance) {
       QuatDiff(quat, m->body_quat+4*in, d->qpos+qadr, 1);
 
       // contribution of orientation i+1 to xfrc i
-      LocalForce(xfrc, stiffness.data()+4*bn, quat, omega0.data()+3*bn,
-                 d->xquat+4*i, -1);
+      LocalForce(xfrc, stiffness.data()+9*bn, quat, omega0.data()+3*bn, userdata.data() + 3 * bn, 
+            userdatamin.data(), userdatamax.data(), d->xquat+4*i, -1);      
+      //scalar2rgba(&m->geom_rgba[bn * 4], userdata[bn * 3], userdatamin[0], userdatamax[0]);
+      scalar2rgba(&m->geom_rgba[bn * 4], userdata[bn * 3], 0, stiffness[9 * bn + 7]*1.0);
+
     }
 
     // convert from global coordinates and apply torque to com
@@ -228,7 +321,7 @@ mjPLUGIN_DYNAMIC_LIBRARY_INIT {
   plugin.name = "mujoco.elasticity.cable";
   plugin.type |= mjPLUGIN_PASSIVE;
 
-  const char* attributes[] = {"twist", "bend", "flat"};
+  const char* attributes[] = {"twist", "bend", "flat", "yield"};
   plugin.nattribute = sizeof(attributes) / sizeof(attributes[0]);
   plugin.attributes = attributes;
   plugin.nstate = +[](const mjModel* m, int instance) { return 0; };

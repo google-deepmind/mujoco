@@ -281,6 +281,7 @@ struct mjvScene_ {                // abstract scene passed to OpenGL renderer
   int*     skinvertnum;           // number of vertices in skin (nskin)
   float*   skinvert;              // skin vertex data (nskin)
   float*   skinnormal;            // skin normal data (nskin)
+  float*   skinuserdata;		      // skin vertex scalar userdata (nskin) eg. for colorcoded visualisaton. normalized [0.0,..,1.0]
 
   // OpenGL lights
   int      nlight;                // number of lights currently in buffer

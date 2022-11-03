@@ -21,6 +21,8 @@ set(MUJOCO_ELASTICITY_SRCS
     cable.cc
     cable.h
 )
+set( CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/bin/$<CONFIG>/plugin/ )
+#set( CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/plugin )
 
 add_library(elasticity SHARED)
 target_sources(elasticity PRIVATE ${MUJOCO_ELASTICITY_SRCS})
@@ -39,3 +41,5 @@ target_link_options(
   ${MUJOCO_MACOS_LINK_OPTIONS}
   ${EXTRA_LINK_OPTIONS}
 )
+
+#install(FILES ${PROJECT_BINARY_DIR}/$<CONFIG>/elasticity.dll DESTINATION plugin)

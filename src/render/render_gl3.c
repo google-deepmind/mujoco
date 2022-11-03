@@ -414,6 +414,11 @@ static void renderGeom(const mjvGeom* geom, int mode, const float* headpos,
     glBindBuffer(GL_ARRAY_BUFFER, con->skinnormalVBO[geom->objid]);
     glNormalPointer(GL_FLOAT, 0, NULL);
 
+    // vertex colors
+    glEnableClientState(GL_COLOR_ARRAY);
+    glBindBuffer(GL_ARRAY_BUFFER, con->skincolorVBO[geom->objid]);
+    glColorPointer(3, GL_FLOAT, 0, NULL);
+
     // vertex texture coordinates
     if (con->skintexcoordVBO[geom->objid]) {
       glEnableClientState(GL_TEXTURE_COORD_ARRAY);
@@ -434,6 +439,7 @@ static void renderGeom(const mjvGeom* geom, int mode, const float* headpos,
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
     glDisableClientState(GL_VERTEX_ARRAY);
     glDisableClientState(GL_NORMAL_ARRAY);
+    glDisableClientState(GL_COLOR_ARRAY);
     glDisableClientState(GL_TEXTURE_COORD_ARRAY);
     break;
   }
@@ -708,6 +714,13 @@ void mjr_render(mjrRect viewport, mjvScene* scn, const mjrContext* con) {
                  3*scn->skinvertnum[i]*sizeof(float),
                  scn->skinnormal + 3*scn->skinvertadr[i],
                  GL_STREAM_DRAW);
+    
+    // upload colors to VBO
+    glBindBuffer(GL_ARRAY_BUFFER, con->skincolorVBO[i]);
+    glBufferData(GL_ARRAY_BUFFER,
+                3*scn->skinvertnum[i] * sizeof(float),
+                scn->skinuserdata + 3*scn->skinvertadr[i],
+                GL_STREAM_DRAW);
   }
 
   // determine drawbuffer; may be changed by stereo later

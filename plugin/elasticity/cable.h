@@ -40,8 +40,11 @@ class Cable {
   int n;                          // number of bodies in the cable
   std::vector<int> prev;          // indices of previous bodies   (n x 1)
   std::vector<int> next;          // indices of next bodies       (n x 1)
-  std::vector<mjtNum> stiffness;  // stiffness parameters         (n x 4)
+  std::vector<mjtNum> stiffness;  // stiffness parameters         (n x 9)
   std::vector<mjtNum> omega0;     // reference curvature          (n x 3)
+  std::vector<mjtNum> userdata;   // export of userdata from plugin  (n x 3) e.g. stress for colorcoded vis
+  std::vector<mjtNum> userdatamin; //storage of min values of each userdata output
+  std::vector<mjtNum> userdatamax; //storage of max values of each userdata output
 
  private:
   Cable(const mjModel* m, mjData* d, int instance);
