@@ -263,8 +263,8 @@ static const char* MJCF[nMJCF][mjXATTRNUM] = {
             {"<"},
               {"config", "*", "2", "key", "value"},
             {">"},
-            {"joint", "*", "15", "kind", "group", "stiffness", "damping", "armature",
-                "solreffix", "solimpfix",
+            {"joint", "*", "17", "kind", "group", "stiffness", "damping", "armature",
+                "solreffix", "solimpfix", "type", "axis",
                 "limited", "range", "margin", "solreflimit", "solimplimit",
                 "frictionloss", "solreffriction", "solimpfriction"},
             {"tendon", "*", "17", "kind", "group", "stiffness", "damping",
@@ -670,10 +670,11 @@ const mjMap comp_map[mjNCOMPTYPES] = {
 
 
 // composite joint kind
-const mjMap jkind_map[3] = {
+const mjMap jkind_map[4] = {
   {"main",        mjCOMPKIND_JOINT},
   {"twist",       mjCOMPKIND_TWIST},
-  {"stretch",     mjCOMPKIND_STRETCH}
+  {"stretch",     mjCOMPKIND_STRETCH},
+  {"particle",    mjCOMPKIND_PARTICLE}
 };
 
 
@@ -1978,28 +1979,45 @@ void mjXReader::OneComposite(XMLElement* elem, mjCBody* pbody, mjCDef* def) {
   while (ejnt) {
     // kind
     int kind;
-    MapValue(ejnt, "kind", &kind, jkind_map, 3, true);
+    MapValue(ejnt, "kind", &kind, jkind_map, 4, true);
+
+    // create a new element if this kind already exists
+    if (comp.add[kind]) {
+      char error[200];
+      if (!comp.AddDefaultJoint(error, 200)) {
+        throw mjXError(elem, error);
+      }
+    }
     comp.add[kind] = true;
 
+    // get element
+    mjCDef *el = &comp.defjoint[(mjtCompKind)kind].back();
+
+    // particle joint
+    if (MapValue(ejnt, "type", &n, joint_map, joint_sz)) {
+      el->joint.type = (mjtJoint)n;
+    }
+    ReadAttr(ejnt, "axis", 3, el->joint.axis, text);
+
     // solreffix, solimpfix
-    ReadAttr(ejnt, "solreffix", mjNREF, comp.def[kind].equality.solref, text, false, false);
-    ReadAttr(ejnt, "solimpfix", mjNIMP, comp.def[kind].equality.solimp, text, false, false);
+    ReadAttr(ejnt, "solreffix", mjNREF, el->equality.solref, text, false, false);
+    ReadAttr(ejnt, "solimpfix", mjNIMP, el->equality.solimp, text, false, false);
 
     // joint attributes
-    MapValue(elem, "limited", &comp.def[kind].joint.limited, TFAuto_map, 3);
-    ReadAttrInt(ejnt, "group", &comp.def[kind].joint.group);
-    ReadAttr(ejnt, "solreflimit", mjNREF, comp.def[kind].joint.solref_limit, text, false, false);
-    ReadAttr(ejnt, "solimplimit", mjNIMP, comp.def[kind].joint.solimp_limit, text, false, false);
+    MapValue(elem, "limited", &el->joint.limited, TFAuto_map, 3);
+    ReadAttrInt(ejnt, "group", &el->joint.group);
+    ReadAttr(ejnt, "solreflimit", mjNREF, el->joint.solref_limit, text, false, false);
+    ReadAttr(ejnt, "solimplimit", mjNIMP, el->joint.solimp_limit, text, false, false);
     ReadAttr(ejnt,
-             "solreffriction", mjNREF, comp.def[kind].joint.solref_friction, text, false, false);
+             "solreffriction", mjNREF, el->joint.solref_friction, text, false, false);
     ReadAttr(ejnt,
-             "solimpfriction", mjNIMP, comp.def[kind].joint.solimp_friction, text, false, false);
-    ReadAttr(ejnt, "stiffness", 1, &comp.def[kind].joint.stiffness, text);
-    ReadAttr(ejnt, "range", 2, comp.def[kind].joint.range, text);
-    ReadAttr(ejnt, "margin", 1, &comp.def[kind].joint.margin, text);
-    ReadAttr(ejnt, "armature", 1, &comp.def[kind].joint.armature, text);
-    ReadAttr(ejnt, "damping", 1, &comp.def[kind].joint.damping, text);
-    ReadAttr(ejnt, "frictionloss", 1, &comp.def[kind].joint.frictionloss, text);
+             "solimpfriction", mjNIMP, el->joint.solimp_friction, text, false, false);
+    ReadAttr(ejnt, "stiffness", 1, &el->joint.stiffness, text);
+    ReadAttr(ejnt, "range", 2, el->joint.range, text);
+    ReadAttr(ejnt, "margin", 1, &el->joint.margin, text);
+    ReadAttr(ejnt, "armature", 1, &el->joint.armature, text);
+    ReadAttr(ejnt, "damping", 1, &el->joint.damping, text);
+    ReadAttr(ejnt, "frictionloss", 1, &el->joint.frictionloss, text);
 
     // advance
     ejnt = ejnt->NextSiblingElement("joint");

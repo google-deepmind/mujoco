@@ -34,6 +34,11 @@ General
   for dyntype :at-val:`user`, as native activation dynamics are all scalar. Added example test implementing 2nd-order
   activation dynamics to
   `engine_forward_test.cc <https://github.com/deepmind/mujoco/blob/main/test/engine/engine_forward_test.cc>`_.
+- Improved particle :ref:`composite<body-composite>` type, which now permits a user-specified geometry and multiple
+  joints. See the two new examples:
+  `particle_free.xml <https://github.com/deepmind/mujoco/tree/main/model/composite/particle_free.xml>`_ and
+  `particle_free2d.xml <https://github.com/deepmind/mujoco/tree/main/model/composite/particle_free2d.xml>`_
+
 Version 2.3.0 (October 18, 2022)
 --------------------------------
 
