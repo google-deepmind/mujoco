@@ -1061,6 +1061,7 @@ PYBIND11_MODULE(_functions, pymodule) {
   Def<traits::mju_round>(pymodule);
   Def<traits::mju_type2Str>(pymodule);
   Def<traits::mju_str2Type>(pymodule);
+  Def<traits::mju_writeNumBytes>(pymodule);
   Def<traits::mju_warningText>(pymodule);
   Def<traits::mju_isBad>(pymodule);
   DEF_WITH_OMITTED_PY_ARGS(traits::mju_isZero, "n")(

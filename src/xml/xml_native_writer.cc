@@ -830,28 +830,7 @@ void mjXWriter::Size(XMLElement* root) {
 
   // write memory
   if (model->memory != -1) {
-    const std::size_t memory = static_cast<std::size_t>(model->memory);
-    const std::vector<std::pair<int, char>> kSuffix = {
-      {60, 'E'}, {50, 'P'}, {40, 'T'}, {30, 'G'}, {20, 'M'}, {10, 'K'},
-    };
-
-    std::ostringstream strm;
-
-    // check for divisibility by each suffixed size
-    for (const auto& [multiplier_bit, suffix_char] : kSuffix) {
-      const std::size_t multiplier = static_cast<std::size_t>(1) << multiplier_bit;
-      if (memory >= multiplier && !(memory & (multiplier - 1))) {
-        strm << (memory >> multiplier_bit) << suffix_char;
-        break;
-      }
-    }
-
-    // doesn't match any suffix, just write the number out as-is
-    if (!strm.tellp()) {
-      strm << memory;
-    }
-
-    WriteAttrTxt(section, "memory", strm.str());
+    WriteAttrTxt(section, "memory", mju_writeNumBytes(model->memory));
   }
 
   // write sizes

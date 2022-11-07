@@ -3518,6 +3518,10 @@ public static unsafe extern int mju_str2Type([MarshalAs(UnmanagedType.LPStr)]str
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 [return: MarshalAs(UnmanagedType.LPStr)]
+public static unsafe extern string mju_writeNumBytes(UIntPtr nbytes);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+[return: MarshalAs(UnmanagedType.LPStr)]
 public static unsafe extern string mju_warningText(int warning, UIntPtr info);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]

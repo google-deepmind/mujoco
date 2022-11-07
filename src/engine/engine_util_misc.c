@@ -946,9 +946,30 @@ int mju_str2Type(const char* str) {
 
 
 
+// return human readable number of bytes using standard letter suffix
+const char* mju_writeNumBytes(const size_t nbytes) {
+  int i;
+  static mjTHREADLOCAL char message[20];
+  static const char suffix[] = " KMGTPE";
+  for (i=0; i<6; i++) {
+    const size_t bits = (size_t)(1) << (10*(6-i));
+    if (nbytes >= bits && !(nbytes & (bits - 1))) {
+      break;
+    }
+  }
+  if (i<6) {
+    mjSNPRINTF(message, "%zu%c", nbytes >> (10*(6-i)), suffix[6-i]);
+  } else {
+    mjSNPRINTF(message, "%zu", nbytes >> (10*(6-i)));
+  }
+  return message;
+}
+
+
+
 // warning text
 const char* mju_warningText(int warning, size_t info) {
-  static char str[1000];
+  static mjTHREADLOCAL char str[1000];
 
   switch (warning) {
   case mjWARN_INERTIA:
@@ -965,7 +986,7 @@ const char* mju_warningText(int warning, size_t info) {
   case mjWARN_CNSTRFULL:
     mjSNPRINTF(str,
                "Insufficient arena memory for the number of constraints generated. "
-               "Increase arena memory allocation above %zu bytes.", info);
+               "Increase arena memory allocation above %s bytes.", mju_writeNumBytes(info));
     break;
 
   case mjWARN_VGEOMFULL:

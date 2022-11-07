@@ -6601,6 +6601,17 @@ Convert type name to type id (mjtObj).
 
 .. _mju_warningText:
 
+mju_writeNumBytes
+~~~~~~~~~~~~~~~
+
+.. code-block:: C
+
+   const char* mju_writeNumBytes(const int nbytes);
+
+Construct a human readable number of bytes using standard letter suffix.
+
+.. _mju_warningText:
+
 mju_warningText
 ~~~~~~~~~~~~~~~
 
