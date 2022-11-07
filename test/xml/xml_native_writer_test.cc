@@ -684,6 +684,31 @@ TEST_F(XMLWriterTest, OverwritesDensity) {
   mj_deleteModel(model);
 }
 
+TEST_F(XMLWriterTest, SaveDefaultMass) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="example"
+        vertex="0 0 0  1 0 0  0 1 0  0 0 1"
+        face="2 0 3  0 1 3  1 2 3  0 2 1" />
+    </asset>
+    <default class="main">
+      <geom type="mesh" mass="1"/>
+    </default>
+    <worldbody>
+      <body>
+        <geom mesh="example" size=".1 .2 .3"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  mjModel* model = LoadModelFromString(xml);
+  EXPECT_THAT(model, NotNull());
+  std::string content = SaveAndReadXml(model);
+  EXPECT_THAT(content, HasSubstr("mass=\"1\""));
+  mj_deleteModel(model);
+}
+
 TEST_F(XMLWriterTest, UsesTwoSpaces) {
   static constexpr char xml[] = R"(
   <mujoco>

@@ -252,6 +252,7 @@ void mjXWriter::OneJoint(XMLElement* elem, mjCJoint* pjoint, mjCDef* def) {
 // write geom
 void mjXWriter::OneGeom(XMLElement* elem, mjCGeom* pgeom, mjCDef* def) {
   double unitq[4] = {1, 0, 0, 0};
+  double mass = 0;
 
   // regular
   if (!writingdefaults) {
@@ -259,6 +260,9 @@ void mjXWriter::OneGeom(XMLElement* elem, mjCGeom* pgeom, mjCDef* def) {
     WriteAttrTxt(elem, "class", pgeom->classname);
     if (mjGEOMINFO[pgeom->type]) {
       WriteAttr(elem, "size", mjGEOMINFO[pgeom->type], pgeom->size, def->geom.size);
+    }
+    if (mjuu_defined(pgeom->_mass)) {
+      mass = pgeom->GetVolume() * def->geom.density;
     }
 
     // mesh geom
@@ -308,7 +312,6 @@ void mjXWriter::OneGeom(XMLElement* elem, mjCGeom* pgeom, mjCDef* def) {
   WriteAttr(elem, "fluidcoef", 5, pgeom->fluid_coefs, def->geom.fluid_coefs);
   WriteAttrKey(elem, "shellinertia", meshtype_map, 2, pgeom->typeinertia, def->geom.typeinertia);
   if (mjuu_defined(pgeom->_mass)) {
-    double mass = pgeom->GetVolume() * def->geom.density;
     WriteAttr(elem, "mass", 1, &pgeom->mass, &mass);
   } else {
     WriteAttr(elem, "density", 1, &pgeom->density, &def->geom.density);
