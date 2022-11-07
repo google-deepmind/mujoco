@@ -536,6 +536,74 @@ TEST_F(ActRangeTest, ActRangeDefaultsPropagate) {
   mj_deleteModel(model);
 }
 
+// ---------------------------- test actdim ------------------------------------
+
+using ActDimTest = MujocoTest;
+
+TEST_F(ActDimTest, BiggerThanOneOnlyForUser) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <geom size="1"/>
+        <joint name="hinge"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <general joint="hinge" actdim="2"/>
+    </actuator>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+
+  ASSERT_THAT(model, IsNull());
+  EXPECT_THAT(error.data(),
+              HasSubstr("actdim > 1 is only allowed for dyntype 'user'"));
+}
+
+TEST_F(ActDimTest, NonzeroNotAllowedInStateless) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <geom size="1"/>
+        <joint name="hinge"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <general joint="hinge" actdim="1"/>
+    </actuator>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+
+  ASSERT_THAT(model, IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("invalid actdim 1 in stateless"));
+}
+
+TEST_F(ActDimTest, ZeroNotAllowedInStateful) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <geom size="1"/>
+        <joint name="hinge"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <general joint="hinge" dyntype="filter" actdim="0"/>
+    </actuator>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+
+  ASSERT_THAT(model, IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("invalid actdim 0 in stateful"));
+}
+
 // ------------- test nuser_xxx fields -----------------------------------------
 
 using UserDataTest = MujocoTest;

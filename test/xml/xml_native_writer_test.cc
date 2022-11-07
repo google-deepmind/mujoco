@@ -770,6 +770,51 @@ TEST_F(XMLWriterTest, SpringlengthTwoValues) {
   mj_deleteModel(model);
 }
 
+TEST_F(XMLWriterTest, Actdim) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <geom size="1"/>
+        <joint name="hinge"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <general joint="hinge" dyntype="user" actdim="2"/>
+    </actuator>
+  </mujoco>
+  )";
+  mjModel* model = LoadModelFromString(xml);
+  ASSERT_THAT(model, NotNull());
+  std::string saved_xml = SaveAndReadXml(model);
+  EXPECT_THAT(saved_xml, HasSubstr("actdim=\"2\""));
+  mj_deleteModel(model);
+}
+
+TEST_F(XMLWriterTest, ActdimDefaults) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <default>
+      <general actdim="2"/>
+    </default>
+    <worldbody>
+      <body>
+        <geom size="1"/>
+        <joint name="hinge"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <general joint="hinge" dyntype="user"/>
+    </actuator>
+  </mujoco>
+  )";
+  mjModel* model = LoadModelFromString(xml);
+  ASSERT_THAT(model, NotNull());
+  std::string saved_xml = SaveAndReadXml(model);
+  EXPECT_THAT(saved_xml, HasSubstr("actdim=\"2\""));
+  mj_deleteModel(model);
+}
+
 // check that no precision is lost when saving XMLs with FullFloatPrecision
 TEST_F(XMLWriterTest, SetPrecision) {
   static constexpr char xml[] = R"(

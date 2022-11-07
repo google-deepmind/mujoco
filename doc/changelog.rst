@@ -29,8 +29,11 @@ General
 - Added :ref:`mju_fill`, :ref:`mju_symmetrize` and :ref:`mju_eye` utility functions.
 - Added :at:`gravcomp` attribute to :ref:`body<body>`, implementing gravity compensation and bouyancy.
   See `balloons.xml <https://github.com/deepmind/mujoco/tree/main/model/balloons/balloons.xml>`_ example model.
-- Renamed the cable plugin library to elasticity.
-
+- Renamed the ``cable`` plugin library to ``elasticity``.
+- Added :ref:`actdim` attribute to :ref:`general actuators<actuator-general>`. Values greater than 1 are only allowed
+  for dyntype :at-val:`user`, as native activation dynamics are all scalar. Added example test implementing 2nd-order
+  activation dynamics to
+  `engine_forward_test.cc <https://github.com/deepmind/mujoco/blob/main/test/engine/engine_forward_test.cc>`_.
 Version 2.3.0 (October 18, 2022)
 --------------------------------
 

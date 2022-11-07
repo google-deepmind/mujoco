@@ -159,8 +159,8 @@ static const char* MJCF[nMJCF][mjXATTRNUM] = {
             "solreflimit", "solimplimit", "solreffriction", "solimpfriction",
             "frictionloss", "springlength", "width", "material",
             "margin", "stiffness", "damping", "rgba", "user"},
-        {"general", "?", "16", "ctrllimited", "forcelimited", "actlimited", "ctrlrange",
-            "forcerange", "actrange", "gear", "cranklength", "user", "group",
+        {"general", "?", "17", "ctrllimited", "forcelimited", "actlimited", "ctrlrange",
+            "forcerange", "actrange", "gear", "cranklength", "user", "group", "actdim",
             "dyntype", "gaintype", "biastype", "dynprm", "gainprm", "biasprm"},
         {"motor", "?", "8", "ctrllimited", "forcelimited", "ctrlrange", "forcerange",
             "gear", "cranklength", "user", "group"},
@@ -323,11 +323,11 @@ static const char* MJCF[nMJCF][mjXATTRNUM] = {
 
     {"actuator", "*", "0"},
     {"<"},
-        {"general", "*", "27", "name", "class", "group",
+        {"general", "*", "28", "name", "class", "group",
             "ctrllimited", "forcelimited", "actlimited", "ctrlrange", "forcerange", "actrange",
             "lengthrange", "gear", "cranklength", "user",
             "joint", "jointinparent", "tendon", "slidersite", "cranksite", "site", "refsite",
-            "body", "dyntype", "gaintype", "biastype", "dynprm", "gainprm", "biasprm"},
+            "body", "actdim", "dyntype", "gaintype", "biastype", "dynprm", "gainprm", "biasprm"},
         {"motor", "*", "18", "name", "class", "group",
             "ctrllimited", "forcelimited", "ctrlrange", "forcerange",
             "lengthrange", "gear", "cranklength", "user",
@@ -1683,6 +1683,7 @@ void mjXReader::OneActuator(XMLElement* elem, mjCActuator* pact) {
     ReadAttr(elem, "dynprm", mjNDYN, pact->dynprm, text, false, false);
     ReadAttr(elem, "gainprm", mjNGAIN, pact->gainprm, text, false, false);
     ReadAttr(elem, "biasprm", mjNBIAS, pact->biasprm, text, false, false);
+    ReadAttrInt(elem, "actdim", &pact->actdim);
   }
 
   // direct drive motor

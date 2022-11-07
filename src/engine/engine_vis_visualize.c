@@ -776,7 +776,7 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
       if (vopt->actuatorgroup[mjMAX(0, mjMIN(mjNGROUP-1, m->actuator_group[i]))]) {
         // determine extended range
         mjtNum rng[3] = {-1, 0, +1};
-        mjtNum rmin = -1, rmax = 1, act;
+        mjtNum rmin = -1, rmax = 1, act = 0;
         if (m->actuator_ctrllimited[i]) {
           rmin = m->actuator_ctrlrange[2*i];
           rmax = m->actuator_ctrlrange[2*i+1];
@@ -808,7 +808,7 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
 
         // clamp act to extended range
         if (vopt->flags[mjVIS_ACTIVATION] && m->actuator_dyntype[i]) {
-          act = mju_clip(d->act[m->actuator_actadr[i]], rng[0], rng[2]);
+          act = mju_clip(d->act[m->actuator_actadr[i] + m->actuator_actnum[i] - 1], rng[0], rng[2]);
         } else {
           act = mju_clip(d->ctrl[i], rng[0], rng[2]);
         }

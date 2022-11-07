@@ -851,6 +851,7 @@ struct mjModel_ {
   int*      actuator_biastype;    // bias type (mjtBias)                      (nu x 1)
   int*      actuator_trnid;       // transmission id: joint, tendon, site     (nu x 2)
   int*      actuator_actadr;      // first activation address; -1: stateless  (nu x 1)
+  int*      actuator_actnum;      // number of activation variables           (nu x 1)
   int*      actuator_group;       // group for visibility                     (nu x 1)
   mjtByte*  actuator_ctrllimited; // is control limited                       (nu x 1)
   mjtByte*  actuator_forcelimited;// is force limited                         (nu x 1)

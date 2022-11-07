@@ -3019,6 +3019,11 @@ specify them independently.
    it is defined in the kinematic tree; its orientation cannot be changed in the actuator definition.
 :at:`user`: :at-val:`real(nuser_actuator), "0 ... 0"`
    See :ref:`CUser`.
+:at:`actdim`: :at-val:`real, "-1"`
+   Dimension of the activation state. The default value of ``-1`` instructs the compiler to set the dimension according
+   to the :at:`dyntype`. Values larger than ``1`` are only allowed for user-defined activation dynamics, as native types
+   require dimensions of only 0 or 1. For activation dimensions bigger than 1, the *last element* is used to generate
+   force.
 :at:`dyntype`: :at-val:`[none, integrator, filter, muscle, user], "none"`
    Activation dynamics type for the actuator. The available dynamics types were already described in the :ref:`Actuation
    model <geActuation>` section. Repeating that description in somewhat different notation (corresponding to the mjModel

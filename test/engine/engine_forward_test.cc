@@ -429,5 +429,68 @@ TEST_F(ForwardTest, gravcomp) {
   mj_deleteModel(model);
 }
 
+// user defined 2nd-order activation dynamics: frequency-controlled oscillator
+//  note that scalar mjcb_act_dyn callbacks are expected to return act_dot, but
+//  since we have a vector output we write into act_dot directly
+mjtNum oscillator(const mjModel* m, const mjData *d, int id) {
+  // check that actnum == 2
+  if (m->actuator_actnum[id] != 2) {
+    mju_error("callback expected actnum == 2");
+  }
+
+  // get pointers to activations (inputs) and their derivatives (outputs)
+  mjtNum* act = d->act + m->actuator_actadr[id];
+  mjtNum* act_dot = d->act_dot + m->actuator_actadr[id];
+
+  // harmonic oscillator with controlled frequency
+  mjtNum frequency = 2*mjPI*d->ctrl[id];
+  act_dot[0] = -act[1] * frequency;
+  act_dot[1] = act[0] * frequency;
+
+  return 0;  // ignored by caller
+}
+
+TEST_F(ForwardTest, MjcbActDynSecondOrderExpectsActnum) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option timestep="1e-4"/>
+    <worldbody>
+      <body>
+        <geom size="1"/>
+        <joint name="hinge"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <general joint="hinge" dyntype="user" actdim="2"/>
+    </actuator>
+  </mujoco>
+  )";
+  mjModel* model = LoadModelFromString(xml);
+  mjData* data = mj_makeData(model);
+
+  // install global dynamics callback
+  mjcb_act_dyn = oscillator;
+
+  // for two arbitrary frequencies, compare actuator force as output by the
+  // user-defined oscillator and analytical sine function
+  for (mjtNum frequency : {1.5, 0.7}) {
+    mj_resetData(model, data);
+    data->ctrl[0] = frequency;  // set desired oscillation frequency
+    data->act[0] = 1;  // initialise activation
+
+    // simulate and compare to sine function
+    while (data->time < 1) {
+      mjtNum expected_force = mju_sin(2*mjPI*data->time*frequency);
+      mj_step(model, data);
+      EXPECT_NEAR(data->actuator_force[0], expected_force, .01);
+    }
+  }
+
+  // uninstall global dynamics callback
+  mjcb_act_dyn = nullptr;
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
 }  // namespace
 }  // namespace mujoco
