@@ -172,7 +172,7 @@ struct mjData_ {
   mjtNum*   qvel;                 // velocity                                 (nv x 1)
   mjtNum*   act;                  // actuator activation                      (na x 1)
   mjtNum*   qacc_warmstart;       // acceleration used for warmstart          (nv x 1)
-  mjtNum*   plugin_state;         // plugin state                             (npluginstate x 1)
+  mjtNum*   plugin_state;         // plugin state                             (nplugin x 1)
 
   // control
   mjtNum*   ctrl;                 // control                                  (nu x 1)
