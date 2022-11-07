@@ -24,7 +24,7 @@
 
   <option timestep="0.005" solver="CG" iterations="30" tolerance="1e-6"/>
 
-  <size njmax="1000" nconmax="100" nstack="1000000"/>
+  <size memory="20M"/>
 
   <visual>
     <map force="0.1" zfar="30"/>

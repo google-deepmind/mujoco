@@ -16,7 +16,7 @@
 <mujoco model="22 Humanoids">
   <option timestep="0.005"/>
 
-  <size nconmax="1000" njmax="3000"/>
+  <size memory="100M"/>
 
   <asset>
     <texture type="skybox" builtin="gradient" rgb1=".3 .5 .7" rgb2="0 0 0" width="512" height="512"/>

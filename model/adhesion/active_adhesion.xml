@@ -4,7 +4,7 @@
   -->
   <option viscosity="1"/>
 
-  <size nconmax="500" njmax="1000"/>
+  <size memory="10M"/>
 
   <visual>
     <headlight diffuse=".2 .2 .2"/>

@@ -847,6 +847,9 @@ void mjXWriter::Size(XMLElement* root) {
   WriteAttrInt(section, "nuser_tendon", model->nuser_tendon, 0);
   WriteAttrInt(section, "nuser_actuator", model->nuser_actuator, 0);
   WriteAttrInt(section, "nuser_sensor", model->nuser_sensor, 0);
+
+  // remove entire section if no attributes
+  if (!section->FirstAttribute()) root->DeleteChild(section);
 }
 
 

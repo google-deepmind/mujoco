@@ -2689,6 +2689,12 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
         njmax * m->nv * (2 * sizeof(int) + 2 * sizeof(mjtNum)) +
         njmax * njmax * (sizeof(int) + sizeof(mjtNum)));
     m->nstack += (arena_bytes / sizeof(mjtNum)) + (arena_bytes % sizeof(mjtNum) ? 1 : 0);
+
+    // round up to the nearest megabyte
+    constexpr int kMegabyte = (1 << 20) / sizeof(mjtNum);  // number of mjtNum's in 1 Mb
+    int nstack_mb = m->nstack / kMegabyte;
+    int residual_mb = m->nstack % kMegabyte ? 1 : 0;
+    m->nstack = kMegabyte * (nstack_mb + residual_mb);
   }
 
   // create data

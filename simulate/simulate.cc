@@ -29,6 +29,7 @@
 #include <mujoco/mjtnum.h>
 #include <mujoco/mjvisualize.h>
 #include <mujoco/mjxmacro.h>
+#include <mujoco/mujoco.h>
 #include "glfw_dispatch.h"
 #include "uitools.h"
 #include "array_safety.h"
@@ -478,7 +479,7 @@ void infotext(mj::Simulate* sim,
   // prepare info text
   mju::strcpy_arr(title, "Time\nSize\nCPU\nSolver   \nFPS\nMemory");
   mju::sprintf_arr(content,
-                   "%-9.3f\n%d  (%d con)\n%.3f\n%.1f  (%d it)\n%.0f\n%.3f",
+                   "%-9.3f\n%d  (%d con)\n%.3f\n%.1f  (%d it)\n%.0f\n%.2g of %s",
                    d->time,
                    d->nefc, d->ncon,
                    sim->run ?
@@ -486,7 +487,8 @@ void infotext(mj::Simulate* sim,
                    d->timer[mjTIMER_FORWARD].duration / mjMAX(1, d->timer[mjTIMER_FORWARD].number),
                    solerr, d->solver_iter,
                    1/interval,
-                   d->maxuse_arena/(double)(d->nstack * sizeof(mjtNum)));
+                   d->maxuse_arena/(double)(d->nstack * sizeof(mjtNum)),
+                   mju_writeNumBytes(d->nstack * sizeof(mjtNum)));
 
   // add Energy if enabled
   {
