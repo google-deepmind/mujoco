@@ -27,7 +27,7 @@
 
   <compiler autolimits="true"/>
 
-  <size nconmax="100" njmax="300" nstack="500000"/>
+  <size memory="2M"/>
 
   <worldbody>
     <composite type="cable" curve="s" count="41 1 1" size="1" offset="-.3 0 .6" initial="none">
@@ -36,7 +36,7 @@
         <config key="twist" value="1e7"/>
         <config key="bend" value="4e6"/>
       </plugin>
-      <joint kind="main" damping=".015"/>
+      <joint kind="main" damping="0.15"/>
       <geom type="capsule" size=".005" rgba=".8 .2 .1 1" condim="1"/>
     </composite>
     <body name="slider" pos=".7 0 .6">

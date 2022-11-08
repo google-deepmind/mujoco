@@ -15,11 +15,14 @@
       <site name="reference" pos="0 0 0"/>
       <composite type="cable" curve="s" count="81 1 1" size="1" offset="0 0 1" initial="none">
         <plugin plugin="mujoco.elasticity.cable">
-          <config key="twist" value="1e6"/>
-          <config key="bend" value="1e9"/>
-	 <config key="yield" value="10e6"/>
+          <config key="twist" value="1e10"/>
+          <config key="bend" value="2.5e10"/>
+          <config key="yieldstress" value="5e7"/>
+          <config key="ultimatestress" value="2e8"/>
+          <config key="ultimatestrain" value="0.12"/>
+	 
         </plugin>
-        <joint kind="main" damping="1"/>
+        <joint kind="main" damping="2"/>
         <geom type="capsule" size=".004" density="1000"/>
       </composite>
     </worldbody>
@@ -30,6 +33,6 @@
       <framepos objtype="site" objname="S_last"/>
     </sensor>
     <actuator>
-      <motor site="S_last" gear="0 0 0 0 1 0" ctrllimited="true" ctrlrange="-4 4"/>
+      <motor site="S_last" gear="0 0 0 0 1 0" ctrllimited="true" ctrlrange="-10 10"/>
     </actuator>
   </mujoco>

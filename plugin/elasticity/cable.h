@@ -40,11 +40,40 @@ class Cable {
   int n;                          // number of bodies in the cable
   std::vector<int> prev;          // indices of previous bodies   (n x 1)
   std::vector<int> next;          // indices of next bodies       (n x 1)
-  std::vector<mjtNum> stiffness;  // stiffness parameters         (n x 9)
+
+  
+  //element depending stiffness constants
+  struct stiffness_ {      
+      mjtNum L_Dyz;      // =L/Dyz  L:= beam Length, Dyz: distance to outermost Edge of Beam on yz plane
+      mjtNum L_Dy;       // =L/Dy  Dy: distance to outermost Edge of Beam in y direction
+      mjtNum L_Dz;       // =L/Dz  Dz: distance to outermost Edge of Beam in z direction
+      mjtNum J_Dyz;      // =J/Dyz  
+      mjtNum Iy_Dy;      // =Iy/Dy
+      mjtNum Iz_Dz;      // =Iz/Dz
+      mjtNum dOmega_Yield[3]; // =-L_Dxx / (1 + 1 / YieldStrain_[X]); //omega (beam angle) equivalent yields
+      mjtNum Dyz;        // 
+      mjtNum Dy;         // 
+      mjtNum Dz;         //     
+  };
+  //material constants
+  struct stiffness_consts_ {
+      mjtNum E;            //youngs modulus
+      mjtNum G;            //torsional modulus            
+      mjtNum k_eps_UtY_G;  // =k / (UltimateStrain - YieldStrain_G) k: exponential constant factor 
+      mjtNum k_eps_UtY_E;  // =k / (UltimateStrain - YieldStrain_E) k: exponential constant factor 
+      mjtNum sig_UtY;      // =UltimateStress-YieldStress            
+      mjtNum sigY;         // =Yieldstress      
+      mjtNum epsY_G;       // =YieldStrain torsion
+      mjtNum epsY_E;       // =YieldStrain bending
+      mjtNum Df;           // internal damping factor
+  };
+  
   std::vector<mjtNum> omega0;     // reference curvature          (n x 3)
   std::vector<mjtNum> userdata;   // export of userdata from plugin  (n x 3) e.g. stress for colorcoded vis
-  std::vector<mjtNum> userdatamin; //storage of min values of each userdata output
-  std::vector<mjtNum> userdatamax; //storage of max values of each userdata output
+  mjtNum userdatamin;             //storage of min values of userdata
+  mjtNum userdatamax;             //storage of max values of userdata
+  std::vector<stiffness_> Sel;    
+  stiffness_consts_ Sconst;
 
  private:
   Cable(const mjModel* m, mjData* d, int instance);
