@@ -38,6 +38,7 @@ General
   joints. See the two new examples:
   `particle_free.xml <https://github.com/deepmind/mujoco/tree/main/model/composite/particle_free.xml>`_ and
   `particle_free2d.xml <https://github.com/deepmind/mujoco/tree/main/model/composite/particle_free2d.xml>`_
+- Better mj_solveLD performance. This gives an improvement of 14% on a Intel Skylake Xeon with 36 cores.
 
 Version 2.3.0 (October 18, 2022)
 --------------------------------

@@ -576,7 +576,8 @@ void mj_EulerSkip(const mjModel* m, mjData* d, int skipfactor) {
 
     // solve
     mju_add(qfrc, d->qfrc_smooth, d->qfrc_constraint, nv);
-    mj_solveLD(m, qacc, qfrc, 1, d->qH, d->qHDiagInv);
+    mju_copy(qacc, qfrc, m->nv);
+    mj_solveLD(m, qacc, 1, d->qH, d->qHDiagInv);
   }
 
   // advance state and time

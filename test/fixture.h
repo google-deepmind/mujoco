@@ -17,6 +17,7 @@
 
 #include <gtest/gtest.h>
 #include <absl/strings/string_view.h>
+#include <mujoco/mjdata.h>
 #include <mujoco/mjmodel.h>
 
 namespace mujoco {
@@ -53,8 +54,15 @@ const std::string GetModelPath(absl::string_view path);
 mjModel* LoadModelFromString(absl::string_view xml, char* error = nullptr,
                              int error_size = 0);
 
+// Returns a newly-allocated mjModel, loaded from the contents in model_path.
+// On failure it asserts that model is null.
+mjModel* LoadModelFromPath(const char* model_path);
+
 // Returns a string loaded from first saving the model given an input.
 const std::string SaveAndReadXml(const mjModel* model);
+
+// Adds control noise.
+void AddCtrlNoise(const mjModel* m, mjData* d, int step);
 
 }  // namespace mujoco
 #endif  // MUJOCO_TEST_FIXTURE_H_
