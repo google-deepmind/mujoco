@@ -2132,6 +2132,7 @@ public unsafe struct mjModel_ {
   public int* actuator_biastype;
   public int* actuator_trnid;
   public int* actuator_actadr;
+  public int* actuator_actnum;
   public int* actuator_group;
   public byte* actuator_ctrllimited;
   public byte* actuator_forcelimited;
@@ -3514,6 +3515,10 @@ public static unsafe extern string mju_type2Str(int type);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern int mju_str2Type([MarshalAs(UnmanagedType.LPStr)]string str);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+[return: MarshalAs(UnmanagedType.LPStr)]
+public static unsafe extern string mju_writeNumBytes(UIntPtr nbytes);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 [return: MarshalAs(UnmanagedType.LPStr)]

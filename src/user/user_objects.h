@@ -873,9 +873,10 @@ class mjCActuator : public mjCBase {
  public:
   // variables set by user or API
   int group;                      // group for visualization
-  int ctrllimited;               // are control limits defined: 0 false, 1 true, 2 auto
-  int forcelimited;              // are force limits defined: 0 false, 1 true, 2 auto
-  int actlimited;                // are activation limits defined: 0 false, 1 true, 2 auto
+  int ctrllimited;                // are control limits defined: 0 false, 1 true, 2 auto
+  int forcelimited;               // are force limits defined: 0 false, 1 true, 2 auto
+  int actlimited;                 // are activation limits defined: 0 false, 1 true, 2 auto
+  int actdim;                     // dimension of associated activations
   mjtDyn dyntype;                 // dynamics type
   mjtTrn trntype;                 // transmission type
   mjtGain gaintype;               // gain type

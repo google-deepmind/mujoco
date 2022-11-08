@@ -24,6 +24,7 @@
 #include <unistd.h>
 #endif
 
+#include "engine/engine_macro.h"
 //------------------------- cross-platform aligned malloc/free -------------------------------------
 
 static inline void* mju_alignedMalloc(size_t size, size_t align) {
@@ -73,11 +74,6 @@ void mju_clearHandlers(void) {
 
 typedef void (*callback_fn)(const char*);
 
-#ifdef _MSC_VER
-#define mjTHREADLOCAL __declspec(thread)
-#else
-#define mjTHREADLOCAL _Thread_local
-#endif
 static mjTHREADLOCAL callback_fn _mjPRIVATE_tls_error_fn = NULL;
 static mjTHREADLOCAL callback_fn _mjPRIVATE_tls_warning_fn = NULL;
 

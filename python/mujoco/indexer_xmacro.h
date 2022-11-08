@@ -24,6 +24,7 @@
   X( int,     actuator_, biastype,     nu, 1                    ) \
   X( int,     actuator_, trnid,        nu, 2                    ) \
   X( int,     actuator_, actadr,       nu, 1                    ) \
+  X( int,     actuator_, actnum,       nu, 1                    ) \
   X( int,     actuator_, group,        nu, 1                    ) \
   X( mjtByte, actuator_, ctrllimited,  nu, 1                    ) \
   X( mjtByte, actuator_, forcelimited, nu, 1                    ) \

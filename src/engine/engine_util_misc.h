@@ -87,6 +87,9 @@ MJAPI const char* mju_type2Str(int type);
 // convert type name to type id (mjtObj)
 MJAPI int mju_str2Type(const char* str);
 
+// return human readable number of bytes using standard letter suffix
+MJAPI const char* mju_writeNumBytes(const size_t nbytes);
+
 // warning text
 MJAPI const char* mju_warningText(int warning, size_t info);
 

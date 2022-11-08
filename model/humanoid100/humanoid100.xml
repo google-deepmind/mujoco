@@ -23,7 +23,7 @@
 
   <option timestep="0.005"/>
 
-  <size nconmax="500" njmax="1500" nstack="5000000"/>
+  <size memory="100M"/>
 
   <default>
     <geom solimp=".9 .9 .01"/>

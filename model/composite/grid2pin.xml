@@ -16,7 +16,7 @@
 <mujoco model="2D grid with pins">
   <include file="scene.xml"/>
 
-  <size nconmax="200" njmax="1000" nstack="1000000"/>
+  <size memory="10M"/>
 
   <worldbody>
     <composite type="grid" count="9 9 1" spacing="0.05" offset="0 0 1">

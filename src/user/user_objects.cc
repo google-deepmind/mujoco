@@ -3390,6 +3390,7 @@ mjCActuator::mjCActuator(mjCModel* _model, mjCDef* _def) {
   ctrllimited = 2;
   forcelimited = 2;
   actlimited = 2;
+  actdim = -1;
   trntype = mjTRN_UNDEFINED;
   dyntype = mjDYN_NONE;
   gaintype = mjGAIN_FIXED;
@@ -3472,6 +3473,23 @@ void mjCActuator::Compile(void) {
   if (actlimited && dyntype == mjDYN_NONE) {
     throw mjCError(this, "actrange specified but dyntype is 'none' in actuator '%s' (id = %d)",
                    name.c_str(), id);
+  }
+
+  // check and set actdim
+  if (actdim > 1 && dyntype != mjDYN_USER) {
+    throw mjCError(this, "actdim > 1 is only allowed for dyntype 'user' in actuator '%s' (id = %d)",
+                   name.c_str(), id);
+  }
+  if (actdim == 1 && dyntype == mjDYN_NONE) {
+    throw mjCError(this, "invalid actdim 1 in stateless actuator '%s' (id = %d)", name.c_str(), id);
+  }
+  if (actdim == 0 && dyntype != mjDYN_NONE) {
+    throw mjCError(this, "invalid actdim 0 in stateful actuator '%s' (id = %d)", name.c_str(), id);
+  }
+
+  // set actdim
+  if (actdim < 0) {
+    actdim = (dyntype != mjDYN_NONE);
   }
 
   // check muscle parameters

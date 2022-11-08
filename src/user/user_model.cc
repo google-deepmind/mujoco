@@ -929,7 +929,7 @@ void mjCModel::SetSizes(void) {
       nu++;
     } else {
       nu++;
-      na++;
+      na += actuators[i]->actdim;
     }
   }
 
@@ -1834,7 +1834,9 @@ void mjCModel::CopyObjects(mjModel* m) {
     m->actuator_biastype[i] = pac->biastype;
     m->actuator_trnid[2*i] = pac->trnid[0];
     m->actuator_trnid[2*i+1] = pac->trnid[1];
-    m->actuator_actadr[i] = pac->dyntype == mjDYN_NONE ? -1 : adr++;
+    m->actuator_actadr[i] = pac->dyntype == mjDYN_NONE ? -1 : adr;
+    adr += pac->actdim;
+    m->actuator_actnum[i] = pac->actdim;
     m->actuator_group[i] = pac->group;
     m->actuator_ctrllimited[i] = pac->ctrllimited;
     m->actuator_forcelimited[i] = pac->forcelimited;
@@ -2687,6 +2689,12 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
         njmax * m->nv * (2 * sizeof(int) + 2 * sizeof(mjtNum)) +
         njmax * njmax * (sizeof(int) + sizeof(mjtNum)));
     m->nstack += (arena_bytes / sizeof(mjtNum)) + (arena_bytes % sizeof(mjtNum) ? 1 : 0);
+
+    // round up to the nearest megabyte
+    constexpr int kMegabyte = (1 << 20) / sizeof(mjtNum);  // number of mjtNum's in 1 Mb
+    int nstack_mb = m->nstack / kMegabyte;
+    int residual_mb = m->nstack % kMegabyte ? 1 : 0;
+    m->nstack = kMegabyte * (nstack_mb + residual_mb);
   }
 
   // create data
