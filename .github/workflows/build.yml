@@ -117,6 +117,7 @@ jobs:
     - name: Prepare Python
       shell: bash
       run: |
+        repo="${HOME}"
         cd ${{ matrix.tmpdir }}
         python -m venv venv
         if [[ $RUNNER_OS == "Windows" ]]; then
@@ -126,8 +127,7 @@ jobs:
         ln -s ../Scripts/activate venv/bin/activate
         fi
         source venv/bin/activate
-        python -m pip install --upgrade pip
-        pip install pytest wheel
+        python -m pip install --upgrade --require-hashes -r "${repo}/python/build_requirements.txt"
     - name: Configure MuJoCo
       run: >
         mkdir build &&
