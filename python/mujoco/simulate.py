@@ -21,7 +21,6 @@ import math
 import os
 import threading
 import time
-import typing
 from typing import Callable, Optional
 
 import glfw
@@ -225,10 +224,6 @@ def launch(model: Optional[mujoco.MjModel] = None,
 
 def launch_repl(model: mujoco.MjModel, data: mujoco.MjData) -> None:
   """EXPERIMENTAL FEATURE: Launches the Simulate GUI in REPL mode."""
-  if typing.TYPE_CHECKING:
-    launch(model, data, run_physics_thread=False)
-    return
-
   try:
     import IPython  # pylint: disable=g-import-not-at-top
     has_ipython = True
