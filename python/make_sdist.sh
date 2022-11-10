@@ -53,6 +53,9 @@ cp "${package_dir}"/../LICENSE .
 mkdir cmake
 cp "${package_dir}"/../cmake/*.cmake cmake
 
+# Copy over Simulate source code.
+cp -r "${package_dir}"/../simulate mujoco
+
 python setup.py sdist --formats=gztar
 tar -tf dist/mujoco-*.tar.gz
 popd

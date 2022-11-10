@@ -6,6 +6,12 @@ Changelog
 Upcoming version (not yet released)
 -----------------------------------
 
+Python bindings
+^^^^^^^^^^^^^^^
+
+- The ``simulate`` GUI is now available through the ``mujoco`` Python package. See :ref:`documentation<PyGUI>` for
+  details. (Contribution by `Levi Burner <https://github.com/aftersomemath>`_.)
+
 General
 ^^^^^^^
 

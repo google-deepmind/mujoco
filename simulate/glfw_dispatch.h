@@ -25,6 +25,7 @@ struct Glfw {
 #define mjGLFW_DECLARE_SYMBOL(func) decltype(&::func) func
   // go/keep-sorted start
   mjGLFW_DECLARE_SYMBOL(glfwCreateWindow);
+  mjGLFW_DECLARE_SYMBOL(glfwDestroyWindow);
   mjGLFW_DECLARE_SYMBOL(glfwGetCursorPos);
   mjGLFW_DECLARE_SYMBOL(glfwGetFramebufferSize);
   mjGLFW_DECLARE_SYMBOL(glfwGetKey);
