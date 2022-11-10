@@ -117,7 +117,7 @@ jobs:
     - name: Prepare Python
       shell: bash
       run: |
-        repo="${HOME}"
+        repo="${PWD}"
         cd ${{ matrix.tmpdir }}
         python -m venv venv
         if [[ $RUNNER_OS == "Windows" ]]; then
