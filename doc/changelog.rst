@@ -43,8 +43,13 @@ General
 - Improved particle :ref:`composite<body-composite>` type, which now permits a user-specified geometry and multiple
   joints. See the two new examples:
   `particle_free.xml <https://github.com/deepmind/mujoco/tree/main/model/composite/particle_free.xml>`_ and
-  `particle_free2d.xml <https://github.com/deepmind/mujoco/tree/main/model/composite/particle_free2d.xml>`_
-- Better mj_solveLD performance. This gives an improvement of 14% on a Intel Skylake Xeon with 36 cores.
+  `particle_free2d.xml <https://github.com/deepmind/mujoco/tree/main/model/composite/particle_free2d.xml>`_.
+- Performance improvements for non-AVX configurations:
+
+  - 14% faster ``mj_solveLD`` using `restrict <https://en.wikipedia.org/wiki/Restrict>`_. See `engine_core_smooth_benchmark_test
+    <https://github.com/deepmind/mujoco/tree/main/test/benchmark/engine_core_smooth_benchmark_test.cc>`_.
+  - 50% faster ``mju_dotSparse`` using manual loop unroll. See `engine_util_sparse_benchmark_test
+    <https://github.com/deepmind/mujoco/tree/main/test/benchmark/engine_util_sparse_benchmark_test.cc>`_.
 
 Version 2.3.0 (October 18, 2022)
 --------------------------------

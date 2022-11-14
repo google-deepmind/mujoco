@@ -107,7 +107,6 @@ static void BM_solveLD(benchmark::State& state, bool new_function) {
 
   // warm-up rollout to get a typcal state
   for (int i=0; i < kNumWarmupSteps; i++) {
-    AddCtrlNoise(m, d, i);
     mj_step(m, d);
   }
 
