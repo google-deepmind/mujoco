@@ -222,7 +222,7 @@ namespace Mujoco {
       MjGeom geom = target as MjGeom;
       MjBody body = geom.GetComponentInParent(typeof(MjBody));
       if (!body) return;
-      ApplyForceToBody(body)
+      ApplyForceToBody(body);
     }
     
   }
