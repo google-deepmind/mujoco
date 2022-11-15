@@ -102,7 +102,7 @@ namespace Mujoco {
       }
 
       MjBody body = target as MjBody;
-      ApplyForceToBody(body, currentEvent)
+      ApplyForceToBody(body, currentEvent);
     }
   
     protected unsafe void ApplyForceToBody(MjBody body, Event currentEvent){
