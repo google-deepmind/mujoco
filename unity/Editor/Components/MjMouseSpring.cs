@@ -102,10 +102,10 @@ namespace Mujoco {
       }
 
       MjBody body = target as MjBody;
-      ApplyForceToBody(body)
+      ApplyForceToBody(body, currentEvent)
     }
   
-    private unsafe void ApplyForceToBody(MjBody body){
+    protected unsafe void ApplyForceToBody(MjBody body, Event currentEvent){
       Vector3 bodyPosition =
           body != null ? body.transform.position : Vector3.zero;
       var scene = MjScene.Instance;
@@ -220,9 +220,9 @@ namespace Mujoco {
       }
 
       MjGeom geom = target as MjGeom;
-      MjBody body = geom.GetComponentInParent(typeof(MjBody));
+      MjBody body = geom.GetComponentInParent(typeof(MjBody)) as MjBody;
       if (!body) return;
-      ApplyForceToBody(body);
+      ApplyForceToBody(body, currentEvent);
     }
     
   }
