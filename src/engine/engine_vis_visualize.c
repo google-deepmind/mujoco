@@ -1883,6 +1883,7 @@ void mjv_updateActiveSkin(const mjModel* m, mjData* d, mjvScene* scn, const mjvO
     // clear positions and normals
     memset(scn->skinvert + 3*vertadr, 0, 3*vertnum*sizeof(float));
     memset(scn->skinnormal + 3*vertadr, 0, 3*vertnum*sizeof(float));
+    memset(scn->skinuserdata + 3 * vertadr, 0, 3 * vertnum * sizeof(float));
 
     if (opt->skingroup[m->skin_group[i]]) {
       // accumulate positions from all bones
@@ -1908,6 +1909,13 @@ void mjv_updateActiveSkin(const mjModel* m, mjData* d, mjvScene* scn, const mjvO
         mju_negQuat(quatneg, bindquat);
         mju_mulQuat(quat, d->xquat+4*bodyid, quatneg);
         mju_quat2Mat(rotate, quat);
+
+        //apply dynamic skin colors from geom_rgba
+        mjtNum skin_rgb[3] = {
+          (mjtNum)m->geom_rgba[4 * bodyid],
+          (mjtNum)m->geom_rgba[4 * bodyid + 1],
+          (mjtNum)m->geom_rgba[4 * bodyid + 2]
+        };
 
         // compute translation
         mjtNum translate[3];
@@ -1938,6 +1946,12 @@ void mjv_updateActiveSkin(const mjModel* m, mjData* d, mjvScene* scn, const mjvO
           scn->skinvert[3*(vertadr+vid)] += vweight*(float)pos1[0];
           scn->skinvert[3*(vertadr+vid)+1] += vweight*(float)pos1[1];
           scn->skinvert[3*(vertadr+vid)+2] += vweight*(float)pos1[2];
+
+          //colorize each vertex based on userdata and location                         
+          scn->skinuserdata[3 * (vertadr + vid)] = skin_rgb[0];
+          scn->skinuserdata[3 * (vertadr + vid) + 1] = skin_rgb[1];
+          scn->skinuserdata[3 * (vertadr + vid) + 2] = skin_rgb[2];
+
         }
       }
 

@@ -131,6 +131,7 @@ struct mjrContext_ {              // custom OpenGL context
   int nskin;                      // number of skins
   unsigned int* skinvertVBO;      // skin vertex position VBOs (nskin)
   unsigned int* skinnormalVBO;    // skin vertex normal VBOs (nskin)
+  unsigned int* skincolorVBO;     // skin vertex color VBOs (nskin)
   unsigned int* skintexcoordVBO;  // skin vertex texture coordinate VBOs (nskin)
   unsigned int* skinfaceVBO;      // skin face index VBOs (nskin)
 

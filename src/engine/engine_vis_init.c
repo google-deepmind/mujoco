@@ -159,13 +159,15 @@ void mjv_makeScene(const mjModel* m, mjvScene* scn, int maxgeom) {
     scn->skinvertnum = (int*) mju_malloc(nskin*sizeof(int));
     scn->skinvert    = (float*) mju_malloc(3*totvert*sizeof(float));
     scn->skinnormal  = (float*) mju_malloc(3*totvert*sizeof(float));
+    scn->skinuserdata = (float*)mju_malloc(3 * totvert * sizeof(float));
 
     // check allocation
     if (!scn->skinfacenum ||
         !scn->skinvertadr ||
         !scn->skinvertnum ||
         !scn->skinvert    ||
-        !scn->skinnormal) {
+        !scn->skinnormal ||
+        !scn->skinuserdata) {
       mju_error("Could not allocate skin buffers");
     }
 
@@ -192,6 +194,7 @@ void mjv_freeScene(mjvScene* scn) {
   mju_free(scn->skinvertnum);
   mju_free(scn->skinvert);
   mju_free(scn->skinnormal);
+  mju_free(scn->skinuserdata);
 
   // clear data structure
   mjv_defaultScene(scn);
