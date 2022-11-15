@@ -234,7 +234,8 @@ void mj_fwdActuation(const mjModel* m, mjData* d) {
     if (m->actuator_actadr[i] == -1) {
       force[i] = gain * ctrl[i];
     } else {
-      force[i] = gain * d->act[m->actuator_actadr[i]];
+      // use last activation variable associated with actuator i
+      force[i] = gain * d->act[m->actuator_actadr[i] + m->actuator_actnum[i] - 1];
     }
 
     // extract bias info
@@ -329,7 +330,13 @@ void mj_fwdActuation(const mjModel* m, mjData* d) {
 
     default:                        // user dynamics
       if (mjcb_act_dyn) {
-        d->act_dot[j] = mjcb_act_dyn(m, d, i);
+        if (m->actuator_actnum[i] == 1) {
+          // scalar activation dynamics, get act_dot
+          d->act_dot[j] = mjcb_act_dyn(m, d, i);
+        } else {
+          // higher-order dynamics, mjcb_act_dyn writes into act_dot directly
+          mjcb_act_dyn(m, d, i);
+        }
       } else {
         d->act_dot[j] = 0;
       }
@@ -501,7 +508,9 @@ static void mj_advance(const mjModel* m, mjData* d,
       int j = m->actuator_actadr[i];
       if (j > -1 && m->actuator_actlimited[i]) {
         mjtNum* actrange = m->actuator_actrange + 2*i;
-        d->act[j] = mju_clip(d->act[j], actrange[0], actrange[1]);
+        for (int k=0; k<m->actuator_actnum[i]; k++) {
+          d->act[j+k] = mju_clip(d->act[j+k], actrange[0], actrange[1]);
+        }
       }
     }
   }
@@ -567,7 +576,8 @@ void mj_EulerSkip(const mjModel* m, mjData* d, int skipfactor) {
 
     // solve
     mju_add(qfrc, d->qfrc_smooth, d->qfrc_constraint, nv);
-    mj_solveLD(m, qacc, qfrc, 1, d->qH, d->qHDiagInv);
+    mju_copy(qacc, qfrc, m->nv);
+    mj_solveLD(m, qacc, 1, d->qH, d->qHDiagInv);
   }
 
   // advance state and time

@@ -356,6 +356,7 @@
     X( int,     actuator_biastype,     nu,            1                    ) \
     X( int,     actuator_trnid,        nu,            2                    ) \
     X( int,     actuator_actadr,       nu,            1                    ) \
+    X( int,     actuator_actnum,       nu,            1                    ) \
     X( int,     actuator_group,        nu,            1                    ) \
     X( mjtByte, actuator_ctrllimited,  nu,            1                    ) \
     X( mjtByte, actuator_forcelimited, nu,            1                    ) \

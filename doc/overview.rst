@@ -177,14 +177,14 @@ objects and cast shadows, and a floating box with 6 DOFs (this is what the "free
 .. code:: xml
 
    <mujoco>
-      <worldbody>
-         <light diffuse=".5 .5 .5" pos="0 0 3" dir="0 0 -1"/>
-         <geom type="plane" size="1 1 0.1" rgba=".9 0 0 1"/>
-         <body pos="0 0 1">
-            <joint type="free"/>
-            <geom type="box" size=".1 .2 .3" rgba="0 .9 0 1"/>
-         </body>
-      </worldbody>
+     <worldbody>
+       <light diffuse=".5 .5 .5" pos="0 0 3" dir="0 0 -1"/>
+       <geom type="plane" size="1 1 0.1" rgba=".9 0 0 1"/>
+       <body pos="0 0 1">
+         <joint type="free"/>
+         <geom type="box" size=".1 .2 .3" rgba="0 .9 0 1"/>
+       </body>
+     </worldbody>
    </mujoco>
 
 The built-in OpenGL visualizer renders this model as:
@@ -244,43 +244,46 @@ Next we provide a more elaborate example illustrating several features of MJCF.
 .. code:: xml
 
    <mujoco model="example">
-       <compiler coordinate="global"/>
-       <default>
-           <geom rgba=".8 .6 .4 1"/>
-       </default>
-       <asset>
-           <texture type="skybox" builtin="gradient" rgb1="1 1 1" rgb2=".6 .8 1"
-                    width="256" height="256"/>
-       </asset>
-       <worldbody>
-           <light pos="0 1 1" dir="0 -1 -1" diffuse="1 1 1"/>
+     <compiler coordinate="global"/>
+
+     <default>
+       <geom rgba=".8 .6 .4 1"/>
+     </default>
+
+     <asset>
+       <texture type="skybox" builtin="gradient" rgb1="1 1 1" rgb2=".6 .8 1" width="256" height="256"/>
+     </asset>
+
+     <worldbody>
+       <light pos="0 1 1" dir="0 -1 -1" diffuse="1 1 1"/>
+       <body>
+         <geom type="capsule" fromto="0 0 1  0 0 0.6" size="0.06"/>
+         <joint type="ball" pos="0 0 1"/>
+         <body>
+           <geom type="capsule" fromto="0 0 0.6  0.3 0 0.6" size="0.04"/>
+           <joint type="hinge" pos="0 0 0.6" axis="0 1 0"/>
+           <joint type="hinge" pos="0 0 0.6" axis="1 0 0"/>
            <body>
-               <geom type="capsule" fromto="0 0 1  0 0 0.6" size="0.06"/>
-               <joint type="ball" pos="0 0 1"/>
-               <body>
-                   <geom type="capsule" fromto="0 0 0.6  0.3 0 0.6" size="0.04"/>
-                   <joint type="hinge" pos="0 0 0.6" axis="0 1 0"/>
-                   <joint type="hinge" pos="0 0 0.6" axis="1 0 0"/>
-                   <body>
-                       <geom type="ellipsoid" pos="0.4 0 0.6" size="0.1 0.08 0.02"/>
-                       <site name="end1" pos="0.5 0 0.6" type="sphere" size="0.01"/>
-                       <joint type="hinge" pos="0.3 0 0.6" axis="0 1 0"/>
-                       <joint type="hinge" pos="0.3 0 0.6" axis="0 0 1"/>
-                   </body>
-               </body>
+             <geom type="ellipsoid" pos="0.4 0 0.6" size="0.1 0.08 0.02"/>
+             <site name="end1" pos="0.5 0 0.6" type="sphere" size="0.01"/>
+             <joint type="hinge" pos="0.3 0 0.6" axis="0 1 0"/>
+             <joint type="hinge" pos="0.3 0 0.6" axis="0 0 1"/>
            </body>
-           <body>
-               <geom type="cylinder" fromto="0.5 0 0.2  0.5 0 0" size="0.07"/>
-               <site name="end2" pos="0.5 0 0.2" type="sphere" size="0.01"/>
-               <joint type="free"/>
-           </body>
-       </worldbody>
-       <tendon>
-           <spatial limited="true" range="0 0.6" width="0.005">
-               <site site="end1"/>
-               <site site="end2"/>
-           </spatial>
-       </tendon>
+         </body>
+       </body>
+       <body>
+         <geom type="cylinder" fromto="0.5 0 0.2  0.5 0 0" size="0.07"/>
+         <site name="end2" pos="0.5 0 0.2" type="sphere" size="0.01"/>
+         <joint type="free"/>
+       </body>
+     </worldbody>
+
+     <tendon>
+       <spatial limited="true" range="0 0.6" width="0.005">
+         <site site="end1"/>
+         <site site="end2"/>
+       </spatial>
+     </tendon>
    </mujoco>
 
 .. raw:: html

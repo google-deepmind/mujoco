@@ -2296,10 +2296,11 @@ coordinates results in compiler error. See :ref:`CComposite` in the modeling gui
    This attribute determines the type of composite object. The remaining attributes and sub-elements are then
    interpreted according to the type. Default settings are also adjusted depending on the type.
 
-   The **particle** type creates a 1D, 2D or 3D grid of equally-spaced bodies. Each body has a single sphere geom and 3
-   orthogonal sliding joints, allowing translation but not rotation. The geom condim and priority attributes are set to
-   1 by default. This makes the spheres have frictionless contacts with all other geoms (unless the priority of some
-   frictional geom is higher).
+   The **particle** type creates a 1D, 2D or 3D grid of equally-spaced bodies. By default, each body has a single sphere
+   geom and 3 orthogonal sliding joints, allowing translation but not rotation. The geom condim and priority attributes
+   are set to 1 by default. This makes the spheres have frictionless contacts with all other geoms (unless the priority
+   of some frictional geom is higher). The user can replace the default sliders with multiple joints of kind="particle"
+   and replace the default sphere with a custom geom.
 
    The **grid** type creates a 1D or 2D grid of bodies, each having a sphere geom, a sphere site, and 3 orthogonal
    sliding joints by default. The :el:`pin` sub-element can be used to specify that some bodies should not have joints,
@@ -2403,7 +2404,7 @@ Depending on the composite type, some joints are created automatically (e.g. the
 joints are optional (e.g. the stretch and twist joints in rope). This sub-element is used to specify which optional
 joints should be created, as well as to adjust the attributes of both automatic and optional joints.
 
-:at:`kind`: :at-val:`[main, twist, stretch], required`
+:at:`kind`: :at-val:`[main, twist, stretch, particle], required`
    The joint kind here is orthogonal to the joint type in the rest of MJCF. The joint kind refers to the function of the
    joint within the mechanism comprising the composite body, while the joint type (hinge or slide) is implied by the
    joint kind and composite body type.
@@ -2420,6 +2421,10 @@ joints should be created, as well as to adjust the attributes of both automatic 
    The **stretch** kind corresponds to slide joints enabling rope, loop and cloth objects to stretch. These are optional
    joints and are only created if this sub-element is present. This sub-element is also used to adjust the attributes of
    the optional stretch joints. For other composite object types this sub-element has no effect.
+
+   The **particle** kind can only be used with the particle composite type. As opposed to all previous kinds, this kind
+   *replaces* the default 3 sliders with user-defined joints. User-defined joints can be repeated, for example
+   to create planar particles with two sliders and a hinge.
 :at:`solreffix`, :at:`solimpfix`
    These are the solref and solimp attributes used to equality-constrain the joint. Whether or not a given joint is
    quality-constrained depends on the joint kind and composite object type as explained above. For joints that are not
@@ -2429,7 +2434,7 @@ joints should be created, as well as to adjust the attributes of both automatic 
 
 .. |body/composite/joint attrib list| replace::
    :at:`group`, :at:`stiffness`, :at:`damping`, :at:`armature`, :at:`limited`, :at:`range`, :at:`margin`,
-   :at:`solreflimit`, :at:`solimplimit`, :at:`frictionloss`, :at:`solreffriction`, :at:`solimpfriction`
+   :at:`solreflimit`, :at:`solimplimit`, :at:`frictionloss`, :at:`solreffriction`, :at:`solimpfriction`, :at:`type`
 
 |body/composite/joint attrib list|
    Same meaning as regular :ref:`joint <body-joint>` attributes.
@@ -3019,6 +3024,11 @@ specify them independently.
    it is defined in the kinematic tree; its orientation cannot be changed in the actuator definition.
 :at:`user`: :at-val:`real(nuser_actuator), "0 ... 0"`
    See :ref:`CUser`.
+:at:`actdim`: :at-val:`real, "-1"`
+   Dimension of the activation state. The default value of ``-1`` instructs the compiler to set the dimension according
+   to the :at:`dyntype`. Values larger than ``1`` are only allowed for user-defined activation dynamics, as native types
+   require dimensions of only 0 or 1. For activation dimensions bigger than 1, the *last element* is used to generate
+   force.
 :at:`dyntype`: :at-val:`[none, integrator, filter, muscle, user], "none"`
    Activation dynamics type for the actuator. The available dynamics types were already described in the :ref:`Actuation
    model <geActuation>` section. Repeating that description in somewhat different notation (corresponding to the mjModel

@@ -6937,6 +6937,20 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
          ),
          doc='Convert type name to type id (mjtObj).',
      )),
+    ('mju_writeNumBytes',
+     FunctionDecl(
+         name='mju_writeNumBytes',
+         return_type=PointerType(
+             inner_type=ValueType(name='char', is_const=True),
+         ),
+         parameters=(
+             FunctionParameterDecl(
+                 name='nbytes',
+                 type=ValueType(name='size_t', is_const=True),
+             ),
+         ),
+         doc='Return human readable number of bytes using standard letter suffix.',  # pylint: disable=line-too-long
+     )),
     ('mju_warningText',
      FunctionDecl(
          name='mju_warningText',

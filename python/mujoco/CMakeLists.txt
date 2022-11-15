@@ -46,6 +46,12 @@ elseif(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID MATCHES "Cl
   add_compile_options(-fdata-sections -ffunction-sections)
 endif()
 
+if(CMAKE_CXX_COMPILER_ID MATCHES "Clang" AND CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL "15.0.0")
+  # Needed for https://github.com/abseil/abseil-cpp/issues/1201, until a new
+  # version of abseil is released with the fix.
+  add_compile_options(-Wno-deprecated-builtins)
+endif()
+
 include(MujocoLinkOptions)
 get_mujoco_extra_link_options(EXTRA_LINK_OPTIONS)
 add_link_options(${EXTRA_LINK_OPTIONS})
@@ -113,6 +119,7 @@ if(NOT TARGET mujoco)
     )
     set_target_properties(mujoco PROPERTIES IMPORTED_SONAME "${MUJOCO_SONAME}")
   endif()
+  add_library(mujoco::mujoco ALIAS mujoco)
 endif()
 
 # ==================== ABSEIL ==================================================
@@ -184,6 +191,9 @@ findorfetch(
 )
 
 # ==================== MUJOCO PYTHON BINDINGS ==================================
+set(SIMULATE_BUILD_EXECUTABLE OFF)
+set(SIMULATE_GLFW_DYNAMIC_SYMBOLS ON)
+add_subdirectory(simulate)
 
 add_subdirectory(util)
 
@@ -370,6 +380,14 @@ target_link_libraries(
           structs_header
 )
 
+mujoco_pybind11_module(_simulate simulate.cc)
+target_link_libraries(
+  _simulate
+  PRIVATE mujoco
+          mujoco::libsimulate
+          raw
+          structs_header)
+
 set(LIBRARIES_FOR_WHEEL
     "$<TARGET_FILE:_callbacks>"
     "$<TARGET_FILE:_constants>"
@@ -378,6 +396,7 @@ set(LIBRARIES_FOR_WHEEL
     "$<TARGET_FILE:_functions>"
     "$<TARGET_FILE:_render>"
     "$<TARGET_FILE:_rollout>"
+    "$<TARGET_FILE:_simulate>"
     "$<TARGET_FILE:_structs>"
     "$<TARGET_FILE:mujoco>"
 )
@@ -405,6 +424,7 @@ if(MUJOCO_PYTHON_MAKE_WHEEL)
     _functions
     _render
     _rollout
+    _simulate
     _structs
     mujoco
   )

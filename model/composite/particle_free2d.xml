@@ -14,14 +14,11 @@
 -->
 
 <mujoco model="Particle">
-<!-- Degree of Freedom: 3000
-     Actuators: 0
--->
   <include file="scene.xml"/>
 
   <option solver="CG" tolerance="1e-6" timestep=".01"/>
 
-  <size memory="1G"/>
+  <size nconmax="6000" njmax="6000" nstack="50000000"/>
 
   <visual>
     <map stiffness="100"/>
@@ -38,8 +35,11 @@
     <geom name="-x" class="wall" zaxis="-1 0 0" pos=".5 0 -.25"/>
     <geom name="+y" class="wall" zaxis="0 1 0"  pos="0 -.5 -.25"/>
     <geom name="-y" class="wall" zaxis="0 -1 0" pos="0 .5 -.25"/>
-    <composite type="particle" count="10 10 10" spacing="0.07" offset="0 0 1">
-      <geom size=".025" rgba=".8 .2 .1 1"/>
+    <composite type="particle" count="15 15 1" spacing="0.06" offset="0 0 .1">
+      <geom type="ellipsoid" size=".025 .02 .015" rgba=".8 .2 .1 1"/>
+      <joint kind="particle" type="slide" axis="1 0 0"/>
+      <joint kind="particle" type="slide" axis="0 1 0"/>
+      <joint kind="particle" type="hinge" axis="0 0 1"/>
     </composite>
   </worldbody>
 </mujoco>

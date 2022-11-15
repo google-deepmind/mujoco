@@ -33,6 +33,13 @@
 #define mjMAX(a, b)    (((a) > (b)) ? (a) : (b))
 #define mjMIN(a, b)    (((a) < (b)) ? (a) : (b))
 
+// thread local macro
+#ifdef _MSC_VER
+#define mjTHREADLOCAL __declspec(thread)
+#else
+#define mjTHREADLOCAL _Thread_local
+#endif
+
 
 //-------------------------- timer macros ----------------------------------------------------------
 

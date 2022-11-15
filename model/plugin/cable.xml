@@ -27,7 +27,7 @@
 
   <compiler autolimits="true"/>
 
-  <size nconmax="100" njmax="300" nstack="500000"/>
+  <size memory="2M"/>
 
   <worldbody>
     <composite type="cable" curve="s" count="41 1 1" size="1" offset="-.3 0 .6" initial="none">

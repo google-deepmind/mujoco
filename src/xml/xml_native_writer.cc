@@ -252,6 +252,7 @@ void mjXWriter::OneJoint(XMLElement* elem, mjCJoint* pjoint, mjCDef* def) {
 // write geom
 void mjXWriter::OneGeom(XMLElement* elem, mjCGeom* pgeom, mjCDef* def) {
   double unitq[4] = {1, 0, 0, 0};
+  double mass = 0;
 
   // regular
   if (!writingdefaults) {
@@ -259,6 +260,9 @@ void mjXWriter::OneGeom(XMLElement* elem, mjCGeom* pgeom, mjCDef* def) {
     WriteAttrTxt(elem, "class", pgeom->classname);
     if (mjGEOMINFO[pgeom->type]) {
       WriteAttr(elem, "size", mjGEOMINFO[pgeom->type], pgeom->size, def->geom.size);
+    }
+    if (mjuu_defined(pgeom->_mass)) {
+      mass = pgeom->GetVolume() * def->geom.density;
     }
 
     // mesh geom
@@ -308,7 +312,6 @@ void mjXWriter::OneGeom(XMLElement* elem, mjCGeom* pgeom, mjCDef* def) {
   WriteAttr(elem, "fluidcoef", 5, pgeom->fluid_coefs, def->geom.fluid_coefs);
   WriteAttrKey(elem, "shellinertia", meshtype_map, 2, pgeom->typeinertia, def->geom.typeinertia);
   if (mjuu_defined(pgeom->_mass)) {
-    double mass = pgeom->GetVolume() * def->geom.density;
     WriteAttr(elem, "mass", 1, &pgeom->mass, &mass);
   } else {
     WriteAttr(elem, "density", 1, &pgeom->density, &def->geom.density);
@@ -640,6 +643,7 @@ void mjXWriter::OneActuator(XMLElement* elem, mjCActuator* pact, mjCDef* def) {
 
   // non-plugins: write actuator parameters
   else {
+    WriteAttrInt(elem, "actdim", pact->actdim, def->actuator.actdim);
     WriteAttrKey(elem, "dyntype", dyn_map, dyn_sz, pact->dyntype, def->actuator.dyntype);
     WriteAttrKey(elem, "gaintype", gain_map, gain_sz, pact->gaintype, def->actuator.gaintype);
     WriteAttrKey(elem, "biastype", bias_map, bias_sz, pact->biastype, def->actuator.biastype);
@@ -826,28 +830,7 @@ void mjXWriter::Size(XMLElement* root) {
 
   // write memory
   if (model->memory != -1) {
-    const std::size_t memory = static_cast<std::size_t>(model->memory);
-    const std::vector<std::pair<int, char>> kSuffix = {
-      {60, 'E'}, {50, 'P'}, {40, 'T'}, {30, 'G'}, {20, 'M'}, {10, 'K'},
-    };
-
-    std::ostringstream strm;
-
-    // check for divisibility by each suffixed size
-    for (const auto& [multiplier_bit, suffix_char] : kSuffix) {
-      const std::size_t multiplier = static_cast<std::size_t>(1) << multiplier_bit;
-      if (memory >= multiplier && !(memory & (multiplier - 1))) {
-        strm << (memory >> multiplier_bit) << suffix_char;
-        break;
-      }
-    }
-
-    // doesn't match any suffix, just write the number out as-is
-    if (!strm.tellp()) {
-      strm << memory;
-    }
-
-    WriteAttrTxt(section, "memory", strm.str());
+    WriteAttrTxt(section, "memory", mju_writeNumBytes(model->memory));
   }
 
   // write sizes
@@ -864,6 +847,9 @@ void mjXWriter::Size(XMLElement* root) {
   WriteAttrInt(section, "nuser_tendon", model->nuser_tendon, 0);
   WriteAttrInt(section, "nuser_actuator", model->nuser_actuator, 0);
   WriteAttrInt(section, "nuser_sensor", model->nuser_sensor, 0);
+
+  // remove entire section if no attributes
+  if (!section->FirstAttribute()) root->DeleteChild(section);
 }
 
 

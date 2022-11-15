@@ -16,8 +16,6 @@
 <mujoco model="2-link 6-muscle arm">
   <option timestep="0.005" iterations="50" solver="Newton" tolerance="1e-10"/>
 
-  <size njmax="50" nconmax="10" nstack="200"/>
-
   <visual>
     <rgba haze=".3 .3 .3 1"/>
   </visual>

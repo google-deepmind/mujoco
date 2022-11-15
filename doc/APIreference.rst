@@ -1683,6 +1683,8 @@ mjModel
        int*      actuator_gaintype;    // gain type (mjtGain)                      (nu x 1)
        int*      actuator_biastype;    // bias type (mjtBias)                      (nu x 1)
        int*      actuator_trnid;       // transmission id: joint, tendon, site     (nu x 2)
+       int*      actuator_actadr;      // first activation address; -1: stateless  (nu x 1)
+       int*      actuator_actnum;      // number of activation variables           (nu x 1)
        int*      actuator_group;       // group for visibility                     (nu x 1)
        mjtByte*  actuator_ctrllimited; // is control limited                       (nu x 1)
        mjtByte*  actuator_forcelimited;// is force limited                         (nu x 1)
@@ -6596,6 +6598,17 @@ mju_str2Type
    int mju_str2Type(const char* str);
 
 Convert type name to type id (mjtObj).
+
+.. _mju_writeNumBytes:
+
+mju_writeNumBytes
+~~~~~~~~~~~~~~~~~
+
+.. code-block:: C
+
+   const char* mju_writeNumBytes(const int nbytes);
+
+Construct a human readable number of bytes using standard letter suffix.
 
 .. _mju_warningText:
 

@@ -22,7 +22,7 @@
 
   <option solver="CG" tolerance="1e-6"/>
 
-  <size nconmax="500" njmax="5000" nstack="5000000"/>
+  <size memory="30M"/>
 
   <worldbody>
     <body pos="0 0 1">

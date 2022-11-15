@@ -575,7 +575,8 @@ Physics state
 
 User inputs
 ^^^^^^^^^^^
-These input fields are set by the user and affect the physics simulation, but are untouched by the simulator.
+These input fields are set by the user and affect the physics simulation, but are untouched by the simulator. All input
+fields except for MoCap poses default to 0.
 
   Controls: ``ctrl``
     Controls are defined by the :ref:`actuator<actuator>` section of the XML. ``mjData.ctrl`` values either produce
@@ -592,7 +593,8 @@ These input fields are set by the user and affect the physics simulation, but ar
   MoCap poses: ``mocap_pos`` and ``mocap_quat``
     ``mjData.mocap_pos`` and ``mjData.mocap_quat`` are special optional kinematic states :ref:`described here<CMocap>`,
     which allow the user to set the positions and orientations of static bodies in real-time, for example when streaming
-    6D poses from a motion-capture device.
+    6D poses from a motion-capture device. The default values set by :ref:`mj_resetData` are the poses of the bodies at
+    the default configuration.
 
   User data: ``userdata``
     ``mjData.userdata`` acts as a user-defined memory space untouched by the engine. For example it can be used by
@@ -622,6 +624,9 @@ Integration state
 The *integration state* is the union of all the above ``mjData`` fields and constitutes the entire set of inputs to
 the *forward dynamics*. In the case of *inverse dynamics*, ``mjData.qacc`` is also treated as an input variable. All
 other ``mjData`` fields are functions of the integration state.
+|br| When saving the integration state in order to reload it elsewhere, it is sensible to avoid saving unused fields
+that always remain in their default values. Specifically, ``xfrc_applied`` can be quite large (``6 x nbody``) yet is
+often unused.
 
 .. _geSimulationState:
 

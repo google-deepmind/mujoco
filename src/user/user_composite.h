@@ -15,8 +15,8 @@
 #ifndef MUJOCO_SRC_USER_USER_COMPOSITE_H_
 #define MUJOCO_SRC_USER_USER_COMPOSITE_H_
 
-#include <map>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 #include <mujoco/mjmodel.h>
@@ -44,6 +44,7 @@ typedef enum _mjtCompKind {
   mjCOMPKIND_STRETCH,
   mjCOMPKIND_TENDON,
   mjCOMPKIND_SHEAR,
+  mjCOMPKIND_PARTICLE,
 
   mjNCOMPKINDS
 } mjtCompKind;
@@ -64,6 +65,7 @@ class mjCComposite {
   mjCComposite(void);
 
   void SetDefault(void);
+  bool AddDefaultJoint(char* error = NULL, int error_sz = 0);
   void AdjustSoft(mjtNum* solref, mjtNum* solimp, int level);
 
   bool Make(mjCModel* model, mjCBody* body, char* error, int error_sz);
@@ -123,8 +125,9 @@ class mjCComposite {
   int skingroup;                  // skin group of the composite object
 
   // element options
-  bool add[mjNCOMPKINDS];         // add element
-  mjCDef def[mjNCOMPKINDS];       // defaults
+  bool add[mjNCOMPKINDS];                                          // add element
+  mjCDef def[mjNCOMPKINDS];                                        // default geom, site, tendon
+  std::unordered_map<mjtCompKind, std::vector<mjCDef> > defjoint;  // default joints
 
   // computed internally
   int dim;                        // dimensionality

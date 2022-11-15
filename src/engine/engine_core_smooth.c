@@ -1088,32 +1088,26 @@ void mj_factorM(const mjModel* m, mjData* d) {
 // sparse backsubstitution:  x = inv(L'*D*L)*y
 //  L is in lower triangle of qLD; D is on diagonal of qLD
 //  handle n vectors at once
-void mj_solveLD(const mjModel* m, mjtNum* x, const mjtNum* y, int n,
+void mj_solveLD(const mjModel* m, mjtNum* restrict x, int n,
                 const mjtNum* qLD, const mjtNum* qLDiagInv) {
-  mjtNum tmp;
-
   // local copies of key variables
   int* dof_Madr = m->dof_Madr;
   int* dof_parentid = m->dof_parentid;
   int nv = m->nv;
 
-  // x = y
-  if (x != y) {
-    mju_copy(x, y, n*nv);
-  }
-
   // single vector
   if (n==1) {
     // x <- inv(L') * x; skip simple, exploit sparsity of input vector
     for (int i=nv-1; i>=0; i--) {
-      if (!m->dof_simplenum[i] && (tmp = x[i])) {
+      if (!m->dof_simplenum[i] && x[i]) {
         // init
         int Madr_ij = dof_Madr[i]+1;
         int j = dof_parentid[i];
 
         // traverse ancestors backwards
+        // read directly from x[i] since i cannot be a parent of itself
         while (j>=0) {
-          x[j] -= qLD[Madr_ij++]*tmp;         // x(j) -= L(i,j) * x(i)
+          x[j] -= qLD[Madr_ij++]*x[i];         // x(j) -= L(i,j) * x(i)
 
           // advance to parent
           j = dof_parentid[j];
@@ -1134,14 +1128,13 @@ void mj_solveLD(const mjModel* m, mjtNum* x, const mjtNum* y, int n,
         int j = dof_parentid[i];
 
         // traverse ancestors backwards
-        tmp = x[i];
+        // write directly in x[i] since i cannot be a parent of itself
         while (j>=0) {
-          tmp -= qLD[Madr_ij++]*x[j];             // x(i) -= L(i,j) * x(j)
+          x[i] -= qLD[Madr_ij++]*x[j];             // x(i) -= L(i,j) * x(j)
 
           // advance to parent
           j = dof_parentid[j];
         }
-        x[i] = tmp;
       }
     }
   }
@@ -1149,6 +1142,7 @@ void mj_solveLD(const mjModel* m, mjtNum* x, const mjtNum* y, int n,
   // multiple vectors
   else {
     int offset;
+    mjtNum tmp;
 
     // x <- inv(L') * x; skip simple
     for (int i=nv-1; i>=0; i--) {
@@ -1204,11 +1198,13 @@ void mj_solveLD(const mjModel* m, mjtNum* x, const mjtNum* y, int n,
 }
 
 
-
 // sparse backsubstitution:  x = inv(L'*D*L)*y
 //  use factorization in d
 void mj_solveM(const mjModel* m, mjData* d, mjtNum* x, const mjtNum* y, int n) {
-  mj_solveLD(m, x, y, n, d->qLD, d->qLDiagInv);
+  if (x != y) {
+    mju_copy(x, y, n*m->nv);
+  }
+  mj_solveLD(m, x, n, d->qLD, d->qLDiagInv);
 }
 
 

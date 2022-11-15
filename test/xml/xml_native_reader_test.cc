@@ -361,21 +361,6 @@ TEST_F(XMLReaderTest, AllowsSpaces) {
   mj_deleteModel(model);
 }
 
-TEST_F(XMLReaderTest, gravcomp) {
-  static constexpr char xml[] = R"(
-  <mujoco>
-    <worldbody>
-      <body gravcomp="1.01">
-      </body>
-    </worldbody>
-  </mujoco>
-  )";
-  mjModel* model = LoadModelFromString(xml);
-  ASSERT_THAT(model, NotNull());
-  EXPECT_EQ(model->body_gravcomp[1], 1.01);
-  mj_deleteModel(model);
-}
-
 TEST_F(XMLReaderTest, InvalidDoubleOrientation) {
   std::string prefix = "<mujoco><worldbody><";
   std::string suffix = "/></worldbody></mujoco>";
@@ -924,6 +909,31 @@ TEST_F(ActuatorParseTest, AdhesionInheritsFromGeneral) {
   mj_deleteModel(model);
 }
 
+TEST_F(ActuatorParseTest, ActdimDefaultsPropagate) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <default>
+      <general actdim="2"/>
+    </default>
+    <worldbody>
+      <body>
+        <geom size="1"/>
+        <joint name="hinge"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <general joint="hinge" dyntype="user"/>
+    </actuator>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, NotNull()) << error.data();
+
+  // expect that actdim was inherited from the general default
+  EXPECT_EQ(model->actuator_actnum[0], 2);
+  mj_deleteModel(model);
+}
 
 // ------------- test general parsing ------------------------------------------
 

@@ -18,7 +18,7 @@
 
   <option timestep="0.002" jacobian="dense"/>
 
-  <size nconmax="100" njmax="300" nstack="50000"/>
+  <size memory="2M"/>
 
   <worldbody>
     <body name="B10" pos="0 0 1">

@@ -684,6 +684,31 @@ TEST_F(XMLWriterTest, OverwritesDensity) {
   mj_deleteModel(model);
 }
 
+TEST_F(XMLWriterTest, SaveDefaultMass) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="example"
+        vertex="0 0 0  1 0 0  0 1 0  0 0 1"
+        face="2 0 3  0 1 3  1 2 3  0 2 1" />
+    </asset>
+    <default class="main">
+      <geom type="mesh" mass="1"/>
+    </default>
+    <worldbody>
+      <body>
+        <geom mesh="example" size=".1 .2 .3"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  mjModel* model = LoadModelFromString(xml);
+  EXPECT_THAT(model, NotNull());
+  std::string content = SaveAndReadXml(model);
+  EXPECT_THAT(content, HasSubstr("mass=\"1\""));
+  mj_deleteModel(model);
+}
+
 TEST_F(XMLWriterTest, UsesTwoSpaces) {
   static constexpr char xml[] = R"(
   <mujoco>
@@ -767,6 +792,51 @@ TEST_F(XMLWriterTest, SpringlengthTwoValues) {
   ASSERT_THAT(model, NotNull());
   std::string saved_xml = SaveAndReadXml(model);
   EXPECT_THAT(saved_xml, HasSubstr("springlength=\"0 0.5\""));
+  mj_deleteModel(model);
+}
+
+TEST_F(XMLWriterTest, Actdim) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <geom size="1"/>
+        <joint name="hinge"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <general joint="hinge" dyntype="user" actdim="2"/>
+    </actuator>
+  </mujoco>
+  )";
+  mjModel* model = LoadModelFromString(xml);
+  ASSERT_THAT(model, NotNull());
+  std::string saved_xml = SaveAndReadXml(model);
+  EXPECT_THAT(saved_xml, HasSubstr("actdim=\"2\""));
+  mj_deleteModel(model);
+}
+
+TEST_F(XMLWriterTest, ActdimDefaults) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <default>
+      <general actdim="2"/>
+    </default>
+    <worldbody>
+      <body>
+        <geom size="1"/>
+        <joint name="hinge"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <general joint="hinge" dyntype="user"/>
+    </actuator>
+  </mujoco>
+  )";
+  mjModel* model = LoadModelFromString(xml);
+  ASSERT_THAT(model, NotNull());
+  std::string saved_xml = SaveAndReadXml(model);
+  EXPECT_THAT(saved_xml, HasSubstr("actdim=\"2\""));
   mj_deleteModel(model);
 }
 
