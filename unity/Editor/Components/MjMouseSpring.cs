@@ -102,6 +102,10 @@ namespace Mujoco {
       }
 
       MjBody body = target as MjBody;
+      ApplyForceToBody(body)
+    }
+  
+    private unsafe void ApplyForceToBody(MjBody body){
       Vector3 bodyPosition =
           body != null ? body.transform.position : Vector3.zero;
       var scene = MjScene.Instance;
@@ -185,5 +189,41 @@ namespace Mujoco {
         }
       }
     }
+  
+  }
+
+  [CustomEditor(typeof(MjGeom))]
+  public class MjGeomMouseSpring : MjMouseSpring {
+    
+    public unsafe void OnSceneGUI() {
+      if (!Application.isPlaying) {
+        return;
+      }
+
+      var currentEvent = UnityEngine.Event.current;
+
+      // Cache the hot control to determine whether we're currently capturing mouse input.
+      int uniqueID = GUIUtility.GetControlID(FocusType.Passive);
+
+      // Mouse spring is active if the control key is held down and the user is dragging the
+      // left mouse button, or if we're already in the process of capturing mouse input.
+      bool mouseSpringActive = GUIUtility.hotControl == uniqueID;
+      bool mouseSpringStarting = currentEvent.control && currentEvent.button == 0;
+      if (!mouseSpringStarting && !mouseSpringActive) {
+        return;
+      }
+
+      var sceneCamera = SceneView.currentDrawingSceneView?.camera;
+      if (sceneCamera == null) {
+        Debug.LogError("SceneView.currentDrawingSceneView is null");
+        return;
+      }
+
+      MjGeom geom = target as MjGeom;
+      MjBody body = geom.GetComponentInParent(typeof(MjBody));
+      if (!body) return;
+      ApplyForceToBody(body)
+    }
+    
   }
 }
