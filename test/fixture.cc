@@ -30,6 +30,8 @@
 namespace mujoco {
 namespace {
 
+using ::testing::NotNull;
+
 ABSL_CONST_INIT static absl::Mutex handlers_mutex(absl::kConstInit);
 static int guard_count ABSL_GUARDED_BY(handlers_mutex) = 0;
 
@@ -80,6 +82,20 @@ mjModel* LoadModelFromString(std::string_view xml, char* error,
   return m;
 }
 
+static void AssertModelNotNull(mjModel* model,
+                                  const std::array<char, 1024>& error) {
+  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error.data();
+}
+
+mjModel* LoadModelFromPath(const char* model_path) {
+  const std::string xml_path = GetModelPath(model_path);
+  std::array<char, 1024> error;
+  mjModel* model = mj_loadXML(
+    xml_path.c_str(), nullptr, error.data(), error.size());
+  AssertModelNotNull(model, error);
+  return model;
+}
+
 const std::string GetFileContents(const char* path) {
   std::ifstream ifs;
   ifs.open(path, std::ifstream::in);
@@ -116,6 +132,20 @@ const std::string SaveAndReadXml(const mjModel* model) {
   std::remove(filepath);
 
   return contents;
+}
+
+void AddCtrlNoise(const mjModel* m, mjData* d, int step) {
+  for (int i = 0; i < m->nu; i++) {
+    mjtNum center = 0.0;
+    mjtNum radius = 1.0;
+    mjtNum* range = m->actuator_ctrlrange + 2 * i;
+    if (m->actuator_ctrllimited[i]) {
+      center = (range[1] + range[0]) / 2;
+      radius = (range[1] - range[0]) / 2;
+    }
+    radius *= 0.01;
+    d->ctrl[i] = center + radius * (2 * mju_Halton(step, i + 2) - 1);
+  }
 }
 
 }  // namespace mujoco

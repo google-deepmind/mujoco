@@ -56,7 +56,7 @@ MJAPI void mj_factorI(const mjModel* m, mjData* d, const mjtNum* M, mjtNum* qLD,
 MJAPI void mj_factorM(const mjModel* m, mjData* d);
 
 // sparse backsubstitution:  x = inv(L'*D*L)*y
-MJAPI void mj_solveLD(const mjModel* m, mjtNum* x, const mjtNum* y, int n,
+MJAPI void mj_solveLD(const mjModel* m, mjtNum* x, int n,
                       const mjtNum* qLD, const mjtNum* qLDiagInv);
 
 // sparse backsubstitution:  x = inv(L'*D*L)*y, use factorization in d

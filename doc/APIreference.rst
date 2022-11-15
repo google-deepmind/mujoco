@@ -6599,10 +6599,10 @@ mju_str2Type
 
 Convert type name to type id (mjtObj).
 
-.. _mju_warningText:
+.. _mju_writeNumBytes:
 
 mju_writeNumBytes
-~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~
 
 .. code-block:: C
 

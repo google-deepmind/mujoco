@@ -28,45 +28,15 @@
 namespace mujoco {
 namespace {
 
-using ::testing::NotNull;
-
 // number of steps to roll out before benhmarking
 static const int kNumWarmupSteps = 500;
 
 // number of steps to benchmark
 static const int kNumBenchmarkSteps = 50;
 
-
 // copy array into vector
 std::vector<mjtNum> AsVector(const mjtNum* array, int n) {
   return std::vector<mjtNum>(array, array + n);
-}
-
-static void add_ctrl_noise(const mjModel* m, mjData* d, int step) {
-  for (int i = 0; i < m->nu; i++) {
-    mjtNum center = 0.0;
-    mjtNum radius = 1.0;
-    mjtNum* range = m->actuator_ctrlrange + 2 * i;
-    if (m->actuator_ctrllimited[i]) {
-      center = (range[1] + range[0]) / 2;
-      radius = (range[1] - range[0]) / 2;
-    }
-    radius *= 0.01;
-    d->ctrl[i] = center + radius * (2 * mju_Halton(step, i + 2) - 1);
-  }
-}
-
-static void assert_model_not_null(mjModel* model,
-                                  const std::array<char, 1024>& error) {
-  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error.data();
-}
-
-static mjModel* load_model(const char* model_path) {
-  const std::string xml_path = GetModelPath(model_path);
-  std::array<char, 1024> error;
-  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, error.data(), error.size());
-  assert_model_not_null(model, error);
-  return model;
 }
 
 static void run_step_benchmark(const mjModel* model, benchmark::State& state) {
@@ -74,7 +44,7 @@ static void run_step_benchmark(const mjModel* model, benchmark::State& state) {
 
   // warm-up rollout to get a typcal state
   for (int i=0; i < kNumWarmupSteps; i++) {
-    add_ctrl_noise(model, data, i);
+    AddCtrlNoise(model, data, i);
     mj_step(model, data);
   }
   // save state
@@ -91,7 +61,7 @@ static void run_step_benchmark(const mjModel* model, benchmark::State& state) {
     mju_copy(data->qacc_warmstart, warmstart.data(), model->nv);
 
     for (int i=0; i < kNumBenchmarkSteps; i++) {
-      add_ctrl_noise(model, data, i+kNumWarmupSteps);
+      AddCtrlNoise(model, data, i+kNumWarmupSteps);
       mj_step(model, data);
     }
   }
@@ -107,21 +77,28 @@ static void run_step_benchmark(const mjModel* model, benchmark::State& state) {
 
 void ABSL_ATTRIBUTE_NO_TAIL_CALL BM_StepCloth(benchmark::State& state) {
   MujocoErrorTestGuard guard;
-  static mjModel* model = load_model("composite/cloth.xml");
+  static mjModel* model = LoadModelFromPath("composite/cloth.xml");
   run_step_benchmark(model, state);
 }
 BENCHMARK(BM_StepCloth);
 
+void ABSL_ATTRIBUTE_NO_TAIL_CALL BM_StepFlag(benchmark::State& state) {
+  MujocoErrorTestGuard guard;
+  static mjModel* model = LoadModelFromPath("flag/flag.xml");
+  run_step_benchmark(model, state);
+}
+BENCHMARK(BM_StepFlag);
+
 void ABSL_ATTRIBUTE_NO_TAIL_CALL BM_StepHumanoid(benchmark::State& state) {
   MujocoErrorTestGuard guard;
-  static mjModel* model = load_model("humanoid/humanoid.xml");
+  static mjModel* model = LoadModelFromPath("humanoid/humanoid.xml");
   run_step_benchmark(model, state);
 }
 BENCHMARK(BM_StepHumanoid);
 
 void ABSL_ATTRIBUTE_NO_TAIL_CALL BM_StepHumanoid100(benchmark::State& state) {
   MujocoErrorTestGuard guard;
-  static mjModel* model = load_model("humanoid100/humanoid100.xml");
+  static mjModel* model = LoadModelFromPath("humanoid100/humanoid100.xml");
   run_step_benchmark(model, state);
 }
 BENCHMARK(BM_StepHumanoid100);

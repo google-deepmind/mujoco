@@ -152,6 +152,38 @@ Minimal example
        mujoco.mj_step(model, data)
        print(data.geom_xpos)
 
+.. _PyGUI:
+
+Interactive visualizer
+----------------------
+
+MuJoCo's interactive GUI (also known as the ``simulate`` application) is available as part of the Python package.
+Three distinct use cases are supported:
+
+- Launching as a standalone application:
+
+   * ``python -m mujoco.simulate`` launches an empty visualization session, where a model can be loaded by drag-and-drop.
+   * ``python -m mujoco.simulate --mjcf=/path/to/some/mjcf.xml`` launches a visualization session for the specified
+     model file.
+
+- Launching from a Python program/script -- import the module via ``from mujoco import simulate`` and launch the GUI
+  using one of the following invocations:
+
+   * ``simulate.launch()`` launches an empty visualization session, where a model can be loaded by drag-and-drop.
+   * ``simulate.launch(model)`` launches a visualzation session for the given ``mjModel`` where the visualizer
+     internally creates its own instance of ``mjData``
+   * ``simulate.launch(model, data)`` is the same as above, except that the visualizer operates directly on the given
+     ``mjData`` instance -- upon exit the ``data`` object will have been modified.
+
+- Launching from an interactive Python session (aka REPL): when working interactively either in a ``python`` or
+  ``ipython`` shell, the visualizer can be launched in a "passive" mode via ``simulate.launch_repl(model, data)``, where
+  the user remains in full control of modifying or stepping the physics. In this mode, the user can interact with the
+  visualizer using the mouse and keyboard as usual, however the physics will be frozen unless the user explicitly calls
+  ``mj_step`` (or perform any other modification of the ``mjData`` or ``mjModel``) in the REPL terminal. Note that since
+  the visualizer does not modify ``mjData`` in this mode, mouse-drag perturbations will not work unless the user
+  explicitly handles incoming GUI perturbation events in the REPL session.
+
+
 .. _PyNamed:
 
 Named access

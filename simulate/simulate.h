@@ -54,7 +54,7 @@ class MJSIMULATEAPI Simulate {
 
   // Request that the Simulate UI thread render a new model
   // optionally delete the old model and data when done
-  void load(const char* file, mjModel* m, mjData* d, bool delete_old_m_d);
+  void load(const char* file, mjModel* m, mjData* d);
 
   // functions below are used by the renderthread
   // load mjb or xml model that has been requested by load()
@@ -79,7 +79,6 @@ class MJSIMULATEAPI Simulate {
   // model and data to be visualized
   mjModel* mnew = nullptr;
   mjData* dnew = nullptr;
-  bool delete_old_m_d = false;
 
   mjModel* m = nullptr;
   mjData* d = nullptr;
@@ -227,6 +226,10 @@ class MJSIMULATEAPI Simulate {
   char info_title[Simulate::kMaxFilenameLength] = {0};
   char info_content[Simulate::kMaxFilenameLength] = {0};
 };
+
+// setup the glfw dispatch table
+// if set, must be called prior to other Simulate functions
+MJSIMULATEAPI void setglfwdlhandle(void* dlhandle);
 
 }  // namespace mujoco
 

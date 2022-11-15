@@ -63,3 +63,19 @@ target_link_libraries(
   gmock
   benchmark::benchmark
 )
+
+mujoco_benchmark_test(engine_core_smooth_benchmark_test)
+target_link_libraries(
+  engine_core_smooth_benchmark_test
+  fixture
+  gmock
+  benchmark::benchmark
+)
+
+mujoco_benchmark_test(engine_util_sparse_benchmark_test)
+target_link_libraries(
+  engine_util_sparse_benchmark_test
+  fixture
+  gmock
+  benchmark::benchmark
+)
