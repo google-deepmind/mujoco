@@ -13,17 +13,20 @@ XML schema
 ~~~~~~~~~~
 
 The table below summarizes the XML elements and their attributes in MJCF. Note that all information in MJCF is entered
-through elements and attributes. Text content in elements is not used; if present, the parser ignores it. The symbols
-in the second column of the table have the following meaning:
+through elements and attributes. Text content in elements is not used; if present, the parser ignores it.
 
-====== ===================================================
-**!**  required element, can appear only once
-**?**  optional element, can appear only once
-**\*** optional element, can appear many times
-**R**  optional element, can appear many times recursively
-====== ===================================================
+.. collapse:: Expand schema table
 
-.. include:: XMLschema.rst
+   The symbols in the second column of the table have the following meaning:
+
+   ====== ===================================================
+   **!**  required element, can appear only once
+   **?**  optional element, can appear only once
+   **\*** optional element, can appear many times
+   **R**  optional element, can appear many times recursively
+   ====== ===================================================
+
+   .. include:: XMLschema.rst
 
 .. _CType:
 
@@ -33,7 +36,7 @@ Attribute types
 | Each attribute has a data type enforced by the parser. The available data types are:
 
 ========= ==============================================================================================
-string    An arbitrary string, usually specifying a file name or a user-defined name of a model element.
+string    An arbitrary string, usually specifying a file name or a user-defined name of a model element.
 int(N)    An array of N integers. If N is omitted it equals 1.
 real(N)   An array of N real-valued numbers. If N is omitted it equals 1.
 [...]     Keyword attribute. The list of valid keywords is given in brackets.
@@ -50,7 +53,7 @@ real(N)   An array of N real-valued numbers. If N is omitted it equals 1.
   compiler. When such attributes become relevant in a given context, they must be set to allowed values.
 
 +-------------+--------------------------------------------------------------------------------------------------+
-| required    | The attribute is required by the parser. If it is not present the parser will generate an error. |
+| required    | The attribute is required by the parser. If it is not present the parser will generate an error. |
 +-------------+--------------------------------------------------------------------------------------------------+
 | optional    | The attribute is optional. There is no internal default. The attribute is initialized in the     |
 |             | undefined state.                                                                                 |
@@ -65,7 +68,9 @@ whose value can be "radian" or "degree". It is an optional attribute and has int
 will appear in the reference documentation as
 
 :at:`angle`: :at-val:`[radian, degree], "degree"`
-   |br|
+   .. raw:: html
+
+      <p style="display: none"></p>
 
 .. _Reference:
 

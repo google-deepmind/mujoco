@@ -45,6 +45,7 @@ extensions = [
     'sphinxcontrib.katex',
     'sphinxcontrib.youtube',
     'sphinx_reredirects',
+    'sphinx_toolbox.collapse',
 ]
 
 # Add any paths that contain templates here, relative to this directory.
@@ -79,7 +80,51 @@ autodoc_default_options = {
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
 #
-html_theme = 'sphinx_rtd_theme'
+html_theme = 'furo'
+html_title = 'MuJoCo Documentation'
+html_logo = 'images/banner.svg'
+
+SHARED_CSS_VARIABLES = {
+    "admonition-font-size": "1rem",
+    "admonition-title-font-size": "1rem",
+    "sidebar-item-font-size": "115%",
+}
+
+html_theme_options = {
+    "light_css_variables": {
+        "at-color": "#bc103e",
+        "at-val-color": "#bc103e",
+        "body-color": "#14234b",
+        "color-highlight-on-target": "#e5e8ed",
+        "primary-header-color": "#0053d6",
+        "row-odd-background-color": "#f0f3f7",
+        "rst-content-a-color": "#2980b9",
+        "secondary-header-color": "#123693",
+        "wy-menu-vertical-background-color": "#0053d6",
+        "wy-menu-vertical-color": "white",
+        "wy-nav-side-background-color": "#0053d6",
+    },
+    "dark_css_variables": {
+        "at-color": "#ff95a6",
+        "at-val-color": "#ff95a6",
+        "body-color": "#14234b",
+        "color-admonition-background": "#1e1e21",
+        "color-highlight-on-target": "#3d4045",
+        "primary-header-color": "#a8caff",
+        "row-odd-background-color": "#222326",
+        "rst-content-a-color": "#2980b9",
+        "secondary-header-color": "#458dff",
+        "wy-menu-vertical-background-color": "#0053d6",
+        "wy-menu-vertical-color": "white",
+        "wy-nav-side-background-color": "#0053d6",
+    },
+}
+
+for v in html_theme_options.values():
+  v.update(SHARED_CSS_VARIABLES)
+
+pygments_style = "default"
+pygments_dark_style = "monokai"
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,

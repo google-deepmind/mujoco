@@ -127,17 +127,11 @@ General
      between twist and anisotropy.
    - Added test using cantilever exact solution.
 
-.. youtube:: 25kQP671fJE
-   :align: right
-   :height: 115px
-
-.. youtube:: 4DvGe-BodFU
-   :align: right
-   :height: 115px
-
-.. youtube:: QcGdpUd5H0c
-   :align: right
-   :height: 115px
+   +--------------------------+--------------------------+--------------------------+
+   | .. youtube:: 25kQP671fJE | .. youtube:: 4DvGe-BodFU | .. youtube:: QcGdpUd5H0c |
+   |   :align: center         |   :align: center         |    :align: center        |
+   |   :height: 140px         |   :height: 140px         |    :height: 140px        |
+   +--------------------------+--------------------------+--------------------------+
 
 Python bindings
 ^^^^^^^^^^^^^^^
