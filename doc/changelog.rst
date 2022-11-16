@@ -51,6 +51,12 @@ General
   - 50% faster ``mju_dotSparse`` using manual loop unroll. See `engine_util_sparse_benchmark_test
     <https://github.com/deepmind/mujoco/tree/main/test/benchmark/engine_util_sparse_benchmark_test.cc>`_.
 
+Simulate
+^^^^^^^^
+
+- Renamed the directory in which the ``simulate`` application searches for plugins from ``plugin`` to ``mujoco_plugin``.
+
+
 Version 2.3.0 (October 18, 2022)
 --------------------------------
 

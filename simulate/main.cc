@@ -30,6 +30,8 @@
 #include "simulate.h"
 #include "array_safety.h"
 
+#define MUJOCO_PLUGIN_DIR "mujoco_plugin"
+
 extern "C" {
 #if defined(_WIN32) || defined(__CYGWIN__)
   #include <windows.h>
@@ -224,7 +226,7 @@ std::vector<unique_dlhandle> scanPluginLibraries() {
     return dso_handles;
   }
 
-  const std::string plugin_dir = getExecutableDir() + sep + "plugin";
+  const std::string plugin_dir = getExecutableDir() + sep + MUJOCO_PLUGIN_DIR;
 
 #if defined(_WIN32) || defined(__CYGWIN__)
   WIN32_FIND_DATAA find_data;
