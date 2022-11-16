@@ -3036,6 +3036,9 @@ public static unsafe extern void mj_setTotalmass(mjModel_* m, double newmass);
 public static unsafe extern string mj_getPluginConfig(mjModel_* m, int plugin_id, [MarshalAs(UnmanagedType.LPStr)]string attrib);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern void mj_loadPluginLibrary([MarshalAs(UnmanagedType.LPStr)]string path);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern int mj_version();
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]

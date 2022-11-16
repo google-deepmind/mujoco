@@ -458,6 +458,14 @@ MJAPI void mj_setTotalmass(mjModel* m, mjtNum newmass);
 // NULL: invalid plugin instance ID or attribute name
 MJAPI const char* mj_getPluginConfig(const mjModel* m, int plugin_id, const char* attrib);
 
+// Load a dynamic library. The dynamic library is assumed to register one or more plugins.
+MJAPI void mj_loadPluginLibrary(const char* path);
+
+// Scan a directory and load all dynamic libraries. Dynamic libraries in the specified directory
+// are assumed to register one or more plugins. Optionally, if a callback is specified, it is called
+// for each dynamic library encountered that registers plugins.
+MJAPI void mj_loadAllPluginLibraries(const char* directory, mjfPluginLibraryLoadCallback callback);
+
 // Return version number: 1.0.2 is encoded as 102.
 MJAPI int mj_version(void);
 
