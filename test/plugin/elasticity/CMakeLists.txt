@@ -13,5 +13,5 @@
 # limitations under the License.
 
 mujoco_test(elasticity_test)
-target_link_libraries(elasticity_test fixture gmock elasticity)
+target_link_libraries(elasticity_test fixture gmock)
 
