@@ -27,28 +27,8 @@
 
 namespace mujoco {
 namespace {
+using PluginTest = MujocoTest;
 
-class PluginTest : public MujocoTest {
- public:
-  // load plugin library
-  PluginTest() : MujocoTest() {
-    #if defined(_WIN32) || defined(__CYGWIN__)
-      mj_loadPluginLibrary((
-        std::string(std::getenv("MUJOCO_PLUGIN_DIR")) +
-        std::string("\\elasticity.dll")).c_str());
-    #else
-      #if defined(__APPLE__)
-        mj_loadPluginLibrary((
-          std::string(std::getenv("MUJOCO_PLUGIN_DIR")) +
-          std::string("/libelasticity.dylib")).c_str());
-      #else
-        mj_loadPluginLibrary((
-          std::string(std::getenv("MUJOCO_PLUGIN_DIR")) +
-          std::string("/libelasticity.so")).c_str());
-      #endif
-    #endif
-  }
-};
 
 // -------------------------------- cable -----------------------------------
 

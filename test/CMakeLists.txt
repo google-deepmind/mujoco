@@ -33,17 +33,6 @@ macro(mujoco_test name)
     set_tests_properties(
       ${testList} PROPERTIES ENVIRONMENT "PATH=$<TARGET_FILE_DIR:mujoco>;$ENV{PATH}"
     )
-    set_tests_properties(
-      ${testList} PROPERTIES ENVIRONMENT "MUJOCO_PLUGIN_DIR=${CMAKE_BINARY_DIR}/bin"
-    )
-  elseif(APPLE)
-    set_tests_properties(
-      ${testList} PROPERTIES ENVIRONMENT "MUJOCO_PLUGIN_DIR=${CMAKE_BINARY_DIR}/lib"
-    )
-  else()
-    set_tests_properties(
-      ${testList} PROPERTIES ENVIRONMENT "MUJOCO_PLUGIN_DIR=${CMAKE_BINARY_DIR}/lib"
-    )
   endif()
 endmacro()
 
@@ -76,4 +65,7 @@ add_subdirectory(engine)
 add_subdirectory(sample)
 add_subdirectory(user)
 add_subdirectory(xml)
-add_subdirectory(plugin/elasticity)
+
+if(NOT WIN32)
+  add_subdirectory(plugin/elasticity)
+endif()
