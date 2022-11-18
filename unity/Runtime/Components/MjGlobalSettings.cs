@@ -76,6 +76,7 @@ public struct MjcfOptionFlag {
   public EnableDisableFlag Energy;
   public EnableDisableFlag FwdInv;
   public EnableDisableFlag SensorNoise;
+  public EnableDisableFlag MultiCCD;
   public static MjcfOptionFlag Default = new MjcfOptionFlag() {
     Constraint = EnableDisableFlag.enable,
     Equality = EnableDisableFlag.enable,
@@ -92,7 +93,8 @@ public struct MjcfOptionFlag {
     Override = EnableDisableFlag.disable,
     Energy = EnableDisableFlag.disable,
     FwdInv = EnableDisableFlag.disable,
-    SensorNoise = EnableDisableFlag.disable
+    SensorNoise = EnableDisableFlag.disable,
+    MultiCCD = EnableDisableFlag.disable
   };
 
   public void FromMjcf(XmlElement mjcf) {
@@ -115,6 +117,7 @@ public struct MjcfOptionFlag {
     Energy = mjcf.GetEnumAttribute<EnableDisableFlag>("energy", localDefault.Energy);
     FwdInv = mjcf.GetEnumAttribute<EnableDisableFlag>("fwdinv", localDefault.FwdInv);
     SensorNoise = mjcf.GetEnumAttribute<EnableDisableFlag>("sensornoise", localDefault.SensorNoise);
+    MultiCCD = mjcf.GetEnumAttribute<EnableDisableFlag>("multiccd", localDefault.MultiCCD);
   }
 
   public void ToMjcf(XmlElement mjcf) {
@@ -134,6 +137,7 @@ public struct MjcfOptionFlag {
     mjcf.SetAttribute("energy", Energy.ToString());
     mjcf.SetAttribute("fwdinv", FwdInv.ToString());
     mjcf.SetAttribute("sensornoise", SensorNoise.ToString());
+    mjcf.SetAttribute("multiccd", MultiCCD.ToString());
   }
 }
 
