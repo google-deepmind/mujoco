@@ -367,6 +367,7 @@ mjtTrn
        mjTRN_SLIDERCRANK,              // force via slider-crank linkage
        mjTRN_TENDON,                   // force on tendon
        mjTRN_SITE,                     // force on site
+       mjTRN_BODY,                     // force on body
 
        mjTRN_UNDEFINED     = 1000      // undefined transmission type
    } mjtTrn;
