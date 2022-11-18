@@ -53,6 +53,7 @@ class MjWrapper<raw::MjrContext> : public WrapperBase<raw::MjrContext> {
   X(texture);
   X(skinvertVBO);
   X(skinnormalVBO);
+  X(skincolorVBO);
   X(skintexcoordVBO);
   X(skinfaceVBO);
   X(charWidth);
@@ -94,6 +95,7 @@ MjrContextWrapper::MjWrapper()
       X(texture),
       X_SKIN(skinvertVBO),
       X_SKIN(skinnormalVBO),
+      X_SKIN(skincolorVBO),
       X_SKIN(skintexcoordVBO),
       X_SKIN(skinfaceVBO),
       X(charWidth),
@@ -235,6 +237,7 @@ PYBIND11_MODULE(_render, pymodule) {
   X(texture);
   X(skinvertVBO);
   X(skinnormalVBO);
+  X(skincolorVBO);
   X(skintexcoordVBO);
   X(skinfaceVBO);
   X(charWidth);

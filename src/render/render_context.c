@@ -1407,11 +1407,13 @@ static void makeSkin(const mjModel* m, mjrContext* con) {
     con->skinvertVBO     = (unsigned int*) mju_malloc(nskin*sizeof(int));
     con->skinnormalVBO   = (unsigned int*) mju_malloc(nskin*sizeof(int));
     con->skintexcoordVBO = (unsigned int*) mju_malloc(nskin*sizeof(int));
+    con->skincolorVBO = (unsigned int*)mju_malloc(nskin * sizeof(int));
     con->skinfaceVBO     = (unsigned int*) mju_malloc(nskin*sizeof(int));
 
     // generage VBOs
     glGenBuffers(nskin, con->skinvertVBO);
     glGenBuffers(nskin, con->skinnormalVBO);
+    glGenBuffers(nskin, con->skincolorVBO);
     glGenBuffers(nskin, con->skintexcoordVBO);
     glGenBuffers(nskin, con->skinfaceVBO);
 
@@ -1775,11 +1777,13 @@ void mjr_freeContext(mjrContext* con) {
     // delete VBOs
     glDeleteBuffers(con->nskin, con->skinvertVBO);
     glDeleteBuffers(con->nskin, con->skinnormalVBO);
+    glDeleteBuffers(con->nskin, con->skincolorVBO);
     glDeleteBuffers(con->nskin, con->skintexcoordVBO);
     glDeleteBuffers(con->nskin, con->skinfaceVBO);
 
     mju_free(con->skinvertVBO);
     mju_free(con->skinnormalVBO);
+    mju_free(con->skincolorVBO);
     mju_free(con->skintexcoordVBO);
     mju_free(con->skinfaceVBO);
   }
