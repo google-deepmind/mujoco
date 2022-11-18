@@ -62,6 +62,8 @@ public class MjScene : MonoBehaviour {
       return _instance;
     }
   }
+  
+  public static bool InstanceExists { get => _instance != null; }
 
   public void Awake() {
     if (_instance == null) {
