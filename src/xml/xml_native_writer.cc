@@ -1768,7 +1768,7 @@ void mjXWriter::Sensor(XMLElement* root) {
     // user-defined sensor
     case mjSENS_USER:
       elem = InsertEnd(section, "user");
-      WriteAttrTxt(elem, "objtype", mju_type2Str(psen->objtype));
+      if (mju_type2Str(psen->objtype)) WriteAttrTxt(elem, "objtype", mju_type2Str(psen->objtype));
       WriteAttrTxt(elem, "objname", psen->objname);
       WriteAttrInt(elem, "dim", psen->dim);
       WriteAttrKey(elem, "needstage", stage_map, stage_sz, (int)psen->needstage);

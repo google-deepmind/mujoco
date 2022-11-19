@@ -935,6 +935,38 @@ TEST_F(ActuatorParseTest, ActdimDefaultsPropagate) {
   mj_deleteModel(model);
 }
 
+// ------------- test sensor parsing -------------------------------------------
+
+using SensorParseTest = MujocoTest;
+
+TEST_F(SensorParseTest, UserObjTypeNoName) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <sensor>
+      <user dim="1" needstage="vel" objtype="site"/>
+    </sensor>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("objtype 'site' given but"));
+}
+
+TEST_F(SensorParseTest, UserObjNameNoType) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <sensor>
+      <user dim="1" needstage="vel" objname="kevin"/>
+    </sensor>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("objname 'kevin' given but"));
+}
+
 // ------------- test general parsing ------------------------------------------
 
 TEST_F(XMLReaderTest, ZnearZeroNotAllowed) {

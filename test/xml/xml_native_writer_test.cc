@@ -129,6 +129,24 @@ TEST_F(XMLWriterTest, SavesDisableSensor) {
   mj_deleteModel(model);
 }
 
+TEST_F(XMLWriterTest, EmptyUserSensor) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <sensor>
+      <user dim="2" needstage="vel"/>
+    </sensor>
+  </mujoco>
+  )";
+  mjModel* model = LoadModelFromString(xml);
+  std::string saved_xml = SaveAndReadXml(model);
+  EXPECT_THAT(saved_xml, HasSubstr("dim=\"2\""));
+  EXPECT_THAT(saved_xml, HasSubstr("needstage=\"vel\""));
+  EXPECT_THAT(saved_xml, HasSubstr("datatype=\"real\""));
+  EXPECT_THAT(saved_xml, Not(HasSubstr("objtype")));
+  EXPECT_THAT(saved_xml, Not(HasSubstr("objname")));
+  mj_deleteModel(model);
+}
+
 TEST_F(XMLWriterTest, KeepsEmptyClasses) {
   static constexpr char xml[] = R"(
   <mujoco>
