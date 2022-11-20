@@ -22,6 +22,7 @@
 
 #include <GLFW/glfw3.h>
 #include <mujoco/mujoco.h>
+#include <portable-file-dialogs.h>
 
 #ifdef MJSIMULATE_STATIC
   // static library

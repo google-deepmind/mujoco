@@ -34,19 +34,6 @@
 #include "uitools.h"
 #include "array_safety.h"
 
-// When launched via an App Bundle on macOS, the working directory is the path to the App Bundle's
-// resource directory. This causes files to be saved into the bundle, which is not the desired
-// behavior. Instead, we open a save dialog box to ask the user where to put the file.
-// Since the dialog box logic needs to be written in Objective-C, we separate it into a different
-// source file.
-#ifdef __APPLE__
-std::string getSavePath(const char* filename);
-#else
-static std::string getSavePath(const char* filename) {
-  return filename;
-}
-#endif
-
 namespace {
 namespace mj = ::mujoco;
 namespace mju = ::mujoco::sample_util;
@@ -79,6 +66,7 @@ enum {
 // file section of UI
 const mjuiDef defFile[] = {
   {mjITEM_SECTION,   "File",          1, nullptr,                    "AF"},
+  {mjITEM_BUTTON,    "Open xml",      1, nullptr,                    ""},
   {mjITEM_BUTTON,    "Save xml",      2, nullptr,                    ""},
   {mjITEM_BUTTON,    "Save mjb",      2, nullptr,                    ""},
   {mjITEM_BUTTON,    "Print model",   2, nullptr,                    "CM"},
@@ -1075,37 +1063,60 @@ void uiEvent(mjuiState* state) {
     // file section
     if (it && it->sectionid==SECT_FILE) {
       switch (it->itemid) {
-      case 0:             // Save xml
+      case 0:             // Open xml
         {
-          const std::string path = getSavePath("mjmodel.xml");
-          if (!path.empty() && !mj_saveLastXML(path.c_str(), m, err, 200)) {
-            std::printf("Save XML error: %s", err);
+          auto selection = pfd::open_file(
+            "Open XML file", ".", { "MJCF", "*.xml", "*.mjb" }).result();
+          if (!selection.empty()) {
+            mju::strcpy_arr(sim->filename, selection[0].c_str());
+            sim->uiloadrequest.exchange(1);
           }
         }
         break;
 
-      case 1:             // Save mjb
+      case 1:             // Save xml
         {
-          const std::string path = getSavePath("mjmodel.mjb");
+          std::string destination = pfd::save_file("Select a file", ".").result();
+          if (!destination.empty()) {
+            if (!mj_saveLastXML(destination.c_str(), m, err, 200)) {
+              std::printf("Save XML error: %s", err);
+            }
+          }
+        }
+        break;
+
+      case 2:             // Save mjb
+        {
+          std::string path = pfd::save_file("Select a file", ".").result();
           if (!path.empty()) {
             mj_saveModel(m, path.c_str(), NULL, 0);
           }
         }
         break;
 
-      case 2:             // Print model
-        mj_printModel(m, "MJMODEL.TXT");
+      case 3:             // Print model
+        {
+          std::string path = pfd::save_file("Select a file", ".").result();
+          if (!path.empty()) {
+            mj_printModel(m, path.c_str());
+          }
+        }
         break;
 
-      case 3:             // Print data
-        mj_printData(m, d, "MJDATA.TXT");
+      case 4:             // Print data
+        {
+          std::string path = pfd::save_file("Select a file", ".").result();
+          if (!path.empty()) {
+            mj_printData(m, d, path.c_str());
+          }
+        }
         break;
 
-      case 4:             // Quit
+      case 5:             // Quit
         sim->exitrequest.store(1);
         break;
 
-      case 5:             // Screenshot
+      case 6:             // Screenshot
         sim->screenshotrequest.store(true);
         break;
       }
@@ -1840,16 +1851,12 @@ void Simulate::render() {
     }
 
     // save as PNG
-    // TODO(b/241577466): Parse the stem of the filename and use a .PNG extension.
-    // Unfortunately, if we just yank ".xml"/".mjb" from the filename and append .PNG, the macOS
-    // file dialog does not automatically open that location. Thus, we defer to a default
-    // "screenshot.png" for now.
-    const std::string path = getSavePath("screenshot.png");
-    if (!path.empty()) {
-      if (lodepng::encode(path, rgb.get(), w, h, LCT_RGB)) {
+    std::string destination = pfd::save_file("Select a file", ".", {"PNG", "*.png"}).result();
+    if (!destination.empty()) {
+      if (lodepng::encode(destination.c_str(), rgb.get(), w, h, LCT_RGB)) {
         mju_error("could not save screenshot");
       } else {
-        std::printf("saved screenshot: %s\n", path.c_str());
+        std::printf("saved screenshot: %s\n", destination.c_str());
       }
     }
   }

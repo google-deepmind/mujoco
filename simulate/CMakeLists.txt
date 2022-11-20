@@ -26,6 +26,10 @@ set(MUJOCO_DEP_VERSION_lodepng
     b4ed2cd7ecf61d29076169b49199371456d4f90b
     CACHE STRING "Version of `lodepng` to be fetched."
 )
+set(MUJOCO_DEP_VERSION_portable_file_dialogs
+    7f852d88a480020d7f91957cbcefe514fc95000c
+    CACHE STRING "Version of `portable-file-dialogs` to be fetched."
+)
 
 project(
   mujoco_simulate
@@ -79,6 +83,16 @@ if(MUJOCO_HARDEN)
   endif()
 endif()
 
+# Fetch portable-file-dialogs dependency.
+if(NOT TARGET portable_file_dialogs)
+  FetchContent_Declare(
+    portable_file_dialogs
+    GIT_REPOSITORY https://github.com/samhocevar/portable-file-dialogs
+    GIT_TAG ${MUJOCO_DEP_VERSION_portable_file_dialogs}
+  )
+  FetchContent_MakeAvailable(portable_file_dialogs)
+endif()
+
 # Fetch lodepng dependency.
 if(NOT TARGET lodepng)
   FetchContent_Declare(
@@ -118,6 +132,7 @@ target_include_directories(libsimulate PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_compile_definitions(libsimulate PUBLIC MJSIMULATE_STATIC)
 target_compile_options(libsimulate PUBLIC ${MUJOCO_SIMULATE_COMPILE_OPTIONS})
 target_link_libraries(libsimulate PUBLIC lodepng mujoco::mujoco)
+target_link_libraries(libsimulate PUBLIC portable_file_dialogs mujoco::mujoco)
 target_include_directories(libsimulate PUBLIC $<TARGET_PROPERTY:glfw,INTERFACE_INCLUDE_DIRECTORIES>)
 target_link_options(libsimulate PRIVATE ${MUJOCO_SIMULATE_LINK_OPTIONS})
 
@@ -160,6 +175,7 @@ if(SIMULATE_BUILD_EXECUTABLE)
     glfw
     Threads::Threads
     lodepng
+    portable_file_dialogs
   )
 
   target_link_options(simulate PRIVATE ${MUJOCO_SIMULATE_LINK_OPTIONS})
