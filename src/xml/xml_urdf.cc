@@ -470,6 +470,14 @@ mjCGeom* mjXURDF::Geom(XMLElement* geom_elem, mjCBody* pbody, bool collision) {
     ReadAttr(temp, "radius", 1, pgeom->size, text, true, true);
   }
 
+  // capsule
+  else if ((temp = FindSubElem(elem, "capsule"))) {
+    pgeom->type = mjGEOM_CAPSULE;
+    ReadAttr(temp, "radius", 1, pgeom->size, text, true, true);
+    ReadAttr(temp, "length", 1, pgeom->size+1, text, true, true);
+    pgeom->size[1] /= 2;            // MuJoCo uses half-length
+  }
+
   // mesh
   else if ((temp = FindSubElem(elem, "mesh"))) {
     // set geom type and read mesh attributes

@@ -56,6 +56,7 @@ General
   register one or more MuJoCo plugins on load.
 - Sensors of type :ref:`user<sensor-user>` no longer require :at:`objtype` and :at:`objname`. If unspecified, the
   objtype will be :ref:`mjOBJ_UNKNOWN<mjtObj>`. ``user`` sensors :at:`datatype` default is now :at-val:`"real"`.
+- Add support for capsules in URDF import.
 
 Simulate
 ^^^^^^^^
