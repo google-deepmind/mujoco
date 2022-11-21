@@ -62,6 +62,7 @@ Simulate
 ^^^^^^^^
 
 - Renamed the directory in which the ``simulate`` application searches for plugins from ``plugin`` to ``mujoco_plugin``.
+- Mouse force perturbations are now applied at the selection point rather than the body center of mass.
 
 
 Version 2.3.0 (October 18, 2022)
