@@ -26,7 +26,7 @@
 namespace mujoco::plugin::elasticity {
 namespace {
 
-    // create color scale palette 
+    // Jet color palette
     void scalar2rgba(float rgba[4], mjtNum v, mjtNum vmin, mjtNum vmax) {        
         v = v < vmin ? vmin : v;
         v = v > vmax ? vmax : v;
@@ -196,9 +196,9 @@ Cable::Cable(const mjModel* m, mjData* d, int instance) {
       Iy = pow(2 * w, 3) * 2 * h / 12.;
       Iz = pow(2 * h, 3) * 2 * w / 12.;
     }
-    stiffness[4*b + 0] = J * G;
-    stiffness[4*b + 1] = Iy * E;
-    stiffness[4*b + 2] = Iz * E;
+    stiffness[4*b+0] = J * G;
+    stiffness[4*b+1] = Iy * E;
+    stiffness[4*b+2] = Iz * E;
     stiffness[4*b+3] =
       prev[b] ? mju_dist3(d->xpos+3*i, d->xpos+3*(i+prev[b])) : 0;
   }
