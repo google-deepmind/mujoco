@@ -1407,7 +1407,7 @@ static void makeSkin(const mjModel* m, mjrContext* con) {
     con->skinvertVBO     = (unsigned int*) mju_malloc(nskin*sizeof(int));
     con->skinnormalVBO   = (unsigned int*) mju_malloc(nskin*sizeof(int));
     con->skintexcoordVBO = (unsigned int*) mju_malloc(nskin*sizeof(int));
-    con->skincolorVBO = (unsigned int*)mju_malloc(nskin * sizeof(int));
+    con->skincolorVBO    = (unsigned int*) mju_malloc(nskin*sizeof(int));
     con->skinfaceVBO     = (unsigned int*) mju_malloc(nskin*sizeof(int));
 
     // generage VBOs
