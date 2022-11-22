@@ -40,10 +40,9 @@ class Cable {
   int n;                          // number of bodies in the cable
   std::vector<int> prev;          // indices of previous bodies   (n x 1)
   std::vector<int> next;          // indices of next bodies       (n x 1)
-  std::vector<mjtNum> stiffness;  // stiffness parameters         (n x 7)
+  std::vector<mjtNum> stiffness;  // stiffness parameters         (n x 4)
   std::vector<mjtNum> omega0;     // reference curvature          (n x 3)
-  mjtNum userdatamin;             //storage of min values of userdata
-  mjtNum userdatamax;             //storage of max values of userdata
+  mjtNum vmax;                    // max value in colormap
 
  private:
   Cable(const mjModel* m, mjData* d, int instance);

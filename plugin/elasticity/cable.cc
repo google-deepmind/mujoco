@@ -26,24 +26,28 @@
 namespace mujoco::plugin::elasticity {
 namespace {
 
-    //create color scale palette 
-    void scalar2rgba(float rgba[4], mjtNum Scalar, mjtNum min, mjtNum max) {
-        mjtNum tmp;
-        tmp = (Scalar - min) / (max - min);
-        if (tmp < 0.2) {
-            rgba[0] = 0.90 - 0.70 * (tmp / 0.2);
-            rgba[2] = 0.80 * (tmp / 0.2) + 0.05;
-            rgba[1] = 0.0;
-        }
-        else if (tmp > 0.8) {
-            rgba[0] = 0.65 * ((tmp - 0.2) / 0.8) + 0.20;
-            rgba[2] = 0.2 * ((tmp - 0.8) / 0.2) + 0.75;
-            rgba[1] = 0.95;
-        }
-        else {
-            rgba[0] = 0.65 * ((tmp - 0.2) / 0.8) + 0.20;
-            rgba[2] = 0.85;
-            rgba[1] = (tmp - 0.2) / 0.6 * 0.95;
+    // create color scale palette 
+    void scalar2rgba(float rgba[4], mjtNum v, mjtNum vmin, mjtNum vmax) {        
+        v = v < vmin ? vmin : v;
+        v = v > vmax ? vmax : v;
+        mjtNum dv = vmax - vmin;
+
+        if (v < (vmin + 0.25 * dv)) {
+          rgba[0] = 0;
+          rgba[1] = 4 * (v - vmin) / dv;
+          rgba[2] = 1;
+        } else if (v < (vmin + 0.5 * dv)) {
+          rgba[0] = 0;
+          rgba[1] = 1;
+          rgba[2] = 1 + 4 * (vmin + 0.25 * dv - v) / dv;
+        } else if (v < (vmin + 0.75 * dv)) {
+          rgba[0] = 4 * (v - vmin - 0.5 * dv) / dv;
+          rgba[1] = 1;
+          rgba[2] = 0;
+        } else {
+          rgba[0] = 1;
+          rgba[1] = 1 + 4 * (vmin + 0.75 * dv - v) / dv;
+          rgba[2] = 0;
         }
     }
 // compute quaternion difference between two frames in joint coordinates
@@ -70,8 +74,8 @@ void QuatDiff(mjtNum* quat, const mjtNum body_quat[4],
 //     scl         - scaling of the force
 //   outputs:
 //     qfrc        - local torque contribution
-void LocalForce(mjtNum qfrc[3], const mjtNum stiffness[7],
-                const mjtNum quat[4], const mjtNum omega0[3], mjtNum* userdata,
+mjtNum LocalForce(mjtNum qfrc[3], const mjtNum stiffness[4],
+                const mjtNum quat[4], const mjtNum omega0[3],
                 const mjtNum xquat[4], mjtNum scl) {
   mjtNum omega[3], lfrc[3];
 
@@ -79,31 +83,28 @@ void LocalForce(mjtNum qfrc[3], const mjtNum stiffness[7],
   mju_quat2Vel(omega, quat, scl);
 
   // subtract omega0 in reference configuration
-  mjtNum tmp[] = {
+  mjtNum stress[] = {
       - stiffness[0]*(omega[0] - omega0[0]) / stiffness[3],
       - stiffness[1]*(omega[1] - omega0[1]) / stiffness[3],
       - stiffness[2]*(omega[2] - omega0[2]) / stiffness[3],
   };
-
-  mjtNum stress[] = {
-       -tmp[0] * stiffness[4], //stress = -M * ymax/ J
-       -tmp[1] * stiffness[5],
-       -tmp[2] * stiffness[6],
-  };
-
-  //calculate scalar data for visualization and readout
-  *userdata = mju_sqrt((pow(stress[0] - stress[1], 2) + pow(stress[1] - stress[2], 2) + pow(stress[2] - stress[0], 2)) / 2); //von Mieses principal stress
   
 
   // rotate into global frame
   if (xquat) {
-    mju_rotVecQuat(lfrc, tmp, xquat);
+    mju_rotVecQuat(lfrc, stress, xquat);
   } else {
-    mju_copy3(lfrc, tmp);
+    mju_copy3(lfrc, stress);
   }
 
   // add to total qfrc
   mju_addToScl3(qfrc, lfrc, scl);
+
+  // Von Mises principal stress
+  return mju_sqrt((
+    (stress[0] - stress[1])*(stress[0] - stress[1]) + 
+    (stress[1] - stress[2])*(stress[1] - stress[2]) + 
+    (stress[2] - stress[0])*(stress[2] - stress[0])) / 2); 
 }
 
 // reads numeric attributes
@@ -135,10 +136,7 @@ Cable::Cable(const mjModel* m, mjData* d, int instance) {
   std::string flat = mj_getPluginConfig(m, instance, "flat");
   mjtNum G = strtod(mj_getPluginConfig(m, instance, "twist"), nullptr);
   mjtNum E = strtod(mj_getPluginConfig(m, instance, "bend"), nullptr);
-  mjtNum Y = strtod(mj_getPluginConfig(m, instance, "yield"), nullptr);
-  if (!Y) {
-      Y = E / 10;
-  }
+  vmax = strtod(mj_getPluginConfig(m, instance, "vmax"), nullptr);
   // count plugin bodies
   n = 0;
   for (int i = 1; i < m->nbody; i++) {
@@ -153,9 +151,7 @@ Cable::Cable(const mjModel* m, mjData* d, int instance) {
   prev.assign(n, 0);         // index of previous body
   next.assign(n, 0);         // index of next body
   omega0.assign(3*n, 0);     // reference curvature
-  stiffness.assign(7*n, 0);  // material parameters
-  userdatamin = 0;              //limits for scalar coloring
-  userdatamax = Y;
+  stiffness.assign(4*n, 0);  // material parameters
 
   // run forward kinematics to populate xquat (mjData not yet initialized)
   mju_zero(d->mocap_quat, 4*m->nmocap);
@@ -182,14 +178,13 @@ Cable::Cable(const mjModel* m, mjData* d, int instance) {
 
     // compute physical parameters
     int geom_i = m->body_geomadr[i];
-    mjtNum J = 0, Iy = 0, Iz = 0, ymax_x = 0, ymax_y = 0, ymax_z = 0;
+    mjtNum J = 0, Iy = 0, Iz = 0;
     if (m->geom_type[geom_i] == mjGEOM_CYLINDER ||
         m->geom_type[geom_i] == mjGEOM_CAPSULE) {
       // https://en.wikipedia.org/wiki/Torsion_constant#Circle
       // https://en.wikipedia.org/wiki/List_of_second_moments_of_area
-      ymax_x = ymax_y = ymax_z = m->geom_size[3 * geom_i + 0];
-      J = mjPI * pow(ymax_x, 4) / 2;
-      Iy = Iz = mjPI * pow(ymax_x, 4) / 4.;
+      J = mjPI * pow(m->geom_size[3*geom_i+0], 4) / 2;
+      Iy = Iz = mjPI * pow(m->geom_size[3*geom_i+0], 4) / 4.;
     } else if (m->geom_type[geom_i] == mjGEOM_BOX) {
       // https://en.wikipedia.org/wiki/Torsion_constant#Rectangle
       // https://en.wikipedia.org/wiki/List_of_second_moments_of_area
@@ -200,18 +195,12 @@ Cable::Cable(const mjModel* m, mjData* d, int instance) {
       J = a*pow(b, 3)*(16./3.-3.36*b/a*(1-pow(b, 4)/pow(a, 4)/12));
       Iy = pow(2 * w, 3) * 2 * h / 12.;
       Iz = pow(2 * h, 3) * 2 * w / 12.;
-      ymax_x = sqrt(w * w + h * h);
-      ymax_y = h;
-      ymax_z = w;
     }
-    stiffness[7 * b + 0] = J * G;
-    stiffness[7 * b + 1] = Iy * E;
-    stiffness[7 * b + 2] = Iz * E;
-    stiffness[7*b+3] =
+    stiffness[4*b + 0] = J * G;
+    stiffness[4*b + 1] = Iy * E;
+    stiffness[4*b + 2] = Iz * E;
+    stiffness[4*b+3] =
       prev[b] ? mju_dist3(d->xpos+3*i, d->xpos+3*(i+prev[b])) : 0;
-    stiffness[7 * b + 4] = ymax_x / J;
-    stiffness[7 * b + 5] = ymax_y / Iy;
-    stiffness[7 * b + 6] = ymax_z / Iz;
   }
 }
 
@@ -225,7 +214,7 @@ void Cable::Compute(const mjModel* m, mjData* d, int instance) {
     }
 
     // if no stiffness, skip body
-    if (!stiffness[b*7+0] && !stiffness[b*7+1] && !stiffness[b*7+2]) {
+    if (!stiffness[4*b+0] && !stiffness[4*b+1] && !stiffness[4*b+2]) {
       continue;
     }
 
@@ -240,8 +229,8 @@ void Cable::Compute(const mjModel* m, mjData* d, int instance) {
       QuatDiff(quat, m->body_quat+4*i, d->qpos+qadr, 0);
 
       // contribution of orientation i-1 to xfrc i
-      LocalForce(xfrc, stiffness.data()+7*b, quat, omega0.data()+3*b,
-                 &userdata, d->xquat+4*(i+prev[b]), 1);
+      userdata = LocalForce(xfrc, stiffness.data()+4*b, quat, omega0.data()+3*b,
+                            d->xquat+4*(i+prev[b]), 1);
     }
 
     if (next[b]) {
@@ -253,11 +242,14 @@ void Cable::Compute(const mjModel* m, mjData* d, int instance) {
       QuatDiff(quat, m->body_quat+4*in, d->qpos+qadr, 1);
 
       // contribution of orientation i+1 to xfrc i
-      LocalForce(xfrc, stiffness.data()+7*bn, quat, omega0.data()+3*bn,
-                 &userdata, d->xquat+4*i, -1);
+      userdata = LocalForce(xfrc, stiffness.data()+4*bn, quat, omega0.data()+3*bn,
+                            d->xquat+4*i, -1);
     }
     // set geometry color based on userdata
-    scalar2rgba(&m->geom_rgba[i * 4], userdata, userdatamin, userdatamax); //fixed legend range 0...ultimate strain + 10%
+    if (vmax) {
+      scalar2rgba(&m->geom_rgba[i * 4], userdata, 0, vmax);
+    }
+
     // convert from global coordinates and apply torque to com
     mj_applyFT(m, d, 0, xfrc, d->xpos+3*i, i, d->qfrc_passive);
   }
@@ -272,7 +264,7 @@ mjPLUGIN_DYNAMIC_LIBRARY_INIT {
   plugin.name = "mujoco.elasticity.cable";
   plugin.type |= mjPLUGIN_PASSIVE;
 
-  const char* attributes[] = {"twist", "bend", "flat", "yield"};
+  const char* attributes[] = {"twist", "bend", "flat", "vmax"};
   plugin.nattribute = sizeof(attributes) / sizeof(attributes[0]);
   plugin.attributes = attributes;
   plugin.nstate = +[](const mjModel* m, int instance) { return 0; };
