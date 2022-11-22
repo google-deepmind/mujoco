@@ -214,14 +214,14 @@ void Cable::Compute(const mjModel* m, mjData* d, int instance) {
     }
 
     // if no stiffness, skip body
-    if (!stiffness[4*b+0] && !stiffness[4*b+1] && !stiffness[4*b+2]) {
+    if (!stiffness[b*4+0] && !stiffness[b*4+1] && !stiffness[b*4+2]) {
       continue;
     }
 
-    // elastic forces
+    // elastic forces 
     mjtNum quat[4] = {0};
     mjtNum xfrc[3] = {0};
-    mjtNum userdata = 0;
+    mjtNum stressnorm = 0;
 
     // local orientation
     if (prev[b]) {
@@ -229,8 +229,8 @@ void Cable::Compute(const mjModel* m, mjData* d, int instance) {
       QuatDiff(quat, m->body_quat+4*i, d->qpos+qadr, 0);
 
       // contribution of orientation i-1 to xfrc i
-      userdata = LocalForce(xfrc, stiffness.data()+4*b, quat, omega0.data()+3*b,
-                            d->xquat+4*(i+prev[b]), 1);
+      stressnorm = LocalForce(xfrc, stiffness.data()+4*b, quat, omega0.data()+3*b,
+                              d->xquat+4*(i+prev[b]), 1);
     }
 
     if (next[b]) {
@@ -242,12 +242,12 @@ void Cable::Compute(const mjModel* m, mjData* d, int instance) {
       QuatDiff(quat, m->body_quat+4*in, d->qpos+qadr, 1);
 
       // contribution of orientation i+1 to xfrc i
-      userdata = LocalForce(xfrc, stiffness.data()+4*bn, quat, omega0.data()+3*bn,
-                            d->xquat+4*i, -1);
+      stressnorm = LocalForce(xfrc, stiffness.data()+4*bn, quat, omega0.data()+3*bn,
+                              d->xquat+4*i, -1);
     }
     // set geometry color based on userdata
     if (vmax) {
-      scalar2rgba(&m->geom_rgba[i * 4], userdata, 0, vmax);
+      scalar2rgba(&m->geom_rgba[i * 4], stressnorm, 0, vmax);
     }
 
     // convert from global coordinates and apply torque to com
