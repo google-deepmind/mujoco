@@ -62,7 +62,8 @@ mjModel* LoadModelFromPath(const char* model_path);
 const std::string SaveAndReadXml(const mjModel* model);
 
 // Adds control noise.
-void AddCtrlNoise(const mjModel* m, mjData* d, int step);
+std::vector<mjtNum> GetCtrlNoise(const mjModel* m, int nsteps,
+                                 mjtNum ctrlnoise = 0.01);
 
 }  // namespace mujoco
 #endif  // MUJOCO_TEST_FIXTURE_H_

@@ -42,9 +42,13 @@ std::vector<mjtNum> AsVector(const mjtNum* array, int n) {
 static void run_step_benchmark(const mjModel* model, benchmark::State& state) {
   mjData* data = mj_makeData(model);
 
+  // compute noise
+  int nsteps = kNumWarmupSteps+kNumBenchmarkSteps;
+  std::vector<mjtNum> ctrl = GetCtrlNoise(model, nsteps);
+
   // warm-up rollout to get a typcal state
   for (int i=0; i < kNumWarmupSteps; i++) {
-    AddCtrlNoise(model, data, i);
+    mju_copy(data->ctrl, ctrl.data()+model->nu*i, model->nu);
     mj_step(model, data);
   }
   // save state
@@ -60,8 +64,8 @@ static void run_step_benchmark(const mjModel* model, benchmark::State& state) {
     mju_copy(data->act, act.data(), model->na);
     mju_copy(data->qacc_warmstart, warmstart.data(), model->nv);
 
-    for (int i=0; i < kNumBenchmarkSteps; i++) {
-      AddCtrlNoise(model, data, i+kNumWarmupSteps);
+    for (int i=kNumWarmupSteps; i < nsteps; i++) {
+      mju_copy(data->ctrl, ctrl.data()+model->nu*i, model->nu);
       mj_step(model, data);
     }
   }

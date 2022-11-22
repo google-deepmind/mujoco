@@ -17,6 +17,7 @@
 #include <cstring>
 #include <string>
 #include <thread>
+#include <vector>
 
 #include <mujoco/mujoco.h>
 
@@ -58,9 +59,27 @@ int finish(const char* msg = NULL, mjModel* m = NULL) {
   return 0;
 }
 
+std::vector<mjtNum> CtrlNoise(const mjModel* m, int nsteps, mjtNum ctrlnoise) {
+  std::vector<mjtNum> ctrl;
+  for (int step=0; step < nsteps; step++) {
+    for (int i = 0; i < m->nu; i++) {
+      mjtNum center = 0.0;
+      mjtNum radius = 1.0;
+      mjtNum* range = m->actuator_ctrlrange + 2 * i;
+      if (m->actuator_ctrllimited[i]) {
+        center = (range[1] + range[0]) / 2;
+        radius = (range[1] - range[0]) / 2;
+      }
+      radius *= ctrlnoise;
+      ctrl.push_back(center + radius * (2 * mju_Halton(step, i+2) - 1));
+    }
+  }
+  return ctrl;
+}
+
 
 // thread function
-void simulate(int id, int nstep, mjtNum ctrlnoise) {
+void simulate(int id, int nstep, mjtNum* ctrl) {
   // clear statistics
   contacts[id] = 0;
   constraints[id] = 0;
@@ -69,18 +88,7 @@ void simulate(int id, int nstep, mjtNum ctrlnoise) {
   double start = gettm();
   for (int i=0; i<nstep; i++) {
     // inject pseuso-random control noise
-    if (ctrlnoise)
-      for (int j=0; j<m->nu; j++) {
-        mjtNum center = 0.0;
-        mjtNum radius = 1.0;
-        mjtNum* range = m->actuator_ctrlrange + 2*j;
-        if (m->actuator_ctrllimited[j]) {
-          center = (range[1] + range[0]) / 2;
-          radius = (range[1] - range[0]) / 2;
-        }
-        radius *= ctrlnoise;
-        d[id]->ctrl[j] = center + radius * (2*mju_Halton(i, j+2) - 1);
-      }
+    mju_copy(d[id]->ctrl, ctrl + i*m->nu, m->nu);
 
     // advance simulation
     mj_step(m, d[id]);
@@ -172,11 +180,14 @@ int main(int argc, char** argv) {
     std::printf("\nRunning %d steps at dt = %g ...\n\n", nstep, m->opt.timestep);
   }
 
+  // create pseudo-random control sequence
+  std::vector<mjtNum> ctrl = CtrlNoise(m, nstep, ctrlnoise);
+
   // run simulation, record total time
   std::thread th[maxthread];
   double starttime = gettm();
   for (int id=0; id<nthread; id++) {
-    th[id] = std::thread(simulate, id, nstep, ctrlnoise);
+    th[id] = std::thread(simulate, id, nstep, ctrl.data());
   }
   for (int id=0; id<nthread; id++) {
     th[id].join();
