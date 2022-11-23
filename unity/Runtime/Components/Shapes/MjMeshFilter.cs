@@ -32,6 +32,7 @@ public class MjMeshFilter : MonoBehaviour {
     _geom = GetComponent<MjShapeComponent>();
     _shapeChangeStamp = new Vector4(0, 0, 0, -1);
     _meshFilter = GetComponent<MeshFilter>();
+    _meshFilter.mesh = new Mesh();
   }
 
   protected void Update() {
