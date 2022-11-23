@@ -26,30 +26,37 @@
 namespace mujoco::plugin::elasticity {
 namespace {
 
-    // Jet color palette
-    void scalar2rgba(float rgba[4], mjtNum v, mjtNum vmin, mjtNum vmax) {        
-        v = v < vmin ? vmin : v;
-        v = v > vmax ? vmax : v;
-        mjtNum dv = vmax - vmin;
+// Jet color palette
+void scalar2rgba(float rgba[4], mjtNum stress[3], mjtNum vmin, mjtNum vmax) {    
+  // Von Mises principal stress
+  mjtNum v = mju_sqrt((
+    (stress[0] - stress[1])*(stress[0] - stress[1]) + 
+    (stress[1] - stress[2])*(stress[1] - stress[2]) + 
+    (stress[2] - stress[0])*(stress[2] - stress[0])) / 2); 
 
-        if (v < (vmin + 0.25 * dv)) {
-          rgba[0] = 0;
-          rgba[1] = 4 * (v - vmin) / dv;
-          rgba[2] = 1;
-        } else if (v < (vmin + 0.5 * dv)) {
-          rgba[0] = 0;
-          rgba[1] = 1;
-          rgba[2] = 1 + 4 * (vmin + 0.25 * dv - v) / dv;
-        } else if (v < (vmin + 0.75 * dv)) {
-          rgba[0] = 4 * (v - vmin - 0.5 * dv) / dv;
-          rgba[1] = 1;
-          rgba[2] = 0;
-        } else {
-          rgba[0] = 1;
-          rgba[1] = 1 + 4 * (vmin + 0.75 * dv - v) / dv;
-          rgba[2] = 0;
-        }
-    }
+  v = v < vmin ? vmin : v;
+  v = v > vmax ? vmax : v;
+  mjtNum dv = vmax - vmin;
+
+  if (v < (vmin + 0.25 * dv)) {
+    rgba[0] = 0;
+    rgba[1] = 4 * (v - vmin) / dv;
+    rgba[2] = 1;
+  } else if (v < (vmin + 0.5 * dv)) {
+    rgba[0] = 0;
+    rgba[1] = 1;
+    rgba[2] = 1 + 4 * (vmin + 0.25 * dv - v) / dv;
+  } else if (v < (vmin + 0.75 * dv)) {
+    rgba[0] = 4 * (v - vmin - 0.5 * dv) / dv;
+    rgba[1] = 1;
+    rgba[2] = 0;
+  } else {
+    rgba[0] = 1;
+    rgba[1] = 1 + 4 * (vmin + 0.75 * dv - v) / dv;
+    rgba[2] = 0;
+  }
+}
+
 // compute quaternion difference between two frames in joint coordinates
 void QuatDiff(mjtNum* quat, const mjtNum body_quat[4],
               const mjtNum joint_quat[4], bool pullback) {
@@ -74,16 +81,17 @@ void QuatDiff(mjtNum* quat, const mjtNum body_quat[4],
 //     scl         - scaling of the force
 //   outputs:
 //     qfrc        - local torque contribution
-mjtNum LocalForce(mjtNum qfrc[3], const mjtNum stiffness[4],
+void LocalForce(mjtNum stress[3], 
+                const mjtNum stiffness[4],
                 const mjtNum quat[4], const mjtNum omega0[3],
-                const mjtNum xquat[4], mjtNum scl) {
+                bool pullback) {
   mjtNum omega[3], lfrc[3];
 
   // compute curvature
-  mju_quat2Vel(omega, quat, scl);
+  mju_quat2Vel(omega, quat, pullback ? 1.0 : -1.0);
 
   // subtract omega0 in reference configuration
-  mjtNum stress[] = {
+  mjtNum qfrc[] = {
       - stiffness[0]*(omega[0] - omega0[0]) / stiffness[3],
       - stiffness[1]*(omega[1] - omega0[1]) / stiffness[3],
       - stiffness[2]*(omega[2] - omega0[2]) / stiffness[3],
@@ -91,20 +99,16 @@ mjtNum LocalForce(mjtNum qfrc[3], const mjtNum stiffness[4],
   
 
   // rotate into global frame
-  if (xquat) {
-    mju_rotVecQuat(lfrc, stress, xquat);
+  if (pullback) {
+    mjtNum invquat[4];
+    mju_negQuat(invquat, quat);
+    mju_rotVecQuat(lfrc, qfrc, invquat);
   } else {
-    mju_copy3(lfrc, stress);
+    mju_copy3(lfrc, qfrc);
   }
 
   // add to total qfrc
-  mju_addToScl3(qfrc, lfrc, scl);
-
-  // Von Mises principal stress
-  return mju_sqrt((
-    (stress[0] - stress[1])*(stress[0] - stress[1]) + 
-    (stress[1] - stress[2])*(stress[1] - stress[2]) + 
-    (stress[2] - stress[0])*(stress[2] - stress[0])) / 2); 
+  mju_addToScl3(stress, lfrc, pullback ? 1.0 : -1.0);
 }
 
 // reads numeric attributes
@@ -220,17 +224,15 @@ void Cable::Compute(const mjModel* m, mjData* d, int instance) {
 
     // elastic forces 
     mjtNum quat[4] = {0};
-    mjtNum xfrc[3] = {0};
-    mjtNum stressnorm = 0;
+    mjtNum stress[3] = {0};
 
     // local orientation
     if (prev[b]) {
       int qadr = m->jnt_qposadr[m->body_jntadr[i]] + m->body_dofnum[i]-3;
-      QuatDiff(quat, m->body_quat+4*i, d->qpos+qadr, 0);
+      QuatDiff(quat, m->body_quat+4*i, d->qpos+qadr, false);
 
       // contribution of orientation i-1 to xfrc i
-      stressnorm = LocalForce(xfrc, stiffness.data()+4*b, quat, omega0.data()+3*b,
-                              d->xquat+4*(i+prev[b]), 1);
+      LocalForce(stress, stiffness.data()+4*b, quat, omega0.data()+3*b, true);
     }
 
     if (next[b]) {
@@ -239,18 +241,20 @@ void Cable::Compute(const mjModel* m, mjData* d, int instance) {
 
       // local orientation
       int qadr = m->jnt_qposadr[m->body_jntadr[in]] + m->body_dofnum[in]-3;
-      QuatDiff(quat, m->body_quat+4*in, d->qpos+qadr, 1);
+      QuatDiff(quat, m->body_quat+4*in, d->qpos+qadr, true);
 
       // contribution of orientation i+1 to xfrc i
-      stressnorm = LocalForce(xfrc, stiffness.data()+4*bn, quat, omega0.data()+3*bn,
-                              d->xquat+4*i, -1);
+      LocalForce(stress, stiffness.data()+4*bn, quat, omega0.data()+3*bn, false);
     }
-    // set geometry color based on userdata
+    
+    // set geometry color based on stress norm
     if (vmax) {
-      scalar2rgba(&m->geom_rgba[i * 4], stressnorm, 0, vmax);
+      scalar2rgba(&m->geom_rgba[i * 4], stress, 0, vmax);
     }
 
     // convert from global coordinates and apply torque to com
+    mjtNum xfrc[3] = {0};
+    mju_rotVecQuat(xfrc, stress, d->xquat+4*i);
     mj_applyFT(m, d, 0, xfrc, d->xpos+3*i, i, d->qfrc_passive);
   }
 }
