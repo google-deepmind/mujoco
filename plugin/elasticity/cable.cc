@@ -98,7 +98,7 @@ void LocalForce(mjtNum stress[3],
   };
   
 
-  // rotate into global frame
+  // pull-back into the other body frame
   if (pullback) {
     mjtNum invquat[4];
     mju_negQuat(invquat, quat);
@@ -107,7 +107,7 @@ void LocalForce(mjtNum stress[3],
     mju_copy3(lfrc, qfrc);
   }
 
-  // add to total qfrc
+  // add to total stress of the body i
   mju_addToScl3(stress, lfrc, pullback ? 1.0 : -1.0);
 }
 
