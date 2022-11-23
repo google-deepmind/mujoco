@@ -59,7 +59,7 @@ void scalar2rgba(float rgba[4], mjtNum stress[3], mjtNum vmin, mjtNum vmax) {
 
 // compute quaternion difference between two frames in joint coordinates
 void QuatDiff(mjtNum* quat, const mjtNum body_quat[4],
-              const mjtNum joint_quat[4], bool pullback) {
+              const mjtNum joint_quat[4], bool pullback = false) {
   if (pullback == 0) {
     // contribution in local coordinates
     mju_mulQuat(quat, body_quat, joint_quat);
@@ -88,7 +88,7 @@ void LocalForce(mjtNum stress[3],
   mjtNum omega[3], lfrc[3];
 
   // compute curvature
-  mju_quat2Vel(omega, quat, pullback ? 1.0 : -1.0);
+  mju_quat2Vel(omega, quat, 1.0);
 
   // subtract omega0 in reference configuration
   mjtNum qfrc[] = {
@@ -229,7 +229,7 @@ void Cable::Compute(const mjModel* m, mjData* d, int instance) {
     // local orientation
     if (prev[b]) {
       int qadr = m->jnt_qposadr[m->body_jntadr[i]] + m->body_dofnum[i]-3;
-      QuatDiff(quat, m->body_quat+4*i, d->qpos+qadr, false);
+      QuatDiff(quat, m->body_quat+4*i, d->qpos+qadr);
 
       // contribution of orientation i-1 to xfrc i
       LocalForce(stress, stiffness.data()+4*b, quat, omega0.data()+3*b, true);
@@ -241,7 +241,7 @@ void Cable::Compute(const mjModel* m, mjData* d, int instance) {
 
       // local orientation
       int qadr = m->jnt_qposadr[m->body_jntadr[in]] + m->body_dofnum[in]-3;
-      QuatDiff(quat, m->body_quat+4*in, d->qpos+qadr, true);
+      QuatDiff(quat, m->body_quat+4*in, d->qpos+qadr);
 
       // contribution of orientation i+1 to xfrc i
       LocalForce(stress, stiffness.data()+4*bn, quat, omega0.data()+3*bn, false);
