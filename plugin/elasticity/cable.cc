@@ -71,7 +71,7 @@ void QuatDiff(mjtNum* quat, const mjtNum body_quat[4],
   }
 }
 
-// compute local force given material properties, orientation,
+// compute local stress given material properties, orientation,
 // and reference curvature
 //   inputs:
 //     stiffness   - material parameters
@@ -80,18 +80,18 @@ void QuatDiff(mjtNum* quat, const mjtNum body_quat[4],
 //     xquat       - cartesian orientation of the body (optional)
 //     scl         - scaling of the force
 //   outputs:
-//     qfrc        - local torque contribution
-void LocalForce(mjtNum stress[3], 
+//     stress      - local stress contribution
+void LocalStress(mjtNum stress[3], 
                 const mjtNum stiffness[4],
                 const mjtNum quat[4], const mjtNum omega0[3],
                 bool pullback) {
-  mjtNum omega[3], lfrc[3];
+  mjtNum omega[3];
 
   // compute curvature
   mju_quat2Vel(omega, quat, 1.0);
 
   // subtract omega0 in reference configuration
-  mjtNum qfrc[] = {
+  mjtNum tmp[] = {
       - stiffness[0]*(omega[0] - omega0[0]) / stiffness[3],
       - stiffness[1]*(omega[1] - omega0[1]) / stiffness[3],
       - stiffness[2]*(omega[2] - omega0[2]) / stiffness[3],
@@ -102,13 +102,10 @@ void LocalForce(mjtNum stress[3],
   if (pullback) {
     mjtNum invquat[4];
     mju_negQuat(invquat, quat);
-    mju_rotVecQuat(lfrc, qfrc, invquat);
+    mju_rotVecQuat(stress, tmp, invquat);
   } else {
-    mju_copy3(lfrc, qfrc);
+    mju_copy3(stress, tmp);
   }
-
-  // add to total stress of the body i
-  mju_addToScl3(stress, lfrc, pullback ? 1.0 : -1.0);
 }
 
 // reads numeric attributes
@@ -224,7 +221,8 @@ void Cable::Compute(const mjModel* m, mjData* d, int instance) {
 
     // elastic forces 
     mjtNum quat[4] = {0};
-    mjtNum stress[3] = {0};
+    mjtNum lfrc[3] = {0};
+    mjtNum stress[6] = {0};
 
     // local orientation
     if (prev[b]) {
@@ -232,7 +230,8 @@ void Cable::Compute(const mjModel* m, mjData* d, int instance) {
       QuatDiff(quat, m->body_quat+4*i, d->qpos+qadr);
 
       // contribution of orientation i-1 to xfrc i
-      LocalForce(stress, stiffness.data()+4*b, quat, omega0.data()+3*b, true);
+      LocalStress(stress, stiffness.data()+4*b, quat, omega0.data()+3*b, true);
+      mju_addToScl3(lfrc, stress, 1.0);
     }
 
     if (next[b]) {
@@ -244,17 +243,20 @@ void Cable::Compute(const mjModel* m, mjData* d, int instance) {
       QuatDiff(quat, m->body_quat+4*in, d->qpos+qadr);
 
       // contribution of orientation i+1 to xfrc i
-      LocalForce(stress, stiffness.data()+4*bn, quat, omega0.data()+3*bn, false);
+      LocalStress(stress+3, stiffness.data()+4*bn, quat, omega0.data()+3*bn, false);
+      mju_addToScl3(lfrc, stress+3, -1.0);
     }
     
     // set geometry color based on stress norm
     if (vmax) {
+      mju_scl3(stress, stress, next[b] ? 0.5 : 1.0);
+      mju_addToScl3(stress, stress+3, prev[b] ? 0.5 : 1.0);
       scalar2rgba(&m->geom_rgba[i * 4], stress, 0, vmax);
     }
 
     // convert from global coordinates and apply torque to com
     mjtNum xfrc[3] = {0};
-    mju_rotVecQuat(xfrc, stress, d->xquat+4*i);
+    mju_rotVecQuat(xfrc, lfrc, d->xquat+4*i);
     mj_applyFT(m, d, 0, xfrc, d->xpos+3*i, i, d->qfrc_passive);
   }
 }
