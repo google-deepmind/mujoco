@@ -43,8 +43,7 @@ namespace Mujoco {
     }
 
     public override unsafe void OnSyncState(MujocoLib.mjData_* data) {
-      var qpos = (float)data->qpos[QposAddress];
-      Configuration = (qpos % (2 * Mathf.PI)) * Mathf.Rad2Deg;
+      Configuration = (float)data->qpos[QposAddress];
       Velocity = (float)data->qvel[DofAddress];
     }
 
