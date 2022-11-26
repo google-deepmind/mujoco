@@ -1761,10 +1761,10 @@ void Simulate::render() {
     mjr_overlay(mjFONT_NORMAL, mjGRID_BOTTOMLEFT, rect, this->loadError, 0, &this->con);
   }
 
-  // show pause/loading label
+  // make pause/loading label
+  std::string pauseloadlabel;
   if (!this->run || this->loadrequest) {
-    mjr_overlay(mjFONT_BIG, mjGRID_TOPRIGHT, smallrect,
-                this->loadrequest ? "loading" : "pause", nullptr, &this->con);
+    pauseloadlabel = this->loadrequest ? "loading" : "pause";
   }
 
   // get desired and actual percent-of-real-time
@@ -1775,20 +1775,26 @@ void Simulate::render() {
   float realtime_offset = mju_abs(actualRealtime - desiredRealtime);
   bool misaligned = this->run && realtime_offset > 0.1 * desiredRealtime;
 
-  // draw realtime overlay
+  // make realtime overlay label
+  char rtlabel[30] = {'\0'};
   if (desiredRealtime != 100.0 || misaligned) {
-    char rtlabel[30];
-
     // print desired realtime
-    int labelsize = std::snprintf(rtlabel, sizeof(rtlabel), "%g%%", desiredRealtime);
+    int labelsize = std::snprintf(rtlabel,
+                                  sizeof(rtlabel), "%g%%", desiredRealtime);
 
     // if misaligned, append to label
     if (misaligned) {
-      std::snprintf(rtlabel+labelsize, sizeof(rtlabel)-labelsize, " (%-4.1f%%)", actualRealtime);
+      std::snprintf(rtlabel+labelsize,
+                    sizeof(rtlabel)-labelsize, " (%-4.1f%%)", actualRealtime);
     }
+  }
 
-    // draw overlay
-    mjr_overlay(mjFONT_BIG, mjGRID_TOPLEFT, smallrect, rtlabel, nullptr, &this->con);
+  // draw top left overlay
+  if (!pauseloadlabel.empty() || rtlabel[0]) {
+    std::string newline = !pauseloadlabel.empty() && rtlabel[0] ? "\n" : "";
+    std::string topleftlabel = rtlabel + newline + pauseloadlabel;
+    mjr_overlay(mjFONT_BIG, mjGRID_TOPLEFT, smallrect,
+                topleftlabel.c_str(), nullptr, &this->con);
   }
 
 
