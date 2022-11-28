@@ -75,12 +75,13 @@ the [Getting Started] section of the documentation to get `simulate` running on
 your machine.
 
 2. **Explore our online IPython notebooks.**
-If you are a Python user, you might want to start with our tutorial notebooks,
+If you are a Python user, you might want to start with our tutorial notebooks
 running on Google Colab:
 
-  - The first tutorial focuses on the basic MuJoCo Python bindings: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/deepmind/dm_control/blob/main/dm_control/mujoco/tutorial.ipynb)
-
-  - The second tutorial includes more examples of `dm_control`-specific functionality: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/deepmind/dm_control/blob/main/tutorial.ipynb)
+ - The first tutorial focuses on the basics of MuJoCo: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/deepmind/mujoco/blob/main/python/tutorial.ipynb)
+ - For a more advanced example, see the LQR tutorial which creates an LQR
+   controlled to balance a humanoid on one leg using MuJoCo's dynamics
+   derivatives: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/deepmind/mujoco/blob/main/python/LQR.ipynb)
 
 ## Asking Questions
 

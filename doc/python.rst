@@ -19,8 +19,16 @@ previous versions, however code that depended directly on its low-level API may 
 
 For mujoco-py users, we include :ref:`notes <PyMjpy_migration>` below to aid migration.
 
+Tutorial notebook
+=================
+
+A MuJoCo tutorial using the Python bindings is available here: |colab|
+
+.. |colab| image:: https://colab.research.google.com/assets/colab-badge.svg
+           :target: https://colab.research.google.com/github/deepmind/mujoco/blob/main/python/tutorial.ipynb
+
 Installation
-------------
+============
 
 The package can be installed from `PyPI <https://pypi.org/project/mujoco/>`__ via
 
@@ -384,4 +392,3 @@ all inputs including ``time`` and ``qacc_warmstart`` are set to default values, 
 
 Since the Global Interpreter Lock can be released, this function can be efficiently threaded using Python threads. See
 the ``test_threading`` function in ``rollout_test.py`` for an example of threaded operation.
-

@@ -102,6 +102,10 @@ Once installed, the package can be imported via `import mujoco`. Please consult
 our [documentation](https://mujoco.readthedocs.io/en/latest/python.html) for
 further detail on the package's API.
 
+We recommend going through the tutorial notebook which covers the basics of
+MuJoCo using Python:
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/deepmind/mujoco/blob/main/python/tutorial.ipynb)
+
 ## Versioning
 
 The `major.minor.micro` portion of the version number matches the version of
