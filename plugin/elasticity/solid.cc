@@ -342,7 +342,7 @@ void Solid::Compute(const mjModel* m, mjData* d, int instance) {
 
 
 
-mjPLUGIN_DYNAMIC_LIBRARY_INIT {
+void Solid::RegisterPlugin() {
   mjpPlugin plugin;
   mjp_defaultPlugin(&plugin);
 

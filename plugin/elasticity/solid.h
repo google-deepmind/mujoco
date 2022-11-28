@@ -41,6 +41,8 @@ class Solid {
 
   void Compute(const mjModel* m, mjData* d, int instance);
 
+  static void RegisterPlugin();
+
   int i0;  // index of first body
   int nc;  // number of cubes in the grid
   int nv;  // number of vertices (bodies) in the solid
