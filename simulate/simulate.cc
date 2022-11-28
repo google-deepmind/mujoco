@@ -84,7 +84,7 @@ const mjuiDef defFile[] = {
   {mjITEM_BUTTON,    "Print model",   2, nullptr,                    "CM"},
   {mjITEM_BUTTON,    "Print data",    2, nullptr,                    "CD"},
   {mjITEM_BUTTON,    "Quit",          1, nullptr,                    "CQ"},
-  {mjITEM_BUTTON,    "Screenshot",    2, NULL,                       "CP"},
+  {mjITEM_BUTTON,    "Screenshot",    2, nullptr,                    "CP"},
   {mjITEM_END}
 };
 
@@ -1088,7 +1088,7 @@ void uiEvent(mjuiState* state) {
         {
           const std::string path = getSavePath("mjmodel.mjb");
           if (!path.empty()) {
-            mj_saveModel(m, path.c_str(), NULL, 0);
+            mj_saveModel(m, path.c_str(), nullptr, 0);
           }
         }
         break;
@@ -1836,7 +1836,7 @@ void Simulate::render() {
     if (!rgb) {
       mju_error("could not allocate buffer for screenshot");
     }
-    mjr_readPixels(rgb.get(), NULL, uistate.rect[0], &con);
+    mjr_readPixels(rgb.get(), nullptr, uistate.rect[0], &con);
 
     // flip up-down
     for (int r = 0; r < h/2; ++r) {
