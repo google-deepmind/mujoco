@@ -59,6 +59,7 @@ mjCComposite::mjCComposite(void) {
   pin.clear();
   flatinertia = 0;
   mj_defaultSolRefImp(solrefsmooth, solimpsmooth);
+  plugin_instance = nullptr;
 
   // cable
   curve[0] = curve[1] = curve[2] = mjCOMPSHAPE_ZERO;
@@ -315,7 +316,10 @@ bool mjCComposite::MakeParticle(mjCModel* model, mjCBody* body, char* error, int
     for (int iy=0; iy<count[1]; iy++) {
       for (int iz=0; iz<count[2]; iz++) {
         // create body
+        char txt[100];
         mjCBody* b = body->AddBody(NULL);
+        mju::sprintf_arr(txt, "%sB%d_%d_%d", prefix.c_str(), ix, iy, iz);
+        b->name = txt;
 
         // set body position
         b->pos[0] = offset[0] + spacing*(ix - 0.5*count[0]);
@@ -345,8 +349,29 @@ bool mjCComposite::MakeParticle(mjCModel* model, mjCBody* body, char* error, int
         // add geom
         mjCGeom* g = b->AddGeom(def);
         g->def = body->def;
+        g->type = mjGEOM_SPHERE;
+
+        // add plugin
+        if (plugin_instance) {
+          b->is_plugin = true;
+          b->plugin_name = plugin_name;
+          b->plugin_instance = plugin_instance;
+          b->plugin_instance_name = plugin_instance_name;
+
+          // propagate attributes
+          if (plugin_name == "mujoco.elasticity.solid") {
+            b->plugin_instance->config_attribs["nx"] = std::to_string(count[0]);
+            b->plugin_instance->config_attribs["ny"] = std::to_string(count[1]);
+            b->plugin_instance->config_attribs["nz"] = std::to_string(count[2]);
+          }
+        }
       }
     }
+  }
+
+  // skin
+  if (skin) {
+    MakeSkin3(model);
   }
 
   return true;
@@ -2014,7 +2039,7 @@ void mjCComposite::MakeSkin3(mjCModel* model) {
   skin->group = skingroup;
 
   // box
-  if (type==mjCOMPTYPE_BOX) {
+  if (type==mjCOMPTYPE_BOX || type==mjCOMPTYPE_PARTICLE) {
     // z-faces
     MakeSkin3Box(skin, count[0], count[1], 1, vcnt, "%sB%d_%d_0");
     fmt = "%sB%d_%d_" + string(cnt2);
