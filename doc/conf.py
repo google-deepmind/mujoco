@@ -46,6 +46,7 @@ extensions = [
     'sphinxcontrib.youtube',
     'sphinx_reredirects',
     'sphinx_toolbox.collapse',
+    "mujoco_include",
 ]
 
 # Add any paths that contain templates here, relative to this directory.

@@ -70,26 +70,7 @@ mjtByte
 mjtDisableBit
 ~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   typedef enum _mjtDisableBit
-   {
-       mjDSBL_CONSTRAINT   = 1<<0,     // entire constraint solver
-       mjDSBL_EQUALITY     = 1<<1,     // equality constraints
-       mjDSBL_FRICTIONLOSS = 1<<2,     // joint and tendon frictionloss constraints
-       mjDSBL_LIMIT        = 1<<3,     // joint and tendon limit constraints
-       mjDSBL_CONTACT      = 1<<4,     // contact constraints
-       mjDSBL_PASSIVE      = 1<<5,     // passive forces
-       mjDSBL_GRAVITY      = 1<<6,     // gravitational forces
-       mjDSBL_CLAMPCTRL    = 1<<7,     // clamp control to specified range
-       mjDSBL_WARMSTART    = 1<<8,     // warmstart constraint solver
-       mjDSBL_FILTERPARENT = 1<<9,     // remove collisions with parent body
-       mjDSBL_ACTUATION    = 1<<10,    // apply actuation forces
-       mjDSBL_REFSAFE      = 1<<11,    // integrator safety: make ref[0]>=2*timestep
-       mjDSBL_SENSOR       = 1<<12,    // sensors
-
-       mjNDISABLE          = 13        // number of disable flags
-   } mjtDisableBit;
+.. mujoco-include:: mjtDisableBit
 
 | Defined in `mjmodel.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjmodel.h>`_
 
@@ -103,20 +84,7 @@ mjtDisableBit
 mjtEnableBit
 ~~~~~~~~~~~~
 
-.. code-block:: C
-
-   typedef enum _mjtEnableBit
-   {
-       mjENBL_OVERRIDE     = 1<<0,     // override contact parameters
-       mjENBL_ENERGY       = 1<<1,     // energy computation
-       mjENBL_FWDINV       = 1<<2,     // compare forward and inverse dynamics
-       mjENBL_SENSORNOISE  = 1<<3,     // add noise to sensor data
-
-                                       // experimental features:
-       mjENBL_MULTICCD     = 1<<30,    // multi-point convex collision detection
-
-       mjNENABLE           = 5         // number of enable flags
-   } mjtEnableBit;
+.. mujoco-include:: mjtEnableBit
 
 | Defined in `mjmodel.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjmodel.h>`_
 
@@ -129,15 +97,7 @@ mjtEnableBit
 mjtJoint
 ~~~~~~~~
 
-.. code-block:: C
-
-   typedef enum _mjtJoint
-   {
-       mjJNT_FREE          = 0,        // global position and orientation (quat)       (7)
-       mjJNT_BALL,                     // orientation (quat) relative to parent        (4)
-       mjJNT_SLIDE,                    // sliding distance along body-fixed axis       (1)
-       mjJNT_HINGE                     // rotation angle (rad) around body-fixed axis  (1)
-   } mjtJoint;
+.. mujoco-include:: mjtJoint
 
 | Defined in `mjmodel.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjmodel.h>`_
 
@@ -150,32 +110,7 @@ mjtJoint
 mjtGeom
 ~~~~~~~
 
-.. code-block:: C
-
-   typedef enum _mjtGeom
-   {
-       // regular geom types
-       mjGEOM_PLANE        = 0,        // plane
-       mjGEOM_HFIELD,                  // height field
-       mjGEOM_SPHERE,                  // sphere
-       mjGEOM_CAPSULE,                 // capsule
-       mjGEOM_ELLIPSOID,               // ellipsoid
-       mjGEOM_CYLINDER,                // cylinder
-       mjGEOM_BOX,                     // box
-       mjGEOM_MESH,                    // mesh
-
-       mjNGEOMTYPES,                   // number of regular geom types
-
-       // rendering-only geom types: not used in mjModel, not counted in mjNGEOMTYPES
-       mjGEOM_ARROW        = 100,      // arrow
-       mjGEOM_ARROW1,                  // arrow without wedges
-       mjGEOM_ARROW2,                  // arrow in both directions
-       mjGEOM_LINE,                    // line
-       mjGEOM_SKIN,                    // skin
-       mjGEOM_LABEL,                   // text label
-
-       mjGEOM_NONE         = 1001      // missing geom type
-   } mjtGeom;
+.. mujoco-include:: mjtGeom
 
 | Defined in `mjmodel.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjmodel.h>`_
 
@@ -188,16 +123,7 @@ mjtGeom
 mjtCamLight
 ~~~~~~~~~~~
 
-.. code-block:: C
-
-   typedef enum _mjtCamLight
-   {
-       mjCAMLIGHT_FIXED    = 0,        // pos and rot fixed in body
-       mjCAMLIGHT_TRACK,               // pos tracks body, rot fixed in global
-       mjCAMLIGHT_TRACKCOM,            // pos tracks subtree com, rot fixed in body
-       mjCAMLIGHT_TARGETBODY,          // pos fixed in body, rot tracks target body
-       mjCAMLIGHT_TARGETBODYCOM        // pos fixed in body, rot tracks target subtree com
-   } mjtCamLight;
+.. mujoco-include:: mjtCamLight
 
 | Defined in `mjmodel.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjmodel.h>`_
 
@@ -209,14 +135,7 @@ mjtCamLight
 mjtTexture
 ~~~~~~~~~~
 
-.. code-block:: C
-
-   typedef enum _mjtTexture
-   {
-       mjTEXTURE_2D        = 0,        // 2d texture, suitable for planes and hfields
-       mjTEXTURE_CUBE,                 // cube texture, suitable for all other geom types
-       mjTEXTURE_SKYBOX                // cube texture used as skybox
-   } mjtTexture;
+.. mujoco-include:: mjtTexture
 
 | Defined in `mjmodel.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjmodel.h>`_
 
@@ -227,14 +146,7 @@ mjtTexture
 mjtIntegrator
 ~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   typedef enum _mjtIntegrator         // integrator mode
-   {
-       mjINT_EULER         = 0,        // semi-implicit Euler
-       mjINT_RK4                       // 4th-order Runge Kutta
-       mjINT_IMPLICIT                  // implicit in velocity
-   } mjtIntegrator;
+.. mujoco-include:: mjtIntegrator
 
 | Defined in `mjmodel.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjmodel.h>`_
 
@@ -245,14 +157,7 @@ mjtIntegrator
 mjtCollision
 ~~~~~~~~~~~~
 
-.. code-block:: C
-
-   typedef enum _mjtCollision          // collision mode for selecting geom pairs
-   {
-       mjCOL_ALL           = 0,        // test precomputed and dynamic pairs
-       mjCOL_PAIR,                     // test predefined pairs only
-       mjCOL_DYNAMIC                   // test dynamic pairs only
-   } mjtCollision;
+.. mujoco-include:: mjtCollision
 
 | Defined in `mjmodel.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjmodel.h>`_
 
@@ -264,13 +169,7 @@ mjtCollision
 mjtCone
 ~~~~~~~
 
-.. code-block:: C
-
-   typedef enum _mjtCone               // type of friction cone
-   {
-       mjCONE_PYRAMIDAL     = 0,       // pyramidal
-       mjCONE_ELLIPTIC                 // elliptic
-   } mjtCone;
+.. mujoco-include:: mjtCone
 
 | Defined in `mjmodel.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjmodel.h>`_
 
@@ -281,14 +180,7 @@ mjtCone
 mjtJacobian
 ~~~~~~~~~~~
 
-.. code-block:: C
-
-   typedef enum _mjtJacobian           // type of constraint Jacobian
-   {
-       mjJAC_DENSE          = 0,       // dense
-       mjJAC_SPARSE,                   // sparse
-       mjJAC_AUTO                      // dense if nv<=60, sparse otherwise
-   } mjtJacobian;
+.. mujoco-include:: mjtJacobian
 
 | Defined in `mjmodel.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjmodel.h>`_
 
@@ -299,14 +191,7 @@ mjtJacobian
 mjtSolver
 ~~~~~~~~~
 
-.. code-block:: C
-
-   typedef enum _mjtSolver             // constraint solver algorithm
-   {
-       mjSOL_PGS            = 0,       // PGS    (dual)
-       mjSOL_CG,                       // CG     (primal)
-       mjSOL_NEWTON                    // Newton (primal)
-   } mjtSolver;
+.. mujoco-include:: mjtSolver
 
 | Defined in `mjmodel.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjmodel.h>`_
 
@@ -317,16 +202,7 @@ mjtSolver
 mjtEq
 ~~~~~
 
-.. code-block:: C
-
-   typedef enum _mjtEq
-   {
-       mjEQ_CONNECT        = 0,        // connect two bodies at a point (ball joint)
-       mjEQ_WELD,                      // fix relative position and orientation of two bodies
-       mjEQ_JOINT,                     // couple the values of two scalar joints with cubic
-       mjEQ_TENDON,                    // couple the lengths of two tendons with cubic
-       mjEQ_DISTANCE                   // unsupported, will cause an error if used
-   } mjtEq;
+.. mujoco-include:: mjtEq
 
 | Defined in `mjmodel.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjmodel.h>`_
 
@@ -337,17 +213,7 @@ mjtEq
 mjtWrap
 ~~~~~~~
 
-.. code-block:: C
-
-   typedef enum _mjtWrap
-   {
-       mjWRAP_NONE         = 0,        // null object
-       mjWRAP_JOINT,                   // constant moment arm
-       mjWRAP_PULLEY,                  // pulley used to split tendon
-       mjWRAP_SITE,                    // pass through site
-       mjWRAP_SPHERE,                  // wrap around sphere
-       mjWRAP_CYLINDER                 // wrap around (infinite) cylinder
-   } mjtWrap;
+.. mujoco-include:: mjtWrap
 
 | Defined in `mjmodel.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjmodel.h>`_
 
@@ -358,19 +224,7 @@ mjtWrap
 mjtTrn
 ~~~~~~
 
-.. code-block:: C
-
-   typedef enum _mjtTrn
-   {
-       mjTRN_JOINT         = 0,        // force on joint
-       mjTRN_JOINTINPARENT,            // force on joint, expressed in parent frame
-       mjTRN_SLIDERCRANK,              // force via slider-crank linkage
-       mjTRN_TENDON,                   // force on tendon
-       mjTRN_SITE,                     // force on site
-       mjTRN_BODY,                     // force on body
-
-       mjTRN_UNDEFINED     = 1000      // undefined transmission type
-   } mjtTrn;
+.. mujoco-include:: mjtTrn
 
 | Defined in `mjmodel.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjmodel.h>`_
 
@@ -381,16 +235,7 @@ mjtTrn
 mjtDyn
 ~~~~~~
 
-.. code-block:: C
-
-   typedef enum _mjtDyn
-   {
-       mjDYN_NONE          = 0,        // no internal dynamics; ctrl specifies force
-       mjDYN_INTEGRATOR,               // integrator: da/dt = u
-       mjDYN_FILTER,                   // linear filter: da/dt = (u-a) / tau
-       mjDYN_MUSCLE,                   // piece-wise linear filter with two time constants
-       mjDYN_USER                      // user-defined dynamics type
-   } mjtDyn;
+.. mujoco-include:: mjtDyn
 
 | Defined in `mjmodel.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjmodel.h>`_
 
@@ -401,15 +246,7 @@ mjtDyn
 mjtGain
 ~~~~~~~
 
-.. code-block:: C
-
-   typedef enum _mjtGain
-   {
-       mjGAIN_FIXED        = 0,        // fixed gain
-       mjGAIN_AFFINE,                  // const + kp*length + kv*velocity
-       mjGAIN_MUSCLE,                  // muscle FLV curve computed by mju_muscleGain()
-       mjGAIN_USER                     // user-defined gain type
-   } mjtGain;
+.. mujoco-include:: mjtGain
 
 | Defined in `mjmodel.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjmodel.h>`_
 
@@ -420,15 +257,7 @@ mjtGain
 mjtBias
 ~~~~~~~
 
-.. code-block:: C
-
-   typedef enum _mjtBias
-   {
-       mjBIAS_NONE         = 0,        // no bias
-       mjBIAS_AFFINE,                  // const + kp*length + kv*velocity
-       mjBIAS_MUSCLE,                  // muscle passive force computed by mju_muscleBias()
-       mjBIAS_USER                     // user-defined bias type
-   } mjtBias;
+.. mujoco-include:: mjtBias
 
 | Defined in `mjmodel.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjmodel.h>`_
 
@@ -439,35 +268,7 @@ mjtBias
 mjtObj
 ~~~~~~
 
-.. code-block:: C
-
-   typedef enum _mjtObj
-   {
-       mjOBJ_UNKNOWN       = 0,        // unknown object type
-       mjOBJ_BODY,                     // body
-       mjOBJ_XBODY,                    // body, used to access regular frame instead of i-frame
-       mjOBJ_JOINT,                    // joint
-       mjOBJ_DOF,                      // dof
-       mjOBJ_GEOM,                     // geom
-       mjOBJ_SITE,                     // site
-       mjOBJ_CAMERA,                   // camera
-       mjOBJ_LIGHT,                    // light
-       mjOBJ_MESH,                     // mesh
-       mjOBJ_SKIN,                     // skin
-       mjOBJ_HFIELD,                   // heightfield
-       mjOBJ_TEXTURE,                  // texture
-       mjOBJ_MATERIAL,                 // material for rendering
-       mjOBJ_PAIR,                     // geom pair to include
-       mjOBJ_EXCLUDE,                  // body pair to exclude
-       mjOBJ_EQUALITY,                 // equality constraint
-       mjOBJ_TENDON,                   // tendon
-       mjOBJ_ACTUATOR,                 // actuator
-       mjOBJ_SENSOR,                   // sensor
-       mjOBJ_NUMERIC,                  // numeric
-       mjOBJ_TEXT,                     // text
-       mjOBJ_TUPLE,                    // tuple
-       mjOBJ_KEY                       // keyframe
-   } mjtObj;
+.. mujoco-include:: mjtObj
 
 | Defined in `mjmodel.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjmodel.h>`_
 
@@ -479,19 +280,7 @@ mjtObj
 mjtConstraint
 ~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   typedef enum _mjtConstraint
-   {
-       mjCNSTR_EQUALITY    = 0,        // equality constraint
-       mjCNSTR_FRICTION_DOF,           // dof friction
-       mjCNSTR_FRICTION_TENDON,        // tendon friction
-       mjCNSTR_LIMIT_JOINT,            // joint limit
-       mjCNSTR_LIMIT_TENDON,           // tendon limit
-       mjCNSTR_CONTACT_FRICTIONLESS,   // frictionless contact
-       mjCNSTR_CONTACT_PYRAMIDAL,      // frictional contact, pyramidal friction cone
-       mjCNSTR_CONTACT_ELLIPTIC        // frictional contact, elliptic friction cone
-   } mjtConstraint;
+.. mujoco-include:: mjtConstraint
 
 | Defined in `mjmodel.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjmodel.h>`_
 
@@ -503,16 +292,7 @@ mjtConstraint
 mjtConstraintState
 ~~~~~~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   typedef enum _mjtConstraintState
-   {
-       mjCNSTRSTATE_SATISFIED = 0,     // constraint satisfied, zero cost (limit, contact)
-       mjCNSTRSTATE_QUADRATIC,         // quadratic cost (equality, friction, limit, contact)
-       mjCNSTRSTATE_LINEARNEG,         // linear cost, negative side (friction)
-       mjCNSTRSTATE_LINEARPOS,         // linear cost, positive side (friction)
-       mjCNSTRSTATE_CONE               // squared distance to cone cost (elliptic contact)
-   } mjtConstraintState;
+.. mujoco-include:: mjtConstraintState
 
 | Defined in `mjmodel.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjmodel.h>`_
 
@@ -523,60 +303,7 @@ mjtConstraintState
 mjtSensor
 ~~~~~~~~~
 
-.. code-block:: C
-
-   typedef enum _mjtSensor             // type of sensor
-   {
-       // common robotic sensors, attached to a site
-       mjSENS_TOUCH        = 0,        // scalar contact normal forces summed over sensor zone
-       mjSENS_ACCELEROMETER,           // 3D linear acceleration, in local frame
-       mjSENS_VELOCIMETER,             // 3D linear velocity, in local frame
-       mjSENS_GYRO,                    // 3D angular velocity, in local frame
-       mjSENS_FORCE,                   // 3D force between site's body and its parent body
-       mjSENS_TORQUE,                  // 3D torque between site's body and its parent body
-       mjSENS_MAGNETOMETER,            // 3D magnetometer
-       mjSENS_RANGEFINDER,             // scalar distance to nearest geom or site along z-axis
-
-       // sensors related to scalar joints, tendons, actuators
-       mjSENS_JOINTPOS,                // scalar joint position (hinge and slide only)
-       mjSENS_JOINTVEL,                // scalar joint velocity (hinge and slide only)
-       mjSENS_TENDONPOS,               // scalar tendon position
-       mjSENS_TENDONVEL,               // scalar tendon velocity
-       mjSENS_ACTUATORPOS,             // scalar actuator position
-       mjSENS_ACTUATORVEL,             // scalar actuator velocity
-       mjSENS_ACTUATORFRC,             // scalar actuator force
-
-       // sensors related to ball joints
-       mjSENS_BALLQUAT,                // 4D ball joint quaternion
-       mjSENS_BALLANGVEL,              // 3D ball joint angular velocity
-
-       // joint and tendon limit sensors, in constraint space
-       mjSENS_JOINTLIMITPOS,           // joint limit distance-margin
-       mjSENS_JOINTLIMITVEL,           // joint limit velocity
-       mjSENS_JOINTLIMITFRC,           // joint limit force
-       mjSENS_TENDONLIMITPOS,          // tendon limit distance-margin
-       mjSENS_TENDONLIMITVEL,          // tendon limit velocity
-       mjSENS_TENDONLIMITFRC,          // tendon limit force
-
-       // sensors attached to an object with spatial frame: (x)body, geom, site, camera
-       mjSENS_FRAMEPOS,                // 3D position
-       mjSENS_FRAMEQUAT,               // 4D unit quaternion orientation
-       mjSENS_FRAMEXAXIS,              // 3D unit vector: x-axis of object's frame
-       mjSENS_FRAMEYAXIS,              // 3D unit vector: y-axis of object's frame
-       mjSENS_FRAMEZAXIS,              // 3D unit vector: z-axis of object's frame
-       mjSENS_FRAMELINVEL,             // 3D linear velocity
-       mjSENS_FRAMEANGVEL,             // 3D angular velocity
-       mjSENS_FRAMELINACC,             // 3D linear acceleration
-       mjSENS_FRAMEANGACC,             // 3D angular acceleration
-
-       // sensors related to kinematic subtrees; attached to a body (which is the subtree root)
-       mjSENS_SUBTREECOM,              // 3D center of mass of subtree
-       mjSENS_SUBTREELINVEL,           // 3D linear velocity of subtree
-       mjSENS_SUBTREEANGMOM,           // 3D angular momentum of subtree
-
-       // user-defined sensor
-       mjSENS_USER                     // sensor data provided by mjcb_sensor callback
-   } mjtSensor;
+.. mujoco-include:: mjtSensor
 
 | Defined in `mjmodel.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjmodel.h>`_
 
@@ -587,15 +314,7 @@ mjtSensor
 mjtStage
 ~~~~~~~~
 
-.. code-block:: C
-
-   typedef enum _mjtStage
-   {
-       mjSTAGE_NONE        = 0,        // no computations
-       mjSTAGE_POS,                    // position-dependent computations
-       mjSTAGE_VEL,                    // velocity-dependent computations
-       mjSTAGE_ACC                     // acceleration/force-dependent computations
-   } mjtStage;
+.. mujoco-include:: mjtStage
 
 | Defined in `mjmodel.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjmodel.h>`_
 
@@ -607,15 +326,7 @@ mjtStage
 mjtDataType
 ~~~~~~~~~~~
 
-.. code-block:: C
-
-   typedef enum _mjtDataType           // data type for sensors
-   {
-       mjDATATYPE_REAL     = 0,        // real values, no constraints
-       mjDATATYPE_POSITIVE,            // positive values; 0 or negative: inactive
-       mjDATATYPE_AXIS,                // 3D unit vector
-       mjDATATYPE_QUATERNION           // unit quaternion
-   } mjtDataType;
+.. mujoco-include:: mjtDataType
 
 | Defined in `mjmodel.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjmodel.h>`_
 
@@ -626,21 +337,7 @@ mjtDataType
 mjtWarning
 ~~~~~~~~~~
 
-.. code-block:: C
-
-   typedef enum _mjtWarning            // warning types
-   {
-       mjWARN_INERTIA      = 0,        // (near) singular inertia matrix
-       mjWARN_CONTACTFULL,             // too many contacts in contact list
-       mjWARN_CNSTRFULL,               // too many constraints
-       mjWARN_VGEOMFULL,               // too many visual geoms
-       mjWARN_BADQPOS,                 // bad number in qpos
-       mjWARN_BADQVEL,                 // bad number in qvel
-       mjWARN_BADQACC,                 // bad number in qacc
-       mjWARN_BADCTRL,                 // bad number in ctrl
-
-       mjNWARNING                      // number of warnings
-   } mjtWarning;
+.. mujoco-include:: mjtWarning
 
 | Defined in `mjdata.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjdata.h>`_
 
@@ -652,31 +349,7 @@ mjtWarning
 mjtTimer
 ~~~~~~~~
 
-.. code-block:: C
-
-   typedef enum _mjtTimer
-   {
-       // main api
-       mjTIMER_STEP        = 0,        // step
-       mjTIMER_FORWARD,                // forward
-       mjTIMER_INVERSE,                // inverse
-
-       // breakdown of step/forward
-       mjTIMER_POSITION,               // fwdPosition
-       mjTIMER_VELOCITY,               // fwdVelocity
-       mjTIMER_ACTUATION,              // fwdActuation
-       mjTIMER_ACCELERATION,           // fwdAcceleration
-       mjTIMER_CONSTRAINT,             // fwdConstraint
-
-       // breakdown of fwdPosition
-       mjTIMER_POS_KINEMATICS,         // kinematics, com, tendon, transmission
-       mjTIMER_POS_INERTIA,            // inertia computations
-       mjTIMER_POS_COLLISION,          // collision detection
-       mjTIMER_POS_MAKE,               // make constraints
-       mjTIMER_POS_PROJECT,            // project constraints
-
-       mjNTIMER                        // number of timers
-   } mjtTimer;
+.. mujoco-include:: mjtTimer
 
 | Defined in `mjdata.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjdata.h>`_
 
@@ -688,15 +361,7 @@ mjtTimer
 mjtCatBit
 ~~~~~~~~~
 
-.. code-block:: C
-
-   typedef enum _mjtCatBit
-   {
-       mjCAT_STATIC        = 1,        // model elements in body 0
-       mjCAT_DYNAMIC       = 2,        // model elements in all other bodies
-       mjCAT_DECOR         = 4,        // decorative geoms
-       mjCAT_ALL           = 7         // select all categories
-   } mjtCatBit;
+.. mujoco-include:: mjtCatBit
 
 | Defined in `mjvisualize.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjvisualize.h>`_
 
@@ -708,18 +373,7 @@ mjtCatBit
 mjtMouse
 ~~~~~~~~
 
-.. code-block:: C
-
-   typedef enum _mjtMouse
-   {
-       mjMOUSE_NONE         = 0,       // no action
-       mjMOUSE_ROTATE_V,               // rotate, vertical plane
-       mjMOUSE_ROTATE_H,               // rotate, horizontal plane
-       mjMOUSE_MOVE_V,                 // move, vertical plane
-       mjMOUSE_MOVE_H,                 // move, horizontal plane
-       mjMOUSE_ZOOM,                   // zoom
-       mjMOUSE_SELECT                  // selection
-   } mjtMouse;
+.. mujoco-include:: mjtMouse
 
 | Defined in `mjvisualize.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjvisualize.h>`_
 
@@ -731,13 +385,7 @@ mjtMouse
 mjtPertBit
 ~~~~~~~~~~
 
-.. code-block:: C
-
-   typedef enum _mjtPertBit
-   {
-       mjPERT_TRANSLATE    = 1,        // translation
-       mjPERT_ROTATE       = 2         // rotation
-   } mjtPertBit;
+.. mujoco-include:: mjtPertBit
 
 | Defined in `mjvisualize.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjvisualize.h>`_
 
@@ -750,15 +398,7 @@ mjtPertBit
 mjtCamera
 ~~~~~~~~~
 
-.. code-block:: C
-
-   typedef enum _mjtCamera
-   {
-       mjCAMERA_FREE        = 0,       // free camera
-       mjCAMERA_TRACKING,              // tracking camera; uses trackbodyid
-       mjCAMERA_FIXED,                 // fixed camera; uses fixedcamid
-       mjCAMERA_USER                   // user is responsible for setting OpenGL camera
-   } mjtCamera;
+.. mujoco-include:: mjtCamera
 
 | Defined in `mjvisualize.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjvisualize.h>`_
 
@@ -769,27 +409,7 @@ mjtCamera
 mjtLabel
 ~~~~~~~~
 
-.. code-block:: C
-
-   typedef enum _mjtLabel
-   {
-       mjLABEL_NONE        = 0,        // nothing
-       mjLABEL_BODY,                   // body labels
-       mjLABEL_JOINT,                  // joint labels
-       mjLABEL_GEOM,                   // geom labels
-       mjLABEL_SITE,                   // site labels
-       mjLABEL_CAMERA,                 // camera labels
-       mjLABEL_LIGHT,                  // light labels
-       mjLABEL_TENDON,                 // tendon labels
-       mjLABEL_ACTUATOR,               // actuator labels
-       mjLABEL_CONSTRAINT,             // constraint labels
-       mjLABEL_SKIN,                   // skin labels
-       mjLABEL_SELECTION,              // selected object
-       mjLABEL_SELPNT,                 // coordinates of selection point
-       mjLABEL_CONTACTFORCE,           // magnitude of contact force
-
-       mjNLABEL                        // number of label types
-   } mjtLabel;
+.. mujoco-include:: mjtLabel
 
 | Defined in `mjvisualize.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjvisualize.h>`_
 
@@ -800,20 +420,7 @@ mjtLabel
 mjtFrame
 ~~~~~~~~
 
-.. code-block:: C
-
-   typedef enum _mjtFrame
-   {
-       mjFRAME_NONE        = 0,        // no frames
-       mjFRAME_BODY,                   // body frames
-       mjFRAME_GEOM,                   // geom frames
-       mjFRAME_SITE,                   // site frames
-       mjFRAME_CAMERA,                 // camera frames
-       mjFRAME_LIGHT,                  // light frames
-       mjFRAME_WORLD,                  // world frame
-
-       mjNFRAME                        // number of visualization frames
-   } mjtFrame;
+.. mujoco-include:: mjtFrame
 
 | Defined in `mjvisualize.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjvisualize.h>`_
 
@@ -824,35 +431,7 @@ mjtFrame
 mjtVisFlag
 ~~~~~~~~~~
 
-.. code-block:: C
-
-   typedef enum _mjtVisFlag
-   {
-       mjVIS_CONVEXHULL    = 0,        // mesh convex hull
-       mjVIS_TEXTURE,                  // textures
-       mjVIS_JOINT,                    // joints
-       mjVIS_ACTUATOR,                 // actuators
-       mjVIS_CAMERA,                   // cameras
-       mjVIS_LIGHT,                    // lights
-       mjVIS_TENDON,                   // tendons
-       mjVIS_RANGEFINDER,              // rangefinder sensors
-       mjVIS_CONSTRAINT,               // point constraints
-       mjVIS_INERTIA,                  // equivalent inertia boxes
-       mjVIS_SCLINERTIA,               // scale equivalent inertia boxes with mass
-       mjVIS_PERTFORCE,                // perturbation force
-       mjVIS_PERTOBJ,                  // perturbation object
-       mjVIS_CONTACTPOINT,             // contact points
-       mjVIS_CONTACTFORCE,             // contact force
-       mjVIS_CONTACTSPLIT,             // split contact force into normal and tanget
-       mjVIS_TRANSPARENT,              // make dynamic geoms more transparent
-       mjVIS_AUTOCONNECT,              // auto connect joints and body coms
-       mjVIS_COM,                      // center of mass
-       mjVIS_SELECT,                   // selection point
-       mjVIS_STATIC,                   // static bodies
-       mjVIS_SKIN,                     // skin
-
-       mjNVISFLAG                      // number of visualization flags
-   } mjtVisFlag;
+.. mujoco-include:: mjtVisFlag
 
 | Defined in `mjvisualize.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjvisualize.h>`_
 
@@ -864,23 +443,7 @@ mjtVisFlag
 mjtRndFlag
 ~~~~~~~~~~
 
-.. code-block:: C
-
-   typedef enum _mjtRndFlag
-   {
-       mjRND_SHADOW        = 0,        // shadows
-       mjRND_WIREFRAME,                // wireframe
-       mjRND_REFLECTION,               // reflections
-       mjRND_ADDITIVE,                 // additive transparency
-       mjRND_SKYBOX,                   // skybox
-       mjRND_FOG,                      // fog
-       mjRND_HAZE,                     // haze
-       mjRND_SEGMENT,                  // segmentation with random color
-       mjRND_IDCOLOR,                  // segmentation with segid+1 color
-       mjRND_CULL_FACE,                // cull backward faces
-
-       mjNRNDFLAG                      // number of rendering flags
-   } mjtRndFlag;
+.. mujoco-include:: mjtRndFlag
 
 | Defined in `mjvisualize.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjvisualize.h>`_
 
@@ -891,14 +454,7 @@ mjtRndFlag
 mjtStereo
 ~~~~~~~~~
 
-.. code-block:: C
-
-   typedef enum _mjtStereo
-   {
-       mjSTEREO_NONE       = 0,        // no stereo; use left eye only
-       mjSTEREO_QUADBUFFERED,          // quad buffered; revert to side-by-side if no hardware support
-       mjSTEREO_SIDEBYSIDE             // side-by-side
-   } mjtStereo;
+.. mujoco-include:: mjtStereo
 
 | Defined in `mjvisualize.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjvisualize.h>`_
 
@@ -909,15 +465,7 @@ mjtStereo
 mjtGridPos
 ~~~~~~~~~~
 
-.. code-block:: C
-
-   typedef enum _mjtGridPos
-   {
-       mjGRID_TOPLEFT      = 0,        // top left
-       mjGRID_TOPRIGHT,                // top right
-       mjGRID_BOTTOMLEFT,              // bottom left
-       mjGRID_BOTTOMRIGHT              // bottom right
-   } mjtGridPos;
+.. mujoco-include:: mjtGridPos
 
 | Defined in `mjrender.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjrender.h>`_
 
@@ -929,13 +477,7 @@ mjtGridPos
 mjtFramebuffer
 ~~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   typedef enum _mjtFramebuffer
-   {
-       mjFB_WINDOW         = 0,        // default/window buffer
-       mjFB_OFFSCREEN                  // offscreen buffer
-   } mjtFramebuffer;
+.. mujoco-include:: mjtFramebuffer
 
 | Defined in `mjrender.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjrender.h>`_
 
@@ -946,17 +488,7 @@ mjtFramebuffer
 mjtFontScale
 ~~~~~~~~~~~~
 
-.. code-block:: C
-
-   typedef enum _mjtFontScale
-   {
-       mjFONTSCALE_50      = 50,       // 50% scale, suitable for low-res rendering
-       mjFONTSCALE_100     = 100,      // normal scale, suitable in the absence of DPI scaling
-       mjFONTSCALE_150     = 150,      // 150% scale
-       mjFONTSCALE_200     = 200,      // 200% scale
-       mjFONTSCALE_250     = 250,      // 250% scale
-       mjFONTSCALE_300     = 300       // 300% scale
-   } mjtFontScale;
+.. mujoco-include:: mjtFontScale
 
 | Defined in `mjrender.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjrender.h>`_
 
@@ -968,14 +500,7 @@ mjtFontScale
 mjtFont
 ~~~~~~~
 
-.. code-block:: C
-
-   typedef enum _mjtFont
-   {
-       mjFONT_NORMAL       = 0,        // normal font
-       mjFONT_SHADOW,                  // normal font with shadow (for higher contrast)
-       mjFONT_BIG                      // big font (for user alerts)
-   } mjtFont;
+.. mujoco-include:: mjtFont
 
 | Defined in `mjrender.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjrender.h>`_
 
@@ -986,15 +511,7 @@ mjtFont
 mjtButton
 ~~~~~~~~~
 
-.. code-block:: C
-
-   typedef enum _mjtButton         // mouse button
-   {
-       mjBUTTON_NONE = 0,          // no button
-       mjBUTTON_LEFT,              // left button
-       mjBUTTON_RIGHT,             // right button
-       mjBUTTON_MIDDLE             // middle button
-   } mjtButton;
+.. mujoco-include:: mjtButton
 
 | Defined in `mjui.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjui.h>`_
 
@@ -1005,18 +522,7 @@ mjtButton
 mjtEvent
 ~~~~~~~~
 
-.. code-block:: C
-
-   typedef enum _mjtEvent          // mouse and keyboard event type
-   {
-       mjEVENT_NONE = 0,           // no event
-       mjEVENT_MOVE,               // mouse move
-       mjEVENT_PRESS,              // mouse button press
-       mjEVENT_RELEASE,            // mouse button release
-       mjEVENT_SCROLL,             // scroll
-       mjEVENT_KEY,                // key press
-       mjEVENT_RESIZE              // resize
-   } mjtEvent;
+.. mujoco-include:: mjtEvent
 
 | Defined in `mjui.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjui.h>`_
 
@@ -1027,29 +533,7 @@ mjtEvent
 mjtItem
 ~~~~~~~
 
-.. code-block:: C
-
-   typedef enum _mjtItem           // UI item type
-   {
-       mjITEM_END = -2,            // end of definition list (not an item)
-       mjITEM_SECTION = -1,        // section (not an item)
-       mjITEM_SEPARATOR = 0,       // separator
-       mjITEM_STATIC,              // static text
-       mjITEM_BUTTON,              // button
-
-       // the rest have data pointer
-       mjITEM_CHECKINT,            // check box, int value
-       mjITEM_CHECKBYTE,           // check box, mjtByte value
-       mjITEM_RADIO,               // radio group
-       mjITEM_SELECT,              // selection box
-       mjITEM_SLIDERINT,           // slider, int value
-       mjITEM_SLIDERNUM,           // slider, mjtNum value
-       mjITEM_EDITINT,             // editable array, int values
-       mjITEM_EDITNUM,             // editable array, mjtNum values
-       mjITEM_EDITTXT,             // editable text
-
-       mjNITEM                     // number of item types
-   } mjtItem;
+.. mujoco-include:: mjtItem
 
 | Defined in `mjui.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjui.h>`_
 
@@ -1157,16 +641,7 @@ for each field.
 mjVFS
 ~~~~~
 
-.. code-block:: C
-
-   struct _mjVFS                       // virtual file system for loading from memory
-   {
-       int   nfile;                    // number of files present
-       char  filename[mjMAXVFS][mjMAXVFSNAME]; // file name without path
-       int   filesize[mjMAXVFS];       // file size in bytes
-       void* filedata[mjMAXVFS];       // buffer with file data
-   };
-   typedef struct _mjVFS mjVFS;
+.. mujoco-include:: mjVFS
 
 | Defined in `mjmodel.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjmodel.h>`_
 
@@ -1178,45 +653,7 @@ mjVFS
 mjOption
 ~~~~~~~~
 
-.. code-block:: C
-
-   struct _mjOption                    // physics options
-   {
-       // timing parameters
-       mjtNum timestep;                // timestep
-       mjtNum apirate;                 // update rate for remote API (Hz)
-
-       // solver parameters
-       mjtNum impratio;                // ratio of friction-to-normal contact impedance
-       mjtNum tolerance;               // main solver tolerance
-       mjtNum noslip_tolerance;        // noslip solver tolerance
-       mjtNum mpr_tolerance;           // MPR solver tolerance
-
-       // physical constants
-       mjtNum gravity[3];              // gravitational acceleration
-       mjtNum wind[3];                 // wind (for lift, drag and viscosity)
-       mjtNum magnetic[3];             // global magnetic flux
-       mjtNum density;                 // density of medium
-       mjtNum viscosity;               // viscosity of medium
-
-       // override contact solver parameters (if enabled)
-       mjtNum o_margin;                // margin
-       mjtNum o_solref[mjNREF];        // solref
-       mjtNum o_solimp[mjNIMP];        // solimp
-
-       // discrete settings
-       int integrator;                 // integration mode (mjtIntegrator)
-       int collision;                  // collision mode (mjtCollision)
-       int cone;                       // type of friction cone (mjtCone)
-       int jacobian;                   // type of Jacobian (mjtJacobian)
-       int solver;                     // solver algorithm (mjtSolver)
-       int iterations;                 // maximum number of main solver iterations
-       int noslip_iterations;          // maximum number of noslip solver iterations
-       int mpr_iterations;             // maximum number of MPR solver iterations
-       int disableflags;               // bit flags for disabling standard features
-       int enableflags;                // bit flags for enabling optional features
-   };
-   typedef struct _mjOption mjOption;
+.. mujoco-include:: mjOption
 
 | Defined in `mjmodel.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjmodel.h>`_
 
@@ -1228,102 +665,7 @@ mjOption
 mjVisual
 ~~~~~~~~
 
-.. code-block:: C
-
-   struct _mjVisual                    // visualization options
-   {
-       struct                          // global parameters
-       {
-           float fovy;                 // y-field of view for free camera (degrees)
-           float ipd;                  // inter-pupilary distance for free camera
-           float linewidth;            // line width for wireframe and ray rendering
-           float glow;                 // glow coefficient for selected body
-           float realtime;             // initial real-time factor (1: real time)
-           int offwidth;               // width of offscreen buffer
-           int offheight;              // height of offscreen buffer
-       } global;
-
-       struct                          // rendering quality
-       {
-           int   shadowsize;           // size of shadowmap texture
-           int   offsamples;           // number of multisamples for offscreen rendering
-           int   numslices;            // number of slices for builtin geom drawing
-           int   numstacks;            // number of stacks for builtin geom drawing
-           int   numquads;             // number of quads for box rendering
-       } quality;
-
-       struct                          // head light
-       {
-           float ambient[3];           // ambient rgb (alpha=1)
-           float diffuse[3];           // diffuse rgb (alpha=1)
-           float specular[3];          // specular rgb (alpha=1)
-           int   active;               // is headlight active
-       } headlight;
-
-       struct                          // mapping
-       {
-           float stiffness;            // mouse perturbation stiffness (space->force)
-           float stiffnessrot;         // mouse perturbation stiffness (space->torque)
-           float force;                // from force units to space units
-           float torque;               // from torque units to space units
-           float alpha;                // scale geom alphas when transparency is enabled
-           float fogstart;             // OpenGL fog starts at fogstart * mjModel.stat.extent
-           float fogend;               // OpenGL fog ends at fogend * mjModel.stat.extent
-           float znear;                // near clipping plane = znear * mjModel.stat.extent
-           float zfar;                 // far clipping plane = zfar * mjModel.stat.extent
-           float haze;                 // haze ratio
-           float shadowclip;           // directional light: shadowclip * mjModel.stat.extent
-           float shadowscale;          // spot light: shadowscale * light.cutoff
-           float actuatortendon;       // scale tendon width
-       } map;
-
-       struct                          // scale of decor elements relative to mean body size
-       {
-           float forcewidth;           // width of force arrow
-           float contactwidth;         // contact width
-           float contactheight;        // contact height
-           float connect;              // autoconnect capsule width
-           float com;                  // com radius
-           float camera;               // camera object
-           float light;                // light object
-           float selectpoint;          // selection point
-           float jointlength;          // joint length
-           float jointwidth;           // joint width
-           float actuatorlength;       // actuator length
-           float actuatorwidth;        // actuator width
-           float framelength;          // bodyframe axis length
-           float framewidth;           // bodyframe axis width
-           float constraint;           // constraint width
-           float slidercrank;          // slidercrank width
-       } scale;
-
-       struct                          // color of decor elements
-       {
-           float fog[4];               // fog
-           float haze[4];              // haze
-           float force[4];             // external force
-           float inertia[4];           // inertia box
-           float joint[4];             // joint
-           float actuator[4];          // actuator, neutral
-           float actuatornegative[4];  // actuator, negative limit
-           float actuatorpositive[4];  // actuator, positive limit
-           float com[4];               // center of mass
-           float camera[4];            // camera object
-           float light[4];             // light object
-           float selectpoint[4];       // selection point
-           float connect[4];           // auto connect
-           float contactpoint[4];      // contact point
-           float contactforce[4];      // contact force
-           float contactfriction[4];   // contact friction force
-           float contacttorque[4];     // contact torque
-           float contactgap[4];        // contact point in gap
-           float rangefinder[4];       // rangefinder ray
-           float constraint[4];        // constraint
-           float slidercrank[4];       // slidercrank
-           float crankbroken[4];       // used when crank must be stretched/broken
-       } rgba;
-   };
-   typedef struct _mjVisual mjVisual;
+.. mujoco-include:: mjVisual
 
 | Defined in `mjmodel.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjmodel.h>`_
 
@@ -1335,17 +677,7 @@ mjVisual
 mjStatistic
 ~~~~~~~~~~~
 
-.. code-block:: C
-
-   struct _mjStatistic                 // model statistics (in qpos0)
-   {
-       mjtNum meaninertia;             // mean diagonal inertia
-       mjtNum meanmass;                // mean body mass
-       mjtNum meansize;                // mean body size
-       mjtNum extent;                  // spatial extent
-       mjtNum center[3];               // center of model
-   };
-   typedef struct _mjStatistic mjStatistic;
+.. mujoco-include:: mjStatistic
 
 | Defined in `mjmodel.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjmodel.h>`_
 
@@ -1357,427 +689,7 @@ mjStatistic
 mjModel
 ~~~~~~~
 
-.. code-block:: C
-
-   struct _mjModel
-   {
-       // ------------------------------- sizes
-
-       // sizes needed at mjModel construction
-       int nq;                         // number of generalized coordinates = dim(qpos)
-       int nv;                         // number of degrees of freedom = dim(qvel)
-       int nu;                         // number of actuators/controls = dim(ctrl)
-       int na;                         // number of activation states = dim(act)
-       int nbody;                      // number of bodies
-       int njnt;                       // number of joints
-       int ngeom;                      // number of geoms
-       int nsite;                      // number of sites
-       int ncam;                       // number of cameras
-       int nlight;                     // number of lights
-       int nmesh;                      // number of meshes
-       int nmeshvert;                  // number of vertices in all meshes
-       int nmeshtexvert;               // number of vertices with texcoords in all meshes
-       int nmeshface;                  // number of triangular faces in all meshes
-       int nmeshgraph;                 // number of ints in mesh auxiliary data
-       int nskin;                      // number of skins
-       int nskinvert;                  // number of vertices in all skins
-       int nskintexvert;               // number of vertiex with texcoords in all skins
-       int nskinface;                  // number of triangular faces in all skins
-       int nskinbone;                  // number of bones in all skins
-       int nskinbonevert;              // number of vertices in all skin bones
-       int nhfield;                    // number of heightfields
-       int nhfielddata;                // number of data points in all heightfields
-       int ntex;                       // number of textures
-       int ntexdata;                   // number of bytes in texture rgb data
-       int nmat;                       // number of materials
-       int npair;                      // number of predefined geom pairs
-       int nexclude;                   // number of excluded geom pairs
-       int neq;                        // number of equality constraints
-       int ntendon;                    // number of tendons
-       int nwrap;                      // number of wrap objects in all tendon paths
-       int nsensor;                    // number of sensors
-       int nnumeric;                   // number of numeric custom fields
-       int nnumericdata;               // number of mjtNums in all numeric fields
-       int ntext;                      // number of text custom fields
-       int ntextdata;                  // number of mjtBytes in all text fields
-       int ntuple;                     // number of tuple custom fields
-       int ntupledata;                 // number of objects in all tuple fields
-       int nkey;                       // number of keyframes
-       int nmocap;                     // number of mocap bodies
-       int nplugin;                    // number of plugin instances
-       int npluginattr;                // number of chars in all plugin config attributes
-       int nuser_body;                 // number of mjtNums in body_user
-       int nuser_jnt;                  // number of mjtNums in jnt_user
-       int nuser_geom;                 // number of mjtNums in geom_user
-       int nuser_site;                 // number of mjtNums in site_user
-       int nuser_cam;                  // number of mjtNums in cam_user
-       int nuser_tendon;               // number of mjtNums in tendon_user
-       int nuser_actuator;             // number of mjtNums in actuator_user
-       int nuser_sensor;               // number of mjtNums in sensor_user
-       int nnames;                     // number of chars in all names
-
-       // sizes set after mjModel construction (only affect mjData)
-       int nM;                         // number of non-zeros in sparse inertia matrix
-       int nD;                         // number of non-zeros in sparse derivative matrix
-       int nemax;                      // number of potential equality-constraint rows
-       int njmax;                      // number of available rows in constraint Jacobian
-       int nconmax;                    // number of potential contacts in contact list
-       int nstack;                     // number of fields in mjData stack
-       int nuserdata;                  // number of extra fields in mjData
-       int nsensordata;                // number of fields in sensor data vector
-       int npluginstate;               // number of fields in the plugin state vector
-
-       int nbuffer;                    // number of bytes in buffer
-
-       // ------------------------------- options and statistics
-
-       mjOption opt;                   // physics options
-       mjVisual vis;                   // visualization options
-       mjStatistic stat;               // model statistics
-
-       // ------------------------------- buffers
-
-       // main buffer
-       void*     buffer;               // main buffer; all pointers point in it    (nbuffer)
-
-       // default generalized coordinates
-       mjtNum*   qpos0;                // qpos values at default pose              (nq x 1)
-       mjtNum*   qpos_spring;          // reference pose for springs               (nq x 1)
-
-       // bodies
-       int*      body_parentid;        // id of body's parent                      (nbody x 1)
-       int*      body_rootid;          // id of root above body                    (nbody x 1)
-       int*      body_weldid;          // id of body that this body is welded to   (nbody x 1)
-       int*      body_mocapid;         // id of mocap data; -1: none               (nbody x 1)
-       int*      body_jntnum;          // number of joints for this body           (nbody x 1)
-       int*      body_jntadr;          // start addr of joints; -1: no joints      (nbody x 1)
-       int*      body_dofnum;          // number of motion degrees of freedom      (nbody x 1)
-       int*      body_dofadr;          // start addr of dofs; -1: no dofs          (nbody x 1)
-       int*      body_geomnum;         // number of geoms                          (nbody x 1)
-       int*      body_geomadr;         // start addr of geoms; -1: no geoms        (nbody x 1)
-       mjtByte*  body_simple;          // body is simple (has diagonal M)          (nbody x 1)
-       mjtByte*  body_sameframe;       // inertial frame is same as body frame     (nbody x 1)
-       mjtNum*   body_pos;             // position offset rel. to parent body      (nbody x 3)
-       mjtNum*   body_quat;            // orientation offset rel. to parent body   (nbody x 4)
-       mjtNum*   body_ipos;            // local position of center of mass         (nbody x 3)
-       mjtNum*   body_iquat;           // local orientation of inertia ellipsoid   (nbody x 4)
-       mjtNum*   body_mass;            // mass                                     (nbody x 1)
-       mjtNum*   body_subtreemass;     // mass of subtree starting at this body    (nbody x 1)
-       mjtNum*   body_inertia;         // diagonal inertia in ipos/iquat frame     (nbody x 3)
-       mjtNum*   body_invweight0;      // mean inv inert in qpos0 (trn, rot)       (nbody x 2)
-       mjtNum*   body_gravcomp;        // antigravity force, units of body weight  (nbody x 1)
-       mjtNum*   body_user;            // user data                                (nbody x nuser_body)
-       int*      body_plugin;          // plugin instance id (-1 if not in use)    (nbody x 1)
-
-       // joints
-       int*      jnt_type;             // type of joint (mjtJoint)                 (njnt x 1)
-       int*      jnt_qposadr;          // start addr in 'qpos' for joint's data    (njnt x 1)
-       int*      jnt_dofadr;           // start addr in 'qvel' for joint's data    (njnt x 1)
-       int*      jnt_bodyid;           // id of joint's body                       (njnt x 1)
-       int*      jnt_group;            // group for visibility                     (njnt x 1)
-       mjtByte*  jnt_limited;          // does joint have limits                   (njnt x 1)
-       mjtNum*   jnt_solref;           // constraint solver reference: limit       (njnt x mjNREF)
-       mjtNum*   jnt_solimp;           // constraint solver impedance: limit       (njnt x mjNIMP)
-       mjtNum*   jnt_pos;              // local anchor position                    (njnt x 3)
-       mjtNum*   jnt_axis;             // local joint axis                         (njnt x 3)
-       mjtNum*   jnt_stiffness;        // stiffness coefficient                    (njnt x 1)
-       mjtNum*   jnt_range;            // joint limits                             (njnt x 2)
-       mjtNum*   jnt_margin;           // min distance for limit detection         (njnt x 1)
-       mjtNum*   jnt_user;             // user data                                (njnt x nuser_jnt)
-
-       // dofs
-       int*      dof_bodyid;           // id of dof's body                         (nv x 1)
-       int*      dof_jntid;            // id of dof's joint                        (nv x 1)
-       int*      dof_parentid;         // id of dof's parent; -1: none             (nv x 1)
-       int*      dof_Madr;             // dof address in M-diagonal                (nv x 1)
-       int*      dof_simplenum;        // number of consecutive simple dofs        (nv x 1)
-       mjtNum*   dof_solref;           // constraint solver reference:frictionloss (nv x mjNREF)
-       mjtNum*   dof_solimp;           // constraint solver impedance:frictionloss (nv x mjNIMP)
-       mjtNum*   dof_frictionloss;     // dof friction loss                        (nv x 1)
-       mjtNum*   dof_armature;         // dof armature inertia/mass                (nv x 1)
-       mjtNum*   dof_damping;          // damping coefficient                      (nv x 1)
-       mjtNum*   dof_invweight0;       // diag. inverse inertia in qpos0           (nv x 1)
-       mjtNum*   dof_M0;               // diag. inertia in qpos0                   (nv x 1)
-
-       // geoms
-       int*      geom_type;            // geometric type (mjtGeom)                 (ngeom x 1)
-       int*      geom_contype;         // geom contact type                        (ngeom x 1)
-       int*      geom_conaffinity;     // geom contact affinity                    (ngeom x 1)
-       int*      geom_condim;          // contact dimensionality (1, 3, 4, 6)      (ngeom x 1)
-       int*      geom_bodyid;          // id of geom's body                        (ngeom x 1)
-       int*      geom_dataid;          // id of geom's mesh/hfield (-1: none)      (ngeom x 1)
-       int*      geom_matid;           // material id for rendering                (ngeom x 1)
-       int*      geom_group;           // group for visibility                     (ngeom x 1)
-       int*      geom_priority;        // geom contact priority                    (ngeom x 1)
-       mjtByte*  geom_sameframe;       // same as body frame (1) or iframe (2)     (ngeom x 1)
-       mjtNum*   geom_solmix;          // mixing coef for solref/imp in geom pair  (ngeom x 1)
-       mjtNum*   geom_solref;          // constraint solver reference: contact     (ngeom x mjNREF)
-       mjtNum*   geom_solimp;          // constraint solver impedance: contact     (ngeom x mjNIMP)
-       mjtNum*   geom_size;            // geom-specific size parameters            (ngeom x 3)
-       mjtNum*   geom_rbound;          // radius of bounding sphere                (ngeom x 1)
-       mjtNum*   geom_pos;             // local position offset rel. to body       (ngeom x 3)
-       mjtNum*   geom_quat;            // local orientation offset rel. to body    (ngeom x 4)
-       mjtNum*   geom_friction;        // friction for (slide, spin, roll)         (ngeom x 3)
-       mjtNum*   geom_margin;          // detect contact if dist<margin            (ngeom x 1)
-       mjtNum*   geom_gap;             // include in solver if dist<margin-gap     (ngeom x 1)
-       mjtNum*   geom_fluid;           // fluid interaction parameters             (ngeom x mjNFLUID)
-       mjtNum*   geom_user;            // user data                                (ngeom x nuser_geom)
-       float*    geom_rgba;            // rgba when material is omitted            (ngeom x 4)
-
-       // sites
-       int*      site_type;            // geom type for rendering (mjtGeom)        (nsite x 1)
-       int*      site_bodyid;          // id of site's body                        (nsite x 1)
-       int*      site_matid;           // material id for rendering                (nsite x 1)
-       int*      site_group;           // group for visibility                     (nsite x 1)
-       mjtByte*  site_sameframe;       // same as body frame (1) or iframe (2)     (nsite x 1)
-       mjtNum*   site_size;            // geom size for rendering                  (nsite x 3)
-       mjtNum*   site_pos;             // local position offset rel. to body       (nsite x 3)
-       mjtNum*   site_quat;            // local orientation offset rel. to body    (nsite x 4)
-       mjtNum*   site_user;            // user data                                (nsite x nuser_site)
-       float*    site_rgba;            // rgba when material is omitted            (nsite x 4)
-
-       // cameras
-       int*      cam_mode;             // camera tracking mode (mjtCamLight)       (ncam x 1)
-       int*      cam_bodyid;           // id of camera's body                      (ncam x 1)
-       int*      cam_targetbodyid;     // id of targeted body; -1: none            (ncam x 1)
-       mjtNum*   cam_pos;              // position rel. to body frame              (ncam x 3)
-       mjtNum*   cam_quat;             // orientation rel. to body frame           (ncam x 4)
-       mjtNum*   cam_poscom0;          // global position rel. to sub-com in qpos0 (ncam x 3)
-       mjtNum*   cam_pos0;             // global position rel. to body in qpos0    (ncam x 3)
-       mjtNum*   cam_mat0;             // global orientation in qpos0              (ncam x 9)
-       mjtNum*   cam_fovy;             // y-field of view (deg)                    (ncam x 1)
-       mjtNum*   cam_ipd;              // inter-pupilary distance                  (ncam x 1)
-       mjtNum*   cam_user;             // user data                                (ncam x nuser_cam)
-
-       // lights
-       int*      light_mode;           // light tracking mode (mjtCamLight)        (nlight x 1)
-       int*      light_bodyid;         // id of light's body                       (nlight x 1)
-       int*      light_targetbodyid;   // id of targeted body; -1: none            (nlight x 1)
-       mjtByte*  light_directional;    // directional light                        (nlight x 1)
-       mjtByte*  light_castshadow;     // does light cast shadows                  (nlight x 1)
-       mjtByte*  light_active;         // is light on                              (nlight x 1)
-       mjtNum*   light_pos;            // position rel. to body frame              (nlight x 3)
-       mjtNum*   light_dir;            // direction rel. to body frame             (nlight x 3)
-       mjtNum*   light_poscom0;        // global position rel. to sub-com in qpos0 (nlight x 3)
-       mjtNum*   light_pos0;           // global position rel. to body in qpos0    (nlight x 3)
-       mjtNum*   light_dir0;           // global direction in qpos0                (nlight x 3)
-       float*    light_attenuation;    // OpenGL attenuation (quadratic model)     (nlight x 3)
-       float*    light_cutoff;         // OpenGL cutoff                            (nlight x 1)
-       float*    light_exponent;       // OpenGL exponent                          (nlight x 1)
-       float*    light_ambient;        // ambient rgb (alpha=1)                    (nlight x 3)
-       float*    light_diffuse;        // diffuse rgb (alpha=1)                    (nlight x 3)
-       float*    light_specular;       // specular rgb (alpha=1)                   (nlight x 3)
-
-       // meshes
-       int*      mesh_vertadr;         // first vertex address                     (nmesh x 1)
-       int*      mesh_vertnum;         // number of vertices                       (nmesh x 1)
-       int*      mesh_texcoordadr;     // texcoord data address; -1: no texcoord   (nmesh x 1)
-       int*      mesh_faceadr;         // first face address                       (nmesh x 1)
-       int*      mesh_facenum;         // number of faces                          (nmesh x 1)
-       int*      mesh_graphadr;        // graph data address; -1: no graph         (nmesh x 1)
-       float*    mesh_vert;            // vertex positions for all meshes          (nmeshvert x 3)
-       float*    mesh_normal;          // vertex normals for all meshes            (nmeshvert x 3)
-       float*    mesh_texcoord;        // vertex texcoords for all meshes          (nmeshtexvert x 2)
-       int*      mesh_face;            // triangle face data                       (nmeshface x 3)
-       int*      mesh_graph;           // convex graph data                        (nmeshgraph x 1)
-
-       // skins
-       int*      skin_matid;           // skin material id; -1: none               (nskin x 1)
-       int*      skin_group;           // group for visibility                     (nskin x 1)
-       float*    skin_rgba;            // skin rgba                                (nskin x 4)
-       float*    skin_inflate;         // inflate skin in normal direction         (nskin x 1)
-       int*      skin_vertadr;         // first vertex address                     (nskin x 1)
-       int*      skin_vertnum;         // number of vertices                       (nskin x 1)
-       int*      skin_texcoordadr;     // texcoord data address; -1: no texcoord   (nskin x 1)
-       int*      skin_faceadr;         // first face address                       (nskin x 1)
-       int*      skin_facenum;         // number of faces                          (nskin x 1)
-       int*      skin_boneadr;         // first bone in skin                       (nskin x 1)
-       int*      skin_bonenum;         // number of bones in skin                  (nskin x 1)
-       float*    skin_vert;            // vertex positions for all skin meshes     (nskinvert x 3)
-       float*    skin_texcoord;        // vertex texcoords for all skin meshes     (nskintexvert x 2)
-       int*      skin_face;            // triangle faces for all skin meshes       (nskinface x 3)
-       int*      skin_bonevertadr;     // first vertex in each bone                (nskinbone x 1)
-       int*      skin_bonevertnum;     // number of vertices in each bone          (nskinbone x 1)
-       float*    skin_bonebindpos;     // bind pos of each bone                    (nskinbone x 3)
-       float*    skin_bonebindquat;    // bind quat of each bone                   (nskinbone x 4)
-       int*      skin_bonebodyid;      // body id of each bone                     (nskinbone x 1)
-       int*      skin_bonevertid;      // mesh ids of vertices in each bone        (nskinbonevert x 1)
-       float*    skin_bonevertweight;  // weights of vertices in each bone         (nskinbonevert x 1)
-
-       // height fields
-       mjtNum*   hfield_size;          // (x, y, z_top, z_bottom)                  (nhfield x 4)
-       int*      hfield_nrow;          // number of rows in grid                   (nhfield x 1)
-       int*      hfield_ncol;          // number of columns in grid                (nhfield x 1)
-       int*      hfield_adr;           // address in hfield_data                   (nhfield x 1)
-       float*    hfield_data;          // elevation data                           (nhfielddata x 1)
-
-       // textures
-       int*      tex_type;             // texture type (mjtTexture)                (ntex x 1)
-       int*      tex_height;           // number of rows in texture image          (ntex x 1)
-       int*      tex_width;            // number of columns in texture image       (ntex x 1)
-       int*      tex_adr;              // address in rgb                           (ntex x 1)
-       mjtByte*  tex_rgb;              // rgb (alpha = 1)                          (ntexdata x 1)
-
-       // materials
-       int*      mat_texid;            // texture id; -1: none                     (nmat x 1)
-       mjtByte*  mat_texuniform;       // make texture cube uniform                (nmat x 1)
-       float*    mat_texrepeat;        // texture repetition for 2d mapping        (nmat x 2)
-       float*    mat_emission;         // emission (x rgb)                         (nmat x 1)
-       float*    mat_specular;         // specular (x white)                       (nmat x 1)
-       float*    mat_shininess;        // shininess coef                           (nmat x 1)
-       float*    mat_reflectance;      // reflectance (0: disable)                 (nmat x 1)
-       float*    mat_rgba;             // rgba                                     (nmat x 4)
-
-       // predefined geom pairs for collision detection; has precedence over exclude
-       int*      pair_dim;             // contact dimensionality                   (npair x 1)
-       int*      pair_geom1;           // id of geom1                              (npair x 1)
-       int*      pair_geom2;           // id of geom2                              (npair x 1)
-       int*      pair_signature;       // (body1+1)<<16 + body2+1                  (npair x 1)
-       mjtNum*   pair_solref;          // constraint solver reference: contact     (npair x mjNREF)
-       mjtNum*   pair_solimp;          // constraint solver impedance: contact     (npair x mjNIMP)
-       mjtNum*   pair_margin;          // detect contact if dist<margin            (npair x 1)
-       mjtNum*   pair_gap;             // include in solver if dist<margin-gap     (npair x 1)
-       mjtNum*   pair_friction;        // tangent1, 2, spin, roll1, 2              (npair x 5)
-
-       // excluded body pairs for collision detection
-       int*      exclude_signature;    // (body1+1)<<16 + body2+1                  (nexclude x 1)
-
-       // equality constraints
-       int*      eq_type;              // constraint type (mjtEq)                  (neq x 1)
-       int*      eq_obj1id;            // id of object 1                           (neq x 1)
-       int*      eq_obj2id;            // id of object 2                           (neq x 1)
-       mjtByte*  eq_active;            // enable/disable constraint                (neq x 1)
-       mjtNum*   eq_solref;            // constraint solver reference              (neq x mjNREF)
-       mjtNum*   eq_solimp;            // constraint solver impedance              (neq x mjNIMP)
-       mjtNum*   eq_data;              // numeric data for constraint              (neq x mjNEQDATA)
-
-       // tendons
-       int*      tendon_adr;           // address of first object in tendon's path (ntendon x 1)
-       int*      tendon_num;           // number of objects in tendon's path       (ntendon x 1)
-       int*      tendon_matid;         // material id for rendering                (ntendon x 1)
-       int*      tendon_group;         // group for visibility                     (ntendon x 1)
-       mjtByte*  tendon_limited;       // does tendon have length limits           (ntendon x 1)
-       mjtNum*   tendon_width;         // width for rendering                      (ntendon x 1)
-       mjtNum*   tendon_solref_lim;    // constraint solver reference: limit       (ntendon x mjNREF)
-       mjtNum*   tendon_solimp_lim;    // constraint solver impedance: limit       (ntendon x mjNIMP)
-       mjtNum*   tendon_solref_fri;    // constraint solver reference: friction    (ntendon x mjNREF)
-       mjtNum*   tendon_solimp_fri;    // constraint solver impedance: friction    (ntendon x mjNIMP)
-       mjtNum*   tendon_range;         // tendon length limits                     (ntendon x 2)
-       mjtNum*   tendon_margin;        // min distance for limit detection         (ntendon x 1)
-       mjtNum*   tendon_stiffness;     // stiffness coefficient                    (ntendon x 1)
-       mjtNum*   tendon_damping;       // damping coefficient                      (ntendon x 1)
-       mjtNum*   tendon_frictionloss;  // loss due to friction                     (ntendon x 1)
-       mjtNum*   tendon_lengthspring;  // spring resting length range              (ntendon x 2)
-       mjtNum*   tendon_length0;       // tendon length in qpos0                   (ntendon x 1)
-       mjtNum*   tendon_invweight0;    // inv. weight in qpos0                     (ntendon x 1)
-       mjtNum*   tendon_user;          // user data                                (ntendon x nuser_tendon)
-       float*    tendon_rgba;          // rgba when material is omitted            (ntendon x 4)
-
-       // list of all wrap objects in tendon paths
-       int*      wrap_type;            // wrap object type (mjtWrap)               (nwrap x 1)
-       int*      wrap_objid;           // object id: geom, site, joint             (nwrap x 1)
-       mjtNum*   wrap_prm;             // divisor, joint coef, or site id          (nwrap x 1)
-
-       // actuators
-       int*      actuator_trntype;     // transmission type (mjtTrn)               (nu x 1)
-       int*      actuator_dyntype;     // dynamics type (mjtDyn)                   (nu x 1)
-       int*      actuator_gaintype;    // gain type (mjtGain)                      (nu x 1)
-       int*      actuator_biastype;    // bias type (mjtBias)                      (nu x 1)
-       int*      actuator_trnid;       // transmission id: joint, tendon, site     (nu x 2)
-       int*      actuator_actadr;      // first activation address; -1: stateless  (nu x 1)
-       int*      actuator_actnum;      // number of activation variables           (nu x 1)
-       int*      actuator_group;       // group for visibility                     (nu x 1)
-       mjtByte*  actuator_ctrllimited; // is control limited                       (nu x 1)
-       mjtByte*  actuator_forcelimited;// is force limited                         (nu x 1)
-       mjtByte*  actuator_actlimited;  // is activation limited                    (nu x 1)
-       mjtNum*   actuator_dynprm;      // dynamics parameters                      (nu x mjNDYN)
-       mjtNum*   actuator_gainprm;     // gain parameters                          (nu x mjNGAIN)
-       mjtNum*   actuator_biasprm;     // bias parameters                          (nu x mjNBIAS)
-       mjtNum*   actuator_ctrlrange;   // range of controls                        (nu x 2)
-       mjtNum*   actuator_forcerange;  // range of forces                          (nu x 2)
-       mjtNum*   actuator_actrange;    // range of activations                     (nu x 2)
-       mjtNum*   actuator_gear;        // scale length and transmitted force       (nu x 6)
-       mjtNum*   actuator_cranklength; // crank length for slider-crank            (nu x 1)
-       mjtNum*   actuator_acc0;        // acceleration from unit force in qpos0    (nu x 1)
-       mjtNum*   actuator_length0;     // actuator length in qpos0                 (nu x 1)
-       mjtNum*   actuator_lengthrange; // feasible actuator length range           (nu x 2)
-       mjtNum*   actuator_user;        // user data                                (nu x nuser_actuator)
-       int*      actuator_plugin;      // plugin instance id; -1: not a plugin     (nu x 1)
-
-       // sensors
-       int*      sensor_type;          // sensor type (mjtSensor)                  (nsensor x 1)
-       int*      sensor_datatype;      // numeric data type (mjtDataType)          (nsensor x 1)
-       int*      sensor_needstage;     // required compute stage (mjtStage)        (nsensor x 1)
-       int*      sensor_objtype;       // type of sensorized object (mjtObj)       (nsensor x 1)
-       int*      sensor_objid;         // id of sensorized object                  (nsensor x 1)
-       int*      sensor_reftype;       // type of reference frame (mjtObj)         (nsensor x 1)
-       int*      sensor_refid;         // id of reference frame; -1: global frame  (nsensor x 1)
-       int*      sensor_dim;           // number of scalar outputs                 (nsensor x 1)
-       int*      sensor_adr;           // address in sensor array                  (nsensor x 1)
-       mjtNum*   sensor_cutoff;        // cutoff for real and positive; 0: ignore  (nsensor x 1)
-       mjtNum*   sensor_noise;         // noise standard deviation                 (nsensor x 1)
-       mjtNum*   sensor_user;          // user data                                (nsensor x nuser_sensor)
-       int*      sensor_plugin;        // plugin instance id; -1: not a plugin     (nsensor x 1)
-
-       // plugin instances
-       int*      plugin;               // globally registered plugin slot number   (nplugin x 1)
-       int*      plugin_stateadr;      // address in the plugin state array        (nplugin x 1)
-       int*      plugin_statenum;      // number of states in the plugin instance  (nplugin x 1)
-       char*     plugin_attr;          // config attributes of plugin instances    (npluginattr x 1)
-       int*      plugin_attradr;       // address to each instance's config attrib (nplugin x 1)
-
-       // custom numeric fields
-       int*      numeric_adr;          // address of field in numeric_data         (nnumeric x 1)
-       int*      numeric_size;         // size of numeric field                    (nnumeric x 1)
-       mjtNum*   numeric_data;         // array of all numeric fields              (nnumericdata x 1)
-
-       // custom text fields
-       int*      text_adr;             // address of text in text_data             (ntext x 1)
-       int*      text_size;            // size of text field (strlen+1)            (ntext x 1)
-       char*     text_data;            // array of all text fields (0-terminated)  (ntextdata x 1)
-
-       // custom tuple fields
-       int*      tuple_adr;            // address of text in text_data             (ntuple x 1)
-       int*      tuple_size;           // number of objects in tuple               (ntuple x 1)
-       int*      tuple_objtype;        // array of object types in all tuples      (ntupledata x 1)
-       int*      tuple_objid;          // array of object ids in all tuples        (ntupledata x 1)
-       mjtNum*   tuple_objprm;         // array of object params in all tuples     (ntupledata x 1)
-
-       // keyframes
-       mjtNum*   key_time;             // key time                                 (nkey x 1)
-       mjtNum*   key_qpos;             // key position                             (nkey x nq)
-       mjtNum*   key_qvel;             // key velocity                             (nkey x nv)
-       mjtNum*   key_act;              // key activation                           (nkey x na)
-       mjtNum*   key_mpos;             // key mocap position                       (nkey x 3*nmocap)
-       mjtNum*   key_mquat;            // key mocap quaternion                     (nkey x 4*nmocap)
-       mjtNum*   key_ctrl;             // key control                              (nkey x nu)
-
-       // names
-       int*      name_bodyadr;         // body name pointers                       (nbody x 1)
-       int*      name_jntadr;          // joint name pointers                      (njnt x 1)
-       int*      name_geomadr;         // geom name pointers                       (ngeom x 1)
-       int*      name_siteadr;         // site name pointers                       (nsite x 1)
-       int*      name_camadr;          // camera name pointers                     (ncam x 1)
-       int*      name_lightadr;        // light name pointers                      (nlight x 1)
-       int*      name_meshadr;         // mesh name pointers                       (nmesh x 1)
-       int*      name_skinadr;         // skin name pointers                       (nskin x 1)
-       int*      name_hfieldadr;       // hfield name pointers                     (nhfield x 1)
-       int*      name_texadr;          // texture name pointers                    (ntex x 1)
-       int*      name_matadr;          // material name pointers                   (nmat x 1)
-       int*      name_pairadr;         // geom pair name pointers                  (npair x 1)
-       int*      name_excludeadr;      // exclude name pointers                    (nexclude x 1)
-       int*      name_eqadr;           // equality constraint name pointers        (neq x 1)
-       int*      name_tendonadr;       // tendon name pointers                     (ntendon x 1)
-       int*      name_actuatoradr;     // actuator name pointers                   (nu x 1)
-       int*      name_sensoradr;       // sensor name pointers                     (nsensor x 1)
-       int*      name_numericadr;      // numeric name pointers                    (nnumeric x 1)
-       int*      name_textadr;         // text name pointers                       (ntext x 1)
-       int*      name_tupleadr;        // tuple name pointers                      (ntuple x 1)
-       int*      name_keyadr;          // keyframe name pointers                   (nkey x 1)
-       int*      name_pluginadr;       // plugin instance name pointers            (nplugin x 1)
-       char*     names;                // names of all objects, 0-terminated       (nnames x 1)
-   };
-   typedef struct _mjModel mjModel;
+.. mujoco-include:: mjModel
 
 | Defined in `mjmodel.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjmodel.h>`_
 
@@ -1788,37 +700,7 @@ mjModel
 mjContact
 ~~~~~~~~~
 
-.. code-block:: C
-
-   struct _mjContact                   // result of collision detection functions
-   {
-       // contact parameters set by geom-specific collision detector
-       mjtNum dist;                    // distance between nearest points; neg: penetration
-       mjtNum pos[3];                  // position of contact point: midpoint between geoms
-       mjtNum frame[9];                // normal is in [0-2]
-
-       // contact parameters set by mj_collideGeoms
-       mjtNum includemargin;           // include if dist<includemargin=margin-gap
-       mjtNum friction[5];             // tangent1, 2, spin, roll1, 2
-       mjtNum solref[mjNREF];          // constraint solver reference
-       mjtNum solimp[mjNIMP];          // constraint solver impedance
-
-       // internal storage used by solver
-       mjtNum mu;                      // friction of regularized cone, set by mj_makeR
-       mjtNum H[36];                   // cone Hessian, set by mj_updateConstraint
-
-       // contact descriptors set by mj_collideGeoms
-       int dim;                        // contact space dimensionality: 1, 3, 4 or 6
-       int geom1;                      // id of geom 1
-       int geom2;                      // id of geom 2
-
-       // flag set by mj_fuseContact or mj_instantianteEquality
-       int exclude;                    // 0: include, 1: in gap, 2: fused, 3: equality
-
-       // address computed by mj_instantiateContact
-       int efc_address;                // address in efc; -1: not included, -2-i: distance constraint i
-   };
-   typedef struct _mjContact mjContact;
+.. mujoco-include:: mjContact
 
 | Defined in `mjdata.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjdata.h>`_
 
@@ -1831,14 +713,7 @@ mjContact
 mjWarningStat
 ~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   struct _mjWarningStat               // warning statistics
-   {
-       int lastinfo;                   // info from last warning
-       int number;                     // how many times was warning raised
-   };
-   typedef struct _mjWarningStat mjWarningStat;
+.. mujoco-include:: mjWarningStat
 
 | Defined in `mjdata.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjdata.h>`_
 
@@ -1850,14 +725,7 @@ mjWarningStat
 mjTimerStat
 ~~~~~~~~~~~
 
-.. code-block:: C
-
-   struct _mjTimerStat                 // timer statistics
-   {
-       mjtNum duration;                // cumulative duration
-       int number;                     // how many times was timer called
-   };
-   typedef struct _mjTimerStat mjTimerStat;
+.. mujoco-include:: mjTimerStat
 
 | Defined in `mjdata.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjdata.h>`_
 
@@ -1869,19 +737,7 @@ mjTimerStat
 mjSolverStat
 ~~~~~~~~~~~~
 
-.. code-block:: C
-
-   struct _mjSolverStat                // per-iteration solver statistics
-   {
-       mjtNum improvement;             // cost reduction, scaled by 1/trace(M(qpos0))
-       mjtNum gradient;                // gradient norm (primal only, scaled)
-       mjtNum lineslope;               // slope in linesearch
-       int nactive;                    // number of active constraints
-       int nchange;                    // number of constraint state changes
-       int neval;                      // number of cost evaluations in line search
-       int nupdate;                    // number of Cholesky updates in line search
-   };
-   typedef struct _mjSolverStat mjSolverStat;
+.. mujoco-include:: mjSolverStat
 
 | Defined in `mjdata.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjdata.h>`_
 
@@ -1894,201 +750,7 @@ mjSolverStat
 mjData
 ~~~~~~
 
-.. code-block:: C
-
-   struct _mjData
-   {
-       // constant sizes
-       int nstack;                     // number of mjtNums that can fit in stack
-       int nbuffer;                    // size of main buffer in bytes
-
-       // stack pointer
-       int pstack;                     // first available mjtNum address in stack
-
-       // memory utilization stats
-       int maxuse_stack;               // maximum stack allocation
-       int maxuse_con;                 // maximum number of contacts
-       int maxuse_efc;                 // maximum number of scalar constraints
-
-       // diagnostics
-       mjWarningStat warning[mjNWARNING]; // warning statistics
-       mjTimerStat timer[mjNTIMER];       // timer statistics
-       mjSolverStat solver[mjNSOLVER];    // solver statistics per iteration
-       int solver_iter;                // number of solver iterations
-       int solver_nnz;                 // number of non-zeros in Hessian or efc_AR
-       mjtNum solver_fwdinv[2];        // forward-inverse comparison: qfrc, efc
-
-       // variable sizes
-       int ne;                         // number of equality constraints
-       int nf;                         // number of friction constraints
-       int nefc;                       // number of constraints
-       int ncon;                       // number of detected contacts
-
-       // global properties
-       mjtNum time;                    // simulation time
-       mjtNum energy[2];               // potential, kinetic energy
-
-       //-------------------------------- end of info header
-
-       // buffers
-       void*     buffer;               // main buffer; all pointers point in it    (nbuffer bytes)
-       mjtNum*   stack;                // stack buffer                             (nstack mjtNums)
-
-       //-------------------------------- main inputs and outputs of the computation
-
-       // state
-       mjtNum*   qpos;                 // position                                 (nq x 1)
-       mjtNum*   qvel;                 // velocity                                 (nv x 1)
-       mjtNum*   act;                  // actuator activation                      (na x 1)
-       mjtNum*   qacc_warmstart;       // acceleration used for warmstart          (nv x 1)
-
-       // control
-       mjtNum*   ctrl;                 // control                                  (nu x 1)
-       mjtNum*   qfrc_applied;         // applied generalized force                (nv x 1)
-       mjtNum*   xfrc_applied;         // applied Cartesian force/torque           (nbody x 6)
-
-       // mocap data
-       mjtNum*  mocap_pos;             // positions of mocap bodies                (nmocap x 3)
-       mjtNum*  mocap_quat;            // orientations of mocap bodies             (nmocap x 4)
-
-       // dynamics
-       mjtNum*   qacc;                 // acceleration                             (nv x 1)
-       mjtNum*   act_dot;              // time-derivative of actuator activation   (na x 1)
-
-       // user data
-       mjtNum*   userdata;              // user data, not touched by engine        (nuserdata x 1)
-
-       // sensors
-       mjtNum*   sensordata;            // sensor data array                       (nsensordata x 1)
-
-       //-------------------------------- POSITION dependent
-
-       // computed by mj_fwdPosition/mj_kinematics
-       mjtNum*   xpos;                 // Cartesian position of body frame         (nbody x 3)
-       mjtNum*   xquat;                // Cartesian orientation of body frame      (nbody x 4)
-       mjtNum*   xmat;                 // Cartesian orientation of body frame      (nbody x 9)
-       mjtNum*   xipos;                // Cartesian position of body com           (nbody x 3)
-       mjtNum*   ximat;                // Cartesian orientation of body inertia    (nbody x 9)
-       mjtNum*   xanchor;              // Cartesian position of joint anchor       (njnt x 3)
-       mjtNum*   xaxis;                // Cartesian joint axis                     (njnt x 3)
-       mjtNum*   geom_xpos;            // Cartesian geom position                  (ngeom x 3)
-       mjtNum*   geom_xmat;            // Cartesian geom orientation               (ngeom x 9)
-       mjtNum*   site_xpos;            // Cartesian site position                  (nsite x 3)
-       mjtNum*   site_xmat;            // Cartesian site orientation               (nsite x 9)
-       mjtNum*   cam_xpos;             // Cartesian camera position                (ncam x 3)
-       mjtNum*   cam_xmat;             // Cartesian camera orientation             (ncam x 9)
-       mjtNum*   light_xpos;           // Cartesian light position                 (nlight x 3)
-       mjtNum*   light_xdir;           // Cartesian light direction                (nlight x 3)
-
-       // computed by mj_fwdPosition/mj_comPos
-       mjtNum*   subtree_com;          // center of mass of each subtree           (nbody x 3)
-       mjtNum*   cdof;                 // com-based motion axis of each dof        (nv x 6)
-       mjtNum*   cinert;               // com-based body inertia and mass          (nbody x 10)
-
-       // computed by mj_fwdPosition/mj_tendon
-       int*      ten_wrapadr;          // start address of tendon's path           (ntendon x 1)
-       int*      ten_wrapnum;          // number of wrap points in path            (ntendon x 1)
-       int*      ten_J_rownnz;         // number of non-zeros in Jacobian row      (ntendon x 1)
-       int*      ten_J_rowadr;         // row start address in colind array        (ntendon x 1)
-       int*      ten_J_colind;         // column indices in sparse Jacobian        (ntendon x nv)
-       mjtNum*   ten_length;           // tendon lengths                           (ntendon x 1)
-       mjtNum*   ten_J;                // tendon Jacobian                          (ntendon x nv)
-       int*      wrap_obj;             // geom id; -1: site; -2: pulley            (nwrap*2 x 1)
-       mjtNum*   wrap_xpos;            // Cartesian 3D points in all path          (nwrap*2 x 3)
-
-       // computed by mj_fwdPosition/mj_transmission
-       mjtNum*   actuator_length;      // actuator lengths                         (nu x 1)
-       mjtNum*   actuator_moment;      // actuator moments                         (nu x nv)
-
-       // computed by mj_fwdPosition/mj_crb
-       mjtNum*   crb;                  // com-based composite inertia and mass     (nbody x 10)
-       mjtNum*   qM;                   // total inertia                            (nM x 1)
-
-       // computed by mj_fwdPosition/mj_factorM
-       mjtNum*   qLD;                  // L'*D*L factorization of M                (nM x 1)
-       mjtNum*   qLDiagInv;            // 1/diag(D)                                (nv x 1)
-       mjtNum*   qLDiagSqrtInv;        // 1/sqrt(diag(D))                          (nv x 1)
-
-       // computed by mj_fwdPosition/mj_collision
-       mjContact* contact;             // list of all detected contacts            (nconmax x 1)
-
-       // computed by mj_fwdPosition/mj_makeConstraint
-       int*      efc_type;             // constraint type (mjtConstraint)          (njmax x 1)
-       int*      efc_id;               // id of object of specified type           (njmax x 1)
-       int*      efc_J_rownnz;         // number of non-zeros in Jacobian row      (njmax x 1)
-       int*      efc_J_rowadr;         // row start address in colind array        (njmax x 1)
-       int*      efc_J_rowsuper;       // number of subsequent rows in supernode   (njmax x 1)
-       int*      efc_J_colind;         // column indices in Jacobian               (njmax x nv)
-       int*      efc_JT_rownnz;        // number of non-zeros in Jacobian row    T (nv x 1)
-       int*      efc_JT_rowadr;        // row start address in colind array      T (nv x 1)
-       int*      efc_JT_rowsuper;      // number of subsequent rows in supernode T (nv x 1)
-       int*      efc_JT_colind;        // column indices in Jacobian             T (nv x njmax)
-       mjtNum*   efc_J;                // constraint Jacobian                      (njmax x nv)
-       mjtNum*   efc_JT;               // constraint Jacobian transposed           (nv x njmax)
-       mjtNum*   efc_pos;              // constraint position (equality, contact)  (njmax x 1)
-       mjtNum*   efc_margin;           // inclusion margin (contact)               (njmax x 1)
-       mjtNum*   efc_frictionloss;     // frictionloss (friction)                  (njmax x 1)
-       mjtNum*   efc_diagApprox;       // approximation to diagonal of A           (njmax x 1)
-       mjtNum*   efc_KBIP;             // stiffness, damping, impedance, imp'      (njmax x 4)
-       mjtNum*   efc_D;                // constraint mass                          (njmax x 1)
-       mjtNum*   efc_R;                // inverse constraint mass                  (njmax x 1)
-
-       // computed by mj_fwdPosition/mj_projectConstraint
-       int*      efc_AR_rownnz;        // number of non-zeros in AR                (njmax x 1)
-       int*      efc_AR_rowadr;        // row start address in colind array        (njmax x 1)
-       int*      efc_AR_colind;        // column indices in sparse AR              (njmax x njmax)
-       mjtNum*   efc_AR;               // J*inv(M)*J' + R                          (njmax x njmax)
-
-       //-------------------------------- POSITION, VELOCITY dependent
-
-       // computed by mj_fwdVelocity
-       mjtNum*   ten_velocity;         // tendon velocities                        (ntendon x 1)
-       mjtNum*   actuator_velocity;    // actuator velocities                      (nu x 1)
-
-       // computed by mj_fwdVelocity/mj_comVel
-       mjtNum*   cvel;                 // com-based velocity [3D rot; 3D tran]     (nbody x 6)
-       mjtNum*   cdof_dot;             // time-derivative of cdof                  (nv x 6)
-
-       // computed by mj_fwdVelocity/mj_rne (without acceleration)
-       mjtNum*   qfrc_bias;            // C(qpos,qvel)                             (nv x 1)
-
-       // computed by mj_fwdVelocity/mj_passive
-       mjtNum*   qfrc_passive;         // passive force                            (nv x 1)
-
-       // computed by mj_fwdVelocity/mj_referenceConstraint
-       mjtNum*   efc_vel;              // velocity in constraint space: J*qvel     (njmax x 1)
-       mjtNum*   efc_aref;             // reference pseudo-acceleration            (njmax x 1)
-
-       // computed by mj_sensorVel/mj_subtreeVel if needed
-       mjtNum*   subtree_linvel;       // linear velocity of subtree com           (nbody x 3)
-       mjtNum*   subtree_angmom;       // angular momentum about subtree com       (nbody x 3)
-
-       //-------------------------------- POSITION, VELOCITY, CONTROL/ACCELERATION dependent
-
-       // computed by mj_fwdActuation
-       mjtNum*   actuator_force;       // actuator force in actuation space        (nu x 1)
-       mjtNum*   qfrc_actuator;        // actuator force                           (nv x 1)
-
-       // computed by mj_fwdAcceleration
-       mjtNum*   qfrc_smooth;          // net unconstrained force                  (nv x 1)
-       mjtNum*   qacc_smooth;          // unconstrained acceleration               (nv x 1)
-
-       // computed by mj_fwdConstraint/mj_inverse
-       mjtNum*   efc_b;                // linear cost term: J*qacc_smooth - aref   (njmax x 1)
-       mjtNum*   efc_force;            // constraint force in constraint space     (njmax x 1)
-       int*      efc_state;            // constraint state (mjtConstraintState)    (njmax x 1)
-       mjtNum*   qfrc_constraint;      // constraint force                         (nv x 1)
-
-       // computed by mj_inverse
-       mjtNum*   qfrc_inverse;         // net external force; should equal:        (nv x 1)
-                                       //  qfrc_applied + J'*xfrc_applied + qfrc_actuator
-
-       // computed by mj_sensorAcc/mj_rnePostConstraint if needed; rotation:translation format
-       mjtNum*   cacc;                 // com-based acceleration                   (nbody x 6)
-       mjtNum*   cfrc_int;             // com-based interaction force with parent  (nbody x 6)
-       mjtNum*   cfrc_ext;             // com-based external force on body         (nbody x 6)
-   };
-   typedef struct _mjData mjData;
+.. mujoco-include:: mjData
 
 | Defined in `mjdata.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjdata.h>`_
 
@@ -2100,19 +762,7 @@ mjData
 mjvPerturb
 ~~~~~~~~~~
 
-.. code-block:: C
-
-   struct _mjvPerturb                  // object selection and perturbation
-   {
-       int      select;                // selected body id; non-positive: none
-       int      skinselect;            // selected skin id; non-positive: none
-       int      active;                // perturbation bitmask (mjtPertBit)
-       mjtNum   refpos[3];             // desired position for selected object
-       mjtNum   refquat[4];            // desired orientation for selected object
-       mjtNum   localpos[3];           // selection point in object coordinates
-       mjtNum   scale;                 // relative mouse motion-to-space scaling (set by initPerturb)
-   };
-   typedef struct _mjvPerturb mjvPerturb;
+.. mujoco-include:: mjvPerturb
 
 | Defined in `mjvisualize.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjvisualize.h>`_
 
@@ -2123,22 +773,7 @@ mjvPerturb
 mjvCamera
 ~~~~~~~~~
 
-.. code-block:: C
-
-   struct _mjvCamera                   // abstract camera
-   {
-       // type and ids
-       int      type;                  // camera type (mjtCamera)
-       int      fixedcamid;            // fixed camera id
-       int      trackbodyid;           // body id to track
-
-       // abstract camera pose specification
-       mjtNum   lookat[3];             // lookat point
-       mjtNum   distance;              // distance to lookat point or tracked body
-       mjtNum   azimuth;               // camera azimuth (deg)
-       mjtNum   elevation;             // camera elevation (deg)
-   };
-   typedef struct _mjvCamera mjvCamera;
+.. mujoco-include:: mjvCamera
 
 | Defined in `mjvisualize.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjvisualize.h>`_
 
@@ -2149,23 +784,7 @@ mjvCamera
 mjvGLCamera
 ~~~~~~~~~~~
 
-.. code-block:: C
-
-   struct _mjvGLCamera                 // OpenGL camera
-   {
-       // camera frame
-       float    pos[3];                // position
-       float    forward[3];            // forward direction
-       float    up[3];                 // up direction
-
-       // camera projection
-       float    frustum_center;        // hor. center (left,right set to match aspect)
-       float    frustum_bottom;        // bottom
-       float    frustum_top;           // top
-       float    frustum_near;          // near
-       float    frustum_far;           // far
-   };
-   typedef struct _mjvGLCamera mjvGLCamera;
+.. mujoco-include:: mjvGLCamera
 
 | Defined in `mjvisualize.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjvisualize.h>`_
 
@@ -2176,39 +795,7 @@ mjvGLCamera
 mjvGeom
 ~~~~~~~
 
-.. code-block:: C
-
-   struct _mjvGeom                     // abstract geom
-   {
-       // type info
-       int      type;                  // geom type (mjtGeom)
-       int      dataid;                // mesh, hfield or plane id; -1: none
-       int      objtype;               // mujoco object type; mjOBJ_UNKNOWN for decor
-       int      objid;                 // mujoco object id; -1 for decor
-       int      category;              // visual category
-       int      texid;                 // texture id; -1: no texture
-       int      texuniform;            // uniform cube mapping
-       int      texcoord;              // mesh geom has texture coordinates
-       int      segid;                 // segmentation id; -1: not shown
-
-       // OpenGL info
-       float    texrepeat[2];          // texture repetition for 2D mapping
-       float    size[3];               // size parameters
-       float    pos[3];                // Cartesian position
-       float    mat[9];                // Cartesian orientation
-       float    rgba[4];               // color and transparency
-       float    emission;              // emission coef
-       float    specular;              // specular coef
-       float    shininess;             // shininess coef
-       float    reflectance;           // reflectance coef
-       char     label[100];            // text label
-
-       // transparency rendering (set internally)
-       float    camdist;               // distance to camera (used by sorter)
-       float    modelrbound;           // geom rbound from model, 0 if not model geom
-       mjtByte  transparent;           // treat geom as transparent
-   };
-   typedef struct _mjvGeom mjvGeom;
+.. mujoco-include:: mjvGeom
 
 | Defined in `mjvisualize.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjvisualize.h>`_
 
@@ -2220,23 +807,7 @@ mjvGeom
 mjvLight
 ~~~~~~~~
 
-.. code-block:: C
-
-   struct _mjvLight                    // OpenGL light
-   {
-       float    pos[3];                // position rel. to body frame
-       float    dir[3];                // direction rel. to body frame
-       float    attenuation[3];        // OpenGL attenuation (quadratic model)
-       float    cutoff;                // OpenGL cutoff
-       float    exponent;              // OpenGL exponent
-       float    ambient[3];            // ambient rgb (alpha=1)
-       float    diffuse[3];            // diffuse rgb (alpha=1)
-       float    specular[3];           // specular rgb (alpha=1)
-       mjtByte  headlight;             // headlight
-       mjtByte  directional;           // directional light
-       mjtByte  castshadow;            // does light cast shadows
-   };
-   typedef struct _mjvLight mjvLight;
+.. mujoco-include:: mjvLight
 
 | Defined in `mjvisualize.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjvisualize.h>`_
 
@@ -2247,21 +818,7 @@ mjvLight
 mjvOption
 ~~~~~~~~~
 
-.. code-block:: C
-
-   struct _mjvOption                      // abstract visualization options
-   {
-       int      label;                    // what objects to label (mjtLabel)
-       int      frame;                    // which frame to show (mjtFrame)
-       mjtByte  geomgroup[mjNGROUP];      // geom visualization by group
-       mjtByte  sitegroup[mjNGROUP];      // site visualization by group
-       mjtByte  jointgroup[mjNGROUP];     // joint visualization by group
-       mjtByte  tendongroup[mjNGROUP];    // tendon visualization by group
-       mjtByte  actuatorgroup[mjNGROUP];  // actuator visualization by group
-       mjtByte  skingroup[mjNGROUP];      // skin visualization by group
-       mjtByte  flags[mjNVISFLAG];        // visualization flags (indexed by mjtVisFlag)
-   };
-   typedef struct _mjvOption mjvOption;
+.. mujoco-include:: mjvOption
 
 | Defined in `mjvisualize.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjvisualize.h>`_
 
@@ -2272,42 +829,7 @@ mjvOption
 mjvScene
 ~~~~~~~~
 
-.. code-block:: C
-
-   struct _mjvScene                    // abstract scene passed to OpenGL renderer
-   {
-       // abstract geoms
-       int      maxgeom;               // size of allocated geom buffer
-       int      ngeom;                 // number of geoms currently in buffer
-       mjvGeom* geoms;                 // buffer for geoms
-       int*     geomorder;             // buffer for ordering geoms by distance to camera
-
-       // skin data
-       int      nskin;                 // number of skins
-       int*     skinfacenum;           // number of faces in skin
-       int*     skinvertadr;           // address of skin vertices
-       int*     skinvertnum;           // number of vertices in skin
-       float*   skinvert;              // skin vertex data
-       float*   skinnormal;            // skin normal data
-
-       // OpenGL lights
-       int      nlight;                // number of lights currently in buffer
-       mjvLight lights[mjMAXLIGHT];    // buffer for lights
-
-       // OpenGL cameras
-       mjvGLCamera camera[2];          // left and right camera
-
-       // OpenGL model transformation
-       mjtByte  enabletransform;       // enable model transformation
-       float    translate[3];          // model translation
-       float    rotate[4];             // model quaternion rotation
-       float    scale;                 // model scaling
-
-       // OpenGL rendering effects
-       int      stereo;                // stereoscopic rendering (mjtStereo)
-       mjtByte  flags[mjNRNDFLAG];     // rendering flags (indexed by mjtRndFlag)
-   };
-   typedef struct _mjvScene mjvScene;
+.. mujoco-include:: mjvScene
 
 | Defined in `mjvisualize.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjvisualize.h>`_
 
@@ -2318,50 +840,7 @@ mjvScene
 mjvFigure
 ~~~~~~~~~
 
-.. code-block:: C
-
-   struct _mjvFigure                   // abstract 2D figure passed to OpenGL renderer
-   {
-       // enable/disable flags
-       int     flg_legend;             // show legend
-       int     flg_ticklabel[2];       // show grid tick labels (x,y)
-       int     flg_extend;             // automatically extend axis ranges to fit data
-       int     flg_barplot;            // isolated line segments (i.e. GL_LINES)
-       int     flg_selection;          // vertical selection line
-       int     flg_symmetric;          // symmetric y-axis
-
-       // figure options
-       int     legendoff;              // number of lines to offset legend
-       int     gridsize[2];            // number of grid points in (x,y)
-       int     selection;              // selection line x-value
-       int     highlight[2];           // if point is in legend rect, highlight line
-       float   gridrgb[3];             // grid line rgb
-       float   gridwidth;              // grid line width
-       float   figurergba[4];          // figure color and alpha
-       float   panergba[4];            // pane color and alpha
-       float   legendrgba[4];          // legend color and alpha
-       float   textrgb[3];             // text color
-       float   range[2][2];            // axis ranges; (min>=max) automatic
-       char    xlabel[100];            // x-axis label
-       char    title[100];             // figure title
-       char    xformat[20];            // x-tick label format for sprintf
-       char    yformat[20];            // y-tick label format for sprintf
-       char    minwidth[20];           // string used to determine min y-tick width
-
-       // line data
-       int     linepnt[mjMAXLINE];                   // number of points in line; (0) disable
-       float   linergb[mjMAXLINE][3];                // line color
-       float   linewidth[mjMAXLINE];                 // line width
-       float   linedata[mjMAXLINE][2*mjMAXLINEPNT];  // line data (x,y)
-       char    linename[mjMAXLINE][100];             // line name for legend
-
-       // output from renderer
-       int     xaxispixel[2];          // range of x-axis in pixels
-       int     yaxispixel[2];          // range of y-axis in pixels
-       float   xaxisdata[2];           // range of x-axis in data units
-       float   yaxisdata[2];           // range of y-axis in data units
-   };
-   typedef struct _mjvFigure mjvFigure;
+.. mujoco-include:: mjvFigure
 
 | Defined in `mjvisualize.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjvisualize.h>`_
 
@@ -2374,16 +853,7 @@ mjvFigure
 mjrRect
 ~~~~~~~
 
-.. code-block:: C
-
-   struct _mjrRect                     // OpenGL rectangle
-   {
-       int left;                       // left (usually 0)
-       int bottom;                     // bottom (usually 0)
-       int width;                      // width (usually buffer width)
-       int height;                     // height (usually buffer height)
-   };
-   typedef struct _mjrRect mjrRect;
+.. mujoco-include:: mjrRect
 
 | Defined in `mjrender.h (57) <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjrender.h#L57>`_
 
@@ -2394,91 +864,7 @@ mjrRect
 mjrContext
 ~~~~~~~~~~
 
-.. code-block:: C
-
-   struct _mjrContext                  // custom OpenGL context
-   {
-       // parameters copied from mjVisual
-       float lineWidth;                // line width for wireframe rendering
-       float shadowClip;               // clipping radius for directional lights
-       float shadowScale;              // fraction of light cutoff for spot lights
-       float fogStart;                 // fog start = stat.extent * vis.map.fogstart
-       float fogEnd;                   // fog end = stat.extent * vis.map.fogend
-       float fogRGBA[4];               // fog rgba
-       int shadowSize;                 // size of shadow map texture
-       int offWidth;                   // width of offscreen buffer
-       int offHeight;                  // height of offscreen buffer
-       int offSamples;                 // number of offscreen buffer multisamples
-
-       // parameters specified at creation
-       int fontScale;                  // font scale
-       int auxWidth[mjNAUX];           // auxiliary buffer width
-       int auxHeight[mjNAUX];          // auxiliary buffer height
-       int auxSamples[mjNAUX];         // auxiliary buffer multisamples
-
-       // offscreen rendering objects
-       unsigned int offFBO;            // offscreen framebuffer object
-       unsigned int offFBO_r;          // offscreen framebuffer for resolving multisamples
-       unsigned int offColor;          // offscreen color buffer
-       unsigned int offColor_r;        // offscreen color buffer for resolving multisamples
-       unsigned int offDepthStencil;   // offscreen depth and stencil buffer
-       unsigned int offDepthStencil_r; // offscreen depth and stencil buffer for resolving multisamples
-
-       // shadow rendering objects
-       unsigned int shadowFBO;         // shadow map framebuffer object
-       unsigned int shadowTex;         // shadow map texture
-
-       // auxiliary buffers
-       unsigned int auxFBO[mjNAUX];    // auxiliary framebuffer object
-       unsigned int auxFBO_r[mjNAUX];  // auxiliary framebuffer object for resolving
-       unsigned int auxColor[mjNAUX];  // auxiliary color buffer
-       unsigned int auxColor_r[mjNAUX];// auxiliary color buffer for resolving
-
-       // texture objects and info
-       int ntexture;                   // number of allocated textures
-       int textureType[100];           // type of texture (mjtTexture)
-       unsigned int texture[100];      // texture names
-
-       // displaylist starting positions
-       unsigned int basePlane;         // all planes from model
-       unsigned int baseMesh;          // all meshes from model
-       unsigned int baseHField;        // all hfields from model
-       unsigned int baseBuiltin;       // all buildin geoms, with quality from model
-       unsigned int baseFontNormal;    // normal font
-       unsigned int baseFontShadow;    // shadow font
-       unsigned int baseFontBig;       // big font
-
-       // displaylist ranges
-       int     rangePlane;             // all planes from model
-       int     rangeMesh;              // all meshes from model
-       int     rangeHField;            // all hfields from model
-       int     rangeBuiltin;           // all builtin geoms, with quality from model
-       int     rangeFont;              // all characters in font
-
-       // skin VBOs
-       int      nskin;                 // number of skins
-       unsigned int* skinvertVBO;      // skin vertex position VBOs
-       unsigned int* skinnormalVBO;    // skin vertex normal VBOs
-       unsigned int* skintexcoordVBO;  // skin vertex texture coordinate VBOs
-       unsigned int* skinfaceVBO;      // skin face index VBOs
-
-       // character info
-       int     charWidth[127];         // character widths: normal and shadow
-       int     charWidthBig[127];      // chacarter widths: big
-       int     charHeight;             // character heights: normal and shadow
-       int     charHeightBig;          // character heights: big
-
-       // capabilities
-       int     glInitialized;          // is OpenGL initialized
-       int     windowAvailable;        // is default/window framebuffer available
-       int     windowSamples;          // number of samples for default/window framebuffer
-       int     windowStereo;           // is stereo available for default/window framebuffer
-       int     windowDoublebuffer;     // is default/window framebuffer double buffered
-
-       // framebuffer
-       int     currentBuffer;          // currently active framebuffer: mjFB_WINDOW or mjFB_OFFSCREEN
-   };
-   typedef struct _mjrContext mjrContext;
+.. mujoco-include:: mjrContext
 
 | Defined in `mjrender.h (67) <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjrender.h#L67>`_
 
@@ -2489,47 +875,7 @@ mjrContext
 mjuiState
 ~~~~~~~~~
 
-.. code-block:: C
-
-   struct _mjuiState               // mouse and keyboard state
-   {
-       // constants set by user
-       int nrect;                  // number of rectangles used
-       mjrRect rect[mjMAXUIRECT];  // rectangles (index 0: entire window)
-       void* userdata;             // pointer to user data (for callbacks)
-
-       // event type
-       int type;                   // (type mjtEvent)
-
-       // mouse buttons
-       int left;                   // is left button down
-       int right;                  // is right button down
-       int middle;                 // is middle button down
-       int doubleclick;            // is last press a double click
-       int button;                 // which button was pressed (mjtButton)
-       double buttontime;          // time of last button press
-
-       // mouse position
-       double x;                   // x position
-       double y;                   // y position
-       double dx;                  // x displacement
-       double dy;                  // y displacement
-       double sx;                  // x scroll
-       double sy;                  // y scroll
-
-       // keyboard
-       int control;                // is control down
-       int shift;                  // is shift down
-       int alt;                    // is alt down
-       int key;                    // which key was pressed
-       double keytime;             // time of last key press
-
-       // rectangle ownership and dragging
-       int mouserect;              // which rectangle contains mouse
-       int dragrect;               // which rectangle is dragged with mouse
-       int dragbutton;             // which button started drag (mjtButton)
-   };
-   typedef struct _mjuiState mjuiState;
+.. mujoco-include:: mjuiState
 
 | Defined in `mjui.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjui.h>`_
 
@@ -2540,23 +886,7 @@ mjuiState
 mjuiThemeSpacing
 ~~~~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   struct _mjuiThemeSpacing        // UI visualization theme spacing
-   {
-           int total;              // total width
-           int scroll;             // scrollbar width
-           int label;              // label width
-           int section;            // section gap
-           int itemside;           // item side gap
-           int itemmid;            // item middle gap
-           int itemver;            // item vertical gap
-           int texthor;            // text horizontal gap
-           int textver;            // text vertical gap
-           int linescroll;         // number of pixels to scroll
-           int samples;            // number of multisamples
-   };
-   typedef struct _mjuiThemeSpacing mjuiThemeSpacing;
+.. mujoco-include:: mjuiThemeSpacing
 
 | Defined in `mjui.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjui.h>`_
 
@@ -2567,33 +897,7 @@ mjuiThemeSpacing
 mjuiThemeColor
 ~~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   struct _mjuiThemeColor          // UI visualization theme color
-   {
-       float master[3];            // master background
-       float thumb[3];             // scrollbar thumb
-       float secttitle[3];         // section title
-       float sectfont[3];          // section font
-       float sectsymbol[3];        // section symbol
-       float sectpane[3];          // section pane
-       float shortcut[3];          // shortcut background
-       float fontactive[3];        // font active
-       float fontinactive[3];      // font inactive
-       float decorinactive[3];     // decor inactive
-       float decorinactive2[3];    // inactive slider color 2
-       float button[3];            // button
-       float check[3];             // check
-       float radio[3];             // radio
-       float select[3];            // select
-       float select2[3];           // select pane
-       float slider[3];            // slider
-       float slider2[3];           // slider color 2
-       float edit[3];              // edit
-       float edit2[3];             // edit invalid
-       float cursor[3];            // edit cursor
-   };
-   typedef struct _mjuiThemeColor mjuiThemeColor;
+.. mujoco-include:: mjuiThemeColor
 
 | Defined in `mjui.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjui.h>`_
 
@@ -2604,54 +908,7 @@ mjuiThemeColor
 mjuiItem
 ~~~~~~~~
 
-.. code-block:: C
-
-   struct _mjuiItem                // UI item
-   {
-       // common properties
-       int type;                   // type (mjtItem)
-       char name[mjMAXUINAME];     // name
-       int state;                  // 0: disable, 1: enable, 2+: use predicate
-       void *pdata;                // data pointer (type-specific)
-       int sectionid;              // id of section containing item
-       int itemid;                 // id of item within section
-
-       // type-specific properties
-       union
-       {
-           // check and button-related
-           struct
-           {
-               int modifier;       // 0: none, 1: control, 2: shift; 4: alt
-               int shortcut;       // shortcut key; 0: undefined
-           } single;
-
-           // static, radio and select-related
-           struct
-           {
-               int nelem;          // number of elements in group
-               char name[mjMAXUIMULTI][mjMAXUINAME]; // element names
-           } multi;
-
-           // slider-related
-           struct
-           {
-               double range[2];    // slider range
-               double divisions;   // number of range divisions
-           } slider;
-
-           // edit-related
-           struct
-           {
-               int nelem;          // number of elements in list
-               double range[mjMAXUIEDIT][2]; // element range (min>=max: ignore)
-           } edit;
-       };
-
-       // internal
-       mjrRect rect;               // rectangle occupied by item
-   };
-   typedef struct _mjuiItem mjuiItem;
+.. mujoco-include:: mjuiItem
 
 | Defined in `mjui.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjui.h>`_
 
@@ -2662,23 +919,7 @@ mjuiItem
 mjuiSection
 ~~~~~~~~~~~
 
-.. code-block:: C
-
-   struct _mjuiSection             // UI section
-   {
-       // properties
-       char name[mjMAXUINAME];     // name
-       int state;                  // 0: closed, 1: open
-       int modifier;               // 0: none, 1: control, 2: shift; 4: alt
-       int shortcut;               // shortcut key; 0: undefined
-       int nitem;                  // number of items in use
-       mjuiItem item[mjMAXUIITEM];// preallocated array of items
-
-       // internal
-       mjrRect rtitle;             // rectangle occupied by title
-       mjrRect rcontent;           // rectangle occupied by content
-   };
-   typedef struct _mjuiSection mjuiSection;
+.. mujoco-include:: mjuiSection
 
 | Defined in `mjui.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjui.h>`_
 
@@ -2689,43 +930,7 @@ mjuiSection
 mjUI
 ~~~~
 
-.. code-block:: C
-
-   struct _mjUI                    // entire UI
-   {
-       // constants set by user
-       mjuiThemeSpacing spacing;   // UI theme spacing
-       mjuiThemeColor color;       // UI theme color
-       mjfItemEnable predicate;    // callback to set item state programmatically
-       void* userdata;             // pointer to user data (passed to predicate)
-       int rectid;                 // index of this ui rectangle in mjuiState
-       int auxid;                  // aux buffer index of this ui
-       int radiocol;               // number of radio columns (0 defaults to 2)
-
-       // UI sizes (framebuffer units)
-       int width;                  // width
-       int height;                 // current heigth
-       int maxheight;              // height when all sections open
-       int scroll;                 // scroll from top of UI
-
-       // mouse focus
-       int mousesect;              // 0: none, -1: scroll, otherwise 1+section
-       int mouseitem;              // item within section
-       int mousehelp;              // help button down: print shortcuts
-
-       // keyboard focus and edit
-       int editsect;               // 0: none, otherwise 1+section
-       int edititem;               // item within section
-       int editcursor;             // cursor position
-       int editscroll;             // horizontal scroll
-       char edittext[mjMAXUITEXT]; // current text
-       mjuiItem* editchanged;      // pointer to changed edit in last mjui_event
-
-       // sections
-       int nsect;                  // number of sections in use
-       mjuiSection sect[mjMAXUISECT];  // preallocated array of sections
-   };
-   typedef struct _mjUI mjUI;
+.. mujoco-include:: mjUI
 
 | Defined in `mjui.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjui.h>`_
 
@@ -2736,17 +941,7 @@ mjUI
 mjuiDef
 ~~~~~~~
 
-.. code-block:: C
-
-   struct _mjuiDef
-   {
-       int type;                   // type (mjtItem); -1: section
-       char name[mjMAXUINAME];     // name
-       int state;                  // state
-       void* pdata;                // pointer to data
-       char other[mjMAXUITEXT];    // string with type-specific properties
-   };
-   typedef struct _mjuiDef mjuiDef;
+.. mujoco-include:: mjuiDef
 
 | Defined in `mjui.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjui.h>`_
 
@@ -3278,9 +1473,7 @@ The functions in this section are maintained for backward compatibility with the
 mj_activate
 ~~~~~~~~~~~
 
-.. code-block:: C
-
-   int mj_activate(const char* filename);
+.. mujoco-include:: mj_activate
 
 Does nothing, returns 1.
 
@@ -3289,9 +1482,7 @@ Does nothing, returns 1.
 mj_deactivate
 ~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mj_deactivate(void);
+.. mujoco-include:: mj_deactivate
 
 Does nothing.
 
@@ -3319,9 +1510,7 @@ mj_loadModel, and then clear everything with mj_deleteVFS.
 mj_defaultVFS
 ~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mj_defaultVFS(mjVFS* vfs);
+.. mujoco-include:: mj_defaultVFS
 
 Initialize VFS to empty (no deallocation).
 
@@ -3330,9 +1519,7 @@ Initialize VFS to empty (no deallocation).
 mj_addFileVFS
 ~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   int mj_addFileVFS(mjVFS* vfs, const char* directory, const char* filename);
+.. mujoco-include:: mj_addFileVFS
 
 Add file to VFS, return 0: success, 1: full, 2: repeated name, -1: not found on disk.
 
@@ -3341,9 +1528,7 @@ Add file to VFS, return 0: success, 1: full, 2: repeated name, -1: not found on 
 mj_makeEmptyFileVFS
 ~~~~~~~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   int mj_makeEmptyFileVFS(mjVFS* vfs, const char* filename, int filesize);
+.. mujoco-include:: mj_makeEmptyFileVFS
 
 Make empty file in VFS, return 0: success, 1: full, 2: repeated name.
 
@@ -3352,9 +1537,7 @@ Make empty file in VFS, return 0: success, 1: full, 2: repeated name.
 mj_findFileVFS
 ~~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   int mj_findFileVFS(const mjVFS* vfs, const char* filename);
+.. mujoco-include:: mj_findFileVFS
 
 Return file index in VFS, or -1 if not found in VFS.
 
@@ -3363,9 +1546,7 @@ Return file index in VFS, or -1 if not found in VFS.
 mj_deleteFileVFS
 ~~~~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   int mj_deleteFileVFS(mjVFS* vfs, const char* filename);
+.. mujoco-include:: mj_deleteFileVFS
 
 Delete file from VFS, return 0: success, -1: not found in VFS.
 
@@ -3374,9 +1555,7 @@ Delete file from VFS, return 0: success, -1: not found in VFS.
 mj_deleteVFS
 ~~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mj_deleteVFS(mjVFS* vfs);
+.. mujoco-include:: mj_deleteVFS
 
 Delete all files from VFS.
 
@@ -3394,10 +1573,7 @@ model and all files referenced in it can be loaded from disk or from a VFS when 
 mj_loadXML
 ~~~~~~~~~~
 
-.. code-block:: C
-
-   mjModel* mj_loadXML(const char* filename, const mjVFS* vfs,
-                       char* error, int error_sz);
+.. mujoco-include:: mj_loadXML
 
 Parse XML file in MJCF or URDF format, compile it, return low-level model. If vfs is not NULL, look up files in vfs
 before reading from disk. If error is not NULL, it must have size error_sz.
@@ -3407,10 +1583,7 @@ before reading from disk. If error is not NULL, it must have size error_sz.
 mj_saveLastXML
 ~~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   int mj_saveLastXML(const char* filename, const mjModel* m,
-                      char* error, int error_sz);
+.. mujoco-include:: mj_saveLastXML
 
 Update XML data structures with info from low-level model, save as MJCF. If error is not NULL, it must have size
 error_sz.
@@ -3420,9 +1593,7 @@ error_sz.
 mj_freeLastXML
 ~~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mj_freeLastXML(void);
+.. mujoco-include:: mj_freeLastXML
 
 Free last XML model if loaded. Called internally at each load.
 
@@ -3431,10 +1602,7 @@ Free last XML model if loaded. Called internally at each load.
 mj_printSchema
 ~~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   int mj_printSchema(const char* filename, char* buffer, int buffer_sz,
-                      int flg_html, int flg_pad);
+.. mujoco-include:: mj_printSchema
 
 Print internal XML schema as plain text or HTML, with style-padding or ``&nbsp;``.
 
@@ -3472,9 +1640,7 @@ qpos. Calling the dynamics with skipstage = mjSTAGE_POS will achieve these savin
 mj_step
 ~~~~~~~
 
-.. code-block:: C
-
-   void mj_step(const mjModel* m, mjData* d);
+.. mujoco-include:: mj_step
 
 Advance simulation, use control callback to obtain external force and control.
 
@@ -3483,9 +1649,7 @@ Advance simulation, use control callback to obtain external force and control.
 mj_step1
 ~~~~~~~~
 
-.. code-block:: C
-
-   void mj_step1(const mjModel* m, mjData* d);
+.. mujoco-include:: mj_step1
 
 Advance simulation in two steps: before external force and control is set by user.
 
@@ -3494,9 +1658,7 @@ Advance simulation in two steps: before external force and control is set by use
 mj_step2
 ~~~~~~~~
 
-.. code-block:: C
-
-   void mj_step2(const mjModel* m, mjData* d);
+.. mujoco-include:: mj_step2
 
 Advance simulation in two steps: after external force and control is set by user.
 
@@ -3505,9 +1667,7 @@ Advance simulation in two steps: after external force and control is set by user
 mj_forward
 ~~~~~~~~~~
 
-.. code-block:: C
-
-   void mj_forward(const mjModel* m, mjData* d);
+.. mujoco-include:: mj_forward
 
 Forward dynamics: same as mj_step but do not integrate in time.
 
@@ -3516,9 +1676,7 @@ Forward dynamics: same as mj_step but do not integrate in time.
 mj_inverse
 ~~~~~~~~~~
 
-.. code-block:: C
-
-   void mj_inverse(const mjModel* m, mjData* d);
+.. mujoco-include:: mj_inverse
 
 Inverse dynamics: qacc must be set before calling.
 
@@ -3527,10 +1685,7 @@ Inverse dynamics: qacc must be set before calling.
 mj_forwardSkip
 ~~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mj_forwardSkip(const mjModel* m, mjData* d,
-                       int skipstage, int skipsensor);
+.. mujoco-include:: mj_forwardSkip
 
 Forward dynamics with skip; skipstage is mjtStage.
 
@@ -3539,10 +1694,7 @@ Forward dynamics with skip; skipstage is mjtStage.
 mj_inverseSkip
 ~~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mj_inverseSkip(const mjModel* m, mjData* d,
-                       int skipstage, int skipsensor);
+.. mujoco-include:: mj_inverseSkip
 
 Inverse dynamics with skip; skipstage is mjtStage.
 
@@ -3559,9 +1711,7 @@ in the code samples.
 mj_defaultLROpt
 ~~~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mj_defaultLROpt(mjLROpt* opt);
+.. mujoco-include:: mj_defaultLROpt
 
 Set default options for length range computation.
 
@@ -3570,9 +1720,7 @@ Set default options for length range computation.
 mj_defaultSolRefImp
 ~~~~~~~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mj_defaultSolRefImp(mjtNum* solref, mjtNum* solimp);
+.. mujoco-include:: mj_defaultSolRefImp
 
 Set solver parameters to default values.
 
@@ -3581,9 +1729,7 @@ Set solver parameters to default values.
 mj_defaultOption
 ~~~~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mj_defaultOption(mjOption* opt);
+.. mujoco-include:: mj_defaultOption
 
 Set physics options to default values.
 
@@ -3592,9 +1738,7 @@ Set physics options to default values.
 mj_defaultVisual
 ~~~~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mj_defaultVisual(mjVisual* vis);
+.. mujoco-include:: mj_defaultVisual
 
 Set visual options to default values.
 
@@ -3603,9 +1747,7 @@ Set visual options to default values.
 mj_copyModel
 ~~~~~~~~~~~~
 
-.. code-block:: C
-
-   mjModel* mj_copyModel(mjModel* dest, const mjModel* src);
+.. mujoco-include:: mj_copyModel
 
 Copy mjModel, allocate new if dest is NULL.
 
@@ -3614,9 +1756,7 @@ Copy mjModel, allocate new if dest is NULL.
 mj_saveModel
 ~~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mj_saveModel(const mjModel* m, const char* filename, void* buffer, int buffer_sz);
+.. mujoco-include:: mj_saveModel
 
 Save model to binary MJB file or memory buffer; buffer has precedence when given.
 
@@ -3625,9 +1765,7 @@ Save model to binary MJB file or memory buffer; buffer has precedence when given
 mj_loadModel
 ~~~~~~~~~~~~
 
-.. code-block:: C
-
-   mjModel* mj_loadModel(const char* filename, const mjVFS* vfs);
+.. mujoco-include:: mj_loadModel
 
 Load model from binary MJB file. If vfs is not NULL, look up file in vfs before reading from disk.
 
@@ -3636,9 +1774,7 @@ Load model from binary MJB file. If vfs is not NULL, look up file in vfs before 
 mj_deleteModel
 ~~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mj_deleteModel(mjModel* m);
+.. mujoco-include:: mj_deleteModel
 
 Free memory allocation in model.
 
@@ -3647,9 +1783,7 @@ Free memory allocation in model.
 mj_sizeModel
 ~~~~~~~~~~~~
 
-.. code-block:: C
-
-   int mj_sizeModel(const mjModel* m);
+.. mujoco-include:: mj_sizeModel
 
 Return size of buffer needed to hold model.
 
@@ -3658,9 +1792,7 @@ Return size of buffer needed to hold model.
 mj_makeData
 ~~~~~~~~~~~
 
-.. code-block:: C
-
-   mjData* mj_makeData(const mjModel* m);
+.. mujoco-include:: mj_makeData
 
 Allocate mjData corresponding to given model.
 
@@ -3669,9 +1801,7 @@ Allocate mjData corresponding to given model.
 mj_copyData
 ~~~~~~~~~~~
 
-.. code-block:: C
-
-   mjData* mj_copyData(mjData* dest, const mjModel* m, const mjData* src);
+.. mujoco-include:: mj_copyData
 
 Copy mjData.
 
@@ -3680,9 +1810,7 @@ Copy mjData.
 mj_resetData
 ~~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mj_resetData(const mjModel* m, mjData* d);
+.. mujoco-include:: mj_resetData
 
 Reset data to defaults.
 
@@ -3691,9 +1819,7 @@ Reset data to defaults.
 mj_resetDataDebug
 ~~~~~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mj_resetDataDebug(const mjModel* m, mjData* d, unsigned char debug_value);
+.. mujoco-include:: mj_resetDataDebug
 
 Reset data to defaults, fill everything else with debug_value.
 
@@ -3702,9 +1828,7 @@ Reset data to defaults, fill everything else with debug_value.
 mj_resetDataKeyframe
 ~~~~~~~~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mj_resetDataKeyframe(const mjModel* m, mjData* d, int key);
+.. mujoco-include:: mj_resetDataKeyframe
 
 Reset data, set fields from specified keyframe.
 
@@ -3713,9 +1837,7 @@ Reset data, set fields from specified keyframe.
 mj_stackAlloc
 ~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   mjtNum* mj_stackAlloc(mjData* d, int size);
+.. mujoco-include:: mj_stackAlloc
 
 Allocate array of specified size on mjData stack. Call mju_error on stack overflow.
 
@@ -3724,9 +1846,7 @@ Allocate array of specified size on mjData stack. Call mju_error on stack overfl
 mj_deleteData
 ~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mj_deleteData(mjData* d);
+.. mujoco-include:: mj_deleteData
 
 Free memory allocation in mjData.
 
@@ -3735,9 +1855,7 @@ Free memory allocation in mjData.
 mj_resetCallbacks
 ~~~~~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mj_resetCallbacks(void);
+.. mujoco-include:: mj_resetCallbacks
 
 Reset all callbacks to NULL pointers (NULL is the default).
 
@@ -3746,9 +1864,7 @@ Reset all callbacks to NULL pointers (NULL is the default).
 mj_setConst
 ~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mj_setConst(mjModel* m, mjData* d);
+.. mujoco-include:: mj_setConst
 
 Set constant fields of mjModel, corresponding to qpos0 configuration.
 
@@ -3757,10 +1873,7 @@ Set constant fields of mjModel, corresponding to qpos0 configuration.
 mj_setLengthRange
 ~~~~~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   int mj_setLengthRange(mjModel* m, mjData* d, int index,
-                         const mjLROpt* opt, char* error, int error_sz);
+.. mujoco-include:: mj_setLengthRange
 
 Set actuator_lengthrange for specified actuator; return 1 if ok, 0 if error.
 
@@ -3777,9 +1890,7 @@ These functions can be used to print various quantities to the screen for debugg
 mj_printFormattedModel
 ~~~~~~~~~~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mj_printFormattedModel(const mjModel* m, const char* filename, const char* float_format);
+.. mujoco-include:: mj_printFormattedModel
 
 Print ``mjModel`` to text file, specifying format. ``float_format`` must be a valid printf-style format string for a
 single float value.
@@ -3789,9 +1900,7 @@ single float value.
 mj_printModel
 ~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mj_printModel(const mjModel* m, const char* filename);
+.. mujoco-include:: mj_printModel
 
 Print model to text file.
 
@@ -3800,9 +1909,7 @@ Print model to text file.
 mj_printFormattedData
 ~~~~~~~~~~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mj_printFormattedData(const mjModel* m, mjData* d, const char* filename, const char* float_format);
+.. mujoco-include:: mj_printFormattedData
 
 Print ``mjData`` to text file, specifying format. ``float_format`` must be a valid printf-style format string for a
 single float value.
@@ -3812,9 +1919,7 @@ single float value.
 mj_printData
 ~~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mj_printData(const mjModel* m, mjData* d, const char* filename);
+.. mujoco-include:: mj_printData
 
 Print data to text file.
 
@@ -3823,9 +1928,7 @@ Print data to text file.
 mju_printMat
 ~~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mju_printMat(const mjtNum* mat, int nr, int nc);
+.. mujoco-include:: mju_printMat
 
 Print matrix to screen.
 
@@ -3834,11 +1937,7 @@ Print matrix to screen.
 mju_printMatSparse
 ~~~~~~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mju_printMatSparse(const mjtNum* mat, int nr,
-                           const int* rownnz, const int* rowadr,
-                           const int* colind);
+.. mujoco-include:: mju_printMatSparse
 
 Print sparse matrix to screen.
 
@@ -3855,9 +1954,7 @@ unlikely that the user will need to call them.
 mj_fwdPosition
 ~~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mj_fwdPosition(const mjModel* m, mjData* d);
+.. mujoco-include:: mj_fwdPosition
 
 Run position-dependent computations.
 
@@ -3866,9 +1963,7 @@ Run position-dependent computations.
 mj_fwdVelocity
 ~~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mj_fwdVelocity(const mjModel* m, mjData* d);
+.. mujoco-include:: mj_fwdVelocity
 
 Run velocity-dependent computations.
 
@@ -3877,9 +1972,7 @@ Run velocity-dependent computations.
 mj_fwdActuation
 ~~~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mj_fwdActuation(const mjModel* m, mjData* d);
+.. mujoco-include:: mj_fwdActuation
 
 Compute actuator force qfrc_actuator.
 
@@ -3888,9 +1981,7 @@ Compute actuator force qfrc_actuator.
 mj_fwdAcceleration
 ~~~~~~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mj_fwdAcceleration(const mjModel* m, mjData* d);
+.. mujoco-include:: mj_fwdAcceleration
 
 Add up all non-constraint forces, compute qacc_smooth.
 
@@ -3899,9 +1990,7 @@ Add up all non-constraint forces, compute qacc_smooth.
 mj_fwdConstraint
 ~~~~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mj_fwdConstraint(const mjModel* m, mjData* d);
+.. mujoco-include:: mj_fwdConstraint
 
 Run selected constraint solver.
 
@@ -3910,9 +1999,7 @@ Run selected constraint solver.
 mj_Euler
 ~~~~~~~~
 
-.. code-block:: C
-
-   void mj_Euler(const mjModel* m, mjData* d);
+.. mujoco-include:: mj_Euler
 
 Euler integrator, semi-implicit in velocity.
 
@@ -3921,9 +2008,7 @@ Euler integrator, semi-implicit in velocity.
 mj_RungeKutta
 ~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mj_RungeKutta(const mjModel* m, mjData* d, int N);
+.. mujoco-include:: mj_RungeKutta
 
 Runge-Kutta explicit order-N integrator.
 
@@ -3932,9 +2017,7 @@ Runge-Kutta explicit order-N integrator.
 mj_invPosition
 ~~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mj_invPosition(const mjModel* m, mjData* d);
+.. mujoco-include:: mj_invPosition
 
 Run position-dependent computations in inverse dynamics.
 
@@ -3943,9 +2026,7 @@ Run position-dependent computations in inverse dynamics.
 mj_invVelocity
 ~~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mj_invVelocity(const mjModel* m, mjData* d);
+.. mujoco-include:: mj_invVelocity
 
 Run velocity-dependent computations in inverse dynamics.
 
@@ -3954,9 +2035,7 @@ Run velocity-dependent computations in inverse dynamics.
 mj_invConstraint
 ~~~~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mj_invConstraint(const mjModel* m, mjData* d);
+.. mujoco-include:: mj_invConstraint
 
 Apply the analytical formula for inverse constraint dynamics.
 
@@ -3965,9 +2044,7 @@ Apply the analytical formula for inverse constraint dynamics.
 mj_compareFwdInv
 ~~~~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mj_compareFwdInv(const mjModel* m, mjData* d);
+.. mujoco-include:: mj_compareFwdInv
 
 Compare forward and inverse dynamics, save results in fwdinv.
 
@@ -3984,9 +2061,7 @@ that the user will need to call them.
 mj_sensorPos
 ~~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mj_sensorPos(const mjModel* m, mjData* d);
+.. mujoco-include:: mj_sensorPos
 
 Evaluate position-dependent sensors.
 
@@ -3995,9 +2070,7 @@ Evaluate position-dependent sensors.
 mj_sensorVel
 ~~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mj_sensorVel(const mjModel* m, mjData* d);
+.. mujoco-include:: mj_sensorVel
 
 Evaluate velocity-dependent sensors.
 
@@ -4006,9 +2079,7 @@ Evaluate velocity-dependent sensors.
 mj_sensorAcc
 ~~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mj_sensorAcc(const mjModel* m, mjData* d);
+.. mujoco-include:: mj_sensorAcc
 
 Evaluate acceleration and force-dependent sensors.
 
@@ -4017,9 +2088,7 @@ Evaluate acceleration and force-dependent sensors.
 mj_energyPos
 ~~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mj_energyPos(const mjModel* m, mjData* d);
+.. mujoco-include:: mj_energyPos
 
 Evaluate position-dependent energy (potential).
 
@@ -4028,9 +2097,7 @@ Evaluate position-dependent energy (potential).
 mj_energyVel
 ~~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mj_energyVel(const mjModel* m, mjData* d);
+.. mujoco-include:: mj_energyVel
 
 Evaluate velocity-dependent energy (kinetic).
 
@@ -4039,9 +2106,7 @@ Evaluate velocity-dependent energy (kinetic).
 mj_checkPos
 ~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mj_checkPos(const mjModel* m, mjData* d);
+.. mujoco-include:: mj_checkPos
 
 Check qpos, reset if any element is too big or nan.
 
@@ -4050,9 +2115,7 @@ Check qpos, reset if any element is too big or nan.
 mj_checkVel
 ~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mj_checkVel(const mjModel* m, mjData* d);
+.. mujoco-include:: mj_checkVel
 
 Check qvel, reset if any element is too big or nan.
 
@@ -4061,9 +2124,7 @@ Check qvel, reset if any element is too big or nan.
 mj_checkAcc
 ~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mj_checkAcc(const mjModel* m, mjData* d);
+.. mujoco-include:: mj_checkAcc
 
 Check qacc, reset if any element is too big or nan.
 
@@ -4072,9 +2133,7 @@ Check qacc, reset if any element is too big or nan.
 mj_kinematics
 ~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mj_kinematics(const mjModel* m, mjData* d);
+.. mujoco-include:: mj_kinematics
 
 Run forward kinematics.
 
@@ -4083,45 +2142,35 @@ Run forward kinematics.
 mj_comPos
 ~~~~~~~~~
 
-.. code-block:: C
-
-   void mj_comPos(const mjModel* m, mjData* d);
+.. mujoco-include:: mj_comPos
 
 Map inertias and motion dofs to global frame centered at CoM.
 
 mj_camlight
 ~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mj_camlight(const mjModel* m, mjData* d);
+.. mujoco-include:: mj_camlight
 
 Compute camera and light positions and orientations.
 
 mj_tendon
 ~~~~~~~~~
 
-.. code-block:: C
-
-   void mj_tendon(const mjModel* m, mjData* d);
+.. mujoco-include:: mj_tendon
 
 Compute tendon lengths, velocities and moment arms.
 
 mj_transmission
 ~~~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mj_transmission(const mjModel* m, mjData* d);
+.. mujoco-include:: mj_transmission
 
 Compute actuator transmission lengths and moments.
 
 mj_crb
 ~~~~~~
 
-.. code-block:: C
-
-   void mj_crb(const mjModel* m, mjData* d);
+.. mujoco-include:: mj_crb
 
 Run composite rigid body inertia algorithm (CRB).
 
@@ -4130,9 +2179,7 @@ Run composite rigid body inertia algorithm (CRB).
 mj_factorM
 ~~~~~~~~~~
 
-.. code-block:: C
-
-   void mj_factorM(const mjModel* m, mjData* d);
+.. mujoco-include:: mj_factorM
 
 Compute sparse :math:`L^T D L` factorizaton of inertia matrix.
 
@@ -4141,9 +2188,7 @@ Compute sparse :math:`L^T D L` factorizaton of inertia matrix.
 mj_solveM
 ~~~~~~~~~
 
-.. code-block:: C
-
-   void mj_solveM(const mjModel* m, mjData* d, mjtNum* x, const mjtNum* y, int n);
+.. mujoco-include:: mj_solveM
 
 Solve linear system :math:`M x = y` using factorization: :math:`x = (L^T D L)^{-1} y`
 
@@ -4152,9 +2197,7 @@ Solve linear system :math:`M x = y` using factorization: :math:`x = (L^T D L)^{-
 mj_solveM2
 ~~~~~~~~~~
 
-.. code-block:: C
-
-   void mj_solveM2(const mjModel* m, mjData* d, mjtNum* x, const mjtNum* y, int n);
+.. mujoco-include:: mj_solveM2
 
 Half of linear solve: :math:`x = \sqrt{D^{-1}} (L^T)^{-1} y`
 
@@ -4163,18 +2206,14 @@ Half of linear solve: :math:`x = \sqrt{D^{-1}} (L^T)^{-1} y`
 mj_comVel
 ~~~~~~~~~
 
-.. code-block:: C
-
-   void mj_comVel(const mjModel* m, mjData* d);
+.. mujoco-include:: mj_comVel
 
 Compute cvel, cdof_dot.
 
 mj_passive
 ~~~~~~~~~~
 
-.. code-block:: C
-
-   void mj_passive(const mjModel* m, mjData* d);
+.. mujoco-include:: mj_passive
 
 Compute qfrc_passive from spring-dampers, viscosity and density.
 
@@ -4183,18 +2222,14 @@ Compute qfrc_passive from spring-dampers, viscosity and density.
 mj_subtreeVel
 ~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mj_subtreeVel(const mjModel* m, mjData* d);
+.. mujoco-include:: mj_subtreeVel
 
 subtree linear velocity and angular momentum
 
 mj_rne
 ~~~~~~
 
-.. code-block:: C
-
-   void mj_rne(const mjModel* m, mjData* d, int flg_acc, mjtNum* result);
+.. mujoco-include:: mj_rne
 
 RNE: compute M(qpos)*qacc + C(qpos,qvel); flg_acc=0 removes inertial term.
 
@@ -4203,9 +2238,7 @@ RNE: compute M(qpos)*qacc + C(qpos,qvel); flg_acc=0 removes inertial term.
 mj_rnePostConstraint
 ~~~~~~~~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mj_rnePostConstraint(const mjModel* m, mjData* d);
+.. mujoco-include:: mj_rnePostConstraint
 
 RNE with complete data: compute cacc, cfrc_ext, cfrc_int.
 
@@ -4214,9 +2247,7 @@ RNE with complete data: compute cacc, cfrc_ext, cfrc_int.
 mj_collision
 ~~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mj_collision(const mjModel* m, mjData* d);
+.. mujoco-include:: mj_collision
 
 Run collision detection.
 
@@ -4225,9 +2256,7 @@ Run collision detection.
 mj_makeConstraint
 ~~~~~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mj_makeConstraint(const mjModel* m, mjData* d);
+.. mujoco-include:: mj_makeConstraint
 
 Construct constraints.
 
@@ -4236,9 +2265,7 @@ Construct constraints.
 mj_projectConstraint
 ~~~~~~~~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mj_projectConstraint(const mjModel* m, mjData* d);
+.. mujoco-include:: mj_projectConstraint
 
 Compute inverse constraint inertia efc_AR.
 
@@ -4247,21 +2274,16 @@ Compute inverse constraint inertia efc_AR.
 mj_referenceConstraint
 ~~~~~~~~~~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mj_referenceConstraint(const mjModel* m, mjData* d);
+.. mujoco-include:: mj_referenceConstraint
 
 Compute efc_vel, efc_aref.
 
-.. _mj_constraintUpdate:
+. _mj_constraintUpdate:
 
 mj_constraintUpdate
 ~~~~~~~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mj_constraintUpdate(const mjModel* m, mjData* d, const mjtNum* jar,
-                            mjtNum cost[1], int flg_coneHessian);
+.. mujoco-include:: mj_constraintUpdate
 
 Compute efc_state, efc_force, qfrc_constraint, and (optionally) cone Hessians. If cost is not NULL, set \*cost = s(jar)
 where jar = Jac*qacc-aref.
@@ -4280,9 +2302,7 @@ and are documented in more detail below.
 mj_addContact
 ~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   int mj_addContact(const mjModel* m, mjData* d, const mjContact* con);
+.. mujoco-include:: mj_addContact
 
 Add contact to d->contact list; return 0 if success; 1 if buffer full.
 
@@ -4291,9 +2311,7 @@ Add contact to d->contact list; return 0 if success; 1 if buffer full.
 mj_isPyramidal
 ~~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   int mj_isPyramidal(const mjModel* m);
+.. mujoco-include:: mj_isPyramidal
 
 Determine type of friction cone.
 
@@ -4302,9 +2320,7 @@ Determine type of friction cone.
 mj_isSparse
 ~~~~~~~~~~~
 
-.. code-block:: C
-
-   int mj_isSparse(const mjModel* m);
+.. mujoco-include:: mj_isSparse
 
 Determine type of constraint Jacobian.
 
@@ -4313,9 +2329,7 @@ Determine type of constraint Jacobian.
 mj_isDual
 ~~~~~~~~~
 
-.. code-block:: C
-
-   int mj_isDual(const mjModel* m);
+.. mujoco-include:: mj_isDual
 
 Determine type of solver (PGS is dual, CG and Newton are primal).
 
@@ -4324,10 +2338,7 @@ Determine type of solver (PGS is dual, CG and Newton are primal).
 mj_mulJacVec
 ~~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mj_mulJacVec(const mjModel* m, mjData* d,
-                     mjtNum* res, const mjtNum* vec);
+.. mujoco-include:: mj_mulJacVec
 
 This function multiplies the constraint Jacobian mjData.efc_J by a vector. Note that the Jacobian can be either dense or
 sparse; the function is aware of this setting. Multiplication by J maps velocities from joint space to constraint space.
@@ -4337,9 +2348,7 @@ sparse; the function is aware of this setting. Multiplication by J maps velociti
 mj_mulJacTVec
 ~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mj_mulJacTVec(const mjModel* m, mjData* d, mjtNum* res, const mjtNum* vec);
+.. mujoco-include:: mj_mulJacTVec
 
 Same as mj_mulJacVec but multiplies by the transpose of the Jacobian. This maps forces from constraint space to joint
 space.
@@ -4349,10 +2358,7 @@ space.
 mj_jac
 ~~~~~~
 
-.. code-block:: C
-
-   void mj_jac(const mjModel* m, const mjData* d,
-               mjtNum* jacp, mjtNum* jacr, const mjtNum point[3], int body);
+.. mujoco-include:: mj_jac
 
 This function computes an "end-effector" Jacobian, which is unrelated to the constraint Jacobian above. Any MuJoCo body
 can be treated as end-effector, and the point for which the Jacobian is computed can be anywhere in space (it is treated
@@ -4366,10 +2372,7 @@ to compute end-effector Jacobians analytically is one of the advantages of worki
 mj_jacBody
 ~~~~~~~~~~
 
-.. code-block:: C
-
-   void mj_jacBody(const mjModel* m, const mjData* d,
-                   mjtNum* jacp, mjtNum* jacr, int body);
+.. mujoco-include:: mj_jacBody
 
 This and the remaining variants of the Jacobian function call mj_jac internally, with the center of the body, geom or
 site. They are just shortcuts; the same can be achieved by calling mj_jac directly.
@@ -4379,10 +2382,7 @@ site. They are just shortcuts; the same can be achieved by calling mj_jac direct
 mj_jacBodyCom
 ~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mj_jacBodyCom(const mjModel* m, const mjData* d,
-                      mjtNum* jacp, mjtNum* jacr, int body);
+.. mujoco-include:: mj_jacBodyCom
 
 Compute body center-of-mass end-effector Jacobian.
 
@@ -4391,9 +2391,7 @@ Compute body center-of-mass end-effector Jacobian.
 mj_jacSubtreeCom
 ~~~~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mj_jacSubtreeCom(const mjModel* m, mjData* d, mjtNum* jacp, int body);
+.. mujoco-include:: mj_jacSubtreeCom
 
 Compute subtree center-of-mass end-effector Jacobian. ``jacp`` is 3 x nv.
 
@@ -4402,10 +2400,7 @@ Compute subtree center-of-mass end-effector Jacobian. ``jacp`` is 3 x nv.
 mj_jacGeom
 ~~~~~~~~~~
 
-.. code-block:: C
-
-   void mj_jacGeom(const mjModel* m, const mjData* d,
-                   mjtNum* jacp, mjtNum* jacr, int geom);
+.. mujoco-include:: mj_jacGeom
 
 Compute geom end-effector Jacobian.
 
@@ -4414,10 +2409,7 @@ Compute geom end-effector Jacobian.
 mj_jacSite
 ~~~~~~~~~~
 
-.. code-block:: C
-
-   void mj_jacSite(const mjModel* m, const mjData* d,
-                   mjtNum* jacp, mjtNum* jacr, int site);
+.. mujoco-include:: mj_jacSite
 
 Compute site end-effector Jacobian.
 
@@ -4426,11 +2418,7 @@ Compute site end-effector Jacobian.
 mj_jacPointAxis
 ~~~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mj_jacPointAxis(const mjModel* m, mjData* d,
-                        mjtNum* jacPoint, mjtNum* jacAxis,
-                        const mjtNum point[3], const mjtNum axis[3], int body);
+.. mujoco-include:: mj_jacPointAxis
 
 Compute translation end-effector Jacobian of point, and rotation Jacobian of axis.
 
@@ -4439,9 +2427,7 @@ Compute translation end-effector Jacobian of point, and rotation Jacobian of axi
 mj_name2id
 ~~~~~~~~~~
 
-.. code-block:: C
-
-   int mj_name2id(const mjModel* m, int type, const char* name);
+.. mujoco-include:: mj_name2id
 
 Get id of object with specified name, return -1 if not found; type is mjtObj.
 
@@ -4450,9 +2436,7 @@ Get id of object with specified name, return -1 if not found; type is mjtObj.
 mj_id2name
 ~~~~~~~~~~
 
-.. code-block:: C
-
-   const char* mj_id2name(const mjModel* m, int type, int id);
+.. mujoco-include:: mj_id2name
 
 Get name of object with specified id, return 0 if invalid type or id; type is mjtObj.
 
@@ -4461,9 +2445,7 @@ Get name of object with specified id, return 0 if invalid type or id; type is mj
 mj_fullM
 ~~~~~~~~
 
-.. code-block:: C
-
-   void mj_fullM(const mjModel* m, mjtNum* dst, const mjtNum* M);
+.. mujoco-include:: mj_fullM
 
 Convert sparse inertia matrix M into full (i.e. dense) matrix.
 
@@ -4472,9 +2454,7 @@ Convert sparse inertia matrix M into full (i.e. dense) matrix.
 mj_mulM
 ~~~~~~~
 
-.. code-block:: C
-
-   void mj_mulM(const mjModel* m, const mjData* d, mjtNum* res, const mjtNum* vec);
+.. mujoco-include:: mj_mulM
 
 This function multiplies the joint-space inertia matrix stored in mjData.qM by a vector. qM has a custom sparse format
 that the user should not attempt to manipulate directly. Alternatively one can convert qM to a dense matrix with
@@ -4486,9 +2466,7 @@ sparsity.
 mj_mulM2
 ~~~~~~~~
 
-.. code-block:: C
-
-   void mj_mulM2(const mjModel* m, const mjData* d, mjtNum* res, const mjtNum* vec);
+.. mujoco-include:: mj_mulM2
 
 Multiply vector by (inertia matrix)^(1/2).
 
@@ -4497,10 +2475,7 @@ Multiply vector by (inertia matrix)^(1/2).
 mj_addM
 ~~~~~~~
 
-.. code-block:: C
-
-   void mj_addM(const mjModel* m, mjData* d, mjtNum* dst,
-                int* rownnz, int* rowadr, int* colind);
+.. mujoco-include:: mj_addM
 
 Add inertia matrix to destination matrix. Destination can be sparse uncompressed, or dense when all int\* are NULL
 
@@ -4509,11 +2484,7 @@ Add inertia matrix to destination matrix. Destination can be sparse uncompressed
 mj_applyFT
 ~~~~~~~~~~
 
-.. code-block:: C
-
-   void mj_applyFT(const mjModel* m, mjData* d,
-                   const mjtNum[3] force, const mjtNum[3] torque,
-                   const mjtNum[3] point, int body, mjtNum* qfrc_target);
+.. mujoco-include:: mj_applyFT
 
 This function can be used to apply a Cartesian force and torque to a point on a body, and add the result to the vector
 mjData.qfrc_applied of all applied forces. Note that the function requires a pointer to this vector, because sometimes
@@ -4524,10 +2495,7 @@ we want to add the result to a different vector.
 mj_objectVelocity
 ~~~~~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mj_objectVelocity(const mjModel* m, const mjData* d,
-                          int objtype, int objid, mjtNum[6] res, int flg_local);
+.. mujoco-include:: mj_objectVelocity
 
 Compute object 6D velocity in object-centered frame, world/local orientation.
 
@@ -4536,10 +2504,7 @@ Compute object 6D velocity in object-centered frame, world/local orientation.
 mj_objectAcceleration
 ~~~~~~~~~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mj_objectAcceleration(const mjModel* m, const mjData* d,
-                              int objtype, int objid, mjtNum[6] res, int flg_local);
+.. mujoco-include:: mj_objectAcceleration
 
 Compute object 6D acceleration in object-centered frame, world/local orientation.
 
@@ -4548,9 +2513,7 @@ Compute object 6D acceleration in object-centered frame, world/local orientation
 mj_contactForce
 ~~~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mj_contactForce(const mjModel* m, const mjData* d, int id, mjtNum[6] result);
+.. mujoco-include:: mj_contactForce
 
 Extract 6D force:torque given contact id, in the contact frame.
 
@@ -4559,10 +2522,7 @@ Extract 6D force:torque given contact id, in the contact frame.
 mj_differentiatePos
 ~~~~~~~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mj_differentiatePos(const mjModel* m, mjtNum* qvel, mjtNum dt,
-                            const mjtNum* qpos1, const mjtNum* qpos2);
+.. mujoco-include:: mj_differentiatePos
 
 This function subtracts two vectors in the format of qpos (and divides the result by dt), while respecting the
 properties of quaternions. Recall that unit quaternions represent spatial orientations. They are points on the unit
@@ -4575,9 +2535,7 @@ inputs have dimensionality nq.
 mj_integratePos
 ~~~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mj_integratePos(const mjModel* m, mjtNum* qpos, const mjtNum* qvel, mjtNum dt);
+.. mujoco-include:: mj_integratePos
 
 This is the opposite of mj_differentiatePos. It adds a vector in the format of qvel (scaled by dt) to a vector in the
 format of qpos.
@@ -4587,9 +2545,7 @@ format of qpos.
 mj_normalizeQuat
 ~~~~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mj_normalizeQuat(const mjModel* m, mjtNum* qpos);
+.. mujoco-include:: mj_normalizeQuat
 
 Normalize all quaternions in qpos-type vector.
 
@@ -4598,11 +2554,7 @@ Normalize all quaternions in qpos-type vector.
 mj_local2Global
 ~~~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mj_local2Global(mjData* d, mjtNum[3] xpos, mjtNum[9] xmat,
-                        const mjtNum[3] pos, const mjtNum[4] quat,
-                        int body, mjtByte sameframe);
+.. mujoco-include:: mj_local2Global
 
 Map from body local to global Cartesian coordinates.
 
@@ -4611,9 +2563,7 @@ Map from body local to global Cartesian coordinates.
 mj_getTotalmass
 ~~~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   mjtNum mj_getTotalmass(const mjModel* m);
+.. mujoco-include:: mj_getTotalmass
 
 Sum all body masses.
 
@@ -4622,9 +2572,7 @@ Sum all body masses.
 mj_setTotalmass
 ~~~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mj_setTotalmass(mjModel* m, mjtNum newmass);
+.. mujoco-include:: mj_setTotalmass
 
 Scale body masses and inertias to achieve specified total mass.
 
@@ -4633,9 +2581,7 @@ Scale body masses and inertias to achieve specified total mass.
 mj_version
 ~~~~~~~~~~
 
-.. code-block:: C
-
-   int mj_version(void);
+.. mujoco-include:: mj_version
 
 Return version number: 1.0.2 is encoded as 102.
 
@@ -4644,9 +2590,7 @@ Return version number: 1.0.2 is encoded as 102.
 mj_versionString
 ~~~~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   const char* mj_versionString();
+.. mujoco-include:: mj_versionString
 
 Return the current version of MuJoCo as a null-terminated string.
 
@@ -4669,11 +2613,7 @@ after  :ref:`mj_kinematics`, or functions that call it (e.g. :ref:`mj_fwdPositio
 mj_ray
 ~~~~~~
 
-.. code-block:: C
-
-   mjtNum mj_ray(const mjModel* m, const mjData* d, const mjtNum[3] pnt, const mjtNum[3] vec,
-                 const mjtByte* geomgroup, mjtByte flg_static, int bodyexclude,
-                 int geomid[1]);
+.. mujoco-include:: mj_ray
 
 Intersect ray (pnt+x*vec, x>=0) with visible geoms, except geoms in bodyexclude. Return geomid and distance (x) to
 nearest surface, or -1 if no intersection.
@@ -4688,10 +2628,7 @@ bodyexclude=-1 can be used to indicate that all bodies are included.
 mj_rayHfield
 ~~~~~~~~~~~~
 
-.. code-block:: C
-
-   mjtNum mj_rayHfield(const mjModel* m, const mjData* d, int geomid,
-                       const mjtNum[3] pnt, const mjtNum[3] vec);
+.. mujoco-include:: mj_rayHfield
 
 Interect ray with hfield, return nearest distance or -1 if no intersection.
 
@@ -4700,10 +2637,7 @@ Interect ray with hfield, return nearest distance or -1 if no intersection.
 mj_rayMesh
 ~~~~~~~~~~
 
-.. code-block:: C
-
-   mjtNum mj_rayMesh(const mjModel* m, const mjData* d, int geomid,
-                     const mjtNum[3] pnt, const mjtNum[3] vec);
+.. mujoco-include:: mj_rayMesh
 
 Interect ray with mesh, return nearest distance or -1 if no intersection.
 
@@ -4712,10 +2646,7 @@ Interect ray with mesh, return nearest distance or -1 if no intersection.
 mju_rayGeom
 ~~~~~~~~~~~
 
-.. code-block:: C
-
-   mjtNum mju_rayGeom(const mjtNum[3] pos, const mjtNum[9] mat, const mjtNum[3] size,
-                      const mjtNum[3] pnt, const mjtNum[3] vec, int geomtype);
+.. mujoco-include:: mju_rayGeom
 
 Interect ray with pure geom, return nearest distance or -1 if no intersection.
 
@@ -4724,10 +2655,7 @@ Interect ray with pure geom, return nearest distance or -1 if no intersection.
 mju_raySkin
 ~~~~~~~~~~~
 
-.. code-block:: C
-
-   mjtNum mju_raySkin(int nface, int nvert, const int* face, const float* vert,
-                      const mjtNum[3] pnt, const mjtNum[3] vec, int vertid[1]);
+.. mujoco-include:: mju_raySkin
 
 Interect ray with skin, return nearest vertex id.
 
@@ -4744,9 +2672,7 @@ illustrated in :ref:`simulate.cc <saSimulate>`.
 mjv_defaultCamera
 ~~~~~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mjv_defaultCamera(mjvCamera* cam);
+.. mujoco-include:: mjv_defaultCamera
 
 Set default camera.
 
@@ -4755,9 +2681,7 @@ Set default camera.
 mjv_defaultFreeCamera
 ~~~~~~~~~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mjv_defaultFreeCamera(const mjModel* m, mjvCamera* cam);
+.. mujoco-include:: mjv_defaultFreeCamera
 
 Set default free camera.
 
@@ -4766,9 +2690,7 @@ Set default free camera.
 mjv_defaultPerturb
 ~~~~~~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mjv_defaultPerturb(mjvPerturb* pert);
+.. mujoco-include:: mjv_defaultPerturb
 
 Set default perturbation.
 
@@ -4777,10 +2699,7 @@ Set default perturbation.
 mjv_room2model
 ~~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mjv_room2model(mjtNum[3] modelpos, mjtNum[4] modelquat, const mjtNum[3] roompos,
-                       const mjtNum[4] roomquat, const mjvScene* scn);
+.. mujoco-include:: mjv_room2model
 
 Transform pose from room to model space.
 
@@ -4789,10 +2708,7 @@ Transform pose from room to model space.
 mjv_model2room
 ~~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mjv_model2room(mjtNum[3] roompos, mjtNum[4] roomquat, const mjtNum[3] modelpos,
-                       const mjtNum[4] modelquat, const mjvScene* scn);
+.. mujoco-include:: mjv_model2room
 
 Transform pose from model to room space.
 
@@ -4801,10 +2717,7 @@ Transform pose from model to room space.
 mjv_cameraInModel
 ~~~~~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mjv_cameraInModel(mjtNum[3] headpos, mjtNum[3] forward, mjtNum[3] up,
-                          const mjvScene* scn);
+.. mujoco-include:: mjv_cameraInModel
 
 Get camera info in model space; average left and right OpenGL cameras.
 
@@ -4813,10 +2726,7 @@ Get camera info in model space; average left and right OpenGL cameras.
 mjv_cameraInRoom
 ~~~~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mjv_cameraInRoom(mjtNum[3] headpos, mjtNum[3] forward, mjtNum[3] up,
-                         const mjvScene* scn);
+.. mujoco-include:: mjv_cameraInRoom
 
 Get camera info in room space; average left and right OpenGL cameras.
 
@@ -4825,9 +2735,7 @@ Get camera info in room space; average left and right OpenGL cameras.
 mjv_frustumHeight
 ~~~~~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   mjtNum mjv_frustumHeight(const mjvScene* scn);
+.. mujoco-include:: mjv_frustumHeight
 
 Get frustum height at unit distance from camera; average left and right OpenGL cameras.
 
@@ -4836,9 +2744,7 @@ Get frustum height at unit distance from camera; average left and right OpenGL c
 mjv_alignToCamera
 ~~~~~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mjv_alignToCamera(mjtNum[3] res, const mjtNum[3] vec, const mjtNum[3] forward);
+.. mujoco-include:: mjv_alignToCamera
 
 Rotate 3D vec in horizontal plane by angle between (0,1) and (forward_x,forward_y).
 
@@ -4847,10 +2753,7 @@ Rotate 3D vec in horizontal plane by angle between (0,1) and (forward_x,forward_
 mjv_moveCamera
 ~~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mjv_moveCamera(const mjModel* m, int action, mjtNum reldx, mjtNum reldy,
-                       const mjvScene* scn, mjvCamera* cam);
+.. mujoco-include:: mjv_moveCamera
 
 Move camera with mouse; action is mjtMouse.
 
@@ -4859,10 +2762,7 @@ Move camera with mouse; action is mjtMouse.
 mjv_movePerturb
 ~~~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mjv_movePerturb(const mjModel* m, const mjData* d, int action, mjtNum reldx,
-                        mjtNum reldy, const mjvScene* scn, mjvPerturb* pert);
+.. mujoco-include:: mjv_movePerturb
 
 Move perturb object with mouse; action is mjtMouse.
 
@@ -4871,10 +2771,7 @@ Move perturb object with mouse; action is mjtMouse.
 mjv_moveModel
 ~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mjv_moveModel(const mjModel* m, int action, mjtNum reldx, mjtNum reldy,
-                      const mjtNum roomup[3], mjvScene* scn);
+.. mujoco-include:: mjv_moveModel
 
 Move model with mouse; action is mjtMouse.
 
@@ -4883,10 +2780,7 @@ Move model with mouse; action is mjtMouse.
 mjv_initPerturb
 ~~~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mjv_initPerturb(const mjModel* m, const mjData* d,
-                        const mjvScene* scn, mjvPerturb* pert);
+.. mujoco-include:: mjv_initPerturb
 
 Copy perturb pos,quat from selected body; set scale for perturbation.
 
@@ -4895,10 +2789,7 @@ Copy perturb pos,quat from selected body; set scale for perturbation.
 mjv_applyPerturbPose
 ~~~~~~~~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mjv_applyPerturbPose(const mjModel* m, mjData* d, const mjvPerturb* pert,
-                             int flg_paused);
+.. mujoco-include:: mjv_applyPerturbPose
 
 Set perturb pos,quat in d->mocap when selected body is mocap, and in d->qpos otherwise. Write d->qpos only if flg_paused
 and subtree root for selected body has free joint.
@@ -4908,9 +2799,7 @@ and subtree root for selected body has free joint.
 mjv_applyPerturbForce
 ~~~~~~~~~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mjv_applyPerturbForce(const mjModel* m, mjData* d, const mjvPerturb* pert);
+.. mujoco-include:: mjv_applyPerturbForce
 
 Set perturb force,torque in d->xfrc_applied, if selected body is dynamic.
 
@@ -4919,9 +2808,7 @@ Set perturb force,torque in d->xfrc_applied, if selected body is dynamic.
 mjv_averageCamera
 ~~~~~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   mjvGLCamera mjv_averageCamera(const mjvGLCamera* cam1, const mjvGLCamera* cam2);
+.. mujoco-include:: mjv_averageCamera
 
 Return the average of two OpenGL cameras.
 
@@ -4930,11 +2817,7 @@ Return the average of two OpenGL cameras.
 mjv_select
 ~~~~~~~~~~
 
-.. code-block:: C
-
-   int mjv_select(const mjModel* m, const mjData* d, const mjvOption* vopt,
-                  mjtNum aspectratio, mjtNum relx, mjtNum rely,
-                  const mjvScene* scn, mjtNum[3] selpnt, int geomid[1], int skinid[1]);
+.. mujoco-include:: mjv_select
 
 This function is used for mouse selection. Previously selection was done via OpenGL, but as of MuJoCo 1.50 it relies on
 ray intersections which are much more efficient. aspectratio is the viewport width/height. relx and rely are the
@@ -4956,9 +2839,7 @@ Unity or Unreal Engine. See :ref:`simulate.cc <saSimulate>` for illustration of 
 mjv_defaultOption
 ~~~~~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mjv_defaultOption(mjvOption* opt);
+.. mujoco-include:: mjv_defaultOption
 
 Set default visualization options.
 
@@ -4967,9 +2848,7 @@ Set default visualization options.
 mjv_defaultFigure
 ~~~~~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mjv_defaultFigure(mjvFigure* fig);
+.. mujoco-include:: mjv_defaultFigure
 
 Set default figure.
 
@@ -4978,10 +2857,7 @@ Set default figure.
 mjv_initGeom
 ~~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mjv_initGeom(mjvGeom* geom, int type, const mjtNum[3] size,
-                     const mjtNum[3] pos, const mjtNum[9] mat, const float[4] rgba);
+.. mujoco-include:: mjv_initGeom
 
 Initialize given geom fields when not NULL, set the rest to their default values.
 
@@ -4990,11 +2866,7 @@ Initialize given geom fields when not NULL, set the rest to their default values
 mjv_makeConnector
 ~~~~~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mjv_makeConnector(mjvGeom* geom, int type, mjtNum width,
-                          mjtNum a0, mjtNum a1, mjtNum a2,
-                          mjtNum b0, mjtNum b1, mjtNum b2);
+.. mujoco-include:: mjv_makeConnector
 
 Set (type, size, pos, mat) for connector-type geom between given points. Assume that mjv_initGeom was already called to
 set all other properties.
@@ -5004,9 +2876,7 @@ set all other properties.
 mjv_defaultScene
 ~~~~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mjv_defaultScene(mjvScene* scn);
+.. mujoco-include:: mjv_defaultScene
 
 Set default abstract scene.
 
@@ -5015,9 +2885,7 @@ Set default abstract scene.
 mjv_makeScene
 ~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mjv_makeScene(const mjModel* m, mjvScene* scn, int maxgeom);
+.. mujoco-include:: mjv_makeScene
 
 Allocate resources in abstract scene.
 
@@ -5026,9 +2894,7 @@ Allocate resources in abstract scene.
 mjv_freeScene
 ~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mjv_freeScene(mjvScene* scn);
+.. mujoco-include:: mjv_freeScene
 
 Free abstract scene.
 
@@ -5037,10 +2903,7 @@ Free abstract scene.
 mjv_updateScene
 ~~~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mjv_updateScene(const mjModel* m, mjData* d, const mjvOption* opt,
-                        const mjvPerturb* pert, mjvCamera* cam, int catmask, mjvScene* scn);
+.. mujoco-include:: mjv_updateScene
 
 Update entire scene given model state.
 
@@ -5049,10 +2912,7 @@ Update entire scene given model state.
 mjv_addGeoms
 ~~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* opt,
-                     const mjvPerturb* pert, int catmask, mjvScene* scn);
+.. mujoco-include:: mjv_addGeoms
 
 Add geoms from selected categories.
 
@@ -5061,9 +2921,7 @@ Add geoms from selected categories.
 mjv_makeLights
 ~~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mjv_makeLights(const mjModel* m, mjData* d, mjvScene* scn);
+.. mujoco-include:: mjv_makeLights
 
 Make list of lights.
 
@@ -5072,9 +2930,7 @@ Make list of lights.
 mjv_updateCamera
 ~~~~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mjv_updateCamera(const mjModel* m, mjData* d, mjvCamera* cam, mjvScene* scn);
+.. mujoco-include:: mjv_updateCamera
 
 Update camera.
 
@@ -5083,9 +2939,7 @@ Update camera.
 mjv_updateSkin
 ~~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mjv_updateSkin(const mjModel* m, mjData* d, mjvScene* scn);
+.. mujoco-include:: mjv_updateSkin
 
 Update skins.
 
@@ -5102,9 +2956,7 @@ of how to use these functions.
 mjr_defaultContext
 ~~~~~~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mjr_defaultContext(mjrContext* con);
+.. mujoco-include:: mjr_defaultContext
 
 Set default mjrContext.
 
@@ -5113,9 +2965,7 @@ Set default mjrContext.
 mjr_makeContext
 ~~~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mjr_makeContext(const mjModel* m, mjrContext* con, int fontscale);
+.. mujoco-include:: mjr_makeContext
 
 Allocate resources in custom OpenGL context; fontscale is mjtFontScale.
 
@@ -5124,9 +2974,7 @@ Allocate resources in custom OpenGL context; fontscale is mjtFontScale.
 mjr_changeFont
 ~~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mjr_changeFont(int fontscale, mjrContext* con);
+.. mujoco-include:: mjr_changeFont
 
 Change font of existing context.
 
@@ -5135,9 +2983,7 @@ Change font of existing context.
 mjr_addAux
 ~~~~~~~~~~
 
-.. code-block:: C
-
-   void mjr_addAux(int index, int width, int height, int samples, mjrContext* con);
+.. mujoco-include:: mjr_addAux
 
 Add Aux buffer with given index to context; free previous Aux buffer.
 
@@ -5146,9 +2992,7 @@ Add Aux buffer with given index to context; free previous Aux buffer.
 mjr_freeContext
 ~~~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mjr_freeContext(mjrContext* con);
+.. mujoco-include:: mjr_freeContext
 
 Free resources in custom OpenGL context, set to default.
 
@@ -5157,9 +3001,7 @@ Free resources in custom OpenGL context, set to default.
 mjr_uploadTexture
 ~~~~~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mjr_uploadTexture(const mjModel* m, const mjrContext* con, int texid);
+.. mujoco-include:: mjr_uploadTexture
 
 Upload texture to GPU, overwriting previous upload if any.
 
@@ -5168,9 +3010,7 @@ Upload texture to GPU, overwriting previous upload if any.
 mjr_uploadMesh
 ~~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mjr_uploadMesh(const mjModel* m, const mjrContext* con, int meshid);
+.. mujoco-include:: mjr_uploadMesh
 
 Upload mesh to GPU, overwriting previous upload if any.
 
@@ -5179,9 +3019,7 @@ Upload mesh to GPU, overwriting previous upload if any.
 mjr_uploadHField
 ~~~~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mjr_uploadHField(const mjModel* m, const mjrContext* con, int hfieldid);
+.. mujoco-include:: mjr_uploadHField
 
 Upload height field to GPU, overwriting previous upload if any.
 
@@ -5190,9 +3028,7 @@ Upload height field to GPU, overwriting previous upload if any.
 mjr_restoreBuffer
 ~~~~~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mjr_restoreBuffer(const mjrContext* con);
+.. mujoco-include:: mjr_restoreBuffer
 
 Make con->currentBuffer current again.
 
@@ -5201,9 +3037,7 @@ Make con->currentBuffer current again.
 mjr_setBuffer
 ~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mjr_setBuffer(int framebuffer, mjrContext* con);
+.. mujoco-include:: mjr_setBuffer
 
 Set OpenGL framebuffer for rendering: mjFB_WINDOW or mjFB_OFFSCREEN. If only one buffer is available, set that buffer
 and ignore framebuffer argument.
@@ -5213,10 +3047,7 @@ and ignore framebuffer argument.
 mjr_readPixels
 ~~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mjr_readPixels(unsigned char* rgb, float* depth,
-                       mjrRect viewport, const mjrContext* con);
+.. mujoco-include:: mjr_readPixels
 
 Read pixels from current OpenGL framebuffer to client buffer. Viewport is in OpenGL framebuffer; client buffer starts at
 (0,0).
@@ -5226,10 +3057,7 @@ Read pixels from current OpenGL framebuffer to client buffer. Viewport is in Ope
 mjr_drawPixels
 ~~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mjr_drawPixels(const unsigned char* rgb, const float* depth,
-                       mjrRect viewport, const mjrContext* con);
+.. mujoco-include:: mjr_drawPixels
 
 Draw pixels from client buffer to current OpenGL framebuffer. Viewport is in OpenGL framebuffer; client buffer starts at
 (0,0).
@@ -5239,10 +3067,7 @@ Draw pixels from client buffer to current OpenGL framebuffer. Viewport is in Ope
 mjr_blitBuffer
 ~~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mjr_blitBuffer(mjrRect src, mjrRect dst,
-                       int flg_color, int flg_depth, const mjrContext* con);
+.. mujoco-include:: mjr_blitBuffer
 
 Blit from src viewpoint in current framebuffer to dst viewport in other framebuffer. If src, dst have different size and
 flg_depth==0, color is interpolated with GL_LINEAR.
@@ -5252,9 +3077,7 @@ flg_depth==0, color is interpolated with GL_LINEAR.
 mjr_setAux
 ~~~~~~~~~~
 
-.. code-block:: C
-
-   void mjr_setAux(int index, const mjrContext* con);
+.. mujoco-include:: mjr_setAux
 
 Set Aux buffer for custom OpenGL rendering (call restoreBuffer when done).
 
@@ -5263,10 +3086,7 @@ Set Aux buffer for custom OpenGL rendering (call restoreBuffer when done).
 mjr_blitAux
 ~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mjr_blitAux(int index, mjrRect src, int left, int bottom,
-                    const mjrContext* con);
+.. mujoco-include:: mjr_blitAux
 
 Blit from Aux buffer to con->currentBuffer.
 
@@ -5275,10 +3095,7 @@ Blit from Aux buffer to con->currentBuffer.
 mjr_text
 ~~~~~~~~
 
-.. code-block:: C
-
-   void mjr_text(int font, const char* txt, const mjrContext* con,
-                 float x, float y, float r, float g, float b);
+.. mujoco-include:: mjr_text
 
 Draw text at (x,y) in relative coordinates; font is mjtFont.
 
@@ -5287,10 +3104,7 @@ Draw text at (x,y) in relative coordinates; font is mjtFont.
 mjr_overlay
 ~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mjr_overlay(int font, int gridpos, mjrRect viewport,
-                    const char* overlay, const char* overlay2, const mjrContext* con);
+.. mujoco-include:: mjr_overlay
 
 Draw text overlay; font is mjtFont; gridpos is mjtGridPos.
 
@@ -5299,9 +3113,7 @@ Draw text overlay; font is mjtFont; gridpos is mjtGridPos.
 mjr_maxViewport
 ~~~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   mjrRect mjr_maxViewport(const mjrContext* con);
+.. mujoco-include:: mjr_maxViewport
 
 Get maximum viewport for active buffer.
 
@@ -5310,9 +3122,7 @@ Get maximum viewport for active buffer.
 mjr_rectangle
 ~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mjr_rectangle(mjrRect viewport, float r, float g, float b, float a);
+.. mujoco-include:: mjr_rectangle
 
 Draw rectangle.
 
@@ -5321,11 +3131,7 @@ Draw rectangle.
 mjr_label
 ~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mjr_label(mjrRect viewport, int font, const char* txt,
-                  float r, float g, float b, float a, float rt, float gt, float bt,
-                  const mjrContext* con);
+.. mujoco-include:: mjr_label
 
 Draw rectangle with centered text.
 
@@ -5334,9 +3140,7 @@ Draw rectangle with centered text.
 mjr_figure
 ~~~~~~~~~~
 
-.. code-block:: C
-
-   void mjr_figure(mjrRect viewport, mjvFigure* fig, const mjrContext* con);
+.. mujoco-include:: mjr_figure
 
 Draw 2D figure.
 
@@ -5345,9 +3149,7 @@ Draw 2D figure.
 mjr_render
 ~~~~~~~~~~
 
-.. code-block:: C
-
-   void mjr_render(mjrRect viewport, mjvScene* scn, const mjrContext* con);
+.. mujoco-include:: mjr_render
 
 Render 3D scene.
 
@@ -5356,9 +3158,7 @@ Render 3D scene.
 mjr_finish
 ~~~~~~~~~~
 
-.. code-block:: C
-
-   void mjr_finish(void);
+.. mujoco-include:: mjr_finish
 
 Call glFinish.
 
@@ -5367,9 +3167,7 @@ Call glFinish.
 mjr_getError
 ~~~~~~~~~~~~
 
-.. code-block:: C
-
-   int mjr_getError(void);
+.. mujoco-include:: mjr_getError
 
 Call glGetError and return result.
 
@@ -5378,9 +3176,7 @@ Call glGetError and return result.
 mjr_findRect
 ~~~~~~~~~~~~
 
-.. code-block:: C
-
-   int mjr_findRect(int x, int y, int nrect, const mjrRect* rect);
+.. mujoco-include:: mjr_findRect
 
 Find first rectangle containing mouse, -1: not found.
 
@@ -5394,9 +3190,7 @@ UI framework
 mjui_themeSpacing
 ~~~~~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   mjuiThemeSpacing mjui_themeSpacing(int ind);
+.. mujoco-include:: mjui_themeSpacing
 
 Get builtin UI theme spacing (ind: 0-1).
 
@@ -5405,36 +3199,28 @@ Get builtin UI theme spacing (ind: 0-1).
 mjui_themeColor
 ~~~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   mjuiThemeColor mjui_themeColor(int ind);
+.. mujoco-include:: mjui_themeColor
 
 Get builtin UI theme color (ind: 0-3).
 
 mjui_add
 ~~~~~~~~
 
-.. code-block:: C
-
-   void mjui_add(mjUI* ui, const mjuiDef* def);
+.. mujoco-include:: mjui_add
 
 Add definitions to UI.
 
 mjui_addToSection
 ~~~~~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mjui_addToSection(mjUI* ui, int sect, const mjuiDef* def);
+.. mujoco-include:: mjui_addToSection
 
 Add definitions to UI section.
 
 mjui_resize
 ~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mjui_resize(mjUI* ui, const mjrContext* con);
+.. mujoco-include:: mjui_resize
 
 Compute UI sizes.
 
@@ -5443,28 +3229,21 @@ Compute UI sizes.
 mjui_update
 ~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mjui_update(int section, int item, const mjUI* ui,
-                    const mjuiState* state, const mjrContext* con);
+.. mujoco-include:: mjui_update
 
 Update specific section/item; -1: update all.
 
 mjui_event
 ~~~~~~~~~~
 
-.. code-block:: C
-
-   mjuiItem* mjui_event(mjUI* ui, mjuiState* state, const mjrContext* con);
+.. mujoco-include:: mjui_event
 
 Handle UI event, return pointer to changed item, NULL if no change.
 
 mjui_render
 ~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mjui_render(mjUI* ui, const mjuiState* state, const mjrContext* con);
+.. mujoco-include:: mjui_render
 
 Copy UI image to current buffer.
 
@@ -5478,9 +3257,7 @@ Error and memory
 mju_error
 ~~~~~~~~~
 
-.. code-block:: C
-
-   void mju_error(const char* msg);
+.. mujoco-include:: mju_error
 
 Main error function; does not return to caller.
 
@@ -5489,9 +3266,7 @@ Main error function; does not return to caller.
 mju_error_i
 ~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mju_error_i(const char* msg, int i);
+.. mujoco-include:: mju_error_i
 
 Error function with int argument; msg is a printf format string.
 
@@ -5500,9 +3275,7 @@ Error function with int argument; msg is a printf format string.
 mju_error_s
 ~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mju_error_s(const char* msg, const char* text);
+.. mujoco-include:: mju_error_s
 
 Error function with string argument.
 
@@ -5511,27 +3284,21 @@ Error function with string argument.
 mju_warning
 ~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mju_warning(const char* msg);
+.. mujoco-include:: mju_warning
 
 Main warning function; returns to caller.
 
 mju_warning_i
 ~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mju_warning_i(const char* msg, int i);
+.. mujoco-include:: mju_warning_i
 
 Warning function with int argument.
 
 mju_warning_s
 ~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mju_warning_s(const char* msg, const char* text);
+.. mujoco-include:: mju_warning_s
 
 Warning function with string argument.
 
@@ -5540,9 +3307,7 @@ Warning function with string argument.
 mju_clearHandlers
 ~~~~~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mju_clearHandlers(void);
+.. mujoco-include:: mju_clearHandlers
 
 Clear user error and memory handlers.
 
@@ -5551,9 +3316,7 @@ Clear user error and memory handlers.
 mju_malloc
 ~~~~~~~~~~
 
-.. code-block:: C
-
-   void* mju_malloc(size_t size);
+.. mujoco-include:: mju_malloc
 
 Allocate memory; byte-align on 64; pad size to multiple of 64.
 
@@ -5562,9 +3325,7 @@ Allocate memory; byte-align on 64; pad size to multiple of 64.
 mju_free
 ~~~~~~~~
 
-.. code-block:: C
-
-   void mju_free(void* ptr);
+.. mujoco-include:: mju_free
 
 Free memory, using free() by default.
 
@@ -5573,9 +3334,7 @@ Free memory, using free() by default.
 mj_warning
 ~~~~~~~~~~
 
-.. code-block:: C
-
-   void mj_warning(mjData* d, int warning, int info);
+.. mujoco-include:: mj_warning
 
 High-level warning function: count warnings in mjData, print only the first.
 
@@ -5584,9 +3343,7 @@ High-level warning function: count warnings in mjData, print only the first.
 mju_writeLog
 ~~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mju_writeLog(const char* type, const char* msg);
+.. mujoco-include:: mju_writeLog
 
 Write [datetime, type: message] to MUJOCO_LOG.TXT.
 
@@ -5715,45 +3472,35 @@ Vector math
 mju_zero3
 ~~~~~~~~~
 
-.. code-block:: C
-
-   void mju_zero3(mjtNum res[3]);
+.. mujoco-include:: mju_zero3
 
 Set res = 0.
 
 mju_copy3
 ~~~~~~~~~
 
-.. code-block:: C
-
-   void mju_copy3(mjtNum res[3], const mjtNum data[3]);
+.. mujoco-include:: mju_copy3
 
 Set res = vec.
 
 mju_scl3
 ~~~~~~~~
 
-.. code-block:: C
-
-   void mju_scl3(mjtNum res[3], const mjtNum vec[3], mjtNum scl);
+.. mujoco-include:: mju_scl3
 
 Set res = vec*scl.
 
 mju_add3
 ~~~~~~~~
 
-.. code-block:: C
-
-   void mju_add3(mjtNum res[3], const mjtNum vec1[3], const mjtNum vec2[3]);
+.. mujoco-include:: mju_add3
 
 Set res = vec1 + vec2.
 
 mju_sub3
 ~~~~~~~~
 
-.. code-block:: C
-
-   void mju_sub3(mjtNum res[3], const mjtNum vec1[3], const mjtNum vec2[3]);
+.. mujoco-include:: mju_sub3
 
 Set res = vec1 - vec2.
 
@@ -5762,9 +3509,7 @@ Set res = vec1 - vec2.
 mju_addTo3
 ~~~~~~~~~~
 
-.. code-block:: C
-
-   void mju_addTo3(mjtNum res[3], const mjtNum vec[3]);
+.. mujoco-include:: mju_addTo3
 
 Set res = res + vec.
 
@@ -5773,9 +3518,7 @@ Set res = res + vec.
 mju_subFrom3
 ~~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mju_subFrom3(mjtNum res[3], const mjtNum vec[3]);
+.. mujoco-include:: mju_subFrom3
 
 Set res = res - vec.
 
@@ -5784,9 +3527,7 @@ Set res = res - vec.
 mju_addToScl3
 ~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mju_addToScl3(mjtNum res[3], const mjtNum vec[3], mjtNum scl);
+.. mujoco-include:: mju_addToScl3
 
 Set res = res + vec*scl.
 
@@ -5795,45 +3536,35 @@ Set res = res + vec*scl.
 mju_addScl3
 ~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mju_addScl3(mjtNum res[3], const mjtNum vec1[3], const mjtNum vec2[3], mjtNum scl);
+.. mujoco-include:: mju_addScl3
 
 Set res = vec1 + vec2*scl.
 
 mju_normalize3
 ~~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   mjtNum mju_normalize3(mjtNum res[3]);
+.. mujoco-include:: mju_normalize3
 
 Normalize vector, return length before normalization.
 
 mju_norm3
 ~~~~~~~~~
 
-.. code-block:: C
-
-   mjtNum mju_norm3(const mjtNum vec[3]);
+.. mujoco-include:: mju_norm3
 
 Return vector length (without normalizing the vector).
 
 mju_dot3
 ~~~~~~~~
 
-.. code-block:: C
-
-   mjtNum mju_dot3(const mjtNum vec1[3], const mjtNum vec2[3]);
+.. mujoco-include:: mju_dot3
 
 Return dot-product of vec1 and vec2.
 
 mju_dist3
 ~~~~~~~~~
 
-.. code-block:: C
-
-   mjtNum mju_dist3(const mjtNum pos1[3], const mjtNum pos2[3]);
+.. mujoco-include:: mju_dist3
 
 Return Cartesian distance between 3D vectors pos1 and pos2.
 
@@ -5842,9 +3573,7 @@ Return Cartesian distance between 3D vectors pos1 and pos2.
 mju_rotVecMat
 ~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mju_rotVecMat(mjtNum res[3], const mjtNum vec[3], const mjtNum mat[9]);
+.. mujoco-include:: mju_rotVecMat
 
 Multiply vector by 3D rotation matrix: res = mat \* vec.
 
@@ -5853,63 +3582,49 @@ Multiply vector by 3D rotation matrix: res = mat \* vec.
 mju_rotVecMatT
 ~~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mju_rotVecMatT(mjtNum res[3], const mjtNum vec[3], const mjtNum mat[9]);
+.. mujoco-include:: mju_rotVecMatT
 
 Multiply vector by transposed 3D rotation matrix: res = mat' \* vec.
 
 mju_cross
 ~~~~~~~~~
 
-.. code-block:: C
-
-   void mju_cross(mjtNum res[3], const mjtNum a[3], const mjtNum b[3]);
+.. mujoco-include:: mju_cross
 
 Compute cross-product: res = cross(a, b).
 
 mju_zero4
 ~~~~~~~~~
 
-.. code-block:: C
-
-   void mju_zero4(mjtNum res[4]);
+.. mujoco-include:: mju_zero4
 
 Set res = 0.
 
 mju_unit4
 ~~~~~~~~~
 
-.. code-block:: C
-
-   void mju_unit4(mjtNum res[4]);
+.. mujoco-include:: mju_unit4
 
 Set res = (1,0,0,0).
 
 mju_copy4
 ~~~~~~~~~
 
-.. code-block:: C
-
-   void mju_copy4(mjtNum res[4], const mjtNum data[4]);
+.. mujoco-include:: mju_copy4
 
 Set res = vec.
 
 mju_normalize4
 ~~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   mjtNum mju_normalize4(mjtNum res[4]);
+.. mujoco-include:: mju_normalize4
 
 Normalize vector, return length before normalization.
 
 mju_zero
 ~~~~~~~~
 
-.. code-block:: C
-
-   void mju_zero(mjtNum* res, int n);
+.. mujoco-include:: mju_zero
 
 Set res = 0.
 
@@ -5918,27 +3633,21 @@ Set res = 0.
 mju_fill
 ~~~~~~~~
 
-.. code-block:: C
-
-   void mju_fill(mjtNum* res, mjtNum val, int n);
+.. mujoco-include:: mju_fill
 
 Set res = val.
 
 mju_copy
 ~~~~~~~~
 
-.. code-block:: C
-
-   void mju_copy(mjtNum* res, const mjtNum* data, int n);
+.. mujoco-include:: mju_copy
 
 Set res = vec.
 
 mju_sum
 ~~~~~~~
 
-.. code-block:: C
-
-   mjtNum mju_sum(const mjtNum* vec, int n);
+.. mujoco-include:: mju_sum
 
 Return sum(vec).
 
@@ -5947,9 +3656,7 @@ Return sum(vec).
 mju_L1
 ~~~~~~
 
-.. code-block:: C
-
-   mjtNum mju_L1(const mjtNum* vec, int n);
+.. mujoco-include:: mju_L1
 
 Return L1 norm: sum(abs(vec)).
 
@@ -5958,27 +3665,21 @@ Return L1 norm: sum(abs(vec)).
 mju_scl
 ~~~~~~~
 
-.. code-block:: C
-
-   void mju_scl(mjtNum* res, const mjtNum* vec, mjtNum scl, int n);
+.. mujoco-include:: mju_scl
 
 Set res = vec*scl.
 
 mju_add
 ~~~~~~~
 
-.. code-block:: C
-
-   void mju_add(mjtNum* res, const mjtNum* vec1, const mjtNum* vec2, int n);
+.. mujoco-include:: mju_add
 
 Set res = vec1 + vec2.
 
 mju_sub
 ~~~~~~~
 
-.. code-block:: C
-
-   void mju_sub(mjtNum* res, const mjtNum* vec1, const mjtNum* vec2, int n);
+.. mujoco-include:: mju_sub
 
 Set res = vec1 - vec2.
 
@@ -5987,9 +3688,7 @@ Set res = vec1 - vec2.
 mju_addTo
 ~~~~~~~~~
 
-.. code-block:: C
-
-   void mju_addTo(mjtNum* res, const mjtNum* vec, int n);
+.. mujoco-include:: mju_addTo
 
 Set res = res + vec.
 
@@ -5998,9 +3697,7 @@ Set res = res + vec.
 mju_subFrom
 ~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mju_subFrom(mjtNum* res, const mjtNum* vec, int n);
+.. mujoco-include:: mju_subFrom
 
 Set res = res - vec.
 
@@ -6009,9 +3706,7 @@ Set res = res - vec.
 mju_addToScl
 ~~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mju_addToScl(mjtNum* res, const mjtNum* vec, mjtNum scl, int n);
+.. mujoco-include:: mju_addToScl
 
 Set res = res + vec*scl.
 
@@ -6020,36 +3715,28 @@ Set res = res + vec*scl.
 mju_addScl
 ~~~~~~~~~~
 
-.. code-block:: C
-
-   void mju_addScl(mjtNum* res, const mjtNum* vec1, const mjtNum* vec2, mjtNum scl, int n);
+.. mujoco-include:: mju_addScl
 
 Set res = vec1 + vec2*scl.
 
 mju_normalize
 ~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   mjtNum mju_normalize(mjtNum* res, int n);
+.. mujoco-include:: mju_normalize
 
 Normalize vector, return length before normalization.
 
 mju_norm
 ~~~~~~~~
 
-.. code-block:: C
-
-   mjtNum mju_norm(const mjtNum* res, int n);
+.. mujoco-include:: mju_norm
 
 Return vector length (without normalizing vector).
 
 mju_dot
 ~~~~~~~
 
-.. code-block:: C
-
-   mjtNum mju_dot(const mjtNum* vec1, const mjtNum* vec2, const int n);
+.. mujoco-include:: mju_dot
 
 Return dot-product of vec1 and vec2.
 
@@ -6058,10 +3745,7 @@ Return dot-product of vec1 and vec2.
 mju_mulMatVec
 ~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mju_mulMatVec(mjtNum* res, const mjtNum* mat, const mjtNum* vec,
-                      int nr, int nc);
+.. mujoco-include:: mju_mulMatVec
 
 Multiply matrix and vector: res = mat \* vec.
 
@@ -6070,10 +3754,7 @@ Multiply matrix and vector: res = mat \* vec.
 mju_mulMatTVec
 ~~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mju_mulMatTVec(mjtNum* res, const mjtNum* mat, const mjtNum* vec,
-                       int nr, int nc);
+.. mujoco-include:: mju_mulMatTVec
 
 Multiply transposed matrix and vector: res = mat' \* vec.
 
@@ -6082,18 +3763,14 @@ Multiply transposed matrix and vector: res = mat' \* vec.
 mju_mulVecMatVec
 ~~~~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   mjtNum mju_mulVecMatVec(const mjtNum* vec1, const mjtNum* mat, const mjtNum* vec2, int n);
+.. mujoco-include:: mju_mulVecMatVec
 
 Multiply square matrix with vectors on both sides: return vec1' \* mat \* vec2.
 
 mju_transpose
 ~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mju_transpose(mjtNum* res, const mjtNum* mat, int nr, int nc);
+.. mujoco-include:: mju_transpose
 
 Transpose matrix: res = mat'.
 
@@ -6102,9 +3779,7 @@ Transpose matrix: res = mat'.
 mju_symmetrize
 ~~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mju_symmetrize(mjtNum* res, const mjtNum* mat, int n);
+.. mujoco-include:: mju_symmetrize
 
 Symmetrize square matrix :math:`R = \frac{1}{2}(M + M^T)`.
 
@@ -6113,9 +3788,7 @@ Symmetrize square matrix :math:`R = \frac{1}{2}(M + M^T)`.
 mju_eye
 ~~~~~~~
 
-.. code-block:: C
-
-   void mju_eye(mjtNum* mat, int n);
+.. mujoco-include:: mju_eye
 
 Set mat to the identity matrix.
 
@@ -6124,10 +3797,7 @@ Set mat to the identity matrix.
 mju_mulMatMat
 ~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mju_mulMatMat(mjtNum* res, const mjtNum* mat1, const mjtNum* mat2,
-                      int r1, int c1, int c2);
+.. mujoco-include:: mju_mulMatMat
 
 Multiply matrices: res = mat1 \* mat2.
 
@@ -6136,10 +3806,7 @@ Multiply matrices: res = mat1 \* mat2.
 mju_mulMatMatT
 ~~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mju_mulMatMatT(mjtNum* res, const mjtNum* mat1, const mjtNum* mat2,
-                       int r1, int c1, int r2);
+.. mujoco-include:: mju_mulMatMatT
 
 Multiply matrices, second argument transposed: res = mat1 \* mat2'.
 
@@ -6148,10 +3815,7 @@ Multiply matrices, second argument transposed: res = mat1 \* mat2'.
 mju_mulMatTMat
 ~~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mju_mulMatTMat(mjtNum* res, const mjtNum* mat1, const mjtNum* mat2,
-                       int r1, int c1, int c2);
+.. mujoco-include:: mju_mulMatTMat
 
 Multiply matrices, first argument transposed: res = mat1' \* mat2.
 
@@ -6160,9 +3824,7 @@ Multiply matrices, first argument transposed: res = mat1' \* mat2.
 mju_sqrMatTD
 ~~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mju_sqrMatTD(mjtNum* res, const mjtNum* mat, const mjtNum* diag, int nr, int nc);
+.. mujoco-include:: mju_sqrMatTD
 
 Set res = mat' \* diag \* mat if diag is not NULL, and res = mat' \* mat otherwise.
 
@@ -6171,11 +3833,7 @@ Set res = mat' \* diag \* mat if diag is not NULL, and res = mat' \* mat otherwi
 mju_transformSpatial
 ~~~~~~~~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mju_transformSpatial(mjtNum res[6], const mjtNum vec[6], int flg_force,
-                             const mjtNum newpos[3], const mjtNum oldpos[3],
-                             const mjtNum rotnew2old[9]);
+.. mujoco-include:: mju_transformSpatial
 
 Coordinate transform of 6D motion or force vector in rotation:translation format. rotnew2old is 3-by-3, NULL means no
 rotation; flg_force specifies force or motion type.
@@ -6190,9 +3848,7 @@ Quaternions
 mju_rotVecQuat
 ~~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mju_rotVecQuat(mjtNum res[3], const mjtNum vec[3], const mjtNum quat[4]);
+.. mujoco-include:: mju_rotVecQuat
 
 Rotate vector by quaternion.
 
@@ -6201,9 +3857,7 @@ Rotate vector by quaternion.
 mju_negQuat
 ~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mju_negQuat(mjtNum res[4], const mjtNum quat[4]);
+.. mujoco-include:: mju_negQuat
 
 Negate quaternion.
 
@@ -6212,9 +3866,7 @@ Negate quaternion.
 mju_mulQuat
 ~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mju_mulQuat(mjtNum res[4], const mjtNum quat1[4], const mjtNum quat2[4]);
+.. mujoco-include:: mju_mulQuat
 
 Multiply quaternions.
 
@@ -6223,9 +3875,7 @@ Multiply quaternions.
 mju_mulQuatAxis
 ~~~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mju_mulQuatAxis(mjtNum res[4], const mjtNum quat[4], const mjtNum axis[3]);
+.. mujoco-include:: mju_mulQuatAxis
 
 Multiply quaternion and axis.
 
@@ -6234,9 +3884,7 @@ Multiply quaternion and axis.
 mju_axisAngle2Quat
 ~~~~~~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mju_axisAngle2Quat(mjtNum res[4], const mjtNum axis[3], mjtNum angle);
+.. mujoco-include:: mju_axisAngle2Quat
 
 Convert axisAngle to quaternion.
 
@@ -6245,9 +3893,7 @@ Convert axisAngle to quaternion.
 mju_quat2Vel
 ~~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mju_quat2Vel(mjtNum res[3], const mjtNum quat[4], mjtNum dt);
+.. mujoco-include:: mju_quat2Vel
 
 Convert quaternion (corresponding to orientation difference) to 3D velocity.
 
@@ -6256,9 +3902,7 @@ Convert quaternion (corresponding to orientation difference) to 3D velocity.
 mju_subQuat
 ~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mju_subQuat(mjtNum res[3], const mjtNum qa[4], const mjtNum qb[4]);
+.. mujoco-include:: mju_subQuat
 
 Subtract quaternions, express as 3D velocity: qb*quat(res) = qa.
 
@@ -6267,9 +3911,7 @@ Subtract quaternions, express as 3D velocity: qb*quat(res) = qa.
 mju_quat2Mat
 ~~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mju_quat2Mat(mjtNum res[9], const mjtNum quat[4]);
+.. mujoco-include:: mju_quat2Mat
 
 Convert quaternion to 3D rotation matrix.
 
@@ -6278,9 +3920,7 @@ Convert quaternion to 3D rotation matrix.
 mju_mat2Quat
 ~~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mju_mat2Quat(mjtNum quat[4], const mjtNum mat[9]);
+.. mujoco-include:: mju_mat2Quat
 
 Convert 3D rotation matrix to quaternion.
 
@@ -6289,9 +3929,7 @@ Convert 3D rotation matrix to quaternion.
 mju_derivQuat
 ~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mju_derivQuat(mjtNum res[4], const mjtNum quat[4], const mjtNum vel[3]);
+.. mujoco-include:: mju_derivQuat
 
 Compute time-derivative of quaternion, given 3D rotational velocity.
 
@@ -6300,9 +3938,7 @@ Compute time-derivative of quaternion, given 3D rotational velocity.
 mju_quatIntegrate
 ~~~~~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mju_quatIntegrate(mjtNum quat[4], const mjtNum vel[3], mjtNum scale);
+.. mujoco-include:: mju_quatIntegrate
 
 Integrate quaternion given 3D angular velocity.
 
@@ -6311,9 +3947,7 @@ Integrate quaternion given 3D angular velocity.
 mju_quatZ2Vec
 ~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mju_quatZ2Vec(mjtNum quat[4], const mjtNum vec[3]);
+.. mujoco-include:: mju_quatZ2Vec
 
 Construct quaternion performing rotation from z-axis to given vector.
 
@@ -6327,11 +3961,7 @@ Poses
 mju_mulPose
 ~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mju_mulPose(mjtNum posres[3], mjtNum quatres[4],
-                    const mjtNum pos1[3], const mjtNum quat1[4],
-                    const mjtNum pos2[3], const mjtNum quat2[4]);
+.. mujoco-include:: mju_mulPose
 
 Multiply two poses.
 
@@ -6340,10 +3970,7 @@ Multiply two poses.
 mju_negPose
 ~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mju_negPose(mjtNum posres[3], mjtNum quatres[4],
-                    const mjtNum pos[3], const mjtNum quat[4]);
+.. mujoco-include:: mju_negPose
 
 Negate pose.
 
@@ -6352,10 +3979,7 @@ Negate pose.
 mju_trnVecPose
 ~~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mju_trnVecPose(mjtNum res[3], const mjtNum pos[3], const mjtNum quat[4],
-                       const mjtNum vec[3]);
+.. mujoco-include:: mju_trnVecPose
 
 Transform vector by pose.
 
@@ -6369,9 +3993,7 @@ Decompositions
 mju_cholFactor
 ~~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   int mju_cholFactor(mjtNum* mat, int n, mjtNum mindiag);
+.. mujoco-include:: mju_cholFactor
 
 Cholesky decomposition: mat = L*L'; return rank, decomposition performed in-place into mat.
 
@@ -6380,9 +4002,7 @@ Cholesky decomposition: mat = L*L'; return rank, decomposition performed in-plac
 mju_cholSolve
 ~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mju_cholSolve(mjtNum* res, const mjtNum* mat, const mjtNum* vec, int n);
+.. mujoco-include:: mju_cholSolve
 
 Solve mat \* res = vec, where mat is Cholesky-factorized
 
@@ -6391,18 +4011,14 @@ Solve mat \* res = vec, where mat is Cholesky-factorized
 mju_cholUpdate
 ~~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   int mju_cholUpdate(mjtNum* mat, mjtNum* x, int n, int flg_plus);
+.. mujoco-include:: mju_cholUpdate
 
 Cholesky rank-one update: L*L' +/- x*x'; return rank.
 
 mju_eig3
 ~~~~~~~~
 
-.. code-block:: C
-
-   int mju_eig3(mjtNum[3] eigval, mjtNum[9] eigvec, mjtNum[4] quat, const mjtNum[9] mat);
+.. mujoco-include:: mju_eig3
 
 Eigenvalue decomposition of symmetric 3x3 matrix.
 
@@ -6411,10 +4027,7 @@ Eigenvalue decomposition of symmetric 3x3 matrix.
 mju_boxQP
 ~~~~~~~~~
 
-.. code-block:: C
-
-   int mju_boxQP(mjtNum* res, mjtNum* R, int* index, const mjtNum* H, const mjtNum* g, int n,
-                 const mjtNum* lower, const mjtNum* upper);
+.. mujoco-include:: mju_boxQP
 
 Minimize :math:`\tfrac{1}{2} x^T H x + x^T g \quad \text{s.t.} \quad l \le x \le u`, return rank or -1 if failed.
 
@@ -6454,10 +4067,7 @@ notes:
 mju_boxQPmalloc
 ~~~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mju_boxQPmalloc(mjtNum** res, mjtNum** R, int** index, mjtNum** H, mjtNum** g, int n,
-                        mjtNum** lower, mjtNum** upper);
+.. mujoco-include:: mju_boxQPmalloc
 
 Allocate heap memory for box-constrained Quadratic Program.
 As in :ref:`mju_boxQP`, ``index``, ``lower``, and ``upper`` are optional.
@@ -6473,10 +4083,7 @@ Miscellaneous
 mju_muscleGain
 ~~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   mjtNum mju_muscleGain(mjtNum len, mjtNum vel, const mjtNum lengthrange[2],
-                         mjtNum acc0, const mjtNum prm[9]);
+.. mujoco-include:: mju_muscleGain
 
 Muscle active force, prm = (range[2], force, scale, lmin, lmax, vmax, fpmax, fvmax).
 
@@ -6485,10 +4092,7 @@ Muscle active force, prm = (range[2], force, scale, lmin, lmax, vmax, fpmax, fvm
 mju_muscleBias
 ~~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   mjtNum mju_muscleBias(mjtNum len, const mjtNum lengthrange[2],
-                         mjtNum acc0, const mjtNum prm[9]);
+.. mujoco-include:: mju_muscleBias
 
 Muscle passive force, prm = (range[2], force, scale, lmin, lmax, vmax, fpmax, fvmax).
 
@@ -6497,9 +4101,7 @@ Muscle passive force, prm = (range[2], force, scale, lmin, lmax, vmax, fpmax, fv
 mju_muscleDynamics
 ~~~~~~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   mjtNum mju_muscleDynamics(mjtNum ctrl, mjtNum act, const mjtNum prm[2]);
+.. mujoco-include:: mju_muscleDynamics
 
 Muscle activation dynamics, prm = (tau_act, tau_deact).
 
@@ -6508,10 +4110,7 @@ Muscle activation dynamics, prm = (tau_act, tau_deact).
 mju_encodePyramid
 ~~~~~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mju_encodePyramid(mjtNum* pyramid, const mjtNum* force,
-                          const mjtNum* mu, int dim);
+.. mujoco-include:: mju_encodePyramid
 
 Convert contact force to pyramid representation.
 
@@ -6520,10 +4119,7 @@ Convert contact force to pyramid representation.
 mju_decodePyramid
 ~~~~~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mju_decodePyramid(mjtNum* force, const mjtNum* pyramid,
-                          const mjtNum* mu, int dim);
+.. mujoco-include:: mju_decodePyramid
 
 Convert pyramid representation to contact force.
 
@@ -6532,9 +4128,7 @@ Convert pyramid representation to contact force.
 mju_springDamper
 ~~~~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   mjtNum mju_springDamper(mjtNum pos0, mjtNum vel0, mjtNum Kp, mjtNum Kv, mjtNum dt);
+.. mujoco-include:: mju_springDamper
 
 Integrate spring-damper analytically, return pos(dt).
 
@@ -6543,9 +4137,7 @@ Integrate spring-damper analytically, return pos(dt).
 mju_min
 ~~~~~~~
 
-.. code-block:: C
-
-   mjtNum mju_min(mjtNum a, mjtNum b);
+.. mujoco-include:: mju_min
 
 Return min(a,b) with single evaluation of a and b.
 
@@ -6554,27 +4146,21 @@ Return min(a,b) with single evaluation of a and b.
 mju_max
 ~~~~~~~
 
-.. code-block:: C
-
-   mjtNum mju_max(mjtNum a, mjtNum b);
+.. mujoco-include:: mju_max
 
 Return max(a,b) with single evaluation of a and b.
 
 mju_sign
 ~~~~~~~~
 
-.. code-block:: C
-
-   mjtNum mju_sign(mjtNum x);
+.. mujoco-include:: mju_sign
 
 Return sign of x: +1, -1 or 0.
 
 mju_round
 ~~~~~~~~~
 
-.. code-block:: C
-
-   int mju_round(mjtNum x);
+.. mujoco-include:: mju_round
 
 Round x to nearest integer.
 
@@ -6583,9 +4169,7 @@ Round x to nearest integer.
 mju_type2Str
 ~~~~~~~~~~~~
 
-.. code-block:: C
-
-   const char* mju_type2Str(int type);
+.. mujoco-include:: mju_type2Str
 
 Convert type id (mjtObj) to type name.
 
@@ -6594,9 +4178,7 @@ Convert type id (mjtObj) to type name.
 mju_str2Type
 ~~~~~~~~~~~~
 
-.. code-block:: C
-
-   int mju_str2Type(const char* str);
+.. mujoco-include:: mju_str2Type
 
 Convert type name to type id (mjtObj).
 
@@ -6605,9 +4187,7 @@ Convert type name to type id (mjtObj).
 mju_writeNumBytes
 ~~~~~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   const char* mju_writeNumBytes(const int nbytes);
+.. mujoco-include:: mju_writeNumBytes
 
 Construct a human readable number of bytes using standard letter suffix.
 
@@ -6616,9 +4196,7 @@ Construct a human readable number of bytes using standard letter suffix.
 mju_warningText
 ~~~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   const char* mju_warningText(int warning, int info);
+.. mujoco-include:: mju_warningText
 
 Construct a warning message given the warning type and info.
 
@@ -6627,9 +4205,7 @@ Construct a warning message given the warning type and info.
 mju_isBad
 ~~~~~~~~~
 
-.. code-block:: C
-
-   int mju_isBad(mjtNum x);
+.. mujoco-include:: mju_isBad
 
 Return 1 if nan or abs(x)>mjMAXVAL, 0 otherwise. Used by check functions.
 
@@ -6638,9 +4214,7 @@ Return 1 if nan or abs(x)>mjMAXVAL, 0 otherwise. Used by check functions.
 mju_isZero
 ~~~~~~~~~~
 
-.. code-block:: C
-
-   int mju_isZero(mjtNum* vec, int n);
+.. mujoco-include:: mju_isZero
 
 Return 1 if all elements are 0.
 
@@ -6649,45 +4223,35 @@ Return 1 if all elements are 0.
 mju_standardNormal
 ~~~~~~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   mjtNum mju_standardNormal(mjtNum* num2);
+.. mujoco-include:: mju_standardNormal
 
 Standard normal random number generator (optional second number).
 
 mju_f2n
 ~~~~~~~
 
-.. code-block:: C
-
-   void mju_f2n(mjtNum* res, const float* vec, int n);
+.. mujoco-include:: mju_f2n
 
 Convert from float to mjtNum.
 
 mju_n2f
 ~~~~~~~
 
-.. code-block:: C
-
-   void mju_n2f(float* res, const mjtNum* vec, int n);
+.. mujoco-include:: mju_n2f
 
 Convert from mjtNum to float.
 
 mju_d2n
 ~~~~~~~
 
-.. code-block:: C
-
-   void mju_d2n(mjtNum* res, const double* vec, int n);
+.. mujoco-include:: mju_d2n
 
 Convert from double to mjtNum.
 
 mju_n2d
 ~~~~~~~
 
-.. code-block:: C
-
-   void mju_n2d(double* res, const mjtNum* vec, int n);
+.. mujoco-include:: mju_n2d
 
 Convert from mjtNum to double.
 
@@ -6696,9 +4260,7 @@ Convert from mjtNum to double.
 mju_insertionSort
 ~~~~~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mju_insertionSort(mjtNum* list, int n);
+.. mujoco-include:: mju_insertionSort
 
 Insertion sort, resulting list is in increasing order.
 
@@ -6707,9 +4269,7 @@ Insertion sort, resulting list is in increasing order.
 mju_insertionSortInt
 ~~~~~~~~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mju_insertionSortInt(int* list, int n);
+.. mujoco-include:: mju_insertionSortInt
 
 Integer insertion sort, resulting list is in increasing order.
 
@@ -6718,27 +4278,21 @@ Integer insertion sort, resulting list is in increasing order.
 mju_Halton
 ~~~~~~~~~~
 
-.. code-block:: C
-
-   mjtNum mju_Halton(int index, int base);
+.. mujoco-include:: mju_Halton
 
 Generate Halton sequence.
 
 mju_strncpy
 ~~~~~~~~~~~
 
-.. code-block:: C
-
-   char* mju_strncpy(char *dst, const char *src, int n);
+.. mujoco-include:: mju_strncpy
 
 Call strncpy, then set dst[n-1] = 0.
 
 mju_sigmoid
 ~~~~~~~~~~~
 
-.. code-block:: C
-
-   mjtNum mju_sigmoid(mjtNum x);
+.. mujoco-include:: mju_sigmoid
 
 Sigmoid function over 0<=x<=1 constructed from half-quadratics.
 
@@ -6747,9 +4301,7 @@ Sigmoid function over 0<=x<=1 constructed from half-quadratics.
 mjd_transitionFD
 ~~~~~~~~~~~~~~~~
 
-.. code-block:: C
-
-   void mjd_transitionFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte centered, mjtNum* A, mjtNum* B);
+.. mujoco-include:: mjd_transitionFD
 
 Finite differenced state-transition and control-transition matrices dx(t+h) = A*dx(t) + B*du(t). Required output matrix
 dimensions: A: (2*nv+na x 2*nv+na), B: (2*nv+na x nu).
