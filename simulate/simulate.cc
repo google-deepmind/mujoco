@@ -40,9 +40,9 @@
 // Since the dialog box logic needs to be written in Objective-C, we separate it into a different
 // source file.
 #ifdef __APPLE__
-std::string getSavePath(const char* filename);
+std::string GetSavePath(const char* filename);
 #else
-static std::string getSavePath(const char* filename) {
+static std::string GetSavePath(const char* filename) {
   return filename;
 }
 #endif
@@ -1077,7 +1077,7 @@ void uiEvent(mjuiState* state) {
       switch (it->itemid) {
       case 0:             // Save xml
         {
-          const std::string path = getSavePath("mjmodel.xml");
+          const std::string path = GetSavePath("mjmodel.xml");
           if (!path.empty() && !mj_saveLastXML(path.c_str(), m, err, 200)) {
             std::printf("Save XML error: %s", err);
           }
@@ -1086,7 +1086,7 @@ void uiEvent(mjuiState* state) {
 
       case 1:             // Save mjb
         {
-          const std::string path = getSavePath("mjmodel.mjb");
+          const std::string path = GetSavePath("mjmodel.mjb");
           if (!path.empty()) {
             mj_saveModel(m, path.c_str(), nullptr, 0);
           }
@@ -1850,7 +1850,7 @@ void Simulate::render() {
     // Unfortunately, if we just yank ".xml"/".mjb" from the filename and append .PNG, the macOS
     // file dialog does not automatically open that location. Thus, we defer to a default
     // "screenshot.png" for now.
-    const std::string path = getSavePath("screenshot.png");
+    const std::string path = GetSavePath("screenshot.png");
     if (!path.empty()) {
       if (lodepng::encode(path, rgb.get(), w, h, LCT_RGB)) {
         mju_error("could not save screenshot");

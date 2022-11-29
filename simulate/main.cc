@@ -437,8 +437,25 @@ void PhysicsThread(mj::Simulate* sim, const char* filename) {
 
 //------------------------------------------ main --------------------------------------------------
 
+// machinery for replacing command line error by a macOS dialog box when running under Rosetta
+#if defined(__APPLE__) && defined(__AVX__)
+extern void DisplayErrorDialogBox(const char* title, const char* msg);
+static const char* rosetta_error_msg = nullptr;
+__attribute__((used, visibility("default"))) extern "C" void _mj_rosettaError(const char* msg) {
+  rosetta_error_msg = msg;
+}
+#endif
+
 // run event loop
 int main(int argc, const char** argv) {
+  // display an error if running on macOS under Rosetta 2
+#if defined(__APPLE__) && defined(__AVX__)
+  if (rosetta_error_msg) {
+    DisplayErrorDialogBox("Rosetta 2 is not supported", rosetta_error_msg);
+    std::exit(1);
+  }
+#endif
+
   // print version, check compatibility
   std::printf("MuJoCo version %s\n", mj_versionString());
   if (mjVERSION_HEADER!=mj_version()) {

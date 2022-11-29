@@ -27,6 +27,7 @@ set(MUJOCO_ENGINE_SRCS
     engine_core_constraint.h
     engine_core_smooth.c
     engine_core_smooth.h
+    engine_crossplatform.c
     engine_crossplatform.h
     engine_derivative.c
     engine_derivative.h

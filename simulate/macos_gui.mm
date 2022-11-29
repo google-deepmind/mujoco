@@ -17,7 +17,7 @@
 
 #include <Cocoa/Cocoa.h>
 
-std::string getSavePath(const char* filename) {
+std::string GetSavePath(const char* filename) {
   NSSavePanel* panel = [NSSavePanel savePanel];
   NSURL* userDocumentsDir = [NSFileManager.defaultManager URLsForDirectory:NSDocumentDirectory
                                                           inDomains:NSUserDomainMask].firstObject;
@@ -31,3 +31,14 @@ std::string getSavePath(const char* filename) {
     return "";
   }
 }
+
+#ifdef __AVX__
+void DisplayErrorDialogBox(const char* title, const char* msg) {
+  NSAlert *alert = [[[NSAlert alloc] init] autorelease];
+  [alert setMessageText:[NSString stringWithUTF8String:title]];
+  [alert setInformativeText:[NSString stringWithUTF8String:msg]];
+  [alert setAlertStyle:NSAlertStyleCritical];
+  [alert addButtonWithTitle:@"Exit"];
+  [alert runModal];
+}
+#endif

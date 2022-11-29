@@ -70,6 +70,10 @@ General
 - Sensors of type :ref:`user<sensor-user>` no longer require :at:`objtype` and :at:`objname`. If unspecified, the
   objtype will be :ref:`mjOBJ_UNKNOWN<mjtObj>`. ``user`` sensors :at:`datatype` default is now :at-val:`"real"`.
 - Add support for capsules in URDF import.
+- On macOS, issue an informative error message when run under `Rosetta 2 <https://support.apple.com/en-gb/HT211861>`_
+  translation on an Apple Silicon machine. Pre-built MuJoCo binaries make use of
+  `AVX <https://en.wikipedia.org/wiki/Advanced_Vector_Extensions>`_ instructions on x86-64 machines, which is not
+  supported by Rosetta 2. (Before this version, users only get a cryptic "Illegal instruction" message.)
 
 Simulate
 ^^^^^^^^

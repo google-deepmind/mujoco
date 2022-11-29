@@ -23,6 +23,18 @@ import subprocess
 _SYSTEM = platform.system()
 if _SYSTEM == 'Windows':
   ctypes.WinDLL(os.path.join(os.path.dirname(__file__), 'mujoco.dll'))
+elif _SYSTEM == 'Darwin':
+  proc_translated = subprocess.run(
+      ['sysctl', '-n', 'sysctl.proc_translated'], capture_output=True).stdout
+  try:
+    is_rosetta = bool(int(proc_translated))
+  except ValueError:
+    is_rosetta = False
+  if is_rosetta and platform.machine() == 'x86_64':
+    raise ImportError(
+        'You are running an x86_64 build of Python on an Apple Silicon '
+        'machine. This is not supported by MuJoCo. Please install and run a '
+        'native, arm64 build of Python.')
 
 from mujoco._callbacks import *
 from mujoco._constants import *
