@@ -70,7 +70,6 @@ def get_external_lib_patterns():
   else:
     return ['libmujoco.so.*']
 
-
 def get_plugin_lib_patterns():
   if platform.system() == 'Windows':
     return ['*.dll']
@@ -310,6 +309,7 @@ setup(
         'Programming Language :: Python :: 3.8',
         'Programming Language :: Python :: 3.9',
         'Programming Language :: Python :: 3.10',
+        'Programming Language :: Python :: 3.11',
         'Topic :: Scientific/Engineering',
     ],
     cmdclass=dict(build_ext=BuildCMakeExtension),
@@ -321,6 +321,7 @@ setup(
         CMakeExtension('mujoco._functions'),
         CMakeExtension('mujoco._render'),
         CMakeExtension('mujoco._rollout'),
+        CMakeExtension('mujoco._simulate'),
         CMakeExtension('mujoco._structs'),
     ],
     python_requires='>=3.7',

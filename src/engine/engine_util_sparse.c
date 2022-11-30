@@ -73,6 +73,22 @@ mjtNum mju_dotSparse(const mjtNum* vec1, const mjtNum* vec2,
     high64 = _mm_unpackhi_pd(vlow, vlow);
     res = _mm_cvtsd_f64(_mm_add_sd(vlow, high64));
   }
+
+#else
+  int n_4 = nnz1 - 4;
+
+  mjtNum res0 = 0;
+  mjtNum res1 = 0;
+  mjtNum res2 = 0;
+  mjtNum res3 = 0;
+
+  for (; i<=n_4; i+=4) {
+    res0 += vec1[i+0] * vec2[ind1[i+0]];
+    res1 += vec1[i+1] * vec2[ind1[i+1]];
+    res2 += vec1[i+2] * vec2[ind1[i+2]];
+    res3 += vec1[i+3] * vec2[ind1[i+3]];
+  }
+  res = (res0 + res2) + (res1 + res3);
 #endif
 
   // scalar part

@@ -1575,11 +1575,9 @@ void Simulate::applyforceperturbations() {
 //------------------------- Tell the render thread to load a file and wait -------------------------
 void Simulate::load(const char* file,
                     mjModel* mnew,
-                    mjData* dnew,
-                    bool delete_old_m_d) {
+                    mjData* dnew) {
   this->mnew = mnew;
   this->dnew = dnew;
-  this->delete_old_m_d = delete_old_m_d;
   mju::strcpy_arr(this->filename, file);
 
   {
@@ -1595,16 +1593,6 @@ void Simulate::load(const char* file,
 
 //------------------------------------- load mjb or xml model --------------------------------------
 void Simulate::loadmodel() {
-  if (this->delete_old_m_d) {
-    // delete old model if requested
-    if (this->d) {
-      mj_deleteData(d);
-    }
-    if (this->m) {
-      mj_deleteModel(m);
-    }
-  }
-
   this->m = this->mnew;
   this->d = this->dnew;
 
@@ -1618,7 +1606,8 @@ void Simulate::loadmodel() {
   this->pert.skinselect = -1;
 
   // align and scale view unless reloading the same file
-  if (mju::strcmp_arr(this->filename, this->previous_filename)) {
+  if (this->filename[0] &&
+      mju::strcmp_arr(this->filename, this->previous_filename)) {
     alignscale(this);
     mju::strcpy_arr(this->previous_filename, this->filename);
   }
@@ -1980,6 +1969,13 @@ void Simulate::renderloop() {
   this->clearcallback();
   mjv_freeScene(&this->scn);
   mjr_freeContext(&this->con);
+
+  Glfw().glfwDestroyWindow(this->window);
+}
+
+//------------------------------------ setup the glfw dispatch table -------------------------------
+void setglfwdlhandle(void* dlhandle) {
+  Glfw(dlhandle);
 }
 
 }  // namespace mujoco

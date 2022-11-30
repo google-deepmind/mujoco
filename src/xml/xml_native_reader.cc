@@ -1911,6 +1911,9 @@ void mjXReader::OneComposite(XMLElement* elem, mjCBody* pbody, mjCDef* def) {
   int i = 0;
   while (iss) {
     iss >> text;
+    if (i>2) {
+      throw mjXError(elem, "The curve array must have a maximum of 3 components");
+    }
     comp.curve[i++] = (mjtCompShape)FindKey(shape_map, mjNCOMPSHAPES, text);
     if (iss.eof()){
       break;

@@ -54,6 +54,11 @@ void ABSL_ATTRIBUTE_NO_TAIL_CALL BM_ParseCloth(benchmark::State& state) {
 }
 BENCHMARK(BM_ParseCloth);
 
+void ABSL_ATTRIBUTE_NO_TAIL_CALL BM_ParseFlag(benchmark::State& state) {
+  run_parse_benchmark("flag/flag.xml", state);
+}
+BENCHMARK(BM_ParseFlag);
+
 void ABSL_ATTRIBUTE_NO_TAIL_CALL BM_ParseHumanoid(benchmark::State& state) {
   run_parse_benchmark("humanoid/humanoid.xml", state);
 }

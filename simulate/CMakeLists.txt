@@ -41,6 +41,9 @@ if(APPLE)
   enable_language(OBJCXX)
 endif()
 
+option(SIMULATE_BUILD_EXECUTABLE "Build the simulate executable binary." ON)
+option(SIMULATE_GLFW_DYNAMIC_SYMBOLS "Whether to resolve GLFW symbols dynamically." OFF)
+
 # Check if we are building as standalone project.
 set(SIMULATE_STANDALONE OFF)
 set(_INSTALL_SIMULATE ON)
@@ -114,7 +117,8 @@ target_sources(
 target_include_directories(libsimulate PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_compile_definitions(libsimulate PUBLIC MJSIMULATE_STATIC)
 target_compile_options(libsimulate PUBLIC ${MUJOCO_SIMULATE_COMPILE_OPTIONS})
-target_link_libraries(libsimulate PUBLIC glfw lodepng mujoco::mujoco)
+target_link_libraries(libsimulate PUBLIC lodepng mujoco::mujoco)
+target_include_directories(libsimulate PUBLIC $<TARGET_PROPERTY:glfw,INTERFACE_INCLUDE_DIRECTORIES>)
 target_link_options(libsimulate PRIVATE ${MUJOCO_SIMULATE_LINK_OPTIONS})
 
 if(APPLE)
@@ -122,126 +126,132 @@ if(APPLE)
   target_link_libraries(libsimulate PUBLIC "-framework Cocoa")
 endif()
 
+if(SIMULATE_GLFW_DYNAMIC_SYMBOLS)
+  target_compile_definitions(libsimulate PUBLIC mjGLFW_DYNAMIC_SYMBOLS)
+endif()
+
 # Build simulate executable
-if(APPLE)
-  set(SIMULATE_RESOURCE_FILES ${CMAKE_CURRENT_SOURCE_DIR}/../dist/mujoco.icns)
-elseif(WIN32)
-  set(SIMULATE_RESOURCE_FILES ${CMAKE_CURRENT_SOURCE_DIR}/../dist/simulate.rc)
-else()
-  set(SIMULATE_RESOURCE_FILES "")
-endif()
+if(SIMULATE_BUILD_EXECUTABLE)
+  if(APPLE)
+    set(SIMULATE_RESOURCE_FILES ${CMAKE_CURRENT_SOURCE_DIR}/../dist/mujoco.icns)
+  elseif(WIN32)
+    set(SIMULATE_RESOURCE_FILES ${CMAKE_CURRENT_SOURCE_DIR}/../dist/simulate.rc)
+  else()
+    set(SIMULATE_RESOURCE_FILES "")
+  endif()
 
-add_executable(simulate main.cc array_safety.h ${SIMULATE_RESOURCE_FILES})
-target_compile_options(simulate PUBLIC ${MUJOCO_SIMULATE_COMPILE_OPTIONS})
-if(WIN32)
-  add_custom_command(
-    TARGET simulate
-    PRE_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/../dist/mujoco.ico
-            ${CMAKE_CURRENT_SOURCE_DIR}
-    POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E rm ${CMAKE_CURRENT_SOURCE_DIR}/mujoco.ico
-  )
-endif()
+  add_executable(simulate main.cc array_safety.h ${SIMULATE_RESOURCE_FILES})
+  target_compile_options(simulate PUBLIC ${MUJOCO_SIMULATE_COMPILE_OPTIONS})
+  if(WIN32)
+    add_custom_command(
+      TARGET simulate
+      PRE_BUILD
+      COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/../dist/mujoco.ico
+              ${CMAKE_CURRENT_SOURCE_DIR}
+      POST_BUILD
+      COMMAND ${CMAKE_COMMAND} -E rm ${CMAKE_CURRENT_SOURCE_DIR}/mujoco.ico
+    )
+  endif()
 
-target_link_libraries(
-  simulate
-  libsimulate
-  mujoco::mujoco
-  glfw
-  Threads::Threads
-  lodepng
-)
-
-target_link_options(simulate PRIVATE ${MUJOCO_SIMULATE_LINK_OPTIONS})
-
-if(APPLE AND MUJOCO_BUILD_MACOS_FRAMEWORKS)
-  set_target_properties(
+  target_link_libraries(
     simulate
-    PROPERTIES INSTALL_RPATH @executable_path/../Frameworks
-               BUILD_WITH_INSTALL_RPATH TRUE
-               RESOURCE ${SIMULATE_RESOURCE_FILES}
-               MACOSX_BUNDLE TRUE
-               MACOSX_BUNDLE_INFO_PLIST ${CMAKE_CURRENT_SOURCE_DIR}/../dist/Info.plist.simulate.in
-               MACOSX_BUNDLE_BUNDLE_NAME "MuJoCo"
-               MACOSX_BUNDLE_GUI_IDENTIFIER "org.mujoco.mujoco"
-               MACOSX_BUNDLE_BUNDLE_VERSION ${PROJECT_VERSION}
-               MACOSX_BUNDLE_INFO_STRING ${PROJECT_VERSION}
-               MACOSX_BUNDLE_LONG_VERSION_STRING ${PROJECT_VERSION}
-               MACOSX_BUNDLE_SHORT_VERSION_STRING ${PROJECT_VERSION}
-               MACOSX_BUNDLE_ICON_FILE "mujoco.icns"
-               MACOSX_BUNDLE_COPYRIGHT "Copyright 2021 DeepMind Technologies Limited."
+    libsimulate
+    mujoco::mujoco
+    glfw
+    Threads::Threads
+    lodepng
   )
 
-  macro(embed_in_bundle target)
-    add_dependencies(${target} simulate)
+  target_link_options(simulate PRIVATE ${MUJOCO_SIMULATE_LINK_OPTIONS})
+
+  if(APPLE AND MUJOCO_BUILD_MACOS_FRAMEWORKS)
     set_target_properties(
-      ${target}
+      simulate
       PROPERTIES INSTALL_RPATH @executable_path/../Frameworks
                  BUILD_WITH_INSTALL_RPATH TRUE
-                 RUNTIME_OUTPUT_DIRECTORY $<TARGET_FILE_DIR:simulate>
+                 RESOURCE ${SIMULATE_RESOURCE_FILES}
+                 MACOSX_BUNDLE TRUE
+                 MACOSX_BUNDLE_INFO_PLIST ${CMAKE_CURRENT_SOURCE_DIR}/../dist/Info.plist.simulate.in
+                 MACOSX_BUNDLE_BUNDLE_NAME "MuJoCo"
+                 MACOSX_BUNDLE_GUI_IDENTIFIER "org.mujoco.mujoco"
+                 MACOSX_BUNDLE_BUNDLE_VERSION ${PROJECT_VERSION}
+                 MACOSX_BUNDLE_INFO_STRING ${PROJECT_VERSION}
+                 MACOSX_BUNDLE_LONG_VERSION_STRING ${PROJECT_VERSION}
+                 MACOSX_BUNDLE_SHORT_VERSION_STRING ${PROJECT_VERSION}
+                 MACOSX_BUNDLE_ICON_FILE "mujoco.icns"
+                 MACOSX_BUNDLE_COPYRIGHT "Copyright 2021 DeepMind Technologies Limited."
     )
-  endmacro()
 
-  # Embed mujoco.framework inside the App bundle ane move the icon file over too.
-  add_custom_command(
-    TARGET simulate
-    POST_BUILD
-    COMMAND mkdir -p $<TARGET_FILE_DIR:simulate>/../Frameworks
-    COMMAND rm -rf $<TARGET_FILE_DIR:simulate>/../Frameworks/mujoco.framework
-    COMMAND cp -a $<TARGET_FILE_DIR:mujoco::mujoco>/../../../mujoco.framework
-            $<TARGET_FILE_DIR:simulate>/../Frameworks/
-    # Delete the symlink and the TBD, otherwise we can't sign and notarize.
-    COMMAND rm -rf $<TARGET_FILE_DIR:simulate>/../Frameworks/mujoco.framework/mujoco.tbd
-    COMMAND rm -rf
-            $<TARGET_FILE_DIR:simulate>/../Frameworks/mujoco.framework/Versions/A/libmujoco.dylib
-  )
-endif()
-
-# Do not install if macOS Bundles are created as RPATH is managed manually there.
-if(APPLE AND MUJOCO_BUILD_MACOS_FRAMEWORKS)
-  set(_INSTALL_SIMULATE OFF)
-endif()
-
-if(_INSTALL_SIMULATE)
-
-  include(TargetAddRpath)
-
-  # Add support to RPATH for the samples.
-  target_add_rpath(
-    TARGETS
-    simulate
-    INSTALL_DIRECTORY
-    "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_BINDIR}"
-    LIB_DIRS
-    "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR}"
-    DEPENDS
-    MUJOCO_ENABLE_RPATH
-  )
-
-  install(
-    TARGETS simulate
-    EXPORT ${PROJECT_NAME}
-    RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}" COMPONENT simulate
-    LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}" COMPONENT simulate
-    ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}" COMPONENT simulate
-    BUNDLE DESTINATION "${CMAKE_INSTALL_BINDIR}" COMPONENT simulate
-    PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR} COMPONENT simulate
-  )
-
-  if(NOT MUJOCO_SIMULATE_USE_SYSTEM_GLFW)
-    # We downloaded GLFW. Depending if it is a static or shared LIBRARY we might
-    # need to install it.
-    get_target_property(MJ_GLFW_LIBRARY_TYPE glfw TYPE)
-    if(MJ_GLFW_LIBRARY_TYPE STREQUAL SHARED_LIBRARY)
-      install(
-        TARGETS glfw
-        EXPORT ${PROJECT_NAME}
-        RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}" COMPONENT simulate
-        LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}" COMPONENT simulate
-        ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}" COMPONENT simulate
-        PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR} COMPONENT simulate
+    macro(embed_in_bundle target)
+      add_dependencies(${target} simulate)
+      set_target_properties(
+        ${target}
+        PROPERTIES INSTALL_RPATH @executable_path/../Frameworks
+                   BUILD_WITH_INSTALL_RPATH TRUE
+                   RUNTIME_OUTPUT_DIRECTORY $<TARGET_FILE_DIR:simulate>
       )
+    endmacro()
+
+    # Embed mujoco.framework inside the App bundle ane move the icon file over too.
+    add_custom_command(
+      TARGET simulate
+      POST_BUILD
+      COMMAND mkdir -p $<TARGET_FILE_DIR:simulate>/../Frameworks
+      COMMAND rm -rf $<TARGET_FILE_DIR:simulate>/../Frameworks/mujoco.framework
+      COMMAND cp -a $<TARGET_FILE_DIR:mujoco::mujoco>/../../../mujoco.framework
+              $<TARGET_FILE_DIR:simulate>/../Frameworks/
+      # Delete the symlink and the TBD, otherwise we can't sign and notarize.
+      COMMAND rm -rf $<TARGET_FILE_DIR:simulate>/../Frameworks/mujoco.framework/mujoco.tbd
+      COMMAND rm -rf
+              $<TARGET_FILE_DIR:simulate>/../Frameworks/mujoco.framework/Versions/A/libmujoco.dylib
+    )
+  endif()
+
+  # Do not install if macOS Bundles are created as RPATH is managed manually there.
+  if(APPLE AND MUJOCO_BUILD_MACOS_FRAMEWORKS)
+    set(_INSTALL_SIMULATE OFF)
+  endif()
+
+  if(_INSTALL_SIMULATE)
+
+    include(TargetAddRpath)
+
+    # Add support to RPATH for the samples.
+    target_add_rpath(
+      TARGETS
+      simulate
+      INSTALL_DIRECTORY
+      "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_BINDIR}"
+      LIB_DIRS
+      "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR}"
+      DEPENDS
+      MUJOCO_ENABLE_RPATH
+    )
+
+    install(
+      TARGETS simulate
+      EXPORT ${PROJECT_NAME}
+      RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}" COMPONENT simulate
+      LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}" COMPONENT simulate
+      ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}" COMPONENT simulate
+      BUNDLE DESTINATION "${CMAKE_INSTALL_BINDIR}" COMPONENT simulate
+      PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR} COMPONENT simulate
+    )
+
+    if(NOT MUJOCO_SIMULATE_USE_SYSTEM_GLFW)
+      # We downloaded GLFW. Depending if it is a static or shared LIBRARY we might
+      # need to install it.
+      get_target_property(MJ_GLFW_LIBRARY_TYPE glfw TYPE)
+      if(MJ_GLFW_LIBRARY_TYPE STREQUAL SHARED_LIBRARY)
+        install(
+          TARGETS glfw
+          EXPORT ${PROJECT_NAME}
+          RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}" COMPONENT simulate
+          LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}" COMPONENT simulate
+          ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}" COMPONENT simulate
+          PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR} COMPONENT simulate
+        )
+      endif()
     endif()
   endif()
 endif()

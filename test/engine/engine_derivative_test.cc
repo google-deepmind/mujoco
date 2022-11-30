@@ -289,7 +289,7 @@ static void LinearSystem(const mjModel* m, mjData* d, mjtNum* A, mjtNum* B) {
       Ac[i*nv + i]  = -m->jnt_stiffness[i];
       Ac[nv*nv + i*nv + i] = -m->dof_damping[i];
     }
-    mj_solveLD(m, Ac, Ac, 2*nv, d->qH, d->qHDiagInv);
+    mj_solveLD(m, Ac, 2*nv, d->qH, d->qHDiagInv);
 
     // A = [dt*Ac; Ac]
     mju_transpose(A, Ac, 2*nv, nv);
@@ -314,7 +314,8 @@ static void LinearSystem(const mjModel* m, mjData* d, mjtNum* A, mjtNum* B) {
   if (B) {
     mjtNum *Bc = mj_stackAlloc(d, nu*nv);
     mjtNum *BcT = mj_stackAlloc(d, nv*nu);
-    mj_solveLD(m, Bc, d->actuator_moment, nu, d->qH, d->qHDiagInv);
+    mju_copy(Bc, d->actuator_moment, nv*nu);
+    mj_solveLD(m, Bc, nu, d->qH, d->qHDiagInv);
     mju_transpose(BcT, Bc, nu, nv);
     mju_scl(B, BcT, dt*dt, nu*nv);
     mju_scl(B+nu*nv, BcT, dt, nu*nv);

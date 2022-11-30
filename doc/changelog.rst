@@ -6,6 +6,12 @@ Changelog
 Upcoming version (not yet released)
 -----------------------------------
 
+Python bindings
+^^^^^^^^^^^^^^^
+
+- The ``simulate`` GUI is now available through the ``mujoco`` Python package. See :ref:`documentation<PyGUI>` for
+  details. (Contribution by `Levi Burner <https://github.com/aftersomemath>`_.)
+
 General
 ^^^^^^^
 
@@ -30,14 +36,20 @@ General
 - Added :at:`gravcomp` attribute to :ref:`body<body>`, implementing gravity compensation and bouyancy.
   See `balloons.xml <https://github.com/deepmind/mujoco/tree/main/model/balloons/balloons.xml>`_ example model.
 - Renamed the ``cable`` plugin library to ``elasticity``.
-- Added :ref:`actdim` attribute to :ref:`general actuators<actuator-general>`. Values greater than 1 are only allowed
+- Added :at:`actdim` attribute to :ref:`general actuators<actuator-general>`. Values greater than 1 are only allowed
   for dyntype :at-val:`user`, as native activation dynamics are all scalar. Added example test implementing 2nd-order
   activation dynamics to
   `engine_forward_test.cc <https://github.com/deepmind/mujoco/blob/main/test/engine/engine_forward_test.cc>`_.
 - Improved particle :ref:`composite<body-composite>` type, which now permits a user-specified geometry and multiple
   joints. See the two new examples:
   `particle_free.xml <https://github.com/deepmind/mujoco/tree/main/model/composite/particle_free.xml>`_ and
-  `particle_free2d.xml <https://github.com/deepmind/mujoco/tree/main/model/composite/particle_free2d.xml>`_
+  `particle_free2d.xml <https://github.com/deepmind/mujoco/tree/main/model/composite/particle_free2d.xml>`_.
+- Performance improvements for non-AVX configurations:
+
+  - 14% faster ``mj_solveLD`` using `restrict <https://en.wikipedia.org/wiki/Restrict>`_. See `engine_core_smooth_benchmark_test
+    <https://github.com/deepmind/mujoco/tree/main/test/benchmark/engine_core_smooth_benchmark_test.cc>`_.
+  - 50% faster ``mju_dotSparse`` using manual loop unroll. See `engine_util_sparse_benchmark_test
+    <https://github.com/deepmind/mujoco/tree/main/test/benchmark/engine_util_sparse_benchmark_test.cc>`_.
 
 Version 2.3.0 (October 18, 2022)
 --------------------------------
