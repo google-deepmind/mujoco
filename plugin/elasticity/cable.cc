@@ -74,59 +74,71 @@ void QuatDiff(mjtNum* quat, const mjtNum body_quat[4],
 //   outputs:
 //     qfrc        - local torque contribution
 void LocalForce(mjtNum qfrc[3], mujoco::plugin::elasticity::Cable::stiffness_ Sel, mujoco::plugin::elasticity::Cable::stiffness_consts_ Sconst,
-    const mjtNum quat[4], mjtNum omega0[3], int userdatatype, mjtNum*  userdata, const mjtNum xquat[4], mjtNum scl) {
+    const mjtNum quat[4], mjtNum omega0[3], mjtNum last_stress[3], mjtNum last_strain[3], int userdatatype, mjtNum*  userdata, const mjtNum xquat[4], mjtNum scl) {
     
     mjtNum omega[3], lfrc[3];
     
     // compute curvature
     mju_quat2Vel(omega, quat, scl);
 
-    // change of curvature from reference configuration ==> acts as strain component
+    // change of curvature from reference configuration
     mjtNum d_omega[] = {
         omega[0] - omega0[0],
         omega[1] - omega0[1],
         omega[2] - omega0[2]
     };
-    
+   
+    //actual strain
     mjtNum strain[] = {
-        1 / (-Sel.L_Dyz / d_omega[0]-1),
-        1 / (-Sel.L_Dy / d_omega[1]-1),        
-        1 / (-Sel.L_Dz / d_omega[2]-1)
+         d_omega[0] / (Sel.L_Dyz + omega0[0]),
+         d_omega[1] / (Sel.L_Dy + omega0[1]),
+         d_omega[2] / (Sel.L_Dz + omega0[2]),
     };
     
-    //compute purely elastic stress below Yield and exponential plasticity above yield.
-    mjtNum stress[] = {
-       abs(strain[0]) < Sconst.epsY_G ? Sconst.G / (Sel.L_Dyz / d_omega[0] - 1) : Sconst.sigY + (Sconst.sig_UtY) * (1 - mju_exp(-Sconst.k_eps_UtY_G * (strain[0] - Sconst.epsY_G))),
-       abs(strain[1]) < Sconst.epsY_E ? Sconst.E / (Sel.L_Dy  / d_omega[1] - 1) : Sconst.sigY + (Sconst.sig_UtY) * (1 - mju_exp(-Sconst.k_eps_UtY_E * (strain[1] - Sconst.epsY_E))),
-       abs(strain[2]) < Sconst.epsY_E ? Sconst.E / (Sel.L_Dz  / d_omega[2] - 1) : Sconst.sigY + (Sconst.sig_UtY) * (1 - mju_exp(-Sconst.k_eps_UtY_E * (strain[2] - Sconst.epsY_E)))
+    mjtNum Yield_stress_top[] = {
+        strain[0] * Sconst.Gp + Sconst.sig_tp_G,
+        strain[1] * Sconst.Ep + Sconst.sig_tp_E,
+        strain[2] * Sconst.Ep + Sconst.sig_tp_E
     };
     
-    //// torque from calculated beam stress
-    //mjtNum tmp[] = {
-    //   stress[0] * Sel.J_Dyz,
-    //   stress[1] * Sel.Iy_Dy,
-    //   stress[2] * Sel.Iz_Dz       
-    //};                
-      
-    // permanent change of curvature    
-    omega0[0] += abs(strain[0]) < Sconst.epsY_G ? 0 : (-Sel.L_Dyz * (strain[0] / (1 + strain[0])));
-    omega0[1] += abs(strain[1]) < Sconst.epsY_E ? 0 : (-Sel.L_Dy *  (strain[1] / (1 + strain[1])));
-    omega0[2] += abs(strain[2]) < Sconst.epsY_E ? 0 : (-Sel.L_Dz *  (strain[2] / (1 + strain[2])));
-    
-    //viscous damping proprtional to volume ~ Dxx, speed ~ d_omega
-    mjtNum dampingfactor[] = {
-        1/ (1 + Sel.Dyz * abs(d_omega[0]) * Sconst.Df),
-        1/ (1 + Sel.Dy * abs(d_omega[1]) * Sconst.Df),
-        1/ (1 + Sel.Dz * abs(d_omega[2]) * Sconst.Df),
+    mjtNum Yield_stress_bottom[] = {
+        Yield_stress_top[0] - Sconst.sigY * 2,
+        Yield_stress_top[1] - Sconst.sigY * 2,
+        Yield_stress_top[2] - Sconst.sigY * 2,        
+    };
+    mjtNum plastic_strain[] = {
+        last_strain[0] - last_stress[0] / Sconst.G,
+        last_strain[1] - last_stress[1] / Sconst.E,
+        last_strain[2] - last_stress[2] / Sconst.E,
     };
 
-    // torque from new curvature
-    mjtNum trq[] = {
-        -Sconst.G * Sel.J_Dyz / Sel.L_Dyz * (omega[0] - omega0[0]) * dampingfactor[0],
-       -Sconst.E * Sel.Iy_Dy / Sel.L_Dy * (omega[1] - omega0[1]) * dampingfactor[1],
-       -Sconst.E * Sel.Iz_Dz / Sel.L_Dz * (omega[2] - omega0[2]) * dampingfactor[2]
-    };
+    mjtNum elstress[] = {
+        (strain[0] - plastic_strain[0])* Sconst.G,
+        (strain[1] - plastic_strain[1])* Sconst.E,
+        (strain[2] - plastic_strain[2])* Sconst.E,
+    }; 
+
+    mjtNum stress[] = {
+        (elstress[0] <= Yield_stress_top[0] && elstress[0] >= Yield_stress_bottom[0]) ? elstress[0] : (strain[0] - last_strain[0]) > 0 ? strain[0] * Sconst.Gp + Sconst.sig_tp_G : strain[0] * Sconst.Gp + Sconst.sig_tp_G - 2 * Sconst.sigY,
+        (elstress[1] <= Yield_stress_top[1] && elstress[1] >= Yield_stress_bottom[1]) ? elstress[1] : (strain[1] - last_strain[1]) > 0 ? strain[1] * Sconst.Ep + Sconst.sig_tp_E : strain[1] * Sconst.Ep + Sconst.sig_tp_E - 2 * Sconst.sigY,
+        (elstress[2] <= Yield_stress_top[2] && elstress[2] >= Yield_stress_bottom[2]) ? elstress[2] : (strain[2] - last_strain[2]) > 0 ? strain[2] * Sconst.Ep + Sconst.sig_tp_E : strain[2] * Sconst.Ep + Sconst.sig_tp_E - 2 * Sconst.sigY,
+    };          
+    
+    // torque from calculated beam stress
+    mjtNum tmp[] = {
+       -stress[0] * Sel.J_Dyz,
+       -stress[1] * Sel.Iy_Dy,
+       -stress[2] * Sel.Iz_Dz,
+    };                   
         
+    last_stress[0] = stress[0];
+    last_stress[1] = stress[1];
+    last_stress[2] = stress[2];
+
+    last_strain[0] = strain[0];
+    last_strain[1] = strain[1];
+    last_strain[2] = strain[2];
+
     //calculate scalar data for visualization and readout
     if (userdatatype & 1) {
         *userdata = mju_sqrt((pow(stress[0] - stress[1], 2) + pow(stress[1] - stress[2], 2) + pow(stress[2] - stress[0], 2)) / 2); //von Mieses principal stress
@@ -136,15 +148,13 @@ void LocalForce(mjtNum qfrc[3], mujoco::plugin::elasticity::Cable::stiffness_ Se
     }
     else if (userdatatype & 4) {
         *userdata = mju_sqrt(pow(d_omega[0], 2) + pow(d_omega[1], 2) + pow(d_omega[2], 2));  //momentary curvature change
-    }
+    }  
       
-          
-  
   // rotate into global frame
   if (xquat) {
-    mju_rotVecQuat(lfrc, trq, xquat);
+    mju_rotVecQuat(lfrc, tmp, xquat);
   } else {
-    mju_copy3(lfrc, trq);
+    mju_copy3(lfrc, tmp);
   }
 
 
@@ -181,7 +191,8 @@ Cable::Cable(const mjModel* m, mjData* d, int instance) {
   mjtNum G = strtod(mj_getPluginConfig(m, instance, "twist"), nullptr);
   mjtNum E = strtod(mj_getPluginConfig(m, instance, "bend"), nullptr);
   mjtNum YieldStress = strtod(mj_getPluginConfig(m, instance, "yieldstress"), nullptr); 
-  mjtNum UtStress = strtod(mj_getPluginConfig(m, instance, "ultimatestress"), nullptr); 
+  mjtNum poisson = E / (2 * G) - 1; //calculate poission's ratio from E and G
+  mjtNum UtStress = strtod(mj_getPluginConfig(m, instance, "ultimatestress"), nullptr);
   mjtNum UtStrain = strtod(mj_getPluginConfig(m, instance, "ultimatestrain"), nullptr);
   mjtNum YieldStrain_G = 1, YieldStrain_E = 1, dYield_UtY = 0, k_deltaStrain_G = 0, k_deltaStrain_E = 0;
   
@@ -213,15 +224,16 @@ Cable::Cable(const mjModel* m, mjData* d, int instance) {
       UtStrain = 1.0;
   }
 
-  Sconst.E = E; //youngs modulus
-  Sconst.G = G; //torsion modulus
-  Sconst.sig_UtY = dYield_UtY;
-  Sconst.k_eps_UtY_E = k_deltaStrain_G;
-  Sconst.k_eps_UtY_G = k_deltaStrain_E;
-  Sconst.sigY = YieldStress;
-  Sconst.epsY_G = YieldStrain_G;
-  Sconst.epsY_E = YieldStrain_E;
-  Sconst.Df = 10000;
+  mjtNum Ep = (UtStress - YieldStress) / (UtStrain - YieldStress / E);  //plastic hardenening tension stiffness 
+  mjtNum Gp = Ep / (2 * (1 + poisson));                                 //plastic hardening shear stiffness 
+
+  Sconst.E = E;                     //youngs modulus
+  Sconst.G = G;                     //shear modulus
+  Sconst.Ep = Ep;                   //youngs modulus in plastic domain
+  Sconst.Gp = Gp;                   //shear modulus in plastic domain  
+  Sconst.sigY = YieldStress;    
+  Sconst.sig_tp_G = YieldStress - Gp * YieldStrain_G;      // plastic yield stress curve offset torsion
+  Sconst.sig_tp_E = YieldStress - Ep * YieldStrain_E;      // plastic yield stress curve offset tension
 
   //exponential model interpolation, reference: https://monarch.qucosa.de/api/qucosa%3A19721/attachment/ATT-0/ Page 10-19
   
@@ -236,13 +248,16 @@ Cable::Cable(const mjModel* m, mjData* d, int instance) {
   }
 
   // allocate arrays
-  prev.assign(n, 0);         // index of previous body
-  next.assign(n, 0);         // index of next body
-  omega0.assign(3*n, 0);     // reference curvature
-  userdata.assign(3 * n, 0);     // stress, reference curvature, curvature change
+  prev.assign(n, 0);            // index of previous body
+  next.assign(n, 0);            // index of next body
+  omega0.assign(3 * n, 0);      // reference curvature
+  stress.assign(3 * n, 0);      // keep track of previous beam stresses
+  strain.assign(3 * n, 0);      // keep track of previous beam strains
+  userdata.assign(3 * n, 0);    // stress, reference curvature or curvature change
   userdatamin = 0;              //limits for scalar coloring
-  userdatamax = YieldStress;  
-  Sel.resize(n);  // elementwise depending material parameters
+  userdatamax = UtStress;
+
+  Sel.resize(n);                // material parameters for each beam
   
 
   // run forward kinematics to populate xquat (mjData not yet initialized)
@@ -310,9 +325,6 @@ Cable::Cable(const mjModel* m, mjData* d, int instance) {
       
     }
     // precalculated elementwise constants for faster calculation of exponential model
-    Sel[b].dOmega_Yield[0] = -L_Dyz / (1 + 1 / YieldStrain_G);
-    Sel[b].dOmega_Yield[1] = -L_Dy / (1 + 1 / YieldStrain_E);
-    Sel[b].dOmega_Yield[2] = -L_Dz / (1 + 1 / YieldStrain_E);
     Sel[b].J_Dyz = J_Dyz; 
     Sel[b].Iy_Dy = Iy_Dy; 
     Sel[b].Iz_Dz = Iz_Dz; 
@@ -324,9 +336,7 @@ Cable::Cable(const mjModel* m, mjData* d, int instance) {
     Sel[b].Dz = Dz;
         
     //reference: https://www.continuummechanics.org/beambending.html
-      }
-  //point userdata for visualization of skin colors to data->userdata
-  //d->userdata = userdata.data();
+      }  
 }
 
 void Cable::Compute(const mjModel* m, mjData* d, int instance) {
@@ -353,7 +363,7 @@ void Cable::Compute(const mjModel* m, mjData* d, int instance) {
       QuatDiff(quat, m->body_quat+4*i, d->qpos+qadr, 0);   
       // contribution of orientation i-1 to xfrc i      
      
-     LocalForce(xfrc, Sel[b], Sconst, quat, omega0.data() + 3 * b, 1, &userdata, d->xquat + 4 * (i + prev[b]), 1);               
+     LocalForce(xfrc, Sel[b], Sconst, quat, omega0.data() + 3 * b, stress.data() + 3 * b, strain.data() + 3 * b, 1, &userdata, d->xquat + 4 * (i + prev[b]), 1);
           
     }
 
@@ -365,7 +375,7 @@ void Cable::Compute(const mjModel* m, mjData* d, int instance) {
       int qadr = m->jnt_qposadr[m->body_jntadr[in]] + m->body_dofnum[in]-3;
       QuatDiff(quat, m->body_quat+4*in, d->qpos+qadr, 1);
       // contribution of orientation i+1 to xfrc i
-      LocalForce(xfrc, Sel[bn], Sconst, quat, omega0.data()+3*bn, 1, &userdata, d->xquat+4*i, -1);      
+      LocalForce(xfrc, Sel[bn], Sconst, quat, omega0.data()+3*bn, stress.data() + 3 * bn, strain.data() + 3 * bn, 1, &userdata, d->xquat+4*i, -1);
      
     }
 
