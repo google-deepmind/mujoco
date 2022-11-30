@@ -241,11 +241,20 @@ bool mjCComposite::Make(mjCModel* model, mjCBody* body, char* error, int error_s
   }
 
   // check spacing
+  if (type==mjCOMPTYPE_GRID || type==mjCOMPTYPE_PARTICLE) {
+    if (spacing < mju_max(def[0].geom.size[0],
+                  mju_max(def[0].geom.size[1], def[0].geom.size[2]))) {
+      return comperr(error, "Spacing must be larger than geometry size",
+                     error_sz);
+    }
+  }
+
+  // check cable sizes are nonzero if vertices are not prescribed
   if (mjuu_dot3(size, size)<mjMINVAL && uservert.empty()) {
     return comperr(error, "Positive spacing or length expected in composite", error_sz);
   }
 
-  // check either spacing or length
+  // check spacing is not used by cable
   if (spacing && type==mjCOMPTYPE_CABLE) {
     return comperr(error, "Spacing is not supported by cable composite", error_sz);
   }

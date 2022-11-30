@@ -20,6 +20,7 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 #include <absl/strings/str_format.h>
+#include <mujoco/mjdata.h>
 #include <mujoco/mjmodel.h>
 #include <mujoco/mujoco.h>
 #include "test/fixture.h"
@@ -51,7 +52,8 @@ TEST_F(UserCompositeTest, MultipleJointsNotAllowedUnlessParticle) {
   std::array<char, 1024> error;
   mjModel* m = LoadModelFromString(xml, error.data(), error.size());
   EXPECT_THAT(m, IsNull());
-  EXPECT_THAT(error.data(), HasSubstr("Only particles are allowed to have multiple joints"));
+  EXPECT_THAT(error.data(),
+              HasSubstr("Only particles are allowed to have multiple joints"));
 }
 
 TEST_F(UserCompositeTest, StretchAndTwistAllowed) {
@@ -73,6 +75,42 @@ TEST_F(UserCompositeTest, StretchAndTwistAllowed) {
   std::array<char, 1024> error;
   mjModel* m = LoadModelFromString(xml, error.data(), error.size());
   EXPECT_THAT(m, NotNull());
+  mj_deleteModel(m);
+}
+
+TEST_F(UserCompositeTest, SpacingGreaterThanGeometry) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+  <worldbody>
+    <composite type="grid" count="282 2">
+      <geom size="8"/>
+    </composite>
+  </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* m = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(m, IsNull()) << error.data();
+  EXPECT_THAT(error.data(),
+              HasSubstr("Spacing must be larger than geometry size"));
+}
+
+TEST_F(UserCompositeTest, SpacingEqualToGeometry) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+  <worldbody>
+    <composite type="grid" count="282 2" spacing="8">
+      <geom size="8"/>
+    </composite>
+  </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* m = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(m, NotNull()) << error.data();
+  mjData* d = mj_makeData(m);
+  mj_step(m, d);
+  mj_deleteData(d);
   mj_deleteModel(m);
 }
 
