@@ -30,7 +30,7 @@ A MuJoCo tutorial using the Python bindings is available here: |colab|
 Installation
 ============
 
-The package can be installed from `PyPI <https://pypi.org/project/mujoco/>`__ via
+The recommended way to install this package is via `PyPI <https://pypi.org/project/mujoco/>`__:
 
 .. code-block:: shell
 
@@ -42,16 +42,65 @@ separately.
 Building from source
 --------------------
 
-Source code for the Python bindings are available in the ``python`` top-level directory in MuJoCo's
-`GitHub repository <https://github.com/deepmind/mujoco>`__. Developers wishing to build the bindings from source should
-work with a full clone of the Git repository, run the ``make_sdist.sh`` script to generate a
-`source distribution (sdist) <https://packaging.python.org/en/latest/glossary/#term-Source-Distribution-or-sdist>`__
-tarball, then run ``pip wheel name_of_sdist.tar.gz`` to build the libraries and generate a
-`wheel <https://packaging.python.org/en/latest/glossary/#term-Built-Distribution>`__. The ``make_sdist.sh`` script
-generates additional C++ header files that are needed to build the bindings, and also pulls in other required files from
-elsewhere in the repository outside the ``python`` directory into the sdist.
+.. note::
+    Building from source is only necessary if you are modifying the
+    Python bindings (or are trying to run on exceptionally old Linux systems).
+    If that's not the case, then we recommend installing the prebuilt binaries
+    from PyPI.
 
-CMake and a C++17 compiler are needed to build the bindings from source.
+1. Make sure you have CMake and a C++17 compiler installed.
+
+2. Download the `latest binary release <https://github.com/deepmind/mujoco/releases>`__
+   from GitHub. On macOS, the download corresponds to a DMG file from which you
+   can drag ``MuJoCo.app`` into your ``/Applications`` folder.
+
+3. Clone the entire ``mujoco`` repository from GitHub and ``cd`` into the python
+   directory:
+
+   .. code-block:: shell
+
+      git clone https://github.com/deepmind/mujoco.git
+      cd mujoco/python
+
+4. Create a virtual environment:
+
+   .. code-block:: shell
+
+      python3 -m venv /tmp/mujoco
+      source /tmp/mujoco/bin/activate
+
+5. Generate a `source distribution <https://packaging.python.org/en/latest/glossary/#term-Source-Distribution-or-sdist>`__
+   tarball with the ``make_sdist.sh`` script.
+
+   .. code-block:: shell
+
+      cd python
+      bash make_sdist.sh
+
+   The ``make_sdist.sh`` script generates additional C++ header files that are
+   needed to build the bindings, and also pulls in required files from elsewhere
+   in the repository outside the ``python`` directory into the sdist. Upon
+   completion, the script will create a ``dist`` directory with a
+   ``mujoco-x.y.z.tar.gz`` file (where ``x.y.z`` is the version number).
+
+6. Use the generated source distribution to build and install the bindings.
+   You'll need to specify the path to the MuJoCo library you downloaded earlier
+   in the ``MUJOCO_PATH`` environment variable.
+
+   .. note::
+      For macOS, this can be the path to a directory that contains the
+      ``mujoco.framework``. In particular, you can set
+      ``MUJOCO_PATH=/Applications/MuJoCo.app`` if you installed MuJoCo as
+      suggested in step 1.
+
+   .. code-block:: shell
+
+      cd dist
+      MUJOCO_PATH=/PATH/TO/MUJOCO pip install mujoco-x.y.z.tar.gz
+
+The Python bindings should now be installed! To check that they've been
+successfully installed, ``cd`` outside of the ``mujoco`` directory and run
+``python -c "import mujoco"``.
 
 Basic usage
 -----------
