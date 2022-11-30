@@ -437,7 +437,7 @@ static mjtNum ray_box(const mjtNum* pos, const mjtNum* mat, const mjtNum* size,
 
 
 
-// interect ray with hfield
+// intersect ray with hfield
 mjtNum mj_rayHfield(const mjModel* m, const mjData* d, int id,
                     const mjtNum* pnt, const mjtNum* vec) {
   // check geom type
@@ -584,7 +584,7 @@ mjtNum mj_rayHfield(const mjModel* m, const mjData* d, int id,
 
 
 
-// interect ray with mesh
+// intersect ray with mesh
 mjtNum mj_rayMesh(const mjModel* m, const mjData* d, int id,
                   const mjtNum* pnt, const mjtNum* vec) {
   // check geom type
@@ -651,7 +651,7 @@ mjtNum mj_rayMesh(const mjModel* m, const mjData* d, int id,
 
 
 
-// interect ray with pure geom, no meshes or hfields
+// intersect ray with pure geom, no meshes or hfields
 mjtNum mju_rayGeom(const mjtNum* pos, const mjtNum* mat, const mjtNum* size,
                    const mjtNum* pnt, const mjtNum* vec, int geomtype) {
   switch (geomtype) {
@@ -681,7 +681,7 @@ mjtNum mju_rayGeom(const mjtNum* pos, const mjtNum* mat, const mjtNum* size,
 
 
 
-// interect ray with skin, return nearest vertex id
+// intersect ray with skin, return nearest vertex id
 mjtNum mju_raySkin(int nface, int nvert, const int* face, const float* vert,
                    const mjtNum* pnt, const mjtNum* vec, int vertid[1]) {
   // compute bounding box

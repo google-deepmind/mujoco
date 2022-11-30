@@ -566,10 +566,14 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
     if ((pert->active | pert->active2) & mjPERT_TRANSLATE) {
       START
 
+      // compute selection point in world coordinates
+      mju_rotVecMat(selpos, pert->localpos, d->xmat+9*pert->select);
+      mju_addTo3(selpos, d->xpos+3*pert->select);
+
       // construct geom
       sz[0] = scl * m->vis.scale.constraint;
       mjv_makeConnector(thisgeom, mjGEOM_CAPSULE, sz[0],
-                        d->xipos[3*i], d->xipos[3*i+1], d->xipos[3*i+2],
+                        selpos[0], selpos[1], selpos[2],
                         pert->refpos[0], pert->refpos[1], pert->refpos[2]);
 
       // prepare color
@@ -666,6 +670,7 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
   category = mjCAT_DECOR;
   if ((category & catmask) && pert->select>0 && vopt->flags[mjVIS_SELECT]) {
     int i=0;
+
     // compute selection point in world coordinates
     mju_rotVecMat(selpos, pert->localpos, d->xmat+9*pert->select);
     mju_addTo3(selpos, d->xpos+3*pert->select);

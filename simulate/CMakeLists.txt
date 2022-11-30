@@ -122,7 +122,7 @@ target_include_directories(libsimulate PUBLIC $<TARGET_PROPERTY:glfw,INTERFACE_I
 target_link_options(libsimulate PRIVATE ${MUJOCO_SIMULATE_LINK_OPTIONS})
 
 if(APPLE)
-  target_sources(libsimulate PRIVATE macos_save.mm)
+  target_sources(libsimulate PRIVATE macos_gui.mm)
   target_link_libraries(libsimulate PUBLIC "-framework Cocoa")
 endif()
 

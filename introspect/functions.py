@@ -2698,6 +2698,38 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
          ),
          doc='Return a config attribute value of a plugin instance; NULL: invalid plugin instance ID or attribute name',  # pylint: disable=line-too-long
      )),
+    ('mj_loadPluginLibrary',
+     FunctionDecl(
+         name='mj_loadPluginLibrary',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='path',
+                 type=PointerType(
+                     inner_type=ValueType(name='char', is_const=True),
+                 ),
+             ),
+         ),
+         doc='Load a dynamic library. The dynamic library is assumed to register one or more plugins.',  # pylint: disable=line-too-long
+     )),
+    ('mj_loadAllPluginLibraries',
+     FunctionDecl(
+         name='mj_loadAllPluginLibraries',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='directory',
+                 type=PointerType(
+                     inner_type=ValueType(name='char', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='callback',
+                 type=ValueType(name='mjfPluginLibraryLoadCallback'),
+             ),
+         ),
+         doc='Scan a directory and load all dynamic libraries. Dynamic libraries in the specified directory are assumed to register one or more plugins. Optionally, if a callback is specified, it is called for each dynamic library encountered that registers plugins.',  # pylint: disable=line-too-long
+     )),
     ('mj_version',
      FunctionDecl(
          name='mj_version',

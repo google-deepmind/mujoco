@@ -1,0 +1,16 @@
+<mujoco>
+  <worldbody>
+    <light pos="0 0 3"/>
+    <geom type="plane" size="1 1 .01"/>
+
+    <body pos="0 0 1" quat="0 0.534522 0.801784 0.267261">
+      <freejoint/>
+      <geom type="box" size="0.15 0.1 0.05" pos="0.15 0.1 0.05" euler="30 30 30" rgba="1 0 0 1"/>
+    </body>
+
+    <body pos="0 0 2" quat="0 0.534522 0.801784 0.267261">
+      <freejoint/>
+      <geom type="box" size="0.15 0.1 0.05" rgba="0 0 1 1"/>
+    </body>
+  </worldbody>
+</mujoco>

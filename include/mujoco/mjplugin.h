@@ -94,4 +94,7 @@ typedef struct mjpPlugin_ mjpPlugin;
 
 #endif  // defined(_MSC_VER)
 
+// function pointer type for mj_loadAllPluginLibraries callback
+typedef void (*mjfPluginLibraryLoadCallback)(const char* filename, int first, int count);
+
 #endif  // MUJOCO_INCLUDE_MJPLUGIN_H_

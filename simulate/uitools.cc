@@ -314,17 +314,17 @@ void uiClearCallback(GLFWwindow* wnd) {
   // clear container
   if (Glfw().glfwGetWindowUserPointer(wnd)) {
     mju_free(Glfw().glfwGetWindowUserPointer(wnd));
-    Glfw().glfwSetWindowUserPointer(wnd, NULL);
+    Glfw().glfwSetWindowUserPointer(wnd, nullptr);
   }
 
   // clear internal callbacks
-  Glfw().glfwSetKeyCallback(wnd, NULL);
-  Glfw().glfwSetCursorPosCallback(wnd, NULL);
-  Glfw().glfwSetMouseButtonCallback(wnd, NULL);
-  Glfw().glfwSetScrollCallback(wnd, NULL);
-  Glfw().glfwSetWindowSizeCallback(wnd, NULL);
-  Glfw().glfwSetWindowRefreshCallback(wnd, NULL);
-  Glfw().glfwSetDropCallback(wnd, NULL);
+  Glfw().glfwSetKeyCallback(wnd, nullptr);
+  Glfw().glfwSetCursorPosCallback(wnd, nullptr);
+  Glfw().glfwSetMouseButtonCallback(wnd, nullptr);
+  Glfw().glfwSetScrollCallback(wnd, nullptr);
+  Glfw().glfwSetWindowSizeCallback(wnd, nullptr);
+  Glfw().glfwSetWindowRefreshCallback(wnd, nullptr);
+  Glfw().glfwSetDropCallback(wnd, nullptr);
 }
 
 

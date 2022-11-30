@@ -73,7 +73,7 @@ include(FindOrFetch)
 
 # ==================== MUJOCO LIBRARY ==========================================
 if(NOT TARGET mujoco)
-  add_library(mujoco SHARED IMPORTED)
+  add_library(mujoco SHARED IMPORTED GLOBAL)
   if(APPLE)
     # On macOS, check if we are using mujoco.framework first.
     # Framework headers are searched differently from normal headers.

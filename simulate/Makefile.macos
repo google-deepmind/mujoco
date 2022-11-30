@@ -11,8 +11,8 @@ CXXFLAGS=$(CFLAGS) -std=c++17 -stdlib=libc++
 ALLFLAGS=$(CXXFLAGS) -L$(GLFWROOT)/lib -Wl,-rpath,$(MUJOCOPATH)
 
 all:
-	clang++ $(CXXFLAGS)      -c macos_save.mm
+	clang++ $(CXXFLAGS)      -c macos_gui.mm
 	clang++ $(CXXFLAGS)      -c simulate.cc
 	clang $(CFLAGS) -std=c11 -c uitools.c
-	clang++ $(CXXFLAGS) main.cc macos_save.o simulate.o uitools.o  -framework mujoco -framework Cocoa -lglfw -o simulate
+	clang++ $(CXXFLAGS) main.cc macos_gui.o simulate.o uitools.o  -framework mujoco -framework Cocoa -lglfw -o simulate
 	rm *.o

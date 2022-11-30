@@ -3697,7 +3697,7 @@ void mjCSensor::Compile(void) {
 
     // get sensorized object id
     objid = pobj->id;
-  } else if (type != mjSENS_CLOCK && type != mjSENS_PLUGIN) {
+  } else if (type != mjSENS_CLOCK && type != mjSENS_PLUGIN && type != mjSENS_USER) {
     throw mjCError(this, "invalid type in sensor '%s' (id = %d)", name.c_str(), id);
   }
 
@@ -3779,7 +3779,7 @@ void mjCSensor::Compile(void) {
                      "joint must be slide or hinge in sensor '%s' (id = %d)", name.c_str(), id);
     }
 
-    //set
+    // set
     dim = 1;
     datatype = mjDATATYPE_REAL;
     if (type==mjSENS_JOINTPOS) {

@@ -24,11 +24,88 @@
 #include <gtest/gtest.h>
 #include <mujoco/mujoco.h>
 #include "test/fixture.h"
+#include "plugin/elasticity/solid.h"
 
 namespace mujoco {
 namespace {
-using PluginTest = MujocoTest;
 
+class PluginTest : public MujocoTest {
+ public:
+  // load plugin library
+  PluginTest() : MujocoTest() {
+    #if defined(_WIN32) || defined(__CYGWIN__)
+      mj_loadPluginLibrary((
+        std::string(std::getenv("MUJOCO_PLUGIN_DIR")) +
+        std::string("\\elasticity.dll")).c_str());
+    #else
+      #if defined(__APPLE__)
+        mj_loadPluginLibrary((
+          std::string(std::getenv("MUJOCO_PLUGIN_DIR")) +
+          std::string("/libelasticity.dylib")).c_str());
+      #else
+        mj_loadPluginLibrary((
+          std::string(std::getenv("MUJOCO_PLUGIN_DIR")) +
+          std::string("/libelasticity.so")).c_str());
+      #endif
+    #endif
+  }
+};
+
+// -------------------------------- solid -----------------------------------
+TEST_F(PluginTest, ElasticEnergy) {
+  static constexpr char cantilever_xml[] = R"(
+  <mujoco>
+  <extension>
+    <required plugin="mujoco.elasticity.solid"/>
+  </extension>
+
+  <worldbody>
+    <composite type="particle" count="8 8 8" spacing="1">
+      <geom size=".025" group="4"/>
+      <plugin plugin="mujoco.elasticity.solid">
+        <config key="nx" value="8"/>
+        <config key="ny" value="8"/>
+        <config key="nz" value="8"/>
+        <config key="poisson" value="0"/>
+        <config key="young" value="2"/>
+      </plugin>
+    </composite>
+  </worldbody>
+  </mujoco>
+  )";
+
+  char error[1024] = {0};
+  mjModel* m = LoadModelFromString(cantilever_xml, error, sizeof(error));
+  ASSERT_THAT(m, testing::NotNull()) << error;
+  mjData* d = mj_makeData(m);
+
+  EXPECT_THAT(mjp_pluginCount(), 2);
+  auto* solid = reinterpret_cast<plugin::elasticity::Solid*>(d->plugin_data[0]);
+
+  // check that if the entire geometry is rescaled by a factor "scale", then
+  // trace(strain^2) = 3*scale^2
+
+  for (mjtNum scale = 1; scale < 4; scale++) {
+    for (int t = 0; t < solid->nt; t++) {
+      mjtNum energy = 0;
+      mjtNum volume = 1./6.;
+      for (int e1 = 0; e1 < 6; e1++) {
+        for (int e2 = 0; e2 < 6; e2++) {
+          int idx1 = solid->tetrahedra[t].edges[e1];
+          int idx2 = solid->tetrahedra[t].edges[e2];
+          mjtNum elongation1 = scale*solid->reference[idx1];
+          mjtNum elongation2 = scale*solid->reference[idx2];
+          energy += solid->metric[36*t+6*e2+e1] * elongation1 * elongation2;
+        }
+      }
+      EXPECT_NEAR(
+        energy/volume, 3*scale*scale, std::numeric_limits<float>::epsilon());
+    }
+  }
+
+  mj_deleteData(d);
+  mj_deleteModel(m);
+}
 
 // -------------------------------- cable -----------------------------------
 

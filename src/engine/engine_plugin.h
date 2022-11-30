@@ -41,6 +41,12 @@ MJAPI const mjpPlugin* mjp_getPluginAtSlot(int slot);
 // NULL: invalid plugin instance ID or attribute name
 MJAPI const char* mj_getPluginConfig(const mjModel* m, int plugin_id, const char* attrib);
 
+// load plugins from a dynamic library
+MJAPI void mj_loadPluginLibrary(const char* path);
+
+// scan a directory and load all dynamic libraries
+MJAPI void mj_loadAllPluginLibraries(const char* directory, mjfPluginLibraryLoadCallback callback);
+
 // =================================================================================================
 // MuJoCo-internal functions beyond this point.
 // "Unsafe" suffix indicates that improper use of these functions may result in data races.

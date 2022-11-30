@@ -535,6 +535,13 @@ PYBIND11_MODULE(_functions, pymodule) {
   Def<traits::mj_local2Global>(pymodule);
   Def<traits::mj_getTotalmass>(pymodule);
   Def<traits::mj_setTotalmass>(pymodule);
+  Def<traits::mj_loadPluginLibrary>(pymodule);
+  DEF_WITH_OMITTED_PY_ARGS(traits::mj_loadAllPluginLibraries, "callback")(
+      pymodule,
+      [](const std::string& directory) {
+        InterceptMjErrors(::mj_loadAllPluginLibraries)(
+            directory.c_str(), nullptr);
+      });
   Def<traits::mj_version>(pymodule);
   Def<traits::mj_versionString>(pymodule);
 

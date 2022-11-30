@@ -32,6 +32,15 @@
 #include <utility>
 #include <vector>
 
+extern "C" {
+#if defined(_WIN32) || defined(__CYGWIN__)
+  #include <windows.h>
+#else
+  #include <dirent.h>
+  #include <dlfcn.h>
+#endif
+}
+
 #ifdef __APPLE__
 #include <Availability.h>
 #if !defined(MAC_OS_X_VERSION_MIN_REQUIRED) && defined(__MAC_OS_X_VERSION_MIN_REQUIRED)
@@ -79,6 +88,30 @@ static_assert(
 
 using Mutex = std::shared_mutex;
 
+class ReentrantWriteLock {
+ public:
+  ReentrantWriteLock(Mutex& mutex) : mutex_(mutex) {
+    if (LockCountOnCurrentThread() == 0) {
+      mutex_.lock();
+    }
+    ++LockCountOnCurrentThread();
+  }
+
+  ~ReentrantWriteLock() {
+    if (--LockCountOnCurrentThread() == 0) {
+      mutex_.unlock();
+    }
+  }
+
+ private:
+  Mutex& mutex_;
+
+  static int& LockCountOnCurrentThread() noexcept {
+    thread_local int counter = 0;
+    return counter;
+  }
+};
+
 class Global {
  public:
   Global() {
@@ -92,6 +125,10 @@ class Global {
   }
   Mutex& mutex() {
     return *std::launder(reinterpret_cast<Mutex*>(&mutex_));
+  }
+
+  ReentrantWriteLock lock_mutex_exclusively() {
+    return ReentrantWriteLock(mutex());
   }
 
  private:
@@ -229,9 +266,8 @@ int mjp_registerPlugin(const mjpPlugin* plugin) {
       }
     }
 
-    // exclusively lock the global plugin table
     Global& global = GetGlobal();
-    std::unique_lock lock(global.mutex());
+    auto lock = global.lock_mutex_exclusively();
 
     int count = global.count().load(std::memory_order_acquire);
     int local_idx = 0;
@@ -428,4 +464,86 @@ const char* mj_getPluginConfig(const mjModel* m, int plugin_id, const char* attr
   }
 
   return nullptr;
+}
+
+// load plugins from a dynamic library
+void mj_loadPluginLibrary(const char* path) {
+#if defined(_WIN32) || defined(__CYGWIN__)
+  LoadLibraryA(path);
+#else
+  dlopen(path, RTLD_NOW | RTLD_LOCAL);
+#endif
+}
+
+// scan a directory and load all dynamic libraries
+void mj_loadAllPluginLibraries(const char* directory,
+                               mjfPluginLibraryLoadCallback callback) {
+  auto load_dso_and_call_callback = [&](const std::string& filename,
+                                        const std::string& dso_path) {
+    int nplugin_before;
+    int nplugin_after;
+
+    Global& global = GetGlobal();
+    {
+      auto lock = global.lock_mutex_exclusively();
+      nplugin_before = mjp_pluginCount();
+      mj_loadPluginLibrary(dso_path.c_str());
+      nplugin_after = mjp_pluginCount();
+    }
+
+    if (callback) {
+      int count = nplugin_after - nplugin_before;
+      int first = count ? nplugin_before : -1;
+      callback(filename.c_str(), first, count);
+    }
+  };
+
+  // define platform-specific strings
+#if defined(_WIN32) || defined(__CYGWIN__)
+  const std::string sep = "\\";
+  WIN32_FIND_DATAA find_data;
+  HANDLE hfile = FindFirstFileA(
+      (directory + sep + "*.dll").c_str(), &find_data);
+  if (!hfile) {
+    return;
+  }
+
+  // go through each file in the directory
+  bool keep_going = true;
+  while (keep_going) {
+    const std::string name(find_data.cFileName);
+    // load the library and check for plugins
+    const std::string dso_path = directory + sep + name;
+    load_dso_and_call_callback(name.c_str(), dso_path.c_str());
+    keep_going = FindNextFileA(hfile, &find_data);
+  }
+  FindClose(hfile);
+#else
+  const std::string sep = "/";
+  #if defined(__APPLE__)
+    const std::string dso_suffix = ".dylib";
+  #else
+    const std::string dso_suffix = ".so";
+  #endif
+
+  DIR* dirp = opendir(directory);
+  if (!dirp) {
+    return;
+  }
+
+  // go through each entry in the directory
+  for (struct dirent* dp; (dp = readdir(dirp));) {
+    // only look at regular files (skip symlinks, pipes, directories, etc.)
+    if (dp->d_type == DT_REG) {
+      const std::string name(dp->d_name);
+      if (name.size() > dso_suffix.size() &&
+          name.substr(name.size() - dso_suffix.size()) == dso_suffix) {
+        // load the library
+        const std::string dso_path = directory + sep + name;
+        load_dso_and_call_callback(name.c_str(), dso_path.c_str());
+      }
+    }
+  }
+  closedir(dirp);
+#endif
 }

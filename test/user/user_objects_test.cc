@@ -202,6 +202,29 @@ TEST_F(RelativeFrameSensorParsingTest, BadRefType) {
   EXPECT_THAT(error.data(), HasSubstr("reference frame object must be"));
 }
 
+// ------------- sensor compilation --------------------------------------------
+
+using SensorTest = MujocoTest;
+TEST_F(SensorTest, OjbtypeParsedButNotRequired) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <sensor>
+      <user dim="3" needstage="vel" datatype="axis"/>
+      <user dim="2" needstage="pos" objtype="body" objname="world"/>
+    </sensor>
+  </mujoco>
+  )";
+  mjModel* model = LoadModelFromString(xml, 0, 0);
+  ASSERT_THAT(model, NotNull());
+  EXPECT_EQ(model->sensor_datatype[0], mjDATATYPE_AXIS);
+  EXPECT_EQ(model->sensor_objtype[0], mjOBJ_UNKNOWN);
+  EXPECT_EQ(model->sensor_dim[0], 3);
+  EXPECT_EQ(model->sensor_datatype[1], mjDATATYPE_REAL);
+  EXPECT_EQ(model->sensor_objtype[1], mjOBJ_BODY);
+  EXPECT_EQ(model->sensor_objid[1], 0);
+  mj_deleteModel(model);
+}
+
 // ------------- test capsule inertias -----------------------------------------
 
 static const char* const kCapsuleInertiaPath =

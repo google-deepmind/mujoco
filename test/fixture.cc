@@ -134,18 +134,23 @@ const std::string SaveAndReadXml(const mjModel* model) {
   return contents;
 }
 
-void AddCtrlNoise(const mjModel* m, mjData* d, int step) {
-  for (int i = 0; i < m->nu; i++) {
-    mjtNum center = 0.0;
-    mjtNum radius = 1.0;
-    mjtNum* range = m->actuator_ctrlrange + 2 * i;
-    if (m->actuator_ctrllimited[i]) {
-      center = (range[1] + range[0]) / 2;
-      radius = (range[1] - range[0]) / 2;
+std::vector<mjtNum> GetCtrlNoise(const mjModel* m, int nsteps,
+                                 mjtNum ctrlnoise) {
+  std::vector<mjtNum> ctrl;
+  for (int step=0; step < nsteps; step++) {
+    for (int i = 0; i < m->nu; i++) {
+      mjtNum center = 0.0;
+      mjtNum radius = 1.0;
+      mjtNum* range = m->actuator_ctrlrange + 2 * i;
+      if (m->actuator_ctrllimited[i]) {
+        center = (range[1] + range[0]) / 2;
+        radius = (range[1] - range[0]) / 2;
+      }
+      radius *= ctrlnoise;
+      ctrl.push_back(center + radius * (2 * mju_Halton(step, i+2) - 1));
     }
-    radius *= 0.01;
-    d->ctrl[i] = center + radius * (2 * mju_Halton(step, i + 2) - 1);
   }
+  return ctrl;
 }
 
 }  // namespace mujoco

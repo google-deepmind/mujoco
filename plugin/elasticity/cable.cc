@@ -386,7 +386,10 @@ void Cable::Compute(const mjModel* m, mjData* d, int instance) {
     mj_applyFT(m, d, 0, xfrc, d->xpos+3*i, i, d->qfrc_passive);
   }
 }
-mjPLUGIN_DYNAMIC_LIBRARY_INIT {
+
+
+
+void Cable::RegisterPlugin() {
   mjpPlugin plugin;
   mjp_defaultPlugin(&plugin);
 

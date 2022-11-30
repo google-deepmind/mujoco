@@ -30,6 +30,8 @@
 #include "simulate.h"
 #include "array_safety.h"
 
+#define MUJOCO_PLUGIN_DIR "mujoco_plugin"
+
 extern "C" {
 #if defined(_WIN32) || defined(__CYGWIN__)
   #include <windows.h>
@@ -37,8 +39,6 @@ extern "C" {
   #if defined(__APPLE__)
     #include <mach-o/dyld.h>
   #endif
-  #include <dirent.h>
-  #include <dlfcn.h>
   #include <sys/errno.h>
   #include <unistd.h>
 #endif
@@ -162,15 +162,9 @@ std::string getExecutableDir() {
 }
 
 
-#if defined(_WIN32) || defined(__CYGWIN__)
-using unique_dlhandle = std::unique_ptr<std::remove_pointer_t<HMODULE>, decltype(&FreeLibrary)>;
-#else
-using unique_dlhandle = std::unique_ptr<void, decltype(&dlclose)>;
-#endif
-
 
 // scan for libraries in the plugin directory to load additional plugins
-std::vector<unique_dlhandle> scanPluginLibraries() {
+void scanPluginLibraries() {
   // check and print plugins that are linked directly into the executable
   int nplugin = mjp_pluginCount();
   if (nplugin) {
@@ -183,91 +177,26 @@ std::vector<unique_dlhandle> scanPluginLibraries() {
   // define platform-specific strings
 #if defined(_WIN32) || defined(__CYGWIN__)
   const std::string sep = "\\";
-  const std::string dso_suffix = ".dll";
 #else
   const std::string sep = "/";
-  #if defined(__APPLE__)
-    const std::string dso_suffix = ".dylib";
-  #else
-    const std::string dso_suffix = ".so";
-  #endif
 #endif
 
-  // output vectors containing DSO handles
-  std::vector<unique_dlhandle> dso_handles;
-
-  // platform-independent routine for checking and printing plugins registered by a dynamic library
-  const auto check_and_print_plugins = [&](const std::string& name, unique_dlhandle&& dlhandle) {
-    if (!dlhandle) {
-      return;
-    }
-
-    const int nplugin_new = mjp_pluginCount();
-    if (nplugin_new > nplugin) {
-      dso_handles.push_back(std::move(dlhandle));
-
-      // print all newly registered plugins
-      std::printf("Plugins registered by library '%s':\n", name.c_str());
-      for (int i = nplugin; i < nplugin_new; ++i) {
-        std::printf("    %s\n", mjp_getPluginAtSlot(i)->name);
-      }
-
-      // update counter for plugins registered so far
-      nplugin = nplugin_new;
-    }
-  };
 
   // try to open the ${EXECDIR}/plugin directory
   // ${EXECDIR} is the directory containing the simulate binary itself
   const std::string executable_dir = getExecutableDir();
   if (executable_dir.empty()) {
-    return dso_handles;
+    return;
   }
 
-  const std::string plugin_dir = getExecutableDir() + sep + "plugin";
-
-#if defined(_WIN32) || defined(__CYGWIN__)
-  WIN32_FIND_DATAA find_data;
-  HANDLE hfile = FindFirstFileA((plugin_dir + sep + "*.dll").c_str(), &find_data);
-  if (!hfile) {
-    return dso_handles;
-  }
-
-  // go through each file in the directory
-  bool keep_going = true;
-  while (keep_going) {
-    const std::string name(find_data.cFileName);
-    // load the library and check for plugins
-    const std::string dso_path = plugin_dir + sep + name;
-    check_and_print_plugins(
-        name, unique_dlhandle(LoadLibraryA(dso_path.c_str()), &FreeLibrary));
-    keep_going = FindNextFileA(hfile, &find_data);
-  }
-  FindClose(hfile);
-#else
-  DIR* dirp = opendir(plugin_dir.c_str());
-  if (!dirp) {
-    return dso_handles;
-  }
-
-  // go through each entry in the directory
-  for (struct dirent* dp; (dp = readdir(dirp));) {
-    // only look at regular files (i.e. skip symlinks, pipes, directories, etc.)
-    if (dp->d_type == DT_REG) {
-      const std::string name(dp->d_name);
-      if (name.size() > dso_suffix.size() &&
-          name.substr(name.size() - dso_suffix.size()) == dso_suffix) {
-        // load the library and check for plugins
-        const std::string dso_path = plugin_dir + sep + name;
-        check_and_print_plugins(
-            name, unique_dlhandle(dlopen(dso_path.c_str(), RTLD_NOW | RTLD_LOCAL), &dlclose));
-      }
-    }
-  }
-  closedir(dirp);
-#endif
-
-  return dso_handles;
+  const std::string plugin_dir = getExecutableDir() + sep + MUJOCO_PLUGIN_DIR;
+  mj_loadAllPluginLibraries(
+      plugin_dir.c_str(), +[](const char* filename, int first, int count) {
+        std::printf("Plugins registered by library '%s':\n", filename);
+        for (int i = first; i < first + count; ++i) {
+          std::printf("    %s\n", mjp_getPluginAtSlot(i)->name);
+        }
+      });
 }
 
 
@@ -508,8 +437,25 @@ void PhysicsThread(mj::Simulate* sim, const char* filename) {
 
 //------------------------------------------ main --------------------------------------------------
 
+// machinery for replacing command line error by a macOS dialog box when running under Rosetta
+#if defined(__APPLE__) && defined(__AVX__)
+extern void DisplayErrorDialogBox(const char* title, const char* msg);
+static const char* rosetta_error_msg = nullptr;
+__attribute__((used, visibility("default"))) extern "C" void _mj_rosettaError(const char* msg) {
+  rosetta_error_msg = msg;
+}
+#endif
+
 // run event loop
 int main(int argc, const char** argv) {
+  // display an error if running on macOS under Rosetta 2
+#if defined(__APPLE__) && defined(__AVX__)
+  if (rosetta_error_msg) {
+    DisplayErrorDialogBox("Rosetta 2 is not supported", rosetta_error_msg);
+    std::exit(1);
+  }
+#endif
+
   // print version, check compatibility
   std::printf("MuJoCo version %s\n", mj_versionString());
   if (mjVERSION_HEADER!=mj_version()) {
@@ -517,7 +463,7 @@ int main(int argc, const char** argv) {
   }
 
   // scan for libraries in the plugin directory to load additional plugins
-  std::vector<unique_dlhandle> dso_handles = scanPluginLibraries();
+  scanPluginLibraries();
 
   // simulate object encapsulates the UI
   auto sim = std::make_unique<mj::Simulate>();

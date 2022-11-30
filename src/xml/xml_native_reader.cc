@@ -3147,16 +3147,23 @@ void mjXReader::Sensor(XMLElement* section) {
     // user-defined sensor
     else if (type=="user") {
       psen->type = mjSENS_USER;
-      ReadAttrTxt(elem, "objtype", text, true);
-      psen->objtype = (mjtObj)mju_str2Type(text.c_str());
-      ReadAttrTxt(elem, "objname", psen->objname, true);
+      bool objname_given = ReadAttrTxt(elem, "objname", psen->objname);
+      if (ReadAttrTxt(elem, "objtype", text)) {
+        if (!objname_given) {
+          throw mjXError(elem, "objtype '%s' given but objname is missing", text.c_str());
+        }
+        psen->objtype = (mjtObj)mju_str2Type(text.c_str());
+      } else if (objname_given) {
+        throw mjXError(elem, "objname '%s' given but objtype is missing", psen->objname.c_str());
+      }
       ReadAttrInt(elem, "dim", &psen->dim, true);
 
       // keywords
       MapValue(elem, "needstage", &n, stage_map, stage_sz, true);
       psen->needstage = (mjtStage)n;
-      MapValue(elem, "datatype", &n, datatype_map, datatype_sz, true);
-      psen->datatype = (mjtDataType)n;
+      if (MapValue(elem, "datatype", &n, datatype_map, datatype_sz)) {
+       psen->datatype = (mjtDataType)n;
+      }
     }
 
     else if (type=="plugin") {

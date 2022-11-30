@@ -50,6 +50,37 @@ General
     <https://github.com/deepmind/mujoco/tree/main/test/benchmark/engine_core_smooth_benchmark_test.cc>`_.
   - 50% faster ``mju_dotSparse`` using manual loop unroll. See `engine_util_sparse_benchmark_test
     <https://github.com/deepmind/mujoco/tree/main/test/benchmark/engine_util_sparse_benchmark_test.cc>`_.
+- Added new :at:`solid` passive force plugin:
+
+  .. youtube:: AGcTGHbbze4
+     :align: right
+     :height: 150px
+
+  - This is new force field compatible with the :ref:`composite<body-composite>` particles.
+  - Generates a tetrahedral mesh having particles with mass concentrated at vertices.
+  - Uses a piecewise-constant strain model equivalent to finite elements but expressed in a coordinate-free
+    formulation. This implies that all quantities can be precomputed except edge elongation, as in a mass-spring model.
+  - Only suitable for small strains (large displacements but small deformations). Tetrahedra may invert if subject to
+    large loads.
+
+- Add API functions ``mj_loadPluginLibrary`` and  ``mj_loadAllPluginLibraries``. The first function is identical to
+  ``dlopen`` on a POSIX system, and to ``LoadLibraryA`` on Windows. The second function scans a specified directory for
+  all dynamic libraries file and loads each library found. Dynamic libraries opened by these functions are assumed to
+  register one or more MuJoCo plugins on load.
+- Sensors of type :ref:`user<sensor-user>` no longer require :at:`objtype` and :at:`objname`. If unspecified, the
+  objtype will be :ref:`mjOBJ_UNKNOWN<mjtObj>`. ``user`` sensors :at:`datatype` default is now :at-val:`"real"`.
+- Add support for capsules in URDF import.
+- On macOS, issue an informative error message when run under `Rosetta 2 <https://support.apple.com/en-gb/HT211861>`_
+  translation on an Apple Silicon machine. Pre-built MuJoCo binaries make use of
+  `AVX <https://en.wikipedia.org/wiki/Advanced_Vector_Extensions>`_ instructions on x86-64 machines, which is not
+  supported by Rosetta 2. (Before this version, users only get a cryptic "Illegal instruction" message.)
+
+Simulate
+^^^^^^^^
+
+- Renamed the directory in which the ``simulate`` application searches for plugins from ``plugin`` to ``mujoco_plugin``.
+- Mouse force perturbations are now applied at the selection point rather than the body center of mass.
+
 
 Version 2.3.0 (October 18, 2022)
 --------------------------------
@@ -127,17 +158,11 @@ General
      between twist and anisotropy.
    - Added test using cantilever exact solution.
 
-.. youtube:: 25kQP671fJE
-   :align: right
-   :height: 115px
-
-.. youtube:: 4DvGe-BodFU
-   :align: right
-   :height: 115px
-
-.. youtube:: QcGdpUd5H0c
-   :align: right
-   :height: 115px
+   +--------------------------+--------------------------+--------------------------+
+   | .. youtube:: 25kQP671fJE | .. youtube:: 4DvGe-BodFU | .. youtube:: QcGdpUd5H0c |
+   |   :align: center         |   :align: center         |    :align: center        |
+   |   :height: 140px         |   :height: 140px         |    :height: 140px        |
+   +--------------------------+--------------------------+--------------------------+
 
 Python bindings
 ^^^^^^^^^^^^^^^

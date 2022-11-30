@@ -39,6 +39,8 @@ class Cable {
 
   void Compute(const mjModel* m, mjData* d, int instance);
 
+  static void RegisterPlugin();
+
   int i0;                         // index of first body
   int n;                          // number of bodies in the cable
   std::vector<int> prev;          // indices of previous bodies   (n x 1)
