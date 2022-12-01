@@ -35,7 +35,7 @@ set(MUJOCO_DEP_VERSION_ccd
     CACHE STRING "Version of `ccd` to be fetched."
 )
 set(MUJOCO_DEP_VERSION_qhull
-    3df027b91202cf179f3fba3c46eebe65bbac3790
+    0c8fc90d2037588024d9964515c1e684f6007ecc
     CACHE STRING "Version of `qhull` to be fetched."
 )
 set(MUJOCO_DEP_VERSION_Eigen3
@@ -99,10 +99,7 @@ if(NOT TARGET lodepng)
   endif()
 endif()
 
-# TODO(fraromano) We fetch qhull before the other libraries as it needs to go before until https://github.com/qhull/qhull/pull/111 is merged.
 set(QHULL_ENABLE_TESTING OFF)
-# We need Git to apply the patch using git apply.
-find_package(Git REQUIRED)
 
 findorfetch(
   USE_SYSTEM_PACKAGE
@@ -117,17 +114,6 @@ findorfetch(
   ${MUJOCO_DEP_VERSION_qhull}
   TARGETS
   qhull
-  # TODO(fraromano) Remove when https://github.com/qhull/qhull/pull/112 is merged.
-  # Do not fail if patch fails. This will happen the second time we run CMake as the sources will be already patched.
-  PATCH_COMMAND
-  "${GIT_EXECUTABLE}"
-  "apply"
-  "-q"
-  "${PROJECT_SOURCE_DIR}/cmake/qhull_fix_testing.patch"
-  "||"
-  "${CMAKE_COMMAND}"
-  "-E"
-  "true"
   EXCLUDE_FROM_ALL
 )
 # MuJoCo includes a file from libqhull_r which is not exported by the qhull include directories.
