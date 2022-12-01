@@ -75,6 +75,11 @@ General
   `AVX <https://en.wikipedia.org/wiki/Advanced_Vector_Extensions>`_ instructions on x86-64 machines, which is not
   supported by Rosetta 2. (Before this version, users only get a cryptic "Illegal instruction" message.)
 
+Bug fixes
+^^^^^^^^^
+
+- Fixed bug in ``mj_addFileVFS`` that was causing the file path to be ignored (introduced in 2.1.4).
+
 Simulate
 ^^^^^^^^
 

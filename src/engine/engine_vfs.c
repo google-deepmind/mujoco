@@ -93,7 +93,7 @@ int mj_addFileVFS(mjVFS* vfs, const char* directory, const char* filename) {
 
   // allocate and read
   int filesize = 0;
-  vfs->filedata[vfs->nfile] = mju_fileToMemory(filename, &filesize);
+  vfs->filedata[vfs->nfile] = mju_fileToMemory(fullname, &filesize);
   if (!vfs->filedata[vfs->nfile]) {
     return -1;
   }
