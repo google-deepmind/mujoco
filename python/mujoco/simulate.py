@@ -21,7 +21,7 @@ import math
 import os
 import threading
 import time
-from typing import Callable, Optional
+from typing import Callable, Optional, Union
 
 import glfw
 import mujoco
@@ -48,35 +48,32 @@ MAX_SYNC_MISALIGN = 0.1
 SIM_REFRESH_FRACTION = 0.7
 
 CallbackType = Callable[[mujoco.MjModel, mujoco.MjData], None]
+LoaderType = Callable[[], tuple[mujoco.MjModel, mujoco.MjData]]
+
+# Loader function that also returns a file path for the GUI to display.
+_LoaderWithPathType = Callable[[], tuple[mujoco.MjModel, mujoco.MjData, str]]
+_InternalLoaderType = Union[LoaderType, _LoaderWithPathType]
 
 Simulate = _simulate.Simulate
 
 
-def _reload_from_file(simulate: Simulate, filename: str):
-  """Loads an MJCF model into the Simulate GUI."""
-  try:
-    m = mujoco.MjModel.from_xml_path(filename)
-  except mujoco.FatalError as e:
-    m = None
-    simulate.load_error = str(e)
+def _file_loader(path: str) -> _LoaderWithPathType:
+  """Loads an MJCF model from file path."""
 
-  if m is not None:
+  def load(path=path) -> tuple[mujoco.MjModel, mujoco.MjData, str]:
+    m = mujoco.MjModel.from_xml_path(path)
     d = mujoco.MjData(m)
-    simulate.load(m, d)
-    mujoco.mj_forward(m, d)
-  else:
-    d = None
+    return m, d, path
 
-  return m, d
+  return load
 
 
-def _physics_loop(simulate: Simulate,
-                  m: Optional[mujoco.MjModel],
-                  d: Optional[mujoco.MjData]):
+def _physics_loop(simulate: Simulate, loader: Optional[_InternalLoaderType]):
   """Physics loop for the Simulate GUI, to be run in a separate thread."""
-  ctrlnoise = None
-  if m is not None:
-    ctrlnoise = np.zeros((m.nu,))
+  m: mujoco.MjModel = None
+  d: mujoco.MjData = None
+  ctrlnoise = np.array([])
+  reload = True
 
   # CPU-sim synchronization point.
   synccpu = 0.0
@@ -86,19 +83,39 @@ def _physics_loop(simulate: Simulate,
   while not simulate.exitrequest:
     if simulate.droploadrequest:
       simulate.droploadrequest = 0
-      new_m, new_d = _reload_from_file(simulate, simulate.dropfilename)
-      if new_m is not None:
-        m = new_m
-        d = new_d
-        ctrlnoise = np.zeros((m.nu,))
+      loader = _file_loader(simulate.dropfilename)
+      reload = True
 
     if simulate.uiloadrequest:
       simulate.uiloadrequest_decrement()
-      new_m, new_d = _reload_from_file(simulate, simulate.dropfilename)
-      if new_m is not None:
-        m = new_m
-        d = new_d
+      reload = True
+
+    if reload and loader is not None:
+      try:
+        load_tuple = loader()
+      except Exception as e:  # pylint: disable=broad-except
+        simulate.load_error = str(e)
+      else:
+        # Do not assign to m and d until simulate.load is done!
+        # This is because simulate.load needs to clean up mjvScene and
+        # mjrContext. This cleanup logic requires access to the old m and d.
+        new_m, new_d = load_tuple[:2]
+
+        # If the loader does not raise an exception then we assume that it
+        # successfully created mjModel and mjData. This is specified in the type
+        # annotation, but we perform a runtime assertion here as well to prevent
+        # possible segmentation faults.
+        assert new_m is not None and new_d is not None
+
+        path = load_tuple[2] if len(load_tuple) == 3 else ''
+        simulate.load(path, new_m, new_d)
+
+        # We can now allow the old m and d to be deleted.
+        m, d = new_m, new_d
+        mujoco.mj_forward(m, d)
         ctrlnoise = np.zeros((m.nu,))
+
+    reload = False
 
     # Sleep for 1 ms or yield, to let main thread run.
     if simulate.run != 0 and simulate.busywait != 0:
@@ -186,15 +203,28 @@ def _physics_loop(simulate: Simulate,
           mujoco.mj_forward(m, d)
 
 
-def launch(model: Optional[mujoco.MjModel] = None,
-           data: Optional[mujoco.MjData] = None,
-           *,
-           run_physics_thread: bool = True) -> None:
-  """Launches the Simulate GUI."""
+def _launch_internal(model: Optional[mujoco.MjModel] = None,
+                     data: Optional[mujoco.MjData] = None,
+                     *,
+                     run_physics_thread: bool = True,
+                     loader: Optional[_InternalLoaderType] = None) -> None:
+  """Internal API, so that the public API has more readable type annotations."""
   if model is None and data is not None:
     raise ValueError('mjData is specified but mjModel is not')
-  elif model is not None and data is None:
-    data = mujoco.MjData(model)
+  elif callable(model) and data is not None:
+    raise ValueError(
+        'mjData should not be specified when an mjModel loader is used')
+  elif loader is not None and model is not None:
+    raise ValueError('model and loader are both specified')
+
+  if loader is None and model is not None:
+
+    def _loader(m=model, d=data) -> tuple[mujoco.MjModel, mujoco.MjData]:
+      if d is None:
+        d = mujoco.MjData(m)
+      return m, d
+
+    loader = _loader
 
   # The simulate object encapsulates the UI.
   simulate = Simulate()
@@ -207,19 +237,28 @@ def launch(model: Optional[mujoco.MjModel] = None,
 
   if run_physics_thread:
     physics_thread = threading.Thread(
-        target=_physics_loop, args=(simulate, model, data))
+        target=_physics_loop, args=(simulate, loader))
     physics_thread.start()
-
-  # Load the initial model, if one is given.
-  if model is not None:
-    t = threading.Thread(target=simulate.load, args=(model, data))
-    t.start()
-    del t
 
   simulate.renderloop()
 
   if run_physics_thread:
     physics_thread.join()
+
+
+def launch(model: Optional[mujoco.MjModel] = None,
+           data: Optional[mujoco.MjData] = None,
+           *,
+           run_physics_thread: bool = True,
+           loader: Optional[LoaderType] = None) -> None:
+  """Launches the Simulate GUI."""
+  _launch_internal(
+      model, data, run_physics_thread=run_physics_thread, loader=loader)
+
+
+def launch_from_path(path: str) -> None:
+  """Launches the Simulate GUI from file path."""
+  _launch_internal(loader=_file_loader(path))
 
 
 def launch_repl(model: mujoco.MjModel, data: mujoco.MjData) -> None:
@@ -253,8 +292,7 @@ if __name__ == '__main__':
   def main(argv) -> None:
     del argv
     if _MJCF_PATH.value is not None:
-      model = mujoco.MjModel.from_xml_path(os.path.expanduser(_MJCF_PATH.value))
-      launch(model)
+      launch_from_path(os.path.expanduser(_MJCF_PATH.value))
     else:
       launch()
 

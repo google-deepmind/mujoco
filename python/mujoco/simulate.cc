@@ -17,9 +17,7 @@
 #include <string>
 
 #include <simulate.h>
-#include "raw.h"
 #include "structs.h"
-#include <pybind11/detail/common.h>
 #include <pybind11/pybind11.h>
 
 namespace mujoco::python {
@@ -47,8 +45,9 @@ PYBIND11_MODULE(_simulate, pymodule) {
           py::call_guard<py::gil_scoped_release>())
       .def(
           "load",
-          [](mujoco::Simulate& simulate, MjModelWrapper& m, MjDataWrapper& d) {
-            simulate.load("", m.get(), d.get());
+          [](mujoco::Simulate& simulate, const std::string& path,
+             MjModelWrapper& m, MjDataWrapper& d) {
+            simulate.load(path.c_str(), m.get(), d.get());
           },
           py::call_guard<py::gil_scoped_release>())
       .def("applyposepertubations", &mujoco::Simulate::applyposepertubations,
