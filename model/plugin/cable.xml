@@ -35,6 +35,7 @@
         <!--Units are in Pa (SI)-->
         <config key="twist" value="1e7"/>
         <config key="bend" value="4e6"/>
+        <config key="vmax" value="0.05"/>
       </plugin>
       <joint kind="main" damping=".015"/>
       <geom type="capsule" size=".005" rgba=".8 .2 .1 1" condim="1"/>

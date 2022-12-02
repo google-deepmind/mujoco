@@ -23,6 +23,7 @@
 #include <mujoco/mjvisualize.h>
 #include "engine/engine_array_safety.h"
 #include "engine/engine_macro.h"
+#include "engine/engine_plugin.h"
 #include "engine/engine_support.h"
 #include "engine/engine_util_blas.h"
 #include "engine/engine_util_errmem.h"
@@ -2019,6 +2020,22 @@ void mjv_updateScene(const mjModel* m, mjData* d, const mjvOption* opt,
   // update skins
   if (opt->flags[mjVIS_SKIN]) {
     mjv_updateActiveSkin(m, d, scn, opt);
+  }
+
+  // update plugin
+  if (m->nplugin) {
+    const int nslot = mjp_pluginCount();
+    // iterate over plugins, call visualize if defined
+    for (int i=0; i<m->nplugin; i++) {
+      const int slot = m->plugin[i];
+      const mjpPlugin* plugin = mjp_getPluginAtSlotUnsafe(slot, nslot);
+      if (!plugin) {
+        mju_error_i("invalid plugin slot: %d", slot);
+      }
+      if (plugin->visualize) {
+        plugin->visualize(m, d, scn, i);
+      }
+    }
   }
 }
 

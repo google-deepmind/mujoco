@@ -67,6 +67,8 @@ General
   ``dlopen`` on a POSIX system, and to ``LoadLibraryA`` on Windows. The second function scans a specified directory for
   all dynamic libraries file and loads each library found. Dynamic libraries opened by these functions are assumed to
   register one or more MuJoCo plugins on load.
+- Add an optional ``visualize`` callback to plugins, which is called during ``mjv_updateScene``. This callback allows
+  custom plugin visualizations. Enable stree visualization for the Cable plugin as an example.
 - Sensors of type :ref:`user<sensor-user>` no longer require :at:`objtype` and :at:`objname`. If unspecified, the
   objtype will be :ref:`mjOBJ_UNKNOWN<mjtObj>`. ``user`` sensors :at:`datatype` default is now :at-val:`"real"`.
 - Add support for capsules in URDF import.

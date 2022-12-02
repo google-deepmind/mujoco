@@ -21,6 +21,7 @@
 #include <mujoco/mjdata.h>
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjtnum.h>
+#include <mujoco/mjvisualize.h>
 
 
 namespace mujoco::plugin::elasticity {
@@ -35,6 +36,7 @@ class Cable {
   ~Cable() = default;
 
   void Compute(const mjModel* m, mjData* d, int instance);
+  void Visualize(const mjModel* m, mjData* d, mjvScene* scn, int instance);
 
   static void RegisterPlugin();
 
@@ -44,6 +46,8 @@ class Cable {
   std::vector<int> next;          // indices of next bodies       (n x 1)
   std::vector<mjtNum> stiffness;  // stiffness parameters         (n x 4)
   std::vector<mjtNum> omega0;     // reference curvature          (n x 3)
+  std::vector<mjtNum> stress;     // mechanical stress            (n x 3)
+  mjtNum vmax;                    // max value in colormap
 
  private:
   Cable(const mjModel* m, mjData* d, int instance);

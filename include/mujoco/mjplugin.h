@@ -17,6 +17,8 @@
 
 #include <mujoco/mjdata.h>
 #include <mujoco/mjmodel.h>
+#include <mujoco/mjvisualize.h>
+
 
 typedef enum mjtPluginTypeBit_ {
   mjPLUGIN_ACTUATOR = 1<<0,
@@ -56,6 +58,9 @@ struct mjpPlugin_ {
 
   // called when time integration occurs (optional)
   void (*advance)(const mjModel* m, mjData* d, int instance);
+
+  // called by mjv_updateScene (optional)
+  void (*visualize)(const mjModel*m, mjData* d, mjvScene* scn, int instance);
 };
 typedef struct mjpPlugin_ mjpPlugin;
 

@@ -59,6 +59,7 @@
         <!--Units are in Pa (SI)-->
         <config key="twist" value="1e8"/>
         <config key="bend" value="1e7"/>
+        <config key="vmax" value="0.2"/>
       </plugin>
       <joint kind="main" damping="0.1"/>
       <geom type="box" size="0.03535533906 0.02 0.0015" rgba=".8 .2 .1 1" group="3"/>

@@ -70,6 +70,7 @@
         <!--Units are in Pa (SI)-->
         <config key="twist" value="5e8"/>
         <config key="bend" value="15e8"/>
+        <config key="vmax" value="2"/>
       </plugin>
       <joint kind="main" damping="0.12" armature="0.01"/>
       <geom type="capsule" size=".005" rgba=".8 .2 .1 1"/>
@@ -80,6 +81,7 @@
         <!--Units are in Pa (SI)-->
         <config key="twist" value="5e8"/>
         <config key="bend" value="15e8"/>
+        <config key="vmax" value="2"/>
       </plugin>
       <joint kind="main" damping="0.1" armature="0.01"/>
       <geom type="capsule" size=".005" rgba=".8 .2 .1 1"/>
