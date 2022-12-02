@@ -1,0 +1,38 @@
+  <mujoco>
+    <option gravity="0 0 0"/>
+    <option timestep="0.001" o_solref="-1e8 -1e4" o_solimp="0.8 0.99 0.02 0.1 6">
+    <flag
+    gravity="disable"
+    override="enable"
+    />    
+  </option>
+    <extension>
+      <required plugin="mujoco.elasticity.cable"/>
+    </extension>
+    <worldbody>
+    
+      <geom type="plane" size="0 0 1" quat="1 0 0 0"/>
+      <site name="reference" pos="0 0 0"/>
+      <composite type="cable" curve="s" count="81 1 1" size="1" offset="0 0 1" initial="none">
+        <plugin plugin="mujoco.elasticity.cable">
+          <config key="twist" value="1e10"/>
+          <config key="bend" value="2.5e10"/>
+          <config key="yieldstress" value="5e7"/>
+          <config key="ultimatestress" value="2e8"/>
+          <config key="ultimatestrain" value="0.12"/>
+	 
+        </plugin>
+        <joint kind="main" damping="2"/>
+        <geom type="capsule" size=".004" density="1000"/>
+      </composite>
+    </worldbody>
+    <contact>
+      <exclude body1="B_first" body2="B_last"/>
+    </contact>
+    <sensor>
+      <framepos objtype="site" objname="S_last"/>
+    </sensor>
+    <actuator>
+      <motor site="S_last" gear="0 0 0 0 1 0" ctrllimited="true" ctrlrange="-10 10"/>
+    </actuator>
+  </mujoco>

@@ -68,20 +68,26 @@
         0.1        -0.          0.25132741">
       <plugin plugin="mujoco.elasticity.cable">
         <!--Units are in Pa (SI)-->
-        <config key="twist" value="5e8"/>
-        <config key="bend" value="15e8"/>
+        <config key="twist" value="1e10"/>
+        <config key="bend" value="2.5e10"/>
+        <config key="yieldstress" value="10e7"/>
+        <config key="ultimatestress" value="2e8"/>
+        <config key="ultimatestrain" value="0.12"/>
       </plugin>
-      <joint kind="main" damping="0.12" armature="0.01"/>
+      <joint kind="main" damping="1" armature="0.01"/>
       <geom type="capsule" size=".005" rgba=".8 .2 .1 1"/>
     </composite>
     <composite prefix="actuated" type="cable" curve="cos(s) sin(s) s" count="41 1 1"
       size="0.251327412 .1 4" offset="0.25 0 .05" initial="fixed">
       <plugin plugin="mujoco.elasticity.cable">
         <!--Units are in Pa (SI)-->
-        <config key="twist" value="5e8"/>
-        <config key="bend" value="15e8"/>
+        <config key="twist" value="1e10"/>
+        <config key="bend" value="2.5e10"/>
+        <config key="yieldstress" value="10e7"/>
+        <config key="ultimatestress" value="2e8"/>
+        <config key="ultimatestrain" value="0.12"/>
       </plugin>
-      <joint kind="main" damping="0.1" armature="0.01"/>
+      <joint kind="main" damping="1" armature="0.01"/>
       <geom type="capsule" size=".005" rgba=".8 .2 .1 1"/>
     </composite>
     <body name="slider" pos="0.35 0 0.301327412">
@@ -99,6 +105,6 @@
   </contact>
 
   <actuator>
-    <position joint="slide" name="extend" gear="1 0 0 0 0 0" ctrlrange="-.25 1" kp="100"/>
+    <position joint="slide" name="extend" gear="1 0 0 0 0 0" ctrlrange="-1 4" kp="100"/>
   </actuator>
 </mujoco>
