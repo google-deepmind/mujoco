@@ -69,8 +69,9 @@ General
   register one or more MuJoCo plugins on load.
 - Add an optional ``visualize`` callback to plugins, which is called during ``mjv_updateScene``. This callback allows
   custom plugin visualizations. Enable stree visualization for the Cable plugin as an example.
-- Sensors of type :ref:`user<sensor-user>` no longer require :at:`objtype` and :at:`objname`. If unspecified, the
-  objtype will be :ref:`mjOBJ_UNKNOWN<mjtObj>`. ``user`` sensors :at:`datatype` default is now :at-val:`"real"`.
+- Sensors of type :ref:`user<sensor-user>` no longer require :at:`objtype`, :at:`objname` and :at:`needstage`. If
+  unspecified, the objtype is now :ref:`mjOBJ_UNKNOWN<mjtObj>`. ``user`` sensors :at:`datatype` default is now 
+  :at-val:`"real"`, :at:`needstage` default is now :at-val:`"acc"`.
 - Add support for capsules in URDF import.
 - On macOS, issue an informative error message when run under `Rosetta 2 <https://support.apple.com/en-gb/HT211861>`_
   translation on an Apple Silicon machine. Pre-built MuJoCo binaries make use of

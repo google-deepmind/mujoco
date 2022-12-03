@@ -967,6 +967,25 @@ TEST_F(SensorParseTest, UserObjNameNoType) {
   EXPECT_THAT(error.data(), HasSubstr("objname 'kevin' given but"));
 }
 
+TEST_F(SensorParseTest, UserNeedstageAcc) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <sensor>
+      <user dim="1" needstage="vel"/>
+      <user dim="1"/>
+      <user dim="1" needstage="pos"/>
+    </sensor>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, NotNull()) << error.data();
+  EXPECT_EQ(model->sensor_needstage[0], mjSTAGE_VEL);
+  EXPECT_EQ(model->sensor_needstage[1], mjSTAGE_ACC);
+  EXPECT_EQ(model->sensor_needstage[2], mjSTAGE_POS);
+  mj_deleteModel(model);
+}
+
 // ------------- test general parsing ------------------------------------------
 
 TEST_F(XMLReaderTest, ZnearZeroNotAllowed) {

@@ -3159,8 +3159,9 @@ void mjXReader::Sensor(XMLElement* section) {
       ReadAttrInt(elem, "dim", &psen->dim, true);
 
       // keywords
-      MapValue(elem, "needstage", &n, stage_map, stage_sz, true);
-      psen->needstage = (mjtStage)n;
+      if (MapValue(elem, "needstage", &n, stage_map, stage_sz)) {
+        psen->needstage = (mjtStage)n;
+      }
       if (MapValue(elem, "datatype", &n, datatype_map, datatype_sz)) {
        psen->datatype = (mjtDataType)n;
       }
