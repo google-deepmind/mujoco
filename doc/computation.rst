@@ -71,7 +71,7 @@ and the resulting equations of motion are difficult to characterize. To be fair,
 worst-case performance and does not mean that solving the LCP quickly is impossible in practice. Still, convex
 optimization has well-established advantages. In MuJoCo we have observed that for typical robotic models, 10 sweeps of a
 projected Gauss-Seidel method (PGS) yield solutions which for practical purposes are indistinguishable from the global
-minimum. Of course there are problems that are much harder to solve numerically, even though the are convex, and for
+minimum. Of course there are problems that are much harder to solve numerically, even though they are convex, and for
 such problems we have conjugate gradient solvers with higher-order convergence.
 
 The requirements for computational efficiency are different depending on the use case. If all we need is real-time
