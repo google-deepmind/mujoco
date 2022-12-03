@@ -102,8 +102,41 @@ The Python bindings should now be installed! To check that they've been
 successfully installed, ``cd`` outside of the ``mujoco`` directory and run
 ``python -c "import mujoco"``.
 
+.. _PyViewer:
+
+Interactive viewer
+==================
+
+An interactive GUI viewer is available as part of the Python package. (This is the same viewer as the ``simulate``
+application that ships with the MuJoCo binary releases.)
+
+Three distinct use cases are supported:
+
+#. Launching as a standalone application:
+
+   - ``python -m mujoco.viewer`` launches an empty visualization session, where a model can be loaded by drag-and-drop.
+   - ``python -m mujoco.viewer --mjcf=/path/to/some/mjcf.xml`` launches a visualization session for the specified
+     model file.
+
+#. Launching from a Python program/script -- import the module via ``from mujoco import viewer`` and launch the GUI
+   using one of the following invocations:
+
+   - ``viewer.launch()`` launches an empty visualization session, where a model can be loaded by drag-and-drop.
+   - ``viewer.launch(model)`` launches a visualzation session for the given ``mjModel`` where the visualizer
+     internally creates its own instance of ``mjData``
+   - ``viewer.launch(model, data)`` is the same as above, except that the visualizer operates directly on the given
+     ``mjData`` instance -- upon exit the ``data`` object will have been modified.
+
+#. Launching from an interactive Python session (aka REPL): when working interactively either in a ``python`` or
+   ``ipython`` shell, the visualizer can be launched in a "passive" mode via ``viewer.launch_repl(model, data)``, where
+   the user remains in full control of modifying or stepping the physics. In this mode, the user can interact with the
+   visualizer using the mouse and keyboard as usual, however the physics will be frozen unless the user explicitly calls
+   ``mj_step`` (or perform any other modification of the ``mjData`` or ``mjModel``) in the REPL terminal. Note that since
+   the visualizer does not modify ``mjData`` in this mode, mouse-drag perturbations will not work unless the user
+   explicitly handles incoming GUI perturbation events in the REPL session.
+
 Basic usage
------------
+===========
 
 Once installed, the package can be imported via ``import mujoco``. Structs, functions, constants, and enums are
 available directly from the top-level ``mujoco`` module.
@@ -111,135 +144,102 @@ available directly from the top-level ``mujoco`` module.
 .. _PyStructs:
 
 Structs
-=======
+-------
 
-  MuJoCo data structures are exposed as Python classes. In order to conform to
-  `PEP 8 <https://peps.python.org/pep-0008/>`__ naming guidelines, struct names begin with a capital letter, for example
-  ``mjData`` becomes ``mujoco.MjData`` in Python.
+MuJoCo data structures are exposed as Python classes. In order to conform to
+`PEP 8 <https://peps.python.org/pep-0008/>`__ naming guidelines, struct names begin with a capital letter, for example
+``mjData`` becomes ``mujoco.MjData`` in Python.
 
-  All structs other than ``mjModel`` have constructors in Python. For structs that have an ``mj_defaultFoo``-style
-  initialization function, the Python constructor calls the default initializer automatically, so for example
-  ``mujoco.MjOption()`` creates a new ``mjOption`` instance that is pre-initialized with :ref:`mj_defaultOption`.
-  Otherwise, the Python constructor zero-initializes the underlying C struct.
+All structs other than ``mjModel`` have constructors in Python. For structs that have an ``mj_defaultFoo``-style
+initialization function, the Python constructor calls the default initializer automatically, so for example
+``mujoco.MjOption()`` creates a new ``mjOption`` instance that is pre-initialized with :ref:`mj_defaultOption`.
+Otherwise, the Python constructor zero-initializes the underlying C struct.
 
-  Structs with a ``mj_makeFoo``-style initialization function have corresponding constructor overloads in Python,
-  for example ``mujoco.MjvScene(model, maxgeom=10)`` in Python creates a new ``mjvScene`` instance that is
-  initialized with ``mjv_makeScene(model, [the new mjvScene instance], 10)`` in C. When this form of initialization is
-  used, the corresponding deallocation function ``mj_freeFoo/mj_deleteFoo`` is automatically called when the Python
-  object is deleted. The user does not need to manually free resources.
+Structs with a ``mj_makeFoo``-style initialization function have corresponding constructor overloads in Python,
+for example ``mujoco.MjvScene(model, maxgeom=10)`` in Python creates a new ``mjvScene`` instance that is
+initialized with ``mjv_makeScene(model, [the new mjvScene instance], 10)`` in C. When this form of initialization is
+used, the corresponding deallocation function ``mj_freeFoo/mj_deleteFoo`` is automatically called when the Python
+object is deleted. The user does not need to manually free resources.
 
-  The ``mujoco.MjModel`` class does not a have Python constructor. Instead, we provide three static factory functions
-  that create a new ``mjModel`` instance: ``mujoco.MjModel.from_xml_string``, ``mujoco.MjModel.from_xml_path``, and
-  ``mujoco.MjModel.from_binary_path``. The first function accepts a model XML as a string, while the latter two
-  functions accept the path to either an XML or MJB model file. All three functions optionally accept a Python
-  dictionary which is converted into a MuJoCo :ref:`Virtualfilesystem` for use during model compilation.
+The ``mujoco.MjModel`` class does not a have Python constructor. Instead, we provide three static factory functions
+that create a new ``mjModel`` instance: ``mujoco.MjModel.from_xml_string``, ``mujoco.MjModel.from_xml_path``, and
+``mujoco.MjModel.from_binary_path``. The first function accepts a model XML as a string, while the latter two
+functions accept the path to either an XML or MJB model file. All three functions optionally accept a Python
+dictionary which is converted into a MuJoCo :ref:`Virtualfilesystem` for use during model compilation.
 
 Functions
-=========
+---------
 
-  MuJoCo functions are exposed as Python functions of the same name. Unlike with structs, we do not attempt to make
-  the function names `PEP 8 <https://peps.python.org/pep-0008/>`__-compliant, as MuJoCo uses both underscores and
-  CamelCases. In most cases, function arguments appear exactly as they do in C, and keyword arguments are supported
-  with the same names as declared in :ref:`mujoco.h<inHeader>`. Python bindings to C functions that accept array input
-  arguments expect NumPy arrays or iterable objects that are convertible to NumPy arrays (e.g. lists). Output
-  arguments (i.e. array arguments that MuJoCo expect to write values back to the caller) must always be writeable
-  NumPy arrays.
+MuJoCo functions are exposed as Python functions of the same name. Unlike with structs, we do not attempt to make
+the function names `PEP 8 <https://peps.python.org/pep-0008/>`__-compliant, as MuJoCo uses both underscores and
+CamelCases. In most cases, function arguments appear exactly as they do in C, and keyword arguments are supported
+with the same names as declared in :ref:`mujoco.h<inHeader>`. Python bindings to C functions that accept array input
+arguments expect NumPy arrays or iterable objects that are convertible to NumPy arrays (e.g. lists). Output
+arguments (i.e. array arguments that MuJoCo expect to write values back to the caller) must always be writeable
+NumPy arrays.
 
-  In the C API, functions that take dynamically-sized arrays as inputs expect a pointer argument to the array along with
-  an integer argument that specifies the array's size. In Python, the size arguments are omitted since we can
-  automatically (and indeed, more safely) deduce it from the NumPy array. When calling these functions, pass all
-  arguments other than array sizes in the same order as they appear in :ref:`mujoco.h<inHeader>`, or use keyword
-  arguments. For example, :ref:`mj_jac` should be called as ``mujoco.mj_jac(m, d, jacp, jacr, point, body)`` in Python.
+In the C API, functions that take dynamically-sized arrays as inputs expect a pointer argument to the array along with
+an integer argument that specifies the array's size. In Python, the size arguments are omitted since we can
+automatically (and indeed, more safely) deduce it from the NumPy array. When calling these functions, pass all
+arguments other than array sizes in the same order as they appear in :ref:`mujoco.h<inHeader>`, or use keyword
+arguments. For example, :ref:`mj_jac` should be called as ``mujoco.mj_jac(m, d, jacp, jacr, point, body)`` in Python.
 
-  The bindings **releases the Python Global Interpreter Lock (GIL)** before calling the underlying MuJoCo function.
-  This allows for some thread-based parallelism, however users should bear in mind that the GIL is only released for the
-  duration of the MuJoCo C function itself, and not during the execution of any other Python code.
+The bindings **releases the Python Global Interpreter Lock (GIL)** before calling the underlying MuJoCo function.
+This allows for some thread-based parallelism, however users should bear in mind that the GIL is only released for the
+duration of the MuJoCo C function itself, and not during the execution of any other Python code.
 
-  .. note::
-     One place where the bindings do offer added functionality is the top-level :ref:`mj_step` function. Since it is
-     often called in a loop, we have added an additional ``nstep`` argument, indicating how many times the underlying
-     :ref:`mj_step` should be called. If not specified, ``nstep`` takes the default value of 1. The following two code
-     snippets perform the same computation, but the first one does so without acquiring the GIL in between subsequent
-     physics steps:
+.. note::
+   One place where the bindings do offer added functionality is the top-level :ref:`mj_step` function. Since it is
+   often called in a loop, we have added an additional ``nstep`` argument, indicating how many times the underlying
+   :ref:`mj_step` should be called. If not specified, ``nstep`` takes the default value of 1. The following two code
+   snippets perform the same computation, but the first one does so without acquiring the GIL in between subsequent
+   physics steps:
 
-     .. code-block:: python
+   .. code-block:: python
 
-        mj_step(model, data, nstep=20)
+      mj_step(model, data, nstep=20)
 
-     .. code-block:: python
+   .. code-block:: python
 
-        for _ in range(20):
-          mj_step(model, data)
-
+      for _ in range(20):
+        mj_step(model, data)
 
 Enums and constants
-===================
+-------------------
 
-  MuJoCo enums are available as ``mujoco.mjtEnumType.ENUM_VALUE``, for example ``mujoco.mjtObj.mjOBJ_SITE``. MuJoCo
-  constants are available with the same name directly under the ``mujoco`` module, for example ``mujoco.mjVISSTRING``.
+MuJoCo enums are available as ``mujoco.mjtEnumType.ENUM_VALUE``, for example ``mujoco.mjtObj.mjOBJ_SITE``. MuJoCo
+constants are available with the same name directly under the ``mujoco`` module, for example ``mujoco.mjVISSTRING``.
 
 Minimal example
 ---------------
 
-  .. code-block:: python
+.. code-block:: python
 
-     import mujoco
+   import mujoco
 
-     XML=r"""
-     <mujoco>
-       <asset>
-         <mesh file="gizmo.stl"/>
-       </asset>
-       <worldbody>
-         <body>
-           <freejoint/>
-           <geom type="mesh" name="gizmo" mesh="gizmo"/>
-         </body>
-       </worldbody>
-     </mujoco>
-     """
+   XML=r"""
+   <mujoco>
+     <asset>
+       <mesh file="gizmo.stl"/>
+     </asset>
+     <worldbody>
+       <body>
+         <freejoint/>
+         <geom type="mesh" name="gizmo" mesh="gizmo"/>
+       </body>
+     </worldbody>
+   </mujoco>
+   """
 
-     ASSETS=dict()
-     with open('/path/to/gizmo.stl', 'rb') as f:
-       ASSETS['gizmo.stl'] = f.read()
+   ASSETS=dict()
+   with open('/path/to/gizmo.stl', 'rb') as f:
+     ASSETS['gizmo.stl'] = f.read()
 
-     model = mujoco.MjModel.from_xml_string(XML, ASSETS)
-     data = mujoco.MjData(model)
-     while data.time < 1:
-       mujoco.mj_step(model, data)
-       print(data.geom_xpos)
-
-.. _PyGUI:
-
-Interactive visualizer
-----------------------
-
-MuJoCo's interactive GUI (also known as the ``simulate`` application) is available as part of the Python package.
-Three distinct use cases are supported:
-
-- Launching as a standalone application:
-
-   * ``python -m mujoco.simulate`` launches an empty visualization session, where a model can be loaded by drag-and-drop.
-   * ``python -m mujoco.simulate --mjcf=/path/to/some/mjcf.xml`` launches a visualization session for the specified
-     model file.
-
-- Launching from a Python program/script -- import the module via ``from mujoco import simulate`` and launch the GUI
-  using one of the following invocations:
-
-   * ``simulate.launch()`` launches an empty visualization session, where a model can be loaded by drag-and-drop.
-   * ``simulate.launch(model)`` launches a visualzation session for the given ``mjModel`` where the visualizer
-     internally creates its own instance of ``mjData``
-   * ``simulate.launch(model, data)`` is the same as above, except that the visualizer operates directly on the given
-     ``mjData`` instance -- upon exit the ``data`` object will have been modified.
-
-- Launching from an interactive Python session (aka REPL): when working interactively either in a ``python`` or
-  ``ipython`` shell, the visualizer can be launched in a "passive" mode via ``simulate.launch_repl(model, data)``, where
-  the user remains in full control of modifying or stepping the physics. In this mode, the user can interact with the
-  visualizer using the mouse and keyboard as usual, however the physics will be frozen unless the user explicitly calls
-  ``mj_step`` (or perform any other modification of the ``mjData`` or ``mjModel``) in the REPL terminal. Note that since
-  the visualizer does not modify ``mjData`` in this mode, mouse-drag perturbations will not work unless the user
-  explicitly handles incoming GUI perturbation events in the REPL session.
-
+   model = mujoco.MjModel.from_xml_string(XML, ASSETS)
+   data = mujoco.MjData(model)
+   while data.time < 1:
+     mujoco.mj_step(model, data)
+     print(data.geom_xpos)
 
 .. _PyNamed:
 
@@ -356,69 +356,8 @@ Alternatively, if a callback is implemented in a native dynamic library, users c
 it to ``mujoco.set_mjcb_foo``. The bindings will then retrieve the underlying function pointer and assign it directly to
 the raw callback pointer, and the GIL will **not** be acquired each time the callback is entered.
 
-.. _PyMjpy_migration:
-
-Migration Notes for mujoco-py
------------------------------
-
-In mujoco-py, the main entry point is the `MjSim <https://github.com/openai/mujoco-py/blob/master/mujoco_py/mjsim.pyx>`_
-class.  Users construct a stateful ``MjSim`` instance from an MJCF model (similar to ``dm_control.Physics``), and this
-instance holds references to an ``mjModel`` instance and its associated ``mjData``.  In contrast, the MuJoCo Python
-bindings (``mujoco``) take a more low-level approach, as explained above: following the design principle of the C
-library, the ``mujoco`` module itself is stateless, and merely wraps the underlying native structs and functions.
-
-While a complete survey of mujoco-py is beyond the scope of this document, we offer below implementation notes for a
-non-exhaustive list of specific mujoco-py features:
-
-``mujoco_py.load_model_from_xml(bstring)``
-===========================================
-
-This factory function constructs a stateful ``MjSim`` instance.  When using ``mujoco``, the user should call the factory
-function ``mujoco.MjModel.from_xml_*`` as described :ref:`above <PyStructs>`. The user is then responsible for holding
-the resulting ``MjModel`` struct instance and explicitly generating the corresponding ``MjData`` by calling
-``mujoco.MjData(model)``.
-
-``sim.reset()``, ``sim.forward()``, ``sim.step()``
-==================================================
-
-Here as above, ``mujoco`` users needs to call the underlying library functions, passing instances of ``MjModel`` and
-``MjData``: :ref:`mujoco.mj_resetData(model, data) <mj_resetData>`, :ref:`mujoco.mj_forward(model, data) <mj_forward>`,
-and :ref:`mujoco.mj_step(model, data) <mj_step>`.
-
-``sim.get_state()``, ``sim.set_state(state)``, ``sim.get_flattened_state()``, ``sim.set_state_from_flattened(state)``
-=====================================================================================================================
-
-The MuJoCo library’s computation is deterministic given a specific input, as explained in the :ref:`Programming section
-<Simulation>`.  mujoco-py implements methods for getting and setting some of the relevant fields (and similarly
-``dm_control.Physics`` offers methods that correspond to the flattened case).  ``mujoco`` do not offer such abstraction,
-and the user is expected to get/set the values of the relevant fields explicitly.
-
-``sim.model.get_joint_qvel_addr(joint_name)``
-=============================================
-
-This is a convenience method in mujoco-py that returns a list of contiguous indices corresponding to this joint. The
-list starts from ``model.jnt_qposadr[joint_index]``, and its length depends on the joint type.  ``mujoco`` doesn't offer
-this functionality, but this list can be easily constructed using ``model.jnt_qposadr[joint_index]`` and ``xrange``.
-
-``sim.model.*_name2id(name)``
-=============================
-
-mujoco-py creates dicts in ``MjSim`` that allow for efficient lookup of indices for objects of different types:
-``site_name2id``, ``body_name2id`` etc.  These functions replace the function :ref:`mujoco.mj_name2id(model, type_enum,
-name) <mj_name2id>` whose current implementation is inefficient.  ``mujoco`` offers a different
-approach for using entity names – :ref:`named access <PyNamed>`, as well as access to the native :ref:`mj_name2id`.
-
-``sim.save(fstream, format_name)``
-==================================
-
-This is the one context in which the MuJoCo library (and therefore also ``mujoco``) is stateful: it holds a copy in
-memory of the last XML that was compiled, which is used in :ref:`mujoco.mj_saveLastXML(fname) <mj_saveLastXML>`. Note
-that mujoco-py’s implementation has a convenient extra feature, whereby the pose (as determined by ``sim.data``’s
-state) is transformed to a keyframe that’s added to the model before saving.  This extra feature is not currently
-available in ``mujoco``.
-
 Code Sample: open-loop rollout
-------------------------------
+==============================
 
 We include a code sample showing how to add additional C/C++ functionality, exposed as a Python module via pybind11. The
 sample, implemented in ``rollout.cc`` and wrapped in ``rollout.py``, implements a common use case where tight loops
@@ -441,3 +380,64 @@ all inputs including ``time`` and ``qacc_warmstart`` are set to default values, 
 
 Since the Global Interpreter Lock can be released, this function can be efficiently threaded using Python threads. See
 the ``test_threading`` function in ``rollout_test.py`` for an example of threaded operation.
+
+.. _PyMjpy_migration:
+
+Migration Notes for mujoco-py
+=============================
+
+In mujoco-py, the main entry point is the `MjSim <https://github.com/openai/mujoco-py/blob/master/mujoco_py/mjsim.pyx>`_
+class.  Users construct a stateful ``MjSim`` instance from an MJCF model (similar to ``dm_control.Physics``), and this
+instance holds references to an ``mjModel`` instance and its associated ``mjData``.  In contrast, the MuJoCo Python
+bindings (``mujoco``) take a more low-level approach, as explained above: following the design principle of the C
+library, the ``mujoco`` module itself is stateless, and merely wraps the underlying native structs and functions.
+
+While a complete survey of mujoco-py is beyond the scope of this document, we offer below implementation notes for a
+non-exhaustive list of specific mujoco-py features:
+
+``mujoco_py.load_model_from_xml(bstring)``
+------------------------------------------
+
+This factory function constructs a stateful ``MjSim`` instance.  When using ``mujoco``, the user should call the factory
+function ``mujoco.MjModel.from_xml_*`` as described :ref:`above <PyStructs>`. The user is then responsible for holding
+the resulting ``MjModel`` struct instance and explicitly generating the corresponding ``MjData`` by calling
+``mujoco.MjData(model)``.
+
+``sim.reset()``, ``sim.forward()``, ``sim.step()``
+--------------------------------------------------
+
+Here as above, ``mujoco`` users needs to call the underlying library functions, passing instances of ``MjModel`` and
+``MjData``: :ref:`mujoco.mj_resetData(model, data) <mj_resetData>`, :ref:`mujoco.mj_forward(model, data) <mj_forward>`,
+and :ref:`mujoco.mj_step(model, data) <mj_step>`.
+
+``sim.get_state()``, ``sim.set_state(state)``, ``sim.get_flattened_state()``, ``sim.set_state_from_flattened(state)``
+---------------------------------------------------------------------------------------------------------------------
+
+The MuJoCo library’s computation is deterministic given a specific input, as explained in the :ref:`Programming section
+<Simulation>`.  mujoco-py implements methods for getting and setting some of the relevant fields (and similarly
+``dm_control.Physics`` offers methods that correspond to the flattened case).  ``mujoco`` do not offer such abstraction,
+and the user is expected to get/set the values of the relevant fields explicitly.
+
+``sim.model.get_joint_qvel_addr(joint_name)``
+---------------------------------------------
+
+This is a convenience method in mujoco-py that returns a list of contiguous indices corresponding to this joint. The
+list starts from ``model.jnt_qposadr[joint_index]``, and its length depends on the joint type.  ``mujoco`` doesn't offer
+this functionality, but this list can be easily constructed using ``model.jnt_qposadr[joint_index]`` and ``xrange``.
+
+``sim.model.*_name2id(name)``
+-----------------------------
+
+mujoco-py creates dicts in ``MjSim`` that allow for efficient lookup of indices for objects of different types:
+``site_name2id``, ``body_name2id`` etc.  These functions replace the function :ref:`mujoco.mj_name2id(model, type_enum,
+name) <mj_name2id>` whose current implementation is inefficient.  ``mujoco`` offers a different
+approach for using entity names – :ref:`named access <PyNamed>`, as well as access to the native :ref:`mj_name2id`.
+
+``sim.save(fstream, format_name)``
+----------------------------------
+
+This is the one context in which the MuJoCo library (and therefore also ``mujoco``) is stateful: it holds a copy in
+memory of the last XML that was compiled, which is used in :ref:`mujoco.mj_saveLastXML(fname) <mj_saveLastXML>`. Note
+that mujoco-py’s implementation has a convenient extra feature, whereby the pose (as determined by ``sim.data``’s
+state) is transformed to a keyframe that’s added to the model before saving.  This extra feature is not currently
+available in ``mujoco``.

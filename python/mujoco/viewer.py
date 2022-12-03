@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # ==============================================================================
-"""Python bindings for the Simulate GUI."""
+"""Interactive GUI viewer for MuJoCo."""
 
 import atexit
 import code
@@ -69,7 +69,7 @@ def _file_loader(path: str) -> _LoaderWithPathType:
 
 
 def _physics_loop(simulate: Simulate, loader: Optional[_InternalLoaderType]):
-  """Physics loop for the Simulate GUI, to be run in a separate thread."""
+  """Physics loop for the GUI, to be run in a separate thread."""
   m: mujoco.MjModel = None
   d: mujoco.MjData = None
   ctrlnoise = np.array([])
