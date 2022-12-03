@@ -28,8 +28,9 @@ simulation module is tuned to maximize performance and operates on low-level
 data structures that are preallocated by the built-in XML compiler. The library
 includes interactive visualization with a native GUI, rendered in OpenGL. MuJoCo
 further exposes a large number of utility functions for computing
-physics-related quantities. We also provide Python bindings and a plug-in for
-the [Unity] game engine.
+physics-related quantities.
+
+We also provide Python bindings and a plug-in for the [Unity] game engine.
 
 ## Installation
 
@@ -147,7 +148,6 @@ These packages give users of various languages access to MuJoCo functionality:
 
 - **Swift**: [swift-mujoco](https://github.com/liuliu/swift-mujoco)
 - **Java**: [mujoco-java](https://github.com/CommonWealthRobotics/mujoco-java)
-- **Python**: [mujoco-py](https://github.com/openai/mujoco-py) (unmaintained)
 - **Julia**: [Lyceum](https://github.com/Lyceum/MuJoCo.jl) (unmaintained)
 
 
