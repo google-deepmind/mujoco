@@ -1,8 +1,0 @@
-<mujoco>
-  <asset>
-    <mesh file="cube.obj"/>
-  </asset>
-  <worldbody>
-    <geom type="mesh" mesh="cube"/>
-  </worldbody>
-</mujoco>
