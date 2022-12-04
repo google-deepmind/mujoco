@@ -1,3 +1,0 @@
-include LICENSE *.md
-recursive-include mujoco *.h *.cc *.mm CMakeLists.txt Simulate*.cmake
-recursive-include cmake *.cmake
