@@ -44,6 +44,7 @@ master_doc = 'index'
 extensions = [
     'sphinxcontrib.katex',
     'sphinxcontrib.youtube',
+    "sphinx_copybutton",
     'sphinx_reredirects',
     'sphinx_toolbox.collapse',
     "mujoco_include",
@@ -122,7 +123,8 @@ html_theme_options = {
 }
 
 for v in html_theme_options.values():
-  v.update(SHARED_CSS_VARIABLES)
+  if isinstance(v, dict):
+    v.update(SHARED_CSS_VARIABLES)
 
 pygments_style = "default"
 pygments_dark_style = "monokai"
@@ -140,6 +142,8 @@ html_css_files = [
 ]
 
 html_favicon = 'favicons/favicon-32x32.png'
+
+html_permalinks_icon = "🔗"
 
 # -- Options for katex ------------------------------------------------------
 
