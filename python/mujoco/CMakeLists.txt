@@ -184,7 +184,7 @@ findorfetch(
   GIT_REPO
   https://github.com/pybind/pybind11
   GIT_TAG
-  0aa8c9452803604b8e65a624c28f6ba89bd6499a
+  33fb7a6bd849653445b6ae37a8c274d3de9519cc
   TARGETS
   pybind11::pybind11_headers
   EXCLUDE_FROM_ALL
