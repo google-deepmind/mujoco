@@ -11,6 +11,7 @@ Python bindings
 
 - The ``simulate`` GUI is now available through the ``mujoco`` Python package as ``mujoco.viewer``.
   See :ref:`documentation<PyViewer>` for details. (Contribution by `Levi Burner <https://github.com/aftersomemath>`_.)
+- The ``Renderer`` class from the MuJoCo tutorial Colab is now available directly in the native Python bindings.
 
 General
 ^^^^^^^
