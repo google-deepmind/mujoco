@@ -155,7 +155,7 @@ TEST_F(JacobianTest, SubtreeJacNoInternalAcc) {
 
 using VersionTest = MujocoTest;
 
-const char *const kExpectedVersionString = "2.3.0";
+const char *const kExpectedVersionString = "2.3.1";
 
 TEST_F(VersionTest, MjVersion) {
   EXPECT_EQ(mj_version(), mjVERSION_HEADER);

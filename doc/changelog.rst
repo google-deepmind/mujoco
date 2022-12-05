@@ -3,92 +3,92 @@ Changelog
 =========
 
 
-Upcoming version (not yet released)
+Version 2.3.1 (December 5, 2022)
 -----------------------------------
 
 Python bindings
 ^^^^^^^^^^^^^^^
 
-- The ``simulate`` GUI is now available through the ``mujoco`` Python package as ``mujoco.viewer``.
-  See :ref:`documentation<PyViewer>` for details. (Contribution by `Levi Burner <https://github.com/aftersomemath>`_.)
-- The ``Renderer`` class from the MuJoCo tutorial Colab is now available directly in the native Python bindings.
+1. The ``simulate`` GUI is now available through the ``mujoco`` Python package as ``mujoco.viewer``.
+   See :ref:`documentation<PyViewer>` for details. (Contribution by `Levi Burner <https://github.com/aftersomemath>`_.)
+#. The ``Renderer`` class from the MuJoCo tutorial Colab is now available directly in the native Python bindings.
 
 General
 ^^^^^^^
 
-- The tendon :at:`springlength` attribute can now take two values. Given two non-decreasing values, `springlength`
-  specifies a `deadband  <https://en.wikipedia.org/wiki/Deadband>`_ range for spring stiffness. If the tendon length is
-  between the two values, the force is 0. If length is outside this range, the force behaves like a regular spring, with
-  the spring resting length corresponding to the nearest :at:`springlength` value. This can be used to create tendons
-  whose limits are enforced by springs rather than constraints, which are cheaper and easier to analyse. See
-  `tendon_springlength.xml <https://github.com/deepmind/mujoco/tree/main/test/engine/testdata/tendon_springlength.xml>`_
-  example model.
+3. The tendon :at:`springlength` attribute can now take two values. Given two non-decreasing values, `springlength`
+   specifies a `deadband  <https://en.wikipedia.org/wiki/Deadband>`_ range for spring stiffness. If the tendon length is
+   between the two values, the force is 0. If length is outside this range, the force behaves like a regular spring, with
+   the spring resting length corresponding to the nearest :at:`springlength` value. This can be used to create tendons
+   whose limits are enforced by springs rather than constraints, which are cheaper and easier to analyse. See
+   `tendon_springlength.xml <https://github.com/deepmind/mujoco/tree/main/test/engine/testdata/tendon_springlength.xml>`_
+   example model.
 
-  .. attention::
-    This is a minor breaking API change. ``mjModel.tendon_lengthspring`` now has size ``ntendon x 2`` rather than
-    ``ntendon x 1``.
+   .. attention::
+     This is a minor breaking API change. ``mjModel.tendon_lengthspring`` now has size ``ntendon x 2`` rather than
+     ``ntendon x 1``.
 
-  .. youtube:: -PJ6afdETUg
-     :align: right
-     :height: 150px
+   .. youtube:: -PJ6afdETUg
+      :align: right
+      :height: 150px
 
-- Removed the requirement that stateless actuators come before stateful actuators.
-- Added :ref:`mju_fill`, :ref:`mju_symmetrize` and :ref:`mju_eye` utility functions.
-- Added :at:`gravcomp` attribute to :ref:`body<body>`, implementing gravity compensation and bouyancy.
-  See `balloons.xml <https://github.com/deepmind/mujoco/tree/main/model/balloons/balloons.xml>`_ example model.
-- Renamed the ``cable`` plugin library to ``elasticity``.
-- Added :at:`actdim` attribute to :ref:`general actuators<actuator-general>`. Values greater than 1 are only allowed
-  for dyntype :at-val:`user`, as native activation dynamics are all scalar. Added example test implementing 2nd-order
-  activation dynamics to
-  `engine_forward_test.cc <https://github.com/deepmind/mujoco/blob/main/test/engine/engine_forward_test.cc>`_.
-- Improved particle :ref:`composite<body-composite>` type, which now permits a user-specified geometry and multiple
-  joints. See the two new examples:
-  `particle_free.xml <https://github.com/deepmind/mujoco/tree/main/model/composite/particle_free.xml>`_ and
-  `particle_free2d.xml <https://github.com/deepmind/mujoco/tree/main/model/composite/particle_free2d.xml>`_.
-- Performance improvements for non-AVX configurations:
+#. Removed the requirement that stateless actuators come before stateful actuators.
+#. Added :ref:`mju_fill`, :ref:`mju_symmetrize` and :ref:`mju_eye` utility functions.
+#. Added :at:`gravcomp` attribute to :ref:`body<body>`, implementing gravity compensation and bouyancy.
+   See `balloons.xml <https://github.com/deepmind/mujoco/tree/main/model/balloons/balloons.xml>`_ example model.
+#. Renamed the ``cable`` plugin library to ``elasticity``.
+#. Added :at:`actdim` attribute to :ref:`general actuators<actuator-general>`. Values greater than 1 are only allowed
+   for dyntype :at-val:`user`, as native activation dynamics are all scalar. Added example test implementing 2nd-order
+   activation dynamics to
+   `engine_forward_test.cc <https://github.com/deepmind/mujoco/blob/main/test/engine/engine_forward_test.cc>`_.
+#. Improved particle :ref:`composite<body-composite>` type, which now permits a user-specified geometry and multiple
+   joints. See the two new examples:
+   `particle_free.xml <https://github.com/deepmind/mujoco/tree/main/model/composite/particle_free.xml>`_ and
+   `particle_free2d.xml <https://github.com/deepmind/mujoco/tree/main/model/composite/particle_free2d.xml>`_.
+#. Performance improvements for non-AVX configurations:
 
-  - 14% faster ``mj_solveLD`` using `restrict <https://en.wikipedia.org/wiki/Restrict>`_. See `engine_core_smooth_benchmark_test
-    <https://github.com/deepmind/mujoco/tree/main/test/benchmark/engine_core_smooth_benchmark_test.cc>`_.
-  - 50% faster ``mju_dotSparse`` using manual loop unroll. See `engine_util_sparse_benchmark_test
-    <https://github.com/deepmind/mujoco/tree/main/test/benchmark/engine_util_sparse_benchmark_test.cc>`_.
-- Added new :at:`solid` passive force plugin:
+   - 14% faster ``mj_solveLD`` using `restrict <https://en.wikipedia.org/wiki/Restrict>`_. See `engine_core_smooth_benchmark_test
+     <https://github.com/deepmind/mujoco/tree/main/test/benchmark/engine_core_smooth_benchmark_test.cc>`_.
+   - 50% faster ``mju_dotSparse`` using manual loop unroll. See `engine_util_sparse_benchmark_test
+     <https://github.com/deepmind/mujoco/tree/main/test/benchmark/engine_util_sparse_benchmark_test.cc>`_.
+#. Added new :at:`solid` passive force plugin:
 
-  .. youtube:: AGcTGHbbze4
-     :align: right
-     :height: 150px
+   .. youtube:: AGcTGHbbze4
+      :align: right
+      :height: 150px
 
-  - This is new force field compatible with the :ref:`composite<body-composite>` particles.
-  - Generates a tetrahedral mesh having particles with mass concentrated at vertices.
-  - Uses a piecewise-constant strain model equivalent to finite elements but expressed in a coordinate-free
-    formulation. This implies that all quantities can be precomputed except edge elongation, as in a mass-spring model.
-  - Only suitable for small strains (large displacements but small deformations). Tetrahedra may invert if subject to
-    large loads.
+   - This is new force field compatible with the :ref:`composite<body-composite>` particles.
+   - Generates a tetrahedral mesh having particles with mass concentrated at vertices.
+   - Uses a piecewise-constant strain model equivalent to finite elements but expressed in a coordinate-free
+     formulation. This implies that all quantities can be precomputed except edge elongation, as in a mass-spring model.
+   - Only suitable for small strains (large displacements but small deformations). Tetrahedra may invert if subject to
+     large loads.
 
-- Add API functions ``mj_loadPluginLibrary`` and  ``mj_loadAllPluginLibraries``. The first function is identical to
-  ``dlopen`` on a POSIX system, and to ``LoadLibraryA`` on Windows. The second function scans a specified directory for
-  all dynamic libraries file and loads each library found. Dynamic libraries opened by these functions are assumed to
-  register one or more MuJoCo plugins on load.
-- Add an optional ``visualize`` callback to plugins, which is called during ``mjv_updateScene``. This callback allows
-  custom plugin visualizations. Enable stree visualization for the Cable plugin as an example.
-- Sensors of type :ref:`user<sensor-user>` no longer require :at:`objtype`, :at:`objname` and :at:`needstage`. If
-  unspecified, the objtype is now :ref:`mjOBJ_UNKNOWN<mjtObj>`. ``user`` sensors :at:`datatype` default is now 
-  :at-val:`"real"`, :at:`needstage` default is now :at-val:`"acc"`.
-- Add support for capsules in URDF import.
-- On macOS, issue an informative error message when run under `Rosetta 2 <https://support.apple.com/en-gb/HT211861>`_
-  translation on an Apple Silicon machine. Pre-built MuJoCo binaries make use of
-  `AVX <https://en.wikipedia.org/wiki/Advanced_Vector_Extensions>`_ instructions on x86-64 machines, which is not
-  supported by Rosetta 2. (Before this version, users only get a cryptic "Illegal instruction" message.)
+#. Add API functions ``mj_loadPluginLibrary`` and  ``mj_loadAllPluginLibraries``. The first function is identical to
+   ``dlopen`` on a POSIX system, and to ``LoadLibraryA`` on Windows. The second function scans a specified directory for
+   all dynamic libraries file and loads each library found. Dynamic libraries opened by these functions are assumed to
+   register one or more MuJoCo plugins on load.
+#. Add an optional ``visualize`` callback to plugins, which is called during ``mjv_updateScene``. This callback allows
+   custom plugin visualizations. Enable stress visualization for the Cable plugin as an example.
+#. Sensors of type :ref:`user<sensor-user>` no longer require :at:`objtype`, :at:`objname` and :at:`needstage`. If
+   unspecified, the objtype is now :ref:`mjOBJ_UNKNOWN<mjtObj>`. ``user`` sensors :at:`datatype` default is now
+   :at-val:`"real"`, :at:`needstage` default is now :at-val:`"acc"`.
+#. Add support for capsules in URDF import.
+#. On macOS, issue an informative error message when run under `Rosetta 2 <https://support.apple.com/en-gb/HT211861>`_
+   translation on an Apple Silicon machine. Pre-built MuJoCo binaries make use of
+   `AVX <https://en.wikipedia.org/wiki/Advanced_Vector_Extensions>`_ instructions on x86-64 machines, which is not
+   supported by Rosetta 2. (Before this version, users only get a cryptic "Illegal instruction" message.)
 
 Bug fixes
 ^^^^^^^^^
 
-- Fixed bug in ``mj_addFileVFS`` that was causing the file path to be ignored (introduced in 2.1.4).
+17. Fixed bug in ``mj_addFileVFS`` that was causing the file path to be ignored (introduced in 2.1.4).
 
 Simulate
 ^^^^^^^^
 
-- Renamed the directory in which the ``simulate`` application searches for plugins from ``plugin`` to ``mujoco_plugin``.
-- Mouse force perturbations are now applied at the selection point rather than the body center of mass.
+18. Renamed the directory in which the ``simulate`` application searches for plugins from ``plugin`` to ``mujoco_plugin``.
+#.  Mouse force perturbations are now applied at the selection point rather than the body center of mass.
 
 
 Version 2.3.0 (October 18, 2022)
