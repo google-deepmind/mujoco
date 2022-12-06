@@ -70,14 +70,14 @@ void mju_superSparse(int nr, int* rowsuper,
                      const int* rownnz, const int* rowadr, const int* colind);
 
 // compute sparse M'*diag*M (diag=NULL: compute M'*M), res has uncompressed layout
-void mju_sqrMatTDSparse(mjtNum* res, const mjtNum* mat, const mjtNum* matT,
-                        const mjtNum* diag, int nr, int nc,
-                        int* res_rownnz, int* res_rowadr, int* res_colind,
-                        const int* rownnz, const int* rowadr,
-                        const int* colind, const int* rowsuper,
-                        const int* rownnzT, const int* rowadrT,
-                        const int* colindT, const int* rowsuperT,
-                        mjData* d);
+MJAPI void mju_sqrMatTDSparse(mjtNum* res, const mjtNum* mat, const mjtNum* matT,
+                              const mjtNum* diag, int nr, int nc,
+                              int* res_rownnz, int* res_rowadr, int* res_colind,
+                              const int* rownnz, const int* rowadr,
+                              const int* colind, const int* rowsuper,
+                              const int* rownnzT, const int* rowadrT,
+                              const int* colindT, const int* rowsuperT,
+                              mjData* d);
 
 
 #ifdef __cplusplus

@@ -397,13 +397,7 @@ static int mju_compare(const int* vec1, const int* vec2, int n) {
 #endif
 
   // scalar part
-  for (; i<n; i++) {
-    if (vec1[i]!=vec2[i]) {
-      return 0;
-    }
-  }
-
-  return 1;
+  return !memcmp(vec1+i, vec2+i, (n-i)*sizeof(int));
 }
 
 // combine two sparse vectors: dst = a*dst + b*src, return nnz of result
