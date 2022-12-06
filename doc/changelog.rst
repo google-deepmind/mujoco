@@ -3,7 +3,7 @@ Changelog
 =========
 
 
-Version 2.3.1 (December 5, 2022)
+Version 2.3.1 (December 6, 2022)
 -----------------------------------
 
 Python bindings
