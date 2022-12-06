@@ -21,7 +21,7 @@ import math
 import os
 import threading
 import time
-from typing import Callable, Optional, Union
+from typing import Callable, Optional, Tuple, Union
 
 import glfw
 import mujoco
@@ -48,10 +48,10 @@ MAX_SYNC_MISALIGN = 0.1
 SIM_REFRESH_FRACTION = 0.7
 
 CallbackType = Callable[[mujoco.MjModel, mujoco.MjData], None]
-LoaderType = Callable[[], tuple[mujoco.MjModel, mujoco.MjData]]
+LoaderType = Callable[[], Tuple[mujoco.MjModel, mujoco.MjData]]
 
 # Loader function that also returns a file path for the GUI to display.
-_LoaderWithPathType = Callable[[], tuple[mujoco.MjModel, mujoco.MjData, str]]
+_LoaderWithPathType = Callable[[], Tuple[mujoco.MjModel, mujoco.MjData, str]]
 _InternalLoaderType = Union[LoaderType, _LoaderWithPathType]
 
 Simulate = _simulate.Simulate
@@ -60,7 +60,7 @@ Simulate = _simulate.Simulate
 def _file_loader(path: str) -> _LoaderWithPathType:
   """Loads an MJCF model from file path."""
 
-  def load(path=path) -> tuple[mujoco.MjModel, mujoco.MjData, str]:
+  def load(path=path) -> Tuple[mujoco.MjModel, mujoco.MjData, str]:
     m = mujoco.MjModel.from_xml_path(path)
     d = mujoco.MjData(m)
     return m, d, path
@@ -219,7 +219,7 @@ def _launch_internal(model: Optional[mujoco.MjModel] = None,
 
   if loader is None and model is not None:
 
-    def _loader(m=model, d=data) -> tuple[mujoco.MjModel, mujoco.MjData]:
+    def _loader(m=model, d=data) -> Tuple[mujoco.MjModel, mujoco.MjData]:
       if d is None:
         d = mujoco.MjData(m)
       return m, d
