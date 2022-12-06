@@ -11,8 +11,12 @@ name: build
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - "doc/**"
   pull_request:
     branches: [main]
+    paths-ignore:
+      - "doc/**"
 
 jobs:
   mujoco:
