@@ -222,7 +222,9 @@ TEST_F(MjCMeshTest, MalformedFaceFails) {
   std::array<char, 1024> error;
   mjModel* model = mj_loadXML(xml_path.c_str(), 0, error.data(), error.size());
   EXPECT_THAT(model, testing::IsNull());
-  EXPECT_THAT(error.data(), HasSubstr("faces have inconsistent orientation"));
+  EXPECT_THAT(error.data(), HasSubstr(
+        "Error: faces of mesh 'malformed_face' have inconsistent orientation. "
+        "Please check the faces containing the vertices 1 and 2."));
 }
 
 TEST_F(MjCMeshTest, FlippedFaceFails) {
@@ -243,7 +245,9 @@ TEST_F(MjCMeshTest, FlippedFaceFails) {
   std::array<char, 1024> error;
   mjModel* model = LoadModelFromString(xml, error.data(), error.size());
   EXPECT_THAT(model, testing::IsNull());
-  EXPECT_THAT(error.data(), HasSubstr("faces have inconsistent orientation"));
+  EXPECT_THAT(error.data(), HasSubstr(
+        "Error: faces of mesh 'example_mesh' have inconsistent orientation. "
+        "Please check the faces containing the vertices 1 and 2."));
 }
 
 void CheckTetrahedronWasRescaled(mjModel* model) {

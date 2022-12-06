@@ -494,12 +494,12 @@ class mjCMesh: public mjCBase {
   void CheckMesh(void);                       // check if the mesh is valid
 
   // mesh properties that indicate a well-formed mesh
-  bool validorientation;              // false if mesh have inconsistent faces
-  bool validarea;                     // false if the area is too small
-  bool validvolume;                   // false if the volume is too small
-  bool valideigenvalue;               // false if inertia eigenvalue is too small
-  bool validinequality;               // false if inertia inequality is not satisfied
-  bool processed;                     // false if the mesh has not been processed yet
+  std::pair<int, int> invalidorientation;     // indices of invalid edge; -1 if none
+  bool validarea;                             // false if the area is too small
+  bool validvolume;                           // false if the volume is too small
+  bool valideigenvalue;                       // false if inertia eigenvalue is too small
+  bool validinequality;                       // false if inertia inequality is not satisfied
+  bool processed;                             // false if the mesh has not been processed yet
 
   // mesh properties computed by Compile
   double pos_volume[3];               // CoM position

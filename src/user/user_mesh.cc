@@ -114,7 +114,8 @@ mjCMesh::mjCMesh(mjCModel* _model, mjCDef* _def) {
   face = NULL;
   graph = NULL;
   needhull = false;
-  validorientation = true;
+  invalidorientation.first = -1;
+  invalidorientation.second = -1;
   validarea = true;
   validvolume = true;
   valideigenvalue = true;
@@ -275,7 +276,8 @@ void mjCMesh::Compile(const mjVFS* vfs) {
     std::sort(useredge.begin(), useredge.end());
     auto iterator = std::adjacent_find(useredge.begin(), useredge.end());
     if (iterator != useredge.end()) {
-      validorientation = false;
+      invalidorientation.first = iterator->first+1;
+      invalidorientation.second = iterator->second+1;
     }
   }
 
@@ -1195,8 +1197,11 @@ void mjCMesh::CheckMesh() {
   if (!processed) {
     return;
   }
-  if (!validorientation)
-    throw mjCError(this, "faces have inconsistent orientation: %s", name.c_str());
+  if (invalidorientation.first>=0 || invalidorientation.second>=0)
+    throw mjCError(this,
+                   "faces of mesh '%s' have inconsistent orientation. Please check the "
+                   "faces containing the vertices %d and %d.",
+                   name.c_str(), invalidorientation.first, invalidorientation.second);
   if (!validarea)
     throw mjCError(this, "mesh surface area is too small: %s", name.c_str());
   if (!validvolume)
