@@ -150,7 +150,7 @@ the clause:
       near = self._model.vis.map.znear * extent
       far = self._model.vis.map.zfar * extent
 
-      # Convert from [0 1] to depth in meters, see links below:
+      # Convert from [0 1] to depth in units of length, see links below:
       # http://stackoverflow.com/a/6657284/1461210
       # https://www.khronos.org/opengl/wiki/Depth_Buffer_Precision
       pixels = near / (1 - self._depth_buffer * (1 - near / far))
