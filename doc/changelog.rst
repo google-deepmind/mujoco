@@ -34,7 +34,7 @@ General
 
 #. Removed the requirement that stateless actuators come before stateful actuators.
 #. Added :ref:`mju_fill`, :ref:`mju_symmetrize` and :ref:`mju_eye` utility functions.
-#. Added :at:`gravcomp` attribute to :ref:`body<body>`, implementing gravity compensation and bouyancy.
+#. Added :at:`gravcomp` attribute to :ref:`body<body>`, implementing gravity compensation and buoyancy.
    See `balloons.xml <https://github.com/deepmind/mujoco/tree/main/model/balloons/balloons.xml>`_ example model.
 #. Renamed the ``cable`` plugin library to ``elasticity``.
 #. Added :at:`actdim` attribute to :ref:`general actuators<actuator-general>`. Values greater than 1 are only allowed
@@ -64,16 +64,16 @@ General
    - Only suitable for small strains (large displacements but small deformations). Tetrahedra may invert if subject to
      large loads.
 
-#. Add API functions ``mj_loadPluginLibrary`` and  ``mj_loadAllPluginLibraries``. The first function is identical to
+#. Added API functions ``mj_loadPluginLibrary`` and  ``mj_loadAllPluginLibraries``. The first function is identical to
    ``dlopen`` on a POSIX system, and to ``LoadLibraryA`` on Windows. The second function scans a specified directory for
    all dynamic libraries file and loads each library found. Dynamic libraries opened by these functions are assumed to
    register one or more MuJoCo plugins on load.
-#. Add an optional ``visualize`` callback to plugins, which is called during ``mjv_updateScene``. This callback allows
+#. Added an optional ``visualize`` callback to plugins, which is called during ``mjv_updateScene``. This callback allows
    custom plugin visualizations. Enable stress visualization for the Cable plugin as an example.
 #. Sensors of type :ref:`user<sensor-user>` no longer require :at:`objtype`, :at:`objname` and :at:`needstage`. If
    unspecified, the objtype is now :ref:`mjOBJ_UNKNOWN<mjtObj>`. ``user`` sensors :at:`datatype` default is now
    :at-val:`"real"`, :at:`needstage` default is now :at-val:`"acc"`.
-#. Add support for capsules in URDF import.
+#. Added support for capsules in URDF import.
 #. On macOS, issue an informative error message when run under `Rosetta 2 <https://support.apple.com/en-gb/HT211861>`_
    translation on an Apple Silicon machine. Pre-built MuJoCo binaries make use of
    `AVX <https://en.wikipedia.org/wiki/Advanced_Vector_Extensions>`_ instructions on x86-64 machines, which is not
