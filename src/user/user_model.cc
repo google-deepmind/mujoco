@@ -2633,7 +2633,7 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
       m->plugin_stateadr[i] = stateadr;
       m->plugin_statenum[i] = nstate;
       stateadr += nstate;
-      if (plugin->type & mjPLUGIN_SENSOR) {
+      if (plugin->capabilities & mjPLUGIN_SENSOR) {
         for (int sensor_id : plugin_to_sensors[i]) {
           if (!plugin->nsensordata) {
             mju_error_i("`reset` is null for plugin at slot %d", m->plugin[i]);

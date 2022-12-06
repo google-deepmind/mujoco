@@ -357,7 +357,7 @@ void mj_sensorPos(const mjModel* m, mjData* d) {
       if (!plugin) {
         mju_error_i("invalid plugin slot: %d", slot);
       }
-      if ((plugin->type & mjPLUGIN_SENSOR) &&
+      if ((plugin->capabilities & mjPLUGIN_SENSOR) &&
           (plugin->needstage==mjSTAGE_POS || plugin->needstage==mjSTAGE_NONE)) {
         if (!plugin->compute) {
           mju_error_i("`compute` is a null function pointer for plugin at slot %d", slot);
@@ -538,7 +538,7 @@ void mj_sensorVel(const mjModel* m, mjData* d) {
       if (!plugin) {
         mju_error_i("invalid plugin slot: %d", slot);
       }
-      if ((plugin->type & mjPLUGIN_SENSOR) && plugin->needstage==mjSTAGE_VEL) {
+      if ((plugin->capabilities & mjPLUGIN_SENSOR) && plugin->needstage==mjSTAGE_VEL) {
         if (!plugin->compute) {
           mju_error_i("`compute` is null for plugin at slot %d", slot);
         }
@@ -747,7 +747,7 @@ void mj_sensorAcc(const mjModel* m, mjData* d) {
       if (!plugin) {
         mju_error_i("invalid plugin slot: %d", slot);
       }
-      if ((plugin->type & mjPLUGIN_SENSOR) && plugin->needstage==mjSTAGE_ACC) {
+      if ((plugin->capabilities & mjPLUGIN_SENSOR) && plugin->needstage==mjSTAGE_ACC) {
         if (!plugin->compute) {
           mju_error_i("`compute` is null for plugin at slot %d", slot);
         }

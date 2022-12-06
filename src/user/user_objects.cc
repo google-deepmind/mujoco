@@ -819,7 +819,7 @@ void mjCBody::Compile(void) {
 
     model->ResolvePlugin(this, plugin_name, plugin_instance_name, &plugin_instance);
     const mjpPlugin* plugin = mjp_getPluginAtSlot(plugin_instance->plugin_slot);
-    if (!(plugin->type & mjPLUGIN_PASSIVE)) {
+    if (!(plugin->capabilities & mjPLUGIN_PASSIVE)) {
       throw mjCError(this, "plugin '%s' does not support passive forces", plugin->name);
     }
   }
@@ -3618,7 +3618,7 @@ void mjCActuator::Compile(void) {
 
     model->ResolvePlugin(this, plugin_name, plugin_instance_name, &plugin_instance);
     const mjpPlugin* plugin = mjp_getPluginAtSlot(plugin_instance->plugin_slot);
-    if (!(plugin->type & mjPLUGIN_ACTUATOR)) {
+    if (!(plugin->capabilities & mjPLUGIN_ACTUATOR)) {
       throw mjCError(this, "plugin '%s' does not support actuators", plugin->name);
     }
   }
@@ -4006,7 +4006,7 @@ void mjCSensor::Compile(void) {
     {
       model->ResolvePlugin(this, plugin_name, plugin_instance_name, &plugin_instance);
       const mjpPlugin* plugin = mjp_getPluginAtSlot(plugin_instance->plugin_slot);
-      if (!(plugin->type & mjPLUGIN_SENSOR)) {
+      if (!(plugin->capabilities & mjPLUGIN_SENSOR)) {
         throw mjCError(this, "plugin '%s' does not support sensors", plugin->name);
       }
       needstage = static_cast<mjtStage>(plugin->needstage);

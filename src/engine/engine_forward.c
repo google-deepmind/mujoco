@@ -279,7 +279,7 @@ void mj_fwdActuation(const mjModel* m, mjData* d) {
       if (!plugin) {
         mju_error_i("invalid plugin slot: %d", slot);
       }
-      if (plugin->type & mjPLUGIN_ACTUATOR) {
+      if (plugin->capabilities & mjPLUGIN_ACTUATOR) {
         if (!plugin->compute) {
           mju_error_i("`compute` is a null function pointer for plugin at slot %d", slot);
         }
@@ -774,9 +774,31 @@ void mj_forwardSkip(const mjModel* m, mjData* d, int skipstage, int skipsensor) 
   }
 
   // acceleration-dependent
-  if (mjcb_control && !mjDISABLED(mjDSBL_ACTUATION)) {
-    mjcb_control(m, d);
-  }
+  if (!mjDISABLED(mjDSBL_ACTUATION)) {
+    // call legacy control callback if specified
+    if (mjcb_control) {
+      mjcb_control(m, d);
+    }
+
+    // handle control plugins
+    if (m->nplugin) {
+      const int nslot = mjp_pluginCount();
+      for (int i=0; i<m->nplugin; i++) {
+        const int slot = m->plugin[i];
+        const mjpPlugin* plugin = mjp_getPluginAtSlotUnsafe(slot, nslot);
+        if (!plugin) {
+          mju_error_i("invalid plugin slot: %d", slot);
+        }
+        if (plugin->capabilities & mjPLUGIN_CONTROL) {
+          if (!plugin->compute) {
+            mju_error_i("`compute` is a null function pointer for plugin at slot %d", slot);
+          }
+          plugin->compute(m, d, i, mjPLUGIN_CONTROL);
+        }
+      }
+    }
+}
+
   mj_fwdActuation(m, d);
   mj_fwdAcceleration(m, d);
   mj_fwdConstraint(m, d);

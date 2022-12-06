@@ -20,11 +20,12 @@
 #include <mujoco/mjvisualize.h>
 
 
-typedef enum mjtPluginTypeBit_ {
+typedef enum mjtPluginCapabilityBit_ {
   mjPLUGIN_ACTUATOR = 1<<0,
   mjPLUGIN_SENSOR   = 1<<1,
   mjPLUGIN_PASSIVE  = 1<<2,
-} mjtPluginTypeBit;
+  mjPLUGIN_CONTROL  = 1<<3,
+} mjtPluginCapabilityBit;
 
 struct mjpPlugin_ {
   const char* name;    // globally unique name identifying the plugin
@@ -32,7 +33,7 @@ struct mjpPlugin_ {
   int nattribute;                 // number of configuration attributes
   const char* const* attributes;  // name of configuration attributes
 
-  int type;            // bitfield of mjtPluginTypeBits specifying the plugin type
+  int capabilities;    // bitfield of mjtPluginCapabilityBit specifying optional plugin capabilities
   int needstage;       // an mjtStage enum value specifying the sensor computation stage
 
   // number of mjtNums needed to store the state of a plugin instance (required)
@@ -54,7 +55,7 @@ struct mjpPlugin_ {
   void (*reset)(const mjModel* m, mjData* d, int instance);
 
   // called when the plugin needs to update its outputs (required)
-  void (*compute)(const mjModel* m, mjData* d, int instance, int type);
+  void (*compute)(const mjModel* m, mjData* d, int instance, int capability_bit);
 
   // called when time integration occurs (optional)
   void (*advance)(const mjModel* m, mjData* d, int instance);

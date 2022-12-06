@@ -361,10 +361,11 @@ public enum mjtLRMode : int{
   mjLRMODE_MUSCLEUSER = 2,
   mjLRMODE_ALL = 3,
 }
-public enum mjtPluginTypeBit : int{
+public enum mjtPluginCapabilityBit : int{
   mjPLUGIN_ACTUATOR = 1,
   mjPLUGIN_SENSOR = 2,
   mjPLUGIN_PASSIVE = 4,
+  mjPLUGIN_CONTROL = 8,
 }
 public enum mjtGridPos : int{
   mjGRID_TOPLEFT = 0,

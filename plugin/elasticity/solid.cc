@@ -347,7 +347,7 @@ void Solid::RegisterPlugin() {
   mjp_defaultPlugin(&plugin);
 
   plugin.name = "mujoco.elasticity.solid";
-  plugin.type |= mjPLUGIN_PASSIVE;
+  plugin.capabilities |= mjPLUGIN_PASSIVE;
 
   const char* attributes[] = {"nx", "ny", "nz", "young", "poisson", "damping"};
   plugin.nattribute = sizeof(attributes) / sizeof(attributes[0]);
@@ -367,10 +367,11 @@ void Solid::RegisterPlugin() {
     delete reinterpret_cast<Solid*>(d->plugin_data[instance]);
     d->plugin_data[instance] = 0;
   };
-  plugin.compute = +[](const mjModel* m, mjData* d, int instance, int type) {
-    auto* elasticity = reinterpret_cast<Solid*>(d->plugin_data[instance]);
-    elasticity->Compute(m, d, instance);
-  };
+  plugin.compute =
+      +[](const mjModel* m, mjData* d, int instance, int capability_bit) {
+        auto* elasticity = reinterpret_cast<Solid*>(d->plugin_data[instance]);
+        elasticity->Compute(m, d, instance);
+      };
 
   mjp_registerPlugin(&plugin);
 }

@@ -33,8 +33,7 @@ struct Stencil {
 class Solid {
  public:
   // Returns a new Solid instance or nullopt on failure.
-  static std::optional<Solid> Create(const mjModel* m, mjData* d,
-                                     int instance);
+  static std::optional<Solid> Create(const mjModel* m, mjData* d, int instance);
   Solid(Solid&&) = default;
 
   Solid& operator=(Solid&& other) = default;

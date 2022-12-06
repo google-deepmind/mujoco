@@ -206,7 +206,7 @@ int RegisterSensorPlugin() {
   plugin.nattribute = sizeof(attributes) / sizeof(*attributes);
   plugin.attributes = attributes;
 
-  plugin.type |= mjPLUGIN_SENSOR;
+  plugin.capabilities |= mjPLUGIN_SENSOR;
 
   plugin.nstate = +[](const mjModel* m, int instance) { return 3; };
   plugin.nsensordata =
@@ -250,7 +250,7 @@ int RegisterActuatorPlugin() {
   plugin.nattribute = sizeof(attributes) / sizeof(*attributes);
   plugin.attributes = attributes;
 
-  plugin.type |= mjPLUGIN_ACTUATOR;
+  plugin.capabilities |= mjPLUGIN_ACTUATOR;
 
   plugin.nstate = +[](const mjModel* m, int instance) { return 3; };
 
@@ -292,7 +292,7 @@ int RegisterPassivePlugin() {
   plugin.nattribute = sizeof(attributes) / sizeof(*attributes);
   plugin.attributes = attributes;
 
-  plugin.type |= mjPLUGIN_PASSIVE;
+  plugin.capabilities |= mjPLUGIN_PASSIVE;
 
   plugin.nstate = +[](const mjModel* m, int instance) { return 0; };
 

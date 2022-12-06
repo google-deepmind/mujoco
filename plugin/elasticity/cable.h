@@ -30,8 +30,7 @@ class Cable {
  public:
   // Creates a new Cable instance (allocated with `new`) or
   // returns null on failure.
-  static std::optional<Cable> Create(const mjModel* m, mjData* d,
-                                          int instance);
+  static std::optional<Cable> Create(const mjModel* m, mjData* d, int instance);
   Cable(Cable&&) = default;
   ~Cable() = default;
 
