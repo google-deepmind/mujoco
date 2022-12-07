@@ -91,8 +91,8 @@ TEST_F(PluginTest, ElasticEnergy) {
       mjtNum volume = 1./6.;
       for (int e1 = 0; e1 < 6; e1++) {
         for (int e2 = 0; e2 < 6; e2++) {
-          int idx1 = solid->tetrahedra[t].edges[e1];
-          int idx2 = solid->tetrahedra[t].edges[e2];
+          int idx1 = solid->elements[t].edges[e1];
+          int idx2 = solid->elements[t].edges[e2];
           mjtNum elongation1 = scale*solid->reference[idx1];
           mjtNum elongation2 = scale*solid->reference[idx2];
           energy += solid->metric[36*t+6*e2+e1] * elongation1 * elongation2;

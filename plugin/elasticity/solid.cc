@@ -29,11 +29,16 @@ namespace mujoco::plugin::elasticity {
 namespace {
 
 // local tetrahedron numbering
-constexpr int edge[6][2] = {{0, 1}, {1, 2}, {2, 0}, {2, 3}, {0, 3}, {1, 3}};
-constexpr int face[4][3] = {{2, 1, 0}, {0, 1, 3}, {1, 2, 3}, {2, 0, 3}};
-constexpr int e2f[6][2] = {{2, 3}, {1, 3}, {2, 1}, {1, 0}, {0, 2}, {0, 3}};
-constexpr int cube2tets[6][4] = {{0, 3, 1, 7}, {0, 1, 4, 7}, {1, 3, 2, 7},
-                                 {1, 2, 6, 7}, {1, 5, 4, 7}, {1, 6, 5, 7}};
+constexpr int kNumEdges = Stencil3D::kNumEdges;
+constexpr int kNumVerts = Stencil3D::kNumVerts;
+constexpr int edge[kNumEdges][2] = {{0, 1}, {1, 2}, {2, 0},
+                                    {2, 3}, {0, 3}, {1, 3}};
+constexpr int face[kNumVerts][3] = {{2, 1, 0}, {0, 1, 3}, {1, 2, 3}, {2, 0, 3}};
+constexpr int e2f[kNumEdges][2] = {{2, 3}, {1, 3}, {2, 1},
+                                   {1, 0}, {0, 2}, {0, 3}};
+constexpr int cube2tets[kNumEdges][kNumVerts] = {{0, 3, 1, 7}, {0, 1, 4, 7},
+                                                 {1, 3, 2, 7}, {1, 2, 6, 7},
+                                                 {1, 5, 4, 7}, {1, 6, 5, 7}};
 
 // Cartesian distance between 3D vectors
 mjtNum SquaredDist3(const mjtNum pos1[3], const mjtNum pos2[3]) {
@@ -42,7 +47,7 @@ mjtNum SquaredDist3(const mjtNum pos1[3], const mjtNum pos2[3]) {
 }
 
 // volume of a tetrahedron
-mjtNum ComputeVolume(const mjtNum* x, const int v[4]) {
+mjtNum ComputeVolume(const mjtNum* x, const int v[kNumVerts]) {
   mjtNum normal[3];
   mjtNum edge1[3];
   mjtNum edge2[3];
@@ -57,7 +62,7 @@ mjtNum ComputeVolume(const mjtNum* x, const int v[4]) {
 }
 
 // compute local basis
-void ComputeBasis(mjtNum basis[9], const mjtNum* x, const int v[4],
+void ComputeBasis(mjtNum basis[9], const mjtNum* x, const int v[kNumVerts],
                   const int faceL[3], const int faceR[3], mjtNum volume) {
   mjtNum normalL[3], normalR[3];
   mjtNum edgesL[6], edgesR[6];
@@ -96,11 +101,11 @@ void UpdateSquaredLengths(std::vector<mjtNum>& len,
 }
 
 // gradients of edge lengths with respect to vertex positions
-void GradSquaredLengths(mjtNum gradient[6][2][3],
+void GradSquaredLengths(mjtNum gradient[kNumEdges][2][3],
                         const mjtNum* x,
-                        const int v[4],
-                        const int edge[6][2]) {
-  for (int e = 0; e < 6; e++) {
+                        const int v[kNumVerts],
+                        const int edge[kNumEdges][2]) {
+  for (int e = 0; e < kNumEdges; e++) {
     for (int d = 0; d < 3; d++) {
       gradient[e][0][d] = x[3*v[edge[e][0]]+d] - x[3*v[edge[e][1]]+d];
       gradient[e][1][d] = x[3*v[edge[e][1]]+d] - x[3*v[edge[e][0]]+d];
@@ -150,7 +155,7 @@ std::optional<Solid> Solid::Create(const mjModel* m, mjData* d, int instance) {
 
 // create map from tetrahedra to vertices and edges and from edges to vertices
 void Solid::CreateStencils(int nx, int ny, int nz) {
-  tetrahedra.resize(nt);
+  elements.resize(nt);
 
   // create a tetrahedral mesh by splitting a grid of hexahedral cells
   for (int ix = 0; ix < nx-1; ix++) {
@@ -168,8 +173,8 @@ void Solid::CreateStencils(int nx, int ny, int nz) {
           nz*ny*(ix+0) + nz*(iy+1) + iz+1,
         };
         for (int s = 0; s < 6; s++) {
-          for (int v = 0; v < 4; v++) {
-            tetrahedra[t+s].vertices[v] = vert[cube2tets[s][v]];
+          for (int v = 0; v < kNumVerts; v++) {
+            elements[t+s].vertices[v] = vert[cube2tets[s][v]];
           }
         }
       }
@@ -181,10 +186,10 @@ void Solid::CreateStencils(int nx, int ny, int nz) {
 
   // loop over all tetrahedra
   for (int t = 0; t < nt; t++) {
-    int* v = tetrahedra[t].vertices;
+    int* v = elements[t].vertices;
 
     // compute edges to vertices map for fast computations
-    for (int e = 0; e < 6; e++) {
+    for (int e = 0; e < kNumEdges; e++) {
       auto pair = std::pair(
         std::min(v[edge[e][0]], v[edge[e][1]]),
         std::max(v[edge[e][0]], v[edge[e][1]])
@@ -195,9 +200,9 @@ void Solid::CreateStencils(int nx, int ny, int nz) {
 
       if (inserted) {
         edges.push_back(pair);
-        tetrahedra[t].edges[e] = ne++;
+        elements[t].edges[e] = ne++;
       } else {
-        tetrahedra[t].edges[e] = it->second;
+        elements[t].edges[e] = it->second;
       }
     }
   }
@@ -217,17 +222,17 @@ Solid::Solid(const mjModel* m, mjData* d, int instance, int nx, int ny, int nz,
   }
 
   // allocate arrays
-  nc = (nx-1)*(ny-1)*(nz-1);  // number of cubes
-  nt = 6*nc;                  // number of tets
-  metric.assign(36*nt, 0);    // metric induced by the geometry
+  nc = (nx-1)*(ny-1)*(nz-1);                  // number of cubes
+  nt = 6*nc;                                  // number of tets
+  metric.assign(kNumEdges*kNumEdges*nt, 0);   // metric induced by the geometry
 
   // generate tetrahedra from the vertices
   CreateStencils(nx, ny, nz);
 
   // loop over all tetrahedra
   for (int t = 0; t < nt; t++) {
-    int* v = tetrahedra[t].vertices;
-    for (int i = 0; i < 4; i++) {
+    int* v = elements[t].vertices;
+    for (int i = 0; i < kNumVerts; i++) {
       if (m->body_plugin[i0+v[i]] != instance) {
         mju_error("This body does not have the requested plugin instance");
       }
@@ -237,29 +242,29 @@ Solid::Solid(const mjModel* m, mjData* d, int instance, int nx, int ny, int nz,
     mjtNum volume = ComputeVolume(m->body_pos+3*i0, v);
 
     // local geometric quantities
-    mjtNum basis[6][9] = {{0}, {0}, {0}, {0}, {0}, {0}};
-    mjtNum trT[6] = {0};
-    mjtNum trTT[36] = {0};
+    mjtNum basis[kNumEdges][9] = {{0}, {0}, {0}, {0}, {0}, {0}};
+    mjtNum trT[kNumEdges] = {0};
+    mjtNum trTT[kNumEdges*kNumEdges] = {0};
 
     // compute edge basis
-    for (int e = 0; e < 6; e++) {
+    for (int e = 0; e < kNumEdges; e++) {
       ComputeBasis(basis[e], m->body_pos+3*i0, v,
                    face[e2f[e][0]], face[e2f[e][1]], volume);
     }
 
     // compute first invariant i.e. trace(strain)
-    for (int e = 0; e < 6; e++) {
+    for (int e = 0; e < kNumEdges; e++) {
       for (int i = 0; i < 3; i++) {
         trT[e] += basis[e][4*i];
       }
     }
 
     // compute second invariant i.e. trace(strain^2)
-    for (int ed1 = 0; ed1 < 6; ed1++) {
-      for (int ed2 = 0; ed2 < 6; ed2++) {
+    for (int ed1 = 0; ed1 < kNumEdges; ed1++) {
+      for (int ed2 = 0; ed2 < kNumEdges; ed2++) {
         for (int i = 0; i < 3; i++) {
           for (int j = 0; j < 3; j++) {
-            trTT[6*ed1+ed2] += basis[ed1][3*i+j] * basis[ed2][3*j+i];
+            trTT[kNumEdges*ed1+ed2] += basis[ed1][3*i+j] * basis[ed2][3*j+i];
           }
         }
       }
@@ -270,9 +275,10 @@ Solid::Solid(const mjModel* m, mjData* d, int instance, int nx, int ny, int nz,
     mjtNum la = E*nu / ((1+nu)*(1-2*nu)) * volume;
 
     // assembly of strain metric tensor
-    for (int ed1 = 0; ed1 < 6; ed1++) {
-      for (int ed2 = 0; ed2 < 6; ed2++) {
-        metric[36*t+6*ed1+ed2] = mu * trTT[6*ed1+ed2] + la * trT[ed2]*trT[ed1];
+    for (int ed1 = 0; ed1 < kNumEdges; ed1++) {
+      for (int ed2 = 0; ed2 < kNumEdges; ed2++) {
+        int index = kNumEdges*kNumEdges*t + kNumEdges*ed1 + ed2;
+        metric[index] = mu * trTT[kNumEdges*ed1+ed2] + la * trT[ed2]*trT[ed1];
       }
     }
   }
@@ -292,10 +298,10 @@ void Solid::Compute(const mjModel* m, mjData* d, int instance) {
 
   // loop over all elements
   for (int t = 0; t < nt; t++)  {
-    int* v = tetrahedra[t].vertices;
+    int* v = elements[t].vertices;
 
     // compute length gradient with respect to dofs
-    mjtNum gradient[6][2][3];
+    mjtNum gradient[kNumEdges][2][3];
     GradSquaredLengths(gradient, d->xpos+3*i0, v, edge);
 
     // we add generalized Rayleigh damping as decribed in Section 5.2 of
@@ -303,10 +309,10 @@ void Solid::Compute(const mjModel* m, mjData* d, int instance) {
     // Animation" http://multires.caltech.edu/pubs/DiscreteLagrangian.pdf
 
     // compute elongation
-    mjtNum elongation[6];
+    mjtNum elongation[kNumEdges];
     mjtNum kD = damping / m->opt.timestep;
-    for (int e = 0; e < 6; e++) {
-      int idx = tetrahedra[t].edges[e];
+    for (int e = 0; e < kNumEdges; e++) {
+      int idx = elements[t].edges[e];
       elongation[e] = deformed[idx] - reference[idx] +
                     ( deformed[idx] -  previous[idx] ) * kD;
     }
@@ -316,20 +322,22 @@ void Solid::Compute(const mjModel* m, mjData* d, int instance) {
     // mass-spring model
 
     // compute local force
-    mjtNum force[12] = {0};
-    for (int ed1 = 0; ed1 < 6; ed1++) {
-      for (int ed2 = 0; ed2 < 6; ed2++) {
+    mjtNum force[kNumVerts*3] = {0};
+    int offset = kNumEdges*kNumEdges;
+    for (int ed1 = 0; ed1 < kNumEdges; ed1++) {
+      for (int ed2 = 0; ed2 < kNumEdges; ed2++) {
         for (int i = 0; i < 2; i++) {
           for (int x = 0; x < 3; x++) {
-            force[3*edge[ed2][i]+x] +=
-              elongation[ed1] * gradient[ed2][i][x] * metric[36*t+6*ed1+ed2];
+            force[3 * edge[ed2][i] + x] +=
+                elongation[ed1] * gradient[ed2][i][x] *
+                metric[offset * t + kNumEdges * ed1 + ed2];
           }
         }
       }
     }
 
     // insert into global force
-    for (int i = 0; i < 4; i++) {
+    for (int i = 0; i < kNumVerts; i++) {
       for (int x = 0; x < 3; x++) {
         d->qfrc_passive[m->body_dofadr[i0]+3*v[i]+x] -= force[3*i+x];
       }

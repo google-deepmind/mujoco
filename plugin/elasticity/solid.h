@@ -25,9 +25,11 @@
 
 namespace mujoco::plugin::elasticity {
 
-struct Stencil {
-  int vertices[4];
-  int edges[6];
+struct Stencil3D {
+  static constexpr int kNumEdges = 6;
+  static constexpr int kNumVerts = 4;
+  int vertices[kNumVerts];
+  int edges[kNumEdges];
 };
 
 class Solid {
@@ -49,7 +51,7 @@ class Solid {
   int ne;  // number of edges in the solid
 
   // connectivity info for mapping tetrahedra to edges and vertices
-  std::vector<Stencil> tetrahedra;          // 4 vertices and 6 edges (nt x 10)
+  std::vector<Stencil3D> elements;          // 4 vertices and 6 edges (nt x 10)
   std::vector<std::pair<int, int> > edges;  // edge to vertex map     (ne x 2)
 
   // precomputed quantities
