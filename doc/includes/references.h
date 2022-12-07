@@ -1796,7 +1796,7 @@ struct mjvFigure_ {               // abstract 2D figure passed to OpenGL rendere
 };
 typedef struct mjvFigure_ mjvFigure;
 
-//---------------------- MJAPI FUNCTIONS ------------------------
+//----------------------------- MJAPI FUNCTIONS --------------------------------
 void mj_defaultVFS(mjVFS* vfs);
 int mj_addFileVFS(mjVFS* vfs, const char* directory, const char* filename);
 int mj_makeEmptyFileVFS(mjVFS* vfs, const char* filename, int filesize);
