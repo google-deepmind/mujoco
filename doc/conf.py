@@ -143,8 +143,6 @@ html_css_files = [
 
 html_favicon = 'favicons/favicon-32x32.png'
 
-html_permalinks_icon = "🔗"
-
 # -- Options for katex ------------------------------------------------------
 
 # See: https://sphinxcontrib-katex.readthedocs.io/en/0.4.1/macros.html
