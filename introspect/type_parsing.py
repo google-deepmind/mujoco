@@ -128,15 +128,16 @@ def parse_type(
   """Parses a string that represents a C type into an AST node."""
   try:
     type_str_stack = _peel_nested_parens(type_name.strip())
-  except AssertionError:
-    raise ValueError(f'{type_name!r} contains incorrectly nested parentheses')
+  except AssertionError as e:
+    raise ValueError(f'{type_name!r} contains incorrectly nested '
+                     f'parentheses') from e
 
   result = None
   while type_str_stack:
     try:
       result = _parse_maybe_array(type_str_stack.pop(), result)
-    except AssertionError:
-      raise ValueError(f'invalid type name {type_name!r}')
+    except AssertionError as e:
+      raise ValueError(f'invalid type name {type_name!r}') from e
 
   assert result  # hint for pytype that `result` isn't None
   return result
