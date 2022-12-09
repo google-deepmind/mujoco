@@ -106,9 +106,9 @@ class MJSIMULATEAPI Simulate {
   int run = 1;
 
   // atomics for cross-thread messages
-  std::atomic_bool exitrequest = false;
-  std::atomic_bool droploadrequest = false;
-  std::atomic_bool screenshotrequest = false;
+  std::atomic_int exitrequest = false;
+  std::atomic_int droploadrequest = false;
+  std::atomic_int screenshotrequest = false;
   std::atomic_int uiloadrequest = 0;
 
   // loadrequest
