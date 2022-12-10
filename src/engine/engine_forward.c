@@ -452,6 +452,7 @@ void mj_fwdConstraint(const mjModel* m, mjData* d) {
     mju_copy(d->qacc_warmstart, d->qacc_smooth, nv);
     mju_zero(d->qfrc_constraint, nv);
     d->solver_iter = 0;
+    TM_END(mjTIMER_CONSTRAINT);
     return;
   }
 
