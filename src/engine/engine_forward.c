@@ -734,7 +734,7 @@ void mj_implicitSkip(const mjModel *m, mjData *d, int skipfactor) {
   // advance state and time
   mj_advance(m, d, d->act_dot, qacc, NULL);
 
-  mjFREESTACK
+  mjFREESTACK;
 }
 
 

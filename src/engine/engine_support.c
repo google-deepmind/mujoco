@@ -917,7 +917,7 @@ void mj_makeMSparse(const mjModel* m, mjData* d, int* rownnz, int* rowadr, int* 
     }
   }
 
-  mjFREESTACK
+  mjFREESTACK;
 }
 
 
@@ -952,7 +952,7 @@ void mj_setMSparse(const mjModel* m, mjData* d, mjtNum* dst,
     }
   }
 
-  mjFREESTACK
+  mjFREESTACK;
 }
 
 
