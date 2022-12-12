@@ -376,6 +376,9 @@ public class MjcfImporter {
             break;
         }
         break;
+      case "user":
+        sensorType = typeof(MjUserSensor);
+        break;
       default:
         Debug.Log($"The importer does not yet support sensor <{node.Name}>.");
         break;

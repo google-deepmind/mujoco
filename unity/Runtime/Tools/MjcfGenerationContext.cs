@@ -72,12 +72,9 @@ public class MjcfGenerationContext {
         "gravity", MjEngineTool.Vector3ToMjcf(MjEngineTool.MjVector3(Physics.gravity)));
     optionMjcf.SetAttribute("timestep", MjEngineTool.MakeLocaleInvariant($"{Time.fixedDeltaTime}"));
 
-    var sizeMjcf = (XmlElement)mjcf.AppendChild(doc.CreateElement("size"));
-    sizeMjcf.SetAttribute("nuser_sensor", $"{_nuserSensor}");
-
     var settings = MjGlobalSettings.Instance;
     if (settings) {
-      settings.OptionSizeToMjcf(optionMjcf, sizeMjcf);
+      settings.OptionSizeToMjcf(optionMjcf, null);
     }
   }
 

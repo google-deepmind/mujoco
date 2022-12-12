@@ -99,10 +99,23 @@ public class MjSceneGenerationTests {
 
   [Test]
   public void SensorsAreAddedToDedicatedTag() {
-    _sensor.enabled = true;
+    _sensor1.enabled = true;
     var mjcf = _scene.CreateScene(skipCompile:true);
     var mjcfForSensor = mjcf.SelectNodes("/mujoco/sensor/jointpos")[0] as XmlElement;
     Assert.That(mjcfForSensor, Is.Not.Null);
+  }
+
+  [Test]
+  public void SensorsAreOrdered() {
+    _sensor0.enabled = true;
+    _sensor1.enabled = true;
+    var mjcf = _scene.CreateScene(skipCompile:true);
+    var sensor0Element =
+        mjcf.SelectNodes("/mujoco/sensor")[0].ChildNodes[_sensor0.transform.GetSiblingIndex()] as XmlElement;
+    Assert.That(sensor0Element.Name, Is.EqualTo("user"));
+    var sensor1Element =
+        mjcf.SelectNodes("/mujoco/sensor")[0].ChildNodes[_sensor1.transform.GetSiblingIndex()] as XmlElement;
+    Assert.That(sensor1Element.Name, Is.EqualTo("jointpos"));
   }
 
   [Test]
@@ -168,7 +181,9 @@ public class MjSceneGenerationTests {
   private MjScene _scene;
   private FakeMjBody _fakeBodyA;
   private FakeMjBody _fakeBodyB;
-  private MjJointScalarSensor _sensor;
+  private Transform _sensorGroup;
+  private MjUserSensor _sensor0;
+  private MjJointScalarSensor _sensor1;
   private MjBody _body;
   private MjInertial _inertia;
   private MjHingeJoint _joint;
@@ -181,7 +196,12 @@ public class MjSceneGenerationTests {
     _scene = MjScene.Instance;
     _fakeBodyA = new GameObject("component").AddComponent<FakeMjBody>();
     _fakeBodyB = new GameObject("component").AddComponent<FakeMjBody>();
-    _sensor = new GameObject("sensor").AddComponent<MjJointScalarSensor>();
+    _sensor0 = new GameObject("sensor").AddComponent<MjUserSensor>();
+    _sensor0.Dimension = 1;
+    _sensor1 = new GameObject("sensor").AddComponent<MjJointScalarSensor>();
+    _sensorGroup = new GameObject("sensors").transform;
+    _sensor0.transform.parent = _sensorGroup;
+    _sensor1.transform.parent = _sensorGroup;
     _actuator = new GameObject("actuator").AddComponent<MjActuator>();
     // body, joint and inertia are always present so that the actuator and sensor are valid
     _body = new GameObject("body").AddComponent<MjBody>();
@@ -189,12 +209,12 @@ public class MjSceneGenerationTests {
     _inertia.transform.parent = _body.transform;
     _joint = new GameObject("joint").AddComponent<MjHingeJoint>();
     _joint.transform.parent = _body.transform;
-    _sensor.Joint = _joint;
-    _sensor.SensorType = MjJointScalarSensor.AvailableSensors.JointPos;
+    _sensor1.Joint = _joint;
+    _sensor1.SensorType = MjJointScalarSensor.AvailableSensors.JointPos;
     _actuator.Joint = _joint;
     _fakeBodyA.enabled = false;
     _fakeBodyB.enabled = false;
-    _sensor.enabled = false;
+    _sensor1.enabled = false;
     _actuator.enabled = false;
   }
 
@@ -202,7 +222,8 @@ public class MjSceneGenerationTests {
   public void TearDown() {
     UnityEngine.Object.DestroyImmediate(_fakeBodyA.gameObject);
     UnityEngine.Object.DestroyImmediate(_fakeBodyB.gameObject);
-    UnityEngine.Object.DestroyImmediate(_sensor.gameObject);
+    UnityEngine.Object.DestroyImmediate(_sensor0.gameObject);
+    UnityEngine.Object.DestroyImmediate(_sensor1.gameObject);
     UnityEngine.Object.DestroyImmediate(_actuator.gameObject);
     UnityEngine.Object.DestroyImmediate(_joint.gameObject);
     UnityEngine.Object.DestroyImmediate(_inertia.gameObject);
