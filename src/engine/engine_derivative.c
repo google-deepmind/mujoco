@@ -1464,10 +1464,10 @@ void mjd_smooth_vel(const mjModel *m, mjData *d) {
 // finite differenced Jacobian of  (next_state, sensors) = mj_step(state, control)
 //   all outputs are optional
 //   output dimensions (transposed w.r.t Control Theory convention):
-//     DyDq: (nv x 2*nv+na)
-//     DyDv: (nv x 2*nv+na)
-//     DyDa: (na x 2*nv+na)
-//     DyDu: (nu x 2*nv+na)
+//     DyDq: (nv x nq+nv+na)
+//     DyDv: (nv x nq+nv+na)
+//     DyDa: (na x nq+nv+na)
+//     DyDu: (nu x nq+nv+na)
 //     DsDq: (nv x nsensordata)
 //     DsDv: (nv x nsensordata)
 //     DsDa: (na x nsensordata)
@@ -1479,7 +1479,7 @@ void mjd_stepFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte centered,
                 mjtNum* DyDq, mjtNum* DyDv, mjtNum* DyDa, mjtNum* DyDu,
                 mjtNum* DsDq, mjtNum* DsDv, mjtNum* DsDa, mjtNum* DsDu) {
   int nq = m->nq, nv = m->nv, na = m->na, nu = m->nu, ns = m->nsensordata;
-  int ndx = 2*nv+na;  // row length of Dy Jacobians
+  int ndx = nq+nv+na;  // row length of Dy Jacobians
   mjMARKSTACK;
 
   // states
@@ -1716,14 +1716,14 @@ void mjd_stepFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte centered,
 //   d(x_next) = A*dx + B*du
 //   d(sensor) = C*dx + D*du
 //   required output matrix dimensions:
-//      A: (2*nv+na x 2*nv+na)
-//      B: (2*nv+na x nu)
-//      D: (nsensordata x 2*nv+na)
+//      A: (nq+nv+na x nq+nv+na)
+//      B: (nq+nv+na x nu)
+//      D: (nsensordata x nq+nv+na)
 //      C: (nsensordata x nu)
 void mjd_transitionFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte centered,
                       mjtNum* A, mjtNum* B, mjtNum* C, mjtNum* D) {
-  int nv = m->nv, na = m->na, nu = m->nu, ns = m->nsensordata;
-  int ndx = 2*nv+na;  // row length of state Jacobians
+  int nq = m->nq, nv = m->nv, na = m->na, nu = m->nu, ns = m->nsensordata;
+  int ndx = nq+nv+na;  // row length of state Jacobians
 
   // stepFD() offset pointers, initialised to NULL
   mjtNum *DyDq, *DyDv, *DyDa, *DsDq, *DsDv, *DsDa;

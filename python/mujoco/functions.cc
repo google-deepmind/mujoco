@@ -1137,16 +1137,16 @@ PYBIND11_MODULE(_functions, pymodule) {
          std::optional<Eigen::Ref<EigenArrayXX>> C,
          std::optional<Eigen::Ref<EigenArrayXX>> D) {
         if (A.has_value() &&
-            (A->rows() != 2*m->nv+m->na || A->cols() != 2*m->nv+m->na)) {
-          throw py::type_error("A should be of shape (2*nv+na, 2*nv+na)");
+            (A->rows() != m->nq+m->nv+m->na || A->cols() != m->nq+m->nv+m->na)) {
+          throw py::type_error("A should be of shape (nq+nv+na, nq+nv+na)");
         }
         if (B.has_value() &&
-            (B->rows() != 2*m->nv+m->na || B->cols() != m->nu)) {
-          throw py::type_error("B should be of shape (2*nv+na, nu)");
+            (B->rows() != m->nq+m->nv+m->na || B->cols() != m->nu)) {
+          throw py::type_error("B should be of shape (nq+nv+na, nu)");
         }
         if (C.has_value() &&
-            (C->rows() != m->nsensordata || C->cols() != 2*m->nv+m->na)) {
-          throw py::type_error("C should be of shape (nsensordata, 2*nv+na)");
+            (C->rows() != m->nsensordata || C->cols() != m->nq+m->nv+m->na)) {
+          throw py::type_error("C should be of shape (nsensordata, nq+nv+na)");
         }
         if (D.has_value() &&
             (D->rows() != m->nsensordata || D->cols() != m->nu)) {
