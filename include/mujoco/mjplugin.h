@@ -28,13 +28,13 @@ typedef enum mjtPluginCapabilityBit_ {
 } mjtPluginCapabilityBit;
 
 struct mjpPlugin_ {
-  const char* name;    // globally unique name identifying the plugin
+  const char* name;     // globally unique name identifying the plugin
 
   int nattribute;                 // number of configuration attributes
   const char* const* attributes;  // name of configuration attributes
 
-  int capabilities;    // bitfield of mjtPluginCapabilityBit specifying optional plugin capabilities
-  int needstage;       // an mjtStage enum value specifying the sensor computation stage
+  int capabilityflags;  // bitfield of mjtPluginCapabilityBit specifying plugin capabilities
+  int needstage;        // an mjtStage enum value specifying the sensor computation stage
 
   // number of mjtNums needed to store the state of a plugin instance (required)
   int (*nstate)(const mjModel* m, int instance);

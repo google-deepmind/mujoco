@@ -277,7 +277,7 @@ void Cable::RegisterPlugin() {
   mjp_defaultPlugin(&plugin);
 
   plugin.name = "mujoco.elasticity.cable";
-  plugin.capabilities |= mjPLUGIN_PASSIVE;
+  plugin.capabilityflags |= mjPLUGIN_PASSIVE;
 
   const char* attributes[] = {"twist", "bend", "flat", "vmax"};
   plugin.nattribute = sizeof(attributes) / sizeof(attributes[0]);

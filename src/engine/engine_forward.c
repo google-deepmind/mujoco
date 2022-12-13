@@ -279,7 +279,7 @@ void mj_fwdActuation(const mjModel* m, mjData* d) {
       if (!plugin) {
         mju_error_i("invalid plugin slot: %d", slot);
       }
-      if (plugin->capabilities & mjPLUGIN_ACTUATOR) {
+      if (plugin->capabilityflags & mjPLUGIN_ACTUATOR) {
         if (!plugin->compute) {
           mju_error_i("`compute` is a null function pointer for plugin at slot %d", slot);
         }
@@ -790,7 +790,7 @@ void mj_forwardSkip(const mjModel* m, mjData* d, int skipstage, int skipsensor) 
         if (!plugin) {
           mju_error_i("invalid plugin slot: %d", slot);
         }
-        if (plugin->capabilities & mjPLUGIN_CONTROL) {
+        if (plugin->capabilityflags & mjPLUGIN_CONTROL) {
           if (!plugin->compute) {
             mju_error_i("`compute` is a null function pointer for plugin at slot %d", slot);
           }

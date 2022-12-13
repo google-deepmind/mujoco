@@ -355,7 +355,7 @@ void Solid::RegisterPlugin() {
   mjp_defaultPlugin(&plugin);
 
   plugin.name = "mujoco.elasticity.solid";
-  plugin.capabilities |= mjPLUGIN_PASSIVE;
+  plugin.capabilityflags |= mjPLUGIN_PASSIVE;
 
   const char* attributes[] = {"nx", "ny", "nz", "young", "poisson", "damping"};
   plugin.nattribute = sizeof(attributes) / sizeof(attributes[0]);
