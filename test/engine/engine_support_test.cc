@@ -26,6 +26,8 @@ namespace mujoco {
 namespace {
 
 using ::testing::DoubleNear;
+using ::testing::ContainsRegex;
+using ::testing::MatchesRegex;
 using JacobianTest = MujocoTest;
 static const mjtNum max_abs_err = std::numeric_limits<float>::epsilon();
 
@@ -155,14 +157,17 @@ TEST_F(JacobianTest, SubtreeJacNoInternalAcc) {
 
 using VersionTest = MujocoTest;
 
-const char *const kExpectedVersionString = "2.3.1";
-
 TEST_F(VersionTest, MjVersion) {
   EXPECT_EQ(mj_version(), mjVERSION_HEADER);
 }
 
 TEST_F(VersionTest, MjVersionString) {
-  EXPECT_EQ(std::string_view(mj_versionString()), kExpectedVersionString);
+  EXPECT_THAT(std::string_view(mj_versionString()),
+#if GTEST_USES_SIMPLE_RE == 1
+              ContainsRegex("^\\d+\\.\\d+\\.\\d+"));
+#else
+              MatchesRegex("^[0-9]+\\.[0-9]+\\.[0-9]+(-[0-9a-z]+)?$"));
+#endif
 }
 
 }  // namespace
