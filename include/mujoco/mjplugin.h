@@ -52,7 +52,7 @@ struct mjpPlugin_ {
   void (*copy)(mjData* dest, const mjModel* m, const mjData* src, int instance);
 
   // called when an mjData is being reset (required)
-  void (*reset)(const mjModel* m, mjData* d, int instance);
+  void (*reset)(const mjModel* m, double* plugin_state, void* plugin_data, int instance);
 
   // called when the plugin needs to update its outputs (required)
   void (*compute)(const mjModel* m, mjData* d, int instance, int capability_bit);

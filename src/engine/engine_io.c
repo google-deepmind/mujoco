@@ -1149,7 +1149,8 @@ static void _resetData(const mjModel* m, mjData* d, unsigned char debug_value) {
     d->plugin[i] = m->plugin[i];
     const mjpPlugin* plugin = mjp_getPluginAtSlot(m->plugin[i]);
     if (plugin->reset) {
-      plugin->reset(m, d, i);
+      plugin->reset(m, &d->plugin_state[m->plugin_stateadr[i]],
+                    (void*)(d->plugin_data[i]), i);
     }
   }
 }
