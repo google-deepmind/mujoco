@@ -1209,7 +1209,7 @@ void mj_deleteData(mjData* d) {
 const int nPOS[4] = {7, 4, 1, 1};
 const int nVEL[4] = {6, 3, 1, 1};
 
-static int sensorSize(mjtSensor sensor_type, int nuser_sensor) {
+static int sensorSize(mjtSensor sensor_type, int sensor_dim) {
   switch (sensor_type) {
   case mjSENS_TOUCH:
   case mjSENS_RANGEFINDER:
@@ -1254,7 +1254,7 @@ static int sensorSize(mjtSensor sensor_type, int nuser_sensor) {
     return 4;
 
   case mjSENS_USER:
-    return nuser_sensor;
+    return sensor_dim;
 
   case mjSENS_PLUGIN:
     return -1;
@@ -1593,7 +1593,7 @@ const char* mj_validateReferences(const mjModel* m) {
       }
       sensor_size = plugin->nsensordata(m, m->sensor_plugin[i], i);
     } else {
-      sensor_size = sensorSize(sensor_type, m->nuser_sensor);
+      sensor_size = sensorSize(sensor_type, m->sensor_dim[i]);
     }
     if (sensor_size < 0) {
         return "Invalid model: Bad sensor_type.";

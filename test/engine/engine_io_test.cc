@@ -434,6 +434,25 @@ TEST_F(ValidateReferencesTest, SensorsAddress) {
   }
 }
 
+TEST_F(ValidateReferencesTest, SensorsAddressUser) {
+  static const char xml[] = R"(
+  <mujoco>
+    <sensor>
+      <user dim="3" user="1 2 3 4 5" />
+      <user dim="2" />
+      <user dim="1" />
+    </sensor>
+  </mujoco>
+  )";
+
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error.data();
+
+  EXPECT_THAT(mj_validateReferences(model), IsNull());
+  mj_deleteModel(model);
+}
+
 TEST_F(ValidateReferencesTest, SensorsObj) {
   static const char xml[] = R"(
   <mujoco>
