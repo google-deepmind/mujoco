@@ -297,6 +297,8 @@ bool mjCComposite::Make(mjCModel* model, mjCBody* body, char* error, int error_s
     return MakeGrid(model, body, error, error_sz);
 
   case mjCOMPTYPE_ROPE:
+    mju_warning("The \"rope\" composite type is deprecated. Please use \"cable\" instead.");
+    [[fallthrough]];
   case mjCOMPTYPE_LOOP:
     return MakeRope(model, body, error, error_sz);
 

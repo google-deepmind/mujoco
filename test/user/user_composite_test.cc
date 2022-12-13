@@ -20,6 +20,7 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 #include <absl/strings/str_format.h>
+#include "src/cc/array_safety.h"
 #include <mujoco/mjdata.h>
 #include <mujoco/mjmodel.h>
 #include <mujoco/mujoco.h>
@@ -72,9 +73,15 @@ TEST_F(UserCompositeTest, StretchAndTwistAllowed) {
   </worldbody>
   </mujoco>
   )";
+  static char warning[1024];
+  warning[0] = '\0';
+  mju_user_warning = [](const char* msg) {
+    util::strcpy_arr(warning, msg);
+  };
   std::array<char, 1024> error;
   mjModel* m = LoadModelFromString(xml, error.data(), error.size());
   EXPECT_THAT(m, NotNull());
+  EXPECT_THAT(warning, HasSubstr("deprecated"));
   mj_deleteModel(m);
 }
 
