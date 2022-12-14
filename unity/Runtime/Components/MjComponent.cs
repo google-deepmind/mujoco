@@ -99,7 +99,7 @@ public abstract class MjComponent : MonoBehaviour {
   }
 
   public void OnDisable() {
-    if (!_exiting) {
+    if (!_exiting && MjScene.InstanceExists) {
       MjScene.Instance.SceneRecreationAtLateUpdateRequested = true;
     }
   }
