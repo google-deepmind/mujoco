@@ -14,7 +14,7 @@
 
 // Tests for engine/engine_support.c.
 
-#include <string_view>
+#include <string>
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
@@ -162,12 +162,12 @@ TEST_F(VersionTest, MjVersion) {
 }
 
 TEST_F(VersionTest, MjVersionString) {
-  EXPECT_THAT(std::string_view(mj_versionString()),
 #if GTEST_USES_SIMPLE_RE == 1
-              ContainsRegex("^\\d+\\.\\d+\\.\\d+"));
+  auto regex_matcher = ContainsRegex("^\\d+\\.\\d+\\.\\d+");
 #else
-              MatchesRegex("^[0-9]+\\.[0-9]+\\.[0-9]+(-[0-9a-z]+)?$"));
+  auto regex_matcher = MatchesRegex("^[0-9]+\\.[0-9]+\\.[0-9]+(-[0-9a-z]+)?$");
 #endif
+  EXPECT_THAT(std::string(mj_versionString()), regex_matcher);
 }
 
 }  // namespace
