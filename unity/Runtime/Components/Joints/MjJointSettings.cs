@@ -72,7 +72,7 @@ namespace Mujoco {
       var springDamper = mjcf.GetVector2Attribute("springdamper", Vector2.zero);
       TimeConstant = springDamper.x;
       DampingRatio = springDamper.y;
-      EquilibriumPose = mjcf.GetFloatAttribute("springref", 0.0f);
+      EquilibriumPose = MjSceneImportSettings.AnglesInDegrees? mjcf.GetFloatAttribute("springref", 0.0f) : mjcf.GetFloatAttribute("springref", 0.0f) * Mathf.Rad2Deg;
       Damping = mjcf.GetFloatAttribute("damping", 0.0f);
       Stiffness = mjcf.GetFloatAttribute("stiffness", 0.0f);
     }
