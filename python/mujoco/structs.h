@@ -477,7 +477,7 @@ class MjWrapper<raw::MjModel> : public WrapperBase<raw::MjModel> {
   pybind11::bytes text_data_bytes;
   pybind11::bytes names_bytes;
 
- private:
+ protected:
   explicit MjWrapper(raw::MjModel* ptr);
 
   MjModelIndexer indexer_;
@@ -584,7 +584,7 @@ class MjWrapper<raw::MjData>: public WrapperBase<raw::MjData> {
   py_array_or_tuple_t<mjtNum> solver_fwdinv;
   py_array_or_tuple_t<mjtNum> energy;
 
- private:
+ protected:
   // Internal constructor which takes ownership of given mjData pointer.
   // Used for deserialization.
   explicit MjWrapper(MjDataMetadata&& metadata, raw::MjData* d);

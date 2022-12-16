@@ -15,6 +15,9 @@
 #ifndef MUJOCO_PYTHON_MJDATA_META_H_
 #define MUJOCO_PYTHON_MJDATA_META_H_
 
+#include <cstring>
+#include <memory>
+
 #include <mujoco/mujoco.h>
 #include <mujoco/mjxmacro.h>
 #include "raw.h"
@@ -67,6 +70,23 @@ template <typename T> class MjWrapper;
 struct MjDataMetadata {
  public:
   friend class _impl::MjWrapper<raw::MjData>;
+  explicit MjDataMetadata(const raw::MjModel* m)
+      :
+#define X(var) var(m->var),
+        MJMODEL_INTS
+#undef X
+
+#define X(dtype, var, n)                        \
+  var([](dtype* src, int len) {                 \
+    dtype* dst = new dtype[len];                \
+    std::memcpy(dst, src, len * sizeof(dtype)); \
+    return dst;                                 \
+  }(m->var, m->n)),
+
+        MJDATA_METADATA
+#undef X
+        is_dual(mj_isDual(m)) {
+  }
 
 #define X(var) int var;
   MJMODEL_INTS
@@ -81,23 +101,6 @@ struct MjDataMetadata {
   MjDataMetadata() = default;
   MjDataMetadata(const MjDataMetadata& other) = default;
   MjDataMetadata(MjDataMetadata&& other) = default;
-  explicit MjDataMetadata(const raw::MjModel* m)
-      :
-#define X(var) var(m->var),
-        MJMODEL_INTS
-#undef X
-
-#define X(dtype, var, n)                            \
-  var(                                              \
-      [](dtype* src, int len) {                     \
-        dtype* dst = new dtype[len];                \
-        std::memcpy(dst, src, len * sizeof(dtype)); \
-        return dst;                                 \
-      }(m->var, m->n)),
-
-        MJDATA_METADATA
-#undef X
-        is_dual(mj_isDual(m)) {}
 };
 
 }  // namespace mujoco::python

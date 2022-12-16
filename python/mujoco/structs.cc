@@ -39,6 +39,7 @@
 #include "errors.h"
 #include "function_traits.h"
 #include "indexers.h"
+#include "mjdata_meta.h"
 #include "raw.h"
 #include "serialization.h"
 #include <pybind11/numpy.h>
