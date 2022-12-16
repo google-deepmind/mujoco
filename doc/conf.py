@@ -64,8 +64,8 @@ redirects = {
 }
 
 rst_prolog = """
-.. include:: includes/macros.rst
-.. include:: includes/roles.rst
+.. include:: /includes/macros.rst
+.. include:: /includes/roles.rst
 .. include:: <isonum.txt>
 """
 

@@ -11,7 +11,7 @@
    computation
    modeling
    XMLreference
-   programming
+   programming/index.rst
    models
    APIreference
    python
