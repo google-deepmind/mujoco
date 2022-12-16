@@ -149,8 +149,7 @@ public struct MjSizeStruct {
   };
 
   public void ParseMjcf(XmlElement mjcf) {
-    var localDefault = MjSizeStruct.Default;
-    Memory = mjcf.GetAttribute("memory", localDefault.Memory);
+    Memory = mjcf.GetAttribute("memory");
   }
 
   public XmlElement ToMjcf(XmlElement mjcf) {

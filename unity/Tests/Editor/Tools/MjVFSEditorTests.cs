@@ -55,7 +55,8 @@ namespace Mujoco {
       var filename = "filename";
       var contents = "contents";
       _vfs.AddFile(filename, contents);
-      var filedata = Marshal.PtrToStringAnsi(_vfs.Data.filedata[0]);
+      var fileIndex = _vfs.FindFile(filename);
+      var filedata = Marshal.PtrToStringAnsi(_vfs.Data.filedata[fileIndex]);
       Assert.That(filedata, Is.EqualTo(contents));
     }
   }

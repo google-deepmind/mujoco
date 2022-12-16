@@ -134,10 +134,13 @@ public class MjcfImporter {
   }
 
   protected virtual void ParseRoot(GameObject rootObject, XmlElement mujocoNode) {
-
-    var globalsObject = CreateGameObjectInParent("Global Settings", rootObject);
-    var settingsComponent = globalsObject.AddComponent<MjGlobalSettings>();
-    settingsComponent.ParseGlobalMjcfSections(mujocoNode);
+    if (mujocoNode.SelectSingleNode("option") != null
+        || mujocoNode.SelectSingleNode("size") != null
+        || mujocoNode.SelectSingleNode("custom") != null) {
+      var globalsObject = CreateGameObjectInParent("Global Settings", rootObject);
+      var settingsComponent = globalsObject.AddComponent<MjGlobalSettings>();
+      settingsComponent.ParseGlobalMjcfSections(mujocoNode);
+    }
 
     // This makes references to assets.
     var worldBodyNode = mujocoNode.SelectSingleNode("worldbody") as XmlElement;

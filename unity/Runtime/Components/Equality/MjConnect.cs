@@ -40,6 +40,9 @@ namespace Mujoco {
       if (Body1 == null || Body2 == null) {
         throw new NullReferenceException($"Both bodies in connect {name} are required.");
       }
+      if (Anchor == null) {
+        throw new NullReferenceException($"Anchor in connect {name} is required.");
+      }
       mjcf.SetAttribute("body1", Body1.MujocoName);
       mjcf.SetAttribute("body2", Body2.MujocoName);
       mjcf.SetAttribute("anchor",

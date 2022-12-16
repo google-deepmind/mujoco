@@ -41,7 +41,7 @@ public class MjGlobalSettingsGenerationTests {
   }
 
   [Test]
-  public void GenerateOptionAndSize() {
+  public void GenerateOptionSizeFlagCustomNumeric() {
     _settings.GlobalOptions.ImpRatio = 1.2f;
     _settings.GlobalOptions.Magnetic = new Vector3(3.4f, 4.5f, 5.6f);
     _settings.GlobalOptions.Wind = new Vector3(6.7f, 7.8f, 8.9f);
@@ -80,7 +80,7 @@ public class MjGlobalSettingsGenerationTests {
     Assert.That(_doc.OuterXml, Does.Contain(@"noslip_tolerance=""6.7"""));
     Assert.That(_doc.OuterXml, Does.Contain(@"mpr_iterations=""8"""));
     Assert.That(_doc.OuterXml, Does.Contain(@"mpr_tolerance=""0.9"""));
-    Assert.That(_doc.OuterXml, Does.Contain(@"nconmax=""321"""));
+    Assert.That(_doc.OuterXml, Does.Contain(@"memory=""1M"""));
   }
 
   [Test]
@@ -134,7 +134,7 @@ public class MjGlobalSettingsParsingTests {
   }
 
   [Test]
-  public void ParseSizeOptionAndFlag() {
+  public void ParseSizeOptionFlagCustomNumeric() {
     _option.SetAttribute("impratio", "1.2");
     _option.SetAttribute("magnetic", "3.4 4.5 5.6");
     _option.SetAttribute("wind", "6.7 7.8 8.9");
