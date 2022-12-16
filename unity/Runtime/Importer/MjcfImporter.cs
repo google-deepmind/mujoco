@@ -133,30 +133,25 @@ public class MjcfImporter {
     }
   }
 
-  protected virtual void ParseRoot(GameObject parentObject, XmlElement parentNode) {
+  protected virtual void ParseRoot(GameObject rootObject, XmlElement mujocoNode) {
 
-    // This makes no references nor being referred into, so it can be parsed whenever.
-    var optionNode = parentNode.SelectSingleNode("option") as XmlElement;
-    var sizeNode = parentNode.SelectSingleNode("size") as XmlElement;
-    if (optionNode != null || sizeNode != null) {
-      var globalsObject = CreateGameObjectInParent("Global Settings", parentObject);
-      var settingsComponent = globalsObject.AddComponent<MjGlobalSettings>();
-      settingsComponent.ParseOptionSizeMjcf(optionNode, sizeNode);
-    }
+    var globalsObject = CreateGameObjectInParent("Global Settings", rootObject);
+    var settingsComponent = globalsObject.AddComponent<MjGlobalSettings>();
+    settingsComponent.ParseGlobalMjcfSections(mujocoNode);
 
     // This makes references to assets.
-    var worldBodyNode = parentNode.SelectSingleNode("worldbody") as XmlElement;
-    ParseBodyChildren(parentObject, worldBodyNode);
+    var worldBodyNode = mujocoNode.SelectSingleNode("worldbody") as XmlElement;
+    ParseBodyChildren(rootObject, worldBodyNode);
 
     // This section references bodies, must be parsed after worldbody.
-    var excludeNode = parentNode.SelectSingleNode("contact") as XmlElement;
+    var excludeNode = mujocoNode.SelectSingleNode("contact") as XmlElement;
     if (excludeNode != null) {
-      var excludesParentObject = CreateGameObjectInParent("excludes", parentObject);
+      var excludesParentObject = CreateGameObjectInParent("excludes", rootObject);
       foreach (var child in excludeNode.OfType<XmlElement>()) {
         if (child.Name != "exclude") {
           Debug.LogWarning(
               $"Only 'exclude' is supported - {child.Name} isn't supported yet.",
-              parentObject);
+              rootObject);
         } else {
           _modifiers.ApplyModifiersToElement(child);
           CreateGameObjectWithUniqueName<MjExclude>(excludesParentObject, child);
@@ -165,9 +160,9 @@ public class MjcfImporter {
     }
 
     // This section references joints/sites/geoms, must be parsed after worldbody.
-    var tendonNode = parentNode.SelectSingleNode("tendon") as XmlElement;
+    var tendonNode = mujocoNode.SelectSingleNode("tendon") as XmlElement;
     if (tendonNode != null) {
-      var tendonsParentObject = CreateGameObjectInParent("tendons", parentObject);
+      var tendonsParentObject = CreateGameObjectInParent("tendons", rootObject);
       foreach (var child in tendonNode.OfType<XmlElement>()) {
         if (child.Name == "fixed") {
           CreateGameObjectWithUniqueName<MjFixedTendon>(tendonsParentObject, child);
@@ -180,9 +175,9 @@ public class MjcfImporter {
     }
 
     // This section references worldbody elements + tendons, must be parsed after them.
-    var equalityNode = parentNode.SelectSingleNode("equality") as XmlElement;
+    var equalityNode = mujocoNode.SelectSingleNode("equality") as XmlElement;
     if (equalityNode != null) {
-      var equalitiesParentObject = CreateGameObjectInParent("equality constraints", parentObject);
+      var equalitiesParentObject = CreateGameObjectInParent("equality constraints", rootObject);
       foreach (var child in equalityNode.OfType<XmlElement>()) {
         var equalityType = ParseEqualityType(child);
         _modifiers.ApplyModifiersToElement(child);
@@ -191,9 +186,9 @@ public class MjcfImporter {
     }
 
     // This section references joints and tendons, must be parsed after worldbody and tendon.
-    var actuatorNode = parentNode.SelectSingleNode("actuator") as XmlElement;
+    var actuatorNode = mujocoNode.SelectSingleNode("actuator") as XmlElement;
     if (actuatorNode != null) {
-      var actuatorsParentObject = CreateGameObjectInParent("actuators", parentObject);
+      var actuatorsParentObject = CreateGameObjectInParent("actuators", rootObject);
       foreach (var child in actuatorNode.OfType<XmlElement>()) {
         _modifiers.ApplyModifiersToElement(child);
         CreateGameObjectWithUniqueName<MjActuator>(actuatorsParentObject, child);
@@ -201,9 +196,9 @@ public class MjcfImporter {
     }
 
     // This section references tendons, actuators and worldbody elements, must be parsed last.
-    var sensorNode = parentNode.SelectSingleNode("sensor") as XmlElement;
+    var sensorNode = mujocoNode.SelectSingleNode("sensor") as XmlElement;
     if (sensorNode != null) {
-      var sensorParentObject = CreateGameObjectInParent("sensors", parentObject);
+      var sensorParentObject = CreateGameObjectInParent("sensors", rootObject);
       foreach (var child in sensorNode.OfType<XmlElement>()) {
         _modifiers.ApplyModifiersToElement(child);
         var sensorType = ParseSensorType(child);

@@ -74,7 +74,7 @@ public class MjcfGenerationContext {
 
     var settings = MjGlobalSettings.Instance;
     if (settings) {
-      settings.OptionSizeToMjcf(optionMjcf, null);
+      settings.GlobalsToMjcf(mjcf);
     }
   }
 

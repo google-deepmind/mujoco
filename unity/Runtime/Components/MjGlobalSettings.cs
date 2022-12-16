@@ -143,32 +143,18 @@ public struct MjcfOptionFlag {
 
 [Serializable]
 public struct MjSizeStruct {
-  public int Njmax;
-  public int Nconmax;
-  public int Nstack;
+  public String Memory;
   public static MjSizeStruct Default = new MjSizeStruct() {
-    Njmax = 0,
-    Nconmax = 0,
-    Nstack = 0
+    Memory = "-1"
   };
 
   public void ParseMjcf(XmlElement mjcf) {
     var localDefault = MjSizeStruct.Default;
-    Njmax = (int)mjcf.GetFloatAttribute("njmax", localDefault.Njmax);
-    Nconmax = (int)mjcf.GetFloatAttribute("nconmax", localDefault.Nconmax);
-    Nstack = (int)mjcf.GetFloatAttribute("nstack", localDefault.Nstack);
+    Memory = mjcf.GetAttribute("memory", localDefault.Memory);
   }
 
   public XmlElement ToMjcf(XmlElement mjcf) {
-    if (Njmax > 0) {
-      mjcf.SetAttribute("njmax", $"{Njmax}");
-    }
-    if (Nconmax > 0) {
-      mjcf.SetAttribute("nconmax", $"{Nconmax}");
-    }
-    if (Nstack > 0) {
-      mjcf.SetAttribute("nstack", $"{Nstack}");
-    }
+    mjcf.SetAttribute("memory", $"{Memory}");
     return mjcf;
   }
 }
@@ -327,6 +313,13 @@ public struct MjOptionStruct {
   }
 }
 
+[Serializable]
+public class NumericEntry {
+  public String Name;
+  [Tooltip("Space-separated list of floats.")]
+  public String Data;
+}
+
 public class MjGlobalSettings : MonoBehaviour {
 
   [Tooltip("Filename for the generated scene XML.")]
@@ -338,6 +331,8 @@ public class MjGlobalSettings : MonoBehaviour {
   public MjOptionStruct GlobalOptions = MjOptionStruct.Default;
 
   public MjSizeStruct GlobalSizes = MjSizeStruct.Default;
+
+  public List<NumericEntry> CustomNumeric = new List<NumericEntry>() {};
 
   public static MjGlobalSettings Instance {
     get {
@@ -365,18 +360,44 @@ public class MjGlobalSettings : MonoBehaviour {
     }
   }
 
-  public void ParseOptionSizeMjcf(XmlElement option, XmlElement size) {
-    if (option != null) {
-      GlobalOptions.ParseMjcf(option);
+  public void ParseGlobalMjcfSections(XmlElement mujocoNode) {
+
+    var optionNode = mujocoNode.SelectSingleNode("option") as XmlElement;
+    var sizeNode = mujocoNode.SelectSingleNode("size") as XmlElement;
+    var customNode = mujocoNode.SelectSingleNode("custom") as XmlElement;
+
+    if (optionNode != null) {
+      GlobalOptions.ParseMjcf(optionNode);
     }
-    if (size != null) {
-      GlobalSizes.ParseMjcf(size);
+    if (sizeNode != null) {
+      GlobalSizes.ParseMjcf(sizeNode);
+    }
+    if (customNode != null) {
+      foreach (var childNode in customNode.ChildNodes) {
+        var child = childNode as XmlElement;
+        if (child.Name == "numeric") {
+          var numeric = new NumericEntry();
+          numeric.Name = child.GetAttribute("name");
+          numeric.Data = child.GetAttribute("data");
+          CustomNumeric.Add(numeric);
+        }
+      }
     }
   }
 
-  public void OptionSizeToMjcf(XmlElement option, XmlElement size) {
-    GlobalOptions.ToMjcf(option);
-    GlobalSizes.ToMjcf(size);
+  public void GlobalsToMjcf(XmlElement mjcf) {
+    var doc = mjcf.OwnerDocument;
+    var optionMjcf = (XmlElement)mjcf.AppendChild(doc.CreateElement("option"));
+    GlobalOptions.ToMjcf(optionMjcf);
+    var sizeMjcf = (XmlElement)mjcf.AppendChild(doc.CreateElement("size"));
+    GlobalSizes.ToMjcf(sizeMjcf);
+    var customMjcf = (XmlElement)mjcf.AppendChild(doc.CreateElement("custom"));
+    foreach (var numeric in CustomNumeric) {
+      var numericMjcf = (XmlElement)customMjcf.AppendChild(doc.CreateElement("numeric"));
+      numericMjcf.SetAttribute("name", numeric.Name);
+      // TODO: add validation that data is a space-separated list of floating numbers?
+      numericMjcf.SetAttribute("data", numeric.Data);
+    }
   }
 }
 }

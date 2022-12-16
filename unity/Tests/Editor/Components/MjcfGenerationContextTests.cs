@@ -101,18 +101,6 @@ public class MjcfGenerationContextTests {
     Assert.That(element.OuterXml, Does.Contain("vertex=\"1 0 0 0 0 1 0 1 0 \""));
   }
 
-  [Test]
-  public void SettingNUserSensorValuesKeepsTheHigherValue() {
-    var context = new MjcfGenerationContext();
-    context.NUserSensor = 5;
-    context.NUserSensor = 6;
-    context.NUserSensor = 1;
-    Assert.That(context.NUserSensor, Is.EqualTo(6));
-    var element = new XmlDocument().CreateElement("test");
-    context.GenerateMjcf(element);
-    Assert.That(element.OuterXml, Does.Contain("nuser_sensor=\"6\""));
-  }
-
   #region Test setup.
 
   private MjBody _componentA;
