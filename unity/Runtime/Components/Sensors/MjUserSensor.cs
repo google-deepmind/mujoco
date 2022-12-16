@@ -32,8 +32,10 @@ public class MjUserSensor : MjBaseSensor {
     var mjcf = doc.CreateElement("user");
     mjcf.SetAttribute("name", Name);
     mjcf.SetAttribute("dim", $"{Dimension}");
-    // TODO: add validation that UserData is a space-separated list of floating numbers?
-    mjcf.SetAttribute("user", UserData);
+    if (!String.IsNullOrEmpty(UserData)) {
+      // TODO: add validation that UserData is a space-separated list of floating numbers?
+      mjcf.SetAttribute("user", UserData);
+    }
     return mjcf;
   }
 
