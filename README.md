@@ -193,8 +193,8 @@ copy of the License at https://www.apache.org/licenses/LICENSE-2.0.
 
 This is not an officially supported Google product.
 
-[build from source]: https://mujoco.readthedocs.io/en/latest/programming.html#building-mujoco-from-source
-[Getting Started]: https://mujoco.readthedocs.io/en/latest/programming.html#getting-started
+[build from source]: https://mujoco.readthedocs.io/en/latest/programming/index.html#building-mujoco-from-source
+[Getting Started]: https://mujoco.readthedocs.io/en/latest/programming/index.html#getting-started
 [acquisition]: https://www.deepmind.com/blog/opening-up-a-physics-simulator-for-robotics
 [open sourcing]: https://www.deepmind.com/blog/open-sourcing-mujoco
 [Unity]: https://unity.com/
