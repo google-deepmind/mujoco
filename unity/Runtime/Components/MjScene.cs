@@ -78,9 +78,11 @@ public class MjScene : MonoBehaviour {
 
   private List<MjComponent> _orderedComponents;
 
+  public EventHandler<MjStepArgs> postInitEvent;
   public EventHandler preUpdateEvent;
   public EventHandler<MjStepArgs> ctrlCallback;
   public EventHandler postUpdateEvent;
+  public EventHandler<MjStepArgs> preDestroyEvent;
 
   protected unsafe void Start() {
     CreateScene();
@@ -167,6 +169,7 @@ public class MjScene : MonoBehaviour {
       // Compile the scene from the Mjcf.
       CompileScene(sceneMjcf, _orderedComponents);
     }
+    postInitEvent?.Invoke(this, new MjStepArgs(Model, Data));
     return sceneMjcf;
   }
 
@@ -305,6 +308,7 @@ public class MjScene : MonoBehaviour {
 
   // Destroys the Mujoco scene.
   public unsafe void DestroyScene() {
+    preDestroyEvent?.Invoke(this, new MjStepArgs(Model, Data));
     if (Model != null) {
       MujocoLib.mj_deleteModel(Model);
       Model = null;
