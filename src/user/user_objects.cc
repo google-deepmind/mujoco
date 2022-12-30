@@ -1393,7 +1393,7 @@ void mjCGeom::Compile(void) {
   else {
     const char* err = alt.Set(quat, inertia, model->degree, model->euler);
     if (err) {
-      throw mjCError(this, "alternative specification error '%s' in geom %d", err, id);
+      throw mjCError(this, "orientation specification error '%s' in geom %d", err, id);
     }
   }
 
@@ -1569,7 +1569,7 @@ void mjCSite::Compile(void) {
   else {
     const char* err = alt.Set(quat, 0, model->degree, model->euler);
     if (err) {
-      throw mjCError(this, "alternative specification error '%s' in site %d", err, id);
+      throw mjCError(this, "orientation specification error '%s' in site %d", err, id);
     }
   }
 
@@ -1628,7 +1628,7 @@ void mjCCamera::Compile(void) {
   // process orientation specifications
   const char* err = alt.Set(quat, 0, model->degree, model->euler);
   if (err) {
-    throw mjCError(this, "alternative specification error '%s' in site %d", err, id);
+    throw mjCError(this, "orientation specification error '%s' in camera %d", err, id);
   }
 
   // normalize quaternion
