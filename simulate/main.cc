@@ -330,7 +330,7 @@ void PhysicsLoop(mj::Simulate& sim) {
           // inject noise
           if (sim.ctrlnoisestd) {
             // convert rate and scale to discrete time (Ornstein–Uhlenbeck)
-            mjtNum rate = mju_exp(-m->opt.timestep / sim.ctrlnoiserate);
+            mjtNum rate = mju_exp(-m->opt.timestep / mju_max(sim.ctrlnoiserate, mjMINVAL));
             mjtNum scale = sim.ctrlnoisestd * mju_sqrt(1-rate*rate);
 
             for (int i=0; i<m->nu; i++) {

@@ -78,6 +78,9 @@ PYBIND11_MODULE(_constants, pymodule) {
   // from mujoco.h
   X(mjVERSION_HEADER);
 
+  // from mjtnum.h
+  X(mjMINVAL);
+
   #undef X
   pymodule.attr("mjDISABLESTRING") = MakeTuple(mjDISABLESTRING);
   pymodule.attr("mjENABLESTRING") = MakeTuple(mjENABLESTRING);

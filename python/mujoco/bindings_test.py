@@ -737,6 +737,7 @@ Euler integrator, semi-implicit in velocity.
 
   def test_float_constant(self):
     self.assertEqual(mujoco.mjMAXVAL, 1e10)
+    self.assertEqual(mujoco.mjMINVAL, 1e-15)
 
   def test_string_constants(self):
     self.assertLen(mujoco.mjDISABLESTRING, mujoco.mjtDisableBit.mjNDISABLE)

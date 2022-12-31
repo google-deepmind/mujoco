@@ -136,7 +136,8 @@ def _physics_loop(simulate: Simulate, loader: Optional[_InternalLoaderType]):
           # Inject noise.
           if simulate.ctrlnoisestd != 0.0:
             # Convert rate and scale to discrete time (Ornstein–Uhlenbeck).
-            rate = math.exp(-m.opt.timestep / simulate.ctrlnoiserate)
+            rate = math.exp(-m.opt.timestep /
+                            max(simulate.ctrlnoiserate, mujoco.mjMINVAL))
             scale = simulate.ctrlnoisestd * math.sqrt(1 - rate * rate)
 
             for i in range(m.nu):
