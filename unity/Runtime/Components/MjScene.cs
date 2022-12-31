@@ -85,6 +85,7 @@ public class MjScene : MonoBehaviour {
   public EventHandler<MjStepArgs> preDestroyEvent;
 
   protected unsafe void Start() {
+    SceneRecreationAtLateUpdateRequested = false;
     CreateScene();
   }
 
