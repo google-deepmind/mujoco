@@ -93,7 +93,6 @@ public class MjSensorPlayTests {
     yield return new WaitForFixedUpdate(); // updating the transform
     yield return new WaitForFixedUpdate(); // updating the transform
     var vecComparer = new Vector3EqualityComparer(1e-4f);
-    var quatComparer = new Vector4EqualityComparer(1e-4f);
     Assert.That(
         _siteVectorSensor.SensorReading,
         Is.EqualTo(_site.transform.position).Using(vecComparer));
@@ -105,17 +104,17 @@ public class MjSensorPlayTests {
         Is.EqualTo(_body.transform.position).Using(vecComparer));
 
     Assert.That(
-        _siteQuatSensor0.SensorReading,
-        Is.EqualTo(_site.transform.rotation.normalized).Using(quatComparer));
+      Quaternion.Angle(_siteQuatSensor0.SensorReading, _site.transform.rotation.normalized),
+      Is.EqualTo(0).Within(1e-3));
     Assert.That(
-        _siteQuatSensor.SensorReading,
-        Is.EqualTo(_site.transform.rotation.normalized).Using(quatComparer));
+      Quaternion.Angle(_siteQuatSensor.SensorReading, _site.transform.rotation.normalized),
+      Is.EqualTo(0).Within(1e-3));
     Assert.That(
-        _geomQuatSensor.SensorReading,
-        Is.EqualTo(_geom.transform.rotation.normalized).Using(quatComparer));
+      Quaternion.Angle(_geomQuatSensor.SensorReading, _geom.transform.rotation.normalized),
+      Is.EqualTo(0).Within(1e-3));
     Assert.That(
-        _bodyQuatSensor.SensorReading,
-        Is.EqualTo(_body.transform.rotation.normalized).Using(quatComparer));
+      Quaternion.Angle(_bodyQuatSensor.SensorReading, _body.transform.rotation.normalized),
+      Is.EqualTo(0).Within(1e-3));
   }
 }
 }
