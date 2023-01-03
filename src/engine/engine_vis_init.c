@@ -63,7 +63,7 @@ const char* mjFRAMESTRING[mjNFRAME] = {
 };
 
 
-// visual opptions: {name, initial value, shortcut}
+// visual options: {name, initial value, shortcut}
 const char* mjVISSTRING[mjNVISFLAG][3] = {
   {"Convex &Hull",    "0", "H"},
   {"Te&xture",        "1", "X"},
