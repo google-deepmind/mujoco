@@ -314,7 +314,7 @@ static void mj_setPtrModel(mjModel* m) {
   char* ptr = (char*)m->buffer;
   int sz;
 
-  // prepare sybmols needed by xmacro
+  // prepare symbols needed by xmacro
   MJMODEL_POINTERS_PREAMBLE(m);
 
   // assign pointers with padding
