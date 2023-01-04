@@ -113,6 +113,7 @@
     X( nuser_actuator )     \
     X( nuser_sensor )       \
     X( nnames )             \
+    X( nnames_map )         \
     X( nM )                 \
     X( nD )                 \
     X( nemax )              \
@@ -432,8 +433,8 @@
     X( int,     name_tupleadr,         ntuple,        1                    ) \
     X( int,     name_keyadr,           nkey,          1                    ) \
     X( int,     name_pluginadr,        nplugin,       1                    ) \
-    X( char,    names,                 nnames,        1                    )
-
+    X( char,    names,                 nnames,        1                    ) \
+    X( int,     names_map,             nnames_map,    1                    ) \
 
 //-------------------------------- mjData ----------------------------------------------------------
 

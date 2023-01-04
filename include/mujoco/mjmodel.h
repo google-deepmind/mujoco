@@ -581,6 +581,7 @@ struct mjModel_ {
   int nuser_actuator;             // number of mjtNums in actuator_user
   int nuser_sensor;               // number of mjtNums in sensor_user
   int nnames;                     // number of chars in all names
+  int nnames_map;                 // number of slots in the names hash map
 
   // sizes set after mjModel construction (only affect mjData)
   int nM;                         // number of non-zeros in sparse inertia matrix
@@ -942,6 +943,7 @@ struct mjModel_ {
   int*      name_keyadr;          // keyframe name pointers                   (nkey x 1)
   int*      name_pluginadr;       // plugin instance name pointers            (nplugin x 1)
   char*     names;                // names of all objects, 0-terminated       (nnames x 1)
+  int*      names_map;            // internal hash map of names               (nnames_map x 1)
 };
 typedef struct mjModel_ mjModel;
 

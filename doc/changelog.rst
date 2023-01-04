@@ -2,6 +2,10 @@
 Changelog
 =========
 
+Upcoming version (not yet released)
+-----------------------------------
+- The function :ref:`mj_name2id` is now implemented using a hash function instead of a linear search for better
+  performance.
 
 Version 2.3.1 (December 6, 2022)
 -----------------------------------

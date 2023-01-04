@@ -1911,6 +1911,7 @@ public unsafe struct mjModel_ {
   public int nuser_actuator;
   public int nuser_sensor;
   public int nnames;
+  public int nnames_map;
   public int nM;
   public int nD;
   public int nemax;
@@ -2210,6 +2211,7 @@ public unsafe struct mjModel_ {
   public int* name_keyadr;
   public int* name_pluginadr;
   public char* names;
+  public int* names_map;
 }
 
 [StructLayout(LayoutKind.Sequential)]

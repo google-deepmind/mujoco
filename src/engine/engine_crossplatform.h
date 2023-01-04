@@ -46,4 +46,10 @@
   #endif
 #endif
 
+#if defined(__GNUC__) && __GNUC__ >= 7
+  #define mjFALLTHROUGH __attribute__ ((fallthrough))
+#else
+  #define mjFALLTHROUGH ((void) 0)
+#endif
+
 #endif  // MUJOCO_SRC_ENGINE_ENGINE_CROSSPLATFORM_H_
