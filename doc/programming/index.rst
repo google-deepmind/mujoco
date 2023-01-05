@@ -120,6 +120,9 @@ Additionally, the CMake setup also implements an installation phase which will c
 target directory. Specify the directory using ``cmake $PATH_TO_CLONED_REPO -DCMAKE_INSTALL_PREFIX=<my_install_dir>``.
 After successfully building MuJoCo following the instructions above, you can install it using ``cmake --install .``.
 
+As a reference, a working build configuration can be found in MuJoCo's
+[continuous integration setup](https://github.com/deepmind/mujoco/blob/main/.github/workflows/build.yml) on GitHub.
+
 .. _inHeader:
 
 Header files

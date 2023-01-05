@@ -102,6 +102,9 @@ The Python bindings should now be installed! To check that they've been
 successfully installed, ``cd`` outside of the ``mujoco`` directory and run
 ``python -c "import mujoco"``.
 
+As a reference, a working build configuration can be found in MuJoCo's
+[continuous integration setup](https://github.com/deepmind/mujoco/blob/main/.github/workflows/build.yml) on GitHub.
+
 .. _PyViewer:
 
 Interactive viewer
