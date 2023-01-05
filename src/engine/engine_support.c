@@ -443,13 +443,13 @@ static int _getnumadr(const mjModel* m, mjtObj type, int** padr, int* mapadr) {
   switch (type) {
     case mjOBJ_BODY:
     case mjOBJ_XBODY:
-      *mapadr -= m->nbody;
+      *mapadr -= mjLOAD_MULTIPLE*m->nbody;
       *padr = m->name_bodyadr;
       num = m->nbody;
       mjFALLTHROUGH;
 
     case mjOBJ_JOINT:
-      *mapadr -= m->njnt;
+      *mapadr -= mjLOAD_MULTIPLE*m->njnt;
       if (num < 0) {
         *padr = m->name_jntadr;
         num = m->njnt;
@@ -457,7 +457,7 @@ static int _getnumadr(const mjModel* m, mjtObj type, int** padr, int* mapadr) {
       mjFALLTHROUGH;
 
     case mjOBJ_GEOM:
-      *mapadr -= m->ngeom;
+      *mapadr -= mjLOAD_MULTIPLE*m->ngeom;
       if (num < 0) {
         *padr = m->name_geomadr;
         num = m->ngeom;
@@ -465,7 +465,7 @@ static int _getnumadr(const mjModel* m, mjtObj type, int** padr, int* mapadr) {
       mjFALLTHROUGH;
 
     case mjOBJ_SITE:
-      *mapadr -= m->nsite;
+      *mapadr -= mjLOAD_MULTIPLE*m->nsite;
       if (num < 0) {
         *padr = m->name_siteadr;
         num = m->nsite;
@@ -473,7 +473,7 @@ static int _getnumadr(const mjModel* m, mjtObj type, int** padr, int* mapadr) {
       mjFALLTHROUGH;
 
     case mjOBJ_CAMERA:
-      *mapadr -= m->ncam;
+      *mapadr -= mjLOAD_MULTIPLE*m->ncam;
       if (num < 0) {
         *padr = m->name_camadr;
         num = m->ncam;
@@ -481,7 +481,7 @@ static int _getnumadr(const mjModel* m, mjtObj type, int** padr, int* mapadr) {
       mjFALLTHROUGH;
 
     case mjOBJ_LIGHT:
-      *mapadr -= m->nlight;
+      *mapadr -= mjLOAD_MULTIPLE*m->nlight;
       if (num < 0) {
         *padr = m->name_lightadr;
         num = m->nlight;
@@ -489,7 +489,7 @@ static int _getnumadr(const mjModel* m, mjtObj type, int** padr, int* mapadr) {
       mjFALLTHROUGH;
 
     case mjOBJ_MESH:
-      *mapadr -= m->nmesh;
+      *mapadr -= mjLOAD_MULTIPLE*m->nmesh;
       if (num < 0) {
         *padr = m->name_meshadr;
         num =  m->nmesh;
@@ -497,7 +497,7 @@ static int _getnumadr(const mjModel* m, mjtObj type, int** padr, int* mapadr) {
       mjFALLTHROUGH;
 
     case mjOBJ_SKIN:
-      *mapadr -= m->nskin;
+      *mapadr -= mjLOAD_MULTIPLE*m->nskin;
       if (num < 0) {
         *padr = m->name_skinadr;
         num = m->nskin;
@@ -505,7 +505,7 @@ static int _getnumadr(const mjModel* m, mjtObj type, int** padr, int* mapadr) {
       mjFALLTHROUGH;
 
     case mjOBJ_HFIELD:
-      *mapadr -= m->nhfield;
+      *mapadr -= mjLOAD_MULTIPLE*m->nhfield;
       if (num < 0) {
         *padr = m->name_hfieldadr;
         num = m->nhfield;
@@ -513,7 +513,7 @@ static int _getnumadr(const mjModel* m, mjtObj type, int** padr, int* mapadr) {
       mjFALLTHROUGH;
 
     case mjOBJ_TEXTURE:
-      *mapadr -= m->ntex;
+      *mapadr -= mjLOAD_MULTIPLE*m->ntex;
       if (num < 0) {
         *padr = m->name_texadr;
         num = m->ntex;
@@ -521,7 +521,7 @@ static int _getnumadr(const mjModel* m, mjtObj type, int** padr, int* mapadr) {
       mjFALLTHROUGH;
 
     case mjOBJ_MATERIAL:
-      *mapadr -= m->nmat;
+      *mapadr -= mjLOAD_MULTIPLE*m->nmat;
       if (num < 0) {
         *padr = m->name_matadr;
         num = m->nmat;
@@ -529,7 +529,7 @@ static int _getnumadr(const mjModel* m, mjtObj type, int** padr, int* mapadr) {
       mjFALLTHROUGH;
 
     case mjOBJ_PAIR:
-      *mapadr -= m->npair;
+      *mapadr -= mjLOAD_MULTIPLE*m->npair;
       if (num < 0) {
         *padr = m->name_pairadr;
         num = m->npair;
@@ -537,7 +537,7 @@ static int _getnumadr(const mjModel* m, mjtObj type, int** padr, int* mapadr) {
       mjFALLTHROUGH;
 
     case mjOBJ_EXCLUDE:
-      *mapadr -= m->nexclude;
+      *mapadr -= mjLOAD_MULTIPLE*m->nexclude;
       if (num < 0) {
         *padr = m->name_excludeadr;
         num = m->nexclude;
@@ -545,7 +545,7 @@ static int _getnumadr(const mjModel* m, mjtObj type, int** padr, int* mapadr) {
       mjFALLTHROUGH;
 
     case mjOBJ_EQUALITY:
-      *mapadr -= m->neq;
+      *mapadr -= mjLOAD_MULTIPLE*m->neq;
       if (num < 0) {
         *padr = m->name_eqadr;
         num = m->neq;
@@ -553,7 +553,7 @@ static int _getnumadr(const mjModel* m, mjtObj type, int** padr, int* mapadr) {
       mjFALLTHROUGH;
 
     case mjOBJ_TENDON:
-      *mapadr -= m->ntendon;
+      *mapadr -= mjLOAD_MULTIPLE*m->ntendon;
       if (num < 0) {
         *padr = m->name_tendonadr;
         num = m->ntendon;
@@ -561,7 +561,7 @@ static int _getnumadr(const mjModel* m, mjtObj type, int** padr, int* mapadr) {
       mjFALLTHROUGH;
 
     case mjOBJ_ACTUATOR:
-      *mapadr -= m->nu;
+      *mapadr -= mjLOAD_MULTIPLE*m->nu;
       if (num < 0) {
         *padr = m->name_actuatoradr;
         num = m->nu;
@@ -569,7 +569,7 @@ static int _getnumadr(const mjModel* m, mjtObj type, int** padr, int* mapadr) {
       mjFALLTHROUGH;
 
     case mjOBJ_SENSOR:
-      *mapadr -= m->nsensor;
+      *mapadr -= mjLOAD_MULTIPLE*m->nsensor;
       if (num < 0) {
         *padr = m->name_sensoradr;
         num = m->nsensor;
@@ -577,7 +577,7 @@ static int _getnumadr(const mjModel* m, mjtObj type, int** padr, int* mapadr) {
       mjFALLTHROUGH;
 
     case mjOBJ_NUMERIC:
-      *mapadr -= m->nnumeric;
+      *mapadr -= mjLOAD_MULTIPLE*m->nnumeric;
       if (num < 0) {
         *padr = m->name_numericadr;
         num = m->nnumeric;
@@ -585,7 +585,7 @@ static int _getnumadr(const mjModel* m, mjtObj type, int** padr, int* mapadr) {
       mjFALLTHROUGH;
 
     case mjOBJ_TEXT:
-      *mapadr -= m->ntext;
+      *mapadr -= mjLOAD_MULTIPLE*m->ntext;
       if (num < 0) {
         *padr = m->name_textadr;
         num = m->ntext;
@@ -593,7 +593,7 @@ static int _getnumadr(const mjModel* m, mjtObj type, int** padr, int* mapadr) {
       mjFALLTHROUGH;
 
     case mjOBJ_TUPLE:
-      *mapadr -= m->ntuple;
+      *mapadr -= mjLOAD_MULTIPLE*m->ntuple;
       if (num < 0) {
         *padr = m->name_tupleadr;
         num = m->ntuple;
@@ -601,7 +601,7 @@ static int _getnumadr(const mjModel* m, mjtObj type, int** padr, int* mapadr) {
       mjFALLTHROUGH;
 
     case mjOBJ_KEY:
-      *mapadr -= m->nkey;
+      *mapadr -= mjLOAD_MULTIPLE*m->nkey;
       if (num < 0) {
         *padr = m->name_keyadr;
         num = m->nkey;
@@ -609,7 +609,7 @@ static int _getnumadr(const mjModel* m, mjtObj type, int** padr, int* mapadr) {
       mjFALLTHROUGH;
 
     case mjOBJ_PLUGIN:
-      *mapadr -= m->nplugin;
+      *mapadr -= mjLOAD_MULTIPLE*m->nplugin;
       if (num < 0) {
         *padr = m->name_pluginadr;
         num = m->nplugin;
@@ -622,6 +622,7 @@ static int _getnumadr(const mjModel* m, mjtObj type, int** padr, int* mapadr) {
         num = 0;
       }
   }
+
   return num;
 }
 
@@ -642,11 +643,10 @@ int mj_name2id(const mjModel* m, int type, const char* name) {
   int* adr = 0;
 
   // get number of objects and name addresses
-  int num = _getnumadr(m, type, &adr, &mapadr);
+  int num = mjLOAD_MULTIPLE*_getnumadr(m, type, &adr, &mapadr);
 
   // search
-  if (num) {
-    // look up at hash address
+  if (num) {    // look up at hash address
     uint64_t hash = mj_hashdjb2(name, num);
     uint64_t i = hash;
 

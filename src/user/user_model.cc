@@ -1203,16 +1203,17 @@ void mjCModel::LengthRange(mjModel* m, mjData* data) {
 template <class T>
 static int namelist(vector<T*>& list, int adr, int* name_adr, char* names, int* map) {
   // compute hash map addresses
+  int map_size = mjLOAD_MULTIPLE*list.size();
   for (unsigned int i=0; i<list.size(); i++) {
     // ignore empty strings
     if (list[i]->name.empty()) {
       continue;
     }
 
-    uint64_t j = mj_hashdjb2(list[i]->name.c_str(), list.size());
+    uint64_t j = mj_hashdjb2(list[i]->name.c_str(), map_size);
 
     // find first empty slot using linear probing
-    for (; map[j]!=-1; j=(j+1) % list.size()) {}
+    for (; map[j]!=-1; j=(j+1) % map_size) {}
     map[j] = i;
   }
 
@@ -1242,67 +1243,67 @@ void mjCModel::CopyNames(mjModel* m) {
 
   // process all lists
   adr = namelist(bodies, adr, m->name_bodyadr, m->names, map_adr);
-  map_adr += bodies.size();
+  map_adr += mjLOAD_MULTIPLE*bodies.size();
 
   adr = namelist(joints, adr, m->name_jntadr, m->names, map_adr);
-  map_adr += joints.size();
+  map_adr += mjLOAD_MULTIPLE*joints.size();
 
   adr = namelist(geoms, adr, m->name_geomadr, m->names, map_adr);
-  map_adr += geoms.size();
+  map_adr += mjLOAD_MULTIPLE*geoms.size();
 
   adr = namelist(sites, adr, m->name_siteadr, m->names, map_adr);
-  map_adr += sites.size();
+  map_adr += mjLOAD_MULTIPLE*sites.size();
 
   adr = namelist(cameras, adr, m->name_camadr, m->names, map_adr);
-  map_adr += cameras.size();
+  map_adr += mjLOAD_MULTIPLE*cameras.size();
 
   adr = namelist(lights, adr, m->name_lightadr, m->names, map_adr);
-  map_adr += lights.size();
+  map_adr += mjLOAD_MULTIPLE*lights.size();
 
   adr = namelist(meshes, adr, m->name_meshadr, m->names, map_adr);
-  map_adr += meshes.size();
+  map_adr += mjLOAD_MULTIPLE*meshes.size();
 
   adr = namelist(skins, adr, m->name_skinadr, m->names, map_adr);
-  map_adr += skins.size();
+  map_adr += mjLOAD_MULTIPLE*skins.size();
 
   adr = namelist(hfields, adr, m->name_hfieldadr, m->names, map_adr);
-  map_adr += hfields.size();
+  map_adr += mjLOAD_MULTIPLE*hfields.size();
 
   adr = namelist(textures, adr, m->name_texadr, m->names, map_adr);
-  map_adr += textures.size();
+  map_adr += mjLOAD_MULTIPLE*textures.size();
 
   adr = namelist(materials, adr, m->name_matadr, m->names, map_adr);
-  map_adr += materials.size();
+  map_adr += mjLOAD_MULTIPLE*materials.size();
 
   adr = namelist(pairs, adr, m->name_pairadr, m->names, map_adr);
-  map_adr += pairs.size();
+  map_adr += mjLOAD_MULTIPLE*pairs.size();
 
   adr = namelist(excludes, adr, m->name_excludeadr, m->names, map_adr);
-  map_adr += excludes.size();
+  map_adr += mjLOAD_MULTIPLE*excludes.size();
 
   adr = namelist(equalities, adr, m->name_eqadr, m->names, map_adr);
-  map_adr += equalities.size();
+  map_adr += mjLOAD_MULTIPLE*equalities.size();
 
   adr = namelist(tendons, adr, m->name_tendonadr, m->names, map_adr);
-  map_adr += tendons.size();
+  map_adr += mjLOAD_MULTIPLE*tendons.size();
 
   adr = namelist(actuators, adr, m->name_actuatoradr, m->names, map_adr);
-  map_adr += actuators.size();
+  map_adr += mjLOAD_MULTIPLE*actuators.size();
 
   adr = namelist(sensors, adr, m->name_sensoradr, m->names, map_adr);
-  map_adr += sensors.size();
+  map_adr += mjLOAD_MULTIPLE*sensors.size();
 
   adr = namelist(numerics, adr, m->name_numericadr, m->names, map_adr);
-  map_adr += numerics.size();
+  map_adr += mjLOAD_MULTIPLE*numerics.size();
 
   adr = namelist(texts, adr, m->name_textadr, m->names, map_adr);
-  map_adr += texts.size();
+  map_adr += mjLOAD_MULTIPLE*texts.size();
 
   adr = namelist(tuples, adr, m->name_tupleadr, m->names, map_adr);
-  map_adr += tuples.size();
+  map_adr += mjLOAD_MULTIPLE*tuples.size();
 
   adr = namelist(keys, adr, m->name_keyadr, m->names, map_adr);
-  map_adr += keys.size();
+  map_adr += mjLOAD_MULTIPLE*keys.size();
 
   adr = namelist(plugins, adr, m->name_pluginadr, m->names, map_adr);
 

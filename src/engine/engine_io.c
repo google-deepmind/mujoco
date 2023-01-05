@@ -438,9 +438,11 @@ mjModel* mj_makeModel(int nq, int nv, int nu, int na, int nbody, int njnt,
   m->nuser_actuator = nuser_actuator;
   m->nuser_sensor = nuser_sensor;
   m->nnames = nnames;
-  m->nnames_map = nbody + njnt + ngeom + nsite + ncam + nlight + nmesh + nskin
-                  + nhfield + ntex + nmat + npair + nexclude + neq + ntendon
-                  + nu + nsensor + nnumeric + ntext + ntuple + nkey + nplugin;
+  m->nnames_map = mjLOAD_MULTIPLE
+                  * (nbody + njnt + ngeom + nsite + ncam + nlight + nmesh
+                     + nskin + nhfield + ntex + nmat + npair + nexclude + neq
+                     + ntendon  + nu + nsensor + nnumeric + ntext + ntuple
+                     + nkey + nplugin);
 
 #define X(name)                                    \
   if ((m->name) < 0) {                             \
