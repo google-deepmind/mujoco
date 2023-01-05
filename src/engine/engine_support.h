@@ -114,7 +114,7 @@ MJAPI void mj_setMSparse(const mjModel* m, mjData* d, mjtNum* dst,
 
 //-------------------------- perturbations ---------------------------------------------------------
 
-// apply cartesian force and torque
+// apply Cartesian force and torque
 MJAPI void mj_applyFT(const mjModel* m, mjData* d,
                       const mjtNum force[3], const mjtNum torque[3],
                       const mjtNum point[3], int body, mjtNum* qfrc_target);

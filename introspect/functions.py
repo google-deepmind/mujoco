@@ -579,7 +579,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  ),
              ),
          ),
-         doc='Allocate mjData correponding to given model. If the model buffer is unallocated the initial configuration will not be set.',  # pylint: disable=line-too-long
+         doc='Allocate mjData corresponding to given model. If the model buffer is unallocated the initial configuration will not be set.',  # pylint: disable=line-too-long
      )),
     ('mj_copyData',
      FunctionDecl(
@@ -1704,7 +1704,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  ),
              ),
          ),
-         doc='Compute inverse constaint inertia efc_AR.',
+         doc='Compute inverse constraint inertia efc_AR.',
      )),
     ('mj_referenceConstraint',
      FunctionDecl(
@@ -2393,7 +2393,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  ),
              ),
          ),
-         doc='Apply cartesian force and torque (outside xfrc_applied mechanism).',  # pylint: disable=line-too-long
+         doc='Apply Cartesian force and torque (outside xfrc_applied mechanism).',  # pylint: disable=line-too-long
      )),
     ('mj_objectVelocity',
      FunctionDecl(

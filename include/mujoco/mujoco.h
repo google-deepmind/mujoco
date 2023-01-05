@@ -176,7 +176,7 @@ MJAPI void mj_deleteModel(mjModel* m);
 // Return size of buffer needed to hold model.
 MJAPI int mj_sizeModel(const mjModel* m);
 
-// Allocate mjData correponding to given model.
+// Allocate mjData corresponding to given model.
 // If the model buffer is unallocated the initial configuration will not be set.
 MJAPI mjData* mj_makeData(const mjModel* m);
 
@@ -345,7 +345,7 @@ MJAPI void mj_collision(const mjModel* m, mjData* d);
 // Construct constraints.
 MJAPI void mj_makeConstraint(const mjModel* m, mjData* d);
 
-// Compute inverse constaint inertia efc_AR.
+// Compute inverse constraint inertia efc_AR.
 MJAPI void mj_projectConstraint(const mjModel* m, mjData* d);
 
 // Compute efc_vel, efc_aref.
@@ -419,7 +419,7 @@ MJAPI void mj_mulM2(const mjModel* m, const mjData* d, mjtNum* res, const mjtNum
 // Destination can be sparse uncompressed, or dense when all int* are NULL
 MJAPI void mj_addM(const mjModel* m, mjData* d, mjtNum* dst, int* rownnz, int* rowadr, int* colind);
 
-// Apply cartesian force and torque (outside xfrc_applied mechanism).
+// Apply Cartesian force and torque (outside xfrc_applied mechanism).
 MJAPI void mj_applyFT(const mjModel* m, mjData* d, const mjtNum force[3], const mjtNum torque[3],
                       const mjtNum point[3], int body, mjtNum* qfrc_target);
 

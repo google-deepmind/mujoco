@@ -1068,7 +1068,7 @@ void mj_setMSparse(const mjModel* m, mjData* d, mjtNum* dst,
 
 //-------------------------- perturbations ---------------------------------------------------------
 
-// add cartesian force and torque to qfrc_target
+// add Cartesian force and torque to qfrc_target
 void mj_applyFT(const mjModel* m, mjData* d,
                 const mjtNum force[3], const mjtNum torque[3],
                 const mjtNum point[3], int body, mjtNum* qfrc_target) {

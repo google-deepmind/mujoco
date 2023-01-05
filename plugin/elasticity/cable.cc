@@ -73,7 +73,7 @@ void QuatDiff(mjtNum* quat, const mjtNum body_quat[4],
 //     stiffness   - material parameters
 //     quat        - orientation of the body in local coordinates
 //     omega0      - initial curvature
-//     xquat       - cartesian orientation of the body (optional)
+//     xquat       - Cartesian orientation of the body (optional)
 //     scl         - scaling of the force
 //   outputs:
 //     stress      - local stress contribution
