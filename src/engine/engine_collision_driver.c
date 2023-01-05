@@ -51,7 +51,7 @@ mjfCollision mjCOLLISIONFUNC[mjNGEOMTYPES][mjNGEOMTYPES] = {
 //----------------------------- collision detection entry point ------------------------------------
 
 void mj_collision(const mjModel* m, mjData* d) {
-  int g1, g2, signature, merged, b1 = 0, b2 = 0, exadr = 0, pairadr = 0, startadr;
+  int g1, g2, merged, b1 = 0, b2 = 0, exadr = 0, pairadr = 0, startadr;
   int nexclude = m->nexclude, npair = m->npair, nbodypair = ((m->nbody-1)*m->nbody)/2;
   int *broadphasepair = 0;
   mjMARKSTACK;
@@ -77,6 +77,7 @@ void mj_collision(const mjModel* m, mjData* d) {
     // call broadphase collision detector
     broadphasepair = (int*)mj_stackAlloc(d, (m->nbody*(m->nbody-1))/2);
     nbodypair = mj_broadphase(m, d, broadphasepair, (m->nbody*(m->nbody-1))/2);
+    unsigned int last_signature = -1;
 
     // loop over body pairs (broadphase or all)
     for (int i=0; i<nbodypair; i++) {
@@ -85,7 +86,13 @@ void mj_collision(const mjModel* m, mjData* d) {
       b2 = broadphasepair[i] & 0xFFFF;
 
       // compute signature for this body pair
-      signature = ((b1+1)<<16) + (b2+1);
+      unsigned int signature = ((b1+1)<<16) + (b2+1);
+      // pairs come sorted by signature, but may not be unique
+      // if signature is repeated, skip it
+      if (signature == last_signature) {
+        continue;
+      }
+      last_signature = signature;
 
       // merge predefined pairs
       merged = 0;

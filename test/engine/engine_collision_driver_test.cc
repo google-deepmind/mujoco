@@ -31,6 +31,7 @@ using MjCollisionTest = MujocoTest;
 using GeomPair = std::pair<std::string, std::string>;
 using ::testing::IsEmpty;
 using ::testing::ElementsAre;
+using ::testing::NotNull;
 
 // Returns a sorted list of pairs of colliding geom names, where each pair of
 // geom names is sorted.
@@ -108,5 +109,41 @@ TEST_F(MjCollisionTest, ZeroedHessian) {
   mj_deleteData(data);
   mj_deleteModel(model);
 }
+
+TEST_F(MjCollisionTest, ContactCount) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <geom type="plane" size="5 5 .01"/>
+      </body>
+      <body pos="0 0 0.9">
+        <freejoint/>
+        <geom type="sphere" size="1" pos="-1 -1 0"/>
+        <geom type="sphere" size="1" pos="-1  1 0"/>
+        <geom type="sphere" size="1" pos=" 1 -1 0"/>
+        <geom type="sphere" size="1" pos=" 1  1 0"/>
+        <geom type="sphere" size="1" pos="-2 -2 0"/>
+        <geom type="sphere" size="1" pos="-2  2 0"/>
+        <geom type="sphere" size="1" pos=" 2 -2 0"/>
+        <geom type="sphere" size="1" pos=" 2  2 0"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  mjModel* m = LoadModelFromString(xml);
+  ASSERT_THAT(m, NotNull());
+  mjData* d = mj_makeData(m);
+  ASSERT_THAT(d, NotNull());
+
+  mj_forward(m, d);
+
+  // there are 8 spheres, all touching the floor
+  EXPECT_EQ(d->ncon, 8);
+
+  mj_deleteData(d);
+  mj_deleteModel(m);
+}
+
 }  // namespace
 }  // namespace mujoco
