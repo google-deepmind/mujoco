@@ -26,7 +26,7 @@
 #include <vector>
 
 #include <mujoco/mujoco.h>
-#include "glfw_dispatch.h"
+#include "glfw_adapter.h"
 #include "simulate.h"
 #include "array_safety.h"
 
@@ -48,8 +48,6 @@ namespace {
 namespace mj = ::mujoco;
 namespace mju = ::mujoco::sample_util;
 
-using ::mujoco::Glfw;
-
 // constants
 const double syncMisalign = 0.1;        // maximum mis-alignment before re-sync (simulation seconds)
 const double simRefreshFraction = 0.7;  // fraction of refresh available for simulation
@@ -62,6 +60,7 @@ mjData* d = nullptr;
 // control noise variables
 mjtNum* ctrlnoise = nullptr;
 
+using Seconds = std::chrono::duration<double>;
 
 
 //---------------------------------------- plugin handling -----------------------------------------
@@ -254,7 +253,7 @@ mjModel* LoadModel(const char* file, mj::Simulate& sim) {
 // simulate in background thread (while rendering in main thread)
 void PhysicsLoop(mj::Simulate& sim) {
   // cpu-sim syncronization point
-  double syncCPU = 0;
+  std::chrono::time_point<mj::Simulate::Clock> syncCPU;
   mjtNum syncSim = 0;
 
   // run until asked to exit
@@ -321,10 +320,10 @@ void PhysicsLoop(mj::Simulate& sim) {
         // running
         if (sim.run) {
           // record cpu time at start of iteration
-          double startCPU = Glfw().glfwGetTime();
+          const auto startCPU = mj::Simulate::Clock::now();
 
           // elapsed CPU and simulation time since last sync
-          double elapsedCPU = startCPU - syncCPU;
+          const auto elapsedCPU = startCPU - syncCPU;
           double elapsedSim = d->time - syncSim;
 
           // inject noise
@@ -346,10 +345,12 @@ void PhysicsLoop(mj::Simulate& sim) {
           double slowdown = 100 / sim.percentRealTime[sim.realTimeIndex];
 
           // misalignment condition: distance from target sim time is bigger than syncmisalign
-          bool misaligned = mju_abs(elapsedCPU/slowdown - elapsedSim) > syncMisalign;
+          bool misaligned =
+              mju_abs(Seconds(elapsedCPU).count()/slowdown - elapsedSim) > syncMisalign;
 
           // out-of-sync (for any reason): reset sync times, step
-          if (elapsedSim < 0 || elapsedCPU < 0 || syncCPU == 0 || misaligned || sim.speedChanged) {
+          if (elapsedSim < 0 || elapsedCPU.count() < 0 || syncCPU.time_since_epoch().count() == 0 ||
+              misaligned || sim.speedChanged) {
             // re-sync
             syncCPU = startCPU;
             syncSim = d->time;
@@ -368,14 +369,16 @@ void PhysicsLoop(mj::Simulate& sim) {
           else {
             bool measured = false;
             mjtNum prevSim = d->time;
+
             double refreshTime = simRefreshFraction/sim.refreshRate;
 
             // step while sim lags behind cpu and within refreshTime
-            while ((d->time - syncSim)*slowdown < (Glfw().glfwGetTime()-syncCPU) &&
-                   (Glfw().glfwGetTime()-startCPU) < refreshTime) {
+            while (Seconds((d->time - syncSim)*slowdown) < mj::Simulate::Clock::now() - syncCPU &&
+                   mj::Simulate::Clock::now() - startCPU < Seconds(refreshTime)) {
               // measure slowdown before first step
               if (!measured && elapsedSim) {
-                sim.measuredSlowdown = elapsedCPU / elapsedSim;
+                sim.measuredSlowdown =
+                    std::chrono::duration<double>(elapsedCPU).count() / elapsedSim;
                 measured = true;
               }
 
@@ -466,12 +469,7 @@ int main(int argc, const char** argv) {
   scanPluginLibraries();
 
   // simulate object encapsulates the UI
-  auto sim = std::make_unique<mj::Simulate>();
-
-  // init GLFW
-  if (!Glfw().glfwInit()) {
-    mju_error("could not initialize GLFW");
-  }
+  mj::Simulate sim(std::make_unique<mj::GlfwAdapter>());
 
   const char* filename = nullptr;
   if (argc >  1) {
@@ -479,16 +477,11 @@ int main(int argc, const char** argv) {
   }
 
   // start physics thread
-  std::thread physicsthreadhandle = std::thread(&PhysicsThread, sim.get(), filename);
+  std::thread physicsthreadhandle = std::thread(&PhysicsThread, &sim, filename);
 
   // start simulation UI loop (blocking call)
-  sim->renderloop();
+  sim.renderloop();
   physicsthreadhandle.join();
-
-  // terminate GLFW (crashes with Linux NVidia drivers)
-#if defined(__APPLE__) || defined(_WIN32)
-  Glfw().glfwTerminate();
-#endif
 
   return 0;
 }

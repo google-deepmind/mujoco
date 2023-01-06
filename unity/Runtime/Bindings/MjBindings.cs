@@ -404,6 +404,8 @@ public enum mjtEvent : int{
   mjEVENT_SCROLL = 4,
   mjEVENT_KEY = 5,
   mjEVENT_RESIZE = 6,
+  mjEVENT_REDRAW = 7,
+  mjEVENT_FILESDROP = 8,
 }
 public enum mjtCatBit : int{
   mjCAT_STATIC = 1,
@@ -2332,6 +2334,8 @@ public unsafe struct mjuiState_ {
   public int mouserect;
   public int dragrect;
   public int dragbutton;
+  public int dropcount;
+  public char** droppaths;
 }
 
 [StructLayout(LayoutKind.Sequential)]

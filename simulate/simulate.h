@@ -16,35 +16,28 @@
 #define MUJOCO_SIMULATE_SIMULATE_H_
 
 #include <atomic>
+#include <chrono>
 #include <condition_variable>
+#include <memory>
 #include <mutex>
+#include <ratio>
 #include <thread>
 
-#include <GLFW/glfw3.h>
 #include <mujoco/mujoco.h>
-
-#ifdef MJSIMULATE_STATIC
-  // static library
-  #define MJSIMULATEAPI
-  #define MJSIMULATELOCAL
-#else
-  #ifdef MJSIMULATE_DLL_EXPORTS
-    #define MJSIMULATEAPI MUJOCO_HELPER_DLL_EXPORT
-  #else
-    #define MJSIMULATEAPI MUJOCO_HELPER_DLL_IMPORT
-  #endif
-  #define MJSIMULATELOCAL MUJOCO_HELPER_DLL_LOCAL
-#endif
+#include "platform_ui_adapter.h"
 
 namespace mujoco {
 
 //-------------------------------- global -----------------------------------------------
 
 // Simulate states not contained in MuJoCo structures
-class MJSIMULATEAPI Simulate {
+class Simulate {
  public:
+  using Clock = std::chrono::steady_clock;
+  static_assert(std::ratio_less_equal_v<Clock::period, std::milli>);
+
   // create object and initialize the simulate ui
-  Simulate() = default;
+  Simulate(std::unique_ptr<PlatformUIAdapter> platform_ui_adapter);
 
   // Apply UI pose perturbations to model and data
   void applyposepertubations(int flg_paused);
@@ -66,11 +59,7 @@ class MJSIMULATEAPI Simulate {
   // render the ui to the window
   void render();
 
-  // clear callbacks registered in external structures
-  void clearcallback();
-
   // loop to render the UI (must be called from main thread because of MacOS)
-  // https://discourse.glfw.org/t/multithreading-glfw/573/5
   void renderloop();
 
   // constants
@@ -162,13 +151,11 @@ class MJSIMULATEAPI Simulate {
   mjvFigure figsensor = {};
 
   // OpenGL rendering and UI
-  GLFWvidmode vmode = {};
   int refreshRate = 60;
   int windowpos[2] = {0};
   int windowsize[2] = {0};
-  mjrContext con = {};
-  GLFWwindow* window = nullptr;
-  mjuiState uistate = {};
+  std::unique_ptr<PlatformUIAdapter> platform_ui;
+  mjuiState& uistate;
   mjUI ui0 = {};
   mjUI ui1 = {};
 
@@ -226,11 +213,6 @@ class MJSIMULATEAPI Simulate {
   char info_title[Simulate::kMaxFilenameLength] = {0};
   char info_content[Simulate::kMaxFilenameLength] = {0};
 };
-
-// setup the glfw dispatch table
-// if set, must be called prior to other Simulate functions
-MJSIMULATEAPI void setglfwdlhandle(void* dlhandle);
-
 }  // namespace mujoco
 
 #endif

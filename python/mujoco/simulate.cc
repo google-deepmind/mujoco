@@ -14,8 +14,11 @@
 
 #include <cstdint>
 #include <cstring>
+#include <memory>
 #include <string>
 
+#include <glfw_adapter.h>
+#include <glfw_dispatch.h>
 #include <simulate.h>
 #include "structs.h"
 #include <pybind11/pybind11.h>
@@ -38,7 +41,10 @@ PYBIND11_MODULE(_simulate, pymodule) {
           py::call_guard<py::gil_scoped_release>());
 
   py::class_<mujoco::Simulate>(pymodule, "Simulate")
-      .def(py::init<>())
+      .def(py::init([]() {
+        return std::make_unique<mujoco::Simulate>(
+            std::make_unique<mujoco::GlfwAdapter>());
+      }))
       .def(
           "renderloop",
           [](mujoco::Simulate& simulate) { simulate.renderloop(); },
@@ -134,7 +140,7 @@ PYBIND11_MODULE(_simulate, pymodule) {
           });
 
   pymodule.def("setglfwdlhandle", [](std::uintptr_t dlhandle) {
-    mujoco::setglfwdlhandle(reinterpret_cast<void*>(dlhandle));
+    mujoco::Glfw(reinterpret_cast<void*>(dlhandle));
   });
 }
 

@@ -101,33 +101,47 @@ if(NOT TARGET lodepng)
 endif()
 
 # Simulate library
-add_library(libsimulate STATIC)
+add_library(platform_ui_adapter OBJECT)
+target_sources(
+  platform_ui_adapter
+  PUBLIC glfw_adapter.h
+         glfw_dispatch.h
+         platform_ui_adapter.h
+  PRIVATE glfw_adapter.cc
+          glfw_dispatch.cc
+          platform_ui_adapter.cc
+)
+target_compile_options(platform_ui_adapter PUBLIC ${MUJOCO_SIMULATE_COMPILE_OPTIONS})
+target_include_directories(
+  platform_ui_adapter
+  PUBLIC
+  ${CMAKE_CURRENT_SOURCE_DIR}
+  $<TARGET_PROPERTY:glfw,INTERFACE_INCLUDE_DIRECTORIES>
+)
+target_link_libraries(platform_ui_adapter PUBLIC mujoco::mujoco)
+if(SIMULATE_GLFW_DYNAMIC_SYMBOLS)
+  target_compile_definitions(platform_ui_adapter PUBLIC mjGLFW_DYNAMIC_SYMBOLS)
+endif()
+add_library(mujoco::platform_ui_adapter ALIAS platform_ui_adapter)
+
+add_library(libsimulate STATIC $<TARGET_OBJECTS:platform_ui_adapter>)
+set_target_properties(libsimulate PROPERTIES OUTPUT_NAME simulate)
 add_library(mujoco::libsimulate ALIAS libsimulate)
 
 target_sources(
   libsimulate
   PUBLIC simulate.h
-         array_safety.h
-         glfw_dispatch.h
-         glfw_dispatch.cc
-         simulate.cc
-         uitools.h
-         uitools.cc
+  PRIVATE simulate.cc
+          array_safety.h
 )
 target_include_directories(libsimulate PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-target_compile_definitions(libsimulate PUBLIC MJSIMULATE_STATIC)
 target_compile_options(libsimulate PUBLIC ${MUJOCO_SIMULATE_COMPILE_OPTIONS})
-target_link_libraries(libsimulate PUBLIC lodepng mujoco::mujoco)
-target_include_directories(libsimulate PUBLIC $<TARGET_PROPERTY:glfw,INTERFACE_INCLUDE_DIRECTORIES>)
+target_link_libraries(libsimulate PUBLIC lodepng mujoco::platform_ui_adapter mujoco::mujoco)
 target_link_options(libsimulate PRIVATE ${MUJOCO_SIMULATE_LINK_OPTIONS})
 
 if(APPLE)
   target_sources(libsimulate PRIVATE macos_gui.mm)
   target_link_libraries(libsimulate PUBLIC "-framework Cocoa")
-endif()
-
-if(SIMULATE_GLFW_DYNAMIC_SYMBOLS)
-  target_compile_definitions(libsimulate PUBLIC mjGLFW_DYNAMIC_SYMBOLS)
 endif()
 
 # Build simulate executable

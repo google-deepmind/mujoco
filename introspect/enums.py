@@ -627,6 +627,8 @@ ENUMS: Mapping[str, EnumDecl] = dict([
              ('mjEVENT_SCROLL', 4),
              ('mjEVENT_KEY', 5),
              ('mjEVENT_RESIZE', 6),
+             ('mjEVENT_REDRAW', 7),
+             ('mjEVENT_FILESDROP', 8),
          ]),
      )),
     ('mjtItem',

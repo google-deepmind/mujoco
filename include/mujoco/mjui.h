@@ -74,7 +74,9 @@ typedef enum mjtEvent_ {          // mouse and keyboard event type
   mjEVENT_RELEASE,                // mouse button release
   mjEVENT_SCROLL,                 // scroll
   mjEVENT_KEY,                    // key press
-  mjEVENT_RESIZE                  // resize
+  mjEVENT_RESIZE,                 // resize
+  mjEVENT_REDRAW,                 // redraw
+  mjEVENT_FILESDROP               // files drop
 } mjtEvent;
 
 
@@ -143,6 +145,10 @@ struct mjuiState_ {               // mouse and keyboard state
   int mouserect;                  // which rectangle contains mouse
   int dragrect;                   // which rectangle is dragged with mouse
   int dragbutton;                 // which button started drag (mjtButton)
+
+  // files dropping (only valid when type == mjEVENT_FILESDROP)
+  int dropcount;                  // number of files dropped
+  const char** droppaths;         // paths to files dropped
 };
 typedef struct mjuiState_ mjuiState;
 

@@ -20,18 +20,15 @@
 #include <cstring>
 #include <memory>
 #include <mutex>
+#include <ratio>
 #include <string>
 #include <thread>
+#include <utility>
 
-#include <GLFW/glfw3.h>
 #include "lodepng.h"
-#include <mujoco/mjmodel.h>
-#include <mujoco/mjtnum.h>
-#include <mujoco/mjvisualize.h>
 #include <mujoco/mjxmacro.h>
 #include <mujoco/mujoco.h>
-#include "glfw_dispatch.h"
-#include "uitools.h"
+#include "platform_ui_adapter.h"
 #include "array_safety.h"
 
 // When launched via an App Bundle on macOS, the working directory is the path to the App Bundle's
@@ -51,7 +48,8 @@ namespace {
 namespace mj = ::mujoco;
 namespace mju = ::mujoco::sample_util;
 
-using ::mujoco::Glfw;
+using Seconds = std::chrono::duration<double>;
+using Milliseconds = std::chrono::duration<double, std::milli>;
 
 //------------------------------------------- global -----------------------------------------------
 
@@ -350,13 +348,13 @@ void profilershow(mj::Simulate* sim, mjrRect rect) {
     rect.width/4,
     rect.height/4
   };
-  mjr_figure(viewport, &sim->figtimer, &sim->con);
+  mjr_figure(viewport, &sim->figtimer, &sim->platform_ui->mjr_context());
   viewport.bottom += rect.height/4;
-  mjr_figure(viewport, &sim->figsize, &sim->con);
+  mjr_figure(viewport, &sim->figsize, &sim->platform_ui->mjr_context());
   viewport.bottom += rect.height/4;
-  mjr_figure(viewport, &sim->figcost, &sim->con);
+  mjr_figure(viewport, &sim->figcost, &sim->platform_ui->mjr_context());
   viewport.bottom += rect.height/4;
-  mjr_figure(viewport, &sim->figconstraint, &sim->con);
+  mjr_figure(viewport, &sim->figconstraint, &sim->platform_ui->mjr_context());
 }
 
 
@@ -453,7 +451,7 @@ void sensorshow(mj::Simulate* sim, mjrRect rect) {
     width,
     rect.height/3
   };
-  mjr_figure(viewport, &sim->figsensor, &sim->con);
+  mjr_figure(viewport, &sim->figsensor, &sim->platform_ui->mjr_context());
 }
 
 // prepare info text
@@ -935,12 +933,12 @@ void copykey(mj::Simulate* sim) {
   mju::strcat_arr(clipboard, "'/>");
 
   // copy to clipboard
-  Glfw().glfwSetClipboardString(sim->window, clipboard);
+  sim->platform_ui->SetClipboardString(clipboard);
 }
 
 // millisecond timer, for MuJoCo built-in profiler
 mjtNum timer() {
-  return 1000*Glfw().glfwGetTime();
+  return Milliseconds(mj::Simulate::Clock::now().time_since_epoch()).count();
 }
 
 // clear all times
@@ -975,7 +973,7 @@ void copycamera(mj::Simulate* sim) {
                    camera[0].up[0], camera[0].up[1], camera[0].up[2]);
 
   // copy spec into clipboard
-  Glfw().glfwSetClipboardString(sim->window, clipboard);
+  sim->platform_ui->SetClipboardString(clipboard);
 }
 
 // update UI 0 when MuJoCo structures change (except for joint sliders)
@@ -1000,11 +998,36 @@ void updatesettings(mj::Simulate* sim) {
   }
 
   // update UI
-  mjui_update(-1, -1, &sim->ui0, &sim->uistate, &sim->con);
+  mjui_update(-1, -1, &sim->ui0, &sim->uistate, &sim->platform_ui->mjr_context());
+}
+
+// Compute suitable font scale.
+int ComputeFontScale(const mj::PlatformUIAdapter& platform_ui) {
+  // compute framebuffer-to-window ratio
+  auto [buf_width, buf_height] = platform_ui.GetFramebufferSize();
+  auto [win_width, win_height] = platform_ui.GetWindowSize();
+  double b2w = static_cast<double>(buf_width) / win_width;
+
+  // compute PPI
+  double PPI = b2w * platform_ui.GetDisplayPixelsPerInch();
+
+  // estimate font scaling, guard against unrealistic PPI
+  int fs;
+  if (buf_width > win_width) {
+    fs = mju_round(b2w * 100);
+  } else if (PPI>50 && PPI<350) {
+    fs = mju_round(PPI);
+  } else {
+    fs = 150;
+  }
+  fs = mju_round(fs * 0.02) * 50;
+  fs = mjMIN(300, mjMAX(100, fs));
+
+  return fs;
 }
 
 
-//---------------------------------- UI hooks (for uitools.c) --------------------------------------
+//---------------------------------- UI handlers ---------------------------------------------------
 
 // determine enable/disable item state given category
 int uiPredicate(int category, void* userdata) {
@@ -1033,11 +1056,6 @@ void uiLayout(mjuiState* state) {
   // set number of rectangles
   state->nrect = 4;
 
-  // rect 0: entire framebuffer
-  rect[0].left = 0;
-  rect[0].bottom = 0;
-  Glfw().glfwGetFramebufferSize(sim->window, &rect[0].width, &rect[0].height);
-
   // rect 1: UI 0
   rect[1].left = 0;
   rect[1].width = sim->ui0_enable ? sim->ui0.width : 0;
@@ -1057,6 +1075,13 @@ void uiLayout(mjuiState* state) {
   rect[3].height = rect[0].height;
 }
 
+void uiModify(mjUI* ui, mjuiState* state, mjrContext* con) {
+  mjui_resize(ui, con);
+  mjr_addAux(ui->auxid, ui->width, ui->maxheight, ui->spacing.samples, con);
+  uiLayout(state);
+  mjui_update(-1, -1, ui, state, con);
+}
+
 // handle UI event
 void uiEvent(mjuiState* state) {
   mj::Simulate* sim = static_cast<mj::Simulate*>(state->userdata);
@@ -1070,7 +1095,7 @@ void uiEvent(mjuiState* state) {
       (state->dragrect==0 && state->mouserect==sim->ui0.rectid) ||
       state->type==mjEVENT_KEY) {
     // process UI event
-    mjuiItem* it = mjui_event(&sim->ui0, state, &sim->con);
+    mjuiItem* it = mjui_event(&sim->ui0, state, &sim->platform_ui->mjr_context());
 
     // file section
     if (it && it->sectionid==SECT_FILE) {
@@ -1125,39 +1150,21 @@ void uiEvent(mjuiState* state) {
         break;
 
       case 2:             // Font
-        mjr_changeFont(50*(sim->font+1), &sim->con);
+        mjr_changeFont(50*(sim->font+1), &sim->platform_ui->mjr_context());
         break;
 
       case 9:             // Full screen
-        if (Glfw().glfwGetWindowMonitor(sim->window)) {
-          // restore window from saved data
-          Glfw().glfwSetWindowMonitor(sim->window, nullptr, sim->windowpos[0], sim->windowpos[1],
-                                      sim->windowsize[0], sim->windowsize[1], 0);
-        }
-
-        // currently windowed: switch to full screen
-        else {
-          // save window data
-          Glfw().glfwGetWindowPos(sim->window, sim->windowpos, sim->windowpos+1);
-          Glfw().glfwGetWindowSize(sim->window, sim->windowsize, sim->windowsize+1);
-
-          // switch
-          Glfw().glfwSetWindowMonitor(sim->window, Glfw().glfwGetPrimaryMonitor(), 0, 0,
-                                      sim->vmode.width, sim->vmode.height, sim->vmode.refreshRate);
-        }
-
-        // reinstante vsync, just in case
-        Glfw().glfwSwapInterval(sim->vsync);
+        sim->platform_ui->ToggleFullscreen();
         break;
 
       case 10:            // Vertical sync
-        Glfw().glfwSwapInterval(sim->vsync);
+        sim->platform_ui->SetVSync(sim->vsync);
         break;
       }
 
       // modify UI
-      uiModify(sim->window, &sim->ui0, state, &sim->con);
-      uiModify(sim->window, &sim->ui1, state, &sim->con);
+      uiModify(&sim->ui0, state, &sim->platform_ui->mjr_context());
+      uiModify(&sim->ui1, state, &sim->platform_ui->mjr_context());
     }
 
     // simulation section
@@ -1245,7 +1252,8 @@ void uiEvent(mjuiState* state) {
         } else {
           sim->cam.type = mjCAMERA_FREE;
           sim->camera = 0;
-          mjui_update(SECT_RENDERING, -1, &sim->ui0, &sim->uistate, &sim->con);
+          mjui_update(SECT_RENDERING, -1, &sim->ui0, &sim->uistate,
+                      &sim->platform_ui->mjr_context());
         }
       } else {
         sim->cam.type = mjCAMERA_FIXED;
@@ -1264,7 +1272,7 @@ void uiEvent(mjuiState* state) {
         sim->ui1.nsect = SECT_JOINT;
         makejoint(sim, sim->ui1.sect[SECT_JOINT].state);
         sim->ui1.nsect = NSECT1;
-        uiModify(sim->window, &sim->ui1, state, &sim->con);
+        uiModify(&sim->ui1, state, &sim->platform_ui->mjr_context());
       }
 
       // remake control section if actuator group changed
@@ -1272,7 +1280,7 @@ void uiEvent(mjuiState* state) {
         sim->ui1.nsect = SECT_CONTROL;
         makecontrol(sim, sim->ui1.sect[SECT_CONTROL].state);
         sim->ui1.nsect = NSECT1;
-        uiModify(sim->window, &sim->ui1, state, &sim->con);
+        uiModify(&sim->ui1, state, &sim->platform_ui->mjr_context());
       }
     }
 
@@ -1287,14 +1295,14 @@ void uiEvent(mjuiState* state) {
       (state->dragrect==0 && state->mouserect==sim->ui1.rectid) ||
       state->type==mjEVENT_KEY) {
     // process UI event
-    mjuiItem* it = mjui_event(&sim->ui1, state, &sim->con);
+    mjuiItem* it = mjui_event(&sim->ui1, state, &sim->platform_ui->mjr_context());
 
     // control section
     if (it && it->sectionid==SECT_CONTROL) {
       // clear controls
       if (it->itemid==0) {
         mju_zero(d->ctrl, m->nu);
-        mjui_update(SECT_CONTROL, -1, &sim->ui1, &sim->uistate, &sim->con);
+        mjui_update(SECT_CONTROL, -1, &sim->ui1, &sim->uistate, &sim->platform_ui->mjr_context());
       }
     }
 
@@ -1311,7 +1319,7 @@ void uiEvent(mjuiState* state) {
       if (m) {
         sim->run = 1 - sim->run;
         sim->pert.active = 0;
-        mjui_update(-1, -1, &sim->ui0, state, &sim->con);
+        mjui_update(-1, -1, &sim->ui0, state, &sim->platform_ui->mjr_context());
       }
       break;
 
@@ -1348,7 +1356,7 @@ void uiEvent(mjuiState* state) {
           sim->camera += 1;
         }
         sim->cam.fixedcamid = sim->camera - 2;
-        mjui_update(SECT_RENDERING, -1, &sim->ui0, &sim->uistate, &sim->con);
+        mjui_update(SECT_RENDERING, -1, &sim->ui0, &sim->uistate, &sim->platform_ui->mjr_context());
       }
       break;
 
@@ -1362,28 +1370,28 @@ void uiEvent(mjuiState* state) {
           sim->camera -= 1;
         }
         sim->cam.fixedcamid = sim->camera - 2;
-        mjui_update(SECT_RENDERING, -1, &sim->ui0, &sim->uistate, &sim->con);
+        mjui_update(SECT_RENDERING, -1, &sim->ui0, &sim->uistate, &sim->platform_ui->mjr_context());
       }
       break;
 
     case mjKEY_F6:                   // cycle frame visualisation
       if (m) {
         sim->vopt.frame = (sim->vopt.frame + 1) % mjNFRAME;
-        mjui_update(SECT_RENDERING, -1, &sim->ui0, &sim->uistate, &sim->con);
+        mjui_update(SECT_RENDERING, -1, &sim->ui0, &sim->uistate, &sim->platform_ui->mjr_context());
       }
       break;
 
     case mjKEY_F7:                   // cycle label visualisation
       if (m) {
         sim->vopt.label = (sim->vopt.label + 1) % mjNLABEL;
-        mjui_update(SECT_RENDERING, -1, &sim->ui0, &sim->uistate, &sim->con);
+        mjui_update(SECT_RENDERING, -1, &sim->ui0, &sim->uistate, &sim->platform_ui->mjr_context());
       }
       break;
 
     case mjKEY_ESCAPE:          // free camera
       sim->cam.type = mjCAMERA_FREE;
       sim->camera = 0;
-      mjui_update(SECT_RENDERING, -1, &sim->ui0, &sim->uistate, &sim->con);
+      mjui_update(SECT_RENDERING, -1, &sim->ui0, &sim->uistate, &sim->platform_ui->mjr_context());
       break;
 
     case '-':                   // slow down
@@ -1472,7 +1480,8 @@ void uiEvent(mjuiState* state) {
 
           // UI camera
           sim->camera = 1;
-          mjui_update(SECT_RENDERING, -1, &sim->ui0, &sim->uistate, &sim->con);
+          mjui_update(SECT_RENDERING, -1, &sim->ui0, &sim->uistate,
+                      &sim->platform_ui->mjr_context());
         }
       }
 
@@ -1531,32 +1540,29 @@ void uiEvent(mjuiState* state) {
 
     return;
   }
-}
 
-void uiRender(mjuiState* state) {
-  mj::Simulate* sim = static_cast<mj::Simulate*>(state->userdata);
-  sim->render();
-}
-
-// drop file callback
-void drop(mj::Simulate* sim, int count, const char** paths) {
-  // make sure list is non-empty
-  if (count>0) {
+  // Dropped files
+  if (state->type == mjEVENT_FILESDROP && state->dropcount > 0) {
     while (sim->droploadrequest.load()) {}
-    mju::strcpy_arr(sim->dropfilename, paths[0]);
+    mju::strcpy_arr(sim->dropfilename, state->droppaths[0]);
     sim->droploadrequest.store(true);
+    return;
+  }
+
+  // Redraw
+  if (state->type == mjEVENT_REDRAW) {
+    sim->render();
+    return;
   }
 }
-
-void uiDrop(mjuiState* state, int count, const char** paths) {
-  mj::Simulate* simulate = static_cast<mj::Simulate*>(state->userdata);
-  drop(simulate, count, paths);
-}
-
 }  // namespace
 
 namespace mujoco {
 namespace mju = ::mujoco::sample_util;
+
+Simulate::Simulate(std::unique_ptr<PlatformUIAdapter> platform_ui)
+    : platform_ui(std::move(platform_ui)),
+      uistate(this->platform_ui->state()) {}
 
 //------------------------------------ apply pose perturbations ------------------------------------
 void Simulate::applyposepertubations(int flg_paused) {
@@ -1598,7 +1604,7 @@ void Simulate::loadmodel() {
 
   // re-create scene and context
   mjv_makeScene(this->m, &this->scn, maxgeom);
-  mjr_makeContext(this->m, &this->con, 50*(this->font+1));
+  this->platform_ui->RefreshMjrContext(this->m, 50*(this->font+1));
 
   // clear perturbation state
   this->pert.active = 0;
@@ -1616,10 +1622,10 @@ void Simulate::loadmodel() {
   mjv_updateScene(this->m, this->d, &this->vopt, &this->pert, &this->cam, mjCAT_ALL, &this->scn);
 
   // set window title to model name
-  if (this->window && this->m->names) {
-    char title[200] = "Simulate : ";
+  if (this->m->names) {
+    char title[200] = "MuJoCo : ";
     mju::strcat_arr(title, this->m->names);
-    Glfw().glfwSetWindowTitle(this->window, title);
+    platform_ui->SetWindowTitle(title);
   }
 
   // set keyframe range and divisions
@@ -1631,8 +1637,8 @@ void Simulate::loadmodel() {
   makesections(this);
 
   // full ui update
-  uiModify(this->window, &this->ui0, &this->uistate, &this->con);
-  uiModify(this->window, &this->ui1, &this->uistate, &this->con);
+  uiModify(&this->ui0, &this->uistate, &this->platform_ui->mjr_context());
+  uiModify(&this->ui1, &this->uistate, &this->platform_ui->mjr_context());
   updatesettings(this);
 
   // clear request
@@ -1659,11 +1665,11 @@ void Simulate::loadmodel() {
 // prepare to render
 void Simulate::prepare() {
   // data for FPS calculation
-  static double lastupdatetm = 0;
+  static std::chrono::time_point<Clock> lastupdatetm;
 
   // update interval, save update time
-  double tmnow = Glfw().glfwGetTime();
-  double interval = tmnow - lastupdatetm;
+  auto tmnow = Clock::now();
+  double interval = Seconds(tmnow - lastupdatetm).count();
   interval = mjMIN(1, mjMAX(0.0001, interval));
   lastupdatetm = tmnow;
 
@@ -1678,12 +1684,12 @@ void Simulate::prepare() {
   // update watch
   if (this->ui0_enable && this->ui0.sect[SECT_WATCH].state) {
     watch(this);
-    mjui_update(SECT_WATCH, -1, &this->ui0, &this->uistate, &this->con);
+    mjui_update(SECT_WATCH, -1, &this->ui0, &this->uistate, &this->platform_ui->mjr_context());
   }
 
   // update joint
   if (this->ui1_enable && this->ui1.sect[SECT_JOINT].state) {
-    mjui_update(SECT_JOINT, -1, &this->ui1, &this->uistate, &this->con);
+    mjui_update(SECT_JOINT, -1, &this->ui1, &this->uistate, &this->platform_ui->mjr_context());
   }
 
   // update info text
@@ -1693,7 +1699,7 @@ void Simulate::prepare() {
 
   // update control
   if (this->ui1_enable && this->ui1.sect[SECT_CONTROL].state) {
-    mjui_update(SECT_CONTROL, -1, &this->ui1, &this->uistate, &this->con);
+    mjui_update(SECT_CONTROL, -1, &this->ui1, &this->uistate, &this->platform_ui->mjr_context());
   }
 
   // update profiler
@@ -1712,6 +1718,11 @@ void Simulate::prepare() {
 
 // render the ui to the window
 void Simulate::render() {
+  if (this->platform_ui->RefreshMjrContext(this->m, 50*(this->font+1))) {
+    uiModify(&this->ui0, &this->uistate, &this->platform_ui->mjr_context());
+    uiModify(&this->ui1, &this->uistate, &this->platform_ui->mjr_context());
+  }
+
   // get 3D rectangle and reduced for profiler
   mjrRect rect = this->uistate.rect[3];
   mjrRect smallrect = rect;
@@ -1726,39 +1737,43 @@ void Simulate::render() {
 
     // label
     if (this->loadrequest) {
-      mjr_overlay(mjFONT_BIG, mjGRID_TOPRIGHT, smallrect, "loading", nullptr, &this->con);
+      mjr_overlay(mjFONT_BIG, mjGRID_TOPRIGHT, smallrect, "loading", nullptr,
+                  &this->platform_ui->mjr_context());
     } else {
       char intro_message[Simulate::kMaxFilenameLength];
       mju::sprintf_arr(intro_message,
                        "MuJoCo version %s\nDrag-and-drop model file here", mj_versionString());
-      mjr_overlay(mjFONT_NORMAL, mjGRID_TOPLEFT, rect, intro_message, 0, &this->con);
+      mjr_overlay(mjFONT_NORMAL, mjGRID_TOPLEFT, rect, intro_message, 0,
+                  &this->platform_ui->mjr_context());
     }
 
     // show last loading error
     if (this->loadError[0]) {
-      mjr_overlay(mjFONT_NORMAL, mjGRID_BOTTOMLEFT, rect, this->loadError, 0, &this->con);
+      mjr_overlay(mjFONT_NORMAL, mjGRID_BOTTOMLEFT, rect, this->loadError, 0,
+                  &this->platform_ui->mjr_context());
     }
 
     // render uis
     if (this->ui0_enable) {
-      mjui_render(&this->ui0, &this->uistate, &this->con);
+      mjui_render(&this->ui0, &this->uistate, &this->platform_ui->mjr_context());
     }
     if (this->ui1_enable) {
-      mjui_render(&this->ui1, &this->uistate, &this->con);
+      mjui_render(&this->ui1, &this->uistate, &this->platform_ui->mjr_context());
     }
 
     // finalize
-    Glfw().glfwSwapBuffers(this->window);
+    this->platform_ui->SwapBuffers();
 
     return;
   }
 
   // render scene
-  mjr_render(rect, &this->scn, &this->con);
+  mjr_render(rect, &this->scn, &this->platform_ui->mjr_context());
 
   // show last loading error
   if (this->loadError[0]) {
-    mjr_overlay(mjFONT_NORMAL, mjGRID_BOTTOMLEFT, rect, this->loadError, 0, &this->con);
+    mjr_overlay(mjFONT_NORMAL, mjGRID_BOTTOMLEFT, rect, this->loadError, 0,
+                &this->platform_ui->mjr_context());
   }
 
   // make pause/loading label
@@ -1794,28 +1809,30 @@ void Simulate::render() {
     std::string newline = !pauseloadlabel.empty() && rtlabel[0] ? "\n" : "";
     std::string topleftlabel = rtlabel + newline + pauseloadlabel;
     mjr_overlay(mjFONT_BIG, mjGRID_TOPLEFT, smallrect,
-                topleftlabel.c_str(), nullptr, &this->con);
+                topleftlabel.c_str(), nullptr, &this->platform_ui->mjr_context());
   }
 
 
   // show ui 0
   if (this->ui0_enable) {
-    mjui_render(&this->ui0, &this->uistate, &this->con);
+    mjui_render(&this->ui0, &this->uistate, &this->platform_ui->mjr_context());
   }
 
   // show ui 1
   if (this->ui1_enable) {
-    mjui_render(&this->ui1, &this->uistate, &this->con);
+    mjui_render(&this->ui1, &this->uistate, &this->platform_ui->mjr_context());
   }
 
   // show help
   if (this->help) {
-    mjr_overlay(mjFONT_NORMAL, mjGRID_TOPLEFT, rect, help_title, help_content, &this->con);
+    mjr_overlay(mjFONT_NORMAL, mjGRID_TOPLEFT, rect, help_title, help_content,
+                &this->platform_ui->mjr_context());
   }
 
   // show info
   if (this->info) {
-    mjr_overlay(mjFONT_NORMAL, mjGRID_BOTTOMLEFT, rect, this->info_title, this->info_content, &this->con);
+    mjr_overlay(mjFONT_NORMAL, mjGRID_BOTTOMLEFT, rect, this->info_title, this->info_content,
+                &this->platform_ui->mjr_context());
   }
 
   // show profiler
@@ -1836,7 +1853,7 @@ void Simulate::render() {
     if (!rgb) {
       mju_error("could not allocate buffer for screenshot");
     }
-    mjr_readPixels(rgb.get(), nullptr, uistate.rect[0], &con);
+    mjr_readPixels(rgb.get(), nullptr, uistate.rect[0], &this->platform_ui->mjr_context());
 
     // flip up-down
     for (int r = 0; r < h/2; ++r) {
@@ -1861,44 +1878,14 @@ void Simulate::render() {
   }
 
   // finalize
-  Glfw().glfwSwapBuffers(this->window);
+  this->platform_ui->SwapBuffers();
 }
 
 
-// clear callbacks registered in external structures
-void Simulate::clearcallback() {
-  uiClearCallback(this->window);
-}
 
 void Simulate::renderloop() {
   // Set timer callback (milliseconds)
   mjcb_time = timer;
-
-  // multisampling
-  Glfw().glfwWindowHint(GLFW_SAMPLES, 4);
-  Glfw().glfwWindowHint(GLFW_VISIBLE, 1);
-
-  // get videomode and save
-  this->vmode = *Glfw().glfwGetVideoMode(Glfw().glfwGetPrimaryMonitor());
-
-  // use videomode refreshrate if nonzero
-  if (this->vmode.refreshRate) this->refreshRate = this->vmode.refreshRate;
-
-  // create window
-  this->window = Glfw().glfwCreateWindow((2*this->vmode.width)/3, (2*this->vmode.height)/3,
-                                         "Simulate", nullptr, nullptr);
-  if (!this->window) {
-    Glfw().glfwTerminate();
-    mju_error("could not create window");
-  }
-
-  // save window position and size
-  Glfw().glfwGetWindowPos(this->window, this->windowpos, this->windowpos+1);
-  Glfw().glfwGetWindowSize(this->window, this->windowsize, this->windowsize+1);
-
-  // make context current, set v-sync
-  Glfw().glfwMakeContextCurrent(this->window);
-  Glfw().glfwSwapInterval(this->vsync);
 
   // init abstract visualization
   mjv_defaultCamera(&this->cam);
@@ -1911,31 +1898,38 @@ void Simulate::renderloop() {
   mjv_makeScene(nullptr, &this->scn, maxgeom);
 
   // select default font
-  int fontscale = uiFontScale(this->window);
+  int fontscale = ComputeFontScale(*this->platform_ui);
   this->font = fontscale/50 - 1;
 
   // make empty context
-  mjr_defaultContext(&this->con);
-  mjr_makeContext(nullptr, &this->con, fontscale);
+  this->platform_ui->RefreshMjrContext(nullptr, fontscale);
 
   // init state and uis
   std::memset(&this->uistate, 0, sizeof(mjuiState));
   std::memset(&this->ui0, 0, sizeof(mjUI));
   std::memset(&this->ui1, 0, sizeof(mjUI));
+
+  auto [buf_width, buf_height] = this->platform_ui->GetFramebufferSize();
+  this->uistate.nrect = 1;
+  this->uistate.rect[0].width = buf_width;
+  this->uistate.rect[0].height = buf_height;
+
   this->ui0.spacing = mjui_themeSpacing(this->spacing);
   this->ui0.color = mjui_themeColor(this->color);
   this->ui0.predicate = uiPredicate;
   this->ui0.rectid = 1;
   this->ui0.auxid = 0;
+
   this->ui1.spacing = mjui_themeSpacing(this->spacing);
   this->ui1.color = mjui_themeColor(this->color);
   this->ui1.predicate = uiPredicate;
   this->ui1.rectid = 2;
   this->ui1.auxid = 1;
 
-  // set GLFW callbacks
+  // set GUI adapter callbacks
   this->uistate.userdata = this;
-  uiSetCallback(this->window, &this->uistate, uiEvent, uiLayout, uiRender, uiDrop);
+  this->platform_ui->SetEventCallback(uiEvent);
+  this->platform_ui->SetLayoutCallback(uiLayout);
 
   // populate uis with standard sections
   this->ui0.userdata = this;
@@ -1944,11 +1938,11 @@ void Simulate::renderloop() {
   mjui_add(&this->ui0, this->defOption);
   mjui_add(&this->ui0, this->defSimulation);
   mjui_add(&this->ui0, this->defWatch);
-  uiModify(this->window, &this->ui0, &this->uistate, &this->con);
-  uiModify(this->window, &this->ui1, &this->uistate, &this->con);
+  uiModify(&this->ui0, &this->uistate, &this->platform_ui->mjr_context());
+  uiModify(&this->ui1, &this->uistate, &this->platform_ui->mjr_context());
 
   // run event loop
-  while (!Glfw().glfwWindowShouldClose(this->window) && !this->exitrequest.load()) {
+  while (!this->platform_ui->ShouldCloseWindow() && !this->exitrequest.load()) {
     {
       const std::lock_guard<std::mutex> lock(this->mtx);
 
@@ -1959,8 +1953,8 @@ void Simulate::renderloop() {
         this->loadrequest = 1;
       }
 
-      // handle events (calls all callbacks)
-      Glfw().glfwPollEvents();
+      // poll and handle events
+      this->platform_ui->PollEvents();
 
       // prepare to render
       this->prepare();
@@ -1972,16 +1966,6 @@ void Simulate::renderloop() {
 
   this->exitrequest.store(true);
 
-  this->clearcallback();
   mjv_freeScene(&this->scn);
-  mjr_freeContext(&this->con);
-
-  Glfw().glfwDestroyWindow(this->window);
 }
-
-//------------------------------------ setup the glfw dispatch table -------------------------------
-void setglfwdlhandle(void* dlhandle) {
-  Glfw(dlhandle);
-}
-
 }  // namespace mujoco
