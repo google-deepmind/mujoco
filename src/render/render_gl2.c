@@ -153,7 +153,7 @@ void mjr_readPixels(unsigned char* rgb, float* depth,
     // read rgb and depth
     if (rgb) {
       glReadPixels(viewport.left, viewport.bottom, viewport.width, viewport.height,
-                   GL_RGB, GL_UNSIGNED_BYTE, rgb);
+                   con->readPixelFormat, GL_UNSIGNED_BYTE, rgb);
     }
     if (depth) {
       glReadPixels(viewport.left, viewport.bottom, viewport.width, viewport.height,

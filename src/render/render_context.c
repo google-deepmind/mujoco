@@ -1602,6 +1602,9 @@ void mjr_makeContext_offSize(const mjModel* m, mjrContext* con, int fontscale,
   while ((err = glGetError())) {
     mju_warning_i("OpenGL error 0x%x in or before mjr_makeContext", err);
   }
+
+  // set default color pixel format for mjr_readPixels
+  con->readPixelFormat = GL_RGB;
 }
 
 

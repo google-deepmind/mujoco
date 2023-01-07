@@ -149,6 +149,9 @@ struct mjrContext_ {              // custom OpenGL context
 
   // framebuffer
   int     currentBuffer;          // currently active framebuffer: mjFB_WINDOW or mjFB_OFFSCREEN
+
+  // pixel output format
+  int     readPixelFormat;        // default color pixel format for mjr_readPixels
 };
 typedef struct mjrContext_ mjrContext;
 

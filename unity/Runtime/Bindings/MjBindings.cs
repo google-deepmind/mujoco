@@ -2282,6 +2282,7 @@ public unsafe struct mjrContext_ {
   public int windowStereo;
   public int windowDoublebuffer;
   public int currentBuffer;
+  public int readPixelFormat;
 }
 
 [StructLayout(LayoutKind.Sequential)]
