@@ -135,6 +135,7 @@ class mjCModel {
   int inertiafromgeom;            // use geom inertias (mjtInertiaFromGeom)
   int inertiagrouprange[2];       // range of geom groups used to compute inertia
   bool exactmeshinertia;          // if false, use old formula
+  bool geomnamesfromurdf;         // parse geom names from URDF
   mjLROpt LRopt;                  // options for lengthrange computation
 
   //------------------------ statistics override (if defined)

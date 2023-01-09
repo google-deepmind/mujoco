@@ -276,6 +276,11 @@ void mjXURDF::Body(XMLElement* body_elem) {
         if (rgba[0]>=0) {
           std::memcpy(pgeom->rgba, rgba, 4*sizeof(float));
         }
+
+        // save name
+        if (model->geomnamesfromurdf) {
+          mjXUtil::ReadAttrTxt(elem, "name", pgeom->name);
+        }
       }
     }
 
@@ -286,6 +291,11 @@ void mjXURDF::Body(XMLElement* body_elem) {
       // use color from last visual
       if (rgba[0]>=0) {
         std::memcpy(pgeom->rgba, rgba, 4*sizeof(float));
+      }
+
+      // save name
+      if (model->geomnamesfromurdf) {
+        mjXUtil::ReadAttrTxt(elem, "name", pgeom->name);
       }
     }
 

@@ -902,6 +902,9 @@ void mjXReader::Compiler(XMLElement* section, mjCModel* mod) {
   if (MapValue(section, "exactmeshinertia", &n, bool_map, 2)){
     mod->exactmeshinertia = (n==1);
   }
+  if (MapValue(section, "geomnamesfromurdf", &n, bool_map, 2)) {
+    mod->geomnamesfromurdf = (n==1);
+  }
 
   // lengthrange subelement
   XMLElement* elem = FindSubElem(section, "lengthrange");

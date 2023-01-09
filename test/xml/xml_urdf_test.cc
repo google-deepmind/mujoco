@@ -49,5 +49,73 @@ TEST_F(MujocoTest, ReadsCapsule) {
   mj_deleteModel(model);
 }
 
+TEST_F(MujocoTest, ReadsGeomNamesWithCompilerOption) {
+  static constexpr char urdf[] = R"(
+  <robot name="">
+  <mujoco>
+    <compiler geomnamesfromurdf="true" discardvisual="false"/>
+  </mujoco>
+
+  <link name="torso">
+    <collision name="collision_box">
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+      <geometry>
+        <box size="0.1 0.2 0.3"/>
+      </geometry>
+    </collision>
+    <visual name="visual_sphere">
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+      <geometry>
+        <sphere radius="0.5"/>
+      </geometry>
+    </visual>
+  </link>
+  </robot>
+  )";
+  std::array<char, 1000> error;
+  mjModel* model = LoadModelFromString(urdf, error.data(), error.size());
+  ASSERT_THAT(model, NotNull()) << error.data();
+
+  // Check the geoms have been loaded with the right names
+  int collision_box_id = mj_name2id(model, mjtObj::mjOBJ_GEOM, "collision_box");
+  ASSERT_GE(collision_box_id, 0);
+  EXPECT_EQ(model->geom_type[collision_box_id], mjtGeom::mjGEOM_BOX);
+
+  int visual_sphere_id = mj_name2id(model, mjtObj::mjOBJ_GEOM, "visual_sphere");
+  ASSERT_GE(visual_sphere_id, 0);
+  EXPECT_EQ(model->geom_type[visual_sphere_id], mjtGeom::mjGEOM_SPHERE);
+
+  mj_deleteModel(model);
+}
+
+TEST_F(MujocoTest, CanLoadUrdfWithNonUniqueNamesByDefault) {
+  static constexpr char urdf[] = R"(
+  <robot name="">
+  <mujoco>
+    <compiler discardvisual="false"/>
+  </mujoco>
+
+  <link name="torso">
+    <collision name="shared_name">
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+      <geometry>
+        <box size="0.1 0.2 0.3"/>
+      </geometry>
+    </collision>
+    <visual name="shared_name">
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+      <geometry>
+        <sphere radius="0.5"/>
+      </geometry>
+    </visual>
+  </link>
+  </robot>
+  )";
+  std::array<char, 1000> error;
+  mjModel* model = LoadModelFromString(urdf, error.data(), error.size());
+  ASSERT_THAT(model, NotNull()) << error.data();
+  mj_deleteModel(model);
+}
+
 }  // namespace
 }  // namespace mujoco
