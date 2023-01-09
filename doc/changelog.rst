@@ -11,13 +11,14 @@ General
 - The function :ref:`mj_name2id` is now implemented using a hash function instead of a linear search for better
   performance.
 
+.. image:: images/changelog/meshfit.png
+   :align: right
+   :width: 300px
+
 Bug fixes
 ^^^^^^^^^
 
 - Fixed misalignment bug in mesh-to-primitive fitting when using the bounding box fitting option :at:`fitaabb`.
-
-  .. image:: images/changelog/aabb.png
-     :width: 300px
 
 Version 2.3.1 (December 6, 2022)
 -----------------------------------
