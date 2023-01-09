@@ -76,7 +76,7 @@ MJAPI void mj_fwdVelocity(const mjModel* m, mjData* d);
 // compute actuator force
 MJAPI void mj_fwdActuation(const mjModel* m, mjData* d);
 
-// add up all non-constraint forces, compute qacc_unc
+// add up all non-constraint forces, compute qacc_smooth
 MJAPI void mj_fwdAcceleration(const mjModel* m, mjData* d);
 
 // forward constraint

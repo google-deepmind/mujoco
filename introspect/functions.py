@@ -1018,7 +1018,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  ),
              ),
          ),
-         doc='Add up all non-constraint forces, compute qacc_unc.',
+         doc='Add up all non-constraint forces, compute qacc_smooth.',
      )),
     ('mj_fwdConstraint',
      FunctionDecl(

@@ -246,7 +246,7 @@ MJAPI void mj_fwdVelocity(const mjModel* m, mjData* d);
 // Compute actuator force qfrc_actuator.
 MJAPI void mj_fwdActuation(const mjModel* m, mjData* d);
 
-// Add up all non-constraint forces, compute qacc_unc.
+// Add up all non-constraint forces, compute qacc_smooth.
 MJAPI void mj_fwdAcceleration(const mjModel* m, mjData* d);
 
 // Run selected constraint solver.
