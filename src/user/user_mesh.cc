@@ -334,6 +334,9 @@ double* mjCMesh::GetQuatPtr(mjtMeshType type) {
 void mjCMesh::FitGeom(mjCGeom* geom, double* meshpos) {
   int i;
 
+  // copy mesh pos into meshpos
+  mjuu_copyvec(meshpos, GetPosPtr(geom->typeinertia), 3);
+
   // use inertial box
   if (!model->fitaabb) {
     // get inertia box type (shell or volume)
@@ -363,9 +366,6 @@ void mjCMesh::FitGeom(mjCGeom* geom, double* meshpos) {
     default:
       throw mjCError(this, "invalid geom type in fitting mesh %s", name.c_str());
     }
-
-    // copy mesh pos into meshpos
-    mjuu_copyvec(meshpos, GetPosPtr(geom->typeinertia), 3);
   }
 
   // use AABB
@@ -385,13 +385,10 @@ void mjCMesh::FitGeom(mjCGeom* geom, double* meshpos) {
     // find AABB box center
     double cen[3] = {(AABB[0]+AABB[3])/2, (AABB[1]+AABB[4])/2, (AABB[2]+AABB[5])/2};
 
-    // copy box center into meshpos
-    mjuu_copyvec(meshpos, cen, 3);
-
-    // get AABB box half-sizes
-    double sz0 = AABB[3] - cen[0];
-    double sz1 = AABB[4] - cen[1];
-    double sz2 = AABB[5] - cen[2];
+    // add box center into meshpos
+    meshpos[0] += cen[0];
+    meshpos[1] += cen[1];
+    meshpos[2] += cen[2];
 
     // compute depending on type
     switch (geom->type) {
@@ -440,9 +437,9 @@ void mjCMesh::FitGeom(mjCGeom* geom, double* meshpos) {
 
     case mjGEOM_ELLIPSOID:
     case mjGEOM_BOX:
-      geom->size[0] = sz0;
-      geom->size[1] = sz1;
-      geom->size[2] = sz2;
+      geom->size[0] = AABB[3] - cen[0];
+      geom->size[1] = AABB[4] - cen[1];
+      geom->size[2] = AABB[5] - cen[2];
       break;
 
     default:
