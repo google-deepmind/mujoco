@@ -29,7 +29,7 @@
 
 //------------------------------ tendon wrapping ---------------------------------------------------
 
-// check for intersection of two 2D line segmetns
+// check for intersection of two 2D line segments
 static mjtByte is_intersect(const mjtNum* p1, const mjtNum* p2,
                             const mjtNum* p3, const mjtNum* p4) {
   mjtNum a, b;

@@ -2837,7 +2837,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  ),
              ),
          ),
-         doc='Interect ray with hfield, return nearest distance or -1 if no intersection.',  # pylint: disable=line-too-long
+         doc='Intersect ray with hfield, return nearest distance or -1 if no intersection.',  # pylint: disable=line-too-long
      )),
     ('mj_rayMesh',
      FunctionDecl(
@@ -2875,7 +2875,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  ),
              ),
          ),
-         doc='Interect ray with mesh, return nearest distance or -1 if no intersection.',  # pylint: disable=line-too-long
+         doc='Intersect ray with mesh, return nearest distance or -1 if no intersection.',  # pylint: disable=line-too-long
      )),
     ('mju_rayGeom',
      FunctionDecl(
@@ -2922,7 +2922,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  type=ValueType(name='int'),
              ),
          ),
-         doc='Interect ray with pure geom, return nearest distance or -1 if no intersection.',  # pylint: disable=line-too-long
+         doc='Intersect ray with pure geom, return nearest distance or -1 if no intersection.',  # pylint: disable=line-too-long
      )),
     ('mju_raySkin',
      FunctionDecl(
@@ -2971,7 +2971,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  ),
              ),
          ),
-         doc='Interect ray with skin, return nearest distance or -1 if no intersection, and also output nearest vertex id.',  # pylint: disable=line-too-long
+         doc='Intersect ray with skin, return nearest distance or -1 if no intersection, and also output nearest vertex id.',  # pylint: disable=line-too-long
      )),
     ('mjv_defaultCamera',
      FunctionDecl(

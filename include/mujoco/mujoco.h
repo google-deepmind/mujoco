@@ -482,19 +482,19 @@ MJAPI mjtNum mj_ray(const mjModel* m, const mjData* d, const mjtNum pnt[3], cons
                     const mjtByte* geomgroup, mjtByte flg_static, int bodyexclude,
                     int geomid[1]);
 
-// Interect ray with hfield, return nearest distance or -1 if no intersection.
+// Intersect ray with hfield, return nearest distance or -1 if no intersection.
 MJAPI mjtNum mj_rayHfield(const mjModel* m, const mjData* d, int geomid,
                           const mjtNum pnt[3], const mjtNum vec[3]);
 
-// Interect ray with mesh, return nearest distance or -1 if no intersection.
+// Intersect ray with mesh, return nearest distance or -1 if no intersection.
 MJAPI mjtNum mj_rayMesh(const mjModel* m, const mjData* d, int geomid,
                         const mjtNum pnt[3], const mjtNum vec[3]);
 
-// Interect ray with pure geom, return nearest distance or -1 if no intersection.
+// Intersect ray with pure geom, return nearest distance or -1 if no intersection.
 MJAPI mjtNum mju_rayGeom(const mjtNum pos[3], const mjtNum mat[9], const mjtNum size[3],
                          const mjtNum pnt[3], const mjtNum vec[3], int geomtype);
 
-// Interect ray with skin, return nearest distance or -1 if no intersection,
+// Intersect ray with skin, return nearest distance or -1 if no intersection,
 // and also output nearest vertex id.
 MJAPI mjtNum mju_raySkin(int nface, int nvert, const int* face, const float* vert,
                          const mjtNum pnt[3], const mjtNum vec[3], int vertid[1]);
