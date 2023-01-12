@@ -1,3 +1,7 @@
+..
+  AUTOGENERATE: DO NOT EDIT
+
+
 .. _Activation:
 
 Activation
@@ -12,7 +16,7 @@ mj_activate
 
 .. mujoco-include:: mj_activate
 
-Does nothing, returns 1.
+Return 1 (for backward compatibility).
 
 .. _mj_deactivate:
 
@@ -21,7 +25,7 @@ mj_deactivate
 
 .. mujoco-include:: mj_deactivate
 
-Does nothing.
+Do nothing (for backward compatibility).
 
 .. _Virtualfilesystem:
 
@@ -58,7 +62,7 @@ mj_addFileVFS
 
 .. mujoco-include:: mj_addFileVFS
 
-Add file to VFS, return 0: success, 1: full, 2: repeated name, -1: not found on disk.
+Add file to VFS, return 0: success, 1: full, 2: repeated name, -1: failed to load.
 
 .. _mj_makeEmptyFileVFS:
 
@@ -112,8 +116,9 @@ mj_loadXML
 
 .. mujoco-include:: mj_loadXML
 
-Parse XML file in MJCF or URDF format, compile it, return low-level model. If vfs is not NULL, look up files in vfs
-before reading from disk. If error is not NULL, it must have size error_sz.
+Parse XML file in MJCF or URDF format, compile it, return low-level model.
+If vfs is not ``NULL``, look up files in vfs before reading from disk.
+If error is not ``NULL``, it must have size error_sz.
 
 .. _mj_saveLastXML:
 
@@ -122,8 +127,8 @@ mj_saveLastXML
 
 .. mujoco-include:: mj_saveLastXML
 
-Update XML data structures with info from low-level model, save as MJCF. If error is not NULL, it must have size
-error_sz.
+Update XML data structures with info from low-level model, save as MJCF.
+If error is not ``NULL``, it must have size error_sz.
 
 .. _mj_freeLastXML:
 
@@ -286,7 +291,7 @@ mj_copyModel
 
 .. mujoco-include:: mj_copyModel
 
-Copy mjModel, allocate new if dest is NULL.
+Copy ``mjModel``, allocate new if dest is ``NULL``.
 
 .. _mj_saveModel:
 
@@ -304,7 +309,8 @@ mj_loadModel
 
 .. mujoco-include:: mj_loadModel
 
-Load model from binary MJB file. If vfs is not NULL, look up file in vfs before reading from disk.
+Load model from binary MJB file.
+If vfs is not ``NULL``, look up file in vfs before reading from disk.
 
 .. _mj_deleteModel:
 
@@ -331,7 +337,8 @@ mj_makeData
 
 .. mujoco-include:: mj_makeData
 
-Allocate mjData corresponding to given model.
+Allocate ``mjData`` corresponding to given model.
+If the model buffer is unallocated the initial configuration will not be set.
 
 .. _mj_copyData:
 
@@ -340,7 +347,8 @@ mj_copyData
 
 .. mujoco-include:: mj_copyData
 
-Copy mjData.
+Copy ``mjData``.
+m is only required to contain the size fields from MJMODEL_INTS.
 
 .. _mj_resetData:
 
@@ -376,7 +384,7 @@ mj_stackAlloc
 
 .. mujoco-include:: mj_stackAlloc
 
-Allocate array of specified size on mjData stack. Call mju_error on stack overflow.
+Allocate array of specified size on ``mjData`` stack. Call mju_error on stack overflow.
 
 .. _mj_deleteData:
 
@@ -385,7 +393,7 @@ mj_deleteData
 
 .. mujoco-include:: mj_deleteData
 
-Free memory allocation in mjData.
+Free memory allocation in ``mjData``.
 
 .. _mj_resetCallbacks:
 
@@ -394,7 +402,7 @@ mj_resetCallbacks
 
 .. mujoco-include:: mj_resetCallbacks
 
-Reset all callbacks to NULL pointers (NULL is the default).
+Reset all callbacks to ``NULL`` pointers (``NULL`` is the default).
 
 .. _mj_setConst:
 
@@ -403,7 +411,7 @@ mj_setConst
 
 .. mujoco-include:: mj_setConst
 
-Set constant fields of mjModel, corresponding to qpos0 configuration.
+Set constant fields of ``mjModel``, corresponding to qpos0 configuration.
 
 .. _mj_setLengthRange:
 
@@ -421,7 +429,6 @@ Printing
 
 These functions can be used to print various quantities to the screen for debugging purposes.
 
-
 .. _mj_printFormattedModel:
 
 mj_printFormattedModel
@@ -429,8 +436,8 @@ mj_printFormattedModel
 
 .. mujoco-include:: mj_printFormattedModel
 
-Print ``mjModel`` to text file, specifying format. ``float_format`` must be a valid printf-style format string for a
-single float value.
+Print ``mjModel`` to text file, specifying format.
+float_format must be a valid printf-style format string for a single float value.
 
 .. _mj_printModel:
 
@@ -444,12 +451,12 @@ Print model to text file.
 .. _mj_printFormattedData:
 
 mj_printFormattedData
-~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mj_printFormattedData
 
-Print ``mjData`` to text file, specifying format. ``float_format`` must be a valid printf-style format string for a
-single float value.
+Print ``mjData`` to text file, specifying format.
+float_format must be a valid printf-style format string for a single float value
 
 .. _mj_printData:
 
@@ -683,12 +690,16 @@ mj_comPos
 
 Map inertias and motion dofs to global frame centered at CoM.
 
+.. _mj_camlight:
+
 mj_camlight
 ~~~~~~~~~~~
 
 .. mujoco-include:: mj_camlight
 
 Compute camera and light positions and orientations.
+
+.. _mj_tendon:
 
 mj_tendon
 ~~~~~~~~~
@@ -697,12 +708,16 @@ mj_tendon
 
 Compute tendon lengths, velocities and moment arms.
 
+.. _mj_transmission:
+
 mj_transmission
 ~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mj_transmission
 
 Compute actuator transmission lengths and moments.
+
+.. _mj_crb:
 
 mj_crb
 ~~~~~~
@@ -747,6 +762,8 @@ mj_comVel
 
 Compute cvel, cdof_dot.
 
+.. _mj_passive:
+
 mj_passive
 ~~~~~~~~~~
 
@@ -762,6 +779,8 @@ mj_subtreeVel
 .. mujoco-include:: mj_subtreeVel
 
 subtree linear velocity and angular momentum
+
+.. _mj_rne:
 
 mj_rne
 ~~~~~~
@@ -815,14 +834,14 @@ mj_referenceConstraint
 
 Compute efc_vel, efc_aref.
 
-. _mj_constraintUpdate:
+.. _mj_constraintUpdate:
 
 mj_constraintUpdate
 ~~~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mj_constraintUpdate
 
-Compute efc_state, efc_force, qfrc_constraint, and (optionally) cone Hessians. If cost is not NULL, set \*cost = s(jar)
+Compute efc_state, efc_force, qfrc_constraint, and (optionally) cone Hessians. If cost is not ``NULL``, set \*cost = s(jar)
 where jar = Jac*qacc-aref.
 
 .. _Support:
@@ -877,7 +896,7 @@ mj_mulJacVec
 
 .. mujoco-include:: mj_mulJacVec
 
-This function multiplies the constraint Jacobian mjData.efc_J by a vector. Note that the Jacobian can be either dense or
+This function multiplies the constraint Jacobian ``mjData.efc_J`` by a vector. Note that the Jacobian can be either dense or
 sparse; the function is aware of this setting. Multiplication by J maps velocities from joint space to constraint space.
 
 .. _mj_mulJacTVec:
@@ -899,7 +918,7 @@ mj_jac
 
 This function computes an "end-effector" Jacobian, which is unrelated to the constraint Jacobian above. Any MuJoCo body
 can be treated as end-effector, and the point for which the Jacobian is computed can be anywhere in space (it is treated
-as attached to the body). The Jacobian has translational (jacp) and rotational (jacr) components. Passing NULL for
+as attached to the body). The Jacobian has translational (jacp) and rotational (jacr) components. Passing ``NULL`` for
 either pointer will skip part of the computation. Each component is a 3-by-nv matrix. Each row of this matrix is the
 gradient of the corresponding 3D coordinate of the specified point with respect to the degrees of freedom. The ability
 to compute end-effector Jacobians analytically is one of the advantages of working in minimal coordinates - so use it!
@@ -930,7 +949,7 @@ mj_jacSubtreeCom
 
 .. mujoco-include:: mj_jacSubtreeCom
 
-Compute subtree center-of-mass end-effector Jacobian. ``jacp`` is 3 x nv.
+Compute subtree center-of-mass end-effector Jacobian.
 
 .. _mj_jacGeom:
 
@@ -993,7 +1012,7 @@ mj_mulM
 
 .. mujoco-include:: mj_mulM
 
-This function multiplies the joint-space inertia matrix stored in mjData.qM by a vector. qM has a custom sparse format
+This function multiplies the joint-space inertia matrix stored in ``mjData.qM`` by a vector. qM has a custom sparse format
 that the user should not attempt to manipulate directly. Alternatively one can convert qM to a dense matrix with
 mj_fullM and then user regular matrix-vector multiplication, but this is slower because it no longer benefits from
 sparsity.
@@ -1014,7 +1033,8 @@ mj_addM
 
 .. mujoco-include:: mj_addM
 
-Add inertia matrix to destination matrix. Destination can be sparse uncompressed, or dense when all int\* are NULL
+Add inertia matrix to destination matrix.
+Destination can be sparse uncompressed, or dense when all int* are ``NULL``
 
 .. _mj_applyFT:
 
@@ -1024,7 +1044,7 @@ mj_applyFT
 .. mujoco-include:: mj_applyFT
 
 This function can be used to apply a Cartesian force and torque to a point on a body, and add the result to the vector
-mjData.qfrc_applied of all applied forces. Note that the function requires a pointer to this vector, because sometimes
+``mjData.qfrc_applied`` of all applied forces. Note that the function requires a pointer to this vector, because sometimes
 we want to add the result to a different vector.
 
 .. _mj_objectVelocity:
@@ -1113,6 +1133,36 @@ mj_setTotalmass
 
 Scale body masses and inertias to achieve specified total mass.
 
+.. _mj_getPluginConfig:
+
+mj_getPluginConfig
+~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mj_getPluginConfig
+
+Return a config attribute value of a plugin instance;
+``NULL``: invalid plugin instance ID or attribute name
+
+.. _mj_loadPluginLibrary:
+
+mj_loadPluginLibrary
+~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mj_loadPluginLibrary
+
+Load a dynamic library. The dynamic library is assumed to register one or more plugins.
+
+.. _mj_loadAllPluginLibraries:
+
+mj_loadAllPluginLibraries
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mj_loadAllPluginLibraries
+
+Scan a directory and load all dynamic libraries. Dynamic libraries in the specified directory
+are assumed to register one or more plugins. Optionally, if a callback is specified, it is called
+for each dynamic library encountered that registers plugins.
+
 .. _mj_version:
 
 mj_version
@@ -1122,7 +1172,7 @@ mj_version
 
 Return version number: 1.0.2 is encoded as 102.
 
-.. mj_versionString:
+.. _mj_versionString:
 
 mj_versionString
 ~~~~~~~~~~~~~~~~
@@ -1155,7 +1205,7 @@ mj_ray
 Intersect ray (pnt+x*vec, x>=0) with visible geoms, except geoms in bodyexclude. Return geomid and distance (x) to
 nearest surface, or -1 if no intersection.
 
-geomgroup is an array of length mjNGROUP, where 1 means the group should be included. Pass geomgroup=NULL to skip
+geomgroup is an array of length mjNGROUP, where 1 means the group should be included. Pass geomgroup=``NULL`` to skip
 group exclusion.
 If flg_static is 0, static geoms will be excluded.
 bodyexclude=-1 can be used to indicate that all bodies are included.
@@ -1167,7 +1217,7 @@ mj_rayHfield
 
 .. mujoco-include:: mj_rayHfield
 
-Interect ray with hfield, return nearest distance or -1 if no intersection.
+Intersect ray with hfield, return nearest distance or -1 if no intersection.
 
 .. _mj_rayMesh:
 
@@ -1176,7 +1226,7 @@ mj_rayMesh
 
 .. mujoco-include:: mj_rayMesh
 
-Interect ray with mesh, return nearest distance or -1 if no intersection.
+Intersect ray with mesh, return nearest distance or -1 if no intersection.
 
 .. _mju_rayGeom:
 
@@ -1185,7 +1235,7 @@ mju_rayGeom
 
 .. mujoco-include:: mju_rayGeom
 
-Interect ray with pure geom, return nearest distance or -1 if no intersection.
+Intersect ray with pure geom, return nearest distance or -1 if no intersection.
 
 .. _mju_raySkin:
 
@@ -1194,7 +1244,8 @@ mju_raySkin
 
 .. mujoco-include:: mju_raySkin
 
-Interect ray with skin, return nearest vertex id.
+Intersect ray with skin, return nearest distance or -1 if no intersection,
+and also output nearest vertex id.
 
 .. _Interaction:
 
@@ -1328,8 +1379,8 @@ mjv_applyPerturbPose
 
 .. mujoco-include:: mjv_applyPerturbPose
 
-Set perturb pos,quat in d->mocap when selected body is mocap, and in d->qpos otherwise. Write d->qpos only if flg_paused
-and subtree root for selected body has free joint.
+Set perturb pos,quat in d->mocap when selected body is mocap, and in d->qpos otherwise.
+Write d->qpos only if flg_paused and subtree root for selected body has free joint.
 
 .. _mjv_applyPerturbForce:
 
@@ -1396,7 +1447,7 @@ mjv_initGeom
 
 .. mujoco-include:: mjv_initGeom
 
-Initialize given geom fields when not NULL, set the rest to their default values.
+Initialize given geom fields when not ``NULL``, set the rest to their default values.
 
 .. _mjv_makeConnector:
 
@@ -1405,8 +1456,8 @@ mjv_makeConnector
 
 .. mujoco-include:: mjv_makeConnector
 
-Set (type, size, pos, mat) for connector-type geom between given points. Assume that mjv_initGeom was already called to
-set all other properties.
+Set (type, size, pos, mat) for connector-type geom between given points.
+Assume that mjv_initGeom was already called to set all other properties.
 
 .. _mjv_defaultScene:
 
@@ -1576,8 +1627,8 @@ mjr_setBuffer
 
 .. mujoco-include:: mjr_setBuffer
 
-Set OpenGL framebuffer for rendering: mjFB_WINDOW or mjFB_OFFSCREEN. If only one buffer is available, set that buffer
-and ignore framebuffer argument.
+Set OpenGL framebuffer for rendering: mjFB_WINDOW or mjFB_OFFSCREEN.
+If only one buffer is available, set that buffer and ignore framebuffer argument.
 
 .. _mjr_readPixels:
 
@@ -1586,8 +1637,8 @@ mjr_readPixels
 
 .. mujoco-include:: mjr_readPixels
 
-Read pixels from current OpenGL framebuffer to client buffer. Viewport is in OpenGL framebuffer; client buffer starts at
-(0,0).
+Read pixels from current OpenGL framebuffer to client buffer.
+Viewport is in OpenGL framebuffer; client buffer starts at (0,0).
 
 .. _mjr_drawPixels:
 
@@ -1596,8 +1647,8 @@ mjr_drawPixels
 
 .. mujoco-include:: mjr_drawPixels
 
-Draw pixels from client buffer to current OpenGL framebuffer. Viewport is in OpenGL framebuffer; client buffer starts at
-(0,0).
+Draw pixels from client buffer to current OpenGL framebuffer.
+Viewport is in OpenGL framebuffer; client buffer starts at (0,0).
 
 .. _mjr_blitBuffer:
 
@@ -1606,8 +1657,8 @@ mjr_blitBuffer
 
 .. mujoco-include:: mjr_blitBuffer
 
-Blit from src viewpoint in current framebuffer to dst viewport in other framebuffer. If src, dst have different size and
-flg_depth==0, color is interpolated with GL_LINEAR.
+Blit from src viewpoint in current framebuffer to dst viewport in other framebuffer.
+If src, dst have different size and flg_depth==0, color is interpolated with GL_LINEAR.
 
 .. _mjr_setAux:
 
@@ -1666,7 +1717,7 @@ Draw rectangle.
 .. _mjr_label:
 
 mjr_label
-~~~~~~~~~~~~~
+~~~~~~~~~
 
 .. mujoco-include:: mjr_label
 
@@ -1740,6 +1791,8 @@ mjui_themeColor
 
 Get builtin UI theme color (ind: 0-3).
 
+.. _mjui_add:
+
 mjui_add
 ~~~~~~~~
 
@@ -1747,12 +1800,16 @@ mjui_add
 
 Add definitions to UI.
 
+.. _mjui_addToSection:
+
 mjui_addToSection
 ~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjui_addToSection
 
 Add definitions to UI section.
+
+.. _mjui_resize:
 
 mjui_resize
 ~~~~~~~~~~~
@@ -1770,12 +1827,16 @@ mjui_update
 
 Update specific section/item; -1: update all.
 
+.. _mjui_event:
+
 mjui_event
 ~~~~~~~~~~
 
 .. mujoco-include:: mjui_event
 
-Handle UI event, return pointer to changed item, NULL if no change.
+Handle UI event, return pointer to changed item, ``NULL`` if no change.
+
+.. _mjui_render:
 
 mjui_render
 ~~~~~~~~~~~
@@ -1825,12 +1886,16 @@ mju_warning
 
 Main warning function; returns to caller.
 
+.. _mju_warning_i:
+
 mju_warning_i
 ~~~~~~~~~~~~~
 
 .. mujoco-include:: mju_warning_i
 
 Warning function with int argument.
+
+.. _mju_warning_s:
 
 mju_warning_s
 ~~~~~~~~~~~~~
@@ -1873,7 +1938,7 @@ mj_warning
 
 .. mujoco-include:: mj_warning
 
-High-level warning function: count warnings in mjData, print only the first.
+High-level warning function: count warnings in ``mjData``, print only the first.
 
 .. _mju_writeLog:
 
@@ -2006,12 +2071,16 @@ mju_ceil
 Vector math
 ^^^^^^^^^^^
 
+.. _mju_zero3:
+
 mju_zero3
 ~~~~~~~~~
 
 .. mujoco-include:: mju_zero3
 
 Set res = 0.
+
+.. _mju_copy3:
 
 mju_copy3
 ~~~~~~~~~
@@ -2020,6 +2089,8 @@ mju_copy3
 
 Set res = vec.
 
+.. _mju_scl3:
+
 mju_scl3
 ~~~~~~~~
 
@@ -2027,12 +2098,16 @@ mju_scl3
 
 Set res = vec*scl.
 
+.. _mju_add3:
+
 mju_add3
 ~~~~~~~~
 
 .. mujoco-include:: mju_add3
 
 Set res = vec1 + vec2.
+
+.. _mju_sub3:
 
 mju_sub3
 ~~~~~~~~
@@ -2077,12 +2152,16 @@ mju_addScl3
 
 Set res = vec1 + vec2*scl.
 
+.. _mju_normalize3:
+
 mju_normalize3
 ~~~~~~~~~~~~~~
 
 .. mujoco-include:: mju_normalize3
 
 Normalize vector, return length before normalization.
+
+.. _mju_norm3:
 
 mju_norm3
 ~~~~~~~~~
@@ -2091,12 +2170,16 @@ mju_norm3
 
 Return vector length (without normalizing the vector).
 
+.. _mju_dot3:
+
 mju_dot3
 ~~~~~~~~
 
 .. mujoco-include:: mju_dot3
 
 Return dot-product of vec1 and vec2.
+
+.. _mju_dist3:
 
 mju_dist3
 ~~~~~~~~~
@@ -2112,7 +2195,7 @@ mju_rotVecMat
 
 .. mujoco-include:: mju_rotVecMat
 
-Multiply vector by 3D rotation matrix: res = mat \* vec.
+Multiply vector by 3D rotation matrix: res = mat * vec.
 
 .. _mju_rotVecMatT:
 
@@ -2121,7 +2204,9 @@ mju_rotVecMatT
 
 .. mujoco-include:: mju_rotVecMatT
 
-Multiply vector by transposed 3D rotation matrix: res = mat' \* vec.
+Multiply vector by transposed 3D rotation matrix: res = mat' * vec.
+
+.. _mju_cross:
 
 mju_cross
 ~~~~~~~~~
@@ -2130,12 +2215,16 @@ mju_cross
 
 Compute cross-product: res = cross(a, b).
 
+.. _mju_zero4:
+
 mju_zero4
 ~~~~~~~~~
 
 .. mujoco-include:: mju_zero4
 
 Set res = 0.
+
+.. _mju_unit4:
 
 mju_unit4
 ~~~~~~~~~
@@ -2144,6 +2233,8 @@ mju_unit4
 
 Set res = (1,0,0,0).
 
+.. _mju_copy4:
+
 mju_copy4
 ~~~~~~~~~
 
@@ -2151,12 +2242,16 @@ mju_copy4
 
 Set res = vec.
 
+.. _mju_normalize4:
+
 mju_normalize4
 ~~~~~~~~~~~~~~
 
 .. mujoco-include:: mju_normalize4
 
 Normalize vector, return length before normalization.
+
+.. _mju_zero:
 
 mju_zero
 ~~~~~~~~
@@ -2174,12 +2269,16 @@ mju_fill
 
 Set res = val.
 
+.. _mju_copy:
+
 mju_copy
 ~~~~~~~~
 
 .. mujoco-include:: mju_copy
 
 Set res = vec.
+
+.. _mju_sum:
 
 mju_sum
 ~~~~~~~
@@ -2206,12 +2305,16 @@ mju_scl
 
 Set res = vec*scl.
 
+.. _mju_add:
+
 mju_add
 ~~~~~~~
 
 .. mujoco-include:: mju_add
 
 Set res = vec1 + vec2.
+
+.. _mju_sub:
 
 mju_sub
 ~~~~~~~
@@ -2256,6 +2359,8 @@ mju_addScl
 
 Set res = vec1 + vec2*scl.
 
+.. _mju_normalize:
+
 mju_normalize
 ~~~~~~~~~~~~~
 
@@ -2263,12 +2368,16 @@ mju_normalize
 
 Normalize vector, return length before normalization.
 
+.. _mju_norm:
+
 mju_norm
 ~~~~~~~~
 
 .. mujoco-include:: mju_norm
 
 Return vector length (without normalizing vector).
+
+.. _mju_dot:
 
 mju_dot
 ~~~~~~~
@@ -2284,7 +2393,7 @@ mju_mulMatVec
 
 .. mujoco-include:: mju_mulMatVec
 
-Multiply matrix and vector: res = mat \* vec.
+Multiply matrix and vector: res = mat * vec.
 
 .. _mju_mulMatTVec:
 
@@ -2293,7 +2402,7 @@ mju_mulMatTVec
 
 .. mujoco-include:: mju_mulMatTVec
 
-Multiply transposed matrix and vector: res = mat' \* vec.
+Multiply transposed matrix and vector: res = mat' * vec.
 
 .. _mju_mulVecMatVec:
 
@@ -2302,7 +2411,9 @@ mju_mulVecMatVec
 
 .. mujoco-include:: mju_mulVecMatVec
 
-Multiply square matrix with vectors on both sides: return vec1' \* mat \* vec2.
+Multiply square matrix with vectors on both sides: returns vec1' * mat * vec2.
+
+.. _mju_transpose:
 
 mju_transpose
 ~~~~~~~~~~~~~
@@ -2336,7 +2447,7 @@ mju_mulMatMat
 
 .. mujoco-include:: mju_mulMatMat
 
-Multiply matrices: res = mat1 \* mat2.
+Multiply matrices: res = mat1 * mat2.
 
 .. _mju_mulMatMatT:
 
@@ -2345,7 +2456,7 @@ mju_mulMatMatT
 
 .. mujoco-include:: mju_mulMatMatT
 
-Multiply matrices, second argument transposed: res = mat1 \* mat2'.
+Multiply matrices, second argument transposed: res = mat1 * mat2'.
 
 .. _mju_mulMatTMat:
 
@@ -2354,7 +2465,7 @@ mju_mulMatTMat
 
 .. mujoco-include:: mju_mulMatTMat
 
-Multiply matrices, first argument transposed: res = mat1' \* mat2.
+Multiply matrices, first argument transposed: res = mat1' * mat2.
 
 .. _mju_sqrMatTD:
 
@@ -2363,7 +2474,7 @@ mju_sqrMatTD
 
 .. mujoco-include:: mju_sqrMatTD
 
-Set res = mat' \* diag \* mat if diag is not NULL, and res = mat' \* mat otherwise.
+Set res = mat' * diag * mat if diag is not ``NULL``, and res = mat' * mat otherwise.
 
 .. _mju_transformSpatial:
 
@@ -2372,8 +2483,8 @@ mju_transformSpatial
 
 .. mujoco-include:: mju_transformSpatial
 
-Coordinate transform of 6D motion or force vector in rotation:translation format. rotnew2old is 3-by-3, NULL means no
-rotation; flg_force specifies force or motion type.
+Coordinate transform of 6D motion or force vector in rotation:translation format.
+rotnew2old is 3-by-3, ``NULL`` means no rotation; flg_force specifies force or motion type.
 
 .. _Quaternions:
 
@@ -2396,7 +2507,7 @@ mju_negQuat
 
 .. mujoco-include:: mju_negQuat
 
-Negate quaternion.
+Conjugate quaternion, corresponding to opposite rotation.
 
 .. _mju_mulQuat:
 
@@ -2509,7 +2620,7 @@ mju_negPose
 
 .. mujoco-include:: mju_negPose
 
-Negate pose.
+Conjugate pose, corresponding to the opposite spatial transformation.
 
 .. _mju_trnVecPose:
 
@@ -2522,8 +2633,8 @@ Transform vector by pose.
 
 .. _Decompositions:
 
-Decompositions
-^^^^^^^^^^^^^^
+Decompositions / Solvers
+^^^^^^^^^^^^^^^^^^^^^^^^
 
 .. _mju_cholFactor:
 
@@ -2541,7 +2652,7 @@ mju_cholSolve
 
 .. mujoco-include:: mju_cholSolve
 
-Solve mat \* res = vec, where mat is Cholesky-factorized
+Solve mat * res = vec, where mat is Cholesky-factorized
 
 .. _mju_cholUpdate:
 
@@ -2551,6 +2662,8 @@ mju_cholUpdate
 .. mujoco-include:: mju_cholUpdate
 
 Cholesky rank-one update: L*L' +/- x*x'; return rank.
+
+.. _mju_eig3:
 
 mju_eig3
 ~~~~~~~~
@@ -2687,12 +2800,25 @@ mju_max
 
 Return max(a,b) with single evaluation of a and b.
 
+.. _mju_clip:
+
+mju_clip
+~~~~~~~~
+
+.. mujoco-include:: mju_clip
+
+Clip x to the range [min, max].
+
+.. _mju_sign:
+
 mju_sign
 ~~~~~~~~
 
 .. mujoco-include:: mju_sign
 
 Return sign of x: +1, -1 or 0.
+
+.. _mju_round:
 
 mju_round
 ~~~~~~~~~
@@ -2726,7 +2852,7 @@ mju_writeNumBytes
 
 .. mujoco-include:: mju_writeNumBytes
 
-Construct a human readable number of bytes using standard letter suffix.
+Return human readable number of bytes using standard letter suffix.
 
 .. _mju_warningText:
 
@@ -2764,12 +2890,16 @@ mju_standardNormal
 
 Standard normal random number generator (optional second number).
 
+.. _mju_f2n:
+
 mju_f2n
 ~~~~~~~
 
 .. mujoco-include:: mju_f2n
 
 Convert from float to mjtNum.
+
+.. _mju_n2f:
 
 mju_n2f
 ~~~~~~~
@@ -2778,12 +2908,16 @@ mju_n2f
 
 Convert from mjtNum to float.
 
+.. _mju_d2n:
+
 mju_d2n
 ~~~~~~~
 
 .. mujoco-include:: mju_d2n
 
 Convert from double to mjtNum.
+
+.. _mju_n2d:
 
 mju_n2d
 ~~~~~~~
@@ -2819,6 +2953,8 @@ mju_Halton
 
 Generate Halton sequence.
 
+.. _mju_strncpy:
+
 mju_strncpy
 ~~~~~~~~~~~
 
@@ -2826,12 +2962,19 @@ mju_strncpy
 
 Call strncpy, then set dst[n-1] = 0.
 
+.. _mju_sigmoid:
+
 mju_sigmoid
 ~~~~~~~~~~~
 
 .. mujoco-include:: mju_sigmoid
 
 Sigmoid function over 0<=x<=1 constructed from half-quadratics.
+
+.. _Derivatives-api:
+
+Derivatives
+^^^^^^^^^^^
 
 .. _mjd_transitionFD:
 
@@ -2842,3 +2985,4 @@ mjd_transitionFD
 
 Finite differenced state-transition and control-transition matrices dx(t+h) = A*dx(t) + B*du(t). Required output matrix
 dimensions: A: (2*nv+na x 2*nv+na), B: (2*nv+na x nu).
+

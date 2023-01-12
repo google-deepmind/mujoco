@@ -38,7 +38,7 @@ _STRUCT_END_REGEX_2 = re.compile(r'^}\s+(?P<token>mj\w+);')
 _ENUM_END_REGEX = re.compile(r'^}\s+(?P<token>mj\w+);')
 
 
-@dataclasses.dataclass(frozen=True)
+@dataclasses.dataclass
 class ApiDefinition:
   """Defines a C reference parsed from a C header file."""
   token: str
