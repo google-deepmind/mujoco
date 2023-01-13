@@ -19,6 +19,7 @@ Bug fixes
 ^^^^^^^^^
 
 - Fixed misalignment bug in mesh-to-primitive fitting when using the bounding box fitting option :at:`fitaabb`.
+- The ``launch_repl`` functionality in the Python viewer is fixed.
 
 Version 2.3.1 (December 6, 2022)
 -----------------------------------

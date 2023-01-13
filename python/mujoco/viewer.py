@@ -68,6 +68,30 @@ def _file_loader(path: str) -> _LoaderWithPathType:
   return load
 
 
+def _reload(
+    simulate: Simulate, loader: _InternalLoaderType
+) -> Optional[Tuple[mujoco.MjModel, mujoco.MjData]]:
+  """Internal function for reloading a model in the viewer."""
+  try:
+    load_tuple = loader()
+  except Exception as e:  # pylint: disable=broad-except
+    simulate.load_error = str(e)
+  else:
+    m, d = load_tuple[:2]
+
+    # If the loader does not raise an exception then we assume that it
+    # successfully created mjModel and mjData. This is specified in the type
+    # annotation, but we perform a runtime assertion here as well to prevent
+    # possible segmentation faults.
+    assert m is not None and d is not None
+
+    path = load_tuple[2] if len(load_tuple) == 3 else ''
+    simulate.load(path, m, d)
+    mujoco.mj_forward(m, d)
+
+    return m, d
+
+
 def _physics_loop(simulate: Simulate, loader: Optional[_InternalLoaderType]):
   """Physics loop for the GUI, to be run in a separate thread."""
   m: mujoco.MjModel = None
@@ -91,28 +115,9 @@ def _physics_loop(simulate: Simulate, loader: Optional[_InternalLoaderType]):
       reload = True
 
     if reload and loader is not None:
-      try:
-        load_tuple = loader()
-      except Exception as e:  # pylint: disable=broad-except
-        simulate.load_error = str(e)
-      else:
-        # Do not assign to m and d until simulate.load is done!
-        # This is because simulate.load needs to clean up mjvScene and
-        # mjrContext. This cleanup logic requires access to the old m and d.
-        new_m, new_d = load_tuple[:2]
-
-        # If the loader does not raise an exception then we assume that it
-        # successfully created mjModel and mjData. This is specified in the type
-        # annotation, but we perform a runtime assertion here as well to prevent
-        # possible segmentation faults.
-        assert new_m is not None and new_d is not None
-
-        path = load_tuple[2] if len(load_tuple) == 3 else ''
-        simulate.load(path, new_m, new_d)
-
-        # We can now allow the old m and d to be deleted.
-        m, d = new_m, new_d
-        mujoco.mj_forward(m, d)
+      result = _reload(simulate, loader)
+      if result is not None:
+        m, d = result
         ctrlnoise = np.zeros((m.nu,))
 
     reload = False
@@ -236,15 +241,16 @@ def _launch_internal(model: Optional[mujoco.MjModel] = None,
 
   atexit.register(glfw.terminate)
 
+  side_thread = None
   if run_physics_thread:
-    physics_thread = threading.Thread(
+    side_thread = threading.Thread(
         target=_physics_loop, args=(simulate, loader))
-    physics_thread.start()
-
+  else:
+    side_thread = threading.Thread(
+        target=_reload, args=(simulate, loader))
+  side_thread.start()
   simulate.renderloop()
-
-  if run_physics_thread:
-    physics_thread.join()
+  side_thread.join()
 
 
 def launch(model: Optional[mujoco.MjModel] = None,
