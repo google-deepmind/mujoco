@@ -941,8 +941,20 @@ void mj_printFormattedData(const mjModel* m, mjData* d, const char* filename,
   // contact
   fprintf(fp, "CONTACT\n");
   for (int i=0; i<d->ncon; i++) {
-    fprintf(fp, "  %d:\n     dim           %d\n     geom          %d %d\n",
-            i, d->contact[i].dim, d->contact[i].geom1, d->contact[i].geom2);
+    fprintf(fp, "  %d:\n     dim           %d\n     geom          ", i, d->contact[i].dim);
+    const char* geom1 = mj_id2name(m, mjOBJ_GEOM, d->contact[i].geom1);
+    if (geom1) {
+      fprintf(fp, "%s ", geom1);
+    } else {
+      fprintf(fp, "%d ", d->contact[i].geom1);
+    }
+    const char* geom2 = mj_id2name(m, mjOBJ_GEOM, d->contact[i].geom2);
+    if (geom2) {
+      if (geom1) fprintf(fp, " ");  // two spaces between two names
+      fprintf(fp, "%s\n", geom2);
+    } else {
+      fprintf(fp, "%d\n", d->contact[i].geom2);
+    }
     fprintf(fp, "     exclude       %d\n     efc_address   %d\n",
             d->contact[i].exclude, d->contact[i].efc_address);
     printVector("     solref       ", d->contact[i].solref, mjNREF, fp, float_format);
