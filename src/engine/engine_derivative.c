@@ -240,13 +240,14 @@ static void getState(const mjModel* m, const mjData* d, mjtNum* state, mjtNum* s
 
 
 // set state=[qpos; qvel; act] and optionally warmstart accelerations
-static void setState(const mjModel* m, mjData* d, const mjtNum* state, const mjtNum* ctrl,
-                     const mjtNum* warmstart) {
+static void setState(const mjModel* m, mjData* d, const mjtNum* state, mjtNum time,
+                     const mjtNum* ctrl, const mjtNum* warmstart) {
   int nq = m->nq, nv = m->nv, na = m->na;
 
   mju_copy(d->qpos, state,       nq);
   mju_copy(d->qvel, state+nq,    nv);
   mju_copy(d->act,  state+nq+nv, na);
+  d->time = time;
   if (ctrl) {
     mju_copy(d->ctrl, ctrl, m->nu);
   }
@@ -1488,6 +1489,9 @@ void mjd_stepFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte centered,
   mjtNum *next_plus  = mj_stackAlloc(d, nq+nv+na);  // forward-nudged next state
   mjtNum *next_minus = mj_stackAlloc(d, nq+nv+na);  // backward-nudged next state
 
+  // time 
+  mjtNum time = d->time;
+
   // warmstart accelerations
   mjtNum *warmstart = mjDISABLED(mjDSBL_WARMSTART) ? NULL : mj_stackAlloc(d, nv);
 
@@ -1514,7 +1518,7 @@ void mjd_stepFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte centered,
   getState(m, d, next, sensor);
 
   // restore input
-  setState(m, d, state, ctrl, warmstart);
+  setState(m, d, state, time, ctrl, warmstart);
 
   // finite-difference controls: skip=mjSTAGE_VEL, handle ctrl at range limits
   if (DyDu || DsDu) {
@@ -1531,7 +1535,7 @@ void mjd_stepFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte centered,
         getState(m, d, next_plus, sensor_plus);
 
         // reset
-        setState(m, d, state, ctrl, warmstart);
+        setState(m, d, state, time, ctrl, warmstart);
       }
 
       // nudge backward, if possible given ctrlrange
@@ -1546,7 +1550,7 @@ void mjd_stepFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte centered,
         getState(m, d, next_minus, sensor_minus);
 
         // reset
-        setState(m, d, state, ctrl, warmstart);
+        setState(m, d, state, time, ctrl, warmstart);
       }
 
       // difference states
@@ -1574,7 +1578,7 @@ void mjd_stepFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte centered,
       getState(m, d, next_plus, sensor_plus);
 
       // reset
-      setState(m, d, state, NULL, warmstart);
+      setState(m, d, state, time, NULL, warmstart);
 
       // nudge backward
       if (centered) {
@@ -1586,7 +1590,7 @@ void mjd_stepFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte centered,
         getState(m, d, next_minus, sensor_minus);
 
         // reset
-        setState(m, d, state, NULL, warmstart);
+        setState(m, d, state, time, NULL, warmstart);
       }
 
       // difference states
@@ -1621,7 +1625,7 @@ void mjd_stepFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte centered,
       getState(m, d, next_plus, sensor_plus);
 
       // reset
-      setState(m, d, state, NULL, warmstart);
+      setState(m, d, state, time, NULL, warmstart);
 
       // nudge backward
       if (centered) {
@@ -1633,7 +1637,7 @@ void mjd_stepFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte centered,
         getState(m, d, next_minus, sensor_minus);
 
         // reset
-        setState(m, d, state, NULL, warmstart);
+        setState(m, d, state, time, NULL, warmstart);
       }
 
       // difference states
@@ -1670,7 +1674,7 @@ void mjd_stepFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte centered,
       getState(m, d, next_plus, sensor_plus);
 
       // reset
-      setState(m, d, state, NULL, warmstart);
+      setState(m, d, state, time, NULL, warmstart);
 
       // nudge backward
       if (centered) {
@@ -1684,7 +1688,7 @@ void mjd_stepFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte centered,
         getState(m, d, next_minus, sensor_minus);
 
         // reset
-        setState(m, d, state, NULL, warmstart);
+        setState(m, d, state, time, NULL, warmstart);
       }
 
       // difference states
