@@ -37,7 +37,7 @@
 
   <worldbody>
     <light pos="0 0 3"/>
-    <geom type="plane" size="4 4 .1"/>
+    <geom name="floor" type="plane" size="4 4 .1"/>
     <geom type="hfield" hfield="hfield" pos="-.4 .6 .05" rgba="0 0 1 1"/>
     <body name="head" pos="0 0 .7">
       <geom type="ellipsoid" size=".2 .2 .4" rgba="1 1 0 1" density="100"/>
@@ -55,7 +55,7 @@
           <body pos=".1 0 -.3">
             <joint name="wheel_0" type="ball" class="wheel"/>
             <site name="wheel_0" type="box" size=".1 .1 .1"/>
-            <geom size=".1 .2 .1"  rgba="0 1 0 1" type="ellipsoid"/>
+            <geom name="wheel_0" size=".1 .2 .1"  rgba="0 1 0 1" type="ellipsoid"/>
           </body>
         </body>
       </body>
