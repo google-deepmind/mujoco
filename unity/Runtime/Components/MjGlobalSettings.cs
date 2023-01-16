@@ -327,6 +327,9 @@ public class MjGlobalSettings : MonoBehaviour {
   [Tooltip("Scales the force applied by the mouse spring.")]
   public float MouseSpringStiffness = 100;
 
+  [Tooltip("If false, numerical suffixes will be aded to ensure name uniqueness.")]
+  public bool UseRawGameObjectNames;
+
   public MjOptionStruct GlobalOptions = MjOptionStruct.Default;
 
   public MjSizeStruct GlobalSizes = MjSizeStruct.Default;

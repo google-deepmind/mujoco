@@ -51,15 +51,15 @@ public class MjcfGenerationContext {
     return _meshAssets[mesh];
   }
 
-  // Generates a Unique name for the specified component.
-  // Uniqueness of names is required for every type independently.
-  // The per-type uniqueness will be guaranteed by the combination of information used:
-  // - name of the host GameObject.
-  // - number of names that have been generated to date.
   public string GenerateName(Component comp) {
-    var name = $"{comp.gameObject.name}_{_numGeneratedNames}";
-    _numGeneratedNames++;
-    return name;
+    var settings = MjGlobalSettings.Instance;
+    if (settings?.UseRawGameObjectNames ?? false) {
+      return comp.gameObject.name;
+    } else {
+      var name = $"{comp.gameObject.name}_{_numGeneratedNames}";
+      _numGeneratedNames++;
+      return name;
+    }
   }
 
   private void GenerateConfigurationMjcf(XmlElement mjcf) {
