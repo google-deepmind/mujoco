@@ -36,6 +36,7 @@ using ::testing::Pointwise;
 using ::testing::DoubleNear;
 using ::testing::Eq;
 using ::testing::Each;
+using ::testing::NotNull;
 using DerivativeTest = MujocoTest;
 
 // errors smaller than this are ignored
@@ -99,6 +100,7 @@ static const char* const kDampedPendulumPath =
     "engine/testdata/derivative/damped_pendulum.xml";
 static const char* const kLinearPath =
     "engine/testdata/derivative/linear.xml";
+static const char* const kModelPath = "testdata/model.xml";
 // compare analytic and finite-difference d_smooth/d_qvel
 TEST_F(DerivativeTest, SmoothDvel) {
   // run test on all models
@@ -502,6 +504,59 @@ TEST_F(DerivativeTest, SensorDerivatives) {
   mj_deleteModel(model);
 }
 
+
+// derivatives don't mutate the state
+TEST_F(DerivativeTest, NoStateMutation) {
+  const std::string xml_path = GetTestDataFilePath(kModelPath);
+  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, nullptr, 0);
+  ASSERT_THAT(model, NotNull());
+  mjData* data0 = mj_makeData(model);
+  mjData* data = mj_makeData(model);
+  int nv = model->nv, nu = model->nu, na = model->na, ns = model->nsensordata;
+
+  // set time
+  data->time = data0->time = 0.5;
+
+  for (int i=0; i < nv; i++) {
+    data->qpos[i] = data0->qpos[i] = (mjtNum) i+1;
+    data->qvel[i] = data0->qvel[i] = (mjtNum) i+2;
+  }
+
+  // set ctrl
+  for (int i=0; i < nu; i++) {
+    data->ctrl[i] = data0->ctrl[i] = (mjtNum) i+1;
+  }
+
+  // set act
+  for (int i=0; i < na; i++) {
+    data->act[i] = data0->act[i] = (mjtNum) i+1;
+  }
+
+
+  // allocate Jacobians, call derivatives
+  int ndx = nv+nv+na;
+  mjtNum* A = (mjtNum*) mju_malloc(sizeof(mjtNum)*ndx*ndx);
+  mjtNum* B = (mjtNum*) mju_malloc(sizeof(mjtNum)*ndx*nu);
+  mjtNum* C = (mjtNum*) mju_malloc(sizeof(mjtNum)*ns*ndx);
+  mjtNum* D = (mjtNum*) mju_malloc(sizeof(mjtNum)*ns*nu);
+  mjtNum eps = 1e-6;
+  mjd_transitionFD(model, data, eps, /*centered=*/0, A, B, C, D);
+
+  // compare states in data and data0
+  EXPECT_EQ(data->time, data0->time);
+  EXPECT_EQ(AsVector(data->qpos, model->nq), AsVector(data0->qpos, model->nq));
+  EXPECT_EQ(AsVector(data->qvel, nv), AsVector(data0->qvel, nv));
+  EXPECT_EQ(AsVector(data->act, na), AsVector(data0->act, na));
+  EXPECT_EQ(AsVector(data->ctrl, nu), AsVector(data0->ctrl, nu));
+
+  mju_free(D);
+  mju_free(C);
+  mju_free(B);
+  mju_free(A);
+  mj_deleteData(data);
+  mj_deleteData(data0);
+  mj_deleteModel(model);
+}
 
 }  // namespace
 }  // namespace mujoco

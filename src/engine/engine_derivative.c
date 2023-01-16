@@ -240,10 +240,11 @@ static void getState(const mjModel* m, const mjData* d, mjtNum* state, mjtNum* s
 
 
 // set state=[qpos; qvel; act] and optionally warmstart accelerations
-static void setState(const mjModel* m, mjData* d, const mjtNum* state, const mjtNum* ctrl,
-                     const mjtNum* warmstart) {
+static void setState(const mjModel* m, mjData* d, mjtNum time, const mjtNum* state,
+                     const mjtNum* ctrl, const mjtNum* warmstart) {
   int nq = m->nq, nv = m->nv, na = m->na;
 
+  d->time = time;
   mju_copy(d->qpos, state,       nq);
   mju_copy(d->qvel, state+nq,    nv);
   mju_copy(d->act,  state+nq+nv, na);
@@ -1501,6 +1502,7 @@ void mjd_stepFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte centered,
   mjtNum *ctrl = mj_stackAlloc(d, nu);
 
   // save current inputs
+  mjtNum time = d->time;
   mju_copy(ctrl, d->ctrl, nu);
   getState(m, d, state, NULL);
   if (warmstart) {
@@ -1514,7 +1516,7 @@ void mjd_stepFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte centered,
   getState(m, d, next, sensor);
 
   // restore input
-  setState(m, d, state, ctrl, warmstart);
+  setState(m, d, time, state, ctrl, warmstart);
 
   // finite-difference controls: skip=mjSTAGE_VEL, handle ctrl at range limits
   if (DyDu || DsDu) {
@@ -1531,7 +1533,7 @@ void mjd_stepFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte centered,
         getState(m, d, next_plus, sensor_plus);
 
         // reset
-        setState(m, d, state, ctrl, warmstart);
+        setState(m, d, time, state, ctrl, warmstart);
       }
 
       // nudge backward, if possible given ctrlrange
@@ -1546,7 +1548,7 @@ void mjd_stepFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte centered,
         getState(m, d, next_minus, sensor_minus);
 
         // reset
-        setState(m, d, state, ctrl, warmstart);
+        setState(m, d, time, state, ctrl, warmstart);
       }
 
       // difference states
@@ -1574,7 +1576,7 @@ void mjd_stepFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte centered,
       getState(m, d, next_plus, sensor_plus);
 
       // reset
-      setState(m, d, state, NULL, warmstart);
+      setState(m, d, time, state, NULL, warmstart);
 
       // nudge backward
       if (centered) {
@@ -1586,7 +1588,7 @@ void mjd_stepFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte centered,
         getState(m, d, next_minus, sensor_minus);
 
         // reset
-        setState(m, d, state, NULL, warmstart);
+        setState(m, d, time, state, NULL, warmstart);
       }
 
       // difference states
@@ -1621,7 +1623,7 @@ void mjd_stepFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte centered,
       getState(m, d, next_plus, sensor_plus);
 
       // reset
-      setState(m, d, state, NULL, warmstart);
+      setState(m, d, time, state, NULL, warmstart);
 
       // nudge backward
       if (centered) {
@@ -1633,7 +1635,7 @@ void mjd_stepFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte centered,
         getState(m, d, next_minus, sensor_minus);
 
         // reset
-        setState(m, d, state, NULL, warmstart);
+        setState(m, d, time, state, NULL, warmstart);
       }
 
       // difference states
@@ -1670,7 +1672,7 @@ void mjd_stepFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte centered,
       getState(m, d, next_plus, sensor_plus);
 
       // reset
-      setState(m, d, state, NULL, warmstart);
+      setState(m, d, time, state, NULL, warmstart);
 
       // nudge backward
       if (centered) {
@@ -1684,7 +1686,7 @@ void mjd_stepFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte centered,
         getState(m, d, next_minus, sensor_minus);
 
         // reset
-        setState(m, d, state, NULL, warmstart);
+        setState(m, d, time, state, NULL, warmstart);
       }
 
       // difference states
@@ -1732,10 +1734,10 @@ void mjd_transitionFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte centered,
   mjMARKSTACK;
 
   // allocate transposed matrices
-  mjtNum *AT = A ? mj_stackAlloc(d, ndx*ndx) : NULL; // state-transition matrix   (transposed)
-  mjtNum *BT = B ? mj_stackAlloc(d, nu*ndx) : NULL;  // control-transition matrix (transposed)
-  mjtNum *CT = C ? mj_stackAlloc(d, ndx*ns) : NULL;  // state-observation matrix   (transposed)
-  mjtNum *DT = D ? mj_stackAlloc(d, nu*ns) : NULL;   // control-observation matrix (transposed)
+  mjtNum *AT = A ? mj_stackAlloc(d, ndx*ndx) : NULL;  // state-transition matrix   (transposed)
+  mjtNum *BT = B ? mj_stackAlloc(d, nu*ndx) : NULL;   // control-transition matrix (transposed)
+  mjtNum *CT = C ? mj_stackAlloc(d, ndx*ns) : NULL;   // state-observation matrix   (transposed)
+  mjtNum *DT = D ? mj_stackAlloc(d, nu*ns) : NULL;    // control-observation matrix (transposed)
 
   // set offset pointers
   if (A) {
