@@ -1152,7 +1152,7 @@ void mjCMesh::Process() {
 
     // copy quat
     for (j=0; j<4; j++) {
-      GetQuatPtr(type)[j] = quattmp[j];
+      GetQuatPtr(type)[j] = type == mjVOLUME_MESH ? quattmp[j] : GetQuatPtr(mjVOLUME_MESH)[j];
     }
 
     // rotate vertices and normals into axis-aligned frame

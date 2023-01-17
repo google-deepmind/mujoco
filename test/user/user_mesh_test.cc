@@ -38,6 +38,8 @@ static const char* const kCubePath =
     "user/testdata/cube.xml";
 static const char* const kTorusPath =
     "user/testdata/torus.xml";
+static const char* const kTorusShellPath =
+    "user/testdata/torus_shell.xml";
 static const char* const kConvexInertiaPath =
     "user/testdata/inertia_convex.xml";
 static const char* const kConcaveInertiaPath =
@@ -350,6 +352,21 @@ TEST_F(MjCMeshTest, FlippedFaceAllowedNegligibleArea) {
   EXPECT_THAT(model, testing::NotNull());
   CheckTetrahedronWasRescaled(model);
   mj_deleteModel(model);
+}
+
+TEST_F(MjCMeshTest, ShellUsesVolumeFrame) {
+  const std::string xml_path_v = GetTestDataFilePath(kTorusPath);
+  const std::string xml_path_s = GetTestDataFilePath(kTorusShellPath);
+  std::array<char, 1024> error;
+  mjModel* mv = mj_loadXML(xml_path_v.c_str(), 0, error.data(), error.size());
+  mjModel* ms = mj_loadXML(xml_path_s.c_str(), 0, error.data(), error.size());
+  mjtNum tolerance = std::numeric_limits<float>::epsilon();
+  EXPECT_NEAR(mv->geom_quat[0], ms->geom_quat[0], tolerance);
+  EXPECT_NEAR(mv->geom_quat[1], ms->geom_quat[1], tolerance);
+  EXPECT_NEAR(mv->geom_quat[2], ms->geom_quat[2], tolerance);
+  EXPECT_NEAR(mv->geom_quat[3], ms->geom_quat[3], tolerance);
+  mj_deleteModel(mv);
+  mj_deleteModel(ms);
 }
 
 TEST_F(MjCMeshTest, AreaTooSmall) {

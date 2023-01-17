@@ -18,6 +18,9 @@ General
 Bug fixes
 ^^^^^^^^^
 
+- Fixed a bug that for :at:`shellinertia` equal to ``true`` caused the mesh orientation to be overwritten by the
+  principal components of the shell inertia, while the vertex coordinates are rotated using the volumetric inertia.
+  Now the volumetric inertia orientation is used also in the shell case.
 - Fixed misalignment bug in mesh-to-primitive fitting when using the bounding box fitting option :at:`fitaabb`.
 - The ``launch_repl`` functionality in the Python viewer is fixed.
 
