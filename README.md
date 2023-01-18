@@ -138,11 +138,11 @@ These packages give users of various languages access to MuJoCo functionality:
 
 #### First-party bindings
 
-- [Python bindings](https://mujoco.readthedocs.io/en/latest/python.html)
+- [Python bindings](https://mujoco.readthedocs.io/en/stable/python.html)
   - [dm_control](https://github.com/deepmind/dm_control), DeepMind's related
   environment stack, includes [PyMJCF](https://github.com/deepmind/dm_control/blob/main/dm_control/mjcf/README.md),
   a module for procedural manipulation of MuJoCo models.
-- [C# bindings and Unity plug-in](https://mujoco.readthedocs.io/en/latest/unity.html)
+- [C# bindings and Unity plug-in](https://mujoco.readthedocs.io/en/stable/unity.html)
 
 #### Third-party bindings
 
@@ -193,8 +193,8 @@ copy of the License at https://www.apache.org/licenses/LICENSE-2.0.
 
 This is not an officially supported Google product.
 
-[build from source]: https://mujoco.readthedocs.io/en/latest/programming.html#building-mujoco-from-source
-[Getting Started]: https://mujoco.readthedocs.io/en/latest/programming.html#getting-started
+[build from source]: https://mujoco.readthedocs.io/en/latest/programming#building-mujoco-from-source
+[Getting Started]: https://mujoco.readthedocs.io/en/latest/programming#getting-started
 [acquisition]: https://www.deepmind.com/blog/opening-up-a-physics-simulator-for-robotics
 [open sourcing]: https://www.deepmind.com/blog/open-sourcing-mujoco
 [Unity]: https://unity.com/
@@ -202,5 +202,5 @@ This is not an officially supported Google product.
 [GitHub Issues]: https://github.com/deepmind/mujoco/issues
 [documentation source files]: https://github.com/deepmind/mujoco/tree/main/doc
 [mujoco.readthedocs.io]: https://mujoco.readthedocs.io
-[Python Bindings]: https://mujoco.readthedocs.io/en/latest/python.html#python-bindings
+[Python Bindings]: https://mujoco.readthedocs.io/en/stable/python.html#python-bindings
 [PyPI]: https://pypi.org/project/mujoco/

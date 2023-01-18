@@ -47,7 +47,7 @@ If you need to build the Python bindings from source, please consult
 ## Usage
 
 Once installed, the package can be imported via `import mujoco`. Please consult
-our [documentation](https://mujoco.readthedocs.io/en/latest/python.html) for
+our [documentation](https://mujoco.readthedocs.io/en/stable/python.html) for
 further detail on the package's API.
 
 We recommend going through the tutorial notebook which covers the basics of

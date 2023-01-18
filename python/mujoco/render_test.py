@@ -36,7 +36,7 @@ class MuJoCoRenderTest(absltest.TestCase):
     """Test that the bindings can successfully render a simple image.
 
     This test sets up a basic MuJoCo rendering context similar to the example in
-    https://mujoco.readthedocs.io/en/latest/programming.html#visualization
+    https://mujoco.readthedocs.io/en/latest/programming#visualization
     It calls `mjr_rectangle` rather than `mjr_render` so that we can assert an
     exact rendered image without needing golden data. The purpose of this test
     is to ensure that the bindings can correctly return pixels in Python, rather

@@ -32,7 +32,7 @@ the following principle is followed:
 If there is a contradiction between this guide and existing code, the guide
 takes precedence. Additional principles include:
 
-- Follow the [naming conventions](https://mujoco.readthedocs.io/en/latest/programming.html#naming-convention).
+- Follow the [naming conventions](https://mujoco.readthedocs.io/en/latest/programming#naming-convention).
 - Be sparing with horizontal space: Try to keep lines short, avoid line-breaks
 where possble.
 - Be generous with vertical space: Empty lines between code blocks are good.
