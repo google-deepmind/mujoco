@@ -51,15 +51,29 @@ TEST_F(EngineVfsTest, AddFileVFS) {
   EXPECT_THAT(mj_vfs->nfile, 0);
   EXPECT_THAT(mj_addFileVFS(mj_vfs.get(), dir.c_str(), file1.c_str()), 0);
   EXPECT_THAT(mj_vfs->nfile, 1);
+  EXPECT_THAT(mj_vfs->filename[0], file1);
+
   EXPECT_THAT(mj_addFileVFS(mj_vfs.get(), dir.c_str(), file2.c_str()), 0);
   EXPECT_THAT(mj_vfs->nfile, 2);
+  EXPECT_THAT(mj_vfs->filename[0], file1);
+  EXPECT_THAT(mj_vfs->filename[1], file2);
+
   EXPECT_THAT(mj_addFileVFS(mj_vfs.get(), dir.c_str(), file3.c_str()), 0);
   EXPECT_THAT(mj_vfs->nfile, 3);
+  EXPECT_THAT(mj_vfs->filename[0], file1);
+  EXPECT_THAT(mj_vfs->filename[1], file2);
+  EXPECT_THAT(mj_vfs->filename[2], file3);
+
   mj_deleteFileVFS(mj_vfs.get(), file1.c_str());
   EXPECT_THAT(mj_vfs->nfile, 2);
-  mj_deleteFileVFS(mj_vfs.get(), file2.c_str());
-  EXPECT_THAT(mj_vfs->nfile, 1);
+  EXPECT_THAT(mj_vfs->filename[0], file2);
+  EXPECT_THAT(mj_vfs->filename[1], file3);
+
   mj_deleteFileVFS(mj_vfs.get(), file3.c_str());
+  EXPECT_THAT(mj_vfs->nfile, 1);
+  EXPECT_THAT(mj_vfs->filename[0], file2);
+
+  mj_deleteFileVFS(mj_vfs.get(), file2.c_str());
   EXPECT_THAT(mj_vfs->nfile, 0);
 
   mj_deleteVFS(mj_vfs.get());

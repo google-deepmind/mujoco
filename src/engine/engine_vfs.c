@@ -179,7 +179,7 @@ int mj_deleteFileVFS(mjVFS* vfs, const char* filename) {
       mju_free(vfs->filedata[i]);
 
       // scroll remaining files forward
-      for (int j = i; j < vfs->nfile - 1; ++j) {
+      for (int j=i; j<vfs->nfile-1; j++) {
         mjSTRNCPY(vfs->filename[j], vfs->filename[j+1]);
         vfs->filesize[j] = vfs->filesize[j+1];
         vfs->filedata[j] = vfs->filedata[j+1];
