@@ -645,7 +645,7 @@ class MuJoCoBindingsTest(parameterized.TestCase):
 
     # Check that the res argument must have the right size.
     with self.assertRaises(TypeError):
-      mujoco.mju_rotVecQuat(np.empty(4, np.float64), vec, quat)
+      mujoco.mju_rotVecQuat(np.zeros(4, np.float64), vec, quat)
 
     # Check that the vec argument must have the right size.
     with self.assertRaises(TypeError):
