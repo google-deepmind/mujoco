@@ -129,6 +129,10 @@ std::pair<int, int> GlfwAdapter::GetWindowSize() const {
   return {width, height};
 }
 
+bool GlfwAdapter::IsGPUAccelerated() const {
+  return true;
+}
+
 void GlfwAdapter::PollEvents() {
   Glfw().glfwPollEvents();
 }

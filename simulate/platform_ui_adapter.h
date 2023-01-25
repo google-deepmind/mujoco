@@ -46,6 +46,7 @@ class PlatformUIAdapter {
   virtual double GetDisplayPixelsPerInch() const = 0;
   virtual std::pair<int, int> GetFramebufferSize() const = 0;
   virtual std::pair<int, int> GetWindowSize() const = 0;
+  virtual bool IsGPUAccelerated() const = 0;
   virtual void PollEvents() = 0;
   virtual void SetClipboardString(const char* text) = 0;
   virtual void SetVSync(bool enabled) = 0;

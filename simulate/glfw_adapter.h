@@ -31,6 +31,7 @@ class GlfwAdapter : public PlatformUIAdapter {
   double GetDisplayPixelsPerInch() const override;
   std::pair<int, int> GetFramebufferSize() const override;
   std::pair<int, int> GetWindowSize() const override;
+  bool IsGPUAccelerated() const override;
   void PollEvents() override;
   void SetClipboardString(const char* text) override;
   void SetVSync(bool enabled) override;
