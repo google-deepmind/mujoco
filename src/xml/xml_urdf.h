@@ -16,6 +16,7 @@
 #define THIRD_PARTY_MUJOCO_SRC_XML_XML_URDF_
 
 #include <string>
+#include <unordered_set>
 #include <vector>
 
 #include "user/user_model.h"
@@ -50,11 +51,12 @@ class mjXURDF : public mjXBase {
   void Clear(void);                                   // clear local objects
 
   // URDF parser variables
-  std::vector<std::string> urName;             // body name
-  std::vector<int> urParent;                   // body parent (index in name vector)
-  std::vector<std::vector<int> > urChildren;   // body children (index in name vector)
-  std::vector<std::string> urMat;              // material name
-  std::vector<mjRGBA> urRGBA;                  // material RBG value
+  std::vector<std::string> urName;              // body name
+  std::vector<int> urParent;                    // body parent (index in name vector)
+  std::vector<std::vector<int> > urChildren;    // body children (index in name vector)
+  std::vector<std::string> urMat;               // material name
+  std::vector<mjRGBA> urRGBA;                   // material RBG value
+  std::unordered_set<std::string> urGeomNames;  // geom name
 };
 
 #endif  // THIRD_PARTY_MUJOCO_SRC_XML_XML_URDF_

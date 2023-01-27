@@ -247,10 +247,6 @@ any effect. The settings here are global and apply to the entire model.
    participate in the inertial computations, so any geoms attached to it are automatically ignored. Therefore it is not
    necessary to adjust this attribute and the geom-specific groups so as to exclude world geoms from the inertial
    computation.
-:at:`geomnamesfromurdf`: :at-val:`[false, true], "false"`
-   This attribute specifies whether the URDF parser should use the names of geoms specified in the URDF in the model.
-   This is disabled by default as URDF allows multiple geoms in the model to have the same name, if this attribute is set
-   to true and there are multiple geoms with the same name in a parsed URDF, this will lead to a parse error.
 
 .. _compiler-lengthrange:
 

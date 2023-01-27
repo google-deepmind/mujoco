@@ -104,7 +104,6 @@ mjCModel::mjCModel() {
   inertiagrouprange[0] = 0;
   inertiagrouprange[1] = mjNGROUP-1;
   exactmeshinertia = false;
-  geomnamesfromurdf = false;
   mj_defaultLROpt(&LRopt);
 
   //------------------------ statistics override

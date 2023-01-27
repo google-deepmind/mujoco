@@ -19,6 +19,8 @@ General
    :align: right
    :width: 300px
 
+- Geom names are now parsed from URDF. Any duplicate names are ignored.
+
 Bug fixes
 ^^^^^^^^^
 

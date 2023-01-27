@@ -49,11 +49,11 @@ TEST_F(MujocoTest, ReadsCapsule) {
   mj_deleteModel(model);
 }
 
-TEST_F(MujocoTest, ReadsGeomNamesWithCompilerOption) {
+TEST_F(MujocoTest, ReadsGeomNames) {
   static constexpr char urdf[] = R"(
   <robot name="">
   <mujoco>
-    <compiler geomnamesfromurdf="true" discardvisual="false"/>
+    <compiler discardvisual="false"/>
   </mujoco>
 
   <link name="torso">
@@ -88,7 +88,7 @@ TEST_F(MujocoTest, ReadsGeomNamesWithCompilerOption) {
   mj_deleteModel(model);
 }
 
-TEST_F(MujocoTest, CanLoadUrdfWithNonUniqueNamesByDefault) {
+TEST_F(MujocoTest, CanLoadUrdfWithNonUniqueNamesCollisionBeforeVisual) {
   static constexpr char urdf[] = R"(
   <robot name="">
   <mujoco>
@@ -114,6 +114,49 @@ TEST_F(MujocoTest, CanLoadUrdfWithNonUniqueNamesByDefault) {
   std::array<char, 1000> error;
   mjModel* model = LoadModelFromString(urdf, error.data(), error.size());
   ASSERT_THAT(model, NotNull()) << error.data();
+
+  // Check the collision geom gets its name from the URDF. The visual sphere
+  // should not have a name to avoid duplicates.
+  int collision_box_id = mj_name2id(model, mjtObj::mjOBJ_GEOM, "shared_name");
+  ASSERT_GE(collision_box_id, 0);
+  EXPECT_EQ(model->geom_type[collision_box_id], mjtGeom::mjGEOM_BOX);
+
+  mj_deleteModel(model);
+}
+
+TEST_F(MujocoTest, CanLoadUrdfWithNonUniqueNamesVisualBeforeCollision) {
+  static constexpr char urdf[] = R"(
+  <robot name="">
+  <mujoco>
+    <compiler discardvisual="false"/>
+  </mujoco>
+
+  <link name="torso">
+    <visual name="shared_name">
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+      <geometry>
+        <sphere radius="0.5"/>
+      </geometry>
+    </visual>
+    <collision name="shared_name">
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+      <geometry>
+        <box size="0.1 0.2 0.3"/>
+      </geometry>
+    </collision>
+  </link>
+  </robot>
+  )";
+  std::array<char, 1000> error;
+  mjModel* model = LoadModelFromString(urdf, error.data(), error.size());
+  ASSERT_THAT(model, NotNull()) << error.data();
+
+  // Check the visual geom gets its name from the URDF. The collision geom
+  // should not have a name to avoid duplicates.
+  int visual_sphere_id = mj_name2id(model, mjtObj::mjOBJ_GEOM, "shared_name");
+  ASSERT_GE(visual_sphere_id, 0);
+  EXPECT_EQ(model->geom_type[visual_sphere_id], mjtGeom::mjGEOM_SPHERE);
+
   mj_deleteModel(model);
 }
 
