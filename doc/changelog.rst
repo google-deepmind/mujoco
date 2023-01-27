@@ -8,6 +8,10 @@ Upcoming version (not yet released)
 General
 ^^^^^^^
 
+- A more performant mju_transposeSparse has been implemented that doesn't require dense memory allocation.
+  For a constraint Jacobian matrix from the
+  `humanoid100.xml <https://github.com/deepmind/mujoco/blob/main/model/humanoid100/humanoid100.xml>`_ model,
+  this function is 35% faster.
 - The function :ref:`mj_name2id` is now implemented using a hash function instead of a linear search for better
   performance.
 

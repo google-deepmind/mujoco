@@ -528,35 +528,46 @@ void mju_compressSparse(mjtNum* mat, int nr, int nc, int* rownnz, int* rowadr, i
 void mju_transposeSparse(mjtNum* res, const mjtNum* mat, int nr, int nc,
                          int* res_rownnz, int* res_rowadr, int* res_colind,
                          const int* rownnz, const int* rowadr, const int* colind) {
-  // clear counters for transposed
+  // clear number of non-zeros for each row of transposed
   memset(res_rownnz, 0, nc*sizeof(int));
 
-  // set uncompressed layout
-  for (int rt=0; rt<nc; rt++) {
-    res_rowadr[rt] = rt*nr;
+  // total number of non-zeros of mat
+  int nnz = rowadr[nr-1] + rownnz[nr-1];
+
+  // count the number of non-zeros for each row of the transposed matrix
+  for (int i = 0; i<nnz; i++) {
+    res_rownnz[colind[i]]++;
   }
 
-  // scan original, compute uncompressed
-  for (int r=0; r<nr; r++) {
-    for (int ci=0; ci<rownnz[r]; ci++) {
-      // get rt=c
-      int rt = colind[rowadr[r]+ci];
-
-      // record index ct=r, assuming uncompressed res_rowadr[rt]=rt*nr
-      res_colind[rt*nr + res_rownnz[rt]] = r;
-
-      // copy data
-      res[rt*nr + res_rownnz[rt]] = mat[rowadr[r]+ci];
-
-      // increase counter for rt
-      res_rownnz[rt]++;
-    }
+  // compute the row addresses for the transposed matrix
+  res_rowadr[0] = 0;
+  for (int i = 1; i<nc; i++) {
+    res_rowadr[i] = res_rowadr[i-1] + res_rownnz[i-1];
   }
 
-  // compress
-  mju_compressSparse(res, nc, nr, res_rownnz, res_rowadr, res_colind);
+  // r holds the current row in mat
+  int r = 0;
+
+  // iterate through each non-zero entry of mat
+  for (int i = 0; i<nnz; i++) {
+
+    // iterate to get to the current row (skipping rows with all zeros)
+    while ((i-rowadr[r]) >= rownnz[r]) r++;
+
+    // row index becomes the column index
+    res[res_rowadr[colind[i]]] = mat[i];
+
+    // column index becomes the row index (increment the rowadr)
+    res_colind[res_rowadr[colind[i]]++] = r;
+  }
+
+  // shift back row addresses
+  for (int i = nc-1; i>0; i--) {
+    res_rowadr[i] = res_rowadr[i-1];
+  }
+
+  res_rowadr[0] = 0;
 }
-
 
 
 // construct row supernodes

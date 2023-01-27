@@ -48,8 +48,8 @@ MJAPI void mju_mulMatVecSparse(mjtNum* res, const mjtNum* mat, const mjtNum* vec
                                const int* colind, const int* rowsuper);
 
 // compress layout of sparse matrix
-void mju_compressSparse(mjtNum* mat, int nr, int nc,
-                        int* rownnz, int* rowadr, int* colind);
+MJAPI void mju_compressSparse(mjtNum* mat, int nr, int nc,
+                              int* rownnz, int* rowadr, int* colind);
 
 // combine two sparse vectors: dst = a*dst + b*src, return nnz of result
 int mju_combineSparse(mjtNum* dst, const mjtNum* src, int n, mjtNum a, mjtNum b,
@@ -61,9 +61,9 @@ void mju_combineSparseInc(mjtNum* dst, const mjtNum* src, int n, mjtNum a, mjtNu
                           int dst_nnz, int src_nnz, int* dst_ind, const int* src_ind);
 
 // transpose sparse matrix
-void mju_transposeSparse(mjtNum* res, const mjtNum* mat, int nr, int nc,
-                         int* res_rownnz, int* res_rowadr, int* res_colind,
-                         const int* rownnz, const int* rowadr, const int* colind);
+MJAPI void mju_transposeSparse(mjtNum* res, const mjtNum* mat, int nr, int nc,
+                               int* res_rownnz, int* res_rowadr, int* res_colind,
+                               const int* rownnz, const int* rowadr, const int* colind);
 
 // construct row supernodes
 void mju_superSparse(int nr, int* rowsuper,
