@@ -102,6 +102,7 @@ class MjModelGroupedViewsBase {
 
   int index() const { return index_; }
   const std::string& name() const { return name_; }
+  raw::MjModel* ptr() { return m_; }
 
  protected:
   int index_;
@@ -168,6 +169,7 @@ class MjDataGroupedViewsBase {
 
   int index() const { return index_; }
   const std::string& name() const { return name_; }
+  raw::MjData* ptr() { return d_; }
 
  protected:
   int index_;

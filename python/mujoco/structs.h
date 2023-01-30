@@ -808,6 +808,25 @@ using MjvFigureWrapper = MjWrapper<raw::MjvFigure>;
 
 template <>
 struct enable_if_mj_struct<raw::MjvFigure> { using type = void; };
+
+#ifdef MEMORY_SANITIZER
+template <typename T>
+class ScopedMsanDisabler {
+ public:
+  ScopedMsanDisabler(T* mj)
+      : mj_(mj), shadow_(std::malloc(mj_->nbuffer)) {
+    __msan_copy_shadow(shadow_, mj_->buffer, mj_->nbuffer);
+    __msan_unpoison(mj_->buffer, mj_->nbuffer);
+  }
+  ~ScopedMsanDisabler() {
+    __msan_copy_shadow(mj_->buffer, shadow_, mj_->nbuffer);
+    std::free(shadow_);
+  }
+ private:
+  T* mj_;
+  void* shadow_;
+};
+#endif
 }  // namespace _impl
 
 template <typename T>
@@ -1076,6 +1095,24 @@ std::string StructRepr(pybind11::object self) {
   }
   result << "\n>";
   return result.str();
+}
+
+template <typename T>
+std::string MjModelStructRepr(pybind11::object self) {
+#ifdef MEMORY_SANITIZER
+  _impl::ScopedMsanDisabler<raw::MjModel> msan_disabler(
+      pybind11::cast<T&>(self).ptr());
+#endif
+  return StructRepr<T>(self);
+}
+
+template <typename T>
+std::string MjDataStructRepr(pybind11::object self) {
+#ifdef MEMORY_SANITIZER
+  _impl::ScopedMsanDisabler<raw::MjData> msan_disabler(
+      pybind11::cast<T&>(self).ptr());
+#endif
+  return StructRepr<T>(self);
 }
 
 template <typename C, typename... O>
