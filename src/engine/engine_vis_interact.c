@@ -385,6 +385,7 @@ void mjv_movePerturb(const mjModel* m, const mjData* d, int action, mjtNum reldx
   case mjMOUSE_MOVE_V:
   case mjMOUSE_MOVE_H:
     mju_addToScl3(pert->refpos, vec, pert->scale);
+    mju_addToScl3(pert->reflocalpos, vec, pert->scale);
     break;
 
   case mjMOUSE_ROTATE_V:
@@ -524,18 +525,19 @@ void mjv_initPerturb(const mjModel* m, const mjData* d, const mjvScene* scn, mjv
 
   // compute selection point in world coordinates
   mjtNum selpos[3];
-  mju_rotVecMat(selpos, pert->localpos, d->xmat+9*pert->select);
-  mju_addTo3(selpos, d->xpos+3*pert->select);
+  mju_rotVecMat(selpos, pert->localpos, d->xmat+9*sel);
+  mju_addTo3(selpos, d->xpos+3*sel);
 
   // copy
-  mju_copy3(pert->refpos, selpos);
-  mju_mulQuat(pert->refquat, d->xquat + 4*sel, m->body_iquat + 4*sel);
+  mju_copy3(pert->refpos, d->xipos+3*sel);
+  mju_mulQuat(pert->refquat, d->xquat+4*sel, m->body_iquat+4*sel);
+  mju_copy3(pert->reflocalpos, selpos);
 
   // get camera info
   mjv_cameraInModel(headpos, forward, NULL, scn);
 
   // compute scaling: rendered pert->refpos displacement = mouse displacement
-  mju_sub3(dif, pert->refpos, headpos);
+  mju_sub3(dif, pert->reflocalpos, headpos);
   pert->scale = mjv_frustumHeight(scn) * mju_dot3(dif, forward);
 }
 
@@ -615,18 +617,18 @@ void mjv_applyPerturbForce(const mjModel* m, mjData* d, const mjvPerturb* pert) 
   if (((pert->active | pert->active2) & mjPERT_TRANSLATE)) {
     // compute selection point in world coordinates
     mjtNum selpos[3];
-    mju_rotVecMat(selpos, pert->localpos, d->xmat+9*pert->select);
-    mju_addTo3(selpos, d->xpos+3*pert->select);
+    mju_rotVecMat(selpos, pert->localpos, d->xmat+9*sel);
+    mju_addTo3(selpos, d->xpos+3*sel);
 
     // spring perturbation force, with critical damping
     stiffness = m->vis.map.stiffness;
     mass = 1.0/mju_max(mjMINVAL, m->body_invweight0[2*sel]);
-    mju_sub3(result, pert->refpos, selpos);
+    mju_sub3(result, pert->reflocalpos, selpos);
     mju_scl3(result, result, stiffness*mass);
     mju_addToScl3(result, bvel+3, -sqrtf(stiffness)*mass);
 
     // torque w.r.t body com
-    mju_subFrom3(selpos, d->xipos+3*pert->select);
+    mju_subFrom3(selpos, d->xipos+3*sel);
     mju_cross(result+3, selpos, result);
 
     // add critically damped torque (torsional only)
