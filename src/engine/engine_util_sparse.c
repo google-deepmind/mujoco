@@ -550,15 +550,13 @@ void mju_transposeSparse(mjtNum* res, const mjtNum* mat, int nr, int nc,
 
   // iterate through each non-zero entry of mat
   for (int i = 0; i<nnz; i++) {
-
     // iterate to get to the current row (skipping rows with all zeros)
     while ((i-rowadr[r]) >= rownnz[r]) r++;
 
-    // row index becomes the column index
-    res[res_rowadr[colind[i]]] = mat[i];
-
-    // column index becomes the row index (increment the rowadr)
-    res_colind[res_rowadr[colind[i]]++] = r;
+    // swap rows with columns and increment res_rowadr
+    int c = res_rowadr[colind[i]]++;
+    res[c] = mat[i];
+    res_colind[c] = r;
   }
 
   // shift back row addresses
