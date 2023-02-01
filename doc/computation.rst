@@ -1556,20 +1556,22 @@ MuJoCo's entire computational pipline and uniquely -- its constraint solver -- a
 efficient implementations of these derivatives is a long term goal of the development team. Analytic derivatives of the
 smooth dynamics with respect to velocity are already in place and power the :ref:`implicit integrator<geIntegration>`.
 
-The function ``mjd_transitionFD`` computes state-transition and control-transition Jacobians. Given any valid MuJoCo
+The function :ref:`mjd_transitionFD` computes state-transition and control-transition Jacobians. Given any valid MuJoCo
 model ``mjModel* m`` with an initial :ref:`simulation state<geState>` in ``mjData* d``,
 
-- Let :math:`x` denote the *physics state* of the simulation at time :math:`t` -- the concatenation of positions,
-  velocities and actuator states ``[d->qpos; d->qvel; d->act]``.
+- Let :math:`x` denote the :ref:`physics state<gePhysicsState>` of the simulation at time :math:`t` -- the concatenation
+  of positions, velocities and actuator states ``[d->qpos; d->qvel; d->act]``.
 - Let :math:`u` denote the vector of controls at time :math:`t`, corresponding to ``d->ctrl``.
 - Let :math:`y` denote the physical state of the simulation at time :math:`t+h`, where :math:`h` corresponds to
   ``m->opt.timstep``.
-- The high level function ``mj_step(m, d)`` computes :math:`y(x, u)` -- the next state as a function of
-  the current state and control.
-- ``mjd_transitionFD`` computes the Jacobians :math:`A = \frac{\partial y}{\partial x}` and
-  :math:`B = \frac{\partial y}{\partial u}` using efficient finite-differencing of ``mj_step``.
+- Let :math:`s` denote the values of the sensors defined in the model.
+- The high level function :ref:`mj_step` computes :math:`(x,u) \rightarrow (y,s)`: the next state and
+  sensor values as a function of the current state and control.
+- ``mjd_transitionFD`` computes the Jacobians :math:`A = \frac{\partial y}{\partial x}`,
+  :math:`B = \frac{\partial y}{\partial u}`, :math:`C = \frac{\partial s}{\partial x}` and
+  :math:`D = \frac{\partial s}{\partial u}` using efficient finite-differencing of :ref:`mj_step`.
 
-These derivatives are efficient by exploiting MuJoCo's configurable computation pipeline so that quantities are not
+These derivatives are made efficient by exploiting MuJoCo's configurable computation pipeline so that quantities are not
 recomputed when not required. For example when differencing with respect to controls, quantities which depend only on
 position and velocity are not recomputed. Additionally, solver warmstarts, quaternions and control clamping are handled
 correctly. Both forward and centered differences are supported.

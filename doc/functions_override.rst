@@ -368,5 +368,22 @@ Symmetrize square matrix :math:`R = \frac{1}{2}(M + M^T)`.
 
 .. _mjd_transitionFD:
 
-Finite differenced state-transition and control-transition matrices dx(t+h) = A*dx(t) + B*du(t). Required output matrix
-dimensions: A: (2*nv+na x 2*nv+na), B: (2*nv+na x nu).
+Finite differenced transition matrices. Letting :math:`x, u` denote the current :ref:`state<gePhysicsState>` and control
+vectors and letting :math:`y, s` denote the next state and sensor values, the top-level :ref:`mj_step` function computes
+:math:`(x,u) \rightarrow (y,s)`. :ref:`mjd_transitionFD` computes the four associated Jacobians using
+finite-differencing. These matrices and their dimensions are:
+
+.. csv-table::
+   :header: "matrix", "Jacobian", "dimension"
+   :widths: auto
+   :align: left
+
+   ``A``, :math:`\partial y / \partial x`, ``2*nv+na x 2*nv+na``
+   ``B``, :math:`\partial y / \partial u`, ``2*nv+na x nu``
+   ``C``, :math:`\partial s / \partial x`, ``nsensordata x 2*nv+na``
+   ``D``, :math:`\partial s / \partial u`, ``nsensordata x nu``
+
+- All four matrix outputs are optional (can be NULL).
+- ``eps`` is the finite-differencing epsilon.
+- ``centered`` is a flag denoting whether to use forward (0) or centered (1) differences.
+
