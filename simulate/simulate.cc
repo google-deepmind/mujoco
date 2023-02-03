@@ -376,7 +376,7 @@ void sensorinit(mj::Simulate* sim) {
   mju::strcpy_arr(figsensor.title, "Sensor data");
 
   // y-tick nubmer format
-  mju::strcpy_arr(figsensor.yformat, "%.0f");
+  mju::strcpy_arr(figsensor.yformat, "%.1f");
 
   // grid size
   figsensor.gridsize[0] = 2;
@@ -435,8 +435,7 @@ void sensorupdate(mj::Simulate* sim) {
     }
 
     // update linepnt
-    figsensor.linepnt[lineid] = mjMIN(mjMAXLINEPNT-1,
-                                       figsensor.linepnt[lineid]+2*dim);
+    figsensor.linepnt[lineid] = mjMIN(mjMAXLINEPNT-1, figsensor.linepnt[lineid]+2*dim);
   }
 }
 
