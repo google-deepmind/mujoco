@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include "engine/engine_util_sparse.h"
+#include "engine/engine_util_sparse_avx.h"
 
 #include <string.h>
 
@@ -22,61 +23,18 @@
 #include "engine/engine_macro.h"
 #include "engine/engine_util_blas.h"
 
-#ifdef mjUSEPLATFORMSIMD
-  #if defined(__AVX__) && defined(mjUSEDOUBLE)
-    #define mjUSEAVX
-    #include "immintrin.h"
-  #endif
-#endif
 
 //------------------------------ sparse operations -------------------------------------------------
 
 // dot-product, first vector is sparse
 mjtNum mju_dotSparse(const mjtNum* vec1, const mjtNum* vec2,
                      const int nnz1, const int* ind1) {
+#ifdef mjUSEAVX
+  return mju_dotSparse_avx(vec1, vec2, nnz1, ind1);
+#else
   int i = 0;
   mjtNum res = 0;
-
-#ifdef mjUSEAVX
-  int nnz1_4 = nnz1 - 4;
-
-  // vector part
-  if (nnz1_4>=0) {
-    __m256d sum, prod, val1, val2;
-    __m128d vlow, vhigh, high64;
-
-    // init
-    val2 = _mm256_set_pd(vec2[ind1[3]],
-                         vec2[ind1[2]],
-                         vec2[ind1[1]],
-                         vec2[ind1[0]]);
-    val1 = _mm256_loadu_pd(vec1);
-    sum = _mm256_mul_pd(val1, val2);
-    i = 4;
-
-    // parallel computation
-    while (i<=nnz1_4) {
-      val1 = _mm256_loadu_pd(vec1+i);
-      val2 = _mm256_set_pd(vec2[ind1[i+3]],
-                           vec2[ind1[i+2]],
-                           vec2[ind1[i+1]],
-                           vec2[ind1[i+0]]);
-      prod = _mm256_mul_pd(val1, val2);
-      sum = _mm256_add_pd(sum, prod);
-      i += 4;
-    }
-
-    // reduce
-    vlow = _mm256_castpd256_pd128(sum);
-    vhigh = _mm256_extractf128_pd(sum, 1);
-    vlow = _mm_add_pd(vlow, vhigh);
-    high64 = _mm_unpackhi_pd(vlow, vlow);
-    res = _mm_cvtsd_f64(_mm_add_sd(vlow, high64));
-  }
-
-#else
   int n_4 = nnz1 - 4;
-
   mjtNum res0 = 0;
   mjtNum res1 = 0;
   mjtNum res2 = 0;
@@ -89,7 +47,6 @@ mjtNum mju_dotSparse(const mjtNum* vec1, const mjtNum* vec2,
     res3 += vec1[i+3] * vec2[ind1[i+3]];
   }
   res = (res0 + res2) + (res1 + res3);
-#endif
 
   // scalar part
   for (; i<nnz1; i++) {
@@ -97,6 +54,7 @@ mjtNum mju_dotSparse(const mjtNum* vec1, const mjtNum* vec2,
   }
 
   return res;
+#endif  // mjUSEAVX
 }
 
 
@@ -105,6 +63,9 @@ mjtNum mju_dotSparse(const mjtNum* vec1, const mjtNum* vec2,
 void mju_dotSparseX3(mjtNum* res0, mjtNum* res1, mjtNum* res2,
                      const mjtNum* vec10, const mjtNum* vec11, const mjtNum* vec12,
                      const mjtNum* vec2, const int nnz1, const int* ind1) {
+#ifdef mjUSEAVX
+  mju_dotSparseX3_avx(res0, res1, res2, vec10, vec11, vec12, vec2, nnz1, ind1);
+#else
   int i = 0;
 
   // clear result
@@ -112,73 +73,6 @@ void mju_dotSparseX3(mjtNum* res0, mjtNum* res1, mjtNum* res2,
   mjtNum RES1 = 0;
   mjtNum RES2 = 0;
 
-#ifdef mjUSEAVX
-  int nnz1_4 = nnz1 - 4;
-
-  // vector part
-  if (nnz1_4>=0) {
-    __m256d sum0, sum1, sum2, prod, val1, val2;
-    __m128d vlow, vhigh, high64;
-
-    // init
-    val2 = _mm256_set_pd(vec2[ind1[3]],
-                         vec2[ind1[2]],
-                         vec2[ind1[1]],
-                         vec2[ind1[0]]);
-    val1 = _mm256_loadu_pd(vec10);
-    sum0 = _mm256_mul_pd(val1, val2);
-    val1 = _mm256_loadu_pd(vec11);
-    sum1 = _mm256_mul_pd(val1, val2);
-    val1 = _mm256_loadu_pd(vec12);
-    sum2 = _mm256_mul_pd(val1, val2);
-    i = 4;
-
-    // parallel computation
-    while (i<=nnz1_4) {
-      // get val2 only once
-      val2 = _mm256_set_pd(vec2[ind1[i+3]],
-                           vec2[ind1[i+2]],
-                           vec2[ind1[i+1]],
-                           vec2[ind1[i+0]]);
-
-      // process each val1
-      val1 = _mm256_loadu_pd(vec10+i);
-      prod = _mm256_mul_pd(val1, val2);
-      sum0 = _mm256_add_pd(sum0, prod);
-
-      val1 = _mm256_loadu_pd(vec11+i);
-      prod = _mm256_mul_pd(val1, val2);
-      sum1 = _mm256_add_pd(sum1, prod);
-
-      val1 = _mm256_loadu_pd(vec12+i);
-      prod = _mm256_mul_pd(val1, val2);
-      sum2 = _mm256_add_pd(sum2, prod);
-
-      i += 4;
-    }
-
-    // reduce
-    vlow   = _mm256_castpd256_pd128(sum0);
-    vhigh  = _mm256_extractf128_pd(sum0, 1);
-    vlow   = _mm_add_pd(vlow, vhigh);
-    high64 = _mm_unpackhi_pd(vlow, vlow);
-    RES0   = _mm_cvtsd_f64(_mm_add_sd(vlow, high64));
-
-    vlow   = _mm256_castpd256_pd128(sum1);
-    vhigh  = _mm256_extractf128_pd(sum1, 1);
-    vlow   = _mm_add_pd(vlow, vhigh);
-    high64 = _mm_unpackhi_pd(vlow, vlow);
-    RES1   = _mm_cvtsd_f64(_mm_add_sd(vlow, high64));
-
-    vlow   = _mm256_castpd256_pd128(sum2);
-    vhigh  = _mm256_extractf128_pd(sum2, 1);
-    vlow   = _mm_add_pd(vlow, vhigh);
-    high64 = _mm_unpackhi_pd(vlow, vlow);
-    RES2   = _mm_cvtsd_f64(_mm_add_sd(vlow, high64));
-  }
-#endif
-
-  // scalar part
   for (; i<nnz1; i++) {
     mjtNum v2 = vec2[ind1[i]];
 
@@ -191,8 +85,8 @@ void mju_dotSparseX3(mjtNum* res0, mjtNum* res1, mjtNum* res2,
   *res0 = RES0;
   *res1 = RES1;
   *res2 = RES2;
+#endif  // mjUSEAVX
 }
-
 
 
 // dot-product, both vectors are sparse
@@ -276,129 +170,40 @@ void mju_sparse2dense(mjtNum* res, const mjtNum* mat, int nr, int nc,
 void mju_mulMatVecSparse(mjtNum* res, const mjtNum* mat, const mjtNum* vec,
                          int nr, const int* rownnz, const int* rowadr,
                          const int* colind, const int* rowsuper) {
-  // no supernodes, or no AVX
 #ifdef mjUSEAVX
-  if (!rowsuper) {
-#endif
-
-    // regular sparse dot-product
-    for (int r=0; r<nr; r++) {
-      res[r] = mju_dotSparse(mat+rowadr[r], vec, rownnz[r], colind+rowadr[r]);
-    }
-
-    return;
-
-#ifdef mjUSEAVX
-  }
-#endif
-
-  // regular or supernode
+  mju_mulMatVecSparse_avx(res, mat, vec, nr, rownnz, rowadr, colind, rowsuper);
+#else
+  // regular sparse dot-product
   for (int r=0; r<nr; r++) {
-    if (rowsuper[r]) {
-      int rs = rowsuper[r]+1;
-
-      // handle rows in blocks of 3
-      while (rs>=3) {
-        mju_dotSparseX3(res+r, res+r+1, res+r+2,
-                        mat+rowadr[r], mat+rowadr[r+1], mat+rowadr[r+2],
-                        vec, rownnz[r], colind+rowadr[r]);
-
-        r += 3;
-        rs -= 3;
-      }
-
-      // handle remaining rows
-      while (rs>0) {
-        res[r] = mju_dotSparse(mat+rowadr[r], vec, rownnz[r], colind+rowadr[r]);
-
-        r++;
-        rs--;
-      }
-
-      // go back one, because of outer for loop
-      r--;
-    }
-
-    else {
-      res[r] = mju_dotSparse(mat+rowadr[r], vec, rownnz[r], colind+rowadr[r]);
-    }
+    res[r] = mju_dotSparse(mat+rowadr[r], vec, rownnz[r], colind+rowadr[r]);
   }
+#endif  // mjUSEAVX
 }
+
+
 
 // res = res*scl1 + vec*scl2
 static void mju_addToSclScl(mjtNum* res, const mjtNum* vec, mjtNum scl1, mjtNum scl2, int n) {
-  int i = 0;
-
 #ifdef mjUSEAVX
-  int n_4 = n - 4;
-
-  // vector part
-  if (n_4>=0) {
-    __m256d sclpar1, sclpar2, sum, val1, val2;
-
-    // init
-    sclpar1 = _mm256_set1_pd(scl1);
-    sclpar2 = _mm256_set1_pd(scl2);
-
-    // parallel computation
-    while (i<=n_4) {
-      val1 = _mm256_loadu_pd(res+i);
-      val2 = _mm256_loadu_pd(vec+i);
-      val1 = _mm256_mul_pd(val1, sclpar1);
-      val2 = _mm256_mul_pd(val2, sclpar2);
-      sum = _mm256_add_pd(val1, val2);
-      _mm256_storeu_pd(res+i, sum);
-      i += 4;
-    }
-  }
-
-  // process remaining
-  int n_i = n - i;
-  if (n_i==3) {
-    res[i] = res[i]*scl1 + vec[i]*scl2;
-    res[i+1] = res[i+1]*scl1 + vec[i+1]*scl2;
-    res[i+2] = res[i+2]*scl1 + vec[i+2]*scl2;
-  } else if (n_i==2) {
-    res[i] = res[i]*scl1 + vec[i]*scl2;
-    res[i+1] = res[i+1]*scl1 + vec[i+1]*scl2;
-  } else if (n_i==1) {
-    res[i] = res[i]*scl1 + vec[i]*scl2;
-  }
-
+  mju_addToSclScl_avx(res, vec, scl1, scl2, n);
 #else
-  for (; i<n; i++) {
+  for (int i=0; i<n; i++) {
     res[i] = res[i]*scl1 + vec[i]*scl2;
   }
-#endif
+#endif  // mjUSEAVX
 }
+
+
 
 // return 1 if vec1==vec2, 0 otherwise
 static int mju_compare(const int* vec1, const int* vec2, int n) {
-  int i = 0;
-
 #ifdef mjUSEAVX
-  int n_4 = n - 4;
-
-  // vector part
-  if (n_4>=0) {
-    __m128i val1, val2, cmp;
-
-    // parallel computation
-    while (i<=n_4) {
-      val1 = _mm_loadu_si128((const __m128i*)(vec1+i));
-      val2 = _mm_loadu_si128((const __m128i*)(vec2+i));
-      cmp = _mm_cmpeq_epi32(val1, val2);
-      if (_mm_movemask_epi8(cmp)!= 0xFFFF) {
-        return 0;
-      }
-      i += 4;
-    }
-  }
-#endif
-
-  // scalar part
-  return !memcmp(vec1+i, vec2+i, (n-i)*sizeof(int));
+  return mju_compare_avx(vec1, vec2, n);
+#else
+  return !memcmp(vec1, vec2, n*sizeof(int));
+#endif  // mjUSEAVX
 }
+
 
 // combine two sparse vectors: dst = a*dst + b*src, return nnz of result
 int mju_combineSparse(mjtNum* dst, const mjtNum* src, int n, mjtNum a, mjtNum b,
