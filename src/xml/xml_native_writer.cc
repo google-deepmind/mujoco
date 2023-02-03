@@ -46,10 +46,10 @@ using tinyxml2::XMLElement;
 
 
 // custom XML indentation: 2 spaces rather than the default 4
-class TINYXML2_LIB mj_XMLPrinter : public tinyxml2::XMLPrinter {
+class mj_XMLPrinter : public tinyxml2::XMLPrinter {
   using tinyxml2::XMLPrinter::XMLPrinter;
 
-  public:
+ public:
     void PrintSpace( int depth ) {
       for (int i=0; i<depth; ++i) {
           Write( "  " );
