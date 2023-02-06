@@ -1154,7 +1154,6 @@ typedef enum mjtPluginCapabilityBit_ {
   mjPLUGIN_ACTUATOR = 1<<0,
   mjPLUGIN_SENSOR   = 1<<1,
   mjPLUGIN_PASSIVE  = 1<<2,
-  mjPLUGIN_CONTROL  = 1<<3,
 } mjtPluginCapabilityBit;
 struct mjpPlugin_ {
   const char* name;     // globally unique name identifying the plugin
