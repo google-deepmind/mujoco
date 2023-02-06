@@ -29,16 +29,17 @@ Bug fixes
    :align: right
    :width: 300px
 
-- The ``launch_repl`` functionality in the Python viewer is fixed.
+- The ``launch_repl`` functionality in the Python viewer has been fixed.
 - Set ``time`` correctly in ``mjd_transitionFD``, to support time-dependent user code.
-- Fix sensor data dimension validation when ``user`` type sensors are present.
-- Fix incorrect plugin error message when a null ``nsensordata`` callback is encountered during model compilation.
+- Fixed sensor data dimension validation when ``user`` type sensors are present.
+- Fixed incorrect plugin error message when a null ``nsensordata`` callback is encountered during model compilation.
 - Correctly end the timer (``TM_END``) ``mj_fwdConstraint`` returns early.
+- Fixed an infinite loop in ``mj_deleteFileVFS``.
 
 Simulate
 ^^^^^^^^
 
-- Increase precision of simulate sensor plot y-axis by 1 digit
+- Increased precision of simulate sensor plot y-axis by 1 digit
   (`#719 <https://github.com/deepmind/mujoco/issues/719>`_).
 - Body labels are now drawn at the body frame rather than inertial frame, unless inertia is being visualised.
 
