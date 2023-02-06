@@ -227,7 +227,23 @@ static int has_plane_or_hfield(const mjModel* m, int body) {
   return 0;
 }
 
+// filter body pair: 1- discard, 0- proceed
+static int body_pair_filter(int weldbody1, int weldparent1, int weldbody2,
+                            int weldparent2, int dsbl_filterparent) {
+  // same weldbody check
+  if (weldbody1==weldbody2) {
+    return 1;
+  }
 
+  // weldparent check
+  if ((!dsbl_filterparent && weldbody1 != 0 && weldbody2 != 0) &&
+      (weldbody1 == weldparent2 || weldbody2 == weldparent1)) {
+    return 1;
+  }
+
+  // all tests passed
+  return 0;
+}
 
 // add body pair in buffer
 static void add_pair(const mjModel* m, int b1, int b2, int* npair, int* pair, int maxpair) {
@@ -320,6 +336,7 @@ int mj_broadphase(const mjModel* m, mjData* d, int* pair, int maxpair) {
   mjtNum *aabb;
   mjMARKSTACK;
 
+  int dsbl_filterparent = mjDISABLED(mjDSBL_FILTERPARENT);
   // world with geoms, and body with plane or hfield, can collide all bodies
   for (b1=0; b1<nbody; b1++) {
     // cannot colide
@@ -329,8 +346,13 @@ int mj_broadphase(const mjModel* m, mjData* d, int* pair, int maxpair) {
 
     // world with geoms, or welded body with plane or hfield
     if ((b1==0 && m->body_geomnum[b1]>0) || (m->body_weldid[b1]==0 && has_plane_or_hfield(m, b1))) {
+      int weld1 = 0;
+      int parent_weld1 = 0;
       for (b2=0; b2<nbody; b2++) {
-        if (b1!=b2) {
+        int weld2 = m->body_weldid[b2];
+        int parent_weld2 = m->body_weldid[m->body_parentid[weld2]];
+        if (!body_pair_filter(weld1, parent_weld1, weld2, parent_weld2,
+                              dsbl_filterparent)) {
           add_pair(NULL, b1, b2, &npair, pair, maxpair);
         }
       }
@@ -438,9 +460,20 @@ int mj_broadphase(const mjModel* m, mjData* d, int* pair, int maxpair) {
     // min value: collide with all in list, add
     if (!(sortbuf[i].body_ismax & 0x10000)) {
       for (j=0; j<cnt; j++) {
-        // get body ids
+        // get body ids: no need to mask ismax because activebuf entries never have the ismax bit,
+        // and sortbuf[i].body_ismax is tested above
         b1 = activebuf[j].body_ismax;
         b2 = sortbuf[i].body_ismax;
+
+        int weld1 = m->body_weldid[b1];
+        int weld2 = m->body_weldid[b2];
+        int parent_weld1 = m->body_weldid[m->body_parentid[weld1]];
+        int parent_weld2 = m->body_weldid[m->body_parentid[weld2]];
+
+        if (body_pair_filter(weld1, parent_weld1, weld2, parent_weld2,
+                             dsbl_filterparent)) {
+          continue;
+        }
 
         // use the other two axes to prune if possible
         if (aabb[6*b1+2] > aabb[6*b2+3] ||
@@ -509,7 +542,7 @@ static inline mjtNum squaredDist3(const mjtNum pos1[3], const mjtNum pos2[3]) {
 // test two geoms for collision, apply filters, add to contact list
 //  flg_user disables filters and uses usermargin
 void mj_collideGeoms(const mjModel* m, mjData* d, int g1, int g2, int flg_user, mjtNum usermargin) {
-  int i, num, type1, type2, b1, b2, weld1, weld2, condim;
+  int i, num, type1, type2, condim;
   mjtNum margin, gap, mix, friction[5], solref[mjNREF], solimp[mjNIMP];
   mjContact con[mjMAXCONPAIR];
   int ipair = (g2<0 ? g1 : -1);
@@ -530,10 +563,6 @@ void mj_collideGeoms(const mjModel* m, mjData* d, int g1, int g2, int flg_user, 
   // copy types and bodies
   type1 = m->geom_type[g1];
   type2 = m->geom_type[g2];
-  b1 = m->geom_bodyid[g1];
-  b2 = m->geom_bodyid[g2];
-  weld1 = m->body_weldid[b1];
-  weld2 = m->body_weldid[b2];
 
   // return if no collision function
   if (!mjCOLLISIONFUNC[type1][type2]) {
@@ -550,12 +579,8 @@ void mj_collideGeoms(const mjModel* m, mjData* d, int g1, int g2, int flg_user, 
     }
 
     // otherwise built-in filter
-    else if (mj_contactFilter(
-               type1, m->geom_contype[g1], m->geom_conaffinity[g1],
-               weld1, m->body_weldid[m->body_parentid[weld1]],
-               type2, m->geom_contype[g2], m->geom_conaffinity[g2],
-               weld2, m->body_weldid[m->body_parentid[weld2]],
-               !mjDISABLED(mjDSBL_FILTERPARENT) && weld1 && weld2)) {
+    else if (mj_contactFilter(m->geom_contype[g1], m->geom_conaffinity[g1],
+                              m->geom_contype[g2], m->geom_conaffinity[g2])) {
       return;
     }
   }
@@ -775,24 +800,7 @@ void mj_collideGeoms(const mjModel* m, mjData* d, int g1, int g2, int flg_user, 
 
 
 // filter contacts: 1- discard, 0- proceed
-int mj_contactFilter(int type1, int contype1, int conaffinity1, int weldbody1, int weldparent1,
-                     int type2, int contype2, int conaffinity2, int weldbody2, int weldparent2,
-                     int filterparent) {
-  // compatibility check
-  if (!(contype1 & conaffinity2) && !(contype2 & conaffinity1)) {
-    return 1;
-  }
-
-  // same weldbody check
-  if (weldbody1==weldbody2) {
-    return 1;
-  }
-
-  // weldparent check
-  if (filterparent && (weldbody1==weldparent2 || weldbody2==weldparent1)) {
-    return 1;
-  }
-
-  // all tests passed
-  return 0;
+int mj_contactFilter(int contype1, int conaffinity1,
+                     int contype2, int conaffinity2) {
+  return !(contype1 & conaffinity2) && !(contype2 & conaffinity1);
 }

@@ -38,9 +38,8 @@ void mj_collideGeoms(const mjModel* m, mjData* d,
                      int g1, int g2, int flg_user, mjtNum usermargin);
 
 // number of possible collisions based on fitlers and geom types
-int mj_contactFilter(int type1, int contype1, int conaffinity1, int weldbody1, int weldparent1,
-                     int type2, int contype2, int conaffinity2, int weldbody2, int weldparent2,
-                     int filterparent);
+int mj_contactFilter(int contype1, int conaffinity1,
+                     int contype2, int conaffinity2);
 
 #ifdef __cplusplus
 }
