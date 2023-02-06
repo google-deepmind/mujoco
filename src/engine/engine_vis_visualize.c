@@ -706,8 +706,8 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
 
         // construct geom
         thisgeom->type = mjGEOM_LABEL;
-        mju_n2f(thisgeom->pos, d->xipos+3*i, 3);
-        mju_n2f(thisgeom->mat, d->ximat+9*i, 9);
+        mju_n2f(thisgeom->pos, d->xpos+3*i, 3);
+        mju_n2f(thisgeom->mat, d->xmat+9*i, 9);
 
         // vopt->label
         makeLabel(m, mjOBJ_BODY, i, thisgeom->label);
