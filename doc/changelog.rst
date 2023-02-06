@@ -14,12 +14,8 @@ General
   this function is 35% faster.
 - The function :ref:`mj_name2id` is now implemented using a hash function instead of a linear search for better
   performance.
-
-.. image:: images/changelog/meshfit.png
-   :align: right
-   :width: 300px
-
 - Geom names are now parsed from URDF. Any duplicate names are ignored.
+- ``mj_printData`` output now contains contacting geom names.
 
 Bug fixes
 ^^^^^^^^^
@@ -28,7 +24,33 @@ Bug fixes
   principal components of the shell inertia, while the vertex coordinates are rotated using the volumetric inertia.
   Now the volumetric inertia orientation is used also in the shell case.
 - Fixed misalignment bug in mesh-to-primitive fitting when using the bounding box fitting option :at:`fitaabb`.
+
+.. image:: images/changelog/meshfit.png
+   :align: right
+   :width: 300px
+
 - The ``launch_repl`` functionality in the Python viewer is fixed.
+- Set ``time`` correctly in ``mjd_transitionFD``, to support time-dependent user code.
+- Fix sensor data dimension validation when ``user`` type sensors are present.
+- Fix incorrect plugin error message when a null ``nsensordata`` callback is encountered during model compilation.
+- Correctly end the timer (``TM_END``) ``mj_fwdConstraint`` returns early.
+
+Simulate
+^^^^^^^^
+
+- Increase precision of simulate sensor plot y-axis by 1 digit
+  (`#719 <https://github.com/deepmind/mujoco/issues/719>`_).
+- Body labels are now drawn at the body frame rather than inertial frame, unless inertia is being visualised.
+
+Plugins
+^^^^^^^
+
+- The ``reset`` callback now receives instance-specific ``plugin_state`` and ``plugin_data`` as arguments, rather than
+  the entire ``mjData``. Since ``reset`` is called inside ``mj_resetData`` before any physics forwarding call has been
+  made, it is an error to read anything from ``mjData`` at this stage.
+- The ``capabilities`` field in ``mjpPlugin`` is renamed ``capabilityflags`` to more clearly indicate that this is a
+  bit field.
+
 
 Version 2.3.1 (December 6, 2022)
 -----------------------------------
