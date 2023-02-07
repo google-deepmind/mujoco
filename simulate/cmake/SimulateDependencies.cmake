@@ -29,11 +29,11 @@ unset(DEFAULT_USE_SYSTEM_MUJOCO)
 option(MUJOCO_SIMULATE_USE_SYSTEM_MUJOCO "Use installed MuJoCo version." OFF)
 option(MUJOCO_SIMULATE_USE_SYSTEM_GLFW "Use installed GLFW version." OFF)
 
-set(MUJOCO_DEP_VERSION_glfw
+set(MUJOCO_DEP_VERSION_glfw3
     7482de6071d21db77a7236155da44c172a7f6c9e # 3.3.8
     CACHE STRING "Version of `glfw` to be fetched."
 )
-mark_as_advanced(MUJOCO_DEP_VERSION_glfw)
+mark_as_advanced(MUJOCO_DEP_VERSION_glfw3)
 
 find_package(Threads REQUIRED)
 
@@ -78,13 +78,13 @@ findorfetch(
   USE_SYSTEM_PACKAGE
   MUJOCO_SIMULATE_USE_SYSTEM_GLFW
   PACKAGE_NAME
-  glfw
+  glfw3
   LIBRARY_NAME
-  glfw
+  glfw3
   GIT_REPO
   https://github.com/glfw/glfw.git
   GIT_TAG
-  ${MUJOCO_DEP_VERSION_glfw}
+  ${MUJOCO_DEP_VERSION_glfw3}
   TARGETS
   glfw
   EXCLUDE_FROM_ALL
