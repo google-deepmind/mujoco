@@ -469,7 +469,8 @@ int main(int argc, const char** argv) {
   scanPluginLibraries();
 
   // simulate object encapsulates the UI
-  mj::Simulate sim(std::make_unique<mj::GlfwAdapter>());
+  auto sim = std::make_unique<mj::Simulate>(
+      std::make_unique<mj::GlfwAdapter>());
 
   const char* filename = nullptr;
   if (argc >  1) {
@@ -477,10 +478,10 @@ int main(int argc, const char** argv) {
   }
 
   // start physics thread
-  std::thread physicsthreadhandle = std::thread(&PhysicsThread, &sim, filename);
+  std::thread physicsthreadhandle(&PhysicsThread, sim.get(), filename);
 
   // start simulation UI loop (blocking call)
-  sim.renderloop();
+  sim->renderloop();
   physicsthreadhandle.join();
 
   return 0;
