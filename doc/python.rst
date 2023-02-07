@@ -279,8 +279,7 @@ joints, for example through ``d.joint('foo').qpos`` and ``d.joint('foo').qvel``,
 differ between accessors depending on the joint's type.
 
 Named access is guaranteed to be O(1) in the number of entities in the model. In other words, the time it takes to
-access an entity by name does not grow with the number of names or entities in the model. (This is currently **not** the
-case for the :ref:`mj_name2id` function, which performs a linear scan.)
+access an entity by name does not grow with the number of names or entities in the model.
 
 For completeness, we provide here a complete list of all name categories in MuJoCo, along with their corresponding
 aliases defined in the Python API.
@@ -433,8 +432,8 @@ this functionality, but this list can be easily constructed using ``model.jnt_qp
 
 mujoco-py creates dicts in ``MjSim`` that allow for efficient lookup of indices for objects of different types:
 ``site_name2id``, ``body_name2id`` etc.  These functions replace the function :ref:`mujoco.mj_name2id(model, type_enum,
-name) <mj_name2id>` whose current implementation is inefficient.  ``mujoco`` offers a different
-approach for using entity names – :ref:`named access <PyNamed>`, as well as access to the native :ref:`mj_name2id`.
+name) <mj_name2id>`.  ``mujoco`` offers a different approach for using entity names – :ref:`named access <PyNamed>`,
+as well as access to the native :ref:`mj_name2id`.
 
 ``sim.save(fstream, format_name)``
 ----------------------------------
