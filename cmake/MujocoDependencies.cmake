@@ -23,7 +23,7 @@ set(MUJOCO_DEP_VERSION_lodepng
     CACHE STRING "Version of `lodepng` to be fetched."
 )
 set(MUJOCO_DEP_VERSION_tinyxml2
-    1dee28e51f9175a31955b9791c74c430fe13dc82 # 9.0.0
+    9a89766acc42ddfa9e7133c7d81a5bda108a0ade
     CACHE STRING "Version of `tinyxml2` to be fetched."
 )
 set(MUJOCO_DEP_VERSION_tinyobjloader
@@ -39,17 +39,17 @@ set(MUJOCO_DEP_VERSION_qhull
     CACHE STRING "Version of `qhull` to be fetched."
 )
 set(MUJOCO_DEP_VERSION_Eigen3
-    3bb6a48d8c171cf20b5f8e48bfb4e424fbd4f79e
+    3460f3558e7b469efb8a225894e21929c8c77629
     CACHE STRING "Version of `Eigen3` to be fetched."
 )
 
 set(MUJOCO_DEP_VERSION_abseil
-    8c0b94e793a66495e0b1f34a5eb26bd7dc672db0 # LTS 20220623.1
+    78be63686ba732b25052be15f8d6dee891c05749 # LTS 20230125.0
     CACHE STRING "Version of `abseil` to be fetched."
 )
 
 set(MUJOCO_DEP_VERSION_gtest
-    58d77fa8070e8cec2dc1ed015d66b454c8d78850 # release-1.12.1
+    b796f7d44681514f58a683a3a71ff17c94edb0c1 # release-1.13.0
     CACHE STRING "Version of `gtest` to be fetched."
 )
 

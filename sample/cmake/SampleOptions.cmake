@@ -95,12 +95,6 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR (CMAKE_CXX_COMPILER_ID MATCHES "Clang
         -Wno-stringop-overflow
         -Wno-stringop-truncation
     )
-  elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang" AND CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL "15.0.0")
-    # Needed for https://github.com/abseil/abseil-cpp/issues/1201, until a new
-    # version of abseil is released with the fix.
-    set(EXTRA_COMPILE_OPTIONS "${EXTRA_COMPILE_OPTIONS}"
-        -Wno-deprecated-builtins
-    )
   endif()
 endif()
 

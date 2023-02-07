@@ -20,6 +20,9 @@ function(get_avx_compile_options OUTPUT_VAR)
 
   if(MSVC)
     set(CMAKE_REQUIRED_FLAGS "/arch:AVX")
+  elseif(WIN32)
+    # Abseil LTS 20230125.0 assumes that AVX implies PCLMUL on Windows.
+    set(CMAKE_REQUIRED_FLAGS "-mavx" "-mpclmul")
   else()
     set(CMAKE_REQUIRED_FLAGS "-mavx")
   endif()

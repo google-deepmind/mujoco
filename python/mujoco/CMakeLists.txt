@@ -46,12 +46,6 @@ elseif(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID MATCHES "Cl
   add_compile_options(-fdata-sections -ffunction-sections)
 endif()
 
-if(CMAKE_CXX_COMPILER_ID MATCHES "Clang" AND CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL "15.0.0")
-  # Needed for https://github.com/abseil/abseil-cpp/issues/1201, until a new
-  # version of abseil is released with the fix.
-  add_compile_options(-Wno-deprecated-builtins)
-endif()
-
 include(MujocoLinkOptions)
 get_mujoco_extra_link_options(EXTRA_LINK_OPTIONS)
 add_link_options(${EXTRA_LINK_OPTIONS})
@@ -81,13 +75,13 @@ if(NOT TARGET mujoco)
     find_path(MUJOCO_FRAMEWORK mujoco.Framework HINTS ${MUJOCO_FRAMEWORK_DIR})
     if(MUJOCO_FRAMEWORK)
       message("MuJoCo framework is at ${MUJOCO_FRAMEWORK}/mujoco.framework")
-      set(MUJOCO_LIBRARY ${MUJOCO_FRAMEWORK}/mujoco.framework/Versions/A/libmujoco.2.3.1.dylib)
+      set(MUJOCO_LIBRARY ${MUJOCO_FRAMEWORK}/mujoco.framework/Versions/A/libmujoco.2.3.2.dylib)
       target_compile_options(mujoco INTERFACE -F${MUJOCO_FRAMEWORK})
     endif()
   endif()
 
   if(NOT MUJOCO_FRAMEWORK)
-    find_library(MUJOCO_LIBRARY mujoco mujoco.2.3.1 HINTS ${MUJOCO_LIBRARY_DIR} REQUIRED)
+    find_library(MUJOCO_LIBRARY mujoco mujoco.2.3.2 HINTS ${MUJOCO_LIBRARY_DIR} REQUIRED)
     find_path(MUJOCO_INCLUDE mujoco/mujoco.h HINTS ${MUJOCO_INCLUDE_DIR} REQUIRED)
     message("MuJoCo is at ${MUJOCO_LIBRARY}")
     message("MuJoCo headers are at ${MUJOCO_INCLUDE}")
@@ -134,7 +128,7 @@ findorfetch(
   GIT_REPO
   https://github.com/abseil/abseil-cpp
   GIT_TAG
-  8c0b94e793a66495e0b1f34a5eb26bd7dc672db0 # LTS 20220623.1
+  78be63686ba732b25052be15f8d6dee891c05749 # LTS 20230125
   TARGETS
   ${MUJOCO_PYTHON_ABSL_TARGETS}
   EXCLUDE_FROM_ALL
@@ -167,7 +161,7 @@ findorfetch(
   GIT_REPO
   https://gitlab.com/libeigen/eigen
   GIT_TAG
-  3bb6a48d8c171cf20b5f8e48bfb4e424fbd4f79e
+  3460f3558e7b469efb8a225894e21929c8c77629
   TARGETS
   Eigen3::Eigen
   EXCLUDE_FROM_ALL
@@ -184,7 +178,7 @@ findorfetch(
   GIT_REPO
   https://github.com/pybind/pybind11
   GIT_TAG
-  33fb7a6bd849653445b6ae37a8c274d3de9519cc
+  8ece7d641ca6ce316e59fec6744b8517073bbe32
   TARGETS
   pybind11::pybind11_headers
   EXCLUDE_FROM_ALL

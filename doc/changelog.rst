@@ -2,55 +2,55 @@
 Changelog
 =========
 
-Upcoming version (not yet released)
+Version 2.3.2 (February 7, 2023)
 -----------------------------------
 
 General
 ^^^^^^^
 
-- A more performant mju_transposeSparse has been implemented that doesn't require dense memory allocation.
-  For a constraint Jacobian matrix from the
-  `humanoid100.xml <https://github.com/deepmind/mujoco/blob/main/model/humanoid100/humanoid100.xml>`_ model,
-  this function is 35% faster.
-- The function :ref:`mj_name2id` is now implemented using a hash function instead of a linear search for better
-  performance.
-- Geom names are now parsed from URDF. Any duplicate names are ignored.
-- ``mj_printData`` output now contains contacting geom names.
+1. A more performant mju_transposeSparse has been implemented that doesn't require dense memory allocation.
+   For a constraint Jacobian matrix from the
+   `humanoid100.xml <https://github.com/deepmind/mujoco/blob/main/model/humanoid100/humanoid100.xml>`_ model,
+   this function is 35% faster.
+#. The function :ref:`mj_name2id` is now implemented using a hash function instead of a linear search for better
+   performance.
+#. Geom names are now parsed from URDF. Any duplicate names are ignored.
+   ``mj_printData`` output now contains contacting geom names.
 
 Bug fixes
 ^^^^^^^^^
 
-- Fixed a bug that for :at:`shellinertia` equal to ``true`` caused the mesh orientation to be overwritten by the
-  principal components of the shell inertia, while the vertex coordinates are rotated using the volumetric inertia.
-  Now the volumetric inertia orientation is used also in the shell case.
-- Fixed misalignment bug in mesh-to-primitive fitting when using the bounding box fitting option :at:`fitaabb`.
+4. Fixed a bug that for :at:`shellinertia` equal to ``true`` caused the mesh orientation to be overwritten by the
+   principal components of the shell inertia, while the vertex coordinates are rotated using the volumetric inertia.
+   Now the volumetric inertia orientation is used also in the shell case.
+#. Fixed misalignment bug in mesh-to-primitive fitting when using the bounding box fitting option :at:`fitaabb`.
 
 .. image:: images/changelog/meshfit.png
    :align: right
    :width: 300px
 
-- The ``launch_repl`` functionality in the Python viewer has been fixed.
-- Set ``time`` correctly in ``mjd_transitionFD``, to support time-dependent user code.
-- Fixed sensor data dimension validation when ``user`` type sensors are present.
-- Fixed incorrect plugin error message when a null ``nsensordata`` callback is encountered during model compilation.
-- Correctly end the timer (``TM_END``) ``mj_fwdConstraint`` returns early.
-- Fixed an infinite loop in ``mj_deleteFileVFS``.
+#. The ``launch_repl`` functionality in the Python viewer has been fixed.
+#. Set ``time`` correctly in ``mjd_transitionFD``, to support time-dependent user code.
+#. Fixed sensor data dimension validation when ``user`` type sensors are present.
+#. Fixed incorrect plugin error message when a null ``nsensordata`` callback is encountered during model compilation.
+#. Correctly end the timer (``TM_END``) ``mj_fwdConstraint`` returns early.
+#. Fixed an infinite loop in ``mj_deleteFileVFS``.
 
 Simulate
 ^^^^^^^^
 
-- Increased precision of simulate sensor plot y-axis by 1 digit
-  (`#719 <https://github.com/deepmind/mujoco/issues/719>`_).
-- Body labels are now drawn at the body frame rather than inertial frame, unless inertia is being visualised.
+12. Increased precision of simulate sensor plot y-axis by 1 digit
+    (`#719 <https://github.com/deepmind/mujoco/issues/719>`_).
+#.  Body labels are now drawn at the body frame rather than inertial frame, unless inertia is being visualised.
 
 Plugins
 ^^^^^^^
 
-- The ``reset`` callback now receives instance-specific ``plugin_state`` and ``plugin_data`` as arguments, rather than
-  the entire ``mjData``. Since ``reset`` is called inside ``mj_resetData`` before any physics forwarding call has been
-  made, it is an error to read anything from ``mjData`` at this stage.
-- The ``capabilities`` field in ``mjpPlugin`` is renamed ``capabilityflags`` to more clearly indicate that this is a
-  bit field.
+14. The ``reset`` callback now receives instance-specific ``plugin_state`` and ``plugin_data`` as arguments, rather than
+    the entire ``mjData``. Since ``reset`` is called inside ``mj_resetData`` before any physics forwarding call has been
+    made, it is an error to read anything from ``mjData`` at this stage.
+#.  The ``capabilities`` field in ``mjpPlugin`` is renamed ``capabilityflags`` to more clearly indicate that this is a
+    bit field.
 
 
 Version 2.3.1 (December 6, 2022)

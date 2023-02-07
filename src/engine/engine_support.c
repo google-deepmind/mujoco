@@ -36,8 +36,8 @@
   #endif
 #endif
 
-#define mjVERSION 231
-#define mjVERSIONSTRING "2.3.1"
+#define mjVERSION 232
+#define mjVERSIONSTRING "2.3.2"
 
 // names of disable flags
 const char* mjDISABLESTRING[mjNDISABLE] = {
