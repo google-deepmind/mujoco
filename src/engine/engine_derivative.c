@@ -1510,7 +1510,7 @@ void mjd_stepFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte centered,
   }
 
   // step input
-  mj_step(m, d);
+  mj_stepSkip(m, d, mjSTAGE_NONE, skipsensor);
 
   // save output
   getState(m, d, next, sensor);

@@ -504,6 +504,46 @@ TEST_F(DerivativeTest, SensorDerivatives) {
   mj_deleteModel(model);
 }
 
+// if sensor derivatives aren't requested, don't compute sensors
+TEST_F(DerivativeTest, SensorSkip) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <joint name="joint" type="slide"/>
+        <geom size=".1"/>
+      </body>
+    </worldbody>
+
+    <actuator>
+      <general name="actuator" joint="joint" gainprm="3"/>
+    </actuator>
+
+    <sensor>
+      <jointpos joint="joint"/>
+    </sensor>
+  </mujoco>
+  )";
+
+  mjModel* model = LoadModelFromString(xml);
+  int nv = model->nv, nu = model->nu;
+  mjData* data = mj_makeData(model);
+
+  // set a sentinel value in the sensor
+  data->sensordata[0] = 1337;
+
+  // finite differenced B
+  mjtNum eps = 1e-6;
+  mjtNum* BFD = (mjtNum*) mju_malloc(sizeof(mjtNum)*2*nv*nu);
+  mjd_transitionFD(model, data, eps, /*centered=*/0,
+                   nullptr, BFD, nullptr, nullptr);
+
+  EXPECT_EQ(data->sensordata[0], 1337) << "sensors should not be recomputed";
+
+  mju_free(BFD);
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
 
 // derivatives don't mutate the state
 TEST_F(DerivativeTest, NoStateMutation) {
