@@ -2,8 +2,18 @@
 Changelog
 =========
 
-Version 2.3.2 (February 7, 2023)
+Upcoming version (not yet released)
 -----------------------------------
+
+Python bindings
+^^^^^^^^^^^^^^^
+
+- Fixed IPython history corruption when using ``launch_repl``. The ``launch_repl`` function now provides seamless
+  continuation of an IPython interactive shell session, and is no longer considered experimental feature.
+
+
+Version 2.3.2 (February 7, 2023)
+--------------------------------
 
 General
 ^^^^^^^
@@ -54,7 +64,7 @@ Plugins
 
 
 Version 2.3.1 (December 6, 2022)
------------------------------------
+--------------------------------
 
 Python bindings
 ^^^^^^^^^^^^^^^

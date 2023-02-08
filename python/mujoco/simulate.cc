@@ -88,10 +88,13 @@ PYBIND11_MODULE(_simulate, pymodule) {
       .def_readonly("run", &mujoco::Simulate::run,
                     py::call_guard<py::gil_scoped_release>())
 
-      .def_property_readonly(
+      .def_property(
           "exitrequest",
           [](mujoco::Simulate& simulate) {
             return simulate.exitrequest.load();
+          },
+          [](mujoco::Simulate& simulate, bool exitrequest) {
+            simulate.exitrequest.store(exitrequest);
           },
           py::call_guard<py::gil_scoped_release>())
 
