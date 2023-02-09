@@ -5,6 +5,11 @@ Changelog
 Upcoming version (not yet released)
 -----------------------------------
 
+General
+^^^^^^^
+
+- The ``mjd_transitionFD`` function no longer triggers sensor calculation unless explicitly requested.
+
 Python bindings
 ^^^^^^^^^^^^^^^
 
