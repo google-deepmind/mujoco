@@ -356,11 +356,6 @@
   X( mjtNum, , cdof,            nv,   6           ) \
   X( mjtNum, , qLDiagInv,       nv,   1           ) \
   X( mjtNum, , qLDiagSqrtInv,   nv,   1           ) \
-  X( int,    , efc_JT_rownnz,   nv,   1           ) \
-  X( int,    , efc_JT_rowadr,   nv,   1           ) \
-  X( int,    , efc_JT_rowsuper, nv,   1           ) \
-  X( int,    , efc_JT_colind,   nv,   MJ_M(njmax) ) \
-  X( mjtNum, , efc_JT,          nv,   MJ_M(njmax) ) \
   X( mjtNum, , cdof_dot,        nv,   6           ) \
   X( mjtNum, , qfrc_bias,       nv,   1           ) \
   X( mjtNum, , qfrc_passive,    nv,   1           ) \

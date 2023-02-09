@@ -10,6 +10,9 @@ Python bindings
 
 - Fixed IPython history corruption when using ``launch_repl``. The ``launch_repl`` function now provides seamless
   continuation of an IPython interactive shell session, and is no longer considered experimental feature.
+- Remove ``efc_`` fields from joint indexers. Since the introduction of arena memory, these fields now have dynamic
+  sizes that change between time steps depending on the number of active constraints, breaking strict correspondence
+  between joints and `efc_` rows.
 
 
 Version 2.3.2 (February 7, 2023)
