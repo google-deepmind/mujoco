@@ -12,9 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-set(MUJOCO_ELASTICITY_INCLUDE
-    ${CMAKE_CURRENT_SOURCE_DIR}/../..
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../src
+set(MUJOCO_ELASTICITY_INCLUDE ${CMAKE_CURRENT_SOURCE_DIR}/../..
+                              ${CMAKE_CURRENT_SOURCE_DIR}/../../src
 )
 
 set(MUJOCO_ELASTICITY_SRCS

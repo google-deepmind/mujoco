@@ -540,6 +540,7 @@ void mj_instantiateEquality(const mjModel* m, mjData* d) {
 
       case mjEQ_DISTANCE:
         mju_error("distance equality constraints are no longer supported");
+        break;
 
       default:                    // SHOULD NOT OCCUR
         mju_error_i("Invalid equality constraint type %d", m->eq_type[i]);

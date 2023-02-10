@@ -1270,7 +1270,8 @@ void mj_differentiatePos(const mjModel* m, mjtNum* qvel, mjtNum dt,
       vadr += 3;
       padr += 3;
 
-    // continute with rotations
+      // continute with rotations
+      mjFALLTHROUGH;
 
     case mjJNT_BALL:
       mju_negQuat(neg, qpos1+padr);           // solve:  qpos1 * dif = qpos2
@@ -1304,7 +1305,8 @@ void mj_integratePos(const mjModel* m, mjtNum* qpos, const mjtNum* qvel, mjtNum 
       padr += 3;
       vadr += 3;
 
-    // continue with rotation update
+      // continue with rotation update
+      mjFALLTHROUGH;
 
     case mjJNT_BALL:
       // quaternion update

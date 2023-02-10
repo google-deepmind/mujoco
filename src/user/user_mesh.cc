@@ -1854,9 +1854,9 @@ void mjCSkin::LoadSKN(const mjVFS* vfs) {
 
     // read name
     char txt[40];
-    strncpy(txt, (char*)(pdata+cnt), 40);
+    strncpy(txt, (char*)(pdata+cnt), 39);
+    txt[39] = '\0';
     cnt += 10;
-    txt[39] = 0;
     bodyname.push_back(txt);
 
     // read bindpos

@@ -21,6 +21,7 @@
 #include <mujoco/mjmodel.h>
 #include "engine/engine_callback.h"
 #include "engine/engine_core_constraint.h"
+#include "engine/engine_crossplatform.h"
 #include "engine/engine_io.h"
 #include "engine/engine_macro.h"
 #include "engine/engine_plugin.h"
@@ -236,6 +237,7 @@ void mj_comPos(const mjModel* m, mjData* d) {
 
       // rotation components: same as ball
       skip = 18;
+      mjFALLTHROUGH;
 
     case mjJNT_BALL:
       for (int i=0; i<3; i++) {
@@ -1283,6 +1285,7 @@ void mj_comVel(const mjModel* m, mjData* d) {
 
         // continue with rotations
         j += 3;
+        mjFALLTHROUGH;
 
       case mjJNT_BALL:
         // compute all 3 cdofdots using parent velocity
@@ -1349,6 +1352,7 @@ void mj_passive(const mjModel* m, mjData* d) {
       // continue with rotations
       dadr += 3;
       padr += 3;
+      mjFALLTHROUGH;
 
     case mjJNT_BALL:
       // covert quatertion difference into angular "velocity"
@@ -2032,6 +2036,7 @@ void mj_rnePostConstraint(const mjModel* m, mjData* d) {
 
     case mjEQ_DISTANCE:
       mju_error("distance equality constraints are no longer supported");
+      break;
 
     default:
       mju_error_i("Unknown constraint type type %d", m->eq_type[id]);    // SHOULD NOT OCCUR

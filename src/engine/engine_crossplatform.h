@@ -46,8 +46,10 @@
   #endif
 #endif
 
-#if defined(__GNUC__) && __GNUC__ >= 7
-  #define mjFALLTHROUGH __attribute__ ((fallthrough))
+#if defined(__cplusplus)
+  #define mjFALLTHROUGH [[fallthrough]]
+#elif defined(__clang__) || (defined(__GNUC__) && __GNUC__ >= 7)
+  #define mjFALLTHROUGH __attribute__((fallthrough))
 #else
   #define mjFALLTHROUGH ((void) 0)
 #endif

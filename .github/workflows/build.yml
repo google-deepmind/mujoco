@@ -10,11 +10,9 @@ name: build
 
 on:
   push:
-    branches: [main]
     paths-ignore:
       - "doc/**"
   pull_request:
-    branches: [main]
     paths-ignore:
       - "doc/**"
 
@@ -115,9 +113,9 @@ jobs:
     - name: Prepare macOS
       if: ${{ runner.os == 'macOS' }}
       run: brew install ninja
-    - uses: actions/setup-python@v3
+    - uses: actions/setup-python@v4
       with:
-        python-version: "3.10"
+        python-version: "3.11"
     - name: Prepare Python
       shell: bash
       run: |

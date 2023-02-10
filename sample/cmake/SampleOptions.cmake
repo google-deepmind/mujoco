@@ -85,15 +85,19 @@ include(MujocoLinkOptions)
 get_mujoco_extra_link_options(EXTRA_LINK_OPTIONS)
 
 if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR (CMAKE_CXX_COMPILER_ID MATCHES "Clang" AND NOT MSVC))
-  set(EXTRA_COMPILE_OPTIONS -Wall -Werror)
+  set(EXTRA_COMPILE_OPTIONS
+      -Werror
+      -Wall
+      -Wimplicit-fallthrough
+      -Wunused
+      -Wno-int-in-bool-context
+      -Wno-sign-compare
+      -Wno-unknown-pragmas
+  )
   if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
-    # TODO: This should add to EXTRA_COMPILE_OPTIONS rather than overwrite it.
-    set(EXTRA_COMPILE_OPTIONS
-        -Wno-int-in-bool-context
-        -Wno-maybe-uninitialized
-        -Wno-sign-compare
-        -Wno-stringop-overflow
-        -Wno-stringop-truncation
+    # Set -Wimplicit-fallthrough=5 to only allow fallthrough annotation via __attribute__.
+    set(EXTRA_COMPILE_OPTIONS ${EXTRA_COMPILE_OPTIONS} -Wimplicit-fallthrough=5
+                              -Wno-maybe-uninitialized
     )
   endif()
 endif()

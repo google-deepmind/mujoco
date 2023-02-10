@@ -67,7 +67,12 @@ include(FindOrFetch)
 
 # ==================== MUJOCO LIBRARY ==========================================
 if(NOT TARGET mujoco)
-  add_library(mujoco SHARED IMPORTED GLOBAL)
+  add_library(
+    mujoco
+    SHARED
+    IMPORTED
+    GLOBAL
+  )
   if(APPLE)
     # On macOS, check if we are using mujoco.framework first.
     # Framework headers are searched differently from normal headers.
@@ -75,13 +80,17 @@ if(NOT TARGET mujoco)
     find_path(MUJOCO_FRAMEWORK mujoco.Framework HINTS ${MUJOCO_FRAMEWORK_DIR})
     if(MUJOCO_FRAMEWORK)
       message("MuJoCo framework is at ${MUJOCO_FRAMEWORK}/mujoco.framework")
-      set(MUJOCO_LIBRARY ${MUJOCO_FRAMEWORK}/mujoco.framework/Versions/A/libmujoco.2.3.2.dylib)
+      set(MUJOCO_LIBRARY
+          ${MUJOCO_FRAMEWORK}/mujoco.framework/Versions/A/libmujoco.2.3.2.dylib
+      )
       target_compile_options(mujoco INTERFACE -F${MUJOCO_FRAMEWORK})
     endif()
   endif()
 
   if(NOT MUJOCO_FRAMEWORK)
-    find_library(MUJOCO_LIBRARY mujoco mujoco.2.3.2 HINTS ${MUJOCO_LIBRARY_DIR} REQUIRED)
+    find_library(
+      MUJOCO_LIBRARY mujoco mujoco.2.3.2 HINTS ${MUJOCO_LIBRARY_DIR} REQUIRED
+    )
     find_path(MUJOCO_INCLUDE mujoco/mujoco.h HINTS ${MUJOCO_INCLUDE_DIR} REQUIRED)
     message("MuJoCo is at ${MUJOCO_LIBRARY}")
     message("MuJoCo headers are at ${MUJOCO_INCLUDE}")
@@ -276,16 +285,18 @@ macro(mujoco_pybind11_module name)
   pybind11_add_module(${name} ${ARGN})
   target_compile_options(${name} PRIVATE ${AVX_COMPILE_OPTIONS})
   if(NOT MSVC)
-    target_compile_options(${name} PRIVATE -Wall -Werror)
-    if(CMAKE_C_COMPILER_ID STREQUAL GNU)
-      target_compile_options(
-        ${name}
-        PRIVATE -Wno-int-in-bool-context
-                -Wno-maybe-uninitialized
-                -Wno-sign-compare
-                -Wno-stringop-overflow
-                -Wno-stringop-truncation
-      )
+    target_compile_options(
+      ${name}
+      PRIVATE -Werror
+              -Wall
+              -Wimplicit-fallthrough
+              -Wunused
+              -Wno-int-in-bool-context
+              -Wno-sign-compare
+    )
+    if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+      # Only allow fallthrough annotation via __attribute__.
+      target_compile_options(${name} PRIVATE -Wimplicit-fallthrough=5)
     endif()
   endif()
   set_target_properties(${name} PROPERTIES LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
@@ -380,7 +391,8 @@ target_link_libraries(
   PRIVATE mujoco
           mujoco::libsimulate
           raw
-          structs_header)
+          structs_header
+)
 
 set(LIBRARIES_FOR_WHEEL
     "$<TARGET_FILE:_callbacks>"

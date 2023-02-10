@@ -21,7 +21,13 @@ macro(mujoco_test name)
   set(options)
   set(oneValueArgs)
   set(multiValueArgs PROPERTIES)
-  cmake_parse_arguments(_ARGS "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
+  cmake_parse_arguments(
+    _ARGS
+    "${options}"
+    "${oneValueArgs}"
+    "${multiValueArgs}"
+    ${ARGN}
+  )
 
   add_executable(${name} ${name}.cc)
   target_link_libraries(${name} gtest_main mujoco)

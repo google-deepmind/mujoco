@@ -22,6 +22,7 @@
 #include "engine/engine_core_smooth.h"
 #include "engine/engine_forward.h"
 #include "engine/engine_core_constraint.h"
+#include "engine/engine_crossplatform.h"
 #include "engine/engine_io.h"
 #include "engine/engine_inverse.h"
 #include "engine/engine_macro.h"
@@ -402,6 +403,7 @@ static void mjd_comVel_vel(const mjModel* m, mjData* d, mjtNum* Dcvel, mjtNum* D
 
         // continue with rotations
         j += 3;
+        mjFALLTHROUGH;
 
       case mjJNT_BALL:
         // Dcdofdot = D crossMotion(cvel, cdof)

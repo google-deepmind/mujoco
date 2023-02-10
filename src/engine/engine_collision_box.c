@@ -316,7 +316,7 @@ int mjc_CapsuleBox(const mjModel* m, const mjData* d, mjContact* con,
         };
         mjtNum c[2];
       } d2;
-      d2 p, s, d, c /*, tmp1*/;
+      d2 p, s, d /*, c, tmp1*/;
       mjtNum u, v, w, e1, best /* ,e2 */, l /* , e3, e4 */;
 
       bestdist = bestdistmax;
@@ -366,8 +366,8 @@ int mjc_CapsuleBox(const mjModel* m, const mjData* d, mjContact* con,
         }
       }
 
-      c.x = s.x * ((c1 / 2) ? -1 : 1);
-      c.y = s.y * ((c1 % 2) ? -1 : 1);
+      // c.x = s.x * ((c1 / 2) ? -1 : 1);
+      // c.y = s.y * ((c1 % 2) ? -1 : 1);
 
       e1 = fabs(w) / l;
       // e2 = best / l;

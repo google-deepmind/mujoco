@@ -21,6 +21,7 @@
 #include <mujoco/mjplugin.h>
 #include "engine/engine_callback.h"
 #include "engine/engine_core_smooth.h"
+#include "engine/engine_crossplatform.h"
 #include "engine/engine_io.h"
 #include "engine/engine_macro.h"
 #include "engine/engine_plugin.h"
@@ -804,6 +805,7 @@ void mj_energyPos(const mjModel* m, mjData* d) {
 
         // continue with rotations
         padr += 3;
+        mjFALLTHROUGH;
 
       case mjJNT_BALL:
         // covert quatertion difference into angular "velocity"
