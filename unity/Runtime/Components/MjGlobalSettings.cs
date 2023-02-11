@@ -29,7 +29,8 @@ namespace Mujoco {
 // exactly what the documentation specifies: http://mujoco.org/book/XMLreference.html#option .
 public enum IntegratorType {
   Euler,
-  RK4
+  RK4,
+  @implicit
 }
 
 public enum CollisionCheckType {
