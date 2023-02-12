@@ -239,7 +239,7 @@ public class MjcfImporter {
     }
   }
 
-  // Called by ParseBodyChildren for each XML node, overridable by inheriting claases.
+  // Called by ParseBodyChildren for each XML node, overridable by inheriting classes.
   private void ParseBodyChild(XmlElement child, GameObject parentObject) {
     switch (child.Name) {
       case "geom": {
