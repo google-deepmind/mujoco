@@ -1549,7 +1549,7 @@ void mjXReader::OneEquality(XMLElement* elem, mjCEquality* pequality) {
       break;
 
     case mjEQ_DISTANCE:
-      throw mjXError(elem, "support for distance equality contraints was removed in MuJoCo 2.2.2");
+      throw mjXError(elem, "support for distance equality constraints was removed in MuJoCo 2.2.2");
       break;
 
     default:                    // SHOULD NOT OCCUR
