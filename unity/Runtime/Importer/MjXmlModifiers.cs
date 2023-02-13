@@ -28,12 +28,17 @@ namespace Mujoco {
       _root = root;
     }
 
-    public void ApplyModifiersToElement(XmlElement element) {
+    public void ApplyModifiersToElement(XmlElement element, string elementName=null) {
+      // Allow overriding the element name for defaults lookup, needed for tendon
+      if (elementName == null) {
+        elementName = element.Name;
+      }
+
       // Combine all defaults into one. At this stage, we want to overwrite attributes defined by
       // the previous defaults.
       var aggregateDefaults = _root.CreateElement("aggregate");
       // Root default leaf should be processed only once, and handled first (so it's overriden).
-      var rootDefaultLeaf = _root.SelectSingleNode($"/mujoco/default/{element.Name}") as XmlElement;
+      var rootDefaultLeaf = _root.SelectSingleNode($"/mujoco/default/{elementName}") as XmlElement;
       if (rootDefaultLeaf != null) {
         CopyAttributes(rootDefaultLeaf, aggregateDefaults);
       }
@@ -43,7 +48,7 @@ namespace Mujoco {
         var defaultClassElement =
             _root.SelectSingleNode($"descendant::default[@class='{className}']") as XmlElement;
         // Ancestry iterates up in the tree, but we want to apply changes from remote to specific.
-        var ancestors = GetDefaultAncestry(defaultClassElement, element.Name).Reverse();
+        var ancestors = GetDefaultAncestry(defaultClassElement, elementName).Reverse();
         foreach (var defaultAncestor in ancestors) {
           CopyAttributesOverwriteExisting(defaultAncestor, aggregateDefaults);
         }
