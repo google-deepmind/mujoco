@@ -91,7 +91,7 @@ static const char* MJCF[nMJCF][mjXATTRNUM] = {
     {"<"},
         {"lengthrange", "?", "10", "mode", "useexisting", "uselimit",
             "accel", "maxforce", "timeconst", "timestep",
-            "inttotal", "inteval", "tolrange"},
+            "inttotal", "interval", "tolrange"},
     {">"},
 
     {"option", "*", "22",
@@ -923,7 +923,7 @@ void mjXReader::Compiler(XMLElement* section, mjCModel* mod) {
     ReadAttr(elem, "timeconst", 1, &opt->timeconst, text);
     ReadAttr(elem, "timestep", 1, &opt->timestep, text);
     ReadAttr(elem, "inttotal", 1, &opt->inttotal, text);
-    ReadAttr(elem, "inteval", 1, &opt->inteval, text);
+    ReadAttr(elem, "interval", 1, &opt->interval, text);
     ReadAttr(elem, "tolrange", 1, &opt->tolrange, text);
   }
 }

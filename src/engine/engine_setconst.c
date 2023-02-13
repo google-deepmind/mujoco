@@ -508,7 +508,7 @@ int mj_setLengthRange(mjModel* m, mjData* d, int index,
       }
 
       // update limits
-      if (d->time > opt->inttotal-opt->inteval) {
+      if (d->time > opt->inttotal-opt->interval) {
         if (len<lmin[side] || !updated) {
           lmin[side] = len;
         }

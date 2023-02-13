@@ -362,7 +362,7 @@ struct mjLROpt_ {                 // options for mj_setLengthRange()
   mjtNum timeconst;               // time constant for velocity reduction; min 0.01
   mjtNum timestep;                // simulation timestep; 0: use mjOption.timestep
   mjtNum inttotal;                // total simulation time interval
-  mjtNum inteval;                 // evaluation time interval (at the end)
+  mjtNum interval;                // evaluation time interval (at the end)
   mjtNum tolrange;                // convergence tolerance (relative to range)
 };
 typedef struct mjLROpt_ mjLROpt;
@@ -372,7 +372,7 @@ typedef struct mjLROpt_ mjLROpt;
 
 struct mjVFS_ {                   // virtual file system for loading from memory
   int   nfile;                    // number of files present
-  char  filename[mjMAXVFS][mjMAXVFSNAME]; // file name without path
+  char  filename[mjMAXVFS][mjMAXVFSNAME];  // file name without path
   int   filesize[mjMAXVFS];       // file size in bytes
   void* filedata[mjMAXVFS];       // buffer with file data
 };

@@ -297,7 +297,7 @@ disable length range computations altogether, include this element and set mode=
 :at:`inttotal`: :at-val:`real, "10"`
    The total time interval (in seconds) for running the internal simulation, for each actuator and actuator direction.
    Each simulation is initialized at qpos0. It is expected to settle after inttotal time has passed.
-:at:`inteval`: :at-val:`real, "2"`
+:at:`interval`: :at-val:`real, "2"`
    The time interval at the end of the simulation over which length data is collected and analyzed. The maximum (or
    respectively minimum) length achieved during this interval is recorded. The difference between the maximum and
    minimum is also recorded and is used as a measure of divergence. If the simulation settles, this difference will be
@@ -308,7 +308,7 @@ disable length range computations altogether, include this element and set mode=
    prevent actuators from having infinite length.
 :at:`tolrange`: :at-val:`real, "0.05"`
    This determines the threshold for detecting divergence and generating a compiler error. The range of actuator lengths
-   observed during inteval is divided by the overall range computed via simulation. If that value is larger than
+   observed during interval is divided by the overall range computed via simulation. If that value is larger than
    tolrange, a compiler error is generated. So one way to suppress compiler errors is to simply make this attribute
    larger, but in that case the results could be inaccurate.
 

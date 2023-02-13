@@ -9,6 +9,7 @@ General
 ^^^^^^^
 
 - The ``mjd_transitionFD`` function no longer triggers sensor calculation unless explicitly requested.
+- Corrected the spelling of the ``inteval`` attribute to ``interval`` in the ``mjLROpt`` struct.
 
 Python bindings
 ^^^^^^^^^^^^^^^

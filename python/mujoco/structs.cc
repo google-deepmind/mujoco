@@ -1940,7 +1940,7 @@ This is useful for example when the MJB is not available as a file on disk.)"));
   X(timeconst);
   X(timestep);
   X(inttotal);
-  X(inteval);
+  X(interval);
   X(tolrange);
 #undef X
 

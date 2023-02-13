@@ -50,7 +50,7 @@ void mj_defaultLROpt(mjLROpt* opt) {
   opt->timeconst      = 1;
   opt->timestep       = 0.01;
   opt->inttotal       = 10;
-  opt->inteval        = 2;
+  opt->interval       = 2;
   opt->tolrange       = 0.05;
 }
 

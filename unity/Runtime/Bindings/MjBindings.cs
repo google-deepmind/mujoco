@@ -1706,7 +1706,7 @@ public unsafe struct mjLROpt_ {
   public double timeconst;
   public double timestep;
   public double inttotal;
-  public double inteval;
+  public double interval;
   public double tolrange;
 }
 
