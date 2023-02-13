@@ -17,7 +17,7 @@
   <include file="scene.xml"/>
 
   <extension>
-    <required plugin="mujoco.elasticity.cable"/>
+    <plugin plugin="mujoco.elasticity.cable"/>
   </extension>
 
   <statistic center="0 0 .3" extent="1"/>

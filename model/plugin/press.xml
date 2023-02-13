@@ -17,7 +17,7 @@
   <include file="scene.xml"/>
 
   <extension>
-    <required plugin="mujoco.elasticity.solid"/>
+    <plugin plugin="mujoco.elasticity.solid"/>
   </extension>
 
   <compiler autolimits="true"/>

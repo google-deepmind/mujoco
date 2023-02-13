@@ -56,7 +56,7 @@ TEST_F(PluginTest, ElasticEnergy) {
   static constexpr char cantilever_xml[] = R"(
   <mujoco>
   <extension>
-    <required plugin="mujoco.elasticity.solid"/>
+    <plugin plugin="mujoco.elasticity.solid"/>
   </extension>
 
   <worldbody>
@@ -114,7 +114,7 @@ TEST_F(PluginTest, CantileverIntoCircle) {
   <mujoco>
     <option gravity="0 0 0"/>
     <extension>
-      <required plugin="mujoco.elasticity.cable"/>
+      <plugin plugin="mujoco.elasticity.cable"/>
     </extension>
     <worldbody>
       <geom type="plane" size="0 0 1" quat="1 0 0 0"/>
@@ -167,12 +167,12 @@ TEST_F(PluginTest, InvalidTxtAttribute) {
   static constexpr char cantilever_xml[] = R"(
   <mujoco>
     <extension>
-      <required plugin="mujoco.elasticity.cable">
+      <plugin plugin="mujoco.elasticity.cable">
         <instance name="invalid">
           <config key="twist" value="one"/>
           <config key="bend" value="1"/>
         </instance>
-      </required>
+      </plugin>
     </extension>
     <worldbody>
       <geom type="plane" size="0 0 1" quat="1 0 0 0"/>
@@ -190,12 +190,12 @@ TEST_F(PluginTest, InvalidMixedAttribute) {
   static constexpr char cantilever_xml[] = R"(
   <mujoco>
     <extension>
-      <required plugin="mujoco.elasticity.cable">
+      <plugin plugin="mujoco.elasticity.cable">
         <instance name="invalid">
           <config key="twist" value="1"/>
           <config key="bend" value="1 is not a number"/>
         </instance>
-      </required>
+      </plugin>
     </extension>
     <worldbody>
       <geom type="plane" size="0 0 1" quat="1 0 0 0"/>
@@ -213,12 +213,12 @@ TEST_F(PluginTest, ValidAttributes) {
   static constexpr char cantilever_xml[] = R"(
   <mujoco>
     <extension>
-      <required plugin="mujoco.elasticity.cable">
+      <plugin plugin="mujoco.elasticity.cable">
         <instance name="invalid">
           <config key="twist" value="0.0"/>
           <config key="bend" value=" 0  "/>
         </instance>
-      </required>
+      </plugin>
     </extension>
     <worldbody>
       <geom type="plane" size="0 0 1" quat="1 0 0 0"/>

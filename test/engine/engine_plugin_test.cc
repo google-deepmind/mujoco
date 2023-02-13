@@ -343,19 +343,19 @@ class PluginTest : public MujocoTest {
 constexpr char xml[] = R"(
 <mujoco>
   <extension>
-    <required plugin="mujoco.test.sensor">
+    <plugin plugin="mujoco.test.sensor">
       <instance name="twosensors"/>
       <instance name="threesensors">
         <config key="stride" value="3"/>
       </instance>
-    </required>
-    <required plugin="mujoco.test.actuator">
+    </plugin>
+    <plugin plugin="mujoco.test.actuator">
       <instance name="actuator2">
         <config key="stride" value="2"/>
         <config key="multiplier" value="0.125"/>
       </instance>
-    </required>
-    <required plugin="mujoco.test.passive"/>
+    </plugin>
+    <plugin plugin="mujoco.test.passive"/>
   </extension>
   <worldbody>
     <body>

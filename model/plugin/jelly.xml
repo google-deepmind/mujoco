@@ -17,7 +17,7 @@
   <include file="scene.xml"/>
 
   <extension>
-    <required plugin="mujoco.elasticity.solid"/>
+    <plugin plugin="mujoco.elasticity.solid"/>
   </extension>
 
   <option solver="CG" tolerance="1e-6" timestep=".001"/>

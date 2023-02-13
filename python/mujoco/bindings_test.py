@@ -72,7 +72,7 @@ TEST_XML_SENSOR = r"""
 TEST_XML_PLUGIN = r"""
 <mujoco model="test">
   <extension>
-    <required plugin="mujoco.elasticity.cable"/>
+    <plugin plugin="mujoco.elasticity.cable"/>
   </extension>
 </mujoco>
 """

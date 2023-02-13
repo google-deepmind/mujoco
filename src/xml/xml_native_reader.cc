@@ -190,11 +190,11 @@ static const char* MJCF[nMJCF][mjXATTRNUM] = {
 
     {"extension", "*", "0"},
     {"<"},
-        {"required", "*", "1", "plugin"},
+        {"plugin", "*", "1", "plugin"},
         {"<"},
             {"instance", "*", "1", "name"},
             {"<"},
-              {"config", "*", "2", "key", "value"},
+                {"config", "*", "2", "key", "value"},
             {">"},
         {">"},
     {">"},
@@ -2196,7 +2196,7 @@ void mjXReader::Extension(XMLElement* section) {
     // get sub-element name
     std::string_view name = elem->Value();
 
-    if (name == "required") {
+    if (name == "plugin") {
       std::string plugin_name;
       int plugin_slot = -1;
       ReadAttrTxt(elem, "plugin", plugin_name, /* required = */ true);
