@@ -167,6 +167,7 @@ public class MjcfImporter {
     if (tendonNode != null) {
       var tendonsParentObject = CreateGameObjectInParent("tendons", rootObject);
       foreach (var child in tendonNode.OfType<XmlElement>()) {
+        _modifiers.ApplyModifiersToElement(child, elementName: "tendon");
         if (child.Name == "fixed") {
           CreateGameObjectWithUniqueName<MjFixedTendon>(tendonsParentObject, child);
         } else if (child.Name == "spatial") {
