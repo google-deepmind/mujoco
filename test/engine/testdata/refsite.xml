@@ -13,7 +13,7 @@
 
   <default>
     <default class="translation">
-      <position kp="100" ctrlrange="-.25 .25"/>
+      <general gainprm="100" biasprm="0 -100 -10" biastype="affine" ctrlrange="-.25 .25"/>
     </default>
     <default class="rotation">
       <!--
@@ -22,9 +22,9 @@
       Increase this range to pi or bigger in order to see the instabillity.
       See here for more details https://mujoco.readthedocs.io/en/latest/XMLreference.html#actuator
       -->
-      <position kp=".2" ctrlrange="-1.571 1.571"/>
+      <general gainprm=".5" biasprm="0 -.5 -.05" biastype="affine" ctrlrange="-1.571 1.571"/>
     </default>
-    <joint damping=".01" stiffness=".0001"/>
+    <joint damping="1e-4"/>
     <site type="box" size=".012 .012 .012" rgba=".7 .7 .8 1"/>
   </default>
 
@@ -52,11 +52,11 @@
   </worldbody>
 
   <actuator>
-    <position name="x"  site="end_effector" refsite="reference" gear="1 0 0 0 0 0" class="translation"/>
-    <position name="y"  site="end_effector" refsite="reference" gear="0 1 0 0 0 0" class="translation"/>
-    <position name="z"  site="end_effector" refsite="reference" gear="0 0 1 0 0 0" class="translation"/>
-    <position name="rx" site="end_effector" refsite="reference" gear="0 0 0 1 0 0" class="rotation"/>
-    <position name="ry" site="end_effector" refsite="reference" gear="0 0 0 0 1 0" class="rotation"/>
-    <position name="rz" site="end_effector" refsite="reference" gear="0 0 0 0 0 1" class="rotation"/>
+    <general name="x"  site="end_effector" refsite="reference" gear="1 0 0 0 0 0" class="translation"/>
+    <general name="y"  site="end_effector" refsite="reference" gear="0 1 0 0 0 0" class="translation"/>
+    <general name="z"  site="end_effector" refsite="reference" gear="0 0 1 0 0 0" class="translation"/>
+    <general name="rx" site="end_effector" refsite="reference" gear="0 0 0 1 0 0" class="rotation"/>
+    <general name="ry" site="end_effector" refsite="reference" gear="0 0 0 0 1 0" class="rotation"/>
+    <general name="rz" site="end_effector" refsite="reference" gear="0 0 0 0 0 1" class="rotation"/>
   </actuator>
 </mujoco>
