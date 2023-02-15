@@ -29,7 +29,8 @@ namespace Mujoco {
 // exactly what the documentation specifies: http://mujoco.org/book/XMLreference.html#option .
 public enum IntegratorType {
   Euler,
-  RK4
+  RK4,
+  @implicit
 }
 
 public enum CollisionCheckType {
@@ -208,7 +209,7 @@ public struct MjOptionStruct {
   public static MjOptionStruct Default = new MjOptionStruct() {
     ImpRatio = 1.0f,
     Magnetic = Vector3.zero,
-    Wind = new Vector3(0.0f, -0.5f, 0.0f),
+    Wind = new Vector3(0.0f, 0.0f, 0.0f),
     Density = 0.0f,
     Viscosity = 0.0f,
     OverrideMargin = 0.0f,

@@ -167,6 +167,7 @@ public class MjcfImporter {
     if (tendonNode != null) {
       var tendonsParentObject = CreateGameObjectInParent("tendons", rootObject);
       foreach (var child in tendonNode.OfType<XmlElement>()) {
+        _modifiers.ApplyModifiersToElement(child, elementName: "tendon");
         if (child.Name == "fixed") {
           CreateGameObjectWithUniqueName<MjFixedTendon>(tendonsParentObject, child);
         } else if (child.Name == "spatial") {
@@ -238,7 +239,7 @@ public class MjcfImporter {
     }
   }
 
-  // Called by ParseBodyChildren for each XML node, overridable by inheriting claases.
+  // Called by ParseBodyChildren for each XML node, overridable by inheriting classes.
   private void ParseBodyChild(XmlElement child, GameObject parentObject) {
     switch (child.Name) {
       case "geom": {
