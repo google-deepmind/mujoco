@@ -19,3 +19,9 @@
 .. |br| raw:: html
 
   <br/>
+
+..
+   Macro for unicode word-joiner character.
+
+.. |j| unicode:: U+2060
+   :trim:
