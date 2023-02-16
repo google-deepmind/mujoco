@@ -1083,8 +1083,8 @@ objects by name.
 
 .. _tuple-element:
 
-:el-prefix:`custom/tuple/` |j| **element** (*)
-''''''''''''''''''''''''''''''''''''''''''''''
+:el-prefix:`tuple/` |j| **element** (*)
+'''''''''''''''''''''''''''''''''''''''
 
 This adds an element to the tuple.
 
@@ -1565,8 +1565,8 @@ be clear from the above specification.
 
 .. _skin-bone:
 
-:el-prefix:`asset/skin/` |j| **bone** (*)
-'''''''''''''''''''''''''''''''''''''''''
+:el-prefix:`skin/` |j| **bone** (*)
+'''''''''''''''''''''''''''''''''''
 
 This element defines a bone of the skin. The bone is a regular MuJoCo body which is referenced by name here.
 
@@ -2402,8 +2402,8 @@ coordinates results in compiler error. See :ref:`CComposite` in the modeling gui
 
 .. _composite-joint:
 
-:el-prefix:`body/composite/` |j| **joint** (*)
-''''''''''''''''''''''''''''''''''''''''''''''
+:el-prefix:`composite/` |j| **joint** (*)
+'''''''''''''''''''''''''''''''''''''''''
 
 Depending on the composite type, some joints are created automatically (e.g. the universal joints in rope) while other
 joints are optional (e.g. the stretch and twist joints in rope). This sub-element is used to specify which optional
@@ -2446,8 +2446,8 @@ joints should be created, as well as to adjust the attributes of both automatic 
 
 .. _composite-tendon:
 
-:el-prefix:`body/composite/` |j| **tendon** (*)
-'''''''''''''''''''''''''''''''''''''''''''''''
+:el-prefix:`composite/` |j| **tendon** (*)
+''''''''''''''''''''''''''''''''''''''''''
 
 Tendons are treated similarly to joints in composite objects. The tendon kind specified here together with the composite
 body type imply the tendon type as used in the rest of MJCF. This sub-element is used to both create optional tendons,
@@ -2477,8 +2477,8 @@ composite objects are equality-constrained.
 
 .. _composite-geom:
 
-:el-prefix:`body/composite/` |j| **geom** (?)
-'''''''''''''''''''''''''''''''''''''''''''''
+:el-prefix:`composite/` |j| **geom** (?)
+''''''''''''''''''''''''''''''''''''''''
 
 This sub-element adjusts the attributes of the geoms in the composite object. The default attributes are the same as in
 the rest of MJCF (except that user-defined defaults have no effect here). Note that the geom sub-element can appears
@@ -2495,8 +2495,8 @@ joints and tendons have different sets of attributes, while all geoms in the com
 
 .. _composite-site:
 
-:el-prefix:`body/composite/` |j| **site** (?)
-'''''''''''''''''''''''''''''''''''''''''''''
+:el-prefix:`composite/` |j| **site** (?)
+''''''''''''''''''''''''''''''''''''''''
 
 This sub-element adjusts the attributes of the sites in the composite object. Otherwise it is the same as geom above.
 
@@ -2505,8 +2505,8 @@ This sub-element adjusts the attributes of the sites in the composite object. Ot
 
 .. _composite-skin:
 
-:el-prefix:`body/composite/` |j| **skin** (?)
-'''''''''''''''''''''''''''''''''''''''''''''
+:el-prefix:`composite/` |j| **skin** (?)
+''''''''''''''''''''''''''''''''''''''''
 
 If this element is included, the model compiler will generate a skinned mesh asset and attach it to the element bodies
 of the composite object. Skin can be attached to 2D grid, cloth, box, cylinder and ellipsoid. For other composite types
@@ -2539,8 +2539,8 @@ automatically-generated skin.
 
 .. _composite-pin:
 
-:el-prefix:`body/composite/` |j| **pin** (*)
-''''''''''''''''''''''''''''''''''''''''''''
+:el-prefix:`composite/` |j| **pin** (*)
+'''''''''''''''''''''''''''''''''''''''
 
 This sub-element can be used to pin some of the element bodies in grid objects (both 1D and 2D). Pinning means that the
 corresponding body has no joints, and therefore it is rigidly fixed to the parent body. When the parent is the world,
@@ -2825,8 +2825,8 @@ the obstacle geom.
 
 .. _spatial-site:
 
-:el-prefix:`tendon/spatial/` |j| **site** (*)
-'''''''''''''''''''''''''''''''''''''''''''''
+:el-prefix:`spatial/` |j| **site** (*)
+''''''''''''''''''''''''''''''''''''''
 
 This attribute specifies a site that the tendon path has to pass through. Recall that sites are rigidly attached to
 bodies.
@@ -2836,8 +2836,8 @@ bodies.
 
 .. _spatial-geom:
 
-:el-prefix:`tendon/spatial/` |j| **geom** (*)
-'''''''''''''''''''''''''''''''''''''''''''''
+:el-prefix:`spatial/` |j| **geom** (*)
+''''''''''''''''''''''''''''''''''''''
 
 This element specifies a geom that acts as an obstacle for the tendon path. If the minimum-length path does not touch
 the geom it has no effect; otherwise the path wraps around the surface of the geom. Wrapping is computed analytically,
@@ -2856,8 +2856,8 @@ constrained to pass through the geom instead of passing around it.
 
 .. _spatial-pulley:
 
-:el-prefix:`tendon/spatial/` |j| **pulley** (*)
-'''''''''''''''''''''''''''''''''''''''''''''''
+:el-prefix:`spatial/` |j| **pulley** (*)
+''''''''''''''''''''''''''''''''''''''''
 
 This element starts a new branch in the tendon path. The branches are not required to be connected spatially. Similar to
 the transmissions described in the :ref:`Actuation model <geActuation>` section of the Computation
@@ -2896,8 +2896,8 @@ as above.
 
 .. _fixed-joint:
 
-:el-prefix:`tendon/fixed/` |j| **joint** (*)
-''''''''''''''''''''''''''''''''''''''''''''
+:el-prefix:`fixed/` |j| **joint** (*)
+'''''''''''''''''''''''''''''''''''''
 
 This element adds a joint to the computation of the fixed tendon length. The position or angle of each included joint is
 multiplied by the corresponding coef value, and added up to obtain the tendon length.
