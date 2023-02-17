@@ -542,7 +542,8 @@ struct mjModel_ {
   int nlight;                     // number of lights
   int nmesh;                      // number of meshes
   int nmeshvert;                  // number of vertices in all meshes
-  int nmeshtexvert;               // number of vertices with texcoords in all meshes
+  int nmeshnormal;                // number of normals in all meshes
+  int nmeshtexcoord;              // number of texcoords in all meshes
   int nmeshface;                  // number of triangular faces in all meshes
   int nmeshgraph;                 // number of ints in mesh auxiliary data
   int nskin;                      // number of skins
@@ -738,14 +739,19 @@ struct mjModel_ {
   // meshes
   int*      mesh_vertadr;         // first vertex address                     (nmesh x 1)
   int*      mesh_vertnum;         // number of vertices                       (nmesh x 1)
-  int*      mesh_texcoordadr;     // texcoord data address; -1: no texcoord   (nmesh x 1)
   int*      mesh_faceadr;         // first face address                       (nmesh x 1)
   int*      mesh_facenum;         // number of faces                          (nmesh x 1)
+  int*      mesh_normaladr;       // first normal address                     (nmesh x 1)
+  int*      mesh_normalnum;       // number of normals                        (nmesh x 1)
+  int*      mesh_texcoordadr;     // texcoord data address; -1: no texcoord   (nmesh x 1)
+  int*      mesh_texcoordnum;     // number of texcoord                       (nmesh x 1)
   int*      mesh_graphadr;        // graph data address; -1: no graph         (nmesh x 1)
   float*    mesh_vert;            // vertex positions for all meshes          (nmeshvert x 3)
-  float*    mesh_normal;          // vertex normals for all meshes            (nmeshvert x 3)
-  float*    mesh_texcoord;        // vertex texcoords for all meshes          (nmeshtexvert x 2)
-  int*      mesh_face;            // triangle face data                       (nmeshface x 3)
+  float*    mesh_normal;          // normals for all meshes                   (nmeshnormal x 3)
+  float*    mesh_texcoord;        // vertex texcoords for all meshes          (nmeshtexcoord x 2)
+  int*      mesh_face;            // vertex face data                         (nmeshface x 3)
+  int*      mesh_facenormal;      // normal face data                         (nmeshface x 3)
+  int*      mesh_facetexcoord;    // texture face data                        (nmeshface x 3)
   int*      mesh_graph;           // convex graph data                        (nmeshgraph x 1)
 
   // skins

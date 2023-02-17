@@ -74,7 +74,8 @@
     X( nlight )             \
     X( nmesh )              \
     X( nmeshvert )          \
-    X( nmeshtexvert )       \
+    X( nmeshnormal )        \
+    X( nmeshtexcoord )      \
     X( nmeshface )          \
     X( nmeshgraph )         \
     X( nskin )              \
@@ -263,14 +264,19 @@
     X( float,   light_specular,        nlight,        3                    ) \
     X( int,     mesh_vertadr,          nmesh,         1                    ) \
     X( int,     mesh_vertnum,          nmesh,         1                    ) \
+    X( int,     mesh_normaladr,        nmesh,         1                    ) \
+    X( int,     mesh_normalnum,        nmesh,         1                    ) \
     X( int,     mesh_texcoordadr,      nmesh,         1                    ) \
+    X( int,     mesh_texcoordnum,      nmesh,         1                    ) \
     X( int,     mesh_faceadr,          nmesh,         1                    ) \
     X( int,     mesh_facenum,          nmesh,         1                    ) \
     X( int,     mesh_graphadr,         nmesh,         1                    ) \
     X( float,   mesh_vert,             nmeshvert,     3                    ) \
-    X( float,   mesh_normal,           nmeshvert,     3                    ) \
-    X( float,   mesh_texcoord,         nmeshtexvert,  2                    ) \
+    X( float,   mesh_normal,           nmeshnormal,   3                    ) \
+    X( float,   mesh_texcoord,         nmeshtexcoord, 2                    ) \
     X( int,     mesh_face,             nmeshface,     3                    ) \
+    X( int,     mesh_facenormal,       nmeshface,     3                    ) \
+    X( int,     mesh_facetexcoord,     nmeshface,     3                    ) \
     X( int,     mesh_graph,            nmeshgraph,    1                    ) \
     X( int,     skin_matid,            nskin,         1                    ) \
     X( int,     skin_group,            nskin,         1                    ) \

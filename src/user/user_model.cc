@@ -258,7 +258,8 @@ void mjCModel::Clear(void) {
   nu = 0;
   na = 0;
   nmeshvert = 0;
-  nmeshtexvert = 0;
+  nmeshnormal = 0;
+  nmeshtexcoord = 0;
   nmeshface = 0;
   nmeshgraph = 0;
   nskinvert = 0;
@@ -933,11 +934,12 @@ void mjCModel::SetSizes(void) {
     }
   }
 
-  // nmeshvert, nmeshface, nmeshtexvert, nmeshgraph
+  // nmeshvert, nmeshface, nmeshtexcoord, nmeshgraph
   for (i=0; i<nmesh; i++) {
     nmeshvert += meshes[i]->nvert;
+    nmeshnormal += meshes[i]->nnormal;
     nmeshface += meshes[i]->nface;
-    nmeshtexvert += (meshes[i]->texcoord ? meshes[i]->nvert : 0);
+    nmeshtexcoord += (meshes[i]->texcoord ? meshes[i]->ntexcoord : 0);
     nmeshgraph += meshes[i]->szgraph;
   }
 
@@ -1645,7 +1647,7 @@ void mjCModel::CopyTree(mjModel* m) {
 
 // copy objects outside kinematic tree
 void mjCModel::CopyObjects(mjModel* m) {
-  int i, j, adr, bone_adr, vert_adr, face_adr, texcoord_adr;
+  int i, j, adr, bone_adr, vert_adr, normal_adr, face_adr, texcoord_adr;
   int bonevert_adr, graph_adr, data_adr;
 
   // sizes outside call to mj_makeModel
@@ -1657,6 +1659,7 @@ void mjCModel::CopyObjects(mjModel* m) {
 
   // meshes
   vert_adr = 0;
+  normal_adr = 0;
   texcoord_adr = 0;
   face_adr = 0;
   graph_adr = 0;
@@ -1667,17 +1670,24 @@ void mjCModel::CopyObjects(mjModel* m) {
     // set fields
     m->mesh_vertadr[i] = vert_adr;
     m->mesh_vertnum[i] = pme->nvert;
+    m->mesh_normaladr[i] = normal_adr;
+    m->mesh_normalnum[i] = pme->nnormal;
     m->mesh_texcoordadr[i] = (pme->texcoord ? texcoord_adr : -1);
+    m->mesh_texcoordnum[i] = pme->ntexcoord;
     m->mesh_faceadr[i] = face_adr;
     m->mesh_facenum[i] = pme->nface;
     m->mesh_graphadr[i] = (pme->szgraph ? graph_adr : -1);
 
     // copy vertices, normals, faces, texcoords, aux data
     memcpy(m->mesh_vert + 3*vert_adr, pme->vert, 3*pme->nvert*sizeof(float));
-    memcpy(m->mesh_normal + 3*vert_adr, pme->normal, 3*pme->nvert*sizeof(float));
+    memcpy(m->mesh_normal + 3*normal_adr, pme->normal, 3*pme->nnormal*sizeof(float));
     memcpy(m->mesh_face + 3*face_adr, pme->face, 3*pme->nface*sizeof(float));
+    memcpy(m->mesh_facenormal + 3*face_adr, pme->facenormal, 3*pme->nface*sizeof(int));
     if (pme->texcoord) {
-      memcpy(m->mesh_texcoord + 2*texcoord_adr, pme->texcoord, 2*pme->nvert*sizeof(float));
+      memcpy(m->mesh_texcoord + 2*texcoord_adr, pme->texcoord, 2*pme->ntexcoord*sizeof(float));
+      memcpy(m->mesh_facetexcoord + 3*face_adr, pme->facetexcoord, 3*pme->nface*sizeof(int));
+    } else {
+      memset(m->mesh_facetexcoord + 3*face_adr, 0, 3*pme->nface*sizeof(int));
     }
     if (pme->szgraph) {
       memcpy(m->mesh_graph + graph_adr, pme->graph, pme->szgraph*sizeof(int));
@@ -1685,7 +1695,8 @@ void mjCModel::CopyObjects(mjModel* m) {
 
     // advance counters
     vert_adr += pme->nvert;
-    texcoord_adr += (pme->texcoord ? pme->nvert : 0);
+    normal_adr += pme->nnormal;
+    texcoord_adr += (pme->texcoord ? pme->ntexcoord : 0);
     face_adr += pme->nface;
     graph_adr += pme->szgraph;
   }
@@ -2619,7 +2630,7 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
 
   // create low-level model
   m = mj_makeModel(nq, nv, nu, na, nbody, njnt, ngeom, nsite, ncam, nlight,
-                   nmesh, nmeshvert, nmeshtexvert, nmeshface, nmeshgraph,
+                   nmesh, nmeshvert, nmeshnormal, nmeshtexcoord, nmeshface, nmeshgraph,
                    nskin, nskinvert, nskintexvert, nskinface, nskinbone, nskinbonevert,
                    nhfield, nhfielddata, ntex, ntexdata, nmat, npair, nexclude,
                    neq, ntendon, nwrap, nsensor,

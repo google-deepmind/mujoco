@@ -14,7 +14,7 @@ nlight         1
 nmesh          0
 nmeshvert      0
 nmeshface      0
-nmeshtexvert   0
+nmeshtexcoord  0
 nmeshgraph     0
 nskin          0
 nskinvert      0

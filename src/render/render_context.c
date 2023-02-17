@@ -207,7 +207,7 @@ static void makeMesh(const mjModel* m, mjrContext* con) {
 
 // (re) upload mesh to GPU
 void mjr_uploadMesh(const mjModel* m, const mjrContext* con, int meshid) {
-  int vertadr, numvert, numface, texcoordadr;
+  int vertadr, numvert, normaladr, numface, texcoordadr;
   float normal[3], *v1, *v2, *v3, *n1, *n2, *n3, *t1, *t2, *t3;
 
   // check index
@@ -220,6 +220,7 @@ void mjr_uploadMesh(const mjModel* m, const mjrContext* con, int meshid) {
 
   // get vertex and texcoord address for this mesh
   vertadr = m->mesh_vertadr[meshid];
+  normaladr = m->mesh_normaladr[meshid];
   texcoordadr = m->mesh_texcoordadr[meshid];
 
   // render original mesh
@@ -234,15 +235,15 @@ void mjr_uploadMesh(const mjModel* m, const mjrContext* con, int meshid) {
     v3 = m->mesh_vert + 3*(m->mesh_face[3*face+2] + vertadr);
 
     // compute normal addresses
-    n1 = m->mesh_normal + 3*(m->mesh_face[3*face]   + vertadr);
-    n2 = m->mesh_normal + 3*(m->mesh_face[3*face+1] + vertadr);
-    n3 = m->mesh_normal + 3*(m->mesh_face[3*face+2] + vertadr);
+    n1 = m->mesh_normal + 3*(m->mesh_facenormal[3*face]   + normaladr);
+    n2 = m->mesh_normal + 3*(m->mesh_facenormal[3*face+1] + normaladr);
+    n3 = m->mesh_normal + 3*(m->mesh_facenormal[3*face+2] + normaladr);
 
     // compute texcoord addresses
     if (texcoordadr>=0) {
-      t1 = m->mesh_texcoord + 2*(m->mesh_face[3*face]   + texcoordadr);
-      t2 = m->mesh_texcoord + 2*(m->mesh_face[3*face+1] + texcoordadr);
-      t3 = m->mesh_texcoord + 2*(m->mesh_face[3*face+2] + texcoordadr);
+      t1 = m->mesh_texcoord + 2*(m->mesh_facetexcoord[3*face]   + texcoordadr);
+      t2 = m->mesh_texcoord + 2*(m->mesh_facetexcoord[3*face+1] + texcoordadr);
+      t3 = m->mesh_texcoord + 2*(m->mesh_facetexcoord[3*face+2] + texcoordadr);
     } else {
       t1 = t2 = t3 = NULL;
     }

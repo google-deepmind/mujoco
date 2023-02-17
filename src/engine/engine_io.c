@@ -367,8 +367,8 @@ static int safeAddToBufferSize(intptr_t* offset, int* nbuffer, size_t type_size,
 // allocate and initialize mjModel structure
 mjModel* mj_makeModel(int nq, int nv, int nu, int na, int nbody, int njnt,
                       int ngeom, int nsite, int ncam, int nlight,
-                      int nmesh, int nmeshvert, int nmeshtexvert, int nmeshface, int nmeshgraph,
-                      int nskin, int nskinvert, int nskintexvert, int nskinface,
+                      int nmesh, int nmeshvert, int nmeshnormal, int nmeshtexcoord, int nmeshface,
+                      int nmeshgraph, int nskin, int nskinvert, int nskintexvert, int nskinface,
                       int nskinbone, int nskinbonevert, int nhfield, int nhfielddata,
                       int ntex, int ntexdata, int nmat, int npair, int nexclude,
                       int neq, int ntendon, int nwrap, int nsensor,
@@ -399,7 +399,8 @@ mjModel* mj_makeModel(int nq, int nv, int nu, int na, int nbody, int njnt,
   m->nlight = nlight;
   m->nmesh = nmesh;
   m->nmeshvert = nmeshvert;
-  m->nmeshtexvert = nmeshtexvert;
+  m->nmeshnormal = nmeshnormal;
+  m->nmeshtexcoord = nmeshtexcoord;
   m->nmeshface = nmeshface;
   m->nmeshgraph = nmeshgraph;
   m->nskin = nskin;
@@ -512,7 +513,7 @@ mjModel* mj_copyModel(mjModel* dest, const mjModel* src) {
   if (!dest) {
     dest = mj_makeModel(src->nq, src->nv, src->nu, src->na, src->nbody, src->njnt,
                         src->ngeom, src->nsite, src->ncam, src->nlight, src->nmesh, src->nmeshvert,
-                        src->nmeshtexvert, src->nmeshface, src->nmeshgraph,
+                        src->nmeshnormal, src->nmeshtexcoord, src->nmeshface, src->nmeshgraph,
                         src->nskin, src->nskinvert, src->nskintexvert, src->nskinface,
                         src->nskinbone, src->nskinbonevert, src->nhfield, src->nhfielddata,
                         src->ntex, src->ntexdata, src->nmat, src->npair, src->nexclude,
@@ -691,7 +692,7 @@ mjModel* mj_loadModel(const char* filename, const mjVFS* vfs) {
                    info[28], info[29], info[30], info[31], info[32], info[33], info[34],
                    info[35], info[36], info[37], info[38], info[39], info[40], info[41],
                    info[42], info[43], info[44], info[45], info[46], info[47], info[48],
-                   info[49], info[50]);
+                   info[49], info[50], info[51]);
   if (!m || m->nbuffer!=info[getnint()-1]) {
     if (fp) {
       fclose(fp);
@@ -1361,7 +1362,8 @@ const char* mj_validateReferences(const mjModel* m) {
   X(light_bodyid,       nlight,        nbody        , 0                      ) \
   X(light_targetbodyid, nlight,        nbody        , 0                      ) \
   X(mesh_vertadr,       nmesh,         nmeshvert    , m->mesh_vertnum        ) \
-  X(mesh_texcoordadr,   nmesh,         nmeshtexvert , 0                      ) \
+  X(mesh_normaladr,     nmesh,         nmeshnormal  , m->mesh_normalnum      ) \
+  X(mesh_texcoordadr,   nmesh,         nmeshtexcoord, m->mesh_texcoordnum    ) \
   X(mesh_faceadr,       nmesh,         nmeshface    , m->mesh_facenum        ) \
   X(mesh_graphadr,      nmesh,         nmeshgraph   , 0                      ) \
   X(skin_matid,         nskin,         nmat         , 0                      ) \

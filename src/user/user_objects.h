@@ -476,7 +476,9 @@ class mjCMesh: public mjCBase {
   std::vector<float> uservert;                   // user vertex data
   std::vector<float> usernormal;                 // user normal data
   std::vector<float> usertexcoord;               // user texcoord data
-  std::vector<int> userface;                     // user face data
+  std::vector<int> userface;                     // user vertex indices
+  std::vector<int> userfacenormal;               // user normal indices
+  std::vector<int> userfacetexcoord;             // user texcoord indices
   std::vector< std::pair<int, int> > useredge;   // user half-edge data
 
  private:
@@ -514,12 +516,16 @@ class mjCMesh: public mjCBase {
 
   // mesh data to be copied into mjModel
   int nvert;                          // number of vertices
+  int nnormal;                        // number of normals
+  int ntexcoord;                      // number of texcoords
   int nface;                          // number of faces
   int szgraph;                        // size of graph data in ints
   float* vert;                        // vertex data (3*nvert), relative to (pos, quat)
-  float* normal;                      // vertex normal data (3*nvert)
-  float* texcoord;                    // vertex texcoord data (2*nvert, or NULL)
+  float* normal;                      // vertex normal data (3*nnormal)
+  float* texcoord;                    // vertex texcoord data (2*ntexcoord or NULL)
   int* face;                          // face vertex indices (3*nface)
+  int* facenormal;                    // face normal indices (3*nface)
+  int* facetexcoord;                  // face texcoord indices (3*nface)
   int* graph;                         // convex graph data
 
   bool needhull;                      // needs convex hull for collisions
