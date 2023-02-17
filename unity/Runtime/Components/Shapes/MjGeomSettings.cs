@@ -22,6 +22,10 @@ namespace Mujoco {
 [Serializable]
 public struct MjGeomSettings {
 
+  public enum FluidShapeTypes {
+    None,
+    Ellipsoid,
+  }
 
   [Tooltip("Priority")]
   public int Priority;
@@ -35,11 +39,15 @@ public struct MjGeomSettings {
   [Tooltip("Contact friction parameters for dynamically generated contact pairs.")]
   public GeomFriction Friction;
 
+  [Tooltip("Shape used for fluid simulation.")]
+  public FluidShapeTypes FluidShapeType;
+
   // Default geom settings.
   public static MjGeomSettings Default = new MjGeomSettings() {
     Solver = GeomSolver.Default,
     Filtering = CollisionFiltering.Default,
-    Friction = GeomFriction.Default
+    Friction = GeomFriction.Default,
+    FluidShapeType = FluidShapeTypes.None
   };
 
   public void FromMjcf(XmlElement mjcf) {
@@ -76,6 +84,10 @@ public struct MjGeomSettings {
     Friction.Sliding = friction[0];
     Friction.Torsional = friction[1];
     Friction.Rolling = friction[2];
+
+    // Fluid shape settings.
+    FluidShapeType = mjcf.GetEnumAttribute<FluidShapeTypes>(
+        "fluidshape", FluidShapeTypes.None, ignoreCase: true);
   }
 
   public void ToMjcf(XmlElement mjcf) {
@@ -97,6 +109,9 @@ public struct MjGeomSettings {
 
     // Inertia and friction settings.
     mjcf.SetAttribute("friction", MjEngineTool.MakeLocaleInvariant($"{Friction.Sliding} {Friction.Torsional} {Friction.Rolling}"));
+
+    // Fluid shape settings.
+    mjcf.SetAttribute("fluidshape", FluidShapeType.ToString().ToLower());
   }
 }
 

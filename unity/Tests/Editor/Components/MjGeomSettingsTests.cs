@@ -109,6 +109,13 @@ public class MjGeomSettingsGenerationTests {
     _settings.ToMjcf(_mjcf);
     Assert.That(_doc.OuterXml, Does.Contain(@"friction=""5 6 7"""));
   }
+
+  [Test]
+  public void FluidShapeTypeMjcf() {
+    _settings.FluidShapeType = MjGeomSettings.FluidShapeTypes.Ellipsoid;
+    _settings.ToMjcf(_mjcf);
+    Assert.That(_doc.OuterXml, Does.Contain(@"fluidshape=""ellipsoid"""));
+  }
 }
 
 [TestFixture]
@@ -198,6 +205,15 @@ public class MjGeomSettingsParsingTests {
     Assert.That(_settings.Friction.Sliding, Is.EqualTo(5));
     Assert.That(_settings.Friction.Torsional, Is.EqualTo(6));
     Assert.That(_settings.Friction.Rolling, Is.EqualTo(7));
+  }
+
+  [Test]
+  public void FluidShapeTypeMjcf() {
+    _mjcf.SetAttribute("fluidshape", "ellipsoid");
+    _settings.FromMjcf(_mjcf);
+    Assert.That(_settings.FluidShapeType, Is.EqualTo(
+        MjGeomSettings.FluidShapeTypes.Ellipsoid
+    ));
   }
 }
 }
