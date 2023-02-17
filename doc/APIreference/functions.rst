@@ -2,31 +2,6 @@
   AUTOGENERATE: DO NOT EDIT
 
 
-.. _Activation:
-
-Activation
-^^^^^^^^^^
-
-The functions in this section are maintained for backward compatibility with the now-removed activation mechanism.
-
-.. _mj_activate:
-
-mj_activate
-~~~~~~~~~~~
-
-.. mujoco-include:: mj_activate
-
-Return 1 (for backward compatibility).
-
-.. _mj_deactivate:
-
-mj_deactivate
-~~~~~~~~~~~~~
-
-.. mujoco-include:: mj_deactivate
-
-Do nothing (for backward compatibility).
-
 .. _Virtualfilesystem:
 
 Virtual file system
@@ -1949,6 +1924,31 @@ mju_writeLog
 
 Write [datetime, type: message] to MUJOCO_LOG.TXT.
 
+.. _Activation:
+
+Activation
+^^^^^^^^^^
+
+The functions in this section are maintained for backward compatibility with the now-removed activation mechanism.
+
+.. _mj_activate:
+
+mj_activate
+~~~~~~~~~~~
+
+.. mujoco-include:: mj_activate
+
+Return 1 (for backward compatibility).
+
+.. _mj_deactivate:
+
+mj_deactivate
+~~~~~~~~~~~~~
+
+.. mujoco-include:: mj_deactivate
+
+Do nothing (for backward compatibility).
+
 .. _Standardmath:
 
 Standard math
@@ -3001,4 +3001,58 @@ finite-differencing. These matrices and their dimensions are:
 - All four matrix outputs are optional (can be ``NULL``).
 - ``eps`` is the finite-differencing epsilon.
 - ``centered`` is a flag denoting whether to use forward (0) or centered (1) differences.
+
+.. _Plugins-api:
+
+Plugins
+^^^^^^^
+.. _mjp_defaultPlugin:
+
+mjp_defaultPlugin
+~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjp_defaultPlugin
+
+Set default plugin definition.
+
+.. _mjp_registerPlugin:
+
+mjp_registerPlugin
+~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjp_registerPlugin
+
+Globally register a plugin. This function is thread-safe.
+If an identical mjpPlugin is already registered, this function does nothing.
+If a non-identical mjpPlugin with the same name is already registered, an mju_error is raised.
+Two mjpPlugins are considered identical if all member function pointers and numbers are equal,
+and the name and attribute strings are all identical, however the char pointers to the strings
+need not be the same.
+
+.. _mjp_pluginCount:
+
+mjp_pluginCount
+~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjp_pluginCount
+
+Return the number of globally registered plugins.
+
+.. _mjp_getPlugin:
+
+mjp_getPlugin
+~~~~~~~~~~~~~
+
+.. mujoco-include:: mjp_getPlugin
+
+Look up a plugin by name. If slot is not ``NULL``, also write its registered slot number into it.
+
+.. _mjp_getPluginAtSlot:
+
+mjp_getPluginAtSlot
+~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjp_getPluginAtSlot
+
+Look up a plugin by the registered slot number that was returned by mjp_registerPlugin.
 
