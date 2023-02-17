@@ -13,7 +13,7 @@
    XMLreference
    programming/index.rst
    models
-   APIreference
+   APIreference/index.rst
    python
    unity
    changelog

@@ -7,10 +7,10 @@ Programming
 Introduction
 ~~~~~~~~~~~~
 
-This chapter is the MuJoCo programming guide. A separate chapter contains the :doc:`../APIreference` documentation.
-MuJoCo is a dynamic library compatible with Windows, Linux and macOS, which requires a process with AVX instructions.
-The library exposes the full functionality of the simulator through a compiler-independent shared-memory C API. It can
-also be used in C++ programs.
+This chapter is the MuJoCo programming guide. A separate chapter contains the :doc:`../APIreference/index`
+documentation. MuJoCo is a dynamic library compatible with Windows, Linux and macOS, which requires a process with AVX
+instructions. The library exposes the full functionality of the simulator through a compiler-independent shared-memory C
+API. It can also be used in C++ programs.
 
 The MuJoCo codebase is organized into subdirectories corresponding to different major areas of functionality:
 

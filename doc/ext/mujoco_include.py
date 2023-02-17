@@ -40,7 +40,7 @@ class MujocoInclude(LiteralInclude):
       end_line = source.end
 
     # Config arguments and options for LiteralInclude.
-    self.arguments[0] = _FILENAME
+    self.arguments[0] = f'../{_FILENAME}'
     self.options['language'] = 'C'
     self.options['lines'] = f'{start_line}-{end_line}'
 

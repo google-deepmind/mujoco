@@ -57,8 +57,8 @@ templates_path = ['templates']
 # directories to ignore when looking for source files.
 # This pattern also affects html_static_path and html_extra_path.
 exclude_patterns = [
-    '_build', 'Thumbs.db', '.DS_Store', 'includes/*', 'functions.rst',
-    'functions_override.rst', 'XMLschema.rst'
+    '_build', 'Thumbs.db', '.DS_Store', 'includes/*', 'APIreference/functions.rst',
+    'APIreference/functions_override.rst', 'XMLschema.rst'
 ]
 
 redirects = {
