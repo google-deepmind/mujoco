@@ -75,6 +75,7 @@ typedef enum mjtLabel_ {          // object labeling
   mjLABEL_SKIN,                   // skin labels
   mjLABEL_SELECTION,              // selected object
   mjLABEL_SELPNT,                 // coordinates of selection point
+  mjLABEL_CONTACTPOINT,           // contact information
   mjLABEL_CONTACTFORCE,           // magnitude of contact force
 
   mjNLABEL                        // number of label types

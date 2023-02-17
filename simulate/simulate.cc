@@ -634,7 +634,7 @@ void makerendering(mj::Simulate* sim, int oldstate) {
       2,
       &(sim->vopt.label),
       "None\nBody\nJoint\nGeom\nSite\nCamera\nLight\nTendon\n"
-      "Actuator\nConstraint\nSkin\nSelection\nSel Pnt\nForce"
+      "Actuator\nConstraint\nSkin\nSelection\nSel Pnt\nContact\nForce"
     },
     {
       mjITEM_SELECT,

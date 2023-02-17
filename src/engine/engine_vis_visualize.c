@@ -129,6 +129,17 @@ static void addContactGeom(const mjModel* m, mjData* d, const mjtByte* flags,
         f2f(thisgeom->rgba, m->vis.rgba.contactgap, 4);
       }
 
+      // label contacting geom names or ids
+      if (vopt->label==mjLABEL_CONTACTPOINT) {
+        const char* name1 = mj_id2name(m, mjOBJ_GEOM, con->geom1);
+        char id1[10];
+        mjSNPRINTF(id1, "%d", con->geom1);
+        const char* name2 = mj_id2name(m, mjOBJ_GEOM, con->geom2);
+        char id2[10];
+        mjSNPRINTF(id2, "%d", con->geom2);
+        mjSNPRINTF(thisgeom->label, "%s | %s", name1 ? name1 : id1 , name2 ? name2 : id2);
+      }
+
       FINISH
     }
 

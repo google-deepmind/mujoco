@@ -46,6 +46,7 @@ const char* mjLABELSTRING[mjNLABEL] = {
   "Skin",
   "Selection",
   "SelPoint",
+  "Contact",
   "ContactForce"
 };
 

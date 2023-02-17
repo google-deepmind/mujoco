@@ -445,8 +445,9 @@ public enum mjtLabel : int{
   mjLABEL_SKIN = 10,
   mjLABEL_SELECTION = 11,
   mjLABEL_SELPNT = 12,
-  mjLABEL_CONTACTFORCE = 13,
-  mjNLABEL = 14,
+  mjLABEL_CONTACTPOINT = 13,
+  mjLABEL_CONTACTFORCE = 14,
+  mjNLABEL = 15,
 }
 public enum mjtFrame : int{
   mjFRAME_NONE = 0,

@@ -74,7 +74,7 @@
 
   <worldbody>
     <light directional="true" diffuse=".8 .8 .8" pos="0 0 10" dir="0 0 -10"/>
-    <geom pos="0 0 0" type="plane" size="3 3 .5" material="MatPlane"/>
+    <geom name="floor" type="plane" size="3 3 .5" material="MatPlane"/>
     <geom class="border" fromto="-3 3 0 3 3 0"  />
     <geom class="border" fromto="-3 -3 0 3 -3 0"  />
     <geom class="border" fromto="3 3 0 3 -3 0"  />
