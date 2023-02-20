@@ -116,6 +116,17 @@ public class MjGeomSettingsGenerationTests {
     _settings.ToMjcf(_mjcf);
     Assert.That(_doc.OuterXml, Does.Contain(@"fluidshape=""ellipsoid"""));
   }
+
+  [Test]
+  public void FluidCoefficientsMjcf() {
+    _settings.FluidCoefficients.BluntDrag = 2f;
+    _settings.FluidCoefficients.SlenderDrag = 3f;
+    _settings.FluidCoefficients.AngularDrag = 4f;
+    _settings.FluidCoefficients.KuttaLift = 5f;
+    _settings.FluidCoefficients.MagnusLift = 6f;
+    _settings.ToMjcf(_mjcf);
+    Assert.That(_doc.OuterXml, Does.Contain(@"fluidcoef=""2 3 4 5 6"""));
+  }
 }
 
 [TestFixture]
@@ -214,6 +225,17 @@ public class MjGeomSettingsParsingTests {
     Assert.That(_settings.FluidShapeType, Is.EqualTo(
         MjGeomSettings.FluidShapeTypes.Ellipsoid
     ));
+  }
+
+  [Test]
+  public void FluidCoefficientsMjcf() {
+    _mjcf.SetAttribute("fluidcoef", "2 3 4 5 6");
+    _settings.FromMjcf(_mjcf);
+    Assert.That(_settings.FluidCoefficients.BluntDrag, Is.EqualTo(2));
+    Assert.That(_settings.FluidCoefficients.SlenderDrag, Is.EqualTo(3));
+    Assert.That(_settings.FluidCoefficients.AngularDrag, Is.EqualTo(4));
+    Assert.That(_settings.FluidCoefficients.KuttaLift, Is.EqualTo(5));
+    Assert.That(_settings.FluidCoefficients.MagnusLift, Is.EqualTo(6));
   }
 }
 }

@@ -42,12 +42,17 @@ public struct MjGeomSettings {
   [Tooltip("Shape used for fluid simulation.")]
   public FluidShapeTypes FluidShapeType;
 
+  [Tooltip("Dimensionless coefficients of fluid interaction model.")]
+  public GeomFluidCoefficients FluidCoefficients;
+
+
   // Default geom settings.
   public static MjGeomSettings Default = new MjGeomSettings() {
     Solver = GeomSolver.Default,
     Filtering = CollisionFiltering.Default,
     Friction = GeomFriction.Default,
-    FluidShapeType = FluidShapeTypes.None
+    FluidShapeType = FluidShapeTypes.None,
+    FluidCoefficients = GeomFluidCoefficients.Default
   };
 
   public void FromMjcf(XmlElement mjcf) {
@@ -85,9 +90,19 @@ public struct MjGeomSettings {
     Friction.Torsional = friction[1];
     Friction.Rolling = friction[2];
 
-    // Fluid shape settings.
+    // Fluid settings.
     FluidShapeType = mjcf.GetEnumAttribute<FluidShapeTypes>(
         "fluidshape", FluidShapeTypes.None, ignoreCase: true);
+    var fluidcoef = mjcf.GetFloatArrayAttribute("fluidcoef", new float[] {
+        GeomFluidCoefficients.Default.BluntDrag, GeomFluidCoefficients.Default.SlenderDrag,
+        GeomFluidCoefficients.Default.AngularDrag, GeomFluidCoefficients.Default.KuttaLift,
+        GeomFluidCoefficients.Default.MagnusLift
+    });
+    FluidCoefficients.BluntDrag = fluidcoef[0];
+    FluidCoefficients.SlenderDrag = fluidcoef[1];
+    FluidCoefficients.AngularDrag = fluidcoef[2];
+    FluidCoefficients.KuttaLift = fluidcoef[3];
+    FluidCoefficients.MagnusLift = fluidcoef[4];
   }
 
   public void ToMjcf(XmlElement mjcf) {
@@ -110,8 +125,10 @@ public struct MjGeomSettings {
     // Inertia and friction settings.
     mjcf.SetAttribute("friction", MjEngineTool.MakeLocaleInvariant($"{Friction.Sliding} {Friction.Torsional} {Friction.Rolling}"));
 
-    // Fluid shape settings.
+    // Fluid settings.
     mjcf.SetAttribute("fluidshape", FluidShapeType.ToString().ToLower());
+    mjcf.SetAttribute("fluidcoef", MjEngineTool.MakeLocaleInvariant(
+      $"{FluidCoefficients.BluntDrag} {FluidCoefficients.SlenderDrag} {FluidCoefficients.AngularDrag} {FluidCoefficients.KuttaLift} {FluidCoefficients.MagnusLift}"));
   }
 }
 
@@ -168,6 +185,19 @@ public struct GeomSolver {
   public static GeomSolver Default = new GeomSolver() {
     ConDim = 3, SolMix = 1.0f, SolRef = SolverReference.Default, SolImp = SolverImpedance.Default,
     Margin = 0.0f, Gap = 0.0f
+  };
+}
+
+[Serializable]
+public struct GeomFluidCoefficients {
+  public float BluntDrag;
+  public float SlenderDrag;
+  public float AngularDrag;
+  public float KuttaLift;
+  public float MagnusLift;
+
+  public static GeomFluidCoefficients Default = new GeomFluidCoefficients() {
+    BluntDrag = 5f, SlenderDrag = .25f, AngularDrag = 1.5f, KuttaLift = 1f, MagnusLift = 1f
   };
 }
 }
