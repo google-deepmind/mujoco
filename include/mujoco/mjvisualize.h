@@ -157,8 +157,9 @@ struct mjvPerturb_ {              // object selection and perturbation
   int      active2;               // secondary perturbation bitmask (mjtPertBit)
   mjtNum   refpos[3];             // reference position for selected object
   mjtNum   refquat[4];            // reference orientation for selected object
-  mjtNum   reflocalpos[3];        // reference selection point in object coordinates
+  mjtNum   refselpos[3];          // reference position for selection point
   mjtNum   localpos[3];           // selection point in object coordinates
+  mjtNum   localmass;             // spatial inertia at selection point
   mjtNum   scale;                 // relative mouse motion-to-space scaling (set by initPerturb)
 };
 typedef struct mjvPerturb_ mjvPerturb;

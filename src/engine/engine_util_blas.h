@@ -170,7 +170,7 @@ MJAPI mjtNum mju_normalize(mjtNum* res, int n);
 MJAPI mjtNum mju_norm(const mjtNum* res, int n);
 
 // vector dot-product
-MJAPI mjtNum mju_dot(const mjtNum* vec1, const mjtNum* vec2, const int n);
+MJAPI mjtNum mju_dot(const mjtNum* vec1, const mjtNum* vec2, int n);
 
 
 //------------------------------ matrix-vector operations ------------------------------------------

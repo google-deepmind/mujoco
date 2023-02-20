@@ -59,8 +59,7 @@ MJAPI void mjv_moveModel(const mjModel* m, int action, mjtNum reldx, mjtNum reld
                          const mjtNum roomup[3], mjvScene* scn);
 
 // copy perturb pos,quat from selected body; set scale perturbation
-MJAPI void mjv_initPerturb(const mjModel* m, const mjData* d,
-                           const mjvScene* scn, mjvPerturb* pert);
+MJAPI void mjv_initPerturb(const mjModel* m, mjData* d, const mjvScene* scn, mjvPerturb* pert);
 
 // set perturb pos,quat in d->mocap when selected body is mocap, and in d->qpos otherwise
 //  d->qpos written only if flg_paused and subtree root for selected body has free joint

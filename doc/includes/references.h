@@ -1641,8 +1641,9 @@ struct mjvPerturb_ {              // object selection and perturbation
   int      active2;               // secondary perturbation bitmask (mjtPertBit)
   mjtNum   refpos[3];             // reference position for selected object
   mjtNum   refquat[4];            // reference orientation for selected object
-  mjtNum   reflocalpos[3];        // reference selection point in object coordinates
+  mjtNum   refselpos[3];          // reference position for selection point
   mjtNum   localpos[3];           // selection point in object coordinates
+  mjtNum   localmass;             // spatial inertia at selection point
   mjtNum   scale;                 // relative mouse motion-to-space scaling (set by initPerturb)
 };
 typedef struct mjvPerturb_ mjvPerturb;
@@ -1973,8 +1974,7 @@ void mjv_movePerturb(const mjModel* m, const mjData* d, int action, mjtNum reldx
                      mjtNum reldy, const mjvScene* scn, mjvPerturb* pert);
 void mjv_moveModel(const mjModel* m, int action, mjtNum reldx, mjtNum reldy,
                    const mjtNum roomup[3], mjvScene* scn);
-void mjv_initPerturb(const mjModel* m, const mjData* d,
-                     const mjvScene* scn, mjvPerturb* pert);
+void mjv_initPerturb(const mjModel* m, mjData* d, const mjvScene* scn, mjvPerturb* pert);
 void mjv_applyPerturbPose(const mjModel* m, mjData* d, const mjvPerturb* pert,
                           int flg_paused);
 void mjv_applyPerturbForce(const mjModel* m, mjData* d, const mjvPerturb* pert);
@@ -2087,7 +2087,7 @@ void mju_addToScl(mjtNum* res, const mjtNum* vec, mjtNum scl, int n);
 void mju_addScl(mjtNum* res, const mjtNum* vec1, const mjtNum* vec2, mjtNum scl, int n);
 mjtNum mju_normalize(mjtNum* res, int n);
 mjtNum mju_norm(const mjtNum* res, int n);
-mjtNum mju_dot(const mjtNum* vec1, const mjtNum* vec2, const int n);
+mjtNum mju_dot(const mjtNum* vec1, const mjtNum* vec2, int n);
 void mju_mulMatVec(mjtNum* res, const mjtNum* mat, const mjtNum* vec, int nr, int nc);
 void mju_mulMatTVec(mjtNum* res, const mjtNum* mat, const mjtNum* vec, int nr, int nc);
 mjtNum mju_mulVecMatVec(const mjtNum* vec1, const mjtNum* mat, const mjtNum* vec2, int n);
@@ -2146,7 +2146,7 @@ mjtNum mju_sign(mjtNum x);
 int mju_round(mjtNum x);
 const char* mju_type2Str(int type);
 int mju_str2Type(const char* str);
-const char* mju_writeNumBytes(const size_t nbytes);
+const char* mju_writeNumBytes(size_t nbytes);
 const char* mju_warningText(int warning, size_t info);
 int mju_isBad(mjtNum x);
 int mju_isZero(mjtNum* vec, int n);

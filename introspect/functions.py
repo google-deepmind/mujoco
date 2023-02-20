@@ -2432,7 +2432,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  type=ValueType(name='int'),
              ),
          ),
-         doc='Compute object 6D velocity in object-centered frame, world/local orientation.',  # pylint: disable=line-too-long
+         doc='Compute object 6D velocity (rot:lin) in object-centered frame, world/local orientation.',  # pylint: disable=line-too-long
      )),
     ('mj_objectAcceleration',
      FunctionDecl(
@@ -2471,7 +2471,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  type=ValueType(name='int'),
              ),
          ),
-         doc='Compute object 6D acceleration in object-centered frame, world/local orientation.',  # pylint: disable=line-too-long
+         doc='Compute object 6D acceleration (rot:lin) in object-centered frame, world/local orientation.',  # pylint: disable=line-too-long
      )),
     ('mj_contactForce',
      FunctionDecl(
@@ -3353,7 +3353,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
              FunctionParameterDecl(
                  name='d',
                  type=PointerType(
-                     inner_type=ValueType(name='mjData', is_const=True),
+                     inner_type=ValueType(name='mjData'),
                  ),
              ),
              FunctionParameterDecl(
@@ -5651,7 +5651,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
              ),
              FunctionParameterDecl(
                  name='n',
-                 type=ValueType(name='int', is_const=True),
+                 type=ValueType(name='int'),
              ),
          ),
          doc='Return dot-product of vec1 and vec2.',
@@ -6978,7 +6978,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
          parameters=(
              FunctionParameterDecl(
                  name='nbytes',
-                 type=ValueType(name='size_t', is_const=True),
+                 type=ValueType(name='size_t'),
              ),
          ),
          doc='Return human readable number of bytes using standard letter suffix.',  # pylint: disable=line-too-long

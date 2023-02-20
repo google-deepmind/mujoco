@@ -59,7 +59,7 @@ Bug fixes
    :align: right
    :width: 300px
 
-#. The ``launch_repl`` functionality in the Python viewer has been fixed.
+6. The ``launch_repl`` functionality in the Python viewer has been fixed.
 #. Set ``time`` correctly in ``mjd_transitionFD``, to support time-dependent user code.
 #. Fixed sensor data dimension validation when ``user`` type sensors are present.
 #. Fixed incorrect plugin error message when a null ``nsensordata`` callback is encountered during model compilation.

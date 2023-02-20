@@ -627,7 +627,7 @@ mjtNum mju_norm(const mjtNum* res, int n) {
 
 
 // vector dot-product
-mjtNum mju_dot(const mjtNum* vec1, const mjtNum* vec2, const int n) {
+mjtNum mju_dot(const mjtNum* vec1, const mjtNum* vec2, int n) {
   mjtNum res = 0;
   int i = 0;
   int n_4 = n - 4;

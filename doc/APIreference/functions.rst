@@ -1029,7 +1029,7 @@ mj_objectVelocity
 
 .. mujoco-include:: mj_objectVelocity
 
-Compute object 6D velocity in object-centered frame, world/local orientation.
+Compute object 6D velocity (rot:lin) in object-centered frame, world/local orientation.
 
 .. _mj_objectAcceleration:
 
@@ -1038,7 +1038,7 @@ mj_objectAcceleration
 
 .. mujoco-include:: mj_objectAcceleration
 
-Compute object 6D acceleration in object-centered frame, world/local orientation.
+Compute object 6D acceleration (rot:lin) in object-centered frame, world/local orientation.
 
 .. _mj_contactForce:
 

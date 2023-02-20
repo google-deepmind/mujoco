@@ -423,11 +423,11 @@ MJAPI void mj_addM(const mjModel* m, mjData* d, mjtNum* dst, int* rownnz, int* r
 MJAPI void mj_applyFT(const mjModel* m, mjData* d, const mjtNum force[3], const mjtNum torque[3],
                       const mjtNum point[3], int body, mjtNum* qfrc_target);
 
-// Compute object 6D velocity in object-centered frame, world/local orientation.
+// Compute object 6D velocity (rot:lin) in object-centered frame, world/local orientation.
 MJAPI void mj_objectVelocity(const mjModel* m, const mjData* d,
                              int objtype, int objid, mjtNum res[6], int flg_local);
 
-// Compute object 6D acceleration in object-centered frame, world/local orientation.
+// Compute object 6D acceleration (rot:lin) in object-centered frame, world/local orientation.
 MJAPI void mj_objectAcceleration(const mjModel* m, const mjData* d,
                                  int objtype, int objid, mjtNum res[6], int flg_local);
 
@@ -546,8 +546,7 @@ MJAPI void mjv_moveModel(const mjModel* m, int action, mjtNum reldx, mjtNum reld
                          const mjtNum roomup[3], mjvScene* scn);
 
 // Copy perturb pos,quat from selected body; set scale for perturbation.
-MJAPI void mjv_initPerturb(const mjModel* m, const mjData* d,
-                           const mjvScene* scn, mjvPerturb* pert);
+MJAPI void mjv_initPerturb(const mjModel* m, mjData* d, const mjvScene* scn, mjvPerturb* pert);
 
 // Set perturb pos,quat in d->mocap when selected body is mocap, and in d->qpos otherwise.
 // Write d->qpos only if flg_paused and subtree root for selected body has free joint.
@@ -919,7 +918,7 @@ MJAPI mjtNum mju_normalize(mjtNum* res, int n);
 MJAPI mjtNum mju_norm(const mjtNum* res, int n);
 
 // Return dot-product of vec1 and vec2.
-MJAPI mjtNum mju_dot(const mjtNum* vec1, const mjtNum* vec2, const int n);
+MJAPI mjtNum mju_dot(const mjtNum* vec1, const mjtNum* vec2, int n);
 
 // Multiply matrix and vector: res = mat * vec.
 MJAPI void mju_mulMatVec(mjtNum* res, const mjtNum* mat, const mjtNum* vec, int nr, int nc);
@@ -1104,7 +1103,7 @@ MJAPI const char* mju_type2Str(int type);
 MJAPI int mju_str2Type(const char* str);
 
 // Return human readable number of bytes using standard letter suffix.
-MJAPI const char* mju_writeNumBytes(const size_t nbytes);
+MJAPI const char* mju_writeNumBytes(size_t nbytes);
 
 // Construct a warning message given the warning type and info.
 MJAPI const char* mju_warningText(int warning, size_t info);

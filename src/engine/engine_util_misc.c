@@ -947,7 +947,7 @@ int mju_str2Type(const char* str) {
 
 
 // return human readable number of bytes using standard letter suffix
-const char* mju_writeNumBytes(const size_t nbytes) {
+const char* mju_writeNumBytes(size_t nbytes) {
   int i;
   static mjTHREADLOCAL char message[20];
   static const char suffix[] = " KMGTPE";

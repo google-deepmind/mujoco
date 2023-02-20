@@ -21,6 +21,9 @@
 #include <mujoco/mjexport.h>
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjvisualize.h>
+#include "engine/engine_core_smooth.h"
+#include "engine/engine_io.h"
+#include "engine/engine_macro.h"
 #include "engine/engine_ray.h"
 #include "engine/engine_support.h"
 #include "engine/engine_util_blas.h"
@@ -385,7 +388,7 @@ void mjv_movePerturb(const mjModel* m, const mjData* d, int action, mjtNum reldx
   case mjMOUSE_MOVE_V:
   case mjMOUSE_MOVE_H:
     mju_addToScl3(pert->refpos, vec, pert->scale);
-    mju_addToScl3(pert->reflocalpos, vec, pert->scale);
+    mju_addToScl3(pert->refselpos, vec, pert->scale);
     break;
 
   case mjMOUSE_ROTATE_V:
@@ -514,9 +517,15 @@ void mjv_moveModel(const mjModel* m, int action, mjtNum reldx, mjtNum reldy,
 
 
 // copy perturb pos,quat from selected body; set scale for perturbation
-void mjv_initPerturb(const mjModel* m, const mjData* d, const mjvScene* scn, mjvPerturb* pert) {
+void mjv_initPerturb(const mjModel* m, mjData* d, const mjvScene* scn, mjvPerturb* pert) {
+  mjMARKSTACK;
+
+  int nv  = m->nv;
   int sel = pert->select;
   mjtNum headpos[3], forward[3], dif[3];
+
+  mjtNum* jac = mj_stackAlloc(d, 3*nv);
+  mjtNum* jacM2 = mj_stackAlloc(d, 3*nv);
 
   // invalid selected body: return
   if (sel<=0 || sel>=m->nbody) {
@@ -528,25 +537,34 @@ void mjv_initPerturb(const mjModel* m, const mjData* d, const mjvScene* scn, mjv
   mju_rotVecMat(selpos, pert->localpos, d->xmat+9*sel);
   mju_addTo3(selpos, d->xpos+3*sel);
 
+  // compute average spatial inertia at selection point
+  mj_jac(m, d, jac, NULL, selpos, sel);
+  mj_solveM2(m, d, jacM2, jac, 3);
+  mjtNum invmass = mju_dot(jacM2+0*nv, jacM2+0*nv, nv) +
+                   mju_dot(jacM2+1*nv, jacM2+1*nv, nv) +
+                   mju_dot(jacM2+2*nv, jacM2+2*nv, nv);
+  pert->localmass = 3 / mju_max(invmass, mjMINVAL);
+
   // copy
   mju_copy3(pert->refpos, d->xipos+3*sel);
   mju_mulQuat(pert->refquat, d->xquat+4*sel, m->body_iquat+4*sel);
-  mju_copy3(pert->reflocalpos, selpos);
+  mju_copy3(pert->refselpos, selpos);
 
   // get camera info
   mjv_cameraInModel(headpos, forward, NULL, scn);
 
-  // compute scaling: rendered pert->refpos displacement = mouse displacement
-  mju_sub3(dif, pert->reflocalpos, headpos);
+  // compute scaling: rendered pert->refselpos displacement = mouse displacement
+  mju_sub3(dif, pert->refselpos, headpos);
   pert->scale = mjv_frustumHeight(scn) * mju_dot3(dif, forward);
+
+  mjFREESTACK;
 }
 
 
 
 // set perturb pos,quat in d->mocap when selected body is mocap, and in d->qpos otherwise
 //  d->qpos written only if flg_paused and subtree root for selected body has free joint
-void mjv_applyPerturbPose(const mjModel* m, mjData* d, const mjvPerturb* pert,
-                          int flg_paused) {
+void mjv_applyPerturbPose(const mjModel* m, mjData* d, const mjvPerturb* pert, int flg_paused) {
   int rootid = 0, sel = pert->select;
   mjtNum pos1[3], quat1[4], pos2[3], quat2[4], refpos[3], refquat[4];
   mjtNum *Rpos, *Rquat, *Cpos, *Cquat;
@@ -600,7 +618,6 @@ void mjv_applyPerturbPose(const mjModel* m, mjData* d, const mjvPerturb* pert,
 
 // set perturb force,torque in d->xfrc_applied, if selected body is dynamic
 void mjv_applyPerturbForce(const mjModel* m, mjData* d, const mjvPerturb* pert) {
-  mjtNum xiquat[4], difquat[4], bvel[6], mass, stiffness, *result;
   int sel = pert->select;
 
   // exit if nothing to do
@@ -608,11 +625,18 @@ void mjv_applyPerturbForce(const mjModel* m, mjData* d, const mjvPerturb* pert) 
     return;
   }
 
-  // get pointer to body xfrc_applied
-  result = d->xfrc_applied + 6*sel;
+  // pointers to body xfrc_applied, force and torque
+  mjtNum *force = d->xfrc_applied + 6*sel;
+  mjtNum *torque = d->xfrc_applied + 6*sel + 3;
 
-  // global selbody velocity
+  // pointers to global selbody velocity, linear and rotational
+  mjtNum bvel[6];
   mj_objectVelocity(m, d, mjOBJ_BODY, sel, bvel, 0);
+  mjtNum *body_linvel = bvel + 3;
+  mjtNum *body_rotvel = bvel;
+
+  // body rotational inertia
+  mjtNum inertia = 1.0/mju_max(mjMINVAL, m->body_invweight0[2*sel+1]);
 
   if (((pert->active | pert->active2) & mjPERT_TRANSLATE)) {
     // compute selection point in world coordinates
@@ -620,33 +644,45 @@ void mjv_applyPerturbForce(const mjModel* m, mjData* d, const mjvPerturb* pert) 
     mju_rotVecMat(selpos, pert->localpos, d->xmat+9*sel);
     mju_addTo3(selpos, d->xpos+3*sel);
 
-    // spring perturbation force, with critical damping
-    stiffness = m->vis.map.stiffness;
-    mass = 1.0/mju_max(mjMINVAL, m->body_invweight0[2*sel]);
-    mju_sub3(result, pert->reflocalpos, selpos);
-    mju_scl3(result, result, stiffness*mass);
-    mju_addToScl3(result, bvel+3, -sqrtf(stiffness)*mass);
+    // displacement of selection point from reference point
+    mjtNum diff[3];
+    mju_sub3(diff, selpos, pert->refselpos);
 
-    // torque w.r.t body com
-    mju_subFrom3(selpos, d->xipos+3*sel);
-    mju_cross(result+3, selpos, result);
+    // spring perturbation force
+    mjtNum stiffness = m->vis.map.stiffness;
+    mju_copy3(force, diff);
+    mju_scl3(force, force, -stiffness*pert->localmass);
 
-    // add critically damped torque (torsional only)
+    // moment arm w.r.t body com
+    mjtNum moment_arm[3];
+    mju_sub3(moment_arm, selpos, d->xipos+3*sel);
+
+    // translational velocity of selection point
+    mjtNum svel[3];
+    mju_cross(svel, body_rotvel, moment_arm);
+    mju_addTo3(svel, body_linvel);
+
+    // add critical damping force of selection point
+    mju_addToScl3(force, svel, -sqrtf(stiffness)*pert->localmass);
+
+    // torque on body com due to force
+    mju_cross(torque, moment_arm, force);
+
+    // add critically damped torsional torque along displacement axis
     stiffness = m->vis.map.stiffnessrot;
-    mass = 1.0/mju_max(mjMINVAL, m->body_invweight0[2*sel+1]);
-    mju_normalize3(selpos);
-    mju_addToScl3(result+3, selpos, -sqrtf(stiffness)*mass*mju_dot3(selpos, bvel));
+    mju_normalize3(diff);
+    mju_addToScl3(torque, diff, -sqrtf(stiffness)*inertia*mju_dot3(diff, body_rotvel));
   }
 
   if (((pert->active | pert->active2) & mjPERT_ROTATE)) {
     // spring perturbation torque, with critical damping
-    stiffness = m->vis.map.stiffnessrot;
-    mass = 1.0/mju_max(mjMINVAL, m->body_invweight0[2*sel+1]);
+    mjtNum stiffness = m->vis.map.stiffnessrot;
+    mjtNum xiquat[4], difquat[4];
     mju_mulQuat(xiquat, d->xquat+4*sel, m->body_iquat+4*sel);
     mju_negQuat(xiquat, xiquat);
     mju_mulQuat(difquat, pert->refquat, xiquat);
-    mju_quat2Vel(result+3, difquat, 1.0/(stiffness*mass));
-    mju_addToScl3(result+3, bvel, -sqrtf(stiffness)*mass);
+    mju_quat2Vel(torque, difquat, 1.0/(stiffness*inertia));
+    mju_addToScl3(torque, body_rotvel, -sqrtf(stiffness)*inertia);
   }
 }
 

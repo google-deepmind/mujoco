@@ -2472,8 +2472,9 @@ public unsafe struct mjvPerturb_ {
   public int active2;
   public fixed double refpos[3];
   public fixed double refquat[4];
-  public fixed double reflocalpos[3];
+  public fixed double refselpos[3];
   public fixed double localpos[3];
+  public double localmass;
   public double scale;
 }
 
