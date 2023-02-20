@@ -391,7 +391,7 @@ static void BM_transposeSparse(benchmark::State& state, TransposeFuncPtr func) {
   mjData* d = mj_makeData(m);
 
   // warm-up rollout to get a typical state
-  while (d-> time < 2) {
+  while (d->time < 2) {
     mj_step(m, d);
   }
 

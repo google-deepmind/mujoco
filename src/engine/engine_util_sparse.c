@@ -89,6 +89,7 @@ void mju_dotSparseX3(mjtNum* res0, mjtNum* res1, mjtNum* res2,
 }
 
 
+
 // dot-product, both vectors are sparse
 mjtNum mju_dotSparse2(const mjtNum* vec1, const mjtNum* vec2,
                       const int nnz1, const int* ind1,
@@ -203,6 +204,7 @@ static int mju_compare(const int* vec1, const int* vec2, int n) {
   return !memcmp(vec1, vec2, n*sizeof(int));
 #endif  // mjUSEAVX
 }
+
 
 
 // combine two sparse vectors: dst = a*dst + b*src, return nnz of result
@@ -329,6 +331,8 @@ void mju_compressSparse(mjtNum* mat, int nr, int nc, int* rownnz, int* rowadr, i
   }
 }
 
+
+
 // transpose sparse matrix
 void mju_transposeSparse(mjtNum* res, const mjtNum* mat, int nr, int nc,
                          int* res_rownnz, int* res_rowadr, int* res_colind,
@@ -404,6 +408,8 @@ void mju_superSparse(int nr, int* rowsuper,
     }
   }
 }
+
+
 
 // compute sparse M'*diag*M (diag=NULL: compute M'*M), res has uncompressed layout
 void mju_sqrMatTDSparse(mjtNum* res, const mjtNum* mat, const mjtNum* matT,
