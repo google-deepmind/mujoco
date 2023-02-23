@@ -696,9 +696,9 @@ miscellaneous.
    This and the next attribute determine the clipping planes of the OpenGL projection. The near clipping plane is
    particularly important: setting it too close causes (often severe) loss of resolution in the depth buffer, while
    setting it too far causes objects of interest to be clipped, making it impossible to zoom in. The distance to the
-   near clipping plane is the model extent multiplied by the value of this attribute. Must be strictly positive.
+   near clipping plane is the model ``extent`` multiplied by the value of this attribute. Must be strictly positive.
 :at:`zfar`: :at-val:`real, "50"`
-   The distance to the far clipping plane is the model extent multiplied by the value of this attribute.
+   The distance to the far clipping plane is the model ``extent`` multiplied by the value of this attribute.
 :at:`haze`: :at-val:`real, "0.3"`
    Proportion of the distance-to-horizon that is covered by haze (when haze rendering is enabled and a skybox is
    present).
