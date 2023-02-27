@@ -360,7 +360,6 @@ bool mjCComposite::MakeParticle(mjCModel* model, mjCBody* body, char* error, int
         // add geom
         mjCGeom* g = b->AddGeom(def);
         g->def = body->def;
-        g->type = mjGEOM_SPHERE;
 
         // add plugin
         if (plugin_instance) {
