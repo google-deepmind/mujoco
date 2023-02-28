@@ -176,8 +176,18 @@ int mj_addConstraint(const mjModel* m, mjData* d,
 
   // sparse: copy chain
   else {
+    // clamp NV (in case -1 was used in constraint construction)
+    NV = mjMAX(0, NV);
+
+    if (NV) {
+      empty = 0;
+    } else if (empty) {
+      // all rows are empty, return early
+      return 0;
+    }
+
     // chain required in sparse mode
-    if (!chain) {
+    if (NV && !chain) {
       mju_error("Sparse mj_addConstraint called with dense arguments");
     }
 
@@ -186,16 +196,8 @@ int mj_addConstraint(const mjModel* m, mjData* d,
       // set row address
       adr[nefc+i] = (nefc+i ? adr[nefc+i-1]+nnz[nefc+i-1] : 0);
 
-      // clamp NV (in case -1 was used in constraint construction)
-      NV = mjMAX(0, NV);
-
       // set row descriptor
       nnz[nefc+i] = NV;
-
-      // update empty flag
-      if (NV) {
-        empty = 0;
-      }
 
       // copy if not empty
       if (NV) {
