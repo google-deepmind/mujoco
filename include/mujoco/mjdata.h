@@ -153,6 +153,7 @@ struct mjData_ {
   int ne;                         // number of equality constraints
   int nf;                         // number of friction constraints
   int nefc;                       // number of constraints
+  int nnzJ;                       // number of non-zeros in constraint Jacobian
   int ncon;                       // number of detected contacts
 
   // global properties
@@ -309,39 +310,39 @@ struct mjData_ {
   //-------------------------------- ARENA-ALLOCATED ARRAYS
 
   // computed by mj_collision
-  mjContact* contact;             // list of all detected contacts            (ncon x 1)
+  mjContact* contact;       // list of all detected contacts                    (ncon x 1)
 
   // computed by mj_makeConstraint
-  int*      efc_type;             // constraint type (mjtConstraint)          (nefc x 1)
-  int*      efc_id;               // id of object of specified type           (nefc x 1)
-  int*      efc_J_rownnz;         // number of non-zeros in Jacobian row      (nefc x 1)
-  int*      efc_J_rowadr;         // row start address in colind array        (nefc x 1)
-  int*      efc_J_rowsuper;       // number of subsequent rows in supernode   (nefc x 1)
-  int*      efc_J_colind;         // column indices in Jacobian               (nefc x nv)
-  int*      efc_JT_rownnz;        // number of non-zeros in Jacobian row    T (nv x 1)
-  int*      efc_JT_rowadr;        // row start address in colind array      T (nv x 1)
-  int*      efc_JT_rowsuper;      // number of subsequent rows in supernode T (nv x 1)
-  int*      efc_JT_colind;        // column indices in Jacobian             T (nv x nefc)
-  mjtNum*   efc_J;                // constraint Jacobian                      (nefc x nv)
-  mjtNum*   efc_JT;               // constraint Jacobian transposed           (nv x nefc)
-  mjtNum*   efc_pos;              // constraint position (equality, contact)  (nefc x 1)
-  mjtNum*   efc_margin;           // inclusion margin (contact)               (nefc x 1)
-  mjtNum*   efc_frictionloss;     // frictionloss (friction)                  (nefc x 1)
-  mjtNum*   efc_diagApprox;       // approximation to diagonal of A           (nefc x 1)
-  mjtNum*   efc_KBIP;             // stiffness, damping, impedance, imp'      (nefc x 4)
-  mjtNum*   efc_D;                // constraint mass                          (nefc x 1)
-  mjtNum*   efc_R;                // inverse constraint mass                  (nefc x 1)
+  int*    efc_type;         // constraint type (mjtConstraint)                  (nefc x 1)
+  int*    efc_id;           // id of object of specified type                   (nefc x 1)
+  int*    efc_J_rownnz;     // number of non-zeros in constraint Jacobian row   (nefc x 1)
+  int*    efc_J_rowadr;     // row start address in colind array                (nefc x 1)
+  int*    efc_J_rowsuper;   // number of subsequent rows in supernode           (nefc x 1)
+  int*    efc_J_colind;     // column indices in constraint Jacobian            (nnzJ x 1)
+  int*    efc_JT_rownnz;    // number of non-zeros in constraint Jacobian row T (nv x 1)
+  int*    efc_JT_rowadr;    // row start address in colind array              T (nv x 1)
+  int*    efc_JT_rowsuper;  // number of subsequent rows in supernode         T (nv x 1)
+  int*    efc_JT_colind;    // column indices in constraint Jacobian          T (nnzJ x 1)
+  mjtNum* efc_J;            // constraint Jacobian                              (nnzJ x 1)
+  mjtNum* efc_JT;           // constraint Jacobian transposed                   (nnzJ x 1)
+  mjtNum* efc_pos;          // constraint position (equality, contact)          (nefc x 1)
+  mjtNum* efc_margin;       // inclusion margin (contact)                       (nefc x 1)
+  mjtNum* efc_frictionloss; // frictionloss (friction)                          (nefc x 1)
+  mjtNum* efc_diagApprox;   // approximation to diagonal of A                   (nefc x 1)
+  mjtNum* efc_KBIP;         // stiffness, damping, impedance, imp'              (nefc x 4)
+  mjtNum* efc_D;            // constraint mass                                  (nefc x 1)
+  mjtNum* efc_R;            // inverse constraint mass                          (nefc x 1)
 
   // computed by mj_fwdConstraint/mj_inverse
-  mjtNum*   efc_b;                // linear cost term: J*qacc_smooth - aref   (nefc x 1)
-  mjtNum*   efc_force;            // constraint force in constraint space     (nefc x 1)
-  int*      efc_state;            // constraint state (mjtConstraintState)    (nefc x 1)
+  mjtNum* efc_b;            // linear cost term: J*qacc_smooth - aref           (nefc x 1)
+  mjtNum* efc_force;        // constraint force in constraint space             (nefc x 1)
+  int* efc_state;           // constraint state (mjtConstraintState)            (nefc x 1)
 
   // computed by mj_projectConstraint
-  int*      efc_AR_rownnz;        // number of non-zeros in AR                (nefc x 1)
-  int*      efc_AR_rowadr;        // row start address in colind array        (nefc x 1)
-  int*      efc_AR_colind;        // column indices in sparse AR              (nefc x nefc)
-  mjtNum*   efc_AR;               // J*inv(M)*J' + R                          (nefc x nefc)
+  int* efc_AR_rownnz;       // number of non-zeros in AR                        (nefc x 1)
+  int* efc_AR_rowadr;       // row start address in colind array                (nefc x 1)
+  int* efc_AR_colind;       // column indices in sparse AR                      (nefc x nefc)
+  mjtNum* efc_AR;           // J*inv(M)*J' + R                                  (nefc x nefc)
 };
 typedef struct mjData_ mjData;
 

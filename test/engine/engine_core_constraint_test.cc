@@ -27,8 +27,8 @@
 namespace mujoco {
 namespace {
 
-using ::testing::Pointwise;
 using ::testing::DoubleNear;
+using ::testing::Pointwise;
 using CoreConstraintTest = MujocoTest;
 
 std::vector<mjtNum> AsVector(const mjtNum* array, int n) {
@@ -156,6 +156,43 @@ TEST_F(CoreConstraintTest, WeldRotJacobian) {
 
   mj_deleteData(data);
   mj_deleteModel(model);
+}
+
+static const char* const kDoflessContactPath =
+    "engine/testdata/core_constraint/dofless_contact.xml";
+static const char* const kDoflessTendonFrictionalPath =
+    "engine/testdata/core_constraint/dofless_tendon_frictional.xml";
+static const char* const kDoflessTendonLimitedPath =
+    "engine/testdata/core_constraint/dofless_tendon_limited.xml";
+static const char* const kDoflessTendonLimitedMarginPath =
+    "engine/testdata/core_constraint/dofless_tendon_limitedmargin.xml";
+static const char* const kDoflessWeldPath =
+    "engine/testdata/core_constraint/dofless_weld.xml";
+static const char* const kJointLimitedBilateralMarginPath =
+    "engine/testdata/core_constraint/joint_limited_bilateral_margin.xml";
+static const char* const kTendonLimitedBilateralMarginPath =
+    "engine/testdata/core_constraint/tendon_limited_bilateral_margin.xml";
+
+TEST_F(CoreConstraintTest, JacobianPreAllocate) {
+  for (const char* local_path :
+       {kDoflessContactPath, kDoflessTendonFrictionalPath,
+        kDoflessTendonLimitedPath, kDoflessTendonLimitedMarginPath,
+        kDoflessWeldPath, kJointLimitedBilateralMarginPath,
+        kTendonLimitedBilateralMarginPath}) {
+    const std::string xml_path = GetTestDataFilePath(local_path);
+
+    // iterate through dense and sparse
+    for (mjtJacobian sparsity : {mjJAC_DENSE, mjJAC_SPARSE}) {
+      mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, nullptr, 0);
+      model->opt.jacobian = sparsity;
+      mjData* data = mj_makeData(model);
+
+      mj_step(model, data);
+
+      mj_deleteData(data);
+      mj_deleteModel(model);
+    }
+  }
 }
 
 }  // namespace

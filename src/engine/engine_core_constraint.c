@@ -13,8 +13,8 @@
 // limitations under the License.
 
 #include "engine/engine_core_constraint.h"
-#include <stdio.h>
 
+#include <stdio.h>
 #include <stddef.h>
 #include <string.h>
 
@@ -1251,64 +1251,186 @@ void mj_makeImpedance(const mjModel* m, mjData* d) {
 
 //------------------------------------- constraint counting ----------------------------------------
 
-// count equality constraints
-static inline int mj_ne(const mjModel* m, const mjData* d) {
+// count the number of non-zeros in the sum of two sparse vectors
+static int mju_combineSparseCount(int a_nnz, int b_nnz, const int* a_ind, const int* b_ind) {
+  int c_nnz, d_nnz;
+  const int* c_ind;
+  const int* d_ind;
+
+  // choose c to have the least number of non-zeros
+  if (b_nnz<a_nnz) {
+    c_nnz = b_nnz;
+    c_ind = b_ind;
+    d_nnz = a_nnz;
+    d_ind = a_ind;
+  } else {
+    c_nnz = a_nnz;
+    c_ind = a_ind;
+    d_nnz = b_nnz;
+    d_ind = b_ind;
+  }
+
+  int nnz=d_nnz, j=0;
+  for (int i=0; i<c_nnz; i++) {
+    while (d_ind[j]<c_ind[i]) {
+      j++;
+    }
+
+    if (d_ind[j]>c_ind[i]) {
+      nnz++;
+    }
+  }
+
+  return nnz;
+}
+
+
+
+// count the non-zero columns in the Jacobian difference of two bodies
+static int mj_jacDifPairCount(const mjModel* m, int* chain, int b1, int b2) {
+  if (!m->nv) {
+    return 0;
+  }
+
+  if (m->body_simple[b1] && m->body_simple[b2]) {
+    return mj_mergeChainSimple(m, chain, b1, b2);
+  }
+  return mj_mergeChain(m, chain, b1, b2);
+}
+
+
+
+// return number of constraint non-zeros, handle dense and dof-less cases
+static inline int mj_addConstraintCount(const mjModel* m, int size, int NV) {
+  // over count for dense allocation
+  if (!mj_isSparse(m)) {
+    return m->nv ? size : 0;
+  }
+  return mjMAX(0, NV) ? size : 0;
+}
+
+
+
+// count equality constraints, count Jacobian nonzeros if nnz is not NULL
+static inline int mj_ne(const mjModel* m, mjData* d, int* nnz) {
+  int ne = 0, nnze = 0;
+  int nv = m->nv, neq = m->neq;
+  int id[2], size, NV, NV2, *chain = NULL, *chain2 = NULL;
+
   // disabled or no equality constraints: return
   if (mjDISABLED(mjDSBL_EQUALITY) || m->nemax==0) {
     return 0;
   }
 
-  int ne = 0;
+  mjMARKSTACK;
 
-  for (int i=0; i<m->neq; i++) {
-    if (!m->eq_active[i]) {
-      continue;
-    }
+  if (nnz) {
+    chain = (int*)mj_stackAlloc(d, nv);
+    chain2 = (int*)mj_stackAlloc(d, nv);
+  }
 
-    // process according to type
-    switch (m->eq_type[i]) {
-    case mjEQ_CONNECT:
-      ne += 3;
-      break;
+  // find active equality constraints
+  for (int i=0; i<neq; i++) {
+    if (m->eq_active[i]) {
+      id[0] = m->eq_obj1id[i];
+      id[1] = m->eq_obj2id[i];
+      size = 0;
+      NV = 0;
+      NV2 = 0;
 
-    case mjEQ_WELD:
-      ne += 6;
-      break;
+      // process according to type
+      switch (m->eq_type[i]) {
+        case mjEQ_CONNECT:
+          size = 3;
+          if (!nnz) {
+            break;
+          }
 
-    case mjEQ_JOINT:
-    case mjEQ_TENDON:
-      ne++;
-      break;
+          NV = mj_jacDifPairCount(m, chain, id[1], id[0]);
+          break;
 
-    default:                        // SHOULD NOT OCCUR
-      mju_error_i("Invalid equality constraint type %d", m->eq_type[i]);
+        case mjEQ_WELD:
+          size = 6;
+          if (!nnz) {
+            break;
+          }
+
+          NV = mj_jacDifPairCount(m, chain, id[1], id[0]);
+          break;
+
+        case mjEQ_JOINT:
+        case mjEQ_TENDON:
+          size = 1;
+          if (!nnz) {
+            break;
+          }
+
+          for (int j=0; j<1+(id[1]>=0); j++) {
+            if (m->eq_type[i]==mjEQ_JOINT) {
+              if (!j) {
+                NV = 1;
+                chain[0] = m->jnt_dofadr[id[j]];
+              } else {
+                NV2 = 1;
+                chain2[0] = m->jnt_dofadr[id[j]];
+              }
+            } else {
+              if (!j) {
+                NV = d->ten_J_rownnz[id[j]];
+                memcpy(chain, d->ten_J_colind+d->ten_J_rowadr[id[j]], NV*sizeof(int));
+              } else {
+                NV2 = d->ten_J_rownnz[id[j]];
+                memcpy(chain2, d->ten_J_colind+d->ten_J_rowadr[id[j]], NV2*sizeof(int));
+              }
+            }
+          }
+
+          if (id[1]>=0) {
+            NV = mju_combineSparseCount(NV, NV2, chain, chain2);
+            NV = 2;
+          }
+          break;
+      }
+      ne += mj_addConstraintCount(m, size, NV);
+      nnze += size*NV;
     }
   }
 
+  if (nnz) {
+    *nnz += nnze;
+  }
+
+  mjFREESTACK;
   return ne;
 }
 
 
 
-// count frictional constraints
-static inline int mj_nf(const mjModel* m, const mjData* d) {
-  // disabled: return
+// count frictional constraints, count Jacobian nonzeros if nnz is not NULL
+static inline int mj_nf(const mjModel* m, const mjData* d, int *nnz) {
+  int nf = 0, nnzf = 0;
+  int nv = m->nv, ntendon = m->ntendon;
+
   if (mjDISABLED(mjDSBL_FRICTIONLOSS)) {
     return 0;
   }
 
-  int nf = 0;
-  const int nv = m->nv;
-  const int ntendon = m->ntendon;
-
-  // count frictional dofs
   for (int i=0; i<nv; i++) {
-    nf += (m->dof_frictionloss[i] > 0);
+    if (m->dof_frictionloss[i]>0) {
+      nf += mj_addConstraintCount(m, 1, 1);
+      nnzf++;
+    }
   }
 
-  // count frictional tendons
   for (int i=0; i<ntendon; i++) {
-    nf += (m->tendon_frictionloss[i] > 0);
+    if (m->tendon_frictionloss[i]>0) {
+      nf += mj_addConstraintCount(m, 1, d->ten_J_rownnz[i]);
+      nnzf += d->ten_J_rownnz[i];
+    }
+  }
+
+  if (nnz) {
+    *nnz += nnzf;
   }
 
   return nf;
@@ -1316,110 +1438,145 @@ static inline int mj_nf(const mjModel* m, const mjData* d) {
 
 
 
-// count limit constraints
-static inline int mj_nl(const mjModel* m, const mjData* d) {
+// count limit constraints, count Jacobian nonzeros if nnz is not NULL
+static inline int mj_nl(const mjModel* m, const mjData* d, int *nnz) {
+  int nnzl = 0, nl = 0;
+  int ntendon = m->ntendon;
+  int side;
+  mjtNum margin, value, dist;
+
   // disabled: return
   if (mjDISABLED(mjDSBL_LIMIT)) {
     return 0;
   }
 
-  int nl = 0;
-  const int njnt = m->njnt;
-  const int ntendon = m->ntendon;
 
-  // count limited joints
-  for (int i=0; i<njnt; i++) {
+  for (int i=0; i<m->njnt; i++) {
     if (!m->jnt_limited[i]) {
       continue;
     }
 
-    // slides and hinges can have active limits on two sides, check both
+    margin = m->jnt_margin[i];
+
+    // slider and hinge joint limits can be bilateral, check both side
     if (m->jnt_type[i]==mjJNT_SLIDE || m->jnt_type[i]==mjJNT_HINGE) {
-      // get margin
-      mjtNum margin = m->jnt_margin[i];
-
-      // get joint value
-      mjtNum value = d->qpos[m->jnt_qposadr[i]];
-
-      // check lower and upper limits
-      for (int side=-1; side<=1; side+=2) {
-        // compute distance (negative: penetration)
-        mjtNum dist = side * (m->jnt_range[2*i+(side+1)/2] - value);
-
-        // detect joint limit
+      value = d->qpos[m->jnt_qposadr[i]];
+      for (side=-1; side<=1; side+=2) {
+        dist = side * (m->jnt_range[2*i+(side+1)/2] - value);
         if (dist<margin) {
-          nl++;
+          nl += mj_addConstraintCount(m, 1, 1);
+          nnzl++;
         }
       }
-    } else {
-      nl++;
+    }
+    else if (m->jnt_type[i]==mjJNT_BALL) {
+      mjtNum angleAxis[3];
+      mju_quat2Vel(angleAxis, d->qpos+m->jnt_qposadr[i], 1);
+      value = mju_normalize3(angleAxis);
+      dist = mju_max(m->jnt_range[2*i], m->jnt_range[2*i+1]) - value;
+      if (dist<margin) {
+        nl += mj_addConstraintCount(m, 1, 3);
+        nnzl += 3;
+      }
     }
   }
 
-  // count limited tendons
   for (int i=0; i<ntendon; i++) {
-    nl += m->tendon_limited[i];
+    if (m->tendon_limited[i]) {
+      value = d->ten_length[i];
+      margin = m->tendon_margin[i];
+
+      // tendon limits can be bilateral, check both sides
+      for (side=-1; side<=1; side+=2) {
+        dist = side * (m->tendon_range[2*i+(side+1)/2] - value);
+        if (dist<margin) {
+          nl += mj_addConstraintCount(m, 1, d->ten_J_rownnz[i]);
+          nnzl += d->ten_J_rownnz[i];
+        }
+      }
+    }
   }
 
+  if (nnz) {
+    *nnz += nnzl;
+  }
   return nl;
 }
 
 
 
-// count contact constraints
-static inline int mj_nc(const mjModel* m, const mjData* d) {
-  // disabled or no contacts: return
-  int ncon = d->ncon;
-  if (mjDISABLED(mjDSBL_CONTACT) || ncon==0) {
+// count contact constraints, count Jacobian nonzeros if nnz is not NULL
+static inline int mj_nc(const mjModel* m, mjData* d, int* nnz) {
+  int nnzc = 0, nc = 0;
+  int ispyramid = mj_isPyramidal(m), ncon = d->ncon;
+
+  if (mjDISABLED(mjDSBL_CONTACT) || !ncon) {
     return 0;
   }
 
-  int nc = 0;
-  int ispyramid = mj_isPyramidal(m);
+  mjMARKSTACK;
+  int *chain = (int*)mj_stackAlloc(d, m->nv);
 
-  // find contacts to be counted
   for (int i=0; i<ncon; i++) {
-    mjContact* con = d->contact + i;
-    if (con->exclude) {
+    if (d->contact[i].exclude) {
       continue;
     }
 
+    mjContact* con = d->contact + i;
     int dim = con->dim;
-
-    // dim 1: single constraint
-    if (dim==1) {
-      nc++;
+    int b1 = m->geom_bodyid[con->geom1];
+    int b2 = m->geom_bodyid[con->geom2];
+    int NV = mj_jacDifPairCount(m, chain, b1, b2);
+    if (!NV) {
+      continue;
     }
 
-    // dim > 1: depends on cone type
-    else {
-      nc += (ispyramid ? 2*(dim-1) : dim);
+    if (dim==1) {
+      nc++;
+      nnzc += NV;
+    } else if (ispyramid) {
+      nc += 2*(dim-1);
+      nnzc += 2*(dim-1)*NV;
+    } else {
+      nc += dim;
+      nnzc += dim*NV;
     }
   }
 
+  if (nnz) {
+    *nnz += nnzc;
+  }
+
+  mjFREESTACK;
   return nc;
 }
 
 
 
-// count all constraints
-static inline int mj_nefc(const mjModel* m, const mjData* d) {
-  return mj_ne(m, d) + mj_nf(m, d) + mj_nl(m, d) + mj_nc(m, d);
-}
-
 //---------------------------- top-level API for constraint construction ---------------------------
+
+
 
 // driver: call all functions above
 void mj_makeConstraint(const mjModel* m, mjData* d) {
   // clear sizes
-  d->ne = d->nf = d->nefc = 0;
+  d->ne = d->nf = d->nefc = d->nnzJ = 0;
 
   // disabled or Jacobian not allocated: return
   if (mjDISABLED(mjDSBL_CONSTRAINT)) {
     return;
   }
 
-  int nefc_allocated = mj_nefc(m, d);
+  // precount sizes for constraint Jacobian matrices
+  int *nnz = mj_isSparse(m) ? &(d->nnzJ) : NULL;
+
+  int ne_allocated = mj_ne(m, d, nnz);
+  int nf_allocated = mj_nf(m, d, nnz);
+
+  int nefc_allocated = ne_allocated + nf_allocated + mj_nl(m, d, nnz) + mj_nc(m, d, nnz);
+  if (!mj_isSparse(m)) {
+    d->nnzJ = nefc_allocated * m->nv;
+  }
   d->nefc = nefc_allocated;
 
 #undef MJ_M
@@ -1451,16 +1608,61 @@ void mj_makeConstraint(const mjModel* m, mjData* d) {
 #undef MJ_D
 #define MJ_D(n) n
 
+  // reset nefc for the instantiation functions,
+  // and instantiate all elements of Jacobian
   d->nefc = 0;
-
-  // instantiate all elements of Jacobian
   mj_instantiateEquality(m, d);
   mj_instantiateFriction(m, d);
   mj_instantiateLimit(m, d);
   mj_instantiateContact(m, d);
 
-  if (d->nefc > nefc_allocated) {
+
+  // check sparse allocation
+  if (mj_isSparse(m)) {
+    if (d->ne != ne_allocated) {
+      char msg[1024];
+
+      // TODO(b/270530821): add var argument support to mju_error
+      mjSNPRINTF(
+          msg, "ne mis-allocation: found ne=%d but allocated %d", d->ne, ne_allocated);
+      mju_error(msg);
+    }
+
+    if (d->nf != nf_allocated) {
+      char msg[1024];
+
+      // TODO(b/270530821): add var argument support to mju_error
+      mjSNPRINTF(
+          msg, "nf mis-allocation: found nf=%d but allocated %d", d->nf, nf_allocated);
+      mju_error(msg);
+    }
+
+    // check that nefc was computed correctly
+    if (d->nefc != nefc_allocated) {
+      char msg[1024];
+
+      // TODO(b/270530821): add var argument support to mju_error
+      mjSNPRINTF(
+          msg, "nefc mis-allocation: found nefc=%d but allocated %d", d->nefc, nefc_allocated);
+      mju_error(msg);
+    }
+
+    // check that nnzJ was computed correctly
+    if (d->nefc > 0) {
+      int nnz = d->efc_J_rownnz[d->nefc - 1] + d->efc_J_rowadr[d->nefc - 1];
+      if (d->nnzJ != nnz) {
+        char msg[1024];
+
+        // TODO(b/270530821): add var argument support to mju_error
+        mjSNPRINTF(
+            msg, "constraint Jacobian mis-allocation: found nnzJ=%d but allocated %d", nnz, d->nnzJ);
+        mju_error(msg);
+      }
+    }
+  } else if (d->nefc > nefc_allocated) {
     char msg[1024];
+
+    // TODO(b/270530821): add var argument support to mju_error
     mjSNPRINTF(
         msg, "nefc under-allocation: found nefc=%d but allocated only %d", d->nefc, nefc_allocated);
     mju_error(msg);
