@@ -468,7 +468,6 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
   mjtNum *cur, *nxt, *xpos, *xfrc;
   mjtNum vec[3], end[3], axis[3], rod, len, det, tmp[9], quat[4];
   mjtByte broken;
-  mjContact *con;
   mjvGeom* thisgeom;
   mjvPerturb localpert;
   float scl = m->stat.meansize, rgba[4];
@@ -1666,39 +1665,6 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
         }
         FINISH
       }
-    }
-
-    // distance: find constraints at the end of the contact list
-    int j = d->ncon-1;
-    while (j>=0 && d->contact[j].exclude==3) {
-      // recover constraint id
-      int i = -d->contact[j].efc_address-2;
-
-      // segment = pos +/- normal*len
-      con = d->contact+j;
-      len = con->dist - m->eq_data[mjNEQDATA*i];
-      mju_addScl3(vec, con->pos, con->frame, 0.5*len);
-      mju_addScl3(end, con->pos, con->frame, -0.5*len);
-
-      // connect endpoints
-      START
-
-      // construct geom
-      sz[0] = scl * m->vis.scale.constraint;
-      mjv_makeConnector(thisgeom, mjGEOM_CAPSULE, sz[0],
-                        vec[0], vec[1], vec[2],
-                        end[0], end[1], end[2]);
-
-      f2f(thisgeom->rgba, m->vis.rgba.constraint, 4);
-
-      // vopt->label flag
-      if (vopt->label==mjLABEL_CONSTRAINT) {
-        makeLabel(m, mjOBJ_EQUALITY, i, thisgeom->label);
-      }
-
-      FINISH
-
-      j--;
     }
   }
 

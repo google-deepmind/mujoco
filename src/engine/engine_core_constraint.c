@@ -540,10 +540,6 @@ void mj_instantiateEquality(const mjModel* m, mjData* d) {
         size = 1;
         break;
 
-      case mjEQ_DISTANCE:
-        mju_error("distance equality constraints are no longer supported");
-        break;
-
       default:                    // SHOULD NOT OCCUR
         mju_error_i("Invalid equality constraint type %d", m->eq_type[i]);
       }
@@ -806,7 +802,7 @@ void mj_instantiateContact(const mjModel* m, mjData* d) {
       // skip contact if no DOFs affected
       if (NV==0) {
         con->efc_address = -1;
-        con->exclude = 4;
+        con->exclude = 3;
         continue;
       }
 
@@ -920,8 +916,8 @@ void mj_diagApprox(const mjModel* m, mjData* d) {
                     m->tendon_invweight0[m->eq_obj2id[id]]);
         break;
 
-      case mjEQ_DISTANCE:
-        mju_error("distance equality constraints are no longer supported");
+      default:
+        mju_error_i("Unknown constraint type type %d", d->efc_type[i]);    // SHOULD NOT OCCUR
       }
       break;
 

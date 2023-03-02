@@ -71,11 +71,11 @@ struct mjContact_ {               // result of collision detection functions
   int geom1;                      // id of geom 1
   int geom2;                      // id of geom 2
 
-  // flag set by mj_fuseContact or mj_instantianteEquality
-  int exclude;                    // 0: include, 1: in gap, 2: fused, 3: equality, 4: no dofs
+  // flag set by mj_instantianteEquality
+  int exclude;                    // 0: include, 1: in gap, 2: fused, 3: no dofs
 
   // address computed by mj_instantiateContact
-  int efc_address;                // address in efc; -1: not included, -2-i: distance constraint i
+  int efc_address;                // address in efc; -1: not included
 };
 typedef struct mjContact_ mjContact;
 struct mjWarningStat_ {           // warning statistics

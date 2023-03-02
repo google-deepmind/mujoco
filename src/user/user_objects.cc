@@ -2957,8 +2957,6 @@ void mjCEquality::Compile(void) {
     objtype = mjOBJ_JOINT;
   } else if (type==mjEQ_TENDON) {
     objtype = mjOBJ_TENDON;
-  } else if (type==mjEQ_DISTANCE) {
-    objtype = mjOBJ_GEOM;
   } else {
     throw mjCError(this, "invalid type in equality constraint '%s' (id = %d)'", name.c_str(), id);
   }

@@ -908,7 +908,7 @@ void mj_transmission(const mjModel* m, mjData* d) {
             }
           }
 
-          // excluded contact, get sparse or dense Jacobian, accumulate
+          // excluded contact in gap: get sparse or dense Jacobian, accumulate
           else if (con->exclude == 1) {
             counter++;
 
@@ -2032,10 +2032,6 @@ void mj_rnePostConstraint(const mjModel* m, mjData* d) {
     case mjEQ_TENDON:
       // increment 1 row
       i++;
-      break;
-
-    case mjEQ_DISTANCE:
-      mju_error("distance equality constraints are no longer supported");
       break;
 
     default:

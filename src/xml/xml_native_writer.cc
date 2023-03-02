@@ -483,11 +483,8 @@ void mjXWriter::OneEquality(XMLElement* elem, mjCEquality* peq, mjCDef* def) {
       WriteAttr(elem, "polycoef", 5, peq->data);
       break;
 
-    case mjEQ_DISTANCE:
-      WriteAttrTxt(elem, "geom1", peq->name1);
-      WriteAttrTxt(elem, "geom2", peq->name2);
-      WriteAttr(elem, "distance", 1, peq->data);
-      break;
+    default:
+      mju_error("mjXWriter: unknown equality type.");
     }
   }
 
