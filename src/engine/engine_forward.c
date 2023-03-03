@@ -28,6 +28,7 @@
 #include "engine/engine_inverse.h"
 #include "engine/engine_io.h"
 #include "engine/engine_macro.h"
+#include "engine/engine_passive.h"
 #include "engine/engine_plugin.h"
 #include "engine/engine_sensor.h"
 #include "engine/engine_solver.h"

@@ -46,6 +46,9 @@ target_link_libraries(
   absl::str_format
 )
 
+mujoco_test(engine_passive_test)
+target_link_libraries(engine_passive_test fixture gmock)
+
 mujoco_test(engine_print_test)
 target_link_libraries(engine_print_test fixture gmock)
 

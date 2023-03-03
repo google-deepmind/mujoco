@@ -492,5 +492,74 @@ TEST_F(ForwardTest, MjcbActDynSecondOrderExpectsActnum) {
   mj_deleteData(data);
   mj_deleteModel(model);
 }
+
+// -------------------------- adhesion actuators -------------------------------
+
+using AdhesionTest = MujocoTest;
+
+TEST_F(AdhesionTest, ExpectedAdhesionForce) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option gravity="0 0 -1"/>
+
+    <worldbody>
+      <body name="static">
+        <!-- small increase to size to ensure contact -->
+        <geom size=".02001" pos=" .01  .01 .07"/>
+        <geom size=".02001" pos="-.01  .01 .07"/>
+        <geom size=".02001" pos=" .01 -.01 .07"/>
+        <geom size=".02001" pos="-.01 -.01 .07"/>
+      </body>
+      <body name="free">
+        <freejoint/>
+        <geom type="box" size=".05 .05 .05" mass="1"/>
+      </body>
+    </worldbody>
+
+    <actuator>
+      <adhesion body="static" ctrlrange="0 2"/>
+      <adhesion body="free" ctrlrange="0 2"/>
+    </actuator>
+  </mujoco>
+  )";
+  mjModel* model = LoadModelFromString(xml);
+  mjData* data = mj_makeData(model);
+
+  // iterate over cone type
+  for (mjtCone cone : {mjCONE_ELLIPTIC, mjCONE_PYRAMIDAL}) {
+    // set cone
+    model->opt.cone = cone;
+    // iterate over condim
+    for (int condim : {1, 3, 4, 6}) {
+      // set condim
+      for (int id=0; id < model->ngeom; id++) {
+        model->geom_condim[id] = condim;
+      }
+      // iterate over actuators
+      for (int id=0; id < 2; id++) {
+        // set ctrl > 1, expect free body to not fall
+        mj_resetData(model, data);
+        data->ctrl[id] = 1.01;
+        for (int i = 0; i < 100; i++) {
+          mj_step(model, data);
+        }
+        // moved down at most 10 microns
+        EXPECT_GT(data->qpos[2], -1e-5);
+
+        // set ctrl < 1, expect free body to fall below 1cm
+        mj_resetData(model, data);
+        data->ctrl[id] = 0.99;
+        for (int i = 0; i < 100; i++) {
+          mj_step(model, data);
+        }
+        // fell lower than 1cm
+        EXPECT_LT(data->qpos[2], -0.01);
+      }
+    }
+  }
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
 }  // namespace
 }  // namespace mujoco

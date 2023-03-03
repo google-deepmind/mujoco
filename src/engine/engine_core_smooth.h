@@ -71,54 +71,8 @@ MJAPI void mj_solveM2(const mjModel* m, mjData* d, mjtNum* x, const mjtNum* y, i
 // compute cvel, cdof_dot
 MJAPI void mj_comVel(const mjModel* m, mjData* d);
 
-// passive forces
-MJAPI void mj_passive(const mjModel* m, mjData* d);
-
 // subtree linear velocity and angular momentum
 MJAPI void mj_subtreeVel(const mjModel* m, mjData* d);
-
-
-//------------------------- fluid model ------------------------------------------------------------
-
-// fluid forces based on inertia-box approximation
-void mj_inertiaBoxFluidModel(const mjModel* m, mjData* d, int i);
-
-// fluid forces based on ellipsoid approximation
-void mj_ellipsoidFluidModel(const mjModel* m, mjData* d, int bodyid);
-
-// compute forces due to added mass (potential flow)
-void mj_addedMassForces(
-    const mjtNum local_vels[6], const mjtNum local_accels[6],
-    const mjtNum fluid_density, const mjtNum virtual_mass[3],
-    const mjtNum virtual_inertia[3], mjtNum local_force[6]);
-
-// compute forces due to viscous effects
-void mj_viscousForces(
-    const mjtNum local_vels[6], const mjtNum fluid_density,
-    const mjtNum fluid_viscosity, const mjtNum size[3],
-    const mjtNum magnus_lift_coef, const mjtNum kutta_lift_coef,
-    const mjtNum blunt_drag_coef, const mjtNum slender_drag_coef,
-    const mjtNum ang_drag_coef, mjtNum local_force[6]);
-
-void readFluidGeomInteraction(const mjtNum * geom_fluid_coefs,
-                              mjtNum * geom_fluid_coef,
-                              mjtNum * blunt_drag_coef,
-                              mjtNum * slender_drag_coef,
-                              mjtNum * ang_drag_coef,
-                              mjtNum * kutta_lift_coef,
-                              mjtNum * magnus_lift_coef,
-                              mjtNum virtual_mass[3],
-                              mjtNum virtual_inertia[3]);
-
-void writeFluidGeomInteraction (mjtNum * geom_fluid_coefs,
-                                const mjtNum * geom_fluid_coef,
-                                const mjtNum * blunt_drag_coef,
-                                const mjtNum * slender_drag_coef,
-                                const mjtNum * ang_drag_coef,
-                                const mjtNum * kutta_lift_coef,
-                                const mjtNum * magnus_lift_coef,
-                                const mjtNum virtual_mass[3],
-                                const mjtNum virtual_inertia[3]);
 
 
 //-------------------------- RNE -------------------------------------------------------------------

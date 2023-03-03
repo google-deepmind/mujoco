@@ -32,6 +32,7 @@
 #include "engine/engine_file.h"
 #include "engine/engine_io.h"
 #include "engine/engine_macro.h"
+#include "engine/engine_passive.h"
 #include "engine/engine_plugin.h"
 #include "engine/engine_util_errmem.h"
 #include "engine/engine_util_misc.h"
