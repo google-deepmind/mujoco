@@ -9,8 +9,8 @@ with the library.
 
 .. _saTestspeed:
 
-`testspeed.cc <https://github.com/deepmind/mujoco/blob/main/sample/testspeed.cc>`_
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+`testspeed <https://github.com/deepmind/mujoco/blob/main/sample/testspeed.cc>`_
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 This code sample tests the simulation speed for a given model. The command line arguments are the model file, the
 number of time steps to simulate, the number of parallel threads to use, and a flag to enable internal profiling (the
@@ -28,8 +28,8 @@ explicitly as explained in the :ref:`simulation loop <siSimulation>` section bel
 
 .. _saTestXML:
 
-`testxml.cc <https://github.com/deepmind/mujoco/blob/main/sample/testxml.cc>`_
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+`testxml <https://github.com/deepmind/mujoco/blob/main/sample/testxml.cc>`_
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 This code sample tests the parser, compiler and XML writer. The testing code does the following:
 
@@ -50,8 +50,8 @@ field which is resolved at runtime.
 
 .. _saCompile:
 
-`compile.cc <https://github.com/deepmind/mujoco/blob/main/sample/compile.cc>`_
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+`compile <https://github.com/deepmind/mujoco/blob/main/sample/compile.cc>`_
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 This code sample evokes the built-in parser and compiler. It implements all possible model conversions from (MJCF, URDF,
 MJB) format to (MJCF, MJB, TXT) format. Models saved as MJCF use a canonical subset of our format as described in the
@@ -63,8 +63,8 @@ with mjData, although this is not done by the code sample.
 
 .. _saBasic:
 
-`basic.cc <https://github.com/deepmind/mujoco/blob/main/sample/basic.cc>`_
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+`basic <https://github.com/deepmind/mujoco/blob/main/sample/basic.cc>`_
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 This code sample is a minimal interactive simulator. The model file must be provided as command-line argument. It
 opens an OpenGL window using the platform-independent GLFW library, and renders the simulation state at 60 fps while
@@ -77,8 +77,8 @@ illustration of the concepts in that guide.
 
 .. _saSimulate:
 
-`simulate.cc <https://github.com/deepmind/mujoco/blob/main/simulate>`_
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+`simulate <https://github.com/deepmind/mujoco/blob/main/simulate>`_
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 This code sample is a fully-featured interactive simulator. It opens an OpenGL window using the platform-independent
 GLFW library, and renders the simulation state in it. There is built-in help, simulation statistics, profiler, sensor
@@ -117,8 +117,8 @@ Windows power plan so that the minimum processor state is 100%.
 
 .. _saRecord:
 
-`record.cc <https://github.com/deepmind/mujoco/blob/main/sample/record.cc>`_
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+`record <https://github.com/deepmind/mujoco/blob/main/sample/record.cc>`_
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 This code sample simulates the passive dynamics of a given model, renders it offscreen, reads the color and depth pixel
 values, and saves them into a raw data file that can then be converted into a movie file with tools such as ffmpeg. The
@@ -155,8 +155,8 @@ But we cannot yet assume that all users have it installed.
 
 .. _saDerivative:
 
-`derivative.cc <https://github.com/deepmind/mujoco/blob/main/sample/derivative.cc>`_
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+`derivative <https://github.com/deepmind/mujoco/blob/main/sample/derivative.cc>`_
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 This code sample illustrates the numerical approximation of forward and inverse dynamics derivatives via finite
 differences. The process involves a number of epochs. In each epoch the simulation is advanced for a specified number
