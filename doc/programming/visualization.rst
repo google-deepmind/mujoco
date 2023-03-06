@@ -12,7 +12,7 @@ the physics simulation and help fine-tune the model.
 
 The visualizer is tightly integrated with the simulator and supports both onscreen and offscreen rendering, as
 illustrated in the :ref:`record.cc <saRecord>` code sample. This makes it suitable for synthetic computer vision and
-machine learning applications, especially in could environments. VR integration is also available as of MuJoCo version
+machine learning applications, especially in cloud environments. VR integration is also available as of MuJoCo version
 1.40, facilitating applications that utilize new head-mounted displays such as Oculus Rift and HTC Vive.
 
 Visualization in MuJoCo is a two-stage process:
