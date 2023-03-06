@@ -146,7 +146,7 @@ MJAPI void mj_differentiatePos(const mjModel* m, mjtNum* qvel, mjtNum dt,
 // integrate position with given velocity
 MJAPI void mj_integratePos(const mjModel* m, mjtNum* qpos, const mjtNum* qvel, mjtNum dt);
 
-// normalize all quaterions in qpos-type vector
+// normalize all quaternions in qpos-type vector
 MJAPI void mj_normalizeQuat(const mjModel* m, mjtNum* qpos);
 
 // map from body local to global Cartesian coordinates
