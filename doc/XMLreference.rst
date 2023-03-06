@@ -3048,7 +3048,7 @@ specify them independently.
    muscle     act_dot = mju_muscleDynamics(...)
    user       act_dot = mjcb_act_dyn(...)
    ========== ==================================
-:at:`gaintype`: :at-val:`[fixed, muscle, user], "fixed"`
+:at:`gaintype`: :at-val:`[fixed, affine, muscle, user], "fixed"`
    The gain and bias together determine the output of the force generation mechanism, which is currently assumed to be
    affine. As already explained in :ref:`Actuation model <geActuation>`, the general formula is:
    scalar_force = gain_term \* (act or ctrl) + bias_term.
@@ -3059,6 +3059,7 @@ specify them independently.
    Keyword Description
    ======= ===============================
    fixed   gain_term = gainprm[0]
+   affine  gain_term = gain_prm[0] + gain_prm[1]*length + gain_prm[2]*velocity
    muscle  gain_term = mju_muscleGain(...)
    user    gain_term = mjcb_act_gain(...)
    ======= ===============================
