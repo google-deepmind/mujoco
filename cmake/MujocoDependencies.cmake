@@ -44,7 +44,7 @@ set(MUJOCO_DEP_VERSION_Eigen3
 )
 
 set(MUJOCO_DEP_VERSION_abseil
-    78be63686ba732b25052be15f8d6dee891c05749 # LTS 20230125.0
+    c8a2f92586fe9b4e1aff049108f5db8064924d8e # LTS 20230125.1
     CACHE STRING "Version of `abseil` to be fetched."
 )
 
