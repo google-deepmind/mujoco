@@ -12,7 +12,7 @@ the physics simulation and help fine-tune the model.
 
 The visualizer is tightly integrated with the simulator and supports both onscreen and offscreen rendering, as
 illustrated in the :ref:`record.cc <saRecord>` code sample. This makes it suitable for synthetic computer vision and
-machine learning applications, especially in could environments. VR integration is also available as of MuJoCo version
+machine learning applications, especially in cloud environments. VR integration is also available as of MuJoCo version
 1.40, facilitating applications that utilize new head-mounted displays such as Oculus Rift and HTC Vive.
 
 Visualization in MuJoCo is a two-stage process:
@@ -411,7 +411,7 @@ there may be no window framebuffer).
 From the perspective of OpenGL, there are important differences between the window framebuffer and offscreen
 framebuffer, and these differences affect how the MuJoCo user interacts with the renderer. The window framebuffer is
 created and managed by the operating system and not by OpenGL. As a result, properties such as resolution,
-double-buffering, quad-buffered stereo, mutli-samples, v-sync are set outside OpenGL; this is done by GLFW calls in our
+double-buffering, quad-buffered stereo, multi-samples, v-sync are set outside OpenGL; this is done by GLFW calls in our
 code samples. All OpenGL can do is detect these properties; we do this in mjr_makeContext and record the results in the
 various window capabilities fields of mjrContext. This is why such properties are not part of the MuJoCo model; they are
 session/software-specific and not model-specific. In contrast, the offscreen framebuffer is managed entirely by OpenGL,
