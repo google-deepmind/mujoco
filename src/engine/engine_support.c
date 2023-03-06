@@ -636,8 +636,8 @@ uint64_t mj_hashdjb2(const char* s, uint64_t n) {
   return h % n;
 }
 
-
-// get id of object with specified name; -1: not found
+// get id of object with the specified mjtObj type and name,
+// returns -1 if id not found
 int mj_name2id(const mjModel* m, int type, const char* name) {
   int mapadr;
   int* adr = 0;
@@ -652,19 +652,23 @@ int mj_name2id(const mjModel* m, int type, const char* name) {
 
     do {
       int j = m->names_map[mapadr + i];
-      if (j < 0) return -1;
+      if (j<0) {
+        return -1;
+      }
+
       if (!strncmp(name, m->names+adr[j], m->nnames-adr[j])) {
         return j;
       }
-      if (++i == num) i = 0;
-    } while(i != hash);
+      if ((++i)==num) i = 0;
+    } while (i!=hash);
   }
   return -1;
 }
 
 
 
-// get name of object with specified id; 0: invalid type or id, or null name
+// get name of object with the specified mjtObj type and id,
+// returns NULL if name not found
 const char* mj_id2name(const mjModel* m, int type, int id) {
   int mapadr;
   int* adr = 0;
@@ -672,15 +676,12 @@ const char* mj_id2name(const mjModel* m, int type, int id) {
   // get number of objects and name addresses
   int num = _getnumadr(m, type, &adr, &mapadr);
 
-  if (id>=0 && id<num) {
-    if (m->names[adr[id]]) {
-      return m->names+adr[id];
-    } else {
-      return 0;
-    }
-  } else {
-    return 0;
+  // id is in [0, num) and the found name is not the empty string "\0"
+  if (id>=0 && id<num && m->names[adr[id]]) {
+    return m->names+adr[id];
   }
+
+  return NULL;
 }
 
 

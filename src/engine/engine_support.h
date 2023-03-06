@@ -81,10 +81,10 @@ MJAPI int mj_jacDifPair(const mjModel* m, const mjData* d, int* chain,
 // get string hash, see http://www.cse.yorku.ca/~oz/hash.html
 uint64_t mj_hashdjb2(const char* s, uint64_t n);
 
-// get id of object with specified name; -1: not found; type is mjtObj
+// get id of object with the specified mjtObj type and name, returns -1 if id not found
 MJAPI int mj_name2id(const mjModel* m, int type, const char* name);
 
-// get name of object with specified id; 0: invalid type or id; type is mjtObj
+// get name of object with the specified mjtObj type and id, returns NULL if name not found
 MJAPI const char* mj_id2name(const mjModel* m, int type, int id);
 
 

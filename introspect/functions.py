@@ -2184,7 +2184,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  ),
              ),
          ),
-         doc='Get id of object with specified name, return -1 if not found; type is mjtObj.',  # pylint: disable=line-too-long
+         doc='Get id of object with the specified mjtObj type and name, returns -1 if id not found.',  # pylint: disable=line-too-long
      )),
     ('mj_id2name',
      FunctionDecl(
@@ -2208,7 +2208,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  type=ValueType(name='int'),
              ),
          ),
-         doc='Get name of object with specified id, return 0 if invalid type or id; type is mjtObj.',  # pylint: disable=line-too-long
+         doc='Get name of object with the specified mjtObj type and id, returns NULL if name not found.',  # pylint: disable=line-too-long
      )),
     ('mj_fullM',
      FunctionDecl(

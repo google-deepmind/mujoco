@@ -960,7 +960,7 @@ mj_name2id
 
 .. mujoco-include:: mj_name2id
 
-Get id of object with specified name, return -1 if not found; type is mjtObj.
+Get id of object with the specified mjtObj type and name, returns -1 if id not found.
 
 .. _mj_id2name:
 
@@ -969,7 +969,7 @@ mj_id2name
 
 .. mujoco-include:: mj_id2name
 
-Get name of object with specified id, return 0 if invalid type or id; type is mjtObj.
+Get name of object with the specified mjtObj type and id, returns ``NULL`` if name not found.
 
 .. _mj_fullM:
 
