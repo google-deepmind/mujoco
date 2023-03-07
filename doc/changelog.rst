@@ -28,15 +28,17 @@ Python bindings
   sizes that change between time steps depending on the number of active constraints, breaking strict correspondence
   between joints and `efc_` rows.
 
+Simulate
+^^^^^^^^
+
 .. image:: images/changelog/contactlabel.png
    :align: right
    :width: 400px
 
-Simulate
-^^^^^^^^
-
 - Added optional labels to contact visualization, indicating which two geoms are contacting (names if defined, ids
   otherwise). This can be useful in cluttered scenes.
+
+|br|
 
 Version 2.3.2 (February 7, 2023)
 --------------------------------
