@@ -212,7 +212,7 @@ void mjr_uploadMesh(const mjModel* m, const mjrContext* con, int meshid) {
 
   // check index
   if (meshid<0 || meshid>=m->nmesh) {
-    mju_error_i("Invalid mesh index %d", meshid);
+    mju_error("Invalid mesh index %d", meshid);
   }
 
   // delete old lists (mesh and convex hull)
@@ -405,7 +405,7 @@ void mjr_uploadHField(const mjModel* m, const mjrContext* con, int hfieldid) {
 
   // check index
   if (hfieldid<0 || hfieldid>=m->nhfield) {
-    mju_error_i("Invalid height field index %d", hfieldid);
+    mju_error("Invalid height field index %d", hfieldid);
   }
 
   // delete old list
@@ -1076,7 +1076,7 @@ static void makeShadow(const mjModel* m, mjrContext* con) {
   // check FBO status
   GLenum err = glCheckFramebufferStatus(GL_FRAMEBUFFER);
   if (err!=GL_FRAMEBUFFER_COMPLETE) {
-    mju_error_i("Shadow framebuffer is not complete, error 0x%x", err);
+    mju_error("Shadow framebuffer is not complete, error 0x%x", err);
   }
 
   glDisable(GL_TEXTURE_2D);
@@ -1137,7 +1137,7 @@ static void makeOff(mjrContext* con) {
   // check FBO status
   GLenum err = glCheckFramebufferStatus(GL_FRAMEBUFFER);
   if (err!=GL_FRAMEBUFFER_COMPLETE) {
-    mju_error_i("Offscreen framebuffer is not complete, error 0x%x", err);
+    mju_error("Offscreen framebuffer is not complete, error 0x%x", err);
   }
 
   // get actual number of samples
@@ -1175,7 +1175,7 @@ static void makeOff(mjrContext* con) {
     // check FBO status
     GLenum err = glCheckFramebufferStatus(GL_FRAMEBUFFER);
     if (err!=GL_FRAMEBUFFER_COMPLETE) {
-      mju_error_i("Offscreen framebuffer_r is not complete, error 0x%x", err);
+      mju_error("Offscreen framebuffer_r is not complete, error 0x%x", err);
     }
   }
 }
@@ -1296,7 +1296,7 @@ static void makeFont(mjrContext* con, int fontscale) {
 static void makeTexture(const mjModel* m, mjrContext* con) {
   // checks size
   if (m->ntex>mjMAXTEXTURE) {
-    mju_error_i("Maximum number of textures is %d", mjMAXTEXTURE);
+    mju_error("Maximum number of textures is %d", mjMAXTEXTURE);
   }
 
   // save new size
@@ -1498,7 +1498,7 @@ void mjr_makeContext_offSize(const mjModel* m, mjrContext* con, int fontscale,
     } else if (status==GL_FRAMEBUFFER_UNDEFINED) {
       con->windowAvailable = 0;
     } else {
-      mju_error_i("Default framebuffer is not complete, error 0x%x", status);
+      mju_error("Default framebuffer is not complete, error 0x%x", status);
     }
   }
 
@@ -1601,7 +1601,7 @@ void mjr_makeContext_offSize(const mjModel* m, mjrContext* con, int fontscale,
   // issue warnings for any OpenGL errors
   GLenum err;
   while ((err = glGetError())) {
-    mju_warning_i("OpenGL error 0x%x in or before mjr_makeContext", err);
+    mju_warning("OpenGL error 0x%x in or before mjr_makeContext", err);
   }
 
   // set default color pixel format for mjr_readPixels
@@ -1706,7 +1706,7 @@ void mjr_addAux(int index, int width, int height, int samples, mjrContext* con) 
   // check FBO status
   GLenum err = glCheckFramebufferStatus(GL_FRAMEBUFFER);
   if (err!=GL_FRAMEBUFFER_COMPLETE) {
-    mju_error_i("Auxiliary framebuffer is not complete, error 0x%x", err);
+    mju_error("Auxiliary framebuffer is not complete, error 0x%x", err);
   }
 
   // create FBO for resolving
@@ -1730,7 +1730,7 @@ void mjr_addAux(int index, int width, int height, int samples, mjrContext* con) 
   // check FBO status
   err = glCheckFramebufferStatus(GL_FRAMEBUFFER);
   if (err!=GL_FRAMEBUFFER_COMPLETE) {
-    mju_error_i("Auxiliary framebuffer resolve is not complete, error 0x%x", err);
+    mju_error("Auxiliary framebuffer resolve is not complete, error 0x%x", err);
   }
 
   // restore

@@ -199,7 +199,7 @@ static int mjGlad_open_gl(void) {
 
   handle = dlopen(libname, RTLD_NOW | RTLD_LOCAL);
   if (!handle) {
-    mju_error_s("failed to dlopen %s", libname);
+    mju_error("failed to dlopen %s", libname);
   }
 
   if (platform == mjGL_GLX) {

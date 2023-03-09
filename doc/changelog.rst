@@ -16,6 +16,8 @@ General
   For instance, the constraint Jacobian matrix from the `humanoid100.xml
   <https://github.com/deepmind/mujoco/blob/main/model/humanoid100/humanoid100.xml>`_ model, which previously required
   ~500,000 ``mjtNum``'s, now only requires ~6000. Very large models can now load and run with the CG solver.
+- Modified :ref:`mju_error` and :ref:`mju_warning` to be variadic functions (support for printf-like arguments). The
+  functions :ref:`mju_error_i`, :ref:`mju_error_s`, :ref:`mju_warning_i`, and :ref:`mju_warning_s` are now deprecated.
 
 
 

@@ -541,7 +541,7 @@ void mj_instantiateEquality(const mjModel* m, mjData* d) {
         break;
 
       default:                    // SHOULD NOT OCCUR
-        mju_error_i("Invalid equality constraint type %d", m->eq_type[i]);
+        mju_error("Invalid equality constraint type %d", m->eq_type[i]);
       }
 
       // add constraint
@@ -917,7 +917,7 @@ void mj_diagApprox(const mjModel* m, mjData* d) {
         break;
 
       default:
-        mju_error_i("Unknown constraint type type %d", d->efc_type[i]);    // SHOULD NOT OCCUR
+        mju_error("Unknown constraint type type %d", d->efc_type[i]);    // SHOULD NOT OCCUR
       }
       break;
 
@@ -1616,52 +1616,29 @@ void mj_makeConstraint(const mjModel* m, mjData* d) {
   // check sparse allocation
   if (mj_isSparse(m)) {
     if (d->ne != ne_allocated) {
-      char msg[1024];
-
-      // TODO(b/270530821): add var argument support to mju_error
-      mjSNPRINTF(
-          msg, "ne mis-allocation: found ne=%d but allocated %d", d->ne, ne_allocated);
-      mju_error(msg);
+      mju_error("ne mis-allocation: found ne=%d but allocated %d", d->ne, ne_allocated);
     }
 
     if (d->nf != nf_allocated) {
-      char msg[1024];
-
-      // TODO(b/270530821): add var argument support to mju_error
-      mjSNPRINTF(
-          msg, "nf mis-allocation: found nf=%d but allocated %d", d->nf, nf_allocated);
-      mju_error(msg);
+      mju_error("nf mis-allocation: found nf=%d but allocated %d", d->nf, nf_allocated);
     }
 
     // check that nefc was computed correctly
     if (d->nefc != nefc_allocated) {
-      char msg[1024];
-
-      // TODO(b/270530821): add var argument support to mju_error
-      mjSNPRINTF(
-          msg, "nefc mis-allocation: found nefc=%d but allocated %d", d->nefc, nefc_allocated);
-      mju_error(msg);
+      mju_error("nefc mis-allocation: found nefc=%d but allocated %d", d->nefc, nefc_allocated);
     }
 
     // check that nnzJ was computed correctly
     if (d->nefc > 0) {
       int nnz = d->efc_J_rownnz[d->nefc - 1] + d->efc_J_rowadr[d->nefc - 1];
       if (d->nnzJ != nnz) {
-        char msg[1024];
-
-        // TODO(b/270530821): add var argument support to mju_error
-        mjSNPRINTF(
-            msg, "constraint Jacobian mis-allocation: found nnzJ=%d but allocated %d", nnz, d->nnzJ);
-        mju_error(msg);
+        mju_error("constraint Jacobian mis-allocation: found nnzJ=%d but allocated %d",
+                  nnz, d->nnzJ);
       }
     }
   } else if (d->nefc > nefc_allocated) {
-    char msg[1024];
-
-    // TODO(b/270530821): add var argument support to mju_error
-    mjSNPRINTF(
-        msg, "nefc under-allocation: found nefc=%d but allocated only %d", d->nefc, nefc_allocated);
-    mju_error(msg);
+    mju_error("nefc under-allocation: found nefc=%d but allocated only %d",
+              d->nefc, nefc_allocated);
   }
 
   // collect memory use statistics

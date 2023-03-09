@@ -295,7 +295,7 @@ static void convert2D(mjtNum* res, int action, mjtNum dx, mjtNum dy, const mjtNu
     break;
 
   default:
-    mju_error_i("Unexpected mouse action %d in convert2D", action);
+    mju_error("Unexpected mouse action %d in convert2D", action);
   }
 
   // call 3D converter
@@ -347,7 +347,7 @@ void mjv_moveCamera(const mjModel* m, int action, mjtNum reldx, mjtNum reldy,
     break;
 
   default:
-    mju_error_i("Unexpected action %d in mjv_moveCamera", action);
+    mju_error("Unexpected action %d in mjv_moveCamera", action);
   }
 
   // clamp camera parameters
@@ -434,7 +434,7 @@ void mjv_movePerturb(const mjModel* m, const mjData* d, int action, mjtNum reldx
     break;
 
   default:
-    mju_error_i("Unexpected mouse action %d in mjv_movePerturb", action);
+    mju_error("Unexpected mouse action %d in mjv_movePerturb", action);
   }
 }
 
@@ -510,7 +510,7 @@ void mjv_moveModel(const mjModel* m, int action, mjtNum reldx, mjtNum reldy,
     break;
 
   default:
-    mju_error_i("Unexpected action %d in mjv_moveModel", action);
+    mju_error("Unexpected action %d in mjv_moveModel", action);
   }
 }
 

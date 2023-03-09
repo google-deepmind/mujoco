@@ -23,6 +23,15 @@
 extern "C" {
 #endif
 
+#ifndef mjPRINTFLIKE
+  #if defined(__GNUC__)
+    #define mjPRINTFLIKE(n, m) __attribute__((format(printf, n, m)))
+  #else
+    #define mjPRINTFLIKE(n, m)
+  #endif // __GNUC__
+#endif // mjPRINTFLIKE
+
+
 //------------------------------ user handlers -----------------------------------------------------
 
 MJAPI extern void (*mju_user_error)(const char*);
@@ -42,12 +51,12 @@ MJAPI void _mjPRIVATE__set_tls_warning_fn(void (*h)(const char*));
 //------------------------------ errors and warnings -----------------------------------------------
 
 // errors
-MJAPI void mju_error(const char* msg);
+MJAPI void mju_error(const char* msg, ...) mjPRINTFLIKE(1, 2);
 MJAPI void mju_error_i(const char* msg, int i);
 MJAPI void mju_error_s(const char* msg, const char* text);
 
 // warnings
-MJAPI void mju_warning(const char* msg);
+MJAPI void mju_warning(const char* msg, ...) mjPRINTFLIKE(1, 2);
 MJAPI void mju_warning_i(const char* msg, int i);
 MJAPI void mju_warning_s(const char* msg, const char* text);
 

@@ -724,16 +724,13 @@ triggers an error. It also keeps track of the maximum stack allocation; see :ref
 Errors, warnings, memory allocation
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-When a terminal error occurs, MuJoCo calls the function :ref:`mju_error` internally. This function has a single argument
-which is the error message. The helper functions :ref:`mju_error_i` and :ref:`mju_error_s` are also used, but they
-simply construct the error message using a printf format string and an additional integer or string argument, and then
-call mju_error. Here is what mju_error does:
+When a terminal error occurs, MuJoCo calls the function :ref:`mju_error` internally. Here is what mju_error does:
 
 #. Append the error message at the end of the file MUJOCO_LOG.TXT in the program directory (create the file if it does
    not exist). Also write the date and time along with the error message.
-#. If the user error callback :ref:`mju_user_error` is installed, call that function
-   with the error message as argument. Otherwise printf the error message, printf "Press Enter to exit...", getchar()
-   and exit(1).
+#. If the user error callback :ref:`mju_user_error` is installed, call that function with the error message as
+   argument. Otherwise, print the error message and "Press Enter to exit..." to standard output. Then wait for any
+   keyboard input, and then terminate the simulator with failure.
 
 If a user error callback is installed, it must **not** return, otherwise the behavior of the simulator is undefined.
 The idea here is that if mju_error is called, the simulation cannot continue and the user is expected to make some

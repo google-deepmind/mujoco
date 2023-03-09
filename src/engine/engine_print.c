@@ -139,13 +139,13 @@ static bool validateFloatFormat(const char* float_format) {
 
   // example valid format string: "% -9.2g"
   if (strnlen(float_format, FLOAT_FORMAT_MAX_LEN + 1) > FLOAT_FORMAT_MAX_LEN) {
-    mju_warning_i("Format string longer than limit of %d.", FLOAT_FORMAT_MAX_LEN);
+    mju_warning("Format string longer than limit of %d.", FLOAT_FORMAT_MAX_LEN);
     return false;
   }
 
   int cur_idx = 0;
   if (float_format[cur_idx] != '%') {
-    mju_warning("Format string must start with '%'.");
+    mju_warning("Format string must start with '%%'.");
     return false;
   }
   cur_idx++;
@@ -192,8 +192,8 @@ static bool validateFloatFormat(const char* float_format) {
   if (float_format[cur_idx] == '\0') {
     return true;
   } else {
-    mju_warning_s("Unable to match format string %s with expected pattern for a single float.",
-                  float_format);
+    mju_warning("Unable to match format string %s with expected pattern for a single float.",
+                float_format);
     return false;
   }
 }
@@ -219,7 +219,7 @@ void mj_printFormattedModel(const mjModel* m, const char* filename, const char* 
 
   // check for nullptr
   if (!fp) {
-    mju_warning_s("Could not open file '%s' for writing mjModel", filename);
+    mju_warning("Could not open file '%s' for writing mjModel", filename);
     return;
   }
 
@@ -748,7 +748,7 @@ void mj_printFormattedData(const mjModel* m, mjData* d, const char* filename,
 
   // check for nullptr
   if (!fp) {
-    mju_warning_s("Could not open file '%s' for writing mjModel", filename);
+    mju_warning("Could not open file '%s' for writing mjModel", filename);
     mjFREESTACK;
     return;
   }

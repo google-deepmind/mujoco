@@ -300,7 +300,7 @@ void mjr_setAux(int index, const mjrContext* con) {
     glReadBuffer(GL_COLOR_ATTACHMENT0);
     glDrawBuffer(GL_COLOR_ATTACHMENT0);
   } else {
-    mju_error_i("auxFBO %d does not exist", index);
+    mju_error("auxFBO %d does not exist", index);
   }
 }
 

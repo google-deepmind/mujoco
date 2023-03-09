@@ -168,11 +168,11 @@ void mj_passive(const mjModel* m, mjData* d) {
       const int slot = m->plugin[i];
       const mjpPlugin* plugin = mjp_getPluginAtSlotUnsafe(slot, nslot);
       if (!plugin) {
-        mju_error_i("invalid plugin slot: %d", slot);
+        mju_error("invalid plugin slot: %d", slot);
       }
       if (plugin->capabilityflags & mjPLUGIN_PASSIVE) {
         if (!plugin->compute) {
-          mju_error_i("`compute` is a null function pointer for plugin at slot %d", slot);
+          mju_error("`compute` is a null function pointer for plugin at slot %d", slot);
         }
         plugin->compute(m, d, i, mjPLUGIN_PASSIVE);
       }

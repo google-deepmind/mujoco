@@ -57,7 +57,7 @@ void initMuJoCo(const char* filename) {
     m = mj_loadXML(filename, 0, error, 1000);
   }
   if (!m) {
-    mju_error_s("Load model error: %s", error);
+    mju_error("Load model error: %s", error);
   }
 
   // make data, run one computation to initialize all fields
@@ -109,36 +109,36 @@ void initOpenGL(void) {
   // get default display
   EGLDisplay eglDpy = eglGetDisplay(EGL_DEFAULT_DISPLAY);
   if (eglDpy==EGL_NO_DISPLAY) {
-    mju_error_i("Could not get EGL display, error 0x%x\n", eglGetError());
+    mju_error("Could not get EGL display, error 0x%x\n", eglGetError());
   }
 
   // initialize
   EGLint major, minor;
   if (eglInitialize(eglDpy, &major, &minor)!=EGL_TRUE) {
-    mju_error_i("Could not initialize EGL, error 0x%x\n", eglGetError());
+    mju_error("Could not initialize EGL, error 0x%x\n", eglGetError());
   }
 
   // choose config
   EGLint numConfigs;
   EGLConfig eglCfg;
   if (eglChooseConfig(eglDpy, configAttribs, &eglCfg, 1, &numConfigs)!=EGL_TRUE) {
-    mju_error_i("Could not choose EGL config, error 0x%x\n", eglGetError());
+    mju_error("Could not choose EGL config, error 0x%x\n", eglGetError());
   }
 
   // bind OpenGL API
   if (eglBindAPI(EGL_OPENGL_API)!=EGL_TRUE) {
-    mju_error_i("Could not bind EGL OpenGL API, error 0x%x\n", eglGetError());
+    mju_error("Could not bind EGL OpenGL API, error 0x%x\n", eglGetError());
   }
 
   // create context
   EGLContext eglCtx = eglCreateContext(eglDpy, eglCfg, EGL_NO_CONTEXT, NULL);
   if (eglCtx==EGL_NO_CONTEXT) {
-    mju_error_i("Could not create EGL context, error 0x%x\n", eglGetError());
+    mju_error("Could not create EGL context, error 0x%x\n", eglGetError());
   }
 
   // make context current, no surface (let OpenGL handle FBO)
   if (eglMakeCurrent(eglDpy, EGL_NO_SURFACE, EGL_NO_SURFACE, eglCtx)!=EGL_TRUE) {
-    mju_error_i("Could not make EGL context current, error 0x%x\n", eglGetError());
+    mju_error("Could not make EGL context current, error 0x%x\n", eglGetError());
   }
 
   //------------------------ OSMESA

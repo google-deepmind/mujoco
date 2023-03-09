@@ -135,7 +135,7 @@ void mj_kinematics(const mjModel* m, mjData* d) {
           break;
 
         default:
-          mju_error_i("Unknown joint type %d", jtype);    // SHOULD NOT OCCUR
+          mju_error("Unknown joint type %d", jtype);    // SHOULD NOT OCCUR
         }
 
         // assign xanchor and xaxis
@@ -514,7 +514,7 @@ void mj_tendon(const mjModel* m, mjData* d) {
         // do wrapping, possibly get 2 extra points (wlen>=0)
         sideid = mju_round(m->wrap_prm[adr+j+1]);
         if (sideid<-1 || sideid>=m->nsite) {
-          mju_error_i("Invalid sideid %d in wrap_prm", sideid);  // SHOULD NOT OCCUR
+          mju_error("Invalid sideid %d in wrap_prm", sideid);  // SHOULD NOT OCCUR
         }
 
         wlen = mju_wrap(wpnt+3, d->site_xpos+3*id0, d->site_xpos+3*id1,
@@ -943,7 +943,7 @@ void mj_transmission(const mjModel* m, mjData* d) {
       break;
 
     default:
-      mju_error_i("Unknown transmission type %d", m->actuator_trntype[i]);  // SHOULD NOT OCCUR
+      mju_error("Unknown transmission type %d", m->actuator_trntype[i]);  // SHOULD NOT OCCUR
     }
   }
 
@@ -1503,7 +1503,7 @@ void mj_rnePostConstraint(const mjModel* m, mjData* d) {
   int i = 0;
   while (i < d->ne) {
     if (d->efc_type[i]!=mjCNSTR_EQUALITY)
-      mju_error_i("Row %d of efc is not an equality constraint", i);  // SHOULD NOT OCCUR
+      mju_error("Row %d of efc is not an equality constraint", i);  // SHOULD NOT OCCUR
 
     int id = d->efc_id[i];
     mjtNum* eq_data = m->eq_data + mjNEQDATA*id;
@@ -1555,7 +1555,7 @@ void mj_rnePostConstraint(const mjModel* m, mjData* d) {
       break;
 
     default:
-      mju_error_i("Unknown constraint type type %d", m->eq_type[id]);    // SHOULD NOT OCCUR
+      mju_error("Unknown constraint type type %d", m->eq_type[id]);    // SHOULD NOT OCCUR
     }
   }
 

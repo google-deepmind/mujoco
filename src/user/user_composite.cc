@@ -206,7 +206,7 @@ void mjCComposite::SetDefault(void) {
     break;
   default:
     // SHOULD NOT OCCUR
-    mju_error_i("Invalid composite type: %d", type);
+    mju_error("Invalid composite type: %d", type);
     break;
   }
 }
@@ -543,7 +543,7 @@ bool mjCComposite::MakeCable(mjCModel* model, mjCBody* body, char* error, int er
           break;
         default:
           // SHOULD NOT OCCUR
-          mju_error_i("Invalid composite shape: %d", curve[k]);
+          mju_error("Invalid composite shape: %d", curve[k]);
           break;
         }
       }

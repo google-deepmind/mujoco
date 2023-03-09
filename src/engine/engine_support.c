@@ -267,7 +267,7 @@ void mj_jacSparse(const mjModel* m, const mjData* d,
 
     // make sure we found it; SHOULD NOT OCCUR
     if (chain[ci]!=da) {
-      mju_error_i("dof index %d not found in chain", da);
+      mju_error("dof index %d not found in chain", da);
     }
 
     // construct rotation jacobian
@@ -1083,7 +1083,7 @@ void mj_applyFT(const mjModel* m, mjData* d,
 
   // make sure body is in range
   if (body<0 || body>=m->nbody) {
-    mju_error_i("Invalid body %d in applyFT", body);
+    mju_error("Invalid body %d in applyFT", body);
   }
 
   // compute Jacobians
@@ -1158,7 +1158,7 @@ void mj_objectVelocity(const mjModel* m, const mjData* d,
 
   // object without spatial frame
   else {
-    mju_error_i("Invalid object type %d in mj_objectVelocity", objtype);
+    mju_error("Invalid object type %d in mj_objectVelocity", objtype);
   }
 
   // transform velocity
@@ -1211,7 +1211,7 @@ void mj_objectAcceleration(const mjModel* m, const mjData* d,
 
   // object without spatial frame
   else {
-    mju_error_i("Invalid object type %d in mj_objectAcceleration", objtype);
+    mju_error("Invalid object type %d in mj_objectAcceleration", objtype);
   }
 
   // transform com-based velocity to local frame
@@ -1416,11 +1416,10 @@ void mj_setTotalmass(mjModel* m, mjtNum newmass) {
 
 // count warnings, print only the first time
 void mj_warning(mjData* d, int warning, int info) {
-  char str[1000];
 
   // check type
   if (warning<0 || warning>=mjNWARNING) {
-    mju_error_i("Invalid warning type %d", warning);
+    mju_error("Invalid warning type %d", warning);
   }
 
   // save info (override previous)
@@ -1428,8 +1427,7 @@ void mj_warning(mjData* d, int warning, int info) {
 
   // print message only the first time this warning is encountered
   if (!d->warning[warning].number) {
-    mjSNPRINTF(str, "%s Time = %.4f.", mju_warningText(warning, info), d->time);
-    mju_warning(str);
+    mju_warning("%s Time = %.4f.", mju_warningText(warning, info), d->time);
   }
 
   // increase counter

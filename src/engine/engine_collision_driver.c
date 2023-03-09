@@ -766,7 +766,7 @@ void mj_collideGeoms(const mjModel* m, mjData* d, int g1, int g2, int flg_user, 
   for (i=0; i<num; i++) {
     // set contact data
     if (condim > 6 || condim < 1) {  // SHOULD NOT OCCUR
-      mju_error_i("Invalid condim value: %d", i);
+      mju_error("Invalid condim value: %d", i);
     }
     con[i].dim = condim;
     con[i].geom1 = g1;

@@ -4674,7 +4674,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  type=ValueType(name='int'),
              ),
          ),
-         doc='Error function with int argument; msg is a printf format string.',
+         doc='Deprecated: use mju_error',
      )),
     ('mju_error_s',
      FunctionDecl(
@@ -4694,7 +4694,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  ),
              ),
          ),
-         doc='Error function with string argument.',
+         doc='Deprecated: use mju_error',
      )),
     ('mju_warning',
      FunctionDecl(
@@ -4726,7 +4726,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  type=ValueType(name='int'),
              ),
          ),
-         doc='Warning function with int argument.',
+         doc='Deprecated: use mju_warning',
      )),
     ('mju_warning_s',
      FunctionDecl(
@@ -4746,7 +4746,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  ),
              ),
          ),
-         doc='Warning function with string argument.',
+         doc='Deprecated: use_mju_warning',
      )),
     ('mju_clearHandlers',
      FunctionDecl(

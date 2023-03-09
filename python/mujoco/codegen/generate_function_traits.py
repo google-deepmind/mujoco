@@ -30,6 +30,11 @@ def main(argv: Sequence[str]) -> None:
 
   struct_decls = []
   for func in FUNCTIONS.values():
+    # Skip mju_error_{i,s} and mju_warning_{i,s} as these are not
+    # supported in the Python bindings, and Introspect currently
+    # doesn't support variadic functions.
+    if func.name.startswith('mju_error') or func.name == 'mju_warning':
+      continue
 
     # Modify some parameter types.
     parameters = []

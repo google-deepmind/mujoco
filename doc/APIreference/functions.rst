@@ -1841,7 +1841,7 @@ mju_error_i
 
 .. mujoco-include:: mju_error_i
 
-Error function with int argument; msg is a printf format string.
+Deprecated: use mju_error
 
 .. _mju_error_s:
 
@@ -1850,7 +1850,7 @@ mju_error_s
 
 .. mujoco-include:: mju_error_s
 
-Error function with string argument.
+Deprecated: use mju_error
 
 .. _mju_warning:
 
@@ -1868,7 +1868,7 @@ mju_warning_i
 
 .. mujoco-include:: mju_warning_i
 
-Warning function with int argument.
+Deprecated: use mju_warning
 
 .. _mju_warning_s:
 
@@ -1877,7 +1877,7 @@ mju_warning_s
 
 .. mujoco-include:: mju_warning_s
 
-Warning function with string argument.
+Deprecated: use_mju_warning
 
 .. _mju_clearHandlers:
 

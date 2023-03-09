@@ -223,8 +223,8 @@ int mjp_registerPlugin(const mjpPlugin* plugin) {
   } else if (plugin->nattribute < 0) {
     mju_error("plugin->nattribute is negative");
   } else if (plugin->nattribute > kMaxAttributes) {
-    mju_error_i("plugin->nattribute exceeds the maximum limit of ",
-                kMaxAttributes);
+    mju_error("plugin->nattribute exceeds the maximum limit of %i",
+              kMaxAttributes);
   }
 
   char err[512];
@@ -339,7 +339,7 @@ int mjp_registerPlugin(const mjpPlugin* plugin) {
   // plugin registration failed, throw an mju_error
   if (slot < 0) {
     err[sizeof(err) - 1] = '\0';
-    mju_error(err);
+    mju_error("%s", err);
   }
 
   return slot;

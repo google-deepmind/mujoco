@@ -30,7 +30,7 @@ void* mju_fileToMemory(const char* filename, int* filesize) {
   // find size
   if (fseek(fp, 0, SEEK_END) != 0) {
     fclose(fp);
-    mju_warning_s("Failed to calculate size for '%s'", filename);
+    mju_warning("Failed to calculate size for '%s'", filename);
     return NULL;
   }
 
@@ -38,11 +38,11 @@ void* mju_fileToMemory(const char* filename, int* filesize) {
   long long_filesize = ftell(fp);  // NOLINT(runtime/int)
   if (long_filesize > INT_MAX) {
     fclose(fp);
-    mju_warning_s("File size over 2GB is not supported. File: '%s'", filename);
+    mju_warning("File size over 2GB is not supported. File: '%s'", filename);
     return NULL;
   } else if (long_filesize < 0) {
     fclose(fp);
-    mju_warning_s("Failed to calculate size for '%s'", filename);
+    mju_warning("Failed to calculate size for '%s'", filename);
     return NULL;
   }
   *filesize = long_filesize;
@@ -50,7 +50,7 @@ void* mju_fileToMemory(const char* filename, int* filesize) {
   // go back to start of file
   if (fseek(fp, 0, SEEK_SET) != 0) {
     fclose(fp);
-    mju_warning_s("Read error while reading '%s'", filename);
+    mju_warning("Read error while reading '%s'", filename);
     return NULL;
   }
 
@@ -67,7 +67,7 @@ void* mju_fileToMemory(const char* filename, int* filesize) {
       fclose(fp);
       mju_free(buffer);
       *filesize = 0;
-      mju_warning_s("Read error while reading '%s'", filename);
+      mju_warning("Read error while reading '%s'", filename);
       return NULL;
     } else if (feof(fp)) {
       *filesize = bytes_read;

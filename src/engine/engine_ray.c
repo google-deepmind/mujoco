@@ -674,7 +674,7 @@ mjtNum mju_rayGeom(const mjtNum* pos, const mjtNum* mat, const mjtNum* size,
     return ray_box(pos, mat, size, pnt, vec, NULL);
 
   default:
-    mju_error_i("mju_rayGeom: unexpected geom type %d", geomtype);
+    mju_error("mju_rayGeom: unexpected geom type %d", geomtype);
     return -1;
   }
 }

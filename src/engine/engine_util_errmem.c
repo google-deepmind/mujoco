@@ -18,12 +18,14 @@
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdarg.h>
 #include <time.h>
 
 #if defined (__unix__) || (defined (__APPLE__) && defined (__MACH__))
 #include <unistd.h>
 #endif
 
+#include "engine/engine_array_safety.h"
 #include "engine/engine_macro.h"
 //------------------------- cross-platform aligned malloc/free -------------------------------------
 
@@ -122,70 +124,74 @@ void mju_writeLog(const char* type, const char* msg) {
 
 
 // write message to logfile and console, pause and exit
-void mju_error(const char* msg) {
+void mju_error(const char* msg, ...) {
+  char errmsg[1000];
+
+  // Format msg into errmsg
+  va_list args;
+  va_start(args, msg);
+  vsnprintf(errmsg, mjSIZEOFARRAY(errmsg), msg, args);
+  va_end(args);
+
   if (_mjPRIVATE_tls_error_fn) {
-    _mjPRIVATE_tls_error_fn(msg);
+    _mjPRIVATE_tls_error_fn(errmsg);
   } else if (mju_user_error) {
-    mju_user_error(msg);
+    mju_user_error(errmsg);
   } else {
      // write to log and console
-    mju_writeLog("ERROR", msg);
-    printf("ERROR: %s\n\nPress Enter to exit ...", msg);
+    mju_writeLog("ERROR", errmsg);
+    printf("ERROR: %s\n\nPress Enter to exit ...", errmsg);
 
     // pause, exit
     getchar();
-    exit(1);
+    exit(EXIT_FAILURE);
   }
 }
 
 
 // write message to logfile and console
-void mju_warning(const char* msg) {
+void mju_warning(const char* msg, ...) {
+  char wrnmsg[1000];
+
+  // Format msg into wrnmsg
+  va_list args;
+  va_start(args, msg);
+  vsnprintf(wrnmsg, mjSIZEOFARRAY(wrnmsg), msg, args);
+  va_end(args);
+
   if (_mjPRIVATE_tls_warning_fn) {
-    _mjPRIVATE_tls_warning_fn(msg);
+    _mjPRIVATE_tls_warning_fn(wrnmsg);
   } else if (mju_user_warning) {
-    mju_user_warning(msg);
+    mju_user_warning(wrnmsg);
   } else {
     // write to log file and console
-    mju_writeLog("WARNING", msg);
-    printf("WARNING: %s\n\n", msg);
+    mju_writeLog("WARNING", wrnmsg);
+    printf("WARNING: %s\n\n", wrnmsg);
   }
 }
 
 
 // error with int argument
 void mju_error_i(const char* msg, int i) {
-  char errmsg[1000];
-  snprintf(errmsg, sizeof(errmsg), msg, i);
-  errmsg[999] = '\0';
-  mju_error(errmsg);
+  mju_error(msg, i);
 }
 
 
 // warning with int argument
 void mju_warning_i(const char* msg, int i) {
-  char wrnmsg[1000];
-  snprintf(wrnmsg, sizeof(wrnmsg), msg, i);
-  wrnmsg[999] = '\0';
-  mju_warning(wrnmsg);
+  mju_warning(msg, i);
 }
 
 
 // error string argument
 void mju_error_s(const char* msg, const char* text) {
-  char errmsg[1000];
-  snprintf(errmsg, sizeof(errmsg), msg, text);
-  errmsg[999] = '\0';
-  mju_error(errmsg);
+  mju_error(msg, text);
 }
 
 
 // warning string argument
 void mju_warning_s(const char* msg, const char* text) {
-  char wrnmsg[1000];
-  snprintf(wrnmsg, sizeof(wrnmsg), msg, text);
-  wrnmsg[999] = '\0';
-  mju_warning(wrnmsg);
+  mju_warning(msg, text);
 }
 
 

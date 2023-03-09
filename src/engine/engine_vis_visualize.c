@@ -304,7 +304,7 @@ void mjv_makeConnector(mjvGeom* geom, int type, mjtNum width,
   if (type!=mjGEOM_CAPSULE && type!=mjGEOM_CYLINDER &&
       type!=mjGEOM_ARROW && type!=mjGEOM_ARROW1 && type!=mjGEOM_ARROW2
       && type!=mjGEOM_LINE) {
-    mju_error_i("Invalid geom type %d for connector", type);
+    mju_error("Invalid geom type %d for connector", type);
   }
 
   // assign type
@@ -770,7 +770,7 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
           break;
 
         default:
-          mju_error_i("Unknown joint type %d in mjv_visualize", m->jnt_type[i]);
+          mju_error("Unknown joint type %d in mjv_visualize", m->jnt_type[i]);
         }
 
         f2f(thisgeom->rgba, m->vis.rgba.joint, 4);
@@ -2008,7 +2008,7 @@ void mjv_updateScene(const mjModel* m, mjData* d, const mjvOption* opt,
       const int slot = m->plugin[i];
       const mjpPlugin* plugin = mjp_getPluginAtSlotUnsafe(slot, nslot);
       if (!plugin) {
-        mju_error_i("invalid plugin slot: %d", slot);
+        mju_error("invalid plugin slot: %d", slot);
       }
       if (plugin->visualize) {
         plugin->visualize(m, d, scn, i);
@@ -2190,4 +2190,3 @@ int mjv_catenary(const mjtNum x0[3], const mjtNum x1[3], const mjtNum gravity[3]
 
   return 0;  // SHOULD NOT OCCUR
 }
-

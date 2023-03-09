@@ -2041,10 +2041,10 @@ void mjui_update(int section, int item, const mjUI* ui,
                  const mjuiState* state, const mjrContext* con);
 mjuiItem* mjui_event(mjUI* ui, mjuiState* state, const mjrContext* con);
 void mjui_render(mjUI* ui, const mjuiState* state, const mjrContext* con);
-void mju_error(const char* msg);
+void mju_error(const char* msg, ...) mjPRINTFLIKE(1, 2);
 void mju_error_i(const char* msg, int i);
 void mju_error_s(const char* msg, const char* text);
-void mju_warning(const char* msg);
+void mju_warning(const char* msg, ...) mjPRINTFLIKE(1, 2);
 void mju_warning_i(const char* msg, int i);
 void mju_warning_s(const char* msg, const char* text);
 void mju_clearHandlers(void);

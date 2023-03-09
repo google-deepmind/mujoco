@@ -278,11 +278,11 @@ void mj_fwdActuation(const mjModel* m, mjData* d) {
       const int slot = m->plugin[i];
       const mjpPlugin* plugin = mjp_getPluginAtSlotUnsafe(slot, nslot);
       if (!plugin) {
-        mju_error_i("invalid plugin slot: %d", slot);
+        mju_error("invalid plugin slot: %d", slot);
       }
       if (plugin->capabilityflags & mjPLUGIN_ACTUATOR) {
         if (!plugin->compute) {
-          mju_error_i("`compute` is a null function pointer for plugin at slot %d", slot);
+          mju_error("`compute` is a null function pointer for plugin at slot %d", slot);
         }
         plugin->compute(m, d, i, mjPLUGIN_ACTUATOR);
       }
@@ -480,7 +480,7 @@ void mj_fwdConstraint(const mjModel* m, mjData* d) {
     break;
 
   default:
-    mju_error_i("Unknown solver type %d", m->opt.solver);
+    mju_error("Unknown solver type %d", m->opt.solver);
   }
 
   // save result for next step warmstart
@@ -533,7 +533,7 @@ static void mj_advance(const mjModel* m, mjData* d,
       const int slot = m->plugin[i];
       const mjpPlugin* plugin = mjp_getPluginAtSlotUnsafe(slot, nslot);
       if (!plugin) {
-        mju_error_i("invalid plugin slot: %d", slot);
+        mju_error("invalid plugin slot: %d", slot);
       }
       if (plugin->advance) {
         plugin->advance(m, d, i);

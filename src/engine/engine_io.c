@@ -566,7 +566,7 @@ void mj_saveModel(const mjModel* m, const char* filename, void* buffer, int buff
   if (!buffer) {
     fp = fopen(filename, "wb");
     if (!fp) {
-      mju_warning_s("Could not open file '%s'", filename);
+      mju_warning("Could not open file '%s'", filename);
       return;
     }
   }
@@ -632,7 +632,7 @@ mjModel* mj_loadModel(const char* filename, const mjVFS* vfs) {
   if (!buffer) {
     fp = fopen(filename, "rb");
     if (!fp) {
-      mju_warning_s("Could not open file '%s'", filename);
+      mju_warning("Could not open file '%s'", filename);
       return 0;
     }
   }
@@ -765,7 +765,7 @@ mjModel* mj_loadModel(const char* filename, const mjVFS* vfs) {
 
   const char* validationError = mj_validateReferences(m);
   if (validationError) {
-    mju_warning(validationError);
+    mju_warning("%s", validationError);
     mj_deleteModel(m);
     return 0;
   }
@@ -888,7 +888,7 @@ static mjData* _makeData(const mjModel* m) {
         mju_free(d->buffer);
         mju_free(d->arena);
         mju_free(d);
-        mju_error_i("plugin->init failed for plugin id %d", i);
+        mju_error("plugin->init failed for plugin id %d", i);
       }
     }
   }
@@ -1018,12 +1018,10 @@ mjtNum* mj_stackAlloc(mjData* d, int size) {
   size_t stack_available_bytes = d->nstack * sizeof(mjtNum) - d->parena;
   size_t stack_required_bytes = (d->pstack + size) * sizeof(mjtNum);
   if (stack_required_bytes > stack_available_bytes) {
-    char err[256];
-    mjSNPRINTF(err, "stack overflow: max = %zu, available = %zu, requested = %zu "
-                    "(ne = %d, nf = %d, nefc = %d, ncon = %d)",
-               d->nstack * sizeof(mjtNum), stack_available_bytes, stack_required_bytes,
-               d->ne, d->nf, d->nefc, d->ncon);
-    mju_error(err);
+    mju_error("stack overflow: max = %zu, available = %zu, requested = %zu "
+              "(ne = %d, nf = %d, nefc = %d, ncon = %d)",
+              d->nstack * sizeof(mjtNum), stack_available_bytes, stack_required_bytes,
+              d->ne, d->nf, d->nefc, d->ncon);
   }
 
   // allocate at end of arena
@@ -1596,8 +1594,8 @@ const char* mj_validateReferences(const mjModel* m) {
     if (sensor_type == mjSENS_PLUGIN) {
       const mjpPlugin* plugin = mjp_getPluginAtSlot(m->plugin[m->sensor_plugin[i]]);
       if (!plugin->nsensordata) {
-        mju_error_i("`nsensordata` is a null function pointer for plugin at slot %d",
-                    m->plugin[m->sensor_plugin[i]]);
+        mju_error("`nsensordata` is a null function pointer for plugin at slot %d",
+                  m->plugin[m->sensor_plugin[i]]);
       }
       sensor_size = plugin->nsensordata(m, m->sensor_plugin[i], i);
     } else {
