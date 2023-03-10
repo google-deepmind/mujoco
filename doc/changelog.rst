@@ -9,7 +9,7 @@ General
 ^^^^^^^
 
 - The ``mjd_transitionFD`` function no longer triggers sensor calculation unless explicitly requested.
-- Corrected the spelling of the ``inteval`` attribute to ``interval`` in the ``mjLROpt`` struct.
+- Corrected the spelling of the ``inteval`` attribute to ``interval`` in the :ref:`mjLROpt` struct.
 - Mesh texture and normal mappings are now 3-per-triangle rather than 1-per-vertex. Mesh vertices are no longer
   duplicated in order to circumvent this limitation as they previously were.
 - The non-zeros for the sparse constraint Jacobian matrix are now precounted and used for matrix memory allocation.

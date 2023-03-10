@@ -10,5 +10,6 @@ contains additional text not available in the headers.
 .. toctree::
    :maxdepth: 2
 
-   APIdatastructures
+   APItypes
+   APIglobals
    APIfunctions
