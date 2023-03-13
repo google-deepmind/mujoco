@@ -40,10 +40,7 @@
 #define mjNSOLVER       1000      // size of mjData.solver_XXX arrays
 
 
-//---------------------------------- primitive types (mjt) -----------------------------------------
-
-typedef unsigned char mjtByte;    // used for true/false
-
+//---------------------------------- enum types (mjt) ----------------------------------------------
 
 typedef enum mjtDisableBit_ {     // disable default feature bitflags
   mjDSBL_CONSTRAINT   = 1<<0,     // entire constraint solver

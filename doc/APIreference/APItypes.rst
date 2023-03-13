@@ -34,8 +34,7 @@ MuJoCo defines a large number of types:
 Primitive types
 ^^^^^^^^^^^^^^^
 
-The two types below are defined in `mjtnum.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjtnum.h>`_
-and `mjmodel.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjmodel.h>`_, respectively.
+The two types below are defined in `mjtnum.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjtnum.h>`_.
 
 .. _mjtNum:
 
