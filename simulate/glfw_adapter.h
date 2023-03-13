@@ -21,6 +21,11 @@
 #include <mujoco/mujoco.h>
 #include "platform_ui_adapter.h"
 
+#ifdef __APPLE__
+#include <optional>
+#include "glfw_corevideo.h"
+#endif
+
 namespace mujoco {
 class GlfwAdapter : public PlatformUIAdapter {
  public:
@@ -61,6 +66,12 @@ class GlfwAdapter : public PlatformUIAdapter {
   // store last window information when going to full screen
   std::pair<int, int> window_pos_;
   std::pair<int, int> window_size_;
+
+#ifdef __APPLE__
+  // Workaround for perpertually broken OpenGL VSync on macOS,
+  // most recently https://github.com/glfw/glfw/issues/2249.
+  std::optional<GlfwCoreVideo> core_video_;
+#endif
 };
 }  // namespace mujoco
 

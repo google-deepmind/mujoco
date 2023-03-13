@@ -33,6 +33,9 @@ Python bindings
 Simulate
 ^^^^^^^^
 
+- Implemented a workaround for `broken VSync <https://github.com/glfw/glfw/issues/2249>`_ on macOS so that the frame
+  rate is correctly capped when the Vertical Sync toggle is enabled.
+
 .. image:: images/changelog/contactlabel.png
    :align: right
    :width: 400px
@@ -41,6 +44,7 @@ Simulate
   otherwise). This can be useful in cluttered scenes.
 
 |br|
+
 
 Version 2.3.2 (February 7, 2023)
 --------------------------------

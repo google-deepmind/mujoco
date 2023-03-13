@@ -17,6 +17,11 @@
 
 #include <GLFW/glfw3.h>
 
+#ifdef __APPLE__
+#define GLFW_EXPOSE_NATIVE_NSGL
+#include <GLFW/glfw3native.h>
+#endif
+
 namespace mujoco {
 // Dynamic dispatch table for GLFW functions required by Simulate.
 // This allows us to use GLFW without introducing a link-time dependency on the
@@ -58,6 +63,11 @@ struct Glfw {
   mjGLFW_DECLARE_SYMBOL(glfwWindowHint);
   mjGLFW_DECLARE_SYMBOL(glfwWindowShouldClose);
   // go/keep-sorted end
+
+#ifdef __APPLE__
+  mjGLFW_DECLARE_SYMBOL(glfwGetNSGLContext);
+#endif
+
 #undef mjGLFW_DECLARE_SYMBOL
 };
 

@@ -108,6 +108,10 @@ target_sources(
   PRIVATE glfw_adapter.cc glfw_dispatch.cc platform_ui_adapter.cc
 )
 target_compile_options(platform_ui_adapter PUBLIC ${MUJOCO_SIMULATE_COMPILE_OPTIONS})
+if(APPLE)
+  target_sources(platform_ui_adapter PUBLIC glfw_corevideo.h PRIVATE glfw_corevideo.mm)
+  target_link_libraries(platform_ui_adapter PUBLIC "-framework CoreVideo")
+endif()
 target_include_directories(
   platform_ui_adapter PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}
                              $<TARGET_PROPERTY:glfw,INTERFACE_INCLUDE_DIRECTORIES>

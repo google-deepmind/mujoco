@@ -1950,6 +1950,9 @@ void Simulate::renderloop() {
   uiModify(&this->ui0, &this->uistate, &this->platform_ui->mjr_context());
   uiModify(&this->ui1, &this->uistate, &this->platform_ui->mjr_context());
 
+  // set VSync to initial value
+  this->platform_ui->SetVSync(this->vsync);
+
   // run event loop
   while (!this->platform_ui->ShouldCloseWindow() && !this->exitrequest.load()) {
     {

@@ -22,6 +22,10 @@
 #include <mujoco/mujoco.h>
 #include "glfw_dispatch.h"
 
+#ifdef __APPLE__
+#include "glfw_corevideo.h"
+#endif
+
 namespace mujoco {
 namespace {
 int MaybeGlfwInit() {
@@ -88,6 +92,12 @@ GlfwAdapter::GlfwAdapter() {
       });
   Glfw().glfwSetWindowRefreshCallback(
       window_, +[](GLFWwindow* window) {
+#ifdef __APPLE__
+        auto& core_video = GlfwAdapterFromWindow(window).core_video_;
+        if (core_video.has_value()) {
+          core_video->UpdateDisplayLink();
+        }
+#endif
         GlfwAdapterFromWindow(window).OnWindowRefresh();
       });
   Glfw().glfwSetWindowSizeCallback(
@@ -142,7 +152,16 @@ void GlfwAdapter::SetClipboardString(const char* text) {
 }
 
 void GlfwAdapter::SetVSync(bool enabled){
+#ifdef __APPLE__
+  Glfw().glfwSwapInterval(0);
+  if (enabled && !core_video_.has_value()) {
+    core_video_.emplace(window_);
+  } else if (!enabled && core_video_.has_value()) {
+    core_video_.reset();
+  }
+#else
   Glfw().glfwSwapInterval(enabled);
+#endif
 }
 
 void GlfwAdapter::SetWindowTitle(const char* title) {
@@ -154,7 +173,16 @@ bool GlfwAdapter::ShouldCloseWindow() const {
 }
 
 void GlfwAdapter::SwapBuffers() {
+#ifdef __APPLE__
+  if (core_video_.has_value()) {
+    core_video_->EnqueueSwap();
+    core_video_->WaitForSwap();
+  } else {
+    Glfw().glfwSwapBuffers(window_);
+  }
+#else
   Glfw().glfwSwapBuffers(window_);
+#endif
 }
 
 void GlfwAdapter::ToggleFullscreen() {
