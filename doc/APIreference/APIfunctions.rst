@@ -4,11 +4,37 @@
 Functions
 =========
 
-The main header `mujoco.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mujoco.h>`_ exposes a very large
-number of functions. However the functions that most users are likely to need are a small fraction. For example,
-:ref:`simulate.cc <saSimulate>` which is as elaborate as a MuJoCo application is likely to get, calls around 40 of these
-functions, while ``basic.cc`` calls around 20. The rest are explosed just in case someone has a use for them. This
-includes us as users of MuJoCo -- we do our own work with the public library instead of relying on internal builds.
+The main header `mujoco.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mujoco.h>`_ exposes a large
+number of functions. However the functions that most users are likely to need are a small fraction.
+
+API function can be classified as:
+
+- :ref:`Virtual file system<Virtualfilesystem>`, used to load assets from memory.
+- :ref:`Parse and compile<Parseandcompile>` an :ref:`mjModel` from XML files and assets.
+- :ref:`Main simulation<Mainsimulation>` entry points, including :ref:`mj_step`.
+- :ref:`Initialization<Initialization>` of data structures.
+- :ref:`Printing<Printing>` of various quantities.
+- :ref:`Components<Components>` of the simulation pipeline, called from :ref:`mj_step`, :ref:`mj_forward` and :ref:`mj_inverse`.
+- :ref:`Sub components<Subcomponents>` of the simulation pipeline.
+- :ref:`Support<Support>` functions requiring :ref:`mjModel` and :ref:`mjData`.
+- :ref:`Ray casting<Raycollisions>`.
+- :ref:`Abstract interaction<Interaction>`: mouse control of cameras and perturbations.
+- :ref:`Abstract Visualization<Visualization-api>`.
+- :ref:`OpenGL rendering<OpenGLrendering>`.
+- :ref:`UI framework<UIframework>`.
+- :ref:`Error and memory<Errorandmemory>`.
+- Deprecated :ref:`activation<Activation>` mechanism.
+- :ref:`Aliases for C standard math<Standardmath>` functions.
+- :ref:`Vector math<Vectormath>`.
+- :ref:`Quaternions<Quaternions>`.
+- :ref:`Poses transformations<Poses>`.
+- :ref:`Matrix decompositions and solvers<Decompositions>`.
+- :ref:`Miscellaneous<Miscellaneous>` functions.
+- :ref:`Dynamics derivatives<Derivatives-api>`.
+- :ref:`Plugin<Plugins-api>` related functions.
+- :ref:`Macros<Macros>`.
+
+.. TODO(b/273075045): Better category-label namespacing.
 
 .. include:: functions.rst
 
