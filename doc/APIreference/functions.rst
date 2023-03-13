@@ -1841,7 +1841,7 @@ mju_error_i
 
 .. mujoco-include:: mju_error_i
 
-Deprecated: use mju_error
+Deprecated: use mju_error.
 
 .. _mju_error_s:
 
@@ -1850,7 +1850,7 @@ mju_error_s
 
 .. mujoco-include:: mju_error_s
 
-Deprecated: use mju_error
+Deprecated: use mju_error.
 
 .. _mju_warning:
 
@@ -1868,7 +1868,7 @@ mju_warning_i
 
 .. mujoco-include:: mju_warning_i
 
-Deprecated: use mju_warning
+Deprecated: use mju_warning.
 
 .. _mju_warning_s:
 
@@ -1877,7 +1877,7 @@ mju_warning_s
 
 .. mujoco-include:: mju_warning_s
 
-Deprecated: use_mju_warning
+Deprecated: use mju_warning.
 
 .. _mju_clearHandlers:
 

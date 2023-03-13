@@ -4674,7 +4674,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  type=ValueType(name='int'),
              ),
          ),
-         doc='Deprecated: use mju_error',
+         doc='Deprecated: use mju_error.',
      )),
     ('mju_error_s',
      FunctionDecl(
@@ -4694,7 +4694,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  ),
              ),
          ),
-         doc='Deprecated: use mju_error',
+         doc='Deprecated: use mju_error.',
      )),
     ('mju_warning',
      FunctionDecl(
@@ -4726,7 +4726,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  type=ValueType(name='int'),
              ),
          ),
-         doc='Deprecated: use mju_warning',
+         doc='Deprecated: use mju_warning.',
      )),
     ('mju_warning_s',
      FunctionDecl(
@@ -4746,7 +4746,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  ),
              ),
          ),
-         doc='Deprecated: use_mju_warning',
+         doc='Deprecated: use mju_warning.',
      )),
     ('mju_clearHandlers',
      FunctionDecl(

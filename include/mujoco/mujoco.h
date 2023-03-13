@@ -740,19 +740,19 @@ MJAPI void mjui_render(mjUI* ui, const mjuiState* state, const mjrContext* con);
 // Main error function; does not return to caller.
 MJAPI void mju_error(const char* msg, ...) mjPRINTFLIKE(1, 2);
 
-// Deprecated: use mju_error
+// Deprecated: use mju_error.
 MJAPI void mju_error_i(const char* msg, int i);
 
-// Deprecated: use mju_error
+// Deprecated: use mju_error.
 MJAPI void mju_error_s(const char* msg, const char* text);
 
 // Main warning function; returns to caller.
 MJAPI void mju_warning(const char* msg, ...) mjPRINTFLIKE(1, 2);
 
-// Deprecated: use mju_warning
+// Deprecated: use mju_warning.
 MJAPI void mju_warning_i(const char* msg, int i);
 
-// Deprecated: use_mju_warning
+// Deprecated: use mju_warning.
 MJAPI void mju_warning_s(const char* msg, const char* text);
 
 // Clear user error and memory handlers.
