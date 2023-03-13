@@ -106,7 +106,8 @@ mjCMesh::mjCMesh(mjCModel* _model, mjCDef* _def) {
   mjuu_setvec(quat_volume, 1, 0, 0, 0);
   mjuu_setvec(boxsz_surface, 0, 0, 0);
   mjuu_setvec(boxsz_volume, 0, 0, 0);
-  mjuu_setvec(aabb, 0, 0, 0);
+  mjuu_setvec(aabb, 1e10, 1e10, 1e10);
+  mjuu_setvec(aabb+3, -1e10, -1e10, -1e10);
   nvert = 0;
   nnormal = 0;
   ntexcoord = 0;
@@ -422,22 +423,10 @@ void mjCMesh::FitGeom(mjCGeom* geom, double* meshpos) {
     }
   }
 
-  // use AABB
+  // use aabb
   else {
-    // compute AABB
-    double AABB[6] = {1E+10, 1E+10, 1E+10, -1E+10, -1E+10, -1E+10};
-    for (i=0; i<nvert; i++) {
-      float* v = vert+3*i;
-      AABB[0] = mjMIN(AABB[0], v[0]);
-      AABB[1] = mjMIN(AABB[1], v[1]);
-      AABB[2] = mjMIN(AABB[2], v[2]);
-      AABB[3] = mjMAX(AABB[3], v[0]);
-      AABB[4] = mjMAX(AABB[4], v[1]);
-      AABB[5] = mjMAX(AABB[5], v[2]);
-    }
-
-    // find AABB box center
-    double cen[3] = {(AABB[0]+AABB[3])/2, (AABB[1]+AABB[4])/2, (AABB[2]+AABB[5])/2};
+    // find aabb box center
+    double cen[3] = {(aabb[0]+aabb[3])/2, (aabb[1]+aabb[4])/2, (aabb[2]+aabb[5])/2};
 
     // add box center into meshpos
     meshpos[0] += cen[0];
@@ -491,9 +480,9 @@ void mjCMesh::FitGeom(mjCGeom* geom, double* meshpos) {
 
     case mjGEOM_ELLIPSOID:
     case mjGEOM_BOX:
-      geom->size[0] = AABB[3] - cen[0];
-      geom->size[1] = AABB[4] - cen[1];
-      geom->size[2] = AABB[5] - cen[2];
+      geom->size[0] = aabb[3] - cen[0];
+      geom->size[1] = aabb[4] - cen[1];
+      geom->size[2] = aabb[5] - cen[2];
       break;
 
     default:
@@ -1180,6 +1169,10 @@ void mjCMesh::Process() {
         mjuu_mulvecmat(res, vec, mat);
         for (j=0; j<3; j++) {
           vert[3*i+j] = (float) res[j];
+
+          // axis-aligned bounding box
+          aabb[j+0] = mjMIN(aabb[j+0], res[j]);
+          aabb[j+3] = mjMAX(aabb[j+3], res[j]);
         }
       }
       for (i=0; i<nnormal; i++) {
@@ -1189,14 +1182,6 @@ void mjCMesh::Process() {
         mjuu_mulvecmat(res, nrm, mat);
         for (j=0; j<3; j++) {
           normal[3*i+j] = (float) res[j];
-        }
-      }
-
-      // compute axis-aligned bounding box
-      for (i=0; i<nvert; i++) {
-        float* v = vert+3*i;
-        for (j=0; j<3; j++) {
-          aabb[j] = mjMAX(aabb[j], fabs(v[j]));
         }
       }
     }

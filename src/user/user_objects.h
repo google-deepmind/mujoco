@@ -510,7 +510,7 @@ class mjCMesh: public mjCBase {
   double quat_surface[4];             // inertia orientation
   double boxsz_volume[3];             // half-sizes of equivalent inertia box (volume)
   double boxsz_surface[3];            // half-sizes of equivalent inertia box (surface)
-  double aabb[3];                     // half-sizes of axis-aligned bounding box
+  double aabb[6];                     // axis-aligned bounding box
   double volume;                      // volume of the mesh
   double surface;                     // surface of the mesh
 

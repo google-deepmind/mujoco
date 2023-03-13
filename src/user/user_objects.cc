@@ -1166,6 +1166,7 @@ void mjCGeom::SetInertia(void) {
 // compute radius of bounding sphere
 double mjCGeom::GetRBound(void) {
   double* aabb;
+  double haabb[3] = {0};
 
   switch (type) {
   case mjGEOM_SPHERE:
@@ -1185,7 +1186,10 @@ double mjCGeom::GetRBound(void) {
 
   case mjGEOM_MESH:
     aabb = model->meshes[meshid]->aabb;
-    return sqrt(aabb[0]*aabb[0]+aabb[1]*aabb[1]+aabb[2]*aabb[2]);
+    haabb[0] = mjMAX(fabs(aabb[0]), fabs(aabb[3]));
+    haabb[1] = mjMAX(fabs(aabb[1]), fabs(aabb[4]));
+    haabb[2] = mjMAX(fabs(aabb[2]), fabs(aabb[5]));
+    return sqrt(haabb[0]*haabb[0] + haabb[1]*haabb[1] + haabb[2]*haabb[2]);
 
   default:
     return 0;
@@ -1433,9 +1437,10 @@ void mjCGeom::Compile(void) {
     size[1] = model->hfields[hfieldid]->size[1];
     size[2] = 0.5*(model->hfields[hfieldid]->size[2]+model->hfields[hfieldid]->size[3]);
   } else if (type==mjGEOM_MESH) {
-    size[0] = model->meshes[meshid]->aabb[0];
-    size[1] = model->meshes[meshid]->aabb[1];
-    size[2] = model->meshes[meshid]->aabb[2];
+    double* aabb = model->meshes[meshid]->aabb;
+    size[0] = mjMAX(fabs(aabb[0]), fabs(aabb[3]));
+    size[1] = mjMAX(fabs(aabb[1]), fabs(aabb[4]));
+    size[2] = mjMAX(fabs(aabb[2]), fabs(aabb[5]));
   }
 
   // compute geom mass and inertia
