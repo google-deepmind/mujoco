@@ -54,7 +54,7 @@ using Milliseconds = std::chrono::duration<double, std::milli>;
 
 //------------------------------------------- global -----------------------------------------------
 
-const int maxgeom = 5000;            // preallocated geom array in mjvScene
+const int maxgeom = 20000;           // preallocated geom array in mjvScene
 const double zoom_increment = 0.02;  // ratio of one click-wheel zoom increment to vertical extent
 
 // section ids
