@@ -54,7 +54,15 @@ PLUGIN_HANDLES = []
 def _load_all_bundled_plugins():
   for directory, _, filenames in os.walk(PLUGINS_DIR):
     for filename in filenames:
-      PLUGIN_HANDLES.append(ctypes.CDLL(os.path.join(directory, filename)))
+        if os.path.splitext(filename)[-1] == ".so":
+            PLUGIN_HANDLES.append(ctypes.CDLL(os.path.join(directory, filename)))
+
+        elif filename == "__init__.py":
+            pass
+
+        else:
+            raise ValueError(f"Trying to load the plugin {os.path.join(directory, filename)}, "
+                             "which is not a shared library.")
 
 _load_all_bundled_plugins()
 
