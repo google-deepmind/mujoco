@@ -68,7 +68,10 @@ int GlfwCoreVideo::DisplayLinkCallback() {
 }
 
 void GlfwCoreVideo::UpdateDisplayLink() {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
   NSOpenGLContext* nsgl = Glfw().glfwGetNSGLContext(window_);
+#pragma clang diagnostic pop
   CVDisplayLinkSetCurrentCGDisplayFromOpenGLContext(display_link_, [nsgl CGLContextObj],
                                                     [nsgl.pixelFormat CGLPixelFormatObj]);
 }
