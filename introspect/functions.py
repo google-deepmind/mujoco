@@ -3630,7 +3630,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  type=ValueType(name='mjtNum'),
              ),
          ),
-         doc='Set (type, size, pos, mat) for connector-type geom between given points. Assume that mjv_initGeom was already called to set all other properties.',  # pylint: disable=line-too-long
+         doc='Set (type, size, pos, mat) for connector-type geom between given points. Assume that mjv_initGeom was already called to set all other properties. Width of mjGEOM_LINE is denominated in pixels.',  # pylint: disable=line-too-long
      )),
     ('mjv_defaultScene',
      FunctionDecl(

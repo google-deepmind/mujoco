@@ -390,7 +390,7 @@ static void renderGeom(const mjvGeom* geom, int mode, const float* headpos,
     break;
 
   case mjGEOM_LINE:                           // line
-    glLineWidth(3*con->lineWidth);
+    glLineWidth(size[0]*con->lineWidth);
     lighting = glIsEnabled(GL_LIGHTING);
     glDisable(GL_LIGHTING);
     glBegin(GL_LINES);

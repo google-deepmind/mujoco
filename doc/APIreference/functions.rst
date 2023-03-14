@@ -1436,6 +1436,7 @@ mjv_makeConnector
 
 Set (type, size, pos, mat) for connector-type geom between given points.
 Assume that mjv_initGeom was already called to set all other properties.
+Width of mjGEOM_LINE is denominated in pixels.
 
 .. _mjv_defaultScene:
 

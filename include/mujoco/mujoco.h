@@ -587,6 +587,7 @@ MJAPI void mjv_initGeom(mjvGeom* geom, int type, const mjtNum size[3],
 
 // Set (type, size, pos, mat) for connector-type geom between given points.
 // Assume that mjv_initGeom was already called to set all other properties.
+// Width of mjGEOM_LINE is denominated in pixels.
 MJAPI void mjv_makeConnector(mjvGeom* geom, int type, mjtNum width,
                              mjtNum a0, mjtNum a1, mjtNum a2,
                              mjtNum b0, mjtNum b1, mjtNum b2);

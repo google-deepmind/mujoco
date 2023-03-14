@@ -14,7 +14,6 @@
 
 #include "engine/engine_vis_visualize.h"
 
-#include <math.h>
 #include <stddef.h>
 #include <string.h>
 
@@ -1591,7 +1590,7 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
 
         // make ray
         START
-        mjv_makeConnector(thisgeom, mjGEOM_LINE, .01,
+        mjv_makeConnector(thisgeom, mjGEOM_LINE, 3,
                           d->site_xpos[3*sid],
                           d->site_xpos[3*sid+1],
                           d->site_xpos[3*sid+2],
