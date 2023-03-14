@@ -61,8 +61,8 @@ def _load_all_bundled_plugins():
             pass
 
         else:
-            raise ValueError(f"Trying to load the plugin {os.path.join(directory, filename)}, "
-                             "which is not a shared library.")
+            raise ValueError(f"Trying to load the plugin {os.path.join(directory, filename)} "
+                             "that is not a shared library.")
 
 _load_all_bundled_plugins()
 
