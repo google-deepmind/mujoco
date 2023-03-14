@@ -24,35 +24,35 @@ mj_loadModel, and then clear everything with mj_deleteVFS.
 
 .. _Parseandcompile:
 
-The key function here is mj_loadXML. It invokes the built-in parser and compiler, and either returns a pointer to a
-valid mjModel, or NULL - in which case the user should check the error information in the user-provided string. The
-model and all files referenced in it can be loaded from disk or from a VFS when provided.
+The key function here is :ref:`mj_loadXML`. It invokes the built-in parser and compiler, and either returns a pointer to
+a valid mjModel, or NULL - in which case the user should check the error information in the user-provided string.
+The model and all files referenced in it can be loaded from disk or from a VFS when provided.
 
 .. _Mainsimulation:
 
-These are the main entry points to the simulator. Most users will only need to call ``mj_step``, which computes
+These are the main entry points to the simulator. Most users will only need to call :ref:`mj_step`, which computes
 everything and advanced the simulation state by one time step. Controls and applied forces must either be set in advance
-(in mjData.ctrl, qfrc_applied and xfrc_applied), or a control callback mjcb_control must be installed which will be
-called just before the controls and applied forces are needed. Alternatively, one can use ``mj_step1`` and ``mj_step2``
-which break down the simulation pipeline into computations that are executed before and after the controls are needed;
-in this way one can set controls that depend on the results from ``mj_step1``. Keep in mind though that the RK4 solver
-does not work with mj_step1/2.
+(in mjData.{ctrl, qfrc_applied, xfrc_applied}), or a control callback :ref:`mjcb_control` must be installed which will be
+called just before the controls and applied forces are needed. Alternatively, one can use :ref:`mj_step1` and
+:ref:`mj_step2` which break down the simulation pipeline into computations that are executed before and after the
+controls are needed; in this way one can set controls that depend on the results from :ref:`mj_step1`. Keep in mind
+though that the RK4 solver does not work with mj_step1/2.
 
-mj_forward performs the same computations as ``mj_step`` but without the integration. It is useful after loading or
+mj_forward performs the same computations as :ref:`mj_step` but without the integration. It is useful after loading or
 resetting a model (to put the entire mjData in a valid state), and also for out-of-order computations that involve
 sampling or finite-difference approximations.
 
-mj_inverse runs the inverse dynamics, and writes its output in mjData.qfrc_inverse. Note that mjData.qacc must be set
-before calling this function. Given the state (qpos, qvel, act), mj_forward maps from force to acceleration, while
-mj_inverse maps from acceleration to force. Mathematically these functions are inverse of each other, but numerically
-this may not always be the case because the forward dynamics rely on a constraint optimization algorithm which is
-usually terminated early. The difference between the results of forward and inverse dynamics can be computed with the
-function :ref:`mj_compareFwdInv`, which can be though of as another solver accuracy check (as well as a general sanity
-check).
+mj_inverse runs the inverse dynamics, and writes its output in ``mjData.qfrc_inverse``. Note that ``mjData.qacc`` must
+be set before calling this function. Given the state (qpos, qvel, act), mj_forward maps from force to acceleration,
+while mj_inverse maps from acceleration to force. Mathematically these functions are inverse of each other, but
+numerically this may not always be the case because the forward dynamics rely on a constraint optimization algorithm
+which is usually terminated early. The difference between the results of forward and inverse dynamics can be computed
+with the function :ref:`mj_compareFwdInv`, which can be though of as another solver accuracy check (as well as a general
+sanity check).
 
-The skip version of mj_forward and mj_inverse are useful for example when qpos was unchanged but qvel was changed
-(usually in the context of finite differencing). Then there is no point repeating the computations that only depend on
-qpos. Calling the dynamics with skipstage = mjSTAGE_POS will achieve these savings.
+The skip version of :ref:`mj_forward` and :ref:`mj_inverse` are useful for example when qpos was unchanged but qvel was
+changed (usually in the context of finite differencing). Then there is no point repeating the computations that only
+depend on qpos. Calling the dynamics with skipstage = mjSTAGE_POS will achieve these savings.
 
 .. _Initialization:
 
@@ -65,8 +65,8 @@ These functions can be used to print various quantities to the screen for debugg
 
 .. _Components:
 
-These are components of the simulation pipeline, called internally from mj_step, mj_forward and mj_inverse. It is
-unlikely that the user will need to call them.
+These are components of the simulation pipeline, called internally from :ref:`mj_step`, :ref:`mj_forward` and
+:ref:`mj_inverse`. It is unlikely that the user will need to call them.
 
 .. _Subcomponents:
 
@@ -92,9 +92,9 @@ where jar = Jac*qacc-aref.
 
 .. _Support:
 
-These are support functions that need access to mjModel and mjData, unlike the utility functions which do not need such
-access. Support functions are called within the simulator but some of them can also be useful for custom computations,
-and are documented in more detail below.
+These are support functions that need access to :ref:`mjModel` and :ref:`mjData`, unlike the utility functions which do
+not need such access. Support functions are called within the simulator but some of them can also be useful for custom
+computations, and are documented in more detail below.
 
 .. _mj_mulJacVec:
 
@@ -149,28 +149,31 @@ format of qpos.
 .. _Raycollisions:
 
 Ray collision functionality was added in MuJoCo 1.50. This is a new collision detection module that uses analytical
-formulas to intersect a ray (p + x*v, x>=0) with a geom, where p is the origin of the ray and v is the vector specifying
-the direction. All functions in this family return the distance to the nearest geom surface, or -1 if there is no
-intersection. Note that if p is inside a geom, the ray will intersect the surface from the inside which still counts as
-an intersection.
+formulas to intersect a ray ``(p + x*v, x >= 0)`` with a geom, where p is the origin of the ray and v is the vector
+specifying the direction. All functions in this family return the distance to the nearest geom surface, or -1 if there
+is no intersection. Note that if p is inside a geom, the ray will intersect the surface from the inside which still
+counts as an intersection.
 
 All ray collision functions rely on quantities computed by :ref:`mj_kinematics` (see :ref:`mjData`), so must be called
 after  :ref:`mj_kinematics`, or functions that call it (e.g. :ref:`mj_fwdPosition`).
 
 .. _mj_ray:
 
-Intersect ray (pnt+x*vec, x>=0) with visible geoms, except geoms in bodyexclude. Return geomid and distance (x) to
-nearest surface, or -1 if no intersection.
+Intersect ray ``(pnt+x*vec, x >= 0)`` with visible geoms, except geoms in bodyexclude.
+
+Return geomid and distance (x) to nearest surface, or -1 if no intersection.
 
 geomgroup is an array of length mjNGROUP, where 1 means the group should be included. Pass geomgroup=NULL to skip
 group exclusion.
+
 If flg_static is 0, static geoms will be excluded.
+
 bodyexclude=-1 can be used to indicate that all bodies are included.
 
 .. _Interaction:
 
 These function implement abstract mouse interactions, allowing control over cameras and perturbations. Their use is well
-illustrated in :ref:`simulate.cc <saSimulate>`.
+illustrated in :ref:`simulate<saSimulate>`.
 
 .. _mjv_select:
 
@@ -178,17 +181,17 @@ This function is used for mouse selection. Previously selection was done via Ope
 ray intersections which are much more efficient. aspectratio is the viewport width/height. relx and rely are the
 relative coordinates of the 2D point of interest in the viewport (usually mouse cursor). The function returns the id of
 the geom under the specified 2D point, or -1 if there is no geom (note that they skybox if present is not a model geom).
-The 3D coordinates of the clicked point are returned in selpnt. See :ref:`simulate.cc <saSimulate>` for an illustration.
+The 3D coordinates of the clicked point are returned in selpnt. See :ref:`simulate<saSimulate>` for an illustration.
 
 .. _Visualization-api:
 
 The functions in this section implement abstract visualization. The results are used by the OpenGL rendered, and can
 also be used by users wishing to implement their own rendered, or hook up MuJoCo to advanced rendering tools such as
-Unity or Unreal Engine. See :ref:`simulate.cc <saSimulate>` for illustration of how to use these functions.
+Unity or Unreal Engine. See :ref:`simulate<saSimulate>` for illustration of how to use these functions.
 
 .. _OpenGLrendering:
 
-These functions expose the OpenGL renderer. See :ref:`simulate.cc <saSimulate>` for an illustration
+These functions expose the OpenGL renderer. See :ref:`simulate<saSimulate>` for an illustration
 of how to use these functions.
 
 .. _UIframework:

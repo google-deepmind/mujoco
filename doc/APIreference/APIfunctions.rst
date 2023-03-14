@@ -9,15 +9,15 @@ number of functions. However the functions that most users are likely to need ar
 
 API function can be classified as:
 
-- :ref:`Virtual file system<Virtualfilesystem>`, used to load assets from memory.
 - :ref:`Parse and compile<Parseandcompile>` an :ref:`mjModel` from XML files and assets.
 - :ref:`Main simulation<Mainsimulation>` entry points, including :ref:`mj_step`.
-- :ref:`Initialization<Initialization>` of data structures.
-- :ref:`Printing<Printing>` of various quantities.
+- :ref:`Support<Support>` functions requiring :ref:`mjModel` and :ref:`mjData`.
 - :ref:`Components<Components>` of the simulation pipeline, called from :ref:`mj_step`, :ref:`mj_forward` and :ref:`mj_inverse`.
 - :ref:`Sub components<Subcomponents>` of the simulation pipeline.
-- :ref:`Support<Support>` functions requiring :ref:`mjModel` and :ref:`mjData`.
-- :ref:`Ray casting<Raycollisions>`.
+- :ref:`Ray collisions<Raycollisions>`.
+- :ref:`Printing<Printing>` of various quantities.
+- :ref:`Virtual file system<Virtualfilesystem>`, used to load assets from memory.
+- :ref:`Initialization<Initialization>` of data structures.
 - :ref:`Abstract interaction<Interaction>`: mouse control of cameras and perturbations.
 - :ref:`Abstract Visualization<Visualization-api>`.
 - :ref:`OpenGL rendering<OpenGLrendering>`.

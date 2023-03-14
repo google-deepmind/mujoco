@@ -2,87 +2,14 @@
   AUTOGENERATE: DO NOT EDIT
 
 
-.. _Virtualfilesystem:
-
-Virtual file system
-^^^^^^^^^^^^^^^^^^^
-
-Virtual file system (VFS) functionality was introduced in MuJoCo 1.50. It enables the user to load all necessary files
-in memory, including MJB binary model files, XML files (MJCF, URDF and included files), STL meshes, PNGs for textures
-and height fields, and HF files in our custom height field format. Model and resource files in the VFS can also be
-constructed programmatically (say using a Python library that writes to memory). Once all desired files are in the VFS,
-the user can call :ref:`mj_loadModel` or :ref:`mj_loadXML` with a pointer to the VFS. When this pointer is not NULL, the
-loaders will first check the VFS for any file they are about to load, and only access the disk if the file is not found
-in the VFS. The file names stored in the VFS have their name and extension but the path information is stripped; this
-can be bypassed however by using a custom path symbol in the file names, say "mydir_myfile.xml".
-
-The entire VFS is contained in the data structure :ref:`mjVFS`. All utility functions for maintaining the VFS operate on
-this data structure. The common usage pattern is to first clear it with mj_defaultVFS, then add disk files to it with
-mj_addFileVFS (which allocates memory buffers and loads the file content in memory), then call mj_loadXML or
-mj_loadModel, and then clear everything with mj_deleteVFS.
-
-.. _mj_defaultVFS:
-
-mj_defaultVFS
-~~~~~~~~~~~~~
-
-.. mujoco-include:: mj_defaultVFS
-
-Initialize VFS to empty (no deallocation).
-
-.. _mj_addFileVFS:
-
-mj_addFileVFS
-~~~~~~~~~~~~~
-
-.. mujoco-include:: mj_addFileVFS
-
-Add file to VFS, return 0: success, 1: full, 2: repeated name, -1: failed to load.
-
-.. _mj_makeEmptyFileVFS:
-
-mj_makeEmptyFileVFS
-~~~~~~~~~~~~~~~~~~~
-
-.. mujoco-include:: mj_makeEmptyFileVFS
-
-Make empty file in VFS, return 0: success, 1: full, 2: repeated name.
-
-.. _mj_findFileVFS:
-
-mj_findFileVFS
-~~~~~~~~~~~~~~
-
-.. mujoco-include:: mj_findFileVFS
-
-Return file index in VFS, or -1 if not found in VFS.
-
-.. _mj_deleteFileVFS:
-
-mj_deleteFileVFS
-~~~~~~~~~~~~~~~~
-
-.. mujoco-include:: mj_deleteFileVFS
-
-Delete file from VFS, return 0: success, -1: not found in VFS.
-
-.. _mj_deleteVFS:
-
-mj_deleteVFS
-~~~~~~~~~~~~
-
-.. mujoco-include:: mj_deleteVFS
-
-Delete all files from VFS.
-
 .. _Parseandcompile:
 
 Parse and compile
 ^^^^^^^^^^^^^^^^^
 
-The key function here is mj_loadXML. It invokes the built-in parser and compiler, and either returns a pointer to a
-valid mjModel, or NULL - in which case the user should check the error information in the user-provided string. The
-model and all files referenced in it can be loaded from disk or from a VFS when provided.
+The key function here is :ref:`mj_loadXML`. It invokes the built-in parser and compiler, and either returns a pointer to
+a valid mjModel, or NULL - in which case the user should check the error information in the user-provided string.
+The model and all files referenced in it can be loaded from disk or from a VFS when provided.
 
 .. _mj_loadXML:
 
@@ -92,8 +19,8 @@ mj_loadXML
 .. mujoco-include:: mj_loadXML
 
 Parse XML file in MJCF or URDF format, compile it, return low-level model.
-If vfs is not ``NULL``, look up files in vfs before reading from disk.
-If error is not ``NULL``, it must have size error_sz.
+If vfs is not NULL, look up files in vfs before reading from disk.
+If error is not NULL, it must have size error_sz.
 
 .. _mj_saveLastXML:
 
@@ -103,7 +30,7 @@ mj_saveLastXML
 .. mujoco-include:: mj_saveLastXML
 
 Update XML data structures with info from low-level model, save as MJCF.
-If error is not ``NULL``, it must have size error_sz.
+If error is not NULL, it must have size error_sz.
 
 .. _mj_freeLastXML:
 
@@ -128,29 +55,29 @@ Print internal XML schema as plain text or HTML, with style-padding or ``&nbsp;`
 Main simulation
 ^^^^^^^^^^^^^^^
 
-These are the main entry points to the simulator. Most users will only need to call ``mj_step``, which computes
+These are the main entry points to the simulator. Most users will only need to call :ref:`mj_step`, which computes
 everything and advanced the simulation state by one time step. Controls and applied forces must either be set in advance
-(in mjData.ctrl, qfrc_applied and xfrc_applied), or a control callback mjcb_control must be installed which will be
-called just before the controls and applied forces are needed. Alternatively, one can use ``mj_step1`` and ``mj_step2``
-which break down the simulation pipeline into computations that are executed before and after the controls are needed;
-in this way one can set controls that depend on the results from ``mj_step1``. Keep in mind though that the RK4 solver
-does not work with mj_step1/2.
+(in mjData.{ctrl, qfrc_applied, xfrc_applied}), or a control callback :ref:`mjcb_control` must be installed which will be
+called just before the controls and applied forces are needed. Alternatively, one can use :ref:`mj_step1` and
+:ref:`mj_step2` which break down the simulation pipeline into computations that are executed before and after the
+controls are needed; in this way one can set controls that depend on the results from :ref:`mj_step1`. Keep in mind
+though that the RK4 solver does not work with mj_step1/2.
 
-mj_forward performs the same computations as ``mj_step`` but without the integration. It is useful after loading or
+mj_forward performs the same computations as :ref:`mj_step` but without the integration. It is useful after loading or
 resetting a model (to put the entire mjData in a valid state), and also for out-of-order computations that involve
 sampling or finite-difference approximations.
 
-mj_inverse runs the inverse dynamics, and writes its output in mjData.qfrc_inverse. Note that mjData.qacc must be set
-before calling this function. Given the state (qpos, qvel, act), mj_forward maps from force to acceleration, while
-mj_inverse maps from acceleration to force. Mathematically these functions are inverse of each other, but numerically
-this may not always be the case because the forward dynamics rely on a constraint optimization algorithm which is
-usually terminated early. The difference between the results of forward and inverse dynamics can be computed with the
-function :ref:`mj_compareFwdInv`, which can be though of as another solver accuracy check (as well as a general sanity
-check).
+mj_inverse runs the inverse dynamics, and writes its output in ``mjData.qfrc_inverse``. Note that ``mjData.qacc`` must
+be set before calling this function. Given the state (qpos, qvel, act), mj_forward maps from force to acceleration,
+while mj_inverse maps from acceleration to force. Mathematically these functions are inverse of each other, but
+numerically this may not always be the case because the forward dynamics rely on a constraint optimization algorithm
+which is usually terminated early. The difference between the results of forward and inverse dynamics can be computed
+with the function :ref:`mj_compareFwdInv`, which can be though of as another solver accuracy check (as well as a general
+sanity check).
 
-The skip version of mj_forward and mj_inverse are useful for example when qpos was unchanged but qvel was changed
-(usually in the context of finite differencing). Then there is no point repeating the computations that only depend on
-qpos. Calling the dynamics with skipstage = mjSTAGE_POS will achieve these savings.
+The skip version of :ref:`mj_forward` and :ref:`mj_inverse` are useful for example when qpos was unchanged but qvel was
+changed (usually in the context of finite differencing). Then there is no point repeating the computations that only
+depend on qpos. Calling the dynamics with skipstage = mjSTAGE_POS will achieve these savings.
 
 .. _mj_step:
 
@@ -215,258 +142,350 @@ mj_inverseSkip
 
 Inverse dynamics with skip; skipstage is mjtStage.
 
-.. _Initialization:
+.. _Support:
 
-Initialization
-^^^^^^^^^^^^^^
+Support
+^^^^^^^
 
-This section contains functions that load/initialize the model or other data structures. Their use is well illustrated
-in the code samples.
+These are support functions that need access to :ref:`mjModel` and :ref:`mjData`, unlike the utility functions which do
+not need such access. Support functions are called within the simulator but some of them can also be useful for custom
+computations, and are documented in more detail below.
 
-.. _mj_defaultLROpt:
+.. _mj_addContact:
 
-mj_defaultLROpt
-~~~~~~~~~~~~~~~
+mj_addContact
+~~~~~~~~~~~~~
 
-.. mujoco-include:: mj_defaultLROpt
+.. mujoco-include:: mj_addContact
 
-Set default options for length range computation.
+Add contact to d->contact list; return 0 if success; 1 if buffer full.
 
-.. _mj_defaultSolRefImp:
+.. _mj_isPyramidal:
 
-mj_defaultSolRefImp
-~~~~~~~~~~~~~~~~~~~
-
-.. mujoco-include:: mj_defaultSolRefImp
-
-Set solver parameters to default values.
-
-.. _mj_defaultOption:
-
-mj_defaultOption
-~~~~~~~~~~~~~~~~
-
-.. mujoco-include:: mj_defaultOption
-
-Set physics options to default values.
-
-.. _mj_defaultVisual:
-
-mj_defaultVisual
-~~~~~~~~~~~~~~~~
-
-.. mujoco-include:: mj_defaultVisual
-
-Set visual options to default values.
-
-.. _mj_copyModel:
-
-mj_copyModel
-~~~~~~~~~~~~
-
-.. mujoco-include:: mj_copyModel
-
-Copy ``mjModel``, allocate new if dest is ``NULL``.
-
-.. _mj_saveModel:
-
-mj_saveModel
-~~~~~~~~~~~~
-
-.. mujoco-include:: mj_saveModel
-
-Save model to binary MJB file or memory buffer; buffer has precedence when given.
-
-.. _mj_loadModel:
-
-mj_loadModel
-~~~~~~~~~~~~
-
-.. mujoco-include:: mj_loadModel
-
-Load model from binary MJB file.
-If vfs is not ``NULL``, look up file in vfs before reading from disk.
-
-.. _mj_deleteModel:
-
-mj_deleteModel
+mj_isPyramidal
 ~~~~~~~~~~~~~~
 
-.. mujoco-include:: mj_deleteModel
+.. mujoco-include:: mj_isPyramidal
 
-Free memory allocation in model.
+Determine type of friction cone.
 
-.. _mj_sizeModel:
+.. _mj_isSparse:
 
-mj_sizeModel
+mj_isSparse
+~~~~~~~~~~~
+
+.. mujoco-include:: mj_isSparse
+
+Determine type of constraint Jacobian.
+
+.. _mj_isDual:
+
+mj_isDual
+~~~~~~~~~
+
+.. mujoco-include:: mj_isDual
+
+Determine type of solver (PGS is dual, CG and Newton are primal).
+
+.. _mj_mulJacVec:
+
+mj_mulJacVec
 ~~~~~~~~~~~~
 
-.. mujoco-include:: mj_sizeModel
+.. mujoco-include:: mj_mulJacVec
 
-Return size of buffer needed to hold model.
+This function multiplies the constraint Jacobian :ref:`mjData`.efc_J by a vector. Note that the Jacobian can be either dense or
+sparse; the function is aware of this setting. Multiplication by J maps velocities from joint space to constraint space.
 
-.. _mj_makeData:
+.. _mj_mulJacTVec:
 
-mj_makeData
-~~~~~~~~~~~
-
-.. mujoco-include:: mj_makeData
-
-Allocate ``mjData`` corresponding to given model.
-If the model buffer is unallocated the initial configuration will not be set.
-
-.. _mj_copyData:
-
-mj_copyData
-~~~~~~~~~~~
-
-.. mujoco-include:: mj_copyData
-
-Copy ``mjData``.
-m is only required to contain the size fields from MJMODEL_INTS.
-
-.. _mj_resetData:
-
-mj_resetData
-~~~~~~~~~~~~
-
-.. mujoco-include:: mj_resetData
-
-Reset data to defaults.
-
-.. _mj_resetDataDebug:
-
-mj_resetDataDebug
-~~~~~~~~~~~~~~~~~
-
-.. mujoco-include:: mj_resetDataDebug
-
-Reset data to defaults, fill everything else with debug_value.
-
-.. _mj_resetDataKeyframe:
-
-mj_resetDataKeyframe
-~~~~~~~~~~~~~~~~~~~~
-
-.. mujoco-include:: mj_resetDataKeyframe
-
-Reset data, set fields from specified keyframe.
-
-.. _mj_stackAlloc:
-
-mj_stackAlloc
+mj_mulJacTVec
 ~~~~~~~~~~~~~
 
-.. mujoco-include:: mj_stackAlloc
+.. mujoco-include:: mj_mulJacTVec
 
-Allocate array of specified size on ``mjData`` stack. Call mju_error on stack overflow.
+Same as mj_mulJacVec but multiplies by the transpose of the Jacobian. This maps forces from constraint space to joint
+space.
 
-.. _mj_deleteData:
+.. _mj_jac:
 
-mj_deleteData
+mj_jac
+~~~~~~
+
+.. mujoco-include:: mj_jac
+
+This function computes an "end-effector" Jacobian, which is unrelated to the constraint Jacobian above. Any MuJoCo body
+can be treated as end-effector, and the point for which the Jacobian is computed can be anywhere in space (it is treated
+as attached to the body). The Jacobian has translational (jacp) and rotational (jacr) components. Passing NULL for
+either pointer will skip part of the computation. Each component is a 3-by-nv matrix. Each row of this matrix is the
+gradient of the corresponding 3D coordinate of the specified point with respect to the degrees of freedom. The ability
+to compute end-effector Jacobians analytically is one of the advantages of working in minimal coordinates - so use it!
+
+.. _mj_jacBody:
+
+mj_jacBody
+~~~~~~~~~~
+
+.. mujoco-include:: mj_jacBody
+
+This and the remaining variants of the Jacobian function call mj_jac internally, with the center of the body, geom or
+site. They are just shortcuts; the same can be achieved by calling mj_jac directly.
+
+.. _mj_jacBodyCom:
+
+mj_jacBodyCom
 ~~~~~~~~~~~~~
 
-.. mujoco-include:: mj_deleteData
+.. mujoco-include:: mj_jacBodyCom
 
-Free memory allocation in ``mjData``.
+Compute body center-of-mass end-effector Jacobian.
 
-.. _mj_resetCallbacks:
+.. _mj_jacSubtreeCom:
 
-mj_resetCallbacks
+mj_jacSubtreeCom
+~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mj_jacSubtreeCom
+
+Compute subtree center-of-mass end-effector Jacobian.
+
+.. _mj_jacGeom:
+
+mj_jacGeom
+~~~~~~~~~~
+
+.. mujoco-include:: mj_jacGeom
+
+Compute geom end-effector Jacobian.
+
+.. _mj_jacSite:
+
+mj_jacSite
+~~~~~~~~~~
+
+.. mujoco-include:: mj_jacSite
+
+Compute site end-effector Jacobian.
+
+.. _mj_jacPointAxis:
+
+mj_jacPointAxis
+~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mj_jacPointAxis
+
+Compute translation end-effector Jacobian of point, and rotation Jacobian of axis.
+
+.. _mj_name2id:
+
+mj_name2id
+~~~~~~~~~~
+
+.. mujoco-include:: mj_name2id
+
+Get id of object with the specified mjtObj type and name, returns -1 if id not found.
+
+.. _mj_id2name:
+
+mj_id2name
+~~~~~~~~~~
+
+.. mujoco-include:: mj_id2name
+
+Get name of object with the specified mjtObj type and id, returns NULL if name not found.
+
+.. _mj_fullM:
+
+mj_fullM
+~~~~~~~~
+
+.. mujoco-include:: mj_fullM
+
+Convert sparse inertia matrix M into full (i.e. dense) matrix.
+
+.. _mj_mulM:
+
+mj_mulM
+~~~~~~~
+
+.. mujoco-include:: mj_mulM
+
+This function multiplies the joint-space inertia matrix stored in :ref:`mjData`.qM by a vector. qM has a custom sparse format
+that the user should not attempt to manipulate directly. Alternatively one can convert qM to a dense matrix with
+mj_fullM and then user regular matrix-vector multiplication, but this is slower because it no longer benefits from
+sparsity.
+
+.. _mj_mulM2:
+
+mj_mulM2
+~~~~~~~~
+
+.. mujoco-include:: mj_mulM2
+
+Multiply vector by (inertia matrix)^(1/2).
+
+.. _mj_addM:
+
+mj_addM
+~~~~~~~
+
+.. mujoco-include:: mj_addM
+
+Add inertia matrix to destination matrix.
+Destination can be sparse uncompressed, or dense when all int* are NULL
+
+.. _mj_applyFT:
+
+mj_applyFT
+~~~~~~~~~~
+
+.. mujoco-include:: mj_applyFT
+
+This function can be used to apply a Cartesian force and torque to a point on a body, and add the result to the vector
+:ref:`mjData`.qfrc_applied of all applied forces. Note that the function requires a pointer to this vector, because sometimes
+we want to add the result to a different vector.
+
+.. _mj_objectVelocity:
+
+mj_objectVelocity
 ~~~~~~~~~~~~~~~~~
 
-.. mujoco-include:: mj_resetCallbacks
+.. mujoco-include:: mj_objectVelocity
 
-Reset all callbacks to ``NULL`` pointers (``NULL`` is the default).
+Compute object 6D velocity (rot:lin) in object-centered frame, world/local orientation.
 
-.. _mj_setConst:
+.. _mj_objectAcceleration:
 
-mj_setConst
-~~~~~~~~~~~
-
-.. mujoco-include:: mj_setConst
-
-Set constant fields of ``mjModel``, corresponding to qpos0 configuration.
-
-.. _mj_setLengthRange:
-
-mj_setLengthRange
-~~~~~~~~~~~~~~~~~
-
-.. mujoco-include:: mj_setLengthRange
-
-Set actuator_lengthrange for specified actuator; return 1 if ok, 0 if error.
-
-.. _Printing:
-
-Printing
-^^^^^^^^
-
-These functions can be used to print various quantities to the screen for debugging purposes.
-
-.. _mj_printFormattedModel:
-
-mj_printFormattedModel
-~~~~~~~~~~~~~~~~~~~~~~
-
-.. mujoco-include:: mj_printFormattedModel
-
-Print ``mjModel`` to text file, specifying format.
-float_format must be a valid printf-style format string for a single float value.
-
-.. _mj_printModel:
-
-mj_printModel
-~~~~~~~~~~~~~
-
-.. mujoco-include:: mj_printModel
-
-Print model to text file.
-
-.. _mj_printFormattedData:
-
-mj_printFormattedData
+mj_objectAcceleration
 ~~~~~~~~~~~~~~~~~~~~~
 
-.. mujoco-include:: mj_printFormattedData
+.. mujoco-include:: mj_objectAcceleration
 
-Print ``mjData`` to text file, specifying format.
-float_format must be a valid printf-style format string for a single float value
+Compute object 6D acceleration (rot:lin) in object-centered frame, world/local orientation.
 
-.. _mj_printData:
+.. _mj_contactForce:
 
-mj_printData
-~~~~~~~~~~~~
+mj_contactForce
+~~~~~~~~~~~~~~~
 
-.. mujoco-include:: mj_printData
+.. mujoco-include:: mj_contactForce
 
-Print data to text file.
+Extract 6D force:torque given contact id, in the contact frame.
 
-.. _mju_printMat:
+.. _mj_differentiatePos:
 
-mju_printMat
-~~~~~~~~~~~~
+mj_differentiatePos
+~~~~~~~~~~~~~~~~~~~
 
-.. mujoco-include:: mju_printMat
+.. mujoco-include:: mj_differentiatePos
 
-Print matrix to screen.
+This function subtracts two vectors in the format of qpos (and divides the result by dt), while respecting the
+properties of quaternions. Recall that unit quaternions represent spatial orientations. They are points on the unit
+sphere in 4D. The tangent to that sphere is a 3D plane of rotational velocities. Thus when we subtract two quaternions
+in the right way, the result is a 3D vector and not a 4D vector. This the output qvel has dimensionality nv while the
+inputs have dimensionality nq.
 
-.. _mju_printMatSparse:
+.. _mj_integratePos:
 
-mju_printMatSparse
+mj_integratePos
+~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mj_integratePos
+
+This is the opposite of mj_differentiatePos. It adds a vector in the format of qvel (scaled by dt) to a vector in the
+format of qpos.
+
+.. _mj_normalizeQuat:
+
+mj_normalizeQuat
+~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mj_normalizeQuat
+
+Normalize all quaternions in qpos-type vector.
+
+.. _mj_local2Global:
+
+mj_local2Global
+~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mj_local2Global
+
+Map from body local to global Cartesian coordinates.
+
+.. _mj_getTotalmass:
+
+mj_getTotalmass
+~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mj_getTotalmass
+
+Sum all body masses.
+
+.. _mj_setTotalmass:
+
+mj_setTotalmass
+~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mj_setTotalmass
+
+Scale body masses and inertias to achieve specified total mass.
+
+.. _mj_getPluginConfig:
+
+mj_getPluginConfig
 ~~~~~~~~~~~~~~~~~~
 
-.. mujoco-include:: mju_printMatSparse
+.. mujoco-include:: mj_getPluginConfig
 
-Print sparse matrix to screen.
+Return a config attribute value of a plugin instance;
+NULL: invalid plugin instance ID or attribute name
+
+.. _mj_loadPluginLibrary:
+
+mj_loadPluginLibrary
+~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mj_loadPluginLibrary
+
+Load a dynamic library. The dynamic library is assumed to register one or more plugins.
+
+.. _mj_loadAllPluginLibraries:
+
+mj_loadAllPluginLibraries
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mj_loadAllPluginLibraries
+
+Scan a directory and load all dynamic libraries. Dynamic libraries in the specified directory
+are assumed to register one or more plugins. Optionally, if a callback is specified, it is called
+for each dynamic library encountered that registers plugins.
+
+.. _mj_version:
+
+mj_version
+~~~~~~~~~~
+
+.. mujoco-include:: mj_version
+
+Return version number: 1.0.2 is encoded as 102.
+
+.. _mj_versionString:
+
+mj_versionString
+~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mj_versionString
+
+Return the current version of MuJoCo as a null-terminated string.
 
 .. _Components:
 
 Components
 ^^^^^^^^^^
 
-These are components of the simulation pipeline, called internally from mj_step, mj_forward and mj_inverse. It is
-unlikely that the user will need to call them.
+These are components of the simulation pipeline, called internally from :ref:`mj_step`, :ref:`mj_forward` and
+:ref:`mj_inverse`. It is unlikely that the user will need to call them.
 
 .. _mj_fwdPosition:
 
@@ -816,345 +835,8 @@ mj_constraintUpdate
 
 .. mujoco-include:: mj_constraintUpdate
 
-Compute efc_state, efc_force, qfrc_constraint, and (optionally) cone Hessians. If cost is not ``NULL``, set \*cost = s(jar)
+Compute efc_state, efc_force, qfrc_constraint, and (optionally) cone Hessians. If cost is not NULL, set \*cost = s(jar)
 where jar = Jac*qacc-aref.
-
-.. _Support:
-
-Support
-^^^^^^^
-
-These are support functions that need access to mjModel and mjData, unlike the utility functions which do not need such
-access. Support functions are called within the simulator but some of them can also be useful for custom computations,
-and are documented in more detail below.
-
-.. _mj_addContact:
-
-mj_addContact
-~~~~~~~~~~~~~
-
-.. mujoco-include:: mj_addContact
-
-Add contact to d->contact list; return 0 if success; 1 if buffer full.
-
-.. _mj_isPyramidal:
-
-mj_isPyramidal
-~~~~~~~~~~~~~~
-
-.. mujoco-include:: mj_isPyramidal
-
-Determine type of friction cone.
-
-.. _mj_isSparse:
-
-mj_isSparse
-~~~~~~~~~~~
-
-.. mujoco-include:: mj_isSparse
-
-Determine type of constraint Jacobian.
-
-.. _mj_isDual:
-
-mj_isDual
-~~~~~~~~~
-
-.. mujoco-include:: mj_isDual
-
-Determine type of solver (PGS is dual, CG and Newton are primal).
-
-.. _mj_mulJacVec:
-
-mj_mulJacVec
-~~~~~~~~~~~~
-
-.. mujoco-include:: mj_mulJacVec
-
-This function multiplies the constraint Jacobian ``mjData.efc_J`` by a vector. Note that the Jacobian can be either dense or
-sparse; the function is aware of this setting. Multiplication by J maps velocities from joint space to constraint space.
-
-.. _mj_mulJacTVec:
-
-mj_mulJacTVec
-~~~~~~~~~~~~~
-
-.. mujoco-include:: mj_mulJacTVec
-
-Same as mj_mulJacVec but multiplies by the transpose of the Jacobian. This maps forces from constraint space to joint
-space.
-
-.. _mj_jac:
-
-mj_jac
-~~~~~~
-
-.. mujoco-include:: mj_jac
-
-This function computes an "end-effector" Jacobian, which is unrelated to the constraint Jacobian above. Any MuJoCo body
-can be treated as end-effector, and the point for which the Jacobian is computed can be anywhere in space (it is treated
-as attached to the body). The Jacobian has translational (jacp) and rotational (jacr) components. Passing ``NULL`` for
-either pointer will skip part of the computation. Each component is a 3-by-nv matrix. Each row of this matrix is the
-gradient of the corresponding 3D coordinate of the specified point with respect to the degrees of freedom. The ability
-to compute end-effector Jacobians analytically is one of the advantages of working in minimal coordinates - so use it!
-
-.. _mj_jacBody:
-
-mj_jacBody
-~~~~~~~~~~
-
-.. mujoco-include:: mj_jacBody
-
-This and the remaining variants of the Jacobian function call mj_jac internally, with the center of the body, geom or
-site. They are just shortcuts; the same can be achieved by calling mj_jac directly.
-
-.. _mj_jacBodyCom:
-
-mj_jacBodyCom
-~~~~~~~~~~~~~
-
-.. mujoco-include:: mj_jacBodyCom
-
-Compute body center-of-mass end-effector Jacobian.
-
-.. _mj_jacSubtreeCom:
-
-mj_jacSubtreeCom
-~~~~~~~~~~~~~~~~
-
-.. mujoco-include:: mj_jacSubtreeCom
-
-Compute subtree center-of-mass end-effector Jacobian.
-
-.. _mj_jacGeom:
-
-mj_jacGeom
-~~~~~~~~~~
-
-.. mujoco-include:: mj_jacGeom
-
-Compute geom end-effector Jacobian.
-
-.. _mj_jacSite:
-
-mj_jacSite
-~~~~~~~~~~
-
-.. mujoco-include:: mj_jacSite
-
-Compute site end-effector Jacobian.
-
-.. _mj_jacPointAxis:
-
-mj_jacPointAxis
-~~~~~~~~~~~~~~~
-
-.. mujoco-include:: mj_jacPointAxis
-
-Compute translation end-effector Jacobian of point, and rotation Jacobian of axis.
-
-.. _mj_name2id:
-
-mj_name2id
-~~~~~~~~~~
-
-.. mujoco-include:: mj_name2id
-
-Get id of object with the specified mjtObj type and name, returns -1 if id not found.
-
-.. _mj_id2name:
-
-mj_id2name
-~~~~~~~~~~
-
-.. mujoco-include:: mj_id2name
-
-Get name of object with the specified mjtObj type and id, returns ``NULL`` if name not found.
-
-.. _mj_fullM:
-
-mj_fullM
-~~~~~~~~
-
-.. mujoco-include:: mj_fullM
-
-Convert sparse inertia matrix M into full (i.e. dense) matrix.
-
-.. _mj_mulM:
-
-mj_mulM
-~~~~~~~
-
-.. mujoco-include:: mj_mulM
-
-This function multiplies the joint-space inertia matrix stored in ``mjData.qM`` by a vector. qM has a custom sparse format
-that the user should not attempt to manipulate directly. Alternatively one can convert qM to a dense matrix with
-mj_fullM and then user regular matrix-vector multiplication, but this is slower because it no longer benefits from
-sparsity.
-
-.. _mj_mulM2:
-
-mj_mulM2
-~~~~~~~~
-
-.. mujoco-include:: mj_mulM2
-
-Multiply vector by (inertia matrix)^(1/2).
-
-.. _mj_addM:
-
-mj_addM
-~~~~~~~
-
-.. mujoco-include:: mj_addM
-
-Add inertia matrix to destination matrix.
-Destination can be sparse uncompressed, or dense when all int* are ``NULL``
-
-.. _mj_applyFT:
-
-mj_applyFT
-~~~~~~~~~~
-
-.. mujoco-include:: mj_applyFT
-
-This function can be used to apply a Cartesian force and torque to a point on a body, and add the result to the vector
-``mjData.qfrc_applied`` of all applied forces. Note that the function requires a pointer to this vector, because sometimes
-we want to add the result to a different vector.
-
-.. _mj_objectVelocity:
-
-mj_objectVelocity
-~~~~~~~~~~~~~~~~~
-
-.. mujoco-include:: mj_objectVelocity
-
-Compute object 6D velocity (rot:lin) in object-centered frame, world/local orientation.
-
-.. _mj_objectAcceleration:
-
-mj_objectAcceleration
-~~~~~~~~~~~~~~~~~~~~~
-
-.. mujoco-include:: mj_objectAcceleration
-
-Compute object 6D acceleration (rot:lin) in object-centered frame, world/local orientation.
-
-.. _mj_contactForce:
-
-mj_contactForce
-~~~~~~~~~~~~~~~
-
-.. mujoco-include:: mj_contactForce
-
-Extract 6D force:torque given contact id, in the contact frame.
-
-.. _mj_differentiatePos:
-
-mj_differentiatePos
-~~~~~~~~~~~~~~~~~~~
-
-.. mujoco-include:: mj_differentiatePos
-
-This function subtracts two vectors in the format of qpos (and divides the result by dt), while respecting the
-properties of quaternions. Recall that unit quaternions represent spatial orientations. They are points on the unit
-sphere in 4D. The tangent to that sphere is a 3D plane of rotational velocities. Thus when we subtract two quaternions
-in the right way, the result is a 3D vector and not a 4D vector. This the output qvel has dimensionality nv while the
-inputs have dimensionality nq.
-
-.. _mj_integratePos:
-
-mj_integratePos
-~~~~~~~~~~~~~~~
-
-.. mujoco-include:: mj_integratePos
-
-This is the opposite of mj_differentiatePos. It adds a vector in the format of qvel (scaled by dt) to a vector in the
-format of qpos.
-
-.. _mj_normalizeQuat:
-
-mj_normalizeQuat
-~~~~~~~~~~~~~~~~
-
-.. mujoco-include:: mj_normalizeQuat
-
-Normalize all quaternions in qpos-type vector.
-
-.. _mj_local2Global:
-
-mj_local2Global
-~~~~~~~~~~~~~~~
-
-.. mujoco-include:: mj_local2Global
-
-Map from body local to global Cartesian coordinates.
-
-.. _mj_getTotalmass:
-
-mj_getTotalmass
-~~~~~~~~~~~~~~~
-
-.. mujoco-include:: mj_getTotalmass
-
-Sum all body masses.
-
-.. _mj_setTotalmass:
-
-mj_setTotalmass
-~~~~~~~~~~~~~~~
-
-.. mujoco-include:: mj_setTotalmass
-
-Scale body masses and inertias to achieve specified total mass.
-
-.. _mj_getPluginConfig:
-
-mj_getPluginConfig
-~~~~~~~~~~~~~~~~~~
-
-.. mujoco-include:: mj_getPluginConfig
-
-Return a config attribute value of a plugin instance;
-``NULL``: invalid plugin instance ID or attribute name
-
-.. _mj_loadPluginLibrary:
-
-mj_loadPluginLibrary
-~~~~~~~~~~~~~~~~~~~~
-
-.. mujoco-include:: mj_loadPluginLibrary
-
-Load a dynamic library. The dynamic library is assumed to register one or more plugins.
-
-.. _mj_loadAllPluginLibraries:
-
-mj_loadAllPluginLibraries
-~~~~~~~~~~~~~~~~~~~~~~~~~
-
-.. mujoco-include:: mj_loadAllPluginLibraries
-
-Scan a directory and load all dynamic libraries. Dynamic libraries in the specified directory
-are assumed to register one or more plugins. Optionally, if a callback is specified, it is called
-for each dynamic library encountered that registers plugins.
-
-.. _mj_version:
-
-mj_version
-~~~~~~~~~~
-
-.. mujoco-include:: mj_version
-
-Return version number: 1.0.2 is encoded as 102.
-
-.. _mj_versionString:
-
-mj_versionString
-~~~~~~~~~~~~~~~~
-
-.. mujoco-include:: mj_versionString
-
-Return the current version of MuJoCo as a null-terminated string.
 
 .. _Raycollisions:
 
@@ -1162,10 +844,10 @@ Ray collisions
 ^^^^^^^^^^^^^^
 
 Ray collision functionality was added in MuJoCo 1.50. This is a new collision detection module that uses analytical
-formulas to intersect a ray (p + x*v, x>=0) with a geom, where p is the origin of the ray and v is the vector specifying
-the direction. All functions in this family return the distance to the nearest geom surface, or -1 if there is no
-intersection. Note that if p is inside a geom, the ray will intersect the surface from the inside which still counts as
-an intersection.
+formulas to intersect a ray ``(p + x*v, x >= 0)`` with a geom, where p is the origin of the ray and v is the vector
+specifying the direction. All functions in this family return the distance to the nearest geom surface, or -1 if there
+is no intersection. Note that if p is inside a geom, the ray will intersect the surface from the inside which still
+counts as an intersection.
 
 All ray collision functions rely on quantities computed by :ref:`mj_kinematics` (see :ref:`mjData`), so must be called
 after  :ref:`mj_kinematics`, or functions that call it (e.g. :ref:`mj_fwdPosition`).
@@ -1177,12 +859,15 @@ mj_ray
 
 .. mujoco-include:: mj_ray
 
-Intersect ray (pnt+x*vec, x>=0) with visible geoms, except geoms in bodyexclude. Return geomid and distance (x) to
-nearest surface, or -1 if no intersection.
+Intersect ray ``(pnt+x*vec, x >= 0)`` with visible geoms, except geoms in bodyexclude.
 
-geomgroup is an array of length mjNGROUP, where 1 means the group should be included. Pass geomgroup=``NULL`` to skip
+Return geomid and distance (x) to nearest surface, or -1 if no intersection.
+
+geomgroup is an array of length mjNGROUP, where 1 means the group should be included. Pass geomgroup=NULL to skip
 group exclusion.
+
 If flg_static is 0, static geoms will be excluded.
+
 bodyexclude=-1 can be used to indicate that all bodies are included.
 
 .. _mj_rayHfield:
@@ -1222,13 +907,331 @@ mju_raySkin
 Intersect ray with skin, return nearest distance or -1 if no intersection,
 and also output nearest vertex id.
 
+.. _Printing:
+
+Printing
+^^^^^^^^
+
+These functions can be used to print various quantities to the screen for debugging purposes.
+
+.. _mj_printFormattedModel:
+
+mj_printFormattedModel
+~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mj_printFormattedModel
+
+Print :ref:`mjModel` to text file, specifying format.
+float_format must be a valid printf-style format string for a single float value.
+
+.. _mj_printModel:
+
+mj_printModel
+~~~~~~~~~~~~~
+
+.. mujoco-include:: mj_printModel
+
+Print model to text file.
+
+.. _mj_printFormattedData:
+
+mj_printFormattedData
+~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mj_printFormattedData
+
+Print :ref:`mjData` to text file, specifying format.
+float_format must be a valid printf-style format string for a single float value
+
+.. _mj_printData:
+
+mj_printData
+~~~~~~~~~~~~
+
+.. mujoco-include:: mj_printData
+
+Print data to text file.
+
+.. _mju_printMat:
+
+mju_printMat
+~~~~~~~~~~~~
+
+.. mujoco-include:: mju_printMat
+
+Print matrix to screen.
+
+.. _mju_printMatSparse:
+
+mju_printMatSparse
+~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mju_printMatSparse
+
+Print sparse matrix to screen.
+
+.. _Virtualfilesystem:
+
+Virtual file system
+^^^^^^^^^^^^^^^^^^^
+
+Virtual file system (VFS) functionality was introduced in MuJoCo 1.50. It enables the user to load all necessary files
+in memory, including MJB binary model files, XML files (MJCF, URDF and included files), STL meshes, PNGs for textures
+and height fields, and HF files in our custom height field format. Model and resource files in the VFS can also be
+constructed programmatically (say using a Python library that writes to memory). Once all desired files are in the VFS,
+the user can call :ref:`mj_loadModel` or :ref:`mj_loadXML` with a pointer to the VFS. When this pointer is not NULL, the
+loaders will first check the VFS for any file they are about to load, and only access the disk if the file is not found
+in the VFS. The file names stored in the VFS have their name and extension but the path information is stripped; this
+can be bypassed however by using a custom path symbol in the file names, say "mydir_myfile.xml".
+
+The entire VFS is contained in the data structure :ref:`mjVFS`. All utility functions for maintaining the VFS operate on
+this data structure. The common usage pattern is to first clear it with mj_defaultVFS, then add disk files to it with
+mj_addFileVFS (which allocates memory buffers and loads the file content in memory), then call mj_loadXML or
+mj_loadModel, and then clear everything with mj_deleteVFS.
+
+.. _mj_defaultVFS:
+
+mj_defaultVFS
+~~~~~~~~~~~~~
+
+.. mujoco-include:: mj_defaultVFS
+
+Initialize VFS to empty (no deallocation).
+
+.. _mj_addFileVFS:
+
+mj_addFileVFS
+~~~~~~~~~~~~~
+
+.. mujoco-include:: mj_addFileVFS
+
+Add file to VFS, return 0: success, 1: full, 2: repeated name, -1: failed to load.
+
+.. _mj_makeEmptyFileVFS:
+
+mj_makeEmptyFileVFS
+~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mj_makeEmptyFileVFS
+
+Make empty file in VFS, return 0: success, 1: full, 2: repeated name.
+
+.. _mj_findFileVFS:
+
+mj_findFileVFS
+~~~~~~~~~~~~~~
+
+.. mujoco-include:: mj_findFileVFS
+
+Return file index in VFS, or -1 if not found in VFS.
+
+.. _mj_deleteFileVFS:
+
+mj_deleteFileVFS
+~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mj_deleteFileVFS
+
+Delete file from VFS, return 0: success, -1: not found in VFS.
+
+.. _mj_deleteVFS:
+
+mj_deleteVFS
+~~~~~~~~~~~~
+
+.. mujoco-include:: mj_deleteVFS
+
+Delete all files from VFS.
+
+.. _Initialization:
+
+Initialization
+^^^^^^^^^^^^^^
+
+This section contains functions that load/initialize the model or other data structures. Their use is well illustrated
+in the code samples.
+
+.. _mj_defaultLROpt:
+
+mj_defaultLROpt
+~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mj_defaultLROpt
+
+Set default options for length range computation.
+
+.. _mj_defaultSolRefImp:
+
+mj_defaultSolRefImp
+~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mj_defaultSolRefImp
+
+Set solver parameters to default values.
+
+.. _mj_defaultOption:
+
+mj_defaultOption
+~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mj_defaultOption
+
+Set physics options to default values.
+
+.. _mj_defaultVisual:
+
+mj_defaultVisual
+~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mj_defaultVisual
+
+Set visual options to default values.
+
+.. _mj_copyModel:
+
+mj_copyModel
+~~~~~~~~~~~~
+
+.. mujoco-include:: mj_copyModel
+
+Copy :ref:`mjModel`, allocate new if dest is NULL.
+
+.. _mj_saveModel:
+
+mj_saveModel
+~~~~~~~~~~~~
+
+.. mujoco-include:: mj_saveModel
+
+Save model to binary MJB file or memory buffer; buffer has precedence when given.
+
+.. _mj_loadModel:
+
+mj_loadModel
+~~~~~~~~~~~~
+
+.. mujoco-include:: mj_loadModel
+
+Load model from binary MJB file.
+If vfs is not NULL, look up file in vfs before reading from disk.
+
+.. _mj_deleteModel:
+
+mj_deleteModel
+~~~~~~~~~~~~~~
+
+.. mujoco-include:: mj_deleteModel
+
+Free memory allocation in model.
+
+.. _mj_sizeModel:
+
+mj_sizeModel
+~~~~~~~~~~~~
+
+.. mujoco-include:: mj_sizeModel
+
+Return size of buffer needed to hold model.
+
+.. _mj_makeData:
+
+mj_makeData
+~~~~~~~~~~~
+
+.. mujoco-include:: mj_makeData
+
+Allocate :ref:`mjData` corresponding to given model.
+If the model buffer is unallocated the initial configuration will not be set.
+
+.. _mj_copyData:
+
+mj_copyData
+~~~~~~~~~~~
+
+.. mujoco-include:: mj_copyData
+
+Copy :ref:`mjData`.
+m is only required to contain the size fields from MJMODEL_INTS.
+
+.. _mj_resetData:
+
+mj_resetData
+~~~~~~~~~~~~
+
+.. mujoco-include:: mj_resetData
+
+Reset data to defaults.
+
+.. _mj_resetDataDebug:
+
+mj_resetDataDebug
+~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mj_resetDataDebug
+
+Reset data to defaults, fill everything else with debug_value.
+
+.. _mj_resetDataKeyframe:
+
+mj_resetDataKeyframe
+~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mj_resetDataKeyframe
+
+Reset data, set fields from specified keyframe.
+
+.. _mj_stackAlloc:
+
+mj_stackAlloc
+~~~~~~~~~~~~~
+
+.. mujoco-include:: mj_stackAlloc
+
+Allocate array of specified size on :ref:`mjData` stack. Call mju_error on stack overflow.
+
+.. _mj_deleteData:
+
+mj_deleteData
+~~~~~~~~~~~~~
+
+.. mujoco-include:: mj_deleteData
+
+Free memory allocation in :ref:`mjData`.
+
+.. _mj_resetCallbacks:
+
+mj_resetCallbacks
+~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mj_resetCallbacks
+
+Reset all callbacks to NULL pointers (NULL is the default).
+
+.. _mj_setConst:
+
+mj_setConst
+~~~~~~~~~~~
+
+.. mujoco-include:: mj_setConst
+
+Set constant fields of :ref:`mjModel`, corresponding to qpos0 configuration.
+
+.. _mj_setLengthRange:
+
+mj_setLengthRange
+~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mj_setLengthRange
+
+Set actuator_lengthrange for specified actuator; return 1 if ok, 0 if error.
+
 .. _Interaction:
 
 Interaction
 ^^^^^^^^^^^
 
 These function implement abstract mouse interactions, allowing control over cameras and perturbations. Their use is well
-illustrated in :ref:`simulate.cc <saSimulate>`.
+illustrated in :ref:`simulate<saSimulate>`.
 
 .. _mjv_defaultCamera:
 
@@ -1386,7 +1389,7 @@ This function is used for mouse selection. Previously selection was done via Ope
 ray intersections which are much more efficient. aspectratio is the viewport width/height. relx and rely are the
 relative coordinates of the 2D point of interest in the viewport (usually mouse cursor). The function returns the id of
 the geom under the specified 2D point, or -1 if there is no geom (note that they skybox if present is not a model geom).
-The 3D coordinates of the clicked point are returned in selpnt. See :ref:`simulate.cc <saSimulate>` for an illustration.
+The 3D coordinates of the clicked point are returned in selpnt. See :ref:`simulate<saSimulate>` for an illustration.
 
 .. _Visualization-api:
 
@@ -1395,7 +1398,7 @@ Visualization
 
 The functions in this section implement abstract visualization. The results are used by the OpenGL rendered, and can
 also be used by users wishing to implement their own rendered, or hook up MuJoCo to advanced rendering tools such as
-Unity or Unreal Engine. See :ref:`simulate.cc <saSimulate>` for illustration of how to use these functions.
+Unity or Unreal Engine. See :ref:`simulate<saSimulate>` for illustration of how to use these functions.
 
 .. _mjv_defaultOption:
 
@@ -1422,7 +1425,7 @@ mjv_initGeom
 
 .. mujoco-include:: mjv_initGeom
 
-Initialize given geom fields when not ``NULL``, set the rest to their default values.
+Initialize given geom fields when not NULL, set the rest to their default values.
 
 .. _mjv_makeConnector:
 
@@ -1511,7 +1514,7 @@ Update skins.
 OpenGL rendering
 ^^^^^^^^^^^^^^^^
 
-These functions expose the OpenGL renderer. See :ref:`simulate.cc <saSimulate>` for an illustration
+These functions expose the OpenGL renderer. See :ref:`simulate<saSimulate>` for an illustration
 of how to use these functions.
 
 .. _mjr_defaultContext:
@@ -1809,7 +1812,7 @@ mjui_event
 
 .. mujoco-include:: mjui_event
 
-Handle UI event, return pointer to changed item, ``NULL`` if no change.
+Handle UI event, return pointer to changed item, NULL if no change.
 
 .. _mjui_render:
 
@@ -1913,7 +1916,7 @@ mj_warning
 
 .. mujoco-include:: mj_warning
 
-High-level warning function: count warnings in ``mjData``, print only the first.
+High-level warning function: count warnings in :ref:`mjData`, print only the first.
 
 .. _mju_writeLog:
 
@@ -2474,7 +2477,7 @@ mju_sqrMatTD
 
 .. mujoco-include:: mju_sqrMatTD
 
-Set res = mat' * diag * mat if diag is not ``NULL``, and res = mat' * mat otherwise.
+Set res = mat' * diag * mat if diag is not NULL, and res = mat' * mat otherwise.
 
 .. _mju_transformSpatial:
 
@@ -2484,7 +2487,7 @@ mju_transformSpatial
 .. mujoco-include:: mju_transformSpatial
 
 Coordinate transform of 6D motion or force vector in rotation:translation format.
-rotnew2old is 3-by-3, ``NULL`` means no rotation; flg_force specifies force or motion type.
+rotnew2old is 3-by-3, NULL means no rotation; flg_force specifies force or motion type.
 
 .. _Quaternions:
 
@@ -2998,7 +3001,7 @@ finite-differencing. These matrices and their dimensions are:
    ``C``, :math:`\partial s / \partial x`, ``nsensordata x 2*nv+na``
    ``D``, :math:`\partial s / \partial u`, ``nsensordata x nu``
 
-- All four matrix outputs are optional (can be ``NULL``).
+- All four matrix outputs are optional (can be NULL).
 - ``eps`` is the finite-differencing epsilon.
 - ``centered`` is a flag denoting whether to use forward (0) or centered (1) differences.
 
@@ -3045,7 +3048,7 @@ mjp_getPlugin
 
 .. mujoco-include:: mjp_getPlugin
 
-Look up a plugin by name. If slot is not ``NULL``, also write its registered slot number into it.
+Look up a plugin by name. If slot is not NULL, also write its registered slot number into it.
 
 .. _mjp_getPluginAtSlot:
 
