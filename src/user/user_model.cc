@@ -281,6 +281,7 @@ void mjCModel::Clear(void) {
   nemax = 0;
   nM = 0;
   nD = 0;
+  nB = 0;
   njmax = -1;
   nconmax = -1;
 
@@ -1622,9 +1623,38 @@ void mjCModel::CopyTree(mjModel* m) {
   }
   m->nM = nM;
 
-  // set nD
-  nD = 2*nM - nv;
+  // compute nD
+  nD = 2 * nM - nv;
   m->nD = nD;
+
+  // compute subtreedofs in backward pass over bodies
+  for (i = nbody - 1; i > 0; i--) {
+    // add body dofs to self count
+    bodies[i]->subtreedofs += bodies[i]->dofnum;
+
+    // add to parent count
+    bodies[bodies[i]->parentid]->subtreedofs += bodies[i]->subtreedofs;
+  }
+
+  // make sure all dofs are in world "subtree", SHOULD NOT OCCUR
+  if (bodies[0]->subtreedofs != nv) {
+    throw mjCError(0, "all DOFs should be in world subtree");
+  }
+
+  // compute nB
+  nB = 0;
+  for (i = 0; i < nbody; i++) {
+    // add subtree dofs (including self)
+    nB += bodies[i]->subtreedofs;
+
+    // add dofs in ancestor bodies
+    j = bodies[i]->parentid;
+    while (j > 0) {
+      nB += bodies[j]->dofnum;
+      j = bodies[j]->parentid;
+    }
+  }
+  m->nB = nB;
 
   // set dof_simplenum
   int scnt = 0;
@@ -2846,7 +2876,7 @@ bool mjCModel::CopyBack(const mjModel* m) {
       neq!=m->neq || ntendon!=m->ntendon || nwrap!=m->nwrap || nsensor!=m->nsensor ||
       nnumeric!=m->nnumeric || nnumericdata!=m->nnumericdata || ntext!=m->ntext ||
       ntextdata!=m->ntextdata || nnames!=m->nnames || nM!=m->nM || nD!=m->nD ||
-      nemax!=m->nemax || nconmax!=m->nconmax || njmax!=m->njmax) {
+      nB!=m->nB || nemax!=m->nemax || nconmax!=m->nconmax || njmax!=m->njmax) {
     errInfo = mjCError(0, "incompatible models in CopyBack");
     return false;
   }

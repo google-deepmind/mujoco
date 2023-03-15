@@ -547,7 +547,7 @@ void makephysics(mj::Simulate* sim, int oldstate) {
 
   mjuiDef defPhysics[] = {
     {mjITEM_SECTION,   "Physics",       oldstate, nullptr,           "AP"},
-    {mjITEM_SELECT,    "Integrator",    2, &(opt.integrator),        "Euler\nRK4\nimplicit"},
+    {mjITEM_SELECT,    "Integrator",    2, &(opt.integrator),        "Euler\nRK4\nimplicit\nimplicitfast"},
     {mjITEM_SELECT,    "Collision",     2, &(opt.collision),         "All\nPair\nDynamic"},
     {mjITEM_SELECT,    "Cone",          2, &(opt.cone),              "Pyramidal\nElliptic"},
     {mjITEM_SELECT,    "Jacobian",      2, &(opt.jacobian),          "Dense\nSparse\nAuto"},

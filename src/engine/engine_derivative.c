@@ -358,6 +358,7 @@ void mj_stepSkip(const mjModel* m, mjData* d, int skipstage, int skipsensor) {
       break;
 
     case mjINT_IMPLICIT:
+    case mjINT_IMPLICITFAST:
       mj_implicitSkip(m, d, skipstage >= mjSTAGE_VEL);
       break;
 
@@ -370,10 +371,11 @@ void mj_stepSkip(const mjModel* m, mjData* d, int skipstage, int skipsensor) {
 
 
 
-//------------------------- derivatives of component functions -------------------------------------
+//------------------------- dense derivatives of component functions -------------------------------
+// no longer used, for comparison only
 
-// derivative of cvel, cdof_dot w.r.t qvel
-static void mjd_comVel_vel(const mjModel* m, mjData* d, mjtNum* Dcvel, mjtNum* Dcdofdot)
+// derivative of cvel, cdof_dot w.r.t qvel (dense version)
+static void mjd_comVel_vel_dense(const mjModel* m, mjData* d, mjtNum* Dcvel, mjtNum* Dcdofdot)
 {
   int nv = m->nv, nbody = m->nbody;
   mjtNum mat[36];
@@ -388,8 +390,7 @@ static void mjd_comVel_vel(const mjModel* m, mjData* d, mjtNum* Dcvel, mjtNum* D
 
     // Dcvel += D(cdof * qvel),  Dcdofdot = D(cvel x cdof)
     for (int j=m->body_dofadr[i]; j<m->body_dofadr[i]+m->body_dofnum[i]; j++) {
-      switch (m->jnt_type[m->dof_jntid[j]])
-      {
+      switch (m->jnt_type[m->dof_jntid[j]]) {
       case mjJNT_FREE:
         // Dcdofdot = 0
         mju_zero(Dcdofdot+j*6*nv, 18*nv);
@@ -439,8 +440,8 @@ static void mjd_comVel_vel(const mjModel* m, mjData* d, mjtNum* Dcvel, mjtNum* D
 
 
 
-// subtract (d qfrc_bias / d qvel) from DfDv
-static void mjd_rne_vel(const mjModel* m, mjData* d, mjtNum* DfDv) {
+// subtract (d qfrc_bias / d qvel) from qDeriv (dense version)
+void mjd_rne_vel_dense(const mjModel* m, mjData* d) {
   int nv = m->nv, nbody = m->nbody;
   mjtNum mat[36], mat1[36], mat2[36], dmul[36], tmp[6];
 
@@ -449,9 +450,10 @@ static void mjd_rne_vel(const mjModel* m, mjData* d, mjtNum* DfDv) {
   mjtNum* Dcdofdot = mj_stackAlloc(d, nv*6*nv);
   mjtNum* Dcacc = mj_stackAlloc(d, nbody*6*nv);
   mjtNum* Dcfrcbody = mj_stackAlloc(d, nbody*6*nv);
+  mjtNum* row = mj_stackAlloc(d, nv);
 
-  // compute Dcdofdot and Dcvel
-  mjd_comVel_vel(m, d, Dcvel, Dcdofdot);
+  // compute Dcvel and Dcdofdot
+  mjd_comVel_vel_dense(m, d, Dcvel, Dcdofdot);
 
   // clear Dcacc
   mju_zero(Dcacc, nbody*6*nv);
@@ -500,11 +502,235 @@ static void mjd_rne_vel(const mjModel* m, mjData* d, mjtNum* DfDv) {
     }
   }
 
-  // DfDv -= D(cdof * cfrc_body)
+  // qDeriv -= D(cdof * cfrc_body)
   for (int i=0; i<nv; i++) {
     for (int k=0; k<6; k++) {
-      mju_addToScl(DfDv+i*nv, Dcfrcbody+(m->dof_bodyid[i]*6+k)*nv, -d->cdof[i*6+k], nv);
+      // compute D(cdof * cfrc_body), store in row
+      mju_scl(row, Dcfrcbody + (m->dof_bodyid[i]*6+k)*nv, d->cdof[i*6+k], nv);
+
+      // dense to sparse: qDeriv -= row
+      int end = d->D_rowadr[i] + d->D_rownnz[i];
+      for (int adr=d->D_rowadr[i]; adr<end; adr++) {
+        d->qDeriv[adr] -= row[d->D_colind[adr]];
+      }
     }
+  }
+
+  mjFREESTACK;
+}
+
+
+
+//------------------------- sparse derivatives of component functions ------------------------------
+// internal sparse format: dense body/dof x sparse dof x 6   (inner size is 6)
+
+// copy sparse B-row from parent, shared ancestors only
+static void copyFromParent(const mjModel* m, mjData* d, mjtNum* mat, int n) {
+  // return if this is world or parent is world
+  if (n == 0 || m->body_weldid[m->body_parentid[n]] == 0) {
+    return;
+  }
+
+  // count dofs in ancestors
+  int ndof = 0;
+  int np = m->body_weldid[m->body_parentid[n]];
+  while (np>0) {
+    // add self dofs
+    ndof += m->body_dofnum[np];
+
+    // advance to parent
+    np = m->body_weldid[m->body_parentid[np]];
+  }
+
+  // copy: guaranteed to be at beginning of sparse array, due to sorting
+  mju_copy(mat + 6*d->B_rowadr[n], mat + 6*d->B_rowadr[m->body_parentid[n]], 6*ndof);
+}
+
+
+
+// add sparse B-row to parent, all overlapping nonzeros
+static void addToParent(const mjModel* m, mjData* d, mjtNum* mat, int n) {
+  // return if this is world or parent is world
+  if (n == 0 || m->body_weldid[m->body_parentid[n]] == 0) {
+    return;
+  }
+
+  // find matching nonzeros
+  int np = m->body_parentid[n];
+  int i = 0, ip = 0;
+  while (i<d->B_rownnz[n] && ip<d->B_rownnz[np]) {
+    // columns match
+    if (d->B_colind[d->B_rowadr[n] + i] == d->B_colind[d->B_rowadr[np] + ip]) {
+      mju_addTo(mat + 6*(d->B_rowadr[np] + ip), mat + 6*(d->B_rowadr[n] + i), 6);
+
+      // advance both
+      i++;
+      ip++;
+    }
+
+    // mismatch columns: advance parent
+    else if (d->B_colind[d->B_rowadr[n] + i] > d->B_colind[d->B_rowadr[np] + ip]) {
+      ip++;
+    }
+
+    // child nonzeroes must be subset of parent; SHOULD NOT OCCUR
+    else {
+      mju_error("Error in addToParent: child nonzeroes must be subset of parent");
+    }
+  }
+}
+
+
+
+// derivative of cvel, cdof_dot w.r.t qvel
+static void mjd_comVel_vel(const mjModel* m, mjData* d, mjtNum* Dcvel, mjtNum* Dcdofdot) {
+  int nv = m->nv, nbody = m->nbody;
+  int* Badr = d->B_rowadr, * Dadr = d->D_rowadr;
+  mjtNum mat[36], matT[36];   // 6x6 matrices
+
+  // forward pass over bodies: accumulate Dcvel, set Dcdofdot
+  for (int i = 1; i<nbody; i++) {
+    // Dcvel = Dcvel_parent
+    copyFromParent(m, d, Dcvel, i);
+
+    // process all dofs of this body
+    int doflast = m->body_dofadr[i] + m->body_dofnum[i];
+    for (int j = m->body_dofadr[i]; j<doflast; j++) {
+      // number of dof ancestors of dof j
+      int Jadr = (j<nv - 1 ? m->dof_Madr[j + 1] : m->nM) - (m->dof_Madr[j] + 1);
+
+      // Dcvel += D(cdof * qvel),  Dcdofdot = D(cvel x cdof)
+      switch (m->jnt_type[m->dof_jntid[j]]) {
+      case mjJNT_FREE:
+        // Dcdofdot = 0 (already cleared)
+
+        // Dcvel += cdof * D(qvel)
+        mju_addTo(Dcvel + 6*(Badr[i] + Jadr + 0), d->cdof + 6*(j + 0), 6);
+        mju_addTo(Dcvel + 6*(Badr[i] + Jadr + 1), d->cdof + 6*(j + 1), 6);
+        mju_addTo(Dcvel + 6*(Badr[i] + Jadr + 2), d->cdof + 6*(j + 2), 6);
+
+        // continue with rotations
+        j += 3;
+        Jadr += 3;
+        mjFALLTHROUGH;
+
+      case mjJNT_BALL:
+        // Dcdofdot = Dcvel * D crossMotion(cvel, cdof)
+        for (int dj=0; dj<3; dj++) {
+          mjd_crossMotion_vel(mat, d->cdof + 6 * (j + dj));
+          mju_transpose(matT, mat, 6, 6);
+          mju_mulMatMat(Dcdofdot + 6*Dadr[j + dj], Dcvel + 6*Badr[i], matT, Jadr + dj, 6, 6);
+        }
+
+        // Dcvel += cdof * (D qvel)
+        mju_addTo(Dcvel + 6*(Badr[i] + Jadr + 0), d->cdof + 6*(j + 0), 6);
+        mju_addTo(Dcvel + 6*(Badr[i] + Jadr + 1), d->cdof + 6*(j + 1), 6);
+        mju_addTo(Dcvel + 6*(Badr[i] + Jadr + 2), d->cdof + 6*(j + 2), 6);
+
+        // adjust for 3-dof joint
+        j += 2;
+        break;
+
+      case mjJNT_HINGE:
+      case mjJNT_SLIDE:
+        // Dcdofdot = D crossMotion(cvel, cdof) * Dcvel
+        mjd_crossMotion_vel(mat, d->cdof + 6 * j);
+        mju_transpose(matT, mat, 6, 6);
+        mju_mulMatMat(Dcdofdot + 6*Dadr[j], Dcvel + 6*Badr[i], matT, Jadr, 6, 6);
+
+        // Dcvel += cdof * (D qvel)
+        mju_addTo(Dcvel + 6*(Badr[i] + Jadr), d->cdof + 6*j, 6);
+        break;
+
+      default:
+        mju_error("mjd_comVel_vel: Unknown joint type");
+      }
+    }
+  }
+}
+
+
+
+// subtract d qfrc_bias / d qvel from qDeriv
+static void mjd_rne_vel(const mjModel* m, mjData* d) {
+  int nv = m->nv, nbody = m->nbody;
+  const int* Badr = d->B_rowadr;
+  const int* Dadr = d->D_rowadr;
+  const int* Bnnz = d->B_rownnz;
+
+  mjtNum mat[36], mat1[36], mat2[36], dmul[36], tmp[6];
+
+  mjMARKSTACK;
+  mjtNum* Dcdofdot = mj_stackAlloc(d, 6*m->nD);
+  mjtNum* Dcvel = mj_stackAlloc(d, 6*m->nB);
+  mjtNum* Dcacc = mj_stackAlloc(d, 6*m->nB);
+  mjtNum* Dcfrcbody = mj_stackAlloc(d, 6*m->nB);
+  mjtNum* row = mj_stackAlloc(d, nv);
+
+  // clear
+  mju_zero(Dcdofdot, 6*m->nD);
+  mju_zero(Dcvel, 6*m->nB);
+  mju_zero(Dcacc, 6*m->nB);
+  mju_zero(Dcfrcbody, 6*m->nB);
+
+  // compute Dcvel and Dcdofdot
+  mjd_comVel_vel(m, d, Dcvel, Dcdofdot);
+
+  // forward pass over bodies: accumulate Dcacc, set Dcfrcbody
+  for (int i=1; i<nbody; i++) {
+    // Dcacc = Dcacc_parent
+    copyFromParent(m, d, Dcacc, i);
+
+    // process all dofs of this body
+    int doflast = m->body_dofadr[i] + m->body_dofnum[i];
+    for (int j=m->body_dofadr[i]; j<doflast; j++) {
+      // number of dof ancestors of dof j
+      int Jadr = (j < nv - 1 ? m->dof_Madr[j + 1] : m->nM) - (m->dof_Madr[j] + 1);
+
+      // Dcacc += cdofdot * (D qvel)
+      mju_addTo(Dcacc + 6*(Badr[i] + Jadr), d->cdof_dot + 6*j, 6);
+
+      // Dcacc += (D cdofdot) * qvel
+      // Dcacc[row i] and Dcdofdot[row j] have identical sparsity
+      mju_addToScl(Dcacc + 6*Badr[i], Dcdofdot + 6*Dadr[j], d->qvel[j], 6*Bnnz[i]);
+    }
+
+    //---------- Dcfrcbody = D(cinert * cacc + cvel x (cinert * cvel))
+
+    // Dcfrcbody = (D mul / D cacc) * Dcacc
+    mjd_mulInertVec_vel(dmul, d->cinert + 10*i);
+    mju_transpose(mat1, dmul, 6, 6);
+    mju_mulMatMat(Dcfrcbody + 6*Badr[i], Dcacc + 6*Badr[i], mat1, Bnnz[i], 6, 6);
+
+    // mat = (D cross / D cvel) + (D cross / D mul) * (D mul / D cvel)
+    mju_mulInertVec(tmp, d->cinert + 10*i, d->cvel + i*6);
+    mjd_crossForce_vel(mat, tmp);
+    mjd_crossForce_frc(mat1, d->cvel + i*6);
+    mju_mulMatMat(mat2, mat1, dmul, 6, 6, 6);
+    mju_addTo(mat, mat2, 36);
+
+    // Dcfrcbody += mat * Dcvel  (use worldbody as temp)
+    mju_transpose(mat1, mat, 6, 6);
+    mju_mulMatMat(Dcfrcbody, Dcvel + 6*Badr[i], mat1, Bnnz[i], 6, 6);
+    mju_addTo(Dcfrcbody + 6*Badr[i], Dcfrcbody, 6*Bnnz[i]);
+  }
+
+  // clear worldbody Dcfrcbody
+  mju_zero(Dcfrcbody, 6*Bnnz[0]);
+
+  // backward pass over bodies: accumulate Dcfrcbody
+  for (int i=m->nbody-1; i>0; i--) {
+    addToParent(m, d, Dcfrcbody, i);
+  }
+
+  // process all dofs, update qDeriv
+  for (int j=0; j<nv; j++) {
+    // get body index
+    int i = m->dof_bodyid[j];
+
+    // qDeriv -= D(cdof * cfrc_body)
+    mju_mulMatVec(row, Dcfrcbody + 6*Badr[i], d->cdof + 6*j, Bnnz[i], 6);
+    mju_subFrom(d->qDeriv + Dadr[j], row, Bnnz[i]);
   }
 
   mjFREESTACK;
@@ -548,51 +774,84 @@ static int bodyJacSparse(const mjModel* m, int body, int* ind) {
 
 
 
-// add J'*B*J to DfDv
-static void addJTBJ(mjtNum* DfDv, const mjtNum* J, const mjtNum* B, int n, int nv) {
+
+// add J'*B*J to qDeriv
+static void addJTBJ(const mjModel* m, mjData* d, const mjtNum* J, const mjtNum* B, int n) {
+  int nv = m->nv;
+
+  // allocate dense row
+  mjMARKSTACK;
+  mjtNum* row = mj_stackAlloc(d, nv);
+
   // process non-zero elements of B
   for (int i=0; i<n; i++) {
     for (int j=0; j<n; j++) {
-      if (B[i*n+j]) {
-        // process non-zero elements of J(i,:)
-        for (int k=0; k<nv; k++) {
-          if (J[i*nv+k]) {
-            // add J(i,k)*B(i,j)*J(j,:) to DfDv(k,:)
-            mju_addToScl(DfDv+k*nv, J+j*nv, J[i*nv+k]*B[i*n+j], nv);
+      if (!B[i*n+j]) {
+        continue;
+      }
+      // process non-zero elements of J(i,:)
+      for (int k=0; k<nv; k++) {
+        if (J[i*nv+k]) {
+          // row = J(i,k)*B(i,j)*J(j,:)
+          mju_scl(row, J+j*nv, J[i*nv+k] * B[i*n+j], nv);
+
+          // add row to qDeriv(k,:)
+          int rownnz_k = d->D_rownnz[k];
+          for (int s=0; s<rownnz_k; s++) {
+            int adr = d->D_rowadr[k] + s;
+            d->qDeriv[adr] += row[d->D_colind[adr]];
           }
         }
       }
     }
   }
+
+  mjFREESTACK;
 }
 
 
 
-// add J'*B*J to DfDv, sparse version
-static void addJTBJSparse(mjtNum* DfDv, const mjtNum* J, const mjtNum* B,
-                          int n, int nv, int offset,
-                          const int* rownnz, const int* rowadr, const int* colind) {
+// add J'*B*J to qDeriv, sparse version
+static void addJTBJSparse(const mjModel* m, mjData* d, const mjtNum* J,
+  const mjtNum* B, int n, int offset,
+  const int* rownnz, const int* rowadr, const int* colind) {
+  int nv = m->nv;
+
+  // allocate row
+  mjMARKSTACK;
+  mjtNum* row = mj_stackAlloc(d, nv);
+
   // process non-zero elements of B
   for (int i=0; i<n; i++) {
     for (int j=0; j<n; j++) {
-      if (B[i*n+j]) {
-        // process non-zero elements of J(i,k)
-        for (int k=0; k<rownnz[offset+i]; k++) {
-          int ik = rowadr[offset+i] + k;
-          int col_ik = colind[ik]*nv;
-          mjtNum scl = J[ik]*B[i*n+j];
+      if (!B[i*n+j]) {
+        continue;
+      }
 
-          // process non-zero elements of J(j,p)
-          for (int p=0; p<rownnz[offset+j]; p++) {
-            int jp = rowadr[offset+j] + p;
+      // process non-zero elements of J(i,k)
+      for (int k=0; k<rownnz[offset+i]; k++) {
+        int ik = rowadr[offset+i] + k;
+        mjtNum scl = J[ik]*B[i*n+j];
 
-            // add J(i,k)*B(i,j)*J(j,p) to DfDv(k,p)
-            DfDv[col_ik + colind[jp]] += scl * J[jp];
-          }
+        // process non-zero elements of J(j,p)
+        for (int p=0; p<rownnz[offset+j]; p++) {
+          int jp = rowadr[offset+j] + p;
+
+          // row[p] = J(i,k)*B(i,j)*J(j,p)
+          row[p] = scl * J[jp];
+        }
+
+        // add row to qDeriv(k,:)
+        for (int s=0; s<d->D_rownnz[k]; s++) {
+          int adr = d->D_rowadr[k] + s;
+          d->qDeriv[adr] += row[d->D_colind[adr]];
         }
       }
     }
   }
+
+  // free space
+  mjFREESTACK;
 }
 
 
@@ -667,8 +926,8 @@ static mjtNum mjd_muscleGain_vel(mjtNum len, mjtNum vel, const mjtNum lengthrang
 
 
 
-// add (d qfrc_actuator / d qvel) to DfDv
-static void mjd_actuator_vel(const mjModel* m, mjData* d, mjtNum* DfDv) {
+// add (d qfrc_actuator / d qvel) to qDeriv
+void mjd_actuator_vel(const mjModel* m, mjData* d) {
   int nv = m->nv;
 
   // disabled: nothing to add
@@ -712,7 +971,7 @@ static void mjd_actuator_vel(const mjModel* m, mjData* d, mjtNum* DfDv) {
 
     // add
     if (bias_vel!=0) {
-      addJTBJ(DfDv, d->actuator_moment+i*nv, &bias_vel, 1, nv);
+      addJTBJ(m, d, d->actuator_moment+i*nv, &bias_vel, 1);
     }
   }
 }
@@ -1007,7 +1266,7 @@ static inline void mjd_magnus_force(
 //----------------- fluid force derivatives, ellipsoid and inertia-box models ----------------------
 
 // fluid forces based on ellipsoid approximation
-void mjd_ellipsoidFluid(const mjModel* m, mjData* d, mjtNum* DfDv, int bodyid) {
+void mjd_ellipsoidFluid(const mjModel* m, mjData* d, int bodyid) {
   mjMARKSTACK;
 
   int nv = m->nv;
@@ -1100,10 +1359,22 @@ void mjd_ellipsoidFluid(const mjModel* m, mjData* d, mjtNum* DfDv, int bodyid) {
 
     mjd_addedMassForces(B, lvel, m->opt.density, virtual_mass, virtual_inertia);
 
+    // make B symmetric if integrator is IMPLICITFAST
+    if (m->opt.integrator == mjINT_IMPLICITFAST) {
+      for (int i=0; i<5; i++) {
+        for (j=i+1; j<6; j++) {
+          mjtNum tmp = 0.5 * (B[6 * i + j] + B[6 * j + i]);
+          B[6 * i + j] = tmp;
+          B[6 * j + i] = tmp;
+        }
+      }
+    }
+
     if (mj_isSparse(m)) {
-      addJTBJSparse(DfDv, J, B, 6, nv, 0, rownnz, rowadr, colind_compressed);
-    } else {
-      addJTBJ(DfDv, J, B, 6, nv);
+      addJTBJSparse(m, d, J, B, 6, 0, rownnz, rowadr, colind_compressed);
+    }
+    else {
+      addJTBJ(m, d, J, B, 6);
     }
   }
 
@@ -1112,7 +1383,7 @@ void mjd_ellipsoidFluid(const mjModel* m, mjData* d, mjtNum* DfDv, int bodyid) {
 
 
 // fluid forces based on inertia-box approximation
-void mjd_inertiaBoxFluid(const mjModel* m, mjData* d, mjtNum* DfDv, int i)
+void mjd_inertiaBoxFluid(const mjModel* m, mjData* d, int i)
 {
   mjMARKSTACK;
 
@@ -1127,11 +1398,11 @@ void mjd_inertiaBoxFluid(const mjModel* m, mjData* d, mjtNum* DfDv, int i)
 
   // equivalent inertia box
   box[0] = mju_sqrt(mju_max(mjMINVAL,
-                            (inertia[1] + inertia[2] - inertia[0])) / m->body_mass[i] * 6.0);
+    (inertia[1] + inertia[2] - inertia[0])) / m->body_mass[i] * 6.0);
   box[1] = mju_sqrt(mju_max(mjMINVAL,
-                            (inertia[0] + inertia[2] - inertia[1])) / m->body_mass[i] * 6.0);
+    (inertia[0] + inertia[2] - inertia[1])) / m->body_mass[i] * 6.0);
   box[2] = mju_sqrt(mju_max(mjMINVAL,
-                            (inertia[0] + inertia[1] - inertia[2])) / m->body_mass[i] * 6.0);
+    (inertia[0] + inertia[1] - inertia[2])) / m->body_mass[i] * 6.0);
 
   // map from CoM-centered to local body-centered 6D velocity
   mj_objectVelocity(m, d, mjOBJ_BODY, i, lvel, 1);
@@ -1190,9 +1461,9 @@ void mjd_inertiaBoxFluid(const mjModel* m, mjData* d, mjtNum* DfDv, int i)
     B = -mjPI*diam*diam*diam*m->opt.viscosity;
     for (int j=0; j<3; j++) {
       if (mj_isSparse(m)) {
-        addJTBJSparse(DfDv, J, &B, 1, nv, j, rownnz, rowadr, colind);
+        addJTBJSparse(m, d, J, &B, 1, j, rownnz, rowadr, colind);
       } else {
-        addJTBJ(DfDv, J+j*nv, &B, 1, nv);
+        addJTBJ(m, d, J+j*nv, &B, 1);
       }
     }
 
@@ -1200,9 +1471,9 @@ void mjd_inertiaBoxFluid(const mjModel* m, mjData* d, mjtNum* DfDv, int i)
     B = -3.0*mjPI*diam*m->opt.viscosity;
     for (int j=0; j<3; j++) {
       if (mj_isSparse(m)) {
-        addJTBJSparse(DfDv, J, &B, 1, nv, 3+j, rownnz, rowadr, colind);
+        addJTBJSparse(m, d, J, &B, 1, 3+j, rownnz, rowadr, colind);
       } else {
-        addJTBJ(DfDv, J+3*nv+j*nv, &B, 1, nv);
+        addJTBJ(m, d, J+3*nv+j*nv, &B, 1);
       }
     }
   }
@@ -1214,9 +1485,9 @@ void mjd_inertiaBoxFluid(const mjModel* m, mjData* d, mjtNum* DfDv, int i)
     B = -m->opt.density*box[0]*(box[1]*box[1]*box[1]*box[1]+box[2]*box[2]*box[2]*box[2])*
         2*mju_abs(lvel[0])/64.0;
     if (mj_isSparse(m)) {
-      addJTBJSparse(DfDv, J, &B, 1, nv, 0, rownnz, rowadr, colind);
+      addJTBJSparse(m, d, J, &B, 1, 0, rownnz, rowadr, colind);
     } else {
-      addJTBJ(DfDv, J, &B, 1, nv);
+      addJTBJ(m, d, J, &B, 1);
     }
 
     // lfrc[1] -= m->opt.density*box[1]*(box[0]*box[0]*box[0]*box[0]+box[2]*box[2]*box[2]*box[2])*
@@ -1224,9 +1495,9 @@ void mjd_inertiaBoxFluid(const mjModel* m, mjData* d, mjtNum* DfDv, int i)
     B = -m->opt.density*box[1]*(box[0]*box[0]*box[0]*box[0]+box[2]*box[2]*box[2]*box[2])*
         2*mju_abs(lvel[1])/64.0;
     if (mj_isSparse(m)) {
-      addJTBJSparse(DfDv, J, &B, 1, nv, 1, rownnz, rowadr, colind);
+      addJTBJSparse(m, d, J, &B, 1, 1, rownnz, rowadr, colind);
     } else {
-      addJTBJ(DfDv, J+nv, &B, 1, nv);
+      addJTBJ(m, d, J+nv, &B, 1);
     }
 
     // lfrc[2] -= m->opt.density*box[2]*(box[0]*box[0]*box[0]*box[0]+box[1]*box[1]*box[1]*box[1])*
@@ -1234,33 +1505,33 @@ void mjd_inertiaBoxFluid(const mjModel* m, mjData* d, mjtNum* DfDv, int i)
     B = -m->opt.density*box[2]*(box[0]*box[0]*box[0]*box[0]+box[1]*box[1]*box[1]*box[1])*
         2*mju_abs(lvel[2])/64.0;
     if (mj_isSparse(m)) {
-      addJTBJSparse(DfDv, J, &B, 1, nv, 2, rownnz, rowadr, colind);
+      addJTBJSparse(m, d, J, &B, 1, 2, rownnz, rowadr, colind);
     } else {
-      addJTBJ(DfDv, J+2*nv, &B, 1, nv);
+      addJTBJ(m, d, J+2*nv, &B, 1);
     }
 
     // lfrc[3] -= 0.5*m->opt.density*box[1]*box[2]*mju_abs(lvel[3])*lvel[3];
     B = -0.5*m->opt.density*box[1]*box[2]*2*mju_abs(lvel[3]);
     if (mj_isSparse(m)) {
-      addJTBJSparse(DfDv, J, &B, 1, nv, 3, rownnz, rowadr, colind);
+      addJTBJSparse(m, d, J, &B, 1, 3, rownnz, rowadr, colind);
     } else {
-      addJTBJ(DfDv, J+3*nv, &B, 1, nv);
+      addJTBJ(m, d, J+3*nv, &B, 1);
     }
 
     // lfrc[4] -= 0.5*m->opt.density*box[0]*box[2]*mju_abs(lvel[4])*lvel[4];
     B = -0.5*m->opt.density*box[0]*box[2]*2*mju_abs(lvel[4]);
     if (mj_isSparse(m)) {
-      addJTBJSparse(DfDv, J, &B, 1, nv, 4, rownnz, rowadr, colind);
+      addJTBJSparse(m, d, J, &B, 1, 4, rownnz, rowadr, colind);
     } else {
-      addJTBJ(DfDv, J+4*nv, &B, 1, nv);
+      addJTBJ(m, d, J+4*nv, &B, 1);
     }
 
     // lfrc[5] -= 0.5*m->opt.density*box[0]*box[1]*mju_abs(lvel[5])*lvel[5];
     B = -0.5*m->opt.density*box[0]*box[1]*2*mju_abs(lvel[5]);
     if (mj_isSparse(m)) {
-      addJTBJSparse(DfDv, J, &B, 1, nv, 5, rownnz, rowadr, colind);
+      addJTBJSparse(m, d, J, &B, 1, 5, rownnz, rowadr, colind);
     } else {
-      addJTBJ(DfDv, J+5*nv, &B, 1, nv);
+      addJTBJ(m, d, J+5*nv, &B, 1);
     }
   }
 
@@ -1271,9 +1542,9 @@ void mjd_inertiaBoxFluid(const mjModel* m, mjData* d, mjtNum* DfDv, int i)
 
 //------------------------- derivatives of passive forces ------------------------------------------
 
-// add (d qfrc_passive / d qvel) to DfDv
-void mjd_passive_vel(const mjModel* m, mjData* d, mjtNum* DfDv) {
-  int nv = m->nv;
+// add (d qfrc_passive / d qvel) to qDeriv
+void mjd_passive_vel(const mjModel* m, mjData* d) {
+  int nv = m->nv, nbody = m->nbody;
 
   // disabled: nothing to add
   if (mjDISABLED(mjDSBL_PASSIVE)) {
@@ -1282,7 +1553,16 @@ void mjd_passive_vel(const mjModel* m, mjData* d, mjtNum* DfDv) {
 
   // dof damping
   for (int i=0; i<nv; i++) {
-    DfDv[i*(nv+1)] -= m->dof_damping[i];
+    int nnz_i = d->D_rownnz[i];
+    for (int j=0; j<nnz_i; j++) {
+      int ij = d->D_rowadr[i] + j;
+
+      // identify diagonal element
+      if (d->D_colind[ij] == i) {
+        d->qDeriv[ij] -= m->dof_damping[i];
+        break;
+      }
+    }
   }
 
   // tendon damping
@@ -1292,17 +1572,17 @@ void mjd_passive_vel(const mjModel* m, mjData* d, mjtNum* DfDv) {
 
       // add sparse or dense
       if (mj_isSparse(m)) {
-        addJTBJSparse(DfDv, d->ten_J, &B, 1, nv, i,
+        addJTBJSparse(m, d, d->ten_J, &B, 1, i,
                       d->ten_J_rownnz, d->ten_J_rowadr, d->ten_J_colind);
       } else {
-        addJTBJ(DfDv, d->ten_J+i*nv, &B, 1, nv);
+        addJTBJ(m, d, d->ten_J+i*nv, &B, 1);
       }
     }
   }
 
   // fluid drag model, either body-level (inertia box) or geom-level (ellipsoid)
   if (m->opt.viscosity>0 || m->opt.density>0) {
-    for (int i=1; i<m->nbody; i++) {
+    for (int i=1; i<nbody; i++) {
       if (m->body_mass[i]<mjMINVAL) {
         continue;
       }
@@ -1314,9 +1594,9 @@ void mjd_passive_vel(const mjModel* m, mjData* d, mjtNum* DfDv) {
         use_ellipsoid_model += (m->geom_fluid[mjNFLUID*geomid] > 0);
       }
       if (use_ellipsoid_model) {
-        mjd_ellipsoidFluid(m, d, DfDv, i);
+        mjd_ellipsoidFluid(m, d, i);
       } else {
-        mjd_inertiaBoxFluid(m, d, DfDv, i);
+        mjd_inertiaBoxFluid(m, d, i);
       }
     }
   }
@@ -1324,13 +1604,17 @@ void mjd_passive_vel(const mjModel* m, mjData* d, mjtNum* DfDv) {
 
 
 
-// add forward fin-diff approximation of (d qfrc_passive / d qvel) to DfDv
-void mjd_passive_velFD(const mjModel* m, mjData* d, mjtNum eps, mjtNum* DfDv) {
+// add forward fin-diff approximation of (d qfrc_passive / d qvel) to qDeriv
+void mjd_passive_velFD(const mjModel* m, mjData* d, mjtNum eps) {
   int nv = m->nv;
 
   mjMARKSTACK;
   mjtNum* qfrc_passive = mj_stackAlloc(d, nv);
   mjtNum* fd = mj_stackAlloc(d, nv);
+  int* cnt = (int*)mj_stackAlloc(d, nv);
+
+  // clear row counters
+  memset(cnt, 0, nv*sizeof(int));
 
   // save qfrc_passive, assume mj_fwdVelocity was called
   mju_copy(qfrc_passive, d->qfrc_passive, nv);
@@ -1351,9 +1635,13 @@ void mjd_passive_velFD(const mjModel* m, mjData* d, mjtNum eps, mjtNum* DfDv) {
     mju_sub(fd, d->qfrc_passive, qfrc_passive, nv);
     mju_scl(fd, fd, 1/eps, nv);
 
-    // copy to i-th column of DfDv
+    // copy to i-th column of qDeriv
     for (int j=0; j<nv; j++) {
-      DfDv[j*nv+i] += fd[j];
+      int adr = d->D_rowadr[j] + cnt[j];
+      if (cnt[j]<d->D_rownnz[j] && d->D_colind[adr] == i) {
+        d->qDeriv[adr] = fd[j];
+        cnt[j]++;
+      }
     }
   }
 
@@ -1365,9 +1653,7 @@ void mjd_passive_velFD(const mjModel* m, mjData* d, mjtNum eps, mjtNum* DfDv) {
 
 
 
-
 //-------------------- derivatives of all smooth (unconstrained) forces ----------------------------
-
 
 // centered finite difference approximation to mjd_smooth_vel
 void mjd_smooth_velFD(const mjModel* m, mjData* d, mjtNum eps) {
@@ -1436,31 +1722,21 @@ void mjd_smooth_velFD(const mjModel* m, mjData* d, mjtNum eps) {
 //------------------------- main entry points ------------------------------------------------------
 
 // analytical derivative of smooth forces w.r.t velocities:
-//   d->qDeriv = d (qfrc_actuator + qfrc_passive - qfrc_bias) / d qvel
-void mjd_smooth_vel(const mjModel *m, mjData *d) {
-  int nv = m->nv;
+//   d->qDeriv = d (qfrc_actuator + qfrc_passive - [qfrc_bias]) / d qvel
+void mjd_smooth_vel(const mjModel* m, mjData* d, int flg_bias) {
+  // clear qDeriv
+  mju_zero(d->qDeriv, m->nD);
 
-  // allocate space
-  mjMARKSTACK;
-  mjtNum *DfDv = mj_stackAlloc(d, nv*nv);
+  // qDeriv += d qfrc_actuator / d qvel
+  mjd_actuator_vel(m, d);
 
-  // clear DfDv
-  mju_zero(DfDv, nv*nv);
+  // qDeriv += d qfrc_passive / d qvel
+  mjd_passive_vel(m, d);
 
-  // DfDv = d (qfrc_actuator + qfrc_passive - qfrc_bias) / d qvel
-  mjd_actuator_vel(m, d, DfDv);
-  mjd_passive_vel(m, d, DfDv);
-  mjd_rne_vel(m, d, DfDv);
-
-  // copy dense DfDv to sparse qDeriv
-  for (int i=0; i<nv; i++) {
-    for (int j=0; j<d->D_rownnz[i]; j++) {
-      int adr = d->D_rowadr[i] + j;
-      d->qDeriv[adr] = DfDv[i*nv + d->D_colind[adr]];
-    }
+  // qDeriv -= d qfrc_bias / d qvel; optional
+  if (flg_bias) {
+    mjd_rne_vel(m, d);
   }
-
-  mjFREESTACK;
 }
 
 

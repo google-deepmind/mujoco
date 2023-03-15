@@ -125,7 +125,8 @@ typedef enum mjtTexture_ {        // type of texture
 typedef enum mjtIntegrator_ {     // integrator mode
   mjINT_EULER         = 0,        // semi-implicit Euler
   mjINT_RK4,                      // 4th-order Runge Kutta
-  mjINT_IMPLICIT                  // implicit in velocity
+  mjINT_IMPLICIT,                 // implicit in velocity
+  mjINT_IMPLICITFAST              // implicit in velocity, no rne derivative
 } mjtIntegrator;
 
 
@@ -583,7 +584,8 @@ struct mjModel_ {
 
   // sizes set after mjModel construction (only affect mjData)
   int nM;                         // number of non-zeros in sparse inertia matrix
-  int nD;                         // number of non-zeros in sparse derivative matrix
+  int nD;                         // number of non-zeros in sparse dof-dof matrix
+  int nB;                         // number of non-zeros in sparse body-dof matrix
   int nemax;                      // number of potential equality-constraint rows
   int njmax;                      // number of available rows in constraint Jacobian
   int nconmax;                    // number of potential contacts in contact list

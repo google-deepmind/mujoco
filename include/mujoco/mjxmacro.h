@@ -117,6 +117,7 @@
     X( nnames_map )         \
     X( nM )                 \
     X( nD )                 \
+    X( nB )                 \
     X( nemax )              \
     X( njmax )              \
     X( nconmax )            \
@@ -514,6 +515,9 @@
     X( int,       D_rownnz,          nv,          1           ) \
     X( int,       D_rowadr,          nv,          1           ) \
     X( int,       D_colind,          nD,          1           ) \
+    X( int,       B_rownnz,          nbody,       1           ) \
+    X( int,       B_rowadr,          nbody,       1           ) \
+    X( int,       B_colind,          nB,          1           ) \
     X( mjtNum,    qDeriv,            nD,          1           ) \
     X( mjtNum,    qLU,               nD,          1           ) \
     X( mjtNum,    actuator_force,    nu,          1           ) \

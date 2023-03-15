@@ -933,6 +933,27 @@ void mj_printFormattedData(const mjModel* m, mjData* d, const char* filename,
   }
   fprintf(fp, "\n\n");
 
+  // B_rownnz
+  fprintf(fp, NAME_FORMAT, "B_rownnz");
+  for (int i = 0; i < m->nbody; i++) {
+    fprintf(fp, " %d", d->B_rownnz[i]);
+  }
+  fprintf(fp, "\n\n");
+
+  // B_rowadr
+  fprintf(fp, NAME_FORMAT, "B_rowadr");
+  for (int i = 0; i < m->nbody; i++) {
+    fprintf(fp, " %d", d->B_rowadr[i]);
+  }
+  fprintf(fp, "\n\n");
+
+  // B_colind
+  fprintf(fp, NAME_FORMAT, "B_colind");
+  for (int i = 0; i < m->nB; i++) {
+    fprintf(fp, " %d", d->B_colind[i]);
+  }
+  fprintf(fp, "\n\n");
+
   // print qDeriv
   mju_sparse2dense(M, d->qDeriv, m->nv, m->nv, d->D_rownnz, d->D_rowadr, d->D_colind);
   printArray("QDERIV", m->nv, m->nv, M, fp, float_format);

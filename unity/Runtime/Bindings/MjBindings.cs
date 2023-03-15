@@ -196,6 +196,7 @@ public enum mjtIntegrator : int{
   mjINT_EULER = 0,
   mjINT_RK4 = 1,
   mjINT_IMPLICIT = 2,
+  mjINT_IMPLICITFAST = 3,
 }
 public enum mjtCollision : int{
   mjCOL_ALL = 0,
@@ -1658,6 +1659,9 @@ public unsafe struct mjData_ {
   public int* D_rownnz;
   public int* D_rowadr;
   public int* D_colind;
+  public int* B_rownnz;
+  public int* B_rowadr;
+  public int* B_colind;
   public double* qDeriv;
   public double* qLU;
   public double* actuator_force;
@@ -1918,6 +1922,7 @@ public unsafe struct mjModel_ {
   public int nnames_map;
   public int nM;
   public int nD;
+  public int nB;
   public int nemax;
   public int njmax;
   public int nconmax;

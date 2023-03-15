@@ -975,94 +975,63 @@ void mj_addM(const mjModel* m, mjData* d, mjtNum* dst,
 
 
 
-// construct sparse matrix representations matching qM
-void mj_makeMSparse(const mjModel* m, mjData* d, int* rownnz, int* rowadr, int* colind) {
+//-------------------------- sparse system matrix conversion ---------------------------------------
+
+// dst[D] = src[M], handle different sparsity representations
+void mj_copyM2DSparse(const mjModel* m, mjData* d, mjtNum* dst, const mjtNum* src) {
   int nv = m->nv;
-
   mjMARKSTACK;
-  int *remaining = (int*) mj_stackAlloc(d, nv);
 
-  // compute rownnz
-  memset(rownnz, 0, nv*sizeof(int));
-  for (int i=nv-1; i>=0; i--) {
-    // init at diagonal
-    int j = i;
-    rownnz[i]++;
-
-    // process below diagonal
-    while ((j=m->dof_parentid[j]) >= 0) {
-      rownnz[i]++;
-      rownnz[j]++;
-    }
-  }
-
-  // accumulate rowadr
-  rowadr[0] = 0;
-  for (int i=1; i<nv; i++) {
-    rowadr[i] = rowadr[i-1] + rownnz[i-1];
-  }
-
-  // populate colind
-  memcpy(remaining, rownnz, nv*sizeof(int));
-  for (int i=nv-1; i>=0; i--) {
-    // init at diagonal
-    remaining[i]--;
-    colind[rowadr[i] + remaining[i]] = i;
-
-    // process below diagonal
-    int j = i;
-    while ((j = m->dof_parentid[j]) >= 0) {
-      remaining[i]--;
-      colind[rowadr[i] + remaining[i]] = j;
-
-      remaining[j]--;
-      colind[rowadr[j] + remaining[j]] = i;
-    }
-  }
-
-  // sanity check; SHOULD NOT OCCUR
-  for (int i=0; i<nv; i++) {
-    if (remaining[i]!=0) {
-      mju_error("Error in mj_makeMSparse: unexpected remaining");
-    }
-  }
-
-  mjFREESTACK;
-}
-
-
-
-// set dst = qM, handle different sparsity representations
-void mj_setMSparse(const mjModel* m, mjData* d, mjtNum* dst,
-                   const int *rownnz, const int *rowadr, const int *colind) {
-  int nv = m->nv;
-
-  mjMARKSTACK;
-  int *remaining = (int*) mj_stackAlloc(d, nv);
+  // init remaining
+  int* remaining = (int*)mj_stackAlloc(d, nv);
+  memcpy(remaining, d->D_rownnz, nv * sizeof(int));
 
   // copy data
-  memcpy(remaining, rownnz, nv*sizeof(int));
-  for (int i=nv-1; i>=0; i--) {
+  for (int i = nv - 1; i >= 0; i--) {
     // init at diagonal
     int adr = m->dof_Madr[i];
     remaining[i]--;
-    dst[rowadr[i] + remaining[i]] = d->qM[adr];
+    dst[d->D_rowadr[i] + remaining[i]] = src[adr];
     adr++;
 
     // process below diagonal
     int j = i;
     while ((j = m->dof_parentid[j]) >= 0) {
       remaining[i]--;
-      dst[rowadr[i] + remaining[i]] = d->qM[adr];
+      dst[d->D_rowadr[i] + remaining[i]] = src[adr];
 
       remaining[j]--;
-      dst[rowadr[j] + remaining[j]] = d->qM[adr];
+      dst[d->D_rowadr[j] + remaining[j]] = src[adr];
 
       adr++;
     }
   }
 
-  mjFREESTACK;
+  mjFREESTACK
+}
+
+
+
+// dst[M] = src[D lower], handle different sparsity representations
+void mj_copyD2MSparse(const mjModel* m, mjData* d, mjtNum* dst, const mjtNum* src) {
+  int nv = m->nv;
+
+  // copy data
+  for (int i = nv - 1; i >= 0; i--) {
+    // find diagonal in qDeriv
+    int j = 0;
+    while (d->D_colind[d->D_rowadr[i] + j] < i) {
+      j++;
+    }
+
+    // copy
+    int adr = m->dof_Madr[i];
+    while (j >= 0) {
+      dst[adr] = src[d->D_rowadr[i] + j];
+      adr++;
+      j--;
+    }
+  }
 }
 
 

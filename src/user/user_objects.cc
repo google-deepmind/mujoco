@@ -327,6 +327,7 @@ mjCBody::mjCBody(mjCModel* _model) {
   weldid = -1;
   dofnum = 0;
   lastdof = -1;
+  subtreedofs = 0;
   gravcomp = 0;
   userdata.clear();
 

@@ -704,33 +704,59 @@ void mj_RungeKutta(const mjModel* m, mjData* d, int N) {
 
 
 // fully implicit in velocity, possibly skipping factorization
-void mj_implicitSkip(const mjModel *m, mjData *d, int skipfactor) {
+void mj_implicitSkip(const mjModel* m, mjData* d, int skipfactor) {
   int nv = m->nv;
 
   mjMARKSTACK;
-  mjtNum *qfrc = mj_stackAlloc(d, nv);
-  mjtNum *qacc = mj_stackAlloc(d, nv);
-
-  if (!skipfactor) {
-    // construct sparse structure in d->D_xxx
-    mj_makeMSparse(m, d, d->D_rownnz, d->D_rowadr, d->D_colind);
-
-    // compute analytical derivative qDeriv
-    mjd_smooth_vel(m, d);
-
-    // set qLU = qM - dt*qDeriv
-    mj_setMSparse(m, d, d->qLU, d->D_rownnz, d->D_rowadr, d->D_colind);
-    mju_addToScl(d->qLU, d->qDeriv, -m->opt.timestep, m->nD);
-
-    // factorize qLU, use qacc as scratch space
-    mju_factorLUSparse(d->qLU, nv, (int*)qacc, d->D_rownnz, d->D_rowadr, d->D_colind);
-  }
+  mjtNum* qfrc = mj_stackAlloc(d, nv);
+  mjtNum* qacc = mj_stackAlloc(d, nv);
 
   // set qfrc = qfrc_smooth + qfrc_constraint
   mju_add(qfrc, d->qfrc_smooth, d->qfrc_constraint, nv);
 
-  // solve for qacc: (qM - dt*qDeriv) * qacc = qfrc
-  mju_solveLUSparse(qacc, d->qLU, qfrc, nv, d->D_rownnz, d->D_rowadr, d->D_colind);
+  // IMPLICIT
+  if (m->opt.integrator == mjINT_IMPLICIT) {
+    if (!skipfactor) {
+      // compute analytical derivative qDeriv
+      mjd_smooth_vel(m, d, /* flg_bias = */ 1);
+
+      // set qLU = qM
+      mj_copyM2DSparse(m, d, d->qLU, d->qM);
+
+      // set qLU = qM - dt*qDeriv
+      mju_addToScl(d->qLU, d->qDeriv, -m->opt.timestep, m->nD);
+
+      // factorize qLU, use qacc as scratch space
+      mju_factorLUSparse(d->qLU, nv, (int*)qacc, d->D_rownnz, d->D_rowadr, d->D_colind);
+    }
+
+    // solve for qacc: (qM - dt*qDeriv) * qacc = qfrc
+    mju_solveLUSparse(qacc, d->qLU, qfrc, nv, d->D_rownnz, d->D_rowadr, d->D_colind);
+  }
+
+  // IMPLICITFAST
+  else if (m->opt.integrator == mjINT_IMPLICITFAST) {
+    if (!skipfactor) {
+      // compute analytical derivative qDeriv; skip rne derivative
+      mjd_smooth_vel(m, d, /* flg_bias = */ 0);
+
+      // modified mass matrix MhB = qDeriv[Lower]
+      mjtNum* MhB = mj_stackAlloc(d, m->nM);
+      mj_copyD2MSparse(m, d, MhB, d->qDeriv);
+
+      // set MhB = M - dt*qDeriv
+      mju_addScl(MhB, d->qM, MhB, -m->opt.timestep, m->nM);
+
+      // factorize
+      mj_factorI(m, d, MhB, d->qH, d->qHDiagInv, NULL);
+    }
+
+    // solve for qacc: (qM - dt*qDeriv) * qacc = qfrc
+    mju_copy(qacc, qfrc, m->nv);
+    mj_solveLD(m, qacc, 1, d->qH, d->qHDiagInv);
+  } else {
+    mju_error("mj_implicitSkip: integrator must be implicit or implicitfast");
+  }
 
   // advance state and time
   mj_advance(m, d, d->act_dot, qacc, NULL);
@@ -741,7 +767,7 @@ void mj_implicitSkip(const mjModel *m, mjData *d, int skipfactor) {
 
 
 // fully implicit in velocity
-void mj_implicit(const mjModel *m, mjData *d) {
+void mj_implicit(const mjModel* m, mjData* d) {
   mj_implicitSkip(m, d, 0);
 }
 
@@ -825,6 +851,7 @@ void mj_step(const mjModel* m, mjData* d) {
       break;
 
     case mjINT_IMPLICIT:
+    case mjINT_IMPLICITFAST:
       mj_implicit(m, d);
       break;
 
@@ -873,7 +900,7 @@ void mj_step2(const mjModel* m, mjData* d) {
   }
 
   // integrate with Euler or implicit; RK4 defaults to Euler
-  if (m->opt.integrator==mjINT_IMPLICIT) {
+  if (m->opt.integrator == mjINT_IMPLICIT || m->opt.integrator == mjINT_IMPLICITFAST) {
     mj_implicit(m, d);
   } else {
     mj_Euler(m, d);

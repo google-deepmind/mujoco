@@ -120,6 +120,7 @@ ENUMS: Mapping[str, EnumDecl] = dict([
              ('mjINT_EULER', 0),
              ('mjINT_RK4', 1),
              ('mjINT_IMPLICIT', 2),
+             ('mjINT_IMPLICITFAST', 3),
          ]),
      )),
     ('mjtCollision',

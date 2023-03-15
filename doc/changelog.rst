@@ -8,17 +8,39 @@ Upcoming version (not yet released)
 General
 ^^^^^^^
 
+- Improvements to implicit integration:
+
+  - The derivatives of the RNE algorithm are now computed using sparse math, leading to significant speed
+    improvements for large models when using the :ref:`implicit integrator<geIntegration>`.
+  - A new integrator called ``implicitfast`` was added. It is similar to the existing implicit integrator, but skips the
+    derivatives of Coriolis and centripetal forces. See the :ref:`numerical integration<geIntegration>` section for a
+    detailed motivation and discussion. The implicitfast integrator is recommended for all new models and will
+    become the default integrator in a future version.
+
+  The table below shows the compute cost of the 627-DoF `humanoid100
+  <https://github.com/deepmind/mujoco/blob/main/model/humanoid100/humanoid100.xml>`_ model using different integrators.
+  "implicit (old)" uses dense RNE derivatives, "implicit (new)" is after the sparsification mentioned above.
+  Timings were measured on a single core of an AMD 3995WX CPU.
+
+  .. csv-table::
+     :header: "timing", "Euler", "implicitfast", "implicit (new)", "implicit (old)"
+     :widths: auto
+     :align: left
+
+     one step (ms),  0.5,   0.53,  0.77,  5.0
+     steps/second,   2000,  1900,  1300,  200
+
 - The ``mjd_transitionFD`` function no longer triggers sensor calculation unless explicitly requested.
 - Corrected the spelling of the ``inteval`` attribute to ``interval`` in the :ref:`mjLROpt` struct.
 - Mesh texture and normal mappings are now 3-per-triangle rather than 1-per-vertex. Mesh vertices are no longer
   duplicated in order to circumvent this limitation as they previously were.
 - The non-zeros for the sparse constraint Jacobian matrix are now precounted and used for matrix memory allocation.
-  For instance, the constraint Jacobian matrix from the `humanoid100.xml
+  For instance, the constraint Jacobian matrix from the `humanoid100
   <https://github.com/deepmind/mujoco/blob/main/model/humanoid100/humanoid100.xml>`_ model, which previously required
   ~500,000 ``mjtNum``'s, now only requires ~6000. Very large models can now load and run with the CG solver.
 - Modified :ref:`mju_error` and :ref:`mju_warning` to be variadic functions (support for printf-like arguments). The
   functions :ref:`mju_error_i`, :ref:`mju_error_s`, :ref:`mju_warning_i`, and :ref:`mju_warning_s` are now deprecated.
-- Implemented a performant :ref:`mju_sqrMatTDSparse` function that doesn't require dense memory allocation.
+- Implemented a performant ``mju_sqrMatTDSparse`` function that doesn't require dense memory allocation.
 
 
 Python bindings
@@ -28,7 +50,7 @@ Python bindings
   continuation of an IPython interactive shell session, and is no longer considered experimental feature.
 - Remove ``efc_`` fields from joint indexers. Since the introduction of arena memory, these fields now have dynamic
   sizes that change between time steps depending on the number of active constraints, breaking strict correspondence
-  between joints and `efc_` rows.
+  between joints and ``efc_`` rows.
 
 Simulate
 ^^^^^^^^

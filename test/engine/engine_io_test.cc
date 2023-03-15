@@ -77,6 +77,8 @@ TEST_F(EngineIoTest, MakeDataFromPartialModel) {
   {
     MJDATA_POINTERS_PREAMBLE((&partial_model))
     #define X(type, name, nr, nc)                                              \
+      if (strcmp(#name, "D_rownnz") && strcmp(#name, "D_rowadr")  &&           \
+          strcmp(#name, "B_rownnz") && strcmp(#name, "B_rowadr"))              \
         EXPECT_EQ(std::memcmp(data_from_partial->name, data_from_model->name,  \
                               sizeof(type)*(partial_model.nr)*(nc)),           \
                   0) << "mjData::" #name " differs";

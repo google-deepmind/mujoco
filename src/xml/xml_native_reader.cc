@@ -511,11 +511,12 @@ const mjMap camlight_map[camlight_sz] = {
 
 
 // integrator type
-const int integrator_sz = 3;
+const int integrator_sz = 4;
 const mjMap integrator_map[integrator_sz] = {
-  {"Euler",       mjINT_EULER},
-  {"RK4",         mjINT_RK4},
-  {"implicit",    mjINT_IMPLICIT}
+  {"Euler",        mjINT_EULER},
+  {"RK4",          mjINT_RK4},
+  {"implicit",     mjINT_IMPLICIT},
+  {"implicitfast", mjINT_IMPLICITFAST}
 };
 
 

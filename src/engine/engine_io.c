@@ -29,6 +29,7 @@
 #include "engine/engine_plugin.h"
 #include "engine/engine_util_blas.h"
 #include "engine/engine_util_errmem.h"
+#include "engine/engine_util_misc.h"
 #include "engine/engine_vfs.h"
 
 #ifdef _MSC_VER
@@ -796,6 +797,183 @@ int mj_sizeModel(const mjModel* m) {
 
 
 
+
+//-------------------------- sparse system matrix construction -------------------------------------
+
+// construct sparse representation of dof-dof matrix
+static void makeDSparse(const mjModel* m, mjData* d) {
+  int nv = m->nv;
+  int* rownnz = d->D_rownnz;
+  int* rowadr = d->D_rowadr;
+  int* colind = d->D_colind;
+
+  mjMARKSTACK;
+  int* remaining = (int*)mj_stackAlloc(d, nv);
+
+  // compute rownnz
+  memset(rownnz, 0, nv * sizeof(int));
+  for (int i = nv - 1; i >= 0; i--) {
+    // init at diagonal
+    int j = i;
+    rownnz[i]++;
+
+    // process below diagonal
+    while ((j = m->dof_parentid[j]) >= 0) {
+      rownnz[i]++;
+      rownnz[j]++;
+    }
+  }
+
+  // accumulate rowadr
+  rowadr[0] = 0;
+  for (int i = 1; i < nv; i++) {
+    rowadr[i] = rowadr[i - 1] + rownnz[i - 1];
+  }
+
+  // populate colind
+  memcpy(remaining, rownnz, nv * sizeof(int));
+  for (int i = nv - 1; i >= 0; i--) {
+    // init at diagonal
+    remaining[i]--;
+    colind[rowadr[i] + remaining[i]] = i;
+
+    // process below diagonal
+    int j = i;
+    while ((j = m->dof_parentid[j]) >= 0) {
+      remaining[i]--;
+      colind[rowadr[i] + remaining[i]] = j;
+
+      remaining[j]--;
+      colind[rowadr[j] + remaining[j]] = i;
+    }
+  }
+
+  // sanity check; SHOULD NOT OCCUR
+  for (int i = 0; i < nv; i++) {
+    if (remaining[i] != 0) {
+      mju_error("Error in mj_makeDSparse: unexpected remaining");
+    }
+  }
+
+  mjFREESTACK;
+}
+
+
+
+// construct sparse representation of body-dof matrix
+static void makeBSparse(const mjModel* m, mjData* d) {
+  int nv = m->nv, nbody = m->nbody;
+  int* rownnz = d->B_rownnz;
+  int* rowadr = d->B_rowadr;
+  int* colind = d->B_colind;
+
+  // set rownnz to subtree dofs counts, including self
+  memset(rownnz, 0, sizeof(int) * nbody);
+  for (int i = nbody - 1; i > 0; i--) {
+    rownnz[i] += m->body_dofnum[i];
+    rownnz[m->body_parentid[i]] += rownnz[i];
+  }
+
+  // sanity check; SHOULD NOT OCCUR
+  if (rownnz[0] != nv) {
+    mju_error("Error in mj_makeBSparse: rownnz[0] different from nv");
+  }
+
+  // add dofs in ancestors bodies
+  for (int i = 0; i < nbody; i++) {
+    int j = m->body_parentid[i];
+    while (j > 0) {
+      rownnz[i] += m->body_dofnum[j];
+      j = m->body_parentid[j];
+    }
+  }
+
+  // compute rowadr
+  rowadr[0] = 0;
+  for (int i = 1; i < nbody; i++) {
+    rowadr[i] = rowadr[i - 1] + rownnz[i - 1];
+  }
+
+  // sanity check; SHOULD NOT OCCUR
+  if (m->nB != rowadr[nbody - 1] + rownnz[nbody - 1]) {
+    mju_error("Error in mj_makeBSparse: sum of rownnz different from nB");
+  }
+
+  // allocate and clear incremental row counts
+  mjMARKSTACK;
+  int* cnt = (int*)mj_stackAlloc(d, nbody);
+  memset(cnt, 0, sizeof(int) * nbody);
+
+  // add subtree dofs to colind
+  for (int i = nbody - 1; i > 0; i--) {
+    // add this body's dofs to subtree
+    for (int n = 0; n < m->body_dofnum[i]; n++) {
+      colind[rowadr[i] + cnt[i]] = m->body_dofadr[i] + n;
+      cnt[i]++;
+    }
+
+    // add body subtree to parent
+    int par = m->body_parentid[i];
+    for (int n = 0; n < cnt[i]; n++) {
+      colind[rowadr[par] + cnt[par]] = colind[rowadr[i] + n];
+      cnt[par]++;
+    }
+  }
+
+  // add all ancestor dofs
+  for (int i = 0; i < nbody; i++) {
+    int par = m->body_parentid[i];
+    while (par > 0) {
+      // add ancestor body dofs
+      for (int n = 0; n < m->body_dofnum[par]; n++) {
+        colind[rowadr[i] + cnt[i]] = m->body_dofadr[par] + n;
+        cnt[i]++;
+      }
+
+      // advance to parent
+      par = m->body_parentid[par];
+    }
+  }
+
+  // process all bodies
+  for (int i = 0; i < nbody; i++) {
+    // make sure cnt = rownnz; SHOULD NOT OCCUR
+    if (rownnz[i] != cnt[i]) {
+      mju_error("Error in mj_makeBSparse: cnt different from rownnz");
+    }
+
+    // sort colind in each row
+    if (cnt[i] > 1) {
+      mju_insertionSortInt(colind + rowadr[i], cnt[i]);
+    }
+  }
+
+  mjFREESTACK;
+}
+
+
+
+// check D and B sparsity for consistency
+static void checkDBSparse(const mjModel* m, mjData* d) {
+  // process all dofs
+  for (int j = 0; j < m->nv; j++) {
+    // get body for this dof
+    int i = m->dof_bodyid[j];
+
+    // D[row j] and B[row i] should be identical
+    if (d->D_rownnz[j] != d->B_rownnz[i]) {
+      mju_error("Error in checkDBSparse: rows have different nnz");
+    }
+    for (int k = 0; k < d->D_rownnz[j]; k++) {
+      if (d->D_colind[d->D_rowadr[j] + k] != d->B_colind[d->B_rowadr[i] + k]) {
+        mju_error("Error in checkDBSparse: rows have different colind");
+      }
+    }
+  }
+}
+
+
+
 //----------------------------------- mjData construction ------------------------------------------
 
 // set pointers into mjData buffer
@@ -1140,6 +1318,13 @@ static void _resetData(const mjModel* m, mjData* d, unsigned char debug_value) {
     for (int i=0; i<m->nmocap; i++) {
       d->mocap_quat[4*i] = 1.0;
     }
+  }
+
+  // construct sparse matrix representations
+  if (m->body_dofadr) {
+    makeDSparse(m, d);
+    makeBSparse(m, d);
+    checkDBSparse(m, d);
   }
 
   // restore pluginstate and plugindata
@@ -1507,6 +1692,7 @@ const char* mj_validateReferences(const mjModel* m) {
           return "Invalid model: eq_obj2id out of bounds.";
         }
         break;
+
       case mjEQ_TENDON:
         if (obj1id >= m->ntendon || obj1id < 0) {
           return "Invalid model: eq_obj1id out of bounds.";
@@ -1516,8 +1702,7 @@ const char* mj_validateReferences(const mjModel* m) {
           return "Invalid model: eq_obj2id out of bounds.";
         }
         break;
-      case mjEQ_DISTANCE:
-        return "distance equality constraints are no longer supported";
+
       case mjEQ_WELD:
       case mjEQ_CONNECT:
         if (obj1id >= m->nbody || obj1id < 0) {
@@ -1527,6 +1712,9 @@ const char* mj_validateReferences(const mjModel* m) {
           return "Invalid model: eq_obj2id out of bounds.";
         }
         break;
+
+      default:
+        mju_error("mj_validateReferences: unknown equality constraint type.");
     }
   }
   for (int i=0; i<m->nwrap; i++) {

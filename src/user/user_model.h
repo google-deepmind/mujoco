@@ -235,7 +235,8 @@ class mjCModel {
   int npluginattr;                // number of chars in all plugin config attributes
   int nnames;                     // number of chars in all names
   int nM;                         // number of non-zeros in sparse inertia matrix
-  int nD;                         // number of non-zeros in sparse derivative matrix
+  int nD;                         // number of non-zeros in sparse dof-dof matrix
+  int nB;                         // number of non-zeros in sparse body-dof matrix
 
   //------------------------ object lists
   // objects created here

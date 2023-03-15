@@ -245,14 +245,17 @@ struct mjData_ {
   mjtNum*   subtree_linvel;       // linear velocity of subtree com           (nbody x 3)
   mjtNum*   subtree_angmom;       // angular momentum about subtree com       (nbody x 3)
 
-  // computed by mj_Euler
+  // computed by mj_Euler or mj_implicit
   mjtNum*   qH;                   // L'*D*L factorization of modified M       (nM x 1)
   mjtNum*   qHDiagInv;            // 1/diag(D) of modified M                  (nv x 1)
 
-  // computed by mj_implicit
+  // computed by mj_resetData
   int*      D_rownnz;             // non-zeros in each row                    (nv x 1)
   int*      D_rowadr;             // address of each row in D_colind          (nv x 1)
   int*      D_colind;             // column indices of non-zeros              (nD x 1)
+  int*      B_rownnz;             // non-zeros in each row                    (nbody x 1)
+  int*      B_rowadr;             // address of each row in B_colind          (nbody x 1)
+  int*      B_colind;             // column indices of non-zeros              (nB x 1)
 
   // computed by mj_implicit/mj_derivative
   mjtNum*   qDeriv;               // d (passive + actuator - bias) / d qvel   (nD x 1)
@@ -391,7 +394,8 @@ typedef enum mjtTexture_ {        // type of texture
 typedef enum mjtIntegrator_ {     // integrator mode
   mjINT_EULER         = 0,        // semi-implicit Euler
   mjINT_RK4,                      // 4th-order Runge Kutta
-  mjINT_IMPLICIT                  // implicit in velocity
+  mjINT_IMPLICIT,                 // implicit in velocity
+  mjINT_IMPLICITFAST              // implicit in velocity, no rne derivative
 } mjtIntegrator;
 typedef enum mjtCollision_ {      // collision mode for selecting geom pairs
   mjCOL_ALL           = 0,        // test precomputed and dynamic pairs
@@ -791,7 +795,8 @@ struct mjModel_ {
 
   // sizes set after mjModel construction (only affect mjData)
   int nM;                         // number of non-zeros in sparse inertia matrix
-  int nD;                         // number of non-zeros in sparse derivative matrix
+  int nD;                         // number of non-zeros in sparse dof-dof matrix
+  int nB;                         // number of non-zeros in sparse body-dof matrix
   int nemax;                      // number of potential equality-constraint rows
   int njmax;                      // number of available rows in constraint Jacobian
   int nconmax;                    // number of potential contacts in contact list

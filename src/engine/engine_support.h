@@ -104,12 +104,14 @@ MJAPI void mj_mulM2(const mjModel* m, const mjData* d, mjtNum* res, const mjtNum
 MJAPI void mj_addM(const mjModel* m, mjData* d, mjtNum* dst,
                    int* rownnz, int* rowadr, int* colind);
 
-// construct sparse matrix representations matching qM
-MJAPI void mj_makeMSparse(const mjModel* m, mjData* d, int *rownnz, int *rowadr, int *colind);
 
-// set dst = qM, handle different sparsity representations
-MJAPI void mj_setMSparse(const mjModel* m, mjData* d, mjtNum* dst,
-                         const int *rownnz, const int *rowadr, const int *colind);
+//-------------------------- sparse system matrix conversion ---------------------------------------
+
+// dst[D] = src[M], handle different sparsity representations
+MJAPI void mj_copyM2DSparse(const mjModel* m, mjData* d, mjtNum* dst, const mjtNum* src);
+
+// dst[M] = src[D lower], handle different sparsity representations
+MJAPI void mj_copyD2MSparse(const mjModel* m, mjData* d, mjtNum* dst, const mjtNum* src);
 
 
 //-------------------------- perturbations ---------------------------------------------------------

@@ -24,7 +24,6 @@
 #include "src/engine/engine_core_smooth.h"
 #include "src/engine/engine_derivative.h"
 #include "src/engine/engine_io.h"
-#include "src/engine/engine_support.h"
 #include "src/engine/engine_util_blas.h"
 #include "src/engine/engine_util_errmem.h"
 #include "test/fixture.h"
@@ -101,6 +100,7 @@ static const char* const kDampedPendulumPath =
 static const char* const kLinearPath =
     "engine/testdata/derivative/linear.xml";
 static const char* const kModelPath = "testdata/model.xml";
+
 // compare analytic and finite-difference d_smooth/d_qvel
 TEST_F(DerivativeTest, SmoothDvel) {
   // run test on all models
@@ -110,6 +110,7 @@ TEST_F(DerivativeTest, SmoothDvel) {
                                  kDamperActuatorsPath}) {
     const std::string xml_path = GetTestDataFilePath(local_path);
     mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, nullptr, 0);
+    int nD = model->nD;
     mjData* data = mj_makeData(model);
 
     for (mjtJacobian sparsity : {mjJAC_DENSE, mjJAC_SPARSE}) {
@@ -127,24 +128,24 @@ TEST_F(DerivativeTest, SmoothDvel) {
       mj_forward(model, data);
 
       // construct sparse structure in d->D_xxx, compute analytical qDeriv
-      mj_makeMSparse(model, data,
-                     data->D_rownnz, data->D_rowadr, data->D_colind);
-      mjd_smooth_vel(model, data);
+      mju_zero(data->qDeriv, nD);
+      mjd_smooth_vel(model, data, /*flg_bias=*/true);
 
       // expect derivatives to be non-zero, make copy of qDeriv as a vector
-      EXPECT_GT(mju_norm(data->qDeriv, model->nD), 0);
-      std::vector<mjtNum> qDerivAnalytic = AsVector(data->qDeriv, model->nD);
+      EXPECT_GT(mju_norm(data->qDeriv, nD), 0);
+      std::vector<mjtNum> qDerivAnalytic = AsVector(data->qDeriv, nD);
 
       // compute finite-difference derivatives
       mjtNum eps = 1e-7;
+      mju_zero(data->qDeriv, nD);
       mjd_smooth_velFD(model, data, eps);
 
       // expect FD and analytic derivatives to be numerically different
-      EXPECT_NE(mju_norm(data->qDeriv, model->nD),
-                mju_norm(qDerivAnalytic.data(), model->nD));
+      EXPECT_NE(mju_norm(data->qDeriv, nD),
+                mju_norm(qDerivAnalytic.data(), nD));
 
       // expect FD and analytic derivatives to be similar to eps precision
-      EXPECT_THAT(AsVector(data->qDeriv, model->nD),
+      EXPECT_THAT(AsVector(data->qDeriv, nD),
                   Pointwise(DoubleNear(eps), qDerivAnalytic));
     }
     mj_deleteData(data);
@@ -159,11 +160,11 @@ TEST_F(DerivativeTest, PassiveDvel) {
     // load model
     const std::string xml_path = GetTestDataFilePath(local_path);
     mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, nullptr, 0);
-    int nv = model->nv;
+    int nD = model->nD;
     mjData* data = mj_makeData(model);
     // allocate Jacobians
-    mjtNum* DfDv_analytic = (mjtNum*) mju_malloc(sizeof(mjtNum)*nv*nv);
-    mjtNum* DfDv_FD = (mjtNum*) mju_malloc(sizeof(mjtNum)*nv*nv);
+    mjtNum* qDerivAnalytic = (mjtNum*) mju_malloc(sizeof(mjtNum)*nD);
+    mjtNum* qDerivFD = (mjtNum*) mju_malloc(sizeof(mjtNum)*nD);
 
     for (mjtJacobian sparsity : {mjJAC_DENSE, mjJAC_SPARSE}) {
       // set sparsity
@@ -176,22 +177,23 @@ TEST_F(DerivativeTest, PassiveDvel) {
       }
       mj_forward(model, data);
 
-      // clear DfDv, get analytic derivatives
-      mju_zero(DfDv_analytic, nv*nv);
-      mjd_passive_vel(model, data, DfDv_analytic);
+      // get analytic derivatives
+      mju_copy(qDerivAnalytic, data->qDeriv, nD);
 
-      // clear DfDv, get finite-difference derivatives
-      mju_zero(DfDv_FD, nv*nv);
+      // clear qDeriv, get finite-difference derivatives
+      mju_zero(data->qDeriv, nD);
+      mju_zero(qDerivFD, nD);
       mjtNum eps = 1e-6;
-      mjd_passive_velFD(model, data, eps, DfDv_FD);
+      mjd_passive_velFD(model, data, eps);
 
       // expect FD and analytic derivatives to be similar to tol precision
       mjtNum tol = 1e-4;
-      CompareMatrices(DfDv_analytic, DfDv_FD, nv, nv, tol);
+      EXPECT_THAT(AsVector(data->qDeriv, nD),
+                  Pointwise(DoubleNear(tol), AsVector(qDerivAnalytic, nD)));
     }
 
-    mju_free(DfDv_FD);
-    mju_free(DfDv_analytic);
+    mju_free(qDerivFD);
+    mju_free(qDerivAnalytic);
     mj_deleteData(data);
     mj_deleteModel(model);
   }
@@ -210,7 +212,9 @@ TEST_F(DerivativeTest, StepSkip) {
   // disable warmstarts so we don't need to save qacc_warmstart
   model->opt.disableflags |= mjDSBL_WARMSTART;
 
-  for (const mjtIntegrator integrator : {mjINT_EULER, mjINT_IMPLICIT}) {
+  for (const mjtIntegrator integrator : {mjINT_EULER,
+                                         mjINT_IMPLICIT,
+                                         mjINT_IMPLICITFAST}) {
     model->opt.integrator = integrator;
 
     // reset, take 20 steps, save initial state
@@ -596,6 +600,50 @@ TEST_F(DerivativeTest, NoStateMutation) {
   mj_deleteData(data);
   mj_deleteData(data0);
   mj_deleteModel(model);
+}
+
+// compare dense and sparse derivatives of qfrc_bias (RNE)
+TEST_F(DerivativeTest, DenseSparseRneEquivalent) {
+  // run test on all models
+  for (const char* local_path : {kEnergyConservingPendulumPath,
+                                 kTumblingThinObjectPath,
+                                 kDampedActuatorsPath,
+                                 kDamperActuatorsPath}) {
+    const std::string xml_path = GetTestDataFilePath(local_path);
+    mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, nullptr, 0);
+    int nD = model->nD;
+    mjtNum* qDeriv = (mjtNum*) mju_malloc(sizeof(mjtNum)*nD);
+    mjData* data = mj_makeData(model);
+
+    // take 100 steps so we have some velocities, then call forward
+    mj_resetData(model, data);
+    if (model->nu) {
+      data->ctrl[0] = 0.1;
+    }
+    for (int i=0; i < 100; i++) {
+      mj_step(model, data);
+    }
+    mj_forward(model, data);
+
+    // compute qDeriv with sparse function, make local copy
+    mjd_smooth_vel(model, data, /*flg_bias=*/1);
+    mju_copy(qDeriv, data->qDeriv, nD);
+
+    // re-compute with dense function
+    mju_zero(data->qDeriv, model->nD);
+    mjd_actuator_vel(model, data);
+    mjd_passive_vel(model, data);
+    mjd_rne_vel_dense(model, data);
+
+    // expect dense and sparse derivatives to be similar to eps precision
+    mjtNum eps = 1e-12;
+    EXPECT_THAT(AsVector(data->qDeriv, nD),
+                Pointwise(DoubleNear(eps), AsVector(qDeriv, nD)));
+
+    mj_deleteData(data);
+    mju_free(qDeriv);
+    mj_deleteModel(model);
+  }
 }
 
 }  // namespace

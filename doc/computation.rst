@@ -421,118 +421,131 @@ Numerical integration
 MuJoCo computes forward and inverse dynamics in continuous time. The end result of forward dynamics is the joint
 acceleration :math:`a=\dot{v}` as well as the actuator activations :math:`\dot{w}` when present in the model. These are
 used to advance the simulation time from :math:`t` to :math:`t+h`, and to update the state variables :math:`q, v, w`.
-Three numerical integrators are available:
 
-Semi-implicit Euler method (Euler)
-   This method updates the activation and velocity with the usual Euler method, however the position is updated using
-   the *new* velocity; this is known as a "semi-implicit" update:
+Four numerical integrators are available, three single-step integrators and the multi-step 4th order Runge-Kutta
+integrator. Before describing the integrators, we begin with a general description of single-step Euler integrators:
+*explicit*, *semi-implicit* and *implicit-in-velocity*. The *explicit* Euler method is not supported by MuJoCo but has
+pedagogical value. It can be written as:
 
-   .. math::
-      \begin{aligned}
-         \textrm{activation: }w_{t+h} &= w_t + h \dot{w}_t \\
-         \textrm{velocity: }v_{t+h} &= v_t + h a_t \\
-         \textrm{position: }q_{t+h} &= q_t + h v_{t+h}
-      \end{aligned}
+.. math::
+   :label: eq_explicit
 
-   Using the new velocity in the position update improves stability, and is standard in physics simulation. The
-   summation in the position update generally involves vectors with different dimensionality, and is done by taking into
-   account the properties of quaternions.
+   \begin{aligned}
+      \textrm{activation:}\quad w_{t+h} &= w_t + h \dot{w}_t \\
+      \textrm{velocity:}\quad v_{t+h} &= v_t + h a_t \\
+      \textrm{position:}\quad q_{t+h} &= q_t + h v_t
+   \end{aligned}
 
-   When joint damping is defined in the model, the Euler method applies a correction to the inertia matrix that
-   corresponds to implicit integration of damping forces. Let :math:`B` be the diagonal matrix of negative joint damping
-   coefficients. Letting :math:`\widehat{M} = M-h B`, we then update the velocity using a corrected acceleration as
-   follows:
+Note that in the presence of quaternions, the operation :math:`q_t + h v_t` is more involved than a simple summation, as
+the dimensionalities of :math:`q` and :math:`v` are different. The reason explicit Euler is not implemented is that the
+following formulation, known as *semi-implicit* Euler is `strictly better <https://en.wikipedia.org/wiki/Semi-
+implicit_Euler_method>`_, and standard in physics simulation:
 
-   .. math::
-      \begin{aligned}
-         v_{t+h} &= v_t + h \widehat{M}^{-1} M a_t
-      \end{aligned}
+.. math::
+  :label: eq_semimplicit
 
-   This correction is temporary, and the original acceleration computed by forward dynamics and saved in ``mjData.qacc``
-   is not modified. We explain below how this correction is derived, and why it is a special case of implicit
-   integration.
+   \begin{aligned}
+      v_{t+h} &= v_t + h a_t \\
+      q_{t+h} &= q_t + h v_{\color{red}t+h}
+   \end{aligned}
 
-Implicit-in-velocity Euler method (implicit)
-   This method approximates the following discrete-time update:
+Comparing :eq:`eq_explicit` and :eq:`eq_semimplicit`, we see that in semi-implicit Euler, the position is updated using
+the *new* velocity. *Implicit* Euler means:
 
-   .. math::
-      \begin{aligned}
-         w_{t+h} &= w_t + h \dot{w}_t \\
-         v_{t+h} &= v_t + h a_{t+h} \\
-         q_{t+h} &= q_t + h v_{t+h}
-      \end{aligned}
+.. math::
+   :label: eq_implicit
 
-   Note the acceleration :math:`a_{t+h}=\dot{v}_{t+h}` on the right hand side of the velocity update is evaluated at
-   :math:`t+h`, making the integrator fully implicit in velocity. When applied to Hamiltonian systems, such integrators
-   are called symplectic, and there is a large mathematical literature on them. Hamiltonian systems have the property
-   that certain quantities (symplectic forms) remain constant over time in the true continuous-time system. Symplectic
-   integrators have the unique property that they preserve the same quantities exactly, despite using a discrete-time
-   approximation. Few MuJoCo models used in practice correspond to Hamiltonian systems; these are systems without
-   activation dynamics, contacts, friction, driving forces etc. Nevertheless this type of integrator has appealing
-   properties in terms of accuracy and stability, achieved at the expense of added computation. It is particularly
-   effective in systems where instabilities (of the regular Euler integrator) are caused by velocity-dependent forces:
-   multi-joint pendulums, bodies tumbling through space, systems with substantial lift and drag forces, systems with
-   substantial damping in tendons and actuators (as well as joints, but joint damping is already handled implicitly in
-   the regular Euler integrator).
+   \begin{aligned}
+      v_{t+h} &= v_t + h a_{\color{red}t+h} \\
+      q_{t+h} &= q_t + h v_{t+h}
+   \end{aligned}
 
-   Writing the acceleration (i.e. the forward dynamics) more explicitly as a function of velocity: :math:`a_t=\dot
-   {v}_t = a(v_t)`, the velocity update we aim to approximate is
+Comparing :eq:`eq_semimplicit` and :eq:`eq_implicit`, we see that the acceleration :math:`a_{t+h}=\dot{v}_{t+h}` on the
+right hand side of the velocity update is evaluated at the *next time step*. While evaluating the next acceleration
+is not possible without stepping, we can use a first-order Taylor expansion to approximate this quantity, and
+take a single step of Newton's method. When the expansion is only with respect to velocity (and not position), the
+integrator is known as *implicit-in-velocity* Euler. This approach is particularly effective in systems where
+instabilities are caused by velocity-dependent forces: multi-joint pendulums, bodies tumbling through space, systems
+with lift and drag forces, and systems with substantial damping in tendons and actuators. Writing the
+acceleration as a function of velocity: :math:`a_t = a(v_t)`, the velocity update we aim to approximate is
 
-   .. math:: v_{t+h} = v_t + h a(v_{t+h})
+.. math:: v_{t+h} = v_t + h a(v_{t+h})
 
-   This is a non-linear equation in the unknown vector :math:`v_{t+h}`. It must be solved numerically at each time step
-   in order to implement an implicit integrator. We approximate the solution using a single step of Newton's method,
-   based on the first-order Taylor series expansion of :math:`a(v_{t+h})` around :math:`v_t`. Recall that the forward
-   dynamics are
+This is a non-linear equation in the unknown vector :math:`v_{t+h}` and can be solved numerically at each time step
+using a first-order expansion of :math:`a(v_{t+h})` around :math:`v_t`. Recall that the forward dynamics are
 
-   .. math:: a(v) = M^{-1} \big(\tau(v) - c(v) + J^T f(v)\big)
+.. math:: a(v) = M^{-1} \big(\tau(v) - c(v) + J^T f(v)\big)
 
-   Here we will ignore the velocity dependence of the constraint forces :math:`J^T f(v)`, because differentiating them
-   is complicated, and furthermore MuJoCo uses soft constraints whose integration is very stable even without implicit
-   integration. Thus we define the approximate derivative
+Thus we define the derivative
 
-   .. math::
-      \begin{aligned}
-          {\partial a(v) \over \partial v} &\approx M^{-1} D(v) \\
-          D(v) &= {\partial\big(\tau(v) - c (v)\big) \over \partial v}
-      \end{aligned}
+.. math::
+  \begin{aligned}
+      {\partial a(v) \over \partial v} &= M^{-1} D \\
+      D &\equiv {\partial \over \partial v} \Big(\tau(v) - c (v) + J^T f(v)\Big)
+  \end{aligned}
 
-   MuJoCo computes :math:`D(v)` analytically, by differentating the Recursive Newton-Euler algorithm as well as the code
-   that computes applied and bias forces. A further approximation is that we restrict :math:`D` to have the same
-   sparsity pattern as :math:`M`, for computational efficiency (see below). This restriction will exclude damping in
-   tendons which connect bodies that are on different branches of the kinematic tree. The velocity update corresponding
-   to Newton's method is as follows. First, we expand the right hand side to first order
+The velocity update corresponding to Newton's method is as follows. First, we expand the right hand side to first order
 
-   .. math::
-      \begin{aligned}
-         v_{t+h} &= v_t + h a(v_{t+h}) \\
-                 &= v_t + h a(v_t + v_{t+h}-v_t) \\
-                 &\approx v_t + h a(v_t) + h M^{-1} D \cdot (v_{t+h}-v_t)
-      \end{aligned}
+.. math::
+  \begin{aligned}
+     v_{t+h} &= v_t + h a(v_{t+h}) \\
+             &\approx v_t + h \big( a(v_t) + {\partial a(v) \over \partial v} \cdot (v_{t+h}-v_t) \big) \\
+             &= v_t + h a(v_t) + h M^{-1} D \cdot (v_{t+h}-v_t)
+  \end{aligned}
 
-   Premultiplying by :math:`M` and rearranging yields
+Premultiplying by :math:`M` and rearranging yields
 
-   .. math:: (M-h D) v_{t+h} = (M-h D) v_t + h M a(v_t)
+.. math:: (M-h D) v_{t+h} = (M-h D) v_t + h M a(v_t)
 
-   Now letting :math:`\widehat{M} = M-h D`, we obtain the implicit update
+Solving for :math:`v_{t+h}`, we obtain the implicit-in-velocity update
 
-   .. math:: v_{t+h} = v_t + h \widehat{M}^{-1} M a(v_t)
+.. math::
+   :label: eq_implicit_update
 
-   Comparing to the regular Euler method with damping correction, we see that the matrix :math:`B` in the regular Euler
-   method corresponds to :math:`D` used here, but restricted to joint damping. Since :math:`D` and :math:`M` have the
-   same sparsity pattern corresponding to the topology of the kinematic tree, reverse-order LU factorization of
-   :math:`\widehat{M}` is guaranteed to have no fill-in, which is the computational speed-up mentioned above. This
-   factorization is stored ``mjData.qLU``. It is now also clear why the Euler method uses :math:`B` rather than
-   :math:`D`: since :math:`B` is diagonal, :math:`\widehat{M}` remains symmetric and can be factorized with Cholesky
-   rather than LU.
+   v_{t+h} = v_t + h (M-h D)^{-1} M a(v_t)
 
-4th-order Runge-Kutta method (RK4)
-   One advantage of our continuous-time formulation is that we can use more advanced integrators such as Runge-Kutta or
-   multistep methods. The only such integrator currently implemented is the fixed-step 4th-order Runge-Kutta method. We
-   have observed that for energy-conserving systems it is qualitatively better than the Euler method, both in terms of
-   stability and accuracy, even when the timestep of the Euler method is decreased by a factor of 4 (so the
-   computational effort is identical). In the presence of contacts we have not observed significant benefits, although a
-   more systematic investigation remains to be performed.
+All three single-step integrators in MuJoCo use the update :eq:`eq_implicit_update`, with different definitions of the
+:math:`D` matrix, which is computed analytically.
+
+Semi-implicit Euler with implicit joint damping (``Euler``)
+   For this method :math:`D` only includes derivatives of joint damping. Note that in this case :math:`D` is diagonal
+   and :math:`M-h D` is symmetric, so Cholesky decomposition can be used.
+
+Implicit-in-velocity Euler (``implicit``)
+   For this method :math:`D` includes derivatives of all forces except the constraint forces :math:`J^T f(v)`. These are
+   currently ignored since even though computing them is possible, it is complicated, and numerical tests show that
+   including them does not confer much benefit. That said, analytical derivatives of constraint forces are planned for a
+   future version. Additionally, we restrict :math:`D` to have the same sparsity pattern as :math:`M`, for computational
+   efficiency. This restriction will exclude damping in tendons which connect bodies that are on different branches of
+   the kinematic tree. Since :math:`D` is not symmetric, we cannot use Cholesky factorization, but because :math:`D` and
+   :math:`M` have the same sparsity pattern corresponding to the topology of the kinematic tree, reverse-order LU
+   factorization of :math:`M-h D` is `guaranteed to have no fill-in
+   <https://link.springer.com/book/10.1007/978-1-4899-7560-7>`_.  This factorization is stored ``mjData.qLU``.
+
+Fast implicit-in-velocity (``implicitfast``)
+   For this method :math:`D` includes derivatives of all forces used in the implicit method, with the exception of the
+   centripetal and Coriolis forces :math:`c (v)` computed by the RNE algorithm. Additionally, it is symmetrized :math:`D
+   \leftarrow (D + D^T)/2`. One reason for dropping the RNE derivatives is that they are the most expensive to compute.
+   Second, these forces change rapidly only at high rotational velocities of complex pendula and spinning bodies,
+   scenarios which are not common and already well-handled by the Runge-Kutta integrator (see below). Because the RNE
+   derivatives are also the main source of asymmetry of :math:`D`, by dropping them and symmetrizing, we can use the
+   faster Cholesky rather than LU decomposition.
+
+   .. tip::
+      The implicitfast integrator has similar computational cost to Euler, yet provides increased stability, and is
+      therefore a strict improvement. It is the recommended integrator and will become the default in a future version.
+
+4th-order Runge-Kutta (``RK4``)
+   One advantage of our continuous-time formulation is that we can use higher order integrators such as Runge-Kutta or
+   multistep methods. The only such integrator currently implemented is the fixed-step `4th-order Runge-Kutta method
+   <https://en.wikipedia.org/wiki/Runge–Kutta_methods#Derivation_of_the_Runge–Kutta_fourth-order_method>`_, though users
+   can easily implement other integrators by calling :ref:`mj_forward` and integrating accelerations themselves. We have
+   observed that for energy-conserving systems (`example
+   <https://github.com/deepmind/mujoco/blob/main/test/engine/testdata/derivative/energy_conserving_pendulum.xml>`_) RK4
+   is qualitatively better than the single-step methods, both in terms of stability and accuracy, even when the timestep
+   is decreased by a factor of 4 (so the computational effort is identical).  In the presence of large velocity-
+   dependent forces, if the chosen single-step method integrates those forces implicitly, single-step methods can be
+   significantly more stable than RK4.
 
 .. note::
    The accuracy and stability of all integrators can be improved by reducing the time step :math:`h` which is stored in

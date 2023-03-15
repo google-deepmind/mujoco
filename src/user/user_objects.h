@@ -209,7 +209,9 @@ class mjCBody : public mjCBase {
   int mocapid;                    // mocap id, -1: not mocap
   bool explicitinertial;          // whether to save the body with an explicit inertial clause
 
-  int lastdof;                    // id of last dof (used by compiler)
+  // used internally by compiler
+  int lastdof;                    // id of last dof
+  int subtreedofs;                // number of dofs in subtree, including self
 
   // objects allocated by Add functions
   std::vector<mjCBody*>    bodies;     // child bodies
