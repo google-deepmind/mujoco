@@ -377,6 +377,7 @@ void mju_transposeSparse(mjtNum* res, const mjtNum* mat, int nr, int nc,
 }
 
 
+
 // construct row supernodes
 void mju_superSparse(int nr, int* rowsuper,
                      const int* rownnz, const int* rowadr, const int* colind) {
@@ -417,149 +418,121 @@ void mju_sqrMatTDSparse(mjtNum* res, const mjtNum* mat, const mjtNum* matT,
                         int* res_rownnz, int* res_rowadr, int* res_colind,
                         const int* rownnz, const int* rowadr,
                         const int* colind, const int* rowsuper,
-                        const int* rownnzT, const int* rowadrT,
-                        const int* colindT, const int* rowsuperT,
+                        const int* rownnzT,  const int* rowadrT,
+                        const int* colindT,  const int* rowsuperT,
                         mjData* d) {
   // allocate space for accumulation buffer and matT
   mjMARKSTACK;
-  int* chain = (int*) mj_stackAlloc(d, 2*nc);
-  mjtNum* buffer = mj_stackAlloc(d, nc);
 
-  // set uncompressed layout
+  // set uncompressed layout (the following doesn't depend on this layout)
   for (int r=0; r<nc; r++) {
     res_rowadr[r] = r*nc;
   }
 
-  // compute lower-triangular uncompressed layout (nc per row)
-  for (int r=0; r<nc; r++) {
-    // copy chain from parent
-    if (rowsuperT && r>0 && rowsuperT[r-1]>0) {
-      // copy parent chain
-      res_rownnz[r] = res_rownnz[r-1];
-      memcpy(res_colind+res_rowadr[r], res_colind+res_rowadr[r-1],
-             res_rownnz[r]*sizeof(int));
+  // a dense row buffer that stores the current row in the resulting matrix
+  mjtNum* buffer = mj_stackAlloc(d, nc);
 
-      // add diagonal if rowT is not empty
-      if (rownnzT[r]) {
-        res_colind[res_rowadr[r]+res_rownnz[r]] = r;
-        res_rownnz[r]++;
-      }
+  // these mark the currently set columns in the dense row buffer,
+  // used for when creating the resulting sparse row
+  int* markers = (int*) mj_stackAlloc(d, nc);
+
+  for (int i=0; i<nc; i++) {
+    int* cols = res_colind+res_rowadr[i];
+
+    res_rownnz[i] = 0;
+    buffer[i] = 0;
+    markers[i] = 0;
+
+    // if rowsuper, use the previous row sparsity structure
+    if (rowsuperT && i>0 && rowsuperT[i-1]) {
+      res_rownnz[i] = res_rownnz[i-1];
+      memcpy(cols, res_colind+res_rowadr[i-1], res_rownnz[i]*sizeof(int));
     }
 
-    // construct chain
-    else {
-      // clear chain accumulation buffers
-      int nchain = 0;
-      int inew = 0, iold = nc;
-      int lastadded = -1;
-
-      // for each nonzero c in matT_row(r), add nonzeros of mat_row(c) to chain(r)
-      for (int i=0; i<rownnzT[r]; i++) {
-        // save c
-        int c = colindT[rowadrT[r]+i];
-
-        // skip if a chain from same supernode was already added
-        if (rowsuper && lastadded>=0 && (c-lastadded)<=rowsuper[lastadded]) {
-          continue;
-        } else {
-          lastadded = c;
-        }
-
-        // swap chains
-        int adr = inew;
-        inew = iold;
-        iold = adr;
-
-        // merge chains
-        int nnewchain = 0;
-        adr = 0;
-        int end = rowadr[c]+rownnz[c];
-        for (int adr1=rowadr[c]; adr1<end; adr1++) {
-          // save column index from mat
-          int col_mat = colind[adr1];
-
-          // skip column indices in chain smaller than col_mat
-          while (adr<nchain && chain[iold + adr]<col_mat && chain[iold + adr]<=r) {
-            chain[inew + nnewchain++] = chain[iold + adr++];
-          }
-
-          // only lower-triangular
-          if (col_mat>r) {
-            break;
-          }
-
-          // existing element: advance chain
-          if (adr<nchain && chain[iold + adr]==col_mat) {
-            adr++;
-          }
-
-          // add column index from matT
-          chain[inew + nnewchain++] = col_mat;
-        }
-
-        // append the rest of the master chain
-        while (adr<nchain && chain[iold + adr]<=r) {
-          chain[inew + nnewchain++] = chain[iold + adr++];
-        }
-
-        // assign newchain
-        nchain = nnewchain;
-      }
-
-      // copy chain
-      res_rownnz[r] = nchain;
-      if (nchain) {
-        memcpy(res_colind+res_rowadr[r], chain+inew, nchain*sizeof(int));
-      }
-    }
-  }
-
-  // compute matrix data given uncompressed layout
-  for (int r=0; r<nc; r++) {
-    // clear buffer[colind] for this chain
-    int adr = res_rowadr[r];
-    for (int i=0; i<res_rownnz[r]; i++) {
-      buffer[res_colind[adr+i]] = 0;
-    }
-
-    // res_row(r) = sum_c ( matT(r,c) * diag(c) * mat_row(c) )
-    for (int i=0; i<rownnzT[r]; i++) {
-      // save c and matT(r,c)*diag(c)
-      int c = colindT[rowadrT[r]+i];
-      mjtNum matTrc = matT[rowadrT[r]+i];
-      if (diag) {
-        matTrc *= diag[c];
-      }
-
-      // process row
-      int end = rowadr[c]+rownnz[c];
-      for (int adr=rowadr[c]; adr<end; adr++) {
-        // get column index from mat, only lower-triangular
-        int adr1;
-        if ((adr1=colind[adr])>r) {
+    // iterate through each row of M'
+    int end = rowadrT[i] + rownnzT[i];
+    for (int r = rowadrT[i]; r<end; r++) {
+      int t = colindT[r];
+      mjtNum v = diag ? matT[r] * diag[t] : matT[r];
+      for (int c=rowadr[t]; c<rowadr[t]+rownnz[t]; c++) {
+        int cc = colind[c];
+        // ignore upper triangle
+        if (cc>i) {
           break;
         }
 
-        // add to buffer
-        buffer[adr1] += matTrc*mat[adr];
+        buffer[cc] += v*mat[c];
+
+        // only need to insert nnz if not marked
+        if (!markers[cc]) {
+          markers[cc] = 1;
+
+          // since i is the rightmost column, it can be inserted at the end
+          if (cc==i) {
+            cols[res_rownnz[i]++] = cc;
+            continue;
+          }
+
+          // insert col in order via binary search
+          int l = 0, h = res_rownnz[i];
+          while (l<h) {
+            int m = (l + h) >> 1;
+            if (cols[m]<cc) {
+              l = m + 1;
+            } else {
+              h = m;
+            }
+          }
+
+          // cc is the rightmost column so far, it can be inserted at the end
+          if (l==res_rownnz[i]) {
+            cols[l] = cc;
+            res_rownnz[i]++;
+            continue;
+          }
+
+          // move the cols to the right
+          h = res_rownnz[i];
+          while (l<h) {
+            cols[h] = cols[h-1];
+            h--;
+          }
+
+          // insert
+          cols[l] = cc;
+          res_rownnz[i]++;
+        }
       }
     }
 
-    // copy buffer
-    adr = res_rowadr[r];
-    for (int i=0; i<res_rownnz[r]; i++) {
-      res[adr+i] = buffer[res_colind[adr+i]];
+    end = res_rownnz[i];
+
+    // rowsuperT: reuse sparsity, copy into res
+    if (rowsuperT && rowsuperT[i]) {
+      for (int r=0; r<end; r++) {
+        res[res_rowadr[i] + r] = buffer[cols[r]];
+        buffer[cols[r]] = 0;
+      }
+    } else {
+      // clear out buffers since sparsity cannot be reused
+      for (int r=0; r<end; r++) {
+        int cc = cols[r];
+        res[res_rowadr[i] + r] = buffer[cc];
+        res_colind[res_rowadr[i] + r] = cc;
+        buffer[cc] = 0;
+        markers[cc] = 0;
+      }
     }
   }
 
-  // make symmetric; uncompressed layout
-  for (int r=1; r<nc; r++) {
-    int end = nc*r+res_rownnz[r]-1;
-    for (int adr=nc*r; adr<end; adr++) {
-      // add to row given by column index
-      int adr1 = nc*res_colind[adr] + res_rownnz[res_colind[adr]]++;
-      res[adr1] = res[adr];
-      res_colind[adr1] = r;
+
+  // fill upper triangle
+  for (int i=0; i<nc; i++) {
+    int end = res_rowadr[i] + res_rownnz[i] - 1;
+    for (int j=res_rowadr[i]; j<end; j++) {
+      int adr = res_rowadr[res_colind[j]] + res_rownnz[res_colind[j]]++;
+      res[adr] = res[j];
+      res_colind[adr] = i;
     }
   }
 

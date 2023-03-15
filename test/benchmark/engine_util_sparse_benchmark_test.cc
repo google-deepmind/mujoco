@@ -28,6 +28,7 @@ namespace {
 
 using CombineFuncPtr = decltype(&mju_combineSparse);
 using TransposeFuncPtr = decltype(&mju_transposeSparse);
+using SqrMatTDFuncPtr = decltype(&mju_sqrMatTDSparse);
 
 // number of steps to roll out before benchmarking
 static const int kNumWarmupSteps = 500;
@@ -38,6 +39,117 @@ std::vector<mjtNum> AsVector(const mjtNum* array, int n) {
 }
 
 // ----------------------------- old functions --------------------------------
+
+void ABSL_ATTRIBUTE_NOINLINE mju_sqrMatTDSparse_baseline(
+    mjtNum* res, const mjtNum* mat, const mjtNum* matT, const mjtNum* diag,
+    int nr, int nc, int* res_rownnz, int* res_rowadr, int* res_colind,
+    const int* rownnz, const int* rowadr, const int* colind,
+    const int* rowsuper, const int* rownnzT, const int* rowadrT,
+    const int* colindT, const int* rowsuperT, mjData* d) {
+  mjMARKSTACK;
+  int* chain = (int*)mj_stackAlloc(d, 2 * nc);
+  mjtNum* buffer = mj_stackAlloc(d, nc);
+
+  for (int r = 0; r < nc; r++) {
+    res_rowadr[r] = r * nc;
+  }
+
+  for (int r = 0; r < nc; r++) {
+    if (rowsuperT && r > 0 && rowsuperT[r - 1] > 0) {
+      res_rownnz[r] = res_rownnz[r - 1];
+      memcpy(res_colind + res_rowadr[r], res_colind + res_rowadr[r - 1],
+             res_rownnz[r] * sizeof(int));
+
+      if (rownnzT[r]) {
+        res_colind[res_rowadr[r] + res_rownnz[r]] = r;
+        res_rownnz[r]++;
+      }
+    } else {
+      int nchain = 0;
+      int inew = 0, iold = nc;
+      int lastadded = -1;
+      for (int i = 0; i < rownnzT[r]; i++) {
+        int c = colindT[rowadrT[r] + i];
+        if (rowsuper && lastadded >= 0 &&
+            (c - lastadded) <= rowsuper[lastadded]) {
+          continue;
+        } else {
+          lastadded = c;
+        }
+
+        int adr = inew;
+        inew = iold;
+        iold = adr;
+
+        int nnewchain = 0;
+        adr = 0;
+        int end = rowadr[c] + rownnz[c];
+        for (int adr1 = rowadr[c]; adr1 < end; adr1++) {
+          int col_mat = colind[adr1];
+          while (adr < nchain && chain[iold + adr] < col_mat &&
+                 chain[iold + adr] <= r) {
+            chain[inew + nnewchain++] = chain[iold + adr++];
+          }
+
+          if (col_mat > r) {
+            break;
+          }
+
+          if (adr < nchain && chain[iold + adr] == col_mat) {
+            adr++;
+          }
+          chain[inew + nnewchain++] = col_mat;
+        }
+
+        while (adr < nchain && chain[iold + adr] <= r) {
+          chain[inew + nnewchain++] = chain[iold + adr++];
+        }
+        nchain = nnewchain;
+      }
+      res_rownnz[r] = nchain;
+      if (nchain) {
+        memcpy(res_colind + res_rowadr[r], chain + inew, nchain * sizeof(int));
+      }
+    }
+  }
+
+  for (int r = 0; r < nc; r++) {
+    int adr = res_rowadr[r];
+    for (int i = 0; i < res_rownnz[r]; i++) {
+      buffer[res_colind[adr + i]] = 0;
+    }
+    for (int i = 0; i < rownnzT[r]; i++) {
+      int c = colindT[rowadrT[r] + i];
+      mjtNum matTrc = matT[rowadrT[r] + i];
+      if (diag) {
+        matTrc *= diag[c];
+      }
+
+      int end = rowadr[c] + rownnz[c];
+      for (int adr = rowadr[c]; adr < end; adr++) {
+        int adr1;
+        if ((adr1 = colind[adr]) > r) {
+          break;
+        }
+        buffer[adr1] += matTrc * mat[adr];
+      }
+    }
+    adr = res_rowadr[r];
+    for (int i = 0; i < res_rownnz[r]; i++) {
+      res[adr + i] = buffer[res_colind[adr + i]];
+    }
+  }
+  for (int r = 1; r < nc; r++) {
+    int end = res_rowadr[r] + res_rownnz[r] - 1;
+    for (int adr = res_rowadr[r]; adr < end; adr++) {
+      int adr1 =  res_rowadr[res_colind[adr]] + res_rownnz[res_colind[adr]]++;
+      res[adr1] = res[adr];
+      res_colind[adr1] = r;
+    }
+  }
+
+  mjFREESTACK;
+}
 
 // transpose sparse matrix (uncompressed)
 void ABSL_ATTRIBUTE_NOINLINE transposeSparse_baseline(
@@ -426,8 +538,79 @@ BM_transposeSparse_old(benchmark::State& state) {
   MujocoErrorTestGuard guard;
   BM_transposeSparse(state, &transposeSparse_baseline);
 }
-
 BENCHMARK(BM_transposeSparse_old);
+
+static void BM_sqrMatTDSparse(benchmark::State& state, SqrMatTDFuncPtr func) {
+  static mjModel* m = LoadModelFromPath("humanoid100/humanoid100.xml");
+  mjData* d = mj_makeData(m);
+
+  // force use of sparse matrices
+  m->opt.jacobian = mjJAC_SPARSE;
+
+  // warm-up rollout to get a typical state
+  while (d->time < 2) {
+    mj_step(m, d);
+  }
+
+  // allocate
+  mjMARKSTACK;
+  mjtNum* H = mj_stackAlloc(d, m->nv * m->nv);
+  int* rownnz = (int*)mj_stackAlloc(d, m->nv);
+  int* rowadr = (int*)mj_stackAlloc(d, m->nv);
+  int* colind = (int*)mj_stackAlloc(d, m->nv * m->nv);
+
+  // compute D corresponding to quad states
+  mjtNum* D = mj_stackAlloc(d, d->nefc);
+  for (int i = 0; i < d->nefc; i++) {
+    if (d->efc_state[i] == mjCNSTRSTATE_QUADRATIC) {
+      D[i] = d->efc_D[i];
+    } else {
+      D[i] = 0;
+    }
+  }
+
+  // time benchmark
+  if (func) {
+    for (auto s : state) {
+      // compute H = J'*D*J, uncompressed layout
+      func(H, d->efc_J, d->efc_JT, D, d->nefc, m->nv, rownnz, rowadr, colind,
+         d->efc_J_rownnz, d->efc_J_rowadr, d->efc_J_colind, NULL,
+         d->efc_JT_rownnz, d->efc_JT_rowadr, d->efc_JT_colind,
+         d->efc_JT_rowsuper, d);
+    }
+  } else {
+    for (auto s : state) {
+      // baseline depends on efc_J_rowsuper
+      mju_superSparse(d->nefc, d->efc_J_rowsuper,
+                      d->efc_J_rownnz, d->efc_J_rowadr, d->efc_J_colind);
+
+      // compute H = J'*D*J, uncompressed layout
+      mju_sqrMatTDSparse_baseline(H, d->efc_J, d->efc_JT, D, d->nefc, m->nv, rownnz, rowadr, colind,
+                                  d->efc_J_rownnz, d->efc_J_rowadr, d->efc_J_colind, d->efc_J_rowsuper,
+                                  d->efc_JT_rownnz, d->efc_JT_rowadr, d->efc_JT_colind,
+                                  d->efc_JT_rowsuper, d);
+    }
+  }
+
+  // finalize
+  mjFREESTACK;
+  mj_deleteData(d);
+  state.SetItemsProcessed(state.iterations());
+}
+
+void ABSL_ATTRIBUTE_NO_TAIL_CALL
+BM_sqrMatTDSparse_new(benchmark::State& state) {
+  MujocoErrorTestGuard guard;
+  BM_sqrMatTDSparse(state, &mju_sqrMatTDSparse);
+}
+BENCHMARK(BM_sqrMatTDSparse_new);
+
+void ABSL_ATTRIBUTE_NO_TAIL_CALL
+BM_sqrMatTDSparse_old(benchmark::State& state) {
+  MujocoErrorTestGuard guard;
+  BM_sqrMatTDSparse(state, nullptr);
+}
+BENCHMARK(BM_sqrMatTDSparse_old);
 
 }  // namespace
 }  // namespace mujoco

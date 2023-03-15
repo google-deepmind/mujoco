@@ -66,8 +66,8 @@ MJAPI void mju_transposeSparse(mjtNum* res, const mjtNum* mat, int nr, int nc,
                                const int* rownnz, const int* rowadr, const int* colind);
 
 // construct row supernodes
-void mju_superSparse(int nr, int* rowsuper,
-                     const int* rownnz, const int* rowadr, const int* colind);
+MJAPI void mju_superSparse(int nr, int* rowsuper,
+                           const int* rownnz, const int* rowadr, const int* colind);
 
 // compute sparse M'*diag*M (diag=NULL: compute M'*M), res has uncompressed layout
 MJAPI void mju_sqrMatTDSparse(mjtNum* res, const mjtNum* mat, const mjtNum* matT,

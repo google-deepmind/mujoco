@@ -1365,7 +1365,7 @@ static void HessianDirect(const mjModel* m, mjData* d, mjCGContext* ctx) {
     mju_sqrMatTDSparse(ctx->H, d->efc_J, d->efc_JT, D, nefc, nv,
                        ctx->rownnz, ctx->rowadr, ctx->colind,
                        d->efc_J_rownnz, d->efc_J_rowadr,
-                       d->efc_J_colind, d->efc_J_rowsuper,
+                       d->efc_J_colind, NULL,
                        d->efc_JT_rownnz, d->efc_JT_rowadr,
                        d->efc_JT_colind, d->efc_JT_rowsuper, d);
 

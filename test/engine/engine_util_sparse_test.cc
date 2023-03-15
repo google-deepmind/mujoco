@@ -18,6 +18,7 @@
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
+#include <mujoco/mujoco.h>
 #include "test/fixture.h"
 
 namespace mujoco {
@@ -178,6 +179,550 @@ TEST_F(EngineUtilSparseTest, MjuTransposeNullMatrix) {
 
   EXPECT_THAT(rownnzT, ElementsAre(0, 0, 0, 0, 0, 0, 0, 0, 0, 0));
   EXPECT_THAT(rowadrT, ElementsAre(0, 0, 0, 0, 0, 0, 0, 0, 0, 0));
+}
+
+static constexpr char modelStr[] = R"(<mujoco/>)";
+
+TEST_F(EngineUtilSparseTest, MjuSqrMatTDSparse1) {
+  //       0 0 0
+  // M  =  0 0 0
+  //       0 0 0
+
+  mjModel* model = LoadModelFromString(modelStr);
+  mjData* data = mj_makeData(model);
+
+  mjtNum mat[] = {0, 0, 0, 0, 0, 0, 0, 0, 0};
+  int colind[] = {0, 1, 2, 0, 1, 2, 0, 1, 2};
+  int rownnz[] = {3, 3, 3};
+  int rowadr[] = {0, 3, 6};
+
+  mjtNum matT[] = {0, 0, 0, 0, 0, 0, 0, 0, 0};
+  int colindT[] = {0, 1, 2, 0, 1, 2, 0, 1, 2};
+  int rownnzT[] = {3, 3, 3};
+  int rowadrT[] = {0, 3, 6};
+
+  mjtNum matH[] = {0, 0, 0, 0, 0, 0, 0, 0, 0};
+  int colindH[] = {0, 0, 0, 0, 0, 0, 0, 0, 0};
+  int rownnzH[] = {0, 0, 0};
+  int rowadrH[] = {0, 0, 0};
+
+  mju_sqrMatTDSparse(matH, mat, matT, NULL, 3, 3, rownnzH, rowadrH, colindH,
+                     rownnz, rowadr, colind, NULL, rownnzT, rowadrT, colindT,
+                     NULL, data);
+
+  EXPECT_THAT(matH, ElementsAre(0, 0, 0, 0, 0, 0, 0, 0, 0));
+  EXPECT_THAT(colindH, ElementsAre(0, 1, 2, 0, 1, 2, 0, 1, 2));
+  EXPECT_THAT(rownnzH, ElementsAre(3, 3, 3));
+  EXPECT_THAT(rowadrH, ElementsAre(0, 3, 6));
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
+TEST_F(EngineUtilSparseTest, MjuSqrMatTDSparse2) {
+  //     2 -1  1
+  // M = 1  2 -1
+  //     2  2  3
+
+  mjModel* model = LoadModelFromString(modelStr);
+  mjData* data = mj_makeData(model);
+
+  mjtNum mat[] = {2, -1, 1, 2, -1, 2, 2, 2, 3};
+  int colind[] = {0, 1, 2, 0, 1, 2, 0, 1, 2};
+  int rownnz[] = {3, 3, 3};
+  int rowadr[] = {0, 3, 6};
+
+  mjtNum matT[] = {2, 2, 2, -1, -1, 2, 1, 2, 3};
+  int colindT[] = {0, 1, 2, 0, 1, 2, 0, 1, 2};
+  int rownnzT[] = {3, 3, 3};
+  int rowadrT[] = {0, 3, 6};
+
+  mjtNum matH[] = {0, 0, 0, 0, 0, 0, 0, 0, 0};
+  int colindH[] = {0, 0, 0, 0, 0, 0, 0, 0, 0};
+  int rownnzH[] = {0, 0, 0};
+  int rowadrH[] = {0, 0, 0};
+
+  mju_sqrMatTDSparse(matH, mat, matT, NULL, 3, 3, rownnzH, rowadrH, colindH,
+                     rownnz, rowadr, colind, NULL, rownnzT, rowadrT, colindT,
+                     NULL, data);
+
+  EXPECT_THAT(matH, ElementsAre(12, 0, 12, 0, 6, 3, 12, 3, 14));
+  EXPECT_THAT(colindH, ElementsAre(0, 1, 2, 0, 1, 2, 0, 1, 2));
+  EXPECT_THAT(rownnzH, ElementsAre(3, 3, 3));
+  EXPECT_THAT(rowadrH, ElementsAre(0, 3, 6));
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
+TEST_F(EngineUtilSparseTest, MjuSqrMatTDSparse3) {
+  //     1 2 0
+  // M = 0 3 0
+  //     4 0 0
+
+  mjModel* model = LoadModelFromString(modelStr);
+  mjData* data = mj_makeData(model);
+
+  mjtNum mat[] = {1, 2, 3, 4};
+  int colind[] = {0, 1, 1, 0};
+  int rownnz[] = {2, 1, 1};
+  int rowadr[] = {0, 2, 3};
+
+  mjtNum matT[] = {1, 4, 2, 3};
+  int colindT[] = {0, 2, 0, 1};
+  int rownnzT[] = {2, 2, 0};
+  int rowadrT[] = {0, 2, 4};
+
+  mjtNum matH[] = {0, 0, 0, 0, 0, 0, 0, 0, 0};
+  int colindH[] = {0, 0, 0, 0, 0, 0, 0, 0, 0};
+  int rownnzH[] = {0, 0, 0};
+  int rowadrH[] = {0, 0, 0};
+
+  mjtNum diag[] = {2, 3, 4};
+
+  mju_sqrMatTDSparse(matH, mat, matT, diag, 3, 3, rownnzH, rowadrH, colindH,
+                     rownnz, rowadr, colind, NULL, rownnzT, rowadrT, colindT,
+                     NULL, data);
+
+  EXPECT_THAT(matH, ElementsAre(66, 4, 0, 4, 35, 0, 0, 0, 0));
+  EXPECT_THAT(colindH, ElementsAre(0, 1, 0, 0, 1, 0, 0, 0, 0));
+  EXPECT_THAT(rownnzH, ElementsAre(2, 2, 0));
+  EXPECT_THAT(rowadrH, ElementsAre(0, 3, 6));
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
+TEST_F(EngineUtilSparseTest, MjuSqrMatTDSparse4) {
+  //     1 0 2
+  // M = 0 0 3
+  //     4 0 0
+
+  mjModel* model = LoadModelFromString(modelStr);
+  mjData* data = mj_makeData(model);
+
+  mjtNum mat[] = {1, 2, 3, 4};
+  int colind[] = {0, 2, 2, 0};
+  int rownnz[] = {2, 1, 1};
+  int rowadr[] = {0, 2, 3};
+
+  mjtNum matT[] = {1, 4, 2, 3};
+  int colindT[] = {0, 2, 0, 1};
+  int rownnzT[] = {2, 0, 2};
+  int rowadrT[] = {0, 2, 2};
+
+  mjtNum matH[] = {0, 0, 0, 0, 0, 0, 0, 0, 0};
+  int colindH[] = {0, 0, 0, 0, 0, 0, 0, 0, 0};
+  int rownnzH[] = {0, 0, 0};
+  int rowadrH[] = {0, 0, 0};
+
+  mjtNum diag[] = {2, 3, 4};
+
+  mju_sqrMatTDSparse(matH, mat, matT, diag, 3, 3, rownnzH, rowadrH, colindH,
+                     rownnz, rowadr, colind, NULL, rownnzT, rowadrT, colindT,
+                     NULL, data);
+
+  EXPECT_THAT(matH, ElementsAre(66, 4, 0, 0, 0, 0, 4, 35, 0));
+  EXPECT_THAT(colindH, ElementsAre(0, 2, 0, 0, 0, 0, 0, 2, 0));
+  EXPECT_THAT(rownnzH, ElementsAre(2, 0, 2));
+  EXPECT_THAT(rowadrH, ElementsAre(0, 3, 6));
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
+TEST_F(EngineUtilSparseTest, MjuSqrMatTDSparse5) {
+  //     1 0 4
+  // M = 0 0 0
+  //     2 3 0
+
+  mjModel* model = LoadModelFromString(modelStr);
+  mjData* data = mj_makeData(model);
+
+  mjtNum mat[] = {1, 4, 2, 3};
+  int colind[] = {0, 2, 0, 1};
+  int rownnz[] = {2, 0, 2};
+  int rowadr[] = {0, 2, 2};
+
+  mjtNum matT[] = {1, 2, 3, 4};
+  int colindT[] = {0, 2, 2, 0};
+  int rownnzT[] = {2, 1, 1};
+  int rowadrT[] = {0, 2, 3};
+
+  mjtNum matH[] = {0, 0, 0, 0, 0, 0, 0, 0, 0};
+  int colindH[] = {0, 0, 0, 0, 0, 0, 0, 0, 0};
+  int rownnzH[] = {0, 0, 0};
+  int rowadrH[] = {0, 0, 0};
+
+  mju_sqrMatTDSparse(matH, mat, matT, NULL, 3, 3, rownnzH, rowadrH, colindH,
+                     rownnz, rowadr, colind, NULL, rownnzT, rowadrT, colindT,
+                     NULL, data);
+
+  EXPECT_THAT(matH, ElementsAre(5, 6, 4, 6, 9, 0, 4, 16, 0));
+  EXPECT_THAT(colindH, ElementsAre(0, 1, 2, 0, 1, 0, 0, 2, 0));
+  EXPECT_THAT(rownnzH, ElementsAre(3, 2, 2));
+  EXPECT_THAT(rowadrH, ElementsAre(0, 3, 6));
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
+TEST_F(EngineUtilSparseTest, MjuSqrMatTDSparse6) {
+  //     1 0 2
+  // M = 0 2 0
+  //     0 0 3
+
+  mjModel* model = LoadModelFromString(modelStr);
+  mjData* data = mj_makeData(model);
+
+  mjtNum mat[] = {1, 2, 2, 3};
+  int colind[] = {0, 2, 1, 2};
+  int rownnz[] = {2, 1, 1};
+  int rowadr[] = {0, 2, 3};
+
+  mjtNum matT[] = {1, 2, 2, 3};
+  int colindT[] = {0, 1, 0, 2};
+  int rownnzT[] = {1, 1, 2};
+  int rowadrT[] = {0, 1, 2};
+
+  mjtNum matH[] = {0, 0, 0, 0, 0, 0, 0, 0, 0};
+  int colindH[] = {0, 0, 0, 0, 0, 0, 0, 0, 0};
+  int rownnzH[] = {0, 0, 0};
+  int rowadrH[] = {0, 0, 0};
+
+  mju_sqrMatTDSparse(matH, mat, matT, NULL, 3, 3, rownnzH, rowadrH, colindH,
+                     rownnz, rowadr, colind, NULL, rownnzT, rowadrT, colindT,
+                     NULL, data);
+
+  EXPECT_THAT(matH, ElementsAre(1, 2, 0, 4, 0, 0, 2, 13, 0));
+  EXPECT_THAT(colindH, ElementsAre(0, 2, 0, 1, 0, 0, 0, 2, 0));
+  EXPECT_THAT(rownnzH, ElementsAre(2, 1, 2));
+  EXPECT_THAT(rowadrH, ElementsAre(0, 3, 6));
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
+TEST_F(EngineUtilSparseTest, MjuSqrMatTDSparse7) {
+  //     1 2
+  // M = 0 3
+  //     4 0
+
+  mjModel* model = LoadModelFromString(modelStr);
+  mjData* data = mj_makeData(model);
+
+  mjtNum mat[] = {1, 2, 3, 4};
+  int colind[] = {0, 1, 1, 0};
+  int rownnz[] = {2, 1, 1};
+  int rowadr[] = {0, 2, 3};
+
+  mjtNum matT[] = {1, 4, 2, 3};
+  int colindT[] = {0, 2, 0, 1};
+  int rownnzT[] = {2, 2};
+  int rowadrT[] = {0, 2};
+
+  mjtNum matH[] = {0, 0, 0, 0};
+  int colindH[] = {0, 0, 0, 0};
+  int rownnzH[] = {0, 0};
+  int rowadrH[] = {0, 0};
+
+  mjtNum diag[] = {2, 3, 4};
+
+  mju_sqrMatTDSparse(matH, mat, matT, diag, 3, 2, rownnzH, rowadrH, colindH,
+                     rownnz, rowadr, colind, NULL, rownnzT, rowadrT, colindT,
+                     NULL, data);
+
+  EXPECT_THAT(matH, ElementsAre(66, 4, 4, 35));
+  EXPECT_THAT(colindH, ElementsAre(0, 1, 0, 1));
+  EXPECT_THAT(rownnzH, ElementsAre(2, 2));
+  EXPECT_THAT(rowadrH, ElementsAre(0, 2));
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
+TEST_F(EngineUtilSparseTest, MjuSqrMatTDSparse8) {
+  // M = 1 0 4
+  //     2 3 0
+
+  mjModel* model = LoadModelFromString(modelStr);
+  mjData* data = mj_makeData(model);
+
+  mjtNum mat[] = {1, 4, 2, 3};
+  int colind[] = {0, 2, 0, 1};
+  int rownnz[] = {2, 2};
+  int rowadr[] = {0, 2};
+
+  mjtNum matT[] = {1, 2, 3, 4};
+  int colindT[] = {0, 1, 1, 0};
+  int rownnzT[] = {2, 1, 1};
+  int rowadrT[] = {0, 2, 3};
+
+  mjtNum matH[] = {0, 0, 0, 0, 0, 0, 0, 0, 0};
+  int colindH[] = {0, 0, 0, 0, 0, 0, 0, 0, 0};
+  int rownnzH[] = {0, 0, 0};
+  int rowadrH[] = {0, 0, 0};
+
+  mjtNum diag[] = {2, 3};
+
+  mju_sqrMatTDSparse(matH, mat, matT, diag, 2, 3, rownnzH, rowadrH, colindH,
+                     rownnz, rowadr, colind, NULL, rownnzT, rowadrT, colindT,
+                     NULL, data);
+
+  EXPECT_THAT(matH, ElementsAre(14, 18, 8, 18, 27, 0, 8, 32, 0));
+  EXPECT_THAT(colindH, ElementsAre(0, 1, 2, 0, 1, 0, 0, 2, 0));
+  EXPECT_THAT(rownnzH, ElementsAre(3, 2, 2));
+  EXPECT_THAT(rowadrH, ElementsAre(0, 3, 6));
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
+TEST_F(EngineUtilSparseTest, MjuSqrMatTDSparse9) {
+  //     1 2 2
+  // M = 1 3 4
+  //     4 4 4
+
+  mjModel* model = LoadModelFromString(modelStr);
+  mjData* data = mj_makeData(model);
+
+  mjtNum mat[] = {1, 2, 2, 1, 3, 4, 4, 4, 4};
+  int colind[] = {0, 1, 2, 0, 1, 2, 0, 1, 2};
+  int rownnz[] = {3, 3, 3};
+  int rowadr[] = {0, 3, 6};
+
+  mjtNum matT[] = {1, 1, 4, 2, 3, 4, 2, 4, 4};
+  int colindT[] = {0, 1, 2, 0, 1, 2, 0, 1, 2};
+  int rownnzT[] = {3, 3, 3};
+  int rowadrT[] = {0, 3, 6};
+
+  mjtNum matH[] = {0, 0, 0, 0, 0, 0, 0, 0, 0};
+  int colindH[] = {0, 0, 0, 0, 0, 0, 0, 0, 0};
+  int rownnzH[] = {0, 0, 0};
+  int rowadrH[] = {0, 0, 0};
+
+  mjtNum diag[] = {2, 3, 4};
+
+  mju_sqrMatTDSparse(matH, mat, matT, diag, 3, 3, rownnzH, rowadrH, colindH,
+                     rownnz, rowadr, colind, NULL, rownnzT, rowadrT, colindT,
+                     NULL, data);
+
+  EXPECT_THAT(matH, ElementsAre(69, 77, 80, 77, 99, 108, 80, 108, 120));
+  EXPECT_THAT(colindH, ElementsAre(0, 1, 2, 0, 1, 2, 0, 1, 2));
+  EXPECT_THAT(rownnzH, ElementsAre(3, 3, 3));
+  EXPECT_THAT(rowadrH, ElementsAre(0, 3, 6));
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
+TEST_F(EngineUtilSparseTest, MjuSqrMatTDSparse10) {
+  //     1 1 1
+  // M = 2 2 2
+  //     3 3 3
+
+  mjModel* model = LoadModelFromString(modelStr);
+  mjData* data = mj_makeData(model);
+
+  mjtNum mat[] = {1, 1, 1, 2, 2, 2, 3, 3, 3};
+  int colind[] = {0, 1, 2, 0, 1, 2, 0, 1, 2};
+  int rownnz[] = {3, 3, 3};
+  int rowadr[] = {0, 3, 6};
+
+  mjtNum matT[] = {1, 2, 3, 1, 2, 3, 1, 2, 3};
+  int colindT[] = {0, 1, 2, 0, 1, 2, 0, 1, 2};
+  int rownnzT[] = {3, 3, 3};
+  int rowadrT[] = {0, 3, 6};
+  int superowT[] = {2, 1, 0};
+
+  mjtNum matH[] = {0, 0, 0, 0, 0, 0, 0, 0, 0};
+  int colindH[] = {0, 0, 0, 0, 0, 0, 0, 0, 0};
+  int rownnzH[] = {0, 0, 0};
+  int rowadrH[] = {0, 0, 0};
+
+  mjtNum diag[] = {1, 1, 1};
+
+  mju_sqrMatTDSparse(matH, mat, matT, diag, 3, 3, rownnzH, rowadrH, colindH,
+                     rownnz, rowadr, colind, NULL, rownnzT, rowadrT, colindT,
+                     superowT, data);
+
+  EXPECT_THAT(matH, ElementsAre(14, 14, 14, 14, 14, 14, 14, 14, 14));
+  EXPECT_THAT(colindH, ElementsAre(0, 1, 2, 0, 1, 2, 0, 1, 2));
+  EXPECT_THAT(rownnzH, ElementsAre(3, 3, 3));
+  EXPECT_THAT(rowadrH, ElementsAre(0, 3, 6));
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
+TEST_F(EngineUtilSparseTest, MjuSqrMatTDSparse11) {
+  //     1 1 1
+  // M = 0 0 0
+  //     0 3 3
+
+  mjModel* model = LoadModelFromString(modelStr);
+  mjData* data = mj_makeData(model);
+
+  mjtNum mat[] = {1, 1, 1, 3, 3};
+  int colind[] = {0, 1, 2, 1, 2};
+  int rownnz[] = {3, 0, 2};
+  int rowadr[] = {0, 3, 3};
+
+  mjtNum matT[] = {1, 1, 3, 1, 3};
+  int colindT[] = {0, 0, 2, 0, 2};
+  int rownnzT[] = {1, 2, 2};
+  int rowadrT[] = {0, 1, 3};
+  int superowT[] = {0, 1, 0};
+
+  mjtNum matH[] = {0, 0, 0, 0, 0, 0, 0, 0, 0};
+  int colindH[] = {0, 0, 0, 0, 0, 0, 0, 0, 0};
+  int rownnzH[] = {0, 0, 0};
+  int rowadrH[] = {0, 0, 0};
+
+  mjtNum diag[] = {1, 1, 1};
+
+  mju_sqrMatTDSparse(matH, mat, matT, diag, 3, 3, rownnzH, rowadrH, colindH,
+                     rownnz, rowadr, colind, NULL, rownnzT, rowadrT, colindT,
+                     superowT, data);
+
+  EXPECT_THAT(matH, ElementsAre(1, 1, 1, 1, 10, 10, 1, 10, 10));
+  EXPECT_THAT(colindH, ElementsAre(0, 1, 2, 0, 1, 2, 0, 1, 2));
+  EXPECT_THAT(rownnzH, ElementsAre(3, 3, 3));
+  EXPECT_THAT(rowadrH, ElementsAre(0, 3, 6));
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
+TEST_F(EngineUtilSparseTest, MjuSqrMatTDSparse12) {
+  //     1 1 1 1
+  // M = 0 0 0 0
+  //     0 0 3 3
+
+  mjModel* model = LoadModelFromString(modelStr);
+  mjData* data = mj_makeData(model);
+
+  mjtNum mat[] = {1, 1, 1, 1, 3, 3};
+  int colind[] = {0, 1, 2, 3, 2, 3};
+  int rownnz[] = {4, 0, 2};
+  int rowadr[] = {0, 4, 4};
+
+  mjtNum matT[] = {1, 1, 1, 3, 1, 3};
+  int colindT[] = {0, 0, 0, 2, 0, 2};
+  int rownnzT[] = {1, 1, 2, 2};
+  int rowadrT[] = {0, 1, 2, 4};
+  int superowT[] = {1, 0, 1, 0};
+
+  mjtNum matH[] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+  int colindH[] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+  int rownnzH[] = {0, 0, 0, 0};
+  int rowadrH[] = {0, 0, 0, 0};
+
+  mjtNum diag[] = {1, 1, 1};
+
+  mju_sqrMatTDSparse(matH, mat, matT, diag, 3, 4, rownnzH, rowadrH, colindH,
+                     rownnz, rowadr, colind, NULL, rownnzT, rowadrT, colindT,
+                     superowT, data);
+
+  EXPECT_THAT(matH,
+              ElementsAre(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 10, 10, 1, 1, 10, 10));
+  EXPECT_THAT(colindH,
+              ElementsAre(0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3));
+  EXPECT_THAT(rownnzH, ElementsAre(4, 4, 4, 4));
+  EXPECT_THAT(rowadrH, ElementsAre(0, 4, 8, 12));
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
+TEST_F(EngineUtilSparseTest, MjuSqrMatTDSparse13) {
+  //     1 1 0 0 0
+  // M = 1 1 0 0 0
+  //     1 1 0 0 0
+
+  mjModel* model = LoadModelFromString(modelStr);
+  mjData* data = mj_makeData(model);
+
+  mjtNum mat[] = {1, 1, 1, 1, 1, 1};
+  int colind[] = {0, 1, 0, 1, 0, 1};
+  int rownnz[] = {2, 2, 2};
+  int rowadr[] = {0, 2, 4};
+
+  mjtNum matT[] = {1, 1, 1, 1, 1, 1};
+  int colindT[] = {0, 1, 2, 0, 1, 2};
+  int rownnzT[] = {3, 3, 0, 0, 0};
+  int rowadrT[] = {0, 3, 6, 6, 6};
+  int superowT[] = {1, 0, 2, 1, 0};
+
+  mjtNum matH[] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+  int colindH[] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+  int rownnzH[] = {0, 0, 0, 0, 0};
+  int rowadrH[] = {0, 0, 0, 0, 0};
+
+  mjtNum diag[] = {1, 1, 1};
+
+  mju_sqrMatTDSparse(matH, mat, matT, diag, 3, 5, rownnzH, rowadrH, colindH,
+                     rownnz, rowadr, colind, NULL, rownnzT, rowadrT, colindT,
+                     superowT, data);
+
+  EXPECT_THAT(matH, ElementsAre(3, 3, 0, 0, 0, 3, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                                0, 0, 0, 0, 0, 0, 0, 0, 0));
+  EXPECT_THAT(colindH, ElementsAre(0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0,
+                                   0, 0, 0, 0, 0, 0, 0, 0, 0, 0));
+  EXPECT_THAT(rownnzH, ElementsAre(2, 2, 0, 0, 0));
+  EXPECT_THAT(rowadrH, ElementsAre(0, 5, 10, 15, 20));
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
+TEST_F(EngineUtilSparseTest, MjuSqrMatTDSparse14) {
+  // M = 1 1 1 1 2 2 2
+
+  mjModel* model = LoadModelFromString(modelStr);
+  mjData* data = mj_makeData(model);
+
+  mjtNum mat[] = {1, 1, 1, 1, 2, 2, 2};
+  int colind[] = {0, 1, 2, 3, 4, 5, 6};
+  int rownnz[] = {7};
+  int rowadr[] = {0};
+
+  mjtNum matT[] = {1, 1, 1, 1, 2, 2, 2};
+  int colindT[] = {0, 0, 0, 0, 0, 0, 0};
+  int rownnzT[] = {1, 1, 1, 1, 1, 1, 1};
+  int rowadrT[] = {0, 1, 2, 3, 4, 5, 6};
+  int superowT[] = {3, 2, 1, 0, 2, 1, 0};
+
+  mjtNum matH[] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+  int colindH[] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+  int rownnzH[] = {0, 0, 0, 0, 0, 0, 0};
+  int rowadrH[] = {0, 0, 0, 0, 0, 0, 0};
+
+  mju_sqrMatTDSparse(matH, mat, matT, NULL, 1, 7, rownnzH, rowadrH, colindH,
+                     rownnz, rowadr, colind, NULL, rownnzT, rowadrT, colindT,
+                     superowT, data);
+
+  EXPECT_THAT(
+      matH, ElementsAre(1, 1, 1, 1, 2, 2, 2, 1, 1, 1, 1, 2, 2, 2, 1, 1, 1, 1, 2,
+                        2, 2, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 4, 4, 4, 2, 2, 2,
+                        2, 4, 4, 4, 2, 2, 2, 2, 4, 4, 4));
+  EXPECT_THAT(colindH,
+              ElementsAre(0, 1, 2, 3, 4, 5, 6, 0, 1, 2, 3, 4, 5, 6, 0, 1, 2, 3,
+                          4, 5, 6, 0, 1, 2, 3, 4, 5, 6, 0, 1, 2, 3, 4, 5, 6, 0,
+                          1, 2, 3, 4, 5, 6, 0, 1, 2, 3, 4, 5, 6
+
+                          ));
+  EXPECT_THAT(rownnzH, ElementsAre(7, 7, 7, 7, 7, 7, 7));
+  EXPECT_THAT(rowadrH, ElementsAre(0, 7, 14, 21, 28, 35, 42));
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
 }
 
 }  // namespace

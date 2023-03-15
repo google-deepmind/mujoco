@@ -1699,7 +1699,6 @@ void mj_projectConstraint(const mjModel* m, mjData* d) {
     int* rownnzT = (int*)mj_stackAlloc(d, nv);
     int* rowadrT = (int*)mj_stackAlloc(d, nv);
     int* colindT = (int*)mj_stackAlloc(d, nv*nefc);
-    int* rowsuperT = (int*)mj_stackAlloc(d, nv);
 
     // construct JM2 = backsubM2(J')' by rows
     for (int r=0; r<nefc; r++) {
@@ -1786,12 +1785,11 @@ void mj_projectConstraint(const mjModel* m, mjData* d) {
 
     // construct supernodes
     mju_superSparse(nefc, rowsuper, rownnz, rowadr, colind);
-    mju_superSparse(nv, rowsuperT, rownnzT, rowadrT, colindT);
 
     // AR = JM2 * JM2', uncompressed layout
     mju_sqrMatTDSparse(d->efc_AR, JM2T, JM2, NULL, nv, nefc,
                        d->efc_AR_rownnz, d->efc_AR_rowadr, d->efc_AR_colind,
-                       rownnzT, rowadrT, colindT, rowsuperT,
+                       rownnzT, rowadrT, colindT, NULL,
                        rownnz, rowadr, colind, rowsuper, d);
 
     // compress layout of AR
