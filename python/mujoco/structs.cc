@@ -983,6 +983,7 @@ MjvPerturbWrapper::MjWrapper()
       }()),
       X(refpos),
       X(refquat),
+      X(refselpos),
       X(localpos) {}
 #undef X
 
@@ -1299,8 +1300,11 @@ PYBIND11_MODULE(_structs, m) {
 #define X(var) mjVisualGlobal.def_readwrite(#var, &raw::MjVisualGlobal::var)
   X(fovy);
   X(ipd);
+  X(azimuth);
+  X(elevation);
   X(linewidth);
   X(glow);
+  X(realtime);
   X(offwidth);
   X(offheight);
 #undef X
@@ -1966,11 +1970,14 @@ This is useful for example when the MJB is not available as a file on disk.)"));
   X(skinselect);
   X(active);
   X(active2);
+  X(localmass);
+  X(scale);
 #undef X
 
 #define X(var) DefinePyArray(mjvPerturb, #var, &MjvPerturbWrapper::var)
   X(refpos);
   X(refquat);
+  X(refselpos);
   X(localpos);
 #undef X
 

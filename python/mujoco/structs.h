@@ -611,6 +611,7 @@ class MjWrapper<raw::MjvPerturb> : public WrapperBase<raw::MjvPerturb> {
   #define X(var) py_array_or_tuple_t<mjtNum> var
   X(refpos);
   X(refquat);
+  X(refselpos);
   X(localpos);
   #undef X
 };
