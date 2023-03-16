@@ -19,6 +19,7 @@ import ctypes.util
 import os
 import platform
 import subprocess
+import warnings
 
 _SYSTEM = platform.system()
 if _SYSTEM == 'Windows':
@@ -54,7 +55,13 @@ PLUGIN_HANDLES = []
 def _load_all_bundled_plugins():
   for directory, _, filenames in os.walk(PLUGINS_DIR):
     for filename in filenames:
-      PLUGIN_HANDLES.append(ctypes.CDLL(os.path.join(directory, filename)))
+      if os.path.splitext(filename)[-1] in [".dll", ".dylib", ".so"]:
+        PLUGIN_HANDLES.append(ctypes.CDLL(os.path.join(directory, filename)))
+      elif filename == "__init__.py":
+        pass
+      else:
+        warnings.warn('Ignoring non-library in plugin directory: '
+                      f'{os.path.join(directory, filename)}', ImportWarning)
 
 _load_all_bundled_plugins()
 
