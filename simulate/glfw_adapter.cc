@@ -175,14 +175,10 @@ bool GlfwAdapter::ShouldCloseWindow() const {
 void GlfwAdapter::SwapBuffers() {
 #ifdef __APPLE__
   if (core_video_.has_value()) {
-    core_video_->EnqueueSwap();
-    core_video_->WaitForSwap();
-  } else {
-    Glfw().glfwSwapBuffers(window_);
+    core_video_->WaitForDisplayRefresh();
   }
-#else
-  Glfw().glfwSwapBuffers(window_);
 #endif
+  Glfw().glfwSwapBuffers(window_);
 }
 
 void GlfwAdapter::ToggleFullscreen() {

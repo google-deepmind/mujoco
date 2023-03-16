@@ -19,6 +19,7 @@
 #error "This header only works on macOS."
 #endif
 
+#include <atomic>
 #include <condition_variable>
 #include <mutex>
 
@@ -37,8 +38,8 @@ class GlfwCoreVideo {
  public:
   GlfwCoreVideo(GLFWwindow* window);
   ~GlfwCoreVideo();
-  void EnqueueSwap();
-  void WaitForSwap();
+
+  void WaitForDisplayRefresh();
   int DisplayLinkCallback();
   void UpdateDisplayLink();
 
@@ -46,7 +47,7 @@ class GlfwCoreVideo {
   GLFWwindow* window_;
   CVDisplayLinkRef display_link_;
 
-  bool second_buffer_has_content_;
+  std::atomic_bool waiting_;
   std::mutex mu_;
   std::condition_variable cond_;
 };

@@ -45,23 +45,16 @@ GlfwCoreVideo::~GlfwCoreVideo() {
   CVDisplayLinkRelease(display_link_);
 }
 
-void GlfwCoreVideo::EnqueueSwap() {
+void GlfwCoreVideo::WaitForDisplayRefresh() {
   std::unique_lock lock(mu_);
-  second_buffer_has_content_ = true;
-}
-
-void GlfwCoreVideo::WaitForSwap() {
-  if (second_buffer_has_content_) {
-    std::unique_lock lock(mu_);
-    cond_.wait(lock, [this]() { return !this->second_buffer_has_content_; });
-  }
+  waiting_.store(true);
+  cond_.wait(lock, [this]() { return !this->waiting_; });
 }
 
 int GlfwCoreVideo::DisplayLinkCallback() {
-  if (second_buffer_has_content_) {
+  if (waiting_.load()) {
     std::unique_lock lock(mu_);
-    Glfw().glfwSwapBuffers(window_);
-    second_buffer_has_content_ = false;
+    waiting_.store(false);
     cond_.notify_one();
   }
   return kCVReturnSuccess;
