@@ -505,15 +505,15 @@ Solving for :math:`v_{t+h}`, we obtain the implicit-in-velocity update
    v_{t+h} = v_t + h (M-h D)^{-1} M a(v_t)
 
 All three single-step integrators in MuJoCo use the update :eq:`eq_implicit_update`, with different definitions of the
-:math:`D` matrix, which is computed analytically.
+:math:`D` matrix, which is always computed analytically.
 
-Semi-implicit Euler with implicit joint damping (``Euler``)
-   For this method :math:`D` only includes derivatives of joint damping. Note that in this case :math:`D` is diagonal
+Semi-implicit with implicit joint damping (``Euler``)
+   For this method, :math:`D` only includes derivatives of joint damping. Note that in this case :math:`D` is diagonal
    and :math:`M-h D` is symmetric, so Cholesky decomposition can be used.
 
-Implicit-in-velocity Euler (``implicit``)
-   For this method :math:`D` includes derivatives of all forces except the constraint forces :math:`J^T f(v)`. These are
-   currently ignored since even though computing them is possible, it is complicated, and numerical tests show that
+Implicit-in-velocity (``implicit``)
+   For this method, :math:`D` includes derivatives of all forces except the constraint forces :math:`J^T f(v)`. These
+   are currently ignored since even though computing them is possible, it is complicated, and numerical tests show that
    including them does not confer much benefit. That said, analytical derivatives of constraint forces are planned for a
    future version. Additionally, we restrict :math:`D` to have the same sparsity pattern as :math:`M`, for computational
    efficiency. This restriction will exclude damping in tendons which connect bodies that are on different branches of
@@ -523,7 +523,7 @@ Implicit-in-velocity Euler (``implicit``)
    <https://link.springer.com/book/10.1007/978-1-4899-7560-7>`_.  This factorization is stored ``mjData.qLU``.
 
 Fast implicit-in-velocity (``implicitfast``)
-   For this method :math:`D` includes derivatives of all forces used in the implicit method, with the exception of the
+   For this method, :math:`D` includes derivatives of all forces used in the implicit method, with the exception of the
    centripetal and Coriolis forces :math:`c (v)` computed by the RNE algorithm. Additionally, it is symmetrized :math:`D
    \leftarrow (D + D^T)/2`. One reason for dropping the RNE derivatives is that they are the most expensive to compute.
    Second, these forces change rapidly only at high rotational velocities of complex pendula and spinning bodies,
