@@ -73,11 +73,4 @@
 
 #define PTRDIFF(x, y) ((char*)(x) - (char*)(y))
 
-// number of bytes to be skipped to achieve 64-byte alignment
-static inline unsigned int SKIP(intptr_t offset) {
-  const unsigned int align = 64;
-  // compute skipped bytes
-  return (align - (offset % align)) % align;
-}
-
 #endif  // MUJOCO_SRC_ENGINE_ENGINE_MACRO_H_

@@ -308,6 +308,15 @@ static void bufread(void* dest, int num, int szbuf, const void* buf, int* ptrbuf
 
 
 
+// number of bytes to be skipped to achieve 64-byte alignment
+static inline unsigned int SKIP(intptr_t offset) {
+  const unsigned int align = 64;
+  // compute skipped bytes
+  return (align - (offset % align)) % align;
+}
+
+
+
 //----------------------------------- mjModel construction -----------------------------------------
 
 // set pointers in mjModel buffer
