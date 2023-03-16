@@ -22,6 +22,9 @@ set(CMAKE_POLICY_DEFAULT_CMP0069 NEW)
 
 enable_language(C)
 enable_language(CXX)
+if(APPLE)
+  enable_language(OBJCXX)
+endif()
 
 if(MSVC AND MSVC_VERSION GREATER_EQUAL 1927)
   set(CMAKE_CXX_STANDARD 20) # For forceinline lambdas.
@@ -407,6 +410,13 @@ set(LIBRARIES_FOR_WHEEL
     "$<TARGET_FILE:mujoco>"
 )
 
+if(APPLE)
+  add_executable(mjpython mjpython/mjpython.mm)
+  target_include_directories(mjpython PRIVATE "${Python3_INCLUDE_DIRS}")
+  target_link_libraries(mjpython PRIVATE "-framework Cocoa")
+  set(LIBRARIES_FOR_WHEEL "${LIBRARIES_FOR_WHEEL}" "$<TARGET_FILE:mjpython>")
+endif()
+
 if(MUJOCO_PYTHON_MAKE_WHEEL)
   add_custom_target(
     wheel ALL
@@ -434,4 +444,7 @@ if(MUJOCO_PYTHON_MAKE_WHEEL)
     _structs
     mujoco
   )
+  if(APPLE)
+    add_dependencies(wheel mjpython)
+  endif()
 endif()

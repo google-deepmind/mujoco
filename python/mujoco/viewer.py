@@ -14,6 +14,7 @@
 # ==============================================================================
 """Interactive GUI viewer for MuJoCo."""
 
+import abc
 import atexit
 import code
 import inspect
@@ -56,6 +57,18 @@ _LoaderWithPathType = Callable[[], Tuple[mujoco.MjModel, mujoco.MjData, str]]
 _InternalLoaderType = Union[LoaderType, _LoaderWithPathType]
 
 Simulate = _simulate.Simulate
+
+
+# Abstract base dispatcher class for systems that require UI calls to be made
+# on a specific thread (e.g. macOS). This is subclassed by system-specific
+# Python launcher (mjpython) to implement the required dispatching mechanism.
+class _MjPythonBase(metaclass=abc.ABCMeta):
+
+  def launch_on_ui_thread(self, model: mujoco.MjModel, data: mujoco.MjData):
+    pass
+
+# When running under mjpython, the launcher initializes this object.
+_MJPYTHON: Optional[_MjPythonBase] = None
 
 
 def _file_loader(path: str) -> _LoaderWithPathType:
@@ -238,11 +251,11 @@ def _launch_internal(model: Optional[mujoco.MjModel] = None,
   if simulate is None:
     simulate = Simulate()
 
-  # Initialize GLFW.
-  if not glfw.init():
-    raise mujoco.FatalError('could not initialize GLFW')
-
-  atexit.register(glfw.terminate)
+  # Initialize GLFW if not using mjpython.
+  if _MJPYTHON is None:
+    if not glfw.init():
+      raise mujoco.FatalError('could not initialize GLFW')
+    atexit.register(glfw.terminate)
 
   side_thread = None
   if run_physics_thread:
@@ -251,8 +264,18 @@ def _launch_internal(model: Optional[mujoco.MjModel] = None,
   else:
     side_thread = threading.Thread(
         target=_reload, args=(simulate, loader))
+
+  def make_exit_requester(simulate):
+    def exit_requester():
+      simulate.exitrequest = True
+    return exit_requester
+
+  exit_requester = make_exit_requester(simulate)
+  atexit.register(exit_requester)
+
   side_thread.start()
   simulate.renderloop()
+  atexit.unregister(exit_requester)
   side_thread.join()
 
 
@@ -269,6 +292,28 @@ def launch(model: Optional[mujoco.MjModel] = None,
 def launch_from_path(path: str) -> None:
   """Launches the Simulate GUI from file path."""
   _launch_internal(loader=_file_loader(path))
+
+
+def launch_passive(model: mujoco.MjModel, data: mujoco.MjData) -> None:
+  """Launches a passive Simulate GUI without blocking the running thread."""
+  if not isinstance(model, mujoco.MjModel):
+    raise ValueError(f'`model` is not a mujoco.MjModel: got {model!r}')
+  if not isinstance(data, mujoco.MjData):
+    raise ValueError(f'`data` is not a mujoco.MjData: got {data!r}')
+  if sys.platform != 'darwin':
+    thread = threading.Thread(
+        target=_launch_internal,
+        args=(model, data),
+        kwargs=dict(run_physics_thread=False),
+    )
+    thread.daemon = True
+    thread.start()
+  else:
+    if not isinstance(_MJPYTHON, _MjPythonBase):
+      raise RuntimeError(
+          '`launch_passive` requires that the Python script be run under '
+          '`mjpython`')
+    _MJPYTHON.launch_on_ui_thread(model, data)
 
 
 def launch_repl(model: mujoco.MjModel, data: mujoco.MjData) -> None:

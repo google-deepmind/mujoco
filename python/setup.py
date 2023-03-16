@@ -15,6 +15,7 @@
 """Install script for MuJoCo."""
 
 import fnmatch
+import logging
 import os
 import platform
 import random
@@ -29,6 +30,7 @@ import setuptools
 from setuptools import find_packages
 from setuptools import setup
 from setuptools.command import build_ext
+from setuptools.command import install_scripts
 
 __version__ = '2.3.2'
 
@@ -69,6 +71,7 @@ def get_external_lib_patterns():
     return ['libmujoco.*.dylib']
   else:
     return ['libmujoco.so.*']
+
 
 def get_plugin_lib_patterns():
   if platform.system() == 'Windows':
@@ -159,6 +162,8 @@ class BuildCMakeExtension(build_ext.build_ext):
     self._copy_external_libraries()
     self._copy_mujoco_headers()
     self._copy_plugin_libraries()
+    if self._is_apple:
+      self._copy_mjpython()
 
   def _find_mujoco(self):
     if MUJOCO_PATH not in os.environ:
@@ -212,6 +217,26 @@ class BuildCMakeExtension(build_ext.build_ext):
       for filename in fnmatch.filter(filenames, '*.h'):
         shutil.copyfile(os.path.join(directory, filename),
                         os.path.join(dst, filename))
+
+  def _copy_mjpython(self):
+    src_dir = os.path.join(os.path.dirname(__file__), 'mujoco/mjpython')
+    dst_contents_dir = os.path.join(
+        os.path.dirname(self.get_ext_fullpath(self.extensions[0].name)),
+        'MuJoCo (mjpython).app/Contents')
+    os.makedirs(dst_contents_dir)
+    shutil.copyfile(os.path.join(src_dir, 'Info.plist'),
+                    os.path.join(dst_contents_dir, 'Info.plist'))
+
+    dst_bin_dir = os.path.join(dst_contents_dir, 'MacOS')
+    os.makedirs(dst_bin_dir)
+    shutil.copyfile(os.path.join(self.build_temp, 'mjpython'),
+                    os.path.join(dst_bin_dir, 'mjpython'))
+    os.chmod(os.path.join(dst_bin_dir, 'mjpython'), 0o755)
+
+    dst_resources_dir = os.path.join(dst_contents_dir, 'Resources')
+    os.makedirs(dst_resources_dir)
+    shutil.copyfile(os.path.join(src_dir, 'mjpython.icns'),
+                    os.path.join(dst_resources_dir, 'mjpython.icns'))
 
   def _configure_cmake(self):
     """Check for CMake."""
@@ -276,6 +301,40 @@ class BuildCMakeExtension(build_ext.build_ext):
     build_path = os.path.join(self.build_temp, os.path.basename(dest_path))
     shutil.copyfile(build_path, dest_path)
 
+
+class InstallScripts(install_scripts.install_scripts):
+  """Strips file extension from executable scripts whose names end in `.py`."""
+
+  def run(self):
+    super().run()
+    oldfiles = self.outfiles
+    files = set(oldfiles)
+    self.outfiles = []
+    for oldfile in oldfiles:
+      if oldfile.endswith('.py'):
+        newfile = oldfile[:-3]
+      else:
+        newfile = oldfile
+
+      renamed = False
+      if newfile not in files and not os.path.exists(newfile):
+        if not self.dry_run:
+          os.rename(oldfile, newfile)
+        renamed = True
+
+      if renamed:
+        logging.info(
+            'Renaming %s script to %s',
+            os.path.basename(oldfile),
+            os.path.basename(newfile),
+        )
+        self.outfiles.append(newfile)
+        files.remove(oldfile)
+        files.add(newfile)
+      else:
+        self.outfiles.append(oldfile)
+
+
 def find_data_files(package_dir, patterns):
   """Recursively finds files whose names match the given shell patterns."""
   paths = set()
@@ -287,8 +346,7 @@ def find_data_files(package_dir, patterns):
         paths.add(os.path.join(relative_dirpath, filename))
   return list(paths)
 
-
-setup(
+SETUP_KWARGS = dict(
     name='mujoco',
     version=__version__,
     author='DeepMind',
@@ -312,7 +370,10 @@ setup(
         'Programming Language :: Python :: 3.11',
         'Topic :: Scientific/Engineering',
     ],
-    cmdclass=dict(build_ext=BuildCMakeExtension),
+    cmdclass=dict(
+        build_ext=BuildCMakeExtension,
+        install_scripts=InstallScripts,
+    ),
     ext_modules=[
         CMakeExtension('mujoco._callbacks'),
         CMakeExtension('mujoco._constants'),
@@ -351,3 +412,8 @@ setup(
                 ]),
     },
 )
+
+if platform.system() == 'Darwin':
+  SETUP_KWARGS['scripts'] = ['mujoco/mjpython/mjpython.py']
+
+setup(**SETUP_KWARGS)
