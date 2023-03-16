@@ -31,6 +31,8 @@ set(MUJOCO_ENGINE_SRCS
     engine_crossplatform.h
     engine_derivative.c
     engine_derivative.h
+    engine_derivative_fd.c
+    engine_derivative_fd.h
     engine_file.c
     engine_file.h
     engine_forward.c

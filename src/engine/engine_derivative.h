@@ -27,9 +27,6 @@ extern "C" {
 //   d->qDeriv = d (qfrc_actuator + qfrc_passive - [qfrc_bias]) / d qvel
 MJAPI void mjd_smooth_vel(const mjModel* m, mjData* d, int flg_bias);
 
-// centered finite difference approximation to mjd_smooth_vel
-MJAPI void mjd_smooth_velFD(const mjModel* m, mjData* d, mjtNum eps);
-
 // add (d qfrc_actuator / d qvel) to qDeriv
 MJAPI void mjd_actuator_vel(const mjModel* m, mjData* d);
 
@@ -38,16 +35,6 @@ MJAPI void mjd_passive_vel(const mjModel* m, mjData* d);
 
 // subtract (d qfrc_bias / d qvel) from qDeriv (dense version)
 MJAPI void mjd_rne_vel_dense(const mjModel* m, mjData* d);
-
-// add forward finite difference approximation of (d qfrc_passive / d qvel) to qDeriv
-MJAPI void mjd_passive_velFD(const mjModel* m, mjData* d, mjtNum eps);
-
-// advance simulation using control callback, skipstage is mjtStage
-MJAPI void mj_stepSkip(const mjModel* m, mjData* d, int skipstage, int skipsensor);
-
-// finite differenced transition matrices (control theory notation)
-MJAPI void mjd_transitionFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte centered,
-                            mjtNum* A, mjtNum* B, mjtNum* C, mjtNum* D);
 
 #ifdef __cplusplus
 }

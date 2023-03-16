@@ -14,7 +14,6 @@
 
 // Tests for engine/engine_derivative.c.
 
-#include <cmath>
 #include <vector>
 
 #include <gmock/gmock.h>
@@ -23,6 +22,7 @@
 #include <mujoco/mujoco.h>
 #include "src/engine/engine_core_smooth.h"
 #include "src/engine/engine_derivative.h"
+#include "src/engine/engine_derivative_fd.h"
 #include "src/engine/engine_io.h"
 #include "src/engine/engine_util_blas.h"
 #include "src/engine/engine_util_errmem.h"
@@ -78,7 +78,7 @@ static void PrintMatrix(mjtNum* mat, int nrow, int ncol) {
     }
     std::cerr << "\n";
   }
-}
+}  // NOLINT(clang-diagnostic-unused-function)
 
 
 std::vector<mjtNum> AsVector(const mjtNum* array, int n) {
