@@ -7,6 +7,7 @@ Introduction
 
 This chapter is the reference manual for the MJCF modeling language used in MuJoCo.
 
+
 .. _CSchema:
 
 XML schema
@@ -27,6 +28,7 @@ through elements and attributes. Text content in elements is not used; if presen
    ====== ===================================================
 
    .. include:: XMLschema.rst
+
 
 .. _CType:
 
@@ -72,6 +74,7 @@ will appear in the reference documentation as
 
       <p style="display: none"></p>
 
+
 .. _Reference:
 
 MJCF Reference
@@ -97,6 +100,7 @@ In the remainder of this chapter we describe all valid MJCF elements and their a
 multiple contexts, in which case their meaning depends on the parent element. This is why we always show the parent as a
 prefix in the documentation below.
 
+
 .. _include:
 
 **include** (*)
@@ -115,6 +119,7 @@ how to use includes and how to modularize large files if desired.
    The name of the XML file to be included. The file location is relative to the directory of the main MJCF file. If the
    file is not in the same directory, it should be prefixed with a relative path.
 
+
 .. _mujoco:
 
 **mujoco** (!)
@@ -124,6 +129,7 @@ The unique top-level element, identifying the XML file as an MJCF model file.
 
 :at:`model`: :at-val:`string, "MuJoCo Model"`
    The name of the model. This name is shown in the title bar of :ref:`simulate.cc <saSimulate>`.
+
 
 .. _compiler:
 
@@ -140,48 +146,78 @@ any effect. The settings here are global and apply to the entire model.
    If "false", no such inference will happen: For a joint to be limited, both limited="true" and range="min max" must
    be specified. In this mode, it is an error to specify a range without a limit.
    |br| The default for this option will be set to "true" in an upcoming release.
+
+.. _compiler-boundmass:
+
 :at:`boundmass`: :at-val:`real, "0"`
    This attribute imposes a lower bound on the mass of each body except for the world body. Setting this attribute to
    a value greater than 0 can be used as a quick fix for poorly designed models that contain massless moving bodies,
    such as the dummy bodies often used in URDF models to attach sensors. Note that in MuJoCo there is no need to create
    dummy bodies.
+
+.. _compiler-boundinertia:
+
 :at:`boundinertia`: :at-val:`real, "0"`
    This attribute imposes a lower bound on the diagonal inertia components of each body except for the world body. Its
    use is similar to boundmass above.
+
+.. _compiler-settotalmass:
+
 :at:`settotalmass`: :at-val:`real, "-1"`
    If this value is positive, the compiler will scale the masses and inertias of all bodies in the model, so that the
    total mass equals the value specified here. The world body has mass 0 and does not participate in any mass-related
    computations. This scaling is performed last, after all other operations affecting the body mass and inertia. The
    same scaling operation can be applied at runtime to the compiled mjModel with the function
    :ref:`mj_setTotalmass`.
+
+.. _compiler-balanceinertia:
+
 :at:`balanceinertia`: :at-val:`[false, true], "false"`
    A valid diagonal inertia matrix must satisfy A+B>=C for all permutations of the three diagonal elements. Some poorly
    designed models violate this constraint, which will normally result in a compile error. If this attribute is set to
    "true", the compiler will silently set all three diagonal elements to their average value whenever the above
    condition is violated.
+
+.. _compiler-strippath:
+
 :at:`strippath`: :at-val:`[false, true], "false" for MJCF, "true" for URDF`
    When this attribute is "true", the parser will remove any path information in file names specified in the model. This
    is useful for loading models created on a different system using a different directory structure.
+
+.. _compiler-coordinate:
+
 :at:`coordinate`: :at-val:`[local, global], "local" for MJCF, always "local" for URDF`
    This attribute specifies whether the frame positions and orientations in the MJCF model are expressed in local or
    global coordinates; recall :ref:`Coordinate frames <CFrame>`. The compiler converts global into local
    coordinates, and mjModel always uses local coordinates. For URDF models the parser sets this attribute to "local"
    internally, regardless of the XML setting.
+
+.. _compiler-angle:
+
 :at:`angle`: :at-val:`[radian, degree], "degree" for MJCF, always "radian" for URDF`
    This attribute specifies whether the angles in the MJCF model are expressed in units of degrees or radians. The
    compiler converts degrees into radians, and mjModel always uses radians. For URDF models the parser sets this
    attribute to "radian" internally, regardless of the XML setting.
+
+.. _compiler-fitaabb:
+
 :at:`fitaabb`: :at-val:`[false, true], "false"`
    The compiler is able to replace a mesh with a geometric primitive fitted to that mesh; see :ref:`geom <body-geom>`
    below. If this attribute is "true", the fitting procedure uses the axis-aligned bounding box (aabb) of the mesh.
    Otherwise it uses the equivalent-inertia box of the mesh. The type of geometric primitive used for fitting is
    specified separately for each geom.
+
+.. _compiler-eulerseq:
+
 :at:`eulerseq`: :at-val:`string, "xyz"`
    This attribute specifies the sequence of Euler rotations for all euler attributes of elements that have spatial
    frames, as explained in :ref:`COrientation`. This must be a string with exactly 3
    characters from the set {'x', 'y', 'z', 'X', 'Y', 'Z'}. The character at position n determines the axis around which
    the n-th rotation is performed. Lower case denotes axes that rotate with the frame, while upper case denotes axes
    that remain fixed in the parent frame. The "rpy" convention used in URDF corresponds to the default "xyz" in MJCF.
+
+.. _compiler-meshdir:
+
 :at:`meshdir`: :at-val:`string, optional`
    This attribute instructs the compiler where to look for mesh and height field files. The full path to a file is
    determined as follows. If the strippath attribute described above is "true", all path information from the file name
@@ -189,12 +225,21 @@ any effect. The settings here are global and apply to the entire model.
    used without further changes; (2) if this attribute is set and contains an absolute path, the full path is the string
    given here appended with the file name; (3) the full path is the path to the main MJCF model file, appended with the
    value of this attribute if specified, appended with the file name.
+
+.. _compiler-texturedir:
+
 :at:`texturedir`: :at-val:`string, optional`
    This attribute is used to instruct the compiler where to look for texture files. It works in the same way as meshdir
    above.
+
+.. _compiler-assetdir:
+
 :at:`assetdir`: :at-val:`string, optional`
    This attribute sets the values of both :at:`meshdir` and :at:`texturedir` above. Values in the latter attributes take
    precedence over :at:`assetdir`.
+
+.. _compiler-discardvisual:
+
 :at:`discardvisual`: :at-val:`[false, true], "false" for MJCF, "true" for URDF`
    This attribute instructs the parser to discard "visual geoms", defined as geoms whose contype and conaffinity
    attributes are both set to 0. This functionality is useful for models that contain two sets of geoms, one for
@@ -204,6 +249,9 @@ any effect. The settings here are global and apply to the entire model.
    above definition can still participate in collisions, if they appear in the explicit list of contact
    :ref:`pairs <contact-pair>`. The parser does not check this list before discarding geoms; it relies solely on the geom
    attributes to make the determination.
+
+.. _compiler-convexhull:
+
 :at:`convexhull`: :at-val:`[false, true], "true"`
    If this attribute is "true", the compiler will automatically generate a convex hull for every mesh that is used in at
    least one non-visual geom (in the sense of the discardvisual attribute above). This is done to speed up collision
@@ -213,10 +261,16 @@ any effect. The settings here are global and apply to the entire model.
    hull computation is the slowest operation performed by the compiler). However once model design is finished, this
    feature should be enabled, because the availability of convex hulls substantially speeds up collision detection with
    large meshes.
+
+.. _compiler-usethread:
+
 :at:`usethread`: :at-val:`[false, true], "true"`
    If this attribute is "true", the model compiler will run in multi-threaded mode. Currently multi-threading is only
    used when computing the length ranges of actuators, but in the future additional compiler phases may be
    multi-threaded.
+
+.. _compiler-fusestatic:
+
 :at:`fusestatic`: :at-val:`[false, true], "false" for MJCF, "true" for URDF`
    This attribute controls a compiler optimization feature where static bodies are fused with their parent, and any
    elements defined in those bodies are reassigned to the parent. This feature can only be used in models which do not
@@ -225,6 +279,9 @@ any effect. The settings here are global and apply to the entire model.
    enabled. This optimization is particularly useful when importing URDF models which often have many dummy bodies, but
    can also be used to optimize MJCF models. After optimization, the new model has identical kinematics and dynamics as
    the original but is faster to simulate.
+
+.. _compiler-inertiafromgeom:
+
 :at:`inertiafromgeom`: :at-val:`[false, true, auto], "auto"`
    This attribute controls the automatic inference of body masses and inertias from geoms attached to the body. If this
    setting is "false", no automatic inference is performed. In that case each body must have explicitly defined mass and
@@ -236,9 +293,15 @@ any effect. The settings here are global and apply to the entire model.
    particular, a number of publicly available URDF models have seemingly arbitrary inertias which are too large compared
    to the mass. This results in equivalent inertia boxes which extend far beyond the geometric boundaries of the model.
    Note that the built-in OpenGL visualizer can render equivalent inertia boxes.
+
+.. _compiler-exactmeshinertia:
+
 :at:`exactmeshinertia`: :at-val:`[false, true], "false"`
    If this attribute is set to false, computes mesh inertia with the legacy algorithm, which is exact only for convex
    meshes. If set to true, it is exact for any closed mesh geometry.
+
+.. _compiler-inertiagrouprange:
+
 :at:`inertiagrouprange`: :at-val:`int(2), "0 5"`
    This attribute specifies the range of geom groups that are used to infer body masses and inertias (when such
    inference is enabled). The group attribute of :ref:`geom <body-geom>` is an integer. If this integer falls in the range
@@ -247,6 +310,7 @@ any effect. The settings here are global and apply to the entire model.
    participate in the inertial computations, so any geoms attached to it are automatically ignored. Therefore it is not
    necessary to adjust this attribute and the geom-specific groups so as to exclude world geoms from the inertial
    computation.
+
 
 .. _compiler-lengthrange:
 
@@ -257,46 +321,72 @@ This element controls the computation of actuator length ranges. For an overview
 range <CLengthRange>` section. Note that if this element is omitted the defaults shown below still apply. In order to
 disable length range computations altogether, include this element and set mode="none".
 
+.. _compiler-lengthrange-mode:
+
 :at:`mode`: :at-val:`[none, muscle, muscleuser, all], "muscle"`
    Determines the type of actuators to which length range computation is applied. "none" disables this functionality.
    "all" applies it to all actuators. "muscle" applies it to actuators whose gaintype or biastype is set to "muscle".
    "muscleuser" applies it to actuators whose gaintype or biastype is set to either "muscle" or "user". The default is
    "muscle" because MuJoCo's muscle model requires actuator length ranges to be defined.
+
+.. _compiler-lengthrange-useexisting:
+
 :at:`useexisting`: :at-val:`[false, true], "true"`
    If this attribute is "true" and the length range for a given actuator is already defined in the model, the existing
    value will be used and the automatic computation will be skipped. The range is considered defined if the first number
    is smaller than the second number. The only reason to set this attribute to "false" is to force re-computation of
    actuator length ranges - which is needed when the model geometry is modified. Note that the automatic computation
    relies on simulation and can be slow, so saving the model and using the existing values when possible is recommended.
+
+.. _compiler-lengthrange-uselimit:
+
 :at:`uselimit`: :at-val:`[false, true], "false"`
    If this attribute is "true" and the actuator is attached to a joint or a tendon which has limits defined, these
    limits will be copied into the actuator length range and the automatic computation will be skipped. This may seem
    like a good idea but note that in complex models the feasible range of tendon actuators depends on the entire model,
    and may be smaller than the user-defined limits for that tendon. So the safer approach is to set this to "false", and
    let the automatic computation discover the feasible range.
+
+.. _compiler-lengthrange-accel:
+
 :at:`accel`: :at-val:`real, "20"`
    This attribute scales the forces applied to the simulation in order to push each actuator to its smallest and largest
    length. The force magnitude is computed so that the resulting joint-space acceleration vector has norm equal to this
    attribute.
+
+.. _compiler-lengthrange-maxforce:
+
 :at:`maxforce`: :at-val:`real, "0"`
    The force computed via the accel attribute above can be very large when the actuator has very small moments. Such a
    force will still produce reasonable acceleration (by construction) but large numbers could cause numerical issues.
    Although we have never observed such issues, the present attribute is provided as a safeguard. Setting it to a value
    larger than 0 limits the norm of the force being applied during simulation. The default setting of 0 disables this
    safeguard.
+
+.. _compiler-lengthrange-timeconst:
+
 :at:`timeconst`: :at-val:`real, "1"`
    The simulation is damped in a non-physical way so as to push the actuators to their limits without the risk of
    instabilities. This is done by simply scaling down the joint velocity at each time step. In the absence of new
    accelerations, such scaling will decrease the velocity exponentially. The timeconst attribute specifies the time
    constant of this exponential decrease, in seconds.
+
+.. _compiler-lengthrange-timestep:
+
 :at:`timestep`: :at-val:`real, "0.01"`
    The timestep used for the internal simulation. Setting this to 0 will cause the model timestep to be used. The latter
    is not the default because models that can go unstable usually have small timesteps, while the simulation here is
    artificially damped and very stable. To speed up the length range computation, users can attempt to increase this
    value.
+
+.. _compiler-lengthrange-inttotal:
+
 :at:`inttotal`: :at-val:`real, "10"`
    The total time interval (in seconds) for running the internal simulation, for each actuator and actuator direction.
    Each simulation is initialized at qpos0. It is expected to settle after inttotal time has passed.
+
+.. _compiler-lengthrange-interval:
+
 :at:`interval`: :at-val:`real, "2"`
    The time interval at the end of the simulation over which length data is collected and analyzed. The maximum (or
    respectively minimum) length achieved during this interval is recorded. The difference between the maximum and
@@ -306,21 +396,27 @@ disable length range computations altogether, include this element and set mode=
    actuator range is effectively unlimited. Both of these conditions cause the same compiler error. Recall that contacts
    are disabled in this simulation, so joint and tendon limits as well as overall geometry are the only things that can
    prevent actuators from having infinite length.
+
+.. _compiler-lengthrange-tolrange:
+
 :at:`tolrange`: :at-val:`real, "0.05"`
    This determines the threshold for detecting divergence and generating a compiler error. The range of actuator lengths
    observed during interval is divided by the overall range computed via simulation. If that value is larger than
    tolrange, a compiler error is generated. So one way to suppress compiler errors is to simply make this attribute
    larger, but in that case the results could be inaccurate.
 
+
 .. _option:
 
 **option** (*)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~
 
 This element is in one-to-one correspondence with the low level structure mjOption contained in the field mjModel.opt of
 mjModel. These are simulation options and do not affect the compilation process in any way; they are simply copied into
 the low level model. Even though mjOption can be modified by the user at runtime, it is nevertheless a good idea to
 adjust it properly through the XML.
+
+.. _option-timestep:
 
 :at:`timestep`: :at-val:`real, "0.002"`
    Simulation time step in seconds. This is the single most important parameter affecting the speed-accuracy trade-off
@@ -333,10 +429,16 @@ adjust it properly through the XML.
    steps. When fine-tuning a challenging model, it is recommended to experiment with both settings jointly. In
    optimization-related applications, real-time is no longer good enough and instead it is desirable to run the
    simulation as fast as possible. In that case the time step should be made as large as possible.
+
+.. _option-apirate:
+
 :at:`apirate`: :at-val:`real, "100"`
    This parameter determines the rate (in Hz) at which an external API allows the update function to be executed. This
    mechanism is used to simulate devices with limited communication bandwidth. It only affects the socket API and not
    the physics simulation.
+
+.. _option-impratio:
+
 :at:`impratio`: :at-val:`real, "1"`
    This attribute determines the ratio of frictional-to-normal constraint impedance for elliptic friction cones. The
    setting of solimp determines a single impedance value for all contact dimensions, which is then modulated by this
@@ -344,24 +446,39 @@ adjust it properly through the XML.
    of preventing slip, without increasing the actual friction coefficient. For pyramidal friction cones the situation is
    more complex because the pyramidal approximation mixes normal and frictional dimensions within each basis vector; but
    the overall effect of this attribute is qualitatively similar.
+
+.. _option-gravity:
+
 :at:`gravity`: :at-val:`real(3), "0 0 -9.81"`
    Gravitational acceleration vector. In the default world orientation the Z-axis points up. The MuJoCo GUI is organized
    around this convention (both the camera and perturbation commands are based on it) so we do not recommend deviating
    from it.
+
+.. _option-wind:
+
 :at:`wind`: :at-val:`real(3), "0 0 0"`
    Velocity vector of the medium (i.e., wind). This vector is subtracted from the 3D translational velocity of each
    body, and the result is used to compute viscous, lift and drag forces acting on the body; recall :ref:`Passive forces
    <gePassive>` in the Computation chapter. The magnitude of these forces scales with the values of the next two
    attributes.
 
+
+.. _option-magnetic:
+
 :at:`magnetic`: :at-val:`real(3), "0 -0.5 0"`
    Global magnetic flux. This vector is used by magnetometer sensors, which are defined as sites and return the magnetic
    flux at the site position expressed in the site frame.
+
+.. _option-density:
+
 :at:`density`: :at-val:`real, "0"`
    Density of the medium, not to be confused with the geom density used to infer masses and inertias. This parameter is
    used to simulate lift and drag forces, which scale quadratically with velocity. In SI units the density of air is
    around 1.2 while the density of water is around 1000 depending on temperature. Setting density to 0 disables lift and
    drag forces.
+
+.. _option-viscosity:
+
 :at:`viscosity`: :at-val:`real, "0"`
    Viscosity of the medium. This parameter is used to simulate viscous forces, which scale linearly with velocity. In SI
    units the viscosity of air is around 0.00002 while the viscosity of water is around 0.0009 depending on temperature.
@@ -370,53 +487,93 @@ adjust it properly through the XML.
    viscosity. Therefore, if the goal is merely to create a damped simulation (as opposed to modeling the specific
    effects of viscosity), we recommend using joint damping rather than body viscosity, or switching to the
    :at:`implicit` integrator.
+
+.. _option-o_margin:
+
 :at:`o_margin`: :at-val:`real, "0"`
    This attribute replaces the margin parameter of all active contact pairs when :ref:`Contact override <COverride>` is
    enabled. Otherwise MuJoCo uses the element-specific margin attribute of :ref:`geom <body-geom>` or :ref:`pair
    <contact-pair>` depending on how the contact pair was generated. See also :ref:`Collision` in the Computation
    chapter. The related gap parameter does not have a global override.
+
+.. _option-o_solref:
+
 :at:`o_solref`, :at:`o_solimp`
    These attributes replace the solref and solimp parameters of all active contact pairs when contact override is
    enabled. See :ref:`CSolver` for details.
+
+.. _option-integrator:
+
 :at:`integrator`: :at-val:`[Euler, RK4, implicit], "Euler"`
    This attribute selects the numerical :ref:`integrator <geIntegration>` to be used. Currently the available
    integrators are the semi-implicit Euler method, the fixed-step 4-th order Runge Kutta method, and
    the Implicit-in-velocity Euler method.
+
+.. _option-collision:
+
 :at:`collision`: :at-val:`[all, predefined, dynamic], "all"`
    This attribute specifies which geom pairs should be checked for collision; recall :ref:`Collision` in the Computation
    chapter. "predefined" means that only the explicitly-defined contact :ref:`pairs <contact-pair>` are checked.
    "dynamic" means that only the contact pairs generated dynamically are checked. "all" means that the contact pairs
    from both sources are checked.
+
+.. _option-cone:
+
 :at:`cone`: :at-val:`[pyramidal, elliptic], "pyramidal"`
    The type of contact friction cone. Elliptic cones are a better model of the physical reality, but pyramidal cones
    sometimes make the solver faster and more robust.
+
+.. _option-jacobian:
+
 :at:`jacobian`: :at-val:`[dense, sparse, auto], "auto"`
    The type of constraint Jacobian and matrices computed from it. Auto resolves to dense when the number of degrees of
    freedom is up to 60, and sparse over 60.
+
+.. _option-solver:
+
 :at:`solver`: :at-val:`[PGS, CG, Newton], "Newton"`
    This attribute selects one of the constraint solver :ref:`algorithms <soAlgorithms>` described in the Computation
    chapter. Guidelines for solver selection and parameter tuning are available in the :ref:`Algorithms <CAlgorithms>`
    section above.
+
+.. _option-iterations:
+
 :at:`iterations`: :at-val:`int, "100"`
    Maximum number of iterations of the constraint solver. When the warmstart attribute of :ref:`flag <option-flag>` is
    enabled (which is the default), accurate results are obtained with fewer iterations. Larger and more complex systems
    with many interacting constraints require more iterations. Note that mjData.solver contains statistics about solver
    convergence, also shown in the profiler.
+
+.. _option-tolerance:
+
 :at:`tolerance`: :at-val:`real, "1e-8"`
    Tolerance threshold used for early termination of the iterative solver. For PGS, the threshold is applied to the cost
    improvement between two iterations. For CG and Newton, it is applied to the smaller of the cost improvement and the
    gradient norm. Set the tolerance to 0 to disable early termination.
+
+.. _option-noslip_iterations:
+
 :at:`noslip_iterations`: :at-val:`int, "0"`
    Maximum number of iterations of the Noslip solver. This is a post-processing step executed after the main solver. It
    uses a modified PGS method to suppress slip/drift in friction dimensions resulting from the soft-constraint model.
    The default setting 0 disables this post-processing step.
+
+.. _option-noslip_tolerance:
+
 :at:`noslip_tolerance`: :at-val:`real, "1e-6"`
    Tolerance threshold used for early termination of the Noslip solver.
+
+.. _option-mpr_iterations:
+
 :at:`mpr_iterations`: :at-val:`int, "50"`
    Maximum number of iterations of the MPR algorithm used for convex mesh collisions. This rarely needs to be adjusted,
    except in situations where some geoms have very large aspect ratios.
+
+.. _option-mpr_tolerance:
+
 :at:`mpr_tolerance`: :at-val:`real, "1e-6"`
    Tolerance threshold used for early termination of the MPR algorithm.
+
 
 .. _option-flag:
 
@@ -431,61 +588,114 @@ attribute values - which are "enable" for flags corresponding to standard featur
 corresponding to optional features. In the documentation below, we explain what happens when the setting is different
 from its default.
 
+.. _option-flag-constraint:
+
 :at:`constraint`: :at-val:`[disable, enable], "enable"`
    This flag disables all standard computations related to the constraint solver. As a result, no constraint forces are
    applied. Note that the next four flags disable the computations related to a specific type of constraint. Both this
    flag and the type-specific flag must be set to "enable" for a given computation to be performed.
+
+.. _option-flag-equality:
+
 :at:`equality`: :at-val:`[disable, enable], "enable"`
    This flag disables all standard computations related to equality constraints.
+
+.. _option-flag-frictionloss:
+
 :at:`frictionloss`: :at-val:`[disable, enable], "enable"`
    This flag disables all standard computations related to friction loss constraints.
+
+.. _option-flag-limit:
+
 :at:`limit`: :at-val:`[disable, enable], "enable"`
    This flag disables all standard computations related to joint and tendon limit constraints.
+
+.. _option-flag-contact:
+
 :at:`contact`: :at-val:`[disable, enable], "enable"`
    This flag disables all standard computations related to contact constraints.
+
+.. _option-flag-passive:
+
 :at:`passive`: :at-val:`[disable, enable], "enable"`
    This flag disables the simulation of joint and tendon spring-dampers, fluid dynamics forces, and custom passive
    forces computed by the :ref:`mjcb_passive` callback. As a result, no passive forces are applied.
+
+.. _option-flag-gravity:
+
 :at:`gravity`: :at-val:`[disable, enable], "enable"`
    This flag causes the gravitational acceleration vector in mjOption to be replaced with (0 0 0) at runtime, without
    changing the value in mjOption. Once the flag is re-enabled, the value in mjOption is used.
+
+.. _option-flag-clampctrl:
+
 :at:`clampctrl`: :at-val:`[disable, enable], "enable"`
    This flag disables the clamping of control inputs to all actuators, even if the actuator-specific attributes are set
    to enable clamping.
+
+.. _option-flag-warmstart:
+
 :at:`warmstart`: :at-val:`[disable, enable], "enable"`
    This flag disables warm-starting of the constraint solver. By default the solver uses the solution (i.e., the
    constraint force) from the previous time step to initialize the iterative optimization. This feature should be
    disabled when evaluating the dynamics at a collection of states that do not form a trajectory - in which case warm
    starts make no sense and are likely to slow down the solver.
+
+.. _option-flag-filterparent:
+
 :at:`filterparent`: :at-val:`[disable, enable], "enable"`
    This flag disables the filtering of contact pairs where the two geoms belong to a parent and child body; recall
    contact :ref:`selection <coSelection>` in the Computation chapter.
+
+.. _option-flag-actuation:
+
 :at:`actuation`: :at-val:`[disable, enable], "enable"`
    This flag disables all standard computations related to actuator forces, including the actuator dynamics. As a
    result, no actuator forces are applied to the simulation.
+
+.. _option-flag-refsafe:
+
 :at:`refsafe`: :at-val:`[disable, enable], "enable"`
    This flag enables a safety mechanism that prevents instabilities due to solref[0] being too small compared to the
    simulation timestep. Recall that solref[0] is the stiffness of the virtual spring-damper used for constraint
    stabilization. If this setting is enabled, the solver uses max(solref[0], 2*timestep) in place of solref[0]
    separately for each active constraint.
+
+.. _option-flag-sensor:
+
 :at:`sensor`: :at-val:`[disable, enable], "enable"`
    This flag disables all computations related to sensors. When disabled, sensor values will remain constant, either
    zeros if disabled at the start of simulation, or, if disabled at runtime, whatever value was last computed.
+
+.. _option-flag-override:
+
 :at:`override`: :at-val:`[disable, enable], "disable"`
    This flag enables to :ref:`Contact override <COverride>` mechanism explained above.
+
+.. _option-flag-energy:
+
 :at:`energy`: :at-val:`[disable, enable], "disable"`
    This flag enables the computation of kinetic and potential energy, stored in mjData.energy and displayed in the GUI.
    This feature adds some CPU time but it is usually negligible. Monitoring energy for a system that is supposed to be
    energy-conserving is one of the best ways to assess the accuracy of a complex simulation.
+
+.. _option-flag-fwdinv:
+
 :at:`fwdinv`: :at-val:`[disable, enable], "disable"`
    This flag enables the automatic comparison of forward and inverse dynamics. When enabled, the inverse dynamics is
    invoked after mj_forward (or internally within mj_step) and the difference in applied forces is recorded in
    mjData.solver_fwdinv[2]. The first value is the relative norm of the discrepancy in joint space, the next is in
    constraint space.
+
+.. _option-flag-sensornoise:
+
 :at:`sensornoise`: :at-val:`[disable, enable], "disable"`
    This flag enables the simulation of sensor noise. When disabled (which is the default) noise is not added to
    sensordata, even if the sensors specify non-zero noise amplitudes. When enabled, zero-mean Gaussian noise is added to
    the underlying deterministic sensor data. Its standard deviation is determined by the noise parameter of each sensor.
+
+.. _option-flag-multiccd:
+
 :at:`multiccd`: :at-val:`[disable, enable], "disable"` |nbsp| |nbsp| |nbsp| (experimental feature)
    This flag enables multiple-contact collision detection for geom pairs that use the general-purpose convex-convex
    collider based on :ref:`libccd <coChecking>` e.g., mesh-mesh collisions. This can be useful when the contacting geoms
@@ -494,6 +704,7 @@ from its default.
    are found by rotating the two geoms by ±1e-3 radians around the tangential axes and re-running the collision
    function. If a new contact is detected it is added, allowing for up to 4 additional contact points. This feature is
    currently considered experimental, and both the behavior and the way it is activated may change in the future.
+
 
 .. _size:
 
@@ -504,67 +715,109 @@ This element specifies size parameters that cannot be inferred from the number o
 fields of mjOption which can be modified at runtime, sizes are structural parameters and should not be modified after
 compilation.
 
+.. _size-memory:
+
 :at:`memory`: :at-val:`string, "-1"`
    This attribute specifies the size of memory allocated for dynamic arrays in the ``mjData.arena`` memory space, in
    bytes. The default setting of ``-1`` instructs the compiler to guess how much space to allocate. Appending the digits
    with one of the letters {K, M, G, T, P, E} sets the unit to be {kilo, mega, giga, tera, peta, exa}-byte,
    respectively. Thus "16M" means "allocate 16 megabytes of ``arena`` memory".
    See the :ref:`Memory allocation <CSize>` section for details.
+
+.. _size-njmax:
+
 :at:`njmax`: :at-val:`int, "-1"` |nbsp| |nbsp| |nbsp| (legacy)
    This is a deprecated legacy attribute. In versions prior to 2.3.0, it determined the maximum allowed number
    of constraints. Currently it means "allocate as much memory as would have previously been required for this number of
    constraints". Specifying both :at:`njmax` and :at:`memory` leads to an error.
+
+.. _size-nconmax:
+
 :at:`nconmax`: :at-val:`int, "-1"` |nbsp| |nbsp| |nbsp| (legacy)
    This attribute specifies the maximum number of contacts that will be generated at runtime.  If the number of active
    contacts is about to exceed this value, the extra contacts are discarded and a warning is generated.  This is a
    deprecated legacy attribute which prior to version 2.3.0 affected memory allocation. It is kept for backwards
    compatibillity and debugging purposes.
+
+.. _size-nstack:
+
 :at:`nstack`: :at-val:`int, "-1"` |nbsp| |nbsp| |nbsp| (legacy)
    This is a deprecated legacy attribute. In versions prior to 2.3.0, it determined the maximum size of the
    :ref:`stack <siStack>`. After version 2.3.0, if :at:`nstack` is specified, then the size of ``mjData.arena`` is
    ``nstack * sizeof(mjtNum)`` bytes, plus an additional space for the constraint solver. Specifying both :at:`nstack`
    and :at:`memory` leads to an error.
+
+.. _size-nuserdata:
+
 :at:`nuserdata`: :at-val:`int, "0"`
    The size of the field mjData.userdata of mjData. This field should be used to store custom dynamic variables. See
    also :ref:`CUser`.
+
+.. _size-nkey:
+
 :at:`nkey`: :at-val:`int, "0"`
    The number of key frames allocated in mjModel is the larger of this value and the number of :ref:`key <keyframe-key>`
    elements below. Note that the interactive simulator has the ability to take snapshots of the system state and save
    them as key frames.
+
+.. _size-nuser_body:
+
 :at:`nuser_body`: :at-val:`int, "-1"`
    The number of custom user parameters added to the definition of each body. See also :ref:`User parameters <CUser>`.
    The parameter values are set via the user attribute of the :ref:`body <body>` element. These values are not accessed
    by MuJoCo. They can be used to define element properties needed in user callbacks and other custom code.
+
+.. _size-nuser_jnt:
+
 :at:`nuser_jnt`: :at-val:`int, "-1"`
    The number of custom user parameters added to the definition of each :ref:`joint <body-joint>`.
+
+.. _size-nuser_geom:
+
 :at:`nuser_geom`: :at-val:`int, "-1"`
    The number of custom user parameters added to the definition of each :ref:`geom <body-geom>`.
+
+.. _size-nuser_site:
+
 :at:`nuser_site`: :at-val:`int, "-1"`
    The number of custom user parameters added to the definition of each :ref:`site <body-site>`.
+
+.. _size-nuser_cam:
+
 :at:`nuser_cam`: :at-val:`int, "-1"`
    The number of custom user parameters added to the definition of each :ref:`camera <body-camera>`.
+
+.. _size-nuser_tendon:
+
 :at:`nuser_tendon`: :at-val:`int, "-1"`
    The number of custom user parameters added to the definition of each :ref:`tendon <tendon>`.
+
+.. _size-nuser_actuator:
+
 :at:`nuser_actuator`: :at-val:`int, "-1"`
    The number of custom user parameters added to the definition of each :ref:`actuator <actuator>`.
+
+.. _size-nuser_sensor:
+
 :at:`nuser_sensor`: :at-val:`int, "-1"`
    The number of custom user parameters added to the definition of each :ref:`sensor <sensor>`.
+
 
 .. _visual:
 
 **visual** (*)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~
 
-| This element is in one-to-one correspondence with the low level structure mjVisual contained in the field mjModel.vis
-  of mjModel. The settings here affect the visualizer, or more precisely the abstract phase of visualization which
-  yields a list of geometric entities for subsequent rendering. The settings here are global, in contrast with the
-  element-specific visual settings. The global and element-specific settings refer to non-overlapping properties. Some
-  of the global settings affect properties such as triangulation of geometric primitives that cannot be set per element.
-  Other global settings affect the properties of decorative objects, i.e., objects such as contact points and force
-  arrows which do not correspond to model elements. The visual settings are grouped semantically into several
-  subsections.
-| This element is a good candidate for the :ref:`file include <CInclude>` mechanism. One can create an XML file with
-  coordinated visual settings corresponding to a "theme", and then include this file in multiple models.
+This element is in one-to-one correspondence with the low level structure mjVisual contained in the field mjModel.vis
+of mjModel. The settings here affect the visualizer, or more precisely the abstract phase of visualization which
+yields a list of geometric entities for subsequent rendering. The settings here are global, in contrast with the
+element-specific visual settings. The global and element-specific settings refer to non-overlapping properties. Some
+of the global settings affect properties such as triangulation of geometric primitives that cannot be set per element.
+Other global settings affect the properties of decorative objects, i.e., objects such as contact points and force
+arrows which do not correspond to model elements. The visual settings are grouped semantically into several
+subsections.
+|br| This element is a good candidate for the :ref:`file include <CInclude>` mechanism. One can create an XML file with
+coordinated visual settings corresponding to a "theme", and then include this file in multiple models.
 
 .. _visual-global:
 
@@ -574,37 +827,64 @@ compilation.
 While all settings in mjVisual are global, the settings here could not be fit into any of the other subsections. So this
 is effectively a miscellaneous subsection.
 
+.. _visual-global-fovy:
+
 :at:`fovy`: :at-val:`real, "45"`
    This attribute specifies the vertical field of view of the free camera, i.e., the camera that is always available in
    the visualizer even if no cameras are explicitly defined in the model. It is always expressed in degrees, regardless
    of the setting of the angle attribute of :ref:`compiler <compiler>`, and is also represented in the low level model
    in degrees. This is because we pass it to OpenGL which uses degrees. The same convention applies to the fovy
    attribute of the :ref:`camera <body-camera>` element below.
+
+.. _visual-global-ipd:
+
 :at:`ipd`: :at-val:`real, "0.068"`
    This attribute specifies the inter-pupilary distance of the free camera. It only affects the rendering in
    stereoscopic mode. The left and right viewpoints are offset by half of this value in the corresponding direction.
+
+.. _visual-global-azimuth:
+
 :at:`azimuth`: :at-val:`real, "90"`
    This attribute specifies the initial azimuth of the free camera around the vertical z-axis, in degrees. A value of 0
    corresponds to looking in the positive x direction, while the default value of 90 corresponds to looking in the
    positive y direction.
+
+.. _visual-global-elevation:
+
 :at:`elevation`: :at-val:`real, "-45"`
    This attribute specifies the initial elevation of the free camera with respect to the lookat point. Note that since
    this is a rotation around a vector parallel to the camera's X-axis (right in pixel space), *negative* numbers
    correspond to moving the camera *up* from the horizontal plane, and vice-versa.
+
+.. _visual-global-linewidth:
+
 :at:`linewidth`: :at-val:`real, "1"`
    This attribute specifies the line-width in the sense of OpenGL. It affects the rendering in wire-frame mode.
+
+.. _visual-global-glow:
+
 :at:`glow`: :at-val:`real, "0.3"`
    The value of this attribute is added to the emission coefficient of all geoms attached to the selected body. As a
    result, the selected body appears to glow.
+
+.. _visual-global-realtime:
+
 :at:`realtime`: :at-val:`real, "1"`
    This value sets the initial real-time factor of the model, when loaded in `simulate`. 1: real time. Less than 1:
    slower than real time. Must be greater than 0.
+
+.. _visual-global-offwidth:
+
 :at:`offwidth`: :at-val:`int, "640"`
    This and the next attribute specify the size in pixels of the off-screen OpenGL rendering buffer. This attribute
    specifies the width of the buffer. The size of this buffer can also be adjusted at runtime, but it is usually more
    convenient to set it in the XML.
+
+.. _visual-global-offheight:
+
 :at:`offheight`: :at-val:`int, "480"`
    This attribute specifies the height in pixels of the OpenGL off-screen rendering buffer.
+
 
 .. _visual-quality:
 
@@ -616,29 +896,44 @@ possibly slower speed. Note that :ref:`simulate.cc <saSimulate>` displays the fr
 60 Hz; if the number shown in the visualizer is substantially lower, this means that the GPU is over-loaded and the
 visualization should somehow be simplified.
 
+.. _visual-quality-shadowsize:
+
 :at:`shadowsize`: :at-val:`int, "4096"`
    This attribute specifies the size of the square texture used for shadow mapping. Higher values result is smoother
    shadows. The size of the area over which a :ref:`light <body-light>` can cast shadows also affects smoothness, so
    these settings should be adjusted jointly. The default here is somewhat conservative. Most modern GPUs are able to
    handle significantly larger textures without slowing down.
+
+.. _visual-quality-offsamples:
+
 :at:`offsamples`: :at-val:`int, "4"`
    This attribute specifies the number of multi-samples for offscreen rendering. Larger values produce better
    anti-aliasing but can slow down the GPU. Set this to 0 to disable multi-sampling. Note that this attribute only
    affects offscreen rendering. For regular window rendering, multi-sampling is specified in an OS-dependent way when
    the OpenGL context for the window is first created, and cannot be changed from within MuJoCo.
+
+.. _visual-quality-numslices:
+
 :at:`numslices`: :at-val:`int, "28"`
    This and the next three attributes specify the density of internally-generated meshes for geometric primitives. Such
    meshes are only used for rendering, while the collision detector works with the underlying analytic surfaces. This
    value is passed to the various visualizer functions as the "slices" parameter as used in GLU. It specifies the number
    of subdivisions around the Z-axis, similar to lines of longitude.
+
+.. _visual-quality-numstacks:
+
 :at:`numstacks`: :at-val:`int, "16"`
    This value of this attribute is passed to the various visualization functions as the "stacks" parameter as used in
    GLU. It specifies the number of subdivisions along the Z-axis, similar to lines of latitude.
+
+.. _visual-quality-numquads:
+
 :at:`numquads`: :at-val:`int, "4"`
    This attribute specifies the number of rectangles for rendering box faces, automatically-generated planes (as opposed
    to geom planes which have an element-specific attribute with the same function), and sides of height fields. Even
    though a geometrically correct rendering can be obtained by setting this value to 1, illumination works better for
    larger values because we use per-vertex illumination (as opposed to per-fragment).
+
 
 .. _visual-headlight:
 
@@ -651,15 +946,27 @@ in the direction in which the camera is looking. It does not cast shadows (which
 lights are additive, so if explicit lights are defined in the model, the intensity of the headlight would normally need
 to be reduced.
 
+.. _visual-headlight-ambient:
+
 :at:`ambient`: :at-val:`real(3), "0.1 0.1 0.1"`
    The ambient component of the headlight, in the sense of OpenGL. The alpha component here and in the next two
    attributes is set to 1 and cannot be adjusted.
+
+.. _visual-headlight-diffuse:
+
 :at:`diffuse`: :at-val:`real(3), "0.4 0.4 0.4"`
    The diffuse component of the headlight, in the sense of OpenGL.
+
+.. _visual-headlight-specular:
+
 :at:`specular`: :at-val:`real(3), "0.5 0.5 0.5"`
    The specular component of the headlight, in the sense of OpenGL.
+
+.. _visual-headlight-active:
+
 :at:`active`: :at-val:`int, "1"`
    This attribute enables and disables the headlight. A value of 0 means disabled, any other value means enabled.
+
 
 .. _visual-map:
 
@@ -670,51 +977,90 @@ This element is used to specify scaling quantities that affect both the visualiz
 Unlike the scaling quantities in the next element which are specific to spatial extent, the quantities here are
 miscellaneous.
 
+.. _visual-map-stiffness:
+
 :at:`stiffness`: :at-val:`real, "100"`
    This attribute controls the strength of mouse perturbations. The internal perturbation mechanism simulates a
    mass-spring-damper with critical damping, unit mass, and stiffness given here. Larger values mean that a larger force
    will be applied for the same displacement between the selected body and the mouse-controlled target.
+
+.. _visual-map-stiffnessrot:
+
 :at:`stiffnessrot`: :at-val:`real, "500"`
    Same as above but applies to rotational perturbations rather than translational perturbations. Empirically, the
    rotational stiffness needs to be larger in order for rotational mouse perturbations to have an effect.
+
+.. _visual-map-force:
+
 :at:`force`: :at-val:`real, "0.005"`
    This attributes controls the visualization of both contact forces and perturbation forces. The length of the rendered
    force vector equals the force magnitude multiplied by the value of this attribute and divided by the mean body mass
    for the model (see :ref:`statistic <statistic>` element below).
+
+.. _visual-map-torque:
+
 :at:`torque`: :at-val:`real, "0.1"`
    Same as above, but controls the rendering of contact torque and perturbation torque rather than force (currently
    disabled).
+
+.. _visual-map-alpha:
+
 :at:`alpha`: :at-val:`real, "0.3"`
    When transparency is turned on in the visualizer, the geoms attached to all moving bodies are made more transparent.
    This is done by multiplying the geom-specific alpha values by this value.
+
+.. _visual-map-fogstart:
+
 :at:`fogstart`: :at-val:`real, "3"`
    The visualizer can simulate linear fog, in the sense of OpenGL. The start position of the fog is the model extent
    (see :ref:`statistic <statistic>` element below) multiplied by the value of this attribute.
+
+.. _visual-map-fogend:
+
 :at:`fogend`: :at-val:`real, "10"`
    The end position of the fog is the model extent multiplied by the value of this attribute.
+
+.. _visual-map-znear:
+
 :at:`znear`: :at-val:`real, "0.01"`
    This and the next attribute determine the clipping planes of the OpenGL projection. The near clipping plane is
    particularly important: setting it too close causes (often severe) loss of resolution in the depth buffer, while
    setting it too far causes objects of interest to be clipped, making it impossible to zoom in. The distance to the
    near clipping plane is the model ``extent`` multiplied by the value of this attribute. Must be strictly positive.
+
+.. _visual-map-zfar:
+
 :at:`zfar`: :at-val:`real, "50"`
    The distance to the far clipping plane is the model ``extent`` multiplied by the value of this attribute.
+
+.. _visual-map-haze:
+
 :at:`haze`: :at-val:`real, "0.3"`
    Proportion of the distance-to-horizon that is covered by haze (when haze rendering is enabled and a skybox is
    present).
+
+.. _visual-map-shadowclip:
+
 :at:`shadowclip`: :at-val:`real, "1"`
    As mentioned above, shadow quality depends on the size of the shadow texture as well as the area where a given light
    can cast shadows. For directional lights, the area would be infinite unless we limited it somehow. This attribute
    specifies the limits, as +/- the model extent multiplied by the present value. These limits define a square in the
    plane orthogonal to the light direction. If a shadow crosses the boundary of this virtual square, it will disappear
    abruptly, revealing the edges of the square.
+
+.. _visual-map-shadowscale:
+
 :at:`shadowscale`: :at-val:`real, "0.6"`
    This attribute plays a similar role as the previous one, but applies to spotlights rather than directional lights.
    Spotlights have a cutoff angle, limited internally to 80 deg. However this angle is often too large to obtain good
    quality shadows, and it is necessary to limit the shadow to a smaller cone. The angle of the cone in which shadows
    can be cast is the light cutoff multiplied by the present value.
+
+.. _visual-map-actuatortendon:
+
 :at:`actuatortendon`: :at-val:`real, "2"`
    Ratio of actuator width to tendon width for rendering of actuators attached to tendons.
+
 
 .. _visual-scale:
 
@@ -725,43 +1071,91 @@ The settings in this element control the spatial extent of various decorative ob
 equals the mean body size (see :ref:`statistic <statistic>` element below) multiplied by the value of an attribute
 documented below.
 
+.. _visual-scale-forcewidth:
+
 :at:`forcewidth`: :at-val:`real, "0.1"`
    The radius of the arrows used to render contact forces and perturbation forces.
+
+.. _visual-scale-contactwidth:
+
 :at:`contactwidth`: :at-val:`real, "0.3"`
    The radius of the cylinders used to render contact points. The normal direction of the cylinder is aligned with the
    contact normal. Making the cylinder short and wide results in a "pancake" representation of the tangent plane.
+
+.. _visual-scale-contactheight:
+
 :at:`contactheight`: :at-val:`real, "0.1"`
    The height of the cylinders used to render contact points.
+
+.. _visual-scale-connect:
+
 :at:`connect`: :at-val:`real, "0.2"`
    The radius of the capsules used to connect bodies and joints, resulting in an automatically generated skeleton.
+
+.. _visual-scale-com:
+
 :at:`com`: :at-val:`real, "0.4"`
    The radius of the spheres used to render the centers of mass of kinematic sub-trees.
+
+.. _visual-scale-camera:
+
 :at:`camera`: :at-val:`real, "0.3"`
    The size of the decorative object used to represent model cameras in the rendering.
+
+.. _visual-scale-light:
+
 :at:`light`: :at-val:`real, "0.3"`
    The size of the decorative object used to represent model lights in the rendering.
+
+.. _visual-scale-selectpoint:
+
 :at:`selectpoint`: :at-val:`real, "0.2"`
    The radius of the sphere used to render the selection point (i.e., the point where the user left-double-clicked to
    select a body). Note that the local and global coordinates of this point can be printed in the 3D view by activating
    the corresponding rendering flags. In this way, the coordinates of points of interest can be found.
+
+.. _visual-scale-jointlength:
+
 :at:`jointlength`: :at-val:`real, "1.0"`
    The length of the arrows used to render joint axes.
+
+.. _visual-scale-jointwidth:
+
 :at:`jointwidth`: :at-val:`real, "0.1"`
    The radius of the arrows used to render joint axes.
+
+.. _visual-scale-actuatorlength:
+
 :at:`actuatorlength`: :at-val:`real, "0.7"`
    The length of the arrows used to render actuators acting on scalar joints only.
+
+.. _visual-scale-actuatorwidth:
+
 :at:`actuatorwidth`: :at-val:`real, "0.2"`
    The radius of the arrows used to render actuators acting on scalar joints only.
+
+.. _visual-scale-framelength:
+
 :at:`framelength`: :at-val:`real, "1.0"`
    The length of the cylinders used to render coordinate frames. The world frame is automatically scaled relative to
    this setting.
+
+.. _visual-scale-framewidth:
+
 :at:`framewidth`: :at-val:`real, "0.1"`
    The radius of the cylinders used to render coordinate frames.
+
+.. _visual-scale-constraint:
+
 :at:`constraint`: :at-val:`real, "0.1"`
    The radius of the capsules used to render violations in spatial constraints.
+
+.. _visual-scale-slidercrank:
+
 :at:`slidercrank`: :at-val:`real, "0.2"`
    The radius of the capsules used to render slider-crank mechanisms. The second part of the mechanism is automatically
    scaled relative to this setting.
+
 
 .. _visual-rgba:
 
@@ -772,75 +1166,149 @@ The settings in this element control the color and transparency (rgba) of variou
 combined attribute "color" to simplify terminology below. All values should be in the range [0 1]. An alpha value of 0
 disables the rendering of the corresponding object.
 
+.. visual-rgba-fog:
+
 :at:`fog`: :at-val:`real(4), "0 0 0 1"`
    When fog is enabled, the color of all pixels fades towards the color specified here. The spatial extent of the fading
    is controlled by the fogstart and fogend attributes of the :ref:`map <visual-map>` element above.
+
+.. visual-rgba-haze:
+
 :at:`haze`: :at-val:`real(4), "1 1 1 1"`
    Haze color at the horizon, used to transition between an infinite plane and a skybox smoothly. The default creates
    white haze. To create a seamless transition, make sure the skybox colors near the horizon are similar to the plane
    color/texture, and set the haze color somewhere in that color gamut.
+
+.. visual-rgba-force:
+
 :at:`force`: :at-val:`real(4), "1 0.5 0.5 1"`
    Color of the arrows used to render perturbation forces.
+
+.. visual-rgba-inertia:
+
 :at:`inertia`: :at-val:`real(4), "0.8 0.2 0.2 0.6"`
    Color of the boxes used to render equivalent body inertias. This is the only rgba setting that has transparency by
    default, because it is usually desirable to see the geoms inside the inertia box.
+
+.. visual-rgba-joint:
+
 :at:`joint`: :at-val:`real(4), "0.2 0.6 0.8 1"`
    Color of the arrows used to render joint axes.
+
+.. visual-rgba-actuator:
+
 :at:`actuator`: :at-val:`real(4), "0.2 0.25 0.2 1"`
    Actuator color for neutral value of the control.
+
+.. visual-rgba-actuatornegative:
+
 :at:`actuatornegative`: :at-val:`real(4), "0.2 0.6 0.9 1"`
    Actuator color for most negative value of the control.
+
+.. visual-rgba-actuatorpositive:
+
 :at:`actuatorpositive`: :at-val:`real(4), "0.9 0.4 0.2 1"`
    Actuator color for most positive value of the control.
+
+.. visual-rgba-com:
+
 :at:`com`: :at-val:`real(4), "0.9 0.9 0.9 1"`
    Color of the spheres used to render sub-tree centers of mass.
+
+.. visual-rgba-camera:
+
 :at:`camera`: :at-val:`real(4), "0.6 0.9 0.6 1"`
    Color of the decorative object used to represent model cameras in the rendering.
+
+.. visual-rgba-light:
+
 :at:`light`: :at-val:`real(4), "0.6 0.6 0.9 1"`
    Color of the decorative object used to represent model lights in the rendering.
+
+.. visual-rgba-selectpoint:
+
 :at:`selectpoint`: :at-val:`real(4), "0.9 0.9 0.1 1"`
    Color of the sphere used to render the selection point.
+
+.. visual-rgba-connect:
+
 :at:`connect`: :at-val:`real(4), "0.2 0.2 0.8 1"`
    Color of the capsules used to connect bodies and joints, resulting in an automatically generated skeleton.
+
+.. visual-rgba-contactpoint:
+
 :at:`contactpoint`: :at-val:`real(4), "0.9 0.6 0.2 1"`
    Color of the cylinders used to render contact points.
+
+.. visual-rgba-contactforce:
+
 :at:`contactforce`: :at-val:`real(4), "0.7 0.9 0.9 1"`
    Color of the arrows used to render contact forces. When splitting of contact forces into normal and tangential
    components is enabled, this color is used to render the normal components.
+
+.. visual-rgba-contactfriction:
+
 :at:`contactfriction`: :at-val:`real(4), "0.9 0.8 0.4 1"`
    Color of the arrows used to render contact tangential forces, only when splitting is enabled.
+
+.. visual-rgba-contacttorque:
+
 :at:`contacttorque`: :at-val:`real(4), "0.9 0.7 0.9 1"`
    Color of the arrows used to render contact torques (currently disabled).
+
+.. visual-rgba-contactgap:
+
 :at:`contactgap`: :at-val:`real(4), "0.5, 0.8, 0.9, 1"`
    Color of contacts that fall in the contact gap (and are thereby excluded from contact force computations).
+
+.. visual-rgba-rangefinder:
+
 :at:`rangefinder`: :at-val:`real(4), "1 1 0.1 1"`
    Color of line geoms used to render rangefinder sensors.
+
+.. visual-rgba-constraint:
+
 :at:`constraint`: :at-val:`real(4), "0.9 0 0 1"`
    Color of the capsules corresponding to spatial constraint violations.
+
+.. visual-rgba-slidercrank:
+
 :at:`slidercrank`: :at-val:`real(4), "0.5 0.3 0.8 1"`
    Color of slider-crank mechanisms.
+
+.. visual-rgba-crankbroken:
+
 :at:`crankbroken`: :at-val:`real(4), "0.9 0 0 1"`
    Color used to render the crank of slide-crank mechanisms, in model configurations where the specified rod length
    cannot be maintained, i.e., it is "broken".
 
+
 .. _statistic:
 
 **statistic** (*)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~
 
 This element is used to override model statistics computed by the compiler. These statistics are not only informational
 but are also used to scale various components of the rendering and perturbation. We provide an override mechanism in the
 XML because it is sometimes easier to adjust a small number of model statistics than a larger number of visual
 parameters.
 
+.. _statistic-meanmass:
+
 :at:`meanmass`: :at-val:`real, optional`
    If this attribute is specified, it replaces the value of mjModel.stat.meanmass computed by the compiler. The computed
    value is the average body mass, not counting the massless world body. At runtime this value scales the perturbation
    force.
+
+.. _statistic-meaninertia:
+
 :at:`meaninertia`: :at-val:`real, optional`
    If this attribute is specified, it replaces the value of mjModel.stat.meaninertia computed by the compiler. The
    computed value is the average diagonal element of the joint-space inertia matrix when the model is in qpos0. At
    runtime this value scales the solver cost and gradient used for early termination.
+
+.. _statistic-meansize:
+
 :at:`meansize`: :at-val:`real, optional`
    If this attribute is specified, it replaces the value of ``mjModel.stat.meansize`` computed by the compiler. At
    runtime this value multiplies the attributes of the :ref:`scale <visual-scale>` element above, and acts as their
@@ -849,29 +1317,39 @@ parameters.
    :at:`meansize` and setting it has no other side-effect. The automatically computed value is heuristic, representing
    the average body radius. The heuristic is based on geom sizes when present, the distances between joints when
    present, and the sizes of the body equivalent inertia boxes.
+
+.. _statistic-extent:
+
 :at:`extent`: :at-val:`real, optional`
    If this attribute is specified, it replaces the value of mjModel.stat.extent computed by the compiler. The computed
    value is half the side of the bounding box of the model in the initial configuration. At runtime this value is
    multiplied by some of the attributes of the :ref:`map <visual-map>` element above. When the model is first loaded,
    the free camera's initial distance from the :at:`center` (see below) is 1.5 times the :at:`extent`. Must be strictly
    positive.
+
+.. _statistic-center:
+
 :at:`center`: :at-val:`real(3), optional`
    If this attribute is specified, it replaces the value of mjModel.stat.center computed by the compiler. The computed
    value is the center of the bounding box of the entire model in the initial configuration. This 3D vector is used to
    center the view of the free camera when the model is first loaded.
 
+
 .. _default:
 
 **default** (R)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~
 
 This element is used to create a new defaults class; see :ref:`CDefault` above. Defaults classes can be nested,
 inheriting all attribute values from their parent. The top-level defaults class is always defined; it is called "main"
 if omitted.
 
+.. _default-class:
+
 :at:`class`: :at-val:`string, required (except at the top level)`
    The name of the defaults class. It must be unique among all defaults classes. This name is used to make the class
    active when creating an actual model element.
+
 
 .. _default-mesh:
 
@@ -881,6 +1359,7 @@ if omitted.
 | This element sets the attributes of the dummy :ref:`mesh <asset-mesh>` element of the defaults class.
 | The only mesh attribute available here is: **scale**.
 
+
 .. _default-material:
 
 :el-prefix:`default/` |j| **material** (?)
@@ -888,6 +1367,7 @@ if omitted.
 
 | This element sets the attributes of the dummy :ref:`material <asset-material>` element of the defaults class.
 | All material attributes are available here except: name, class.
+
 
 .. _default-joint:
 
@@ -897,6 +1377,7 @@ if omitted.
 | This element sets the attributes of the dummy :ref:`joint <body-joint>` element of the defaults class.
 | All joint attributes are available here except: name, class.
 
+
 .. _default-geom:
 
 :el-prefix:`default/` |j| **geom** (?)
@@ -904,6 +1385,7 @@ if omitted.
 
 | This element sets the attributes of the dummy :ref:`geom <body-geom>` element of the defaults class.
 | All geom attributes are available here except: name, class.
+
 
 .. _default-site:
 
@@ -913,6 +1395,7 @@ if omitted.
 | This element sets the attributes of the dummy :ref:`site <body-site>` element of the defaults class.
 | All site attributes are available here except: name, class.
 
+
 .. _default-camera:
 
 :el-prefix:`default/` |j| **camera** (?)
@@ -920,6 +1403,7 @@ if omitted.
 
 | This element sets the attributes of the dummy :ref:`camera <body-camera>` element of the defaults class.
 | All camera attributes are available here except: name, class.
+
 
 .. _default-light:
 
@@ -929,6 +1413,7 @@ if omitted.
 | This element sets the attributes of the dummy :ref:`light <body-light>` element of the defaults class.
 | All light attributes are available here except: name, class.
 
+
 .. _default-pair:
 
 :el-prefix:`default/` |j| **pair** (?)
@@ -936,6 +1421,7 @@ if omitted.
 
 | This element sets the attributes of the dummy :ref:`pair <contact-pair>` element of the defaults class.
 | All pair attributes are available here except: name, class, geom1, geom2.
+
 
 .. _default-equality:
 
@@ -947,6 +1433,7 @@ if omitted.
   attributes common to all equality constraint types, which is why we do not make a distinction between types.
 | The equality sub-element attributes available here are: **active, solref, solimp**.
 
+
 .. _default-tendon:
 
 :el-prefix:`default/` |j| **tendon** (?)
@@ -956,6 +1443,7 @@ if omitted.
   equality constraints, the actual tendons have types, but here we are setting attributes common to all types.
 | All tendon sub-element attributes are available here except: name, class.
 
+
 .. _default-general:
 
 :el-prefix:`default/` |j| **general** (?)
@@ -964,6 +1452,7 @@ if omitted.
 | This element sets the attributes of the dummy :ref:`general <actuator-general>` element of the defaults class.
 | All general attributes are available here except: name, class, joint, jointinparent, site, tendon, slidersite,
   cranksite.
+
 
 .. _default-motor:
 
@@ -976,6 +1465,7 @@ class, because they set the same underlying attributes, replacing any previous s
 :ref:`motor <actuator-motor>` attributes are available here except: name, class, joint, jointinparent, site, tendon,
 slidersite, cranksite.
 
+
 .. _default-position:
 
 :el-prefix:`default/` |j| **position** (?)
@@ -983,6 +1473,7 @@ slidersite, cranksite.
 
 All :ref:`position <actuator-position>` attributes are available here except: name, class, joint, jointinparent, site,
 tendon, slidersite, cranksite.
+
 
 .. _default-velocity:
 
@@ -992,6 +1483,7 @@ tendon, slidersite, cranksite.
 All :ref:`velocity <actuator-velocity>` attributes are available here except: name, class, joint, jointinparent, site,
 tendon, slidersite, cranksite.
 
+
 .. _default-intvelocity:
 
 :el-prefix:`default/` |j| **intvelocity** (?)
@@ -999,6 +1491,7 @@ tendon, slidersite, cranksite.
 
 All :ref:`intvelocity <actuator-intvelocity>` attributes are available here except: name, class, joint, jointinparent,
 site, tendon, slidersite, cranksite.
+
 
 .. _default-damper:
 
@@ -1008,6 +1501,7 @@ site, tendon, slidersite, cranksite.
 All :ref:`damper <actuator-damper>` attributes are available here except: name, class, joint, jointinparent, site,
 tendon, slidersite, cranksite.
 
+
 .. _default-cylinder:
 
 :el-prefix:`default/` |j| **cylinder** (?)
@@ -1015,6 +1509,7 @@ tendon, slidersite, cranksite.
 
 All :ref:`cylinder <actuator-cylinder>` attributes are available here except: name, class, joint, jointinparent, site,
 tendon, slidersite, cranksite.
+
 
 .. _default-muscle:
 
@@ -1024,12 +1519,14 @@ tendon, slidersite, cranksite.
 All :ref:`muscle <actuator-muscle>` attributes are available here except: name, class, joint, jointinparent, site,
 tendon, slidersite, cranksite.
 
+
 .. _default-adhesion:
 
 :el-prefix:`default/` |j| **adhesion** (?)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 All :ref:`adhesion <actuator-adhesion>` attributes are available here except: name, class, body.
+
 
 .. _custom:
 
@@ -1038,6 +1535,7 @@ All :ref:`adhesion <actuator-adhesion>` attributes are available here except: na
 
 This is a grouping element for custom numeric and text elements. It does not have attributes.
 
+
 .. _custom-numeric:
 
 :el-prefix:`custom/` |j| **numeric** (*)
@@ -1045,17 +1543,26 @@ This is a grouping element for custom numeric and text elements. It does not hav
 
 This element creates a custom numeric array in mjModel.
 
+.. _custom-numeric-name:
+
 :at:`name`: :at-val:`string, required`
    The name of the array. This attribute is required because the only way to find a custom element of interest at
    runtime is through its name.
+
+.. _custom-numeric-size:
+
 :at:`size`: :at-val:`int, optional`
    If specified this attribute sets the size of the data array, in doubles. If this attribute is not specified, the size
    will be inferred from the actual data array below.
+
+.. _custom-numeric-data:
+
 :at:`data`: :at-val:`real(size), "0 0 ..."`
    Numeric data to be copied into mjModel. If size is specified, the length of the array given here cannot exceed the
    specified size. If the length of the array is smaller, the missing components are set to 0. Note that custom arrays
    can be created for storing information at runtime - which is why data initialization is optional. It becomes required
    only when the array size is omitted.
+
 
 .. _custom-text:
 
@@ -1065,10 +1572,16 @@ This element creates a custom numeric array in mjModel.
 This element creates a custom text field in mjModel. It could be used to store keyword commands for user callbacks and
 other custom computations.
 
+.. _custom-text-name:
+
 :at:`name`: :at-val:`string, required`
    Name of the custom text field.
+
+.. _custom-text-data:
+
 :at:`data`: :at-val:`string, required`
    Custom text to be copied into mjModel.
+
 
 .. _custom-tuple:
 
@@ -1078,8 +1591,11 @@ other custom computations.
 This element creates a custom tuple, which is a list of MuJoCo objects. The list is created by referencing the desired
 objects by name.
 
+.. _custom-tuple-name:
+
 :at:`name`: :at-val:`string, required`
    Name of the custom tuple.
+
 
 .. _tuple-element:
 
@@ -1088,22 +1604,33 @@ objects by name.
 
 This adds an element to the tuple.
 
+
+.. _tuple-element-objtype:
+
 :at:`objtype`: :at-val:`(any element type that can be named), required`
    Type of the object being added.
+
+.. _tuple-element-objname:
+
 :at:`objname`: :at-val:`string, required`
    Name of the object being added. The type and name must reference a named MuJoCo element defined somewhere in the
    model. Tuples can also be referenced (including self-references).
+
+.. _tuple-element-prm:
+
 :at:`prm`: :at-val:`real, "0"`
    Real-valued parameter associated with this element of the tuple. Its use is up to the user.
+
 
 .. _asset:
 
 **asset** (*)
-~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~
 
 This is a grouping element for defining assets. It does not have attributes. Assets are created in the model so that
 they can be referenced from other model elements; recall the discussion of :ref:`Assets <Assets>` in the Overview
 chapter.
+
 
 .. _asset-texture:
 
@@ -1127,11 +1654,16 @@ chapter.
        (int32)   height
        (byte)    rgb_data[3*width*height]
 
+.. _asset-texture-name:
+
 :at:`name`: :at-val:`string, optional`
    As with all other assets, a texture must have a name in order to be referenced. However if the texture is loaded from
    a single file with the file attribute, the explicit name can be omitted and the file name (without the path and
    extension) becomes the texture name. If the name after parsing is empty and the texture type is not "skybox", the
    compiler will generate an error.
+
+.. _asset-texture-type:
+
 :at:`type`: :at-val:`[2d, cube, skybox], "cube"`
    This attribute determines how the texture is represented and mapped to objects. It also determines which of the
    remaining attributes are relevant. The keywords have the following meaning:
@@ -1168,9 +1700,15 @@ chapter.
    can be rectangular, unlike the sides of cube textures which must be square. The scaling can be controlled with the
    texrepeat attribute of :ref:`material <asset-material>`. The data can be loaded from a singlefile or created
    procedurally.
+
+.. _asset-texture-file:
+
 :at:`file`: :at-val:`string, optional`
    If this attribute is specified, and the builtin attribute below is set to "none", the texture data is loaded from a
    single file. See the texturedir attribute of :ref:`compiler <compiler>` regarding the file path.
+
+.. _asset-texture-gridsize:
+
 :at:`gridsize`: :at-val:`int(2), "1 1"`
    When a cube or skybox texture is loaded from a single file, this attribute and the next specify how the six square
    sides of the texture cube are obtained from the single image. The default setting "1 1" means that the same image is
@@ -1179,6 +1717,9 @@ chapter.
    positive and the product of the two cannot exceed 12. The number of rows and columns in the image must be integer
    multiples of the number of rows and columns in the grid, and these two multiples must be equal, so that the extracted
    images are square.
+
+.. _asset-texture-gridlayout:
+
 :at:`gridlayout`: :at-val:`string, "............"`
    .. figure:: images/modeling/skybox.png
       :width: 250px
@@ -1196,6 +1737,18 @@ chapter.
    using gridsize = "3 4" and gridlayout = ".U..LFRB.D.." The full-resolution image file without the markings can be
    downloaded `here <_static/desert.png>`__.
 
+.. _asset-texture-fileright:
+
+.. _asset-texture-fileleft:
+
+.. _asset-texture-fileup:
+
+.. _asset-texture-filedown:
+
+.. _asset-texture-filefront:
+
+.. _asset-texture-fileback:
+
 :at:`fileright`, :at:`fileleft`, :at:`fileup`, :at:`filedown`, :at:`filefront`, :at:`fileback` : string, optional
    These attributes are used to load the six sides of a cube or skybox texture from separate files, but only if the file
    attribute is omitted and the builtin attribute is set to "none". If any one of these attributes are omitted, the
@@ -1209,6 +1762,9 @@ chapter.
    However we cannot do the same for regular objects. Thus the mapping of skybox and cube textures on regular objects,
    expressed in the local frame of the object, is as follows:
    Right = +X, Left = -X, Up = +Y, Down = -Y, Front = +Z, Back = -Z.
+
+.. _asset-texture-builtin:
+
 :at:`builtin`: :at-val:`[none, gradient, checker, flat], "none"`
    This and the remaining attributes control the generation of procedural textures. If the value of this attribute is
    different from "none", the texture is treated as procedural and any file names are ignored. The keywords have the
@@ -1224,33 +1780,61 @@ chapter.
 
    The **flat** type fills the entire texture with rgb1, except for the bottom face of cube and skybox textures which is
    filled with rgb2.
+
+.. _asset-texture-rgb1:
+
 :at:`rgb1`: :at-val:`real(3), "0.8 0.8 0.8"`
    The first color used for procedural texture generation. This color is also used to fill missing sides of cube and
    skybox textures loaded from files. The components of this and all other RGB(A) vectors should be in the range [0 1].
+
+.. _asset-texture-rgb2:
+
 :at:`rgb2`: :at-val:`real(3), "0.5 0.5 0.5"`
    The second color used for procedural texture generation.
+
+.. _asset-texture-mark:
+
 :at:`mark`: :at-val:`[none, edge, cross, random], "none"`
    Procedural textures can be marked with the markrgb color, on top of the colors determined by the builtin type. "edge"
    means that the edges of all texture images are marked. "cross" means that a cross is marked in the middle of each
    image. "random" means that randomly chosen pixels are marked. All markings are one-pixel wide, thus the markings
    appear larger and more diffuse on smaller textures.
+
+.. _asset-texture-markrgb:
+
 :at:`markrgb`: :at-val:`real(3), "0 0 0"`
    The color used for procedural texture markings.
+
+.. _asset-texture-random:
+
 :at:`random`: :at-val:`real, "0.01"`
    When the mark attribute is set to "random", this attribute determines the probability of turning on each pixel. Note
    that larger textures have more pixels, and the probability here is applied independently to each pixel - thus the
    texture size and probability need to be adjusted jointly. Together with a gradient skybox texture, this can create
    the appearance of a night sky with stars.
+
+.. _asset-texture-width:
+
 :at:`width`: :at-val:`int, "0"`
    The width of the procedural texture, i.e., the number of columns in the image. For cube and skybox procedural
    textures the width and height must be equal. Larger values usually result in higher quality images, although in some
    cases (e.g. checker patterns) small values are sufficient.
+
+.. _asset-texture-height:
+
 :at:`height`: :at-val:`int, "0"`
    The height of the procedural texture, i.e., the number of rows in the image.
+
+.. _asset-texture-hflip:
+
 :at:`hflip`: :at-val:`[false, true], "false"`
    If true, images loaded from file are flipped in the horizontal direction. Does not affect procedural textures.
+
+.. _asset-texture-vflip:
+
 :at:`vflip`: :at-val:`[false, true], "false"`
    If true, images loaded from file are flipped in the vertical direction. Does not affect procedural textures.
+
 
 .. _asset-hfield:
 
@@ -1293,21 +1877,35 @@ also known as terrain map, is a 2D matrix of elevation data. The data can be spe
   are discarded. To avoid penetration due to discarded contacts, the spatial features of the height field should be
   large compared to the geoms it collides with.
 
+.. _asset-hfield-name:
+
 :at:`name`: :at-val:`string, optional`
    Name of the height field, used for referencing. If the name is omitted and a file name is specified, the height field
    name equals the file name without the path and extension.
+
+.. _asset-hfield-file:
+
 :at:`file`: :at-val:`string, optional`
    If this attribute is specified, the elevation data is loaded from the given file. If the file extension is ".png",
    not case-sensitive, the file is treated as a PNG file. Otherwise it is treated as a binary file in the above custom
    format. The number of rows and columns in the data are determined from the file contents. Loading data from a file
    and setting nrow or ncol below to non-zero values results is compile error, even if these settings are consistent
    with the file contents.
+
+.. _asset-hfield-nrow:
+
 :at:`nrow`: :at-val:`int, "0"`
    This attribute and the next are used to allocate a height field in mjModel and leave the elevation data undefined
    (i.e., set to 0). This attribute specifies the number of rows in the elevation data matrix. The default value of 0
    means that the data will be loaded from a file, which will be used to infer the size of the matrix.
+
+.. _asset-hfield-ncol:
+
 :at:`ncol`: :at-val:`int, "0"`
    This attribute specifies the number of columns in the elevation data matrix.
+
+.. _asset-hfield-size:
+
 :at:`size`: :at-val:`real(4), required`
    .. figure:: images/modeling/peaks.png
       :width: 350px
@@ -1326,6 +1924,7 @@ also known as terrain map, is a 2D matrix of elevation data. The data can be spe
    thickness. The example on the right is the MATLAB "peaks" surface saved in our custom height field format, and loaded
    as an asset with size = "1 1 1 0.1". The horizontal size of the box is 2, the difference between the maximum and
    minimum elevation is 1, and the depth of the base added below the minimum elevation point is 0.1.
+
 
 .. _asset-mesh:
 
@@ -1438,41 +2037,74 @@ The full list of processing steps applied by the compiler to each mesh is as fol
    principal axes of inertia. Center and align the mesh, saving the translational and rotational offsets for subsequent
    geom-related computations.
 
+.. _asset-mesh-name:
+
 :at:`name`: :at-val:`string, optional`
    Name of the mesh, used for referencing. If omitted, the mesh name equals the file name without the path and
    extension.
+
+.. _asset-mesh-class:
+
 :at:`class`: :at-val:`string, optional`
    Defaults class for setting unspecified attributes (only scale in this case).
+
+.. _asset-mesh-file:
+
 :at:`file`: :at-val:`string, optional`
    The file from which the mesh will be loaded. The path is determined as described in the meshdir attribute of
    :ref:`compiler <compiler>`. The file extension must be "stl" or "msh" (not case sensitive) specifying the file type.
    If the file name is omitted, the vertex attribute becomes required.
+
+.. _asset-mesh-scale:
+
 :at:`scale`: :at-val:`real(3), "1 1 1"`
    This attribute specifies the scaling that will be applied to the vertex data along each coordinate axis. Negative
    values are allowed, resulting in flipping the mesh along the corresponding axis.
+
+.. _asset-mesh-smoothnormal:
+
 :at:`smoothnormal`: :at-val:`[false, true], "false"`
    Controls the automatic generation of vertex normals when normals are not given explicitly. If true, smooth normals
    are generated by averaging the face normals at each vertex, with weight proportional to the face area. If false,
    faces at large angles relative to the average normal are excluded from the average. In this way, sharp edges (as in
    cube edges) are not smoothed.
+
+.. _asset-mesh-vertex:
+
 :at:`vertex`: :at-val:`real(3*nvert), optional`
    Vertex 3D position data. You can specify position data in the XML using this attribute, or using a binary file, but
    not both.
+
+.. _asset-mesh-normal:
+
 :at:`normal`: :at-val:`real(3*nvert), optional`
    Vertex 3D normal data. If specified, the number of normals must equal the number of vertices. The model compiler
    normalizes the normals automatically.
+
+.. _asset-mesh-texcoord:
+
 :at:`texcoord`: :at-val:`real(2*nvert), optional`
    Vertex 2D texture coordinates, which are numbers between 0 and 1. If specified, the number of texture coordinate
    pairs must equal the number of vertices.
+
+.. _asset-mesh-face:
+
 :at:`face`: :at-val:`int(3*nface), optional`
    Faces of the mesh. Each face is a sequence of 3 vertex indices, in counter-clockwise order. The indices must be
    integers between 0 and nvert-1.
+
+.. _asset-mesh-refpos:
+
 :at:`refpos`: :at-val:`real(3), "0 0 0"`
    Reference position relative to which the 3D vertex coordinates are defined. This vector is subtracted from the
    positions.
+
+.. _asset-mesh-refquat:
+
 :at:`refquat`: :at-val:`real(4), "1 0 0 0"`
    Reference orientation relative to which the 3D vertex coordinates and normals are defined. The conjugate of this
    quaternion is used to rotate the positions and normals. The model compiler normalizes the quaternion automatically.
+
 
 .. _asset-skin:
 
@@ -1537,31 +2169,55 @@ Similar to the other custom binary formats used in MuJoCo, the file size in byte
 compiler. The skin file format has subelements so the overall file size formula is difficult to write down, but should
 be clear from the above specification.
 
+.. _asset-skin-name:
+
 :at:`name`: :at-val:`string, optional`
    Name of the skin.
+
+.. _asset-skin-file:
+
 :at:`file`: :at-val:`string, optional`
    The SKN file from which the skin will be loaded. The path is determined as described in the meshdir attribute of
    :ref:`compiler <compiler>`. If the file is omitted, the skin specification must be provided in the XML using the
    attributes below.
+
+.. _asset-skin-vertex:
+
 :at:`vertex`: :at-val:`real(3*nvert), optional`
    Vertex 3D positions, in the global bind pose where the skin is defined.
+
+.. _asset-skin-texcoord:
+
 :at:`texcoord`: :at-val:`real(2*nvert), optional`
    Vertex 2D texture coordinates, between 0 and 1. Note that skin and geom texturing are somewhat different. Geoms can
    use automated texture coordinate generation while skins cannot. This is because skin data are computed directly in
    global coordinates. So if the material references a texture, one should specify explicit texture coordinates for the
    skin using this attribute. Otherwise the texture will appear to be stationary in the world while the skin moves
    around (creating an interesting effect but probably not as intended).
+
+.. _asset-skin-face:
+
 :at:`face`: :at-val:`int(3*nface), optional`
    Trinagular skin faces. Each face is a triple of vertex indices, which are integers between zero and nvert-1.
+
+.. _asset-skin-inflate:
+
 :at:`inflate`: :at-val:`real, "0"`
    If this number is not zero, the position of vertex during updating will be offset along the vertex normal, but the
    distance specified in this attribute. This is particularly useful for skins representing flexible 2D shapes.
+
+.. _asset-skin-material:
+
 :at:`material`: :at-val:`string, optional`
    If specified, this attribute applies a material to the skin.
+
+.. _asset-skin-rgba:
+
 :at:`rgba`: :at-val:`real(4), "0.5 0.5 0.5 1"`
    Instead of creating material assets and referencing them, this attribute can be used to set color and transparency
    only. This is not as flexible as the material mechanism, but is more convenient and is often sufficient. If the value
    of this attribute is different from the internal default, it takes precedence over the material.
+
 
 .. _skin-bone:
 
@@ -1570,21 +2226,37 @@ be clear from the above specification.
 
 This element defines a bone of the skin. The bone is a regular MuJoCo body which is referenced by name here.
 
+
+.. _skin-bone-body:
+
 :at:`body`: :at-val:`string, required`
    Name of the body corresponding to this bone.
+
+.. _skin-bone-bindpos:
+
 :at:`bindpos`: :at-val:`real(3), required`
    Global body position corresponding to the bind pose.
+
+.. _skin-bone-bindquat:
+
 :at:`bindquat`: :at-val:`real(4), required`
    Global body orientation corresponding to the bind pose.
+
+.. _skin-bone-vertid:
+
 :at:`vertid`: :at-val:`int(nvert), required`
    Integer indices of the vertices influenced by this bone. The vertex index corresponds to the order of the vertex in
    the skin mesh. The number of vertex indices specified here (nvert) must equal the number of vertex weights specified
    with the next attribute. The same vertex may be influenced by multiple bones, and each vertex must be influenced by
    at least one bone.
+
+.. _skin-bone-vertweight:
+
 :at:`vertweight`: :at-val:`real(nvert), required`
    Weights for the vertices influenced by this bone, in the same order as the vertex indices. Negative weights are
    allowed (which is needed for cubic interpolation for example) however the sum of all bone weights for a given vertex
    must be positive.
+
 
 .. _asset-material:
 
@@ -1598,18 +2270,32 @@ creating materials and referencing them. Materials are useful for adjusting appe
 once a material is created, it is more natural the specify the color using the material, so that all appearance
 properties are grouped together.
 
+.. _asset-material-name:
+
 :at:`name`: :at-val:`string, required`
    Name of the material, used for referencing.
+
+.. _asset-material-class:
+
 :at:`class`: :at-val:`string, optional`
    Defaults class for setting unspecified attributes.
+
+.. _asset-material-texture:
+
 :at:`texture`: :at-val:`string, optional`
    If this attribute is specified, the material has a texture associated with it. Referencing the material from a model
    element will cause the texture to be applied to that element. Note that the value of this attribute is the name of a
    texture asset, not a texture file name. Textures cannot be loaded in the material definition; instead they must be
    loaded explicitly via the :ref:`texture <asset-texture>` element and then referenced here.
+
+.. _asset-material-texrepeat:
+
 :at:`texrepeat`: :at-val:`real(2), "1 1"`
    This attribute applies to textures of type "2d". It specifies how many times the texture image is repeated, relative
    to either the object size or the spatial unit, as determined by the next attribute.
+
+.. _asset-material-texuniform:
+
 :at:`texuniform`: :at-val:`[false, true], "false"`
    For cube textures, this attribute controls how cube mapping is applied. The default value "false" means apply cube
    mapping directly, using the actual size of the object. The value "true" maps the texture to a unit object before
@@ -1618,19 +2304,31 @@ properties are grouped together.
    depends on the texture and the object. For 2d textures, this attribute interacts with texrepeat above. Let texrepeat
    be N. The default value "false" means that the 2d texture is repeated N times over the (z-facing side of the) object.
    The value "true" means that the 2d texture is repeated N times over one spatial unit, regardless of object size.
+
+.. _asset-material-emission:
+
 :at:`emission`: :at-val:`real, "0"`
    Emission in OpenGL has the RGBA format, however we only provide a scalar setting. The RGB components of the OpenGL
    emission vector are the RGB components of the material color multiplied by the value specified here. The alpha
    component is 1.
+
+.. _asset-material-specular:
+
 :at:`specular`: :at-val:`real, "0.5"`
    Specularity in OpenGL has the RGBA format, however we only provide a scalar setting. The RGB components of the OpenGL
    specularity vector are all equal to the value specified here. The alpha component is 1. This value should be in the
    range [0 1].
+
+.. _asset-material-shininess:
+
 :at:`shininess`: :at-val:`real, "0.5"`
    Shininess in OpenGL is a number between 0 and 128. The value given here is multiplied by 128 before passing it to
    OpenGL, so it should be in the range [0 1]. Larger values correspond to tighter specular highlight (thus reducing the
    overall amount of highlight but making it more salient visually). This interacts with the specularity setting; see
    OpenGL documentation for details.
+
+.. _asset-material-reflectance:
+
 :at:`reflectance`: :at-val:`real, "0"`
    This attribute should be in the range [0 1]. If the value is greater than 0, and the material is applied to a plane
    or a box geom, the renderer will simulate reflectance. The larger the value, the stronger the reflectance. For boxes,
@@ -1638,6 +2336,9 @@ properties are grouped together.
    ray-tracing which cannot (yet) be done in real-time. We are using the stencil buffer and suitable projections
    instead. Only the first reflective geom in the model is rendered as such. This adds one extra rendering pass through
    all geoms, in addition to the extra rendering pass added by each shadow-casting light.
+
+.. _asset-material-rgba:
+
 :at:`rgba`: :at-val:`real(4), "1 1 1 1"`
    Color and transparency of the material. All components should be in the range [0 1]. Note that textures are applied
    in GL_MODULATE mode, meaning that the texture color and the color specified here are multiplied component-wise. Thus
@@ -1645,10 +2346,11 @@ properties are grouped together.
    model element which defines its own local rgba attribute, the local definition has precedence. Note that this "local"
    definition could in fact come from a defaults class. The remaining material properties always apply.
 
+
 .. _body:
 
 **(world)body** (R)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~
 
 This element is used to construct the :ref:`kinematic tree <CTree>` via nesting. The element :el:`worldbody` is used for
 the top-level body, while the element :el:`body` is used for all other bodies. The top-level body is a restricted type
@@ -1656,12 +2358,20 @@ of body: it cannot have child elements :ref:`inertial <body-inertial>` and :ref:
 have any attributes. It corresponds to the origin of the world frame, within which the rest of the kinematic tree is
 defined. Its body name is automatically defined as "world".
 
+.. _body-name:
+
 :at:`name`: :at-val:`string, optional`
    Name of the body.
+
+.. _body-childclass:
+
 :at:`childclass`: :at-val:`string, optional`
    If this attribute is present, all descendant elements that admit a defaults class will use the class specified here,
    unless they specify their own class or another body with a childclass attribute is encountered along the chain of
    nested bodies. Recall :ref:`CDefault`.
+
+.. _body-mocap:
+
 :at:`mocap`: :at-val:`[false, true], "false"`
    If this attribute is "true", the body is labeled as a mocap body. This is allowed only for bodies that are children
    of the world body and have no joints. Such bodies are fixed from the viewpoint of the dynamics, but nevertheless the
@@ -1670,6 +2380,9 @@ defined. Its body name is automatically defined as "world".
    model. This mechanism can be used to stream motion capture data into the simulation. Mocap bodies can also be moved
    via mouse perturbations in the interactive visualizer, even in dynamic simulation mode. This can be useful for
    creating props with adjustable position and orientation. See also the mocap attribute of :ref:`flag <option-flag>`.
+
+.. _body-pos:
+
 :at:`pos`: :at-val:`real(3), optional`
    The 3D position of the body frame, in local or global coordinates as determined by the coordinate attribute of
    :ref:`compiler <compiler>`. Recall the earlier discussion of local and global coordinates in :ref:`Coordinate frames
@@ -1688,6 +2401,17 @@ defined. Its body name is automatically defined as "world".
    Note that whether a frame is defined or not depends on its pos attribute, which is in the special undefined state by
    default. Orientation cannot be used to make this determination because it has an internal default (the unit
    quaternion).
+
+.. _body-quat:
+
+.. _body-axisangle:
+
+.. _body-xyaxes:
+
+.. _body-zaxis:
+
+.. _body-euler:
+
 :at:`quat`, :at:`axisangle`, :at:`xyaxes`, :at:`zaxis`, :at:`euler`
    See :ref:`COrientation`. Similar to position, the orientation specified here is
    interpreted in either local or global coordinates as determined by the coordinate attribute of
@@ -1695,13 +2419,20 @@ defined. Its body name is automatically defined as "world".
    unit quaternion, thus specifying it is optional even in local coordinates. If the body frame was copied from the body
    inertial frame per the above rules, the copy operation applies to both position and orientation, and the setting of
    the orientation-related attributes is ignored.
+
+.. _body-gravcomp:
+
 :at:`gravcomp`: :at-val:`real, "0"`
   Gravity compensation force, specified as fraction of body weight. This attribute creates an upwards force applied to
   the body's center of mass, countering the force of gravity. As an example, a value of ``1`` creates an upward force
   equal to the body's weight and compensates for gravity exactly. Values greater than ``1`` will create a net upwards
   force or buoyancy effect.
+
+.. _body-user:
+
 :at:`user`: :at-val:`real(nbody_user), "0 0 ..."`
    See :ref:`CUser`.
+
 
 .. _body-inertial:
 
@@ -1714,25 +2445,49 @@ writer saves the inertial properties explicitly using this element, even if they
 frame is such that its center coincides with the center of mass of the body, and its axes coincide with the principal
 axes of inertia of the body. Thus the inertia matrix is diagonal in this frame.
 
+
+.. _body-inertial-pos:
+
 :at:`pos`: :at-val:`real(3), required`
    Position of the inertial frame. This attribute is required even when the inertial properties can be inferred from
    geoms. This is because the presence of the :el:`inertial` element itself disables the automatic inference mechanism.
+
+.. _body-inertial-quat:
+
+.. _body-inertial-axisangle:
+
+.. _body-inertial-xyaxes:
+
+.. _body-inertial-zaxis:
+
+.. _body-inertial-euler:
+
 :at:`quat`, :at:`axisangle`, :at:`xyaxes`, :at:`zaxis`, :at:`euler`
    Orientation of the inertial frame. See :ref:`COrientation`.
+
+.. _body-inertial-mass:
+
 :at:`mass`: :at-val:`real, required`
    Mass of the body. Negative values are not allowed. MuJoCo requires the inertia matrix in generalized coordinates to
    be positive-definite, which can sometimes be achieved even if some bodies have zero mass. In general however there is
    no reason to use massless bodies. Such bodies are often used in other engines to bypass the limitation that joints
    cannot be combined, or to attach sensors and cameras. In MuJoCo primitive joint types can be combined, and we have
    sites which are a more efficient attachment mechanism.
+
+.. _body-inertial-diaginertia:
+
 :at:`diaginertia`: :at-val:`real(3), optional`
    Diagonal inertia matrix, expressing the body inertia relative to the inertial frame. If this attribute is omitted,
    the next attribute becomes required.
+
+.. _body-inertial-fullinertia:
+
 :at:`fullinertia`: :at-val:`real(6), optional`
    Full inertia matrix M. Since M is 3-by-3 and symmetric, it is specified using only 6 numbers in the following order:
    M(1,1), M(2,2), M(3,3), M(1,2), M(1,3), M(2,3). The compiler computes the eigenvalue decomposition of M and sets the
    frame orientation and diagonal inertia accordingly. If non-positive eigenvalues are encountered (i.e., if M is not
    positive definite) a compile error is generated.
+
 
 .. _body-joint:
 
@@ -1748,10 +2503,18 @@ which the appear in the kinematic tree. The linear and angular velocities are st
 two vectors have different dimensionality when free or ball joints are used, because such joints represent rotations as
 unit quaternions.
 
+.. _body-joint-name:
+
 :at:`name`: :at-val:`string, optional`
    Name of the joint.
+
+.. _body-joint-class:
+
 :at:`class`: :at-val:`string, optional`
    Defaults class for setting unspecified attributes.
+
+.. _body-joint-type:
+
 :at:`type`: :at-val:`[free, ball, slide, hinge], "hinge"`
    Type of the joint. The keywords have the following meaning:
    The **free** type creates a free "joint" with three translational degrees of freedom followed by three rotational
@@ -1775,34 +2538,65 @@ unit quaternions.
    The **hinge** type creates a hinge joint with one rotational degree of freedom. The rotation takes place around a
    specified axis through a specified position. This is the most common type of joint and is therefore the default. Most
    models contain only hinge and free joints.
+
+.. _body-joint-group:
+
 :at:`group`: :at-val:`int, "0"`
    Integer group to which the joint belongs. This attribute can be used for custom tags. It is also used by the
    visualizer to enable and disable the rendering of entire groups of joints.
+
+.. _body-joint-pos:
+
 :at:`pos`: :at-val:`real(3), "0 0 0"`
    Position of the joint, specified in local or global coordinates as determined by the coordinate attribute of
    :ref:`compiler <compiler>`. For free joints this attribute is ignored.
+
+.. _body-joint-axis:
+
 :at:`axis`: :at-val:`real(3), "0 0 1"`
    This attribute specifies the axis of rotation for hinge joints and the direction of translation for slide joints. It
    is ignored for free and ball joints. The vector specified here is automatically normalized to unit length as long as
    its length is greater than 10E-14; otherwise a compile error is generated.
+
+.. _body-joint-springdamper:
+
 :at:`springdamper`: :at-val:`real(2), "0 0"`
    When both numbers are positive, the compiler will override any stiffness and damping values specified with the
    attributes below, and will instead set them automatically so that the resulting mass-spring-damper for this joint has
    the desired time constant (first value) and damping ratio (second value). This is done by taking into account the
    joint inertia in the model reference configuration. Note that the format is the same as the solref parameter of the
    constraint solver.
+
+.. _body-joint-limited:
+
 :at:`limited`: :at-val:`[false, true, auto], "auto"`
    This attribute specifies if the joint has limits. It interacts with the range attribute below. If this attribute
    is "false", joint limits are disabled. If this attribute is "true", joint limits are enabled. If this
    attribute is "auto", and :at:`autolimits` is set in :ref:`compiler <compiler>`, joint limits will be enabled
    if range is defined.
+
+.. _body-joint-solreflimit:
+
+.. _body-joint-solimplimit:
+
 :at:`solreflimit`, :at:`solimplimit`
    Constraint solver parameters for simulating joint limits. See :ref:`CSolver`.
+
+.. _body-joint-solreffriction:
+
+.. _body-joint-solimpfriction:
+
 :at:`solreffriction`, :at:`solimpfriction`
    Constraint solver parameters for simulating dry friction. See :ref:`CSolver`.
+
+.. _body-joint-stiffness:
+
 :at:`stiffness`: :at-val:`real, "0"`
    Joint stiffness. If this value is positive, a spring will be created with equilibrium position given by springref
    below. The spring force is computed along with the other passive forces.
+
+.. _body-joint-range:
+
 :at:`range`: :at-val:`real(2), "0 0"`
    The joint limits. Limits can be imposed on all joint types except for free joints. For hinge and ball joints, the
    range is specified in degrees or radians depending on the angle attribute of :ref:`compiler <compiler>`. For ball
@@ -1811,22 +2605,34 @@ unit quaternions.
    0. See the :ref:`Limit <coLimit>` section in the Computation chapter for more information.
    |br| Setting this attribute without specifying :at:`limited` is an error, unless :at:`autolimits` is set in
    :ref:`compiler <compiler>`.
+
+.. _body-joint-margin:
+
 :at:`margin`: :at-val:`real, "0"`
    The distance threshold below which limits become active. Recall that the :ref:`Constraint solver <Solver>` normally
    generates forces as soon as a constraint becomes active, even if the margin parameter makes that happen at a
    distance. This attribute together with solreflimit and solimplimit can be used to model a soft joint limit.
+
+.. _body-joint-ref:
+
 :at:`ref`: :at-val:`real, "0"`
    The reference position or angle of the joint. This attribute is only used for slide and hinge joints. It defines the
    joint value corresponding to the initial model configuration. The amount of spatial transformation that the joint
    applies at runtime equals the current joint value stored in mjData.qpos minus this reference value stored in
    mjModel.qpos0. The meaning of these vectors was discussed in the :ref:`Stand-alone <Standalone>` section in
    the Overview chapter.
+
+.. _body-joint-springref:
+
 :at:`springref`: :at-val:`real, "0"`
    The joint position or angle in which the joint spring (if any) achieves equilibrium. Similar to the vector
    mjModel.qpos0 which stores all joint reference values specified with the ref attribute above, all spring reference
    values specified with this attribute are stored in the vector mjModel.qpos_spring. The model configuration
    corresponding to mjModel.qpos_spring is also used to compute the spring reference lengths of all tendons, stored in
    mjModel.tendon_lengthspring. This is because :ref:`tendons <tendon>` can also have springs.
+
+.. _body-joint-armature:
+
 :at:`armature`: :at-val:`real, "0"`
    Armature inertia (or rotor inertia, or reflected inertia) of all degrees of freedom created by this joint. These are
    constants added to the diagonal of the inertia matrix in generalized coordinates. They make the simulation more
@@ -1835,17 +2641,27 @@ unit quaternions.
    amplified by c*c. The same holds for gears in the early stages of planetary gear boxes. These extra inertias often
    dominate the inertias of the robot parts that are represented explicitly in the model, and the armature attribute is
    the way to model them.
+
+.. _body-joint-damping:
+
 :at:`damping`: :at-val:`real, "0"`
    Damping applied to all degrees of freedom created by this joint. Unlike friction loss which is computed by the
    constraint solver, damping is simply a force linear in velocity. It is included in the passive forces. Despite this
    simplicity, larger damping values can make numerical integrators unstable, which is why our Euler integrator handles
    damping implicitly. See :ref:`Integration <geIntegration>` in the Computation chapter.
+
+.. _body-joint-frictionloss:
+
 :at:`frictionloss`: :at-val:`real, "0"`
    Friction loss due to dry friction. This value is the same for all degrees of freedom created by this joint.
    Semantically friction loss does not make sense for free joints, but the compiler allows it. To enable friction loss,
    set this attribute to a positive value.
+
+.. _body-joint-user:
+
 :at:`user`: :at-val:`real(njnt_user), "0 0 ..."`
    See :ref:`CUser`.
+
 
 .. _body-freejoint:
 
@@ -1864,11 +2680,18 @@ affect it. This is usually undesirable as physical free bodies do not have nonze
 armature. To avoid this complication, the :el:`freejoint` element was introduced, ensuring joint defaults are *not
 inherited*. If the XML model is saved, it will appear as a regular joint of type :at:`free`.
 
+
+.. _body-freejoint-name:
+
 :at:`name`: :at-val:`string, optional`
    Name of the joint.
+
+.. _body-freejoint-group:
+
 :at:`group`: :at-val:`int, "0"`
    Integer group to which the joint belongs. This attribute can be used for custom tags. It is also used by the
    visualizer to enable and disable the rendering of entire groups of joints.
+
 
 .. _body-geom:
 
@@ -1889,10 +2712,18 @@ joints. Such a model can even be visualized, using equivalent inertia boxes to r
 would be missing from such a simulation. We do not recommend using such models, but knowing that this is possible
 helps clarify the role of bodies and geoms in MuJoCo.
 
+.. _body-geom-name:
+
 :at:`name`: :at-val:`string, optional`
    Name of the geom.
+
+.. _body-geom-class:
+
 :at:`class`: :at-val:`string, optional`
    Defaults class for setting unspecified attributes.
+
+.. _body-geom-type:
+
 :at:`type`: :at-val:`[plane, hfield, sphere, capsule, ellipsoid, cylinder, box, mesh], "sphere"`
    Type of geometric shape. The keywords have the following meaning: The **plane** type defines a plane which is
    infinite for collision detection purposes. It can only be attached to the world body or static children of the world.
@@ -1955,13 +2786,22 @@ helps clarify the role of bodies and geoms in MuJoCo.
    orientation of mesh geoms after compilation do not equal the settings of the corresponding attributes here. Instead
    they are offset by the translation and rotation that were needed to center and align the mesh asset in its own
    coordinate frame. Recall the discussion of centering and alignment in the :ref:`mesh <asset-mesh>` element.
+
+.. _body-geom-contype:
+
 :at:`contype`: :at-val:`int, "1"`
    This attribute and the next specify 32-bit integer bitmasks used for contact filtering of dynamically generated
    contact pairs. See :ref:`Collision` in the Computation chapter. Two geoms can collide if the contype of one geom
    is compatible with the conaffinity of the other geom or vice versa. Compatible means that the two bitmasks have
    a common bit set to 1.
+
+.. _body-geom-conaffinity:
+
 :at:`conaffinity`: :at-val:`int, "1"`
    Bitmask for contact filtering; see contype above.
+
+.. _body-geom-condim:
+
 :at:`condim`: :at-val:`int, "3"`
    The dimensionality of the contact space for a dynamically generated contact pair is set to the maximum of the condim
    values of the two participating geoms. See :ref:`coContact` in the Computation chapter. The allowed values and their
@@ -1981,14 +2821,23 @@ helps clarify the role of bodies and geoms in MuJoCo.
    |        | around the two axes of the tangent plane. The latter frictional effects are useful for preventing        |
    |        | objects from indefinite rolling.                                                                         |
    +--------+----------------------------------------------------------------------------------------------------------+
+
+.. _body-geom-group:
+
 :at:`group`: :at-val:`int, "0"`
    This attribute specifies an integer group to which the geom belongs. The only effect on the physics is at compile
    time, when body masses and inertias are inferred from geoms selected based on their group; see inertiagrouprange
    attribute of :ref:`compiler <compiler>`. At runtime this attribute is used by the visualizer to enable and disable
    the rendering of entire geom groups. It can also be used as a tag for custom computations.
+
+.. _body-geom-priority:
+
 :at:`priority`: :at-val:`int, "0"`
    The geom priority determines how the properties of two colliding geoms are combined to form the properties of the
    contact. This interacts with the solmix attribute. See :ref:`CContact`.
+
+.. _body-geom-size:
+
 :at:`size`: :at-val:`real(3), "0 0 0"`
    Geom size parameters. The number of required parameters and their meaning depends on the geom type as documented
    under the type attribute. Here we only provide a summary. All required size parameters must be positive; the internal
@@ -2020,6 +2869,8 @@ helps clarify the role of bodies and geoms in MuJoCo.
    | mesh    | 0      | The geom sizes are ignored and the mesh sizes are used instead.                                |
    +---------+--------+------------------------------------------------------------------------------------------------+
 
+.. _body-geom-material:
+
 :at:`material`: :at-val:`string, optional`
    If specified, this attribute applies a material to the geom. The material determines the visual properties of the
    geom. The only exception is color: if the rgba attribute below is different from its internal default, it takes
@@ -2028,44 +2879,74 @@ helps clarify the role of bodies and geoms in MuJoCo.
    changes will take effect immediately for all model elements referencing the material. This is because the compiler
    saves the material and its properties as a separate element in mjModel, and the elements using this material only
    keep a reference to it.
+
+.. _body-geom-rgba:
+
 :at:`rgba`: :at-val:`real(4), "0.5 0.5 0.5 1"`
    Instead of creating material assets and referencing them, this attribute can be used to set color and transparency
    only. This is not as flexible as the material mechanism, but is more convenient and is often sufficient. If the value
    of this attribute is different from the internal default, it takes precedence over the material.
+
+.. _body-geom-friction:
+
 :at:`friction`: :at-val:`real(3), "1 0.005 0.0001"`
    Contact friction parameters for dynamically generated contact pairs. The first number is the sliding friction, acting
    along both axes of the tangent plane. The second number is the torsional friction, acting around the contact normal.
    The third number is the rolling friction, acting around both axes of the tangent plane. The friction parameters for
    the contact pair are combined depending on the solmix and priority attributes, as explained in :ref:`Contact
    parameters <CContact>`.
+
+.. _body-geom-mass:
+
 :at:`mass`: :at-val:`real, optional`
    If this attribute is specified, the density attribute below is ignored and the geom density is computed from the
    given mass, using the geom shape and the assumption of uniform density. The computed density is then used to obtain
    the geom inertia. Recall that the geom mass and inertia are only used during compilation, to infer the body mass and
    inertia if necessary. At runtime only the body inertial properties affect the simulation; the geom mass and inertia
    are not even saved in mjModel.
+
+.. _body-geom-density:
+
 :at:`density`: :at-val:`real, "1000"`
    Material density used to compute the geom mass and inertia. The computation is based on the geom shape and the
    assumption of uniform density. The internal default of 1000 is the density of water in SI units. This attribute is
    used only when the mass attribute above is unspecified.
+
+.. _body-geom-shellinertia:
+
 :at:`shellinertia` :at-val:`[false, true], "false"`
    If true, the geom's inertia is computed assuming that all the mass is concentrated on the boundary. In this case
    :at:`density` is interpreted as surface density rather than volumetric density.
+
+.. _body-geom-solmix:
+
 :at:`solmix`: :at-val:`real, "1"`
    This attribute specifies the weight used for averaging of contact parameters, and interacts with the priority
    attribute. See :ref:`CContact`.
+
+.. _body-geom-solref:
+
 :at:`solref`, :at:`solimp`
    Constraint solver parameters for contact simulation. See :ref:`CSolver`.
+
+.. _body-geom-margin:
+
 :at:`margin`: :at-val:`real, "0"`
    Distance threshold below which contacts are detected and included in the global array mjData.contact. This however
    does not mean that contact force will be generated. A contact is considered active only if the distance between the
    two geom surfaces is below margin-gap. Recall that constraint impedance can be a function of distance, as explained
    in :ref:`CSolver`. The quantity this function is applied to is the distance between
    the two geoms minus the margin plus the gap.
+
+.. _body-geom-gap:
+
 :at:`gap`: :at-val:`real, "0"`
    This attribute is used to enable the generation of inactive contacts, i.e., contacts that are ignored by the
    constraint solver but are included in mjData.contact for the purpose of custom computations. When this value is
    positive, geom distances between margin and margin-gap correspond to such inactive contacts.
+
+.. _body-geom-fromto:
+
 :at:`fromto`: :at-val:`real(6), optional`
    This attribute can only be used with capsule, cylinder, ellipsoid and box geoms. It provides an alternative
    specification of the geom length as well as the frame position and orientation. The six numbers are the 3D
@@ -2074,14 +2955,34 @@ helps clarify the role of bodies and geoms in MuJoCo.
    orientation is obtained with the same procedure as the zaxis attribute described in :ref:`Frame orientations
    <COrientation>`. The frame position is in the middle between the two points. If this attribute is specified, the
    remaining position and orientation-related attributes are ignored.
+
+.. _body-geom-pos:
+
 :at:`pos`: :at-val:`real(3), "0 0 0"`
    Position of the geom frame, in local or global coordinates as determined by the coordinate attribute of
    :ref:`compiler <compiler>`.
+
+.. _body-geom-quat:
+
+.. _body-geom-axisangle:
+
+.. _body-geom-xyaxes:
+
+.. _body-geom-zaxis:
+
+.. _body-geom-euler:
+
 :at:`quat`, :at:`axisangle`, :at:`xyaxes`, :at:`zaxis`, :at:`euler`
    Orientation of the geom frame. See :ref:`COrientation`.
+
+.. _body-geom-hfield:
+
 :at:`hfield`: :at-val:`string, optional`
    This attribute must be specified if and only if the geom type is "hfield". It references the height field asset to be
    instantiated at the position and orientation of the geom frame.
+
+.. _body-geom-mesh:
+
 :at:`mesh`: :at-val:`string, optional`
    If the geom type is "mesh", this attribute is required. It references the mesh asset to be instantiated. This
    attribute can also be specified if the geom type corresponds to a geometric primitive, namely one of "sphere",
@@ -2091,13 +2992,22 @@ helps clarify the role of bodies and geoms in MuJoCo.
    usually what one would expect, but if not, it can be further adjusted with the fitscale attribute below. In the
    compiled mjModel the geom is represented as a regular geom of the specified primitive type, and there is no reference
    to the mesh used for fitting.
+
+.. _body-geom-fitscale:
+
 :at:`fitscale`: :at-val:`real, "1"`
    This attribute is used only when a primitive geometric type is being fitted to a mesh asset. The scale specified here
    is relative to the output of the automated fitting procedure. The default value of 1 leaves the result unchanged, a
    value of 2 makes all sizes of the fitted geom two times larger.
+
+.. _body-geom-fluidshape:
+
 :at:`fluidshape`: :at-val:`[none, ellipsoid], "none"`
    "ellipsoid" Activates geom-level stateless fluid interaction model based on an ellipsoidal approximation of the geom
    shape. When active, the model based on :ref:`body inertia sizes <gePassive>` is disabled for the parent body.
+
+.. _body-geom-fluidcoef:
+
 :at:`fluidcoef`: :at-val:`real(5), "0.5 0.25 1.5 1.0 1.0"`
    Dimensionless coefficients of fluid interaction model, as follows.
 
@@ -2119,8 +3029,11 @@ helps clarify the role of bodies and geoms in MuJoCo.
    | 4      | Magnus lift coeficient.     | 1.0      |
    +--------+-----------------------------+----------+
 
+.. _body-geom-user:
+
 :at:`user`: :at-val:`real(nuser_geom), "0 0 ..."`
    See :ref:`CUser`.
+
 
 .. _body-site:
 
@@ -2134,23 +3047,47 @@ and inertias. The geometric shapes that can be used to render sites are limited 
 However sites can be used in some places where geoms are not allowed: mounting sensors, specifying via-points of spatial
 tendons, constructing slider-crank transmissions for actuators.
 
+
+.. _body-site-name:
+
 :at:`name`: :at-val:`string, optional`
    Name of the site.
+
+.. _body-site-class:
+
 :at:`class`: :at-val:`string, optional`
    Defaults class for setting unspecified attributes.
+
+.. _body-site-type:
+
 :at:`type`: :at-val:`[sphere, capsule, ellipsoid, cylinder, box], "sphere"`
    Type of geometric shape. This is used for rendering, and also determines the active sensor zone for :ref:`touch
    sensors <sensor-touch>`.
+
+.. _body-site-group:
+
 :at:`group`: :at-val:`int, "0"`
    Integer group to which the site belongs. This attribute can be used for custom tags. It is also used by the
    visualizer to enable and disable the rendering of entire groups of sites.
+
+.. _body-site-material:
+
 :at:`material`: :at-val:`string, optional`
    Material used to specify the visual properties of the site.
+
+.. _body-site-rgba:
+
 :at:`rgba`: :at-val:`real(4), "0.5 0.5 0.5 1"`
    Color and transparency. If this value is different from the internal default, it overrides the corresponding material
    properties.
+
+.. _body-site-size:
+
 :at:`size`: :at-val:`real(3), "0.005 0.005 0.005"`
    Sizes of the geometric shape representing the site.
+
+.. _body-site-fromto:
+
 :at:`fromto`: :at-val:`real(6), optional`
    This attribute can only be used with capsule, cylinder, ellipsoid and box sites. It provides an alternative
    specification of the site length as well as the frame position and orientation. The six numbers are the 3D
@@ -2159,12 +3096,30 @@ tendons, constructing slider-crank transmissions for actuators.
    orientation is obtained with the same procedure as the zaxis attribute described in :ref:`Frame orientations
    <COrientation>`. The frame position is in the middle between the two points. If this attribute is specified, the
    remaining position and orientation-related attributes are ignored.
+
+.. _body-site-pos:
+
 :at:`pos`: :at-val:`real(3), "0 0 0"`
    Position of the site frame.
+
+.. _body-site-quat:
+
+.. _body-site-axisangle:
+
+.. _body-site-xyaxes:
+
+.. _body-site-zaxis:
+
+.. _body-site-euler:
+
 :at:`quat`, :at:`axisangle`, :at:`xyaxes`, :at:`zaxis`, :at:`euler`
    Orientation of the site frame. See :ref:`COrientation`.
+
+.. _body-site-user:
+
 :at:`user`: :at-val:`real(nuser_site), "0 0 ..."`
    See :ref:`CUser`.
+
 
 .. _body-camera:
 
@@ -2180,10 +3135,19 @@ free camera) have a viewpoint that is always centered in front of the projection
 the center of the camera frame. The camera is looking along the -Z axis of its frame. The +X axis points to the right,
 and the +Y axis points up. Thus the frame position and orientation are the key adjustments that need to be made here.
 
+
+.. _body-camera-name:
+
 :at:`name`: :at-val:`string, optional`
    Name of the camera.
+
+.. _body-camera-class:
+
 :at:`class`: :at-val:`string, optional`
    Defaults class for setting unspecified attributes.
+
+.. _body-camera-mode:
+
 :at:`mode`: :at-val:`[fixed, track, trackcom, targetbody, targetbodycom], "fixed"`
    This attribute specifies how the camera position and orientation in world coordinates are computed in forward
    kinematics (which in turn determine what the camera sees). "fixed" means that the position and orientation specified
@@ -2200,22 +3164,49 @@ and the +Y axis points up. Thus the frame position and orientation are the key a
    attribute below). This can be used for example to model an eye that fixates a moving object; the object will be the
    target, and the camera/eye will be defined in the body corresponding to the head. "targetbodycom" is the same as
    "targetbody" but the camera is oriented towards the center of mass of the subtree starting at the target body.
+
+.. _body-camera-target:
+
 :at:`target`: :at-val:`string, optional`
    When the camera mode is "targetbody" or "targetbodycom", this attribute becomes required. It specifies which body
    should be targeted by the camera. In all other modes this attribute is ignored.
+
+.. _body-camera-fovy:
+
 :at:`fovy`: :at-val:`real, "45"`
    Vertical field of view of the camera, expressed in degrees regardless of the global angle setting. The horizontal
    field of view is computed automatically given the window size and the vertical field of view.
+
+.. _body-camera-ipd:
+
 :at:`ipd`: :at-val:`real, "0.068"`
    Inter-pupilary distance. This attribute only has an effect during stereoscopic rendering. It specifies the distance
    between the left and right viewpoints. Each viewpoint is shifted by +/- half of the distance specified here, along
    the X axis of the camera frame.
+
+.. _body-camera-pos:
+
 :at:`pos`: :at-val:`real(3), "0 0 0"`
    Position of the camera frame.
+
+.. _body-camera-quat:
+
+.. _body-camera-axisangle:
+
+.. _body-camera-xyaxes:
+
+.. _body-camera-zaxis:
+
+.. _body-camera-euler:
+
 :at:`quat`, :at:`axisangle`, :at:`xyaxes`, :at:`zaxis`, :at:`euler`
    Orientation of the camera frame. See :ref:`COrientation`.
+
+.. _body-camera-user:
+
 :at:`user`: :at-val:`real(nuser_cam), "0 0 ..."`
    See :ref:`CUser`.
+
 
 .. _body-light:
 
@@ -2229,19 +3220,37 @@ augmented with shadow mapping. The effects of lights are additive, thus adding a
 The maximum number of lights that can be active simultaneously is 8, counting the headlight. The light is shining along
 the direction specified by the dir attribute. It does not have a full spatial frame with three orthogonal axes.
 
+
+.. _body-light-name:
+
 :at:`name`: :at-val:`string, optional`
    Name of the light.
+
+.. _body-light-class:
+
 :at:`class`: :at-val:`string, optional`
    Defaults class for setting unspecified attributes.
+
+.. _body-light-mode:
+
 :at:`mode`: :at-val:`[fixed, track, trackcom, targetbody, targetbodycom], "fixed"`
    This is identical to the mode attribute of :ref:`camera <body-camera>` above. It specifies the how the light position
    and orientation in world coordinates are computed in forward kinematics (which in turn determine what the light
    illuminates).
+
+.. _body-light-target:
+
 :at:`target`: :at-val:`string, optional`
    This is identical to the target attribute of :ref:`camera <body-camera>` above. It specifies which body should be
    targeted in "targetbody" and "targetbodycom" modes.
+
+.. _body-light-directional:
+
 :at:`directional`: :at-val:`[false, true], "false"`
    The light is directional if this attribute is "true", otherwise it is a spotlight.
+
+.. _body-light-castshadow:
+
 :at:`castshadow`: :at-val:`[false, true], "true"`
    If this attribute is "true" the light will cast shadows. More precisely, the geoms illuminated by the light will cast
    shadows, however this is a property of lights rather than geoms. Since each shadow-casting light causes one extra
@@ -2257,26 +3266,54 @@ the direction specified by the dir attribute. It does not have a full spatial fr
    to create shadows. The internal rendering pass uses the same near and far clipping planes as regular rendering, i.e.,
    these clipping planes bound the cone or box shadow volume in the light direction. As a result, some shadows
    (especially those very close to the light) may be clipped.
+
+.. _body-light-active:
+
 :at:`active`: :at-val:`[false, true], "true"`
    The light is active if this attribute is "true". This can be used at runtime to turn lights on and off.
+
+.. _body-light-pos:
+
 :at:`pos`: :at-val:`real(3), "0 0 0"`
    Position of the light. This attribute only affects the rendering for spotlights, but it should also be defined for
    directional lights because we render the cameras as decorative elements.
+
+.. _body-light-dir:
+
 :at:`dir`: :at-val:`real(3), "0 0 -1"`
    Direction of the light.
+
+.. _body-light-attenuation:
+
 :at:`attenuation`: :at-val:`real(3), "1 0 0"`
    These are the constant, linear and quadratic attenuation coefficients in OpenGL. The default corresponds to no
    attenuation. See the OpenGL documentation for more information on this and all other OpenGL-related properties.
+
+.. _body-light-cutoff:
+
 :at:`cutoff`: :at-val:`real, "45"`
    Cutoff angle for spotlights, always in degrees regardless of the global angle setting.
+
+.. _body-light-exponent:
+
 :at:`exponent`: :at-val:`real, "10"`
    Exponent for spotlights. This setting controls the softness of the spotlight cutoff.
+
+.. _body-light-ambient:
+
 :at:`ambient`: :at-val:`real(3), "0 0 0"`
    The ambient color of the light.
+
+.. _body-light-diffuse:
+
 :at:`diffuse`: :at-val:`real(3), "0.7 0.7 0.7"`
    The diffuse color of the light.
+
+.. _body-light-specular:
+
 :at:`specular`: :at-val:`real(3), "0.3 0.3 0.3"`
    The specular color of the light.
+
 
 .. _body-composite:
 
@@ -2293,10 +3330,15 @@ the parent body has a childclass attribute defined. Instead there are internal d
 composite object type. Composite objects can only be defined if the model is in local coordinates. Using them in global
 coordinates results in compiler error. See :ref:`CComposite` in the modeling guide for more detailed explanation.
 
+.. body-composite-prefix:
+
 :at:`prefix`: :at-val:`string, optional`
    All automatically generated model elements have names indicating the element type and index. For example, the body at
    coordinates (2, 0) in a 2D grid is named "B2_0" by default. If prefix="C" is specified, the same body is named
    "CB2_0". The prefix is needed when multiple composite objects are used in the same model, to avoid name conflicts.
+
+.. body-composite-type:
+
 :at:`type`: :at-val:`[particle, grid, cable, rope, loop, cloth, box, cylinder, ellipsoid], required`
    This attribute determines the type of composite object. The remaining attributes and sub-elements are then
    interpreted according to the type. Default settings are also adjusted depending on the type.
@@ -2362,6 +3404,9 @@ coordinates results in compiler error. See :ref:`CComposite` in the modeling gui
    The **cylinder** and **ellipsoid** types are the same as box, except the elements are projected on the surface of an
    ellipsoid or a cylinder respectively. Thus the composite soft body shape is different, while everything else is the
    same as in the box type.
+
+.. _body-composite-count:
+
 :at:`count`: :at-val:`int(3), required`
    The element count in each dimension of the grid. This can have 1, 2 or 3 numbers, specifying the element count along
    the X, Y and Z axis of the parent body frame within. Any missing numbers default to 1. If any of these numbers is 1,
@@ -2369,14 +3414,23 @@ coordinates results in compiler error. See :ref:`CComposite` in the modeling gui
    that a 1D grid will always extend along the X axis. To achieve a different orientation, rotate the frame of the
    parent body. Note that some types imply a grid of certain dimensionality, so the requirements for this attribute
    depend on the specified type.
+
+.. _body-composite-spacing:
+
 :at:`spacing`: :at-val:`real, required`
    The spacing between the centers of the grid elements. This spacing is the same in all dimensions. It should normally
    be set to a value larger than the geom size, otherwise there will be a lot of contacts in the reference model
    configuration (which is allowed but rarely desirable).
+
+.. _body-composite-offset:
+
 :at:`offset`: :at-val:`real(3), "0 0 0"`
    This attribute affects particle and grid types, and is ignored for all other types. It specifies a 3D offset from the
    center of the parent body to the center of the grid of elements. The offset is expressed in the local coordinate
    frame of the parent body.
+
+.. _body-composite-flatinertia:
+
 :at:`flatinertia`: :at-val:`real, "0"`
    This attribute affects the cloth type and is ignored for all other types. The default value 0 disables this
    mechanism. When the value is positive, it specifies the ratio of the small-to-large axes of the modified diagonal
@@ -2384,21 +3438,39 @@ coordinates results in compiler error. See :ref:`CComposite` in the modeling gui
    corresponds to flat boxes aligned with the cloth (which can then be used for lift forces). This will not change the
    geom shapes, but instead will set the body inertias directly and disable the automatic computation of inertia from
    geom shape for the composite body only.
+
+.. _body-composite-solrefsmooth:
+
+.. _body-composite-solimpsmooth:
+
 :at:`solrefsmooth`, :at:`solimpsmooth`
    These are the solref and solimp attributes of the loop-closure equality constraint for loop types, and the
    smoothness-preserving equality constraint for box, cylinder and ellipsoid types. For all other types they have no
    effect. They obey the same rules as all other solref and solimp attributes in MJCF, except their defaults here are
    adjusted depending on the composite type. See :ref:`CSolver`.
+
+.. _body-composite-vertex:
+
 :at:`vertex`: :at-val:`real(3*nvert), optional`
    Vertex 3D positions in global coordinates (cable only).
+
+.. _body-composite-initial:
+
 :at:`initial`: :at-val:`[free, ball, none], "0"`
    Behavior of the first point (cable only). Free: free joint. Ball: ball joint. None: no dof.
+
+.. _body-composite-curve:
+
 :at:`curve`: :at-val:`string(3), optional`
    Functions specifying the vertex positions (cable only). Available functions are `s`, `cos(s)`, and `sin(s)`, where
    `s` is the arc length parameter.
+
+.. _body-composite-size:
+
 :at:`size`: :at-val:`int(3), optional`
    Scaling of the curve functions (cable only). `size[0]` is the scaling of `s`, `size[1]` is the radius of `\cos(s)`
    and `\sin(s)`, and `size[2]` is the speed of the argument (i.e. `\cos(2*\pi*size[2]*s)`).
+
 
 .. _composite-joint:
 
@@ -2408,6 +3480,8 @@ coordinates results in compiler error. See :ref:`CComposite` in the modeling gui
 Depending on the composite type, some joints are created automatically (e.g. the universal joints in rope) while other
 joints are optional (e.g. the stretch and twist joints in rope). This sub-element is used to specify which optional
 joints should be created, as well as to adjust the attributes of both automatic and optional joints.
+
+.. _composite-joint-kind:
 
 :at:`kind`: :at-val:`[main, twist, stretch, particle], required`
    The joint kind here is orthogonal to the joint type in the rest of MJCF. The joint kind refers to the function of the
@@ -2430,6 +3504,11 @@ joints should be created, as well as to adjust the attributes of both automatic 
    The **particle** kind can only be used with the particle composite type. As opposed to all previous kinds, this kind
    *replaces* the default 3 sliders with user-defined joints. User-defined joints can be repeated, for example
    to create planar particles with two sliders and a hinge.
+
+.. _composite-joint-solreffix:
+
+.. _composite-joint-solimpfix:
+
 :at:`solreffix`, :at:`solimpfix`
    These are the solref and solimp attributes used to equality-constrain the joint. Whether or not a given joint is
    quality-constrained depends on the joint kind and composite object type as explained above. For joints that are not
@@ -2437,12 +3516,39 @@ joints should be created, as well as to adjust the attributes of both automatic 
    Otherwise these attributes obey the same rules as all other solref and solimp attributes in MJCF. See :ref:`Solver
    parameters <CSolver>`.
 
+.. _composite-joint-group:
+
+.. _composite-joint-stiffness:
+
+.. _composite-joint-damping:
+
+.. _composite-joint-armature:
+
+.. _composite-joint-limited:
+
+.. _composite-joint-range:
+
+.. _composite-joint-margin:
+
+.. _composite-joint-solreflimit:
+
+.. _composite-joint-solimplimit:
+
+.. _composite-joint-frictionloss:
+
+.. _composite-joint-solreffriction:
+
+.. _composite-joint-solimpfriction:
+
+.. _composite-joint-type:
+
 .. |body/composite/joint attrib list| replace::
    :at:`group`, :at:`stiffness`, :at:`damping`, :at:`armature`, :at:`limited`, :at:`range`, :at:`margin`,
    :at:`solreflimit`, :at:`solimplimit`, :at:`frictionloss`, :at:`solreffriction`, :at:`solimpfriction`, :at:`type`
 
 |body/composite/joint attrib list|
    Same meaning as regular :ref:`joint <body-joint>` attributes.
+
 
 .. _composite-tendon:
 
@@ -2454,6 +3560,8 @@ body type imply the tendon type as used in the rest of MJCF. This sub-element is
 and adjust the attributes of automatic and optional tendons. One difference from joints is that all tendons used in
 composite objects are equality-constrained.
 
+.. _composite-tendon-kind:
+
 :at:`kind`: :at-val:`[main, shear], required`
    The **main** kind corresponds to tendons holding the composite body together. These are the spatial tendons that
    connect neighboring bodies in grid and cloth, and the fixed tendon used to preserve the volume of box, cylinder and
@@ -2462,10 +3570,43 @@ composite objects are equality-constrained.
    The **shear** kind corresponds to diagonal tendons that prevent shear (as opposed to enabling - which is the function
    of optional joints). Such tendons can be created in 2D grid objects and cloth objects. For all other composite object
    types this sub-element has no effect.
+
+.. _composite-tendon-solreffix:
+
+.. _composite-tendon-solimpfix:
+
 :at:`solreffix`, :at:`solimpfix`
    These are the solref and solimp attributes used to equality-constrain the tendon. The defaults are adjusted depending
    on the composite type. Otherwise these attributes obey the same rules as all other solref and solimp attributes in
    MJCF. See :ref:`CSolver`.
+
+.. _composite-tendon-group:
+
+.. _composite-tendon-stiffness:
+
+.. _composite-tendon-damping:
+
+.. _composite-tendon-limited:
+
+.. _composite-tendon-range:
+
+.. _composite-tendon-margin:
+
+.. _composite-tendon-solreflimit:
+
+.. _composite-tendon-solimplimit:
+
+.. _composite-tendon-frictionloss:
+
+.. _composite-tendon-solreffriction:
+
+.. _composite-tendon-solimpfriction:
+
+.. _composite-tendon-material:
+
+.. _composite-tendon-rgba:
+
+.. _composite-tendon-width:
 
 .. |body/composite/tendon attrib list| replace::
    :at:`group`, :at:`stiffness`, :at:`damping`, :at:`limited`, :at:`range`, :at:`margin`, :at:`solreflimit`,
@@ -2474,6 +3615,7 @@ composite objects are equality-constrained.
 
 |body/composite/tendon attrib list|
    Same meaning as regular :ref:`tendon <tendon>` attributes.
+
 
 .. _composite-geom:
 
@@ -2485,6 +3627,40 @@ the rest of MJCF (except that user-defined defaults have no effect here). Note t
 only once, unlike joint and tendon sub-elements which can appear multiple times. This is because different kinds of
 joints and tendons have different sets of attributes, while all geoms in the composite object are identical.
 
+.. _composite-geom-type:
+
+.. _composite-geom-contype:
+
+.. _composite-geom-conaffinity:
+
+.. _composite-geom-condim:
+
+.. _composite-geom-group:
+
+.. _composite-geom-priority:
+
+.. _composite-geom-size:
+
+.. _composite-geom-material:
+
+.. _composite-geom-rgba:
+
+.. _composite-geom-friction:
+
+.. _composite-geom-mass:
+
+.. _composite-geom-density:
+
+.. _composite-geom-solmix:
+
+.. _composite-geom-solref:
+
+.. _composite-geom-solimp:
+
+.. _composite-geom-margin:
+
+.. _composite-geom-gap:
+
 .. |body/composite/geom attrib list| replace::
    :at:`type`, :at:`contype`, :at:`conaffinity`, :at:`condim`, :at:`group`, :at:`priority`, :at:`size`, :at:`material`,
    :at:`rgba`, :at:`friction`, :at:`mass`, :at:`density`, :at:`solmix`, :at:`solref`, :at:`solimp`, :at:`margin`,
@@ -2493,6 +3669,7 @@ joints and tendons have different sets of attributes, while all geoms in the com
 |body/composite/geom attrib list|
    Same meaning as regular :ref:`geom <body-geom>` attributes.
 
+
 .. _composite-site:
 
 :el-prefix:`composite/` |j| **site** (?)
@@ -2500,8 +3677,17 @@ joints and tendons have different sets of attributes, while all geoms in the com
 
 This sub-element adjusts the attributes of the sites in the composite object. Otherwise it is the same as geom above.
 
+.. _composite-site-group:
+
+.. _composite-site-size:
+
+.. _composite-site-material:
+
+.. _composite-site-rgba:
+
 :at:`group`, :at:`size`, :at:`material`, :at:`rgba`
    Same meaning as regular :ref:`site <body-site>` attributes.
+
 
 .. _composite-skin:
 
@@ -2514,14 +3700,24 @@ it has no effect. Note that the skin created here is equivalent to a skin specif
 skin loaded from file. So if the model is saved as XML, it will contain a large section describing the
 automatically-generated skin.
 
+.. _composite-skin-texcoord:
+
 :at:`texcoord`: :at-val:`[false, true], "false"`
    If this is true, explicit texture coordinates will be generated, mapping the skin to the unit square in texture
    space. This is needed when the material specifies a texture. If texcoord is false and the skin has texture, the
    texture will appear fixed to the world instead of the skin. The reason for having this attribute in the first place
    is because skins with texture coordinates upload these coordinates to the GPU even if no texture is applied later. So
    this attribute should be set to false in cases where no texture will be applied via the material attribute.
+
+.. _composite-skin-material:
+
+.. _composite-skin-rgba:
+
 :at:`material`, :at:`rgba`
    Same meaning as in :ref:`geom <body-geom>`.
+
+.. _composite-skin-inflate:
+
 :at:`inflate`: :at-val:`real, "0"`
    The default value of 0 means that the automatically-generated skin passes through the centers of the body elements
    comprising the composite object. Positive values offset each skin vertex by the specified amount, in the direction
@@ -2530,12 +3726,16 @@ automatically-generated skin.
    for 2D objects. Inflating the skin with a value equal to the geom size will render the skin as a "mattress" that
    better represents the actual collision geometry. The value of this attribute is copied into the corresponding
    attribute of the :el:`skin` asset being created.
+
+.. _composite-skin-subgrid:
+
 :at:`subgrid`: :at-val:`int, "0"`
    This is only applicable to cloth and 2D grid types, and has no effect for any other composite type. The default value
    of 0 means that the skin has as many vertices as the number of element bodies. A positive value causes subdivision,
    with the specified number of (additional) grid lines. In this case the model compiler generates a denser skin using
    bi-cubic interpolation. This increases the quality of the rendering (especially in the absence of textures) but also
    slows down the renderer, so use it with caution. Values above 3 are unlikely to be needed.
+
 
 .. _composite-pin:
 
@@ -2547,18 +3747,22 @@ corresponding body has no joints, and therefore it is rigidly fixed to the paren
 this has the effect of hanging a string or a cloth in space. If the parent body is moving, this can be used to model a
 handle where the composite object is attached. For other composite types this sub-element has no effect.
 
+.. _composite-pin-coord:
+
 :at:`coord`: :at-val:`int(2), required`
    The grid coordinates of the element body which should be pinned. The coordinates are zero-based. For 1D grids this
    attribute can have only one number, in which case the second number is automatically set to 0.
 
+
 .. _contact:
 
 **contact** (*)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~
 
 This is a grouping element and does not have any attributes. It groups elements that are used to adjust the generation
 of candidate contact pairs for collision checking. :ref:`Collision` was described in detail in the Computation chapter,
 thus the description here is brief.
+
 
 .. _contact-pair:
 
@@ -2571,32 +3775,61 @@ from the corresponding geom properties, the pairs created here specify all their
 defaults, and the properties of the individual geoms are not used. Anisotropic friction can only be created with this
 element.
 
+.. _contact-pair-name:
+
 :at:`name`: :at-val:`string, optional`
    Name of this contact pair.
+
+.. _contact-pair-class:
+
 :at:`class`: :at-val:`string, optional`
    Defaults class for setting unspecified attributes.
+
+.. _contact-pair-geom1:
+
 :at:`geom1`: :at-val:`string, required`
    The name of the first geom in the pair.
+
+.. _contact-pair-geom2:
+
 :at:`geom2`: :at-val:`string, required`
    The name of the second geom in the pair. The contact force vector computed by the solver and stored in
    mjData.efc_force points from the first towards the second geom by convention. The forces applied to the system are of
    course equal and opposite, so the order of geoms does not affect the physics.
+
+.. _contact-pair-condim:
+
 :at:`condim`: :at-val:`int, "3"`
    The dimensionality of the contacts generated by this geom pair.
+
+.. _contact-pair-friction:
+
 :at:`friction`: :at-val:`real(5), "1 1 0.005 0.0001 0.0001"`
    The friction coefficients of the contacts generated by this geom pair. Making the first two coefficients different
    results in anisotropic tangential friction. Making the last two coefficients different results in anisotropic rolling
    friction. The length of this array is not enforced by the parser, and can be smaller than 5. This is because some of
    the coefficients may not be used, depending on the contact dimensionality. Unspecified coefficients remain equal to
    their defaults.
+
+.. _contact-pair-solref:
+
+.. _contact-pair-solimp:
+
 :at:`solref`, :at:`solimp`
    Constraint solver parameters for contact simulation. See :ref:`CSolver`.
+
+.. _contact-pair-margin:
+
 :at:`margin`: :at-val:`real, "0"`
    Distance threshold below which contacts are detected and included in the global array mjData.contact.
+
+.. _contact-pair-gap:
+
 :at:`gap`: :at-val:`real, "0"`
    This attribute is used to enable the generation of inactive contacts, i.e., contacts that are ignored by the
    constraint solver but are included in mjData.contact for the purpose of custom computations. When this value is
    positive, geom distances between margin and margin-gap correspond to such inactive contacts.
+
 
 .. _contact-exclude:
 
@@ -2610,21 +3843,31 @@ The exclusion rules defined here are applied only when the collision attribute o
 or "dynamic". Setting this attribute to "predefined" disables the exclusion mechanism and the geom pairs defined with
 the :ref:`pair <contact-pair>` element above are checked for collisions.
 
+.. _contact-exclude-name:
+
 :at:`name`: :at-val:`string, optional`
    Name of this exclude pair.
+
+.. _contact-exclude-body1:
+
 :at:`body1`: :at-val:`string, required`
    The name of the first body in the pair.
+
+.. _contact-exclude-body2:
+
 :at:`body2`: :at-val:`string, required`
    The name of the second body in the pair.
+
 
 .. _equality:
 
 **equality** (*)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~
 
 This is a grouping element for equality constraints. It does not have attributes. See the :ref:`Equality <coEquality>`
 section of the Computation chapter for a detailed description of equality constraints. Several attributes are common to
 all equality constraint types, thus we document them only once, under the :ref:`connect <equality-connect>` element.
+
 
 .. _equality-connect:
 
@@ -2634,21 +3877,44 @@ all equality constraint types, thus we document them only once, under the :ref:`
 This element creates an equality constraint that connects two bodies at a point. The point is not necessarily within the
 geoms volumes of either body. This constraint can be used to define ball joints outside the kinematic tree.
 
+
+.. _equality-connect-name:
+
 :at:`name`: :at-val:`string, optional`
    Name of the equality constraint.
+
+.. _equality-connect-class:
+
 :at:`class`: :at-val:`string, optional`
    Defaults class for setting unspecified attributes.
+
+.. _equality-connect-active:
+
 :at:`active`: :at-val:`[false, true], "true"`
    If this attribute is set to "true", the constraint is active and the constraint solver will try to enforce it. The
    corresponding field in mjModel is mjData.eq_active. This field can be used at runtime to turn specific constraints on
    an off.
+
+.. _equality-connect-solref:
+
+.. _equality-connect-solimp:
+
 :at:`solref`, :at:`solimp`
    Constraint solver parameters for equality constraint simulation. See :ref:`CSolver`.
+
+.. _equality-connect-body1:
+
 :at:`body1`: :at-val:`string, required`
    Name of the first body participating in the constraint.
+
+.. _equality-connect-body2:
+
 :at:`body2`: :at-val:`string, optional`
    Name of the second body participating in the constraint. If this attribute is omitted, the second body is the world
    body.
+
+.. _equality-connect-anchor:
+
 :at:`anchor`: :at-val:`real(3), required`
    Coordinates of the 3D anchor point where the two bodies are connected. In the compiled mjModel the anchor is stored
    twice, relative to the local frame of each body. At runtime this yields two global points computed by forward
@@ -2658,6 +3924,7 @@ geoms volumes of either body. This constraint can be used to define ball joints 
    to compute the two body-relative anchor points in mjModel. If the MJCF model is in global coordinates, as determined
    by the coordinate attribute of :ref:`compiler <compiler>`, the anchor is specified in global coordinates. Otherwise
    the anchor is specified relative to the local coordinate frame of the *first* body.
+
 
 .. _equality-weld:
 
@@ -2670,28 +3937,54 @@ close to each other. The relative body position and orientation being enforced b
 which the model was defined. Note that two bodies can also be welded together rigidly, by defining one body as a child
 of the other body, without any joint elements in the child body.
 
+.. _equality-weld-name:
+
+.. _equality-weld-class:
+
+.. _equality-weld-active:
+
+.. _equality-weld-solref:
+
+.. _equality-weld-solimp:
+
 :at:`name`, :at:`class`, :at:`active`, :at:`solref`, :at:`solimp`
    Same as in :ref:`connect <equality-connect>` element.
+
+.. _equality-weld-body1:
+
 :at:`body1`: :at-val:`string, required`
    Name of the first body.
+
+.. _equality-weld-body2:
+
 :at:`body2`: :at-val:`string, optional`
    Name of the second body. If this attribute is omitted, the second body is the world body. Welding a body to the world
    and changing the corresponding component of mjModel.eq_active at runtime can be used to fix the body temporarily.
+
+.. _equality-weld-relpose:
+
 :at:`relpose`: :at-val:`real(7), "0 1 0 0 0 0 0"`
    This attribute specifies the relative pose (3D position followed by 4D quaternion orientation) of body2 relative to
    body1. If the quaternion part (i.e., last 4 components of the vector) are all zeros, as in the default setting, this
    attribute is ignored and the relative pose is the one corresponding to the model reference pose in qpos0. The unusual
    default is because all equality constraint types share the same default for their numeric parameters.
+
+.. _equality-weld-anchor:
+
 :at:`anchor`: :at-val:`real(3), "0 0 0"`
    Coordinates of the weld point relative to body2. If :at:`relpose` is not specified, the meaning of
    this parameter is the same as for connect constraints, except that is relative to body2. If :at:`relpose` is
    specified, body1 will use the pose to compute its anchor point.
+
+.. _equality-weld-torquescale:
+
 :at:`torquescale`: :at-val:`real, "1"`
    Relative torque-to-force ratio. This ratio is used by the weld to scale how much it "cares" about rotational
    displacements vs. translational displacements. Setting this value to 0 makes the :el:`weld` behave like a
    :el:`connect` constraint. Note that this value has units of length and can therefore be interpreted as follows.
    Imagining that the weld is implemented by a patch of glue sticking the two bodies together, :at:`torquescale` can be
    interpreted as the diameter of this glue patch.
+
 
 .. _equality-joint:
 
@@ -2701,17 +3994,38 @@ of the other body, without any joint elements in the child body.
 This element constrains the position or angle of one joint to be a quartic polynomial of another joint. Only scalar
 joint types (slide and hinge) can be used.
 
+
+.. _equality-joint-name:
+
+.. _equality-joint-class:
+
+.. _equality-joint-active:
+
+.. _equality-joint-solref:
+
+.. _equality-joint-solimp:
+
 :at:`name`, :at:`class`, :at:`active`, :at:`solref`, :at:`solimp`
    Same as in :ref:`connect <equality-connect>` element.
+
+.. _equality-joint-joint1:
+
 :at:`joint1`: :at-val:`string, required`
    Name of the first joint.
+
+.. _equality-joint-joint2:
+
 :at:`joint2`: :at-val:`string, optional`
    Name of the second joint. If this attribute is omitted, the first joint is fixed to a constant.
+
+.. _equality-joint-polycoef:
+
 :at:`polycoef`: :at-val:`real(5), "0 1 0 0 0"`
    Coefficients a0 ... a4 of the quartic polynomial. If the two joint values are y and x, and their reference positions
    (corresponding to the joint values in the initial model configuration) are y0 and x0, the constraint is:
    y-y0 = a0 + a1*(x-x0) + a2*(x-x0)^2 + a3*(x-x0)^3 + a4*(x-x0)^4
    Omitting the second joint is equivalent to setting x = x0, in which case the constraint is y = y0 + a0.
+
 
 .. _equality-tendon:
 
@@ -2720,15 +4034,36 @@ joint types (slide and hinge) can be used.
 
 This element constrains the length of one tendon to be a quartic polynomial of another tendon.
 
+
+.. _equality-tendon-name:
+
+.. _equality-tendon-class:
+
+.. _equality-tendon-active:
+
+.. _equality-tendon-solref:
+
+.. _equality-tendon-solimp:
+
 :at:`name`, :at:`class`, :at:`active`, :at:`solref`, :at:`solimp`
    Same as in :ref:`connect <equality-connect>` element.
+
+.. _equality-tendon-tendon1:
+
 :at:`tendon1`: :at-val:`string, required`
    Name of the first tendon.
+
+.. _equality-tendon-tendon2:
+
 :at:`tendon2`: :at-val:`string, optional`
    Name of the second tendon. If this attribute is omitted, the first tendon is fixed to a constant.
+
+.. _equality-tendon-polycoef:
+
 :at:`polycoef`: :at-val:`real(5), "0 1 0 0 0"`
    Same as in the equality/ :ref:`joint <equality-joint>` element above, but applied to tendon lengths instead of joint
    positions.
+
 
 .. _equality-distance:
 
@@ -2738,15 +4073,17 @@ This element constrains the length of one tendon to be a quartic polynomial of a
 Distance equality constraints were removed in MuJoCo version 2.2.2. If you are using an earlier version, please switch
 to the corresponding version of the documentation.
 
+
 .. _tendon:
 
 **tendon** (*)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~
 
 Grouping element for tendon definitions. The attributes of fixed tendons are a subset of the attributes of spatial
 tendons, thus we document them only once under spatial tendons. Tendons can be used to impose length limits, simulate
 spring, damping and dry friction forces, as well as attach actuators to them. When used in equality constraints, tendons
 can also represent different forms of mechanical coupling.
+
 
 .. _tendon-spatial:
 
@@ -2770,40 +4107,82 @@ the obstacle geom.
 
 `tendon.xml <_static/tendon.xml>`__
 
+.. _tendon-spatial-name:
+
 :at:`name`: :at-val:`string, optional`
    Name of the tendon.
+
+.. _tendon-spatial-class:
+
 :at:`class`: :at-val:`string, optional`
    Defaults class for setting unspecified attributes.
+
+.. _tendon-spatial-group:
+
 :at:`group`: :at-val:`int, "0"`
    Integer group to which the tendon belongs. This attribute can be used for custom tags. It is also used by the
    visualizer to enable and disable the rendering of entire groups of tendons.
+
+.. _tendon-spatial-limited:
+
 :at:`limited`: :at-val:`[false, true, auto], "auto"`
    If this attribute is "true", the length limits defined by the range attribute below are imposed by the constraint
    solver. If this attribute is "auto", and :at:`autolimits` is set in :ref:`compiler <compiler>`, length limits
    will be enabled if range is defined.
+
+.. _tendon-spatial-range:
+
 :at:`range`: :at-val:`real(2), "0 0"`
    Range of allowed tendon lengths. Setting this attribute without specifying :at:`limited` is an error, unless
    :at:`autolimits` is set in :ref:`compiler <compiler>`.
+
+.. _tendon-spatial-solreflimit:
+
+.. _tendon-spatial-solimplimit:
+
 :at:`solreflimit`, :at:`solimplimit`
    Constraint solver parameters for simulating tendon limits. See :ref:`CSolver`.
+
+.. _tendon-spatial-solreffriction:
+
+.. _tendon-spatial-solimpfriction:
+
 :at:`solreffriction`, :at:`solimpfriction`
    Constraint solver parameters for simulating dry friction in the tendon. See :ref:`CSolver`.
+
+.. _tendon-spatial-margin:
+
 :at:`margin`: :at-val:`real, "0"`
    The limit constraint becomes active when the absolute value of the difference between the tendon length and either
    limit of the specified range falls below this margin. Similar to contacts, the margin parameter is subtracted from
    the difference between the range limit and the tendon length. The resulting constraint distance is always negative
    when the constraint is active. This quantity is used to compute constraint impedance as a function of distance, as
    explained in :ref:`CSolver`.
+
+.. _tendon-spatial-frictionloss:
+
 :at:`frictionloss`: :at-val:`real, "0"`
    Friction loss caused by dry friction. To enable friction loss, set this attribute to a positive value.
+
+.. _tendon-spatial-width:
+
 :at:`width`: :at-val:`real, "0.003"`
    Radius of the cross-section area of the spatial tendon, used for rendering. Parts of the tendon that wrap around geom
    obstacles are rendered with reduced width.
+
+.. _tendon-spatial-material:
+
 :at:`material`: :at-val:`string, optional`
    Material used to set the appearance of the tendon.
+
+.. _tendon-spatial-rgba:
+
 :at:`rgba`: :at-val:`real(4), "0.5 0.5 0.5 1"`
    Color and transparency of the tendon. When this value is different from the internal default, it overrides the
    corresponding material properties.
+
+.. _tendon-spatial-springlength:
+
 :at:`springlength`: :at-val:`real(2), "-1 -1"`
    Spring resting position, can take either one or two values. If one value is given, it corresponds to the length of
    the tendon at rest. If it is ``-1``, the tendon resting length is determined from the model reference configuration
@@ -2814,14 +4193,24 @@ the obstacle geom.
    range. If the tendon length is between the two values, the force is 0. If it is outside this range, the force behaves
    like a regular spring, with the rest-point corresponding to the nearest :at:`springlength` value. A deadband can be
    used to define tendons whose limits are enforced by springs rather than constraints.
+
+.. _tendon-spatial-stiffness:
+
 :at:`stiffness`: :at-val:`real, "0"`
    Stiffness coefficient. A positive value generates a spring force (linear in position) acting along the tendon.
+
+.. _tendon-spatial-damping:
+
 :at:`damping`: :at-val:`real, "0"`
    Damping coefficient. A positive value generates a damping force (linear in velocity) acting along the tendon. Unlike
    joint damping which is integrated implicitly by the Euler method, tendon damping is not integrated implicitly, thus
    joint damping should be used if possible.
+
+.. _tendon-spatial-user:
+
 :at:`user`: :at-val:`real(nuser_tendon), "0 0 ..."`
    See :ref:`CUser`.
+
 
 .. _spatial-site:
 
@@ -2831,8 +4220,11 @@ the obstacle geom.
 This attribute specifies a site that the tendon path has to pass through. Recall that sites are rigidly attached to
 bodies.
 
+.. _spatial-site-site:
+
 :at:`site`: :at-val:`string, required`
    The name of the site that the tendon must pass through.
+
 
 .. _spatial-geom:
 
@@ -2845,14 +4237,20 @@ which is why we restrict the geom types allowed here to spheres and cylinders. T
 length for tendon wrapping purposes. If a sidesite is defined, and its position is inside the geom, then the tendon is
 constrained to pass through the geom instead of passing around it.
 
+.. _spatial-geom-geom:
+
 :at:`geom`: :at-val:`string, required`
    The name of a geom that acts as an obstacle for the tendon path. Only sphere and cylinder geoms can be referenced
    here.
+
+.. _spatial-geom-sidesite:
+
 :at:`sidesite`: :at-val:`string, optional`
    To prevent the tendon path from snapping from one side of the geom to the other as the model configuration varies,
    the user can define a preferred "side" of the geom. At runtime, the wrap that is closer to the specified site is
    automatically selected. Specifying a side site is often needed in practice. If the side site is inside the geom, the
    tendon is constrained to pass through the interior of the geom.
+
 
 .. _spatial-pulley:
 
@@ -2867,6 +4265,8 @@ the pulley element that started the branch, and added up to obtain the overall t
 relations among branches are not relevant to the simulation. The `tendon.xml <_static/tendon.xml>`__ example above
 illustrated the use of pulleys.
 
+.. _spatial-pulley-divisor:
+
 :at:`divisor`: :at-val:`real, required`
    The length of the tendon branch started by the pulley element is divided by the value specified here. For a physical
    pulley that splits a single branch into two parallel branches, the common branch would have divisor value of 1 and
@@ -2874,6 +4274,7 @@ illustrated the use of pulleys.
    pulley, each new branch would have divisor value of 4 and so on. Note that in MJCF each branch starts with a pulley,
    thus a single physical pulley is modeled with two MJCF pulleys. If no pulley elements are included in the tendon
    path, the first and only branch has divisor value of 1.
+
 
 .. _tendon-fixed:
 
@@ -2886,6 +4287,36 @@ function of joint positions, call it "tendon", and plug it in MuJoCo. Presently 
 combination. The attributes of fixed tendons are a subset of the attributes of spatial tendons and have the same meaning
 as above.
 
+.. _tendon-fixed-name:
+
+.. _tendon-fixed-class:
+
+.. _tendon-fixed-group:
+
+.. _tendon-fixed-limited:
+
+.. _tendon-fixed-range:
+
+.. _tendon-fixed-solreflimit:
+
+.. _tendon-fixed-solimplimit:
+
+.. _tendon-fixed-solreffriction:
+
+.. _tendon-fixed-solimpfriction:
+
+.. _tendon-fixed-frictionloss:
+
+.. _tendon-fixed-margin:
+
+.. _tendon-fixed-springlength:
+
+.. _tendon-fixed-stiffness:
+
+.. _tendon-fixed-damping:
+
+.. _tendon-fixed-user:
+
 .. |tendon/fixed attrib list| replace::
    :at:`name`, :at:`class`, :at:`group`, :at:`limited`, :at:`range`, :at:`solreflimit`, :at:`solimplimit`,
    :at:`solreffriction`, :at:`solimpfriction`, :at:`frictionloss`, :at:`margin`, :at:`springlength`, :at:`stiffness`,
@@ -2893,6 +4324,7 @@ as above.
 
 |tendon/fixed attrib list|
    Same as in the :ref:`spatial <tendon-spatial>` element.
+
 
 .. _fixed-joint:
 
@@ -2902,10 +4334,16 @@ as above.
 This element adds a joint to the computation of the fixed tendon length. The position or angle of each included joint is
 multiplied by the corresponding coef value, and added up to obtain the tendon length.
 
+.. _fixed-joint-joint:
+
 :at:`joint`: :at-val:`string, required`
    Name of the joint to be added to the fixed tendon. Only scalar joints (slide and hinge) can be referenced here.
+
+.. _fixed-joint-coef:
+
 :at:`coef`: :at-val:`real, required`
    Scalar coefficient multiplying the position or angle of the specified joint.
+
 
 .. _actuator:
 
@@ -2917,6 +4355,7 @@ This is a grouping element for actuator definitions. Recall the discussion of Mu
 chapter. The first 13 attributes of all actuator-related elements below are the same, so we document them only once,
 under the :el:`general` actuator.
 
+
 .. _actuator-general:
 
 :el-prefix:`actuator/` |j| **general** (*)
@@ -2925,53 +4364,92 @@ under the :el:`general` actuator.
 This element creates a general actuator, providing full access to all actuator components and allowing the user to
 specify them independently.
 
+
+.. _actuator-general-name:
+
 :at:`name`: :at-val:`string, optional`
    Element name. See :ref:`CName`.
+
+.. _actuator-general-class:
+
 :at:`class`: :at-val:`string, optional`
    Active defaults class. See :ref:`CDefault`.
+
+.. _actuator-general-group:
+
 :at:`group`: :at-val:`int, "0"`
    Integer group to which the actuator belongs. This attribute can be used for custom tags. It is also used by the
    visualizer to enable and disable the rendering of entire groups of actuators.
+
+.. _actuator-general-ctrllimited:
+
 :at:`ctrllimited`: :at-val:`[false, true, auto], "auto"`
    If true, the control input to this actuator is automatically clamped to :at:`ctrlrange` at runtime. If false, control
    input clamping is disabled. If "auto" and :at:`autolimits` is set in :ref:`compiler <compiler>`, control
    clamping will automatically be set to true if :at:`ctrlrange` is defined without explicitly setting this attribute
    to "true". Note that control input clamping can also be globally disabled with the :at:`clampctrl` attribute of
    :ref:`option/flag <option-flag>`.
+
+.. _actuator-general-forcelimited:
+
 :at:`forcelimited`: :at-val:`[false, true, auto], "auto"`
    If true, the force output of this actuator is automatically clamped to :at:`forcerange` at runtime. If false, force
    clamping is disabled. If "auto" and :at:`autolimits` is set in :ref:`compiler <compiler>`, force clamping will
    automatically be set to true if :at:`forcerange` is defined without explicitly setting this attribute to "true".
+
+.. _actuator-general-actlimited:
+
 :at:`actlimited`: :at-val:`[false, true, auto], "auto"`
    If true, the internal state (activation) associated with this actuator is automatically clamped to :at:`actrange` at
    runtime. If false, activation clamping is disabled. If "auto" and :at:`autolimits` is set in
    :ref:`compiler <compiler>`, activation clamping will automatically be set to true if :at:`actrange` is defined
    without explicitly setting this attribute to "true". See the :ref:`Activation clamping <CActRange>` section for more
    details.
+
+.. _actuator-general-ctrlrange:
+
 :at:`ctrlrange`: :at-val:`real(2), "0 0"`
    Range for clamping the control input. The compiler expects the first value to be smaller than the second value.
    |br| Setting this attribute without specifying :at:`ctrllimited` is an error, unless :at:`autolimits` is set in
    :ref:`compiler <compiler>`.
+
+.. _actuator-general-forcerange:
+
 :at:`forcerange`: :at-val:`real(2), "0 0"`
    Range for clamping the force output. The compiler expects the first value to be no greater than the second value.
    |br| Setting this attribute without specifying :at:`forcelimited` is an error, unless :at:`autolimits` is set in
    :ref:`compiler <compiler>`.
+
+.. _actuator-general-actrange:
+
 :at:`actrange`: :at-val:`real(2), "0 0"`
    Range for clamping the activation state. The compiler expects the first value to be no greater than the second value.
    See the :ref:`Activation clamping <CActRange>` section for more details.
    |br| Setting this attribute without specifying :at:`actlimited` is an error, unless :at:`autolimits` is set in
    :ref:`compiler <compiler>`.
+
+.. _actuator-general-lengthrange:
+
 :at:`lengthrange`: :at-val:`real(2), "0 0"`
    Range of feasible lengths of the actuator's transmission. See :ref:`Length Range <CLengthRange>`.
+
+.. _actuator-general-gear:
+
 :at:`gear`: :at-val:`real(6), "1 0 0 0 0 0"`
    This attribute scales the length (and consequently moment arms, velocity and force) of the actuator, for all
    transmission types. It is different from the gain in the force generation mechanism, because the gain only scales the
    force output and does not affect the length, moment arms and velocity. For actuators with scalar transmission, only
    the first element of this vector is used. The remaining elements are needed for joint, jointinparent and site
    transmissions where this attribute is used to specify 3D force and torque axes.
+
+.. _actuator-general-cranklength:
+
 :at:`cranklength`: :at-val:`real, "0"`
    Used only for the slider-crank transmission type. Specifies the length of the connecting rod. The compiler expects
    this value to be positive when a slider-crank transmission is present.
+
+.. _actuator-general-joint:
+
 :at:`joint`: :at-val:`string, optional`
    This and the next four attributes determine the type of actuator transmission. All of them are optional, and exactly
    one of them must be specified. If this attribute is specified, the actuator acts on the given joint. For **hinge**
@@ -2984,9 +4462,15 @@ specify them independently.
    prevent this wrapping. For **free** joints, gear defines a 3d translation axis in the world frame followed by a 3d
    rotation axis in the child frame. The actuator generates force and torque relative to the specified axes. The
    actuator length for free joints is defined as zero (so it should not be used with position servos).
+
+.. _actuator-general-jointinparent:
+
 :at:`jointinparent`: :at-val:`string, optional`
    Identical to joint, except that for ball and free joints, the 3d rotation axis given by gear is defined in the parent
    frame (which is the world frame for free joints) rather than the child frame.
+
+.. _actuator-general-site:
+
 :at:`site`: :at-val:`string, optional`
    This transmission can apply force and torque at a site. The gear vector defines a 3d translation axis followed by a
    3d rotation axis. Both are defined in the site's frame. This can be used to model jets and propellers. The effect is
@@ -3001,6 +4485,8 @@ specify them independently.
     :align: right
     :height: 150px
 
+.. _actuator-general-refsite:
+
 :at:`refsite`: :at-val:`string, optional`
    When using a :at:`site` transmission, measure the translation and rotation w.r.t the frame of the :at:`refsite`. In
    this case the actuator *does* have length and :el:`position` actuators can be used to directly control an end
@@ -3011,29 +4497,50 @@ specify them independently.
    nonzeros in only the first 3 *or* the last 3 elements of :at:`gear`, so the actuator length will be in either length
    units or radians, respectively. As with ball joints (see :at:`joint` above), for rotations which exceed a total angle
    of :math:`\pi` will wrap around, so tighter limits are recommended.
+
+.. _actuator-general-body:
+
 :at:`body`: :at-val:`string, optional`
    This transmission can apply linear forces at contact points in the direction of the contact normal. The set of
    contacts is all those belonging to the specified :at:`body`. This can be used to model natural active adhesion
    mechanisms like the feet of geckos and insects. The actuator length is again defined as zero. For more information,
    see the :ref:`adhesion<actuator-adhesion>` shortcut below.
+
+.. _actuator-general-tendon:
+
 :at:`tendon`: :at-val:`string, optional`
    If specified, the actuator acts on the given tendon. The actuator length equals the tendon length times the gear
    ratio. Both spatial and fixed tendons can be used.
+
+.. _actuator-general-cranksite:
+
 :at:`cranksite`: :at-val:`string, optional`
    If specified, the actuator acts on a slider-crank mechanism which is implicitly determined by the actuator (i.e., it
    is not a separate model element). The specified site corresponds to the pin joining the crank and the connecting rod.
    The actuator length equals the position of the slider-crank mechanism times the gear ratio.
+
+.. _actuator-general-slidersite:
+
 :at:`slidersite`: :at-val:`string, required for slider-crank transmission`
    Used only for the slider-crank transmission type. The specified site is the pin joining the slider and the connecting
    rod. The slider moves along the z-axis of the slidersite frame. Therefore the site should be oriented as needed when
    it is defined in the kinematic tree; its orientation cannot be changed in the actuator definition.
+
+.. _actuator-general-user:
+
 :at:`user`: :at-val:`real(nuser_actuator), "0 ... 0"`
    See :ref:`CUser`.
+
+.. _actuator-general-actdim:
+
 :at:`actdim`: :at-val:`real, "-1"`
    Dimension of the activation state. The default value of ``-1`` instructs the compiler to set the dimension according
    to the :at:`dyntype`. Values larger than ``1`` are only allowed for user-defined activation dynamics, as native types
    require dimensions of only 0 or 1. For activation dimensions bigger than 1, the *last element* is used to generate
    force.
+
+.. _actuator-general-dyntype:
+
 :at:`dyntype`: :at-val:`[none, integrator, filter, muscle, user], "none"`
    Activation dynamics type for the actuator. The available dynamics types were already described in the :ref:`Actuation
    model <geActuation>` section. Repeating that description in somewhat different notation (corresponding to the mjModel
@@ -3048,6 +4555,9 @@ specify them independently.
    muscle     act_dot = mju_muscleDynamics(...)
    user       act_dot = mjcb_act_dyn(...)
    ========== ==================================
+
+.. _actuator-general-gaintype:
+
 :at:`gaintype`: :at-val:`[fixed, affine, muscle, user], "fixed"`
    The gain and bias together determine the output of the force generation mechanism, which is currently assumed to be
    affine. As already explained in :ref:`Actuation model <geActuation>`, the general formula is:
@@ -3063,6 +4573,9 @@ specify them independently.
    muscle  gain_term = mju_muscleGain(...)
    user    gain_term = mjcb_act_gain(...)
    ======= ===============================
+
+.. _actuator-general-biastype:
+
 :at:`biastype`: :at-val:`[none, affine, muscle, user], "none"`
    The keywords have the following meaning:
 
@@ -3074,20 +4587,30 @@ specify them independently.
    muscle  bias_term = mju_muscleBias(...)
    user    bias_term = mjcb_act_bias(...)
    ======= ================================================================
+
+.. _actuator-general-dynprm:
+
 :at:`dynprm`: :at-val:`real(10), "1 0 ... 0"`
    Activation dynamics parameters. The built-in activation types (except for muscle) use only the first parameter, but
    we provide additional parameters in case user callbacks implement a more elaborate model. The length of this array is
    not enforced by the parser, so the user can enter as many parameters as needed. These defaults are not compatible
    with muscle actuators; see :ref:`muscle <actuator-muscle>` below.
+
+.. _actuator-general-gainprm:
+
 :at:`gainprm`: :at-val:`real(10), "1 0 ... 0"`
    Gain parameters. The built-in gain types (except for muscle) use only the first parameter, but we provide additional
    parameters in case user callbacks implement a more elaborate model. The length of this array is not enforced by the
    parser, so the user can enter as many parameters as needed. These defaults are not compatible with muscle actuators;
    see :ref:`muscle <actuator-muscle>` below.
+
+.. _actuator-general-biasprm:
+
 :at:`biasprm`: :at-val:`real(10), "0 ... 0"`
    Bias parameters. The affine bias type uses three parameters. The length of this array is not enforced by the parser,
    so the user can enter as many parameters as needed. These defaults are not compatible with muscle actuators; see
    :ref:`muscle <actuator-muscle>` below.
+
 
 .. _actuator-motor:
 
@@ -3113,6 +4636,40 @@ biastype  none    biasprm   0 0 0
 
 This element does not have custom attributes. It only has common attributes, which are:
 
+.. _actuator-motor-name:
+
+.. _actuator-motor-class:
+
+.. _actuator-motor-group:
+
+.. _actuator-motor-ctrllimited:
+
+.. _actuator-motor-forcelimited:
+
+.. _actuator-motor-ctrlrange:
+
+.. _actuator-motor-forcerange:
+
+.. _actuator-motor-lengthrange:
+
+.. _actuator-motor-gear:
+
+.. _actuator-motor-cranklength:
+
+.. _actuator-motor-joint:
+
+.. _actuator-motor-jointinparent:
+
+.. _actuator-motor-tendon:
+
+.. _actuator-motor-cranksite:
+
+.. _actuator-motor-slidersite:
+
+.. _actuator-motor-site:
+
+.. _actuator-motor-user:
+
 
 .. |actuator/motor attrib list| replace::
    :at:`name`, :at:`class`, :at:`group`, :at:`ctrllimited`, :at:`forcelimited`, :at:`ctrlrange`, :at:`forcerange`,
@@ -3121,6 +4678,7 @@ This element does not have custom attributes. It only has common attributes, whi
 
 |actuator/motor attrib list|
    Same as in actuator/ :ref:`general <actuator-general>`.
+
 
 .. _actuator-position:
 
@@ -3140,6 +4698,40 @@ biastype  affine  biasprm   0 -kp 0
 
 This element has one custom attribute in addition to the common attributes:
 
+.. _actuator-position-name:
+
+.. _actuator-position-class:
+
+.. _actuator-position-group:
+
+.. _actuator-position-ctrllimited:
+
+.. _actuator-position-forcelimited:
+
+.. _actuator-position-ctrlrange:
+
+.. _actuator-position-forcerange:
+
+.. _actuator-position-lengthrange:
+
+.. _actuator-position-gear:
+
+.. _actuator-position-cranklength:
+
+.. _actuator-position-joint:
+
+.. _actuator-position-jointinparent:
+
+.. _actuator-position-tendon:
+
+.. _actuator-position-cranksite:
+
+.. _actuator-position-slidersite:
+
+.. _actuator-position-site:
+
+.. _actuator-position-user:
+
 .. |actuator/position attrib list| replace::
    :at:`name`, :at:`class`, :at:`group`, :at:`ctrllimited`, :at:`forcelimited`, :at:`ctrlrange`, :at:`forcerange`,
    :at:`lengthrange`, :at:`gear`, :at:`cranklength`, :at:`joint`, :at:`jointinparent`, :at:`tendon`, :at:`cranksite`,
@@ -3147,8 +4739,12 @@ This element has one custom attribute in addition to the common attributes:
 
 |actuator/position attrib list|
    Same as in actuator/ :ref:`general <actuator-general>`.
+
+.. _actuator-position-kp:
+
 :at:`kp`: :at-val:`real, "1"`
    Position feedback gain.
+
 
 .. _actuator-velocity:
 
@@ -3169,6 +4765,38 @@ biastype  affine  biasprm   0 0 -kv
 
 This element has one custom attribute in addition to the common attributes:
 
+.. _actuator-velocity-class:
+
+.. _actuator-velocity-group:
+
+.. _actuator-velocity-ctrllimited:
+
+.. _actuator-velocity-forcelimited:
+
+.. _actuator-velocity-ctrlrange:
+
+.. _actuator-velocity-forcerange:
+
+.. _actuator-velocity-lengthrange:
+
+.. _actuator-velocity-gear:
+
+.. _actuator-velocity-cranklength:
+
+.. _actuator-velocity-joint:
+
+.. _actuator-velocity-jointinparent:
+
+.. _actuator-velocity-tendon:
+
+.. _actuator-velocity-cranksite:
+
+.. _actuator-velocity-slidersite:
+
+.. _actuator-velocity-site:
+
+.. _actuator-velocity-user:
+
 .. |actuator/velocity attrib list| replace::
    :at:`name`, :at:`class`, :at:`group`, :at:`ctrllimited`, :at:`forcelimited`, :at:`ctrlrange`, :at:`forcerange`,
    :at:`lengthrange`, :at:`gear`, :at:`cranklength`, :at:`joint`, :at:`jointinparent`, :at:`tendon`, :at:`cranksite`,
@@ -3176,8 +4804,12 @@ This element has one custom attribute in addition to the common attributes:
 
 |actuator/velocity attrib list|
    Same as in actuator/ :ref:`general <actuator-general>`.
+
+.. _actuator-velocity-kv:
+
 :at:`kv`: :at-val:`real, "1"`
    Velocity feedback gain.
+
 
 .. _actuator-intvelocity:
 
@@ -3199,6 +4831,38 @@ actlimited   true
 
 This element has one custom attribute in addition to the common attributes:
 
+.. _actuator-intvelocity-class:
+
+.. _actuator-intvelocity-group:
+
+.. _actuator-intvelocity-ctrllimited:
+
+.. _actuator-intvelocity-forcelimited:
+
+.. _actuator-intvelocity-ctrlrange:
+
+.. _actuator-intvelocity-forcerange:
+
+.. _actuator-intvelocity-lengthrange:
+
+.. _actuator-intvelocity-gear:
+
+.. _actuator-intvelocity-cranklength:
+
+.. _actuator-intvelocity-joint:
+
+.. _actuator-intvelocity-jointinparent:
+
+.. _actuator-intvelocity-tendon:
+
+.. _actuator-intvelocity-cranksite:
+
+.. _actuator-intvelocity-slidersite:
+
+.. _actuator-intvelocity-site:
+
+.. _actuator-intvelocity-user:
+
 .. |actuator/intvelocity attrib list| replace::
    :at:`name`, :at:`class`, :at:`group`, :at:`ctrllimited`, :at:`forcelimited`, :at:`ctrlrange`, :at:`forcerange`,
    :at:`lengthrange`, :at:`gear`, :at:`cranklength`, :at:`joint`, :at:`jointinparent`, :at:`tendon`, :at:`cranksite`,
@@ -3206,8 +4870,12 @@ This element has one custom attribute in addition to the common attributes:
 
 |actuator/intvelocity attrib list|
    Same as in actuator/ :ref:`general <actuator-general>`.
+
+.. _actuator-intvelocity-kp:
+
 :at:`kp`: :at-val:`real, "1"`
    Position feedback gain.
+
 
 .. _actuator-damper:
 
@@ -3230,14 +4898,52 @@ ctrllimited true
 
 This element has one custom attribute in addition to the common attributes:
 
+.. _actuator-damper-name:
+
+.. _actuator-damper-class:
+
+.. _actuator-damper-group:
+
+.. _actuator-damper-ctrllimited:
+
+.. _actuator-damper-forcelimited:
+
+.. _actuator-damper-ctrlrange:
+
+.. _actuator-damper-forcerange:
+
+.. _actuator-damper-lengthrange:
+
+.. _actuator-damper-gear:
+
+.. _actuator-damper-cranklength:
+
+.. _actuator-damper-joint:
+
+.. _actuator-damper-jointinparent:
+
+.. _actuator-damper-tendon:
+
+.. _actuator-damper-cranksite:
+
+.. _actuator-damper-slidersite:
+
+.. _actuator-damper-site:
+
+.. _actuator-damper-user:
+
 .. |actuator/damper attrib list| replace:: :at:`name`, :at:`class`, :at:`group`, :at:`ctrllimited`, :at:`forcelimited`,
    :at:`ctrlrange`, :at:`forcerange`, :at:`lengthrange`, :at:`gear`, :at:`cranklength`, :at:`joint`,
    :at:`jointinparent`, :at:`tendon`, :at:`cranksite`, :at:`slidersite`, :at:`site`, :at:`user`
 
 |actuator/damper attrib list|
    Same as in actuator/ :ref:`general <actuator-general>`.
+
+.. _actuator-damper-kv:
+
 :at:`kv`: :at-val:`real, "1"`
    Velocity feedback gain.
+
 
 .. _actuator-cylinder:
 
@@ -3258,6 +4964,40 @@ biastype  affine  biasprm   bias(3)
 
 This element has four custom attributes in addition to the common attributes:
 
+.. _actuator-cylinder-name:
+
+.. _actuator-cylinder-class:
+
+.. _actuator-cylinder-group:
+
+.. _actuator-cylinder-ctrllimited:
+
+.. _actuator-cylinder-forcelimited:
+
+.. _actuator-cylinder-ctrlrange:
+
+.. _actuator-cylinder-forcerange:
+
+.. _actuator-cylinder-lengthrange:
+
+.. _actuator-cylinder-gear:
+
+.. _actuator-cylinder-cranklength:
+
+.. _actuator-cylinder-joint:
+
+.. _actuator-cylinder-jointinparent:
+
+.. _actuator-cylinder-tendon:
+
+.. _actuator-cylinder-cranksite:
+
+.. _actuator-cylinder-slidersite:
+
+.. _actuator-cylinder-site:
+
+.. _actuator-cylinder-user:
+
 .. |actuator/cylinder attrib list| replace::
    :at:`name`, :at:`class`, :at:`group`, :at:`ctrllimited`, :at:`forcelimited`, :at:`ctrlrange`, :at:`forcerange`,
    :at:`lengthrange`, :at:`gear`, :at:`cranklength`, :at:`joint`, :at:`jointinparent`, :at:`tendon`, :at:`cranksite`,
@@ -3265,14 +5005,27 @@ This element has four custom attributes in addition to the common attributes:
 
 |actuator/cylinder attrib list|
    Same as in actuator/ :ref:`general <actuator-general>`.
+
+.. _actuator-cylinder-timeconst:
+
 :at:`timeconst`: :at-val:`real, "1"`
    Time constant of the activation dynamics.
+
+.. _actuator-cylinder-area:
+
 :at:`area`: :at-val:`real, "1"`
    Area of the cylinder. This is used internally as actuator gain.
+
+.. _actuator-cylinder-diameter:
+
 :at:`diameter`: :at-val:`real, optional`
    Instead of area the user can specify diameter. If both are specified, diameter has precedence.
+
+.. _actuator-cylinder-bias:
+
 :at:`bias`: :at-val:`real(3), "0 0 0"`
    Bias parameters, copied internally into biasprm.
+
 
 .. _actuator-muscle:
 
@@ -3293,6 +5046,39 @@ biastype  muscle  biasprm   same as gainprm
 
 This element has nine custom attributes in addition to the common attributes:
 
+.. _actuator-muscle-name:
+
+.. _actuator-muscle-class:
+
+.. _actuator-muscle-group:
+
+.. _actuator-muscle-ctrllimited:
+
+.. _actuator-muscle-forcelimited:
+
+.. _actuator-muscle-ctrlrange:
+
+.. _actuator-muscle-forcerange:
+
+.. _actuator-muscle-lengthrange:
+
+.. _actuator-muscle-gear:
+
+.. _actuator-muscle-cranklength:
+
+.. _actuator-muscle-joint:
+
+.. _actuator-muscle-jointinparent:
+
+.. _actuator-muscle-tendon:
+
+.. _actuator-muscle-cranksite:
+
+.. _actuator-muscle-slidersite:
+
+.. _actuator-muscle-user:
+
+
 .. |actuator/muscle attrib list| replace::
    :at:`name`, :at:`class`, :at:`group`, :at:`ctrllimited`, :at:`forcelimited`, :at:`ctrlrange`, :at:`forcerange`,
    :at:`lengthrange`, :at:`gear`, :at:`cranklength`, :at:`joint`, :at:`jointinparent`, :at:`tendon`, :at:`cranksite`,
@@ -3300,28 +5086,56 @@ This element has nine custom attributes in addition to the common attributes:
 
 |actuator/muscle attrib list|
    Same as in actuator/ :ref:`general <actuator-general>`.
+
+.. _actuator-muscle-timeconst:
+
 :at:`timeconst`: :at-val:`real(2), "0.01 0.04"`
    Time constants for activation and de-activation dynamics.
+
+.. _actuator-muscle-range:
+
 :at:`range`: :at-val:`real(2), "0.75 1.05"`
    Operating length range of the muscle, in units of L0.
+
+.. _actuator-muscle-force:
+
 :at:`force`: :at-val:`real, "-1"`
    Peak active force at rest. If this value is negative, the peak force is determined automatically using the scale
    attribute below.
+
+.. _actuator-muscle-scale:
+
 :at:`scale`: :at-val:`real, "200"`
    If the force attribute is negative, the peak active force for the muscle is set to this value divided by
    mjModel.actuator_acc0. The latter is the norm of the joint-space acceleration vector caused by unit force on the
    actuator's transmission in qpos0. In other words, scaling produces higher peak forces for muscles that pull more
    weight.
+
+.. _actuator-muscle-lmin:
+
 :at:`lmin`: :at-val:`real, "0.5"`
    Lower position range of the normalized FLV curve, in units of L0.
+
+.. _actuator-muscle-lmax:
+
 :at:`lmax`: :at-val:`real, "1.6"`
    Upper position range of the normalized FLV curve, in units of L0.
+
+.. _actuator-muscle-vmax:
+
 :at:`vmax`: :at-val:`real, "1.5"`
    Shortening velocity at which muscle force drops to zero, in units of L0 per second.
+
+.. _actuator-muscle-fpmax:
+
 :at:`fpmax`: :at-val:`real, "1.3"`
    Passive force generated at lmax, relative to the peak rest force.
+
+.. _actuator-muscle-fvmax:
+
 :at:`fvmax`: :at-val:`real, "1.2"`
    Active force generated at saturating lengthening velocity, relative to the peak rest force.
+
 
 .. _actuator-adhesion:
 
@@ -3356,17 +5170,38 @@ trntype     body    ctrllimited true
 
 This element has a subset of the common attributes and two custom attributes.
 
+.. _actuator-adhesion-name:
+
+.. _actuator-adhesion-class:
+
+.. _actuator-adhesion-group:
+
+.. _actuator-adhesion-forcelimited:
+
+.. _actuator-adhesion-ctrlrange:
+
+.. _actuator-adhesion-forcerange:
+
+.. _actuator-adhesion-user:
+
 .. |actuator/adhesion attrib list| replace:: :at:`name`, :at:`class`, :at:`group`,
    :at:`forcelimited`, :at:`ctrlrange`, :at:`forcerange`, :at:`user`
 
 |actuator/adhesion attrib list|
    Same as in actuator/ :ref:`general <actuator-general>`.
+
+.. _actuator-adhesion-body:
+
 :at:`body`: :at-val:`string, required`
    The actuator acts on all contacts involving this body's geoms.
+
+.. _actuator-adhesion-gain:
+
 :at:`gain`: :at-val:`real, "1"`
    Gain of the adhesion actuator, in units of force. The total adhesion force applied by the actuator is the control
    value multiplied by the gain. This force is distributed equally between all the contacts involving geoms belonging
    to the target body.
+
 
 .. _sensor:
 
@@ -3383,6 +5218,7 @@ corresponding to body accelerations and interaction forces. Some of these quanti
 certain sensors (force, acceleration etc.) but even if no such sensors are defined in the model, these quantities
 themselves are "features" that could be of interest to the user.
 
+
 .. _sensor-touch:
 
 :el-prefix:`sensor/` |j| **touch** (*)
@@ -3395,10 +5231,22 @@ is also included. This re-projection feature is needed because, without it, the 
 from the back (due to soft contacts) and cause an erroneous force reading. The output of this sensor is non-negative
 scalar. It is computed by adding up the (scalar) normal forces from all included contacts.
 
+.. _sensor-touch-name:
+
+.. _sensor-touch-noise:
+
+.. _sensor-touch-cutoff:
+
+.. _sensor-touch-user:
+
 :at:`name`, :at:`noise`, :at:`cutoff`, :at:`user`
    See :ref:`CSensor`.
+
+.. _sensor-touch-site:
+
 :at:`site`: :at-val:`string, required`
    Site defining the active sensor zone.
+
 
 .. _sensor-accelerometer:
 
@@ -3409,10 +5257,22 @@ This element creates a 3-axis accelerometer. The sensor is mounted at a site, an
 as the site frame. This sensor outputs three numbers, which are the linear acceleration of the site (including gravity)
 in local coordinates.
 
+.. _sensor-accelerometer-name:
+
+.. _sensor-accelerometer-noise:
+
+.. _sensor-accelerometer-cutoff:
+
+.. _sensor-accelerometer-user:
+
 :at:`name`, :at:`noise`, :at:`cutoff`, :at:`user`
    See :ref:`CSensor`.
+
+.. _sensor-accelerometer-site:
+
 :at:`site`: :at-val:`string, required`
    Site where the sensor is mounted. The accelerometer is centered and aligned with the site local frame.
+
 
 .. _sensor-velocimeter:
 
@@ -3422,10 +5282,22 @@ in local coordinates.
 This element creates a 3-axis velocimeter. The sensor is mounted at a site, and has the same position and orientation as
 the site frame. This sensor outputs three numbers, which are the linear velocity of the site in local coordinates.
 
+.. _sensor-velocimeter-name:
+
+.. _sensor-velocimeter-noise:
+
+.. _sensor-velocimeter-cutoff:
+
+.. _sensor-velocimeter-user:
+
 :at:`name`, :at:`noise`, :at:`cutoff`, :at:`user`
    See :ref:`CSensor`.
+
+.. _sensor-velocimeter-site:
+
 :at:`site`: :at-val:`string, required`
    Site where the sensor is mounted. The velocimeter is centered and aligned with the site local frame.
+
 
 .. _sensor-gyro:
 
@@ -3437,10 +5309,22 @@ the site frame. This sensor outputs three numbers, which are the angular velocit
 sensor is often used in conjunction with an :ref:`accelerometer <sensor-accelerometer>` mounted at the same site, to
 simulate an inertial measurement unit (IMU).
 
+.. _sensor-gyro-name:
+
+.. _sensor-gyro-noise:
+
+.. _sensor-gyro-cutoff:
+
+.. _sensor-gyro-user:
+
 :at:`name`, :at:`noise`, :at:`cutoff`, :at:`user`
    See :ref:`CSensor`.
+
+.. _sensor-gyro-site:
+
 :at:`site`: :at-val:`string, required`
    Site where the sensor is mounted. The gyroscope is centered and aligned with the site local frame.
+
 
 .. _sensor-force:
 
@@ -3453,14 +5337,26 @@ the child body, and the force points from the child towards the parent. The comp
 forces acting on the system, including contacts as well as external perturbations. Using this sensor often requires
 creating a dummy body welded to its parent (i.e., having no joint elements).
 
+.. _sensor-force-name:
+
+.. _sensor-force-noise:
+
+.. _sensor-force-cutoff:
+
+.. _sensor-force-user:
+
 :at:`name`, :at:`noise`, :at:`cutoff`, :at:`user`
    See :ref:`CSensor`.
+
+.. _sensor-force-site:
+
 :at:`site`: :at-val:`string, required`
    Site where the sensor is mounted. The measured interaction force is between the body where the site is defined and
    its parent body, and points from the child towards the parent. The physical sensor being modeled could of course be
    attached to the parent body, in which case the sensor data would have the opposite sign. Note that each body has a
    unique parent but can have multiple children, which is why we define this sensor through the child rather than the
    parent body in the pair.
+
 
 .. _sensor-torque:
 
@@ -3470,11 +5366,23 @@ creating a dummy body welded to its parent (i.e., having no joint elements).
 This element creates a 3-axis torque sensor. This is similar to the :ref:`force <sensor-force>` sensor above, but
 measures torque rather than force.
 
+.. _sensor-torque-name:
+
+.. _sensor-torque-noise:
+
+.. _sensor-torque-cutoff:
+
+.. _sensor-torque-user:
+
 :at:`name`, :at:`noise`, :at:`cutoff`, :at:`user`
    See :ref:`CSensor`.
+
+.. _sensor-torque-site:
+
 :at:`site`: :at-val:`string, required`
    Site where the sensor is mounted. The measured interaction torque is between the body where the site is defined and
    its parent body.
+
 
 .. _sensor-magnetometer:
 
@@ -3484,10 +5392,22 @@ measures torque rather than force.
 This element creates a magnetometer. It measures the magnetic flux at the sensor site position, expressed in the sensor
 site frame. The output is a 3D vector.
 
+.. _sensor-magnetometer-name:
+
+.. _sensor-magnetometer-noise:
+
+.. _sensor-magnetometer-cutoff:
+
+.. _sensor-magnetometer-user:
+
 :at:`name`, :at:`noise`, :at:`cutoff`, :at:`user`
    See :ref:`CSensor`.
+
+.. _sensor-magnetometer-site:
+
 :at:`site`: :at-val:`string, required`
    The site where the sensor is attached.
+
 
 .. _sensor-rangefinder:
 
@@ -3501,10 +5421,22 @@ body as the sensor site are excluded. Invisible geoms, defined as geoms whose rg
 are also excluded. Note however that geoms made invisible in the visualizer by disabling their geom group are not
 excluded; this is because sensor calculations are independent of the visualizer.
 
+.. _sensor-rangefinder-name:
+
+.. _sensor-rangefinder-noise:
+
+.. _sensor-rangefinder-cutoff:
+
+.. _sensor-rangefinder-user:
+
 :at:`name`, :at:`noise`, :at:`cutoff`, :at:`user`
    See :ref:`CSensor`.
+
+.. _sensor-rangefinder-site:
+
 :at:`site`: :at-val:`string, required`
    The site where the sensor is attached.
+
 
 .. _sensor-jointpos:
 
@@ -3515,11 +5447,23 @@ This and the remaining sensor elements do not involve sensor-specific computatio
 mjData.sensordata quantities that are already computed. This element creates a joint position or angle sensor. It can be
 attached to scalar joints (slide or hinge). Its output is scalar.
 
+.. _sensor-jointpos-name:
+
+.. _sensor-jointpos-noise:
+
+.. _sensor-jointpos-cutoff:
+
+.. _sensor-jointpos-user:
+
 :at:`name`, :at:`noise`, :at:`cutoff`, :at:`user`
    See :ref:`CSensor`.
+
+.. _sensor-jointpos-joint:
+
 :at:`joint`: :at-val:`string, required`
    The joint whose position or angle will be sensed. Only scalar joints can be referenced here. The sensor output is
    copied from mjData.qpos.
+
 
 .. _sensor-jointvel:
 
@@ -3529,11 +5473,23 @@ attached to scalar joints (slide or hinge). Its output is scalar.
 This element creates a joint velocity sensor. It can be attached to scalar joints (slide or hinge). Its output is
 scalar.
 
+.. _sensor-jointvel-name:
+
+.. _sensor-jointvel-noise:
+
+.. _sensor-jointvel-cutoff:
+
+.. _sensor-jointvel-user:
+
 :at:`name`, :at:`noise`, :at:`cutoff`, :at:`user`
    See :ref:`CSensor`.
+
+.. _sensor-jointvel-joint:
+
 :at:`joint`: :at-val:`string, required`
    The joint whose velocity will be sensed. Only scalar joints can be referenced here. The sensor output is copied from
    mjData.qvel.
+
 
 .. _sensor-tendonpos:
 
@@ -3542,10 +5498,22 @@ scalar.
 
 This element creates a tendon length sensor. It can be attached to both spatial and fixed tendons. Its output is scalar.
 
+.. _sensor-tendonpos-name:
+
+.. _sensor-tendonpos-noise:
+
+.. _sensor-tendonpos-cutoff:
+
+.. _sensor-tendonpos-user:
+
 :at:`name`, :at:`noise`, :at:`cutoff`, :at:`user`
    See :ref:`CSensor`.
+
+.. _sensor-tendonpos-tendon:
+
 :at:`tendon`: :at-val:`string, required`
    The tendon whose length will be sensed. The sensor output is copied from mjData.ten_length.
+
 
 .. _sensor-tendonvel:
 
@@ -3555,10 +5523,22 @@ This element creates a tendon length sensor. It can be attached to both spatial 
 This element creates a tendon velocity sensor. It can be attached to both spatial and fixed tendons. Its output is
 scalar.
 
+.. _sensor-tendonvel-name:
+
+.. _sensor-tendonvel-noise:
+
+.. _sensor-tendonvel-cutoff:
+
+.. _sensor-tendonvel-user:
+
 :at:`name`, :at:`noise`, :at:`cutoff`, :at:`user`
    See :ref:`CSensor`.
+
+.. _sensor-tendonvel-tendon:
+
 :at:`tendon`: :at-val:`string, required`
    The tendon whose velocity will be sensed. The sensor output is copied from mjData.ten_velocity.
+
 
 .. _sensor-actuatorpos:
 
@@ -3568,10 +5548,22 @@ scalar.
 This element creates an actuator length sensor. Recall that each actuator has a transmission which has length. This
 sensor can be attached to any actuator. Its output is scalar.
 
+.. _sensor-actuatorpos-name:
+
+.. _sensor-actuatorpos-noise:
+
+.. _sensor-actuatorpos-cutoff:
+
+.. _sensor-actuatorpos-user:
+
 :at:`name`, :at:`noise`, :at:`cutoff`, :at:`user`
    See :ref:`CSensor`.
+
+.. _sensor-actuatorpos-actuator:
+
 :at:`actuator`: :at-val:`string, required`
    The actuator whose transmission's length will be sensed. The sensor output is copied from mjData.actuator_length.
+
 
 .. _sensor-actuatorvel:
 
@@ -3580,10 +5572,22 @@ sensor can be attached to any actuator. Its output is scalar.
 
 This element creates an actuator velocity sensor. This sensor can be attached to any actuator. Its output is scalar.
 
+.. _sensor-actuatorvel-name:
+
+.. _sensor-actuatorvel-noise:
+
+.. _sensor-actuatorvel-cutoff:
+
+.. _sensor-actuatorvel-user:
+
 :at:`name`, :at:`noise`, :at:`cutoff`, :at:`user`
    See :ref:`CSensor`.
+
+.. _sensor-actuatorvel-actuator:
+
 :at:`actuator`: :at-val:`string, required`
    The actuator whose transmission's velocity will be sensed. The sensor output is copied from mjData.actuator_velocity.
+
 
 .. _sensor-actuatorfrc:
 
@@ -3594,10 +5598,22 @@ This element creates an actuator force sensor. The quantity being sensed is the 
 generalized force contributed by the actuator (the latter is the product of the scalar force and the vector of moment
 arms determined by the transmission). This sensor can be attached to any actuator. Its output is scalar.
 
+.. _sensor-actuatorfrc-name:
+
+.. _sensor-actuatorfrc-noise:
+
+.. _sensor-actuatorfrc-cutoff:
+
+.. _sensor-actuatorfrc-user:
+
 :at:`name`, :at:`noise`, :at:`cutoff`, :at:`user`
    See :ref:`CSensor`.
+
+.. _sensor-actuatorfrc-actuator:
+
 :at:`actuator`: :at-val:`string, required`
    The actuator whose scalar force output will be sensed. The sensor output is copied from mjData.actuator_force.
+
 
 .. _sensor-ballquat:
 
@@ -3606,10 +5622,22 @@ arms determined by the transmission). This sensor can be attached to any actuato
 
 This element creates a quaternion sensor for a ball joints. It outputs 4 numbers corresponding to a unit quaternion.
 
+.. _sensor-ballquat-name:
+
+.. _sensor-ballquat-noise:
+
+.. _sensor-ballquat-cutoff:
+
+.. _sensor-ballquat-user:
+
 :at:`name`, :at:`noise`, :at:`cutoff`, :at:`user`
    See :ref:`CSensor`.
+
+.. _sensor-ballquat-joint:
+
 :at:`joint`: :at-val:`string, required`
    The ball joint whose quaternion is sensed. The sensor output is copied from mjData.qpos.
+
 
 .. _sensor-ballangvel:
 
@@ -3620,10 +5648,22 @@ This element creates a ball joint angular velocity sensor. It outputs 3 numbers 
 the joint. The norm of that vector is the rotation speed in rad/s and the direction is the axis around which the
 rotation takes place.
 
+.. _sensor-ballangvel-name:
+
+.. _sensor-ballangvel-noise:
+
+.. _sensor-ballangvel-cutoff:
+
+.. _sensor-ballangvel-user:
+
 :at:`name`, :at:`noise`, :at:`cutoff`, :at:`user`
    See :ref:`CSensor`.
+
+.. _sensor-ballangvel-joint:
+
 :at:`joint`: :at-val:`string, required`
    The ball joint whose angular velocity is sensed. The sensor output is copied from mjData.qvel.
+
 
 .. _sensor-jointlimitpos:
 
@@ -3632,13 +5672,25 @@ rotation takes place.
 
 This element creates a joint limit sensor for position.
 
+.. _sensor-jointlimitpos-name:
+
+.. _sensor-jointlimitpos-noise:
+
+.. _sensor-jointlimitpos-cutoff:
+
+.. _sensor-jointlimitpos-user:
+
 :at:`name`, :at:`noise`, :at:`cutoff`, :at:`user`
    See :ref:`CSensor`.
+
+.. _sensor-jointlimitpos-joint:
+
 :at:`joint`: :at-val:`string, required`
    The joint whose limit is sensed. The sensor output equals mjData.efc_pos - mjData.efc_margin for the corresponding
    limit constraint. Note that the result is negative if the limit is violated, regardless of which side of the limit is
    violated. If both sides of the limit are violated simultaneously, only the first component is returned. If there is
    no violation, the result is 0.
+
 
 .. _sensor-jointlimitvel:
 
@@ -3647,11 +5699,23 @@ This element creates a joint limit sensor for position.
 
 This element creates a joint limit sensor for velocity.
 
+.. _sensor-jointlimitvel-name:
+
+.. _sensor-jointlimitvel-noise:
+
+.. _sensor-jointlimitvel-cutoff:
+
+.. _sensor-jointlimitvel-user:
+
 :at:`name`, :at:`noise`, :at:`cutoff`, :at:`user`
    See :ref:`CSensor`.
+
+.. _sensor-jointlimitvel-joint:
+
 :at:`joint`: :at-val:`string, required`
    The joint whose limit is sensed. The sensor output is copied from mjData.efc_vel. If the joint limit is not violated,
    the result is 0.
+
 
 .. _sensor-jointlimitfrc:
 
@@ -3660,11 +5724,23 @@ This element creates a joint limit sensor for velocity.
 
 This element creates a joint limit sensor for constraint force.
 
+.. _sensor-jointlimitfrc-name:
+
+.. _sensor-jointlimitfrc-noise:
+
+.. _sensor-jointlimitfrc-cutoff:
+
+.. _sensor-jointlimitfrc-user:
+
 :at:`name`, :at:`noise`, :at:`cutoff`, :at:`user`
    See :ref:`CSensor`.
+
+.. _sensor-jointlimitfrc-joint:
+
 :at:`joint`: :at-val:`string, required`
    The joint whose limit is sensed. The sensor output is copied from mjData.efc_force. If the joint limit is not
    violated, the result is 0.
+
 
 .. _sensor-tendonlimitpos:
 
@@ -3673,11 +5749,23 @@ This element creates a joint limit sensor for constraint force.
 
 This element creates a tendon limit sensor for position.
 
+.. _sensor-tendonlimitpos-name:
+
+.. _sensor-tendonlimitpos-noise:
+
+.. _sensor-tendonlimitpos-cutoff:
+
+.. _sensor-tendonlimitpos-user:
+
 :at:`name`, :at:`noise`, :at:`cutoff`, :at:`user`
    See :ref:`CSensor`.
+
+.. _sensor-tendonlimitpos-tendon:
+
 :at:`tendon`: :at-val:`string, required`
    The tendon whose limit is sensed. The sensor output equals mjData.efc_pos - mjData.efc_margin for the corresponding
    limit constraint. If the tendon limit is not violated, the result is 0.
+
 
 .. _sensor-tendonlimitvel:
 
@@ -3686,11 +5774,23 @@ This element creates a tendon limit sensor for position.
 
 This element creates a tendon limit sensor for velocity.
 
+.. _sensor-tendonlimitvel-name:
+
+.. _sensor-tendonlimitvel-noise:
+
+.. _sensor-tendonlimitvel-cutoff:
+
+.. _sensor-tendonlimitvel-user:
+
 :at:`name`, :at:`noise`, :at:`cutoff`, :at:`user`
    See :ref:`CSensor`.
+
+.. _sensor-tendonlimitvel-tendon:
+
 :at:`tendon`: :at-val:`string, required`
    The tendon whose limit is sensed. The sensor output is copied from mjData.efc_vel. If the tendon limit is not
    violated, the result is 0.
+
 
 .. _sensor-tendonlimitfrc:
 
@@ -3699,11 +5799,23 @@ This element creates a tendon limit sensor for velocity.
 
 This element creates a tendon limit sensor for constraint force.
 
+.. _sensor-tendonlimitfrc-name:
+
+.. _sensor-tendonlimitfrc-noise:
+
+.. _sensor-tendonlimitfrc-cutoff:
+
+.. _sensor-tendonlimitfrc-user:
+
 :at:`name`, :at:`noise`, :at:`cutoff`, :at:`user`
    See :ref:`CSensor`.
+
+.. _sensor-tendonlimitfrc-tendon:
+
 :at:`tendon`: :at-val:`string, required`
    The tendon whose limit is sensed. The sensor output is copied from mjData.efc_force. If the tendon limit is not
    violated, the result is 0.
+
 
 .. _sensor-framepos:
 
@@ -3713,20 +5825,41 @@ This element creates a tendon limit sensor for constraint force.
 This element creates a sensor that returns the 3D position of the spatial frame of the object, in global coordinates or
 optionally with respect to a given frame-of-reference.
 
+.. _sensor-framepos-name:
+
+.. _sensor-framepos-noise:
+
+.. _sensor-framepos-cutoff:
+
+.. _sensor-framepos-user:
+
 :at:`name`, :at:`noise`, :at:`cutoff`, :at:`user`
    See :ref:`CSensor`.
+
+.. _sensor-framepos-objtype:
+
 :at:`objtype`: :at-val:`[body, xbody, geom, site, camera], required`
    The type of object to which the sensor is attached. This must be an object type that has a spatial frame. "body"
    refers to the inertial frame of the body, while "xbody" refers to the regular frame of the body (usually centered at
    the joint with the parent body).
+
+.. _sensor-framepos-objname:
+
 :at:`objname`: :at-val:`string, required`
    The name of the object to which the sensor is attached.
+
+.. _sensor-framepos-reftype:
+
 :at:`reftype`: :at-val:`[body, xbody, geom, site, camera]`
    The type of object to which the frame-of-reference is attached. The semantics are identical to the :at:`objtype`
    attribute. If :at:`reftype` and :at:`refname` are given, the sensor values will be measured with respect to this
    frame. If they are not given, sensor values will be measured with respect to the global frame.
+
+.. _sensor-framepos-refname:
+
 :at:`refname`: :at-val:`string`
    The name of the object to which the frame-of-reference is attached.
+
 
 .. _sensor-framequat:
 
@@ -3736,16 +5869,37 @@ optionally with respect to a given frame-of-reference.
 This element creates a sensor that returns the unit quaternion specifying the orientation of the spatial frame of the
 object, in global coordinates.
 
+.. _sensor-framequat-name:
+
+.. _sensor-framequat-noise:
+
+.. _sensor-framequat-cutoff:
+
+.. _sensor-framequat-user:
+
 :at:`name`, :at:`noise`, :at:`cutoff`, :at:`user`
    See :ref:`CSensor`.
+
+.. _sensor-framequat-objtype:
+
 :at:`objtype`: :at-val:`[body, xbody, geom, site, camera], required`
    See :ref:`framepos<sensor-framepos>` sensor.
+
+.. _sensor-framequat-objname:
+
 :at:`objname`: :at-val:`string, required`
    See :ref:`framepos<sensor-framepos>` sensor.
+
+.. _sensor-framequat-reftype:
+
 :at:`reftype`: :at-val:`[body, xbody, geom, site, camera]`
    See :ref:`framepos<sensor-framepos>` sensor.
+
+.. _sensor-framequat-refname:
+
 :at:`refname`: :at-val:`string`
    See :ref:`framepos<sensor-framepos>` sensor.
+
 
 .. _sensor-framexaxis:
 
@@ -3755,16 +5909,37 @@ object, in global coordinates.
 This element creates a sensor that returns the 3D unit vector corresponding to the X-axis of the spatial frame of the
 object, in global coordinates.
 
+.. _sensor-framexaxis-name:
+
+.. _sensor-framexaxis-noise:
+
+.. _sensor-framexaxis-cutoff:
+
+.. _sensor-framexaxis-user:
+
 :at:`name`, :at:`noise`, :at:`cutoff`, :at:`user`
    See :ref:`CSensor`.
+
+.. _sensor-framexaxis-objtype:
+
 :at:`objtype`: :at-val:`[body, xbody, geom, site, camera], required`
    See :ref:`framepos<sensor-framepos>` sensor.
+
+.. _sensor-framexaxis-objname:
+
 :at:`objname`: :at-val:`string, required`
    See :ref:`framepos<sensor-framepos>` sensor.
+
+.. _sensor-framexaxis-reftype:
+
 :at:`reftype`: :at-val:`[body, xbody, geom, site, camera]`
    See :ref:`framepos<sensor-framepos>` sensor.
+
+.. _sensor-framexaxis-refname:
+
 :at:`refname`: :at-val:`string`
    See :ref:`framepos<sensor-framepos>` sensor.
+
 
 .. _sensor-frameyaxis:
 
@@ -3774,16 +5949,37 @@ object, in global coordinates.
 This element creates a sensor that returns the 3D unit vector corresponding to the Y-axis of the spatial frame of the
 object, in global coordinates.
 
+.. _sensor-frameyaxis-name:
+
+.. _sensor-frameyaxis-noise:
+
+.. _sensor-frameyaxis-cutoff:
+
+.. _sensor-frameyaxis-user:
+
 :at:`name`, :at:`noise`, :at:`cutoff`, :at:`user`
    See :ref:`CSensor`.
+
+.. _sensor-frameyaxis-objtype:
+
 :at:`objtype`: :at-val:`[body, xbody, geom, site, camera], required`
    See :ref:`framepos<sensor-framepos>` sensor.
+
+.. _sensor-frameyaxis-objname:
+
 :at:`objname`: :at-val:`string, required`
    See :ref:`framepos<sensor-framepos>` sensor.
+
+.. _sensor-frameyaxis-reftype:
+
 :at:`reftype`: :at-val:`[body, xbody, geom, site, camera]`
    See :ref:`framepos<sensor-framepos>` sensor.
+
+.. _sensor-frameyaxis-refname:
+
 :at:`refname`: :at-val:`string`
    See :ref:`framepos<sensor-framepos>` sensor.
+
 
 .. _sensor-framezaxis:
 
@@ -3793,16 +5989,37 @@ object, in global coordinates.
 This element creates a sensor that returns the 3D unit vector corresponding to the Z-axis of the spatial frame of the
 object, in global coordinates.
 
+.. _sensor-framezaxis-name:
+
+.. _sensor-framezaxis-noise:
+
+.. _sensor-framezaxis-cutoff:
+
+.. _sensor-framezaxis-user:
+
 :at:`name`, :at:`noise`, :at:`cutoff`, :at:`user`
    See :ref:`CSensor`.
+
+.. _sensor-framezaxis-objtype:
+
 :at:`objtype`: :at-val:`[body, xbody, geom, site, camera], required`
    See :ref:`framepos<sensor-framepos>` sensor.
+
+.. _sensor-framezaxis-objname:
+
 :at:`objname`: :at-val:`string, required`
    See :ref:`framepos<sensor-framepos>` sensor.
+
+.. _sensor-framezaxis-reftype:
+
 :at:`reftype`: :at-val:`[body, xbody, geom, site, camera]`
    See :ref:`framepos<sensor-framepos>` sensor.
+
+.. _sensor-framezaxis-refname:
+
 :at:`refname`: :at-val:`string`
    See :ref:`framepos<sensor-framepos>` sensor.
+
 
 .. _sensor-framelinvel:
 
@@ -3812,16 +6029,37 @@ object, in global coordinates.
 This element creates a sensor that returns the 3D linear velocity of the spatial frame of the object, in global
 coordinates.
 
+.. _sensor-framelinvel-name:
+
+.. _sensor-framelinvel-noise:
+
+.. _sensor-framelinvel-cutoff:
+
+.. _sensor-framelinvel-user:
+
 :at:`name`, :at:`noise`, :at:`cutoff`, :at:`user`
    See :ref:`CSensor`.
+
+.. _sensor-framelinvel-objtype:
+
 :at:`objtype`: :at-val:`[body, xbody, geom, site, camera], required`
    See :ref:`framepos<sensor-framepos>` sensor.
+
+.. _sensor-framelinvel-objname:
+
 :at:`objname`: :at-val:`string, required`
    See :ref:`framepos<sensor-framepos>` sensor.
+
+.. _sensor-framelinvel-reftype:
+
 :at:`reftype`: :at-val:`[body, xbody, geom, site, camera]`
    See :ref:`framepos<sensor-framepos>` sensor.
+
+.. _sensor-framelinvel-refname:
+
 :at:`refname`: :at-val:`string`
    See :ref:`framepos<sensor-framepos>` sensor.
+
 
 .. _sensor-frameangvel:
 
@@ -3831,16 +6069,37 @@ coordinates.
 This element creates a sensor that returns the 3D angular velocity of the spatial frame of the object, in global
 coordinates.
 
+.. _sensor-frameangvel-name:
+
+.. _sensor-frameangvel-noise:
+
+.. _sensor-frameangvel-cutoff:
+
+.. _sensor-frameangvel-user:
+
 :at:`name`, :at:`noise`, :at:`cutoff`, :at:`user`
    See :ref:`CSensor`.
+
+.. _sensor-frameangvel-objtype:
+
 :at:`objtype`: :at-val:`[body, xbody, geom, site, camera], required`
    See :ref:`framepos<sensor-framepos>` sensor.
+
+.. _sensor-frameangvel-objname:
+
 :at:`objname`: :at-val:`string, required`
    See :ref:`framepos<sensor-framepos>` sensor.
+
+.. _sensor-frameangvel-reftype:
+
 :at:`reftype`: :at-val:`[body, xbody, geom, site, camera]`
    See :ref:`framepos<sensor-framepos>` sensor.
+
+.. _sensor-frameangvel-refname:
+
 :at:`refname`: :at-val:`string`
    See :ref:`framepos<sensor-framepos>` sensor.
+
 
 .. _sensor-framelinacc:
 
@@ -3850,12 +6109,27 @@ coordinates.
 This element creates a sensor that returns the 3D linear acceleration of the spatial frame of the object, in global
 coordinates.
 
+.. _sensor-framelinacc-name:
+
+.. _sensor-framelinacc-noise:
+
+.. _sensor-framelinacc-cutoff:
+
+.. _sensor-framelinacc-user:
+
 :at:`name`, :at:`noise`, :at:`cutoff`, :at:`user`
    See :ref:`CSensor`.
+
+.. _sensor-framelinacc-objtype:
+
 :at:`objtype`: :at-val:`[body, xbody, geom, site, camera], required`
    See :ref:`framepos<sensor-framepos>` sensor.
+
+.. _sensor-framelinacc-objname:
+
 :at:`objname`: :at-val:`string, required`
    See :ref:`framepos<sensor-framepos>` sensor.
+
 
 .. _sensor-frameangacc:
 
@@ -3865,12 +6139,27 @@ coordinates.
 This element creates a sensor that returns the 3D angular acceleration of the spatial frame of the object, in global
 coordinates.
 
+.. _sensor-frameangacc-name:
+
+.. _sensor-frameangacc-noise:
+
+.. _sensor-frameangacc-cutoff:
+
+.. _sensor-frameangacc-user:
+
 :at:`name`, :at:`noise`, :at:`cutoff`, :at:`user`
    See :ref:`CSensor`.
+
+.. _sensor-frameangacc-objtype:
+
 :at:`objtype`: :at-val:`[body, xbody, geom, site, camera], required`
    See :ref:`framepos<sensor-framepos>` sensor.
+
+.. _sensor-frameangacc-objname:
+
 :at:`objname`: :at-val:`string, required`
    See :ref:`framepos<sensor-framepos>` sensor.
+
 
 .. _sensor-subtreecom:
 
@@ -3880,10 +6169,22 @@ coordinates.
 This element creates sensor that returns the center of mass of the kinematic subtree rooted at a specified body, in
 global coordinates.
 
+.. _sensor-subtreecom-name:
+
+.. _sensor-subtreecom-noise:
+
+.. _sensor-subtreecom-cutoff:
+
+.. _sensor-subtreecom-user:
+
 :at:`name`, :at:`noise`, :at:`cutoff`, :at:`user`
    See :ref:`CSensor`.
+
+.. _sensor-subtreecom-body:
+
 :at:`body`: :at-val:`string, required`
    Name of the body where the kinematic subtree is rooted.
+
 
 .. _sensor-subtreelinvel:
 
@@ -3893,10 +6194,22 @@ global coordinates.
 This element creates sensor that returns the linear velocity of the center of mass of the kinematic subtree rooted at a
 specified body, in global coordinates.
 
+.. _sensor-subtreelinvel-name:
+
+.. _sensor-subtreelinvel-noise:
+
+.. _sensor-subtreelinvel-cutoff:
+
+.. _sensor-subtreelinvel-user:
+
 :at:`name`, :at:`noise`, :at:`cutoff`, :at:`user`
    See :ref:`CSensor`.
+
+.. _sensor-subtreelinvel-body:
+
 :at:`body`: :at-val:`string, required`
    Name of the body where the kinematic subtree is rooted.
+
 
 .. _sensor-subtreeangmom:
 
@@ -3906,10 +6219,22 @@ specified body, in global coordinates.
 This element creates sensor that returns the angular momentum around the center of mass of the kinematic subtree rooted
 at a specified body, in global coordinates.
 
+.. _sensor-subtreeangmom-name:
+
+.. _sensor-subtreeangmom-noise:
+
+.. _sensor-subtreeangmom-cutoff:
+
+.. _sensor-subtreeangmom-user:
+
 :at:`name`, :at:`noise`, :at:`cutoff`, :at:`user`
    See :ref:`CSensor`.
+
+.. _sensor-subtreeangmom-body:
+
 :at:`body`: :at-val:`string, required`
    Name of the body where the kinematic subtree is rooted.
+
 
 .. _sensor-clock:
 
@@ -3918,8 +6243,17 @@ at a specified body, in global coordinates.
 
 This element creates sensor that returns the simulation time.
 
+.. _sensor-clock-name:
+
+.. _sensor-clock-noise:
+
+.. _sensor-clock-cutoff:
+
+.. _sensor-clock-user:
+
 :at:`name`, :at:`noise`, :at:`cutoff`, :at:`user`
    See :ref:`CSensor`.
+
 
 .. _sensor-user:
 
@@ -3933,22 +6267,46 @@ attached to and what stage of computation it needs before the data can be comput
 referenced here can be a tuple, which in turn can reference a custom collection of MuJoCo objects - for example several
 bodies whose center of mass is of interest.
 
+.. _sensor-user-name:
+
+.. _sensor-user-noise:
+
+.. _sensor-user-cutoff:
+
+.. _sensor-user-user:
+
 :at:`name`, :at:`noise`, :at:`cutoff`, :at:`user`
    See :ref:`CSensor`.
+
+.. _sensor-user-objtype:
+
 :at:`objtype`: :at-val:`(any element type that can be named), optional`
    Type of the MuJoCo object to which the sensor is attached. This together with the objname attribute determines the
    actual object. If unspecified, will be :ref:`mjOBJ_UNKNOWN<mjtObj>`.
+
+.. _sensor-user-objname:
+
 :at:`objname`: :at-val:`string, optional`
    Name of the MuJoCo object to which the sensor is attached.
+
+.. _sensor-user-datatype:
+
 :at:`datatype`: :at-val:`[real, positive, axis, quaternion], "real"`
    The type of output generated by this sensor. "axis" means a unit-length 3D vector. "quat" means a unit quaternion.
    These need to be declared because when MuJoCo adds noise, it must respect the vector normalization. "real" means a
    generic array (or scalar) of real values to which noise can be added independently.
+
+.. _sensor-user-needstage:
+
 :at:`needstage`: :at-val:`[pos, vel, acc], "acc"`
    The MuJoCo computation stage that must be completed before the user callback mjcb_sensor() is able to evaluate the
    output of this sensor.
+
+.. _sensor-user-dim:
+
 :at:`dim`: :at-val:`int, required`
    Number of scalar outputs of this sensor.
+
 
 .. _keyframe:
 
@@ -3964,6 +6322,7 @@ mjModel.qpos0.
 The user can also set keyframe data in mjModel at runtime; this data will then appear in the saved MJCF model. Note that
 in :ref:`simulate.cc <saSimulate>` the simulation state can be copied into a selected keyframe and vice versa.
 
+
 .. _keyframe-key:
 
 :el-prefix:`keyframe/` |j| **key** (*)
@@ -3971,19 +6330,43 @@ in :ref:`simulate.cc <saSimulate>` the simulation state can be copied into a sel
 
 This element sets the data for one of the keyframes. They are set in the order in which they appear here.
 
+
+.. _keyframe-key-name:
+
 :at:`name`: :at-val:`string, optional`
    Name of this keyframe.
+
+.. _keyframe-key-time:
+
 :at:`time`: :at-val:`real, "0"`
    Simulation time, copied into mjData.time when the simulation state is set to this keyframe.
+
+.. _keyframe-key-qpos:
+
 :at:`qpos`: :at-val:`real(mjModel.nq), default = mjModel.qpos0`
    Vector of joint positions, copied into mjData.qpos when the simulation state is set to this keyframe.
+
+.. _keyframe-key-qvel:
+
 :at:`qvel`: :at-val:`real(mjModel.nq), "0 0 ..."`
    Vector of joint velocities, copied into mjData.qvel when the simulation state is set to this keyframe.
+
+.. _keyframe-key-act:
+
 :at:`act`: :at-val:`real(mjModel.na), "0 0 ..."`
    Vector of actuator activations, copied into mjData.act when the simulation state is set to this keyframe.
+
+.. _keyframe-key-ctrl:
+
 :at:`ctrl`: :at-val:`real(mjModel.nu), "0 0 ..."`
    Vector of controls, copied into mjData.ctrl when the simulation state is set to this keyframe.
+
+.. _keyframe-key-mpos:
+
 :at:`mpos`: :at-val:`real(3*mjModel.nmocap), default = mjModel.body_pos`
    Vector of mocap body positions, copied into mjData.mocap_pos when the simulation state is set to this keyframe.
+
+.. _keyframe-key-mquat:
+
 :at:`mquat`: :at-val:`real(4*mjModel.nmocap), default = mjModel.body_quat`
    Vector of mocap body quaternions, copied into mjData.mocap_quat when the simulation state is set to this keyframe.
