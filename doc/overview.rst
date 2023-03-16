@@ -49,7 +49,7 @@ Soft, convex and analytically-invertible contact dynamics
    based on a different formulation of the physics of contact which reduces to a convex optimization problem, as
    explained in detail in the :doc:`computation` chapter. Our model allows soft contacts and other constraints, and has
    a uniquely-defined inverse facilitating data analysis and control applications. There is a choice of optimization
-   algorithms, including a generalization to the projected Gauss-Siedel method that can handle elliptic friction cones.
+   algorithms, including a generalization to the projected Gauss-Seidel method that can handle elliptic friction cones.
    The solver provides unified treatment of frictional contacts including torsional and rolling friction, frictionless
    contacts, joint and tendon limits, dry friction in joints and tendons, as well as a variety of equality constraints.
 
