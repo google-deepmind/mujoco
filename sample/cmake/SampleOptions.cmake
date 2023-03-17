@@ -93,13 +93,15 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR (CMAKE_CXX_COMPILER_ID MATCHES "Clang
       -Wno-int-in-bool-context
       -Wno-sign-compare
       -Wno-unknown-pragmas
-      -Wgnu-empty-initializer
   )
   if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     # Set -Wimplicit-fallthrough=5 to only allow fallthrough annotation via __attribute__.
     set(EXTRA_COMPILE_OPTIONS ${EXTRA_COMPILE_OPTIONS} -Wimplicit-fallthrough=5
                               -Wno-maybe-uninitialized
     )
+  endif()
+  if (CMAKE_CXX_COMPILER_ID MATCHES "Clang" AND NOT MSVC)
+    set(EXTRA_COMPILE_OPTIONS ${EXTRA_COMPILE_OPTIONS} -Wgnu-empty-initializer)
   endif()
 endif()
 
