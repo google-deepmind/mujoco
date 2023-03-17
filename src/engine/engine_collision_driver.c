@@ -222,8 +222,8 @@ void mj_collideTree(const mjModel* m, mjData* d, int b1, int b2,
   const mjtNum* bvh2 = m->bvh_aabb + 6 * bvhadr2;
   const int* child1 = m->bvh_child + 2 * bvhadr1;
   const int* child2 = m->bvh_child + 2 * bvhadr2;
-  mjtNum product[36] = {};  // 2 bb x 2 bb x 3 axes (body) x 3 axes (world)
-  mjtNum offset[12] = {};   // 2 bb x 2 bb x 3 axes (world)
+  mjtNum product[36];  // 2 bb x 2 bb x 3 axes (body) x 3 axes (world)
+  mjtNum offset[12];   // 2 bb x 2 bb x 3 axes (world)
   mjtByte initialize = 1;
 
   mjMARKSTACK;

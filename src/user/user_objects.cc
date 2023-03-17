@@ -757,7 +757,7 @@ int mjCBody::MakeBVH(std::vector<mjCGeom *>& elements, int lev) {
     mjtNum vert[3] = {elements[i]->pos[0] - ipos[0],
                       elements[i]->pos[1] - ipos[1],
                       elements[i]->pos[2] - ipos[2]};
-    mjtNum lpos[3] = {};
+    mjtNum lpos[3];
     mju_rotVecQuat(lpos, vert, qinv);
     pos[i] = lpos[axis];
   }
@@ -776,7 +776,7 @@ int mjCBody::MakeBVH(std::vector<mjCGeom *>& elements, int lev) {
     mjtNum vert[3] = {elements[i]->pos[0] - ipos[0],
                       elements[i]->pos[1] - ipos[1],
                       elements[i]->pos[2] - ipos[2]};
-    mjtNum lpos[3] = {};
+    mjtNum lpos[3];
     mju_rotVecQuat(lpos, vert, qinv);
 
     // skip visual objects
