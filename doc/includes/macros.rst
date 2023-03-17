@@ -23,5 +23,5 @@
 ..
    Macro for unicode word-joiner character.
 
-.. |j| unicode:: U+2060
+.. |-| unicode:: U+2060
    :trim:
