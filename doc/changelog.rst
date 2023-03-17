@@ -53,8 +53,13 @@ General
 Python bindings
 ^^^^^^^^^^^^^^^
 
-- Fixed IPython history corruption when using ``launch_repl``. The ``launch_repl`` function now provides seamless
+- Fixed IPython history corruption when using ``viewer.launch_repl``. The ``launch_repl`` function now provides seamless
   continuation of an IPython interactive shell session, and is no longer considered experimental feature.
+- Added ``viewer.launch_passive`` which launches the interactive viewer in a passive, non-blocking mode. Calls to
+  ``launch_passive`` return immediately, allowing user code to continue execution, with the viewer automatically
+  reflecting any changes to the physics state. (Note that this functionality is currently in experimental/beta stage,
+  and is not yet described in our :ref:`viewer  documentation<PyViewer>`.)
+- Added the ``mjpython`` launcher for macOS, which is required for ``viewer.launch_passive`` to function there.
 - Removed ``efc_`` fields from joint indexers. Since the introduction of arena memory, these fields now have dynamic
   sizes that change between time steps depending on the number of active constraints, breaking strict correspondence
   between joints and ``efc_`` rows.
