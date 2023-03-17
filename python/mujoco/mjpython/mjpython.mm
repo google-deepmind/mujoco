@@ -12,30 +12,42 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#import <algorithm>
 #import <atomic>
+#import <cstdint>
 #import <cstdlib>
+#import <cstring>
 #import <iostream>
+#import <vector>
 
 #import <dlfcn.h>
+#import <mach-o/dyld.h>
 #import <pthread.h>
 #import <sys/resource.h>
+#import <unistd.h>
 
 #import <Cocoa/Cocoa.h>
 #import <Python.h>
 
+extern "C" {
+extern char **environ;  // for execve
+
 // Wrap Objective-C Cocoa calls into C-style functions with default visibility,
 // so that we can dlsym and call them from Python via ctypes.
-extern "C" {
 __attribute__((used)) void mjpython_hide_dock_icon() {
   [NSApp setActivationPolicy:NSApplicationActivationPolicyAccessory];
 }
 __attribute__((used)) void mjpython_show_dock_icon() {
   [NSApp setActivationPolicy:NSApplicationActivationPolicyRegular];
 }
-}
+}  // extern "C"
 
 // TODO(b/273744079): Remove Python 3.7 code after end-of-life (27 Jun 2023).
 namespace {
+// 16MiB is the default Python thread stack size on macOS as of Python 3.11
+// https://bugs.python.org/issue18075
+constexpr rlim_t kThreadStackSize = 0x1000000;
+
 struct {
 #define CPYTHON_FN(fname) decltype(&::fname) fname
 
@@ -198,14 +210,51 @@ int main(int argc, char** argv) {
     return 1;
   }
 
+  // Enlarge the stack if necessary to match what Python normally expects to have when launching
+  // a new thread.
+  rlimit stack;
+  if (getrlimit(RLIMIT_STACK, &stack)) {
+    std::cerr << "getrlimit failed to query stack size with error code " << errno << " ("
+              << std::strerror(errno) << ")\n";
+    std::cerr << "continuing anyway but crashes may occur if the stack is too small\n";
+  } else if (stack.rlim_cur < kThreadStackSize && stack.rlim_cur < stack.rlim_max) {
+    auto rlim_old = stack.rlim_cur;
+    stack.rlim_cur = std::min(kThreadStackSize, stack.rlim_max);
+    if (setrlimit(RLIMIT_STACK, &stack)) {
+      std::cerr << "setrlimit failed to increase stack size with error code " << errno << " ("
+                << std::strerror(errno) << ")\n";
+      std::cerr << "continuing anyway with stack size " << rlim_old << " but crashes may occur\n";
+    } else {
+      // re-exec the binary so that the new stack size takes effect
+      std::uint32_t path_size = 0;
+      _NSGetExecutablePath(nullptr, &path_size);
+      std::vector<char> path(path_size);
+      if (_NSGetExecutablePath(path.data(), &path_size)) {
+        std::cerr << "unexpected error from _NSGetExecutablePath, continuing anyway\n";
+      } else {
+        execve(path.data(), argv, environ);
+      }
+    }
+  }
+
   // Resolve libpython at runtime to prevent linking against the wrong dylib. The correct libpython
   // path is passed from a Python trampoline script, which ran inside the desired interpreter and
   // exec'd this binary.
   void* libpython = dlopen(libpython_path, RTLD_NOW | RTLD_GLOBAL);
+  if (!libpython) {
+    std::cerr << "failed to dlopen path '" << libpython_path << "': " << dlerror() << "\n";
+    return 1;
+  }
 
   // Look up required CPython API functions from table of symbols already loaded into the process.
-#define CPYTHON_INITFN(fname) \
-    cpython.fname = reinterpret_cast<decltype(cpython.fname)>(dlsym(libpython, #fname))
+#define CPYTHON_INITFN(fname)                                                            \
+  {                                                                                      \
+    cpython.fname = reinterpret_cast<decltype(cpython.fname)>(dlsym(libpython, #fname)); \
+    if (!cpython.fname) {                                                                \
+      std::cerr << "failed to dlsym '" << #fname << "': " << dlerror() << "\n";          \
+      return 1;                                                                          \
+    }                                                                                    \
+  }
 
 #if PY_MINOR_VERSION >= 8
   CPYTHON_INITFN(Py_InitializeFromConfig);
@@ -233,21 +282,24 @@ int main(int argc, char** argv) {
   // Package up argc and argv together to pass to pthread_create.
   Args args{argc, argv};
 
+#define PTHREAD_CHECKED(func, ...)                                                              \
+  {                                                                                             \
+    int result = func(__VA_ARGS__);                                                             \
+    if (result) {                                                                               \
+      std::cerr << #func << " failed with " << result << "(" << std::strerror(result) << ")\n"; \
+    }                                                                                           \
+  }
+
+  // Configure the new thread with the correct stack size;
+  pthread_attr_t pthread_attr;
+  PTHREAD_CHECKED(pthread_attr_init, &pthread_attr);
+  PTHREAD_CHECKED(pthread_attr_setstacksize, &pthread_attr, stack.rlim_cur);
+
   // Create a thread to be used as the "Python main thread".
-  pthread_t pymain_thread = [&args]() {
-    // Set the stack size of the Python main thread to be the same as the OS main thread.
-    // (e.g. the default pthread stack size is too small to import NumPy)
-    rlimit limit;
-    getrlimit(RLIMIT_STACK, &limit);
-
-    pthread_attr_t attr;
-    pthread_attr_init(&attr);
-    pthread_attr_setstacksize(&attr, limit.rlim_cur);
-
-    pthread_t thread;
-    pthread_create(&thread, &attr, &mjpython_pymain, &args);
-    return thread;
-  }();
+  pthread_t pymain_thread;
+  PTHREAD_CHECKED(pthread_create, &pymain_thread, &pthread_attr, &mjpython_pymain, &args);
+  pthread_attr_destroy(&pthread_attr);
+#undef PTHREAD_CHECKED
 
   // Busy-wait until Python interpreter is initialized.
   while (!py_initialized.load()) {}

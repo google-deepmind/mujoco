@@ -21,23 +21,40 @@ GUI calls without blocking the user's Python script. In other words, Python's
 idea of the "main thread" is different from the thread that holds the
 com.apple.main-thread DispatchQueue.
 """
-
+import ctypes
 import importlib.util
 import os
+import platform
 import sys
-import sysconfig
+
+if platform.system() != 'Darwin':
+  raise RuntimeError('This script only works on macOS')
+
+_NSGetExecutablePath = getattr(ctypes.CDLL(None), '_NSGetExecutablePath')
+
+
+def get_executable_path():
+  c_path_size = ctypes.c_int32(0)
+  _NSGetExecutablePath(None, ctypes.byref(c_path_size))
+  c_path = (ctypes.c_char * c_path_size.value)()
+  _NSGetExecutablePath(ctypes.byref(c_path), ctypes.byref(c_path_size))
+  return c_path.value.decode()
 
 
 def main(argv):
-  os.environ['MJPYTHON_LIBPYTHON'] = os.path.join(
-      sysconfig.get_config_var('PYTHONFRAMEWORKPREFIX'),
-      sysconfig.get_config_var('INSTSONAME'),
-  )
+  module_dir = os.path.dirname(importlib.util.find_spec('mujoco').origin)
+  os.environ['MJPYTHON_BIN'] = os.path.join(
+      module_dir, 'MuJoCo (mjpython).app/Contents/MacOS/mjpython')
+
+  # Conda doesn't create a separate shared library for Python.
+  # We instead use the Python binary itself, which can be dlopened just as well.
+  os.environ['MJPYTHON_LIBPYTHON'] = get_executable_path()
+
+  # argv[0] is currently the path to this script.
+  # Replace it with sys.executable to preserve e.g. virtualenv path.
   argv[0] = sys.executable
-  mujoco_dir = os.path.dirname(importlib.util.find_spec('mujoco').origin)
-  os.execve(
-      os.path.join(mujoco_dir, 'MuJoCo (mjpython).app/Contents/MacOS/mjpython'),
-      argv, os.environ)
+
+  os.execve(os.environ['MJPYTHON_BIN'], argv, os.environ)
 
 
 if __name__ == '__main__':
