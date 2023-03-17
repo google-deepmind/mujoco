@@ -713,7 +713,8 @@ void makerendering(mj::Simulate* sim, int oldstate) {
 
   // create tree slider
   sim->m->vis.global.treedepth = 0;
-  mjuiDef defTree[] = {{mjITEM_SLIDERINT, "Tree depth", 2, &sim->m->vis.global.treedepth, "-1 15"}};
+  mjuiDef defTree[] = {{mjITEM_SLIDERINT, "Tree depth", 2, &sim->m->vis.global.treedepth, "-1 15"},
+                       {mjITEM_END}};
   mjui_add(&sim->ui0, defTree);
 
   mjui_add(&sim->ui0, defOpenGL);
