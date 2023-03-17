@@ -146,7 +146,8 @@ public enum mjtDisableBit : int{
   mjDSBL_ACTUATION = 1024,
   mjDSBL_REFSAFE = 2048,
   mjDSBL_SENSOR = 4096,
-  mjNDISABLE = 13,
+  mjDSBL_MIDPHASE = 8192,
+  mjNDISABLE = 14,
 }
 public enum mjtEnableBit : int{
   mjENBL_OVERRIDE = 1,
@@ -485,7 +486,8 @@ public enum mjtVisFlag : int{
   mjVIS_SELECT = 20,
   mjVIS_STATIC = 21,
   mjVIS_SKIN = 22,
-  mjNVISFLAG = 23,
+  mjVIS_MIDPHASE = 23,
+  mjNVISFLAG = 24,
 }
 public enum mjtRndFlag : int{
   mjRND_SHADOW = 0,
@@ -1644,6 +1646,7 @@ public unsafe struct mjData_ {
   public double* qLD;
   public double* qLDiagInv;
   public double* qLDiagSqrtInv;
+  public byte* bvh_active;
   public double* ten_velocity;
   public double* actuator_velocity;
   public double* cvel;
@@ -1764,6 +1767,7 @@ public unsafe struct global {
   public float realtime;
   public int offwidth;
   public int offheight;
+  public int treedepth;
 }
 
 [StructLayout(LayoutKind.Sequential)]
@@ -1872,6 +1876,7 @@ public unsafe struct mjModel_ {
   public int nu;
   public int na;
   public int nbody;
+  public int nbvh;
   public int njnt;
   public int ngeom;
   public int nsite;
@@ -1960,6 +1965,12 @@ public unsafe struct mjModel_ {
   public double* body_gravcomp;
   public double* body_user;
   public int* body_plugin;
+  public int* body_bvhadr;
+  public int* body_bvhnum;
+  public int* bvh_depth;
+  public int* bvh_child;
+  public int* bvh_geomid;
+  public double* bvh_aabb;
   public int* jnt_type;
   public int* jnt_qposadr;
   public int* jnt_dofadr;
@@ -2000,6 +2011,7 @@ public unsafe struct mjModel_ {
   public double* geom_solref;
   public double* geom_solimp;
   public double* geom_size;
+  public double* geom_aabb;
   public double* geom_rbound;
   public double* geom_pos;
   public double* geom_quat;
@@ -2558,7 +2570,7 @@ public unsafe struct mjvOption_ {
   public fixed byte tendongroup[6];
   public fixed byte actuatorgroup[6];
   public fixed byte skingroup[6];
-  public fixed byte flags[23];
+  public fixed byte flags[24];
 }
 
 [StructLayout(LayoutKind.Sequential)]

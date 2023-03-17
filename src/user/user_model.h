@@ -215,6 +215,7 @@ class mjCModel {
   int nv;                         // number of degrees of freedom = dim(qvel)
   int nu;                         // number of actuators/controls
   int na;                         // number of activation variables
+  int nbvh;                       // number of boundary volume hierarchies
   int nmeshvert;                  // number of vertices in all meshes
   int nmeshnormal;                // number of normals in all meshes
   int nmeshtexcoord;              // number of texture coordinates in all meshes

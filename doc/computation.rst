@@ -1422,10 +1422,14 @@ Generation
    user full control, however it is a static mechanism (independent of the spatial arrangement of the geoms at runtime)
    and can be tedious for large models. It is normally used to supplement the output of the "dynamic" mechanism. Dynamic
    generation works with bodies rather than geoms; when a body pair is included this means that all geoms attached to
-   one body can collide with all geoms attached to the other body. The body pairs are generated via broad-phase
-   collision detection based on a modified sweep-and-prune algorithm. The modification is that the axis for sorting is
-   chosen as the principal eigenvector of the covariance matrix of all geom centers - which maximizes the spread. If
-   broad-phase collision detection is disabled by the user, all body pairs are included in this step.
+   one body can collide with all geoms attached to the other body.
+
+   The body pairs are generated via broad-phase collision detection based on a modified sweep-and-prune algorithm. The
+   modification is that the axis for sorting is chosen as the principal eigenvector of the covariance matrix of all geom
+   centers - which maximizes the spread. Then, for each body pair, a mid-phase collision detection using a static
+   bounding volume hierarchy (a BVH binary tree) of axis-aligned bounding boxes (AABB) is performed. Each body is
+   equipped with an AABB tree of its geoms, aligned with the body inertial or geom frames for all inner or leaf nodes,
+   respectively.
 
    Finally, the user can explicitly exclude certain body pairs using the :ref:`exclude <contact-exclude>` element
    in MJCF. Exclusion is applied when "dynamic" or "all" are selected, but not when "pair" is selected. At the end of

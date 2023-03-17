@@ -56,8 +56,9 @@ typedef enum mjtDisableBit_ {     // disable default feature bitflags
   mjDSBL_ACTUATION    = 1<<10,    // apply actuation forces
   mjDSBL_REFSAFE      = 1<<11,    // integrator safety: make ref[0]>=2*timestep
   mjDSBL_SENSOR       = 1<<12,    // sensors
+  mjDSBL_MIDPHASE     = 1<<13,    // mid-phase collision filtering
 
-  mjNDISABLE          = 13        // number of disable flags
+  mjNDISABLE          = 14        // number of disable flags
 } mjtDisableBit;
 
 
@@ -430,6 +431,7 @@ struct mjVisual_ {                // visualization options
     float realtime;               // initial real-time factor (1: real time)
     int offwidth;                 // width of offscreen buffer
     int offheight;                // height of offscreen buffer
+    int treedepth;                // depth of the bounding volume hierarchy
   } global;
 
   struct {                        // rendering quality
@@ -533,6 +535,7 @@ struct mjModel_ {
   int nu;                         // number of actuators/controls = dim(ctrl)
   int na;                         // number of activation states = dim(act)
   int nbody;                      // number of bodies
+  int nbvh;                       // number of total bounding volumes in all bodies
   int njnt;                       // number of joints
   int ngeom;                      // number of geoms
   int nsite;                      // number of sites
@@ -635,6 +638,14 @@ struct mjModel_ {
   mjtNum*   body_gravcomp;        // antigravity force, units of body weight  (nbody x 1)
   mjtNum*   body_user;            // user data                                (nbody x nuser_body)
   int*      body_plugin;          // plugin instance id (-1 if not in use)    (nbody x 1)
+  int*      body_bvhadr;          // address of bvh root                      (nbody x 1)
+  int*      body_bvhnum;          // number of bounding volumes               (nbody x 1)
+
+  // bounding volume hierarchy
+  int*      bvh_depth;            // depth in the bounding volume hierarchy   (nbvh x 1)
+  int*      bvh_child;            // left and right children in tree          (nbvh x 2)
+  int*      bvh_geomid;           // geom id of the node (non-leaf: -1)       (nbvh x 1)
+  mjtNum*   bvh_aabb;             // bounding box of node (center, size)      (nbvh x 6)
 
   // joints
   int*      jnt_type;             // type of joint (mjtJoint)                 (njnt x 1)
@@ -681,6 +692,7 @@ struct mjModel_ {
   mjtNum*   geom_solref;          // constraint solver reference: contact     (ngeom x mjNREF)
   mjtNum*   geom_solimp;          // constraint solver impedance: contact     (ngeom x mjNIMP)
   mjtNum*   geom_size;            // geom-specific size parameters            (ngeom x 3)
+  mjtNum*   geom_aabb;            // bounding box, (center, size)             (ngeom x 6)
   mjtNum*   geom_rbound;          // radius of bounding sphere                (ngeom x 1)
   mjtNum*   geom_pos;             // local position offset rel. to body       (ngeom x 3)
   mjtNum*   geom_quat;            // local orientation offset rel. to body    (ngeom x 4)

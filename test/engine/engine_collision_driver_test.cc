@@ -23,6 +23,8 @@
 #include <mujoco/mjmodel.h>
 #include <mujoco/mujoco.h>
 #include "test/fixture.h"
+#include "src/engine/engine_collision_driver.h"
+
 
 namespace mujoco {
 namespace {
@@ -214,6 +216,25 @@ TEST_F(MjCollisionTest, FilterParentDoesntAffectWorldBody) {
 
   mj_deleteData(d);
   mj_deleteModel(m);
+}
+
+TEST_F(MjCollisionTest, TestOBB) {
+  mjtNum bvh1[6] = {-1, -1, -1, 1, 1, 1};
+  mjtNum bvh2[6] = {-1, -1, -1, 1, 1, 1};
+  mjtNum pos1[3] = {0, 0, 0};
+  mjtNum mat1[9] = {1, 0, 0, 0, 1, 0, 0, 0, 1};
+  mjtNum pos2[3] = {1.71, 1.71, 0};  // just a little more than 1+sqrt(2)/2
+  mjtNum mat2[9] = {1, 0, 0, 0, 1, 0, 0, 0, 1};
+
+  EXPECT_THAT(
+    mj_collideOBB(bvh1, bvh2, pos1, mat1, pos2, mat2, NULL, NULL, 0), true);
+
+  // rotate by 45 degrees
+  mat2[0] = 1./mju_sqrt(2.); mat2[1] = -1./mju_sqrt(2.);
+  mat2[3] = 1./mju_sqrt(2.); mat2[4] =  1./mju_sqrt(2.);
+
+  EXPECT_THAT(
+    mj_collideOBB(bvh1, bvh2, pos1, mat1, pos2, mat2, NULL, NULL, 0), false);
 }
 
 }  // namespace

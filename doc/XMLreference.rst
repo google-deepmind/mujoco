@@ -705,6 +705,12 @@ from its default.
    function. If a new contact is detected it is added, allowing for up to 4 additional contact points. This feature is
    currently considered experimental, and both the behavior and the way it is activated may change in the future.
 
+.. _option-flag-midphase:
+
+:at:`midphase`: :at-val:`[disable, enable], "enable"`
+   This flag disables the mid-phase collision filtering using a static AABB bounding volume hierarchy (a BVH binary
+   tree). If disabled, all geoms pairs that are allowed to collide are checked for collisions.
+
 
 .. _size:
 

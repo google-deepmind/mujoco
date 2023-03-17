@@ -144,6 +144,7 @@ void mj_defaultVisual(mjVisual* vis) {
   vis->global.offwidth            = 640;
   vis->global.offheight           = 480;
   vis->global.realtime            = 1.0;
+  vis->global.treedepth           = 1;
 
   // rendering quality
   vis->quality.shadowsize         = 4096;
@@ -375,7 +376,7 @@ static int safeAddToBufferSize(intptr_t* offset, int* nbuffer, size_t type_size,
 
 
 // allocate and initialize mjModel structure
-mjModel* mj_makeModel(int nq, int nv, int nu, int na, int nbody, int njnt,
+mjModel* mj_makeModel(int nq, int nv, int nu, int na, int nbody, int nbvh, int njnt,
                       int ngeom, int nsite, int ncam, int nlight,
                       int nmesh, int nmeshvert, int nmeshnormal, int nmeshtexcoord, int nmeshface,
                       int nmeshgraph, int nskin, int nskinvert, int nskintexvert, int nskinface,
@@ -402,6 +403,7 @@ mjModel* mj_makeModel(int nq, int nv, int nu, int na, int nbody, int njnt,
   m->nu = nu;
   m->na = na;
   m->nbody = nbody;
+  m->nbvh = nbvh;
   m->njnt = njnt;
   m->ngeom = ngeom;
   m->nsite = nsite;
@@ -521,7 +523,7 @@ mjModel* mj_copyModel(mjModel* dest, const mjModel* src) {
 
   // allocate new model if needed
   if (!dest) {
-    dest = mj_makeModel(src->nq, src->nv, src->nu, src->na, src->nbody, src->njnt,
+    dest = mj_makeModel(src->nq, src->nv, src->nu, src->na, src->nbody, src->nbvh, src->njnt,
                         src->ngeom, src->nsite, src->ncam, src->nlight, src->nmesh, src->nmeshvert,
                         src->nmeshnormal, src->nmeshtexcoord, src->nmeshface, src->nmeshgraph,
                         src->nskin, src->nskinvert, src->nskintexvert, src->nskinface,
@@ -702,7 +704,7 @@ mjModel* mj_loadModel(const char* filename, const mjVFS* vfs) {
                    info[28], info[29], info[30], info[31], info[32], info[33], info[34],
                    info[35], info[36], info[37], info[38], info[39], info[40], info[41],
                    info[42], info[43], info[44], info[45], info[46], info[47], info[48],
-                   info[49], info[50], info[51]);
+                   info[49], info[50], info[51], info[52]);
   if (!m || m->nbuffer!=info[getnint()-1]) {
     if (fp) {
       fclose(fp);

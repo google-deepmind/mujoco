@@ -983,6 +983,7 @@ void mjXReader::Option(XMLElement* section, mjOption* opt) {
     READDSBL("actuation",    mjDSBL_ACTUATION)
     READDSBL("refsafe",      mjDSBL_REFSAFE)
     READDSBL("sensor",       mjDSBL_SENSOR)
+    READDSBL("midphase",     mjDSBL_MIDPHASE)
 #undef READDSBL
 
 #define READENBL(NAME, MASK) \

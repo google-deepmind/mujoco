@@ -234,6 +234,7 @@ mjCModel::~mjCModel() {
 void mjCModel::Clear(void) {
   // sizes set from list lengths
   nbody = 0;
+  nbvh = 0;
   njnt = 0;
   ngeom = 0;
   nsite = 0;
@@ -935,6 +936,11 @@ void mjCModel::SetSizes(void) {
     }
   }
 
+  // nbvh
+  for (i=0; i<nbody; i++) {
+    nbvh += bodies[i]->nbvh;
+  }
+
   // nmeshvert, nmeshface, nmeshtexcoord, nmeshgraph
   for (i=0; i<nmesh; i++) {
     nmeshvert += meshes[i]->nvert;
@@ -1324,6 +1330,7 @@ void mjCModel::CopyTree(mjModel* m) {
   int jntadr = 0;         // addresses in global arrays
   int dofadr = 0;
   int qposadr = 0;
+  int bvh_adr = 0;
 
   // main loop over bodies
   for (i=0; i<nbody; i++) {
@@ -1349,6 +1356,17 @@ void mjCModel::CopyTree(mjModel* m) {
     copyvec(m->body_inertia+3*i, pb->inertia, 3);
     m->body_gravcomp[i] = pb->gravcomp;
     copyvec(m->body_user+nuser_body*i, pb->userdata.data(), nuser_body);
+
+    // bounding volume hierarchy
+    m->body_bvhadr[i] = (!pb->geoms.empty() ? bvh_adr : -1);
+    m->body_bvhnum[i] = pb->nbvh;
+    if (pb->nbvh) {
+      memcpy(m->bvh_aabb + 6*bvh_adr, pb->bvh.data(), 6*pb->nbvh*sizeof(mjtNum));
+      memcpy(m->bvh_child + 2*bvh_adr, pb->child.data(), 2*pb->nbvh*sizeof(int));
+      memcpy(m->bvh_geomid + bvh_adr, pb->nodeid.data(), pb->nbvh*sizeof(int));
+      memcpy(m->bvh_depth + bvh_adr, pb->level.data(), pb->nbvh*sizeof(int));
+    }
+    bvh_adr += pb->nbvh;
 
     // count free joints
     int cntfree = 0;
@@ -1498,6 +1516,7 @@ void mjCModel::CopyTree(mjModel* m) {
       m->geom_group[gid] = pg->group;
       m->geom_priority[gid] = pg->priority;
       copyvec(m->geom_size+3*gid, pg->size, 3);
+      copyvec(m->geom_aabb+6*gid, pg->aabb, 6);
       copyvec(m->geom_pos+3*gid, pg->locpos, 3);
       copyvec(m->geom_quat+4*gid, pg->locquat, 4);
       copyvec(m->geom_friction+3*gid, pg->friction, 3);
@@ -2659,7 +2678,7 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
   }
 
   // create low-level model
-  m = mj_makeModel(nq, nv, nu, na, nbody, njnt, ngeom, nsite, ncam, nlight,
+  m = mj_makeModel(nq, nv, nu, na, nbody, nbvh, njnt, ngeom, nsite, ncam, nlight,
                    nmesh, nmeshvert, nmeshnormal, nmeshtexcoord, nmeshface, nmeshgraph,
                    nskin, nskinvert, nskintexvert, nskinface, nskinbone, nskinbonevert,
                    nhfield, nhfielddata, ntex, ntexdata, nmat, npair, nexclude,

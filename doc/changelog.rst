@@ -30,6 +30,16 @@ General
      one step (ms),  0.5,   0.53,  0.77,  5.0
      steps/second,   2000,  1900,  1300,  200
 
+- Added a collision mid-phase for pruning geoms in body pairs, see :ref:`documentation<coSelection>` for more details.
+  This is based on static AABB bounding volume hierarchy (a BVH binary tree) in the body inertial frame.
+
+.. image:: images/computation/midphase.gif
+   :width: 450px
+
+.. youtube:: e0babIM8hBo
+   :align: right
+   :height: 150px
+
 - The ``mjd_transitionFD`` function no longer triggers sensor calculation unless explicitly requested.
 - Corrected the spelling of the ``inteval`` attribute to ``interval`` in the :ref:`mjLROpt` struct.
 - Mesh texture and normal mappings are now 3-per-triangle rather than 1-per-vertex. Mesh vertices are no longer

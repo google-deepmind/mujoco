@@ -246,6 +246,9 @@ struct mjData_ {
   mjtNum* qLDiagInv;         // 1/diag(D)                                        (nv x 1)
   mjtNum* qLDiagSqrtInv;     // 1/sqrt(diag(D))                                  (nv x 1)
 
+  // computed by mj_collisionTree
+  mjtByte* bvh_active;       // volume has been added to collisions              (nbvh x 1)
+
   //-------------------------------- POSITION, VELOCITY dependent
 
   // computed by mj_fwdVelocity

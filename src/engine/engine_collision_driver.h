@@ -21,13 +21,27 @@
 
 #ifdef __cplusplus
 extern "C" {
+#else
+#include <stdalign.h>
 #endif
+
+struct mjCollisionTree_ {
+  alignas(mjtNum) int node1;
+  int node2;
+};
+typedef struct mjCollisionTree_ mjCollisionTree;
 
 // collision function pointers and max contact pairs
 MJAPI extern mjfCollision mjCOLLISIONFUNC[mjNGEOMTYPES][mjNGEOMTYPES];
 
 // collision detection entry point
 MJAPI void mj_collision(const mjModel* m, mjData* d);
+
+// applies Separating Axis Theorem for rotated AABBs
+MJAPI int mj_collideOBB(const mjtNum aabb1[6], const mjtNum aabb2[6],
+                        const mjtNum xpos1[3], const mjtNum xmat1[9],
+                        const mjtNum xpos2[3], const mjtNum xmat2[9],
+                        mjtNum product[36], mjtNum offset[12], mjtByte* initialize);
 
 // broad phase collistion detection; return list of body pairs for narrow phase
 int mj_broadphase(const mjModel* m, mjData* d, int* bodypair, int maxpair);

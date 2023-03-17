@@ -520,6 +520,71 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
     }
   }
 
+  // bounding volume hierarchy
+  if (vopt->flags[mjVIS_MIDPHASE]) {
+    int bodyid = 0;
+    float rgba[] = {1, 0, 0, 1};
+    for (int i = 0; i < m->nbvh; i++) {
+      int isleaf = m->bvh_child[2*i]==-1 && m->bvh_child[2*i+1]==-1;
+      if (scn->ngeom >= scn->maxgeom) break;
+      if (m->bvh_depth[i] != m->vis.global.treedepth) {
+        if (!isleaf || m->bvh_depth[i] > m->vis.global.treedepth) {
+          continue;
+        }
+      }
+
+      // find geom number
+      int geomid = m->bvh_geomid[i];
+      while (i >= m->body_bvhadr[bodyid] + m->body_bvhnum[bodyid]) {
+        bodyid++;
+        if (bodyid >= m->nbody) {
+          mju_error("nbvh outside body range.");
+        }
+      }
+
+      // compute transformation
+      mjtNum *aabb = isleaf ? m->geom_aabb + 6*geomid : m->bvh_aabb + 6*i;
+      mjtNum x[3];
+
+      const mjtNum* xpos = isleaf ? d->geom_xpos + 3 * geomid : d->xipos + 3 * bodyid;
+      const mjtNum* xmat = isleaf ? d->geom_xmat + 9 * geomid : d->ximat + 9 * bodyid;
+
+      mju_rotVecMat(x, aabb, xmat);
+      mju_addTo3(x, xpos);
+
+      rgba[0] = d->bvh_active[i] ? 1 : 0;
+      rgba[1] = d->bvh_active[i] ? 0 : 1;
+
+      mjtNum dist[3][3];
+      for (int j=0; j<3; j++) {
+        for (int k=0; k<3; k++) {
+          dist[k][j] = aabb[k+3] * xmat[3*j+k];
+        }
+      }
+
+      int split[3] = {1, 2, 4};
+      for (int v=0; v<8; v++) {
+        mjtNum from[3] = {x[0], x[1], x[2]};
+        for (int k=0; k<3; k++) {
+          mju_addToScl3(from, dist[k], v&split[k] ? 1 : -1);
+        }
+
+        mjtNum to[3];
+        for (int k=0; k<3; k++) {
+          mju_addScl3(to, from, dist[k], 2);
+          if (!(v&split[k])) {
+            START
+            mjv_makeConnector(thisgeom, mjGEOM_LINE, 2,
+                      from[0], from[1], from[2],
+                      to[0], to[1], to[2]);
+            f2f(thisgeom->rgba, rgba, 4);
+            FINISH
+          }
+        }
+      }
+    }
+  }
+
   // inertia
   objtype = mjOBJ_BODY;
   if (vopt->flags[mjVIS_INERTIA]) {

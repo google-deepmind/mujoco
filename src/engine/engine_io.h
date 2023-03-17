@@ -47,7 +47,7 @@ void mj_defaultStatistic(mjStatistic* stat);
 //------------------------------- mjModel ----------------------------------------------------------
 
 // allocate mjModel
-mjModel* mj_makeModel(int nq, int nv, int nu, int na, int nbody, int njnt,
+mjModel* mj_makeModel(int nq, int nv, int nu, int na, int nbody, int nbvh, int njnt,
                       int ngeom, int nsite, int ncam, int nlight,
                       int nmesh, int nmeshvert, int nmeshnormal, int nmeshtexcoord, int nmeshface,
                       int nmeshgraph, int nskin, int nskinvert, int nskintexvert, int nskinface,

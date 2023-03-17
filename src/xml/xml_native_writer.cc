@@ -800,6 +800,7 @@ void mjXWriter::Option(XMLElement* root) {
     WRITEDSBL("actuation",      mjDSBL_ACTUATION)
     WRITEDSBL("refsafe",        mjDSBL_REFSAFE)
     WRITEDSBL("sensor",         mjDSBL_SENSOR)
+    WRITEDSBL("midphase",       mjDSBL_MIDPHASE)
 #undef WRITEDSBL
 
 #define WRITEENBL(NAME, MASK) \

@@ -67,6 +67,7 @@
     X( nu )                 \
     X( na )                 \
     X( nbody )              \
+    X( nbvh )               \
     X( njnt )               \
     X( ngeom )              \
     X( nsite )              \
@@ -176,6 +177,12 @@
     X( mjtNum,  body_gravcomp,         nbody,         1                    ) \
     X( mjtNum,  body_user,             nbody,         MJ_M(nuser_body)     ) \
     X( int,     body_plugin,           nbody,         1                    ) \
+    X( int,     body_bvhadr,           nbody,         1                    ) \
+    X( int,     body_bvhnum,           nbody,         1                    ) \
+    X( int,     bvh_depth,             nbvh,          1                    ) \
+    X( int,     bvh_child,             nbvh,          2                    ) \
+    X( int,     bvh_geomid,            nbvh,          1                    ) \
+    X( mjtNum,  bvh_aabb,              nbvh,          6                    ) \
     X( int,     jnt_type,              njnt,          1                    ) \
     X( int,     jnt_qposadr,           njnt,          1                    ) \
     X( int,     jnt_dofadr,            njnt,          1                    ) \
@@ -216,6 +223,7 @@
     X( mjtNum,  geom_solref,           ngeom,         mjNREF               ) \
     X( mjtNum,  geom_solimp,           ngeom,         mjNIMP               ) \
     X( mjtNum,  geom_size,             ngeom,         3                    ) \
+    X( mjtNum,  geom_aabb,             ngeom,         6                    ) \
     X( mjtNum,  geom_rbound,           ngeom,         1                    ) \
     X( mjtNum,  geom_pos,              ngeom,         3                    ) \
     X( mjtNum,  geom_quat,             ngeom,         4                    ) \
@@ -502,6 +510,7 @@
     X( mjtNum,    qLD,               nM,          1           ) \
     X( mjtNum,    qLDiagInv,         nv,          1           ) \
     X( mjtNum,    qLDiagSqrtInv,     nv,          1           ) \
+    X( mjtByte,   bvh_active,        nbvh,        1           ) \
     X( mjtNum,    ten_velocity,      ntendon,     1           ) \
     X( mjtNum,    actuator_velocity, nu,          1           ) \
     X( mjtNum,    cvel,              nbody,       6           ) \

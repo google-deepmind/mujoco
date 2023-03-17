@@ -710,6 +710,12 @@ void makerendering(mj::Simulate* sim, int oldstate) {
     defFlag[0].pdata = sim->vopt.flags + i;
     mjui_add(&sim->ui0, defFlag);
   }
+
+  // create tree slider
+  sim->m->vis.global.treedepth = 0;
+  mjuiDef defTree[] = {{mjITEM_SLIDERINT, "Tree depth", 2, &sim->m->vis.global.treedepth, "-1 15"}};
+  mjui_add(&sim->ui0, defTree);
+
   mjui_add(&sim->ui0, defOpenGL);
   for (i=0; i<mjNRNDFLAG; i++) {
     mju::strcpy_arr(defFlag[0].name, mjRNDSTRING[i][0]);

@@ -1307,6 +1307,7 @@ PYBIND11_MODULE(_structs, m) {
   X(realtime);
   X(offwidth);
   X(offheight);
+  X(treedepth);
 #undef X
 
   py::class_<raw::MjVisualQuality> mjVisualQuality(mjVisual, "Quality");

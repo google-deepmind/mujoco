@@ -213,6 +213,15 @@ class mjCBody : public mjCBase {
   int lastdof;                    // id of last dof
   int subtreedofs;                // number of dofs in subtree, including self
 
+  int MakeBVH(std::vector<mjCGeom *>&, int lev);  // make bounding volume hierarchy
+
+  int nbvh;
+  std::vector<mjtNum> bvh;            // bounding volume hierarchy
+  std::vector<int> child;             // children of bvh nodes
+  std::vector<int> nodeid;            // id of the geom contained by the node
+  std::vector<int> level;             // levels of bvh
+
+
   // objects allocated by Add functions
   std::vector<mjCBody*>    bodies;     // child bodies
   std::vector<mjCGeom*>    geoms;      // geoms attached to this body
@@ -333,6 +342,7 @@ class mjCGeom : public mjCBase {
   mjCGeom(mjCModel* = 0, mjCDef* = 0);// constructor
   void Compile(void);                 // compiler
   double GetRBound(void);             // compute bounding sphere radius
+  void ComputeAABB(void);             // compute axis-aligned bounding box
 
   int matid;                      // id of geom's material
   int meshid;                     // id of geom's mesh (-1: none)
@@ -341,6 +351,7 @@ class mjCGeom : public mjCBase {
   double inertia[3];              // local diagonal inertia
   double locpos[3];               // local position
   double locquat[4];              // local orientation
+  double aabb[6];                 // half-sizes of axis-aligned bounding box
   mjCBody* body;                  // geom's body
 };
 
