@@ -207,7 +207,7 @@ int main(int argc, char** argv) {
   const char* libpython_path = getenv("MJPYTHON_LIBPYTHON");
   if (!libpython_path || !libpython_path[0]) {
     std::cerr << "This binary must be launched via the mjpython.py script.\n";
-    return 1;
+    return EXIT_FAILURE;
   }
 
   // Enlarge the stack if necessary to match what Python normally expects to have when launching
@@ -243,7 +243,7 @@ int main(int argc, char** argv) {
   void* libpython = dlopen(libpython_path, RTLD_NOW | RTLD_GLOBAL);
   if (!libpython) {
     std::cerr << "failed to dlopen path '" << libpython_path << "': " << dlerror() << "\n";
-    return 1;
+    return EXIT_FAILURE;
   }
 
   // Look up required CPython API functions from table of symbols already loaded into the process.
@@ -252,7 +252,7 @@ int main(int argc, char** argv) {
     cpython.fname = reinterpret_cast<decltype(cpython.fname)>(dlsym(libpython, #fname)); \
     if (!cpython.fname) {                                                                \
       std::cerr << "failed to dlsym '" << #fname << "': " << dlerror() << "\n";          \
-      return 1;                                                                          \
+      return EXIT_FAILURE;                                                               \
     }                                                                                    \
   }
 
@@ -287,6 +287,7 @@ int main(int argc, char** argv) {
     int result = func(__VA_ARGS__);                                                             \
     if (result) {                                                                               \
       std::cerr << #func << " failed with " << result << "(" << std::strerror(result) << ")\n"; \
+      return EXIT_FAILURE;                                                                      \
     }                                                                                           \
   }
 
