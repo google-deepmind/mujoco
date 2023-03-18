@@ -309,7 +309,7 @@ void mj_solPGS(const mjModel* m, mjData* d, int maxiter) {
   mjContact* con;
   mjMARKSTACK;
   mjtNum* ARinv = mj_stackAlloc(d, nefc);
-  int* oldstate = (int*)mj_stackAlloc(d, nefc);
+  int* oldstate = mj_stackAllocInt(d, nefc);
 
   // precompute inverse diagonal of AR
   ARdiaginv(m, d, ARinv, 0);
@@ -511,7 +511,7 @@ void mj_solNoSlip(const mjModel* m, mjData* d, int maxiter) {
   mjContact* con;
   mjMARKSTACK;
   mjtNum* ARinv = mj_stackAlloc(d, nefc);
-  int* oldstate = (int*)mj_stackAlloc(d, nefc);
+  int* oldstate = mj_stackAllocInt(d, nefc);
 
   // precompute inverse diagonal of A
   ARdiaginv(m, d, ARinv, 1);
@@ -768,9 +768,9 @@ static void CGallocate(const mjModel* m, mjData* d,
   if (flg_Newton) {
     ctx->H      = mj_stackAlloc(d, nv*nv);
     ctx->Hcone  = mj_stackAlloc(d, nv*nv);
-    ctx->rownnz = (int*)mj_stackAlloc(d, nv);
-    ctx->rowadr = (int*)mj_stackAlloc(d, nv);
-    ctx->colind = (int*)mj_stackAlloc(d, nv*nv);
+    ctx->rownnz = mj_stackAllocInt(d, nv);
+    ctx->rowadr = mj_stackAllocInt(d, nv);
+    ctx->colind = mj_stackAllocInt(d, nv*nv);
   }
 }
 
@@ -1507,7 +1507,7 @@ static void mj_solCGNewton(const mjModel* m, mjData* d, int maxiter, int flg_New
     Mgradold    = mj_stackAlloc(d, nv);
     Mgraddif    = mj_stackAlloc(d, nv);
   }
-  int* oldstate       = (int*)mj_stackAlloc(d, nefc);
+  int* oldstate = mj_stackAllocInt(d, nefc);
 
   // initialize matrix-vector products
   mj_mulM(m, d, ctx.Ma, d->qacc);

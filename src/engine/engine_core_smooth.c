@@ -399,8 +399,8 @@ void mj_tendon(const mjModel* m, mjData* d) {
   jacdif = mj_stackAlloc(d, 3*nv);
   tmp = mj_stackAlloc(d, nv);
   if (issparse) {
-    chain = (int*)mj_stackAlloc(d, nv);
-    buf_ind = (int*)mj_stackAlloc(d, nv);
+    chain = mj_stackAllocInt(d, nv);
+    buf_ind = mj_stackAllocInt(d, nv);
     sparse_buf = mj_stackAlloc(d, nv);
   }
 
@@ -869,7 +869,7 @@ void mj_transmission(const mjModel* m, mjData* d) {
           jacdifp = mj_stackAlloc(d, 3*nv);
           jac1p = mj_stackAlloc(d, 3*nv);
           jac2p = mj_stackAlloc(d, 3*nv);
-          chain = issparse ? (int*)mj_stackAlloc(d, nv) : NULL;
+          chain = issparse ? mj_stackAllocInt(d, nv) : NULL;
         }
 
         // clear efc_force and moment_exclude

@@ -2834,6 +2834,9 @@ public static unsafe extern void mj_resetDataKeyframe(mjModel_* m, mjData_* d, i
 public static unsafe extern double* mj_stackAlloc(mjData_* d, int size);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern int* mj_stackAllocInt(mjData_* d, int size);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern void mj_deleteData(mjData_* d);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]

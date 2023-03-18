@@ -48,6 +48,8 @@ General
 - Modified :ref:`mju_error` and :ref:`mju_warning` to be variadic functions (support for printf-like arguments). The
   functions :ref:`mju_error_i`, :ref:`mju_error_s`, :ref:`mju_warning_i`, and :ref:`mju_warning_s` are now deprecated.
 - Implemented a performant ``mju_sqrMatTDSparse`` function that doesn't require dense memory allocation.
+- Added ``mj_stackAllocInt`` to get correct size for allocating ints on mjData stack. Reducing stack memory usage
+  by 10% - 15%.
 
 
 Python bindings

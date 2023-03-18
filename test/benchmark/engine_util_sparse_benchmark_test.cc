@@ -47,7 +47,7 @@ void ABSL_ATTRIBUTE_NOINLINE mju_sqrMatTDSparse_baseline(
     const int* rowsuper, const int* rownnzT, const int* rowadrT,
     const int* colindT, const int* rowsuperT, mjData* d) {
   mjMARKSTACK;
-  int* chain = (int*)mj_stackAlloc(d, 2 * nc);
+  int* chain = mj_stackAllocInt(d, 2 * nc);
   mjtNum* buffer = mj_stackAlloc(d, nc);
 
   for (int r = 0; r < nc; r++) {
@@ -433,9 +433,9 @@ static void BM_combineSparse(benchmark::State& state, CombineFuncPtr func) {
   // allocate
   mjMARKSTACK;
   mjtNum* H = mj_stackAlloc(d, m->nv*m->nv);
-  int* rownnz = (int*)mj_stackAlloc(d, m->nv);
-  int* rowadr = (int*)mj_stackAlloc(d, m->nv);
-  int* colind = (int*)mj_stackAlloc(d, m->nv*m->nv);
+  int* rownnz = mj_stackAllocInt(d, m->nv);
+  int* rowadr = mj_stackAllocInt(d, m->nv);
+  int* colind = mj_stackAllocInt(d, m->nv*m->nv);
 
   // compute D corresponding to quad states
   mjtNum* D = mj_stackAlloc(d, d->nefc);
@@ -511,9 +511,9 @@ static void BM_transposeSparse(benchmark::State& state, TransposeFuncPtr func) {
 
   // need uncompressed layout
   mjtNum* res = mj_stackAlloc(d, m->nv * d->nefc);
-  int* res_rownnz = (int*)mj_stackAlloc(d, m->nv);
-  int* res_rowadr = (int*)mj_stackAlloc(d, m->nv);
-  int* res_colind = (int*)mj_stackAlloc(d, m->nv * d->nefc);
+  int* res_rownnz = mj_stackAllocInt(d, m->nv);
+  int* res_rowadr = mj_stackAllocInt(d, m->nv);
+  int* res_colind = mj_stackAllocInt(d, m->nv * d->nefc);
 
   // time benchmark
   for (auto s : state) {
@@ -555,9 +555,9 @@ static void BM_sqrMatTDSparse(benchmark::State& state, SqrMatTDFuncPtr func) {
   // allocate
   mjMARKSTACK;
   mjtNum* H = mj_stackAlloc(d, m->nv * m->nv);
-  int* rownnz = (int*)mj_stackAlloc(d, m->nv);
-  int* rowadr = (int*)mj_stackAlloc(d, m->nv);
-  int* colind = (int*)mj_stackAlloc(d, m->nv * m->nv);
+  int* rownnz = mj_stackAllocInt(d, m->nv);
+  int* rowadr = mj_stackAllocInt(d, m->nv);
+  int* colind = mj_stackAllocInt(d, m->nv * m->nv);
 
   // compute D corresponding to quad states
   mjtNum* D = mj_stackAlloc(d, d->nefc);

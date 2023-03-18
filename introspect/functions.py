@@ -695,7 +695,27 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  type=ValueType(name='int'),
              ),
          ),
-         doc='Allocate array of specified size on mjData stack. Call mju_error on stack overflow.',  # pylint: disable=line-too-long
+         doc='Allocate array of mjtNums on mjData stack. Call mju_error on stack overflow.',  # pylint: disable=line-too-long
+     )),
+    ('mj_stackAllocInt',
+     FunctionDecl(
+         name='mj_stackAllocInt',
+         return_type=PointerType(
+             inner_type=ValueType(name='int'),
+         ),
+         parameters=(
+             FunctionParameterDecl(
+                 name='d',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjData'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='size',
+                 type=ValueType(name='int'),
+             ),
+         ),
+         doc='Allocate array of ints on mjData stack. Call mju_error on stack overflow.',  # pylint: disable=line-too-long
      )),
     ('mj_deleteData',
      FunctionDecl(

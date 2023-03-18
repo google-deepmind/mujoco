@@ -1122,8 +1122,8 @@ void mjd_ellipsoidFluid(const mjModel* m, mjData* d, int bodyid) {
   int rownnz[6], rowadr[6];
   mjtNum* J = mj_stackAlloc(d, 6*nv);
   mjtNum* tmp = mj_stackAlloc(d, 3*nv);
-  int* colind = (int*) mj_stackAlloc(d, 6*nv);
-  int* colind_compressed = (int*) mj_stackAlloc(d, 6*nv);
+  int* colind = mj_stackAllocInt(d, 6*nv);
+  int* colind_compressed = mj_stackAllocInt(d, 6*nv);
 
   mjtNum lvel[6], wind[6], lwind[6];
   mjtNum geom_interaction_coef, magnus_lift_coef, kutta_lift_coef;
@@ -1239,7 +1239,7 @@ void mjd_inertiaBoxFluid(const mjModel* m, mjData* d, int i)
   int rownnz[6], rowadr[6];
   mjtNum* J = mj_stackAlloc(d, 6*nv);
   mjtNum* tmp = mj_stackAlloc(d, 3*nv);
-  int* colind = (int*) mj_stackAlloc(d, 6*nv);
+  int* colind = mj_stackAllocInt(d, 6*nv);
 
   mjtNum lvel[6], wind[6], lwind[6], box[3], B;
   mjtNum* inertia = m->body_inertia + 3*i;

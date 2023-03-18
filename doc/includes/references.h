@@ -1873,6 +1873,7 @@ void mj_resetData(const mjModel* m, mjData* d);
 void mj_resetDataDebug(const mjModel* m, mjData* d, unsigned char debug_value);
 void mj_resetDataKeyframe(const mjModel* m, mjData* d, int key);
 mjtNum* mj_stackAlloc(mjData* d, int size);
+int* mj_stackAllocInt(mjData* d, int size);
 void mj_deleteData(mjData* d);
 void mj_resetCallbacks(void);
 void mj_setConst(mjModel* m, mjData* d);

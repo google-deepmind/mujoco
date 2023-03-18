@@ -374,9 +374,9 @@ void mj_instantiateEquality(const mjModel* m, mjData* d) {
   jac[1] = mj_stackAlloc(d, 6*nv);
   jacdif = mj_stackAlloc(d, 6*nv);
   if (issparse) {
-    chain = (int*)mj_stackAlloc(d, nv);
-    chain2 = (int*)mj_stackAlloc(d, nv);
-    buf_ind = (int*)mj_stackAlloc(d, nv);
+    chain = mj_stackAllocInt(d, nv);
+    chain2 = mj_stackAllocInt(d, nv);
+    buf_ind = mj_stackAllocInt(d, nv);
     sparse_buf = mj_stackAlloc(d, nv);
   }
 
@@ -775,7 +775,7 @@ void mj_instantiateContact(const mjModel* m, mjData* d) {
   jac1r = mj_stackAlloc(d, 3*NV);
   jac2r = mj_stackAlloc(d, 3*NV);
   if (issparse) {
-    chain = (int*)mj_stackAlloc(d, NV);
+    chain = mj_stackAllocInt(d, NV);
   }
 
   // find contacts to be included
@@ -1321,8 +1321,8 @@ static inline int mj_ne(const mjModel* m, mjData* d, int* nnz) {
   mjMARKSTACK;
 
   if (nnz) {
-    chain = (int*)mj_stackAlloc(d, nv);
-    chain2 = (int*)mj_stackAlloc(d, nv);
+    chain = mj_stackAllocInt(d, nv);
+    chain2 = mj_stackAllocInt(d, nv);
   }
 
   // find active equality constraints
@@ -1692,13 +1692,13 @@ void mj_projectConstraint(const mjModel* m, mjData* d) {
   // sparse
   if (mj_isSparse(m)) {
     // space for JM2 and JM2T indices
-    int* rownnz = (int*)mj_stackAlloc(d, nefc);
-    int* rowadr = (int*)mj_stackAlloc(d, nefc);
-    int* colind = (int*)mj_stackAlloc(d, nefc*nv);
-    int* rowsuper = (int*)mj_stackAlloc(d, nefc);
-    int* rownnzT = (int*)mj_stackAlloc(d, nv);
-    int* rowadrT = (int*)mj_stackAlloc(d, nv);
-    int* colindT = (int*)mj_stackAlloc(d, nv*nefc);
+    int* rownnz = mj_stackAllocInt(d, nefc);
+    int* rowadr = mj_stackAllocInt(d, nefc);
+    int* colind = mj_stackAllocInt(d, nefc*nv);
+    int* rowsuper = mj_stackAllocInt(d, nefc);
+    int* rownnzT = mj_stackAllocInt(d, nv);
+    int* rowadrT = mj_stackAllocInt(d, nv);
+    int* colindT = mj_stackAllocInt(d, nv*nefc);
 
     // construct JM2 = backsubM2(J')' by rows
     for (int r=0; r<nefc; r++) {

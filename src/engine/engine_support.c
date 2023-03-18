@@ -984,7 +984,7 @@ void mj_copyM2DSparse(const mjModel* m, mjData* d, mjtNum* dst, const mjtNum* sr
   mjMARKSTACK;
 
   // init remaining
-  int* remaining = (int*)mj_stackAlloc(d, nv);
+  int* remaining = mj_stackAllocInt(d, nv);
   memcpy(remaining, d->D_rownnz, nv * sizeof(int));
 
   // copy data

@@ -185,7 +185,7 @@ void mjd_passive_velFD(const mjModel* m, mjData* d, mjtNum eps) {
   mjMARKSTACK;
   mjtNum* qfrc_passive = mj_stackAlloc(d, nv);
   mjtNum* fd = mj_stackAlloc(d, nv);
-  int* cnt = (int*)mj_stackAlloc(d, nv);
+  int* cnt = mj_stackAllocInt(d, nv);
 
   // clear row counters
   memset(cnt, 0, nv*sizeof(int));

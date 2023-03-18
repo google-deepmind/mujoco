@@ -102,8 +102,11 @@ MJAPI void mj_resetDataKeyframe(const mjModel* m, mjData* d, int key);
 // mjData arena allocate
 void* mj_arenaAlloc(mjData* d, int bytes, int alignment);
 
-// mjData stack allocate
+// mjData stack allocate for array of mjtNums
 MJAPI mjtNum* mj_stackAlloc(mjData* d, int size);
+
+// mjData stack allocate for array of ints
+MJAPI int* mj_stackAllocInt(mjData* d, int size);
 
 // de-allocate data
 MJAPI void mj_deleteData(mjData* d);

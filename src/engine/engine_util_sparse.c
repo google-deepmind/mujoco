@@ -418,8 +418,8 @@ void mju_sqrMatTDSparse(mjtNum* res, const mjtNum* mat, const mjtNum* matT,
                         int* res_rownnz, int* res_rowadr, int* res_colind,
                         const int* rownnz, const int* rowadr,
                         const int* colind, const int* rowsuper,
-                        const int* rownnzT,  const int* rowadrT,
-                        const int* colindT,  const int* rowsuperT,
+                        const int* rownnzT, const int* rowadrT,
+                        const int* colindT, const int* rowsuperT,
                         mjData* d) {
   // allocate space for accumulation buffer and matT
   mjMARKSTACK;
@@ -434,7 +434,7 @@ void mju_sqrMatTDSparse(mjtNum* res, const mjtNum* mat, const mjtNum* matT,
 
   // these mark the currently set columns in the dense row buffer,
   // used for when creating the resulting sparse row
-  int* markers = (int*) mj_stackAlloc(d, nc);
+  int* markers = mj_stackAllocInt(d, nc);
 
   for (int i=0; i<nc; i++) {
     int* cols = res_colind+res_rowadr[i];

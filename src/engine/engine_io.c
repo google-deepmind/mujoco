@@ -819,7 +819,7 @@ static void makeDSparse(const mjModel* m, mjData* d) {
   int* colind = d->D_colind;
 
   mjMARKSTACK;
-  int* remaining = (int*)mj_stackAlloc(d, nv);
+  int* remaining = mj_stackAllocInt(d, nv);
 
   // compute rownnz
   memset(rownnz, 0, nv * sizeof(int));
@@ -912,7 +912,7 @@ static void makeBSparse(const mjModel* m, mjData* d) {
 
   // allocate and clear incremental row counts
   mjMARKSTACK;
-  int* cnt = (int*)mj_stackAlloc(d, nbody);
+  int* cnt = mj_stackAllocInt(d, nbody);
   memset(cnt, 0, sizeof(int) * nbody);
 
   // add subtree dofs to colind
@@ -1228,6 +1228,19 @@ mjtNum* mj_stackAlloc(mjData* d, int size) {
   d->maxuse_stack = mjMAX(d->maxuse_stack, d->pstack);
   d->maxuse_arena = mjMAX(d->maxuse_arena, d->pstack*sizeof(mjtNum) + d->parena);
   return (mjtNum*)result;
+}
+
+
+
+int* mj_stackAllocInt(mjData* d, int size) {
+  // optimize for mjtNum being twice the size of int
+  if (2*sizeof(int) == sizeof(mjtNum)) {
+    return (int*)mj_stackAlloc(d, (size + 1) >> 1);
+  }
+
+  // arbitrary bytes sizes
+  int new_size = (sizeof(int)*size + sizeof(mjtNum) - 1) / sizeof(mjtNum);
+  return (int*)mj_stackAlloc(d, new_size);
 }
 
 

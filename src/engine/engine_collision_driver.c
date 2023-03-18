@@ -388,8 +388,9 @@ void mj_collision(const mjModel* m, mjData* d) {
   // dynamic only or merge; apply exclude
   else {
     // call broadphase collision detector
-    broadphasepair = (int*)mj_stackAlloc(d, (m->nbody*(m->nbody-1))/2);
-    nbodypair = mj_broadphase(m, d, broadphasepair, (m->nbody*(m->nbody-1))/2);
+    int npairs = (m->nbody*(m->nbody - 1))/2;
+    broadphasepair = mj_stackAllocInt(d, npairs);
+    nbodypair = mj_broadphase(m, d, broadphasepair, npairs);
     unsigned int last_signature = -1;
 
     // loop over body pairs (broadphase or all)

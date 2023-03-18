@@ -1187,7 +1187,16 @@ mj_stackAlloc
 
 .. mujoco-include:: mj_stackAlloc
 
-Allocate array of specified size on :ref:`mjData` stack. Call mju_error on stack overflow.
+Allocate array of mjtNums on :ref:`mjData` stack. Call mju_error on stack overflow.
+
+.. _mj_stackAllocInt:
+
+mj_stackAllocInt
+~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mj_stackAllocInt
+
+Allocate array of ints on :ref:`mjData` stack. Call mju_error on stack overflow.
 
 .. _mj_deleteData:
 
