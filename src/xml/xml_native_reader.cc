@@ -79,7 +79,7 @@ void ReadPluginConfigs(tinyxml2::XMLElement* elem, mjCPlugin* pp) {
 
 //---------------------------------- MJCF schema ---------------------------------------------------
 
-static const int nMJCF = 191;
+static const int nMJCF = 190;
 static const char* MJCF[nMJCF][mjXATTRNUM] = {
 {"mujoco", "!", "1", "model"},
 {"<"},
@@ -297,8 +297,6 @@ static const char* MJCF[nMJCF][mjXATTRNUM] = {
         {"joint", "*", "8", "name", "class", "joint1", "joint2", "polycoef",
             "active", "solref", "solimp"},
         {"tendon", "*", "8", "name", "class", "tendon1", "tendon2", "polycoef",
-            "active", "solref", "solimp"},
-        {"distance", "*", "8", "name", "class", "geom1", "geom2", "distance",
             "active", "solref", "solimp"},
     {">"},
 

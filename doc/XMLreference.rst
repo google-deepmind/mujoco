@@ -16,7 +16,8 @@ XML schema
 The table below summarizes the XML elements and their attributes in MJCF. Note that all information in MJCF is entered
 through elements and attributes. Text content in elements is not used; if present, the parser ignores it.
 
-.. collapse:: Expand schema table
+.. collapse:: Collapse schema table
+   :open:
 
    The symbols in the second column of the table have the following meaning:
 
@@ -127,6 +128,8 @@ how to use includes and how to modularize large files if desired.
 
 The unique top-level element, identifying the XML file as an MJCF model file.
 
+.. _mujoco-model:
+
 :at:`model`: :at-val:`string, "MuJoCo Model"`
    The name of the model. This name is shown in the title bar of :ref:`simulate.cc <saSimulate>`.
 
@@ -138,6 +141,8 @@ The unique top-level element, identifying the XML file as an MJCF model file.
 
 This element is used to set options for the built-in parser and compiler. After parsing and compilation it no longer has
 any effect. The settings here are global and apply to the entire model.
+
+.. _compiler-autolimits:
 
 :at:`autolimits`: :at-val:`[false, true], "false"`
    This attribute affects the behavior of attributes such as "limited" (on <body-joint> or <tendon>), "forcelimited",
@@ -497,6 +502,8 @@ adjust it properly through the XML.
    chapter. The related gap parameter does not have a global override.
 
 .. _option-o_solref:
+
+.. _option-o_solimp:
 
 :at:`o_solref`, :at:`o_solimp`
    These attributes replace the solref and solimp parameters of all active contact pairs when contact override is
@@ -1172,117 +1179,117 @@ The settings in this element control the color and transparency (rgba) of variou
 combined attribute "color" to simplify terminology below. All values should be in the range [0 1]. An alpha value of 0
 disables the rendering of the corresponding object.
 
-.. visual-rgba-fog:
+.. _visual-rgba-fog:
 
 :at:`fog`: :at-val:`real(4), "0 0 0 1"`
    When fog is enabled, the color of all pixels fades towards the color specified here. The spatial extent of the fading
    is controlled by the fogstart and fogend attributes of the :ref:`map <visual-map>` element above.
 
-.. visual-rgba-haze:
+.. _visual-rgba-haze:
 
 :at:`haze`: :at-val:`real(4), "1 1 1 1"`
    Haze color at the horizon, used to transition between an infinite plane and a skybox smoothly. The default creates
    white haze. To create a seamless transition, make sure the skybox colors near the horizon are similar to the plane
    color/texture, and set the haze color somewhere in that color gamut.
 
-.. visual-rgba-force:
+.. _visual-rgba-force:
 
 :at:`force`: :at-val:`real(4), "1 0.5 0.5 1"`
    Color of the arrows used to render perturbation forces.
 
-.. visual-rgba-inertia:
+.. _visual-rgba-inertia:
 
 :at:`inertia`: :at-val:`real(4), "0.8 0.2 0.2 0.6"`
    Color of the boxes used to render equivalent body inertias. This is the only rgba setting that has transparency by
    default, because it is usually desirable to see the geoms inside the inertia box.
 
-.. visual-rgba-joint:
+.. _visual-rgba-joint:
 
 :at:`joint`: :at-val:`real(4), "0.2 0.6 0.8 1"`
    Color of the arrows used to render joint axes.
 
-.. visual-rgba-actuator:
+.. _visual-rgba-actuator:
 
 :at:`actuator`: :at-val:`real(4), "0.2 0.25 0.2 1"`
    Actuator color for neutral value of the control.
 
-.. visual-rgba-actuatornegative:
+.. _visual-rgba-actuatornegative:
 
 :at:`actuatornegative`: :at-val:`real(4), "0.2 0.6 0.9 1"`
    Actuator color for most negative value of the control.
 
-.. visual-rgba-actuatorpositive:
+.. _visual-rgba-actuatorpositive:
 
 :at:`actuatorpositive`: :at-val:`real(4), "0.9 0.4 0.2 1"`
    Actuator color for most positive value of the control.
 
-.. visual-rgba-com:
+.. _visual-rgba-com:
 
 :at:`com`: :at-val:`real(4), "0.9 0.9 0.9 1"`
    Color of the spheres used to render sub-tree centers of mass.
 
-.. visual-rgba-camera:
+.. _visual-rgba-camera:
 
 :at:`camera`: :at-val:`real(4), "0.6 0.9 0.6 1"`
    Color of the decorative object used to represent model cameras in the rendering.
 
-.. visual-rgba-light:
+.. _visual-rgba-light:
 
 :at:`light`: :at-val:`real(4), "0.6 0.6 0.9 1"`
    Color of the decorative object used to represent model lights in the rendering.
 
-.. visual-rgba-selectpoint:
+.. _visual-rgba-selectpoint:
 
 :at:`selectpoint`: :at-val:`real(4), "0.9 0.9 0.1 1"`
    Color of the sphere used to render the selection point.
 
-.. visual-rgba-connect:
+.. _visual-rgba-connect:
 
 :at:`connect`: :at-val:`real(4), "0.2 0.2 0.8 1"`
    Color of the capsules used to connect bodies and joints, resulting in an automatically generated skeleton.
 
-.. visual-rgba-contactpoint:
+.. _visual-rgba-contactpoint:
 
 :at:`contactpoint`: :at-val:`real(4), "0.9 0.6 0.2 1"`
    Color of the cylinders used to render contact points.
 
-.. visual-rgba-contactforce:
+.. _visual-rgba-contactforce:
 
 :at:`contactforce`: :at-val:`real(4), "0.7 0.9 0.9 1"`
    Color of the arrows used to render contact forces. When splitting of contact forces into normal and tangential
    components is enabled, this color is used to render the normal components.
 
-.. visual-rgba-contactfriction:
+.. _visual-rgba-contactfriction:
 
 :at:`contactfriction`: :at-val:`real(4), "0.9 0.8 0.4 1"`
    Color of the arrows used to render contact tangential forces, only when splitting is enabled.
 
-.. visual-rgba-contacttorque:
+.. _visual-rgba-contacttorque:
 
 :at:`contacttorque`: :at-val:`real(4), "0.9 0.7 0.9 1"`
    Color of the arrows used to render contact torques (currently disabled).
 
-.. visual-rgba-contactgap:
+.. _visual-rgba-contactgap:
 
 :at:`contactgap`: :at-val:`real(4), "0.5, 0.8, 0.9, 1"`
    Color of contacts that fall in the contact gap (and are thereby excluded from contact force computations).
 
-.. visual-rgba-rangefinder:
+.. _visual-rgba-rangefinder:
 
 :at:`rangefinder`: :at-val:`real(4), "1 1 0.1 1"`
    Color of line geoms used to render rangefinder sensors.
 
-.. visual-rgba-constraint:
+.. _visual-rgba-constraint:
 
 :at:`constraint`: :at-val:`real(4), "0.9 0 0 1"`
    Color of the capsules corresponding to spatial constraint violations.
 
-.. visual-rgba-slidercrank:
+.. _visual-rgba-slidercrank:
 
 :at:`slidercrank`: :at-val:`real(4), "0.5 0.3 0.8 1"`
    Color of slider-crank mechanisms.
 
-.. visual-rgba-crankbroken:
+.. _visual-rgba-crankbroken:
 
 :at:`crankbroken`: :at-val:`real(4), "0.9 0 0 1"`
    Color used to render the crank of slide-crank mechanisms, in model configurations where the specified rod length
@@ -2224,6 +2231,12 @@ be clear from the above specification.
    only. This is not as flexible as the material mechanism, but is more convenient and is often sufficient. If the value
    of this attribute is different from the internal default, it takes precedence over the material.
 
+.. _asset-skin-group:
+
+:at:`group`: :at-val:`int, "0"`
+   Integer group to which the skin belongs. This attribute can be used for custom tags. It is also used by the
+   visualizer to enable and disable the rendering of entire groups of skins.
+
 
 .. _skin-bone:
 
@@ -2932,6 +2945,8 @@ helps clarify the role of bodies and geoms in MuJoCo.
 
 .. _body-geom-solref:
 
+.. _body-geom-solimp:
+
 :at:`solref`, :at:`solimp`
    Constraint solver parameters for contact simulation. See :ref:`CSolver`.
 
@@ -3336,14 +3351,14 @@ the parent body has a childclass attribute defined. Instead there are internal d
 composite object type. Composite objects can only be defined if the model is in local coordinates. Using them in global
 coordinates results in compiler error. See :ref:`CComposite` in the modeling guide for more detailed explanation.
 
-.. body-composite-prefix:
+.. _body-composite-prefix:
 
 :at:`prefix`: :at-val:`string, optional`
    All automatically generated model elements have names indicating the element type and index. For example, the body at
    coordinates (2, 0) in a 2D grid is named "B2_0" by default. If prefix="C" is specified, the same body is named
    "CB2_0". The prefix is needed when multiple composite objects are used in the same model, to avoid name conflicts.
 
-.. body-composite-type:
+.. _body-composite-type:
 
 :at:`type`: :at-val:`[particle, grid, cable, rope, loop, cloth, box, cylinder, ellipsoid], required`
    This attribute determines the type of composite object. The remaining attributes and sub-elements are then
@@ -3522,6 +3537,8 @@ joints should be created, as well as to adjust the attributes of both automatic 
    Otherwise these attributes obey the same rules as all other solref and solimp attributes in MJCF. See :ref:`Solver
    parameters <CSolver>`.
 
+.. _composite-joint-axis:
+
 .. _composite-joint-group:
 
 .. _composite-joint-stiffness:
@@ -3549,7 +3566,7 @@ joints should be created, as well as to adjust the attributes of both automatic 
 .. _composite-joint-type:
 
 .. |body/composite/joint attrib list| replace::
-   :at:`group`, :at:`stiffness`, :at:`damping`, :at:`armature`, :at:`limited`, :at:`range`, :at:`margin`,
+   :at:`axis`, :at:`group`, :at:`stiffness`, :at:`damping`, :at:`armature`, :at:`limited`, :at:`range`, :at:`margin`,
    :at:`solreflimit`, :at:`solimplimit`, :at:`frictionloss`, :at:`solreffriction`, :at:`solimpfriction`, :at:`type`
 
 |body/composite/joint attrib list|
@@ -3719,7 +3736,9 @@ automatically-generated skin.
 
 .. _composite-skin-rgba:
 
-:at:`material`, :at:`rgba`
+.. _composite-skin-group:
+
+:at:`material`, :at:`rgba`, :at:`group`:
    Same meaning as in :ref:`geom <body-geom>`.
 
 .. _composite-skin-inflate:
@@ -3741,7 +3760,6 @@ automatically-generated skin.
    with the specified number of (additional) grid lines. In this case the model compiler generates a denser skin using
    bi-cubic interpolation. This increases the quality of the rendering (especially in the absence of textures) but also
    slows down the renderer, so use it with caution. Values above 3 are unlikely to be needed.
-
 
 .. _composite-pin:
 
@@ -4675,13 +4693,15 @@ This element does not have custom attributes. It only has common attributes, whi
 
 .. _actuator-motor-site:
 
+.. _actuator-motor-refsite:
+
 .. _actuator-motor-user:
 
 
 .. |actuator/motor attrib list| replace::
    :at:`name`, :at:`class`, :at:`group`, :at:`ctrllimited`, :at:`forcelimited`, :at:`ctrlrange`, :at:`forcerange`,
    :at:`lengthrange`, :at:`gear`, :at:`cranklength`, :at:`joint`, :at:`jointinparent`, :at:`tendon`, :at:`cranksite`,
-   :at:`slidersite`, :at:`site`, :at:`user`
+   :at:`slidersite`, :at:`site`, :at:`refsite`, :at:`user`
 
 |actuator/motor attrib list|
    Same as in actuator/ :ref:`general <actuator-general>`.
@@ -4737,12 +4757,14 @@ This element has one custom attribute in addition to the common attributes:
 
 .. _actuator-position-site:
 
+.. _actuator-position-refsite:
+
 .. _actuator-position-user:
 
 .. |actuator/position attrib list| replace::
    :at:`name`, :at:`class`, :at:`group`, :at:`ctrllimited`, :at:`forcelimited`, :at:`ctrlrange`, :at:`forcerange`,
    :at:`lengthrange`, :at:`gear`, :at:`cranklength`, :at:`joint`, :at:`jointinparent`, :at:`tendon`, :at:`cranksite`,
-   :at:`slidersite`, :at:`site`, :at:`user`
+   :at:`slidersite`, :at:`site`, :at:`refsite`, :at:`user`
 
 |actuator/position attrib list|
    Same as in actuator/ :ref:`general <actuator-general>`.
@@ -4771,6 +4793,8 @@ biastype  affine  biasprm   0 0 -kv
 ========= ======= ========= =======
 
 This element has one custom attribute in addition to the common attributes:
+
+.. _actuator-velocity-name:
 
 .. _actuator-velocity-class:
 
@@ -4802,12 +4826,14 @@ This element has one custom attribute in addition to the common attributes:
 
 .. _actuator-velocity-site:
 
+.. _actuator-velocity-refsite:
+
 .. _actuator-velocity-user:
 
 .. |actuator/velocity attrib list| replace::
    :at:`name`, :at:`class`, :at:`group`, :at:`ctrllimited`, :at:`forcelimited`, :at:`ctrlrange`, :at:`forcerange`,
    :at:`lengthrange`, :at:`gear`, :at:`cranklength`, :at:`joint`, :at:`jointinparent`, :at:`tendon`, :at:`cranksite`,
-   :at:`slidersite`, :at:`site`, :at:`user`
+   :at:`slidersite`, :at:`site`, :at:`refsite`, :at:`user`
 
 |actuator/velocity attrib list|
    Same as in actuator/ :ref:`general <actuator-general>`.
@@ -4838,6 +4864,8 @@ actlimited   true
 
 This element has one custom attribute in addition to the common attributes:
 
+.. _actuator-intvelocity-name:
+
 .. _actuator-intvelocity-class:
 
 .. _actuator-intvelocity-group:
@@ -4849,6 +4877,8 @@ This element has one custom attribute in addition to the common attributes:
 .. _actuator-intvelocity-ctrlrange:
 
 .. _actuator-intvelocity-forcerange:
+
+.. _actuator-intvelocity-actrange:
 
 .. _actuator-intvelocity-lengthrange:
 
@@ -4868,12 +4898,14 @@ This element has one custom attribute in addition to the common attributes:
 
 .. _actuator-intvelocity-site:
 
+.. _actuator-intvelocity-refsite:
+
 .. _actuator-intvelocity-user:
 
 .. |actuator/intvelocity attrib list| replace::
    :at:`name`, :at:`class`, :at:`group`, :at:`ctrllimited`, :at:`forcelimited`, :at:`ctrlrange`, :at:`forcerange`,
-   :at:`lengthrange`, :at:`gear`, :at:`cranklength`, :at:`joint`, :at:`jointinparent`, :at:`tendon`, :at:`cranksite`,
-   :at:`slidersite`, :at:`site`, :at:`user`
+   :at:`actrange`, :at:`lengthrange`, :at:`gear`, :at:`cranklength`, :at:`joint`, :at:`jointinparent`, :at:`tendon`,
+   :at:`cranksite`, :at:`slidersite`, :at:`site`, :at:`refsite`, :at:`user`
 
 |actuator/intvelocity attrib list|
    Same as in actuator/ :ref:`general <actuator-general>`.
@@ -4937,11 +4969,13 @@ This element has one custom attribute in addition to the common attributes:
 
 .. _actuator-damper-site:
 
+.. _actuator-damper-refsite:
+
 .. _actuator-damper-user:
 
 .. |actuator/damper attrib list| replace:: :at:`name`, :at:`class`, :at:`group`, :at:`ctrllimited`, :at:`forcelimited`,
    :at:`ctrlrange`, :at:`forcerange`, :at:`lengthrange`, :at:`gear`, :at:`cranklength`, :at:`joint`,
-   :at:`jointinparent`, :at:`tendon`, :at:`cranksite`, :at:`slidersite`, :at:`site`, :at:`user`
+   :at:`jointinparent`, :at:`tendon`, :at:`cranksite`, :at:`slidersite`, :at:`site`, :at:`refsite`, :at:`user`
 
 |actuator/damper attrib list|
    Same as in actuator/ :ref:`general <actuator-general>`.
@@ -5003,12 +5037,14 @@ This element has four custom attributes in addition to the common attributes:
 
 .. _actuator-cylinder-site:
 
+.. _actuator-cylinder-refsite:
+
 .. _actuator-cylinder-user:
 
 .. |actuator/cylinder attrib list| replace::
    :at:`name`, :at:`class`, :at:`group`, :at:`ctrllimited`, :at:`forcelimited`, :at:`ctrlrange`, :at:`forcerange`,
    :at:`lengthrange`, :at:`gear`, :at:`cranklength`, :at:`joint`, :at:`jointinparent`, :at:`tendon`, :at:`cranksite`,
-   :at:`slidersite`, :at:`site`, :at:`user`
+   :at:`slidersite`, :at:`site`, :at:`refsite`, :at:`user`
 
 |actuator/cylinder attrib list|
    Same as in actuator/ :ref:`general <actuator-general>`.

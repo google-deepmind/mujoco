@@ -14,6 +14,12 @@
    :trim:
 
 ..
+   Macro for L shaped arrow
+
+.. |L| unicode:: 0x21B3  0xA0
+   :trim:
+
+..
    Macro for injecting a custom line break.
 
 .. |br| raw:: html
