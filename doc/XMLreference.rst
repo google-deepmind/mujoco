@@ -1366,14 +1366,32 @@ if omitted.
 
 .. _default-mesh:
 
+.. _default-mesh-scale:
+
 :el-prefix:`default/` |-| **mesh** (?)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 | This element sets the attributes of the dummy :ref:`mesh <asset-mesh>` element of the defaults class.
-| The only mesh attribute available here is: **scale**.
+| The only mesh attribute available here is: :ref:`scale <asset-mesh-scale>`.
 
 
 .. _default-material:
+
+.. _default-material-texture:
+
+.. _default-material-emission:
+
+.. _default-material-specular:
+
+.. _default-material-shininess:
+
+.. _default-material-reflectance:
+
+.. _default-material-rgba:
+
+.. _default-material-texrepeat:
+
+.. _default-material-texuniform:
 
 :el-prefix:`default/` |-| **material** (?)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -1384,6 +1402,44 @@ if omitted.
 
 .. _default-joint:
 
+.. _default-joint-type:
+
+.. _default-joint-group:
+
+.. _default-joint-pos:
+
+.. _default-joint-axis:
+
+.. _default-joint-springdamper:
+
+.. _default-joint-limited:
+
+.. _default-joint-solreflimit:
+
+.. _default-joint-solimplimit:
+
+.. _default-joint-solreffriction:
+
+.. _default-joint-solimpfriction:
+
+.. _default-joint-stiffness:
+
+.. _default-joint-range:
+
+.. _default-joint-margin:
+
+.. _default-joint-ref:
+
+.. _default-joint-springref:
+
+.. _default-joint-armature:
+
+.. _default-joint-damping:
+
+.. _default-joint-frictionloss:
+
+.. _default-joint-user:
+
 :el-prefix:`default/` |-| **joint** (?)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -1392,6 +1448,68 @@ if omitted.
 
 
 .. _default-geom:
+
+.. _default-geom-type:
+
+.. _default-geom-pos:
+
+.. _default-geom-quat:
+
+.. _default-geom-contype:
+
+.. _default-geom-conaffinity:
+
+.. _default-geom-condim:
+
+.. _default-geom-group:
+
+.. _default-geom-priority:
+
+.. _default-geom-size:
+
+.. _default-geom-material:
+
+.. _default-geom-friction:
+
+.. _default-geom-mass:
+
+.. _default-geom-density:
+
+.. _default-geom-shellinertia:
+
+.. _default-geom-solmix:
+
+.. _default-geom-solref:
+
+.. _default-geom-solimp:
+
+.. _default-geom-margin:
+
+.. _default-geom-gap:
+
+.. _default-geom-fromto:
+
+.. _default-geom-axisangle:
+
+.. _default-geom-xyaxes:
+
+.. _default-geom-zaxis:
+
+.. _default-geom-euler:
+
+.. _default-geom-hfield:
+
+.. _default-geom-mesh:
+
+.. _default-geom-fitscale:
+
+.. _default-geom-rgba:
+
+.. _default-geom-fluidshape:
+
+.. _default-geom-fluidcoef:
+
+.. _default-geom-user:
 
 :el-prefix:`default/` |-| **geom** (?)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -1402,6 +1520,32 @@ if omitted.
 
 .. _default-site:
 
+.. _default-site-type:
+
+.. _default-site-group:
+
+.. _default-site-pos:
+
+.. _default-site-quat:
+
+.. _default-site-material:
+
+.. _default-site-size:
+
+.. _default-site-fromto:
+
+.. _default-site-axisangle:
+
+.. _default-site-xyaxes:
+
+.. _default-site-zaxis:
+
+.. _default-site-euler:
+
+.. _default-site-rgba:
+
+.. _default-site-user:
+
 :el-prefix:`default/` |-| **site** (?)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -1410,6 +1554,26 @@ if omitted.
 
 
 .. _default-camera:
+
+.. _default-camera-fovy:
+
+.. _default-camera-ipd:
+
+.. _default-camera-pos:
+
+.. _default-camera-quat:
+
+.. _default-camera-axisangle:
+
+.. _default-camera-xyaxes:
+
+.. _default-camera-zaxis:
+
+.. _default-camera-euler:
+
+.. _default-camera-mode:
+
+.. _default-camera-user:
 
 :el-prefix:`default/` |-| **camera** (?)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -1420,6 +1584,30 @@ if omitted.
 
 .. _default-light:
 
+.. _default-light-pos:
+
+.. _default-light-dir:
+
+.. _default-light-directional:
+
+.. _default-light-castshadow:
+
+.. _default-light-active:
+
+.. _default-light-attenuation:
+
+.. _default-light-cutoff:
+
+.. _default-light-exponent:
+
+.. _default-light-ambient:
+
+.. _default-light-diffuse:
+
+.. _default-light-specular:
+
+.. _default-light-mode:
+
 :el-prefix:`default/` |-| **light** (?)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -1428,6 +1616,18 @@ if omitted.
 
 
 .. _default-pair:
+
+.. _default-pair-condim:
+
+.. _default-pair-friction:
+
+.. _default-pair-solref:
+
+.. _default-pair-solimp:
+
+.. _default-pair-gap:
+
+.. _default-pair-margin:
 
 :el-prefix:`default/` |-| **pair** (?)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -1438,16 +1638,54 @@ if omitted.
 
 .. _default-equality:
 
+.. _default-equality-active:
+
+.. _default-equality-solref:
+
+.. _default-equality-solimp:
+
 :el-prefix:`default/` |-| **equality** (?)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 | This element sets the attributes of the dummy :ref:`equality <equality>` element of the defaults class. The actual
   equality constraints have types depending on the sub-element used to define them. However here we are setting
   attributes common to all equality constraint types, which is why we do not make a distinction between types.
-| The equality sub-element attributes available here are: **active, solref, solimp**.
+| The equality sub-element attributes available here are: :at:`active`, :at:`solref`, :at:`solimp`.
 
 
 .. _default-tendon:
+
+.. _default-tendon-group:
+
+.. _default-tendon-limited:
+
+.. _default-tendon-range:
+
+.. _default-tendon-solreflimit:
+
+.. _default-tendon-solimplimit:
+
+.. _default-tendon-solreffriction:
+
+.. _default-tendon-solimpfriction:
+
+.. _default-tendon-frictionloss:
+
+.. _default-tendon-springlength:
+
+.. _default-tendon-width:
+
+.. _default-tendon-material:
+
+.. _default-tendon-margin:
+
+.. _default-tendon-stiffness:
+
+.. _default-tendon-damping:
+
+.. _default-tendon-rgba:
+
+.. _default-tendon-user:
 
 :el-prefix:`default/` |-| **tendon** (?)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -1459,6 +1697,40 @@ if omitted.
 
 .. _default-general:
 
+.. _default-general-ctrllimited:
+
+.. _default-general-forcelimited:
+
+.. _default-general-actlimited:
+
+.. _default-general-ctrlrange:
+
+.. _default-general-forcerange:
+
+.. _default-general-actrange:
+
+.. _default-general-gear:
+
+.. _default-general-cranklength:
+
+.. _default-general-user:
+
+.. _default-general-group:
+
+.. _default-general-actdim:
+
+.. _default-general-dyntype:
+
+.. _default-general-gaintype:
+
+.. _default-general-biastype:
+
+.. _default-general-dynprm:
+
+.. _default-general-gainprm:
+
+.. _default-general-biasprm:
+
 :el-prefix:`default/` |-| **general** (?)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -1468,6 +1740,22 @@ if omitted.
 
 
 .. _default-motor:
+
+.. _default-motor-ctrllimited:
+
+.. _default-motor-forcelimited:
+
+.. _default-motor-ctrlrange:
+
+.. _default-motor-forcerange:
+
+.. _default-motor-gear:
+
+.. _default-motor-cranklength:
+
+.. _default-motor-user:
+
+.. _default-motor-group:
 
 :el-prefix:`default/` |-| **motor** (?)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -1481,6 +1769,24 @@ slidersite, cranksite.
 
 .. _default-position:
 
+.. _default-position-ctrllimited:
+
+.. _default-position-forcelimited:
+
+.. _default-position-ctrlrange:
+
+.. _default-position-forcerange:
+
+.. _default-position-gear:
+
+.. _default-position-cranklength:
+
+.. _default-position-user:
+
+.. _default-position-group:
+
+.. _default-position-kp:
+
 :el-prefix:`default/` |-| **position** (?)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -1489,6 +1795,24 @@ tendon, slidersite, cranksite.
 
 
 .. _default-velocity:
+
+.. _default-velocity-ctrllimited:
+
+.. _default-velocity-forcelimited:
+
+.. _default-velocity-ctrlrange:
+
+.. _default-velocity-forcerange:
+
+.. _default-velocity-gear:
+
+.. _default-velocity-cranklength:
+
+.. _default-velocity-user:
+
+.. _default-velocity-group:
+
+.. _default-velocity-kv:
 
 :el-prefix:`default/` |-| **velocity** (?)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -1499,6 +1823,26 @@ tendon, slidersite, cranksite.
 
 .. _default-intvelocity:
 
+.. _default-intvelocity-ctrllimited:
+
+.. _default-intvelocity-forcelimited:
+
+.. _default-intvelocity-ctrlrange:
+
+.. _default-intvelocity-forcerange:
+
+.. _default-intvelocity-actrange:
+
+.. _default-intvelocity-gear:
+
+.. _default-intvelocity-cranklength:
+
+.. _default-intvelocity-user:
+
+.. _default-intvelocity-group:
+
+.. _default-intvelocity-kp:
+
 :el-prefix:`default/` |-| **intvelocity** (?)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -1507,6 +1851,22 @@ site, tendon, slidersite, cranksite.
 
 
 .. _default-damper:
+
+.. _default-damper-forcelimited:
+
+.. _default-damper-ctrlrange:
+
+.. _default-damper-forcerange:
+
+.. _default-damper-gear:
+
+.. _default-damper-cranklength:
+
+.. _default-damper-user:
+
+.. _default-damper-group:
+
+.. _default-damper-kv:
 
 :el-prefix:`default/` |-| **damper** (?)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -1517,6 +1877,30 @@ tendon, slidersite, cranksite.
 
 .. _default-cylinder:
 
+.. _default-cylinder-ctrllimited:
+
+.. _default-cylinder-forcelimited:
+
+.. _default-cylinder-ctrlrange:
+
+.. _default-cylinder-forcerange:
+
+.. _default-cylinder-gear:
+
+.. _default-cylinder-cranklength:
+
+.. _default-cylinder-user:
+
+.. _default-cylinder-group:
+
+.. _default-cylinder-timeconst:
+
+.. _default-cylinder-area:
+
+.. _default-cylinder-diameter:
+
+.. _default-cylinder-bias:
+
 :el-prefix:`default/` |-| **cylinder** (?)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -1526,6 +1910,40 @@ tendon, slidersite, cranksite.
 
 .. _default-muscle:
 
+.. _default-muscle-ctrllimited:
+
+.. _default-muscle-forcelimited:
+
+.. _default-muscle-ctrlrange:
+
+.. _default-muscle-forcerange:
+
+.. _default-muscle-gear:
+
+.. _default-muscle-cranklength:
+
+.. _default-muscle-user:
+
+.. _default-muscle-group:
+
+.. _default-muscle-timeconst:
+
+.. _default-muscle-range:
+
+.. _default-muscle-force:
+
+.. _default-muscle-scale:
+
+.. _default-muscle-lmin:
+
+.. _default-muscle-lmax:
+
+.. _default-muscle-vmax:
+
+.. _default-muscle-fpmax:
+
+.. _default-muscle-fvmax:
+
 :el-prefix:`default/` |-| **muscle** (?)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -1534,6 +1952,18 @@ tendon, slidersite, cranksite.
 
 
 .. _default-adhesion:
+
+.. _default-adhesion-forcelimited:
+
+.. _default-adhesion-ctrlrange:
+
+.. _default-adhesion-forcerange:
+
+.. _default-adhesion-gain:
+
+.. _default-adhesion-user:
+
+.. _default-adhesion-group:
 
 :el-prefix:`default/` |-| **adhesion** (?)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
