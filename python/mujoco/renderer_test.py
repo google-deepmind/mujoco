@@ -17,6 +17,7 @@
 from absl.testing import absltest
 from absl.testing import parameterized
 import mujoco
+import numpy as np
 
 
 @absltest.skipUnless(hasattr(mujoco, 'GLContext'),
@@ -46,5 +47,71 @@ class MuJoCoRendererTest(parameterized.TestCase):
         not_all_black = True
         break
     self.assertTrue(not_all_black)
+
+  def test_renderer_output_without_out(self):
+    xml = """
+ <mujoco>
+  <worldbody>
+    <camera name="closeup" pos="0 -6 0" xyaxes="1 0 0 0 1 100"/>
+    <geom name="white_box" type="box" size="1 1 1" rgba="1 1 1 1"/>
+  </worldbody>
+</mujoco>
+"""
+    model = mujoco.MjModel.from_xml_string(xml)
+    data = mujoco.MjData(model)
+    mujoco.mj_forward(model, data)
+    renderer = mujoco.Renderer(model, 50, 50)
+    renderer.update_scene(data, 'closeup')
+    pixels = [renderer.render()]
+
+    colors = (
+        (1.0, 0.0, 0.0, 1.0),
+        (0.0, 1.0, 0.0, 1.0),
+        (0.0, 0.0, 1.0, 1.0),
+    )
+
+    for i, color in enumerate(colors):
+      model.geom_rgba[0, :] = color
+      mujoco.mj_forward(model, data)
+      renderer.update_scene(data, 'closeup')
+      pixels.append(renderer.render())
+      self.assertIsNot(pixels[-2], pixels[-1])
+
+      # Pixels should change over steps.
+      self.assertFalse((pixels[i + 1] == pixels[i]).all())
+
+  def test_renderer_output_with_out(self):
+    xml = """
+ <mujoco>
+  <worldbody>
+    <camera name="closeup" pos="0 -6 0" xyaxes="1 0 0 0 1 100"/>
+    <geom name="white_box" type="box" size="1 1 1" rgba="1 1 1 1"/>
+  </worldbody>
+</mujoco>
+"""
+    render_size = (50, 50)
+    render_out = np.zeros((*render_size, 3), np.uint8)
+    model = mujoco.MjModel.from_xml_string(xml)
+    data = mujoco.MjData(model)
+    mujoco.mj_forward(model, data)
+    renderer = mujoco.Renderer(model, *render_size)
+    renderer.update_scene(data, 'closeup')
+
+    self.assertTrue(np.all(render_out == 0))
+
+    pixels = renderer.render(out=render_out)
+
+    # Pixels should always refer to the same `render_out` array.
+    self.assertIs(pixels, render_out)
+    self.assertFalse(np.all(render_out == 0))
+
+    failing_render_size = (10, 10)
+    self.assertNotEqual(failing_render_size, render_size)
+    with self.assertRaises(ValueError):
+      pixels = renderer.render(
+          out=np.zeros((*failing_render_size, 3), np.uint8)
+      )
+
+
 if __name__ == '__main__':
   absltest.main()

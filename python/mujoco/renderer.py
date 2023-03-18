@@ -76,10 +76,6 @@ the clause:
 
     self._rect = _render.MjrRect(0, 0, self._width, self._height)
 
-    # Internal buffers.
-    self._rgb_buffer = np.empty((self._height, self._width, 3), dtype=np.uint8)
-    self._depth_buffer = np.empty((self._height, self._width), dtype=np.float32)
-
     # Create render contexts.
     self._gl_context = gl_context.GLContext(width, height)
     self._gl_context.make_current()
@@ -124,12 +120,20 @@ the clause:
   def disable_segmentation_rendering(self):
     self._segmentation_rendering = False
 
-  def render(self) -> np.ndarray:
+  def render(self, *, out: Optional[np.ndarray] = None) -> np.ndarray:
     """Renders the scene as a numpy array of pixel values.
 
+    Args:
+      out: Alternative output array in which to place the resulting pixels. It
+        must have the same shape as the expected output but the type will be
+        cast if necessary. The expted shape depends on the value of
+        `self._depth_rendering`: when `True`, we expect `out.shape == (width,
+        height)`, and `out.shape == (width, height, 3)` when `False`.
+
     Returns:
-      A numpy array of pixels with dimensions (H, W, 3). The array will be
-      mutated by future calls to `render`.
+      A new numpy array holding the pixels with shape `(H, W)` or `(H, W, 3)`,
+      depending on the value of `self._depth_rendering` unless
+      `out is None`, in which case a reference to `out` is returned.
     """
     original_flags = self._scene.flags.copy()
 
@@ -139,12 +143,30 @@ the clause:
 
     self._gl_context.make_current()
 
+    if self._depth_rendering:
+      out_shape = (self._height, self._width)
+      out_dtype = np.float32
+    else:
+      out_shape = (self._height, self._width, 3)
+      out_dtype = np.uint8
+
+    if out is None:
+      out = np.empty(out_shape, dtype=out_dtype)
+    else:
+      if out.shape != out_shape:
+        raise ValueError(
+            f'Expected `out.shape == {out_shape}`. Got `out.shape={out.shape}`'
+            ' instead. When using depth rendering, the out array should be of'
+            ' shape `(width, height)` and otherwise (width, height, 3).'
+            f' Got `(self.height, self.width)={(self.height, self.width)}` and'
+            f' `self._depth_rendering={self._depth_rendering}`.'
+        )
+
     # Render scene and read contents of RGB and depth buffers.
     _render.mjr_render(self._rect, self._scene, self._mjr_context)
-    _render.mjr_readPixels(self._rgb_buffer, self._depth_buffer, self._rect,
-                           self._mjr_context)
-
     if self._depth_rendering:
+      _render.mjr_readPixels(None, out, self._rect, self._mjr_context)
+
       # Get the distances to the near and far clipping planes.
       extent = self._model.stat.extent
       near = self._model.vis.map.znear * extent
@@ -153,32 +175,40 @@ the clause:
       # Convert from [0 1] to depth in units of length, see links below:
       # http://stackoverflow.com/a/6657284/1461210
       # https://www.khronos.org/opengl/wiki/Depth_Buffer_Precision
-      pixels = near / (1 - self._depth_buffer * (1 - near / far))
+      out = near / (1 - out * (1 - near / far))
 
     elif self._segmentation_rendering:
+      _render.mjr_readPixels(out, None, self._rect, self._mjr_context)
+
       # Convert 3-channel uint8 to 1-channel uint32.
-      image3 = self._rgb_buffer.astype(np.uint32)
-      segimage = (image3[:, :, 0] +
-                  image3[:, :, 1] * (2**8) +
-                  image3[:, :, 2] * (2**16))
+      image3 = out.astype(np.uint32)
+      segimage = (
+          image3[:, :, 0]
+          + image3[:, :, 1] * (2**8)
+          + image3[:, :, 2] * (2**16)
+      )
       # Remap segid to 2-channel (object ID, object type) pair.
       # Seg ID 0 is background -- will be remapped to (-1, -1).
       ngeoms = self._scene.ngeom
-      segid2output = np.full((ngeoms + 1, 2), fill_value=-1,
-                             dtype=np.int32)  # Seg id cannot be > ngeom + 1.
+      segid2output = np.full(
+          (ngeoms + 1, 2), fill_value=-1, dtype=np.int32
+      )  # Seg id cannot be > ngeom + 1.
       visible_geoms = [g for g in self._scene.geoms[:ngeoms] if g.segid != -1]
       visible_segids = np.array([g.segid + 1 for g in visible_geoms], np.int32)
       visible_objid = np.array([g.objid for g in visible_geoms], np.int32)
       visible_objtype = np.array([g.objtype for g in visible_geoms], np.int32)
       segid2output[visible_segids, 0] = visible_objid
       segid2output[visible_segids, 1] = visible_objtype
-      pixels = segid2output[segimage]
+      out = segid2output[segimage]
 
       # Reset scene flags.
       np.copyto(self._scene.flags, original_flags)
     else:
-      pixels = self._rgb_buffer
-    return np.flipud(pixels)
+      _render.mjr_readPixels(out, None, self._rect, self._mjr_context)
+
+    out[:] = np.flipud(out)
+
+    return out
 
   def update_scene(
       self,
