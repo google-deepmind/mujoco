@@ -203,6 +203,27 @@ TEST_F(EngineIoTest, MakeDataReturnsNullOnFailure) {
   mj_deleteModel(model);
 }
 
+TEST_F(EngineIoTest, ResetVariableSizes) {
+  constexpr char xml[] = "<mujoco/>";
+
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error.data();
+
+  mjData* data = mj_makeData(model);
+  ASSERT_THAT(model, NotNull()) << "Failed to create mjData";
+
+  // don't call mj_forward, vars should be reset
+  EXPECT_EQ(data->ne, 0);
+  EXPECT_EQ(data->nf, 0);
+  EXPECT_EQ(data->nefc, 0);
+  EXPECT_EQ(data->nnzJ, 0);
+  EXPECT_EQ(data->ncon, 0);
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
 using ValidateReferencesTest = MujocoTest;
 
 TEST_F(ValidateReferencesTest, BodyReferences) {
