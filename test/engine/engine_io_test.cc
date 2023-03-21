@@ -224,6 +224,36 @@ TEST_F(EngineIoTest, ResetVariableSizes) {
   mj_deleteModel(model);
 }
 
+TEST_F(EngineIoTest, MakeDataResetsAllArenaPointerSizes) {
+  constexpr char xml[] = "<mujoco />";
+
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error.data();
+  mjData* data = mj_makeData(model);
+  ASSERT_THAT(data, NotNull());
+
+  // without calling mj_forward, all array sizes should be zero.
+  EXPECT_EQ(data->parena, 0) << "expecting empty arena";
+
+#define X(type, name, nr, nc) \
+  EXPECT_EQ(nr*nc, 0) << "expecting (" #nr " x " #nc ") to be zero";
+
+#undef MJ_D
+#undef MJ_M
+#define MJ_D(name) data->name
+#define MJ_M(name) model->name
+  MJDATA_ARENA_POINTERS;
+#undef MJ_D
+#undef MJ_M
+#define MJ_D(n) n
+#define MJ_M(n) n
+#undef X
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
 using ValidateReferencesTest = MujocoTest;
 
 TEST_F(ValidateReferencesTest, BodyReferences) {
