@@ -481,7 +481,7 @@ void mju_makeFrame(mjtNum frame[9]) {
     mju_error("xaxis of contact frame undefined");
   }
 
-  // if yaxis undefined, set yaxis to (0,1,0) if possible, otherwize (0,0,1)
+  // if yaxis undefined, set yaxis to (0,1,0) if possible, otherwise (0,0,1)
   if (mju_norm3(frame+3) < 0.5) {
     mju_zero3(frame+3);
 
