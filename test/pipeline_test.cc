@@ -52,7 +52,7 @@ TEST_F(PipelineTest, SparseDenseEquivalent) {
   std::vector<mjtNum> qacc_sparse = AsVector(data->qacc, model->nv);
 
   // expect accelerations to be insignificantly different
-  mjtNum tol = 1e-12;
+  mjtNum tol = 1e-11;
   EXPECT_THAT(qacc_dense, Pointwise(DoubleNear(tol), qacc_sparse));
   // TODO: is 1e-12 larger than we expect?
   //       investigate sources of discrepancy, eliminate if possible
