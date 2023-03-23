@@ -1210,10 +1210,10 @@ void mjd_ellipsoidFluid(const mjModel* m, mjData* d, int bodyid) {
     // make B symmetric if integrator is IMPLICITFAST
     if (m->opt.integrator == mjINT_IMPLICITFAST) {
       for (int i=0; i<5; i++) {
-        for (j=i+1; j<6; j++) {
-          mjtNum tmp = 0.5 * (B[6 * i + j] + B[6 * j + i]);
-          B[6 * i + j] = tmp;
-          B[6 * j + i] = tmp;
+        for (int k=i+1; k<6; k++) {
+          mjtNum tmp = 0.5 * (B[6 * i + k] + B[6 * k + i]);
+          B[6 * i + k] = tmp;
+          B[6 * k + i] = tmp;
         }
       }
     }

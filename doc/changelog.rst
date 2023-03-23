@@ -2,6 +2,16 @@
 Changelog
 =========
 
+Upcoming version (not yet released)
+-----------------------------------
+
+Bug fixes
+^^^^^^^^^
+
+- Fixed bug in the handling of ellipsoid-based fluid model forces in the new implicitfast integrator. If using the
+  (as-yet undocumented) ellipsoid-based fluid model, please use a different integrator until the next release.
+
+
 Version 2.3.3 (March 20, 2023)
 ------------------------------
 
