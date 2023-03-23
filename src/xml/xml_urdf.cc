@@ -74,7 +74,7 @@ void mjXURDF::Clear(void) {
 void mjXURDF::Parse(XMLElement* root) {
   std::string name, text;
   XMLElement *elem, *temp;
-  int id_parent, id_child, i;
+  int id_parent, id_child;
 
   // set compiler defaults suitable for URDF
   model->strippath = true;
@@ -158,7 +158,7 @@ void mjXURDF::Parse(XMLElement* root) {
   }
 
   // find all top-level bodies, call recursive tree constructor
-  for (i=0; i<(int)urName.size(); i++) {
+  for (int i=0; i<(int)urName.size(); i++) {
     if (urParent[i] < 0) {
       AddToTree(i);
     }

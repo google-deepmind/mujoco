@@ -356,15 +356,13 @@ mjCBody::mjCBody(mjCModel* _model) {
 
 // destructor
 mjCBody::~mjCBody() {
-  unsigned int i;
-
   // delete objects allocated here
-  for (i=0; i<bodies.size(); i++) delete bodies[i];
-  for (i=0; i<geoms.size(); i++) delete geoms[i];
-  for (i=0; i<joints.size(); i++) delete joints[i];
-  for (i=0; i<sites.size(); i++) delete sites[i];
-  for (i=0; i<cameras.size(); i++) delete cameras[i];
-  for (i=0; i<lights.size(); i++) delete lights[i];
+  for (int i=0; i<bodies.size(); i++) delete bodies[i];
+  for (int i=0; i<geoms.size(); i++) delete geoms[i];
+  for (int i=0; i<joints.size(); i++) delete joints[i];
+  for (int i=0; i<sites.size(); i++) delete sites[i];
+  for (int i=0; i<cameras.size(); i++) delete cameras[i];
+  for (int i=0; i<lights.size(); i++) delete lights[i];
 
   bodies.clear();
   geoms.clear();
@@ -576,14 +574,14 @@ mjCBase* mjCBody::FindObject(mjtObj type, string _name, bool recursive) {
 
 // compute geom inertial frame: ipos, iquat, mass, inertia
 void mjCBody::GeomFrame(void) {
-  int i, sz;
+  int sz;
   double com[3] = {0, 0, 0};
   double toti[6] = {0, 0, 0, 0, 0, 0};
   vector<mjCGeom*> sel;
 
   // select geoms based on group
   sel.clear();
-  for (i=0; i<geoms.size(); i++) {
+  for (int i=0; i<geoms.size(); i++) {
     if (geoms[i]->group>=model->inertiagrouprange[0] &&
         geoms[i]->group<=model->inertiagrouprange[1]) {
       sel.push_back(geoms[i]);
@@ -603,7 +601,7 @@ void mjCBody::GeomFrame(void) {
   else if (sz>1) {
     // compute total mass and center of mass
     mass = 0;
-    for (i=0; i<sz; i++) {
+    for (int i=0; i<sz; i++) {
       mass += sel[i]->mass;
       com[0] += sel[i]->mass * sel[i]->pos[0];
       com[1] += sel[i]->mass * sel[i]->pos[1];
@@ -621,7 +619,7 @@ void mjCBody::GeomFrame(void) {
     ipos[2] = com[2]/mass;
 
     // add geom inertias
-    for (i=0; i<sz; i++) {
+    for (int i=0; i<sz; i++) {
       double inert0[6], inert1[6];
       double dpos[3] = {
         sel[i]->pos[0] - ipos[0],
@@ -820,8 +818,6 @@ int mjCBody::MakeBVH(std::vector<mjCGeom *>& elements, int lev) {
 
 // compiler
 void mjCBody::Compile(void) {
-  unsigned int i;
-
   // resize userdata
   if (userdata.size() > model->nuser_body) {
     throw mjCError(this, "user has more values than nuser_body in body '%s' (id = %d)",
@@ -839,7 +835,7 @@ void mjCBody::Compile(void) {
   mjuu_normvec(iquat, 4);
 
   // set parentid and weldid of children
-  for (i=0; i<bodies.size(); i++) {
+  for (int i=0; i<bodies.size(); i++) {
     bodies[i]->parentid = id;
     bodies[i]->weldid = (!bodies[i]->joints.empty() ? bodies[i]->id : weldid);
   }
@@ -857,7 +853,7 @@ void mjCBody::Compile(void) {
   }
 
   // compile all geoms, phase 1
-  for (i=0; i<geoms.size(); i++) {
+  for (int i=0; i<geoms.size(); i++) {
     geoms[i]->inferinertia = id>0 &&
       (!explicitinertial || model->inertiafromgeom == mjINERTIAFROMGEOM_TRUE) &&
       geoms[i]->group >= model->inertiagrouprange[0] &&
@@ -924,7 +920,7 @@ void mjCBody::Compile(void) {
   }
 
   // make local frames of geoms
-  for (i=0; i<geoms.size(); i++) {
+  for (int i=0; i<geoms.size(); i++) {
     MakeLocal(geoms[i]->locpos, geoms[i]->locquat, geoms[i]->pos, geoms[i]->quat);
   }
 
@@ -935,7 +931,7 @@ void mjCBody::Compile(void) {
 
   // compile all joints, count dofs
   dofnum = 0;
-  for (i=0; i<joints.size(); i++) {
+  for (int i=0; i<joints.size(); i++) {
     dofnum += joints[i]->Compile();
   }
 
@@ -946,7 +942,7 @@ void mjCBody::Compile(void) {
 
   // check for rotation dof after ball joint
   bool hasball = false;
-  for (i=0; i<joints.size(); i++) {
+  for (int i=0; i<joints.size(); i++) {
     if ((joints[i]->type==mjJNT_BALL || joints[i]->type==mjJNT_HINGE) && hasball) {
       throw mjCError(this, "ball followed by rotation in body '%s'", name.c_str());
     }
@@ -962,13 +958,13 @@ void mjCBody::Compile(void) {
     }
 
   // compile all sites
-  for (i=0; i<sites.size(); i++) sites[i]->Compile();
+  for (int i=0; i<sites.size(); i++) sites[i]->Compile();
 
   // compile all cameras
-  for (i=0; i<cameras.size(); i++) cameras[i]->Compile();
+  for (int i=0; i<cameras.size(); i++) cameras[i]->Compile();
 
   // compile all lights
-  for (i=0; i<lights.size(); i++) lights[i]->Compile();
+  for (int i=0; i<lights.size(); i++) lights[i]->Compile();
 
   // plugin
   if (is_plugin) {
@@ -2217,11 +2213,10 @@ mjCTexture::~mjCTexture() {
 // insert random dots
 static void randomdot(unsigned char* rgb, const double* markrgb,
                       int width, int height, double probability) {
-  int r, c, j;
-  for (r=0; r<height; r++) {
-    for (c=0; c<width; c++) {
+  for (int r=0; r<height; r++) {
+    for (int c=0; c<width; c++) {
       if (rand()<probability*RAND_MAX) {
-        for (j=0; j<3; j++) {
+        for (int j=0; j<3; j++) {
           rgb[3*(r*width+c)+j] = (mjtByte)(255*markrgb[j]);
         }
       }
@@ -2251,25 +2246,23 @@ static void interp(unsigned char* rgb, const double* rgb1, const double* rgb2, d
 // make checker pattern for one side
 static void checker(unsigned char* rgb, const unsigned char* RGB1, const unsigned char* RGB2,
                     int width, int height) {
-  int r, c;
-
-  for (r=0; r<height/2; r++) {
-    for (c=0; c<width/2; c++) {
+  for (int r=0; r<height/2; r++) {
+    for (int c=0; c<width/2; c++) {
       memcpy(rgb+3*(r*width+c), RGB1, 3);
     }
   }
-  for (r=height/2; r<height; r++) {
-    for (c=width/2; c<width; c++) {
+  for (int r=height/2; r<height; r++) {
+    for (int c=width/2; c<width; c++) {
       memcpy(rgb+3*(r*width+c), RGB1, 3);
     }
   }
-  for (r=0; r<height/2; r++) {
-    for (c=width/2; c<width; c++) {
+  for (int r=0; r<height/2; r++) {
+    for (int c=width/2; c<width; c++) {
       memcpy(rgb+3*(r*width+c), RGB2, 3);
     }
   }
-  for (r=height/2; r<height; r++) {
-    for (c=0; c<width/2; c++) {
+  for (int r=height/2; r<height; r++) {
+    for (int c=0; c<width/2; c++) {
       memcpy(rgb+3*(r*width+c), RGB2, 3);
     }
   }
@@ -2280,10 +2273,8 @@ static void checker(unsigned char* rgb, const unsigned char* RGB1, const unsigne
 // make builtin: 2D
 void mjCTexture::Builtin2D(void) {
   unsigned char RGB1[3], RGB2[3], RGBm[3];
-  int r, c, j;
-
   // convert fixed colors
-  for (j=0; j<3; j++) {
+  for (int j=0; j<3; j++) {
     RGB1[j] = (mjtByte)(255*rgb1[j]);
     RGB2[j] = (mjtByte)(255*rgb2[j]);
     RGBm[j] = (mjtByte)(255*markrgb[j]);
@@ -2293,8 +2284,8 @@ void mjCTexture::Builtin2D(void) {
 
   // gradient
   if (builtin==mjBUILTIN_GRADIENT) {
-    for (r=0; r<height; r++) {
-      for (c=0; c<width; c++) {
+    for (int r=0; r<height; r++) {
+      for (int c=0; c<width; c++) {
         // compute normalized coordinates and radius
         double x = 2*c/((double)(width-1)) - 1;
         double y = 1 - 2*r/((double)(height-1));
@@ -2313,8 +2304,8 @@ void mjCTexture::Builtin2D(void) {
 
   // flat
   else if (builtin==mjBUILTIN_FLAT) {
-    for (r=0; r<height; r++) {
-      for (c=0; c<width; c++) {
+    for (int r=0; r<height; r++) {
+      for (int c=0; c<width; c++) {
         memcpy(rgb+3*(r*width+c), RGB1, 3);
       }
     }
@@ -2324,11 +2315,11 @@ void mjCTexture::Builtin2D(void) {
 
   // edge
   if (mark==mjMARK_EDGE) {
-    for (r=0; r<height; r++) {
+    for (int r=0; r<height; r++) {
       memcpy(rgb+3*(r*width+0), RGBm, 3);
       memcpy(rgb+3*(r*width+width-1), RGBm, 3);
     }
-    for (c=0; c<width; c++) {
+    for (int c=0; c<width; c++) {
       memcpy(rgb+3*(0*width+c), RGBm, 3);
       memcpy(rgb+3*((height-1)*width+c), RGBm, 3);
     }
@@ -2336,10 +2327,10 @@ void mjCTexture::Builtin2D(void) {
 
   // cross
   else if (mark==mjMARK_CROSS) {
-    for (r=0; r<height; r++) {
+    for (int r=0; r<height; r++) {
       memcpy(rgb+3*(r*width+width/2), RGBm, 3);
     }
-    for (c=0; c<width; c++) {
+    for (int c=0; c<width; c++) {
       memcpy(rgb+3*(height/2*width+c), RGBm, 3);
     }
   }
@@ -2355,10 +2346,9 @@ void mjCTexture::Builtin2D(void) {
 // make builtin: Cube
 void mjCTexture::BuiltinCube(void) {
   unsigned char RGB1[3], RGB2[3], RGBm[3], RGBi[3];
-  int r, c, j;
 
   // convert fixed colors
-  for (j=0; j<3; j++) {
+  for (int j=0; j<3; j++) {
     RGB1[j] = (mjtByte)(255*rgb1[j]);
     RGB2[j] = (mjtByte)(255*rgb2[j]);
     RGBm[j] = (mjtByte)(255*markrgb[j]);
@@ -2368,8 +2358,8 @@ void mjCTexture::BuiltinCube(void) {
 
   // gradient
   if (builtin==mjBUILTIN_GRADIENT) {
-    for (r=0; r<width; r++) {
-      for (c=0; c<width; c++) {
+    for (int r=0; r<width; r++) {
+      for (int c=0; c<width; c++) {
         // compute normalized pixel coordinates
         double x = 2*c/((double)(width-1)) - 1;
         double y = 1 - 2*r/((double)(width-1));
@@ -2404,8 +2394,8 @@ void mjCTexture::BuiltinCube(void) {
 
   // flat
   else if (builtin==mjBUILTIN_FLAT) {
-    for (r=0; r<width; r++) {
-      for (c=0; c<width; c++) {
+    for (int r=0; r<width; r++) {
+      for (int c=0; c<width; c++) {
         // set sides and up
         memcpy(rgb+0*3*width*width+3*(r*width+c), RGB1, 3);
         memcpy(rgb+1*3*width*width+3*(r*width+c), RGB1, 3);
@@ -2423,12 +2413,12 @@ void mjCTexture::BuiltinCube(void) {
 
   // edge
   if (mark==mjMARK_EDGE) {
-    for (j=0; j<6; j++) {
-      for (r=0; r<width; r++) {
+    for (int j=0; j<6; j++) {
+      for (int r=0; r<width; r++) {
         memcpy(rgb+j*3*width*width+3*(r*width+0), RGBm, 3);
         memcpy(rgb+j*3*width*width+3*(r*width+width-1), RGBm, 3);
       }
-      for (c=0; c<width; c++) {
+      for (int c=0; c<width; c++) {
         memcpy(rgb+j*3*width*width+3*(0*width+c), RGBm, 3);
         memcpy(rgb+j*3*width*width+3*((width-1)*width+c), RGBm, 3);
       }
@@ -2437,11 +2427,11 @@ void mjCTexture::BuiltinCube(void) {
 
   // cross
   else if (mark==mjMARK_CROSS) {
-    for (j=0; j<6; j++) {
-      for (r=0; r<width; r++) {
+    for (int j=0; j<6; j++) {
+      for (int r=0; r<width; r++) {
         memcpy(rgb+j*3*width*width+3*(r*width+width/2), RGBm, 3);
       }
-      for (c=0; c<width; c++) {
+      for (int c=0; c<width; c++) {
         memcpy(rgb+j*3*width*width+3*(width/2*width+c), RGBm, 3);
       }
     }
@@ -2637,8 +2627,6 @@ void mjCTexture::Load2D(string filename, const mjVFS* vfs) {
 
 // load cube or skybox from single file (repeated or grid)
 void mjCTexture::LoadCubeSingle(string filename, const mjVFS* vfs) {
-  int i, j, k, s;
-
   // check gridsize
   if (gridsize[0]<1 || gridsize[1]<1 || gridsize[0]*gridsize[1]>12) {
     throw mjCError(this,
@@ -2685,9 +2673,9 @@ void mjCTexture::LoadCubeSingle(string filename, const mjVFS* vfs) {
     int loaded[6] = {0, 0, 0, 0, 0, 0};
 
     // process grid
-    for (k=0; k<gridsize[0]*gridsize[1]; k++) {
+    for (int k=0; k<gridsize[0]*gridsize[1]; k++) {
       // decode face symbol
-      i = -1;
+      int i = -1;
       if (gridlayout[k]=='R') {
         i = 0;
       } else if (gridlayout[k]=='L') {
@@ -2709,7 +2697,7 @@ void mjCTexture::LoadCubeSingle(string filename, const mjVFS* vfs) {
         // extract sub-image
         int rstart = width*(k/gridsize[1]);
         int cstart = width*(k%gridsize[1]);
-        for (j=0; j<width; j++) {
+        for (int j=0; j<width; j++) {
           memcpy(rgb+i*3*width*width+j*3*width, image.data()+(j+rstart)*3*w+3*cstart, 3*width);
         }
 
@@ -2719,11 +2707,11 @@ void mjCTexture::LoadCubeSingle(string filename, const mjVFS* vfs) {
     }
 
     // set undefined faces to rgb1
-    for (i=0; i<6; i++) {
+    for (int i=0; i<6; i++) {
       if (!loaded[i]) {
-        for (k=0; k<width; k++) {
-          for (s=0; s<width; s++) {
-            for (j=0; j<3; j++) {
+        for (int k=0; k<width; k++) {
+          for (int s=0; s<width; s++) {
+            for (int j=0; j<3; j++) {
               rgb[i*3*width*width + 3*(k*width+s) + j] = (mjtByte)(255*rgb1[j]);
             }
           }
@@ -2739,13 +2727,11 @@ void mjCTexture::LoadCubeSingle(string filename, const mjVFS* vfs) {
 
 // load cube or skybox from separate file
 void mjCTexture::LoadCubeSeparate(const mjVFS* vfs) {
-  int i, j, k, s;
-
   // keep track of which faces were defined
   int loaded[6] = {0, 0, 0, 0, 0, 0};
 
   // process nonempty files
-  for (i=0; i<6; i++) {
+  for (int i=0; i<6; i++) {
     if (!cubefiles[i].empty()) {
       // remove path from file if necessary
       if (model->strippath) {
@@ -2796,11 +2782,11 @@ void mjCTexture::LoadCubeSeparate(const mjVFS* vfs) {
   }
 
   // set undefined faces to rgb1
-  for (i=0; i<6; i++) {
+  for (int i=0; i<6; i++) {
     if (!loaded[i]) {
-      for (k=0; k<width; k++) {
-        for (s=0; s<width; s++) {
-          for (j=0; j<3; j++) {
+      for (int k=0; k<width; k++) {
+        for (int s=0; s<width; s++) {
+          for (int j=0; j<3; j++) {
             rgb[i*3*width*width + 3*(k*width+s) + j] = (mjtByte)(255*rgb1[j]);
           }
         }
@@ -4419,12 +4405,11 @@ mjCKey::~mjCKey() {
 
 // compiler
 void mjCKey::Compile(const mjModel* m) {
-  int i;
 
   // qpos: allocate or check size
   if (qpos.empty()) {
     qpos.resize(m->nq);
-    for (i=0; i<m->nq; i++) {
+    for (int i=0; i<m->nq; i++) {
       qpos[i] = (double)m->qpos0[i];
     }
   } else if (qpos.size()!=m->nq) {
@@ -4434,7 +4419,7 @@ void mjCKey::Compile(const mjModel* m) {
   // qvel: allocate or check size
   if (qvel.empty()) {
     qvel.resize(m->nv);
-    for (i=0; i<m->nv; i++) {
+    for (int i=0; i<m->nv; i++) {
       qvel[i] = 0;
     }
   } else if (qvel.size()!=m->nv) {
@@ -4444,7 +4429,7 @@ void mjCKey::Compile(const mjModel* m) {
   // act: allocate or check size
   if (act.empty()) {
     act.resize(m->na);
-    for (i=0; i<m->na; i++) {
+    for (int i=0; i<m->na; i++) {
       act[i] = 0;
     }
   } else if (act.size()!=m->na) {
@@ -4455,7 +4440,7 @@ void mjCKey::Compile(const mjModel* m) {
   if (mpos.empty()) {
     mpos.resize(3*m->nmocap);
     if (m->nmocap) {
-      for (i=0; i<m->nbody; i++) {
+      for (int i=0; i<m->nbody; i++) {
         if (m->body_mocapid[i]>=0) {
           int mocapid = m->body_mocapid[i];
           mpos[3*mocapid]   = m->body_pos[3*i];
@@ -4472,7 +4457,7 @@ void mjCKey::Compile(const mjModel* m) {
   if (mquat.empty()) {
     mquat.resize(4*m->nmocap);
     if (m->nmocap) {
-      for (i=0; i<m->nbody; i++) {
+      for (int i=0; i<m->nbody; i++) {
         if (m->body_mocapid[i]>=0) {
           int mocapid = m->body_mocapid[i];
           mquat[4*mocapid]   = m->body_quat[4*i];
@@ -4489,7 +4474,7 @@ void mjCKey::Compile(const mjModel* m) {
   // ctrl: allocate or check size
   if (ctrl.empty()) {
     ctrl.resize(m->nu);
-    for (i=0; i<m->nu; i++) {
+    for (int i=0; i<m->nu; i++) {
       ctrl[i] = 0;
     }
   } else if (ctrl.size()!=m->nu) {

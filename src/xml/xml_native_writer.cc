@@ -1135,7 +1135,6 @@ void mjXWriter::Extension(XMLElement* root) {
 // custom section
 void mjXWriter::Custom(XMLElement* root) {
   XMLElement* elem;
-  int i, j;
 
   // get sizes, skip section if empty
   int nnum = model->NumObjects(mjOBJ_NUMERIC);
@@ -1151,7 +1150,7 @@ void mjXWriter::Custom(XMLElement* root) {
   XMLElement* section = InsertEnd(root, "custom");
 
   // write all numerics
-  for (i=0; i<nnum; i++) {
+  for (int i=0; i<nnum; i++) {
     mjCNumeric* ptr = (mjCNumeric*)model->GetObject(mjOBJ_NUMERIC, i);
     elem = InsertEnd(section, "numeric");
     WriteAttrTxt(elem, "name", ptr->name);
@@ -1160,7 +1159,7 @@ void mjXWriter::Custom(XMLElement* root) {
   }
 
   // write all texts
-  for (i=0; i<ntxt; i++) {
+  for (int i=0; i<ntxt; i++) {
     mjCText* ptr = (mjCText*)model->GetObject(mjOBJ_TEXT, i);
     elem = InsertEnd(section, "text");
     WriteAttrTxt(elem, "name", ptr->name);
@@ -1168,13 +1167,13 @@ void mjXWriter::Custom(XMLElement* root) {
   }
 
   // write all tuples
-  for (i=0; i<ntup; i++) {
+  for (int i=0; i<ntup; i++) {
     mjCTuple* ptr = (mjCTuple*)model->GetObject(mjOBJ_TUPLE, i);
     elem = InsertEnd(section, "tuple");
     WriteAttrTxt(elem, "name", ptr->name);
 
     // write objects in tuple
-    for (j=0; j<(int)ptr->objtype.size(); j++) {
+    for (int j=0; j<(int)ptr->objtype.size(); j++) {
       XMLElement* obj = InsertEnd(elem, "element");
       WriteAttrTxt(obj, "objtype", mju_type2Str((int)ptr->objtype[j]));
       WriteAttrTxt(obj, "objname", ptr->objname[j].c_str());
@@ -1191,7 +1190,6 @@ void mjXWriter::Custom(XMLElement* root) {
 // asset section
 void mjXWriter::Asset(XMLElement* root) {
   XMLElement* elem;
-  int i;
 
   // get sizes
   int ntex = model->NumObjects(mjOBJ_TEXTURE);
@@ -1210,7 +1208,7 @@ void mjXWriter::Asset(XMLElement* root) {
 
   // write textures
   mjCTexture deftex(0);
-  for (i=0; i<ntex; i++) {
+  for (int i=0; i<ntex; i++) {
     // create element
     mjCTexture* ptex = (mjCTexture*)model->GetObject(mjOBJ_TEXTURE, i);
     elem = InsertEnd(section, "texture");
@@ -1260,7 +1258,7 @@ void mjXWriter::Asset(XMLElement* root) {
   }
 
   // write materials
-  for (i=0; i<nmat; i++) {
+  for (int i=0; i<nmat; i++) {
     // create element and write
     mjCMaterial* pmat = (mjCMaterial*)model->GetObject(mjOBJ_MATERIAL, i);
     elem = InsertEnd(section, "material");
@@ -1268,7 +1266,7 @@ void mjXWriter::Asset(XMLElement* root) {
   }
 
   // write meshes
-  for (i=0; i<nmesh; i++) {
+  for (int i=0; i<nmesh; i++) {
     // create element and write
     mjCMesh* pmesh = (mjCMesh*)model->GetObject(mjOBJ_MESH, i);
     elem = InsertEnd(section, "mesh");
@@ -1276,7 +1274,7 @@ void mjXWriter::Asset(XMLElement* root) {
   }
 
   // write skins
-  for (i=0; i<nskin; i++) {
+  for (int i=0; i<nskin; i++) {
     // create element and write
     mjCSkin* pskin = (mjCSkin*)model->GetObject(mjOBJ_SKIN, i);
     elem = InsertEnd(section, "skin");
@@ -1284,7 +1282,7 @@ void mjXWriter::Asset(XMLElement* root) {
   }
 
   // write hfields
-  for (i=0; i<nhfield; i++) {
+  for (int i=0; i<nhfield; i++) {
     // create element
     mjCHField* phf = (mjCHField*)model->GetObject(mjOBJ_HFIELD, i);
     elem = InsertEnd(section, "hfield");
@@ -1306,7 +1304,6 @@ void mjXWriter::Asset(XMLElement* root) {
 // recursive body writer
 void mjXWriter::Body(XMLElement* elem, mjCBody* body) {
   double unitq[4] = {1, 0, 0, 0};
-  unsigned int i;
 
   if (!body) {
     throw mjXError(0, "missing body in XML write");  // SHOULD NOT OCCUR
@@ -1340,27 +1337,27 @@ void mjXWriter::Body(XMLElement* elem, mjCBody* body) {
   }
 
   // write joints
-  for (i=0; i<body->joints.size(); i++) {
+  for (int i=0; i<body->joints.size(); i++) {
     OneJoint(InsertEnd(elem, "joint"), body->joints[i], body->joints[i]->def);
   }
 
   // write geoms
-  for (i=0; i<body->geoms.size(); i++) {
+  for (int i=0; i<body->geoms.size(); i++) {
     OneGeom(InsertEnd(elem, "geom"), body->geoms[i], body->geoms[i]->def);
   }
 
   // write sites
-  for (i=0; i<body->sites.size(); i++) {
+  for (int i=0; i<body->sites.size(); i++) {
     OneSite(InsertEnd(elem, "site"), body->sites[i], body->sites[i]->def);
   }
 
   // write cameras
-  for (i=0; i<body->cameras.size(); i++) {
+  for (int i=0; i<body->cameras.size(); i++) {
     OneCamera(InsertEnd(elem, "camera"), body->cameras[i], body->cameras[i]->def);
   }
 
   // write lights
-  for (i=0; i<body->lights.size(); i++) {
+  for (int i=0; i<body->lights.size(); i++) {
     OneLight(InsertEnd(elem, "light"), body->lights[i], body->lights[i]->def);
   }
 
@@ -1387,7 +1384,7 @@ void mjXWriter::Body(XMLElement* elem, mjCBody* body) {
   }
 
   // write child bodies recursively
-  for (i=0; i<body->bodies.size(); i++) {
+  for (int i=0; i<body->bodies.size(); i++) {
     Body(InsertEnd(elem, "body"), body->bodies[i]);
   }
 }
@@ -1397,7 +1394,6 @@ void mjXWriter::Body(XMLElement* elem, mjCBody* body) {
 // collision section
 void mjXWriter::Contact(XMLElement* root) {
   XMLElement* elem;
-  int i;
 
   // get number of pairs of each type
   int npair = model->NumObjects(mjOBJ_PAIR);
@@ -1412,7 +1408,7 @@ void mjXWriter::Contact(XMLElement* root) {
   XMLElement* section = InsertEnd(root, "contact");
 
   // write all geom pairs
-  for (i=0; i<npair; i++) {
+  for (int i=0; i<npair; i++) {
     // create element and write
     mjCPair* ppair = (mjCPair*)model->GetObject(mjOBJ_PAIR, i);
     elem = InsertEnd(section, "pair");
@@ -1420,7 +1416,7 @@ void mjXWriter::Contact(XMLElement* root) {
   }
 
   // write all exclude pairs
-  for (i=0; i<nexclude; i++) {
+  for (int i=0; i<nexclude; i++) {
     // create element
     mjCBodyPair* pexclude = (mjCBodyPair*)model->GetObject(mjOBJ_EXCLUDE, i);
     elem = InsertEnd(section, "exclude");

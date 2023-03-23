@@ -141,9 +141,8 @@ double mjuu_L1(const double* a, const double* b, int n) {
 // normalize vector to unit length, return previous length
 double mjuu_normvec(double* vec, const int n) {
   double nrm = 0;
-  int i;
 
-  for (i=0; i<n; i++) {
+  for (int i=0; i<n; i++) {
     nrm += vec[i]*vec[i];
   }
   if (nrm < mjEPS) {
@@ -151,7 +150,7 @@ double mjuu_normvec(double* vec, const int n) {
   }
 
   nrm = sqrt(nrm);
-  for (i=0; i<n; i++) {
+  for (int i=0; i<n; i++) {
     vec[i] /= nrm;
   }
 

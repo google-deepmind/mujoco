@@ -282,8 +282,6 @@ static int _max(int a, int b) {
 
 // print schema as text
 void mjXSchema::Print(std::stringstream& str, int level) {
-  int i;
-
   // replace body with (world)body
   string name1 = (name=="body" ? "(world)body" : name);
 
@@ -297,7 +295,7 @@ void mjXSchema::Print(std::stringstream& str, int level) {
 
   // attributes
   int cnt = _max(baselen, 30);
-  for (i=0; i<(int)attr.size(); i++) {
+  for (int i=0; i<(int)attr.size(); i++) {
     if (cnt>60) {
       str << "\n";
       printspace(str, (cnt = _max(30, baselen)), " ");
@@ -310,7 +308,7 @@ void mjXSchema::Print(std::stringstream& str, int level) {
   str << "\n";
 
   // children
-  for (i=0; i<(int)child.size(); i++) {
+  for (int i=0; i<(int)child.size(); i++) {
     child[i]->Print(str, level+1);
   }
 }
@@ -319,8 +317,6 @@ void mjXSchema::Print(std::stringstream& str, int level) {
 
 // print schema as HTML table
 void mjXSchema::PrintHTML(std::stringstream& str, int level, bool pad) {
-  int i;
-
   // replace body with (world)body
   string name1 = (name=="body" ? "(world)body" : name);
 
@@ -350,7 +346,7 @@ void mjXSchema::PrintHTML(std::stringstream& str, int level, bool pad) {
   // attributes
   str << "\t<td class=\"at\">";
   if (!attr.empty()) {
-    for (i=0; i<(int)attr.size(); i++) {
+    for (int i=0; i<(int)attr.size(); i++) {
       str << attr[i] << " ";
     }
   } else {
@@ -359,7 +355,7 @@ void mjXSchema::PrintHTML(std::stringstream& str, int level, bool pad) {
   str << "</td>\n</tr>\n";
 
   // children
-  for (i=0; i<(int)child.size(); i++) {
+  for (int i=0; i<(int)child.size(); i++) {
     child[i]->PrintHTML(str, level+1, pad);
   }
 
@@ -394,7 +390,6 @@ bool mjXSchema::NameMatch(XMLElement* elem, int level) {
 
 // validator
 XMLElement* mjXSchema::Check(XMLElement* elem, int level) {
-  int i;
   bool missing;
   char msg[100];
   XMLElement *bad, *sub;
@@ -414,7 +409,7 @@ XMLElement* mjXSchema::Check(XMLElement* elem, int level) {
   const XMLAttribute* attribute = elem->FirstAttribute();
   while (attribute) {
     missing = true;
-    for (i=0; i<(int)attr.size(); i++) {
+    for (int i=0; i<(int)attr.size(); i++) {
       if (attr[i]==attribute->Name()) {
         missing = false;
         break;
@@ -445,7 +440,7 @@ XMLElement* mjXSchema::Check(XMLElement* elem, int level) {
   }
 
   // clear reference counts
-  for (i=0; i<(int)child.size(); i++) {
+  for (int i=0; i<(int)child.size(); i++) {
     child[i]->refcnt = 0;
   }
 
@@ -454,7 +449,7 @@ XMLElement* mjXSchema::Check(XMLElement* elem, int level) {
   while (sub) {
     // find in child array, update refcnt
     missing = true;
-    for (i=0; i<(int)child.size(); i++) {
+    for (int i=0; i<(int)child.size(); i++) {
       if (child[i]->NameMatch(sub, level+1)) {
         // check sub-tree
         if ((bad = child[i]->Check(sub, level+1))) {
@@ -481,7 +476,7 @@ XMLElement* mjXSchema::Check(XMLElement* elem, int level) {
 
   // enforce sub-element types
   msg[0] = 0;
-  for (i=0; i<(int)child.size(); i++) {
+  for (int i=0; i<(int)child.size(); i++) {
     switch (child[i]->type) {
     case '!':
       if (child[i]->refcnt != 1)

@@ -387,8 +387,6 @@ double* mjCMesh::GetQuatPtr(mjtMeshType type) {
 
 // set geom size to match mesh
 void mjCMesh::FitGeom(mjCGeom* geom, double* meshpos) {
-  int i;
-
   // copy mesh pos into meshpos
   mjuu_copyvec(meshpos, GetPosPtr(geom->typeinertia), 3);
 
@@ -438,7 +436,7 @@ void mjCMesh::FitGeom(mjCGeom* geom, double* meshpos) {
     case mjGEOM_SPHERE:
       // find maximum distance
       geom->size[0] = 0;
-      for (i=0; i<nvert; i++) {
+      for (int i=0; i<nvert; i++) {
         double v[3] = {vert[3*i], vert[3*i+1], vert[3*i+2]};
         double dst = mjuu_dist3(v, cen);
         geom->size[0] = mjMAX(geom->size[0], dst);
@@ -450,7 +448,7 @@ void mjCMesh::FitGeom(mjCGeom* geom, double* meshpos) {
       // find maximum distance in XY, separately in Z
       geom->size[0] = 0;
       geom->size[1] = 0;
-      for (i=0; i<nvert; i++) {
+      for (int i=0; i<nvert; i++) {
         double v[3] = {vert[3*i], vert[3*i+1], vert[3*i+2]};
         double dst = sqrt((v[0]-cen[0])*(v[0]-cen[0]) +
                           (v[1]-cen[1])*(v[1]-cen[1]));
@@ -464,7 +462,7 @@ void mjCMesh::FitGeom(mjCGeom* geom, double* meshpos) {
       // special handling of capsule: consider curved cap
       if (geom->type==mjGEOM_CAPSULE) {
         geom->size[1] = 0;
-        for (i=0; i<nvert; i++) {
+        for (int i=0; i<nvert; i++) {
           // get distance in XY and Z
           double v[3] = {vert[3*i], vert[3*i+1], vert[3*i+2]};
           double dst = sqrt((v[0]-cen[0])*(v[0]-cen[0]) +
@@ -515,13 +513,12 @@ quicksortfunc(vertcompare, context, el1, el2) {
 
 // remove repeated vertices
 void mjCMesh::RemoveRepeated() {
-  int i, j;
   int repeated = 0;
 
   // allocate sort and redirection indices, set to identity
   auto index = std::unique_ptr<int[]>(new int[nvert]);
   auto redirect = std::unique_ptr<int[]>(new int[nvert]);
-  for (i=0; i < nvert; i++) {
+  for (int i=0; i < nvert; i++) {
     index[i] = redirect[i] = i;
   }
 
@@ -529,7 +526,7 @@ void mjCMesh::RemoveRepeated() {
   mjQUICKSORT(index.get(), nvert, sizeof(int), vertcompare, vert);
 
   // find repeated vertices, set redirect
-  for (i=1; i < nvert; i++) {
+  for (int i=1; i < nvert; i++) {
     if (vert[3*index[i]] == vert[3*index[i-1]] &&
         vert[3*index[i]+1] == vert[3*index[i-1]+1] &&
         vert[3*index[i]+2] == vert[3*index[i-1]+2]) {
@@ -541,8 +538,8 @@ void mjCMesh::RemoveRepeated() {
   // compress vertices, change face data
   if (repeated) {
     // track redirections until non-redirected vertex, set
-    for (i=0; i<nvert; i++) {
-      j = i;
+    for (int i=0; i<nvert; i++) {
+      int j = i;
       while (redirect[j]!=j) {
         j = redirect[j];
       }
@@ -550,8 +547,8 @@ void mjCMesh::RemoveRepeated() {
     }
 
     // find good vertices, compress, reuse index to save compressed position
-    j = 0;
-    for (i=0; i<nvert; i++) {
+    int j = 0;
+    for (int i=0; i<nvert; i++) {
       if (redirect[i]==i) {
         index[i] = j;
         memcpy(vert+3*j, vert+3*i, 3*sizeof(float));
@@ -562,7 +559,7 @@ void mjCMesh::RemoveRepeated() {
     }
 
     // recompute face data to reflect compressed vertices
-    for (i=0; i<3*nface; i++) {
+    for (int i=0; i<3*nface; i++) {
       face[i] = index[redirect[face[i]]];
 
       // sanity check, SHOULD NOT OCCUR
@@ -908,9 +905,8 @@ void mjCMesh::LoadMSH(const mjVFS* vfs) {
 
   // rearange face data if left-handed scaling
   if (nface && !righthand) {
-    int i, tmp;
-    for (i=0; i<nface; i++) {
-      tmp = face[3*i+1];
+    for (int i=0; i<nface; i++) {
+      int tmp = face[3*i+1];
       face[3*i+1] = face[3*i+2];
       face[3*i+2] = tmp;
     }
@@ -932,7 +928,6 @@ void mjCMesh::Process() {
     double area = 0;
     double inert[6] = {0, 0, 0, 0, 0, 0};
 
-    int i, j;
     double nrm[3];
     double cen[3];
 
@@ -943,7 +938,7 @@ void mjCMesh::Process() {
         float rp[3] = {(float)refpos[0], (float)refpos[1], (float)refpos[2]};
 
         // process vertices
-        for (i=0; i<nvert; i++) {
+        for (int i=0; i<nvert; i++) {
           vert[3*i] -= rp[0];
           vert[3*i+1] -= rp[1];
           vert[3*i+2] -= rp[2];
@@ -959,7 +954,7 @@ void mjCMesh::Process() {
         mju_quat2Mat(mat, quat);
 
         // process vertices
-        for (i=0; i<nvert; i++) {
+        for (int i=0; i<nvert; i++) {
           mjtNum p1[3], p0[3] = {vert[3*i], vert[3*i+1], vert[3*i+2]};
           mju_rotVecMatT(p1, p0, mat);
           vert[3*i] = (float) p1[0];
@@ -968,7 +963,7 @@ void mjCMesh::Process() {
         }
 
         // process normals
-        for (i=0; i<nnormal; i++) {
+        for (int i=0; i<nnormal; i++) {
           mjtNum n1[3], n0[3] = {normal[3*i], normal[3*i+1], normal[3*i+2]};
           mju_rotVecMatT(n1, n0, mat);
           normal[3*i] = (float) n1[0];
@@ -979,13 +974,13 @@ void mjCMesh::Process() {
 
       // scale
       if (scale[0]!=1 || scale[1]!=1 || scale[2]!=1) {
-        for (i=0; i<nvert; i++) {
+        for (int i=0; i<nvert; i++) {
           vert[3*i] *= scale[0];
           vert[3*i+1] *= scale[1];
           vert[3*i+2] *= scale[2];
         }
 
-        for (i=0; i<nnormal; i++) {
+        for (int i=0; i<nnormal; i++) {
           normal[3*i] *= scale[0];
           normal[3*i+1] *= scale[1];
           normal[3*i+2] *= scale[2];
@@ -993,7 +988,7 @@ void mjCMesh::Process() {
       }
 
       // normalize normals
-      for (i=0; i<nnormal; i++) {
+      for (int i=0; i<nnormal; i++) {
         // compute length
         float len = normal[3*i]*normal[3*i] + normal[3*i+1]*normal[3*i+1] + normal[3*i+2]*normal[3*i+2];
 
@@ -1011,9 +1006,9 @@ void mjCMesh::Process() {
       }
 
       // find centroid of faces
-      for (i=0; i<nface; i++) {
+      for (int i=0; i<nface; i++) {
         // check vertex indices
-        for (j=0; j<3; j++) {
+        for (int j=0; j<3; j++) {
           if (face[3*i+j]<0 || face[3*i+j]>=nvert) {
             throw mjCError(this, "vertex index out of range in %s (index = %d)", name.c_str(), i);
           }
@@ -1023,7 +1018,7 @@ void mjCMesh::Process() {
         double a = _triangle(nrm, cen, vert+3*face[3*i], vert+3*face[3*i+1], vert+3*face[3*i+2]);
 
         // accumulate
-        for (j=0; j<3; j++) {
+        for (int j=0; j<3; j++) {
           facecen[j] += a*cen[j];
         }
         area += a;
@@ -1036,14 +1031,14 @@ void mjCMesh::Process() {
       }
 
       // finalize centroid of faces
-      for (j=0; j<3; j++) {
+      for (int j=0; j<3; j++) {
         facecen[j] /= area;
       }
     }
 
     // compute CoM and volume from pyramid volumes
     GetVolumeRef(type) = 0;
-    for (i=0; i<nface; i++) {
+    for (int i=0; i<nface; i++) {
       // get area, normal and center
       double a = _triangle(nrm, cen, vert+3*face[3*i], vert+3*face[3*i+1], vert+3*face[3*i+2]);
 
@@ -1058,7 +1053,7 @@ void mjCMesh::Process() {
 
       // add pyramid com
       GetVolumeRef(type) += vol;
-      for (j=0; j<3; j++) {
+      for (int j=0; j<3; j++) {
         CoM[j] += vol*(cen[j]*3.0/4.0 + facecen[j]/4.0);
       }
     }
@@ -1070,15 +1065,15 @@ void mjCMesh::Process() {
     }
 
     // finalize CoM, save as mesh center
-    for (j=0; j<3; j++) {
+    for (int j=0; j<3; j++) {
       CoM[j] /= GetVolumeRef(type);
     }
     mjuu_copyvec(GetPosPtr(type), CoM, 3);
 
     // re-center mesh at CoM
     if (type==mjVOLUME_MESH) {
-      for (i=0; i<nvert; i++) {
-        for (j=0; j<3; j++) {
+      for (int i=0; i<nvert; i++) {
+        for (int j=0; j<3; j++) {
           vert[3*i+j] -= CoM[j];
         }
       }
@@ -1088,7 +1083,7 @@ void mjCMesh::Process() {
     const int k[6][2] = {{0, 0}, {1, 1}, {2, 2}, {0, 1}, {0, 2}, {1, 2}};
     double P[6] = {0, 0, 0, 0, 0, 0};
     GetVolumeRef(type) = 0;
-    for (i=0; i<nface; i++) {
+    for (int i=0; i<nface; i++) {
       float* D = vert+3*face[3*i];
       float* E = vert+3*face[3*i+1];
       float* F = vert+3*face[3*i+2];
@@ -1104,7 +1099,7 @@ void mjCMesh::Process() {
 
       // apply formula, accumulate
       GetVolumeRef(type) += vol;
-      for (j=0; j<6; j++) {
+      for (int j=0; j<6; j++) {
         P[j] += def->geom.density*vol /
                   (type==mjSHELL_MESH ? 12 : 20) * (
                   2*(D[k[j][0]] * D[k[j][1]] +
@@ -1153,7 +1148,7 @@ void mjCMesh::Process() {
     boxsz[2] = sqrt(6*(eigval[0]+eigval[1]-eigval[2])/mass)/2;
 
     // copy quat
-    for (j=0; j<4; j++) {
+    for (int j=0; j<4; j++) {
       GetQuatPtr(type)[j] = type == mjVOLUME_MESH ? quattmp[j] : GetQuatPtr(mjVOLUME_MESH)[j];
     }
 
@@ -1162,12 +1157,12 @@ void mjCMesh::Process() {
       double neg[4] = {quattmp[0], -quattmp[1], -quattmp[2], -quattmp[3]};
       double mat[9];
       mjuu_quat2mat(mat, neg);
-      for (i=0; i<nvert; i++) {
+      for (int i=0; i<nvert; i++) {
         // vertices
         const double vec[3] = {vert[3*i], vert[3*i+1], vert[3*i+2]};
         double res[3];
         mjuu_mulvecmat(res, vec, mat);
-        for (j=0; j<3; j++) {
+        for (int j=0; j<3; j++) {
           vert[3*i+j] = (float) res[j];
 
           // axis-aligned bounding box
@@ -1175,12 +1170,12 @@ void mjCMesh::Process() {
           aabb[j+3] = mjMAX(aabb[j+3], res[j]);
         }
       }
-      for (i=0; i<nnormal; i++) {
+      for (int i=0; i<nnormal; i++) {
         // normals
         const double nrm[3] = {normal[3*i], normal[3*i+1], normal[3*i+2]};
         double res[3];
         mjuu_mulvecmat(res, nrm, mat);
-        for (j=0; j<3; j++) {
+        for (int j=0; j<3; j++) {
           normal[3*i+j] = (float) res[j];
         }
       }
@@ -1225,7 +1220,7 @@ double& mjCMesh::GetVolumeRef(mjtMeshType type) {
 
 // make graph describing convex hull
 void mjCMesh::MakeGraph(void) {
-  int i, adr, ok, curlong, totlong, exitcode;
+  int adr, ok, curlong, totlong, exitcode;
   double* data;
   facetT* facet, **facetp;
   vertexT* vertex, *vertex1, **vertex1p;
@@ -1241,7 +1236,7 @@ void mjCMesh::MakeGraph(void) {
   if (!data) {
     throw mjCError(this, "could not allocate data for qhull");
   }
-  for (i=0; i<3*nvert; i++) {
+  for (int i=0; i<3*nvert; i++) {
     data[i] = (double)vert[i];
   }
 
@@ -1282,7 +1277,7 @@ void mjCMesh::MakeGraph(void) {
     int* face_globalid = graph + 2 + 3*numvert + 3*numface;
 
     // fill in graph data
-    i = adr = 0;
+    int i = adr = 0;
     ok = 1;
     FORALLvertices {
       // point id of this vertex, check
@@ -1380,9 +1375,10 @@ void mjCMesh::MakeGraph(void) {
     }
 
     // replace global ids with local ids in edge data
-    for (i=0; i<numvert+3*numface; i++) {
+    for (int i=0; i<numvert+3*numface; i++) {
       if (edge_localid[i]>=0) {
         // search vert_globalid for match
+        int adr;
         for (adr=0; adr<numvert; adr++) {
           if (vert_globalid[adr]==edge_localid[i]) {
             edge_localid[i] = adr;
@@ -1428,10 +1424,9 @@ void mjCMesh::CopyGraph(void) {
   face = (int*) mju_malloc(3*nface*sizeof(int));
 
   // copy faces
-  int i, j;
-  for (i=0; i<nface; i++) {
+  for (int i=0; i<nface; i++) {
     // address in graph
-    j = 2 + 3*numvert + 3*nface + 3*i;
+    int j = 2 + 3*numvert + 3*nface + 3*i;
 
     // copy
     face[3*i] = graph[j];
@@ -1444,8 +1439,6 @@ void mjCMesh::CopyGraph(void) {
 
 // compute vertex normals
 void mjCMesh::MakeNormal(void) {
-  int i, j, k;
-
   // only if normal data is missing
   if (normal) {
     return;
@@ -1462,16 +1455,16 @@ void mjCMesh::MakeNormal(void) {
   }
 
   // loop over faces, accumulate vertex normals
-  for (i=0; i<nface; i++) {
+  for (int i=0; i<nface; i++) {
     // get vertex ids
     int vertid[3];
-    for (j=0; j<3; j++) {
+    for (int j=0; j<3; j++) {
       vertid[j] = face[3*i+j];
     }
 
     // get triangle edges
     mjtNum vec01[3], vec02[3];
-    for (j=0; j<3; j++) {
+    for (int j=0; j<3; j++) {
       vec01[j] = vert[3*vertid[1]+j] - vert[3*vertid[0]+j];
       vec02[j] = vert[3*vertid[2]+j] - vert[3*vertid[0]+j];
     }
@@ -1482,8 +1475,8 @@ void mjCMesh::MakeNormal(void) {
     mjtNum area = mju_normalize3(nrm);
 
     // add normal to each vertex with weight = area
-    for (j=0; j<3; j++) {
-      for (k=0; k<3; k++) {
+    for (int j=0; j<3; j++) {
+      for (int k=0; k<3; k++) {
         normal[3*vertid[j]+k] += nrm[k]*area;
       }
       facenormal[3*i+j] = vertid[j];
@@ -1497,16 +1490,16 @@ void mjCMesh::MakeNormal(void) {
     memset(nremove, 0, 3*nnormal*sizeof(float));
 
     // remove contributions from faces at large angles with vertex normal
-    for (i=0; i<nface; i++) {
+    for (int i=0; i<nface; i++) {
       // get vertex ids
       int vertid[3];
-      for (j=0; j<3; j++) {
+      for (int j=0; j<3; j++) {
         vertid[j] = face[3*i+j];
       }
 
       // get triangle edges
       mjtNum vec01[3], vec02[3];
-      for (j=0; j<3; j++) {
+      for (int j=0; j<3; j++) {
         vec01[j] = vert[3*vertid[1]+j] - vert[3*vertid[0]+j];
         vec02[j] = vert[3*vertid[2]+j] - vert[3*vertid[0]+j];
       }
@@ -1517,14 +1510,14 @@ void mjCMesh::MakeNormal(void) {
       mjtNum area = mju_normalize3(nrm);
 
       // compare to vertex normal, subtract contribution if dot product too small
-      for (j=0; j<3; j++) {
+      for (int j=0; j<3; j++) {
         // normalized vertex normal
         mjtNum vnrm[3] = {normal[3*vertid[j]], normal[3*vertid[j]+1], normal[3*vertid[j]+2]};
         mju_normalize3(vnrm);
 
         // dot too small: remove
         if (mju_dot3(nrm, vnrm)<0.8) {
-          for (k=0; k<3; k++) {
+          for (int k=0; k<3; k++) {
             nremove[3*vertid[j]+k] += nrm[k]*area;
           }
         }
@@ -1532,14 +1525,14 @@ void mjCMesh::MakeNormal(void) {
     }
 
     // apply removal, free nremove
-    for (i=0; i<3*nnormal; i++) {
+    for (int i=0; i<3*nnormal; i++) {
       normal[i] -= nremove[i];
     }
     mju_free(nremove);
   }
 
   // normalize normals
-  for (i=0; i<nnormal; i++) {
+  for (int i=0; i<nnormal; i++) {
     // compute length
     float len = sqrtf(normal[3*i]*normal[3*i] +
                       normal[3*i+1]*normal[3*i+1] +
@@ -1547,7 +1540,7 @@ void mjCMesh::MakeNormal(void) {
 
     // divide by length
     if (len>mjMINVAL)
-      for (j=0; j<3; j++) {
+      for (int j=0; j<3; j++) {
         normal[3*i+j] /= len;
       } else {
         normal[3*i] = normal[3*i+1] = 0;
@@ -1608,7 +1601,6 @@ mjCSkin::~mjCSkin() {
 
 // compiler
 void mjCSkin::Compile(const mjVFS* vfs) {
-  size_t i, j;
 
   // load file
   if (!file.empty()) {
@@ -1678,7 +1670,7 @@ void mjCSkin::Compile(const mjVFS* vfs) {
 
   // resolve body names
   bodyid.resize(nbone);
-  for (i=0; i<nbone; i++) {
+  for (int i=0; i<nbone; i++) {
     mjCBase* pbody = model->FindObject(mjOBJ_BODY, bodyname[i]);
     if (!pbody) {
       throw mjCError(this, "unknown body '%s' in skin", bodyname[i].c_str());
@@ -1701,7 +1693,7 @@ void mjCSkin::Compile(const mjVFS* vfs) {
   fill(vw.begin(), vw.end(), 0.0f);
 
   // accumulate vertex weights from all bones
-  for (i=0; i<nbone; i++) {
+  for (int i=0; i<nbone; i++) {
     // make sure bone has vertices and sizes match
     size_t nbv = vertid[i].size();
     if (vertweight[i].size()!=nbv || nbv==0) {
@@ -1709,7 +1701,7 @@ void mjCSkin::Compile(const mjVFS* vfs) {
     }
 
     // accumulate weights in global array
-    for (j=0; j<nbv; j++) {
+    for (int j=0; j<nbv; j++) {
       // get index and check range
       int jj = vertid[i][j];
       if (jj<0 || jj>=nvert) {
@@ -1722,21 +1714,21 @@ void mjCSkin::Compile(const mjVFS* vfs) {
   }
 
   // check coverage
-  for (i=0; i<nvert; i++) {
+  for (int i=0; i<nvert; i++) {
     if (vw[i]<=mjMINVAL) {
       throw mjCError(this, "vertex %d must have positive total weight in skin", NULL, i);
     }
   }
 
   // normalize vertex weights
-  for (i=0; i<nbone; i++) {
-    for (j=0; j<vertid[i].size(); j++) {
+  for (int i=0; i<nbone; i++) {
+    for (int j=0; j<vertid[i].size(); j++) {
       vertweight[i][j] /= vw[vertid[i][j]];
     }
   }
 
   // normalize bindquat
-  for (i=0; i<nbone; i++) {
+  for (int i=0; i<nbone; i++) {
     mjtNum quat[4] = {
       (mjtNum)bindquat[4*i],
       (mjtNum)bindquat[4*i+1],

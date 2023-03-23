@@ -92,8 +92,7 @@ bool isQPminimum(const mjtNum* res, const mjtNum* H, const mjtNum* g, int n,
 
   // compare to nudged solution
   mju_copy(res_nudge, res, n);
-  int i;
-  for (i=0; i < n; i++) {
+  for (int i=0; i < n; i++) {
     // nudge down
     res_nudge[i] = res[i] - eps;
     if (lower) {

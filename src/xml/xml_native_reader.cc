@@ -730,8 +730,6 @@ void mjXReader::PrintSchema(std::stringstream& str, bool html, bool pad) {
 // main entry point for XML parser
 //  mjCModel is allocated here; caller is responsible for deallocation
 void mjXReader::Parse(XMLElement* root) {
-  XMLElement *section;
-
   // check schema
   if (!schema.GetError().empty()) {
     throw mjXError(0, "XML Schema Construction Error: %s\n",
@@ -757,86 +755,86 @@ void mjXReader::Parse(XMLElement* root) {
 
   //------------------- parse MuJoCo sections embedded in all XML formats
 
-  for (section = root->FirstChildElement("compiler"); section;
+  for (XMLElement* section = root->FirstChildElement("compiler"); section;
        section = section->NextSiblingElement("compiler")) {
     Compiler(section, model);
   }
 
-  for (section = root->FirstChildElement("option"); section;
+  for (XMLElement* section = root->FirstChildElement("option"); section;
        section = section->NextSiblingElement("option")) {
     Option(section, &model->option);
   }
 
-  for (section = root->FirstChildElement("size"); section;
+  for (XMLElement* section = root->FirstChildElement("size"); section;
        section = section->NextSiblingElement("size")) {
     Size(section, model);
   }
 
   //------------------ parse MJCF-specific sections
 
-  for (section = root->FirstChildElement("visual"); section;
+  for (XMLElement* section = root->FirstChildElement("visual"); section;
        section = section->NextSiblingElement("visual")) {
     Visual(section);
   }
 
-  for (section = root->FirstChildElement("statistic"); section;
+  for (XMLElement* section = root->FirstChildElement("statistic"); section;
        section = section->NextSiblingElement("statistic")) {
     Statistic(section);
   }
 
   readingdefaults = true;
-  for (section = root->FirstChildElement("default"); section;
+  for (XMLElement* section = root->FirstChildElement("default"); section;
        section = section->NextSiblingElement("default")) {
     Default(section, -1);
   }
   readingdefaults = false;
 
-  for (section = root->FirstChildElement("extension"); section;
+  for (XMLElement* section = root->FirstChildElement("extension"); section;
        section = section->NextSiblingElement("extension")) {
     Extension(section);
   }
 
-  for (section = root->FirstChildElement("custom"); section;
+  for (XMLElement* section = root->FirstChildElement("custom"); section;
        section = section->NextSiblingElement("custom")) {
     Custom(section);
   }
 
-  for (section = root->FirstChildElement("asset"); section;
+  for (XMLElement* section = root->FirstChildElement("asset"); section;
        section = section->NextSiblingElement("asset")) {
     Asset(section);
   }
 
-  for (section = root->FirstChildElement("worldbody"); section;
+  for (XMLElement* section = root->FirstChildElement("worldbody"); section;
        section = section->NextSiblingElement("worldbody")) {
     Body(section, model->GetWorld());
   }
 
-  for (section = root->FirstChildElement("contact"); section;
+  for (XMLElement* section = root->FirstChildElement("contact"); section;
        section = section->NextSiblingElement("contact")) {
     Contact(section);
   }
 
-  for (section = root->FirstChildElement("equality"); section;
+  for (XMLElement* section = root->FirstChildElement("equality"); section;
        section = section->NextSiblingElement("equality")) {
     Equality(section);
   }
 
-  for (section = root->FirstChildElement("tendon"); section;
+  for (XMLElement* section = root->FirstChildElement("tendon"); section;
        section = section->NextSiblingElement("tendon")) {
     Tendon(section);
   }
 
-  for (section = root->FirstChildElement("actuator"); section;
+  for (XMLElement* section = root->FirstChildElement("actuator"); section;
        section = section->NextSiblingElement("actuator")) {
     Actuator(section);
   }
 
-  for (section = root->FirstChildElement("sensor"); section;
+  for (XMLElement* section = root->FirstChildElement("sensor"); section;
        section = section->NextSiblingElement("sensor")) {
     Sensor(section);
   }
 
-  for (section = root->FirstChildElement("keyframe"); section;
+  for (XMLElement* section = root->FirstChildElement("keyframe"); section;
        section = section->NextSiblingElement("keyframe")) {
     Keyframe(section);
   }
@@ -1605,7 +1603,6 @@ void mjXReader::OneTendon(XMLElement* elem, mjCTendon* pten) {
 
 // actuator element parser
 void mjXReader::OneActuator(XMLElement* elem, mjCActuator* pact) {
-  int n;
   string text, type;
   double diameter;
 
@@ -1672,6 +1669,7 @@ void mjXReader::OneActuator(XMLElement* elem, mjCActuator* pact) {
   // explicit attributes
   if (type=="general") {
     // explicit attributes
+    int n;
     if (MapValue(elem, "dyntype", &n, dyn_map, dyn_sz)) {
       pact->dyntype = (mjtDyn)n;
     }
@@ -1811,7 +1809,7 @@ void mjXReader::OneActuator(XMLElement* elem, mjCActuator* pact) {
     ReadAttr(elem, "fvmax", 1, pact->gainprm+8, text);
 
     // biasprm = gainprm
-    for (n=0; n<9; n++) {
+    for (int n=0; n<9; n++) {
       pact->biasprm[n] = pact->gainprm[n];
     }
 

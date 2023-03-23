@@ -122,11 +122,9 @@ bool mjCComposite::AddDefaultJoint(char* error, int error_sz) {
 
 // set defaults, after reading top-level info and skin
 void mjCComposite::SetDefault(void) {
-  int i;
-
   // determine dimensionality
   int tmpdim = 0;
-  for (i=0; i<3; i++) {
+  for (int i=0; i<3; i++) {
     if (count[i]>1) {
       tmpdim++;
     }
@@ -149,7 +147,7 @@ void mjCComposite::SetDefault(void) {
       type==mjCOMPTYPE_LOOP       ||
       type==mjCOMPTYPE_CABLE      ||
       (type==mjCOMPTYPE_GRID && tmpdim==1)) {
-    for (i=0; i<mjNCOMPKINDS; i++) {
+    for (int i=0; i<mjNCOMPKINDS; i++) {
       def[i].geom.group = 0;
       def[i].tendon.group = 0;
     }
@@ -196,7 +194,7 @@ void mjCComposite::SetDefault(void) {
     AdjustSoft(solrefsmooth, solimpsmooth, 1);
 
     // soft fix everywhere
-    for (i=0; i<mjNCOMPKINDS; i++) {
+    for (int i=0; i<mjNCOMPKINDS; i++) {
       AdjustSoft(def[i].equality.solref, def[i].equality.solimp, 1);
     }
 
@@ -1173,7 +1171,6 @@ void mjCComposite::BoxProject(double* pos) {
 
 // make 3d box, ellipsoid or cylinder
 bool mjCComposite::MakeBox(mjCModel* model, mjCBody* body, char* error, int error_sz) {
-  int ix, iy, iz;
   char txt[100];
 
   // check dim
@@ -1199,9 +1196,9 @@ bool mjCComposite::MakeBox(mjCModel* model, mjCBody* body, char* error, int erro
   ten->name = txt;
 
   // create bodies, geoms and joints: outside shell only
-  for (ix=0; ix<count[0]; ix++) {
-    for (iy=0; iy<count[1]; iy++) {
-      for (iz=0; iz<count[2]; iz++) {
+  for (int ix=0; ix<count[0]; ix++) {
+    for (int iy=0; iy<count[1]; iy++) {
+      for (int iz=0; iz<count[2]; iz++) {
         if (ix==0 || ix==count[0]-1 ||
             iy==0 || iy==count[1]-1 ||
             iz==0 || iz==count[2]-1) {
@@ -1297,11 +1294,10 @@ bool mjCComposite::MakeBox(mjCModel* model, mjCBody* body, char* error, int erro
 
 // add shear tendons to 2D
 void mjCComposite::MakeShear(mjCModel* model) {
-  int ix, iy;
   char txt[100], txt1[100], txt2[100];
 
-  for (ix=0; ix<count[0]-1; ix++) {
-    for (iy=0; iy<count[1]-1; iy++) {
+  for (int ix=0; ix<count[0]-1; ix++) {
+    for (int iy=0; iy<count[1]-1; iy++) {
       // recover site names
       mju::sprintf_arr(txt1, "%sS%d_%d", prefix.c_str(), ix, iy);
       mju::sprintf_arr(txt2, "%sS%d_%d", prefix.c_str(), ix+1, iy+1);
@@ -2188,12 +2184,11 @@ void mjCComposite::MakeSkin3(mjCModel* model) {
 // make one face of 3D skin, box
 void mjCComposite::MakeSkin3Box(mjCSkin* skin, int c0, int c1, int side,
                                 int& vcnt, const char* format) {
-  int i0, i1;
   char txt[100];
 
   // loop over bodies/vertices of specified face
-  for (i0=0; i0<c0; i0++) {
-    for (i1=0; i1<c1; i1++) {
+  for (int i0=0; i0<c0; i0++) {
+    for (int i1=0; i1<c1; i1++) {
       // vertex
       skin->vert.push_back(0);
       skin->vert.push_back(0);
@@ -2248,12 +2243,11 @@ void mjCComposite::MakeSkin3Box(mjCSkin* skin, int c0, int c1, int side,
 // make one face of 3D skin, smooth
 void mjCComposite::MakeSkin3Smooth(mjCSkin* skin, int c0, int c1, int side,
                                    const std::map<string, int>& vmap, const char* format) {
-  int i0, i1;
   char txt00[100], txt01[100], txt10[100], txt11[100];
 
   // loop over bodies/vertices of specified face
-  for (i0=0; i0<c0; i0++) {
-    for (i1=0; i1<c1; i1++) {
+  for (int i0=0; i0<c0; i0++) {
+    for (int i1=0; i1<c1; i1++) {
       // body names
       mju::sprintf_arr(txt00, format, prefix.c_str(), i0, i1);
       mju::sprintf_arr(txt01, format, prefix.c_str(), i0, i1+1);
