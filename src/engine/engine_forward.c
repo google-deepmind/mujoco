@@ -544,20 +544,22 @@ static void mj_advance(const mjModel* m, mjData* d,
 
 // Euler integrator, semi-implicit in velocity, possibly skipping factorisation
 void mj_EulerSkip(const mjModel* m, mjData* d, int skipfactor) {
-  int i, nv = m->nv, nM = m->nM;
+  int nv = m->nv, nM = m->nM;
   mjMARKSTACK;
   mjtNum* qfrc = mj_stackAlloc(d, nv);
   mjtNum* qacc = mj_stackAlloc(d, nv);
 
   // check for dof damping
-  for (i=0; i<nv; i++) {
+  int dof_damping = 0;
+  for (int i=0; i<nv; i++) {
     if (m->dof_damping[i]>0) {
+      dof_damping = 1;
       break;
     }
   }
 
   // no damping: explicit velocity integration
-  if (i>=nv) {
+  if (!dof_damping) {
     mju_copy(qacc, d->qacc, nv);
   }
 
@@ -568,7 +570,7 @@ void mj_EulerSkip(const mjModel* m, mjData* d, int skipfactor) {
 
       // MhB = M + h*diag(B)
       mju_copy(MhB, d->qM, m->nM);
-      for (i=0; i<nv; i++) {
+      for (int i=0; i<nv; i++) {
         MhB[m->dof_Madr[i]] += m->opt.timestep * m->dof_damping[i];
       }
 

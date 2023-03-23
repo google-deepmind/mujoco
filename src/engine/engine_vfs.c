@@ -45,7 +45,7 @@ static void vfs_strippath(char* newname, const char* oldname) {
   mju_strncpy(newname, oldname+i+1, mjMAXVFSNAME);
 
   // make lowercase
-  for (i=strlen(newname)-1; i>=0; i--) {
+  for (int i=strlen(newname)-1; i>=0; i--) {
     if (newname[i]>='A' && newname[i]<='Z') {
       newname[i] = (char)(((int)newname[i]) +'a' - 'A');
     }

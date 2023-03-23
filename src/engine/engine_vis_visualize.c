@@ -1059,9 +1059,9 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
     }
 
     // get geom group and clamp
-    int j = mjMAX(0, mjMIN(mjNGROUP-1, m->geom_group[i]));
+    int geomgroup = mjMAX(0, mjMIN(mjNGROUP-1, m->geom_group[i]));
 
-    if (vopt->geomgroup[j]) {
+    if (vopt->geomgroup[geomgroup]) {
       START
 
       // construct geom
@@ -1116,7 +1116,7 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
         // re-center infinite plane
         if (m->geom_size[3*i]<=0 || m->geom_size[3*i+1]<=0) {
           // vec = headpos - geompos
-          for (j=0; j<3; j++) {
+          for (int j=0; j<3; j++) {
             vec[j] = 0.5*(scn->camera[0].pos[j] + scn->camera[1].pos[j]) - d->geom_xpos[3*i+j];
           }
 

@@ -105,7 +105,7 @@ static void ARdiaginv(const mjModel* m, mjData* d, mjtNum* res, int flg_subR) {
 // extract diagonal block from AR, clamp diag to 1e-10 if flg_subR
 static void extractBlock(const mjModel* m, mjData* d, mjtNum* Ac,
                          int start, int n, int flg_subR) {
-  int k, nefc = d->nefc;
+  int nefc = d->nefc;
   const mjtNum *AR = d->efc_AR;
   const int *rownnz = d->efc_AR_rownnz, *rowadr = d->efc_AR_rowadr, *colind = d->efc_AR_colind;
 
@@ -123,6 +123,7 @@ static void extractBlock(const mjModel* m, mjData* d, mjtNum* Ac,
                 }
     */
     // assume full sub-matrix, find starting k: same for all rows
+    int k;
     for (k=0; k<rownnz[start]; k++) {
       if (colind[rowadr[start]+k]==start) {
         break;

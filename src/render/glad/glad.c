@@ -1428,7 +1428,7 @@ static void mjGlad_find_coreGL(void) {
    * https://github.com/elmindreda/greg/blob/master/templates/greg.c.in#L176
    * https://github.com/glfw/glfw/blob/master/src/context.c#L36
    */
-  int i, major, minor;
+  int major, minor;
 
   const char* version;
   const char* prefixes[] = {
@@ -1441,7 +1441,7 @@ static void mjGlad_find_coreGL(void) {
   version = (const char*) glGetString(GL_VERSION);
   if (!version) return;
 
-  for (i = 0;  prefixes[i];  i++) {
+  for (int i = 0;  prefixes[i];  i++) {
     const size_t length = strlen(prefixes[i]);
     if (strncmp(version, prefixes[i], length) == 0) {
       version += length;

@@ -1656,7 +1656,6 @@ void mjui_update(int section, int item, const mjUI* ui,
   }
 
   // draw section(s)
-  int k;
   mjtNum sel;
   mjrRect r;
   char text[mjMAXUITEXT];
@@ -1776,7 +1775,7 @@ void mjui_update(int section, int item, const mjUI* ui,
         drawrectangle(r, rgbpane, rgbpane, con);
 
         // text lines
-        for (k=0; k<it->multi.nelem; k++) {
+        for (int k=0; k<it->multi.nelem; k++) {
           drawtext(it->multi.name[k],
                    r.left+g_texthor,
                    r.bottom+g_textver+(it->multi.nelem-k-1)*(con->charHeight+g_textver),
@@ -1809,35 +1808,37 @@ void mjui_update(int section, int item, const mjUI* ui,
         break;
 
       case mjITEM_CHECKINT:
-      case mjITEM_CHECKBYTE:
-        if (state) {
-          rgbdecor = ui->color.check;
+      case mjITEM_CHECKBYTE: {
+          if (state) {
+            rgbdecor = ui->color.check;
+          }
+
+          // get value according to type
+          int k;
+          if (it->type==mjITEM_CHECKINT) {
+            k = *(int*)it->pdata;
+          } else {
+            k = *(mjtByte*)it->pdata;
+          }
+
+          // filled or outline
+          if (k) {
+            drawrectangle(it->rect, rgbdecor, NULL, con);
+          } else {
+            drawrectangle(it->rect, rgbdecor, rgbpane, con);
+          }
+
+          // name
+          drawtext(it->name,
+                  it->rect.left+g_texthor,
+                  it->rect.bottom+g_textver,
+                  maxwidth, rgbfont, con);
+
+          // shortcut
+          if (ui->mousehelp && it->single.shortcut)
+            shortcuthelp(it->rect, it->single.modifier, it->single.shortcut,
+                        ui, con);
         }
-
-        // get value according to type
-        if (it->type==mjITEM_CHECKINT) {
-          k = *(int*)it->pdata;
-        } else {
-          k = *(mjtByte*)it->pdata;
-        }
-
-        // filled or outline
-        if (k) {
-          drawrectangle(it->rect, rgbdecor, NULL, con);
-        } else {
-          drawrectangle(it->rect, rgbdecor, rgbpane, con);
-        }
-
-        // name
-        drawtext(it->name,
-                 it->rect.left+g_texthor,
-                 it->rect.bottom+g_textver,
-                 maxwidth, rgbfont, con);
-
-        // shortcut
-        if (ui->mousehelp && it->single.shortcut)
-          shortcuthelp(it->rect, it->single.modifier, it->single.shortcut,
-                       ui, con);
         break;
 
       case mjITEM_RADIO:
@@ -1859,7 +1860,7 @@ void mjui_update(int section, int item, const mjUI* ui,
         drawrectangle(r, rgbdecor, NULL, con);
 
         // element names
-        for (k=0; k<it->multi.nelem; k++) {
+        for (int k=0; k<it->multi.nelem; k++) {
           r = radioelement(it, k, ui, con);
           drawtext(it->multi.name[k],
                    r.left+g_texthor,
@@ -1868,39 +1869,40 @@ void mjui_update(int section, int item, const mjUI* ui,
         }
         break;
 
-      case mjITEM_RADIOLINE:
-        if (state) {
-          rgbdecor = ui->color.radio;
-        }
+      case mjITEM_RADIOLINE: {
+          if (state) {
+            rgbdecor = ui->color.radio;
+          }
 
-        // name
-        drawtext(it->name,
-                 s->rcontent.left+g_itemside+g_texthor,
-                 it->rect.bottom+g_textver,
-                 g_label-2*g_texthor, rgbfont, con);
+          // name
+          drawtext(it->name,
+                  s->rcontent.left+g_itemside+g_texthor,
+                  it->rect.bottom+g_textver,
+                  g_label-2*g_texthor, rgbfont, con);
 
-        // outline
-        drawrectangle(it->rect, rgbdecor, rgbpane, con);
+          // outline
+          drawrectangle(it->rect, rgbdecor, rgbpane, con);
 
-        // make separators
-        makeradioline(it, con, sep);
+          // make separators
+          makeradioline(it, con, sep);
 
-        // fill selected
-        k = *(int*)it->pdata;
-        r = it->rect;
-        r.left += sep[k];
-        r.width = sep[k+1] - sep[k];
-        drawrectangle(r, rgbdecor, NULL, con);
-
-        // element names
-        for (k=0; k<it->multi.nelem; k++) {
-          // compute rectangle for element
+          // fill selected
+          int k = *(int*)it->pdata;
           r = it->rect;
           r.left += sep[k];
           r.width = sep[k+1] - sep[k];
+          drawrectangle(r, rgbdecor, NULL, con);
 
-          // draw centered
-          drawtextrect(r, it->multi.name[k], rgbfont, con);
+          // element names
+          for (int k=0; k<it->multi.nelem; k++) {
+            // compute rectangle for element
+            r = it->rect;
+            r.left += sep[k];
+            r.width = sep[k+1] - sep[k];
+
+            // draw centered
+            drawtextrect(r, it->multi.name[k], rgbfont, con);
+          }
         }
         break;
 
@@ -1959,7 +1961,7 @@ void mjui_update(int section, int item, const mjUI* ui,
           r.height = g_textver;
 
           // draw ticks
-          for (k=1; k<(int)it->slider.divisions; k++) {
+          for (int k=1; k<(int)it->slider.divisions; k++) {
             r.left = it->rect.left - r.width/2 +
                      it->rect.width*k/it->slider.divisions;
             drawrectangle(r, rgbpane, NULL, con);
@@ -2007,8 +2009,8 @@ void mjui_update(int section, int item, const mjUI* ui,
           }
 
           // show cursor
-          k = textwidth(ui->edittext + ui->editscroll, con,
-                        ui->editcursor - ui->editscroll);
+          int k = textwidth(ui->edittext + ui->editscroll, con,
+                            ui->editcursor - ui->editscroll);
           r.left = it->rect.left + g_texthor + k - SCL(1, con);
           r.width = 2*SCL(1, con);
           r.bottom = it->rect.bottom + g_textver/2;
@@ -2064,7 +2066,7 @@ void mjui_update(int section, int item, const mjUI* ui,
       drawrectangle(r, ui->color.select2, NULL, con);
 
       // hightlight row under mouse
-      k = findselect(it, ui, state, con);
+      int k = findselect(it, ui, state, con);
       if (k>=0) {
         mjrRect r1 = r;
         r1.bottom = r.bottom + (it->multi.nelem-1-k)*cellheight;
@@ -2073,7 +2075,7 @@ void mjui_update(int section, int item, const mjUI* ui,
       }
 
       // values
-      for (k=0; k<it->multi.nelem; k++) {
+      for (int k=0; k<it->multi.nelem; k++) {
         drawtext(it->multi.name[k],
                  r.left+g_texthor,
                  r.bottom+g_textver+(it->multi.nelem-1-k)*cellheight,
@@ -2223,7 +2225,7 @@ mjuiItem* mjui_event(mjUI* ui, mjuiState* state, const mjrContext* con) {
     else if (sect_cur>0 && item_cur<0) {
       // double-click: make all sections like this
       if (state->doubleclick) {
-        for (i=0; i<ui->nsect; i++) {
+        for (int i=0; i<ui->nsect; i++) {
           if (ui->sect[i].state<2 && ui->sect[sect_cur-1].state<2) {
             ui->sect[i].state = ui->sect[sect_cur-1].state;
           }
@@ -2445,7 +2447,7 @@ mjuiItem* mjui_event(mjUI* ui, mjuiState* state, const mjrContext* con) {
       case mjKEY_BACKSPACE:       // delete before cursor
         if (ui->editcursor>0) {
           // shift chars after cursor to the left
-          for (i=ui->editcursor; i<=strlen(ui->edittext); i++) {
+          for (int i=ui->editcursor; i<=strlen(ui->edittext); i++) {
             ui->edittext[i-1] = ui->edittext[i];
           }
 
@@ -2457,7 +2459,7 @@ mjuiItem* mjui_event(mjUI* ui, mjuiState* state, const mjrContext* con) {
       case mjKEY_DELETE:          // delete after cursor
         if (ui->editcursor<strlen(ui->edittext)) {
           // shift chars after cursor to the left
-          for (i=ui->editcursor; i<=strlen(ui->edittext); i++) {
+          for (int i=ui->editcursor; i<=strlen(ui->edittext); i++) {
             ui->edittext[i] = ui->edittext[i+1];
           }
         }
@@ -2467,7 +2469,7 @@ mjuiItem* mjui_event(mjUI* ui, mjuiState* state, const mjrContext* con) {
         key = validkey(key, strlen(ui->edittext), it_edit->type, state);
         if (key) {
           // shift chars after cursor to the right
-          for (i=strlen(ui->edittext); i>=ui->editcursor; i--) {
+          for (int i=strlen(ui->edittext); i>=ui->editcursor; i--) {
             ui->edittext[i+1] = ui->edittext[i];
           }
 
@@ -2494,7 +2496,7 @@ mjuiItem* mjui_event(mjUI* ui, mjuiState* state, const mjrContext* con) {
       for (int n=0; n<ui->nsect; n++)
         if (matchshortcut(state, ui->sect[n].modifier, ui->sect[n].shortcut)) {
           // collapse all
-          for (i=0; i<ui->nsect; i++) {
+          for (int i=0; i<ui->nsect; i++) {
             if (ui->sect[i].state<2) {
               ui->sect[i].state = 0;
             }
@@ -2516,7 +2518,7 @@ mjuiItem* mjui_event(mjUI* ui, mjuiState* state, const mjrContext* con) {
 
       // search item shortcuts
       for (int n=0; n<ui->nsect; n++) {
-        for (i=0; i<ui->sect[n].nitem; i++) {
+        for (int i=0; i<ui->sect[n].nitem; i++) {
           // get pointer to item
           it = ui->sect[n].item + i;;
 

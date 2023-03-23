@@ -622,7 +622,7 @@ void mj_saveModel(const mjModel* m, const char* filename, void* buffer, int buff
 // load model from binary MJB file
 //  if vfs is not NULL, look up file in vfs before reading from disk
 mjModel* mj_loadModel(const char* filename, const mjVFS* vfs) {
-  int i, header[4] = {0};
+  int header[4] = {0};
   int expected_header[4] = {ID, sizeof(mjtNum), getnint(), getnptr()};
   int info[2000];
   int ptrbuf = 0;
@@ -633,7 +633,7 @@ mjModel* mj_loadModel(const char* filename, const mjVFS* vfs) {
   const void* buffer = NULL;
   int buffer_sz = 0;
   if (vfs) {
-    i = mj_findFileVFS(vfs, filename);
+    int i = mj_findFileVFS(vfs, filename);
     if (i>=0) {
       buffer_sz = vfs->filesize[i];
       buffer = vfs->filedata[i];
@@ -660,7 +660,7 @@ mjModel* mj_loadModel(const char* filename, const mjVFS* vfs) {
   }
 
   // check header
-  for (i=0; i<4; i++) {
+  for (int i=0; i<4; i++) {
     if (header[i]!=expected_header[i]) {
       if (fp) {
         fclose(fp);

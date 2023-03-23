@@ -517,7 +517,7 @@ typedef struct _mjtPrism mjtPrism;
 
 // ccd prism support function
 static void prism_support(const void *obj, const ccd_vec3_t *dir, ccd_vec3_t *vec) {
-  int i, istart, ibest;
+  int istart, ibest;
   mjtNum best, tmp;
   const mjtPrism* p = (const mjtPrism*)obj;
 
@@ -525,7 +525,7 @@ static void prism_support(const void *obj, const ccd_vec3_t *dir, ccd_vec3_t *ve
   istart = dir->v[2]<0 ? 0 : 3;
   ibest = istart;
   best = mju_dot3(p->v[istart], dir->v);
-  for (i=istart+1; i<istart+3; i++) {
+  for (int i=istart+1; i<istart+3; i++) {
     if ((tmp = mju_dot3(p->v[i], dir->v)) > best) {
       ibest = i;
       best = tmp;
@@ -584,7 +584,7 @@ int mjc_ConvexHField(const mjModel* m, const mjData* d,
   int hid = m->geom_dataid[g1];
   int nrow = m->hfield_nrow[hid];
   int ncol = m->hfield_ncol[hid];
-  int r, c, dr[2], cnt, rmin, rmax, cmin, cmax, nvert;
+  int dr[2], cnt, rmin, rmax, cmin, cmax, nvert;
   const float* data = m->hfield_data + m->hfield_adr[hid];
   mjtPrism prism;
 
@@ -710,9 +710,9 @@ int mjc_ConvexHField(const mjModel* m, const mjData* d,
 
   // process all prisms in sub-grid
   cnt = 0;
-  for (r=rmin; r<rmax; r++) {
+  for (int r=rmin; r<rmax; r++) {
     nvert = 0;
-    for (c=cmin; c<=cmax; c++) {
+    for (int c=cmin; c<=cmax; c++) {
       for (int i=0; i<2; i++) {
         // send vertex to prism constructor
         addVert(&nvert, &prism, dx*c-size1[0], dy*(r+dr[i])-size1[1],
