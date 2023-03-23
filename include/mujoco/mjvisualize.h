@@ -113,7 +113,7 @@ typedef enum mjtVisFlag_ {        // flags enabling model element visualization
   mjVIS_PERTOBJ,                  // perturbation object
   mjVIS_CONTACTPOINT,             // contact points
   mjVIS_CONTACTFORCE,             // contact force
-  mjVIS_CONTACTSPLIT,             // split contact force into normal and tanget
+  mjVIS_CONTACTSPLIT,             // split contact force into normal and tangent
   mjVIS_TRANSPARENT,              // make dynamic geoms more transparent
   mjVIS_AUTOCONNECT,              // auto connect joints and body coms
   mjVIS_COM,                      // center of mass
