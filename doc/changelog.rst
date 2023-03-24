@@ -10,7 +10,7 @@ General
 
 .. image:: images/changelog/ellipsoidinertia.gif
    :align: right
-   :width: 320px
+   :width: 240px
 
 - Added :ref:`ellipsoidinertia<visual-global-ellipsoidinertia>` to visualize equivalent inertias with ellipsoids instead of the default boxes.
 
