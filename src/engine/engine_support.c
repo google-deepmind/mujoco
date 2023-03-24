@@ -909,14 +909,14 @@ void mj_addM(const mjModel* m, mjData* d, mjtNum* dst,
         M_rowadr[i] = i*nv;
 
         // reverse order
-        for (int j=0; j<adr1/2; j++) {
-          mjtNum tmp = M[i*nv+j];
-          M[i*nv+j] = M[i*nv+adr1-1-j];
-          M[i*nv+adr1-1-j] = tmp;
+        for (int k=0; k<adr1/2; k++) {
+          mjtNum tmp = M[i*nv+k];
+          M[i*nv+k] = M[i*nv+adr1-1-k];
+          M[i*nv+adr1-1-k] = tmp;
 
-          int tmpi = M_colind[i*nv+j];
-          M_colind[i*nv+j] = M_colind[i*nv+adr1-1-j];
-          M_colind[i*nv+adr1-1-j] = tmpi;
+          int tmpi = M_colind[i*nv+k];
+          M_colind[i*nv+k] = M_colind[i*nv+adr1-1-k];
+          M_colind[i*nv+adr1-1-k] = tmpi;
         }
       }
     }
@@ -924,10 +924,10 @@ void mj_addM(const mjModel* m, mjData* d, mjtNum* dst,
     // make symmetric
     for (int i=1; i<nv; i++) {
       if (!m->dof_simplenum[i]) {
-        for (int adr=nv*i; adr<nv*i+M_rownnz[i]-1; adr++) {
+        for (int k=nv*i; k<nv*i+M_rownnz[i]-1; k++) {
           // add to row given by column index
-          adr1 = nv*M_colind[adr] + M_rownnz[M_colind[adr]]++;
-          M[adr1] = M[adr];
+          adr1 = nv*M_colind[k] + M_rownnz[M_colind[k]]++;
+          M[adr1] = M[k];
           M_colind[adr1] = i;
         }
       }

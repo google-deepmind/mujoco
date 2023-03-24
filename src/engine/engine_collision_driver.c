@@ -632,7 +632,7 @@ static int can_collide(const mjModel* m, int b) {
 
 // broadphase collision detector
 int mj_broadphase(const mjModel* m, mjData* d, int* pair, int maxpair) {
-  int i, j, b1, b2, toremove, cnt, npair = 0, nbody = m->nbody, ngeom = m->ngeom;
+  int b1, b2, toremove, cnt, npair = 0, nbody = m->nbody, ngeom = m->ngeom;
   mjtNum cov[9], cen[3], dif[3], eigval[3], frame[9], quat[4];
   mjtBroadphase *sortbuf, *activebuf;
   mjtNum *aabb;
@@ -727,13 +727,13 @@ int mj_broadphase(const mjModel* m, mjData* d, int* pair, int maxpair) {
   }
 
   // allocate sort buffer
-  i = sizeof(mjtBroadphase)/sizeof(mjtNum);
-  j = sizeof(mjtBroadphase)%sizeof(mjtNum);
-  sortbuf = (mjtBroadphase*)mj_stackAlloc(d, 2*bufcnt*(i + (j ? 1 : 0)));
-  activebuf = (mjtBroadphase*)mj_stackAlloc(d, 2*bufcnt*(i + (j ? 1 : 0)));
+  int quot = sizeof(mjtBroadphase)/sizeof(mjtNum);
+  int rem = sizeof(mjtBroadphase)%sizeof(mjtNum);
+  sortbuf = (mjtBroadphase*)mj_stackAlloc(d, 2*bufcnt*(quot + (rem ? 1 : 0)));
+  activebuf = (mjtBroadphase*)mj_stackAlloc(d, 2*bufcnt*(quot + (rem ? 1 : 0)));
 
   // init sortbuf with axis0
-  j = 0;
+  int k = 0;
   for (int i=1; i<nbody; i++) {
     // cannot colide
     if (!can_collide(m, i)) {
@@ -741,15 +741,15 @@ int mj_broadphase(const mjModel* m, mjData* d, int* pair, int maxpair) {
     }
 
     // init
-    sortbuf[2*j].body_ismax = i;
-    sortbuf[2*j].value = (float)aabb[6*i];
-    sortbuf[2*j+1].body_ismax = i + 0x10000;
-    sortbuf[2*j+1].value = (float)aabb[6*i+1];
-    j++;
+    sortbuf[2*k].body_ismax = i;
+    sortbuf[2*k].value = (float)aabb[6*i];
+    sortbuf[2*k+1].body_ismax = i + 0x10000;
+    sortbuf[2*k+1].value = (float)aabb[6*i+1];
+    k++;
   }
 
   // sanity check; SHOULD NOT OCCUR
-  if (j!=bufcnt) {
+  if (k!=bufcnt) {
     mju_error("Internal error in broadphase: unexpected bufcnt");
   }
 
@@ -828,7 +828,7 @@ endbroad:
 // test two geoms for collision, apply filters, add to contact list
 //  flg_user disables filters and uses usermargin
 void mj_collideGeoms(const mjModel* m, mjData* d, int g1, int g2, int flg_user, mjtNum usermargin) {
-  int i, num, type1, type2, condim;
+  int num, type1, type2, condim;
   mjtNum margin, gap, mix, friction[5], solref[mjNREF], solimp[mjNIMP];
   mjContact con[mjMAXCONPAIR];
   int ipair = (g2<0 ? g1 : -1);
@@ -841,7 +841,7 @@ void mj_collideGeoms(const mjModel* m, mjData* d, int g1, int g2, int flg_user, 
 
   // order geoms by type
   if (m->geom_type[g1] > m->geom_type[g2]) {
-    i = g1;
+    int i = g1;
     g1 = g2;
     g2 = i;
   }
@@ -938,7 +938,7 @@ void mj_collideGeoms(const mjModel* m, mjData* d, int g1, int g2, int flg_user, 
     }
 
     // consolidate good
-    i = 0;
+    int i = 0;
     for (int j=0; j<num; j++) {
       if (con[j].dim==0) {
         // different: copy

@@ -1562,28 +1562,28 @@ void mj_rnePostConstraint(const mjModel* m, mjData* d) {
   // forward pass over bodies: compute cacc, cfrc_int
   mjtNum cacc[6], cfrc_body[6], cfrc_corr[6];
   mju_zero(d->cfrc_int, 6);
-  for (int i=1; i<m->nbody; i++) {
+  for (int j=1; j<m->nbody; j++) {
     // get body's first dof address
-    int bda = m->body_dofadr[i];
+    int bda = m->body_dofadr[j];
 
     // cacc = cacc_parent + cdofdot * qvel + cdof * qacc
-    mju_mulDofVec(cacc, d->cdof_dot+6*bda, d->qvel+bda, m->body_dofnum[i]);
-    mju_add(d->cacc+6*i, d->cacc+6*m->body_parentid[i], cacc, 6);
-    mju_mulDofVec(cacc, d->cdof+6*bda, d->qacc+bda, m->body_dofnum[i]);
-    mju_addTo(d->cacc+6*i, cacc, 6);
+    mju_mulDofVec(cacc, d->cdof_dot+6*bda, d->qvel+bda, m->body_dofnum[j]);
+    mju_add(d->cacc+6*j, d->cacc+6*m->body_parentid[j], cacc, 6);
+    mju_mulDofVec(cacc, d->cdof+6*bda, d->qacc+bda, m->body_dofnum[j]);
+    mju_addTo(d->cacc+6*j, cacc, 6);
 
     // cfrc_body = cinert * cacc + cvel x (cinert * cvel)
-    mju_mulInertVec(cfrc_body, d->cinert+10*i, d->cacc+6*i);
-    mju_mulInertVec(cfrc_corr, d->cinert+10*i, d->cvel+6*i);
-    mju_crossForce(cfrc, d->cvel+6*i, cfrc_corr);
+    mju_mulInertVec(cfrc_body, d->cinert+10*j, d->cacc+6*j);
+    mju_mulInertVec(cfrc_corr, d->cinert+10*j, d->cvel+6*j);
+    mju_crossForce(cfrc, d->cvel+6*j, cfrc_corr);
     mju_addTo(cfrc_body, cfrc, 6);
 
     // set cfrc_int = cfrc_body - cfrc_ext
-    mju_sub(d->cfrc_int+6*i, cfrc_body, d->cfrc_ext+6*i, 6);
+    mju_sub(d->cfrc_int+6*j, cfrc_body, d->cfrc_ext+6*j, 6);
   }
 
   // backward pass over bodies: accumulate cfrc_int from children
-  for (int i=m->nbody-1; i>0; i--) {
-    mju_addTo(d->cfrc_int+6*m->body_parentid[i], d->cfrc_int+6*i, 6);
+  for (int j=m->nbody-1; j>0; j--) {
+    mju_addTo(d->cfrc_int+6*m->body_parentid[j], d->cfrc_int+6*j, 6);
   }
 }

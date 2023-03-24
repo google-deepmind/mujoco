@@ -24,9 +24,10 @@
 
 // strip path prefix from filename
 static void vfs_strippath(char* newname, const char* oldname) {
-  int i, sz = strlen(oldname);
+  int sz = strlen(oldname);
 
   // find last delimiter
+  int i;
   for (i=sz-1; i>=0; i--) {
     if (oldname[i]=='\\' || oldname[i]=='/') {
       break;
@@ -45,9 +46,9 @@ static void vfs_strippath(char* newname, const char* oldname) {
   mju_strncpy(newname, oldname+i+1, mjMAXVFSNAME);
 
   // make lowercase
-  for (int i=strlen(newname)-1; i>=0; i--) {
-    if (newname[i]>='A' && newname[i]<='Z') {
-      newname[i] = (char)(((int)newname[i]) +'a' - 'A');
+  for (int j=strlen(newname)-1; j>=0; j--) {
+    if (newname[j]>='A' && newname[j]<='Z') {
+      newname[j] = (char)(((int)newname[j]) +'a' - 'A');
     }
   }
 }

@@ -1630,10 +1630,10 @@ void mj_makeConstraint(const mjModel* m, mjData* d) {
 
     // check that nnzJ was computed correctly
     if (d->nefc > 0) {
-      int nnz = d->efc_J_rownnz[d->nefc - 1] + d->efc_J_rowadr[d->nefc - 1];
-      if (d->nnzJ != nnz) {
+      int nnzJ = d->efc_J_rownnz[d->nefc - 1] + d->efc_J_rowadr[d->nefc - 1];
+      if (d->nnzJ != nnzJ) {
         mju_error("constraint Jacobian mis-allocation: found nnzJ=%d but allocated %d",
-                  nnz, d->nnzJ);
+                  nnzJ, d->nnzJ);
       }
     }
   } else if (d->nefc > nefc_allocated) {

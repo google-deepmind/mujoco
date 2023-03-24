@@ -464,12 +464,12 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
   int objtype, category;
   mjtNum sz[3], mat[9], selpos[3];
   mjtNum catenary[3*mjNCATENARY];
-  mjtNum *cur, *nxt, *xpos, *xfrc;
+  mjtNum *cur, *nxt, *xfrc;
   mjtNum vec[3], end[3], axis[3], rod, len, det, tmp[9], quat[4];
   mjtByte broken;
   mjvGeom* thisgeom;
   mjvPerturb localpert;
-  float scl = m->stat.meansize, rgba[4];
+  float scl = m->stat.meansize;
 
   // make default pert if missing
   if (!pert) {
@@ -612,12 +612,12 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
           mjtNum density = mass / mju_max(mjMINVAL, volume);
 
           // scale = root3(density)
-          mjtNum scl = mju_pow(density*0.001, 1.0/3.0);
+          mjtNum scale = mju_pow(density*0.001, 1.0/3.0);
 
           // scale sizes, so that box/ellipsoid with density of 1000 has same mass
-          sz[0] *= scl;
-          sz[1] *= scl;
-          sz[2] *= scl;
+          sz[0] *= scale;
+          sz[1] *= scale;
+          sz[2] *= scale;
         }
 
         // construct geom
@@ -659,6 +659,7 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
                         pert->refselpos[0], pert->refselpos[1], pert->refselpos[2]);
 
       // prepare color
+      float rgba[4];
       mixcolor(rgba, m->vis.rgba.constraint,
                (pert->active & mjPERT_TRANSLATE)>0,
                (pert->active2 & mjPERT_TRANSLATE)>0);
@@ -683,6 +684,7 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
       START
 
       // prepare color, use inertia color
+      float rgba[4];
       mixcolor(rgba, m->vis.rgba.inertia,
                (pert->active & mjPERT_ROTATE)>0,
                (pert->active2 & mjPERT_ROTATE)>0);
@@ -1681,7 +1683,7 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
   for (int i=1; i<m->nbody; i++) {
     if (!mju_isZero(d->xfrc_applied+6*i, 6) && (category & catmask)) {
       // point of application and force
-      xpos = d->xipos+3*i;
+      mjtNum *xpos = d->xipos+3*i;
       xfrc = d->xfrc_applied+6*i;
 
       // force perturbation

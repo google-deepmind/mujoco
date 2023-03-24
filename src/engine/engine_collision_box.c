@@ -316,52 +316,52 @@ int mjc_CapsuleBox(const mjModel* m, const mjData* d, mjContact* con,
         };
         mjtNum c[2];
       } d2;
-      d2 p, s, d /*, c, tmp1*/;
-      mjtNum u, v, w, e1, best /* ,e2 */, l /* , e3, e4 */;
+      d2 p, s, dd /*, c, tmp1*/;
+      mjtNum uu, vv, w, ee1, best /* ,e2 */, l /* , e3, e4 */;
 
       bestdist = bestdistmax;
 
       p.x = pos[0];
       p.y = pos[1];
-      d.x = halfaxis[0];
-      d.y = halfaxis[1];
+      dd.x = halfaxis[0];
+      dd.y = halfaxis[1];
       s.x = size2[0];
       s.y = size2[1];
 
-      l = sqrt(d.x * d.x + d.y * d.y);
+      l = sqrt(dd.x * dd.x + dd.y * dd.y);
 
-      u = d.x * s.y;
-      v = d.y * s.x;
-      w = d.x * p.y - d.y * p.x;
+      uu = dd.x * s.y;
+      vv = dd.y * s.x;
+      w = dd.x * p.y - dd.y * p.x;
 
 
       best = -1;
 
-      e1 = +u - v;
-      if ((e1 < 0) == (w < 0)) {
-        if (best < mju_abs(e1)) {
-          best = mju_abs(e1);
+      ee1 = +uu - vv;
+      if ((ee1 < 0) == (w < 0)) {
+        if (best < mju_abs(ee1)) {
+          best = mju_abs(ee1);
           c1 = 0;
         }
       }
-      e1 = -u - v;
-      if ((e1 < 0) == (w < 0)) {
-        if (best < mju_abs(e1)) {
-          best = mju_abs(e1);
+      ee1 = -uu - vv;
+      if ((ee1 < 0) == (w < 0)) {
+        if (best < mju_abs(ee1)) {
+          best = mju_abs(ee1);
           c1 = 1;
         }
       }
-      e1 = +u + v;
-      if ((e1 < 0) == (w < 0)) {
-        if (best < mju_abs(e1)) {
-          best = mju_abs(e1);
+      ee1 = +uu + vv;
+      if ((ee1 < 0) == (w < 0)) {
+        if (best < mju_abs(ee1)) {
+          best = mju_abs(ee1);
           c1 = 2;
         }
       }
-      e1 = -u + v;
-      if ((e1 < 0) == (w < 0)) {
-        if (best < mju_abs(e1)) {
-          best = mju_abs(e1);
+      ee1 = -uu + vv;
+      if ((ee1 < 0) == (w < 0)) {
+        if (best < mju_abs(ee1)) {
+          best = mju_abs(ee1);
           c1 = 3;
         }
       }
@@ -369,21 +369,21 @@ int mjc_CapsuleBox(const mjModel* m, const mjData* d, mjContact* con,
       // c.x = s.x * ((c1 / 2) ? -1 : 1);
       // c.y = s.y * ((c1 % 2) ? -1 : 1);
 
-      e1 = fabs(w) / l;
+      ee1 = fabs(w) / l;
       // e2 = best / l;
 
       // printf("%g %g      %g %g     %g %g\n",c.x,c.y,d.x,d.y,e1,e2);
 
       // tmp1.x = c.x - p.x;
       // tmp1.y = c.y - p.y;
-      e1 = d.x * d.x + d.y * d.y;
+      ee1 = dd.x * dd.x + dd.y * dd.y;
       // e2 = tmp1.x * d.x + tmp1.y * d.y;
       // e3 = e2 / e1;
 
 
       // printf("%g %g      %g %g     %g %g %g \n",c.x,c.y,d.x,d.y,e1,e2,e3);
 
-      e1 = p.x + (+s.y - p.y) / d.y * d.x;
+      ee1 = p.x + (+s.y - p.y) / dd.y * dd.x;
       // e2 = p.x + (-s.y - p.y) / d.y * d.x;
       // e3 = p.y + (+s.x - p.x) / d.x * d.y;
       // e4 = p.y + (-s.x - p.x) / d.x * d.y;

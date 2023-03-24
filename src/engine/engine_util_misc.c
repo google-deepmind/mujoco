@@ -81,7 +81,7 @@ static mjtNum wrap_circle(mjtNum* pnt, const mjtNum* d, const mjtNum* sd, mjtNum
   mjtNum dif[2] = {d[2]-d[0], d[3]-d[1]};
   mjtNum a, tmp[2], dd, sqrt0, sqrt1;
   mjtNum sol[2][2][2], good[2], wlen;
-  int i, sgn;
+  int sgn;
 
   // either point inside circle or circle too small: no wrap
   if (sqlen0<sqrad || sqlen1<sqrad || rad<mjMINVAL) {
@@ -138,7 +138,7 @@ static mjtNum wrap_circle(mjtNum* pnt, const mjtNum* d, const mjtNum* sd, mjtNum
   }
 
   // select the better solution
-  i = (good[0]>good[1] ? 0 : 1);
+  int i = (good[0]>good[1] ? 0 : 1);
   pnt[0] = sol[i][0][0];
   pnt[1] = sol[i][0][1];
   pnt[2] = sol[i][1][0];

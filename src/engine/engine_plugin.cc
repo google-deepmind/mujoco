@@ -380,8 +380,8 @@ const mjpPlugin* mjp_getPluginUnsafe(const char* name, int* slot, int nslot) {
     return nullptr;
   }
 
-  Global& plugin = GetGlobal();
-  PluginTable* table = &plugin.table();
+  Global& plugins = GetGlobal();
+  PluginTable* table = &plugins.table();
   int found_slot = 0;
   while (table) {
     for (int i = 0;
