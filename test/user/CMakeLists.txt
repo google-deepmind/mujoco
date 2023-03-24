@@ -13,7 +13,7 @@
 # limitations under the License.
 
 mujoco_test(user_model_test)
-target_link_libraries(user_model_test fixture gmock)
+target_link_libraries(user_model_test fixture gmock absl::str_format)
 
 mujoco_test(user_objects_test)
 target_link_libraries(user_objects_test fixture gmock)

@@ -14,11 +14,11 @@
 
 // Tests for user/user_model.cc.
 
-#include <cstddef>
 #include <string>
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
+#include <absl/strings/str_format.h>
 #include <mujoco/mjmodel.h>
 #include <mujoco/mujoco.h>
 #include "test/fixture.h"
@@ -26,7 +26,9 @@
 namespace mujoco {
 namespace {
 
+using ::testing::DoubleNear;
 using ::testing::ElementsAre;
+using ::testing::NotNull;
 using UserDataTest = MujocoTest;
 
 static std::vector<mjtNum> GetRow(const mjtNum* array, int ncolumn, int row) {
@@ -186,6 +188,52 @@ TEST_F(UserDataTest, AutoNUserSensor) {
   EXPECT_THAT(GetRow(m->sensor_user, m->nuser_sensor, 0), ElementsAre(1, 2, 3));
   EXPECT_THAT(GetRow(m->sensor_user, m->nuser_sensor, 1), ElementsAre(2, 3, 0));
   mj_deleteModel(m);
+}
+
+// ------------- test fusestatic -----------------------------------------------
+
+using FuseStaticTest = MujocoTest;
+TEST_F(FuseStaticTest, FuseStaticEquivalent) {
+  static constexpr char xml_template[] = R"(
+  <mujoco>
+    <compiler fusestatic="%s"/>
+    <worldbody>
+      <body>
+        <joint axis="1 0 0"/>
+        <geom size="0.5" pos="1 0 0"/>
+        <body>
+          <geom size="0.5" pos="0 1 0"/>
+        </body>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+
+  std::string fuse = absl::StrFormat(xml_template, "true");
+  std::string no_fuse = absl::StrFormat(xml_template, "false");
+
+  mjModel* m_fuse = LoadModelFromString(fuse.c_str());
+  mjModel* m_no_fuse = LoadModelFromString(no_fuse.c_str());
+  ASSERT_THAT(m_fuse, NotNull());
+  ASSERT_THAT(m_no_fuse, NotNull());
+
+  EXPECT_EQ(m_fuse->nbody, 2) << "Expecting a world body and one other body";
+  EXPECT_EQ(m_no_fuse->nbody, 3) << "Expecting a world body and two others";
+
+  mjData* d_fuse = mj_makeData(m_fuse);
+  mjData* d_no_fuse = mj_makeData(m_no_fuse);
+
+  mj_step(m_fuse, d_fuse);
+  mj_step(m_no_fuse, d_no_fuse);
+
+  EXPECT_THAT(d_fuse->qvel[0], DoubleNear(d_no_fuse->qvel[0], 1e-17))
+      << "Velocity should be the same after 1 step";
+  EXPECT_NE(d_fuse->qvel[0], 0);
+
+  mj_deleteData(d_fuse);
+  mj_deleteData(d_no_fuse);
+  mj_deleteModel(m_fuse);
+  mj_deleteModel(m_no_fuse);
 }
 
 }  // namespace
