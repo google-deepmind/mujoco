@@ -145,6 +145,7 @@ void mj_defaultVisual(mjVisual* vis) {
   vis->global.offheight           = 480;
   vis->global.realtime            = 1.0;
   vis->global.treedepth           = 1;
+  vis->global.ellipsoidinertia    = 0;
 
   // rendering quality
   vis->quality.shadowsize         = 4096;

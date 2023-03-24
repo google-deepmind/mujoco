@@ -113,8 +113,8 @@ static const char* MJCF[nMJCF][mjXATTRNUM] = {
 
     {"visual", "*", "0"},
     {"<"},
-        {"global", "?", "9", "fovy", "ipd", "azimuth", "elevation", "linewidth", "glow", "offwidth",
-            "offheight", "realtime"},
+        {"global", "?", "10", "fovy", "ipd", "azimuth", "elevation", "linewidth", "glow", "offwidth",
+            "offheight", "realtime", "ellipsoidinertia"},
         {"quality", "?", "5", "shadowsize", "offsamples", "numslices", "numstacks",
             "numquads"},
         {"headlight", "?", "4", "ambient", "diffuse", "specular", "active"},
@@ -695,10 +695,9 @@ const mjMap tkind_map[2] = {
 
 // mesh type
 const mjMap  meshtype_map[2] = {
-    {"false", mjVOLUME_MESH},
-    {"true",  mjSHELL_MESH},
-  };
-
+  {"false", mjVOLUME_MESH},
+  {"true",  mjSHELL_MESH},
+};
 
 
 //---------------------------------- class mjXReader implementation --------------------------------
@@ -2368,10 +2367,15 @@ void mjXReader::Visual(XMLElement* section) {
       ReadAttr(elem,    "glow",      1, &vis->global.glow,      text);
       ReadAttrInt(elem, "offwidth",     &vis->global.offwidth);
       ReadAttrInt(elem, "offheight",    &vis->global.offheight);
-      if (ReadAttr(elem, "realtime", 1, &vis->global.realtime, text))
+      if (ReadAttr(elem, "realtime", 1, &vis->global.realtime, text)) {
         if (vis->global.realtime<=0) {
           throw mjXError(elem, "realtime must be greater than 0");
         }
+      }
+      int ellipsoidinertia;
+      if (MapValue(elem, "ellipsoidinertia", &ellipsoidinertia, bool_map, 2)) {
+        vis->global.ellipsoidinertia = (ellipsoidinertia==1);
+      }
     }
 
     // quality sub-element

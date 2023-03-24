@@ -887,6 +887,7 @@ void mjXWriter::Visual(XMLElement* root) {
   WriteAttr(elem,    "realtime",  1,   &vis->global.realtime,   &visdef.global.realtime);
   WriteAttrInt(elem, "offwidth",       vis->global.offwidth,    visdef.global.offwidth);
   WriteAttrInt(elem, "offheight",      vis->global.offheight,   visdef.global.offheight);
+  WriteAttrKey(elem, "ellipsoidinertia", bool_map, 2, vis->global.ellipsoidinertia, visdef.global.ellipsoidinertia);
   if (!elem->FirstAttribute()) {
     section->DeleteChild(elem);
   }

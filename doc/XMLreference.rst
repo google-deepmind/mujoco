@@ -898,6 +898,12 @@ is effectively a miscellaneous subsection.
 :at:`offheight`: :at-val:`int, "480"`
    This attribute specifies the height in pixels of the OpenGL off-screen rendering buffer.
 
+.. _visual-global-ellipsoidinertia:
+
+:at:`ellipsoidinertia`: :at-val:`[false, true], "false"`
+   This attribute specifies how the equivalent inertia is visualized. "false":
+   use box, "true": use ellipsoid.
+
 
 .. _visual-quality:
 

@@ -1308,6 +1308,7 @@ PYBIND11_MODULE(_structs, m) {
   X(offwidth);
   X(offheight);
   X(treedepth);
+  X(ellipsoidinertia);
 #undef X
 
   py::class_<raw::MjVisualQuality> mjVisualQuality(mjVisual, "Quality");

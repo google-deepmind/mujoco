@@ -588,35 +588,41 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
   // inertia
   objtype = mjOBJ_BODY;
   if (vopt->flags[mjVIS_INERTIA]) {
+    int ellipsoid = m->vis.global.ellipsoidinertia == 1;
     for (int i=1; i<m->nbody; i++) {
       // skip if mass too small or if this body is static and static bodies are masked
       if (m->body_mass[i]>mjMINVAL && (bodycategory(m, i) & catmask)) {
         START
 
-        // compute sizes of equivalent box
-        sz[0] = mju_sqrt((m->body_inertia[3*i+1] + m->body_inertia[3*i+2] -
-                          m->body_inertia[3*i+0]) *6/m->body_mass[i]) /2;
-        sz[1] = mju_sqrt((m->body_inertia[3*i+0] + m->body_inertia[3*i+2] -
-                          m->body_inertia[3*i+1]) *6/m->body_mass[i]) /2;
-        sz[2] = mju_sqrt((m->body_inertia[3*i+0] + m->body_inertia[3*i+1] -
-                          m->body_inertia[3*i+2]) *6/m->body_mass[i]) /2;
+        mjtNum Ixx = m->body_inertia[3*i+0];
+        mjtNum Iyy = m->body_inertia[3*i+1];
+        mjtNum Izz = m->body_inertia[3*i+2];
+        mjtNum mass = m->body_mass[i];
+        mjtNum scale_inertia = ellipsoid ? mju_sqrt(5) : mju_sqrt(3);
+
+        sz[0] = mju_sqrt((Iyy + Izz - Ixx) / (2 * mass)) * scale_inertia;
+        sz[1] = mju_sqrt((Ixx + Izz - Iyy) / (2 * mass)) * scale_inertia;
+        sz[2] = mju_sqrt((Ixx + Iyy - Izz) / (2 * mass)) * scale_inertia;
 
         // scale with mass if enabled
         if (vopt->flags[mjVIS_SCLINERTIA]) {
           // density = mass / volume
-          mjtNum density = m->body_mass[i] / mju_max(mjMINVAL, 8*sz[0]*sz[1]*sz[2]);
+          mjtNum scale_volume = ellipsoid ? 4.0/3.0*mjPI : 8.0;
+          mjtNum volume = scale_volume * sz[0]*sz[1]*sz[2];
+          mjtNum density = mass / mju_max(mjMINVAL, volume);
 
           // scale = root3(density)
           mjtNum scl = mju_pow(density*0.001, 1.0/3.0);
 
-          // scale sizes, so that box with density of 1000 has same mass
+          // scale sizes, so that box/ellipsoid with density of 1000 has same mass
           sz[0] *= scl;
           sz[1] *= scl;
           sz[2] *= scl;
         }
 
         // construct geom
-        mjv_initGeom(thisgeom, mjGEOM_BOX, sz, d->xipos+3*i, d->ximat+9*i, m->vis.rgba.inertia);
+        mjtGeom type = ellipsoid ? mjGEOM_ELLIPSOID : mjGEOM_BOX;
+        mjv_initGeom(thisgeom, type, sz, d->xipos+3*i, d->ximat+9*i, m->vis.rgba.inertia);
 
         // glow
         if (pert->select==i) {

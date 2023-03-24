@@ -5,6 +5,15 @@ Changelog
 Upcoming version (not yet released)
 -----------------------------------
 
+General
+^^^^^^^
+
+.. image:: images/changelog/ellipsoidinertia.gif
+   :align: right
+   :width: 320px
+
+- Added :ref:`ellipsoidinertia<visual-global-ellipsoidinertia>` to visualize equivalent inertias with ellipsoids instead of the default boxes.
+
 Bug fixes
 ^^^^^^^^^
 

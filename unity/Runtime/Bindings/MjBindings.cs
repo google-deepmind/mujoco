@@ -1768,6 +1768,7 @@ public unsafe struct global {
   public int offwidth;
   public int offheight;
   public int treedepth;
+  public int ellipsoidinertia;
 }
 
 [StructLayout(LayoutKind.Sequential)]
