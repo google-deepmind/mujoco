@@ -851,14 +851,14 @@ struct mjModel_ {
   mjtNum*   body_invweight0;      // mean inv inert in qpos0 (trn, rot)       (nbody x 2)
   mjtNum*   body_gravcomp;        // antigravity force, units of body weight  (nbody x 1)
   mjtNum*   body_user;            // user data                                (nbody x nuser_body)
-  int*      body_plugin;          // plugin instance id (-1 if not in use)    (nbody x 1)
+  int*      body_plugin;          // plugin instance id; -1: not in use       (nbody x 1)
   int*      body_bvhadr;          // address of bvh root                      (nbody x 1)
   int*      body_bvhnum;          // number of bounding volumes               (nbody x 1)
 
   // bounding volume hierarchy
   int*      bvh_depth;            // depth in the bounding volume hierarchy   (nbvh x 1)
   int*      bvh_child;            // left and right children in tree          (nbvh x 2)
-  int*      bvh_geomid;           // geom id of the node (non-leaf: -1)       (nbvh x 1)
+  int*      bvh_geomid;           // geom id of the node; -1: non-leaf        (nbvh x 1)
   mjtNum*   bvh_aabb;             // bounding box of node (center, size)      (nbvh x 6)
 
   // joints
@@ -897,8 +897,8 @@ struct mjModel_ {
   int*      geom_conaffinity;     // geom contact affinity                    (ngeom x 1)
   int*      geom_condim;          // contact dimensionality (1, 3, 4, 6)      (ngeom x 1)
   int*      geom_bodyid;          // id of geom's body                        (ngeom x 1)
-  int*      geom_dataid;          // id of geom's mesh/hfield (-1: none)      (ngeom x 1)
-  int*      geom_matid;           // material id for rendering                (ngeom x 1)
+  int*      geom_dataid;          // id of geom's mesh/hfield; -1: none       (ngeom x 1)
+  int*      geom_matid;           // material id for rendering; -1: none      (ngeom x 1)
   int*      geom_group;           // group for visibility                     (ngeom x 1)
   int*      geom_priority;        // geom contact priority                    (ngeom x 1)
   mjtByte*  geom_sameframe;       // same as body frame (1) or iframe (2)     (ngeom x 1)
@@ -920,7 +920,7 @@ struct mjModel_ {
   // sites
   int*      site_type;            // geom type for rendering (mjtGeom)        (nsite x 1)
   int*      site_bodyid;          // id of site's body                        (nsite x 1)
-  int*      site_matid;           // material id for rendering                (nsite x 1)
+  int*      site_matid;           // material id for rendering; -1: none      (nsite x 1)
   int*      site_group;           // group for visibility                     (nsite x 1)
   mjtByte*  site_sameframe;       // same as body frame (1) or iframe (2)     (nsite x 1)
   mjtNum*   site_size;            // geom size for rendering                  (nsite x 3)
@@ -1030,7 +1030,7 @@ struct mjModel_ {
   int*      pair_dim;             // contact dimensionality                   (npair x 1)
   int*      pair_geom1;           // id of geom1                              (npair x 1)
   int*      pair_geom2;           // id of geom2                              (npair x 1)
-  int*      pair_signature;       // (body1+1)<<16 + body2+1                  (npair x 1)
+  int*      pair_signature;       // (body1+1) << 16 + body2+1                (npair x 1)
   mjtNum*   pair_solref;          // constraint solver reference: contact     (npair x mjNREF)
   mjtNum*   pair_solimp;          // constraint solver impedance: contact     (npair x mjNIMP)
   mjtNum*   pair_margin;          // detect contact if dist<margin            (npair x 1)
@@ -1038,7 +1038,7 @@ struct mjModel_ {
   mjtNum*   pair_friction;        // tangent1, 2, spin, roll1, 2              (npair x 5)
 
   // excluded body pairs for collision detection
-  int*      exclude_signature;    // (body1+1)<<16 + body2+1                  (nexclude x 1)
+  int*      exclude_signature;    // (body1+1) << 16 + body2+1                (nexclude x 1)
 
   // equality constraints
   int*      eq_type;              // constraint type (mjtEq)                  (neq x 1)
