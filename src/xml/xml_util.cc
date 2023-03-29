@@ -133,7 +133,7 @@ mjXSchema::mjXSchema(const char* schema[][mjXATTRNUM], int nrow, bool checkptr) 
 
     for (int i=0; i<nrow; i++) {
       // base pointers
-      if (!schema[i] || !schema[i][0]) {
+      if (!schema[i][0]) {
         mju::sprintf_arr(msg, "null pointer found in row %d", i);
         error = msg;
         return;
