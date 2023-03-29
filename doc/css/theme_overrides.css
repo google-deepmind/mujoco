@@ -161,6 +161,12 @@ html.writer-html5 .rst-content table.docutils th>p {
   border: none;
 }
 
+/* Table with top-aligned cell contents. */
+table.aligntop > tbody {
+  vertical-align: top;
+}
+
+
 /* Alternate row colors. */
 table.docutils:not(.mjcf-attributes) > tbody > tr.row-odd {
   background-color: var(--row-odd-background-color);

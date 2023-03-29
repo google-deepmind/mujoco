@@ -5,20 +5,20 @@ Types
 MuJoCo defines a large number of types:
 
 - Two :ref:`primitive types<tyPrimitive>`.
-- C enums used to define categorical values. These can be classified according to their use in:
+- :ref:`C enum types<tyEnums>` used to define categorical values. These can be classified as:
 
-  - :ref:`mjModel<tyModelEnums>`.
-  - :ref:`mjData<tyDataEnums>`.
-  - Abstract :ref:`visualization<tyVisEnums>`.
-  - The :ref:`openGL renderer<tyRenderEnums>`.
-  - The :ref:`mjUI<tyUIEnums>` user interface package.
+  - Enums used in :ref:`mjModel<tyModelEnums>`.
+  - Enums used in :ref:`mjData<tyDataEnums>`.
+  - Abstract :ref:`visualization enums<tyVisEnums>`.
+  - Enums used by the :ref:`openGL renderer<tyRenderEnums>`.
+  - Enums used by the :ref:`mjUI<tyUIEnums>` user interface package.
 
   Note that the API does not use these enum types directly. Instead it uses ints, and the documentation/comments state
   that certain ints correspond to certain enum types. This is because we want the API to be compiler-independent, and
   the C standard does not dictate how many bytes must be used to represent an enum type. Nevertheless, for improved
   readiblity, we recommend using these types when calling API functions which take them as arguments.
 
-- C struct types. These can be classified as:
+- :ref:`C struct types<tyStructure>`. These can be classified as:
 
   - :ref:`Main struct types<tyMainStructure>`. These are :ref:`mjModel`, :ref:`mjOption` and :ref:`mjData`.
   - :ref:`Auxillary struct types<tyAuxStructure>`, also used by the engine.
@@ -29,17 +29,19 @@ MuJoCo defines a large number of types:
 
 - Several :ref:`tyFunction` for user-defined callbacks.
 
+
 .. _tyPrimitive:
 
 Primitive types
-^^^^^^^^^^^^^^^
+---------------
 
 The two types below are defined in `mjtnum.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjtnum.h>`_.
+
 
 .. _mjtNum:
 
 mjtNum
-~~~~~~
+^^^^^^
 
 This is the floating-point type used throughout the simulator. If the symbol ``mjUSEDOUBLE`` is defined in
 ``mjmodel.h``, this type is defined as ``double``, otherwise it is defined as ``float``. Currently only the
@@ -65,7 +67,7 @@ changed by the user.
 .. _mjtByte:
 
 mjtByte
-~~~~~~~
+^^^^^^^
 
 Byte type used to represent boolean variables.
 
@@ -74,11 +76,16 @@ Byte type used to represent boolean variables.
    typedef unsigned char mjtByte;
 
 
+.. _tyEnums:
+
+Enum types
+----------
+
 
 .. _tyModelEnums:
 
-Model enums
-^^^^^^^^^^^
+Model
+^^^^^
 
 The enums below are defined in `mjmodel.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjmodel.h>`_.
 
@@ -327,8 +334,8 @@ These are the possible sensor data types, used in ``mjData.sensor_datatype``.
 
 .. _tyDataEnums:
 
-Data enums
-^^^^^^^^^^
+Data
+^^^^
 
 The enums below are defined in `mjmdata.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjmdata.h>`_.
 
@@ -358,8 +365,8 @@ Timer types. The number of timer types is given by ``mjNTIMER`` which is also th
 
 .. _tyVisEnums:
 
-Visualization enums
-^^^^^^^^^^^^^^^^^^^
+Visualization
+^^^^^^^^^^^^^
 
 The enums below are defined in `mjvisualize.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjvisualize.h>`_.
 
@@ -462,8 +469,8 @@ These are the possible stereo rendering types. They are used in ``mjvScene.stere
 
 .. _tyRenderEnums:
 
-Rendering enums
-^^^^^^^^^^^^^^^
+Rendering
+^^^^^^^^^
 
 The enums below are defined in `mjrender.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjrender.h>`_.
 
@@ -512,8 +519,8 @@ These are the possible font types.
 
 .. _tyUIEnums:
 
-User Interface enums
-^^^^^^^^^^^^^^^^^^^^
+User Interface
+^^^^^^^^^^^^^^
 
 The enums below are defined in `mjui.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjui.h>`_.
 
@@ -549,10 +556,17 @@ Item types used in the UI framework.
 
 
 
+.. _tyStructure:
+
+Struct types
+------------
+
+
 .. _tyMainStructure:
 
-Main structs
-^^^^^^^^^^^^
+Main
+^^^^
+
 The three central struct types for physics simulation are :ref:`mjModel`, :ref:`mjOption` (embedded in :ref:`mjModel`)
 and :ref:`mjData`. An introductory discussion of these strucures can be found in the Overview under :ref:`Separation of
 model and data<Features>`.
@@ -593,8 +607,9 @@ modifiable inputs and write their outputs.
 
 .. _tyAuxStructure:
 
-Auxillary structs
-^^^^^^^^^^^^^^^^^
+Auxillary
+^^^^^^^^^
+
 These struct types are used in the engine and their names are prefixed with ``mj``. :ref:`mjVisual`
 and :ref:`mjStatistic` are embedded in :ref:`mjModel`, :ref:`mjContact` is embedded in :ref:`mjData`, and :ref:`mjVFS`
 is a library-level struct used for loading assets.
@@ -658,8 +673,9 @@ Options for configuring the automatic :ref:`actuator length-range computation<CL
 
 .. _tyStatStructure:
 
-Sim statistics structs
-^^^^^^^^^^^^^^^^^^^^^^
+Sim statistics
+^^^^^^^^^^^^^^
+
 These structs are all embedded in :ref:`mjData`, and collect simulation-related statistics.
 
 
@@ -700,8 +716,9 @@ of solver iterations is given by ``mjData.solver_iter``.
 
 .. _tyVisStructure:
 
-Visualisation structs
-^^^^^^^^^^^^^^^^^^^^^
+Visualisation
+^^^^^^^^^^^^^
+
 The names of these struct types are prefixed with ``mjv``.
 
 .. _mjvPerturb:
@@ -789,8 +806,9 @@ data structure as an argument.
 
 .. _tyRenderStructure:
 
-Rendering structs
-^^^^^^^^^^^^^^^^^
+Rendering
+^^^^^^^^^
+
 The names of these struct types are prefixed with ``mjr``.
 
 .. _mjrRect:
@@ -815,8 +833,9 @@ This structure contains the custom OpenGL rendering context, with the ids of all
 
 .. _tyUIStructure:
 
-User Interface structs
-^^^^^^^^^^^^^^^^^^^^^^
+User Interface
+^^^^^^^^^^^^^^
+
 The names of these struct types are prefixed with ``mjui``.
 
 .. _mjuiState:
@@ -893,7 +912,7 @@ This structure defines one entry in the definition table used for simplified UI 
 .. _tyFunction:
 
 Function types
-^^^^^^^^^^^^^^
+--------------
 
 MuJoCo callbacks have corresponding function types. They are defined in `mjdata.h
 <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjdata.h>`_ and in `mjui.h
@@ -904,7 +923,7 @@ in the :doc:`globals<APIglobals>` page.
 .. _mjfGeneric:
 
 mjfGeneric
-~~~~~~~~~~
+^^^^^^^^^^
 
 .. code-block:: C
 
@@ -916,7 +935,7 @@ This is the function type of the callbacks :ref:`mjcb_passive` and :ref:`mjcb_co
 .. _mjfConFilt:
 
 mjfConFilt
-~~~~~~~~~~
+^^^^^^^^^^
 
 .. code-block:: C
 
@@ -929,7 +948,7 @@ This is the function type of the callback :ref:`mjcb_contactfilter`. The return 
 .. _mjfSensor:
 
 mjfSensor
-~~~~~~~~~
+^^^^^^^^^
 
 .. code-block:: C
 
@@ -941,7 +960,7 @@ This is the function type of the callback :ref:`mjcb_sensor`.
 .. _mjfTime:
 
 mjfTime
-~~~~~~~
+^^^^^^^
 
 .. code-block:: C
 
@@ -953,7 +972,7 @@ This is the function type of the callback :ref:`mjcb_time`.
 .. _mjfAct:
 
 mjfAct
-~~~~~~
+^^^^^^
 
 .. code-block:: C
 
@@ -965,7 +984,7 @@ This is the function type of the callbacks :ref:`mjcb_act_dyn`, :ref:`mjcb_act_g
 .. _mjfCollision:
 
 mjfCollision
-~~~~~~~~~~~~
+^^^^^^^^^^^^
 
 .. code-block:: C
 
@@ -978,7 +997,7 @@ This is the function type of the callbacks in the collision table :ref:`mjCOLLIS
 .. _mjfItemEnable:
 
 mjfItemEnable
-~~~~~~~~~~~~~
+^^^^^^^^^^^^^
 
 .. code-block:: C
 
