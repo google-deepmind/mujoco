@@ -45,6 +45,7 @@ extensions = [
     'sphinxcontrib.katex',
     'sphinxcontrib.youtube',
     'sphinx_copybutton',
+    'sphinx_favicon',
     'sphinx_reredirects',
     'sphinx_toolbox.collapse',
     'mujoco_include',
@@ -149,7 +150,29 @@ html_css_files = [
     'theme_overrides.css',
 ]
 
-html_favicon = 'favicons/favicon-32x32.png'
+favicons = [
+    {
+        'sizes': '16x16',
+        'href': 'favicons/favicon-16x16.png',
+    },
+    {
+        'sizes': '32x32',
+        'href': 'favicons/favicon-32x32.png',
+    },
+    {
+        'rel': 'apple-touch-icon',
+        'sizes': '180x180',
+        'href': 'favicons/favicon-180x180.png',
+    },
+    {
+        'sizes': '180x180',
+        'href': 'favicons/favicon-180x180.png',
+    },
+    {
+        'sizes': '192x192',
+        'href': 'favicons/favicon-192x192.png',
+    },
+]
 
 # -- Options for katex ------------------------------------------------------
 

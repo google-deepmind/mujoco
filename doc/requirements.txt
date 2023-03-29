@@ -3,6 +3,7 @@ furo==2022.9.29
 sphinxcontrib-katex==0.8.6
 sphinxcontrib-youtube==1.1.0
 sphinx-copybutton==0.5.1
+sphinx-favicon==1.0.1
 sphinx-reredirects==0.0.1
 sphinx-toolbox==3.2.0
 nbsphinx==0.8.0
