@@ -25,8 +25,8 @@ import sys
 sys.path.insert(0, os.path.abspath('../'))
 sys.path.append(os.path.abspath('ext'))
 
-import sphinxcontrib.katex as katex  # pylint: disable=g-import-not-at-top
-import sphinxcontrib.youtube as youtube  # pylint: disable=g-import-not-at-top
+from sphinxcontrib import katex  # pylint: disable=g-import-not-at-top
+from sphinxcontrib import youtube  # pylint: disable=g-import-not-at-top,unused-import
 
 # -- Project information -----------------------------------------------------
 
@@ -44,10 +44,10 @@ master_doc = 'index'
 extensions = [
     'sphinxcontrib.katex',
     'sphinxcontrib.youtube',
-    "sphinx_copybutton",
+    'sphinx_copybutton',
     'sphinx_reredirects',
     'sphinx_toolbox.collapse',
-    "mujoco_include",
+    'mujoco_include',
 ]
 
 # Add any paths that contain templates here, relative to this directory.
@@ -57,8 +57,13 @@ templates_path = ['templates']
 # directories to ignore when looking for source files.
 # This pattern also affects html_static_path and html_extra_path.
 exclude_patterns = [
-    '_build', 'Thumbs.db', '.DS_Store', 'includes/*', 'APIreference/functions.rst',
-    'APIreference/functions_override.rst', 'XMLschema.rst'
+    '_build',
+    'Thumbs.db',
+    '.DS_Store',
+    'includes/*',
+    'APIreference/functions.rst',
+    'APIreference/functions_override.rst',
+    'XMLschema.rst',
 ]
 
 redirects = {
@@ -90,38 +95,38 @@ html_title = 'MuJoCo Documentation'
 html_logo = 'images/banner.svg'
 
 SHARED_CSS_VARIABLES = {
-    "admonition-font-size": "1rem",
-    "admonition-title-font-size": "1rem",
-    "sidebar-item-font-size": "115%",
+    'admonition-font-size': '1rem',
+    'admonition-title-font-size': '1rem',
+    'sidebar-item-font-size': '115%',
 }
 
 html_theme_options = {
-    "light_css_variables": {
-        "at-color": "#bc103e",
-        "at-val-color": "#bc103e",
-        "body-color": "#14234b",
-        "color-highlight-on-target": "#e5e8ed",
-        "primary-header-color": "#0053d6",
-        "row-odd-background-color": "#f0f3f7",
-        "rst-content-a-color": "#2980b9",
-        "secondary-header-color": "#123693",
-        "wy-menu-vertical-background-color": "#0053d6",
-        "wy-menu-vertical-color": "white",
-        "wy-nav-side-background-color": "#0053d6",
+    'light_css_variables': {
+        'at-color': '#bc103e',
+        'at-val-color': '#bc103e',
+        'body-color': '#14234b',
+        'color-highlight-on-target': '#e5e8ed',
+        'primary-header-color': '#0053d6',
+        'row-odd-background-color': '#f0f3f7',
+        'rst-content-a-color': '#2980b9',
+        'secondary-header-color': '#123693',
+        'wy-menu-vertical-background-color': '#0053d6',
+        'wy-menu-vertical-color': 'white',
+        'wy-nav-side-background-color': '#0053d6',
     },
-    "dark_css_variables": {
-        "at-color": "#ff95a6",
-        "at-val-color": "#ff95a6",
-        "body-color": "#14234b",
-        "color-admonition-background": "#1e1e21",
-        "color-highlight-on-target": "#3d4045",
-        "primary-header-color": "#a8caff",
-        "row-odd-background-color": "#222326",
-        "rst-content-a-color": "#2980b9",
-        "secondary-header-color": "#458dff",
-        "wy-menu-vertical-background-color": "#0053d6",
-        "wy-menu-vertical-color": "white",
-        "wy-nav-side-background-color": "#0053d6",
+    'dark_css_variables': {
+        'at-color': '#ff95a6',
+        'at-val-color': '#ff95a6',
+        'body-color': '#14234b',
+        'color-admonition-background': '#1e1e21',
+        'color-highlight-on-target': '#3d4045',
+        'primary-header-color': '#a8caff',
+        'row-odd-background-color': '#222326',
+        'rst-content-a-color': '#2980b9',
+        'secondary-header-color': '#458dff',
+        'wy-menu-vertical-background-color': '#0053d6',
+        'wy-menu-vertical-color': 'white',
+        'wy-nav-side-background-color': '#0053d6',
     },
 }
 
@@ -129,8 +134,8 @@ for v in html_theme_options.values():
   if isinstance(v, dict):
     v.update(SHARED_CSS_VARIABLES)
 
-pygments_style = "default"
-pygments_dark_style = "monokai"
+pygments_style = 'default'
+pygments_dark_style = 'monokai'
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
