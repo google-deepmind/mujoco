@@ -1321,7 +1321,11 @@ void mjXWriter::Body(XMLElement* elem, mjCBody* body) {
   if (body!=model->GetWorld()) {
     WriteAttrTxt(elem, "name", body->name);
     WriteAttrTxt(elem, "childclass", body->classname);
-    WriteAttr(elem, "pos", 3, body->locpos);
+
+    // write pos if it's not {0, 0, 0}
+    if (body->locpos[0] || body->locpos[1] || body->locpos[2]) {
+      WriteAttr(elem, "pos", 3, body->locpos);
+    }
     WriteAttr(elem, "quat", 4, body->locquat, unitq);
     if (body->mocap) {
       WriteAttrKey(elem, "mocap", bool_map, 2, 1);

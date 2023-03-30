@@ -601,6 +601,23 @@ TEST_F(XMLWriterTest, WritesGravComp) {
   mj_deleteModel(model);
 }
 
+TEST_F(XMLWriterTest, WritesBodyPos) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body pos="1 2 3"/>
+      <body pos="0 0 0"/>
+    </worldbody>
+  </mujoco>
+  )";
+  mjModel* model = LoadModelFromString(xml);
+  ASSERT_THAT(model, NotNull());
+  std::string saved_xml = SaveAndReadXml(model);
+  EXPECT_THAT(saved_xml, HasSubstr("pos=\"1 2 3\""));
+  EXPECT_THAT(saved_xml, Not(HasSubstr("pos=\"0 0 0\"")));
+  mj_deleteModel(model);
+}
+
 TEST_F(XMLWriterTest, UndefinedMassDensity) {
   static constexpr char xml[] = R"(
   <mujoco>
