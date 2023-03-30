@@ -52,6 +52,15 @@ using ::testing::NotNull;
 
 using XMLWriterTest = MujocoTest;
 
+TEST_F(XMLWriterTest, EmptyModel) {
+  static constexpr char xml[] = "<mujoco/>";
+  mjModel* model = LoadModelFromString(xml);
+  ASSERT_THAT(model, NotNull());
+  std::string saved_xml = SaveAndReadXml(model);
+  EXPECT_THAT(saved_xml, Not(HasSubstr("default")));
+  mj_deleteModel(model);
+}
+
 TEST_F(XMLWriterTest, SavesMemory) {
   {
     static constexpr char xml[] = R"(

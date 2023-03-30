@@ -1057,6 +1057,13 @@ void mjXWriter::Default(XMLElement* root, mjCDef* def) {
   OneActuator(elem, &def->actuator, par);
   if (!elem->FirstAttribute()) section->DeleteChild(elem);
 
+  // if top-level class has no members or children, delete it and return
+  if (def->parentid<0 && section->NoChildren() && def->childid.empty()) {
+    root->DeleteChild(section);
+    delete par;
+    return;
+  }
+
   // add children recursively
   for (int i=0; i<(int)def->childid.size(); i++) {
     Default(section, model->defaults[def->childid[i]]);
