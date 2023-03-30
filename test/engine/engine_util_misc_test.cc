@@ -26,13 +26,20 @@ namespace {
 using ::testing::HasSubstr;
 
 TEST_F(MujocoTest, PrintsMemoryWarning) {
-  EXPECT_THAT(mju_warningText(mjWARN_CNSTRFULL, pow(2, 10)), HasSubstr("1K bytes"));
-  EXPECT_THAT(mju_warningText(mjWARN_CNSTRFULL, pow(2, 20)), HasSubstr("1M bytes"));
-  EXPECT_THAT(mju_warningText(mjWARN_CNSTRFULL, pow(2, 30)), HasSubstr("1G bytes"));
-  EXPECT_THAT(mju_warningText(mjWARN_CNSTRFULL, pow(2, 40)), HasSubstr("1T bytes"));
-  EXPECT_THAT(mju_warningText(mjWARN_CNSTRFULL, pow(2, 50)), HasSubstr("1P bytes"));
-  EXPECT_THAT(mju_warningText(mjWARN_CNSTRFULL, pow(2, 60)), HasSubstr("1E bytes"));
-  EXPECT_THAT(mju_warningText(mjWARN_CNSTRFULL, pow(2, 30)+1), HasSubstr("1073741825 bytes"));
+  EXPECT_THAT(mju_warningText(mjWARN_CNSTRFULL, pow(2, 10)),
+              HasSubstr("1K bytes"));
+  EXPECT_THAT(mju_warningText(mjWARN_CNSTRFULL, pow(2, 20)),
+              HasSubstr("1M bytes"));
+  EXPECT_THAT(mju_warningText(mjWARN_CNSTRFULL, pow(2, 30)),
+              HasSubstr("1G bytes"));
+  EXPECT_THAT(mju_warningText(mjWARN_CNSTRFULL, pow(2, 40)),
+              HasSubstr("1T bytes"));
+  EXPECT_THAT(mju_warningText(mjWARN_CNSTRFULL, pow(2, 50)),
+              HasSubstr("1P bytes"));
+  EXPECT_THAT(mju_warningText(mjWARN_CNSTRFULL, pow(2, 60)),
+              HasSubstr("1E bytes"));
+  EXPECT_THAT(mju_warningText(mjWARN_CNSTRFULL, pow(2, 30) + 1),
+              HasSubstr("1073741825 bytes"));
 }
 
 }  // namespace

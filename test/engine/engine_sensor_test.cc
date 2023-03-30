@@ -14,11 +14,6 @@
 
 // Tests for engine/engine_sensor.c.
 
-#include <array>
-#include <cstddef>
-#include <cstdio>
-#include <string>
-
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 #include <mujoco/mjmodel.h>

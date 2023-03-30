@@ -17,7 +17,6 @@
 #include <cstring>
 #include <string>
 
-#include <gmock/gmock.h>
 #include <gtest/gtest.h>
 #include "src/engine/engine_util_errmem.h"
 

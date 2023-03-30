@@ -18,22 +18,15 @@
 #include <unistd.h>
 #endif
 
-#include <algorithm>
 #include <array>
 #include <clocale>
-#include <cstddef>
 #include <cstdio>
-#include <cstdlib>
-#include <cstring>
 #include <filesystem>
-#include <memory>
-#include <sstream>
 #include <string>
 #include <vector>
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
-#include <absl/container/flat_hash_set.h>
 #include <absl/strings/match.h>
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjtnum.h>

@@ -15,7 +15,6 @@
 // Tests for xml/xml_native_reader.cc.
 
 #include <array>
-#include <cstddef>
 #include <limits>
 #include <string>
 

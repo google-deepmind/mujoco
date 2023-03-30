@@ -14,7 +14,6 @@
 
 // Tests for engine/engine_core_smooth.c.
 
-#include <cstddef>
 #include <string>
 
 #include <gmock/gmock.h>

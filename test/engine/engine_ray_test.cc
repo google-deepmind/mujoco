@@ -14,11 +14,6 @@
 
 // Tests for ray casting.
 
-#include <array>
-#include <cstddef>
-#include <cstring>
-#include <string>
-
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 #include <mujoco/mjdata.h>
