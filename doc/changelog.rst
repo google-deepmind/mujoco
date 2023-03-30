@@ -830,7 +830,7 @@ General
 #. Fixed: The array of sensors in ``mjCModel`` was not cleared.
 #. Cleaned up cross-platform code (internal changes, not visible via the API).
 #. Fixed a bug in parsing of XML ``texcoord`` data (related to number of vertices).
-#. Fixed a bug in `simulate.cc <https://github.com/deepmind/mujoco/blob/main/sample/simulate.cc>`_ related to ``nkey``
+#. Fixed a bug in `simulate.cc <https://github.com/deepmind/mujoco/blob/main/simulate/simulate.cc>`_ related to ``nkey``
    (the number of keyframes).
 #. Accelerated collision detection in the presence of large numbers of non-colliding geoms (with ``contype==0 and
    conaffinity==0``).

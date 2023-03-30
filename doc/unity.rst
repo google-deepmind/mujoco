@@ -140,7 +140,7 @@ When the user selects an MJCF file, the importer first loads
 the file in MuJoCo, saves it to a temporary location, and then processes the generated saved file.  This has several
 effects:
 
-- It validates the MJCF - we are guaranteed that the saved MJCF matches the `schema <CSchema>`_.
+- It validates the MJCF - we are guaranteed that the saved MJCF matches the :ref:`schema <CSchema>`.
 - It validates the assets (materials, meshes, textures) and imports these assets into Unity, as well as creating new
   material assets for geom RGBA specification.
 - It allows the importer to handle :ref:`\<include\> <include>` elements without replicating MuJoCo’s file-system

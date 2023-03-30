@@ -337,7 +337,7 @@ These are the possible sensor data types, used in ``mjData.sensor_datatype``.
 Data
 ^^^^
 
-The enums below are defined in `mjmdata.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjmdata.h>`_.
+The enums below are defined in `mjdata.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjdata.h>`_.
 
 
 .. _mjtWarning:

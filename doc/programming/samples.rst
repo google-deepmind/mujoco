@@ -218,14 +218,3 @@ of unilateral constraints, numerical derivatives are hard to compute and there i
 would not even be defined if it wasn't for our soft-constraint model. Making the constraints softer results in more
 accurate results. This effect is so strong that in some situations it makes sense to intentionally work with the wrong
 model, i.e., a model that is softer than desired, so as to obtain more accurate derivatives.
-
-.. _saUItools:
-
-uitools
-~~~~~~~
-
-`(uitools.h) <https://github.com/deepmind/mujoco/blob/main/simulate/uitools.h>`_ `(uitools.cc)
-<https://github.com/deepmind/mujoco/blob/main/simulate/uitools.cc>`_ This is not a stand-alone code sample, but rather
-a small utility used to hook up the new UI to GLFW. It is used in :ref:`simulate.cc <saSimulate>` and can also be used
-in user projects that involve the new UI. If GLFW is replaced with a different window library, this is the only file
-that would have to be changed in order to access the UI functionality.
