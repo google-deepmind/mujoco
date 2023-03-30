@@ -920,10 +920,18 @@ MuJoCo callbacks have corresponding function types. They are defined in `mjdata.
 in the :doc:`globals<APIglobals>` page.
 
 
+.. _tyPhysicsCallbacks:
+
+Physics Callbacks
+^^^^^^^^^^^^^^^^^
+
+These function types are used by :ref:`physics callbacks<glPhysics>`.
+
+
 .. _mjfGeneric:
 
 mjfGeneric
-^^^^^^^^^^
+~~~~~~~~~~
 
 .. code-block:: C
 
@@ -935,7 +943,7 @@ This is the function type of the callbacks :ref:`mjcb_passive` and :ref:`mjcb_co
 .. _mjfConFilt:
 
 mjfConFilt
-^^^^^^^^^^
+~~~~~~~~~~
 
 .. code-block:: C
 
@@ -948,7 +956,7 @@ This is the function type of the callback :ref:`mjcb_contactfilter`. The return 
 .. _mjfSensor:
 
 mjfSensor
-^^^^^^^^^
+~~~~~~~~~
 
 .. code-block:: C
 
@@ -960,7 +968,7 @@ This is the function type of the callback :ref:`mjcb_sensor`.
 .. _mjfTime:
 
 mjfTime
-^^^^^^^
+~~~~~~~
 
 .. code-block:: C
 
@@ -972,7 +980,7 @@ This is the function type of the callback :ref:`mjcb_time`.
 .. _mjfAct:
 
 mjfAct
-^^^^^^
+~~~~~~
 
 .. code-block:: C
 
@@ -984,7 +992,7 @@ This is the function type of the callbacks :ref:`mjcb_act_dyn`, :ref:`mjcb_act_g
 .. _mjfCollision:
 
 mjfCollision
-^^^^^^^^^^^^
+~~~~~~~~~~~~
 
 .. code-block:: C
 
@@ -994,10 +1002,17 @@ mjfCollision
 This is the function type of the callbacks in the collision table :ref:`mjCOLLISIONFUNC`.
 
 
+.. _tyUICallbacks:
+
+UI Callbacks
+^^^^^^^^^^^^
+
+These function types are used by the UI framework.
+
 .. _mjfItemEnable:
 
 mjfItemEnable
-^^^^^^^^^^^^^
+~~~~~~~~~~~~~
 
 .. code-block:: C
 
