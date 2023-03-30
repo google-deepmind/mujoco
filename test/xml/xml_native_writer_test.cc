@@ -844,6 +844,8 @@ TEST_F(XMLWriterTest, Actdim) {
     </worldbody>
     <actuator>
       <general joint="hinge" dyntype="user" actdim="2"/>
+      <general joint="hinge" dyntype="filter" dynprm="1"/>
+      <motor joint="hinge"/>
     </actuator>
   </mujoco>
   )";
@@ -851,6 +853,8 @@ TEST_F(XMLWriterTest, Actdim) {
   ASSERT_THAT(model, NotNull());
   std::string saved_xml = SaveAndReadXml(model);
   EXPECT_THAT(saved_xml, HasSubstr("actdim=\"2\""));
+  EXPECT_THAT(saved_xml, Not(HasSubstr("actdim=\"1\"")));
+  EXPECT_THAT(saved_xml, Not(HasSubstr("actdim=\"0\"")));
   mj_deleteModel(model);
 }
 
