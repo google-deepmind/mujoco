@@ -1321,8 +1321,9 @@ void mjXWriter::Body(XMLElement* elem, mjCBody* body) {
     }
 
     // gravity compensation
-    WriteAttr(elem, "gravcomp", 1, &body->gravcomp);
-
+    if (body->gravcomp) {
+      WriteAttr(elem, "gravcomp", 1, &body->gravcomp);
+    }
     // userdata
     WriteVector(elem, "user", body->userdata);
 

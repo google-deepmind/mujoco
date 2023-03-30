@@ -579,8 +579,8 @@ TEST_F(XMLWriterTest, WritesGravComp) {
   static constexpr char xml[] = R"(
   <mujoco>
     <worldbody>
-      <body gravcomp=".25">
-      </body>
+      <body gravcomp=".25"/>
+      <body/>
     </worldbody>
   </mujoco>
   )";
@@ -588,6 +588,7 @@ TEST_F(XMLWriterTest, WritesGravComp) {
   ASSERT_THAT(model, NotNull());
   std::string saved_xml = SaveAndReadXml(model);
   EXPECT_THAT(saved_xml, HasSubstr("gravcomp=\"0.25\""));
+  EXPECT_THAT(saved_xml, Not(HasSubstr("gravcomp=\"0\"")));
   mj_deleteModel(model);
 }
 
