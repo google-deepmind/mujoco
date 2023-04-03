@@ -16,7 +16,7 @@
 #define MUJOCO_MJVISUALIZE_H_
 
 #include <mujoco/mjtnum.h>
-#include <mujoco/mjmodel.h>
+
 
 #define mjNGROUP        6         // number of geom, site, joint, skin groups with visflags
 #define mjMAXLIGHT      100       // maximum number of lights in a scene
@@ -339,7 +339,7 @@ struct mjvFigure_ {               // abstract 2D figure passed to OpenGL rendere
   // text labels
   char    title[1000];            // figure title; subplots separated with 2+ spaces
   char    xlabel[100];            // x-axis label
-  char    linename[mjMAXLINE][100]; // line names for legend
+  char    linename[mjMAXLINE][100];  // line names for legend
 
   // dynamic settings
   int     legendoffset;           // number of lines to offset legend

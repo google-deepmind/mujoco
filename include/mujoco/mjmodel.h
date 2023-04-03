@@ -255,12 +255,12 @@ typedef enum mjtConstraint_ {     // type of constraint
 } mjtConstraint;
 
 
-typedef enum mjtConstraintState_ { // constraint state
-  mjCNSTRSTATE_SATISFIED = 0,     // constraint satisfied, zero cost (limit, contact)
-  mjCNSTRSTATE_QUADRATIC,         // quadratic cost (equality, friction, limit, contact)
-  mjCNSTRSTATE_LINEARNEG,         // linear cost, negative side (friction)
-  mjCNSTRSTATE_LINEARPOS,         // linear cost, positive side (friction)
-  mjCNSTRSTATE_CONE               // squared distance to cone cost (elliptic contact)
+typedef enum mjtConstraintState_ {  // constraint state
+  mjCNSTRSTATE_SATISFIED = 0,       // constraint satisfied, zero cost (limit, contact)
+  mjCNSTRSTATE_QUADRATIC,           // quadratic cost (equality, friction, limit, contact)
+  mjCNSTRSTATE_LINEARNEG,           // linear cost, negative side (friction)
+  mjCNSTRSTATE_LINEARPOS,           // linear cost, positive side (friction)
+  mjCNSTRSTATE_CONE                 // squared distance to cone cost (elliptic contact)
 } mjtConstraintState;
 
 

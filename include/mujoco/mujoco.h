@@ -114,13 +114,11 @@ MJAPI void mj_deleteVFS(mjVFS* vfs);
 // Parse XML file in MJCF or URDF format, compile it, return low-level model.
 // If vfs is not NULL, look up files in vfs before reading from disk.
 // If error is not NULL, it must have size error_sz.
-MJAPI mjModel* mj_loadXML(const char* filename, const mjVFS* vfs,
-                          char* error, int error_sz);
+MJAPI mjModel* mj_loadXML(const char* filename, const mjVFS* vfs, char* error, int error_sz);
 
 // Update XML data structures with info from low-level model, save as MJCF.
 // If error is not NULL, it must have size error_sz.
-MJAPI int mj_saveLastXML(const char* filename, const mjModel* m,
-                         char* error, int error_sz);
+MJAPI int mj_saveLastXML(const char* filename, const mjModel* m, char* error, int error_sz);
 
 // Free last XML model if loaded. Called internally at each load.
 MJAPI void mj_freeLastXML(void);
@@ -786,8 +784,8 @@ MJAPI void mj_deactivate(void);
 
 //---------------------------------- Standard math -------------------------------------------------
 
-#define mjMAX(a,b) (((a) > (b)) ? (a) : (b))
-#define mjMIN(a,b) (((a) < (b)) ? (a) : (b))
+#define mjMAX(a, b) (((a) > (b)) ? (a) : (b))
+#define mjMIN(a, b) (((a) < (b)) ? (a) : (b))
 
 #ifdef mjUSEDOUBLE
   #define mju_sqrt    sqrt

@@ -509,12 +509,12 @@ typedef enum mjtConstraint_ {     // type of constraint
   mjCNSTR_CONTACT_PYRAMIDAL,      // frictional contact, pyramidal friction cone
   mjCNSTR_CONTACT_ELLIPTIC        // frictional contact, elliptic friction cone
 } mjtConstraint;
-typedef enum mjtConstraintState_ { // constraint state
-  mjCNSTRSTATE_SATISFIED = 0,     // constraint satisfied, zero cost (limit, contact)
-  mjCNSTRSTATE_QUADRATIC,         // quadratic cost (equality, friction, limit, contact)
-  mjCNSTRSTATE_LINEARNEG,         // linear cost, negative side (friction)
-  mjCNSTRSTATE_LINEARPOS,         // linear cost, positive side (friction)
-  mjCNSTRSTATE_CONE               // squared distance to cone cost (elliptic contact)
+typedef enum mjtConstraintState_ {  // constraint state
+  mjCNSTRSTATE_SATISFIED = 0,       // constraint satisfied, zero cost (limit, contact)
+  mjCNSTRSTATE_QUADRATIC,           // quadratic cost (equality, friction, limit, contact)
+  mjCNSTRSTATE_LINEARNEG,           // linear cost, negative side (friction)
+  mjCNSTRSTATE_LINEARPOS,           // linear cost, positive side (friction)
+  mjCNSTRSTATE_CONE                 // squared distance to cone cost (elliptic contact)
 } mjtConstraintState;
 typedef enum mjtSensor_ {         // type of sensor
   // common robotic sensors, attached to a site
@@ -1234,11 +1234,11 @@ typedef enum mjtGridPos_ {        // grid position for overlay
   mjGRID_BOTTOMLEFT,              // bottom left
   mjGRID_BOTTOMRIGHT              // bottom right
 } mjtGridPos;
-typedef enum mjtFramebuffer_ {      // OpenGL framebuffer option
+typedef enum mjtFramebuffer_ {    // OpenGL framebuffer option
   mjFB_WINDOW         = 0,        // default/window buffer
   mjFB_OFFSCREEN                  // offscreen buffer
 } mjtFramebuffer;
-typedef enum mjtFontScale_ {        // font scale, used at context creation
+typedef enum mjtFontScale_ {      // font scale, used at context creation
   mjFONTSCALE_50      = 50,       // 50% scale, suitable for low-res rendering
   mjFONTSCALE_100     = 100,      // normal scale, suitable in the absence of DPI scaling
   mjFONTSCALE_150     = 150,      // 150% scale
@@ -1467,9 +1467,9 @@ struct mjuiItemSingle_ {          // check and button-related
 };
 
 
-struct mjuiItemMulti_ {           // static, radio and select-related
-  int nelem;                      // number of elements in group
-  char name[mjMAXUIMULTI][mjMAXUINAME]; // element names
+struct mjuiItemMulti_ {                  // static, radio and select-related
+  int nelem;                             // number of elements in group
+  char name[mjMAXUIMULTI][mjMAXUINAME];  // element names
 };
 
 
@@ -1496,10 +1496,10 @@ struct mjuiItem_ {                // UI item
 
   // type-specific properties
   union {
-    struct mjuiItemSingle_ single; // check and button
-    struct mjuiItemMulti_ multi;   // static, radio and select
-    struct mjuiItemSlider_ slider; // slider
-    struct mjuiItemEdit_ edit;     // edit
+    struct mjuiItemSingle_ single;  // check and button
+    struct mjuiItemMulti_ multi;    // static, radio and select
+    struct mjuiItemSlider_ slider;  // slider
+    struct mjuiItemEdit_ edit;      // edit
   };
 
   // internal
@@ -1825,7 +1825,7 @@ struct mjvFigure_ {               // abstract 2D figure passed to OpenGL rendere
   // text labels
   char    title[1000];            // figure title; subplots separated with 2+ spaces
   char    xlabel[100];            // x-axis label
-  char    linename[mjMAXLINE][100]; // line names for legend
+  char    linename[mjMAXLINE][100];  // line names for legend
 
   // dynamic settings
   int     legendoffset;           // number of lines to offset legend
@@ -1853,10 +1853,8 @@ int mj_makeEmptyFileVFS(mjVFS* vfs, const char* filename, int filesize);
 int mj_findFileVFS(const mjVFS* vfs, const char* filename);
 int mj_deleteFileVFS(mjVFS* vfs, const char* filename);
 void mj_deleteVFS(mjVFS* vfs);
-mjModel* mj_loadXML(const char* filename, const mjVFS* vfs,
-                    char* error, int error_sz);
-int mj_saveLastXML(const char* filename, const mjModel* m,
-                   char* error, int error_sz);
+mjModel* mj_loadXML(const char* filename, const mjVFS* vfs, char* error, int error_sz);
+int mj_saveLastXML(const char* filename, const mjModel* m, char* error, int error_sz);
 void mj_freeLastXML(void);
 int mj_printSchema(const char* filename, char* buffer, int buffer_sz,
                    int flg_html, int flg_pad);

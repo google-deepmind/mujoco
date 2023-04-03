@@ -207,9 +207,9 @@ struct mjuiItemSingle_ {          // check and button-related
 };
 
 
-struct mjuiItemMulti_ {           // static, radio and select-related
-  int nelem;                      // number of elements in group
-  char name[mjMAXUIMULTI][mjMAXUINAME]; // element names
+struct mjuiItemMulti_ {                  // static, radio and select-related
+  int nelem;                             // number of elements in group
+  char name[mjMAXUIMULTI][mjMAXUINAME];  // element names
 };
 
 
@@ -236,10 +236,10 @@ struct mjuiItem_ {                // UI item
 
   // type-specific properties
   union {
-    struct mjuiItemSingle_ single; // check and button
-    struct mjuiItemMulti_ multi;   // static, radio and select
-    struct mjuiItemSlider_ slider; // slider
-    struct mjuiItemEdit_ edit;     // edit
+    struct mjuiItemSingle_ single;  // check and button
+    struct mjuiItemMulti_ multi;    // static, radio and select
+    struct mjuiItemSlider_ slider;  // slider
+    struct mjuiItemEdit_ edit;      // edit
   };
 
   // internal
