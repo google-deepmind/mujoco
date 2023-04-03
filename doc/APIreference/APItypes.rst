@@ -577,9 +577,11 @@ model and data<Features>`.
 mjModel
 ~~~~~~~
 
-This is the main data structure holding the MuJoCo model. It is treated as constant by the simulator.
+This is the main data structure holding the MuJoCo model. It is treated as constant by the simulator. Some specific
+details regarding datastructures in :ref:`mjModel` can be found below in :ref:`tyNotes`.
 
 .. mujoco-include:: mjModel
+
 
 
 .. _mjOption:
@@ -1020,3 +1022,64 @@ mjfItemEnable
 
 This is the function type of the predicate function used by the UI framework to determine if each item is enabled or
 disabled.
+
+
+.. _tyNotes:
+
+Notes
+-----
+
+This section contains miscellaneous notes regarding data-structure conventions in MuJoCo struct types.
+
+.. _tyNotesConvex:
+
+Convex hulls
+^^^^^^^^^^^^
+
+The convex hull descriptors are stored in :ref:`mjModel`:
+
+.. code-block:: C
+
+   int*      mesh_graphadr;     // graph data address; -1: no graph      (nmesh x 1)
+   int*      mesh_graph;        // convex graph data                     (nmeshgraph x 1)
+
+If mesh ``N`` has a convex hull stored in :ref:`mjModel` (which is optional), then ``m->mesh_graphadr[N]`` is the offset
+of mesh ``N``'s convex hull data in ``m->mesh_graph``. The convex hull data for each mesh is a record with the following
+format:
+
+.. code-block:: C
+
+   int numvert;
+   int numface;
+   int vert_edgeadr[numvert];
+   int vert_globalid[numvert];
+   int edge_localid[numvert+3*numface];
+   int face_globalid[3*numface];
+
+Note that the convex hull contains a subset of the vertices of the full mesh. We use the nomenclature ``globalid`` to
+refer to vertex indices in the full mesh, and ``localid`` to refer to vertex indices in the convex hull. The meaning of
+the fields is as follows:
+
+``numvert``
+   Number of vertices in the convex hull.
+
+``numface``
+   Number of faces in the convex hull.
+
+``vert_edgeadr[numvert]``
+   For each vertex in the convex hull, this is the offset of the edge record for that vertex in edge_localid.
+
+``vert_globalid[numvert]``
+   For each vertex in the convex hull, this is the corresponding vertex index in the full mesh
+
+``edge_localid[numvert+3*numface]``
+   This contains a sequence of edge records, one for each vertex in the convex hull. Each edge record is an array of
+   vertex indices (in localid format) terminated with -1. For example, say the record for vertex 7 is: 3, 4, 5, 9, -1.
+   This means that vertex 7 belongs to 4 edges, and the other ends of these edges are vertices 3, 4, 5, 9. In this way
+   every edge is represented twice, in the edge records of its two vertices. Note that for a closed triangular mesh
+   (such as the convex hulls used here), the number of edges is ``3*numface/2``. Thus when each edge is represented
+   twice, we have ``3*numface edges``. And since we are using the separator -1 at the end of each edge record (one
+   separator per vertex), the length of ``edge_localid`` is ``numvert+3*numface``.
+
+``face_globalid[3*numface]``
+   For each face of the convex hull, this contains the indices of the three vertices in the full mesh
