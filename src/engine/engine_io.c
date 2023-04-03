@@ -1272,13 +1272,19 @@ static void _resetData(const mjModel* m, mjData* d, unsigned char debug_value) {
   d->maxuse_con = 0;
   d->maxuse_efc = 0;
 
-  // clear diagnostics
+  // clear solver diagnostics
   memset(d->warning, 0, mjNWARNING*sizeof(mjWarningStat));
   memset(d->timer, 0, mjNTIMER*sizeof(mjTimerStat));
   memset(d->solver, 0, mjNSOLVER*sizeof(mjSolverStat));
   d->solver_iter = 0;
   d->solver_nnz = 0;
   mju_zero(d->solver_fwdinv, 2);
+
+  // clear collision diagnostics
+  d->nbodypair_broad = 0;
+  d->nbodypair_narrow = 0;
+  d->ngeompair_mid = 0;
+  d->ngeompair_narrow = 0;
 
   // clear variable sizes
   d->ne = 0;

@@ -1587,6 +1587,10 @@ public unsafe struct mjData_ {
   public int solver_iter;
   public int solver_nnz;
   public fixed double solver_fwdinv[2];
+  public int nbodypair_broad;
+  public int nbodypair_narrow;
+  public int ngeompair_mid;
+  public int ngeompair_narrow;
   public int ne;
   public int nf;
   public int nefc;

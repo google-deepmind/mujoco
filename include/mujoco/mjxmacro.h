@@ -590,20 +590,24 @@
 
 
 // scalar fields of mjData
-#define MJDATA_SCALAR            \
-    X( int,       nstack       ) \
-    X( int,       nbuffer      ) \
-    X( int,       pstack       ) \
-    X( int,       maxuse_stack ) \
-    X( int,       maxuse_con   ) \
-    X( int,       maxuse_efc   ) \
-    X( int,       solver_iter  ) \
-    X( int,       solver_nnz   ) \
-    X( int,       ne           ) \
-    X( int,       nf           ) \
-    X( int,       nefc         ) \
-    X( int,       ncon         ) \
-    X( mjtNum,    time         )
+#define MJDATA_SCALAR                  \
+    X( int,       nstack             ) \
+    X( int,       nbuffer            ) \
+    X( int,       pstack             ) \
+    X( int,       maxuse_stack       ) \
+    X( int,       maxuse_con         ) \
+    X( int,       maxuse_efc         ) \
+    X( int,       solver_iter        ) \
+    X( int,       solver_nnz         ) \
+    X( int,       nbodypair_broad    ) \
+    X( int,       nbodypair_narrow   ) \
+    X( int,       ngeompair_mid      ) \
+    X( int,       ngeompair_narrow   ) \
+    X( int,       ne                 ) \
+    X( int,       nf                 ) \
+    X( int,       nefc               ) \
+    X( int,       ncon               ) \
+    X( mjtNum,    time               )
 
 
 // vector fields of mjData

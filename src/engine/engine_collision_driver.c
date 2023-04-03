@@ -369,6 +369,12 @@ void mj_collision(const mjModel* m, mjData* d) {
   // reset the size of the contact array
   d->ncon = 0;
 
+  // reset diagnostics
+  d->nbodypair_broad = 0;
+  d->nbodypair_narrow = 0;
+  d->ngeompair_mid = 0;
+  d->ngeompair_narrow = 0;
+
   // reset the visualization flags
   memset(d->bvh_active, 0, m->nbvh);
 
@@ -380,8 +386,13 @@ void mj_collision(const mjModel* m, mjData* d) {
 
   // predefined only; ignore exclude
   if (m->opt.collision==mjCOL_PAIR) {
+    d->nbodypair_broad = npair;
     for (pairadr=0; pairadr<npair; pairadr++) {
+      int ngeompair_narrow_before = d->ngeompair_narrow;
+      int ngeompair_mid_before = d->ngeompair_mid;
       mj_collideGeoms(m, d, pairadr, -1, 0, 0);
+      if (d->ngeompair_narrow > ngeompair_narrow_before) d->nbodypair_narrow++;
+      if (d->ngeompair_mid > ngeompair_mid_before) d->nbodypair_broad++;
     }
   }
 
@@ -434,6 +445,9 @@ void mj_collision(const mjModel* m, mjData* d) {
         }
       }
 
+      int ngeompair_narrow_before = d->ngeompair_narrow;
+      int ngeompair_mid_before = d->ngeompair_mid;
+
       // test all geom pairs within this body pair
       if (m->body_geomnum[b1] && m->body_geomnum[b2]) {
         if (!mjDISABLED(mjDSBL_MIDPHASE) && m->body_geomnum[b1]*m->body_geomnum[b2]>1) {
@@ -451,6 +465,8 @@ void mj_collision(const mjModel* m, mjData* d) {
           }
         }
       }
+      if (d->ngeompair_narrow > ngeompair_narrow_before) d->nbodypair_narrow++;
+      if (d->ngeompair_mid > ngeompair_mid_before) d->nbodypair_broad++;
     }
 
     // finish merging predefined pairs
@@ -905,6 +921,9 @@ void mj_collideGeoms(const mjModel* m, mjData* d, int g1, int g2, int flg_user, 
     return;
   }
 
+  // increment counter of expected collisions
+  d->ngeompair_mid++;
+
   // call collision detector to generate contacts
   num = mjCOLLISIONFUNC[type1][type2](m, d, con, g1, g2, margin);
 
@@ -912,6 +931,9 @@ void mj_collideGeoms(const mjModel* m, mjData* d, int g1, int g2, int flg_user, 
   if (!num) {
     return;
   }
+
+  // increment counter of actual collisions
+  d->ngeompair_narrow++;
 
   // check number of contacts, SHOULD NOT OCCUR
   if (num>mjMAXCONPAIR) {

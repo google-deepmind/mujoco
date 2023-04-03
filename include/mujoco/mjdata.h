@@ -144,10 +144,18 @@ struct mjData_ {
   // diagnostics
   mjWarningStat warning[mjNWARNING];  // warning statistics
   mjTimerStat   timer[mjNTIMER];      // timer statistics
-  mjSolverStat  solver[mjNSOLVER];    // solver statistics per iteration
-  int     solver_iter;       // number of solver iterations
-  int     solver_nnz;        // number of non-zeros in Hessian or efc_AR
-  mjtNum  solver_fwdinv[2];  // forward-inverse comparison: qfrc, efc
+
+  // solver statistics
+  mjSolverStat  solver[mjNSOLVER];  // solver statistics per iteration
+  int     solver_iter;              // number of solver iterations
+  int     solver_nnz;               // number of non-zeros in Hessian or efc_AR
+  mjtNum  solver_fwdinv[2];         // forward-inverse comparison: qfrc, efc
+
+  // collision statistics
+  int     nbodypair_broad;   // number of body pairs in collision according to the broad-phase
+  int     nbodypair_narrow;  // number of body pairs actually in collision in the narrow-phase
+  int     ngeompair_mid;     // number of geom pairs in collision according to the mid-phase
+  int     ngeompair_narrow;  // number of geom pairs actually in collision in the narrow-phase
 
   // variable sizes
   int     ne;                // number of equality constraints
