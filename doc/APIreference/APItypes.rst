@@ -26,6 +26,7 @@ MuJoCo defines a large number of types:
   - Structs for :ref:`abstract visualization<tyVisStructure>`.
   - Structs used by the :ref:`openGL renderer<tyRenderStructure>`.
   - Structs used by the :ref:`UI framework<tyUIStructure>`.
+  - Structs used by :ref:`engine plugins<tyPluginStructure>`.
 
 - Several :ref:`tyFunction` for user-defined callbacks.
 
@@ -555,6 +556,25 @@ Item types used in the UI framework.
 .. mujoco-include:: mjtItem
 
 
+.. _tyPluginEnums:
+
+Plugins
+^^^^^^^
+
+The enums below are defined in `mjplugin.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjplugin.h>`_.
+See :ref:`exPlugin` for details.
+
+
+.. _mjtPluginCapabilityBit:
+
+mjtPluginCapabilityBit
+~~~~~~~~~~~~~~~~~~~~~~
+
+Capabilities declared by an engine plugin.
+
+.. mujoco-include:: mjtPluginCapabilityBit
+
+
 
 .. _tyStructure:
 
@@ -838,7 +858,8 @@ This structure contains the custom OpenGL rendering context, with the ids of all
 User Interface
 ^^^^^^^^^^^^^^
 
-The names of these struct types are prefixed with ``mjui``.
+The names of these struct types are prefixed with ``mjui``, except for the main :ref:`mjUI` struct itself.
+
 
 .. _mjuiState:
 
@@ -890,6 +911,16 @@ This structure defines one section of the UI.
 .. mujoco-include:: mjuiSection
 
 
+.. _mjuiDef:
+
+mjuiDef
+~~~~~~~
+
+This structure defines one entry in the definition table used for simplified UI construction.
+
+.. mujoco-include:: mjuiDef
+
+
 .. _mjUI:
 
 mjUI
@@ -900,14 +931,23 @@ This structure defines the entire UI.
 .. mujoco-include:: mjUI
 
 
-.. _mjuiDef:
+.. _tyPluginStructure:
 
-mjuiDef
-~~~~~~~
+Plugins
+^^^^^^^
 
-This structure defines one entry in the definition table used for simplified UI construction.
+The names of these struct types are prefixed with ``mjp``. See :ref:`exPlugin` for more details.
 
-.. mujoco-include:: mjuiDef
+
+.. _mjpPlugin:
+
+mjpPlugin
+~~~~~~~~~
+
+This structure contains the definition of a single engine plugin. It mostly contains a set of callbacks, which are
+triggered by the compiler and the engine during various phases of the computation pipeline.
+
+.. mujoco-include:: mjpPlugin
 
 
 

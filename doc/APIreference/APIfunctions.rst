@@ -43,6 +43,7 @@ API function can be classified as:
 Macros
 ^^^^^^
 
+
 .. _mjMARKSTACK:
 
 mjMARKSTACK
@@ -62,6 +63,7 @@ This macro is helpful when using the MuJoCo stack in custom computations. It wor
        // ... use temp as needed
        mjFREESTACK
 
+
 .. _mjFREESTACK:
 
 mjFREESTACK
@@ -72,6 +74,7 @@ mjFREESTACK
    #define mjFREESTACK d->pstack = _mark;
 
 Reset the MuJoCo stack pointer to the variable \_mark, normally saved by mjMARKSTACK.
+
 
 .. _mjDISABLED:
 
@@ -85,6 +88,7 @@ mjDISABLED
 Check if a given standard feature has been disabled via the physics options, assuming mjModel\* m is defined. x is of
 type :ref:`mjtDisableBit`.
 
+
 .. _mjENABLED:
 
 mjENABLED
@@ -97,6 +101,7 @@ mjENABLED
 Check if a given optional feature has been enabled via the physics options, assuming mjModel\* m is defined. x is of
 type :ref:`mjtEnableBit`.
 
+
 .. _mjMAX:
 
 mjMAX
@@ -108,6 +113,7 @@ mjMAX
 
 Return maximum value. To avoid repeated evaluation with mjtNum types, use the function :ref:`mju_max`.
 
+
 .. _mjMIN:
 
 mjMIN
@@ -118,3 +124,23 @@ mjMIN
    #define mjMIN(a,b) (((a) < (b)) ? (a) : (b))
 
 Return minimum value. To avoid repeated evaluation with mjtNum types, use the function :ref:`mju_min`.
+
+
+.. _mjPLUGIN_LIB_INIT:
+
+mjPLUGIN_LIB_INIT
+~~~~~~~~~~~~~~~~~
+
+.. code-block:: C
+
+   #define mjPLUGIN_LIB_INIT                                                                 \
+     static void _mjplugin_dllmain(void);                                                    \
+     mjEXTERNC int __stdcall mjDLLMAIN(void* hinst, unsigned long reason, void* reserved) {  \
+       if (reason == 1) {                                                                    \
+         _mjplugin_dllmain();                                                                \
+       }                                                                                     \
+       return 1;                                                                             \
+     }                                                                                       \
+     static void _mjplugin_dllmain(void)
+
+Register a plugin as a dynamic library. See :ref:`plugin registration<exRegistration>` for more details.

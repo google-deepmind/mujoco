@@ -630,6 +630,15 @@ Warmstart accelerations
     <https://en.wikipedia.org/wiki/Lyapunov_exponent>`__ when time-stepping, quickly leading to divergent trajectories
     for different warmstarts.
 
+.. _gePlugin:
+
+Plugin state
+^^^^^^^^^^^^
+
+  ``plugin_state``
+    ``mjData.plugin_state`` are states declared by :ref:`engine plugins<exPlugin>`. Please see the :ref:`exPluginState`
+    section for more details.
+
 .. _geIntegrationState:
 
 Integration state

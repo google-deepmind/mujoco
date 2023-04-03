@@ -135,18 +135,18 @@ mujoco.h   `(source) <https://github.com/deepmind/mujoco/blob/main/include/muj
    This is the main header file and must be included in all programs using MuJoCo. It defines all API functions and
    global variables, and includes the next 5 files which provide the necessary type definitions.
 mjmodel.h   `(source) <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjmodel.h>`__
-   This file defines the C structure :ref:`mjModel` which is the runtime representation of the
+   Defines the C structure :ref:`mjModel` which is the runtime representation of the
    model being simulated. It also defines a number of primitive types and other structures needed to define mjModel.
 mjdata.h   `(source) <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjdata.h>`__
-   This file defines the C structure :ref:`mjData` which is the workspace where all computations
+   Defines the C structure :ref:`mjData` which is the workspace where all computations
    read their inputs and write their outputs. It also defines primitive types and other structures needed to define
    mjData.
 mjvisualize.h   `(source) <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjvisualize.h>`__
-   This file defines the primitive types and structures needed by the abstract visualizer.
+   Defines the primitive types and structures needed by the abstract visualizer.
 mjrender.h   `(source) <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjrender.h>`__
-   This file defines the primitive types and structures needed by the OpenGL renderer.
+   Defines the primitive types and structures needed by the OpenGL renderer.
 mjui.h   `(source) <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjui.h>`__
-   This file defines the primitive types and structures needed by the UI framework.
+   Defines the primitive types and structures needed by the UI framework.
 mjtnum.h   `(source) <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjtnum.h>`__
    Defines MuJoCo's ``mjtNum`` floating-point type to be either ``double`` or ``float``. See :ref:`mjtNum`.
 mjxmacro.h   `(source) <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjxmacro.h>`__
@@ -156,9 +156,8 @@ mjxmacro.h   `(source) <https://github.com/deepmind/mujoco/blob/main/include/m
 mjexport.h   `(source) <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjexport.h>`__
    Macros used for exporting public symbols from the MuJoCo library. This header should not be used directly by client
    code.
-glfw3.h
-   This file is optional and is not included by mujoco.h. It is the only header file needed for the GLFW library. See
-   code sample :ref:`simulate.cc <saSimulate>`.
+mjplugin.h   `(source) <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjplugin.h>`__
+   Defines data structures required by :ref:`engine plugins<exPlugin>`.
 
 .. _inVersion:
 
@@ -262,3 +261,4 @@ now lazily resolved at runtime after the switch to GLAD, the "nogl" libraries ar
     samples
     simulation
     visualization
+    extension

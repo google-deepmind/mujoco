@@ -67,8 +67,7 @@ typedef struct mjpPlugin_ mjpPlugin;
 #if defined(__has_attribute)
 
   #if __has_attribute(constructor)
-    #define mjPLUGIN_DYNAMIC_LIBRARY_INIT \
-      __attribute__((constructor)) static void _mjplugin_init(void)
+    #define mjPLUGIN_LIB_INIT __attribute__((constructor)) static void _mjplugin_init(void)
   #endif  // __has_attribute(constructor)
 
 #elif defined(_MSC_VER)
@@ -86,7 +85,7 @@ typedef struct mjpPlugin_ mjpPlugin;
   #endif  // !defined(mjEXTERNC)
 
   // NOLINTBEGIN(runtime/int)
-  #define mjPLUGIN_DYNAMIC_LIBRARY_INIT                                                     \
+  #define mjPLUGIN_LIB_INIT                                                     \
     static void _mjplugin_dllmain(void);                                                    \
     mjEXTERNC int __stdcall mjDLLMAIN(void* hinst, unsigned long reason, void* reserved) {  \
       if (reason == 1) {                                                                    \

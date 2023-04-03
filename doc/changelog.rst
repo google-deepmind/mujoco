@@ -12,7 +12,9 @@ General
    :align: right
    :width: 240px
 
-- Added :ref:`ellipsoidinertia<visual-global-ellipsoidinertia>` to visualize equivalent inertias with ellipsoids instead of the default boxes.
+- Added :ref:`ellipsoidinertia<visual-global-ellipsoidinertia>` to visualize equivalent inertias with ellipsoids instead
+  of the default boxes.
+- Added documentation for :ref:`engine plugins<exPlugin>`.
 
 Bug fixes
 ^^^^^^^^^

@@ -2889,6 +2889,24 @@ defined. Its body name is automatically defined as "world".
    See :ref:`CUser`.
 
 
+.. _body-plugin:
+
+:el-prefix:`body/` |-| **plugin** (?)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Associate this body with an :ref:`engine plugin<exPlugin>`. Either :at:`plugin` or :at:`instance` are required.
+
+.. _body-plugin-plugin:
+
+:at:`plugin`: :at-val:`string, optional`
+   Plugin identifier, used for implicit plugin instantiation.
+
+.. _body-plugin-instance:
+
+:at:`instance`: :at-val:`string, optional`
+   Instance name, used for explicit plugin instantiation.
+
+
 .. _body-inertial:
 
 :el-prefix:`body/` |-| **inertial** (?)
@@ -4213,6 +4231,23 @@ handle where the composite object is attached. For other composite types this su
    The grid coordinates of the element body which should be pinned. The coordinates are zero-based. For 1D grids this
    attribute can have only one number, in which case the second number is automatically set to 0.
 
+
+.. _composite-plugin:
+
+:el-prefix:`composite/` |-| **plugin** (?)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Associate this composite with an :ref:`engine plugin<exPlugin>`. Either :at:`plugin` or :at:`instance` are required.
+
+.. _composite-plugin-plugin:
+
+:at:`plugin`: :at-val:`string, optional`
+   Plugin identifier, used for implicit plugin instantiation.
+
+.. _composite-plugin-instance:
+
+:at:`instance`: :at-val:`string, optional`
+   Instance name, used for explicit plugin instantiation.
 
 .. _contact:
 
@@ -5682,6 +5717,65 @@ This element has a subset of the common attributes and two custom attributes.
    to the target body.
 
 
+.. _actuator-plugin:
+
+:el-prefix:`actuator/` |-| **plugin** (?)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Associate this actuator with an :ref:`engine plugin<exPlugin>`. Either :at:`plugin` or :at:`instance` are required.
+
+.. _actuator-plugin-plugin:
+
+:at:`plugin`: :at-val:`string, optional`
+   Plugin identifier, used for implicit plugin instantiation.
+
+.. _actuator-plugin-instance:
+
+:at:`instance`: :at-val:`string, optional`
+   Instance name, used for explicit plugin instantiation.
+
+.. _actuator-plugin-name:
+
+.. _actuator-plugin-class:
+
+.. _actuator-plugin-group:
+
+.. _actuator-plugin-ctrllimited:
+
+.. _actuator-plugin-forcelimited:
+
+.. _actuator-plugin-ctrlrange:
+
+.. _actuator-plugin-forcerange:
+
+.. _actuator-plugin-lengthrange:
+
+.. _actuator-plugin-gear:
+
+.. _actuator-plugin-cranklength:
+
+.. _actuator-plugin-joint:
+
+.. _actuator-plugin-jointinparent:
+
+.. _actuator-plugin-site:
+
+.. _actuator-plugin-tendon:
+
+.. _actuator-plugin-cranksite:
+
+.. _actuator-plugin-slidersite:
+
+.. _actuator-plugin-user:
+
+.. |actuator/plugin attrib list| replace:: :at:`name`, :at:`class`, :at:`group`, :at:`ctrllimited`, :at:`forcelimited`
+   :at:`ctrlrange`, :at:`forcerange`, :at:`lengthrange`, :at:`gear`, :at:`cranklength`, :at:`joint`, :at:`jointinparent`
+   :at:`site`, :at:`tendon`, :at:`cranksite`, :at:`slidersite`, :at:`user`
+
+|actuator/plugin attrib list|
+   Same as in actuator/ :ref:`general <actuator-general>`.
+
+
 .. _sensor:
 
 **sensor** (*)
@@ -6787,6 +6881,44 @@ bodies whose center of mass is of interest.
    Number of scalar outputs of this sensor.
 
 
+.. _sensor-plugin:
+
+:el-prefix:`sensor/` |-| **plugin** (?)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Ascociate this sensor with an :ref:`engine plugin<exPlugin>`. Either :at:`plugin` or :at:`instance` are required.
+
+.. _sensor-plugin-plugin:
+
+:at:`plugin`: :at-val:`string, optional`
+   Plugin identifier, used for implicit plugin instantiation.
+
+.. _sensor-plugin-instance:
+
+:at:`instance`: :at-val:`string, optional`
+   Instance name, used for explicit plugin instantiation.
+
+.. _sensor-plugin-name:
+
+.. _sensor-plugin-cutoff:
+
+.. _sensor-plugin-objtype:
+
+.. _sensor-plugin-objname:
+
+.. _sensor-plugin-reftype:
+
+.. _sensor-plugin-refname:
+
+.. _sensor-plugin-user:
+
+.. |sensor/plugin attrib list| replace:: :at:`name`, :at:`cutoff`, :at:`objtype`, :at:`objname`, :at:`reftype`
+   :at:`refname`, :at:`user`
+
+|sensor/plugin attrib list|
+   See :ref:`CSensor`.
+
+
 .. _keyframe:
 
 **keyframe** (*)
@@ -6849,3 +6981,64 @@ This element sets the data for one of the keyframes. They are set in the order i
 
 :at:`mquat`: :at-val:`real(4*mjModel.nmocap), default = mjModel.body_quat`
    Vector of mocap body quaternions, copied into mjData.mocap_quat when the simulation state is set to this keyframe.
+
+.. _extension:
+
+**extension** (*)
+~~~~~~~~~~~~~~~~~
+
+This is a grouping element for MuJoCo extensions. Extensions allow the user to extend MuJoCo's capabilities with custom
+code and are described in detail in the Programming chapter's :ref:`exExtension` page. Currently, the only available
+extension type are :ref:`exPlugin`.
+
+.. _extension-plugin:
+
+:el-prefix:`extension/` |-| **plugin** (*)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+This element specifies that an engine plugin is required in order to simulate this model.
+See :ref:`exPlugin` for more details.
+
+.. _extension-plugin-plugin:
+
+:at:`plugin`: :at-val:`string, required`
+   Identifier of the plugin.
+
+.. _plugin-instance:
+
+:el-prefix:`plugin/` |-| **instance** (*)
+'''''''''''''''''''''''''''''''''''''''''
+
+Declares a plugin instance. Explicit instances declaration is required when multiple elements are backed by the same
+plugin, or when global plugin configuration is desired. See plugin :ref:`declaration<exDeclaration>` and
+:ref:`configuration<exConfiguration>` for more details.
+
+.. _plugin-instance-name:
+
+:at:`name`: :at-val:`string, required`
+   Name of the plugin instance.
+
+.. _plugin-config:
+
+.. _instance-config:
+
+:el-prefix:`instance/` |-| **config** (*)
+"""""""""""""""""""""""""""""""""""""""""
+
+Configuration of a plugin instance. When implicitly declaring a plugin under a model element, configuration is
+performed with identical semantics using :el:`element/plugin/config`. The elements which currently support plugins are
+:el:`body`, :el:`composite`, :el:`actuator` and :el:`sensor`.
+
+.. _plugin-config-key:
+
+.. _instance-config-key:
+
+:at:`key`: :at-val:`string, optional`
+   Key used for plugin configuration.
+
+.. _plugin-config-value:
+
+.. _instance-config-value:
+
+:at:`value`: :at-val:`string, optional`
+   Value associated with key.
