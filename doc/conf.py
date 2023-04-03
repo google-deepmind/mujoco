@@ -101,8 +101,10 @@ SHARED_CSS_VARIABLES = {
     'sidebar-item-font-size': '115%',
 }
 
+# font-stack--monospace used in code blocks, Inconsolata fits in 100 chars.
 html_theme_options = {
     'light_css_variables': {
+        'font-stack--monospace': 'Inconsolata,Consolas,ui-monospace,monospace',
         'at-color': '#bc103e',
         'at-val-color': '#bc103e',
         'body-color': '#14234b',
@@ -144,7 +146,6 @@ pygments_dark_style = 'monokai'
 html_static_path = [
     '_static',
     'css',
-    'favicons',
 ]
 html_css_files = [
     'theme_overrides.css',
