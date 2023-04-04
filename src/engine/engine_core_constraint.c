@@ -32,6 +32,13 @@
 #include "engine/engine_util_sparse.h"
 #include "engine/engine_util_spatial.h"
 
+#ifdef mjUSEPLATFORMSIMD
+  #if defined(__AVX__) && defined(mjUSEDOUBLE)
+    #define mjUSEAVX
+  #endif  // defined(__AVX__) && defined(mjUSEDOUBLE)
+#endif  // mjUSEPLATFORMSIMD
+
+
 //-------------------------- utility functions -----------------------------------------------------
 
 // internal function for clearing arena pointers for efc_ arrays in mjData
@@ -1657,9 +1664,17 @@ void mj_makeConstraint(const mjModel* m, mjData* d) {
                         d->efc_JT_rownnz, d->efc_JT_rowadr, d->efc_JT_colind,
                         d->efc_J_rownnz, d->efc_J_rowadr, d->efc_J_colind);
 
-    // supernodes of J
+
+#ifdef mjUSEAVX
+    // compute supernodes of J; used by mju_mulMatVecSparse_avx
     mju_superSparse(d->nefc, d->efc_J_rowsuper,
                     d->efc_J_rownnz, d->efc_J_rowadr, d->efc_J_colind);
+#else
+  #ifdef MEMORY_SANITIZER
+    // tell msan to treat the entire J rowsuper as uninitialized
+    __msan_allocated_memory(d->efc_J_rowsuper, d->nefc);
+  #endif // MEMORY_SANITIZER
+#endif // mjUSEAVX
 
     // supernodes of JT
     mju_superSparse(m->nv, d->efc_JT_rowsuper,
