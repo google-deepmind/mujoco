@@ -174,8 +174,8 @@ class BuildCMakeExtension(build_ext.build_ext):
           f'{MUJOCO_PLUGIN_PATH} environment variable is not set')
     library_path = None
     include_path = None
-    plugin_path = os.environ['MUJOCO_PLUGIN_PATH']
-    for directory, subdirs, filenames in os.walk(os.environ['MUJOCO_PATH']):
+    plugin_path = os.environ[MUJOCO_PLUGIN_PATH]
+    for directory, subdirs, filenames in os.walk(os.environ[MUJOCO_PATH]):
       if self._is_apple and 'mujoco.framework' in subdirs:
         return (os.path.join(directory, 'mujoco.framework/Versions/A'),
                 os.path.join(directory, 'mujoco.framework/Headers'),
@@ -191,7 +191,7 @@ class BuildCMakeExtension(build_ext.build_ext):
 
   def _copy_external_libraries(self):
     dst = os.path.dirname(self.get_ext_fullpath(self.extensions[0].name))
-    for directory, _, filenames in os.walk(os.environ['MUJOCO_PATH']):
+    for directory, _, filenames in os.walk(os.environ[MUJOCO_PATH]):
       for pattern in get_external_lib_patterns():
         for filename in fnmatch.filter(filenames, pattern):
           shutil.copyfile(os.path.join(directory, filename),

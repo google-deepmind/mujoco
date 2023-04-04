@@ -481,7 +481,7 @@ int mjCModel::NumObjects(mjtObj type) {
 
 
 
-// get poiner to specified object
+// get pointer to specified object
 mjCBase* mjCModel::GetObject(mjtObj type, int id) {
   if (id>=0 && id<NumObjects(type)) {
     switch (type) {
