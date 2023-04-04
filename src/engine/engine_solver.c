@@ -1362,7 +1362,9 @@ static void HessianDirect(const mjModel* m, mjData* d, mjCGContext* ctx) {
 
   // sparse
   if (mj_isSparse(m)) {
-    // compute H = J'*D*J, uncompressed layout
+    // compute H = J'*D*J
+    // TODO(b/266802572): remove uncompressed layout
+    mju_sqrMatTDUncompressedInit(ctx->rowadr, nv);
     mju_sqrMatTDSparse(ctx->H, d->efc_J, d->efc_JT, D, nefc, nv,
                        ctx->rownnz, ctx->rowadr, ctx->colind,
                        d->efc_J_rownnz, d->efc_J_rowadr,

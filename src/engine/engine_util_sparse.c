@@ -411,8 +411,111 @@ void mju_superSparse(int nr, int* rowsuper,
 }
 
 
+// precount res_rownnz and precompute res_rowadr for mju_sqrMatTDSparse
+void mju_sqrMatTDSparseInit(int* res_rownnz, int* res_rowadr,
+                            const mjtNum* mat, const mjtNum* matT,
+                            int nr, int nc,  const int* rownnz,
+                            const int* rowadr, const int* colind,
+                            const int* rownnzT, const int* rowadrT,
+                            const int* colindT, const int* rowsuperT,
+                            mjData* d) {
+  mjMARKSTACK;
+  int* chain = mj_stackAllocInt(d, 2*nc);
+  int nchain = 0;
+  int* res_colind = NULL;
+
+  for (int r=0; r<nc; r++) {
+
+    // supernode; copy everything to next row
+    if (rowsuperT && r>0 && rowsuperT[r-1]>0) {
+      res_rownnz[r] = res_rownnz[r - 1];
+
+      // fill in upper triangle
+      for (int j=0; j <nchain; j++) {
+        res_rownnz[res_colind[j]]++;
+      }
+
+      // update chain with diagonal
+      if (rownnzT[r]) {
+        res_colind[nchain++] = r;
+        res_rownnz[r]++;
+      }
+    } else {
+      int inew = 0, iold = nc;
+      nchain = 0;
+
+      for (int i=0; i<rownnzT[r]; i++) {
+        int c = colindT[rowadrT[r] + i];
+
+        int adr = inew;
+        inew = iold;
+        iold = adr;
+
+        int nnewchain = 0;
+        adr = 0;
+        int end = rowadr[c] + rownnz[c];
+        for (int adr1=rowadr[c]; adr1<end; adr1++) {
+          int col_mat = colind[adr1];
+          while (adr<nchain && chain[iold + adr] < col_mat &&
+                 chain[iold + adr]<=r) {
+            chain[inew + nnewchain++] = chain[iold + adr++];
+          }
+
+          // skip upper triangle
+          if (col_mat>r) {
+            break;
+          }
+
+          if (adr < nchain && chain[iold + adr] == col_mat) {
+            adr++;
+          }
+          chain[inew + nnewchain++] = col_mat;
+        }
+
+        while (adr<nchain && chain[iold + adr]<=r) {
+          chain[inew + nnewchain++] = chain[iold + adr++];
+        }
+        nchain = nnewchain;
+      }
+
+      // only computed for lower triangle
+      res_rownnz[r] = nchain;
+      res_colind = chain + inew;
+
+      // update upper triangle
+      int nchain_end = nchain;
+
+      // avoid double counting.
+      if (nchain>0 && res_colind[nchain-1]==r) {
+        nchain_end = nchain - 1;
+      }
+
+      for (int j=0; j<nchain_end; j++) {
+        res_rownnz[res_colind[j]]++;
+      }
+    }
+  }
+
+  res_rowadr[0] = 0;
+  for (int r = 1; r < nc; r++) {
+    res_rowadr[r] = res_rowadr[r-1] + res_rownnz[r-1];
+  }
+
+  mjFREESTACK;
+}
+
+
+// precompute res_rowadr for mju_sqrMatTDSparse using uncompressed memory
+void mju_sqrMatTDUncompressedInit(int* res_rowadr, int nc) {
+  for (int r=0; r<nc; r++) {
+    res_rowadr[r] = r*nc;
+  }
+}
+
+
 
 // compute sparse M'*diag*M (diag=NULL: compute M'*M), res has uncompressed layout
+// res_rowadr is required to be precomputed
 void mju_sqrMatTDSparse(mjtNum* res, const mjtNum* mat, const mjtNum* matT,
                         const mjtNum* diag, int nr, int nc,
                         int* res_rownnz, int* res_rowadr, int* res_colind,
@@ -423,11 +526,6 @@ void mju_sqrMatTDSparse(mjtNum* res, const mjtNum* mat, const mjtNum* matT,
                         mjData* d) {
   // allocate space for accumulation buffer and matT
   mjMARKSTACK;
-
-  // set uncompressed layout (the following doesn't depend on this layout)
-  for (int r=0; r<nc; r++) {
-    res_rowadr[r] = r*nc;
-  }
 
   // a dense row buffer that stores the current row in the resulting matrix
   mjtNum* buffer = mj_stackAlloc(d, nc);

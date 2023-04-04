@@ -448,6 +448,7 @@ static void BM_combineSparse(benchmark::State& state, CombineFuncPtr func) {
   }
 
   // compute H = J'*D*J, uncompressed layout
+  mju_sqrMatTDUncompressedInit(rowadr, m->nv);
   mju_sqrMatTDSparse(H, d->efc_J, d->efc_JT, D, d->nefc, m->nv,
                       rownnz, rowadr, colind,
                       d->efc_J_rownnz, d->efc_J_rowadr,
@@ -572,6 +573,8 @@ static void BM_sqrMatTDSparse(benchmark::State& state, SqrMatTDFuncPtr func) {
   // time benchmark
   if (func) {
     for (auto s : state) {
+      mju_sqrMatTDUncompressedInit(rowadr, m->nv);
+
       // compute H = J'*D*J, uncompressed layout
       func(H, d->efc_J, d->efc_JT, D, d->nefc, m->nv, rownnz, rowadr, colind,
          d->efc_J_rownnz, d->efc_J_rowadr, d->efc_J_colind, NULL,

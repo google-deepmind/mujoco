@@ -1801,15 +1801,15 @@ void mj_projectConstraint(const mjModel* m, mjData* d) {
     // construct supernodes
     mju_superSparse(nefc, rowsuper, rownnz, rowadr, colind);
 
-    // AR = JM2 * JM2', uncompressed layout
+    // AR = JM2 * JM2'
+    mju_sqrMatTDSparseInit(d->efc_AR_rownnz, d->efc_AR_rowadr, JM2T, JM2,
+                           nv, nefc, rownnzT, rowadrT, colindT, rownnz,
+                           rowadr, colind, rowsuper, d);
+
     mju_sqrMatTDSparse(d->efc_AR, JM2T, JM2, NULL, nv, nefc,
                        d->efc_AR_rownnz, d->efc_AR_rowadr, d->efc_AR_colind,
                        rownnzT, rowadrT, colindT, NULL,
                        rownnz, rowadr, colind, rowsuper, d);
-
-    // compress layout of AR
-    mju_compressSparse(d->efc_AR, nefc, nefc,
-                       d->efc_AR_rownnz, d->efc_AR_rowadr, d->efc_AR_colind);
 
     // add R to diagonal of AR
     for (int i=0; i<nefc; i++) {
