@@ -213,11 +213,6 @@ void mjCComposite::SetDefault(void) {
 
 // make composite object
 bool mjCComposite::Make(mjCModel* model, mjCBody* body, char* error, int error_sz) {
-  // require local coordinates
-  if (model->global) {
-    return comperr(error, "Composite requires local coordinates", error_sz);
-  }
-
   // check geom type
   if ((def[0].geom.type!=mjGEOM_SPHERE &&
        def[0].geom.type!=mjGEOM_CAPSULE &&

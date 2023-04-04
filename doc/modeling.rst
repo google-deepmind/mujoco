@@ -182,11 +182,11 @@ no class is specified in the present element but one or more of its ancestor bod
 childclass from the nearest ancestor body is used. If the present element specifies a class, that class is used
 regardless of any childclass attributes in its ancestor bodies.
 
-Some attributes, such as body position in models defined in global coordinates, can be in a special undefined state.
-This instructs the compiler to infer the corresponding value from other information, in this case the positions of the
-geoms attached to the body. The undefined state cannot be entered in the XML file. Therefore once an attribute is
-defined in a given class, it cannot be undefined in that class or in any of its child classes. So if the goal is to
-leave a certain attribute undefined in a given model element, it must be undefined in the active defaults class.
+Some attributes, such as body inertia, can be in a special undefined state. This instructs the compiler to infer the
+corresponding value from other information, in this case the inertias of the geoms attached to the body. The undefined
+state cannot be entered in the XML file. Therefore once an attribute is defined in a given class, it cannot be undefined
+in that class or in any of its child classes. So if the goal is to leave a certain attribute undefined in a given model
+element, it must be undefined in the active defaults class.
 
 A final twist here is actuators. They are different because some of the actuator-related elements are actually
 shortcuts, and shortcuts interact with the defaults setting mechanism in a non-obvious way. This is explained in the
@@ -197,47 +197,12 @@ shortcuts, and shortcuts interact with the defaults setting mechanism in a non-o
 Coordinate frames
 ~~~~~~~~~~~~~~~~~
 
-After compilation the positions and orientations of all elements defined in the kinematic tree are expressed in local
-coordinates, relative to the parent body for bodies, and relative to the body that owns the element for geoms, joints,
-sites, cameras and lights. Consequently, when a compiled model is saved as MJCF, the coordinates are always local.
-However when the user writes an MJCF file, the coordinates can be either local or global, as specified by the
-:at:`coordinate` attribute of :ref:`compiler <compiler>`. This setting applies to all position and
-orientation data in the MJCF file. A related attribute is :at:`angle`. It specifies whether all angles in the MJCF
-file are expressed in degrees or radians (after compilation angles are always expressed in radians). Awareness of
-these global settings is essential when constructing new models.
+The positions and orientations of all elements defined in the kinematic tree are expressed in local coordinates,
+relative to the parent body for bodies, and relative to the body that owns the element for geoms, joints, sites, cameras
+and lights.
 
-Global coordinates can sometimes be more intuitive and have the added benefit that body positions and orientations can
-be omitted. In that case the body frame is set to the body inertial frame, which can itself be omitted and inferred
-from the geom masses and inertias. When an MJCF model is defined in local coordinates on the other hand, the user must
-specify the positions and orientations of the body frames explicitly. This is because if they were omitted, and the
-elements inside the body were specified in local coordinates relative to the body frame, there would be no way to
-infer the body frame.
-
-Here is an example of an MJCF fragment in global coordinates:
-
-.. code-block:: xml
-
-   <body>
-      <geom type="box" pos="1 0 0" size="0.5 0.5 0.5"/>
-   </body>
-
-When this model is compiled and saved as MJCF (in local coordinates) the same fragment becomes:
-
-.. code-block:: xml
-
-   <body pos="1 0 0">
-      <inertial pos="0 0 0" mass="1000" diaginertia="166.667 166.667 166.667"/>
-      <geom type="box" pos="0 0 0" size="0.5 0.5 0.5"/>
-   </body>
-
-The body position was set to the geom position (1 0 0), while the geom and inertial positions were set to (0 0 0)
-relative to the body.
-
-In principle the user always has a choice between local and global coordinates, but in practice this choice is viable
-only when using geometric primitives rather than meshes. For meshes, the 3D vertex positions are expressed in either
-local or global coordinates depending on how the mesh was designed - effectively forcing the user to adopt the same
-convention for the entire model. The alternative would be to pre-process the mesh data outside MuJoCo so as to change
-coordinates, but that effort is rarely justified.
+A related attribute is :ref:`compiler/angle<compiler-angle>`. It specifies whether angles in the MJCF file are expressed
+in degrees or radians (after compilation, angles are always expressed in radians).
 
 .. _COrientation:
 

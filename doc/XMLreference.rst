@@ -191,11 +191,11 @@ any effect. The settings here are global and apply to the entire model.
 
 .. _compiler-coordinate:
 
-:at:`coordinate`: :at-val:`[local, global], "local" for MJCF, always "local" for URDF`
-   This attribute specifies whether the frame positions and orientations in the MJCF model are expressed in local or
-   global coordinates; recall :ref:`Coordinate frames <CFrame>`. The compiler converts global into local
-   coordinates, and mjModel always uses local coordinates. For URDF models the parser sets this attribute to "local"
-   internally, regardless of the XML setting.
+:at:`coordinate`: :at-val:`[local, global], "local"`
+   In previous versions, this attribute could be used to specify whether frame positions and orientations are expressed
+   in local or global coordinates, but the "global" option has since been removed, and will cause an error to be
+   generated. In order to convert older models which used the "global" option, load and save them in MuJoCo 2.3.3 or
+   older.
 
 .. _compiler-angle:
 
@@ -2839,23 +2839,7 @@ defined. Its body name is automatically defined as "world".
 .. _body-pos:
 
 :at:`pos`: :at-val:`real(3), optional`
-   The 3D position of the body frame, in local or global coordinates as determined by the coordinate attribute of
-   :ref:`compiler <compiler>`. Recall the earlier discussion of local and global coordinates in :ref:`Coordinate frames
-   <CFrame>`. In local coordinates, if the body position is left undefined it defaults to (0,0,0). In global
-   coordinates, an undefined body position is inferred by the compiler through the following steps:
-
-   #. If the inertial frame is not defined via the :ref:`inertial <body-inertial>` element, it is inferred from the
-      geoms attached to the body. If there are no geoms, the inertial frame remains undefined. This step is applied in
-      both local and global coordinates.
-   #. If both the body frame and the inertial frame are undefined, a compile error is generated.
-   #. If one of these two frames is defined and the other is not, the defined one is copied into the undefined one. At
-      this point both frames are defined, in global coordinates.
-   #. The inertial frame as well as all elements defined in the body are converted to local coordinates, relative to the
-      body frame.
-
-   Note that whether a frame is defined or not depends on its pos attribute, which is in the special undefined state by
-   default. Orientation cannot be used to make this determination because it has an internal default (the unit
-   quaternion).
+   The 3D position of the body frame, in the parent coordinate frame. If undefined it defaults to (0,0,0).
 
 .. _body-quat:
 
@@ -2868,12 +2852,7 @@ defined. Its body name is automatically defined as "world".
 .. _body-euler:
 
 :at:`quat`, :at:`axisangle`, :at:`xyaxes`, :at:`zaxis`, :at:`euler`
-   See :ref:`COrientation`. Similar to position, the orientation specified here is
-   interpreted in either local or global coordinates as determined by the coordinate attribute of
-   :ref:`compiler <compiler>`. Unlike position which is required in local coordinates, the orientation defaults to the
-   unit quaternion, thus specifying it is optional even in local coordinates. If the body frame was copied from the body
-   inertial frame per the above rules, the copy operation applies to both position and orientation, and the setting of
-   the orientation-related attributes is ignored.
+   See :ref:`COrientation`.
 
 .. _body-gravcomp:
 
@@ -3021,8 +3000,7 @@ unit quaternions.
 .. _body-joint-pos:
 
 :at:`pos`: :at-val:`real(3), "0 0 0"`
-   Position of the joint, specified in local or global coordinates as determined by the coordinate attribute of
-   :ref:`compiler <compiler>`. For free joints this attribute is ignored.
+   Position of the joint, specified in the frame of the parent body. For free joints this attribute is ignored.
 
 .. _body-joint-axis:
 
@@ -3434,8 +3412,7 @@ helps clarify the role of bodies and geoms in MuJoCo.
 .. _body-geom-pos:
 
 :at:`pos`: :at-val:`real(3), "0 0 0"`
-   Position of the geom frame, in local or global coordinates as determined by the coordinate attribute of
-   :ref:`compiler <compiler>`.
+   Position of the geom, specified in the frame of the parent body.
 
 .. _body-geom-quat:
 
@@ -4416,9 +4393,8 @@ geoms volumes of either body. This constraint can be used to define ball joints 
    kinematics; the constraint solver pushes these points towards each other. In the MJCF model however only one point is
    given. We assume that the equality constraint is exactly satisfied in the configuration in which the model is defined
    (this applies to all other constraint types as well). The compiler uses the single anchor specified in the MJCF model
-   to compute the two body-relative anchor points in mjModel. If the MJCF model is in global coordinates, as determined
-   by the coordinate attribute of :ref:`compiler <compiler>`, the anchor is specified in global coordinates. Otherwise
-   the anchor is specified relative to the local coordinate frame of the *first* body.
+   to compute the two body-relative anchor points in mjModel. Specified relative to the local coordinate frame of
+   the *first* body.
 
 
 .. _equality-weld:

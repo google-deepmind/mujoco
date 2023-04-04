@@ -863,7 +863,10 @@ void mjXReader::Compiler(XMLElement* section, mjCModel* mod) {
     mod->fitaabb = (n==1);
   }
   if (MapValue(section, "coordinate", &n, coordinate_map, 2)) {
-    mod->global = (n==1);
+    if (n==1) {
+      throw mjXError(section, "global coordinates no longer supported. To convert existing models, "
+                              "load and save them in MuJoCo 2.3.3 or older");
+    }
   }
   if (MapValue(section, "angle", &n, angle_map, 2)) {
     mod->degree = (n==1);

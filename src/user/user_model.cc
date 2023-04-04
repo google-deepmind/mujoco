@@ -89,7 +89,6 @@ mjCModel::mjCModel() {
   balanceinertia = false;
   strippath = false;
   fitaabb = false;
-  global = false;
   degree = true;
   euler[0] = 'x';
   euler[1] = 'y';

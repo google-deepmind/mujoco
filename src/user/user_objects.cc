@@ -649,17 +649,8 @@ void mjCBody::GeomFrame(void) {
 // setup child local frame: pos
 void mjCBody::MakeLocal(double* _locpos, double* _locquat,
                         const double* _pos, const double* _quat) {
-  // global: transform to local
-  if (model->global) {
-    mjuu_localpos(_locpos, _pos, pos, quat);
-    mjuu_localquat(_locquat, _quat, quat);
-  }
-
-  // local: copy
-  else {
-    mjuu_copyvec(_locpos, _pos, 3);
-    mjuu_copyvec(_locquat, _quat, 4);
-  }
+  mjuu_copyvec(_locpos, _pos, 3);
+  mjuu_copyvec(_locquat, _quat, 4);
 }
 
 // set explicitinertial to true
@@ -825,9 +816,9 @@ void mjCBody::Compile(void) {
   }
   userdata.resize(model->nuser_body);
 
-  // pos defaults to (0,0,0) in local coordinates
-  if (!mjuu_defined(pos[0]) && !model->global) {
-    mjuu_setvec(pos, 0, 0, 0);
+  // pos defaults to (0,0,0)
+  if (!mjuu_defined(pos[0])) {
+     mjuu_setvec(pos, 0, 0, 0);
   }
 
   // normalize user-defined quaternions
@@ -1112,12 +1103,8 @@ int mjCJoint::Compile(void) {
     mjuu_zerovec(locpos, 3);
   }
 
-  // compute local axis relative to specified body
-  if (model->global) {
-    mjuu_localaxis(locaxis, axis, body->quat);
-  } else {
-    mjuu_copyvec(locaxis, axis, 3);
-  }
+  // copy axis to local
+  mjuu_copyvec(locaxis, axis, 3);
 
   // convert reference angles to radians for hinge joints
   if (type==mjJNT_HINGE && model->degree) {
@@ -1930,14 +1917,8 @@ void mjCLight::Compile(void) {
   // ask parent body to compute our local pos and quat relative to itself
   body->MakeLocal(locpos, locquat, pos, quat);
 
-  // copy/convert dir to local frame
-  if (model->global) {
-    double mat[9], q[4] = {locquat[0], -locquat[1], -locquat[2], -locquat[3]};
-    mjuu_quat2mat(mat, q);
-    mjuu_mulvecmat(locdir, dir, mat);
-  } else {
-    mjuu_copyvec(locdir, dir, 3);
-  }
+  // copy dir to local frame
+  mjuu_copyvec(locdir, dir, 3);
 
   // get targetbodyid
   if (!targetbody.empty()) {

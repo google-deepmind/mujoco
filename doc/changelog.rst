@@ -8,12 +8,16 @@ Upcoming version (not yet released)
 General
 ^^^^^^^
 
+- Removed the "global" setting of the :ref:`compiler/coordinate<compiler-coordinate>` attribute. This rarely-used
+  setting complicates the compiler logic and is blocking future improvements. In order to convert older models which
+  used this option, load and save them in MuJoCo 2.3.3 or older.
+
 .. image:: images/changelog/ellipsoidinertia.gif
    :align: right
    :width: 240px
 
-- Added :ref:`ellipsoidinertia<visual-global-ellipsoidinertia>` to visualize equivalent inertias with ellipsoids instead
-  of the default boxes.
+- Added :ref:`visual-global<visual-global>` flag :ref:`ellipsoidinertia<visual-global-ellipsoidinertia>` to visualize
+  equivalent body inertias with ellipsoids instead of the default boxes.
 - Added documentation for :ref:`engine plugins<exPlugin>`.
 
 Bug fixes

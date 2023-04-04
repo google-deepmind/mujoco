@@ -99,7 +99,6 @@ void mjXURDF::Parse(XMLElement* root) {
   }
 
   // enforce required compiler defaults for URDF
-  model->global = false;
   model->degree = false;
 
   // get model name

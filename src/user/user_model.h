@@ -123,7 +123,6 @@ class mjCModel {
   bool balanceinertia;            // automatically impose A + B >= C rule
   bool strippath;                 // automatically strip paths from mesh files
   bool fitaabb;                   // meshfit to aabb instead of inertia box
-  bool global;                    // local or global coordinates
   bool degree;                    // angles in radians or degrees
   char euler[3];                  // sequence for euler rotations
   std::string meshdir;            // mesh and hfield directory
