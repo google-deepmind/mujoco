@@ -73,10 +73,12 @@ TEST_F(EngineIoTest, VerifySizeModel) {
   mj_saveModel(model, temp_file.string().c_str(), NULL, 0);
 
   std::uintmax_t file_size = std::filesystem::file_size(temp_file);
+  int model_size = mj_sizeModel(model);
 
   std::filesystem::remove(temp_file);
+  mj_deleteModel(model);
 
-  EXPECT_EQ(file_size, mj_sizeModel(model));
+  EXPECT_EQ(file_size, model_size);
 }
 
 TEST_F(EngineIoTest, MakeDataFromPartialModel) {
