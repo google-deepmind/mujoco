@@ -18,7 +18,11 @@
 
 #include <array>
 #include <climits>
+#include <cstdio>
 #include <cstring>
+#include <filesystem>
+#include <fstream>
+#include <iostream>
 #include <string>
 
 #include <gmock/gmock.h>
@@ -45,6 +49,36 @@ mjModel PartialModel(const mjModel* m) {
   #undef X
   partial_model.nbuffer = 0;
   return partial_model;
+}
+
+TEST_F(EngineIoTest, VerifySizeModel) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <joint/>
+        <geom size="1"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error.data();
+
+  std::filesystem::path temp_file = (
+    std::filesystem::temp_directory_path() / "model.mjb");
+
+  mj_saveModel(model, temp_file.string().c_str(), NULL, 0);
+
+  std::uintmax_t file_size = std::filesystem::file_size(temp_file);
+  int model_size = mj_sizeModel(model);
+
+  std::filesystem::remove(temp_file);
+  mj_deleteModel(model);
+
+  EXPECT_EQ(file_size, model_size);
 }
 
 TEST_F(EngineIoTest, MakeDataFromPartialModel) {

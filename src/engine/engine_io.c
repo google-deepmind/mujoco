@@ -803,8 +803,19 @@ void mj_deleteModel(mjModel* m) {
 
 // size of buffer needed to hold model
 int mj_sizeModel(const mjModel* m) {
-  return sizeof(int)*(4+getnint()) + sizeof(mjOption) +
-         sizeof(mjVisual) + sizeof(mjStatistic) + m->nbuffer;
+  int size = (
+    sizeof(int)*(4+getnint())
+    + sizeof(mjOption)
+    + sizeof(mjVisual)
+    + sizeof(mjStatistic));
+
+MJMODEL_POINTERS_PREAMBLE(m)
+#define X(type, name, nr, nc)         \
+  size += sizeof(type)*(m->nr)*(nc);
+  MJMODEL_POINTERS
+#undef X
+
+  return size;
 }
 
 
