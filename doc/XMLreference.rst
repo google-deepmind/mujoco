@@ -491,7 +491,7 @@ adjust it properly through the XML.
    damping in the joints implicitly – which improves stability and accuracy. It does not presently do this with body
    viscosity. Therefore, if the goal is merely to create a damped simulation (as opposed to modeling the specific
    effects of viscosity), we recommend using joint damping rather than body viscosity, or switching to the
-   :at:`implicit` integrator.
+   :at:`implicit` or :at:`implicitfast` integrators.
 
 .. _option-o_margin:
 
@@ -511,10 +511,11 @@ adjust it properly through the XML.
 
 .. _option-integrator:
 
-:at:`integrator`: :at-val:`[Euler, RK4, implicit], "Euler"`
+:at:`integrator`: :at-val:`[Euler, RK4, implicit, implicitfast], "Euler"`
    This attribute selects the numerical :ref:`integrator <geIntegration>` to be used. Currently the available
-   integrators are the semi-implicit Euler method, the fixed-step 4-th order Runge Kutta method, and
-   the Implicit-in-velocity Euler method.
+   integrators are the semi-implicit Euler method, the fixed-step 4-th order Runge Kutta method, the
+   Implicit-in-velocity Euler method, and :at:`implicitfast`, which drops the Coriolis and centrifugal terms. See
+   :ref:`Numerical Integration<geIntegration>` for more details.
 
 .. _option-collision:
 
