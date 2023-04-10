@@ -20,6 +20,13 @@ General
   equivalent body inertias with ellipsoids instead of the default boxes.
 - Added documentation for :ref:`engine plugins<exPlugin>`.
 
+Python bindings
+^^^^^^^^^^^^^^^
+
+- Offscreen rendering on macOS is no longer restricted to the main thread. This is achieved by using the low-level
+  Core OpenGL (CGL) API to create the OpenGL context, rather than going via GLFW which relies on Cocoa's NSOpenGL.
+  The resulting context is not tied to a Cocoa window, and is therefore not tied to the main thread.
+
 Bug fixes
 ^^^^^^^^^
 
