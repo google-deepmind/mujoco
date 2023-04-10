@@ -26,6 +26,11 @@ Python bindings
 - Offscreen rendering on macOS is no longer restricted to the main thread. This is achieved by using the low-level
   Core OpenGL (CGL) API to create the OpenGL context, rather than going via GLFW which relies on Cocoa's NSOpenGL.
   The resulting context is not tied to a Cocoa window, and is therefore not tied to the main thread.
+- Fixed a race condition in ``viewer.launch_passive`` and  ``viewer.launch_repl``. These functions could previously
+  return before an internal call to ``mj_forward``. This allows user code to continue and potentially modify physics
+  state concurrently with the internal ``mj_forward``, resulting in e.g.
+  `MuJoCo stack overflow error<https://github.com/deepmind/mujoco/issues/783>`_
+  or `segmentation fault<https://github.com/deepmind/mujoco/issues/790>`_.
 
 Bug fixes
 ^^^^^^^^^

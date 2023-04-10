@@ -101,7 +101,6 @@ def _reload(
 
     path = load_tuple[2] if len(load_tuple) == 3 else ''
     simulate.load(path, m, d)
-    mujoco.mj_forward(m, d)
 
     return m, d
 
@@ -285,6 +284,8 @@ def launch(model: Optional[mujoco.MjModel] = None,
            run_physics_thread: bool = True,
            loader: Optional[LoaderType] = None) -> None:
   """Launches the Simulate GUI."""
+  if not run_physics_thread:
+    mujoco.mj_forward(model, data)
   _launch_internal(
       model, data, run_physics_thread=run_physics_thread, loader=loader)
 
@@ -300,6 +301,9 @@ def launch_passive(model: mujoco.MjModel, data: mujoco.MjData) -> None:
     raise ValueError(f'`model` is not a mujoco.MjModel: got {model!r}')
   if not isinstance(data, mujoco.MjData):
     raise ValueError(f'`data` is not a mujoco.MjData: got {data!r}')
+
+  mujoco.mj_forward(model, data)
+
   if sys.platform != 'darwin':
     thread = threading.Thread(
         target=_launch_internal,
@@ -379,6 +383,7 @@ def launch_repl(model: mujoco.MjModel, data: mujoco.MjData) -> None:
     repl_thread.start()
 
     # Launch the viewer on the main thread.
+    mujoco.mj_forward(model, data)
     _launch_internal(
         model, data, run_physics_thread=False, simulate=simulate)
     simulate = None
