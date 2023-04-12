@@ -428,8 +428,8 @@ MjModelWrapper MjModelWrapper::LoadXML(
 
 namespace {
 // A byte at the start of serialized mjModel structs, which can be incremented
-//  when we change the serialization logic to reject pickles from an
-// unsupported future version.
+// when we change the serialization logic to reject pickles from an unsupported
+// future version.
 constexpr static char kSerializationVersion = 1;
 
 void CheckInput(const std::istream& input, std::string class_name) {
