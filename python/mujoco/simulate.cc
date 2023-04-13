@@ -51,13 +51,13 @@ PYBIND11_MODULE(_simulate, pymodule) {
             std::make_unique<mujoco::GlfwAdapter>());
       }))
       .def(
-          "renderloop",
+          "render_loop",
           [](mujoco::Simulate& simulate) { simulate.RenderLoop(); },
           py::call_guard<py::gil_scoped_release>())
       .def(
           "load",
-          [](mujoco::Simulate& simulate, const std::string& path,
-             MjModelWrapper& m, MjDataWrapper& d) {
+          [](mujoco::Simulate& simulate, MjModelWrapper& m, MjDataWrapper& d,
+             const std::string& path) {
             simulate.Load(m.get(), d.get(), path.c_str());
           },
           py::call_guard<py::gil_scoped_release>())

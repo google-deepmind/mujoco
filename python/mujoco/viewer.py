@@ -273,7 +273,7 @@ def _launch_internal(model: Optional[mujoco.MjModel] = None,
   atexit.register(exit_requester)
 
   side_thread.start()
-  simulate.renderloop()
+  simulate.render_loop()
   atexit.unregister(exit_requester)
   side_thread.join()
 
