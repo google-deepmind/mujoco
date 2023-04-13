@@ -52,19 +52,20 @@ PYBIND11_MODULE(_simulate, pymodule) {
       }))
       .def(
           "renderloop",
-          [](mujoco::Simulate& simulate) { simulate.renderloop(); },
+          [](mujoco::Simulate& simulate) { simulate.RenderLoop(); },
           py::call_guard<py::gil_scoped_release>())
       .def(
           "load",
           [](mujoco::Simulate& simulate, const std::string& path,
              MjModelWrapper& m, MjDataWrapper& d) {
-            simulate.load(path.c_str(), m.get(), d.get());
+            simulate.Load(m.get(), d.get(), path.c_str());
           },
           py::call_guard<py::gil_scoped_release>())
-      .def("applyposepertubations", &mujoco::Simulate::applyposepertubations,
+      .def("apply_pose_perturbations",
+           &mujoco::Simulate::ApplyPosePerturbations,
            py::call_guard<py::gil_scoped_release>())
-      .def("applyforceperturbations",
-           &mujoco::Simulate::applyforceperturbations,
+      .def("apply_force_perturbations",
+           &mujoco::Simulate::ApplyForcePerturbations,
            py::call_guard<py::gil_scoped_release>())
 
       .def(
@@ -74,18 +75,18 @@ PYBIND11_MODULE(_simulate, pymodule) {
           },
           py::call_guard<py::gil_scoped_release>(),
           py::return_value_policy::reference)
-      .def_readonly("ctrlnoisestd", &mujoco::Simulate::ctrlnoisestd,
+      .def_readonly("ctrl_noise_std", &mujoco::Simulate::ctrl_noise_std,
                     py::call_guard<py::gil_scoped_release>())
-      .def_readonly("ctrlnoiserate", &mujoco::Simulate::ctrlnoiserate,
+      .def_readonly("ctrl_noise_rate", &mujoco::Simulate::ctrl_noise_rate,
                     py::call_guard<py::gil_scoped_release>())
 
-      .def_readonly("real_time_index", &mujoco::Simulate::realTimeIndex,
+      .def_readonly("real_time_index", &mujoco::Simulate::real_time_index,
                     py::call_guard<py::gil_scoped_release>())
-      .def_readwrite("speed_changed", &mujoco::Simulate::speedChanged,
+      .def_readwrite("speed_changed", &mujoco::Simulate::speed_changed,
                      py::call_guard<py::gil_scoped_release>())
-      .def_readwrite("measured_slowdown", &mujoco::Simulate::measuredSlowdown,
+      .def_readwrite("measured_slowdown", &mujoco::Simulate::measured_slowdown,
                      py::call_guard<py::gil_scoped_release>())
-      .def_readonly("refresh_rate", &mujoco::Simulate::refreshRate,
+      .def_readonly("refresh_rate", &mujoco::Simulate::refresh_rate,
                     py::call_guard<py::gil_scoped_release>())
 
       .def_readonly("busywait", &mujoco::Simulate::busywait,
@@ -140,15 +141,15 @@ PYBIND11_MODULE(_simulate, pymodule) {
       .def_property(
           "load_error",
           [](mujoco::Simulate& simulate) -> std::string {
-            return simulate.loadError;
+            return simulate.load_error;
           },
           [](mujoco::Simulate& simulate, const std::string& error) {
-            const auto max_length = sizeof_arr(simulate.loadError);
-            std::strncpy(simulate.loadError, error.c_str(), max_length - 1);
-            simulate.loadError[max_length - 1] = '\0';
+            const auto max_length = sizeof_arr(simulate.load_error);
+            std::strncpy(simulate.load_error, error.c_str(), max_length - 1);
+            simulate.load_error[max_length - 1] = '\0';
           });
 
-  pymodule.def("setglfwdlhandle", [](std::uintptr_t dlhandle) {
+  pymodule.def("set_glfw_dlhandle", [](std::uintptr_t dlhandle) {
     mujoco::Glfw(reinterpret_cast<void*>(dlhandle));
   });
 }

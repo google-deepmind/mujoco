@@ -33,7 +33,7 @@ import numpy as np
 if not glfw._glfw:  # pylint: disable=protected-access
   raise RuntimeError('GLFW dynamic library handle is not available')
 else:
-  _simulate.setglfwdlhandle(glfw._glfw._handle)  # pylint: disable=protected-access
+  _simulate.set_glfw_dlhandle(glfw._glfw._handle)  # pylint: disable=protected-access
 
 # Logarithmically spaced realtime slow-down coefficients (percent).
 PERCENT_REALTIME = (
@@ -100,7 +100,7 @@ def _reload(
     assert m is not None and d is not None
 
     path = load_tuple[2] if len(load_tuple) == 3 else ''
-    simulate.load(path, m, d)
+    simulate.load(m, d, path)
 
     return m, d
 
@@ -109,7 +109,7 @@ def _physics_loop(simulate: Simulate, loader: Optional[_InternalLoaderType]):
   """Physics loop for the GUI, to be run in a separate thread."""
   m: mujoco.MjModel = None
   d: mujoco.MjData = None
-  ctrlnoise = np.array([])
+  ctrl_noise = np.array([])
   reload = True
 
   # CPU-sim synchronization point.
@@ -131,7 +131,7 @@ def _physics_loop(simulate: Simulate, loader: Optional[_InternalLoaderType]):
       result = _reload(simulate, loader)
       if result is not None:
         m, d = result
-        ctrlnoise = np.zeros((m.nu,))
+        ctrl_noise = np.zeros((m.nu,))
 
     reload = False
 
@@ -152,19 +152,19 @@ def _physics_loop(simulate: Simulate, loader: Optional[_InternalLoaderType]):
           elapsedsim = d.time - syncsim
 
           # Inject noise.
-          if simulate.ctrlnoisestd != 0.0:
+          if simulate.ctrl_noise_std != 0.0:
             # Convert rate and scale to discrete time (Ornstein–Uhlenbeck).
             rate = math.exp(-m.opt.timestep /
-                            max(simulate.ctrlnoiserate, mujoco.mjMINVAL))
-            scale = simulate.ctrlnoisestd * math.sqrt(1 - rate * rate)
+                            max(simulate.ctrl_noise_rate, mujoco.mjMINVAL))
+            scale = simulate.ctrl_noise_std * math.sqrt(1 - rate * rate)
 
             for i in range(m.nu):
               # Update noise.
-              ctrlnoise[i] = (
-                  rate * ctrlnoise[i] + scale * mujoco.mju_standardNormal(None))
+              ctrl_noise[i] = (rate * ctrl_noise[i] +
+                               scale * mujoco.mju_standardNormal(None))
 
               # Apply noise.
-              d.ctrl[i] = ctrlnoise[i]
+              d.ctrl[i] = ctrl_noise[i]
 
           # Requested slow-down factor.
           slowdown = 100 / PERCENT_REALTIME[simulate.real_time_index]
@@ -183,8 +183,8 @@ def _physics_loop(simulate: Simulate, loader: Optional[_InternalLoaderType]):
 
             # Clear old perturbations, apply new.
             d.xfrc_applied[:, :] = 0
-            simulate.applyposepertubations(0)  # Move mocap bodies only.
-            simulate.applyforceperturbations()
+            simulate.apply_pose_perturbations(0)  # Move mocap bodies only.
+            simulate.apply_force_perturbations()
 
             # Run single step, let next iteration deal with timing.
             mujoco.mj_step(m, d)
