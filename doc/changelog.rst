@@ -30,8 +30,8 @@ Python bindings
 - Fixed a race condition in ``viewer.launch_passive`` and  ``viewer.launch_repl``. These functions could previously
   return before an internal call to ``mj_forward``. This allows user code to continue and potentially modify physics
   state concurrently with the internal ``mj_forward``, resulting in e.g.
-  `MuJoCo stack overflow error<https://github.com/deepmind/mujoco/issues/783>`_
-  or `segmentation fault<https://github.com/deepmind/mujoco/issues/790>`_.
+  `MuJoCo stack overflow error <https://github.com/deepmind/mujoco/issues/783>`_
+  or `segmentation fault <https://github.com/deepmind/mujoco/issues/790>`_.
 - Added a small number of missing struct fields discovered through the new ``introspect`` metadata.
 
 Bug fixes
