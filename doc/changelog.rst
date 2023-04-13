@@ -19,6 +19,7 @@ General
 - Added :ref:`visual-global<visual-global>` flag :ref:`ellipsoidinertia<visual-global-ellipsoidinertia>` to visualize
   equivalent body inertias with ellipsoids instead of the default boxes.
 - Added documentation for :ref:`engine plugins<exPlugin>`.
+- Added struct information to the ``introspect`` module.
 
 Python bindings
 ^^^^^^^^^^^^^^^
@@ -31,6 +32,7 @@ Python bindings
   state concurrently with the internal ``mj_forward``, resulting in e.g.
   `MuJoCo stack overflow error<https://github.com/deepmind/mujoco/issues/783>`_
   or `segmentation fault<https://github.com/deepmind/mujoco/issues/790>`_.
+- Added a small number of missing struct fields discovered through the new ``introspect`` metadata.
 
 Bug fixes
 ^^^^^^^^^

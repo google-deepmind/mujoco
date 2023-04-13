@@ -593,8 +593,11 @@
 #define MJDATA_SCALAR                  \
     X( int,       nstack             ) \
     X( int,       nbuffer            ) \
+    X( int,       nplugin            ) \
     X( int,       pstack             ) \
+    X( int,       parena             ) \
     X( int,       maxuse_stack       ) \
+    X( int,       maxuse_arena       ) \
     X( int,       maxuse_con         ) \
     X( int,       maxuse_efc         ) \
     X( int,       solver_iter        ) \
@@ -606,6 +609,7 @@
     X( int,       ne                 ) \
     X( int,       nf                 ) \
     X( int,       nefc               ) \
+    X( int,       nnzJ               ) \
     X( int,       ncon               ) \
     X( mjtNum,    time               )
 

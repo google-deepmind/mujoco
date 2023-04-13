@@ -27,8 +27,7 @@ from absl import flags
 from introspect import ast_nodes
 from . import formatter
 
-FLAGS = flags.FLAGS
-flags.DEFINE_string(
+_JSON_PATH = flags.DEFINE_string(
     'json_path', None,
     'Path to the JSON file representing the Clang AST for mujoco.h')
 
@@ -85,7 +84,7 @@ def main(argv: Sequence[str]) -> None:
   if len(argv) > 1:
     raise app.UsageError('Too many command-line arguments.')
 
-  with open(FLAGS.json_path, 'r', encoding='utf-8') as f:
+  with open(_JSON_PATH.value, 'r', encoding='utf-8') as f:
     root = json.load(f)
 
   visitor = MjEnumVisitor()

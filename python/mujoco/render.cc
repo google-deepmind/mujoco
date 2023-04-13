@@ -214,6 +214,7 @@ PYBIND11_MODULE(_render, pymodule) {
   X(windowStereo);
   X(windowDoublebuffer);
   X(currentBuffer);
+  X(readPixelFormat);
 #undef X
 
 #define X(var)                      \

@@ -23,10 +23,8 @@
 #include <ios>
 #include <iostream>
 #include <memory>
-#include <numeric>
 #include <optional>
 #include <sstream>
-#include <stdexcept>
 #include <string>
 #include <string_view>
 #include <type_traits>
@@ -2167,6 +2165,7 @@ This is useful for example when the MJB is not available as a file on disk.)"));
       })
   X(maxgeom);
   X(ngeom);
+  X(nskin);
   X(nlight);
   X(enabletransform);
   X(scale);
@@ -2228,6 +2227,7 @@ This is useful for example when the MJB is not available as a file on disk.)"));
   X(textrgb);
   X(linergb);
   X(range);
+  X(highlight);
   X(linepnt);
   X(linedata);
   X(xaxispixel);

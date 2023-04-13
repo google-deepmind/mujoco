@@ -37,7 +37,7 @@ def _parse_qualifiers(
     if part in qualifiers:
       counter[part] += 1
       if counter[part] > 1:
-        ValueError('duplicate qualifier: {part!r}')
+        raise ValueError('duplicate qualifier: {part!r}')
     else:
       non_qualifiers.append(part)
   is_qualifier = dict()
