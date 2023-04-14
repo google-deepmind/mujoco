@@ -3,8 +3,9 @@ Python Bindings
 ===============
 
 Starting with version 2.1.2, MuJoCo comes with native Python bindings that are developed in C++ using
-`pybind11 <https://pybind11.readthedocs.io/>`__. Unlike previous Python bindings, these are officially supported by the
-MuJoCo development team and will be kept up-to-date with the latest developments in MuJoCo itself.
+`pybind11 <https://pybind11.readthedocs.io/>`__. The Python API is consistent with the underlying C API. This leads to
+some non-Pythonic code structure (e.g. order of function arguments), but it has the benefit that the
+:doc:`API documentation<APIreference/index>` is applicable to both languages.
 
 The Python bindings are distributed as the ``mujoco`` package on `PyPI <https://pypi.org/project/mujoco>`__. These are
 low-level bindings that are meant to give as close to a direct access to the MuJoCo library as possible. However, in
@@ -19,6 +20,8 @@ previous versions, however code that depended directly on its low-level API may 
 
 For mujoco-py users, we include :ref:`notes <PyMjpy_migration>` below to aid migration.
 
+.. _PyNotebook:
+
 Tutorial notebook
 =================
 
@@ -26,6 +29,8 @@ A MuJoCo tutorial using the Python bindings is available here: |colab|
 
 .. |colab| image:: https://colab.research.google.com/assets/colab-badge.svg
            :target: https://colab.research.google.com/github/deepmind/mujoco/blob/main/python/tutorial.ipynb
+
+.. _PyInstallation:
 
 Installation
 ============
@@ -38,6 +43,8 @@ The recommended way to install this package is via `PyPI <https://pypi.org/proje
 
 A copy of the MuJoCo library is provided as part of the package and does **not** need to be downloaded or installed
 separately.
+
+.. _PyBuild:
 
 Building from source
 --------------------
@@ -138,6 +145,8 @@ Three distinct use cases are supported:
    the visualizer does not modify ``mjData`` in this mode, mouse-drag perturbations will not work unless the user
    explicitly handles incoming GUI perturbation events in the REPL session.
 
+.. _PyUsage:
+
 Basic usage
 ===========
 
@@ -149,9 +158,15 @@ available directly from the top-level ``mujoco`` module.
 Structs
 -------
 
-MuJoCo data structures are exposed as Python classes. In order to conform to
-`PEP 8 <https://peps.python.org/pep-0008/>`__ naming guidelines, struct names begin with a capital letter, for example
-``mjData`` becomes ``mujoco.MjData`` in Python.
+The bindings include Python classes that expose MuJoCo data structures. For maximum performance, these classes provide
+access to the raw memory used by MuJoCo without copying or buffering. This means that some MuJoCo functions (e.g.,
+:ref:`mj_step`) change the content of fields *in place*. The user is therefore advised to create their own copies
+where required. For example, when logging the position of a body, one would write
+``body_positions.append(data.body('my_body').xpos.copy())``: without the ``.copy()``, the list would contain identical
+elements, all pointing to the most recent value.
+
+In order to conform to `PEP 8 <https://peps.python.org/pep-0008/>`__
+naming guidelines, struct names begin with a capital letter, for example ``mjData`` becomes ``mujoco.MjData`` in Python.
 
 All structs other than ``mjModel`` have constructors in Python. For structs that have an ``mj_defaultFoo``-style
 initialization function, the Python constructor calls the default initializer automatically, so for example
@@ -169,6 +184,8 @@ that create a new ``mjModel`` instance: ``mujoco.MjModel.from_xml_string``, ``mu
 ``mujoco.MjModel.from_binary_path``. The first function accepts a model XML as a string, while the latter two
 functions accept the path to either an XML or MJB model file. All three functions optionally accept a Python
 dictionary which is converted into a MuJoCo :ref:`Virtualfilesystem` for use during model compilation.
+
+.. _PyFunctions:
 
 Functions
 ---------
@@ -207,11 +224,15 @@ duration of the MuJoCo C function itself, and not during the execution of any ot
       for _ in range(20):
         mj_step(model, data)
 
+.. _PyEnums:
+
 Enums and constants
 -------------------
 
 MuJoCo enums are available as ``mujoco.mjtEnumType.ENUM_VALUE``, for example ``mujoco.mjtObj.mjOBJ_SITE``. MuJoCo
 constants are available with the same name directly under the ``mujoco`` module, for example ``mujoco.mjVISSTRING``.
+
+.. _PyExample:
 
 Minimal example
 ---------------
@@ -306,6 +327,8 @@ aliases defined in the Python API.
 - ``tuple``
 - ``key`` or ``keyframe``
 
+.. _PyRender:
+
 Rendering
 ---------
 
@@ -323,6 +346,8 @@ user's responsibility to ensure that no further rendering calls are made on the 
 Once the context is created, users can follow MuJoCo's standard rendering, for example as documented in the
 :ref:`Visualization` section.
 
+.. _PyError:
+
 Error handling
 --------------
 
@@ -336,6 +361,8 @@ The Python bindings utilizes longjmp to allow it to convert irrecoverable MuJoCo
 ``mujoco.FatalError`` that can be caught and processed in the usual Pythonic way. Furthermore, it installs its error
 callback in a thread-local manner using a currently private API, thus allowing for concurrent calls into MuJoCo from
 multiple threads.
+
+.. _PyCallbacks:
 
 Callbacks
 ---------
@@ -357,6 +384,8 @@ Alternatively, if a callback is implemented in a native dynamic library, users c
 `ctypes <https://docs.python.org/3/library/ctypes.html>`__ to obtain a Python handle to the C function pointer and pass
 it to ``mujoco.set_mjcb_foo``. The bindings will then retrieve the underlying function pointer and assign it directly to
 the raw callback pointer, and the GIL will **not** be acquired each time the callback is entered.
+
+.. _PySample:
 
 Code Sample: open-loop rollout
 ==============================
