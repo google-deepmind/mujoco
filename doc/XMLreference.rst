@@ -2171,7 +2171,7 @@ chapter.
 .. _asset-texture-gridlayout:
 
 :at:`gridlayout`: :at-val:`string, "............"`
-   .. figure:: images/modeling/skybox.png
+   .. figure:: images/XMLreference/skybox.png
       :width: 250px
       :align: right
 
@@ -2357,7 +2357,7 @@ also known as terrain map, is a 2D matrix of elevation data. The data can be spe
 .. _asset-hfield-size:
 
 :at:`size`: :at-val:`real(4), required`
-   .. figure:: images/modeling/peaks.png
+   .. figure:: images/XMLreference/peaks.png
       :width: 350px
       :align: right
 
@@ -3402,13 +3402,21 @@ helps clarify the role of bodies and geoms in MuJoCo.
 .. _body-geom-fromto:
 
 :at:`fromto`: :at-val:`real(6), optional`
-   This attribute can only be used with capsule, cylinder, ellipsoid and box geoms. It provides an alternative
+   .. figure:: images/XMLreference/fromto.png
+      :width: 350px
+      :align: right
+
+   This attribute can only be used with capsule, box, cylinder and ellipsoid geoms. It provides an alternative
    specification of the geom length as well as the frame position and orientation. The six numbers are the 3D
    coordinates of one point followed by the 3D coordinates of another point. The elongated part of the geom connects
-   these two points, with the +Z axis of the geom's frame oriented from the first towards the second point. The frame
-   orientation is obtained with the same procedure as the zaxis attribute described in :ref:`Frame orientations
-   <COrientation>`. The frame position is in the middle between the two points. If this attribute is specified, the
-   remaining position and orientation-related attributes are ignored.
+   these two points, with the +Z axis of the geom's frame oriented from the first towards the second point, while in the
+   perpendicular direction, the geom sizes are both equal to the first value of the :at:`size` attribute. The frame
+   orientation is obtained with the same procedure as the :at:`zaxis` attribute described in :ref:`Frame orientations
+   <COrientation>`. The frame position is in the middle between the end points. If this attribute is specified, the
+   remaining position and orientation-related attributes are ignored. The image on the right demonstrates use of
+   :at:`fromto` with the four supported geoms, using identical Z values. The model is `here <_static/fromto.xml>`__.
+   Note that the :at:`fromto` semantics of *capsule* are unique: the two end points specify the segement around which
+   the radius defines the capsule surface.
 
 .. _body-geom-pos:
 
@@ -4562,7 +4570,7 @@ can also represent different forms of mechanical coupling.
 :el-prefix:`tendon/` |-| **spatial** (*)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-.. figure:: images/modeling/tendon.png
+.. figure:: images/XMLreference/tendon.png
    :width: 400px
    :align: right
 
