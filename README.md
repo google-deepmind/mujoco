@@ -180,7 +180,7 @@ If you use MuJoCo for published research, please cite:
 
 Copyright 2021 DeepMind Technologies Limited.
 
-Box collision code ([`engine_collision_box.c`](https://github.com/deepmind/mujoco/tree/main/src/engine/engine_collision_box.c))
+Box collision code ([`engine_collision_box.c`](https://github.com/deepmind/mujoco/blob/main/src/engine/engine_collision_box.c))
 is Copyright 2016 Svetoslav Kolev.
 
 ReStructuredText documents, images, and videos in the `doc` directory are made
