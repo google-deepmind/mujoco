@@ -368,114 +368,150 @@ Numeric constants
 
 Many integer constants were already documented in the primitive types above. In addition, the header files define
 several other constants documented here. Unless indicated otherwise, each entry in the table below is defined in
-mjmodel.h. Note that some extended key codes are defined in mjui.h which are not shown in the table below. Their names
-are in the format mjKEY_XXX. They correspond to GLFW key codes.
+`mjmodel.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjmodel.h>`_. Note that some extended key codes
+are defined in `mjui.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjui.h>`_ which are not shown in the
+table below. Their names are in the format ``mjKEY_XXX``. They correspond to GLFW key codes.
 
-+------------------+--------+----------------------------------------------------------------------------------------+
-| symbol           | value  | description                                                                            |
-+------------------+--------+----------------------------------------------------------------------------------------+
-| mjMINVAL         | 1E-15  | The minimal value allowed in any denominator, and in general any mathematical          |
-|                  |        | operation where 0 is not allowed. In almost all cases, MuJoCo silently clamps smaller  |
-|                  |        | values to mjMINVAL.                                                                    |
-+------------------+--------+----------------------------------------------------------------------------------------+
-| mjPI             | pi     | The value of pi. This is used in various trigonometric functions, and also for         |
-|                  |        | conversion from degrees to radians in the compiler.                                    |
-+------------------+--------+----------------------------------------------------------------------------------------+
-| mjMAXVAL         | 1E+10  | The maximal absolute value allowed in mjData.qpos, mjData.qvel, mjData.qacc. The API   |
-|                  |        | functions :ref:`mj_checkPos`, :ref:`mj_checkVel`, :ref:`mj_checkAcc` use this constant |
-|                  |        | to detect instability.                                                                 |
-+------------------+--------+----------------------------------------------------------------------------------------+
-| mjMINMU          | 1E-5   | The minimal value allowed in any friction coefficient. Recall that MuJoCo's contact    |
-|                  |        | model allows different number of friction dimensions to be included, as specified by   |
-|                  |        | the :at:`condim`    attribute. If however a given friction dimension is included, its  |
-|                  |        | friction is not allowed to be smaller than this constant. Smaller values are           |
-|                  |        | automatically clamped to this constant.                                                |
-+------------------+--------+----------------------------------------------------------------------------------------+
-| mjMINIMP         | 0.0001 | The minimal value allowed in any constraint impedance. Smaller values are              |
-|                  |        | automatically clamped to this constant.                                                |
-+------------------+--------+----------------------------------------------------------------------------------------+
-| mjMAXIMP         | 0.9999 | The maximal value allowed in any constraint impedance. Larger values are automatically |
-|                  |        | clamped to this constant.                                                              |
-+------------------+--------+----------------------------------------------------------------------------------------+
-| mjMAXCONPAIR     | 50     | The maximal number of contacts points that can be generated per geom pair. MuJoCo's    |
-|                  |        | built-in collision functions respect this limit, and user-defined functions should     |
-|                  |        | also respect it. Such functions are called with a return buffer of size mjMAXCONPAIR;  |
-|                  |        | attempting to write more contacts in the buffer can cause unpredictable behavior.      |
-+------------------+--------+----------------------------------------------------------------------------------------+
-| mjMAXVFS         | 200    | The maximal number of files in the virtual file system.                                |
-+------------------+--------+----------------------------------------------------------------------------------------+
-| mjMAXVFSNAME     | 100    | The maximal number of characters in the name of each file in the virtual file system.  |
-+------------------+--------+----------------------------------------------------------------------------------------+
-| mjNEQDATA        | 11     | The maximal number of real-valued parameters used to define each equality constraint.  |
-|                  |        | Determines the size of mjModel.eq_data. This and the next five constants correspond to |
-|                  |        | array sizes which we have not fully settled. There may be reasons to increase them in  |
-|                  |        | the future, so as to accommodate extra parameters needed for more elaborate            |
-|                  |        | computations. This is why we maintain them as symbolic constants that can be easily    |
-|                  |        | changed, as opposed to the array size for representing quaternions for example - which |
-|                  |        | has no reason to change.                                                               |
-+------------------+--------+----------------------------------------------------------------------------------------+
-| mjNDYN           | 10     | The maximal number of real-valued parameters used to define the activation dynamics of |
-|                  |        | each actuator. Determines the size of mjModel.actuator_dynprm.                         |
-+------------------+--------+----------------------------------------------------------------------------------------+
-| mjNGAIN          | 10     | The maximal number of real-valued parameters used to define the gain of each actuator. |
-|                  |        | Determines the size of mjModel.actuator_gainprm.                                       |
-+------------------+--------+----------------------------------------------------------------------------------------+
-| mjNBIAS          | 10     | The maximal number of real-valued parameters used to define the bias of each actuator. |
-|                  |        | Determines the size of mjModel.actuator_biasprm.                                       |
-+------------------+--------+----------------------------------------------------------------------------------------+
-| mjNFLUID         | 12     | The number of per-geom fluid interaction parameters required by the ellipsoidal model. |
-+------------------+--------+----------------------------------------------------------------------------------------+
-| mjNREF           | 2      | The maximal number of real-valued parameters used to define the reference acceleration |
-|                  |        | of each scalar constraint. Determines the size of all mjModel.XXX_solref fields.       |
-+------------------+--------+----------------------------------------------------------------------------------------+
-| mjNIMP           | 5      | The maximal number of real-valued parameters used to define the impedance of each      |
-|                  |        | scalar constraint. Determines the size of all mjModel.XXX_solimp fields.               |
-+------------------+--------+----------------------------------------------------------------------------------------+
-| mjNSOLVER        | 1000   | The size of the preallocated array ``mjData.solver``. This is used to store diagnostic |
-|                  |        | information about each iteration of the constraint solver. The actual number of        |
-|                  |        | iterations is given by ``mjData.solver_iter``.                                         |
-+------------------+--------+----------------------------------------------------------------------------------------+
-| mjNGROUP         | 6      | The number of geom, site, joint, tendon and actuator groups whose rendering can be     |
-|                  |        | enabled and disabled via mjvOption. Defined in mjvisualize.h.                          |
-+------------------+--------+----------------------------------------------------------------------------------------+
-| mjMAXOVERLAY     | 500    | The maximal number of characters in overlay text for rendering. Defined in             |
-|                  |        | mjvisualize.h.                                                                         |
-+------------------+--------+----------------------------------------------------------------------------------------+
-| mjMAXLINE        | 100    | The maximal number of lines per 2D figure (mjvFigure). Defined in mjvisualize.h.       |
-+------------------+--------+----------------------------------------------------------------------------------------+
-| mjMAXLINEPNT     | 1000   | The maximal number of points in each line in a 2D figure. Note that the buffer         |
-|                  |        | mjvFigure.linepnt has length 2*mjMAXLINEPNT because each point has X and Y             |
-|                  |        | coordinates. Defined in mjvisualize.h.                                                 |
-+------------------+--------+----------------------------------------------------------------------------------------+
-| mjMAXPLANEGRID   | 200    | The maximal number of grid lines in each dimension for rendering planes. Defined in    |
-|                  |        | mjvisualize.h.                                                                         |
-+------------------+--------+----------------------------------------------------------------------------------------+
-| mjNAUX           | 10     | Number of auxiliary buffers that can be allocated in mjrContext. Defined in            |
-|                  |        | mjrender.h.                                                                            |
-+------------------+--------+----------------------------------------------------------------------------------------+
-| mjMAXTEXTURE     | 1000   | Maximum number of textures allowed. Defined in mjrender.h.                             |
-+------------------+--------+----------------------------------------------------------------------------------------+
-| mjMAXUISECT      | 10     | Maximum number of UI sections. Defined in mjui.h.                                      |
-+------------------+--------+----------------------------------------------------------------------------------------+
-| mjMAXUIITEM      | 80     | Maximum number of items per UI section. Defined in mjui.h.                             |
-+------------------+--------+----------------------------------------------------------------------------------------+
-| mjMAXUITEXT      | 500    | Maximum number of characters in UI fields 'edittext' and 'other'. Defined in mjui.h.   |
-+------------------+--------+----------------------------------------------------------------------------------------+
-| mjMAXUINAME      | 40     | Maximum number of characters in any UI name. Defined in mjui.h.                        |
-+------------------+--------+----------------------------------------------------------------------------------------+
-| mjMAXUIMULTI     | 20     | Maximum number of radio and select items in UI group. Defined in mjui.h.               |
-+------------------+--------+----------------------------------------------------------------------------------------+
-| mjMAXUIEDIT      | 5      | Maximum number of elements in UI edit list. Defined in mjui.h.                         |
-+------------------+--------+----------------------------------------------------------------------------------------+
-| mjMAXUIRECT      | 15     | Maximum number of UI rectangles. Defined in mjui.h.                                    |
-+------------------+--------+----------------------------------------------------------------------------------------+
-| mjVERSION_HEADER | 211    | The version of the MuJoCo headers; changes with every release. This is an integer      |
-|                  |        | equal to 100x the software version, so 210 corresponds to version 2.1. Defined in      |
-|                  |        | mujoco.h. The API function :ref:`mj_version` returns a number with the same meaning    |
-|                  |        | but for the compiled library.                                                          |
-+------------------+--------+----------------------------------------------------------------------------------------+
+.. list-table::
+   :widths: 2 1 8
+   :header-rows: 1
 
-
+   * - symbol
+     - value
+     - description
+   * - ``mjMINVAL``
+     - 1E-15
+     - The minimal value allowed in any denominator, and in general any mathematical operation where 0 is not allowed.
+       In almost all cases, MuJoCo silently clamps smaller values to mjMINVAL.
+   * - ``mjPI``
+     - :math:`\pi`
+     - The value of :math:`\pi`. This is used in various trigonometric functions, and also for conversion from degrees
+       to radians in the compiler.
+   * - ``mjMAXVAL``
+     - 1E+10
+     - The maximal absolute value allowed in mjData.qpos, mjData.qvel, mjData.qacc. The API functions
+       :ref:`mj_checkPos`, :ref:`mj_checkVel`, :ref:`mj_checkAcc` use this constant to detect instability.
+   * - ``mjMINMU``
+     - 1E-5
+     - The minimal value allowed in any friction coefficient. Recall that MuJoCo's contact model allows different number
+       of friction dimensions to be included, as specified by the :at:`condim` attribute. If however a given friction
+       dimension is included, its friction is not allowed to be smaller than this constant. Smaller values are
+       automatically clamped to this constant.
+   * - ``mjMINIMP``
+     - 0.0001
+     - The minimal value allowed in any constraint impedance. Smaller values are automatically clamped to this constant.
+   * - ``mjMAXIMP``
+     - 0.9999
+     - The maximal value allowed in any constraint impedance. Larger values are automatically clamped to this constant.
+   * - ``mjMAXCONPAIR``
+     - 50
+     - The maximal number of contacts points that can be generated per geom pair. MuJoCo's built-in collision functions
+       respect this limit, and user-defined functions should also respect it. Such functions are called with a return
+       buffer of size ``mjMAXCONPAIR``; attempting to write more contacts in the buffer can cause unpredictable
+       behavior.
+   * - ``mjMAXVFS``
+     - 200
+     - The maximal number of characters in the name of each file in the virtual file system.
+   * - ``mjMAXVFSNAME``
+     - 100
+     - The maximal number of characters in the name of each file in the virtual file system.
+   * - ``mjNEQDATA``
+     - 11
+     - The maximal number of real-valued parameters used to define each equality constraint. Determines the size of
+       ``mjModel.eq_data``. This and the next five constants correspond to array sizes which we have not fully settled.
+       There may be reasons to increase them in the future, so as to accommodate extra parameters needed for more
+       elaborate computations. This is why we maintain them as symbolic constants that can be easily changed, as opposed
+       to the array size for representing quaternions for example -- which has no reason to change.
+   * - ``mjNDYN``
+     - 10
+     - The maximal number of real-valued parameters used to define the activation dynamics of each actuator.
+       Determines the size of ``mjModel.actuator_dynprm``.
+   * - ``mjNGAIN``
+     - 10
+     - The maximal number of real-valued parameters used to define the gain of each actuator.
+       Determines the size of ``mjModel.actuator_gainprm``.
+   * - ``mjNBIAS``
+     - 10
+     - The maximal number of real-valued parameters used to define the bias of each actuator.
+       Determines the size of ``mjModel.actuator_biasprm``.
+   * - ``mjNFLUID``
+     - 12
+     - The number of per-geom fluid interaction parameters required by the ellipsoidal model.
+   * - ``mjNREF``
+     - 2
+     - The maximal number of real-valued parameters used to define the reference acceleration of each scalar constraint.
+       Determines the size of all ``mjModel.XXX_solref`` fields.
+   * - ``mjNIMP``
+     - 5
+     - The maximal number of real-valued parameters used to define the impedance of each scalar constraint.
+       Determines the size of all ``mjModel.XXX_solimp`` fields.
+   * - ``mjNSOLVER``
+     - 1000
+     - The size of the preallocated array ``mjData.solver``. This is used to store diagnostic information about each
+       iteration of the constraint solver. The actual number of iterations is given by ``mjData.solver_iter``.
+   * - ``mjNGROUP``
+     - 6
+     - The number of geom, site, joint, tendon and actuator groups whose rendering can be enabled and disabled via
+       :ref:`mjvOption`.
+       Defined in `mjvisualize.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjvisualize.h>`_.
+   * - ``mjMAXOVERLAY``
+     - 500
+     - The maximal number of characters in overlay text for rendering.
+       Defined in `mjvisualize.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjvisualize.h>`_.
+   * - ``mjMAXLINE``
+     - 100
+     - The maximal number of lines per 2D figure (:ref:`mjvFigure`).
+       Defined in `mjvisualize.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjvisualize.h>`_.
+   * - ``mjMAXLINEPNT``
+     - 1000
+     - The maximal number of points in each line in a 2D figure. Note that the buffer ``mjvFigure.linepnt`` has length
+       ``2*mjMAXLINEPNT`` because each point has X and Y coordinates.
+       Defined in `mjvisualize.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjvisualize.h>`_.
+   * - ``mjMAXPLANEGRID``
+     - 200
+     - The maximal number of grid lines in each dimension for rendering planes.
+       Defined in `mjvisualize.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjvisualize.h>`_.
+   * - ``mjNAUX``
+     - 10
+     - Number of auxiliary buffers that can be allocated in mjrContext.
+       Defined in `mjrender.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjrender.h>`_.
+   * - ``mjMAXTEXTURE``
+     - 1000
+     - Maximum number of textures allowed.
+       Defined in `mjrender.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjrender.h>`_.
+   * - ``mjMAXUISECT``
+     - 10
+     - Maximum number of UI sections.
+       Defined in `mjui.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjui.h>`_.
+   * - ``mjMAXUIITEM``
+     - 80
+     - Maximum number of items per UI section.
+       Defined in `mjui.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjui.h>`_.
+   * - ``mjMAXUITEXT``
+     - 500
+     - Maximum number of characters in UI fields 'edittext' and 'other'.
+       Defined in `mjui.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjui.h>`_.
+   * - ``mjMAXUINAME``
+     - 40
+     - Maximum number of characters in any UI name.
+       Defined in `mjui.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjui.h>`_.
+   * - ``mjMAXUIMULTI``
+     - 20
+     - Maximum number of radio and select items in UI group.
+       Defined in `mjui.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjui.h>`_.
+   * - ``mjMAXUIEDIT``
+     - 5
+     - Maximum number of elements in UI edit list.
+       Defined in `mjui.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjui.h>`_.
+   * - ``mjMAXUIRECT``
+     - 15
+     - Maximum number of UI rectangles.
+       Defined in `mjui.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjui.h>`_.
+   * - ``mjVERSION_HEADER``
+     - 233
+     - The version of the MuJoCo headers; changes with every release. This is an integer equal to 100x the software
+       version, so 210 corresponds to version 2.1. Defined in  mujoco.h. The API function :ref:`mj_version` returns a
+       number with the same meaning but for the compiled library.
 
 
 .. _tyXMacro:
