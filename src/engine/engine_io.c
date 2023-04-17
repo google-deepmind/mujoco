@@ -1158,7 +1158,6 @@ mjData* mj_copyData(mjData* dest, const mjModel* m, const mjData* src) {
   }
 
   // copy arena memory
-  memcpy(dest->arena, src->arena, src->nstack * sizeof(mjtNum));
 #define X(type, name, nr, nc)  \
   dest->name = src->name ? (type*)((char*)dest->arena + PTRDIFF(src->name, src->arena)) : NULL;
   MJDATA_ARENA_POINTERS
