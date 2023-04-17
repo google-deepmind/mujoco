@@ -1201,7 +1201,7 @@ double mjCGeom::GetVolume(void) {
     }
 
     mjCMesh* pmesh = model->meshes[meshid];
-    if (model->exactmeshinertia) {
+    if (model->exactmeshinertia || typeinertia==mjSHELL_MESH) {
       return pmesh->GetVolumeRef(typeinertia);
     } else {
       return pmesh->boxsz_volume[0]*pmesh->boxsz_volume[1]*pmesh->boxsz_volume[2]*8;

@@ -1,5 +1,5 @@
 <mujoco>
-  <compiler exactmeshinertia="true"/>
+  <compiler/>
   <asset>
     <mesh file="cube.obj" name="hollow_cube"/>
   </asset>

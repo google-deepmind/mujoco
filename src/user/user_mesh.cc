@@ -1047,7 +1047,7 @@ void mjCMesh::Process() {
       double vol = type==mjSHELL_MESH ? a : mjuu_dot3(vec, nrm) * a / 3;
 
       // if legacy computation requested, then always positive
-      if (!model->exactmeshinertia) {
+      if (!model->exactmeshinertia && type==mjVOLUME_MESH) {
         vol = fabs(vol);
       }
 
@@ -1093,7 +1093,7 @@ void mjCMesh::Process() {
       double vol = type==mjSHELL_MESH ? a : mjuu_dot3(cen, nrm) * a / 3;
 
       // if legacy computation requested, then always positive
-      if (!model->exactmeshinertia) {
+      if (!model->exactmeshinertia && type==mjVOLUME_MESH) {
         vol = fabs(vol);
       }
 
