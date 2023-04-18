@@ -263,6 +263,172 @@ const char* mjCAlternative::Set(double* quat, double* inertia,
 
 
 
+//------------------------- class mjCTree implementation -------------------------------------------
+
+// constructor
+mjCBoundingVolumeHierarchy::mjCBoundingVolumeHierarchy() {
+  nbvh = 0;
+  mjuu_setvec(ipos_, 0, 0, 0);
+  mjuu_setvec(iquat_, 1, 0, 0, 0);
+}
+
+
+// assign position and orientation
+void mjCBoundingVolumeHierarchy::Set(mjtNum ipos_element[3], mjtNum iquat_element[4]) {
+  mjuu_copyvec(ipos_, ipos_element, 3);
+  mjuu_copyvec(iquat_, iquat_element, 4);
+}
+
+
+// compute bounding volume hierarchy
+int mjCBoundingVolumeHierarchy::MakeBVH(std::vector<mjCGeom *>& elements, int lev) {
+  int nelements = elements.size();
+  mjtNum AABB[6] = {mjMAXVAL, mjMAXVAL, mjMAXVAL, -mjMAXVAL, -mjMAXVAL, -mjMAXVAL};
+
+  // inverse transformation
+  mjtNum qinv[4] = {iquat_[0], -iquat_[1], -iquat_[2], -iquat_[3]};
+
+  for (int i=0; i<nelements; i++) {
+    // skip visual objects
+    if (elements[i]->conaffinity==0 && elements[i]->contype==0) {
+      continue;
+    }
+
+    // transform aabb representation
+    mjtNum aabb[6] = {elements[i]->aabb[0] - elements[i]->aabb[3],
+                      elements[i]->aabb[1] - elements[i]->aabb[4],
+                      elements[i]->aabb[2] - elements[i]->aabb[5],
+                      elements[i]->aabb[0] + elements[i]->aabb[3],
+                      elements[i]->aabb[1] + elements[i]->aabb[4],
+                      elements[i]->aabb[2] + elements[i]->aabb[5]};
+
+    // update node AABB
+    for (int v=0; v<8; v++) {
+      mjtNum vert[3], box[3];
+      vert[0] = (v&1 ? aabb[3] : aabb[0]);
+      vert[1] = (v&2 ? aabb[4] : aabb[1]);
+      vert[2] = (v&4 ? aabb[5] : aabb[2]);
+
+      // rotate to the body inertial frame
+      mju_rotVecQuat(box, vert, elements[i]->quat);
+      box[0] += elements[i]->pos[0] - ipos_[0];
+      box[1] += elements[i]->pos[1] - ipos_[1];
+      box[2] += elements[i]->pos[2] - ipos_[2];
+      mju_rotVecQuat(vert, box, qinv);
+      AABB[0] = mjMIN(AABB[0], vert[0]);
+      AABB[1] = mjMIN(AABB[1], vert[1]);
+      AABB[2] = mjMIN(AABB[2], vert[2]);
+      AABB[3] = mjMAX(AABB[3], vert[0]);
+      AABB[4] = mjMAX(AABB[4], vert[1]);
+      AABB[5] = mjMAX(AABB[5], vert[2]);
+    }
+  }
+
+  // store current index
+  int index = nbvh++;
+  child.push_back(-1);
+  child.push_back(-1);
+  nodeid.push_back(-1);
+  level.push_back(lev);
+
+  // transform representation
+  mjtNum center[] = {(AABB[3] + AABB[0]) / 2, (AABB[4] + AABB[1]) / 2,
+                  (AABB[5] + AABB[2]) / 2};
+  mjtNum size[] = {(AABB[3] - AABB[0]) / 2, (AABB[4] - AABB[1]) / 2,
+                   (AABB[5] - AABB[2]) / 2};
+
+  // store bounding box of the current node
+  for (int i=0; i<3; i++) {
+    bvh.push_back(center[i]);
+  }
+  for (int i=0; i<3; i++) {
+    bvh.push_back(size[i]);
+  }
+
+  // leaf node, return
+  if (nelements==1) {
+    for (int i=0; i<2; i++) {
+      child[2*index+i] = -1;
+    }
+    nodeid[index] = elements[0]->id;
+    return index;
+  }
+
+  // find longest axis for splitting the bounding box
+  mjtNum edges[3] = { AABB[3]-AABB[0], AABB[4]-AABB[1], AABB[5]-AABB[2] };
+  int axis = edges[0] > edges[1] ? 0 : 1;
+  axis = edges[axis] > edges[2] ? axis : 2;
+
+  // find median along the axis
+  std::vector<mjtNum> pos(nelements);
+
+  for (int i=0; i<nelements; i++) {
+    // get position in the body inertial frame
+    mjtNum vert[3] = {elements[i]->pos[0] - ipos_[0],
+                      elements[i]->pos[1] - ipos_[1],
+                      elements[i]->pos[2] - ipos_[2]};
+    mjtNum lpos[3];
+    mju_rotVecQuat(lpos, vert, qinv);
+    pos[i] = lpos[axis];
+  }
+
+  auto m = pos.size()/2;
+  std::nth_element(pos.begin(), pos.begin() + m, pos.end());
+  mjtNum threshold = pos[m];
+
+  // split using median
+  std::vector<mjCGeom *> left;
+  std::vector<mjCGeom *> right;
+  int skipped = 0;
+
+  for (int i=0; i<nelements; i++) {
+    // get position in the body inertial frame
+    mjtNum vert[3] = {elements[i]->pos[0] - ipos_[0],
+                      elements[i]->pos[1] - ipos_[1],
+                      elements[i]->pos[2] - ipos_[2]};
+    mjtNum lpos[3];
+    mju_rotVecQuat(lpos, vert, qinv);
+
+    // skip visual objects
+    if (elements[i]->conaffinity==0 && elements[i]->contype==0) {
+      skipped++;
+      continue;
+    }
+    if (lpos[axis] < threshold) {
+      left.push_back(elements[i]);
+    } else if (lpos[axis] > threshold) {
+      right.push_back(elements[i]);
+    } else {
+      if (left.size() < right.size()) left.push_back(elements[i]);
+      else right.push_back(elements[i]);
+    }
+  }
+
+  // recursive calls
+  if (!left.empty()) {
+    child[2*index+0] = MakeBVH(left, lev+1);
+  }
+
+  if (!right.empty()) {
+    child[2*index+1] = MakeBVH(right, lev+1);
+  }
+
+  // SHOULD NOT OCCUR
+  if (left.size()+right.size()+skipped != nelements) {
+    mju_error("some elements were lost, body=%s parent=%d children=%lu",
+              name_.c_str(), nelements, left.size()+right.size()+skipped);
+  }
+
+  if (child[2*index+0]==-1 && child[2*index+1]==-1 && !skipped) {
+    mju_error("this should have been a leaf, body=%s nelements=%d",
+              name_.c_str(), nelements);
+  }
+
+  return index;
+}
+
+
+
 //------------------------- class mjCDef implementation --------------------------------------------
 
 // constructor
@@ -331,7 +497,6 @@ mjCBody::mjCBody(mjCModel* _model) {
   subtreedofs = 0;
   gravcomp = 0;
   userdata.clear();
-  nbvh = 0;
 
   // plugin variables
   is_plugin = false;
@@ -346,10 +511,6 @@ mjCBody::mjCBody(mjCModel* _model) {
   sites.clear();
   cameras.clear();
   lights.clear();
-  bvh.clear();
-  child.clear();
-  nodeid.clear();
-  level.clear();
 }
 
 
@@ -659,154 +820,6 @@ void mjCBody::MakeInertialExplicit() {
 }
 
 
-// compute bounding volume hierarchy
-int mjCBody::MakeBVH(std::vector<mjCGeom *>& elements, int lev) {
-  int nelements = elements.size();
-  mjtNum AABB[6] = {mjMAXVAL, mjMAXVAL, mjMAXVAL, -mjMAXVAL, -mjMAXVAL, -mjMAXVAL};
-
-  // inverse transformation
-  mjtNum qinv[4] = {iquat[0], -iquat[1], -iquat[2], -iquat[3]};
-
-  for (int i=0; i<nelements; i++) {
-    // skip visual objects
-    if (elements[i]->conaffinity==0 && elements[i]->contype==0) {
-      continue;
-    }
-
-    // transform aabb representation
-    mjtNum aabb[6] = {elements[i]->aabb[0] - elements[i]->aabb[3],
-                      elements[i]->aabb[1] - elements[i]->aabb[4],
-                      elements[i]->aabb[2] - elements[i]->aabb[5],
-                      elements[i]->aabb[0] + elements[i]->aabb[3],
-                      elements[i]->aabb[1] + elements[i]->aabb[4],
-                      elements[i]->aabb[2] + elements[i]->aabb[5]};
-
-    // update node AABB
-    for (int v=0; v<8; v++) {
-      mjtNum vert[3], box[3];
-      vert[0] = (v&1 ? aabb[3] : aabb[0]);
-      vert[1] = (v&2 ? aabb[4] : aabb[1]);
-      vert[2] = (v&4 ? aabb[5] : aabb[2]);
-
-      // rotate to the body inertial frame
-      mju_rotVecQuat(box, vert, elements[i]->quat);
-      box[0] += elements[i]->pos[0] - ipos[0];
-      box[1] += elements[i]->pos[1] - ipos[1];
-      box[2] += elements[i]->pos[2] - ipos[2];
-      mju_rotVecQuat(vert, box, qinv);
-      AABB[0] = mjMIN(AABB[0], vert[0]);
-      AABB[1] = mjMIN(AABB[1], vert[1]);
-      AABB[2] = mjMIN(AABB[2], vert[2]);
-      AABB[3] = mjMAX(AABB[3], vert[0]);
-      AABB[4] = mjMAX(AABB[4], vert[1]);
-      AABB[5] = mjMAX(AABB[5], vert[2]);
-    }
-  }
-
-  // store current index
-  int index = nbvh++;
-  child.push_back(-1);
-  child.push_back(-1);
-  nodeid.push_back(-1);
-  level.push_back(lev);
-
-  // transform representation
-  mjtNum center[] = {(AABB[3] + AABB[0]) / 2, (AABB[4] + AABB[1]) / 2,
-                  (AABB[5] + AABB[2]) / 2};
-  mjtNum size[] = {(AABB[3] - AABB[0]) / 2, (AABB[4] - AABB[1]) / 2,
-                   (AABB[5] - AABB[2]) / 2};
-
-  // store bounding box of the current node
-  for (int i=0; i<3; i++) {
-    bvh.push_back(center[i]);
-  }
-  for (int i=0; i<3; i++) {
-    bvh.push_back(size[i]);
-  }
-
-  // leaf node, return
-  if (nelements==1) {
-    for (int i=0; i<2; i++) {
-      child[2*index+i] = -1;
-    }
-    nodeid[index] = elements[0]->id;
-    return index;
-  }
-
-  // find longest axis for splitting the bounding box
-  mjtNum edges[3] = { AABB[3]-AABB[0], AABB[4]-AABB[1], AABB[5]-AABB[2] };
-  int axis = edges[0] > edges[1] ? 0 : 1;
-  axis = edges[axis] > edges[2] ? axis : 2;
-
-  // find median along the axis
-  std::vector<mjtNum> pos(nelements);
-
-  for (int i=0; i<nelements; i++) {
-    // get position in the body inertial frame
-    mjtNum vert[3] = {elements[i]->pos[0] - ipos[0],
-                      elements[i]->pos[1] - ipos[1],
-                      elements[i]->pos[2] - ipos[2]};
-    mjtNum lpos[3];
-    mju_rotVecQuat(lpos, vert, qinv);
-    pos[i] = lpos[axis];
-  }
-
-  auto m = pos.size()/2;
-  std::nth_element(pos.begin(), pos.begin() + m, pos.end());
-  mjtNum threshold = pos[m];
-
-  // split using median
-  std::vector<mjCGeom *> left;
-  std::vector<mjCGeom *> right;
-  int skipped = 0;
-
-  for (int i=0; i<nelements; i++) {
-    // get position in the body inertial frame
-    mjtNum vert[3] = {elements[i]->pos[0] - ipos[0],
-                      elements[i]->pos[1] - ipos[1],
-                      elements[i]->pos[2] - ipos[2]};
-    mjtNum lpos[3];
-    mju_rotVecQuat(lpos, vert, qinv);
-
-    // skip visual objects
-    if (elements[i]->conaffinity==0 && elements[i]->contype==0) {
-      skipped++;
-      continue;
-    }
-    if (lpos[axis] < threshold) {
-      left.push_back(elements[i]);
-    } else if (lpos[axis] > threshold) {
-      right.push_back(elements[i]);
-    } else {
-      if (left.size() < right.size()) left.push_back(elements[i]);
-      else right.push_back(elements[i]);
-    }
-  }
-
-  // recursive calls
-  if (!left.empty()) {
-    child[2*index+0] = MakeBVH(left, lev+1);
-  }
-
-  if (!right.empty()) {
-    child[2*index+1] = MakeBVH(right, lev+1);
-  }
-
-  // SHOULD NOT OCCUR
-  if (left.size()+right.size()+skipped != nelements) {
-    throw mjCError(this, "some elements were lost, body=%s parent=%d children=%d",
-                   name.c_str(), nelements, left.size()+right.size()+skipped);
-  }
-
-  if (child[2*index+0]==-1 && child[2*index+1]==-1 && !skipped) {
-    throw mjCError(this, "this should have been a leaf, body=%s nelements=%d",
-                   name.c_str(), nelements);
-  }
-
-  return index;
-}
-
-
 // compiler
 void mjCBody::Compile(void) {
   // resize userdata
@@ -917,7 +930,8 @@ void mjCBody::Compile(void) {
 
   // compute bounding volume hierarchy
   if (!geoms.empty()) {
-    MakeBVH(geoms, 0);
+    tree.Set(ipos, iquat);
+    tree.MakeBVH(geoms);
   }
 
   // compile all joints, count dofs

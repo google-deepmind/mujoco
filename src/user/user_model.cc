@@ -928,7 +928,7 @@ void mjCModel::SetSizes(void) {
 
   // nbvh
   for (int i=0; i<nbody; i++) {
-    nbvh += bodies[i]->nbvh;
+    nbvh += bodies[i]->tree.nbvh;
   }
 
   // nmeshvert, nmeshface, nmeshtexcoord, nmeshgraph
@@ -1346,14 +1346,14 @@ void mjCModel::CopyTree(mjModel* m) {
 
     // bounding volume hierarchy
     m->body_bvhadr[i] = (!pb->geoms.empty() ? bvh_adr : -1);
-    m->body_bvhnum[i] = pb->nbvh;
-    if (pb->nbvh) {
-      memcpy(m->bvh_aabb + 6*bvh_adr, pb->bvh.data(), 6*pb->nbvh*sizeof(mjtNum));
-      memcpy(m->bvh_child + 2*bvh_adr, pb->child.data(), 2*pb->nbvh*sizeof(int));
-      memcpy(m->bvh_geomid + bvh_adr, pb->nodeid.data(), pb->nbvh*sizeof(int));
-      memcpy(m->bvh_depth + bvh_adr, pb->level.data(), pb->nbvh*sizeof(int));
+    m->body_bvhnum[i] = pb->tree.nbvh;
+    if (pb->tree.nbvh) {
+      memcpy(m->bvh_aabb + 6*bvh_adr, pb->tree.bvh.data(), 6*pb->tree.nbvh*sizeof(mjtNum));
+      memcpy(m->bvh_child + 2*bvh_adr, pb->tree.child.data(), 2*pb->tree.nbvh*sizeof(int));
+      memcpy(m->bvh_geomid + bvh_adr, pb->tree.nodeid.data(), pb->tree.nbvh*sizeof(int));
+      memcpy(m->bvh_depth + bvh_adr, pb->tree.level.data(), pb->tree.nbvh*sizeof(int));
     }
-    bvh_adr += pb->nbvh;
+    bvh_adr += pb->tree.nbvh;
 
     // count free joints
     int cntfree = 0;

@@ -114,6 +114,27 @@ class mjCAlternative {
 };
 
 
+// bounding volume hierarchy
+class mjCBoundingVolumeHierarchy {
+ public:
+  mjCBoundingVolumeHierarchy();
+
+  int nbvh;
+  std::vector<mjtNum> bvh;            // bounding boxes                                (nbvh x 6)
+  std::vector<int> child;             // children of each node                         (nbvh x 2)
+  std::vector<int> nodeid;            // id of the geom contained by the node          (nbvh x 1)
+  std::vector<int> level;             // levels of each node                           (nbvh x 1)
+
+  int MakeBVH(std::vector<mjCGeom *>&, int lev = 0);  // make bounding volume hierarchy
+  void Set(mjtNum ipos_element[3], mjtNum iquat_element[4]);
+
+ private:
+  std::string name_;
+  double ipos_[3];
+  double iquat_[4];
+};
+
+
 
 //------------------------- class mjCBase ----------------------------------------------------------
 // Generic functionality for all derived classes
@@ -213,14 +234,7 @@ class mjCBody : public mjCBase {
   int lastdof;                    // id of last dof
   int subtreedofs;                // number of dofs in subtree, including self
 
-  int MakeBVH(std::vector<mjCGeom *>&, int lev);  // make bounding volume hierarchy
-
-  int nbvh;
-  std::vector<mjtNum> bvh;            // bounding volume hierarchy
-  std::vector<int> child;             // children of bvh nodes
-  std::vector<int> nodeid;            // id of the geom contained by the node
-  std::vector<int> level;             // levels of bvh
-
+  mjCBoundingVolumeHierarchy tree;  // bounding volume hierarchy
 
   // objects allocated by Add functions
   std::vector<mjCBody*>    bodies;     // child bodies
@@ -292,6 +306,7 @@ class mjCGeom : public mjCBase {
   friend class mjCModel;
   friend class mjXWriter;
   friend class mjXURDF;
+  friend class mjCBoundingVolumeHierarchy;
 
  public:
   double GetVolume(void);             // compute geom volume
