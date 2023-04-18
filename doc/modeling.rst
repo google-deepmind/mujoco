@@ -1248,8 +1248,8 @@ MuJoCo Forum for an example; the plots below are generated with that model.
 Memory allocation
 ~~~~~~~~~~~~~~~~~
 
-MuJoCo preallocates all the memory needed at runtime in ``mjData``, and does not access the heap allocator after
-model creation. Memory in ``mjData`` is allocated by :ref:`mj_makeData` in two contiguous blocks:
+MuJoCo preallocates all the memory needed at runtime in :ref:`mjData`, and does not access the heap allocator after
+model creation. Memory in :ref:`mjData` is allocated by :ref:`mj_makeData` in two contiguous blocks:
 
   - ``mjData.buffer`` contains fixed-size arrays.
   - ``mjData.arena`` contains dynamically-sized arrays.

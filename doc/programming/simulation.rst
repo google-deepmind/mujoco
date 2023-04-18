@@ -686,19 +686,22 @@ language, and remain a great idea.
 Internal stack
 ~~~~~~~~~~~~~~
 
-MuJoCo allocates and manages its own stack of mjtNums. ``mjData.stack`` is the pointer to the preallocated memory
-buffer. ``mjData.nstack`` is the maximum number of mjtNums that the stack can hold, as determined by the :at:`nstack`
-attribute of the :ref:`size <size>` element in MJCF. ``mjData.pstack`` is the first available address in the stack;
-this is our custom stack pointer.
+MuJoCo allocates and manages dynamic memory in an "arena" space in ``mjData.arena``. The arena memory space
+contains two types of dynamically allocated memory:
 
-Most top-level MuJoCo functions allocate space on the stack, use it for internal computations, and then deallocate it.
-They cannot do this with the regular C stack because the allocation size is determined dynamically at runtime. And
-calling the heap memory management functions would be inefficient and result in fragmentation - thus a custom stack.
-When any MuJoCo function is called, upon return the value of ``mjData.pstack`` is the same. The only exception is the
-function :ref:`mj_resetData` and its variants: they set ``mjData.pstack = 0``. Note that this function is called
-internally when an instability is detected in ``mj_step``, ``mj_step1`` and ``mj_step2``. So if user functions take
-advantage of the custom stack (as they should), this needs to be done in-between MuJoCo calls that have the potential
-to reset the simulation.
+ - Memory related to constraints, since the number of contacts is unknown at the beginning of a step.
+ - Memory for temporary variables, managed by an internal stack mechanism.
+
+See :ref:`CSize` for details regarding the layout of the arena and internal stack.
+
+Most top-level MuJoCo functions allocate space on the :ref:`mjData` stack, use it for internal computations, and then
+deallocate it. They cannot do this with the regular C stack because the allocation size is determined dynamically at
+runtime. Calling the heap memory management functions would be inefficient and result in fragmentation -- thus a custom
+stack. When any MuJoCo function is called, upon return the value of ``mjData.pstack`` is the same. The only exception is
+the function :ref:`mj_resetData` and its variants: they set ``mjData.pstack = 0``. Note that this function is called
+internally when an instability is detected in :ref:`mj_step`, :ref:`mj_step1` and :ref:`mj_step2`. So if user functions
+take advantage of the custom stack, this needs to be done in-between MuJoCo calls that have the potential to reset the
+simulation.
 
 Below is the general template for using the custom stack in user code. This assumes that ``mjData\* d`` is defined in
 the scope. If not, saving and restoring the stack pointer should be done manually instead of using the
@@ -707,17 +710,20 @@ the scope. If not, saving and restoring the stack pointer should be done manuall
 .. code-block:: C
 
    // save stack pointer in the "hidden" variable _mark
-   mjMARKSTACK
+   mjMARKSTACK;
 
    // allocate space
    mjtNum* myqpos = mj_stackAlloc(d, m->nq);
    mjtNum* myqvel = mj_stackAlloc(d, m->nv);
 
    // restore stack from _mark
-   mjFREESTACK
+   mjFREESTACK;
 
 The function :ref:`mj_stackAlloc` checks if there is enough space, and if so it advances the stack pointer, otherwise it
 triggers an error. It also keeps track of the maximum stack allocation; see :ref:`diagnostics <siDiagnostics>` below.
+Note that :ref:`mj_stackAlloc` is only used for allocating ``mjtNum`` arrays, the most common type of array.
+:ref:`mj_stackAllocInt` is provided for integer array allocation. Allocators for other types are also possible, as in
+`engine_collision_driver.c <https://github.com/deepmind/mujoco/blob/main/src/engine/engine_collision_driver.c>`__.
 
 .. _siError:
 
