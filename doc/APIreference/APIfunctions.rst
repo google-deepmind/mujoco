@@ -56,12 +56,12 @@ mjMARKSTACK
 This macro is helpful when using the MuJoCo stack in custom computations. It works together with the next macro and the
 :ref:`mj_stackAlloc` function, and assumes that mjData\* d is defined. The use pattern is this:
 
-::
+.. code-block:: C
 
-       mjMARKSTACK
-       mjtNum* temp = mj_stackAlloc(d, 100);
-       // ... use temp as needed
-       mjFREESTACK
+   mjMARKSTACK;
+   mjtNum* temp = mj_stackAlloc(d, 100);
+   // ... use temp as needed
+   mjFREESTACK;
 
 
 .. _mjFREESTACK:
