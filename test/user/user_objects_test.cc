@@ -339,6 +339,18 @@ TEST_F(MjCHFieldTest, PngMap) {
   ASSERT_THAT(model, NotNull()) << error.data();
   EXPECT_EQ(model->nhfield, 1);
   EXPECT_EQ(model->geom_type[0], mjGEOM_HFIELD);
+  EXPECT_GT(model->nhfielddata, 0);
+
+  float min_hfield = 1e7;
+  float max_hfield = -1e7;
+  for (int i = 0; i < model->nhfielddata; i++) {
+    float v = model->hfield_data[i];
+    min_hfield = std::min(min_hfield, v);
+    max_hfield = std::max(max_hfield, v);
+  }
+  EXPECT_EQ(min_hfield, 0) << "hfield should be normalised to [0, 1]";
+  EXPECT_EQ(max_hfield, 1) << "hfield should be normalised to [0, 1]";
+
   mj_deleteModel(model);
 }
 
