@@ -464,7 +464,29 @@ TEST_F(MjCMeshTest, VolumeTooSmall) {
   EXPECT_THAT(error.data(), HasSubstr("mesh volume is too small"));
 }
 
-  TEST_F(MjCMeshTest, VolumeTooSmallAllowedWorld) {
+TEST_F(MjCMeshTest, VolumeNegative) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <compiler exactmeshinertia="true"/>
+    <asset>
+      <mesh name="example_mesh"
+        vertex="0 0 0  1 0 0  0 1 0  0 0 1"
+        face="3 0 2  0 3 1  1 3 2  0 1 2" />
+    </asset>
+    <worldbody>
+      <body>
+        <geom type="mesh" mesh="example_mesh"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(model, testing::IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("mesh volume is negative"));
+}
+
+TEST_F(MjCMeshTest, VolumeTooSmallAllowedWorld) {
   static constexpr char xml[] = R"(
   <mujoco>
     <asset>

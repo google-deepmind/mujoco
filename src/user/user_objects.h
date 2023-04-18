@@ -511,7 +511,7 @@ class mjCMesh: public mjCBase {
   // mesh properties that indicate a well-formed mesh
   std::pair<int, int> invalidorientation;     // indices of invalid edge; -1 if none
   bool validarea;                             // false if the area is too small
-  bool validvolume;                           // false if the volume is too small
+  int validvolume;                            // 0: volume is too small, -1: volume is negative
   bool valideigenvalue;                       // false if inertia eigenvalue is too small
   bool validinequality;                       // false if inertia inequality is not satisfied
   bool processed;                             // false if the mesh has not been processed yet

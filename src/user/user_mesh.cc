@@ -124,7 +124,7 @@ mjCMesh::mjCMesh(mjCModel* _model, mjCDef* _def) {
   invalidorientation.first = -1;
   invalidorientation.second = -1;
   validarea = true;
-  validvolume = true;
+  validvolume = 1;
   valideigenvalue = true;
   validinequality = true;
   processed = false;
@@ -1060,7 +1060,7 @@ void mjCMesh::Process() {
 
     // require positive volume
     if (GetVolumeRef(type) < mjMINVAL) {
-      validvolume = false;
+      validvolume = GetVolumeRef(type) < 0 ? -1 : 0;
       return;
     }
 
@@ -1196,6 +1196,8 @@ void mjCMesh::CheckMesh() {
                    name.c_str(), invalidorientation.first, invalidorientation.second);
   if (!validarea)
     throw mjCError(this, "mesh surface area is too small: %s", name.c_str());
+  if (validvolume<0)
+    throw mjCError(this, "mesh volume is negative (misoriented triangles): %s", name.c_str());
   if (!validvolume)
     throw mjCError(this, "mesh volume is too small: %s", name.c_str());
   if (!valideigenvalue)
