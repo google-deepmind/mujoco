@@ -67,8 +67,8 @@ void close_str(mjResource* resource) {
 }
 
 TEST_F(ResourceTest, RegisterProviderSuccess) {
-  mjpResourceProvider provider = {.prefix = "myprefix",
-    .open = open_nop, .read = read_nop, .close = close_nop};
+  mjpResourceProvider provider = {"myprefix", open_nop, read_nop, close_nop,
+                                  nullptr};
 
   int count1 = mjp_resourceProviderCount();
   int i = mjp_registerResourceProvider(&provider);
@@ -79,7 +79,8 @@ TEST_F(ResourceTest, RegisterProviderSuccess) {
 }
 
 TEST_F(ResourceTest, RegisterProviderMissingCallbacks) {
-  mjpResourceProvider provider = {.prefix = "myprefix"};
+  mjpResourceProvider provider = {"myprefix", nullptr, nullptr, nullptr,
+                                  nullptr};
 
   // install warning handler
   static char warning[1024];
@@ -96,8 +97,7 @@ TEST_F(ResourceTest, RegisterProviderMissingCallbacks) {
 }
 
 TEST_F(ResourceTest, RegisterProviderMissingPrefix) {
-  mjpResourceProvider provider = {.prefix = "",
-    .open = open_nop, .read = read_nop, .close = close_nop};
+  mjpResourceProvider provider = {"", open_nop, read_nop, close_nop, nullptr};
 
   // install warning handler
   static char warning[1024];
@@ -114,11 +114,11 @@ TEST_F(ResourceTest, RegisterProviderMissingPrefix) {
 }
 
 TEST_F(ResourceTest, RegisterProviderSubPrefix) {
-  mjpResourceProvider provider = {.prefix = "prefix",
-    .open = open_nop, .read = read_nop, .close = close_nop};
+  mjpResourceProvider provider = {"prefix", open_nop, read_nop, close_nop,
+                                  nullptr};
 
-  mjpResourceProvider provider2 = {.prefix = "pre",
-    .open = open_nop, .read = read_nop, .close = close_nop};
+  mjpResourceProvider provider2 = {"pre", open_nop, read_nop, close_nop,
+                                   nullptr};
 
   // install warning handler
   static char warning[1024];
@@ -138,11 +138,11 @@ TEST_F(ResourceTest, RegisterProviderSubPrefix) {
 }
 
 TEST_F(ResourceTest, RegisterProviderSuperPrefix) {
-  mjpResourceProvider provider = {.prefix = "prefix",
-    .open = open_nop, .read = read_nop, .close = close_nop};
+  mjpResourceProvider provider = {"prefix", open_nop, read_nop, close_nop,
+                                  nullptr};
 
-  mjpResourceProvider provider2 = {.prefix = "prefix2",
-    .open = open_nop, .read = read_nop, .close = close_nop};
+  mjpResourceProvider provider2 = {"prefix2", open_nop, read_nop, close_nop,
+                                   nullptr};
 
   // install warning handler
   static char warning[1024];
@@ -162,11 +162,11 @@ TEST_F(ResourceTest, RegisterProviderSuperPrefix) {
 }
 
 TEST_F(ResourceTest, RegisterProviderSame) {
-  mjpResourceProvider provider = {.prefix = "prefix",
-    .open = open_nop, .read = read_nop, .close = close_nop};
+  mjpResourceProvider provider = {"prefix", open_nop, read_nop, close_nop,
+                                  nullptr};
 
-  mjpResourceProvider provider2 = {.prefix = "prefix",
-    .open = open_nop, .read = read_nop, .close = close_nop};
+  mjpResourceProvider provider2 = {"prefix", open_nop, read_nop, close_nop,
+                                   nullptr};
 
   int i1 = mjp_registerResourceProvider(&provider);
   int count1 = mjp_resourceProviderCount();
@@ -180,8 +180,8 @@ TEST_F(ResourceTest, RegisterProviderSame) {
 }
 
 TEST_F(ResourceTest, GeneralTest) {
-  mjpResourceProvider provider = {.prefix = "str://",
-    .open = open_str, .read = read_str, .close = close_str};
+  mjpResourceProvider provider = {"str://", open_str, read_str, close_str,
+                                  nullptr};
 
   // register resource provider
   int i = mjp_registerResourceProvider(&provider);
@@ -197,12 +197,11 @@ TEST_F(ResourceTest, GeneralTest) {
   EXPECT_THAT(buffer, StrEq("Hello World"));
 
   mju_closeResource(resource);
-
 }
 
 TEST_F(ResourceTest, GeneralTestFailure) {
-  mjpResourceProvider provider = {.prefix = "str://",
-    .open = open_str, .read = read_str, .close = close_str};
+  mjpResourceProvider provider = {"str://", open_str, read_str, close_str,
+                                  nullptr};
 
   // register resource provider
   int i = mjp_registerResourceProvider(&provider);
