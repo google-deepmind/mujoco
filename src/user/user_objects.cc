@@ -29,7 +29,7 @@
 #include "cc/array_safety.h"
 #include "engine/engine_core_smooth.h"
 #include "engine/engine_crossplatform.h"
-#include "engine/engine_file.h"
+#include "engine/engine_resource.h"
 #include "engine/engine_io.h"
 #include "engine/engine_macro.h"
 #include "engine/engine_passive.h"
@@ -38,7 +38,6 @@
 #include "engine/engine_util_misc.h"
 #include "engine/engine_util_solve.h"
 #include "engine/engine_util_spatial.h"
-#include "engine/engine_vfs.h"
 #include "user/user_model.h"
 #include "user/user_util.h"
 
@@ -1979,33 +1978,27 @@ mjCHField::~mjCHField() {
 
 
 // load elevation data from custom format
-void mjCHField::LoadCustom(string filename, const mjVFS* vfs) {
+void mjCHField::LoadCustom(string filename, int default_provider) {
   // get file data in buffer
-  void* buffer = 0;
-  int buffer_sz = 0, flag_existing = 0;
-  if (vfs) {
-    int id = mj_findFileVFS(vfs, filename.c_str());
-    if (id>=0) {
-      buffer = vfs->filedata[id];
-      buffer_sz = vfs->filesize[id];
-      flag_existing = 1;
+  const void* buffer = 0;
+  mjResource* resource = nullptr;
+
+  if((resource = mju_openResource(filename.c_str(), default_provider)) == nullptr) {
+    // default to OS filesystem
+    if (!default_provider || (resource = mju_openResource(filename.c_str(), 0)) == nullptr) {
+      throw mjCError(this, "could not open hfield file '%s'", filename.c_str());
     }
   }
 
-  // if not found in vfs, read from file
-  if (!buffer) {
-    buffer = mju_fileToMemory(filename.c_str(), &buffer_sz);
-  }
+  int buffer_sz = mju_readResource(resource, &buffer);
 
   // still not found
-  if (!buffer || !buffer_sz) {
+  if (!buffer || buffer_sz < 1) {
     throw mjCError(this, "could not open hfield file '%s'", filename.c_str());
   }
 
   if (buffer_sz < 2*sizeof(int)) {
-    if (!flag_existing) {
-      mju_free(buffer);
-    }
+    mju_closeResource(resource);
     throw mjCError(this, "hfield missing header '%s'", filename.c_str());
   }
 
@@ -2016,76 +2009,69 @@ void mjCHField::LoadCustom(string filename, const mjVFS* vfs) {
 
   // check dimensions
   if (nrow<1 || ncol<1) {
-    if (!flag_existing) {
-      mju_free(buffer);
-    }
-
+    mju_closeResource(resource);
     throw mjCError(this, "non-positive hfield dimensions in file '%s'", filename.c_str());
   }
 
   // check buffer size
   if (buffer_sz != nrow*ncol*sizeof(float)+8) {
-    if (!flag_existing) {
-      mju_free(buffer);
-    }
-
+    mju_closeResource(resource);
     throw mjCError(this, "unexpected file size in file '%s'", filename.c_str());
   }
 
   // allocate
   data = (float*) mju_malloc(nrow*ncol*sizeof(float));
   if (!data) {
-    if (!flag_existing) {
-      mju_free(buffer);
-    }
-
+    mju_closeResource(resource);
     throw mjCError(this, "could not allocate buffers in hfield");
   }
 
   // copy data
   memcpy(data, (void*)(pint+2), nrow*ncol*sizeof(float));
 
-  // free buffer if allocated here
-  if (!flag_existing) {
-    mju_free(buffer);
-  }
+  // close file
+  mju_closeResource(resource);
 }
 
 
 
 // load elevation data from PNG format
-void mjCHField::LoadPNG(string filename, const mjVFS* vfs) {
+void mjCHField::LoadPNG(string filename, int default_provider) {
   // determine data source
-  const unsigned char* inbuffer = 0;
-  size_t inbuffer_sz = 0;
-  if (vfs) {
-    int id = mj_findFileVFS(vfs, filename.c_str());
-    if (id>=0) {
-      inbuffer = (const unsigned char*)vfs->filedata[id];
-      inbuffer_sz = (size_t)vfs->filesize[id];
-    }
+  const void* inbuffer = 0;
+  mjResource* resource = nullptr;
+
+  if((resource = mju_openResource(filename.c_str(), default_provider)) == nullptr) {
+    throw mjCError(this, "could not open PNG file '%s'", filename.c_str());
+  }
+
+  int inbuffer_sz = mju_readResource(resource, &inbuffer);
+
+  // still not found
+  if (!inbuffer || inbuffer_sz < 1) {
+    mju_closeResource(resource);
+    throw mjCError(this, "could not open PNG file '%s'", filename.c_str());
   }
 
   // load PNG from file or memory
   unsigned int w, h, err;
   std::vector<unsigned char> image;
-  if (inbuffer_sz) {
-    err = lodepng::decode(image, w, h, inbuffer, inbuffer_sz, LCT_GREY, 8);
-  } else {
-    err = lodepng::decode(image, w, h, filename, LCT_GREY, 8);
-  }
+  err = lodepng::decode(image, w, h, (const unsigned char*) inbuffer, inbuffer_sz, LCT_GREY, 8);
 
   // check
   if (err) {
+    mju_closeResource(resource);
     throw mjCError(this, "PNG load error '%s' in hfield id = %d", lodepng_error_text(err), id);
   }
   if (!w || !h) {
+    mju_closeResource(resource);
     throw mjCError(this, "Zero dimension in PNG hfield '%s' (id = %d)", name.c_str(), id);
   }
 
   // allocate
   data = (float*) mju_malloc(w*h*sizeof(float));
   if (!data) {
+    mju_closeResource(resource);
     throw mjCError(this, "could not allocate buffers in hfield");
   }
 
@@ -2097,12 +2083,13 @@ void mjCHField::LoadPNG(string filename, const mjVFS* vfs) {
       data[c+(nrow-1-r)*ncol] = (float)image[c+r*ncol];
     }
   image.clear();
+  mju_closeResource(resource);
 }
 
 
 
 // compiler
-void mjCHField::Compile(const mjVFS* vfs) {
+void mjCHField::Compile(int default_provider) {
   // check size parameters
   for (int i=0; i<4; i++)
     if (size[i]<=0)
@@ -2128,9 +2115,9 @@ void mjCHField::Compile(const mjVFS* vfs) {
     // load depending on format
     string ext = mjuu_getext(filename);
     if (!strcasecmp(ext.c_str(), ".png")) {
-      LoadPNG(filename, vfs);
+      LoadPNG(filename, default_provider);
     } else {
-      LoadCustom(filename, vfs);
+      LoadCustom(filename, default_provider);
     }
   }
 
@@ -2441,27 +2428,27 @@ void mjCTexture::BuiltinCube(void) {
 
 
 // load PNG file
-void mjCTexture::LoadPNG(string filename, const mjVFS* vfs,
+void mjCTexture::LoadPNG(string filename, int default_provider,
                          std::vector<unsigned char>& image,
                          unsigned int& w, unsigned int& h) {
-  // determine data source
-  const unsigned char* inbuffer = 0;
-  size_t inbuffer_sz = 0;
-  if (vfs) {
-    int id = mj_findFileVFS(vfs, filename.c_str());
-    if (id>=0) {
-      inbuffer = (const unsigned char*)vfs->filedata[id];
-      inbuffer_sz = (size_t)vfs->filesize[id];
-    }
+  const void* inbuffer = 0;
+  mjResource* resource = nullptr;
+
+  if((resource = mju_openResource(filename.c_str(), default_provider)) == nullptr) {
+    throw mjCError(this, "could not open PNG file '%s'", filename.c_str());
+  }
+
+  int inbuffer_sz = mju_readResource(resource, &inbuffer);
+
+  // still not found
+  if (!inbuffer || inbuffer_sz < 1) {
+    mju_closeResource(resource);
+    throw mjCError(this, "could not open PNG file '%s'", filename.c_str());
   }
 
   // load PNG from file or memory
-  unsigned int err;
-  if (inbuffer_sz) {
-    err = lodepng::decode(image, w, h, inbuffer, inbuffer_sz, LCT_RGB, 8);
-  } else {
-    err = lodepng::decode(image, w, h, filename, LCT_RGB, 8);
-  }
+  unsigned int err = lodepng::decode(image, w, h, (const unsigned char*) inbuffer, inbuffer_sz, LCT_RGB, 8);
+  mju_closeResource(resource);
 
   // check
   if (err) {
@@ -2476,28 +2463,24 @@ void mjCTexture::LoadPNG(string filename, const mjVFS* vfs,
 
 
 // load custom file
-void mjCTexture::LoadCustom(string filename, const mjVFS* vfs,
+void mjCTexture::LoadCustom(string filename, int default_provider,
                             std::vector<unsigned char>& image,
                             unsigned int& w, unsigned int& h) {
-  // get file data in buffer
-  void* buffer = 0;
-  int buffer_sz = 0, flag_existing = 0;
-  if (vfs) {
-    int id = mj_findFileVFS(vfs, filename.c_str());
-    if (id>=0) {
-      buffer = vfs->filedata[id];
-      buffer_sz = vfs->filesize[id];
-      flag_existing = 1;
+  const void* buffer = 0;
+  mjResource* resource = nullptr;
+
+  if((resource = mju_openResource(filename.c_str(), default_provider)) == nullptr) {
+    // default to OS filesystem
+    if (!default_provider || (resource = mju_openResource(filename.c_str(), 0)) == nullptr) {
+      throw mjCError(this, "could not open texture file '%s'", filename.c_str());
     }
   }
 
-  // if not found in vfs, read from file
-  if (!buffer) {
-    buffer = mju_fileToMemory(filename.c_str(), &buffer_sz);
-  }
+  int buffer_sz = mju_readResource(resource, &buffer);
 
   // still not found
-  if (!buffer || !buffer_sz) {
+  if (!buffer || buffer_sz < 0) {
+    mju_closeResource(resource);
     throw mjCError(this, "could not open texture file '%s'", filename.c_str());
   }
 
@@ -2508,20 +2491,14 @@ void mjCTexture::LoadCustom(string filename, const mjVFS* vfs,
 
   // check dimensions
   if (w<1 || h<1) {
-    if (!flag_existing) {
-      mju_free(buffer);
-    }
-
+    mju_closeResource(resource);
     throw mjCError(this, "Non-PNG texture, assuming custom binary file format,\n"
                          "non-positive texture dimensions in file '%s'", filename.c_str());
   }
 
   // check buffer size
   if (buffer_sz != 2*sizeof(int) + w*h*3*sizeof(char)) {
-    if (!flag_existing) {
-      mju_free(buffer);
-    }
-
+    mju_closeResource(resource);
     throw mjCError(this, "Non-PNG texture, assuming custom binary file format,\n"
                          "unexpected file size in file '%s'", filename.c_str());
   }
@@ -2530,24 +2507,21 @@ void mjCTexture::LoadCustom(string filename, const mjVFS* vfs,
   image.resize(w*h*3);
   memcpy(image.data(), (void*)(pint+2), w*h*3*sizeof(char));
 
-  // free buffer if allocated here
-  if (!flag_existing) {
-    mju_free(buffer);
-  }
+  mju_closeResource(resource);
 }
 
 
 
 // load from PNG or custom file, flip if specified
-void mjCTexture::LoadFlip(string filename, const mjVFS* vfs,
+void mjCTexture::LoadFlip(string filename, int default_provider,
                           std::vector<unsigned char>& image,
                           unsigned int& w, unsigned int& h) {
   // dispatch to PNG or Custom loaded
   string ext = mjuu_getext(filename);
   if (!strcasecmp(ext.c_str(), ".png")) {
-    LoadPNG(filename, vfs, image, w, h);
+    LoadPNG(filename, default_provider, image, w, h);
   } else {
-    LoadCustom(filename, vfs, image, w, h);
+    LoadCustom(filename, default_provider, image, w, h);
   }
 
   // horizontal flip
@@ -2598,11 +2572,11 @@ void mjCTexture::LoadFlip(string filename, const mjVFS* vfs,
 
 
 // load 2D
-void mjCTexture::Load2D(string filename, const mjVFS* vfs) {
+void mjCTexture::Load2D(string filename, int default_provider) {
   // load PNG or custom
   unsigned int w, h;
   std::vector<unsigned char> image;
-  LoadFlip(filename, vfs, image, w, h);
+  LoadFlip(filename, default_provider, image, w, h);
 
   // assign size
   width = w;
@@ -2621,7 +2595,7 @@ void mjCTexture::Load2D(string filename, const mjVFS* vfs) {
 
 
 // load cube or skybox from single file (repeated or grid)
-void mjCTexture::LoadCubeSingle(string filename, const mjVFS* vfs) {
+void mjCTexture::LoadCubeSingle(string filename, int default_provider) {
   // check gridsize
   if (gridsize[0]<1 || gridsize[1]<1 || gridsize[0]*gridsize[1]>12) {
     throw mjCError(this,
@@ -2632,7 +2606,7 @@ void mjCTexture::LoadCubeSingle(string filename, const mjVFS* vfs) {
   // load PNG or custom
   unsigned int w, h;
   std::vector<unsigned char> image;
-  LoadFlip(filename, vfs, image, w, h);
+  LoadFlip(filename, default_provider, image, w, h);
 
   // check gridsize for compatibility
   if (w/gridsize[1]!=h/gridsize[0] || (w%gridsize[1]) || (h%gridsize[0])) {
@@ -2721,7 +2695,7 @@ void mjCTexture::LoadCubeSingle(string filename, const mjVFS* vfs) {
 
 
 // load cube or skybox from separate file
-void mjCTexture::LoadCubeSeparate(const mjVFS* vfs) {
+void mjCTexture::LoadCubeSeparate(int default_provider) {
   // keep track of which faces were defined
   int loaded[6] = {0, 0, 0, 0, 0, 0};
 
@@ -2739,7 +2713,7 @@ void mjCTexture::LoadCubeSeparate(const mjVFS* vfs) {
       // load PNG or custom
       unsigned int w, h;
       std::vector<unsigned char> image;
-      LoadFlip(filename, vfs, image, w, h);
+      LoadFlip(filename, default_provider, image, w, h);
 
       // PNG must be square
       if (w!=h) {
@@ -2793,7 +2767,7 @@ void mjCTexture::LoadCubeSeparate(const mjVFS* vfs) {
 
 
 // compiler
-void mjCTexture::Compile(const mjVFS* vfs) {
+void mjCTexture::Compile(int default_provider) {
   // builtin
   if (builtin!=mjBUILTIN_NONE) {
     // check size
@@ -2836,9 +2810,9 @@ void mjCTexture::Compile(const mjVFS* vfs) {
 
     // dispatch
     if (type==mjTEXTURE_2D) {
-      Load2D(filename, vfs);
+      Load2D(filename, default_provider);
     } else {
-      LoadCubeSingle(filename, vfs);
+      LoadCubeSingle(filename, default_provider);
     }
   }
 
@@ -2866,7 +2840,7 @@ void mjCTexture::Compile(const mjVFS* vfs) {
     }
 
     // only cube and skybox
-    LoadCubeSeparate(vfs);
+    LoadCubeSeparate(default_provider);
   }
 
   // make sure someone allocated data; SHOULD NOT OCCUR

@@ -607,13 +607,25 @@ struct mjLROpt_ {                 // options for mj_setLengthRange()
   mjtNum tolrange;                // convergence tolerance (relative to range)
 };
 typedef struct mjLROpt_ mjLROpt;
-struct mjVFS_ {                   // virtual file system for loading from memory
-  int   nfile;                    // number of files present
+struct mjVFS_ {                            // virtual file system for loading from memory
+  int   nfile;                             // number of files present
   char  filename[mjMAXVFS][mjMAXVFSNAME];  // file name without path
-  int   filesize[mjMAXVFS];       // file size in bytes
-  void* filedata[mjMAXVFS];       // buffer with file data
+  int   filesize[mjMAXVFS];                // file size in bytes
+  void* filedata[mjMAXVFS];                // buffer with file data
 };
 typedef struct mjVFS_ mjVFS;
+struct mjResource_ {
+  char* name;                     // name of resource (filename, etc)
+  void* data;                     // opaque data pointer
+  const void* provider_data;      // opaque resource provider data
+
+  // reading callback from resource provider
+  int (*read)(struct mjResource_* resource, const void** buffer);
+
+  // closing callback from resource provider
+  void (*close)(struct mjResource_* resource);
+};
+typedef struct mjResource_ mjResource;
 struct mjOption_ {                // physics options
   // timing parameters
   mjtNum timestep;                // timestep
@@ -1186,6 +1198,14 @@ struct mjModel_ {
   int*      names_map;            // internal hash map of names               (nnames_map x 1)
 };
 typedef struct mjModel_ mjModel;
+struct mjpResourceProvider_ {
+  const char* prefix;          // prefix for match against a resource name
+  mjfOpenResource open;        // opening callback
+  mjfReadResource read;        // reading callback
+  mjfCloseResource close;      // closing callback
+  void* data;                  // opaque data pointer (resource invariant)
+};
+typedef struct mjpResourceProvider_ mjpResourceProvider;
 typedef enum mjtPluginCapabilityBit_ {
   mjPLUGIN_ACTUATOR = 1<<0,
   mjPLUGIN_SENSOR   = 1<<1,
@@ -2197,4 +2217,9 @@ int mjp_registerPlugin(const mjpPlugin* plugin);
 int mjp_pluginCount();
 const mjpPlugin* mjp_getPlugin(const char* name, int* slot);
 const mjpPlugin* mjp_getPluginAtSlot(int slot);
+void mjp_defaultResourceProvider(mjpResourceProvider* provider);
+int mjp_registerResourceProvider(const mjpResourceProvider* provider);
+int mjp_resourceProviderCount();
+const mjpResourceProvider* mjp_getResourceProvider(const char* resource_name);
+const mjpResourceProvider* mjp_getResourceProviderAtSlot(int slot);
 // NOLINTEND

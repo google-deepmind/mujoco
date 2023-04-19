@@ -24,7 +24,7 @@
 
 #include "cc/array_safety.h"
 #include "engine/engine_crossplatform.h"
-#include "engine/engine_vfs.h"
+#include "engine/engine_resource.h"
 #include "user/user_model.h"
 #include "user/user_util.h"
 #include "xml/xml_native_reader.h"
@@ -129,7 +129,7 @@ bool mjWriteXML(mjCModel* model, string filename, char* error, int error_sz) {
 
 // find include elements recursively, replace them with subtree from xml file
 static XMLElement* mjIncludeXML(XMLElement* elem, string dir,
-                                const mjVFS* vfs, vector<string>& included) {
+                                int default_provider, vector<string>& included) {
   // include element: process
   if (!strcasecmp(elem->Value(), "include")) {
     // make sure include has no children
@@ -150,23 +150,30 @@ static XMLElement* mjIncludeXML(XMLElement* elem, string dir,
     }
 
     // get data source
-    const char* xmlstring = 0;
-    int buffer_size = 0;
-    if (vfs) {
-      int id = mj_findFileVFS(vfs, filename.c_str());
-      if (id>=0) {
-        xmlstring = (const char*)vfs->filedata[id];
-        buffer_size = vfs->filesize[id];
+    mjResource *resource = nullptr;
+    const char* xmlstring = nullptr;
+    if ((resource = mju_openResource(filename.c_str(), default_provider)) == nullptr) {
+      // load from OS filesystem
+      if (!default_provider || (resource = mju_openResource(filename.c_str(), 0)) == nullptr) {
+        throw mjXError(elem, "Could not open file '%s'", filename.c_str());
       }
+    }
+
+    int buffer_size = mju_readResource(resource, (const void**) &xmlstring);
+    if (buffer_size < 0) {
+      mju_closeResource(resource);
+      throw mjXError(elem, "Error reading file '%s'", filename.c_str());
+    } else if (!buffer_size) {
+      mju_closeResource(resource);
+      throw mjXError(elem, "Empty file '%s'", filename.c_str());
     }
 
     // load XML file or parse string
     XMLDocument doc;
-    if (xmlstring) {
-      doc.Parse(xmlstring, buffer_size);
-    } else {
-      doc.LoadFile(filename.c_str());
-    }
+    doc.Parse(xmlstring, buffer_size);
+
+    // close resource
+    mju_closeResource(resource);
 
     // check error
     if (doc.Error()) {
@@ -208,27 +215,26 @@ static XMLElement* mjIncludeXML(XMLElement* elem, string dir,
     }
 
     // run XMLInclude on first new child
-    return mjIncludeXML(first->ToElement(), dir, vfs, included);
+    return mjIncludeXML(first->ToElement(), dir, default_provider, included);
   }
 
   // otherwise check all child elements, return self
   else {
     XMLElement* child = elem->FirstChildElement();
     while (child) {
-      child = mjIncludeXML(child, dir, vfs, included);
+      child = mjIncludeXML(child, dir, default_provider, included);
       if (child) {
         child = child->NextSiblingElement();
       }
     }
-
     return elem;
   }
 }
 
 
 
-// Main parser function: from file or VFS
-mjCModel* mjParseXML(const char* filename, const mjVFS* vfs, char* error, int error_sz) {
+// Main parser function
+mjCModel* mjParseXML(const char* filename, int default_provider, char* error, int error_sz) {
   LocaleOverride locale_override;
 
   // check arguments
@@ -236,33 +242,51 @@ mjCModel* mjParseXML(const char* filename, const mjVFS* vfs, char* error, int er
     if (error) {
       snprintf(error, error_sz, "mjParseXML: filename argument required\n");
     }
-    return 0;
+    return nullptr;
   }
 
   // clear
   mjCModel* model = 0;
   if (error) {
-    error[0] = 0;
+    error[0] = '\0';
   }
 
   // get data source
-  const char* xmlstring = 0;
-  int buffer_size = 0;
-  if (vfs) {
-    int id = mj_findFileVFS(vfs, filename);
-    if (id>=0) {
-      xmlstring = (const char*)vfs->filedata[id];
-      buffer_size = vfs->filesize[id];
+  mjResource* resource = nullptr;
+  const char* xmlstring = nullptr;
+  if ((resource = mju_openResource(filename, default_provider)) == nullptr) {
+    // load from OS filesystem
+    if (!default_provider || (resource = mju_openResource(filename, 0)) == nullptr) {
+      if (error) {
+        snprintf(error, error_sz, "mjParseXML: could not open file '%s'", filename);
+      }
+      return nullptr;
     }
   }
 
+  int buffer_size = mju_readResource(resource, (const void**) &xmlstring);
+  if (buffer_size < 0) {
+    if (error) {
+      snprintf(error, error_sz, "mjParseXML: error reading file '%s'", filename);
+    }
+    mju_closeResource(resource);
+    return nullptr;
+  } else if (!buffer_size) {
+    if (error) {
+      snprintf(error, error_sz, "mjParseXML: empty file '%s'", filename);
+    }
+    mju_closeResource(resource);
+    return nullptr;
+  }
+
+
   // load XML file or parse string
   XMLDocument doc;
-  if (xmlstring) {
-    doc.Parse(xmlstring, buffer_size);
-  } else {
-    doc.LoadFile(filename);
-  }
+  doc.Parse(xmlstring, buffer_size);
+
+  // close resource
+  mju_closeResource(resource);
+
 
   // error checking
   if (doc.Error()) {
@@ -270,14 +294,14 @@ mjCModel* mjParseXML(const char* filename, const mjVFS* vfs, char* error, int er
       snprintf(error, error_sz, "XML parse error %d:\n%s\n",
                doc.ErrorID(), doc.ErrorStr());
     }
-    return 0;
+    return nullptr;
   }
 
   // get top-level element
   XMLElement* root = doc.RootElement();
   if (!root) {
     mjCopyError(error, "XML root element not found", error_sz);
-    return 0;
+    return nullptr;
   }
 
   // create model, set filedir
@@ -290,7 +314,7 @@ mjCModel* mjParseXML(const char* filename, const mjVFS* vfs, char* error, int er
       // find include elements, replace them with subtree from xml file
       vector<string> included;
       included.push_back(filename);
-      mjIncludeXML(root, model->modelfiledir, vfs, included);
+      mjIncludeXML(root, model->modelfiledir, default_provider, included);
 
       // parse MuJoCo model
       mjXReader parser;
@@ -314,7 +338,7 @@ mjCModel* mjParseXML(const char* filename, const mjVFS* vfs, char* error, int er
   catch (mjXError err) {
     mjCopyError(error, err.message, error_sz);
     delete model;
-    return 0;
+    return nullptr;
   }
 
   return model;

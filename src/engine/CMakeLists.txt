@@ -33,8 +33,6 @@ set(MUJOCO_ENGINE_SRCS
     engine_derivative.h
     engine_derivative_fd.c
     engine_derivative_fd.h
-    engine_file.c
-    engine_file.h
     engine_forward.c
     engine_forward.h
     engine_inverse.c
@@ -50,6 +48,8 @@ set(MUJOCO_ENGINE_SRCS
     engine_print.h
     engine_ray.c
     engine_ray.h
+    engine_resource.c
+    engine_resource.h
     engine_sensor.c
     engine_sensor.h
     engine_setconst.c

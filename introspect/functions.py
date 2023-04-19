@@ -7374,4 +7374,69 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
          ),
          doc='Look up a plugin by the registered slot number that was returned by mjp_registerPlugin.',  # pylint: disable=line-too-long
      )),
+    ('mjp_defaultResourceProvider',
+     FunctionDecl(
+         name='mjp_defaultResourceProvider',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='provider',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjpResourceProvider'),
+                 ),
+             ),
+         ),
+         doc='Set default resource provider definition.',
+     )),
+    ('mjp_registerResourceProvider',
+     FunctionDecl(
+         name='mjp_registerResourceProvider',
+         return_type=ValueType(name='int'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='provider',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjpResourceProvider', is_const=True),  # pylint: disable=line-too-long
+                 ),
+             ),
+         ),
+         doc='Globally register a resource provider in a thread-safe manner. The provider must have a prefix that is not a sub-prefix or super-prefix of any current registered providers.  This function returns a slot number > 0 on success.',  # pylint: disable=line-too-long
+     )),
+    ('mjp_resourceProviderCount',
+     FunctionDecl(
+         name='mjp_resourceProviderCount',
+         return_type=ValueType(name='int'),
+         parameters=(),
+         doc='Return the number of globally registered resource providers.',
+     )),
+    ('mjp_getResourceProvider',
+     FunctionDecl(
+         name='mjp_getResourceProvider',
+         return_type=PointerType(
+             inner_type=ValueType(name='mjpResourceProvider', is_const=True),
+         ),
+         parameters=(
+             FunctionParameterDecl(
+                 name='resource_name',
+                 type=PointerType(
+                     inner_type=ValueType(name='char', is_const=True),
+                 ),
+             ),
+         ),
+         doc='Return the resource provider with the prefix that matches against the resource name. If no match, return NULL.',  # pylint: disable=line-too-long
+     )),
+    ('mjp_getResourceProviderAtSlot',
+     FunctionDecl(
+         name='mjp_getResourceProviderAtSlot',
+         return_type=PointerType(
+             inner_type=ValueType(name='mjpResourceProvider', is_const=True),
+         ),
+         parameters=(
+             FunctionParameterDecl(
+                 name='slot',
+                 type=ValueType(name='int'),
+             ),
+         ),
+         doc='Look up a resource provider by slot number returned by mjp_registerResourceProvider. If invalid slot number, return NULL.',  # pylint: disable=line-too-long
+     )),
 ])

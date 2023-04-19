@@ -40,6 +40,9 @@ MJAPI int mj_deleteFileVFS(mjVFS* vfs, const char* filename);
 // delete all files from VFS
 MJAPI void mj_deleteVFS(mjVFS* vfs);
 
+// registers a VFS resource provider; returns the index of the provider
+MJAPI int mj_registerVfsProvider(const mjVFS* vfs);
+
 #ifdef __cplusplus
 }
 #endif

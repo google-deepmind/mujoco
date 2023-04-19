@@ -55,6 +55,9 @@ target_link_libraries(engine_print_test fixture gmock)
 mujoco_test(engine_ray_test)
 target_link_libraries(engine_ray_test fixture gmock)
 
+mujoco_test(engine_resource_test)
+target_link_libraries(engine_resource_test fixture gmock)
+
 mujoco_test(engine_sensor_test)
 target_link_libraries(engine_sensor_test fixture gmock)
 

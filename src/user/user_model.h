@@ -62,32 +62,32 @@ class mjCModel {
   friend class mjXWriter;
 
  public:
-  mjCModel();                                 // constructor
-  ~mjCModel();                                // destructor
+  mjCModel();                                          // constructor
+  ~mjCModel();                                         // destructor
 
-  mjModel*    Compile(const mjVFS* vfs = 0);  // COMPILER: construct mjModel
-  bool        CopyBack(const mjModel*);       // DECOMPILER: copy numeric back
-  void        FuseStatic(void);               // fuse static bodies with parent
-  void        FuseReindex(mjCBody* body);     // reindex elements during fuse
+  mjModel*    Compile(int default_provider = 0);       // COMPILER: construct mjModel
+  bool        CopyBack(const mjModel*);                // DECOMPILER: copy numeric back
+  void        FuseStatic(void);                        // fuse static bodies with parent
+  void        FuseReindex(mjCBody* body);              // reindex elements during fuse
 
 
   //------------------------ API for adding model elements
-  mjCMesh*    AddMesh(mjCDef* def = 0);               // mesh
-  mjCSkin*    AddSkin(void);                          // skin
-  mjCHField*  AddHField(void);                        // heightfield
-  mjCTexture* AddTexture(void);                       // texture
-  mjCMaterial*AddMaterial(mjCDef* def = 0);           // material
-  mjCPair*    AddPair(mjCDef* def = 0);               // geom pair for inclusion
-  mjCBodyPair*AddExclude(void);                       // body pair for exclusion
-  mjCEquality*AddEquality(mjCDef* def = 0);           // equality constraint
-  mjCTendon*  AddTendon(mjCDef* def = 0);             // tendon
-  mjCActuator*AddActuator(mjCDef* def = 0);           // actuator
-  mjCSensor*  AddSensor(void);                        // sensor
-  mjCNumeric* AddNumeric(void);                       // custom numeric
-  mjCText*    AddText(void);                          // custom text
-  mjCTuple*   AddTuple(void);                         // custom tuple
-  mjCKey*     AddKey(void);                           // keyframe
-  mjCPlugin*  AddPlugin(void);                        // plugin instance
+  mjCMesh*     AddMesh(mjCDef* def = 0);               // mesh
+  mjCSkin*     AddSkin(void);                          // skin
+  mjCHField*   AddHField(void);                        // heightfield
+  mjCTexture*  AddTexture(void);                       // texture
+  mjCMaterial* AddMaterial(mjCDef* def = 0);           // material
+  mjCPair*     AddPair(mjCDef* def = 0);               // geom pair for inclusion
+  mjCBodyPair* AddExclude(void);                       // body pair for exclusion
+  mjCEquality* AddEquality(mjCDef* def = 0);           // equality constraint
+  mjCTendon*   AddTendon(mjCDef* def = 0);             // tendon
+  mjCActuator* AddActuator(mjCDef* def = 0);           // actuator
+  mjCSensor*   AddSensor(void);                        // sensor
+  mjCNumeric*  AddNumeric(void);                       // custom numeric
+  mjCText*     AddText(void);                          // custom text
+  mjCTuple*    AddTuple(void);                         // custom tuple
+  mjCKey*      AddKey(void);                           // keyframe
+  mjCPlugin*   AddPlugin(void);                        // plugin instance
 
   //------------------------ API for access to model elements (outside tree)
   int         NumObjects(mjtObj type);                // number of objects in specified list
@@ -163,7 +163,8 @@ class mjCModel {
   int nuser_sensor;               // number of mjtNums in sensor_user
 
  private:
-  void TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs);
+  void TryCompile(mjModel*& m, mjData*& d, int default_provider);
+  mjModel* _Compile(int default_provider);
 
   void Clear(void);               // clear objects allocated by Compile
 

@@ -25,6 +25,7 @@
 #include <mujoco/mjplugin.h>
 #include <mujoco/mjxmacro.h>
 #include "engine/engine_array_safety.h"
+#include "engine/engine_resource.h"
 #include "engine/engine_macro.h"
 #include "engine/engine_plugin.h"
 #include "engine/engine_util_blas.h"
@@ -620,82 +621,63 @@ void mj_saveModel(const mjModel* m, const char* filename, void* buffer, int buff
 
 
 
-// load model from binary MJB file
-//  if vfs is not NULL, look up file in vfs before reading from disk
-mjModel* mj_loadModel(const char* filename, const mjVFS* vfs) {
+// load model from binary MJB resource
+static mjModel* _mj_loadModel(const char* filename, int default_provider) {
   int header[4] = {0};
   int expected_header[4] = {ID, sizeof(mjtNum), getnint(), getnptr()};
   int info[2000];
   int ptrbuf = 0;
   mjModel *m = 0;
-  FILE* fp = 0;
+  mjResource* r = NULL;
 
-  // find file in VFS if given
+  if((r = mju_openResource(filename, default_provider)) == NULL) {
+    return NULL;
+  }
+
   const void* buffer = NULL;
-  int buffer_sz = 0;
-  if (vfs) {
-    int i = mj_findFileVFS(vfs, filename);
-    if (i>=0) {
-      buffer_sz = vfs->filesize[i];
-      buffer = vfs->filedata[i];
-    }
+  int buffer_sz = mju_readResource(r, &buffer);
+  if (buffer_sz <= 0) {
+    mju_closeResource(r);
+    return NULL;
   }
 
-  // open file for reading if no buffer
-  if (!buffer) {
-    fp = fopen(filename, "rb");
-    if (!fp) {
-      mju_warning("Could not open file '%s'", filename);
-      return 0;
-    }
+  if (buffer_sz < 4*sizeof(int)) {
+    mju_warning("Model file has an incomplete header");
+    mju_closeResource(r);
+    return NULL;
   }
 
-  // read header
-  if (fp) {
-    if (fread(header, 4, sizeof(int), fp) != 4) {
-      mju_warning("Model file has an incomplete header");
-      return 0;
-    }
-  } else {
-    bufread(header, 4*sizeof(int), buffer_sz, buffer, &ptrbuf);
-  }
+  bufread(header, 4*sizeof(int), buffer_sz, buffer, &ptrbuf);
 
   // check header
   for (int i=0; i<4; i++) {
     if (header[i]!=expected_header[i]) {
-      if (fp) {
-        fclose(fp);
-      }
-
       switch (i) {
       case 0:
         mju_warning("Model missing header ID");
-        return 0;
+        mju_closeResource(r);
+        return NULL;
 
       case 1:
         mju_warning("Model and executable have different floating point precision");
-        return 0;
+        mju_closeResource(r);
+        return NULL;
 
       case 2:
         mju_warning("Model and executable have different number of ints in mjModel");
-        return 0;
+        mju_closeResource(r);
+        return NULL;
 
       default:
         mju_warning("Model and executable have different number of pointers in mjModel");
-        return 0;
+        mju_closeResource(r);
+        return NULL;
       }
     }
   }
 
   // read mjModel structure: info only
-  if (fp) {
-    if (fread(info, sizeof(int), getnint(), fp) != getnint()) {
-      mju_warning("Model file does not contain enough ints");
-      return 0;
-    }
-  } else {
-    bufread(info, sizeof(int)*getnint(), buffer_sz, buffer, &ptrbuf);
-  }
+  bufread(info, sizeof(int)*getnint(), buffer_sz, buffer, &ptrbuf);
 
   // allocate new mjModel, check sizes
   m = mj_makeModel(info[0],  info[1],  info[2],  info[3],  info[4],  info[5],  info[6],
@@ -707,86 +689,66 @@ mjModel* mj_loadModel(const char* filename, const mjVFS* vfs) {
                    info[42], info[43], info[44], info[45], info[46], info[47], info[48],
                    info[49], info[50], info[51], info[52]);
   if (!m || m->nbuffer!=info[getnint()-1]) {
-    if (fp) {
-      fclose(fp);
-    }
+    mju_closeResource(r);
     mju_warning("Corrupted model, wrong size parameters");
     mj_deleteModel(m);
-    return 0;
+    return NULL;
   }
 
   // set info fields
   memcpy(m, info, sizeof(int)*getnint());
 
   // read options and buffer
-  if (fp) {
-    if (fread((void*)&m->opt, sizeof(mjOption), 1, fp) != 1) {
-      mju_warning("Model file does not have a complete mjOption");
-      mj_deleteModel(m);
-      return 0;
-    }
-    if (fread((void*)&m->vis, sizeof(mjVisual), 1, fp) != 1) {
-      mju_warning("Model file does not have a complete mjVisual");
-      mj_deleteModel(m);
-      return 0;
-    }
-    if (fread((void*)&m->stat, sizeof(mjStatistic), 1, fp) != 1) {
-      mju_warning("Model file does not have a complete mjStatistic");
-      mj_deleteModel(m);
-      return 0;
-    }
-    {
-      MJMODEL_POINTERS_PREAMBLE(m)
-      #define X(type, name, nr, nc)                                            \
-        if (fread(m->name, sizeof(type), (m->nr)*(nc), fp) != (m->nr)*(nc)) {  \
-          mju_warning("Model file does not contain a large enough buffer");    \
-          mj_deleteModel(m);                                                   \
-          return 0;                                                            \
-        }
-      MJMODEL_POINTERS
-      #undef X
-    }
-  } else {
-    bufread((void*)&m->opt, sizeof(mjOption), buffer_sz, buffer, &ptrbuf);
-    bufread((void*)&m->vis, sizeof(mjVisual), buffer_sz, buffer, &ptrbuf);
-    bufread((void*)&m->stat, sizeof(mjStatistic), buffer_sz, buffer, &ptrbuf);
-    {
-      MJMODEL_POINTERS_PREAMBLE(m)
-      #define X(type, name, nr, nc)  \
-        bufread(m->name, sizeof(type)*(m->nr)*(nc), buffer_sz, buffer, &ptrbuf);
-      MJMODEL_POINTERS
-      #undef X
-    }
+  bufread((void*)&m->opt, sizeof(mjOption), buffer_sz, buffer, &ptrbuf);
+  bufread((void*)&m->vis, sizeof(mjVisual), buffer_sz, buffer, &ptrbuf);
+  bufread((void*)&m->stat, sizeof(mjStatistic), buffer_sz, buffer, &ptrbuf);
+  {
+    MJMODEL_POINTERS_PREAMBLE(m)
+    #define X(type, name, nr, nc)  \
+      bufread(m->name, sizeof(type)*(m->nr)*(nc), buffer_sz, buffer, &ptrbuf);
+    MJMODEL_POINTERS
+    #undef X
   }
 
-  // make sure file size is correct
-  if (fp) {
-    if (feof(fp)) {
-      fclose(fp);
-      mju_warning("Model file is too small");
-      mj_deleteModel(m);
-      return 0;
-    }
-    char dummy;
-    if (fread(&dummy, 1, 1, fp) || !feof(fp)) {
-      fclose(fp);
-      mju_warning("Model file is too large");
-      mj_deleteModel(m);
-      return 0;
-    }
+  // make sure buffer is the correct size
+  if (ptrbuf != buffer_sz) {
+    mju_closeResource(r);
+    mju_warning("Model file is too large");
+    mj_deleteModel(m);
+    return NULL;
   }
 
   const char* validationError = mj_validateReferences(m);
   if (validationError) {
+    mju_closeResource(r);
     mju_warning("%s", validationError);
     mj_deleteModel(m);
-    return 0;
+    return NULL;
   }
 
-  if (fp) {
-    fclose(fp);
-  }
+  mju_closeResource(r);
   return m;
+}
+
+
+
+// load model from binary MJB file
+//  if vfs is not NULL, look up file in vfs before reading from disk
+mjModel* mj_loadModel(const char* filename, const mjVFS* vfs) {
+  if (vfs == NULL) {
+    return _mj_loadModel(filename, 0);
+  }
+
+  int index = mj_registerVfsProvider(vfs);
+  if (index < 1) {
+    mju_error("mj_loadModel: could not allocate memory");
+    return NULL;
+  }
+
+  mjModel* model = _mj_loadModel(filename, index);
+
+  mjp_unregisterResourceProvider(index);
+  return model;
 }
 
 

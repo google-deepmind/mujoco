@@ -18,7 +18,8 @@
 #include <stdlib.h>
 
 #include "engine/engine_array_safety.h"
-#include "engine/engine_file.h"
+#include "engine/engine_plugin.h"
+#include "engine/engine_resource.h"
 #include "engine/engine_util_errmem.h"
 #include "engine/engine_util_misc.h"
 
@@ -154,7 +155,6 @@ int mj_findFileVFS(const mjVFS* vfs, const char* filename) {
   // strip path
   char newname[mjMAXVFSNAME];
   vfs_strippath(newname, filename);
-
   // find specific file
   for (int i=0; i<vfs->nfile; i++) {
     if (strncmp(newname, vfs->filename[i], mjMAXVFSNAME)==0) {
@@ -209,4 +209,57 @@ void mj_deleteVFS(mjVFS* vfs) {
   }
 
   memset(vfs, 0, sizeof(mjVFS));
+}
+
+
+
+// open callback for the VFS resource provider
+static int vfs_open_callback(mjResource* resource) {
+  if (!resource || !resource->provider_data || !resource->name) {
+    return 0;
+  }
+
+  const mjVFS* vfs = (const mjVFS*) resource->provider_data;
+  return mj_findFileVFS(vfs, resource->name) >= 0;
+}
+
+
+
+// read callback for the VFS resource provider
+static int vfs_read_callback(mjResource* resource, const void** buffer) {
+  if (!resource || !resource->provider_data) {
+    *buffer = NULL;
+    return -1;
+  }
+
+  const mjVFS* vfs = (const mjVFS*) resource->provider_data;
+  int i = mj_findFileVFS(vfs, resource->name);
+  if (i < 0) {
+    *buffer = NULL;
+    return -1;
+  }
+
+  *buffer = vfs->filedata[i];
+  return vfs->filesize[i];
+}
+
+
+
+// close callback for the VFS resource provider
+static void vfs_close_callback(mjResource* resource) {
+}
+
+
+
+// registers a VFS resource provider; returns the index of the provider
+int mj_registerVfsProvider(const mjVFS* vfs) {
+  mjpResourceProvider provider = {
+    .prefix = mjVFS_PREFIX,
+    .open = &vfs_open_callback,
+    .read = &vfs_read_callback,
+    .close = &vfs_close_callback,
+    .data = (void*) vfs
+  };
+
+  return mjp_registerResourceProviderInternal(&provider);
 }

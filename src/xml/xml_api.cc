@@ -20,6 +20,8 @@
 #include <mutex>
 #include <random>
 
+#include "engine/engine_resource.h"
+#include "engine/engine_vfs.h"
 #include "user/user_model.h"
 #include "xml/xml.h"
 #include "xml/xml_native_reader.h"
@@ -80,26 +82,24 @@ void mj_deactivate(void) {
 
 
 
-// parse XML file in MJCF or URDF format, compile it, return low-level model
-//  if vfs is not NULL, look up files in vfs before reading from disk
-//  error can be NULL; otherwise assumed to have size error_sz
-mjModel* mj_loadXML(const char* filename, const mjVFS* vfs,
-                    char* error, int error_sz) {
+// mj_loadXML helper function
+mjModel* _loadXML(const char* filename, int default_provider,
+                  char* error, int error_sz) {
   // serialize access to themodel
   std::lock_guard<std::mutex> lock(themutex);
 
   // parse new model
-  mjCModel* newmodel = mjParseXML(filename, vfs, error, error_sz);
+  mjCModel* newmodel = mjParseXML(filename, default_provider, error, error_sz);
   if (!newmodel) {
-    return 0;
+    return nullptr;
   }
 
   // compile new model
-  mjModel* m = newmodel->Compile(vfs);
+  mjModel* m = newmodel->Compile(default_provider);
   if (!m) {
     mjCopyError(error, newmodel->GetError().message, error_sz);
     delete newmodel;
-    return 0;
+    return nullptr;
   }
 
   // clear old and assign new
@@ -110,12 +110,36 @@ mjModel* mj_loadXML(const char* filename, const mjVFS* vfs,
   if (themodel.model->GetError().warning) {
     mjCopyError(error, themodel.model->GetError().message, error_sz);
   } else if (error) {
-    error[0] = 0;
+    error[0] = '\0';
   }
 
   return m;
 }
 
+
+
+// parse XML file in MJCF or URDF format, compile it, return low-level model
+//  if vfs is not NULL, look up files in vfs before reading from disk
+//  error can be NULL; otherwise assumed to have size error_sz
+mjModel* mj_loadXML(const char* filename, const mjVFS* vfs,
+                    char* error, int error_sz) {
+
+  if (vfs == nullptr) {
+    return _loadXML(filename, 0, error, error_sz);
+  }
+
+  int index = mj_registerVfsProvider(vfs);
+  if (index < 1) {
+    if (error) {
+      snprintf(error, error_sz, "mj_loadXML: could not register VFS");
+    }
+    return nullptr;
+  }
+
+  mjModel* model = _loadXML(filename, index, error, error_sz);
+  mjp_unregisterResourceProvider(index);
+  return model;
+}
 
 
 

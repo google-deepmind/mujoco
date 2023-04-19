@@ -20,6 +20,9 @@ General
   equivalent body inertias with ellipsoids instead of the default boxes.
 - Added documentation for :ref:`engine plugins<exPlugin>`.
 - Added struct information to the ``introspect`` module.
+- Added a new extension mechanism called "resource provider" . This extensible mechanism allows MuJoCo
+  to read assets from data sources other than the local OS filesystem or
+  the :ref:`Virtual file system<Virtualfilesystem>`.
 
 Python bindings
 ^^^^^^^^^^^^^^^

@@ -512,10 +512,10 @@ class mjCMesh: public mjCBase {
  private:
   mjCMesh(mjCModel* = 0, mjCDef* = 0);        // constructor
   ~mjCMesh();                                 // destructor
-  void Compile(const mjVFS* vfs);             // compiler
-  void LoadOBJ(const mjVFS* vfs);             // load mesh in wavefront OBJ format
-  void LoadSTL(const mjVFS* vfs);             // load mesh in STL BIN format
-  void LoadMSH(const mjVFS* vfs);             // load mesh in MSH BIN format
+  void Compile(int default_provider);         // compiler
+  void LoadOBJ(int default_provider);         // load mesh in wavefront OBJ format
+  void LoadSTL(int default_provider);         // load mesh in STL BIN format
+  void LoadMSH(int default_provider);         // load mesh in MSH BIN format
   void MakeGraph(void);                       // make graph of convex hull
   void CopyGraph(void);                       // copy graph into face data
   void MakeNormal(void);                      // compute vertex normals
@@ -590,8 +590,8 @@ class mjCSkin: public mjCBase {
  private:
   mjCSkin(mjCModel* = 0);                     // constructor
   ~mjCSkin();                                 // destructor
-  void Compile(const mjVFS* vfs);             // compiler
-  void LoadSKN(const mjVFS* vfs);             // load skin in SKN BIN format
+  void Compile(int default_provider);         // compiler
+  void LoadSKN(int default_provider);         // load skin in SKN BIN format
 
   int matid;                          // material id
   std::vector<int> bodyid;            // body ids
@@ -616,10 +616,10 @@ class mjCHField : public mjCBase {
  private:
   mjCHField(mjCModel* model);             // constructor
   ~mjCHField();                           // destructor
-  void Compile(const mjVFS* vfs);         // compiler
+  void Compile(int default_provider);     // compiler
 
-  void LoadCustom(std::string filename, const mjVFS* vfs); // load from custom format
-  void LoadPNG(std::string filename, const mjVFS* vfs);    // load from PNG format
+  void LoadCustom(std::string filename, int default_provider); // load from custom format
+  void LoadPNG(std::string filename, int default_provider);    // load from PNG format
 };
 
 
@@ -660,22 +660,22 @@ class mjCTexture : public mjCBase {
  private:
   mjCTexture(mjCModel*);                  // constructor
   ~mjCTexture();                          // destructior
-  void Compile(const mjVFS* vfs);         // compiler
+  void Compile(int default_provider);     // compiler
 
   void Builtin2D(void);                   // make builtin 2D
   void BuiltinCube(void);                 // make builtin cube
-  void Load2D(std::string filename, const mjVFS* vfs);         // load 2D from file
-  void LoadCubeSingle(std::string filename, const mjVFS* vfs); // load cube from single file
-  void LoadCubeSeparate(const mjVFS* vfs);                     // load cube from separate files
+  void Load2D(std::string filename, int default_provider);         // load 2D from file
+  void LoadCubeSingle(std::string filename, int default_provider); // load cube from single file
+  void LoadCubeSeparate(int default_provider);                     // load cube from separate files
 
-  void LoadFlip(std::string filename, const mjVFS* vfs,   // load and flip
+  void LoadFlip(std::string filename, int default_provider,   // load and flip
                 std::vector<unsigned char>& image,
                 unsigned int& w, unsigned int& h);
 
-  void LoadPNG(std::string filename, const mjVFS* vfs,
+  void LoadPNG(std::string filename, int default_provider,
                std::vector<unsigned char>& image,
                unsigned int& w, unsigned int& h);
-  void LoadCustom(std::string filename, const mjVFS* vfs,
+  void LoadCustom(std::string filename, int default_provider,
                   std::vector<unsigned char>& image,
                   unsigned int& w, unsigned int& h);
 

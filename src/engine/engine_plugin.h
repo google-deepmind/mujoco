@@ -28,14 +28,32 @@ MJAPI void mjp_defaultPlugin(mjpPlugin* plugin);
 // globally register a plugin (thread-safe), return new slot id
 MJAPI int mjp_registerPlugin(const mjpPlugin* plugin);
 
+// globally register a resource provider (thread-safe), return new slot id
+MJAPI int mjp_registerResourceProvider(const mjpResourceProvider* provider);
+
+// globally unregister a resource provider (thread-safe)
+MJAPI void mjp_unregisterResourceProvider(int slot);
+
 // return the number of globally registered plugins
 MJAPI int mjp_pluginCount();
+
+// return the number of globally registered resource providers
+MJAPI int mjp_resourceProviderCount();
 
 // look up a plugin by name, optionally also get its registered slot number
 MJAPI const mjpPlugin* mjp_getPlugin(const char* name, int* slot);
 
+// set default resource provider definition
+MJAPI void mjp_defaultResourceProvider(mjpResourceProvider* provider);
+
+// look up a resource provider that matches its prefix against the given resource name
+MJAPI const mjpResourceProvider* mjp_getResourceProvider(const char* resource_name);
+
 // look up a plugin by slot number
 MJAPI const mjpPlugin* mjp_getPluginAtSlot(int slot);
+
+// look up a resource provider by slot number
+MJAPI const mjpResourceProvider* mjp_getResourceProviderAtSlot(int slot);
 
 // return a config attribute of a plugin instance
 // NULL: invalid plugin instance ID or attribute name
@@ -51,9 +69,12 @@ MJAPI void mj_loadAllPluginLibraries(const char* directory, mjfPluginLibraryLoad
 // MuJoCo-internal functions beyond this point.
 // "Unsafe" suffix indicates that improper use of these functions may result in data races.
 //
-// The unsafe functions assume that called mjp_pluginCount has already been called, and that it is
-// safe to assume that all plugins up to `count` have been completely written into the global table.
+// The unsafe functions assume that mjp_pluginCount has already been called, and that all plugins
+// up to `count` have been completely written into the global table.
 // =================================================================================================
+
+// internal version of mjp_registerResourceProvider without prechecks on reserved prefixes
+MJAPI int mjp_registerResourceProviderInternal(const mjpResourceProvider* provider);
 
 // look up a plugin by name, assuming that mjp_pluginCount has already been called
 const mjpPlugin* mjp_getPluginUnsafe(const char* name, int* slot, int nslot);

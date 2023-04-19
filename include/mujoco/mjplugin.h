@@ -20,6 +20,33 @@
 #include <mujoco/mjvisualize.h>
 
 
+//---------------------------------- Resource Provider ---------------------------------------------
+
+#define mjVFS_PREFIX    "vfs://"  // prefix for VFS providers
+
+// callback for opeing a resource, returns zero on failure
+typedef int (*mjfOpenResource)(mjResource* resource);
+
+// callback for reading a resource
+// return number of bytes stored in buffer, return -1 if error
+typedef int (*mjfReadResource)(mjResource* resource, const void** buffer);
+
+// callback for closing a resource (responsible for freeing any allocated memory)
+typedef void (*mjfCloseResource)(mjResource* resource);
+
+// struct describing a single resource provider
+struct mjpResourceProvider_ {
+  const char* prefix;          // prefix for match against a resource name
+  mjfOpenResource open;        // opening callback
+  mjfReadResource read;        // reading callback
+  mjfCloseResource close;      // closing callback
+  void* data;                  // opaque data pointer (resource invariant)
+};
+typedef struct mjpResourceProvider_ mjpResourceProvider;
+
+
+//---------------------------------- Plugins -------------------------------------------------------
+
 typedef enum mjtPluginCapabilityBit_ {
   mjPLUGIN_ACTUATOR = 1<<0,
   mjPLUGIN_SENSOR   = 1<<1,

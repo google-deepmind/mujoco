@@ -1192,6 +1192,25 @@ MJAPI const mjpPlugin* mjp_getPlugin(const char* name, int* slot);
 // Look up a plugin by the registered slot number that was returned by mjp_registerPlugin.
 MJAPI const mjpPlugin* mjp_getPluginAtSlot(int slot);
 
+// Set default resource provider definition.
+MJAPI void mjp_defaultResourceProvider(mjpResourceProvider* provider);
+
+// Globally register a resource provider in a thread-safe manner. The provider must have a prefix
+// that is not a sub-prefix or super-prefix of any current registered providers.  This function
+// returns a slot number > 0 on success.
+MJAPI int mjp_registerResourceProvider(const mjpResourceProvider* provider);
+
+// Return the number of globally registered resource providers.
+MJAPI int mjp_resourceProviderCount();
+
+// Return the resource provider with the prefix that matches against the resource name.
+// If no match, return NULL.
+MJAPI const mjpResourceProvider* mjp_getResourceProvider(const char* resource_name);
+
+// Look up a resource provider by slot number returned by mjp_registerResourceProvider.
+// If invalid slot number, return NULL.
+MJAPI const mjpResourceProvider* mjp_getResourceProviderAtSlot(int slot);
+
 
 #if defined(__cplusplus)
 }

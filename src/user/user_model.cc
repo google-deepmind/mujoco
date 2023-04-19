@@ -32,6 +32,7 @@
 #include "engine/engine_macro.h"
 #include "engine/engine_plugin.h"
 #include "engine/engine_setconst.h"
+#include "engine/engine_resource.h"
 #include "engine/engine_support.h"
 #include "engine/engine_util_blas.h"
 #include "engine/engine_util_errmem.h"
@@ -2392,7 +2393,7 @@ static void warninghandler(const char* msg) {
 
 
 // compiler
-mjModel* mjCModel::Compile(const mjVFS* vfs) {
+mjModel* mjCModel::Compile(int default_provider) {
   // The volatile keyword is necessary to prevent a possible memory leak due to
   // an interaction between longjmp and compiler optimization. Specifically, at
   // the point where the setjmp takes places, these pointers have never been
@@ -2423,7 +2424,7 @@ mjModel* mjCModel::Compile(const mjVFS* vfs) {
       // TryCompile resulted in an mju_error which was converted to a longjmp.
       throw mjCError(0, "engine error: %s", errortext);
     }
-    TryCompile(*const_cast<mjModel**>(&m), *const_cast<mjData**>(&data), vfs);
+    TryCompile(*const_cast<mjModel**>(&m), *const_cast<mjData**>(&data), default_provider);
   } catch (mjCError err) {
     // deallocate everything allocated in Compile
     mj_deleteModel(m);
@@ -2449,7 +2450,7 @@ mjModel* mjCModel::Compile(const mjVFS* vfs) {
 }
 
 
-void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
+void mjCModel::TryCompile(mjModel*& m, mjData*& d, int default_provider) {
   // check if nan test works
   double test = mjNAN;
   if (mjuu_defined(test)) {
@@ -2526,7 +2527,7 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
 
   // compile meshes (needed for geom compilation)
   for (int i=0; i<meshes.size(); i++) {
-    meshes[i]->Compile(vfs);
+    meshes[i]->Compile(default_provider);
   }
 
   // automatically set nuser fields
@@ -2585,9 +2586,9 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
   }
 
   // compile all other objects except for keyframes
-  for (int i=0; i<skins.size(); i++) skins[i]->Compile(vfs);
-  for (int i=0; i<hfields.size(); i++) hfields[i]->Compile(vfs);
-  for (int i=0; i<textures.size(); i++) textures[i]->Compile(vfs);
+  for (int i=0; i<skins.size(); i++) skins[i]->Compile(default_provider);
+  for (int i=0; i<hfields.size(); i++) hfields[i]->Compile(default_provider);
+  for (int i=0; i<textures.size(); i++) textures[i]->Compile(default_provider);
   for (int i=0; i<materials.size(); i++) materials[i]->Compile();
   for (int i=0; i<pairs.size(); i++) pairs[i]->Compile();
   for (int i=0; i<excludes.size(); i++) excludes[i]->Compile();

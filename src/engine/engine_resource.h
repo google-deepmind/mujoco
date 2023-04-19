@@ -12,12 +12,27 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef MUJOCO_SRC_ENGINE_ENGINE_FILE_H_
-#define MUJOCO_SRC_ENGINE_ENGINE_FILE_H_
+#ifndef MUJOCO_SRC_ENGINE_ENGINE_RESOURCE_H_
+#define MUJOCO_SRC_ENGINE_ENGINE_RESOURCE_H_
+
+#include <mujoco/mjexport.h>
+#include "engine/engine_plugin.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+// open the given resource; if the name doesn't have a prefix matching with a
+// resource provider, then the default_provider is used
+// if default_provider non-positive, then the OS filesystem is used
+MJAPI mjResource* mju_openResource(const char* name, int default_provider);
+
+// close the given resource; no-op if resource is NULL
+MJAPI void mju_closeResource(mjResource* resource);
+
+// set buffer to bytes read from the resource and return number of bytes in buffer;
+// return negative value if error
+MJAPI int mju_readResource(mjResource* resource, const void** buffer);
 
 // read file into memory buffer (allocated here with mju_malloc)
 void* mju_fileToMemory(const char* filename, int* filesize);
@@ -26,4 +41,4 @@ void* mju_fileToMemory(const char* filename, int* filesize);
 }
 #endif
 
-#endif  // MUJOCO_SRC_ENGINE_ENGINE_FILE_H_
+#endif  // MUJOCO_SRC_ENGINE_ENGINE_RESOURCE_H_

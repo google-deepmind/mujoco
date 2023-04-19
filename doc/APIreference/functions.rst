@@ -3069,3 +3069,52 @@ mjp_getPluginAtSlot
 
 Look up a plugin by the registered slot number that was returned by mjp_registerPlugin.
 
+.. _mjp_defaultResourceProvider:
+
+mjp_defaultResourceProvider
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjp_defaultResourceProvider
+
+Set default resource provider definition.
+
+.. _mjp_registerResourceProvider:
+
+mjp_registerResourceProvider
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjp_registerResourceProvider
+
+Globally register a resource provider in a thread-safe manner. The provider must have a prefix
+that is not a sub-prefix or super-prefix of any current registered providers.  This function
+returns a slot number > 0 on success.
+
+.. _mjp_resourceProviderCount:
+
+mjp_resourceProviderCount
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjp_resourceProviderCount
+
+Return the number of globally registered resource providers.
+
+.. _mjp_getResourceProvider:
+
+mjp_getResourceProvider
+~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjp_getResourceProvider
+
+Return the resource provider with the prefix that matches against the resource name.
+If no match, return NULL.
+
+.. _mjp_getResourceProviderAtSlot:
+
+mjp_getResourceProviderAtSlot
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjp_getResourceProviderAtSlot
+
+Look up a resource provider by slot number returned by mjp_registerResourceProvider.
+If invalid slot number, return NULL.
+

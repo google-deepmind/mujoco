@@ -30,13 +30,12 @@
 #include <mujoco/mjmodel.h>
 #include "cc/array_safety.h"
 #include "engine/engine_crossplatform.h"
-#include "engine/engine_file.h"
+#include "engine/engine_resource.h"
 #include "engine/engine_macro.h"
 #include "engine/engine_util_blas.h"
 #include "engine/engine_util_errmem.h"
 #include "engine/engine_util_solve.h"
 #include "engine/engine_util_spatial.h"
-#include "engine/engine_vfs.h"
 #include "user/user_model.h"
 #include "user/user_objects.h"
 #include "user/user_util.h"
@@ -180,7 +179,7 @@ template <typename T> static T* VecToArray(std::vector<T>& vector,  bool clear =
 
 
 // compiler
-void mjCMesh::Compile(const mjVFS* vfs) {
+void mjCMesh::Compile(int default_provider) {
   // load file
   if (!file.empty()) {
     // remove path from file if necessary
@@ -191,11 +190,11 @@ void mjCMesh::Compile(const mjVFS* vfs) {
     // load STL, OBJ or MSH
     string ext = mjuu_getext(file);
     if (!strcasecmp(ext.c_str(), ".stl")) {
-      LoadSTL(vfs);
+      LoadSTL(default_provider);
     } else if (!strcasecmp(ext.c_str(), ".obj")) {
-      LoadOBJ(vfs);
+      LoadOBJ(default_provider);
     } else if (!strcasecmp(ext.c_str(), ".msh")) {
-      LoadMSH(vfs);
+      LoadMSH(default_provider);
     } else {
       throw mjCError(this, "Unknown mesh file type: %s", file.c_str());
     }
@@ -584,34 +583,36 @@ void mjCMesh::RemoveRepeated() {
 
 
 // load OBJ mesh
-void mjCMesh::LoadOBJ(const mjVFS* vfs) {
+void mjCMesh::LoadOBJ(int default_provider) {
 
   // make filename
   string filename = mjuu_makefullname(
       model->modelfiledir, model->meshdir, file);
+  mjResource* r = nullptr;
 
-  tinyobj::ObjReader objReader;
-  char* buffer = nullptr;
-  if (vfs) {
-    int id = mj_findFileVFS(vfs, filename.c_str());
-    if (id >= 0) {
-      buffer = static_cast<char*>(vfs->filedata[id]);
-      int buffer_sz = vfs->filesize[id];
-      // TODO(etom): support .mtl files in the VFS case?
-      objReader.ParseFromString(std::string(buffer, buffer_sz), std::string());
+  // try reading from default provider
+  if((r = mju_openResource(filename.c_str(), default_provider)) == nullptr) {
+    // try reading from filesystem
+    if (default_provider || (r = mju_openResource(filename.c_str(), 0)) == nullptr) {
+      throw mjCError(this, "could not parse OBJ file '%s'", filename.c_str());
     }
   }
 
-  // if not found in vfs, read from file
-  if (!buffer) {
-    objReader.ParseFromFile(filename);
+  tinyobj::ObjReader objReader;
+  const void* bytes = nullptr;
+  int buffer_sz = mju_readResource(r, &bytes);
+  if (buffer_sz < 0) {
+    mju_closeResource(r);
+    throw mjCError(this, "could not parse OBJ file '%s'", filename.c_str());
   }
 
+  // TODO(etom): support .mtl files?
+  const char* buffer = (const char*) bytes;
+  objReader.ParseFromString(std::string(buffer, buffer_sz), std::string());
+  mju_closeResource(r);
+
   if (!objReader.Valid()) {
-    std::stringstream msg;
-    msg << "could not parse OBJ file '" << filename << "': \n"
-        << objReader.Error();
-    throw mjCError(this, "%s", msg.str().c_str());
+    throw mjCError(this, "could not parse OBJ file '%s'", filename.c_str());
   }
 
   const auto& attrib = objReader.GetAttrib();
@@ -685,56 +686,42 @@ void mjCMesh::LoadOBJ(const mjVFS* vfs) {
 
 
 // load STL binary mesh
-void mjCMesh::LoadSTL(const mjVFS* vfs) {
+void mjCMesh::LoadSTL(int default_provider) {
   bool righthand = (scale[0]*scale[1]*scale[2]>0);
 
   // make filename
   string filename = mjuu_makefullname(model->modelfiledir, model->meshdir, file);
+  mjResource* r = nullptr;
+  if((r = mju_openResource(filename.c_str(), default_provider)) == nullptr) {
+    if(!default_provider || (r = mju_openResource(filename.c_str(), 0)) == nullptr) {
+      throw mjCError(this, "could not open STL file '%s'", filename.c_str());
+    }
+  }
+
 
   // get file data in buffer
   char* buffer = 0;
-  int buffer_sz = 0;
-  bool own_buffer = false;
-  if (vfs) {
-    int id = mj_findFileVFS(vfs, filename.c_str());
-    if (id>=0) {
-      buffer = (char*)vfs->filedata[id];
-      buffer_sz = vfs->filesize[id];
-    }
-  }
-
-  // if not found in vfs, read from file
-  if (!buffer) {
-    buffer = (char*) mju_fileToMemory(filename.c_str(), &buffer_sz);
-    own_buffer = true;
-  }
+  int buffer_sz = mju_readResource(r, (const void**)  &buffer);
 
   // still not found
-  if (!buffer) {
+  if (buffer_sz < 0) {
+    mju_closeResource(r);
     throw mjCError(this, "could not open STL file '%s'", filename.c_str());
   } else if (!buffer_sz) {
-    if (own_buffer) {
-      mju_free(buffer);
-    }
+    mju_closeResource(r);
     throw mjCError(this, "STL file '%s' is empty", filename.c_str());
   }
 
   // make sure there is enough data for header
   if (buffer_sz<84) {
-    if (own_buffer) {
-      mju_free(buffer);
-    }
-
+    mju_closeResource(r);
     throw mjCError(this, "invalid header in STL file '%s'", filename.c_str());
   }
 
   // get number of triangles, check bounds
   nface = *(unsigned int*)(buffer+80);
   if (nface<1 || nface>200000) {
-    if (own_buffer) {
-      mju_free(buffer);
-    }
-
+    mju_closeResource(r);
     throw mjCError(this,
                    "number of faces should be between 1 and 200000 in STL file '%s';"
                    " perhaps this is an ASCII file?", filename.c_str());
@@ -742,10 +729,7 @@ void mjCMesh::LoadSTL(const mjVFS* vfs) {
 
   // check remaining buffer size
   if (nface*50 != buffer_sz-84) {
-    if (own_buffer) {
-      mju_free(buffer);
-    }
-
+    mju_closeResource(r);
     throw mjCError(this,
                    "STL file '%s' has wrong size; perhaps this is an ASCII file?",
                    filename.c_str());
@@ -765,19 +749,13 @@ void mjCMesh::LoadSTL(const mjVFS* vfs) {
       float* v = (float*)(stl+50*i+12*(j+1));
       for (int k=0; k < 3; k++) {
         if (std::isnan(v[k]) || std::isinf(v[k])) {
-          if (own_buffer) {
-            mju_free(buffer);
-          }
-
+          mju_closeResource(r);
           throw mjCError(this, "STL file '%s' contains invalid vertices.",
                          filename.c_str());
         }
         // check if vertex coordinates can be cast to an int safely
         if (fabs(v[k])>pow(2, 30)) {
-          if (own_buffer) {
-            mju_free(buffer);
-          }
-
+          mju_closeResource(r);
           throw mjCError(this,
                         "vertex coordinates in STL file '%s' exceed maximum bounds",
                         filename.c_str());
@@ -797,56 +775,43 @@ void mjCMesh::LoadSTL(const mjVFS* vfs) {
     }
   }
 
-  // free buffer if allocated here
-  if (own_buffer) {
-    mju_free(buffer);
-  }
-
+  mju_closeResource(r);
   RemoveRepeated();
 }
 
 
 
 // load MSH binary mesh
-void mjCMesh::LoadMSH(const mjVFS* vfs) {
+void mjCMesh::LoadMSH(int default_provider) {
   bool righthand = (scale[0]*scale[1]*scale[2]>0);
 
   // make filename
   string filename = mjuu_makefullname(model->modelfiledir, model->meshdir, file);
 
+  mjResource* r = nullptr;
+  if((r = mju_openResource(filename.c_str(), default_provider)) == nullptr) {
+    // fall back to OS filesystem
+    if(!default_provider || (r = mju_openResource(filename.c_str(), 0)) == nullptr) {
+    throw mjCError(this, "could not open STL file '%s'", filename.c_str());
+    }
+  }
+
   // get file data in buffer
   char* buffer = 0;
-  int buffer_sz = 0;
-  bool own_buffer = false;
-  if (vfs) {
-    int id = mj_findFileVFS(vfs, filename.c_str());
-    if (id>=0) {
-      buffer = (char*)vfs->filedata[id];
-      buffer_sz = vfs->filesize[id];
-    }
-  }
-
-  // if not found in vfs, read from file
-  if (!buffer) {
-    buffer = (char*) mju_fileToMemory(filename.c_str(), &buffer_sz);
-    own_buffer = true;
-  }
+  int buffer_sz = mju_readResource(r, (const void**)  &buffer);
 
   // still not found
-  if (!buffer) {
-    throw mjCError(this, "could not open MSH file '%s'", filename.c_str());
+  if (buffer_sz < 0) {
+    mju_closeResource(r);
+    throw mjCError(this, "could not open STL file '%s'", filename.c_str());
   } else if (!buffer_sz) {
-    if (own_buffer) {
-      mju_free(buffer);
-    }
-    throw mjCError(this, "MSH file '%s' is empty", filename.c_str());
+    mju_closeResource(r);
+    throw mjCError(this, "STL file '%s' is empty", filename.c_str());
   }
 
   // make sure header is present
   if (buffer_sz<4*sizeof(int)) {
-    if (own_buffer) {
-      mju_free(buffer);
-    }
+    mju_closeResource(r);
     throw mjCError(this, "missing header in MSH file '%s'", filename.c_str());
   }
 
@@ -860,18 +825,14 @@ void mjCMesh::LoadMSH(const mjVFS* vfs) {
   if (nvert<4 || nface<0 || nnormal<0 || ntexcoord<0 ||
       (nnormal>0 && nnormal!=nvert) ||
       (ntexcoord>0 && ntexcoord!=nvert)) {
-    if (own_buffer) {
-      mju_free(buffer);
-    }
+    mju_closeResource(r);
     throw mjCError(this, "invalid sizes in MSH file '%s'", filename.c_str());
   }
 
   // check file size
   if (buffer_sz != 4*sizeof(int) + 3*nvert*sizeof(float) + 3*nnormal*sizeof(float) +
       2*ntexcoord*sizeof(float) + 3*nface*sizeof(int)) {
-    if (own_buffer) {
-      mju_free(buffer);
-    }
+    mju_closeResource(r);
     throw mjCError(this, "unexpected file size in MSH file '%s'", filename.c_str());
   }
 
@@ -912,10 +873,7 @@ void mjCMesh::LoadMSH(const mjVFS* vfs) {
     }
   }
 
-  // free buffer if allocated here
-  if (own_buffer) {
-    mju_free(buffer);
-  }
+  mju_closeResource(r);
 }
 
 
@@ -1602,7 +1560,7 @@ mjCSkin::~mjCSkin() {
 
 
 // compiler
-void mjCSkin::Compile(const mjVFS* vfs) {
+void mjCSkin::Compile(int default_provider) {
 
   // load file
   if (!file.empty()) {
@@ -1627,7 +1585,7 @@ void mjCSkin::Compile(const mjVFS* vfs) {
     // load SKN
     string ext = mjuu_getext(file);
     if (!strcasecmp(ext.c_str(), ".skn")) {
-      LoadSKN(vfs);
+      LoadSKN(default_provider);
     } else {
       throw mjCError(this, "Unknown skin file type: %s", file.c_str());
     }
@@ -1749,43 +1707,32 @@ void mjCSkin::Compile(const mjVFS* vfs) {
 
 
 // load skin in SKN BIN format
-void mjCSkin::LoadSKN(const mjVFS* vfs) {
+void mjCSkin::LoadSKN(int default_provider) {
   // make filename
   string filename = mjuu_makefullname(model->modelfiledir, model->meshdir, file);
 
   // get file data in buffer
-  char* buffer = NULL;
-  int buffer_sz = 0;
-  bool own_buffer = false;
-  if (vfs) {
-    int id = mj_findFileVFS(vfs, filename.c_str());
-    if (id>=0) {
-      buffer = (char*)vfs->filedata[id];
-      buffer_sz = vfs->filesize[id];
-    }
+  mjResource* r = nullptr;
+  if((r = mju_openResource(filename.c_str(), default_provider)) == nullptr) {
+    if(!default_provider || (r = mju_openResource(filename.c_str(), 0)) == nullptr) {
+      throw mjCError(this, "could not open SKN file '%s'", filename.c_str());
+     }
   }
 
-  // if not found in vfs, read from file
-  if (!buffer) {
-    buffer = (char*) mju_fileToMemory(filename.c_str(), &buffer_sz);
-    own_buffer = true;
-  }
+  char* buffer = 0;
+  int buffer_sz = mju_readResource(r, (const void**)  &buffer);
 
-  // still not found
-  if (!buffer) {
+  if (buffer_sz < 0) {
+    mju_closeResource(r);
     throw mjCError(this, "could not open SKN file '%s'", filename.c_str());
   } else if (!buffer_sz) {
-    if (own_buffer) {
-      mju_free(buffer);
-    }
+    mju_closeResource(r);
     throw mjCError(this, "SKN file '%s' is empty", filename.c_str());
   }
 
   // make sure header is present
   if (buffer_sz<16) {
-    if (own_buffer) {
-      mju_free(buffer);
-    }
+     mju_closeResource(r);
     throw mjCError(this, "missing header in SKN file '%s'", filename.c_str());
   }
 
@@ -1797,17 +1744,13 @@ void mjCSkin::LoadSKN(const mjVFS* vfs) {
 
   // negative sizes not allowed
   if (nvert<0 || ntexcoord<0 || nface<0 || nbone<0) {
-    if (own_buffer) {
-      mju_free(buffer);
-    }
+    mju_closeResource(r);
     throw mjCError(this, "negative size in header of SKN file '%s'", filename.c_str());
   }
 
   // make sure we have data for vert, texcoord, face
   if (buffer_sz < 16 + 12*nvert + 8*ntexcoord + 12*nface) {
-    if (own_buffer) {
-      mju_free(buffer);
-    }
+    mju_closeResource(r);
     throw mjCError(this, "insufficient data in SKN file '%s'", filename.c_str());
   }
 
@@ -1847,9 +1790,7 @@ void mjCSkin::LoadSKN(const mjVFS* vfs) {
   for (int i=0; i<nbone; i++) {
     // check size
     if (buffer_sz/4-4-cnt < 18) {
-      if (own_buffer) {
-        mju_free(buffer);
-      }
+      mju_closeResource(r);
       throw mjCError(this, "insufficient data in SKN file '%s', bone %d", filename.c_str(), i);
     }
 
@@ -1874,18 +1815,14 @@ void mjCSkin::LoadSKN(const mjVFS* vfs) {
 
     // check for negative
     if (vcount<1) {
-      if (own_buffer) {
-        mju_free(buffer);
-      }
+      mju_closeResource(r);
       throw mjCError(this, "vertex count must be positive in SKN file '%s', bone %d",
                      filename.c_str(), i);
     }
 
     // check size
     if (buffer_sz/4-4-cnt < 2*vcount) {
-      if (own_buffer) {
-        mju_free(buffer);
-      }
+      mju_closeResource(r);
       throw mjCError(this, "insufficient vertex data in SKN file '%s', bone %d",
                      filename.c_str(), i);
     }
@@ -1901,10 +1838,7 @@ void mjCSkin::LoadSKN(const mjVFS* vfs) {
     cnt += vcount;
   }
 
-  // free buffer if allocated here
-  if (own_buffer) {
-    mju_free(buffer);
-  }
+  mju_closeResource(r);
 
   // check final size
   if (buffer_sz != 16+4*cnt) {
