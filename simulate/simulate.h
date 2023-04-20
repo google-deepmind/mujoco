@@ -179,7 +179,7 @@ class Simulate {
   char previous_filename[kMaxFilenameLength] = "";
 
   // time synchronization
-  int real_time_index;
+  int real_time_index = 0;
   bool speed_changed = true;
   float measured_slowdown = 1.0;
   // logarithmically spaced realtime slow-down coefficients (percent)
