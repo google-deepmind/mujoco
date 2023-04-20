@@ -460,7 +460,7 @@ static int bodycategory(const mjModel* m, int bodyid) {
 
 // add abstract geoms
 void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
-                  const mjvPerturb* pert, int catmask, mjvScene* scn) {
+    const mjvPerturb* pert, int catmask, mjvScene* scn) {
   int objtype, category;
   mjtNum sz[3], mat[9], selpos[3];
   mjtNum catenary[3*mjNCATENARY];
@@ -527,8 +527,8 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
     for (int i = 0; i < m->nbvh; i++) {
       int isleaf = m->bvh_child[2*i]==-1 && m->bvh_child[2*i+1]==-1;
       if (scn->ngeom >= scn->maxgeom) break;
-      if (m->bvh_depth[i] != m->vis.global.treedepth) {
-        if (!isleaf || m->bvh_depth[i] > m->vis.global.treedepth) {
+      if (m->bvh_depth[i] != vopt->bvh_depth) {
+        if (!isleaf || m->bvh_depth[i] > vopt->bvh_depth) {
           continue;
         }
       }
@@ -2057,22 +2057,10 @@ void mjv_updateActiveSkin(const mjModel* m, mjData* d, mjvScene* scn, const mjvO
 // update entire scene
 void mjv_updateScene(const mjModel* m, mjData* d, const mjvOption* opt,
                      const mjvPerturb* pert, mjvCamera* cam, int catmask, mjvScene* scn) {
-  // clear geoms and add all categories
+  // clear geoms
   scn->ngeom = 0;
-  mjv_addGeoms(m, d, opt, pert, catmask, scn);
 
-  // add lights
-  mjv_makeLights(m, d, scn);
-
-  // update camera
-  mjv_updateCamera(m, d, cam, scn);
-
-  // update skins
-  if (opt->flags[mjVIS_SKIN]) {
-    mjv_updateActiveSkin(m, d, scn, opt);
-  }
-
-  // update plugin
+  // trigger plugin visualization hooks
   if (m->nplugin) {
     const int nslot = mjp_pluginCount();
     // iterate over plugins, call visualize if defined
@@ -2086,6 +2074,20 @@ void mjv_updateScene(const mjModel* m, mjData* d, const mjvOption* opt,
         plugin->visualize(m, d, scn, i);
       }
     }
+  }
+
+  // add all categories
+  mjv_addGeoms(m, d, opt, pert, catmask, scn);
+
+  // add lights
+  mjv_makeLights(m, d, scn);
+
+  // update camera
+  mjv_updateCamera(m, d, cam, scn);
+
+  // update skins
+  if (opt->flags[mjVIS_SKIN]) {
+    mjv_updateActiveSkin(m, d, scn, opt);
   }
 }
 

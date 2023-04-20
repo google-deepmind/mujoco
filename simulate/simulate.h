@@ -20,15 +20,24 @@
 #include <condition_variable>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <ratio>
-#include <thread>
+#include <utility>
+#include <vector>
 
+#include <mujoco/mjui.h>
 #include <mujoco/mujoco.h>
 #include "platform_ui_adapter.h"
 
 namespace mujoco {
 
-//-------------------------------- global -----------------------------------------------
+// The viewer itself doesn't require a reentrant mutex, however we use it in
+// order to provide a Python sync API that doesn't require separate locking
+// (since sync is by far the most common operation), but that also won't
+// deadlock if called when a lock is already held by the user script on the
+// same thread.
+class SimulateMutex : public std::recursive_mutex {};
+using MutexLock = std::unique_lock<std::recursive_mutex>;
 
 // Simulate states not contained in MuJoCo structures
 class Simulate {
@@ -36,14 +45,17 @@ class Simulate {
   using Clock = std::chrono::steady_clock;
   static_assert(std::ratio_less_equal_v<Clock::period, std::milli>);
 
+  static constexpr int kMaxGeom = 20000;
+
   // create object and initialize the simulate ui
-  Simulate(std::unique_ptr<PlatformUIAdapter> platform_ui_adapter);
+  Simulate(
+      std::unique_ptr<PlatformUIAdapter> platform_ui_adapter,
+      mjvScene* scn, mjvCamera* cam,
+      mjvOption* opt, mjvPerturb* pert, bool fully_managed);
 
-  // Apply UI pose perturbations to model and data
-  void ApplyPosePerturbations(int flg_paused);
-
-  // Apply UI force perturbations to model and data
-  void ApplyForcePerturbations();
+  // Synchronize mjModel and mjData state with UI inputs, and update
+  // visualization.
+  void Sync();
 
   // Request that the Simulate UI thread render a new model
   // optionally delete the old model and data when done
@@ -52,9 +64,6 @@ class Simulate {
   // functions below are used by the renderthread
   // load mjb or xml model that has been requested by load()
   void LoadOnRenderThread();
-
-  // prepare to render
-  void PrepareScene();
 
   // render the ui to the window
   void Render();
@@ -65,14 +74,71 @@ class Simulate {
   // constants
   static constexpr int kMaxFilenameLength = 1000;
 
-  // model and data to be visualized
-  mjModel* mnew = nullptr;
-  mjData* dnew = nullptr;
+  // whether the viewer is operating in fully managed mode, where it can assume
+  // that it has exclusive access to mjModel, mjData, and various mjv objects
+  bool fully_managed_ = true;
 
-  mjModel* m = nullptr;
-  mjData* d = nullptr;
-  std::mutex mtx;
-  std::condition_variable cond_loadrequest;
+  // model and data to be visualized
+  mjModel* mnew_ = nullptr;
+  mjData* dnew_ = nullptr;
+
+  mjModel* m_ = nullptr;
+  mjData* d_ = nullptr;
+
+  int ncam_ = 0;
+  int nkey_ = 0;
+
+  std::vector<int> body_parentid_;
+
+  std::vector<int> jnt_type_;
+  std::vector<int> jnt_group_;
+  std::vector<int> jnt_qposadr_;
+  std::vector<std::optional<std::pair<mjtNum, mjtNum>>> jnt_range_;
+  std::vector<std::string> jnt_names_;
+
+  std::vector<int> actuator_group_;
+  std::vector<std::optional<std::pair<mjtNum, mjtNum>>> actuator_ctrlrange_;
+  std::vector<std::string> actuator_names_;
+
+  // mjModel and mjData fields that can be modified by the user through the GUI
+  std::vector<mjtNum> qpos_;
+  std::vector<mjtNum> qpos_prev_;
+  std::vector<mjtNum> ctrl_;
+  std::vector<mjtNum> ctrl_prev_;
+
+  mjvSceneState scnstate_;
+  mjOption mjopt_prev_;
+  mjvOption opt_prev_;
+  mjvCamera cam_prev_;
+  int warn_vgeomfull_prev_;
+
+  // pending GUI-driven actions, to be applied at the next call to Sync
+  struct {
+    std::optional<std::string> save_xml;
+    std::optional<std::string> save_mjb;
+    std::optional<std::string> print_model;
+    std::optional<std::string> print_data;
+    bool reset;
+    bool align;
+    bool copy_pose;
+    bool load_key;
+    bool save_key;
+    bool zero_ctrl;
+    int newperturb;
+    bool select;
+    mjuiState select_state;
+    bool full_ui_update;
+    bool ui_update_physics;
+    bool ui_update_joint;
+    bool ui_update_ctrl;
+  } pending_ = {};
+
+  SimulateMutex mtx;
+  std::condition_variable_any cond_loadrequest;
+
+  int frames_ = 0;
+  std::chrono::time_point<Clock> last_fps_update_;
+  double fps_ = 0;
 
   // options
   int spacing = 0;
@@ -140,10 +206,10 @@ class Simulate {
   int camera = 0;
 
   // abstract visualization
-  mjvScene scn = {};
-  mjvCamera cam = {};
-  mjvOption opt = {};
-  mjvPerturb pert = {};
+  mjvScene& scn;
+  mjvCamera& cam;
+  mjvOption& opt;
+  mjvPerturb& pert;
   mjvFigure figconstraint = {};
   mjvFigure figcost = {};
   mjvFigure figtimer = {};
@@ -186,16 +252,16 @@ class Simulate {
   // simulation section of UI
   const mjuiDef def_simulation[12] = {
     {mjITEM_SECTION,   "Simulation",    1, nullptr,              "AS"},
-    {mjITEM_RADIO,     "",              2, &this->run,           "Pause\nRun"},
+    {mjITEM_RADIO,     "",              5, &this->run,           "Pause\nRun"},
     {mjITEM_BUTTON,    "Reset",         2, nullptr,              " #259"},
-    {mjITEM_BUTTON,    "Reload",        2, nullptr,              "CL"},
+    {mjITEM_BUTTON,    "Reload",        5, nullptr,              "CL"},
     {mjITEM_BUTTON,    "Align",         2, nullptr,              "CA"},
     {mjITEM_BUTTON,    "Copy pose",     2, nullptr,              "CC"},
     {mjITEM_SLIDERINT, "Key",           3, &this->key,           "0 0"},
     {mjITEM_BUTTON,    "Load key",      3},
     {mjITEM_BUTTON,    "Save key",      3},
-    {mjITEM_SLIDERNUM, "Noise scale",   2, &this->ctrl_noise_std,  "0 2"},
-    {mjITEM_SLIDERNUM, "Noise rate",    2, &this->ctrl_noise_rate, "0 2"},
+    {mjITEM_SLIDERNUM, "Noise scale",   5, &this->ctrl_noise_std,  "0 2"},
+    {mjITEM_SLIDERNUM, "Noise rate",    5, &this->ctrl_noise_rate, "0 2"},
     {mjITEM_END}
   };
 

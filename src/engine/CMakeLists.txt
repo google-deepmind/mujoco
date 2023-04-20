@@ -77,6 +77,8 @@ set(MUJOCO_ENGINE_SRCS
     engine_vis_init.h
     engine_vis_interact.c
     engine_vis_interact.h
+    engine_vis_state.c
+    engine_vis_state.h
     engine_vis_visualize.c
     engine_vis_visualize.h
 )

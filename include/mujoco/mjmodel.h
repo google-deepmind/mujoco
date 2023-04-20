@@ -447,7 +447,6 @@ struct mjVisual_ {                // visualization options
     float realtime;               // initial real-time factor (1: real time)
     int offwidth;                 // width of offscreen buffer
     int offheight;                // height of offscreen buffer
-    int treedepth;                // depth of the bounding volume hierarchy
     int ellipsoidinertia;         // geom for inertia visualization (0: box, 1: ellipsoid)
   } global;
 

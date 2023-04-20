@@ -1771,7 +1771,6 @@ public unsafe struct global {
   public float realtime;
   public int offwidth;
   public int offheight;
-  public int treedepth;
   public int ellipsoidinertia;
 }
 
@@ -2576,6 +2575,7 @@ public unsafe struct mjvOption_ {
   public fixed byte actuatorgroup[6];
   public fixed byte skingroup[6];
   public fixed byte flags[24];
+  public int bvh_depth;
 }
 
 [StructLayout(LayoutKind.Sequential)]
@@ -2738,6 +2738,203 @@ public unsafe struct mjvFigure_ {
   public fixed int yaxispixel[2];
   public fixed float xaxisdata[2];
   public fixed float yaxisdata[2];
+}
+
+[StructLayout(LayoutKind.Sequential)]
+public unsafe struct model {
+  public int nu;
+  public int na;
+  public int nbody;
+  public int nbvh;
+  public int njnt;
+  public int ngeom;
+  public int nsite;
+  public int ncam;
+  public int nlight;
+  public int nmesh;
+  public int nskin;
+  public int nskinvert;
+  public int nskinface;
+  public int nskinbone;
+  public int nskinbonevert;
+  public int nmat;
+  public int neq;
+  public int ntendon;
+  public int nwrap;
+  public int nsensor;
+  public int nnames;
+  public int nsensordata;
+  public mjOption_ opt;
+  public mjVisual_ vis;
+  public mjStatistic_ stat;
+  public int* body_parentid;
+  public int* body_rootid;
+  public int* body_weldid;
+  public int* body_mocapid;
+  public int* body_jntnum;
+  public int* body_jntadr;
+  public int* body_geomnum;
+  public int* body_geomadr;
+  public double* body_iquat;
+  public double* body_mass;
+  public double* body_inertia;
+  public int* body_bvhadr;
+  public int* body_bvhnum;
+  public int* bvh_depth;
+  public int* bvh_child;
+  public int* bvh_geomid;
+  public double* bvh_aabb;
+  public int* jnt_type;
+  public int* jnt_bodyid;
+  public int* jnt_group;
+  public int* geom_type;
+  public int* geom_bodyid;
+  public int* geom_dataid;
+  public int* geom_matid;
+  public int* geom_group;
+  public double* geom_size;
+  public double* geom_aabb;
+  public double* geom_rbound;
+  public float* geom_rgba;
+  public int* site_type;
+  public int* site_bodyid;
+  public int* site_matid;
+  public int* site_group;
+  public double* site_size;
+  public float* site_rgba;
+  public double* cam_fovy;
+  public double* cam_ipd;
+  public byte* light_directional;
+  public byte* light_castshadow;
+  public byte* light_active;
+  public float* light_attenuation;
+  public float* light_cutoff;
+  public float* light_exponent;
+  public float* light_ambient;
+  public float* light_diffuse;
+  public float* light_specular;
+  public int* mesh_texcoordadr;
+  public int* mesh_graphadr;
+  public int* skin_matid;
+  public int* skin_group;
+  public float* skin_rgba;
+  public float* skin_inflate;
+  public int* skin_vertadr;
+  public int* skin_vertnum;
+  public int* skin_texcoordadr;
+  public int* skin_faceadr;
+  public int* skin_facenum;
+  public int* skin_boneadr;
+  public int* skin_bonenum;
+  public float* skin_vert;
+  public int* skin_face;
+  public int* skin_bonevertadr;
+  public int* skin_bonevertnum;
+  public float* skin_bonebindpos;
+  public float* skin_bonebindquat;
+  public int* skin_bonebodyid;
+  public int* skin_bonevertid;
+  public float* skin_bonevertweight;
+  public int* mat_texid;
+  public byte* mat_texuniform;
+  public float* mat_texrepeat;
+  public float* mat_emission;
+  public float* mat_specular;
+  public float* mat_shininess;
+  public float* mat_reflectance;
+  public float* mat_rgba;
+  public int* eq_type;
+  public int* eq_obj1id;
+  public int* eq_obj2id;
+  public byte* eq_active;
+  public double* eq_data;
+  public int* tendon_num;
+  public int* tendon_matid;
+  public int* tendon_group;
+  public byte* tendon_limited;
+  public double* tendon_width;
+  public double* tendon_range;
+  public double* tendon_stiffness;
+  public double* tendon_damping;
+  public double* tendon_frictionloss;
+  public double* tendon_lengthspring;
+  public float* tendon_rgba;
+  public int* actuator_trntype;
+  public int* actuator_dyntype;
+  public int* actuator_trnid;
+  public int* actuator_actadr;
+  public int* actuator_actnum;
+  public int* actuator_group;
+  public byte* actuator_ctrllimited;
+  public byte* actuator_actlimited;
+  public double* actuator_ctrlrange;
+  public double* actuator_actrange;
+  public double* actuator_cranklength;
+  public int* sensor_type;
+  public int* sensor_objid;
+  public int* sensor_adr;
+  public int* name_bodyadr;
+  public int* name_jntadr;
+  public int* name_geomadr;
+  public int* name_siteadr;
+  public int* name_camadr;
+  public int* name_lightadr;
+  public int* name_eqadr;
+  public int* name_tendonadr;
+  public int* name_actuatoradr;
+  public char* names;
+}
+
+[StructLayout(LayoutKind.Sequential)]
+public unsafe struct data {
+  public mjWarningStat_ warning0;
+  public mjWarningStat_ warning1;
+  public mjWarningStat_ warning2;
+  public mjWarningStat_ warning3;
+  public mjWarningStat_ warning4;
+  public mjWarningStat_ warning5;
+  public mjWarningStat_ warning6;
+  public mjWarningStat_ warning7;
+  public int nefc;
+  public int ncon;
+  public double time;
+  public double* act;
+  public double* ctrl;
+  public double* xfrc_applied;
+  public double* sensordata;
+  public double* xpos;
+  public double* xquat;
+  public double* xmat;
+  public double* xipos;
+  public double* ximat;
+  public double* xanchor;
+  public double* xaxis;
+  public double* geom_xpos;
+  public double* geom_xmat;
+  public double* site_xpos;
+  public double* site_xmat;
+  public double* cam_xpos;
+  public double* cam_xmat;
+  public double* light_xpos;
+  public double* light_xdir;
+  public double* subtree_com;
+  public int* ten_wrapadr;
+  public int* ten_wrapnum;
+  public int* wrap_obj;
+  public double* wrap_xpos;
+  public byte* bvh_active;
+  public mjContact_* contact;
+  public double* efc_force;
+}
+
+[StructLayout(LayoutKind.Sequential)]
+public unsafe struct mjvSceneState_ {
+  public int nbuffer;
+  public void* buffer;
+  public int maxgeom;
+  public mjvScene_ plugincache;
+  public model model;
+  public data data;
 }public struct mjuiItem_ {}public struct mjfItemEnable {}
 
 // ----------------------------Function declarations----------------------------
@@ -3129,7 +3326,13 @@ public static unsafe extern void mjv_alignToCamera(double* res, double* vec, dou
 public static unsafe extern void mjv_moveCamera(mjModel_* m, int action, double reldx, double reldy, mjvScene_* scn, mjvCamera_* cam);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern void mjv_moveCameraFromState(mjvSceneState_* scnstate, int action, double reldx, double reldy, mjvScene_* scn, mjvCamera_* cam);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern void mjv_movePerturb(mjModel_* m, mjData_* d, int action, double reldx, double reldy, mjvScene_* scn, mjvPerturb_* pert);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern void mjv_movePerturbFromState(mjvSceneState_* scnstate, int action, double reldx, double reldy, mjvScene_* scn, mjvPerturb_* pert);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern void mjv_moveModel(mjModel_* m, int action, double reldx, double reldy, double* roomup, mjvScene_* scn);
@@ -3174,6 +3377,21 @@ public static unsafe extern void mjv_freeScene(mjvScene_* scn);
 public static unsafe extern void mjv_updateScene(mjModel_* m, mjData_* d, mjvOption_* opt, mjvPerturb_* pert, mjvCamera_* cam, int catmask, mjvScene_* scn);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern int mjv_updateSceneFromState(mjvSceneState_* scnstate, mjvOption_* opt, mjvPerturb_* pert, mjvCamera_* cam, int catmask, mjvScene_* scn);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern void mjv_defaultSceneState(mjvSceneState_* scnstate);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern void mjv_makeSceneState(mjModel_* m, mjData_* d, mjvSceneState_* scnstate, int maxgeom);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern void mjv_freeSceneState(mjvSceneState_* scnstate);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern void mjv_updateSceneState(mjModel_* m, mjData_* d, mjvSceneState_* scnstate);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern void mjv_addGeoms(mjModel_* m, mjData_* d, mjvOption_* opt, mjvPerturb_* pert, int catmask, mjvScene_* scn);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
@@ -3199,6 +3417,9 @@ public static unsafe extern void mjr_addAux(int index, int width, int height, in
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern void mjr_freeContext(mjrContext_* con);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern void mjr_resizeOffscreen(int width, int height, mjrContext_* con);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern void mjr_uploadTexture(mjModel_* m, mjrContext_* con, int texid);

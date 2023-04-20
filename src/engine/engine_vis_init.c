@@ -226,6 +226,8 @@ void mjv_defaultOption(mjvOption* vopt) {
   for (int i=0; i<mjNVISFLAG; i++) {
     vopt->flags[i] = (mjVISSTRING[i][1][0]=='1');
   }
+
+  vopt->bvh_depth = 1;
 }
 
 

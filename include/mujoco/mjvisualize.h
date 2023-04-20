@@ -15,6 +15,8 @@
 #ifndef MUJOCO_MJVISUALIZE_H_
 #define MUJOCO_MJVISUALIZE_H_
 
+#include <mujoco/mjdata.h>
+#include <mujoco/mjmodel.h>
 #include <mujoco/mjtnum.h>
 
 
@@ -265,6 +267,7 @@ struct mjvOption_ {                  // abstract visualization options
   mjtByte  actuatorgroup[mjNGROUP];  // actuator visualization by group
   mjtByte  skingroup[mjNGROUP];      // skin visualization by group
   mjtByte  flags[mjNVISFLAG];        // visualization flags (indexed by mjtVisFlag)
+  int bvh_depth;                     // depth of the bounding volume hierarchy to be visualized
 };
 typedef struct mjvOption_ mjvOption;
 
@@ -359,5 +362,222 @@ struct mjvFigure_ {               // abstract 2D figure passed to OpenGL rendere
   float   yaxisdata[2];           // range of y-axis in data units
 };
 typedef struct mjvFigure_ mjvFigure;
+
+
+//---------------------------------- mjvSceneState -------------------------------------------------
+
+struct mjvSceneState_ {
+  int nbuffer;                     // size of the buffer in bytes
+  void* buffer;                    // heap-allocated memory for all arrays in this struct
+  int maxgeom;                     // maximum number of mjvGeom supported by this state object
+  mjvScene plugincache;            // scratch space for vis geoms inserted by plugins
+
+  // fields in mjModel that are necessary to re-render a scene
+  struct {
+    int nu;
+    int na;
+    int nbody;
+    int nbvh;
+    int njnt;
+    int ngeom;
+    int nsite;
+    int ncam;
+    int nlight;
+    int nmesh;
+    int nskin;
+    int nskinvert;
+    int nskinface;
+    int nskinbone;
+    int nskinbonevert;
+    int nmat;
+    int neq;
+    int ntendon;
+    int nwrap;
+    int nsensor;
+    int nnames;
+    int nsensordata;
+
+    mjOption opt;
+    mjVisual vis;
+    mjStatistic stat;
+
+    int* body_parentid;
+    int* body_rootid;
+    int* body_weldid;
+    int* body_mocapid;
+    int* body_jntnum;
+    int* body_jntadr;
+    int* body_geomnum;
+    int* body_geomadr;
+    mjtNum* body_iquat;
+    mjtNum* body_mass;
+    mjtNum* body_inertia;
+    int* body_bvhadr;
+    int* body_bvhnum;
+
+    int* bvh_depth;
+    int* bvh_child;
+    int* bvh_geomid;
+    mjtNum* bvh_aabb;
+
+    int* jnt_type;
+    int* jnt_bodyid;
+    int* jnt_group;
+
+    int* geom_type;
+    int* geom_bodyid;
+    int* geom_dataid;
+    int* geom_matid;
+    int* geom_group;
+    mjtNum* geom_size;
+    mjtNum* geom_aabb;
+    mjtNum* geom_rbound;
+    float* geom_rgba;
+
+    int* site_type;
+    int* site_bodyid;
+    int* site_matid;
+    int* site_group;
+    mjtNum* site_size;
+    float* site_rgba;
+
+    mjtNum* cam_fovy;
+    mjtNum* cam_ipd;
+
+    mjtByte* light_directional;
+    mjtByte* light_castshadow;
+    mjtByte* light_active;
+    float* light_attenuation;
+    float* light_cutoff;
+    float* light_exponent;
+    float* light_ambient;
+    float* light_diffuse;
+    float* light_specular;
+
+    int* mesh_texcoordadr;
+    int* mesh_graphadr;
+
+    int* skin_matid;
+    int* skin_group;
+    float* skin_rgba;
+    float* skin_inflate;
+    int* skin_vertadr;
+    int* skin_vertnum;
+    int* skin_texcoordadr;
+    int* skin_faceadr;
+    int* skin_facenum;
+    int* skin_boneadr;
+    int* skin_bonenum;
+    float* skin_vert;
+    int* skin_face;
+    int* skin_bonevertadr;
+    int* skin_bonevertnum;
+    float* skin_bonebindpos;
+    float* skin_bonebindquat;
+    int* skin_bonebodyid;
+    int* skin_bonevertid;
+    float* skin_bonevertweight;
+
+    int* mat_texid;
+    mjtByte* mat_texuniform;
+    float* mat_texrepeat;
+    float* mat_emission;
+    float* mat_specular;
+    float* mat_shininess;
+    float* mat_reflectance;
+    float* mat_rgba;
+
+    int* eq_type;
+    int* eq_obj1id;
+    int* eq_obj2id;
+    mjtByte* eq_active;
+    mjtNum* eq_data;
+
+    int* tendon_num;
+    int* tendon_matid;
+    int* tendon_group;
+    mjtByte* tendon_limited;
+    mjtNum* tendon_width;
+    mjtNum* tendon_range;
+    mjtNum* tendon_stiffness;
+    mjtNum* tendon_damping;
+    mjtNum* tendon_frictionloss;
+    mjtNum* tendon_lengthspring;
+    float* tendon_rgba;
+
+    int* actuator_trntype;
+    int* actuator_dyntype;
+    int* actuator_trnid;
+    int* actuator_actadr;
+    int* actuator_actnum;
+    int* actuator_group;
+    mjtByte* actuator_ctrllimited;
+    mjtByte* actuator_actlimited;
+    mjtNum* actuator_ctrlrange;
+    mjtNum* actuator_actrange;
+    mjtNum* actuator_cranklength;
+
+    int* sensor_type;
+    int* sensor_objid;
+    int* sensor_adr;
+
+    int* name_bodyadr;
+    int* name_jntadr;
+    int* name_geomadr;
+    int* name_siteadr;
+    int* name_camadr;
+    int* name_lightadr;
+    int* name_eqadr;
+    int* name_tendonadr;
+    int* name_actuatoradr;
+    char* names;
+  } model;
+
+  // fields in mjData that are necessary to re-render a scene
+  struct {
+    mjWarningStat warning[mjNWARNING];
+
+    int nefc;
+    int ncon;
+
+    mjtNum time;
+
+    mjtNum* act;
+
+    mjtNum* ctrl;
+    mjtNum* xfrc_applied;
+
+    mjtNum* sensordata;
+
+    mjtNum* xpos;
+    mjtNum* xquat;
+    mjtNum* xmat;
+    mjtNum* xipos;
+    mjtNum* ximat;
+    mjtNum* xanchor;
+    mjtNum* xaxis;
+    mjtNum* geom_xpos;
+    mjtNum* geom_xmat;
+    mjtNum* site_xpos;
+    mjtNum* site_xmat;
+    mjtNum* cam_xpos;
+    mjtNum* cam_xmat;
+    mjtNum* light_xpos;
+    mjtNum* light_xdir;
+
+    mjtNum* subtree_com;
+
+    int* ten_wrapadr;
+    int* ten_wrapnum;
+    int* wrap_obj;
+    mjtNum* wrap_xpos;
+
+    mjtByte* bvh_active;
+
+    mjContact* contact;
+    mjtNum* efc_force;
+  } data;
+};
+typedef struct mjvSceneState_ mjvSceneState;
 
 #endif  // MUJOCO_MJVISUALIZE_H_

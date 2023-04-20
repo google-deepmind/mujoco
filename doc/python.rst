@@ -117,19 +117,19 @@ As a reference, a working build configuration can be found in MuJoCo's
 Interactive viewer
 ==================
 
-An interactive GUI viewer is available as part of the Python package. (This is the same viewer as the ``simulate``
-application that ships with the MuJoCo binary releases.)
+An interactive GUI viewer is provided as part of the Python package in the ``mujoco.viewer`` module. This is the same
+viewer as the ``simulate`` application that ships with the MuJoCo binary releases.
 
 Three distinct use cases are supported:
 
-#. Launching as a standalone application:
+#. As a **standalone application**:
 
    - ``python -m mujoco.viewer`` launches an empty visualization session, where a model can be loaded by drag-and-drop.
    - ``python -m mujoco.viewer --mjcf=/path/to/some/mjcf.xml`` launches a visualization session for the specified
      model file.
 
-#. Launching from a Python program/script -- import the module via ``from mujoco import viewer`` and launch the GUI
-   using one of the following invocations:
+#. As a **fully managed viewer** in a Python program/script, through the function ``viewer.launch``. This function
+   **blocks the user's script completely** to take care of running and timing a physics loop.
 
    - ``viewer.launch()`` launches an empty visualization session, where a model can be loaded by drag-and-drop.
    - ``viewer.launch(model)`` launches a visualization session for the given ``mjModel`` where the visualizer
@@ -137,13 +137,79 @@ Three distinct use cases are supported:
    - ``viewer.launch(model, data)`` is the same as above, except that the visualizer operates directly on the given
      ``mjData`` instance -- upon exit the ``data`` object will have been modified.
 
-#. Launching from an interactive Python session (aka REPL): when working interactively either in a ``python`` or
-   ``ipython`` shell, the visualizer can be launched in a "passive" mode via ``viewer.launch_repl(model, data)``, where
-   the user remains in full control of modifying or stepping the physics. In this mode, the user can interact with the
-   visualizer using the mouse and keyboard as usual, however the physics will be frozen unless the user explicitly calls
-   ``mj_step`` (or perform any other modification of the ``mjData`` or ``mjModel``) in the REPL terminal. Note that since
-   the visualizer does not modify ``mjData`` in this mode, mouse-drag perturbations will not work unless the user
-   explicitly handles incoming GUI perturbation events in the REPL session.
+#. As a **passive viewer**, by calling ``viewer.launch_passive(model, data)``. This function **does not block**,
+   allowing the user script to continue execution. In this mode, the user's script is responsible for timing and
+   advancing the physics state, and mouse-drag perturbations will not work unless the user explicitly handles incoming
+   events.
+
+   .. warning::
+      On macOS, ``launch_passive`` requires that the user script is executed via a special ``mjpython`` launcher.
+      The ``mjpython`` command is installed as part of the ``mujoco`` package, and can be used as a drop-in replacement
+      for the usual ``python`` command and supports an identical set of command line flags and arguments. For example,
+      a script can be executed via ``mjpython my_script.py``, and an IPython shell can be launched via
+      ``mjpython -m IPython``.
+
+   The ``launch_passive`` function returns a handle which can be used to interact with the viewer. It has the following
+   attributes:
+
+   - ``scn``, ``cam``, ``opt``, and ``pert`` properties: correspond to :ref:`mjvScene`, :ref:`mjvCamera`,
+     :ref:`mjvOption`, and :ref:`mjvPerturb` structs, respectively.
+
+   - ``lock()``: provides a mutex lock for the viewer as a context manager. Since the viewer operates its own
+     thread, user code must ensure that it is holding the viewer lock before modifying any physics or visualization
+     state. These include the ``mjModel`` and ``mjData`` instance passed to ``launch_passive``, and also the ``scn``,
+     ``cam``, ``opt``, and ``pert`` properties of the viewer handle.
+
+   - ``sync()``: synchronizes state between ``mjModel``, ``mjData``, and GUI user inputs since the previous call to
+     ``sync``. In order to allow user scripts to make arbitrary modifications to ``mjModel`` and ``mjData`` without
+     needing to hold the viewer lock, the passive viewer does not access or modify these structs outside of ``sync``
+     calls.
+
+     User scripts must call ``sync`` in order for the viewer to reflect physics state changes. The ``sync`` function
+     also transfers user inputs from the GUI back into ``mjOption`` (inside ``mjModel``) and ``mjData``, including
+     enable/disable flags, control inputs, and mouse perturbations.
+
+   - ``close()``: programmatically closes the viewer window. This method can be safely called without locking.
+
+   - ``is_running()``: returns ``True`` if the viewer window is running and ``False`` if it is closed.
+     This method can be safely called without locking.
+
+   The viewer handle can also be used as a context manager which calls ``close()`` automatically upon exit. A minimal
+   example of a user script that uses ``launch_passive`` might look like the following. (Note that example is a simple
+   illustrative example that does **not** necessarily keep the physics ticking at the correct wallclock rate.)
+
+   .. code-block:: python
+
+      import time
+
+      import mujoco
+      import mujoco.viewer
+
+      m = mujoco.MjModel.from_xml_path('/path/to/mjcf.xml')
+      d = mujoco.MjData(m)
+
+      with mujoco.viewer.launch_passive(m, d) as viewer:
+        # Close the viewer automatically after 30 seconds.
+        start = time.time()
+        while viewer.is_running() and time.time() - start < 30:
+          step_start = time.time()
+
+          # The mj_step call can be replaced with a user-defined function that evaluates
+          # a policy, applies a control signal, and steps an environment.
+          mujoco.mj_step(m, d)
+          # Example of modifying a viewer option: toggle contact points every second.
+          with viewer.lock():
+            viewer.opt.flags[mujoco.mjtVisFlag.mjVIS_CONTACTPOINT] = int(d.time % 2)
+
+          # Synchronize so that the viewer picks up changes to the physics state.
+          viewer.sync()
+
+          # Rudimentary time keeping, doesn't attempt to catch up if physics stepping
+          # takes too long.
+          time_until_next_step = m.opt.timestep - (time.time() - step_start)
+          if time_until_next_step > 0:
+            time.sleep(time_until_next_step)
+
 
 .. _PyUsage:
 

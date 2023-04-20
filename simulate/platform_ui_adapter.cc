@@ -35,6 +35,10 @@ bool PlatformUIAdapter::RefreshMjrContext(const mjModel* m, int fontscale) {
   return false;
 }
 
+bool PlatformUIAdapter::EnsureContextSize() {
+  return false;
+}
+
 void PlatformUIAdapter::OnFilesDrop(int count, const char** paths) {
   state_.type = mjEVENT_FILESDROP;
   state_.dropcount = count;

@@ -41,6 +41,8 @@ class PlatformUIAdapter {
   // Optionally overrideable function to (re)create an mjrContext for an mjModel
   virtual bool RefreshMjrContext(const mjModel* m, int fontscale);
 
+  virtual bool EnsureContextSize();
+
   // Pure virtual functions to be implemented by individual adapters
   virtual std::pair<double, double> GetCursorPosition() const = 0;
   virtual double GetDisplayPixelsPerInch() const = 0;

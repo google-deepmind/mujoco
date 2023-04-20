@@ -546,9 +546,19 @@ MJAPI void mjv_alignToCamera(mjtNum res[3], const mjtNum vec[3], const mjtNum fo
 MJAPI void mjv_moveCamera(const mjModel* m, int action, mjtNum reldx, mjtNum reldy,
                           const mjvScene* scn, mjvCamera* cam);
 
+// Move camera with mouse given a scene state; action is mjtMouse.
+MJAPI void mjv_moveCameraFromState(const mjvSceneState* scnstate, int action,
+                                   mjtNum reldx, mjtNum reldy,
+                                   const mjvScene* scn, mjvCamera* cam);
+
 // Move perturb object with mouse; action is mjtMouse.
 MJAPI void mjv_movePerturb(const mjModel* m, const mjData* d, int action, mjtNum reldx,
                            mjtNum reldy, const mjvScene* scn, mjvPerturb* pert);
+
+// Move perturb object with mouse given a scene state; action is mjtMouse.
+MJAPI void mjv_movePerturbFromState(const mjvSceneState* scnstate, int action,
+                                    mjtNum reldx, mjtNum reldy,
+                                    const mjvScene* scn, mjvPerturb* pert);
 
 // Move model with mouse; action is mjtMouse.
 MJAPI void mjv_moveModel(const mjModel* m, int action, mjtNum reldx, mjtNum reldy,
@@ -606,6 +616,24 @@ MJAPI void mjv_freeScene(mjvScene* scn);
 MJAPI void mjv_updateScene(const mjModel* m, mjData* d, const mjvOption* opt,
                            const mjvPerturb* pert, mjvCamera* cam, int catmask, mjvScene* scn);
 
+// Update entire scene from a scene state, return the number of new mjWARN_VGEOMFULL warnings.
+MJAPI int mjv_updateSceneFromState(const mjvSceneState* scnstate, const mjvOption* opt,
+                                   const mjvPerturb* pert, mjvCamera* cam, int catmask,
+                                   mjvScene* scn);
+
+// Set default scene state.
+MJAPI void mjv_defaultSceneState(mjvSceneState* scnstate);
+
+// Allocate resources and initialize a scene state object.
+MJAPI void mjv_makeSceneState(const mjModel* m, const mjData* d,
+                              mjvSceneState* scnstate, int maxgeom);
+
+// Free scene state.
+MJAPI void mjv_freeSceneState(mjvSceneState* scnstate);
+
+// Update a scene state from model and data.
+MJAPI void mjv_updateSceneState(const mjModel* m, mjData* d, mjvSceneState* scnstate);
+
 // Add geoms from selected categories.
 MJAPI void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* opt,
                         const mjvPerturb* pert, int catmask, mjvScene* scn);
@@ -636,6 +664,9 @@ MJAPI void mjr_addAux(int index, int width, int height, int samples, mjrContext*
 
 // Free resources in custom OpenGL context, set to default.
 MJAPI void mjr_freeContext(mjrContext* con);
+
+// Resize offscreen buffers.
+MJAPI void mjr_resizeOffscreen(int width, int height, mjrContext* con);
 
 // Upload texture to GPU, overwriting previous upload if any.
 MJAPI void mjr_uploadTexture(const mjModel* m, const mjrContext* con, int texid);

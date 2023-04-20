@@ -313,7 +313,7 @@ void PhysicsLoop(mj::Simulate& sim) {
 
     {
       // lock the sim mutex
-      const std::lock_guard<std::mutex> lock(sim.mtx);
+      const std::unique_lock<std::recursive_mutex> lock(sim.mtx);
 
       // run only if model is present
       if (m) {
@@ -356,11 +356,6 @@ void PhysicsLoop(mj::Simulate& sim) {
             syncSim = d->time;
             sim.speed_changed = false;
 
-            // clear old perturbations, apply new
-            mju_zero(d->xfrc_applied, 6*m->nbody);
-            sim.ApplyPosePerturbations(0);  // move mocap bodies only
-            sim.ApplyForcePerturbations();
-
             // run single step, let next iteration deal with timing
             mj_step(m, d);
           }
@@ -382,11 +377,6 @@ void PhysicsLoop(mj::Simulate& sim) {
                 measured = true;
               }
 
-              // clear old perturbations, apply new
-              mju_zero(d->xfrc_applied, 6*m->nbody);
-              sim.ApplyPosePerturbations(0);  // move mocap bodies only
-              sim.ApplyForcePerturbations();
-
               // call mj_step
               mj_step(m, d);
 
@@ -400,9 +390,6 @@ void PhysicsLoop(mj::Simulate& sim) {
 
         // paused
         else {
-          // apply pose perturbation
-          sim.ApplyPosePerturbations(1);  // move mocap and dynamic bodies
-
           // run mj_forward, to update rendering and joint sliders
           mj_forward(m, d);
         }
@@ -468,9 +455,23 @@ int main(int argc, const char** argv) {
   // scan for libraries in the plugin directory to load additional plugins
   scanPluginLibraries();
 
+  mjvScene scn;
+  mjv_defaultScene(&scn);
+
+  mjvCamera cam;
+  mjv_defaultCamera(&cam);
+
+  mjvOption opt;
+  mjv_defaultOption(&opt);
+
+  mjvPerturb pert;
+  mjv_defaultPerturb(&pert);
+
   // simulate object encapsulates the UI
   auto sim = std::make_unique<mj::Simulate>(
-      std::make_unique<mj::GlfwAdapter>());
+      std::make_unique<mj::GlfwAdapter>(),
+      &scn, &cam, &opt, &pert, /* fully_managed = */ true
+  );
 
   const char* filename = nullptr;
   if (argc >  1) {

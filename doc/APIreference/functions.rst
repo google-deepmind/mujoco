@@ -1332,6 +1332,15 @@ mjv_moveCamera
 
 Move camera with mouse; action is mjtMouse.
 
+.. _mjv_moveCameraFromState:
+
+mjv_moveCameraFromState
+~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjv_moveCameraFromState
+
+Move camera with mouse given a scene state; action is mjtMouse.
+
 .. _mjv_movePerturb:
 
 mjv_movePerturb
@@ -1340,6 +1349,15 @@ mjv_movePerturb
 .. mujoco-include:: mjv_movePerturb
 
 Move perturb object with mouse; action is mjtMouse.
+
+.. _mjv_movePerturbFromState:
+
+mjv_movePerturbFromState
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjv_movePerturbFromState
+
+Move perturb object with mouse given a scene state; action is mjtMouse.
 
 .. _mjv_moveModel:
 
@@ -1483,6 +1501,51 @@ mjv_updateScene
 
 Update entire scene given model state.
 
+.. _mjv_updateSceneFromState:
+
+mjv_updateSceneFromState
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjv_updateSceneFromState
+
+Update entire scene from a scene state, return the number of new mjWARN_VGEOMFULL warnings.
+
+.. _mjv_defaultSceneState:
+
+mjv_defaultSceneState
+~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjv_defaultSceneState
+
+Set default scene state.
+
+.. _mjv_makeSceneState:
+
+mjv_makeSceneState
+~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjv_makeSceneState
+
+Allocate resources and initialize a scene state object.
+
+.. _mjv_freeSceneState:
+
+mjv_freeSceneState
+~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjv_freeSceneState
+
+Free scene state.
+
+.. _mjv_updateSceneState:
+
+mjv_updateSceneState
+~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjv_updateSceneState
+
+Update a scene state from model and data.
+
 .. _mjv_addGeoms:
 
 mjv_addGeoms
@@ -1571,6 +1634,15 @@ mjr_freeContext
 .. mujoco-include:: mjr_freeContext
 
 Free resources in custom OpenGL context, set to default.
+
+.. _mjr_resizeOffscreen:
+
+mjr_resizeOffscreen
+~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjr_resizeOffscreen
+
+Resize offscreen buffers.
 
 .. _mjr_uploadTexture:
 

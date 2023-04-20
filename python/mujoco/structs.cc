@@ -1305,7 +1305,6 @@ PYBIND11_MODULE(_structs, m) {
   X(realtime);
   X(offwidth);
   X(offheight);
-  X(treedepth);
   X(ellipsoidinertia);
 #undef X
 
@@ -2134,6 +2133,7 @@ This is useful for example when the MJB is not available as a file on disk.)"));
       })
   X(label);
   X(frame);
+  X(bvh_depth);
 #undef X
 
 #define X(var) DefinePyArray(mjvOption, #var, &MjvOptionWrapper::var)

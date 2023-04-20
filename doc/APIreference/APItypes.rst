@@ -814,6 +814,17 @@ This structure contains everything needed to render the 3D scene in OpenGL.
 .. mujoco-include:: mjvScene
 
 
+.. _mjvSceneState:
+
+mjvSceneState
+~~~~~~~~~~~~~
+
+This structure contains the portions of :ref:`mjModel` and :ref:`mjData` that are required for
+various ``mjv_*`` functions.
+
+.. mujoco-include:: mjvScene
+
+
 .. _mjvFigure:
 
 mjvFigure

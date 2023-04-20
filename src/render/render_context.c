@@ -1798,3 +1798,48 @@ void mjr_freeContext(mjrContext* con) {
   con->windowStereo = windowStereo;
   con->windowDoublebuffer = windowDoublebuffer;
 }
+
+
+
+// resize offscreen buffers
+MJAPI void mjr_resizeOffscreen(int width, int height, mjrContext* con) {
+  if (con->offWidth == width && con->offHeight == height) {
+    return;
+  }
+
+  con->offWidth = width;
+  con->offHeight = height;
+
+  if (!width || !height) {
+    return;
+  }
+
+  if (!con->offFBO) {
+    makeOff(con);
+    return;
+  }
+
+  glBindRenderbuffer(GL_RENDERBUFFER, con->offColor);
+  if (con->offSamples) {
+    glRenderbufferStorageMultisample(GL_RENDERBUFFER, con->offSamples, GL_RGBA8,
+                                     con->offWidth, con->offHeight);
+  } else {
+    glRenderbufferStorage(GL_RENDERBUFFER, GL_RGBA8, con->offWidth, con->offHeight);
+  }
+
+  glBindRenderbuffer(GL_RENDERBUFFER, con->offDepthStencil);
+  if (con->offSamples) {
+    glRenderbufferStorageMultisample(GL_RENDERBUFFER, con->offSamples, GL_DEPTH24_STENCIL8,
+                                     con->offWidth, con->offHeight);
+  } else {
+    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, con->offWidth, con->offHeight);
+  }
+
+  if (con->offSamples) {
+    glBindRenderbuffer(GL_RENDERBUFFER, con->offColor_r);
+    glRenderbufferStorage(GL_RENDERBUFFER, GL_RGBA8, con->offWidth, con->offHeight);
+
+    glBindRenderbuffer(GL_RENDERBUFFER, con->offDepthStencil_r);
+    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, con->offWidth, con->offHeight);
+  }
+}

@@ -1,0 +1,157 @@
+<!-- Copyright 2021 DeepMind Technologies Limited
+     Licensed under the Apache License, Version 2.0 (the "License");
+     you may not use this file except in compliance with the License.
+     You may obtain a copy of the License at
+         http://www.apache.org/licenses/LICENSE-2.0
+     Unless required by applicable law or agreed to in writing, software
+     distributed under the License is distributed on an "AS IS" BASIS,
+     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+     See the License for the specific language governing permissions and
+     limitations under the License.
+-->
+
+<mujoco model="Humanoid body">
+<!-- Degree of Freedom: 27
+     Actuators: 21
+
+     This simplified humanoid model, introduced in [1], is designed for bipedal locomotion
+     behaviours. While several variants of it exist in the wild, this version is based on the model
+     in the DeepMind Control Suite [2], which has fairly realistic actuator gains.
+     [1] Synthesis and Stabilization of Complex Behaviors through Online Trajectory Optimization.
+           https://doi.org/10.1109/IROS.2012.6386025
+     [2] DeepMind Control Suite, Tassa et al. https://arxiv.org/abs/1801.00690
+-->
+
+  <asset>
+    <texture type="skybox" builtin="gradient" rgb1=".3 .5 .7" rgb2="0 0 0" width="512" height="512"/>
+    <texture name="body" type="cube" builtin="flat" mark="cross" width="128" height="128"
+             rgb1="0.8 0.6 0.4" rgb2="0.8 0.6 0.4" markrgb="1 1 1" random="0.01"/>
+    <material name="body" texture="body" texuniform="true" rgba="0.8 0.6 .4 1"/>
+    <texture name="grid" type="2d" builtin="checker" width="512" height="512" rgb1=".1 .2 .3" rgb2=".2 .3 .4"/>
+    <material name="grid" texture="grid" texrepeat="1 1" texuniform="true" reflectance=".2"/>
+  </asset>
+
+  <default>
+    <motor ctrlrange="-1 1" ctrllimited="true"/>
+    <default class="body">
+      <geom type="capsule" condim="1" friction=".7" solimp=".9 .99 .003" solref=".015 1" material="body"/>
+      <joint type="hinge" damping=".2" stiffness="1" armature=".01" limited="true" solimplimit="0 .99 .01"/>
+      <default class="big_joint">
+        <joint damping="5" stiffness="10"/>
+        <default class="big_stiff_joint">
+          <joint stiffness="20"/>
+        </default>
+      </default>
+    </default>
+  </default>
+
+  <visual>
+    <map force="0.1" zfar="30"/>
+    <rgba haze="0.15 0.25 0.35 1"/>
+    <quality shadowsize="4096"/>
+    <global offwidth="800" offheight="800"/>
+  </visual>
+
+  <worldbody>
+    <body name="torso" pos="0 0 1.5" childclass="body">
+      <camera name="back" pos="-3 0 1" xyaxes="0 -1 0 1 0 2" mode="trackcom"/>
+      <camera name="side" pos="0 -3 1" xyaxes="1 0 0 0 1 2" mode="trackcom"/>
+      <freejoint name="root"/>
+      <geom name="torso" fromto="0 -.07 0 0 .07 0" size=".07"/>
+      <geom name="upper_waist" fromto="-.01 -.06 -.12 -.01 .06 -.12" size=".06"/>
+      <body name="head" pos="0 0 .19">
+        <geom name="head" type="sphere" size=".09"/>
+        <camera name="egocentric" pos=".09 0 0" xyaxes="0 -1 0 .1 0 1" fovy="80"/>
+      </body>
+      <body name="lower_waist" pos="-.01 0 -.26">
+        <geom name="lower_waist" fromto="0 -.06 0 0 .06 0" size=".06"/>
+        <joint name="abdomen_z" pos="0 0 .065" axis="0 0 1" range="-45 45" class="big_stiff_joint"/>
+        <joint name="abdomen_y" pos="0 0 .065" axis="0 1 0" range="-75 30" class="big_joint"/>
+        <body name="pelvis" pos="0 0 -.165">
+          <joint name="abdomen_x" pos="0 0 .1" axis="1 0 0" range="-35 35" class="big_joint"/>
+          <geom name="butt" fromto="-.02 -.07 0 -.02 .07 0" size=".09"/>
+          <body name="right_thigh" pos="0 -.1 -.04">
+            <joint name="right_hip_x" axis="1 0 0" range="-25 5" class="big_joint"/>
+            <joint name="right_hip_z" axis="0 0 1" range="-60 35" class="big_joint"/>
+            <joint name="right_hip_y" axis="0 1 0" range="-110 20" class="big_stiff_joint"/>
+            <geom name="right_thigh" fromto="0 0 0 0 .01 -.34" size=".06"/>
+            <body name="right_shin" pos="0 .01 -.403">
+              <joint name="right_knee" pos="0 0 .02" axis="0 -1 0" range="-160 2"/>
+              <geom name="right_shin" fromto="0 0 0 0 0 -.3"  size=".049"/>
+              <body name="right_foot" pos="0 0 -.39">
+                <joint name="right_ankle_y" pos="0 0 .08" axis="0 1 0" range="-50 50" stiffness="6"/>
+                <joint name="right_ankle_x" pos="0 0 .04" axis="1 0 .5" range="-50 50" stiffness="3"/>
+                <geom name="right_right_foot" fromto="-.07 -.02 0 .14 -.04 0" size=".027"/>
+                <geom name="left_right_foot" fromto="-.07 0 0 .14  .02 0" size=".027"/>
+              </body>
+            </body>
+          </body>
+          <body name="left_thigh" pos="0 .1 -.04">
+            <joint name="left_hip_x" axis="-1 0 0" range="-25 5" class="big_joint"/>
+            <joint name="left_hip_z" axis="0 0 -1" range="-60 35" class="big_joint"/>
+            <joint name="left_hip_y" axis="0 1 0" range="-110 20" class="big_stiff_joint"/>
+            <geom name="left_thigh" fromto="0 0 0 0 -.01 -.34" size=".06"/>
+            <body name="left_shin" pos="0 -.01 -.403">
+              <joint name="left_knee" pos="0 0 .02" axis="0 -1 0" range="-160 2"/>
+              <geom name="left_shin" fromto="0 0 0 0 0 -.3"  size=".049"/>
+              <body name="left_foot" pos="0 0 -.39">
+                <joint name="left_ankle_y" pos="0 0 .08" axis="0 1 0" range="-50 50" stiffness="6"/>
+                <joint name="left_ankle_x" pos="0 0 .04" axis="1 0 .5" range="-50 50" stiffness="3"/>
+                <geom name="left_left_foot" fromto="-.07 .02 0 .14 .04 0" size=".027"/>
+                <geom name="right_left_foot" fromto="-.07 0 0 .14 -.02 0" size=".027"/>
+              </body>
+            </body>
+          </body>
+        </body>
+      </body>
+      <body name="right_upper_arm" pos="0 -.17 .06">
+        <joint name="right_shoulder1" axis="2 1 1"  range="-85 60"/>
+        <joint name="right_shoulder2" axis="0 -1 1" range="-85 60"/>
+        <geom name="right_upper_arm" fromto="0 0 0 .16 -.16 -.16" size=".04 .16"/>
+        <body name="right_lower_arm" pos=".18 -.18 -.18">
+          <joint name="right_elbow" axis="0 -1 1" range="-90 50" stiffness="0"/>
+          <geom name="right_lower_arm" fromto=".01 .01 .01 .17 .17 .17" size=".031"/>
+          <body name="right_hand" pos=".18 .18 .18">
+            <geom name="right_hand" type="sphere" size=".04" zaxis="1 1 1"/>
+          </body>
+        </body>
+      </body>
+      <body name="left_upper_arm" pos="0 .17 .06">
+        <joint name="left_shoulder1" axis="2 -1 1" range="-60 85"/>
+        <joint name="left_shoulder2" axis="0 1 1"  range="-60 85"/>
+        <geom name="left_upper_arm" fromto="0 0 0 .16 .16 -.16" size=".04 .16"/>
+        <body name="left_lower_arm" pos=".18 .18 -.18">
+          <joint name="left_elbow" axis="0 -1 -1" range="-90 50" stiffness="0"/>
+          <geom name="left_lower_arm" fromto=".01 -.01 .01 .17 -.17 .17" size=".031"/>
+          <body name="left_hand" pos=".18 -.18 .18">
+            <geom name="left_hand" type="sphere" size=".04" zaxis="1 -1 1"/>
+          </body>
+        </body>
+      </body>
+    </body>
+  </worldbody>
+
+  <actuator>
+    <motor name="abdomen_y"       gear="40"  joint="abdomen_y"/>
+    <motor name="abdomen_z"       gear="40"  joint="abdomen_z"/>
+    <motor name="abdomen_x"       gear="40"  joint="abdomen_x"/>
+    <motor name="right_hip_x"     gear="40"  joint="right_hip_x"/>
+    <motor name="right_hip_z"     gear="40"  joint="right_hip_z"/>
+    <motor name="right_hip_y"     gear="120" joint="right_hip_y"/>
+    <motor name="right_knee"      gear="80"  joint="right_knee"/>
+    <motor name="right_ankle_x"   gear="20"  joint="right_ankle_x"/>
+    <motor name="right_ankle_y"   gear="20"  joint="right_ankle_y"/>
+    <motor name="left_hip_x"      gear="40"  joint="left_hip_x"/>
+    <motor name="left_hip_z"      gear="40"  joint="left_hip_z"/>
+    <motor name="left_hip_y"      gear="120" joint="left_hip_y"/>
+    <motor name="left_knee"       gear="80"  joint="left_knee"/>
+    <motor name="left_ankle_x"    gear="20"  joint="left_ankle_x"/>
+    <motor name="left_ankle_y"    gear="20"  joint="left_ankle_y"/>
+    <motor name="right_shoulder1" gear="20"  joint="right_shoulder1"/>
+    <motor name="right_shoulder2" gear="20"  joint="right_shoulder2"/>
+    <motor name="right_elbow"     gear="40"  joint="right_elbow"/>
+    <motor name="left_shoulder1"  gear="20"  joint="left_shoulder1"/>
+    <motor name="left_shoulder2"  gear="20"  joint="left_shoulder2"/>
+    <motor name="left_elbow"      gear="40"  joint="left_elbow"/>
+  </actuator>
+</mujoco>

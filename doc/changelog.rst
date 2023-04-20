@@ -35,6 +35,10 @@ Python bindings
   state concurrently with the internal ``mj_forward``, resulting in e.g.
   `MuJoCo stack overflow error <https://github.com/deepmind/mujoco/issues/783>`_
   or `segmentation fault <https://github.com/deepmind/mujoco/issues/790>`_.
+- The ``viewer.launch_passive`` function now returns a handle which can be used to interact with the viewer. The passive
+  viewer now also requires an explicit call to ``sync`` on its handle to pick up any update to the physics state. This
+  is to avoid race conditions that can result in visual artifacts. See :ref:`documentation<PyViewer>` for details.
+- The ``viewer.launch_repl`` function has been removed since its functionality is superceded by ``launch_passive``.
 - Added a small number of missing struct fields discovered through the new ``introspect`` metadata.
 
 Bug fixes
@@ -102,7 +106,7 @@ Python bindings
 #.  Added ``viewer.launch_passive`` which launches the interactive viewer in a passive, non-blocking mode. Calls to
     ``launch_passive`` return immediately, allowing user code to continue execution, with the viewer automatically
     reflecting any changes to the physics state. (Note that this functionality is currently in experimental/beta stage,
-    and is not yet described in our :ref:`viewer  documentation<PyViewer>`.)
+    and is not yet described in our :ref:`viewer documentation<PyViewer>`.)
 #.  Added the ``mjpython`` launcher for macOS, which is required for ``viewer.launch_passive`` to function there.
 #.  Removed ``efc_`` fields from joint indexers. Since the introduction of arena memory, these fields now have dynamic
     sizes that change between time steps depending on the number of active constraints, breaking strict correspondence

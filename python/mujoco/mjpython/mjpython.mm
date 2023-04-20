@@ -52,24 +52,28 @@ struct {
 #define CPYTHON_FN(fname) decltype(&::fname) fname
 
 #if PY_MINOR_VERSION >= 8
-  CPYTHON_FN(Py_InitializeFromConfig);
-  CPYTHON_FN(Py_RunMain);
+  // go/keep-sorted start
   CPYTHON_FN(PyConfig_Clear);
   CPYTHON_FN(PyConfig_InitPythonConfig);
   CPYTHON_FN(PyConfig_SetBytesArgv);
+  CPYTHON_FN(Py_InitializeFromConfig);
+  CPYTHON_FN(Py_RunMain);
+  // go/keep-sorted end
 #else
+  // go/keep-sorted start
+  CPYTHON_FN(PyMem_RawFree);
   CPYTHON_FN(Py_DecodeLocale);
   CPYTHON_FN(Py_Initialize);
   CPYTHON_FN(Py_Main);
-  CPYTHON_FN(PyMem_RawFree);
   CPYTHON_FN(Py_SetProgramName);
+  // go/keep-sorted end
 #endif
 
   // go/keep-sorted start
-  CPYTHON_FN(Py_FinalizeEx);
   CPYTHON_FN(PyGILState_Ensure);
   CPYTHON_FN(PyGILState_Release);
   CPYTHON_FN(PyRun_SimpleStringFlags);
+  CPYTHON_FN(Py_FinalizeEx);
   // go/keep-sorted end
 
 #undef CPYTHON_FN
@@ -131,16 +135,16 @@ class _MjPythonImpl(mujoco.viewer._MjPythonBase):
 
   def __init__(self):
     self._cond = threading.Condition()
-    self._model_data = None
+    self._task = None
     self._termination = self.__class__.NOT_TERMINATED
     self._busy = False
 
-  def launch_on_ui_thread(self, model, data):
+  def launch_on_ui_thread(self, model, data, handle_return):
     with self._cond:
-      if self._busy or self._model_data is not None:
+      if self._busy or self._task is not None:
         raise RuntimeError('another MuJoCo viewer is already open')
       else:
-        self._model_data = (model, data)
+        self._task = (model, data, handle_return)
         self._cond.notify()
 
   def terminate(self):
@@ -153,17 +157,17 @@ class _MjPythonImpl(mujoco.viewer._MjPythonBase):
   def get(self):
     with self._cond:
       self._cond.wait_for(
-          lambda: self._model_data is not None or self._termination)
+          lambda: self._task is not None or self._termination)
 
       if self._termination:
         if self._termination == self.__class__.TERMINATION_REQUESTED:
           self._termination = self.__class__.TERMINATION_ACCEPTED
         return None
 
-      model_data = self._model_data
+      task = self._task
       self._busy = True
-      self._model_data = None
-      return model_data
+      self._task = None
+      return task
 
   def done(self):
     with self._cond:
@@ -257,24 +261,28 @@ int main(int argc, char** argv) {
   }
 
 #if PY_MINOR_VERSION >= 8
-  CPYTHON_INITFN(Py_InitializeFromConfig);
-  CPYTHON_INITFN(Py_RunMain);
+  // go/keep-sorted start
   CPYTHON_INITFN(PyConfig_Clear);
   CPYTHON_INITFN(PyConfig_InitPythonConfig);
   CPYTHON_INITFN(PyConfig_SetBytesArgv);
+  CPYTHON_INITFN(Py_InitializeFromConfig);
+  CPYTHON_INITFN(Py_RunMain);
+  // go/keep-sorted end
 #else
+  // go/keep-sorted start
+  CPYTHON_INITFN(PyMem_RawFree);
   CPYTHON_INITFN(Py_DecodeLocale);
   CPYTHON_INITFN(Py_Initialize);
   CPYTHON_INITFN(Py_Main);
-  CPYTHON_INITFN(PyMem_RawFree);
   CPYTHON_INITFN(Py_SetProgramName);
+  // go/keep-sorted end
 #endif
 
   // go/keep-sorted start
-  CPYTHON_INITFN(Py_FinalizeEx);
   CPYTHON_INITFN(PyGILState_Ensure);
   CPYTHON_INITFN(PyGILState_Release);
   CPYTHON_INITFN(PyRun_SimpleStringFlags);
+  CPYTHON_INITFN(Py_FinalizeEx);
   // go/keep-sorted end
 
 #undef CPYTHON_INITFN
@@ -327,17 +335,18 @@ with cond:
 while True:
   try:
     # Wait for an incoming payload.
-    payload = mujoco.viewer._MJPYTHON.get()
+    task = mujoco.viewer._MJPYTHON.get()
 
     # None means that we are exiting.
-    if payload is None:
+    if task is None:
       glfw.terminate()
       break
 
     # Otherwise, launch the viewer.
-    model, data = payload
+    model, data, handle_return = task
     ctypes.CDLL(None).mjpython_show_dock_icon()
-    mujoco.viewer._launch_internal(model, data, run_physics_thread=False)
+    mujoco.viewer._launch_internal(
+        model, data, run_physics_thread=False, handle_return=handle_return)
     ctypes.CDLL(None).mjpython_hide_dock_icon()
 
   finally:

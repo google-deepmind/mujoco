@@ -16,14 +16,15 @@
 
 import abc
 import atexit
-import code
-import inspect
+import contextlib
 import math
 import os
+import queue
 import sys
 import threading
 import time
 from typing import Callable, Optional, Tuple, Union
+import weakref
 
 import glfw
 import mujoco
@@ -56,7 +57,70 @@ LoaderType = Callable[[], Tuple[mujoco.MjModel, mujoco.MjData]]
 _LoaderWithPathType = Callable[[], Tuple[mujoco.MjModel, mujoco.MjData, str]]
 _InternalLoaderType = Union[LoaderType, _LoaderWithPathType]
 
-Simulate = _simulate.Simulate
+_Simulate = _simulate.Simulate
+
+
+class Handle:
+  """A handle for interacting with a MuJoCo viewer."""
+
+  def __init__(
+      self,
+      sim: _Simulate,
+      scn: mujoco.MjvScene,
+      cam: mujoco.MjvCamera,
+      opt: mujoco.MjvOption,
+      pert: mujoco.MjvPerturb,
+  ):
+    self._sim = weakref.ref(sim)
+    self._scn = scn
+    self._cam = cam
+    self._opt = opt
+    self._pert = pert
+
+  @property
+  def scn(self):
+    return self._scn
+
+  @property
+  def cam(self):
+    return self._cam
+
+  @property
+  def opt(self):
+    return self._opt
+
+  @property
+  def perturb(self):
+    return self._pert
+
+  def close(self):
+    sim = self._sim()
+    if sim is not None:
+      sim.exitrequest = 1
+
+  def is_running(self) -> bool:
+    sim = self._sim()
+    if sim is not None:
+      return sim.exitrequest < 2
+    return False
+
+  def lock(self):
+    sim = self._sim()
+    if sim is not None:
+      return sim.lock()
+    return contextlib.nullcontext()
+
+  def sync(self):
+    sim = self._sim()
+    if sim is not None:
+      with sim.lock():
+        sim.sync()
+
+  def __enter__(self):
+    return self
+
+  def __exit__(self, exc_type, exc_val, exc_tb):
+    self.close()
 
 
 # Abstract base dispatcher class for systems that require UI calls to be made
@@ -83,7 +147,8 @@ def _file_loader(path: str) -> _LoaderWithPathType:
 
 
 def _reload(
-    simulate: Simulate, loader: _InternalLoaderType
+    simulate: _Simulate, loader: _InternalLoaderType,
+    notify_loaded: Optional[Callable[[], None]] = None
 ) -> Optional[Tuple[mujoco.MjModel, mujoco.MjData]]:
   """Internal function for reloading a model in the viewer."""
   try:
@@ -102,10 +167,13 @@ def _reload(
     path = load_tuple[2] if len(load_tuple) == 3 else ''
     simulate.load(m, d, path)
 
+    if notify_loaded:
+      notify_loaded()
+
     return m, d
 
 
-def _physics_loop(simulate: Simulate, loader: Optional[_InternalLoaderType]):
+def _physics_loop(simulate: _Simulate, loader: Optional[_InternalLoaderType]):
   """Physics loop for the GUI, to be run in a separate thread."""
   m: mujoco.MjModel = None
   d: mujoco.MjData = None
@@ -181,11 +249,6 @@ def _physics_loop(simulate: Simulate, loader: Optional[_InternalLoaderType]):
             syncsim = d.time
             simulate.speed_changed = False
 
-            # Clear old perturbations, apply new.
-            d.xfrc_applied[:, :] = 0
-            simulate.apply_pose_perturbations(0)  # Move mocap bodies only.
-            simulate.apply_force_perturbations()
-
             # Run single step, let next iteration deal with timing.
             mujoco.mj_step(m, d)
 
@@ -203,11 +266,6 @@ def _physics_loop(simulate: Simulate, loader: Optional[_InternalLoaderType]):
                 simulate.measured_slowdown = elapsedcpu / elapsedsim
                 measured = True
 
-              # Clear old perturbations, apply new.
-              d.xfrc_applied[:, :] = 0
-              simulate.applyposepertubations(0)  # Move mocap bodies only.
-              simulate.applyforceperturbations()
-
               # Call mj_step.
               mujoco.mj_step(m, d)
 
@@ -215,19 +273,19 @@ def _physics_loop(simulate: Simulate, loader: Optional[_InternalLoaderType]):
               if d.time < prevsim:
                 break
         else:  # simulate.run is False: GUI is paused.
-          # Apply pose perturbation.
-          simulate.applyposepertubations(1)  # Move mocap and dynamic bodies.
 
           # Run mj_forward, to update rendering and joint sliders.
           mujoco.mj_forward(m, d)
 
 
-def _launch_internal(model: Optional[mujoco.MjModel] = None,
-                     data: Optional[mujoco.MjData] = None,
-                     *,
-                     run_physics_thread: bool = True,
-                     loader: Optional[_InternalLoaderType] = None,
-                     simulate: Optional[Simulate] = None) -> None:
+def _launch_internal(
+    model: Optional[mujoco.MjModel] = None,
+    data: Optional[mujoco.MjData] = None,
+    *,
+    run_physics_thread: bool,
+    loader: Optional[_InternalLoaderType] = None,
+    handle_return: Optional['queue.Queue[Handle]'] = None,
+) -> None:
   """Internal API, so that the public API has more readable type annotations."""
   if model is None and data is not None:
     raise ValueError('mjData is specified but mjModel is not')
@@ -236,6 +294,8 @@ def _launch_internal(model: Optional[mujoco.MjModel] = None,
         'mjData should not be specified when an mjModel loader is used')
   elif loader is not None and model is not None:
     raise ValueError('model and loader are both specified')
+  elif run_physics_thread and handle_return is not None:
+    raise ValueError('run_physics_thread and handle_return are both specified')
 
   if loader is None and model is not None:
 
@@ -246,9 +306,14 @@ def _launch_internal(model: Optional[mujoco.MjModel] = None,
 
     loader = _loader
 
-  # The simulate object encapsulates the UI.
-  if simulate is None:
-    simulate = Simulate()
+  if model and not run_physics_thread:
+    scn = mujoco.MjvScene(model, _Simulate.MAX_GEOM)
+  else:
+    scn = mujoco.MjvScene()
+  cam = mujoco.MjvCamera()
+  opt = mujoco.MjvOption()
+  pert = mujoco.MjvPerturb()
+  simulate = _Simulate(scn, cam, opt, pert, run_physics_thread)
 
   # Initialize GLFW if not using mjpython.
   if _MJPYTHON is None:
@@ -256,13 +321,18 @@ def _launch_internal(model: Optional[mujoco.MjModel] = None,
       raise mujoco.FatalError('could not initialize GLFW')
     atexit.register(glfw.terminate)
 
+  notify_loaded = None
+  if handle_return:
+    notify_loaded = (
+        lambda: handle_return.put_nowait(Handle(simulate, scn, cam, opt, pert)))
+
   side_thread = None
   if run_physics_thread:
     side_thread = threading.Thread(
         target=_physics_loop, args=(simulate, loader))
   else:
     side_thread = threading.Thread(
-        target=_reload, args=(simulate, loader))
+        target=_reload, args=(simulate, loader, notify_loaded))
 
   def make_exit_requester(simulate):
     def exit_requester():
@@ -281,18 +351,15 @@ def _launch_internal(model: Optional[mujoco.MjModel] = None,
 def launch(model: Optional[mujoco.MjModel] = None,
            data: Optional[mujoco.MjData] = None,
            *,
-           run_physics_thread: bool = True,
            loader: Optional[LoaderType] = None) -> None:
   """Launches the Simulate GUI."""
-  if not run_physics_thread:
-    mujoco.mj_forward(model, data)
   _launch_internal(
-      model, data, run_physics_thread=run_physics_thread, loader=loader)
+      model, data, run_physics_thread=True, loader=loader)
 
 
 def launch_from_path(path: str) -> None:
   """Launches the Simulate GUI from file path."""
-  _launch_internal(loader=_file_loader(path))
+  _launch_internal(run_physics_thread=True, loader=_file_loader(path))
 
 
 def launch_passive(model: mujoco.MjModel, data: mujoco.MjData) -> None:
@@ -303,12 +370,13 @@ def launch_passive(model: mujoco.MjModel, data: mujoco.MjData) -> None:
     raise ValueError(f'`data` is not a mujoco.MjData: got {data!r}')
 
   mujoco.mj_forward(model, data)
+  handle_return = queue.Queue(1)
 
   if sys.platform != 'darwin':
     thread = threading.Thread(
         target=_launch_internal,
         args=(model, data),
-        kwargs=dict(run_physics_thread=False),
+        kwargs=dict(run_physics_thread=False, handle_return=handle_return),
     )
     thread.daemon = True
     thread.start()
@@ -316,85 +384,10 @@ def launch_passive(model: mujoco.MjModel, data: mujoco.MjData) -> None:
     if not isinstance(_MJPYTHON, _MjPythonBase):
       raise RuntimeError(
           '`launch_passive` requires that the Python script be run under '
-          '`mjpython`')
-    _MJPYTHON.launch_on_ui_thread(model, data)
+          '`mjpython` on macOS')
+    _MJPYTHON.launch_on_ui_thread(model, data, handle_return)
 
-
-def launch_repl(model: mujoco.MjModel, data: mujoco.MjData) -> None:
-  """Launches the Simulate GUI in REPL mode."""
-  ipython_shell = None
-  try:
-    import IPython  # pylint: disable=g-import-not-at-top
-    ipython_shell = IPython.get_ipython()
-    ipython_is_terminal_interactive_shell = isinstance(
-        ipython_shell,
-        IPython.terminal.interactiveshell.TerminalInteractiveShell)
-  except ImportError:
-    ipython_is_terminal_interactive_shell = False
-
-  simulate = Simulate()
-  viewer_is_running = True
-
-  def start_shell(global_variables):
-    if ipython_is_terminal_interactive_shell:
-      ipython_shell.execution_count += 1
-
-      # A SQLite connection can only be used on the same thread that opened it.
-      # We cache the existing connection and reopen on the current thread.
-      old_db = ipython_shell.history_manager.db
-      ipython_shell.history_manager.init_db()
-      ipython_shell.history_manager.new_session()
-
-      try:
-        # Replicate IPython main loop without exiting on keyboard interrupt,
-        # unless the viewer window has already been closed.
-        # (https://github.com/ipython/ipython/blob/8.9.0/IPython/terminal/interactiveshell.py#L701)
-        while viewer_is_running and ipython_shell.keep_running:
-          print(ipython_shell.separate_in, end='')
-          try:
-            c = ipython_shell.prompt_for_code()
-          except EOFError:
-            if not ipython_shell.confirm_exit or ipython_shell.ask_yes_no(
-                'Do you really want to exit ([y]/n)?', 'y', 'n'):
-              ipython_shell.ask_exit()
-            if not ipython_shell.keep_running and simulate is not None:
-              simulate.exitrequest = True
-          else:
-            if c:
-              ipython_shell.run_cell(c, store_history=True)
-      finally:
-        # Close the temporary history DB connection and restore the old one.
-        ipython_shell.history_manager.end_session()
-        ipython_shell.history_manager.db.close()
-        ipython_shell.history_manager.db = old_db
-        ipython_shell.execution_count -= 1
-    else:
-      code.InteractiveConsole(locals=global_variables).interact()
-
-  # End IPython history session on the main thread. We will need to open
-  # a new session in the REPL thread.
-  if ipython_is_terminal_interactive_shell:
-    ipython_shell.history_manager.end_session()
-
-  try:
-    # Continue the IPython REPL session in a separate thread.
-    repl_thread = threading.Thread(
-        target=start_shell, args=(inspect.stack()[1][0].f_globals,))
-    repl_thread.start()
-
-    # Launch the viewer on the main thread.
-    mujoco.mj_forward(model, data)
-    _launch_internal(
-        model, data, run_physics_thread=False, simulate=simulate)
-    simulate = None
-
-    # Wait until the REPL thread quits, then restore the IPython history
-    # DB session on the main thread.
-    viewer_is_running = False
-    repl_thread.join()
-  finally:
-    if ipython_is_terminal_interactive_shell:
-      ipython_shell.history_manager.new_session()
+  return handle_return.get()
 
 
 if __name__ == '__main__':

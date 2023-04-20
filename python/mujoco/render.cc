@@ -250,6 +250,7 @@ PYBIND11_MODULE(_render, pymodule) {
   Def<traits::mjr_changeFont>(pymodule);
   Def<traits::mjr_addAux>(pymodule);
   // Skipped: mjr_freeContext (have MjrContext.__del__)
+  Def<traits::mjr_resizeOffscreen>(pymodule);
   Def<traits::mjr_uploadTexture>(pymodule);
   Def<traits::mjr_uploadMesh>(pymodule);
   Def<traits::mjr_uploadHField>(pymodule);

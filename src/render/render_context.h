@@ -53,6 +53,9 @@ MJAPI void mjr_addAux(int index, int width, int height, int samples, mjrContext*
 // free resources in custom OpenGL context, set to default
 MJAPI void mjr_freeContext(mjrContext* con);
 
+// resize offscreen renderbuffer
+MJAPI void mjr_resizeOffscreen(int offwidth, int offheight, mjrContext* con);
+
 // (re) upload texture to GPU
 MJAPI void mjr_uploadTexture(const mjModel* m, const mjrContext* con, int texid);
 
