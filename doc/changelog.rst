@@ -49,8 +49,8 @@ Bug fixes
 12. Fixed bug in the handling of ellipsoid-based fluid model forces in the new implicitfast integrator.
 #.  Removed spurious whole-arena copying in `mj_copyData`, which can considerably
     `slow down <https://github.com/deepmind/mujoco/issues/568>`_ the copying operation.
-#.  Make ``shellinertia`` ignore ``exactmeshinertia``, which is only used for legacy volume computations
-    (`#759 <https://github.com/deepmind/mujoco/issues/759>`_).
+#.  Make :ref:`shellinertia<body-geom-shellinertia>` ignore :ref:`exactmeshinertia<compiler-exactmeshinertia>`, which is
+    only used for legacy volume computations (`#759 <https://github.com/deepmind/mujoco/issues/759>`_).
 
 
 Version 2.3.3 (March 20, 2023)
