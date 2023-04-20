@@ -2,50 +2,56 @@
 Changelog
 =========
 
-Upcoming version (not yet released)
------------------------------------
+Version 2.3.4 (April 20, 2023)
+------------------------------
 
 General
 ^^^^^^^
 
-- Removed the "global" setting of the :ref:`compiler/coordinate<compiler-coordinate>` attribute. This rarely-used
-  setting complicates the compiler logic and is blocking future improvements. In order to convert older models which
-  used this option, load and save them in MuJoCo 2.3.3 or older.
+1. Removed the "global" setting of the :ref:`compiler/coordinate<compiler-coordinate>` attribute. This rarely-used
+   setting complicates the compiler logic and is blocking future improvements. In order to convert older models which
+   used this option, load and save them in MuJoCo 2.3.3 or older.
 
 .. image:: images/changelog/ellipsoidinertia.gif
    :align: right
    :width: 240px
 
-- Added :ref:`visual-global<visual-global>` flag :ref:`ellipsoidinertia<visual-global-ellipsoidinertia>` to visualize
-  equivalent body inertias with ellipsoids instead of the default boxes.
-- Added documentation for :ref:`engine plugins<exPlugin>`.
-- Added struct information to the ``introspect`` module.
-- Added a new extension mechanism called "resource provider" . This extensible mechanism allows MuJoCo
-  to read assets from data sources other than the local OS filesystem or
-  the :ref:`Virtual file system<Virtualfilesystem>`.
+2. Added :ref:`visual-global<visual-global>` flag :ref:`ellipsoidinertia<visual-global-ellipsoidinertia>` to visualize
+   equivalent body inertias with ellipsoids instead of the default boxes.
+#. Added midphase and broadphase collision statistics to :ref:`mjData`.
+#. Added documentation for :ref:`engine plugins<exPlugin>`.
+#. Added struct information to the ``introspect`` module.
+#. Added a new extension mechanism called "resource provider" . This extensible mechanism allows MuJoCo
+   to read assets from data sources other than the local OS filesystem or
+   the :ref:`Virtual file system<Virtualfilesystem>`.
 
 Python bindings
 ^^^^^^^^^^^^^^^
 
-- Offscreen rendering on macOS is no longer restricted to the main thread. This is achieved by using the low-level
-  Core OpenGL (CGL) API to create the OpenGL context, rather than going via GLFW which relies on Cocoa's NSOpenGL.
-  The resulting context is not tied to a Cocoa window, and is therefore not tied to the main thread.
-- Fixed a race condition in ``viewer.launch_passive`` and  ``viewer.launch_repl``. These functions could previously
-  return before an internal call to ``mj_forward``. This allows user code to continue and potentially modify physics
-  state concurrently with the internal ``mj_forward``, resulting in e.g.
-  `MuJoCo stack overflow error <https://github.com/deepmind/mujoco/issues/783>`_
-  or `segmentation fault <https://github.com/deepmind/mujoco/issues/790>`_.
-- The ``viewer.launch_passive`` function now returns a handle which can be used to interact with the viewer. The passive
-  viewer now also requires an explicit call to ``sync`` on its handle to pick up any update to the physics state. This
-  is to avoid race conditions that can result in visual artifacts. See :ref:`documentation<PyViewer>` for details.
-- The ``viewer.launch_repl`` function has been removed since its functionality is superceded by ``launch_passive``.
-- Added a small number of missing struct fields discovered through the new ``introspect`` metadata.
+7. Offscreen rendering on macOS is no longer restricted to the main thread. This is achieved by using the low-level
+   Core OpenGL (CGL) API to create the OpenGL context, rather than going via GLFW which relies on Cocoa's NSOpenGL.
+   The resulting context is not tied to a Cocoa window, and is therefore not tied to the main thread.
+#. Fixed a race condition in ``viewer.launch_passive`` and  ``viewer.launch_repl``. These functions could previously
+   return before an internal call to ``mj_forward``. This allows user code to continue and potentially modify physics
+   state concurrently with the internal ``mj_forward``, resulting in e.g.
+   `MuJoCo stack overflow error <https://github.com/deepmind/mujoco/issues/783>`_
+   or `segmentation fault <https://github.com/deepmind/mujoco/issues/790>`_.
+#. The ``viewer.launch_passive`` function now returns a handle which can be used to interact with the viewer. The
+   passive viewer now also requires an explicit call to ``sync`` on its handle to pick up any update to the physics
+   state. This is to avoid race conditions that can result in visual artifacts. See :ref:`documentation<PyViewer>` for
+   details.
+#. The ``viewer.launch_repl`` function has been removed since its functionality is superceded by ``launch_passive``.
+#. Added a small number of missing struct fields discovered through the new ``introspect`` metadata.
 
 Bug fixes
 ^^^^^^^^^
 
-- Fixed bug in the handling of ellipsoid-based fluid model forces in the new implicitfast integrator. If using the
-  (as-yet undocumented) ellipsoid-based fluid model, please use a different integrator until the next release.
+12. Fixed bug in the handling of ellipsoid-based fluid model forces in the new implicitfast integrator. If using the
+    (as-yet undocumented) ellipsoid-based fluid model, please use a different integrator until the next release.
+#.  Removed spurious whole-arena copying in `mj_copyData`, which can considerably
+    `slow down <https://github.com/deepmind/mujoco/issues/568>`_ the copying operation.
+#.  Make ``shellinertia`` ignore ``exactmeshinertia``, which is only used for legacy volume computations
+    (`#759 <https://github.com/deepmind/mujoco/issues/759>`_).
 
 
 Version 2.3.3 (March 20, 2023)
