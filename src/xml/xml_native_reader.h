@@ -64,6 +64,7 @@ class mjXReader : public mjXBase {
   void OneTendon(tinyxml2::XMLElement* elem, mjCTendon* ptendon);
   void OneActuator(tinyxml2::XMLElement* elem, mjCActuator* pactuator);
   void OneComposite(tinyxml2::XMLElement* elem, mjCBody* pbody, mjCDef* def);
+  void OnePlugin(tinyxml2::XMLElement* elem, mjCBase* object);
 
   mjXSchema schema;                                                   // schema used for validation
   mjCDef* GetClass(tinyxml2::XMLElement* section);                    // get default class name

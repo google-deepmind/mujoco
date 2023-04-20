@@ -929,12 +929,6 @@ class mjCActuator : public mjCBase {
   std::string slidersite;         // site defining cylinder, for slider-crank only
   std::string refsite;            // reference site, for site transmission only
 
-  // plugin support
-  bool is_plugin;
-  std::string plugin_name;
-  std::string plugin_instance_name;
-  mjCPlugin* plugin_instance;
-
  private:
   mjCActuator(mjCModel* = 0, mjCDef* = 0);// constructor
   void Compile(void);                     // compiler

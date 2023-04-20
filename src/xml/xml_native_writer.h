@@ -61,6 +61,7 @@ class mjXWriter : public mjXBase {
   void OneEquality(tinyxml2::XMLElement* elem,  mjCEquality* pequality, mjCDef* def);
   void OneTendon(tinyxml2::XMLElement* elem,    mjCTendon* ptendon,     mjCDef* def);
   void OneActuator(tinyxml2::XMLElement* elem,  mjCActuator* pactuator, mjCDef* def);
+  void OnePlugin(tinyxml2::XMLElement* elem,    mjCBase* object);
 
   bool writingdefaults;                       // true during defaults write
 };

@@ -618,24 +618,7 @@ void mjXWriter::OneActuator(XMLElement* elem, mjCActuator* pact, mjCDef* def) {
 
   // plugins: write config attributes
   if (pact->is_plugin) {
-    if (!pact->plugin_instance_name.empty()) {
-      WriteAttrTxt(elem, "instance", pact->plugin_instance_name);
-    } else {
-      WriteAttrTxt(elem, "plugin", pact->plugin_name);
-      const mjpPlugin* plugin = mjp_getPluginAtSlot(
-          pact->plugin_instance->plugin_slot);
-      const char* c = &pact->plugin_instance->flattened_attributes[0];
-      for (int i = 0; i < plugin->nattribute; ++i) {
-        std::string value(c);
-        if (!value.empty()) {
-          XMLElement* config_elem = InsertEnd(elem, "config");
-          WriteAttrTxt(config_elem, "key", plugin->attributes[i]);
-          WriteAttrTxt(config_elem, "value", value);
-          c += value.size();
-        }
-        ++c;
-      }
-    }
+    OnePlugin(elem, pact);
   }
 
   // non-plugins: write actuator parameters
@@ -660,6 +643,30 @@ void mjXWriter::OneActuator(XMLElement* elem, mjCActuator* pact, mjCDef* def) {
     WriteVector(elem, "user", pact->userdata);
   } else {
     WriteVector(elem, "user", pact->userdata, def->actuator.userdata);
+  }
+}
+
+
+
+// write plugin
+void mjXWriter::OnePlugin(XMLElement* elem, mjCBase* object) {
+  if (!object->plugin_instance_name.empty()) {
+    WriteAttrTxt(elem, "instance", object->plugin_instance_name);
+  } else {
+    WriteAttrTxt(elem, "plugin", object->plugin_name);
+    const mjpPlugin* plugin = mjp_getPluginAtSlot(
+        object->plugin_instance->plugin_slot);
+    const char* c = &object->plugin_instance->flattened_attributes[0];
+    for (int i = 0; i < plugin->nattribute; ++i) {
+      std::string value(c);
+      if (!value.empty()) {
+        XMLElement* config_elem = InsertEnd(elem, "config");
+        WriteAttrTxt(config_elem, "key", plugin->attributes[i]);
+        WriteAttrTxt(config_elem, "value", value);
+        c += value.size();
+      }
+      ++c;
+    }
   }
 }
 
@@ -1382,24 +1389,7 @@ void mjXWriter::Body(XMLElement* elem, mjCBody* body) {
 
   // write plugin
   if (body->is_plugin) {
-    XMLElement *child = InsertEnd(elem, "plugin");
-    if (!body->plugin_instance_name.empty()) {
-      WriteAttrTxt(child, "instance", body->plugin_instance_name);
-    } else {
-      WriteAttrTxt(child, "plugin", body->plugin_name);
-      const mjpPlugin* plugin = mjp_getPluginAtSlot(
-          body->plugin_instance->plugin_slot);
-      const char* c = &body->plugin_instance->flattened_attributes[0];
-      for (int i = 0; i < plugin->nattribute; ++i) {
-        std::string value(c);
-        if (!value.empty()) {
-          WriteAttrTxt(child, std::string("plugin:") + plugin->attributes[i],
-                        value);
-          c += value.size();
-        }
-        ++c;
-      }
-    }
+    OnePlugin(elem, body);
   }
 
   // write child bodies recursively
