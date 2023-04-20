@@ -46,8 +46,7 @@ Python bindings
 Bug fixes
 ^^^^^^^^^
 
-12. Fixed bug in the handling of ellipsoid-based fluid model forces in the new implicitfast integrator. If using the
-    (as-yet undocumented) ellipsoid-based fluid model, please use a different integrator until the next release.
+12. Fixed bug in the handling of ellipsoid-based fluid model forces in the new implicitfast integrator.
 #.  Removed spurious whole-arena copying in `mj_copyData`, which can considerably
     `slow down <https://github.com/deepmind/mujoco/issues/568>`_ the copying operation.
 #.  Make ``shellinertia`` ignore ``exactmeshinertia``, which is only used for legacy volume computations
