@@ -1198,26 +1198,26 @@ struct mjModel_ {
 };
 typedef struct mjModel_ mjModel;
 struct mjpResourceProvider_ {
-  const char* prefix;          // prefix for match against a resource name
-  mjfOpenResource open;        // opening callback
-  mjfReadResource read;        // reading callback
-  mjfCloseResource close;      // closing callback
-  void* data;                  // opaque data pointer (resource invariant)
+  const char* prefix;             // prefix for match against a resource name
+  mjfOpenResource open;           // opening callback
+  mjfReadResource read;           // reading callback
+  mjfCloseResource close;         // closing callback
+  void* data;                     // opaque data pointer (resource invariant)
 };
 typedef struct mjpResourceProvider_ mjpResourceProvider;
 typedef enum mjtPluginCapabilityBit_ {
-  mjPLUGIN_ACTUATOR = 1<<0,
-  mjPLUGIN_SENSOR   = 1<<1,
-  mjPLUGIN_PASSIVE  = 1<<2,
+  mjPLUGIN_ACTUATOR = 1<<0,       // actuator forces
+  mjPLUGIN_SENSOR   = 1<<1,       // sensor measurements
+  mjPLUGIN_PASSIVE  = 1<<2,       // passive forces
 } mjtPluginCapabilityBit;
 struct mjpPlugin_ {
-  const char* name;     // globally unique name identifying the plugin
+  const char* name;               // globally unique name identifying the plugin
 
   int nattribute;                 // number of configuration attributes
   const char* const* attributes;  // name of configuration attributes
 
-  int capabilityflags;  // bitfield of mjtPluginCapabilityBit specifying plugin capabilities
-  int needstage;        // an mjtStage enum value specifying the sensor computation stage
+  int capabilityflags;            // plugin capabilities: bitfield of mjtPluginCapabilityBit
+  int needstage;                  // sensor computation stage (mjtStage)
 
   // number of mjtNums needed to store the state of a plugin instance (required)
   int (*nstate)(const mjModel* m, int instance);
