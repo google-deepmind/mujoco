@@ -362,7 +362,7 @@ def launch_from_path(path: str) -> None:
   _launch_internal(run_physics_thread=True, loader=_file_loader(path))
 
 
-def launch_passive(model: mujoco.MjModel, data: mujoco.MjData) -> None:
+def launch_passive(model: mujoco.MjModel, data: mujoco.MjData) -> Handle:
   """Launches a passive Simulate GUI without blocking the running thread."""
   if not isinstance(model, mujoco.MjModel):
     raise ValueError(f'`model` is not a mujoco.MjModel: got {model!r}')
