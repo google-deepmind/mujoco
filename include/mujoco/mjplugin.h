@@ -87,7 +87,7 @@ struct mjpPlugin_ {
   void (*advance)(const mjModel* m, mjData* d, int instance);
 
   // called by mjv_updateScene (optional)
-  void (*visualize)(const mjModel*m, mjData* d, mjvScene* scn, int instance);
+  void (*visualize)(const mjModel*m, mjData* d, const mjvOption* opt, mjvScene* scn, int instance);
 };
 typedef struct mjpPlugin_ mjpPlugin;
 

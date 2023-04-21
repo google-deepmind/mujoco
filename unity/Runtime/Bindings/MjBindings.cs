@@ -3389,7 +3389,7 @@ public static unsafe extern void mjv_makeSceneState(mjModel_* m, mjData_* d, mjv
 public static unsafe extern void mjv_freeSceneState(mjvSceneState_* scnstate);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
-public static unsafe extern void mjv_updateSceneState(mjModel_* m, mjData_* d, mjvSceneState_* scnstate);
+public static unsafe extern void mjv_updateSceneState(mjModel_* m, mjData_* d, mjvOption_* opt, mjvSceneState_* scnstate);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern void mjv_addGeoms(mjModel_* m, mjData_* d, mjvOption_* opt, mjvPerturb_* pert, int catmask, mjvScene_* scn);

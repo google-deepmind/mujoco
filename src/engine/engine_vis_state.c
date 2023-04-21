@@ -227,7 +227,8 @@ int mjv_updateSceneFromState(const mjvSceneState* scnstate, const mjvOption* opt
 
 
 // update a scene state from model and data
-void mjv_updateSceneState(const mjModel* m, mjData* d, mjvSceneState* scnstate) {
+void mjv_updateSceneState(const mjModel* m, mjData* d, const mjvOption* opt,
+                          mjvSceneState* scnstate) {
   // Check that mjModel sizes haven't changed.
 #define X(var)
 #define XMJV(var)                      \
@@ -250,7 +251,7 @@ void mjv_updateSceneState(const mjModel* m, mjData* d, mjvSceneState* scnstate) 
         mju_error("invalid plugin slot: %d", slot);
       }
       if (plugin->visualize) {
-        plugin->visualize(m, d, &scnstate->plugincache, i);
+        plugin->visualize(m, d, opt, &scnstate->plugincache, i);
       }
     }
   }

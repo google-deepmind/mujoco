@@ -2071,7 +2071,7 @@ void mjv_updateScene(const mjModel* m, mjData* d, const mjvOption* opt,
         mju_error("invalid plugin slot: %d", slot);
       }
       if (plugin->visualize) {
-        plugin->visualize(m, d, scn, i);
+        plugin->visualize(m, d, opt, scn, i);
       }
     }
   }

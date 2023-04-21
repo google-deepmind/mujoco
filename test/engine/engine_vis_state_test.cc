@@ -67,7 +67,7 @@ TEST_F(MjvSceneStateTest, CanUpdateFromState) {
   mjvSceneState scnstate;
   mjv_defaultSceneState(&scnstate);
   mjv_makeSceneState(model, data, &scnstate, kMaxGeom);
-  mjv_updateSceneState(model, data, &scnstate);
+  mjv_updateSceneState(model, data, &opt, &scnstate);
 
   mjvScene scn2;
   mjv_defaultScene(&scn2);

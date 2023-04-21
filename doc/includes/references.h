@@ -1244,7 +1244,7 @@ struct mjpPlugin_ {
   void (*advance)(const mjModel* m, mjData* d, int instance);
 
   // called by mjv_updateScene (optional)
-  void (*visualize)(const mjModel*m, mjData* d, mjvScene* scn, int instance);
+  void (*visualize)(const mjModel*m, mjData* d, const mjvOption* opt, mjvScene* scn, int instance);
 };
 typedef struct mjpPlugin_ mjpPlugin;
 typedef enum mjtGridPos_ {        // grid position for overlay
@@ -2270,7 +2270,8 @@ void mjv_defaultSceneState(mjvSceneState* scnstate);
 void mjv_makeSceneState(const mjModel* m, const mjData* d,
                         mjvSceneState* scnstate, int maxgeom);
 void mjv_freeSceneState(mjvSceneState* scnstate);
-void mjv_updateSceneState(const mjModel* m, mjData* d, mjvSceneState* scnstate);
+void mjv_updateSceneState(const mjModel* m, mjData* d, const mjvOption* opt,
+                          mjvSceneState* scnstate);
 void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* opt,
                   const mjvPerturb* pert, int catmask, mjvScene* scn);
 void mjv_makeLights(const mjModel* m, mjData* d, mjvScene* scn);

@@ -1798,7 +1798,7 @@ void Simulate::Sync() {
   if (fully_managed_) {
     mjv_updateScene(m_, d_, &this->opt, &this->pert, &this->cam, mjCAT_ALL, &this->scn);
   } else {
-    mjv_updateSceneState(m_, d_, &scnstate_);
+    mjv_updateSceneState(m_, d_, &this->opt, &scnstate_);
     mjopt_prev_ = scnstate_.model.opt;
     warn_vgeomfull_prev_ = scnstate_.data.warning[mjWARN_VGEOMFULL].number;
   }
@@ -1956,7 +1956,7 @@ void Simulate::LoadOnRenderThread() {
     mjv_updateScene(this->mnew_, this->dnew_,
                     &this->opt, &this->pert, &this->cam, mjCAT_ALL, &this->scn);
   } else {
-    mjv_updateSceneState(this->mnew_, this->dnew_, &this->scnstate_);
+    mjv_updateSceneState(this->mnew_, this->dnew_, &this->opt, &this->scnstate_);
   }
 
   // set window title to model name

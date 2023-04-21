@@ -302,11 +302,11 @@ return 0;
         auto* elasticity = reinterpret_cast<Cable*>(d->plugin_data[instance]);
         elasticity->Compute(m, d, instance);
       };
-  plugin.visualize =
-      +[](const mjModel* m, mjData* d, mjvScene* scn, int instance) {
-        auto* elasticity = reinterpret_cast<Cable*>(d->plugin_data[instance]);
-        elasticity->Visualize(m, d, scn, instance);
-      };
+  plugin.visualize = +[](const mjModel* m, mjData* d, const mjvOption* opt, mjvScene* scn,
+                         int instance) {
+    auto* elasticity = reinterpret_cast<Cable*>(d->plugin_data[instance]);
+    elasticity->Visualize(m, d, scn, instance);
+  };
 
   mjp_registerPlugin(&plugin);
 }

@@ -632,7 +632,8 @@ MJAPI void mjv_makeSceneState(const mjModel* m, const mjData* d,
 MJAPI void mjv_freeSceneState(mjvSceneState* scnstate);
 
 // Update a scene state from model and data.
-MJAPI void mjv_updateSceneState(const mjModel* m, mjData* d, mjvSceneState* scnstate);
+MJAPI void mjv_updateSceneState(const mjModel* m, mjData* d, const mjvOption* opt,
+                                mjvSceneState* scnstate);
 
 // Add geoms from selected categories.
 MJAPI void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* opt,

@@ -43,7 +43,8 @@ MJAPI int mjv_updateSceneFromState(const mjvSceneState* scnstate, const mjvOptio
                                    mjvScene* scn);
 
 // update a scene state from model and data
-MJAPI void mjv_updateSceneState(const mjModel* m, mjData* d, mjvSceneState* scnstate);
+MJAPI void mjv_updateSceneState(const mjModel* m, mjData* d, const mjvOption* opt,
+                                mjvSceneState* scnstate);
 
 // move camera with mouse given a scene state; action is mjtMouse
 MJAPI void mjv_moveCameraFromState(const mjvSceneState* scnstate, int action,
