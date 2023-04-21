@@ -54,26 +54,17 @@ using Seconds = std::chrono::duration<double>;
 using Milliseconds = std::chrono::duration<double, std::milli>;
 
 template <typename T>
-inline bool ScalarsDiffer(const T& a, const T& b) {
-  return a != b;
-}
-
-template <typename T, int N>
-inline bool ArraysDiffer(const T (&a)[N], const T (&b)[N]) {
-  for (int i = 0; i < N; ++i) {
+inline bool IsDifferent(const T& a, const T& b) {
+  if constexpr (std::is_array_v<T>) {
+    static_assert(std::rank_v<T> == 1);
+    for (int i = 0; i < std::extent_v<T>; ++i) {
       if (a[i] != b[i]) {
         return true;
       }
     }
     return false;
-}
-
-template <typename T>
-inline bool Differ(const T& a, const T& b) {
-  if constexpr (std::is_array_v<T>) {
-    return ArraysDiffer(a, b);
   } else {
-    return ScalarsDiffer(a, b);
+    return a != b;
   }
 }
 
@@ -1616,10 +1607,10 @@ void Simulate::Sync() {
 
   if (!fully_managed_) {
     // synchronize m_->opt with changes made via the UI
-  #define X(name)                                             \
-    if (Differ(scnstate_.model.opt.name, mjopt_prev_.name)) { \
-      pending_.ui_update_physics = true;                      \
-      Copy(m_->opt.name, scnstate_.model.opt.name);           \
+#define X(name)                                                  \
+  if (IsDifferent(scnstate_.model.opt.name, mjopt_prev_.name)) { \
+    pending_.ui_update_physics = true;                           \
+    Copy(m_->opt.name, scnstate_.model.opt.name);                \
   }
 
     X(timestep);
@@ -2081,17 +2072,17 @@ void Simulate::Render() {
          cam_prev_.fixedcamid != cam.fixedcamid ||
          cam_prev_.trackbodyid != cam.trackbodyid ||
          opt_prev_.label != opt.label || opt_prev_.frame != opt.frame ||
-         Differ(opt_prev_.flags, opt.flags))) {
+         IsDifferent(opt_prev_.flags, opt.flags))) {
       pending_.ui_update_rendering = true;
     }
 
     if (this->ui0_enable && this->ui0.sect[SECT_RENDERING].state &&
-          (Differ(opt_prev_.geomgroup, opt.geomgroup) ||
-           Differ(opt_prev_.sitegroup, opt.sitegroup) ||
-           Differ(opt_prev_.jointgroup, opt.jointgroup) ||
-           Differ(opt_prev_.tendongroup, opt.tendongroup) ||
-           Differ(opt_prev_.actuatorgroup, opt.actuatorgroup) ||
-           Differ(opt_prev_.skingroup, opt.skingroup))) {
+        (IsDifferent(opt_prev_.geomgroup, opt.geomgroup) ||
+         IsDifferent(opt_prev_.sitegroup, opt.sitegroup) ||
+         IsDifferent(opt_prev_.jointgroup, opt.jointgroup) ||
+         IsDifferent(opt_prev_.tendongroup, opt.tendongroup) ||
+         IsDifferent(opt_prev_.actuatorgroup, opt.actuatorgroup) ||
+         IsDifferent(opt_prev_.skingroup, opt.skingroup))) {
       mjui_update(SECT_GROUP, -1, &this->ui0, &this->uistate,
                   &this->platform_ui->mjr_context());
     }
