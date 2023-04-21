@@ -22,6 +22,7 @@
 #include <mutex>
 #include <optional>
 #include <ratio>
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -127,8 +128,8 @@ class Simulate {
     int newperturb;
     bool select;
     mjuiState select_state;
-    bool full_ui_update;
     bool ui_update_physics;
+    bool ui_update_rendering;
     bool ui_update_joint;
     bool ui_update_ctrl;
   } pending_ = {};

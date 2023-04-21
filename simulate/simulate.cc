@@ -19,6 +19,7 @@
 #include <cstdio>
 #include <cstring>
 #include <memory>
+#include <optional>
 #include <ratio>
 #include <string>
 #include <type_traits>
@@ -60,11 +61,11 @@ inline bool ScalarsDiffer(const T& a, const T& b) {
 template <typename T, int N>
 inline bool ArraysDiffer(const T (&a)[N], const T (&b)[N]) {
   for (int i = 0; i < N; ++i) {
-    if (a[i] != b[i]) {
-      return true;
+      if (a[i] != b[i]) {
+        return true;
+      }
     }
-  }
-  return false;
+    return false;
 }
 
 template <typename T>
@@ -1032,13 +1033,22 @@ void CopyCamera(mj::Simulate* sim) {
 void UpdateSettings(mj::Simulate* sim, const mjModel* m) {
   // physics flags
   for (int i=0; i<mjNDISABLE; i++) {
-    sim->disable[i] = ((m->opt.disableflags & (1<<i)) !=0);
+    int new_value = ((m->opt.disableflags & (1<<i)) !=0);
+    if (sim->disable[i] != new_value) {
+      sim->disable[i] = new_value;
+      sim->pending_.ui_update_physics = true;
+    }
   }
   for (int i=0; i<mjNENABLE; i++) {
-    sim->enable[i] = ((m->opt.enableflags & (1<<i)) !=0);
+    int new_value = ((m->opt.enableflags & (1<<i)) !=0);
+    if (sim->enable[i] != new_value) {
+      sim->enable[i] = new_value;
+      sim->pending_.ui_update_physics = true;
+    }
   }
 
   // camera
+  int old_camera = sim->camera;
   if (sim->cam.type==mjCAMERA_FIXED) {
     sim->camera = 2 + sim->cam.fixedcamid;
   } else if (sim->cam.type==mjCAMERA_TRACKING) {
@@ -1046,9 +1056,9 @@ void UpdateSettings(mj::Simulate* sim, const mjModel* m) {
   } else {
     sim->camera = 0;
   }
-
-  // update UI
-  sim->pending_.full_ui_update = true;
+  if (old_camera != sim->camera) {
+    sim->pending_.ui_update_rendering = true;
+  }
 }
 
 // Compute suitable font scale.
@@ -1557,7 +1567,6 @@ void Simulate::Sync() {
 
   bool update_profiler = this->profiler && (this->run || !this->m_);
   bool update_sensor = this->sensor && (this->run || !this->m_);
-  bool update_settings = false;
 
   for (int i = 0; i < m_->njnt; ++i) {
     std::optional<std::pair<mjtNum, mjtNum>> range;
@@ -1611,7 +1620,7 @@ void Simulate::Sync() {
     if (Differ(scnstate_.model.opt.name, mjopt_prev_.name)) { \
       pending_.ui_update_physics = true;                      \
       Copy(m_->opt.name, scnstate_.model.opt.name);           \
-    }
+  }
 
     X(timestep);
     X(apirate);
@@ -1681,13 +1690,11 @@ void Simulate::Sync() {
     mj_forward(m_, d_);
     update_profiler = true;
     update_sensor = true;
-    update_settings = true;
     pending_.reset = false;
   }
 
   if (pending_.align) {
     AlignAndScaleView(this, m_);
-    update_settings = true;
     pending_.align = false;
   }
 
@@ -1709,7 +1716,6 @@ void Simulate::Sync() {
     mj_forward(m_, d_);
     update_profiler = true;
     update_sensor = true;
-    update_settings = true;
     pending_.load_key = false;
   }
 
@@ -1774,8 +1780,7 @@ void Simulate::Sync() {
 
         // UI camera
         this->camera = 1;
-        mjui_update(SECT_RENDERING, -1, &this->ui0, &pending_.select_state,
-                    &this->platform_ui->mjr_context());
+        pending_.ui_update_rendering = true;
       }
     }
 
@@ -1807,6 +1812,9 @@ void Simulate::Sync() {
     warn_vgeomfull_prev_ = scnstate_.data.warning[mjWARN_VGEOMFULL].number;
   }
 
+  // update settings
+  UpdateSettings(this, m_);
+
   // update watch
   if (this->ui0_enable && this->ui0.sect[SECT_WATCH].state) {
     UpdateWatch(this, m_, d_);
@@ -1818,7 +1826,6 @@ void Simulate::Sync() {
   }
   if (update_profiler) { UpdateProfiler(this, m_, d_); }
   if (update_sensor) { UpdateSensor(this, m_, d_); }
-  if (update_settings) { UpdateSettings(this, m_); }
 
   // clear timers once profiler info has been copied
   ClearTimers(d_);
@@ -2057,64 +2064,62 @@ void Simulate::Render() {
   }
 
   // update UI sections from last sync
-  if (pending_.full_ui_update) {
-    mjui_update(-1, -1, &this->ui0, &this->uistate, &this->platform_ui->mjr_context());
-    mjui_update(-1, -1, &this->ui1, &this->uistate, &this->platform_ui->mjr_context());
-    pending_.full_ui_update = false;
+  if (this->ui0_enable && this->ui0.sect[SECT_WATCH].state) {
+    mjui_update(SECT_WATCH, -1, &this->ui0, &this->uistate, &this->platform_ui->mjr_context());
+  }
+
+  if (pending_.ui_update_physics) {
+    if (this->ui0_enable && this->ui0.sect[SECT_PHYSICS].state) {
+      mjui_update(SECT_PHYSICS, -1, &this->ui0, &this->uistate, &this->platform_ui->mjr_context());
+    }
     pending_.ui_update_physics = false;
-    pending_.ui_update_joint = false;
-    pending_.ui_update_ctrl = false;
-  } else {
-    if (this->ui0_enable && this->ui0.sect[SECT_WATCH].state) {
-      mjui_update(SECT_WATCH, -1, &this->ui0, &this->uistate, &this->platform_ui->mjr_context());
+  }
+
+  if (!fully_managed_) {
+    if (this->ui0_enable && this->ui0.sect[SECT_RENDERING].state &&
+        (cam_prev_.type != cam.type ||
+         cam_prev_.fixedcamid != cam.fixedcamid ||
+         cam_prev_.trackbodyid != cam.trackbodyid ||
+         opt_prev_.label != opt.label || opt_prev_.frame != opt.frame ||
+         Differ(opt_prev_.flags, opt.flags))) {
+      pending_.ui_update_rendering = true;
     }
 
-    if (pending_.ui_update_physics) {
-      if (this->ui0_enable && this->ui0.sect[SECT_PHYSICS].state) {
-        mjui_update(SECT_PHYSICS, -1, &this->ui0, &this->uistate, &this->platform_ui->mjr_context());
-      }
-      pending_.ui_update_physics = false;
-    }
-
-    if (!fully_managed_) {
-      if (this->ui0_enable && this->ui0.sect[SECT_RENDERING].state &&
-          (cam_prev_.type != cam.type ||
-           cam_prev_.fixedcamid != cam.fixedcamid ||
-           cam_prev_.trackbodyid != cam.trackbodyid ||
-           opt_prev_.label != opt.label || opt_prev_.frame != opt.frame ||
-           Differ(opt_prev_.flags, opt.flags))) {
-        mjui_update(SECT_RENDERING, -1, &this->ui0, &this->uistate,
-                    &this->platform_ui->mjr_context());
-      }
-
-      if (this->ui0_enable && this->ui0.sect[SECT_RENDERING].state &&
+    if (this->ui0_enable && this->ui0.sect[SECT_RENDERING].state &&
           (Differ(opt_prev_.geomgroup, opt.geomgroup) ||
            Differ(opt_prev_.sitegroup, opt.sitegroup) ||
            Differ(opt_prev_.jointgroup, opt.jointgroup) ||
            Differ(opt_prev_.tendongroup, opt.tendongroup) ||
            Differ(opt_prev_.actuatorgroup, opt.actuatorgroup) ||
            Differ(opt_prev_.skingroup, opt.skingroup))) {
-        mjui_update(SECT_GROUP, -1, &this->ui0, &this->uistate,
-                    &this->platform_ui->mjr_context());
-      }
-
-      opt_prev_ = opt;
-      cam_prev_ = cam;
+      mjui_update(SECT_GROUP, -1, &this->ui0, &this->uistate,
+                  &this->platform_ui->mjr_context());
     }
 
-    if (pending_.ui_update_joint) {
-      if (this->ui1_enable && this->ui1.sect[SECT_JOINT].state) {
-        mjui_update(SECT_JOINT, -1, &this->ui1, &this->uistate, &this->platform_ui->mjr_context());
-      }
-      pending_.ui_update_joint = false;
-    }
+    opt_prev_ = opt;
+    cam_prev_ = cam;
+  }
 
-    if (pending_.ui_update_ctrl) {
-      if (this->ui1_enable && this->ui1.sect[SECT_CONTROL].state) {
-        mjui_update(SECT_CONTROL, -1, &this->ui1, &this->uistate, &this->platform_ui->mjr_context());
-      }
-      pending_.ui_update_ctrl = false;
+  if (pending_.ui_update_rendering) {
+    if (this->ui0_enable && this->ui0.sect[SECT_RENDERING].state) {
+      mjui_update(SECT_RENDERING, -1, &this->ui0, &this->uistate,
+                  &this->platform_ui->mjr_context());
     }
+    pending_.ui_update_rendering = false;
+  }
+
+  if (pending_.ui_update_joint) {
+    if (this->ui1_enable && this->ui1.sect[SECT_JOINT].state) {
+      mjui_update(SECT_JOINT, -1, &this->ui1, &this->uistate, &this->platform_ui->mjr_context());
+    }
+    pending_.ui_update_joint = false;
+  }
+
+  if (pending_.ui_update_ctrl) {
+    if (this->ui1_enable && this->ui1.sect[SECT_CONTROL].state) {
+      mjui_update(SECT_CONTROL, -1, &this->ui1, &this->uistate, &this->platform_ui->mjr_context());
+    }
+    pending_.ui_update_ctrl = false;
   }
 
   // render scene
