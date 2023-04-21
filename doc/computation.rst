@@ -569,20 +569,20 @@ resetting the state and computing dynamics derivatives are also well-defined. Th
 
 Physics state
 ^^^^^^^^^^^^^
-| The *physics state* contains all quantities which are time-integrated during stepping.
-| They are ``mjData.{qpos, qvel, act, time}``:
+The *physics state* contains all quantities which are time-integrated during stepping.
+These are ``mjData.{qpos, qvel, act, time}``:
 
-  Mechanical state: ``qpos`` and ``qvel``
-    The *mechanical state* of a simulation is given by the generalized position (``mjData.qpos``) and velocity
-    (``mjData.qvel``) vectors, denoted above as :math:`q` and :math:`v`, respectively.
+Mechanical state: ``qpos`` and ``qvel``
+  The *mechanical state* of a simulation is given by the generalized position (``mjData.qpos``) and velocity
+  (``mjData.qvel``) vectors, denoted above as :math:`q` and :math:`v`, respectively.
 
-  Actuator activations: ``act``
-    ``mjData.act`` contains the internal states of stateful actuators, denoted above as :math:`w`.
+Actuator activations: ``act``
+  ``mjData.act`` contains the internal states of stateful actuators, denoted above as :math:`w`.
 
-  Time: ``time``
-    The time of the simulation is given by the scalar ``mjData.time``. Since physics is time-invariant, it is
-    often excluded from the *physics state*; an exception could be a time-dependent user callback (e.g., an open-loop
-    controller), in which case time should be included.
+Time: ``time``
+  The time of the simulation is given by the scalar ``mjData.time``. Since physics is time-invariant, it is
+  often excluded from the *physics state*; an exception could be a time-dependent user callback (e.g., an open-loop
+  controller), in which case time should be included.
 
 .. _geInput:
 
@@ -591,53 +591,53 @@ User inputs
 These input fields are set by the user and affect the physics simulation, but are untouched by the simulator. All input
 fields except for MoCap poses default to 0.
 
-  Controls: ``ctrl``
-    Controls are defined by the :ref:`actuator<actuator>` section of the XML. ``mjData.ctrl`` values either produce
-    generalized forces directly (stateless actuators), or affect the actuator activations in ``mjData.act``, which then
-    produce forces.
+Controls: ``ctrl``
+  Controls are defined by the :ref:`actuator<actuator>` section of the XML. ``mjData.ctrl`` values either produce
+  generalized forces directly (stateless actuators), or affect the actuator activations in ``mjData.act``, which then
+  produce forces.
 
-  Auxillary Controls: ``qfrc_applied`` and ``xfrc_applied``
-    | ``mjData.qfrc_applied`` are directly applied generalized forces.
-    | ``mjData.xfrc_applied`` are Cartesian wrenches applied to the CoM of individual bodies. This field is used for
-      example, by the :ref:`native viewer<saSimulate>` to apply mouse perturbations.
-    | Note that the effects of ``qfrc_applied`` and ``xfrc_applied`` can usually be recreated by appropriate actuator
-      definitions.
+Auxillary Controls: ``qfrc_applied`` and ``xfrc_applied``
+  | ``mjData.qfrc_applied`` are directly applied generalized forces.
+  | ``mjData.xfrc_applied`` are Cartesian wrenches applied to the CoM of individual bodies. This field is used for
+    example, by the :ref:`native viewer<saSimulate>` to apply mouse perturbations.
+  | Note that the effects of ``qfrc_applied`` and ``xfrc_applied`` can usually be recreated by appropriate actuator
+    definitions.
 
-  MoCap poses: ``mocap_pos`` and ``mocap_quat``
-    ``mjData.mocap_pos`` and ``mjData.mocap_quat`` are special optional kinematic states :ref:`described here<CMocap>`,
-    which allow the user to set the positions and orientations of static bodies in real-time, for example when streaming
-    6D poses from a motion-capture device. The default values set by :ref:`mj_resetData` are the poses of the bodies at
-    the default configuration.
+MoCap poses: ``mocap_pos`` and ``mocap_quat``
+  ``mjData.mocap_pos`` and ``mjData.mocap_quat`` are special optional kinematic states :ref:`described here<CMocap>`,
+  which allow the user to set the positions and orientations of static bodies in real-time, for example when streaming
+  6D poses from a motion-capture device. The default values set by :ref:`mj_resetData` are the poses of the bodies at
+  the default configuration.
 
-  User data: ``userdata``
-    ``mjData.userdata`` acts as a user-defined memory space untouched by the engine. For example it can be used by
-    callbacks. This is described in more detail in the :ref:`Programming chapter<siSimulation>`.
+User data: ``userdata``
+  ``mjData.userdata`` acts as a user-defined memory space untouched by the engine. For example it can be used by
+  callbacks. This is described in more detail in the :ref:`Programming chapter<siSimulation>`.
 
 .. _geWarmstart:
 
 Warmstart accelerations
 ^^^^^^^^^^^^^^^^^^^^^^^
 
-  ``qacc_warmstart``
-    ``mjData.qacc_warmstart`` are accelerations used to warmstart the constraint solver, saved from the previous step.
-    When using a slowly-converging :ref:`constraint solver<Solver>` like PGS, these can speed up simulation by reducing
-    the number of iterations required for convergence. Note however that the default Newton solver converges so quickly
-    (usually 2-3 iterations), that warmstarts often have no effect on speed and can be disabled.
+``qacc_warmstart``
+  ``mjData.qacc_warmstart`` are accelerations used to warmstart the constraint solver, saved from the previous step.
+  When using a slowly-converging :ref:`constraint solver<Solver>` like PGS, these can speed up simulation by reducing
+  the number of iterations required for convergence. Note however that the default Newton solver converges so quickly
+  (usually 2-3 iterations), that warmstarts often have no effect on speed and can be disabled.
 
-    Different warmstarts have no perceptible effect on the dynamics but should be saved if perfect numerical
-    reproducibility is required when loading a non-initial state. Note that even though their effect on physics is
-    negligible, many physical systems will accumulate small differences  `exponentially
-    <https://en.wikipedia.org/wiki/Lyapunov_exponent>`__ when time-stepping, quickly leading to divergent trajectories
-    for different warmstarts.
+  Different warmstarts have no perceptible effect on the dynamics but should be saved if perfect numerical
+  reproducibility is required when loading a non-initial state. Note that even though their effect on physics is
+  negligible, many physical systems will accumulate small differences  `exponentially
+  <https://en.wikipedia.org/wiki/Lyapunov_exponent>`__ when time-stepping, quickly leading to divergent trajectories
+  for different warmstarts.
 
 .. _gePlugin:
 
 Plugin state
 ^^^^^^^^^^^^
 
-  ``plugin_state``
-    ``mjData.plugin_state`` are states declared by :ref:`engine plugins<exPlugin>`. Please see the :ref:`exPluginState`
-    section for more details.
+``plugin_state``
+  ``mjData.plugin_state`` are states declared by :ref:`engine plugins<exPlugin>`. Please see the :ref:`exPluginState`
+  section for more details.
 
 .. _geIntegrationState:
 
