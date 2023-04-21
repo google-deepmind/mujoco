@@ -464,7 +464,7 @@ TEST_F(MjCMeshTest, VolumeTooSmall) {
   EXPECT_THAT(error.data(), HasSubstr("mesh volume is too small"));
 }
 
-TEST_F(MjCMeshTest, VolumeNegative) {
+TEST_F(MjCMeshTest, VolumeNegativeDefaultsLegacy) {
   static constexpr char xml[] = R"(
   <mujoco>
     <compiler exactmeshinertia="true"/>
@@ -482,8 +482,12 @@ TEST_F(MjCMeshTest, VolumeNegative) {
   )";
   std::array<char, 1024> error;
   mjModel* model = LoadModelFromString(xml, error.data(), error.size());
-  EXPECT_THAT(model, testing::IsNull());
-  EXPECT_THAT(error.data(), HasSubstr("mesh volume is negative"));
+  EXPECT_THAT(model, testing::NotNull());
+  EXPECT_LE(mju_abs(model->geom_size[0]), 1);
+  EXPECT_LE(mju_abs(model->geom_size[1]), 1);
+  EXPECT_LE(mju_abs(model->geom_size[2]), 1);
+  EXPECT_THAT(error.data(), HasSubstr("Malformed"));
+  mj_deleteModel(model);
 }
 
 TEST_F(MjCMeshTest, VolumeTooSmallAllowedWorld) {

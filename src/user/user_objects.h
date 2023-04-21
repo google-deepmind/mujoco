@@ -523,6 +523,10 @@ class mjCMesh: public mjCBase {
   void RemoveRepeated(void);                  // remove repeated vertices
   void CheckMesh(void);                       // check if the mesh is valid
 
+  // compute the volume and center-of-mass of the mesh given the face center
+  void ComputeVolume(double CoM[3], mjtMeshType type, const double facecen[3],
+                     bool exactmeshinertia);
+
   // mesh properties that indicate a well-formed mesh
   std::pair<int, int> invalidorientation;     // indices of invalid edge; -1 if none
   bool validarea;                             // false if the area is too small

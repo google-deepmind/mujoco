@@ -877,6 +877,33 @@ void mjCMesh::LoadMSH(int default_provider) {
 }
 
 
+void mjCMesh::ComputeVolume(double CoM[3], mjtMeshType type,
+                              const double facecen[3], bool exactmeshinertia) {
+  double nrm[3];
+  double cen[3];
+  GetVolumeRef(type) = 0;
+  mjuu_zerovec(CoM, 3);
+  for (int i=0; i<nface; i++) {
+    // get area, normal and center
+    double a = _triangle(nrm, cen, vert+3*face[3*i], vert+3*face[3*i+1], vert+3*face[3*i+2]);
+
+    // compute and add volume
+    const double vec[3] = {cen[0]-facecen[0], cen[1]-facecen[1], cen[2]-facecen[2]};
+    double vol = type==mjSHELL_MESH ? a : mjuu_dot3(vec, nrm) * a / 3;
+
+    // if legacy computation requested, then always positive
+    if (!exactmeshinertia && type==mjVOLUME_MESH) {
+      vol = fabs(vol);
+    }
+
+    // add pyramid com
+    GetVolumeRef(type) += vol;
+    for (int j=0; j<3; j++) {
+      CoM[j] += vol*(cen[j]*3.0/4.0 + facecen[j]/4.0);
+    }
+  }
+}
+
 
 // apply transformations
 void mjCMesh::Process() {
@@ -888,6 +915,7 @@ void mjCMesh::Process() {
 
     double nrm[3];
     double cen[3];
+    bool exactmeshinertia = model->exactmeshinertia;
 
     if (type==mjVOLUME_MESH) {
       // translate
@@ -995,26 +1023,15 @@ void mjCMesh::Process() {
     }
 
     // compute CoM and volume from pyramid volumes
-    GetVolumeRef(type) = 0;
-    for (int i=0; i<nface; i++) {
-      // get area, normal and center
-      double a = _triangle(nrm, cen, vert+3*face[3*i], vert+3*face[3*i+1], vert+3*face[3*i+2]);
+    ComputeVolume(CoM, type, facecen, model->exactmeshinertia);
 
-      // compute and add volume
-      const double vec[3] = {cen[0]-facecen[0], cen[1]-facecen[1], cen[2]-facecen[2]};
-      double vol = type==mjSHELL_MESH ? a : mjuu_dot3(vec, nrm) * a / 3;
-
-      // if legacy computation requested, then always positive
-      if (!model->exactmeshinertia && type==mjVOLUME_MESH) {
-        vol = fabs(vol);
-      }
-
-      // add pyramid com
-      GetVolumeRef(type) += vol;
-      for (int j=0; j<3; j++) {
-        CoM[j] += vol*(cen[j]*3.0/4.0 + facecen[j]/4.0);
-      }
+    // perform computation again if volume is negative
+    if (GetVolumeRef(type) < mjMINVAL && exactmeshinertia) {
+      mju_warning("Malformed mesh %s, computing mesh inertia from convex hull", name.c_str());
+      exactmeshinertia = false;
+      ComputeVolume(CoM, type, facecen, exactmeshinertia);
     }
+
 
     // require positive volume
     if (GetVolumeRef(type) < mjMINVAL) {
@@ -1051,7 +1068,7 @@ void mjCMesh::Process() {
       double vol = type==mjSHELL_MESH ? a : mjuu_dot3(cen, nrm) * a / 3;
 
       // if legacy computation requested, then always positive
-      if (!model->exactmeshinertia && type==mjVOLUME_MESH) {
+      if (!exactmeshinertia && type==mjVOLUME_MESH) {
         vol = fabs(vol);
       }
 
