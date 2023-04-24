@@ -38,8 +38,8 @@ Python bindings
    or `segmentation fault <https://github.com/deepmind/mujoco/issues/790>`_.
 #. The ``viewer.launch_passive`` function now returns a handle which can be used to interact with the viewer. The
    passive viewer now also requires an explicit call to ``sync`` on its handle to pick up any update to the physics
-   state. This is to avoid race conditions that can result in visual artifacts. See :ref:`documentation<PyViewer>` for
-   details.
+   state. This is to avoid race conditions that can result in visual artifacts. See
+   :ref:`documentation<PyViewerPassive>` for details.
 #. The ``viewer.launch_repl`` function has been removed since its functionality is superceded by ``launch_passive``.
 #. Added a small number of missing struct fields discovered through the new ``introspect`` metadata.
 
