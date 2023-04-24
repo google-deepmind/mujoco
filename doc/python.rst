@@ -426,8 +426,8 @@ threaded operation.
 
 .. _PyMjpy_migration:
 
-Migration Notes for mujoco-py
-=============================
+Migration from mujoco-py
+========================
 
 In mujoco-py, the main entry point is the `MjSim <https://github.com/openai/mujoco-py/blob/master/mujoco_py/mjsim.pyx>`_
 class.  Users construct a stateful ``MjSim`` instance from an MJCF model (similar to ``dm_control.Physics``), and this
