@@ -1983,7 +1983,7 @@ void mjCHField::LoadCustom(string filename, int default_provider) {
   const void* buffer = 0;
   mjResource* resource = nullptr;
 
-  if((resource = mju_openResource(filename.c_str(), default_provider)) == nullptr) {
+  if ((resource = mju_openResource(filename.c_str(), default_provider)) == nullptr) {
     // default to OS filesystem
     if (!default_provider || (resource = mju_openResource(filename.c_str(), 0)) == nullptr) {
       throw mjCError(this, "could not open hfield file '%s'", filename.c_str());
@@ -1994,7 +1994,7 @@ void mjCHField::LoadCustom(string filename, int default_provider) {
 
   // still not found
   if (!buffer || buffer_sz < 1) {
-    throw mjCError(this, "could not open hfield file '%s'", filename.c_str());
+    throw mjCError(this, "could not read hfield file '%s'", filename.c_str());
   }
 
   if (buffer_sz < 2*sizeof(int)) {
@@ -2041,8 +2041,11 @@ void mjCHField::LoadPNG(string filename, int default_provider) {
   const void* inbuffer = 0;
   mjResource* resource = nullptr;
 
-  if((resource = mju_openResource(filename.c_str(), default_provider)) == nullptr) {
-    throw mjCError(this, "could not open PNG file '%s'", filename.c_str());
+  if ((resource = mju_openResource(filename.c_str(), default_provider)) == nullptr) {
+    // try reading from filesystem
+    if (!default_provider || (resource = mju_openResource(filename.c_str(), 0)) == nullptr) {
+      throw mjCError(this, "could not open PNG file '%s' %d", filename.c_str(), default_provider);
+    }
   }
 
   int inbuffer_sz = mju_readResource(resource, &inbuffer);
@@ -2050,7 +2053,7 @@ void mjCHField::LoadPNG(string filename, int default_provider) {
   // still not found
   if (!inbuffer || inbuffer_sz < 1) {
     mju_closeResource(resource);
-    throw mjCError(this, "could not open PNG file '%s'", filename.c_str());
+    throw mjCError(this, "could not read PNG file '%s'", filename.c_str());
   }
 
   // load PNG from file or memory
@@ -2434,8 +2437,11 @@ void mjCTexture::LoadPNG(string filename, int default_provider,
   const void* inbuffer = 0;
   mjResource* resource = nullptr;
 
-  if((resource = mju_openResource(filename.c_str(), default_provider)) == nullptr) {
-    throw mjCError(this, "could not open PNG file '%s'", filename.c_str());
+  if ((resource = mju_openResource(filename.c_str(), default_provider)) == nullptr) {
+    // try reading from filesystem
+    if (!default_provider || (resource = mju_openResource(filename.c_str(), 0)) == nullptr) {
+      throw mjCError(this, "could not open PNG file '%s' %d", filename.c_str(), default_provider);
+    }
   }
 
   int inbuffer_sz = mju_readResource(resource, &inbuffer);
@@ -2443,7 +2449,7 @@ void mjCTexture::LoadPNG(string filename, int default_provider,
   // still not found
   if (!inbuffer || inbuffer_sz < 1) {
     mju_closeResource(resource);
-    throw mjCError(this, "could not open PNG file '%s'", filename.c_str());
+    throw mjCError(this, "could not read PNG file '%s'", filename.c_str());
   }
 
   // load PNG from file or memory
@@ -2469,7 +2475,7 @@ void mjCTexture::LoadCustom(string filename, int default_provider,
   const void* buffer = 0;
   mjResource* resource = nullptr;
 
-  if((resource = mju_openResource(filename.c_str(), default_provider)) == nullptr) {
+  if ((resource = mju_openResource(filename.c_str(), default_provider)) == nullptr) {
     // default to OS filesystem
     if (!default_provider || (resource = mju_openResource(filename.c_str(), 0)) == nullptr) {
       throw mjCError(this, "could not open texture file '%s'", filename.c_str());
@@ -2481,7 +2487,7 @@ void mjCTexture::LoadCustom(string filename, int default_provider,
   // still not found
   if (!buffer || buffer_sz < 0) {
     mju_closeResource(resource);
-    throw mjCError(this, "could not open texture file '%s'", filename.c_str());
+    throw mjCError(this, "could not read texture file '%s'", filename.c_str());
   }
 
   // read dimensions

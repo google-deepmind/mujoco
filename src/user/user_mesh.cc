@@ -591,10 +591,10 @@ void mjCMesh::LoadOBJ(int default_provider) {
   mjResource* r = nullptr;
 
   // try reading from default provider
-  if((r = mju_openResource(filename.c_str(), default_provider)) == nullptr) {
+  if ((r = mju_openResource(filename.c_str(), default_provider)) == nullptr) {
     // try reading from filesystem
-    if (default_provider || (r = mju_openResource(filename.c_str(), 0)) == nullptr) {
-      throw mjCError(this, "could not parse OBJ file '%s'", filename.c_str());
+    if (!default_provider || (r = mju_openResource(filename.c_str(), 0)) == nullptr) {
+      throw mjCError(this, "could not open OBJ file '%s'", filename.c_str());
     }
   }
 
@@ -603,7 +603,7 @@ void mjCMesh::LoadOBJ(int default_provider) {
   int buffer_sz = mju_readResource(r, &bytes);
   if (buffer_sz < 0) {
     mju_closeResource(r);
-    throw mjCError(this, "could not parse OBJ file '%s'", filename.c_str());
+    throw mjCError(this, "could not read OBJ file '%s'", filename.c_str());
   }
 
   // TODO(etom): support .mtl files?
@@ -706,7 +706,7 @@ void mjCMesh::LoadSTL(int default_provider) {
   // still not found
   if (buffer_sz < 0) {
     mju_closeResource(r);
-    throw mjCError(this, "could not open STL file '%s'", filename.c_str());
+    throw mjCError(this, "could not read STL file '%s'", filename.c_str());
   } else if (!buffer_sz) {
     mju_closeResource(r);
     throw mjCError(this, "STL file '%s' is empty", filename.c_str());
@@ -792,7 +792,7 @@ void mjCMesh::LoadMSH(int default_provider) {
   if((r = mju_openResource(filename.c_str(), default_provider)) == nullptr) {
     // fall back to OS filesystem
     if(!default_provider || (r = mju_openResource(filename.c_str(), 0)) == nullptr) {
-    throw mjCError(this, "could not open STL file '%s'", filename.c_str());
+    throw mjCError(this, "could not open MSH file '%s'", filename.c_str());
     }
   }
 
@@ -803,10 +803,10 @@ void mjCMesh::LoadMSH(int default_provider) {
   // still not found
   if (buffer_sz < 0) {
     mju_closeResource(r);
-    throw mjCError(this, "could not open STL file '%s'", filename.c_str());
+    throw mjCError(this, "could not read MSH file '%s'", filename.c_str());
   } else if (!buffer_sz) {
     mju_closeResource(r);
-    throw mjCError(this, "STL file '%s' is empty", filename.c_str());
+    throw mjCError(this, "MSH file '%s' is empty", filename.c_str());
   }
 
   // make sure header is present
@@ -1741,7 +1741,7 @@ void mjCSkin::LoadSKN(int default_provider) {
 
   if (buffer_sz < 0) {
     mju_closeResource(r);
-    throw mjCError(this, "could not open SKN file '%s'", filename.c_str());
+    throw mjCError(this, "could not read SKN file '%s'", filename.c_str());
   } else if (!buffer_sz) {
     mju_closeResource(r);
     throw mjCError(this, "SKN file '%s' is empty", filename.c_str());
