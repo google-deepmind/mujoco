@@ -2340,6 +2340,8 @@ void Simulate::RenderLoop() {
 
   if (fully_managed_){
     mjv_freeScene(&this->scn);
+  } else {
+    mjv_freeSceneState(&scnstate_);
   }
 
   this->exitrequest.store(2);
