@@ -2,8 +2,28 @@
 Changelog
 =========
 
+Version 2.3.5 (April 25, 2023)
+------------------------------
+
+Bug fixes
+^^^^^^^^^
+
+1. Fix asset loading bug that prevented OBJ and PNG files from being read from disk when :ref:`mjVFS` is used.
+#. Fix occasional segmentation faults on macOS when mouse perturbations are applied in the Python passive viewer.
+
+Plugins
+^^^^^^^
+
+3. The ``visualize`` callback in :ref:`mjpPlugin` now receives an :ref:`mjvOption` as an input argument.
+
+
 Version 2.3.4 (April 20, 2023)
 ------------------------------
+
+.. note::
+
+   This version is affected by an asset loading bug that prevents OBJ and PNG files from being read from disk when
+   ``mjVFS`` is used. Users are advised to skip to version 2.3.5 instead.
 
 General
 ^^^^^^^
