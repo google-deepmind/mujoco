@@ -55,7 +55,7 @@ TEST_F(SensorTest, DisableSensors) {
     </sensor>
   </mujoco>
   )";
-  mjModel* model = LoadModelFromString(xml, 0, 0);
+  mjModel* model = LoadModelFromString(xml);
   mjData* data = mj_makeData(model);
 
   // before calling anything, check that sensors are initialised to 0
@@ -105,7 +105,7 @@ TEST_F(RelativeFrameSensorTest, ReferencePosMat) {
     </sensor>
   </mujoco>
   )";
-  mjModel* model = LoadModelFromString(xml, 0, 0);
+  mjModel* model = LoadModelFromString(xml);
   mjData* data = mj_makeData(model);
   mj_forward(model, data);
 
@@ -143,7 +143,7 @@ TEST_F(RelativeFrameSensorTest, ReferenceQuatMat) {
     </sensor>
   </mujoco>
   )";
-  mjModel* model = LoadModelFromString(xml, 0, 0);
+  mjModel* model = LoadModelFromString(xml);
   mjData* data = mj_makeData(model);
 
   // call mj_forward and convert orientation matrix to quaternion
@@ -190,7 +190,7 @@ TEST_F(RelativeFrameSensorTest, ReferencePosMatQuat) {
     </sensor>
   </mujoco>
   )";
-  mjModel* model = LoadModelFromString(xml, 0, 0);
+  mjModel* model = LoadModelFromString(xml);
   constexpr int nsensordata = 32;
   ASSERT_EQ(model->nsensordata, nsensordata);
   mjData* data = mj_makeData(model);
@@ -240,7 +240,7 @@ TEST_F(RelativeFrameSensorTest, FrameVelLinearFixed) {
     </sensor>
   </mujoco>
   )";
-  mjModel* model = LoadModelFromString(xml, 0, 0);
+  mjModel* model = LoadModelFromString(xml);
   mjData* data = mj_makeData(model);
   data->qvel[0] = mju_sqrt(2);
   data->qvel[1] = 1;
@@ -272,7 +272,7 @@ TEST_F(RelativeFrameSensorTest, FrameVelAngFixed) {
     </sensor>
   </mujoco>
   )";
-  mjModel* model = LoadModelFromString(xml, 0, 0);
+  mjModel* model = LoadModelFromString(xml);
   mjData* data = mj_makeData(model);
 
   // set joint velocities and call forward dynamics
@@ -307,7 +307,7 @@ TEST_F(RelativeFrameSensorTest, FrameVelAngOpposing) {
     </sensor>
   </mujoco>
   )";
-  mjModel* model = LoadModelFromString(xml, 0, 0);
+  mjModel* model = LoadModelFromString(xml);
   mjData* data = mj_makeData(model);
 
   // set joint velocities and call forward dynamics
@@ -350,7 +350,7 @@ TEST_F(RelativeFrameSensorTest, FrameVelGeneral) {
     </sensor>
   </mujoco>
   )";
-  mjModel* model = LoadModelFromString(xml, 0, 0);
+  mjModel* model = LoadModelFromString(xml);
   mjData* data = mj_makeData(model);
   mjtNum dt = 1e-6;  // timestep used for finite differencing
 
@@ -411,7 +411,7 @@ TEST_F(SensorTest, Clock) {
     </sensor>
   </mujoco>
   )";
-  mjModel* model = LoadModelFromString(xml, 0, 0);
+  mjModel* model = LoadModelFromString(xml);
   mjData* data = mj_makeData(model);
 
   // call step 4 times, checking that clock works as expected

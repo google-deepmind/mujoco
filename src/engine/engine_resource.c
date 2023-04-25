@@ -19,6 +19,8 @@
 #include <stdio.h>
 #include <string.h>
 
+#include <mujoco/mjmodel.h>
+#include <mujoco/mjplugin.h>
 #include "engine/engine_plugin.h"
 #include "engine/engine_util_errmem.h"
 
@@ -59,7 +61,9 @@ mjResource* mju_openResource(const char* name, int default_provider) {
       return resource;
     }
 
-    mju_warning("mju_openResource: could not open resource '%s", name);
+    mju_warning("mju_openResource: could not open resource '%s' "
+                "using a resource provider matching prefix '%s'",
+                name, provider->prefix);
     mju_free(resource->name);
     mju_free(resource);
     return NULL;
@@ -69,7 +73,8 @@ mjResource* mju_openResource(const char* name, int default_provider) {
   if (default_provider > 0) {
     provider = mjp_getResourceProviderAtSlot(default_provider);
     if (provider == NULL) {
-      mju_warning("mju_openResource: unknown resource provider");
+      mju_warning("mju_openResource: unknown resource provider at slot %d",
+                  default_provider);
       mju_free(resource->name);
       mju_free(resource);
       return NULL;
@@ -81,7 +86,9 @@ mjResource* mju_openResource(const char* name, int default_provider) {
       return resource;
     }
 
-    mju_warning("mju_openResource: could not open resource '%s", name);
+    mju_warning("mju_openResource: could not open resource '%s' "
+                "with default provider at slot %d",
+                name, default_provider);
     mju_free(resource->name);
     mju_free(resource);
     return NULL;

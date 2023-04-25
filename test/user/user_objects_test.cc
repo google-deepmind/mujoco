@@ -14,15 +14,18 @@
 
 // Tests for user/user_objects.cc.
 
+#include <algorithm>
 #include <array>
 #include <cstddef>
 #include <string>
+#include <vector>
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjtnum.h>
 #include <mujoco/mujoco.h>
+#include "src/cc/array_safety.h"
 #include "test/fixture.h"
 
 namespace mujoco {
@@ -36,6 +39,116 @@ using ::testing::ElementsAre;
 using ::testing::HasSubstr;
 using ::testing::IsNull;
 using ::testing::NotNull;
+
+// -------------------- test OS filesystem fallback ----------------------------
+
+using VfsTest = MujocoTest;
+
+TEST_F(VfsTest, HFieldPngWithVFS) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <hfield name="hfield" file="unknown_file.png" size="0.5 0.5 1 0.1"/>
+    </asset>
+
+    <worldbody>
+      <geom type="hfield" hfield="hfield" pos="-.4 .6 .05"/>
+    </worldbody>
+  </mujoco>
+  )";
+
+  char error[1024];
+  size_t error_sz = 1024;
+
+  // load VFS on the heap
+  auto vfs = std::make_unique<mjVFS>();
+  mj_defaultVFS(vfs.get());
+
+  // should fallback to OS filesystem
+  mjModel* model = LoadModelFromString(xml, error, error_sz, vfs.get());
+  EXPECT_THAT(model, IsNull());
+  EXPECT_THAT(error, HasSubstr("resource not found via provider or OS filesystem"));
+}
+
+TEST_F(VfsTest, HFieldCustomWithVFS) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <hfield name="hfield" file="unknown_file" size="0.5 0.5 1 0.1"/>
+    </asset>
+
+    <worldbody>
+      <geom type="hfield" hfield="hfield" pos="-.4 .6 .05"/>
+    </worldbody>
+  </mujoco>
+  )";
+
+  char error[1024];
+  size_t error_sz = 1024;
+
+  // load VFS on the heap
+  auto vfs = std::make_unique<mjVFS>();
+  mj_defaultVFS(vfs.get());
+
+  // should fallback to OS filesystem
+  mjModel* model = LoadModelFromString(xml, error, error_sz, vfs.get());
+  EXPECT_THAT(model, IsNull());
+  EXPECT_THAT(error, HasSubstr("resource not found via provider or OS filesystem"));
+}
+
+TEST_F(VfsTest, TexturePngWithVFS) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <texture name="texture" file="unknown_file.png" type="2d"/>
+      <material name="material" texture="texture"/>
+    </asset>
+
+    <worldbody>
+      <geom type="plane" material="material" size="4 4 4"/>
+    </worldbody>
+  </mujoco>
+  )";
+
+  char error[1024];
+  size_t error_sz = 1024;
+
+  // load VFS on the heap
+  auto vfs = std::make_unique<mjVFS>();
+  mj_defaultVFS(vfs.get());
+
+  // should fallback to OS filesystem
+  mjModel* model = LoadModelFromString(xml, error, error_sz, vfs.get());
+  EXPECT_THAT(model, IsNull());
+  EXPECT_THAT(error, HasSubstr("resource not found via provider or OS filesystem"));
+ }
+
+TEST_F(VfsTest, TextureCustomWithVFS) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <texture name="texture" file="unknown_file" type="2d"/>
+      <material name="material" texture="texture"/>
+    </asset>
+
+    <worldbody>
+      <geom type="plane" material="material" size="4 4 4"/>
+    </worldbody>
+  </mujoco>
+  )";
+
+  char error[1024];
+  size_t error_sz = 1024;
+
+  // load VFS on the heap
+  auto vfs = std::make_unique<mjVFS>();
+  mj_defaultVFS(vfs.get());
+
+  // should fallback to OS filesystem
+  mjModel* model = LoadModelFromString(xml, error, error_sz, vfs.get());
+  EXPECT_THAT(model, IsNull());
+  EXPECT_THAT(error, HasSubstr("resource not found via provider or OS filesystem"));
+ }
 
 // ------------------------ test keyframes -------------------------------------
 
@@ -289,6 +402,7 @@ TEST_F(MjCGeomTest, CapsuleInertiaX) {
 }
 
 // ------------- test inertiagrouprange ----------------------------------------
+
 TEST_F(MjCGeomTest, IgnoreGeomOutsideInertiagrouprange) {
   static constexpr char xml[] = R"(
   <mujoco>

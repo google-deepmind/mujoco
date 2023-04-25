@@ -588,7 +588,7 @@ int mjp_registerResourceProviderInternal(const mjpResourceProvider* provider) {
         break;
       }
 
-      if (!vfs_provider) {
+      if (!vfs_provider && existing.prefix != nullptr) {
         int n = std::strlen(provider->prefix);
         int m = std::strlen(existing.prefix);
 

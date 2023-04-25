@@ -68,18 +68,49 @@ const std::string GetModelPath(std::string_view path) {
   return absl::StrCat("../model/", path);
 }
 
+int datastr_length(mjResource* resource) {
+  int len = strlen(resource->name)-1;
+
+  // string should have the format "S(data).ext"
+  for (; len > 2; len--) {
+    if (resource->name[len] == ')') {
+      return len - 2;
+    }
+  }
+  return -1;
+}
+
+int str_open_callback(mjResource* resource) {
+  if (datastr_length(resource) < 0) {
+    return 0;
+  }
+  resource->data = resource->name+2;
+  return 1;
+}
+
+int str_read_callback(mjResource* resource, const void** buffer) {
+  *buffer = resource->data;
+  return datastr_length(resource);
+}
+
+void str_close_callback(mjResource* resource) {
+}
+
 mjModel* LoadModelFromString(std::string_view xml, char* error,
-                             int error_size) {
-  static constexpr char file[] = "filename.xml";
-  // mjVFS structs need to be allocated on the heap, because it's ~2MB
-  auto vfs = std::make_unique<mjVFS>();
-  mj_defaultVFS(vfs.get());
-  mj_makeEmptyFileVFS(vfs.get(), file, xml.size());
-  int file_idx = mj_findFileVFS(vfs.get(), file);
-  memcpy(vfs->filedata[file_idx], xml.data(), xml.size());
-  mjModel* m = mj_loadXML(file, vfs.get(), error, error_size);
-  mj_deleteFileVFS(vfs.get(), file);
-  return m;
+                             int error_size, mjVFS* vfs) {
+
+  // register string resource provider if not registered before
+  if (mjp_getResourceProvider("S(") == nullptr) {
+    mjpResourceProvider resourceProvider;
+    resourceProvider.prefix = "S(";
+    resourceProvider.open = str_open_callback;
+    resourceProvider.read = str_read_callback;
+    resourceProvider.close = str_close_callback;
+    mjp_registerResourceProvider(&resourceProvider);
+  }
+  std::string xml2 = {xml.begin(), xml.end()};
+  std::string str = "S(" +  xml2 + ")";
+  return mj_loadXML(str.c_str(), vfs, error, error_size);
 }
 
 static void AssertModelNotNull(mjModel* model,

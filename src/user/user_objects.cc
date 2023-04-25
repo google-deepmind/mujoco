@@ -466,6 +466,25 @@ mjCBase::mjCBase() {
 
 
 
+// load resource if found (fallback to OS filesystem)
+mjResource* mjCBase::LoadResource(string filename, int provider) {
+  mjResource* r = nullptr;
+  const char* cname = filename.c_str();
+
+  // try reading from given provider
+  if ((r = mju_openResource(cname, provider)) == nullptr) {
+    if (!provider) {
+      throw mjCError(0, "file not found: '%s'", cname);
+    }
+    // if provider wasn't the OS filesystem try to fallback to OS filesystem
+    if ((r = mju_openResource(filename.c_str(), 0)) == nullptr) {
+      throw mjCError(this, "resource not found via provider or OS filesystem: '%s'", cname);
+    }
+  }
+  return r;
+}
+
+
 //------------------ class mjCBody implementation --------------------------------------------------
 
 // constructor
@@ -1978,28 +1997,20 @@ mjCHField::~mjCHField() {
 
 
 // load elevation data from custom format
-void mjCHField::LoadCustom(string filename, int default_provider) {
+void mjCHField::LoadCustom(mjResource* resource) {
   // get file data in buffer
   const void* buffer = 0;
-  mjResource* resource = nullptr;
-
-  if ((resource = mju_openResource(filename.c_str(), default_provider)) == nullptr) {
-    // default to OS filesystem
-    if (!default_provider || (resource = mju_openResource(filename.c_str(), 0)) == nullptr) {
-      throw mjCError(this, "could not open hfield file '%s'", filename.c_str());
-    }
-  }
-
   int buffer_sz = mju_readResource(resource, &buffer);
 
-  // still not found
-  if (!buffer || buffer_sz < 1) {
-    throw mjCError(this, "could not read hfield file '%s'", filename.c_str());
+  if (buffer_sz < 1) {
+    throw mjCError(this, "could not read hfield file '%s'", resource->name);
+  } else if (!buffer_sz) {
+    throw mjCError(this, "empty hfield file '%s'", resource->name);
   }
 
+
   if (buffer_sz < 2*sizeof(int)) {
-    mju_closeResource(resource);
-    throw mjCError(this, "hfield missing header '%s'", filename.c_str());
+    throw mjCError(this, "hfield missing header '%s'", resource->name);
   }
 
   // read dimensions
@@ -2009,51 +2020,38 @@ void mjCHField::LoadCustom(string filename, int default_provider) {
 
   // check dimensions
   if (nrow<1 || ncol<1) {
-    mju_closeResource(resource);
-    throw mjCError(this, "non-positive hfield dimensions in file '%s'", filename.c_str());
+    throw mjCError(this, "non-positive hfield dimensions in file '%s'", resource->name);
   }
 
   // check buffer size
   if (buffer_sz != nrow*ncol*sizeof(float)+8) {
-    mju_closeResource(resource);
-    throw mjCError(this, "unexpected file size in file '%s'", filename.c_str());
+    throw mjCError(this, "unexpected file size in file '%s'", resource->name);
   }
 
   // allocate
   data = (float*) mju_malloc(nrow*ncol*sizeof(float));
   if (!data) {
-    mju_closeResource(resource);
     throw mjCError(this, "could not allocate buffers in hfield");
   }
 
   // copy data
   memcpy(data, (void*)(pint+2), nrow*ncol*sizeof(float));
-
-  // close file
-  mju_closeResource(resource);
 }
 
 
 
 // load elevation data from PNG format
-void mjCHField::LoadPNG(string filename, int default_provider) {
+void mjCHField::LoadPNG(mjResource* resource) {
   // determine data source
   const void* inbuffer = 0;
-  mjResource* resource = nullptr;
-
-  if ((resource = mju_openResource(filename.c_str(), default_provider)) == nullptr) {
-    // try reading from filesystem
-    if (!default_provider || (resource = mju_openResource(filename.c_str(), 0)) == nullptr) {
-      throw mjCError(this, "could not open PNG file '%s' %d", filename.c_str(), default_provider);
-    }
-  }
-
   int inbuffer_sz = mju_readResource(resource, &inbuffer);
 
-  // still not found
-  if (!inbuffer || inbuffer_sz < 1) {
-    mju_closeResource(resource);
-    throw mjCError(this, "could not read PNG file '%s'", filename.c_str());
+  if (inbuffer_sz < 1) {
+    throw mjCError(this, "could not read hfield PNG file '%s'", resource->name);
+  }
+
+  if (!inbuffer_sz) {
+    throw mjCError(this, "empty hfield PNG file '%s'", resource->name);
   }
 
   // load PNG from file or memory
@@ -2063,18 +2061,15 @@ void mjCHField::LoadPNG(string filename, int default_provider) {
 
   // check
   if (err) {
-    mju_closeResource(resource);
     throw mjCError(this, "PNG load error '%s' in hfield id = %d", lodepng_error_text(err), id);
   }
   if (!w || !h) {
-    mju_closeResource(resource);
-    throw mjCError(this, "Zero dimension in PNG hfield '%s' (id = %d)", name.c_str(), id);
+    throw mjCError(this, "Zero dimension in PNG hfield '%s' (id = %d)", resource->name, id);
   }
 
   // allocate
   data = (float*) mju_malloc(w*h*sizeof(float));
   if (!data) {
-    mju_closeResource(resource);
     throw mjCError(this, "could not allocate buffers in hfield");
   }
 
@@ -2086,7 +2081,6 @@ void mjCHField::LoadPNG(string filename, int default_provider) {
       data[c+(nrow-1-r)*ncol] = (float)image[c+r*ncol];
     }
   image.clear();
-  mju_closeResource(resource);
 }
 
 
@@ -2114,13 +2108,21 @@ void mjCHField::Compile(int default_provider) {
 
     // make filename
     string filename = mjuu_makefullname(model->modelfiledir, model->meshdir, file);
+    mjResource* resource = LoadResource(filename, default_provider);
 
     // load depending on format
     string ext = mjuu_getext(filename);
-    if (!strcasecmp(ext.c_str(), ".png")) {
-      LoadPNG(filename, default_provider);
-    } else {
-      LoadCustom(filename, default_provider);
+
+    try {
+      if (!strcasecmp(ext.c_str(), ".png")) {
+        LoadPNG(resource);
+      } else {
+        LoadCustom(resource);
+      }
+      mju_closeResource(resource);
+    } catch(mjCError err) {
+      mju_closeResource(resource);
+      throw err;
     }
   }
 
@@ -2431,30 +2433,22 @@ void mjCTexture::BuiltinCube(void) {
 
 
 // load PNG file
-void mjCTexture::LoadPNG(string filename, int default_provider,
+void mjCTexture::LoadPNG(mjResource* resource,
                          std::vector<unsigned char>& image,
                          unsigned int& w, unsigned int& h) {
   const void* inbuffer = 0;
-  mjResource* resource = nullptr;
-
-  if ((resource = mju_openResource(filename.c_str(), default_provider)) == nullptr) {
-    // try reading from filesystem
-    if (!default_provider || (resource = mju_openResource(filename.c_str(), 0)) == nullptr) {
-      throw mjCError(this, "could not open PNG file '%s' %d", filename.c_str(), default_provider);
-    }
-  }
-
   int inbuffer_sz = mju_readResource(resource, &inbuffer);
 
   // still not found
-  if (!inbuffer || inbuffer_sz < 1) {
-    mju_closeResource(resource);
-    throw mjCError(this, "could not read PNG file '%s'", filename.c_str());
+  if (inbuffer_sz < 1) {
+    throw mjCError(this, "could not read PNG texture file '%s'", resource->name);
+  } else if (!inbuffer_sz) {
+    throw mjCError(this, "PNG texture file '%s' is empty", resource->name);
   }
+
 
   // load PNG from file or memory
   unsigned int err = lodepng::decode(image, w, h, (const unsigned char*) inbuffer, inbuffer_sz, LCT_RGB, 8);
-  mju_closeResource(resource);
 
   // check
   if (err) {
@@ -2462,33 +2456,26 @@ void mjCTexture::LoadPNG(string filename, int default_provider,
                    "PNG file load error '%s' in texture id = %d", lodepng_error_text(err), id);
   }
   if (w<1 || h<1) {
-    throw mjCError(this, "Empty PNG file in texture '%s' (id %d)", (const char*)file.c_str(), id);
+    throw mjCError(this, "Empty PNG file in texture '%s' (id %d)", resource->name, id);
   }
 }
 
 
 
 // load custom file
-void mjCTexture::LoadCustom(string filename, int default_provider,
+void mjCTexture::LoadCustom(mjResource* resource,
                             std::vector<unsigned char>& image,
                             unsigned int& w, unsigned int& h) {
   const void* buffer = 0;
-  mjResource* resource = nullptr;
-
-  if ((resource = mju_openResource(filename.c_str(), default_provider)) == nullptr) {
-    // default to OS filesystem
-    if (!default_provider || (resource = mju_openResource(filename.c_str(), 0)) == nullptr) {
-      throw mjCError(this, "could not open texture file '%s'", filename.c_str());
-    }
-  }
-
   int buffer_sz = mju_readResource(resource, &buffer);
 
   // still not found
-  if (!buffer || buffer_sz < 0) {
-    mju_closeResource(resource);
-    throw mjCError(this, "could not read texture file '%s'", filename.c_str());
+  if (buffer_sz < 0) {
+    throw mjCError(this, "could not read texture file '%s'", resource->name);
+  } else if (!buffer_sz) {
+    throw mjCError(this, "texture file is empty: '%s'", resource->name);
   }
+
 
   // read dimensions
   int* pint = (int*)buffer;
@@ -2497,23 +2484,19 @@ void mjCTexture::LoadCustom(string filename, int default_provider,
 
   // check dimensions
   if (w<1 || h<1) {
-    mju_closeResource(resource);
     throw mjCError(this, "Non-PNG texture, assuming custom binary file format,\n"
-                         "non-positive texture dimensions in file '%s'", filename.c_str());
+                         "non-positive texture dimensions in file '%s'", resource->name);
   }
 
   // check buffer size
   if (buffer_sz != 2*sizeof(int) + w*h*3*sizeof(char)) {
-    mju_closeResource(resource);
     throw mjCError(this, "Non-PNG texture, assuming custom binary file format,\n"
-                         "unexpected file size in file '%s'", filename.c_str());
+                         "unexpected file size in file '%s'", resource->name);
   }
 
   // allocate and copy
   image.resize(w*h*3);
   memcpy(image.data(), (void*)(pint+2), w*h*3*sizeof(char));
-
-  mju_closeResource(resource);
 }
 
 
@@ -2524,10 +2507,18 @@ void mjCTexture::LoadFlip(string filename, int default_provider,
                           unsigned int& w, unsigned int& h) {
   // dispatch to PNG or Custom loaded
   string ext = mjuu_getext(filename);
-  if (!strcasecmp(ext.c_str(), ".png")) {
-    LoadPNG(filename, default_provider, image, w, h);
-  } else {
-    LoadCustom(filename, default_provider, image, w, h);
+  mjResource* resource = LoadResource(filename, default_provider);
+
+  try {
+    if (!strcasecmp(ext.c_str(), ".png")) {
+     LoadPNG(resource, image, w, h);
+    } else {
+     LoadCustom(resource, image, w, h);
+    }
+    mju_closeResource(resource);
+  } catch(mjCError err) {
+    mju_closeResource(resource);
+    throw err;
   }
 
   // horizontal flip

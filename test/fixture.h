@@ -52,7 +52,7 @@ const std::string GetModelPath(absl::string_view path);
 // Returns a newly-allocated mjModel, loaded from the contents of xml.
 // On failure returns nullptr and populates the error array if present.
 mjModel* LoadModelFromString(absl::string_view xml, char* error = nullptr,
-                             int error_size = 0);
+                             int error_size = 0, mjVFS* vfs = nullptr);
 
 // Returns a newly-allocated mjModel, loaded from the contents in model_path.
 // On failure it asserts that model is null.

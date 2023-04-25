@@ -144,6 +144,9 @@ class mjCBase {
   friend class mjCDef;
 
  public:
+  // load resource if found (fallback to OS filesystem)
+  mjResource* LoadResource(std::string filename, int provider);
+
   std::string name;               // object name
   std::string classname;          // defaults class name
   int id;                         // object id
@@ -513,9 +516,9 @@ class mjCMesh: public mjCBase {
   mjCMesh(mjCModel* = 0, mjCDef* = 0);        // constructor
   ~mjCMesh();                                 // destructor
   void Compile(int default_provider);         // compiler
-  void LoadOBJ(int default_provider);         // load mesh in wavefront OBJ format
-  void LoadSTL(int default_provider);         // load mesh in STL BIN format
-  void LoadMSH(int default_provider);         // load mesh in MSH BIN format
+  void LoadOBJ(mjResource* resource);         // load mesh in wavefront OBJ format
+  void LoadSTL(mjResource* resource);         // load mesh in STL BIN format
+  void LoadMSH(mjResource* resource);         // load mesh in MSH BIN format
   void MakeGraph(void);                       // make graph of convex hull
   void CopyGraph(void);                       // copy graph into face data
   void MakeNormal(void);                      // compute vertex normals
@@ -595,7 +598,7 @@ class mjCSkin: public mjCBase {
   mjCSkin(mjCModel* = 0);                     // constructor
   ~mjCSkin();                                 // destructor
   void Compile(int default_provider);         // compiler
-  void LoadSKN(int default_provider);         // load skin in SKN BIN format
+  void LoadSKN(mjResource* resource);         // load skin in SKN BIN format
 
   int matid;                          // material id
   std::vector<int> bodyid;            // body ids
@@ -622,8 +625,8 @@ class mjCHField : public mjCBase {
   ~mjCHField();                           // destructor
   void Compile(int default_provider);     // compiler
 
-  void LoadCustom(std::string filename, int default_provider); // load from custom format
-  void LoadPNG(std::string filename, int default_provider);    // load from PNG format
+  void LoadCustom(mjResource* resource);  // load from custom format
+  void LoadPNG(mjResource* resource);     // load from PNG format
 };
 
 
@@ -676,10 +679,10 @@ class mjCTexture : public mjCBase {
                 std::vector<unsigned char>& image,
                 unsigned int& w, unsigned int& h);
 
-  void LoadPNG(std::string filename, int default_provider,
+  void LoadPNG(mjResource* resource,
                std::vector<unsigned char>& image,
                unsigned int& w, unsigned int& h);
-  void LoadCustom(std::string filename, int default_provider,
+  void LoadCustom(mjResource* resource,
                   std::vector<unsigned char>& image,
                   unsigned int& w, unsigned int& h);
 
@@ -708,8 +711,8 @@ class mjCMaterial : public mjCBase {
   float rgba[4];                  // rgba
 
  private:
-  mjCMaterial(mjCModel* = 0, mjCDef* = 0);// constructor
-  void Compile(void);                     // compiler
+  mjCMaterial(mjCModel* = 0, mjCDef* = 0);  // constructor
+  void Compile(void);                       // compiler
 
   int texid;                      // id of material
 };
@@ -742,8 +745,8 @@ class mjCPair : public mjCBase {
   }
 
  private:
-  mjCPair(mjCModel* = 0, mjCDef* = 0);// constructor
-  void Compile(void);                 // compiler
+  mjCPair(mjCModel* = 0, mjCDef* = 0);  // constructor
+  void Compile(void);                   // compiler
 
   int geom1;                      // id of geom1
   int geom2;                      // id of geom2
@@ -828,22 +831,22 @@ class mjCTendon : public mjCBase {
   mjCWrap* GetWrap(int);                      // pointer to wrap
 
   // variables set by user
-  int group;                      // group for visualization
-  std::string material;           // name of material for rendering
-  int limited;                    // does tendon have limits: 0 false, 1 true, 2 auto
-  double width;                   // width for rendering
-  mjtNum solref_limit[mjNREF];    // solver reference: tendon limits
-  mjtNum solimp_limit[mjNIMP];    // solver impedance: tendon limits
-  mjtNum solref_friction[mjNREF]; // solver reference: tendon friction
-  mjtNum solimp_friction[mjNIMP]; // solver impedance: tendon friction
-  double range[2];                // length limits
-  double margin;                  // margin value for tendon limit detection
-  double stiffness;               // stiffness coefficient
-  double damping;                 // damping coefficient
-  double frictionloss;            // friction loss
-  double springlength[2];         // spring resting length; {-1, -1}: use qpos_spring
-  std::vector<double> userdata;   // user data
-  float rgba[4];                  // rgba when material is omitted
+  int group;                       // group for visualization
+  std::string material;            // name of material for rendering
+  int limited;                     // does tendon have limits: 0 false, 1 true, 2 auto
+  double width;                    // width for rendering
+  mjtNum solref_limit[mjNREF];     // solver reference: tendon limits
+  mjtNum solimp_limit[mjNIMP];     // solver impedance: tendon limits
+  mjtNum solref_friction[mjNREF];  // solver reference: tendon friction
+  mjtNum solimp_friction[mjNIMP];  // solver impedance: tendon friction
+  double range[2];                 // length limits
+  double margin;                   // margin value for tendon limit detection
+  double stiffness;                // stiffness coefficient
+  double damping;                  // damping coefficient
+  double frictionloss;             // friction loss
+  double springlength[2];          // spring resting length; {-1, -1}: use qpos_spring
+  std::vector<double> userdata;    // user data
+  float rgba[4];                   // rgba when material is omitted
 
  private:
   mjCTendon(mjCModel* = 0, mjCDef* = 0);      // constructor
@@ -934,8 +937,8 @@ class mjCActuator : public mjCBase {
   std::string refsite;            // reference site, for site transmission only
 
  private:
-  mjCActuator(mjCModel* = 0, mjCDef* = 0);// constructor
-  void Compile(void);                     // compiler
+  mjCActuator(mjCModel* = 0, mjCDef* = 0);  // constructor
+  void Compile(void);                       // compiler
 
   int trnid[2];                   // id of transmission target
 };
@@ -1046,18 +1049,18 @@ class mjCKey : public mjCBase {
   friend class mjXWriter;
 
  public:
-  double time;                    // time
-  std::vector<double> qpos;       // qpos
-  std::vector<double> qvel;       // qvel
-  std::vector<double> act;        // act
-  std::vector<double> mpos;       // mocap pos
-  std::vector<double> mquat;      // mocap quat
-  std::vector<double> ctrl;       // ctrl
+  double time;                     // time
+  std::vector<double> qpos;        // qpos
+  std::vector<double> qvel;        // qvel
+  std::vector<double> act;         // act
+  std::vector<double> mpos;        // mocap pos
+  std::vector<double> mquat;       // mocap quat
+  std::vector<double> ctrl;        // ctrl
 
  private:
-  mjCKey(mjCModel*);              // constructor
-  ~mjCKey();                      // destructor
-  void Compile(const mjModel* m); // compiler
+  mjCKey(mjCModel*);               // constructor
+  ~mjCKey();                       // destructor
+  void Compile(const mjModel* m);  // compiler
 };
 
 
