@@ -7503,7 +7503,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  type=ValueType(name='mjtNum'),
              ),
              FunctionParameterDecl(
-                 name='centered',
+                 name='flg_centered',
                  type=ValueType(name='mjtByte'),
              ),
              FunctionParameterDecl(

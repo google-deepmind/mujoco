@@ -2439,7 +2439,7 @@ void mju_insertionSortInt(int* list, int n);
 mjtNum mju_Halton(int index, int base);
 char* mju_strncpy(char *dst, const char *src, int n);
 mjtNum mju_sigmoid(mjtNum x);
-void mjd_transitionFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte centered,
+void mjd_transitionFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte flg_centered,
                       mjtNum* A, mjtNum* B, mjtNum* C, mjtNum* D);
 void mjp_defaultPlugin(mjpPlugin* plugin);
 int mjp_registerPlugin(const mjpPlugin* plugin);

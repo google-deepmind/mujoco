@@ -3825,6 +3825,6 @@ public static unsafe extern string mju_strncpy(StringBuilder dst, [MarshalAs(Unm
 public static unsafe extern double mju_sigmoid(double x);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
-public static unsafe extern void mjd_transitionFD(mjModel_* m, mjData_* d, double eps, byte centered, double* A, double* B, double* C, double* D);
+public static unsafe extern void mjd_transitionFD(mjModel_* m, mjData_* d, double eps, byte flg_centered, double* A, double* B, double* C, double* D);
 }
 }

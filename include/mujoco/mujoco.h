@@ -1197,7 +1197,7 @@ MJAPI mjtNum mju_sigmoid(mjtNum x);
 //      B: (2*nv+na x nu)
 //      D: (nsensordata x 2*nv+na)
 //      C: (nsensordata x nu)
-MJAPI void mjd_transitionFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte centered,
+MJAPI void mjd_transitionFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte flg_centered,
                             mjtNum* A, mjtNum* B, mjtNum* C, mjtNum* D);
 
 

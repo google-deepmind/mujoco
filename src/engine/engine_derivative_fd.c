@@ -310,7 +310,7 @@ void mjd_smooth_velFD(const mjModel* m, mjData* d, mjtNum eps) {
 //   single-letter shortcuts:
 //     inputs: q=qpos, v=qvel, a=act, u=ctrl
 //     outputs: y=next_state (concatenated next qpos, qvel, act), s=sensordata
-void mjd_stepFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte centered,
+void mjd_stepFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte flg_centered,
                 mjtNum* DyDq, mjtNum* DyDv, mjtNum* DyDa, mjtNum* DyDu,
                 mjtNum* DsDq, mjtNum* DsDv, mjtNum* DsDa, mjtNum* DsDu) {
   int nq = m->nq, nv = m->nv, na = m->na, nu = m->nu, ns = m->nsensordata;
@@ -371,7 +371,7 @@ void mjd_stepFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte centered,
       }
 
       // nudge backward, if possible given ctrlrange
-      int nudge_back = (centered || !nudge_fwd) &&
+      int nudge_back = (flg_centered || !nudge_fwd) &&
                        (!limited || inRange(ctrl[i]-eps, ctrl[i], m->actuator_ctrlrange+2*i));
       if (nudge_back) {
         // nudge backward
@@ -413,7 +413,7 @@ void mjd_stepFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte centered,
       setState(m, d, time, state, NULL, warmstart);
 
       // nudge backward
-      if (centered) {
+      if (flg_centered) {
         // nudge backward
         d->act[i] -= eps;
 
@@ -427,7 +427,7 @@ void mjd_stepFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte centered,
 
       // difference states
       if (DyDa) {
-        if (!centered) {
+        if (!flg_centered) {
           stateDiff(m, DyDa+i*ndx, next, next_plus, eps);
         } else {
           stateDiff(m, DyDa+i*ndx, next_minus, next_plus, 2*eps);
@@ -436,7 +436,7 @@ void mjd_stepFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte centered,
 
       // difference sensors
       if (DsDa) {
-        if (!centered) {
+        if (!flg_centered) {
           diff(DsDa+i*ns, sensor, sensor_plus, eps, ns);
         } else {
           diff(DsDa+i*ns, sensor_minus, sensor_plus, 2*eps, ns);
@@ -460,7 +460,7 @@ void mjd_stepFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte centered,
       setState(m, d, time, state, NULL, warmstart);
 
       // nudge backward
-      if (centered) {
+      if (flg_centered) {
         // nudge
         d->qvel[i] -= eps;
 
@@ -474,7 +474,7 @@ void mjd_stepFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte centered,
 
       // difference states
       if (DyDv) {
-        if (!centered) {
+        if (!flg_centered) {
           stateDiff(m, DyDv+i*ndx, next, next_plus, eps);
         } else {
           stateDiff(m, DyDv+i*ndx, next_minus, next_plus, 2*eps);
@@ -483,7 +483,7 @@ void mjd_stepFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte centered,
 
       // difference sensors
       if (DsDv) {
-        if (!centered) {
+        if (!flg_centered) {
           diff(DsDv+i*ns, sensor, sensor_plus, eps, ns);
         } else {
           diff(DsDv+i*ns, sensor_minus, sensor_plus, 2*eps, ns);
@@ -509,7 +509,7 @@ void mjd_stepFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte centered,
       setState(m, d, time, state, NULL, warmstart);
 
       // nudge backward
-      if (centered) {
+      if (flg_centered) {
         // nudge backward
         mju_zero(dpos, nv);
         dpos[i] = 1;
@@ -525,7 +525,7 @@ void mjd_stepFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte centered,
 
       // difference states
       if (DyDq) {
-        if (!centered) {
+        if (!flg_centered) {
           stateDiff(m, DyDq+i*ndx, next, next_plus, eps);
         } else {
           stateDiff(m, DyDq+i*ndx, next_minus, next_plus, 2*eps);
@@ -534,7 +534,7 @@ void mjd_stepFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte centered,
 
       // difference sensors
       if (DsDq) {
-        if (!centered) {
+        if (!flg_centered) {
           diff(DsDq+i*ns, sensor, sensor_plus, eps, ns);
         } else {
           diff(DsDq+i*ns, sensor_minus, sensor_plus, 2*eps, ns);
@@ -556,7 +556,7 @@ void mjd_stepFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte centered,
 //      B: (2*nv+na x nu)
 //      D: (nsensordata x 2*nv+na)
 //      C: (nsensordata x nu)
-void mjd_transitionFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte centered,
+void mjd_transitionFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte flg_centered,
                       mjtNum* A, mjtNum* B, mjtNum* C, mjtNum* D) {
   int nv = m->nv, na = m->na, nu = m->nu, ns = m->nsensordata;
   int ndx = 2*nv+na;  // row length of state Jacobians
@@ -587,7 +587,7 @@ void mjd_transitionFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte centered,
   }
 
   // get Jacobians
-  mjd_stepFD(m, d, eps, centered, DyDq, DyDv, DyDa, BT, DsDq, DsDv, DsDa, DT);
+  mjd_stepFD(m, d, eps, flg_centered, DyDq, DyDv, DyDa, BT, DsDq, DsDv, DsDa, DT);
 
 
   // transpose

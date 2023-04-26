@@ -3085,7 +3085,7 @@ finite-differencing. These matrices and their dimensions are:
 
 - All four matrix outputs are optional (can be NULL).
 - ``eps`` is the finite-differencing epsilon.
-- ``centered`` is a flag denoting whether to use forward (0) or centered (1) differences.
+- ``flg_centered`` denotes whether to use forward (0) or centered (1) differences.
 
 .. _Plugins-api:
 
