@@ -19,6 +19,8 @@ set(MUJOCO_ELASTICITY_INCLUDE ${CMAKE_CURRENT_SOURCE_DIR}/../..
 set(MUJOCO_ELASTICITY_SRCS
     cable.cc
     cable.h
+    corotational.cc
+    corotational.h
     elasticity.cc
     solid.cc
     solid.h
