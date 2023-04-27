@@ -79,7 +79,7 @@ TEST_F(PluginTest, ElasticEnergy) {
   ASSERT_THAT(m, testing::NotNull()) << error;
   mjData* d = mj_makeData(m);
 
-  EXPECT_THAT(mjp_pluginCount(), 2);
+  EXPECT_THAT(mjp_pluginCount(), 3);
   auto* solid = reinterpret_cast<plugin::elasticity::Solid*>(d->plugin_data[0]);
 
   // check that if the entire geometry is rescaled by a factor "scale", then
