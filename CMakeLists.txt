@@ -81,6 +81,7 @@ target_include_directories(
 )
 
 add_subdirectory(plugin/elasticity)
+add_subdirectory(plugin/sensor)
 add_subdirectory(src/engine)
 add_subdirectory(src/user)
 add_subdirectory(src/xml)

@@ -152,12 +152,14 @@ jobs:
       if: ${{ runner.os != 'Windows' }}
       working-directory: build
       run: mkdir -p ${{ matrix.tmpdir }}/mujoco_install/mujoco_plugin &&
-           cp lib/libelasticity.* ${{ matrix.tmpdir }}/mujoco_install/mujoco_plugin
+           cp lib/libelasticity.* ${{ matrix.tmpdir }}/mujoco_install/mujoco_plugin &&
+           cp lib/libsensor.* ${{ matrix.tmpdir }}/mujoco_install/mujoco_plugin
     - name: Copy plugins (Windows)
       if: ${{ runner.os == 'Windows' }}
       working-directory: build
       run: mkdir -p ${{ matrix.tmpdir }}/mujoco_install/mujoco_plugin &&
-           cp bin/Release/elasticity.dll ${{ matrix.tmpdir }}/mujoco_install/mujoco_plugin
+           cp bin/Release/elasticity.dll ${{ matrix.tmpdir }}/mujoco_install/mujoco_plugin &&
+           cp bin/Release/sensor.dll ${{ matrix.tmpdir }}/mujoco_install/mujoco_plugin
     - name: Configure samples
       working-directory: sample
       run: >

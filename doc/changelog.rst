@@ -2,6 +2,21 @@
 Changelog
 =========
 
+Upcoming version (not yet released)
+-----------------------------------
+
+Plugins
+^^^^^^^
+
+.. youtube:: hqIMTNGaLF4
+   :align: right
+   :width: 240px
+
+- Added touch-grid sensor plugin. See `documentation <https://github.com/deepmind/mujoco/blob/main/plugin/sensor/README.md>`_
+  for details, and associated `touch_grid.xml <https://github.com/deepmind/mujoco/blob/main/model/plugin/touch_grid.xml>`_
+  example model. The plugin includes `in-scene visualisation <https://youtu.be/0LOJ3WMnqeA>`_.
+
+
 Version 2.3.5 (April 25, 2023)
 ------------------------------
 
