@@ -176,6 +176,19 @@ void mj_stepSkip(const mjModel* m, mjData* d, int skipstage, int skipsensor) {
 
 
 
+// compute qfrc_inverse, optionally subtracting qfrc_actuator
+static void inverseSkip(const mjModel* m, mjData* d, mjtStage stage, int skipsensor,
+                        int flg_actuation, mjtNum* force) {
+  mj_inverseSkip(m, d, stage, skipsensor);
+  mju_copy(force, d->qfrc_inverse, m->nv);
+  if (flg_actuation) {
+    mj_fwdActuation(m, d);
+    mju_subFrom(force, d->qfrc_actuator, m->nv);
+  }
+}
+
+
+
 //------------------------- derivatives of passive forces ------------------------------------------
 
 // add forward fin-diff approximation of (d qfrc_passive / d qvel) to qDeriv
@@ -595,6 +608,126 @@ void mjd_transitionFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte flg_cente
   if (B) mju_transpose(B, BT, nu, ndx);
   if (C) mju_transpose(C, CT, ndx, ns);
   if (D) mju_transpose(D, DT, nu, ns);
+
+  mjFREESTACK;
+}
+
+// finite differenced Jacobians of (force, sensors) = mj_inverse(state, acceleration)
+//   all outputs are optional
+//   output dimensions (transposed w.r.t Control Theory convention):
+//     DfDq: (nv x nv)
+//     DfDv: (nv x nv)
+//     DfDa: (na x nv)
+//     DsDq: (nv x nsensordata)
+//     DsDv: (nv x nsensordata)
+//     DsDa: (nv x nsensordata)
+//     DmDq: (nv x nM)
+//   single-letter shortcuts:
+//     inputs: q=qpos, v=qvel, a=qacc
+//     outputs: f=qfrc_inverse, s=sensordata, m=qM
+//   notes:
+//     optionally compute mass matrix Jacobian DmDq
+//     flg_actuation specifies whether to subtract qfrc_actuator from qfrc_inverse
+void mjd_inverseFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte flg_actuation,
+                   mjtNum *DfDq, mjtNum *DfDv, mjtNum *DfDa,
+                   mjtNum *DsDq, mjtNum *DsDv, mjtNum *DsDa,
+                   mjtNum *DmDq) {
+  int nq = m->nq, nv = m->nv, nM = m->nM, ns = m->nsensordata;
+  mjMARKSTACK;
+
+  if (m->opt.integrator == mjINT_RK4) {
+    mju_error("RK4 integrator is not supported by mjd_inverseFD");
+  }
+
+  if (m->opt.noslip_iterations) {
+    mju_error("The noslip solver is not supported by mjd_inverseFD");
+  }
+
+  // skip sensor computations if no sensor Jacobians requested
+  int skipsensor = !DsDq && !DsDv && !DsDa;
+
+  // local vectors
+  mjtNum *pos        = mj_stackAlloc(d, nq);                      // position
+  mjtNum *force      = mj_stackAlloc(d, nv);                      // force
+  mjtNum *force_plus = mj_stackAlloc(d, nv);                      // nudged force
+  mjtNum *sensor     = skipsensor ? NULL : mj_stackAlloc(d, ns);  // sensor values
+  mjtNum *mass       = DmDq ? mj_stackAlloc(d, nM) : NULL;        // mass matrix
+
+  // save current positions
+  mju_copy(pos, d->qpos, nq);
+
+  // center point outputs
+  inverseSkip(m, d, mjSTAGE_NONE, skipsensor, flg_actuation, force);
+  if (sensor) mju_copy(sensor, d->sensordata, ns);
+  if (mass) mju_copy(mass, d->qM, nM);
+
+  // acceleration: skip = mjSTAGE_VEL
+  if (DfDa || DsDa) {
+    for (int i=0; i < nv; i++) {
+      // nudge acceleration
+      mjtNum tmp = d->qacc[i];
+      d->qacc[i] += eps;
+
+      // inverse dynamics, get force output
+      inverseSkip(m, d, mjSTAGE_VEL, skipsensor, flg_actuation, force_plus);
+
+      // restore
+      d->qacc[i] = tmp;
+
+      // row of force Jacobian
+      if (DfDa) diff(DfDa + i*nv, force, force_plus, eps, nv);
+
+      // row of sensor Jacobian
+      if (DsDa) diff(DsDa + i*ns, sensor, d->sensordata, eps, ns);
+    }
+  }
+
+  // velocity: skip = mjSTAGE_POS
+  if (DfDv || DsDv) {
+    for (int i=0; i < nv; i++) {
+      // nudge velocity
+      mjtNum tmp = d->qvel[i];
+      d->qvel[i] += eps;
+
+      // inverse dynamics, get force output
+      inverseSkip(m, d, mjSTAGE_POS, skipsensor, flg_actuation, force_plus);
+
+      // restore
+      d->qvel[i] = tmp;
+
+      // row of force Jacobian
+      if (DfDv) diff(DfDv + i*nv, force, force_plus, eps, nv);
+
+      // row of sensor Jacobian
+      if (DsDv) diff(DsDv + i*ns, sensor, d->sensordata, eps, ns);
+    }
+  }
+
+  // position: skip = mjSTAGE_NONE
+  if (DfDq || DsDq || DmDq) {
+    mjtNum *dpos  = mj_stackAlloc(d, nv);  // allocate position perturbation
+    for (int i=0; i < nv; i++) {
+      // nudge
+      mju_zero(dpos, nv);
+      dpos[i] = 1.0;
+      mj_integratePos(m, d->qpos, dpos, eps);
+
+      // inverse dynamics, get force output
+      inverseSkip(m, d, mjSTAGE_NONE, skipsensor, flg_actuation, force_plus);
+
+      // restore
+      mju_copy(d->qpos, pos, nq);
+
+      // row of force Jacobian
+      if (DfDq) diff(DfDq + i*nv, force, force_plus, eps, nv);
+
+      // row of sensor Jacobian
+      if (DsDq) diff(DsDq + i*ns, sensor, d->sensordata, eps, ns);
+
+      // row of inertia Jacobian
+      if (DmDq) diff(DmDq + i*nM, mass, d->qM, eps, nM);
+    }
+  }
 
   mjFREESTACK;
 }

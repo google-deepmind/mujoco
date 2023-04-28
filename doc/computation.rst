@@ -1590,24 +1590,20 @@ The top-level function :ref:`mj_inverse` invokes the following sequence of compu
 Derivatives
 -----------
 
-MuJoCo's entire computational pipline and uniquely -- its constraint solver -- are analytically differentiable. Writing
+MuJoCo's entire computational pipline including its constraint solver are analytically differentiable. Writing
 efficient implementations of these derivatives is a long term goal of the development team. Analytic derivatives of the
-smooth dynamics with respect to velocity are already in place and power the :ref:`implicit integrator<geIntegration>`.
+smooth dynamics (excluding constraints) with respect to velocity are already computed and enable the two
+:ref:`implicit integrators<geIntegration>`.
 
-The function :ref:`mjd_transitionFD` computes state-transition and control-transition Jacobians. Given any valid MuJoCo
-model ``mjModel* m`` with an initial :ref:`simulation state<geState>` in ``mjData* d``,
+Two functions are currently available which use efficient finite-differencing in order to compute dynamics Jacobians:
 
-- Let :math:`x` denote the :ref:`physics state<gePhysicsState>` of the simulation at time :math:`t` -- the concatenation
-  of positions, velocities and actuator states ``[d->qpos; d->qvel; d->act]``.
-- Let :math:`u` denote the vector of controls at time :math:`t`, corresponding to ``d->ctrl``.
-- Let :math:`y` denote the physical state of the simulation at time :math:`t+h`, where :math:`h` corresponds to
-  ``m->opt.timstep``.
-- Let :math:`s` denote the values of the sensors defined in the model.
-- The high level function :ref:`mj_step` computes :math:`(x,u) \rightarrow (y,s)`: the next state and
-  sensor values as a function of the current state and control.
-- ``mjd_transitionFD`` computes the Jacobians :math:`A = \frac{\partial y}{\partial x}`,
-  :math:`B = \frac{\partial y}{\partial u}`, :math:`C = \frac{\partial s}{\partial x}` and
-  :math:`D = \frac{\partial s}{\partial u}` using efficient finite-differencing of :ref:`mj_step`.
+:ref:`mjd_transitionFD`:
+  Computes state-transition and control-transition Jacobians for the discrete-time forward dynamics (:ref:`mj_step`).
+  See :ref:`API documentation<mjd_transitionFD>`.
+
+:ref:`mjd_inverseFD`:
+  Computes Jacobians for the continuous-time inverse dynamics (:ref:`mj_inverse`).
+  See :ref:`API documentation<mjd_inverseFD>`.
 
 These derivatives are made efficient by exploiting MuJoCo's configurable computation pipeline so that quantities are not
 recomputed when not required. For example when differencing with respect to controls, quantities which depend only on

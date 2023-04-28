@@ -41,7 +41,7 @@ TEST_XML = r"""
     <body>
       <inertial pos="0 0 0" mass="1" diaginertia="1 1 1"/>
       <site pos="0 0 -1" name="mysite" type="sphere"/>
-      <joint name="myhinge" type="hinge" axis="0 1 0"/>
+      <joint name="myhinge" type="hinge" axis="0 1 0" damping="1"/>
     </body>
     <body>
       <inertial pos="0 0 0" mass="1" diaginertia="1 1 1"/>
@@ -54,6 +54,10 @@ TEST_XML = r"""
   <actuator>
     <position name="myactuator" joint="myhinge"/>
   </actuator>
+  <sensor>
+    <jointvel name="myjointvel" joint="myhinge"/>
+    <accelerometer name="myaccelerometer" site="mysite"/>
+  </sensor>
 </mujoco>
 """
 
@@ -1045,6 +1049,31 @@ Euler integrator, semi-implicit in velocity.
         flg_static=0,
         bodyexclude=0,
         geomid=geomid)
+
+  def test_inverse_fd_none(self):
+    eps = 1e-6
+    flg_centered = 0
+    mujoco.mjd_inverseFD(self.model, self.data, eps, flg_centered,
+                         None, None, None, None, None, None, None)
+
+  def test_inverse_fd(self):
+    eps = 1e-6
+    flg_centered = 0
+    df_dq = np.zeros((self.model.nv, self.model.nv))
+    df_dv = np.zeros((self.model.nv, self.model.nv))
+    df_da = np.zeros((self.model.nv, self.model.nv))
+    ds_dq = np.zeros((self.model.nv, self.model.nsensordata))
+    ds_dv = np.zeros((self.model.nv, self.model.nsensordata))
+    ds_da = np.zeros((self.model.nv, self.model.nsensordata))
+    dm_dq = np.zeros((self.model.nv, self.model.nM))
+    mujoco.mjd_inverseFD(self.model, self.data, eps, flg_centered,
+                         df_dq, df_dv, df_da, ds_dq, ds_dv, ds_da, dm_dq)
+    self.assertGreater(np.linalg.norm(df_dq), eps)
+    self.assertGreater(np.linalg.norm(df_dv), eps)
+    self.assertGreater(np.linalg.norm(df_da), eps)
+    self.assertGreater(np.linalg.norm(ds_dq), eps)
+    self.assertGreater(np.linalg.norm(ds_dv), eps)
+    self.assertGreater(np.linalg.norm(ds_da), eps)
 
   def test_mju_box_qp(self):
     n = 5

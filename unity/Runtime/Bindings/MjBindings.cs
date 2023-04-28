@@ -3826,5 +3826,8 @@ public static unsafe extern double mju_sigmoid(double x);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern void mjd_transitionFD(mjModel_* m, mjData_* d, double eps, byte flg_centered, double* A, double* B, double* C, double* D);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern void mjd_inverseFD(mjModel_* m, mjData_* d, double eps, byte flg_actuation, double* DfDq, double* DfDv, double* DfDa, double* DsDq, double* DsDv, double* DsDa, double* DmDq);
 }
 }

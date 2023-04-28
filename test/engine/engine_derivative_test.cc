@@ -23,6 +23,7 @@
 #include "src/engine/engine_core_smooth.h"
 #include "src/engine/engine_derivative.h"
 #include "src/engine/engine_derivative_fd.h"
+#include "src/engine/engine_forward.h"
 #include "src/engine/engine_io.h"
 #include "src/engine/engine_util_blas.h"
 #include "src/engine/engine_util_errmem.h"
@@ -435,7 +436,7 @@ TEST_F(DerivativeTest, ClampedCtrlDerivatives) {
   // expect derivatives to be 0
   EXPECT_THAT(AsVector(BFD, 2*nv*nu), Each(Eq(0.0)));
 
-  // expect ctrl to remain unchanged (despite intenal clamping)
+  // expect ctrl to remain unchanged (despite internal clamping)
   EXPECT_EQ(data->ctrl[0],  2.0);
   EXPECT_EQ(data->ctrl[1], -2.0);
 
@@ -644,6 +645,96 @@ TEST_F(DerivativeTest, DenseSparseRneEquivalent) {
     mju_free(qDeriv);
     mj_deleteModel(model);
   }
+}
+
+// compare FD inverse derivatives to analytic derivatives of linear system
+TEST_F(DerivativeTest, LinearSystemInverse) {
+  const std::string xml_path = GetTestDataFilePath(kLinearPath);
+  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, nullptr, 0);
+  mjData* data = mj_makeData(model);
+
+  static const int nv = 3;
+  EXPECT_EQ(nv, model->nv);
+  static const int nu = 2;
+  EXPECT_EQ(nu, model->nu);
+  static const int ns = 5;
+  EXPECT_EQ(ns, model->nsensordata);
+  static const int nM = 6;
+  EXPECT_EQ(nM, model->nM);
+
+  mjtNum DfDq[nv*nv];
+  mjtNum DfDv[nv*nv];
+  mjtNum DfDa[nv*nv];
+  mjtNum DsDq[nv*ns];
+  mjtNum DsDv[nv*ns];
+  mjtNum DsDa[nv*ns];
+  mjtNum DmDq[nv*nM];
+
+  // call mj_forward to get accelerations at initial state
+  mj_forward(model, data);
+
+  // get derivatives
+  mjtNum eps = 1e-6;
+  mjtByte flg_actuation = 0;
+  mjd_inverseFD(model, data, eps, flg_actuation,
+                DfDq, DfDv, DfDa,
+                DsDq, DsDv, DsDa,
+                DmDq);
+
+  // expect that position derivatives are the stiffnesses
+  mjtNum DfDq_expect[3*3] = {model->jnt_stiffness[0], 0, 0,
+                             0, model->jnt_stiffness[1], 0,
+                             0, 0, model->jnt_stiffness[2]};
+  EXPECT_THAT(AsVector(DfDq, nv*nv),
+              Pointwise(DoubleNear(eps), AsVector(DfDq_expect, nv*nv)));
+
+  // expect that velocity derivatives are the dampings
+  mjtNum DfDv_expect[3*3] = {model->dof_damping[0], 0, 0,
+                             0, model->dof_damping[1], 0,
+                             0, 0, model->dof_damping[2]};
+  EXPECT_THAT(AsVector(DfDv, nv*nv),
+              Pointwise(DoubleNear(eps), AsVector(DfDv_expect, nv*nv)));
+
+  // expect that acceleration derivatives are the mass matrix
+  mjtNum DfDa_expect[3*3];
+  mj_fullM(model, DfDa_expect, data->qM);
+  EXPECT_THAT(AsVector(DfDa, nv*nv),
+              Pointwise(DoubleNear(eps), AsVector(DfDa_expect, nv*nv)));
+
+  // expect that sensor derivatives w.r.t position only see sensor 1 at dof 0
+  mjtNum DsDq_expect[3*5] = {0};
+  int dof_index = 0;
+  int sensordata_index = model->sensor_adr[1];
+  DsDq_expect[dof_index*ns + sensordata_index] = 1;
+  EXPECT_THAT(AsVector(DsDq, nv*ns),
+              Pointwise(DoubleNear(eps), AsVector(DsDq_expect, nv*ns)));
+
+  // expect that sensor derivatives w.r.t velocity only see sensor 0 at dof 1
+  mjtNum DsDv_expect[3*5] = {0};
+  dof_index = 1;
+  sensordata_index = model->sensor_adr[0];
+  DsDv_expect[dof_index*ns + sensordata_index] = 1;
+  EXPECT_THAT(AsVector(DsDv, nv*ns),
+              Pointwise(DoubleNear(eps), AsVector(DsDv_expect, nv*ns)));
+
+  // expect that sensor derivatives w.r.t acceleration see the accelerometer
+  // in the y-axis, affected by both dof 0 and dof 1
+  mjtNum DsDa_expect[3*5] = {0};
+  dof_index = 0;
+  sensordata_index = model->sensor_adr[2] + 1;
+  DsDa_expect[dof_index*ns + sensordata_index] = 1;
+  dof_index = 1;
+  DsDa_expect[dof_index*ns + sensordata_index] = 1;
+  EXPECT_THAT(AsVector(DsDa, nv*ns),
+              Pointwise(DoubleNear(eps), AsVector(DsDa_expect, nv*ns)));
+
+  // expect that mass matrix derivatives are zero
+  mjtNum DmDq_expect[nv*nM] = {0};
+  EXPECT_THAT(AsVector(DmDq, nv*nM),
+              Pointwise(DoubleNear(eps), AsVector(DmDq_expect, nv*nM)));
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
 }
 
 }  // namespace

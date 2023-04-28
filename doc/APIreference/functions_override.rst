@@ -371,10 +371,13 @@ Symmetrize square matrix :math:`R = \frac{1}{2}(M + M^T)`.
 
 .. _mjd_transitionFD:
 
-Finite differenced transition matrices. Letting :math:`x, u` denote the current :ref:`state<gePhysicsState>` and control
-vectors and letting :math:`y, s` denote the next state and sensor values, the top-level :ref:`mj_step` function computes
-:math:`(x,u) \rightarrow (y,s)`. :ref:`mjd_transitionFD` computes the four associated Jacobians using
-finite-differencing. These matrices and their dimensions are:
+Finite-differenced discrete-time transition matrices.
+
+Letting :math:`x, u` denote the current :ref:`state<gePhysicsState>` and :ref:`control<geInput>`
+vector in an mjData instance, and letting :math:`y, s` denote the next state and sensor
+values, the top-level :ref:`mj_step` function computes :math:`(x,u) \rightarrow (y,s)`.
+:ref:`mjd_transitionFD` computes the four associated Jacobians using finite-differencing.
+These matrices and their dimensions are:
 
 .. csv-table::
    :header: "matrix", "Jacobian", "dimension"
@@ -386,7 +389,38 @@ finite-differencing. These matrices and their dimensions are:
    ``C``, :math:`\partial s / \partial x`, ``nsensordata x 2*nv+na``
    ``D``, :math:`\partial s / \partial u`, ``nsensordata x nu``
 
-- All four matrix outputs are optional (can be NULL).
+- All outputs are optional (can be NULL).
 - ``eps`` is the finite-differencing epsilon.
 - ``flg_centered`` denotes whether to use forward (0) or centered (1) differences.
 
+.. _mjd_inverseFD:
+
+Finite differenced continuous-time inverse-dynamics Jacobians.
+
+Letting :math:`x, a` denote the current :ref:`state<gePhysicsState>` and acceleration vectors in an mjData instance, and
+letting :math:`f, s` denote the forces computed by the inverse dynamics (``qfrc_inverse``), the function
+:ref:`mj_inverse` computes :math:`(x,a) \rightarrow (f,s)`. :ref:`mjd_inverseFD` computes seven associated Jacobians
+using finite-differencing. These matrices and their dimensions are:
+
+.. csv-table::
+   :header: "matrix", "Jacobian", "dimension"
+   :widths: auto
+   :align: left
+
+   ``DfDq``, :math:`\partial f / \partial q`, ``nv x nv``
+   ``DfDv``, :math:`\partial f / \partial v`, ``nv x nv``
+   ``DfDa``, :math:`\partial f / \partial a`, ``na x nv``
+   ``DsDq``, :math:`\partial s / \partial q`, ``nv x nsensordata``
+   ``DsDv``, :math:`\partial s / \partial v`, ``nv x nsensordata``
+   ``DsDa``, :math:`\partial s / \partial a`, ``nv x nsensordata``
+   ``DmDq``, :math:`\partial M / \partial q`, ``nv x nM``
+
+- All outputs are optional (can be NULL).
+- All outputs are transposed relative to Control Theory convention (i.e., column major).
+- ``DmDq``, which contains a sparse representation of the ``nv x nv x nv`` tensor :math:`\partial M / \partial q`, is
+  not strictly an inverse dynamics Jacobian but is useful in related applications. It is provided as a convenience to
+  the user, since the required values are already computed if either of the other two :math:`\partial / \partial q`
+  Jacobians are requested.
+- ``eps`` is the (forward) finite-differencing epsilon.
+- ``flg_actuation`` denotes whether to subtract actuation forces (``qfrc_actuator``) from the output of the inverse
+  dynamics. If this flag is positive, actuator forces are not considered as external.

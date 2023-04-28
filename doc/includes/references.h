@@ -2441,6 +2441,10 @@ char* mju_strncpy(char *dst, const char *src, int n);
 mjtNum mju_sigmoid(mjtNum x);
 void mjd_transitionFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte flg_centered,
                       mjtNum* A, mjtNum* B, mjtNum* C, mjtNum* D);
+void mjd_inverseFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte flg_actuation,
+                   mjtNum *DfDq, mjtNum *DfDv, mjtNum *DfDa,
+                   mjtNum *DsDq, mjtNum *DsDv, mjtNum *DsDa,
+                   mjtNum *DmDq);
 void mjp_defaultPlugin(mjpPlugin* plugin);
 int mjp_registerPlugin(const mjpPlugin* plugin);
 int mjp_pluginCount();

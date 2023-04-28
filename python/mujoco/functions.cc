@@ -1131,7 +1131,8 @@ PYBIND11_MODULE(_functions, pymodule) {
       });
   Def<traits::mjd_transitionFD>(
       pymodule,
-      [](const raw::MjModel* m, raw::MjData* d, mjtNum eps, mjtByte centered,
+      [](const raw::MjModel* m, raw::MjData* d,
+         mjtNum eps, mjtByte flg_centered,
          std::optional<Eigen::Ref<EigenArrayXX>> A,
          std::optional<Eigen::Ref<EigenArrayXX>> B,
          std::optional<Eigen::Ref<EigenArrayXX>> C,
@@ -1153,11 +1154,60 @@ PYBIND11_MODULE(_functions, pymodule) {
           throw py::type_error("D should be of shape (nsensordata, nu)");
         }
         return InterceptMjErrors(::mjd_transitionFD)(
-            m, d, eps, centered,
+            m, d, eps, flg_centered,
             A.has_value() ? A->data() : nullptr,
             B.has_value() ? B->data() : nullptr,
             C.has_value() ? C->data() : nullptr,
             D.has_value() ? D->data() : nullptr);
+      });
+  Def<traits::mjd_inverseFD>(
+      pymodule,
+      [](const raw::MjModel* m, raw::MjData* d,
+         mjtNum eps, mjtByte flg_actuation,
+         std::optional<Eigen::Ref<EigenArrayXX>> DfDq,
+         std::optional<Eigen::Ref<EigenArrayXX>> DfDv,
+         std::optional<Eigen::Ref<EigenArrayXX>> DfDa,
+         std::optional<Eigen::Ref<EigenArrayXX>> DsDq,
+         std::optional<Eigen::Ref<EigenArrayXX>> DsDv,
+         std::optional<Eigen::Ref<EigenArrayXX>> DsDa,
+         std::optional<Eigen::Ref<EigenArrayXX>> DmDq) {
+        if (DfDq.has_value() &&
+            (DfDq->rows() != m->nv || DfDq->cols() != m->nv)) {
+          throw py::type_error("DfDq should be of shape (nv, nv)");
+        }
+        if (DfDv.has_value() &&
+            (DfDv->rows() != m->nv || DfDv->cols() != m->nv)) {
+          throw py::type_error("DfDv should be of shape (nv, nv)");
+        }
+        if (DfDa.has_value() &&
+            (DfDa->rows() != m->nv || DfDa->cols() != m->nv)) {
+          throw py::type_error("DfDa should be of shape (nv, nv)");
+        }
+        if (DsDq.has_value() &&
+            (DsDq->rows() != m->nv || DsDq->cols() != m->nsensordata)) {
+          throw py::type_error("DsDq should be of shape (nv, nsensordata)");
+        }
+        if (DsDv.has_value() &&
+            (DsDv->rows() != m->nv || DsDv->cols() != m->nsensordata)) {
+          throw py::type_error("DsDv should be of shape (nv, nsensordata)");
+        }
+        if (DsDa.has_value() &&
+            (DsDa->rows() != m->nv || DsDa->cols() != m->nsensordata)) {
+          throw py::type_error("DsDa should be of shape (nv, nsensordata)");
+        }
+        if (DmDq.has_value() &&
+            (DmDq->rows() != m->nv || DmDq->cols() != m->nM)) {
+          throw py::type_error("DmDq should be of shape (nv, nM)");
+        }
+        return InterceptMjErrors(::mjd_inverseFD)(
+            m, d, eps, flg_actuation,
+            DfDq.has_value() ? DfDq->data() : nullptr,
+            DfDv.has_value() ? DfDv->data() : nullptr,
+            DfDa.has_value() ? DfDa->data() : nullptr,
+            DsDq.has_value() ? DsDq->data() : nullptr,
+            DsDv.has_value() ? DsDv->data() : nullptr,
+            DsDa.has_value() ? DsDa->data() : nullptr,
+            DmDq.has_value() ? DmDq->data() : nullptr);
       });
   Def<traits::mju_Halton>(pymodule);
   // Skipped: mju_strncpy (doesn't make sense in Python)
