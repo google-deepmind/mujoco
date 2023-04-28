@@ -114,6 +114,26 @@ class mjCAlternative {
 };
 
 
+
+
+
+
+
+//------------------------- class mjCBoundingVolumeHierarchy ---------------------------------------
+// bounding volume
+class mjCBoundingVolume {
+ public:
+  mjCBoundingVolume() = default;
+
+  int id;                       // object id
+  int contype;                  // contact type
+  int conaffinity;              // contact affinity
+  const mjtNum* aabb;           // half-sizes of axis-aligned bounding box
+  const mjtNum* pos;            // position (set by user or Compile1)
+  const mjtNum* quat;           // orientation (set by user or Compile1)
+};
+
+
 // bounding volume hierarchy
 class mjCBoundingVolumeHierarchy {
  public:
@@ -125,10 +145,15 @@ class mjCBoundingVolumeHierarchy {
   std::vector<int> nodeid;            // id of the geom contained by the node          (nbvh x 1)
   std::vector<int> level;             // levels of each node                           (nbvh x 1)
 
-  int MakeBVH(std::vector<mjCGeom *>&, int lev = 0);  // make bounding volume hierarchy
+  // make bounding volume hierarchy
+  void CreateBVH();
   void Set(mjtNum ipos_element[3], mjtNum iquat_element[4]);
+  void AddBundingVolume(const mjCBoundingVolume& bv);
 
  private:
+  int MakeBVH(std::vector<mjCBoundingVolume>& elements, int lev = 0);
+
+  std::vector<mjCBoundingVolume> bvh_;
   std::string name_;
   double ipos_[3];
   double iquat_[4];
@@ -319,6 +344,9 @@ class mjCGeom : public mjCBase {
   void SetFluidCoefs(void);
   // Compute the kappa coefs of the added inertia due to the surrounding fluid.
   double GetAddedMassKappa(double dx, double dy, double dz);
+
+  // returns a bounding volume
+  mjCBoundingVolume GetBoundingVolume() const;
 
   // variables set by user and copied into mjModel
   mjtGeom type;                   // geom type

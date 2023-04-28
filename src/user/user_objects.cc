@@ -262,7 +262,7 @@ const char* mjCAlternative::Set(double* quat, double* inertia,
 
 
 
-//------------------------- class mjCTree implementation -------------------------------------------
+//------------------------- class mjCBoundingVolumeHierarchy implementation ------------------------
 
 // constructor
 mjCBoundingVolumeHierarchy::mjCBoundingVolumeHierarchy() {
@@ -279,8 +279,20 @@ void mjCBoundingVolumeHierarchy::Set(mjtNum ipos_element[3], mjtNum iquat_elemen
 }
 
 
+// add geom to bvh
+void mjCBoundingVolumeHierarchy::AddBundingVolume(const mjCBoundingVolume& bv) {
+  bvh_.push_back(bv);
+}
+
+
+// create bounding volume hierarchy
+void mjCBoundingVolumeHierarchy::CreateBVH() {
+  MakeBVH(bvh_);
+}
+
+
 // compute bounding volume hierarchy
-int mjCBoundingVolumeHierarchy::MakeBVH(std::vector<mjCGeom *>& elements, int lev) {
+int mjCBoundingVolumeHierarchy::MakeBVH(std::vector<mjCBoundingVolume>& elements, int lev) {
   int nelements = elements.size();
   mjtNum AABB[6] = {mjMAXVAL, mjMAXVAL, mjMAXVAL, -mjMAXVAL, -mjMAXVAL, -mjMAXVAL};
 
@@ -289,17 +301,17 @@ int mjCBoundingVolumeHierarchy::MakeBVH(std::vector<mjCGeom *>& elements, int le
 
   for (int i=0; i<nelements; i++) {
     // skip visual objects
-    if (elements[i]->conaffinity==0 && elements[i]->contype==0) {
+    if (elements[i].conaffinity==0 && elements[i].contype==0) {
       continue;
     }
 
     // transform aabb representation
-    mjtNum aabb[6] = {elements[i]->aabb[0] - elements[i]->aabb[3],
-                      elements[i]->aabb[1] - elements[i]->aabb[4],
-                      elements[i]->aabb[2] - elements[i]->aabb[5],
-                      elements[i]->aabb[0] + elements[i]->aabb[3],
-                      elements[i]->aabb[1] + elements[i]->aabb[4],
-                      elements[i]->aabb[2] + elements[i]->aabb[5]};
+    mjtNum aabb[6] = {elements[i].aabb[0] - elements[i].aabb[3],
+                      elements[i].aabb[1] - elements[i].aabb[4],
+                      elements[i].aabb[2] - elements[i].aabb[5],
+                      elements[i].aabb[0] + elements[i].aabb[3],
+                      elements[i].aabb[1] + elements[i].aabb[4],
+                      elements[i].aabb[2] + elements[i].aabb[5]};
 
     // update node AABB
     for (int v=0; v<8; v++) {
@@ -309,10 +321,10 @@ int mjCBoundingVolumeHierarchy::MakeBVH(std::vector<mjCGeom *>& elements, int le
       vert[2] = (v&4 ? aabb[5] : aabb[2]);
 
       // rotate to the body inertial frame
-      mju_rotVecQuat(box, vert, elements[i]->quat);
-      box[0] += elements[i]->pos[0] - ipos_[0];
-      box[1] += elements[i]->pos[1] - ipos_[1];
-      box[2] += elements[i]->pos[2] - ipos_[2];
+      mju_rotVecQuat(box, vert, elements[i].quat);
+      box[0] += elements[i].pos[0] - ipos_[0];
+      box[1] += elements[i].pos[1] - ipos_[1];
+      box[2] += elements[i].pos[2] - ipos_[2];
       mju_rotVecQuat(vert, box, qinv);
       AABB[0] = mjMIN(AABB[0], vert[0]);
       AABB[1] = mjMIN(AABB[1], vert[1]);
@@ -349,7 +361,7 @@ int mjCBoundingVolumeHierarchy::MakeBVH(std::vector<mjCGeom *>& elements, int le
     for (int i=0; i<2; i++) {
       child[2*index+i] = -1;
     }
-    nodeid[index] = elements[0]->id;
+    nodeid[index] = elements[0].id;
     return index;
   }
 
@@ -363,9 +375,9 @@ int mjCBoundingVolumeHierarchy::MakeBVH(std::vector<mjCGeom *>& elements, int le
 
   for (int i=0; i<nelements; i++) {
     // get position in the body inertial frame
-    mjtNum vert[3] = {elements[i]->pos[0] - ipos_[0],
-                      elements[i]->pos[1] - ipos_[1],
-                      elements[i]->pos[2] - ipos_[2]};
+    mjtNum vert[3] = {elements[i].pos[0] - ipos_[0],
+                      elements[i].pos[1] - ipos_[1],
+                      elements[i].pos[2] - ipos_[2]};
     mjtNum lpos[3];
     mju_rotVecQuat(lpos, vert, qinv);
     pos[i] = lpos[axis];
@@ -376,20 +388,20 @@ int mjCBoundingVolumeHierarchy::MakeBVH(std::vector<mjCGeom *>& elements, int le
   mjtNum threshold = pos[m];
 
   // split using median
-  std::vector<mjCGeom *> left;
-  std::vector<mjCGeom *> right;
+  std::vector<mjCBoundingVolume> left;
+  std::vector<mjCBoundingVolume> right;
   int skipped = 0;
 
   for (int i=0; i<nelements; i++) {
     // get position in the body inertial frame
-    mjtNum vert[3] = {elements[i]->pos[0] - ipos_[0],
-                      elements[i]->pos[1] - ipos_[1],
-                      elements[i]->pos[2] - ipos_[2]};
+    mjtNum vert[3] = {elements[i].pos[0] - ipos_[0],
+                      elements[i].pos[1] - ipos_[1],
+                      elements[i].pos[2] - ipos_[2]};
     mjtNum lpos[3];
     mju_rotVecQuat(lpos, vert, qinv);
 
     // skip visual objects
-    if (elements[i]->conaffinity==0 && elements[i]->contype==0) {
+    if (elements[i].conaffinity==0 && elements[i].contype==0) {
       skipped++;
       continue;
     }
@@ -949,7 +961,10 @@ void mjCBody::Compile(void) {
   // compute bounding volume hierarchy
   if (!geoms.empty()) {
     tree.Set(ipos, iquat);
-    tree.MakeBVH(geoms);
+    for (int i=0; i<geoms.size(); i++) {
+      tree.AddBundingVolume(geoms[i]->GetBoundingVolume());
+    }
+    tree.CreateBVH();
   }
 
   // compile all joints, count dofs
@@ -1264,6 +1279,19 @@ double mjCGeom::GetVolume(void) {
       return 0;
     }
   }
+}
+
+
+
+mjCBoundingVolume mjCGeom::GetBoundingVolume() const {
+  mjCBoundingVolume bv;
+  bv.id = id;
+  bv.contype = contype;
+  bv.conaffinity = conaffinity;
+  bv.aabb = aabb;
+  bv.pos = pos;
+  bv.quat = quat;
+  return bv;
 }
 
 
