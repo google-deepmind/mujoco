@@ -57,16 +57,14 @@ class TouchGrid {
 
   static void RegisterPlugin();
 
-  int nchannel_;                  // number of channels (1-6)
-  int size_x_;                    // horizontal resolution
-  int size_y_;                    // vertical resolution
-  mjtNum fov_x_;                  // horizontal field of view, in degrees
-  mjtNum fov_y_;                  // vertical field of view, in degrees
-  mjtNum gamma_;                  // foveal deformation
+  int nchannel_;           // number of channels (1-6)
+  int size_[2];            // horizontal and vertical resolution
+  mjtNum fov_[2];          // horizontal and vertical field of view, in degrees
+  mjtNum gamma_;           // foveal deformation
 
  private:
-  TouchGrid(const mjModel* m, mjData* d, int instance, int nchannel, int size_x,
-            int size_y, mjtNum fov_x, mjtNum fov_y, mjtNum gamma);
+  TouchGrid(const mjModel* m, mjData* d, int instance, int nchannel, int* size,
+            mjtNum* fov_x, mjtNum gamma);
   std::vector<mjtNum> distance_;
 };
 

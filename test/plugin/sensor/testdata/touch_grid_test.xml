@@ -41,10 +41,8 @@
 
   <sensor>
     <plugin name="touch" plugin="mujoco.sensor.touch_grid" objtype="site" objname="touch">
-      <config key="size_x" value="6"/>
-      <config key="size_y" value="2"/>
-      <config key="fov_x" value="5.71"/>
-      <config key="fov_y" value="5.71"/>
+      <config key="size" value="6 2"/>
+      <config key="fov" value="5.71 5.71"/>
       <config key="gamma" value="0"/>
       <config key="nchannel" value="3"/>
     </plugin>

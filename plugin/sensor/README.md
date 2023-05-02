@@ -47,10 +47,8 @@ deformation parameters. These parameters are passed as plugin config attributes:
   <sensor>
     <plugin name="touch" plugin="mujoco.sensor.touch_grid" objtype="site" objname="touch">
       <config key="nchannel" value="3"/>
-      <config key="size_x" value="7"/>
-      <config key="size_y" value="7"/>
-      <config key="fov_x" value="45"/>
-      <config key="fov_y" value="45"/>
+      <config key="size" value="7 7"/>
+      <config key="fov" value="45 45"/>
       <config key="gamma" value="0"/>
     </plugin>
   </sensor>

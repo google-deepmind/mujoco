@@ -18,6 +18,8 @@
 #include <cctype>
 #include <cstdint>
 #include <cstdlib>
+#include <sstream>
+#include <iostream>
 #include <optional>
 #include <string>
 #include <utility>
@@ -32,6 +34,27 @@
 namespace mujoco::plugin::sensor {
 
 namespace {
+
+// Checks that a plugin config attribute exists.
+bool CheckAttr(const std::string& input) {
+  char* end;
+  std::string value = input;
+  value.erase(std::remove_if(value.begin(), value.end(), isspace), value.end());
+  strtod(value.c_str(), &end);
+  return end == value.data() + value.size();
+}
+
+// Converts a string into a numeric vector
+template <typename T>
+void ReadVector(std::vector<T>& output, const std::string& input) {
+  std::stringstream ss(input);
+  std::string item;
+  char delim = ' ';
+  while (getline(ss, item, delim)) {
+    CheckAttr(item);
+    output.push_back(strtod(item.c_str(), nullptr));
+  }
+}
 
 // Returns the index of the first value in `a` that x is less than or n if no
 // such value exists. See: https://stackoverflow.com/a/39100135.
@@ -94,23 +117,23 @@ mjtNum Fovea(mjtNum x, mjtNum gamma) {
 }
 
 // Make bin edges.
-void BinEdges(mjtNum* x_edges, mjtNum* y_edges, int size_x, int size_y,
-              mjtNum fov_x, mjtNum fov_y, mjtNum gamma) {
+void BinEdges(mjtNum* x_edges, mjtNum* y_edges, int size[2], mjtNum fov[2],
+              mjtNum gamma) {
   // Make unit bin edges.
-  LinSpace(-1, 1, size_x + 1, x_edges);
-  LinSpace(-1, 1, size_y + 1, y_edges);
+  LinSpace(-1, 1, size[0] + 1, x_edges);
+  LinSpace(-1, 1, size[1] + 1, y_edges);
 
   // Apply foveal deformation.
-  for (int i = 0; i < size_x + 1; i++) {
+  for (int i = 0; i < size[0] + 1; i++) {
     x_edges[i] = Fovea(x_edges[i], gamma);
   }
-  for (int i = 0; i < size_y + 1; i++) {
+  for (int i = 0; i < size[1] + 1; i++) {
     y_edges[i] = Fovea(y_edges[i], gamma);
   }
 
   // Scale by field-of-view.
-  mju_scl(x_edges, x_edges, fov_x*mjPI / 180, size_x + 1);
-  mju_scl(y_edges, y_edges, fov_y*mjPI / 180, size_y + 1);
+  mju_scl(x_edges, x_edges, fov[0]*mjPI / 180, size[0] + 1);
+  mju_scl(y_edges, y_edges, fov[1]*mjPI / 180, size[1] + 1);
 }
 
 // Permute 3-vector from 0,1,2 to 2,0,1.
@@ -142,24 +165,14 @@ void SphericalToCartesian(const mjtNum aer[3], mjtNum xyz[3]) {
   xyz[2] = -r * mju_cos(e) * mju_cos(a);
 }
 
-// Checks that a plugin config attribute exists.
-bool CheckAttr(const char* name, const mjModel* m, int instance) {
-  char* end;
-  std::string value = mj_getPluginConfig(m, instance, name);
-  value.erase(std::remove_if(value.begin(), value.end(), isspace), value.end());
-  strtod(value.c_str(), &end);
-  return end == value.data() + value.size();
-}
-
 }  // namespace
 
 // Creates a TouchGrid instance if all config attributes are defined and
 // within their allowed bounds.
 TouchGrid* TouchGrid::Create(const mjModel* m, mjData* d,
                                                  int instance) {
-  if (CheckAttr("size_x", m, instance) && CheckAttr("size_y", m, instance) &&
-      CheckAttr("fov_x", m, instance) && CheckAttr("fov_y", m, instance) &&
-      CheckAttr("gamma", m, instance)) {
+  if (CheckAttr(std::string(mj_getPluginConfig(m, instance, "gamma"))) &&
+      CheckAttr(std::string(mj_getPluginConfig(m, instance, "nchannel")))) {
     // nchannel
     int nchannel = strtod(mj_getPluginConfig(m, instance, "nchannel"), nullptr);
     if (!nchannel) nchannel = 1;
@@ -168,23 +181,34 @@ TouchGrid* TouchGrid::Create(const mjModel* m, mjData* d,
       return nullptr;
     }
 
-    // size_x, size_y
-    int size_x = strtod(mj_getPluginConfig(m, instance, "size_x"), nullptr);
-    int size_y = strtod(mj_getPluginConfig(m, instance, "size_y"), nullptr);
-    if (size_x < 0 || size_y < 0) {
+    // size
+    std::vector<int> size;
+    std::vector<mjtNum> fov;
+    ReadVector(
+        size, std::string(mj_getPluginConfig(m, instance, "size")).c_str());
+    ReadVector(
+        fov, std::string(mj_getPluginConfig(m, instance, "fov")).c_str());
+    if (size[0] < 0 || size[1] < 0) {
       mju_warning("Horizontal and vertical resolutions must be positive");
       return nullptr;
     }
-
-    // fov_x, fov_y
-    mjtNum fov_x = strtod(mj_getPluginConfig(m, instance, "fov_x"), nullptr);
-    if (fov_x <= 0 || fov_x > 180) {
-      mju_warning("`fov_x` must be a float between (0, 180] degrees");
+    if (size.size()!= 2) {
+      mju_warning("Both horizontal and vertical resolutions must be specified");
       return nullptr;
     }
-    mjtNum fov_y = strtod(mj_getPluginConfig(m, instance, "fov_y"), nullptr);
-    if (fov_y <= 0 || fov_y > 90) {
-      mju_warning("`fov_y` must be a float between (0, 90] degrees");
+
+    // field of view
+    if (fov[0] <= 0 || fov[0] > 180) {
+      mju_warning("`fov[0]` must be a float between (0, 180] degrees");
+      return nullptr;
+    }
+    if (fov[1] <= 0 || fov[1] > 90) {
+      mju_warning("`fov[1]` must be a float between (0, 90] degrees");
+      return nullptr;
+    }
+    if (fov.size()!= 2) {
+      mju_warning(
+          "Both horizontal and vertical fields of view must be specified");
       return nullptr;
     }
 
@@ -195,22 +219,19 @@ TouchGrid* TouchGrid::Create(const mjModel* m, mjData* d,
       return nullptr;
     }
 
-    return new TouchGrid(m, d, instance, nchannel, size_x, size_y,
-                            fov_x, fov_y, gamma);
+    return new TouchGrid(m, d, instance, nchannel, size.data(), fov.data(),
+                         gamma);
   } else {
     mju_warning("Invalid or missing parameters in touch_grid sensor plugin");
     return nullptr;
   }
 }
 
-TouchGrid::TouchGrid(const mjModel* m, mjData* d, int instance,
-                           int nchannel, int size_x, int size_y, mjtNum fov_x,
-                           mjtNum fov_y, mjtNum gamma)
+TouchGrid::TouchGrid(const mjModel* m, mjData* d, int instance, int nchannel,
+                     int size[2], mjtNum fov[2], mjtNum gamma)
     : nchannel_(nchannel),
-      size_x_(size_x),
-      size_y_(size_y),
-      fov_x_(fov_x),
-      fov_y_(fov_y),
+      size_{size[0], size[1]},
+      fov_{fov[0], fov[1]},
       gamma_(gamma) {
   // Make sure sensor is attached to a site.
   for (int i = 0; i < m->nsensor; ++i) {
@@ -222,7 +243,7 @@ TouchGrid::TouchGrid(const mjModel* m, mjData* d, int instance,
   }
 
   // Allocate distance array.
-  distance_.resize(size_x*size_y, 0);
+  distance_.resize(size[0]*size[1], 0);
 }
 
 void TouchGrid::Reset(const mjModel* m, int instance) {}
@@ -242,7 +263,7 @@ void TouchGrid::Compute(const mjModel* m, mjData* d, int instance) {
   // Clear sensordata and distance matrix.
   mjtNum* sensordata = d->sensordata + m->sensor_adr[id];
   mju_zero(sensordata, m->sensor_dim[id]);
-  int frame = size_x_*size_y_;
+  int frame = size_[0]*size_[1];
   mju_zero(distance_.data(), frame);
 
   // Get site id.
@@ -321,17 +342,17 @@ void TouchGrid::Compute(const mjModel* m, mjData* d, int instance) {
   mju_transpose(forcesT, forces, ncon, 6);
 
   // Allocate bin edges.
-  mjtNum* x_edges = mj_stackAlloc(d, size_x_ + 1);
-  mjtNum* y_edges = mj_stackAlloc(d, size_y_ + 1);
+  mjtNum* x_edges = mj_stackAlloc(d, size_[0] + 1);
+  mjtNum* y_edges = mj_stackAlloc(d, size_[1] + 1);
 
   // Make bin edges.
-  BinEdges(x_edges, y_edges, size_x_, size_y_, fov_x_, fov_y_, gamma_);
+  BinEdges(x_edges, y_edges, size_, fov_, gamma_);
 
   // Compute sensor output.
   for (int i = 0; i < nchannel_; i++) {
     if (!mju_isZero(forcesT + i*ncon, ncon)) {
       Histogram2D(positions, positions + ncon, forcesT + i*ncon, ncon,
-                  x_edges, size_x_ + 1, y_edges, size_y_ + 1,
+                  x_edges, size_[0] + 1, y_edges, size_[1] + 1,
                   sensordata + i*frame, nullptr);
     }
   }
@@ -342,7 +363,7 @@ void TouchGrid::Compute(const mjModel* m, mjData* d, int instance) {
 
   // Compute distance matrix (unnormalized).
   Histogram2D(positions, positions + ncon, positions + 2*ncon, ncon, x_edges,
-              size_x_ + 1, y_edges, size_y_ + 1, distance_.data(), counts);
+              size_[0] + 1, y_edges, size_[1] + 1, distance_.data(), counts);
 
   // Normalize distances
   for (int i=0; i < frame; i++) {
@@ -375,7 +396,7 @@ void TouchGrid::Visualize(const mjModel* m, mjData* d, const mjvOption* opt,
 
   // Get maximum absolute normal force.
   mjtNum maxval = 0;
-  int frame = size_x_*size_y_;
+  int frame = size_[0]*size_[1];
   for (int j=0; j < frame; j++) {
     maxval = mju_max(maxval, mju_abs(sensordata[j]));
   }
@@ -394,16 +415,16 @@ void TouchGrid::Visualize(const mjModel* m, mjData* d, const mjvOption* opt,
   mju_mat2Quat(site_quat, site_mat);
 
   // Allocate bin edges.
-  mjtNum* x_edges = mj_stackAlloc(d, size_x_ + 1);
-  mjtNum* y_edges = mj_stackAlloc(d, size_y_ + 1);
+  mjtNum* x_edges = mj_stackAlloc(d, size_[0] + 1);
+  mjtNum* y_edges = mj_stackAlloc(d, size_[1] + 1);
 
   // Make bin edges.
-  BinEdges(x_edges, y_edges, size_x_, size_y_, fov_x_, fov_y_, gamma_);
+  BinEdges(x_edges, y_edges, size_, fov_, gamma_);
 
   // Draw geoms.
-  for (int i=0; i < size_x_; i++) {
-    for (int j=0; j < size_y_; j++) {
-      mjtNum dist = distance_.data()[j*size_x_ + i];
+  for (int i=0; i < size_[0]; i++) {
+    for (int j=0; j < size_[1]; j++) {
+      mjtNum dist = distance_.data()[j*size_[0] + i];
       if (!dist) {
         continue;
       }
@@ -442,7 +463,7 @@ void TouchGrid::Visualize(const mjModel* m, mjData* d, const mjvOption* opt,
         // color
         float rgba[4] = {1, 1, 1, 1.0};
         for (int k=0; k < mjMIN(nchannel_, 3); k++) {
-          rgba[k] = mju_abs(sensordata[k*frame + j*size_x_ + i]) / maxval;
+          rgba[k] = mju_abs(sensordata[k*frame + j*size_[0] + i]) / maxval;
         }
 
         // draw box geom
@@ -469,21 +490,21 @@ void TouchGrid::RegisterPlugin() {
   plugin.capabilityflags |= mjPLUGIN_SENSOR;
 
   // Parameterized by 5 attributes.
-  const char* attributes[] = {"nchannel", "size_x", "size_y", "fov_x", "fov_y",
-                              "gamma"};
+  const char* attributes[] = {"nchannel", "size", "fov", "gamma"};
   plugin.nattribute = sizeof(attributes) / sizeof(attributes[0]);
   plugin.attributes = attributes;
 
   // Stateless.
   plugin.nstate = +[](const mjModel* m, int instance) { return 0; };
 
-  // Sensor dimension = nchannel * size_x * size_y
+  // Sensor dimension = nchannel * size[0] * size[1]
   plugin.nsensordata = +[](const mjModel* m, int instance, int sensor_id) {
     int nchannel = strtod(mj_getPluginConfig(m, instance, "nchannel"), nullptr);
     if (!nchannel) nchannel = 1;
-    int size_x = strtod(mj_getPluginConfig(m, instance, "size_x"), nullptr);
-    int size_y = strtod(mj_getPluginConfig(m, instance, "size_y"), nullptr);
-    return nchannel * size_x * size_y;
+    std::vector<int> size;
+    ReadVector(
+        size, std::string(mj_getPluginConfig(m, instance, "size")).c_str());
+    return nchannel * size[0] * size[1];
   };
 
   // Can only run after forces have been computed.
