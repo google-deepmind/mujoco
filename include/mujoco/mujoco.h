@@ -484,6 +484,12 @@ MJAPI const char* mj_versionString();
 
 //---------------------------------- Ray collisions ------------------------------------------------
 
+// Intersect multiple rays emanating from a single point.
+// Similar semantics to mj_ray, but vec is an array of (nray x 3) directions.
+MJAPI void mj_multiRay(const mjModel* m, mjData* d, const mjtNum pnt[3], const mjtNum* vec,
+                       const mjtByte* geomgroup, mjtByte flg_static, int bodyexclude,
+                       int* geomid, mjtNum* dist, int nray);
+
 // Intersect ray (pnt+x*vec, x>=0) with visible geoms, except geoms in bodyexclude.
 // Return distance (x) to nearest surface, or -1 if no intersection and output geomid.
 // geomgroup, flg_static are as in mjvOption; geomgroup==NULL skips group exclusion.

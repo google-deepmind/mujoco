@@ -546,6 +546,7 @@ PYBIND11_MODULE(_functions, pymodule) {
   Def<traits::mj_versionString>(pymodule);
 
   // Ray collision
+  Def<traits::mj_multiRay>(pymodule);
   Def<traits::mj_ray>(
       pymodule,
       [](const raw::MjModel* m, const raw::MjData* d, const mjtNum(*pnt)[3],

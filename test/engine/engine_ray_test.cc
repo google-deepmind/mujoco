@@ -18,11 +18,21 @@
 #include <gtest/gtest.h>
 #include <mujoco/mjdata.h>
 #include <mujoco/mjmodel.h>
+#include <mujoco/mjtnum.h>
 #include <mujoco/mujoco.h>
+#include "src/engine/engine_ray.h"
 #include "test/fixture.h"
 
 namespace mujoco {
 namespace {
+
+static constexpr char kSingleGeomModel[] = R"(
+<mujoco>
+  <worldbody>
+    <geom type="sphere" size=".1" pos="0 0 0"/>
+  </worldbody>
+</mujoco>
+)";
 
 static constexpr char kRayCastingModel[] = R"(
 <mujoco>
@@ -126,6 +136,113 @@ TEST_F(RayTest, ExcludeStatic) {
   EXPECT_FLOAT_EQ(distance, 2.9);
   mj_deleteData(data);
   mj_deleteModel(model);
+}
+
+TEST_F(RayTest, MultiRayEqualsSingleRay) {
+  mjModel* m = LoadModelFromString(kRayCastingModel);
+  ASSERT_THAT(m, NotNull());
+  mjData* d = mj_makeData(m);
+  ASSERT_THAT(d, NotNull());
+  mj_forward(m, d);
+
+  // create ray array
+  constexpr int N = 80;
+  constexpr int M = 60;
+  mjtNum vec[3*N*M];
+  mjtNum pnt[3] = {1, 2, 3};
+  mjtNum cone[4][3] = {{1, 1, -1}, {1, 1, 1}, {1, -1, -1}, {1, -1, 1}};
+  memset(vec, 0, 3*N*M*sizeof(mjtNum));
+
+  for (int i = 0; i < N; ++i) {
+    for (int j = 0; j < M; ++j) {
+      for (int k = 0; k < 3; ++k) {
+        vec[3 * (i * M + j) + k] =           i * cone[0][k] / (N - 1) +
+                                             j * cone[1][1] / (M - 1) +
+                                   (N - i - 1) * cone[2][k] / (N - 1) +
+                                   (M - j - 1) * cone[3][k] / (M - 1);
+      }
+    }
+  }
+
+  // compute intersections with multiray functions
+  mjtNum dist_multiray[3*N*M];
+  int rgeomid_multiray[N*M];
+  mj_multiRay(m, d, pnt, vec, NULL, 1, -1, rgeomid_multiray, dist_multiray, N*M);
+
+  // compare results with single ray function
+  mjtNum dist;
+  int rgeomid;
+
+  for (int i = 0; i < N; ++i) {
+    for (int j = 0; j < M; ++j) {
+      int idx = i * M + j;
+      dist = mj_ray(m, d, pnt, vec + 3 * idx, NULL, 1, -1, &rgeomid);
+      EXPECT_FLOAT_EQ(dist, dist_multiray[idx]);
+      EXPECT_EQ(rgeomid, rgeomid_multiray[idx]);
+    }
+  }
+
+  mj_deleteData(d);
+  mj_deleteModel(m);
+}
+
+TEST_F(RayTest, EdgeCases) {
+  mjModel* m = LoadModelFromString(kSingleGeomModel);
+  ASSERT_THAT(m, NotNull());
+  ASSERT_THAT(m->nbvh, 1);
+  mjData* d = mj_makeData(m);
+  ASSERT_THAT(d, NotNull());
+  mj_forward(m, d);
+
+  // spherical bounding box and result arrays
+  mjtNum geom_ba[4];
+  mjtNum dist;
+  int rgeomid;
+
+  // pnt contained in bounding box
+  mjtNum pnt1[] = {0, 0, 0};
+  mju_multiRayPrepare(m, d, pnt1, NULL, NULL, 1, -1, geom_ba, NULL);
+  EXPECT_FLOAT_EQ(geom_ba[0], -mjPI);
+  EXPECT_FLOAT_EQ(geom_ba[1], -mjPI/2);
+  EXPECT_FLOAT_EQ(geom_ba[2],  mjPI);
+  EXPECT_FLOAT_EQ(geom_ba[3],  mjPI/2);
+  mjtNum vec1[] = {1, 0, 0};
+  mj_multiRay(m, d, pnt1, vec1, NULL, 1, -1, &rgeomid, &dist, 1);
+  EXPECT_FLOAT_EQ(dist, 0.1);
+
+  // pnt at phi = Pi, -Pi
+  mjtNum pnt2[] = {1, 0, 0};
+  mju_multiRayPrepare(m, d, pnt2, NULL, NULL, 1, -1, geom_ba, NULL);
+  EXPECT_FLOAT_EQ(geom_ba[0], -mjPI);  // atan(y<0, x<0)
+  EXPECT_FLOAT_EQ(geom_ba[2],  mjPI);  // atan(y>0, x<0)
+  mjtNum vec2[] = {-1, 0, 0};
+  mj_multiRay(m, d, pnt2, vec2, NULL, 1, -1, &rgeomid, &dist, 1);
+  EXPECT_FLOAT_EQ(dist, 0.9);
+
+  // pnt on the boundary of the box
+  mjtNum pnt3[] = {.1, .1, .05};
+  mju_multiRayPrepare(m, d, pnt3, NULL, NULL, 1, -1, geom_ba, NULL);
+  EXPECT_FLOAT_EQ(geom_ba[1], -mjPI/2);
+  EXPECT_FLOAT_EQ(geom_ba[3],  mjPI/2);
+  mjtNum vec3[] = {1, 1, 0};
+  mj_multiRay(m, d, pnt3, vec3, NULL, 1, -1, &rgeomid, &dist, 1);
+  EXPECT_FLOAT_EQ(dist, -1);
+
+  // size 0 geom
+  mjtNum pnt4[] = {-1, 0, 0};
+  m->geom_aabb[0] = m->geom_aabb[1] = m->geom_aabb[2] = 0;
+  m->geom_aabb[3] = m->geom_aabb[4] = m->geom_aabb[5] = 0;
+  mju_multiRayPrepare(m, d, pnt4, NULL, NULL, 1, -1, geom_ba, NULL);
+  EXPECT_FLOAT_EQ(geom_ba[0], 0);
+  EXPECT_FLOAT_EQ(geom_ba[1], mjPI/2);
+  EXPECT_FLOAT_EQ(geom_ba[2], 0);
+  EXPECT_FLOAT_EQ(geom_ba[3], mjPI/2);
+  mjtNum vec4[] = {1, 0, 0};
+  mj_multiRay(m, d, pnt4, vec4, NULL, 1, -1, &rgeomid, &dist, 1);
+  EXPECT_FLOAT_EQ(dist, 0.9);
+
+  mj_deleteData(d);
+  mj_deleteModel(m);
 }
 
 }  // namespace

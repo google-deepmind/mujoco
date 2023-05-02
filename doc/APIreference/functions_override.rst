@@ -148,14 +148,15 @@ format of qpos.
 
 .. _Raycollisions:
 
-Ray collision functionality was added in MuJoCo 1.50. This is a new collision detection module that uses analytical
-formulas to intersect a ray ``(p + x*v, x >= 0)`` with a geom, where p is the origin of the ray and v is the vector
-specifying the direction. All functions in this family return the distance to the nearest geom surface, or -1 if there
-is no intersection. Note that if p is inside a geom, the ray will intersect the surface from the inside which still
-counts as an intersection.
+Ray collisions, also known as ray casting, find the distance ``x`` of a ray's intersection with a geom, where a ray is
+a line emanating from the 3D point ``p`` in the direction ``v`` i.e., ``(p + x*v, x >= 0)``. All functions in this
+family return the distance to the nearest geom surface, or -1 if there is no intersection. Note that if ``p`` is inside
+a geom, the ray will intersect the surface from the inside which still counts as an intersection.
 
 All ray collision functions rely on quantities computed by :ref:`mj_kinematics` (see :ref:`mjData`), so must be called
-after  :ref:`mj_kinematics`, or functions that call it (e.g. :ref:`mj_fwdPosition`).
+after  :ref:`mj_kinematics`, or functions that call it (e.g. :ref:`mj_fwdPosition`). The top level functions, which
+intersect with all geoms types, are :ref:`mj_ray` which casts a single ray, and :ref:`mj_multiRay` which casts multiple
+rays from a single point.
 
 .. _mj_ray:
 

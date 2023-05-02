@@ -2766,6 +2766,69 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
          parameters=(),
          doc='Return the current version of MuJoCo as a null-terminated string.',  # pylint: disable=line-too-long
      )),
+    ('mj_multiRay',
+     FunctionDecl(
+         name='mj_multiRay',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='m',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjModel', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='d',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjData'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='pnt',
+                 type=ArrayType(
+                     inner_type=ValueType(name='mjtNum', is_const=True),
+                     extents=(3,),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='vec',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='geomgroup',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtByte', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='flg_static',
+                 type=ValueType(name='mjtByte'),
+             ),
+             FunctionParameterDecl(
+                 name='bodyexclude',
+                 type=ValueType(name='int'),
+             ),
+             FunctionParameterDecl(
+                 name='geomid',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='dist',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='nray',
+                 type=ValueType(name='int'),
+             ),
+         ),
+         doc='Intersect multiple rays emanating from a single point. Similar semantics to mj_ray, but vec is an array of (nray x 3) directions.',  # pylint: disable=line-too-long
+     )),
     ('mj_ray',
      FunctionDecl(
          name='mj_ray',
