@@ -991,6 +991,99 @@ PYBIND11_MODULE(_functions, pymodule) {
         return InterceptMjErrors(::mju_cholUpdate)(
             mat.data(), x.data(), mat.rows(), flg_plus);
       });
+  Def<traits::mju_cholFactorBand>(
+      pymodule, [](Eigen::Ref<EigenVectorX> mat, int ntotal, int nband,
+                   int ndense, mjtNum diagadd, mjtNum diagmul) {
+        int nMat = (ntotal - ndense) * nband + ndense * ntotal;
+        if (mat.size() != nMat) {
+          throw py::type_error(
+              "mat must have size (ntotal-ndense)*nband + ndense*ntotal");
+        }
+        return InterceptMjErrors(::mju_cholFactorBand)(
+            mat.data(), ntotal, nband, ndense, diagadd, diagmul);
+      });
+  Def<traits::mju_cholSolveBand>(
+      pymodule,
+      [](Eigen::Ref<EigenVectorX> res, Eigen::Ref<const EigenVectorX> mat,
+         Eigen::Ref<const EigenVectorX> vec, int ntotal, int nband,
+         int ndense) {
+        int nMat = (ntotal - ndense) * nband + ndense * ntotal;
+        if (mat.size() != nMat) {
+          throw py::type_error(
+              "mat must have (ntotal-ndense)*nband + "
+              "ndense*ntotal elements");
+        }
+        if (res.size() != ntotal) {
+          throw py::type_error("size of res should equal ntotal");
+        }
+        if (vec.size() != ntotal) {
+          throw py::type_error("size of vec should equal ntotal");
+        }
+        return InterceptMjErrors(::mju_cholSolveBand)(
+            res.data(), mat.data(), vec.data(), ntotal, nband, ndense);
+      });
+  Def<traits::mju_band2Dense>(
+      pymodule,
+      [](Eigen::Ref<EigenArrayXX> res, Eigen::Ref<const EigenVectorX> mat,
+         int ntotal, int nband, int ndense, mjtByte flg_sym) {
+        int nMat = (ntotal - ndense) * nband + ndense * ntotal;
+        if (mat.size() != nMat) {
+          throw py::type_error(
+              "mat must have size (ntotal-ndense)*nband + ndense*ntotal");
+        }
+        if (res.rows() != ntotal) {
+          throw py::type_error("res should have ntotal rows");
+        }
+        if (res.cols() != ntotal) {
+          throw py::type_error("res should have ntotal columns");
+        }
+        return InterceptMjErrors(::mju_band2Dense)(
+            res.data(), mat.data(), ntotal, nband, ndense, flg_sym);
+      });
+  Def<traits::mju_dense2Band>(pymodule, [](Eigen::Ref<EigenVectorX> res,
+                                           Eigen::Ref<const EigenArrayXX> mat,
+                                           int ntotal, int nband, int ndense) {
+    int nRes = (ntotal - ndense) * nband + ndense * ntotal;
+    if (res.size() != nRes) {
+      throw py::type_error(
+          "res must have size (ntotal-ndense)*nband + ndense*ntotal");
+    }
+    if (mat.rows() != ntotal) {
+      throw py::type_error("mat should have ntotal rows");
+    }
+    if (mat.cols() != ntotal) {
+      throw py::type_error("mat should have ntotal columns");
+    }
+    return InterceptMjErrors(::mju_dense2Band)(res.data(), mat.data(), ntotal,
+                                               nband, ndense);
+  });
+  Def<traits::mju_bandMulMatVec>(
+      pymodule,
+      [](Eigen::Ref<EigenVectorX> res, Eigen::Ref<const EigenArrayXX> mat,
+         Eigen::Ref<const EigenArrayXX> vec, int ntotal, int nband, int ndense,
+         int nVec, mjtByte flg_sym) {
+        int nMat = (ntotal - ndense) * nband + ndense * ntotal;
+        if (mat.size() != nMat) {
+          throw py::type_error(
+              "mat must have size (ntotal-ndense)*nband + ndense*ntotal");
+        }
+        if (res.rows() != ntotal) {
+          throw py::type_error("res should have ntotal rows");
+        }
+        if (res.cols() != nVec) {
+          throw py::type_error("res should have nVec columns");
+        }
+        if (vec.rows() != ntotal) {
+          throw py::type_error("vec should have ntotal rows");
+        }
+        if (vec.cols() != nVec) {
+          throw py::type_error("vec should have nVec columns");
+        }
+        return InterceptMjErrors(::mju_bandMulMatVec)(res.data(), mat.data(),
+                                                      vec.data(), ntotal, nband,
+                                                      ndense, nVec, flg_sym);
+      });
+  Def<traits::mju_bandDiag>(pymodule);
   Def<traits::mju_eig3>(pymodule);
   DEF_WITH_OMITTED_PY_ARGS(traits::mju_boxQP, "n")(
       pymodule,

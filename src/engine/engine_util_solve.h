@@ -34,8 +34,7 @@ MJAPI int mju_cholUpdate(mjtNum* mat, mjtNum* x, int n, int flg_plus);
 
 // sparse reverse-order Cholesky decomposition: mat = L'*L; return 'rank'
 //  mat must have uncompressed layout; rownnz is modified to end at diagonal
-int mju_cholFactorSparse(mjtNum* mat, int n, mjtNum mindiag,
-                         int* rownnz, int* rowadr, int* colind,
+int mju_cholFactorSparse(mjtNum* mat, int n, mjtNum mindiag, int* rownnz, int* rowadr, int* colind,
                          mjData* d);
 
 // sparse reverse-order Cholesky solve
@@ -47,6 +46,33 @@ void mju_cholSolveSparse(mjtNum* res, const mjtNum* mat, const mjtNum* vec, int 
 int mju_cholUpdateSparse(mjtNum* mat, mjtNum* x, int n, int flg_plus,
                          int* rownnz, int* rowadr, int* colind, int x_nnz, int* x_ind,
                          mjData* d);
+
+// band-dense Cholesky decomposition
+//  returns minimum value in the factorized diagonal, or 0 if rank-deficient
+//  mat has (ntotal-ndense) x nband + ndense x ntotal elements
+//  the first (ntotal-ndense) x nband store the band part, left of diagonal, inclusive
+//  the second ndense x ntotal store the band part as entire dense rows
+//  add diagadd+diagmul*mat_ii to diagonal before factorization
+MJAPI mjtNum mju_cholFactorBand(mjtNum* mat, int ntotal, int nband, int ndense,
+                                mjtNum diagadd, mjtNum diagmul);
+
+// solve (mat*mat')*res = vec with band-Cholesky decomposition
+MJAPI void mju_cholSolveBand(mjtNum* res, const mjtNum* mat, const mjtNum* vec,
+                             int ntotal, int nband, int ndense);
+
+// convert banded matrix to dense matrix, fill upper triangle if flg_sym>0
+MJAPI void mju_band2Dense(mjtNum* res, const mjtNum* mat, int ntotal, int nband, int ndense,
+                          mjtByte flg_sym);
+
+// convert dense matrix to banded matrix
+MJAPI void mju_dense2Band(mjtNum* res, const mjtNum* mat, int ntotal, int nband, int ndense);
+
+// multiply band-diagonal matrix with vector, include upper triangle if flg_sym>0
+MJAPI void mju_bandMulMatVec(mjtNum* res, const mjtNum* mat, const mjtNum* vec,
+                             int ntotal, int nband, int ndense, int nvec, mjtByte flg_sym);
+
+// address of diagonal element i in band-dense matrix representation
+MJAPI int mju_bandDiag(int i, int ntotal, int nband, int ndense);
 
 // sparse reverse-order LU factorization, no fill-in (assuming tree topology)
 //  LU = L + U; original = (U+I) * L; scratch is size n

@@ -300,6 +300,288 @@ int mju_cholUpdateSparse(mjtNum* mat, mjtNum* x, int n, int flg_plus,
   return rank;
 }
 
+//---------------------------- banded Cholesky -----------------------------------------------------
+
+// band-dense Cholesky decomposition
+//  returns minimum value in the factorized diagonal, or 0 if rank-deficient
+//  mat has (ntotal-ndense) x nband + ndense x ntotal elements
+//  the first (ntotal-ndense) x nband store the band part, left of diagonal, inclusive
+//  the second ndense x ntotal store the band part as entire dense rows
+//  add diagadd+diagmul*mat_ii to diagonal before factorization
+mjtNum mju_cholFactorBand(mjtNum* mat, int ntotal, int nband, int ndense,
+                          mjtNum diagadd, mjtNum diagmul) {
+  int nsparse = ntotal - ndense;
+  mjtNum mindiag = -1;
+
+  // sparse part, including sparse-sparse and sparse-dense
+  for (int j=0; j<nsparse; j++) {
+    // number of non-zeros left of (j,j)
+    int width_jj = mjMIN(j, nband-1);
+
+    // number of non-zeros below (j,j), sparse part
+    int height = mjMIN(nsparse-j-1, nband-1);
+
+    // address of (j,j)
+    int adr_jj = (j+1)*nband-1;
+
+    // compute L(j,j), before sqrt
+    mjtNum left_ij = width_jj>0 ? mju_dot(mat+adr_jj-width_jj, mat+adr_jj-width_jj, width_jj) : 0;
+    mjtNum Ljj = diagadd + diagmul*mat[adr_jj] + mat[adr_jj] - left_ij;
+
+    // update mindiag
+    if (Ljj<mindiag || mindiag<0) {
+      mindiag = Ljj;
+    }
+
+    // stop if rank-deficient
+    if (Ljj<mjMINVAL) {
+      return 0;
+    }
+
+    // compute Ljj, scale = 1/Ljj
+    Ljj = mju_sqrt(Ljj);
+    mjtNum scale = 1/Ljj;
+
+    // compute L(i,j) for i>j, sparse part
+    for (int i=j+1; i<=j+height; i++)   {
+      // number of non-zeros left of (i,j)
+      int width_ij = mjMIN(j, nband-1-i+j);
+
+      // address of (i,j)
+      int adr_ij = (i+1)*nband-1-i+j;
+
+      // in-place computation of L(i,j)
+      left_ij = width_ij>0 ? mju_dot(mat+adr_jj-width_ij, mat+adr_ij-width_ij, width_ij) : 0;
+      mat[adr_ij] = scale * (mat[adr_ij] - left_ij);
+    }
+
+    // compute L(i,j) for i>j, dense part
+    for (int i=nsparse; i<ntotal; i++)   {
+      // address of (i,j)
+      int adr_ij = nsparse*nband + (i-nsparse)*ntotal + j;
+
+      // in-place computation of L(i,j)
+      //  number of non-zeros left of (i,j) now equals width_jj
+      left_ij = width_jj>0 ? mju_dot(mat+adr_jj-width_jj, mat+adr_ij-width_jj, width_jj) : 0;
+      mat[adr_ij] = scale * (mat[adr_ij] - left_ij);
+    }
+
+    // save L(j,j)
+    mat[adr_jj] = Ljj;
+  }
+
+  // dense part
+  for (int j=nsparse; j<ntotal; j++) {
+    // address of (j,j)
+    int adr_jj = nsparse*nband + (j-nsparse)*ntotal + j;
+
+    // compute Ljj
+    mjtNum Ljj = diagadd + diagmul*mat[adr_jj] + mat[adr_jj] -
+                 mju_dot(mat+adr_jj-j, mat+adr_jj-j, j);
+
+    // update mindiag
+    if (Ljj<mindiag || mindiag<0) {
+      mindiag = Ljj;
+    }
+
+    // stop if rank-deficient
+    if (Ljj<mjMINVAL) {
+      return 0;
+    }
+
+    // compute Ljj, scale = 1/Ljj
+    Ljj = mju_sqrt(Ljj);
+    mjtNum scale = 1/Ljj;
+
+    // compute L(i,j) for i>j
+    for (int i=j+1; i<ntotal; i++) {
+      // address of off-diagonal element
+      int adr_ij = adr_jj + ntotal*(i-j);
+
+      // in-place computation of L(i,j)
+      mat[adr_ij] = scale * (mat[adr_ij] - mju_dot(mat+adr_jj-j, mat+adr_ij-j, j));
+    }
+
+    // save L(j,j)
+    mat[adr_jj] = Ljj;
+  }
+
+  return mindiag;
+}
+
+
+
+// solve with band-Cholesky decomposition
+void mju_cholSolveBand(mjtNum* res, const mjtNum* mat, const mjtNum* vec,
+                       int ntotal, int nband, int ndense) {
+  int width, height, nsparse = ntotal - ndense;
+
+  // copy into result if different
+  if (res!=vec) {
+    mju_copy(res, vec, ntotal);
+  }
+
+  //------- forward substitution: solve L*res = vec
+
+  // sparse part
+  for (int i=0; i<nsparse; i++) {
+    // number of non-zeros left of (i,i)
+    width = mjMIN(i, nband-1);
+
+    if (width) {
+      res[i] -= mju_dot(mat+(i+1)*nband-1-width, res+i-width, width);
+    }
+
+    // diagonal
+    res[i] /= mat[(i+1)*nband-1];
+  }
+
+  // dense part
+  for (int i=nsparse; i<ntotal; i++) {
+    res[i] -= mju_dot(mat+nsparse*nband+(i-nsparse)*ntotal, res, i);
+
+    // diagonal
+    res[i] /= mat[nsparse*nband+(i-nsparse)*ntotal+i];
+  }
+
+  //------- backward substitution: solve L'*res = res
+
+  // dense part
+  for (int i=ntotal-1; i>=nsparse; i--) {
+    for (int j=i+1; j<ntotal; j++) {
+      res[i] -= mat[nsparse*nband+(j-nsparse)*ntotal+i] * res[j];
+    }
+
+    // diagonal
+    res[i] /= mat[nsparse*nband+(i-nsparse)*ntotal+i];
+  }
+
+  // sparse part
+  for (int i=nsparse-1; i>=0; i--) {
+    // number of non-zeros below (i,i), sparse part
+    height = mjMIN(nsparse-1-i, nband-1);
+
+    // sparse rows
+    for (int j=i+1; j<=i+height; j++)
+      res[i] -= mat[(j+1)*nband-1-(j-i)] * res[j];
+
+    // dense rows
+    for (int j=nsparse; j<ntotal; j++)
+      res[i] -= mat[nsparse*nband+(j-nsparse)*ntotal+i] * res[j];
+
+    // diagonal
+    res[i] /= mat[(i+1)*nband-1];
+  }
+}
+
+
+
+// address of diagonal element i in band-dense matrix representation
+int mju_bandDiag(int i, int ntotal, int nband, int ndense) {
+  int nsparse = ntotal-ndense;
+
+  // sparse part
+  if (i<nsparse) {
+    return i*nband + nband-1;
+  }
+
+  // dense part
+  else {
+    return nsparse*nband + (i-nsparse)*ntotal + i;
+  }
+}
+
+
+
+// convert band matrix to dense matrix
+void mju_band2Dense(mjtNum* res, const mjtNum* mat, int ntotal, int nband, int ndense,
+                    mjtByte flg_sym) {
+  int nsparse = ntotal-ndense;
+
+  // clear all
+  mju_zero(res, ntotal*ntotal);
+
+  // sparse part
+  for(int i=0; i<nsparse; i++) {
+    // number of non-zeros left of (i,i)
+    int width = mjMIN(i, nband-1);
+
+    // copy data
+    mju_copy(res + i*ntotal + i-width, mat + (i+1)*nband - (width+1), width+1);
+  }
+
+  // dense part
+  for(int i=nsparse; i<ntotal; i++) {
+    mju_copy(res + i*ntotal, mat + nsparse*nband + (i-nsparse)*ntotal, i+1);
+  }
+
+  // make symmetric
+  if (flg_sym) {
+    for(int i=0; i<ntotal; i++) {
+      for (int j=i+1; j<ntotal; j++) {
+        res[i*ntotal + j] = res[j*ntotal + i];
+      }
+    }
+  }
+}
+
+
+
+// convert dense matrix to band matrix
+void mju_dense2Band(mjtNum* res, const mjtNum* mat, int ntotal, int nband, int ndense) {
+  int nsparse = ntotal-ndense;
+
+  // sparse part
+  for(int i=0; i<nsparse; i++) {
+    // number of non-zeros left of (i,i)
+    int width = mjMIN(i, nband-1);
+
+    // copy data
+    mju_copy(res + (i+1)*nband - (width+1), mat + i*ntotal + i-width, width+1);
+  }
+
+  // dense part
+  for(int i=nsparse; i<ntotal; i++) {
+    mju_copy(res + nsparse*nband + (i-nsparse)*ntotal, mat + i*ntotal, i+1);
+  }
+}
+
+
+
+// multiply band-diagonal matrix with vector
+void mju_bandMulMatVec(mjtNum* res, const mjtNum* mat, const mjtNum* vec,
+                       int ntotal, int nband, int ndense, int nvec, mjtByte flg_sym) {
+  int nsparse = ntotal-ndense;
+
+  // handle multiple vectors
+  for(int j=0; j<nvec; j++ ) {
+    // precompute pointer to corresponding vector in vec and res
+    const mjtNum* vec_j = vec + ntotal*j;
+    mjtNum* res_j = res + ntotal*j;
+
+    // sparse part
+    for(int i=0; i<nsparse; i++) {
+      int width = mjMIN(i+1, nband);
+      int adr = i*nband + nband - width;
+      int offset = mjMAX(0, i-nband+1);
+      res_j[i] = mju_dot(mat+adr, vec_j+offset, width);  // lower triangle
+      if (flg_sym) {
+        // strict upper triangle
+        mju_addToScl(res_j+offset, mat+adr, vec_j[i], width-1);
+      }
+    }
+
+    // dense part
+    for(int i=nsparse; i<ntotal; i++) {
+      int adr = nsparse*nband + (i-nsparse)*ntotal;
+      res_j[i] = mju_dot(mat+adr, vec_j, i+1);
+      if (flg_sym) {
+        // strict upper triangle
+        mju_addToScl(res_j, mat+adr, vec_j[i], i);
+      }
+    }
+  }
+}
 
 
 //------------------------------ LU factorization --------------------------------------------------

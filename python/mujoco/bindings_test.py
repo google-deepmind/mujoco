@@ -1075,6 +1075,36 @@ Euler integrator, semi-implicit in velocity.
     self.assertGreater(np.linalg.norm(ds_dv), eps)
     self.assertGreater(np.linalg.norm(ds_da), eps)
 
+  def test_banded(self):
+    n_total = 4
+    n_band = 1
+    n_dense = 1
+    dense = np.array([[1.0, 0, 0, 0.1],
+                      [0, 2.0, 0, 0.2],
+                      [0, 0, 3.0, 0.3],
+                      [0.1, 0.2, 0.3, 4.0]])
+    band = np.zeros(n_band*(n_total-n_dense) + n_dense*n_total)
+    mujoco.mju_dense2Band(band, dense, n_total, n_band, n_dense)
+    for i in range(4):
+      index = mujoco.mju_bandDiag(i, n_total, n_band, n_dense)
+      self.assertEqual(band[index], i+1)
+    dense2 = np.zeros((n_total, n_total))
+    flg_sym = 1
+    mujoco.mju_band2Dense(dense2, band, n_total, n_band, n_dense, flg_sym)
+    np.testing.assert_array_equal(dense, dense2)
+    vec = np.array([[2.0], [2.0], [3.0], [4.0]])
+    res = np.zeros_like(vec)
+    n_vec = 1
+    mujoco.mju_bandMulMatVec(res, band, vec,
+                             n_total, n_band, n_dense, n_vec, flg_sym)
+    np.testing.assert_array_equal(res, dense @ vec)
+    diag_add = 0
+    diag_mul = 0
+    mujoco.mju_cholFactorBand(band, n_total, n_band, n_dense,
+                              diag_add, diag_mul)
+    mujoco.mju_cholSolveBand(res, band, vec, n_total, n_band, n_dense)
+    np.testing.assert_almost_equal(res, np.linalg.solve(dense, vec))
+
   def test_mju_box_qp(self):
     n = 5
     res = np.zeros(n)

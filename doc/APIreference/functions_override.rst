@@ -321,6 +321,51 @@ mju_ceil
 
 .. _Decompositions:
 
+.. _mju_cholFactorBand:
+
+Band-dense Cholesky decomposition.
+|br| Add ``diagadd + diagmul*mat_ii`` to diagonal before decomposition.
+|br| Returns the minimum value of the factorized diagonal or 0 if rank-defficient.
+
+   **Symmetric band-dense matrices**
+
+   :ref:`mju_cholFactorBand` and subsequent functions containing the substring "band" operate on matrices which are a
+   generalization of symmetric `band matrices <https://en.wikipedia.org/wiki/Band_matrix>`_. *Symmetric band-dense* or
+   "arrowhead" matrices have non-zeros along proximal diagonal bands and dense blocks on the bottom rows and right
+   columns. These matrices have the property that Cholesky factorization creates no fill-in and can therefore be
+   performed efficiently in-place. Matrix structure is defined by three integers:
+
+   - ``ntotal``: the number of rows (columns) of the symmetric matrix.
+   - ``nband``: the number of bands under (over) the diagonal, inclusive of the diagonal.
+   - ``ndense``: the number of dense rows (columns) at the bottom (right).
+
+   The non-zeros are stored in memory as two contiguous row-major blocks, colored green and blue in the illustration
+   below. The first block has size ``nband x (ntotal-ndense)`` and contains the diagonal and the bands below it. The
+   second block has size ``ndense x ntotal`` and contains the dense part. Total required memory is the sum of the block
+   sizes.
+
+   .. figure:: /images/APIreference/arrowhead.svg
+      :width: 750px
+      :align: left
+
+   For example, consider an arrowhead matrix with ``nband = 3``, ``ndense = 2`` and ``ntotal = 8``. In this example, the
+   total memory required is ``3*(8-2) + 2*8 = 34`` mjtNum's, laid out as follows:
+
+   .. code-block::
+
+      0   1   2
+          3   4   5
+              6   7   8
+                  9   10  11
+                      12  13  14
+                          15  16  17
+              18  19  20  21  22  23  24  25
+              26  27  28  29  30  31  32  33
+
+
+   The diagonal elements are ``2, 5, 8, 11, 14, 17, 24, 33``.
+   |br| Elements ``0, 1, 3, 25`` are present in memory but never touched.
+
 .. _mju_boxQP:
 
 Minimize :math:`\tfrac{1}{2} x^T H x + x^T g \quad \text{s.t.} \quad l \le x \le u`, return rank or -1 if failed.

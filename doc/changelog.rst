@@ -5,18 +5,26 @@ Changelog
 Upcoming version (not yet released)
 -----------------------------------
 
-Plugins
-^^^^^^^
-
 .. youtube:: hqIMTNGaLF4
    :align: right
    :width: 240px
 
+Plugins
+^^^^^^^
+
 - Added touch-grid sensor plugin. See `documentation <https://github.com/deepmind/mujoco/blob/main/plugin/sensor/README.md>`_
   for details, and associated `touch_grid.xml <https://github.com/deepmind/mujoco/blob/main/model/plugin/touch_grid.xml>`_
   example model. The plugin includes `in-scene visualisation <https://youtu.be/0LOJ3WMnqeA>`_.
-- Add ``mj_multiRay`` function for intersecting multiple rays emanating from a single point. This is significantly
-  faster than calling ``mj_ray`` multiple times.
+
+General
+^^^^^^^
+
+- Added :ref:`mjd_inverseFD` for finite-differenced inverse-dynamics derivatives.
+- Added functions for operations on banded-then-dense "arrowhead" matrices. Such matrices are
+  common when doing direct trajectory optimization.
+  See :ref:`mju_cholFactorBand` documentation for details.
+- Added :ref:`mj_multiRay` function for intersecting multiple rays emanating from a single point.
+  This is significantly faster than calling :ref:`mj_ray` multiple times.
 
 Version 2.3.5 (April 25, 2023)
 ------------------------------

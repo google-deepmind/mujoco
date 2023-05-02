@@ -2408,6 +2408,16 @@ void mju_trnVecPose(mjtNum res[3], const mjtNum pos[3], const mjtNum quat[4],
 int mju_cholFactor(mjtNum* mat, int n, mjtNum mindiag);
 void mju_cholSolve(mjtNum* res, const mjtNum* mat, const mjtNum* vec, int n);
 int mju_cholUpdate(mjtNum* mat, mjtNum* x, int n, int flg_plus);
+mjtNum mju_cholFactorBand(mjtNum* mat, int ntotal, int nband, int ndense,
+                          mjtNum diagadd, mjtNum diagmul);
+void mju_cholSolveBand(mjtNum* res, const mjtNum* mat, const mjtNum* vec,
+                       int ntotal, int nband, int ndense);
+void mju_band2Dense(mjtNum* res, const mjtNum* mat, int ntotal, int nband, int ndense,
+                    mjtByte flg_sym);
+void mju_dense2Band(mjtNum* res, const mjtNum* mat, int ntotal, int nband, int ndense);
+void mju_bandMulMatVec(mjtNum* res, const mjtNum* mat, const mjtNum* vec,
+                       int ntotal, int nband, int ndense, int nvec, mjtByte flg_sym);
+int mju_bandDiag(int i, int ntotal, int nband, int ndense);
 int mju_eig3(mjtNum eigval[3], mjtNum eigvec[9], mjtNum quat[4], const mjtNum mat[9]);
 int mju_boxQP(mjtNum* res, mjtNum* R, int* index, const mjtNum* H, const mjtNum* g, int n,
               const mjtNum* lower, const mjtNum* upper);

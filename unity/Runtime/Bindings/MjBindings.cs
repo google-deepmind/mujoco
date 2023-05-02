@@ -3734,6 +3734,24 @@ public static unsafe extern void mju_cholSolve(double* res, double* mat, double*
 public static unsafe extern int mju_cholUpdate(double* mat, double* x, int n, int flg_plus);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern double mju_cholFactorBand(double* mat, int ntotal, int nband, int ndense, double diagadd, double diagmul);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern void mju_cholSolveBand(double* res, double* mat, double* vec, int ntotal, int nband, int ndense);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern void mju_band2Dense(double* res, double* mat, int ntotal, int nband, int ndense, byte flg_sym);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern void mju_dense2Band(double* res, double* mat, int ntotal, int nband, int ndense);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern void mju_bandMulMatVec(double* res, double* mat, double* vec, int ntotal, int nband, int ndense, int nvec, byte flg_sym);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern int mju_bandDiag(int i, int ntotal, int nband, int ndense);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern int mju_eig3(double* eigval, double* eigvec, double* quat, double* mat);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]

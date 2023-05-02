@@ -1068,11 +1068,38 @@ MJAPI void mju_trnVecPose(mjtNum res[3], const mjtNum pos[3], const mjtNum quat[
 // Cholesky decomposition: mat = L*L'; return rank, decomposition performed in-place into mat.
 MJAPI int mju_cholFactor(mjtNum* mat, int n, mjtNum mindiag);
 
-// Solve mat * res = vec, where mat is Cholesky-factorized
+// Solve (mat*mat') * res = vec, where mat is a Cholesky factor.
 MJAPI void mju_cholSolve(mjtNum* res, const mjtNum* mat, const mjtNum* vec, int n);
 
 // Cholesky rank-one update: L*L' +/- x*x'; return rank.
 MJAPI int mju_cholUpdate(mjtNum* mat, mjtNum* x, int n, int flg_plus);
+
+// Band-dense Cholesky decomposition.
+//  Returns minimum value in the factorized diagonal, or 0 if rank-deficient.
+//  mat has (ntotal-ndense) x nband + ndense x ntotal elements.
+//  The first (ntotal-ndense) x nband store the band part, left of diagonal, inclusive.
+//  The second ndense x ntotal store the band part as entire dense rows.
+//  Add diagadd+diagmul*mat_ii to diagonal before factorization.
+MJAPI mjtNum mju_cholFactorBand(mjtNum* mat, int ntotal, int nband, int ndense,
+                                mjtNum diagadd, mjtNum diagmul);
+
+// Solve (mat*mat')*res = vec where mat is a band-dense Cholesky factor.
+MJAPI void mju_cholSolveBand(mjtNum* res, const mjtNum* mat, const mjtNum* vec,
+                             int ntotal, int nband, int ndense);
+
+// Convert banded matrix to dense matrix, fill upper triangle if flg_sym>0.
+MJAPI void mju_band2Dense(mjtNum* res, const mjtNum* mat, int ntotal, int nband, int ndense,
+                          mjtByte flg_sym);
+
+// Convert dense matrix to banded matrix.
+MJAPI void mju_dense2Band(mjtNum* res, const mjtNum* mat, int ntotal, int nband, int ndense);
+
+// Multiply band-diagonal matrix with nvec vectors, include upper triangle if flg_sym>0.
+MJAPI void mju_bandMulMatVec(mjtNum* res, const mjtNum* mat, const mjtNum* vec,
+                             int ntotal, int nband, int ndense, int nvec, mjtByte flg_sym);
+
+// Address of diagonal element i in band-dense matrix representation.
+MJAPI int mju_bandDiag(int i, int ntotal, int nband, int ndense);
 
 // Eigenvalue decomposition of symmetric 3x3 matrix.
 MJAPI int mju_eig3(mjtNum eigval[3], mjtNum eigvec[9], mjtNum quat[4], const mjtNum mat[9]);

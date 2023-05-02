@@ -6815,7 +6815,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  type=ValueType(name='int'),
              ),
          ),
-         doc='Solve mat * res = vec, where mat is Cholesky-factorized',
+         doc="Solve (mat*mat') * res = vec, where mat is a Cholesky factor.",
      )),
     ('mju_cholUpdate',
      FunctionDecl(
@@ -6844,6 +6844,216 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
              ),
          ),
          doc="Cholesky rank-one update: L*L' +/- x*x'; return rank.",
+     )),
+    ('mju_cholFactorBand',
+     FunctionDecl(
+         name='mju_cholFactorBand',
+         return_type=ValueType(name='mjtNum'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='mat',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='ntotal',
+                 type=ValueType(name='int'),
+             ),
+             FunctionParameterDecl(
+                 name='nband',
+                 type=ValueType(name='int'),
+             ),
+             FunctionParameterDecl(
+                 name='ndense',
+                 type=ValueType(name='int'),
+             ),
+             FunctionParameterDecl(
+                 name='diagadd',
+                 type=ValueType(name='mjtNum'),
+             ),
+             FunctionParameterDecl(
+                 name='diagmul',
+                 type=ValueType(name='mjtNum'),
+             ),
+         ),
+         doc='Band-dense Cholesky decomposition.  Returns minimum value in the factorized diagonal, or 0 if rank-deficient.  mat has (ntotal-ndense) x nband + ndense x ntotal elements.  The first (ntotal-ndense) x nband store the band part, left of diagonal, inclusive.  The second ndense x ntotal store the band part as entire dense rows.  Add diagadd+diagmul*mat_ii to diagonal before factorization.',  # pylint: disable=line-too-long
+     )),
+    ('mju_cholSolveBand',
+     FunctionDecl(
+         name='mju_cholSolveBand',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='res',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='mat',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='vec',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='ntotal',
+                 type=ValueType(name='int'),
+             ),
+             FunctionParameterDecl(
+                 name='nband',
+                 type=ValueType(name='int'),
+             ),
+             FunctionParameterDecl(
+                 name='ndense',
+                 type=ValueType(name='int'),
+             ),
+         ),
+         doc="Solve (mat*mat')*res = vec where mat is a band-dense Cholesky factor.",  # pylint: disable=line-too-long
+     )),
+    ('mju_band2Dense',
+     FunctionDecl(
+         name='mju_band2Dense',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='res',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='mat',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='ntotal',
+                 type=ValueType(name='int'),
+             ),
+             FunctionParameterDecl(
+                 name='nband',
+                 type=ValueType(name='int'),
+             ),
+             FunctionParameterDecl(
+                 name='ndense',
+                 type=ValueType(name='int'),
+             ),
+             FunctionParameterDecl(
+                 name='flg_sym',
+                 type=ValueType(name='mjtByte'),
+             ),
+         ),
+         doc='Convert banded matrix to dense matrix, fill upper triangle if flg_sym>0.',  # pylint: disable=line-too-long
+     )),
+    ('mju_dense2Band',
+     FunctionDecl(
+         name='mju_dense2Band',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='res',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='mat',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='ntotal',
+                 type=ValueType(name='int'),
+             ),
+             FunctionParameterDecl(
+                 name='nband',
+                 type=ValueType(name='int'),
+             ),
+             FunctionParameterDecl(
+                 name='ndense',
+                 type=ValueType(name='int'),
+             ),
+         ),
+         doc='Convert dense matrix to banded matrix.',
+     )),
+    ('mju_bandMulMatVec',
+     FunctionDecl(
+         name='mju_bandMulMatVec',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='res',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='mat',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='vec',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='ntotal',
+                 type=ValueType(name='int'),
+             ),
+             FunctionParameterDecl(
+                 name='nband',
+                 type=ValueType(name='int'),
+             ),
+             FunctionParameterDecl(
+                 name='ndense',
+                 type=ValueType(name='int'),
+             ),
+             FunctionParameterDecl(
+                 name='nvec',
+                 type=ValueType(name='int'),
+             ),
+             FunctionParameterDecl(
+                 name='flg_sym',
+                 type=ValueType(name='mjtByte'),
+             ),
+         ),
+         doc='Multiply band-diagonal matrix with nvec vectors, include upper triangle if flg_sym>0.',  # pylint: disable=line-too-long
+     )),
+    ('mju_bandDiag',
+     FunctionDecl(
+         name='mju_bandDiag',
+         return_type=ValueType(name='int'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='i',
+                 type=ValueType(name='int'),
+             ),
+             FunctionParameterDecl(
+                 name='ntotal',
+                 type=ValueType(name='int'),
+             ),
+             FunctionParameterDecl(
+                 name='nband',
+                 type=ValueType(name='int'),
+             ),
+             FunctionParameterDecl(
+                 name='ndense',
+                 type=ValueType(name='int'),
+             ),
+         ),
+         doc='Address of diagonal element i in band-dense matrix representation.',  # pylint: disable=line-too-long
      )),
     ('mju_eig3',
      FunctionDecl(
