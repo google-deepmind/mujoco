@@ -2768,7 +2768,7 @@ mju_cholFactorBand
 
 Band-dense Cholesky decomposition.
 |br| Add ``diagadd + diagmul*mat_ii`` to diagonal before decomposition.
-|br| Returns the minimum value of the factorized diagonal or 0 if rank-defficient.
+|br| Returns the minimum value of the factorized diagonal or 0 if rank-deficient.
 
    **Symmetric band-dense matrices**
 
