@@ -7199,7 +7199,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  name='item',
                  type=ArrayType(
                      inner_type=ValueType(name='mjuiItem'),
-                     extents=(80,),
+                     extents=(100,),
                  ),
                  doc='preallocated array of items',
              ),

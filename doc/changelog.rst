@@ -25,6 +25,7 @@ General
   See :ref:`mju_cholFactorBand` documentation for details.
 - Added :ref:`mj_multiRay` function for intersecting multiple rays emanating from a single point.
   This is significantly faster than calling :ref:`mj_ray` multiple times.
+- Increased ``mjMAXUIITEM`` (maximum number of UI elements per section in Simulate) to 100.
 
 Version 2.3.5 (April 25, 2023)
 ------------------------------
