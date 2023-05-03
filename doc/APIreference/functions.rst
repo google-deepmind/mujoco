@@ -3217,7 +3217,7 @@ using finite-differencing. These matrices and their dimensions are:
 
    ``DfDq``, :math:`\partial f / \partial q`, ``nv x nv``
    ``DfDv``, :math:`\partial f / \partial v`, ``nv x nv``
-   ``DfDa``, :math:`\partial f / \partial a`, ``na x nv``
+   ``DfDa``, :math:`\partial f / \partial a`, ``nv x nv``
    ``DsDq``, :math:`\partial s / \partial q`, ``nv x nsensordata``
    ``DsDv``, :math:`\partial s / \partial v`, ``nv x nsensordata``
    ``DsDa``, :math:`\partial s / \partial a`, ``nv x nsensordata``

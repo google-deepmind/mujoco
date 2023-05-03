@@ -617,7 +617,7 @@ void mjd_transitionFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte flg_cente
 //   output dimensions (transposed w.r.t Control Theory convention):
 //     DfDq: (nv x nv)
 //     DfDv: (nv x nv)
-//     DfDa: (na x nv)
+//     DfDa: (nv x nv)
 //     DsDq: (nv x nsensordata)
 //     DsDv: (nv x nsensordata)
 //     DsDa: (nv x nsensordata)
