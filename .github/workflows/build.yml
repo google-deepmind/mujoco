@@ -12,9 +12,11 @@ on:
   push:
     paths-ignore:
       - "doc/**"
+      - "**/README.md"
   pull_request:
     paths-ignore:
       - "doc/**"
+      - "**/README.md"
 
 jobs:
   mujoco:
