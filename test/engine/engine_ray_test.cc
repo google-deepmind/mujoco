@@ -234,9 +234,9 @@ TEST_F(RayTest, EdgeCases) {
   m->geom_aabb[3] = m->geom_aabb[4] = m->geom_aabb[5] = 0;
   mju_multiRayPrepare(m, d, pnt4, NULL, NULL, 1, -1, geom_ba, NULL);
   EXPECT_FLOAT_EQ(geom_ba[0], 0);
-  EXPECT_FLOAT_EQ(geom_ba[1], mjPI/2);
+  EXPECT_FLOAT_EQ(geom_ba[1], -mjPI/2);
   EXPECT_FLOAT_EQ(geom_ba[2], 0);
-  EXPECT_FLOAT_EQ(geom_ba[3], mjPI/2);
+  EXPECT_FLOAT_EQ(geom_ba[3], -mjPI/2);
   mjtNum vec4[] = {1, 0, 0};
   mj_multiRay(m, d, pnt4, vec4, NULL, 1, -1, &rgeomid, &dist, 1);
   EXPECT_FLOAT_EQ(dist, 0.9);
