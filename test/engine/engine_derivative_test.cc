@@ -14,6 +14,7 @@
 
 // Tests for engine/engine_derivative.c.
 
+#include <random>
 #include <vector>
 
 #include <gmock/gmock.h>
@@ -71,6 +72,7 @@ static mjtNum CompareMatrices(mjtNum* Actual, mjtNum* Expected,
 
 // utility function for matrix printing
 static void PrintMatrix(mjtNum* mat, int nrow, int ncol) {
+  // NOLINT(clang-diagnostic-unused-function)
   std::cerr.precision(5);
   std::cerr << "\n";
   for (int r=0; r < nrow; r++) {
@@ -79,7 +81,7 @@ static void PrintMatrix(mjtNum* mat, int nrow, int ncol) {
     }
     std::cerr << "\n";
   }
-}  // NOLINT(clang-diagnostic-unused-function)
+}
 
 
 std::vector<mjtNum> AsVector(const mjtNum* array, int n) {
@@ -735,6 +737,103 @@ TEST_F(DerivativeTest, LinearSystemInverse) {
 
   mj_deleteData(data);
   mj_deleteModel(model);
+}
+
+// utility: generate two random quaternions with a given angle difference
+void randomQuatPair(mjtNum qa[4], mjtNum qb[4], mjtNum angle, int seed) {
+  // make distribution using seed
+  std::mt19937_64 rng;
+  rng.seed(seed);
+  std::normal_distribution<double> dist(0, 1);
+
+  // sample qa = qb
+  for (int i=0; i < 4; i++) {
+    qa[i] = qb[i] = dist(rng);
+  }
+  mju_normalize4(qa);
+  mju_normalize4(qb);
+
+  // integrate qb in random direction by angle
+  mjtNum dir[3];
+  for (int i=0; i < 3; i++) {
+    dir[i] = dist(rng);
+  }
+  mju_normalize3(dir);
+  mju_quatIntegrate(qb, dir, angle);
+}
+
+// utility: finite-difference Jacobians of mju_subQuat
+void mjd_subQuatFD(mjtNum Da[9], mjtNum Db[9],
+                   const mjtNum qa[4], const mjtNum qb[4], mjtNum eps) {
+  // subQuat
+  mjtNum y[3];
+  mju_subQuat(y, qa, qb);
+
+  mjtNum dq[3];   // nudge input direction
+  mjtNum dqa[4];  // nudged qa input
+  mjtNum dqb[4];  // nudged qb input
+  mjtNum dy[3];   // nudged output
+  mjtNum DaT[9];  // Da transposed
+  mjtNum DbT[9];  // Db transposed
+
+  for (int i = 0; i < 3; i++) {
+    // perturbation
+    mju_zero3(dq);
+    dq[i] = 1.0;
+
+    // Jacobian: d_y / d_qa
+    mju_copy4(dqa, qa);
+    mju_quatIntegrate(dqa, dq, eps);
+    mju_subQuat(dy, dqa, qb);
+
+    mju_sub3(DaT + i * 3, dy, y);
+    mju_scl3(DaT + i * 3, DaT + i * 3, 1.0 / eps);
+
+    // Jacobian: d_y / d_qb
+    mju_copy4(dqb, qb);
+    mju_quatIntegrate(dqb, dq, eps);
+    mju_subQuat(dy, qa, dqb);
+
+    mju_sub3(DbT + i * 3, dy, y);
+    mju_scl3(DbT + i * 3, DbT + i * 3, 1.0 / eps);
+  }
+
+  // transpose result
+  mju_transpose(Da, DaT, 3, 3);
+  mju_transpose(Db, DbT, 3, 3);
+}
+
+TEST_F(DerivativeTest, SubQuat) {
+  const int nrepeats = 10;  // number of repeats
+  const mjtNum eps = 1e-7;  // epsilon for finite-differencing and comparison
+
+  int seed = 1;
+  for (int i = 0; i < nrepeats; i++) {
+    for (mjtNum angle : {0.0, 1e-9, 1e-5, 1e-2, 1.0, 4.0}) {
+      // random quaternions
+      mjtNum qa[4];
+      mjtNum qb[4];
+
+      // make random quaternion pair with given relative angle
+      randomQuatPair(qa, qb, angle, seed++);
+
+      // analytic Jacobians
+      mjtNum Da[9];  // d_subQuat(qa, qb) / d_qa
+      mjtNum Db[9];  // d_subQuat(qa, qb) / d_qb
+      mjd_subQuat(qa, qb, Da, Db);
+
+      // finite-differenced Jacobians
+      mjtNum DaFD[9];
+      mjtNum DbFD[9];
+      mjd_subQuatFD(DaFD, DbFD, qa, qb, eps);
+
+      // expect numerical equality
+      EXPECT_THAT(AsVector(DaFD, 9),
+                  Pointwise(DoubleNear(eps), AsVector(Da, 9)));
+      EXPECT_THAT(AsVector(DbFD, 9),
+                  Pointwise(DoubleNear(eps), AsVector(Db, 9)));
+    }
+  }
 }
 
 }  // namespace

@@ -219,6 +219,54 @@ static void mjd_mulInertVec_vel(mjtNum D[36], const mjtNum i[10])
 
 
 
+// derivative of mju_subQuat w.r.t inputs
+void mjd_subQuat(const mjtNum qa[4], const mjtNum qb[4], mjtNum Da[9], mjtNum Db[9])
+{
+  // no outputs, quick return
+  if (!Da && !Db) {
+    return;
+  }
+
+  // compute axis-angle quaternion difference
+  mjtNum axis[3];
+  mju_subQuat(axis, qa, qb);
+
+  // normalize axis, get half-angle
+  mjtNum half_angle = 0.5 * mju_normalize3(axis);
+
+  // identity
+  mjtNum Da_tmp[9] = {
+    1, 0, 0,
+    0, 1, 0,
+    0, 0, 1
+  };
+
+  // add term linear in cross product matrix K
+  mjtNum K[9] = {
+    0, -axis[2], axis[1],
+    axis[2], 0, -axis[0],
+    -axis[1], axis[0], 0
+  };
+  mju_addToScl(Da_tmp, K, half_angle, 9);
+
+  // add term linear in K * K
+  mjtNum KK[9];
+  mju_mulMatMat(KK, K, K, 3, 3, 3);
+  mjtNum coef = 1.0 - (half_angle < 6e-8 ? 1.0 : half_angle / mju_tan(half_angle));
+  mju_addToScl(Da_tmp, KK, coef, 9);
+
+  if (Da) {
+    mju_copy(Da, Da_tmp, 9);
+  }
+
+  if (Db) {  // Db = -Da^T
+    mju_transpose(Db, Da_tmp, 3, 3);
+    mju_scl(Db, Db, -1.0, 9);
+  }
+}
+
+
+
 //------------------------- dense derivatives of component functions -------------------------------
 // no longer used, except in tests
 
