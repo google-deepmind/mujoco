@@ -203,9 +203,9 @@ TEST_F(RayTest, EdgeCases) {
   mjtNum pnt1[] = {0, 0, 0};
   mju_multiRayPrepare(m, d, pnt1, NULL, NULL, 1, -1, geom_ba, NULL);
   EXPECT_FLOAT_EQ(geom_ba[0], -mjPI);
-  EXPECT_FLOAT_EQ(geom_ba[1], -mjPI/2);
+  EXPECT_FLOAT_EQ(geom_ba[1],  0);
   EXPECT_FLOAT_EQ(geom_ba[2],  mjPI);
-  EXPECT_FLOAT_EQ(geom_ba[3],  mjPI/2);
+  EXPECT_FLOAT_EQ(geom_ba[3],  mjPI);
   mjtNum vec1[] = {1, 0, 0};
   mj_multiRay(m, d, pnt1, vec1, NULL, 1, -1, &rgeomid, &dist, 1);
   EXPECT_FLOAT_EQ(dist, 0.1);
@@ -222,8 +222,8 @@ TEST_F(RayTest, EdgeCases) {
   // pnt on the boundary of the box
   mjtNum pnt3[] = {.1, .1, .05};
   mju_multiRayPrepare(m, d, pnt3, NULL, NULL, 1, -1, geom_ba, NULL);
-  EXPECT_FLOAT_EQ(geom_ba[1], -mjPI/2);
-  EXPECT_FLOAT_EQ(geom_ba[3],  mjPI/2);
+  EXPECT_FLOAT_EQ(geom_ba[1], 0);
+  EXPECT_FLOAT_EQ(geom_ba[3], mjPI);
   mjtNum vec3[] = {1, 1, 0};
   mj_multiRay(m, d, pnt3, vec3, NULL, 1, -1, &rgeomid, &dist, 1);
   EXPECT_FLOAT_EQ(dist, -1);
@@ -234,9 +234,9 @@ TEST_F(RayTest, EdgeCases) {
   m->geom_aabb[3] = m->geom_aabb[4] = m->geom_aabb[5] = 0;
   mju_multiRayPrepare(m, d, pnt4, NULL, NULL, 1, -1, geom_ba, NULL);
   EXPECT_FLOAT_EQ(geom_ba[0], 0);
-  EXPECT_FLOAT_EQ(geom_ba[1], -mjPI/2);
+  EXPECT_FLOAT_EQ(geom_ba[1], mjPI/2);
   EXPECT_FLOAT_EQ(geom_ba[2], 0);
-  EXPECT_FLOAT_EQ(geom_ba[3], -mjPI/2);
+  EXPECT_FLOAT_EQ(geom_ba[3], mjPI/2);
   mjtNum vec4[] = {1, 0, 0};
   mj_multiRay(m, d, pnt4, vec4, NULL, 1, -1, &rgeomid, &dist, 1);
   EXPECT_FLOAT_EQ(dist, 0.9);

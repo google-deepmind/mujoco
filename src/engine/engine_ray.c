@@ -56,11 +56,7 @@ static mjtNum longitude(const mjtNum vec[3]) {
 
 // map to elevation angle in spherical coordinates
 static mjtNum latitude(const mjtNum vec[3]) {
-  if (vec[2]>0) {
-    return mju_atan2(mju_sqrt(vec[0]*vec[0] + vec[1]*vec[1]), vec[2]);
-  } else {
-    return mju_atan2(mju_sqrt(vec[0]*vec[0] + vec[1]*vec[1]), vec[2]) - mjPI;
-  }
+  return mju_atan2(mju_sqrt(vec[0]*vec[0] + vec[1]*vec[1]), vec[2]);
 }
 
 
@@ -892,9 +888,9 @@ void mju_multiRayPrepare(const mjModel* m, const mjData* d, const mjtNum pnt[3],
 
       if (point_in_box(aabb, xpos, xmat, pnt)) {
         (geom_ba+4*g)[0] = -mjPI;
-        (geom_ba+4*g)[1] = -mjPI/2;
+        (geom_ba+4*g)[1] = 0;
         (geom_ba+4*g)[2] = mjPI;
-        (geom_ba+4*g)[3] = mjPI/2;
+        (geom_ba+4*g)[3] = mjPI;
         continue;
       }
 
@@ -923,9 +919,9 @@ void mju_multiRayPrepare(const mjModel* m, const mjData* d, const mjtNum pnt[3],
 
       if (AABB[2]-AABB[0] > mjPI) {
         AABB[0] = -mjPI;
-        AABB[1] = -mjPI/2;
+        AABB[1] = 0;
         AABB[2] =  mjPI;
-        AABB[3] =  mjPI/2;
+        AABB[3] =  mjPI;
       }
 
       if (AABB[3]-AABB[1] > mjPI) {  // SHOULD NOT OCCUR
