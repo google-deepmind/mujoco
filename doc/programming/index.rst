@@ -99,8 +99,8 @@ provides an example for this.
 
 .. _inBuild:
 
-Building MuJoCo from source
-~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Building from source
+~~~~~~~~~~~~~~~~~~~~
 
 To build MuJoCo from source, you will need CMake and a working C++17 compiler installed. The steps are:
 
