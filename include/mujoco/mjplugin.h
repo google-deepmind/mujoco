@@ -22,7 +22,7 @@
 
 //---------------------------------- Resource Provider ---------------------------------------------
 
-#define mjVFS_PREFIX    "vfs://"  // prefix for VFS providers
+#define mjVFS_PREFIX    "vfs"  // prefix for VFS providers
 
 // callback for opeing a resource, returns zero on failure
 typedef int (*mjfOpenResource)(mjResource* resource);
@@ -34,13 +34,18 @@ typedef int (*mjfReadResource)(mjResource* resource, const void** buffer);
 // callback for closing a resource (responsible for freeing any allocated memory)
 typedef void (*mjfCloseResource)(mjResource* resource);
 
+// callback for returning the directory of a resource
+// sets dir to directory string with ndir being size of directory string
+typedef void (*mjfGetResourceDir)(mjResource* resource, const char** dir, int* ndir);
+
 // struct describing a single resource provider
 struct mjpResourceProvider_ {
-  const char* prefix;             // prefix for match against a resource name
-  mjfOpenResource open;           // opening callback
-  mjfReadResource read;           // reading callback
-  mjfCloseResource close;         // closing callback
-  void* data;                     // opaque data pointer (resource invariant)
+  const char* prefix;                // prefix for match against a resource name
+  mjfOpenResource open;              // opening callback
+  mjfReadResource read;              // reading callback
+  mjfCloseResource close;            // closing callback
+  mjfGetResourceDir getdir;          // getdir callback (optional)
+  void* data;                        // opaque data pointer (resource invariant)
 };
 typedef struct mjpResourceProvider_ mjpResourceProvider;
 

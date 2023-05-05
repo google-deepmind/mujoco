@@ -21,6 +21,7 @@
 #include "engine/engine_plugin.h"
 
 #include <atomic>
+#include <cctype>
 #include <cstddef>
 #include <cstdlib>
 #include <cstring>
@@ -266,14 +267,53 @@ bool PluginsAreIdentical(const mjpPlugin& plugin1, const mjpPlugin& plugin2) {
   return !std::memcmp(ptr1, ptr2, remaining_size);
 }
 
+// does case insensitive comparison
+bool PrefixesAreIdentical(const char* p1, const char* p2) {
+  int i = 0;
+  for (; p1[i] != '\0'; i++) {
+    if (std::tolower(p1[i]) != std::tolower(p2[i])) {
+      return false;
+    }
+  }
+
+  return p2[i] == '\0';
+}
+
 // check if two resource providers are identical
 bool ResourceProvidersAreIdentical(const mjpResourceProvider* p1, const mjpResourceProvider* p2) {
-  return (!std::strcmp(p1->prefix, p2->prefix) &&
+  return (PrefixesAreIdentical(p1->prefix, p2->prefix) &&
           p1->open == p2->open &&
           p1->read == p2->read &&
           p1->close == p2->close &&
           p1->data == p2->data);
 }
+
+// check if prefix is a valid URI scheme format
+bool IsValidURISchemeFormat(const char* prefix) {
+  int len;
+
+  // prefix is NULL or empty
+  if (prefix == nullptr || !(len = std::strlen(prefix))) {
+    return false;
+  }
+
+  // first character must be a letter
+  if (!std::isalpha(prefix[0])) {
+    return false;
+  }
+
+  for (int i = 1; i < len; i++) {
+    // each following character must be a letter, digit, '+', '.', or '-'
+    if (!std::isalnum(prefix[i]) &&
+        (prefix[i] != '+') &&
+        (prefix[i] != '.') &&
+        (prefix[i] != '-')) {
+      return false;
+    }
+  }
+  return true;
+}
+
 }  // namespace
 
 // globally register a plugin (thread-safe), return new slot id
@@ -508,12 +548,7 @@ void mjp_defaultResourceProvider(mjpResourceProvider* provider) {
 // globally register a resource provider (thread-safe), return new slot id
 int mjp_registerResourceProvider(const mjpResourceProvider* provider) {
   // check against reserved prefixes
-  int n = std::strlen(provider->prefix),
-      m = std::strlen(kVfsPrefix);
-
-  // one of the prefixes is a subprefix of the other
-  if (!std::strncmp(kVfsPrefix, provider->prefix, n) ||
-      !std::strncmp(kVfsPrefix, provider->prefix, m)) {
+  if (PrefixesAreIdentical(kVfsPrefix, provider->prefix)) {
     mju_warning("provider->prefix is '%s' which is reserved", provider->prefix);
     return -1;
   }
@@ -523,8 +558,10 @@ int mjp_registerResourceProvider(const mjpResourceProvider* provider) {
 
 // internal version of mjp_registerResourceProvider without prechecks on reserved prefixes
 int mjp_registerResourceProviderInternal(const mjpResourceProvider* provider) {
-  if (!provider->prefix || provider->prefix[0] == '\0') {
-    mju_warning("provider->prefix is an empty string");
+    // check if prefix is valid URI scheme format
+  if (!IsValidURISchemeFormat(provider->prefix)) {
+    mju_warning("provider->prefix is '%s' which is not a valid URI scheme format",
+                provider->prefix);
     return -1;
   }
 
@@ -544,7 +581,7 @@ int mjp_registerResourceProviderInternal(const mjpResourceProvider* provider) {
     std::unique_ptr<char[]> prefix;
 
     // check if this is a VFS provider
-    if (!std::strcmp(mjVFS_PREFIX, provider->prefix)) {
+    if (PrefixesAreIdentical(mjVFS_PREFIX, provider->prefix)) {
       vfs_provider = true;
     }
 
@@ -589,13 +626,8 @@ int mjp_registerResourceProviderInternal(const mjpResourceProvider* provider) {
       }
 
       if (!vfs_provider && existing.prefix != nullptr) {
-        int n = std::strlen(provider->prefix);
-        int m = std::strlen(existing.prefix);
-
-        // one of the prefixes is a subprefix of the other
-        if (!std::strncmp(existing.prefix, provider->prefix, n) ||
-            !std::strncmp(existing.prefix, provider->prefix, m)) {
-          // if identical then return slot number
+        // if identical then return slot number
+        if (PrefixesAreIdentical(provider->prefix, existing.prefix)) {
           if (ResourceProvidersAreIdentical(provider, &existing)) {
             return i;
           } else {
@@ -691,20 +723,34 @@ int mjp_resourceProviderCount() {
   return GetGlobal<mjpResourceProvider>().count().load(std::memory_order_acquire);
 }
 
-// look up a resource provider that matches its prefix against the given resource name
+// look up a resource provider that matches its prefix against the given resource scheme
 const mjpResourceProvider* mjp_getResourceProvider(const char* resource_name) {
   const int count = mjp_resourceProviderCount();
   if (!resource_name || !resource_name[0]) {
     return nullptr;
   }
 
+  const char* ch = std::strchr(resource_name, ':');
+  if (ch == nullptr) {
+    return nullptr;
+  }
+
+  int n = ch - resource_name;
+  std::string file_prefix = std::string(resource_name, n);
+
+  // return NULL if file_prefix doesn't have a valid URI scheme syntax
+  if (!IsValidURISchemeFormat(file_prefix.c_str())) {
+    return nullptr;
+  }
+
   // since multiple VFS resource providers can be registered with the same
   // prefix, it doesn't make sense to try to match against them
-  if (!std::strncmp(kVfsPrefix, resource_name, std::strlen(kVfsPrefix))) {
+  if (PrefixesAreIdentical(kVfsPrefix, file_prefix.c_str())) {
     return nullptr;
   }
 
   Global<mjpResourceProvider>& global = GetGlobal<mjpResourceProvider>();
+  auto lock = global.lock_mutex_exclusively();
   PluginTable<mjpResourceProvider>* table = &global.table();
   int found_slot = 0;
 
@@ -717,7 +763,7 @@ const mjpResourceProvider* mjp_getResourceProvider(const char* resource_name) {
       const char *prefix = provider.prefix;
 
       if (prefix != nullptr &&
-          !std::strncmp(prefix, resource_name, std::strlen(prefix))) {
+          PrefixesAreIdentical(prefix, file_prefix.c_str())) {
         return &provider;
       }
     }

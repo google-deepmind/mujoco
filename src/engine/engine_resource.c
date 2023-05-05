@@ -30,6 +30,21 @@ typedef struct {
   int nbuffer;
 } file_buffer;
 
+// helper function to fill data from resource provider into provider
+static void fillResource(const mjpResourceProvider* provider, mjResource* resource) {
+  if (provider == NULL) {
+    resource->read = NULL;
+    resource->close = NULL;
+    resource->getdir = NULL;
+    resource->provider_data = NULL;
+  } else {
+    resource->read = provider->read;
+    resource->close = provider->close;
+    resource->getdir = provider->getdir;
+    resource->provider_data = provider->data;
+  }
+}
+
 
 // open the given resource; if the name doesn't have a prefix matching with a
 // resource provider, then the default_provider is used
@@ -54,9 +69,7 @@ mjResource* mju_openResource(const char* name, int default_provider) {
   // find provider based off prefix of name
   provider = mjp_getResourceProvider(name);
   if (provider != NULL) {
-    resource->read = provider->read;
-    resource->close = provider->close;
-    resource->provider_data = provider->data;
+    fillResource(provider, resource);
     if (provider->open(resource)) {
       return resource;
     }
@@ -79,9 +92,8 @@ mjResource* mju_openResource(const char* name, int default_provider) {
       mju_free(resource);
       return NULL;
     }
-    resource->read = provider->read;
-    resource->close = provider->close;
-    resource->provider_data = provider->data;
+
+    fillResource(provider, resource);
     if (provider->open(resource)) {
       return resource;
     }
@@ -96,9 +108,7 @@ mjResource* mju_openResource(const char* name, int default_provider) {
 
   // lastly fallback to OS filesystem
   else {
-    resource->read = NULL;
-    resource->close = NULL;
-    resource->provider_data = NULL;
+    fillResource(NULL, resource);
     resource->data = mju_malloc(sizeof(file_buffer));
     file_buffer* fb = (file_buffer*) resource->data;
     fb->buffer = mju_fileToMemory(name, &(fb->nbuffer));
@@ -152,13 +162,48 @@ int mju_readResource(mjResource* resource, const void** buffer) {
   }
 
 
-  // if provider is NULL, then OS filesystem is used
+  // if provider read callback is NULL, then OS filesystem is used
   const file_buffer* fb = (file_buffer*) resource->data;
   *buffer = fb->buffer;
   return fb->nbuffer;
 }
 
 
+
+// get directory path of resource
+void mju_getResourceDir(mjResource* resource, const char** dir, int* ndir) {
+  *dir = NULL;
+  *ndir = 0;
+
+  if (resource == NULL) {
+    return;
+  }
+
+  // provider is not OS filesystem
+  if (resource->read) {
+    if (resource->getdir) {
+      resource->getdir(resource, dir, ndir);
+    }
+  } else {
+    mju_getfiledir(resource->name, dir, ndir);
+  }
+}
+
+
+
+// get directory path of file in OS filesystem
+void mju_getfiledir(const char* filename, const char** dir, int* ndir) {
+  *dir = NULL;
+  *ndir = 0;
+  char* ch;
+
+  if ((filename != NULL) &&
+      ((ch = strrchr(filename, '/')) ||
+       (ch = strrchr(filename, '\\')))) {
+    *dir = filename;
+    *ndir = (int)(ch - filename) + 1;
+  }
+}
 
 // read file into memory buffer (allocated here with mju_malloc)
 void* mju_fileToMemory(const char* filename, int* filesize) {

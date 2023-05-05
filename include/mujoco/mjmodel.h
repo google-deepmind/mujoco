@@ -390,6 +390,9 @@ struct mjResource_ {
 
   // closing callback from resource provider
   void (*close)(struct mjResource_* resource);
+
+  // getdir callback from resource provider
+  void (*getdir)(struct mjResource_* resource, const char** dir, int* ndir);
 };
 typedef struct mjResource_ mjResource;
 

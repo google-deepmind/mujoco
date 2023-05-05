@@ -624,6 +624,9 @@ struct mjResource_ {
 
   // closing callback from resource provider
   void (*close)(struct mjResource_* resource);
+
+  // getdir callback from resource provider
+  void (*getdir)(struct mjResource_* resource, const char** dir, int* ndir);
 };
 typedef struct mjResource_ mjResource;
 struct mjOption_ {                // physics options
@@ -1198,11 +1201,12 @@ struct mjModel_ {
 };
 typedef struct mjModel_ mjModel;
 struct mjpResourceProvider_ {
-  const char* prefix;             // prefix for match against a resource name
-  mjfOpenResource open;           // opening callback
-  mjfReadResource read;           // reading callback
-  mjfCloseResource close;         // closing callback
-  void* data;                     // opaque data pointer (resource invariant)
+  const char* prefix;                // prefix for match against a resource name
+  mjfOpenResource open;              // opening callback
+  mjfReadResource read;              // reading callback
+  mjfCloseResource close;            // closing callback
+  mjfGetResourceDir getdir;          // getdir callback (optional)
+  void* data;                        // opaque data pointer (resource invariant)
 };
 typedef struct mjpResourceProvider_ mjpResourceProvider;
 typedef enum mjtPluginCapabilityBit_ {

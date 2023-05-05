@@ -2114,7 +2114,7 @@ void mjCHField::LoadPNG(mjResource* resource) {
 
 
 // compiler
-void mjCHField::Compile(int default_provider) {
+void mjCHField::Compile(int vfs_provider) {
   // check size parameters
   for (int i=0; i<4; i++)
     if (size[i]<=0)
@@ -2136,7 +2136,7 @@ void mjCHField::Compile(int default_provider) {
 
     // make filename
     string filename = mjuu_makefullname(model->modelfiledir, model->meshdir, file);
-    mjResource* resource = LoadResource(filename, default_provider);
+    mjResource* resource = LoadResource(filename, vfs_provider);
 
     // load depending on format
     string ext = mjuu_getext(filename);
@@ -2530,12 +2530,12 @@ void mjCTexture::LoadCustom(mjResource* resource,
 
 
 // load from PNG or custom file, flip if specified
-void mjCTexture::LoadFlip(string filename, int default_provider,
+void mjCTexture::LoadFlip(string filename, int vfs_provider,
                           std::vector<unsigned char>& image,
                           unsigned int& w, unsigned int& h) {
   // dispatch to PNG or Custom loaded
   string ext = mjuu_getext(filename);
-  mjResource* resource = LoadResource(filename, default_provider);
+  mjResource* resource = LoadResource(filename, vfs_provider);
 
   try {
     if (!strcasecmp(ext.c_str(), ".png")) {
@@ -2597,11 +2597,11 @@ void mjCTexture::LoadFlip(string filename, int default_provider,
 
 
 // load 2D
-void mjCTexture::Load2D(string filename, int default_provider) {
+void mjCTexture::Load2D(string filename, int vfs_provider) {
   // load PNG or custom
   unsigned int w, h;
   std::vector<unsigned char> image;
-  LoadFlip(filename, default_provider, image, w, h);
+  LoadFlip(filename, vfs_provider, image, w, h);
 
   // assign size
   width = w;
@@ -2620,7 +2620,7 @@ void mjCTexture::Load2D(string filename, int default_provider) {
 
 
 // load cube or skybox from single file (repeated or grid)
-void mjCTexture::LoadCubeSingle(string filename, int default_provider) {
+void mjCTexture::LoadCubeSingle(string filename, int vfs_provider) {
   // check gridsize
   if (gridsize[0]<1 || gridsize[1]<1 || gridsize[0]*gridsize[1]>12) {
     throw mjCError(this,
@@ -2631,7 +2631,7 @@ void mjCTexture::LoadCubeSingle(string filename, int default_provider) {
   // load PNG or custom
   unsigned int w, h;
   std::vector<unsigned char> image;
-  LoadFlip(filename, default_provider, image, w, h);
+  LoadFlip(filename, vfs_provider, image, w, h);
 
   // check gridsize for compatibility
   if (w/gridsize[1]!=h/gridsize[0] || (w%gridsize[1]) || (h%gridsize[0])) {
@@ -2720,7 +2720,7 @@ void mjCTexture::LoadCubeSingle(string filename, int default_provider) {
 
 
 // load cube or skybox from separate file
-void mjCTexture::LoadCubeSeparate(int default_provider) {
+void mjCTexture::LoadCubeSeparate(int vfs_provider) {
   // keep track of which faces were defined
   int loaded[6] = {0, 0, 0, 0, 0, 0};
 
@@ -2738,7 +2738,7 @@ void mjCTexture::LoadCubeSeparate(int default_provider) {
       // load PNG or custom
       unsigned int w, h;
       std::vector<unsigned char> image;
-      LoadFlip(filename, default_provider, image, w, h);
+      LoadFlip(filename, vfs_provider, image, w, h);
 
       // PNG must be square
       if (w!=h) {
@@ -2792,7 +2792,7 @@ void mjCTexture::LoadCubeSeparate(int default_provider) {
 
 
 // compiler
-void mjCTexture::Compile(int default_provider) {
+void mjCTexture::Compile(int vfs_provider) {
   // builtin
   if (builtin!=mjBUILTIN_NONE) {
     // check size
@@ -2835,9 +2835,9 @@ void mjCTexture::Compile(int default_provider) {
 
     // dispatch
     if (type==mjTEXTURE_2D) {
-      Load2D(filename, default_provider);
+      Load2D(filename, vfs_provider);
     } else {
-      LoadCubeSingle(filename, default_provider);
+      LoadCubeSingle(filename, vfs_provider);
     }
   }
 
@@ -2865,7 +2865,7 @@ void mjCTexture::Compile(int default_provider) {
     }
 
     // only cube and skybox
-    LoadCubeSeparate(default_provider);
+    LoadCubeSeparate(vfs_provider);
   }
 
   // make sure someone allocated data; SHOULD NOT OCCUR

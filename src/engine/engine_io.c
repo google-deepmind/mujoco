@@ -621,7 +621,7 @@ void mj_saveModel(const mjModel* m, const char* filename, void* buffer, int buff
 
 
 // load model from binary MJB resource
-static mjModel* _mj_loadModel(const char* filename, int default_provider) {
+static mjModel* _mj_loadModel(const char* filename, int vfs_provider) {
   int header[4] = {0};
   int expected_header[4] = {ID, sizeof(mjtNum), getnint(), getnptr()};
   int info[2000];
@@ -629,7 +629,7 @@ static mjModel* _mj_loadModel(const char* filename, int default_provider) {
   mjModel *m = 0;
   mjResource* r = NULL;
 
-  if((r = mju_openResource(filename, default_provider)) == NULL) {
+  if((r = mju_openResource(filename, vfs_provider)) == NULL) {
     return NULL;
   }
 

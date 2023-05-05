@@ -26,6 +26,7 @@ General
 - Added :ref:`mj_multiRay` function for intersecting multiple rays emanating from a single point.
   This is significantly faster than calling :ref:`mj_ray` multiple times.
 - Increased ``mjMAXUIITEM`` (maximum number of UI elements per section in Simulate) to 100.
+- Added :ref:`documentation<exProvider>` for resource providers.
 
 Version 2.3.5 (April 25, 2023)
 ------------------------------
@@ -66,7 +67,7 @@ General
 #. Added midphase and broadphase collision statistics to :ref:`mjData`.
 #. Added documentation for :ref:`engine plugins<exPlugin>`.
 #. Added struct information to the ``introspect`` module.
-#. Added a new extension mechanism called "resource provider" . This extensible mechanism allows MuJoCo
+#. Added a new extension mechanism called :ref:`resource providers<exProvider>`. This extensible mechanism allows MuJoCo
    to read assets from data sources other than the local OS filesystem or
    the :ref:`Virtual file system<Virtualfilesystem>`.
 

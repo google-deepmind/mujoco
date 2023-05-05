@@ -176,7 +176,7 @@ template <typename T> static T* VecToArray(std::vector<T>& vector,  bool clear =
 
 
 // compiler
-void mjCMesh::Compile(int default_provider) {
+void mjCMesh::Compile(int vfs_provider) {
   // load file
   if (!file.empty()) {
     // remove path from file if necessary
@@ -193,7 +193,7 @@ void mjCMesh::Compile(int default_provider) {
     }
 
     string filename = mjuu_makefullname(model->modelfiledir, model->meshdir, file);
-    mjResource* resource = LoadResource(filename, default_provider);
+    mjResource* resource = LoadResource(filename, vfs_provider);
 
     try {
       if (!strcasecmp(ext.c_str(), ".stl")) {
@@ -1535,7 +1535,7 @@ mjCSkin::~mjCSkin() {
 
 
 // compiler
-void mjCSkin::Compile(int default_provider) {
+void mjCSkin::Compile(int vfs_provider) {
 
   // load file
   if (!file.empty()) {
@@ -1564,7 +1564,7 @@ void mjCSkin::Compile(int default_provider) {
     }
 
     string filename = mjuu_makefullname(model->modelfiledir, model->meshdir, file);
-    mjResource* resource = LoadResource(filename, default_provider);
+    mjResource* resource = LoadResource(filename, vfs_provider);
 
     try {
       LoadSKN(resource);

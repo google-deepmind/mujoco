@@ -671,6 +671,17 @@ information is then filled-in by the simulator.
 .. mujoco-include:: mjContact
 
 
+.. _mjResource:
+
+mjResource
+~~~~~~~~~~
+
+A resource is an abstraction of a file in a filesystem. The name field is the unique name of the resource while the
+other fields are populated by a :ref:`resource provider <exProvider>`.
+
+.. mujoco-include:: mjResource
+
+
 .. _mjVFS:
 
 mjVFS
@@ -960,7 +971,15 @@ triggered by the compiler and the engine during various phases of the computatio
 
 .. mujoco-include:: mjpPlugin
 
+.. _mjpResourceProvider:
 
+mjpResourceProvider
+~~~~~~~~~~~~~~~~~~~
+
+This data structure contains the definition of a :ref:`resource provider <exProvider>`. It contains a set of callbacks
+used for opening and reading resources.
+
+.. mujoco-include:: mjpResourceProvider
 
 .. _tyFunction:
 
@@ -1074,6 +1093,57 @@ mjfItemEnable
 This is the function type of the predicate function used by the UI framework to determine if each item is enabled or
 disabled.
 
+.. _tyRPCallbacks:
+
+Resource Provider Callbacks
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+These callbacks are used by :ref:`resource providers<exProvider>`.
+
+.. _mjfOpenResource:
+
+mjfOpenResource
+~~~~~~~~~~~~~~~
+
+.. code-block:: C
+
+   typedef int (*mjfOpenResource)(mjResource* resource);
+
+This callback is for opeing a resource; returns zero on failure.
+
+.. _mjfReadResource:
+
+mjfReadResource
+~~~~~~~~~~~~~~~
+
+.. code-block:: C
+
+   typedef int (*mjfReadResource)(mjResource* resource, const void** buffer);
+
+This callback is for reading a resource. Returns number of bytes stored in buffer and returns -1 on error.
+
+.. _mjfCloseResource:
+
+mjfCloseResource
+~~~~~~~~~~~~~~~~
+
+.. code-block:: C
+
+   typedef void (*mjfCloseResource)(mjResource* resource);
+
+This callback is for closing a resource, and is responsible for freeing any allocated memory.
+
+.. _mjfGetResourceDir:
+
+mjfGetResourceDir
+~~~~~~~~~~~~~~~~~
+
+.. code-block:: C
+
+   typedef void (*mjfGetResourceDir)(mjResource* resource, const char** dir, int* ndir);
+
+This callback is for returning the directory of a resource, by setting dir to the directory string with ndir being size
+of directory string.
 
 .. _tyNotes:
 

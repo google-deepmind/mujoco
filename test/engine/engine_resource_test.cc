@@ -24,6 +24,7 @@
 #include <mujoco/mujoco.h>
 #include "src/engine/engine_plugin.h"
 #include "src/engine/engine_resource.h"
+#include "src/engine/engine_vfs.h"
 #include "test/fixture.h"
 
 namespace mujoco {
@@ -41,7 +42,7 @@ int open_nop(mjResource* resource) {
 }
 
 int open_str(mjResource* resource) {
-  if (std::strcmp(resource->name, "str://file")) {
+  if (std::strcmp(resource->name, "str:file")) {
     return 0;
   }
 
@@ -67,7 +68,7 @@ void close_str(mjResource* resource) {
 }
 
 TEST_F(ResourceTest, RegisterProviderSuccess) {
-  mjpResourceProvider provider = {"myprefix", open_nop, read_nop, close_nop,
+  mjpResourceProvider provider = {"my-prefix.123+45", open_nop, read_nop, close_nop,
                                   nullptr};
 
   int count1 = mjp_resourceProviderCount();
@@ -97,7 +98,7 @@ TEST_F(ResourceTest, RegisterProviderMissingCallbacks) {
 }
 
 TEST_F(ResourceTest, RegisterProviderMissingPrefix) {
-  mjpResourceProvider provider = {"", open_nop, read_nop, close_nop, nullptr};
+  mjpResourceProvider provider = {"", open_nop, read_nop, close_nop, nullptr, nullptr};
 
   // install warning handler
   static char warning[1024];
@@ -113,12 +114,8 @@ TEST_F(ResourceTest, RegisterProviderMissingPrefix) {
   EXPECT_LT(i, 1);
 }
 
-TEST_F(ResourceTest, RegisterProviderSubPrefix) {
-  mjpResourceProvider provider = {"prefix", open_nop, read_nop, close_nop,
-                                  nullptr};
-
-  mjpResourceProvider provider2 = {"pre", open_nop, read_nop, close_nop,
-                                   nullptr};
+TEST_F(ResourceTest, RegisterProviderInvalidPrefix1) {
+  mjpResourceProvider provider = {"1invalid", open_nop, read_nop, close_nop, nullptr, nullptr};
 
   // install warning handler
   static char warning[1024];
@@ -128,21 +125,14 @@ TEST_F(ResourceTest, RegisterProviderSubPrefix) {
   };
 
   int i = mjp_registerResourceProvider(&provider);
-  int j = mjp_registerResourceProvider(&provider2);
 
-
-  // warning message related to an error
-  EXPECT_THAT(warning, HasSubstr("cannot be register"));
-  EXPECT_GT(i, 0);
-  EXPECT_LT(j, 1);
+  // warning message related to missing prefix
+  EXPECT_THAT(warning, HasSubstr("prefix"));
+  EXPECT_LT(i, 1);
 }
 
-TEST_F(ResourceTest, RegisterProviderSuperPrefix) {
-  mjpResourceProvider provider = {"prefix", open_nop, read_nop, close_nop,
-                                  nullptr};
-
-  mjpResourceProvider provider2 = {"prefix2", open_nop, read_nop, close_nop,
-                                   nullptr};
+TEST_F(ResourceTest, RegisterProviderInvalidPrefix2) {
+  mjpResourceProvider provider = {"invalid:", open_nop, read_nop, close_nop, nullptr, nullptr};
 
   // install warning handler
   static char warning[1024];
@@ -152,21 +142,18 @@ TEST_F(ResourceTest, RegisterProviderSuperPrefix) {
   };
 
   int i = mjp_registerResourceProvider(&provider);
-  int j = mjp_registerResourceProvider(&provider2);
 
-
-  // warning message related to an error
-  EXPECT_THAT(warning, HasSubstr("cannot be register"));
-  EXPECT_GT(i, 0);
-  EXPECT_LT(j, 1);
+  // warning message related to missing prefix
+  EXPECT_THAT(warning, HasSubstr("prefix"));
+  EXPECT_LT(i, 1);
 }
 
 TEST_F(ResourceTest, RegisterProviderSame) {
   mjpResourceProvider provider = {"prefix", open_nop, read_nop, close_nop,
-                                  nullptr};
+    nullptr, nullptr};
 
   mjpResourceProvider provider2 = {"prefix", open_nop, read_nop, close_nop,
-                                   nullptr};
+    nullptr, nullptr};
 
   int i1 = mjp_registerResourceProvider(&provider);
   int count1 = mjp_resourceProviderCount();
@@ -176,19 +163,35 @@ TEST_F(ResourceTest, RegisterProviderSame) {
 
   EXPECT_EQ(i1, i2);
   EXPECT_EQ(count1, count2);
+}
 
+TEST_F(ResourceTest, RegisterProviderSameCase) {
+  mjpResourceProvider provider = {"prefix", open_nop, read_nop, close_nop,
+    nullptr, nullptr};
+
+  mjpResourceProvider provider2 = {"PREFIX", open_nop, read_nop, close_nop,
+    nullptr, nullptr};
+
+  int i1 = mjp_registerResourceProvider(&provider);
+  int count1 = mjp_resourceProviderCount();
+
+  int i2 = mjp_registerResourceProvider(&provider2);
+  int count2 = mjp_resourceProviderCount();
+
+  EXPECT_EQ(i1, i2);
+  EXPECT_EQ(count1, count2);
 }
 
 TEST_F(ResourceTest, GeneralTest) {
-  mjpResourceProvider provider = {"str://", open_str, read_str, close_str,
-                                  nullptr};
+  mjpResourceProvider provider = {"str", open_str, read_str, close_str,
+    nullptr, nullptr};
 
   // register resource provider
   int i = mjp_registerResourceProvider(&provider);
   EXPECT_GT(i, 0);
 
   // open resource
-  mjResource* resource = mju_openResource("str://file", 0);
+  mjResource* resource = mju_openResource("str:file", 0);
   ASSERT_THAT(resource,  NotNull());
 
   const char* buffer = NULL;
@@ -200,8 +203,8 @@ TEST_F(ResourceTest, GeneralTest) {
 }
 
 TEST_F(ResourceTest, GeneralTestFailure) {
-  mjpResourceProvider provider = {"str://", open_str, read_str, close_str,
-                                  nullptr};
+  mjpResourceProvider provider = {"str", open_str, read_str, close_str,
+    nullptr, nullptr};
 
   // register resource provider
   int i = mjp_registerResourceProvider(&provider);
@@ -216,10 +219,99 @@ TEST_F(ResourceTest, GeneralTestFailure) {
   };
 
   // open resource
-  mjResource* resource = mju_openResource("str://notfound", 0);
-  ASSERT_THAT(resource,  IsNull());
+  mjResource* resource = mju_openResource("str:notfound", 0);
+  ASSERT_THAT(resource, IsNull());
 
   EXPECT_THAT(warning, HasSubstr("could not open"));
+}
+
+TEST_F(ResourceTest, NameWithValidPrefix) {
+  mjpResourceProvider provider = {"nop", open_nop, read_nop, close_nop,
+    nullptr, nullptr};
+
+  // register resource provider
+  int i = mjp_registerResourceProvider(&provider);
+  EXPECT_GT(i, 0);
+
+
+  // install warning handler
+  static char warning[1024];
+  warning[0] = '\0';
+  mju_user_warning = [](const char* msg) {
+    util::strcpy_arr(warning, msg);
+  };
+
+  // open resource
+  mjResource* resource = mju_openResource("nop:found", 0);
+  ASSERT_THAT(resource, NotNull());
+  mju_closeResource(resource);
+}
+
+TEST_F(ResourceTest, NameWithUpperCasePrefix) {
+  mjpResourceProvider provider = {"nop", open_nop, read_nop, close_nop,
+    nullptr, nullptr};
+
+  // register resource provider
+  int i = mjp_registerResourceProvider(&provider);
+  EXPECT_GT(i, 0);
+
+
+  // install warning handler
+  static char warning[1024];
+  warning[0] = '\0';
+  mju_user_warning = [](const char* msg) {
+    util::strcpy_arr(warning, msg);
+  };
+
+  // open resource
+  mjResource* resource = mju_openResource("NOP:found", 0);
+  ASSERT_THAT(resource, NotNull());
+  mju_closeResource(resource);
+}
+
+TEST_F(ResourceTest, NameWithInvalidPrefix) {
+  mjpResourceProvider provider = {"nop", open_nop, read_nop, close_nop,
+    nullptr, nullptr};
+
+  // register resource provider
+  int i = mjp_registerResourceProvider(&provider);
+  EXPECT_GT(i, 0);
+
+
+  // install warning handler
+  static char warning[1024];
+  warning[0] = '\0';
+  mju_user_warning = [](const char* msg) {
+    util::strcpy_arr(warning, msg);
+  };
+
+  // open resource
+  mjResource* resource = mju_openResource("nopfound", 0);
+  ASSERT_THAT(resource, IsNull());
+}
+
+TEST_F(ResourceTest, VFSProvider) {
+  // load VFS on the heap
+  auto vfs = std::make_unique<mjVFS>();
+  mj_defaultVFS(vfs.get());
+  mj_makeEmptyFileVFS(vfs.get(), "file", 1);
+
+  // register resource provider
+  int i = mj_registerVfsProvider(vfs.get());
+  EXPECT_GT(i, 0);
+
+
+  // install warning handler
+  static char warning[1024];
+  warning[0] = '\0';
+  mju_user_warning = [](const char* msg) {
+    util::strcpy_arr(warning, msg);
+  };
+
+  // open resource
+  mjResource* resource = mju_openResource("vfs:file", 0);
+  ASSERT_THAT(resource, IsNull());
+  mj_deleteFileVFS(vfs.get(), "file");
 }
 
 }  // namespace

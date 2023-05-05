@@ -251,6 +251,18 @@ static void vfs_close_callback(mjResource* resource) {
 
 
 
+// getdir callback for the VFS resource provider
+static void vfs_getdir_callback(mjResource* resource, const char** dir, int* ndir) {
+  *dir = NULL;
+  *ndir = 0;
+
+  if (resource) {
+    mju_getfiledir(resource->name, dir, ndir);
+  }
+}
+
+
+
 // registers a VFS resource provider; returns the index of the provider
 int mj_registerVfsProvider(const mjVFS* vfs) {
   mjpResourceProvider provider = {
@@ -258,6 +270,7 @@ int mj_registerVfsProvider(const mjVFS* vfs) {
     .open = &vfs_open_callback,
     .read = &vfs_read_callback,
     .close = &vfs_close_callback,
+    .getdir = &vfs_getdir_callback,
     .data = (void*) vfs
   };
 

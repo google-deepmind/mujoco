@@ -543,7 +543,7 @@ class mjCMesh: public mjCBase {
  private:
   mjCMesh(mjCModel* = 0, mjCDef* = 0);        // constructor
   ~mjCMesh();                                 // destructor
-  void Compile(int default_provider);         // compiler
+  void Compile(int vfs_provider);             // compiler
   void LoadOBJ(mjResource* resource);         // load mesh in wavefront OBJ format
   void LoadSTL(mjResource* resource);         // load mesh in STL BIN format
   void LoadMSH(mjResource* resource);         // load mesh in MSH BIN format
@@ -625,7 +625,7 @@ class mjCSkin: public mjCBase {
  private:
   mjCSkin(mjCModel* = 0);                     // constructor
   ~mjCSkin();                                 // destructor
-  void Compile(int default_provider);         // compiler
+  void Compile(int vfs_provider);             // compiler
   void LoadSKN(mjResource* resource);         // load skin in SKN BIN format
 
   int matid;                          // material id
@@ -651,7 +651,7 @@ class mjCHField : public mjCBase {
  private:
   mjCHField(mjCModel* model);             // constructor
   ~mjCHField();                           // destructor
-  void Compile(int default_provider);     // compiler
+  void Compile(int vfs_provider);         // compiler
 
   void LoadCustom(mjResource* resource);  // load from custom format
   void LoadPNG(mjResource* resource);     // load from PNG format
@@ -695,15 +695,15 @@ class mjCTexture : public mjCBase {
  private:
   mjCTexture(mjCModel*);                  // constructor
   ~mjCTexture();                          // destructior
-  void Compile(int default_provider);     // compiler
+  void Compile(int vfs_provider);         // compiler
 
   void Builtin2D(void);                   // make builtin 2D
   void BuiltinCube(void);                 // make builtin cube
-  void Load2D(std::string filename, int default_provider);         // load 2D from file
-  void LoadCubeSingle(std::string filename, int default_provider); // load cube from single file
-  void LoadCubeSeparate(int default_provider);                     // load cube from separate files
+  void Load2D(std::string filename, int vfs_provider);         // load 2D from file
+  void LoadCubeSingle(std::string filename, int vfs_provider); // load cube from single file
+  void LoadCubeSeparate(int vfs_provider);                     // load cube from separate files
 
-  void LoadFlip(std::string filename, int default_provider,   // load and flip
+  void LoadFlip(std::string filename, int vfs_provider,        // load and flip
                 std::vector<unsigned char>& image,
                 unsigned int& w, unsigned int& h);
 
