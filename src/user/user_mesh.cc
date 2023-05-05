@@ -22,7 +22,9 @@
 #include <string>
 #include <vector>
 
+#ifdef MUJOCO_TINYOBJLOADER_IMPL
 #define TINYOBJLOADER_IMPLEMENTATION
+#endif
 
 #include <mujoco/mjmodel.h>
 #include "cc/array_safety.h"
