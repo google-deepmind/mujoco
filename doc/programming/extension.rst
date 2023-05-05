@@ -254,7 +254,7 @@ Resource providers
 
 Resource providers extend MuJoCo to load assets (XML files, meshes, textures, and etc.) that don't necessarily come from
 the OS filesystem or the Virtual File System (:ref:`mjVFS`). For example, downloading assets from the Internet could be
-implemented as a resource provider. These extensions are handle abstractly in MuJoCo via the :ref:`mjResource` struct.
+implemented as a resource provider. These extensions are handled abstractly in MuJoCo via the :ref:`mjResource` struct.
 
 .. _exProviderStructure:
 
@@ -281,7 +281,7 @@ Resource prefix
 Callbacks
   There are three callbacks that a resource provider is required to implement: :ref:`open<mjfOpenResource>`,
   :ref:`read<mjfReadResource>`, and :ref:`close<mjfCloseResource>`. A fourth callback :ref:`getdir<mjfGetResourceDir>`
-  which is optional.  More details on these callbacks are given below.
+  is optional.  More details on these callbacks are given below.
 
 Data Pointer
   Lastly, there's an opaque data pointer for the provider to pass data into the callbacks. This data pointer is constant
