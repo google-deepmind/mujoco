@@ -253,11 +253,12 @@ static void vfs_close_callback(mjResource* resource) {
 
 // getdir callback for the VFS resource provider
 static void vfs_getdir_callback(mjResource* resource, const char** dir, int* ndir) {
-  *dir = NULL;
-  *ndir = 0;
-
   if (resource) {
-    mju_getfiledir(resource->name, dir, ndir);
+    *dir = resource->name;
+    *ndir = mju_dirnamelen(resource->name);
+  } else {
+    *dir = NULL;
+    *ndir = 0;
   }
 }
 

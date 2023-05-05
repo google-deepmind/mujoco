@@ -175,7 +175,7 @@ void mju_getResourceDir(mjResource* resource, const char** dir, int* ndir) {
   *dir = NULL;
   *ndir = 0;
 
-  if (resource == NULL) {
+  if (!resource) {
     return;
   }
 
@@ -185,25 +185,30 @@ void mju_getResourceDir(mjResource* resource, const char** dir, int* ndir) {
       resource->getdir(resource, dir, ndir);
     }
   } else {
-    mju_getfiledir(resource->name, dir, ndir);
+    *dir = resource->name;
+    *ndir = mju_dirnamelen(resource->name);
   }
 }
 
 
 
-// get directory path of file in OS filesystem
-void mju_getfiledir(const char* filename, const char** dir, int* ndir) {
-  *dir = NULL;
-  *ndir = 0;
-  char* ch;
-
-  if ((filename != NULL) &&
-      ((ch = strrchr(filename, '/')) ||
-       (ch = strrchr(filename, '\\')))) {
-    *dir = filename;
-    *ndir = (int)(ch - filename) + 1;
+// get the length of the dirname portion of a given path
+int mju_dirnamelen(const char* path) {
+  if (!path) {
+    return 0;
   }
+
+  int pos = -1;
+  for (int i = 0; path[i] && i >= 0; ++i) {
+    if (path[i] == '/' || path[i] == '\\') {
+      pos = i;
+    }
+  }
+
+  return pos + 1;
 }
+
+
 
 // read file into memory buffer (allocated here with mju_malloc)
 void* mju_fileToMemory(const char* filename, int* filesize) {
