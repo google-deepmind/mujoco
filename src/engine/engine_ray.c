@@ -957,9 +957,11 @@ static mjtNum mju_singleRay(const mjModel* m, mjData* d, const mjtNum pnt[3], co
     // exclude body using bounding sphere test
     if (m->body_bvhadr[b] != -1) {
       mjtNum* pos = m->bvh_aabb + 6*m->body_bvhadr[b];
+      mjtNum center[3];
       mjtNum* size = pos + 3;
       mjtNum ssz = size[0]*size[0] + size[1]*size[1] + size[2]*size[2];
-      if (ray_sphere(pos, NULL, ssz, pnt, vec)<0) {
+      mju_add3(center, pos, d->xipos+3*b);
+      if (ray_sphere(center, NULL, ssz, pnt, vec)<0) {
         continue;
       }
     }

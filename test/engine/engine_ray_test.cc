@@ -29,7 +29,9 @@ namespace {
 static constexpr char kSingleGeomModel[] = R"(
 <mujoco>
   <worldbody>
-    <geom type="sphere" size=".1" pos="0 0 0"/>
+    <body pos="-1 0 0">
+      <geom type="sphere" size=".1"/>
+    </body>
   </worldbody>
 </mujoco>
 )";
@@ -200,7 +202,7 @@ TEST_F(RayTest, EdgeCases) {
   int rgeomid;
 
   // pnt contained in bounding box
-  mjtNum pnt1[] = {0, 0, 0};
+  mjtNum pnt1[] = {-1, 0, 0};
   mju_multiRayPrepare(m, d, pnt1, NULL, NULL, 1, -1, geom_ba, NULL);
   EXPECT_FLOAT_EQ(geom_ba[0], -mjPI);
   EXPECT_FLOAT_EQ(geom_ba[1],  0);
@@ -211,13 +213,13 @@ TEST_F(RayTest, EdgeCases) {
   EXPECT_FLOAT_EQ(dist, 0.1);
 
   // pnt at phi = Pi, -Pi
-  mjtNum pnt2[] = {1, 0, 0};
+  mjtNum pnt2[] = {-.5, 0, 0};
   mju_multiRayPrepare(m, d, pnt2, NULL, NULL, 1, -1, geom_ba, NULL);
   EXPECT_FLOAT_EQ(geom_ba[0], -mjPI);  // atan(y<0, x<0)
   EXPECT_FLOAT_EQ(geom_ba[2],  mjPI);  // atan(y>0, x<0)
   mjtNum vec2[] = {-1, 0, 0};
   mj_multiRay(m, d, pnt2, vec2, NULL, 1, -1, &rgeomid, &dist, 1);
-  EXPECT_FLOAT_EQ(dist, 0.9);
+  EXPECT_FLOAT_EQ(dist, 0.4);
 
   // pnt on the boundary of the box
   mjtNum pnt3[] = {.1, .1, .05};
@@ -229,7 +231,7 @@ TEST_F(RayTest, EdgeCases) {
   EXPECT_FLOAT_EQ(dist, -1);
 
   // size 0 geom
-  mjtNum pnt4[] = {-1, 0, 0};
+  mjtNum pnt4[] = {-2, 0, 0};
   m->geom_aabb[0] = m->geom_aabb[1] = m->geom_aabb[2] = 0;
   m->geom_aabb[3] = m->geom_aabb[4] = m->geom_aabb[5] = 0;
   mju_multiRayPrepare(m, d, pnt4, NULL, NULL, 1, -1, geom_ba, NULL);
