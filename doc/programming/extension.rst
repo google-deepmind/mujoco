@@ -301,6 +301,7 @@ Resource providers work via callbacks:
 - :ref:`mjfGetResourceDir<mjfGetResourceDir>`: This callback is optional and is used to extract the directory from a
   resource name.  For example, the resource name ``http://www.example.com/myasset.obj`` would have
   ``http://www.example.com/`` as its directory.
+
 .. _exProviderUsage:
 
 Usage

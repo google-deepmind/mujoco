@@ -20,13 +20,23 @@ General
 ^^^^^^^
 
 - Added :ref:`mjd_inverseFD` for finite-differenced inverse-dynamics derivatives.
-- Added functions for operations on banded-then-dense "arrowhead" matrices. Such matrices are
-  common when doing direct trajectory optimization.
-  See :ref:`mju_cholFactorBand` documentation for details.
+- Added functions for operations on banded-then-dense "arrowhead" matrices. Such matrices are common when doing direct
+  trajectory optimization. See :ref:`mju_cholFactorBand` documentation for details.
 - Added :ref:`mj_multiRay` function for intersecting multiple rays emanating from a single point.
   This is significantly faster than calling :ref:`mj_ray` multiple times.
 - Increased ``mjMAXUIITEM`` (maximum number of UI elements per section in Simulate) to 100.
 - Added :ref:`documentation<exProvider>` for resource providers.
+- Changed the formula for :ref:`mju_sigmoid`, a finite-support sigmoid :math:`s \colon \mathbf R \rightarrow [0, 1]`.
+  Previously, the smooth part consisted of two stitched quadratics, once continuously differentiable.
+  It is now a single quintic, twice continuously differentiable:
+
+  .. math::
+     s(x) =
+     \begin{cases}
+        0,                    &       & x \le 0  \\
+        6x^5 - 15x^4 + 10x^3, & 0 \lt & x \lt 1  \\
+        1,                    & 1 \le & x \qquad
+     \end{cases}
 
 Version 2.3.5 (April 25, 2023)
 ------------------------------

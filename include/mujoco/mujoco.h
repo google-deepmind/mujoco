@@ -1216,7 +1216,7 @@ MJAPI mjtNum mju_Halton(int index, int base);
 // Call strncpy, then set dst[n-1] = 0.
 MJAPI char* mju_strncpy(char *dst, const char *src, int n);
 
-// Sigmoid function over 0<=x<=1 constructed from half-quadratics.
+// Sigmoid function over 0<=x<=1 using quintic polynomial.
 MJAPI mjtNum mju_sigmoid(mjtNum x);
 
 

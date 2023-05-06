@@ -3160,7 +3160,7 @@ mju_sigmoid
 
 .. mujoco-include:: mju_sigmoid
 
-Sigmoid function over 0<=x<=1 constructed from half-quadratics.
+Sigmoid function over 0<=x<=1 using quintic polynomial.
 
 .. _Derivatives-api:
 

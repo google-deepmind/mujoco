@@ -7752,7 +7752,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  type=ValueType(name='mjtNum'),
              ),
          ),
-         doc='Sigmoid function over 0<=x<=1 constructed from half-quadratics.',
+         doc='Sigmoid function over 0<=x<=1 using quintic polynomial.',
      )),
     ('mjd_transitionFD',
      FunctionDecl(

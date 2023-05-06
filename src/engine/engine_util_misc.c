@@ -1156,7 +1156,7 @@ char* mju_strncpy(char *dst, const char *src, int n) {
 
 
 
-// Sigmoid function over 0<=x<=1 constructed from half-quadratics.
+// sigmoid function over 0<=x<=1 using quintic polynomial
 mjtNum mju_sigmoid(mjtNum x) {
   // fast return
   if (x<=0) {
@@ -1165,15 +1165,8 @@ mjtNum mju_sigmoid(mjtNum x) {
   if (x>=1) {
     return 1;
   }
-  if (x==0.5) {
-    return 0.5;
-  }
 
-  // lower part
-  if (x<0.5) {
-    return 2*x*x;
-  }
-
-  // higher part
-  return (1 - 2*(1-x)*(1-x));
+  // sigmoid: f(x) = 6*x^5 - 15*x^4 + 10*x^3
+  // solution of f(0) = f'(0) = f''(0) = 0, f(1) = 1, f'(1) = f''(1) = 0
+  return x*x*x * (3*x * (2*x - 5) + 10);
 }

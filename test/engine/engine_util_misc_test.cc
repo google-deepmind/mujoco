@@ -18,12 +18,14 @@
 #include <gtest/gtest.h>
 #include <mujoco/mjdata.h>
 #include <mujoco/mujoco.h>
+#include "src/engine/engine_util_misc.h"
 #include "test/fixture.h"
 
 namespace mujoco {
 namespace {
 
 using ::testing::HasSubstr;
+using ::testing::DoubleNear;
 
 TEST_F(MujocoTest, PrintsMemoryWarning) {
   EXPECT_THAT(mju_warningText(mjWARN_CNSTRFULL, pow(2, 10)),
@@ -40,6 +42,32 @@ TEST_F(MujocoTest, PrintsMemoryWarning) {
               HasSubstr("1E bytes"));
   EXPECT_THAT(mju_warningText(mjWARN_CNSTRFULL, pow(2, 30) + 1),
               HasSubstr("1073741825 bytes"));
+}
+
+TEST_F(MujocoTest, Sigmoid) {
+  // function values
+  EXPECT_EQ(mju_sigmoid(-1),  0);
+  EXPECT_EQ(mju_sigmoid(0),   0);
+  EXPECT_EQ(mju_sigmoid(0.5), 0.5);
+  EXPECT_EQ(mju_sigmoid(1),   1);
+  EXPECT_EQ(mju_sigmoid(2),   1);
+
+  // epsilon for finite-differencing
+  const mjtNum dx = 1e-7;
+
+  // derivative at 0
+  mjtNum dy_dx_0 = (mju_sigmoid(0 + dx) - mju_sigmoid(0)) / dx;
+  EXPECT_THAT(dy_dx_0, DoubleNear(0, dx));
+
+  // derivative at 1
+  mjtNum dy_dx_1 = (mju_sigmoid(1) - mju_sigmoid(1 - dx)) / dx;
+  EXPECT_THAT(dy_dx_1, DoubleNear(0, dx));
+
+  // derivative at 0.5
+  const mjtNum x = 0.5;
+  mjtNum dy_dx_0p5 = (mju_sigmoid(x + dx) - mju_sigmoid(x - dx)) / (2*dx);
+  mjtNum expected = 30*x*x*x*x - 60*x*x*x + 30*x*x;
+  EXPECT_THAT(dy_dx_0p5, DoubleNear(expected, dx));
 }
 
 }  // namespace
