@@ -1224,14 +1224,11 @@ void mj_contactForce(const mjModel* m, const mjData* d, int id, mjtNum result[6]
 // compute velocity by finite-differencing two positions
 void mj_differentiatePos(const mjModel* m, mjtNum* qvel, mjtNum dt,
                          const mjtNum* qpos1, const mjtNum* qpos2) {
-  int padr, vadr;
-  mjtNum neg[4], dif[4];
-
   // loop over joints
   for (int j=0; j<m->njnt; j++) {
     // get addresses in qpos and qvel
-    padr = m->jnt_qposadr[j];
-    vadr = m->jnt_dofadr[j];
+    int padr = m->jnt_qposadr[j];
+    int vadr = m->jnt_dofadr[j];
 
     switch (m->jnt_type[j]) {
     case mjJNT_FREE:
@@ -1245,9 +1242,9 @@ void mj_differentiatePos(const mjModel* m, mjtNum* qvel, mjtNum dt,
       mjFALLTHROUGH;
 
     case mjJNT_BALL:
-      mju_negQuat(neg, qpos1+padr);           // solve:  qpos1 * dif = qpos2
-      mju_mulQuat(dif, neg, qpos2+padr);
-      mju_quat2Vel(qvel+vadr, dif, dt);
+      // solve:  qpos1 * quat(qvel * dt) = qpos2
+      mju_subQuat(qvel+vadr, qpos2+padr, qpos1+padr);
+      mju_scl3(qvel+vadr, qvel+vadr, 1/dt);
       break;
 
     case mjJNT_HINGE:

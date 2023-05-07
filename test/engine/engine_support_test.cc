@@ -14,6 +14,7 @@
 
 // Tests for engine/engine_support.c.
 
+#include <random>
 #include <string>
 
 #include <gmock/gmock.h>
@@ -25,9 +26,14 @@
 namespace mujoco {
 namespace {
 
+std::vector<mjtNum> AsVector(const mjtNum* array, int n) {
+  return std::vector<mjtNum>(array, array + n);
+}
+
 using ::testing::DoubleNear;
 using ::testing::ContainsRegex;
 using ::testing::MatchesRegex;
+using ::testing::Pointwise;
 using JacobianTest = MujocoTest;
 static const mjtNum max_abs_err = std::numeric_limits<float>::epsilon();
 
@@ -276,6 +282,73 @@ TEST_F(VersionTest, MjVersionString) {
   auto regex_matcher = MatchesRegex("^[0-9]+\\.[0-9]+\\.[0-9]+(-[0-9a-z]+)?$");
 #endif
   EXPECT_THAT(std::string(mj_versionString()), regex_matcher);
+}
+
+
+using SupportTest = MujocoTest;
+
+// utility: generate two random quaternions with a given angle difference
+void randomQuatPair(mjtNum qa[4], mjtNum qb[4], mjtNum angle, int seed) {
+  // make distribution using seed
+  std::mt19937_64 rng;
+  rng.seed(seed);
+  std::normal_distribution<double> dist(0, 1);
+
+  // sample qa = qb
+  for (int i=0; i < 4; i++) {
+    qa[i] = qb[i] = dist(rng);
+  }
+  mju_normalize4(qa);
+  mju_normalize4(qb);
+
+  // integrate qb in random direction by angle
+  mjtNum dir[3];
+  for (int i=0; i < 3; i++) {
+    dir[i] = dist(rng);
+  }
+  mju_normalize3(dir);
+  mju_quatIntegrate(qb, dir, angle);
+}
+
+static constexpr char ballJointModel[] = R"(
+<mujoco>
+  <worldbody>
+    <body>
+      <joint type="ball"/>
+      <geom size="1"/>
+    </body>
+  </worldbody>
+</mujoco>
+)";
+
+TEST_F(SupportTest, DifferentiatePosSubQuat) {
+  const mjtNum eps = 1e-12;  // epsilon for float comparison
+
+  mjModel* model = LoadModelFromString(ballJointModel);
+
+  int seed = 1;
+  for (mjtNum angle : {0.0, 1e-5, 1e-2}) {
+    for (mjtNum dt : {1e-6, 1e-3, 1e-1}) {
+      // random quaternion pair with given angle difference
+      mjtNum qpos1[4], qpos2[4];
+      randomQuatPair(qpos1, qpos2, angle, seed++);
+
+      // get velocity given timestep
+      mjtNum qvel[3];
+      mj_differentiatePos(model, qvel, dt, qpos1, qpos2);
+
+      // equivalent computation
+      mjtNum qneg[4], qdif[4], qvel_expect[3];
+      mju_negQuat(qneg, qpos1);
+      mju_mulQuat(qdif, qneg, qpos2);
+      mju_quat2Vel(qvel_expect, qdif, dt);
+
+      // expect numerical equality
+      EXPECT_THAT(AsVector(qvel, 3), Pointwise(DoubleNear(eps), qvel_expect));
+    }
+  }
+
+  mj_deleteModel(model);
 }
 
 }  // namespace
