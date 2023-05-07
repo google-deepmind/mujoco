@@ -986,14 +986,14 @@ Print sparse matrix to screen.
 Virtual file system
 ^^^^^^^^^^^^^^^^^^^
 
-Virtual file system (VFS) functionality was introduced in MuJoCo 1.50. It enables the user to load all necessary files
-in memory, including MJB binary model files, XML files (MJCF, URDF and included files), STL meshes, PNGs for textures
-and height fields, and HF files in our custom height field format. Model and resource files in the VFS can also be
-constructed programmatically (say using a Python library that writes to memory). Once all desired files are in the VFS,
-the user can call :ref:`mj_loadModel` or :ref:`mj_loadXML` with a pointer to the VFS. When this pointer is not NULL, the
-loaders will first check the VFS for any file they are about to load, and only access the disk if the file is not found
-in the VFS. The file names stored in the VFS have their name and extension but the path information is stripped; this
-can be bypassed however by using a custom path symbol in the file names, say "mydir_myfile.xml".
+Virtual file system (VFS) enables the user to load all necessary files in memory, including MJB binary model files, XML
+files (MJCF, URDF and included files), STL meshes, PNGs for textures and height fields, and HF files in our custom
+height field format. Model and resource files in the VFS can also be constructed programmatically (say using a Python
+library that writes to memory). Once all desired files are in the VFS, the user can call :ref:`mj_loadModel` or
+:ref:`mj_loadXML` with a pointer to the VFS. When this pointer is not NULL, the loaders will first check the VFS for any
+file they are about to load, and only access the disk if the file is not found in the VFS. The file names stored in the
+VFS have their name and extension but the path information is stripped; this can be bypassed however by using a custom
+path symbol in the file names, say "mydir_myfile.xml".
 
 The entire VFS is contained in the data structure :ref:`mjVFS`. All utility functions for maintaining the VFS operate on
 this data structure. The common usage pattern is to first clear it with mj_defaultVFS, then add disk files to it with
@@ -1423,11 +1423,11 @@ mjv_select
 
 .. mujoco-include:: mjv_select
 
-This function is used for mouse selection. Previously selection was done via OpenGL, but as of MuJoCo 1.50 it relies on
-ray intersections which are much more efficient. aspectratio is the viewport width/height. relx and rely are the
-relative coordinates of the 2D point of interest in the viewport (usually mouse cursor). The function returns the id of
-the geom under the specified 2D point, or -1 if there is no geom (note that they skybox if present is not a model geom).
-The 3D coordinates of the clicked point are returned in selpnt. See :ref:`simulate<saSimulate>` for an illustration.
+This function is used for mouse selection, relying on ray intersections. aspectratio is the viewport width/height. relx
+and rely are the relative coordinates of the 2D point of interest in the viewport (usually mouse cursor). The function
+returns the id of the geom under the specified 2D point, or -1 if there is no geom (note that they skybox if present is
+not a model geom). The 3D coordinates of the clicked point are returned in selpnt. See :ref:`simulate<saSimulate>` for
+an illustration.
 
 .. _Visualization-api:
 

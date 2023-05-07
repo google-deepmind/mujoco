@@ -1290,8 +1290,7 @@ representations of the constraint Jacobian and related matrices.
 
 **Newton** : Newton's method
    This algorithm implements the exact Newton method, with analytical second-order derivatives and Cholesky
-   factorization of the Hessian. The line-search is the same as in the CG method. This is the default solver as of
-   MuJoCo 1.50.
+   factorization of the Hessian. The line-search is the same as in the CG method. It is the default solver.
 
 **PGS** : Projected Gauss-Seidel method
    This is the most common algorithm used in physics simulators, and used to be the default in MuJoCo, until we

@@ -448,8 +448,8 @@ the array mjData.userdata whose size is determined by the :at:`nuserdata` attrib
 
 .. _CAlgorithms:
 
-Algorithms and related settings
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Solver settings
+~~~~~~~~~~~~~~~
 
 The computation of constraint forces and constrained accelerations involves solving an optimization problem
 numerically. MuJoCo has three algorithms for solving this optimization problem: CG, Newton, PGS. Each of them can be
@@ -484,14 +484,12 @@ general guidelines and observations:
    convergence with a good rate, but it cannot compete with Newton in terms of number of iterations, especially when
    high accuracy is desired. However its iterations are much faster, and are not affected by fill-in or increased
    complexity due to elliptic cones. If Newton proves to be too slow, try CG next.
--  The PGS solver used to be the default solver until recently, and was substantially improved in MuJoCo 1.50 by making
-   it work with sparse models. However we have not yet found a situation where it is the best algorithm, which is not to
-   say that such situations do not exist. PGS solves a constrained optimization problem and has sub-linear convergence
-   in our experience, however it usually makes rapid progress on the first few iterations. So it is a good choice when
-   inaccurate solutions can be tolerated. For systems with large mass ratios or other model properties causing poor
-   conditioning, PGS convergence tends to be rather slow. Keep in mind that PGS performs sequential updates, and
-   therefore breaks symmetry in systems where the physics should be symmetric. In contrast, CG and Newton perform
-   parallel updates and preserve symmetry.
+-  The PGS solver is best when the number of degrees of freedom is larger than the number of constraints. PGS solves a
+   constrained optimization problem and has sub-linear convergence in our experience, however it usually makes rapid
+   progress on the first few iterations. So it is a good choice when inaccurate solutions can be tolerated. For systems
+   with large mass ratios or other model properties causing poor conditioning, PGS convergence tends to be rather slow.
+   Keep in mind that PGS performs sequential updates, and therefore breaks symmetry in systems where the physics should
+   be symmetric. In contrast, CG and Newton perform parallel updates and preserve symmetry.
 -  The Noslip solver is a modified PGS solver. It is executed as a post-processing step after the main solver (which can
    be Newton, CG or PGS). The main solver updates all unknowns. In contrast, the Noslip solver updates only the
    constraint forces in friction dimensions, and ignores constraint regularization. This has the effect of suppressing
@@ -1251,26 +1249,26 @@ Memory allocation
 MuJoCo preallocates all the memory needed at runtime in :ref:`mjData`, and does not access the heap allocator after
 model creation. Memory in :ref:`mjData` is allocated by :ref:`mj_makeData` in two contiguous blocks:
 
-  - ``mjData.buffer`` contains fixed-size arrays.
-  - ``mjData.arena`` contains dynamically-sized arrays.
+- ``mjData.buffer`` contains fixed-size arrays.
+- ``mjData.arena`` contains dynamically-sized arrays.
 
 There are two types of dynamic arrays allocated in the ``arena`` memory space.
 
-  - contacts and constraint-related arrays are laid out from the beginning of the ``arena``.
-  - :ref:`stack <siStack>` arrays are laid out from the end of the ``arena``.
+- contacts and constraint-related arrays are laid out from the beginning of the ``arena``.
+- :ref:`stack <siStack>` arrays are laid out from the end of the ``arena``.
 
 By allocating dynamic quantities from both sides of the ``arena`` space, variable-sized memory allocation is controlled
 by a single number: the :at:`memory` attribute of the :ref:`size <size>` MJCF element. Unlike the fixed-size arrays in
 the ``buffer``, variable-sized arrays in the arena can be ``NULL``, for example after a call to :ref:`mj_resetData`.
 When ``arena`` memory runs out, one of three things will happen, depending on the type of memory requested:
 
-  - If memory runs out during contact allocation, a warning will be raised and subsequent contacts will not be added in
-    this step, but simulation continues as usual.
-  - If memory runs out during constraint-related allocation, a warning will be raised and the constraint solver will be
-    disabled in this step, but simulation continues as usual. Note that physics without the constraint solver will
-    generally be very different, but allowing the simulation to continue can still be useful, e.g. during
-    scene initialization when many bodies are temporarily overlapping.
-  - If memory runs out during stack array allocation, a hard error will occur.
+- If memory runs out during contact allocation, a warning will be raised and subsequent contacts will not be added in
+  this step, but simulation continues as usual.
+- If memory runs out during constraint-related allocation, a warning will be raised and the constraint solver will be
+  disabled in this step, but simulation continues as usual. Note that physics without the constraint solver will
+  generally be very different, but allowing the simulation to continue can still be useful, e.g. during
+  scene initialization when many bodies are temporarily overlapping.
+- If memory runs out during stack array allocation, a hard error will occur.
 
 Unlike the size of the ``buffer``, the size of the ``arena`` cannot be pre-computed, since the number of contacts and
 stack usage is not known in advance. So how should one choose it? The following simple heuristic is currently used,

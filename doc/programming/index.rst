@@ -104,10 +104,10 @@ Building from source
 
 To build MuJoCo from source, you will need CMake and a working C++17 compiler installed. The steps are:
 
-  #. Clone the ``mujoco`` repository from GitHub.
-  #. Create a new build directory somewhere, and ``cd`` into it.
-  #. Run ``cmake $PATH_TO_CLONED_REPO`` to configure the build.
-  #. Run ``cmake --build .`` to build.
+ #. Clone the ``mujoco`` repository from GitHub.
+ #. Create a new build directory somewhere, and ``cd`` into it.
+ #. Run ``cmake $PATH_TO_CLONED_REPO`` to configure the build.
+ #. Run ``cmake --build .`` to build.
 
 MuJoCo's build system automatically fetches dependencies from upstream repositories over the Internet using CMake's
 `FetchContent <https://cmake.org/cmake/help/latest/module/FetchContent.html>`_ module.
@@ -117,8 +117,10 @@ bindings are not built. Those come with their own build instructions, which can 
 section of the documentation.
 
 Additionally, the CMake setup also implements an installation phase which will copy and organize the output files to a
-target directory. Specify the directory using ``cmake $PATH_TO_CLONED_REPO -DCMAKE_INSTALL_PREFIX=<my_install_dir>``.
-After successfully building MuJoCo following the instructions above, you can install it using ``cmake --install .``.
+target directory.
+
+ 5. Select the directory: ``cmake $PATH_TO_CLONED_REPO -DCMAKE_INSTALL_PREFIX=<my_install_dir>``
+ #. After building, install with ``cmake --install .``
 
 .. tip::
    As a reference, a working build configuration can be found in MuJoCo's
@@ -198,40 +200,40 @@ Naming convention
 All symbols defined in the API start with the prefix "mj". The character after "mj" in the prefix determines the family
 to which the symbol belongs. First we list the prefixes corresponding to type definitions.
 
-mj
+``mj``
    Core simulation data structure (C struct), for example :ref:`mjModel`. If all characters
    after the prefix are capital, for example :ref:`mjMIN`, this is a macro or a symbol (#define).
-mjt
+``mjt``
    Primitive type, for example :ref:`mjtGeom`. Except for mjtByte and mjtNum, all other
    definitions in this family are enums.
-mjf
+``mjf``
    Callback function type, for example :ref:`mjfGeneric`.
-mjv
+``mjv``
    Data structure related to abstract visualization, for example :ref:`mjvCamera`.
-mjr
+``mjr``
    Data structure related to OpenGL rendering, for example :ref:`mjrContext`.
-mjui
+``mjui``
    Data structure related to UI framework, for example :ref:`mjuiSection`.
 
 Next we list the prefixes corresponding to function definitions. Note that function prefixes always end with underscore.
 
-mj\_
+``mj_``
    Core simulation function, for example :ref:`mj_step`. Almost all such functions have
    pointers to mjModel and mjData as their first two arguments, possibly followed by other arguments. They usually write
    their outputs to mjData.
-mju\_
+``mju_``
    Utility function, for example :ref:`mju_mulMatVec`. These functions are self-contained
    in the sense that they do not have mjModel and mjData pointers as their arguments.
-mjv\_
+``mjv_``
    Function related to abstract visualization, for example :ref:`mjv_updateScene`.
-mjr\_
+``mjr_``
    Function related to OpenGL rendering, for example :ref:`mjr_render`.
-mjui\_
+``mjui_``
    Function related to UI framework, for example :ref:`mjui_update`.
-mjcb\_
+``mjcb_``
    Global callback function pointer, for example :ref:`mjcb_control`. The user can install
    custom callbacks by setting these global pointers to user-defined functions.
-mjd\_
+``mjd_``
    Functions for computing derivatives, for example :ref:`mjd_transitionFD`.
 
 .. _inOpenGL:

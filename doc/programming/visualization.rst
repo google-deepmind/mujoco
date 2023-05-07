@@ -163,12 +163,10 @@ Selection
 '''''''''
 
 In many applications we need to click on a point and determine the 3D object to which this point/pixel belongs. This is
-done with the function :ref:`mjv_select`. Prior to MuJoCo 1.50 this function (called mjr_select) used OpenGL rendering
-in a special mode to recover the object identity and 3D position of the clicked point. Now it uses a new collision
-detection module that intersects a ray with all geoms in the model. This is actually engine-level functionality and does
-not depend on the visualizer (indeed it is also used to simulate :ref:`rangefinder <sensor-rangefinder>` sensors
-independent of visualization), but the select function is implemented in the visualizer because it needs information
-about the camera and viewport.
+done with the function :ref:`mjv_select`, which uses :ref:`ray collisions <Raycollisions>`. Ray collisions functionality
+is engine-level and does not depend on the visualizer (indeed it is also used to simulate :ref:`rangefinder
+<sensor-rangefinder>` sensors independent of visualization), but the select function is implemented in the visualizer
+because it needs information about the camera and viewport.
 
 The function mjv_select returns the index of the geom at the specified window coordinates, or -1 if there is no geom
 at those coordinates. The 3D position is also returned. See the code sample :ref:`simulate.cc <saSimulate>` for an
