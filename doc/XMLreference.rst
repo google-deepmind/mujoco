@@ -4580,13 +4580,11 @@ wrapping around specified obstacle geoms. The objects along the path are defined
 which split the path in multiple branches. Each branch of the tendon path must start and end with a site, and if it
 has multiple obstacle geoms they must be separated by sites - so as to avoid the need for an iterative solver at the
 tendon level. This example illustrates a multi-branch tendon acting as a finger extensor, with a counter-weight
-instead of an actuator.
+instead of an actuator: `tendon.xml <_static/tendon.xml>`__.
 
 MuJoCo 2.0 introduced a second form of wrapping, where the tendon is constrained to pass through a geom rather than
 wrap around it. This is enabled automatically when a sidesite is specified and its position is inside the volume of
 the obstacle geom.
-
-`tendon.xml <_static/tendon.xml>`__
 
 .. _tendon-spatial-name:
 

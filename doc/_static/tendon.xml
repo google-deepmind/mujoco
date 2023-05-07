@@ -1,52 +1,50 @@
 <mujoco model="tendon">
-  <compiler autolimits="true"/>
-
-  <visual>
-    <headlight diffuse="0.7 0.7 0.7"/>
-  </visual>
-
-  <default class="main">
-    <joint  axis="0 0 1" solimplimit="0.95 0.95 0.1 0.5 2" range="0 60"/>
-    <geom size="0.01 0 0" rgba="0.9 0.7 0.1 1"/>
-    <site rgba="0.9 0.9 0.9 1"/>
+  <default>
+    <joint axis="0 1 0" range="0 60" limited="true"/>
+    <geom type="capsule" size=".01" rgba=".9 .7 .1 1"/>
+    <site rgba=".9 .9 .9 1"/>
+    <default class="visual_cylinder">
+      <geom type="cylinder" fromto="0 .015 0  0 -.015 0" size=".02" rgba=".3 .9 .3 .4"/>
+    </default>
   </default>
 
   <worldbody>
-    <body pos="-0.03 0 0.175">
-      <joint pos="0 0 0.025" limited="false" type="slide"/>
-      <geom size="0.03 0.025" type="cylinder" density="5000" rgba="0.2 0.2 0.5 1"/>
-      <site name="s1" pos="0 0 0.025"/>
+    <light pos="0 0 1"/>
+    <body name="weight" pos="-.03 0 .175">
+      <joint axis="0 0 1" pos="0 0 .025" type="slide"/>
+      <geom type="cylinder" size=".03 .025" density="5000" rgba=".2 .2 .5 1"/>
+      <site name="s1" pos="0 0 .025"/>
     </body>
 
-    <site name="s2" pos="-0.03 0 0.32"/>
+    <site name="s2" pos="-.03 0 .33"/>
 
-    <body pos="0.0242857 0 0.3" quat="1 1 1 1">
-      <joint pos="0 0 -0.0242857"/>
-      <geom size="0.01 0.05" pos="0 0 0.0257143" quat="0 -1 -1 0" type="capsule"/>
-      <geom name="g1" size="0.02 0.015" pos="0 0 -0.0242857" quat="0 -1 0 -1" type="cylinder" rgba=".3 .9 .3 .4"/>
-      <site name="s3" pos="0 0.02 -0.00428571" quat="0.5 -0.5 -0.5 -0.5"/>
+    <body pos="0 0 .3">
+      <joint/>
+      <geom name="g1" class="visual_cylinder"/>
+      <geom fromto="0 0 0  .1 0 0"/>
+      <site name="s3" pos=".02 0 .03"/>
 
-      <body pos="0 0 0.1">
-        <joint pos="0 0 -0.0242857"/>
-        <geom size="0.01 0.05" pos="0 0 0.0257143" quat="0 -1 -1 0" type="capsule"/>
-        <geom name="g2" size="0.02 0.015" pos="0 0 -0.0242857" quat="0 -1 0 -1" type="cylinder" rgba=".3 .9 .3 .4"/>
-        <site name="s4" pos="0 0.01 0.00571429" quat="0.5 -0.5 -0.5 -0.5"/>
-        <site name="s5" pos="0 0.02 0.0257143" quat="0.5 -0.5 -0.5 -0.5"/>
-        <site name="side2" pos="0 0.03 -0.0242857" quat="0.5 -0.5 -0.5 -0.5"/>
+      <body pos=".1 0 0">
+        <joint/>
+        <geom name="g2" class="visual_cylinder"/>
+        <geom fromto="0 0 0  .1 0 0"/>
+        <site name="s4" pos=".03 0 .01"/>
+        <site name="s5" pos=".05 0 .02"/>
+        <site name="side2" pos="0 0 .03"/>
 
-        <body pos="0 0 0.09">
-          <joint pos="0 0 -0.0143443"/>
-          <geom size="0.01 0.035" pos="0 0 0.0206557" quat="0 1 1 0" type="capsule"/>
-          <geom name="g3" size="0.02 0.015" pos="0 0 -0.0143443" quat="0 1 0 1" type="cylinder" rgba=".3 .9 .3 .4"/>
-          <site name="s6" pos="0 0.01 0.0156557" quat="1 -1 -1 -1"/>
-          <site name="side3" pos="0 0.03 -0.0143443" quat="1 -1 -1 -1"/>
+        <body pos=".1 0 0">
+          <joint/>
+          <geom name="g3" class="visual_cylinder"/>
+          <geom fromto="0 0 0  .1 0 0"/>
+          <site name="s6" pos=".03 0 .01"/>
+          <site name="side3" pos="0 0 .03"/>
         </body>
       </body>
     </body>
   </worldbody>
 
   <tendon>
-    <spatial range="0 0.33" width="0.002" rgba=".95 .3 .3 1">
+    <spatial range="0 .33" limited="true" width=".002" rgba=".95 .3 .3 1">
       <site site="s1"/>
       <site site="s2"/>
       <geom geom="g1"/>
