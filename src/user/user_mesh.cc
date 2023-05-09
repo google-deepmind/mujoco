@@ -1549,11 +1549,10 @@ void mjCMesh::MakeCenter(void) {
     int* vertid = face + 3*i;
 
     // get triangle edges
-    mjtNum a[3], b[3], c[3];
+    mjtNum a[3], b[3];
     for (int j=0; j<3; j++) {
       a[j] = vert[3*vertid[0]+j] - vert[3*vertid[2]+j];
       b[j] = vert[3*vertid[1]+j] - vert[3*vertid[2]+j];
-      c[j] = vert[3*vertid[0]+j] - vert[3*vertid[1]+j];
     }
 
     // compute face normal
