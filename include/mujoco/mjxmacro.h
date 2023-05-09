@@ -281,6 +281,8 @@
     X   ( int,     mesh_texcoordnum,      nmesh,         1                    ) \
     X   ( int,     mesh_faceadr,          nmesh,         1                    ) \
     X   ( int,     mesh_facenum,          nmesh,         1                    ) \
+    X   ( int,     mesh_bvhadr,           nmesh,         1                    ) \
+    X   ( int,     mesh_bvhnum,           nmesh,         1                    ) \
     XMJV( int,     mesh_graphadr,         nmesh,         1                    ) \
     X   ( float,   mesh_vert,             nmeshvert,     3                    ) \
     X   ( float,   mesh_normal,           nmeshnormal,   3                    ) \

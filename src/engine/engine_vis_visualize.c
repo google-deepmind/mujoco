@@ -458,6 +458,57 @@ static int bodycategory(const mjModel* m, int bodyid) {
   }
 }
 
+
+
+// draw bounding box
+static void drawBoundingBox(mjvGeom* thisgeom, mjData* d, mjvScene* scn,
+                            const mjtNum aabb[6], const mjtNum xpos[3],
+                            const mjtNum xmat[9], const float rgba[4],
+                            int i, int objtype, int category) {
+  mjtNum x[3];
+  mjtNum dist[3][3];
+
+  if (xmat != NULL) {
+    mju_rotVecMat(x, aabb, xmat);
+    mju_addTo3(x, xpos);
+    for (int j=0; j<3; j++) {
+      for (int k=0; k<3; k++) {
+        dist[k][j] = aabb[k+3] * xmat[3*j+k];
+      }
+    }
+  } else {
+    mju_copy3(x, aabb);
+    mju_addTo3(x, xpos);
+    for (int j=0; j<3; j++) {
+      mju_zero3(dist[j]);
+      dist[j][j] = aabb[j+3];
+    }
+  }
+
+  int split[3] = {1, 2, 4};
+  for (int v=0; v<8; v++) {
+    mjtNum from[3] = {x[0], x[1], x[2]};
+    for (int k=0; k<3; k++) {
+      mju_addToScl3(from, dist[k], v&split[k] ? 1 : -1);
+    }
+
+    mjtNum to[3];
+    for (int k=0; k<3; k++) {
+      mju_addScl3(to, from, dist[k], 2);
+      if (!(v&split[k])) {
+        START
+        mjv_makeConnector(thisgeom, mjGEOM_LINE, 2,
+                  from[0], from[1], from[2],
+                  to[0], to[1], to[2]);
+        f2f(thisgeom->rgba, rgba, 4);
+        FINISH
+      }
+    }
+  }
+}
+
+
+
 // add abstract geoms
 void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
     const mjvPerturb* pert, int catmask, mjvScene* scn) {
@@ -536,51 +587,57 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
       // find geom number
       int geomid = m->bvh_geomid[i];
       while (i >= m->body_bvhadr[bodyid] + m->body_bvhnum[bodyid]) {
-        bodyid++;
-        if (bodyid >= m->nbody) {
-          mju_error("nbvh outside body range.");
+        if (++bodyid >= m->nbody) {
+          break;
         }
+      }
+
+      // stop after body bvh are finished
+      if (bodyid >= m->nbody) {
+        break;
       }
 
       // compute transformation
       mjtNum *aabb = isleaf ? m->geom_aabb + 6*geomid : m->bvh_aabb + 6*i;
-      mjtNum x[3];
 
       const mjtNum* xpos = isleaf ? d->geom_xpos + 3 * geomid : d->xipos + 3 * bodyid;
       const mjtNum* xmat = isleaf ? d->geom_xmat + 9 * geomid : d->ximat + 9 * bodyid;
 
-      mju_rotVecMat(x, aabb, xmat);
-      mju_addTo3(x, xpos);
-
       rgba[0] = d->bvh_active[i] ? 1 : 0;
       rgba[1] = d->bvh_active[i] ? 0 : 1;
 
-      mjtNum dist[3][3];
-      for (int j=0; j<3; j++) {
-        for (int k=0; k<3; k++) {
-          dist[k][j] = aabb[k+3] * xmat[3*j+k];
-        }
+      drawBoundingBox(thisgeom, d, scn, aabb, xpos, xmat, rgba, i, objtype, category);
+    }
+  }
+
+  // mesh bounding volume hierarchy
+  if (vopt->flags[mjVIS_MESHBVH]) {
+    float rgba[] = {1, 0, 0, 1};
+    for (int geomid = 0; geomid < m->ngeom; geomid++) {
+      int meshid = m->geom_dataid[geomid];
+      if (meshid == -1) {
+        continue;
       }
 
-      int split[3] = {1, 2, 4};
-      for (int v=0; v<8; v++) {
-        mjtNum from[3] = {x[0], x[1], x[2]};
-        for (int k=0; k<3; k++) {
-          mju_addToScl3(from, dist[k], v&split[k] ? 1 : -1);
-        }
-
-        mjtNum to[3];
-        for (int k=0; k<3; k++) {
-          mju_addScl3(to, from, dist[k], 2);
-          if (!(v&split[k])) {
-            START
-            mjv_makeConnector(thisgeom, mjGEOM_LINE, 2,
-                      from[0], from[1], from[2],
-                      to[0], to[1], to[2]);
-            f2f(thisgeom->rgba, rgba, 4);
-            FINISH
+      for (int b = 0; b < m->mesh_bvhnum[meshid]; b++) {
+        int i = b + m->mesh_bvhadr[meshid];
+        int isleaf = m->bvh_child[2*i]==-1 && m->bvh_child[2*i+1]==-1;
+        if (scn->ngeom >= scn->maxgeom) break;
+        if (m->bvh_depth[i] != vopt->bvh_depth) {
+          if (!isleaf || m->bvh_depth[i] > vopt->bvh_depth) {
+            continue;
           }
         }
+
+        // compute transformation
+        const mjtNum *aabb = m->bvh_aabb + 6*i;
+        const mjtNum* xpos = d->geom_xpos + 3 * geomid;
+        const mjtNum* xmat = d->geom_xmat + 9 * geomid;
+
+        rgba[0] = d->bvh_active[i] ? 1 : 0;
+        rgba[1] = d->bvh_active[i] ? 0 : 1;
+
+        drawBoundingBox(thisgeom, d, scn, aabb, xpos, xmat, rgba, i, objtype, category);
       }
     }
   }

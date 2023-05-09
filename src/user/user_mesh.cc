@@ -113,6 +113,7 @@ mjCMesh::mjCMesh(mjCModel* _model, mjCDef* _def) {
   szgraph = 0;
   vert = NULL;
   normal = NULL;
+  center = NULL;
   texcoord = NULL;
   face = NULL;
   facenormal = NULL;
@@ -153,6 +154,7 @@ mjCMesh::~mjCMesh() {
   if (vert) mju_free(vert);
   if (normal) mju_free(normal);
   if (texcoord) mju_free(texcoord);
+  if (center) mju_free(center);
   if (face) mju_free(face);
   if (facenormal) mju_free(facenormal);
   if (facetexcoord) mju_free(facetexcoord);
@@ -370,6 +372,50 @@ void mjCMesh::Compile(int vfs_provider) {
   // scale, center, orient, compute mass and inertia
   Process();
   processed = true;
+
+  // no radii: make
+  if (!center) {
+    MakeCenter();
+  }
+
+  // make bounding volume hierarchy
+  if (tree.bvh.empty()) {
+    face_aabb.assign(6*nface, 0);
+    for (int i=0; i<nface; i++) {
+      tree.AddBundingVolume(GetBoundingVolume(i));
+    }
+    tree.CreateBVH();
+  }
+}
+
+
+
+// get bounding volume
+mjCBoundingVolume mjCMesh::GetBoundingVolume(int faceid) {
+  mjCBoundingVolume node;
+  node.id = faceid;
+  node.conaffinity = 1;
+  node.contype = 1;
+  node.pos = center + 3*faceid;
+  node.quat = NULL;
+  mjtNum AABB[6] = {1E+10, 1E+10, 1E+10, -1E+10, -1E+10, -1E+10};
+  for (int j=0; j<3; j++) {
+    int vertid = face[3*faceid+j];
+    AABB[0] = mjMIN(AABB[0], vert[3*vertid+0]);
+    AABB[1] = mjMIN(AABB[1], vert[3*vertid+1]);
+    AABB[2] = mjMIN(AABB[2], vert[3*vertid+2]);
+    AABB[3] = mjMAX(AABB[3], vert[3*vertid+0]);
+    AABB[4] = mjMAX(AABB[4], vert[3*vertid+1]);
+    AABB[5] = mjMAX(AABB[5], vert[3*vertid+2]);
+  }
+  face_aabb[6*faceid+0] = .5 * (AABB[0] + AABB[3]);
+  face_aabb[6*faceid+1] = .5 * (AABB[1] + AABB[4]);
+  face_aabb[6*faceid+2] = .5 * (AABB[2] + AABB[5]);
+  face_aabb[6*faceid+3] = .5 * (AABB[3] - AABB[0]);
+  face_aabb[6*faceid+4] = .5 * (AABB[4] - AABB[1]);
+  face_aabb[6*faceid+5] = .5 * (AABB[5] - AABB[2]);
+  node.aabb = face_aabb.data() + 6*faceid;
+  return node;
 }
 
 
@@ -1483,6 +1529,52 @@ void mjCMesh::MakeNormal(void) {
         normal[3*i] = normal[3*i+1] = 0;
         normal[3*i+2] = 1;
     }
+  }
+}
+
+
+
+// compute face circumradii
+void mjCMesh::MakeCenter(void) {
+  if (center) {
+    return;
+  }
+
+  // allocate and clear
+  center = (double*) mju_malloc(3*nface*sizeof(double));
+  memset(center, 0, 3*nface*sizeof(double));
+
+  for (int i=0; i<nface; i++) {
+    // get vertex ids
+    int* vertid = face + 3*i;
+
+    // get triangle edges
+    mjtNum a[3], b[3], c[3];
+    for (int j=0; j<3; j++) {
+      a[j] = vert[3*vertid[0]+j] - vert[3*vertid[2]+j];
+      b[j] = vert[3*vertid[1]+j] - vert[3*vertid[2]+j];
+      c[j] = vert[3*vertid[0]+j] - vert[3*vertid[1]+j];
+    }
+
+    // compute face normal
+    mjtNum nrm[3];
+    mju_cross(nrm, a, b);
+
+    // compute circumradius
+    mjtNum norm_a_2 = mju_dot3(a, a);
+    mjtNum norm_b_2 = mju_dot3(b, b);
+    mjtNum area = mju_norm3(nrm);
+
+    // compute circumcenter
+    mjtNum res[3], vec[3] = {
+      norm_a_2 * b[0] - norm_b_2 * a[0],
+      norm_a_2 * b[1] - norm_b_2 * a[1],
+      norm_a_2 * b[2] - norm_b_2 * a[2]
+    };
+    mju_cross(res, vec, nrm);
+    center[3*i+0] = res[0]/(2*area*area) + vert[3*vertid[2]+0];
+    center[3*i+1] = res[1]/(2*area*area) + vert[3*vertid[2]+1];
+    center[3*i+2] = res[2]/(2*area*area) + vert[3*vertid[2]+2];
   }
 }
 

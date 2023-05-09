@@ -487,7 +487,8 @@ public enum mjtVisFlag : int{
   mjVIS_STATIC = 21,
   mjVIS_SKIN = 22,
   mjVIS_MIDPHASE = 23,
-  mjNVISFLAG = 24,
+  mjVIS_MESHBVH = 24,
+  mjNVISFLAG = 25,
 }
 public enum mjtRndFlag : int{
   mjRND_SHADOW = 0,
@@ -2067,6 +2068,8 @@ public unsafe struct mjModel_ {
   public int* mesh_vertnum;
   public int* mesh_faceadr;
   public int* mesh_facenum;
+  public int* mesh_bvhadr;
+  public int* mesh_bvhnum;
   public int* mesh_normaladr;
   public int* mesh_normalnum;
   public int* mesh_texcoordadr;
@@ -2574,7 +2577,7 @@ public unsafe struct mjvOption_ {
   public fixed byte tendongroup[6];
   public fixed byte actuatorgroup[6];
   public fixed byte skingroup[6];
-  public fixed byte flags[24];
+  public fixed byte flags[25];
   public int bvh_depth;
 }
 

@@ -1994,6 +1994,20 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='number of faces                          (nmesh x 1)',
              ),
              StructFieldDecl(
+                 name='mesh_bvhadr',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='address of bvh root                      (nmesh x 1)',
+             ),
+             StructFieldDecl(
+                 name='mesh_bvhnum',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='number of bvh                            (nmesh x 1)',
+             ),
+             StructFieldDecl(
                  name='mesh_normaladr',
                  type=PointerType(
                      inner_type=ValueType(name='int'),
@@ -4758,7 +4772,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  name='flags',
                  type=ArrayType(
                      inner_type=ValueType(name='mjtByte'),
-                     extents=(24,),
+                     extents=(25,),
                  ),
                  doc='visualization flags (indexed by mjtVisFlag)',
              ),

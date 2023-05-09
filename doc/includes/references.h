@@ -989,6 +989,8 @@ struct mjModel_ {
   int*      mesh_vertnum;         // number of vertices                       (nmesh x 1)
   int*      mesh_faceadr;         // first face address                       (nmesh x 1)
   int*      mesh_facenum;         // number of faces                          (nmesh x 1)
+  int*      mesh_bvhadr;          // address of bvh root                      (nmesh x 1)
+  int*      mesh_bvhnum;          // number of bvh                            (nmesh x 1)
   int*      mesh_normaladr;       // first normal address                     (nmesh x 1)
   int*      mesh_normalnum;       // number of normals                        (nmesh x 1)
   int*      mesh_texcoordadr;     // texcoord data address; -1: no texcoord   (nmesh x 1)
@@ -1666,6 +1668,7 @@ typedef enum mjtVisFlag_ {        // flags enabling model element visualization
   mjVIS_STATIC,                   // static bodies
   mjVIS_SKIN,                     // skin
   mjVIS_MIDPHASE,                 // mid-phase bounding volume hierarchy
+  mjVIS_MESHBVH,                  // mesh bounding volume hierarchy
 
   mjNVISFLAG                      // number of visualization flags
 } mjtVisFlag;

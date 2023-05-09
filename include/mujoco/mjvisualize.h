@@ -123,6 +123,7 @@ typedef enum mjtVisFlag_ {        // flags enabling model element visualization
   mjVIS_STATIC,                   // static bodies
   mjVIS_SKIN,                     // skin
   mjVIS_MIDPHASE,                 // mid-phase bounding volume hierarchy
+  mjVIS_MESHBVH,                  // mesh bounding volume hierarchy
 
   mjNVISFLAG                      // number of visualization flags
 } mjtVisFlag;

@@ -120,6 +120,7 @@ class mjCAlternative {
 
 
 //------------------------- class mjCBoundingVolumeHierarchy ---------------------------------------
+
 // bounding volume
 class mjCBoundingVolume {
  public:
@@ -334,7 +335,6 @@ class mjCGeom : public mjCBase {
   friend class mjCModel;
   friend class mjXWriter;
   friend class mjXURDF;
-  friend class mjCBoundingVolumeHierarchy;
 
  public:
   double GetVolume(void);             // compute geom volume
@@ -524,7 +524,10 @@ class mjCMesh: public mjCBase {
   double* GetQuatPtr(mjtMeshType type);             // get orientation
   double* GetInertiaBoxPtr(mjtMeshType type);       // get inertia box
   double& GetVolumeRef(mjtMeshType type);           // get volume
-  void FitGeom(mjCGeom* geom, double* meshpos);   // approximate mesh with simple geom
+  void FitGeom(mjCGeom* geom, double* meshpos);     // approximate mesh with simple geom
+
+  // returns a bounding volume given a face
+  mjCBoundingVolume GetBoundingVolume(int faceid);
 
   std::string file;                   // mesh file
   double refpos[3];                   // reference position (translate)
@@ -550,6 +553,7 @@ class mjCMesh: public mjCBase {
   void MakeGraph(void);                       // make graph of convex hull
   void CopyGraph(void);                       // copy graph into face data
   void MakeNormal(void);                      // compute vertex normals
+  void MakeCenter(void);                      // compute face circumcircle data
   void Process();                             // apply transformations
   void RemoveRepeated(void);                  // remove repeated vertices
   void CheckMesh(void);                       // check if the mesh is valid
@@ -585,6 +589,7 @@ class mjCMesh: public mjCBase {
   int szgraph;                        // size of graph data in ints
   float* vert;                        // vertex data (3*nvert), relative to (pos, quat)
   float* normal;                      // vertex normal data (3*nnormal)
+  double* center;                     // face circumcenter data (3*nface)
   float* texcoord;                    // vertex texcoord data (2*ntexcoord or NULL)
   int* face;                          // face vertex indices (3*nface)
   int* facenormal;                    // face normal indices (3*nface)
@@ -592,6 +597,9 @@ class mjCMesh: public mjCBase {
   int* graph;                         // convex graph data
 
   bool needhull;                      // needs convex hull for collisions
+
+  mjCBoundingVolumeHierarchy tree;    // bounding volume hierarchy
+  std::vector<double> face_aabb;      // bounding boxes of all faces
 };
 
 

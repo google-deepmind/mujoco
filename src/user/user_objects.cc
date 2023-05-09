@@ -321,11 +321,14 @@ int mjCBoundingVolumeHierarchy::MakeBVH(std::vector<mjCBoundingVolume>& elements
       vert[2] = (v&4 ? aabb[5] : aabb[2]);
 
       // rotate to the body inertial frame
-      mju_rotVecQuat(box, vert, elements[i].quat);
-      box[0] += elements[i].pos[0] - ipos_[0];
-      box[1] += elements[i].pos[1] - ipos_[1];
-      box[2] += elements[i].pos[2] - ipos_[2];
-      mju_rotVecQuat(vert, box, qinv);
+      if (elements[i].quat) {
+        mju_rotVecQuat(box, vert, elements[i].quat);
+        box[0] += elements[i].pos[0] - ipos_[0];
+        box[1] += elements[i].pos[1] - ipos_[1];
+        box[2] += elements[i].pos[2] - ipos_[2];
+        mju_rotVecQuat(vert, box, qinv);
+      }
+
       AABB[0] = mjMIN(AABB[0], vert[0]);
       AABB[1] = mjMIN(AABB[1], vert[1]);
       AABB[2] = mjMIN(AABB[2], vert[2]);
@@ -342,18 +345,12 @@ int mjCBoundingVolumeHierarchy::MakeBVH(std::vector<mjCBoundingVolume>& elements
   nodeid.push_back(-1);
   level.push_back(lev);
 
-  // transform representation
-  mjtNum center[] = {(AABB[3] + AABB[0]) / 2, (AABB[4] + AABB[1]) / 2,
-                  (AABB[5] + AABB[2]) / 2};
-  mjtNum size[] = {(AABB[3] - AABB[0]) / 2, (AABB[4] - AABB[1]) / 2,
-                   (AABB[5] - AABB[2]) / 2};
-
   // store bounding box of the current node
   for (int i=0; i<3; i++) {
-    bvh.push_back(center[i]);
+    bvh.push_back((AABB[3+i] + AABB[i]) / 2);
   }
   for (int i=0; i<3; i++) {
-    bvh.push_back(size[i]);
+    bvh.push_back((AABB[3+i] - AABB[i]) / 2);
   }
 
   // leaf node, return

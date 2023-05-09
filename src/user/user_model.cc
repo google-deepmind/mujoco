@@ -939,6 +939,7 @@ void mjCModel::SetSizes(void) {
     nmeshface += meshes[i]->nface;
     nmeshtexcoord += (meshes[i]->texcoord ? meshes[i]->ntexcoord : 0);
     nmeshgraph += meshes[i]->szgraph;
+    nbvh += meshes[i]->tree.nbvh;
   }
 
   // nskinvert, nskintexvert, nskinface, nskinbone, nskinbonevert
@@ -1685,7 +1686,7 @@ void mjCModel::CopyTree(mjModel* m) {
 // copy objects outside kinematic tree
 void mjCModel::CopyObjects(mjModel* m) {
   int adr, bone_adr, vert_adr, normal_adr, face_adr, texcoord_adr;
-  int bonevert_adr, graph_adr, data_adr;
+  int bonevert_adr, graph_adr, data_adr, bvh_adr=0;
 
   // sizes outside call to mj_makeModel
   m->nemax = nemax;
@@ -1700,6 +1701,9 @@ void mjCModel::CopyObjects(mjModel* m) {
   texcoord_adr = 0;
   face_adr = 0;
   graph_adr = 0;
+  for (int i=0; i<nbody; i++) {
+    bvh_adr = mju_max(bvh_adr, m->body_bvhadr[i] + m->body_bvhnum[i]);
+  }
   for (int i=0; i<nmesh; i++) {
     // get pointer
     mjCMesh* pme = meshes[i];
@@ -1714,6 +1718,8 @@ void mjCModel::CopyObjects(mjModel* m) {
     m->mesh_faceadr[i] = face_adr;
     m->mesh_facenum[i] = pme->nface;
     m->mesh_graphadr[i] = (pme->szgraph ? graph_adr : -1);
+    m->mesh_bvhadr[i] = bvh_adr;
+    m->mesh_bvhnum[i] = pme->tree.nbvh;
 
     // copy vertices, normals, faces, texcoords, aux data
     memcpy(m->mesh_vert + 3*vert_adr, pme->vert, 3*pme->nvert*sizeof(float));
@@ -1729,6 +1735,10 @@ void mjCModel::CopyObjects(mjModel* m) {
     if (pme->szgraph) {
       memcpy(m->mesh_graph + graph_adr, pme->graph, pme->szgraph*sizeof(int));
     }
+    memcpy(m->bvh_aabb + 6*bvh_adr, pme->tree.bvh.data(), 6*pme->tree.nbvh*sizeof(mjtNum));
+    memcpy(m->bvh_child + 2*bvh_adr, pme->tree.child.data(), 2*pme->tree.nbvh*sizeof(int));
+    memcpy(m->bvh_depth + bvh_adr, pme->tree.level.data(), pme->tree.nbvh*sizeof(int));
+    memcpy(m->bvh_geomid + bvh_adr, pme->tree.nodeid.data(), pme->tree.nbvh*sizeof(int));
 
     // advance counters
     vert_adr += pme->nvert;
@@ -1736,6 +1746,7 @@ void mjCModel::CopyObjects(mjModel* m) {
     texcoord_adr += (pme->texcoord ? pme->ntexcoord : 0);
     face_adr += pme->nface;
     graph_adr += pme->szgraph;
+    bvh_adr += pme->tree.nbvh;
   }
 
   // skins
