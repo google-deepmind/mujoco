@@ -554,9 +554,11 @@ class mjCMesh: public mjCBase {
   void CopyGraph(void);                       // copy graph into face data
   void MakeNormal(void);                      // compute vertex normals
   void MakeCenter(void);                      // compute face circumcircle data
-  void Process();                             // apply transformations
+  void Process();                             // compute inertial properties
+  void ApplyTransformations();                // apply user transformations
+  void ComputeFaceCentroid(double[3]);        // compute centroid of all faces
   void RemoveRepeated(void);                  // remove repeated vertices
-  void CheckMesh(void);                       // check if the mesh is valid
+  void CheckMesh(mjtMeshType type);           // check if the mesh is valid
 
   // compute the volume and center-of-mass of the mesh given the face center
   void ComputeVolume(double CoM[3], mjtMeshType type, const double facecen[3],
