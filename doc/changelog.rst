@@ -15,7 +15,7 @@ Bug fixes
 
 - Fixed a bug that was causing an incorrect computation of the mesh bounding box and coordinate frame if the volume was
   invalid. In such case, now MuJoCo only accepts a non-watertight geometry if :ref:`shellinertia<body-geom-shellinertia>`
-  is equal to ``true`.
+  is equal to ``true``.
 
 Plugins
 ^^^^^^^
