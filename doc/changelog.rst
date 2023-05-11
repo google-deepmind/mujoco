@@ -46,6 +46,17 @@ General
         1,                    & 1 \le & x \qquad
      \end{cases}
 
+
+.. youtube:: ZppeDArq6AU
+   :align: right
+   :width: 240px
+
+Models
+^^^^^^
+
+- Added `3x3x3 cube <https://github.com/deepmind/mujoco/blob/main/model/cube/cube_3x3x3.xml>`__ example model. See
+  `README <https://github.com/deepmind/mujoco/blob/main/model/cube/README.md>`__ for details.
+
 Version 2.3.5 (April 25, 2023)
 ------------------------------
 
