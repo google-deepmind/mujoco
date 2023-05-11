@@ -62,13 +62,13 @@ class LocaleOverride {
   }
 
   ~LocaleOverride() {
-    setlocale(LC_ALL, old_locale_);
+    setlocale(LC_ALL, old_locale_.c_str());
     _configthreadlocale(old_per_thread_locale_type_);
   }
 
  private:
   int old_per_thread_locale_type_;
-  char* old_locale_;
+  std::string old_locale_;
 };
 #else
 class LocaleOverride {
