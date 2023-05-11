@@ -280,20 +280,9 @@ void mjCMesh::Compile(int vfs_provider) {
       throw mjCError(this, "face data must be a multiple of 3");
     }
 
-    // copy from user
-    nface = (int)userface.size()/3;
-    face = VecToArray(userface, !file.empty());
-
-    // check vertices exist
-    for (auto vertex_index : userface) {
-      if (vertex_index>=nvert || vertex_index < 0) {
-        throw mjCError(this, "found index in userface that exceeds uservert size.");
-      }
-    }
-
     // create half-edge structure (if mesh was in XML)
     if (useredge.empty()) {
-      for (int i=0; i<nface; i++) {
+      for (int i=0; i<userface.size()/3; i++) {
         int v0 = userface[3*i+0];
         int v1 = userface[3*i+1];
         int v2 = userface[3*i+2];
@@ -305,6 +294,17 @@ void mjCMesh::Compile(int vfs_provider) {
         } else {
           // TODO(b/255525326)
         }
+      }
+    }
+
+    // copy from user
+    nface = (int)userface.size()/3;
+    face = VecToArray(userface, !file.empty());
+
+    // check vertices exist
+    for (auto vertex_index : userface) {
+      if (vertex_index>=nvert || vertex_index < 0) {
+        throw mjCError(this, "found index in userface that exceeds uservert size.");
       }
     }
   }
@@ -699,23 +699,6 @@ void mjCMesh::LoadOBJ(mjResource* resource) {
 
       if (!usertexcoord.empty()) {
         userfacetexcoord.push_back(mesh_index.texcoord_index);
-      }
-    }
-
-    for (int i = 0; i < face_indices.size(); i += 3) {
-      // add edges
-      const float *v0 = uservert.data() + 3*face_indices[i+0].vertex_index;
-      const float *v1 = uservert.data() + 3*face_indices[i+1].vertex_index;
-      const float *v2 = uservert.data() + 3*face_indices[i+2].vertex_index;
-
-      // only consider edges if the face contribution is significant
-      mjtNum normal[3];
-      if (_triangle(normal, nullptr, v0, v1, v2)>sqrt(mjMINVAL)) {
-        useredge.push_back(std::pair(face_indices[i+0].vertex_index, face_indices[i+1].vertex_index));
-        useredge.push_back(std::pair(face_indices[i+1].vertex_index, face_indices[i+2].vertex_index));
-        useredge.push_back(std::pair(face_indices[i+2].vertex_index, face_indices[i+0].vertex_index));
-      } else {
-        // TODO(b/255525326)
       }
     }
   }
