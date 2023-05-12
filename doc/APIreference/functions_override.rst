@@ -47,7 +47,7 @@ be set before calling this function. Given the state (qpos, qvel, act), mj_forwa
 while mj_inverse maps from acceleration to force. Mathematically these functions are inverse of each other, but
 numerically this may not always be the case because the forward dynamics rely on a constraint optimization algorithm
 which is usually terminated early. The difference between the results of forward and inverse dynamics can be computed
-with the function :ref:`mj_compareFwdInv`, which can be though of as another solver accuracy check (as well as a general
+with the function :ref:`mj_compareFwdInv`, which can be thought of as another solver accuracy check (as well as a general
 sanity check).
 
 The skip version of :ref:`mj_forward` and :ref:`mj_inverse` are useful for example when qpos was unchanged but qvel was
