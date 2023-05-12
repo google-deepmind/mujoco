@@ -552,24 +552,44 @@ mjtNum mju_muscleBias(mjtNum len, const mjtNum lengthrange[2],
 
 
 
-// muscle activation dynamics, prm = (tau_act, tau_deact)
-mjtNum mju_muscleDynamics(mjtNum ctrl, mjtNum act, const mjtNum prm[2]) {
+// muscle time constant with optional smoothing
+mjtNum mju_muscleDynamicsTimescale(mjtNum dctrl, mjtNum tau_act, mjtNum tau_deact,
+                                   mjtNum smoothing_width) {
+  mjtNum tau;
+
+  // hard switching
+  if (smoothing_width < mjMINVAL) {
+    tau = dctrl > 0 ? tau_act : tau_deact;
+  }
+
+  // smooth switching
+  else {
+    // scale by width, center around 0.5 midpoint, rescale to bounds
+    tau = tau_deact + (tau_act-tau_deact)*mju_sigmoid(dctrl/smoothing_width + 0.5);
+  }
+  return tau;
+}
+
+
+
+// muscle activation dynamics, prm = (tau_act, tau_deact, smoothing_width)
+mjtNum mju_muscleDynamics(mjtNum ctrl, mjtNum act, const mjtNum prm[3]) {
   // clamp control
   mjtNum ctrlclamp = mju_clip(ctrl, 0, 1);
 
   // clamp activation
   mjtNum actclamp = mju_clip(act, 0, 1);
 
-  // compute time constant as in Millard et al. (2013) https://doi.org/10.1115/1.4023390
-  mjtNum tau;
-  if (ctrlclamp>act) {
-    tau = prm[0] * (0.5 + 1.5*actclamp);
-  } else {
-    tau = prm[1] / (0.5 + 1.5*actclamp);
-  }
+  // compute timescales as in Millard et al. (2013) https://doi.org/10.1115/1.4023390
+  mjtNum tau_act = prm[0] * (0.5 + 1.5*actclamp);    // activation timscale
+  mjtNum tau_deact = prm[1] / (0.5 + 1.5*actclamp);  // deactivation timscale
+  mjtNum smoothing_width = prm[2];                   // width of smoothing sigmoid
+  mjtNum dctrl = ctrlclamp - act;                    // excess excitation
+
+  mjtNum tau = mju_muscleDynamicsTimescale(dctrl, tau_act, tau_deact, smoothing_width);
 
   // filter output
-  return (ctrlclamp-act) / mjMAX(mjMINVAL, tau);
+  return dctrl / mjMAX(mjMINVAL, tau);
 }
 
 

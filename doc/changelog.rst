@@ -45,6 +45,11 @@ General
         6x^5 - 15x^4 + 10x^3, & 0 \lt & x \lt 1  \\
         1,                    & 1 \le & x \qquad
      \end{cases}
+- Added optional :ref:`tausmooth<actuator-muscle-tausmooth>` attribute to muscle actuators. When positive, the
+  time-constant :math:`\tau` of muscle activation/deactivation uses :ref:`mju_sigmoid` to transition smoothly
+  between the two extremal values given by the `Millard et al. (2013) <https://doi.org/10.1115/1.4023390>`__ muscle
+  model, within a range of width tausmooth.  See :ref:`Muscle actuators<CMuscle>` for more details.
+  Relatedly, :ref:`mju_muscleDynamics` now takes 3 parameters instead of 2, adding the new smoothing-width parameter.
 
 
 .. youtube:: ZppeDArq6AU

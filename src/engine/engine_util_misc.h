@@ -39,8 +39,12 @@ MJAPI mjtNum mju_muscleGain(mjtNum len, mjtNum vel, const mjtNum lengthrange[2],
 MJAPI mjtNum mju_muscleBias(mjtNum len, const mjtNum lengthrange[2],
                             mjtNum acc0, const mjtNum prm[9]);
 
-// muscle activation dynamics, prm = (tau_act, tau_deact)
-MJAPI mjtNum mju_muscleDynamics(mjtNum ctrl, mjtNum act, const mjtNum prm[2]);
+// muscle time constant with optional smoothing
+MJAPI mjtNum mju_muscleDynamicsTimescale(mjtNum dctrl, mjtNum tau_act, mjtNum tau_deact,
+                                         mjtNum smoothing_width);
+
+// muscle activation dynamics, prm = (tau_act, tau_deact, smoothing_width)
+MJAPI mjtNum mju_muscleDynamics(mjtNum ctrl, mjtNum act, const mjtNum prm[3]);
 
 // all 3 semi-axes of a geom
 MJAPI void mju_geomSemiAxes(const mjModel* m, int geom_id, mjtNum semiaxes[3]);

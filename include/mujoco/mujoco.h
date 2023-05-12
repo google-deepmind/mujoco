@@ -1144,8 +1144,8 @@ MJAPI mjtNum mju_muscleGain(mjtNum len, mjtNum vel, const mjtNum lengthrange[2],
 MJAPI mjtNum mju_muscleBias(mjtNum len, const mjtNum lengthrange[2],
                             mjtNum acc0, const mjtNum prm[9]);
 
-// Muscle activation dynamics, prm = (tau_act, tau_deact).
-MJAPI mjtNum mju_muscleDynamics(mjtNum ctrl, mjtNum act, const mjtNum prm[2]);
+// Muscle activation dynamics, prm = (tau_act, tau_deact, smoothing_width).
+MJAPI mjtNum mju_muscleDynamics(mjtNum ctrl, mjtNum act, const mjtNum prm[3]);
 
 // Convert contact force to pyramid representation.
 MJAPI void mju_encodePyramid(mjtNum* pyramid, const mjtNum* force, const mjtNum* mu, int dim);

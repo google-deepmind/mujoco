@@ -356,11 +356,11 @@ static const char* MJCF[nMJCF][mjXATTRNUM] = {
             "lengthrange", "gear", "cranklength", "user",
             "joint", "jointinparent", "tendon", "slidersite", "cranksite", "site", "refsite",
             "timeconst", "area", "diameter", "bias"},
-        {"muscle", "*", "25",  "name", "class", "group",
+        {"muscle", "*", "26",  "name", "class", "group",
             "ctrllimited", "forcelimited", "ctrlrange", "forcerange",
             "lengthrange", "gear", "cranklength", "user",
             "joint", "jointinparent", "tendon", "slidersite", "cranksite",
-            "timeconst", "range", "force", "scale",
+            "timeconst", "tausmooth", "range", "force", "scale",
             "lmin", "lmax", "vmax", "fpmax", "fvmax"},
         {"adhesion", "*", "9", "name", "class", "group",
             "forcelimited", "ctrlrange", "forcerange", "user", "body", "gain"},
@@ -1606,7 +1606,6 @@ void mjXReader::OneTendon(XMLElement* elem, mjCTendon* pten) {
 // actuator element parser
 void mjXReader::OneActuator(XMLElement* elem, mjCActuator* pact) {
   string text, type;
-  double diameter;
 
   // common attributes
   ReadAttrTxt(elem, "name", pact->name);
@@ -1774,6 +1773,7 @@ void mjXReader::OneActuator(XMLElement* elem, mjCActuator* pact) {
     ReadAttr(elem, "timeconst", 1, pact->dynprm, text);
     ReadAttr(elem, "bias", 3, pact->biasprm, text);
     ReadAttr(elem, "area", 1, pact->gainprm, text);
+    double diameter;
     if (ReadAttr(elem, "diameter", 1, &diameter, text)) {
       pact->gainprm[0] = mjPI / 4 * diameter*diameter;
     }
@@ -1801,6 +1801,9 @@ void mjXReader::OneActuator(XMLElement* elem, mjCActuator* pact) {
 
     // explicit attributes
     ReadAttr(elem, "timeconst", 2, pact->dynprm, text);
+    ReadAttr(elem, "tausmooth", 1, pact->dynprm+2, text);
+    if (pact->dynprm[2]<0)
+      throw mjXError(elem, "muscle tausmooth cannot be negative");
     ReadAttr(elem, "range", 2, pact->gainprm, text);
     ReadAttr(elem, "force", 1, pact->gainprm+2, text);
     ReadAttr(elem, "scale", 1, pact->gainprm+3, text);

@@ -2944,7 +2944,7 @@ mju_muscleDynamics
 
 .. mujoco-include:: mju_muscleDynamics
 
-Muscle activation dynamics, prm = (tau_act, tau_deact).
+Muscle activation dynamics, prm = (tau_act, tau_deact, smoothing_width).
 
 .. _mju_encodePyramid:
 

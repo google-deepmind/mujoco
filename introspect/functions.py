@@ -7294,11 +7294,11 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  name='prm',
                  type=ArrayType(
                      inner_type=ValueType(name='mjtNum', is_const=True),
-                     extents=(2,),
+                     extents=(3,),
                  ),
              ),
          ),
-         doc='Muscle activation dynamics, prm = (tau_act, tau_deact).',
+         doc='Muscle activation dynamics, prm = (tau_act, tau_deact, smoothing_width).',  # pylint: disable=line-too-long
      )),
     ('mju_encodePyramid',
      FunctionDecl(

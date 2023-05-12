@@ -754,13 +754,12 @@ ascending portion of the :math:`\text{FL}` curve, or the descending portion, or 
 model with 50 muscles. Do you believe that someone did careful experiments and measured the operating range for every
 muscle in your model, taking into account all the joints that the muscle spans? If not, then it is better to think of
 musculo-skeletal models as having the same general behavior as the biological system, while being different in various
-details - including details that are of great interest to some research community. For most muscle properties which
+details -- including details that are of great interest to some research community. For most muscle properties which
 modelers consider constant and known, there is an experimental paper showing that they vary under some conditions. This
 is not to discourage people from building accurate models, but rather to discourage people from believing too strongly
-in their models. Modeling in biology is quite different from modeling in physics and engineering... which is why we find
-it ironic when people in Robotics complain that building accurate robot models is hard.
+in their models.
 
-Coming back to our muscle model, there is the muscle activation act. This is the state of a first-order nonlinear
+Coming back to our muscle model, there is the muscle activation ``act``. This is the state of a first-order nonlinear
 filter whose input is the control signal. The filter dynamics are:
 
 
@@ -773,11 +772,16 @@ are two time constants specified with the attribute timeconst, namely :math:`\te
 <https://doi.org/10.1115/1.4023390>`__, the effective time constant :math:`\tau` is then computed at runtime as:
 
 .. math::
-   \tau(\texttt{ctrl}, \texttt{act}) =
+   \tau(\texttt{ctrl}-\texttt{act}) =
    \begin{cases}
-      \tau_\text{act} \cdot (0.5 + 1.5\cdot\texttt{act}) & \texttt{ctrl} \gt \texttt{act} \\
-      \tau_\text{deact} / (0.5 + 1.5\cdot\texttt{act}) & \texttt{ctrl} \leq \texttt{act}
+      \tau_\text{act} \cdot (0.5 + 1.5\cdot\texttt{act}) & \texttt{ctrl}-\texttt{act} \gt 0 \\
+      \tau_\text{deact} / (0.5 + 1.5\cdot\texttt{act}) & \texttt{ctrl} - \texttt{act} \leq 0
    \end{cases}
+
+Since the above equation describes discontinuous switching, which can be undesirable when using derivative-based
+optimization, we introduce the optional smoothing parameter :ref:`tausmooth<actuator-muscle-tausmooth>`. When greater
+than 0, the switching is replaced by :ref:`mju_sigmoid`, which will smoothly interpolate between the two values within
+the range :math:`(\texttt{ctrl}-\texttt{act}) \pm \text{tausmooth}/2`.
 
 Now we summarize the attributes of element :ref:`muscle <actuator-muscle>` which users may want to adjust,
 depending on their familiarity with the biomechanics literature and availability of detailed measurements with regard
@@ -801,6 +805,10 @@ timeconst
    Muscles are composed of slow-twitch and fast-twitch fibers. The typical muscle is mixed, but some muscles have a
    higher proportion of one or the other fiber type, making them faster or slower. This can be modeled by adjusting the
    time constants. The vmax parameter of the :math:`\text{\small FLV}` function should also be adjusted accordingly.
+tausmooth
+   When positive, smooths the transition between activation and de-activation time-constants. While a single
+   `motor unit <https://en.wikipedia.org/wiki/Motor_unit>`__ is either activating or de-activating, an entire muscle
+   will have a mixture of many units, leading to a corresponding mixture of timescales.
 lmin, lmax, vmax, fpmax, fvmax
    These are the parameters controlling the shape of the :math:`\text{\small FLV}` function. Advanced users can
    experiment with them; see MATLAB function `FLV.m <_static/FLV.m>`__. Similar to the scale setting, if you want to

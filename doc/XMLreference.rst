@@ -5535,7 +5535,7 @@ section. The underlying :el:`general` attributes are set as follows:
 ========= ======= ========= ======================================================
 Attribute Setting Attribute Setting
 ========= ======= ========= ======================================================
-dyntype   muscle  dynprm    timeconst(2)
+dyntype   muscle  dynprm    timeconst(2) tausmooth
 gaintype  muscle  gainprm   range(2), force, scale, lmin, lmax, vmax, fpmax, fvmax
 biastype  muscle  biasprm   same as gainprm
 ========= ======= ========= ======================================================
@@ -5588,6 +5588,12 @@ This element has nine custom attributes in addition to the common attributes:
 
 :at:`timeconst`: :at-val:`real(2), "0.01 0.04"`
    Time constants for activation and de-activation dynamics.
+
+.. _actuator-muscle-tausmooth:
+
+:at:`tausmooth`: :at-val:`real, "0"`
+   Width of smooth transition between activation and deactivation time constants. Units of ctrl, must be
+   nonegative.
 
 .. _actuator-muscle-range:
 
