@@ -280,6 +280,13 @@ void mjCMesh::Compile(int vfs_provider) {
       throw mjCError(this, "face data must be a multiple of 3");
     }
 
+    // check vertices exist
+    for (int i=0; i<userface.size(); i++) {
+      if (userface[i] >= nvert || userface[i] < 0) {
+        throw mjCError(this, "index in face does not exist in vertex array");
+      }
+    }
+
     // create half-edge structure (if mesh was in XML)
     if (useredge.empty()) {
       for (int i=0; i<userface.size()/3; i++) {
