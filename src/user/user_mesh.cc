@@ -223,7 +223,7 @@ void mjCMesh::Compile(int vfs_provider) {
 
     // check size
     if (uservert.size()<12) {
-      throw mjCError(this, "at least 4 verices required");
+      throw mjCError(this, "at least 4 vertices required");
     }
     if (uservert.size()%3) {
       throw mjCError(this, "vertex data must be a multiple of 3");
