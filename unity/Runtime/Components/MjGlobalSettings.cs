@@ -30,7 +30,8 @@ namespace Mujoco {
 public enum IntegratorType {
   Euler,
   RK4,
-  @implicit
+  @implicit,
+  @implicitfast
 }
 
 public enum CollisionCheckType {
