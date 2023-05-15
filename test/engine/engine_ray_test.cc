@@ -29,8 +29,8 @@ namespace {
 static constexpr char kSingleGeomModel[] = R"(
 <mujoco>
   <worldbody>
-    <body pos="-1 0 0">
-      <geom type="sphere" size=".1"/>
+    <body pos="-2 0 0">
+      <geom type="sphere" pos="1 0 0" size=".1"/>
     </body>
   </worldbody>
 </mujoco>
@@ -169,7 +169,8 @@ TEST_F(RayTest, MultiRayEqualsSingleRay) {
   // compute intersections with multiray functions
   mjtNum dist_multiray[3*N*M];
   int rgeomid_multiray[N*M];
-  mj_multiRay(m, d, pnt, vec, NULL, 1, -1, rgeomid_multiray, dist_multiray, N*M);
+  mj_multiRay(m, d, pnt, vec, NULL, 1, -1, rgeomid_multiray, dist_multiray,
+              N * M, mjMAXVAL);
 
   // compare results with single ray function
   mjtNum dist;
@@ -200,47 +201,57 @@ TEST_F(RayTest, EdgeCases) {
   mjtNum geom_ba[4];
   mjtNum dist;
   int rgeomid;
+  int flags[1] = {0};
 
   // pnt contained in bounding box
   mjtNum pnt1[] = {-1, 0, 0};
-  mju_multiRayPrepare(m, d, pnt1, NULL, NULL, 1, -1, geom_ba, NULL);
+  mju_multiRayPrepare(m, d, pnt1, NULL, NULL, 1, -1, mjMAXVAL, geom_ba, flags);
   EXPECT_FLOAT_EQ(geom_ba[0], -mjPI);
   EXPECT_FLOAT_EQ(geom_ba[1],  0);
   EXPECT_FLOAT_EQ(geom_ba[2],  mjPI);
   EXPECT_FLOAT_EQ(geom_ba[3],  mjPI);
   mjtNum vec1[] = {1, 0, 0};
-  mj_multiRay(m, d, pnt1, vec1, NULL, 1, -1, &rgeomid, &dist, 1);
+  mj_multiRay(m, d, pnt1, vec1, NULL, 1, -1, &rgeomid, &dist, 1, mjMAXVAL);
   EXPECT_FLOAT_EQ(dist, 0.1);
 
   // pnt at phi = Pi, -Pi
   mjtNum pnt2[] = {-.5, 0, 0};
-  mju_multiRayPrepare(m, d, pnt2, NULL, NULL, 1, -1, geom_ba, NULL);
+  mju_multiRayPrepare(m, d, pnt2, NULL, NULL, 1, -1, mjMAXVAL, geom_ba, flags);
   EXPECT_FLOAT_EQ(geom_ba[0], -mjPI);  // atan(y<0, x<0)
   EXPECT_FLOAT_EQ(geom_ba[2],  mjPI);  // atan(y>0, x<0)
   mjtNum vec2[] = {-1, 0, 0};
-  mj_multiRay(m, d, pnt2, vec2, NULL, 1, -1, &rgeomid, &dist, 1);
+  mj_multiRay(m, d, pnt2, vec2, NULL, 1, -1, &rgeomid, &dist, 1, mjMAXVAL);
   EXPECT_FLOAT_EQ(dist, 0.4);
+
+  // with cutoff
+  mjtNum cutoff1 = 0.41, cutoff2 = 0.39;
+  mju_multiRayPrepare(m, d, pnt2, NULL, NULL, 1, -1, cutoff1, geom_ba, flags);
+  EXPECT_EQ(flags[0], 0);
+  mju_multiRayPrepare(m, d, pnt2, NULL, NULL, 1, -1, cutoff2, geom_ba, flags);
+  EXPECT_EQ(flags[0], 1);
+  mj_multiRay(m, d, pnt2, vec2, NULL, 1, -1, &rgeomid, &dist, 1, cutoff2);
+  EXPECT_FLOAT_EQ(dist, -1);
 
   // pnt on the boundary of the box
   mjtNum pnt3[] = {.1, .1, .05};
-  mju_multiRayPrepare(m, d, pnt3, NULL, NULL, 1, -1, geom_ba, NULL);
+  mju_multiRayPrepare(m, d, pnt3, NULL, NULL, 1, -1, mjMAXVAL, geom_ba, flags);
   EXPECT_FLOAT_EQ(geom_ba[1], 0);
   EXPECT_FLOAT_EQ(geom_ba[3], mjPI);
   mjtNum vec3[] = {1, 1, 0};
-  mj_multiRay(m, d, pnt3, vec3, NULL, 1, -1, &rgeomid, &dist, 1);
+  mj_multiRay(m, d, pnt3, vec3, NULL, 1, -1, &rgeomid, &dist, 1, mjMAXVAL);
   EXPECT_FLOAT_EQ(dist, -1);
 
   // size 0 geom
   mjtNum pnt4[] = {-2, 0, 0};
   m->geom_aabb[0] = m->geom_aabb[1] = m->geom_aabb[2] = 0;
   m->geom_aabb[3] = m->geom_aabb[4] = m->geom_aabb[5] = 0;
-  mju_multiRayPrepare(m, d, pnt4, NULL, NULL, 1, -1, geom_ba, NULL);
+  mju_multiRayPrepare(m, d, pnt4, NULL, NULL, 1, -1, mjMAXVAL, geom_ba, flags);
   EXPECT_FLOAT_EQ(geom_ba[0], 0);
   EXPECT_FLOAT_EQ(geom_ba[1], mjPI/2);
   EXPECT_FLOAT_EQ(geom_ba[2], 0);
   EXPECT_FLOAT_EQ(geom_ba[3], mjPI/2);
   mjtNum vec4[] = {1, 0, 0};
-  mj_multiRay(m, d, pnt4, vec4, NULL, 1, -1, &rgeomid, &dist, 1);
+  mj_multiRay(m, d, pnt4, vec4, NULL, 1, -1, &rgeomid, &dist, 1, mjMAXVAL);
   EXPECT_FLOAT_EQ(dist, 0.9);
 
   mj_deleteData(d);

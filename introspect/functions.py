@@ -2826,6 +2826,10 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  name='nray',
                  type=ValueType(name='int'),
              ),
+             FunctionParameterDecl(
+                 name='cutoff',
+                 type=ValueType(name='mjtNum'),
+             ),
          ),
          doc='Intersect multiple rays emanating from a single point. Similar semantics to mj_ray, but vec is an array of (nray x 3) directions.',  # pylint: disable=line-too-long
      )),

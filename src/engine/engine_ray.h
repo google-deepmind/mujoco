@@ -23,15 +23,17 @@
 extern "C" {
 #endif
 
-MJAPI void mju_multiRayPrepare(const mjModel* m, const mjData* d, const mjtNum pnt[3],
-                               const mjtNum* ray_xmat, const mjtByte* geomgroup, mjtByte flg_static,
-                               int bodyexclude, mjtNum* geom_ba, int* geom_eliminate);
+MJAPI void mju_multiRayPrepare(const mjModel* m, const mjData* d,
+                               const mjtNum pnt[3], const mjtNum* ray_xmat,
+                               const mjtByte* geomgroup, mjtByte flg_static,
+                               int bodyexclude, mjtNum cutoff, mjtNum* geom_ba,
+                               int* geom_eliminate);
 
 // Intersect multiple rays emanating from a single source
 // Similar semantics to mj_ray, but vec is an array of (nray x 3) directions.
 MJAPI void mj_multiRay(const mjModel* m, mjData* d, const mjtNum pnt[3], const mjtNum* vec,
                        const mjtByte* geomgroup, mjtByte flg_static, int bodyexclude,
-                       int* geomid, mjtNum* dist, int nray);
+                       int* geomid, mjtNum* dist, int nray, mjtNum cutoff);
 
 // intersect ray (pnt+x*vec, x>=0) with visible geoms, except geoms on bodyexclude
 //  return geomid and distance (x) to nearest surface, or -1 if no intersection

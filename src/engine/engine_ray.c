@@ -861,16 +861,14 @@ mjtNum mj_ray(const mjModel* m, const mjData* d, const mjtNum* pnt, const mjtNum
 // Initializes spherical bounding angles (geom_ba) and flag vector for a given source
 void mju_multiRayPrepare(const mjModel* m, const mjData* d, const mjtNum pnt[3],
                          const mjtNum* ray_xmat, const mjtByte* geomgroup, mjtByte flg_static,
-                         int bodyexclude, mjtNum* geom_ba, int* geom_eliminate) {
+                         int bodyexclude, mjtNum cutoff, mjtNum* geom_ba, int* geom_eliminate) {
   if (ray_xmat) {
     mju_error("ray_xmat is currently unused, should be NULL");
   }
 
-  if (geom_eliminate) {
-    // compute eliminate flag for all geoms
-    for (int geomid=0; geomid<m->ngeom; geomid++)
-      geom_eliminate[geomid] = ray_eliminate(m, d, geomid, geomgroup, flg_static, bodyexclude);
-  }
+  // compute eliminate flag for all geoms
+  for (int geomid=0; geomid<m->ngeom; geomid++)
+    geom_eliminate[geomid] = ray_eliminate(m, d, geomid, geomgroup, flg_static, bodyexclude);
 
   for (int b=0; b<m->nbody; b++) {
     // skip precomputation if no bounding volume is available
@@ -885,6 +883,17 @@ void mju_multiRayPrepare(const mjModel* m, const mjData* d, const mjtNum pnt[3],
       mjtNum* aabb = m->geom_aabb + 6*g;
       mjtNum* xpos = d->geom_xpos + 3*g;
       mjtNum* xmat = d->geom_xmat + 9*g;
+
+      // skip if eliminated by flags
+      if (geom_eliminate[g]) {
+        continue;
+      }
+
+      // add to geom_eliminate if distance of bounding sphere is above cutoff
+      if (mju_dist3(d->geom_xpos+3*g, pnt)>cutoff+m->geom_rbound[g]) {
+        geom_eliminate[g] = 1;
+        continue;
+      }
 
       if (point_in_box(aabb, xpos, xmat, pnt)) {
         (geom_ba+4*g)[0] = -mjPI;
@@ -1009,7 +1018,7 @@ static mjtNum mju_singleRay(const mjModel* m, mjData* d, const mjtNum pnt[3], co
 // Performs multiple ray intersections with the precomputes bv and flags
 void mj_multiRay(const mjModel* m, mjData* d, const mjtNum pnt[3], const mjtNum* vec,
                  const mjtByte* geomgroup, mjtByte flg_static, int bodyexclude,
-                 int* geomid, mjtNum* dist, int nray) {
+                 int* geomid, mjtNum* dist, int nray, mjtNum cutoff) {
   mjMARKSTACK;
 
   // allocate source
@@ -1017,7 +1026,8 @@ void mj_multiRay(const mjModel* m, mjData* d, const mjtNum pnt[3], const mjtNum*
   int* geom_eliminate = mj_stackAllocInt(d, m->ngeom);
 
   // initialize source
-  mju_multiRayPrepare(m, d, pnt, NULL, geomgroup, flg_static, bodyexclude, geom_ba, geom_eliminate);
+  mju_multiRayPrepare(m, d, pnt, NULL, geomgroup, flg_static, bodyexclude,
+                      cutoff, geom_ba, geom_eliminate);
 
   // loop over rays
   for (int i=0; i<nray; i++) {
