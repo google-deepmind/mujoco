@@ -2217,12 +2217,12 @@ const char* mj_versionString();
 void mj_multiRay(const mjModel* m, mjData* d, const mjtNum pnt[3], const mjtNum* vec,
                  const mjtByte* geomgroup, mjtByte flg_static, int bodyexclude,
                  int* geomid, mjtNum* dist, int nray, mjtNum cutoff);
-mjtNum mj_ray(const mjModel* m, mjData* d, const mjtNum pnt[3], const mjtNum vec[3],
+mjtNum mj_ray(const mjModel* m, const mjData* d, const mjtNum pnt[3], const mjtNum vec[3],
               const mjtByte* geomgroup, mjtByte flg_static, int bodyexclude,
               int geomid[1]);
 mjtNum mj_rayHfield(const mjModel* m, const mjData* d, int geomid,
                     const mjtNum pnt[3], const mjtNum vec[3]);
-mjtNum mj_rayMesh(const mjModel* m, mjData* d, int geomid,
+mjtNum mj_rayMesh(const mjModel* m, const mjData* d, int geomid,
                   const mjtNum pnt[3], const mjtNum vec[3]);
 mjtNum mju_rayGeom(const mjtNum pos[3], const mjtNum mat[9], const mjtNum size[3],
                    const mjtNum pnt[3], const mjtNum vec[3], int geomtype);
@@ -2258,7 +2258,7 @@ void mjv_applyPerturbPose(const mjModel* m, mjData* d, const mjvPerturb* pert,
                           int flg_paused);
 void mjv_applyPerturbForce(const mjModel* m, mjData* d, const mjvPerturb* pert);
 mjvGLCamera mjv_averageCamera(const mjvGLCamera* cam1, const mjvGLCamera* cam2);
-int mjv_select(const mjModel* m, mjData* d, const mjvOption* vopt,
+int mjv_select(const mjModel* m, const mjData* d, const mjvOption* vopt,
                mjtNum aspectratio, mjtNum relx, mjtNum rely,
                const mjvScene* scn, mjtNum selpnt[3], int geomid[1], int skinid[1]);
 void mjv_defaultOption(mjvOption* opt);

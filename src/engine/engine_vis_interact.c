@@ -731,7 +731,7 @@ mjvGLCamera mjv_averageCamera(const mjvGLCamera* cam1, const mjvGLCamera* cam2) 
 
 
 // Select geom or skin with mouse, return bodyid; -1: none selected.
-int mjv_select(const mjModel* m, mjData* d, const mjvOption* vopt,
+int mjv_select(const mjModel* m, const mjData* d, const mjvOption* vopt,
                mjtNum aspectratio, mjtNum relx, mjtNum rely,
                const mjvScene* scn, mjtNum selpnt[3], int geomid[1], int skinid[1]) {
   // get average camera
