@@ -245,7 +245,7 @@ mjtNum mjv_frustumHeight(const mjvScene* scn) {
 MJAPI void mjv_alignToCamera(mjtNum* res, const mjtNum* vec, const mjtNum* forward) {
   mjtNum xaxis[2], yaxis[2];
 
-  // fotward-aligned y-axis
+  // forward-aligned y-axis
   mju_copy(yaxis, forward, 2);
   mju_normalize(yaxis, 2);
 
