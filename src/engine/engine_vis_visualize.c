@@ -776,6 +776,9 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
         continue;
       }
 
+      mjtNum* xmat = vopt->flags[mjVIS_INERTIA] ? d->ximat+9*i : d->xmat+9*i;
+      mjtNum* xpos = vopt->flags[mjVIS_INERTIA] ? d->xipos+3*i : d->xpos+3*i;
+
       // draw the three axes (separate geoms)
       for (int j=0; j<3; j++) {
         START
@@ -784,16 +787,11 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
         for (int k=0; k<3; k++) {
           axis[k] = (j==k ? sz[1] : 0);
         }
-        mju_mulMatVec(vec, d->xmat+9*i, axis, 3, 3);
+        mju_mulMatVec(vec, xmat, axis, 3, 3);
 
         // create a cylinder
-        mjv_makeConnector(thisgeom, mjGEOM_CYLINDER, sz[0],
-                          d->xpos[3*i+0],
-                          d->xpos[3*i+1],
-                          d->xpos[3*i+2],
-                          d->xpos[3*i+0] + vec[0],
-                          d->xpos[3*i+1] + vec[1],
-                          d->xpos[3*i+2] + vec[2]);
+        mjv_makeConnector(thisgeom, mjGEOM_CYLINDER, sz[0], xpos[0], xpos[1], xpos[2],
+                          xpos[0] + vec[0], xpos[1] + vec[1], xpos[2] + vec[2]);
 
         // set color: R, G or B depending on axis
         for (int k=0; k<3; k++) {
