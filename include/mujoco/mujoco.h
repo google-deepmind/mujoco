@@ -493,7 +493,7 @@ MJAPI void mj_multiRay(const mjModel* m, mjData* d, const mjtNum pnt[3], const m
 // Intersect ray (pnt+x*vec, x>=0) with visible geoms, except geoms in bodyexclude.
 // Return distance (x) to nearest surface, or -1 if no intersection and output geomid.
 // geomgroup, flg_static are as in mjvOption; geomgroup==NULL skips group exclusion.
-MJAPI mjtNum mj_ray(const mjModel* m, const mjData* d, const mjtNum pnt[3], const mjtNum vec[3],
+MJAPI mjtNum mj_ray(const mjModel* m, mjData* d, const mjtNum pnt[3], const mjtNum vec[3],
                     const mjtByte* geomgroup, mjtByte flg_static, int bodyexclude,
                     int geomid[1]);
 
@@ -502,7 +502,7 @@ MJAPI mjtNum mj_rayHfield(const mjModel* m, const mjData* d, int geomid,
                           const mjtNum pnt[3], const mjtNum vec[3]);
 
 // Intersect ray with mesh, return nearest distance or -1 if no intersection.
-MJAPI mjtNum mj_rayMesh(const mjModel* m, const mjData* d, int geomid,
+MJAPI mjtNum mj_rayMesh(const mjModel* m, mjData* d, int geomid,
                         const mjtNum pnt[3], const mjtNum vec[3]);
 
 // Intersect ray with pure geom, return nearest distance or -1 if no intersection.
@@ -585,7 +585,7 @@ MJAPI void mjv_applyPerturbForce(const mjModel* m, mjData* d, const mjvPerturb* 
 MJAPI mjvGLCamera mjv_averageCamera(const mjvGLCamera* cam1, const mjvGLCamera* cam2);
 
 // Select geom or skin with mouse, return bodyid; -1: none selected.
-MJAPI int mjv_select(const mjModel* m, const mjData* d, const mjvOption* vopt,
+MJAPI int mjv_select(const mjModel* m, mjData* d, const mjvOption* vopt,
                      mjtNum aspectratio, mjtNum relx, mjtNum rely,
                      const mjvScene* scn, mjtNum selpnt[3], int geomid[1], int skinid[1]);
 

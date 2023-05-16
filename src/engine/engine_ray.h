@@ -38,7 +38,7 @@ MJAPI void mj_multiRay(const mjModel* m, mjData* d, const mjtNum pnt[3], const m
 // intersect ray (pnt+x*vec, x>=0) with visible geoms, except geoms on bodyexclude
 //  return geomid and distance (x) to nearest surface, or -1 if no intersection
 //  geomgroup, flg_static are as in mjvOption; geomgroup==NULL skips group exclusion
-MJAPI mjtNum mj_ray(const mjModel* m, const mjData* d, const mjtNum* pnt, const mjtNum* vec,
+MJAPI mjtNum mj_ray(const mjModel* m, mjData* d, const mjtNum* pnt, const mjtNum* vec,
                     const mjtByte* geomgroup, mjtByte flg_static, int bodyexclude,
                     int geomid[1]);
 
@@ -46,8 +46,12 @@ MJAPI mjtNum mj_ray(const mjModel* m, const mjData* d, const mjtNum* pnt, const 
 MJAPI mjtNum mj_rayHfield(const mjModel* m, const mjData* d, int geomid,
                           const mjtNum* pnt, const mjtNum* vec);
 
+// intersect ray with triangle
+MJAPI mjtNum ray_triangle(mjtNum v[][3], const mjtNum* lpnt, const mjtNum* lvec,
+                          const mjtNum* b0, const mjtNum* b1);
+
 // intersect ray with mesh
-MJAPI mjtNum mj_rayMesh(const mjModel* m, const mjData* d, int geomid,
+MJAPI mjtNum mj_rayMesh(const mjModel* m, mjData* d, int geomid,
                         const mjtNum* pnt, const mjtNum* vec);
 
 // intersect ray with pure geom, no meshes or hfields

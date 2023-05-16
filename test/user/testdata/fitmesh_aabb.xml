@@ -2,7 +2,7 @@
   <compiler fitaabb="true"/>
 
   <asset>
-    <mesh file="stanford_bunny.obj"/>
+    <mesh file="../../testdata/stanford_bunny.obj"/>
   </asset>
 
   <worldbody>

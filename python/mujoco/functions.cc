@@ -549,7 +549,7 @@ PYBIND11_MODULE(_functions, pymodule) {
   Def<traits::mj_multiRay>(pymodule);
   Def<traits::mj_ray>(
       pymodule,
-      [](const raw::MjModel* m, const raw::MjData* d, const mjtNum(*pnt)[3],
+      [](const raw::MjModel* m, raw::MjData* d, const mjtNum(*pnt)[3],
          const mjtNum(*vec)[3],
          std::optional<Eigen::Ref<const Eigen::Vector<mjtByte, mjNGROUP>>>
              geomgroup,
