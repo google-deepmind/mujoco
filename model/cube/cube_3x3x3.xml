@@ -10,14 +10,14 @@
     <headlight ambient="0.3 0.3 0.3" diffuse="0.6 0.6 0.6" specular="0 0 0"/>
   </visual>
 
-  <statistic extent="0.1"/>
+  <statistic meansize="0.0087" extent="0.1"/>
 
   <default>
     <geom mass="0.00253704"/>
     <motor ctrlrange="-0.05 0.05"/>
     <default class="cubelet">
-      <joint type="ball" armature="0.0001" damping="0.0005" frictionloss="0.0005"/>
-      <geom type="mesh" condim="1" margin="-0.001" mesh="cubelet"/>
+      <joint type="ball" armature="0.0001" damping="0.0005" frictionloss="0.001"/>
+      <geom type="mesh" condim="1" mesh="cubelet"/>
     </default>
     <default class="core">
       <geom type="sphere" contype="0" conaffinity="0" group="4" size="0.01"/>
@@ -25,7 +25,7 @@
   </default>
 
   <asset>
-    <texture type="skybox" builtin="gradient" rgb1="0.2 0.2 0.2" rgb2="0 0 0" width="512" height="512"/>
+    <texture type="skybox" builtin="gradient" width="512" height="512"/>
     <texture file="white.png" gridsize="3 4" gridlayout=".....F......" rgb1="0 0 0"/>
     <texture file="yellow.png" gridsize="3 4" gridlayout=".....B......" rgb1="0 0 0"/>
     <texture file="red.png" gridsize="3 4" gridlayout=".....D......" rgb1="0 0 0"/>
@@ -80,15 +80,15 @@
     <material name="green_red_yellow" texture="green_red_yellow"/>
     <material name="blue_orange_yellow" texture="blue_orange_yellow"/>
     <material name="green_orange_yellow" texture="green_orange_yellow"/>
-    <mesh name="cubelet"
-    vertex="0.0085  -0.01     0.0085   -0.0085  -0.01    -0.0085    0.0085  -0.01    -0.0085
-            0.01     0.0085   0.0085    0.01    -0.0085  -0.0085    0.01     0.0085  -0.0085
-           -0.0085   0.0085   0.01      0.0085  -0.0085   0.01      0.0085   0.0085   0.01
-           -0.01    -0.0085   0.0085   -0.01     0.0085  -0.0085   -0.01    -0.0085  -0.0085
-           -0.0085   0.01     0.0085    0.0085   0.01    -0.0085   -0.0085   0.01    -0.0085
-           -0.0085  -0.0085  -0.01     -0.0085  -0.01     0.0085   -0.0085  -0.0085   0.01
-           -0.0085   0.0085  -0.01     -0.01     0.0085   0.0085    0.0085  -0.0085  -0.01
-            0.01    -0.0085   0.0085    0.0085   0.0085  -0.01      0.0085   0.01     0.0085"/>
+    <mesh name="cubelet" scale="1e-3 1e-3 1e-3"
+          vertex="8.075   9.5    -8.075  -8.075   9.5    -8.075   8.075   9.5     8.075
+                 -8.075   9.5     8.075  -9.5     8.075  -8.075  -9.5    -8.075  -8.075
+                 -9.5     8.075   8.075  -9.5    -8.075   8.075   8.075  -9.5    -8.075
+                  8.075  -9.5     8.075  -8.075  -9.5    -8.075  -8.075  -9.5     8.075
+                  9.5     8.075   8.075   9.5    -8.075   8.075   9.5     8.075  -8.075
+                  9.5    -8.075  -8.075   8.075   8.075   9.5    -8.075   8.075   9.5
+                  8.075  -8.075   9.5    -8.075  -8.075   9.5     8.075  -8.075  -9.5
+                 -8.075  -8.075  -9.5     8.075   8.075  -9.5    -8.075   8.075  -9.5"/>
   </asset>
 
   <worldbody>
@@ -97,159 +97,107 @@
       <geom class="core"/>
       <body name="pX">
         <joint name="pX" type="hinge" axis="1 0 0"/>
-        <body name="mesh_pX" pos="0.01905 0 0">
-          <geom material="red"/>
-        </body>
+        <geom material="red" pos="0.019 0 0"/>
       </body>
       <body name="nX">
         <joint name="nX" type="hinge" axis="-1 0 0"/>
-        <body name="mesh_nX" pos="-0.01905 0 0">
-          <geom material="orange"/>
-        </body>
+        <geom material="orange" pos="-0.019 0 0"/>
       </body>
       <body name="pY">
         <joint name="pY" type="hinge" axis="0 1 0"/>
-        <body name="mesh_pY" pos="0 0.01905 0">
-          <geom material="blue"/>
-        </body>
+        <geom material="blue" pos="0 0.019 0"/>
       </body>
       <body name="nY">
         <joint name="nY" type="hinge" axis="0 -1 0"/>
-        <body name="mesh_nY" pos="0 -0.01905 0">
-          <geom material="green"/>
-        </body>
+        <geom material="green" pos="0 -0.019 0"/>
       </body>
       <body name="pZ">
         <joint name="pZ" type="hinge" axis="0 0 1"/>
-        <body name="mesh_pZ" pos="0 0 0.01905">
-          <geom material="white"/>
-        </body>
+        <geom material="white" pos="0 0 0.019"/>
       </body>
       <body name="nZ">
         <joint name="nZ" type="hinge" axis="0 0 -1"/>
-        <body name="mesh_nZ" pos="0 0 -0.01905">
-          <geom material="yellow"/>
-        </body>
+        <geom material="yellow" pos="0 0 -0.019"/>
       </body>
       <body name="pX_pY">
         <joint name="pX_pY"/>
-        <body name="mesh_pX_pY" pos="0.01905 0.01905 0">
-          <geom material="blue_red"/>
-        </body>
+        <geom material="blue_red" pos="0.019 0.019 0"/>
       </body>
       <body name="nY_pX">
         <joint name="nY_pX"/>
-        <body name="mesh_nY_pX" pos="0.01905 -0.01905 0">
-          <geom material="green_red"/>
-        </body>
+        <geom material="green_red" pos="0.019 -0.019 0"/>
       </body>
       <body name="pX_pZ">
         <joint name="pX_pZ"/>
-        <body name="mesh_pX_pZ" pos="0.01905 0 0.01905">
-          <geom material="red_white"/>
-        </body>
+        <geom material="red_white" pos="0.019 0 0.019"/>
       </body>
       <body name="nZ_pX">
         <joint name="nZ_pX"/>
-        <body name="mesh_nZ_pX" pos="0.01905 0 -0.01905">
-          <geom material="red_yellow"/>
-        </body>
+        <geom material="red_yellow" pos="0.019 0 -0.019"/>
       </body>
       <body name="nX_pY">
         <joint name="nX_pY"/>
-        <body name="mesh_nX_pY" pos="-0.01905 0.01905 0">
-          <geom material="blue_orange"/>
-        </body>
+        <geom material="blue_orange" pos="-0.019 0.019 0"/>
       </body>
       <body name="nX_nY">
         <joint name="nX_nY"/>
-        <body name="mesh_nX_nY" pos="-0.01905 -0.01905 0">
-          <geom material="green_orange"/>
-        </body>
+        <geom material="green_orange" pos="-0.019 -0.019 0"/>
       </body>
       <body name="nX_pZ">
         <joint name="nX_pZ"/>
-        <body name="mesh_nX_pZ" pos="-0.01905 0 0.01905">
-          <geom material="orange_white"/>
-        </body>
+        <geom material="orange_white" pos="-0.019 0 0.019"/>
       </body>
       <body name="nX_nZ">
         <joint name="nX_nZ"/>
-        <body name="mesh_nX_nZ" pos="-0.01905 0 -0.01905">
-          <geom material="orange_yellow"/>
-        </body>
+        <geom material="orange_yellow" pos="-0.019 0 -0.019"/>
       </body>
       <body name="pY_pZ">
         <joint name="pY_pZ"/>
-        <body name="mesh_pY_pZ" pos="0 0.01905 0.01905">
-          <geom material="blue_white"/>
-        </body>
+        <geom material="blue_white" pos="0 0.019 0.019"/>
       </body>
       <body name="nZ_pY">
         <joint name="nZ_pY"/>
-        <body name="mesh_nZ_pY" pos="0 0.01905 -0.01905">
-          <geom material="blue_yellow"/>
-        </body>
+        <geom material="blue_yellow" pos="0 0.019 -0.019"/>
       </body>
       <body name="nY_pZ">
         <joint name="nY_pZ"/>
-        <body name="mesh_nY_pZ" pos="0 -0.01905 0.01905">
-          <geom material="green_white"/>
-        </body>
+        <geom material="green_white" pos="0 -0.019 0.019"/>
       </body>
       <body name="nY_nZ">
         <joint name="nY_nZ"/>
-        <body name="mesh_nY_nZ" pos="0 -0.01905 -0.01905">
-          <geom material="green_yellow"/>
-        </body>
+        <geom material="green_yellow" pos="0 -0.019 -0.019"/>
       </body>
       <body name="pX_pY_pZ">
         <joint name="pX_pY_pZ"/>
-        <body name="mesh_pX_pY_pZ" pos="0.01905 0.01905 0.01905">
-          <geom material="blue_red_white"/>
-        </body>
+        <geom material="blue_red_white" pos="0.019 0.019 0.019"/>
       </body>
       <body name="nZ_pX_pY">
         <joint name="nZ_pX_pY"/>
-        <body name="mesh_nZ_pX_pY" pos="0.01905 0.01905 -0.01905">
-          <geom material="blue_red_yellow"/>
-        </body>
+        <geom material="blue_red_yellow" pos="0.019 0.019 -0.019"/>
       </body>
       <body name="nY_pX_pZ">
         <joint name="nY_pX_pZ"/>
-        <body name="mesh_nY_pX_pZ" pos="0.01905 -0.01905 0.01905">
-          <geom material="green_red_white"/>
-        </body>
+        <geom material="green_red_white" pos="0.019 -0.019 0.019"/>
       </body>
       <body name="nY_nZ_pX">
         <joint name="nY_nZ_pX"/>
-        <body name="mesh_nY_nZ_pX" pos="0.01905 -0.01905 -0.01905">
-          <geom material="green_red_yellow"/>
-        </body>
+        <geom material="green_red_yellow" pos="0.019 -0.019 -0.019"/>
       </body>
       <body name="nX_pY_pZ">
         <joint name="nX_pY_pZ"/>
-        <body name="mesh_nX_pY_pZ" pos="-0.01905 0.01905 0.01905">
-          <geom material="blue_orange_white"/>
-        </body>
+        <geom material="blue_orange_white" pos="-0.019 0.019 0.019"/>
       </body>
       <body name="nX_nZ_pY">
         <joint name="nX_nZ_pY"/>
-        <body name="mesh_nX_nZ_pY" pos="-0.01905 0.01905 -0.01905">
-          <geom material="blue_orange_yellow"/>
-        </body>
+        <geom material="blue_orange_yellow" pos="-0.019 0.019 -0.019"/>
       </body>
       <body name="nX_nY_pZ">
         <joint name="nX_nY_pZ"/>
-        <body name="mesh_nX_nY_pZ" pos="-0.01905 -0.01905 0.01905">
-          <geom material="green_orange_white"/>
-        </body>
+        <geom material="green_orange_white" pos="-0.019 -0.019 0.019"/>
       </body>
       <body name="nX_nY_nZ">
         <joint name="nX_nY_nZ"/>
-        <body name="mesh_nX_nY_nZ" pos="-0.01905 -0.01905 -0.01905">
-          <geom material="green_orange_yellow"/>
-        </body>
+        <geom material="green_orange_yellow" pos="-0.019 -0.019 -0.019"/>
       </body>
     </body>
   </worldbody>

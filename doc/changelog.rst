@@ -32,9 +32,7 @@ General
   trajectory optimization. See :ref:`mju_cholFactorBand` documentation for details.
 - Added :ref:`mj_multiRay` function for intersecting multiple rays emanating from a single point.
   This is significantly faster than calling :ref:`mj_ray` multiple times.
-- Ray-mesh collisions are now up to 10x faster, using a bounding volume hierarchy of mesh faces.
 - Increased ``mjMAXUIITEM`` (maximum number of UI elements per section in Simulate) to 100.
-- Removed ``const`` qualifier from :ref:`mjData` in :ref:`mj_ray`, :ref:`mj_rayMesh`, and :ref:`mjv_select`.
 - Added :ref:`documentation<exProvider>` for resource providers.
 - Changed the formula for :ref:`mju_sigmoid`, a finite-support sigmoid :math:`s \colon \mathbf R \rightarrow [0, 1]`.
   Previously, the smooth part consisted of two stitched quadratics, once continuously differentiable.

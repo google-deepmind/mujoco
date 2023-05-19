@@ -2,7 +2,7 @@
   <compiler fitaabb="false" exactmeshinertia="true"/>
 
   <asset>
-    <mesh file="../../testdata/stanford_bunny.obj"/>
+    <mesh file="stanford_bunny.obj"/>
   </asset>
 
   <worldbody>

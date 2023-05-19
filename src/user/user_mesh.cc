@@ -711,7 +711,7 @@ void mjCMesh::LoadOBJ(mjResource* resource) {
   }
 
   // flip the second texcoord
-  for (int i=1; i<usertexcoord.size()/2; i++) {
+  for (int i=0; i<usertexcoord.size()/2; i++) {
     usertexcoord[2*i+1] = 1-usertexcoord[2*i+1];
   }
 }
