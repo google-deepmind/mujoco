@@ -729,12 +729,13 @@ void MakeRenderingSection(mj::Simulate* sim, const mjModel* m, int oldstate) {
   for (int i=0; i<mjNVISFLAG; i++) {
     // set name, remove "&"
     mju::strcpy_arr(defFlag[0].name, mjVISSTRING[i][0]);
-    for (int j=0; j<strlen(mjVISSTRING[i][0]); j++)
+    for (int j=0; j<strlen(mjVISSTRING[i][0]); j++) {
       if (mjVISSTRING[i][0][j]=='&') {
         mju_strncpy(
           defFlag[0].name+j, mjVISSTRING[i][0]+j+1, mju::sizeof_arr(defFlag[0].name)-j);
         break;
       }
+    }
 
     // set shortcut and data
     if (mjVISSTRING[i][2][0]) {
