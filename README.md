@@ -20,8 +20,7 @@ in robotics, biomechanics, graphics and animation, machine learning, and other
 areas which demand fast and accurate simulation of articulated structures
 interacting with their environment.
 
-This repository is maintained by DeepMind, please see our [acquisition] and
-[open sourcing] announcements.
+This repository is maintained by [DeepMind](https://www.deepmind.com/).
 
 MuJoCo has a C API and is intended for researchers and developers. The runtime
 simulation module is tuned to maximize performance and operates on low-level
@@ -31,6 +30,30 @@ further exposes a large number of utility functions for computing
 physics-related quantities.
 
 We also provide Python bindings and a plug-in for the [Unity] game engine.
+
+## Documentation
+
+MuJoCo's documentation is available at [mujoco.readthedocs.io], which serves
+webpages derived from the [documentation source files].
+
+## Getting Started
+
+There are two easy ways to get started with MuJoCo:
+
+1. **Run `simulate` on your machine.**
+[This video](https://www.youtube.com/watch?v=0ORsj_E17B0) shows a screen capture
+of `simulate`, MuJoCo's native interactive viewer. Follow the steps described in
+the [Getting Started] section of the documentation to get `simulate` running on
+your machine.
+
+2. **Explore our online IPython notebooks.**
+If you are a Python user, you might want to start with our tutorial notebooks
+running on Google Colab:
+
+ - The first tutorial focuses on the basics of MuJoCo: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/deepmind/mujoco/blob/main/python/tutorial.ipynb)
+ - For a more advanced example, see the LQR tutorial which creates an LQR
+   controlled to balance a humanoid on one leg using MuJoCo's dynamics
+   derivatives: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/deepmind/mujoco/blob/main/python/LQR.ipynb)
 
 ## Installation
 
@@ -59,30 +82,6 @@ Note that Pre-built Linux wheels target `manylinux2014`, see
 [here](https://github.com/pypa/manylinux) for compatible distributions. For more
 information such as building the bindings from source, see the [Python Bindings]
 section of the documentation.
-
-## Documentation
-
-MuJoCo's documentation is available at [mujoco.readthedocs.io], which serves
-webpages derived from the [documentation source files].
-
-## Getting Started
-
-There are two easy ways to get started with MuJoCo:
-
-1. **Run `simulate` on your machine.**
-[This video](https://www.youtube.com/watch?v=0ORsj_E17B0) shows a screen capture
-of `simulate`, MuJoCo's native interactive viewer. Follow the steps described in
-the [Getting Started] section of the documentation to get `simulate` running on
-your machine.
-
-2. **Explore our online IPython notebooks.**
-If you are a Python user, you might want to start with our tutorial notebooks
-running on Google Colab:
-
- - The first tutorial focuses on the basics of MuJoCo: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/deepmind/mujoco/blob/main/python/tutorial.ipynb)
- - For a more advanced example, see the LQR tutorial which creates an LQR
-   controlled to balance a humanoid on one leg using MuJoCo's dynamics
-   derivatives: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/deepmind/mujoco/blob/main/python/LQR.ipynb)
 
 ## Asking Questions
 
@@ -146,6 +145,9 @@ These packages give users of various languages access to MuJoCo functionality:
 
 #### Third-party bindings
 
+- **WebAssembly**: [mujoco_wasm](https://github.com/zalo/mujoco_wasm) by @zalo with contributions by
+  @kevinzakka, based on the [emscripten build](https://github.com/stillonearth/MuJoCo-WASM) by
+  @stillonearth. [Click here](zalo.github.io/mujoco_wasm/) for a live demo of MuJoCo in a browser.
 - **Swift**: [swift-mujoco](https://github.com/liuliu/swift-mujoco)
 - **Java**: [mujoco-java](https://github.com/CommonWealthRobotics/mujoco-java)
 - **Julia**: [Lyceum](https://github.com/Lyceum/MuJoCo.jl) (unmaintained)
@@ -195,8 +197,6 @@ This is not an officially supported Google product.
 
 [build from source]: https://mujoco.readthedocs.io/en/latest/programming#building-mujoco-from-source
 [Getting Started]: https://mujoco.readthedocs.io/en/latest/programming#getting-started
-[acquisition]: https://www.deepmind.com/blog/opening-up-a-physics-simulator-for-robotics
-[open sourcing]: https://www.deepmind.com/blog/open-sourcing-mujoco
 [Unity]: https://unity.com/
 [releases page]: https://github.com/deepmind/mujoco/releases
 [GitHub Issues]: https://github.com/deepmind/mujoco/issues
