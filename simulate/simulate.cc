@@ -749,11 +749,12 @@ void MakeRenderingSection(mj::Simulate* sim, const mjModel* m, int oldstate) {
 
   // create tree slider
   mjuiDef defTree[] = {
-      {mjITEM_SLIDERINT, "Tree depth", 2, &sim->opt.bvh_depth, "-1 15"},
+      {mjITEM_SLIDERINT, "Tree depth", 2, &sim->opt.bvh_depth, "0 15"},
       {mjITEM_END}
   };
   mjui_add(&sim->ui0, defTree);
 
+  // add rendering flags
   mjui_add(&sim->ui0, defOpenGL);
   for (int i=0; i<mjNRNDFLAG; i++) {
     mju::strcpy_arr(defFlag[0].name, mjRNDSTRING[i][0]);
