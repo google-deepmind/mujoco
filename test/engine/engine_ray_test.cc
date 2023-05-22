@@ -51,6 +51,28 @@ static constexpr char kRayCastingModel[] = R"(
 </mujoco>
 )";
 
+static constexpr char kCubeletModel[] = R"(
+<mujoco>
+  <asset>
+    <mesh name="cubelet"
+    vertex="0.0085  -0.01     0.0085   -0.0085  -0.01    -0.0085    0.0085  -0.01    -0.0085
+            0.01     0.0085   0.0085    0.01    -0.0085  -0.0085    0.01     0.0085  -0.0085
+           -0.0085   0.0085   0.01      0.0085  -0.0085   0.01      0.0085   0.0085   0.01
+           -0.01    -0.0085   0.0085   -0.01     0.0085  -0.0085   -0.01    -0.0085  -0.0085
+           -0.0085   0.01     0.0085    0.0085   0.01    -0.0085   -0.0085   0.01    -0.0085
+           -0.0085  -0.0085  -0.01     -0.0085  -0.01     0.0085   -0.0085  -0.0085   0.01
+           -0.0085   0.0085  -0.01     -0.01     0.0085   0.0085    0.0085  -0.0085  -0.01
+            0.01    -0.0085   0.0085    0.0085   0.0085  -0.01      0.0085   0.01     0.0085"/>
+  </asset>
+
+  <worldbody>
+    <body pos="1 0 0">
+      <geom type="mesh" mesh="cubelet"/>
+    </body>
+  </worldbody>
+</mujoco>
+)";
+
 using ::testing::NotNull;
 using RayTest = MujocoTest;
 
@@ -139,6 +161,8 @@ TEST_F(RayTest, ExcludeStatic) {
   mj_deleteData(data);
   mj_deleteModel(model);
 }
+
+// ------------------------------- mj_multiRay --------------------------------
 
 TEST_F(RayTest, MultiRayEqualsSingleRay) {
   mjModel* m = LoadModelFromString(kRayCastingModel);
@@ -255,6 +279,127 @@ TEST_F(RayTest, EdgeCases) {
   EXPECT_FLOAT_EQ(dist, 0.9);
 
   mj_deleteData(d);
+  mj_deleteModel(m);
+}
+
+// ------------------------------- mj_rayMesh ---------------------------------
+
+// old ray mesh intersection
+mjtNum _rayMesh(const mjModel* m, const mjData* d, int geomid,
+                const mjtNum* pnt, const mjtNum* vec) {
+  // check geom type
+  if (m->geom_type[geomid] != mjGEOM_MESH) {
+    mju_error("mj_rayMesh: geom with mesh type expected");
+  }
+
+  // map to local frame
+  mjtNum lpnt[3], lvec[3];
+  const mjtNum* pos = d->geom_xpos+3*geomid;
+  const mjtNum dif[3] = {pnt[0]-pos[0], pnt[1]-pos[1], pnt[2]-pos[2]};
+  mju_rotVecMatT(lpnt, dif, d->geom_xmat+9*geomid);
+  mju_rotVecMatT(lvec, vec, d->geom_xmat+9*geomid);
+
+  // construct basis vectors of normal plane
+  mjtNum b0[3] = {1, 1, 1}, b1[3];
+  if (mju_abs(lvec[0]) >= mju_abs(lvec[1]) &&
+      mju_abs(lvec[0]) >= mju_abs(lvec[2])) {
+    b0[0] = 0;
+  } else if (mju_abs(lvec[1]) >= mju_abs(lvec[2])) {
+    b0[1] = 0;
+  } else {
+    b0[2] = 0;
+  }
+  mju_addScl3(b1, b0, lvec, -mju_dot3(lvec, b0)/mju_dot3(lvec, lvec));
+  mju_normalize3(b1);
+  mju_cross(b0, b1, lvec);
+  mju_normalize3(b0);
+
+  // init solution
+  mjtNum x = -1, sol;
+
+  // process all triangles
+  int face, meshid = m->geom_dataid[geomid];
+  for (face = m->mesh_faceadr[meshid];
+       face < m->mesh_faceadr[meshid] + m->mesh_facenum[meshid];
+       face++) {
+    // get float vertices
+    float* vf[3];
+    vf[0] = m->mesh_vert + 3*(m->mesh_face[3*face]   + m->mesh_vertadr[meshid]);
+    vf[1] = m->mesh_vert + 3*(m->mesh_face[3*face+1] + m->mesh_vertadr[meshid]);
+    vf[2] = m->mesh_vert + 3*(m->mesh_face[3*face+2] + m->mesh_vertadr[meshid]);
+
+    // convert to mjtNum
+    mjtNum v[3][3];
+    for (int i=0; i < 3; i++) {
+      for (int j=0; j < 3; j++) {
+        v[i][j] = (mjtNum)vf[i][j];
+      }
+    }
+
+    // solve
+    sol = ray_triangle(v, lpnt, lvec, b0, b1);
+
+    // update
+    if (sol >= 0 && (x < 0 || sol < x)) {
+      x = sol;
+    }
+  }
+
+  return x;
+}
+
+// performs a ray mesh test using a given mjModel
+void _rayMeshTest(const mjModel* m) {
+  mjData* d = mj_makeData(m);
+  ASSERT_THAT(d, NotNull());
+  mj_forward(m, d);
+
+  // create ray array
+  constexpr int N = 80;
+  constexpr int M = 60;
+  mjtNum vec[3*N*M];
+  mjtNum pnt[3] = {1, .2, 0};
+  mjtNum cone[4][3] = {{-1, -1, -1}, {-1, -1, 1}, {1, -1, 1}, {1, -1, -1}};
+  memset(vec, 0, 3*N*M*sizeof(mjtNum));
+
+  for (int i = 0; i < N; ++i) {
+    for (int j = 0; j < M; ++j) {
+      for (int k = 0; k < 3; ++k) {
+        vec[3 * (i * M + j) + k] =           i * cone[0][k] / (N - 1) +
+                                             j * cone[1][1] / (M - 1) +
+                                   (N - i - 1) * cone[2][k] / (N - 1) +
+                                   (M - j - 1) * cone[3][k] / (M - 1);
+      }
+    }
+  }
+  // compare results with single ray function
+  mjtNum dist_new, dist_old;
+
+  for (int i = 0; i < N; ++i) {
+    for (int j = 0; j < M; ++j) {
+      int idx = i * M + j;
+      dist_old = _rayMesh(m, d, /*geomid=*/0, pnt, vec + 3 * idx);
+      dist_new = mj_rayMesh(m, d, /*geomid=*/0, pnt, vec + 3 * idx);
+      EXPECT_FLOAT_EQ(dist_new, dist_old);
+    }
+  }
+
+  mj_deleteData(d);
+}
+
+TEST_F(RayTest, RayMeshPruning) {
+  char error[1024] = {0};
+  const std::string xml_path =
+      GetTestDataFilePath("engine/testdata/ray/stanford_bunny.xml");
+
+  mjModel* m = mj_loadXML(xml_path.c_str(), NULL, error, sizeof(error));
+  ASSERT_THAT(m, NotNull()) << error;
+  _rayMeshTest(m);
+  mj_deleteModel(m);
+
+  m = LoadModelFromString(kCubeletModel);
+  ASSERT_THAT(m, NotNull());
+  _rayMeshTest(m);
   mj_deleteModel(m);
 }
 

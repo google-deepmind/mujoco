@@ -39,6 +39,7 @@ public const double mjMINMU = 1e-05;
 public const double mjMINIMP = 0.0001;
 public const double mjMAXIMP = 0.9999;
 public const int mjMAXCONPAIR = 50;
+public const int mjMAXTREEDEPTH = 50;
 public const int mjMAXVFS = 2000;
 public const int mjMAXVFSNAME = 1000;
 public const int mjNEQDATA = 11;

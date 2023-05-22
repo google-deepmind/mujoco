@@ -27,6 +27,8 @@
 #include "engine/engine_util_misc.h"
 #include "engine/engine_util_spatial.h"
 
+
+
 //---------------------------- utility functions ---------------------------------------------------
 
 // map ray to local geom frame
@@ -130,8 +132,8 @@ static mjtNum ray_quad(mjtNum a, mjtNum b, mjtNum c, mjtNum* x) {
 
 
 // intersect ray with triangle
-static mjtNum ray_triangle(mjtNum v[][3], const mjtNum* lpnt, const mjtNum* lvec,
-                           const mjtNum* b0, const mjtNum* b1) {
+mjtNum ray_triangle(mjtNum v[][3], const mjtNum* lpnt, const mjtNum* lvec,
+                    const mjtNum* b0, const mjtNum* b1) {
   // dif = v[i] - lpnt
   mjtNum dif[3][3];
   for (int i=0; i<3; i++) {
@@ -185,8 +187,6 @@ static mjtNum ray_triangle(mjtNum v[][3], const mjtNum* lpnt, const mjtNum* lvec
 
   return (-mju_dot3(dif[2], nrm) / denom);
 }
-
-
 
 //---------------------------- geom-specific intersection functions --------------------------------
 
@@ -599,18 +599,52 @@ mjtNum mj_rayHfield(const mjModel* m, const mjData* d, int id,
 
 
 
-// intersect ray with mesh
-mjtNum mj_rayMesh(const mjModel* m, const mjData* d, int id,
-                  const mjtNum* pnt, const mjtNum* vec) {
-  // check geom type
-  if (m->geom_type[id]!=mjGEOM_MESH) {
-    mju_error("mj_rayMesh: geom with mesh type expected");
+// ray vs axis-aligned bounding box using slab method
+// see Ericson, Real-time Collision Detection section 5.3.3.
+int mju_raySlab(const mjtNum aabb[6], const mjtNum xpos[3],
+                const mjtNum xmat[9], const mjtNum* pnt, const mjtNum* vec) {
+  mjtNum tmin = 0.0, tmax = INFINITY;
+
+  // compute min and max
+  mjtNum min[3] = {aabb[0]-aabb[3], aabb[1]-aabb[4], aabb[2]-aabb[5]};
+  mjtNum max[3] = {aabb[0]+aabb[3], aabb[1]+aabb[4], aabb[2]+aabb[5]};
+
+  // compute ray in local coordinates
+  mjtNum src[3], dir[3];
+  ray_map(xpos, xmat, pnt, vec, src, dir);
+
+  // check intersections
+  mjtNum invdir[3] = { 1.0 / dir[0], 1.0 / dir[1], 1.0 / dir[2] };
+  for (int d = 0; d < 3; ++d) {
+    mjtNum t1 = (min[d] - src[d]) * invdir[d];
+    mjtNum t2 = (max[d] - src[d]) * invdir[d];
+    mjtNum minval = t1 < t2 ? t1 : t2;
+    mjtNum maxval = t1 < t2 ? t2 : t1;
+    tmin = tmin > minval ? tmin : minval;
+    tmax = tmax < maxval ? tmax : maxval;
   }
 
-  // bounding box test
-  if (ray_box(d->geom_xpos+3*id, d->geom_xmat+9*id, m->geom_size+3*id, pnt, vec, NULL)<0) {
-    return -1;
+  return tmin < tmax;
+}
+
+// ray vs tree intersection
+mjtNum mju_rayTree(const mjModel* m, const mjData* d, int id, const mjtNum* pnt,
+                   const mjtNum* vec) {
+  const int meshid = m->geom_dataid[id];
+  const int bvhadr = m->mesh_bvhadr[meshid];
+  const int* faceid = m->bvh_geomid + bvhadr;
+  const mjtNum* bvh = m->bvh_aabb + 6*bvhadr;
+  const int* child = m->bvh_child + 2*bvhadr;
+
+  if (meshid==-1) {
+    mju_error("mju_rayTree: mesh id of geom %d is -1", meshid);  // SHOULD NOT OCCUR
   }
+
+  // initialize stack
+  int stack[mjMAXTREEDEPTH];
+  int nstack = 0;
+  stack[nstack] = 0;
+  nstack++;
 
   // map to local frame
   mjtNum lpnt[3], lvec[3];
@@ -633,35 +667,77 @@ mjtNum mj_rayMesh(const mjModel* m, const mjData* d, int id,
   // init solution
   mjtNum x = -1, sol;
 
-  // process all triangles
-  int face, meshid = m->geom_dataid[id];
-  for (face = m->mesh_faceadr[meshid];
-       face < m->mesh_faceadr[meshid] + m->mesh_facenum[meshid];
-       face++) {
-    // get float vertices
-    float* vf[3];
-    vf[0] = m->mesh_vert + 3*(m->mesh_face[3*face]   + m->mesh_vertadr[meshid]);
-    vf[1] = m->mesh_vert + 3*(m->mesh_face[3*face+1] + m->mesh_vertadr[meshid]);
-    vf[2] = m->mesh_vert + 3*(m->mesh_face[3*face+2] + m->mesh_vertadr[meshid]);
+  while (nstack) {
+    // pop from stack
+    nstack--;
+    int node = stack[nstack];
 
-    // convert to mjtNum
-    mjtNum v[3][3];
-    for (int i=0; i<3; i++) {
-      for (int j=0; j<3; j++) {
-        v[i][j] = (mjtNum)vf[i][j];
-      }
+    // intersection test
+    int intersect = mju_raySlab(bvh+6*node, d->geom_xpos+3*id, d->geom_xmat+9*id, pnt, vec);
+
+    // if no intersection, skip
+    if (!intersect) {
+      continue;
     }
 
-    // solve
-    sol = ray_triangle(v, lpnt, lvec, b0, b1);
+    // node1 is a leaf
+    if (faceid[node] != -1) {
+      int face = faceid[node] + m->mesh_faceadr[meshid];
 
-    // update
-    if (sol>=0 && (x<0 || sol<x)) {
-      x = sol;
+      // get float vertices
+      float* vf[3];
+      vf[0] = m->mesh_vert + 3*(m->mesh_face[3*face+0] + m->mesh_vertadr[meshid]);
+      vf[1] = m->mesh_vert + 3*(m->mesh_face[3*face+1] + m->mesh_vertadr[meshid]);
+      vf[2] = m->mesh_vert + 3*(m->mesh_face[3*face+2] + m->mesh_vertadr[meshid]);
+
+      // convert to mjtNum
+      mjtNum v[3][3];
+      for (int i=0; i<3; i++) {
+        for (int j=0; j<3; j++) {
+          v[i][j] = (mjtNum)vf[i][j];
+        }
+      }
+
+      // solve
+      sol = ray_triangle(v, lpnt, lvec, b0, b1);
+
+      // update
+      if (sol>=0 && (x<0 || sol<x)) {
+        x = sol;
+      }
+      continue;
+    }
+
+    // used for rendering
+    d->bvh_active[node + bvhadr] = 1;
+
+    // add children to the stack
+    for (int i=0; i<2; i++) {
+      if (child[2*node+i] != -1) {
+        if (nstack >= mjMAXTREEDEPTH) mju_error("BVH stack depth exceeded in geom %d.", id);
+        stack[nstack] = child[2*node+i];
+        nstack++;
+      }
     }
   }
 
   return x;
+}
+
+// intersect ray with mesh
+mjtNum mj_rayMesh(const mjModel* m, const mjData* d, int id,
+                  const mjtNum* pnt, const mjtNum* vec) {
+  // check geom type
+  if (m->geom_type[id]!=mjGEOM_MESH) {
+    mju_error("mj_rayMesh: geom with mesh type expected");
+  }
+
+  // bounding box test
+  if (ray_box(d->geom_xpos+3*id, d->geom_xmat+9*id, m->geom_size+3*id, pnt, vec, NULL)<0) {
+    return -1;
+  }
+
+  return mju_rayTree(m, d, id, pnt, vec);
 }
 
 
