@@ -913,17 +913,22 @@ TEST_F(XMLWriterTest, SetPrecision) {
 }
 
 class XMLWriterLocaleTest : public MujocoTest {
+ public:
+  XMLWriterLocaleTest() : old_locale_(std::setlocale(LC_ALL, nullptr)) {}
+
  protected:
-  char* old_locale;
   void SetUp() override {
-    this->old_locale = std::setlocale(LC_ALL, nullptr);
     if (!std::setlocale(LC_ALL, "de_DE.UTF-8")) {
       GTEST_SKIP() << "This system doesn't support the de_DE.UTF-8 locale";
     }
   }
+
   void TearDown() override {
-    std::setlocale(LC_ALL, old_locale);
+    std::setlocale(LC_ALL, old_locale_.c_str());
   }
+
+ private:
+  std::string old_locale_;
 };
 
 TEST_F(XMLWriterLocaleTest, IgnoresLocale) {
