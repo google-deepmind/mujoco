@@ -7,5 +7,5 @@ COMMON=-O2 -I../include -L../lib -pthread -Wl,-no-as-needed -Wl,-rpath,'$$ORIGIN
 all:
 	$(CXX) $(COMMON) -std=c++17 -c simulate.cc
 	$(CC)  $(COMMON) -std=c11   -c uitools.c
-	$(CXX) $(COMMON) -std=c++17 main.cc simulate.o uitools.o -lmujoco -lglfw -o ../bin/simulate
+	$(CXX) $(COMMON) -std=c++17 main.cc simulate.o uitools.o -lmujoco -lglfw -ldl -o ../bin/simulate
 	rm uitools.o simulate.o
