@@ -17,6 +17,9 @@ Bug fixes
   invalid. In such case, now MuJoCo only accepts a non-watertight geometry if :ref:`shellinertia<body-geom-shellinertia>`
   is equal to ``true``.
 
+- Fixed the sparse Jacobian multiplication logic that is used to compute derivatives for tendon damping and fluid force,
+  which affects the behaviour of the :ref:`implicit and implicitfast integrators<geIntegration>`.
+
 Plugins
 ^^^^^^^
 

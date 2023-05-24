@@ -708,39 +708,41 @@ static void addJTBJ(const mjModel* m, mjData* d, const mjtNum* J, const mjtNum* 
 
 
 // add J'*B*J to qDeriv, sparse version
-static void addJTBJSparse(const mjModel* m, mjData* d, const mjtNum* J,
-  const mjtNum* B, int n, int offset,
-  const int* rownnz, const int* rowadr, const int* colind) {
+static void addJTBJSparse(
+    const mjModel* m, mjData* d, const mjtNum* J,
+    const mjtNum* B, int n, int offset,
+    const int* J_rownnz, const int* J_rowadr, const int* J_colind) {
   int nv = m->nv;
 
   // allocate row
   mjMARKSTACK;
   mjtNum* row = mj_stackAlloc(d, nv);
-  mju_zero(row, nv);
 
-  // process non-zero elements of B
-  for (int i=0; i<n; i++) {
-    for (int j=0; j<n; j++) {
+  // compute qDeriv(k,p) += sum_{i,j} ( J(i,k)*B(i,j)*J(j,p) )
+  for (int i = 0; i < n; i++) {
+    for (int j = 0; j < n; j++) {
       if (!B[i*n+j]) {
         continue;
       }
 
-      // process non-zero elements of J(i,k)
-      for (int k=0; k<rownnz[offset+i]; k++) {
-        int ik = rowadr[offset+i] + k;
+      mju_zero(row, nv);
+
+      // loop over non-zero elements of J(i,:)
+      for (int k = 0; k < J_rownnz[offset+i]; k++) {
+        int ik = J_rowadr[offset+i] + k;
         mjtNum scl = J[ik]*B[i*n+j];
 
-        // process non-zero elements of J(j,p)
-        for (int p=0; p<rownnz[offset+j]; p++) {
-          int jp = rowadr[offset+j] + p;
-
-          // row[p] = J(i,k)*B(i,j)*J(j,p)
-          row[p] = scl * J[jp];
+        // loop over non-zero elements of J(j,:)
+        // (pJ is the sparse column index into J)
+        for (int pJ = 0; pJ < J_rownnz[offset+j]; pJ++) {
+          int adr = J_rowadr[offset+j] + pJ;
+          row[J_colind[adr]] = scl * J[adr];
         }
 
         // add row to qDeriv(k,:)
-        for (int s=0; s<d->D_rownnz[k]; s++) {
-          int adr = d->D_rowadr[k] + s;
+        // (pD is the sparse column index into qDeriv)
+        for (int pD = 0; pD < d->D_rownnz[k]; pD++) {
+          int adr = d->D_rowadr[k] + pD;
           d->qDeriv[adr] += row[d->D_colind[adr]];
         }
       }
