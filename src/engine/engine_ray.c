@@ -82,13 +82,8 @@ static int ray_eliminate(const mjModel* m, const mjData* d, int geomid,
   }
 
   // static exclusion
-  if (!flg_static && m->geom_bodyid[geomid]==0) {
+  if (!flg_static && m->body_weldid[m->geom_bodyid[geomid]]==0) {
     return 1;
-  }
-
-  // plane and hfield inclusion
-  if (m->geom_type[geomid]==mjGEOM_PLANE || m->geom_type[geomid]==mjGEOM_HFIELD) {
-    return 0;
   }
 
   // no geomgroup inclusion

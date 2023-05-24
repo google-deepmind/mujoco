@@ -39,10 +39,10 @@ static constexpr char kSingleGeomModel[] = R"(
 static constexpr char kRayCastingModel[] = R"(
 <mujoco>
   <worldbody>
-    <geom name="static_group1" type="sphere" size=".1" pos="1 0 0"
-     group="1"/>
+    <geom name="static_group1" type="sphere" size=".1" pos="1 0 0" group="1"/>
     <body pos="0 0 0">
       <body pos="0 0 0">
+        <joint/>
         <geom name="group0" type="sphere" size=".1" pos="3 0 0"/>
       </body>
       <geom name="group2" type="sphere" size=".1" pos="5 0 0" group="2"/>

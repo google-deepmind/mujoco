@@ -5,27 +5,29 @@ Changelog
 Upcoming version (not yet released)
 -----------------------------------
 
-.. youtube:: hqIMTNGaLF4
+.. youtube:: ZppeDArq6AU
    :align: right
    :width: 240px
 
+Models
+^^^^^^
+
+- Added `3x3x3 cube <https://github.com/deepmind/mujoco/blob/main/model/cube/cube_3x3x3.xml>`__ example model. See
+  `README <https://github.com/deepmind/mujoco/blob/main/model/cube/README.md>`__ for details.
 
 Bug fixes
-^^^^^^^
+^^^^^^^^^
 
 - Fixed a bug that was causing an incorrect computation of the mesh bounding box and coordinate frame if the volume was
-  invalid. In such case, now MuJoCo only accepts a non-watertight geometry if :ref:`shellinertia<body-geom-shellinertia>`
-  is equal to ``true``.
-
+  invalid. In such case, now MuJoCo only accepts a non-watertight geometry if
+  :ref:`shellinertia<body-geom-shellinertia>` is equal to ``true``.
 - Fixed the sparse Jacobian multiplication logic that is used to compute derivatives for tendon damping and fluid force,
   which affects the behaviour of the :ref:`implicit and implicitfast integrators<geIntegration>`.
+- Fixes to :ref:`mj_ray`, in line with geom visualisation conventions:
 
-Plugins
-^^^^^^^
-
-- Added touch-grid sensor plugin. See `documentation <https://github.com/deepmind/mujoco/blob/main/plugin/sensor/README.md>`_
-  for details, and associated `touch_grid.xml <https://github.com/deepmind/mujoco/blob/main/model/plugin/touch_grid.xml>`_
-  example model. The plugin includes `in-scene visualisation <https://youtu.be/0LOJ3WMnqeA>`_.
+  - Planes and height-fields respect the `geom_group` and `flg_static` arguments. Before this change, rays would
+    intersect planes and height-fields unconditionally.
+  - ``flg_static`` now apllies to all static geoms, not just those which are direct children of the world body.
 
 General
 ^^^^^^^
@@ -55,16 +57,17 @@ General
   model, within a range of width tausmooth.  See :ref:`Muscle actuators<CMuscle>` for more details.
   Relatedly, :ref:`mju_muscleDynamics` now takes 3 parameters instead of 2, adding the new smoothing-width parameter.
 
-
-.. youtube:: ZppeDArq6AU
+.. youtube:: hqIMTNGaLF4
    :align: right
    :width: 240px
 
-Models
-^^^^^^
+Plugins
+^^^^^^^
 
-- Added `3x3x3 cube <https://github.com/deepmind/mujoco/blob/main/model/cube/cube_3x3x3.xml>`__ example model. See
-  `README <https://github.com/deepmind/mujoco/blob/main/model/cube/README.md>`__ for details.
+- Added touch-grid sensor plugin. See `documentation <https://github.com/deepmind/mujoco/blob/main/plugin/sensor/README.md>`_
+  for details, and associated `touch_grid.xml <https://github.com/deepmind/mujoco/blob/main/model/plugin/touch_grid.xml>`_
+  example model. The plugin includes `in-scene visualisation <https://youtu.be/0LOJ3WMnqeA>`_.
+
 
 Version 2.3.5 (April 25, 2023)
 ------------------------------
