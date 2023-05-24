@@ -716,6 +716,7 @@ static void addJTBJSparse(const mjModel* m, mjData* d, const mjtNum* J,
   // allocate row
   mjMARKSTACK;
   mjtNum* row = mj_stackAlloc(d, nv);
+  mju_zero(row, nv);
 
   // process non-zero elements of B
   for (int i=0; i<n; i++) {
