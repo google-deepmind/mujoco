@@ -122,7 +122,7 @@ static void clampedStateDiff(const mjModel* m, mjtNum* ds, const mjtNum* s, cons
     stateDiff(m, ds, s_minus, s_plus, 2*h);
   } else {
     // differencing failed, write zeros
-    mju_zero(ds, m->nq + m->nv + m->na);
+    mju_zero(ds, 2*m->nv + m->na);
   }
 }
 
