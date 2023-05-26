@@ -55,6 +55,7 @@ include(MujocoDependencies)
 set(MUJOCO_HEADERS
     include/mujoco/mjdata.h
     include/mujoco/mjexport.h
+    include/mujoco/mjmacro.h
     include/mujoco/mjmodel.h
     include/mujoco/mjplugin.h
     include/mujoco/mjrender.h

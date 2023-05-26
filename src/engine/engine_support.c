@@ -17,12 +17,12 @@
 #include <string.h>
 
 #include <mujoco/mjdata.h>
+#include <mujoco/mjmacro.h>
 #include <mujoco/mjmodel.h>
 #include "engine/engine_array_safety.h"
 #include "engine/engine_core_constraint.h"
 #include "engine/engine_crossplatform.h"
 #include "engine/engine_io.h"
-#include "engine/engine_macro.h"
 #include "engine/engine_util_blas.h"
 #include "engine/engine_util_errmem.h"
 #include "engine/engine_util_misc.h"

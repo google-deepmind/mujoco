@@ -30,9 +30,9 @@
 #include <utility>
 #include <vector>
 
+#include <mujoco/mjmacro.h>
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjvisualize.h>
-#include "engine/engine_macro.h"
 #include "engine/engine_plugin.h"
 #include "engine/engine_util_errmem.h"
 #include "engine/engine_util_misc.h"

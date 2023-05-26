@@ -19,8 +19,8 @@
 #include <string.h>
 
 #include <mujoco/mjdata.h>
+#include <mujoco/mjmacro.h>
 #include "engine/engine_io.h"
-#include "engine/engine_macro.h"
 #include "engine/engine_util_blas.h"
 #include "engine/engine_util_errmem.h"
 #include "engine/engine_util_misc.h"

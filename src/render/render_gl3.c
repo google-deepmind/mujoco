@@ -19,6 +19,7 @@
 #include <string.h>
 #include <stdlib.h>
 
+#include <mujoco/mjmacro.h>
 #include <mujoco/mjvisualize.h>
 #include <mujoco/mujoco.h>
 #include "engine/engine_array_safety.h"

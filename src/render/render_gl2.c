@@ -17,6 +17,7 @@
 #include <string.h>
 #include <stdio.h>
 
+#include <mujoco/mjmacro.h>
 #include <mujoco/mujoco.h>
 #include "engine/engine_array_safety.h"
 #include "render/glad/glad.h"

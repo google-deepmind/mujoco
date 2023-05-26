@@ -20,11 +20,11 @@
 #include <string.h>
 
 #include <mujoco/mjdata.h>
+#include <mujoco/mjmacro.h>
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjxmacro.h>
 #include "engine/engine_core_constraint.h"
 #include "engine/engine_io.h"
-#include "engine/engine_macro.h"
 #include "engine/engine_support.h"
 #include "engine/engine_util_errmem.h"
 #include "engine/engine_util_misc.h"
@@ -770,7 +770,7 @@ void mj_printFormattedData(const mjModel* m, mjData* d, const char* filename,
 
   fprintf(fp, "SIZES\n");
 #define X(type, name)                                                         \
-  {                                                                           \
+  if (strcmp(#name, "pstack") != 0 && strcmp(#name, "parena") != 0) {         \
     const char* format = _Generic(                                            \
         d->name,                                                              \
         int : INT_FORMAT,                                                     \

@@ -17,13 +17,13 @@
 #include <stddef.h>
 
 #include <mujoco/mjdata.h>
+#include <mujoco/mjmacro.h>
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjplugin.h>
 #include "engine/engine_callback.h"
 #include "engine/engine_core_smooth.h"
 #include "engine/engine_crossplatform.h"
 #include "engine/engine_io.h"
-#include "engine/engine_macro.h"
 #include "engine/engine_plugin.h"
 #include "engine/engine_ray.h"
 #include "engine/engine_support.h"

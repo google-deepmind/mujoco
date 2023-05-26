@@ -27,6 +27,7 @@
 
 #include "engine/engine_array_safety.h"
 #include "engine/engine_macro.h"
+
 //------------------------- cross-platform aligned malloc/free -------------------------------------
 
 static inline void* mju_alignedMalloc(size_t size, size_t align) {

@@ -17,6 +17,7 @@
 #include <math.h>
 
 #include <mujoco/mjdata.h>
+#include <mujoco/mjmacro.h>
 #include <mujoco/mjmodel.h>
 #include "engine/engine_util_blas.h"
 #include "engine/engine_util_spatial.h"

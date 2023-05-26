@@ -18,6 +18,7 @@
 #include <stdio.h>
 
 #include <mujoco/mjdata.h>
+#include <mujoco/mjmacro.h>
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjplugin.h>
 #include "engine/engine_callback.h"

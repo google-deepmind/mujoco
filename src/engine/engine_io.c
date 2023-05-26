@@ -22,6 +22,7 @@
 #include <string.h>
 
 #include <mujoco/mjmodel.h>
+#include <mujoco/mjmacro.h>
 #include <mujoco/mjplugin.h>
 #include <mujoco/mjxmacro.h>
 #include "engine/engine_array_safety.h"
@@ -32,6 +33,10 @@
 #include "engine/engine_util_errmem.h"
 #include "engine/engine_util_misc.h"
 #include "engine/engine_vfs.h"
+
+#ifdef MEMORY_SANITIZER
+  #include <sanitizer/msan_interface.h>
+#endif
 
 #ifdef _MSC_VER
   #pragma warning (disable: 4305)  // disable MSVC warning: truncation from 'double' to 'float'
@@ -1163,6 +1168,15 @@ void* mj_arenaAlloc(mjData* d, int bytes, int alignment) {
   void* result = (char*)d->arena + d->parena + padding;
   d->parena += padding + bytes;
   d->maxuse_arena = mjMAX(d->maxuse_arena, d->pstack*sizeof(mjtNum) + d->parena);
+
+#ifdef ADDRESS_SANITIZER
+  ASAN_UNPOISON_MEMORY_REGION(result, bytes);
+#endif
+
+#ifdef MEMORY_SANITIZER
+  __msan_allocated_memory(result, bytes);
+#endif
+
   return result;
 }
 
@@ -1172,12 +1186,19 @@ void* mj_arenaAlloc(mjData* d, int bytes, int alignment) {
 mjtNum* mj_stackAlloc(mjData* d, int size) {
   // return NULL if empty
   if (!size) {
-    return 0;
+    return NULL;
   }
+
+  // add red zone padding when built with asan, to detect out-of-bound accesses
+#ifdef ADDRESS_SANITIZER
+  #define mjREDZONE 4
+#else
+  #define mjREDZONE 0
+#endif
 
   // check size
   size_t stack_available_bytes = d->nstack * sizeof(mjtNum) - d->parena;
-  size_t stack_required_bytes = (d->pstack + size) * sizeof(mjtNum);
+  size_t stack_required_bytes = (d->pstack + size + 2*mjREDZONE) * sizeof(mjtNum);
   if (stack_required_bytes > stack_available_bytes) {
     mju_error("stack overflow: max = %zu, available = %zu, requested = %zu "
               "(ne = %d, nf = %d, nefc = %d, ncon = %d)",
@@ -1187,18 +1208,45 @@ mjtNum* mj_stackAlloc(mjData* d, int size) {
 
   // allocate at end of arena
   char* end_ptr = (char*)d->arena + d->nstack * sizeof(mjtNum);
-  char* result = end_ptr - (d->pstack + size + 1) * sizeof(mjtNum);
+  char* result = end_ptr - (d->pstack + size + mjREDZONE) * sizeof(mjtNum);
+  size_t new_pstack = d->pstack + size + 2*mjREDZONE;
+  #undef mjREDZONE
+
+  // new stack usage level
+  size_t usage;
 
 #ifdef ADDRESS_SANITIZER
   if ((uintptr_t)result % sizeof(mjtNum)) {
     mju_error("mj_stackAlloc fails to align to sizeof(mjtNum)");
   }
+
+  // actual stack usage (without red zone bytes) is stored in the red zone
+  if (d->pstack) {
+    size_t* prev_ptr = (size_t*)(end_ptr - d->pstack*sizeof(mjtNum));
+    ASAN_UNPOISON_MEMORY_REGION(prev_ptr, sizeof(size_t));
+    usage = *prev_ptr + size;
+    ASAN_POISON_MEMORY_REGION(prev_ptr, sizeof(size_t));
+  } else {
+    usage = size;
+  }
+
+  // store new stack usage in the red zone
+  size_t* cur_ptr = (size_t*)(end_ptr - new_pstack*sizeof(mjtNum));
+  ASAN_UNPOISON_MEMORY_REGION(cur_ptr, sizeof(size_t));
+  *cur_ptr = usage;
+  ASAN_POISON_MEMORY_REGION(cur_ptr, sizeof(size_t));
+
+  // unpoison the actual usable allocation
+  ASAN_UNPOISON_MEMORY_REGION(result, size*sizeof(mjtNum));
+#else
+  usage = d->pstack + size;
 #endif
 
-  // update max, return pointer to buffer
-  d->pstack += size;
-  d->maxuse_stack = mjMAX(d->maxuse_stack, d->pstack);
-  d->maxuse_arena = mjMAX(d->maxuse_arena, d->pstack*sizeof(mjtNum) + d->parena);
+  // update pstack and max usage statistics
+  d->pstack = new_pstack;
+  d->maxuse_stack = mjMAX(d->maxuse_stack, usage);
+  d->maxuse_arena = mjMAX(d->maxuse_arena, usage*sizeof(mjtNum) + d->parena);
+
   return (mjtNum*)result;
 }
 
@@ -1232,6 +1280,16 @@ static void _resetData(const mjModel* m, mjData* d, unsigned char debug_value) {
 
   // clear arena pointers
   d->parena = 0;
+
+  // poison the entire arena+stack memory region when built with asan
+#ifdef ADDRESS_SANITIZER
+  ASAN_POISON_MEMORY_REGION(d->arena, d->nstack * sizeof(mjtNum));
+#endif
+
+#ifdef MEMORY_SANITIZER
+  __msan_allocated_memory(d->arena, d->nstack * sizeof(mjtNum));
+#endif
+
 #define X(type, name, nr, nc) d->name = NULL;
   MJDATA_ARENA_POINTERS
 #undef X

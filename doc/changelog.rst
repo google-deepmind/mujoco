@@ -56,6 +56,14 @@ General
   between the two extremal values given by the `Millard et al. (2013) <https://doi.org/10.1115/1.4023390>`__ muscle
   model, within a range of width tausmooth.  See :ref:`Muscle actuators<CMuscle>` for more details.
   Relatedly, :ref:`mju_muscleDynamics` now takes 3 parameters instead of 2, adding the new smoothing-width parameter.
+- Moved public C macro definitions out of mujoco.h into a new public header file called
+  `mjmacro.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjmacro.h>`__. The new file
+  is included by mujoco.h so this change does not break existing user code.
+- Added instrumentation for the `Address Sanitizer (ASAN) <https://clang.llvm.org/docs/AddressSanitizer.html>`__ and
+  `Memory Sanitizer (MSAN) <https://clang.llvm.org/docs/MemorySanitizer.html>`__ to detect memory bugs when allocating
+  from the ``mjData`` stack and arena.
+- Removed ``pstack`` and ``parena`` from the output of ``mj_printData``, since these are implementation details of the
+  ``mjData`` allocators that are affected by diagnostic paddings in instrumented builds.
 
 .. youtube:: hqIMTNGaLF4
    :align: right
@@ -553,7 +561,8 @@ General
 #. ``mju_rotVecMat`` and ``mju_rotVecMatT`` now support in-place multiplication.
 #. ``mjData.ctrl`` values are no longer clamped in-place, remain untouched by the engine.
 #. Arrays in mjData's buffer now align to 64-byte boundaries rather than 8-byte.
-#. Added memory poisoning when building with Address Sanitizer (ASAN) and Memory Sanitizer (MSAN). This allows ASAN to
+#. Added memory poisoning when building with `Address Sanitizer (ASAN) <https://clang.llvm.org/docs/AddressSanitizer.html>`__
+   and `Memory Sanitizer (MSAN) <https://clang.llvm.org/docs/MemorySanitizer.html>`__. This allows ASAN to
    detect reads and writes to regions in ``mjModel.buffer`` and ``mjData.buffer`` that do not lie within an array, and
    for MSAN to detect reads from uninitialised fields in ``mjData`` following ``mj_resetData``.
 #. Added a `slider-crank example model <https://github.com/deepmind/mujoco/tree/main/model/slider_crank>`_.

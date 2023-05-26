@@ -19,18 +19,22 @@
 #include <string.h>
 
 #include <mujoco/mjdata.h>
+#include <mujoco/mjmacro.h>
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjxmacro.h>
 #include "engine/engine_array_safety.h"
 #include "engine/engine_core_smooth.h"
 #include "engine/engine_io.h"
-#include "engine/engine_macro.h"
 #include "engine/engine_support.h"
 #include "engine/engine_util_blas.h"
 #include "engine/engine_util_errmem.h"
 #include "engine/engine_util_misc.h"
 #include "engine/engine_util_sparse.h"
 #include "engine/engine_util_spatial.h"
+
+#ifdef MEMORY_SANITIZER
+  #include <sanitizer/msan_interface.h>
+#endif
 
 #ifdef mjUSEPLATFORMSIMD
   #if defined(__AVX__) && defined(mjUSEDOUBLE)
@@ -127,6 +131,10 @@ int mj_addContact(const mjModel* m, mjData* d, const mjContact* con) {
 
   // move arena pointer back to the end of the existing contact array and invalidate efc_ arrays
   d->parena = d->ncon * sizeof(mjContact);
+#ifdef ADDRESS_SANITIZER
+  ASAN_POISON_MEMORY_REGION(
+      (char*)d->arena + d->parena, (d->nstack - d->pstack) * sizeof(mjtNum) - d->parena);
+#endif
   clearEfc(d);
 
   // copy contact
@@ -1580,6 +1588,10 @@ void mj_makeConstraint(const mjModel* m, mjData* d) {
 
   // move arena pointer to end of contact array
   d->parena = d->ncon * sizeof(mjContact);
+#ifdef ADDRESS_SANITIZER
+  ASAN_POISON_MEMORY_REGION(
+      (char*)d->arena + d->parena, (d->nstack - d->pstack) * sizeof(mjtNum) - d->parena);
+#endif
 
 #define X(type, name, nr, nc)                                             \
   d->name = mj_arenaAlloc(d, sizeof(type) * (nr) * (nc), _Alignof(type)); \

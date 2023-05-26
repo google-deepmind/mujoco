@@ -515,8 +515,8 @@ class MuJoCoBindingsTest(parameterized.TestCase):
   def test_mj_contact_list(self):
     self.assertEmpty(self.data.contact)
 
-    expected_ncon = 1234
-    self.data.ncon = expected_ncon
+    expected_ncon = 4
+    mujoco.mj_forward(self.model, self.data)
     self.assertLen(self.data.contact, expected_ncon)
 
     expected_pos = []

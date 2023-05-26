@@ -20,6 +20,7 @@
 #include <string.h>
 
 #include <mujoco/mjdata.h>
+#include <mujoco/mjmacro.h>
 #include <mujoco/mjmodel.h>
 #include "engine/engine_array_safety.h"
 #include "engine/engine_macro.h"

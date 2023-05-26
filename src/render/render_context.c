@@ -19,6 +19,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <mujoco/mjmacro.h>
 #include <mujoco/mjvisualize.h>
 #include <mujoco/mujoco.h>
 #include "render/render_util.h"

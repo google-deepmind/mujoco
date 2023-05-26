@@ -32,6 +32,7 @@ public const bool MUJOCO_HELPER_DLL_IMPORT = true;
 public const bool MUJOCO_HELPER_DLL_EXPORT = true;
 public const bool MJAPI = true;
 public const bool MJLOCAL = true;
+public const bool THIRD_PARTY_MUJOCO_MJMACRO_H_ = true;
 public const bool THIRD_PARTY_MUJOCO_MJMODEL_H_ = true;
 public const double mjPI = 3.141592653589793;
 public const double mjMAXVAL = 10000000000.0;

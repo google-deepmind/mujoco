@@ -16,6 +16,7 @@
 
 #include <string.h>
 
+#include <mujoco/mjmacro.h>
 #include <mujoco/mjtnum.h>
 
 #ifdef mjUSEPLATFORMSIMD

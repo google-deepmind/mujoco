@@ -22,13 +22,16 @@
 #include <mujoco/mjvisualize.h>
 #include <mujoco/mjxmacro.h>
 #include "engine/engine_core_constraint.h"
-#include "engine/engine_macro.h"
 #include "engine/engine_plugin.h"
 #include "engine/engine_support.h"
 #include "engine/engine_util_errmem.h"
 #include "engine/engine_vis_init.h"
 #include "engine/engine_vis_interact.h"
 #include "engine/engine_vis_visualize.h"
+
+#ifdef MEMORY_SANITIZER
+  #include <sanitizer/msan_interface.h>
+#endif
 
 // this source file needs to treat XMJV differently from other X macros
 #undef XMJV

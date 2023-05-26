@@ -30,30 +30,19 @@ extern "C" {
 #include <stdlib.h>
 #include <math.h>
 
+#ifdef ADDRESS_SANITIZER
+#include <sanitizer/asan_interface.h>
+#endif
 
 // type definitions
 #include <mujoco/mjdata.h>
 #include <mujoco/mjmodel.h>
+#include <mujoco/mjmacro.h>
 #include <mujoco/mjplugin.h>
 #include <mujoco/mjrender.h>
 #include <mujoco/mjtnum.h>
 #include <mujoco/mjui.h>
 #include <mujoco/mjvisualize.h>
-
-
-// macros
-#define mjMARKSTACK   int _mark = d->pstack;
-#define mjFREESTACK   d->pstack = _mark;
-#define mjDISABLED(x) (m->opt.disableflags & (x))
-#define mjENABLED(x)  (m->opt.enableflags & (x))
-
-#ifndef mjPRINTFLIKE
-  #if defined(__GNUC__)
-    #define mjPRINTFLIKE(n, m) __attribute__((format(printf, n, m)))
-  #else
-    #define mjPRINTFLIKE(n, m)
-  #endif // __GNUC__
-#endif // mjPRINTFLIKE
 
 
 // user error and memory handlers
@@ -821,9 +810,6 @@ MJAPI void mj_deactivate(void);
 
 
 //---------------------------------- Standard math -------------------------------------------------
-
-#define mjMAX(a, b) (((a) > (b)) ? (a) : (b))
-#define mjMIN(a, b) (((a) < (b)) ? (a) : (b))
 
 #ifdef mjUSEDOUBLE
   #define mju_sqrt    sqrt
