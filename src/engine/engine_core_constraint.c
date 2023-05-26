@@ -1255,35 +1255,26 @@ void mj_makeImpedance(const mjModel* m, mjData* d) {
 //------------------------------------- constraint counting ----------------------------------------
 
 // count the number of non-zeros in the sum of two sparse vectors
-static int mju_combineSparseCount(int a_nnz, int b_nnz, const int* a_ind, const int* b_ind) {
-  int c_nnz, d_nnz;
-  const int* c_ind;
-  const int* d_ind;
+int mju_combineSparseCount(int a_nnz, int b_nnz, const int* a_ind, const int* b_ind) {
+  int a = 0;
+  int b = 0;
+  int nnz = 0;
 
-  // choose c to have the least number of non-zeros
-  if (b_nnz<a_nnz) {
-    c_nnz = b_nnz;
-    c_ind = b_ind;
-    d_nnz = a_nnz;
-    d_ind = a_ind;
-  } else {
-    c_nnz = a_nnz;
-    c_ind = a_ind;
-    d_nnz = b_nnz;
-    d_ind = b_ind;
+  // while there are elements remaining in both a_ind and b_ind
+  while (a < a_nnz && b < b_nnz) {
+    // add the smaller element of either a_ind[a] or b_ind[b] to the combined nnz
+    ++nnz;
+
+    // if a_ind[a] == b_ind[b], increment both a and b so that we don't double count
+    // otherwise, increment the index pointing to the smaller element
+    int aa = a;
+    int bb = b;
+    if (a_ind[aa] <= b_ind[bb]) ++a;
+    if (a_ind[aa] >= b_ind[bb]) ++b;
   }
 
-  int nnz=d_nnz, j=0;
-  for (int i=0; i<c_nnz; i++) {
-    while (d_ind[j]<c_ind[i]) {
-      j++;
-    }
-
-    if (d_ind[j]>c_ind[i]) {
-      nnz++;
-    }
-  }
-
+  // count remaining elements from the vector with larger nnz
+  nnz += (a_nnz - a) + (b_nnz - b);
   return nnz;
 }
 

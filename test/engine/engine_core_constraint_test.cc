@@ -14,6 +14,7 @@
 
 // Tests for engine/engine_core_constraint.c.
 
+#include <array>
 #include <cstddef>
 #include <string>
 
@@ -21,6 +22,7 @@
 #include <gtest/gtest.h>
 #include <mujoco/mjmodel.h>
 #include <mujoco/mujoco.h>
+#include "src/engine/engine_core_constraint.h"
 #include "src/engine/engine_support.h"
 #include "test/fixture.h"
 
@@ -192,6 +194,78 @@ TEST_F(CoreConstraintTest, JacobianPreAllocate) {
       mj_deleteData(data);
       mj_deleteModel(model);
     }
+  }
+}
+
+TEST_F(CoreConstraintTest, CombineSparseCount) {
+  {
+    std::array a_ind{0, 1};
+    std::array b_ind{2};
+    EXPECT_EQ(mju_combineSparseCount(
+        a_ind.size(), b_ind.size(), a_ind.data(), b_ind.data()), 3);
+  }
+
+  {
+    std::array a_ind{2};
+    std::array b_ind{0, 1};
+    EXPECT_EQ(mju_combineSparseCount(
+        a_ind.size(), b_ind.size(), a_ind.data(), b_ind.data()), 3);
+  }
+
+  {
+    std::array a_ind{0, 1};
+    std::array b_ind{2, 3, 4};
+    EXPECT_EQ(mju_combineSparseCount(
+        a_ind.size(), b_ind.size(), a_ind.data(), b_ind.data()), 5);
+  }
+
+  {
+    std::array a_ind{5, 6};
+    std::array b_ind{1, 3, 8};
+    EXPECT_EQ(mju_combineSparseCount(
+        a_ind.size(), b_ind.size(), a_ind.data(), b_ind.data()), 5);
+  }
+
+  {
+    std::array a_ind{1, 2, 3};
+    std::array b_ind{0, 4};
+    EXPECT_EQ(mju_combineSparseCount(
+        a_ind.size(), b_ind.size(), a_ind.data(), b_ind.data()), 5);
+  }
+
+  {
+    std::array a_ind{1, 4};
+    std::array b_ind{2, 3};
+    EXPECT_EQ(mju_combineSparseCount(
+        a_ind.size(), b_ind.size(), a_ind.data(), b_ind.data()), 4);
+  }
+
+  {
+    std::array a_ind{0, 1, 3};
+    std::array b_ind{0, 3, 4};
+    EXPECT_EQ(mju_combineSparseCount(
+        a_ind.size(), b_ind.size(), a_ind.data(), b_ind.data()), 4);
+  }
+
+  {
+    std::array a_ind{1, 3, 5, 6};
+    std::array b_ind{1, 3, 5, 6};
+    EXPECT_EQ(mju_combineSparseCount(
+        a_ind.size(), b_ind.size(), a_ind.data(), b_ind.data()), 4);
+  }
+
+  EXPECT_EQ(mju_combineSparseCount(0, 0, nullptr, nullptr), 0);
+
+  {
+    std::array b_ind{1, 2};
+    EXPECT_EQ(
+        mju_combineSparseCount(0, b_ind.size(), nullptr, b_ind.data()), 2);
+  }
+
+  {
+    std::array a_ind{0};
+    EXPECT_EQ(
+        mju_combineSparseCount(a_ind.size(), 0, a_ind.data(), nullptr), 1);
   }
 }
 
