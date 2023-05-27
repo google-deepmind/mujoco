@@ -2897,6 +2897,11 @@ bool mjCModel::CopyBack(const mjModel* m) {
   option = m->opt;
   visual = m->vis;
 
+  // runtime-modifiable members of mjStatistic
+  meansize = m->stat.meansize;
+  extent = m->stat.extent;
+  mju_copy3(center, m->stat.center);
+
   // qpos0, qpos_spring
   for (int i=0; i<njnt; i++) {
     switch (joints[i]->type) {

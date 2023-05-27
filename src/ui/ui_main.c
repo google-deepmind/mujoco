@@ -28,7 +28,7 @@
 static const mjuiThemeSpacing themeSpacing0 = {
   270,   // int total;
   15,    // int scroll;
-  100,   // int label;
+  120,   // int label;
   8,     // int section;
   4,     // int itemside;
   4,     // int itemmid;
@@ -743,7 +743,9 @@ static int checkedit(const char* text, const mjuiItem* it) {
   }
 
   // check type
-  if (it->type!=mjITEM_EDITINT && it->type!=mjITEM_EDITNUM) {
+  if (it->type!=mjITEM_EDITINT &&
+      it->type!=mjITEM_EDITNUM &&
+      it->type!=mjITEM_EDITFLOAT) {
     mju_error("Internal error: expected edit control");
   }
 
@@ -791,7 +793,7 @@ static int text2array(const char* text, const mjuiItem* it) {
   }
 
   // check type
-  if (it->type!=mjITEM_EDITINT && it->type!=mjITEM_EDITNUM) {
+  if (it->type!=mjITEM_EDITINT && it->type!=mjITEM_EDITNUM && it->type!=mjITEM_EDITFLOAT) {
     mju_error("Internal error: expected edit control");
   }
 
@@ -829,9 +831,16 @@ static int text2array(const char* text, const mjuiItem* it) {
       pdata[i] = (int)val[i];
     }
   } else {
-    mjtNum* pdata = (mjtNum*)it->pdata;
-    for (int i=0; i<n; i++) {
-      pdata[i] = (mjtNum)val[i];
+    if (it->type==mjITEM_EDITNUM) {
+      mjtNum* pdata = (mjtNum*)it->pdata;
+      for (int i=0; i<n; i++) {
+        pdata[i] = (mjtNum)val[i];
+      }
+    } else {
+      float* pdata = (float*)it->pdata;
+      for (int i=0; i<n; i++) {
+        pdata[i] = (float)val[i];
+      }
     }
   }
 
@@ -851,7 +860,7 @@ static void array2text(char* text, const mjuiItem* it) {
   }
 
   // check type
-  if (it->type!=mjITEM_EDITINT && it->type!=mjITEM_EDITNUM) {
+  if (it->type!=mjITEM_EDITINT && it->type!=mjITEM_EDITNUM && it->type!=mjITEM_EDITFLOAT) {
     mju_error("Internal error: expected edit control");
   }
 
@@ -862,8 +871,10 @@ static void array2text(char* text, const mjuiItem* it) {
   for (int i=0; i<n; i++) {
     if (it->type==mjITEM_EDITINT) {
       mjSNPRINTF(buf, "%d", ((int*)it->pdata)[i]);
-    } else {
+    } else if (it->type==mjITEM_EDITNUM) {
       mjSNPRINTF(buf, "%.4g", ((mjtNum*)it->pdata)[i]);
+    } else {
+      mjSNPRINTF(buf, "%.4g", ((float*)it->pdata)[i]);
     }
     strncat(text, buf, mjMAXUITEXT - strlen(text) - 1);
     if (i<n-1) {
@@ -872,8 +883,6 @@ static void array2text(char* text, const mjuiItem* it) {
   }
 }
 
-static const int mjNUMPAD_0 = 320;  // integer value of '0' key on the number pad
-static const int mjNUMPAD_9 = 329;  // integer value of '9' key on the number pad
 
 // return (remapped) key if valid, 0 if not valid
 static int validkey(int key, int sz, int type, const mjuiState* state) {
@@ -919,11 +928,12 @@ static int validkey(int key, int sz, int type, const mjuiState* state) {
   }
 
   // numeric
-  else if (type==mjITEM_EDITINT || type==mjITEM_EDITNUM) {
+  else if (type==mjITEM_EDITINT || type==mjITEM_EDITNUM || type==mjITEM_EDITFLOAT) {
     if (sz<(mjMAXUITEXT-1) &&
         (key==' ' || key=='+' || key=='=' || key=='-' || (key>='0' && key<='9') ||
-         (key>=mjNUMPAD_0 && key<=mjNUMPAD_9) ||
-         ((key=='e' || key=='E' || key=='.') && type==mjITEM_EDITNUM))) {
+         (key>=mjKEY_NUMPAD_0 && key<=mjKEY_NUMPAD_9) ||
+         ((key=='e' || key=='E' || key=='.') &&
+          (type==mjITEM_EDITNUM || type==mjITEM_EDITFLOAT)))) {
 
       // remap '=' to '+'
       if (key=='=') {
@@ -936,8 +946,8 @@ static int validkey(int key, int sz, int type, const mjuiState* state) {
       }
 
       // remap numberpad to top row
-      if (key>=mjNUMPAD_0 && key<=mjNUMPAD_9) {
-        key = key - mjNUMPAD_0 + '0';
+      if (key>=mjKEY_NUMPAD_0 && key<=mjKEY_NUMPAD_9) {
+        key = key - mjKEY_NUMPAD_0 + '0';
       }
 
       return key;
@@ -1271,7 +1281,7 @@ void mjui_add(mjUI* ui, const mjuiDef* def) {
       }
 
       // parse edit numeric
-      else if (it->type==mjITEM_EDITINT || it->type==mjITEM_EDITNUM) {
+      else if (it->type==mjITEM_EDITINT || it->type==mjITEM_EDITNUM || it->type==mjITEM_EDITFLOAT) {
         // check mjMAXUIEDIT
         if (mjMAXUIEDIT>7) {
           mju_error("internal error: mjMAXUIEDIT bigger than 7");
@@ -1989,6 +1999,7 @@ void mjui_update(int section, int item, const mjUI* ui,
 
       case mjITEM_EDITINT:
       case mjITEM_EDITNUM:
+      case mjITEM_EDITFLOAT:
       case mjITEM_EDITTXT:
         if (state) {
           rgbdecor = ui->color.edit;
@@ -2165,6 +2176,7 @@ mjuiItem* mjui_event(mjUI* ui, mjuiState* state, const mjrContext* con) {
       // move edit
       else if (it_rec->type==mjITEM_EDITINT ||
                it_rec->type==mjITEM_EDITNUM ||
+               it_rec->type==mjITEM_EDITFLOAT ||
                it_rec->type==mjITEM_EDITTXT) {
         setcursor(it_rec->rect, ui, state, con);
       }
@@ -2326,6 +2338,7 @@ mjuiItem* mjui_event(mjUI* ui, mjuiState* state, const mjrContext* con) {
 
       case mjITEM_EDITINT:
       case mjITEM_EDITNUM:
+      case mjITEM_EDITFLOAT:
       case mjITEM_EDITTXT:
         // set edit text, clear scroll
         array2text(ui->edittext, it_cur);

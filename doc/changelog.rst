@@ -25,9 +25,40 @@ Bug fixes
   which affects the behaviour of the :ref:`implicit and implicitfast integrators<geIntegration>`.
 - Fixes to :ref:`mj_ray`, in line with geom visualisation conventions:
 
-  - Planes and height-fields respect the `geom_group` and `flg_static` arguments. Before this change, rays would
+  - Planes and height-fields respect the ``geom_group`` and ``flg_static`` arguments. Before this change, rays would
     intersect planes and height-fields unconditionally.
   - ``flg_static`` now apllies to all static geoms, not just those which are direct children of the world body.
+
+.. youtube:: hqIMTNGaLF4
+   :align: right
+   :width: 240px
+
+Plugins
+^^^^^^^
+
+- Added touch-grid sensor plugin. See `documentation <https://github.com/deepmind/mujoco/blob/main/plugin/sensor/README.md>`_
+  for details, and associated `touch_grid.xml <https://github.com/deepmind/mujoco/blob/main/model/plugin/touch_grid.xml>`_
+  example model. The plugin includes `in-scene visualisation <https://youtu.be/0LOJ3WMnqeA>`_.
+
+Simulate
+^^^^^^^^
+
+.. youtube:: mXVPbppGk5I
+   :align: right
+   :width: 240px
+
+- Added Visualization tab to simulate UI, corresponding to elements of the :ref:`visual<visual>` MJCF element. After
+  modifying values in the GUI, a saved XML will contain the new values. The modifyable members of
+  :ref:`mjStatistic` (:ref:`extent<statistic-extent>`, :ref:`meansize<statistic-meansize>` and
+  :ref:`center<statistic-center>`) are computed by the compiler and therefore do not have defaults. In order for these
+  attributes to appear in the saved XML, a value must be specified in the loaded XML.
+
+.. image:: images/changelog/simulate_text_width.png
+   :align: right
+   :width: 380px
+   :alt: Before / After
+
+- Increased text width for UI elements in the default spacing. [before / after]:
 
 General
 ^^^^^^^
@@ -64,17 +95,6 @@ General
   from the ``mjData`` stack and arena.
 - Removed ``pstack`` and ``parena`` from the output of ``mj_printData``, since these are implementation details of the
   ``mjData`` allocators that are affected by diagnostic paddings in instrumented builds.
-
-.. youtube:: hqIMTNGaLF4
-   :align: right
-   :width: 240px
-
-Plugins
-^^^^^^^
-
-- Added touch-grid sensor plugin. See `documentation <https://github.com/deepmind/mujoco/blob/main/plugin/sensor/README.md>`_
-  for details, and associated `touch_grid.xml <https://github.com/deepmind/mujoco/blob/main/model/plugin/touch_grid.xml>`_
-  example model. The plugin includes `in-scene visualisation <https://youtu.be/0LOJ3WMnqeA>`_.
 
 
 Version 2.3.5 (April 25, 2023)
