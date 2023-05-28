@@ -139,7 +139,7 @@ void mju_error(const char* msg, ...) {
   } else if (mju_user_error) {
     mju_user_error(errmsg);
   } else {
-     // write to log and console
+    // write to log and console
     mju_writeLog("ERROR", errmsg);
     printf("ERROR: %s\n\nPress Enter to exit ...", errmsg);
 

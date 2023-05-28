@@ -21,11 +21,11 @@
 mjfGeneric mjcb_passive  = 0;
 mjfGeneric mjcb_control  = 0;
 mjfConFilt mjcb_contactfilter = 0;
-mjfSensor  mjcb_sensor   = 0;
-mjfTime    mjcb_time     = 0;
-mjfAct     mjcb_act_bias = 0;
-mjfAct     mjcb_act_gain = 0;
-mjfAct     mjcb_act_dyn  = 0;
+mjfSensor mjcb_sensor    = 0;
+mjfTime mjcb_time        = 0;
+mjfAct mjcb_act_bias     = 0;
+mjfAct mjcb_act_gain     = 0;
+mjfAct mjcb_act_dyn      = 0;
 
 
 

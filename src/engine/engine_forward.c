@@ -46,7 +46,7 @@
 
 // check positions, reset if bad
 void mj_checkPos(const mjModel* m, mjData* d) {
-  for (int i=0; i<m->nq; i++) {
+  for (int i=0; i < m->nq; i++) {
     if (mju_isBad(d->qpos[i])) {
       mj_warning(d, mjWARN_BADQPOS, i);
       mj_resetData(m, d);
@@ -61,7 +61,7 @@ void mj_checkPos(const mjModel* m, mjData* d) {
 
 // check velocities, reset if bad
 void mj_checkVel(const mjModel* m, mjData* d) {
-  for (int i=0; i<m->nv; i++) {
+  for (int i=0; i < m->nv; i++) {
     if (mju_isBad(d->qvel[i])) {
       mj_warning(d, mjWARN_BADQVEL, i);
       mj_resetData(m, d);
@@ -76,7 +76,7 @@ void mj_checkVel(const mjModel* m, mjData* d) {
 
 // check accelerations, reset if bad
 void mj_checkAcc(const mjModel* m, mjData* d) {
-  for (int i=0; i<m->nv; i++) {
+  for (int i=0; i < m->nv; i++) {
     if (mju_isBad(d->qacc[i])) {
       mj_warning(d, mjWARN_BADQACC, i);
       mj_resetData(m, d);
@@ -166,7 +166,7 @@ void mj_fwdActuation(const mjModel* m, mjData* d) {
   mju_zero(d->actuator_force, nu);
 
   // disabled or no actuation: return
-  if (nu==0 || mjDISABLED(mjDSBL_ACTUATION)) {
+  if (nu == 0 || mjDISABLED(mjDSBL_ACTUATION)) {
     return;
   }
 
@@ -176,7 +176,7 @@ void mj_fwdActuation(const mjModel* m, mjData* d) {
   if (mjDISABLED(mjDSBL_CLAMPCTRL)) {
     mju_copy(ctrl, d->ctrl, nu);
   } else {
-    for (int i=0; i<nu; i++) {
+    for (int i=0; i < nu; i++) {
       // clamp ctrl
       if (m->actuator_ctrllimited[i]) {
         mjtNum *ctrlrange = m->actuator_ctrlrange + 2*i;
@@ -188,7 +188,7 @@ void mj_fwdActuation(const mjModel* m, mjData* d) {
   }
 
   // check controls, set all to 0 if any are bad
-  for (int i=0; i<nu; i++) {
+  for (int i=0; i < nu; i++) {
     if (mju_isBad(ctrl[i])) {
       mj_warning(d, mjWARN_BADCTRL, i);
       mju_zero(ctrl, nu);
@@ -197,7 +197,7 @@ void mj_fwdActuation(const mjModel* m, mjData* d) {
   }
 
   // force = gain .* [ctrl/act] + bias
-  for (int i=0; i<nu; i++) {
+  for (int i=0; i < nu; i++) {
     // skip actuator plugins -- these are handled after builtin actuator types
     if (m->actuator_plugin[i] >= 0) {
       continue;
@@ -275,7 +275,7 @@ void mj_fwdActuation(const mjModel* m, mjData* d) {
   // handle actuator plugins
   if (m->nplugin) {
     const int nslot = mjp_pluginCount();
-    for (int i=0; i<m->nplugin; i++) {
+    for (int i=0; i < m->nplugin; i++) {
       const int slot = m->plugin[i];
       const mjpPlugin* plugin = mjp_getPluginAtSlotUnsafe(slot, nslot);
       if (!plugin) {
@@ -291,7 +291,7 @@ void mj_fwdActuation(const mjModel* m, mjData* d) {
   }
 
   // clamp actuator_force
-  for (int i=0; i<nu; i++) {
+  for (int i=0; i < nu; i++) {
     if (m->actuator_forcelimited[i]) {
       mjtNum *forcerange = m->actuator_forcerange + 2*i;
       force[i] = mju_clip(force[i], forcerange[0], forcerange[1]);
@@ -302,7 +302,7 @@ void mj_fwdActuation(const mjModel* m, mjData* d) {
   mju_mulMatTVec(d->qfrc_actuator, moment, force, nu, nv);
 
   // act_dot for stateful actuators
-  for (int i=0; i<nu; i++) {
+  for (int i=0; i < nu; i++) {
     if (m->actuator_plugin[i] >= 0) {
       continue;
     }
@@ -392,7 +392,7 @@ static void warmstart(const mjModel* m, mjData* d) {
     mj_constraintUpdate(m, d, jar, &cost_warmstart, 0);
 
     // PGS
-    if (m->opt.solver==mjSOL_PGS) {
+    if (m->opt.solver == mjSOL_PGS) {
       // cost(force_warmstart)
       mjtNum PGS_warmstart = mju_dot(d->efc_force, d->efc_b, nefc);
       mjtNum* ARf = mj_stackAlloc(d, nefc);
@@ -406,7 +406,7 @@ static void warmstart(const mjModel* m, mjData* d) {
       PGS_warmstart += 0.5*mju_dot(d->efc_force, ARf, nefc);
 
       // use zero if better
-      if (PGS_warmstart>0) {
+      if (PGS_warmstart > 0) {
         mju_zero(d->efc_force, nefc);
         mju_zero(d->qfrc_constraint, nv);
       }
@@ -417,7 +417,7 @@ static void warmstart(const mjModel* m, mjData* d) {
       // add Gauss to cost(qacc_warmstart)
       mjtNum* Ma = mj_stackAlloc(d, nv);
       mj_mulM(m, d, Ma, d->qacc_warmstart);
-      for (int i=0; i<nv; i++) {
+      for (int i=0; i < nv; i++) {
         cost_warmstart += 0.5*(Ma[i]-d->qfrc_smooth[i])*(d->qacc_warmstart[i]-d->qacc_smooth[i]);
       }
 
@@ -426,7 +426,7 @@ static void warmstart(const mjModel* m, mjData* d) {
       mj_constraintUpdate(m, d, d->efc_b, &cost_smooth, 0);
 
       // use qacc_smooth if better
-      if (cost_warmstart>cost_smooth) {
+      if (cost_warmstart > cost_smooth) {
         mju_copy(d->qacc, d->qacc_smooth, nv);
       }
     }
@@ -488,7 +488,7 @@ void mj_fwdConstraint(const mjModel* m, mjData* d) {
   mju_copy(d->qacc_warmstart, d->qacc, nv);
 
   // run noslip solver if enabled
-  if (m->opt.noslip_iterations>0) {
+  if (m->opt.noslip_iterations > 0) {
     mj_solNoSlip(m, d, m->opt.noslip_iterations);
   }
 
@@ -507,11 +507,11 @@ static void mj_advance(const mjModel* m, mjData* d,
     mju_addToScl(d->act, act_dot, m->opt.timestep, m->na);
 
     // clamp activations
-    for (int i=0; i<m->nu; i++) {
+    for (int i=0; i < m->nu; i++) {
       int j = m->actuator_actadr[i];
       if (j > -1 && m->actuator_actlimited[i]) {
         mjtNum* actrange = m->actuator_actrange + 2*i;
-        for (int k=0; k<m->actuator_actnum[i]; k++) {
+        for (int k=0; k < m->actuator_actnum[i]; k++) {
           d->act[j+k] = mju_clip(d->act[j+k], actrange[0], actrange[1]);
         }
       }
@@ -552,8 +552,8 @@ void mj_EulerSkip(const mjModel* m, mjData* d, int skipfactor) {
 
   // check for dof damping
   int dof_damping = 0;
-  for (int i=0; i<nv; i++) {
-    if (m->dof_damping[i]>0) {
+  for (int i=0; i < nv; i++) {
+    if (m->dof_damping[i] > 0) {
       dof_damping = 1;
       break;
     }
@@ -571,7 +571,7 @@ void mj_EulerSkip(const mjModel* m, mjData* d, int skipfactor) {
 
       // MhB = M + h*diag(B)
       mju_copy(MhB, d->qM, m->nM);
-      for (int i=0; i<nv; i++) {
+      for (int i=0; i < nv; i++) {
         MhB[m->dof_Madr[i]] += m->opt.timestep * m->dof_damping[i];
       }
 
@@ -618,8 +618,8 @@ void mj_RungeKutta(const mjModel* m, mjData* d, int N) {
   int nv = m->nv, nq = m->nq, na = m->na;
   mjtNum h = m->opt.timestep, time = d->time;
   mjtNum C[9], T[9], *X[10], *F[10], *dX;
-  const mjtNum* A = (N==4 ? RK4_A : 0);
-  const mjtNum* B = (N==4 ? RK4_B : 0);
+  const mjtNum* A = (N == 4 ? RK4_A : 0);
+  const mjtNum* B = (N == 4 ? RK4_B : 0);
   mjMARKSTACK;
 
   // check order
@@ -629,16 +629,16 @@ void mj_RungeKutta(const mjModel* m, mjData* d, int N) {
 
   // allocate space for intermediate solutions
   dX = mj_stackAlloc(d, 2*nv+na);
-  for (int i=0; i<N; i++) {
+  for (int i=0; i < N; i++) {
     X[i] = mj_stackAlloc(d, nq+nv+na);
     F[i] = mj_stackAlloc(d, nv+na);
   }
 
   // precompute C and T;  C,T,A have size (N-1)
-  for (int i=1; i<N; i++) {
+  for (int i=1; i < N; i++) {
     // C(i) = sum_j A(i,j)
     C[i-1] = 0;
-    for (int j=0; j<i; j++) {
+    for (int j=0; j < i; j++) {
       C[i-1] += A[(i-1)*(N-1)+j];
     }
 
@@ -656,10 +656,10 @@ void mj_RungeKutta(const mjModel* m, mjData* d, int N) {
   }
 
   // compute the remaining X[i], F[i]
-  for (int i=1; i<N; i++) {
+  for (int i=1; i < N; i++) {
     // compute dX
     mju_zero(dX, 2*nv+na);
-    for (int j=0; j<i; j++) {
+    for (int j=0; j < i; j++) {
       mju_addToScl(dX, X[j]+nq, A[(i-1)*(N-1)+j], nv);
       mju_addToScl(dX+nv, F[j], A[(i-1)*(N-1)+j], nv+na);
     }
@@ -687,7 +687,7 @@ void mj_RungeKutta(const mjModel* m, mjData* d, int N) {
 
   // compute dX for final update (using B instead of A)
   mju_zero(dX, 2*nv+na);
-  for (int j=0; j<N; j++) {
+  for (int j=0; j < N; j++) {
     mju_addToScl(dX, X[j]+nq, B[j], nv);
     mju_addToScl(dX+nv, F[j], B[j], nv+na);
   }
@@ -783,7 +783,7 @@ void mj_forwardSkip(const mjModel* m, mjData* d, int skipstage, int skipsensor) 
   TM_START;
 
   // position-dependent
-  if (skipstage<mjSTAGE_POS) {
+  if (skipstage < mjSTAGE_POS) {
     mj_fwdPosition(m, d);
     if (!skipsensor) {
       mj_sensorPos(m, d);
@@ -794,7 +794,7 @@ void mj_forwardSkip(const mjModel* m, mjData* d, int skipstage, int skipsensor) 
   }
 
   // velocity-dependent
-  if (skipstage<mjSTAGE_VEL) {
+  if (skipstage < mjSTAGE_VEL) {
     mj_fwdVelocity(m, d);
     if (!skipsensor) {
       mj_sensorVel(m, d);
@@ -845,21 +845,21 @@ void mj_step(const mjModel* m, mjData* d) {
 
   // use selected integrator
   switch (m->opt.integrator) {
-    case mjINT_EULER:
-      mj_Euler(m, d);
-      break;
+  case mjINT_EULER:
+    mj_Euler(m, d);
+    break;
 
-    case mjINT_RK4:
-      mj_RungeKutta(m, d, 4);
-      break;
+  case mjINT_RK4:
+    mj_RungeKutta(m, d, 4);
+    break;
 
-    case mjINT_IMPLICIT:
-    case mjINT_IMPLICITFAST:
-      mj_implicit(m, d);
-      break;
+  case mjINT_IMPLICIT:
+  case mjINT_IMPLICITFAST:
+    mj_implicit(m, d);
+    break;
 
-    default:
-      mju_error("Invalid integrator");
+  default:
+    mju_error("Invalid integrator");
   }
 
   TM_END(mjTIMER_STEP);

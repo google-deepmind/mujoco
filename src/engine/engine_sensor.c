@@ -41,24 +41,24 @@ static void add_noise(const mjModel* m, mjData* d, mjtStage stage) {
   mjtNum rnd[4], noise, quat[4], res[4];
 
   // process sensors matching stage and having positive noise
-  for (int i=0; i<m->nsensor; i++) {
-    if (m->sensor_needstage[i]==stage && m->sensor_noise[i]>0) {
+  for (int i=0; i < m->nsensor; i++) {
+    if (m->sensor_needstage[i] == stage && m->sensor_noise[i] > 0) {
       // get sensor info
       adr = m->sensor_adr[i];
       dim = m->sensor_dim[i];
       noise = m->sensor_noise[i];
 
       // real or positive: add noise directly, with clamp for positive
-      if (m->sensor_datatype[i]==mjDATATYPE_REAL ||
-          m->sensor_datatype[i]==mjDATATYPE_POSITIVE) {
-        for (int j=0; j<dim; j++) {
+      if (m->sensor_datatype[i] == mjDATATYPE_REAL ||
+          m->sensor_datatype[i] == mjDATATYPE_POSITIVE) {
+        for (int j=0; j < dim; j++) {
           // get random numbers; use only the first one
           rnd[0] = mju_standardNormal(rnd+1);
 
           // positive
-          if (m->sensor_datatype[i]==mjDATATYPE_POSITIVE) {
+          if (m->sensor_datatype[i] == mjDATATYPE_POSITIVE) {
             // add noise only if positive, keep it positive
-            if (d->sensordata[adr+j]>0) {
+            if (d->sensordata[adr+j] > 0) {
               d->sensordata[adr+j] = mjMAX(0, d->sensordata[adr+j]+rnd[0]*noise);
             }
           }
@@ -82,14 +82,14 @@ static void add_noise(const mjModel* m, mjData* d, mjtStage stage) {
         mju_axisAngle2Quat(quat, rnd+1, rnd[0]);
 
         // axis
-        if (m->sensor_datatype[i]==mjDATATYPE_AXIS) {
+        if (m->sensor_datatype[i] == mjDATATYPE_AXIS) {
           // apply quaternion rotation to axis, assign
           mju_rotVecQuat(res, d->sensordata+adr, quat);
           mju_copy3(d->sensordata+adr, res);
         }
 
         // quaternion
-        else if (m->sensor_datatype[i]==mjDATATYPE_QUATERNION) {
+        else if (m->sensor_datatype[i] == mjDATATYPE_QUATERNION) {
           // apply quaternion rotation to quaternion, assign
           mju_mulQuat(d->sensordata+adr, d->sensordata+adr, quat);
         }
@@ -108,22 +108,22 @@ static void add_noise(const mjModel* m, mjData* d, mjtStage stage) {
 // apply cutoff after each stage
 static void apply_cutoff(const mjModel* m, mjData* d, mjtStage stage) {
   // process sensors matching stage and having positive cutoff
-  for (int i=0; i<m->nsensor; i++) {
-    if (m->sensor_needstage[i]==stage && m->sensor_cutoff[i]>0) {
+  for (int i=0; i < m->nsensor; i++) {
+    if (m->sensor_needstage[i] == stage && m->sensor_cutoff[i] > 0) {
       // get sensor info
       int adr = m->sensor_adr[i];
       int dim = m->sensor_dim[i];
       mjtNum cutoff = m->sensor_cutoff[i];
 
       // process all dimensions
-      for (int j=0; j<dim; j++) {
+      for (int j=0; j < dim; j++) {
         // real: apply on both sides
-        if (m->sensor_datatype[i]==mjDATATYPE_REAL) {
+        if (m->sensor_datatype[i] == mjDATATYPE_REAL) {
           d->sensordata[adr+j] = mju_clip(d->sensordata[adr+j], -cutoff, cutoff);
         }
 
         // positive: apply on positive side only
-        else if (m->sensor_datatype[i]==mjDATATYPE_POSITIVE) {
+        else if (m->sensor_datatype[i] == mjDATATYPE_POSITIVE) {
           d->sensordata[adr+j] = mju_min(cutoff, d->sensordata[adr+j]);
         }
       }
@@ -201,13 +201,13 @@ void mj_sensorPos(const mjModel* m, mjData* d) {
   }
 
   // process sensors matching stage
-  for (int i=0; i<m->nsensor; i++) {
+  for (int i=0; i < m->nsensor; i++) {
     // skip sensor plugins -- these are handled after builtin sensor types
     if (m->sensor_type[i] == mjSENS_PLUGIN) {
       continue;
     }
 
-    if (m->sensor_needstage[i]==mjSTAGE_POS) {
+    if (m->sensor_needstage[i] == mjSTAGE_POS) {
       // get sensor info
       objtype = m->sensor_objtype[i];
       objid = m->sensor_objid[i];
@@ -247,8 +247,8 @@ void mj_sensorPos(const mjModel* m, mjData* d) {
 
       case mjSENS_JOINTLIMITPOS:                          // jointlimitpos
         d->sensordata[adr] = 0;
-        for (int j=ne+nf; j<nefc; j++) {
-          if (d->efc_type[j]==mjCNSTR_LIMIT_JOINT && d->efc_id[j]==objid) {
+        for (int j=ne+nf; j < nefc; j++) {
+          if (d->efc_type[j] == mjCNSTR_LIMIT_JOINT && d->efc_id[j] == objid) {
             d->sensordata[adr] = d->efc_pos[j] - d->efc_margin[j];
             break;
           }
@@ -257,8 +257,8 @@ void mj_sensorPos(const mjModel* m, mjData* d) {
 
       case mjSENS_TENDONLIMITPOS:                         // tendonlimitpos
         d->sensordata[adr] = 0;
-        for (int j=ne+nf; j<nefc; j++) {
-          if (d->efc_type[j]==mjCNSTR_LIMIT_TENDON && d->efc_id[j]==objid) {
+        for (int j=ne+nf; j < nefc; j++) {
+          if (d->efc_type[j] == mjCNSTR_LIMIT_TENDON && d->efc_id[j] == objid) {
             d->sensordata[adr] = d->efc_pos[j] - d->efc_margin[j];
             break;
           }
@@ -274,7 +274,7 @@ void mj_sensorPos(const mjModel* m, mjData* d) {
 
         // reference frame unspecified: global frame
         if (refid == -1) {
-          if (m->sensor_type[i]==mjSENS_FRAMEPOS) {
+          if (m->sensor_type[i] == mjSENS_FRAMEPOS) {
             mju_copy3(d->sensordata+adr, xpos);
           } else {
             // offset = (0 or 1 or 2) for (x or y or z)-axis sensors, respectively
@@ -288,7 +288,7 @@ void mj_sensorPos(const mjModel* m, mjData* d) {
         // reference frame specified
         else {
           get_xpos_xmat(d, reftype, refid, i, &xpos_ref, &xmat_ref);
-          if (m->sensor_type[i]==mjSENS_FRAMEPOS) {
+          if (m->sensor_type[i] == mjSENS_FRAMEPOS) {
             mju_sub3(rvec, xpos, xpos_ref);
             mju_rotVecMatT(d->sensordata+adr, rvec, xmat_ref);
           } else {
@@ -301,25 +301,25 @@ void mj_sensorPos(const mjModel* m, mjData* d) {
         break;
 
       case mjSENS_FRAMEQUAT:                              // framequat
-        {
-          // get global object quaternion
-          mjtNum objquat[4];
-          get_xquat(m, d, objtype, objid, i, objquat);
+      {
+        // get global object quaternion
+        mjtNum objquat[4];
+        get_xquat(m, d, objtype, objid, i, objquat);
 
-          // reference frame unspecified: copy object quaternion
-          if (refid == -1) {
-            mju_copy4(d->sensordata+adr, objquat);
-          } else {
-            // reference frame specified, get global reference quaternion
-            mjtNum refquat[4];
-            get_xquat(m, d, reftype, refid, i, refquat);
+        // reference frame unspecified: copy object quaternion
+        if (refid == -1) {
+          mju_copy4(d->sensordata+adr, objquat);
+        } else {
+          // reference frame specified, get global reference quaternion
+          mjtNum refquat[4];
+          get_xquat(m, d, reftype, refid, i, refquat);
 
-            // relative quaternion
-            mju_negQuat(refquat, refquat);
-            mju_mulQuat(d->sensordata+adr, refquat, objquat);
-          }
+          // relative quaternion
+          mju_negQuat(refquat, refquat);
+          mju_mulQuat(d->sensordata+adr, refquat, objquat);
         }
-        break;
+      }
+      break;
 
       case mjSENS_SUBTREECOM:                             // subtreecom
         mju_copy3(d->sensordata+adr, d->subtree_com+3*objid);
@@ -352,14 +352,14 @@ void mj_sensorPos(const mjModel* m, mjData* d) {
   // compute plugin sensor values
   if (m->nplugin) {
     const int nslot = mjp_pluginCount();
-    for (int i=0; i<m->nplugin; i++) {
+    for (int i=0; i < m->nplugin; i++) {
       const int slot = m->plugin[i];
       const mjpPlugin* plugin = mjp_getPluginAtSlotUnsafe(slot, nslot);
       if (!plugin) {
         mju_error("invalid plugin slot: %d", slot);
       }
       if ((plugin->capabilityflags & mjPLUGIN_SENSOR) &&
-          (plugin->needstage==mjSTAGE_POS || plugin->needstage==mjSTAGE_NONE)) {
+          (plugin->needstage == mjSTAGE_POS || plugin->needstage == mjSTAGE_NONE)) {
         if (!plugin->compute) {
           mju_error("`compute` is a null function pointer for plugin at slot %d", slot);
         }
@@ -387,13 +387,13 @@ void mj_sensorVel(const mjModel* m, mjData* d) {
 
   // process sensors matching stage
   int subtreeVel = 0;
-  for (int i=0; i<m->nsensor; i++) {
+  for (int i=0; i < m->nsensor; i++) {
     // skip sensor plugins -- these are handled after builtin sensor types
     if (m->sensor_type[i] == mjSENS_PLUGIN) {
       continue;
     }
 
-    if (m->sensor_needstage[i]==mjSTAGE_VEL) {
+    if (m->sensor_needstage[i] == mjSTAGE_VEL) {
       // get sensor info
       type = m->sensor_type[i];
       objtype = m->sensor_objtype[i];
@@ -403,10 +403,10 @@ void mj_sensorVel(const mjModel* m, mjData* d) {
       adr = m->sensor_adr[i];
 
       // call mj_subtreeVel when first relevant sensor is encountered
-      if (subtreeVel==0 &&
-          (type==mjSENS_SUBTREELINVEL ||
-           type==mjSENS_SUBTREEANGMOM ||
-           type==mjSENS_USER)) {
+      if (subtreeVel == 0 &&
+          (type == mjSENS_SUBTREELINVEL ||
+           type == mjSENS_SUBTREEANGMOM ||
+           type == mjSENS_USER)) {
         // compute subtree_linvel, subtree_angmom
         mj_subtreeVel(m, d);
 
@@ -450,8 +450,8 @@ void mj_sensorVel(const mjModel* m, mjData* d) {
 
       case mjSENS_JOINTLIMITVEL:                          // jointlimitvel
         d->sensordata[adr] = 0;
-        for (int j=ne+nf; j<nefc; j++) {
-          if (d->efc_type[j]==mjCNSTR_LIMIT_JOINT && d->efc_id[j]==objid) {
+        for (int j=ne+nf; j < nefc; j++) {
+          if (d->efc_type[j] == mjCNSTR_LIMIT_JOINT && d->efc_id[j] == objid) {
             d->sensordata[adr] = d->efc_vel[j];
             break;
           }
@@ -460,8 +460,8 @@ void mj_sensorVel(const mjModel* m, mjData* d) {
 
       case mjSENS_TENDONLIMITVEL:                         // tendonlimitvel
         d->sensordata[adr] = 0;
-        for (int j=ne+nf; j<nefc; j++) {
-          if (d->efc_type[j]==mjCNSTR_LIMIT_TENDON && d->efc_id[j]==objid) {
+        for (int j=ne+nf; j < nefc; j++) {
+          if (d->efc_type[j] == mjCNSTR_LIMIT_TENDON && d->efc_id[j] == objid) {
             d->sensordata[adr] = d->efc_vel[j];
             break;
           }
@@ -495,7 +495,7 @@ void mj_sensorVel(const mjModel* m, mjData* d) {
         }
 
         // copy linear or angular component
-        if (m->sensor_type[i]==mjSENS_FRAMELINVEL) {
+        if (m->sensor_type[i] == mjSENS_FRAMELINVEL) {
           mju_copy3(d->sensordata+adr, xvel+3);
         } else {
           mju_copy3(d->sensordata+adr, xvel);
@@ -533,13 +533,13 @@ void mj_sensorVel(const mjModel* m, mjData* d) {
   // trigger computation of plugins
   if (m->nplugin) {
     const int nslot = mjp_pluginCount();
-    for (int i=0; i<m->nplugin; i++) {
+    for (int i=0; i < m->nplugin; i++) {
       const int slot = m->plugin[i];
       const mjpPlugin* plugin = mjp_getPluginAtSlotUnsafe(slot, nslot);
       if (!plugin) {
         mju_error("invalid plugin slot: %d", slot);
       }
-      if ((plugin->capabilityflags & mjPLUGIN_SENSOR) && plugin->needstage==mjSTAGE_VEL) {
+      if ((plugin->capabilityflags & mjPLUGIN_SENSOR) && plugin->needstage == mjSTAGE_VEL) {
         if (!plugin->compute) {
           mju_error("`compute` is null for plugin at slot %d", slot);
         }
@@ -576,13 +576,13 @@ void mj_sensorAcc(const mjModel* m, mjData* d) {
 
   // process sensors matching stage
   int rnePost = 0;
-  for (int i=0; i<m->nsensor; i++) {
+  for (int i=0; i < m->nsensor; i++) {
     // skip sensor plugins -- these are handled after builtin sensor types
     if (m->sensor_type[i] == mjSENS_PLUGIN) {
       continue;
     }
 
-    if (m->sensor_needstage[i]==mjSTAGE_ACC) {
+    if (m->sensor_needstage[i] == mjSTAGE_ACC) {
       // get sensor info
       type =  m->sensor_type[i];
       objtype = m->sensor_objtype[i];
@@ -590,11 +590,11 @@ void mj_sensorAcc(const mjModel* m, mjData* d) {
       adr = m->sensor_adr[i];
 
       // call mj_rnePostConstraint when first relevant sensor is encountered
-      if (rnePost==0                  &&
-          type!=mjSENS_TOUCH          &&
-          type!=mjSENS_ACTUATORFRC    &&
-          type!=mjSENS_JOINTLIMITFRC  &&
-          type!=mjSENS_TENDONLIMITFRC) {
+      if (rnePost == 0                  &&
+          type != mjSENS_TOUCH          &&
+          type != mjSENS_ACTUATORFRC    &&
+          type != mjSENS_JOINTLIMITFRC  &&
+          type != mjSENS_TENDONLIMITFRC) {
         // compute cacc, cfrc_int, cfrc_ext
         mj_rnePostConstraint(m, d);
 
@@ -613,19 +613,19 @@ void mj_sensorAcc(const mjModel* m, mjData* d) {
         d->sensordata[adr] = 0;
 
         // find contacts in sensor zone, add normal forces
-        for (int j=0; j<d->ncon; j++) {
+        for (int j=0; j < d->ncon; j++) {
           // contact pointer, contacting bodies
           con = d->contact + j;
           body1 = m->geom_bodyid[con->geom1];
           body2 = m->geom_bodyid[con->geom2];
 
           // select contacts involving sensorized body
-          if (con->efc_address>=0 && (bodyid==body1 || bodyid==body2)) {
+          if (con->efc_address >= 0 && (bodyid == body1 || bodyid == body2)) {
             // get contact force:torque in contact frame
             mj_contactForce(m, d, j, conforce);
 
             // nothing to do if normal is zero
-            if (conforce[0]<=0) {
+            if (conforce[0] <= 0) {
               continue;
             }
 
@@ -634,7 +634,7 @@ void mj_sensorAcc(const mjModel* m, mjData* d) {
             mju_normalize3(conray);
 
             // flip ray direction if sensor is on body2
-            if (bodyid==body2) {
+            if (bodyid == body2) {
               mju_scl3(conray, conray, -1);
             }
 
@@ -688,8 +688,8 @@ void mj_sensorAcc(const mjModel* m, mjData* d) {
 
       case mjSENS_JOINTLIMITFRC:                          // jointlimitfrc
         d->sensordata[adr] = 0;
-        for (int j=ne+nf; j<nefc; j++) {
-          if (d->efc_type[j]==mjCNSTR_LIMIT_JOINT && d->efc_id[j]==objid) {
+        for (int j=ne+nf; j < nefc; j++) {
+          if (d->efc_type[j] == mjCNSTR_LIMIT_JOINT && d->efc_id[j] == objid) {
             d->sensordata[adr] = d->efc_force[j];
             break;
           }
@@ -698,8 +698,8 @@ void mj_sensorAcc(const mjModel* m, mjData* d) {
 
       case mjSENS_TENDONLIMITFRC:                         // tendonlimitfrc
         d->sensordata[adr] = 0;
-        for (int j=ne+nf; j<nefc; j++) {
-          if (d->efc_type[j]==mjCNSTR_LIMIT_TENDON && d->efc_id[j]==objid) {
+        for (int j=ne+nf; j < nefc; j++) {
+          if (d->efc_type[j] == mjCNSTR_LIMIT_TENDON && d->efc_id[j] == objid) {
             d->sensordata[adr] = d->efc_force[j];
             break;
           }
@@ -712,7 +712,7 @@ void mj_sensorAcc(const mjModel* m, mjData* d) {
         mj_objectAcceleration(m, d, objtype, objid, tmp, 0);
 
         // copy linear or angular component
-        if (m->sensor_type[i]==mjSENS_FRAMELINACC) {
+        if (m->sensor_type[i] == mjSENS_FRAMELINACC) {
           mju_copy3(d->sensordata+adr, tmp+3);
         } else {
           mju_copy3(d->sensordata+adr, tmp);
@@ -742,13 +742,13 @@ void mj_sensorAcc(const mjModel* m, mjData* d) {
   // trigger computation of plugins
   if (m->nplugin) {
     const int nslot = mjp_pluginCount();
-    for (int i=0; i<m->nplugin; i++) {
+    for (int i=0; i < m->nplugin; i++) {
       const int slot = m->plugin[i];
       const mjpPlugin* plugin = mjp_getPluginAtSlotUnsafe(slot, nslot);
       if (!plugin) {
         mju_error("invalid plugin slot: %d", slot);
       }
-      if ((plugin->capabilityflags & mjPLUGIN_SENSOR) && plugin->needstage==mjSTAGE_ACC) {
+      if ((plugin->capabilityflags & mjPLUGIN_SENSOR) && plugin->needstage == mjSTAGE_ACC) {
         if (!plugin->compute) {
           mju_error("`compute` is null for plugin at slot %d", slot);
         }
@@ -787,14 +787,14 @@ void mj_energyPos(const mjModel* m, mjData* d) {
   // init potential energy:  -sum_i body(i).mass * mju_dot(body(i).pos, gravity)
   d->energy[0] = 0;
   if (!mjDISABLED(mjDSBL_GRAVITY)) {
-    for (int i=1; i<m->nbody; i++) {
+    for (int i=1; i < m->nbody; i++) {
       d->energy[0] -= m->body_mass[i] * mju_dot3(m->opt.gravity, d->xipos+3*i);
     }
   }
 
   // add joint-level springs
   if (!mjDISABLED(mjDSBL_PASSIVE)) {
-    for (int i=0; i<m->njnt; i++) {
+    for (int i=0; i < m->njnt; i++) {
       stiffness = m->jnt_stiffness[i];
       padr = m->jnt_qposadr[i];
 
@@ -825,7 +825,7 @@ void mj_energyPos(const mjModel* m, mjData* d) {
 
   // add tendon-level springs
   if (!mjDISABLED(mjDSBL_PASSIVE)) {
-    for (int i=0; i<m->ntendon; i++) {
+    for (int i=0; i < m->ntendon; i++) {
       stiffness = m->tendon_stiffness[i];
       mjtNum length = d->ten_length[i];
       mjtNum displacement = 0;

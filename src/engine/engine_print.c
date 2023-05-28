@@ -52,9 +52,9 @@ static void printArray(const char* str, int nr, int nc, const mjtNum* data, FILE
   }
   if (nr && nc) {
     fprintf(fp, "%s\n", str);
-    for (int r=0; r<nr; r++) {
+    for (int r=0; r < nr; r++) {
       fprintf(fp, " ");
-      for (int c=0; c<nc; c++) {
+      for (int c=0; c < nc; c++) {
         fprintf(fp, " ");
         fprintf(fp, float_format, data[c + r*nc]);
       }
@@ -72,9 +72,9 @@ static void printArrayInt(const char* str, int nr, int nc, const int* data, FILE
   }
   if (nr && nc) {
     fprintf(fp, "%s\n", str);
-    for (int r=0; r<nr; r++) {
+    for (int r=0; r < nr; r++) {
       fprintf(fp, " ");
-      for (int c=0; c<nc; c++) {
+      for (int c=0; c < nc; c++) {
         fprintf(fp, " ");
         fprintf(fp, "%d", data[c + r*nc]);
       }
@@ -95,9 +95,9 @@ static void printSparse(const char* str, const mjtNum* mat, int nr,
   }
   fprintf(fp, "%s\n", str);
 
-  for (int r=0; r<nr; r++) {
+  for (int r=0; r < nr; r++) {
     fprintf(fp, "  ");
-    for (int adr=rowadr[r]; adr<rowadr[r]+rownnz[r]; adr++) {
+    for (int adr=rowadr[r]; adr < rowadr[r]+rownnz[r]; adr++) {
       fprintf(fp, "  ");
       fprintf(fp, "%d: ", colind[adr]);
       fprintf(fp, float_format, mat[adr]);
@@ -119,7 +119,7 @@ static void printVector(const char* str, const mjtNum* data, int n, FILE* fp,
   fprintf(fp, "%s", str);
 
   // print data
-  for (int i=0; i<n; i++) {
+  for (int i=0; i < n; i++) {
     fprintf(fp, " ");
     fprintf(fp, float_format, data[i]);
   }
@@ -199,11 +199,11 @@ static bool validateFloatFormat(const char* float_format) {
 }
 
 
-// Clang sometimes goes OOM when the -Wuninitialized warning is enabled for this function
-#ifdef __clang__
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wuninitialized"
-#endif
+   // Clang sometimes goes OOM when the -Wuninitialized warning is enabled for this function
+ #ifdef __clang__
+ #pragma clang diagnostic push
+ #pragma clang diagnostic ignored "-Wuninitialized"
+ #endif
 
 
 // print mjModel to text file, specifying format. float_format must be a
@@ -231,7 +231,7 @@ void mj_printFormattedModel(const mjModel* m, const char* filename, const char* 
 
   // compute total body mass
   mjtNum totalmass = 0;
-  for (int i=0; i<m->nbody; i++) {
+  for (int i=0; i < m->nbody; i++) {
     totalmass += m->body_mass[i];
   }
 
@@ -305,7 +305,7 @@ void mj_printFormattedModel(const mjModel* m, const char* filename, const char* 
 
   // qpos0
   fprintf(fp, NAME_FORMAT, "qpos0");
-  for (int i=0; i<m->nq; i++) {
+  for (int i=0; i < m->nq; i++) {
     fprintf(fp, float_format, m->qpos0[i]);
     fprintf(fp, " ");
   }
@@ -313,7 +313,7 @@ void mj_printFormattedModel(const mjModel* m, const char* filename, const char* 
 
   // qpos_spring
   fprintf(fp, NAME_FORMAT, "qpos_spring");
-  for (int i=0; i<m->nq; i++) {
+  for (int i=0; i < m->nq; i++) {
     fprintf(fp, float_format, m->qpos_spring[i]);
     fprintf(fp, " ");
   }
@@ -347,7 +347,7 @@ void mj_printFormattedModel(const mjModel* m, const char* filename, const char* 
   }
 
   // bodies
-  for (int i=0; i<m->nbody; i++) {
+  for (int i=0; i < m->nbody; i++) {
     fprintf(fp, "\nBODY %d:\n", i);
     fprintf(fp, "  " NAME_FORMAT, "name");
     fprintf(fp, " %s\n", m->names + m->name_bodyadr[i]);
@@ -357,7 +357,7 @@ void mj_printFormattedModel(const mjModel* m, const char* filename, const char* 
   if (m->nbody) fprintf(fp, "\n");
 
   // joints
-  for (int i=0; i<m->njnt; i++) {
+  for (int i=0; i < m->njnt; i++) {
     fprintf(fp, "\nJOINT %d:\n", i);
     fprintf(fp, "  " NAME_FORMAT, "name");
     fprintf(fp, " %s\n", m->names + m->name_jntadr[i]);
@@ -367,7 +367,7 @@ void mj_printFormattedModel(const mjModel* m, const char* filename, const char* 
   if (m->njnt) fprintf(fp, "\n");
 
   // dofs
-  for (int i=0; i<m->nv; i++) {
+  for (int i=0; i < m->nv; i++) {
     fprintf(fp, "\nDOF %d:\n", i);
     object_class = &m->nv;
     MJMODEL_POINTERS
@@ -375,7 +375,7 @@ void mj_printFormattedModel(const mjModel* m, const char* filename, const char* 
   if (m->nv) fprintf(fp, "\n");
 
   // geoms
-  for (int i=0; i<m->ngeom; i++) {
+  for (int i=0; i < m->ngeom; i++) {
     fprintf(fp, "\nGEOM %d:\n", i);
     fprintf(fp, "  " NAME_FORMAT, "name");
     fprintf(fp, " %s\n", m->names + m->name_geomadr[i]);
@@ -385,7 +385,7 @@ void mj_printFormattedModel(const mjModel* m, const char* filename, const char* 
   if (m->ngeom) fprintf(fp, "\n");
 
   // sites
-  for (int i=0; i<m->nsite; i++) {
+  for (int i=0; i < m->nsite; i++) {
     fprintf(fp, "\nSITE %d:\n", i);
     fprintf(fp, "  " NAME_FORMAT, "name");
     fprintf(fp, " %s\n", m->names + m->name_siteadr[i]);
@@ -395,7 +395,7 @@ void mj_printFormattedModel(const mjModel* m, const char* filename, const char* 
   if (m->nsite) fprintf(fp, "\n");
 
   // cameras
-  for (int i=0; i<m->ncam; i++) {
+  for (int i=0; i < m->ncam; i++) {
     fprintf(fp, "\nCAMERA %d:\n", i);
     fprintf(fp, "  " NAME_FORMAT, "name");
     fprintf(fp, " %s\n", m->names + m->name_camadr[i]);
@@ -405,7 +405,7 @@ void mj_printFormattedModel(const mjModel* m, const char* filename, const char* 
   if (m->ncam) fprintf(fp, "\n");
 
   // lights
-  for (int i=0; i<m->nlight; i++) {
+  for (int i=0; i < m->nlight; i++) {
     fprintf(fp, "\nLIGHT %d:\n", i);
     fprintf(fp, "  " NAME_FORMAT, "name");
     fprintf(fp, " %s\n", m->names + m->name_lightadr[i]);
@@ -415,13 +415,13 @@ void mj_printFormattedModel(const mjModel* m, const char* filename, const char* 
   if (m->nlight) fprintf(fp, "\n");
 
   // meshes
-  for (int i=0; i<m->nmesh; i++) {
+  for (int i=0; i < m->nmesh; i++) {
     fprintf(fp, "\nMESH %d:\n", i);
     fprintf(fp, "  " NAME_FORMAT, "name");
     fprintf(fp, " %s\n", m->names + m->name_meshadr[i]);
     object_class = &m->nmesh;
     MJMODEL_POINTERS
-    if (m->mesh_graphadr[i]>=0) {
+    if (m->mesh_graphadr[i] >= 0) {
       fprintf(fp, "  " NAME_FORMAT, "qhull face");
       fprintf(fp, " %d\n", m->mesh_graph[m->mesh_graphadr[i]+1]);
       fprintf(fp, "  " NAME_FORMAT, "qhull vert");
@@ -431,7 +431,7 @@ void mj_printFormattedModel(const mjModel* m, const char* filename, const char* 
   if (m->nmesh) fprintf(fp, "\n");
 
   // skins
-  for (int i=0; i<m->nskin; i++) {
+  for (int i=0; i < m->nskin; i++) {
     fprintf(fp, "\nSKIN %d:\n", i);
     fprintf(fp, "  " NAME_FORMAT, "name");
     fprintf(fp, " %s\n", m->names + m->name_skinadr[i]);
@@ -441,7 +441,7 @@ void mj_printFormattedModel(const mjModel* m, const char* filename, const char* 
   if (m->nskin) fprintf(fp, "\n");
 
   // hfields
-  for (int i=0; i<m->nhfield; i++) {
+  for (int i=0; i < m->nhfield; i++) {
     fprintf(fp, "\nHEIGHTFIELD %d:\n", i);
     fprintf(fp, "  " NAME_FORMAT, "name");
     fprintf(fp, "  %s\n", m->names + m->name_hfieldadr[i]);
@@ -451,7 +451,7 @@ void mj_printFormattedModel(const mjModel* m, const char* filename, const char* 
   if (m->nhfield) fprintf(fp, "\n");
 
   // textures
-  for (int i=0; i<m->ntex; i++) {
+  for (int i=0; i < m->ntex; i++) {
     fprintf(fp, "\nTEXTURE %d:\n", i);
     fprintf(fp, "  " NAME_FORMAT, "name");
     fprintf(fp, " %s\n", m->names + m->name_texadr[i]);
@@ -461,7 +461,7 @@ void mj_printFormattedModel(const mjModel* m, const char* filename, const char* 
   if (m->ntex) fprintf(fp, "\n");
 
   // materials
-  for (int i=0; i<m->nmat; i++) {
+  for (int i=0; i < m->nmat; i++) {
     fprintf(fp, "\nMATERIAL %d:\n", i);
     fprintf(fp, "  " NAME_FORMAT, "name");
     fprintf(fp, " %s\n", m->names + m->name_matadr[i]);
@@ -471,7 +471,7 @@ void mj_printFormattedModel(const mjModel* m, const char* filename, const char* 
   if (m->nmat) fprintf(fp, "\n");
 
   // pairs
-  for (int i=0; i<m->npair; i++) {
+  for (int i=0; i < m->npair; i++) {
     fprintf(fp, "\nPAIR %d:\n", i);
     fprintf(fp, "  " NAME_FORMAT, "name");
     fprintf(fp, " %s\n", m->names + m->name_pairadr[i]);
@@ -481,7 +481,7 @@ void mj_printFormattedModel(const mjModel* m, const char* filename, const char* 
   if (m->npair) fprintf(fp, "\n");
 
   // excludes
-  for (int i=0; i<m->nexclude; i++) {
+  for (int i=0; i < m->nexclude; i++) {
     fprintf(fp, "\nEXCLUDE %d:\n", i);
     fprintf(fp, "  " NAME_FORMAT, "name");
     fprintf(fp, " %s\n", m->names + m->name_excludeadr[i]);
@@ -491,7 +491,7 @@ void mj_printFormattedModel(const mjModel* m, const char* filename, const char* 
   if (m->nexclude) fprintf(fp, "\n");
 
   // equality constraints
-  for (int i=0; i<m->neq; i++) {
+  for (int i=0; i < m->neq; i++) {
     fprintf(fp, "\nEQUALITY %d:\n", i);
     fprintf(fp, "  " NAME_FORMAT, "name");
     fprintf(fp, " %s\n", m->names + m->name_eqadr[i]);
@@ -501,14 +501,14 @@ void mj_printFormattedModel(const mjModel* m, const char* filename, const char* 
   if (m->neq) fprintf(fp, "\n");
 
   // tendons
-  for (int i=0; i<m->ntendon; i++) {
+  for (int i=0; i < m->ntendon; i++) {
     fprintf(fp, "\nTENDON %d:\n", i);
     fprintf(fp, "  " NAME_FORMAT, "name");
     fprintf(fp, " %s\n", m->names + m->name_tendonadr[i]);
     object_class = &m->ntendon;
     MJMODEL_POINTERS
     fprintf(fp, "  path         \n");
-    for (int j=0; j<m->tendon_num[i]; j++) {
+    for (int j=0; j < m->tendon_num[i]; j++) {
       int k = m->tendon_adr[i]+j;
       fprintf(fp, "    %d %d ", m->wrap_type[k], m->wrap_objid[k]);
       fprintf(fp, float_format, m->wrap_prm[k]);
@@ -519,7 +519,7 @@ void mj_printFormattedModel(const mjModel* m, const char* filename, const char* 
   if (m->ntendon) fprintf(fp, "\n");
 
   // actuators
-  for (int i=0; i<m->nu; i++) {
+  for (int i=0; i < m->nu; i++) {
     fprintf(fp, "\nACTUATOR %d:\n", i);
     fprintf(fp, "  " NAME_FORMAT, "name");
     fprintf(fp, " %s\n", m->names + m->name_actuatoradr[i]);
@@ -529,7 +529,7 @@ void mj_printFormattedModel(const mjModel* m, const char* filename, const char* 
   if (m->nu) fprintf(fp, "\n");
 
   // sensors
-  for (int i=0; i<m->nsensor; i++) {
+  for (int i=0; i < m->nsensor; i++) {
     fprintf(fp, "\nSENSOR %d:\n", i);
     fprintf(fp, "  " NAME_FORMAT, "name");
     fprintf(fp, " %s\n", m->names + m->name_sensoradr[i]);
@@ -539,12 +539,12 @@ void mj_printFormattedModel(const mjModel* m, const char* filename, const char* 
   if (m->nsensor) fprintf(fp, "\n");
 
   // custom numeric parameters
-  for (int i=0; i<m->nnumeric; i++) {
+  for (int i=0; i < m->nnumeric; i++) {
     fprintf(fp, "\nNUMERIC %d:\n", i);
     fprintf(fp, "  name         %s\n", m->names + m->name_numericadr[i]);
     fprintf(fp, "  size         %d\n", m->numeric_size[i]);
     fprintf(fp, "  value       ");
-    for (int j=0; j<m->numeric_size[i]; j++) {
+    for (int j=0; j < m->numeric_size[i]; j++) {
       fprintf(fp, float_format, m->numeric_data[m->numeric_adr[i]+j]);
     }
     fprintf(fp, "\n");
@@ -552,7 +552,7 @@ void mj_printFormattedModel(const mjModel* m, const char* filename, const char* 
   if (m->nnumeric) fprintf(fp, "\n");
 
   // custom text parameters
-  for (int i=0; i<m->ntext; i++) {
+  for (int i=0; i < m->ntext; i++) {
     fprintf(fp, "\nTEXT %d:\n", i);
     fprintf(fp, "  name         %s\n", m->names + m->name_textadr[i]);
     fprintf(fp, "  size         %d\n", m->text_size[i]);
@@ -561,12 +561,12 @@ void mj_printFormattedModel(const mjModel* m, const char* filename, const char* 
   if (m->ntext) fprintf(fp, "\n");
 
   // custom tuple parameters
-  for (int i=0; i<m->ntuple; i++) {
+  for (int i=0; i < m->ntuple; i++) {
     fprintf(fp, "\nTUPLE %d:\n", i);
     fprintf(fp, "  name         %s\n", m->names + m->name_tupleadr[i]);
     fprintf(fp, "  size         %d\n", m->tuple_size[i]);
     fprintf(fp, "  elements\n");
-    for (int j=m->tuple_adr[i]; j<m->tuple_adr[i]+m->tuple_size[i]; j++) {
+    for (int j=m->tuple_adr[i]; j < m->tuple_adr[i]+m->tuple_size[i]; j++) {
       fprintf(fp, "       %s %d, prm = ",
               mju_type2Str(m->tuple_objtype[j]), m->tuple_objid[j]);
       fprintf(fp, float_format, m->tuple_objprm[j]);
@@ -576,58 +576,58 @@ void mj_printFormattedModel(const mjModel* m, const char* filename, const char* 
   if (m->ntuple) fprintf(fp, "\n");
 
   // keyframes (only if different from default)
-  for (int i=0; i<m->nkey; i++) {
+  for (int i=0; i < m->nkey; i++) {
     // print name
     if (m->names[m->name_keyadr[i]]) {
       fprintf(fp, "key_name%d    %s\n", i, m->names + m->name_keyadr[i]);
     }
 
     // print time if non-0
-    if (m->key_time[i]!=0) {
+    if (m->key_time[i] != 0) {
       fprintf(fp, "key_time%d    %.4f\n", i, m->key_time[i]);
     }
 
     // check qpos for difference
     int k = 0;
-    for (int j=0; j<m->nq; j++)
+    for (int j=0; j < m->nq; j++)
       if (m->qpos0[j] != m->key_qpos[i*m->nq + j]) {
         k = 1;
       }
 
     // print if different
-    if (k==1) {
+    if (k == 1) {
       fprintf(fp, "key_qpos%d   ", i);
-      for (int j=0; j<m->nq; j++) {
+      for (int j=0; j < m->nq; j++) {
         fprintf(fp, float_format, m->key_qpos[i*m->nq + j]);
       }
       fprintf(fp, "\n");
     }
 
     // check qvel for nonzero
-    for (int j=0; j<m->nv; j++)
+    for (int j=0; j < m->nv; j++)
       if (m->key_qvel[i*m->nv + j]) {
         k = 2;
       }
 
     // print if nonzero
-    if (k==2) {
+    if (k == 2) {
       fprintf(fp, "key_qvel%d   ", i);
-      for (int j=0; j<m->nv; j++) {
+      for (int j=0; j < m->nv; j++) {
         fprintf(fp, float_format, m->key_qvel[i*m->nv + j]);
       }
       fprintf(fp, "\n");
     }
 
     // check act for nonzero
-    for (int j=0; j<m->na; j++)
+    for (int j=0; j < m->na; j++)
       if (m->key_act[i*m->na + j]) {
         k = 3;
       }
 
     // print if nonzero
-    if (k==3) {
+    if (k == 3) {
       fprintf(fp, "key_act%d   ", i);
-      for (int j=0; j<m->na; j++) {
+      for (int j=0; j < m->na; j++) {
         fprintf(fp, float_format, m->key_act[i*m->na + j]);
       }
       fprintf(fp, "\n");
@@ -635,10 +635,10 @@ void mj_printFormattedModel(const mjModel* m, const char* filename, const char* 
 
     // check mpos for difference
     if (m->nmocap) {
-      for (int j=0; j<m->nbody; j++) {
-        if (m->body_mocapid[j]>=0) {
+      for (int j=0; j < m->nbody; j++) {
+        if (m->body_mocapid[j] >= 0) {
           int id = m->body_mocapid[j];
-          if (m->body_pos[3*j]   != m->key_mpos[i*3*m->nmocap + 3*id] ||
+          if (m->body_pos[3*j] != m->key_mpos[i*3*m->nmocap + 3*id] ||
               m->body_pos[3*j+1] != m->key_mpos[i*3*m->nmocap + 3*id+1] ||
               m->body_pos[3*j+2] != m->key_mpos[i*3*m->nmocap + 3*id+2]) {
             k = 4;
@@ -649,9 +649,9 @@ void mj_printFormattedModel(const mjModel* m, const char* filename, const char* 
     }
 
     // print if nonzero
-    if (k==4) {
+    if (k == 4) {
       fprintf(fp, "key_mpos%d   ", i);
-      for (int j=0; j<3*m->nmocap; j++) {
+      for (int j=0; j < 3*m->nmocap; j++) {
         fprintf(fp, float_format, m->key_mpos[i*3*m->nmocap + j]);
       }
       fprintf(fp, "\n");
@@ -659,10 +659,10 @@ void mj_printFormattedModel(const mjModel* m, const char* filename, const char* 
 
     // check mquat for difference
     if (m->nmocap) {
-      for (int j=0; j<m->nbody; j++) {
-        if (m->body_mocapid[j]>=0) {
+      for (int j=0; j < m->nbody; j++) {
+        if (m->body_mocapid[j] >= 0) {
           int id = m->body_mocapid[j];
-          if (m->body_quat[4*j]   != m->key_mquat[i*4*m->nmocap + 4*id] ||
+          if (m->body_quat[4*j] != m->key_mquat[i*4*m->nmocap + 4*id] ||
               m->body_quat[4*j+1] != m->key_mquat[i*4*m->nmocap + 4*id+1] ||
               m->body_quat[4*j+2] != m->key_mquat[i*4*m->nmocap + 4*id+2] ||
               m->body_quat[4*j+3] != m->key_mquat[i*4*m->nmocap + 4*id+3]) {
@@ -674,16 +674,16 @@ void mj_printFormattedModel(const mjModel* m, const char* filename, const char* 
     }
 
     // print if nonzero
-    if (k==5) {
+    if (k == 5) {
       fprintf(fp, "key_mquat%d   ", i);
-      for (int j=0; j<4*m->nmocap; j++) {
+      for (int j=0; j < 4*m->nmocap; j++) {
         fprintf(fp, float_format, m->key_mquat[i*4*m->nmocap + j]);
       }
       fprintf(fp, "\n");
     }
 
     // check ctrl for nonzero
-    for (int j=0; j<m->nu; j++) {
+    for (int j=0; j < m->nu; j++) {
       if (m->key_ctrl[i*m->nu + j]) {
         k = 6;
         break;
@@ -691,9 +691,9 @@ void mj_printFormattedModel(const mjModel* m, const char* filename, const char* 
     }
 
     // print if nonzero
-    if (k==6) {
+    if (k == 6) {
       fprintf(fp, "key_ctrl%d   ", i);
-      for (int j=0; j<m->nu; j++) {
+      for (int j=0; j < m->nu; j++) {
         fprintf(fp, float_format, m->key_ctrl[i*m->nu + j]);
       }
       fprintf(fp, "\n");
@@ -790,12 +790,12 @@ void mj_printFormattedData(const mjModel* m, mjData* d, const char* filename,
 
   // WARNING
   int active_warnings = 0;
-  for (int i=0; i<mjNWARNING; i++) {
+  for (int i=0; i < mjNWARNING; i++) {
     active_warnings += d->warning[i].number;
   }
   if (active_warnings) {
     fprintf(fp, "WARNING\n");
-    for (int i=0; i<mjNWARNING; i++)
+    for (int i=0; i < mjNWARNING; i++)
       if (d->warning[i].number)
         fprintf(fp, "    %d:  lastinfo = %d   number = %d\n",
                 i, d->warning[i].lastinfo, d->warning[i].number);
@@ -804,12 +804,12 @@ void mj_printFormattedData(const mjModel* m, mjData* d, const char* filename,
 
   // TIMER
   mjtNum active_timers = 0;
-  for (int i=0; i<mjNTIMER; i++) {
+  for (int i=0; i < mjNTIMER; i++) {
     active_timers += d->timer[i].duration;
   }
   if (active_timers) {
     fprintf(fp, "TIMER\n");
-    for (int i=0; i<mjNTIMER; i++) {
+    for (int i=0; i < mjNTIMER; i++) {
       fprintf(fp, "    %d:  duration = ", i);
       fprintf(fp, float_format, d->timer[i].duration);
       fprintf(fp, "   number = %d\n", d->timer[i].number);
@@ -822,7 +822,7 @@ void mj_printFormattedData(const mjModel* m, mjData* d, const char* filename,
     fprintf(fp, "SOLVER STAT\n");
     fprintf(fp, "  solver_iter = %d\n", d->solver_iter);
     fprintf(fp, "  solver_nnz = %d\n",  d->solver_nnz);
-    for (int i=0; i<mjMIN(mjNSOLVER, d->solver_iter); i++) {
+    for (int i=0; i < mjMIN(mjNSOLVER, d->solver_iter); i++) {
       fprintf(fp, "    %d:  improvement = ", i);
       fprintf(fp, float_format, d->solver[i].improvement);
       fprintf(fp, "  gradient = ");
@@ -886,11 +886,11 @@ void mj_printFormattedData(const mjModel* m, mjData* d, const char* filename,
     printArrayInt("TEN_J_ROWNNZ", m->ntendon, 1, d->ten_J_rownnz, fp);
     printArrayInt("TEN_J_ROWADR", m->ntendon, 1, d->ten_J_rowadr, fp);
     printSparse("TEN_J", d->ten_J, m->ntendon, d->ten_J_rownnz,
-                         d->ten_J_rowadr, d->ten_J_colind, fp, float_format);
+                d->ten_J_rowadr, d->ten_J_colind, fp, float_format);
   }
-  for (int i=0; i<m->ntendon; i++) {
+  for (int i=0; i < m->ntendon; i++) {
     fprintf(fp, "TENDON %d: %d wrap points\n", i, d->ten_wrapnum[i]);
-    for (int j=0; j<d->ten_wrapnum[i]; j++) {
+    for (int j=0; j < d->ten_wrapnum[i]; j++) {
       fprintf(fp, "    %d:  ", d->wrap_obj[d->ten_wrapadr[i]+j]);
       printVector("", d->wrap_xpos+3*(d->ten_wrapadr[i]+j), 3, fp, float_format);
     }
@@ -965,7 +965,7 @@ void mj_printFormattedData(const mjModel* m, mjData* d, const char* filename,
 
   // contact
   fprintf(fp, "CONTACT\n");
-  for (int i=0; i<d->ncon; i++) {
+  for (int i=0; i < d->ncon; i++) {
     fprintf(fp, "  %d:\n     dim           %d\n     geom          ", i, d->contact[i].dim);
     const char* geom1 = mj_id2name(m, mjOBJ_GEOM, d->contact[i].geom1);
     if (geom1) {
@@ -1066,9 +1066,9 @@ void mj_printFormattedData(const mjModel* m, mjData* d, const char* filename,
 }
 
 
-#ifdef __clang__
-#pragma clang diagnostic pop
-#endif
+ #ifdef __clang__
+ #pragma clang diagnostic pop
+ #endif
 
 
 // print mjData to text file

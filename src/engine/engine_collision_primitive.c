@@ -217,7 +217,7 @@ int mjc_PlaneBox(const mjModel* m, const mjData* d,
   dist = mju_dot3(dif, norm);
 
   // test all corners, pick bottom 4
-  for (int i=0; i<8; i++) {
+  for (int i=0; i < 8; i++) {
     // get corner in local coordinates
     vec[0] = (i&1 ? size2[0] : -size2[0]);
     vec[1] = (i&2 ? size2[1] : -size2[1]);
@@ -298,7 +298,7 @@ static int _SphereSphere(mjContact* con, mjtNum margin,
 int mjc_SphereSphere(const mjModel* m, const mjData* d,
                      mjContact* con, int g1, int g2, mjtNum margin) {
   mjGETINFO
-  return  _SphereSphere(con, margin, pos1, mat1, size1, pos2, mat2, size2);
+  return _SphereSphere(con, margin, pos1, mat1, size1, pos2, mat2, size2);
 }
 
 
@@ -423,7 +423,7 @@ int mjc_CapsuleCapsule(const mjModel* m, const mjData* d,
     n2 = _SphereSphere(con+n1, margin, vec1, mat1, size1, vec2, mat2, size2);
 
     // return if two contacts already found
-    if (n1+n2>=2) {
+    if (n1+n2 >= 2) {
       return n1+n2;
     }
 
@@ -440,7 +440,7 @@ int mjc_CapsuleCapsule(const mjModel* m, const mjData* d,
     n3 = _SphereSphere(con+n1+n2, margin, vec1, mat1, size1, vec2, mat2, size2);
 
     // return if two contacts already found
-    if (n1+n2+n3>=2) {
+    if (n1+n2+n3 >= 2) {
       return n1+n2+n3;
     }
 

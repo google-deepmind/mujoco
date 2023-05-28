@@ -48,7 +48,7 @@ void mj_passive(const mjModel* m, mjData* d) {
   }
 
   // joint-level springs
-  for (int i=0; i<m->njnt; i++) {
+  for (int i=0; i < m->njnt; i++) {
     stiffness = m->jnt_stiffness[i];
 
     int padr = m->jnt_qposadr[i];
@@ -85,13 +85,13 @@ void mj_passive(const mjModel* m, mjData* d) {
   }
 
   // dof-level dampers
-  for (int i=0; i<m->nv; i++) {
+  for (int i=0; i < m->nv; i++) {
     damping = m->dof_damping[i];
     d->qfrc_passive[i] -= damping*d->qvel[i];
   }
 
   // tendon-level spring-dampers
-  for (int i=0; i<m->ntendon; i++) {
+  for (int i=0; i < m->ntendon; i++) {
     stiffness = m->tendon_stiffness[i];
     damping = m->tendon_damping[i];
 
@@ -113,7 +113,7 @@ void mj_passive(const mjModel* m, mjData* d) {
     // transform to joint torque, add to qfrc_passive: dense or sparse
     if (issparse) {
       int end = d->ten_J_rowadr[i] + d->ten_J_rownnz[i];
-      for (int j=d->ten_J_rowadr[i]; j<end; j++) {
+      for (int j=d->ten_J_rowadr[i]; j < end; j++) {
         d->qfrc_passive[d->ten_J_colind[j]] += d->ten_J[j] * frc;
       }
     } else {
@@ -126,7 +126,7 @@ void mj_passive(const mjModel* m, mjData* d) {
     mjtNum force[3], torque[3]={0};
 
     // apply per-body gravity compensation
-    for (int i=1; i<m->nbody; i++) {
+    for (int i=1; i < m->nbody; i++) {
       if (m->body_gravcomp[i]) {
         mju_scl3(force, m->opt.gravity, -(m->body_mass[i]*m->body_gravcomp[i]));
         mj_applyFT(m, d, force, torque, d->xipos+3*i, i, d->qfrc_passive);
@@ -135,15 +135,15 @@ void mj_passive(const mjModel* m, mjData* d) {
   }
 
   // body-level viscosity, lift and drag
-  if (m->opt.viscosity>0 || m->opt.density>0) {
-    for (int i=1; i<m->nbody; i++) {
-      if (m->body_mass[i]<mjMINVAL) {
+  if (m->opt.viscosity > 0 || m->opt.density > 0) {
+    for (int i=1; i < m->nbody; i++) {
+      if (m->body_mass[i] < mjMINVAL) {
         continue;
       }
 
       int use_ellipsoid_model = 0;
       // if any child geom uses the ellipsoid model, inertia-box model is disabled for parent body
-      for (int j=0; j<m->body_geomnum[i] && use_ellipsoid_model==0; j++) {
+      for (int j=0; j < m->body_geomnum[i] && use_ellipsoid_model == 0; j++) {
         const int geomid = m->body_geomadr[i] + j;
         use_ellipsoid_model += (m->geom_fluid[mjNFLUID*geomid] > 0);
       }
@@ -164,7 +164,7 @@ void mj_passive(const mjModel* m, mjData* d) {
   if (m->nplugin) {
     const int nslot = mjp_pluginCount();
     // iterate over plugins, call compute if type is mjPLUGIN_PASSIVE
-    for (int i=0; i<m->nplugin; i++) {
+    for (int i=0; i < m->nplugin; i++) {
       const int slot = m->plugin[i];
       const mjpPlugin* plugin = mjp_getPluginAtSlotUnsafe(slot, nslot);
       if (!plugin) {
@@ -209,7 +209,7 @@ void mj_inertiaBoxFluidModel(const mjModel* m, mjData* d, int i) {
   mju_zero(lfrc, 6);
 
   // set viscous force and torque
-  if (m->opt.viscosity>0) {
+  if (m->opt.viscosity > 0) {
     // diameter of sphere approximation
     diam = (box[0] + box[1] + box[2])/3.0;
 
@@ -221,7 +221,7 @@ void mj_inertiaBoxFluidModel(const mjModel* m, mjData* d, int i) {
   }
 
   // add lift and drag force and torque
-  if (m->opt.density>0) {
+  if (m->opt.density > 0) {
     // force
     lfrc[3] -= 0.5*m->opt.density*box[1]*box[2]*mju_abs(lvel[3])*lvel[3];
     lfrc[4] -= 0.5*m->opt.density*box[0]*box[2]*mju_abs(lvel[4])*lvel[4];
@@ -252,16 +252,16 @@ void mj_ellipsoidFluidModel(const mjModel* m, mjData* d, int bodyid) {
   mjtNum semiaxes[3], virtual_mass[3], virtual_inertia[3];
   mjtNum blunt_drag_coef, slender_drag_coef, ang_drag_coef;
 
-  for (int j=0; j<m->body_geomnum[bodyid]; j++) {
+  for (int j=0; j < m->body_geomnum[bodyid]; j++) {
     const int geomid = m->body_geomadr[bodyid] + j;
 
     mju_geomSemiAxes(m, geomid, semiaxes);
 
     readFluidGeomInteraction(
-        m->geom_fluid + mjNFLUID*geomid, &geom_interaction_coef,
-        &blunt_drag_coef, &slender_drag_coef, &ang_drag_coef,
-        &kutta_lift_coef, &magnus_lift_coef,
-        virtual_mass, virtual_inertia);
+      m->geom_fluid + mjNFLUID*geomid, &geom_interaction_coef,
+      &blunt_drag_coef, &slender_drag_coef, &ang_drag_coef,
+      &kutta_lift_coef, &magnus_lift_coef,
+      virtual_mass, virtual_inertia);
 
     // scales all forces, read from MJCF as boolean (0.0 or 1.0)
     if (geom_interaction_coef == 0.0) {
@@ -364,11 +364,11 @@ static inline mjtNum mji_ellipsoid_max_moment(const mjtNum size[3], const int di
 
 // lift and drag forces due to motion in the fluid
 void mj_viscousForces(
-    const mjtNum local_vels[6], const mjtNum fluid_density,
-    const mjtNum fluid_viscosity, const mjtNum size[3],
-    const mjtNum magnus_lift_coef, const mjtNum kutta_lift_coef,
-    const mjtNum blunt_drag_coef, const mjtNum slender_drag_coef,
-    const mjtNum ang_drag_coef, mjtNum local_force[6])
+  const mjtNum local_vels[6], const mjtNum fluid_density,
+  const mjtNum fluid_viscosity, const mjtNum size[3],
+  const mjtNum magnus_lift_coef, const mjtNum kutta_lift_coef,
+  const mjtNum blunt_drag_coef, const mjtNum slender_drag_coef,
+  const mjtNum ang_drag_coef, mjtNum local_force[6])
 {
   const mjtNum lin_vel[3] = {local_vels[3], local_vels[4], local_vels[5]};
   const mjtNum ang_vel[3] = {local_vels[0], local_vels[1], local_vels[2]};
@@ -406,7 +406,7 @@ void mj_viscousForces(
   // cosine between velocity and normal to the surface
   // divided by proj_denom instead of sqrt(proj_denom) to account for skipped normalization in norm
   const mjtNum cos_alpha = proj_num / mju_max(
-      mjMINVAL, mju_norm3(lin_vel) * proj_denom);
+    mjMINVAL, mju_norm3(lin_vel) * proj_denom);
   mjtNum kutta_circ[3];
   mju_cross(kutta_circ, norm, lin_vel);
   kutta_circ[0] *= kutta_lift_coef * fluid_density * cos_alpha * A_proj;
@@ -434,11 +434,11 @@ void mj_viscousForces(
   };
 
   const mjtNum drag_lin_coef =  // linear plus quadratic
-      fluid_viscosity*lin_visc_force_coef + fluid_density*mju_norm3(lin_vel)*(
-          A_proj*blunt_drag_coef + slender_drag_coef*(A_max - A_proj));
+                               fluid_viscosity*lin_visc_force_coef + fluid_density*mju_norm3(lin_vel)*(
+    A_proj*blunt_drag_coef + slender_drag_coef*(A_max - A_proj));
   const mjtNum drag_ang_coef =  // linear plus quadratic
-      fluid_viscosity * lin_visc_torq_coef +
-      fluid_density * mju_norm3(mom_visc);
+                               fluid_viscosity * lin_visc_torq_coef +
+                               fluid_density * mju_norm3(mom_visc);
 
   local_force[0] -= drag_ang_coef * ang_vel[0];
   local_force[1] -= drag_ang_coef * ang_vel[1];

@@ -26,7 +26,7 @@
 // rotate vector by quaternion
 void mju_rotVecQuat(mjtNum res[3], const mjtNum vec[3], const mjtNum quat[4]) {
   // null quat: copy vec
-  if (quat[0]==1 && quat[1]==0 && quat[2]==0 && quat[3]==0) {
+  if (quat[0] == 1 && quat[1] == 0 && quat[2] == 0 && quat[3] == 0) {
     mju_copy3(res, vec);
   }
 
@@ -75,7 +75,7 @@ void mju_mulQuat(mjtNum res[4], const mjtNum qa[4], const mjtNum qb[4]) {
 // multiply quaternion and axis
 void mju_mulQuatAxis(mjtNum res[4], const mjtNum quat[4], const mjtNum axis[3]) {
   mjtNum tmp[4] = {
-   -quat[1]*axis[0] - quat[2]*axis[1] - quat[3]*axis[2],
+    -quat[1]*axis[0] - quat[2]*axis[1] - quat[3]*axis[2],
     quat[0]*axis[0] + quat[2]*axis[2] - quat[3]*axis[1],
     quat[0]*axis[1] + quat[3]*axis[0] - quat[1]*axis[2],
     quat[0]*axis[2] + quat[1]*axis[1] - quat[2]*axis[0]
@@ -91,7 +91,7 @@ void mju_mulQuatAxis(mjtNum res[4], const mjtNum quat[4], const mjtNum axis[3]) 
 // convert axisAngle to quaternion
 void mju_axisAngle2Quat(mjtNum res[4], const mjtNum axis[3], mjtNum angle) {
   // zero angle: null quat
-  if (angle==0) {
+  if (angle == 0) {
     res[0] = 1;
     res[1] = 0;
     res[2] = 0;
@@ -117,7 +117,7 @@ void mju_quat2Vel(mjtNum res[3], const mjtNum quat[4], mjtNum dt) {
   mjtNum speed = 2 * mju_atan2(sin_a_2, quat[0]);
 
   // when axis-angle is larger than pi, rotation is in the opposite direction
-  if (speed>mjPI) {
+  if (speed > mjPI) {
     speed -= 2*mjPI;
   }
   speed /= dt;
@@ -143,7 +143,7 @@ void mju_subQuat(mjtNum res[3], const mjtNum qa[4], const mjtNum qb[4]) {
 // convert quaternion to 3D rotation matrix
 void mju_quat2Mat(mjtNum res[9], const mjtNum quat[4]) {
   // null quat: identity
-  if (quat[0]==1 && quat[1]==0 && quat[2]==0 && quat[3]==0) {
+  if (quat[0] == 1 && quat[1] == 0 && quat[2] == 0 && quat[3] == 0) {
     res[0] = 1;
     res[1] = 0;
     res[2] = 0;
@@ -186,7 +186,7 @@ void mju_quat2Mat(mjtNum res[9], const mjtNum quat[4]) {
 // convert 3D rotation matrix to quaternion
 void mju_mat2Quat(mjtNum quat[4], const mjtNum mat[9]) {
   // q0 largest
-  if (mat[0]+mat[4]+mat[8]>0) {
+  if (mat[0]+mat[4]+mat[8] > 0) {
     quat[0] = 0.5 * mju_sqrt(1 + mat[0] + mat[4] + mat[8]);
     quat[1] = 0.25 * (mat[7] - mat[5]) / quat[0];
     quat[2] = 0.25 * (mat[2] - mat[6]) / quat[0];
@@ -194,7 +194,7 @@ void mju_mat2Quat(mjtNum quat[4], const mjtNum mat[9]) {
   }
 
   // q1 largest
-  else if (mat[0]>mat[4] && mat[0]>mat[8]) {
+  else if (mat[0] > mat[4] && mat[0] > mat[8]) {
     quat[1] = 0.5 * mju_sqrt(1 + mat[0] - mat[4] - mat[8]);
     quat[0] = 0.25 * (mat[7] - mat[5]) / quat[1];
     quat[2] = 0.25 * (mat[1] + mat[3]) / quat[1];
@@ -202,7 +202,7 @@ void mju_mat2Quat(mjtNum quat[4], const mjtNum mat[9]) {
   }
 
   // q2 largest
-  else if (mat[4]>mat[8]) {
+  else if (mat[4] > mat[8]) {
     quat[2] = 0.5 * mju_sqrt(1 - mat[0] + mat[4] - mat[8]);
     quat[0] = 0.25 * (mat[2] - mat[6]) / quat[2];
     quat[1] = 0.25 * (mat[1] + mat[3]) / quat[2];
@@ -255,7 +255,7 @@ void mju_quatZ2Vec(mjtNum quat[4], const mjtNum vec[3]) {
   mju_zero3(quat+1);
 
   // normalize vector; if too small, no rotation
-  if (mju_normalize3(vn)<mjMINVAL) {
+  if (mju_normalize3(vn) < mjMINVAL) {
     return;
   }
 
@@ -264,7 +264,7 @@ void mju_quatZ2Vec(mjtNum quat[4], const mjtNum vec[3]) {
   a = mju_normalize3(axis);
 
   // almost parallel
-  if (fabs(a)<mjMINVAL) {
+  if (fabs(a) < mjMINVAL) {
     // opposite: 180 deg rotation around x axis
     if (mju_dot3(vn, z) < 0) {
       quat[0] = 0;
@@ -368,8 +368,7 @@ void mju_inertCom(mjtNum res[10], const mjtNum inert[3], const mjtNum mat[9],
   // tmp = diag(inert) * mat'  (mat is local-to-global rotation)
   mjtNum tmp[9] = {mat[0]*inert[0], mat[3]*inert[0], mat[6]*inert[0],
                    mat[1]*inert[1], mat[4]*inert[1], mat[7]*inert[1],
-                   mat[2]*inert[2], mat[5]*inert[2], mat[8]*inert[2]
-                  };
+                   mat[2]*inert[2], mat[5]*inert[2], mat[8]*inert[2]};
 
   // res_rot = mat * diag(inert) * mat'
   res[0] = mat[0]*tmp[0] + mat[1]*tmp[3] + mat[2]*tmp[6];
@@ -429,9 +428,9 @@ void mju_dofCom(mjtNum res[6], const mjtNum axis[3], const mjtNum offset[3]) {
 
 // multiply dof matrix (6-by-n, transposed) by vector (n-by-1)
 void mju_mulDofVec(mjtNum* res, const mjtNum* dof, const mjtNum* vec, int n) {
-  if (n==1) {
+  if (n == 1) {
     mju_scl(res, dof, vec[0], 6);
-  } else if (n<=0) {
+  } else if (n <= 0) {
     mju_zero(res, 6);
   } else {
     mju_mulMatTVec(res, dof, vec, n, 6);
@@ -485,7 +484,7 @@ void mju_makeFrame(mjtNum frame[9]) {
   if (mju_norm3(frame+3) < 0.5) {
     mju_zero3(frame+3);
 
-    if (frame[1]<0.5 && frame[1]>-0.5) {
+    if (frame[1] < 0.5 && frame[1] > -0.5) {
       frame[4] = 1;
     } else {
       frame[5] = 1;

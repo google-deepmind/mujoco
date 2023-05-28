@@ -123,7 +123,7 @@ void mj_inverseSkip(const mjModel* m, mjData* d,
   int nv = m->nv;
 
   // position-dependent
-  if (skipstage<mjSTAGE_POS) {
+  if (skipstage < mjSTAGE_POS) {
     mj_invPosition(m, d);
     if (!skipsensor) {
       mj_sensorPos(m, d);
@@ -134,7 +134,7 @@ void mj_inverseSkip(const mjModel* m, mjData* d,
   }
 
   // velocity-dependent
-  if (skipstage<mjSTAGE_VEL) {
+  if (skipstage < mjSTAGE_VEL) {
     mj_invVelocity(m, d);
     if (!skipsensor) {
       mj_sensorVel(m, d);
@@ -152,7 +152,7 @@ void mj_inverseSkip(const mjModel* m, mjData* d,
   }
 
   // qfrc_inverse += artmature*qacc - qfrc_passive - qfrc_constraint
-  for (int i=0; i<nv; i++) {
+  for (int i=0; i < nv; i++) {
     d->qfrc_inverse[i] += m->dof_armature[i]*d->qacc[i]
                           - d->qfrc_passive[i] - d->qfrc_constraint[i];
   }
