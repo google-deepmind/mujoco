@@ -201,12 +201,12 @@ static int textwidth(const char* text, const mjrContext* con, int limit) {
   int i = 0, width = 0;
 
   // zero limit
-  if (limit==0) {
+  if (limit == 0) {
     return 0;
   }
 
   // add character widths
-  while (text[i] && (limit<1 || i<limit)) {
+  while (text[i] && (limit < 1 || i < limit)) {
     width += con->charWidth[(unsigned char)text[i++]];
   }
 
@@ -222,7 +222,7 @@ static void drawtext(const char* txt, int x, int y, int maxwidth,
   int len = 0, width = 0;
   while (txt[len]) {
     width += con->charWidth[(unsigned char)txt[len]];
-    if (width>=maxwidth) {
+    if (width >= maxwidth) {
       break;
     } else {
       len++;
@@ -283,7 +283,7 @@ static void drawoval(mjrRect rect, const float* rgb, const float* rgbback,
   const int ndivide = 20;
 
   // require horizontal
-  if (rect.height>rect.width) {
+  if (rect.height > rect.width) {
     return;
   }
 
@@ -297,13 +297,13 @@ static void drawoval(mjrRect rect, const float* rgb, const float* rgbback,
   glBegin(GL_POLYGON);
 
   // draw left half-circle
-  for (int i=0; i<=ndivide; i++) {
+  for (int i=0; i <= ndivide; i++) {
     double angle = mjPI * (0.5 + (double)i / (double)ndivide);
     glVertex2d(lcenter[0] + radius*cos(angle), lcenter[1] + radius*sin(angle));
   }
 
   // draw right half-circle
-  for (int i=0; i<=ndivide; i++) {
+  for (int i=0; i <= ndivide; i++) {
     double angle = mjPI * (1.5 + (double)i / (double)ndivide);
     glVertex2d(rcenter[0] + radius*cos(angle), rcenter[1] + radius*sin(angle));
   }
@@ -318,13 +318,13 @@ static void drawoval(mjrRect rect, const float* rgb, const float* rgbback,
     glBegin(GL_POLYGON);
 
     // draw left half-circle
-    for (int i=0; i<=ndivide; i++) {
+    for (int i=0; i <= ndivide; i++) {
       double angle = mjPI * (0.5 + (double)i / (double)ndivide);
       glVertex2d(lcenter[0] + radius*cos(angle), lcenter[1] + radius*sin(angle));
     }
 
     // draw right half-circle
-    for (int i=0; i<=ndivide; i++) {
+    for (int i=0; i <= ndivide; i++) {
       double angle = mjPI * (1.5 + (double)i / (double)ndivide);
       glVertex2d(rcenter[0] + radius*cos(angle), rcenter[1] + radius*sin(angle));
     }
@@ -377,13 +377,13 @@ static void drawsymbol(mjrRect rect, int flg_open, int flg_sep,
         (ui->color.master[0] + ui->color.sectpane[0]) * 0.5,
         (ui->color.master[1] + ui->color.sectpane[1]) * 0.5,
         (ui->color.master[2] + ui->color.sectpane[2]) * 0.5
-      );
+        );
     } else {
       glColor3f(
         (ui->color.secttitle[0] + ui->color.sectpane[0]) * 0.5,
         (ui->color.secttitle[1] + ui->color.sectpane[1]) * 0.5,
         (ui->color.secttitle[2] + ui->color.sectpane[2]) * 0.5
-      );
+        );
     }
     glBegin(GL_TRIANGLES);
     glVertex2d(cx-margin, cy-y);
@@ -419,7 +419,7 @@ static mjrRect radioelement(const mjuiItem* it, int n,
   };
 
   // adjust width of last column
-  if (col==ncol-1) {
+  if (col == ncol-1) {
     r.width = it->rect.width - r.left + it->rect.left;
   }
 
@@ -436,7 +436,7 @@ static void mouseinui(const mjUI* ui, const mjuiState* ins, int* x, int* y) {
   mjrRect rect = ins->rect[ui->rectid];
 
   // correct for scrollbar
-  if (ui->height>rect.height) {
+  if (ui->height > rect.height) {
     *y -= ui->scroll;
   }
 
@@ -483,7 +483,7 @@ static int findradio(const mjuiItem* it, const mjUI* ui,
 
   // result
   int ind = row*ncol + col;
-  if (ind<it->multi.nelem) {
+  if (ind < it->multi.nelem) {
     return ind;
   } else {
     return -1;
@@ -503,7 +503,7 @@ static void makeradioline(const mjuiItem* it, const mjrContext* con, int* sep) {
   }
 
   // compute element widths
-  for (int i=0; i<nelem; i++) {
+  for (int i=0; i < nelem; i++) {
     elwid[i] = textwidth(it->multi.name[i], con, -1);
     totwid += elwid[i];
   }
@@ -513,7 +513,7 @@ static void makeradioline(const mjuiItem* it, const mjrContext* con, int* sep) {
 
   // compute separators
   sep[0] = 0;
-  for (int i=0; i<nelem; i++) {
+  for (int i=0; i < nelem; i++) {
     sep[i+1] = sep[i] + elwid[i] + mju_round((i+1)*extra) -mju_round(i*extra);
   }
   sep[nelem] = it->rect.width;
@@ -534,8 +534,8 @@ static int findradioline(const mjuiItem* it, const mjUI* ui,
 
   // find interval
   int x = mju_round(rx*it->rect.width);
-  for (int i=0; i<it->multi.nelem; i++) {
-    if (x>=sep[i] && x<sep[i+1]) {
+  for (int i=0; i < it->multi.nelem; i++) {
+    if (x >= sep[i] && x < sep[i+1]) {
       return i;
     }
   }
@@ -550,7 +550,7 @@ static int findradioline(const mjuiItem* it, const mjUI* ui,
 static int findselect(const mjuiItem* it, const mjUI* ui,
                       const mjuiState* ins, const mjrContext* con) {
   // not tracking: nothing to do
-  if (!(ui->mousesect>0 && ui->mouseitem>=0 && it && it->type==mjITEM_SELECT)) {
+  if (!(ui->mousesect > 0 && ui->mouseitem >= 0 && it && it->type == mjITEM_SELECT)) {
     return -1;
   }
 
@@ -564,7 +564,7 @@ static int findselect(const mjuiItem* it, const mjUI* ui,
   // find in box
   double rx, ry;
   mouseinrect(r, ui, ins, &rx, &ry);
-  if (ry>0 && ry<1 && rx>0 && rx<1) {
+  if (ry > 0 && ry < 1 && rx > 0 && rx < 1) {
     int k = (int)floor(ry*it->multi.nelem);
     k = mjMAX(0, mjMIN(it->multi.nelem-1, k));
     return it->multi.nelem-1-k;
@@ -597,7 +597,7 @@ void scrollrect(mjrRect rect, const mjUI* ui, const mjrContext* con,
 
 // is point in rectangle
 static int inside(int x, int y, mjrRect r) {
-  return (x>=r.left && x<=r.left+r.width && y>=r.bottom && y<=r.bottom+r.height);
+  return (x >= r.left && x <= r.left+r.width && y >= r.bottom && y <= r.bottom+r.height);
 }
 
 
@@ -611,20 +611,20 @@ static int insideoval(int x, int y, mjrRect r) {
 
   // check center
   int radius = r.height/2;
-  if (x>=r.left+radius && x<=r.left+r.width-radius) {
+  if (x >= r.left+radius && x <= r.left+r.width-radius) {
     return 1;
   }
 
   // left circle
   int dx = x - (r.left+radius);
   int dy = y - (r.bottom+radius);
-  if (dx<0 && (dx*dx + dy*dy < radius*radius)) {
+  if (dx < 0 && (dx*dx + dy*dy < radius*radius)) {
     return 1;
   }
 
   // right circle
   dx = x - (r.left+r.width-radius);
-  if (dx>0 && (dx*dx + dy*dy < radius*radius)) {
+  if (dx > 0 && (dx*dx + dy*dy < radius*radius)) {
     return 1;
   }
 
@@ -648,7 +648,7 @@ static void findmouse(const mjUI* ui, const mjuiState* ins, const mjrContext* co
   mjrRect rect = ins->rect[ui->rectid];
 
   // scrollbar
-  if (ui->height>rect.height) {
+  if (ui->height > rect.height) {
     // construct rectangles
     mjrRect bar;
     mjrRect thumb;
@@ -662,7 +662,7 @@ static void findmouse(const mjUI* ui, const mjuiState* ins, const mjrContext* co
       }
 
       // below thumb
-      else if (y<thumb.bottom) {
+      else if (y < thumb.bottom) {
         *sect = -2;
       }
 
@@ -681,12 +681,12 @@ static void findmouse(const mjUI* ui, const mjuiState* ins, const mjrContext* co
   mouseinui(ui, ins, &x, &y);
 
   // check sections and items
-  for (int n=0; n<ui->nsect; n++) {
+  for (int n=0; n < ui->nsect; n++) {
     // get section pointer
     const mjuiSection* s = ui->sect + n;
 
     // in title
-    if (s->state<2 && inside(x, y, s->rtitle)) {
+    if (s->state < 2 && inside(x, y, s->rtitle)) {
       *sect = n+1;
       *item = -1;
       return;
@@ -694,8 +694,8 @@ static void findmouse(const mjUI* ui, const mjuiState* ins, const mjrContext* co
 
     // in content and open: check items
     if (s->state && inside(x, y, s->rcontent)) {
-      for (int i=0; i<s->nitem; i++) {
-        if (s->item[i].type==mjITEM_BUTTON ?
+      for (int i=0; i < s->nitem; i++) {
+        if (s->item[i].type == mjITEM_BUTTON ?
             insideoval(x, y, s->item[i].rect) :
             inside(x, y, s->item[i].rect)) {
           *sect = n+1;
@@ -725,7 +725,7 @@ static void setslider(mjuiItem* it, mjUI* ui,
   mjtNum val = (mjtNum)(it->slider.range[0]*(1-rx) + it->slider.range[1]*rx);
 
   // set slider position
-  if (it->type==mjITEM_SLIDERINT) {
+  if (it->type == mjITEM_SLIDERINT) {
     *(int*)it->pdata = mju_round(val);
   } else {
     *(mjtNum*)it->pdata = val;
@@ -738,14 +738,14 @@ static void setslider(mjuiItem* it, mjUI* ui,
 // return 0 if ok, error code otherwise
 static int checkedit(const char* text, const mjuiItem* it) {
   // text always passes
-  if (it->type==mjITEM_EDITTXT) {
+  if (it->type == mjITEM_EDITTXT) {
     return 0;
   }
 
   // check type
-  if (it->type!=mjITEM_EDITINT &&
-      it->type!=mjITEM_EDITNUM &&
-      it->type!=mjITEM_EDITFLOAT) {
+  if (it->type != mjITEM_EDITINT &&
+      it->type != mjITEM_EDITNUM &&
+      it->type != mjITEM_EDITFLOAT) {
     mju_error("Internal error: expected edit control");
   }
 
@@ -755,21 +755,21 @@ static int checkedit(const char* text, const mjuiItem* it) {
                  val, val+1, val+2, val+3, val+4, val+5, val+6);
 
   // check length
-  if (n!=it->edit.nelem) {
+  if (n != it->edit.nelem) {
     return 1;
   }
 
   // check range when defined
-  for (int i=0; i<n; i++)
-    if (it->edit.range[i][0]<it->edit.range[i][1] &&
-        (val[i]<it->edit.range[i][0] || val[i]>it->edit.range[i][1])) {
+  for (int i=0; i < n; i++)
+    if (it->edit.range[i][0] < it->edit.range[i][1] &&
+        (val[i] < it->edit.range[i][0] || val[i] > it->edit.range[i][1])) {
       return 2;
     }
 
   // require int values for int type
-  if (it->type==mjITEM_EDITINT) {
-    for (int i=0; i<n; i++) {
-      if (val[i]!=(double)((int)val[i])) {
+  if (it->type == mjITEM_EDITINT) {
+    for (int i=0; i < n; i++) {
+      if (val[i] != (double)((int)val[i])) {
         return 3;
       }
     }
@@ -784,7 +784,7 @@ static int checkedit(const char* text, const mjuiItem* it) {
 // return 0 if ok, error code otherwise
 static int text2array(const char* text, const mjuiItem* it) {
   // text: copy
-  if (it->type==mjITEM_EDITTXT) {
+  if (it->type == mjITEM_EDITTXT) {
     // copy string, assume mjMAXUINAME allocation
     char* pdata = (char*)it->pdata;
     strncpy(pdata, text, mjMAXUINAME);
@@ -793,7 +793,7 @@ static int text2array(const char* text, const mjuiItem* it) {
   }
 
   // check type
-  if (it->type!=mjITEM_EDITINT && it->type!=mjITEM_EDITNUM && it->type!=mjITEM_EDITFLOAT) {
+  if (it->type != mjITEM_EDITINT && it->type != mjITEM_EDITNUM && it->type != mjITEM_EDITFLOAT) {
     mju_error("Internal error: expected edit control");
   }
 
@@ -803,42 +803,42 @@ static int text2array(const char* text, const mjuiItem* it) {
                  val, val+1, val+2, val+3, val+4, val+5, val+6);
 
   // check length
-  if (n!=it->edit.nelem) {
+  if (n != it->edit.nelem) {
     return 1;
   }
 
   // check range when defined
-  for (int i=0; i<n; i++) {
-    if (it->edit.range[i][0]<it->edit.range[i][1] &&
-        (val[i]<it->edit.range[i][0] || val[i]>it->edit.range[i][1])) {
+  for (int i=0; i < n; i++) {
+    if (it->edit.range[i][0] < it->edit.range[i][1] &&
+        (val[i] < it->edit.range[i][0] || val[i] > it->edit.range[i][1])) {
       return 2;
     }
   }
 
   // require int values for int type
-  if (it->type==mjITEM_EDITINT) {
-    for (int i=0; i<n; i++) {
-      if (val[i]!=(double)((int)val[i])) {
+  if (it->type == mjITEM_EDITINT) {
+    for (int i=0; i < n; i++) {
+      if (val[i] != (double)((int)val[i])) {
         return 3;
       }
     }
   }
 
   // copy values
-  if (it->type==mjITEM_EDITINT) {
+  if (it->type == mjITEM_EDITINT) {
     int* pdata = (int*)it->pdata;
-    for (int i=0; i<n; i++) {
+    for (int i=0; i < n; i++) {
       pdata[i] = (int)val[i];
     }
   } else {
-    if (it->type==mjITEM_EDITNUM) {
+    if (it->type == mjITEM_EDITNUM) {
       mjtNum* pdata = (mjtNum*)it->pdata;
-      for (int i=0; i<n; i++) {
+      for (int i=0; i < n; i++) {
         pdata[i] = (mjtNum)val[i];
       }
     } else {
       float* pdata = (float*)it->pdata;
-      for (int i=0; i<n; i++) {
+      for (int i=0; i < n; i++) {
         pdata[i] = (float)val[i];
       }
     }
@@ -852,7 +852,7 @@ static int text2array(const char* text, const mjuiItem* it) {
 // convert numeric array to edit text
 static void array2text(char* text, const mjuiItem* it) {
   // text: copy
-  if (it->type==mjITEM_EDITTXT) {
+  if (it->type == mjITEM_EDITTXT) {
     // copy string, assume mjMAXUINAME allocation
     strncpy(text, (const char*)it->pdata, mjMAXUINAME);
     text[mjMAXUINAME-1] = 0;
@@ -860,7 +860,7 @@ static void array2text(char* text, const mjuiItem* it) {
   }
 
   // check type
-  if (it->type!=mjITEM_EDITINT && it->type!=mjITEM_EDITNUM && it->type!=mjITEM_EDITFLOAT) {
+  if (it->type != mjITEM_EDITINT && it->type != mjITEM_EDITNUM && it->type != mjITEM_EDITFLOAT) {
     mju_error("Internal error: expected edit control");
   }
 
@@ -868,16 +868,16 @@ static void array2text(char* text, const mjuiItem* it) {
   int n = it->edit.nelem;
   char buf[50];
   text[0] = 0;
-  for (int i=0; i<n; i++) {
-    if (it->type==mjITEM_EDITINT) {
+  for (int i=0; i < n; i++) {
+    if (it->type == mjITEM_EDITINT) {
       mjSNPRINTF(buf, "%d", ((int*)it->pdata)[i]);
-    } else if (it->type==mjITEM_EDITNUM) {
+    } else if (it->type == mjITEM_EDITNUM) {
       mjSNPRINTF(buf, "%.4g", ((mjtNum*)it->pdata)[i]);
     } else {
       mjSNPRINTF(buf, "%.4g", ((float*)it->pdata)[i]);
     }
     strncat(text, buf, mjMAXUITEXT - strlen(text) - 1);
-    if (i<n-1) {
+    if (i < n-1) {
       strncat(text, "  ", mjMAXUITEXT - strlen(text) - 1);
     }
   }
@@ -887,36 +887,36 @@ static void array2text(char* text, const mjuiItem* it) {
 // return (remapped) key if valid, 0 if not valid
 static int validkey(int key, int sz, int type, const mjuiState* state) {
   // text
-  if (type==mjITEM_EDITTXT) {
-    if (sz<mjMAXUINAME-1 && key>=32 && key<=127) {
+  if (type == mjITEM_EDITTXT) {
+    if (sz < mjMAXUINAME-1 && key >= 32 && key <= 127) {
       // lower case if Shift (Caps Lock cannot be detected in GLWF)
-      if (key>='A' && key<='Z' && !state->shift) {
+      if (key >= 'A' && key <= 'Z' && !state->shift) {
         key = key + 'a' - 'A';
       }
 
       // Shift: remap remaining keys
       else if (state->shift) {
-        if (key=='`') {
+        if (key == '`') {
           key = '~';
-        } else if (key=='-') {
+        } else if (key == '-') {
           key = '_';
-        } else if (key=='=') {
+        } else if (key == '=') {
           key = '+';
-        } else if (key=='[') {
+        } else if (key == '[') {
           key = '{';
-        } else if (key==']') {
+        } else if (key == ']') {
           key = '}';
-        } else if (key=='\\') {
+        } else if (key == '\\') {
           key = '|';
-        } else if (key==';') {
+        } else if (key == ';') {
           key = ':';
-        } else if (key=='\'') {
+        } else if (key == '\'') {
           key = '"';
-        } else if (key==',') {
+        } else if (key == ',') {
           key = '<';
-        } else if (key=='.') {
+        } else if (key == '.') {
           key = '>';
-        } else if (key=='/') {
+        } else if (key == '/') {
           key = '?';
         }
       }
@@ -928,25 +928,25 @@ static int validkey(int key, int sz, int type, const mjuiState* state) {
   }
 
   // numeric
-  else if (type==mjITEM_EDITINT || type==mjITEM_EDITNUM || type==mjITEM_EDITFLOAT) {
-    if (sz<(mjMAXUITEXT-1) &&
-        (key==' ' || key=='+' || key=='=' || key=='-' || (key>='0' && key<='9') ||
-         (key>=mjKEY_NUMPAD_0 && key<=mjKEY_NUMPAD_9) ||
-         ((key=='e' || key=='E' || key=='.') &&
-          (type==mjITEM_EDITNUM || type==mjITEM_EDITFLOAT)))) {
+  else if (type == mjITEM_EDITINT || type == mjITEM_EDITNUM || type == mjITEM_EDITFLOAT) {
+    if (sz < (mjMAXUITEXT-1) &&
+        (key == ' ' || key == '+' || key == '=' || key == '-' || (key >= '0' && key <= '9') ||
+         (key >= mjKEY_NUMPAD_0 && key <= mjKEY_NUMPAD_9) ||
+         ((key == 'e' || key == 'E' || key == '.') &&
+          (type == mjITEM_EDITNUM || type == mjITEM_EDITFLOAT)))) {
 
       // remap '=' to '+'
-      if (key=='=') {
+      if (key == '=') {
         key = '+';
       }
 
       // remap 'E' to 'e'
-      if (key=='E') {
+      if (key == 'E') {
         key = 'e';
       }
 
       // remap numberpad to top row
-      if (key>=mjKEY_NUMPAD_0 && key<=mjKEY_NUMPAD_9) {
+      if (key >= mjKEY_NUMPAD_0 && key <= mjKEY_NUMPAD_9) {
         key = key - mjKEY_NUMPAD_0 + '0';
       }
 
@@ -968,7 +968,7 @@ static int validkey(int key, int sz, int type, const mjuiState* state) {
 // adjust editscroll so cursor is visible
 static void revealcursor(mjrRect r, mjUI* ui, const mjrContext* con) {
   // scroll left
-  if (ui->editcursor<=ui->editscroll) {
+  if (ui->editcursor <= ui->editscroll) {
     ui->editscroll = ui->editcursor;
     return;
   }
@@ -978,13 +978,13 @@ static void revealcursor(mjrRect r, mjUI* ui, const mjrContext* con) {
 
   // scan backwards
   int i = ui->editcursor;
-  while (width>=0 && i>=ui->editscroll) {
+  while (width >= 0 && i >= ui->editscroll) {
     i--;
     width -= con->charWidth[(unsigned char)ui->edittext[i]];
   }
 
   // adjust scroll if out of width
-  if (width<0) {
+  if (width < 0) {
     ui->editscroll = i+1;
   }
 }
@@ -1004,10 +1004,10 @@ static void setcursor(mjrRect r, mjUI* ui, const mjuiState* ins, const mjrContex
   mouseinrect(r1, ui, ins, &rx, &ry);
 
   // outside rectangle
-  if (rx<0) {
+  if (rx < 0) {
     ui->editcursor = 0;
     ui->editscroll = 0;
-  } else if (rx>1) {
+  } else if (rx > 1) {
     ui->editcursor = strlen(ui->edittext);
     revealcursor(r, ui, con);
   }
@@ -1018,12 +1018,12 @@ static void setcursor(mjrRect r, mjUI* ui, const mjuiState* ins, const mjrContex
     int R = mju_round(r1.width*rx), bestdif = R;
 
     // find closest between-char position
-    for (int i=ui->editscroll; i<strlen(ui->edittext); i++) {
+    for (int i=ui->editscroll; i < strlen(ui->edittext); i++) {
       // add next width
       cumsum += con->charWidth[(unsigned char)ui->edittext[i]];
 
       // update best
-      if (bestdif>abs(cumsum-R)) {
+      if (bestdif > abs(cumsum-R)) {
         bestdif = abs(cumsum-R);
         besti = i+1;
       }
@@ -1048,7 +1048,7 @@ static void parseshortcut(const char* text, int* mod, int* key) {
   }
 
   // require between 2 and 5 characters
-  if (strlen(text)<2 || strlen(text)>5) {
+  if (strlen(text) < 2 || strlen(text) > 5) {
     mju_error("mjui_add: invalid shortcut specification");
   }
 
@@ -1075,12 +1075,12 @@ static void parseshortcut(const char* text, int* mod, int* key) {
   }
 
   // key
-  if (text[1]=='#') {
-    if (sscanf(text+2, "%d", key)!=1) {
+  if (text[1] == '#') {
+    if (sscanf(text+2, "%d", key) != 1) {
       mju_error("mjui_add: invalid shortcut numeric code");
     }
   } else {
-    if (text[2]!=0) {
+    if (text[2] != 0) {
       mju_error("mjui_add: invalid shortcut");
     }
     *key = (int)text[1];
@@ -1092,12 +1092,12 @@ static void parseshortcut(const char* text, int* mod, int* key) {
 // check fpr matching modifier and shortcut
 static int matchshortcut(const mjuiState* ins, int mod, int key) {
   // match key
-  if (!key || ins->key!=key) {
+  if (!key || ins->key != key) {
     return 0;
   }
 
   // match modifier
-  if ((ins->control!=0) + 2*(ins->shift!=0) + 4*(ins->alt!=0) != mod) {
+  if ((ins->control != 0) + 2*(ins->shift != 0) + 4*(ins->alt != 0) != mod) {
     return 0;
   }
 
@@ -1110,7 +1110,7 @@ static int matchshortcut(const mjuiState* ins, int mod, int key) {
 
 // Get builtin UI theme spacing (0-1).
 mjuiThemeSpacing mjui_themeSpacing(int ind) {
-  if (ind==0) {
+  if (ind == 0) {
     return themeSpacing0;
   } else {
     return themeSpacing1;
@@ -1121,11 +1121,11 @@ mjuiThemeSpacing mjui_themeSpacing(int ind) {
 
 // Get builtin UI theme color (0-3).
 mjuiThemeColor mjui_themeColor(int ind) {
-  if (ind==0) {
+  if (ind == 0) {
     return themeColor0;
-  } else if (ind==1) {
+  } else if (ind == 1) {
     return themeColor1;
-  } else if (ind==2) {
+  } else if (ind == 2) {
     return themeColor2;
   } else {
     return themeColor3;
@@ -1140,19 +1140,19 @@ void mjui_add(mjUI* ui, const mjuiDef* def) {
   double x[1+2*mjMAXUIEDIT];
 
   // process entries until end marker
-  while (def[n].type!=mjITEM_END) {
+  while (def[n].type != mjITEM_END) {
     // section
-    if (def[n].type==mjITEM_SECTION) {
+    if (def[n].type == mjITEM_SECTION) {
       // check limit
-      if (ui->nsect>=mjMAXUISECT) {
+      if (ui->nsect >= mjMAXUISECT) {
         mju_error("mjui_add: too many sections");
       }
 
       // check data
-      if (strlen(def[n].name)>=mjMAXUINAME-1) {
+      if (strlen(def[n].name) >= mjMAXUINAME-1) {
         mju_error("mjui_add: section name too long");
       }
-      if (def[n].state<0 || def[n].state>2) {
+      if (def[n].state < 0 || def[n].state > 2) {
         mju_error("mjui_add: invalid section state");
       }
 
@@ -1168,26 +1168,26 @@ void mjui_add(mjUI* ui, const mjuiDef* def) {
     }
 
     // item
-    else if (def[n].type>=0 && def[n].type<mjNITEM) {
+    else if (def[n].type >= 0 && def[n].type < mjNITEM) {
       // first section must be defined
-      if (ui->nsect<=0) {
+      if (ui->nsect <= 0) {
         mju_error("mjui_add: item defined outside section");
       }
       mjuiSection* se = ui->sect + (ui->nsect-1);
 
       // check limit
-      if (se->nitem>=mjMAXUIITEM) {
+      if (se->nitem >= mjMAXUIITEM) {
         mju_error("mjui_add: too many items in section");
       }
 
       // check item data
-      if (def[n].type<0 || def[n].type>=mjNITEM) {
+      if (def[n].type < 0 || def[n].type >= mjNITEM) {
         mju_error("mjui_add: invalid item type");
       }
-      if (strlen(def[n].name)>=mjMAXUINAME) {
+      if (strlen(def[n].name) >= mjMAXUINAME) {
         mju_error("mjui_add: item name too long");
       }
-      if (def[n].state<0) {
+      if (def[n].state < 0) {
         mju_error("mjui_add: invalid item state");
       }
 
@@ -1205,43 +1205,45 @@ void mjui_add(mjUI* ui, const mjuiDef* def) {
       it->itemid = se->nitem - 1;
 
       // data pointer check
-      if (it->type>mjITEM_BUTTON && it->pdata==0) {
+      if (it->type > mjITEM_BUTTON && it->pdata == 0) {
         mju_error("mjui_add: no data pointer for item with data");
       }
-      if (it->type<=mjITEM_BUTTON && it->pdata) {
+      if (it->type <= mjITEM_BUTTON && it->pdata) {
         mju_error("mjui_add: data pointer for item without data");
       }
 
       // parse button and check
-      if (it->type==mjITEM_BUTTON || it->type==mjITEM_CHECKINT || it->type==mjITEM_CHECKBYTE) {
+      if (it->type == mjITEM_BUTTON ||
+          it->type == mjITEM_CHECKINT ||
+          it->type == mjITEM_CHECKBYTE) {
         parseshortcut(def[n].other, &(it->single.modifier), &(it->single.shortcut));
       }
 
       // parse static, radio, radioline, select
-      else if (it->type==mjITEM_STATIC    ||
-               it->type==mjITEM_RADIO     ||
-               it->type==mjITEM_RADIOLINE ||
-               it->type==mjITEM_SELECT) {
+      else if (it->type == mjITEM_STATIC    ||
+               it->type == mjITEM_RADIO     ||
+               it->type == mjITEM_RADIOLINE ||
+               it->type == mjITEM_SELECT) {
         // init
         it->multi.nelem = 0;
         num = strlen(def[n].other);
         i = 0;
 
         // find names in '/n'-separated string
-        while (i<num) {
+        while (i < num) {
           // check limit
-          if (it->multi.nelem>=mjMAXUIMULTI) {
+          if (it->multi.nelem >= mjMAXUIMULTI) {
             mju_error("mjui_add: too many multi elements");
           }
 
           // find next '\n' or 0
           start = i;
-          while (def[n].other[i]!='\n' && def[n].other[i]!=0) {
+          while (def[n].other[i] != '\n' && def[n].other[i] != 0) {
             i++;
           }
 
           // check string
-          if (i==start || i-start>=mjMAXUINAME-1) {
+          if (i == start || i-start >= mjMAXUINAME-1) {
             mju_error("mjui_add: invalid multi element name");
           }
 
@@ -1257,10 +1259,10 @@ void mjui_add(mjUI* ui, const mjuiDef* def) {
       }
 
       // parse slider
-      else if (it->type==mjITEM_SLIDERINT || it->type==mjITEM_SLIDERNUM) {
+      else if (it->type == mjITEM_SLIDERINT || it->type == mjITEM_SLIDERNUM) {
         // read and check number
         num = sscanf(def[n].other, "%lf %lf %lf", x, x+1, x+2);
-        if (num!=2 && num!=3) {
+        if (num != 2 && num != 3) {
           mju_error("mjui_add: slider expects 'min max [div]'");
         }
 
@@ -1269,10 +1271,10 @@ void mjui_add(mjUI* ui, const mjuiDef* def) {
         it->slider.range[1] = x[1];
 
         // assign divisions if provided, otherwise default
-        if (num==3) {
+        if (num == 3) {
           it->slider.divisions = mjMAX(1, x[2]);
         } else {
-          if (it->type==mjITEM_SLIDERINT) {
+          if (it->type == mjITEM_SLIDERINT) {
             it->slider.divisions = mjMAX(1, x[1]-x[0]);
           } else {
             it->slider.divisions = 200;
@@ -1281,9 +1283,9 @@ void mjui_add(mjUI* ui, const mjuiDef* def) {
       }
 
       // parse edit numeric
-      else if (it->type==mjITEM_EDITINT || it->type==mjITEM_EDITNUM || it->type==mjITEM_EDITFLOAT) {
+      else if (it->type == mjITEM_EDITINT || it->type == mjITEM_EDITNUM || it->type == mjITEM_EDITFLOAT) {
         // check mjMAXUIEDIT
-        if (mjMAXUIEDIT>7) {
+        if (mjMAXUIEDIT > 7) {
           mju_error("internal error: mjMAXUIEDIT bigger than 7");
         }
 
@@ -1292,20 +1294,20 @@ void mjui_add(mjUI* ui, const mjuiDef* def) {
                      x, x+1, x+2, x+3, x+4, x+5, x+6, x+7, x+8, x+9, x+10, x+11, x+12, x+13, x+14);
 
         // check length, assign
-        if (num<1) {
+        if (num < 1) {
           mju_error("mjui_add: edit length missing");
         }
         it->edit.nelem = mju_round((mjtNum)x[0]);
-        if (it->edit.nelem<1 || it->edit.nelem>mjMAXUIEDIT) {
+        if (it->edit.nelem < 1 || it->edit.nelem > mjMAXUIEDIT) {
           mju_error("mjui_add: invalid edit length");
         }
-        if (it->edit.nelem*2!=(num-1) && num>1) {
+        if (it->edit.nelem*2 != (num-1) && num > 1) {
           mju_error("mjui_add: incorrent number of edit ranges");
         }
 
         // copy ranges
-        if (num>1) {
-          for (int i=0; i<it->edit.nelem; i++) {
+        if (num > 1) {
+          for (int i=0; i < it->edit.nelem; i++) {
             it->edit.range[i][0] = x[1+2*i];
             it->edit.range[i][1] = x[2+2*i];
           }
@@ -1313,7 +1315,7 @@ void mjui_add(mjUI* ui, const mjuiDef* def) {
       }
 
       // edit text: nothing to parse
-      else if (it->type==mjITEM_EDITTXT) {
+      else if (it->type == mjITEM_EDITTXT) {
         // clear nelem, for style
         it->edit.nelem = 0;
       }
@@ -1365,7 +1367,7 @@ void mjui_resize(mjUI* ui, const mjrContext* con) {
 
   // process sections
   int skip;
-  for (int n=0; n<ui->nsect; n++) {
+  for (int n=0; n < ui->nsect; n++) {
     // vertical padding before section
     height += g_section;
     maxheight += g_section;
@@ -1376,7 +1378,7 @@ void mjui_resize(mjUI* ui, const mjrContext* con) {
     // title rectangle
     s->rtitle.left = g_section;
     s->rtitle.width = w_master - w_scroll - 2*g_section;
-    if (s->state<2) {
+    if (s->state < 2) {
       s->rtitle.bottom = height + textheight;
       s->rtitle.height = textheight;
     } else {
@@ -1394,7 +1396,7 @@ void mjui_resize(mjUI* ui, const mjrContext* con) {
     s->rcontent.height = 0;
 
     // process items within section
-    for (int i=0; i<s->nitem; i++) {
+    for (int i=0; i < s->nitem; i++) {
       // get item pointer
       mjuiItem* it = s->item + i;
 
@@ -1403,11 +1405,11 @@ void mjui_resize(mjUI* ui, const mjrContext* con) {
 
       // determine skip (collapsed separator before item)
       skip = 0;
-      if (i>0 && it->type!=mjITEM_SEPARATOR) {
-        for (int k=i-1; k>=0; k--) {
-          if (s->item[k].type==mjITEM_SEPARATOR) {
+      if (i > 0 && it->type != mjITEM_SEPARATOR) {
+        for (int k=i-1; k >= 0; k--) {
+          if (s->item[k].type == mjITEM_SEPARATOR) {
             // collapsed state: skip items below it
-            if (s->item[k].state==mjSEPCLOSED) {
+            if (s->item[k].state == mjSEPCLOSED) {
               skip = 1;
             }
 
@@ -1417,11 +1419,13 @@ void mjui_resize(mjUI* ui, const mjrContext* con) {
       }
 
       // vertical padding before item
-      s->rcontent.height += it->type==mjITEM_SEPARATOR ? g_section : g_itemver;
+      s->rcontent.height += it->type == mjITEM_SEPARATOR ? g_section : g_itemver;
 
       // packed pair of items
-      if (i<s->nitem-1 && s->item[i+1].type==it->type &&
-          (it->type==mjITEM_BUTTON || it->type==mjITEM_CHECKINT || it->type==mjITEM_CHECKBYTE)) {
+      if (i < s->nitem-1 && s->item[i+1].type == it->type &&
+          (it->type == mjITEM_BUTTON ||
+           it->type == mjITEM_CHECKINT ||
+           it->type == mjITEM_CHECKBYTE)) {
         // get next item pointer
         mjuiItem* it1 = s->item + (i+1);
 
@@ -1452,21 +1456,21 @@ void mjui_resize(mjUI* ui, const mjrContext* con) {
         it->rect.left = s->rcontent.left + g_itemside;
 
         // static
-        if (it->type==mjITEM_STATIC) {
+        if (it->type == mjITEM_STATIC) {
           it->rect.width = s->rcontent.width - 2*g_itemside;
           it->rect.height = (con->charHeight+g_textver)*it->multi.nelem;
         }
 
         // single column
-        else if (it->type==mjITEM_BUTTON ||
-                 it->type==mjITEM_CHECKINT ||
-                 it->type==mjITEM_CHECKBYTE) {
+        else if (it->type == mjITEM_BUTTON ||
+                 it->type == mjITEM_CHECKINT ||
+                 it->type == mjITEM_CHECKBYTE) {
           it->rect.width = colwidth;
           it->rect.height = textheight;
         }
 
         // radio
-        else if (it->type==mjITEM_RADIO) {
+        else if (it->type == mjITEM_RADIO) {
           int ncol = ui->radiocol ? ui->radiocol : 2;
           int nrow = (it->multi.nelem-1)/ncol + 1;
           it->rect.width = s->rcontent.width - 2*g_itemside;
@@ -1481,9 +1485,9 @@ void mjui_resize(mjUI* ui, const mjrContext* con) {
 
         // add room for label
         if (it->name[0] &&
-            (it->type>=mjITEM_RADIO ||
-             it->type>=mjITEM_RADIOLINE ||
-             it->type==mjITEM_STATIC)) {
+            (it->type >= mjITEM_RADIO ||
+             it->type >= mjITEM_RADIOLINE ||
+             it->type == mjITEM_STATIC)) {
           it->rect.left = s->rcontent.left + g_itemside + g_label;
           it->rect.width = s->rcontent.width - (2*g_itemside + g_label);
         }
@@ -1518,14 +1522,14 @@ void mjui_resize(mjUI* ui, const mjrContext* con) {
   maxheight += g_section;
 
   // invert bottom for all sections and items
-  for (int n=0; n<ui->nsect; n++) {
+  for (int n=0; n < ui->nsect; n++) {
     // section
     mjuiSection* s = ui->sect + n;
     s->rtitle.bottom = height - s->rtitle.bottom;
     s->rcontent.bottom = height - s->rcontent.bottom;
 
     // items
-    for (int i=0; i<s->nitem; i++) {
+    for (int i=0; i < s->nitem; i++) {
       s->item[i].rect.bottom = height - s->item[i].rect.bottom;
     }
   }
@@ -1540,9 +1544,9 @@ void mjui_resize(mjUI* ui, const mjrContext* con) {
 
 // predicate handler
 static int evalpredicate(int state, mjfItemEnable predicate, void* userdata) {
-  if (state<=0) {
+  if (state <= 0) {
     return 0;
-  } else if (state==1 || predicate==NULL) {
+  } else if (state == 1 || predicate == NULL) {
     return 1;
   } else {
     return predicate(state, userdata);
@@ -1591,12 +1595,12 @@ static void shortcuthelp(mjrRect r, int modifier, int shortcut,
 
   // key: ascii or decode map
   char key[10] = "";
-  if (shortcut>32 && shortcut<=126) {
+  if (shortcut > 32 && shortcut <= 126) {
     key[0] = (char)shortcut;
     key[1] = 0;
   } else {
-    for (int i=0; i<NMAP; i++) {
-      if (keymap[i].key==shortcut) {
+    for (int i=0; i < NMAP; i++) {
+      if (keymap[i].key == shortcut) {
         mjSTRNCPY(key, keymap[i].value);
         break;
       }
@@ -1605,11 +1609,11 @@ static void shortcuthelp(mjrRect r, int modifier, int shortcut,
 
   // modifier
   char text[50] = "";
-  if (modifier==1) {
+  if (modifier == 1) {
     mjSTRNCPY(text, "Ctrl ");
-  } else if (modifier==2) {
+  } else if (modifier == 2) {
     mjSTRNCPY(text, "Shift ");
-  } else if (modifier==4) {
+  } else if (modifier == 4) {
     mjSTRNCPY(text, "Alt ");
   }
 
@@ -1652,7 +1656,7 @@ void mjui_update(int section, int item, const mjUI* ui,
   initOpenGL(ui, con);
 
   // all sections: clear background
-  if (section<0) {
+  if (section < 0) {
     glClearColor(ui->color.master[0], ui->color.master[1],
                  ui->color.master[2], 1);
     glClear(GL_COLOR_BUFFER_BIT);
@@ -1661,7 +1665,7 @@ void mjui_update(int section, int item, const mjUI* ui,
   // select sections
   int start_section = 0;
   int num_section = ui->nsect;
-  if (section>=0) {
+  if (section >= 0) {
     start_section = section;
     num_section = 1;
   }
@@ -1671,7 +1675,7 @@ void mjui_update(int section, int item, const mjUI* ui,
   mjrRect r;
   char text[mjMAXUITEXT];
   int sep[mjMAXUIMULTI+1];
-  for (int n=start_section; n<start_section+num_section; n++) {
+  for (int n=start_section; n < start_section+num_section; n++) {
     // get section pointer
     const mjuiSection* s = ui->sect + n;
 
@@ -1679,9 +1683,9 @@ void mjui_update(int section, int item, const mjUI* ui,
     int maxwidth = (s->rtitle.width - 2*g_itemside - g_itemmid)/2 - 2*g_texthor;
 
     // redraw section title and pane
-    if (section<0 || item<0) {
+    if (section < 0 || item < 0) {
       // title shown
-      if (s->state<2) {
+      if (s->state < 2) {
         // interpolated rectangle
         r = s->rtitle;
         glBegin(GL_QUADS);
@@ -1718,18 +1722,18 @@ void mjui_update(int section, int item, const mjUI* ui,
     // select items
     int start_item = 0;
     int num_item = s->nitem;
-    if (section>=0 && item>=0) {
+    if (section >= 0 && item >= 0) {
       start_item = item;
       num_item = 1;
     }
 
     // draw item(s)
-    for (int i=start_item; i<start_item+num_item; i++) {
+    for (int i=start_item; i < start_item+num_item; i++) {
       // get item pointer
       const mjuiItem* it = s->item + i;
 
       // zero size: skip
-      if (it->rect.height==0) {
+      if (it->rect.height == 0) {
         continue;
       }
 
@@ -1765,9 +1769,9 @@ void mjui_update(int section, int item, const mjUI* ui,
                  it->rect.width-2*g_texthor, ui->color.sectfont, con);
 
         // symbol
-        if (it->state==mjSEPCLOSED+1) {
+        if (it->state == mjSEPCLOSED+1) {
           drawsymbol(it->rect, 1, 1, ui, con);
-        } else if (it->state==mjSEPCLOSED) {
+        } else if (it->state == mjSEPCLOSED) {
           drawsymbol(it->rect, 0, 1, ui, con);
         }
 
@@ -1786,7 +1790,7 @@ void mjui_update(int section, int item, const mjUI* ui,
         drawrectangle(r, rgbpane, rgbpane, con);
 
         // text lines
-        for (int k=0; k<it->multi.nelem; k++) {
+        for (int k=0; k < it->multi.nelem; k++) {
           drawtext(it->multi.name[k],
                    r.left+g_texthor,
                    r.bottom+g_textver+(it->multi.nelem-k-1)*(con->charHeight+g_textver),
@@ -1800,7 +1804,7 @@ void mjui_update(int section, int item, const mjUI* ui,
         }
 
         // outline or filled, depending on mouse
-        if (ui->mousesect==n+1 && ui->mouseitem==i && msect==n+1 && mitem==i) {
+        if (ui->mousesect == n+1 && ui->mouseitem == i && msect == n+1 && mitem == i) {
           drawoval(it->rect, rgbdecor, NULL, con);
         } else {
           drawoval(it->rect, rgbdecor, rgbpane, con);
@@ -1819,14 +1823,15 @@ void mjui_update(int section, int item, const mjUI* ui,
         break;
 
       case mjITEM_CHECKINT:
-      case mjITEM_CHECKBYTE: {
+      case mjITEM_CHECKBYTE:
+        {
           if (state) {
             rgbdecor = ui->color.check;
           }
 
           // get value according to type
           int k;
-          if (it->type==mjITEM_CHECKINT) {
+          if (it->type == mjITEM_CHECKINT) {
             k = *(int*)it->pdata;
           } else {
             k = *(mjtByte*)it->pdata;
@@ -1871,7 +1876,7 @@ void mjui_update(int section, int item, const mjUI* ui,
         drawrectangle(r, rgbdecor, NULL, con);
 
         // element names
-        for (int k=0; k<it->multi.nelem; k++) {
+        for (int k=0; k < it->multi.nelem; k++) {
           r = radioelement(it, k, ui, con);
           drawtext(it->multi.name[k],
                    r.left+g_texthor,
@@ -1880,7 +1885,8 @@ void mjui_update(int section, int item, const mjUI* ui,
         }
         break;
 
-      case mjITEM_RADIOLINE: {
+      case mjITEM_RADIOLINE:
+        {
           if (state) {
             rgbdecor = ui->color.radio;
           }
@@ -1905,7 +1911,7 @@ void mjui_update(int section, int item, const mjUI* ui,
           drawrectangle(r, rgbdecor, NULL, con);
 
           // element names
-          for (int k=0; k<it->multi.nelem; k++) {
+          for (int k=0; k < it->multi.nelem; k++) {
             // compute rectangle for element
             r = it->rect;
             r.left += sep[k];
@@ -1932,7 +1938,7 @@ void mjui_update(int section, int item, const mjUI* ui,
         drawrectangle(it->rect, rgbdecor, NULL, con);
 
         // value: only if non-empty
-        if (it->multi.nelem>0) {
+        if (it->multi.nelem > 0) {
           drawtext(it->multi.name[*(int*)it->pdata],
                    it->rect.left+g_texthor,
                    it->rect.bottom+g_textver,
@@ -1950,7 +1956,7 @@ void mjui_update(int section, int item, const mjUI* ui,
         }
 
         // compute relative slider position
-        if (it->type==mjITEM_SLIDERINT) {
+        if (it->type == mjITEM_SLIDERINT) {
           sel = (mjtNum)(*(int*)it->pdata);
         } else {
           sel = *(mjtNum*)it->pdata;
@@ -1966,13 +1972,13 @@ void mjui_update(int section, int item, const mjUI* ui,
         drawrectangle(r, rgbdecor2, NULL, con);
 
         // show divisions if not too many
-        if (it->slider.divisions<=20) {
+        if (it->slider.divisions <= 20) {
           // repare rectangle
           r.width = SCL(2, con);
           r.height = g_textver;
 
           // draw ticks
-          for (int k=1; k<(int)it->slider.divisions; k++) {
+          for (int k=1; k < (int)it->slider.divisions; k++) {
             r.left = it->rect.left - r.width/2 +
                      it->rect.width*k/it->slider.divisions;
             drawrectangle(r, rgbpane, NULL, con);
@@ -1986,7 +1992,7 @@ void mjui_update(int section, int item, const mjUI* ui,
                  g_label-2*g_texthor, rgbfont, con);
 
         // value
-        if (it->type==mjITEM_SLIDERINT) {
+        if (it->type == mjITEM_SLIDERINT) {
           mjSNPRINTF(text, "%d", *(int*)it->pdata);
         } else {
           mjSNPRINTF(text, "%.3g", *(mjtNum*)it->pdata);
@@ -2012,9 +2018,9 @@ void mjui_update(int section, int item, const mjUI* ui,
                  g_label-2*g_texthor, rgbfont, con);
 
         // activated
-        if (ui->editsect>0 && ui->editsect==n+1 && ui->edititem==i) {
+        if (ui->editsect > 0 && ui->editsect == n+1 && ui->edititem == i) {
           // fill box, indicate valid state with color
-          if (checkedit(ui->edittext, it)==0) {
+          if (checkedit(ui->edittext, it) == 0) {
             drawrectangle(it->rect, rgbdecor, NULL, con);
           } else {
             drawrectangle(it->rect, ui->color.edit2, NULL, con);
@@ -2057,12 +2063,12 @@ void mjui_update(int section, int item, const mjUI* ui,
   }
 
   // select tracking
-  if (ui->mousesect>0 && ui->mouseitem>=0) {
+  if (ui->mousesect > 0 && ui->mouseitem >= 0) {
     // get item pointer
     const mjuiItem* it = ui->sect[ui->mousesect-1].item + ui->mouseitem;
 
     // proceed if select type
-    if (it->type==mjITEM_SELECT) {
+    if (it->type == mjITEM_SELECT) {
       // margin
       r = it->rect;
       r.left -= g_itemside;
@@ -2079,7 +2085,7 @@ void mjui_update(int section, int item, const mjUI* ui,
 
       // hightlight row under mouse
       int k = findselect(it, ui, state, con);
-      if (k>=0) {
+      if (k >= 0) {
         mjrRect r1 = r;
         r1.bottom = r.bottom + (it->multi.nelem-1-k)*cellheight;
         r1.height = cellheight;
@@ -2087,7 +2093,7 @@ void mjui_update(int section, int item, const mjUI* ui,
       }
 
       // values
-      for (int k=0; k<it->multi.nelem; k++) {
+      for (int k=0; k < it->multi.nelem; k++) {
         drawtext(it->multi.name[k],
                  r.left+g_texthor,
                  r.bottom+g_textver+(it->multi.nelem-1-k)*cellheight,
@@ -2109,13 +2115,13 @@ mjuiItem* mjui_event(mjUI* ui, mjuiState* state, const mjrContext* con) {
   ui->editchanged = NULL;
 
   // non-left mouse events: handle shortcut help
-  if ((state->type==mjEVENT_PRESS || state->type==mjEVENT_MOVE ||
-       state->type==mjEVENT_RELEASE) && state->button!=mjBUTTON_LEFT) {
-    if (state->button==mjBUTTON_RIGHT) {
-      if (state->type==mjEVENT_PRESS) {
+  if ((state->type == mjEVENT_PRESS || state->type == mjEVENT_MOVE ||
+       state->type == mjEVENT_RELEASE) && state->button != mjBUTTON_LEFT) {
+    if (state->button == mjBUTTON_RIGHT) {
+      if (state->type == mjEVENT_PRESS) {
         ui->mousehelp = 1;
         mjui_update(-1, -1, ui, state, con);
-      } else if (state->type==mjEVENT_RELEASE) {
+      } else if (state->type == mjEVENT_RELEASE) {
         ui->mousehelp = 0;
         mjui_update(-1, -1, ui, state, con);
       }
@@ -2129,7 +2135,7 @@ mjuiItem* mjui_event(mjUI* ui, mjuiState* state, const mjrContext* con) {
   int item_cur = -1;
   mjuiItem* it_cur = NULL;
   findmouse(ui, state, con, &sect_cur, &item_cur);
-  if (sect_cur>0 && item_cur >= 0) {
+  if (sect_cur > 0 && item_cur >= 0) {
     it_cur = ui->sect[sect_cur-1].item + item_cur;
   }
 
@@ -2137,7 +2143,7 @@ mjuiItem* mjui_event(mjUI* ui, mjuiState* state, const mjrContext* con) {
   int sect_rec = ui->mousesect;
   int item_rec = -1;
   mjuiItem* it_rec = NULL;
-  if (sect_rec>0) {
+  if (sect_rec > 0) {
     item_rec = ui->mouseitem;
     it_rec = ui->sect[sect_rec-1].item + item_rec;
   }
@@ -2146,7 +2152,7 @@ mjuiItem* mjui_event(mjUI* ui, mjuiState* state, const mjrContext* con) {
   int sect_edit = ui->editsect;
   int item_edit = -1;
   mjuiItem* it_edit = NULL;
-  if (sect_edit>0) {
+  if (sect_edit > 0) {
     item_edit = ui->edititem;
     it_edit = ui->sect[sect_edit-1].item + item_edit;
   }
@@ -2155,9 +2161,9 @@ mjuiItem* mjui_event(mjUI* ui, mjuiState* state, const mjrContext* con) {
   switch (state->type) {
   case mjEVENT_MOVE:
     // move scrollbar
-    if (sect_rec==-1) {
+    if (sect_rec == -1) {
       ui->scroll -= mju_round((state->dy * ui->height) /
-                               state->rect[ui->rectid].height);
+                              state->rect[ui->rectid].height);
       ui->scroll = mjMAX(0, mjMIN(ui->scroll,
                                   ui->height-state->rect[ui->rectid].height));
     }
@@ -2165,7 +2171,7 @@ mjuiItem* mjui_event(mjUI* ui, mjuiState* state, const mjrContext* con) {
     // item
     else if (it_rec) {
       // move slider
-      if (it_rec->type==mjITEM_SLIDERINT || it_rec->type==mjITEM_SLIDERNUM) {
+      if (it_rec->type == mjITEM_SLIDERINT || it_rec->type == mjITEM_SLIDERNUM) {
         setslider(it_rec, ui, state, con);
 
         // redraw, return change
@@ -2174,10 +2180,10 @@ mjuiItem* mjui_event(mjUI* ui, mjuiState* state, const mjrContext* con) {
       }
 
       // move edit
-      else if (it_rec->type==mjITEM_EDITINT ||
-               it_rec->type==mjITEM_EDITNUM ||
-               it_rec->type==mjITEM_EDITFLOAT ||
-               it_rec->type==mjITEM_EDITTXT) {
+      else if (it_rec->type == mjITEM_EDITINT ||
+               it_rec->type == mjITEM_EDITNUM ||
+               it_rec->type == mjITEM_EDITFLOAT ||
+               it_rec->type == mjITEM_EDITTXT) {
         setcursor(it_rec->rect, ui, state, con);
       }
 
@@ -2188,9 +2194,9 @@ mjuiItem* mjui_event(mjUI* ui, mjuiState* state, const mjrContext* con) {
 
   case mjEVENT_PRESS:
     // edit in progress
-    if (sect_edit>0) {
+    if (sect_edit > 0) {
       // same: adjust cursor position
-      if (sect_edit==sect_cur && item_edit==item_cur) {
+      if (sect_edit == sect_cur && item_edit == item_cur) {
         // start mouse tracking
         ui->mousesect = sect_cur;
         ui->mouseitem = item_cur;
@@ -2204,7 +2210,7 @@ mjuiItem* mjui_event(mjUI* ui, mjuiState* state, const mjrContext* con) {
       }
 
       // different: instantiate, record editchange
-      if (text2array(ui->edittext, it_edit)==0) {
+      if (text2array(ui->edittext, it_edit) == 0) {
         ui->editchanged = it_edit;
       }
 
@@ -2219,27 +2225,27 @@ mjuiItem* mjui_event(mjUI* ui, mjuiState* state, const mjrContext* con) {
     ui->mousesect = 0;
 
     // start scrollbar drag
-    if (sect_cur==-1) {
+    if (sect_cur == -1) {
       ui->mousesect = -1;
       ui->mouseitem = 0;
     }
 
     // scroll down
-    else if (sect_cur==-2) {
+    else if (sect_cur == -2) {
       ui->scroll = ui->height - state->rect[ui->rectid].height;
     }
 
     // scroll up
-    else if (sect_cur==-3) {
+    else if (sect_cur == -3) {
       ui->scroll = 0;
     }
 
     // section title
-    else if (sect_cur>0 && item_cur<0) {
+    else if (sect_cur > 0 && item_cur < 0) {
       // double-click: make all sections like this
       if (state->doubleclick) {
-        for (int i=0; i<ui->nsect; i++) {
-          if (ui->sect[i].state<2 && ui->sect[sect_cur-1].state<2) {
+        for (int i=0; i < ui->nsect; i++) {
+          if (ui->sect[i].state < 2 && ui->sect[sect_cur-1].state < 2) {
             ui->sect[i].state = ui->sect[sect_cur-1].state;
           }
         }
@@ -2247,7 +2253,7 @@ mjuiItem* mjui_event(mjUI* ui, mjuiState* state, const mjrContext* con) {
 
       // single click: toggle section state
       else {
-        if (ui->sect[sect_cur-1].state<2) {
+        if (ui->sect[sect_cur-1].state < 2) {
           ui->sect[sect_cur-1].state = 1 - ui->sect[sect_cur-1].state;
         }
       }
@@ -2258,7 +2264,7 @@ mjuiItem* mjui_event(mjUI* ui, mjuiState* state, const mjrContext* con) {
     }
 
     // item
-    else if (sect_cur>0 && item_cur>=0) {
+    else if (sect_cur > 0 && item_cur >= 0) {
       // nothing to do for inactive item
       if (!evalpredicate(it_cur->state, ui->predicate, ui->userdata)) {
         return ui->editchanged;
@@ -2268,14 +2274,14 @@ mjuiItem* mjui_event(mjUI* ui, mjuiState* state, const mjrContext* con) {
       switch (it_cur->type) {
       case mjITEM_SEPARATOR:
         // expanded: collapse
-        if (it_cur->state==mjSEPCLOSED+1) {
+        if (it_cur->state == mjSEPCLOSED+1) {
           it_cur->state = mjSEPCLOSED;
           mjui_resize(ui, con);
           mjui_update(-1, -1, ui, state, con);
         }
 
         // collapsed: expand
-        else if (it_cur->state==mjSEPCLOSED) {
+        else if (it_cur->state == mjSEPCLOSED) {
           it_cur->state = mjSEPCLOSED+1;
           mjui_resize(ui, con);
           mjui_update(-1, -1, ui, state, con);
@@ -2306,7 +2312,7 @@ mjuiItem* mjui_event(mjUI* ui, mjuiState* state, const mjrContext* con) {
       case mjITEM_RADIO:
         // set selected element
         i = findradio(it_cur, ui, state, con);
-        if (i>=0) {
+        if (i >= 0) {
           *(int*)it_cur->pdata = i;
           change = 1;
         }
@@ -2315,7 +2321,7 @@ mjuiItem* mjui_event(mjUI* ui, mjuiState* state, const mjrContext* con) {
       case mjITEM_RADIOLINE:
         // set selected element
         i = findradioline(it_cur, ui, state, con);
-        if (i>=0) {
+        if (i >= 0) {
           *(int*)it_cur->pdata = i;
           change = 1;
         }
@@ -2369,10 +2375,10 @@ mjuiItem* mjui_event(mjUI* ui, mjuiState* state, const mjrContext* con) {
 
   case mjEVENT_RELEASE:
     // selection box change
-    if (it_rec && it_rec->type==mjITEM_SELECT) {
+    if (it_rec && it_rec->type == mjITEM_SELECT) {
       // find and set value
       i = findselect(it_rec, ui, state, con);
-      if (i>=0) {
+      if (i >= 0) {
         *(int*)it_rec->pdata = i;
       }
 
@@ -2381,13 +2387,13 @@ mjuiItem* mjui_event(mjUI* ui, mjuiState* state, const mjrContext* con) {
       mjui_update(-1, -1, ui, state, con);
 
       // return if value set change
-      if (i>=0) {
+      if (i >= 0) {
         return it_rec;
       }
     }
 
     // button release
-    else if (it_rec && it_rec->type==mjITEM_BUTTON) {
+    else if (it_rec && it_rec->type == mjITEM_BUTTON) {
       // free mouse and redraw
       ui->mousesect = 0;
       mjui_update(sect_rec-1, item_rec, ui, state, con);
@@ -2408,7 +2414,7 @@ mjuiItem* mjui_event(mjUI* ui, mjuiState* state, const mjrContext* con) {
 
   case mjEVENT_KEY:
     // editing
-    if (sect_edit>0) {
+    if (sect_edit > 0) {
       // copy key and clear
       key = state->key;
       state->key = 0;
@@ -2420,7 +2426,7 @@ mjuiItem* mjui_event(mjUI* ui, mjuiState* state, const mjrContext* con) {
         break;
 
       case mjKEY_ENTER:           // instantiate
-        if (text2array(ui->edittext, it_edit)==0) {
+        if (text2array(ui->edittext, it_edit) == 0) {
           ui->editsect = 0;
 
           // redraw
@@ -2459,9 +2465,9 @@ mjuiItem* mjui_event(mjUI* ui, mjuiState* state, const mjrContext* con) {
         break;
 
       case mjKEY_BACKSPACE:       // delete before cursor
-        if (ui->editcursor>0) {
+        if (ui->editcursor > 0) {
           // shift chars after cursor to the left
-          for (int i=ui->editcursor; i<=strlen(ui->edittext); i++) {
+          for (int i=ui->editcursor; i <= strlen(ui->edittext); i++) {
             ui->edittext[i-1] = ui->edittext[i];
           }
 
@@ -2471,9 +2477,9 @@ mjuiItem* mjui_event(mjUI* ui, mjuiState* state, const mjrContext* con) {
         break;
 
       case mjKEY_DELETE:          // delete after cursor
-        if (ui->editcursor<strlen(ui->edittext)) {
+        if (ui->editcursor < strlen(ui->edittext)) {
           // shift chars after cursor to the left
-          for (int i=ui->editcursor; i<=strlen(ui->edittext); i++) {
+          for (int i=ui->editcursor; i <= strlen(ui->edittext); i++) {
             ui->edittext[i] = ui->edittext[i+1];
           }
         }
@@ -2483,7 +2489,7 @@ mjuiItem* mjui_event(mjUI* ui, mjuiState* state, const mjrContext* con) {
         key = validkey(key, strlen(ui->edittext), it_edit->type, state);
         if (key) {
           // shift chars after cursor to the right
-          for (int i=strlen(ui->edittext); i>=ui->editcursor; i--) {
+          for (int i=strlen(ui->edittext); i >= ui->editcursor; i--) {
             ui->edittext[i+1] = ui->edittext[i];
           }
 
@@ -2496,7 +2502,7 @@ mjuiItem* mjui_event(mjUI* ui, mjuiState* state, const mjrContext* con) {
       }
 
       // reveal cursor if still editing
-      if (ui->editsect>0) {
+      if (ui->editsect > 0) {
         revealcursor(it_edit->rect, ui, con);
       }
 
@@ -2507,17 +2513,17 @@ mjuiItem* mjui_event(mjUI* ui, mjuiState* state, const mjrContext* con) {
     // shortcut search
     else {
       // search section shortcuts
-      for (int n=0; n<ui->nsect; n++)
+      for (int n=0; n < ui->nsect; n++)
         if (matchshortcut(state, ui->sect[n].modifier, ui->sect[n].shortcut)) {
           // collapse all
-          for (int i=0; i<ui->nsect; i++) {
-            if (ui->sect[i].state<2) {
+          for (int i=0; i < ui->nsect; i++) {
+            if (ui->sect[i].state < 2) {
               ui->sect[i].state = 0;
             }
           }
 
           // expand this
-          if (ui->sect[n].state<2) {
+          if (ui->sect[n].state < 2) {
             ui->sect[n].state = 1;
           }
 
@@ -2531,14 +2537,14 @@ mjuiItem* mjui_event(mjUI* ui, mjuiState* state, const mjrContext* con) {
         }
 
       // search item shortcuts
-      for (int n=0; n<ui->nsect; n++) {
-        for (int i=0; i<ui->sect[n].nitem; i++) {
+      for (int n=0; n < ui->nsect; n++) {
+        for (int i=0; i < ui->sect[n].nitem; i++) {
           // get pointer to item
           it = ui->sect[n].item + i;;
 
           // check
-          if ((it->type==mjITEM_BUTTON || it->type==mjITEM_CHECKINT ||
-               it->type==mjITEM_CHECKBYTE) &&
+          if ((it->type == mjITEM_BUTTON || it->type == mjITEM_CHECKINT ||
+               it->type == mjITEM_CHECKBYTE) &&
               matchshortcut(state, it->single.modifier, it->single.shortcut)) {
             // clear key
             state->key = 0;
@@ -2546,10 +2552,10 @@ mjuiItem* mjui_event(mjUI* ui, mjuiState* state, const mjrContext* con) {
             // active: process shortcut
             if (evalpredicate(it->state, ui->predicate, ui->userdata)) {
               // toggle if check
-              if (it->type==mjITEM_CHECKINT) {
+              if (it->type == mjITEM_CHECKINT) {
                 *(int*)it->pdata = 1 - *(int*)it->pdata;
                 mjui_update(n, i, ui, state, con);
-              } else if (it->type==mjITEM_CHECKBYTE) {
+              } else if (it->type == mjITEM_CHECKBYTE) {
                 *(mjtByte*)it->pdata = 1 - *(mjtByte*)it->pdata;
                 mjui_update(n, i, ui, state, con);
               }
@@ -2591,19 +2597,18 @@ void mjui_render(mjUI* ui, const mjuiState* state, const mjrContext* con) {
                 ui->color.master[2], 1);
 
   // adjust scroll
-  if (ui->scroll>0 && ui->height-ui->scroll<rect.height) {
+  if (ui->scroll > 0 && ui->height-ui->scroll < rect.height) {
     ui->scroll = mjMAX(0, ui->height - rect.height);
   }
 
   // blit to current buffer
   mjrRect raux = {0, mjMAX(0, ui->height - ui->scroll - rect.height),
-                  ui->width, mjMIN(rect.height, ui->height - ui->scroll)
-                 };
+                  ui->width, mjMIN(rect.height, ui->height - ui->scroll)};
   mjr_blitAux(ui->auxid, raux, rect.left,
               rect.bottom + mjMAX(0, rect.height - ui->height + ui->scroll), con);
 
   // draw scrollbar on top if needed
-  if (ui->height>rect.height) {
+  if (ui->height > rect.height) {
     // construct rectangles
     mjrRect bar;
     mjrRect thumb;
