@@ -1169,9 +1169,7 @@ we obtain the unconstrained problem
    :label: eq:reduced
 
 The function :math:`s(\cdot)` plays the role of a soft-constraint penalty. It can be shown to be convex and
-once-continuously-differentiable. In the case of pyramidal friction cones it is a quadratic spline. This reduced
-formulation is the basis for the efficient new solvers introduced in MuJoCo 1.50, as well as new optimal control methods
-such as Goal-Directed Dynamics which we are developing.
+once-continuously-differentiable. In the case of pyramidal friction cones it is a quadratic spline.
 
 Another appealing feature of the reduced formulation is that the inverse dynamics can be easily computed. Since the
 above problem is unconstrained and convex, the unique global minimum makes the gradient vanish. This yields the identity
