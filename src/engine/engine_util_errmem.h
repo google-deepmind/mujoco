@@ -18,6 +18,7 @@
 #include <stddef.h>
 
 #include <mujoco/mjexport.h>
+#include <mujoco/mjmacro.h>
 
 #ifdef __cplusplus
 extern "C" {

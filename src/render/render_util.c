@@ -54,10 +54,10 @@ void mjr_setf3(float* vec, float f0, float f1, float f2) {
 
 // multiply 4-by-4 matrices, column-major
 void mjr_mulMat44(float* res, const float* A, const float* B) {
-  for (int r=0; r<4; r++) {
-    for (int c=0; c<4; c++) {
+  for (int r=0; r < 4; r++) {
+    for (int c=0; c < 4; c++) {
       res[r+4*c] = 0;
-      for (int i=0; i<4; i++) {
+      for (int i=0; i < 4; i++) {
         res[r+4*c] += A[r+4*i]*B[i+4*c];
       }
     }
@@ -89,7 +89,7 @@ void mjr_crossVec(float* a, const float* b, const float* c) {
 void mjr_normalizeVec(float* v) {
   float scl, len = sqrtf(v[0]*v[0] + v[1]*v[1] + v[2]*v[2]);
 
-  if (len<1E-10f) {
+  if (len < 1E-10f) {
     v[0] = 0;
     v[1] = 0;
     v[2] = 1;
@@ -111,7 +111,7 @@ void mjr_orthoVec(float* res, const float* v) {
   mjr_crossVec(res, v, other);
 
   // success
-  if (res[0]*res[0]+res[1]*res[1]+res[2]*res[2]>0.01) {
+  if (res[0]*res[0]+res[1]*res[1]+res[2]*res[2] > 0.01) {
     mjr_normalizeVec(res);
     return;
   }
@@ -134,9 +134,9 @@ float mjr_dotVec(const float* a, const float* b) {
 
 // multiply 4x4 matrix by vector; column-major (OpenGL format)
 void mjr_multiply4(float* res, const float* mat, const float* vec) {
-  for (int i=0; i<4; i++) {
+  for (int i=0; i < 4; i++) {
     res[i] = 0;
-    for (int j=0; j<4; j++) {
+    for (int j=0; j < 4; j++) {
       res[i] += mat[i+4*j]*vec[j];
     }
   }
@@ -207,8 +207,8 @@ void mjr_reflect(const float* pos, const float* mat) {
   v[2] = mat[8];
 
   // compute outer product v*vT
-  for (int i=0; i<3; i++) {
-    for (int j=0; j<3; j++) {
+  for (int i=0; i < 3; i++) {
+    for (int j=0; j < 3; j++) {
       vvt[3*i+j] = v[i]*v[j];
     }
   }
@@ -273,11 +273,11 @@ void mjr_transform(const float* translate, const float* rotate, float scale) {
 // Find first rectangle containing mouse, -1: not found.
 int mjr_findRect(int x, int y, int nrect, const mjrRect* rect) {
   // scan
-  for (int i=0; i<nrect; i++) {
-    if (x>=rect[i].left &&
-        x<rect[i].left+rect[i].width &&
-        y>=rect[i].bottom &&
-        y<rect[i].bottom+rect[i].height) {
+  for (int i=0; i < nrect; i++) {
+    if (x >= rect[i].left &&
+        x < rect[i].left+rect[i].width &&
+        y >= rect[i].bottom &&
+        y < rect[i].bottom+rect[i].height) {
       return i;
     }
   }

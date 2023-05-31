@@ -203,6 +203,11 @@ add_subdirectory(simulate)
 
 add_subdirectory(util)
 
+add_library(mujoco_private_api_header INTERFACE)
+target_sources(mujoco_private_api_header INTERFACE private.h)
+set_target_properties(mujoco_private_api_header PROPERTIES PUBLIC_HEADER private.h)
+target_link_libraries(mujoco_private_api_header INTERFACE mujoco)
+
 if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/enum_traits.h)
   add_library(enum_traits INTERFACE)
   target_sources(enum_traits INTERFACE enum_traits.h)
@@ -242,7 +247,13 @@ target_link_libraries(function_traits INTERFACE mujoco absl::core_headers)
 add_library(errors_header INTERFACE)
 target_sources(errors_header INTERFACE errors.h)
 set_target_properties(errors_header PROPERTIES PUBLIC_HEADER errors.h)
-target_link_libraries(errors_header INTERFACE crossplatform func_wrap mujoco)
+target_link_libraries(
+  errors_header
+  INTERFACE crossplatform
+            func_wrap
+            mujoco
+            mujoco_private_api_header
+)
 
 add_library(raw INTERFACE)
 target_sources(raw INTERFACE raw.h)
@@ -381,6 +392,7 @@ target_link_libraries(
   PRIVATE absl::flat_hash_map
           crossplatform
           mujoco
+          mujoco_private_api_header
           raw
           errors_header
           func_wrap

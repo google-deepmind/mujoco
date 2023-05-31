@@ -20,9 +20,9 @@
 #include <ccd/vec3.h>
 
 #include <mujoco/mjdata.h>
+#include <mujoco/mjmacro.h>
 #include <mujoco/mjmodel.h>
 #include "engine/engine_collision_primitive.h"
-#include "engine/engine_macro.h"
 #include "engine/engine_util_blas.h"
 #include "engine/engine_util_errmem.h"
 #include "engine/engine_util_misc.h"
@@ -73,13 +73,13 @@ void mjccd_support(const void *obj, const ccd_vec3_t *_dir, ccd_vec3_t *vec) {
 
   case mjGEOM_ELLIPSOID:
     // find support point on unit sphere: scale dir by ellipsoid sizes and renormalize
-    for (int i=0; i<3; i++) {
+    for (int i=0; i < 3; i++) {
       res[i] = dir[i] * size[i];
     }
     mju_normalize3(res);
 
     // transform to ellipsoid
-    for (int i=0; i<3; i++) {
+    for (int i=0; i < 3; i++) {
       res[i] *= size[i];
     }
     break;
@@ -87,7 +87,7 @@ void mjccd_support(const void *obj, const ccd_vec3_t *_dir, ccd_vec3_t *vec) {
   case mjGEOM_CYLINDER:
     // set result in XY plane: support on circle
     tmp = mju_sqrt(dir[0]*dir[0] + dir[1]*dir[1]);
-    if (tmp>mjMINVAL) {
+    if (tmp > mjMINVAL) {
       res[0] = dir[0]/tmp*size[0];
       res[1] = dir[1]/tmp*size[0];
     } else {
@@ -99,7 +99,7 @@ void mjccd_support(const void *obj, const ccd_vec3_t *_dir, ccd_vec3_t *vec) {
     break;
 
   case mjGEOM_BOX:
-    for (int i=0; i<3; i++) {
+    for (int i=0; i < 3; i++) {
       res[i] = mju_sign(dir[i]) * size[i];
     }
     break;
@@ -111,16 +111,16 @@ void mjccd_support(const void *obj, const ccd_vec3_t *_dir, ccd_vec3_t *vec) {
     ibest = -1;
 
     // no graph data: exhaustive search
-    if (m->mesh_graphadr[m->geom_dataid[g]]<0) {
+    if (m->mesh_graphadr[m->geom_dataid[g]] < 0) {
       // search all vertices, find best
-      for (int i=0; i<m->mesh_vertnum[m->geom_dataid[g]]; i++) {
+      for (int i=0; i < m->mesh_vertnum[m->geom_dataid[g]]; i++) {
         // vdot = dot(vertex, dir)
         vdot = dir[0] * (mjtNum)vertdata[3*i] +
                dir[1] * (mjtNum)vertdata[3*i+1] +
                dir[2] * (mjtNum)vertdata[3*i+2];
 
         // update best
-        if (vdot>tmp) {
+        if (vdot > tmp) {
           tmp = vdot;
           ibest = i;
         }
@@ -158,7 +158,7 @@ void mjccd_support(const void *obj, const ccd_vec3_t *_dir, ccd_vec3_t *vec) {
                  dir[2] * (mjtNum)vertdata[3*vert_globalid[locid]+2];
 
           // update best
-          if (vdot>tmp) {
+          if (vdot > tmp) {
             tmp = vdot;
             ibest = locid;
             change = 1;
@@ -177,14 +177,14 @@ void mjccd_support(const void *obj, const ccd_vec3_t *_dir, ccd_vec3_t *vec) {
     }
 
     // sanity check, SHOULD NOT OCCUR
-    if (ibest<0) {
+    if (ibest < 0) {
       mju_warning("mesh_support could not find support vertex");
       mju_zero3(res);
     }
 
     // copy best vertex
     else {
-      for (int i=0; i<3; i++) {
+      for (int i=0; i < 3; i++) {
         res[i] = (mjtNum)vertdata[3*ibest + i];
       }
     }
@@ -195,7 +195,7 @@ void mjccd_support(const void *obj, const ccd_vec3_t *_dir, ccd_vec3_t *vec) {
   }
 
   // add dir*margin/2 to result
-  for (int i=0; i<3; i++) {
+  for (int i=0; i < 3; i++) {
     res[i] += dir[i] * ccd->margin/2;
   }
 
@@ -214,7 +214,7 @@ static int mjc_MPRIteration(mjtCCD* obj1, mjtCCD* obj2, const ccd_t* ccd,
                             mjContact* con, int g1, int g2, mjtNum margin) {
   ccd_vec3_t dir, pos;
   ccd_real_t depth;
-  if (ccdMPRPenetration(obj1, obj2, ccd, &depth, &dir, &pos)==0) {
+  if (ccdMPRPenetration(obj1, obj2, ccd, &depth, &dir, &pos) == 0) {
     // contact is found but normal is undefined
     if (ccdVec3Eq(&dir, ccd_vec3_origin)) {
       return 0;
@@ -242,7 +242,7 @@ static int mjc_MPRIteration(mjtCCD* obj1, mjtCCD* obj2, const ccd_t* ccd,
 
 // compare new contact to previous contacts, return 1 if it is far from all of them
 static int mjc_isDistinctContact(mjContact* con, int ncon, mjtNum tolerance) {
-  for (int i=0; i<ncon-1; i++) {
+  for (int i=0; i < ncon-1; i++) {
     if (mju_dist3(con[i].pos, con[ncon - 1].pos) <= tolerance) {
       return 0;
     }
@@ -380,7 +380,7 @@ static int addplanemesh(mjContact* con, const float vertex[3],
   mju_addTo3(pnt, pos2);
 
   // skip if too close to first contact
-  if (mju_dist3(pnt, first)<tolplanemesh*rbound) {
+  if (mju_dist3(pnt, first) < tolplanemesh*rbound) {
     return 0;
   }
 
@@ -419,7 +419,7 @@ int mjc_PlaneConvex(const mjModel* m, const mjData* d,
   // compute normal distance, return if too far
   mju_sub3(dif, vec.v, pos1);
   dist = mju_dot3(normal, dif);
-  if (dist>margin) {
+  if (dist > margin) {
     return 0;
   }
 
@@ -454,16 +454,16 @@ int mjc_PlaneConvex(const mjModel* m, const mjData* d,
   mjtNum threshold = mju_dot3(normal, dif) - margin;
 
   // no graph data: exhaustive search
-  if (m->mesh_graphadr[m->geom_dataid[g]]<0) {
+  if (m->mesh_graphadr[m->geom_dataid[g]] < 0) {
     // search all vertices, find best
-    for (int i=0; i<m->mesh_vertnum[m->geom_dataid[g]] && count<maxplanemesh; i++) {
+    for (int i=0; i < m->mesh_vertnum[m->geom_dataid[g]] && count < maxplanemesh; i++) {
       // vdot = dot(vertex, dir)
       vdot = locdir[0] * (mjtNum)vertdata[3*i] +
              locdir[1] * (mjtNum)vertdata[3*i+1] +
              locdir[2] * (mjtNum)vertdata[3*i+2];
 
       // detect contact, skip best
-      if (vdot>threshold && i!=obj.meshindex) {
+      if (vdot > threshold && i != obj.meshindex) {
         count += addplanemesh(con+count, vertdata+3*i,
                               pos1, normal, pos2, mat2,
                               con->pos, m->geom_rbound[g2]);
@@ -472,7 +472,7 @@ int mjc_PlaneConvex(const mjModel* m, const mjData* d,
   }
 
   // use graph data
-  else if (obj.meshindex>=0) {
+  else if (obj.meshindex >= 0) {
     // get info
     graphadr = m->mesh_graphadr[m->geom_dataid[g]];
     numvert = m->mesh_graph[graphadr];
@@ -482,14 +482,14 @@ int mjc_PlaneConvex(const mjModel* m, const mjData* d,
 
     // look for contacts in ibest neighborhood
     int i = vert_edgeadr[obj.meshindex];
-    while ((locid=edge_localid[i])>=0 && count<maxplanemesh) {
+    while ((locid=edge_localid[i]) >= 0 && count < maxplanemesh) {
       // vdot = dot(vertex, dir)
       vdot = locdir[0] * (mjtNum)vertdata[3*vert_globalid[locid]] +
              locdir[1] * (mjtNum)vertdata[3*vert_globalid[locid]+1] +
              locdir[2] * (mjtNum)vertdata[3*vert_globalid[locid]+2];
 
       // detect contact
-      if (vdot>threshold) {
+      if (vdot > threshold) {
         count += addplanemesh(con+count, vertdata+3*vert_globalid[locid],
                               pos1, normal, pos2, mat2,
                               con->pos, m->geom_rbound[g2]);
@@ -522,10 +522,10 @@ static void prism_support(const void *obj, const ccd_vec3_t *dir, ccd_vec3_t *ve
   const mjtPrism* p = (const mjtPrism*)obj;
 
   // find best vertex in halfspace determined by dir.z
-  istart = dir->v[2]<0 ? 0 : 3;
+  istart = dir->v[2] < 0 ? 0 : 3;
   ibest = istart;
   best = mju_dot3(p->v[istart], dir->v);
-  for (int i=istart+1; i<istart+3; i++) {
+  for (int i=istart+1; i < istart+3; i++) {
     if ((tmp = mju_dot3(p->v[i], dir->v)) > best) {
       ibest = i;
       best = tmp;
@@ -543,7 +543,7 @@ static void prism_center(const void *obj, ccd_vec3_t *center) {
 
   // compute mean
   mju_zero3(center->v);
-  for (int i=0; i<6; i++) {
+  for (int i=0; i < 6; i++) {
     mju_addTo3(center->v, p->v[i]);
   }
   mju_scl3(center->v, center->v, 1.0/6.0);
@@ -607,7 +607,7 @@ int mjc_ConvexHField(const mjModel* m, const mjData* d,
   r2 = m->geom_rbound[g2];
 
   // box-sphere test: horizontal plane
-  for (int i=0; i<2; i++) {
+  for (int i=0; i < 2; i++) {
     if ((size1[i] < pos[i]-r2-margin) || (-size1[i] > pos[i]+r2+margin)) {
       return 0;
     }
@@ -710,23 +710,23 @@ int mjc_ConvexHField(const mjModel* m, const mjData* d,
 
   // process all prisms in sub-grid
   cnt = 0;
-  for (int r=rmin; r<rmax; r++) {
+  for (int r=rmin; r < rmax; r++) {
     nvert = 0;
-    for (int c=cmin; c<=cmax; c++) {
-      for (int i=0; i<2; i++) {
+    for (int c=cmin; c <= cmax; c++) {
+      for (int i=0; i < 2; i++) {
         // send vertex to prism constructor
         addVert(&nvert, &prism, dx*c-size1[0], dy*(r+dr[i])-size1[1],
                 data[(r+dr[i])*ncol+c]*size1[2]+margin);
 
         // check for enough vertices
-        if (nvert>2) {
+        if (nvert > 2) {
           // prism height test
-          if (prism.v[3][2]<zmin && prism.v[4][2]<zmin && prism.v[5][2]<zmin) {
+          if (prism.v[3][2] < zmin && prism.v[4][2] < zmin && prism.v[5][2] < zmin) {
             continue;
           }
 
           // run MPR, save contact
-          if (ccdMPRPenetration(&prism, &obj, &ccd, &depth, &dirccd, &vecccd)==0 &&
+          if (ccdMPRPenetration(&prism, &obj, &ccd, &depth, &dirccd, &vecccd) == 0 &&
               !ccdVec3Eq(&dirccd, ccd_vec3_origin)) {
             // fill in contact data, transform to global coordinates
             con[cnt].dist = -depth;
@@ -737,7 +737,7 @@ int mjc_ConvexHField(const mjModel* m, const mjData* d,
 
             // count, stop if max number reached
             cnt++;
-            if (cnt>=mjMAXCONPAIR) {
+            if (cnt >= mjMAXCONPAIR) {
               r = rmax+1;
               c = cmax+1;
               i = 3;
@@ -754,7 +754,7 @@ int mjc_ConvexHField(const mjModel* m, const mjData* d,
   mju_copy3(pos2, savepos2);
 
   // fix contact normals
-  for (int i=0; i<cnt; i++) {
+  for (int i=0; i < cnt; i++) {
     mjc_fixNormal(m, d, con+i, g1, g2);
   }
 
@@ -774,7 +774,7 @@ static int mjc_ellipsoidInside(mjtNum nrm[3], const mjtNum pos[3], const mjtNum 
   // precompute quantities
   mjtNum S2inv[3] = {1/(size[0]*size[0]), 1/(size[1]*size[1]), 1/(size[2]*size[2])};
   mjtNum C = pos[0]*pos[0]*S2inv[0] + pos[1]*pos[1]*S2inv[1] + pos[2]*pos[2]*S2inv[2] - 1;
-  if (C>0) {
+  if (C > 0) {
     return 0;
   }
 
@@ -783,19 +783,19 @@ static int mjc_ellipsoidInside(mjtNum nrm[3], const mjtNum pos[3], const mjtNum 
 
   // main iteration
   int iter;
-  for (iter=0; iter<maxiter; iter++) {
+  for (iter=0; iter < maxiter; iter++) {
     // coefficients and determinant of quadratic
     mjtNum A = nrm[0]*nrm[0]*S2inv[0] + nrm[1]*nrm[1]*S2inv[1] + nrm[2]*nrm[2]*S2inv[2];
     mjtNum B = pos[0]*nrm[0]*S2inv[0] + pos[1]*nrm[1]*S2inv[1] + pos[2]*nrm[2]*S2inv[2];
     mjtNum det = B*B - A*C;
-    if (det<mjMINVAL || A<mjMINVAL) {
-      return (iter>0);
+    if (det < mjMINVAL || A < mjMINVAL) {
+      return (iter > 0);
     }
 
     // ray intersection with ellipse: pos + x*nrm, x>=0
     mjtNum x = (-B + mju_sqrt(det))/A;
-    if (x<0) {
-      return (iter>0);
+    if (x < 0) {
+      return (iter > 0);
     }
 
     // new point on ellipsoid
@@ -811,7 +811,7 @@ static int mjc_ellipsoidInside(mjtNum nrm[3], const mjtNum pos[3], const mjtNum 
     mju_copy3(nrm, newnrm);
 
     // terminate if converged
-    if (change<tolerance) {
+    if (change < tolerance) {
       break;
     }
   }
@@ -834,25 +834,25 @@ static int mjc_ellipsoidOutside(mjtNum nrm[3], const mjtNum pos[3], const mjtNum
   // main iteration
   mjtNum la = 0;
   int iter;
-  for (iter=0; iter<maxiter; iter++) {
+  for (iter=0; iter < maxiter; iter++) {
     // precompute 1/(s^2+la)
     mjtNum R[3] = {1/(S2[0]+la), 1/(S2[1]+la), 1/(S2[2]+la)};
 
     // value
     mjtNum val = PS2[0]*R[0]*R[0] + PS2[1]*R[1]*R[1] + PS2[2]*R[2]*R[2] - 1;
-    if (val<tolerance) {
+    if (val < tolerance) {
       break;
     }
 
     // derivative
     mjtNum deriv = -2*(PS2[0]*R[0]*R[0]*R[0] + PS2[1]*R[1]*R[1]*R[1] + PS2[2]*R[2]*R[2]*R[2]);
-    if (deriv>-mjMINVAL) {
+    if (deriv > -mjMINVAL) {
       break;
     }
 
     // delta
     mjtNum delta = -val/deriv;
-    if (delta<tolerance) {
+    if (delta < tolerance) {
       break;
     }
 
@@ -878,20 +878,20 @@ void mjc_fixNormal(const mjModel* m, const mjData* d, mjContact* con, int g1, in
   // get geom ids and types
   int gid[2] = {g1, g2};
   int type[2];
-  for (int i=0; i<2; i++) {
+  for (int i=0; i < 2; i++) {
     type[i] = m->geom_type[gid[i]];
 
     // set to -1 if type cannot be processed
-    if (type[i]!=mjGEOM_SPHERE    &&
-        type[i]!=mjGEOM_CAPSULE   &&
-        type[i]!=mjGEOM_ELLIPSOID &&
-        type[i]!=mjGEOM_CYLINDER) {
+    if (type[i] != mjGEOM_SPHERE    &&
+        type[i] != mjGEOM_CAPSULE   &&
+        type[i] != mjGEOM_ELLIPSOID &&
+        type[i] != mjGEOM_CYLINDER) {
       type[i] = -1;
     }
   }
 
   // neither type can be processed: nothing to do
-  if (type[0]<0 && type[1]<0) {
+  if (type[0] < 0 && type[1] < 0) {
     return;
   }
 
@@ -903,8 +903,8 @@ void mjc_fixNormal(const mjModel* m, const mjData* d, mjContact* con, int g1, in
 
   // process geoms in type range
   int processed[2] = {0, 0};
-  for (int i=0; i<2; i++) {
-    if (type[i]>=0) {
+  for (int i=0; i < 2; i++) {
+    if (type[i] >= 0) {
       // get geom mat and size
       mjtNum* mat = d->geom_xmat + 9*gid[i];
       mjtNum* size = m->geom_size + 3*gid[i];
@@ -924,12 +924,12 @@ void mjc_fixNormal(const mjModel* m, const mjData* d, mjContact* con, int g1, in
 
       case mjGEOM_CAPSULE:
         // Z: bottom cap
-        if (pos[2]<-size[1]) {
+        if (pos[2] < -size[1]) {
           nrm[2] = pos[2]+size[1];
         }
 
         // Z: top cap
-        else if (pos[2]>size[1]) {
+        else if (pos[2] > size[1]) {
           nrm[2] = pos[2]-size[1];
         }
 
@@ -946,7 +946,7 @@ void mjc_fixNormal(const mjModel* m, const mjData* d, mjContact* con, int g1, in
 
       case mjGEOM_ELLIPSOID:
         // guard against invalid ellipsoid size (just in case)
-        if (size[0]<mjMINVAL || size[1]<mjMINVAL || size[2]<mjMINVAL) {
+        if (size[0] < mjMINVAL || size[1] < mjMINVAL || size[2] < mjMINVAL) {
           break;
         }
 
@@ -956,7 +956,7 @@ void mjc_fixNormal(const mjModel* m, const mjData* d, mjContact* con, int g1, in
                pos[2]*pos[2]/(size[2]*size[2]);
 
         // dispatch to inside or outside solver
-        if (dst1<=1) {
+        if (dst1 <= 1) {
           processed[i] = mjc_ellipsoidInside(nrm, pos, size);
         } else {
           processed[i] = mjc_ellipsoidOutside(nrm, pos, size);
@@ -965,7 +965,7 @@ void mjc_fixNormal(const mjModel* m, const mjData* d, mjContact* con, int g1, in
 
       case mjGEOM_CYLINDER:
         // skip if within 5% length of flat wall
-        if (mju_abs(pos[2])>0.95*size[1]) {
+        if (mju_abs(pos[2]) > 0.95*size[1]) {
           break;
         }
 
@@ -974,7 +974,7 @@ void mjc_fixNormal(const mjModel* m, const mjData* d, mjContact* con, int g1, in
         dst2 = mju_abs(size[0]-mju_norm(pos, 2));
 
         // require 4x closer to round than flat wall
-        if (dst1<0.25*dst2) {
+        if (dst1 < 0.25*dst2) {
           break;
         }
 

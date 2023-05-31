@@ -17,12 +17,12 @@
 #include <string.h>
 
 #include <mujoco/mjdata.h>
+#include <mujoco/mjmacro.h>
 #include <mujoco/mjmodel.h>
 #include "engine/engine_array_safety.h"
 #include "engine/engine_core_constraint.h"
 #include "engine/engine_crossplatform.h"
 #include "engine/engine_io.h"
-#include "engine/engine_macro.h"
 #include "engine/engine_util_blas.h"
 #include "engine/engine_util_errmem.h"
 #include "engine/engine_util_misc.h"
@@ -36,7 +36,7 @@
   #endif
 #endif
 
-#define mjVERSION 236
+ #define mjVERSION 236
 #define mjVERSIONSTRING "2.3.6"
 
 // names of disable flags
@@ -120,7 +120,7 @@ void mj_jac(const mjModel* m, const mjData* d,
   da = m->body_dofadr[body] + m->body_dofnum[body] - 1;
 
   // backward pass over dof ancestor chain
-  while (da>=0) {
+  while (da >= 0) {
     // construct rotation jacobian
     if (jacr) {
       jacr[da] = cdof[6*da];
@@ -167,7 +167,7 @@ void mj_jacSubtreeCom(const mjModel* m, mjData* d, mjtNum* jacp, int body) {
   mju_zero(jacp, 3*nv);
 
   // forward pass starting from body
-  for (int b=body; b<m->nbody; b++) {
+  for (int b=body; b < m->nbody; b++) {
     // end of body subtree, break from the loop
     if (b > body && m->body_parentid[b] < body) {
       break;
@@ -213,7 +213,7 @@ void mj_jacPointAxis(const mjModel* m, mjData* d, mjtNum* jacPoint, mjtNum* jacA
 
   // jacAxis_col = cross(jacr_col, axis)
   if (jacAxis) {
-    for (int i=0; i<nv; i++) {
+    for (int i=0; i < nv; i++) {
       jacAxis[     i] = jacr[  nv+i]*axis[2] - jacr[2*nv+i]*axis[1];
       jacAxis[  nv+i] = jacr[2*nv+i]*axis[0] - jacr[     i]*axis[2];
       jacAxis[2*nv+i] = jacr[     i]*axis[1] - jacr[  nv+i]*axis[0];
@@ -260,14 +260,14 @@ void mj_jacSparse(const mjModel* m, const mjData* d,
   ci = NV-1;
 
   // backward pass over dof ancestor chain
-  while (da>=0) {
+  while (da >= 0) {
     // find chain index for this dof
-    while (ci>=0 && chain[ci]>da) {
+    while (ci >= 0 && chain[ci] > da) {
       ci--;
     }
 
     // make sure we found it; SHOULD NOT OCCUR
-    if (chain[ci]!=da) {
+    if (chain[ci] != da) {
       mju_error("dof index %d not found in chain", da);
     }
 
@@ -311,7 +311,7 @@ void mj_jacSparseSimple(const mjModel* m, const mjData* d,
   // process dofs
   int ci = start;
   int end = m->body_dofadr[body] + m->body_dofnum[body];
-  for (int da=m->body_dofadr[body]; da<end; da++) {
+  for (int da=m->body_dofadr[body]; da < end; da++) {
     // construct rotation jacobian
     if (jacdifr) {
       // plus sign
@@ -389,11 +389,11 @@ int mj_jacDifPair(const mjModel* m, const mjData* d, int* chain,
     if (issimple) {
       // first body
       mj_jacSparseSimple(m, d, jacdifp, jacdifr, pos1, b1, 0, NV,
-                         b1<b2 ? 0 : m->body_dofnum[b2]);
+                         b1 < b2 ? 0 : m->body_dofnum[b2]);
 
       // second body
       mj_jacSparseSimple(m, d, jacdifp, jacdifr, pos2, b2, 1, NV,
-                         b2<b1 ? 0 : m->body_dofnum[b1]);
+                         b2 < b1 ? 0 : m->body_dofnum[b1]);
     }
 
     // regular processing
@@ -442,186 +442,186 @@ static int _getnumadr(const mjModel* m, mjtObj type, int** padr, int* mapadr) {
 
   // get address list and size for object type
   switch (type) {
-    case mjOBJ_BODY:
-    case mjOBJ_XBODY:
-      *mapadr -= mjLOAD_MULTIPLE*m->nbody;
-      *padr = m->name_bodyadr;
-      num = m->nbody;
-      mjFALLTHROUGH;
+  case mjOBJ_BODY:
+  case mjOBJ_XBODY:
+    *mapadr -= mjLOAD_MULTIPLE*m->nbody;
+    *padr = m->name_bodyadr;
+    num = m->nbody;
+    mjFALLTHROUGH;
 
-    case mjOBJ_JOINT:
-      *mapadr -= mjLOAD_MULTIPLE*m->njnt;
-      if (num < 0) {
-        *padr = m->name_jntadr;
-        num = m->njnt;
-      }
-      mjFALLTHROUGH;
+  case mjOBJ_JOINT:
+    *mapadr -= mjLOAD_MULTIPLE*m->njnt;
+    if (num < 0) {
+      *padr = m->name_jntadr;
+      num = m->njnt;
+    }
+    mjFALLTHROUGH;
 
-    case mjOBJ_GEOM:
-      *mapadr -= mjLOAD_MULTIPLE*m->ngeom;
-      if (num < 0) {
-        *padr = m->name_geomadr;
-        num = m->ngeom;
-      }
-      mjFALLTHROUGH;
+  case mjOBJ_GEOM:
+    *mapadr -= mjLOAD_MULTIPLE*m->ngeom;
+    if (num < 0) {
+      *padr = m->name_geomadr;
+      num = m->ngeom;
+    }
+    mjFALLTHROUGH;
 
-    case mjOBJ_SITE:
-      *mapadr -= mjLOAD_MULTIPLE*m->nsite;
-      if (num < 0) {
-        *padr = m->name_siteadr;
-        num = m->nsite;
-      }
-      mjFALLTHROUGH;
+  case mjOBJ_SITE:
+    *mapadr -= mjLOAD_MULTIPLE*m->nsite;
+    if (num < 0) {
+      *padr = m->name_siteadr;
+      num = m->nsite;
+    }
+    mjFALLTHROUGH;
 
-    case mjOBJ_CAMERA:
-      *mapadr -= mjLOAD_MULTIPLE*m->ncam;
-      if (num < 0) {
-        *padr = m->name_camadr;
-        num = m->ncam;
-      }
-      mjFALLTHROUGH;
+  case mjOBJ_CAMERA:
+    *mapadr -= mjLOAD_MULTIPLE*m->ncam;
+    if (num < 0) {
+      *padr = m->name_camadr;
+      num = m->ncam;
+    }
+    mjFALLTHROUGH;
 
-    case mjOBJ_LIGHT:
-      *mapadr -= mjLOAD_MULTIPLE*m->nlight;
-      if (num < 0) {
-        *padr = m->name_lightadr;
-        num = m->nlight;
-      }
-      mjFALLTHROUGH;
+  case mjOBJ_LIGHT:
+    *mapadr -= mjLOAD_MULTIPLE*m->nlight;
+    if (num < 0) {
+      *padr = m->name_lightadr;
+      num = m->nlight;
+    }
+    mjFALLTHROUGH;
 
-    case mjOBJ_MESH:
-      *mapadr -= mjLOAD_MULTIPLE*m->nmesh;
-      if (num < 0) {
-        *padr = m->name_meshadr;
-        num =  m->nmesh;
-      }
-      mjFALLTHROUGH;
+  case mjOBJ_MESH:
+    *mapadr -= mjLOAD_MULTIPLE*m->nmesh;
+    if (num < 0) {
+      *padr = m->name_meshadr;
+      num =  m->nmesh;
+    }
+    mjFALLTHROUGH;
 
-    case mjOBJ_SKIN:
-      *mapadr -= mjLOAD_MULTIPLE*m->nskin;
-      if (num < 0) {
-        *padr = m->name_skinadr;
-        num = m->nskin;
-      }
-      mjFALLTHROUGH;
+  case mjOBJ_SKIN:
+    *mapadr -= mjLOAD_MULTIPLE*m->nskin;
+    if (num < 0) {
+      *padr = m->name_skinadr;
+      num = m->nskin;
+    }
+    mjFALLTHROUGH;
 
-    case mjOBJ_HFIELD:
-      *mapadr -= mjLOAD_MULTIPLE*m->nhfield;
-      if (num < 0) {
-        *padr = m->name_hfieldadr;
-        num = m->nhfield;
-      }
-      mjFALLTHROUGH;
+  case mjOBJ_HFIELD:
+    *mapadr -= mjLOAD_MULTIPLE*m->nhfield;
+    if (num < 0) {
+      *padr = m->name_hfieldadr;
+      num = m->nhfield;
+    }
+    mjFALLTHROUGH;
 
-    case mjOBJ_TEXTURE:
-      *mapadr -= mjLOAD_MULTIPLE*m->ntex;
-      if (num < 0) {
-        *padr = m->name_texadr;
-        num = m->ntex;
-      }
-      mjFALLTHROUGH;
+  case mjOBJ_TEXTURE:
+    *mapadr -= mjLOAD_MULTIPLE*m->ntex;
+    if (num < 0) {
+      *padr = m->name_texadr;
+      num = m->ntex;
+    }
+    mjFALLTHROUGH;
 
-    case mjOBJ_MATERIAL:
-      *mapadr -= mjLOAD_MULTIPLE*m->nmat;
-      if (num < 0) {
-        *padr = m->name_matadr;
-        num = m->nmat;
-      }
-      mjFALLTHROUGH;
+  case mjOBJ_MATERIAL:
+    *mapadr -= mjLOAD_MULTIPLE*m->nmat;
+    if (num < 0) {
+      *padr = m->name_matadr;
+      num = m->nmat;
+    }
+    mjFALLTHROUGH;
 
-    case mjOBJ_PAIR:
-      *mapadr -= mjLOAD_MULTIPLE*m->npair;
-      if (num < 0) {
-        *padr = m->name_pairadr;
-        num = m->npair;
-      }
-      mjFALLTHROUGH;
+  case mjOBJ_PAIR:
+    *mapadr -= mjLOAD_MULTIPLE*m->npair;
+    if (num < 0) {
+      *padr = m->name_pairadr;
+      num = m->npair;
+    }
+    mjFALLTHROUGH;
 
-    case mjOBJ_EXCLUDE:
-      *mapadr -= mjLOAD_MULTIPLE*m->nexclude;
-      if (num < 0) {
-        *padr = m->name_excludeadr;
-        num = m->nexclude;
-      }
-      mjFALLTHROUGH;
+  case mjOBJ_EXCLUDE:
+    *mapadr -= mjLOAD_MULTIPLE*m->nexclude;
+    if (num < 0) {
+      *padr = m->name_excludeadr;
+      num = m->nexclude;
+    }
+    mjFALLTHROUGH;
 
-    case mjOBJ_EQUALITY:
-      *mapadr -= mjLOAD_MULTIPLE*m->neq;
-      if (num < 0) {
-        *padr = m->name_eqadr;
-        num = m->neq;
-      }
-      mjFALLTHROUGH;
+  case mjOBJ_EQUALITY:
+    *mapadr -= mjLOAD_MULTIPLE*m->neq;
+    if (num < 0) {
+      *padr = m->name_eqadr;
+      num = m->neq;
+    }
+    mjFALLTHROUGH;
 
-    case mjOBJ_TENDON:
-      *mapadr -= mjLOAD_MULTIPLE*m->ntendon;
-      if (num < 0) {
-        *padr = m->name_tendonadr;
-        num = m->ntendon;
-      }
-      mjFALLTHROUGH;
+  case mjOBJ_TENDON:
+    *mapadr -= mjLOAD_MULTIPLE*m->ntendon;
+    if (num < 0) {
+      *padr = m->name_tendonadr;
+      num = m->ntendon;
+    }
+    mjFALLTHROUGH;
 
-    case mjOBJ_ACTUATOR:
-      *mapadr -= mjLOAD_MULTIPLE*m->nu;
-      if (num < 0) {
-        *padr = m->name_actuatoradr;
-        num = m->nu;
-      }
-      mjFALLTHROUGH;
+  case mjOBJ_ACTUATOR:
+    *mapadr -= mjLOAD_MULTIPLE*m->nu;
+    if (num < 0) {
+      *padr = m->name_actuatoradr;
+      num = m->nu;
+    }
+    mjFALLTHROUGH;
 
-    case mjOBJ_SENSOR:
-      *mapadr -= mjLOAD_MULTIPLE*m->nsensor;
-      if (num < 0) {
-        *padr = m->name_sensoradr;
-        num = m->nsensor;
-      }
-      mjFALLTHROUGH;
+  case mjOBJ_SENSOR:
+    *mapadr -= mjLOAD_MULTIPLE*m->nsensor;
+    if (num < 0) {
+      *padr = m->name_sensoradr;
+      num = m->nsensor;
+    }
+    mjFALLTHROUGH;
 
-    case mjOBJ_NUMERIC:
-      *mapadr -= mjLOAD_MULTIPLE*m->nnumeric;
-      if (num < 0) {
-        *padr = m->name_numericadr;
-        num = m->nnumeric;
-      }
-      mjFALLTHROUGH;
+  case mjOBJ_NUMERIC:
+    *mapadr -= mjLOAD_MULTIPLE*m->nnumeric;
+    if (num < 0) {
+      *padr = m->name_numericadr;
+      num = m->nnumeric;
+    }
+    mjFALLTHROUGH;
 
-    case mjOBJ_TEXT:
-      *mapadr -= mjLOAD_MULTIPLE*m->ntext;
-      if (num < 0) {
-        *padr = m->name_textadr;
-        num = m->ntext;
-      }
-      mjFALLTHROUGH;
+  case mjOBJ_TEXT:
+    *mapadr -= mjLOAD_MULTIPLE*m->ntext;
+    if (num < 0) {
+      *padr = m->name_textadr;
+      num = m->ntext;
+    }
+    mjFALLTHROUGH;
 
-    case mjOBJ_TUPLE:
-      *mapadr -= mjLOAD_MULTIPLE*m->ntuple;
-      if (num < 0) {
-        *padr = m->name_tupleadr;
-        num = m->ntuple;
-      }
-      mjFALLTHROUGH;
+  case mjOBJ_TUPLE:
+    *mapadr -= mjLOAD_MULTIPLE*m->ntuple;
+    if (num < 0) {
+      *padr = m->name_tupleadr;
+      num = m->ntuple;
+    }
+    mjFALLTHROUGH;
 
-    case mjOBJ_KEY:
-      *mapadr -= mjLOAD_MULTIPLE*m->nkey;
-      if (num < 0) {
-        *padr = m->name_keyadr;
-        num = m->nkey;
-      }
-      mjFALLTHROUGH;
+  case mjOBJ_KEY:
+    *mapadr -= mjLOAD_MULTIPLE*m->nkey;
+    if (num < 0) {
+      *padr = m->name_keyadr;
+      num = m->nkey;
+    }
+    mjFALLTHROUGH;
 
-    case mjOBJ_PLUGIN:
-      *mapadr -= mjLOAD_MULTIPLE*m->nplugin;
-      if (num < 0) {
-        *padr = m->name_pluginadr;
-        num = m->nplugin;
-      }
-      mjFALLTHROUGH;
+  case mjOBJ_PLUGIN:
+    *mapadr -= mjLOAD_MULTIPLE*m->nplugin;
+    if (num < 0) {
+      *padr = m->name_pluginadr;
+      num = m->nplugin;
+    }
+    mjFALLTHROUGH;
 
-    default:
-      if (num < 0) {
-        *padr = 0;
-        num = 0;
-      }
+  default:
+    if (num < 0) {
+      *padr = 0;
+      num = 0;
+    }
   }
 
   return num;
@@ -653,15 +653,15 @@ int mj_name2id(const mjModel* m, int type, const char* name) {
 
     do {
       int j = m->names_map[mapadr + i];
-      if (j<0) {
+      if (j < 0) {
         return -1;
       }
 
       if (!strncmp(name, m->names+adr[j], m->nnames-adr[j])) {
         return j;
       }
-      if ((++i)==num) i = 0;
-    } while (i!=hash);
+      if ((++i) == num)i = 0;
+    } while (i != hash);
   }
   return -1;
 }
@@ -678,7 +678,7 @@ const char* mj_id2name(const mjModel* m, int type, int id) {
   int num = _getnumadr(m, type, &adr, &mapadr);
 
   // id is in [0, num) and the found name is not the empty string "\0"
-  if (id>=0 && id<num && m->names[adr[id]]) {
+  if (id >= 0 && id < num && m->names[adr[id]]) {
     return m->names+adr[id];
   }
 
@@ -694,9 +694,9 @@ void mj_fullM(const mjModel* m, mjtNum* dst, const mjtNum* M) {
   int adr = 0, nv = m->nv;
   mju_zero(dst, nv*nv);
 
-  for (int i=0; i<nv; i++) {
+  for (int i=0; i < nv; i++) {
     int j = i;
-    while (j>=0) {
+    while (j >= 0) {
       dst[i*nv+j] = M[adr];
       dst[j*nv+i] = M[adr];
       j = m->dof_parentid[j];
@@ -715,10 +715,10 @@ void mj_mulM(const mjModel* m, const mjData* d, mjtNum* res, const mjtNum* vec) 
 
   mju_zero(res, nv);
 
-  for (int i=0; i<nv; i++) {
+  for (int i=0; i < nv; i++) {
 #ifdef mjUSEAVX
     // simple: diagonal division, AVX
-    if (m->dof_simplenum[i]>=4) {
+    if (m->dof_simplenum[i] >= 4) {
       // init
       __m256d result, val1, val2;
 
@@ -753,7 +753,7 @@ void mj_mulM(const mjModel* m, const mjData* d, mjtNum* res, const mjtNum* vec) 
       // off-diagonal
       int j = m->dof_parentid[i];
       adr++;
-      while (j>=0) {
+      while (j >= 0) {
         res[i] += M[adr]*vec[j];
         res[j] += M[adr]*vec[i];
 
@@ -776,10 +776,10 @@ void mj_mulM2(const mjModel* m, const mjData* d, mjtNum* res, const mjtNum* vec)
 
   mju_zero(res, nv);
 
-  for (int i=0; i<nv; i++) {
+  for (int i=0; i < nv; i++) {
 #ifdef mjUSEAVX
     // simple: diagonal division, AVX
-    if (m->dof_simplenum[i]>=4) {
+    if (m->dof_simplenum[i] >= 4) {
       // init
       __m256d result, val1, val2;
 
@@ -814,7 +814,7 @@ void mj_mulM2(const mjModel* m, const mjData* d, mjtNum* res, const mjtNum* vec)
       // off-diagonal
       int j = m->dof_parentid[i];
       adr++;
-      while (j>=0) {
+      while (j >= 0) {
         res[i] += qLD[adr]*vec[j];
 
         // advance to next element
@@ -837,7 +837,7 @@ void mj_addM(const mjModel* m, mjData* d, mjtNum* dst,
   if (rownnz && rowadr && colind) {
     // special processing of simple dofs
     int simplecnt = 0;
-    for (int i=0; i<nv; i++) {
+    for (int i=0; i < nv; i++) {
       if (m->dof_simplenum[i]) {
         // count simple
         simplecnt++;
@@ -854,8 +854,8 @@ void mj_addM(const mjModel* m, mjData* d, mjtNum* dst,
           // find dof in row, add
           adr = rowadr[i];
           int end = adr + rownnz[i];
-          while (adr<end)
-            if (colind[adr]==i) {
+          while (adr < end)
+            if (colind[adr] == i) {
               dst[adr] += d->qM[m->dof_Madr[i]];
               break;
             } else {
@@ -863,7 +863,7 @@ void mj_addM(const mjModel* m, mjData* d, mjtNum* dst,
             }
 
           // not found: error
-          if (adr>=end) {
+          if (adr >= end) {
             mju_error("mj_addM sparse: dst row expected to be empty");
           }
         }
@@ -871,7 +871,7 @@ void mj_addM(const mjModel* m, mjData* d, mjtNum* dst,
     }
 
     // done if all simple
-    if (simplecnt==nv) {
+    if (simplecnt == nv) {
       return;
     }
 
@@ -885,13 +885,13 @@ void mj_addM(const mjModel* m, mjData* d, mjtNum* dst,
     mjtNum* sparse_buf = mj_stackAlloc(d, nv);
 
     // convert M into sparse format, lower-triangular
-    for (int i=0; i<nv; i++) {
+    for (int i=0; i < nv; i++) {
       if (!m->dof_simplenum[i]) {
         // backward pass over dofs: construct M_row(i) in reverse order
         adr = m->dof_Madr[i];
         int j = i;
         adr1 = 0;
-        while (j>=0) {
+        while (j >= 0) {
           // assign
           M[i*nv+adr1] = d->qM[adr];
           M_colind[i*nv+adr1] = j;
@@ -909,7 +909,7 @@ void mj_addM(const mjModel* m, mjData* d, mjtNum* dst,
         M_rowadr[i] = i*nv;
 
         // reverse order
-        for (int k=0; k<adr1/2; k++) {
+        for (int k=0; k < adr1/2; k++) {
           mjtNum tmp = M[i*nv+k];
           M[i*nv+k] = M[i*nv+adr1-1-k];
           M[i*nv+adr1-1-k] = tmp;
@@ -922,9 +922,9 @@ void mj_addM(const mjModel* m, mjData* d, mjtNum* dst,
     }
 
     // make symmetric
-    for (int i=1; i<nv; i++) {
+    for (int i=1; i < nv; i++) {
       if (!m->dof_simplenum[i]) {
-        for (int k=nv*i; k<nv*i+M_rownnz[i]-1; k++) {
+        for (int k=nv*i; k < nv*i+M_rownnz[i]-1; k++) {
           // add to row given by column index
           adr1 = nv*M_colind[k] + M_rownnz[M_colind[k]]++;
           M[adr1] = M[k];
@@ -934,7 +934,7 @@ void mj_addM(const mjModel* m, mjData* d, mjtNum* dst,
     }
 
     // add to destination
-    for (int i=0; i<nv; i++) {
+    for (int i=0; i < nv; i++) {
       if (!m->dof_simplenum[i]) {
         int new_nnz =
           mju_combineSparse(dst + rowadr[i], M + M_rowadr[i], nv, 1, 1,
@@ -951,13 +951,13 @@ void mj_addM(const mjModel* m, mjData* d, mjtNum* dst,
 
   // dense
   else {
-    for (int i=0; i<nv; i++) {
+    for (int i=0; i < nv; i++) {
       adr = m->dof_Madr[i];
       int j = i;
-      while (j>=0) {
+      while (j >= 0) {
         // add
         dst[i*nv+j] += d->qM[adr];
-        if (j<i) {
+        if (j < i) {
           dst[j*nv+i] += d->qM[adr];
         }
 
@@ -1052,7 +1052,7 @@ void mj_applyFT(const mjModel* m, mjData* d,
   mjtNum* qforce = mj_stackAlloc(d, nv);
 
   // make sure body is in range
-  if (body<0 || body>=m->nbody) {
+  if (body < 0 || body >= m->nbody) {
     mju_error("Invalid body %d in applyFT", body);
   }
 
@@ -1076,7 +1076,7 @@ void mj_applyFT(const mjModel* m, mjData* d,
 
 // accumulate xfrc_applied in qfrc
 void mj_xfrcAccumulate(const mjModel* m, mjData* d, mjtNum* qfrc) {
-  for (int i=1; i<m->nbody; i++) {
+  for (int i=1; i < m->nbody; i++) {
     if (!mju_isZero(d->xfrc_applied+6*i, 6)) {
       mj_applyFT(m, d, d->xfrc_applied+6*i, d->xfrc_applied+6*i+3, d->xipos+3*i, i, qfrc);
     }
@@ -1092,35 +1092,35 @@ void mj_objectVelocity(const mjModel* m, const mjData* d,
   const mjtNum *pos = 0, *rot = 0;
 
   // body-inertial
-  if (objtype==mjOBJ_BODY) {
+  if (objtype == mjOBJ_BODY) {
     bodyid = objid;
     pos = d->xipos+3*objid;
     rot = (flg_local ? d->ximat+9*objid : 0);
   }
 
   // body-regular
-  else if (objtype==mjOBJ_XBODY) {
+  else if (objtype == mjOBJ_XBODY) {
     bodyid = objid;
     pos = d->xpos+3*objid;
     rot = (flg_local ? d->xmat+9*objid : 0);
   }
 
   // geom
-  else if (objtype==mjOBJ_GEOM) {
+  else if (objtype == mjOBJ_GEOM) {
     bodyid = m->geom_bodyid[objid];
     pos = d->geom_xpos+3*objid;
     rot = (flg_local ? d->geom_xmat+9*objid : 0);
   }
 
   // site
-  else if (objtype==mjOBJ_SITE) {
+  else if (objtype == mjOBJ_SITE) {
     bodyid = m->site_bodyid[objid];
     pos = d->site_xpos+3*objid;
     rot = (flg_local ? d->site_xmat+9*objid : 0);
   }
 
   // camera
-  else if (objtype==mjOBJ_CAMERA) {
+  else if (objtype == mjOBJ_CAMERA) {
     bodyid = m->cam_bodyid[objid];
     pos = d->cam_xpos+3*objid;
     rot = (flg_local ? d->cam_xmat+9*objid : 0);
@@ -1145,35 +1145,35 @@ void mj_objectAcceleration(const mjModel* m, const mjData* d,
   mjtNum correction[3], vel[6];
 
   // body-inertial
-  if (objtype==mjOBJ_BODY) {
+  if (objtype == mjOBJ_BODY) {
     bodyid = objid;
     pos = d->xipos+3*objid;
     rot = (flg_local ? d->ximat+9*objid : 0);
   }
 
   // body-regular
-  else if (objtype==mjOBJ_XBODY) {
+  else if (objtype == mjOBJ_XBODY) {
     bodyid = objid;
     pos = d->xpos+3*objid;
     rot = (flg_local ? d->xmat+9*objid : 0);
   }
 
   // geom
-  else if (objtype==mjOBJ_GEOM) {
+  else if (objtype == mjOBJ_GEOM) {
     bodyid = m->geom_bodyid[objid];
     pos = d->geom_xpos+3*objid;
     rot = (flg_local ? d->geom_xmat+9*objid : 0);
   }
 
   // site
-  else if (objtype==mjOBJ_SITE) {
+  else if (objtype == mjOBJ_SITE) {
     bodyid = m->site_bodyid[objid];
     pos = d->site_xpos+3*objid;
     rot = (flg_local ? d->site_xmat+9*objid : 0);
   }
 
   // camera
-  else if (objtype==mjOBJ_CAMERA) {
+  else if (objtype == mjOBJ_CAMERA) {
     bodyid = m->cam_bodyid[objid];
     pos = d->cam_xpos+3*objid;
     rot = (flg_local ? d->cam_xmat+9*objid : 0);
@@ -1207,7 +1207,7 @@ void mj_contactForce(const mjModel* m, const mjData* d, int id, mjtNum result[6]
   mju_zero(result, 6);
 
   // make sure contact is valid
-  if (id>=0 && id<d->ncon && d->contact[id].efc_address>=0) {
+  if (id >= 0 && id < d->ncon && d->contact[id].efc_address >= 0) {
     // get contact pointer
     con = d->contact + id;
 
@@ -1225,14 +1225,14 @@ void mj_contactForce(const mjModel* m, const mjData* d, int id, mjtNum result[6]
 void mj_differentiatePos(const mjModel* m, mjtNum* qvel, mjtNum dt,
                          const mjtNum* qpos1, const mjtNum* qpos2) {
   // loop over joints
-  for (int j=0; j<m->njnt; j++) {
+  for (int j=0; j < m->njnt; j++) {
     // get addresses in qpos and qvel
     int padr = m->jnt_qposadr[j];
     int vadr = m->jnt_dofadr[j];
 
     switch (m->jnt_type[j]) {
     case mjJNT_FREE:
-      for (int i=0; i<3; i++) {
+      for (int i=0; i < 3; i++) {
         qvel[vadr+i] = (qpos2[padr+i] - qpos1[padr+i]) / dt;
       }
       vadr += 3;
@@ -1259,7 +1259,7 @@ void mj_differentiatePos(const mjModel* m, mjtNum* qvel, mjtNum dt,
 // integrate qpos with given qvel
 void mj_integratePos(const mjModel* m, mjtNum* qpos, const mjtNum* qvel, mjtNum dt) {
   // loop over joints
-  for (int j=0; j<m->njnt; j++) {
+  for (int j=0; j < m->njnt; j++) {
     // get addresses in qpos and qvel
     int padr = m->jnt_qposadr[j];
     int vadr = m->jnt_dofadr[j];
@@ -1267,7 +1267,7 @@ void mj_integratePos(const mjModel* m, mjtNum* qpos, const mjtNum* qvel, mjtNum 
     switch (m->jnt_type[j]) {
     case mjJNT_FREE:
       // position update
-      for (int i=0; i<3; i++) {
+      for (int i=0; i < 3; i++) {
         qpos[padr+i] += dt * qvel[vadr+i];
       }
       padr += 3;
@@ -1294,9 +1294,9 @@ void mj_integratePos(const mjModel* m, mjtNum* qpos, const mjtNum* qvel, mjtNum 
 // normalize all quaternions in qpos-type vector
 void mj_normalizeQuat(const mjModel* m, mjtNum* qpos) {
   // find quaternion fields and normalize
-  for (int i=0; i<m->njnt; i++) {
-    if (m->jnt_type[i]==mjJNT_BALL || m->jnt_type[i]==mjJNT_FREE) {
-      mju_normalize4(qpos+m->jnt_qposadr[i]+3*(m->jnt_type[i]==mjJNT_FREE));
+  for (int i=0; i < m->njnt; i++) {
+    if (m->jnt_type[i] == mjJNT_BALL || m->jnt_type[i] == mjJNT_FREE) {
+      mju_normalize4(qpos+m->jnt_qposadr[i]+3*(m->jnt_type[i] == mjJNT_FREE));
     }
   }
 }
@@ -1312,13 +1312,13 @@ void mj_local2Global(mjData* d, mjtNum xpos[3], mjtNum xmat[9],
   // position
   if (xpos && pos) {
     // compute
-    if (sameframe==0) {
+    if (sameframe == 0) {
       mju_rotVecMat(xpos, pos, d->xmat+9*body);
       mju_addTo3(xpos, d->xpos+3*body);
     }
 
     // copy body position
-    else if (sameframe==1) {
+    else if (sameframe == 1) {
       mju_copy3(xpos, d->xpos+3*body);
     }
 
@@ -1331,13 +1331,13 @@ void mj_local2Global(mjData* d, mjtNum xpos[3], mjtNum xmat[9],
   // orientation
   if (xmat && quat) {
     // compute
-    if (sameframe==0) {
+    if (sameframe == 0) {
       mju_mulQuat(tmp, d->xquat+4*body, quat);
       mju_quat2Mat(xmat, tmp);
     }
 
     // copy body orientation
-    else if (sameframe==1) {
+    else if (sameframe == 1) {
       mju_copy(xmat, d->xmat+9*body, 9);
     }
 
@@ -1354,7 +1354,7 @@ void mj_local2Global(mjData* d, mjtNum xpos[3], mjtNum xmat[9],
 mjtNum mj_getTotalmass(const mjModel* m) {
   mjtNum res = 0;
 
-  for (int i=1; i<m->nbody; i++) {
+  for (int i=1; i < m->nbody; i++) {
     res += m->body_mass[i];
   }
 
@@ -1369,7 +1369,7 @@ void mj_setTotalmass(mjModel* m, mjtNum newmass) {
   mjtNum scale = mjMAX(mjMINVAL, newmass / mjMAX(mjMINVAL, mj_getTotalmass(m)));
 
   // scale all masses and inertias
-  for (int i=1; i<m->nbody; i++) {
+  for (int i=1; i < m->nbody; i++) {
     m->body_mass[i] *= scale;
     m->body_inertia[3*i] *= scale;
     m->body_inertia[3*i+1] *= scale;
@@ -1385,7 +1385,7 @@ void mj_setTotalmass(mjModel* m, mjtNum newmass) {
 void mj_warning(mjData* d, int warning, int info) {
 
   // check type
-  if (warning<0 || warning>=mjNWARNING) {
+  if (warning < 0 || warning >= mjNWARNING) {
     mju_error("Invalid warning type %d", warning);
   }
 

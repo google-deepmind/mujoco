@@ -654,8 +654,9 @@ ENUMS: Mapping[str, EnumDecl] = dict([
              ('mjITEM_SLIDERNUM', 9),
              ('mjITEM_EDITINT', 10),
              ('mjITEM_EDITNUM', 11),
-             ('mjITEM_EDITTXT', 12),
-             ('mjNITEM', 13),
+             ('mjITEM_EDITFLOAT', 12),
+             ('mjITEM_EDITTXT', 13),
+             ('mjNITEM', 14),
          ]),
      )),
 ])

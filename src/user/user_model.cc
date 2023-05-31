@@ -23,13 +23,13 @@
 #include <vector>
 
 #include <mujoco/mjdata.h>
+#include <mujoco/mjmacro.h>
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjplugin.h>
 #include <mujoco/mjvisualize.h>
 #include "cc/array_safety.h"
 #include "engine/engine_forward.h"
 #include "engine/engine_io.h"
-#include "engine/engine_macro.h"
 #include "engine/engine_plugin.h"
 #include "engine/engine_setconst.h"
 #include "engine/engine_resource.h"
@@ -2896,6 +2896,11 @@ bool mjCModel::CopyBack(const mjModel* m) {
   // option and visual
   option = m->opt;
   visual = m->vis;
+
+  // runtime-modifiable members of mjStatistic
+  meansize = m->stat.meansize;
+  extent = m->stat.extent;
+  mju_copy3(center, m->stat.center);
 
   // qpos0, qpos_spring
   for (int i=0; i<njnt; i++) {

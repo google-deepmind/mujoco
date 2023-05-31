@@ -21,15 +21,10 @@
 #include <type_traits>
 
 #include <mujoco/mjexport.h>
+#include "private.h"
 #include "util/crossplatform.h"
 #include "util/func_wrap.h"
 #include <pybind11/pybind11.h>
-
-// DO NOT USE THIS FUNCTION ELSEWHERE.
-// It should be regarded as part of MuJoCo's internal implementation detail.
-extern "C" {
-MJAPI void _mjPRIVATE__set_tls_error_fn(void (*h)(const char*));
-}
 
 // When building for Linux and statically linking against a "hermetic" libc++abi
 // (i.e. where libc++/libc++abi symbols all have "hidden" visibility), exception

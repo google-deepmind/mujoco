@@ -136,7 +136,7 @@ links below, to make this documentation self-contained.
 
 mujoco.h   `(source) <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mujoco.h>`__
    This is the main header file and must be included in all programs using MuJoCo. It defines all API functions and
-   global variables, and includes the next 5 files which provide the necessary type definitions.
+   global variables, and includes the all other header files except mjxmacro.h.
 mjmodel.h   `(source) <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjmodel.h>`__
    Defines the C structure :ref:`mjModel` which is the runtime representation of the
    model being simulated. It also defines a number of primitive types and other structures needed to define mjModel.
@@ -152,6 +152,8 @@ mjui.h   `(source) <https://github.com/deepmind/mujoco/blob/main/include/mujoc
    Defines the primitive types and structures needed by the UI framework.
 mjtnum.h   `(source) <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjtnum.h>`__
    Defines MuJoCo's ``mjtNum`` floating-point type to be either ``double`` or ``float``. See :ref:`mjtNum`.
+mjmacro.h   `(source) <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjmacro.h>`__
+   Defines C macros that are useful in user code.
 mjxmacro.h   `(source) <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjxmacro.h>`__
    This file is optional and is not included by mujoco.h. It defines :ref:`X Macros <tyXMacro>` that can
    automate the mapping of mjModel and mjData into scripting languages, as well as other operations that require

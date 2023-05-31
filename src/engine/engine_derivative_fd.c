@@ -18,6 +18,7 @@
 #include <string.h>
 
 #include <mujoco/mjdata.h>
+#include <mujoco/mjmacro.h>
 #include <mujoco/mjmodel.h>
 #include "engine/engine_forward.h"
 #include "engine/engine_io.h"
@@ -67,7 +68,7 @@ static void setState(const mjModel* m, mjData* d, mjtNum time, const mjtNum* sta
 // dx = (x2 - x1) / h
 static void diff(mjtNum* restrict dx, const mjtNum* x1, const mjtNum* x2, mjtNum h, int n) {
   mjtNum inv_h = 1/h;
-  for (int i=0; i<n; i++) {
+  for (int i=0; i < n; i++) {
     dx[i] = inv_h * (x2[i] - x1[i]);
   }
 }
@@ -122,7 +123,7 @@ static void clampedStateDiff(const mjModel* m, mjtNum* ds, const mjtNum* s, cons
     stateDiff(m, ds, s_minus, s_plus, 2*h);
   } else {
     // differencing failed, write zeros
-    mju_zero(ds, m->nq + m->nv + m->na);
+    mju_zero(ds, 2*m->nv + m->na);
   }
 }
 
@@ -153,22 +154,22 @@ void mj_stepSkip(const mjModel* m, mjData* d, int skipstage, int skipsensor) {
 
   // use selected integrator
   switch (m->opt.integrator) {
-    case mjINT_EULER:
-      mj_EulerSkip(m, d, skipstage >= mjSTAGE_POS);
-      break;
+  case mjINT_EULER:
+    mj_EulerSkip(m, d, skipstage >= mjSTAGE_POS);
+    break;
 
-    case mjINT_RK4:
-      // ignore skipstage
-      mj_RungeKutta(m, d, 4);
-      break;
+  case mjINT_RK4:
+    // ignore skipstage
+    mj_RungeKutta(m, d, 4);
+    break;
 
-    case mjINT_IMPLICIT:
-    case mjINT_IMPLICITFAST:
-      mj_implicitSkip(m, d, skipstage >= mjSTAGE_VEL);
-      break;
+  case mjINT_IMPLICIT:
+  case mjINT_IMPLICITFAST:
+    mj_implicitSkip(m, d, skipstage >= mjSTAGE_VEL);
+    break;
 
-    default:
-      mju_error("Invalid integrator");
+  default:
+    mju_error("Invalid integrator");
   }
 
   TM_END(mjTIMER_STEP);
@@ -207,7 +208,7 @@ void mjd_passive_velFD(const mjModel* m, mjData* d, mjtNum eps) {
   mju_copy(qfrc_passive, d->qfrc_passive, nv);
 
   // loop over dofs
-  for (int i=0; i<nv; i++) {
+  for (int i=0; i < nv; i++) {
     // save qvel[i]
     mjtNum saveqvel = d->qvel[i];
 
@@ -223,9 +224,9 @@ void mjd_passive_velFD(const mjModel* m, mjData* d, mjtNum eps) {
     mju_scl(fd, fd, 1/eps, nv);
 
     // copy to i-th column of qDeriv
-    for (int j=0; j<nv; j++) {
+    for (int j=0; j < nv; j++) {
       int adr = d->D_rowadr[j] + cnt[j];
-      if (cnt[j]<d->D_rownnz[j] && d->D_colind[adr] == i) {
+      if (cnt[j] < d->D_rownnz[j] && d->D_colind[adr] == i) {
         d->qDeriv[adr] = fd[j];
         cnt[j]++;
       }
@@ -256,7 +257,7 @@ void mjd_smooth_velFD(const mjModel* m, mjData* d, mjtNum eps) {
   memset(cnt, 0, nv*sizeof(int));
 
   // loop over dofs
-  for (int i=0; i<nv; i++) {
+  for (int i=0; i < nv; i++) {
     // save qvel[i]
     mjtNum saveqvel = d->qvel[i];
 
@@ -282,8 +283,8 @@ void mjd_smooth_velFD(const mjModel* m, mjData* d, mjtNum eps) {
     mju_scl(fd, fd, 0.5/eps, nv);
 
     // copy to sparse qDeriv
-    for (int j=0; j<nv; j++) {
-      if (cnt[j]<d->D_rownnz[j] && d->D_colind[d->D_rowadr[j]+cnt[j]]==i) {
+    for (int j=0; j < nv; j++) {
+      if (cnt[j] < d->D_rownnz[j] && d->D_colind[d->D_rowadr[j]+cnt[j]] == i) {
         d->qDeriv[d->D_rowadr[j]+cnt[j]] = fd[j];
         cnt[j]++;
       }
@@ -291,8 +292,8 @@ void mjd_smooth_velFD(const mjModel* m, mjData* d, mjtNum eps) {
   }
 
   // make sure final row counters equal rownnz
-  for (int i=0; i<nv; i++) {
-    if (cnt[i]!=d->D_rownnz[i]) {
+  for (int i=0; i < nv; i++) {
+    if (cnt[i] != d->D_rownnz[i]) {
       mju_error("error in constructing FD sparse derivative");
     }
   }
@@ -367,7 +368,7 @@ void mjd_stepFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte flg_centered,
 
   // finite-difference controls: skip=mjSTAGE_VEL, handle ctrl at range limits
   if (DyDu || DsDu) {
-    for (int i=0; i<nu; i++) {
+    for (int i=0; i < nu; i++) {
       int limited = m->actuator_ctrllimited[i];
       // nudge forward, if possible given ctrlrange
       int nudge_fwd = !limited || inRange(ctrl[i], ctrl[i]+eps, m->actuator_ctrlrange+2*i);
@@ -414,7 +415,7 @@ void mjd_stepFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte flg_centered,
 
   // finite-difference activations: skip=mjSTAGE_VEL
   if (DyDa || DsDa) {
-    for (int i=0; i<na; i++) {
+    for (int i=0; i < na; i++) {
       // nudge forward
       d->act[i] += eps;
 
@@ -461,7 +462,7 @@ void mjd_stepFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte flg_centered,
 
   // finite-difference velocities: skip=mjSTAGE_POS
   if (DyDv || DsDv) {
-    for (int i=0; i<nv; i++) {
+    for (int i=0; i < nv; i++) {
       // nudge forward
       d->qvel[i] += eps;
 
@@ -508,7 +509,7 @@ void mjd_stepFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte flg_centered,
   // finite-difference positions: skip=mjSTAGE_NONE
   if (DyDq || DsDq) {
     mjtNum *dpos  = mj_stackAlloc(d, nv);  // allocate position perturbation
-    for (int i=0; i<nv; i++) {
+    for (int i=0; i < nv; i++) {
       // nudge forward
       mju_zero(dpos, nv);
       dpos[i] = 1;

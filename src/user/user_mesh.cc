@@ -26,11 +26,11 @@
 #define TINYOBJLOADER_IMPLEMENTATION
 #endif
 
+#include <mujoco/mjmacro.h>
 #include <mujoco/mjmodel.h>
 #include "cc/array_safety.h"
 #include "engine/engine_crossplatform.h"
 #include "engine/engine_resource.h"
-#include "engine/engine_macro.h"
 #include "engine/engine_util_blas.h"
 #include "engine/engine_util_errmem.h"
 #include "engine/engine_util_solve.h"

@@ -93,6 +93,12 @@ void mj_diagApprox(const mjModel* m, mjData* d);
 void mj_makeImpedance(const mjModel* m, mjData* d);
 
 
+//------------------------- constraint counting
+
+// count the number of non-zeros in the sum of two sparse vectors
+MJAPI int mju_combineSparseCount(int a_nnz, int b_nnz, const int* a_ind, const int* b_ind);
+
+
 //---------------------------- top-level API for constraint construction ---------------------------
 
 // main driver: call all functions above

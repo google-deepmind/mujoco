@@ -24,6 +24,7 @@
 #include <vector>
 
 #include "lodepng.h"
+#include <mujoco/mjmacro.h>
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjplugin.h>
 #include "cc/array_safety.h"
@@ -31,9 +32,9 @@
 #include "engine/engine_crossplatform.h"
 #include "engine/engine_resource.h"
 #include "engine/engine_io.h"
-#include "engine/engine_macro.h"
 #include "engine/engine_passive.h"
 #include "engine/engine_plugin.h"
+#include "engine/engine_util_blas.h"
 #include "engine/engine_util_errmem.h"
 #include "engine/engine_util_misc.h"
 #include "engine/engine_util_solve.h"
@@ -338,6 +339,14 @@ int mjCBoundingVolumeHierarchy::MakeBVH(std::vector<mjCBoundingVolume>& elements
     }
   }
 
+  // inflate flat AABBs
+  for (int i=0; i<3; i++) {
+    if (mju_abs(AABB[i]-AABB[i+3])<mjEPS) {
+      AABB[i+0] -= mjEPS;
+      AABB[i+3] += mjEPS;
+    }
+  }
+
   // store current index
   int index = nbvh++;
   child.push_back(-1);
@@ -430,6 +439,10 @@ int mjCBoundingVolumeHierarchy::MakeBVH(std::vector<mjCBoundingVolume>& elements
   if (child[2*index+0]==-1 && child[2*index+1]==-1 && !skipped) {
     mju_error("this should have been a leaf, body=%s nelements=%d",
               name_.c_str(), nelements);
+  }
+
+  if (lev>mjMAXTREEDEPTH) {
+    mju_warning("max tree depth exceeded in body=%s", name_.c_str());
   }
 
   return index;

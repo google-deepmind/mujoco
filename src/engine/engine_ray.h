@@ -46,6 +46,10 @@ MJAPI mjtNum mj_ray(const mjModel* m, const mjData* d, const mjtNum* pnt, const 
 MJAPI mjtNum mj_rayHfield(const mjModel* m, const mjData* d, int geomid,
                           const mjtNum* pnt, const mjtNum* vec);
 
+// intersect ray with triangle
+MJAPI mjtNum ray_triangle(mjtNum v[][3], const mjtNum* lpnt, const mjtNum* lvec,
+                          const mjtNum* b0, const mjtNum* b1);
+
 // intersect ray with mesh
 MJAPI mjtNum mj_rayMesh(const mjModel* m, const mjData* d, int geomid,
                         const mjtNum* pnt, const mjtNum* vec);

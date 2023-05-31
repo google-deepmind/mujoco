@@ -43,12 +43,12 @@ TEST_F(XMLReaderTest, MemorySize) {
   {
     static constexpr char xml[] = R"(
     <mujoco>
-      <size memory="128"/>
+      <size memory="256"/>
     </mujoco>
     )";
     mjModel* model = LoadModelFromString(xml, error.data(), error.size());
-    ASSERT_THAT(model, NotNull());
-    EXPECT_EQ(model->nstack, 128 / sizeof(mjtNum));
+    ASSERT_THAT(model, NotNull()) << error.data();
+    EXPECT_EQ(model->nstack, 256 / sizeof(mjtNum));
     mj_deleteModel(model);
   }
   {
@@ -58,7 +58,7 @@ TEST_F(XMLReaderTest, MemorySize) {
     </mujoco>
     )";
     mjModel* model = LoadModelFromString(xml, error.data(), error.size());
-    ASSERT_THAT(model, NotNull());
+    ASSERT_THAT(model, NotNull()) << error.data();
     EXPECT_EQ(model->nstack, 1024 / sizeof(mjtNum));
     mj_deleteModel(model);
   }
@@ -69,7 +69,7 @@ TEST_F(XMLReaderTest, MemorySize) {
     </mujoco>
     )";
     mjModel* model = LoadModelFromString(xml, error.data(), error.size());
-    ASSERT_THAT(model, NotNull());
+    ASSERT_THAT(model, NotNull()) << error.data();
     EXPECT_EQ(model->nstack, 10240 / sizeof(mjtNum));
     mj_deleteModel(model);
   }
@@ -80,7 +80,7 @@ TEST_F(XMLReaderTest, MemorySize) {
     </mujoco>
     )";
     mjModel* model = LoadModelFromString(xml, error.data(), error.size());
-    ASSERT_THAT(model, NotNull());
+    ASSERT_THAT(model, NotNull()) << error.data();
     EXPECT_EQ(model->nstack, 4*1024*1024 / sizeof(mjtNum));
     mj_deleteModel(model);
   }
@@ -91,7 +91,7 @@ TEST_F(XMLReaderTest, MemorySize) {
     </mujoco>
     )";
     mjModel* model = LoadModelFromString(xml, error.data(), error.size());
-    ASSERT_THAT(model, NotNull());
+    ASSERT_THAT(model, NotNull()) << error.data();
     EXPECT_EQ(model->nstack, 1024*1024*1024 / sizeof(mjtNum));
     mj_deleteModel(model);
   }
@@ -102,7 +102,7 @@ TEST_F(XMLReaderTest, MemorySize) {
     </mujoco>
     )";
     mjModel* model = LoadModelFromString(xml, error.data(), error.size());
-    ASSERT_THAT(model, NotNull());
+    ASSERT_THAT(model, NotNull()) << error.data();
     EXPECT_EQ(model->nstack, 1024*1024*1024 / sizeof(mjtNum));
     mj_deleteModel(model);
   }

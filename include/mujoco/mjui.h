@@ -55,6 +55,8 @@
 #define mjKEY_F10        299
 #define mjKEY_F11        300
 #define mjKEY_F12        301
+#define mjKEY_NUMPAD_0   320
+#define mjKEY_NUMPAD_9   329
 
 
 //---------------------------------- primitive types (mjt) -----------------------------------------
@@ -97,6 +99,7 @@ typedef enum mjtItem_ {           // UI item type
   mjITEM_SLIDERNUM,               // slider, mjtNum value
   mjITEM_EDITINT,                 // editable array, int values
   mjITEM_EDITNUM,                 // editable array, mjtNum values
+  mjITEM_EDITFLOAT,               // editable array, float values
   mjITEM_EDITTXT,                 // editable text
 
   mjNITEM                         // number of item types

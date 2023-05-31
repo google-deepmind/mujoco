@@ -18,11 +18,11 @@
 #include <string.h>
 
 #include <mujoco/mjdata.h>
+#include <mujoco/mjmacro.h>
 #include <mujoco/mjmodel.h>
 #include "engine/engine_core_constraint.h"
 #include "engine/engine_core_smooth.h"
 #include "engine/engine_io.h"
-#include "engine/engine_macro.h"
 #include "engine/engine_support.h"
 #include "engine/engine_util_blas.h"
 #include "engine/engine_util_errmem.h"
@@ -48,7 +48,7 @@ static void saveStats(const mjModel* m, mjData* d, int* piter,
   (*piter)++;
 
   // save if within range
-  if (i<mjNSOLVER) {
+  if (i < mjNSOLVER) {
     d->solver[i].improvement = improvement;
     d->solver[i].gradient = gradient;
     d->solver[i].lineslope = lineslope;
@@ -80,9 +80,9 @@ static void ARdiaginv(const mjModel* m, mjData* d, mjtNum* res, int flg_subR) {
 
   // sparse
   if (mj_isSparse(m)) {
-    for (int i=0; i<nefc; i++) {
-      for (int j=0; j<d->efc_AR_rownnz[i]; j++) {
-        if (i==d->efc_AR_colind[rowadr[i]+j]) {
+    for (int i=0; i < nefc; i++) {
+      for (int j=0; j < d->efc_AR_rownnz[i]; j++) {
+        if (i == d->efc_AR_colind[rowadr[i]+j]) {
           res[i] = 1/(flg_subR ? mju_max(mjMINVAL, d->efc_AR[rowadr[i]+j]-d->efc_R[i])
                       : d->efc_AR[rowadr[i]+j]);
           break;
@@ -93,7 +93,7 @@ static void ARdiaginv(const mjModel* m, mjData* d, mjtNum* res, int flg_subR) {
 
   // dense
   else {
-    for (int i=0; i<nefc; i++) {
+    for (int i=0; i < nefc; i++) {
       res[i] = 1/(flg_subR ? mju_max(mjMINVAL, d->efc_AR[i*(nefc+1)]-d->efc_R[i])
                   : d->efc_AR[i*(nefc+1)]);
     }
@@ -121,36 +121,36 @@ static void extractBlock(const mjModel* m, mjData* d, mjtNum* Ac,
                     if( col>=start && col<start+n )
                         Ac[j*n+col-start] = AR[rowadr[start+j]+k];
                 }
-    */
+     */
     // assume full sub-matrix, find starting k: same for all rows
     int k;
-    for (k=0; k<rownnz[start]; k++) {
-      if (colind[rowadr[start]+k]==start) {
+    for (k=0; k < rownnz[start]; k++) {
+      if (colind[rowadr[start]+k] == start) {
         break;
       }
     }
 
     // sanity check; SHOULD NOT OCCUR
-    if (k>=rownnz[start]) {
+    if (k >= rownnz[start]) {
       mju_error("Internal error in extractComponent");
     }
 
     // copy rows
-    for (int j=0; j<n; j++) {
+    for (int j=0; j < n; j++) {
       mju_copy(Ac+j*n, AR+rowadr[start+j]+k, n);
     }
   }
 
   // dense
   else {
-    for (int j=0; j<n; j++) {
+    for (int j=0; j < n; j++) {
       mju_copy(Ac+j*n, AR+start+(start+j)*nefc, n);
     }
   }
 
   // subtract R from diagonal, clamp to 1e-10 from below
   if (flg_subR) {
-    for (int j=0; j<n; j++) {
+    for (int j=0; j < n; j++) {
       Ac[j*(n+1)] -= d->efc_R[start+j];
       Ac[j*(n+1)] = mjMAX(1e-10, Ac[j*(n+1)]);
     }
@@ -165,7 +165,7 @@ static void residual(const mjModel* m, mjData* d, mjtNum* res, int i, int dim, i
 
   // sparse
   if (mj_isSparse(m)) {
-    for (int j=0; j<dim; j++) {
+    for (int j=0; j < dim; j++) {
       res[j] = d->efc_b[i+j] + mju_dotSparse(d->efc_AR + d->efc_AR_rowadr[i+j],
                                              d->efc_force, d->efc_AR_rownnz[i+j],
                                              d->efc_AR_colind + d->efc_AR_rowadr[i+j]);
@@ -174,13 +174,13 @@ static void residual(const mjModel* m, mjData* d, mjtNum* res, int i, int dim, i
 
   // dense
   else {
-    for (int j=0; j<dim; j++) {
+    for (int j=0; j < dim; j++) {
       res[j] = d->efc_b[i+j] + mju_dot(d->efc_AR+(i+j)*nefc, d->efc_force, nefc);
     }
   }
 
   if (flg_subR) {
-    for (int j=0; j<dim; j++) {
+    for (int j=0; j < dim; j++) {
       res[j] -= d->efc_R[i+j]*d->efc_force[i+j];
     }
   }
@@ -194,7 +194,7 @@ static mjtNum costChange(const mjtNum* A, mjtNum* force, const mjtNum* oldforce,
   mjtNum delta[6], change;
 
   // compute change
-  if (dim==1) {
+  if (dim == 1) {
     delta[0] = force[0] - oldforce[0];
     change = 0.5*delta[0]*delta[0]*A[0] + delta[0]*res[0];
   } else {
@@ -203,7 +203,7 @@ static mjtNum costChange(const mjtNum* A, mjtNum* force, const mjtNum* oldforce,
   }
 
   // positive change: restore
-  if (change>1e-10) {
+  if (change > 1e-10) {
     mju_copy(force, oldforce, dim);
     change = 0;
   }
@@ -223,15 +223,15 @@ static int dualState(const mjModel* m, mjData* d) {
   nactive = ne + nf;
 
   // equality
-  for (int i=0; i<ne; i++) {
+  for (int i=0; i < ne; i++) {
     state[i] = mjCNSTRSTATE_QUADRATIC;
   }
 
   // friction
-  for (int i=ne; i<ne+nf; i++) {
-    if (force[i]<=-floss[i]) {
+  for (int i=ne; i < ne+nf; i++) {
+    if (force[i] <= -floss[i]) {
       state[i] = mjCNSTRSTATE_LINEARPOS;  // opposite of primal
-    } else if (force[i]>=floss[i]) {
+    } else if (force[i] >= floss[i]) {
       state[i] = mjCNSTRSTATE_LINEARNEG;
     } else {
       state[i] = mjCNSTRSTATE_QUADRATIC;
@@ -239,10 +239,10 @@ static int dualState(const mjModel* m, mjData* d) {
   }
 
   // limit and contact
-  for (int i=ne+nf; i<nefc; i++) {
+  for (int i=ne+nf; i < nefc; i++) {
     // non-negative
-    if (d->efc_type[i]!=mjCNSTR_CONTACT_ELLIPTIC) {
-      if (force[i]<=0) {
+    if (d->efc_type[i] != mjCNSTR_CONTACT_ELLIPTIC) {
+      if (force[i] <= 0) {
         state[i] = mjCNSTRSTATE_SATISFIED;
       } else {
         state[i] = mjCNSTRSTATE_QUADRATIC;
@@ -259,7 +259,7 @@ static int dualState(const mjModel* m, mjData* d) {
 
       // f = map force to regular-cone space
       f[0] = force[i]/mu;
-      for (int j=1; j<dim; j++) {
+      for (int j=1; j < dim; j++) {
         f[j] = force[i+j]/con->friction[j-1];
       }
 
@@ -268,12 +268,12 @@ static int dualState(const mjModel* m, mjData* d) {
       mjtNum T = mju_norm(f+1, dim-1);
 
       // top zone
-      if (mu*N>=T) {
+      if (mu*N >= T) {
         result = mjCNSTRSTATE_SATISFIED;
       }
 
       // bottom zone
-      else if (N+mu*T<=0) {
+      else if (N+mu*T <= 0) {
         result = mjCNSTRSTATE_QUADRATIC;
         nactive += dim;
       }
@@ -285,7 +285,7 @@ static int dualState(const mjModel* m, mjData* d) {
       }
 
       // replicate state in all cone dimensions
-      for (int j=0; j<dim; j++) {
+      for (int j=0; j < dim; j++) {
         state[i+j] = result;
       }
 
@@ -319,14 +319,14 @@ void mj_solPGS(const mjModel* m, mjData* d, int maxiter) {
   dualState(m, d);
 
   // main iteration
-  while (iter<maxiter) {
+  while (iter < maxiter) {
     // clear improvement
     improvement = 0;
 
     // perform one sweep
-    for (int i=0; i<nefc; i++) {
+    for (int i=0; i < nefc; i++) {
       // get constraint dimensionality
-      if (d->efc_type[i]==mjCNSTR_CONTACT_ELLIPTIC) {
+      if (d->efc_type[i] == mjCNSTR_CONTACT_ELLIPTIC) {
         dim = d->contact[d->efc_id[i]].dim;
       } else {
         dim = 1;
@@ -337,19 +337,19 @@ void mj_solPGS(const mjModel* m, mjData* d, int maxiter) {
       mju_copy(oldforce, force+i, dim);
 
       // simple constraint
-      if (d->efc_type[i]!=mjCNSTR_CONTACT_ELLIPTIC) {
+      if (d->efc_type[i] != mjCNSTR_CONTACT_ELLIPTIC) {
         // unconstrained minimum
         force[i] -= res[0]*ARinv[i];
 
         // impose interval and inequality constraints
-        if (i>=ne && i<ne+nf) {
-          if (force[i]<-floss[i]) {
+        if (i >= ne && i < ne+nf) {
+          if (force[i] < -floss[i]) {
             force[i] = -floss[i];
-          } else if (force[i]>floss[i]) {
+          } else if (force[i] > floss[i]) {
             force[i] = floss[i];
           }
-        } else if (i>=ne+nf) {
-          if (force[i]<0) {
+        } else if (i >= ne+nf) {
+          if (force[i] < 0) {
             force[i] = 0;
           }
         }
@@ -368,12 +368,12 @@ void mj_solPGS(const mjModel* m, mjData* d, int maxiter) {
         extractBlock(m, d, Athis, i, dim, 0);
 
         // normal force too small: normal update
-        if (force[i]<mjMINVAL) {
+        if (force[i] < mjMINVAL) {
           // unconstrained minimum
           force[i] -= res[0]*ARinv[i];
 
           // clamp
-          if (force[i]<0) {
+          if (force[i] < 0) {
             force[i] = 0;
           }
 
@@ -391,17 +391,17 @@ void mj_solPGS(const mjModel* m, mjData* d, int maxiter) {
           denom = mju_dot(v, v1, dim);
 
           // avoid division by 0
-          if (denom>=mjMINVAL) {
+          if (denom >= mjMINVAL) {
             // x = v' * res / denom
             x = -mju_dot(v, res, dim) / denom;
 
             // make sure normal is non-negative
-            if (force[i]+x*v[0]<0) {
+            if (force[i]+x*v[0] < 0) {
               x = -v[0]/force[i];
             }
 
             //  add x*v to f
-            for (int j=0; j<dim; j++) {
+            for (int j=0; j < dim; j++) {
               force[i+j] += x*v[j];
             }
           }
@@ -411,14 +411,14 @@ void mj_solPGS(const mjModel* m, mjData* d, int maxiter) {
 
         // Ac = AR-submatrix; bc = b-subvector + Ac,rest * f_rest
         mju_copy(bc, res+1, dim-1);
-        for (int j=0; j<dim-1; j++) {
+        for (int j=0; j < dim-1; j++) {
           mju_copy(Ac+j*(dim-1), Athis+(j+1)*dim+1, dim-1);
           bc[j] -= mju_dot(Ac+j*(dim-1), oldforce+1, dim-1);
           bc[j] += Athis[(j+1)*dim]*(force[i]-oldforce[0]);
         }
 
         // guard for f_normal==0
-        if (force[i]<mjMINVAL) {
+        if (force[i] < mjMINVAL) {
           mju_zero(force+i+1, dim-1);
         }
 
@@ -427,9 +427,9 @@ void mj_solPGS(const mjModel* m, mjData* d, int maxiter) {
           int flg_active;
 
           // solve
-          if (dim==3) {
+          if (dim == 3) {
             flg_active = mju_QCQP2(v, Ac, bc, mu, force[i]);
-          } else if (dim==4) {
+          } else if (dim == 4) {
             flg_active = mju_QCQP3(v, Ac, bc, mu, force[i]);
           } else {
             flg_active = mju_QCQP(v, Ac, bc, mu, force[i], dim-1);
@@ -438,11 +438,11 @@ void mj_solPGS(const mjModel* m, mjData* d, int maxiter) {
           // on constraint: put v on ellipsoid, in case QCQP is approximate
           if (flg_active) {
             mjtNum s = 0;
-            for (int j=0; j<dim-1; j++) {
+            for (int j=0; j < dim-1; j++) {
               s += v[j]*v[j] / (mu[j]*mu[j]);
             }
             s = mju_sqrt(force[i]*force[i] / mju_max(mjMINVAL, s));
-            for (int j=0; j<dim-1; j++) {
+            for (int j=0; j < dim-1; j++) {
               v[j] *= s;
             }
           }
@@ -453,7 +453,7 @@ void mj_solPGS(const mjModel* m, mjData* d, int maxiter) {
       }
 
       // accumulate improvement
-      if (dim==1) {
+      if (dim == 1) {
         Athis[0] = 1/ARinv[i];
       }
       improvement -= costChange(Athis, force+i, oldforce, res, dim);
@@ -466,8 +466,8 @@ void mj_solPGS(const mjModel* m, mjData* d, int maxiter) {
     memcpy(oldstate, d->efc_state, nefc*sizeof(int));
     int nactive = dualState(m, d);
     int nchange = 0;
-    for (int i=0; i<nefc; i++) {
-      nchange += (oldstate[i]!=d->efc_state[i]);
+    for (int i=0; i < nefc; i++) {
+      nchange += (oldstate[i] != d->efc_state[i]);
     }
 
     // scale improvement, save stats, count
@@ -475,7 +475,7 @@ void mj_solPGS(const mjModel* m, mjData* d, int maxiter) {
     saveStats(m, d, &iter, improvement, 0, 0, nactive, nchange, 0, 0);
 
     // terminate
-    if (improvement<m->opt.tolerance) {
+    if (improvement < m->opt.tolerance) {
       break;
     }
   }
@@ -486,7 +486,7 @@ void mj_solPGS(const mjModel* m, mjData* d, int maxiter) {
   // set nnz
   if (mj_isSparse(m)) {
     d->solver_nnz = 0;
-    for (int i=0; i<nefc; i++) {
+    for (int i=0; i < nefc; i++) {
       d->solver_nnz += d->efc_AR_rownnz[i];
     }
   } else {
@@ -521,19 +521,19 @@ void mj_solNoSlip(const mjModel* m, mjData* d, int maxiter) {
   dualState(m, d);
 
   // main iteration
-  while (iter<maxiter) {
+  while (iter < maxiter) {
     // clear improvement
     improvement = 0;
 
     // correct for cost change at iter 0
-    if (iter==0) {
-      for (int i=0; i<nefc; i++) {
+    if (iter == 0) {
+      for (int i=0; i < nefc; i++) {
         improvement += 0.5*force[i]*force[i]*d->efc_R[i];
       }
     }
 
     // perform one sweep: dry friction
-    for (int i=ne; i<ne+nf; i++) {
+    for (int i=ne; i < ne+nf; i++) {
       // compute residual, save old
       residual(m, d, res, i, 1, 1);
       oldforce[0] = force[i];
@@ -542,9 +542,9 @@ void mj_solNoSlip(const mjModel* m, mjData* d, int maxiter) {
       force[i] -= res[0]*ARinv[i];
 
       // impose interval constraints
-      if (force[i]<-floss[i]) {
+      if (force[i] < -floss[i]) {
         force[i] = -floss[i];
-      } else if (force[i]>floss[i]) {
+      } else if (force[i] > floss[i]) {
         force[i] = floss[i];
       }
 
@@ -554,16 +554,16 @@ void mj_solNoSlip(const mjModel* m, mjData* d, int maxiter) {
     }
 
     // perform one sweep: contact friction
-    for (int i=ne+nf; i<nefc; i++) {
+    for (int i=ne+nf; i < nefc; i++) {
       // pyramidal contact
-      if (d->efc_type[i]==mjCNSTR_CONTACT_PYRAMIDAL) {
+      if (d->efc_type[i] == mjCNSTR_CONTACT_PYRAMIDAL) {
         // get contact info
         con = d->contact + d->efc_id[i];
         dim = con->dim;
         mu = con->friction;
 
         // loop over pairs of opposing pyramid edges
-        for (int j=i; j<i+2*(dim-1); j+=2) {
+        for (int j=i; j < i+2*(dim-1); j+=2) {
           // compute residual, save old
           residual(m, d, res, j, 2, 1);
           mju_copy(oldforce, force+j, 2);
@@ -573,7 +573,7 @@ void mj_solNoSlip(const mjModel* m, mjData* d, int maxiter) {
 
           // bc = b-subvector + Ac,rest * f_rest
           mju_copy(bc, res, 2);
-          for (int k=0; k<2; k++) {
+          for (int k=0; k < 2; k++) {
             bc[k] -= mju_dot(Ac+k*2, oldforce, 2);
           }
 
@@ -586,7 +586,7 @@ void mj_solNoSlip(const mjModel* m, mjData* d, int maxiter) {
           K0 = mid*(Ac[0] - Ac[3]) + bc[0] - bc[1];
 
           // guard against Ac==0
-          if (K1<mjMINVAL) {
+          if (K1 < mjMINVAL) {
             force[j] = force[j+1] = mid;
           }
 
@@ -596,10 +596,10 @@ void mj_solNoSlip(const mjModel* m, mjData* d, int maxiter) {
             y = -K0/K1;
 
             // clamp and assign
-            if (y<-mid) {
+            if (y < -mid) {
               force[j] = 0;
               force[j+1] = 2*mid;
-            } else if (y>mid) {
+            } else if (y > mid) {
               force[j] = 2*mid;
               force[j+1] = 0;
             } else {
@@ -617,7 +617,7 @@ void mj_solNoSlip(const mjModel* m, mjData* d, int maxiter) {
       }
 
       // elliptic contact
-      else if (d->efc_type[i]==mjCNSTR_CONTACT_ELLIPTIC) {
+      else if (d->efc_type[i] == mjCNSTR_CONTACT_ELLIPTIC) {
         // get contact info
         con = d->contact + d->efc_id[i];
         dim = con->dim;
@@ -632,12 +632,12 @@ void mj_solNoSlip(const mjModel* m, mjData* d, int maxiter) {
 
         // bc = b-subvector + Ac,rest * f_rest
         mju_copy(bc, res, dim-1);
-        for (int j=0; j<dim-1; j++) {
+        for (int j=0; j < dim-1; j++) {
           bc[j] -= mju_dot(Ac+j*(dim-1), oldforce, dim-1);
         }
 
         // guard for f_normal==0
-        if (force[i]<mjMINVAL) {
+        if (force[i] < mjMINVAL) {
           mju_zero(force+i+1, dim-1);
         }
 
@@ -646,9 +646,9 @@ void mj_solNoSlip(const mjModel* m, mjData* d, int maxiter) {
           int flg_active = 0;
 
           // solve
-          if (dim==3) {
+          if (dim == 3) {
             flg_active = mju_QCQP2(v, Ac, bc, mu, force[i]);
-          } else if (dim==4) {
+          } else if (dim == 4) {
             flg_active = mju_QCQP3(v, Ac, bc, mu, force[i]);
           } else {
             flg_active = mju_QCQP(v, Ac, bc, mu, force[i], dim-1);
@@ -657,11 +657,11 @@ void mj_solNoSlip(const mjModel* m, mjData* d, int maxiter) {
           // on constraint: put v on ellipsoid, in case QCQP is approximate
           if (flg_active) {
             mjtNum s = 0;
-            for (int j=0; j<dim-1; j++) {
+            for (int j=0; j < dim-1; j++) {
               s += v[j]*v[j]/(mu[j]*mu[j]);
             }
             s = mju_sqrt(force[i]*force[i] / mju_max(mjMINVAL, s));
-            for (int j=0; j<dim-1; j++) {
+            for (int j=0; j < dim-1; j++) {
               v[j] *= s;
             }
           }
@@ -682,8 +682,8 @@ void mj_solNoSlip(const mjModel* m, mjData* d, int maxiter) {
     memcpy(oldstate, d->efc_state, nefc*sizeof(int));
     int nactive = dualState(m, d);
     int nchange = 0;
-    for (int i=0; i<nefc; i++) {
-      nchange += (oldstate[i]!=d->efc_state[i]);
+    for (int i=0; i < nefc; i++) {
+      nchange += (oldstate[i] != d->efc_state[i]);
     }
 
     // scale improvement, save stats, count
@@ -691,7 +691,7 @@ void mj_solNoSlip(const mjModel* m, mjData* d, int maxiter) {
     saveStats(m, d, &iter, improvement, 0, 0, nactive, nchange, 0, 0);
 
     // terminate
-    if (improvement<m->opt.noslip_tolerance) {
+    if (improvement < m->opt.noslip_tolerance) {
       break;
     }
   }
@@ -722,8 +722,8 @@ struct _mjCGContext {
   mjtNum* quad;           // quadratic polynomials for constraint costs   (nefc x 3)
 
   // Hessian (Newton only)
-  int     flg_Newton;     // 1: Newton, 0: CG (const)
-  int     nnz;            // total number of non-zeros
+  int flg_Newton;         // 1: Newton, 0: CG (const)
+  int nnz;                // total number of non-zeros
   mjtNum* H;              // Cholesky factorization of Hessian            (nv x nv)
   mjtNum* Hcone;          // with cone contributions if present           (nv x nv)
   int*    rownnz;         // non-zeros in row                             (nv X 1)
@@ -731,16 +731,16 @@ struct _mjCGContext {
   int*    colind;         // column indices                               (nv x nv)
 
   // globals
-  mjtNum  cost;           // constraint + Gauss cost
-  mjtNum  quadGauss[3];   // quadratic polynomial for Gauss cost
-  int     nactive;        // number of active constraints
-  int     ncone;          // number of contacts in cone state
-  int     nupdate;        // number of Cholesky updates
+  mjtNum cost;            // constraint + Gauss cost
+  mjtNum quadGauss[3];    // quadratic polynomial for Gauss cost
+  int nactive;            // number of active constraints
+  int ncone;              // number of contacts in cone state
+  int nupdate;            // number of Cholesky updates
 
   // linesearch diagnostics
-  int     LSiter;         // number of linesearch iterations
-  int     LSresult;       // linesearch result
-  mjtNum  LSslope;        // linesearch slope at solution
+  int LSiter;             // number of linesearch iterations
+  int LSresult;           // linesearch result
+  mjtNum LSslope;         // linesearch slope at solution
 };
 typedef struct _mjCGContext mjCGContext;
 
@@ -787,14 +787,14 @@ static void CGupdateConstraint(const mjModel* m, mjData* d, mjCGContext* ctx) {
   // count active and cone
   ctx->nactive = 0;
   ctx->ncone = 0;
-  for (int i=0; i<nefc; i++) {
-    ctx->nactive += (d->efc_state[i]!=mjCNSTRSTATE_SATISFIED);
-    ctx->ncone += (d->efc_state[i]==mjCNSTRSTATE_CONE);
+  for (int i=0; i < nefc; i++) {
+    ctx->nactive += (d->efc_state[i] != mjCNSTRSTATE_SATISFIED);
+    ctx->ncone += (d->efc_state[i] == mjCNSTRSTATE_CONE);
   }
 
   // add Gauss cost, set in quadratic[0]
   mjtNum Gauss = 0;
-  for (int i=0; i<nv; i++) {
+  for (int i=0; i < nv; i++) {
     Gauss += 0.5*(ctx->Ma[i]-d->qfrc_smooth[i])*(d->qacc[i]-d->qacc_smooth[i]);
   }
   ctx->quadGauss[0] = Gauss;
@@ -808,7 +808,7 @@ static void CGupdateGradient(const mjModel* m, mjData* d, mjCGContext* ctx) {
   int nv = m->nv;
 
   // grad = M*qacc - qfrc_smooth - qfrc_constraint
-  for (int i=0; i<nv; i++) {
+  for (int i=0; i < nv; i++) {
     ctx->grad[i] = ctx->Ma[i] - d->qfrc_smooth[i] - d->qfrc_constraint[i];
   }
 
@@ -841,7 +841,7 @@ static void CGprepare(const mjModel* m, const mjData* d, mjCGContext* ctx) {
   ctx->quadGauss[2] = 0.5*mju_dot(v, ctx->Mv, nv);
 
   // process constraints
-  for (int i=0; i<nefc; i++) {
+  for (int i=0; i < nefc; i++) {
     // pointers to numeric data
     mjtNum* Jv = ctx->Jv + i;
     mjtNum* Jaref = ctx->Jaref + i;
@@ -857,7 +857,7 @@ static void CGprepare(const mjModel* m, const mjData* d, mjCGContext* ctx) {
     quad[2] = Jv[0]*D[0]*Jv[0];
 
     // elliptic cone: extra processing
-    if (d->efc_type[i]==mjCNSTR_CONTACT_ELLIPTIC) {
+    if (d->efc_type[i] == mjCNSTR_CONTACT_ELLIPTIC) {
       // extract contact info
       mjContact* con = d->contact + d->efc_id[i];
       int dim = con->dim;
@@ -865,7 +865,7 @@ static void CGprepare(const mjModel* m, const mjData* d, mjCGContext* ctx) {
       mjtNum* friction = con->friction;
 
       // complete vector quadratic (for bottom zone)
-      for (int j=1; j<dim; j++) {
+      for (int j=1; j < dim; j++) {
         mjtNum DJj = D[j]*Jaref[j];
         quad[0] += Jaref[j]*DJj;
         quad[1] += Jv[j]*DJj;
@@ -875,13 +875,13 @@ static void CGprepare(const mjModel* m, const mjData* d, mjCGContext* ctx) {
       // rescale to make primal cone circular
       U[0] = Jaref[0]*mu;
       V[0] = Jv[0]*mu;
-      for (int j=1; j<dim; j++) {
+      for (int j=1; j < dim; j++) {
         U[j] = Jaref[j]*friction[j-1];
         V[j] = Jv[j]*friction[j-1];
       }
 
       // accumulate sums of squares
-      for (int j=1; j<dim; j++) {
+      for (int j=1; j < dim; j++) {
         UU += U[j]*U[j];
         UV += U[j]*V[j];
         VV += V[j]*V[j];
@@ -930,12 +930,12 @@ static void CGeval(const mjModel* m, mjData* d, mjCGContext* ctx, mjCGPnt* p) {
   mju_copy3(quadTotal, ctx->quadGauss);
 
   // equality
-  for (int i=0; i<ne; i++) {
+  for (int i=0; i < ne; i++) {
     mju_addTo3(quadTotal, ctx->quad+3*i);
   }
 
   // friction
-  for (int i=ne; i<ne+nf; i++) {
+  for (int i=ne; i < ne+nf; i++) {
     // search point, friction loss, bound (Rf)
     mjtNum start = ctx->Jaref[i], dir = ctx->Jv[i];
     mjtNum x = start + alpha*dir;
@@ -943,12 +943,12 @@ static void CGeval(const mjModel* m, mjData* d, mjCGContext* ctx, mjCGPnt* p) {
     mjtNum Rf = d->efc_R[i]*f;
 
     // -bound < x < bound : quadratic
-    if (-Rf<x && x<Rf) {
+    if (-Rf < x && x < Rf) {
       mju_addTo3(quadTotal, ctx->quad+3*i);
     }
 
     // x < -bound : linear negative
-    else if (x<=-Rf) {
+    else if (x <= -Rf) {
       mjtNum qf[3] = {f*(-0.5*Rf-start), -f*dir, 0};
       mju_addTo3(quadTotal, qf);
     }
@@ -961,8 +961,8 @@ static void CGeval(const mjModel* m, mjData* d, mjCGContext* ctx, mjCGPnt* p) {
   }
 
   // limit and contact
-  for (int i=ne+nf; i<nefc; i++) {
-    if (d->efc_type[i]==mjCNSTR_CONTACT_ELLIPTIC) {         // elliptic cone
+  for (int i=ne+nf; i < nefc; i++) {
+    if (d->efc_type[i] == mjCNSTR_CONTACT_ELLIPTIC) {         // elliptic cone
       // extract contact info
       mjContact* con = d->contact + d->efc_id[i];
       mjtNum* quad = ctx->quad + 3*i;
@@ -982,9 +982,9 @@ static void CGeval(const mjModel* m, mjData* d, mjCGContext* ctx, mjCGPnt* p) {
       mjtNum Tsqr = UU + alpha*(2*UV + alpha*VV);
 
       // no tangential force : top or bottom zone
-      if (Tsqr<=0) {
+      if (Tsqr <= 0) {
         // bottom zone: quadratic cost
-        if (N<0) {
+        if (N < 0) {
           mju_addTo3(quadTotal, quad);
         }
 
@@ -997,12 +997,12 @@ static void CGeval(const mjModel* m, mjData* d, mjCGContext* ctx, mjCGPnt* p) {
         mjtNum T = mju_sqrt(Tsqr);
 
         // N>=mu*T : top zone
-        if (N>=mu*T) {
+        if (N >= mu*T) {
           // nothing to do
         }
 
         // mu*N+T<=0 : bottom zone
-        else if (mu*N+T<=0) {
+        else if (mu*N+T <= 0) {
           mju_addTo3(quadTotal, quad);
         }
 
@@ -1027,7 +1027,7 @@ static void CGeval(const mjModel* m, mjData* d, mjCGContext* ctx, mjCGPnt* p) {
       mjtNum x = ctx->Jaref[i] + alpha*ctx->Jv[i];
 
       // active
-      if (x<0) {
+      if (x < 0) {
         mju_addTo3(quadTotal, ctx->quad+3*i);
       }
     }
@@ -1039,7 +1039,7 @@ static void CGeval(const mjModel* m, mjData* d, mjCGContext* ctx, mjCGPnt* p) {
   deriv[1] += 2*quadTotal[2];
 
   // check for convexity; SHOULD NOT OCCUR
-  if (deriv[1]<=0) {
+  if (deriv[1] <= 0) {
     mju_warning("Linesearch objective is not convex");
     deriv[1] = mjMINVAL;
   }
@@ -1057,15 +1057,17 @@ static void CGeval(const mjModel* m, mjData* d, mjCGContext* ctx, mjCGPnt* p) {
 static int updateBracket(const mjModel* m, mjData* d, mjCGContext* ctx,
                          mjCGPnt* p, mjCGPnt candidates[3], mjCGPnt* pnext) {
   int flag = 0;
-  for (int i=0; i<3; i++) {
+  for (int i=0; i < 3; i++) {
     // negative deriv
-    if (p->deriv[0]<0 && candidates[i].deriv[0]<0 && p->deriv[0]<candidates[i].deriv[0]) {
+    if (p->deriv[0] < 0 && candidates[i].deriv[0] < 0 && p->deriv[0] < candidates[i].deriv[0]) {
       *p = candidates[i];
       flag = 1;
     }
 
     // positive deriv
-    else if (p->deriv[0]>0 && candidates[i].deriv[0]>0 && p->deriv[0]>candidates[i].deriv[0]) {
+    else if (p->deriv[0] > 0 &&
+             candidates[i].deriv[0] > 0 &&
+             p->deriv[0] > candidates[i].deriv[0]) {
       *p = candidates[i];
       flag = 2;
     }
@@ -1096,7 +1098,7 @@ static mjtNum CGsearch(const mjModel* m, mjData* d, mjCGContext* ctx) {
 
   // save search vector length, check
   mjtNum snorm = mju_norm(ctx->search, m->nv);
-  if (snorm<mjMINVAL) {
+  if (snorm < mjMINVAL) {
     ctx->LSresult = 1;                          // search vector too small
     return 0;
   }
@@ -1119,13 +1121,13 @@ static mjtNum CGsearch(const mjModel* m, mjData* d, mjCGContext* ctx) {
   // always attempt one Newton step
   p1.alpha = p0.alpha - p0.deriv[0]/p0.deriv[1];
   CGeval(m, d, ctx, &p1);
-  if (p0.cost<p1.cost) {
+  if (p0.cost < p1.cost) {
     p1 = p0;
   }
 
   // check for initial convergence
-  if (mju_abs(p1.deriv[0])<gtol) {
-    if (p1.alpha==0) {
+  if (mju_abs(p1.deriv[0]) < gtol) {
+    if (p1.alpha == 0) {
       ctx->LSresult = 2;  // no improvement, initial convergence
     } else {
       ctx->LSresult = 0;  // SUCCESS
@@ -1135,32 +1137,32 @@ static mjtNum CGsearch(const mjModel* m, mjData* d, mjCGContext* ctx) {
   }
 
   // save direction
-  int dir = (p1.deriv[0]<0 ? +1 : -1);
+  int dir = (p1.deriv[0] < 0 ? +1 : -1);
 
   // SANITY CHECKS
   /*
-  // descent direction
-  if( mju_dot(ctx->grad, ctx->search, m->nv)>=0 )
+     // descent direction
+     if( mju_dot(ctx->grad, ctx->search, m->nv)>=0 )
       printf("NOT A DESCENT:  grad %g   search %g   dot %g\n",
           mju_norm(ctx->grad, m->nv),
           mju_norm(ctx->search, m->nv),
           mju_dot(ctx->grad, ctx->search, m->nv));
 
-  // 2nd derivative for Newton cone
-  if( ctx->flg_Newton && ctx->ncone )
-  {
+     // 2nd derivative for Newton cone
+     if( ctx->flg_Newton && ctx->ncone )
+     {
       mjtNum dd = -p0.deriv[0]/p0.deriv[1];
 
       if( mju_abs(dd-1)>1e-6 )
           printf("2nd DERIVATIVE FAIL: d0  %g   d1  %g   alpha %g\n",
               p0.deriv[0], p0.deriv[1], dd);
-  }
+     }
 
-  // cost and gradient at 0: full-space vs. linesearch
-  mjtNum grd = mju_dot(ctx->grad, ctx->search, m->nv);
-  if( mju_abs(p0.cost-ctx->cost)/mjMAX(mjMINVAL,mju_abs(p0.cost+ctx->cost)) > 1e-6 ||
+     // cost and gradient at 0: full-space vs. linesearch
+     mjtNum grd = mju_dot(ctx->grad, ctx->search, m->nv);
+     if( mju_abs(p0.cost-ctx->cost)/mjMAX(mjMINVAL,mju_abs(p0.cost+ctx->cost)) > 1e-6 ||
       mju_abs(p0.deriv[0]-grd)/mjMAX(mjMINVAL,mju_abs(p0.deriv[0]+grd)) > 1e-6 )
-  {
+     {
       printf("LSiter = %d:\n", ctx->LSiter);
       printf("COST:  %g  %g  %g\n",
           p0.cost, ctx->cost,
@@ -1168,12 +1170,12 @@ static mjtNum CGsearch(const mjModel* m, mjData* d, mjCGContext* ctx) {
       printf("GRAD:  %g  %g  %g\n",
           p0.deriv[0], grd,
           mju_abs(p0.deriv[0]-grd)/mjMAX(mjMINVAL,mju_abs(p0.deriv[0]+grd)));
-  }
-  */
+     }
+   */
 
   // one-sided search
   int p2update = 0;
-  while (p1.deriv[0]*dir<=-gtol && ctx->LSiter<LSmaxiter) {
+  while (p1.deriv[0]*dir <= -gtol && ctx->LSiter < LSmaxiter) {
     // save current
     p2 = p1;
     p2update = 1;
@@ -1183,14 +1185,14 @@ static mjtNum CGsearch(const mjModel* m, mjData* d, mjCGContext* ctx) {
     CGeval(m, d, ctx, &p1);
 
     // check for convergence
-    if (mju_abs(p1.deriv[0])<gtol) {
+    if (mju_abs(p1.deriv[0]) < gtol) {
       ctx->LSslope = mju_abs(p1.deriv[0])*slopescl;
       return p1.alpha;                          // SUCCESS
     }
   }
 
   // check for failure to bracket
-  if (ctx->LSiter>=LSmaxiter) {
+  if (ctx->LSiter >= LSmaxiter) {
     ctx->LSresult = 3;                          // could not bracket
     ctx->LSslope = mju_abs(p1.deriv[0])*slopescl;
     return p1.alpha;
@@ -1209,7 +1211,7 @@ static mjtNum CGsearch(const mjModel* m, mjData* d, mjCGContext* ctx) {
   CGeval(m, d, ctx, &p1next);
 
   // bracketed search
-  while (ctx->LSiter<LSmaxiter) {
+  while (ctx->LSiter < LSmaxiter) {
     // evaluate at midpoint
     pmid.alpha = 0.5*(p1.alpha + p2.alpha);
     CGeval(m, d, ctx, &pmid);
@@ -1220,14 +1222,14 @@ static mjtNum CGsearch(const mjModel* m, mjData* d, mjCGContext* ctx) {
     // check candidates for convergence
     mjtNum bestcost = 0;
     int bestind = -1;
-    for (int i=0; i<3; i++) {
-      if (mju_abs(candidates[i].deriv[0])<gtol &&
-          (bestind==-1 || candidates[i].cost<bestcost)) {
+    for (int i=0; i < 3; i++) {
+      if (mju_abs(candidates[i].deriv[0]) < gtol &&
+          (bestind == -1 || candidates[i].cost < bestcost)) {
         bestcost = candidates[i].cost;
         bestind = i;
       }
     }
-    if (bestind>=0) {
+    if (bestind >= 0) {
       ctx->LSslope = mju_abs(candidates[bestind].deriv[0])*slopescl;
       return candidates[bestind].alpha;       // SUCCESS
     }
@@ -1238,7 +1240,7 @@ static mjtNum CGsearch(const mjModel* m, mjData* d, mjCGContext* ctx) {
 
     // no update possible: numerical accuracy reached, use midpoint
     if (!b1 && !b2) {
-      if (pmid.cost<p0.cost) {
+      if (pmid.cost < p0.cost) {
         ctx->LSresult = 0;  // SUCCESS
       } else {
         ctx->LSresult = 7;  // no improvement, could not bracket
@@ -1250,11 +1252,11 @@ static mjtNum CGsearch(const mjModel* m, mjData* d, mjCGContext* ctx) {
   }
 
   // choose bracket with best cost
-  if (p1.cost<=p2.cost && p1.cost<p0.cost) {
+  if (p1.cost <= p2.cost && p1.cost < p0.cost) {
     ctx->LSresult = 4;                          // improvement but no convergence
     ctx->LSslope = mju_abs(p1.deriv[0])*slopescl;
     return p1.alpha;
-  } else if (p2.cost<=p1.cost && p2.cost<p0.cost) {
+  } else if (p2.cost <= p1.cost && p2.cost < p0.cost) {
     ctx->LSresult = 4;                          // improvement but no convergence
     ctx->LSslope = mju_abs(p2.deriv[0])*slopescl;
     return p2.alpha;
@@ -1281,8 +1283,8 @@ static void HessianCone(const mjModel* m, mjData* d, mjCGContext* ctx) {
   mju_copy(ctx->Hcone, ctx->H, ctx->nnz);
 
   // add contributions
-  for (int i=0; i<nefc; i++) {
-    if (d->efc_state[i]==mjCNSTRSTATE_CONE) {
+  for (int i=0; i < nefc; i++) {
+    if (d->efc_state[i] == mjCNSTRSTATE_CONE) {
       mjContact* con = d->contact + d->efc_id[i];
       int dim = con->dim;
 
@@ -1297,14 +1299,14 @@ static void HessianCone(const mjModel* m, mjData* d, mjCGContext* ctx) {
 
         // compute LTJ = L'*J for this contact
         mju_zero(LTJ, dim*nnz);
-        for (int r=0; r<dim; r++) {
-          for (int c=0; c<=r; c++) {
+        for (int r=0; r < dim; r++) {
+          for (int c=0; c <= r; c++) {
             mju_addToScl(LTJ+c*nnz, d->efc_J+d->efc_J_rowadr[i+r], local[r*dim+c], nnz);
           }
         }
 
         // update
-        for (int r=0; r<dim; r++) {
+        for (int r=0; r < dim; r++) {
           // copy data for this row
           mju_copy(LTJ_row, LTJ+r*nnz, nnz);
           memcpy(LTJ_ind, d->efc_J_colind+d->efc_J_rowadr[i+r], nnz*sizeof(int));
@@ -1320,14 +1322,14 @@ static void HessianCone(const mjModel* m, mjData* d, mjCGContext* ctx) {
       else {
         // compute LTJ = L'*J for this contact row
         mju_zero(LTJ, dim*nv);
-        for (int r=0; r<dim; r++) {
-          for (int c=0; c<=r; c++) {
+        for (int r=0; r < dim; r++) {
+          for (int c=0; c <= r; c++) {
             mju_addToScl(LTJ+c*nv, d->efc_J+(i+r)*nv, local[r*dim+c], nv);
           }
         }
 
         // update
-        for (int r=0; r<dim; r++) {
+        for (int r=0; r < dim; r++) {
           mju_cholUpdate(ctx->Hcone, LTJ+r*nv, nv, 1);
         }
       }
@@ -1352,8 +1354,8 @@ static void HessianDirect(const mjModel* m, mjData* d, mjCGContext* ctx) {
 
   // compute D corresponding to quad states
   mjtNum* D = mj_stackAlloc(d, nefc);
-  for (int i=0; i<nefc; i++) {
-    if (d->efc_state[i]==mjCNSTRSTATE_QUADRATIC) {
+  for (int i=0; i < nefc; i++) {
+    if (d->efc_state[i] == mjCNSTRSTATE_QUADRATIC) {
       D[i] = d->efc_D[i];
     } else {
       D[i] = 0;
@@ -1381,7 +1383,7 @@ static void HessianDirect(const mjModel* m, mjData* d, mjCGContext* ctx) {
                                     d);
 
     // rank-defficient, SHOULD NOT OCCUR
-    if (rank!=nv) {
+    if (rank != nv) {
       mju_error("Rank-defficient Hessian in HessianDirect");
     }
 
@@ -1390,7 +1392,7 @@ static void HessianDirect(const mjModel* m, mjData* d, mjCGContext* ctx) {
 
     // count nnz
     ctx->nnz = 0;
-    for (int i=0; i<nv; i++) {
+    for (int i=0; i < nv; i++) {
       ctx->nnz += ctx->rownnz[i];
     }
     if (ctx->nnz > nv*nv) {  // SHOULD NOT OCCUR
@@ -1438,21 +1440,21 @@ static void HessianIncremental(const mjModel* m, mjData* d,
   ctx->nupdate = 0;
 
   // update H factorization
-  for (int i=0; i<nefc; i++) {
+  for (int i=0; i < nefc; i++) {
     int flag_update = -1;
 
     // add quad
-    if (oldstate[i]!=mjCNSTRSTATE_QUADRATIC && d->efc_state[i]==mjCNSTRSTATE_QUADRATIC) {
+    if (oldstate[i] != mjCNSTRSTATE_QUADRATIC && d->efc_state[i] == mjCNSTRSTATE_QUADRATIC) {
       flag_update = 1;
     }
 
     // subtract quad
-    else if (oldstate[i]==mjCNSTRSTATE_QUADRATIC && d->efc_state[i]!=mjCNSTRSTATE_QUADRATIC) {
+    else if (oldstate[i] == mjCNSTRSTATE_QUADRATIC && d->efc_state[i] != mjCNSTRSTATE_QUADRATIC) {
       flag_update = 0;
     }
 
     // perform update if flagged
-    if (flag_update!=-1) {
+    if (flag_update != -1) {
       // update with vec = J(i,:)*sqrt(D[i]))
       if (mj_isSparse(m)) {
         // get nnz and adr of row i
@@ -1473,7 +1475,7 @@ static void HessianIncremental(const mjModel* m, mjData* d,
       ctx->nupdate++;
 
       // recompute H directly if accuracy lost
-      if (rank<nv) {
+      if (rank < nv) {
         mjFREESTACK;
         HessianDirect(m, d, ctx);
 
@@ -1528,12 +1530,12 @@ static void mj_solCGNewton(const mjModel* m, mjData* d, int maxiter, int flg_New
   mju_scl(ctx.search, ctx.Mgrad, -1, nv);
 
   // main loop
-  while (iter<maxiter) {
+  while (iter < maxiter) {
     // perform linesearch
     alpha = CGsearch(m, d, &ctx);
 
     // no improvement: done
-    if (alpha==0) {
+    if (alpha == 0) {
       break;
     }
 
@@ -1559,8 +1561,8 @@ static void mj_solCGNewton(const mjModel* m, mjData* d, int maxiter, int flg_New
 
     // count state changes
     int nchange = 0;
-    for (int i=0; i<nefc; i++) {
-      nchange += (d->efc_state[i]!=oldstate[i]);
+    for (int i=0; i < nefc; i++) {
+      nchange += (d->efc_state[i] != oldstate[i]);
     }
 
     // scale improvement, save stats, count
@@ -1570,7 +1572,7 @@ static void mj_solCGNewton(const mjModel* m, mjData* d, int maxiter, int flg_New
               ctx.nactive, nchange, ctx.LSiter, ctx.nupdate);
 
     // termination
-    if (improvement<m->opt.tolerance || gradient<m->opt.tolerance) {
+    if (improvement < m->opt.tolerance || gradient < m->opt.tolerance) {
       break;
     }
 
@@ -1584,12 +1586,12 @@ static void mj_solCGNewton(const mjModel* m, mjData* d, int maxiter, int flg_New
              mju_max(mjMINVAL, mju_dot(gradold, Mgradold, nv));
 
       // reset if negative
-      if (beta<0) {
+      if (beta < 0) {
         beta = 0;
       }
 
       // update
-      for (int i=0; i<nv; i++) {
+      for (int i=0; i < nv; i++) {
         ctx.search[i] = -ctx.Mgrad[i] + beta*ctx.search[i];
       }
     }

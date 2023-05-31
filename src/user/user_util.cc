@@ -21,9 +21,9 @@
 #include <string>
 #include <string_view>
 
+#include <mujoco/mjmacro.h>
 #include <mujoco/mjtnum.h>
 #include <mujoco/mujoco.h>
-#include "engine/engine_macro.h"
 #include "engine/engine_util_spatial.h"
 
 using std::isnan;

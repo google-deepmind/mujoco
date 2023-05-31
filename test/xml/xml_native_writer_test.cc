@@ -913,17 +913,22 @@ TEST_F(XMLWriterTest, SetPrecision) {
 }
 
 class XMLWriterLocaleTest : public MujocoTest {
+ public:
+  XMLWriterLocaleTest() : old_locale_(std::setlocale(LC_ALL, nullptr)) {}
+
  protected:
-  char* old_locale;
   void SetUp() override {
-    this->old_locale = std::setlocale(LC_ALL, nullptr);
     if (!std::setlocale(LC_ALL, "de_DE.UTF-8")) {
       GTEST_SKIP() << "This system doesn't support the de_DE.UTF-8 locale";
     }
   }
+
   void TearDown() override {
-    std::setlocale(LC_ALL, old_locale);
+    std::setlocale(LC_ALL, old_locale_.c_str());
   }
+
+ private:
+  std::string old_locale_;
 };
 
 TEST_F(XMLWriterLocaleTest, IgnoresLocale) {
@@ -1061,6 +1066,28 @@ TEST_F(XMLWriterTest, WriteReadCompare) {
       }
     }
   }
+}
+
+// ---------------- test CopyBack functionality (decompiler) ------------------
+using DecompilerTest = MujocoTest;
+TEST_F(XMLWriterTest, SavesStatitics) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <statistic meansize="2" extent="3" center="4 5 6"/>
+  </mujoco>
+  )";
+  mjModel* model = LoadModelFromString(xml);
+  ASSERT_THAT(model, NotNull());
+  model->stat.meansize = 7;
+  model->stat.extent = 8;
+  model->stat.center[0] = 9;
+  model->stat.center[1] = 10;
+  model->stat.center[2] = 11;
+  std::string saved_xml = SaveAndReadXml(model);
+  EXPECT_THAT(saved_xml, HasSubstr("meansize=\"7\""));
+  EXPECT_THAT(saved_xml, HasSubstr("extent=\"8\""));
+  EXPECT_THAT(saved_xml, HasSubstr("center=\"9 10 11\""));
+  mj_deleteModel(model);
 }
 
 }  // namespace

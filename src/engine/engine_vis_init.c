@@ -17,10 +17,10 @@
 #include <math.h>
 #include <string.h>
 
+#include <mujoco/mjmacro.h>
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjvisualize.h>
 #include "engine/engine_array_safety.h"
-#include "engine/engine_macro.h"
 #include "engine/engine_util_errmem.h"
 #include "engine/engine_util_misc.h"
 
@@ -119,7 +119,7 @@ void mjv_makeScene(const mjModel* m, mjvScene* scn, int maxgeom) {
   mjv_freeScene(scn);
 
   // allocate geom buffers
-  if (maxgeom>0) {
+  if (maxgeom > 0) {
     // allocate
     scn->maxgeom = maxgeom;
     scn->geoms = (mjvGeom*) mju_malloc(maxgeom*sizeof(mjvGeom));
@@ -132,8 +132,8 @@ void mjv_makeScene(const mjModel* m, mjvScene* scn, int maxgeom) {
   }
 
   // set default OpenGL options
-  for (int i=0; i<mjNRNDFLAG; i++) {
-    scn->flags[i] = (mjRNDSTRING[i][1][0]=='1');
+  for (int i=0; i < mjNRNDFLAG; i++) {
+    scn->flags[i] = (mjRNDSTRING[i][1][0] == '1');
   }
 
   // set default model transformation
@@ -152,7 +152,7 @@ void mjv_makeScene(const mjModel* m, mjvScene* scn, int maxgeom) {
     // compute number of vertices in all skins
     int nskin = m->nskin;
     int totvert = 0;
-    for (int i=0; i<nskin; i++) {
+    for (int i=0; i < nskin; i++) {
       totvert += m->skin_vertnum[i];
     }
 
@@ -173,7 +173,7 @@ void mjv_makeScene(const mjModel* m, mjvScene* scn, int maxgeom) {
     }
 
     // copy constant data
-    for (int i=0; i<nskin; i++) {
+    for (int i=0; i < nskin; i++) {
       scn->skinfacenum[i] = m->skin_facenum[i];
       scn->skinvertadr[i] = m->skin_vertadr[i];
       scn->skinvertnum[i] = m->skin_vertnum[i];
@@ -214,8 +214,8 @@ void mjv_defaultOption(mjvOption* vopt) {
   vopt->label = mjLABEL_NONE;
   vopt->frame = mjFRAME_NONE;
 
-  for (int i=0; i<mjNGROUP; i++) {
-    int state = (i<3 ? 1 : 0);
+  for (int i=0; i < mjNGROUP; i++) {
+    int state = (i < 3 ? 1 : 0);
     vopt->geomgroup[i] = state;
     vopt->sitegroup[i] = state;
     vopt->jointgroup[i] = state;
@@ -224,8 +224,8 @@ void mjv_defaultOption(mjvOption* vopt) {
     vopt->skingroup[i] = state;
   }
 
-  for (int i=0; i<mjNVISFLAG; i++) {
-    vopt->flags[i] = (mjVISSTRING[i][1][0]=='1');
+  for (int i=0; i < mjNVISFLAG; i++) {
+    vopt->flags[i] = (mjVISSTRING[i][1][0] == '1');
   }
 
   vopt->bvh_depth = 1;
@@ -326,9 +326,9 @@ void mjv_defaultFigure(mjvFigure* fig) {
   mjSTRNCPY(fig->minwidth, "XXX");
 
   // set line colors
-  for (int n=0; n<mjMAXLINE; n++) {
+  for (int n=0; n < mjMAXLINE; n++) {
     // predefined colors
-    if (n<8) {
+    if (n < 8) {
       fig->linergb[n][0] = _linergb[n][0];
       fig->linergb[n][1] = _linergb[n][1];
       fig->linergb[n][2] = _linergb[n][2];
@@ -348,7 +348,7 @@ void mjv_defaultFigure(mjvFigure* fig) {
 // compute rbound for mjvGeom
 float mjv_rbound(const mjvGeom* geom) {
   // model geom: return
-  if (geom->objtype==mjOBJ_GEOM) {
+  if (geom->objtype == mjOBJ_GEOM) {
     return geom->modelrbound;
   }
 

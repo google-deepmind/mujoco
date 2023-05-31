@@ -19,6 +19,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <mujoco/mjmacro.h>
 #include <mujoco/mjvisualize.h>
 #include <mujoco/mujoco.h>
 #include "render/render_util.h"
@@ -61,7 +62,7 @@ static void listAllocate(GLuint* base, GLsizei* range, GLsizei newrange) {
   *range = newrange;
   if (newrange) {
     *base = glGenLists(*range);
-    if (*base<=0) {
+    if (*base <= 0) {
       mju_error("Could not allocate display lists");
     }
   }
@@ -78,8 +79,8 @@ static void makePlane(const mjModel* m, mjrContext* con) {
 
   // count planes
   nplane = 0;
-  for (int i=0; i<m->ngeom; i++) {
-    if (m->geom_type[i]==mjGEOM_PLANE) {
+  for (int i=0; i < m->ngeom; i++) {
+    if (m->geom_type[i] == mjGEOM_PLANE) {
       nplane++;
     }
   }
@@ -92,8 +93,8 @@ static void makePlane(const mjModel* m, mjrContext* con) {
   glBegin(GL_QUADS);
   glNormal3d(0, 0, 1);
   double d = 2.0/m->vis.quality.numquads;
-  for (int x=0; x<m->vis.quality.numquads; x++) {
-    for (int y=0; y<m->vis.quality.numquads; y++) {
+  for (int x=0; x < m->vis.quality.numquads; x++) {
+    for (int y=0; y < m->vis.quality.numquads; y++) {
       glVertex3d(d*(x+0)-1, d*(y+0)-1, 0);
       glVertex3d(d*(x+1)-1, d*(y+0)-1, 0);
       glVertex3d(d*(x+1)-1, d*(y+1)-1, 0);
@@ -105,16 +106,16 @@ static void makePlane(const mjModel* m, mjrContext* con) {
 
   // construct planes, offset by 1
   nplane = 0;
-  for (int i=0; i<m->ngeom; i++) {
-    if (m->geom_type[i]==mjGEOM_PLANE) {
+  for (int i=0; i < m->ngeom; i++) {
+    if (m->geom_type[i] == mjGEOM_PLANE) {
       // get sizes
       sz[0] = m->geom_size[3*i];
       sz[1] = m->geom_size[3*i+1];
 
       // loop over (x, y)
-      for (int k=0; k<2; k++) {
+      for (int k=0; k < 2; k++) {
         // regular dimension
-        if (sz[k]>0) {
+        if (sz[k] > 0) {
           // limit number of grid lines, leave room for padding
           sz2 = mju_max(m->geom_size[3*i+2], sz[k]/(mjMAXPLANEGRID-2));
 
@@ -127,14 +128,14 @@ static void makePlane(const mjModel* m, mjrContext* con) {
           nn[k] += 2;
 
           // make grid
-          for (int x=0; x<nn[k]; x++) {
+          for (int x=0; x < nn[k]; x++) {
             // compute left, right (which is bottom, top for y)
-            if (x==0) {
+            if (x == 0) {
               left = -sz[k];
               right = left + pad;
             } else {
               left = -sz[k] + pad + (x-1)*sz2*2;
-              right = left + (x==nn[k]-1 ? pad : sz2*2);
+              right = left + (x == nn[k]-1 ? pad : sz2*2);
             }
 
             // record
@@ -148,7 +149,7 @@ static void makePlane(const mjModel* m, mjrContext* con) {
           // get size increment
           mjtNum sX;
           int matid = m->geom_matid[i];
-          if (matid>=0 && m->mat_texrepeat[2*matid+k]>0) {
+          if (matid >= 0 && m->mat_texrepeat[2*matid+k] > 0) {
             sX = 2/m->mat_texrepeat[2*matid+k];
           } else {
             sX = 2.1*zfar/(mjMAXPLANEGRID-2);
@@ -156,7 +157,7 @@ static void makePlane(const mjModel* m, mjrContext* con) {
 
           // create grid, larger than skybox
           d = (2.1*zfar + 2*sX)/mjMAXPLANEGRID;
-          for (int x=0; x<=mjMAXPLANEGRID; x++) {
+          for (int x=0; x <= mjMAXPLANEGRID; x++) {
             grid[k][x] = d*x - d*(mjMAXPLANEGRID/2);
           }
 
@@ -171,8 +172,8 @@ static void makePlane(const mjModel* m, mjrContext* con) {
       glNormal3d(0, 0, 1);
 
       // make grid
-      for (int x=0; x<nn[0]; x++) {
-        for (int y=0; y<nn[1]; y++) {
+      for (int x=0; x < nn[0]; x++) {
+        for (int y=0; y < nn[1]; y++) {
           glVertex3d(grid[0][x+0], grid[1][y+0], 0);
           glVertex3d(grid[0][x+1], grid[1][y+0], 0);
           glVertex3d(grid[0][x+1], grid[1][y+1], 0);
@@ -198,7 +199,7 @@ static void makeMesh(const mjModel* m, mjrContext* con) {
   listAllocate(&con->baseMesh, &con->rangeMesh, 2*m->nmesh);
 
   // process meshes
-  for (int i=0; i<m->nmesh; i++) {
+  for (int i=0; i < m->nmesh; i++) {
     mjr_uploadMesh(m, con, i);
   }
 }
@@ -211,7 +212,7 @@ void mjr_uploadMesh(const mjModel* m, const mjrContext* con, int meshid) {
   float normal[3], *v1, *v2, *v3, *n1, *n2, *n3, *t1, *t2, *t3;
 
   // check index
-  if (meshid<0 || meshid>=m->nmesh) {
+  if (meshid < 0 || meshid >= m->nmesh) {
     mju_error("Invalid mesh index %d", meshid);
   }
 
@@ -240,7 +241,7 @@ void mjr_uploadMesh(const mjModel* m, const mjrContext* con, int meshid) {
     n3 = m->mesh_normal + 3*(m->mesh_facenormal[3*face+2] + normaladr);
 
     // compute texcoord addresses
-    if (texcoordadr>=0) {
+    if (texcoordadr >= 0) {
       t1 = m->mesh_texcoord + 2*(m->mesh_facetexcoord[3*face]   + texcoordadr);
       t2 = m->mesh_texcoord + 2*(m->mesh_facetexcoord[3*face+1] + texcoordadr);
       t3 = m->mesh_texcoord + 2*(m->mesh_facetexcoord[3*face+2] + texcoordadr);
@@ -295,14 +296,14 @@ void mjr_uploadMesh(const mjModel* m, const mjrContext* con, int meshid) {
   glEndList();
 
   // render convex hull if present
-  if (m->mesh_graphadr[meshid]>=0) {
+  if (m->mesh_graphadr[meshid] >= 0) {
     // get sizes of convex hull
     numvert = m->mesh_graph[m->mesh_graphadr[meshid]];
     numface = m->mesh_graph[m->mesh_graphadr[meshid]+1];
 
     glNewList(con->baseMesh + 2*meshid+1, GL_COMPILE);
     glBegin(GL_TRIANGLES);
-    for (int face=0; face<numface; face++) {
+    for (int face=0; face < numface; face++) {
       // face address in graph
       int j = m->mesh_graphadr[meshid] + 2 + 3*numvert + 3*numface + 3*face;
 
@@ -312,7 +313,7 @@ void mjr_uploadMesh(const mjModel* m, const mjrContext* con, int meshid) {
       v3 = m->mesh_vert + 3*(m->mesh_graph[j+2] + vertadr);
 
       // compute texcoord addresses
-      if (texcoordadr>=0) {
+      if (texcoordadr >= 0) {
         t1 = m->mesh_texcoord + 2*(m->mesh_graph[j]   + texcoordadr);
         t2 = m->mesh_texcoord + 2*(m->mesh_graph[j+1] + texcoordadr);
         t3 = m->mesh_texcoord + 2*(m->mesh_graph[j+2] + texcoordadr);
@@ -363,7 +364,7 @@ static void addVert(float x, float y, float z, float sclz, struct vertbuf* buf) 
   buf->nvert++;
 
   // triangle ready
-  if (buf->nvert>=3) {
+  if (buf->nvert >= 3) {
     // compensate for alternating orientation
     if (buf->nvert%2) {
       mjr_makeNormal(normal, buf->vert1, buf->vert2, buf->vert3);
@@ -389,7 +390,7 @@ static void makeHField(const mjModel* m, mjrContext* con) {
   listAllocate(&con->baseHField, &con->rangeHField, m->nhfield);
 
   // uploaed all heightfields
-  for (int i=0; i<m->nhfield; i++) {
+  for (int i=0; i < m->nhfield; i++) {
     mjr_uploadHField(m, con, i);
   }
 }
@@ -404,7 +405,7 @@ void mjr_uploadHField(const mjModel* m, const mjrContext* con, int hfieldid) {
   float* data;
 
   // check index
-  if (hfieldid<0 || hfieldid>=m->nhfield) {
+  if (hfieldid < 0 || hfieldid >= m->nhfield) {
     mju_error("Invalid height field index %d", hfieldid);
   }
 
@@ -420,7 +421,7 @@ void mjr_uploadHField(const mjModel* m, const mjrContext* con, int hfieldid) {
   height = 0.5f * (m->hfield_nrow[hfieldid]-1);
 
   // convert size to float
-  for (int r=0; r<4; r++) {
+  for (int r=0; r < 4; r++) {
     sz[r] = (float)m->hfield_size[4*hfieldid+r];
   }
 
@@ -428,9 +429,9 @@ void mjr_uploadHField(const mjModel* m, const mjrContext* con, int hfieldid) {
   glBegin(GL_TRIANGLES);
   int nr = m->hfield_nrow[hfieldid];
   int nc = m->hfield_ncol[hfieldid];
-  for (int r=0; r<nr-1; r++) {
+  for (int r=0; r < nr-1; r++) {
     buf.nvert = 0;
-    for (int c=0; c<nc; c++) {
+    for (int c=0; c < nc; c++) {
       addVert(sz[0]*(c/width-1.0f), sz[1]*((r+d1)/height-1.0f), data[(r+d1)*nc+c], sz[2], &buf);
       addVert(sz[0]*(c/width-1.0f), sz[1]*((r+d2)/height-1.0f), data[(r+d2)*nc+c], sz[2], &buf);
     }
@@ -439,7 +440,7 @@ void mjr_uploadHField(const mjModel* m, const mjrContext* con, int hfieldid) {
 
   // render sides as quads
   glBegin(GL_QUADS);
-  for (int r=0; r<nr-1; r++) {
+  for (int r=0; r < nr-1; r++) {
     // left
     glNormal3f(-1, 0, 0);
     glVertex3f(-sz[0], sz[1]*((r+1)/height-1.0f), -sz[3]);
@@ -455,7 +456,7 @@ void mjr_uploadHField(const mjModel* m, const mjrContext* con, int hfieldid) {
     glVertex3f(+sz[0], sz[1]*((r+0)/height-1.0f), data[(r+0)*nc + nc-1]*sz[2]);
   }
 
-  for (int c=0; c<nc-1; c++) {
+  for (int c=0; c < nc-1; c++) {
     // front
     glNormal3f(0, -1, 0);
     glVertex3f(sz[0]*((c+0)/width-1.0f), -sz[1], -sz[3]);
@@ -477,8 +478,8 @@ void mjr_uploadHField(const mjModel* m, const mjrContext* con, int hfieldid) {
 
   // bottom
   glNormal3f(0, 0, -1);
-  for (int r=0; r<m->vis.quality.numquads; r++) {
-    for (int c=0; c<m->vis.quality.numquads; c++) {
+  for (int r=0; r < m->vis.quality.numquads; r++) {
+    for (int c=0; c < m->vis.quality.numquads; c++) {
       glVertex3f(sz[0]*((c+0)/width-1.0f), sz[1]*((r+0)/height-1.0f), -sz[3]);
       glVertex3f(sz[0]*((c+0)/width-1.0f), sz[1]*((r+1)/height-1.0f), -sz[3]);
       glVertex3f(sz[0]*((c+1)/width-1.0f), sz[1]*((r+1)/height-1.0f), -sz[3]);
@@ -515,7 +516,7 @@ static void halfSphere(int sign, int nSlice, int nStack) {
   // pole: use triangles
   glBegin(GL_TRIANGLES);
   el1 = (mjPI/2.0f * sign * (nStack-1)) / (float)nStack;
-  for (int j=0; j<nSlice; j++) {
+  for (int j=0; j < nSlice; j++) {
     az1 = (2.0f*mjPI * (j+0.0f)) / (float)nSlice;
     az2 = (2.0f*mjPI * (j+1.0f)) / (float)nSlice;
 
@@ -528,7 +529,7 @@ static void halfSphere(int sign, int nSlice, int nStack) {
     n3[2] = sign;
 
     // make triangle
-    if (sign>0) {
+    if (sign > 0) {
       glNormal3fv(n1);
       glVertex3fv(v1);
       glNormal3fv(n2);
@@ -548,11 +549,11 @@ static void halfSphere(int sign, int nSlice, int nStack) {
 
   // the rest: use quads
   glBegin(GL_QUADS);
-  for (int i=0; i<nStack-1; i++) {
+  for (int i=0; i < nStack-1; i++) {
     el1 = (mjPI/2.0f * sign * (i+0)) / (float)nStack;
     el2 = (mjPI/2.0f * sign * (i+1)) / (float)nStack;
 
-    for (int j=0; j<nSlice; j++) {
+    for (int j=0; j < nSlice; j++) {
       az1 = (2.0f*mjPI * (j+0)) / (float)nSlice;
       az2 = (2.0f*mjPI * (j+1)) / (float)nSlice;
 
@@ -563,7 +564,7 @@ static void halfSphere(int sign, int nSlice, int nStack) {
       setVertexSphere(v4, n4, az1, el2, sign);
 
       // make quad
-      if (sign>0) {
+      if (sign > 0) {
         glNormal3fv(n1);
         glVertex3fv(v1);
         glNormal3fv(n2);
@@ -597,9 +598,9 @@ static void sphere(int nSlice, int nStack) {
 
   // poles: use triangles
   glBegin(GL_TRIANGLES);
-  for (int sign=-1; sign<=1; sign+=2) {
+  for (int sign=-1; sign <= 1; sign+=2) {
     el1 = (0.5*mjPI * sign * (nStack/2-1)) / (float)(nStack/2);
-    for (int j=0; j<nSlice; j++) {
+    for (int j=0; j < nSlice; j++) {
       az1 = (2.0f*mjPI * (j+0.0f)) / (float)nSlice;
       az2 = (2.0f*mjPI * (j+1.0f)) / (float)nSlice;
 
@@ -612,7 +613,7 @@ static void sphere(int nSlice, int nStack) {
       n3[2] = sign;
 
       // make triangle
-      if (sign>0) {
+      if (sign > 0) {
         glNormal3fv(n1);
         glVertex3fv(v1);
         glNormal3fv(n2);
@@ -633,12 +634,12 @@ static void sphere(int nSlice, int nStack) {
 
   // the rest: use quads
   glBegin(GL_QUADS);
-  for (int sign=-1; sign<=1; sign+=2) {
-    for (int i=0; i<nStack/2-1; i++) {
+  for (int sign=-1; sign <= 1; sign+=2) {
+    for (int i=0; i < nStack/2-1; i++) {
       el1 = (0.5*mjPI * sign * (i+0)) / (float)(nStack/2);
       el2 = (0.5*mjPI * sign * (i+1)) / (float)(nStack/2);
 
-      for (int j=0; j<nSlice; j++) {
+      for (int j=0; j < nSlice; j++) {
         az1 = (2.0f*mjPI * (j+0)) / (float)nSlice;
         az2 = (2.0f*mjPI * (j+1)) / (float)nSlice;
 
@@ -649,7 +650,7 @@ static void sphere(int nSlice, int nStack) {
         setVertexSphere(v4, n4, az1, el2, 0);
 
         // make quad
-        if (sign>0) {
+        if (sign > 0) {
           glNormal3fv(n1);
           glVertex3fv(v1);
           glNormal3fv(n2);
@@ -688,13 +689,13 @@ static void setVertexDisk(float* v, float az, float r, int sign) {
 static void disk(int sign, int nSlice, int nStack) {
   float az1, az2, r1, r2;
   float v1[3], v2[3], v3[3], v4[3];
-  float normal[3] = {0, 0, (sign==0 ? -1 : sign)};
+  float normal[3] = {0, 0, (sign == 0 ? -1 : sign)};
 
   // pole: use triangles
   glBegin(GL_TRIANGLES);
   glNormal3fv(normal);
   r1 = 1.0f / (float)nStack;
-  for (int j=0; j<nSlice; j++) {
+  for (int j=0; j < nSlice; j++) {
     az1 = (2.0f*mjPI * (j+0)) / (float)nSlice;
     az2 = (2.0f*mjPI * (j+1)) / (float)nSlice;
 
@@ -705,7 +706,7 @@ static void disk(int sign, int nSlice, int nStack) {
     v3[2] = sign;
 
     // make triangle
-    if (sign>0) {
+    if (sign > 0) {
       glVertex3fv(v1);
       glVertex3fv(v2);
       glVertex3fv(v3);
@@ -720,11 +721,11 @@ static void disk(int sign, int nSlice, int nStack) {
   // the rest: use quads
   glBegin(GL_QUADS);
   glNormal3fv(normal);
-  for (int i=0; i<nStack-1; i++) {
+  for (int i=0; i < nStack-1; i++) {
     r1 = (i+1) / (float)nStack;
     r2 = (i+2) / (float)nStack;
 
-    for (int j=0; j<nSlice; j++) {
+    for (int j=0; j < nSlice; j++) {
       az1 = (2.0f*mjPI * (j+0)) / (float)nSlice;
       az2 = (2.0f*mjPI * (j+1)) / (float)nSlice;
 
@@ -735,7 +736,7 @@ static void disk(int sign, int nSlice, int nStack) {
       setVertexDisk(v4, az1, r1, sign);
 
       // make quad
-      if (sign>0) {
+      if (sign > 0) {
         glVertex3fv(v1);
         glVertex3fv(v2);
         glVertex3fv(v3);
@@ -778,7 +779,7 @@ static void cone(int nSlice, int nStack) {
   // pole: use triangles
   glBegin(GL_TRIANGLES);
   r1 = 1.0f / (float)nStack;
-  for (int j=0; j<nSlice; j++) {
+  for (int j=0; j < nSlice; j++) {
     az1 = (2.0f*mjPI * (j+0)) / (float)nSlice;
     az2 = (2.0f*mjPI * (j+1)) / (float)nSlice;
 
@@ -804,11 +805,11 @@ static void cone(int nSlice, int nStack) {
 
   // the rest: use quads
   glBegin(GL_QUADS);
-  for (int i=0; i<nStack-1; i++) {
+  for (int i=0; i < nStack-1; i++) {
     r1 = (i+1) / (float)nStack;
     r2 = (i+2) / (float)nStack;
 
-    for (int j=0; j<nSlice; j++) {
+    for (int j=0; j < nSlice; j++) {
       az1 = (2.0f*mjPI * (j+0)) / (float)nSlice;
       az2 = (2.0f*mjPI * (j+1)) / (float)nSlice;
 
@@ -854,11 +855,11 @@ static void cylinder(int nSlice, int nStack) {
 
   // use quads everywhere
   glBegin(GL_QUADS);
-  for (int i=0; i<nStack; i++) {
+  for (int i=0; i < nStack; i++) {
     h1 = 2*(i+0)/(float)nStack - 1;
     h2 = 2*(i+1)/(float)nStack - 1;
 
-    for (int j=0; j<nSlice; j++) {
+    for (int j=0; j < nSlice; j++) {
       az1 = (2.0f*mjPI * (j+0)) / (float)nSlice;
       az2 = (2.0f*mjPI * (j+1)) / (float)nSlice;
 
@@ -906,11 +907,11 @@ static void haze(int nSlice, float r, const float* rgba) {
   glNormal3f(0, 0, 1);
 
   // stacks = 2
-  for (int i=0; i<2; i++) {
-    float h1 = (i==0 ? 0 : h);
-    float h2 = (i==0 ? h : 1);
+  for (int i=0; i < 2; i++) {
+    float h1 = (i == 0 ? 0 : h);
+    float h2 = (i == 0 ? h : 1);
 
-    for (int j=0; j<nSlice; j++) {
+    for (int j=0; j < nSlice; j++) {
       float az1 = (2.0f*mjPI * (j+0)) / (float)nSlice;
       float az2 = (2.0f*mjPI * (j+1)) / (float)nSlice;
 
@@ -922,8 +923,8 @@ static void haze(int nSlice, float r, const float* rgba) {
       setVertexHaze(v4, az1, h2, r);
 
       // colors at elevation h1 and h2
-      float c1 = (i==1);
-      float c2 = (i==0);
+      float c1 = (i == 1);
+      float c2 = (i == 0);
 
       // make quad, with colors
       glColor4f(rgba[0], rgba[1], rgba[2], c1);
@@ -984,8 +985,8 @@ static void makeBuiltin(const mjModel* m, mjrContext* con) {
   // box
   glNewList(con->baseBuiltin + mjrBOX, GL_COMPILE);
   glBegin(GL_QUADS);
-  for (int x=0; x<numquads; x++) {
-    for (int y=0; y<numquads; y++) {
+  for (int x=0; x < numquads; x++) {
+    for (int y=0; y < numquads; y++) {
       glNormal3f(0, 0, 1);                        // top
       glVertex3f(d*(x+0)-1, d*(y+0)-1, 1);
       glVertex3f(d*(x+1)-1, d*(y+0)-1, 1);
@@ -1075,7 +1076,7 @@ static void makeShadow(const mjModel* m, mjrContext* con) {
 
   // check FBO status
   GLenum err = glCheckFramebufferStatus(GL_FRAMEBUFFER);
-  if (err!=GL_FRAMEBUFFER_COMPLETE) {
+  if (err != GL_FRAMEBUFFER_COMPLETE) {
     mju_error("Shadow framebuffer is not complete, error 0x%x", err);
   }
 
@@ -1101,7 +1102,7 @@ static void makeOff(mjrContext* con) {
   // clamp samples request
   int sMax = 0;
   glGetIntegerv(GL_MAX_SAMPLES, &sMax);
-  if (con->offSamples>sMax) {
+  if (con->offSamples > sMax) {
     con->offSamples = sMax;
   }
 
@@ -1136,7 +1137,7 @@ static void makeOff(mjrContext* con) {
 
   // check FBO status
   GLenum err = glCheckFramebufferStatus(GL_FRAMEBUFFER);
-  if (err!=GL_FRAMEBUFFER_COMPLETE) {
+  if (err != GL_FRAMEBUFFER_COMPLETE) {
     mju_error("Offscreen framebuffer is not complete, error 0x%x", err);
   }
 
@@ -1174,7 +1175,7 @@ static void makeOff(mjrContext* con) {
 
     // check FBO status
     GLenum err = glCheckFramebufferStatus(GL_FRAMEBUFFER);
-    if (err!=GL_FRAMEBUFFER_COMPLETE) {
+    if (err != GL_FRAMEBUFFER_COMPLETE) {
       mju_error("Offscreen framebuffer_r is not complete, error 0x%x", err);
     }
   }
@@ -1240,14 +1241,14 @@ static void makeFont(mjrContext* con, int fontscale) {
   con->baseFontNormal = glGenLists(con->rangeFont);
   con->baseFontShadow = glGenLists(con->rangeFont);
   con->baseFontBig = glGenLists(con->rangeFont);
-  if (con->baseFontNormal==0 || con->baseFontShadow==0 || con->baseFontBig==0) {
+  if (con->baseFontNormal == 0 || con->baseFontShadow == 0 || con->baseFontBig == 0) {
     mju_error("Could not allocate font lists");
   }
 
   // loop over printable characters (32-126)
-  for (unsigned char i=32; i<=126; i++) {
+  for (unsigned char i=32; i <= 126; i++) {
     // assert character code; SHOULD NOT OCCUR
-    if (font_normal[adr]!=i || font_back[adr]!=i || font_big[adr_big]!=i) {
+    if (font_normal[adr] != i || font_back[adr] != i || font_big[adr_big] != i) {
       mju_error("Invalid font data index");
     }
 
@@ -1285,7 +1286,7 @@ static void makeFont(mjrContext* con, int fontscale) {
   }
 
   // assert 123 termination token; SHOULD NOT OCCUR
-  if (font_normal[adr]!=123 || font_back[adr]!=123 || font_big[adr_big]!=123) {
+  if (font_normal[adr] != 123 || font_back[adr] != 123 || font_big[adr_big] != 123) {
     mju_error("Invalid font data termination");
   }
 }
@@ -1295,7 +1296,7 @@ static void makeFont(mjrContext* con, int fontscale) {
 // make textures
 static void makeTexture(const mjModel* m, mjrContext* con) {
   // checks size
-  if (m->ntex>mjMAXTEXTURE) {
+  if (m->ntex > mjMAXTEXTURE) {
     mju_error("Maximum number of textures is %d", mjMAXTEXTURE);
   }
 
@@ -1307,7 +1308,7 @@ static void makeTexture(const mjModel* m, mjrContext* con) {
 
   // allocate and upload
   glGenTextures(con->ntexture, con->texture);
-  for (int i=0; i<m->ntex; i++) {
+  for (int i=0; i < m->ntex; i++) {
     con->textureType[i] = m->tex_type[i];
     mjr_uploadTexture(m, con, i);
   }
@@ -1321,7 +1322,7 @@ void mjr_uploadTexture(const mjModel* m, const mjrContext* con, int texid) {
   float plane[4];
 
   // 2D texture
-  if (m->tex_type[texid]==mjTEXTURE_2D) {
+  if (m->tex_type[texid] == mjTEXTURE_2D) {
     // OpenGL settings
     glActiveTexture(GL_TEXTURE0);
     glEnable(GL_TEXTURE_2D);
@@ -1372,8 +1373,8 @@ void mjr_uploadTexture(const mjModel* m, const mjrContext* con, int texid) {
     glTexGenfv(GL_R, GL_OBJECT_PLANE, plane);
 
     // assign data: repeated
-    if (m->tex_width[texid]==m->tex_height[texid]) {
-      for (int i=0; i<6; i++) {
+    if (m->tex_width[texid] == m->tex_height[texid]) {
+      for (int i=0; i < 6; i++) {
         glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X+i, 0, GL_RGB, w, w, 0,
                      GL_RGB, GL_UNSIGNED_BYTE, m->tex_rgb + m->tex_adr[texid]);
       }
@@ -1381,7 +1382,7 @@ void mjr_uploadTexture(const mjModel* m, const mjrContext* con, int texid) {
 
     // assign data: separate faces
     else {
-      for (int i=0; i<6; i++) {
+      for (int i=0; i < 6; i++) {
         glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X+i, 0, GL_RGB, w, w, 0,
                      GL_RGB, GL_UNSIGNED_BYTE, m->tex_rgb + m->tex_adr[texid] + i*3*w*w);
       }
@@ -1417,9 +1418,9 @@ static void makeSkin(const mjModel* m, mjrContext* con) {
     glGenBuffers(nskin, con->skinfaceVBO);
 
     // process skins
-    for (int i=0; i<nskin; i++) {
+    for (int i=0; i < nskin; i++) {
       // texture coordinates
-      if (m->skin_texcoordadr[i]>=0) {
+      if (m->skin_texcoordadr[i] >= 0) {
         glBindBuffer(GL_ARRAY_BUFFER, con->skintexcoordVBO[i]);
         glBufferData(GL_ARRAY_BUFFER,
                      2*m->skin_vertnum[i]*sizeof(float),
@@ -1468,9 +1469,9 @@ void mjr_makeContext_offSize(const mjModel* m, mjrContext* con, int fontscale,
                              int default_offwidth, int default_offheight) {
   // fix fontscale
   fontscale = 50 * mju_round(((mjtNum)fontscale)/50.0);
-  if (fontscale<100) {
+  if (fontscale < 100) {
     fontscale = 100;
-  } else if (fontscale>300) {
+  } else if (fontscale > 300) {
     fontscale = 300;
   }
 
@@ -1493,9 +1494,9 @@ void mjr_makeContext_offSize(const mjModel* m, mjrContext* con, int fontscale,
     // determine window availability (could be EGL-headless)
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
     unsigned int status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
-    if (status==GL_FRAMEBUFFER_COMPLETE) {
+    if (status == GL_FRAMEBUFFER_COMPLETE) {
       con->windowAvailable = 1;
-    } else if (status==GL_FRAMEBUFFER_UNDEFINED) {
+    } else if (status == GL_FRAMEBUFFER_UNDEFINED) {
       con->windowAvailable = 0;
     } else {
       mju_error("Default framebuffer is not complete, error 0x%x", status);
@@ -1639,7 +1640,7 @@ void mjr_changeFont(int fontscale, mjrContext* con) {
 // Add Aux buffer to context; free previous Aux buffer.
 void mjr_addAux(int index, int width, int height, int samples, mjrContext* con) {
   // check index
-  if (index<0 || index>=mjNAUX) {
+  if (index < 0 || index >= mjNAUX) {
     mju_error("Invalid aux buffer index");
   }
 
@@ -1662,21 +1663,21 @@ void mjr_addAux(int index, int width, int height, int samples, mjrContext* con) 
   con->auxFBO_r[index] = 0;
 
   // return if size is not positive
-  if (width<1 || height<1) {
+  if (width < 1 || height < 1) {
     return;
   }
 
   // check max size
   int maxSize = 0;
   glGetIntegerv(GL_MAX_RENDERBUFFER_SIZE, &maxSize);
-  if (width>maxSize || height>maxSize) {
+  if (width > maxSize || height > maxSize) {
     mju_error("Auxiliary buffer size exceeds maximum allowed by OpenGL implementation");
   }
 
   // clamp samples request
   int maxSample = 0;
   glGetIntegerv(GL_MAX_SAMPLES, &maxSample);
-  if (samples>maxSample) {
+  if (samples > maxSample) {
     samples = maxSample;
   }
 
@@ -1705,7 +1706,7 @@ void mjr_addAux(int index, int width, int height, int samples, mjrContext* con) 
 
   // check FBO status
   GLenum err = glCheckFramebufferStatus(GL_FRAMEBUFFER);
-  if (err!=GL_FRAMEBUFFER_COMPLETE) {
+  if (err != GL_FRAMEBUFFER_COMPLETE) {
     mju_error("Auxiliary framebuffer is not complete, error 0x%x", err);
   }
 
@@ -1729,7 +1730,7 @@ void mjr_addAux(int index, int width, int height, int samples, mjrContext* con) 
 
   // check FBO status
   err = glCheckFramebufferStatus(GL_FRAMEBUFFER);
-  if (err!=GL_FRAMEBUFFER_COMPLETE) {
+  if (err != GL_FRAMEBUFFER_COMPLETE) {
     mju_error("Auxiliary framebuffer resolve is not complete, error 0x%x", err);
   }
 
@@ -1758,7 +1759,7 @@ void mjr_freeContext(mjrContext* con) {
   if (con->offFBO_r) glDeleteFramebuffers(1, &con->offFBO_r);
   if (con->shadowTex) glDeleteTextures(1, &con->shadowTex);
   if (con->shadowFBO) glDeleteFramebuffers(1, &con->shadowFBO);
-  for (int i=0; i<mjNAUX; i++) {
+  for (int i=0; i < mjNAUX; i++) {
     if (con->auxColor[i]) glDeleteRenderbuffers(1, con->auxColor + i);
     if (con->auxColor_r[i]) glDeleteRenderbuffers(1, con->auxColor_r + i);
     if (con->auxFBO[i]) glDeleteFramebuffers(1, con->auxFBO + i);

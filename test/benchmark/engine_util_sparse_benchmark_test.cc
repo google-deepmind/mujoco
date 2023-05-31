@@ -422,6 +422,7 @@ BENCHMARK(BM_MatVecSparse_1);
 
 static void BM_combineSparse(benchmark::State& state, CombineFuncPtr func) {
   static mjModel* m = LoadModelFromPath("humanoid/humanoid.xml");
+  m->opt.jacobian = mjJAC_SPARSE;
 
   mjData* d = mj_makeData(m);
 
