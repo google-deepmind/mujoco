@@ -16,8 +16,8 @@ been described elsewhere.
 
 .. _Motivation:
 
-Motivation for MuJoCo's convex soft contact model
--------------------------------------------------
+Motivation for soft contact model
+---------------------------------
 
 Robots as well as humans interact with their environment primarily through physical contact. Given the increasing
 importance of physics modeling in robotics, machine learning, animation, virtual reality, biomechanics and other fields,

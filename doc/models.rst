@@ -1,6 +1,6 @@
-======
-Models
-======
+=============
+Model Gallery
+=============
 
 .. _Menagerie:
 

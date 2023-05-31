@@ -263,7 +263,7 @@ now lazily resolved at runtime after the switch to GLAD, the "nogl" libraries ar
 .. toctree::
     :hidden:
 
-    samples
     simulation
     visualization
+    samples
     extension

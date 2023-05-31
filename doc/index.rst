@@ -12,8 +12,8 @@
    modeling
    XMLreference
    programming/index.rst
-   models
    APIreference/index.rst
    python
    unity
+   models
    changelog
