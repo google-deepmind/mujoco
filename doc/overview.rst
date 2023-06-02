@@ -787,9 +787,9 @@ properties.
 Sites are light geoms. They have the same appearance properties but cannot participate in collisions and cannot be used
 to infer body masses. On the other hand sites can do things that geoms cannot do: they can specify the volumes of touch
 sensors, the attachment of IMU sensors, the routing of spatial tendons, the end-points of slider-crank actuators. These
-are all spatial quantities, and yet they do not correspond to entities that should have mass or collide other entities
--- which is why the site element was created. Sites can also be used to specify points (or rather frames) of interest to
-the user.
+are all spatial quantities, and yet they do not correspond to entities that should have mass or collide with other
+entities -- which is why the site element was created. Sites can also be used to specify points (or rather frames) of
+interest to the user.
 
 The following example illustrates the point that multiple sites and geoms can be attached to the same body: two sites
 and two geoms to one body in this case.
