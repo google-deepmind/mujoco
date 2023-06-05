@@ -772,7 +772,7 @@ are two time constants specified with the attribute timeconst, namely :math:`\te
 <https://doi.org/10.1115/1.4023390>`__, the effective time constant :math:`\tau` is then computed at runtime as:
 
 .. math::
-   \tau(\texttt{ctrl}-\texttt{act}) =
+   \tau(\texttt{ctrl}, \texttt{act}) =
    \begin{cases}
       \tau_\text{act} \cdot (0.5 + 1.5\cdot\texttt{act}) & \texttt{ctrl}-\texttt{act} \gt 0 \\
       \tau_\text{deact} / (0.5 + 1.5\cdot\texttt{act}) & \texttt{ctrl} - \texttt{act} \leq 0
