@@ -1582,6 +1582,27 @@ The top-level function :ref:`mj_inverse` invokes the following sequence of compu
    equals the sum of external and actuation forces.
 
 
+.. _piReproducibility:
+
+Reproducibility
+~~~~~~~~~~~~~~~
+
+MuJoCo's simulation pipeline is entirely deterministic and reproducible -- if a :ref:`state<geState>` in a trajectory is
+saved and reloaded and :ref:`mj_step` called again, the resulting next state will be identical. However, there are some
+important caveats:
+
+- Save all the required :ref:`integration state<IntegrationState>` components. In particular :ref:`warmstart
+  accelerations<geWarmstart>` have only a very small effect on the next state, but should be saved if bit-wise equality
+  is required.
+- Any numerical difference between states, no matter how small, will become significant upon integration, especially for
+  systems with contact. Contact events have high `Lyapunov exponents
+  <https://en.wikipedia.org/wiki/Lyapunov_exponent>`__; this is a property of any rigid-body simulator (and indeed of
+  `real-world physics <https://en.wikipedia.org/wiki/Roulette>`__) and is not MuJoCo-specific.
+- Exact reproducibillity is only guaranteed within a **single version**. Small numerical differences are quite common
+  between versioned releases, for example due to code optimizations. This means that when saving an initial state and an
+  open-loop control sequence, the resulting rolled-out trajectory will be identical within the same version but will
+  likely be different between MuJoCo versions.
+
 .. _derivatives:
 
 Derivatives
