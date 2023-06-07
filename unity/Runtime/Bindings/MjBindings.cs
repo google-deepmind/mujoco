@@ -524,6 +524,7 @@ public unsafe struct mjContact_ {
   public double includemargin;
   public fixed double friction[5];
   public fixed double solref[2];
+  public fixed double solreffriction[2];
   public fixed double solimp[5];
   public double mu;
   public fixed double H[36];
@@ -2130,6 +2131,7 @@ public unsafe struct mjModel_ {
   public int* pair_geom2;
   public int* pair_signature;
   public double* pair_solref;
+  public double* pair_solreffriction;
   public double* pair_solimp;
   public double* pair_margin;
   public double* pair_gap;

@@ -993,9 +993,13 @@ void mj_diagApprox(const mjModel* m, mjData* d) {
 
 
 // get solref, solimp for specified constraint
-static void getsolparam(const mjModel* m, const mjData* d, int i, mjtNum* solref, mjtNum* solimp) {
+static void getsolparam(const mjModel* m, const mjData* d, int i,
+                        mjtNum* solref, mjtNum* solreffriction, mjtNum* solimp) {
   // get constraint id
   int id = d->efc_id[i];
+
+  // clear solreffriction (applies only to contacts)
+  mju_zero(solreffriction, mjNREF);
 
   // extract solver parameters from corresponding model element
   switch (d->efc_type[i]) {
@@ -1028,6 +1032,7 @@ static void getsolparam(const mjModel* m, const mjData* d, int i, mjtNum* solref
   case mjCNSTR_CONTACT_PYRAMIDAL:
   case mjCNSTR_CONTACT_ELLIPTIC:
     mju_copy(solref, d->contact[id].solref, mjNREF);
+    mju_copy(solreffriction, d->contact[id].solreffriction, mjNREF);
     mju_copy(solimp, d->contact[id].solimp, mjNIMP);
   }
 
@@ -1040,6 +1045,17 @@ static void getsolparam(const mjModel* m, const mjData* d, int i, mjtNum* solref
   // integrator safety: impose ref[0]>=2*timestep for standard format
   if (!mjDISABLED(mjDSBL_REFSAFE) && solref[0] > 0) {
     solref[0] = mju_max(solref[0], 2*m->opt.timestep);
+  }
+
+  // check reference format: standard or direct, cannot be mixed
+  if ((solreffriction[0] > 0) ^ (solreffriction[1] > 0)) {
+    mju_warning("solreffriction values should have the same sign, replacing with default");
+    mju_zero(solreffriction, mjNREF);  // default solreffriction is (0, 0)
+  }
+
+  // integrator safety: impose ref[0]>=2*timestep for standard format
+  if (!mjDISABLED(mjDSBL_REFSAFE) && solreffriction[0] > 0) {
+    solreffriction[0] = mju_max(solreffriction[0], 2*m->opt.timestep);
   }
 
   // enforce constraints on solimp
@@ -1149,12 +1165,12 @@ static void getimpedance(const mjtNum* solimp, mjtNum pos, mjtNum margin,
 void mj_makeImpedance(const mjModel* m, mjData* d) {
   int dim, nefc = d->nefc;
   mjtNum *R = d->efc_R, *KBIP = d->efc_KBIP;
-  mjtNum pos, imp, impP, Rpy, solref[mjNREF], solimp[mjNIMP];
+  mjtNum pos, imp, impP, Rpy, solref[mjNREF], solreffriction[mjNREF], solimp[mjNIMP];
 
   // set efc_R, efc_KBIP
   for (int i=0; i < nefc; i++) {
     // get solref and solimp
-    getsolparam(m, d, i, solref, solimp);
+    getsolparam(m, d, i, solref, solreffriction, solimp);
 
     // get pos and dim
     getposdim(m, d, i, &pos, &dim);
@@ -1167,32 +1183,36 @@ void mj_makeImpedance(const mjModel* m, mjData* d) {
       // R = (1-imp)/imp * diagApprox
       R[i+j] = mju_max(mjMINVAL, (1-imp)*d->efc_diagApprox[i+j]/imp);
 
-      // friction: K = 0
+      // constraint type
       int tp = d->efc_type[i+j];
-      if (tp == mjCNSTR_FRICTION_DOF ||
-          tp == mjCNSTR_FRICTION_TENDON ||
-          (tp == mjCNSTR_CONTACT_ELLIPTIC && j > 0)) {
+
+      // elliptic contacts use solreffriction in non-normal directions, if non-zero
+      int elliptic_friction = (tp == mjCNSTR_CONTACT_ELLIPTIC) && (j > 0);
+      mjtNum* ref = elliptic_friction && (solreffriction[0] || solreffriction[1]) ?
+          solreffriction : solref;
+
+      // friction: K = 0
+      if (tp == mjCNSTR_FRICTION_DOF || tp == mjCNSTR_FRICTION_TENDON || elliptic_friction) {
         KBIP[4*(i+j)] = 0;
       }
 
       // standard: K = 1 / (dmax^2 * timeconst^2 * dampratio^2)
-      else if (solref[0] > 0)
-        KBIP[4*(i+j)] = 1 / mju_max(mjMINVAL,
-                                    solimp[1]*solimp[1] * solref[0]*solref[0] * solref[1]*solref[1]);
+      else if (ref[0] > 0)
+        KBIP[4*(i+j)] = 1 / mju_max(mjMINVAL, solimp[1]*solimp[1] * ref[0]*ref[0] * ref[1]*ref[1]);
 
       // direct: K = -solref[0] / dmax^2
       else {
-        KBIP[4*(i+j)] = -solref[0] / mju_max(mjMINVAL, solimp[1]*solimp[1]);
+        KBIP[4*(i+j)] = -ref[0] / mju_max(mjMINVAL, solimp[1]*solimp[1]);
       }
 
       // standard: B = 2 / (dmax*timeconst)
-      if (solref[1] > 0) {
-        KBIP[4*(i+j)+1] = 2 / mju_max(mjMINVAL, solimp[1]*solref[0]);
+      if (ref[1] > 0) {
+        KBIP[4*(i+j)+1] = 2 / mju_max(mjMINVAL, solimp[1]*ref[0]);
       }
 
       // direct: B = -solref[1] / dmax
       else {
-        KBIP[4*(i+j)+1] = -solref[1] / mju_max(mjMINVAL, solimp[1]);
+        KBIP[4*(i+j)+1] = -ref[1] / mju_max(mjMINVAL, solimp[1]);
       }
 
       // I = imp, P = imp'

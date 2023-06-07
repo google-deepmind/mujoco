@@ -50,32 +50,33 @@ typedef enum mjtTimer_ {     // internal timers
 
   mjNTIMER                   // number of timers
 } mjtTimer;
-struct mjContact_ {          // result of collision detection functions
+struct mjContact_ {                // result of collision detection functions
   // contact parameters set by geom-specific collision detector
-  mjtNum  dist;              // distance between nearest points; neg: penetration
-  mjtNum  pos[3];            // position of contact point: midpoint between geoms
-  mjtNum  frame[9];          // normal is in [0-2]
+  mjtNum  dist;                    // distance between nearest points; neg: penetration
+  mjtNum  pos[3];                  // position of contact point: midpoint between geoms
+  mjtNum  frame[9];                // normal is in [0-2]
 
   // contact parameters set by mj_collideGeoms
-  mjtNum  includemargin;     // include if dist<includemargin=margin-gap
-  mjtNum  friction[5];       // tangent1, 2, spin, roll1, 2
-  mjtNum  solref[mjNREF];    // constraint solver reference
-  mjtNum  solimp[mjNIMP];    // constraint solver impedance
+  mjtNum  includemargin;           // include if dist<includemargin=margin-gap
+  mjtNum  friction[5];             // tangent1, 2, spin, roll1, 2
+  mjtNum  solref[mjNREF];          // constraint solver reference, normal direction
+  mjtNum  solreffriction[mjNREF];  // constraint solver reference, friction directions
+  mjtNum  solimp[mjNIMP];          // constraint solver impedance
 
   // internal storage used by solver
-  mjtNum  mu;                // friction of regularized cone, set by mj_makeConstraint
-  mjtNum  H[36];             // cone Hessian, set by mj_updateConstraint
+  mjtNum  mu;                      // friction of regularized cone, set by mj_makeConstraint
+  mjtNum  H[36];                   // cone Hessian, set by mj_updateConstraint
 
   // contact descriptors set by mj_collideGeoms
-  int     dim;               // contact space dimensionality: 1, 3, 4 or 6
-  int     geom1;             // id of geom 1
-  int     geom2;             // id of geom 2
+  int     dim;                     // contact space dimensionality: 1, 3, 4 or 6
+  int     geom1;                   // id of geom 1
+  int     geom2;                   // id of geom 2
 
   // flag set by mj_instantianteEquality
-  int     exclude;           // 0: include, 1: in gap, 2: fused, 3: no dofs
+  int     exclude;                 // 0: include, 1: in gap, 2: fused, 3: no dofs
 
   // address computed by mj_instantiateContact
-  int     efc_address;       // address in efc; -1: not included
+  int     efc_address;             // address in efc; -1: not included
 };
 typedef struct mjContact_ mjContact;
 struct mjWarningStat_ {      // warning statistics
@@ -1056,8 +1057,9 @@ struct mjModel_ {
   int*      pair_geom1;           // id of geom1                              (npair x 1)
   int*      pair_geom2;           // id of geom2                              (npair x 1)
   int*      pair_signature;       // (body1+1) << 16 + body2+1                (npair x 1)
-  mjtNum*   pair_solref;          // constraint solver reference: contact     (npair x mjNREF)
-  mjtNum*   pair_solimp;          // constraint solver impedance: contact     (npair x mjNIMP)
+  mjtNum*   pair_solref;          // solver reference: contact normal         (npair x mjNREF)
+  mjtNum*   pair_solreffriction;  // solver reference: contact friction       (npair x mjNREF)
+  mjtNum*   pair_solimp;          // solver impedance: contact                (npair x mjNIMP)
   mjtNum*   pair_margin;          // detect contact if dist<margin            (npair x 1)
   mjtNum*   pair_gap;             // include in solver if dist<margin-gap     (npair x 1)
   mjtNum*   pair_friction;        // tangent1, 2, spin, roll1, 2              (npair x 5)

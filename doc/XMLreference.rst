@@ -1630,6 +1630,8 @@ if omitted.
 
 .. _default-pair-solref:
 
+.. _default-pair-solreffriction:
+
 .. _default-pair-solimp:
 
 .. _default-pair-gap:
@@ -4298,6 +4300,20 @@ element.
 
 :at:`solref`, :at:`solimp`
    Constraint solver parameters for contact simulation. See :ref:`CSolver`.
+
+.. _contact-pair-solreffriction:
+
+:at:`solreffriction`: :at-val:`real, "0 0"`
+   Contact reference acceleration, in the friction dimensions. This attribute has the same semantics as other
+   :at:`solref` attributes (described in :ref:`CSolver`), with two important distictions:
+
+   - The default :at-val:`"0 0"` means "use the same values as :at:`solref`".
+   - This attribute only takes effect for :ref:`elliptic friction cones<option-cone>`, since pyramidal cones mix normal
+     and frictional forces.
+
+   Note that as with other :at:`solreffriction` attributes, the constraint violation is identically 0. Therefore, when
+   using positive semantics :at:`solreffriction[1]` is ignored, while for negative semantics :at:`solreffriction[0]` is
+   ignored. See :ref:`CSolver` for more details.
 
 .. _contact-pair-margin:
 
