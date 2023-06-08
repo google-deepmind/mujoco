@@ -800,15 +800,6 @@ MJAPI void mj_warning(mjData* d, int warning, int info);
 MJAPI void mju_writeLog(const char* type, const char* msg);
 
 
-//---------------------------------- Activation ----------------------------------------------------
-
-// Return 1 (for backward compatibility).
-MJAPI int mj_activate(const char* filename);
-
-// Do nothing (for backward compatibility).
-MJAPI void mj_deactivate(void);
-
-
 //---------------------------------- Standard math -------------------------------------------------
 
 #ifdef mjUSEDOUBLE

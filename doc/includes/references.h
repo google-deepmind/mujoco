@@ -2343,8 +2343,6 @@ void* mju_malloc(size_t size);
 void mju_free(void* ptr);
 void mj_warning(mjData* d, int warning, int info);
 void mju_writeLog(const char* type, const char* msg);
-int mj_activate(const char* filename);
-void mj_deactivate(void);
 void mju_zero3(mjtNum res[3]);
 void mju_copy3(mjtNum res[3], const mjtNum data[3]);
 void mju_scl3(mjtNum res[3], const mjtNum vec[3], mjtNum scl);

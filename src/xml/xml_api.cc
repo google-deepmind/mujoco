@@ -62,25 +62,13 @@ void GlobalModel::Clear() {
 }
 
 
-
 // single instance of global model, protected with mutex
 static GlobalModel themodel;
 static std::mutex themutex;
 
+
+
 //---------------------------------- Functions -----------------------------------------------------
-
-// Return 1 (for backward compatibility).
-int mj_activate(const char* filename) {
-  return 1;
-}
-
-
-
-// Do nothing (for backward compatibility).
-void mj_deactivate(void) {
-}
-
-
 
 // mj_loadXML helper function
 mjModel* _loadXML(const char* filename, int vfs_provider,

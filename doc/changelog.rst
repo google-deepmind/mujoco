@@ -102,6 +102,8 @@ General
   from the ``mjData`` stack and arena.
 - Removed ``pstack`` and ``parena`` from the output of ``mj_printData``, since these are implementation details of the
   ``mjData`` allocators that are affected by diagnostic paddings in instrumented builds.
+- Removed the ``mj_activate`` and ``mj_deactivate`` functions. These had been kept around for compatibility with old
+  user code from when MuJoCo was closed source, but have been no-op functions since open sourcing.
 
 
 Version 2.3.5 (April 25, 2023)

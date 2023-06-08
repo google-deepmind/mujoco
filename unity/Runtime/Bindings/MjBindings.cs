@@ -3545,12 +3545,6 @@ public static unsafe extern void mj_warning(mjData_* d, int warning, int info);
 public static unsafe extern void mju_writeLog([MarshalAs(UnmanagedType.LPStr)]string type, [MarshalAs(UnmanagedType.LPStr)]string msg);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
-public static unsafe extern int mj_activate([MarshalAs(UnmanagedType.LPStr)]string filename);
-
-[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
-public static unsafe extern void mj_deactivate();
-
-[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern void mju_zero3(double* res);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]

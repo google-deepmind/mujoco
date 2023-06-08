@@ -2020,31 +2020,6 @@ mju_writeLog
 
 Write [datetime, type: message] to MUJOCO_LOG.TXT.
 
-.. _Activation:
-
-Activation
-^^^^^^^^^^
-
-The functions in this section are maintained for backward compatibility with the now-removed activation mechanism.
-
-.. _mj_activate:
-
-mj_activate
-~~~~~~~~~~~
-
-.. mujoco-include:: mj_activate
-
-Return 1 (for backward compatibility).
-
-.. _mj_deactivate:
-
-mj_deactivate
-~~~~~~~~~~~~~
-
-.. mujoco-include:: mj_deactivate
-
-Do nothing (for backward compatibility).
-
 .. _Standardmath:
 
 Standard math

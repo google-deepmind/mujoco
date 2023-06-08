@@ -42,10 +42,6 @@ PYBIND11_MODULE(_functions, pymodule) {
   // for MjWrapper types and therefore generates prettier docstrings.
   py::module::import("mujoco._structs");
 
-  // Activation
-  Def<traits::mj_activate>(pymodule);
-  Def<traits::mj_deactivate>(pymodule);
-
   // Virtual file system
   // Skipped entire section
 
