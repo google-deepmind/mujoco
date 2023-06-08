@@ -58,7 +58,7 @@ int finish(const char* msg = NULL, mjModel* m = NULL) {
     std::printf("%s\n", msg);
   }
 
-  return 0;
+  return EXIT_SUCCESS;
 }
 
 std::vector<mjtNum> CtrlNoise(const mjModel* m, int nsteps, mjtNum ctrlnoise) {

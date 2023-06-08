@@ -44,7 +44,7 @@ int finish(const char* msg = 0, mjModel* m = 0, mjData* d = 0) {
     std::printf("%s\n", msg);
   }
 
-  return 0;
+  return EXIT_SUCCESS;
 }
 
 

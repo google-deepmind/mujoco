@@ -284,7 +284,7 @@ int main(int argc, char** argv) {
   // print help if not enough arguments
   if (argc<2) {
     std::printf("\n Arguments: modelfile [nthread niter nwarmup nepoch nstep eps]\n\n");
-    return 1;
+    return EXIT_FAILURE;
   }
 
   // default nthread = number of logical cores (usually optimal)
@@ -313,13 +313,13 @@ int main(int argc, char** argv) {
   // check number of threads
   if (nthread<1 || nthread>MAXTHREAD) {
     std::printf("nthread must be between 1 and %d\n", MAXTHREAD);
-    return 1;
+    return EXIT_FAILURE;
   }
 
   // check number of epochs
   if (nepoch<1 || nepoch>MAXEPOCH) {
     std::printf("nepoch must be between 1 and %d\n", MAXEPOCH);
-    return 1;
+    return EXIT_FAILURE;
   }
 
   // load model
@@ -331,7 +331,7 @@ int main(int argc, char** argv) {
   }
   if (!m) {
     std::printf("Could not load modelfile '%s'\n", argv[1]);
-    return 1;
+    return EXIT_FAILURE;
   }
 
   // print arguments
@@ -435,5 +435,5 @@ int main(int argc, char** argv) {
     mj_deleteData(d[n]);
   }
   mj_deleteModel(m);
-  return 0;
+  return EXIT_SUCCESS;
 }

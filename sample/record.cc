@@ -219,7 +219,7 @@ int main(int argc, const char** argv) {
   // check command-line arguments
   if (argc!=5) {
     std::printf(" USAGE:  record modelfile duration fps rgbfile\n");
-    return 0;
+    return EXIT_SUCCESS;
   }
 
   // parse numeric arguments
@@ -313,5 +313,5 @@ int main(int argc, const char** argv) {
   closeMuJoCo();
   closeOpenGL();
 
-  return 1;
+  return EXIT_SUCCESS;
 }
