@@ -2619,8 +2619,8 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, int vfs_provider) {
   }
 
   // sort pair, exclude in increasing signature order; reassign ids
-  sort(pairs.begin(), pairs.end(), comparePair);
-  sort(excludes.begin(), excludes.end(), compareBodyPair);
+  std::stable_sort(pairs.begin(), pairs.end(), comparePair);
+  std::stable_sort(excludes.begin(), excludes.end(), compareBodyPair);
   reassignid(pairs);
   reassignid(excludes);
 
