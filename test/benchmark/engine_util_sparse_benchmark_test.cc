@@ -20,6 +20,7 @@
 #include <absl/base/attributes.h>
 #include <mujoco/mjdata.h>
 #include <mujoco/mujoco.h>
+#include "src/engine/engine_support.h"
 #include "src/engine/engine_util_sparse.h"
 #include "test/fixture.h"
 
@@ -458,7 +459,7 @@ static void BM_combineSparse(benchmark::State& state, CombineFuncPtr func) {
                       d->efc_JT_colind, d->efc_JT_rowsuper, d);
 
   // compute H = M + J'*D*J
-  mj_addM(m, d, H, rownnz, rowadr, colind);
+  mj_addMSparse(m, d, H, rownnz, rowadr, colind);
 
   // time benchmark
   for (auto s : state) {
