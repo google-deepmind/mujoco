@@ -66,7 +66,7 @@ General
 - Added :ref:`mjContact.solreffriction<mjContact>`, allowing different :ref:`solref<CSolver>` parameters for the normal
   and frictional axes of contacts when using :ref:`elliptic friction cones<option-cone>`.  This attribute is required
   for elastic frictional collisions, see associated
-  `example model <https://github.com/deepmind/mujoco/blob/main/test/engine/testdata/bounce_recoil.xml>`__ mimicking the
+  `example model <https://github.com/deepmind/mujoco/blob/main/test/engine/testdata/spin_recoil.xml>`__ mimicking the
   spin-bounce recoil behaviour of `elastic rubber balls <https://www.youtube.com/watch?v=uFLJcRegIVQ&t=3s>`__.
   This is an advanced option currently only supported by explicit :ref:`contact pairs<contact-pair>`, using the
   :ref:`solreffriction<contact-pair-solreffriction>` attribute.
