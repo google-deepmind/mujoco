@@ -346,6 +346,18 @@ Data
 The enums below are defined in `mjdata.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjdata.h>`_.
 
 
+
+.. _mjtState:
+
+mjtState
+~~~~~~~~
+
+State component elements as integer bitflags and several convenient combinations of these flags. Used by
+:ref:`mj_getState`, :ref:`mj_setState` and :ref:`mj_stateSize`.
+
+.. mujoco-include:: mjtState
+
+
 .. _mjtWarning:
 
 mjtWarning

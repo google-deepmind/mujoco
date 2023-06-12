@@ -36,6 +36,8 @@
   #endif
 #endif
 
+//-------------------------- Constants -------------------------------------------------------------
+
  #define mjVERSION 236
 #define mjVERSIONSTRING "2.3.6"
 
@@ -84,6 +86,119 @@ const char* mjTIMERSTRING[mjNTIMER]= {
   "pos_make",
   "pos_project"
 };
+
+
+
+//-------------------------- get/set state ---------------------------------------------------------
+
+// return size of a single state element
+static inline int mj_stateElemSize(const mjModel* m, mjtState spec) {
+  switch (spec) {
+    case mjSTATE_TIME:          return 1;
+    case mjSTATE_QPOS:          return m->nq;
+    case mjSTATE_QVEL:          return m->nv;
+    case mjSTATE_ACT:           return m->na;
+    case mjSTATE_WARMSTART:     return m->nv;
+    case mjSTATE_CTRL:          return m->nu;
+    case mjSTATE_QFRC_APPLIED:  return m->nv;
+    case mjSTATE_XFRC_APPLIED:  return 6*m->nbody;
+    case mjSTATE_MOCAP_POS:     return 3*m->nmocap;
+    case mjSTATE_MOCAP_QUAT:    return 4*m->nmocap;
+    case mjSTATE_USERDATA:      return m->nuserdata;
+    case mjSTATE_PLUGIN:        return m->npluginstate;
+    default:
+      mju_error("mju_stateElementSize: invalid state element %u", spec);
+      return 0;
+  }
+}
+
+
+
+// return pointer to a single state element
+static inline mjtNum* mj_stateElemPtr(const mjModel* m, mjData* d, mjtState spec) {
+  switch (spec) {
+    case mjSTATE_TIME:          return &d->time;
+    case mjSTATE_QPOS:          return d->qpos;
+    case mjSTATE_QVEL:          return d->qvel;
+    case mjSTATE_ACT:           return d->act;
+    case mjSTATE_WARMSTART:     return d->qacc_warmstart;
+    case mjSTATE_CTRL:          return d->ctrl;
+    case mjSTATE_QFRC_APPLIED:  return d->qfrc_applied;
+    case mjSTATE_XFRC_APPLIED:  return d->xfrc_applied;
+    case mjSTATE_MOCAP_POS:     return d->mocap_pos;
+    case mjSTATE_MOCAP_QUAT:    return d->mocap_quat;
+    case mjSTATE_USERDATA:      return d->userdata;
+    case mjSTATE_PLUGIN:        return d->plugin_state;
+    default:
+      mju_error("mju_stateElemPtr: invalid state element %u", spec);
+      return NULL;
+  }
+}
+
+
+
+static inline const mjtNum* mj_stateElemConstPtr(const mjModel* m, const mjData* d, mjtState spec) {
+  return mj_stateElemPtr(m, (mjData*) d, spec);  // discard const qualifier from d
+}
+
+
+
+// get size of state specification
+int mj_stateSize(const mjModel* m, unsigned int spec) {
+  if (spec >= (1<<mjNSTATE)) {
+    mju_error("mj_stateSize: invalid state spec %u >= 2^mjNSTATE", spec);
+  }
+
+  int size = 0;
+  for (int i=0; i < mjNSTATE; i++) {
+    mjtState element = 1<<i;
+    if (element & spec) {
+      size += mj_stateElemSize(m, element);
+    }
+  }
+
+  return size;
+}
+
+
+
+// get state
+void mj_getState(const mjModel* m, const mjData* d, mjtNum* state, unsigned int spec) {
+  if (spec >= (1<<mjNSTATE)) {
+    mju_error("mj_getState: invalid state spec %u >= 2^mjNSTATE", spec);
+  }
+
+  int adr = 0;
+  for (int i=0; i < mjNSTATE; i++) {
+    mjtState element = 1<<i;
+    if (element & spec) {
+      int size = mj_stateElemSize(m, element);
+      const mjtNum* ptr = mj_stateElemConstPtr(m, d, element);
+      mju_copy(state + adr, ptr, size);
+      adr += size;
+    }
+  }
+}
+
+
+
+// set state
+void mj_setState(const mjModel* m, mjData* d, const mjtNum* state, unsigned int spec) {
+  if (spec >= (1<<mjNSTATE)) {
+    mju_error("mj_setState: invalid state spec %u >= 2^mjNSTATE", spec);
+  }
+
+  int adr = 0;
+  for (int i=0; i < mjNSTATE; i++) {
+    mjtState element = 1<<i;
+    if (element & spec) {
+      int size = mj_stateElemSize(m, element);
+      mjtNum* ptr = mj_stateElemPtr(m, d, element);
+      mju_copy(ptr, state + adr, size);
+      adr += size;
+    }
+  }
+}
 
 
 
