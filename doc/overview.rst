@@ -80,19 +80,21 @@ Model compilation
    the built-in compiler into the low-level data structure :ref:`mjModel`, which is cross-indexed and optimized for
    runtime computation. The compiled model can also be saved in a binary MJB file.
 
+.. _ModelAndData:
+
 Separation of model and data
    MuJoCo separates simulation parameters into two data structures (C structs) at runtime:
 
-   -  ``mjModel`` contains the model description and is expected to remain constant. There are other structures embedded
-      in it that contain simulation and visualization options, and those options need to be changed occasionally, but
-      this is done by the user.
-   -  ``mjData`` contains all dynamic variables and intermediate results. It is used as a scratch pad where all
+   -  :ref:`mjModel` contains the model description and is expected to remain constant. There are other structures
+      embedded in it that contain simulation and visualization options, and those options need to be changed
+      occasionally, but this is done by the user.
+   -  :ref:`mjData` contains all dynamic variables and intermediate results. It is used as a scratch pad where all
       functions read their inputs and write their outputs -- which then become the inputs to subsequent stages in the
       simulation pipeline. It also contains a preallocated and internally managed stack, so that the runtime module
       does not need to call memory allocation functions after the model is initialized.
 
-   ``mjModel`` is constructed by the compiler. :ref:`mjData` is constructed at runtime, given
-   ``mjModel``. This separation makes it easy to simulate multiple models as well as multiple states and controls for
+   :ref:`mjModel` is constructed by the compiler. :ref:`mjData` is constructed at runtime, given
+   :ref:`mjModel`. This separation makes it easy to simulate multiple models as well as multiple states and controls for
    each model, in turn facilitating :ref:`multi-threading <siMultithread>` for sampling and :ref:`finite
    differences <saDerivative>`. The top-level API functions reflect this basic separation, and have
    the format:
