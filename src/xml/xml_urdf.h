@@ -34,9 +34,12 @@ class mjXURDF : public mjXBase {
   mjXURDF();                                          // constructor
   virtual ~mjXURDF();                                 // destructor
 
+  // parse and set frame of base link and append a prefix to the name
+  void Parse(tinyxml2::XMLElement* root, const std::string& prefix, double* pos, double* quat);                           // parse and set frame of base link
   void Parse(tinyxml2::XMLElement* root);             // main parser
 
  private:
+  std::string GetPrefixedName(const std::string& name);            // get prefix/name of element
   int FindName(std::string name, std::vector<std::string>& list);  // find name in list
   void AddName(std::string name, std::vector<std::string>& list);  // add name to list
   void AddBody(std::string name);                                  // add body to local table
@@ -57,6 +60,8 @@ class mjXURDF : public mjXBase {
   std::vector<std::string> urMat;               // material name
   std::vector<mjRGBA> urRGBA;                   // material RBG value
   std::unordered_set<std::string> urGeomNames;  // geom name
+
+  std::string urPrefix;                         // prefix to apply to all names
 };
 
 #endif  // THIRD_PARTY_MUJOCO_SRC_XML_XML_URDF_

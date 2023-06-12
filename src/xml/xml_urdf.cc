@@ -68,18 +68,25 @@ void mjXURDF::Clear(void) {
   urGeomNames.clear();
 }
 
-
+std::string mjXURDF::GetPrefixedName(const std::string& name) {
+  if (name.empty()) {
+    return name;
+  }
+  if (urPrefix.empty()) {
+    return name;
+  }
+  return urPrefix + "/" + name;
+}
 
 // actual parser
-void mjXURDF::Parse(XMLElement* root) {
+void mjXURDF::Parse(XMLElement* root, const std::string& prefix, double* pos, double* quat) {
   std::string name, text;
   XMLElement *elem, *temp;
   int id_parent, id_child;
+  urPrefix = prefix;
 
   // set compiler defaults suitable for URDF
-  model->strippath = true;
   model->discardvisual = true;
-  model->fusestatic = true;
 
   // parse MuJoCo sections (not part of URDF)
   XMLElement* mjc = FindSubElem(root, "mujoco");
@@ -114,6 +121,7 @@ void mjXURDF::Parse(XMLElement* root) {
     name = elem->Value();
     if (name=="link") {
       ReadAttrTxt(elem, "name", text, true);
+      text = GetPrefixedName(text);
       AddBody(text);
     }
 
@@ -130,11 +138,13 @@ void mjXURDF::Parse(XMLElement* root) {
       // find parent, get name and id
       temp = FindSubElem(elem, "parent", true);
       ReadAttrTxt(temp, "link", text, true);
+      text = GetPrefixedName(text);
       id_parent = FindName(text, urName);
 
       // find child, get name and id
       temp = FindSubElem(elem, "child", true);
       ReadAttrTxt(temp, "link", text, true);
+      text = GetPrefixedName(text);
       id_child = FindName(text, urName);
 
       // make sure parent and child exist
@@ -188,9 +198,24 @@ void mjXURDF::Parse(XMLElement* root) {
     // advance to next element
     elem = elem->NextSiblingElement();
   }
+
+  // override the pose for the base link and add a free joint
+  for (int i = 0; i < (int)urName.size(); i++) {
+    if (urParent[i] < 0) {
+      mjCBody* pbody = (mjCBody*)model->GetWorld()->FindObject(mjOBJ_BODY, urName[i]);
+      mjuu_copyvec(pbody->pos, pos, 3);
+      mjuu_copyvec(pbody->quat, quat, 4);
+
+      // add a free joint to allow motion of the body
+      // if the mass is 0, assume the object is static
+      if (pbody->mass > 0) {
+        auto pjoint = pbody->AddJoint();
+        pjoint->name = urName[i] + "_free_joint";
+        pjoint->type = mjJNT_FREE;
+      }
+    }
+  }
 }
-
-
 
 // parse body/link
 void mjXURDF::Body(XMLElement* body_elem) {
@@ -201,11 +226,11 @@ void mjXURDF::Body(XMLElement* body_elem) {
 
   // get body name and pointer to mjCBody
   ReadAttrTxt(body_elem, "name", name, true);
+  name = GetPrefixedName(name);
   pbody = (mjCBody*) model->GetWorld()->FindObject(mjOBJ_BODY, name);
   if (!pbody) {
     throw mjXError(body_elem, "URDF body not found");  // SHOULD NOT OCCUR
   }
-
   // inertial element: copy into alternative body frame
   if ((elem = FindSubElem(body_elem, "inertial"))) {
     pbody->explicitinertial = true;
@@ -264,13 +289,13 @@ void mjXURDF::Body(XMLElement* body_elem) {
         // otherwise use material table
         else {
           ReadAttrTxt(temp, "name", name, true);
+          name = GetPrefixedName(name);
           int imat = FindName(name, urMat);
           if (imat>=0) {
             std::memcpy(rgba, urRGBA[imat].val, 4*sizeof(float));
           }
         }
       }
-
       // create geom if not discarded
       if (!model->discardvisual) {
         pgeom = Geom(elem, pbody, false);
@@ -282,6 +307,7 @@ void mjXURDF::Body(XMLElement* body_elem) {
 
         // save name if it doesn't already exist.
         mjXUtil::ReadAttrTxt(elem, "name", geom_name);
+        name = GetPrefixedName(name);
         if (urGeomNames.find(geom_name) == urGeomNames.end()) {
           pgeom->name = geom_name;
           urGeomNames.insert(geom_name);
@@ -304,6 +330,7 @@ void mjXURDF::Body(XMLElement* body_elem) {
 
       // save name if it doesn't already exist.
       mjXUtil::ReadAttrTxt(elem, "name", geom_name);
+      geom_name = GetPrefixedName(geom_name);
       if (urGeomNames.find(geom_name) == urGeomNames.end()) {
         pgeom->name = geom_name;
         urGeomNames.insert(geom_name);
@@ -313,13 +340,18 @@ void mjXURDF::Body(XMLElement* body_elem) {
                   << std::endl;
       }
     }
-
     // advance
     elem = elem->NextSiblingElement();
   }
 }
 
-
+void mjXURDF::Parse(XMLElement* root) {
+  double pos[3] = {0};
+  mjuu_setvec(pos, 0, 0, 0);
+  double quat[4] = {1, 0, 0, 0};
+  mjuu_setvec(quat, 1, 0, 0, 0);
+  Parse(root, /*prefix=*/"", pos, quat);
+}
 
 // parse joint
 void mjXURDF::Joint(XMLElement* joint_elem) {
@@ -340,6 +372,7 @@ void mjXURDF::Joint(XMLElement* joint_elem) {
   // get parent, check
   elem = FindSubElem(joint_elem, "parent", true);
   ReadAttrTxt(elem, "link", name, true);
+  name = GetPrefixedName(name);
   parent = (mjCBody*) model->GetWorld()->FindObject(mjOBJ_BODY, name);
   if (!parent) {                      // SHOULD NOT OCCUR
     throw mjXError(elem, "invalid parent name in URDF joint definition");
@@ -348,6 +381,7 @@ void mjXURDF::Joint(XMLElement* joint_elem) {
   // get child=this, check
   elem = FindSubElem(joint_elem, "child", true);
   ReadAttrTxt(elem, "link", name, true);
+  name = GetPrefixedName(name);
   pbody = (mjCBody*) model->GetWorld()->FindObject(mjOBJ_BODY, name);
   if (!pbody) {                       // SHOULD NOT OCCUR
     throw mjXError(elem, "invalid child name in URDF joint definition");

@@ -333,6 +333,12 @@ mjCModel* mjParseXML(const char* filename, int vfs_provider, char* error, int er
     else if (!strcasecmp(root->Value(), "robot")) {
       // parse URDF model
       mjXURDF parser;
+
+      // set reasonable default for parsing a URDF
+      // this is separate from the Parser to allow multiple URDFs to be loaded.
+      model->strippath = true;
+      model->fusestatic = true;
+
       parser.SetModel(model);
       parser.Parse(root);
     }
