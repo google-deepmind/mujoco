@@ -29,10 +29,9 @@ namespace {
 
 using ::testing::NotNull;
 
-static void run_parse_benchmark(const char *model_path, benchmark::State& state) {
+static void run_parse_benchmark(const std::string xml_path, benchmark::State& state) {
   MujocoErrorTestGuard guard;  // Fail test if there are any mujoco errors
 
-  const std::string xml_path = GetModelPath(model_path);
   std::array<char, 1024> error;
   for (auto s : state) {
     // TODO(nimrod): Load the models from VFS rather than from disk, to
@@ -42,7 +41,7 @@ static void run_parse_benchmark(const char *model_path, benchmark::State& state)
     ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error.data();
     mj_deleteModel(model);
   }
-  state.SetLabel(model_path);
+  state.SetLabel(xml_path);
 }
 
 // Use ABSL_ATTRIBUTE_NO_TAIL_CALL to make sure the benchmark functions appear
@@ -50,22 +49,22 @@ static void run_parse_benchmark(const char *model_path, benchmark::State& state)
 // run_parse_benchmark).
 
 void ABSL_ATTRIBUTE_NO_TAIL_CALL BM_ParseCloth(benchmark::State& state) {
-  run_parse_benchmark("composite/cloth.xml", state);
+  run_parse_benchmark(GetModelPath("composite/cloth.xml"), state);
 }
 BENCHMARK(BM_ParseCloth);
 
 void ABSL_ATTRIBUTE_NO_TAIL_CALL BM_ParseFlag(benchmark::State& state) {
-  run_parse_benchmark("flag/flag.xml", state);
+  run_parse_benchmark(GetModelPath("flag/flag.xml"), state);
 }
 BENCHMARK(BM_ParseFlag);
 
 void ABSL_ATTRIBUTE_NO_TAIL_CALL BM_ParseHumanoid(benchmark::State& state) {
-  run_parse_benchmark("humanoid/humanoid.xml", state);
+  run_parse_benchmark(GetModelPath("humanoid/humanoid.xml"), state);
 }
 BENCHMARK(BM_ParseHumanoid);
 
 void ABSL_ATTRIBUTE_NO_TAIL_CALL BM_ParseHumanoid100(benchmark::State& state) {
-  run_parse_benchmark("humanoid100/humanoid100.xml", state);
+  run_parse_benchmark(GetModelPath("humanoid100/humanoid100.xml"), state);
 }
 BENCHMARK(BM_ParseHumanoid100);
 
