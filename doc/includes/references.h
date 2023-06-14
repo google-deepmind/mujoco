@@ -16,6 +16,29 @@
 // Error: C reference not found
 // NOLINTBEGIN
 
+typedef enum mjtState_ {          // state elements
+  mjSTATE_TIME          = 1<<0,   // time
+  mjSTATE_QPOS          = 1<<1,   // position
+  mjSTATE_QVEL          = 1<<2,   // velocity
+  mjSTATE_ACT           = 1<<3,   // actuator activation
+  mjSTATE_WARMSTART     = 1<<4,   // acceleration used for warmstart
+  mjSTATE_CTRL          = 1<<5,   // control
+  mjSTATE_QFRC_APPLIED  = 1<<6,   // applied generalized force
+  mjSTATE_XFRC_APPLIED  = 1<<7,   // applied Cartesian force/torque
+  mjSTATE_MOCAP_POS     = 1<<8,   // positions of mocap bodies
+  mjSTATE_MOCAP_QUAT    = 1<<9,   // orientations of mocap bodies
+  mjSTATE_USERDATA      = 1<<10,  // user data
+  mjSTATE_PLUGIN        = 1<<11,  // plugin state
+
+  mjNSTATE              = 12,     // number of state elements
+
+  // convenience values for commonly used state specifications
+  mjSTATE_PHYSICS       = mjSTATE_QPOS | mjSTATE_QVEL | mjSTATE_ACT,
+  mjSTATE_FULLPHYSICS   = mjSTATE_PHYSICS | mjSTATE_TIME | mjSTATE_PLUGIN,
+  mjSTATE_USER          = mjSTATE_CTRL | mjSTATE_QFRC_APPLIED | mjSTATE_XFRC_APPLIED |
+                          mjSTATE_MOCAP_POS | mjSTATE_MOCAP_QUAT | mjSTATE_USERDATA,
+  mjSTATE_INTEGRATION   = mjSTATE_FULLPHYSICS | mjSTATE_USER | mjSTATE_WARMSTART
+} mjtState;
 typedef enum mjtWarning_ {   // warning types
   mjWARN_INERTIA      = 0,   // (near) singular inertia matrix
   mjWARN_CONTACTFULL,        // too many contacts in contact list
@@ -50,32 +73,33 @@ typedef enum mjtTimer_ {     // internal timers
 
   mjNTIMER                   // number of timers
 } mjtTimer;
-struct mjContact_ {          // result of collision detection functions
+struct mjContact_ {                // result of collision detection functions
   // contact parameters set by geom-specific collision detector
-  mjtNum  dist;              // distance between nearest points; neg: penetration
-  mjtNum  pos[3];            // position of contact point: midpoint between geoms
-  mjtNum  frame[9];          // normal is in [0-2]
+  mjtNum  dist;                    // distance between nearest points; neg: penetration
+  mjtNum  pos[3];                  // position of contact point: midpoint between geoms
+  mjtNum  frame[9];                // normal is in [0-2]
 
   // contact parameters set by mj_collideGeoms
-  mjtNum  includemargin;     // include if dist<includemargin=margin-gap
-  mjtNum  friction[5];       // tangent1, 2, spin, roll1, 2
-  mjtNum  solref[mjNREF];    // constraint solver reference
-  mjtNum  solimp[mjNIMP];    // constraint solver impedance
+  mjtNum  includemargin;           // include if dist<includemargin=margin-gap
+  mjtNum  friction[5];             // tangent1, 2, spin, roll1, 2
+  mjtNum  solref[mjNREF];          // constraint solver reference, normal direction
+  mjtNum  solreffriction[mjNREF];  // constraint solver reference, friction directions
+  mjtNum  solimp[mjNIMP];          // constraint solver impedance
 
   // internal storage used by solver
-  mjtNum  mu;                // friction of regularized cone, set by mj_makeConstraint
-  mjtNum  H[36];             // cone Hessian, set by mj_updateConstraint
+  mjtNum  mu;                      // friction of regularized cone, set by mj_makeConstraint
+  mjtNum  H[36];                   // cone Hessian, set by mj_updateConstraint
 
   // contact descriptors set by mj_collideGeoms
-  int     dim;               // contact space dimensionality: 1, 3, 4 or 6
-  int     geom1;             // id of geom 1
-  int     geom2;             // id of geom 2
+  int     dim;                     // contact space dimensionality: 1, 3, 4 or 6
+  int     geom1;                   // id of geom 1
+  int     geom2;                   // id of geom 2
 
   // flag set by mj_instantianteEquality
-  int     exclude;           // 0: include, 1: in gap, 2: fused, 3: no dofs
+  int     exclude;                 // 0: include, 1: in gap, 2: fused, 3: no dofs
 
   // address computed by mj_instantiateContact
-  int     efc_address;       // address in efc; -1: not included
+  int     efc_address;             // address in efc; -1: not included
 };
 typedef struct mjContact_ mjContact;
 struct mjWarningStat_ {      // warning statistics
@@ -624,6 +648,9 @@ struct mjResource_ {
 
   // closing callback from resource provider
   void (*close)(struct mjResource_* resource);
+
+  // getdir callback from resource provider
+  void (*getdir)(struct mjResource_* resource, const char** dir, int* ndir);
 };
 typedef struct mjResource_ mjResource;
 struct mjOption_ {                // physics options
@@ -986,6 +1013,8 @@ struct mjModel_ {
   int*      mesh_vertnum;         // number of vertices                       (nmesh x 1)
   int*      mesh_faceadr;         // first face address                       (nmesh x 1)
   int*      mesh_facenum;         // number of faces                          (nmesh x 1)
+  int*      mesh_bvhadr;          // address of bvh root                      (nmesh x 1)
+  int*      mesh_bvhnum;          // number of bvh                            (nmesh x 1)
   int*      mesh_normaladr;       // first normal address                     (nmesh x 1)
   int*      mesh_normalnum;       // number of normals                        (nmesh x 1)
   int*      mesh_texcoordadr;     // texcoord data address; -1: no texcoord   (nmesh x 1)
@@ -1051,8 +1080,9 @@ struct mjModel_ {
   int*      pair_geom1;           // id of geom1                              (npair x 1)
   int*      pair_geom2;           // id of geom2                              (npair x 1)
   int*      pair_signature;       // (body1+1) << 16 + body2+1                (npair x 1)
-  mjtNum*   pair_solref;          // constraint solver reference: contact     (npair x mjNREF)
-  mjtNum*   pair_solimp;          // constraint solver impedance: contact     (npair x mjNIMP)
+  mjtNum*   pair_solref;          // solver reference: contact normal         (npair x mjNREF)
+  mjtNum*   pair_solreffriction;  // solver reference: contact friction       (npair x mjNREF)
+  mjtNum*   pair_solimp;          // solver impedance: contact                (npair x mjNIMP)
   mjtNum*   pair_margin;          // detect contact if dist<margin            (npair x 1)
   mjtNum*   pair_gap;             // include in solver if dist<margin-gap     (npair x 1)
   mjtNum*   pair_friction;        // tangent1, 2, spin, roll1, 2              (npair x 5)
@@ -1198,11 +1228,12 @@ struct mjModel_ {
 };
 typedef struct mjModel_ mjModel;
 struct mjpResourceProvider_ {
-  const char* prefix;             // prefix for match against a resource name
-  mjfOpenResource open;           // opening callback
-  mjfReadResource read;           // reading callback
-  mjfCloseResource close;         // closing callback
-  void* data;                     // opaque data pointer (resource invariant)
+  const char* prefix;                // prefix for match against a resource name
+  mjfOpenResource open;              // opening callback
+  mjfReadResource read;              // reading callback
+  mjfCloseResource close;            // closing callback
+  mjfGetResourceDir getdir;          // getdir callback (optional)
+  void* data;                        // opaque data pointer (resource invariant)
 };
 typedef struct mjpResourceProvider_ mjpResourceProvider;
 typedef enum mjtPluginCapabilityBit_ {
@@ -1396,6 +1427,7 @@ typedef enum mjtItem_ {           // UI item type
   mjITEM_SLIDERNUM,               // slider, mjtNum value
   mjITEM_EDITINT,                 // editable array, int values
   mjITEM_EDITNUM,                 // editable array, mjtNum values
+  mjITEM_EDITFLOAT,               // editable array, float values
   mjITEM_EDITTXT,                 // editable text
 
   mjNITEM                         // number of item types
@@ -1662,6 +1694,7 @@ typedef enum mjtVisFlag_ {        // flags enabling model element visualization
   mjVIS_STATIC,                   // static bodies
   mjVIS_SKIN,                     // skin
   mjVIS_MIDPHASE,                 // mid-phase bounding volume hierarchy
+  mjVIS_MESHBVH,                  // mesh bounding volume hierarchy
 
   mjNVISFLAG                      // number of visualization flags
 } mjtVisFlag;
@@ -2166,6 +2199,9 @@ void mj_projectConstraint(const mjModel* m, mjData* d);
 void mj_referenceConstraint(const mjModel* m, mjData* d);
 void mj_constraintUpdate(const mjModel* m, mjData* d, const mjtNum* jar,
                          mjtNum cost[1], int flg_coneHessian);
+int mj_stateSize(const mjModel* m, unsigned int spec);
+void mj_getState(const mjModel* m, const mjData* d, mjtNum* state, unsigned int spec);
+void mj_setState(const mjModel* m, mjData* d, const mjtNum* state, unsigned int spec);
 int mj_addContact(const mjModel* m, mjData* d, const mjContact* con);
 int mj_isPyramidal(const mjModel* m);
 int mj_isSparse(const mjModel* m);
@@ -2207,6 +2243,9 @@ void mj_loadPluginLibrary(const char* path);
 void mj_loadAllPluginLibraries(const char* directory, mjfPluginLibraryLoadCallback callback);
 int mj_version(void);
 const char* mj_versionString();
+void mj_multiRay(const mjModel* m, mjData* d, const mjtNum pnt[3], const mjtNum* vec,
+                 const mjtByte* geomgroup, mjtByte flg_static, int bodyexclude,
+                 int* geomid, mjtNum* dist, int nray, mjtNum cutoff);
 mjtNum mj_ray(const mjModel* m, const mjData* d, const mjtNum pnt[3], const mjtNum vec[3],
               const mjtByte* geomgroup, mjtByte flg_static, int bodyexclude,
               int geomid[1]);
@@ -2330,8 +2369,6 @@ void* mju_malloc(size_t size);
 void mju_free(void* ptr);
 void mj_warning(mjData* d, int warning, int info);
 void mju_writeLog(const char* type, const char* msg);
-int mj_activate(const char* filename);
-void mj_deactivate(void);
 void mju_zero3(mjtNum res[3]);
 void mju_copy3(mjtNum res[3], const mjtNum data[3]);
 void mju_scl3(mjtNum res[3], const mjtNum vec[3], mjtNum scl);
@@ -2405,6 +2442,16 @@ void mju_trnVecPose(mjtNum res[3], const mjtNum pos[3], const mjtNum quat[4],
 int mju_cholFactor(mjtNum* mat, int n, mjtNum mindiag);
 void mju_cholSolve(mjtNum* res, const mjtNum* mat, const mjtNum* vec, int n);
 int mju_cholUpdate(mjtNum* mat, mjtNum* x, int n, int flg_plus);
+mjtNum mju_cholFactorBand(mjtNum* mat, int ntotal, int nband, int ndense,
+                          mjtNum diagadd, mjtNum diagmul);
+void mju_cholSolveBand(mjtNum* res, const mjtNum* mat, const mjtNum* vec,
+                       int ntotal, int nband, int ndense);
+void mju_band2Dense(mjtNum* res, const mjtNum* mat, int ntotal, int nband, int ndense,
+                    mjtByte flg_sym);
+void mju_dense2Band(mjtNum* res, const mjtNum* mat, int ntotal, int nband, int ndense);
+void mju_bandMulMatVec(mjtNum* res, const mjtNum* mat, const mjtNum* vec,
+                       int ntotal, int nband, int ndense, int nvec, mjtByte flg_sym);
+int mju_bandDiag(int i, int ntotal, int nband, int ndense);
 int mju_eig3(mjtNum eigval[3], mjtNum eigvec[9], mjtNum quat[4], const mjtNum mat[9]);
 int mju_boxQP(mjtNum* res, mjtNum* R, int* index, const mjtNum* H, const mjtNum* g, int n,
               const mjtNum* lower, const mjtNum* upper);
@@ -2414,7 +2461,7 @@ mjtNum mju_muscleGain(mjtNum len, mjtNum vel, const mjtNum lengthrange[2],
                       mjtNum acc0, const mjtNum prm[9]);
 mjtNum mju_muscleBias(mjtNum len, const mjtNum lengthrange[2],
                       mjtNum acc0, const mjtNum prm[9]);
-mjtNum mju_muscleDynamics(mjtNum ctrl, mjtNum act, const mjtNum prm[2]);
+mjtNum mju_muscleDynamics(mjtNum ctrl, mjtNum act, const mjtNum prm[3]);
 void mju_encodePyramid(mjtNum* pyramid, const mjtNum* force, const mjtNum* mu, int dim);
 void mju_decodePyramid(mjtNum* force, const mjtNum* pyramid, const mjtNum* mu, int dim);
 mjtNum mju_springDamper(mjtNum pos0, mjtNum vel0, mjtNum Kp, mjtNum Kv, mjtNum dt);
@@ -2439,8 +2486,12 @@ void mju_insertionSortInt(int* list, int n);
 mjtNum mju_Halton(int index, int base);
 char* mju_strncpy(char *dst, const char *src, int n);
 mjtNum mju_sigmoid(mjtNum x);
-void mjd_transitionFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte centered,
+void mjd_transitionFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte flg_centered,
                       mjtNum* A, mjtNum* B, mjtNum* C, mjtNum* D);
+void mjd_inverseFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte flg_actuation,
+                   mjtNum *DfDq, mjtNum *DfDv, mjtNum *DfDa,
+                   mjtNum *DsDq, mjtNum *DsDv, mjtNum *DsDa,
+                   mjtNum *DmDq);
 void mjp_defaultPlugin(mjpPlugin* plugin);
 int mjp_registerPlugin(const mjpPlugin* plugin);
 int mjp_pluginCount();

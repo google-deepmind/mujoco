@@ -254,7 +254,7 @@ The solver :ref:`Parameters <soParameters>` section of the Computation chapter e
 algorithmic meaning of the quantities :math:`d, b, k` which determine the behavior of the constraints in MuJoCo. Here we
 explain how to set them. Setting is done indirectly, through the attributes :at:`solref` and :at:`solimp` which are
 available in all MJCF elements involving constraints. These parameters can be adjusted per constraint, or per defaults
-class, or left undefined - in which case MuJoCo uses the internal defaults shown below. Note also the override mechanism
+class, or left undefined -- in which case MuJoCo uses the internal defaults shown below. Note also the override mechanism
 available in :ref:`option <option>`; it can be used to change all contact-related solver parameters at runtime, so as to
 experiment interactively with parameter settings or implement continuation methods for numerical optimization.
 
@@ -271,80 +271,131 @@ approximately
 Again, the parameters that are under the user's control are :math:`d, b, k`. The remaining quantities are functions of
 the system state and are computed automatically at each time step.
 
-First we explain the setting of the impedance :math:`d`. Recall that :math:`d` must lie between 0 and 1; internally
-MuJoCo clamps it to the range [:ref:`mjMINIMP mjMAXIMP <glNumeric>`] which is currently set to [0.0001 0.9999]. It
-causes the solver to interpolate between the unforced acceleration :math:`a_0` and reference acceleration
-:math:`a_{\rm ref}`. Small values of :math:`d` correspond to soft/weak constraints while large values of :math:`d`
-correspond to strong/hard constraints. The user can set :math:`d` to a constant, or take advantage of its interpolating
-property and make it position-dependent, i.e., a function of :math:`r`. Position-dependent impedance can be used to
-model soft contact layers around objects, or define equality constraints that become stronger with larger violation (so
-as to approximate backlash for example). The shape of the function :math:`d(r)` is determined by the element-specific
-parameter vector :at:`solimp`.
+.. _CSolverImpedance:
+
+Impedance
+^^^^^^^^^
+
+We begin by explaining the constraint impedance :math:`d`.
+
+.. admonition:: Intuitive description
+
+   The *impedance* :math:`d \in (0, 1)` determines a constraint's **ability to generate force**.
+   Small values of :math:`d` correspond to weak constraints while large values of :math:`d`
+   correspond to strong constraints. Impedance is set using the :at:`solimp` attribute.
+
+Recall that :math:`d` must lie between 0 and 1; internally MuJoCo clamps it to the range [:ref:`mjMINIMP mjMAXIMP
+<glNumeric>`] which is currently set to [0.0001 0.9999]. It causes the solver to interpolate between the unforced
+acceleration :math:`a_0` and reference acceleration :math:`a_{\rm ref}`. The user can set :math:`d` to a constant, or
+take advantage of its interpolating property and make it position-dependent, i.e., a function of the constraint
+violation :math:`r`. Position-dependent impedance can be used to model soft contact layers around objects, or define
+equality constraints that become stronger with larger violation (so as to approximate backlash, for example). The shape
+of the function :math:`d(r)` is determined by the element-specific parameter vector :at:`solimp`.
 
 **solimp :** real(5), "0.9 0.95 0.001 0.5 2"
+   The five numbers (:math:`d_0`, :math:`d_\text{width}`, :math:`\text{width}`, :math:`\text{midpoint}`,
+   :math:`\text{power}`) parameterize :math:`d(r)` -- the impedance :math:`d` as a function of the constraint
+   violation :math:`r`.
 
-   The five numbers are (dmin, dmax, width, midpoint, power). They parameterize the function :math:`d(r)`. Prior to
-   MuJoCo 2.0 this attribute had three parameters, plus a global option specifying the shape of the function. In MuJoCo
-   2.0 we expanded the family of impedance functions while keeping it backward-compatible as follows. The user is
-   allowed to set only the first three parameters, whose defaults are the same as in prior releases. The defaults for
-   the last two parameters then generate the same function which was the default in prior releases (a sigmoid). The new
-   parameterization further allows the sigmoid to become shifted and skewed, as shown in the plots below for different
-   values of the additional parameters. The plots actually show two reflected sigmoids, because the impedance function
-   :math:`d(r)` depends on the absolute value of :math:`r`. This flexibility was added to allow better control of remote
-   contact forces, and can also be used for other constraints. The power (of the polynomial spline used to generate the
-   function) must be 1 or greater. The midpoint (specifying the inflection point) must be between 0 and 1, and is
-   expressed in units of width. Note that when the power is 1, the function is linear regardless of the midpoint.
+   The first 3 values indicate that the impedance will vary smoothly as :math:`r` varies from
+   :math:`0` to :math:`\text{width}`:
+
+   .. math::
+      d(0) = d_0, \quad d(\text{width}) = d_\text{width}
+
+   The 4th and 5th values, :math:`\text{midpoint}` and :math:`\text{power}`, control the shape of the sigmoidal
+   function that interpolates between :math:`d_0` and :math:`d_\text{width}`, as shown in the plots below.
+   The plots show two reflected sigmoids, because the impedance :math:`d(r)` depends on the absolute
+   value of :math:`r`. The :math:`\text{power}` (of the polynomial spline used to generate the function) must be 1 or
+   greater. The :math:`\text{midpoint}` (specifying the inflection point) must be between 0 and 1, and is expressed in
+   units of :math:`\text{width}`. Note that when :math:`\text{power}` is 1, the function is linear regardless of the
+   :math:`\text{midpoint}`.
+
    |image0|
 
    These plots show the impedance :math:`d(r)` on the vertical axis, as a function of the constraint violation :math:`r`
-   on the horizontal axis. The quantity :math:`r` is computed as follows. For equality constraints, :math:`r` equals the
-   constraint violation which can be either positive or negative. For friction loss or friction dimensions of elliptic
-   cones, :math:`r` is always 0. For limits, normal directions of elliptic cones and all directions of pyramidal cones,
-   :math:`r` is the (limit or contact) distance minus the margin at which the constraint becomes active; for contacts
-   this margin is actually margin-gap. Therefore limit and contact constraints are active when the corresponding
-   :math:`r` is negative.
+   on the horizontal axis.
 
-Next we explain the setting of the stiffness :math:`k` and damping :math:`b`. The idea here is to re-parameterize the
-model in terms of the time constant and damping ratio of the above mass-spring-damper system. By "time constant" we mean
-the inverse of the natural frequency times the damping ratio. Constraints whose residual is identically 0 have first-
-order dynamics and the mass-spring-damper analysis does not apply. In that case the time constant is the rate of
-exponential decay of the constraint velocity, and the damping ratio is ignored. In addition to this format, MuJoCo 2.0
-allows a second format where stiffness and damping are specified more directly.
+   For equality constraints, :math:`r` is the constraint violation. For limits, normal directions of elliptic cones and
+   all directions of pyramidal cones, :math:`r` is the (limit or contact) distance minus the margin at which the
+   constraint becomes active; for contacts this margin is :ref:`margin<body-geom-margin>`-:ref:`gap<body-geom-gap>`.
+   Limit and contact constraints are active when :math:`r < 0` (penetration).
+
+   For friction loss or friction dimensions of elliptic cones, the violation :math:`r` is identically zero, so
+   only :math:`d(0)` affects these constraints, all other :at:`solimp` values are ignored.
+
+   .. tip::
+      For completely smooth dynamics, limits and contacts should have :math:`d_0=0`.
+
+.. _CSolverReference:
+
+Reference
+^^^^^^^^^
+
+Next we explain the setting of the stiffness :math:`k` and damping :math:`b` which control the reference acceleration
+:math:`a_{\rm ref}`.
+
+.. admonition:: Intuitive description
+
+   The *reference acceleration* :math:`a_{\rm ref}` determines **what the constraint is trying to achieve** (as opposed
+   to how well it can achieve it). This acceleration is defined by two numbers, a stiffness :math:`k` and damping
+   :math:`b` which can be set directly or re-parameterized as the time-constant and damping ratio of a
+   mass-spring-damper system (a `harmonic oscillator <https://en.wikipedia.org/wiki/Harmonic_oscillator>`__).
+   The reference acceleration is controlled by the :at:`solref` attribute.
+
+There are two formats for this attribute, determined by the sign of the numbers. If both numbers are positive the
+specification is considered to be in the :math:`(\text{timeconst}, \text{dampratio})` format. If negative it is in the
+"direct" :math:`(-\text{stiffness}, -\text{damping})` format.
+
+Frictional constraints whose residual is identically 0 have first-order dynamics and the mass-spring-damper analysis
+below does not apply. In this case the time constant is the rate of exponential decay of the constraint velocity,
+and the damping ratio is ignored. Equivalently, in the direct format, the :math:`\text{stiffness}` is ignored.
 
 **solref :** real(2), "0.02 1"
-   There are two formats for this attribute, determined by the sign of the numbers. If both numbers are positive the
-   specification is considered to be in the :math:`(\text{timeconst}, \text{dampratio})` format which has been available
-   in MuJoCo all along. Otherwise the specification is considered to be in the new :math:`(-\text{stiffness}, -
-   \text{damping})`, format introduced in MuJoCo 2.0. We first describe the original format where the two numbers are
-   :math:`(\text{timeconst}, \text{dampratio})`. In this case we use a mass-spring-damper model to compute :math:`k, b`
-   after suitable scaling. Note that the effective stiffness :math:`d(r) \cdot k` and damping :math:`d(r) \cdot b` are
-   scaled by the impedance :math:`d(r)` which is a function of the distance :math:`r`. Thus we cannot always achieve the
-   specified mass-spring-damper properties, unless we completely undo the scaling by :math:`d`. But the latter is
-   undesirable because it would ruin the interpolating property, in particular the limit :math:`d=0` would no longer
-   disable the constraint. Instead we scale the stiffness and damping so that the damping ratio remains constant, while
-   the time constant increases when :math:`d(r)` gets smaller. The scaling formulas are
+   We first describe the default, positive-value format where the two numbers are
+   :math:`(\text{timeconst}, \text{dampratio})`.
+
+   The idea here is to re-parameterize the model in terms of the time constant and damping ratio of a mass-spring-damper
+   system. By "time constant" we mean the inverse of the natural frequency times the damping ratio. In this case we use
+   a mass-spring-damper model to compute :math:`k, b` after suitable scaling. Note that the effective stiffness
+   :math:`d(r) \cdot k` and damping :math:`d(r) \cdot b` are scaled by the impedance :math:`d(r)` which is a function of
+   the distance :math:`r`. Thus we cannot always achieve the specified mass-spring-damper properties, unless we
+   completely undo the scaling by :math:`d`. But the latter is undesirable because it would ruin the interpolating
+   property, in particular the limit :math:`d=0` would no longer disable the constraint. Instead we scale the stiffness
+   and damping so that the damping ratio remains constant, while the time constant increases when :math:`d(r)` gets
+   smaller. The scaling formulas are
 
    .. math::
       \begin{aligned}
-      b &= 2 / (d_\text{max}\cdot \text{timeconst}) \\
-      k &= d(r) / (d_\text{max}^2 \cdot \text{timeconst}^2 \cdot \text{dampratio}^2) \\
+      b &= 2 / (d_\text{width}\cdot \text{timeconst}) \\
+      k &= d(r) / (d_\text{width}^2 \cdot \text{timeconst}^2 \cdot \text{dampratio}^2) \\
       \end{aligned}
 
    The timeconst parameter should be at least two times larger than the simulation time step, otherwise the system can
    become too stiff relative to the numerical integrator (especially when Euler integration is used) and the simulation
-   can go unstable. This is enforced internally, unless the :at:`refsafe` attribute of :ref:`flag <option-flag>` is set
-   to false. The :math:`\text{dampratio}` parameter would normally be set to 1, corresponding to critical damping.
-   Smaller values result in under-damped or bouncy constraints, while larger values result in over-damped constraints.
-   Next we describe the new format where the two numbers are :math:`(-\text{stiffness}, -\text{damping})`. This allows
-   more direct control over restitution in particular. We still apply some scaling so that the same numbers can be used
-   with different impedances, but the scaling no longer depends on :math:`r` and the two numbers no longer interact. The
-   scaling formulas are
+   can go unstable. This is enforced internally, unless the :ref:`refsafe<option-flag-refsafe>` attribute of :ref:`flag
+   <option-flag>` is set to false. The :math:`\text{dampratio}` parameter would normally be set to 1, corresponding to
+   critical damping. Smaller values result in under-damped or bouncy constraints, while larger values result in
+   over-damped constraints.
+
+   Next we describe the direct format where the two numbers are :math:`(-\text{stiffness}, -\text{damping})`. This
+   allows direct control over restitution in particular. We still apply some scaling so that the same numbers can be
+   used with different impedances, but the scaling no longer depends on :math:`r` and the two numbers no longer
+   interact. The scaling formulas are
 
    .. math::
       \begin{aligned}
-      b &= \text{damping} / d_\text{max} \\
-      k &= \text{stiffness} / d_\text{max}^2 \\
+      b &= \text{damping} / d_\text{width} \\
+      k &= \text{stiffness} / d_\text{width}^2 \\
       \end{aligned}
+
+.. tip::
+   In the positive-value default format, the :math:`\text{timeconst}` parameter controls constraint **softness**.
+   It is specified in units of time and means "how quickly is the constraint trying to resolve the violation". Larger
+   values correspond to softer constraints.
+
+   The negative-value "direct" format is more flexible, for example allowing for perfectly elastic collisions
+   (:math:`\text{damping} = 0`). It is the recommended format for system identification.
 
 .. _CContact:
 
@@ -448,8 +499,8 @@ the array mjData.userdata whose size is determined by the :at:`nuserdata` attrib
 
 .. _CAlgorithms:
 
-Algorithms and related settings
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Solver settings
+~~~~~~~~~~~~~~~
 
 The computation of constraint forces and constrained accelerations involves solving an optimization problem
 numerically. MuJoCo has three algorithms for solving this optimization problem: CG, Newton, PGS. Each of them can be
@@ -484,14 +535,12 @@ general guidelines and observations:
    convergence with a good rate, but it cannot compete with Newton in terms of number of iterations, especially when
    high accuracy is desired. However its iterations are much faster, and are not affected by fill-in or increased
    complexity due to elliptic cones. If Newton proves to be too slow, try CG next.
--  The PGS solver used to be the default solver until recently, and was substantially improved in MuJoCo 1.50 by making
-   it work with sparse models. However we have not yet found a situation where it is the best algorithm, which is not to
-   say that such situations do not exist. PGS solves a constrained optimization problem and has sub-linear convergence
-   in our experience, however it usually makes rapid progress on the first few iterations. So it is a good choice when
-   inaccurate solutions can be tolerated. For systems with large mass ratios or other model properties causing poor
-   conditioning, PGS convergence tends to be rather slow. Keep in mind that PGS performs sequential updates, and
-   therefore breaks symmetry in systems where the physics should be symmetric. In contrast, CG and Newton perform
-   parallel updates and preserve symmetry.
+-  The PGS solver is best when the number of degrees of freedom is larger than the number of constraints. PGS solves a
+   constrained optimization problem and has sub-linear convergence in our experience, however it usually makes rapid
+   progress on the first few iterations. So it is a good choice when inaccurate solutions can be tolerated. For systems
+   with large mass ratios or other model properties causing poor conditioning, PGS convergence tends to be rather slow.
+   Keep in mind that PGS performs sequential updates, and therefore breaks symmetry in systems where the physics should
+   be symmetric. In contrast, CG and Newton perform parallel updates and preserve symmetry.
 -  The Noslip solver is a modified PGS solver. It is executed as a post-processing step after the main solver (which can
    be Newton, CG or PGS). The main solver updates all unknowns. In contrast, the Noslip solver updates only the
    constraint forces in friction dimensions, and ignores constraint regularization. This has the effect of suppressing
@@ -756,13 +805,12 @@ ascending portion of the :math:`\text{FL}` curve, or the descending portion, or 
 model with 50 muscles. Do you believe that someone did careful experiments and measured the operating range for every
 muscle in your model, taking into account all the joints that the muscle spans? If not, then it is better to think of
 musculo-skeletal models as having the same general behavior as the biological system, while being different in various
-details - including details that are of great interest to some research community. For most muscle properties which
+details -- including details that are of great interest to some research community. For most muscle properties which
 modelers consider constant and known, there is an experimental paper showing that they vary under some conditions. This
 is not to discourage people from building accurate models, but rather to discourage people from believing too strongly
-in their models. Modeling in biology is quite different from modeling in physics and engineering... which is why we find
-it ironic when people in Robotics complain that building accurate robot models is hard.
+in their models.
 
-Coming back to our muscle model, there is the muscle activation act. This is the state of a first-order nonlinear
+Coming back to our muscle model, there is the muscle activation ``act``. This is the state of a first-order nonlinear
 filter whose input is the control signal. The filter dynamics are:
 
 
@@ -777,9 +825,14 @@ are two time constants specified with the attribute timeconst, namely :math:`\te
 .. math::
    \tau(\texttt{ctrl}, \texttt{act}) =
    \begin{cases}
-      \tau_\text{act} \cdot (0.5 + 1.5\cdot\texttt{act}) & \texttt{ctrl} \gt \texttt{act} \\
-      \tau_\text{deact} / (0.5 + 1.5\cdot\texttt{act}) & \texttt{ctrl} \leq \texttt{act}
+      \tau_\text{act} \cdot (0.5 + 1.5\cdot\texttt{act}) & \texttt{ctrl}-\texttt{act} \gt 0 \\
+      \tau_\text{deact} / (0.5 + 1.5\cdot\texttt{act}) & \texttt{ctrl} - \texttt{act} \leq 0
    \end{cases}
+
+Since the above equation describes discontinuous switching, which can be undesirable when using derivative-based
+optimization, we introduce the optional smoothing parameter :ref:`tausmooth<actuator-muscle-tausmooth>`. When greater
+than 0, the switching is replaced by :ref:`mju_sigmoid`, which will smoothly interpolate between the two values within
+the range :math:`(\texttt{ctrl}-\texttt{act}) \pm \text{tausmooth}/2`.
 
 Now we summarize the attributes of element :ref:`muscle <actuator-muscle>` which users may want to adjust,
 depending on their familiarity with the biomechanics literature and availability of detailed measurements with regard
@@ -803,6 +856,10 @@ timeconst
    Muscles are composed of slow-twitch and fast-twitch fibers. The typical muscle is mixed, but some muscles have a
    higher proportion of one or the other fiber type, making them faster or slower. This can be modeled by adjusting the
    time constants. The vmax parameter of the :math:`\text{\small FLV}` function should also be adjusted accordingly.
+tausmooth
+   When positive, smooths the transition between activation and de-activation time-constants. While a single
+   `motor unit <https://en.wikipedia.org/wiki/Motor_unit>`__ is either activating or de-activating, an entire muscle
+   will have a mixture of many units, leading to a corresponding mixture of timescales.
 lmin, lmax, vmax, fpmax, fvmax
    These are the parameters controlling the shape of the :math:`\text{\small FLV}` function. Advanced users can
    experiment with them; see MATLAB function `FLV.m <_static/FLV.m>`__. Similar to the scale setting, if you want to
@@ -1251,26 +1308,26 @@ Memory allocation
 MuJoCo preallocates all the memory needed at runtime in :ref:`mjData`, and does not access the heap allocator after
 model creation. Memory in :ref:`mjData` is allocated by :ref:`mj_makeData` in two contiguous blocks:
 
-  - ``mjData.buffer`` contains fixed-size arrays.
-  - ``mjData.arena`` contains dynamically-sized arrays.
+- ``mjData.buffer`` contains fixed-size arrays.
+- ``mjData.arena`` contains dynamically-sized arrays.
 
 There are two types of dynamic arrays allocated in the ``arena`` memory space.
 
-  - contacts and constraint-related arrays are laid out from the beginning of the ``arena``.
-  - :ref:`stack <siStack>` arrays are laid out from the end of the ``arena``.
+- contacts and constraint-related arrays are laid out from the beginning of the ``arena``.
+- :ref:`stack <siStack>` arrays are laid out from the end of the ``arena``.
 
 By allocating dynamic quantities from both sides of the ``arena`` space, variable-sized memory allocation is controlled
 by a single number: the :at:`memory` attribute of the :ref:`size <size>` MJCF element. Unlike the fixed-size arrays in
 the ``buffer``, variable-sized arrays in the arena can be ``NULL``, for example after a call to :ref:`mj_resetData`.
 When ``arena`` memory runs out, one of three things will happen, depending on the type of memory requested:
 
-  - If memory runs out during contact allocation, a warning will be raised and subsequent contacts will not be added in
-    this step, but simulation continues as usual.
-  - If memory runs out during constraint-related allocation, a warning will be raised and the constraint solver will be
-    disabled in this step, but simulation continues as usual. Note that physics without the constraint solver will
-    generally be very different, but allowing the simulation to continue can still be useful, e.g. during
-    scene initialization when many bodies are temporarily overlapping.
-  - If memory runs out during stack array allocation, a hard error will occur.
+- If memory runs out during contact allocation, a warning will be raised and subsequent contacts will not be added in
+  this step, but simulation continues as usual.
+- If memory runs out during constraint-related allocation, a warning will be raised and the constraint solver will be
+  disabled in this step, but simulation continues as usual. Note that physics without the constraint solver will
+  generally be very different, but allowing the simulation to continue can still be useful, e.g. during
+  scene initialization when many bodies are temporarily overlapping.
+- If memory runs out during stack array allocation, a hard error will occur.
 
 Unlike the size of the ``buffer``, the size of the ``arena`` cannot be pre-computed, since the number of contacts and
 stack usage is not known in advance. So how should one choose it? The following simple heuristic is currently used,

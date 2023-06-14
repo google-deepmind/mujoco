@@ -23,13 +23,13 @@
 #include <vector>
 
 #include <mujoco/mjdata.h>
+#include <mujoco/mjmacro.h>
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjplugin.h>
 #include <mujoco/mjvisualize.h>
 #include "cc/array_safety.h"
 #include "engine/engine_forward.h"
 #include "engine/engine_io.h"
-#include "engine/engine_macro.h"
 #include "engine/engine_plugin.h"
 #include "engine/engine_setconst.h"
 #include "engine/engine_resource.h"
@@ -939,6 +939,7 @@ void mjCModel::SetSizes(void) {
     nmeshface += meshes[i]->nface;
     nmeshtexcoord += (meshes[i]->texcoord ? meshes[i]->ntexcoord : 0);
     nmeshgraph += meshes[i]->szgraph;
+    nbvh += meshes[i]->tree.nbvh;
   }
 
   // nskinvert, nskintexvert, nskinface, nskinbone, nskinbonevert
@@ -1685,7 +1686,7 @@ void mjCModel::CopyTree(mjModel* m) {
 // copy objects outside kinematic tree
 void mjCModel::CopyObjects(mjModel* m) {
   int adr, bone_adr, vert_adr, normal_adr, face_adr, texcoord_adr;
-  int bonevert_adr, graph_adr, data_adr;
+  int bonevert_adr, graph_adr, data_adr, bvh_adr=0;
 
   // sizes outside call to mj_makeModel
   m->nemax = nemax;
@@ -1700,6 +1701,9 @@ void mjCModel::CopyObjects(mjModel* m) {
   texcoord_adr = 0;
   face_adr = 0;
   graph_adr = 0;
+  for (int i=0; i<nbody; i++) {
+    bvh_adr = mju_max(bvh_adr, m->body_bvhadr[i] + m->body_bvhnum[i]);
+  }
   for (int i=0; i<nmesh; i++) {
     // get pointer
     mjCMesh* pme = meshes[i];
@@ -1714,6 +1718,8 @@ void mjCModel::CopyObjects(mjModel* m) {
     m->mesh_faceadr[i] = face_adr;
     m->mesh_facenum[i] = pme->nface;
     m->mesh_graphadr[i] = (pme->szgraph ? graph_adr : -1);
+    m->mesh_bvhadr[i] = bvh_adr;
+    m->mesh_bvhnum[i] = pme->tree.nbvh;
 
     // copy vertices, normals, faces, texcoords, aux data
     memcpy(m->mesh_vert + 3*vert_adr, pme->vert, 3*pme->nvert*sizeof(float));
@@ -1729,6 +1735,10 @@ void mjCModel::CopyObjects(mjModel* m) {
     if (pme->szgraph) {
       memcpy(m->mesh_graph + graph_adr, pme->graph, pme->szgraph*sizeof(int));
     }
+    memcpy(m->bvh_aabb + 6*bvh_adr, pme->tree.bvh.data(), 6*pme->tree.nbvh*sizeof(mjtNum));
+    memcpy(m->bvh_child + 2*bvh_adr, pme->tree.child.data(), 2*pme->tree.nbvh*sizeof(int));
+    memcpy(m->bvh_depth + bvh_adr, pme->tree.level.data(), pme->tree.nbvh*sizeof(int));
+    memcpy(m->bvh_geomid + bvh_adr, pme->tree.nodeid.data(), pme->tree.nbvh*sizeof(int));
 
     // advance counters
     vert_adr += pme->nvert;
@@ -1736,6 +1746,7 @@ void mjCModel::CopyObjects(mjModel* m) {
     texcoord_adr += (pme->texcoord ? pme->ntexcoord : 0);
     face_adr += pme->nface;
     graph_adr += pme->szgraph;
+    bvh_adr += pme->tree.nbvh;
   }
 
   // skins
@@ -1860,6 +1871,7 @@ void mjCModel::CopyObjects(mjModel* m) {
     m->pair_geom2[i] = pairs[i]->geom2;
     m->pair_signature[i] = pairs[i]->signature;
     copyvec(m->pair_solref+mjNREF*i, pairs[i]->solref, mjNREF);
+    copyvec(m->pair_solreffriction+mjNREF*i, pairs[i]->solreffriction, mjNREF);
     copyvec(m->pair_solimp+mjNIMP*i, pairs[i]->solimp, mjNIMP);
     m->pair_margin[i] = (mjtNum)pairs[i]->margin;
     m->pair_gap[i] = (mjtNum)pairs[i]->gap;
@@ -2393,7 +2405,7 @@ static void warninghandler(const char* msg) {
 
 
 // compiler
-mjModel* mjCModel::Compile(int default_provider) {
+mjModel* mjCModel::Compile(int vfs_provider) {
   // The volatile keyword is necessary to prevent a possible memory leak due to
   // an interaction between longjmp and compiler optimization. Specifically, at
   // the point where the setjmp takes places, these pointers have never been
@@ -2424,7 +2436,7 @@ mjModel* mjCModel::Compile(int default_provider) {
       // TryCompile resulted in an mju_error which was converted to a longjmp.
       throw mjCError(0, "engine error: %s", errortext);
     }
-    TryCompile(*const_cast<mjModel**>(&m), *const_cast<mjData**>(&data), default_provider);
+    TryCompile(*const_cast<mjModel**>(&m), *const_cast<mjData**>(&data), vfs_provider);
   } catch (mjCError err) {
     // deallocate everything allocated in Compile
     mj_deleteModel(m);
@@ -2450,7 +2462,7 @@ mjModel* mjCModel::Compile(int default_provider) {
 }
 
 
-void mjCModel::TryCompile(mjModel*& m, mjData*& d, int default_provider) {
+void mjCModel::TryCompile(mjModel*& m, mjData*& d, int vfs_provider) {
   // check if nan test works
   double test = mjNAN;
   if (mjuu_defined(test)) {
@@ -2527,7 +2539,7 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, int default_provider) {
 
   // compile meshes (needed for geom compilation)
   for (int i=0; i<meshes.size(); i++) {
-    meshes[i]->Compile(default_provider);
+    meshes[i]->Compile(vfs_provider);
   }
 
   // automatically set nuser fields
@@ -2586,9 +2598,9 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, int default_provider) {
   }
 
   // compile all other objects except for keyframes
-  for (int i=0; i<skins.size(); i++) skins[i]->Compile(default_provider);
-  for (int i=0; i<hfields.size(); i++) hfields[i]->Compile(default_provider);
-  for (int i=0; i<textures.size(); i++) textures[i]->Compile(default_provider);
+  for (int i=0; i<skins.size(); i++) skins[i]->Compile(vfs_provider);
+  for (int i=0; i<hfields.size(); i++) hfields[i]->Compile(vfs_provider);
+  for (int i=0; i<textures.size(); i++) textures[i]->Compile(vfs_provider);
   for (int i=0; i<materials.size(); i++) materials[i]->Compile();
   for (int i=0; i<pairs.size(); i++) pairs[i]->Compile();
   for (int i=0; i<excludes.size(); i++) excludes[i]->Compile();
@@ -2607,8 +2619,8 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, int default_provider) {
   }
 
   // sort pair, exclude in increasing signature order; reassign ids
-  sort(pairs.begin(), pairs.end(), comparePair);
-  sort(excludes.begin(), excludes.end(), compareBodyPair);
+  std::stable_sort(pairs.begin(), pairs.end(), comparePair);
+  std::stable_sort(excludes.begin(), excludes.end(), compareBodyPair);
   reassignid(pairs);
   reassignid(excludes);
 
@@ -2886,6 +2898,11 @@ bool mjCModel::CopyBack(const mjModel* m) {
   option = m->opt;
   visual = m->vis;
 
+  // runtime-modifiable members of mjStatistic
+  meansize = m->stat.meansize;
+  extent = m->stat.extent;
+  mju_copy3(center, m->stat.center);
+
   // qpos0, qpos_spring
   for (int i=0; i<njnt; i++) {
     switch (joints[i]->type) {
@@ -3021,6 +3038,7 @@ bool mjCModel::CopyBack(const mjModel* m) {
   // pairs
   for (int i=0; i<npair; i++) {
     copyvec(pairs[i]->solref, m->pair_solref+mjNREF*i, mjNREF);
+    copyvec(pairs[i]->solreffriction, m->pair_solreffriction+mjNREF*i, mjNREF);
     copyvec(pairs[i]->solimp, m->pair_solimp+mjNIMP*i, mjNIMP);
     pairs[i]->margin = (double)m->pair_margin[i];
     pairs[i]->gap = (double)m->pair_gap[i];

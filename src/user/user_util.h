@@ -149,9 +149,6 @@ std::string mjuu_getext(std::string_view filename);
 // check if path is absolute
 bool mjuu_isabspath(std::string path);
 
-// get path from filename
-std::string mjuu_getfiledir(std::string filename);
-
 // assemble full filename
 std::string mjuu_makefullname(std::string filedir, std::string meshdir, std::string filename);
 

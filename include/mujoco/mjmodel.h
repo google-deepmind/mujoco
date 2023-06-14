@@ -24,6 +24,7 @@
 #define mjMINIMP        0.0001    // minimum constraint impedance
 #define mjMAXIMP        0.9999    // maximum constraint impedance
 #define mjMAXCONPAIR    50        // maximum number of contacts per geom pair
+#define mjMAXTREEDEPTH  50        // maximum bounding volume hierarchy depth
 #define mjMAXVFS        2000      // maximum number of files in virtual file system
 #define mjMAXVFSNAME    1000      // maximum filename size in virtual file system
 
@@ -390,6 +391,9 @@ struct mjResource_ {
 
   // closing callback from resource provider
   void (*close)(struct mjResource_* resource);
+
+  // getdir callback from resource provider
+  void (*getdir)(struct mjResource_* resource, const char** dir, int* ndir);
 };
 typedef struct mjResource_ mjResource;
 
@@ -768,6 +772,8 @@ struct mjModel_ {
   int*      mesh_vertnum;         // number of vertices                       (nmesh x 1)
   int*      mesh_faceadr;         // first face address                       (nmesh x 1)
   int*      mesh_facenum;         // number of faces                          (nmesh x 1)
+  int*      mesh_bvhadr;          // address of bvh root                      (nmesh x 1)
+  int*      mesh_bvhnum;          // number of bvh                            (nmesh x 1)
   int*      mesh_normaladr;       // first normal address                     (nmesh x 1)
   int*      mesh_normalnum;       // number of normals                        (nmesh x 1)
   int*      mesh_texcoordadr;     // texcoord data address; -1: no texcoord   (nmesh x 1)
@@ -833,8 +839,9 @@ struct mjModel_ {
   int*      pair_geom1;           // id of geom1                              (npair x 1)
   int*      pair_geom2;           // id of geom2                              (npair x 1)
   int*      pair_signature;       // (body1+1) << 16 + body2+1                (npair x 1)
-  mjtNum*   pair_solref;          // constraint solver reference: contact     (npair x mjNREF)
-  mjtNum*   pair_solimp;          // constraint solver impedance: contact     (npair x mjNIMP)
+  mjtNum*   pair_solref;          // solver reference: contact normal         (npair x mjNREF)
+  mjtNum*   pair_solreffriction;  // solver reference: contact friction       (npair x mjNREF)
+  mjtNum*   pair_solimp;          // solver impedance: contact                (npair x mjNIMP)
   mjtNum*   pair_margin;          // detect contact if dist<margin            (npair x 1)
   mjtNum*   pair_gap;             // include in solver if dist<margin-gap     (npair x 1)
   mjtNum*   pair_friction;        // tangent1, 2, spin, roll1, 2              (npair x 5)

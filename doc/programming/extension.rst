@@ -3,8 +3,8 @@
 Extensions
 ----------
 
-This section describes MuJoCo's mechanisms for user-authored extensions. At present, extensibility is provided only
-via **engine plugins**.
+This section describes MuJoCo's mechanisms for user-authored extensions. At present, extensibility is provided by
+via :ref:`engine plugins<exPlugin>` and :ref:`resource providers<exProvider>`.
 
 .. _exPlugin:
 
@@ -246,3 +246,131 @@ A future version of this section will include:
 * How to declare custom MJCF attributes for a plugin.
 * Things that developers need to keep in mind in order to ensure that plugins function correctly when :ref:`mjData` is
   copied, stepped, or reset.
+
+.. _exProvider:
+
+Resource providers
+~~~~~~~~~~~~~~~~~~
+
+Resource providers extend MuJoCo to load assets (XML files, meshes, textures, and etc.) that don't necessarily come from
+the OS filesystem or the Virtual File System (:ref:`mjVFS`). For example, downloading assets from the Internet could be
+implemented as a resource provider. These extensions are handled abstractly in MuJoCo via the :ref:`mjResource` struct.
+
+.. _exProviderStructure:
+
+Overview
+^^^^^^^^
+
+Creating a new resource provider works by registering a :ref:`mjpResourceProvider` struct via
+:ref:`mjp_registerResourceProvider` in a global table. Once a resource provider is registered it can be used by all
+loading functions. The :ref:`mjpResourceProvider` struct stores three types of fields:
+
+.. _Uniform Resource Identifier: https://en.wikipedia.org/wiki/Uniform_Resource_Identifier
+
+Resource prefix
+
+  Resources are identified by prefixes in their name. The chosen prefix should have a valid `Uniform Resource
+  Identifier`_ (URI) scheme syntax. Resource names should also have a valid URI syntax, however this isn't enforced. A
+  resource name with the syntax ``{prefix}:{filename}`` will match a provider using the scheme ``prefix``.  For
+  instance, a resource provider accessing assets via the Internet might use ``http`` as its scheme. In this case a
+  resource with the name ``http://www.example.com/myasset.obj`` would match against this resource provider. Schemes are
+  case-insensitive so that ``HTTP://www.example.com/myasset.obj`` will also match. Note the importance of the colon.
+  URI syntax requires that a colon follows the prefix in a resource name in order to match against a scheme. For example
+  ``https://www.example.com/myasset.obj`` would NOT be a match since the scheme is designated as ``https``.
+
+Callbacks
+  There are three callbacks that a resource provider is required to implement: :ref:`open<mjfOpenResource>`,
+  :ref:`read<mjfReadResource>`, and :ref:`close<mjfCloseResource>`. A fourth callback :ref:`getdir<mjfGetResourceDir>`
+  is optional.  More details on these callbacks are given below.
+
+Data Pointer
+  Lastly, there's an opaque data pointer for the provider to pass data into the callbacks. This data pointer is constant
+  within a given model.
+
+Resource providers work via callbacks:
+
+- :ref:`mjfOpenResource<mjfOpenResource>`: The open callback takes a single parameter of type :ref:`mjResource`.  The
+  name field of the resource should be used to verify that the resource exists and populate the resource data field with
+  any extra information needed for the resource. On failure this callback should return 0 (false) or else 1 (true).
+- :ref:`mjfReadResource<mjfReadResource>`: The read callback takes as arguments a :ref:`mjResource` and a pointer to a
+  void pointer called the ``buffer``. The read callback should point the ``buffer`` pointer to the location of where the
+  bytes of the resource can be read and return the number of bytes pointed to in the ``buffer``.  On failure, this
+  callback should return -1.
+- :ref:`mjfCloseResource<mjfCloseResource>`: This callback takes a single parameter of type :ref:`mjResource`, and
+  should be used to free any memory allocated in the data field in the supplied resource.
+- :ref:`mjfGetResourceDir<mjfGetResourceDir>`: This callback is optional and is used to extract the directory from a
+  resource name.  For example, the resource name ``http://www.example.com/myasset.obj`` would have
+  ``http://www.example.com/`` as its directory.
+
+.. _exProviderUsage:
+
+Usage
+^^^^^
+
+When a resource provider is registered, it can be used immediately to open assets. If the asset filename has a prefix
+that matches with the prefix of a registered provider, then that provider will be used to load the asset.
+
+.. _exProviderExample:
+
+Example
+"""""""
+
+.. _data URI scheme: https://en.wikipedia.org/wiki/Data_URI_scheme
+
+This section provides a basic example of a resource provider that reads from a `data URI scheme`_. First we implement
+the callbacks:
+
+.. code-block:: C
+
+   int data_open_callback(mjResource* resource) {
+     // call some util function to validate
+     if (!is_valid_data_uri(resource->name)) {
+       return 0; // return failure
+     }
+
+     // some upper bound for the data
+     resource->data = mju_malloc(get_data_uri_size(resource->name));
+     if (resource->data == NULL) {
+       return 0; // return failure
+     }
+
+     // fill data from string (some util function)
+     get_data_uri(resource->name, &data);
+   }
+
+   int str_read_callback(mjResource* resource, const void** buffer) {
+     *buffer = resource->data;
+     return get_data_uri_size(resource->name);
+   }
+
+   void str_close_callback(mjResource* resource) {
+     mju_free(resource->data);
+   }
+
+Next we create the resource provider and register it with MuJoCo:
+
+.. code-block:: C
+
+   mjpResourceProvider resourceProvider = {
+     .prefix = "data",
+     .open = str_open_callback,
+     .read = str_read_callback,
+     .close = str_close_callback,
+     .getdir = NULL
+   };
+
+   // return positive number on success
+   if (!mjp_registerResourceProvider(&resourceProvider)) {
+     // ...
+     // return failure
+   }
+
+Now we can write assets as strings in our MJCF files:
+
+.. code-block:: xml
+
+   <asset>
+     <texture name="grid" file="grid.png" type="2d"/>
+     <mesh file="data:model/obj;base65,I215IG9iamVjdA0KdiAxIDAgMA0KdiAwIDEgMA0KdiAwIDAgMQ=="/>
+     ...
+   </asset>

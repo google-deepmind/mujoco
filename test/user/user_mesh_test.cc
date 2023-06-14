@@ -493,7 +493,7 @@ TEST_F(MjCMeshTest, AreaTooSmall) {
     </asset>
     <worldbody>
       <body>
-        <geom type="mesh" mesh="example_mesh"/>
+        <geom type="mesh" mesh="example_mesh" shellinertia="true"/>
       </body>
     </worldbody>
   </mujoco>
@@ -542,6 +542,31 @@ TEST_F(MjCMeshTest, VolumeTooSmall) {
   mjModel* model = LoadModelFromString(xml, error.data(), error.size());
   EXPECT_THAT(model, testing::IsNull());
   EXPECT_THAT(error.data(), HasSubstr("mesh volume is too small"));
+}
+
+TEST_F(MjCMeshTest, VolumeSmallAllowedShell) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <compiler convexhull="false"/>
+    <asset>
+      <mesh name="example_mesh"
+        vertex="0 0 0  1 0 0  0 1 0  1 1 0"
+        face="0 1 2  2 1 3" />
+    </asset>
+    <worldbody>
+      <body>
+        <geom type="mesh" mesh="example_mesh" shellinertia="true"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, testing::NotNull());
+  EXPECT_LE(mju_abs(model->geom_size[0]), 1);
+  EXPECT_LE(mju_abs(model->geom_size[1]), 1);
+  EXPECT_LE(mju_abs(model->geom_size[2]), 1);
+  mj_deleteModel(model);
 }
 
 TEST_F(MjCMeshTest, VolumeNegativeDefaultsLegacy) {

@@ -503,6 +503,7 @@ class MjWrapper<raw::MjContact> : public WrapperBase<raw::MjContact> {
   X(frame);
   X(friction);
   X(solref);
+  X(solreffriction);
   X(solimp);
   X(H);
   #undef X

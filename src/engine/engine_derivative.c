@@ -15,11 +15,11 @@
 #include "engine/engine_derivative.h"
 
 #include <mujoco/mjdata.h>
+#include <mujoco/mjmacro.h>
 #include <mujoco/mjmodel.h>
 #include "engine/engine_core_constraint.h"
 #include "engine/engine_crossplatform.h"
 #include "engine/engine_io.h"
-#include "engine/engine_macro.h"
 #include "engine/engine_passive.h"
 #include "engine/engine_support.h"
 #include "engine/engine_util_blas.h"
@@ -219,6 +219,54 @@ static void mjd_mulInertVec_vel(mjtNum D[36], const mjtNum i[10])
 
 
 
+// derivative of mju_subQuat w.r.t inputs
+void mjd_subQuat(const mjtNum qa[4], const mjtNum qb[4], mjtNum Da[9], mjtNum Db[9])
+{
+  // no outputs, quick return
+  if (!Da && !Db) {
+    return;
+  }
+
+  // compute axis-angle quaternion difference
+  mjtNum axis[3];
+  mju_subQuat(axis, qa, qb);
+
+  // normalize axis, get half-angle
+  mjtNum half_angle = 0.5 * mju_normalize3(axis);
+
+  // identity
+  mjtNum Da_tmp[9] = {
+    1, 0, 0,
+    0, 1, 0,
+    0, 0, 1
+  };
+
+  // add term linear in cross product matrix K
+  mjtNum K[9] = {
+    0, -axis[2], axis[1],
+    axis[2], 0, -axis[0],
+    -axis[1], axis[0], 0
+  };
+  mju_addToScl(Da_tmp, K, half_angle, 9);
+
+  // add term linear in K * K
+  mjtNum KK[9];
+  mju_mulMatMat(KK, K, K, 3, 3, 3);
+  mjtNum coef = 1.0 - (half_angle < 6e-8 ? 1.0 : half_angle / mju_tan(half_angle));
+  mju_addToScl(Da_tmp, KK, coef, 9);
+
+  if (Da) {
+    mju_copy(Da, Da_tmp, 9);
+  }
+
+  if (Db) {  // Db = -Da^T
+    mju_transpose(Db, Da_tmp, 3, 3);
+    mju_scl(Db, Db, -1.0, 9);
+  }
+}
+
+
+
 //------------------------- dense derivatives of component functions -------------------------------
 // no longer used, except in tests
 
@@ -232,19 +280,19 @@ static void mjd_comVel_vel_dense(const mjModel* m, mjData* d, mjtNum* Dcvel, mjt
   mju_zero(Dcvel, nbody*6*nv);
 
   // forward pass over bodies: accumulate Dcvel, set Dcdofdot
-  for (int i=1; i<m->nbody; i++) {
+  for (int i=1; i < m->nbody; i++) {
     // Dcvel = Dcvel_parent
     mju_copy(Dcvel+i*6*nv, Dcvel+m->body_parentid[i]*6*nv, 6*nv);
 
     // Dcvel += D(cdof * qvel),  Dcdofdot = D(cvel x cdof)
-    for (int j=m->body_dofadr[i]; j<m->body_dofadr[i]+m->body_dofnum[i]; j++) {
+    for (int j=m->body_dofadr[i]; j < m->body_dofadr[i]+m->body_dofnum[i]; j++) {
       switch (m->jnt_type[m->dof_jntid[j]]) {
       case mjJNT_FREE:
         // Dcdofdot = 0
         mju_zero(Dcdofdot+j*6*nv, 18*nv);
 
         // Dcvel += cdof * (D qvel)
-        for (int k=0; k<6; k++) {
+        for (int k=0; k < 6; k++) {
           Dcvel[i*6*nv + k*nv + j+0] += d->cdof[(j+0)*6 + k];
           Dcvel[i*6*nv + k*nv + j+1] += d->cdof[(j+1)*6 + k];
           Dcvel[i*6*nv + k*nv + j+2] += d->cdof[(j+2)*6 + k];
@@ -256,13 +304,13 @@ static void mjd_comVel_vel_dense(const mjModel* m, mjData* d, mjtNum* Dcvel, mjt
 
       case mjJNT_BALL:
         // Dcdofdot = D crossMotion(cvel, cdof)
-        for (int k=0; k<3; k++) {
+        for (int k=0; k < 3; k++) {
           mjd_crossMotion_vel(mat, d->cdof+6*(j+k));
           mju_mulMatMat(Dcdofdot+(j+k)*6*nv, mat, Dcvel+i*6*nv, 6, 6, nv);
         }
 
         // Dcvel += cdof * (D qvel)
-        for (int k=0; k<6; k++) {
+        for (int k=0; k < 6; k++) {
           Dcvel[i*6*nv + k*nv + j+0] += d->cdof[(j+0)*6 + k];
           Dcvel[i*6*nv + k*nv + j+1] += d->cdof[(j+1)*6 + k];
           Dcvel[i*6*nv + k*nv + j+2] += d->cdof[(j+2)*6 + k];
@@ -278,7 +326,7 @@ static void mjd_comVel_vel_dense(const mjModel* m, mjData* d, mjtNum* Dcvel, mjt
         mju_mulMatMat(Dcdofdot+j*6*nv, mat, Dcvel+i*6*nv, 6, 6, nv);
 
         // Dcvel += cdof * (D qvel)
-        for (int k=0; k<6; k++) {
+        for (int k=0; k < 6; k++) {
           Dcvel[i*6*nv + k*nv + j] += d->cdof[j*6 + k];
         }
       }
@@ -307,14 +355,14 @@ void mjd_rne_vel_dense(const mjModel* m, mjData* d) {
   mju_zero(Dcacc, nbody*6*nv);
 
   // forward pass over bodies: accumulate Dcacc, set Dcfrcbody
-  for (int i=1; i<nbody; i++) {
+  for (int i=1; i < nbody; i++) {
     // Dcacc = Dcacc_parent
     mju_copy(Dcacc + i*6*nv, Dcacc + m->body_parentid[i]*6*nv, 6*nv);
 
     // Dcacc += D(cdofdot * qvel)
-    for (int j=m->body_dofadr[i]; j<m->body_dofadr[i]+m->body_dofnum[i]; j++) {
+    for (int j=m->body_dofadr[i]; j < m->body_dofadr[i]+m->body_dofnum[i]; j++) {
       // Dcacc += cdofdot * (D qvel)
-      for (int k=0; k<6; k++) {
+      for (int k=0; k < 6; k++) {
         Dcacc[i*6*nv + k*nv + j] += d->cdof_dot[j*6 + k];
       }
 
@@ -344,21 +392,21 @@ void mjd_rne_vel_dense(const mjModel* m, mjData* d) {
   mju_zero(Dcfrcbody, 6*nv);
 
   // backward pass over bodies: accumulate Dcfrcbody
-  for (int i=m->nbody-1; i>0; i--) {
+  for (int i=m->nbody-1; i > 0; i--) {
     if (m->body_parentid[i]) {
       mju_addTo(Dcfrcbody+m->body_parentid[i]*6*nv, Dcfrcbody+i*6*nv, 6*nv);
     }
   }
 
   // qDeriv -= D(cdof * cfrc_body)
-  for (int i=0; i<nv; i++) {
-    for (int k=0; k<6; k++) {
+  for (int i=0; i < nv; i++) {
+    for (int k=0; k < 6; k++) {
       // compute D(cdof * cfrc_body), store in row
       mju_scl(row, Dcfrcbody + (m->dof_bodyid[i]*6+k)*nv, d->cdof[i*6+k], nv);
 
       // dense to sparse: qDeriv -= row
       int end = d->D_rowadr[i] + d->D_rownnz[i];
-      for (int adr=d->D_rowadr[i]; adr<end; adr++) {
+      for (int adr=d->D_rowadr[i]; adr < end; adr++) {
         d->qDeriv[adr] -= row[d->D_colind[adr]];
       }
     }
@@ -382,7 +430,7 @@ static void copyFromParent(const mjModel* m, mjData* d, mjtNum* mat, int n) {
   // count dofs in ancestors
   int ndof = 0;
   int np = m->body_weldid[m->body_parentid[n]];
-  while (np>0) {
+  while (np > 0) {
     // add self dofs
     ndof += m->body_dofnum[np];
 
@@ -406,7 +454,7 @@ static void addToParent(const mjModel* m, mjData* d, mjtNum* mat, int n) {
   // find matching nonzeros
   int np = m->body_parentid[n];
   int i = 0, ip = 0;
-  while (i<d->B_rownnz[n] && ip<d->B_rownnz[np]) {
+  while (i < d->B_rownnz[n] && ip < d->B_rownnz[np]) {
     // columns match
     if (d->B_colind[d->B_rowadr[n] + i] == d->B_colind[d->B_rowadr[np] + ip]) {
       mju_addTo(mat + 6*(d->B_rowadr[np] + ip), mat + 6*(d->B_rowadr[n] + i), 6);
@@ -437,15 +485,15 @@ static void mjd_comVel_vel(const mjModel* m, mjData* d, mjtNum* Dcvel, mjtNum* D
   mjtNum mat[36], matT[36];   // 6x6 matrices
 
   // forward pass over bodies: accumulate Dcvel, set Dcdofdot
-  for (int i = 1; i<nbody; i++) {
+  for (int i = 1; i < nbody; i++) {
     // Dcvel = Dcvel_parent
     copyFromParent(m, d, Dcvel, i);
 
     // process all dofs of this body
     int doflast = m->body_dofadr[i] + m->body_dofnum[i];
-    for (int j = m->body_dofadr[i]; j<doflast; j++) {
+    for (int j = m->body_dofadr[i]; j < doflast; j++) {
       // number of dof ancestors of dof j
-      int Jadr = (j<nv - 1 ? m->dof_Madr[j + 1] : m->nM) - (m->dof_Madr[j] + 1);
+      int Jadr = (j < nv - 1 ? m->dof_Madr[j + 1] : m->nM) - (m->dof_Madr[j] + 1);
 
       // Dcvel += D(cdof * qvel),  Dcdofdot = D(cvel x cdof)
       switch (m->jnt_type[m->dof_jntid[j]]) {
@@ -464,7 +512,7 @@ static void mjd_comVel_vel(const mjModel* m, mjData* d, mjtNum* Dcvel, mjtNum* D
 
       case mjJNT_BALL:
         // Dcdofdot = Dcvel * D crossMotion(cvel, cdof)
-        for (int dj=0; dj<3; dj++) {
+        for (int dj=0; dj < 3; dj++) {
           mjd_crossMotion_vel(mat, d->cdof + 6 * (j + dj));
           mju_transpose(matT, mat, 6, 6);
           mju_mulMatMat(Dcdofdot + 6*Dadr[j + dj], Dcvel + 6*Badr[i], matT, Jadr + dj, 6, 6);
@@ -525,13 +573,13 @@ static void mjd_rne_vel(const mjModel* m, mjData* d) {
   mjd_comVel_vel(m, d, Dcvel, Dcdofdot);
 
   // forward pass over bodies: accumulate Dcacc, set Dcfrcbody
-  for (int i=1; i<nbody; i++) {
+  for (int i=1; i < nbody; i++) {
     // Dcacc = Dcacc_parent
     copyFromParent(m, d, Dcacc, i);
 
     // process all dofs of this body
     int doflast = m->body_dofadr[i] + m->body_dofnum[i];
-    for (int j=m->body_dofadr[i]; j<doflast; j++) {
+    for (int j=m->body_dofadr[i]; j < doflast; j++) {
       // number of dof ancestors of dof j
       int Jadr = (j < nv - 1 ? m->dof_Madr[j + 1] : m->nM) - (m->dof_Madr[j] + 1);
 
@@ -567,12 +615,12 @@ static void mjd_rne_vel(const mjModel* m, mjData* d) {
   mju_zero(Dcfrcbody, 6*Bnnz[0]);
 
   // backward pass over bodies: accumulate Dcfrcbody
-  for (int i=m->nbody-1; i>0; i--) {
+  for (int i=m->nbody-1; i > 0; i--) {
     addToParent(m, d, Dcfrcbody, i);
   }
 
   // process all dofs, update qDeriv
-  for (int j=0; j<nv; j++) {
+  for (int j=0; j < nv; j++) {
     // get body index
     int i = m->dof_bodyid[j];
 
@@ -591,19 +639,19 @@ static void mjd_rne_vel(const mjModel* m, mjData* d) {
 // construct sparse Jacobian structure of body; return nnz
 static int bodyJacSparse(const mjModel* m, int body, int* ind) {
   // skip fixed bodies
-  while (body>0 && m->body_dofnum[body]==0) {
+  while (body > 0 && m->body_dofnum[body] == 0) {
     body = m->body_parentid[body];
   }
 
   // body is not movable: empty chain
-  if (body==0) {
+  if (body == 0) {
     return 0;
   }
 
   // count dofs
   int nnz = 0;
   int dof = m->body_dofadr[body] + m->body_dofnum[body] - 1;
-  while (dof>=0) {
+  while (dof >= 0) {
     nnz++;
     dof = m->dof_parentid[dof];
   }
@@ -611,7 +659,7 @@ static int bodyJacSparse(const mjModel* m, int body, int* ind) {
   // fill array in reverse (increasing dof)
   int cnt = 0;
   dof = m->body_dofadr[body] + m->body_dofnum[body] - 1;
-  while (dof>=0) {
+  while (dof >= 0) {
     ind[nnz-cnt-1] = dof;
     cnt++;
     dof = m->dof_parentid[dof];
@@ -632,20 +680,20 @@ static void addJTBJ(const mjModel* m, mjData* d, const mjtNum* J, const mjtNum* 
   mjtNum* row = mj_stackAlloc(d, nv);
 
   // process non-zero elements of B
-  for (int i=0; i<n; i++) {
-    for (int j=0; j<n; j++) {
+  for (int i=0; i < n; i++) {
+    for (int j=0; j < n; j++) {
       if (!B[i*n+j]) {
         continue;
       }
       // process non-zero elements of J(i,:)
-      for (int k=0; k<nv; k++) {
+      for (int k=0; k < nv; k++) {
         if (J[i*nv+k]) {
           // row = J(i,k)*B(i,j)*J(j,:)
           mju_scl(row, J+j*nv, J[i*nv+k] * B[i*n+j], nv);
 
           // add row to qDeriv(k,:)
           int rownnz_k = d->D_rownnz[k];
-          for (int s=0; s<rownnz_k; s++) {
+          for (int s=0; s < rownnz_k; s++) {
             int adr = d->D_rowadr[k] + s;
             d->qDeriv[adr] += row[d->D_colind[adr]];
           }
@@ -660,38 +708,41 @@ static void addJTBJ(const mjModel* m, mjData* d, const mjtNum* J, const mjtNum* 
 
 
 // add J'*B*J to qDeriv, sparse version
-static void addJTBJSparse(const mjModel* m, mjData* d, const mjtNum* J,
+static void addJTBJSparse(
+  const mjModel* m, mjData* d, const mjtNum* J,
   const mjtNum* B, int n, int offset,
-  const int* rownnz, const int* rowadr, const int* colind) {
+  const int* J_rownnz, const int* J_rowadr, const int* J_colind) {
   int nv = m->nv;
 
   // allocate row
   mjMARKSTACK;
   mjtNum* row = mj_stackAlloc(d, nv);
 
-  // process non-zero elements of B
-  for (int i=0; i<n; i++) {
-    for (int j=0; j<n; j++) {
+  // compute qDeriv(k,p) += sum_{i,j} ( J(i,k)*B(i,j)*J(j,p) )
+  for (int i = 0; i < n; i++) {
+    for (int j = 0; j < n; j++) {
       if (!B[i*n+j]) {
         continue;
       }
 
-      // process non-zero elements of J(i,k)
-      for (int k=0; k<rownnz[offset+i]; k++) {
-        int ik = rowadr[offset+i] + k;
+      mju_zero(row, nv);
+
+      // loop over non-zero elements of J(i,:)
+      for (int k = 0; k < J_rownnz[offset+i]; k++) {
+        int ik = J_rowadr[offset+i] + k;
         mjtNum scl = J[ik]*B[i*n+j];
 
-        // process non-zero elements of J(j,p)
-        for (int p=0; p<rownnz[offset+j]; p++) {
-          int jp = rowadr[offset+j] + p;
-
-          // row[p] = J(i,k)*B(i,j)*J(j,p)
-          row[p] = scl * J[jp];
+        // loop over non-zero elements of J(j,:)
+        // (pJ is the sparse column index into J)
+        for (int pJ = 0; pJ < J_rownnz[offset+j]; pJ++) {
+          int adr = J_rowadr[offset+j] + pJ;
+          row[J_colind[adr]] = scl * J[adr];
         }
 
         // add row to qDeriv(k,:)
-        for (int s=0; s<d->D_rownnz[k]; s++) {
-          int adr = d->D_rowadr[k] + s;
+        // (pD is the sparse column index into qDeriv)
+        for (int pD = 0; pD < d->D_rownnz[k]; pD++) {
+          int adr = d->D_rowadr[k] + pD;
           d->qDeriv[adr] += row[d->D_colind[adr]];
         }
       }
@@ -719,7 +770,7 @@ static mjtNum mjd_muscleGain_vel(mjtNum len, mjtNum vel, const mjtNum lengthrang
   mjtNum fvmax    = prm[8];
 
   // scale force if negative
-  if (force<0) {
+  if (force < 0) {
     force = scale / mjMAX(mjMINVAL, acc0);
   }
 
@@ -737,16 +788,16 @@ static mjtNum mjd_muscleGain_vel(mjtNum len, mjtNum vel, const mjtNum lengthrang
 
   // length curve
   mjtNum FL = 0;
-  if (L>=lmin && L<=a) {
+  if (L >= lmin && L <= a) {
     x = (L-lmin) / mjMAX(mjMINVAL, a-lmin);
     FL = 0.5*x*x;
-  } else if (L<=1) {
+  } else if (L <= 1) {
     x = (1-L) / mjMAX(mjMINVAL, 1-a);
     FL = 1 - 0.5*x*x;
-  } else if (L<=b) {
+  } else if (L <= b) {
     x = (L-1) / mjMAX(mjMINVAL, b-1);
     FL = 1 - 0.5*x*x;
-  } else if (L<=lmax) {
+  } else if (L <= lmax) {
     x = (lmax-L) / mjMAX(mjMINVAL, lmax-b);
     FL = 0.5*x*x;
   }
@@ -754,13 +805,13 @@ static mjtNum mjd_muscleGain_vel(mjtNum len, mjtNum vel, const mjtNum lengthrang
   // velocity curve
   mjtNum dFV;
   mjtNum y = fvmax-1;
-  if (V<=-1) {
+  if (V <= -1) {
     // FV = 0
     dFV = 0;
-  } else if (V<=0) {
+  } else if (V <= 0) {
     // FV = (V+1)*(V+1)
     dFV = 2*V + 2;
-  } else if (V<=y) {
+  } else if (V <= y) {
     // FV = fvmax - (y-V)*(y-V) / mjMAX(mjMINVAL, y)
     dFV = (-2*V + 2*y) / mjMAX(mjMINVAL, y);
   } else {
@@ -784,23 +835,23 @@ void mjd_actuator_vel(const mjModel* m, mjData* d) {
   }
 
   // process actuators
-  for (int i=0; i<m->nu; i++) {
+  for (int i=0; i < m->nu; i++) {
     mjtNum bias_vel = 0, gain_vel = 0;
 
     // affine bias
-    if (m->actuator_biastype[i]==mjBIAS_AFFINE) {
+    if (m->actuator_biastype[i] == mjBIAS_AFFINE) {
       // extract bias info: prm = [const, kp, kv]
       bias_vel = (m->actuator_biasprm + mjNBIAS*i)[2];
     }
 
     // affine gain
-    if (m->actuator_gaintype[i]==mjGAIN_AFFINE) {
+    if (m->actuator_gaintype[i] == mjGAIN_AFFINE) {
       // extract bias info: prm = [const, kp, kv]
       gain_vel = (m->actuator_gainprm + mjNGAIN*i)[2];
     }
 
     // muscle gain
-    else if (m->actuator_gaintype[i]==mjGAIN_MUSCLE) {
+    else if (m->actuator_gaintype[i] == mjGAIN_MUSCLE) {
       gain_vel = mjd_muscleGain_vel(d->actuator_length[i],
                                     d->actuator_velocity[i],
                                     m->actuator_lengthrange+2*i,
@@ -809,8 +860,8 @@ void mjd_actuator_vel(const mjModel* m, mjData* d) {
     }
 
     // force = gain .* [ctrl/act]
-    if (gain_vel!=0) {
-      if (m->actuator_dyntype[i]==mjDYN_NONE) {
+    if (gain_vel != 0) {
+      if (m->actuator_dyntype[i] == mjDYN_NONE) {
         bias_vel += gain_vel * d->ctrl[i];
       } else {
         bias_vel += gain_vel * d->act[i-(m->nu - m->na)];
@@ -818,7 +869,7 @@ void mjd_actuator_vel(const mjModel* m, mjData* d) {
     }
 
     // add
-    if (bias_vel!=0) {
+    if (bias_vel != 0) {
       addJTBJ(m, d, d->actuator_moment+i*nv, &bias_vel, 1);
     }
   }
@@ -864,8 +915,8 @@ static void addToQuadrant(mjtNum* restrict B, const mjtNum D[9], int col_quad, i
 
 // forces due to fluid mass moving with the body, B is 6x6
 static void mjd_addedMassForces(
-    mjtNum* restrict B, const mjtNum local_vels[6], const mjtNum fluid_density,
-    const mjtNum virtual_mass[3], const mjtNum virtual_inertia[3]) {
+  mjtNum* restrict B, const mjtNum local_vels[6], const mjtNum fluid_density,
+  const mjtNum virtual_mass[3], const mjtNum virtual_inertia[3]) {
   const mjtNum lin_vel[3] = {local_vels[3], local_vels[4], local_vels[5]};
   const mjtNum ang_vel[3] = {local_vels[0], local_vels[1], local_vels[2]};
   const mjtNum virtual_lin_mom[3] = {
@@ -884,7 +935,7 @@ static void mjd_addedMassForces(
   // force[:3] += cross(virtual_ang_mom, ang_vel)
   mjd_cross(virtual_ang_mom, ang_vel, Da, Db);
   addToQuadrant(B, Db, 0, 0);
-  for (int i=0; i<9; ++i) {
+  for (int i=0; i < 9; ++i) {
     Da[i] *= fluid_density * virtual_inertia[i % 3];
   }
   addToQuadrant(B, Da, 0, 0);
@@ -892,7 +943,7 @@ static void mjd_addedMassForces(
   // force[:3] += cross(virtual_lin_mom, lin_vel)
   mjd_cross(virtual_lin_mom, lin_vel, Da, Db);
   addToQuadrant(B, Db, 0, 1);
-  for (int i=0; i<9; ++i) {
+  for (int i=0; i < 9; ++i) {
     Da[i] *= fluid_density * virtual_mass[i % 3];
   }
   addToQuadrant(B, Da, 0, 1);
@@ -900,7 +951,7 @@ static void mjd_addedMassForces(
   // force[3:] += cross(virtual_lin_mom, ang_vel)
   mjd_cross(virtual_lin_mom, ang_vel, Da, Db);
   addToQuadrant(B, Db, 1, 0);
-  for (int i=0; i<9; ++i) {
+  for (int i=0; i < 9; ++i) {
     Da[i] *= fluid_density * virtual_mass[i % 3];
   }
   addToQuadrant(B, Da, 1, 1);
@@ -910,9 +961,9 @@ static void mjd_addedMassForces(
 
 // torque due to motion in the fluid, D is 3x3
 static inline void mjd_viscous_torque(
-    mjtNum* restrict D, const mjtNum lvel[6], const mjtNum fluid_density,
-    const mjtNum fluid_viscosity, const mjtNum size[3],
-    const mjtNum slender_drag_coef, const mjtNum ang_drag_coef)
+  mjtNum* restrict D, const mjtNum lvel[6], const mjtNum fluid_density,
+  const mjtNum fluid_viscosity, const mjtNum size[3],
+  const mjtNum slender_drag_coef, const mjtNum ang_drag_coef)
 {
   const mjtNum d_max = mju_max(mju_max(size[0], size[1]), size[2]);
   const mjtNum d_min = mju_min(mju_min(size[0], size[1]), size[2]);
@@ -965,9 +1016,9 @@ static inline void mjd_viscous_torque(
 
 // drag due to motion in the fluid, D is 3x3
 static inline void mjd_viscous_drag(
-    mjtNum* restrict D, const mjtNum lvel[6], const mjtNum fluid_density,
-    const mjtNum fluid_viscosity, const mjtNum size[3],
-    const mjtNum blunt_drag_coef, const mjtNum slender_drag_coef) {
+  mjtNum* restrict D, const mjtNum lvel[6], const mjtNum fluid_density,
+  const mjtNum fluid_viscosity, const mjtNum size[3],
+  const mjtNum blunt_drag_coef, const mjtNum slender_drag_coef) {
   const mjtNum d_max = mju_max(mju_max(size[0], size[1]), size[2]);
   const mjtNum d_min = mju_min(mju_min(size[0], size[1]), size[2]);
   const mjtNum d_mid = size[0] + size[1] + size[2] - d_max - d_min;
@@ -995,7 +1046,7 @@ static inline void mjd_viscous_drag(
 
   const mjtNum lin_coef = fluid_viscosity * 3.0 * mjPI * eq_sphere_D;
   const mjtNum quad_coef = fluid_density * (
-      A_proj*blunt_drag_coef + slender_drag_coef*(A_max - A_proj));
+    A_proj*blunt_drag_coef + slender_drag_coef*(A_max - A_proj));
   const mjtNum Aproj_coef = fluid_density * norm * (blunt_drag_coef - slender_drag_coef);
 
   const mjtNum dAproj_dv[3] = {
@@ -1033,8 +1084,8 @@ static inline void mjd_viscous_drag(
 
 // Kutta lift due to motion in the fluid, D is 3x3
 static inline void mjd_kutta_lift(
-    mjtNum* restrict D, const mjtNum lvel[6], const mjtNum fluid_density,
-    const mjtNum size[3], const mjtNum kutta_lift_coef) {
+  mjtNum* restrict D, const mjtNum lvel[6], const mjtNum fluid_density,
+  const mjtNum size[3], const mjtNum kutta_lift_coef) {
   const mjtNum a = pow2(size[1] * size[2]);
   const mjtNum b = pow2(size[2] * size[0]);
   const mjtNum c = pow2(size[0] * size[1]);
@@ -1046,7 +1097,7 @@ static inline void mjd_kutta_lift(
   const mjtNum proj_num = a * xx + b * yy + c * zz;
   const mjtNum norm2 = xx + yy + zz;
   const mjtNum df_denom = mjPI * kutta_lift_coef * fluid_density / mju_max(
-      mjMINVAL, mju_sqrt(proj_denom * proj_num * norm2));
+    mjMINVAL, mju_sqrt(proj_denom * proj_num * norm2));
 
   const mjtNum dfx_coef = yy * (a - b) + zz * (a - c);
   const mjtNum dfy_coef = xx * (b - a) + zz * (b - c);
@@ -1087,8 +1138,8 @@ static inline void mjd_kutta_lift(
 
 // Magnus force due to motion in the fluid, B is 6x6
 static inline void mjd_magnus_force(
-    mjtNum* restrict B, const mjtNum lvel[6], const mjtNum fluid_density,
-    const mjtNum size[3], const mjtNum magnus_lift_coef) {
+  mjtNum* restrict B, const mjtNum lvel[6], const mjtNum fluid_density,
+  const mjtNum size[3], const mjtNum magnus_lift_coef) {
   const mjtNum volume = 4.0/3.0 * mjPI * size[0] * size[1] * size[2];
 
   // magnus_coef = magnus_lift_coef * fluid_density * volume
@@ -1098,9 +1149,11 @@ static inline void mjd_magnus_force(
 
   // premultiply by magnus_coef
   const mjtNum lin_vel[3] = {
-    magnus_coef * lvel[3], magnus_coef * lvel[4], magnus_coef * lvel[5]};
+    magnus_coef * lvel[3], magnus_coef * lvel[4], magnus_coef * lvel[5]
+  };
   const mjtNum ang_vel[3] = {
-    magnus_coef * lvel[0], magnus_coef * lvel[1], magnus_coef * lvel[2]};
+    magnus_coef * lvel[0], magnus_coef * lvel[1], magnus_coef * lvel[2]
+  };
 
   // force[3:] += magnus_coef * cross(ang_vel, lin_vel)
   mjd_cross(ang_vel, lin_vel, D_ang, D_lin);
@@ -1135,25 +1188,25 @@ void mjd_ellipsoidFluid(const mjModel* m, mjData* d, int bodyid) {
     nnz = bodyJacSparse(m, bodyid, colind);
 
     // prepare rownnz, rowadr, colind for all 6 rows
-    for (int i=0; i<6; i++) {
+    for (int i=0; i < 6; i++) {
       rownnz[i] = nnz;
       rowadr[i] = i == 0 ? 0 : rowadr[i-1] + nnz;
-      for (int k=0; k<nnz; k++) {
+      for (int k=0; k < nnz; k++) {
         colind_compressed[i*nnz+k] = colind[k];
       }
     }
   }
 
-  for (int j=0; j<m->body_geomnum[bodyid]; j++) {
+  for (int j=0; j < m->body_geomnum[bodyid]; j++) {
     const int geomid = m->body_geomadr[bodyid] + j;
 
     mju_geomSemiAxes(m, geomid, semiaxes);
 
     readFluidGeomInteraction(
-        m->geom_fluid + mjNFLUID*geomid, &geom_interaction_coef,
-        &blunt_drag_coef, &slender_drag_coef, &ang_drag_coef,
-        &kutta_lift_coef, &magnus_lift_coef,
-        virtual_mass, virtual_inertia);
+      m->geom_fluid + mjNFLUID*geomid, &geom_interaction_coef,
+      &blunt_drag_coef, &slender_drag_coef, &ang_drag_coef,
+      &kutta_lift_coef, &magnus_lift_coef,
+      virtual_mass, virtual_inertia);
 
     // scales all forces, read from MJCF as boolean (0.0 or 1.0)
     if (geom_interaction_coef == 0.0) {
@@ -1177,8 +1230,8 @@ void mjd_ellipsoidFluid(const mjModel* m, mjData* d, int bodyid) {
 
     // compress geom Jacobian in-place
     if (mj_isSparse(m)) {
-      for (int i=0; i<6; i++) {
-        for (int k=0; k<nnz; k++) {
+      for (int i=0; i < 6; i++) {
+        for (int k=0; k < nnz; k++) {
           J[i*nnz+k] = J[i*nv+colind[k]];
         }
       }
@@ -1240,11 +1293,11 @@ void mjd_inertiaBoxFluid(const mjModel* m, mjData* d, int i)
 
   // equivalent inertia box
   box[0] = mju_sqrt(mju_max(mjMINVAL,
-    (inertia[1] + inertia[2] - inertia[0])) / m->body_mass[i] * 6.0);
+                            (inertia[1] + inertia[2] - inertia[0])) / m->body_mass[i] * 6.0);
   box[1] = mju_sqrt(mju_max(mjMINVAL,
-    (inertia[0] + inertia[2] - inertia[1])) / m->body_mass[i] * 6.0);
+                            (inertia[0] + inertia[2] - inertia[1])) / m->body_mass[i] * 6.0);
   box[2] = mju_sqrt(mju_max(mjMINVAL,
-    (inertia[0] + inertia[1] - inertia[2])) / m->body_mass[i] * 6.0);
+                            (inertia[0] + inertia[1] - inertia[2])) / m->body_mass[i] * 6.0);
 
   // map from CoM-centered to local body-centered 6D velocity
   mj_objectVelocity(m, d, mjOBJ_BODY, i, lvel, 1);
@@ -1270,8 +1323,8 @@ void mjd_inertiaBoxFluid(const mjModel* m, mjData* d, int i)
     nnz = bodyJacSparse(m, i, colind);
 
     // compress body Jacobian in-place
-    for (int j=0; j<6; j++) {
-      for (int k=0; k<nnz; k++) {
+    for (int j=0; j < 6; j++) {
+      for (int k=0; k < nnz; k++) {
         J[j*nnz+k] = J[j*nv+colind[k]];
       }
     }
@@ -1279,10 +1332,10 @@ void mjd_inertiaBoxFluid(const mjModel* m, mjData* d, int i)
     // prepare rownnz, rowadr, colind for all 6 rows
     rownnz[0] = nnz;
     rowadr[0] = 0;
-    for (int j=1; j<6; j++) {
+    for (int j=1; j < 6; j++) {
       rownnz[j] = nnz;
       rowadr[j] = rowadr[j-1] + nnz;
-      for (int k=0; k<nnz; k++) {
+      for (int k=0; k < nnz; k++) {
         colind[j*nnz+k] = colind[k];
       }
     }
@@ -1295,13 +1348,13 @@ void mjd_inertiaBoxFluid(const mjModel* m, mjData* d, int i)
   mju_copy(J+3*nnz, tmp, 3*nnz);
 
   // add viscous force and torque
-  if (m->opt.viscosity>0) {
+  if (m->opt.viscosity > 0) {
     // diameter of sphere approximation
     mjtNum diam = (box[0] + box[1] + box[2])/3.0;
 
     // mju_scl3(lfrc, lvel, -mjPI*diam*diam*diam*m->opt.viscosity)
     B = -mjPI*diam*diam*diam*m->opt.viscosity;
-    for (int j=0; j<3; j++) {
+    for (int j=0; j < 3; j++) {
       if (mj_isSparse(m)) {
         addJTBJSparse(m, d, J, &B, 1, j, rownnz, rowadr, colind);
       } else {
@@ -1311,7 +1364,7 @@ void mjd_inertiaBoxFluid(const mjModel* m, mjData* d, int i)
 
     // mju_scl3(lfrc+3, lvel+3, -3.0*mjPI*diam*m->opt.viscosity);
     B = -3.0*mjPI*diam*m->opt.viscosity;
-    for (int j=0; j<3; j++) {
+    for (int j=0; j < 3; j++) {
       if (mj_isSparse(m)) {
         addJTBJSparse(m, d, J, &B, 1, 3+j, rownnz, rowadr, colind);
       } else {
@@ -1321,7 +1374,7 @@ void mjd_inertiaBoxFluid(const mjModel* m, mjData* d, int i)
   }
 
   // add lift and drag force and torque
-  if (m->opt.density>0) {
+  if (m->opt.density > 0) {
     // lfrc[0] -= m->opt.density*box[0]*(box[1]*box[1]*box[1]*box[1]+box[2]*box[2]*box[2]*box[2])*
     //            mju_abs(lvel[0])*lvel[0]/64.0;
     B = -m->opt.density*box[0]*(box[1]*box[1]*box[1]*box[1]+box[2]*box[2]*box[2]*box[2])*
@@ -1394,9 +1447,9 @@ void mjd_passive_vel(const mjModel* m, mjData* d) {
   }
 
   // dof damping
-  for (int i=0; i<nv; i++) {
+  for (int i=0; i < nv; i++) {
     int nnz_i = d->D_rownnz[i];
-    for (int j=0; j<nnz_i; j++) {
+    for (int j=0; j < nnz_i; j++) {
       int ij = d->D_rowadr[i] + j;
 
       // identify diagonal element
@@ -1408,8 +1461,8 @@ void mjd_passive_vel(const mjModel* m, mjData* d) {
   }
 
   // tendon damping
-  for (int i=0; i<m->ntendon; i++) {
-    if (m->tendon_damping[i]>0) {
+  for (int i=0; i < m->ntendon; i++) {
+    if (m->tendon_damping[i] > 0) {
       mjtNum B = -m->tendon_damping[i];
 
       // add sparse or dense
@@ -1423,15 +1476,15 @@ void mjd_passive_vel(const mjModel* m, mjData* d) {
   }
 
   // fluid drag model, either body-level (inertia box) or geom-level (ellipsoid)
-  if (m->opt.viscosity>0 || m->opt.density>0) {
-    for (int i=1; i<nbody; i++) {
-      if (m->body_mass[i]<mjMINVAL) {
+  if (m->opt.viscosity > 0 || m->opt.density > 0) {
+    for (int i=1; i < nbody; i++) {
+      if (m->body_mass[i] < mjMINVAL) {
         continue;
       }
 
       int use_ellipsoid_model = 0;
       // if any child geom uses the ellipsoid model, inertia-box model is disabled for parent body
-      for (int j=0; j<m->body_geomnum[i] && use_ellipsoid_model==0; j++) {
+      for (int j=0; j < m->body_geomnum[i] && use_ellipsoid_model == 0; j++) {
         const int geomid = m->body_geomadr[i] + j;
         use_ellipsoid_model += (m->geom_fluid[mjNFLUID*geomid] > 0);
       }

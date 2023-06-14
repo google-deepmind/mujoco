@@ -23,6 +23,7 @@
 #include <utility>
 #include <vector>
 
+#include <mujoco/mjmacro.h>
 #include <mujoco/mjmodel.h>
 #include "cc/array_safety.h"
 #include "engine/engine_io.h"

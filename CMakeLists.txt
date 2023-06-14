@@ -28,7 +28,7 @@ set(MSVC_INCREMENTAL_DEFAULT ON)
 
 project(
   mujoco
-  VERSION 2.3.5
+  VERSION 2.3.6
   DESCRIPTION "MuJoCo Physics Simulator"
   HOMEPAGE_URL "https://mujoco.org"
 )
@@ -55,6 +55,7 @@ include(MujocoDependencies)
 set(MUJOCO_HEADERS
     ${CMAKE_CURRENT_SOURCE_DIR}/include/mujoco/mjdata.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/mujoco/mjexport.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/mujoco/mjmacro.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/mujoco/mjmodel.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/mujoco/mjplugin.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/mujoco/mjrender.h
@@ -81,6 +82,7 @@ target_include_directories(
 )
 
 add_subdirectory(plugin/elasticity)
+add_subdirectory(plugin/sensor)
 add_subdirectory(src/engine)
 add_subdirectory(src/user)
 add_subdirectory(src/xml)

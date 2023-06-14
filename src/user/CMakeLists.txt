@@ -25,3 +25,4 @@ set(MUJOCO_USER_SRCS
 )
 
 target_sources(mujoco PRIVATE ${MUJOCO_USER_SRCS})
+target_compile_definitions(mujoco PRIVATE MUJOCO_TINYOBJLOADER_IMPL)

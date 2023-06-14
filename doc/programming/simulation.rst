@@ -50,9 +50,9 @@ low-level :ref:`mju_error` or :ref:`mju_warning` is called with the error/warnin
 argument to all API functions that need model access. Note that most functions treat this pointer as ``const``; more on
 this in :ref:`model changes <siChange>` below.
 
-The virtual file system (VFS) was introduced in MuJoCo 1.50. It allows disk resources to be loaded in memory or
-created programmatically by the user, and then MuJoCo's load functions search for files in the VFS before accessing
-the disk. See :ref:`Virtualfilesystem` in the API Reference chapter.
+The virtual file system (VFS) allows disk resources to be loaded in memory or created programmatically by the user, and
+then MuJoCo's load functions search for files in the VFS before accessing the disk. See :ref:`Virtualfilesystem` in the
+API Reference chapter.
 
 In addition to mjModel which holds the model description, we also need mjData which is the workspace where all
 computations are performed. Note that mjData is specific to a given mjModel. The API functions generally assume that

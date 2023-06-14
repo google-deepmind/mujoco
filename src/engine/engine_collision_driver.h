@@ -21,6 +21,13 @@
 
 #ifdef __cplusplus
 extern "C" {
+#elif !defined(__STDC_VERSION__) || __STDC_VERSION__ < 201112L
+// No C11 support in Visual Studio 2019 update 7 and earlier.
+// However, MSVC allows C++ alignas to be used in C code, so
+// we can just skip the #include <stdalign.h>.
+#ifndef _MSC_VER
+#error "Compiler does not support C11."
+#endif
 #else
 #include <stdalign.h>
 #endif
@@ -43,7 +50,7 @@ MJAPI int mj_collideOBB(const mjtNum aabb1[6], const mjtNum aabb2[6],
                         const mjtNum xpos2[3], const mjtNum xmat2[9],
                         mjtNum product[36], mjtNum offset[12], mjtByte* initialize);
 
-// broad phase collistion detection; return list of body pairs for narrow phase
+// broad phase collision detection; return list of body pairs for narrow phase
 int mj_broadphase(const mjModel* m, mjData* d, int* bodypair, int maxpair);
 
 // test two geoms for collision, apply filters, add to contact list
@@ -51,7 +58,7 @@ int mj_broadphase(const mjModel* m, mjData* d, int* bodypair, int maxpair);
 void mj_collideGeoms(const mjModel* m, mjData* d,
                      int g1, int g2, int flg_user, mjtNum usermargin);
 
-// number of possible collisions based on fitlers and geom types
+// number of possible collisions based on filters and geom types
 int mj_contactFilter(int contype1, int conaffinity1,
                      int contype2, int conaffinity2);
 

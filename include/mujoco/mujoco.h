@@ -24,36 +24,25 @@ extern "C" {
 #endif
 
 // header version; should match the library version as returned by mj_version()
-#define mjVERSION_HEADER 235
+#define mjVERSION_HEADER 236
 
 // needed to define size_t, fabs and log10
 #include <stdlib.h>
 #include <math.h>
 
+#ifdef ADDRESS_SANITIZER
+#include <sanitizer/asan_interface.h>
+#endif
 
 // type definitions
 #include <mujoco/mjdata.h>
 #include <mujoco/mjmodel.h>
+#include <mujoco/mjmacro.h>
 #include <mujoco/mjplugin.h>
 #include <mujoco/mjrender.h>
 #include <mujoco/mjtnum.h>
 #include <mujoco/mjui.h>
 #include <mujoco/mjvisualize.h>
-
-
-// macros
-#define mjMARKSTACK   int _mark = d->pstack;
-#define mjFREESTACK   d->pstack = _mark;
-#define mjDISABLED(x) (m->opt.disableflags & (x))
-#define mjENABLED(x)  (m->opt.enableflags & (x))
-
-#ifndef mjPRINTFLIKE
-  #if defined(__GNUC__)
-    #define mjPRINTFLIKE(n, m) __attribute__((format(printf, n, m)))
-  #else
-    #define mjPRINTFLIKE(n, m)
-  #endif // __GNUC__
-#endif // mjPRINTFLIKE
 
 
 // user error and memory handlers
@@ -368,6 +357,15 @@ MJAPI void mj_constraintUpdate(const mjModel* m, mjData* d, const mjtNum* jar,
 
 //---------------------------------- Support -------------------------------------------------------
 
+// Return size of state specification.
+MJAPI int mj_stateSize(const mjModel* m, unsigned int spec);
+
+// Get state.
+MJAPI void mj_getState(const mjModel* m, const mjData* d, mjtNum* state, unsigned int spec);
+
+// Set state.
+MJAPI void mj_setState(const mjModel* m, mjData* d, const mjtNum* state, unsigned int spec);
+
 // Add contact to d->contact list; return 0 if success; 1 if buffer full.
 MJAPI int mj_addContact(const mjModel* m, mjData* d, const mjContact* con);
 
@@ -483,6 +481,12 @@ MJAPI const char* mj_versionString();
 
 
 //---------------------------------- Ray collisions ------------------------------------------------
+
+// Intersect multiple rays emanating from a single point.
+// Similar semantics to mj_ray, but vec is an array of (nray x 3) directions.
+MJAPI void mj_multiRay(const mjModel* m, mjData* d, const mjtNum pnt[3], const mjtNum* vec,
+                       const mjtByte* geomgroup, mjtByte flg_static, int bodyexclude,
+                       int* geomid, mjtNum* dist, int nray, mjtNum cutoff);
 
 // Intersect ray (pnt+x*vec, x>=0) with visible geoms, except geoms in bodyexclude.
 // Return distance (x) to nearest surface, or -1 if no intersection and output geomid.
@@ -805,19 +809,7 @@ MJAPI void mj_warning(mjData* d, int warning, int info);
 MJAPI void mju_writeLog(const char* type, const char* msg);
 
 
-//---------------------------------- Activation ----------------------------------------------------
-
-// Return 1 (for backward compatibility).
-MJAPI int mj_activate(const char* filename);
-
-// Do nothing (for backward compatibility).
-MJAPI void mj_deactivate(void);
-
-
 //---------------------------------- Standard math -------------------------------------------------
-
-#define mjMAX(a, b) (((a) > (b)) ? (a) : (b))
-#define mjMIN(a, b) (((a) < (b)) ? (a) : (b))
 
 #ifdef mjUSEDOUBLE
   #define mju_sqrt    sqrt
@@ -1062,11 +1054,38 @@ MJAPI void mju_trnVecPose(mjtNum res[3], const mjtNum pos[3], const mjtNum quat[
 // Cholesky decomposition: mat = L*L'; return rank, decomposition performed in-place into mat.
 MJAPI int mju_cholFactor(mjtNum* mat, int n, mjtNum mindiag);
 
-// Solve mat * res = vec, where mat is Cholesky-factorized
+// Solve (mat*mat') * res = vec, where mat is a Cholesky factor.
 MJAPI void mju_cholSolve(mjtNum* res, const mjtNum* mat, const mjtNum* vec, int n);
 
 // Cholesky rank-one update: L*L' +/- x*x'; return rank.
 MJAPI int mju_cholUpdate(mjtNum* mat, mjtNum* x, int n, int flg_plus);
+
+// Band-dense Cholesky decomposition.
+//  Returns minimum value in the factorized diagonal, or 0 if rank-deficient.
+//  mat has (ntotal-ndense) x nband + ndense x ntotal elements.
+//  The first (ntotal-ndense) x nband store the band part, left of diagonal, inclusive.
+//  The second ndense x ntotal store the band part as entire dense rows.
+//  Add diagadd+diagmul*mat_ii to diagonal before factorization.
+MJAPI mjtNum mju_cholFactorBand(mjtNum* mat, int ntotal, int nband, int ndense,
+                                mjtNum diagadd, mjtNum diagmul);
+
+// Solve (mat*mat')*res = vec where mat is a band-dense Cholesky factor.
+MJAPI void mju_cholSolveBand(mjtNum* res, const mjtNum* mat, const mjtNum* vec,
+                             int ntotal, int nband, int ndense);
+
+// Convert banded matrix to dense matrix, fill upper triangle if flg_sym>0.
+MJAPI void mju_band2Dense(mjtNum* res, const mjtNum* mat, int ntotal, int nband, int ndense,
+                          mjtByte flg_sym);
+
+// Convert dense matrix to banded matrix.
+MJAPI void mju_dense2Band(mjtNum* res, const mjtNum* mat, int ntotal, int nband, int ndense);
+
+// Multiply band-diagonal matrix with nvec vectors, include upper triangle if flg_sym>0.
+MJAPI void mju_bandMulMatVec(mjtNum* res, const mjtNum* mat, const mjtNum* vec,
+                             int ntotal, int nband, int ndense, int nvec, mjtByte flg_sym);
+
+// Address of diagonal element i in band-dense matrix representation.
+MJAPI int mju_bandDiag(int i, int ntotal, int nband, int ndense);
 
 // Eigenvalue decomposition of symmetric 3x3 matrix.
 MJAPI int mju_eig3(mjtNum eigval[3], mjtNum eigvec[9], mjtNum quat[4], const mjtNum mat[9]);
@@ -1111,8 +1130,8 @@ MJAPI mjtNum mju_muscleGain(mjtNum len, mjtNum vel, const mjtNum lengthrange[2],
 MJAPI mjtNum mju_muscleBias(mjtNum len, const mjtNum lengthrange[2],
                             mjtNum acc0, const mjtNum prm[9]);
 
-// Muscle activation dynamics, prm = (tau_act, tau_deact).
-MJAPI mjtNum mju_muscleDynamics(mjtNum ctrl, mjtNum act, const mjtNum prm[2]);
+// Muscle activation dynamics, prm = (tau_act, tau_deact, smoothing_width).
+MJAPI mjtNum mju_muscleDynamics(mjtNum ctrl, mjtNum act, const mjtNum prm[3]);
 
 // Convert contact force to pyramid representation.
 MJAPI void mju_encodePyramid(mjtNum* pyramid, const mjtNum* force, const mjtNum* mu, int dim);
@@ -1183,7 +1202,7 @@ MJAPI mjtNum mju_Halton(int index, int base);
 // Call strncpy, then set dst[n-1] = 0.
 MJAPI char* mju_strncpy(char *dst, const char *src, int n);
 
-// Sigmoid function over 0<=x<=1 constructed from half-quadratics.
+// Sigmoid function over 0<=x<=1 using quintic polynomial.
 MJAPI mjtNum mju_sigmoid(mjtNum x);
 
 
@@ -1197,10 +1216,28 @@ MJAPI mjtNum mju_sigmoid(mjtNum x);
 //      B: (2*nv+na x nu)
 //      D: (nsensordata x 2*nv+na)
 //      C: (nsensordata x nu)
-MJAPI void mjd_transitionFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte centered,
+MJAPI void mjd_transitionFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte flg_centered,
                             mjtNum* A, mjtNum* B, mjtNum* C, mjtNum* D);
 
-
+// Finite differenced Jacobians of (force, sensors) = mj_inverse(state, acceleration)
+//   All outputs are optional. Output dimensions (transposed w.r.t Control Theory convention):
+//     DfDq: (nv x nv)
+//     DfDv: (nv x nv)
+//     DfDa: (nv x nv)
+//     DsDq: (nv x nsensordata)
+//     DsDv: (nv x nsensordata)
+//     DsDa: (nv x nsensordata)
+//     DmDq: (nv x nM)
+//   single-letter shortcuts:
+//     inputs: q=qpos, v=qvel, a=qacc
+//     outputs: f=qfrc_inverse, s=sensordata, m=qM
+//   notes:
+//     optionally computes mass matrix Jacobian DmDq
+//     flg_actuation specifies whether to subtract qfrc_actuator from qfrc_inverse
+MJAPI void mjd_inverseFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte flg_actuation,
+                         mjtNum *DfDq, mjtNum *DfDv, mjtNum *DfDa,
+                         mjtNum *DsDq, mjtNum *DsDv, mjtNum *DsDa,
+                         mjtNum *DmDq);
 
 //---------------------- Plugins -------------------------------------------------------------------
 

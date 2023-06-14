@@ -38,6 +38,7 @@
 #include "function_traits.h"
 #include "indexers.h"
 #include "mjdata_meta.h"
+#include "private.h"
 #include "raw.h"
 #include "serialization.h"
 #include <pybind11/numpy.h>
@@ -485,6 +486,7 @@ MjContactWrapper::MjWrapper()
       X(frame),
       X(friction),
       X(solref),
+      X(solreffriction),
       X(solimp),
       X(H) {}
 
@@ -494,6 +496,7 @@ MjContactWrapper::MjWrapper(raw::MjContact* ptr, py::handle owner)
       X(frame),
       X(friction),
       X(solref),
+      X(solreffriction),
       X(solimp),
       X(H) {}
 #undef X
@@ -695,7 +698,6 @@ void MjDataWrapper::Serialize(std::ostream& output) const {
 
   // Write struct and scalar fields
 #define X(var) WriteBytes(output, &ptr_->var, sizeof(ptr_->var))
-  X(parena);
   X(maxuse_stack);
   X(maxuse_arena);
   X(maxuse_con);
@@ -727,7 +729,6 @@ void MjDataWrapper::Serialize(std::ostream& output) const {
 #define MJ_D(x) this->ptr_->x
 #define X(type, name, nr, nc)                                   \
   if ((nr) * (nc)) {                                            \
-    WriteInt(output, PTRDIFF(ptr_->name, ptr_->arena));         \
     WriteBytes(output, ptr_->name, sizeof(type) * (nr) * (nc)); \
   }
 
@@ -786,7 +787,6 @@ MjDataWrapper MjDataWrapper::Deserialize(std::istream& input) {
   ReadBytes(input, (void*) &d->var, sizeof(d->var)); \
   CheckInput(input, "mjData");
 
-  X(parena);
   X(maxuse_stack);
   X(maxuse_arena);
   X(maxuse_con);
@@ -816,11 +816,11 @@ MjDataWrapper MjDataWrapper::Deserialize(std::istream& input) {
 #define MJ_M(x) m.x
 #undef MJ_D
 #define MJ_D(x) d->x
-#define X(type, name, nr, nc)                              \
-  if ((nr) * (nc)) {                                       \
-    d->name = reinterpret_cast<decltype(d->name)>(         \
-        static_cast<char*>(d->arena) + ReadInt(input));    \
-    ReadBytes(input, d->name, sizeof(type) * (nr) * (nc)); \
+#define X(type, name, nr, nc)                                          \
+  if ((nr) * (nc)) {                                                   \
+    d->name = static_cast<decltype(d->name)>(                          \
+        mj_arenaAlloc(d, sizeof(type) * (nr) * (nc), alignof(type)));  \
+    ReadBytes(input, d->name, sizeof(type) * (nr) * (nc));             \
   }
 
     MJDATA_ARENA_POINTERS_CONTACT
@@ -1737,6 +1737,7 @@ This is useful for example when the MJB is not available as a file on disk.)"));
   X(frame);
   X(friction);
   X(solref);
+  X(solreffriction);
   X(solimp);
   X(H);
 #undef X
@@ -1768,6 +1769,7 @@ This is useful for example when the MJB is not available as a file on disk.)"));
   X(mjtNum, includemargin);
   XN(mjtNum, friction);
   XN(mjtNum, solref);
+  XN(mjtNum, solreffriction);
   XN(mjtNum, solimp);
   X(mjtNum, mu);
   XN(mjtNum, H);

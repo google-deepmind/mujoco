@@ -1630,6 +1630,8 @@ if omitted.
 
 .. _default-pair-solref:
 
+.. _default-pair-solreffriction:
+
 .. _default-pair-solimp:
 
 .. _default-pair-gap:
@@ -4299,6 +4301,20 @@ element.
 :at:`solref`, :at:`solimp`
    Constraint solver parameters for contact simulation. See :ref:`CSolver`.
 
+.. _contact-pair-solreffriction:
+
+:at:`solreffriction`: :at-val:`real, "0 0"`
+   Contact reference acceleration, in the friction dimensions. This attribute has the same semantics as other
+   :at:`solref` attributes (described in :ref:`CSolver`), with two important distictions:
+
+   - The default :at-val:`"0 0"` means "use the same values as :at:`solref`".
+   - This attribute only takes effect for :ref:`elliptic friction cones<option-cone>`, since pyramidal cones mix normal
+     and frictional forces.
+
+   Note that as with other :at:`solreffriction` attributes, the constraint violation is identically 0. Therefore, when
+   using positive semantics :at:`solreffriction[1]` is ignored, while for negative semantics :at:`solreffriction[0]` is
+   ignored. See :ref:`CSolver` for more details.
+
 .. _contact-pair-margin:
 
 :at:`margin`: :at-val:`real, "0"`
@@ -4580,13 +4596,11 @@ wrapping around specified obstacle geoms. The objects along the path are defined
 which split the path in multiple branches. Each branch of the tendon path must start and end with a site, and if it
 has multiple obstacle geoms they must be separated by sites - so as to avoid the need for an iterative solver at the
 tendon level. This example illustrates a multi-branch tendon acting as a finger extensor, with a counter-weight
-instead of an actuator.
+instead of an actuator: `tendon.xml <_static/tendon.xml>`__.
 
 MuJoCo 2.0 introduced a second form of wrapping, where the tendon is constrained to pass through a geom rather than
 wrap around it. This is enabled automatically when a sidesite is specified and its position is inside the volume of
 the obstacle geom.
-
-`tendon.xml <_static/tendon.xml>`__
 
 .. _tendon-spatial-name:
 
@@ -5537,7 +5551,7 @@ section. The underlying :el:`general` attributes are set as follows:
 ========= ======= ========= ======================================================
 Attribute Setting Attribute Setting
 ========= ======= ========= ======================================================
-dyntype   muscle  dynprm    timeconst(2)
+dyntype   muscle  dynprm    timeconst(2) tausmooth
 gaintype  muscle  gainprm   range(2), force, scale, lmin, lmax, vmax, fpmax, fvmax
 biastype  muscle  biasprm   same as gainprm
 ========= ======= ========= ======================================================
@@ -5590,6 +5604,12 @@ This element has nine custom attributes in addition to the common attributes:
 
 :at:`timeconst`: :at-val:`real(2), "0.01 0.04"`
    Time constants for activation and de-activation dynamics.
+
+.. _actuator-muscle-tausmooth:
+
+:at:`tausmooth`: :at-val:`real, "0"`
+   Width of smooth transition between activation and deactivation time constants. Units of ctrl, must be
+   nonegative.
 
 .. _actuator-muscle-range:
 

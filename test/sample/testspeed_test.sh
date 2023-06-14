@@ -25,10 +25,15 @@ test_model() {
   local model="$1"
   echo "Testing $model" >&2
 
+  local iterations=10
+  if [[ "$model" == */composite/particle.xml && ${TESTSPEED_ASAN:-0} != 0 ]]; then
+    iterations=2
+  fi
+
   # run testspeed, writing its output to stderr.
   # die if testspeed returns a failure code, or if it doesn't have the string
   # "Simulation time" in the output.
-  ("$TARGET_BINARY" "$model" 10 || die "testspeed failed") \
+  ("$TARGET_BINARY" "$model" "$iterations" || die "testspeed failed") \
       | tee >(cat 1>&2) | grep -q "$EXPECTED_STR"
 
   if [ "$?" != 0 ]; then

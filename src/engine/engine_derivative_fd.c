@@ -18,6 +18,7 @@
 #include <string.h>
 
 #include <mujoco/mjdata.h>
+#include <mujoco/mjmacro.h>
 #include <mujoco/mjmodel.h>
 #include "engine/engine_forward.h"
 #include "engine/engine_io.h"
@@ -67,7 +68,7 @@ static void setState(const mjModel* m, mjData* d, mjtNum time, const mjtNum* sta
 // dx = (x2 - x1) / h
 static void diff(mjtNum* restrict dx, const mjtNum* x1, const mjtNum* x2, mjtNum h, int n) {
   mjtNum inv_h = 1/h;
-  for (int i=0; i<n; i++) {
+  for (int i=0; i < n; i++) {
     dx[i] = inv_h * (x2[i] - x1[i]);
   }
 }
@@ -122,7 +123,7 @@ static void clampedStateDiff(const mjModel* m, mjtNum* ds, const mjtNum* s, cons
     stateDiff(m, ds, s_minus, s_plus, 2*h);
   } else {
     // differencing failed, write zeros
-    mju_zero(ds, m->nq + m->nv + m->na);
+    mju_zero(ds, 2*m->nv + m->na);
   }
 }
 
@@ -153,25 +154,38 @@ void mj_stepSkip(const mjModel* m, mjData* d, int skipstage, int skipsensor) {
 
   // use selected integrator
   switch (m->opt.integrator) {
-    case mjINT_EULER:
-      mj_EulerSkip(m, d, skipstage >= mjSTAGE_POS);
-      break;
+  case mjINT_EULER:
+    mj_EulerSkip(m, d, skipstage >= mjSTAGE_POS);
+    break;
 
-    case mjINT_RK4:
-      // ignore skipstage
-      mj_RungeKutta(m, d, 4);
-      break;
+  case mjINT_RK4:
+    // ignore skipstage
+    mj_RungeKutta(m, d, 4);
+    break;
 
-    case mjINT_IMPLICIT:
-    case mjINT_IMPLICITFAST:
-      mj_implicitSkip(m, d, skipstage >= mjSTAGE_VEL);
-      break;
+  case mjINT_IMPLICIT:
+  case mjINT_IMPLICITFAST:
+    mj_implicitSkip(m, d, skipstage >= mjSTAGE_VEL);
+    break;
 
-    default:
-      mju_error("Invalid integrator");
+  default:
+    mju_error("Invalid integrator");
   }
 
   TM_END(mjTIMER_STEP);
+}
+
+
+
+// compute qfrc_inverse, optionally subtracting qfrc_actuator
+static void inverseSkip(const mjModel* m, mjData* d, mjtStage stage, int skipsensor,
+                        int flg_actuation, mjtNum* force) {
+  mj_inverseSkip(m, d, stage, skipsensor);
+  mju_copy(force, d->qfrc_inverse, m->nv);
+  if (flg_actuation) {
+    mj_fwdActuation(m, d);
+    mju_subFrom(force, d->qfrc_actuator, m->nv);
+  }
 }
 
 
@@ -194,7 +208,7 @@ void mjd_passive_velFD(const mjModel* m, mjData* d, mjtNum eps) {
   mju_copy(qfrc_passive, d->qfrc_passive, nv);
 
   // loop over dofs
-  for (int i=0; i<nv; i++) {
+  for (int i=0; i < nv; i++) {
     // save qvel[i]
     mjtNum saveqvel = d->qvel[i];
 
@@ -210,9 +224,9 @@ void mjd_passive_velFD(const mjModel* m, mjData* d, mjtNum eps) {
     mju_scl(fd, fd, 1/eps, nv);
 
     // copy to i-th column of qDeriv
-    for (int j=0; j<nv; j++) {
+    for (int j=0; j < nv; j++) {
       int adr = d->D_rowadr[j] + cnt[j];
-      if (cnt[j]<d->D_rownnz[j] && d->D_colind[adr] == i) {
+      if (cnt[j] < d->D_rownnz[j] && d->D_colind[adr] == i) {
         d->qDeriv[adr] = fd[j];
         cnt[j]++;
       }
@@ -243,7 +257,7 @@ void mjd_smooth_velFD(const mjModel* m, mjData* d, mjtNum eps) {
   memset(cnt, 0, nv*sizeof(int));
 
   // loop over dofs
-  for (int i=0; i<nv; i++) {
+  for (int i=0; i < nv; i++) {
     // save qvel[i]
     mjtNum saveqvel = d->qvel[i];
 
@@ -269,8 +283,8 @@ void mjd_smooth_velFD(const mjModel* m, mjData* d, mjtNum eps) {
     mju_scl(fd, fd, 0.5/eps, nv);
 
     // copy to sparse qDeriv
-    for (int j=0; j<nv; j++) {
-      if (cnt[j]<d->D_rownnz[j] && d->D_colind[d->D_rowadr[j]+cnt[j]]==i) {
+    for (int j=0; j < nv; j++) {
+      if (cnt[j] < d->D_rownnz[j] && d->D_colind[d->D_rowadr[j]+cnt[j]] == i) {
         d->qDeriv[d->D_rowadr[j]+cnt[j]] = fd[j];
         cnt[j]++;
       }
@@ -278,8 +292,8 @@ void mjd_smooth_velFD(const mjModel* m, mjData* d, mjtNum eps) {
   }
 
   // make sure final row counters equal rownnz
-  for (int i=0; i<nv; i++) {
-    if (cnt[i]!=d->D_rownnz[i]) {
+  for (int i=0; i < nv; i++) {
+    if (cnt[i] != d->D_rownnz[i]) {
       mju_error("error in constructing FD sparse derivative");
     }
   }
@@ -310,7 +324,7 @@ void mjd_smooth_velFD(const mjModel* m, mjData* d, mjtNum eps) {
 //   single-letter shortcuts:
 //     inputs: q=qpos, v=qvel, a=act, u=ctrl
 //     outputs: y=next_state (concatenated next qpos, qvel, act), s=sensordata
-void mjd_stepFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte centered,
+void mjd_stepFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte flg_centered,
                 mjtNum* DyDq, mjtNum* DyDv, mjtNum* DyDa, mjtNum* DyDu,
                 mjtNum* DsDq, mjtNum* DsDv, mjtNum* DsDa, mjtNum* DsDu) {
   int nq = m->nq, nv = m->nv, na = m->na, nu = m->nu, ns = m->nsensordata;
@@ -354,7 +368,7 @@ void mjd_stepFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte centered,
 
   // finite-difference controls: skip=mjSTAGE_VEL, handle ctrl at range limits
   if (DyDu || DsDu) {
-    for (int i=0; i<nu; i++) {
+    for (int i=0; i < nu; i++) {
       int limited = m->actuator_ctrllimited[i];
       // nudge forward, if possible given ctrlrange
       int nudge_fwd = !limited || inRange(ctrl[i], ctrl[i]+eps, m->actuator_ctrlrange+2*i);
@@ -371,7 +385,7 @@ void mjd_stepFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte centered,
       }
 
       // nudge backward, if possible given ctrlrange
-      int nudge_back = (centered || !nudge_fwd) &&
+      int nudge_back = (flg_centered || !nudge_fwd) &&
                        (!limited || inRange(ctrl[i]-eps, ctrl[i], m->actuator_ctrlrange+2*i));
       if (nudge_back) {
         // nudge backward
@@ -401,7 +415,7 @@ void mjd_stepFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte centered,
 
   // finite-difference activations: skip=mjSTAGE_VEL
   if (DyDa || DsDa) {
-    for (int i=0; i<na; i++) {
+    for (int i=0; i < na; i++) {
       // nudge forward
       d->act[i] += eps;
 
@@ -413,7 +427,7 @@ void mjd_stepFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte centered,
       setState(m, d, time, state, NULL, warmstart);
 
       // nudge backward
-      if (centered) {
+      if (flg_centered) {
         // nudge backward
         d->act[i] -= eps;
 
@@ -427,7 +441,7 @@ void mjd_stepFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte centered,
 
       // difference states
       if (DyDa) {
-        if (!centered) {
+        if (!flg_centered) {
           stateDiff(m, DyDa+i*ndx, next, next_plus, eps);
         } else {
           stateDiff(m, DyDa+i*ndx, next_minus, next_plus, 2*eps);
@@ -436,7 +450,7 @@ void mjd_stepFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte centered,
 
       // difference sensors
       if (DsDa) {
-        if (!centered) {
+        if (!flg_centered) {
           diff(DsDa+i*ns, sensor, sensor_plus, eps, ns);
         } else {
           diff(DsDa+i*ns, sensor_minus, sensor_plus, 2*eps, ns);
@@ -448,7 +462,7 @@ void mjd_stepFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte centered,
 
   // finite-difference velocities: skip=mjSTAGE_POS
   if (DyDv || DsDv) {
-    for (int i=0; i<nv; i++) {
+    for (int i=0; i < nv; i++) {
       // nudge forward
       d->qvel[i] += eps;
 
@@ -460,7 +474,7 @@ void mjd_stepFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte centered,
       setState(m, d, time, state, NULL, warmstart);
 
       // nudge backward
-      if (centered) {
+      if (flg_centered) {
         // nudge
         d->qvel[i] -= eps;
 
@@ -474,7 +488,7 @@ void mjd_stepFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte centered,
 
       // difference states
       if (DyDv) {
-        if (!centered) {
+        if (!flg_centered) {
           stateDiff(m, DyDv+i*ndx, next, next_plus, eps);
         } else {
           stateDiff(m, DyDv+i*ndx, next_minus, next_plus, 2*eps);
@@ -483,7 +497,7 @@ void mjd_stepFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte centered,
 
       // difference sensors
       if (DsDv) {
-        if (!centered) {
+        if (!flg_centered) {
           diff(DsDv+i*ns, sensor, sensor_plus, eps, ns);
         } else {
           diff(DsDv+i*ns, sensor_minus, sensor_plus, 2*eps, ns);
@@ -495,7 +509,7 @@ void mjd_stepFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte centered,
   // finite-difference positions: skip=mjSTAGE_NONE
   if (DyDq || DsDq) {
     mjtNum *dpos  = mj_stackAlloc(d, nv);  // allocate position perturbation
-    for (int i=0; i<nv; i++) {
+    for (int i=0; i < nv; i++) {
       // nudge forward
       mju_zero(dpos, nv);
       dpos[i] = 1;
@@ -509,7 +523,7 @@ void mjd_stepFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte centered,
       setState(m, d, time, state, NULL, warmstart);
 
       // nudge backward
-      if (centered) {
+      if (flg_centered) {
         // nudge backward
         mju_zero(dpos, nv);
         dpos[i] = 1;
@@ -525,7 +539,7 @@ void mjd_stepFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte centered,
 
       // difference states
       if (DyDq) {
-        if (!centered) {
+        if (!flg_centered) {
           stateDiff(m, DyDq+i*ndx, next, next_plus, eps);
         } else {
           stateDiff(m, DyDq+i*ndx, next_minus, next_plus, 2*eps);
@@ -534,7 +548,7 @@ void mjd_stepFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte centered,
 
       // difference sensors
       if (DsDq) {
-        if (!centered) {
+        if (!flg_centered) {
           diff(DsDq+i*ns, sensor, sensor_plus, eps, ns);
         } else {
           diff(DsDq+i*ns, sensor_minus, sensor_plus, 2*eps, ns);
@@ -556,7 +570,7 @@ void mjd_stepFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte centered,
 //      B: (2*nv+na x nu)
 //      D: (nsensordata x 2*nv+na)
 //      C: (nsensordata x nu)
-void mjd_transitionFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte centered,
+void mjd_transitionFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte flg_centered,
                       mjtNum* A, mjtNum* B, mjtNum* C, mjtNum* D) {
   int nv = m->nv, na = m->na, nu = m->nu, ns = m->nsensordata;
   int ndx = 2*nv+na;  // row length of state Jacobians
@@ -587,7 +601,7 @@ void mjd_transitionFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte centered,
   }
 
   // get Jacobians
-  mjd_stepFD(m, d, eps, centered, DyDq, DyDv, DyDa, BT, DsDq, DsDv, DsDa, DT);
+  mjd_stepFD(m, d, eps, flg_centered, DyDq, DyDv, DyDa, BT, DsDq, DsDv, DsDa, DT);
 
 
   // transpose
@@ -595,6 +609,126 @@ void mjd_transitionFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte centered,
   if (B) mju_transpose(B, BT, nu, ndx);
   if (C) mju_transpose(C, CT, ndx, ns);
   if (D) mju_transpose(D, DT, nu, ns);
+
+  mjFREESTACK;
+}
+
+// finite differenced Jacobians of (force, sensors) = mj_inverse(state, acceleration)
+//   all outputs are optional
+//   output dimensions (transposed w.r.t Control Theory convention):
+//     DfDq: (nv x nv)
+//     DfDv: (nv x nv)
+//     DfDa: (nv x nv)
+//     DsDq: (nv x nsensordata)
+//     DsDv: (nv x nsensordata)
+//     DsDa: (nv x nsensordata)
+//     DmDq: (nv x nM)
+//   single-letter shortcuts:
+//     inputs: q=qpos, v=qvel, a=qacc
+//     outputs: f=qfrc_inverse, s=sensordata, m=qM
+//   notes:
+//     optionally compute mass matrix Jacobian DmDq
+//     flg_actuation specifies whether to subtract qfrc_actuator from qfrc_inverse
+void mjd_inverseFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte flg_actuation,
+                   mjtNum *DfDq, mjtNum *DfDv, mjtNum *DfDa,
+                   mjtNum *DsDq, mjtNum *DsDv, mjtNum *DsDa,
+                   mjtNum *DmDq) {
+  int nq = m->nq, nv = m->nv, nM = m->nM, ns = m->nsensordata;
+  mjMARKSTACK;
+
+  if (m->opt.integrator == mjINT_RK4) {
+    mju_error("RK4 integrator is not supported by mjd_inverseFD");
+  }
+
+  if (m->opt.noslip_iterations) {
+    mju_error("The noslip solver is not supported by mjd_inverseFD");
+  }
+
+  // skip sensor computations if no sensor Jacobians requested
+  int skipsensor = !DsDq && !DsDv && !DsDa;
+
+  // local vectors
+  mjtNum *pos        = mj_stackAlloc(d, nq);                      // position
+  mjtNum *force      = mj_stackAlloc(d, nv);                      // force
+  mjtNum *force_plus = mj_stackAlloc(d, nv);                      // nudged force
+  mjtNum *sensor     = skipsensor ? NULL : mj_stackAlloc(d, ns);  // sensor values
+  mjtNum *mass       = DmDq ? mj_stackAlloc(d, nM) : NULL;        // mass matrix
+
+  // save current positions
+  mju_copy(pos, d->qpos, nq);
+
+  // center point outputs
+  inverseSkip(m, d, mjSTAGE_NONE, skipsensor, flg_actuation, force);
+  if (sensor) mju_copy(sensor, d->sensordata, ns);
+  if (mass) mju_copy(mass, d->qM, nM);
+
+  // acceleration: skip = mjSTAGE_VEL
+  if (DfDa || DsDa) {
+    for (int i=0; i < nv; i++) {
+      // nudge acceleration
+      mjtNum tmp = d->qacc[i];
+      d->qacc[i] += eps;
+
+      // inverse dynamics, get force output
+      inverseSkip(m, d, mjSTAGE_VEL, skipsensor, flg_actuation, force_plus);
+
+      // restore
+      d->qacc[i] = tmp;
+
+      // row of force Jacobian
+      if (DfDa) diff(DfDa + i*nv, force, force_plus, eps, nv);
+
+      // row of sensor Jacobian
+      if (DsDa) diff(DsDa + i*ns, sensor, d->sensordata, eps, ns);
+    }
+  }
+
+  // velocity: skip = mjSTAGE_POS
+  if (DfDv || DsDv) {
+    for (int i=0; i < nv; i++) {
+      // nudge velocity
+      mjtNum tmp = d->qvel[i];
+      d->qvel[i] += eps;
+
+      // inverse dynamics, get force output
+      inverseSkip(m, d, mjSTAGE_POS, skipsensor, flg_actuation, force_plus);
+
+      // restore
+      d->qvel[i] = tmp;
+
+      // row of force Jacobian
+      if (DfDv) diff(DfDv + i*nv, force, force_plus, eps, nv);
+
+      // row of sensor Jacobian
+      if (DsDv) diff(DsDv + i*ns, sensor, d->sensordata, eps, ns);
+    }
+  }
+
+  // position: skip = mjSTAGE_NONE
+  if (DfDq || DsDq || DmDq) {
+    mjtNum *dpos  = mj_stackAlloc(d, nv);  // allocate position perturbation
+    for (int i=0; i < nv; i++) {
+      // nudge
+      mju_zero(dpos, nv);
+      dpos[i] = 1.0;
+      mj_integratePos(m, d->qpos, dpos, eps);
+
+      // inverse dynamics, get force output
+      inverseSkip(m, d, mjSTAGE_NONE, skipsensor, flg_actuation, force_plus);
+
+      // restore
+      mju_copy(d->qpos, pos, nq);
+
+      // row of force Jacobian
+      if (DfDq) diff(DfDq + i*nv, force, force_plus, eps, nv);
+
+      // row of sensor Jacobian
+      if (DsDq) diff(DsDq + i*ns, sensor, d->sensordata, eps, ns);
+
+      // row of inertia Jacobian
+      if (DmDq) diff(DmDq + i*nM, mass, d->qM, eps, nM);
+    }
+  }
 
   mjFREESTACK;
 }

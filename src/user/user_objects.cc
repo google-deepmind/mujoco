@@ -24,6 +24,7 @@
 #include <vector>
 
 #include "lodepng.h"
+#include <mujoco/mjmacro.h>
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjplugin.h>
 #include "cc/array_safety.h"
@@ -31,9 +32,9 @@
 #include "engine/engine_crossplatform.h"
 #include "engine/engine_resource.h"
 #include "engine/engine_io.h"
-#include "engine/engine_macro.h"
 #include "engine/engine_passive.h"
 #include "engine/engine_plugin.h"
+#include "engine/engine_util_blas.h"
 #include "engine/engine_util_errmem.h"
 #include "engine/engine_util_misc.h"
 #include "engine/engine_util_solve.h"
@@ -262,7 +263,7 @@ const char* mjCAlternative::Set(double* quat, double* inertia,
 
 
 
-//------------------------- class mjCTree implementation -------------------------------------------
+//------------------------- class mjCBoundingVolumeHierarchy implementation ------------------------
 
 // constructor
 mjCBoundingVolumeHierarchy::mjCBoundingVolumeHierarchy() {
@@ -279,8 +280,20 @@ void mjCBoundingVolumeHierarchy::Set(mjtNum ipos_element[3], mjtNum iquat_elemen
 }
 
 
+// add geom to bvh
+void mjCBoundingVolumeHierarchy::AddBundingVolume(const mjCBoundingVolume& bv) {
+  bvh_.push_back(bv);
+}
+
+
+// create bounding volume hierarchy
+void mjCBoundingVolumeHierarchy::CreateBVH() {
+  MakeBVH(bvh_);
+}
+
+
 // compute bounding volume hierarchy
-int mjCBoundingVolumeHierarchy::MakeBVH(std::vector<mjCGeom *>& elements, int lev) {
+int mjCBoundingVolumeHierarchy::MakeBVH(std::vector<mjCBoundingVolume>& elements, int lev) {
   int nelements = elements.size();
   mjtNum AABB[6] = {mjMAXVAL, mjMAXVAL, mjMAXVAL, -mjMAXVAL, -mjMAXVAL, -mjMAXVAL};
 
@@ -289,17 +302,17 @@ int mjCBoundingVolumeHierarchy::MakeBVH(std::vector<mjCGeom *>& elements, int le
 
   for (int i=0; i<nelements; i++) {
     // skip visual objects
-    if (elements[i]->conaffinity==0 && elements[i]->contype==0) {
+    if (elements[i].conaffinity==0 && elements[i].contype==0) {
       continue;
     }
 
     // transform aabb representation
-    mjtNum aabb[6] = {elements[i]->aabb[0] - elements[i]->aabb[3],
-                      elements[i]->aabb[1] - elements[i]->aabb[4],
-                      elements[i]->aabb[2] - elements[i]->aabb[5],
-                      elements[i]->aabb[0] + elements[i]->aabb[3],
-                      elements[i]->aabb[1] + elements[i]->aabb[4],
-                      elements[i]->aabb[2] + elements[i]->aabb[5]};
+    mjtNum aabb[6] = {elements[i].aabb[0] - elements[i].aabb[3],
+                      elements[i].aabb[1] - elements[i].aabb[4],
+                      elements[i].aabb[2] - elements[i].aabb[5],
+                      elements[i].aabb[0] + elements[i].aabb[3],
+                      elements[i].aabb[1] + elements[i].aabb[4],
+                      elements[i].aabb[2] + elements[i].aabb[5]};
 
     // update node AABB
     for (int v=0; v<8; v++) {
@@ -309,17 +322,28 @@ int mjCBoundingVolumeHierarchy::MakeBVH(std::vector<mjCGeom *>& elements, int le
       vert[2] = (v&4 ? aabb[5] : aabb[2]);
 
       // rotate to the body inertial frame
-      mju_rotVecQuat(box, vert, elements[i]->quat);
-      box[0] += elements[i]->pos[0] - ipos_[0];
-      box[1] += elements[i]->pos[1] - ipos_[1];
-      box[2] += elements[i]->pos[2] - ipos_[2];
-      mju_rotVecQuat(vert, box, qinv);
+      if (elements[i].quat) {
+        mju_rotVecQuat(box, vert, elements[i].quat);
+        box[0] += elements[i].pos[0] - ipos_[0];
+        box[1] += elements[i].pos[1] - ipos_[1];
+        box[2] += elements[i].pos[2] - ipos_[2];
+        mju_rotVecQuat(vert, box, qinv);
+      }
+
       AABB[0] = mjMIN(AABB[0], vert[0]);
       AABB[1] = mjMIN(AABB[1], vert[1]);
       AABB[2] = mjMIN(AABB[2], vert[2]);
       AABB[3] = mjMAX(AABB[3], vert[0]);
       AABB[4] = mjMAX(AABB[4], vert[1]);
       AABB[5] = mjMAX(AABB[5], vert[2]);
+    }
+  }
+
+  // inflate flat AABBs
+  for (int i=0; i<3; i++) {
+    if (mju_abs(AABB[i]-AABB[i+3])<mjEPS) {
+      AABB[i+0] -= mjEPS;
+      AABB[i+3] += mjEPS;
     }
   }
 
@@ -330,18 +354,12 @@ int mjCBoundingVolumeHierarchy::MakeBVH(std::vector<mjCGeom *>& elements, int le
   nodeid.push_back(-1);
   level.push_back(lev);
 
-  // transform representation
-  mjtNum center[] = {(AABB[3] + AABB[0]) / 2, (AABB[4] + AABB[1]) / 2,
-                  (AABB[5] + AABB[2]) / 2};
-  mjtNum size[] = {(AABB[3] - AABB[0]) / 2, (AABB[4] - AABB[1]) / 2,
-                   (AABB[5] - AABB[2]) / 2};
-
   // store bounding box of the current node
   for (int i=0; i<3; i++) {
-    bvh.push_back(center[i]);
+    bvh.push_back((AABB[3+i] + AABB[i]) / 2);
   }
   for (int i=0; i<3; i++) {
-    bvh.push_back(size[i]);
+    bvh.push_back((AABB[3+i] - AABB[i]) / 2);
   }
 
   // leaf node, return
@@ -349,7 +367,7 @@ int mjCBoundingVolumeHierarchy::MakeBVH(std::vector<mjCGeom *>& elements, int le
     for (int i=0; i<2; i++) {
       child[2*index+i] = -1;
     }
-    nodeid[index] = elements[0]->id;
+    nodeid[index] = elements[0].id;
     return index;
   }
 
@@ -363,9 +381,9 @@ int mjCBoundingVolumeHierarchy::MakeBVH(std::vector<mjCGeom *>& elements, int le
 
   for (int i=0; i<nelements; i++) {
     // get position in the body inertial frame
-    mjtNum vert[3] = {elements[i]->pos[0] - ipos_[0],
-                      elements[i]->pos[1] - ipos_[1],
-                      elements[i]->pos[2] - ipos_[2]};
+    mjtNum vert[3] = {elements[i].pos[0] - ipos_[0],
+                      elements[i].pos[1] - ipos_[1],
+                      elements[i].pos[2] - ipos_[2]};
     mjtNum lpos[3];
     mju_rotVecQuat(lpos, vert, qinv);
     pos[i] = lpos[axis];
@@ -376,20 +394,20 @@ int mjCBoundingVolumeHierarchy::MakeBVH(std::vector<mjCGeom *>& elements, int le
   mjtNum threshold = pos[m];
 
   // split using median
-  std::vector<mjCGeom *> left;
-  std::vector<mjCGeom *> right;
+  std::vector<mjCBoundingVolume> left;
+  std::vector<mjCBoundingVolume> right;
   int skipped = 0;
 
   for (int i=0; i<nelements; i++) {
     // get position in the body inertial frame
-    mjtNum vert[3] = {elements[i]->pos[0] - ipos_[0],
-                      elements[i]->pos[1] - ipos_[1],
-                      elements[i]->pos[2] - ipos_[2]};
+    mjtNum vert[3] = {elements[i].pos[0] - ipos_[0],
+                      elements[i].pos[1] - ipos_[1],
+                      elements[i].pos[2] - ipos_[2]};
     mjtNum lpos[3];
     mju_rotVecQuat(lpos, vert, qinv);
 
     // skip visual objects
-    if (elements[i]->conaffinity==0 && elements[i]->contype==0) {
+    if (elements[i].conaffinity==0 && elements[i].contype==0) {
       skipped++;
       continue;
     }
@@ -421,6 +439,10 @@ int mjCBoundingVolumeHierarchy::MakeBVH(std::vector<mjCGeom *>& elements, int le
   if (child[2*index+0]==-1 && child[2*index+1]==-1 && !skipped) {
     mju_error("this should have been a leaf, body=%s nelements=%d",
               name_.c_str(), nelements);
+  }
+
+  if (lev>mjMAXTREEDEPTH) {
+    mju_warning("max tree depth exceeded in body=%s", name_.c_str());
   }
 
   return index;
@@ -949,7 +971,10 @@ void mjCBody::Compile(void) {
   // compute bounding volume hierarchy
   if (!geoms.empty()) {
     tree.Set(ipos, iquat);
-    tree.MakeBVH(geoms);
+    for (int i=0; i<geoms.size(); i++) {
+      tree.AddBundingVolume(geoms[i]->GetBoundingVolume());
+    }
+    tree.CreateBVH();
   }
 
   // compile all joints, count dofs
@@ -1264,6 +1289,19 @@ double mjCGeom::GetVolume(void) {
       return 0;
     }
   }
+}
+
+
+
+mjCBoundingVolume mjCGeom::GetBoundingVolume() const {
+  mjCBoundingVolume bv;
+  bv.id = id;
+  bv.contype = contype;
+  bv.conaffinity = conaffinity;
+  bv.aabb = aabb;
+  bv.pos = pos;
+  bv.quat = quat;
+  return bv;
 }
 
 
@@ -2086,7 +2124,7 @@ void mjCHField::LoadPNG(mjResource* resource) {
 
 
 // compiler
-void mjCHField::Compile(int default_provider) {
+void mjCHField::Compile(int vfs_provider) {
   // check size parameters
   for (int i=0; i<4; i++)
     if (size[i]<=0)
@@ -2108,7 +2146,7 @@ void mjCHField::Compile(int default_provider) {
 
     // make filename
     string filename = mjuu_makefullname(model->modelfiledir, model->meshdir, file);
-    mjResource* resource = LoadResource(filename, default_provider);
+    mjResource* resource = LoadResource(filename, vfs_provider);
 
     // load depending on format
     string ext = mjuu_getext(filename);
@@ -2502,12 +2540,12 @@ void mjCTexture::LoadCustom(mjResource* resource,
 
 
 // load from PNG or custom file, flip if specified
-void mjCTexture::LoadFlip(string filename, int default_provider,
+void mjCTexture::LoadFlip(string filename, int vfs_provider,
                           std::vector<unsigned char>& image,
                           unsigned int& w, unsigned int& h) {
   // dispatch to PNG or Custom loaded
   string ext = mjuu_getext(filename);
-  mjResource* resource = LoadResource(filename, default_provider);
+  mjResource* resource = LoadResource(filename, vfs_provider);
 
   try {
     if (!strcasecmp(ext.c_str(), ".png")) {
@@ -2569,11 +2607,11 @@ void mjCTexture::LoadFlip(string filename, int default_provider,
 
 
 // load 2D
-void mjCTexture::Load2D(string filename, int default_provider) {
+void mjCTexture::Load2D(string filename, int vfs_provider) {
   // load PNG or custom
   unsigned int w, h;
   std::vector<unsigned char> image;
-  LoadFlip(filename, default_provider, image, w, h);
+  LoadFlip(filename, vfs_provider, image, w, h);
 
   // assign size
   width = w;
@@ -2592,7 +2630,7 @@ void mjCTexture::Load2D(string filename, int default_provider) {
 
 
 // load cube or skybox from single file (repeated or grid)
-void mjCTexture::LoadCubeSingle(string filename, int default_provider) {
+void mjCTexture::LoadCubeSingle(string filename, int vfs_provider) {
   // check gridsize
   if (gridsize[0]<1 || gridsize[1]<1 || gridsize[0]*gridsize[1]>12) {
     throw mjCError(this,
@@ -2603,7 +2641,7 @@ void mjCTexture::LoadCubeSingle(string filename, int default_provider) {
   // load PNG or custom
   unsigned int w, h;
   std::vector<unsigned char> image;
-  LoadFlip(filename, default_provider, image, w, h);
+  LoadFlip(filename, vfs_provider, image, w, h);
 
   // check gridsize for compatibility
   if (w/gridsize[1]!=h/gridsize[0] || (w%gridsize[1]) || (h%gridsize[0])) {
@@ -2692,7 +2730,7 @@ void mjCTexture::LoadCubeSingle(string filename, int default_provider) {
 
 
 // load cube or skybox from separate file
-void mjCTexture::LoadCubeSeparate(int default_provider) {
+void mjCTexture::LoadCubeSeparate(int vfs_provider) {
   // keep track of which faces were defined
   int loaded[6] = {0, 0, 0, 0, 0, 0};
 
@@ -2710,7 +2748,7 @@ void mjCTexture::LoadCubeSeparate(int default_provider) {
       // load PNG or custom
       unsigned int w, h;
       std::vector<unsigned char> image;
-      LoadFlip(filename, default_provider, image, w, h);
+      LoadFlip(filename, vfs_provider, image, w, h);
 
       // PNG must be square
       if (w!=h) {
@@ -2764,7 +2802,7 @@ void mjCTexture::LoadCubeSeparate(int default_provider) {
 
 
 // compiler
-void mjCTexture::Compile(int default_provider) {
+void mjCTexture::Compile(int vfs_provider) {
   // builtin
   if (builtin!=mjBUILTIN_NONE) {
     // check size
@@ -2807,9 +2845,9 @@ void mjCTexture::Compile(int default_provider) {
 
     // dispatch
     if (type==mjTEXTURE_2D) {
-      Load2D(filename, default_provider);
+      Load2D(filename, vfs_provider);
     } else {
-      LoadCubeSingle(filename, default_provider);
+      LoadCubeSingle(filename, vfs_provider);
     }
   }
 
@@ -2837,7 +2875,7 @@ void mjCTexture::Compile(int default_provider) {
     }
 
     // only cube and skybox
-    LoadCubeSeparate(default_provider);
+    LoadCubeSeparate(vfs_provider);
   }
 
   // make sure someone allocated data; SHOULD NOT OCCUR
@@ -2893,6 +2931,7 @@ mjCPair::mjCPair(mjCModel* _model, mjCDef* _def) {
 
   condim = 3;
   mj_defaultSolRefImp(solref, solimp);
+  mju_zero(solreffriction, mjNREF);
   margin = 0;
   gap = 0;
   friction[0] = 1;

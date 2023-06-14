@@ -41,7 +41,7 @@ TEST_XML = r"""
     <body>
       <inertial pos="0 0 0" mass="1" diaginertia="1 1 1"/>
       <site pos="0 0 -1" name="mysite" type="sphere"/>
-      <joint name="myhinge" type="hinge" axis="0 1 0"/>
+      <joint name="myhinge" type="hinge" axis="0 1 0" damping="1"/>
     </body>
     <body>
       <inertial pos="0 0 0" mass="1" diaginertia="1 1 1"/>
@@ -54,6 +54,10 @@ TEST_XML = r"""
   <actuator>
     <position name="myactuator" joint="myhinge"/>
   </actuator>
+  <sensor>
+    <jointvel name="myjointvel" joint="myhinge"/>
+    <accelerometer name="myaccelerometer" site="mysite"/>
+  </sensor>
 </mujoco>
 """
 
@@ -511,8 +515,8 @@ class MuJoCoBindingsTest(parameterized.TestCase):
   def test_mj_contact_list(self):
     self.assertEmpty(self.data.contact)
 
-    expected_ncon = 1234
-    self.data.ncon = expected_ncon
+    expected_ncon = 4
+    mujoco.mj_forward(self.model, self.data)
     self.assertLen(self.data.contact, expected_ncon)
 
     expected_pos = []
@@ -662,6 +666,43 @@ class MuJoCoBindingsTest(parameterized.TestCase):
     # Check that the output argument must have the correct dtype.
     with self.assertRaises(TypeError):
       mujoco.mju_rotVecQuat(vec, quat, res=np.zeros(3, int))
+
+  def test_getsetstate(self):  # pylint: disable=invalid-name
+    mujoco.mj_step(self.model, self.data)
+
+    # Test for invalid state spec
+    invalid_spec = 2**mujoco.mjtState.mjNSTATE.value
+    expected_message = (
+        f'mj_stateSize: invalid state spec {invalid_spec} >= 2^mjNSTATE'
+    )
+    with self.assertRaisesWithLiteralMatch(mujoco.FatalError, expected_message):
+      mujoco.mj_stateSize(self.model, invalid_spec)
+
+    spec = mujoco.mjtState.mjSTATE_INTEGRATION
+    size = mujoco.mj_stateSize(self.model, spec)
+
+    state_bad_size = np.empty(size + 1, np.float64)
+    expected_message = ('state size should equal mj_stateSize(m, spec)')
+    with self.assertRaisesWithLiteralMatch(TypeError, expected_message):
+      mujoco.mj_getState(self.model, self.data, state_bad_size, spec)
+
+    # Get initial state.
+    state0 = np.empty(size, np.float64)
+    mujoco.mj_getState(self.model, self.data, state0, spec)
+
+    # Step, get next state.
+    mujoco.mj_step(self.model, self.data)
+    state1a = np.empty(size, np.float64)
+    mujoco.mj_getState(self.model, self.data, state1a, spec)
+
+    # Reset to initial state, step again, get state again.
+    mujoco.mj_setState(self.model, self.data, state0, spec)
+    mujoco.mj_step(self.model, self.data)
+    state1b = np.empty(size, np.float64)
+    mujoco.mj_getState(self.model, self.data, state1b, spec)
+
+    # Expect next states to be equal.
+    np.testing.assert_array_equal(state1a, state1b)
 
   def test_mj_jacSite(self):  # pylint: disable=invalid-name
     mujoco.mj_forward(self.model, self.data)
@@ -1045,6 +1086,61 @@ Euler integrator, semi-implicit in velocity.
         flg_static=0,
         bodyexclude=0,
         geomid=geomid)
+
+  def test_inverse_fd_none(self):
+    eps = 1e-6
+    flg_centered = 0
+    mujoco.mjd_inverseFD(self.model, self.data, eps, flg_centered,
+                         None, None, None, None, None, None, None)
+
+  def test_inverse_fd(self):
+    eps = 1e-6
+    flg_centered = 0
+    df_dq = np.zeros((self.model.nv, self.model.nv))
+    df_dv = np.zeros((self.model.nv, self.model.nv))
+    df_da = np.zeros((self.model.nv, self.model.nv))
+    ds_dq = np.zeros((self.model.nv, self.model.nsensordata))
+    ds_dv = np.zeros((self.model.nv, self.model.nsensordata))
+    ds_da = np.zeros((self.model.nv, self.model.nsensordata))
+    dm_dq = np.zeros((self.model.nv, self.model.nM))
+    mujoco.mjd_inverseFD(self.model, self.data, eps, flg_centered,
+                         df_dq, df_dv, df_da, ds_dq, ds_dv, ds_da, dm_dq)
+    self.assertGreater(np.linalg.norm(df_dq), eps)
+    self.assertGreater(np.linalg.norm(df_dv), eps)
+    self.assertGreater(np.linalg.norm(df_da), eps)
+    self.assertGreater(np.linalg.norm(ds_dq), eps)
+    self.assertGreater(np.linalg.norm(ds_dv), eps)
+    self.assertGreater(np.linalg.norm(ds_da), eps)
+
+  def test_banded(self):
+    n_total = 4
+    n_band = 1
+    n_dense = 1
+    dense = np.array([[1.0, 0, 0, 0.1],
+                      [0, 2.0, 0, 0.2],
+                      [0, 0, 3.0, 0.3],
+                      [0.1, 0.2, 0.3, 4.0]])
+    band = np.zeros(n_band*(n_total-n_dense) + n_dense*n_total)
+    mujoco.mju_dense2Band(band, dense, n_total, n_band, n_dense)
+    for i in range(4):
+      index = mujoco.mju_bandDiag(i, n_total, n_band, n_dense)
+      self.assertEqual(band[index], i+1)
+    dense2 = np.zeros((n_total, n_total))
+    flg_sym = 1
+    mujoco.mju_band2Dense(dense2, band, n_total, n_band, n_dense, flg_sym)
+    np.testing.assert_array_equal(dense, dense2)
+    vec = np.array([[2.0], [2.0], [3.0], [4.0]])
+    res = np.zeros_like(vec)
+    n_vec = 1
+    mujoco.mju_bandMulMatVec(res, band, vec,
+                             n_total, n_band, n_dense, n_vec, flg_sym)
+    np.testing.assert_array_equal(res, dense @ vec)
+    diag_add = 0
+    diag_mul = 0
+    mujoco.mju_cholFactorBand(band, n_total, n_band, n_dense,
+                              diag_add, diag_mul)
+    mujoco.mju_cholSolveBand(res, band, vec, n_total, n_band, n_dense)
+    np.testing.assert_almost_equal(res, np.linalg.solve(dense, vec))
 
   def test_mju_box_qp(self):
     n = 5

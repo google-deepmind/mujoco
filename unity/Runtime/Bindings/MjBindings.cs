@@ -32,6 +32,7 @@ public const bool MUJOCO_HELPER_DLL_IMPORT = true;
 public const bool MUJOCO_HELPER_DLL_EXPORT = true;
 public const bool MJAPI = true;
 public const bool MJLOCAL = true;
+public const bool THIRD_PARTY_MUJOCO_MJMACRO_H_ = true;
 public const bool THIRD_PARTY_MUJOCO_MJMODEL_H_ = true;
 public const double mjPI = 3.141592653589793;
 public const double mjMAXVAL = 10000000000.0;
@@ -39,6 +40,7 @@ public const double mjMINMU = 1e-05;
 public const double mjMINIMP = 0.0001;
 public const double mjMAXIMP = 0.9999;
 public const int mjMAXCONPAIR = 50;
+public const int mjMAXTREEDEPTH = 50;
 public const int mjMAXVFS = 2000;
 public const int mjMAXVFSNAME = 1000;
 public const int mjNEQDATA = 11;
@@ -59,7 +61,7 @@ public const bool mjUSEDOUBLE = true;
 public const double mjMINVAL = 1e-15;
 public const bool THIRD_PARTY_MUJOCO_MJUI_H_ = true;
 public const int mjMAXUISECT = 10;
-public const int mjMAXUIITEM = 80;
+public const int mjMAXUIITEM = 100;
 public const int mjMAXUITEXT = 300;
 public const int mjMAXUINAME = 40;
 public const int mjMAXUIMULTI = 35;
@@ -92,6 +94,8 @@ public const int mjKEY_F9 = 298;
 public const int mjKEY_F10 = 299;
 public const int mjKEY_F11 = 300;
 public const int mjKEY_F12 = 301;
+public const int mjKEY_NUMPAD_0 = 320;
+public const int mjKEY_NUMPAD_9 = 329;
 public const bool THIRD_PARTY_MUJOCO_MJVISUALIZE_H_ = true;
 public const int mjNGROUP = 6;
 public const int mjMAXLIGHT = 100;
@@ -101,7 +105,7 @@ public const int mjMAXLINEPNT = 1000;
 public const int mjMAXPLANEGRID = 200;
 public const bool THIRD_PARTY_MUJOCO_MJXMACRO_H_ = true;
 public const bool THIRD_PARTY_MUJOCO_MUJOCO_H_ = true;
-public const int mjVERSION_HEADER = 235;
+public const int mjVERSION_HEADER = 236;
 
 
 // ------------------------------------Enums------------------------------------
@@ -487,7 +491,8 @@ public enum mjtVisFlag : int{
   mjVIS_STATIC = 21,
   mjVIS_SKIN = 22,
   mjVIS_MIDPHASE = 23,
-  mjNVISFLAG = 24,
+  mjVIS_MESHBVH = 24,
+  mjNVISFLAG = 25,
 }
 public enum mjtRndFlag : int{
   mjRND_SHADOW = 0,
@@ -519,6 +524,7 @@ public unsafe struct mjContact_ {
   public double includemargin;
   public fixed double friction[5];
   public fixed double solref[2];
+  public fixed double solreffriction[2];
   public fixed double solimp[5];
   public double mu;
   public fixed double H[36];
@@ -2067,6 +2073,8 @@ public unsafe struct mjModel_ {
   public int* mesh_vertnum;
   public int* mesh_faceadr;
   public int* mesh_facenum;
+  public int* mesh_bvhadr;
+  public int* mesh_bvhnum;
   public int* mesh_normaladr;
   public int* mesh_normalnum;
   public int* mesh_texcoordadr;
@@ -2123,6 +2131,7 @@ public unsafe struct mjModel_ {
   public int* pair_geom2;
   public int* pair_signature;
   public double* pair_solref;
+  public double* pair_solreffriction;
   public double* pair_solimp;
   public double* pair_margin;
   public double* pair_gap;
@@ -2574,7 +2583,7 @@ public unsafe struct mjvOption_ {
   public fixed byte tendongroup[6];
   public fixed byte actuatorgroup[6];
   public fixed byte skingroup[6];
-  public fixed byte flags[24];
+  public fixed byte flags[25];
   public int bvh_depth;
 }
 
@@ -3183,6 +3192,15 @@ public static unsafe extern void mj_referenceConstraint(mjModel_* m, mjData_* d)
 public static unsafe extern void mj_constraintUpdate(mjModel_* m, mjData_* d, double* jar, double* cost, int flg_coneHessian);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern int mj_stateSize(mjModel_* m, uint spec);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern void mj_getState(mjModel_* m, mjData_* d, double* state, uint spec);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern void mj_setState(mjModel_* m, mjData_* d, double* state, uint spec);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern int mj_addContact(mjModel_* m, mjData_* d, mjContact_* con);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
@@ -3279,6 +3297,9 @@ public static unsafe extern void mj_loadPluginLibrary([MarshalAs(UnmanagedType.L
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern int mj_version();
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern void mj_multiRay(mjModel_* m, mjData_* d, double* pnt, double* vec, byte* geomgroup, byte flg_static, int bodyexclude, int* geomid, double* dist, int nray, double cutoff);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern double mj_ray(mjModel_* m, mjData_* d, double* pnt, double* vec, byte* geomgroup, byte flg_static, int bodyexclude, int* geomid);
@@ -3533,12 +3554,6 @@ public static unsafe extern void mj_warning(mjData_* d, int warning, int info);
 public static unsafe extern void mju_writeLog([MarshalAs(UnmanagedType.LPStr)]string type, [MarshalAs(UnmanagedType.LPStr)]string msg);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
-public static unsafe extern int mj_activate([MarshalAs(UnmanagedType.LPStr)]string filename);
-
-[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
-public static unsafe extern void mj_deactivate();
-
-[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern void mju_zero3(double* res);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
@@ -3731,6 +3746,24 @@ public static unsafe extern void mju_cholSolve(double* res, double* mat, double*
 public static unsafe extern int mju_cholUpdate(double* mat, double* x, int n, int flg_plus);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern double mju_cholFactorBand(double* mat, int ntotal, int nband, int ndense, double diagadd, double diagmul);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern void mju_cholSolveBand(double* res, double* mat, double* vec, int ntotal, int nband, int ndense);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern void mju_band2Dense(double* res, double* mat, int ntotal, int nband, int ndense, byte flg_sym);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern void mju_dense2Band(double* res, double* mat, int ntotal, int nband, int ndense);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern void mju_bandMulMatVec(double* res, double* mat, double* vec, int ntotal, int nband, int ndense, int nvec, byte flg_sym);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern int mju_bandDiag(int i, int ntotal, int nband, int ndense);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern int mju_eig3(double* eigval, double* eigvec, double* quat, double* mat);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
@@ -3825,6 +3858,9 @@ public static unsafe extern string mju_strncpy(StringBuilder dst, [MarshalAs(Unm
 public static unsafe extern double mju_sigmoid(double x);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
-public static unsafe extern void mjd_transitionFD(mjModel_* m, mjData_* d, double eps, byte centered, double* A, double* B, double* C, double* D);
+public static unsafe extern void mjd_transitionFD(mjModel_* m, mjData_* d, double eps, byte flg_centered, double* A, double* B, double* C, double* D);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern void mjd_inverseFD(mjModel_* m, mjData_* d, double eps, byte flg_actuation, double* DfDq, double* DfDv, double* DfDa, double* DsDq, double* DsDv, double* DsDa, double* DmDq);
 }
 }

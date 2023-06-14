@@ -20,6 +20,7 @@
 #include <absl/base/attributes.h>
 #include <mujoco/mjdata.h>
 #include <mujoco/mujoco.h>
+#include "src/engine/engine_support.h"
 #include "src/engine/engine_util_sparse.h"
 #include "test/fixture.h"
 
@@ -356,7 +357,7 @@ static void BM_MatVecSparse(benchmark::State& state, int unroll) {
   mjMARKSTACK;
   mjtNum *Ma = mj_stackAlloc(d, m->nv);
   mjtNum *vec = mj_stackAlloc(d, m->nv);
-  mjtNum *res = mj_stackAlloc(d, m->nv);
+  mjtNum *res = mj_stackAlloc(d, d->nefc);
   mjtNum *grad = mj_stackAlloc(d, m->nv);
   mjtNum *Mgrad  = mj_stackAlloc(d, m->nv);
 
@@ -422,6 +423,7 @@ BENCHMARK(BM_MatVecSparse_1);
 
 static void BM_combineSparse(benchmark::State& state, CombineFuncPtr func) {
   static mjModel* m = LoadModelFromPath("humanoid/humanoid.xml");
+  m->opt.jacobian = mjJAC_SPARSE;
 
   mjData* d = mj_makeData(m);
 
@@ -457,7 +459,7 @@ static void BM_combineSparse(benchmark::State& state, CombineFuncPtr func) {
                       d->efc_JT_colind, d->efc_JT_rowsuper, d);
 
   // compute H = M + J'*D*J
-  mj_addM(m, d, H, rownnz, rowadr, colind);
+  mj_addMSparse(m, d, H, rownnz, rowadr, colind);
 
   // time benchmark
   for (auto s : state) {

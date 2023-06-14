@@ -27,6 +27,7 @@
 
 #include "engine/engine_array_safety.h"
 #include "engine/engine_macro.h"
+
 //------------------------- cross-platform aligned malloc/free -------------------------------------
 
 static inline void* mju_alignedMalloc(size_t size, size_t align) {
@@ -138,7 +139,7 @@ void mju_error(const char* msg, ...) {
   } else if (mju_user_error) {
     mju_user_error(errmsg);
   } else {
-     // write to log and console
+    // write to log and console
     mju_writeLog("ERROR", errmsg);
     printf("ERROR: %s\n\nPress Enter to exit ...", errmsg);
 

@@ -21,8 +21,9 @@
 #include <string>
 #include <string_view>
 
+#include <mujoco/mjmacro.h>
 #include <mujoco/mjtnum.h>
-#include "engine/engine_macro.h"
+#include <mujoco/mujoco.h>
 #include "engine/engine_util_spatial.h"
 
 using std::isnan;
@@ -558,6 +559,12 @@ bool mjuu_isabspath(string path) {
     return false;
   }
 
+  // path is scheme:filename which we consider an absolute path
+  // e.g. file URI's are always absolute paths
+  if (mjp_getResourceProvider(path.c_str()) != nullptr) {
+    return true;
+  }
+
   // check first char
   const char* str = path.c_str();
   if (str[0]=='\\' || str[0]=='/') {
@@ -572,25 +579,6 @@ bool mjuu_isabspath(string path) {
   return false;
 }
 
-
-// get directory path of file
-string mjuu_getfiledir(string filename) {
-  // no filename
-  if (filename.empty()) {
-    return "";
-  }
-
-  // find last pathsymbol
-  size_t last = filename.find_last_of("/\\");
-
-  // no pathsymbol: unknown dir
-  if (last==string::npos) {
-    return "";
-  }
-
-  // extract path from filename
-  return filename.substr(0, last+1);
-}
 
 
 // assemble full filename

@@ -43,12 +43,12 @@ TEST_F(XMLReaderTest, MemorySize) {
   {
     static constexpr char xml[] = R"(
     <mujoco>
-      <size memory="128"/>
+      <size memory="256"/>
     </mujoco>
     )";
     mjModel* model = LoadModelFromString(xml, error.data(), error.size());
-    ASSERT_THAT(model, NotNull());
-    EXPECT_EQ(model->nstack, 128 / sizeof(mjtNum));
+    ASSERT_THAT(model, NotNull()) << error.data();
+    EXPECT_EQ(model->nstack, 256 / sizeof(mjtNum));
     mj_deleteModel(model);
   }
   {
@@ -58,7 +58,7 @@ TEST_F(XMLReaderTest, MemorySize) {
     </mujoco>
     )";
     mjModel* model = LoadModelFromString(xml, error.data(), error.size());
-    ASSERT_THAT(model, NotNull());
+    ASSERT_THAT(model, NotNull()) << error.data();
     EXPECT_EQ(model->nstack, 1024 / sizeof(mjtNum));
     mj_deleteModel(model);
   }
@@ -69,7 +69,7 @@ TEST_F(XMLReaderTest, MemorySize) {
     </mujoco>
     )";
     mjModel* model = LoadModelFromString(xml, error.data(), error.size());
-    ASSERT_THAT(model, NotNull());
+    ASSERT_THAT(model, NotNull()) << error.data();
     EXPECT_EQ(model->nstack, 10240 / sizeof(mjtNum));
     mj_deleteModel(model);
   }
@@ -80,7 +80,7 @@ TEST_F(XMLReaderTest, MemorySize) {
     </mujoco>
     )";
     mjModel* model = LoadModelFromString(xml, error.data(), error.size());
-    ASSERT_THAT(model, NotNull());
+    ASSERT_THAT(model, NotNull()) << error.data();
     EXPECT_EQ(model->nstack, 4*1024*1024 / sizeof(mjtNum));
     mj_deleteModel(model);
   }
@@ -91,7 +91,7 @@ TEST_F(XMLReaderTest, MemorySize) {
     </mujoco>
     )";
     mjModel* model = LoadModelFromString(xml, error.data(), error.size());
-    ASSERT_THAT(model, NotNull());
+    ASSERT_THAT(model, NotNull()) << error.data();
     EXPECT_EQ(model->nstack, 1024*1024*1024 / sizeof(mjtNum));
     mj_deleteModel(model);
   }
@@ -102,7 +102,7 @@ TEST_F(XMLReaderTest, MemorySize) {
     </mujoco>
     )";
     mjModel* model = LoadModelFromString(xml, error.data(), error.size());
-    ASSERT_THAT(model, NotNull());
+    ASSERT_THAT(model, NotNull()) << error.data();
     EXPECT_EQ(model->nstack, 1024*1024*1024 / sizeof(mjtNum));
     mj_deleteModel(model);
   }
@@ -934,6 +934,49 @@ TEST_F(ActuatorParseTest, ActdimDefaultsPropagate) {
   mj_deleteModel(model);
 }
 
+TEST_F(ActuatorParseTest, MusclesParseSmoothdyn) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <geom size="1"/>
+        <joint name="hinge" limited="true" range="-1 1"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <muscle joint="hinge"/>
+      <muscle joint="hinge" tausmooth="0.4"/>
+    </actuator>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, NotNull()) << error.data();
+  EXPECT_EQ(model->actuator_dynprm[2], 0.0);
+  EXPECT_EQ(model->actuator_dynprm[mjNDYN + 2], 0.4);
+  mj_deleteModel(model);
+}
+
+TEST_F(ActuatorParseTest, MusclesSmoothdynNegative) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <geom size="1"/>
+        <joint name="hinge" limited="true" range="-1 1"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <muscle joint="hinge" tausmooth="-0.4"/>
+    </actuator>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("muscle tausmooth cannot be negative"));
+}
+
 // ------------- test sensor parsing -------------------------------------------
 
 using SensorParseTest = MujocoTest;
@@ -1038,7 +1081,6 @@ TEST_F(XMLReaderTest, ExtentNegativeNotAllowed) {
   ASSERT_THAT(model, IsNull());
   EXPECT_THAT(error.data(), HasSubstr("extent must be strictly positive"));
 }
-
 
 }  // namespace
 }  // namespace mujoco

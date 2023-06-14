@@ -223,7 +223,7 @@ mjModel* LoadModel(const char* file, mj::Simulate& sim) {
       mju::strcpy_arr(loadError, "could not load binary model");
     }
   } else {
-    mnew = mj_loadXML(filename, nullptr, loadError, mj::Simulate::kMaxFilenameLength);
+    mnew = mj_loadXML(filename, nullptr, loadError, kErrorLength);
     // remove trailing newline character from loadError
     if (loadError[0]) {
       int error_length = mju::strlen_arr(loadError);

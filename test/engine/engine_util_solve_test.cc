@@ -29,9 +29,15 @@ namespace mujoco {
 namespace {
 
 using ::testing::DoubleEq;
+using ::testing::Pointwise;
+using ::testing::DoubleNear;
 using ::std::string;
 using ::std::setw;
 using QCQP2Test = MujocoTest;
+
+std::vector<mjtNum> AsVector(const mjtNum* array, int n) {
+  return std::vector<mjtNum>(array, array + n);
+}
 
 TEST_F(QCQP2Test, DegenerateAMatrix) {
   // A 2x2 matrix with determinant zero.
@@ -345,6 +351,292 @@ TEST_F(BoxQPTest, BoundedQPvariations) {
   mju_free(g);
   mju_free(lower);
   mju_free(upper);
+}
+
+// ------------------------- band matrices -------------------------------------
+
+using BandMatrixTest = MujocoTest;
+
+// utility: random "arrowhead", banded-then-dense SPD matrix
+//   optional random vector and diagonal regularizer
+void randomBanded(mjtNum* H, int nTotal, int nBand, int nDense, int seed,
+                  mjtNum* vec = nullptr, mjtNum reg = 0) {
+  // make distribution using seed
+  std::mt19937_64 rng;
+  rng.seed(seed);
+  std::normal_distribution<double> dist(0, 1);
+
+  // allocate square root
+  mjtNum* sqrtH = (mjtNum*) mju_malloc(sizeof(mjtNum)*nTotal*nTotal);
+
+  // sample
+  for (int i=0; i < nTotal; i++) {
+    if (vec) vec[i] = dist(rng);
+    for (int j=0; j < nTotal; j++) {
+      sqrtH[nTotal*i+j] = dist(rng);
+    }
+  }
+
+  // make SPD matrix H
+  mju_mulMatTMat(H, sqrtH, sqrtH, nTotal, nTotal, nTotal);
+
+  // set zeros
+  int nSparse = nTotal-nDense;
+  for (int i=0; i < nSparse; i++) {
+    int nzeros = mjMAX(0, i + 1 - nBand);
+    for (int j=0; j < nzeros; j++) {
+      H[nTotal*i + j] = 0;
+      H[nTotal*j + i] = 0;
+    }
+  }
+
+  // add regularizer to diagonal
+  for (int i=0; i < nTotal; i++) {
+    H[nTotal*i + i] += reg;
+  }
+
+  mju_free(sqrtH);
+}
+
+
+// test banded-vector diagonal values
+TEST_F(BandMatrixTest, Diagonal) {
+  int seed = 1;
+  int nTotal = 8;
+  for (int nBand : {1, 3}) {
+    for (int nDense : {0, 2}) {
+      // allocate
+      int nB = (nTotal-nDense)*nBand + nDense*nTotal;
+      mjtNum* B = (mjtNum*) mju_malloc(sizeof(mjtNum)*nB);
+      int nH = nTotal*nTotal;
+      mjtNum* H = (mjtNum*) mju_malloc(sizeof(mjtNum)*nH);
+
+      // make random banded SPD matrix, dense representation
+      randomBanded(H, nTotal, nBand, nDense, seed++);
+
+      // convert to banded representation
+      mju_dense2Band(B, H, nTotal, nBand, nDense);
+
+      // expect diagonals to be equal
+      for (int i=0; i < nTotal; i++) {
+        EXPECT_EQ(H[i*nTotal + i], B[mju_bandDiag(i, nTotal, nBand, nDense)]);
+      }
+
+      mju_free(H);
+      mju_free(B);
+    }
+  }
+}
+
+// test conversion of banded <-> dense
+TEST_F(BandMatrixTest, Conversion) {
+  int seed = 1;
+  int nTotal = 8;
+  for (int nBand : {0, 1, 3}) {
+    for (int nDense : {0, 2}) {
+      // allocate
+      int nB = (nTotal-nDense)*nBand + nDense*nTotal;
+      mjtNum* B = (mjtNum*) mju_malloc(sizeof(mjtNum)*nB);
+      int nH = nTotal*nTotal;
+      mjtNum* H = (mjtNum*) mju_malloc(sizeof(mjtNum)*nH);
+      mjtNum* H1 = (mjtNum*) mju_malloc(sizeof(mjtNum)*nH);
+
+      // make random banded SPD matrix, dense
+      randomBanded(H, nTotal, nBand, nDense, seed++);
+
+      // convert to banded
+      mju_dense2Band(B, H, nTotal, nBand, nDense);
+
+      // convert back to dense
+      mju_band2Dense(H1, B, nTotal, nBand, nDense, /*flg_sym=*/1);
+
+      // expect exact equality
+      EXPECT_EQ(AsVector(H, nH), AsVector(H1, nH));
+
+      mju_free(H1);
+      mju_free(H);
+      mju_free(B);
+    }
+  }
+}
+
+// test banded-vector multiplication
+TEST_F(BandMatrixTest, Multiplication) {
+  int seed = 1;
+  int nTotal = 8;
+  for (int nBand : {0, 1, 3}) {
+    for (int nDense : {0, 2}) {
+      // allocate
+      int nB = (nTotal-nDense)*nBand + nDense*nTotal;
+      mjtNum* B = (mjtNum*) mju_malloc(sizeof(mjtNum)*nB);
+      int nH = nTotal*nTotal;
+      mjtNum* H = (mjtNum*) mju_malloc(sizeof(mjtNum)*nH);
+      mjtNum* vec = (mjtNum*) mju_malloc(sizeof(mjtNum)*nTotal);
+      mjtNum* res = (mjtNum*) mju_malloc(sizeof(mjtNum)*nTotal);
+      mjtNum* res1 = (mjtNum*) mju_malloc(sizeof(mjtNum)*nTotal);
+
+      // make random banded SPD matrix, dense
+      randomBanded(H, nTotal, nBand, nDense, seed++, vec);
+
+      // multiply dense
+      mju_mulMatVec(res, H, vec, nTotal, nTotal);
+
+      // convert to banded, multiply
+      mju_dense2Band(B, H, nTotal, nBand, nDense);
+      mju_bandMulMatVec(res1, B, vec, nTotal, nBand, nDense,
+                        /*nVec=*/1, /*flg_sym=*/1);
+
+      // expect numerical equality
+      mjtNum eps = 1e-12;
+      EXPECT_THAT(AsVector(res, nTotal),
+                  Pointwise(DoubleNear(eps), AsVector(res1, nTotal)));
+
+      mju_free(res1);
+      mju_free(res);
+      mju_free(vec);
+      mju_free(H);
+      mju_free(B);
+    }
+  }
+}
+
+// test banded factorization and vector product with factor
+TEST_F(BandMatrixTest, Factorization) {
+  int seed = 1;
+  int nTotal = 8;
+  for (int nBand : {1, 3}) {
+    for (int nDense : {0, 2}) {
+      for (mjtNum diagadd : {0.0, 1.0}) {
+        for (int diagmul : {0.0, 1.3}) {
+          // allocate
+          int nB = (nTotal-nDense)*nBand + nDense*nTotal;
+          mjtNum* B = (mjtNum*) mju_malloc(sizeof(mjtNum)*nB);
+          int nH = nTotal*nTotal;
+          mjtNum* H = (mjtNum*) mju_malloc(sizeof(mjtNum)*nH);
+          mjtNum* H1 = (mjtNum*) mju_malloc(sizeof(mjtNum)*nH);
+          mjtNum* vec = (mjtNum*) mju_malloc(sizeof(mjtNum)*nTotal);
+          mjtNum* res = (mjtNum*) mju_malloc(sizeof(mjtNum)*nTotal);
+          mjtNum* res1 = (mjtNum*) mju_malloc(sizeof(mjtNum)*nTotal);
+
+          // make random banded matrix, dense representation
+          //  add regularizer to ensure PD
+          randomBanded(H, nTotal, nBand, nDense, seed++, vec, /*reg=*/nTotal);
+
+          // convert to banded
+          mju_dense2Band(B, H, nTotal, nBand, nDense);
+
+          // apply diagadd and diagmul
+          for (int i=0; i < nTotal; i++) {
+            H[nTotal*i + i] += diagadd + diagmul*H[nTotal*i + i];
+          }
+
+          // in-place dense factorization
+          int rank = mju_cholFactor(H, nTotal, /*mindiag=*/0);
+
+          // expect factorization to have succeeded
+          EXPECT_EQ(rank, nTotal);
+
+          // banded factorization
+          mjtNum minDiag = mju_cholFactorBand(B, nTotal, nBand, nDense,
+                                              diagadd, diagmul);
+
+          // expect factorization to have succeeded
+          EXPECT_GT(minDiag, 0);
+
+          // convert back to dense, lower triangle only
+          mju_band2Dense(H1, B, nTotal, nBand, nDense, /*flg_sym=*/0);
+
+          // zero upper triangle of H (unused)
+          for (int i=0; i < nTotal-1; i++) {
+            mju_zero(H + nTotal*i + i + 1, nTotal - i - 1);
+          }
+
+          // expect numerical equality
+          mjtNum eps = 1e-12;
+          EXPECT_THAT(AsVector(H, nH),
+                      Pointwise(DoubleNear(eps), AsVector(H1, nH)));
+
+          // multiply dense
+          mju_mulMatVec(res, H, vec, nTotal, nTotal);
+
+          // multiply sparse, only lower triangle
+          mju_bandMulMatVec(res1, B, vec, nTotal, nBand, nDense,
+                            /*nVec=*/1, /*flg_sym=*/0);
+
+          // expect numerical equality
+          EXPECT_THAT(AsVector(res, nTotal),
+                      Pointwise(DoubleNear(eps), AsVector(res1, nTotal)));
+
+          mju_free(res1);
+          mju_free(res);
+          mju_free(vec);
+          mju_free(H1);
+          mju_free(H);
+          mju_free(B);
+        }
+      }
+    }
+  }
+}
+
+// test banded solve
+TEST_F(BandMatrixTest, Solve) {
+  int seed = 1;
+  int nTotal = 8;
+  for (int nBand : {1, 3}) {
+    for (int nDense : {0, 2}) {
+      // allocate
+      int nB = (nTotal-nDense)*nBand + nDense*nTotal;
+      mjtNum* B = (mjtNum*) mju_malloc(sizeof(mjtNum)*nB);
+      int nH = nTotal*nTotal;
+      mjtNum* H = (mjtNum*) mju_malloc(sizeof(mjtNum)*nH);
+      mjtNum* H1 = (mjtNum*) mju_malloc(sizeof(mjtNum)*nH);
+      mjtNum* vec = (mjtNum*) mju_malloc(sizeof(mjtNum)*nTotal);
+      mjtNum* res = (mjtNum*) mju_malloc(sizeof(mjtNum)*nTotal);
+      mjtNum* res1 = (mjtNum*) mju_malloc(sizeof(mjtNum)*nTotal);
+
+      // make random banded matrix, dense representation
+      //  add regularizer to ensure PD
+      randomBanded(H, nTotal, nBand, nDense, seed++, vec, /*reg=*/nTotal);
+
+      // convert to banded
+      mju_dense2Band(B, H, nTotal, nBand, nDense);
+
+      // in-place dense factorization
+      int rank = mju_cholFactor(H, nTotal, /*mindiag=*/0);
+
+      // expect factorization to have succeeded
+      EXPECT_EQ(rank, nTotal);
+
+      // banded factorization
+      mjtNum minDiag = mju_cholFactorBand(B, nTotal, nBand, nDense,
+                                          /*diagadd=*/0, /*diagmul=*/0);
+
+      // expect factorization to have succeeded
+      EXPECT_GT(minDiag, 0);
+
+      // convert back to dense, lower triangle only
+      mju_band2Dense(H1, B, nTotal, nBand, nDense, /*flg_sym=*/0);
+
+      // solve with dense
+      mju_cholSolve(res, H, vec, nTotal);
+
+      // solve with banded
+      mju_cholSolveBand(res1, B, vec, nTotal, nBand, nDense);
+
+      // expect numerical equality
+      mjtNum eps = 1e-12;
+      EXPECT_THAT(AsVector(res, nTotal),
+                  Pointwise(DoubleNear(eps), AsVector(res1, nTotal)));
+
+      mju_free(res1);
+      mju_free(res);
+      mju_free(vec);
+      mju_free(H1);
+      mju_free(H);
+      mju_free(B);
+    }
+  }
 }
 
 }  // namespace

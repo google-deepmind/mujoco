@@ -62,13 +62,13 @@ class LocaleOverride {
   }
 
   ~LocaleOverride() {
-    setlocale(LC_ALL, old_locale_);
+    setlocale(LC_ALL, old_locale_.c_str());
     _configthreadlocale(old_per_thread_locale_type_);
   }
 
  private:
   int old_per_thread_locale_type_;
-  char* old_locale_;
+  std::string old_locale_;
 };
 #else
 class LocaleOverride {
@@ -129,7 +129,7 @@ bool mjWriteXML(mjCModel* model, string filename, char* error, int error_sz) {
 
 // find include elements recursively, replace them with subtree from xml file
 static XMLElement* mjIncludeXML(XMLElement* elem, string dir,
-                                int default_provider, vector<string>& included) {
+                                int vfs_provider, vector<string>& included) {
   // include element: process
   if (!strcasecmp(elem->Value(), "include")) {
     // make sure include has no children
@@ -152,9 +152,9 @@ static XMLElement* mjIncludeXML(XMLElement* elem, string dir,
     // get data source
     mjResource *resource = nullptr;
     const char* xmlstring = nullptr;
-    if ((resource = mju_openResource(filename.c_str(), default_provider)) == nullptr) {
+    if ((resource = mju_openResource(filename.c_str(), vfs_provider)) == nullptr) {
       // load from OS filesystem
-      if (!default_provider || (resource = mju_openResource(filename.c_str(), 0)) == nullptr) {
+      if (!vfs_provider || (resource = mju_openResource(filename.c_str(), 0)) == nullptr) {
         throw mjXError(elem, "Could not open file '%s'", filename.c_str());
       }
     }
@@ -215,14 +215,14 @@ static XMLElement* mjIncludeXML(XMLElement* elem, string dir,
     }
 
     // run XMLInclude on first new child
-    return mjIncludeXML(first->ToElement(), dir, default_provider, included);
+    return mjIncludeXML(first->ToElement(), dir, vfs_provider, included);
   }
 
   // otherwise check all child elements, return self
   else {
     XMLElement* child = elem->FirstChildElement();
     while (child) {
-      child = mjIncludeXML(child, dir, default_provider, included);
+      child = mjIncludeXML(child, dir, vfs_provider, included);
       if (child) {
         child = child->NextSiblingElement();
       }
@@ -234,7 +234,7 @@ static XMLElement* mjIncludeXML(XMLElement* elem, string dir,
 
 
 // Main parser function
-mjCModel* mjParseXML(const char* filename, int default_provider, char* error, int error_sz) {
+mjCModel* mjParseXML(const char* filename, int vfs_provider, char* error, int error_sz) {
   LocaleOverride locale_override;
 
   // check arguments
@@ -254,9 +254,9 @@ mjCModel* mjParseXML(const char* filename, int default_provider, char* error, in
   // get data source
   mjResource* resource = nullptr;
   const char* xmlstring = nullptr;
-  if ((resource = mju_openResource(filename, default_provider)) == nullptr) {
+  if ((resource = mju_openResource(filename, vfs_provider)) == nullptr) {
     // load from OS filesystem
-    if (!default_provider || (resource = mju_openResource(filename, 0)) == nullptr) {
+    if (!vfs_provider || (resource = mju_openResource(filename, 0)) == nullptr) {
       if (error) {
         snprintf(error, error_sz, "mjParseXML: could not open file '%s'", filename);
       }
@@ -284,29 +284,37 @@ mjCModel* mjParseXML(const char* filename, int default_provider, char* error, in
   XMLDocument doc;
   doc.Parse(xmlstring, buffer_size);
 
-  // close resource
-  mju_closeResource(resource);
-
-
   // error checking
   if (doc.Error()) {
     if (error) {
       snprintf(error, error_sz, "XML parse error %d:\n%s\n",
                doc.ErrorID(), doc.ErrorStr());
     }
+    mju_closeResource(resource);
     return nullptr;
   }
 
   // get top-level element
   XMLElement* root = doc.RootElement();
   if (!root) {
+    mju_closeResource(resource);
     mjCopyError(error, "XML root element not found", error_sz);
     return nullptr;
   }
 
   // create model, set filedir
   model = new mjCModel;
-  model->modelfiledir = mjuu_getfiledir(filename);
+  const char* dir;
+  int ndir = 0;
+  mju_getResourceDir(resource, &dir, &ndir);
+  if (dir != nullptr) {
+    model->modelfiledir = std::string(dir, ndir);
+  } else {
+    model->modelfiledir = "";
+  }
+
+  // close resource
+  mju_closeResource(resource);
 
   // parse with exceptions
   try {
@@ -314,7 +322,7 @@ mjCModel* mjParseXML(const char* filename, int default_provider, char* error, in
       // find include elements, replace them with subtree from xml file
       vector<string> included;
       included.push_back(filename);
-      mjIncludeXML(root, model->modelfiledir, default_provider, included);
+      mjIncludeXML(root, model->modelfiledir, vfs_provider, included);
 
       // parse MuJoCo model
       mjXReader parser;
@@ -325,6 +333,12 @@ mjCModel* mjParseXML(const char* filename, int default_provider, char* error, in
     else if (!strcasecmp(root->Value(), "robot")) {
       // parse URDF model
       mjXURDF parser;
+
+      // set reasonable default for parsing a URDF
+      // this is separate from the Parser to allow multiple URDFs to be loaded.
+      model->strippath = true;
+      model->fusestatic = true;
+
       parser.SetModel(model);
       parser.Parse(root);
     }

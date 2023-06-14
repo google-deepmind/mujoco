@@ -34,6 +34,12 @@ MJAPI void mju_closeResource(mjResource* resource);
 // return negative value if error
 MJAPI int mju_readResource(mjResource* resource, const void** buffer);
 
+// sets for a resource with a name partitioned as {dir}{filename}, the dir and ndir pointers
+MJAPI void mju_getResourceDir(mjResource* resource, const char** dir, int* ndir);
+
+// get the length of the dirname portion of a given path
+int mju_dirnamelen(const char* path);
+
 // read file into memory buffer (allocated here with mju_malloc)
 void* mju_fileToMemory(const char* filename, int* filesize);
 

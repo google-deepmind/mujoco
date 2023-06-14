@@ -1,0 +1,42 @@
+<mujoco>
+  <option cone="elliptic" timestep="1e-4" integrator="implicitfast"/>
+
+  <visual>
+    <global elevation="0"/>
+  </visual>
+
+  <asset>
+    <texture name="grid" type="2d" builtin="checker" rgb1=".1 .2 .3" rgb2=".2 .3 .4" width="300" height="300"/>
+    <material name="grid" texture="grid" texrepeat="8 8" reflectance=".2"/>
+    <texture name="ball" type="cube" builtin="checker" rgb1=".3 .3 .3" rgb2="1 1 1" width="300" height="300"/>
+    <material name="ball" texture="ball" texrepeat="8 8"/>
+  </asset>
+
+  <worldbody>
+    <geom name="floor" size=".2 .2 .01" type="plane" material="grid"/>
+    <geom name="wall" size=".2 .2 .01" type="plane" material="grid" pos=".2 0 .2" zaxis="-1 0 0"/>
+    <light pos="0 0 .6"/>
+    <light pos="-.6 0 .6" dir="1 0 -1"/>
+    <body name="ball" pos="-.1 0 .2">
+      <freejoint/>
+      <geom name="ball" type="sphere" size=".02" material="ball" mass=".001"/>
+      <body name="ballast">
+        <joint type="ball" stiffness="0.1" damping=".0001"/>
+        <geom name="ballast" type="sphere" size=".02" contype="0" conaffinity="0" mass=".01" group="3"/>
+      </body>
+    </body>
+  </worldbody>
+
+  <default>
+    <pair solref="-100000 0" solreffriction="0 -10000"/>
+  </default>
+
+  <contact>
+    <pair geom1="floor" geom2="ball"/>
+    <pair geom1="wall" geom2="ball"/>
+  </contact>
+
+  <keyframe>
+    <key name="throw" qvel="1.3 0 0 0 0 0 0 0 0"/>
+  </keyframe>
+</mujoco>

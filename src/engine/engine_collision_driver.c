@@ -18,6 +18,7 @@
 #include <string.h>
 
 #include <mujoco/mjdata.h>
+#include <mujoco/mjmacro.h>
 #include <mujoco/mjmodel.h>
 #include "engine/engine_callback.h"
 #include "engine/engine_collision_convex.h"
@@ -25,7 +26,6 @@
 #include "engine/engine_core_constraint.h"
 #include "engine/engine_crossplatform.h"
 #include "engine/engine_io.h"
-#include "engine/engine_macro.h"
 #include "engine/engine_util_blas.h"
 #include "engine/engine_util_errmem.h"
 #include "engine/engine_util_misc.h"
@@ -68,7 +68,7 @@ static inline mjtNum squaredDist3(const mjtNum pos1[3], const mjtNum pos2[3]) {
 // bounding-sphere collision
 static int mj_collideSphere(const mjModel* m, mjData* d, int g1, int g2, mjtNum margin) {
   // neither geom is a plane
-  if (m->geom_rbound[g1]>0 && m->geom_rbound[g2]>0) {
+  if (m->geom_rbound[g1] > 0 && m->geom_rbound[g2] > 0) {
     mjtNum bound = m->geom_rbound[g1] + m->geom_rbound[g2] + margin;
     if (squaredDist3(d->geom_xpos+3*g1, d->geom_xpos+3*g2) > bound*bound) {
       return 0;
@@ -76,13 +76,13 @@ static int mj_collideSphere(const mjModel* m, mjData* d, int g1, int g2, mjtNum 
   }
 
   // one geom is a plane
-  if (m->geom_type[g1]==mjGEOM_PLANE && m->geom_rbound[g2]>0
+  if (m->geom_type[g1] == mjGEOM_PLANE && m->geom_rbound[g2] > 0
       && plane_geom(m, d, g1, g2) > margin+m->geom_rbound[g2]) {
-      return 0;
+    return 0;
   }
-  if (m->geom_type[g2]==mjGEOM_PLANE && m->geom_rbound[g1]>0
+  if (m->geom_type[g2] == mjGEOM_PLANE && m->geom_rbound[g1] > 0
       && plane_geom(m, d, g2, g1) > margin+m->geom_rbound[g1]) {
-      return 0;
+    return 0;
   }
   return 1;
 }
@@ -97,9 +97,9 @@ void mj_collidePair(const mjModel* m, mjData* d, int g1, int g2, int merged,
   if (merged) {
     // find matching pair
     int found = 0;
-    for (int k=startadr; k<pairadr; k++) {
-      if ((m->pair_geom1[k]==g1 && m->pair_geom2[k]==g2) ||
-          (m->pair_geom1[k]==g2 && m->pair_geom2[k]==g1)) {
+    for (int k=startadr; k < pairadr; k++) {
+      if ((m->pair_geom1[k] == g1 && m->pair_geom2[k] == g2) ||
+          (m->pair_geom1[k] == g2 && m->pair_geom2[k] == g1)) {
         found = 1;
         break;
       }
@@ -139,9 +139,9 @@ int mj_collideOBB(const mjtNum aabb1[6], const mjtNum aabb2[6],
   mjtByte infinite[2] = {inf1[0] || inf1[1] || inf1[2], inf2[0] || inf2[1] || inf2[2]};
 
   // compute centers in local coordinates
-  if (product==NULL) {
-    for (int i=0; i<2; i++) {  // bounding boxes
-      for (int j=0; j<3; j++) {  // axes
+  if (product == NULL) {
+    for (int i=0; i < 2; i++) {  // bounding boxes
+      for (int j=0; j < 3; j++) {  // axes
         mju_rotVecMat(xcenter[i], aabb[i], xmat[i]);
         mju_addTo3(xcenter[i], xpos[i]);
       }
@@ -149,9 +149,9 @@ int mj_collideOBB(const mjtNum aabb1[6], const mjtNum aabb2[6],
   }
 
   // compute normals in global coordinates
-  for (int i=0; i<2; i++) {  // bounding boxes
-    for (int j=0; j<3; j++) {  // faces
-      for (int k=0; k<3; k++) {  // world axes
+  for (int i=0; i < 2; i++) {  // bounding boxes
+    for (int j=0; j < 3; j++) {  // faces
+      for (int k=0; k < 3; k++) {  // world axes
         normal[i][j][k] = xmat[i][3*k+j];
       }
     }
@@ -159,10 +159,10 @@ int mj_collideOBB(const mjtNum aabb1[6], const mjtNum aabb2[6],
 
   // precompute dot products
   if (product && offset && *initialize) {
-    for (int i=0; i<2; i++) {  // bodies
-      for (int j=0; j<2; j++) {  // bodies
-        for (int k=0; k<3; k++) {  // axes
-          for (int l=0; l<3; l++) {  // axes
+    for (int i=0; i < 2; i++) {  // bodies
+      for (int j=0; j < 2; j++) {  // bodies
+        for (int k=0; k < 3; k++) {  // axes
+          for (int l=0; l < 3; l++) {  // axes
             product[18*i + 9*j + 3*k + l] = mju_dot3(normal[i][l], normal[j][k]);
           }
           offset[6*i + 3*j + k] = mju_dot3(xpos[i], normal[j][k]);
@@ -173,13 +173,13 @@ int mj_collideOBB(const mjtNum aabb1[6], const mjtNum aabb2[6],
   }
 
   // check intersections
-  for (int j=0; j<2; j++) {  // bounding boxes
+  for (int j=0; j < 2; j++) {  // bounding boxes
     if (infinite[1-j]) {
       continue;  // skip test against an infinite body
     }
-    for (int k=0; k<3; k++) {  // face
-      for (int i=0; i<2; i++) {  // bounding boxes
-        if (product==NULL) {
+    for (int k=0; k < 3; k++) {  // face
+      for (int i=0; i < 2; i++) {  // bounding boxes
+        if (product == NULL) {
           proj[i] = mju_dot3(xcenter[i], normal[j][k]);
           radius[i] = fabs(aabb[i][3]*mju_dot3(normal[i][0], normal[j][k])) +
                       fabs(aabb[i][4]*mju_dot3(normal[i][1], normal[j][k])) +
@@ -210,7 +210,7 @@ static mjCollisionTree* mj_stackAllocTree(mjData* d, int max_stack) {
   _Static_assert(sizeof(mjCollisionTree*) % sizeof(mjtNum) == 0,
                  "mjCollisionTree has a different size from mjtNum");
   return (mjCollisionTree*)mj_stackAlloc(
-      d, max_stack * sizeof(mjCollisionTree*) / sizeof(mjtNum));
+    d, max_stack * sizeof(mjCollisionTree*) / sizeof(mjtNum));
 }
 
 // binary search between two body trees
@@ -245,7 +245,7 @@ void mj_collideTree(const mjModel* m, mjData* d, int b1, int b2,
     int nodeid2 = m->bvh_geomid[bvhadr2 + node2];
 
     // both are leaves
-    if (isleaf1 && isleaf2 && nodeid1!=-1 && nodeid2!=-1) {
+    if (isleaf1 && isleaf2 && nodeid1 != -1 && nodeid2 != -1) {
       if (mj_collideSphere(m, d, nodeid1, nodeid2, /*margin=*/ 0)) {
         if (mj_collideOBB(m->geom_aabb + 6*nodeid1, m->geom_aabb + 6*nodeid2,
                           d->geom_xpos + 3*nodeid1, d->geom_xmat + 9*nodeid1,
@@ -272,7 +272,7 @@ void mj_collideTree(const mjModel* m, mjData* d, int b1, int b2,
 
     // keep traversing the tree
     if (!isleaf1 && isleaf2) {
-      for (int i=0; i<2; i++) {
+      for (int i=0; i < 2; i++) {
         if (child1[2*node1+i] != -1) {
           if (nstack >= max_stack) mju_error("BVH stack depth exceeded.");  // SHOULD NOT OCCUR
           stack[nstack].node1 = child1[2*node1+i];
@@ -281,7 +281,7 @@ void mj_collideTree(const mjModel* m, mjData* d, int b1, int b2,
         }
       }
     } else if (isleaf1 && !isleaf2) {
-      for (int i=0; i<2; i++) {
+      for (int i=0; i < 2; i++) {
         if (child2[2*node2+i] != -1) {
           if (nstack >= max_stack) mju_error("BVH stack depth exceeded.");  // SHOULD NOT OCCUR
           stack[nstack].node1 = node1;
@@ -380,14 +380,14 @@ void mj_collision(const mjModel* m, mjData* d) {
 
   // return if disabled
   if (mjDISABLED(mjDSBL_CONSTRAINT) || mjDISABLED(mjDSBL_CONTACT)
-      || m->nconmax==0 || m->nbody < 2) {
+      || m->nconmax == 0 || m->nbody < 2) {
     return;
   }
 
   // predefined only; ignore exclude
-  if (m->opt.collision==mjCOL_PAIR) {
+  if (m->opt.collision == mjCOL_PAIR) {
     d->nbodypair_broad = npair;
-    for (pairadr=0; pairadr<npair; pairadr++) {
+    for (pairadr=0; pairadr < npair; pairadr++) {
       int ngeompair_narrow_before = d->ngeompair_narrow;
       int ngeompair_mid_before = d->ngeompair_mid;
       mj_collideGeoms(m, d, pairadr, -1, 0, 0);
@@ -405,7 +405,7 @@ void mj_collision(const mjModel* m, mjData* d) {
     unsigned int last_signature = -1;
 
     // loop over body pairs (broadphase or all)
-    for (int i=0; i<nbodypair; i++) {
+    for (int i=0; i < nbodypair; i++) {
       // reconstruct body pair ids
       b1 = (broadphasepair[i]>>16) & 0xFFFF;
       b2 = broadphasepair[i] & 0xFFFF;
@@ -422,10 +422,10 @@ void mj_collision(const mjModel* m, mjData* d) {
       // merge predefined pairs
       merged = 0;
       startadr = pairadr;
-      if (npair && m->opt.collision==mjCOL_ALL) {
+      if (npair && m->opt.collision == mjCOL_ALL) {
         // test all predefined pairs for which pair_signature<=signature
-        while (pairadr<npair && m->pair_signature[pairadr]<=signature) {
-          if (m->pair_signature[pairadr]==signature) {
+        while (pairadr < npair && m->pair_signature[pairadr] <= signature) {
+          if (m->pair_signature[pairadr] == signature) {
             merged = 1;
           }
           mj_collideGeoms(m, d, pairadr++, -1, 0, 0);
@@ -435,12 +435,12 @@ void mj_collision(const mjModel* m, mjData* d) {
       // handle exclusion
       if (nexclude) {
         // advance exadr while exclude_signature < signature
-        while (exadr<nexclude && m->exclude_signature[exadr]<signature) {
+        while (exadr < nexclude && m->exclude_signature[exadr] < signature) {
           exadr++;
         }
 
         // skip this body pair if its signature is found in exclude array
-        if (exadr<nexclude && m->exclude_signature[exadr]==signature) {
+        if (exadr < nexclude && m->exclude_signature[exadr] == signature) {
           continue;
         }
       }
@@ -450,7 +450,7 @@ void mj_collision(const mjModel* m, mjData* d) {
 
       // test all geom pairs within this body pair
       if (m->body_geomnum[b1] && m->body_geomnum[b2]) {
-        if (!mjDISABLED(mjDSBL_MIDPHASE) && m->body_geomnum[b1]*m->body_geomnum[b2]>1) {
+        if (!mjDISABLED(mjDSBL_MIDPHASE) && m->body_geomnum[b1]*m->body_geomnum[b2] > 1) {
           int ncon_before = d->ncon;
           mj_collideTree(m, d, b1, b2, merged, startadr, pairadr);
           int ncon_after = d->ncon;
@@ -458,8 +458,8 @@ void mj_collision(const mjModel* m, mjData* d) {
           mjQUICKSORT(d->contact + ncon_before, ncon_after - ncon_before,
                       sizeof(mjContact), contactcompare, context);
         } else {
-          for (g1=m->body_geomadr[b1]; g1<m->body_geomadr[b1]+m->body_geomnum[b1]; g1++) {
-            for (g2=m->body_geomadr[b2]; g2<m->body_geomadr[b2]+m->body_geomnum[b2]; g2++) {
+          for (g1=m->body_geomadr[b1]; g1 < m->body_geomadr[b1]+m->body_geomnum[b1]; g1++) {
+            for (g2=m->body_geomadr[b2]; g2 < m->body_geomadr[b2]+m->body_geomnum[b2]; g2++) {
               mj_collidePair(m, d, g1, g2, merged, startadr, pairadr);
             }
           }
@@ -470,8 +470,8 @@ void mj_collision(const mjModel* m, mjData* d) {
     }
 
     // finish merging predefined pairs
-    if (npair && m->opt.collision==mjCOL_ALL) {
-      while (pairadr<npair) {
+    if (npair && m->opt.collision == mjCOL_ALL) {
+      while (pairadr < npair) {
         mj_collideGeoms(m, d, pairadr++, -1, 0, 0);
       }
     }
@@ -498,28 +498,28 @@ static void makeAABB(const mjModel* m, mjData* d, mjtNum* aabb, int body, const 
   mjtNum _aabb[6], cen;
 
   // no geoms attached to body: set to 0
-  if (m->body_geomnum[body]==0) {
+  if (m->body_geomnum[body] == 0) {
     mju_zero(aabb, 6);
     return;
   }
 
   // process all body geoms
-  for (int i=0; i<m->body_geomnum[body]; i++) {
+  for (int i=0; i < m->body_geomnum[body]; i++) {
     // get geom id
     geom = m->body_geomadr[body]+i;
 
     // set _aabb for this geom
-    for (int j=0; j<3; j++) {
+    for (int j=0; j < 3; j++) {
       cen = mju_dot3(d->geom_xpos+3*geom, frame+3*j);
       _aabb[2*j] = cen - m->geom_rbound[geom] - m->geom_margin[geom];
       _aabb[2*j+1] = cen + m->geom_rbound[geom] + m->geom_margin[geom];
     }
 
     // update body aabb
-    if (i==0) {
+    if (i == 0) {
       mju_copy(aabb, _aabb, 6);
     } else {
-      for (int j=0; j<3; j++) {
+      for (int j=0; j < 3; j++) {
         aabb[2*j] = mju_min(aabb[2*j], _aabb[2*j]);
         aabb[2*j+1] = mju_max(aabb[2*j+1], _aabb[2*j+1]);
       }
@@ -536,8 +536,8 @@ static int has_plane_or_hfield(const mjModel* m, int body) {
 
   // scan geoms belonging to body
   int g;
-  for (g=start; g<end; g++) {
-    if (m->geom_type[g]==mjGEOM_PLANE || m->geom_type[g]==mjGEOM_HFIELD) {
+  for (g=start; g < end; g++) {
+    if (m->geom_type[g] == mjGEOM_PLANE || m->geom_type[g] == mjGEOM_HFIELD) {
       return 1;
     }
   }
@@ -549,7 +549,7 @@ static int has_plane_or_hfield(const mjModel* m, int body) {
 static int body_pair_filter(int weldbody1, int weldparent1, int weldbody2,
                             int weldparent2, int dsbl_filterparent) {
   // same weldbody check
-  if (weldbody1==weldbody2) {
+  if (weldbody1 == weldbody2) {
     return 1;
   }
 
@@ -566,9 +566,9 @@ static int body_pair_filter(int weldbody1, int weldparent1, int weldbody2,
 // add body pair in buffer
 static void add_pair(const mjModel* m, int b1, int b2, int* npair, int* pair, int maxpair) {
   // add pair if there is room in buffer
-  if ((*npair)<maxpair) {
+  if ((*npair) < maxpair) {
     // exlude based on contype and conaffinity
-    if (m && m->body_geomnum[b1]==1 && m->body_geomnum[b2]==1) {
+    if (m && m->body_geomnum[b1] == 1 && m->body_geomnum[b2] == 1) {
       // get contypes and conaffinities
       int contype1 = m->geom_contype[m->body_geomadr[b1]];
       int conaffinity1 = m->geom_conaffinity[m->body_geomadr[b1]];
@@ -582,7 +582,7 @@ static void add_pair(const mjModel* m, int b1, int b2, int* npair, int* pair, in
     }
 
     // add pair
-    if (b1<b2) {
+    if (b1 < b2) {
       pair[*npair] = (b1<<16) + b2;
     } else {
       pair[*npair] = (b2<<16) + b1;
@@ -601,9 +601,9 @@ quicksortfunc(broadcompare, context, el1, el2) {
   mjtBroadphase* b1 = (mjtBroadphase*)el1;
   mjtBroadphase* b2 = (mjtBroadphase*)el2;
 
-  if (b1->value<b2->value) {
+  if (b1->value < b2->value) {
     return -1;
-  } else if (b1->value==b2->value) {
+  } else if (b1->value == b2->value) {
     return 0;
   } else {
     return 1;
@@ -617,9 +617,9 @@ quicksortfunc(paircompare, context, el1, el2) {
   int signature1 = *(int*)el1;
   int signature2 = *(int*)el2;
 
-  if (signature1<signature2) {
+  if (signature1 < signature2) {
     return -1;
-  } else if (signature1==signature2) {
+  } else if (signature1 == signature2) {
     return 0;
   } else {
     return 1;
@@ -633,7 +633,7 @@ static int can_collide(const mjModel* m, int b) {
   int g;
 
   // scan geoms; return if collidable
-  for (g=0; g<m->body_geomnum[b]; g++) {
+  for (g=0; g < m->body_geomnum[b]; g++) {
     int ind = m->body_geomadr[b] + g;
     if (m->geom_contype[ind] || m->geom_conaffinity[ind]) {
       return 1;
@@ -656,17 +656,18 @@ int mj_broadphase(const mjModel* m, mjData* d, int* pair, int maxpair) {
 
   int dsbl_filterparent = mjDISABLED(mjDSBL_FILTERPARENT);
   // world with geoms, and body with plane or hfield, can collide all bodies
-  for (b1=0; b1<nbody; b1++) {
+  for (b1=0; b1 < nbody; b1++) {
     // cannot colide
     if (!can_collide(m, b1)) {
       continue;
     }
 
     // world with geoms, or welded body with plane or hfield
-    if ((b1==0 && m->body_geomnum[b1]>0) || (m->body_weldid[b1]==0 && has_plane_or_hfield(m, b1))) {
+    if ((b1 == 0 && m->body_geomnum[b1] > 0) ||
+        (m->body_weldid[b1] == 0 && has_plane_or_hfield(m, b1))) {
       int weld1 = 0;
       int parent_weld1 = 0;
-      for (b2=0; b2<nbody; b2++) {
+      for (b2=0; b2 < nbody; b2++) {
         int weld2 = m->body_weldid[b2];
         int parent_weld2 = m->body_weldid[m->body_parentid[weld2]];
         if (!body_pair_filter(weld1, parent_weld1, weld2, parent_weld2,
@@ -680,23 +681,23 @@ int mj_broadphase(const mjModel* m, mjData* d, int* pair, int maxpair) {
   // find center of non-world geoms; return if none
   cnt = 0;
   mju_zero3(cen);
-  for (int i=0; i<ngeom; i++) {
+  for (int i=0; i < ngeom; i++) {
     if (m->geom_bodyid[i]) {
       mju_addTo3(cen, d->geom_xpos+3*i);
       cnt++;
     }
   }
-  if (cnt==0) {
+  if (cnt == 0) {
     return npair;
   } else {
-    for (int i=0; i<3; i++) {
+    for (int i=0; i < 3; i++) {
       cen[i] /= cnt;
     }
   }
 
   // compute covariance
   mju_zero(cov, 9);
-  for (int i=0; i<ngeom; i++) {
+  for (int i=0; i < ngeom; i++) {
     if (m->geom_bodyid[i]) {
       mju_sub3(dif, d->geom_xpos+3*i, cen);
       mjtNum D00 = dif[0]*dif[0];
@@ -716,7 +717,7 @@ int mj_broadphase(const mjModel* m, mjData* d, int* pair, int maxpair) {
       cov[8] += D22;
     }
   }
-  for (int i=0; i<9; i++) {
+  for (int i=0; i < 9; i++) {
     cov[i] /= cnt;
   }
 
@@ -729,7 +730,7 @@ int mj_broadphase(const mjModel* m, mjData* d, int* pair, int maxpair) {
 
   // construct body AABB for the aligned frame, count collidable
   int bufcnt = 0;
-  for (int i=1; i<nbody; i++) {
+  for (int i=1; i < nbody; i++) {
     makeAABB(m, d, aabb+6*i, i, frame);
 
     if (can_collide(m, i)) {
@@ -750,7 +751,7 @@ int mj_broadphase(const mjModel* m, mjData* d, int* pair, int maxpair) {
 
   // init sortbuf with axis0
   int k = 0;
-  for (int i=1; i<nbody; i++) {
+  for (int i=1; i < nbody; i++) {
     // cannot colide
     if (!can_collide(m, i)) {
       continue;
@@ -765,7 +766,7 @@ int mj_broadphase(const mjModel* m, mjData* d, int* pair, int maxpair) {
   }
 
   // sanity check; SHOULD NOT OCCUR
-  if (k!=bufcnt) {
+  if (k != bufcnt) {
     mju_error("Internal error in broadphase: unexpected bufcnt");
   }
 
@@ -774,10 +775,10 @@ int mj_broadphase(const mjModel* m, mjData* d, int* pair, int maxpair) {
 
   // sweep and prune
   cnt = 0;    // size of active list
-  for (int i=0; i<2*bufcnt; i++) {
+  for (int i=0; i < 2*bufcnt; i++) {
     // min value: collide with all in list, add
     if (!(sortbuf[i].body_ismax & 0x10000)) {
-      for (int j=0; j<cnt; j++) {
+      for (int j=0; j < cnt; j++) {
         // get body ids: no need to mask ismax because activebuf entries never have the ismax bit,
         // and sortbuf[i].body_ismax is tested above
         b1 = activebuf[j].body_ismax;
@@ -813,9 +814,9 @@ int mj_broadphase(const mjModel* m, mjData* d, int* pair, int maxpair) {
     // max value: remove corresponding min value from list
     else {
       toremove = sortbuf[i].body_ismax & 0xFFFF;
-      for (int j=0; j<cnt; j++) {
-        if (activebuf[j].body_ismax==toremove) {
-          if (j<cnt-1) {
+      for (int j=0; j < cnt; j++) {
+        if (activebuf[j].body_ismax == toremove) {
+          if (j < cnt-1) {
             memmove(activebuf+j, activebuf+j+1, sizeof(mjtBroadphase)*(cnt-1-j));
           }
           cnt--;
@@ -846,11 +847,12 @@ endbroad:
 void mj_collideGeoms(const mjModel* m, mjData* d, int g1, int g2, int flg_user, mjtNum usermargin) {
   int num, type1, type2, condim;
   mjtNum margin, gap, mix, friction[5], solref[mjNREF], solimp[mjNIMP];
+  mjtNum solreffriction[mjNREF] = {0};
   mjContact con[mjMAXCONPAIR];
-  int ipair = (g2<0 ? g1 : -1);
+  int ipair = (g2 < 0 ? g1 : -1);
 
   // get explicit geom ids from pair
-  if (ipair>=0) {
+  if (ipair >= 0) {
     g1 = m->pair_geom1[ipair];
     g2 = m->pair_geom2[ipair];
   }
@@ -872,7 +874,7 @@ void mj_collideGeoms(const mjModel* m, mjData* d, int g1, int g2, int flg_user, 
   }
 
   // apply filters if not predefined pair and not flg_user
-  if (ipair<0 && !flg_user) {
+  if (ipair < 0 && !flg_user) {
     // user filter if defined
     if (mjcb_contactfilter) {
       if (mjcb_contactfilter(m, d, g1, g2)) {
@@ -888,14 +890,14 @@ void mj_collideGeoms(const mjModel* m, mjData* d, int g1, int g2, int flg_user, 
   }
 
   // set margin, gap, condim: dynamic
-  if (ipair<0) {
+  if (ipair < 0) {
     // margin and gap: max
     margin = mju_max(m->geom_margin[g1], m->geom_margin[g2]);
     gap = mju_max(m->geom_gap[g1], m->geom_gap[g2]);
 
     // condim: priority or max
-    if (m->geom_priority[g1]!=m->geom_priority[g2]) {
-      int gp = (m->geom_priority[g1]>m->geom_priority[g2] ? g1 : g2);
+    if (m->geom_priority[g1] != m->geom_priority[g2]) {
+      int gp = (m->geom_priority[g1] > m->geom_priority[g2] ? g1 : g2);
       condim = m->geom_condim[gp];
     } else {
       condim = mjMAX(m->geom_condim[g1], m->geom_condim[g2]);
@@ -936,23 +938,23 @@ void mj_collideGeoms(const mjModel* m, mjData* d, int g1, int g2, int flg_user, 
   d->ngeompair_narrow++;
 
   // check number of contacts, SHOULD NOT OCCUR
-  if (num>mjMAXCONPAIR) {
+  if (num > mjMAXCONPAIR) {
     mju_error("Too many contacts returned by collision function");
   }
 
   // remove repeated contacts in box-box
-  if (type1==mjGEOM_BOX && type2==mjGEOM_BOX) {
+  if (type1 == mjGEOM_BOX && type2 == mjGEOM_BOX) {
     // use dim field to mark: -1: bad, 0: good
-    for (int i=0; i<num; i++) {
+    for (int i=0; i < num; i++) {
       con[i].dim = 0;
     }
 
     // find bad
-    for (int i=0; i<num-1; i++) {
-      for (int j=i+1; j<num; j++) {
-        if (con[i].pos[0]==con[j].pos[0] &&
-            con[i].pos[1]==con[j].pos[1] &&
-            con[i].pos[2]==con[j].pos[2]) {
+    for (int i=0; i < num-1; i++) {
+      for (int j=i+1; j < num; j++) {
+        if (con[i].pos[0] == con[j].pos[0] &&
+            con[i].pos[1] == con[j].pos[1] &&
+            con[i].pos[2] == con[j].pos[2]) {
           con[i].dim = -1;
           break;
         }
@@ -961,10 +963,10 @@ void mj_collideGeoms(const mjModel* m, mjData* d, int g1, int g2, int flg_user, 
 
     // consolidate good
     int i = 0;
-    for (int j=0; j<num; j++) {
-      if (con[j].dim==0) {
+    for (int j=0; j < num; j++) {
+      if (con[j].dim == 0) {
         // different: copy
-        if (i<j) {
+        if (i < j) {
           con[i] = con[j];
         }
 
@@ -978,13 +980,13 @@ void mj_collideGeoms(const mjModel* m, mjData* d, int g1, int g2, int flg_user, 
   }
 
   // set friction, solref, solimp: dynamic
-  if (ipair<0) {
+  if (ipair < 0) {
     // different priority
-    if (m->geom_priority[g1]!=m->geom_priority[g2]) {
-      int gp = (m->geom_priority[g1]>m->geom_priority[g2] ? g1 : g2);
+    if (m->geom_priority[g1] != m->geom_priority[g2]) {
+      int gp = (m->geom_priority[g1] > m->geom_priority[g2] ? g1 : g2);
 
       // friction
-      for (int i=0; i<3; i++) {
+      for (int i=0; i < 3; i++) {
         friction[2*i] = m->geom_friction[3*gp+i];
       }
 
@@ -998,31 +1000,31 @@ void mj_collideGeoms(const mjModel* m, mjData* d, int g1, int g2, int flg_user, 
     // same priority
     else {
       // friction: max
-      for (int i=0; i<3; i++) {
+      for (int i=0; i < 3; i++) {
         friction[2*i] = mju_max(m->geom_friction[3*g1+i], m->geom_friction[3*g2+i]);
       }
 
       // solver mix factor
-      if (m->geom_solmix[g1]>=mjMINVAL && m->geom_solmix[g2]>=mjMINVAL) {
+      if (m->geom_solmix[g1] >= mjMINVAL && m->geom_solmix[g2] >= mjMINVAL) {
         mix = m->geom_solmix[g1] / (m->geom_solmix[g1] + m->geom_solmix[g2]);
-      } else if (m->geom_solmix[g1]<mjMINVAL && m->geom_solmix[g2]<mjMINVAL) {
+      } else if (m->geom_solmix[g1] < mjMINVAL && m->geom_solmix[g2] < mjMINVAL) {
         mix = 0.5;
-      } else if (m->geom_solmix[g1]<mjMINVAL) {
+      } else if (m->geom_solmix[g1] < mjMINVAL) {
         mix = 0.0;
       } else {
         mix = 1.0;
       }
 
       // reference standard: mix
-      if (m->geom_solref[mjNREF*g1]>0 && m->geom_solref[mjNREF*g2]>0) {
-        for (int i=0; i<mjNREF; i++) {
+      if (m->geom_solref[mjNREF*g1] > 0 && m->geom_solref[mjNREF*g2] > 0) {
+        for (int i=0; i < mjNREF; i++) {
           solref[i] = mix*m->geom_solref[mjNREF*g1+i] + (1-mix)*m->geom_solref[mjNREF*g2+i];
         }
       }
 
       // reference direct: min
       else {
-        for (int i=0; i<mjNREF; i++) {
+        for (int i=0; i < mjNREF; i++) {
           solref[i] = mju_min(m->geom_solref[mjNREF*g1+i], m->geom_solref[mjNREF*g2+i]);
         }
       }
@@ -1040,24 +1042,29 @@ void mj_collideGeoms(const mjModel* m, mjData* d, int g1, int g2, int flg_user, 
   // set friction, solref, solimp: pair
   else {
     // friction
-    for (int i=0; i<5; i++) {
+    for (int i=0; i < 5; i++) {
       friction[i] = m->pair_friction[5*ipair+i];
     }
 
-    // reference
+    // reference, normal direction
     mju_copy(solref, m->pair_solref+mjNREF*ipair, mjNREF);
+
+    // reference, friction directions
+    if (m->pair_solreffriction[mjNREF*ipair] || m->pair_solreffriction[mjNREF*ipair + 1]) {
+      mju_copy(solreffriction, m->pair_solreffriction+mjNREF*ipair, mjNREF);
+    }
 
     // impedance
     mju_copy(solimp, m->pair_solimp+mjNIMP*ipair, mjNIMP);
   }
 
   // clamp friction to mjMINMU
-  for (int i=0; i<5; i++) {
+  for (int i=0; i < 5; i++) {
     friction[i] = mju_max(mjMINMU, friction[i]);
   }
 
   // add contact returned by collision detector
-  for (int i=0; i<num; i++) {
+  for (int i=0; i < num; i++) {
     // set contact data
     if (condim > 6 || condim < 1) {  // SHOULD NOT OCCUR
       mju_error("Invalid condim value: %d", i);
@@ -1068,10 +1075,11 @@ void mj_collideGeoms(const mjModel* m, mjData* d, int g1, int g2, int flg_user, 
     con[i].includemargin = margin-gap;
     mju_copy(con[i].friction, friction, 5);
     mj_assignRef(m, con[i].solref, solref);
+    mj_assignRef(m, con[i].solreffriction, solreffriction);
     mj_assignImp(m, con[i].solimp, solimp);
 
     // exclude in gap
-    if (con[i].dist<con[i].includemargin) {
+    if (con[i].dist < con[i].includemargin) {
       con[i].exclude = 0;
     } else {
       con[i].exclude = 1;

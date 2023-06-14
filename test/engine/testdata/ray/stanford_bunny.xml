@@ -1,0 +1,8 @@
+<mujoco>
+  <asset>
+    <mesh file="stanford_bunny.obj"/>
+  </asset>
+  <worldbody>
+    <geom type="mesh" mesh="stanford_bunny" pos="1 0 0" euler="0 90 0"/>
+  </worldbody>
+</mujoco>

@@ -14,6 +14,7 @@
 
 // Tests for engine/engine_support.c.
 
+#include <random>
 #include <string>
 
 #include <gmock/gmock.h>
@@ -25,9 +26,14 @@
 namespace mujoco {
 namespace {
 
+std::vector<mjtNum> AsVector(const mjtNum* array, int n) {
+  return std::vector<mjtNum>(array, array + n);
+}
+
 using ::testing::DoubleNear;
 using ::testing::ContainsRegex;
 using ::testing::MatchesRegex;
+using ::testing::Pointwise;
 using JacobianTest = MujocoTest;
 static const mjtNum max_abs_err = std::numeric_limits<float>::epsilon();
 
@@ -72,7 +78,7 @@ TEST_F(JacobianTest, SubtreeJac) {
   mjtNum* qpos = (mjtNum*) mju_malloc(sizeof(mjtNum)*model->nq);
   mjtNum* nudge = (mjtNum*) mju_malloc(sizeof(mjtNum)*nv);
 
-  // all we need for Jacobians are kinematics and CoM-related quantitites
+  // all we need for Jacobians are kinematics and CoM-related quantities
   mj_kinematics(model, data);
   mj_comPos(model, data);
 
@@ -87,7 +93,7 @@ TEST_F(JacobianTest, SubtreeJac) {
 
   // compare analytic Jacobian to finite-difference approximation
   static const mjtNum eps = 1e-6;
-  for (int i=0; i<nv; i++) {
+  for (int i=0; i < nv; i++) {
     // reset qpos, nudge i-th dof, update data->qpos, reset nudge
     mju_copy(data->qpos, qpos, model->nq);
     nudge[i] = 1;
@@ -99,7 +105,7 @@ TEST_F(JacobianTest, SubtreeJac) {
     mj_comPos(model, data);
 
     // compare finite-differenced and analytic Jacobian
-    for (int j=0; j<3; j++) {
+    for (int j=0; j < 3; j++) {
       mjtNum findiff = (data->subtree_com[3*bodyid+j] - subtree_com[j]) / eps;
       EXPECT_THAT(jac_subtree[nv*j+i], DoubleNear(findiff, eps));
     }
@@ -121,7 +127,7 @@ TEST_F(JacobianTest, SubtreeJacNoInternalAcc) {
   mjData* data = mj_makeData(model);
   mjtNum* jac_subtree = (mjtNum*) mju_malloc(sizeof(mjtNum)*3*nv);
 
-  // all we need for Jacobians are kinematics and CoM-related quantitites
+  // all we need for Jacobians are kinematics and CoM-related quantities
   mj_kinematics(model, data);
   mj_comPos(model, data);
 
@@ -276,6 +282,127 @@ TEST_F(VersionTest, MjVersionString) {
   auto regex_matcher = MatchesRegex("^[0-9]+\\.[0-9]+\\.[0-9]+(-[0-9a-z]+)?$");
 #endif
   EXPECT_THAT(std::string(mj_versionString()), regex_matcher);
+}
+
+
+using SupportTest = MujocoTest;
+
+// utility: generate two random quaternions with a given angle difference
+void randomQuatPair(mjtNum qa[4], mjtNum qb[4], mjtNum angle, int seed) {
+  // make distribution using seed
+  std::mt19937_64 rng;
+  rng.seed(seed);
+  std::normal_distribution<double> dist(0, 1);
+
+  // sample qa = qb
+  for (int i=0; i < 4; i++) {
+    qa[i] = qb[i] = dist(rng);
+  }
+  mju_normalize4(qa);
+  mju_normalize4(qb);
+
+  // integrate qb in random direction by angle
+  mjtNum dir[3];
+  for (int i=0; i < 3; i++) {
+    dir[i] = dist(rng);
+  }
+  mju_normalize3(dir);
+  mju_quatIntegrate(qb, dir, angle);
+}
+
+static constexpr char ballJointModel[] = R"(
+<mujoco>
+  <worldbody>
+    <body>
+      <joint type="ball"/>
+      <geom size="1"/>
+    </body>
+  </worldbody>
+</mujoco>
+)";
+
+TEST_F(SupportTest, DifferentiatePosSubQuat) {
+  const mjtNum eps = 1e-12;  // epsilon for float comparison
+
+  mjModel* model = LoadModelFromString(ballJointModel);
+
+  int seed = 1;
+  for (mjtNum angle : {0.0, 1e-5, 1e-2}) {
+    for (mjtNum dt : {1e-6, 1e-3, 1e-1}) {
+      // random quaternion pair with given angle difference
+      mjtNum qpos1[4], qpos2[4];
+      randomQuatPair(qpos1, qpos2, angle, seed++);
+
+      // get velocity given timestep
+      mjtNum qvel[3];
+      mj_differentiatePos(model, qvel, dt, qpos1, qpos2);
+
+      // equivalent computation
+      mjtNum qneg[4], qdif[4], qvel_expect[3];
+      mju_negQuat(qneg, qpos1);
+      mju_mulQuat(qdif, qneg, qpos2);
+      mju_quat2Vel(qvel_expect, qdif, dt);
+
+      // expect numerical equality
+      EXPECT_THAT(AsVector(qvel, 3), Pointwise(DoubleNear(eps), qvel_expect));
+    }
+  }
+
+  mj_deleteModel(model);
+}
+
+static const char* const kDefaultModel = "testdata/model.xml";
+
+TEST_F(SupportTest, GetSetStateStepEqual) {
+  const std::string xml_path = GetTestDataFilePath(kDefaultModel);
+  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, nullptr, 0);
+  mjData* data = mj_makeData(model);
+
+  // make distribution using seed
+  std::mt19937_64 rng;
+  rng.seed(3);
+  std::normal_distribution<double> dist(0, .01);
+
+  // set controls and applied joint forces to random values
+  for (int i=0; i < model->nu; i++) data->ctrl[i] = dist(rng);
+  for (int i=0; i < model->nv; i++) data->qfrc_applied[i] = dist(rng);
+
+  // take one step
+  mj_step(model, data);
+
+  int spec = mjSTATE_INTEGRATION;
+  int size = mj_stateSize(model, spec);
+
+  // save the initial state and step
+  std::vector<mjtNum> state0a(size);
+  mj_getState(model, data, state0a.data(), spec);
+
+  // get the initial state, expect equality
+  std::vector<mjtNum> state0b(size);
+  mj_getState(model, data, state0b.data(), spec);
+  EXPECT_EQ(state0a, state0b);
+
+  // take one step
+  mj_step(model, data);
+
+  // save the resulting state
+  std::vector<mjtNum> state1a(size);
+  mj_getState(model, data, state1a.data(), spec);
+
+  // expect the state to be different after stepping
+  EXPECT_THAT(state0a, testing::Ne(state1a));
+
+  // reset to the saved state, step again, get the resulting state
+  mj_setState(model, data, state0a.data(), spec);
+  mj_step(model, data);
+  std::vector<mjtNum> state1b(size);
+  mj_getState(model, data, state1b.data(), spec);
+
+  // expect the state to be the same after re-stepping
+  EXPECT_EQ(state1a, state1b);
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
 }
 
 }  // namespace

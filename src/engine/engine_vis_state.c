@@ -22,13 +22,16 @@
 #include <mujoco/mjvisualize.h>
 #include <mujoco/mjxmacro.h>
 #include "engine/engine_core_constraint.h"
-#include "engine/engine_macro.h"
 #include "engine/engine_plugin.h"
 #include "engine/engine_support.h"
 #include "engine/engine_util_errmem.h"
 #include "engine/engine_vis_init.h"
 #include "engine/engine_vis_interact.h"
 #include "engine/engine_vis_visualize.h"
+
+#ifdef MEMORY_SANITIZER
+  #include <sanitizer/msan_interface.h>
+#endif
 
 // this source file needs to treat XMJV differently from other X macros
 #undef XMJV
@@ -138,8 +141,8 @@ void mjv_assignFromSceneState(const mjvSceneState* scnstate, mjModel* m, mjData*
     memset(m, 0, sizeof(mjModel));
 
 #ifdef MEMORY_SANITIZER
-  // Tell msan to treat the entire buffer as uninitialized
-  __msan_allocated_memory(m, sizeof(mjModel));
+    // Tell msan to treat the entire buffer as uninitialized
+    __msan_allocated_memory(m, sizeof(mjModel));
 #endif
 
 #define X(var)
@@ -163,8 +166,8 @@ void mjv_assignFromSceneState(const mjvSceneState* scnstate, mjModel* m, mjData*
     memset(d, 0, sizeof(mjData));
 
 #ifdef MEMORY_SANITIZER
-  // Tell msan to treat the entire buffer as uninitialized
-  __msan_allocated_memory(d, sizeof(mjData));
+    // Tell msan to treat the entire buffer as uninitialized
+    __msan_allocated_memory(d, sizeof(mjData));
 #endif
 
     memcpy(d->warning, scnstate->data.warning, sizeof(d->warning));
@@ -244,7 +247,7 @@ void mjv_updateSceneState(const mjModel* m, mjData* d, const mjvOption* opt,
   if (m->nplugin) {
     const int nslot = mjp_pluginCount();
     // iterate over plugins, call visualize if defined
-    for (int i=0; i<m->nplugin; i++) {
+    for (int i=0; i < m->nplugin; i++) {
       const int slot = m->plugin[i];
       const mjpPlugin* plugin = mjp_getPluginAtSlotUnsafe(slot, nslot);
       if (!plugin) {

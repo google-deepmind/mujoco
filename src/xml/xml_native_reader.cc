@@ -30,9 +30,9 @@
 #include <utility>
 #include <vector>
 
+#include <mujoco/mjmacro.h>
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjvisualize.h>
-#include "engine/engine_macro.h"
 #include "engine/engine_plugin.h"
 #include "engine/engine_util_errmem.h"
 #include "engine/engine_util_misc.h"
@@ -153,7 +153,8 @@ static const char* MJCF[nMJCF][mjXATTRNUM] = {
             "axisangle", "xyaxes", "zaxis", "euler", "mode", "user"},
         {"light", "?", "12", "pos", "dir", "directional", "castshadow", "active",
             "attenuation", "cutoff", "exponent", "ambient", "diffuse", "specular", "mode"},
-        {"pair", "?", "6", "condim", "friction", "solref", "solimp", "gap", "margin"},
+        {"pair", "?", "7", "condim", "friction", "solref", "solreffriction", "solimp",
+         "gap", "margin"},
         {"equality", "?", "3", "active", "solref", "solimp"},
         {"tendon", "?", "16", "group", "limited", "range",
             "solreflimit", "solimplimit", "solreffriction", "solimpfriction",
@@ -283,8 +284,8 @@ static const char* MJCF[nMJCF][mjXATTRNUM] = {
 
     {"contact", "*", "0"},
     {"<"},
-        {"pair", "*", "10", "name", "class", "geom1", "geom2", "condim", "friction",
-            "solref", "solimp", "gap", "margin"},
+        {"pair", "*", "11", "name", "class", "geom1", "geom2", "condim", "friction",
+            "solref", "solreffriction", "solimp", "gap", "margin"},
         {"exclude", "*", "3", "name", "body1", "body2"},
     {">"},
 
@@ -356,11 +357,11 @@ static const char* MJCF[nMJCF][mjXATTRNUM] = {
             "lengthrange", "gear", "cranklength", "user",
             "joint", "jointinparent", "tendon", "slidersite", "cranksite", "site", "refsite",
             "timeconst", "area", "diameter", "bias"},
-        {"muscle", "*", "25",  "name", "class", "group",
+        {"muscle", "*", "26",  "name", "class", "group",
             "ctrllimited", "forcelimited", "ctrlrange", "forcerange",
             "lengthrange", "gear", "cranklength", "user",
             "joint", "jointinparent", "tendon", "slidersite", "cranksite",
-            "timeconst", "range", "force", "scale",
+            "timeconst", "tausmooth", "range", "force", "scale",
             "lmin", "lmax", "vmax", "fpmax", "fvmax"},
         {"adhesion", "*", "9", "name", "class", "group",
             "forcelimited", "ctrlrange", "forcerange", "user", "body", "gain"},
@@ -1495,6 +1496,7 @@ void mjXReader::OnePair(XMLElement* elem, mjCPair* ppair) {
   ReadAttrTxt(elem, "name", ppair->name);
   ReadAttrInt(elem, "condim", &ppair->condim);
   ReadAttr(elem, "solref", mjNREF, ppair->solref, text, false, false);
+  ReadAttr(elem, "solreffriction", mjNREF, ppair->solreffriction, text, false, false);
   ReadAttr(elem, "solimp", mjNIMP, ppair->solimp, text, false, false);
   ReadAttr(elem, "margin", 1, &ppair->margin, text);
   ReadAttr(elem, "gap", 1, &ppair->gap, text);
@@ -1606,7 +1608,6 @@ void mjXReader::OneTendon(XMLElement* elem, mjCTendon* pten) {
 // actuator element parser
 void mjXReader::OneActuator(XMLElement* elem, mjCActuator* pact) {
   string text, type;
-  double diameter;
 
   // common attributes
   ReadAttrTxt(elem, "name", pact->name);
@@ -1774,6 +1775,7 @@ void mjXReader::OneActuator(XMLElement* elem, mjCActuator* pact) {
     ReadAttr(elem, "timeconst", 1, pact->dynprm, text);
     ReadAttr(elem, "bias", 3, pact->biasprm, text);
     ReadAttr(elem, "area", 1, pact->gainprm, text);
+    double diameter;
     if (ReadAttr(elem, "diameter", 1, &diameter, text)) {
       pact->gainprm[0] = mjPI / 4 * diameter*diameter;
     }
@@ -1801,6 +1803,9 @@ void mjXReader::OneActuator(XMLElement* elem, mjCActuator* pact) {
 
     // explicit attributes
     ReadAttr(elem, "timeconst", 2, pact->dynprm, text);
+    ReadAttr(elem, "tausmooth", 1, pact->dynprm+2, text);
+    if (pact->dynprm[2]<0)
+      throw mjXError(elem, "muscle tausmooth cannot be negative");
     ReadAttr(elem, "range", 2, pact->gainprm, text);
     ReadAttr(elem, "force", 1, pact->gainprm+2, text);
     ReadAttr(elem, "scale", 1, pact->gainprm+3, text);

@@ -14,6 +14,7 @@
 
 // Tests for engine/engine_derivative.c.
 
+#include <random>
 #include <vector>
 
 #include <gmock/gmock.h>
@@ -23,6 +24,7 @@
 #include "src/engine/engine_core_smooth.h"
 #include "src/engine/engine_derivative.h"
 #include "src/engine/engine_derivative_fd.h"
+#include "src/engine/engine_forward.h"
 #include "src/engine/engine_io.h"
 #include "src/engine/engine_util_blas.h"
 #include "src/engine/engine_util_errmem.h"
@@ -70,6 +72,7 @@ static mjtNum CompareMatrices(mjtNum* Actual, mjtNum* Expected,
 
 // utility function for matrix printing
 static void PrintMatrix(mjtNum* mat, int nrow, int ncol) {
+  // NOLINT(clang-diagnostic-unused-function)
   std::cerr.precision(5);
   std::cerr << "\n";
   for (int r=0; r < nrow; r++) {
@@ -78,7 +81,7 @@ static void PrintMatrix(mjtNum* mat, int nrow, int ncol) {
     }
     std::cerr << "\n";
   }
-}  // NOLINT(clang-diagnostic-unused-function)
+}
 
 
 std::vector<mjtNum> AsVector(const mjtNum* array, int n) {
@@ -435,7 +438,7 @@ TEST_F(DerivativeTest, ClampedCtrlDerivatives) {
   // expect derivatives to be 0
   EXPECT_THAT(AsVector(BFD, 2*nv*nu), Each(Eq(0.0)));
 
-  // expect ctrl to remain unchanged (despite intenal clamping)
+  // expect ctrl to remain unchanged (despite internal clamping)
   EXPECT_EQ(data->ctrl[0],  2.0);
   EXPECT_EQ(data->ctrl[1], -2.0);
 
@@ -643,6 +646,193 @@ TEST_F(DerivativeTest, DenseSparseRneEquivalent) {
     mj_deleteData(data);
     mju_free(qDeriv);
     mj_deleteModel(model);
+  }
+}
+
+// compare FD inverse derivatives to analytic derivatives of linear system
+TEST_F(DerivativeTest, LinearSystemInverse) {
+  const std::string xml_path = GetTestDataFilePath(kLinearPath);
+  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, nullptr, 0);
+  mjData* data = mj_makeData(model);
+
+  static const int nv = 3;
+  EXPECT_EQ(nv, model->nv);
+  static const int nu = 2;
+  EXPECT_EQ(nu, model->nu);
+  static const int ns = 5;
+  EXPECT_EQ(ns, model->nsensordata);
+  static const int nM = 6;
+  EXPECT_EQ(nM, model->nM);
+
+  mjtNum DfDq[nv*nv];
+  mjtNum DfDv[nv*nv];
+  mjtNum DfDa[nv*nv];
+  mjtNum DsDq[nv*ns];
+  mjtNum DsDv[nv*ns];
+  mjtNum DsDa[nv*ns];
+  mjtNum DmDq[nv*nM];
+
+  // call mj_forward to get accelerations at initial state
+  mj_forward(model, data);
+
+  // get derivatives
+  mjtNum eps = 1e-6;
+  mjtByte flg_actuation = 0;
+  mjd_inverseFD(model, data, eps, flg_actuation,
+                DfDq, DfDv, DfDa,
+                DsDq, DsDv, DsDa,
+                DmDq);
+
+  // expect that position derivatives are the stiffnesses
+  mjtNum DfDq_expect[3*3] = {model->jnt_stiffness[0], 0, 0,
+                             0, model->jnt_stiffness[1], 0,
+                             0, 0, model->jnt_stiffness[2]};
+  EXPECT_THAT(AsVector(DfDq, nv*nv),
+              Pointwise(DoubleNear(eps), AsVector(DfDq_expect, nv*nv)));
+
+  // expect that velocity derivatives are the dampings
+  mjtNum DfDv_expect[3*3] = {model->dof_damping[0], 0, 0,
+                             0, model->dof_damping[1], 0,
+                             0, 0, model->dof_damping[2]};
+  EXPECT_THAT(AsVector(DfDv, nv*nv),
+              Pointwise(DoubleNear(eps), AsVector(DfDv_expect, nv*nv)));
+
+  // expect that acceleration derivatives are the mass matrix
+  mjtNum DfDa_expect[3*3];
+  mj_fullM(model, DfDa_expect, data->qM);
+  EXPECT_THAT(AsVector(DfDa, nv*nv),
+              Pointwise(DoubleNear(eps), AsVector(DfDa_expect, nv*nv)));
+
+  // expect that sensor derivatives w.r.t position only see sensor 1 at dof 0
+  mjtNum DsDq_expect[3*5] = {0};
+  int dof_index = 0;
+  int sensordata_index = model->sensor_adr[1];
+  DsDq_expect[dof_index*ns + sensordata_index] = 1;
+  EXPECT_THAT(AsVector(DsDq, nv*ns),
+              Pointwise(DoubleNear(eps), AsVector(DsDq_expect, nv*ns)));
+
+  // expect that sensor derivatives w.r.t velocity only see sensor 0 at dof 1
+  mjtNum DsDv_expect[3*5] = {0};
+  dof_index = 1;
+  sensordata_index = model->sensor_adr[0];
+  DsDv_expect[dof_index*ns + sensordata_index] = 1;
+  EXPECT_THAT(AsVector(DsDv, nv*ns),
+              Pointwise(DoubleNear(eps), AsVector(DsDv_expect, nv*ns)));
+
+  // expect that sensor derivatives w.r.t acceleration see the accelerometer
+  // in the y-axis, affected by both dof 0 and dof 1
+  mjtNum DsDa_expect[3*5] = {0};
+  dof_index = 0;
+  sensordata_index = model->sensor_adr[2] + 1;
+  DsDa_expect[dof_index*ns + sensordata_index] = 1;
+  dof_index = 1;
+  DsDa_expect[dof_index*ns + sensordata_index] = 1;
+  EXPECT_THAT(AsVector(DsDa, nv*ns),
+              Pointwise(DoubleNear(eps), AsVector(DsDa_expect, nv*ns)));
+
+  // expect that mass matrix derivatives are zero
+  mjtNum DmDq_expect[nv*nM] = {0};
+  EXPECT_THAT(AsVector(DmDq, nv*nM),
+              Pointwise(DoubleNear(eps), AsVector(DmDq_expect, nv*nM)));
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
+// utility: generate two random quaternions with a given angle difference
+void randomQuatPair(mjtNum qa[4], mjtNum qb[4], mjtNum angle, int seed) {
+  // make distribution using seed
+  std::mt19937_64 rng;
+  rng.seed(seed);
+  std::normal_distribution<double> dist(0, 1);
+
+  // sample qa = qb
+  for (int i=0; i < 4; i++) {
+    qa[i] = qb[i] = dist(rng);
+  }
+  mju_normalize4(qa);
+  mju_normalize4(qb);
+
+  // integrate qb in random direction by angle
+  mjtNum dir[3];
+  for (int i=0; i < 3; i++) {
+    dir[i] = dist(rng);
+  }
+  mju_normalize3(dir);
+  mju_quatIntegrate(qb, dir, angle);
+}
+
+// utility: finite-difference Jacobians of mju_subQuat
+void mjd_subQuatFD(mjtNum Da[9], mjtNum Db[9],
+                   const mjtNum qa[4], const mjtNum qb[4], mjtNum eps) {
+  // subQuat
+  mjtNum y[3];
+  mju_subQuat(y, qa, qb);
+
+  mjtNum dq[3];   // nudge input direction
+  mjtNum dqa[4];  // nudged qa input
+  mjtNum dqb[4];  // nudged qb input
+  mjtNum dy[3];   // nudged output
+  mjtNum DaT[9];  // Da transposed
+  mjtNum DbT[9];  // Db transposed
+
+  for (int i = 0; i < 3; i++) {
+    // perturbation
+    mju_zero3(dq);
+    dq[i] = 1.0;
+
+    // Jacobian: d_y / d_qa
+    mju_copy4(dqa, qa);
+    mju_quatIntegrate(dqa, dq, eps);
+    mju_subQuat(dy, dqa, qb);
+
+    mju_sub3(DaT + i * 3, dy, y);
+    mju_scl3(DaT + i * 3, DaT + i * 3, 1.0 / eps);
+
+    // Jacobian: d_y / d_qb
+    mju_copy4(dqb, qb);
+    mju_quatIntegrate(dqb, dq, eps);
+    mju_subQuat(dy, qa, dqb);
+
+    mju_sub3(DbT + i * 3, dy, y);
+    mju_scl3(DbT + i * 3, DbT + i * 3, 1.0 / eps);
+  }
+
+  // transpose result
+  mju_transpose(Da, DaT, 3, 3);
+  mju_transpose(Db, DbT, 3, 3);
+}
+
+TEST_F(DerivativeTest, SubQuat) {
+  const int nrepeats = 10;  // number of repeats
+  const mjtNum eps = 1e-7;  // epsilon for finite-differencing and comparison
+
+  int seed = 1;
+  for (int i = 0; i < nrepeats; i++) {
+    for (mjtNum angle : {0.0, 1e-9, 1e-5, 1e-2, 1.0, 4.0}) {
+      // random quaternions
+      mjtNum qa[4];
+      mjtNum qb[4];
+
+      // make random quaternion pair with given relative angle
+      randomQuatPair(qa, qb, angle, seed++);
+
+      // analytic Jacobians
+      mjtNum Da[9];  // d_subQuat(qa, qb) / d_qa
+      mjtNum Db[9];  // d_subQuat(qa, qb) / d_qb
+      mjd_subQuat(qa, qb, Da, Db);
+
+      // finite-differenced Jacobians
+      mjtNum DaFD[9];
+      mjtNum DbFD[9];
+      mjd_subQuatFD(DaFD, DbFD, qa, qb, eps);
+
+      // expect numerical equality
+      EXPECT_THAT(AsVector(DaFD, 9),
+                  Pointwise(DoubleNear(eps), AsVector(Da, 9)));
+      EXPECT_THAT(AsVector(DbFD, 9),
+                  Pointwise(DoubleNear(eps), AsVector(Db, 9)));
+    }
   }
 }
 

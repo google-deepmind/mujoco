@@ -281,6 +281,8 @@
     X   ( int,     mesh_texcoordnum,      nmesh,         1                    ) \
     X   ( int,     mesh_faceadr,          nmesh,         1                    ) \
     X   ( int,     mesh_facenum,          nmesh,         1                    ) \
+    X   ( int,     mesh_bvhadr,           nmesh,         1                    ) \
+    X   ( int,     mesh_bvhnum,           nmesh,         1                    ) \
     XMJV( int,     mesh_graphadr,         nmesh,         1                    ) \
     X   ( float,   mesh_vert,             nmeshvert,     3                    ) \
     X   ( float,   mesh_normal,           nmeshnormal,   3                    ) \
@@ -333,6 +335,7 @@
     X   ( int,     pair_geom2,            npair,         1                    ) \
     X   ( int,     pair_signature,        npair,         1                    ) \
     X   ( mjtNum,  pair_solref,           npair,         mjNREF               ) \
+    X   ( mjtNum,  pair_solreffriction,   npair,         mjNREF               ) \
     X   ( mjtNum,  pair_solimp,           npair,         mjNIMP               ) \
     X   ( mjtNum,  pair_margin,           npair,         1                    ) \
     X   ( mjtNum,  pair_gap,              npair,         1                    ) \

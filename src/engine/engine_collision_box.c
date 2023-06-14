@@ -15,6 +15,7 @@
 #include <math.h>
 #include <string.h>
 
+#include <mujoco/mjmacro.h>
 #include "engine/engine_collision_primitive.h"
 #include "engine/engine_util_blas.h"
 

@@ -80,19 +80,21 @@ Model compilation
    the built-in compiler into the low-level data structure :ref:`mjModel`, which is cross-indexed and optimized for
    runtime computation. The compiled model can also be saved in a binary MJB file.
 
+.. _ModelAndData:
+
 Separation of model and data
    MuJoCo separates simulation parameters into two data structures (C structs) at runtime:
 
-   -  ``mjModel`` contains the model description and is expected to remain constant. There are other structures embedded
-      in it that contain simulation and visualization options, and those options need to be changed occasionally, but
-      this is done by the user.
-   -  ``mjData`` contains all dynamic variables and intermediate results. It is used as a scratch pad where all
+   -  :ref:`mjModel` contains the model description and is expected to remain constant. There are other structures
+      embedded in it that contain simulation and visualization options, and those options need to be changed
+      occasionally, but this is done by the user.
+   -  :ref:`mjData` contains all dynamic variables and intermediate results. It is used as a scratch pad where all
       functions read their inputs and write their outputs -- which then become the inputs to subsequent stages in the
       simulation pipeline. It also contains a preallocated and internally managed stack, so that the runtime module
       does not need to call memory allocation functions after the model is initialized.
 
-   ``mjModel`` is constructed by the compiler. :ref:`mjData` is constructed at runtime, given
-   ``mjModel``. This separation makes it easy to simulate multiple models as well as multiple states and controls for
+   :ref:`mjModel` is constructed by the compiler. :ref:`mjData` is constructed at runtime, given
+   :ref:`mjModel`. This separation makes it easy to simulate multiple models as well as multiple states and controls for
    each model, in turn facilitating :ref:`multi-threading <siMultithread>` for sampling and :ref:`finite
    differences <saDerivative>`. The top-level API functions reflect this basic separation, and have
    the format:
@@ -611,13 +613,13 @@ away and cause divergence.
 
 .. _Units:
 
-Units are undefined
-~~~~~~~~~~~~~~~~~~~
+Units are unspecified
+~~~~~~~~~~~~~~~~~~~~~
 
-In MuJoCo basic physical units are undefined. The user may interpret the system of units as they choose, as long as it
-is consistent. To understand this, consider an example: the dynamics of a 1 Meter spaceship that weighs 1 Kg and has a 1
-Newton thruster are the same as those of a 1 cm spaceship that weighs 1 gram and has a 1 dyn thruster. This is because
-both `MKS <https://en.wikipedia.org/wiki/MKS_system_of_units>`__ and `CGS
+MuJoCo does not specify basic physical units. The user may interpret the system of units as they choose, as long as it
+is consistent. To understand this, consider an example: the dynamics of a 1 meter spaceship that weighs 1 kilogram and
+has a 1 Newton thruster are the same as those of a 1 cm spaceship that weighs 1 gram and has a 1 dyn thruster. This is
+because both `MKS <https://en.wikipedia.org/wiki/MKS_system_of_units>`__ and `CGS
 <https://en.wikipedia.org/wiki/Centimetre%E2%80%93gram%E2%80%93second_system_of_units>`__ are consistent systems of
 units. This property allows the user to scale their model as they choose, which is useful when simulating very small or
 very large things, to improve the numerical properties of the simulation.
@@ -625,7 +627,7 @@ very large things, to improve the numerical properties of the simulation.
 That said, users are encouraged to use MKS, as there are two places where MuJoCo uses MKS-like default values:
 
 - The default value of :ref:`gravity<option>` is (0, 0, -9.81), which corresponds to Earth surface gravity in MKS.
-  Note that this does not really define system of units to be MKS, since we might be using CGS on
+  Note that this does not really specify the MKS system of units, since we might be using CGS on
   `Enceladus <https://en.wikipedia.org/wiki/Enceladus>`__.
 - The default value of :ref:`geom density<body-geom>` (used to infer body masses and inertias) is 1000, which
   corresponds to the density of water in MKS.
@@ -635,9 +637,9 @@ in `Dimensional Analysis <https://en.wikipedia.org/wiki/Dimensional_analysis>`__
 interpreted as MKS, then forces and torques are in Newton and Newton-Meter, respectively.
 
 **Angles:** Although angles can be specified using degrees in MJCF (and indeed degrees are the
-:ref:`default <compiler>`), internally all angles are `Radians <https://en.wikipedia.org/wiki/Radian>`__. So e.g., if we
-are using MKS, angular velocities reported by :ref:`gyroscopes<sensor-gyro>` would be in rad/s while stiffness of hinge
-joints would be in Nm/rad.
+:ref:`default <compiler>`), all angular quantities :ref:`mjModel` and :ref:`mjData` are expressed in
+`radians <https://en.wikipedia.org/wiki/Radian>`__. So, for example, if we are using MKS, angular velocities reported by
+:ref:`gyroscopes<sensor-gyro>` would be in rad/s while stiffness of hinge joints would be in Nm/rad.
 
 
 .. _SurprisingCollisions:
@@ -787,9 +789,9 @@ properties.
 Sites are light geoms. They have the same appearance properties but cannot participate in collisions and cannot be used
 to infer body masses. On the other hand sites can do things that geoms cannot do: they can specify the volumes of touch
 sensors, the attachment of IMU sensors, the routing of spatial tendons, the end-points of slider-crank actuators. These
-are all spatial quantities, and yet they do not correspond to entities that should have mass or collide other entities
--- which is why the site element was created. Sites can also be used to specify points (or rather frames) of interest to
-the user.
+are all spatial quantities, and yet they do not correspond to entities that should have mass or collide with other
+entities -- which is why the site element was created. Sites can also be used to specify points (or rather frames) of
+interest to the user.
 
 The following example illustrates the point that multiple sites and geoms can be attached to the same body: two sites
 and two geoms to one body in this case.

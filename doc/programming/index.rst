@@ -55,8 +55,8 @@ now run the precompiled code samples, for example:
 
 .. code-block:: Text
 
-     Windows:           simulate ..\model\humanoid.xml
-     Linux and macOS:   ./simulate ../model/humanoid.xml
+     Windows:           simulate ..\model\humanoid\humanoid.xml
+     Linux and macOS:   ./simulate ../model/humanoid/humanoid.xml
 
 The directory structure is shown below. Users can re-organize it if needed, as well as install the dynamic libraries in
 other directories and set the path accordingly. The only file created automatically is MUJOCO_LOG.TXT in the executable
@@ -99,15 +99,15 @@ provides an example for this.
 
 .. _inBuild:
 
-Building MuJoCo from source
-~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Building from source
+~~~~~~~~~~~~~~~~~~~~
 
 To build MuJoCo from source, you will need CMake and a working C++17 compiler installed. The steps are:
 
-  #. Clone the ``mujoco`` repository from GitHub.
-  #. Create a new build directory somewhere, and ``cd`` into it.
-  #. Run ``cmake $PATH_TO_CLONED_REPO`` to configure the build.
-  #. Run ``cmake --build .`` to build.
+ #. Clone the ``mujoco`` repository from GitHub.
+ #. Create a new build directory somewhere, and ``cd`` into it.
+ #. Run ``cmake $PATH_TO_CLONED_REPO`` to configure the build.
+ #. Run ``cmake --build .`` to build.
 
 MuJoCo's build system automatically fetches dependencies from upstream repositories over the Internet using CMake's
 `FetchContent <https://cmake.org/cmake/help/latest/module/FetchContent.html>`_ module.
@@ -117,11 +117,14 @@ bindings are not built. Those come with their own build instructions, which can 
 section of the documentation.
 
 Additionally, the CMake setup also implements an installation phase which will copy and organize the output files to a
-target directory. Specify the directory using ``cmake $PATH_TO_CLONED_REPO -DCMAKE_INSTALL_PREFIX=<my_install_dir>``.
-After successfully building MuJoCo following the instructions above, you can install it using ``cmake --install .``.
+target directory.
 
-As a reference, a working build configuration can be found in MuJoCo's
-[continuous integration setup](https://github.com/deepmind/mujoco/blob/main/.github/workflows/build.yml) on GitHub.
+ 5. Select the directory: ``cmake $PATH_TO_CLONED_REPO -DCMAKE_INSTALL_PREFIX=<my_install_dir>``
+ #. After building, install with ``cmake --install .``
+
+.. tip::
+   As a reference, a working build configuration can be found in MuJoCo's
+   `continuous integration setup <https://github.com/deepmind/mujoco/blob/main/.github/workflows/build.yml>`_ on GitHub.
 
 .. _inHeader:
 
@@ -133,7 +136,7 @@ links below, to make this documentation self-contained.
 
 mujoco.h   `(source) <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mujoco.h>`__
    This is the main header file and must be included in all programs using MuJoCo. It defines all API functions and
-   global variables, and includes the next 5 files which provide the necessary type definitions.
+   global variables, and includes the all other header files except mjxmacro.h.
 mjmodel.h   `(source) <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjmodel.h>`__
    Defines the C structure :ref:`mjModel` which is the runtime representation of the
    model being simulated. It also defines a number of primitive types and other structures needed to define mjModel.
@@ -149,6 +152,8 @@ mjui.h   `(source) <https://github.com/deepmind/mujoco/blob/main/include/mujoc
    Defines the primitive types and structures needed by the UI framework.
 mjtnum.h   `(source) <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjtnum.h>`__
    Defines MuJoCo's ``mjtNum`` floating-point type to be either ``double`` or ``float``. See :ref:`mjtNum`.
+mjmacro.h   `(source) <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjmacro.h>`__
+   Defines C macros that are useful in user code.
 mjxmacro.h   `(source) <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjxmacro.h>`__
    This file is optional and is not included by mujoco.h. It defines :ref:`X Macros <tyXMacro>` that can
    automate the mapping of mjModel and mjData into scripting languages, as well as other operations that require
@@ -197,40 +202,40 @@ Naming convention
 All symbols defined in the API start with the prefix "mj". The character after "mj" in the prefix determines the family
 to which the symbol belongs. First we list the prefixes corresponding to type definitions.
 
-mj
+``mj``
    Core simulation data structure (C struct), for example :ref:`mjModel`. If all characters
    after the prefix are capital, for example :ref:`mjMIN`, this is a macro or a symbol (#define).
-mjt
+``mjt``
    Primitive type, for example :ref:`mjtGeom`. Except for mjtByte and mjtNum, all other
    definitions in this family are enums.
-mjf
+``mjf``
    Callback function type, for example :ref:`mjfGeneric`.
-mjv
+``mjv``
    Data structure related to abstract visualization, for example :ref:`mjvCamera`.
-mjr
+``mjr``
    Data structure related to OpenGL rendering, for example :ref:`mjrContext`.
-mjui
+``mjui``
    Data structure related to UI framework, for example :ref:`mjuiSection`.
 
 Next we list the prefixes corresponding to function definitions. Note that function prefixes always end with underscore.
 
-mj\_
+``mj_``
    Core simulation function, for example :ref:`mj_step`. Almost all such functions have
    pointers to mjModel and mjData as their first two arguments, possibly followed by other arguments. They usually write
    their outputs to mjData.
-mju\_
+``mju_``
    Utility function, for example :ref:`mju_mulMatVec`. These functions are self-contained
    in the sense that they do not have mjModel and mjData pointers as their arguments.
-mjv\_
+``mjv_``
    Function related to abstract visualization, for example :ref:`mjv_updateScene`.
-mjr\_
+``mjr_``
    Function related to OpenGL rendering, for example :ref:`mjr_render`.
-mjui\_
+``mjui_``
    Function related to UI framework, for example :ref:`mjui_update`.
-mjcb\_
+``mjcb_``
    Global callback function pointer, for example :ref:`mjcb_control`. The user can install
    custom callbacks by setting these global pointers to user-defined functions.
-mjd\_
+``mjd_``
    Functions for computing derivatives, for example :ref:`mjd_transitionFD`.
 
 .. _inOpenGL:
@@ -258,7 +263,7 @@ now lazily resolved at runtime after the switch to GLAD, the "nogl" libraries ar
 .. toctree::
     :hidden:
 
-    samples
     simulation
     visualization
+    samples
     extension

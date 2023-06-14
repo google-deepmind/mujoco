@@ -29,17 +29,17 @@ static void vfs_strippath(char* newname, const char* oldname) {
 
   // find last delimiter
   int i;
-  for (i=sz-1; i>=0; i--) {
-    if (oldname[i]=='\\' || oldname[i]=='/') {
+  for (i=sz-1; i >= 0; i--) {
+    if (oldname[i] == '\\' || oldname[i] == '/') {
       break;
     }
   }
 
   // check resulting length
-  if (sz-(i+1)>=mjMAXVFSNAME) {
+  if (sz-(i+1) >= mjMAXVFSNAME) {
     mju_error("Filename too long in VFS");
   }
-  if (sz-(i+1)<=0) {
+  if (sz-(i+1) <= 0) {
     mju_error("Empty filename in VFS");
   }
 
@@ -47,8 +47,8 @@ static void vfs_strippath(char* newname, const char* oldname) {
   mju_strncpy(newname, oldname+i+1, mjMAXVFSNAME);
 
   // make lowercase
-  for (int j=strlen(newname)-1; j>=0; j--) {
-    if (newname[j]>='A' && newname[j]<='Z') {
+  for (int j=strlen(newname)-1; j >= 0; j--) {
+    if (newname[j] >= 'A' && newname[j] <= 'Z') {
       newname[j] = (char)(((int)newname[j]) +'a' - 'A');
     }
   }
@@ -66,7 +66,7 @@ void mj_defaultVFS(mjVFS* vfs) {
 // add file to VFS, return 0: success, 1: full, 2: repeated name, -1: failed to load
 int mj_addFileVFS(mjVFS* vfs, const char* directory, const char* filename) {
   // check vfs size
-  if (vfs->nfile>=mjMAXVFS-1) {
+  if (vfs->nfile >= mjMAXVFS-1) {
     return 1;
   }
 
@@ -84,8 +84,8 @@ int mj_addFileVFS(mjVFS* vfs, const char* directory, const char* filename) {
   vfs_strippath(newname, filename);
 
   // check for repeated name
-  for (int i=0; i<vfs->nfile; i++) {
-    if (strncmp(newname, vfs->filename[i], mjMAXVFSNAME)==0) {
+  for (int i=0; i < vfs->nfile; i++) {
+    if (strncmp(newname, vfs->filename[i], mjMAXVFSNAME) == 0) {
       return 2;
     }
   }
@@ -111,12 +111,12 @@ int mj_addFileVFS(mjVFS* vfs, const char* directory, const char* filename) {
 // make empty file in VFS, return 0: success, 1: full, 2: repeated name
 int mj_makeEmptyFileVFS(mjVFS* vfs, const char* filename, int filesize) {
   // check vfs size
-  if (vfs->nfile>=mjMAXVFS-1) {
+  if (vfs->nfile >= mjMAXVFS-1) {
     return 1;
   }
 
   // check filesize
-  if (filesize<=0) {
+  if (filesize <= 0) {
     mju_error("mj_makeEmptyFileVFS expects positive filesize");
   }
 
@@ -125,8 +125,8 @@ int mj_makeEmptyFileVFS(mjVFS* vfs, const char* filename, int filesize) {
   vfs_strippath(newname, filename);
 
   // check for repeated name
-  for (int i=0; i<vfs->nfile; i++) {
-    if (strncmp(newname, vfs->filename[i], mjMAXVFSNAME)==0) {
+  for (int i=0; i < vfs->nfile; i++) {
+    if (strncmp(newname, vfs->filename[i], mjMAXVFSNAME) == 0) {
       return 2;
     }
   }
@@ -156,8 +156,8 @@ int mj_findFileVFS(const mjVFS* vfs, const char* filename) {
   char newname[mjMAXVFSNAME];
   vfs_strippath(newname, filename);
   // find specific file
-  for (int i=0; i<vfs->nfile; i++) {
-    if (strncmp(newname, vfs->filename[i], mjMAXVFSNAME)==0) {
+  for (int i=0; i < vfs->nfile; i++) {
+    if (strncmp(newname, vfs->filename[i], mjMAXVFSNAME) == 0) {
       return i;
     }
   }
@@ -174,13 +174,13 @@ int mj_deleteFileVFS(mjVFS* vfs, const char* filename) {
   vfs_strippath(newname, filename);
 
   // find specified file
-  for (int i=0; i<vfs->nfile; i++) {
-    if (strncmp(newname, vfs->filename[i], mjMAXVFSNAME)==0) {
+  for (int i=0; i < vfs->nfile; i++) {
+    if (strncmp(newname, vfs->filename[i], mjMAXVFSNAME) == 0) {
       // free buffer
       mju_free(vfs->filedata[i]);
 
       // scroll remaining files forward
-      for (int j=i; j<vfs->nfile-1; j++) {
+      for (int j=i; j < vfs->nfile-1; j++) {
         mjSTRNCPY(vfs->filename[j], vfs->filename[j+1]);
         vfs->filesize[j] = vfs->filesize[j+1];
         vfs->filedata[j] = vfs->filedata[j+1];
@@ -204,7 +204,7 @@ int mj_deleteFileVFS(mjVFS* vfs, const char* filename) {
 
 // delete all files from VFS
 void mj_deleteVFS(mjVFS* vfs) {
-  for (int i=0; i<vfs->nfile; i++) {
+  for (int i=0; i < vfs->nfile; i++) {
     mju_free(vfs->filedata[i]);
   }
 
@@ -251,6 +251,19 @@ static void vfs_close_callback(mjResource* resource) {
 
 
 
+// getdir callback for the VFS resource provider
+static void vfs_getdir_callback(mjResource* resource, const char** dir, int* ndir) {
+  if (resource) {
+    *dir = resource->name;
+    *ndir = mju_dirnamelen(resource->name);
+  } else {
+    *dir = NULL;
+    *ndir = 0;
+  }
+}
+
+
+
 // registers a VFS resource provider; returns the index of the provider
 int mj_registerVfsProvider(const mjVFS* vfs) {
   mjpResourceProvider provider = {
@@ -258,6 +271,7 @@ int mj_registerVfsProvider(const mjVFS* vfs) {
     .open = &vfs_open_callback,
     .read = &vfs_read_callback,
     .close = &vfs_close_callback,
+    .getdir = &vfs_getdir_callback,
     .data = (void*) vfs
   };
 

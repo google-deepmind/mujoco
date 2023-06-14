@@ -1783,6 +1783,84 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
          ),
          doc='Compute efc_state, efc_force, qfrc_constraint, and (optionally) cone Hessians. If cost is not NULL, set *cost = s(jar) where jar = Jac*qacc-aref.',  # pylint: disable=line-too-long
      )),
+    ('mj_stateSize',
+     FunctionDecl(
+         name='mj_stateSize',
+         return_type=ValueType(name='int'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='m',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjModel', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='spec',
+                 type=ValueType(name='unsigned int'),
+             ),
+         ),
+         doc='Return size of state specification.',
+     )),
+    ('mj_getState',
+     FunctionDecl(
+         name='mj_getState',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='m',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjModel', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='d',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjData', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='state',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='spec',
+                 type=ValueType(name='unsigned int'),
+             ),
+         ),
+         doc='Get state.',
+     )),
+    ('mj_setState',
+     FunctionDecl(
+         name='mj_setState',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='m',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjModel', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='d',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjData'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='state',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='spec',
+                 type=ValueType(name='unsigned int'),
+             ),
+         ),
+         doc='Set state.',
+     )),
     ('mj_addContact',
      FunctionDecl(
          name='mj_addContact',
@@ -2765,6 +2843,73 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
          ),
          parameters=(),
          doc='Return the current version of MuJoCo as a null-terminated string.',  # pylint: disable=line-too-long
+     )),
+    ('mj_multiRay',
+     FunctionDecl(
+         name='mj_multiRay',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='m',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjModel', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='d',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjData'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='pnt',
+                 type=ArrayType(
+                     inner_type=ValueType(name='mjtNum', is_const=True),
+                     extents=(3,),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='vec',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='geomgroup',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtByte', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='flg_static',
+                 type=ValueType(name='mjtByte'),
+             ),
+             FunctionParameterDecl(
+                 name='bodyexclude',
+                 type=ValueType(name='int'),
+             ),
+             FunctionParameterDecl(
+                 name='geomid',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='dist',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='nray',
+                 type=ValueType(name='int'),
+             ),
+             FunctionParameterDecl(
+                 name='cutoff',
+                 type=ValueType(name='mjtNum'),
+             ),
+         ),
+         doc='Intersect multiple rays emanating from a single point. Similar semantics to mj_ray, but vec is an array of (nray x 3) directions.',  # pylint: disable=line-too-long
      )),
     ('mj_ray',
      FunctionDecl(
@@ -5075,27 +5220,6 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
          ),
          doc='Write [datetime, type: message] to MUJOCO_LOG.TXT.',
      )),
-    ('mj_activate',
-     FunctionDecl(
-         name='mj_activate',
-         return_type=ValueType(name='int'),
-         parameters=(
-             FunctionParameterDecl(
-                 name='filename',
-                 type=PointerType(
-                     inner_type=ValueType(name='char', is_const=True),
-                 ),
-             ),
-         ),
-         doc='Return 1 (for backward compatibility).',
-     )),
-    ('mj_deactivate',
-     FunctionDecl(
-         name='mj_deactivate',
-         return_type=ValueType(name='void'),
-         parameters=(),
-         doc='Do nothing (for backward compatibility).',
-     )),
     ('mju_zero3',
      FunctionDecl(
          name='mju_zero3',
@@ -6752,7 +6876,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  type=ValueType(name='int'),
              ),
          ),
-         doc='Solve mat * res = vec, where mat is Cholesky-factorized',
+         doc="Solve (mat*mat') * res = vec, where mat is a Cholesky factor.",
      )),
     ('mju_cholUpdate',
      FunctionDecl(
@@ -6781,6 +6905,216 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
              ),
          ),
          doc="Cholesky rank-one update: L*L' +/- x*x'; return rank.",
+     )),
+    ('mju_cholFactorBand',
+     FunctionDecl(
+         name='mju_cholFactorBand',
+         return_type=ValueType(name='mjtNum'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='mat',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='ntotal',
+                 type=ValueType(name='int'),
+             ),
+             FunctionParameterDecl(
+                 name='nband',
+                 type=ValueType(name='int'),
+             ),
+             FunctionParameterDecl(
+                 name='ndense',
+                 type=ValueType(name='int'),
+             ),
+             FunctionParameterDecl(
+                 name='diagadd',
+                 type=ValueType(name='mjtNum'),
+             ),
+             FunctionParameterDecl(
+                 name='diagmul',
+                 type=ValueType(name='mjtNum'),
+             ),
+         ),
+         doc='Band-dense Cholesky decomposition.  Returns minimum value in the factorized diagonal, or 0 if rank-deficient.  mat has (ntotal-ndense) x nband + ndense x ntotal elements.  The first (ntotal-ndense) x nband store the band part, left of diagonal, inclusive.  The second ndense x ntotal store the band part as entire dense rows.  Add diagadd+diagmul*mat_ii to diagonal before factorization.',  # pylint: disable=line-too-long
+     )),
+    ('mju_cholSolveBand',
+     FunctionDecl(
+         name='mju_cholSolveBand',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='res',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='mat',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='vec',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='ntotal',
+                 type=ValueType(name='int'),
+             ),
+             FunctionParameterDecl(
+                 name='nband',
+                 type=ValueType(name='int'),
+             ),
+             FunctionParameterDecl(
+                 name='ndense',
+                 type=ValueType(name='int'),
+             ),
+         ),
+         doc="Solve (mat*mat')*res = vec where mat is a band-dense Cholesky factor.",  # pylint: disable=line-too-long
+     )),
+    ('mju_band2Dense',
+     FunctionDecl(
+         name='mju_band2Dense',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='res',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='mat',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='ntotal',
+                 type=ValueType(name='int'),
+             ),
+             FunctionParameterDecl(
+                 name='nband',
+                 type=ValueType(name='int'),
+             ),
+             FunctionParameterDecl(
+                 name='ndense',
+                 type=ValueType(name='int'),
+             ),
+             FunctionParameterDecl(
+                 name='flg_sym',
+                 type=ValueType(name='mjtByte'),
+             ),
+         ),
+         doc='Convert banded matrix to dense matrix, fill upper triangle if flg_sym>0.',  # pylint: disable=line-too-long
+     )),
+    ('mju_dense2Band',
+     FunctionDecl(
+         name='mju_dense2Band',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='res',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='mat',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='ntotal',
+                 type=ValueType(name='int'),
+             ),
+             FunctionParameterDecl(
+                 name='nband',
+                 type=ValueType(name='int'),
+             ),
+             FunctionParameterDecl(
+                 name='ndense',
+                 type=ValueType(name='int'),
+             ),
+         ),
+         doc='Convert dense matrix to banded matrix.',
+     )),
+    ('mju_bandMulMatVec',
+     FunctionDecl(
+         name='mju_bandMulMatVec',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='res',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='mat',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='vec',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='ntotal',
+                 type=ValueType(name='int'),
+             ),
+             FunctionParameterDecl(
+                 name='nband',
+                 type=ValueType(name='int'),
+             ),
+             FunctionParameterDecl(
+                 name='ndense',
+                 type=ValueType(name='int'),
+             ),
+             FunctionParameterDecl(
+                 name='nvec',
+                 type=ValueType(name='int'),
+             ),
+             FunctionParameterDecl(
+                 name='flg_sym',
+                 type=ValueType(name='mjtByte'),
+             ),
+         ),
+         doc='Multiply band-diagonal matrix with nvec vectors, include upper triangle if flg_sym>0.',  # pylint: disable=line-too-long
+     )),
+    ('mju_bandDiag',
+     FunctionDecl(
+         name='mju_bandDiag',
+         return_type=ValueType(name='int'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='i',
+                 type=ValueType(name='int'),
+             ),
+             FunctionParameterDecl(
+                 name='ntotal',
+                 type=ValueType(name='int'),
+             ),
+             FunctionParameterDecl(
+                 name='nband',
+                 type=ValueType(name='int'),
+             ),
+             FunctionParameterDecl(
+                 name='ndense',
+                 type=ValueType(name='int'),
+             ),
+         ),
+         doc='Address of diagonal element i in band-dense matrix representation.',  # pylint: disable=line-too-long
      )),
     ('mju_eig3',
      FunctionDecl(
@@ -7021,11 +7355,11 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  name='prm',
                  type=ArrayType(
                      inner_type=ValueType(name='mjtNum', is_const=True),
-                     extents=(2,),
+                     extents=(3,),
                  ),
              ),
          ),
-         doc='Muscle activation dynamics, prm = (tau_act, tau_deact).',
+         doc='Muscle activation dynamics, prm = (tau_act, tau_deact, smoothing_width).',  # pylint: disable=line-too-long
      )),
     ('mju_encodePyramid',
      FunctionDecl(
@@ -7479,7 +7813,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  type=ValueType(name='mjtNum'),
              ),
          ),
-         doc='Sigmoid function over 0<=x<=1 constructed from half-quadratics.',
+         doc='Sigmoid function over 0<=x<=1 using quintic polynomial.',
      )),
     ('mjd_transitionFD',
      FunctionDecl(
@@ -7503,7 +7837,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  type=ValueType(name='mjtNum'),
              ),
              FunctionParameterDecl(
-                 name='centered',
+                 name='flg_centered',
                  type=ValueType(name='mjtByte'),
              ),
              FunctionParameterDecl(
@@ -7532,6 +7866,76 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
              ),
          ),
          doc='Finite differenced transition matrices (control theory notation)   d(x_next) = A*dx + B*du   d(sensor) = C*dx + D*du   required output matrix dimensions:      A: (2*nv+na x 2*nv+na)      B: (2*nv+na x nu)      D: (nsensordata x 2*nv+na)      C: (nsensordata x nu)',  # pylint: disable=line-too-long
+     )),
+    ('mjd_inverseFD',
+     FunctionDecl(
+         name='mjd_inverseFD',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='m',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjModel', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='d',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjData'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='eps',
+                 type=ValueType(name='mjtNum'),
+             ),
+             FunctionParameterDecl(
+                 name='flg_actuation',
+                 type=ValueType(name='mjtByte'),
+             ),
+             FunctionParameterDecl(
+                 name='DfDq',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='DfDv',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='DfDa',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='DsDq',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='DsDv',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='DsDa',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='DmDq',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+             ),
+         ),
+         doc='Finite differenced Jacobians of (force, sensors) = mj_inverse(state, acceleration)   All outputs are optional. Output dimensions (transposed w.r.t Control Theory convention):     DfDq: (nv x nv)     DfDv: (nv x nv)     DfDa: (nv x nv)     DsDq: (nv x nsensordata)     DsDv: (nv x nsensordata)     DsDa: (nv x nsensordata)     DmDq: (nv x nM)   single-letter shortcuts:     inputs: q=qpos, v=qvel, a=qacc     outputs: f=qfrc_inverse, s=sensordata, m=qM   notes:     optionally computes mass matrix Jacobian DmDq     flg_actuation specifies whether to subtract qfrc_actuator from qfrc_inverse',  # pylint: disable=line-too-long
      )),
     ('mjp_defaultPlugin',
      FunctionDecl(

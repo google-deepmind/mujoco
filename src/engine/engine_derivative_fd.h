@@ -36,6 +36,12 @@ MJAPI void mj_stepSkip(const mjModel* m, mjData* d, int skipstage, int skipsenso
 MJAPI void mjd_transitionFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte centered,
                             mjtNum* A, mjtNum* B, mjtNum* C, mjtNum* D);
 
+// finite differenced Jacobian of  (force, sensors) = mj_inverse(state, acceleration)
+MJAPI void mjd_inverseFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte flg_actuation,
+                         mjtNum *DfDq, mjtNum *DfDv, mjtNum *DfDa,
+                         mjtNum *DsDq, mjtNum *DsDv, mjtNum *DsDa,
+                         mjtNum *DmDq);
+
 #ifdef __cplusplus
 }
 #endif

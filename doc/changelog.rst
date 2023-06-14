@@ -2,6 +2,112 @@
 Changelog
 =========
 
+Upcoming version (not yet released)
+-----------------------------------
+
+.. youtube:: ZppeDArq6AU
+   :align: right
+   :width: 240px
+
+Models
+^^^^^^
+
+- Added `3x3x3 cube <https://github.com/deepmind/mujoco/blob/main/model/cube/cube_3x3x3.xml>`__ example model. See
+  `README <https://github.com/deepmind/mujoco/blob/main/model/cube/README.md>`__ for details.
+
+Bug fixes
+^^^^^^^^^
+
+- Fixed a bug that was causing an incorrect computation of the mesh bounding box and coordinate frame if the volume was
+  invalid. In such case, now MuJoCo only accepts a non-watertight geometry if
+  :ref:`shellinertia<body-geom-shellinertia>` is equal to ``true``.
+- Fixed the sparse Jacobian multiplication logic that is used to compute derivatives for tendon damping and fluid force,
+  which affects the behaviour of the :ref:`implicit and implicitfast integrators<geIntegration>`.
+- Fixes to :ref:`mj_ray`, in line with geom visualisation conventions:
+
+  - Planes and height-fields respect the ``geom_group`` and ``flg_static`` arguments. Before this change, rays would
+    intersect planes and height-fields unconditionally.
+  - ``flg_static`` now apllies to all static geoms, not just those which are direct children of the world body.
+
+.. youtube:: hqIMTNGaLF4
+   :align: right
+   :width: 240px
+
+Plugins
+^^^^^^^
+
+- Added touch-grid sensor plugin. See `documentation <https://github.com/deepmind/mujoco/blob/main/plugin/sensor/README.md>`_
+  for details, and associated `touch_grid.xml <https://github.com/deepmind/mujoco/blob/main/model/plugin/touch_grid.xml>`_
+  example model. The plugin includes `in-scene visualisation <https://youtu.be/0LOJ3WMnqeA>`_.
+
+Simulate
+^^^^^^^^
+
+.. youtube:: mXVPbppGk5I
+   :align: right
+   :width: 240px
+
+- Added Visualization tab to simulate UI, corresponding to elements of the :ref:`visual<visual>` MJCF element. After
+  modifying values in the GUI, a saved XML will contain the new values. The modifyable members of
+  :ref:`mjStatistic` (:ref:`extent<statistic-extent>`, :ref:`meansize<statistic-meansize>` and
+  :ref:`center<statistic-center>`) are computed by the compiler and therefore do not have defaults. In order for these
+  attributes to appear in the saved XML, a value must be specified in the loaded XML.
+
+.. image:: images/changelog/simulate_text_width.png
+   :align: right
+   :width: 380px
+   :alt: Before / After
+
+- Increased text width for UI elements in the default spacing. [before / after]:
+
+General
+^^^^^^^
+
+- Added :ref:`mj_getState` and :ref:`mj_setState` for getting and setting the simulation state as a concatenated vector
+  of floating point numbers. See the :ref:`State<geState>`  section for details.
+- Added :ref:`mjContact.solreffriction<mjContact>`, allowing different :ref:`solref<CSolver>` parameters for the normal
+  and frictional axes of contacts when using :ref:`elliptic friction cones<option-cone>`.  This attribute is required
+  for elastic frictional collisions, see associated
+  `example model <https://github.com/deepmind/mujoco/blob/main/test/engine/testdata/spin_recoil.xml>`__ mimicking the
+  spin-bounce recoil behaviour of `elastic rubber balls <https://www.youtube.com/watch?v=uFLJcRegIVQ&t=3s>`__.
+  This is an advanced option currently only supported by explicit :ref:`contact pairs<contact-pair>`, using the
+  :ref:`solreffriction<contact-pair-solreffriction>` attribute.
+- Added :ref:`mjd_inverseFD` for finite-differenced inverse-dynamics derivatives.
+- Added functions for operations on banded-then-dense "arrowhead" matrices. Such matrices are common when doing direct
+  trajectory optimization. See :ref:`mju_cholFactorBand` documentation for details.
+- Added :ref:`mj_multiRay` function for intersecting multiple rays emanating from a single point.
+  This is significantly faster than calling :ref:`mj_ray` multiple times.
+- Ray-mesh collisions are now up to 10x faster, using a bounding volume hierarchy of mesh faces.
+- Increased ``mjMAXUIITEM`` (maximum number of UI elements per section in Simulate) to 100.
+- Added :ref:`documentation<exProvider>` for resource providers.
+- Changed the formula for :ref:`mju_sigmoid`, a finite-support sigmoid :math:`s \colon \mathbf R \rightarrow [0, 1]`.
+  Previously, the smooth part consisted of two stitched quadratics, once continuously differentiable.
+  It is now a single quintic, twice continuously differentiable:
+
+  .. math::
+     s(x) =
+     \begin{cases}
+        0,                    &       & x \le 0  \\
+        6x^5 - 15x^4 + 10x^3, & 0 \lt & x \lt 1  \\
+        1,                    & 1 \le & x \qquad
+     \end{cases}
+- Added optional :ref:`tausmooth<actuator-muscle-tausmooth>` attribute to muscle actuators. When positive, the
+  time-constant :math:`\tau` of muscle activation/deactivation uses :ref:`mju_sigmoid` to transition smoothly
+  between the two extremal values given by the `Millard et al. (2013) <https://doi.org/10.1115/1.4023390>`__ muscle
+  model, within a range of width tausmooth.  See :ref:`Muscle actuators<CMuscle>` for more details.
+  Relatedly, :ref:`mju_muscleDynamics` now takes 3 parameters instead of 2, adding the new smoothing-width parameter.
+- Moved public C macro definitions out of mujoco.h into a new public header file called
+  `mjmacro.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjmacro.h>`__. The new file
+  is included by mujoco.h so this change does not break existing user code.
+- Added instrumentation for the `Address Sanitizer (ASAN) <https://clang.llvm.org/docs/AddressSanitizer.html>`__ and
+  `Memory Sanitizer (MSAN) <https://clang.llvm.org/docs/MemorySanitizer.html>`__ to detect memory bugs when allocating
+  from the ``mjData`` stack and arena.
+- Removed ``pstack`` and ``parena`` from the output of ``mj_printData``, since these are implementation details of the
+  ``mjData`` allocators that are affected by diagnostic paddings in instrumented builds.
+- Removed the ``mj_activate`` and ``mj_deactivate`` functions. These had been kept around for compatibility with old
+  user code from when MuJoCo was closed source, but have been no-op functions since open sourcing.
+
+
 Version 2.3.5 (April 25, 2023)
 ------------------------------
 
@@ -41,7 +147,7 @@ General
 #. Added midphase and broadphase collision statistics to :ref:`mjData`.
 #. Added documentation for :ref:`engine plugins<exPlugin>`.
 #. Added struct information to the ``introspect`` module.
-#. Added a new extension mechanism called "resource provider" . This extensible mechanism allows MuJoCo
+#. Added a new extension mechanism called :ref:`resource providers<exProvider>`. This extensible mechanism allows MuJoCo
    to read assets from data sources other than the local OS filesystem or
    the :ref:`Virtual file system<Virtualfilesystem>`.
 
@@ -486,7 +592,8 @@ General
 #. ``mju_rotVecMat`` and ``mju_rotVecMatT`` now support in-place multiplication.
 #. ``mjData.ctrl`` values are no longer clamped in-place, remain untouched by the engine.
 #. Arrays in mjData's buffer now align to 64-byte boundaries rather than 8-byte.
-#. Added memory poisoning when building with Address Sanitizer (ASAN) and Memory Sanitizer (MSAN). This allows ASAN to
+#. Added memory poisoning when building with `Address Sanitizer (ASAN) <https://clang.llvm.org/docs/AddressSanitizer.html>`__
+   and `Memory Sanitizer (MSAN) <https://clang.llvm.org/docs/MemorySanitizer.html>`__. This allows ASAN to
    detect reads and writes to regions in ``mjModel.buffer`` and ``mjData.buffer`` that do not lie within an array, and
    for MSAN to detect reads from uninitialised fields in ``mjData`` following ``mj_resetData``.
 #. Added a `slider-crank example model <https://github.com/deepmind/mujoco/tree/main/model/slider_crank>`_.

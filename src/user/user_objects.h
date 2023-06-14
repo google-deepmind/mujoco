@@ -114,6 +114,27 @@ class mjCAlternative {
 };
 
 
+
+
+
+
+
+//------------------------- class mjCBoundingVolumeHierarchy ---------------------------------------
+
+// bounding volume
+class mjCBoundingVolume {
+ public:
+  mjCBoundingVolume() = default;
+
+  int id;                       // object id
+  int contype;                  // contact type
+  int conaffinity;              // contact affinity
+  const mjtNum* aabb;           // half-sizes of axis-aligned bounding box
+  const mjtNum* pos;            // position (set by user or Compile1)
+  const mjtNum* quat;           // orientation (set by user or Compile1)
+};
+
+
 // bounding volume hierarchy
 class mjCBoundingVolumeHierarchy {
  public:
@@ -125,10 +146,15 @@ class mjCBoundingVolumeHierarchy {
   std::vector<int> nodeid;            // id of the geom contained by the node          (nbvh x 1)
   std::vector<int> level;             // levels of each node                           (nbvh x 1)
 
-  int MakeBVH(std::vector<mjCGeom *>&, int lev = 0);  // make bounding volume hierarchy
+  // make bounding volume hierarchy
+  void CreateBVH();
   void Set(mjtNum ipos_element[3], mjtNum iquat_element[4]);
+  void AddBundingVolume(const mjCBoundingVolume& bv);
 
  private:
+  int MakeBVH(std::vector<mjCBoundingVolume>& elements, int lev = 0);
+
+  std::vector<mjCBoundingVolume> bvh_;
   std::string name_;
   double ipos_[3];
   double iquat_[4];
@@ -309,7 +335,6 @@ class mjCGeom : public mjCBase {
   friend class mjCModel;
   friend class mjXWriter;
   friend class mjXURDF;
-  friend class mjCBoundingVolumeHierarchy;
 
  public:
   double GetVolume(void);             // compute geom volume
@@ -319,6 +344,9 @@ class mjCGeom : public mjCBase {
   void SetFluidCoefs(void);
   // Compute the kappa coefs of the added inertia due to the surrounding fluid.
   double GetAddedMassKappa(double dx, double dy, double dz);
+
+  // returns a bounding volume
+  mjCBoundingVolume GetBoundingVolume() const;
 
   // variables set by user and copied into mjModel
   mjtGeom type;                   // geom type
@@ -496,7 +524,10 @@ class mjCMesh: public mjCBase {
   double* GetQuatPtr(mjtMeshType type);             // get orientation
   double* GetInertiaBoxPtr(mjtMeshType type);       // get inertia box
   double& GetVolumeRef(mjtMeshType type);           // get volume
-  void FitGeom(mjCGeom* geom, double* meshpos);   // approximate mesh with simple geom
+  void FitGeom(mjCGeom* geom, double* meshpos);     // approximate mesh with simple geom
+
+  // returns a bounding volume given a face
+  mjCBoundingVolume GetBoundingVolume(int faceid);
 
   std::string file;                   // mesh file
   double refpos[3];                   // reference position (translate)
@@ -515,16 +546,19 @@ class mjCMesh: public mjCBase {
  private:
   mjCMesh(mjCModel* = 0, mjCDef* = 0);        // constructor
   ~mjCMesh();                                 // destructor
-  void Compile(int default_provider);         // compiler
+  void Compile(int vfs_provider);             // compiler
   void LoadOBJ(mjResource* resource);         // load mesh in wavefront OBJ format
   void LoadSTL(mjResource* resource);         // load mesh in STL BIN format
   void LoadMSH(mjResource* resource);         // load mesh in MSH BIN format
   void MakeGraph(void);                       // make graph of convex hull
   void CopyGraph(void);                       // copy graph into face data
   void MakeNormal(void);                      // compute vertex normals
-  void Process();                             // apply transformations
+  void MakeCenter(void);                      // compute face circumcircle data
+  void Process();                             // compute inertial properties
+  void ApplyTransformations();                // apply user transformations
+  void ComputeFaceCentroid(double[3]);        // compute centroid of all faces
   void RemoveRepeated(void);                  // remove repeated vertices
-  void CheckMesh(void);                       // check if the mesh is valid
+  void CheckMesh(mjtMeshType type);           // check if the mesh is valid
 
   // compute the volume and center-of-mass of the mesh given the face center
   void ComputeVolume(double CoM[3], mjtMeshType type, const double facecen[3],
@@ -557,6 +591,7 @@ class mjCMesh: public mjCBase {
   int szgraph;                        // size of graph data in ints
   float* vert;                        // vertex data (3*nvert), relative to (pos, quat)
   float* normal;                      // vertex normal data (3*nnormal)
+  double* center;                     // face circumcenter data (3*nface)
   float* texcoord;                    // vertex texcoord data (2*ntexcoord or NULL)
   int* face;                          // face vertex indices (3*nface)
   int* facenormal;                    // face normal indices (3*nface)
@@ -564,6 +599,9 @@ class mjCMesh: public mjCBase {
   int* graph;                         // convex graph data
 
   bool needhull;                      // needs convex hull for collisions
+
+  mjCBoundingVolumeHierarchy tree;    // bounding volume hierarchy
+  std::vector<double> face_aabb;      // bounding boxes of all faces
 };
 
 
@@ -597,7 +635,7 @@ class mjCSkin: public mjCBase {
  private:
   mjCSkin(mjCModel* = 0);                     // constructor
   ~mjCSkin();                                 // destructor
-  void Compile(int default_provider);         // compiler
+  void Compile(int vfs_provider);             // compiler
   void LoadSKN(mjResource* resource);         // load skin in SKN BIN format
 
   int matid;                          // material id
@@ -623,7 +661,7 @@ class mjCHField : public mjCBase {
  private:
   mjCHField(mjCModel* model);             // constructor
   ~mjCHField();                           // destructor
-  void Compile(int default_provider);     // compiler
+  void Compile(int vfs_provider);         // compiler
 
   void LoadCustom(mjResource* resource);  // load from custom format
   void LoadPNG(mjResource* resource);     // load from PNG format
@@ -667,15 +705,15 @@ class mjCTexture : public mjCBase {
  private:
   mjCTexture(mjCModel*);                  // constructor
   ~mjCTexture();                          // destructior
-  void Compile(int default_provider);     // compiler
+  void Compile(int vfs_provider);         // compiler
 
   void Builtin2D(void);                   // make builtin 2D
   void BuiltinCube(void);                 // make builtin cube
-  void Load2D(std::string filename, int default_provider);         // load 2D from file
-  void LoadCubeSingle(std::string filename, int default_provider); // load cube from single file
-  void LoadCubeSeparate(int default_provider);                     // load cube from separate files
+  void Load2D(std::string filename, int vfs_provider);         // load 2D from file
+  void LoadCubeSingle(std::string filename, int vfs_provider); // load cube from single file
+  void LoadCubeSeparate(int vfs_provider);                     // load cube from separate files
 
-  void LoadFlip(std::string filename, int default_provider,   // load and flip
+  void LoadFlip(std::string filename, int vfs_provider,        // load and flip
                 std::vector<unsigned char>& image,
                 unsigned int& w, unsigned int& h);
 
@@ -734,7 +772,8 @@ class mjCPair : public mjCBase {
 
   // optional parameters: computed from geoms if not set by user
   int condim;                     // contact dimensionality
-  mjtNum solref[mjNREF];          // solver reference
+  mjtNum solref[mjNREF];          // solver reference, normal direction
+  mjtNum solreffriction[mjNREF];  // solver reference, frictional directions
   mjtNum solimp[mjNIMP];          // solver impedance
   double margin;                  // margin for contact detection
   double gap;                     // include in solver if dist<margin-gap

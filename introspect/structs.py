@@ -1994,6 +1994,20 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='number of faces                          (nmesh x 1)',
              ),
              StructFieldDecl(
+                 name='mesh_bvhadr',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='address of bvh root                      (nmesh x 1)',
+             ),
+             StructFieldDecl(
+                 name='mesh_bvhnum',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='number of bvh                            (nmesh x 1)',
+             ),
+             StructFieldDecl(
                  name='mesh_normaladr',
                  type=PointerType(
                      inner_type=ValueType(name='int'),
@@ -2383,14 +2397,21 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  type=PointerType(
                      inner_type=ValueType(name='mjtNum'),
                  ),
-                 doc='constraint solver reference: contact     (npair x mjNREF)',  # pylint: disable=line-too-long
+                 doc='solver reference: contact normal         (npair x mjNREF)',  # pylint: disable=line-too-long
+             ),
+             StructFieldDecl(
+                 name='pair_solreffriction',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+                 doc='solver reference: contact friction       (npair x mjNREF)',  # pylint: disable=line-too-long
              ),
              StructFieldDecl(
                  name='pair_solimp',
                  type=PointerType(
                      inner_type=ValueType(name='mjtNum'),
                  ),
-                 doc='constraint solver impedance: contact     (npair x mjNIMP)',  # pylint: disable=line-too-long
+                 doc='solver impedance: contact                (npair x mjNIMP)',  # pylint: disable=line-too-long
              ),
              StructFieldDecl(
                  name='pair_margin',
@@ -3265,7 +3286,15 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                      inner_type=ValueType(name='mjtNum'),
                      extents=(2,),
                  ),
-                 doc='constraint solver reference',
+                 doc='constraint solver reference, normal direction',
+             ),
+             StructFieldDecl(
+                 name='solreffriction',
+                 type=ArrayType(
+                     inner_type=ValueType(name='mjtNum'),
+                     extents=(2,),
+                 ),
+                 doc='constraint solver reference, friction directions',
              ),
              StructFieldDecl(
                  name='solimp',
@@ -4758,7 +4787,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  name='flags',
                  type=ArrayType(
                      inner_type=ValueType(name='mjtByte'),
-                     extents=(24,),
+                     extents=(25,),
                  ),
                  doc='visualization flags (indexed by mjtVisFlag)',
              ),
@@ -7199,7 +7228,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  name='item',
                  type=ArrayType(
                      inner_type=ValueType(name='mjuiItem'),
-                     extents=(80,),
+                     extents=(100,),
                  ),
                  doc='preallocated array of items',
              ),

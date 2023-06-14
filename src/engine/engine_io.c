@@ -22,6 +22,7 @@
 #include <string.h>
 
 #include <mujoco/mjmodel.h>
+#include <mujoco/mjmacro.h>
 #include <mujoco/mjplugin.h>
 #include <mujoco/mjxmacro.h>
 #include "engine/engine_array_safety.h"
@@ -32,6 +33,10 @@
 #include "engine/engine_util_errmem.h"
 #include "engine/engine_util_misc.h"
 #include "engine/engine_vfs.h"
+
+#ifdef MEMORY_SANITIZER
+  #include <sanitizer/msan_interface.h>
+#endif
 
 #ifdef _MSC_VER
   #pragma warning (disable: 4305)  // disable MSVC warning: truncation from 'double' to 'float'
@@ -280,7 +285,7 @@ static void bufwrite(const void* src, int num, int szbuf, void* buf, int* ptrbuf
   }
 
   // check size
-  if (*ptrbuf+num>szbuf) {
+  if (*ptrbuf+num > szbuf) {
     mju_error("Attempting to write outside model buffer");
   }
 
@@ -299,7 +304,7 @@ static void bufread(void* dest, int num, int szbuf, const void* buf, int* ptrbuf
   }
 
   // check size
-  if (*ptrbuf+num>szbuf) {
+  if (*ptrbuf+num > szbuf) {
     mju_error("Attempting to read outside model buffer");
   }
 
@@ -357,7 +362,7 @@ static int safeAddToBufferSize(intptr_t* offset, int* nbuffer, size_t type_size,
     return 0;
   }
 #if (__has_builtin(__builtin_add_overflow) && __has_builtin(__builtin_mul_overflow)) \
-    || (defined(__GNUC__) && __GNUC__ >= 5)
+  || (defined(__GNUC__) && __GNUC__ >= 5)
   // supported by GCC and Clang
   int to_add = 0;
   if (__builtin_mul_overflow(nc, nr, &to_add)) return 0;
@@ -621,7 +626,7 @@ void mj_saveModel(const mjModel* m, const char* filename, void* buffer, int buff
 
 
 // load model from binary MJB resource
-static mjModel* _mj_loadModel(const char* filename, int default_provider) {
+static mjModel* _mj_loadModel(const char* filename, int vfs_provider) {
   int header[4] = {0};
   int expected_header[4] = {ID, sizeof(mjtNum), getnint(), getnptr()};
   int info[2000];
@@ -629,7 +634,7 @@ static mjModel* _mj_loadModel(const char* filename, int default_provider) {
   mjModel *m = 0;
   mjResource* r = NULL;
 
-  if((r = mju_openResource(filename, default_provider)) == NULL) {
+  if((r = mju_openResource(filename, vfs_provider)) == NULL) {
     return NULL;
   }
 
@@ -649,8 +654,8 @@ static mjModel* _mj_loadModel(const char* filename, int default_provider) {
   bufread(header, 4*sizeof(int), buffer_sz, buffer, &ptrbuf);
 
   // check header
-  for (int i=0; i<4; i++) {
-    if (header[i]!=expected_header[i]) {
+  for (int i=0; i < 4; i++) {
+    if (header[i] != expected_header[i]) {
       switch (i) {
       case 0:
         mju_warning("Model missing header ID");
@@ -687,7 +692,7 @@ static mjModel* _mj_loadModel(const char* filename, int default_provider) {
                    info[35], info[36], info[37], info[38], info[39], info[40], info[41],
                    info[42], info[43], info[44], info[45], info[46], info[47], info[48],
                    info[49], info[50], info[51], info[52]);
-  if (!m || m->nbuffer!=info[getnint()-1]) {
+  if (!m || m->nbuffer != info[getnint()-1]) {
     mju_closeResource(r);
     mju_warning("Corrupted model, wrong size parameters");
     mj_deleteModel(m);
@@ -770,7 +775,7 @@ int mj_sizeModel(const mjModel* m) {
     + sizeof(mjVisual)
     + sizeof(mjStatistic));
 
-MJMODEL_POINTERS_PREAMBLE(m)
+  MJMODEL_POINTERS_PREAMBLE(m)
 #define X(type, name, nr, nc)         \
   size += sizeof(type)*(m->nr)*(nc);
   MJMODEL_POINTERS
@@ -1163,6 +1168,15 @@ void* mj_arenaAlloc(mjData* d, int bytes, int alignment) {
   void* result = (char*)d->arena + d->parena + padding;
   d->parena += padding + bytes;
   d->maxuse_arena = mjMAX(d->maxuse_arena, d->pstack*sizeof(mjtNum) + d->parena);
+
+#ifdef ADDRESS_SANITIZER
+  ASAN_UNPOISON_MEMORY_REGION(result, bytes);
+#endif
+
+#ifdef MEMORY_SANITIZER
+  __msan_allocated_memory(result, bytes);
+#endif
+
   return result;
 }
 
@@ -1172,12 +1186,19 @@ void* mj_arenaAlloc(mjData* d, int bytes, int alignment) {
 mjtNum* mj_stackAlloc(mjData* d, int size) {
   // return NULL if empty
   if (!size) {
-    return 0;
+    return NULL;
   }
+
+  // add red zone padding when built with asan, to detect out-of-bound accesses
+#ifdef ADDRESS_SANITIZER
+  #define mjREDZONE 4
+#else
+  #define mjREDZONE 0
+#endif
 
   // check size
   size_t stack_available_bytes = d->nstack * sizeof(mjtNum) - d->parena;
-  size_t stack_required_bytes = (d->pstack + size) * sizeof(mjtNum);
+  size_t stack_required_bytes = (d->pstack + size + 2*mjREDZONE) * sizeof(mjtNum);
   if (stack_required_bytes > stack_available_bytes) {
     mju_error("stack overflow: max = %zu, available = %zu, requested = %zu "
               "(ne = %d, nf = %d, nefc = %d, ncon = %d)",
@@ -1187,18 +1208,45 @@ mjtNum* mj_stackAlloc(mjData* d, int size) {
 
   // allocate at end of arena
   char* end_ptr = (char*)d->arena + d->nstack * sizeof(mjtNum);
-  char* result = end_ptr - (d->pstack + size + 1) * sizeof(mjtNum);
+  char* result = end_ptr - (d->pstack + size + mjREDZONE) * sizeof(mjtNum);
+  size_t new_pstack = d->pstack + size + 2*mjREDZONE;
+  #undef mjREDZONE
+
+  // new stack usage level
+  size_t usage;
 
 #ifdef ADDRESS_SANITIZER
   if ((uintptr_t)result % sizeof(mjtNum)) {
     mju_error("mj_stackAlloc fails to align to sizeof(mjtNum)");
   }
+
+  // actual stack usage (without red zone bytes) is stored in the red zone
+  if (d->pstack) {
+    size_t* prev_ptr = (size_t*)(end_ptr - d->pstack*sizeof(mjtNum));
+    ASAN_UNPOISON_MEMORY_REGION(prev_ptr, sizeof(size_t));
+    usage = *prev_ptr + size;
+    ASAN_POISON_MEMORY_REGION(prev_ptr, sizeof(size_t));
+  } else {
+    usage = size;
+  }
+
+  // store new stack usage in the red zone
+  size_t* cur_ptr = (size_t*)(end_ptr - new_pstack*sizeof(mjtNum));
+  ASAN_UNPOISON_MEMORY_REGION(cur_ptr, sizeof(size_t));
+  *cur_ptr = usage;
+  ASAN_POISON_MEMORY_REGION(cur_ptr, sizeof(size_t));
+
+  // unpoison the actual usable allocation
+  ASAN_UNPOISON_MEMORY_REGION(result, size*sizeof(mjtNum));
+#else
+  usage = d->pstack + size;
 #endif
 
-  // update max, return pointer to buffer
-  d->pstack += size;
-  d->maxuse_stack = mjMAX(d->maxuse_stack, d->pstack);
-  d->maxuse_arena = mjMAX(d->maxuse_arena, d->pstack*sizeof(mjtNum) + d->parena);
+  // update pstack and max usage statistics
+  d->pstack = new_pstack;
+  d->maxuse_stack = mjMAX(d->maxuse_stack, usage);
+  d->maxuse_arena = mjMAX(d->maxuse_arena, usage*sizeof(mjtNum) + d->parena);
+
   return (mjtNum*)result;
 }
 
@@ -1232,6 +1280,16 @@ static void _resetData(const mjModel* m, mjData* d, unsigned char debug_value) {
 
   // clear arena pointers
   d->parena = 0;
+
+  // poison the entire arena+stack memory region when built with asan
+#ifdef ADDRESS_SANITIZER
+  ASAN_POISON_MEMORY_REGION(d->arena, d->nstack * sizeof(mjtNum));
+#endif
+
+#ifdef MEMORY_SANITIZER
+  __msan_allocated_memory(d->arena, d->nstack * sizeof(mjtNum));
+#endif
+
 #define X(type, name, nr, nc) d->name = NULL;
   MJDATA_ARENA_POINTERS
 #undef X
@@ -1309,16 +1367,16 @@ static void _resetData(const mjModel* m, mjData* d, unsigned char debug_value) {
 
   // set mocap_pos/quat = body_pos/quat for mocap bodies
   if (m->body_mocapid) {
-    for (int i=0; i<m->nbody; i++) {
+    for (int i=0; i < m->nbody; i++) {
       int id = m->body_mocapid[i];
-      if (id>=0) {
+      if (id >= 0) {
         mju_copy3(d->mocap_pos+3*id, m->body_pos+3*i);
         mju_copy4(d->mocap_quat+4*id, m->body_quat+4*i);
       }
     }
   } else {
     // set the mocap_quats to {1, 0, 0, 0}
-    for (int i=0; i<m->nmocap; i++) {
+    for (int i=0; i < m->nmocap; i++) {
       d->mocap_quat[4*i] = 1.0;
     }
   }
@@ -1368,7 +1426,7 @@ void mj_resetDataKeyframe(const mjModel* m, mjData* d, int key) {
   _resetData(m, d, 0);
 
   // copy keyframe data if key is valid
-  if (key>=0 && key<m->nkey) {
+  if (key >= 0 && key < m->nkey) {
     d->time = m->key_time[key];
     mju_copy(d->qpos, m->key_qpos+key*m->nq, m->nq);
     mju_copy(d->qvel, m->key_qvel+key*m->nv, m->nv);
@@ -1452,7 +1510,7 @@ static int sensorSize(mjtSensor sensor_type, int sensor_dim) {
   case mjSENS_PLUGIN:
     return -1;
 
-  // don't use a 'default' case, so compiler warns about missing values
+    // don't use a 'default' case, so compiler warns about missing values
   }
   return -1;
 }
@@ -1462,55 +1520,55 @@ static int sensorSize(mjtSensor sensor_type, int sensor_dim) {
 //   -2: invalid objtype
 static int numObjects(const mjModel* m, mjtObj objtype) {
   switch (objtype) {
-    case mjOBJ_UNKNOWN:
-      return -1;
-    case mjOBJ_BODY:
-    case mjOBJ_XBODY:
-      return m->nbody;
-    case mjOBJ_JOINT:
-      return m->njnt;
-    case mjOBJ_DOF:
-      return m->nv;
-    case mjOBJ_GEOM:
-      return m->ngeom;
-    case mjOBJ_SITE:
-      return m->nsite;
-    case mjOBJ_CAMERA:
-      return m->ncam;
-    case mjOBJ_LIGHT:
-      return m->nlight;
-    case mjOBJ_MESH:
-      return m->nmesh;
-    case mjOBJ_SKIN:
-      return m->nskin;
-    case mjOBJ_HFIELD:
-      return m->nhfield;
-    case mjOBJ_TEXTURE:
-      return m->ntex;
-    case mjOBJ_MATERIAL:
-      return m->nmat;
-    case mjOBJ_PAIR:
-      return m->npair;
-    case mjOBJ_EXCLUDE:
-      return m->nexclude;
-    case mjOBJ_EQUALITY:
-      return m->neq;
-    case mjOBJ_TENDON:
-      return m->ntendon;
-    case mjOBJ_ACTUATOR:
-      return m->nu;
-    case mjOBJ_SENSOR:
-      return m->nsensor;
-    case mjOBJ_NUMERIC:
-      return m->nnumeric;
-    case mjOBJ_TEXT:
-      return m->ntext;
-    case mjOBJ_TUPLE:
-      return m->ntuple;
-    case mjOBJ_KEY:
-      return m->nkey;
-    case mjOBJ_PLUGIN:
-      return m->nplugin;
+  case mjOBJ_UNKNOWN:
+    return -1;
+  case mjOBJ_BODY:
+  case mjOBJ_XBODY:
+    return m->nbody;
+  case mjOBJ_JOINT:
+    return m->njnt;
+  case mjOBJ_DOF:
+    return m->nv;
+  case mjOBJ_GEOM:
+    return m->ngeom;
+  case mjOBJ_SITE:
+    return m->nsite;
+  case mjOBJ_CAMERA:
+    return m->ncam;
+  case mjOBJ_LIGHT:
+    return m->nlight;
+  case mjOBJ_MESH:
+    return m->nmesh;
+  case mjOBJ_SKIN:
+    return m->nskin;
+  case mjOBJ_HFIELD:
+    return m->nhfield;
+  case mjOBJ_TEXTURE:
+    return m->ntex;
+  case mjOBJ_MATERIAL:
+    return m->nmat;
+  case mjOBJ_PAIR:
+    return m->npair;
+  case mjOBJ_EXCLUDE:
+    return m->nexclude;
+  case mjOBJ_EQUALITY:
+    return m->neq;
+  case mjOBJ_TENDON:
+    return m->ntendon;
+  case mjOBJ_ACTUATOR:
+    return m->nu;
+  case mjOBJ_SENSOR:
+    return m->nsensor;
+  case mjOBJ_NUMERIC:
+    return m->nnumeric;
+  case mjOBJ_TEXT:
+    return m->ntext;
+  case mjOBJ_TUPLE:
+    return m->ntuple;
+  case mjOBJ_KEY:
+    return m->nkey;
+  case mjOBJ_PLUGIN:
+    return m->nplugin;
   }
   return -2;
 }
@@ -1617,7 +1675,7 @@ const char* mj_validateReferences(const mjModel* m) {
 #undef MJMODEL_REFERENCES
 
   // special logic that doesn't fit in the macro:
-  for (int i=0; i<m->nbody; i++) {
+  for (int i=0; i < m->nbody; i++) {
     if (i > 0 && m->body_parentid[i] >= i) {
       return "Invalid model: bad body_parentid.";
     }
@@ -1628,7 +1686,7 @@ const char* mj_validateReferences(const mjModel* m) {
       return "Invalid model: bad body_weldid.";
     }
   }
-  for (int i=0; i<m->njnt; i++) {
+  for (int i=0; i < m->njnt; i++) {
     if (m->jnt_type[i] >= 4 || m->jnt_type[i] < 0) {
       return "Invalid model: jnt_type out of bounds.";
     }
@@ -1641,12 +1699,12 @@ const char* mj_validateReferences(const mjModel* m) {
       return "Invalid model: jnt_dofadr out of bounds.";
     }
   }
-  for (int i=0; i<m->nv; i++) {
+  for (int i=0; i < m->nv; i++) {
     if (m->dof_parentid[i] >= i) {
       return "Invalid model: bad dof_parentid.";
     }
   }
-  for (int i=0; i<m->ngeom; i++) {
+  for (int i=0; i < m->ngeom; i++) {
     if (m->geom_condim[i] > 6 || m->geom_condim[i] < 0) {
       return "Invalid model: geom_condim out of bounds.";
     }
@@ -1660,19 +1718,19 @@ const char* mj_validateReferences(const mjModel* m) {
       }
     }
   }
-  for (int i=0; i<m->nhfield; i++) {
+  for (int i=0; i < m->nhfield; i++) {
     int hfield_adr = m->hfield_adr[i] + m->hfield_nrow[i]*m->hfield_ncol[i];
     if (hfield_adr > m->nhfielddata || m->hfield_adr[i] < 0) {
       return "Invalid model: hfield_adr out of bounds.";
     }
   }
-  for (int i=0; i<m->ntex; i++) {
+  for (int i=0; i < m->ntex; i++) {
     int tex_adr = m->tex_adr[i] + 3*m->tex_height[i]*m->tex_width[i];
     if (tex_adr > m->ntexdata || m->tex_adr[i] < 0) {
       return "Invalid model: tex_adr out of bounds.";
     }
   }
-  for (int i=0; i<m->npair; i++) {
+  for (int i=0; i < m->npair; i++) {
     int pair_body1 = (m->pair_signature[i] & 0xFFFF) - 1;
     if (pair_body1 >= m->nbody || pair_body1 < 0) {
       return "Invalid model: pair_body1 out of bounds.";
@@ -1682,104 +1740,104 @@ const char* mj_validateReferences(const mjModel* m) {
       return "Invalid model: pair_body2 out of bounds.";
     }
   }
-  for (int i=0; i<m->neq; i++) {
+  for (int i=0; i < m->neq; i++) {
     int obj1id = m->eq_obj1id[i];
     int obj2id = m->eq_obj2id[i];
     switch (m->eq_type[i]) {
-      case mjEQ_JOINT:
-        if (obj1id >= m->njnt || obj1id < 0) {
-          return "Invalid model: eq_obj1id out of bounds.";
-        }
-        // -1 is the value used if second object is omitted.
-        if (obj2id >= m->njnt || obj2id < -1) {
-          return "Invalid model: eq_obj2id out of bounds.";
-        }
-        break;
+    case mjEQ_JOINT:
+      if (obj1id >= m->njnt || obj1id < 0) {
+        return "Invalid model: eq_obj1id out of bounds.";
+      }
+      // -1 is the value used if second object is omitted.
+      if (obj2id >= m->njnt || obj2id < -1) {
+        return "Invalid model: eq_obj2id out of bounds.";
+      }
+      break;
 
-      case mjEQ_TENDON:
-        if (obj1id >= m->ntendon || obj1id < 0) {
-          return "Invalid model: eq_obj1id out of bounds.";
-        }
-        // -1 is the value used if second object is omitted.
-        if (obj2id >= m->ntendon || obj2id < -1) {
-          return "Invalid model: eq_obj2id out of bounds.";
-        }
-        break;
+    case mjEQ_TENDON:
+      if (obj1id >= m->ntendon || obj1id < 0) {
+        return "Invalid model: eq_obj1id out of bounds.";
+      }
+      // -1 is the value used if second object is omitted.
+      if (obj2id >= m->ntendon || obj2id < -1) {
+        return "Invalid model: eq_obj2id out of bounds.";
+      }
+      break;
 
-      case mjEQ_WELD:
-      case mjEQ_CONNECT:
-        if (obj1id >= m->nbody || obj1id < 0) {
-          return "Invalid model: eq_obj1id out of bounds.";
-        }
-        if (obj2id >= m->nbody || obj2id < 0) {
-          return "Invalid model: eq_obj2id out of bounds.";
-        }
-        break;
+    case mjEQ_WELD:
+    case mjEQ_CONNECT:
+      if (obj1id >= m->nbody || obj1id < 0) {
+        return "Invalid model: eq_obj1id out of bounds.";
+      }
+      if (obj2id >= m->nbody || obj2id < 0) {
+        return "Invalid model: eq_obj2id out of bounds.";
+      }
+      break;
 
-      default:
-        mju_error("mj_validateReferences: unknown equality constraint type.");
+    default:
+      mju_error("mj_validateReferences: unknown equality constraint type.");
     }
   }
-  for (int i=0; i<m->nwrap; i++) {
+  for (int i=0; i < m->nwrap; i++) {
     int wrap_objid = m->wrap_objid[i];
     switch (m->wrap_type[i]) {
-      case mjWRAP_NONE:
-      case mjWRAP_PULLEY:
-        // wrap_objid not used.
-        break;
-      case mjWRAP_JOINT:
-        if (wrap_objid >= m->njnt || wrap_objid < 0) {
-          return "Invalid model: wrap_objid out of bounds.";
-        }
-        break;
-      case mjWRAP_SITE:
-        if (wrap_objid >= m->nsite || wrap_objid < 0) {
-          return "Invalid model: wrap_objid out of bounds.";
-        }
-        break;
-      case mjWRAP_SPHERE:
-      case mjWRAP_CYLINDER:
-        if (wrap_objid >= m->ngeom || wrap_objid < 0) {
-          return "Invalid model: wrap_objid out of bounds.";
-        }
-        break;
+    case mjWRAP_NONE:
+    case mjWRAP_PULLEY:
+      // wrap_objid not used.
+      break;
+    case mjWRAP_JOINT:
+      if (wrap_objid >= m->njnt || wrap_objid < 0) {
+        return "Invalid model: wrap_objid out of bounds.";
+      }
+      break;
+    case mjWRAP_SITE:
+      if (wrap_objid >= m->nsite || wrap_objid < 0) {
+        return "Invalid model: wrap_objid out of bounds.";
+      }
+      break;
+    case mjWRAP_SPHERE:
+    case mjWRAP_CYLINDER:
+      if (wrap_objid >= m->ngeom || wrap_objid < 0) {
+        return "Invalid model: wrap_objid out of bounds.";
+      }
+      break;
     }
   }
-  for (int i=0; i<m->nu; i++) {
+  for (int i=0; i < m->nu; i++) {
     int actuator_trntype = m->actuator_trntype[i];
     int id = m->actuator_trnid[2*i];
     int idslider = m->actuator_trnid[2*i+1];
     switch (actuator_trntype) {
-      case mjTRN_JOINT:
-      case mjTRN_JOINTINPARENT:
-        if (id < 0 || id >= m->njnt) {
-          return "Invalid model: actuator_trnid out of bounds.";
-        }
-        break;
-      case mjTRN_TENDON:
-        if (id < 0 || id >= m->ntendon) {
-          return "Invalid model: actuator_trnid out of bounds.";
-        }
-        break;
-      case mjTRN_SITE:
-        if (id < 0 || id >= m->nsite) {
-          return "Invalid model: actuator_trnid out of bounds.";
-        }
-        break;
-      case mjTRN_SLIDERCRANK:
-        if (id < 0 || id >= m->nsite) {
-          return "Invalid model: actuator_trnid out of bounds.";
-        }
-        if (idslider < 0 || idslider >= m->nsite) {
-          return "Invalid model: actuator_trnid out of bounds.";
-        }
-        break;
-      case mjTRN_UNDEFINED:
-        // actuator_trnid not used.
-        break;
+    case mjTRN_JOINT:
+    case mjTRN_JOINTINPARENT:
+      if (id < 0 || id >= m->njnt) {
+        return "Invalid model: actuator_trnid out of bounds.";
+      }
+      break;
+    case mjTRN_TENDON:
+      if (id < 0 || id >= m->ntendon) {
+        return "Invalid model: actuator_trnid out of bounds.";
+      }
+      break;
+    case mjTRN_SITE:
+      if (id < 0 || id >= m->nsite) {
+        return "Invalid model: actuator_trnid out of bounds.";
+      }
+      break;
+    case mjTRN_SLIDERCRANK:
+      if (id < 0 || id >= m->nsite) {
+        return "Invalid model: actuator_trnid out of bounds.";
+      }
+      if (idslider < 0 || idslider >= m->nsite) {
+        return "Invalid model: actuator_trnid out of bounds.";
+      }
+      break;
+    case mjTRN_UNDEFINED:
+      // actuator_trnid not used.
+      break;
     }
   }
-  for (int i=0; i<m->nsensor; i++) {
+  for (int i=0; i < m->nsensor; i++) {
     mjtSensor sensor_type = m->sensor_type[i];
     int sensor_size;
     if (sensor_type == mjSENS_PLUGIN) {
@@ -1793,7 +1851,7 @@ const char* mj_validateReferences(const mjModel* m) {
       sensor_size = sensorSize(sensor_type, m->sensor_dim[i]);
     }
     if (sensor_size < 0) {
-        return "Invalid model: Bad sensor_type.";
+      return "Invalid model: Bad sensor_type.";
     }
     int sensor_adr = m->sensor_adr[i];
     if (sensor_adr < 0 || sensor_adr + sensor_size > m->nsensordata) {
@@ -1814,7 +1872,7 @@ const char* mj_validateReferences(const mjModel* m) {
       return "Invalid model: invalid sensor_refid";
     }
   }
-  for (int i=0; i<m->nexclude; i++) {
+  for (int i=0; i < m->nexclude; i++) {
     int exclude_body1 = (m->exclude_signature[i] & 0xFFFF) - 1;
     if (exclude_body1 >= m->nbody || exclude_body1 < 0) {
       return "Invalid model: exclude_body1 out of bounds.";
@@ -1824,8 +1882,8 @@ const char* mj_validateReferences(const mjModel* m) {
       return "Invalid model: exclude_body2 out of bounds.";
     }
   }
-  for (int i=0; i<m->ntuple; i++) {
-    for (int j=0; j<m->tuple_size[i]; j++) {
+  for (int i=0; i < m->ntuple; i++) {
+    for (int j=0; j < m->tuple_size[i]; j++) {
       int adr = m->tuple_adr[i] + j;
       int nobj = numObjects(m, m->tuple_objtype[adr]);
       if (nobj == -2) {

@@ -23,6 +23,31 @@
 
 //---------------------------------- primitive types (mjt) -----------------------------------------
 
+typedef enum mjtState_ {          // state elements
+  mjSTATE_TIME          = 1<<0,   // time
+  mjSTATE_QPOS          = 1<<1,   // position
+  mjSTATE_QVEL          = 1<<2,   // velocity
+  mjSTATE_ACT           = 1<<3,   // actuator activation
+  mjSTATE_WARMSTART     = 1<<4,   // acceleration used for warmstart
+  mjSTATE_CTRL          = 1<<5,   // control
+  mjSTATE_QFRC_APPLIED  = 1<<6,   // applied generalized force
+  mjSTATE_XFRC_APPLIED  = 1<<7,   // applied Cartesian force/torque
+  mjSTATE_MOCAP_POS     = 1<<8,   // positions of mocap bodies
+  mjSTATE_MOCAP_QUAT    = 1<<9,   // orientations of mocap bodies
+  mjSTATE_USERDATA      = 1<<10,  // user data
+  mjSTATE_PLUGIN        = 1<<11,  // plugin state
+
+  mjNSTATE              = 12,     // number of state elements
+
+  // convenience values for commonly used state specifications
+  mjSTATE_PHYSICS       = mjSTATE_QPOS | mjSTATE_QVEL | mjSTATE_ACT,
+  mjSTATE_FULLPHYSICS   = mjSTATE_PHYSICS | mjSTATE_TIME | mjSTATE_PLUGIN,
+  mjSTATE_USER          = mjSTATE_CTRL | mjSTATE_QFRC_APPLIED | mjSTATE_XFRC_APPLIED |
+                          mjSTATE_MOCAP_POS | mjSTATE_MOCAP_QUAT | mjSTATE_USERDATA,
+  mjSTATE_INTEGRATION   = mjSTATE_FULLPHYSICS | mjSTATE_USER | mjSTATE_WARMSTART
+} mjtState;
+
+
 typedef enum mjtWarning_ {   // warning types
   mjWARN_INERTIA      = 0,   // (near) singular inertia matrix
   mjWARN_CONTACTFULL,        // too many contacts in contact list
@@ -63,32 +88,33 @@ typedef enum mjtTimer_ {     // internal timers
 
 //---------------------------------- mjContact -----------------------------------------------------
 
-struct mjContact_ {          // result of collision detection functions
+struct mjContact_ {                // result of collision detection functions
   // contact parameters set by geom-specific collision detector
-  mjtNum  dist;              // distance between nearest points; neg: penetration
-  mjtNum  pos[3];            // position of contact point: midpoint between geoms
-  mjtNum  frame[9];          // normal is in [0-2]
+  mjtNum  dist;                    // distance between nearest points; neg: penetration
+  mjtNum  pos[3];                  // position of contact point: midpoint between geoms
+  mjtNum  frame[9];                // normal is in [0-2]
 
   // contact parameters set by mj_collideGeoms
-  mjtNum  includemargin;     // include if dist<includemargin=margin-gap
-  mjtNum  friction[5];       // tangent1, 2, spin, roll1, 2
-  mjtNum  solref[mjNREF];    // constraint solver reference
-  mjtNum  solimp[mjNIMP];    // constraint solver impedance
+  mjtNum  includemargin;           // include if dist<includemargin=margin-gap
+  mjtNum  friction[5];             // tangent1, 2, spin, roll1, 2
+  mjtNum  solref[mjNREF];          // constraint solver reference, normal direction
+  mjtNum  solreffriction[mjNREF];  // constraint solver reference, friction directions
+  mjtNum  solimp[mjNIMP];          // constraint solver impedance
 
   // internal storage used by solver
-  mjtNum  mu;                // friction of regularized cone, set by mj_makeConstraint
-  mjtNum  H[36];             // cone Hessian, set by mj_updateConstraint
+  mjtNum  mu;                      // friction of regularized cone, set by mj_makeConstraint
+  mjtNum  H[36];                   // cone Hessian, set by mj_updateConstraint
 
   // contact descriptors set by mj_collideGeoms
-  int     dim;               // contact space dimensionality: 1, 3, 4 or 6
-  int     geom1;             // id of geom 1
-  int     geom2;             // id of geom 2
+  int     dim;                     // contact space dimensionality: 1, 3, 4 or 6
+  int     geom1;                   // id of geom 1
+  int     geom2;                   // id of geom 2
 
   // flag set by mj_instantianteEquality
-  int     exclude;           // 0: include, 1: in gap, 2: fused, 3: no dofs
+  int     exclude;                 // 0: include, 1: in gap, 2: fused, 3: no dofs
 
   // address computed by mj_instantiateContact
-  int     efc_address;       // address in efc; -1: not included
+  int     efc_address;             // address in efc; -1: not included
 };
 typedef struct mjContact_ mjContact;
 

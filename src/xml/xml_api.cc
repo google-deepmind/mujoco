@@ -62,40 +62,28 @@ void GlobalModel::Clear() {
 }
 
 
-
 // single instance of global model, protected with mutex
 static GlobalModel themodel;
 static std::mutex themutex;
 
+
+
 //---------------------------------- Functions -----------------------------------------------------
 
-// Return 1 (for backward compatibility).
-int mj_activate(const char* filename) {
-  return 1;
-}
-
-
-
-// Do nothing (for backward compatibility).
-void mj_deactivate(void) {
-}
-
-
-
 // mj_loadXML helper function
-mjModel* _loadXML(const char* filename, int default_provider,
+mjModel* _loadXML(const char* filename, int vfs_provider,
                   char* error, int error_sz) {
   // serialize access to themodel
   std::lock_guard<std::mutex> lock(themutex);
 
   // parse new model
-  mjCModel* newmodel = mjParseXML(filename, default_provider, error, error_sz);
+  mjCModel* newmodel = mjParseXML(filename, vfs_provider, error, error_sz);
   if (!newmodel) {
     return nullptr;
   }
 
   // compile new model
-  mjModel* m = newmodel->Compile(default_provider);
+  mjModel* m = newmodel->Compile(vfs_provider);
   if (!m) {
     mjCopyError(error, newmodel->GetError().message, error_sz);
     delete newmodel;

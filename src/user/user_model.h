@@ -65,7 +65,7 @@ class mjCModel {
   mjCModel();                                          // constructor
   ~mjCModel();                                         // destructor
 
-  mjModel*    Compile(int default_provider = 0);       // COMPILER: construct mjModel
+  mjModel*    Compile(int vfs_provider = 0);           // COMPILER: construct mjModel
   bool        CopyBack(const mjModel*);                // DECOMPILER: copy numeric back
   void        FuseStatic(void);                        // fuse static bodies with parent
   void        FuseReindex(mjCBody* body);              // reindex elements during fuse
@@ -163,8 +163,8 @@ class mjCModel {
   int nuser_sensor;               // number of mjtNums in sensor_user
 
  private:
-  void TryCompile(mjModel*& m, mjData*& d, int default_provider);
-  mjModel* _Compile(int default_provider);
+  void TryCompile(mjModel*& m, mjData*& d, int vfs_provider);
+  mjModel* _Compile(int vfs_provider);
 
   void Clear(void);               // clear objects allocated by Compile
 

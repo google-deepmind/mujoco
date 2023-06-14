@@ -16,8 +16,8 @@ been described elsewhere.
 
 .. _Motivation:
 
-Motivation for MuJoCo's convex soft contact model
--------------------------------------------------
+Motivation for soft contact model
+---------------------------------
 
 Robots as well as humans interact with their environment primarily through physical contact. Given the increasing
 importance of physics modeling in robotics, machine learning, animation, virtual reality, biomechanics and other fields,
@@ -569,41 +569,60 @@ Fast implicit-in-velocity (``implicitfast``)
 
 .. _geState:
 
-The **state**
-~~~~~~~~~~~~~
+The State
+~~~~~~~~~
 
 To complete our description of the general framework we will now discuss the notion of *state*. MuJoCo has a compact,
-well-defined internal state which, together with the deterministic computational pipeline, means that operations like
-resetting the state and computing dynamics derivatives are also well-defined. The state is entirely encapsulated in the
-``mjData`` struct and consists of several components:
+well-defined internal state which, together with the :ref:`deterministic computational pipeline<piReproducibility>`,
+means that operations like resetting the state and computing dynamics derivatives are also well-defined.
+
+The state is entirely encapsulated in the :ref:`mjData` struct and consists of several components. The components are
+enumerated in :ref:`mjtState` as bit flags, along with several common combinations, corresponding to the groupings
+below. Concatenated state vectors can be conveniently read from and written into :ref:`mjData` using :ref:`mj_getState`
+and :ref:`mj_setState`, respectively.
 
 .. _gePhysicsState:
 
 Physics state
 ^^^^^^^^^^^^^
-The *physics state* contains all quantities which are time-integrated during stepping.
-These are ``mjData.{qpos, qvel, act, time}``:
+The *physics state* (:ref:`mjSTATE_PHYSICS<mjtState>`) contains the main quantities which are time-integrated during
+stepping. These are ``mjData.{qpos, qvel, act}``:
 
-Mechanical state: ``qpos`` and ``qvel``
-  The *mechanical state* of a simulation is given by the generalized position (``mjData.qpos``) and velocity
-  (``mjData.qvel``) vectors, denoted above as :math:`q` and :math:`v`, respectively.
+Position: ``qpos``
+  The configuration in generalized coodinates, denoted above as :math:`q`.
 
-Actuator activations: ``act``
+Velocity: ``qvel``
+  The generalized velocities, denoted above as :math:`v`.
+
+Actuator activation: ``act``
   ``mjData.act`` contains the internal states of stateful actuators, denoted above as :math:`w`.
 
+.. _geFullPhysics:
+
+Full physics state
+^^^^^^^^^^^^^^^^^^
+
+The *full physics state* (:ref:`mjSTATE_FULLPHYSICS<mjtState>`) contains the physics state and two additional
+components:
+
 Time: ``time``
-  The time of the simulation is given by the scalar ``mjData.time``. Since physics is time-invariant, it is
-  often excluded from the *physics state*; an exception could be a time-dependent user callback (e.g., an open-loop
+  The simulation time is given by the scalar ``mjData.time``. Since physics is time-invariant, it is
+  excluded from the *physics state*; exceptions include time-dependent user callbacks and plugins (e.g., an open-loop
   controller), in which case time should be included.
+
+Plugin state: ``plugin_state``
+  ``mjData.plugin_state`` are states declared by :ref:`engine plugins<exPlugin>`. Please see the :ref:`exPluginState`
+  section for more details.
 
 .. _geInput:
 
 User inputs
 ^^^^^^^^^^^
-These input fields are set by the user and affect the physics simulation, but are untouched by the simulator. All input
-fields except for MoCap poses default to 0.
 
-Controls: ``ctrl``
+These input fields (:ref:`mjSTATE_USER<mjtState>`) are set by the user and affect the physics simulation, but are
+untouched by the simulator. All input fields except for MoCap poses default to 0.
+
+Control: ``ctrl``
   Controls are defined by the :ref:`actuator<actuator>` section of the XML. ``mjData.ctrl`` values either produce
   generalized forces directly (stateless actuators), or affect the actuator activations in ``mjData.act``, which then
   produce forces.
@@ -627,8 +646,8 @@ User data: ``userdata``
 
 .. _geWarmstart:
 
-Warmstart accelerations
-^^^^^^^^^^^^^^^^^^^^^^^
+Warmstart acceleration
+^^^^^^^^^^^^^^^^^^^^^^
 
 ``qacc_warmstart``
   ``mjData.qacc_warmstart`` are accelerations used to warmstart the constraint solver, saved from the previous step.
@@ -642,34 +661,27 @@ Warmstart accelerations
   <https://en.wikipedia.org/wiki/Lyapunov_exponent>`__ when time-stepping, quickly leading to divergent trajectories
   for different warmstarts.
 
-.. _gePlugin:
-
-Plugin state
-^^^^^^^^^^^^
-
-``plugin_state``
-  ``mjData.plugin_state`` are states declared by :ref:`engine plugins<exPlugin>`. Please see the :ref:`exPluginState`
-  section for more details.
-
 .. _geIntegrationState:
 
 Integration state
 ^^^^^^^^^^^^^^^^^
-The *integration state* is the union of all the above ``mjData`` fields and constitutes the entire set of inputs to
-the *forward dynamics*. In the case of *inverse dynamics*, ``mjData.qacc`` is also treated as an input variable. All
-other ``mjData`` fields are functions of the integration state.
-|br| When saving the integration state in order to reload it elsewhere, it is sensible to avoid saving unused fields
-that always remain in their default values. Specifically, ``xfrc_applied`` can be quite large (``6 x nbody``) yet is
-often unused.
+
+The *integration state* (:ref:`mjSTATE_INTEGRATION<mjtState>`) is the union of all the above :ref:`mjData` fields and
+constitutes the entire set of inputs to the *forward dynamics*. In the case of *inverse dynamics*, ``mjData.qacc`` is
+also treated as an input variable. All other :ref:`mjData` fields are functions of the integration state.
+
+Note that the full integration state as given by :ref:`mjSTATE_INTEGRATION<mjtState>` is maximalist and includes fields
+which are often unused. If a small state size is desired, it might be sensible to avoid saving unused fields.
+In particular `xfrc_applied`` can be quite large (``6 x nbody``) yet is often unused.
 
 .. _geSimulationState:
 
 Simulation state: ``mjData``
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-The *simulation state* is the entirety of the ``mjData`` struct and associated memory buffer. This state includes
-all derived quantities computed during dynamics computation. Because the ``mjData`` buffers are preallocated for the
+The *simulation state* is the entirety of the :ref:`mjData` struct and associated memory buffer. This state includes
+all derived quantities computed during dynamics computation. Because the :ref:`mjData` buffers are preallocated for the
 worst case, it is often significantly faster to recompute derived quantities from the *integration state* rather than
-using ``mj_copyData``.
+using :ref:`mj_copyData`.
 
 .. _Constraint:
 
@@ -1169,9 +1181,7 @@ we obtain the unconstrained problem
    :label: eq:reduced
 
 The function :math:`s(\cdot)` plays the role of a soft-constraint penalty. It can be shown to be convex and
-once-continuously-differentiable. In the case of pyramidal friction cones it is a quadratic spline. This reduced
-formulation is the basis for the efficient new solvers introduced in MuJoCo 1.50, as well as new optimal control methods
-such as Goal-Directed Dynamics which we are developing.
+once-continuously-differentiable. In the case of pyramidal friction cones it is a quadratic spline.
 
 Another appealing feature of the reduced formulation is that the inverse dynamics can be easily computed. Since the
 above problem is unconstrained and convex, the unique global minimum makes the gradient vanish. This yields the identity
@@ -1290,8 +1300,7 @@ representations of the constraint Jacobian and related matrices.
 
 **Newton** : Newton's method
    This algorithm implements the exact Newton method, with analytical second-order derivatives and Cholesky
-   factorization of the Hessian. The line-search is the same as in the CG method. This is the default solver as of
-   MuJoCo 1.50.
+   factorization of the Hessian. The line-search is the same as in the CG method. It is the default solver.
 
 **PGS** : Projected Gauss-Seidel method
    This is the most common algorithm used in physics simulators, and used to be the default in MuJoCo, until we
@@ -1585,29 +1594,46 @@ The top-level function :ref:`mj_inverse` invokes the following sequence of compu
    equals the sum of external and actuation forces.
 
 
+.. _piReproducibility:
+
+Reproducibility
+~~~~~~~~~~~~~~~
+
+MuJoCo's simulation pipeline is entirely deterministic and reproducible -- if a :ref:`state<geState>` in a trajectory is
+saved and reloaded and :ref:`mj_step` called again, the resulting next state will be identical. However, there are some
+important caveats:
+
+- Save all the required :ref:`integration state<geIntegrationState>` components. In particular :ref:`warmstart
+  accelerations<geWarmstart>` have only a very small effect on the next state, but should be saved if bit-wise equality
+  is required.
+- Any numerical difference between states, no matter how small, will become significant upon integration, especially for
+  systems with contact. Contact events have high `Lyapunov exponents
+  <https://en.wikipedia.org/wiki/Lyapunov_exponent>`__; this is a property of any rigid-body simulator (and indeed of
+  `real-world physics <https://en.wikipedia.org/wiki/Roulette>`__) and is not MuJoCo-specific.
+- Exact reproducibillity is only guaranteed within a **single version**. Small numerical differences are quite common
+  between versioned releases, for example due to code optimizations. This means that when saving an initial state and an
+  open-loop control sequence, the resulting rolled-out trajectory will be identical within the same version but will
+  likely be different between MuJoCo versions.
+
 .. _derivatives:
 
 Derivatives
 -----------
 
-MuJoCo's entire computational pipline and uniquely -- its constraint solver -- are analytically differentiable. Writing
+MuJoCo's entire computational pipline including its constraint solver are analytically differentiable. Writing
 efficient implementations of these derivatives is a long term goal of the development team. Analytic derivatives of the
-smooth dynamics with respect to velocity are already in place and power the :ref:`implicit integrator<geIntegration>`.
+smooth dynamics (excluding constraints) with respect to velocity are already computed and enable the two
+:ref:`implicit integrators<geIntegration>`.
 
-The function :ref:`mjd_transitionFD` computes state-transition and control-transition Jacobians. Given any valid MuJoCo
-model ``mjModel* m`` with an initial :ref:`simulation state<geState>` in ``mjData* d``,
+Two functions are currently available which use efficient finite-differencing in order to compute dynamics Jacobians:
 
-- Let :math:`x` denote the :ref:`physics state<gePhysicsState>` of the simulation at time :math:`t` -- the concatenation
-  of positions, velocities and actuator states ``[d->qpos; d->qvel; d->act]``.
-- Let :math:`u` denote the vector of controls at time :math:`t`, corresponding to ``d->ctrl``.
-- Let :math:`y` denote the physical state of the simulation at time :math:`t+h`, where :math:`h` corresponds to
-  ``m->opt.timstep``.
-- Let :math:`s` denote the values of the sensors defined in the model.
-- The high level function :ref:`mj_step` computes :math:`(x,u) \rightarrow (y,s)`: the next state and
-  sensor values as a function of the current state and control.
-- ``mjd_transitionFD`` computes the Jacobians :math:`A = \frac{\partial y}{\partial x}`,
-  :math:`B = \frac{\partial y}{\partial u}`, :math:`C = \frac{\partial s}{\partial x}` and
-  :math:`D = \frac{\partial s}{\partial u}` using efficient finite-differencing of :ref:`mj_step`.
+:ref:`mjd_transitionFD`:
+  Computes state-transition and control-transition Jacobians for the discrete-time forward dynamics (:ref:`mj_step`).
+  See :ref:`API documentation<mjd_transitionFD>`.
+
+:ref:`mjd_inverseFD`:
+  Computes Jacobians for the continuous-time inverse dynamics (:ref:`mj_inverse`).
+  See :ref:`API documentation<mjd_inverseFD>`.
 
 These derivatives are made efficient by exploiting MuJoCo's configurable computation pipeline so that quantities are not
 recomputed when not required. For example when differencing with respect to controls, quantities which depend only on

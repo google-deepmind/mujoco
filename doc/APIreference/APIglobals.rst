@@ -409,6 +409,10 @@ table below. Their names are in the format ``mjKEY_XXX``. They correspond to GLF
        respect this limit, and user-defined functions should also respect it. Such functions are called with a return
        buffer of size ``mjMAXCONPAIR``; attempting to write more contacts in the buffer can cause unpredictable
        behavior.
+   * - ``mjMAXTREEDEPTH``
+     - 50
+     - The maximum depth of each body and mesh bounding volume hierarchy. If this large limit is exceeded, a warning
+       is raised and ray casting may not be possible. For a balanced hierarchy, this implies 1E15 bounding volumes.
    * - ``mjMAXVFS``
      - 200
      - The maximal number of characters in the name of each file in the virtual file system.
@@ -508,7 +512,7 @@ table below. Their names are in the format ``mjKEY_XXX``. They correspond to GLF
      - Maximum number of UI rectangles.
        Defined in `mjui.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjui.h>`_.
    * - ``mjVERSION_HEADER``
-     - 235
+     - 236
      - The version of the MuJoCo headers; changes with every release. This is an integer equal to 100x the software
        version, so 210 corresponds to version 2.1. Defined in  mujoco.h. The API function :ref:`mj_version` returns a
        number with the same meaning but for the compiled library.

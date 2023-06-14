@@ -72,7 +72,7 @@ be set before calling this function. Given the state (qpos, qvel, act), mj_forwa
 while mj_inverse maps from acceleration to force. Mathematically these functions are inverse of each other, but
 numerically this may not always be the case because the forward dynamics rely on a constraint optimization algorithm
 which is usually terminated early. The difference between the results of forward and inverse dynamics can be computed
-with the function :ref:`mj_compareFwdInv`, which can be though of as another solver accuracy check (as well as a general
+with the function :ref:`mj_compareFwdInv`, which can be thought of as another solver accuracy check (as well as a general
 sanity check).
 
 The skip version of :ref:`mj_forward` and :ref:`mj_inverse` are useful for example when qpos was unchanged but qvel was
@@ -150,6 +150,36 @@ Support
 These are support functions that need access to :ref:`mjModel` and :ref:`mjData`, unlike the utility functions which do
 not need such access. Support functions are called within the simulator but some of them can also be useful for custom
 computations, and are documented in more detail below.
+
+.. _mj_stateSize:
+
+mj_stateSize
+~~~~~~~~~~~~
+
+.. mujoco-include:: mj_stateSize
+
+Returns the number of :ref:`mjtNum` |-| s required for a given state specification. The bits of the integer ``spec``
+correspond to element fields of :ref:`mjtState`.
+
+.. _mj_getState:
+
+mj_getState
+~~~~~~~~~~~
+
+.. mujoco-include:: mj_getState
+
+Copy concatenated state components specified by ``spec`` from ``d`` into ``state``. The bits of the integer
+``spec`` correspond to element fields of :ref:`mjtState`. Fails with :ref:`mju_error` if ``spec`` is invalid.
+
+.. _mj_setState:
+
+mj_setState
+~~~~~~~~~~~
+
+.. mujoco-include:: mj_setState
+
+Copy concatenated state components specified by ``spec`` from  ``state`` into ``d``. The bits of the integer
+``spec`` correspond to element fields of :ref:`mjtState`. Fails with :ref:`mju_error` if ``spec`` is invalid.
 
 .. _mj_addContact:
 
@@ -843,14 +873,25 @@ where jar = Jac*qacc-aref.
 Ray collisions
 ^^^^^^^^^^^^^^
 
-Ray collision functionality was added in MuJoCo 1.50. This is a new collision detection module that uses analytical
-formulas to intersect a ray ``(p + x*v, x >= 0)`` with a geom, where p is the origin of the ray and v is the vector
-specifying the direction. All functions in this family return the distance to the nearest geom surface, or -1 if there
-is no intersection. Note that if p is inside a geom, the ray will intersect the surface from the inside which still
-counts as an intersection.
+Ray collisions, also known as ray casting, find the distance ``x`` of a ray's intersection with a geom, where a ray is
+a line emanating from the 3D point ``p`` in the direction ``v`` i.e., ``(p + x*v, x >= 0)``. All functions in this
+family return the distance to the nearest geom surface, or -1 if there is no intersection. Note that if ``p`` is inside
+a geom, the ray will intersect the surface from the inside which still counts as an intersection.
 
 All ray collision functions rely on quantities computed by :ref:`mj_kinematics` (see :ref:`mjData`), so must be called
-after  :ref:`mj_kinematics`, or functions that call it (e.g. :ref:`mj_fwdPosition`).
+after  :ref:`mj_kinematics`, or functions that call it (e.g. :ref:`mj_fwdPosition`). The top level functions, which
+intersect with all geoms types, are :ref:`mj_ray` which casts a single ray, and :ref:`mj_multiRay` which casts multiple
+rays from a single point.
+
+.. _mj_multiRay:
+
+mj_multiRay
+~~~~~~~~~~~
+
+.. mujoco-include:: mj_multiRay
+
+Intersect multiple rays emanating from a single point.
+Similar semantics to mj_ray, but vec is an array of (nray x 3) directions.
 
 .. _mj_ray:
 
@@ -975,14 +1016,14 @@ Print sparse matrix to screen.
 Virtual file system
 ^^^^^^^^^^^^^^^^^^^
 
-Virtual file system (VFS) functionality was introduced in MuJoCo 1.50. It enables the user to load all necessary files
-in memory, including MJB binary model files, XML files (MJCF, URDF and included files), STL meshes, PNGs for textures
-and height fields, and HF files in our custom height field format. Model and resource files in the VFS can also be
-constructed programmatically (say using a Python library that writes to memory). Once all desired files are in the VFS,
-the user can call :ref:`mj_loadModel` or :ref:`mj_loadXML` with a pointer to the VFS. When this pointer is not NULL, the
-loaders will first check the VFS for any file they are about to load, and only access the disk if the file is not found
-in the VFS. The file names stored in the VFS have their name and extension but the path information is stripped; this
-can be bypassed however by using a custom path symbol in the file names, say "mydir_myfile.xml".
+Virtual file system (VFS) enables the user to load all necessary files in memory, including MJB binary model files, XML
+files (MJCF, URDF and included files), STL meshes, PNGs for textures and height fields, and HF files in our custom
+height field format. Model and resource files in the VFS can also be constructed programmatically (say using a Python
+library that writes to memory). Once all desired files are in the VFS, the user can call :ref:`mj_loadModel` or
+:ref:`mj_loadXML` with a pointer to the VFS. When this pointer is not NULL, the loaders will first check the VFS for any
+file they are about to load, and only access the disk if the file is not found in the VFS. The file names stored in the
+VFS have their name and extension but the path information is stripped; this can be bypassed however by using a custom
+path symbol in the file names, say "mydir_myfile.xml".
 
 The entire VFS is contained in the data structure :ref:`mjVFS`. All utility functions for maintaining the VFS operate on
 this data structure. The common usage pattern is to first clear it with mj_defaultVFS, then add disk files to it with
@@ -1412,11 +1453,11 @@ mjv_select
 
 .. mujoco-include:: mjv_select
 
-This function is used for mouse selection. Previously selection was done via OpenGL, but as of MuJoCo 1.50 it relies on
-ray intersections which are much more efficient. aspectratio is the viewport width/height. relx and rely are the
-relative coordinates of the 2D point of interest in the viewport (usually mouse cursor). The function returns the id of
-the geom under the specified 2D point, or -1 if there is no geom (note that they skybox if present is not a model geom).
-The 3D coordinates of the clicked point are returned in selpnt. See :ref:`simulate<saSimulate>` for an illustration.
+This function is used for mouse selection, relying on ray intersections. aspectratio is the viewport width/height. relx
+and rely are the relative coordinates of the 2D point of interest in the viewport (usually mouse cursor). The function
+returns the id of the geom under the specified 2D point, or -1 if there is no geom (note that they skybox if present is
+not a model geom). The 3D coordinates of the clicked point are returned in selpnt. See :ref:`simulate<saSimulate>` for
+an illustration.
 
 .. _Visualization-api:
 
@@ -2008,31 +2049,6 @@ mju_writeLog
 .. mujoco-include:: mju_writeLog
 
 Write [datetime, type: message] to MUJOCO_LOG.TXT.
-
-.. _Activation:
-
-Activation
-^^^^^^^^^^
-
-The functions in this section are maintained for backward compatibility with the now-removed activation mechanism.
-
-.. _mj_activate:
-
-mj_activate
-~~~~~~~~~~~
-
-.. mujoco-include:: mj_activate
-
-Return 1 (for backward compatibility).
-
-.. _mj_deactivate:
-
-mj_deactivate
-~~~~~~~~~~~~~
-
-.. mujoco-include:: mj_deactivate
-
-Do nothing (for backward compatibility).
 
 .. _Standardmath:
 
@@ -2737,7 +2753,7 @@ mju_cholSolve
 
 .. mujoco-include:: mju_cholSolve
 
-Solve mat * res = vec, where mat is Cholesky-factorized
+Solve (mat*mat') * res = vec, where mat is a Cholesky factor.
 
 .. _mju_cholUpdate:
 
@@ -2747,6 +2763,101 @@ mju_cholUpdate
 .. mujoco-include:: mju_cholUpdate
 
 Cholesky rank-one update: L*L' +/- x*x'; return rank.
+
+.. _mju_cholFactorBand:
+
+mju_cholFactorBand
+~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mju_cholFactorBand
+
+Band-dense Cholesky decomposition.
+|br| Add ``diagadd + diagmul*mat_ii`` to diagonal before decomposition.
+|br| Returns the minimum value of the factorized diagonal or 0 if rank-deficient.
+
+   **Symmetric band-dense matrices**
+
+   :ref:`mju_cholFactorBand` and subsequent functions containing the substring "band" operate on matrices which are a
+   generalization of symmetric `band matrices <https://en.wikipedia.org/wiki/Band_matrix>`_. *Symmetric band-dense* or
+   "arrowhead" matrices have non-zeros along proximal diagonal bands and dense blocks on the bottom rows and right
+   columns. These matrices have the property that Cholesky factorization creates no fill-in and can therefore be
+   performed efficiently in-place. Matrix structure is defined by three integers:
+
+   - ``ntotal``: the number of rows (columns) of the symmetric matrix.
+   - ``nband``: the number of bands under (over) the diagonal, inclusive of the diagonal.
+   - ``ndense``: the number of dense rows (columns) at the bottom (right).
+
+   The non-zeros are stored in memory as two contiguous row-major blocks, colored green and blue in the illustration
+   below. The first block has size ``nband x (ntotal-ndense)`` and contains the diagonal and the bands below it. The
+   second block has size ``ndense x ntotal`` and contains the dense part. Total required memory is the sum of the block
+   sizes.
+
+   .. figure:: /images/APIreference/arrowhead.svg
+      :width: 750px
+      :align: left
+
+   For example, consider an arrowhead matrix with ``nband = 3``, ``ndense = 2`` and ``ntotal = 8``. In this example, the
+   total memory required is ``3*(8-2) + 2*8 = 34`` mjtNum's, laid out as follows:
+
+   .. code-block::
+
+      0   1   2
+          3   4   5
+              6   7   8
+                  9   10  11
+                      12  13  14
+                          15  16  17
+              18  19  20  21  22  23  24  25
+              26  27  28  29  30  31  32  33
+
+
+   The diagonal elements are ``2, 5, 8, 11, 14, 17, 24, 33``.
+   |br| Elements ``0, 1, 3, 25`` are present in memory but never touched.
+
+.. _mju_cholSolveBand:
+
+mju_cholSolveBand
+~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mju_cholSolveBand
+
+Solve (mat*mat')*res = vec where mat is a band-dense Cholesky factor.
+
+.. _mju_band2Dense:
+
+mju_band2Dense
+~~~~~~~~~~~~~~
+
+.. mujoco-include:: mju_band2Dense
+
+Convert banded matrix to dense matrix, fill upper triangle if flg_sym>0.
+
+.. _mju_dense2Band:
+
+mju_dense2Band
+~~~~~~~~~~~~~~
+
+.. mujoco-include:: mju_dense2Band
+
+Convert dense matrix to banded matrix.
+
+.. _mju_bandMulMatVec:
+
+mju_bandMulMatVec
+~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mju_bandMulMatVec
+
+Multiply band-diagonal matrix with nvec vectors, include upper triangle if flg_sym>0.
+
+.. _mju_bandDiag:
+
+mju_bandDiag
+~~~~~~~~~~~~
+
+.. mujoco-include:: mju_bandDiag
+
+Address of diagonal element i in band-dense matrix representation.
 
 .. _mju_eig3:
 
@@ -2838,7 +2949,7 @@ mju_muscleDynamics
 
 .. mujoco-include:: mju_muscleDynamics
 
-Muscle activation dynamics, prm = (tau_act, tau_deact).
+Muscle activation dynamics, prm = (tau_act, tau_deact, smoothing_width).
 
 .. _mju_encodePyramid:
 
@@ -3054,7 +3165,7 @@ mju_sigmoid
 
 .. mujoco-include:: mju_sigmoid
 
-Sigmoid function over 0<=x<=1 constructed from half-quadratics.
+Sigmoid function over 0<=x<=1 using quintic polynomial.
 
 .. _Derivatives-api:
 
@@ -3068,10 +3179,13 @@ mjd_transitionFD
 
 .. mujoco-include:: mjd_transitionFD
 
-Finite differenced transition matrices. Letting :math:`x, u` denote the current :ref:`state<gePhysicsState>` and control
-vectors and letting :math:`y, s` denote the next state and sensor values, the top-level :ref:`mj_step` function computes
-:math:`(x,u) \rightarrow (y,s)`. :ref:`mjd_transitionFD` computes the four associated Jacobians using
-finite-differencing. These matrices and their dimensions are:
+Finite-differenced discrete-time transition matrices.
+
+Letting :math:`x, u` denote the current :ref:`state<gePhysicsState>` and :ref:`control<geInput>`
+vector in an :ref:`mjData` instance, and letting :math:`y, s` denote the next state and sensor
+values, the top-level :ref:`mj_step` function computes :math:`(x,u) \rightarrow (y,s)`.
+:ref:`mjd_transitionFD` computes the four associated Jacobians using finite-differencing.
+These matrices and their dimensions are:
 
 .. csv-table::
    :header: "matrix", "Jacobian", "dimension"
@@ -3083,9 +3197,46 @@ finite-differencing. These matrices and their dimensions are:
    ``C``, :math:`\partial s / \partial x`, ``nsensordata x 2*nv+na``
    ``D``, :math:`\partial s / \partial u`, ``nsensordata x nu``
 
-- All four matrix outputs are optional (can be NULL).
+- All outputs are optional (can be NULL).
 - ``eps`` is the finite-differencing epsilon.
-- ``centered`` is a flag denoting whether to use forward (0) or centered (1) differences.
+- ``flg_centered`` denotes whether to use forward (0) or centered (1) differences.
+
+.. _mjd_inverseFD:
+
+mjd_inverseFD
+~~~~~~~~~~~~~
+
+.. mujoco-include:: mjd_inverseFD
+
+Finite differenced continuous-time inverse-dynamics Jacobians.
+
+Letting :math:`x, a` denote the current :ref:`state<gePhysicsState>` and acceleration vectors in an :ref:`mjData` instance, and
+letting :math:`f, s` denote the forces computed by the inverse dynamics (``qfrc_inverse``), the function
+:ref:`mj_inverse` computes :math:`(x,a) \rightarrow (f,s)`. :ref:`mjd_inverseFD` computes seven associated Jacobians
+using finite-differencing. These matrices and their dimensions are:
+
+.. csv-table::
+   :header: "matrix", "Jacobian", "dimension"
+   :widths: auto
+   :align: left
+
+   ``DfDq``, :math:`\partial f / \partial q`, ``nv x nv``
+   ``DfDv``, :math:`\partial f / \partial v`, ``nv x nv``
+   ``DfDa``, :math:`\partial f / \partial a`, ``nv x nv``
+   ``DsDq``, :math:`\partial s / \partial q`, ``nv x nsensordata``
+   ``DsDv``, :math:`\partial s / \partial v`, ``nv x nsensordata``
+   ``DsDa``, :math:`\partial s / \partial a`, ``nv x nsensordata``
+   ``DmDq``, :math:`\partial M / \partial q`, ``nv x nM``
+
+- All outputs are optional (can be NULL).
+- All outputs are transposed relative to Control Theory convention (i.e., column major).
+- ``DmDq``, which contains a sparse representation of the ``nv x nv x nv`` tensor :math:`\partial M / \partial q`, is
+  not strictly an inverse dynamics Jacobian but is useful in related applications. It is provided as a convenience to
+  the user, since the required values are already computed if either of the other two :math:`\partial / \partial q`
+  Jacobians are requested.
+- ``eps`` is the (forward) finite-differencing epsilon.
+- ``flg_actuation`` denotes whether to subtract actuation forces (``qfrc_actuator``) from the output of the inverse
+  dynamics. If this flag is positive, actuator forces are not considered as external.
 
 .. _Plugins-api:
 

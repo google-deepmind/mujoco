@@ -102,6 +102,7 @@ enum {
   SECT_WATCH,
   SECT_PHYSICS,
   SECT_RENDERING,
+  SECT_VISUALIZATION,
   SECT_GROUP,
   NSECT0,
 
@@ -565,7 +566,7 @@ void UpdateWatch(mj::Simulate* sim, const mjModel* m, const mjData* d) {
     if (!mju::strcmp_arr(#NAME, sim->field) &&                                                   \
         !mju::strcmp_arr(#TYPE, "mjtNum")) {                                                     \
       if (sim->index >= 0 && sim->index < m->NR * NC) {                                          \
-        PrintField(sim->ui0.sect[SECT_WATCH].item[2].multi.name[0],d->NAME + sim->index);        \
+        PrintField(sim->ui0.sect[SECT_WATCH].item[2].multi.name[0], d->NAME + sim->index);       \
       } else {                                                                                   \
         mju::strcpy_arr(sim->ui0.sect[SECT_WATCH].item[2].multi.name[0], "invalid index");       \
       }                                                                                          \
@@ -729,12 +730,13 @@ void MakeRenderingSection(mj::Simulate* sim, const mjModel* m, int oldstate) {
   for (int i=0; i<mjNVISFLAG; i++) {
     // set name, remove "&"
     mju::strcpy_arr(defFlag[0].name, mjVISSTRING[i][0]);
-    for (int j=0; j<strlen(mjVISSTRING[i][0]); j++)
+    for (int j=0; j<strlen(mjVISSTRING[i][0]); j++) {
       if (mjVISSTRING[i][0][j]=='&') {
         mju_strncpy(
           defFlag[0].name+j, mjVISSTRING[i][0]+j+1, mju::sizeof_arr(defFlag[0].name)-j);
         break;
       }
+    }
 
     // set shortcut and data
     if (mjVISSTRING[i][2][0]) {
@@ -748,11 +750,12 @@ void MakeRenderingSection(mj::Simulate* sim, const mjModel* m, int oldstate) {
 
   // create tree slider
   mjuiDef defTree[] = {
-      {mjITEM_SLIDERINT, "Tree depth", 2, &sim->opt.bvh_depth, "-1 15"},
+      {mjITEM_SLIDERINT, "Tree depth", 2, &sim->opt.bvh_depth, "0 15"},
       {mjITEM_END}
   };
   mjui_add(&sim->ui0, defTree);
 
+  // add rendering flags
   mjui_add(&sim->ui0, defOpenGL);
   for (int i=0; i<mjNRNDFLAG; i++) {
     mju::strcpy_arr(defFlag[0].name, mjRNDSTRING[i][0]);
@@ -766,7 +769,64 @@ void MakeRenderingSection(mj::Simulate* sim, const mjModel* m, int oldstate) {
   }
 }
 
+// make visualization section of UI
+void MakeVisualizationSection(mj::Simulate* sim, const mjModel* m, int oldstate) {
+  mjStatistic* stat = sim->fully_managed_ ? &sim->m_->stat : &sim->scnstate_.model.stat;
+  mjVisual* vis = sim->fully_managed_ ? &sim->m_->vis : &sim->scnstate_.model.vis;
 
+  mjuiDef defVisualization[] = {
+    {mjITEM_SECTION,   "Visualization", oldstate, nullptr, "AV"},
+    {mjITEM_SEPARATOR, "Headlight",  1},
+    {mjITEM_RADIO,     "Active",          5, &(vis->headlight.active),     "Off\nOn"},
+    {mjITEM_EDITFLOAT, "Ambient",         2, &(vis->headlight.ambient),    "3"},
+    {mjITEM_EDITFLOAT, "Diffuse",         2, &(vis->headlight.diffuse),    "3"},
+    {mjITEM_EDITFLOAT, "Specular",        2, &(vis->headlight.specular),   "3"},
+    {mjITEM_SEPARATOR, "Initial Free Camera",  1},
+    {mjITEM_EDITNUM,   "Center",          2, &(stat->center),              "3"},
+    {mjITEM_EDITFLOAT, "Azimuth",         2, &(vis->global.azimuth),       "1"},
+    {mjITEM_EDITFLOAT, "Elevation",       2, &(vis->global.elevation),     "1"},
+    {mjITEM_BUTTON,    "Align",           2, nullptr,                      "CA"},
+    {mjITEM_SEPARATOR, "Global",  1},
+    {mjITEM_EDITNUM,   "Extent",          2, &(stat->extent),              "1"},
+    {mjITEM_EDITFLOAT, "Field of view",   2, &(vis->global.fovy),          "1"},
+    {mjITEM_RADIO,     "Inertia",         5, &(vis->global.ellipsoidinertia), "Box\nEllipsoid"},
+    {mjITEM_SEPARATOR, "Map",  1},
+    {mjITEM_EDITFLOAT, "Stiffness",       2, &(vis->map.stiffness),        "1"},
+    {mjITEM_EDITFLOAT, "Rot stiffness",   2, &(vis->map.stiffnessrot),     "1"},
+    {mjITEM_EDITFLOAT, "Force",           2, &(vis->map.force),            "1"},
+    {mjITEM_EDITFLOAT, "Torque",          2, &(vis->map.torque),           "1"},
+    {mjITEM_EDITFLOAT, "Alpha",           2, &(vis->map.alpha),            "1"},
+    {mjITEM_EDITFLOAT, "Fog start",       2, &(vis->map.fogstart),         "1"},
+    {mjITEM_EDITFLOAT, "Fog end",         2, &(vis->map.fogend),           "1"},
+    {mjITEM_EDITFLOAT, "Z near",          2, &(vis->map.znear),            "1"},
+    {mjITEM_EDITFLOAT, "Z far",           2, &(vis->map.zfar),             "1"},
+    {mjITEM_EDITFLOAT, "Haze",            2, &(vis->map.haze),             "1"},
+    {mjITEM_EDITFLOAT, "Shadow clip",     2, &(vis->map.shadowclip),       "1"},
+    {mjITEM_EDITFLOAT, "Shadow scale",    2, &(vis->map.shadowscale),      "1"},
+    {mjITEM_SEPARATOR, "Scale",  1},
+    {mjITEM_EDITNUM,   "All [meansize]",  2, &(stat->meansize),            "1"},
+    {mjITEM_EDITFLOAT, "Force width",     2, &(vis->scale.forcewidth),     "1"},
+    {mjITEM_EDITFLOAT, "Contact width",   2, &(vis->scale.contactwidth),   "1"},
+    {mjITEM_EDITFLOAT, "Contact height",  2, &(vis->scale.contactheight),  "1"},
+    {mjITEM_EDITFLOAT, "Connect",         2, &(vis->scale.connect),        "1"},
+    {mjITEM_EDITFLOAT, "Com",             2, &(vis->scale.com),            "1"},
+    {mjITEM_EDITFLOAT, "Camera",          2, &(vis->scale.camera),         "1"},
+    {mjITEM_EDITFLOAT, "Light",           2, &(vis->scale.light),          "1"},
+    {mjITEM_EDITFLOAT, "Select point",    2, &(vis->scale.selectpoint),    "1"},
+    {mjITEM_EDITFLOAT, "Joint length",    2, &(vis->scale.jointlength),    "1"},
+    {mjITEM_EDITFLOAT, "Joint width",     2, &(vis->scale.jointwidth),     "1"},
+    {mjITEM_EDITFLOAT, "Actuator length", 2, &(vis->scale.actuatorlength), "1"},
+    {mjITEM_EDITFLOAT, "Actuator width",  2, &(vis->scale.actuatorwidth),  "1"},
+    {mjITEM_EDITFLOAT, "Frame length",    2, &(vis->scale.framelength),    "1"},
+    {mjITEM_EDITFLOAT, "Frame width",     2, &(vis->scale.framewidth),     "1"},
+    {mjITEM_EDITFLOAT, "Constraint",      2, &(vis->scale.constraint),     "1"},
+    {mjITEM_EDITFLOAT, "Slider-crank",    2, &(vis->scale.slidercrank),    "1"},
+    {mjITEM_END}
+  };
+
+  // add rendering standard
+  mjui_add(&sim->ui0, defVisualization);
+}
 
 // make group section of UI
 void MakeGroupSection(mj::Simulate* sim, int oldstate) {
@@ -950,6 +1010,7 @@ void MakeUiSections(mj::Simulate* sim, const mjModel* m, const mjData* d) {
   // make
   MakePhysicsSection(sim, oldstate0[SECT_PHYSICS]);
   MakeRenderingSection(sim, m, oldstate0[SECT_RENDERING]);
+  MakeVisualizationSection(sim, m, oldstate0[SECT_VISUALIZATION]);
   MakeGroupSection(sim, oldstate0[SECT_GROUP]);
   MakeJointSection(sim, oldstate1[SECT_JOINT]);
   MakeControlSection(sim, oldstate1[SECT_CONTROL]);
@@ -1279,6 +1340,13 @@ void UiEvent(mjuiState* state) {
       // copy camera spec to clipboard (as MJCF element)
       if (it->itemid == 3) {
         CopyCamera(sim);
+      }
+    }
+
+    // visualization section
+    else if (it && it->sectionid==SECT_VISUALIZATION) {
+      if (!mju::strcmp_arr(it->name, "Align")) {
+        sim->pending_.align = true;
       }
     }
 

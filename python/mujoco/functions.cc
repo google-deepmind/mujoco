@@ -42,10 +42,6 @@ PYBIND11_MODULE(_functions, pymodule) {
   // for MjWrapper types and therefore generates prettier docstrings.
   py::module::import("mujoco._structs");
 
-  // Activation
-  Def<traits::mj_activate>(pymodule);
-  Def<traits::mj_deactivate>(pymodule);
-
   // Virtual file system
   // Skipped entire section
 
@@ -273,6 +269,25 @@ PYBIND11_MODULE(_functions, pymodule) {
       });
 
   // Support
+  Def<traits::mj_stateSize>(pymodule);
+  Def<traits::mj_getState>(
+      pymodule,
+      [](const raw::MjModel* m, const raw::MjData* d,
+         Eigen::Ref<EigenVectorX> state, unsigned int spec) {
+        if (state.size() != mj_stateSize(m, spec)) {
+          throw py::type_error("state size should equal mj_stateSize(m, spec)");
+        }
+        return InterceptMjErrors(::mj_getState)(m, d, state.data(), spec);
+      });
+  Def<traits::mj_setState>(
+      pymodule,
+      [](const raw::MjModel* m, raw::MjData* d,
+         const Eigen::Ref<EigenVectorX> state, unsigned int spec) {
+        if (state.size() != mj_stateSize(m, spec)) {
+          throw py::type_error("state size should equal mj_stateSize(m, spec)");
+        }
+        return InterceptMjErrors(::mj_setState)(m, d, state.data(), spec);
+      });
   Def<traits::mj_addContact>(pymodule);
   Def<traits::mj_isPyramidal>(pymodule);
   Def<traits::mj_isSparse>(pymodule);
@@ -546,6 +561,7 @@ PYBIND11_MODULE(_functions, pymodule) {
   Def<traits::mj_versionString>(pymodule);
 
   // Ray collision
+  Def<traits::mj_multiRay>(pymodule);
   Def<traits::mj_ray>(
       pymodule,
       [](const raw::MjModel* m, const raw::MjData* d, const mjtNum(*pnt)[3],
@@ -990,6 +1006,99 @@ PYBIND11_MODULE(_functions, pymodule) {
         return InterceptMjErrors(::mju_cholUpdate)(
             mat.data(), x.data(), mat.rows(), flg_plus);
       });
+  Def<traits::mju_cholFactorBand>(
+      pymodule, [](Eigen::Ref<EigenVectorX> mat, int ntotal, int nband,
+                   int ndense, mjtNum diagadd, mjtNum diagmul) {
+        int nMat = (ntotal - ndense) * nband + ndense * ntotal;
+        if (mat.size() != nMat) {
+          throw py::type_error(
+              "mat must have size (ntotal-ndense)*nband + ndense*ntotal");
+        }
+        return InterceptMjErrors(::mju_cholFactorBand)(
+            mat.data(), ntotal, nband, ndense, diagadd, diagmul);
+      });
+  Def<traits::mju_cholSolveBand>(
+      pymodule,
+      [](Eigen::Ref<EigenVectorX> res, Eigen::Ref<const EigenVectorX> mat,
+         Eigen::Ref<const EigenVectorX> vec, int ntotal, int nband,
+         int ndense) {
+        int nMat = (ntotal - ndense) * nband + ndense * ntotal;
+        if (mat.size() != nMat) {
+          throw py::type_error(
+              "mat must have (ntotal-ndense)*nband + "
+              "ndense*ntotal elements");
+        }
+        if (res.size() != ntotal) {
+          throw py::type_error("size of res should equal ntotal");
+        }
+        if (vec.size() != ntotal) {
+          throw py::type_error("size of vec should equal ntotal");
+        }
+        return InterceptMjErrors(::mju_cholSolveBand)(
+            res.data(), mat.data(), vec.data(), ntotal, nband, ndense);
+      });
+  Def<traits::mju_band2Dense>(
+      pymodule,
+      [](Eigen::Ref<EigenArrayXX> res, Eigen::Ref<const EigenVectorX> mat,
+         int ntotal, int nband, int ndense, mjtByte flg_sym) {
+        int nMat = (ntotal - ndense) * nband + ndense * ntotal;
+        if (mat.size() != nMat) {
+          throw py::type_error(
+              "mat must have size (ntotal-ndense)*nband + ndense*ntotal");
+        }
+        if (res.rows() != ntotal) {
+          throw py::type_error("res should have ntotal rows");
+        }
+        if (res.cols() != ntotal) {
+          throw py::type_error("res should have ntotal columns");
+        }
+        return InterceptMjErrors(::mju_band2Dense)(
+            res.data(), mat.data(), ntotal, nband, ndense, flg_sym);
+      });
+  Def<traits::mju_dense2Band>(pymodule, [](Eigen::Ref<EigenVectorX> res,
+                                           Eigen::Ref<const EigenArrayXX> mat,
+                                           int ntotal, int nband, int ndense) {
+    int nRes = (ntotal - ndense) * nband + ndense * ntotal;
+    if (res.size() != nRes) {
+      throw py::type_error(
+          "res must have size (ntotal-ndense)*nband + ndense*ntotal");
+    }
+    if (mat.rows() != ntotal) {
+      throw py::type_error("mat should have ntotal rows");
+    }
+    if (mat.cols() != ntotal) {
+      throw py::type_error("mat should have ntotal columns");
+    }
+    return InterceptMjErrors(::mju_dense2Band)(res.data(), mat.data(), ntotal,
+                                               nband, ndense);
+  });
+  Def<traits::mju_bandMulMatVec>(
+      pymodule,
+      [](Eigen::Ref<EigenVectorX> res, Eigen::Ref<const EigenArrayXX> mat,
+         Eigen::Ref<const EigenArrayXX> vec, int ntotal, int nband, int ndense,
+         int nVec, mjtByte flg_sym) {
+        int nMat = (ntotal - ndense) * nband + ndense * ntotal;
+        if (mat.size() != nMat) {
+          throw py::type_error(
+              "mat must have size (ntotal-ndense)*nband + ndense*ntotal");
+        }
+        if (res.rows() != ntotal) {
+          throw py::type_error("res should have ntotal rows");
+        }
+        if (res.cols() != nVec) {
+          throw py::type_error("res should have nVec columns");
+        }
+        if (vec.rows() != ntotal) {
+          throw py::type_error("vec should have ntotal rows");
+        }
+        if (vec.cols() != nVec) {
+          throw py::type_error("vec should have nVec columns");
+        }
+        return InterceptMjErrors(::mju_bandMulMatVec)(res.data(), mat.data(),
+                                                      vec.data(), ntotal, nband,
+                                                      ndense, nVec, flg_sym);
+      });
+  Def<traits::mju_bandDiag>(pymodule);
   Def<traits::mju_eig3>(pymodule);
   DEF_WITH_OMITTED_PY_ARGS(traits::mju_boxQP, "n")(
       pymodule,
@@ -1131,7 +1240,8 @@ PYBIND11_MODULE(_functions, pymodule) {
       });
   Def<traits::mjd_transitionFD>(
       pymodule,
-      [](const raw::MjModel* m, raw::MjData* d, mjtNum eps, mjtByte centered,
+      [](const raw::MjModel* m, raw::MjData* d,
+         mjtNum eps, mjtByte flg_centered,
          std::optional<Eigen::Ref<EigenArrayXX>> A,
          std::optional<Eigen::Ref<EigenArrayXX>> B,
          std::optional<Eigen::Ref<EigenArrayXX>> C,
@@ -1153,11 +1263,60 @@ PYBIND11_MODULE(_functions, pymodule) {
           throw py::type_error("D should be of shape (nsensordata, nu)");
         }
         return InterceptMjErrors(::mjd_transitionFD)(
-            m, d, eps, centered,
+            m, d, eps, flg_centered,
             A.has_value() ? A->data() : nullptr,
             B.has_value() ? B->data() : nullptr,
             C.has_value() ? C->data() : nullptr,
             D.has_value() ? D->data() : nullptr);
+      });
+  Def<traits::mjd_inverseFD>(
+      pymodule,
+      [](const raw::MjModel* m, raw::MjData* d,
+         mjtNum eps, mjtByte flg_actuation,
+         std::optional<Eigen::Ref<EigenArrayXX>> DfDq,
+         std::optional<Eigen::Ref<EigenArrayXX>> DfDv,
+         std::optional<Eigen::Ref<EigenArrayXX>> DfDa,
+         std::optional<Eigen::Ref<EigenArrayXX>> DsDq,
+         std::optional<Eigen::Ref<EigenArrayXX>> DsDv,
+         std::optional<Eigen::Ref<EigenArrayXX>> DsDa,
+         std::optional<Eigen::Ref<EigenArrayXX>> DmDq) {
+        if (DfDq.has_value() &&
+            (DfDq->rows() != m->nv || DfDq->cols() != m->nv)) {
+          throw py::type_error("DfDq should be of shape (nv, nv)");
+        }
+        if (DfDv.has_value() &&
+            (DfDv->rows() != m->nv || DfDv->cols() != m->nv)) {
+          throw py::type_error("DfDv should be of shape (nv, nv)");
+        }
+        if (DfDa.has_value() &&
+            (DfDa->rows() != m->nv || DfDa->cols() != m->nv)) {
+          throw py::type_error("DfDa should be of shape (nv, nv)");
+        }
+        if (DsDq.has_value() &&
+            (DsDq->rows() != m->nv || DsDq->cols() != m->nsensordata)) {
+          throw py::type_error("DsDq should be of shape (nv, nsensordata)");
+        }
+        if (DsDv.has_value() &&
+            (DsDv->rows() != m->nv || DsDv->cols() != m->nsensordata)) {
+          throw py::type_error("DsDv should be of shape (nv, nsensordata)");
+        }
+        if (DsDa.has_value() &&
+            (DsDa->rows() != m->nv || DsDa->cols() != m->nsensordata)) {
+          throw py::type_error("DsDa should be of shape (nv, nsensordata)");
+        }
+        if (DmDq.has_value() &&
+            (DmDq->rows() != m->nv || DmDq->cols() != m->nM)) {
+          throw py::type_error("DmDq should be of shape (nv, nM)");
+        }
+        return InterceptMjErrors(::mjd_inverseFD)(
+            m, d, eps, flg_actuation,
+            DfDq.has_value() ? DfDq->data() : nullptr,
+            DfDv.has_value() ? DfDv->data() : nullptr,
+            DfDa.has_value() ? DfDa->data() : nullptr,
+            DsDq.has_value() ? DsDq->data() : nullptr,
+            DsDv.has_value() ? DsDv->data() : nullptr,
+            DsDa.has_value() ? DsDa->data() : nullptr,
+            DmDq.has_value() ? DmDq->data() : nullptr);
       });
   Def<traits::mju_Halton>(pymodule);
   // Skipped: mju_strncpy (doesn't make sense in Python)

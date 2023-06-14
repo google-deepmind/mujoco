@@ -23,11 +23,6 @@ extern "C" {
 #endif
 
 
-// activate license, call mju_error on failure; return 1 if ok, 0 if failure
-MJAPI int mj_activate(const char* filename);
-
-// deactivate license, free memory
-MJAPI void mj_deactivate(void);
 
 // parse XML file in MJCF or URDF format, compile it, return low-level model
 //  if vfs is not NULL, look up files in vfs before reading from disk
