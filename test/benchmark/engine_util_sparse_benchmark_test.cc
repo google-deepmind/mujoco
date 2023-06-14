@@ -357,7 +357,7 @@ static void BM_MatVecSparse(benchmark::State& state, int unroll) {
   mjMARKSTACK;
   mjtNum *Ma = mj_stackAlloc(d, m->nv);
   mjtNum *vec = mj_stackAlloc(d, m->nv);
-  mjtNum *res = mj_stackAlloc(d, m->nv);
+  mjtNum *res = mj_stackAlloc(d, d->nefc);
   mjtNum *grad = mj_stackAlloc(d, m->nv);
   mjtNum *Mgrad  = mj_stackAlloc(d, m->nv);
 
