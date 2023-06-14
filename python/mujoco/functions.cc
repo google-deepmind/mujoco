@@ -515,7 +515,7 @@ PYBIND11_MODULE(_functions, pymodule) {
          mjtNum dt, Eigen::Ref<const EigenVectorX> qpos1,
          Eigen::Ref<const EigenVectorX> qpos2) {
         if (qvel.size() != m->nv) {
-          throw py::type_error("qvel should be of size nq");
+          throw py::type_error("qvel should be of size nv");
         }
         if (qpos1.size() != m->nq) {
           throw py::type_error("qpos1 should be of size nq");
@@ -534,7 +534,7 @@ PYBIND11_MODULE(_functions, pymodule) {
           throw py::type_error("qpos should be of size nq");
         }
         if (qvel.size() != m->nv) {
-          throw py::type_error("qvel should be of size nq");
+          throw py::type_error("qvel should be of size nv");
         }
         return InterceptMjErrors(::mj_integratePos)(
             m, qpos.data(), qvel.data(), dt);
