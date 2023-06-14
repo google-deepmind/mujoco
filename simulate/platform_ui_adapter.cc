@@ -27,6 +27,7 @@ PlatformUIAdapter::~PlatformUIAdapter() {
 
 bool PlatformUIAdapter::RefreshMjrContext(const mjModel* m, int fontscale) {
   if (m != last_model_ || fontscale != last_fontscale_) {
+    // con_.depthMapping =   mjDB_ONETOZERO;
     mjr_makeContext(m, &con_, fontscale);
     last_model_ = m;
     last_fontscale_ = fontscale;
