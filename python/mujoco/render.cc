@@ -34,6 +34,10 @@ class MjWrapper<raw::MjrContext> : public WrapperBase<raw::MjrContext> {
  public:
   MjWrapper();
   MjWrapper(const MjModelWrapper& model, int fontscale);
+  MjWrapper(const MjModelWrapper& model,
+            int fontscale,
+            mjtDepthMapping depthmapping,
+            mjtDepthPrecision depthprecision);
   MjWrapper(const MjWrapper&) = delete;
   MjWrapper(MjWrapper&&) = default;
   ~MjWrapper() = default;
@@ -122,6 +126,35 @@ MjrContextWrapper::MjWrapper(const MjModelWrapper& model, int fontscale)
       X_SKIN(skinfaceVBO),
       X(charWidth),
       X(charWidthBig) {}
+
+MjrContextWrapper::MjWrapper(const MjModelWrapper& model,
+                             int fontscale,
+                             mjtDepthMapping depthmapping,
+                             mjtDepthPrecision depthprecision)
+    : WrapperBase([fontscale, depthmapping, depthprecision](const raw::MjModel* m) {
+        raw::MjrContext *const ctx = new raw::MjrContext;
+        mjr_defaultContext(ctx);
+        ctx->depthMapping   = depthmapping;
+        ctx->depthPrecision = depthprecision;
+        InterceptMjErrors(mjr_makeContext)(m, ctx, fontscale);
+        return ctx;
+      }(model.get()), &MjrContextCapsuleDestructor),
+      X(fogRGBA),
+      X(auxWidth),
+      X(auxHeight),
+      X(auxSamples),
+      X(auxFBO),
+      X(auxFBO_r),
+      X(auxColor),
+      X(auxColor_r),
+      X(textureType),
+      X(texture),
+      X_SKIN(skinvertVBO),
+      X_SKIN(skinnormalVBO),
+      X_SKIN(skintexcoordVBO),
+      X_SKIN(skinfaceVBO),
+      X(charWidth),
+      X(charWidthBig) {}
 #undef X_SKIN
 #undef X
 
@@ -166,6 +199,7 @@ PYBIND11_MODULE(_render, pymodule) {
   py::class_<MjrContextWrapper> mjrContext(pymodule, "MjrContext");
   mjrContext.def(py::init<>());
   mjrContext.def(py::init<const MjModelWrapper&, int>());
+  mjrContext.def(py::init<const MjModelWrapper&, int, mjtDepthMapping, mjtDepthPrecision>());
   mjrContext.def(
       "free", [](MjrContextWrapper& self) { self.Free(); },
       py::doc("Frees resources in current active OpenGL context, sets struct "
