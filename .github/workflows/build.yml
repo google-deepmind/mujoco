@@ -1,5 +1,5 @@
 # This configuration is used to build and test on GitHub Actions only.
-# It is not the same configuration that is used by DeepMind to create release binaries.
+# It is not the same configuration that is used by Google DeepMind to create release binaries.
 # The "official" binaries are built with Clang 13 on all platforms, and are linked against libc++
 # on Linux.
 #

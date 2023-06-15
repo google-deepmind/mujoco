@@ -5,7 +5,7 @@
   "description": "MuJoCo importer and runtime plug-in",
   "dependencies": {},
   "author": {
-    "name" : "DeepMind",
+    "name" : "Google DeepMind",
     "email" : "mujoco@deepmind.com",
     "url" : "https://mujoco.org/"
   },

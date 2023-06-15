@@ -16,7 +16,7 @@ FILETYPE 0x1
       VALUE "FileVersion", "2.3.6"
       VALUE "InternalName", "simulate.exe"
       VALUE "OriginalFilename", "simulate.exe"
-      VALUE "CompanyName", "DeepMind"
+      VALUE "CompanyName", "Google DeepMind"
       VALUE "LegalCopyright", "Copyright 2021 DeepMind Technologies Limited."
     }
   }

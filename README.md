@@ -20,7 +20,7 @@ in robotics, biomechanics, graphics and animation, machine learning, and other
 areas which demand fast and accurate simulation of articulated structures
 interacting with their environment.
 
-This repository is maintained by [DeepMind](https://www.deepmind.com/).
+This repository is maintained by [Google DeepMind](https://www.deepmind.com/).
 
 MuJoCo has a C API and is intended for researchers and developers. The runtime
 simulation module is tuned to maximize performance and operates on low-level
@@ -138,8 +138,9 @@ These packages give users of various languages access to MuJoCo functionality:
 #### First-party bindings:
 
 - [Python bindings](https://mujoco.readthedocs.io/en/stable/python.html)
-  - [dm_control](https://github.com/deepmind/dm_control), DeepMind's related
-  environment stack, includes [PyMJCF](https://github.com/deepmind/dm_control/blob/main/dm_control/mjcf/README.md),
+  - [dm_control](https://github.com/deepmind/dm_control), Google DeepMind's
+  related environment stack, includes
+  [PyMJCF](https://github.com/deepmind/dm_control/blob/main/dm_control/mjcf/README.md),
   a module for procedural manipulation of MuJoCo models.
 - [C# bindings and Unity plug-in](https://mujoco.readthedocs.io/en/stable/unity.html)
 
