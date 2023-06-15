@@ -52,7 +52,7 @@ running on Google Colab:
 
  - The first tutorial focuses on the basics of MuJoCo: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/deepmind/mujoco/blob/main/python/tutorial.ipynb)
  - For a more advanced example, see the LQR tutorial which creates an LQR
-   controlled to balance a humanoid on one leg using MuJoCo's dynamics
+   controller to balance a humanoid on one leg using MuJoCo's dynamics
    derivatives: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/deepmind/mujoco/blob/main/python/LQR.ipynb)
 
 ## Installation
