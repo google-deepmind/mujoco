@@ -6,6 +6,8 @@ COMMON=-O2 -I../include -L../lib -pthread -Wl,-no-as-needed -Wl,-rpath,'$$ORIGIN
 
 all:
 	$(CXX) $(COMMON) -std=c++17 -c simulate.cc
-	$(CC)  $(COMMON) -std=c11   -c uitools.c
-	$(CXX) $(COMMON) -std=c++17 main.cc simulate.o uitools.o -lmujoco -lglfw -o ../bin/simulate
-	rm uitools.o simulate.o
+	$(CC)  $(COMMON) -std=c++17 -c platform_ui_adapter.cc
+	$(CC)  $(COMMON) -std=c++17 -c glfw_adapter.cc
+	$(CC)  $(COMMON) -std=c++17 -c glfw_dispatch.cc
+	$(CXX) $(COMMON) -std=c++17 main.cc simulate.o platform_ui_adapter.o glfw_adapter.o glfw_dispatch.o -lmujoco -lglfw -o ../bin/simulate2
+	rm platform_ui_adapter.o simulate.o glfw_adapter.o glfw_dispatch.o
