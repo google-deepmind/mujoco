@@ -42,10 +42,6 @@ PYBIND11_MODULE(_functions, pymodule) {
   // for MjWrapper types and therefore generates prettier docstrings.
   py::module::import("mujoco._structs");
 
-  // Activation
-  Def<traits::mj_activate>(pymodule);
-  Def<traits::mj_deactivate>(pymodule);
-
   // Virtual file system
   // Skipped entire section
 
@@ -273,6 +269,25 @@ PYBIND11_MODULE(_functions, pymodule) {
       });
 
   // Support
+  Def<traits::mj_stateSize>(pymodule);
+  Def<traits::mj_getState>(
+      pymodule,
+      [](const raw::MjModel* m, const raw::MjData* d,
+         Eigen::Ref<EigenVectorX> state, unsigned int spec) {
+        if (state.size() != mj_stateSize(m, spec)) {
+          throw py::type_error("state size should equal mj_stateSize(m, spec)");
+        }
+        return InterceptMjErrors(::mj_getState)(m, d, state.data(), spec);
+      });
+  Def<traits::mj_setState>(
+      pymodule,
+      [](const raw::MjModel* m, raw::MjData* d,
+         const Eigen::Ref<EigenVectorX> state, unsigned int spec) {
+        if (state.size() != mj_stateSize(m, spec)) {
+          throw py::type_error("state size should equal mj_stateSize(m, spec)");
+        }
+        return InterceptMjErrors(::mj_setState)(m, d, state.data(), spec);
+      });
   Def<traits::mj_addContact>(pymodule);
   Def<traits::mj_isPyramidal>(pymodule);
   Def<traits::mj_isSparse>(pymodule);
@@ -500,7 +515,7 @@ PYBIND11_MODULE(_functions, pymodule) {
          mjtNum dt, Eigen::Ref<const EigenVectorX> qpos1,
          Eigen::Ref<const EigenVectorX> qpos2) {
         if (qvel.size() != m->nv) {
-          throw py::type_error("qvel should be of size nq");
+          throw py::type_error("qvel should be of size nv");
         }
         if (qpos1.size() != m->nq) {
           throw py::type_error("qpos1 should be of size nq");
@@ -519,7 +534,7 @@ PYBIND11_MODULE(_functions, pymodule) {
           throw py::type_error("qpos should be of size nq");
         }
         if (qvel.size() != m->nv) {
-          throw py::type_error("qvel should be of size nq");
+          throw py::type_error("qvel should be of size nv");
         }
         return InterceptMjErrors(::mj_integratePos)(
             m, qpos.data(), qvel.data(), dt);

@@ -847,6 +847,7 @@ endbroad:
 void mj_collideGeoms(const mjModel* m, mjData* d, int g1, int g2, int flg_user, mjtNum usermargin) {
   int num, type1, type2, condim;
   mjtNum margin, gap, mix, friction[5], solref[mjNREF], solimp[mjNIMP];
+  mjtNum solreffriction[mjNREF] = {0};
   mjContact con[mjMAXCONPAIR];
   int ipair = (g2 < 0 ? g1 : -1);
 
@@ -1045,8 +1046,13 @@ void mj_collideGeoms(const mjModel* m, mjData* d, int g1, int g2, int flg_user, 
       friction[i] = m->pair_friction[5*ipair+i];
     }
 
-    // reference
+    // reference, normal direction
     mju_copy(solref, m->pair_solref+mjNREF*ipair, mjNREF);
+
+    // reference, friction directions
+    if (m->pair_solreffriction[mjNREF*ipair] || m->pair_solreffriction[mjNREF*ipair + 1]) {
+      mju_copy(solreffriction, m->pair_solreffriction+mjNREF*ipair, mjNREF);
+    }
 
     // impedance
     mju_copy(solimp, m->pair_solimp+mjNIMP*ipair, mjNIMP);
@@ -1069,6 +1075,7 @@ void mj_collideGeoms(const mjModel* m, mjData* d, int g1, int g2, int flg_user, 
     con[i].includemargin = margin-gap;
     mju_copy(con[i].friction, friction, 5);
     mj_assignRef(m, con[i].solref, solref);
+    mj_assignRef(m, con[i].solreffriction, solreffriction);
     mj_assignImp(m, con[i].solimp, solimp);
 
     // exclude in gap

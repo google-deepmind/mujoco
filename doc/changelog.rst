@@ -63,6 +63,15 @@ Simulate
 General
 ^^^^^^^
 
+- Added :ref:`mj_getState` and :ref:`mj_setState` for getting and setting the simulation state as a concatenated vector
+  of floating point numbers. See the :ref:`State<geState>`  section for details.
+- Added :ref:`mjContact.solreffriction<mjContact>`, allowing different :ref:`solref<CSolver>` parameters for the normal
+  and frictional axes of contacts when using :ref:`elliptic friction cones<option-cone>`.  This attribute is required
+  for elastic frictional collisions, see associated
+  `example model <https://github.com/deepmind/mujoco/blob/main/test/engine/testdata/spin_recoil.xml>`__ mimicking the
+  spin-bounce recoil behaviour of `elastic rubber balls <https://www.youtube.com/watch?v=uFLJcRegIVQ&t=3s>`__.
+  This is an advanced option currently only supported by explicit :ref:`contact pairs<contact-pair>`, using the
+  :ref:`solreffriction<contact-pair-solreffriction>` attribute.
 - Added :ref:`mjd_inverseFD` for finite-differenced inverse-dynamics derivatives.
 - Added functions for operations on banded-then-dense "arrowhead" matrices. Such matrices are common when doing direct
   trajectory optimization. See :ref:`mju_cholFactorBand` documentation for details.
@@ -95,6 +104,8 @@ General
   from the ``mjData`` stack and arena.
 - Removed ``pstack`` and ``parena`` from the output of ``mj_printData``, since these are implementation details of the
   ``mjData`` allocators that are affected by diagnostic paddings in instrumented builds.
+- Removed the ``mj_activate`` and ``mj_deactivate`` functions. These had been kept around for compatibility with old
+  user code from when MuJoCo was closed source, but have been no-op functions since open sourcing.
 
 
 Version 2.3.5 (April 25, 2023)

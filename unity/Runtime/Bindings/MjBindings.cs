@@ -524,6 +524,7 @@ public unsafe struct mjContact_ {
   public double includemargin;
   public fixed double friction[5];
   public fixed double solref[2];
+  public fixed double solreffriction[2];
   public fixed double solimp[5];
   public double mu;
   public fixed double H[36];
@@ -2130,6 +2131,7 @@ public unsafe struct mjModel_ {
   public int* pair_geom2;
   public int* pair_signature;
   public double* pair_solref;
+  public double* pair_solreffriction;
   public double* pair_solimp;
   public double* pair_margin;
   public double* pair_gap;
@@ -3190,6 +3192,15 @@ public static unsafe extern void mj_referenceConstraint(mjModel_* m, mjData_* d)
 public static unsafe extern void mj_constraintUpdate(mjModel_* m, mjData_* d, double* jar, double* cost, int flg_coneHessian);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern int mj_stateSize(mjModel_* m, uint spec);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern void mj_getState(mjModel_* m, mjData_* d, double* state, uint spec);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern void mj_setState(mjModel_* m, mjData_* d, double* state, uint spec);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern int mj_addContact(mjModel_* m, mjData_* d, mjContact_* con);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
@@ -3541,12 +3552,6 @@ public static unsafe extern void mj_warning(mjData_* d, int warning, int info);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern void mju_writeLog([MarshalAs(UnmanagedType.LPStr)]string type, [MarshalAs(UnmanagedType.LPStr)]string msg);
-
-[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
-public static unsafe extern int mj_activate([MarshalAs(UnmanagedType.LPStr)]string filename);
-
-[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
-public static unsafe extern void mj_deactivate();
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern void mju_zero3(double* res);

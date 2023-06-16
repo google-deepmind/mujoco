@@ -153,7 +153,8 @@ static const char* MJCF[nMJCF][mjXATTRNUM] = {
             "axisangle", "xyaxes", "zaxis", "euler", "mode", "user"},
         {"light", "?", "12", "pos", "dir", "directional", "castshadow", "active",
             "attenuation", "cutoff", "exponent", "ambient", "diffuse", "specular", "mode"},
-        {"pair", "?", "6", "condim", "friction", "solref", "solimp", "gap", "margin"},
+        {"pair", "?", "7", "condim", "friction", "solref", "solreffriction", "solimp",
+         "gap", "margin"},
         {"equality", "?", "3", "active", "solref", "solimp"},
         {"tendon", "?", "16", "group", "limited", "range",
             "solreflimit", "solimplimit", "solreffriction", "solimpfriction",
@@ -283,8 +284,8 @@ static const char* MJCF[nMJCF][mjXATTRNUM] = {
 
     {"contact", "*", "0"},
     {"<"},
-        {"pair", "*", "10", "name", "class", "geom1", "geom2", "condim", "friction",
-            "solref", "solimp", "gap", "margin"},
+        {"pair", "*", "11", "name", "class", "geom1", "geom2", "condim", "friction",
+            "solref", "solreffriction", "solimp", "gap", "margin"},
         {"exclude", "*", "3", "name", "body1", "body2"},
     {">"},
 
@@ -1495,6 +1496,7 @@ void mjXReader::OnePair(XMLElement* elem, mjCPair* ppair) {
   ReadAttrTxt(elem, "name", ppair->name);
   ReadAttrInt(elem, "condim", &ppair->condim);
   ReadAttr(elem, "solref", mjNREF, ppair->solref, text, false, false);
+  ReadAttr(elem, "solreffriction", mjNREF, ppair->solreffriction, text, false, false);
   ReadAttr(elem, "solimp", mjNIMP, ppair->solimp, text, false, false);
   ReadAttr(elem, "margin", 1, &ppair->margin, text);
   ReadAttr(elem, "gap", 1, &ppair->gap, text);

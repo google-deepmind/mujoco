@@ -1,6 +1,6 @@
-======
-Models
-======
+=============
+Model Gallery
+=============
 
 .. _Menagerie:
 
@@ -8,7 +8,7 @@ MuJoCo Menagerie
 ----------------
 
 Menagerie is a collection of high-quality simulation models for MuJoCo, curated
-by DeepMind.
+by Google DeepMind.
 
 For more information, visit the `Menagerie repository <https://github.com/deepmind/mujoco_menagerie>`__.
 

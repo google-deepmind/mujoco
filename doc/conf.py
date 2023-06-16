@@ -32,7 +32,7 @@ from sphinxcontrib import youtube  # pylint: disable=g-import-not-at-top,unused-
 
 project = 'MuJoCo'
 copyright = 'DeepMind Technologies Limited'  # pylint: disable=redefined-builtin
-author = 'DeepMind'
+author = 'Google DeepMind'
 
 # -- General configuration ---------------------------------------------------
 

@@ -9,8 +9,8 @@
 
 This package is the canonical Python bindings for the
 [MuJoCo physics engine](https://github.com/deepmind/mujoco).
-These bindings are developed and maintained by DeepMind, and is kept up-to-date
-with the latest developments in MuJoCo itself.
+These bindings are developed and maintained by Google DeepMind, and is kept
+up-to-date with the latest developments in MuJoCo itself.
 
 The `mujoco` package provides direct access to raw MuJoCo C API functions,
 structs, constants, and enumerations. Structs are provided as Python classes,

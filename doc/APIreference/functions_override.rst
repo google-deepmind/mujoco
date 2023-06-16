@@ -96,6 +96,21 @@ These are support functions that need access to :ref:`mjModel` and :ref:`mjData`
 not need such access. Support functions are called within the simulator but some of them can also be useful for custom
 computations, and are documented in more detail below.
 
+.. _mj_stateSize:
+
+Returns the number of :ref:`mjtNum` |-| s required for a given state specification. The bits of the integer ``spec``
+correspond to element fields of :ref:`mjtState`.
+
+.. _mj_getState:
+
+Copy concatenated state components specified by ``spec`` from ``d`` into ``state``. The bits of the integer
+``spec`` correspond to element fields of :ref:`mjtState`. Fails with :ref:`mju_error` if ``spec`` is invalid.
+
+.. _mj_setState:
+
+Copy concatenated state components specified by ``spec`` from  ``state`` into ``d``. The bits of the integer
+``spec`` correspond to element fields of :ref:`mjtState`. Fails with :ref:`mju_error` if ``spec`` is invalid.
+
 .. _mj_mulJacVec:
 
 This function multiplies the constraint Jacobian mjData.efc_J by a vector. Note that the Jacobian can be either dense or

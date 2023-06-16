@@ -36,6 +36,8 @@
   #endif
 #endif
 
+//-------------------------- Constants -------------------------------------------------------------
+
  #define mjVERSION 236
 #define mjVERSIONSTRING "2.3.6"
 
@@ -84,6 +86,119 @@ const char* mjTIMERSTRING[mjNTIMER]= {
   "pos_make",
   "pos_project"
 };
+
+
+
+//-------------------------- get/set state ---------------------------------------------------------
+
+// return size of a single state element
+static inline int mj_stateElemSize(const mjModel* m, mjtState spec) {
+  switch (spec) {
+    case mjSTATE_TIME:          return 1;
+    case mjSTATE_QPOS:          return m->nq;
+    case mjSTATE_QVEL:          return m->nv;
+    case mjSTATE_ACT:           return m->na;
+    case mjSTATE_WARMSTART:     return m->nv;
+    case mjSTATE_CTRL:          return m->nu;
+    case mjSTATE_QFRC_APPLIED:  return m->nv;
+    case mjSTATE_XFRC_APPLIED:  return 6*m->nbody;
+    case mjSTATE_MOCAP_POS:     return 3*m->nmocap;
+    case mjSTATE_MOCAP_QUAT:    return 4*m->nmocap;
+    case mjSTATE_USERDATA:      return m->nuserdata;
+    case mjSTATE_PLUGIN:        return m->npluginstate;
+    default:
+      mju_error("mju_stateElementSize: invalid state element %u", spec);
+      return 0;
+  }
+}
+
+
+
+// return pointer to a single state element
+static inline mjtNum* mj_stateElemPtr(const mjModel* m, mjData* d, mjtState spec) {
+  switch (spec) {
+    case mjSTATE_TIME:          return &d->time;
+    case mjSTATE_QPOS:          return d->qpos;
+    case mjSTATE_QVEL:          return d->qvel;
+    case mjSTATE_ACT:           return d->act;
+    case mjSTATE_WARMSTART:     return d->qacc_warmstart;
+    case mjSTATE_CTRL:          return d->ctrl;
+    case mjSTATE_QFRC_APPLIED:  return d->qfrc_applied;
+    case mjSTATE_XFRC_APPLIED:  return d->xfrc_applied;
+    case mjSTATE_MOCAP_POS:     return d->mocap_pos;
+    case mjSTATE_MOCAP_QUAT:    return d->mocap_quat;
+    case mjSTATE_USERDATA:      return d->userdata;
+    case mjSTATE_PLUGIN:        return d->plugin_state;
+    default:
+      mju_error("mju_stateElemPtr: invalid state element %u", spec);
+      return NULL;
+  }
+}
+
+
+
+static inline const mjtNum* mj_stateElemConstPtr(const mjModel* m, const mjData* d, mjtState spec) {
+  return mj_stateElemPtr(m, (mjData*) d, spec);  // discard const qualifier from d
+}
+
+
+
+// get size of state specification
+int mj_stateSize(const mjModel* m, unsigned int spec) {
+  if (spec >= (1<<mjNSTATE)) {
+    mju_error("mj_stateSize: invalid state spec %u >= 2^mjNSTATE", spec);
+  }
+
+  int size = 0;
+  for (int i=0; i < mjNSTATE; i++) {
+    mjtState element = 1<<i;
+    if (element & spec) {
+      size += mj_stateElemSize(m, element);
+    }
+  }
+
+  return size;
+}
+
+
+
+// get state
+void mj_getState(const mjModel* m, const mjData* d, mjtNum* state, unsigned int spec) {
+  if (spec >= (1<<mjNSTATE)) {
+    mju_error("mj_getState: invalid state spec %u >= 2^mjNSTATE", spec);
+  }
+
+  int adr = 0;
+  for (int i=0; i < mjNSTATE; i++) {
+    mjtState element = 1<<i;
+    if (element & spec) {
+      int size = mj_stateElemSize(m, element);
+      const mjtNum* ptr = mj_stateElemConstPtr(m, d, element);
+      mju_copy(state + adr, ptr, size);
+      adr += size;
+    }
+  }
+}
+
+
+
+// set state
+void mj_setState(const mjModel* m, mjData* d, const mjtNum* state, unsigned int spec) {
+  if (spec >= (1<<mjNSTATE)) {
+    mju_error("mj_setState: invalid state spec %u >= 2^mjNSTATE", spec);
+  }
+
+  int adr = 0;
+  for (int i=0; i < mjNSTATE; i++) {
+    mjtState element = 1<<i;
+    if (element & spec) {
+      int size = mj_stateElemSize(m, element);
+      mjtNum* ptr = mj_stateElemPtr(m, d, element);
+      mju_copy(ptr, state + adr, size);
+      adr += size;
+    }
+  }
+}
 
 
 
@@ -831,149 +946,165 @@ void mj_mulM2(const mjModel* m, const mjData* d, mjtNum* res, const mjtNum* vec)
 //  destination can be sparse uncompressed, or dense when all int* are NULL
 void mj_addM(const mjModel* m, mjData* d, mjtNum* dst,
              int* rownnz, int* rowadr, int* colind) {
-  int adr, adr1, nv = m->nv;
-
   // sparse
   if (rownnz && rowadr && colind) {
-    // special processing of simple dofs
-    int simplecnt = 0;
-    for (int i=0; i < nv; i++) {
-      if (m->dof_simplenum[i]) {
-        // count simple
-        simplecnt++;
+    mj_addMSparse(m, d, dst, rownnz, rowadr, colind);
+  }
 
-        // empty row: create entry
-        if (!rownnz[i]) {
-          colind[rowadr[i]] = i;
-          dst[rowadr[i]] = d->qM[m->dof_Madr[i]];
-          rownnz[i] = 1;
-        }
+  // dense
+  else {
+    mj_addMDense(m, d, dst);
+  }
+}
 
-        // non-empty row: assume dof is in dst (J'*D*J satisfies this)
-        else {
-          // find dof in row, add
-          adr = rowadr[i];
-          int end = adr + rownnz[i];
-          while (adr < end)
-            if (colind[adr] == i) {
-              dst[adr] += d->qM[m->dof_Madr[i]];
-              break;
-            } else {
-              adr++;
-            }
 
-          // not found: error
-          if (adr >= end) {
-            mju_error("mj_addM sparse: dst row expected to be empty");
+
+// add inertia matrix to sparse uncompressed destination matrix
+void mj_addMSparse(const mjModel* m, mjData* d, mjtNum* dst,
+                   int* rownnz, int* rowadr, int* colind) {
+  int adr, adr1, nv = m->nv;
+
+  // special processing of simple dofs
+  int simplecnt = 0;
+  for (int i=0; i < nv; i++) {
+    if (m->dof_simplenum[i]) {
+      // count simple
+      simplecnt++;
+
+      // empty row: create entry
+      if (!rownnz[i]) {
+        colind[rowadr[i]] = i;
+        dst[rowadr[i]] = d->qM[m->dof_Madr[i]];
+        rownnz[i] = 1;
+      }
+
+      // non-empty row: assume dof is in dst (J'*D*J satisfies this)
+      else {
+        // find dof in row, add
+        adr = rowadr[i];
+        int end = adr + rownnz[i];
+        while (adr < end)
+          if (colind[adr] == i) {
+            dst[adr] += d->qM[m->dof_Madr[i]];
+            break;
+          } else {
+            adr++;
           }
+
+        // not found: error
+        if (adr >= end) {
+          mju_error("mj_addM sparse: dst row expected to be empty");
         }
       }
     }
+  }
 
-    // done if all simple
-    if (simplecnt == nv) {
-      return;
-    }
+  // done if all simple
+  if (simplecnt == nv) {
+    return;
+  }
 
-    // allocate space for sparse M
-    mjMARKSTACK;
-    mjtNum* M = mj_stackAlloc(d, nv*nv);
-    int* M_rownnz = (int*) mj_stackAlloc(d, nv);
-    int* M_rowadr = (int*) mj_stackAlloc(d, nv);
-    int* M_colind = (int*) mj_stackAlloc(d, nv*nv);
-    int* buf_ind = (int*) mj_stackAlloc(d, nv);
-    mjtNum* sparse_buf = mj_stackAlloc(d, nv);
+  // allocate space for sparse M
+  mjMARKSTACK;
+  mjtNum* M = mj_stackAlloc(d, nv*nv);
+  int* M_rownnz = (int*) mj_stackAlloc(d, nv);
+  int* M_rowadr = (int*) mj_stackAlloc(d, nv);
+  int* M_colind = (int*) mj_stackAlloc(d, nv*nv);
+  int* buf_ind = (int*) mj_stackAlloc(d, nv);
+  mjtNum* sparse_buf = mj_stackAlloc(d, nv);
 
-    // convert M into sparse format, lower-triangular
-    for (int i=0; i < nv; i++) {
-      if (!m->dof_simplenum[i]) {
-        // backward pass over dofs: construct M_row(i) in reverse order
-        adr = m->dof_Madr[i];
-        int j = i;
-        adr1 = 0;
-        while (j >= 0) {
-          // assign
-          M[i*nv+adr1] = d->qM[adr];
-          M_colind[i*nv+adr1] = j;
+  // convert M into sparse format, lower-triangular
+  for (int i=0; i < nv; i++) {
+    if (!m->dof_simplenum[i]) {
+      // backward pass over dofs: construct M_row(i) in reverse order
+      adr = m->dof_Madr[i];
+      int j = i;
+      adr1 = 0;
+      while (j >= 0) {
+        // assign
+        M[i*nv+adr1] = d->qM[adr];
+        M_colind[i*nv+adr1] = j;
 
-          // count columns
-          adr1++;
+        // count columns
+        adr1++;
 
-          // advance
-          adr++;
-          j = m->dof_parentid[j];
-        }
+        // advance
+        adr++;
+        j = m->dof_parentid[j];
+      }
 
-        // assign row descriptors
-        M_rownnz[i] = adr1;
-        M_rowadr[i] = i*nv;
+      // assign row descriptors
+      M_rownnz[i] = adr1;
+      M_rowadr[i] = i*nv;
 
-        // reverse order
-        for (int k=0; k < adr1/2; k++) {
-          mjtNum tmp = M[i*nv+k];
-          M[i*nv+k] = M[i*nv+adr1-1-k];
-          M[i*nv+adr1-1-k] = tmp;
+      // reverse order
+      for (int k=0; k < adr1/2; k++) {
+        mjtNum tmp = M[i*nv+k];
+        M[i*nv+k] = M[i*nv+adr1-1-k];
+        M[i*nv+adr1-1-k] = tmp;
 
-          int tmpi = M_colind[i*nv+k];
-          M_colind[i*nv+k] = M_colind[i*nv+adr1-1-k];
-          M_colind[i*nv+adr1-1-k] = tmpi;
-        }
+        int tmpi = M_colind[i*nv+k];
+        M_colind[i*nv+k] = M_colind[i*nv+adr1-1-k];
+        M_colind[i*nv+adr1-1-k] = tmpi;
       }
     }
+  }
 
-    // make symmetric
-    for (int i=1; i < nv; i++) {
-      if (!m->dof_simplenum[i]) {
-        for (int k=nv*i; k < nv*i+M_rownnz[i]-1; k++) {
-          // add to row given by column index
-          adr1 = nv*M_colind[k] + M_rownnz[M_colind[k]]++;
-          M[adr1] = M[k];
-          M_colind[adr1] = i;
-        }
+  // make symmetric
+  for (int i=1; i < nv; i++) {
+    if (!m->dof_simplenum[i]) {
+      for (int k=nv*i; k < nv*i+M_rownnz[i]-1; k++) {
+        // add to row given by column index
+        adr1 = nv*M_colind[k] + M_rownnz[M_colind[k]]++;
+        M[adr1] = M[k];
+        M_colind[adr1] = i;
       }
     }
+  }
 
-    // add to destination
-    for (int i=0; i < nv; i++) {
-      if (!m->dof_simplenum[i]) {
-        int new_nnz =
+  // add to destination
+  for (int i=0; i < nv; i++) {
+    if (!m->dof_simplenum[i]) {
+      int new_nnz =
           mju_combineSparse(dst + rowadr[i], M + M_rowadr[i], nv, 1, 1,
                             rownnz[i], M_rownnz[i],
                             colind + rowadr[i], M_colind + M_rowadr[i],
                             sparse_buf, buf_ind);
 
-        rownnz[i] = new_nnz;
-      }
+      rownnz[i] = new_nnz;
     }
-
-    mjFREESTACK;
   }
 
-  // dense
-  else {
-    for (int i=0; i < nv; i++) {
-      adr = m->dof_Madr[i];
-      int j = i;
-      while (j >= 0) {
-        // add
-        dst[i*nv+j] += d->qM[adr];
-        if (j < i) {
-          dst[j*nv+i] += d->qM[adr];
-        }
+  mjFREESTACK;
+}
 
-        // only diagonal if simplenum
-        if (m->dof_simplenum[i]) {
-          break;
-        }
 
-        // advance
-        j = m->dof_parentid[j];
-        adr++;
+
+// add inertia matrix to dense destination matrix
+void mj_addMDense(const mjModel* m, mjData* d, mjtNum* dst) {
+  int nv = m->nv;
+
+  for (int i = 0; i < nv; i++) {
+    int adr = m->dof_Madr[i];
+    int j = i;
+    while (j >= 0) {
+      // add
+      dst[i*nv+j] += d->qM[adr];
+      if (j < i) {
+        dst[j*nv+i] += d->qM[adr];
       }
+
+      // only diagonal if simplenum
+      if (m->dof_simplenum[i]) {
+        break;
+      }
+
+      // advance
+      j = m->dof_parentid[j];
+      adr++;
     }
   }
 }
-
 
 
 //-------------------------- sparse system matrix conversion ---------------------------------------

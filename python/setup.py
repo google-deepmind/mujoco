@@ -349,7 +349,7 @@ def find_data_files(package_dir, patterns):
 SETUP_KWARGS = dict(
     name='mujoco',
     version=__version__,
-    author='DeepMind',
+    author='Google DeepMind',
     author_email='mujoco@deepmind.com',
     description='MuJoCo Physics Simulator',
     long_description=get_long_description(),

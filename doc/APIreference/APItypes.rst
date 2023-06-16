@@ -20,7 +20,12 @@ MuJoCo defines a large number of types:
 
 - :ref:`C struct types<tyStructure>`. These can be classified as:
 
-  - :ref:`Main struct types<tyMainStructure>`. These are :ref:`mjModel`, :ref:`mjOption` and :ref:`mjData`.
+  - Main structs:
+
+    - :ref:`mjModel`.
+    - :ref:`mjOption` (embedded in :ref:`mjModel`).
+    - :ref:`mjData`.
+
   - :ref:`Auxillary struct types<tyAuxStructure>`, also used by the engine.
   - Structs for collecting :ref:`simulation statistics<tyStatStructure>`.
   - Structs for :ref:`abstract visualization<tyVisStructure>`.
@@ -341,6 +346,18 @@ Data
 The enums below are defined in `mjdata.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjdata.h>`_.
 
 
+
+.. _mjtState:
+
+mjtState
+~~~~~~~~
+
+State component elements as integer bitflags and several convenient combinations of these flags. Used by
+:ref:`mj_getState`, :ref:`mj_setState` and :ref:`mj_stateSize`.
+
+.. mujoco-include:: mjtState
+
+
 .. _mjtWarning:
 
 mjtWarning
@@ -581,21 +598,14 @@ Capabilities declared by an engine plugin.
 Struct types
 ------------
 
-
-.. _tyMainStructure:
-
-Main
-^^^^
-
 The three central struct types for physics simulation are :ref:`mjModel`, :ref:`mjOption` (embedded in :ref:`mjModel`)
-and :ref:`mjData`. An introductory discussion of these strucures can be found in the Overview under :ref:`Separation of
-model and data<Features>`.
+and :ref:`mjData`. An introductory discussion of these strucures can be found in the :ref:`Overview<ModelAndData>`.
 
 
 .. _mjModel:
 
 mjModel
-~~~~~~~
+^^^^^^^
 
 This is the main data structure holding the MuJoCo model. It is treated as constant by the simulator. Some specific
 details regarding datastructures in :ref:`mjModel` can be found below in :ref:`tyNotes`.
@@ -607,7 +617,7 @@ details regarding datastructures in :ref:`mjModel` can be found below in :ref:`t
 .. _mjOption:
 
 mjOption
-~~~~~~~~
+^^^^^^^^
 
 This is the data structure with simulation options. It corresponds to the MJCF element
 :ref:`option <option>`. One instance of it is embedded in mjModel.
@@ -618,7 +628,7 @@ This is the data structure with simulation options. It corresponds to the MJCF e
 .. _mjData:
 
 mjData
-~~~~~~
+^^^^^^
 
 This is the main data structure holding the simulation state. It is the workspace where all functions read their
 modifiable inputs and write their outputs.

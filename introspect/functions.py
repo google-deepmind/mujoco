@@ -1783,6 +1783,84 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
          ),
          doc='Compute efc_state, efc_force, qfrc_constraint, and (optionally) cone Hessians. If cost is not NULL, set *cost = s(jar) where jar = Jac*qacc-aref.',  # pylint: disable=line-too-long
      )),
+    ('mj_stateSize',
+     FunctionDecl(
+         name='mj_stateSize',
+         return_type=ValueType(name='int'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='m',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjModel', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='spec',
+                 type=ValueType(name='unsigned int'),
+             ),
+         ),
+         doc='Return size of state specification.',
+     )),
+    ('mj_getState',
+     FunctionDecl(
+         name='mj_getState',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='m',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjModel', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='d',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjData', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='state',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='spec',
+                 type=ValueType(name='unsigned int'),
+             ),
+         ),
+         doc='Get state.',
+     )),
+    ('mj_setState',
+     FunctionDecl(
+         name='mj_setState',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='m',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjModel', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='d',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjData'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='state',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='spec',
+                 type=ValueType(name='unsigned int'),
+             ),
+         ),
+         doc='Set state.',
+     )),
     ('mj_addContact',
      FunctionDecl(
          name='mj_addContact',
@@ -5141,27 +5219,6 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
              ),
          ),
          doc='Write [datetime, type: message] to MUJOCO_LOG.TXT.',
-     )),
-    ('mj_activate',
-     FunctionDecl(
-         name='mj_activate',
-         return_type=ValueType(name='int'),
-         parameters=(
-             FunctionParameterDecl(
-                 name='filename',
-                 type=PointerType(
-                     inner_type=ValueType(name='char', is_const=True),
-                 ),
-             ),
-         ),
-         doc='Return 1 (for backward compatibility).',
-     )),
-    ('mj_deactivate',
-     FunctionDecl(
-         name='mj_deactivate',
-         return_type=ValueType(name='void'),
-         parameters=(),
-         doc='Do nothing (for backward compatibility).',
      )),
     ('mju_zero3',
      FunctionDecl(

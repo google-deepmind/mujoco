@@ -2931,6 +2931,7 @@ mjCPair::mjCPair(mjCModel* _model, mjCDef* _def) {
 
   condim = 3;
   mj_defaultSolRefImp(solref, solimp);
+  mju_zero(solreffriction, mjNREF);
   margin = 0;
   gap = 0;
   friction[0] = 1;

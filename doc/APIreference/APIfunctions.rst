@@ -23,7 +23,6 @@ API function can be classified as:
 - :ref:`OpenGL rendering<OpenGLrendering>`.
 - :ref:`UI framework<UIframework>`.
 - :ref:`Error and memory<Errorandmemory>`.
-- Deprecated :ref:`activation<Activation>` mechanism.
 - :ref:`Aliases for C standard math<Standardmath>` functions.
 - :ref:`Vector math<Vectormath>`.
 - :ref:`Quaternions<Quaternions>`.

@@ -443,6 +443,7 @@ void mjXWriter::OnePair(XMLElement* elem, mjCPair* ppair, mjCDef* def) {
   WriteAttr(elem, "margin", 1, &ppair->margin, &def->pair.margin);
   WriteAttr(elem, "gap", 1, &ppair->gap, &def->pair.gap);
   WriteAttr(elem, "solref", mjNREF, ppair->solref, def->pair.solref);
+  WriteAttr(elem, "solreffriction", mjNREF, ppair->solreffriction, def->pair.solreffriction);
   WriteAttr(elem, "solimp", mjNIMP, ppair->solimp, def->pair.solimp);
   WriteAttr(elem, "friction", 5, ppair->friction, def->pair.friction);
 }

@@ -357,6 +357,15 @@ MJAPI void mj_constraintUpdate(const mjModel* m, mjData* d, const mjtNum* jar,
 
 //---------------------------------- Support -------------------------------------------------------
 
+// Return size of state specification.
+MJAPI int mj_stateSize(const mjModel* m, unsigned int spec);
+
+// Get state.
+MJAPI void mj_getState(const mjModel* m, const mjData* d, mjtNum* state, unsigned int spec);
+
+// Set state.
+MJAPI void mj_setState(const mjModel* m, mjData* d, const mjtNum* state, unsigned int spec);
+
 // Add contact to d->contact list; return 0 if success; 1 if buffer full.
 MJAPI int mj_addContact(const mjModel* m, mjData* d, const mjContact* con);
 
@@ -798,15 +807,6 @@ MJAPI void mj_warning(mjData* d, int warning, int info);
 
 // Write [datetime, type: message] to MUJOCO_LOG.TXT.
 MJAPI void mju_writeLog(const char* type, const char* msg);
-
-
-//---------------------------------- Activation ----------------------------------------------------
-
-// Return 1 (for backward compatibility).
-MJAPI int mj_activate(const char* filename);
-
-// Do nothing (for backward compatibility).
-MJAPI void mj_deactivate(void);
 
 
 //---------------------------------- Standard math -------------------------------------------------

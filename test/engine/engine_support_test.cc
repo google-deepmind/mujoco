@@ -78,7 +78,7 @@ TEST_F(JacobianTest, SubtreeJac) {
   mjtNum* qpos = (mjtNum*) mju_malloc(sizeof(mjtNum)*model->nq);
   mjtNum* nudge = (mjtNum*) mju_malloc(sizeof(mjtNum)*nv);
 
-  // all we need for Jacobians are kinematics and CoM-related quantitites
+  // all we need for Jacobians are kinematics and CoM-related quantities
   mj_kinematics(model, data);
   mj_comPos(model, data);
 
@@ -93,7 +93,7 @@ TEST_F(JacobianTest, SubtreeJac) {
 
   // compare analytic Jacobian to finite-difference approximation
   static const mjtNum eps = 1e-6;
-  for (int i=0; i<nv; i++) {
+  for (int i=0; i < nv; i++) {
     // reset qpos, nudge i-th dof, update data->qpos, reset nudge
     mju_copy(data->qpos, qpos, model->nq);
     nudge[i] = 1;
@@ -105,7 +105,7 @@ TEST_F(JacobianTest, SubtreeJac) {
     mj_comPos(model, data);
 
     // compare finite-differenced and analytic Jacobian
-    for (int j=0; j<3; j++) {
+    for (int j=0; j < 3; j++) {
       mjtNum findiff = (data->subtree_com[3*bodyid+j] - subtree_com[j]) / eps;
       EXPECT_THAT(jac_subtree[nv*j+i], DoubleNear(findiff, eps));
     }
@@ -127,7 +127,7 @@ TEST_F(JacobianTest, SubtreeJacNoInternalAcc) {
   mjData* data = mj_makeData(model);
   mjtNum* jac_subtree = (mjtNum*) mju_malloc(sizeof(mjtNum)*3*nv);
 
-  // all we need for Jacobians are kinematics and CoM-related quantitites
+  // all we need for Jacobians are kinematics and CoM-related quantities
   mj_kinematics(model, data);
   mj_comPos(model, data);
 
@@ -348,6 +348,60 @@ TEST_F(SupportTest, DifferentiatePosSubQuat) {
     }
   }
 
+  mj_deleteModel(model);
+}
+
+static const char* const kDefaultModel = "testdata/model.xml";
+
+TEST_F(SupportTest, GetSetStateStepEqual) {
+  const std::string xml_path = GetTestDataFilePath(kDefaultModel);
+  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, nullptr, 0);
+  mjData* data = mj_makeData(model);
+
+  // make distribution using seed
+  std::mt19937_64 rng;
+  rng.seed(3);
+  std::normal_distribution<double> dist(0, .01);
+
+  // set controls and applied joint forces to random values
+  for (int i=0; i < model->nu; i++) data->ctrl[i] = dist(rng);
+  for (int i=0; i < model->nv; i++) data->qfrc_applied[i] = dist(rng);
+
+  // take one step
+  mj_step(model, data);
+
+  int spec = mjSTATE_INTEGRATION;
+  int size = mj_stateSize(model, spec);
+
+  // save the initial state and step
+  std::vector<mjtNum> state0a(size);
+  mj_getState(model, data, state0a.data(), spec);
+
+  // get the initial state, expect equality
+  std::vector<mjtNum> state0b(size);
+  mj_getState(model, data, state0b.data(), spec);
+  EXPECT_EQ(state0a, state0b);
+
+  // take one step
+  mj_step(model, data);
+
+  // save the resulting state
+  std::vector<mjtNum> state1a(size);
+  mj_getState(model, data, state1a.data(), spec);
+
+  // expect the state to be different after stepping
+  EXPECT_THAT(state0a, testing::Ne(state1a));
+
+  // reset to the saved state, step again, get the resulting state
+  mj_setState(model, data, state0a.data(), spec);
+  mj_step(model, data);
+  std::vector<mjtNum> state1b(size);
+  mj_getState(model, data, state1b.data(), spec);
+
+  // expect the state to be the same after re-stepping
+  EXPECT_EQ(state1a, state1b);
+
+  mj_deleteData(data);
   mj_deleteModel(model);
 }
 

@@ -318,7 +318,7 @@ void mjCMesh::Compile(int vfs_provider) {
 
   // check for inconsistent face orientations
   if (!useredge.empty()) {
-    std::sort(useredge.begin(), useredge.end());
+    std::stable_sort(useredge.begin(), useredge.end());
     auto iterator = std::adjacent_find(useredge.begin(), useredge.end());
     if (iterator != useredge.end()) {
       invalidorientation.first = iterator->first+1;

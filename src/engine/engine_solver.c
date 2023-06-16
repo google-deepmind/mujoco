@@ -1375,7 +1375,7 @@ static void HessianDirect(const mjModel* m, mjData* d, mjCGContext* ctx) {
                        d->efc_JT_colind, d->efc_JT_rowsuper, d);
 
     // compute H = M + J'*D*J
-    mj_addM(m, d, ctx->H, ctx->rownnz, ctx->rowadr, ctx->colind);
+    mj_addMSparse(m, d, ctx->H, ctx->rownnz, ctx->rowadr, ctx->colind);
 
     // factorize H, uncompressed layout
     int rank = mju_cholFactorSparse(ctx->H, nv, mjMINVAL,
@@ -1404,7 +1404,7 @@ static void HessianDirect(const mjModel* m, mjData* d, mjCGContext* ctx) {
   else {
     // compute H = M + J'*D*J
     mju_sqrMatTD(ctx->H, d->efc_J, D, nefc, nv);
-    mj_addM(m, d, ctx->H, NULL, NULL, NULL);
+    mj_addMDense(m, d, ctx->H);
 
     // factorize H
     mju_cholFactor(ctx->H, nv, mjMINVAL);

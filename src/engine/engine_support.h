@@ -29,6 +29,18 @@ MJAPI extern const char* mjENABLESTRING[mjNENABLE];
 MJAPI extern const char* mjTIMERSTRING[mjNTIMER];
 
 
+//-------------------------- get/set state ---------------------------------------------------------
+
+// return size of state specification
+MJAPI int mj_stateSize(const mjModel* m, unsigned int spec);
+
+// get state
+MJAPI void mj_getState(const mjModel* m, const mjData* d, mjtNum* state, unsigned int spec);
+
+// set state
+MJAPI void mj_setState(const mjModel* m, mjData* d, const mjtNum* state, unsigned int spec);
+
+
 //-------------------------- Jacobians -------------------------------------------------------------
 
 // compute 3/6-by-nv Jacobian of global point attached to given body
@@ -103,6 +115,13 @@ MJAPI void mj_mulM2(const mjModel* m, const mjData* d, mjtNum* res, const mjtNum
 //  destination can be sparse uncompressed, or dense when all int* are NULL
 MJAPI void mj_addM(const mjModel* m, mjData* d, mjtNum* dst,
                    int* rownnz, int* rowadr, int* colind);
+
+// add inertia matrix to sparse uncompressed destination matrix
+MJAPI void mj_addMSparse(const mjModel* m, mjData* d, mjtNum* dst,
+                         int* rownnz, int* rowadr, int* colind);
+
+// add inertia matrix to dense destination matrix
+MJAPI void mj_addMDense(const mjModel* m, mjData* d, mjtNum* dst);
 
 
 //-------------------------- sparse system matrix conversion ---------------------------------------

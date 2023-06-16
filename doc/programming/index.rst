@@ -55,8 +55,8 @@ now run the precompiled code samples, for example:
 
 .. code-block:: Text
 
-     Windows:           simulate ..\model\humanoid.xml
-     Linux and macOS:   ./simulate ../model/humanoid.xml
+     Windows:           simulate ..\model\humanoid\humanoid.xml
+     Linux and macOS:   ./simulate ../model/humanoid/humanoid.xml
 
 The directory structure is shown below. Users can re-organize it if needed, as well as install the dynamic libraries in
 other directories and set the path accordingly. The only file created automatically is MUJOCO_LOG.TXT in the executable
@@ -263,7 +263,7 @@ now lazily resolved at runtime after the switch to GLAD, the "nogl" libraries ar
 .. toctree::
     :hidden:
 
-    samples
     simulation
     visualization
+    samples
     extension

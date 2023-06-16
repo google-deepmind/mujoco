@@ -1871,6 +1871,7 @@ void mjCModel::CopyObjects(mjModel* m) {
     m->pair_geom2[i] = pairs[i]->geom2;
     m->pair_signature[i] = pairs[i]->signature;
     copyvec(m->pair_solref+mjNREF*i, pairs[i]->solref, mjNREF);
+    copyvec(m->pair_solreffriction+mjNREF*i, pairs[i]->solreffriction, mjNREF);
     copyvec(m->pair_solimp+mjNIMP*i, pairs[i]->solimp, mjNIMP);
     m->pair_margin[i] = (mjtNum)pairs[i]->margin;
     m->pair_gap[i] = (mjtNum)pairs[i]->gap;
@@ -2618,8 +2619,8 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, int vfs_provider) {
   }
 
   // sort pair, exclude in increasing signature order; reassign ids
-  sort(pairs.begin(), pairs.end(), comparePair);
-  sort(excludes.begin(), excludes.end(), compareBodyPair);
+  std::stable_sort(pairs.begin(), pairs.end(), comparePair);
+  std::stable_sort(excludes.begin(), excludes.end(), compareBodyPair);
   reassignid(pairs);
   reassignid(excludes);
 
@@ -3037,6 +3038,7 @@ bool mjCModel::CopyBack(const mjModel* m) {
   // pairs
   for (int i=0; i<npair; i++) {
     copyvec(pairs[i]->solref, m->pair_solref+mjNREF*i, mjNREF);
+    copyvec(pairs[i]->solreffriction, m->pair_solreffriction+mjNREF*i, mjNREF);
     copyvec(pairs[i]->solimp, m->pair_solimp+mjNIMP*i, mjNIMP);
     pairs[i]->margin = (double)m->pair_margin[i];
     pairs[i]->gap = (double)m->pair_gap[i];

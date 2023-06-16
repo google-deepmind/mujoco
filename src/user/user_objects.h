@@ -772,7 +772,8 @@ class mjCPair : public mjCBase {
 
   // optional parameters: computed from geoms if not set by user
   int condim;                     // contact dimensionality
-  mjtNum solref[mjNREF];          // solver reference
+  mjtNum solref[mjNREF];          // solver reference, normal direction
+  mjtNum solreffriction[mjNREF];  // solver reference, frictional directions
   mjtNum solimp[mjNIMP];          // solver impedance
   double margin;                  // margin for contact detection
   double gap;                     // include in solver if dist<margin-gap

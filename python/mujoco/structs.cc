@@ -486,6 +486,7 @@ MjContactWrapper::MjWrapper()
       X(frame),
       X(friction),
       X(solref),
+      X(solreffriction),
       X(solimp),
       X(H) {}
 
@@ -495,6 +496,7 @@ MjContactWrapper::MjWrapper(raw::MjContact* ptr, py::handle owner)
       X(frame),
       X(friction),
       X(solref),
+      X(solreffriction),
       X(solimp),
       X(H) {}
 #undef X
@@ -1735,6 +1737,7 @@ This is useful for example when the MJB is not available as a file on disk.)"));
   X(frame);
   X(friction);
   X(solref);
+  X(solreffriction);
   X(solimp);
   X(H);
 #undef X
@@ -1766,6 +1769,7 @@ This is useful for example when the MJB is not available as a file on disk.)"));
   X(mjtNum, includemargin);
   XN(mjtNum, friction);
   XN(mjtNum, solref);
+  XN(mjtNum, solreffriction);
   XN(mjtNum, solimp);
   X(mjtNum, mu);
   XN(mjtNum, H);

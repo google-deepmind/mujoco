@@ -335,6 +335,7 @@
     X   ( int,     pair_geom2,            npair,         1                    ) \
     X   ( int,     pair_signature,        npair,         1                    ) \
     X   ( mjtNum,  pair_solref,           npair,         mjNREF               ) \
+    X   ( mjtNum,  pair_solreffriction,   npair,         mjNREF               ) \
     X   ( mjtNum,  pair_solimp,           npair,         mjNIMP               ) \
     X   ( mjtNum,  pair_margin,           npair,         1                    ) \
     X   ( mjtNum,  pair_gap,              npair,         1                    ) \

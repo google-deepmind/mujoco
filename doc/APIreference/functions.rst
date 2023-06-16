@@ -151,6 +151,36 @@ These are support functions that need access to :ref:`mjModel` and :ref:`mjData`
 not need such access. Support functions are called within the simulator but some of them can also be useful for custom
 computations, and are documented in more detail below.
 
+.. _mj_stateSize:
+
+mj_stateSize
+~~~~~~~~~~~~
+
+.. mujoco-include:: mj_stateSize
+
+Returns the number of :ref:`mjtNum` |-| s required for a given state specification. The bits of the integer ``spec``
+correspond to element fields of :ref:`mjtState`.
+
+.. _mj_getState:
+
+mj_getState
+~~~~~~~~~~~
+
+.. mujoco-include:: mj_getState
+
+Copy concatenated state components specified by ``spec`` from ``d`` into ``state``. The bits of the integer
+``spec`` correspond to element fields of :ref:`mjtState`. Fails with :ref:`mju_error` if ``spec`` is invalid.
+
+.. _mj_setState:
+
+mj_setState
+~~~~~~~~~~~
+
+.. mujoco-include:: mj_setState
+
+Copy concatenated state components specified by ``spec`` from  ``state`` into ``d``. The bits of the integer
+``spec`` correspond to element fields of :ref:`mjtState`. Fails with :ref:`mju_error` if ``spec`` is invalid.
+
 .. _mj_addContact:
 
 mj_addContact
@@ -2019,31 +2049,6 @@ mju_writeLog
 .. mujoco-include:: mju_writeLog
 
 Write [datetime, type: message] to MUJOCO_LOG.TXT.
-
-.. _Activation:
-
-Activation
-^^^^^^^^^^
-
-The functions in this section are maintained for backward compatibility with the now-removed activation mechanism.
-
-.. _mj_activate:
-
-mj_activate
-~~~~~~~~~~~
-
-.. mujoco-include:: mj_activate
-
-Return 1 (for backward compatibility).
-
-.. _mj_deactivate:
-
-mj_deactivate
-~~~~~~~~~~~~~
-
-.. mujoco-include:: mj_deactivate
-
-Do nothing (for backward compatibility).
 
 .. _Standardmath:
 
