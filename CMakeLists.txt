@@ -114,7 +114,7 @@ target_link_libraries(
           lodepng
           qhullstatic_r
           tinyobjloader
-          tinyxml2
+          tinyxml2::tinyxml2
 )
 
 set_target_properties(

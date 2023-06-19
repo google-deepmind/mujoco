@@ -79,33 +79,44 @@ set(BUILD_SHARED_LIBS
     CACHE INTERNAL "Build SHARED libraries"
 )
 
-if(NOT TARGET lodepng)
-  FetchContent_Declare(
-    lodepng
-    GIT_REPOSITORY https://github.com/lvandeve/lodepng.git
-    GIT_TAG ${MUJOCO_DEP_VERSION_lodepng}
-  )
+option(MUJOCO_USE_SYSTEM_lodepng "Use installed lodepng version." OFF)
+mark_as_advanced(MUJOCO_USE_SYSTEM_lodepng)
 
-  FetchContent_GetProperties(lodepng)
-  if(NOT lodepng_POPULATED)
-    FetchContent_Populate(lodepng)
-    # This is not a CMake project.
-    set(LODEPNG_SRCS ${lodepng_SOURCE_DIR}/lodepng.cpp)
-    set(LODEPNG_HEADERS ${lodepng_SOURCE_DIR}/lodepng.h)
-    add_library(lodepng STATIC ${LODEPNG_HEADERS} ${LODEPNG_SRCS})
-    target_compile_options(lodepng PRIVATE ${MUJOCO_MACOS_COMPILE_OPTIONS})
-    target_link_options(lodepng PRIVATE ${MUJOCO_MACOS_LINK_OPTIONS})
-    target_include_directories(lodepng PUBLIC ${lodepng_SOURCE_DIR})
+if(NOT TARGET lodepng)
+  if(NOT MUJOCO_USE_SYSTEM_lodepng)
+    FetchContent_Declare(
+      lodepng
+      GIT_REPOSITORY https://github.com/lvandeve/lodepng.git
+      GIT_TAG ${MUJOCO_DEP_VERSION_lodepng}
+    )
+
+    FetchContent_GetProperties(lodepng)
+    if(NOT lodepng_POPULATED)
+      FetchContent_Populate(lodepng)
+      # This is not a CMake project.
+      set(LODEPNG_SRCS ${lodepng_SOURCE_DIR}/lodepng.cpp)
+      set(LODEPNG_HEADERS ${lodepng_SOURCE_DIR}/lodepng.h)
+      add_library(lodepng STATIC ${LODEPNG_HEADERS} ${LODEPNG_SRCS})
+      target_compile_options(lodepng PRIVATE ${MUJOCO_MACOS_COMPILE_OPTIONS})
+      target_link_options(lodepng PRIVATE ${MUJOCO_MACOS_LINK_OPTIONS})
+      target_include_directories(lodepng PUBLIC ${lodepng_SOURCE_DIR})
+    endif()
+  else()
+    find_package(lodepng REQUIRED)
   endif()
 endif()
+
+
+option(MUJOCO_USE_SYSTEM_qhull "Use installed qhull version." OFF)
+mark_as_advanced(MUJOCO_USE_SYSTEM_qhull)
 
 set(QHULL_ENABLE_TESTING OFF)
 
 findorfetch(
   USE_SYSTEM_PACKAGE
-  OFF
+  ${MUJOCO_USE_SYSTEM_qhull}
   PACKAGE_NAME
-  qhull
+  Qhull
   LIBRARY_NAME
   qhull
   GIT_REPO
@@ -116,18 +127,37 @@ findorfetch(
   qhull
   EXCLUDE_FROM_ALL
 )
-# MuJoCo includes a file from libqhull_r which is not exported by the qhull include directories.
-# Add it to the target.
-target_include_directories(
-  qhullstatic_r INTERFACE $<BUILD_INTERFACE:${qhull_SOURCE_DIR}/src/libqhull_r>
-)
-target_compile_options(qhullstatic_r PRIVATE ${MUJOCO_MACOS_COMPILE_OPTIONS})
-target_link_options(qhullstatic_r PRIVATE ${MUJOCO_MACOS_LINK_OPTIONS})
+
+if(NOT MUJOCO_USE_SYSTEM_qhull)
+  # MuJoCo includes a file from libqhull_r which is not exported by the qhull include directories.
+  # Add it to the target.
+  target_include_directories(
+    qhullstatic_r INTERFACE $<BUILD_INTERFACE:${qhull_SOURCE_DIR}/src/libqhull_r>
+  )
+  target_compile_options(qhullstatic_r PRIVATE ${MUJOCO_MACOS_COMPILE_OPTIONS})
+  target_link_options(qhullstatic_r PRIVATE ${MUJOCO_MACOS_LINK_OPTIONS})
+else()
+  if(NOT TARGET qhullstatic_r)
+    add_library(qhullstatic_r INTERFACE)
+    set_target_properties(qhullstatic_r PROPERTIES INTERFACE_LINK_LIBRARIES Qhull::qhull_r)
+
+    # Workaround as headers are installed in <prefix>/include/libqhull_r/something.h
+    # but mujoco include them as #include <something.h>
+    get_property(qhull_include_dirs TARGET Qhull::qhull_r PROPERTY INTERFACE_INCLUDE_DIRECTORIES)
+    foreach(qhull_include_dir IN LISTS qhull_include_dirs)
+      target_include_directories(qhullstatic_r INTERFACE ${qhull_include_dirs}/libqhull_r)
+    endforeach()
+    target_include_directories(qhullstatic_r INTERFACE )
+  endif()
+endif()
+
+option(MUJOCO_USE_SYSTEM_tinyxml2 "Use installed tinyxml2 version." OFF)
+mark_as_advanced(MUJOCO_USE_SYSTEM_tinyxml2)
 
 set(tinyxml2_BUILD_TESTING OFF)
 findorfetch(
   USE_SYSTEM_PACKAGE
-  OFF
+  ${MUJOCO_USE_SYSTEM_tinyxml2}
   PACKAGE_NAME
   tinyxml2
   LIBRARY_NAME
@@ -137,15 +167,21 @@ findorfetch(
   GIT_TAG
   ${MUJOCO_DEP_VERSION_tinyxml2}
   TARGETS
-  tinyxml2
+  tinyxml2::tinyxml2
   EXCLUDE_FROM_ALL
 )
-target_compile_options(tinyxml2 PRIVATE ${MUJOCO_MACOS_COMPILE_OPTIONS})
-target_link_options(tinyxml2 PRIVATE ${MUJOCO_MACOS_LINK_OPTIONS})
+
+if(NOT MUJOCO_USE_SYSTEM_tinyxml2)
+  target_compile_options(tinyxml2 PRIVATE ${MUJOCO_MACOS_COMPILE_OPTIONS})
+  target_link_options(tinyxml2 PRIVATE ${MUJOCO_MACOS_LINK_OPTIONS})
+endif()
+
+option(MUJOCO_USE_SYSTEM_tinyobjloader "Use installed tinyobjloader version." OFF)
+mark_as_advanced(MUJOCO_USE_SYSTEM_tinyobjloader)
 
 findorfetch(
   USE_SYSTEM_PACKAGE
-  OFF
+  ${MUJOCO_USE_SYSTEM_tinyobjloader}
   PACKAGE_NAME
   tinyobjloader
   LIBRARY_NAME
@@ -159,11 +195,25 @@ findorfetch(
   EXCLUDE_FROM_ALL
 )
 
+if(MUJOCO_USE_SYSTEM_tinyobjloader)
+  # As of tinyobjloader v2.0.0rc10, the tinyobjloader target is named tinyobjloader in the build,
+  # but tinyobjloader::tinyobjloader when it is installed. To deal with this, if tinyobjloader is
+  # found in the system, we create an ALIAS
+  # The following is equivalent to add_library(tinyobjloader ALIAS tinyobjloader::tinyobjloader), 
+  # but compatible with CMake 3.16 . Once the minimum CMake is bumped to CMake 3.18, we can use
+  # the simpler version
+  add_library(tinyobjloader INTERFACE IMPORTED)
+  set_target_properties(tinyobjloader PROPERTIES INTERFACE_LINK_LIBRARIES tinyobjloader::tinyobjloader)
+endif()
+
+option(MUJOCO_USE_SYSTEM_ccd "Use installed ccd version." OFF)
+mark_as_advanced(MUJOCO_USE_SYSTEM_ccd)
+
 set(ENABLE_DOUBLE_PRECISION ON)
 set(CCD_HIDE_ALL_SYMBOLS ON)
 findorfetch(
   USE_SYSTEM_PACKAGE
-  OFF
+  ${MUJOCO_USE_SYSTEM_ccd}
   PACKAGE_NAME
   ccd
   LIBRARY_NAME
@@ -176,21 +226,27 @@ findorfetch(
   ccd
   EXCLUDE_FROM_ALL
 )
-target_compile_options(ccd PRIVATE ${MUJOCO_MACOS_COMPILE_OPTIONS})
-target_link_options(ccd PRIVATE ${MUJOCO_MACOS_LINK_OPTIONS})
 
-# libCCD has an unconditional `#define _CRT_SECURE_NO_WARNINGS` on Windows.
-# TODO(stunya): Remove this after https://github.com/danfis/libccd/pull/77 is merged.
-if(WIN32)
-  if(MSVC)
-    # C4005 is the MSVC equivalent of -Wmacro-redefined.
-    target_compile_options(ccd PRIVATE /wd4005)
-  else()
-    target_compile_options(ccd PRIVATE -Wno-macro-redefined)
+if(NOT MUJOCO_USE_SYSTEM_ccd)
+  target_compile_options(ccd PRIVATE ${MUJOCO_MACOS_COMPILE_OPTIONS})
+  target_link_options(ccd PRIVATE ${MUJOCO_MACOS_LINK_OPTIONS})
+
+  # libCCD has an unconditional `#define _CRT_SECURE_NO_WARNINGS` on Windows.
+  # TODO(stunya): Remove this after https://github.com/danfis/libccd/pull/77 is merged.
+  if(WIN32)
+    if(MSVC)
+      # C4005 is the MSVC equivalent of -Wmacro-redefined.
+      target_compile_options(ccd PRIVATE /wd4005)
+    else()
+      target_compile_options(ccd PRIVATE -Wno-macro-redefined)
+    endif()
   endif()
 endif()
 
 if(MUJOCO_BUILD_TESTS)
+  option(MUJOCO_USE_SYSTEM_abseil "Use installed abseil version." OFF)
+  mark_as_advanced(MUJOCO_USE_SYSTEM_abseil)
+
   set(ABSL_PROPAGATE_CXX_STD ON)
 
   # This specific version of Abseil does not have the following variable. We need to work with BUILD_TESTING
@@ -203,7 +259,7 @@ if(MUJOCO_BUILD_TESTS)
   set(ABSL_BUILD_TESTING OFF)
   findorfetch(
     USE_SYSTEM_PACKAGE
-    OFF
+    ${MUJOCO_USE_SYSTEM_abseil}
     PACKAGE_NAME
     absl
     LIBRARY_NAME
@@ -222,6 +278,9 @@ if(MUJOCO_BUILD_TESTS)
       CACHE BOOL "Build tests." FORCE
   )
 
+  option(MUJOCO_USE_SYSTEM_gtest "Use installed gtest version." OFF)
+  mark_as_advanced(MUJOCO_USE_SYSTEM_gtest)
+
   # Avoid linking errors on Windows by dynamically linking to the C runtime.
   set(gtest_force_shared_crt
       ON
@@ -230,7 +289,7 @@ if(MUJOCO_BUILD_TESTS)
 
   findorfetch(
     USE_SYSTEM_PACKAGE
-    OFF
+    ${MUJOCO_USE_SYSTEM_gtest}
     PACKAGE_NAME
     GTest
     LIBRARY_NAME
@@ -240,11 +299,13 @@ if(MUJOCO_BUILD_TESTS)
     GIT_TAG
     ${MUJOCO_DEP_VERSION_gtest}
     TARGETS
-    gtest
-    gmock
-    gtest_main
+    GTest::gmock
+    GTest::gtest_main
     EXCLUDE_FROM_ALL
   )
+
+  option(MUJOCO_USE_SYSTEM_benchmark "Use installed benchmark version." OFF)
+  mark_as_advanced(MUJOCO_USE_SYSTEM_benchmark)
 
   set(BENCHMARK_EXTRA_FETCH_ARGS "")
   if(WIN32 AND NOT MSVC)
@@ -264,7 +325,7 @@ if(MUJOCO_BUILD_TESTS)
 
   findorfetch(
     USE_SYSTEM_PACKAGE
-    OFF
+    ${MUJOCO_USE_SYSTEM_benchmark}
     PACKAGE_NAME
     benchmark
     LIBRARY_NAME
@@ -282,26 +343,33 @@ if(MUJOCO_BUILD_TESTS)
 endif()
 
 if(MUJOCO_TEST_PYTHON_UTIL)
+  option(MUJOCO_USE_SYSTEM_Eigen3 "Use installed Eigen3 version." OFF)
+  mark_as_advanced(MUJOCO_USE_SYSTEM_Eigen3)
+
   add_compile_definitions(EIGEN_MPL2_ONLY)
-  if(NOT TARGET eigen)
-    # Support new IN_LIST if() operator.
-    set(CMAKE_POLICY_DEFAULT_CMP0057 NEW)
+  if(NOT TARGET Eigen3::Eigen)
+    if(NOT MUJOCO_USE_SYSTEM_Eigen3)
+      # Support new IN_LIST if() operator.
+      set(CMAKE_POLICY_DEFAULT_CMP0057 NEW)
 
-    FetchContent_Declare(
-      Eigen3
-      GIT_REPOSITORY https://gitlab.com/libeigen/eigen.git
-      GIT_TAG ${MUJOCO_DEP_VERSION_Eigen3}
-    )
-
-    FetchContent_GetProperties(Eigen3)
-    if(NOT Eigen3_POPULATED)
-      FetchContent_Populate(Eigen3)
-
-      # Mark the library as IMPORTED as a workaround for https://gitlab.kitware.com/cmake/cmake/-/issues/15415
-      add_library(Eigen3::Eigen INTERFACE IMPORTED)
-      set_target_properties(
-        Eigen3::Eigen PROPERTIES INTERFACE_INCLUDE_DIRECTORIES "${eigen3_SOURCE_DIR}"
+      FetchContent_Declare(
+        Eigen3
+        GIT_REPOSITORY https://gitlab.com/libeigen/eigen.git
+        GIT_TAG ${MUJOCO_DEP_VERSION_Eigen3}
       )
+
+      FetchContent_GetProperties(Eigen3)
+      if(NOT Eigen3_POPULATED)
+        FetchContent_Populate(Eigen3)
+
+        # Mark the library as IMPORTED as a workaround for https://gitlab.kitware.com/cmake/cmake/-/issues/15415
+        add_library(Eigen3::Eigen INTERFACE IMPORTED)
+        set_target_properties(
+          Eigen3::Eigen PROPERTIES INTERFACE_INCLUDE_DIRECTORIES "${eigen3_SOURCE_DIR}"
+        )
+      endif()
+    else()
+      find_package(Eigen3 REQUIRED)
     endif()
   endif()
 endif()
