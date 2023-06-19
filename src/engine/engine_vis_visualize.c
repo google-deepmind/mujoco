@@ -303,7 +303,7 @@ void mjv_makeConnector(mjvGeom* geom, int type, mjtNum width,
   if (type != mjGEOM_CAPSULE && type != mjGEOM_CYLINDER &&
       type != mjGEOM_ARROW && type != mjGEOM_ARROW1 && type != mjGEOM_ARROW2
       && type != mjGEOM_LINE) {
-    mju_error("Invalid geom type %d for connector", type);
+    mjERROR("invalid geom type %d for connector", type);
   }
 
   // assign type
@@ -898,7 +898,7 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
           break;
 
         default:
-          mju_error("Unknown joint type %d in mjv_visualize", m->jnt_type[i]);
+          mjERROR("unknown joint type %d", m->jnt_type[i]);
         }
 
         f2f(thisgeom->rgba, m->vis.rgba.joint, 4);
@@ -1894,7 +1894,7 @@ void mjv_updateCamera(const mjModel* m, mjData* d, mjvCamera* cam, mjvScene* scn
       // get id and check
       int bid = cam->trackbodyid;
       if (bid < 0 || bid >= m->nbody) {
-        mju_error("Track body id is outside valid range");
+        mjERROR("track body id is outside valid range");
       }
 
       // smooth tracking of subtree com
@@ -1923,7 +1923,7 @@ void mjv_updateCamera(const mjModel* m, mjData* d, mjvCamera* cam, mjvScene* scn
     // get id and check
     int cid = cam->fixedcamid;
     if (cid < 0 || cid >= m->ncam) {
-      mju_error("Fixed camera id is outside valid range");
+      mjERROR("fixed camera id is outside valid range");
     }
 
     // get camera-specific ipd and fovy
@@ -1948,7 +1948,7 @@ void mjv_updateCamera(const mjModel* m, mjData* d, mjvCamera* cam, mjvScene* scn
   break;
 
   default:
-    mju_error("Unknown camera type in mjv_updateCamera");
+    mjERROR("unknown camera type");
   }
 
   // compute GL cameras
@@ -2124,7 +2124,7 @@ void mjv_updateScene(const mjModel* m, mjData* d, const mjvOption* opt,
       const int slot = m->plugin[i];
       const mjpPlugin* plugin = mjp_getPluginAtSlotUnsafe(slot, nslot);
       if (!plugin) {
-        mju_error("invalid plugin slot: %d", slot);
+        mjERROR("invalid plugin slot: %d", slot);
       }
       if (plugin->visualize) {
         plugin->visualize(m, d, opt, scn, i);

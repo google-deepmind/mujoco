@@ -96,7 +96,7 @@ static void add_noise(const mjModel* m, mjData* d, mjtStage stage) {
 
         // unknown datatype
         else {
-          mju_error("Unknown datatype in sensor %d", i);
+          mjERROR("unknown datatype in sensor %d", i);
         }
       }
     }
@@ -158,7 +158,7 @@ static void get_xpos_xmat(const mjData* d, int type, int id, int sensor_id,
     *xmat = d->cam_xmat + 9*id;
     break;
   default:
-    mju_error("Invalid object type in sensor %d", sensor_id);
+    mjERROR("invalid object type in sensor %d", sensor_id);
   }
 }
 
@@ -182,7 +182,7 @@ static void get_xquat(const mjModel* m, const mjData* d, int type, int id, int s
     mju_mulQuat(quat, d->xquat+4*m->cam_bodyid[id], m->cam_quat+4*id);
     break;
   default:
-    mju_error("Invalid object type in sensor %d", sensor_id);
+    mjERROR("invalid object type in sensor %d", sensor_id);
   }
 }
 
@@ -334,7 +334,7 @@ void mj_sensorPos(const mjModel* m, mjData* d) {
         break;
 
       default:
-        mju_error("Invalid sensor type in POS stage, sensor %d", i);
+        mjERROR("invalid sensor type in POS stage, sensor %d", i);
       }
     }
   }
@@ -356,12 +356,12 @@ void mj_sensorPos(const mjModel* m, mjData* d) {
       const int slot = m->plugin[i];
       const mjpPlugin* plugin = mjp_getPluginAtSlotUnsafe(slot, nslot);
       if (!plugin) {
-        mju_error("invalid plugin slot: %d", slot);
+        mjERROR("invalid plugin slot: %d", slot);
       }
       if ((plugin->capabilityflags & mjPLUGIN_SENSOR) &&
           (plugin->needstage == mjSTAGE_POS || plugin->needstage == mjSTAGE_NONE)) {
         if (!plugin->compute) {
-          mju_error("`compute` is a null function pointer for plugin at slot %d", slot);
+          mjERROR("`compute` is a null function pointer for plugin at slot %d", slot);
         }
         plugin->compute(m, d, i, mjPLUGIN_SENSOR);
       }
@@ -515,7 +515,7 @@ void mj_sensorVel(const mjModel* m, mjData* d) {
         break;
 
       default:
-        mju_error("Invalid type in VEL stage, sensor %d", i);
+        mjERROR("invalid type in VEL stage, sensor %d", i);
       }
     }
   }
@@ -537,11 +537,11 @@ void mj_sensorVel(const mjModel* m, mjData* d) {
       const int slot = m->plugin[i];
       const mjpPlugin* plugin = mjp_getPluginAtSlotUnsafe(slot, nslot);
       if (!plugin) {
-        mju_error("invalid plugin slot: %d", slot);
+        mjERROR("invalid plugin slot: %d", slot);
       }
       if ((plugin->capabilityflags & mjPLUGIN_SENSOR) && plugin->needstage == mjSTAGE_VEL) {
         if (!plugin->compute) {
-          mju_error("`compute` is null for plugin at slot %d", slot);
+          mjERROR("`compute` is null for plugin at slot %d", slot);
         }
         if (subtreeVel == 0) {
           // compute subtree_linvel, subtree_angmom
@@ -724,7 +724,7 @@ void mj_sensorAcc(const mjModel* m, mjData* d) {
         break;
 
       default:
-        mju_error("Invalid type in ACC stage, sensor %d", i);
+        mjERROR("invalid type in ACC stage, sensor %d", i);
       }
     }
   }
@@ -746,11 +746,11 @@ void mj_sensorAcc(const mjModel* m, mjData* d) {
       const int slot = m->plugin[i];
       const mjpPlugin* plugin = mjp_getPluginAtSlotUnsafe(slot, nslot);
       if (!plugin) {
-        mju_error("invalid plugin slot: %d", slot);
+        mjERROR("invalid plugin slot: %d", slot);
       }
       if ((plugin->capabilityflags & mjPLUGIN_SENSOR) && plugin->needstage == mjSTAGE_ACC) {
         if (!plugin->compute) {
-          mju_error("`compute` is null for plugin at slot %d", slot);
+          mjERROR("`compute` is null for plugin at slot %d", slot);
         }
         if (rnePost == 0) {
           // compute cacc, cfrc_int, cfrc_ext

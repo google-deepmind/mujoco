@@ -161,7 +161,7 @@ int mju_cholFactorSparse(mjtNum* mat, int n, mjtNum mindiag,
 
     // check
     if (rownnz[r] == 0 || colind[rowadr[r]+rownnz[r]-1] != r) {
-      mju_error("Matrix must have non-zero diagonal in mju_cholFactorSparse");
+      mjERROR("matrix must have non-zero diagonal");
     }
   }
 
@@ -284,7 +284,7 @@ int mju_cholUpdateSparse(mjtNum* mat, mjtNum* x, int n, int flg_plus,
 
     // check for size change
     if (new_nnz != nnz-1) {
-      mju_error("Varying sparsity pattern in mju_cholUpdateSparse");
+      mjERROR("varying sparsity pattern");
     }
 
     // update x:  x(1:r-1) = c*x(1:r-1) - s*mat(r,1:r-1)
@@ -603,12 +603,12 @@ void mju_factorLUSparse(mjtNum* LU, int n, int* scratch,
 
     // make sure ii is on diagonal
     if (colind[ii] != i) {
-      mju_error("missing diagonal element in mju_factorLUSparse");
+      mjERROR("missing diagonal element");
     }
 
     // make sure diagonal is not too small
     if (mju_abs(LU[ii]) < mjMINVAL) {
-      mju_error("diagonal element too small in mju_factorLUSparse");
+      mjERROR("diagonal element too small");
     }
 
     // rows j above i
@@ -642,13 +642,13 @@ void mju_factorLUSparse(mjtNum* LU, int n, int* scratch,
 
           // only (i,k) non-zero
           else {
-            mju_error("mju_factorLUSparse requires fill-in");
+            mjERROR("requires fill-in");
           }
         }
 
         // make sure both rows fully processed
         if (icnt != rowadr[i]+remaining[i] || jcnt != rowadr[j]+remaining[j]) {
-          mju_error("row processing incomplete in mju_factorLUSparse");
+          mjERROR("row processing incomplete");
         }
       }
     }
@@ -657,7 +657,7 @@ void mju_factorLUSparse(mjtNum* LU, int n, int* scratch,
   // make sure remaining points to diagonal
   for (int i=0; i < n; i++) {
     if (remaining[i] < 0 || colind[rowadr[i]+remaining[i]] != i) {
-      mju_error("unexpected sparse matrix structure in mju_factorLUSparse");
+      mjERROR("unexpected sparse matrix structure");
     }
   }
 }
@@ -681,7 +681,7 @@ void mju_solveLUSparse(mjtNum* res, const mjtNum* LU, const mjtNum* vec, int n,
 
     // make sure j points to diagonal
     if (colind[rowadr[i]+j] != i) {
-      mju_error("diagonal of U not reached in mju_factorLUSparse");
+      mjERROR("diagonal of U not reached");
     }
   }
 
@@ -699,7 +699,7 @@ void mju_solveLUSparse(mjtNum* res, const mjtNum* LU, const mjtNum* vec, int n,
 
     // make sure j points to diagonal
     if (colind[rowadr[i]+j] != i) {
-      mju_error("diagonal of L not reached in mju_factorLUSparse");
+      mjERROR("diagonal of L not reached");
     }
   }
 }
@@ -975,7 +975,7 @@ int mju_QCQP(mjtNum* res, const mjtNum* Ain, const mjtNum* bin,
 
   // check size
   if (n > 5) {
-    mju_error("mju_QCQP supports n up to 5");
+    mjERROR("n is only supported up to 5");
   }
 
   // scale A,b so that constraint becomes x'*x <= r*r
@@ -1151,12 +1151,12 @@ int mju_boxQPoption(mjtNum* res, mjtNum* R, int* index,               // outputs
 
   // basic checks
   if (n <= 0) {
-    mju_error("mju_boxQP: problem size n must be positive");
+    mjERROR("problem size n must be positive");
   }
   if (upper && lower) {
     for (int i=0; i < n; i++) {
       if (lower[i] >= upper[i]) {
-        mju_error("mju_boxQP: upper bounds must be stricly larger than lower bounds");
+        mjERROR("upper bounds must be stricly larger than lower bounds");
       }
     }
   }
@@ -1390,4 +1390,3 @@ int mju_boxQPoption(mjtNum* res, mjtNum* R, int* index,               // outputs
   // return nf or -1 if failure
   return (status == mjBOXQP_NO_DESCENT || status == mjBOXQP_NOT_SPD) ? -1 : nfree;
 }
-

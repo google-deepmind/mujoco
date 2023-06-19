@@ -452,7 +452,7 @@ mjtNum mj_rayHfield(const mjModel* m, const mjData* d, int id,
                     const mjtNum* pnt, const mjtNum* vec) {
   // check geom type
   if (m->geom_type[id] != mjGEOM_HFIELD) {
-    mju_error("mj_rayHfield: geom with hfield type expected");
+    mjERROR("geom with hfield type expected");
   }
 
   // hfield id and dimensions
@@ -632,7 +632,7 @@ mjtNum mju_rayTree(const mjModel* m, const mjData* d, int id, const mjtNum* pnt,
   const int* child = m->bvh_child + 2*bvhadr;
 
   if (meshid == -1) {
-    mju_error("mju_rayTree: mesh id of geom %d is -1", meshid);  // SHOULD NOT OCCUR
+    mjERROR("mesh id of geom %d is -1", meshid);  // SHOULD NOT OCCUR
   }
 
   // initialize stack
@@ -709,7 +709,9 @@ mjtNum mju_rayTree(const mjModel* m, const mjData* d, int id, const mjtNum* pnt,
     // add children to the stack
     for (int i=0; i < 2; i++) {
       if (child[2*node+i] != -1) {
-        if (nstack >= mjMAXTREEDEPTH) mju_error("BVH stack depth exceeded in geom %d.", id);
+        if (nstack >= mjMAXTREEDEPTH) {
+          mjERROR("BVH stack depth exceeded in geom %d.", id);
+        }
         stack[nstack] = child[2*node+i];
         nstack++;
       }
@@ -724,7 +726,7 @@ mjtNum mj_rayMesh(const mjModel* m, const mjData* d, int id,
                   const mjtNum* pnt, const mjtNum* vec) {
   // check geom type
   if (m->geom_type[id] != mjGEOM_MESH) {
-    mju_error("mj_rayMesh: geom with mesh type expected");
+    mjERROR("geom with mesh type expected");
   }
 
   // bounding box test
@@ -760,7 +762,7 @@ mjtNum mju_rayGeom(const mjtNum* pos, const mjtNum* mat, const mjtNum* size,
     return ray_box(pos, mat, size, pnt, vec, NULL);
 
   default:
-    mju_error("mju_rayGeom: unexpected geom type %d", geomtype);
+    mjERROR("unexpected geom type %d", geomtype);
     return -1;
   }
 }
@@ -894,7 +896,7 @@ mjtNum mj_ray(const mjModel* m, const mjData* d, const mjtNum* pnt, const mjtNum
 
   // check vector length
   if (mju_norm3(vec) < mjMINVAL) {
-    mju_error("mj_ray: vector length is too small");
+    mjERROR("vector length is too small");
   }
 
   // clear result
@@ -934,7 +936,7 @@ void mju_multiRayPrepare(const mjModel* m, const mjData* d, const mjtNum pnt[3],
                          const mjtNum* ray_xmat, const mjtByte* geomgroup, mjtByte flg_static,
                          int bodyexclude, mjtNum cutoff, mjtNum* geom_ba, int* geom_eliminate) {
   if (ray_xmat) {
-    mju_error("ray_xmat is currently unused, should be NULL");
+    mjERROR("ray_xmat is currently unused, should be NULL");
   }
 
   // compute eliminate flag for all geoms
@@ -1005,7 +1007,7 @@ void mju_multiRayPrepare(const mjModel* m, const mjData* d, const mjtNum pnt[3],
       }
 
       if (AABB[3]-AABB[1] > mjPI) {  // SHOULD NOT OCCUR
-        mju_error("mj_ray: discontinuity in azimuth angle");
+        mjERROR("discontinuity in azimuth angle");
       }
 
       mju_copy(geom_ba+4*g, AABB, 4);
@@ -1021,7 +1023,7 @@ static mjtNum mju_singleRay(const mjModel* m, mjData* d, const mjtNum pnt[3], co
 
   // check vector length
   if (mju_norm3(vec) < mjMINVAL) {
-    mju_error("mj_ray: vector length is too small");
+    mjERROR("vector length is too small");
   }
 
   // clear result

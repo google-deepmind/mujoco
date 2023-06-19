@@ -15,7 +15,9 @@
 #ifndef MUJOCO_SRC_ENGINE_ENGINE_UTIL_ERRMEM_H_
 #define MUJOCO_SRC_ENGINE_ENGINE_UTIL_ERRMEM_H_
 
+#include <stdarg.h>
 #include <stddef.h>
+#include <stdio.h>
 
 #include <mujoco/mjexport.h>
 #include <mujoco/mjmacro.h>
@@ -53,6 +55,7 @@ MJAPI void _mjPRIVATE__set_tls_warning_fn(void (*h)(const char*));
 
 // errors
 MJAPI void mju_error(const char* msg, ...) mjPRINTFLIKE(1, 2);
+MJAPI void mju_error_v(const char* msg, va_list args);
 MJAPI void mju_error_i(const char* msg, int i);
 MJAPI void mju_error_s(const char* msg, const char* text);
 
@@ -64,6 +67,44 @@ MJAPI void mju_warning_s(const char* msg, const char* text);
 // write [datetime, type: message] to MUJOCO_LOG.TXT
 MJAPI void mju_writeLog(const char* type, const char* msg);
 
+//------------------------------ internal error macros --------------------------------------------
+
+// need at least c99 or c++11
+#if (defined(__STDC_VERSION__) && __STDC_VERSION__ >= 199901L) ||       \
+    (defined(__cplusplus) && __cplusplus >= 201103L)
+
+  // macro to get the first argument
+  #define _GET_MSG(msg, ...) msg
+
+  // helper function for the mjERROR macro
+  // formats buf as '{prefix}: {msg}' and passes along to mju_error_v
+  static inline void _mju_error_prefix(char *buf, size_t nbuf, const char* prefix,
+                                       const char* msg, ...) mjPRINTFLIKE(4, 5);
+
+  static inline void _mju_error_prefix(char *buf, size_t nbuf, const char* prefix,
+                                       const char* msg, ...) {
+    snprintf(buf, nbuf, "%s: %s", prefix, msg);
+    va_list args;
+    va_start(args, msg);
+    mju_error_v(buf, args);
+    va_end(args);
+  }
+
+  // macro to get first argument
+  #define _GET_MSG(msg, ...) msg
+
+  // internal macro to prepend the calling function name to the error message
+  // standard support for variadic macros with zero arguments is only now
+  // supported in C23 and C++20 so we rely on a helper function to get around this
+  // in a portable way
+  #define mjERROR(...) {                                                \
+    char _buf[sizeof(_GET_MSG(__VA_ARGS__)) + sizeof(__func__) + 1];    \
+    _mju_error_prefix(_buf, sizeof(_buf), __func__, __VA_ARGS__);       \
+  }
+
+#else
+  #define mjERROR mju_error
+#endif  // c99 or c++11
 
 //------------------------------ malloc and free ---------------------------------------------------
 

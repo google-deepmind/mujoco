@@ -735,7 +735,7 @@ void mj_printFormattedData(const mjModel* m, mjData* d, const char* filename,
 
   // stack in use, SHOULD NOT OCCUR
   if (d->pstack) {
-    mju_error("Attempting to print mjData when stack is in use");
+    mjERROR("attempting to print mjData when stack is in use");
   }
 
   // get file

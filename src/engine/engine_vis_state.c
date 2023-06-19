@@ -118,7 +118,7 @@ void mjv_makeSceneState(const mjModel* m, const mjData* d, mjvSceneState* scnsta
 
   // should not occur
   if (ptr - (char*)scnstate->buffer != scnstate->nbuffer) {
-    mju_error("Unexpected error: mjvSceneState buffer is not fully used");
+    mjERROR("mjvSceneState buffer is not fully used");
   }
 
   mjv_makeScene(m, &scnstate->plugincache, maxgeom);
@@ -236,7 +236,7 @@ void mjv_updateSceneState(const mjModel* m, mjData* d, const mjvOption* opt,
 #define X(var)
 #define XMJV(var)                      \
   if (scnstate->model.var != m->var) { \
-    mju_error("m->%s changed", #var);  \
+    mjERROR("m->%s changed", #var);  \
   }
   MJMODEL_INTS
 #undef XMJV
@@ -251,7 +251,7 @@ void mjv_updateSceneState(const mjModel* m, mjData* d, const mjvOption* opt,
       const int slot = m->plugin[i];
       const mjpPlugin* plugin = mjp_getPluginAtSlotUnsafe(slot, nslot);
       if (!plugin) {
-        mju_error("invalid plugin slot: %d", slot);
+        mjERROR("invalid plugin slot: %d", slot);
       }
       if (plugin->visualize) {
         plugin->visualize(m, d, opt, &scnstate->plugincache, i);

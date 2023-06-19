@@ -107,7 +107,7 @@ static inline int mj_stateElemSize(const mjModel* m, mjtState spec) {
     case mjSTATE_USERDATA:      return m->nuserdata;
     case mjSTATE_PLUGIN:        return m->npluginstate;
     default:
-      mju_error("mju_stateElementSize: invalid state element %u", spec);
+      mjERROR("invalid state element %u", spec);
       return 0;
   }
 }
@@ -130,7 +130,7 @@ static inline mjtNum* mj_stateElemPtr(const mjModel* m, mjData* d, mjtState spec
     case mjSTATE_USERDATA:      return d->userdata;
     case mjSTATE_PLUGIN:        return d->plugin_state;
     default:
-      mju_error("mju_stateElemPtr: invalid state element %u", spec);
+      mjERROR("invalid state element %u", spec);
       return NULL;
   }
 }
@@ -146,7 +146,7 @@ static inline const mjtNum* mj_stateElemConstPtr(const mjModel* m, const mjData*
 // get size of state specification
 int mj_stateSize(const mjModel* m, unsigned int spec) {
   if (spec >= (1<<mjNSTATE)) {
-    mju_error("mj_stateSize: invalid state spec %u >= 2^mjNSTATE", spec);
+    mjERROR("invalid state spec %u >= 2^mjNSTATE", spec);
   }
 
   int size = 0;
@@ -165,7 +165,7 @@ int mj_stateSize(const mjModel* m, unsigned int spec) {
 // get state
 void mj_getState(const mjModel* m, const mjData* d, mjtNum* state, unsigned int spec) {
   if (spec >= (1<<mjNSTATE)) {
-    mju_error("mj_getState: invalid state spec %u >= 2^mjNSTATE", spec);
+    mjERROR("invalid state spec %u >= 2^mjNSTATE", spec);
   }
 
   int adr = 0;
@@ -185,7 +185,7 @@ void mj_getState(const mjModel* m, const mjData* d, mjtNum* state, unsigned int 
 // set state
 void mj_setState(const mjModel* m, mjData* d, const mjtNum* state, unsigned int spec) {
   if (spec >= (1<<mjNSTATE)) {
-    mju_error("mj_setState: invalid state spec %u >= 2^mjNSTATE", spec);
+    mjERROR("invalid state spec %u >= 2^mjNSTATE", spec);
   }
 
   int adr = 0;
@@ -383,7 +383,7 @@ void mj_jacSparse(const mjModel* m, const mjData* d,
 
     // make sure we found it; SHOULD NOT OCCUR
     if (chain[ci] != da) {
-      mju_error("dof index %d not found in chain", da);
+      mjERROR("dof index %d not found in chain", da);
     }
 
     // construct rotation jacobian
@@ -993,7 +993,7 @@ void mj_addMSparse(const mjModel* m, mjData* d, mjtNum* dst,
 
         // not found: error
         if (adr >= end) {
-          mju_error("mj_addM sparse: dst row expected to be empty");
+          mjERROR("dst row expected to be empty");
         }
       }
     }
@@ -1184,7 +1184,7 @@ void mj_applyFT(const mjModel* m, mjData* d,
 
   // make sure body is in range
   if (body < 0 || body >= m->nbody) {
-    mju_error("Invalid body %d in applyFT", body);
+    mjERROR("invalid body %d", body);
   }
 
   // compute Jacobians
@@ -1259,7 +1259,7 @@ void mj_objectVelocity(const mjModel* m, const mjData* d,
 
   // object without spatial frame
   else {
-    mju_error("Invalid object type %d in mj_objectVelocity", objtype);
+    mjERROR("invalid object type %d", objtype);
   }
 
   // transform velocity
@@ -1312,7 +1312,7 @@ void mj_objectAcceleration(const mjModel* m, const mjData* d,
 
   // object without spatial frame
   else {
-    mju_error("Invalid object type %d in mj_objectAcceleration", objtype);
+    mjERROR("invalid object type %d", objtype);
   }
 
   // transform com-based velocity to local frame
@@ -1514,10 +1514,9 @@ void mj_setTotalmass(mjModel* m, mjtNum newmass) {
 
 // count warnings, print only the first time
 void mj_warning(mjData* d, int warning, int info) {
-
   // check type
   if (warning < 0 || warning >= mjNWARNING) {
-    mju_error("Invalid warning type %d", warning);
+    mjERROR("invalid warning type %d", warning);
   }
 
   // save info (override previous)

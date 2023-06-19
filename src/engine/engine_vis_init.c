@@ -127,7 +127,7 @@ void mjv_makeScene(const mjModel* m, mjvScene* scn, int maxgeom) {
 
     // check allocation
     if (!scn->geoms || !scn->geomorder) {
-      mju_error("Could not allocate geom buffers");
+      mjERROR("could not allocate geom buffers");
     }
   }
 
@@ -169,7 +169,7 @@ void mjv_makeScene(const mjModel* m, mjvScene* scn, int maxgeom) {
         !scn->skinvertnum ||
         !scn->skinvert    ||
         !scn->skinnormal) {
-      mju_error("Could not allocate skin buffers");
+      mjERROR("could not allocate skin buffers");
     }
 
     // copy constant data

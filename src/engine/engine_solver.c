@@ -132,7 +132,7 @@ static void extractBlock(const mjModel* m, mjData* d, mjtNum* Ac,
 
     // sanity check; SHOULD NOT OCCUR
     if (k >= rownnz[start]) {
-      mju_error("Internal error in extractComponent");
+      mjERROR("internal error");
     }
 
     // copy rows
@@ -1384,7 +1384,7 @@ static void HessianDirect(const mjModel* m, mjData* d, mjCGContext* ctx) {
 
     // rank-defficient, SHOULD NOT OCCUR
     if (rank != nv) {
-      mju_error("Rank-defficient Hessian in HessianDirect");
+      mjERROR("rank-defficient Hessian");
     }
 
     // compress layout of H
@@ -1396,7 +1396,7 @@ static void HessianDirect(const mjModel* m, mjData* d, mjCGContext* ctx) {
       ctx->nnz += ctx->rownnz[i];
     }
     if (ctx->nnz > nv*nv) {  // SHOULD NOT OCCUR
-      mju_error("More nonzero values than elements in sparse direct-solver Hessian");
+      mjERROR("more nonzero values than elements in sparse direct-solver Hessian");
     }
   }
 

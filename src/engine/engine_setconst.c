@@ -436,7 +436,7 @@ int mj_setLengthRange(mjModel* m, mjData* d, int index,
                       const mjLROpt* opt, char* error, int error_sz) {
   // check index
   if (index < 0 || index >= m->nu) {
-    mju_error("Invalid actuator index in mj_setLengthRange");
+    mjERROR("invalid actuator index");
   }
 
   // skip depending on mode and type

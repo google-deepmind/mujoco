@@ -123,16 +123,11 @@ void mju_writeLog(const char* type, const char* msg) {
   }
 }
 
-
-// write message to logfile and console, pause and exit
-void mju_error(const char* msg, ...) {
+void mju_error_v(const char* msg, va_list args) {
   char errmsg[1000];
 
   // Format msg into errmsg
-  va_list args;
-  va_start(args, msg);
   vsnprintf(errmsg, mjSIZEOFARRAY(errmsg), msg, args);
-  va_end(args);
 
   if (_mjPRIVATE_tls_error_fn) {
     _mjPRIVATE_tls_error_fn(errmsg);
@@ -148,6 +143,16 @@ void mju_error(const char* msg, ...) {
     exit(EXIT_FAILURE);
   }
 }
+
+
+// write message to logfile and console, pause and exit
+void mju_error(const char* msg, ...) {
+  va_list args;
+  va_start(args, msg);
+  mju_error_v(msg, args);
+  va_end(args);
+}
+
 
 
 // write message to logfile and console

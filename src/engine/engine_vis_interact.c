@@ -38,7 +38,7 @@ void mjv_room2model(mjtNum* modelpos, mjtNum* modelquat, const mjtNum* roompos,
 
   // check scale
   if (scn->scale < mjMINVAL) {
-    mju_error("mjvScene scale too small in mjv_room2model");
+    mjERROR("mjvScene scale too small");
   }
 
   // enabled: transform
@@ -73,7 +73,7 @@ void mjv_model2room(mjtNum* roompos, mjtNum* roomquat, const mjtNum* modelpos,
 
   // check scale
   if (scn->scale < mjMINVAL) {
-    mju_error("mjvScene scale too small in mjv_model2room");
+    mjERROR("mjvScene scale too small");
   }
 
   // enabled: transform
@@ -105,7 +105,7 @@ void mjv_cameraInModel(mjtNum* headpos, mjtNum* forward, mjtNum* up, const mjvSc
 
   // check znear
   if (scn->camera[0].frustum_near < mjMINVAL || scn->camera[1].frustum_near < mjMINVAL) {
-    mju_error("mjvScene frustum_near too small in mjv_cameraInModel");
+    mjERROR("mjvScene frustum_near too small");
   }
 
   // clear results
@@ -178,7 +178,7 @@ void mjv_cameraInRoom(mjtNum* headpos, mjtNum* forward, mjtNum* up, const mjvSce
 
   // check znear
   if (scn->camera[0].frustum_near < mjMINVAL || scn->camera[1].frustum_near < mjMINVAL) {
-    mju_error("mjvScene frustum_near too small in mjv_cameraInRoom");
+    mjERROR("mjvScene frustum_near too small");
   }
 
   // clear results
@@ -228,7 +228,7 @@ mjtNum mjv_frustumHeight(const mjvScene* scn) {
 
   // check znear
   if (scn->camera[0].frustum_near < mjMINVAL || scn->camera[1].frustum_near < mjMINVAL) {
-    mju_error("mjvScene frustum_near too small in mjv_frustumHeight");
+    mjERROR("mjvScene frustum_near too small");
   }
 
   // add normalized height for left and right cameras
@@ -295,7 +295,7 @@ static void convert2D(mjtNum* res, int action, mjtNum dx, mjtNum dy, const mjtNu
     break;
 
   default:
-    mju_error("Unexpected mouse action %d in convert2D", action);
+    mjERROR("unexpected mouse action %d in convert2D", action);
   }
 
   // call 3D converter
@@ -347,7 +347,7 @@ void mjv_moveCamera(const mjModel* m, int action, mjtNum reldx, mjtNum reldy,
     break;
 
   default:
-    mju_error("Unexpected action %d in mjv_moveCamera", action);
+    mjERROR("unexpected action %d", action);
   }
 
   // clamp camera parameters
@@ -434,7 +434,7 @@ void mjv_movePerturb(const mjModel* m, const mjData* d, int action, mjtNum reldx
     break;
 
   default:
-    mju_error("Unexpected mouse action %d in mjv_movePerturb", action);
+    mjERROR("unexpected mouse action %d", action);
   }
 }
 
@@ -510,7 +510,7 @@ void mjv_moveModel(const mjModel* m, int action, mjtNum reldx, mjtNum reldy,
     break;
 
   default:
-    mju_error("Unexpected action %d in mjv_moveModel", action);
+    mjERROR("unexpected action %d", action);
   }
 }
 

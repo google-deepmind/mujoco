@@ -471,7 +471,7 @@ static void addToParent(const mjModel* m, mjData* d, mjtNum* mat, int n) {
 
     // child nonzeroes must be subset of parent; SHOULD NOT OCCUR
     else {
-      mju_error("Error in addToParent: child nonzeroes must be subset of parent");
+      mjERROR("child nonzeroes must be subset of parent");
     }
   }
 }
@@ -539,7 +539,7 @@ static void mjd_comVel_vel(const mjModel* m, mjData* d, mjtNum* Dcvel, mjtNum* D
         break;
 
       default:
-        mju_error("mjd_comVel_vel: Unknown joint type");
+        mjERROR("unknown joint type");
       }
     }
   }

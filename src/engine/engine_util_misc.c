@@ -287,7 +287,7 @@ mjtNum mju_wrap(mjtNum* wpnt, const mjtNum* x0, const mjtNum* x1,
 
   // check object type;  SHOULD NOT OCCUR
   if (type != mjWRAP_SPHERE && type != mjWRAP_CYLINDER) {
-    mju_error("mju_wrap: unknown wrapping object type %d", type);
+    mjERROR("unknown wrapping object type %d", type);
   }
 
   // map sites to wrap object's local frame

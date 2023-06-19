@@ -926,7 +926,8 @@ Euler integrator, semi-implicit in velocity.
 
   def test_can_raise_error(self):
     self.data.pstack = self.data.nstack
-    with self.assertRaisesRegex(mujoco.FatalError, r'\Astack overflow'):
+    with self.assertRaisesRegex(mujoco.FatalError,
+                                r'\Amj_stackAlloc: stack overflow'):
       mujoco.mj_forward(self.model, self.data)
 
   def test_mjcb_time(self):
