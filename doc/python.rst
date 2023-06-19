@@ -534,7 +534,7 @@ Building from source
    .. code-block:: shell
 
       cd dist
-      MUJOCO_PATH=/PATH/TO/MUJOCO pip install mujoco-x.y.z.tar.gz
+      MUJOCO_PATH=/PATH/TO/MUJOCO MUJOCO_PLUGIN_PATH=/PATH/TO/MUJOCO_PLUGIN pip install mujoco-x.y.z.tar.gz
 
 The Python bindings should now be installed! To check that they've been
 successfully installed, ``cd`` outside of the ``mujoco`` directory and run
