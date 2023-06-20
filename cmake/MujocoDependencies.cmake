@@ -230,6 +230,12 @@ findorfetch(
 if(NOT MUJOCO_USE_SYSTEM_ccd)
   target_compile_options(ccd PRIVATE ${MUJOCO_MACOS_COMPILE_OPTIONS})
   target_link_options(ccd PRIVATE ${MUJOCO_MACOS_LINK_OPTIONS})
+  # This is necessary to ensure that the any library that consumes the ccd 
+  # compiled internally by MuJoCo (as static library) has CCD_EXPORT correctly
+  # defined as an empty string. For ccd itself, this is ensured by the variable
+  # CCD_HIDE_ALL_SYMBOLS set to ON before the call to findorfetch
+  # See https://github.com/danfis/libccd/pull/79
+  target_compile_definitions(ccd INTERFACE CCD_STATIC_DEFINE)
 
   # libCCD has an unconditional `#define _CRT_SECURE_NO_WARNINGS` on Windows.
   # TODO(stunya): Remove this after https://github.com/danfis/libccd/pull/77 is merged.
