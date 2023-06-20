@@ -14,10 +14,6 @@
 
 # Build configuration for third party libraries used in MuJoCo.
 
-# Override the BUILD_SHARED_LIBS setting, just for building third party libs (since we always want
-# static libraries). The ccd CMakeLists.txt doesn't expose an option to build a static ccd library,
-# unless BUILD_SHARED_LIBS is set.
-
 set(MUJOCO_DEP_VERSION_lodepng
     b4ed2cd7ecf61d29076169b49199371456d4f90b
     CACHE STRING "Version of `lodepng` to be fetched."
@@ -70,6 +66,10 @@ mark_as_advanced(MUJOCO_DEP_VERSION_benchmark)
 
 include(FetchContent)
 include(FindOrFetch)
+
+# Override the BUILD_SHARED_LIBS setting, just for building third party libs (since we always want
+# static libraries). The ccd CMakeLists.txt doesn't expose an option to build a static ccd library,
+# unless BUILD_SHARED_LIBS is set.
 
 # We force all the dependencies to be compiled as static libraries.
 # TODO(fraromano) Revisit this choice when adding support for install.
