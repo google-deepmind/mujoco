@@ -1717,6 +1717,11 @@ void mjCGeom::Compile(void) {
     size[2] = mjMAX(fabs(aabb[2]), fabs(aabb[5]));
   }
 
+  for (double s : size) {
+    if (std::isnan(s)) {
+      throw mjCError(this, "nan size in geom '%s' (id = %d)", name.c_str(), id);
+    }
+  }
   // compute aabb
   ComputeAABB();
 
