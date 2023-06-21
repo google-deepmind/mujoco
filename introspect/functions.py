@@ -3871,6 +3871,42 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  type=ValueType(name='mjtNum'),
              ),
          ),
+         doc='Set (type, size, pos, mat) for connector-type geom between given points. Assume that mjv_initGeom was already called to set all other properties. Width of mjGEOM_LINE is denominated in pixels. Deprecated: use mjv_connector.',  # pylint: disable=line-too-long
+     )),
+    ('mjv_connector',
+     FunctionDecl(
+         name='mjv_connector',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='geom',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjvGeom'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='type',
+                 type=ValueType(name='int'),
+             ),
+             FunctionParameterDecl(
+                 name='width',
+                 type=ValueType(name='mjtNum'),
+             ),
+             FunctionParameterDecl(
+                 name='from',
+                 type=ArrayType(
+                     inner_type=ValueType(name='mjtNum', is_const=True),
+                     extents=(3,),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='to',
+                 type=ArrayType(
+                     inner_type=ValueType(name='mjtNum', is_const=True),
+                     extents=(3,),
+                 ),
+             ),
+         ),
          doc='Set (type, size, pos, mat) for connector-type geom between given points. Assume that mjv_initGeom was already called to set all other properties. Width of mjGEOM_LINE is denominated in pixels.',  # pylint: disable=line-too-long
      )),
     ('mjv_defaultScene',

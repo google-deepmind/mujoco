@@ -602,6 +602,7 @@ PYBIND11_MODULE(_functions, pymodule) {
   Def<traits::mjv_defaultFigure>(pymodule);
   Def<traits::mjv_initGeom>(pymodule);
   Def<traits::mjv_makeConnector>(pymodule);
+  Def<traits::mjv_connector>(pymodule);
   // Skipped: mjv_defaultScene (have MjvScene.__init__, memory managed by
   // MjvScene).
   // Skipped: mjv_makeScene (have MjvScene.__init__)

@@ -159,13 +159,10 @@ static void addContactGeom(const mjModel* m, mjData* d, const mjtByte* flags,
         mju_mulMatVec(vec, mat, axis, 3, 3);
 
         // create a cylinder
-        mjv_makeConnector(thisgeom, mjGEOM_CYLINDER, framewidth,
-                          con->pos[0],
-                          con->pos[1],
-                          con->pos[2],
-                          con->pos[0] + vec[0],
-                          con->pos[1] + vec[1],
-                          con->pos[2] + vec[2]);
+        mjtNum* from = con->pos;
+        mjtNum to[3];
+        mju_add3(to, from, vec);
+        mjv_connector(thisgeom, mjGEOM_CYLINDER, framewidth, from, to);
 
         // set color: R, G or B depending on axis
         for (int k=0; k < 3; k++) {
@@ -231,15 +228,12 @@ static void addContactGeom(const mjModel* m, mjData* d, const mjtByte* flags,
 
         // one-directional arrow for friction and world, symmetric otherwise
         START
-        mjv_makeConnector(thisgeom,
+        mjtNum* from = con->pos;
+        mjtNum to[3];
+        mju_add3(to, from, vec);
+        mjv_connector(thisgeom,
                           body1 > 0 && body2 > 0 && !split ? mjGEOM_ARROW2 : mjGEOM_ARROW,
-                          m->vis.scale.forcewidth * scl,
-                          con->pos[0],
-                          con->pos[1],
-                          con->pos[2],
-                          con->pos[0] + vec[0],
-                          con->pos[1] + vec[1],
-                          con->pos[2] + vec[2]);
+                          m->vis.scale.forcewidth * scl,from, to);
         f2f(thisgeom->rgba, j == 2 ? m->vis.rgba.contactfriction : m->vis.rgba.contactforce, 4);
         if (vopt->label == mjLABEL_CONTACTFORCE && j == (split ? 1 : 0)) {
           mjSNPRINTF(thisgeom->label, "%-.3g", mju_norm3(frc));
@@ -334,7 +328,12 @@ void mjv_makeConnector(mjvGeom* geom, int type, mjtNum width,
   mju_n2f(geom->mat, mat, 9);
 }
 
-
+// set (type, size, pos, mat) connector-type geom between given points
+//  assume that mjv_initGeom was already called to set all other properties
+void mjv_connector(mjvGeom* geom, int type, mjtNum width,
+                   const mjtNum from[3], const mjtNum to[3]) {
+  mjv_makeConnector(geom, type, width, from[0], from[1], from[2], to[0], to[1], to[2]);
+}
 
 // initialize given fields when not NULL, set the rest to their default values
 void mjv_initGeom(mjvGeom* geom, int type, const mjtNum* size,
@@ -497,9 +496,7 @@ static void drawBoundingBox(mjvGeom* thisgeom, mjData* d, mjvScene* scn,
       mju_addScl3(to, from, dist[k], 2);
       if (!(v&split[k])) {
         START
-        mjv_makeConnector(thisgeom, mjGEOM_LINE, 2,
-                          from[0], from[1], from[2],
-                          to[0], to[1], to[2]);
+        mjv_connector(thisgeom, mjGEOM_LINE, 2, from, to);
         f2f(thisgeom->rgba, rgba, 4);
         FINISH
       }
@@ -712,9 +709,7 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
 
       // construct geom
       sz[0] = scl * m->vis.scale.constraint;
-      mjv_makeConnector(thisgeom, mjGEOM_CAPSULE, sz[0],
-                        selpos[0], selpos[1], selpos[2],
-                        pert->refselpos[0], pert->refselpos[1], pert->refselpos[2]);
+      mjv_connector(thisgeom, mjGEOM_CAPSULE, sz[0], selpos, pert->refselpos);
 
       // prepare color
       float rgba[4];
@@ -791,8 +786,10 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
         mju_mulMatVec(vec, xmat, axis, 3, 3);
 
         // create a cylinder
-        mjv_makeConnector(thisgeom, mjGEOM_CYLINDER, sz[0], xpos[0], xpos[1], xpos[2],
-                          xpos[0] + vec[0], xpos[1] + vec[1], xpos[2] + vec[2]);
+        mjtNum* from = xpos;
+        mjtNum to[3];
+        mju_add3(to, from, vec);
+        mjv_connector(thisgeom, mjGEOM_CYLINDER, sz[0], from, to);
 
         // set color: R, G or B depending on axis
         for (int k=0; k < 3; k++) {
@@ -870,6 +867,8 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
 
         // set type, size, pos, mat depending on joint type
         int j = m->jnt_bodyid[i];
+        mjtNum* from;
+        mjtNum to[3];
         switch (m->jnt_type[i]) {
         case mjJNT_FREE:
           thisgeom->type = mjGEOM_BOX;
@@ -887,14 +886,10 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
 
         case mjJNT_SLIDE:
         case mjJNT_HINGE:
-          mjv_makeConnector(thisgeom,
-                            m->jnt_type[i] == mjJNT_SLIDE ? mjGEOM_ARROW : mjGEOM_ARROW1, sz[0],
-                            d->xanchor[3*i+0],
-                            d->xanchor[3*i+1],
-                            d->xanchor[3*i+2],
-                            d->xanchor[3*i+0] + sz[1]*d->xaxis[3*i+0],
-                            d->xanchor[3*i+1] + sz[1]*d->xaxis[3*i+1],
-                            d->xanchor[3*i+2] + sz[1]*d->xaxis[3*i+2]);
+          from = d->xanchor+3*i;
+          mju_addScl3(to, from, d->xaxis+3*i, sz[1]);
+          mjv_connector(thisgeom, m->jnt_type[i] == mjJNT_SLIDE ? mjGEOM_ARROW : mjGEOM_ARROW1,
+                        sz[0], from, to);
           break;
 
         default:
@@ -1004,14 +999,11 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
             sz[0] = m->vis.scale.actuatorwidth * scl;
 
             // make geom
-            mjv_makeConnector(thisgeom,
-                              m->jnt_type[j] == mjJNT_SLIDE ? mjGEOM_ARROW : mjGEOM_ARROW1, sz[0],
-                              d->xanchor[3*j+0],
-                              d->xanchor[3*j+1],
-                              d->xanchor[3*j+2],
-                              d->xanchor[3*j+0] + sz[1]*d->xaxis[3*j+0],
-                              d->xanchor[3*j+1] + sz[1]*d->xaxis[3*j+1],
-                              d->xanchor[3*j+2] + sz[1]*d->xaxis[3*j+2]);
+            mjtNum* from = d->xanchor + 3*j;
+            mjtNum to[3];
+            mju_addScl3(to, from, d->xaxis+3*j, sz[1]);
+            mjv_connector(thisgeom, m->jnt_type[j] == mjJNT_SLIDE ? mjGEOM_ARROW : mjGEOM_ARROW1,
+                          sz[0], from, to);
           }
 
           // ball or free joint
@@ -1082,9 +1074,7 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
               sz[0] *= m->vis.map.actuatortendon;
 
               // construct geom
-              mjv_makeConnector(thisgeom, mjGEOM_CAPSULE, sz[0],
-                                d->wrap_xpos[3*k], d->wrap_xpos[3*k+1], d->wrap_xpos[3*k+2],
-                                d->wrap_xpos[3*k+3], d->wrap_xpos[3*k+4], d->wrap_xpos[3*k+5]);
+              mjv_connector(thisgeom, mjGEOM_CAPSULE, sz[0], d->wrap_xpos+3*k, d->wrap_xpos+3*k+3);
 
               // set material if given
               setMaterial(m, thisgeom, m->tendon_matid[j], m->tendon_rgba+4*j, vopt->flags);
@@ -1240,13 +1230,10 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
         mju_mulMatVec(vec, d->geom_xmat+9*i, axis, 3, 3);
 
         // create a cylinder
-        mjv_makeConnector(thisgeom, mjGEOM_CYLINDER, sz[0],
-                          d->geom_xpos[3*i+0],
-                          d->geom_xpos[3*i+1],
-                          d->geom_xpos[3*i+2],
-                          d->geom_xpos[3*i+0] + vec[0],
-                          d->geom_xpos[3*i+1] + vec[1],
-                          d->geom_xpos[3*i+2] + vec[2]);
+        mjtNum* from = d->geom_xpos+3*i;
+        mjtNum to[3];
+        mju_add3(to, from, vec);
+        mjv_connector(thisgeom, mjGEOM_CYLINDER, sz[0], from, to);
 
         // set color: R, G or B depending on axis
         for (int k=0; k < 3; k++) {
@@ -1318,13 +1305,10 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
         mju_mulMatVec(vec, d->site_xmat+9*i, axis, 3, 3);
 
         // create a cylinder
-        mjv_makeConnector(thisgeom, mjGEOM_CYLINDER, sz[0],
-                          d->site_xpos[3*i+0],
-                          d->site_xpos[3*i+1],
-                          d->site_xpos[3*i+2],
-                          d->site_xpos[3*i+0] + vec[0],
-                          d->site_xpos[3*i+1] + vec[1],
-                          d->site_xpos[3*i+2] + vec[2]);
+        mjtNum* from = d->site_xpos+3*i;
+        mjtNum to[3];
+        mju_add3(to, from, vec);
+        mjv_connector(thisgeom, mjGEOM_CYLINDER, sz[0], from, to);
 
         // set color: R, G or B depending on axis
         for (int k=0; k < 3; k++) {
@@ -1401,13 +1385,10 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
         mju_mulMatVec(vec, d->cam_xmat+9*i, axis, 3, 3);
 
         // create a cylinder
-        mjv_makeConnector(thisgeom, mjGEOM_CYLINDER, sz[0],
-                          d->cam_xpos[3*i+0],
-                          d->cam_xpos[3*i+1],
-                          d->cam_xpos[3*i+2],
-                          d->cam_xpos[3*i+0] + vec[0],
-                          d->cam_xpos[3*i+1] + vec[1],
-                          d->cam_xpos[3*i+2] + vec[2]);
+        mjtNum* from = d->cam_xpos+3*i;
+        mjtNum to[3];
+        mju_add3(to, from, vec);
+        mjv_connector(thisgeom, mjGEOM_CYLINDER, sz[0], from, to);
 
         // set color: R, G or B depending on axis
         for (int k=0; k < 3; k++) {
@@ -1470,13 +1451,10 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
         mju_mulMatVec(vec, mat, axis, 3, 3);
 
         // create a cylinder
-        mjv_makeConnector(thisgeom, mjGEOM_CYLINDER, sz[0],
-                          d->light_xpos[3*i+0],
-                          d->light_xpos[3*i+1],
-                          d->light_xpos[3*i+2],
-                          d->light_xpos[3*i+0] + vec[0],
-                          d->light_xpos[3*i+1] + vec[1],
-                          d->light_xpos[3*i+2] + vec[2]);
+        mjtNum* from = d->light_xpos+3*i;
+        mjtNum to[3];
+        mju_add3(to, from, vec);
+        mjv_connector(thisgeom, mjGEOM_CYLINDER, sz[0], from, to);
 
         // set color: R, G or B depending on axis
         for (int k=0; k < 3; k++) {
@@ -1530,9 +1508,7 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
               }
 
               // construct geom
-              mjv_makeConnector(thisgeom, mjGEOM_CAPSULE, sz[0],
-                                d->wrap_xpos[3*j], d->wrap_xpos[3*j+1], d->wrap_xpos[3*j+2],
-                                d->wrap_xpos[3*j+3], d->wrap_xpos[3*j+4], d->wrap_xpos[3*j+5]);
+              mjv_connector(thisgeom, mjGEOM_CAPSULE, sz[0], d->wrap_xpos+3*j, d->wrap_xpos+3*j+3);
 
               // set material if given
               setMaterial(m, thisgeom, m->tendon_matid[i], m->tendon_rgba+4*i, vopt->flags);
@@ -1572,9 +1548,7 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
               sz[0] = m->tendon_width[i];
 
             // construct geom
-            mjv_makeConnector(thisgeom, mjGEOM_CAPSULE, sz[0],
-                              catenary[3*j], catenary[3*j+1], catenary[3*j+2],
-                              catenary[3*j+3], catenary[3*j+4], catenary[3*j+5]);
+            mjv_connector(thisgeom, mjGEOM_CAPSULE, sz[0], catenary+3*j, catenary+3*j+3);
 
             // set material if given
             setMaterial(m, thisgeom, m->tendon_matid[i], m->tendon_rgba+4*i, vopt->flags);
@@ -1622,9 +1596,8 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
 
         // render slider
         START
-        mjv_makeConnector(thisgeom, mjGEOM_CYLINDER, scl * m->vis.scale.slidercrank,
-                          d->site_xpos[3*k], d->site_xpos[3*k+1], d->site_xpos[3*k+2],
-                          end[0], end[1], end[2]);
+        mjv_connector(thisgeom, mjGEOM_CYLINDER, scl * m->vis.scale.slidercrank,
+                      d->site_xpos+3*k, end);
         f2f(thisgeom->rgba, m->vis.rgba.slidercrank, 4);
         if (vopt->label == mjLABEL_ACTUATOR) {
           makeLabel(m, mjOBJ_ACTUATOR, i, thisgeom->label);
@@ -1633,9 +1606,8 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
 
         // render crank
         START
-        mjv_makeConnector(thisgeom, mjGEOM_CAPSULE, scl * m->vis.scale.slidercrank/2.0,
-                          end[0], end[1], end[2],
-                          d->site_xpos[3*j+0], d->site_xpos[3*j+1], d->site_xpos[3*j+2]);
+        mjv_connector(thisgeom, mjGEOM_CAPSULE, scl * m->vis.scale.slidercrank/2.0,
+                      end, d->site_xpos+3*j);
         if (broken) {
           f2f(thisgeom->rgba, m->vis.rgba.crankbroken, 4);
         } else {
@@ -1681,9 +1653,7 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
             nxt = d->xanchor+3*j;
 
           // construct geom
-          mjv_makeConnector(thisgeom, mjGEOM_CAPSULE, scl * m->vis.scale.connect,
-                            cur[0], cur[1], cur[2],
-                            nxt[0], nxt[1], nxt[2]);
+          mjv_connector(thisgeom, mjGEOM_CAPSULE, scl * m->vis.scale.connect, cur, nxt);
           f2f(thisgeom->rgba, m->vis.rgba.connect, 4);
 
           FINISH
@@ -1694,9 +1664,7 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
       // connect first joint (or com) to parent com
       START
         nxt = d->xipos+3*m->body_parentid[i];
-      mjv_makeConnector(thisgeom, mjGEOM_CAPSULE, scl * m->vis.scale.connect,
-                        cur[0], cur[1], cur[2],
-                        nxt[0], nxt[1], nxt[2]);
+      mjv_connector(thisgeom, mjGEOM_CAPSULE, scl * m->vis.scale.connect, cur, nxt);
       f2f(thisgeom->rgba, m->vis.rgba.connect, 4);
       FINISH
     }
@@ -1719,14 +1687,11 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
 
         // make ray
         START
-        mjv_makeConnector(thisgeom, mjGEOM_LINE, 3,
-                          d->site_xpos[3*sid],
-                          d->site_xpos[3*sid+1],
-                          d->site_xpos[3*sid+2],
-                          d->site_xpos[3*sid]   + d->site_xmat[9*sid+2]*dst,
-                          d->site_xpos[3*sid+1] + d->site_xmat[9*sid+5]*dst,
-                          d->site_xpos[3*sid+2] + d->site_xmat[9*sid+8]*dst
-                          );
+        mjtNum* from = d->site_xpos+3*sid;
+        mjtNum to[3] = {from[0] + d->site_xmat[9*sid+2]*dst,
+                        from[1] + d->site_xmat[9*sid+5]*dst,
+                        from[2] + d->site_xmat[9*sid+8]*dst};
+        mjv_connector(thisgeom, mjGEOM_LINE, 3, from, to);
         f2f(thisgeom->rgba, m->vis.rgba.rangefinder, 4);
         FINISH
       }
@@ -1748,14 +1713,10 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
         mju_scl3(vec, xfrc, m->vis.map.force/m->stat.meanmass);
 
         START
-        mjv_makeConnector(thisgeom, mjGEOM_ARROW,
-                          m->vis.scale.forcewidth * scl,
-                          xpos[0],
-                          xpos[1],
-                          xpos[2],
-                          xpos[0] + vec[0],
-                          xpos[1] + vec[1],
-                          xpos[2] + vec[2]);
+        mjtNum* from = xpos;
+        mjtNum to[3];
+        mju_add3(to, from, vec);
+        mjv_connector(thisgeom, mjGEOM_ARROW, m->vis.scale.forcewidth * scl, from, to);
         f2f(thisgeom->rgba, m->vis.rgba.force, 4);
         FINISH
       }

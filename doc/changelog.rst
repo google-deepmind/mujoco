@@ -2,6 +2,16 @@
 Changelog
 =========
 
+Upcoming version (not yet released)
+-----------------------------------
+
+General
+^^^^^^^
+
+- Added :ref:`mjv_connector` which has identical functionality to :ref:`mjv_makeConnector`, but with more convenient
+  "from-to" argument parametrization. :ref:`mjv_makeConnector` is now deprecated.
+
+
 Version 2.3.6 (June 20, 2023)
 -----------------------------
 
