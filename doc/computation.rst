@@ -108,7 +108,7 @@ optimization algorithms.
 Inverse dynamics and optimization
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The objective of inverse dynamics it to recover the applied force and contact force given the position, velocity and
+The objective of inverse dynamics is to recover the applied force and contact force given the position, velocity and
 acceleration of the multi-joint system. With hard contacts this computation is impossible. Consider pushing against a
 wall without moving. The contact force cannot be recovered from the kinematics, unless of course we consider the
 material deformations - in which case we need a soft contact model. Inverse dynamics are trivial to compute with
