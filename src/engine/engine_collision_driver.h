@@ -29,7 +29,11 @@ extern "C" {
 #error "Compiler does not support C11."
 #endif
 #else
+// This ifndef is workaround for https://github.com/deepmind/mujoco/issues/862
+// Remove once we can assume that no one uses WIN SDK < 10.0.22000
+#ifndef MUJOCO_WINSDK_NO_STDALIGN_H
 #include <stdalign.h>
+#endif
 #endif
 
 struct mjCollisionTree_ {

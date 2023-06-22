@@ -158,6 +158,13 @@ if(APPLE AND MUJOCO_BUILD_MACOS_FRAMEWORKS)
   )
 endif()
 
+# This code is a workaround for https://github.com/deepmind/mujoco/issues/862
+# Once it can be assumed that no users uses a Windows SDK < 10.0.22000
+# we can drop this code
+if(MSVC AND CMAKE_SYSTEM_VERSION VERSION_LESS 10.0.22000)
+  target_compile_definitions(mujoco PRIVATE MUJOCO_WINSDK_NO_STDALIGN_H)
+endif()
+
 # Add a namespace alias to mujoco to be used by the examples.
 # This simulates the install interface when building with sources.
 add_library(mujoco::mujoco ALIAS mujoco)
