@@ -353,12 +353,12 @@ int mjc_SphereCylinder(const mjModel* m, const mjData* d,
 
   // cap collision: use plane-sphere
   if (collide_cap) {
-    mjtNum flipmat[9] = {
+    const mjtNum flipmat[9] = {
       -mat2[0], mat2[1], -mat2[2],
       -mat2[3], mat2[4], -mat2[5],
       -mat2[6], mat2[7], -mat2[8]
     };
-    mjtNum* mat_cap;
+    const mjtNum* mat_cap;
     mjtNum pos_cap[3];
     if (x > 0) {  // top cap
       mju_addScl3(pos_cap, pos2, axis, height);

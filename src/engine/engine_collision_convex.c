@@ -578,7 +578,7 @@ static void addVert(int* nvert, mjtPrism* prism, mjtNum x, mjtNum y, mjtNum z) {
 // entry point for heightfield collisions
 int mjc_ConvexHField(const mjModel* m, const mjData* d,
                      mjContact* con, int g1, int g2, mjtNum margin) {
-  mjGETINFO
+  mjGETINFO_HFIELD
   mjtNum mat[9], savemat2[9], savepos2[3], pos[3], vec[3], r2, dx, dy;
   mjtNum xmin, xmax, ymin, ymax, zmin, zmax;
   int hid = m->geom_dataid[g1];

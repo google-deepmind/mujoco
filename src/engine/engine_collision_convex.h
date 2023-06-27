@@ -26,6 +26,14 @@
 #include <mujoco/mjdata.h>
 #include <mujoco/mjmodel.h>
 
+#define mjGETINFO_HFIELD \
+    const mjtNum* pos1  = d->geom_xpos + 3*g1; \
+    const mjtNum* mat1  = d->geom_xmat + 9*g1; \
+    const mjtNum* size1 = m->geom_size + 3*g1; \
+          mjtNum* pos2  = d->geom_xpos + 3*g2; \
+          mjtNum* mat2  = d->geom_xmat + 9*g2;
+// mjc_ConvexHField modifies and then restores pos2 and mat2
+
 #ifdef __cplusplus
 extern "C" {
 #endif
