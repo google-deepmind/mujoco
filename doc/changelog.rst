@@ -10,7 +10,7 @@ General
 
 - Added :ref:`mjv_connector` which has identical functionality to :ref:`mjv_makeConnector`, but with more convenient
   "from-to" argument parametrization. :ref:`mjv_makeConnector` is now deprecated.
-
+- Added primitive collider for sphere-cylinder contacts, previously this pair used the generic convex-convex collider.
 
 Version 2.3.6 (June 20, 2023)
 -----------------------------

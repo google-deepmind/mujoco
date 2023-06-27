@@ -47,6 +47,8 @@ int mjc_SphereSphere    (const mjModel* m, const mjData* d,
                          mjContact* con, int g1, int g2, mjtNum margin);
 int mjc_SphereCapsule   (const mjModel* m, const mjData* d,
                          mjContact* con, int g1, int g2, mjtNum margin);
+int mjc_SphereCylinder  (const mjModel* m, const mjData* d,
+                         mjContact* con, int g1, int g2, mjtNum margin);
 int mjc_CapsuleCapsule  (const mjModel* m, const mjData* d,
                          mjContact* con, int g1, int g2, mjtNum margin);
 

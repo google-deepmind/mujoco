@@ -314,6 +314,80 @@ int mjc_SphereCapsule(const mjModel* m, const mjData* d,
 
 
 
+// sphere : cylinder
+int mjc_SphereCylinder(const mjModel* m, const mjData* d,
+                       mjContact* con, int g1, int g2, mjtNum margin) {
+  mjGETINFO
+
+  // get cylinder sizes and axis
+  mjtNum radius = size2[0];
+  mjtNum height = size2[1];
+  mjtNum axis[3] = {mat2[2], mat2[5], mat2[8]};
+
+  // find sphere projection onto cylinder axis and plane
+  mjtNum vec[3] = {pos1[0] - pos2[0], pos1[1] - pos2[1], pos1[2] - pos2[2]};
+  mjtNum x = mju_dot3(axis, vec);
+  mjtNum a_proj[3], p_proj[3];
+  mju_scl3(a_proj, axis, x);
+  mju_sub3(p_proj, vec, a_proj);
+  mjtNum p_proj_sqr = mju_dot3(p_proj, p_proj);
+
+  // get collision type
+  int collide_side = mju_abs(x) < height;
+  int collide_cap = p_proj_sqr < radius*radius;
+  if (collide_side && collide_cap) {  // deep penetration (sphere origin inside cylinder)
+    mjtNum dist_cap = height - mju_abs(x);
+    mjtNum dist_radius = radius - mju_sqrt(p_proj_sqr);
+    if (dist_cap < dist_radius) {  // disable one collision type
+      collide_side = 0;
+    } else {
+      collide_cap = 0;
+    }
+  }
+
+  // side collision: use sphere-sphere
+  if (collide_side) {
+    mju_addTo3(a_proj, pos2);
+    return _SphereSphere(con, margin, pos1, mat1, size1, a_proj, mat2, size2);
+  }
+
+  // cap collision: use plane-sphere
+  if (collide_cap) {
+    mjtNum flipmat[9] = {
+      -mat2[0], mat2[1], -mat2[2],
+      -mat2[3], mat2[4], -mat2[5],
+      -mat2[6], mat2[7], -mat2[8]
+    };
+    mjtNum* mat_cap;
+    mjtNum pos_cap[3];
+    if (x > 0) {  // top cap
+      mju_addScl3(pos_cap, pos2, axis, height);
+      mat_cap = mat2;
+    } else {      // bottom cap
+      mju_addScl3(pos_cap, pos2, axis, -height);
+      mat_cap = flipmat;
+    }
+    int ncon = _PlaneSphere(con, margin, pos_cap, mat_cap, size2, pos1, mat1, size1);
+    if (ncon) {
+      // flip frame normal (because mjGEOM_PLANE < mjGEOM_SPHERE < mjGEOM_CYLINDER)
+      mju_scl3(con->frame, con->frame, -1);
+    }
+    return ncon;
+  }
+
+  // otherwise corner collision: use sphere-sphere
+  mju_scl3(p_proj, p_proj, size2[0] / mju_sqrt(p_proj_sqr));  // denominator cannot be 0
+  mju_scl3(vec, axis, x > 0 ? height : -height);
+  mju_addTo3(vec, p_proj);
+  mju_addTo3(vec, pos2);
+
+  // sphere-sphere with point sphere at the corner
+  mjtNum size_zero[1] = {0};
+  return _SphereSphere(con, margin, pos1, mat1, size1, vec, mat2, size_zero);
+}
+
+
+
 // capsule : capsule
 int mjc_CapsuleCapsule(const mjModel* m, const mjData* d,
                        mjContact* con, int g1, int g2, mjtNum margin) {

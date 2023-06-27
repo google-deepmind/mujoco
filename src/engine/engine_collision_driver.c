@@ -37,7 +37,7 @@ mjfCollision mjCOLLISIONFUNC[mjNGEOMTYPES][mjNGEOMTYPES] = {
   /*               PLANE  HFIELD  SPHERE              CAPSULE             ELLIPSOID           CYLINDER            BOX                 MESH      */
   /*PLANE     */  {0,     0,      mjc_PlaneSphere,    mjc_PlaneCapsule,   mjc_PlaneConvex,    mjc_PlaneCylinder,  mjc_PlaneBox,       mjc_PlaneConvex},
   /*HFIELD    */  {0,     0,      mjc_ConvexHField,   mjc_ConvexHField,   mjc_ConvexHField,   mjc_ConvexHField,   mjc_ConvexHField,   mjc_ConvexHField},
-  /*SHPERE    */  {0,     0,      mjc_SphereSphere,   mjc_SphereCapsule,  mjc_Convex,         mjc_Convex,         mjc_SphereBox,      mjc_Convex},
+  /*SHPERE    */  {0,     0,      mjc_SphereSphere,   mjc_SphereCapsule,  mjc_Convex,         mjc_SphereCylinder, mjc_SphereBox,      mjc_Convex},
   /*CAPSULE   */  {0,     0,      0,                  mjc_CapsuleCapsule, mjc_Convex,         mjc_Convex,         mjc_CapsuleBox,     mjc_Convex},
   /*ELLIPSOID */  {0,     0,      0,                  0,                  mjc_Convex,         mjc_Convex,         mjc_Convex,         mjc_Convex},
   /*CYLINDER  */  {0,     0,      0,                  0,                  0,                  mjc_Convex,         mjc_Convex,         mjc_Convex},
