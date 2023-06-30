@@ -108,7 +108,7 @@ optimization algorithms.
 Inverse dynamics and optimization
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The objective of inverse dynamics it to recover the applied force and contact force given the position, velocity and
+The objective of inverse dynamics is to recover the applied force and contact force given the position, velocity and
 acceleration of the multi-joint system. With hard contacts this computation is impossible. Consider pushing against a
 wall without moving. The contact force cannot be recovered from the kinematics, unless of course we consider the
 material deformations - in which case we need a soft contact model. Inverse dynamics are trivial to compute with
@@ -291,7 +291,7 @@ is attached; the possible attachment object types are :at:`joint`, :at:`tendon`,
    :ref:`adhesion<actuator-adhesion>` actuator documentation.
 
    If a :at:`site` transmission target is defined with the optional :at:`refsite` attribute, forces and torques are
-   applied in the frame of the reference site rather than the the site's own frame. If a reference site is defined then
+   applied in the frame of the reference site rather than the site's own frame. If a reference site is defined then
    the length of the actuator is nonzero and corresponds to the pose difference of the two sites. This length can then
    be controlled with a :el:`position` actuator, enabling Cartesian end-effector control. See the :at:`refsite`
    documentation in :ref:`actuator<actuator-general>` reference for more details.
