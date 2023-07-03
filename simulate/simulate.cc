@@ -703,7 +703,7 @@ void MakeRenderingSection(mj::Simulate* sim, const mjModel* m, int oldstate) {
   // add model cameras, up to UI limit
   for (int i=0; i<mjMIN(m->ncam, mjMAXUIMULTI-2); i++) {
     // prepare name
-    char camname[mjMAXUITEXT] = "\n";
+    char camname[mjMAXUINAME] = "\n";
     if (m->names[m->name_camadr[i]]) {
       mju::strcat_arr(camname, m->names+m->name_camadr[i]);
     } else {
