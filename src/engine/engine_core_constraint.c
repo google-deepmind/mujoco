@@ -769,7 +769,7 @@ void mj_instantiateLimit(const mjModel* m, mjData* d) {
 
 
 
-// frictionelss and frictional contacts
+// frictionless and frictional contacts
 void mj_instantiateContact(const mjModel* m, mjData* d) {
   int ispyramid = mj_isPyramidal(m), issparse = mj_isSparse(m), ncon = d->ncon;
   int dim, b1, b2, NV = m->nv, *chain = NULL;
@@ -1309,15 +1309,20 @@ int mju_combineSparseCount(int a_nnz, int b_nnz, const int* a_ind, const int* b_
 
 
 // count the non-zero columns in the Jacobian difference of two bodies
-static int mj_jacDifPairCount(const mjModel* m, int* chain, int b1, int b2) {
+static int mj_jacDifPairCount(const mjModel* m, int* chain,
+                              int b1, int b2, int issparse) {
   if (!m->nv) {
     return 0;
   }
 
-  if (m->body_simple[b1] && m->body_simple[b2]) {
-    return mj_mergeChainSimple(m, chain, b1, b2);
+  if (issparse) {
+    if (m->body_simple[b1] && m->body_simple[b2]) {
+      return mj_mergeChainSimple(m, chain, b1, b2);
+    }
+    return mj_mergeChain(m, chain, b1, b2);
   }
-  return mj_mergeChain(m, chain, b1, b2);
+
+  return m->nv;
 }
 
 
@@ -1338,6 +1343,7 @@ static inline int mj_ne(const mjModel* m, mjData* d, int* nnz) {
   int ne = 0, nnze = 0;
   int nv = m->nv, neq = m->neq;
   int id[2], size, NV, NV2, *chain = NULL, *chain2 = NULL;
+  int issparse = (nnz != NULL);
 
   // disabled or no equality constraints: return
   if (mjDISABLED(mjDSBL_EQUALITY) || m->nemax == 0) {
@@ -1368,7 +1374,7 @@ static inline int mj_ne(const mjModel* m, mjData* d, int* nnz) {
           break;
         }
 
-        NV = mj_jacDifPairCount(m, chain, id[1], id[0]);
+        NV = mj_jacDifPairCount(m, chain, id[1], id[0], issparse);
         break;
 
       case mjEQ_WELD:
@@ -1377,7 +1383,7 @@ static inline int mj_ne(const mjModel* m, mjData* d, int* nnz) {
           break;
         }
 
-        NV = mj_jacDifPairCount(m, chain, id[1], id[0]);
+        NV = mj_jacDifPairCount(m, chain, id[1], id[0], issparse);
         break;
 
       case mjEQ_JOINT:
@@ -1531,6 +1537,7 @@ static inline int mj_nl(const mjModel* m, const mjData* d, int *nnz) {
 static inline int mj_nc(const mjModel* m, mjData* d, int* nnz) {
   int nnzc = 0, nc = 0;
   int ispyramid = mj_isPyramidal(m), ncon = d->ncon;
+  int issparse = (nnz != NULL);
 
   if (mjDISABLED(mjDSBL_CONTACT) || !ncon) {
     return 0;
@@ -1548,7 +1555,7 @@ static inline int mj_nc(const mjModel* m, mjData* d, int* nnz) {
     int dim = con->dim;
     int b1 = m->geom_bodyid[con->geom1];
     int b2 = m->geom_bodyid[con->geom2];
-    int NV = mj_jacDifPairCount(m, chain, b1, b2);
+    int NV = mj_jacDifPairCount(m, chain, b1, b2, issparse);
     if (!NV) {
       continue;
     }
@@ -1696,8 +1703,8 @@ void mj_makeConstraint(const mjModel* m, mjData* d) {
   #ifdef MEMORY_SANITIZER
     // tell msan to treat the entire J rowsuper as uninitialized
     __msan_allocated_memory(d->efc_J_rowsuper, d->nefc);
-  #endif // MEMORY_SANITIZER
-#endif // mjUSEAVX
+  #endif  // MEMORY_SANITIZER
+#endif  // mjUSEAVX
 
     // supernodes of JT
     mju_superSparse(m->nv, d->efc_JT_rowsuper,
