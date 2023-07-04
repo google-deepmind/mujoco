@@ -207,6 +207,9 @@ void mj_comPos(const mjModel* m, mjData* d) {
     }
   }
 
+  // zero out CoM frame inertia for the world body
+  mju_zero(d->cinert, 10);
+
   // map inertias to frame centered at subtree_com
   for (int i=1; i < m->nbody; i++) {
     mju_sub3(offset, d->xipos+3*i, d->subtree_com+3*m->body_rootid[i]);
