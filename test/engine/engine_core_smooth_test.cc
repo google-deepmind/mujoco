@@ -15,26 +15,75 @@
 // Tests for engine/engine_core_smooth.c.
 
 #include <string>
+#include <string_view>
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
+#include <absl/types/span.h>
 #include <mujoco/mjmodel.h>
+#include <mujoco/mjxmacro.h>
 #include <mujoco/mujoco.h>
-#include "src/engine/engine_util_blas.h"
-#include "src/engine/engine_util_spatial.h"
 #include "test/fixture.h"
 
 namespace mujoco {
 namespace {
 
+using ::testing::Each;
 using ::testing::ElementsAre;
+using ::testing::Eq;
 using ::testing::Pointwise;
 using ::testing::DoubleNear;
 using ::testing::NotNull;
 using CoreSmoothTest = MujocoTest;
 
-static std::vector<mjtNum> GetVector(const mjtNum* array, int length) {
+std::vector<mjtNum> GetVector(const mjtNum* array, int length) {
   return std::vector<mjtNum>(array, array + length);
+}
+
+constexpr bool EndsWith(std::string_view str, std::string_view suffix) {
+  return str.size() >= suffix.size() &&
+         str.substr(str.size() - suffix.size()) == suffix;
+}
+
+// mjData values corresponding to the world body should be zero or identity
+TEST_F(CoreSmoothTest, MjDataWorldBodyValuesAreInitialized) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <option>
+      <flag gravity="disable"/>
+    </option>
+    <worldbody/>
+    <sensor>
+      <subtreelinvel body="world"/>
+    </sensor>
+  </mujoco>
+  )";
+  mjModel* model = LoadModelFromString(xml);
+  ASSERT_THAT(model, NotNull());
+  mjData* data = mj_makeData(model);
+  mj_resetDataDebug(model, data, 'd');
+  mj_forward(model, data);
+  mj_rnePostConstraint(model, data);
+
+  {
+    MJDATA_POINTERS_PREAMBLE(model)
+#define X(type, name, d0, d1)                                                 \
+    if constexpr (std::string_view(#d0) == "nbody") {                         \
+      absl::Span<type> values(data->name, model->d0 * d1);                    \
+      if constexpr (EndsWith(#name, "quat")) {                                \
+        EXPECT_THAT(values, ElementsAre(1, 0, 0, 0)) << #name;                \
+      } else if constexpr (EndsWith(#name, "mat")) {                          \
+        EXPECT_THAT(values, ElementsAre(1, 0, 0, 0, 1, 0, 0, 0, 1)) << #name; \
+      } else {                                                                \
+        EXPECT_THAT(values, Each(Eq(0))) << #name;                            \
+      }                                                                       \
+    }
+    MJDATA_POINTERS
+#undef X
+  }
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
 }
 
 // --------------------------- mj_kinematics -----------------------------------
