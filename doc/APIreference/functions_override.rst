@@ -22,6 +22,11 @@ this data structure. The common usage pattern is to first clear it with mj_defau
 mj_addFileVFS (which allocates memory buffers and loads the file content in memory), then call mj_loadXML or
 mj_loadModel, and then clear everything with mj_deleteVFS.
 
+.. _mj_addFileVFS:
+
+Add file to VFS. The directory argument is optional and can be NULL or empty. Returns 0 on success, 1 when VFS is full,
+2 on name collision, or -1 when an internal error occurs.
+
 .. _Parseandcompile:
 
 The key function here is :ref:`mj_loadXML`. It invokes the built-in parser and compiler, and either returns a pointer to

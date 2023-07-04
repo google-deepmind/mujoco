@@ -15,7 +15,6 @@
 #include "engine/engine_vfs.h"
 
 #include <string.h>
-#include <stdlib.h>
 
 #include "engine/engine_array_safety.h"
 #include "engine/engine_plugin.h"
@@ -72,11 +71,8 @@ int mj_addFileVFS(mjVFS* vfs, const char* directory, const char* filename) {
 
   // make full name
   char fullname[1000];
-  if (directory) {
-    mjSTRNCPY(fullname, directory);
-    mjSTRNCAT(fullname, filename);
-  } else {
-    mjSTRNCPY(fullname, filename);
+  if (mju_makefullname(fullname, sizeof(fullname), directory, filename)) {
+    return -1;
   }
 
   // strip path
