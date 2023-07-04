@@ -1390,7 +1390,7 @@ void mjXWriter::Body(XMLElement* elem, mjCBody* body) {
 
   // write plugin
   if (body->is_plugin) {
-    OnePlugin(elem, body);
+    OnePlugin(InsertEnd(elem, "plugin"), body);
   }
 
   // write child bodies recursively
