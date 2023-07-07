@@ -435,6 +435,10 @@ Symmetrize square matrix :math:`R = \frac{1}{2}(M + M^T)`.
 
 .. _Derivatives-api:
 
+The functions below provide useful derivatives of various functions, both analytic and
+finite-differenced. The latter have names with the suffix ``FD``. Note that unlike much of the API,
+outputs of derivative functions are the trailing rather than leading arguments.
+
 .. _mjd_transitionFD:
 
 Finite-differenced discrete-time transition matrices.
@@ -490,3 +494,29 @@ using finite-differencing. These matrices and their dimensions are:
 - ``eps`` is the (forward) finite-differencing epsilon.
 - ``flg_actuation`` denotes whether to subtract actuation forces (``qfrc_actuator``) from the output of the inverse
   dynamics. If this flag is positive, actuator forces are not considered as external.
+
+.. _mjd_subQuat:
+
+Derivatives of :ref:`mju_subQuat` (quaternion difference).
+
+.. _mjd_quatIntegrate:
+
+Derivatives of :ref:`mju_quatIntegrate`.
+
+:math:`{\tt \small mju\_quatIntegrate}(q, v, h)` performs the in-place rotation :math:`q \leftarrow q + v h`,
+where :math:`q \in \mathbf{S}^3` is a unit quaternion, :math:`v \in \mathbf{R}^3` is a 3D angular velocity and
+:math:`h \in \mathbf{R^+}` is a timestep. This is equivalent to :math:`{\tt \small mju\_quatIntegrate}(q, s, 1.0)`,
+where :math:`s` is the scaled velocity :math:`s = h v`.
+
+:math:`{\tt \small mjd\_quatIntegrate}(v, h, D_q, D_v, D_h)` computes the Jacobians of the output :math:`q` with respect
+to the inputs. Below, :math:`\bar q` denotes the pre-modified quaternion:
+
+.. math::
+   \begin{aligned}
+      D_q &= \partial q / \partial \bar q \\
+      D_v &= \partial q / \partial v \\
+      D_h &= \partial q / \partial h
+   \end{aligned}
+
+Note that derivatives depend only on :math:`h` and :math:`v` (in fact, on :math:`s = h v`).
+All outputs are optional.

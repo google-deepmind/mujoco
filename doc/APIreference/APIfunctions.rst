@@ -29,7 +29,7 @@ API function can be classified as:
 - :ref:`Poses transformations<Poses>`.
 - :ref:`Matrix decompositions and solvers<Decompositions>`.
 - :ref:`Miscellaneous<Miscellaneous>` functions.
-- :ref:`Dynamics derivatives<Derivatives-api>`.
+- :ref:`Derivatives<Derivatives-api>`.
 - :ref:`Plugin<Plugins-api>` related functions.
 - :ref:`Macros<Macros>`.
 

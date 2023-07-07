@@ -1246,6 +1246,13 @@ MJAPI void mjd_inverseFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte flg_ac
                          mjtNum *DsDq, mjtNum *DsDv, mjtNum *DsDa,
                          mjtNum *DmDq);
 
+// Derivatives of mju_subQuat.
+MJAPI void mjd_subQuat(const mjtNum qa[4], const mjtNum qb[4], mjtNum Da[9], mjtNum Db[9]);
+
+// Derivatives of mju_quatIntegrate.
+MJAPI void mjd_quatIntegrate(const mjtNum vel[3], mjtNum scale,
+                             mjtNum Dquat[9], mjtNum Dvel[9], mjtNum Dscale[3]);
+
 //---------------------- Plugins -------------------------------------------------------------------
 
 // Set default plugin definition.

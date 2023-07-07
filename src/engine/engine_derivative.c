@@ -267,6 +267,64 @@ void mjd_subQuat(const mjtNum qa[4], const mjtNum qb[4], mjtNum Da[9], mjtNum Db
 
 
 
+// derivative of mju_quatIntegrate w.r.t scaled velocity
+//  reference: https://arxiv.org/abs/1711.02508, Eq. 183
+void mjd_quatIntegrate(const mjtNum vel[3], mjtNum scale,
+                       mjtNum Dquat[9], mjtNum Dvel[9], mjtNum Dscale[3]) {
+  // scaled velocity
+  mjtNum s[3] = {scale*vel[0], scale*vel[1], scale*vel[2]};
+
+  // 3 basis matrices
+  mjtNum eye[9] = {
+    1, 0, 0,
+    0, 1, 0,
+    0, 0, 1
+  };
+  mjtNum cross[9] = {
+    0,     s[2], -s[1],
+   -s[2],  0,     s[0],
+    s[1], -s[0],  0
+  };
+  mjtNum outer[9] = {
+    s[0]*s[0], s[0]*s[1], s[0]*s[2],
+    s[1]*s[0], s[1]*s[1], s[1]*s[2],
+    s[2]*s[0], s[2]*s[1], s[2]*s[2]
+  };
+
+  // squared norm, norm of s
+  mjtNum xx = mju_dot3(s, s);
+  mjtNum x = mju_sqrt(xx);
+
+  // 4 coefficients: a=cos(x), b=sin(x)/x, c=(1-cos(x))/x^2, d=(x-sin(x))/x^3}
+  mjtNum a = mju_cos(x);
+  mjtNum b, c, d;
+
+  // x is not small: use full expressions
+  if (mju_abs(x) > 1.0/32) {
+    b = mju_sin(x) / x;
+    c = (1.0 - a) / xx;
+    d = (1.0 - b) / xx;
+  }
+
+  // |x| <= 1/32: use 6th order Taylor expansion (Horner form)
+  else {
+    b =  1 + xx/6  * (xx/20 * (1 - xx/42) - 1);
+    c = (1 + xx/12 * (xx/30 * (1 - xx/56) - 1)) / 2;
+    d = (1 + xx/20 * (xx/42 * (1 - xx/72) - 1)) / 6;
+  }
+
+  // derivatives
+  mjtNum Dvel_[9];
+  for (int i=0; i < 9; i++) {
+    if (Dquat)          Dquat[i] = a*eye[i] + b*cross[i] + c*outer[i];
+    if (Dvel || Dscale) Dvel_[i] = b*eye[i] + c*cross[i] + d*outer[i];
+  }
+  if (Dvel) mju_copy(Dvel, Dvel_, 9);
+  if (Dscale) mju_rotVecMat(Dscale, vel, Dvel_);
+}
+
+
+
 //------------------------- dense derivatives of component functions -------------------------------
 // no longer used, except in tests
 

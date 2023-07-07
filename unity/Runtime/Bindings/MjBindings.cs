@@ -3865,5 +3865,11 @@ public static unsafe extern void mjd_transitionFD(mjModel_* m, mjData_* d, doubl
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern void mjd_inverseFD(mjModel_* m, mjData_* d, double eps, byte flg_actuation, double* DfDq, double* DfDv, double* DfDa, double* DsDq, double* DsDv, double* DsDa, double* DmDq);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern void mjd_subQuat(double* qa, double* qb, double* Da, double* Db);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern void mjd_quatIntegrate(double* vel, double scale, double* Dquat, double* Dvel, double* Dscale);
 }
 }

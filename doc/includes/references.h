@@ -2494,6 +2494,9 @@ void mjd_inverseFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte flg_actuatio
                    mjtNum *DfDq, mjtNum *DfDv, mjtNum *DfDa,
                    mjtNum *DsDq, mjtNum *DsDv, mjtNum *DsDa,
                    mjtNum *DmDq);
+void mjd_subQuat(const mjtNum qa[4], const mjtNum qb[4], mjtNum Da[9], mjtNum Db[9]);
+void mjd_quatIntegrate(const mjtNum vel[3], mjtNum scale,
+                       mjtNum Dquat[9], mjtNum Dvel[9], mjtNum Dscale[3]);
 void mjp_defaultPlugin(mjpPlugin* plugin);
 int mjp_registerPlugin(const mjpPlugin* plugin);
 int mjp_pluginCount();
