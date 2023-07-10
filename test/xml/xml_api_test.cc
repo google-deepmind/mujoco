@@ -14,6 +14,7 @@
 
 // Tests for xml/xml_api.cc.
 
+#include <array>
 #include <cstddef>
 #include <cstring>
 #include <string>
@@ -30,6 +31,7 @@ namespace {
 
 using ::testing::IsNull;
 using ::testing::NotNull;
+using ::testing::StartsWith;
 
 // ---------------------------- test mj_loadXML --------------------------------
 
@@ -54,16 +56,34 @@ TEST_F(LoadXmlTest, EmptyModel) {
 
 TEST_F(LoadXmlTest, InvalidXmlFailsToLoad) {
   static constexpr char invalid_xml[] = "<mujoc";
-  char error[1024];
-  size_t error_sz = 1024;
-  mjModel* model = LoadModelFromString(invalid_xml, error, error_sz);
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(invalid_xml, error.data(), error.size());
   EXPECT_THAT(model, IsNull()) << "Expected model loading to fail.";
-  EXPECT_GT(std::strlen(error), 0);
+  EXPECT_GT(std::strlen(error.data()), 0);
   if (model) {
     mj_deleteModel(model);
   }
 }
 // TODO(nimrod): Add more tests for mj_loadXML.
+
+using SaveLastXmlTest = MujocoTest;
+
+TEST_F(SaveLastXmlTest, EmptyModel) {
+  static constexpr char xml[] = "<mujoco/>";
+  mjModel* model = LoadModelFromString(xml, 0, 0);
+  mjData* data = mj_makeData(model);
+
+  std::array<char, 1024> error;
+  error.data()[0] = '\0';
+
+  testing::internal::CaptureStdout();
+  mj_saveLastXML(nullptr, model, error.data(), error.size());
+
+  EXPECT_THAT(testing::internal::GetCapturedStdout(), StartsWith("<mujoco"));
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
 
 }  // namespace
 }  // namespace mujoco

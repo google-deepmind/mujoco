@@ -92,37 +92,18 @@ class LocaleOverride {
 }  // namespace
 
 // Main writer function - calls mjXWrite
-bool mjWriteXML(mjCModel* model, string filename, char* error, int error_sz) {
+string mjWriteXML(mjCModel* model, char* error, int error_sz) {
   LocaleOverride locale_override;
 
   // check for empty model
   if (!model) {
     mjCopyError(error, "Cannot write empty model", error_sz);
-    return false;
+    return "";
   }
 
-  // write
-  FILE* fp = fopen(filename.c_str(), "w");
-  if (!fp) {
-    mjCopyError(error, "File not found", error_sz);
-    return false;
-  }
-
-  try {
-    mjXWriter writer;
-    writer.SetModel(model);
-    writer.Write(fp);
-  }
-
-  // catch known errors
-  catch (mjXError err) {
-    mjCopyError(error, err.message, error_sz);
-    fclose(fp);
-    return false;
-  }
-
-  fclose(fp);
-  return true;
+  mjXWriter writer;
+  writer.SetModel(model);
+  return writer.Write(error, error_sz);
 }
 
 

@@ -137,22 +137,35 @@ mjModel* mj_loadXML(const char* filename, const mjVFS* vfs,
 int mj_saveLastXML(const char* filename, const mjModel* m, char* error, int error_sz) {
   // serialize access to themodel
   std::lock_guard<std::mutex> lock(themutex);
+  FILE *fp = stdout;
 
   if (!themodel.model) {
     mjCopyError(error, "No XML model loaded", error_sz);
     return 0;
   }
 
-  themodel.model->CopyBack(m);
-  if (mjWriteXML(themodel.model, filename, error, error_sz)) {
-    if (error) {
-      error[0] = 0;
+  if (filename != nullptr && filename[0] != '\0') {
+    fp = fopen(filename, "w");
+    if (!fp) {
+      mjCopyError(error, "File not found", error_sz);
+      return 0;
     }
-    return 1;
-  } else {
-    return 0;
   }
+
+  themodel.model->CopyBack(m);
+  std::string result = mjWriteXML(themodel.model, error, error_sz);
+
+  if (!result.empty()) {
+    fprintf(fp, "%s", result.c_str());
+  }
+
+  if (fp != stdout) {
+    fclose(fp);
+  }
+
+  return !result.empty();
 }
+
 
 
 // free last XML
