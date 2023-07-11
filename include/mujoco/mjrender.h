@@ -39,15 +39,6 @@ typedef enum mjtFramebuffer_ {    // OpenGL framebuffer option
   mjFB_OFFSCREEN                  // offscreen buffer
 } mjtFramebuffer;
 
-typedef enum mjtDepthMapping_ {   // OpenGL depth buffer mapping (from znear to zfar)
-  mjDB_NEGONETOONE  = 0,          // Negative one to one (OpenGL default)
-  mjDB_ONETOZERO                  // Reversed Z buffer (decreases numerical error)
-} mjtDepthMapping;
-
-typedef enum mjtDepthPrecision_ { // OpenGL depth buffer precision
-  mjDB_INT24        = 0,          // 24 bit integer buffer (OpenGL default)
-  mjDB_FLOAT32                    // 32 bit float buffer
-} mjtDepthPrecision;
 
 typedef enum mjtFontScale_ {      // font scale, used at context creation
   mjFONTSCALE_50      = 50,       // 50% scale, suitable for low-res rendering
@@ -160,12 +151,6 @@ struct mjrContext_ {              // custom OpenGL context
 
   // pixel output format
   int     readPixelFormat;        // default color pixel format for mjr_readPixels
-
-  // depth buffer mode
-  int     depthMapping;           // depth buffer mapping from [znear zfar] to normalized device coordinates: mjDB_NEGONETOONE or mjDB_ONETOZERO
-
-  // depth buffer precision
-  int     depthPrecision;         // depth buffer precision: mjDB_INT24 or mjDB_FLOAT32
 };
 typedef struct mjrContext_ mjrContext;
 

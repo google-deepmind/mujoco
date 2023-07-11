@@ -1062,11 +1062,7 @@ static void makeShadow(const mjModel* m, mjrContext* con) {
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_MODE, GL_COMPARE_R_TO_TEXTURE);
-  if (con->depthMapping == mjDB_ONETOZERO) {
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_FUNC, GL_GEQUAL);
-  } else {
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_FUNC, GL_LEQUAL);
-  }
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_FUNC, GL_GEQUAL);
   glTexParameteri(GL_TEXTURE_2D, GL_DEPTH_TEXTURE_MODE, GL_INTENSITY);
   glTexGeni(GL_S, GL_TEXTURE_GEN_MODE, GL_EYE_LINEAR);
   glTexGeni(GL_T, GL_TEXTURE_GEN_MODE, GL_EYE_LINEAR);
@@ -1125,17 +1121,16 @@ static void makeOff(mjrContext* con) {
   glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_RENDERBUFFER, con->offColor);
 
   // create depth and stencil buffer
-  GLenum depth_buffer_format = con->depthPrecision == mjDB_FLOAT32 ? GL_DEPTH32F_STENCIL8 : GL_DEPTH24_STENCIL8;
   glGenRenderbuffers(1, &con->offDepthStencil);
   if (!con->offDepthStencil) {
     mju_error("Could not allocate offscreen depth and stencil buffer");
   }
   glBindRenderbuffer(GL_RENDERBUFFER, con->offDepthStencil);
   if (con->offSamples) {
-    glRenderbufferStorageMultisample(GL_RENDERBUFFER, con->offSamples, depth_buffer_format,
+    glRenderbufferStorageMultisample(GL_RENDERBUFFER, con->offSamples, GL_DEPTH32F_STENCIL8,
                                      con->offWidth, con->offHeight);
   } else {
-    glRenderbufferStorage(GL_RENDERBUFFER, depth_buffer_format, con->offWidth, con->offHeight);
+    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH32F_STENCIL8, con->offWidth, con->offHeight);
   }
   glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT,
                             GL_RENDERBUFFER, con->offDepthStencil);
@@ -1174,7 +1169,7 @@ static void makeOff(mjrContext* con) {
       mju_error("Could not allocate offscreen depth and stencil buffer_r");
     }
     glBindRenderbuffer(GL_RENDERBUFFER, con->offDepthStencil_r);
-    glRenderbufferStorage(GL_RENDERBUFFER, depth_buffer_format, con->offWidth, con->offHeight);
+    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH32F_STENCIL8, con->offWidth, con->offHeight);
     glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT,
                               GL_RENDERBUFFER, con->offDepthStencil_r);
 
@@ -1546,15 +1541,7 @@ void mjr_makeContext_offSize(const mjModel* m, mjrContext* con, int fontscale,
   glPixelStorei(GL_PACK_ALIGNMENT, 1);
   glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
 
-  // free previous context but keep depth settings
-  // Doing this is the only way users can control these
-  // settings without breaking changes to either the
-  // behaviour of mjr_makeContext or the signature
-  int oldDepthMapping   = con->depthMapping;
-  int oldDepthPrecision = con->depthPrecision;
   mjr_freeContext(con);
-  con->depthMapping = oldDepthMapping;
-  con->depthPrecision = oldDepthPrecision;
 
   // no model: offscreen and font only
   if (!m) {
@@ -1847,13 +1834,12 @@ MJAPI void mjr_resizeOffscreen(int width, int height, mjrContext* con) {
   }
 
 
-  GLenum depth_buffer_format = con->depthPrecision == mjDB_FLOAT32 ? GL_DEPTH32F_STENCIL8 : GL_DEPTH24_STENCIL8;
   glBindRenderbuffer(GL_RENDERBUFFER, con->offDepthStencil);
   if (con->offSamples) {
-    glRenderbufferStorageMultisample(GL_RENDERBUFFER, con->offSamples, depth_buffer_format,
+    glRenderbufferStorageMultisample(GL_RENDERBUFFER, con->offSamples, GL_DEPTH32F_STENCIL8,
                                      con->offWidth, con->offHeight);
   } else {
-    glRenderbufferStorage(GL_RENDERBUFFER, depth_buffer_format, con->offWidth, con->offHeight);
+    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH32F_STENCIL8, con->offWidth, con->offHeight);
   }
 
   if (con->offSamples) {
@@ -1861,6 +1847,6 @@ MJAPI void mjr_resizeOffscreen(int width, int height, mjrContext* con) {
     glRenderbufferStorage(GL_RENDERBUFFER, GL_RGBA8, con->offWidth, con->offHeight);
 
     glBindRenderbuffer(GL_RENDERBUFFER, con->offDepthStencil_r);
-    glRenderbufferStorage(GL_RENDERBUFFER, depth_buffer_format, con->offWidth, con->offHeight);
+    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH32F_STENCIL8, con->offWidth, con->offHeight);
   }
 }

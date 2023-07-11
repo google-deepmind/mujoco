@@ -32,9 +32,7 @@ class Renderer:
       model: _structs.MjModel,
       height: int = 240,
       width: int = 320,
-      max_geom: int = 10000,
-      depth_mapping: _enums.mjtDepthMapping =  _enums.mjtDepthMapping.mjDB_NEGONETOONE,
-      depth_precision: _enums.mjtDepthPrecision =  _enums.mjtDepthPrecision.mjDB_INT24,
+      max_geom: int = 10000
   ) -> None:
     """Initializes a new `Renderer`.
 
@@ -45,8 +43,6 @@ class Renderer:
       max_geom: Optional integer specifying the maximum number of geoms that can
         be rendered in the same scene. If None this will be chosen automatically
         based on the estimated maximum number of renderable geoms in the model.
-      depth_mapping: Type of mapping from znear to zfar to z buffer ndc values
-      depth_precision: Precision of z buffer
     Raises:
       ValueError: If `camera_id` is outside the valid range, or if `width` or
         `height` exceed the dimensions of MuJoCo's offscreen framebuffer.
@@ -74,7 +70,6 @@ the clause:
     self._width = width
     self._height = height
     self._model = model
-    self._depth_mapping = depth_mapping
 
     self._scene = _structs.MjvScene(model=model, maxgeom=max_geom)
     self._scene_option = _structs.MjvOption()
@@ -86,7 +81,7 @@ the clause:
     self._gl_context = gl_context.GLContext(width, height)  # type: ignore
     self._gl_context.make_current()
     self._mjr_context = _render.MjrContext(
-        model, _enums.mjtFontScale.mjFONTSCALE_150.value, depth_mapping, depth_precision
+        model, _enums.mjtFontScale.mjFONTSCALE_150.value
     )
     _render.mjr_setBuffer(
         _enums.mjtFramebuffer.mjFB_OFFSCREEN.value, self._mjr_context
@@ -188,20 +183,16 @@ the clause:
       D = -(np.float32(2)*zfar*znear)/(zfar - znear)
 
       # In reverse Z mode the perspective matrix is transformed by the following
-      if self._depth_mapping == _enums.mjtDepthMapping.mjDB_ONETOZERO:
-        C = np.float32(-0.5)*C - np.float32(0.5)
-        D = np.float32(-0.5)*D
+      C = np.float32(-0.5)*C - np.float32(0.5)
+      D = np.float32(-0.5)*D
 
       # We need 64 bits to convert Z from ndc to metric depth without noticeable losses in precision
       out_64 = out.astype(np.float64)
 
-      # Convert depth from window coordinates to normalized device coordinates
-      # In reversed Z mode the mapping is identity
-      # https://registry.khronos.org/OpenGL-Refpages/gl4/html/glDepthRange.xhtml
-      if self._depth_mapping == _enums.mjtDepthMapping.mjDB_NEGONETOONE:
-        out_64 = 2.0*out_64 - 1.0
-
       # Undo OpenGL projection
+      # Note: We do not need to take action to convert from window coordinates to
+      # normalized device coordinates because in reversed Z mode the mapping
+      # is identity
       out_64 = D / (out_64 + C)
 
       # Cast result back to float32 for backwards compatibility

@@ -7126,16 +7126,6 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  type=ValueType(name='int'),
                  doc='default color pixel format for mjr_readPixels',
              ),
-             StructFieldDecl(
-                 name='depthMapping',
-                 type=ValueType(name='int'),
-                 doc='depth buffer mapping from [znear zfar] to normalized device coordinates: mjDB_NEGONETOONE or mjDB_ONETOZERO',  # pylint: disable=line-too-long
-             ),
-             StructFieldDecl(
-                 name='depthPrecision',
-                 type=ValueType(name='int'),
-                 doc='depth buffer precision: mjDB_INT24 or mjDB_FLOAT32',
-             ),
          ),
      )),
     ('mjuiState',

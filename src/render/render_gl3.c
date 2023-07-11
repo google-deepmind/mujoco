@@ -498,11 +498,7 @@ static void initGL3(const mjvScene* scn, const mjrContext* con) {
   // common options
   glDisable(GL_BLEND);
   glEnable(GL_NORMALIZE);
-  if (con->depthMapping == mjDB_ONETOZERO) {
-    glClipControl(GL_LOWER_LEFT, GL_ZERO_TO_ONE);
-  } else {
-    glClipControl(GL_LOWER_LEFT, GL_NEGATIVE_ONE_TO_ONE);
-  }
+  glClipControl(GL_LOWER_LEFT, GL_ZERO_TO_ONE);
   glEnable(GL_DEPTH_TEST);
   glDepthMask(GL_TRUE);
   if (scn->flags[mjRND_CULL_FACE]) {
@@ -511,19 +507,11 @@ static void initGL3(const mjvScene* scn, const mjrContext* con) {
     glDisable(GL_CULL_FACE);
   }
   glShadeModel(GL_SMOOTH);
-  if (con->depthMapping == mjDB_ONETOZERO) {
-    glDepthFunc(GL_GEQUAL);
-  } else {
-    glDepthFunc(GL_LEQUAL);
-  }
+  glDepthFunc(GL_GEQUAL);
   glDepthRange(0, 1);
   glAlphaFunc(GL_GEQUAL, 0.99f);
   glClearColor(0, 0, 0, 0);
-  if (con->depthMapping == mjDB_ONETOZERO) {
-    glClearDepth(0);
-  } else {
-    glClearDepth(1);
-  }
+  glClearDepth(0);
   glClearStencil(0);
   glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
 
@@ -613,11 +601,9 @@ static void setView(int view, mjrRect viewport, const mjvScene* scn, const mjrCo
   // set projection
   glMatrixMode(GL_PROJECTION);
   glLoadIdentity();
-  if (con->depthMapping == mjDB_ONETOZERO) {
-    // account for GL_ZERO_TO_ONE and reverse Z
-    glTranslatef(0,0,0.5);
-    glScalef(1,1,-0.5);
-  }
+  // reverse Z rendering mapping (znear, zfar) -> (1, 0)
+  glTranslatef(0,0,0.5);
+  glScalef(1,1,-0.5);
   glFrustum(cam.frustum_center - halfwidth,
             cam.frustum_center + halfwidth,
             cam.frustum_bottom,
@@ -690,24 +676,12 @@ void mjr_render(mjrRect viewport, mjvScene* scn, const mjrContext* con) {
   float temp[4], headpos[3], forward[3], skyboxdst;
   float camProject[16], camView[16], lightProject[16], lightView[16];
   double clipplane[4];
-  float biasMatrixOneToZero[16] = {
+  float biasMatrix[16] = {
     0.5f, 0.0f, 0.0f, 0.0f,
     0.0f, 0.5f, 0.0f, 0.0f,
     0.0f, 0.0f, 1.0f, 0.0f,
     0.5f, 0.5f, 0.0f, 1.0f
   };
-  float biasMatrixNegOneToOne[16] = {
-    0.5f, 0.0f, 0.0f, 0.0f,
-    0.0f, 0.5f, 0.0f, 0.0f,
-    0.0f, 0.0f, 0.5f, 0.0f,
-    0.5f, 0.5f, 0.5f, 1.0f
-  };
-  float* biasMatrix;
-  if (con->depthMapping == mjDB_ONETOZERO) {
-    biasMatrix = biasMatrixOneToZero;
-  } else {
-    biasMatrix = biasMatrixNegOneToOne;
-  }
 
   float tempMatrix[16], textureMatrix[16];
   mjvGeom *thisgeom, tempgeom;
@@ -1056,11 +1030,9 @@ void mjr_render(mjrRect viewport, mjvScene* scn, const mjrContext* con) {
           // set projection: from light viewpoint
           glMatrixMode(GL_PROJECTION);
           glLoadIdentity();
-          if (con->depthMapping == mjDB_ONETOZERO) {
-            // account for GL_ZERO_TO_ONE and reverse Z
-            glTranslatef(0,0,0.5);
-            glScalef(1,1,-0.5);
-          }
+          // reverse Z rendering mapping (znear, zfar) -> (1, 0)
+          glTranslatef(0,0,0.5);
+          glScalef(1,1,-0.5);
           if (thislight->directional) {
             glOrtho(-con->shadowClip, con->shadowClip,
                     -con->shadowClip, con->shadowClip,
