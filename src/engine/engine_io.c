@@ -1589,6 +1589,7 @@ const char* mj_validateReferences(const mjModel* m) {
   X(body_jntadr,        nbody,         njnt         , m->body_jntnum         ) \
   X(body_dofadr,        nbody,         nv           , m->body_dofnum         ) \
   X(body_geomadr,       nbody,         ngeom        , m->body_geomnum        ) \
+  X(body_bvhadr,        nbody,         nbvh         , m->body_bvhnum         ) \
   X(body_plugin,        nbody,         nplugin      , 0                      ) \
   X(jnt_qposadr,        njnt,          nq           , 0                      ) \
   X(jnt_dofadr,         njnt,          nv           , 0                      ) \
@@ -1609,6 +1610,7 @@ const char* mj_validateReferences(const mjModel* m) {
   X(mesh_normaladr,     nmesh,         nmeshnormal  , m->mesh_normalnum      ) \
   X(mesh_texcoordadr,   nmesh,         nmeshtexcoord, m->mesh_texcoordnum    ) \
   X(mesh_faceadr,       nmesh,         nmeshface    , m->mesh_facenum        ) \
+  X(mesh_bvhadr,        nmesh,         nbvh         , m->mesh_bvhnum         ) \
   X(mesh_graphadr,      nmesh,         nmeshgraph   , 0                      ) \
   X(skin_matid,         nskin,         nmat         , 0                      ) \
   X(skin_vertadr,       nskin,         nskinvert    , m->skin_vertnum        ) \
