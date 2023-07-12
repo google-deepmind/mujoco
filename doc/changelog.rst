@@ -13,6 +13,7 @@ General
   (rotation with an angular velocity). Derivatives are in the 3D tangent space.
 - Added :ref:`mjv_connector` which has identical functionality to :ref:`mjv_makeConnector`, but with more convenient
   "from-to" argument parametrization. :ref:`mjv_makeConnector` is now deprecated.
+- Bump oldest supported MacOS from version 10.12 to 11. MacOS 11 is the oldest version still maintained by Apple.
 
 
 Version 2.3.6 (June 20, 2023)
