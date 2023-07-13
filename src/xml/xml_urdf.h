@@ -35,7 +35,12 @@ class mjXURDF : public mjXBase {
   virtual ~mjXURDF();                                 // destructor
 
   // parse and set frame of base link and append a prefix to the name
-  void Parse(tinyxml2::XMLElement* root, const std::string& prefix, double* pos, double* quat);                           // parse and set frame of base link
+  void Parse(
+      tinyxml2::XMLElement* root,
+      const std::string& prefix,
+      double* pos,
+      double* quat,
+      bool static_body);
   void Parse(tinyxml2::XMLElement* root);             // main parser
 
  private:

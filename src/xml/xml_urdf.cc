@@ -79,7 +79,9 @@ std::string mjXURDF::GetPrefixedName(const std::string& name) {
 }
 
 // actual parser
-void mjXURDF::Parse(XMLElement* root, const std::string& prefix, double* pos, double* quat) {
+void mjXURDF::Parse(
+    XMLElement* root, const std::string& prefix, double* pos, double* quat,
+    const bool static_body) {
   std::string name, text;
   XMLElement *elem, *temp;
   int id_parent, id_child;
@@ -208,7 +210,7 @@ void mjXURDF::Parse(XMLElement* root, const std::string& prefix, double* pos, do
 
       // add a free joint to allow motion of the body
       // if the mass is 0, assume the object is static
-      if (pbody->mass > 0) {
+      if (!static_body && pbody->mass > 0) {
         auto pjoint = pbody->AddJoint();
         pjoint->name = urName[i] + "_free_joint";
         pjoint->type = mjJNT_FREE;
@@ -350,7 +352,7 @@ void mjXURDF::Parse(XMLElement* root) {
   mjuu_setvec(pos, 0, 0, 0);
   double quat[4] = {1, 0, 0, 0};
   mjuu_setvec(quat, 1, 0, 0, 0);
-  Parse(root, /*prefix=*/"", pos, quat);
+  Parse(root, /*prefix=*/"", pos, quat, true);
 }
 
 // parse joint
