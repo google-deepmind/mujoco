@@ -1162,6 +1162,32 @@ Notes
 
 This section contains miscellaneous notes regarding data-structure conventions in MuJoCo struct types.
 
+
+.. _tyNotesCom:
+
+c-frame variables
+^^^^^^^^^^^^^^^^^
+
+:ref:`mjData` contains two arrays with the ``c`` prefix, which are used for internal calculations: ``cdof`` and
+``cinert``, both computed by :ref:`mj_comPos`. The ``c`` prefix means that quantities are with respect to the "c-frame",
+a frame at the center-of-mass of the local kinematic subtree (``mjData.subtree_com``), oriented like the world frame.
+This choice increases the precision of kinematic computations for mechanisms that are distant from the global origin.
+
+``cdof``:
+  These 6D motion vectors describe the instantaneous axis of a degree-of-freedom and are used by all Jacobian functions.
+  Therefore, the minimal computation required for analytic Jacobians is :ref:`mj_kinematics` followed by
+  :ref:`mj_comPos`.
+
+``cinert``:
+  These 10-vectors describe the inertial properties of a body in the c-frame and are used by the Composite Rigid Body
+  algorithm (:ref:`mj_crb`). The 10 numbers are packed arrays of lengths (6, 3, 1) with semantics:
+
+  ``cinert[0-5]``: Upper triangle of the body's inertia matrix.
+
+  ``cinert[6-8]``: Body mass multiplied by the body CoM's offset from the c-frame origin.
+
+  ``cinert[9]``: Body mass.
+
 .. _tyNotesConvex:
 
 Convex hulls
