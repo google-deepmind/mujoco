@@ -568,8 +568,8 @@ void mjd_stepFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte flg_centered,
 //   required output matrix dimensions:
 //      A: (2*nv+na x 2*nv+na)
 //      B: (2*nv+na x nu)
-//      D: (nsensordata x 2*nv+na)
-//      C: (nsensordata x nu)
+//      C: (nsensordata x 2*nv+na)
+//      D: (nsensordata x nu)
 void mjd_transitionFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte flg_centered,
                       mjtNum* A, mjtNum* B, mjtNum* C, mjtNum* D) {
   int nv = m->nv, na = m->na, nu = m->nu, ns = m->nsensordata;
