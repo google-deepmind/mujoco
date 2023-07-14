@@ -168,11 +168,11 @@ void mj_passive(const mjModel* m, mjData* d) {
       const int slot = m->plugin[i];
       const mjpPlugin* plugin = mjp_getPluginAtSlotUnsafe(slot, nslot);
       if (!plugin) {
-        mju_error("invalid plugin slot: %d", slot);
+        mjERROR("invalid plugin slot: %d", slot);
       }
       if (plugin->capabilityflags & mjPLUGIN_PASSIVE) {
         if (!plugin->compute) {
-          mju_error("`compute` is a null function pointer for plugin at slot %d", slot);
+          mjERROR("`compute` is a null function pointer for plugin at slot %d", slot);
         }
         plugin->compute(m, d, i, mjPLUGIN_PASSIVE);
       }
@@ -474,7 +474,7 @@ void readFluidGeomInteraction(const mjtNum* geom_fluid_coefs,
   virtual_inertia[1]   = geom_fluid_coefs[i++];
   virtual_inertia[2]   = geom_fluid_coefs[i++];
   if (i != mjNFLUID) {
-    mju_error("Error in reading geom_fluid_coefs: wrong number of entries.");
+    mjERROR("wrong number of entries.");
   }
 }
 
@@ -504,6 +504,6 @@ void writeFluidGeomInteraction (mjtNum* geom_fluid_coefs,
   geom_fluid_coefs[i++] = virtual_inertia[1];
   geom_fluid_coefs[i++] = virtual_inertia[2];
   if (i != mjNFLUID) {
-    mju_error("Error in writing geom_fluid_coefs: wrong number of entries.");
+    mjERROR("wrong number of entries.");
   }
 }

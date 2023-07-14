@@ -169,7 +169,7 @@ void mj_stepSkip(const mjModel* m, mjData* d, int skipstage, int skipsensor) {
     break;
 
   default:
-    mju_error("Invalid integrator");
+    mjERROR("invalid integrator");
   }
 
   TM_END(mjTIMER_STEP);
@@ -294,7 +294,7 @@ void mjd_smooth_velFD(const mjModel* m, mjData* d, mjtNum eps) {
   // make sure final row counters equal rownnz
   for (int i=0; i < nv; i++) {
     if (cnt[i] != d->D_rownnz[i]) {
-      mju_error("error in constructing FD sparse derivative");
+      mjERROR("error in constructing FD sparse derivative");
     }
   }
 
@@ -637,11 +637,11 @@ void mjd_inverseFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte flg_actuatio
   mjMARKSTACK;
 
   if (m->opt.integrator == mjINT_RK4) {
-    mju_error("RK4 integrator is not supported by mjd_inverseFD");
+    mjERROR("RK4 integrator is not supported");
   }
 
   if (m->opt.noslip_iterations) {
-    mju_error("The noslip solver is not supported by mjd_inverseFD");
+    mjERROR("noslip solver is not supported");
   }
 
   // skip sensor computations if no sensor Jacobians requested

@@ -603,9 +603,16 @@ MJAPI void mjv_initGeom(mjvGeom* geom, int type, const mjtNum size[3],
 // Set (type, size, pos, mat) for connector-type geom between given points.
 // Assume that mjv_initGeom was already called to set all other properties.
 // Width of mjGEOM_LINE is denominated in pixels.
+// Deprecated: use mjv_connector.
 MJAPI void mjv_makeConnector(mjvGeom* geom, int type, mjtNum width,
                              mjtNum a0, mjtNum a1, mjtNum a2,
                              mjtNum b0, mjtNum b1, mjtNum b2);
+
+// Set (type, size, pos, mat) for connector-type geom between given points.
+// Assume that mjv_initGeom was already called to set all other properties.
+// Width of mjGEOM_LINE is denominated in pixels.
+MJAPI void mjv_connector(mjvGeom* geom, int type, mjtNum width,
+                         const mjtNum from[3], const mjtNum to[3]);
 
 // Set default abstract scene.
 MJAPI void mjv_defaultScene(mjvScene* scn);
@@ -1238,6 +1245,13 @@ MJAPI void mjd_inverseFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte flg_ac
                          mjtNum *DfDq, mjtNum *DfDv, mjtNum *DfDa,
                          mjtNum *DsDq, mjtNum *DsDv, mjtNum *DsDa,
                          mjtNum *DmDq);
+
+// Derivatives of mju_subQuat.
+MJAPI void mjd_subQuat(const mjtNum qa[4], const mjtNum qb[4], mjtNum Da[9], mjtNum Db[9]);
+
+// Derivatives of mju_quatIntegrate.
+MJAPI void mjd_quatIntegrate(const mjtNum vel[3], mjtNum scale,
+                             mjtNum Dquat[9], mjtNum Dvel[9], mjtNum Dscale[3]);
 
 //---------------------- Plugins -------------------------------------------------------------------
 

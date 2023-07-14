@@ -69,7 +69,7 @@ Users who wish to build MuJoCo from source should consult the [build from
 source] section of the documentation. However, please note that the commit at
 the tip of the `main` branch may be unstable.
 
-### Python (>= 3.7)
+### Python (>= 3.8)
 
 The native Python bindings, which come pre-packaged with a copy of MuJoCo, can
 be installed from [PyPI] via:
@@ -151,6 +151,8 @@ These packages give users of various languages access to MuJoCo functionality:
   [@stillonearth](https://github.com/stillonearth).
 
   :arrow_right: [Click here](https://zalo.github.io/mujoco_wasm/) for a live demo of MuJoCo running in your browser.
+- **MATLAB Simulink**: [Simulink Blockset for MuJoCo Simulator](https://github.com/mathworks-robotics/mujoco-simulink-blockset)
+  by [Manoj Velmurugan](https://github.com/vmanoj1996).
 - **Swift**: [swift-mujoco](https://github.com/liuliu/swift-mujoco)
 - **Java**: [mujoco-java](https://github.com/CommonWealthRobotics/mujoco-java)
 - **Julia**: [Lyceum](https://github.com/Lyceum/MuJoCo.jl) (unmaintained)

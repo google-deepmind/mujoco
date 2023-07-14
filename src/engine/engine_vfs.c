@@ -15,7 +15,6 @@
 #include "engine/engine_vfs.h"
 
 #include <string.h>
-#include <stdlib.h>
 
 #include "engine/engine_array_safety.h"
 #include "engine/engine_plugin.h"
@@ -37,10 +36,10 @@ static void vfs_strippath(char* newname, const char* oldname) {
 
   // check resulting length
   if (sz-(i+1) >= mjMAXVFSNAME) {
-    mju_error("Filename too long in VFS");
+    mjERROR("filename too long");
   }
   if (sz-(i+1) <= 0) {
-    mju_error("Empty filename in VFS");
+    mjERROR("empty filename");
   }
 
   // copy
@@ -72,11 +71,8 @@ int mj_addFileVFS(mjVFS* vfs, const char* directory, const char* filename) {
 
   // make full name
   char fullname[1000];
-  if (directory) {
-    mjSTRNCPY(fullname, directory);
-    mjSTRNCAT(fullname, filename);
-  } else {
-    mjSTRNCPY(fullname, filename);
+  if (mju_makefullname(fullname, sizeof(fullname), directory, filename)) {
+    return -1;
   }
 
   // strip path
@@ -117,7 +113,7 @@ int mj_makeEmptyFileVFS(mjVFS* vfs, const char* filename, int filesize) {
 
   // check filesize
   if (filesize <= 0) {
-    mju_error("mj_makeEmptyFileVFS expects positive filesize");
+    mjERROR("expects positive filesize");
   }
 
   // strip path
@@ -137,7 +133,7 @@ int mj_makeEmptyFileVFS(mjVFS* vfs, const char* filename, int filesize) {
   // allocate and clear
   vfs->filedata[vfs->nfile] = mju_malloc(filesize);
   if (!vfs->filedata[vfs->nfile]) {
-    mju_error("mj_makeEmptyFileVFS: could not allocate memory");
+    mjERROR("could not allocate memory");
   }
   memset(vfs->filedata[vfs->nfile], 0, filesize);
 

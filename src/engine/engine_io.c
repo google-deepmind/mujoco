@@ -281,12 +281,12 @@ static int getnptr(void) {
 static void bufwrite(const void* src, int num, int szbuf, void* buf, int* ptrbuf) {
   // check pointers
   if (!src || !buf || !ptrbuf) {
-    mju_error("NULL pointer passed to bufwrite");
+    mjERROR("NULL pointer passed to bufwrite");
   }
 
   // check size
   if (*ptrbuf+num > szbuf) {
-    mju_error("Attempting to write outside model buffer");
+    mjERROR("attempting to write outside model buffer");
   }
 
   // write, advance pointer
@@ -300,12 +300,12 @@ static void bufwrite(const void* src, int num, int szbuf, void* buf, int* ptrbuf
 static void bufread(void* dest, int num, int szbuf, const void* buf, int* ptrbuf) {
   // check pointers
   if (!dest || !buf || !ptrbuf) {
-    mju_error("NULL pointer passed to bufread");
+    mjERROR("NULL pointer passed to bufread");
   }
 
   // check size
   if (*ptrbuf+num > szbuf) {
-    mju_error("Attempting to read outside model buffer");
+    mjERROR("attempting to read outside model buffer");
   }
 
   // read, advance pointer
@@ -347,7 +347,7 @@ static void mj_setPtrModel(mjModel* m) {
   sz = (int)(ptr - (char*)m->buffer);
   if (m->nbuffer != sz) {
     printf("expected size: %d,  actual size: %d\n", m->nbuffer, sz);
-    mju_error("mjModel buffer size mismatch");
+    mjERROR("mjModel buffer size mismatch");
   }
 }
 
@@ -399,7 +399,7 @@ mjModel* mj_makeModel(int nq, int nv, int nu, int na, int nbody, int nbvh, int n
   // allocate mjModel
   mjModel* m = (mjModel*)mju_malloc(sizeof(mjModel));
   if (!m) {
-    mju_error("Could not allocate mjModel");
+    mjERROR("could not allocate mjModel");
   }
   memset(m, 0, sizeof(mjModel));
 
@@ -502,7 +502,7 @@ mjModel* mj_makeModel(int nq, int nv, int nu, int na, int nbody, int nbvh, int n
   m->buffer = mju_malloc(m->nbuffer);
   if (!m->buffer) {
     mju_free(m);
-    mju_error("Could not allocate mjModel buffer");
+    mjERROR("could not allocate mjModel buffer");
   }
 
   // clear, set pointers in buffer
@@ -543,13 +543,13 @@ mjModel* mj_copyModel(mjModel* dest, const mjModel* src) {
                         src->nuser_sensor, src->nnames);
   }
   if (!dest) {
-    mju_error("Failed to make mjModel. Invalid sizes.");
+    mjERROR("failed to make mjModel. Invalid sizes.");
   }
 
   // check sizes
   if (dest->nbuffer != src->nbuffer) {
     mj_deleteModel(dest);
-    mju_error("dest and src models have different buffer size");
+    mjERROR("dest and src models have different buffer size");
   }
 
   // save buffer ptr, copy everything, restore buffer and other pointers
@@ -745,7 +745,7 @@ mjModel* mj_loadModel(const char* filename, const mjVFS* vfs) {
 
   int index = mj_registerVfsProvider(vfs);
   if (index < 1) {
-    mju_error("mj_loadModel: could not allocate memory");
+    mjERROR("could not allocate memory");
     return NULL;
   }
 
@@ -840,7 +840,7 @@ static void makeDSparse(const mjModel* m, mjData* d) {
   // sanity check; SHOULD NOT OCCUR
   for (int i = 0; i < nv; i++) {
     if (remaining[i] != 0) {
-      mju_error("Error in mj_makeDSparse: unexpected remaining");
+      mjERROR("unexpected remaining");
     }
   }
 
@@ -865,7 +865,7 @@ static void makeBSparse(const mjModel* m, mjData* d) {
 
   // sanity check; SHOULD NOT OCCUR
   if (rownnz[0] != nv) {
-    mju_error("Error in mj_makeBSparse: rownnz[0] different from nv");
+    mjERROR("rownnz[0] different from nv");
   }
 
   // add dofs in ancestors bodies
@@ -885,7 +885,7 @@ static void makeBSparse(const mjModel* m, mjData* d) {
 
   // sanity check; SHOULD NOT OCCUR
   if (m->nB != rowadr[nbody - 1] + rownnz[nbody - 1]) {
-    mju_error("Error in mj_makeBSparse: sum of rownnz different from nB");
+    mjERROR("sum of rownnz different from nB");
   }
 
   // allocate and clear incremental row counts
@@ -928,7 +928,7 @@ static void makeBSparse(const mjModel* m, mjData* d) {
   for (int i = 0; i < nbody; i++) {
     // make sure cnt = rownnz; SHOULD NOT OCCUR
     if (rownnz[i] != cnt[i]) {
-      mju_error("Error in mj_makeBSparse: cnt different from rownnz");
+      mjERROR("cnt different from rownnz");
     }
 
     // sort colind in each row
@@ -951,11 +951,11 @@ static void checkDBSparse(const mjModel* m, mjData* d) {
 
     // D[row j] and B[row i] should be identical
     if (d->D_rownnz[j] != d->B_rownnz[i]) {
-      mju_error("Error in checkDBSparse: rows have different nnz");
+      mjERROR("rows have different nnz");
     }
     for (int k = 0; k < d->D_rownnz[j]; k++) {
       if (d->D_colind[d->D_rowadr[j] + k] != d->B_colind[d->B_rowadr[i] + k]) {
-        mju_error("Error in checkDBSparse: rows have different colind");
+        mjERROR("rows have different colind");
       }
     }
   }
@@ -985,7 +985,7 @@ static void mj_setPtrData(const mjModel* m, mjData* d) {
   // check size
   sz = (int)(ptr - (char*)d->buffer);
   if (d->nbuffer != sz) {
-    mju_error("mjData buffer size mismatch");
+    mjERROR("mjData buffer size mismatch");
   }
 
   // zero-initialize arena pointers
@@ -1005,7 +1005,7 @@ static mjData* _makeData(const mjModel* m) {
   // allocate mjData
   mjData* d = (mjData*) mju_malloc(sizeof(mjData));
   if (!d) {
-    mju_error("Could not allocate mjData");
+    mjERROR("could not allocate mjData");
   }
 
   // prepare symbols needed by xmacro
@@ -1031,7 +1031,7 @@ static mjData* _makeData(const mjModel* m) {
   d->buffer = mju_malloc(d->nbuffer);
   if (!d->buffer) {
     mju_free(d);
-    mju_error("Could not allocate mjData buffer");
+    mjERROR("could not allocate mjData buffer");
   }
 
   // allocate arena
@@ -1039,7 +1039,7 @@ static mjData* _makeData(const mjModel* m) {
   if (!d->arena) {
     mju_free(d->buffer);
     mju_free(d);
-    mju_error("Could not allocate mjData arena");
+    mjERROR("could not allocate mjData arena");
   }
 
   // set pointers into buffer, reset data
@@ -1055,7 +1055,7 @@ static mjData* _makeData(const mjModel* m) {
         mju_free(d->buffer);
         mju_free(d->arena);
         mju_free(d);
-        mju_error("plugin->init failed for plugin id %d", i);
+        mjERROR("plugin->init failed for plugin id %d", i);
       }
     }
   }
@@ -1084,15 +1084,15 @@ mjData* mj_copyData(mjData* dest, const mjModel* m, const mjData* src) {
 
   // check sizes
   if (dest->nbuffer != src->nbuffer) {
-    mju_error("dest and src data buffers have different size");
+    mjERROR("dest and src data buffers have different size");
   }
   if (dest->nstack != src->nstack) {
-    mju_error("dest and src stacks have different size");
+    mjERROR("dest and src stacks have different size");
   }
 
   // stack is in use
   if (src->pstack) {
-    mju_error("Attempting to copy mjData while stack is in use");
+    mjERROR("attempting to copy mjData while stack is in use");
   }
 
   // save pointers, copy everything, restore pointers
@@ -1109,7 +1109,7 @@ mjData* mj_copyData(mjData* dest, const mjModel* m, const mjData* src) {
   if (plugin_data_size) {
     save_plugin_data = (uintptr_t*)mju_malloc(plugin_data_size);
     if (!save_plugin_data) {
-      mju_error("failed to allocate temporary memory for plugin_data");
+      mjERROR("failed to allocate temporary memory for plugin_data");
     }
     memcpy(save_plugin_data, dest->plugin_data, plugin_data_size);
   }
@@ -1200,7 +1200,7 @@ mjtNum* mj_stackAlloc(mjData* d, int size) {
   size_t stack_available_bytes = d->nstack * sizeof(mjtNum) - d->parena;
   size_t stack_required_bytes = (d->pstack + size + 2*mjREDZONE) * sizeof(mjtNum);
   if (stack_required_bytes > stack_available_bytes) {
-    mju_error("stack overflow: max = %zu, available = %zu, requested = %zu "
+    mjERROR("stack overflow: max = %zu, available = %zu, requested = %zu "
               "(ne = %d, nf = %d, nefc = %d, ncon = %d)",
               d->nstack * sizeof(mjtNum), stack_available_bytes, stack_required_bytes,
               d->ne, d->nf, d->nefc, d->ncon);
@@ -1217,7 +1217,7 @@ mjtNum* mj_stackAlloc(mjData* d, int size) {
 
 #ifdef ADDRESS_SANITIZER
   if ((uintptr_t)result % sizeof(mjtNum)) {
-    mju_error("mj_stackAlloc fails to align to sizeof(mjtNum)");
+    mjERROR("mj_stackAlloc fails to align to sizeof(mjtNum)");
   }
 
   // actual stack usage (without red zone bytes) is stored in the red zone
@@ -1589,6 +1589,7 @@ const char* mj_validateReferences(const mjModel* m) {
   X(body_jntadr,        nbody,         njnt         , m->body_jntnum         ) \
   X(body_dofadr,        nbody,         nv           , m->body_dofnum         ) \
   X(body_geomadr,       nbody,         ngeom        , m->body_geomnum        ) \
+  X(body_bvhadr,        nbody,         nbvh         , m->body_bvhnum         ) \
   X(body_plugin,        nbody,         nplugin      , 0                      ) \
   X(jnt_qposadr,        njnt,          nq           , 0                      ) \
   X(jnt_dofadr,         njnt,          nv           , 0                      ) \
@@ -1609,6 +1610,7 @@ const char* mj_validateReferences(const mjModel* m) {
   X(mesh_normaladr,     nmesh,         nmeshnormal  , m->mesh_normalnum      ) \
   X(mesh_texcoordadr,   nmesh,         nmeshtexcoord, m->mesh_texcoordnum    ) \
   X(mesh_faceadr,       nmesh,         nmeshface    , m->mesh_facenum        ) \
+  X(mesh_bvhadr,        nmesh,         nbvh         , m->mesh_bvhnum         ) \
   X(mesh_graphadr,      nmesh,         nmeshgraph   , 0                      ) \
   X(skin_matid,         nskin,         nmat         , 0                      ) \
   X(skin_vertadr,       nskin,         nskinvert    , m->skin_vertnum        ) \
@@ -1775,7 +1777,7 @@ const char* mj_validateReferences(const mjModel* m) {
       break;
 
     default:
-      mju_error("mj_validateReferences: unknown equality constraint type.");
+      mjERROR("unknown equality constraint type.");
     }
   }
   for (int i=0; i < m->nwrap; i++) {
@@ -1843,8 +1845,8 @@ const char* mj_validateReferences(const mjModel* m) {
     if (sensor_type == mjSENS_PLUGIN) {
       const mjpPlugin* plugin = mjp_getPluginAtSlot(m->plugin[m->sensor_plugin[i]]);
       if (!plugin->nsensordata) {
-        mju_error("`nsensordata` is a null function pointer for plugin at slot %d",
-                  m->plugin[m->sensor_plugin[i]]);
+        mjERROR("`nsensordata` is a null function pointer for plugin at slot %d",
+                m->plugin[m->sensor_plugin[i]]);
       }
       sensor_size = plugin->nsensordata(m, m->sensor_plugin[i], i);
     } else {

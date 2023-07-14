@@ -43,13 +43,6 @@ extern "C" {
 #endif
 }
 
-#ifdef __APPLE__
-#include <Availability.h>
-#if !defined(MAC_OS_X_VERSION_MIN_REQUIRED) && defined(__MAC_OS_X_VERSION_MIN_REQUIRED)
-#define MAC_OS_X_VERSION_MIN_REQUIRED __MAC_OS_X_VERSION_MIN_REQUIRED
-#endif
-#endif
-
 #include <mujoco/mjplugin.h>
 #include "engine/engine_util_errmem.h"
 
@@ -163,15 +156,7 @@ template<typename T>
 PluginTable<T>* AddNewTableBlock(PluginTable<T>* table) {
   char err[512];
   err[0] = '\0';
-
-#if defined(MAC_OS_X_VERSION_MIN_REQUIRED) && MAC_OS_X_VERSION_MIN_REQUIRED < MAC_OS_X_VERSION_10_14
-  // aligned nothrow new is not available until macOS 10.14
-  posix_memalign(reinterpret_cast<void**>(&table->next),
-                 alignof(PluginTable<T>), sizeof(PluginTable<T>));
-  if (table->next) new(table->next) PluginTable<T>;
-#else
   table->next = new(std::nothrow) PluginTable<T>;
-#endif
   if (!table->next) {
     std::snprintf(err, sizeof(err), "failed to allocate memory for the global plugin table");
     return nullptr;

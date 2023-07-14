@@ -2297,6 +2297,8 @@ void mjv_initGeom(mjvGeom* geom, int type, const mjtNum size[3],
 void mjv_makeConnector(mjvGeom* geom, int type, mjtNum width,
                        mjtNum a0, mjtNum a1, mjtNum a2,
                        mjtNum b0, mjtNum b1, mjtNum b2);
+void mjv_connector(mjvGeom* geom, int type, mjtNum width,
+                   const mjtNum from[3], const mjtNum to[3]);
 void mjv_defaultScene(mjvScene* scn);
 void mjv_makeScene(const mjModel* m, mjvScene* scn, int maxgeom);
 void mjv_freeScene(mjvScene* scn);
@@ -2492,6 +2494,9 @@ void mjd_inverseFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte flg_actuatio
                    mjtNum *DfDq, mjtNum *DfDv, mjtNum *DfDa,
                    mjtNum *DsDq, mjtNum *DsDv, mjtNum *DsDa,
                    mjtNum *DmDq);
+void mjd_subQuat(const mjtNum qa[4], const mjtNum qb[4], mjtNum Da[9], mjtNum Db[9]);
+void mjd_quatIntegrate(const mjtNum vel[3], mjtNum scale,
+                       mjtNum Dquat[9], mjtNum Dvel[9], mjtNum Dscale[3]);
 void mjp_defaultPlugin(mjpPlugin* plugin);
 int mjp_registerPlugin(const mjpPlugin* plugin);
 int mjp_pluginCount();

@@ -440,6 +440,27 @@ TEST_F(MjCGeomTest, IgnoreBadGeomOutsideInertiagrouprange) {
   mj_deleteModel(m);
 }
 
+// ------------- test invalid size values --------------------------------------
+
+TEST_F(MjCGeomTest, NanSize) {
+  // even if the caller ignores warnings, models shouldn't compile with NaN
+  // geom sizes
+  mju_user_warning = nullptr;
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <geom type="box" size="1 1 nan" mass="1" />
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1000> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, testing::IsNull());
+  ASSERT_THAT(error.data(), HasSubstr("nan"));
+}
+
 // ------------- test height fields --------------------------------------------
 
 using MjCHFieldTest = MujocoTest;

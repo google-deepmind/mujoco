@@ -279,11 +279,11 @@ void mj_fwdActuation(const mjModel* m, mjData* d) {
       const int slot = m->plugin[i];
       const mjpPlugin* plugin = mjp_getPluginAtSlotUnsafe(slot, nslot);
       if (!plugin) {
-        mju_error("invalid plugin slot: %d", slot);
+        mjERROR("invalid plugin slot: %d", slot);
       }
       if (plugin->capabilityflags & mjPLUGIN_ACTUATOR) {
         if (!plugin->compute) {
-          mju_error("`compute` is a null function pointer for plugin at slot %d", slot);
+          mjERROR("`compute` is a null function pointer for plugin at slot %d", slot);
         }
         plugin->compute(m, d, i, mjPLUGIN_ACTUATOR);
       }
@@ -481,7 +481,7 @@ void mj_fwdConstraint(const mjModel* m, mjData* d) {
     break;
 
   default:
-    mju_error("Unknown solver type %d", m->opt.solver);
+    mjERROR("unknown solver type %d", m->opt.solver);
   }
 
   // save result for next step warmstart
@@ -534,7 +534,7 @@ static void mj_advance(const mjModel* m, mjData* d,
       const int slot = m->plugin[i];
       const mjpPlugin* plugin = mjp_getPluginAtSlotUnsafe(slot, nslot);
       if (!plugin) {
-        mju_error("invalid plugin slot: %d", slot);
+        mjERROR("invalid plugin slot: %d", slot);
       }
       if (plugin->advance) {
         plugin->advance(m, d, i);
@@ -624,7 +624,7 @@ void mj_RungeKutta(const mjModel* m, mjData* d, int N) {
 
   // check order
   if (!A) {
-    mju_error("Supported RK orders: N=4");
+    mjERROR("supported RK orders: N=4");
   }
 
   // allocate space for intermediate solutions
@@ -758,7 +758,7 @@ void mj_implicitSkip(const mjModel* m, mjData* d, int skipfactor) {
     mju_copy(qacc, qfrc, m->nv);
     mj_solveLD(m, qacc, 1, d->qH, d->qHDiagInv);
   } else {
-    mju_error("mj_implicitSkip: integrator must be implicit or implicitfast");
+    mjERROR("integrator must be implicit or implicitfast");
   }
 
   // advance state and time
@@ -859,7 +859,7 @@ void mj_step(const mjModel* m, mjData* d) {
     break;
 
   default:
-    mju_error("Invalid integrator");
+    mjERROR("invalid integrator");
   }
 
   TM_END(mjTIMER_STEP);

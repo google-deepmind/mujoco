@@ -602,6 +602,7 @@ PYBIND11_MODULE(_functions, pymodule) {
   Def<traits::mjv_defaultFigure>(pymodule);
   Def<traits::mjv_initGeom>(pymodule);
   Def<traits::mjv_makeConnector>(pymodule);
+  Def<traits::mjv_connector>(pymodule);
   // Skipped: mjv_defaultScene (have MjvScene.__init__, memory managed by
   // MjvScene).
   // Skipped: mjv_makeScene (have MjvScene.__init__)
@@ -1238,6 +1239,11 @@ PYBIND11_MODULE(_functions, pymodule) {
         return InterceptMjErrors(::mju_insertionSortInt)(
             res.data(), res.size());
       });
+  Def<traits::mju_Halton>(pymodule);
+  // Skipped: mju_strncpy (doesn't make sense in Python)
+  Def<traits::mju_sigmoid>(pymodule);
+
+  // Derivatives
   Def<traits::mjd_transitionFD>(
       pymodule,
       [](const raw::MjModel* m, raw::MjData* d,
@@ -1318,9 +1324,8 @@ PYBIND11_MODULE(_functions, pymodule) {
             DsDa.has_value() ? DsDa->data() : nullptr,
             DmDq.has_value() ? DmDq->data() : nullptr);
       });
-  Def<traits::mju_Halton>(pymodule);
-  // Skipped: mju_strncpy (doesn't make sense in Python)
-  Def<traits::mju_sigmoid>(pymodule);
+  Def<traits::mjd_subQuat>(pymodule);
+  Def<traits::mjd_quatIntegrate>(pymodule);
 }  // PYBIND11_MODULE NOLINT(readability/fn_size)
 }  // namespace
 }  // namespace mujoco::python

@@ -24,8 +24,10 @@
 namespace mujoco {
 namespace {
 
-using ::testing::HasSubstr;
 using ::testing::DoubleNear;
+using ::testing::HasSubstr;
+using ::testing::Ne;
+using ::testing::StrEq;
 
 TEST_F(MujocoTest, PrintsMemoryWarning) {
   EXPECT_THAT(mju_warningText(mjWARN_CNSTRFULL, pow(2, 10)),
@@ -127,6 +129,91 @@ TEST_F(MujocoTest, SmoothMuscleDynamics) {
   }
 }
 
+TEST_F(MujocoTest, mju_makefullname) {
+  char buffer[1000];
+  constexpr char path[] = "engine/testdata/";
+  constexpr char file[] = "file";
+  int n = mju_makefullname(buffer, sizeof(buffer), path, file);
+  ASSERT_THAT(buffer, StrEq("engine/testdata/file"));
+  EXPECT_THAT(n, 0);
+}
+
+TEST_F(MujocoTest, mju_makefullname2) {
+  char buffer[1000];
+  constexpr char path[] = "engine\\testdata\\";
+  constexpr char file[] = "file";
+  int n = mju_makefullname(buffer, sizeof(buffer), path, file);
+  ASSERT_THAT(buffer, StrEq("engine\\testdata\\file"));
+  EXPECT_THAT(n, 0);
+}
+
+
+TEST_F(MujocoTest, mju_makefullname_missingSlash) {
+  char buffer[1000];
+  constexpr char path[] = "engine/testdata";
+  constexpr char file[] = "file";
+  int n = mju_makefullname(buffer, sizeof(buffer), path, file);
+  ASSERT_THAT(buffer, StrEq("engine/testdata/file"));
+  EXPECT_THAT(n, 0);
+}
+
+TEST_F(MujocoTest, mju_makefullname_withoutDir) {
+  char buffer[1000];
+  constexpr char *path = NULL;
+  constexpr char file[] = "file";
+  int n = mju_makefullname(buffer, sizeof(buffer), path, file);
+  ASSERT_THAT(buffer, StrEq("file"));
+  EXPECT_THAT(n, 0);
+}
+
+TEST_F(MujocoTest, mju_makefullname_withoutDir2) {
+  char buffer[1000];
+  constexpr char path[] = "";
+  constexpr char file[] = "file";
+  int n = mju_makefullname(buffer, sizeof(buffer), path, file);
+  ASSERT_THAT(buffer, StrEq("file"));
+  EXPECT_THAT(n, 0);
+}
+
+TEST_F(MujocoTest, mju_makefullname_error) {
+  char buffer[1000];
+  constexpr char path[] = "engine/testdata";
+  constexpr char *file = NULL;
+  int n = mju_makefullname(buffer, sizeof(buffer), path, file);
+  EXPECT_THAT(n, Ne(0));
+}
+
+TEST_F(MujocoTest, mju_makefullname_error2) {
+  char buffer[1000];
+  constexpr char path[] = "engine/testdata";
+  constexpr char file[] = "";
+  int n = mju_makefullname(buffer, sizeof(buffer), path, file);
+  EXPECT_THAT(n, Ne(0));
+}
+
+TEST_F(MujocoTest, mju_makefullname_error3) {
+  char buffer[20];
+  constexpr char path[] = "engine/testdata/";
+  constexpr char file[] = "file";
+  int n = mju_makefullname(buffer, sizeof(buffer), path, file);
+  EXPECT_THAT(n, Ne(0));
+}
+
+TEST_F(MujocoTest, mju_makefullname_error4) {
+  char buffer[20];
+  constexpr char path[] = "engine/testdata";
+  constexpr char file[] = "file";
+  int n = mju_makefullname(buffer, sizeof(buffer), path, file);
+  EXPECT_THAT(n, Ne(0));
+}
+
+TEST_F(MujocoTest, mju_makefullname_error5) {
+  char buffer[4];
+  constexpr char path[] = "";
+  constexpr char file[] = "file";
+  int n = mju_makefullname(buffer, sizeof(buffer), path, file);
+  EXPECT_THAT(n, Ne(0));
+}
 
 }  // namespace
 }  // namespace mujoco

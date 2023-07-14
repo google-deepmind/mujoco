@@ -53,7 +53,7 @@ mjResource* mju_openResource(const char* name, int default_provider) {
   mjResource* resource = (mjResource*) mju_malloc(sizeof(mjResource));
   const mjpResourceProvider* provider = NULL;
   if (resource == NULL) {
-    mju_error("mju_openResource: could not allocate memory");
+    mjERROR("could not allocate memory");
     return NULL;
   }
 
@@ -61,7 +61,7 @@ mjResource* mju_openResource(const char* name, int default_provider) {
   resource->name = mju_malloc(sizeof(char) * (strlen(name) + 1));
   if (resource->name == NULL) {
     mju_free(resource);
-    mju_error("mju_openResource: could not allocate memory");
+    mjERROR("could not allocate memory");
     return NULL;
   }
   strcpy(resource->name, name);
@@ -249,7 +249,7 @@ void* mju_fileToMemory(const char* filename, int* filesize) {
   // allocate and read
   void* buffer = mju_malloc(*filesize);
   if (!buffer) {
-    mju_error("mjFileToMemory: could not allocate memory");
+    mjERROR("could not allocate memory");
   }
   size_t bytes_read = fread(buffer, 1, *filesize, fp);
 

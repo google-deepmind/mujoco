@@ -59,11 +59,15 @@ class mj_XMLPrinter : public tinyxml2::XMLPrinter {
 
 
 // save XML file using custom 2-space indentation
-tinyxml2::XMLError SaveFile(XMLDocument& doc, FILE* fp) {
+static string WriteDoc(XMLDocument& doc, char *error, size_t error_sz) {
   doc.ClearError();
-  mj_XMLPrinter stream(fp, /*compact=*/false);
+  mj_XMLPrinter stream(nullptr, /*compact=*/false);
   doc.Print(&stream);
-  return doc.ErrorID();
+  if (doc.ErrorID()) {
+    mjCopyError(error, doc.ErrorStr(), error_sz);
+    return "";
+  }
+  return string(stream.CStr());
 }
 
 
@@ -682,10 +686,11 @@ mjXWriter::mjXWriter(void) {
 
 
 // save existing model in MJCF canonical format, must be compiled
-void mjXWriter::Write(FILE* fp) {
+string mjXWriter::Write(char *error, size_t error_sz) {
   // check model
   if (!model || !model->IsCompiled()) {
-    throw mjXError(0, "XML Write error: Only compiled model can be written");
+    mjCopyError(error, "XML Write error: Only compiled model can be written", error_sz);
+    return "";
   }
 
   // create document and root
@@ -722,8 +727,7 @@ void mjXWriter::Write(FILE* fp) {
   Sensor(root);
   Keyframe(root);
 
-  // save file
-  SaveFile(doc, fp);
+  return WriteDoc(doc, error, error_sz);
 }
 
 
@@ -1390,7 +1394,7 @@ void mjXWriter::Body(XMLElement* elem, mjCBody* body) {
 
   // write plugin
   if (body->is_plugin) {
-    OnePlugin(elem, body);
+    OnePlugin(InsertEnd(elem, "plugin"), body);
   }
 
   // write child bodies recursively

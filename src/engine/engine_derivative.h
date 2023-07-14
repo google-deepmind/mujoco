@@ -23,8 +23,12 @@
 extern "C" {
 #endif
 
-// derivative of mju_subQuat w.r.t inputs
+// derivatives of mju_subQuat w.r.t inputs
 MJAPI void mjd_subQuat(const mjtNum qa[4], const mjtNum qb[4], mjtNum Da[9], mjtNum Db[9]);
+
+// derivatives of mju_quatIntegrate w.r.t inputs
+MJAPI void mjd_quatIntegrate(const mjtNum vel[3], mjtNum scale,
+                             mjtNum Dquat[9], mjtNum Dvel[9], mjtNum Dscale[3]);
 
 // analytical derivative of smooth forces w.r.t velocities:
 //   d->qDeriv = d (qfrc_actuator + qfrc_passive - [qfrc_bias]) / d qvel

@@ -15,6 +15,7 @@
 #ifndef MUJOCO_SRC_XML_XML_NATIVE_WRITER_H_
 #define MUJOCO_SRC_XML_XML_NATIVE_WRITER_H_
 
+#include <cstdlib>
 #include <string>
 
 #include "xml/xml_base.h"
@@ -24,7 +25,9 @@ class mjXWriter : public mjXBase {
  public:
   mjXWriter();                                        // constructor
   virtual ~mjXWriter() = default;                     // destructor
-  void Write(FILE* fp);                               // write XML document
+
+  // write XML document to string
+  std::string Write(char *error, std::size_t error_sz);
 
  private:
   // insert end child with given name, return child

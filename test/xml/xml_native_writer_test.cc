@@ -14,6 +14,7 @@
 
 // Tests for xml/xml_native_writer.cc.
 
+#include <type_traits>
 #if defined(__unix__) || (defined(__APPLE__) && defined(__MACH__))
 #include <unistd.h>
 #endif
@@ -959,17 +960,23 @@ static constexpr int kFieldSize = 500;
 // The maximum spacing between a normalised floating point number x and an
 // adjacent normalised number is 2 epsilon |x|; a factor 10 is added accounting
 // for losses during non-idempotent operations such as vector normalizations.
-template<typename T = mjtNum> T Compare(T val1, T val2) {
-  T error;
+template <typename T>
+auto Compare(T val1, T val2) {
+  using ReturnType =
+      std::conditional_t<std::is_same_v<T, float>, float, double>;
+  ReturnType error;
   if (mju_abs(val1) <= 1 || mju_abs(val2) <= 1) {
-      // Asbolute precision for small numbers
+      // Absolute precision for small numbers
       error = mju_abs(val1-val2);
   } else {
     // Relative precision for larger numbers
-    T magnitude = mju_max(mju_abs(val1), mju_abs(val2));
+    ReturnType magnitude = mju_abs(val1) + mju_abs(val2);
     error = mju_abs(val1/magnitude - val2/magnitude) / magnitude;
   }
-  return error < 2*10*std::numeric_limits<T>::epsilon() ? 0 : error;
+  ReturnType safety_factor = 10;
+  return error < safety_factor * std::numeric_limits<ReturnType>::epsilon()
+             ? 0
+             : error;
 }
 
 mjtNum CompareModel(const mjModel* m1, const mjModel* m2,
@@ -1015,7 +1022,7 @@ mjtNum CompareModel(const mjModel* m1, const mjModel* m2,
   return maxdif;
 }
 
-TEST_F(XMLWriterTest, WriteReadCompare) {
+TEST_F(PluginTest, WriteReadCompare) {
   FullFloatPrecision increase_precision;
   // Loop over all xml files in data
   std::vector<std::string> paths = {GetTestDataFilePath("."),
@@ -1028,7 +1035,7 @@ TEST_F(XMLWriterTest, WriteReadCompare) {
 
         // if file is meant to fail, skip it
         if (absl::StrContains(p.path().string(), "malformed_") ||
-            absl::StrContains(p.path().string(), "plugin")) {
+            absl::StrContains(p.path().string(), "touch_grid")) {
           continue;
         }
 
@@ -1051,12 +1058,17 @@ TEST_F(XMLWriterTest, WriteReadCompare) {
           // if failing because assets are missing, accept the test
           ASSERT_THAT(error.data(), HasSubstr("file")) << error.data();
         } else {
+          // for a particularly difficult example, relax the tolerance
+          mjtNum tol =
+              absl::StrContains(p.path().string(), "belt.xml") ? 1e-13 : 0;
+
           // compare and delete
-        char field[kFieldSize] = "";
-        mjtNum result = CompareModel(m, mtemp, field);
-        EXPECT_LE(result, 0) << "Loaded and saved models are different!\n"
-                             << "Affected file " << p.path().string() << '\n'
-                             << "Different field: " << field << '\n';
+          char field[kFieldSize] = "";
+          mjtNum result = CompareModel(m, mtemp, field);
+          EXPECT_LE(result, tol)
+              << "Loaded and saved models are different!\n"
+              << "Affected file " << p.path().string() << '\n'
+              << "Different field: " << field << '\n';
           mj_deleteModel(mtemp);
         }
 

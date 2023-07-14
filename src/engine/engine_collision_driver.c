@@ -37,7 +37,7 @@ mjfCollision mjCOLLISIONFUNC[mjNGEOMTYPES][mjNGEOMTYPES] = {
   /*               PLANE  HFIELD  SPHERE              CAPSULE             ELLIPSOID           CYLINDER            BOX                 MESH      */
   /*PLANE     */  {0,     0,      mjc_PlaneSphere,    mjc_PlaneCapsule,   mjc_PlaneConvex,    mjc_PlaneCylinder,  mjc_PlaneBox,       mjc_PlaneConvex},
   /*HFIELD    */  {0,     0,      mjc_ConvexHField,   mjc_ConvexHField,   mjc_ConvexHField,   mjc_ConvexHField,   mjc_ConvexHField,   mjc_ConvexHField},
-  /*SHPERE    */  {0,     0,      mjc_SphereSphere,   mjc_SphereCapsule,  mjc_Convex,         mjc_Convex,         mjc_SphereBox,      mjc_Convex},
+  /*SHPERE    */  {0,     0,      mjc_SphereSphere,   mjc_SphereCapsule,  mjc_Convex,         mjc_SphereCylinder, mjc_SphereBox,      mjc_Convex},
   /*CAPSULE   */  {0,     0,      0,                  mjc_CapsuleCapsule, mjc_Convex,         mjc_Convex,         mjc_CapsuleBox,     mjc_Convex},
   /*ELLIPSOID */  {0,     0,      0,                  0,                  mjc_Convex,         mjc_Convex,         mjc_Convex,         mjc_Convex},
   /*CYLINDER  */  {0,     0,      0,                  0,                  0,                  mjc_Convex,         mjc_Convex,         mjc_Convex},
@@ -274,7 +274,9 @@ void mj_collideTree(const mjModel* m, mjData* d, int b1, int b2,
     if (!isleaf1 && isleaf2) {
       for (int i=0; i < 2; i++) {
         if (child1[2*node1+i] != -1) {
-          if (nstack >= max_stack) mju_error("BVH stack depth exceeded.");  // SHOULD NOT OCCUR
+          if (nstack >= max_stack) {
+            mjERROR("BVH stack depth exceeded.");  // SHOULD NOT OCCUR
+          }
           stack[nstack].node1 = child1[2*node1+i];
           stack[nstack].node2 = node2;
           nstack++;
@@ -283,7 +285,9 @@ void mj_collideTree(const mjModel* m, mjData* d, int b1, int b2,
     } else if (isleaf1 && !isleaf2) {
       for (int i=0; i < 2; i++) {
         if (child2[2*node2+i] != -1) {
-          if (nstack >= max_stack) mju_error("BVH stack depth exceeded.");  // SHOULD NOT OCCUR
+          if (nstack >= max_stack) {
+            mjERROR("BVH stack depth exceeded.");  // SHOULD NOT OCCUR
+          }
           stack[nstack].node1 = node1;
           stack[nstack].node2 = child2[2*node2+i];
           nstack++;
@@ -304,7 +308,9 @@ void mj_collideTree(const mjModel* m, mjData* d, int b1, int b2,
       if (surface1 > surface2) {
         for (int i = 0; i < 2; i++) {
           if (child1[2 * node1 + i] != -1) {
-            if (nstack >= max_stack) mju_error("BVH stack depth exceeded.");  // SHOULD NOT OCCUR
+            if (nstack >= max_stack) {
+              mjERROR("BVH stack depth exceeded.");  // SHOULD NOT OCCUR
+            }
             stack[nstack].node1 = child1[2 * node1 + i];
             stack[nstack].node2 = node2;
             nstack++;
@@ -313,7 +319,9 @@ void mj_collideTree(const mjModel* m, mjData* d, int b1, int b2,
       } else {
         for (int i = 0; i < 2; i++) {
           if (child2[2 * node2 + i] != -1) {
-            if (nstack >= max_stack) mju_error("BVH stack depth exceeded.");  // SHOULD NOT OCCUR
+            if (nstack >= max_stack) {
+              mjERROR("BVH stack depth exceeded.");  // SHOULD NOT OCCUR
+            }
             stack[nstack].node1 = node1;
             stack[nstack].node2 = child2[2*node2+i];
             nstack++;
@@ -590,7 +598,7 @@ static void add_pair(const mjModel* m, int b1, int b2, int* npair, int* pair, in
 
     (*npair)++;
   } else {
-    mju_error("Broadphase buffer full");
+    mjERROR("broadphase buffer full");
   }
 }
 
@@ -767,7 +775,7 @@ int mj_broadphase(const mjModel* m, mjData* d, int* pair, int maxpair) {
 
   // sanity check; SHOULD NOT OCCUR
   if (k != bufcnt) {
-    mju_error("Internal error in broadphase: unexpected bufcnt");
+    mjERROR("internal error: unexpected bufcnt");
   }
 
   // sort along axis0
@@ -939,7 +947,7 @@ void mj_collideGeoms(const mjModel* m, mjData* d, int g1, int g2, int flg_user, 
 
   // check number of contacts, SHOULD NOT OCCUR
   if (num > mjMAXCONPAIR) {
-    mju_error("Too many contacts returned by collision function");
+    mjERROR("too many contacts returned by collision function");
   }
 
   // remove repeated contacts in box-box
@@ -1065,10 +1073,11 @@ void mj_collideGeoms(const mjModel* m, mjData* d, int g1, int g2, int flg_user, 
 
   // add contact returned by collision detector
   for (int i=0; i < num; i++) {
-    // set contact data
-    if (condim > 6 || condim < 1) {  // SHOULD NOT OCCUR
-      mju_error("Invalid condim value: %d", i);
+    if (condim > 6 || condim < 1) {
+      mjERROR("invalid condim value: %d", i);  // SHOULD NOT OCCUR
     }
+
+    // set contact data
     con[i].dim = condim;
     con[i].geom1 = g1;
     con[i].geom2 = g2;

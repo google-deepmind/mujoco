@@ -22,7 +22,7 @@ mujoco_test(engine_core_constraint_test)
 target_link_libraries(engine_core_constraint_test fixture gmock)
 
 mujoco_test(engine_core_smooth_test)
-target_link_libraries(engine_core_smooth_test fixture gmock)
+target_link_libraries(engine_core_smooth_test fixture gmock absl::span)
 
 mujoco_test(engine_derivative_test)
 target_link_libraries(engine_derivative_test fixture gmock)

@@ -323,9 +323,14 @@ void mju_trnVecPose(mjtNum res[3], const mjtNum pos[3], const mjtNum quat[4], co
 
 // vector cross-product, 3D
 void mju_cross(mjtNum res[3], const mjtNum a[3], const mjtNum b[3]) {
-  res[0] = a[1]*b[2] - a[2]*b[1];
-  res[1] = a[2]*b[0] - a[0]*b[2];
-  res[2] = a[0]*b[1] - a[1]*b[0];
+  mjtNum tmp[3] = {
+    a[1]*b[2] - a[2]*b[1],
+    a[2]*b[0] - a[0]*b[2],
+    a[0]*b[1] - a[1]*b[0]
+  };
+  res[0] = tmp[0];
+  res[1] = tmp[1];
+  res[2] = tmp[2];
 }
 
 
@@ -477,7 +482,7 @@ void mju_makeFrame(mjtNum frame[9]) {
 
   // normalize xaxis
   if (mju_normalize3(frame) < 0.5) {
-    mju_error("xaxis of contact frame undefined");
+    mjERROR("xaxis of contact frame undefined");
   }
 
   // if yaxis undefined, set yaxis to (0,1,0) if possible, otherwise (0,0,1)

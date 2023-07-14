@@ -37,8 +37,8 @@ static void mju_clampVec(mjtNum* vec, const mjtNum* limit, int n)
 
 
 static int _SphereBox(mjContact* con, mjtNum mindist,
-                      mjtNum* pos1, mjtNum* mat1, mjtNum* size1,
-                      mjtNum* pos2, mjtNum* mat2, mjtNum* size2)
+                      const mjtNum* pos1, const mjtNum* mat1, const mjtNum* size1,
+                      const mjtNum* pos2, const mjtNum* mat2, const mjtNum* size2)
 {
   int i, k;
   mjtNum tmp[3], center[3], clamped[3], deepest[3], nearest[3];

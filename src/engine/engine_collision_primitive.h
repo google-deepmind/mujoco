@@ -20,13 +20,13 @@
 
 // define and extract geom info
 #define mjGETINFO \
-    mjtNum* pos1 = d->geom_xpos + 3*g1; \
-    mjtNum* mat1 = d->geom_xmat + 9*g1; \
-    mjtNum* size1= m->geom_size + 3*g1; \
-    mjtNum* pos2 = d->geom_xpos + 3*g2; \
-    mjtNum* mat2 = d->geom_xmat + 9*g2; \
-    mjtNum* size2= m->geom_size + 3*g2; \
-    (void) size1; (void) size2;
+    const mjtNum* pos1  = d->geom_xpos + 3*g1; \
+    const mjtNum* mat1  = d->geom_xmat + 9*g1; \
+    const mjtNum* size1 = m->geom_size + 3*g1; \
+    const mjtNum* pos2  = d->geom_xpos + 3*g2; \
+    const mjtNum* mat2  = d->geom_xmat + 9*g2; \
+    const mjtNum* size2 = m->geom_size + 3*g2; \
+    (void) size1; (void) size2;  // size1 and size2 are sometimes unused
 
 #ifdef __cplusplus
 extern "C" {
@@ -46,6 +46,8 @@ int mjc_PlaneBox        (const mjModel* m, const mjData* d,
 int mjc_SphereSphere    (const mjModel* m, const mjData* d,
                          mjContact* con, int g1, int g2, mjtNum margin);
 int mjc_SphereCapsule   (const mjModel* m, const mjData* d,
+                         mjContact* con, int g1, int g2, mjtNum margin);
+int mjc_SphereCylinder  (const mjModel* m, const mjData* d,
                          mjContact* con, int g1, int g2, mjtNum margin);
 int mjc_CapsuleCapsule  (const mjModel* m, const mjData* d,
                          mjContact* con, int g1, int g2, mjtNum margin);

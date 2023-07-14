@@ -287,7 +287,7 @@ mjtNum mju_wrap(mjtNum* wpnt, const mjtNum* x0, const mjtNum* x1,
 
   // check object type;  SHOULD NOT OCCUR
   if (type != mjWRAP_SPHERE && type != mjWRAP_CYLINDER) {
-    mju_error("mju_wrap: unknown wrapping object type %d", type);
+    mjERROR("unknown wrapping object type %d", type);
   }
 
   // map sites to wrap object's local frame
@@ -1173,6 +1173,51 @@ char* mju_strncpy(char *dst, const char *src, int n) {
   }
 
   return dst;
+}
+
+
+
+// assemble full filename from directory and filename, return 0 on success
+int mju_makefullname(char* full, size_t nfull, const char* dir, const char* file) {
+  int dirlen = (!dir) ? 0 : strlen(dir);
+  int filelen = (!file) ? 0 : strlen(file);
+  char* filepos = full + dirlen;
+
+  // missing filename
+  if (!filelen) {
+    return -1;
+  }
+
+  // no directory then just copy filename over
+  if (!dirlen) {
+    // make sure full has space
+    if (filelen >= nfull) {
+      return -1;
+    }
+    strcpy(full, file);
+    return 0;
+  }
+
+  // make sure full has space
+  if (dirlen + filelen >= nfull) {
+    return -1;
+  }
+
+  // dir doesn't end with a slash
+  if (dir[dirlen - 1] != '\\' && dir[dirlen - 1] != '/') {
+    // need extra space for forward slash
+    if ((dirlen + filelen + 1) >= nfull) {
+      return -1;
+    }
+
+    // add forward slash
+    *filepos++ = '/';
+  }
+
+  // copy directory and file over
+  memcpy(full, dir, sizeof(char) * dirlen);
+  strcpy(filepos, file);
+  return 0;
 }
 
 

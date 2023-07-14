@@ -926,7 +926,8 @@ Euler integrator, semi-implicit in velocity.
 
   def test_can_raise_error(self):
     self.data.pstack = self.data.nstack
-    with self.assertRaisesRegex(mujoco.FatalError, r'\Astack overflow'):
+    with self.assertRaisesRegex(mujoco.FatalError,
+                                r'\Amj_stackAlloc: stack overflow'):
       mujoco.mj_forward(self.model, self.data)
 
   def test_mjcb_time(self):
@@ -1111,6 +1112,21 @@ Euler integrator, semi-implicit in velocity.
     self.assertGreater(np.linalg.norm(ds_dq), eps)
     self.assertGreater(np.linalg.norm(ds_dv), eps)
     self.assertGreater(np.linalg.norm(ds_da), eps)
+
+  def test_mjd_sub_quat(self):
+    quat1 = np.array((0.2, 0.3, 0.3, 0.4))
+    quat2 = np.array((0.2, 0.3, 0.3, 0.4))
+    d1 = np.empty(9, np.float64)
+    d2 = np.empty(9, np.float64)
+    mujoco.mjd_subQuat(quat1, quat2, d1, d2)
+
+  def test_mjd_quat_intergrate(self):
+    scale = 0.1
+    vel = np.array((0.2, 0.3, 0.3))
+    d_quat = np.empty(9, np.float64)
+    d_vel = np.empty(9, np.float64)
+    d_h = np.empty(3, np.float64)
+    mujoco.mjd_quatIntegrate(vel, scale, d_quat, d_vel, d_h)
 
   def test_banded(self):
     n_total = 4

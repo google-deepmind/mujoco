@@ -119,30 +119,26 @@ void simulate(int id, int nstep, mjtNum* ctrl) {
 int main(int argc, char** argv) {
 
   // print help if arguments are missing
-  if (argc<2 || argc>6) {
+  if (argc < 2 || argc > 6) {
     return finish("\n Usage:  testspeed modelfile [nstep nthread ctrlnoise profile]\n");
   }
 
   // read arguments
-  int nstep = 10000, nthread = 0, profile = 0;
+  int nstep = 10000, nthread = 0, profile = 1;
   // inject small noise by default, to avoid fixed contact state
   mjtNum ctrlnoise = 0.01;
-  if (argc>2)
-    if (std::sscanf(argv[2], "%d", &nstep)!=1 || nstep<=0) {
-      return finish("Invalid nstep argument");
-    }
-  if (argc>3)
-    if (std::sscanf(argv[3], "%d", &nthread)!=1) {
-      return finish("Invalid nthread argument");
-    }
-  if (argc>4)
-    if (std::sscanf(argv[4], "%lf", &ctrlnoise)!=1) {
-      return finish("Invalid ctrlnoise argument");
-    }
-  if (argc>5)
-    if (std::sscanf(argv[5], "%d", &profile)!=1) {
-      return finish("Invalid profile argument");
-    }
+  if (argc > 2 && (std::sscanf(argv[2], "%d", &nstep) != 1 || nstep <= 0)) {
+    return finish("Invalid nstep argument");
+  }
+  if (argc > 3 && std::sscanf(argv[3], "%d", &nthread) != 1) {
+    return finish("Invalid nthread argument");
+  }
+  if (argc > 4 && std::sscanf(argv[4], "%lf", &ctrlnoise) != 1) {
+    return finish("Invalid ctrlnoise argument");
+  }
+  if (argc > 5 && std::sscanf(argv[5], "%d", &profile) != 1) {
+    return finish("Invalid profile argument");
+  }
 
   // clamp ctrlnoise to [0.0, 1.0]
   ctrlnoise = mjMAX(0.0, mjMIN(ctrlnoise, 1.0));
@@ -152,7 +148,7 @@ int main(int argc, char** argv) {
 
   // get filename, determine file type
   std::string filename(argv[1]);
-  bool binary = (filename.find(".mjb")!=std::string::npos);
+  bool binary = (filename.find(".mjb") != std::string::npos);
 
   // load model
   char error[1000] = "Could not load binary model";
@@ -209,12 +205,13 @@ int main(int argc, char** argv) {
   double tottime = gettm() - starttime;
 
   // all-thread summary
+  constexpr char mu_str[3] = "\u00B5";  // unicode mu character
   if (nthread>1) {
     std::printf("Summary for all %d threads\n\n", nthread);
     std::printf(" Total simulation time  : %.2f s\n", tottime);
     std::printf(" Total steps per second : %.0f\n", nthread*nstep/tottime);
     std::printf(" Total realtime factor  : %.2f x\n", nthread*nstep*m->opt.timestep/tottime);
-    std::printf(" Total time per step    : %.4f ms\n\n", 1000*tottime/(nthread*nstep));
+    std::printf(" Total time per step    : %.1f %ss\n\n", 1e6*tottime/(nthread*nstep), mu_str);
 
     std::printf("Details for thread 0\n\n");
   }
@@ -223,7 +220,7 @@ int main(int argc, char** argv) {
   std::printf(" Simulation time      : %.2f s\n", simtime[0]);
   std::printf(" Steps per second     : %.0f\n", nstep/simtime[0]);
   std::printf(" Realtime factor      : %.2f x\n", nstep*m->opt.timestep/simtime[0]);
-  std::printf(" Time per step        : %.4f ms\n\n", 1000*simtime[0]/nstep);
+  std::printf(" Time per step        : %.1f %ss\n\n", 1e6*simtime[0]/nstep, mu_str);
   std::printf(" Broadphase accuracy  : %.2f%%\n", accuracy_broad[0]/nstep);
   std::printf(" Midphase accuracy    : %.2f%%\n", accuracy_mid[0]/nstep);
   std::printf(" Contacts per step    : %.2f\n", static_cast<float>(contacts[0])/nstep);
@@ -232,14 +229,27 @@ int main(int argc, char** argv) {
 
   // profiler results for thread 0
   if (profile) {
-    printf(" Profiler phase (ms per step)\n");
+    printf(" Internal profiler for thread 0 (%ss per step)\n", mu_str);
     mjtNum tstep = d[0]->timer[mjTIMER_STEP].duration/d[0]->timer[mjTIMER_STEP].number;
-    for (int i=0; i<mjNTIMER; i++)
-      if (d[0]->timer[i].number>0) {
+    mjtNum components = 0, total = 0;
+    for (int i=0; i<mjNTIMER; i++) {
+      if (d[0]->timer[i].number > 0) {
         mjtNum istep = d[0]->timer[i].duration/d[0]->timer[i].number;
-        std::printf(" %16s : %.5f  (%6.2f %%)\n", mjTIMERSTRING[i],
-                    1000*istep, 100*istep/tstep);
+        std::printf(" %16s : %6.1f  (%6.2f %%)\n", mjTIMERSTRING[i], 1e6*istep, 100*istep/tstep);
+
+        // save step time, add up timing of components
+        if (i == 0) total = istep;
+        if (i >= mjTIMER_POSITION && i <= mjTIMER_CONSTRAINT) {
+          components += istep;
+        }
       }
+    }
+
+    // compute "other" (computation not covered by timers)
+    if (tstep > 0) {
+      mjtNum other = total - components;
+      std::printf(" %16s : %6.1f  (%6.2f %%)\n", "other", 1e6*other, 100*other/tstep);
+    }
   }
 
   // free per-thread data
