@@ -154,6 +154,18 @@ PYBIND11_MODULE(_simulate, pymodule) {
             simulate.uiloadrequest.fetch_sub(1);
           },
           py::call_guard<py::gil_scoped_release>())
+      .def(
+          "update_hfield",
+          [](SimulateWrapper& simulate, int hfieldid) {
+            simulate.UpdateHField(hfieldid);
+          },
+          py::call_guard<py::gil_scoped_release>())
+      .def(
+          "update_texture",
+          [](SimulateWrapper& simulate, int texid) {
+            simulate.UpdateTexture(texid);
+          },
+          py::call_guard<py::gil_scoped_release>())
 
       .def_property(
           "droploadrequest",

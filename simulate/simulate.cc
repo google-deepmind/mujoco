@@ -1620,6 +1620,8 @@ Simulate::Simulate(std::unique_ptr<PlatformUIAdapter> platform_ui,
 }
 
 void Simulate::Sync() {
+  MutexLock lock(this->mtx);
+
   if (!m_) {
     return;
   }
@@ -1900,9 +1902,7 @@ void Simulate::Sync() {
 }
 
 //------------------------- Tell the render thread to load a file and wait -------------------------
-void Simulate::Load(mjModel* m,
-                                mjData* d,
-                                const char* displayed_filename) {
+void Simulate::Load(mjModel* m, mjData* d, const char* displayed_filename) {
   this->mnew_ = m;
   this->dnew_ = d;
   mju::strcpy_arr(this->filename, displayed_filename);
@@ -1923,82 +1923,82 @@ void Simulate::LoadOnRenderThread() {
   this->m_ = this->mnew_;
   this->d_ = this->dnew_;
 
-  ncam_ = this->mnew_->ncam;
-  nkey_ = this->mnew_->nkey;
-  body_parentid_.resize(this->mnew_->nbody);
-  std::memcpy(body_parentid_.data(), this->mnew_->body_parentid,
-              sizeof(this->mnew_->body_parentid[0]) * this->mnew_->nbody);
+  ncam_ = this->m_->ncam;
+  nkey_ = this->m_->nkey;
+  body_parentid_.resize(this->m_->nbody);
+  std::memcpy(body_parentid_.data(), this->m_->body_parentid,
+              sizeof(this->m_->body_parentid[0]) * this->m_->nbody);
 
-  jnt_type_.resize(this->mnew_->njnt);
-  std::memcpy(jnt_type_.data(), this->mnew_->jnt_type,
-              sizeof(this->mnew_->jnt_type[0]) * this->mnew_->njnt);
+  jnt_type_.resize(this->m_->njnt);
+  std::memcpy(jnt_type_.data(), this->m_->jnt_type,
+              sizeof(this->m_->jnt_type[0]) * this->m_->njnt);
 
-  jnt_group_.resize(this->mnew_->njnt);
-  std::memcpy(jnt_group_.data(), this->mnew_->jnt_group,
-              sizeof(this->mnew_->jnt_group[0]) * this->mnew_->njnt);
+  jnt_group_.resize(this->m_->njnt);
+  std::memcpy(jnt_group_.data(), this->m_->jnt_group,
+              sizeof(this->m_->jnt_group[0]) * this->m_->njnt);
 
-  jnt_qposadr_.resize(this->mnew_->njnt);
-  std::memcpy(jnt_qposadr_.data(), this->mnew_->jnt_qposadr,
-              sizeof(this->mnew_->jnt_qposadr[0]) * this->mnew_->njnt);
+  jnt_qposadr_.resize(this->m_->njnt);
+  std::memcpy(jnt_qposadr_.data(), this->m_->jnt_qposadr,
+              sizeof(this->m_->jnt_qposadr[0]) * this->m_->njnt);
 
   jnt_range_.clear();
-  jnt_range_.reserve(this->mnew_->njnt);
-  for (int i = 0; i < this->mnew_->njnt; ++i) {
-    if (this->mnew_->jnt_limited[i]) {
+  jnt_range_.reserve(this->m_->njnt);
+  for (int i = 0; i < this->m_->njnt; ++i) {
+    if (this->m_->jnt_limited[i]) {
       jnt_range_.push_back(
-          std::make_pair(this->mnew_->jnt_range[2 * i], this->mnew_->jnt_range[2 * i + 1]));
+          std::make_pair(this->m_->jnt_range[2 * i], this->m_->jnt_range[2 * i + 1]));
     } else {
       jnt_range_.push_back(std::nullopt);
     }
   }
 
   jnt_names_.clear();
-  jnt_names_.reserve(this->mnew_->njnt);
-  for (int i = 0; i < this->mnew_->njnt; ++i) {
-    jnt_names_.emplace_back(this->mnew_->names + this->mnew_->name_jntadr[i]);
+  jnt_names_.reserve(this->m_->njnt);
+  for (int i = 0; i < this->m_->njnt; ++i) {
+    jnt_names_.emplace_back(this->m_->names + this->m_->name_jntadr[i]);
   }
 
-  actuator_group_.resize(this->mnew_->nu);
-  std::memcpy(actuator_group_.data(), this->mnew_->actuator_group,
-              sizeof(this->mnew_->actuator_group[0]) * this->mnew_->nu);
+  actuator_group_.resize(this->m_->nu);
+  std::memcpy(actuator_group_.data(), this->m_->actuator_group,
+              sizeof(this->m_->actuator_group[0]) * this->m_->nu);
 
   actuator_ctrlrange_.clear();
-  actuator_ctrlrange_.reserve(this->mnew_->nu);
-  for (int i = 0; i < this->mnew_->nu; ++i) {
-    if (this->mnew_->actuator_ctrllimited[i]) {
+  actuator_ctrlrange_.reserve(this->m_->nu);
+  for (int i = 0; i < this->m_->nu; ++i) {
+    if (this->m_->actuator_ctrllimited[i]) {
       actuator_ctrlrange_.push_back(std::make_pair(
-          this->mnew_->actuator_ctrlrange[2 * i], this->mnew_->actuator_ctrlrange[2 * i + 1]));
+          this->m_->actuator_ctrlrange[2 * i], this->m_->actuator_ctrlrange[2 * i + 1]));
     } else {
       actuator_ctrlrange_.push_back(std::nullopt);
     }
   }
 
   actuator_names_.clear();
-  actuator_names_.reserve(this->mnew_->nu);
-  for (int i = 0; i < this->mnew_->nu; ++i) {
-    actuator_names_.emplace_back(this->mnew_->names + this->mnew_->name_actuatoradr[i]);
+  actuator_names_.reserve(this->m_->nu);
+  for (int i = 0; i < this->m_->nu; ++i) {
+    actuator_names_.emplace_back(this->m_->names + this->m_->name_actuatoradr[i]);
   }
 
-  qpos_.resize(this->mnew_->nq);
-  std::memcpy(qpos_.data(), this->dnew_->qpos, sizeof(this->dnew_->qpos[0]) * this->mnew_->nq);
+  qpos_.resize(this->m_->nq);
+  std::memcpy(qpos_.data(), this->d_->qpos, sizeof(this->d_->qpos[0]) * this->m_->nq);
   qpos_prev_ = qpos_;
 
-  ctrl_.resize(this->mnew_->nu);
-  std::memcpy(ctrl_.data(), this->dnew_->ctrl, sizeof(this->dnew_->ctrl[0]) * this->mnew_->nu);
+  ctrl_.resize(this->m_->nu);
+  std::memcpy(ctrl_.data(), this->d_->ctrl, sizeof(this->d_->ctrl[0]) * this->m_->nu);
   ctrl_prev_ = ctrl_;
 
   // re-create scene and context
   if (this->fully_managed_) {
-    mjv_makeScene(this->mnew_, &this->scn, kMaxGeom);
+    mjv_makeScene(this->m_, &this->scn, kMaxGeom);
   } else {
-    mjopt_prev_ = mnew_->opt;
+    mjopt_prev_ = m_->opt;
     opt_prev_ = opt;
     cam_prev_ = cam;
-    warn_vgeomfull_prev_ = dnew_->warning[mjWARN_VGEOMFULL].number;
-    mjv_makeSceneState(this->mnew_, this->dnew_, &this->scnstate_, kMaxGeom);
+    warn_vgeomfull_prev_ = d_->warning[mjWARN_VGEOMFULL].number;
+    mjv_makeSceneState(this->m_, this->d_, &this->scnstate_, kMaxGeom);
   }
 
-  this->platform_ui->RefreshMjrContext(this->mnew_, 50*(this->font+1));
+  this->platform_ui->RefreshMjrContext(this->m_, 50*(this->font+1));
   UiModify(&this->ui0, &this->uistate, &this->platform_ui->mjr_context());
   UiModify(&this->ui1, &this->uistate, &this->platform_ui->mjr_context());
 
@@ -2015,37 +2015,37 @@ void Simulate::LoadOnRenderThread() {
   // align and scale view unless reloading the same file
   if (this->filename[0] &&
       mju::strcmp_arr(this->filename, this->previous_filename)) {
-    AlignAndScaleView(this, this->mnew_);
+    AlignAndScaleView(this, this->m_);
     mju::strcpy_arr(this->previous_filename, this->filename);
   }
 
   // update scene
   if (fully_managed_) {
-    mjv_updateScene(this->mnew_, this->dnew_,
+    mjv_updateScene(this->m_, this->d_,
                     &this->opt, &this->pert, &this->cam, mjCAT_ALL, &this->scn);
   } else {
-    mjv_updateSceneState(this->mnew_, this->dnew_, &this->opt, &this->scnstate_);
+    mjv_updateSceneState(this->m_, this->d_, &this->opt, &this->scnstate_);
   }
 
   // set window title to model name
-  if (this->mnew_->names) {
+  if (this->m_->names) {
     char title[200] = "MuJoCo : ";
-    mju::strcat_arr(title, this->mnew_->names);
+    mju::strcat_arr(title, this->m_->names);
     platform_ui->SetWindowTitle(title);
   }
 
   // set keyframe range and divisions
   this->ui0.sect[SECT_SIMULATION].item[5].slider.range[0] = 0;
-  this->ui0.sect[SECT_SIMULATION].item[5].slider.range[1] = mjMAX(0, this->mnew_->nkey - 1);
-  this->ui0.sect[SECT_SIMULATION].item[5].slider.divisions = mjMAX(1, this->mnew_->nkey - 1);
+  this->ui0.sect[SECT_SIMULATION].item[5].slider.range[1] = mjMAX(0, this->m_->nkey - 1);
+  this->ui0.sect[SECT_SIMULATION].item[5].slider.divisions = mjMAX(1, this->m_->nkey - 1);
 
   // rebuild UI sections
-  MakeUiSections(this, this->mnew_, this->dnew_);
+  MakeUiSections(this, this->m_, this->d_);
 
   // full ui update
   UiModify(&this->ui0, &this->uistate, &this->platform_ui->mjr_context());
   UiModify(&this->ui1, &this->uistate, &this->platform_ui->mjr_context());
-  UpdateSettings(this, this->mnew_);
+  UpdateSettings(this, this->m_);
 
   // clear request
   this->loadrequest = 0;
@@ -2054,7 +2054,7 @@ void Simulate::LoadOnRenderThread() {
   // set real time index
   int numclicks = sizeof(this->percentRealTime) / sizeof(this->percentRealTime[0]);
   float min_error = 1e6;
-  float desired = mju_log(100*this->mnew_->vis.global.realtime);
+  float desired = mju_log(100*this->m_->vis.global.realtime);
   for (int click=0; click<numclicks; click++) {
     float error = mju_abs(mju_log(this->percentRealTime[click]) - desired);
     if (error < min_error) {
@@ -2383,6 +2383,27 @@ void Simulate::RenderLoop() {
       // poll and handle events
       this->platform_ui->PollEvents();
 
+      // upload assets if requested
+      bool upload_notify = false;
+      if (hfield_upload_ != -1) {
+        mjr_uploadHField(m_, &platform_ui->mjr_context(), hfield_upload_);
+        hfield_upload_ = -1;
+        upload_notify = true;
+      }
+      if (mesh_upload_ != -1) {
+        mjr_uploadMesh(m_, &platform_ui->mjr_context(), mesh_upload_);
+        mesh_upload_ = -1;
+        upload_notify = true;
+      }
+      if (texture_upload_ != -1) {
+        mjr_uploadTexture(m_, &platform_ui->mjr_context(), texture_upload_);
+        texture_upload_ = -1;
+        upload_notify = true;
+      }
+      if (upload_notify) {
+        cond_upload_.notify_all();
+      }
+
       // update scene, doing a full sync if in fully managed mode
       if (this->fully_managed_) {
         Sync();
@@ -2413,5 +2434,32 @@ void Simulate::RenderLoop() {
   }
 
   this->exitrequest.store(2);
+}
+
+void Simulate::UpdateHField(int hfieldid) {
+  MutexLock lock(this->mtx);
+  if (!m_ || hfieldid < 0 || hfieldid >= m_->nhfield) {
+    return;
+  }
+  hfield_upload_ = hfieldid;
+  cond_upload_.wait(lock, [this]() { return hfield_upload_ == -1; });
+}
+
+void Simulate::UpdateMesh(int meshid) {
+  MutexLock lock(this->mtx);
+  if (!m_ || meshid < 0 || meshid >= m_->nmesh) {
+    return;
+  }
+  mesh_upload_ = meshid;
+  cond_upload_.wait(lock, [this]() { return mesh_upload_ == -1; });
+}
+
+void Simulate::UpdateTexture(int texid) {
+  MutexLock lock(this->mtx);
+  if (!m_ || texid < 0 || texid >= m_->ntex) {
+    return;
+  }
+  texture_upload_ = texid;
+  cond_upload_.wait(lock, [this]() { return texture_upload_ == -1; });
 }
 }  // namespace mujoco

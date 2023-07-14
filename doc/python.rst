@@ -113,6 +113,12 @@ attributes:
   also transfers user inputs from the GUI back into ``mjOption`` (inside ``mjModel``) and ``mjData``, including
   enable/disable flags, control inputs, and mouse perturbations.
 
+- ``update_hfield(hfieldid)``: updates the height field data at the specified ``hfieldid`` for subsequent renderings.
+
+- ``update_mesh(meshid)``: updates the mesh data at the specified ``meshid`` for subsequent renderings.
+
+- ``update_texture(texid)``: updates the texture data at the specified ``texid`` for subsequent renderings.
+
 - ``close()``: programmatically closes the viewer window. This method can be safely called without locking.
 
 - ``is_running()``: returns ``True`` if the viewer window is running and ``False`` if it is closed.

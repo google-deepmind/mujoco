@@ -113,8 +113,22 @@ class Handle:
   def sync(self):
     sim = self._sim()
     if sim is not None:
-      with sim.lock():
-        sim.sync()
+      sim.sync()  # locks internally
+
+  def update_hfield(self, hfieldid: int):
+    sim = self._sim()
+    if sim is not None:
+      sim.update_hfield(hfieldid)  # locks internally and blocks until done
+
+  def update_mesh(self, meshid: int):
+    sim = self._sim()
+    if sim is not None:
+      sim.update_mesh(meshid)  # locks internally and blocks until done
+
+  def update_texture(self, texid: int):
+    sim = self._sim()
+    if sim is not None:
+      sim.update_texture(texid)  # locks internally and blocks until done
 
   def __enter__(self):
     return self

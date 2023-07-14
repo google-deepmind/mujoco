@@ -58,6 +58,10 @@ class Simulate {
   // visualization.
   void Sync();
 
+  void UpdateHField(int hfieldid);
+  void UpdateMesh(int meshid);
+  void UpdateTexture(int texid);
+
   // Request that the Simulate UI thread render a new model
   // optionally delete the old model and data when done
   void Load(mjModel* m, mjData* d, const char* displayed_filename);
@@ -279,6 +283,12 @@ class Simulate {
   // info strings
   char info_title[Simulate::kMaxFilenameLength] = {0};
   char info_content[Simulate::kMaxFilenameLength] = {0};
+
+  // pending uploads
+  std::condition_variable_any cond_upload_;
+  int texture_upload_ = -1;
+  int mesh_upload_ = -1;
+  int hfield_upload_ = -1;
 };
 }  // namespace mujoco
 

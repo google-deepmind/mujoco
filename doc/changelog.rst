@@ -15,6 +15,14 @@ General
   "from-to" argument parametrization. :ref:`mjv_makeConnector` is now deprecated.
 - Bump oldest supported MacOS from version 10.12 to 11. MacOS 11 is the oldest version still maintained by Apple.
 
+Python bindings
+^^^^^^^^^^^^^^^
+
+- The :ref:`passive viewer<PyViewerPassive>` handle now exposes ``update_hfield``, ``update_mesh``, and
+  ``update_texture`` methods to allow users to update renderable assets.
+  (`#812 <https://github.com/deepmind/mujoco/issues/812>`_, `#958 <https://github.com/deepmind/mujoco/issues/958>`_,
+  `#965 <https://github.com/deepmind/mujoco/issues/965>`_)
+
 
 Version 2.3.6 (June 20, 2023)
 -----------------------------
