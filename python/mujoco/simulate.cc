@@ -161,6 +161,12 @@ PYBIND11_MODULE(_simulate, pymodule) {
           },
           py::call_guard<py::gil_scoped_release>())
       .def(
+          "update_mesh",
+          [](SimulateWrapper& simulate, int meshid) {
+            simulate.UpdateMesh(meshid);
+          },
+          py::call_guard<py::gil_scoped_release>())
+      .def(
           "update_texture",
           [](SimulateWrapper& simulate, int texid) {
             simulate.UpdateTexture(texid);
