@@ -76,6 +76,8 @@ void PlatformUIAdapter::OnKey(int key, int scancode, int act) {
   if (event_callback_) {
     event_callback_(&state_);
   }
+
+  last_key_ = mj_key;
 }
 
 void PlatformUIAdapter::OnMouseButton(int button, int act)  {

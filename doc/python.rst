@@ -160,6 +160,29 @@ illustrative example that does **not** necessarily keep the physics ticking at t
       if time_until_next_step > 0:
         time.sleep(time_until_next_step)
 
+Optionally, ``viewer.launch_passive`` also accepts a callable as a keyword argument ``key_callback``, which gets called
+each time a keyboard event occurs in the viewer window. This allows user scripts to react to various key presses, e.g.
+pause or resume the run loop when the spacebar is pressed.
+
+.. code-block:: python
+
+  paused = False
+
+  def key_callback(keycode):
+    if chr(keycode) == ' ':
+      global paused
+      paused = not paused
+
+  ...
+
+  with mujoco.viewer.launch_passive(m, d, key_callback=key_callback) as viewer:
+    while viewer.is_running():
+      ...
+      if not paused:
+        mujoco.mj_step(m, d)
+        viewer.sync()
+      ...
+
 
 .. _PyUsage:
 

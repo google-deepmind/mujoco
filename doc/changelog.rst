@@ -30,6 +30,8 @@ Python bindings
   ``update_texture`` methods to allow users to update renderable assets.
   (`#812 <https://github.com/deepmind/mujoco/issues/812>`_, `#958 <https://github.com/deepmind/mujoco/issues/958>`_,
   `#965 <https://github.com/deepmind/mujoco/issues/965>`_)
+- Allow a custom keyboard event callback to be specified in the :ref:`passive viewer<PyViewerPassive>`.
+  (`#766 <https://github.com/deepmind/mujoco/issues/766>`_)
 - Fix GLFW crash when Python exits while the passive viewer is running.
   (`#790 <https://github.com/deepmind/mujoco/issues/790>`_)
 

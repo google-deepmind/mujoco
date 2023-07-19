@@ -77,7 +77,7 @@ class PlatformUIAdapter {
 
   // Event handlers
   void OnFilesDrop(int count, const char** paths);
-  void OnKey(int key, int scancode, int act);
+  virtual void OnKey(int key, int scancode, int act);
   void OnMouseButton(int button, int act);
   void OnMouseMove(double x, double y);
   void OnScroll(double xoffset, double yoffset);
@@ -85,6 +85,7 @@ class PlatformUIAdapter {
   void OnWindowResize(int width, int height);
 
   mjuiState state_;
+  int last_key_;
   void (*event_callback_)(mjuiState*);
   void (*layout_callback_)(mjuiState*);
 

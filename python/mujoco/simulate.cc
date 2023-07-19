@@ -38,6 +38,33 @@ constexpr inline std::size_t sizeof_arr(const T (&arr)[N]) {
   return sizeof(arr);
 }
 
+template <typename Adapter>
+class UIAdapterWithPyCallback : public Adapter {
+ public:
+  template <typename... Args>
+  UIAdapterWithPyCallback(py::handle key_callback, Args&&... args)
+      : Adapter(std::forward<Args>(args)...) {
+    if (!key_callback.is_none()) {
+      Py_XINCREF(key_callback.ptr());
+      key_callback_ = key_callback.ptr();
+    }
+  }
+
+  ~UIAdapterWithPyCallback() override { Py_XDECREF(key_callback_); }
+
+ protected:
+  void OnKey(int key, int scancode, int act) override {
+    Adapter::OnKey(key, scancode, act);
+    if (this->IsKeyDownEvent(act) && key_callback_) {
+      py::gil_scoped_acquire gil;
+      (py::handle(key_callback_))(this->last_key_);
+    }
+  }
+
+ private:
+  PyObject* key_callback_ = nullptr;
+};
+
 class SimulateWrapper {
  public:
   SimulateWrapper(std::unique_ptr<PlatformUIAdapter> platform_ui_adapter,
@@ -166,10 +193,12 @@ PYBIND11_MODULE(_simulate, pymodule) {
   py::class_<SimulateWrapper>(pymodule, "Simulate")
       .def_readonly_static("MAX_GEOM", &mujoco::Simulate::kMaxGeom)
       .def(py::init([](py::object scn, py::object cam, py::object opt,
-                       py::object pert, bool fully_managed) {
+                       py::object pert, bool fully_managed,
+                       py::object key_callback) {
         return std::make_unique<SimulateWrapper>(
-            std::make_unique<mujoco::GlfwAdapter>(), scn, cam, opt, pert,
-            fully_managed);
+            std::make_unique<UIAdapterWithPyCallback<mujoco::GlfwAdapter>>(
+                key_callback),
+            scn, cam, opt, pert, fully_managed);
       }))
       .def("destroy", &SimulateWrapper::Destroy,
            py::call_guard<py::gil_scoped_release>())
