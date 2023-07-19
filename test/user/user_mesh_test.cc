@@ -88,7 +88,7 @@ TEST_F(MjCMeshTest, UnknownMeshFormat) {
         LoadModelFromString(xml.c_str(), error.data(), error.size());
     ASSERT_THAT(model, testing::IsNull())
         << "Should fail to load a mesh named: " << name;
-    EXPECT_THAT(error.data(), HasSubstr("Unknown mesh file type"));
+    EXPECT_THAT(error.data(), HasSubstr("unknown mesh content type for file"));
     EXPECT_THAT(error.data(), HasSubstr(name));
   }
 }
@@ -165,6 +165,133 @@ TEST_F(MjCMeshTest, LoadSTLWithVFS) {
   mj_defaultVFS(vfs.get());
 
   // should fallback to OS filesystem
+  mjModel* model = LoadModelFromString(xml, error, error_sz, vfs.get());
+  EXPECT_THAT(model, IsNull());
+  EXPECT_THAT(error, HasSubstr("resource not found via provider or OS filesystem"));
+}
+
+// ------------- test content_type attributes ----------------------------------
+
+TEST_F(MjCMeshTest, LoadMSHWithContentType) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="mesh1" content_type="model/vnd.mujoco.msh" file="some_file"/>
+    </asset>
+    <worldbody>
+      <geom type="mesh" mesh="mesh1"/>
+    </worldbody>
+  </mujoco>
+  )";
+
+  char error[1024];
+  size_t error_sz = 1024;
+
+  // load VFS on the heap
+  auto vfs = std::make_unique<mjVFS>();
+  mj_defaultVFS(vfs.get());
+
+  // should try opening the file (not found obviously)
+  mjModel* model = LoadModelFromString(xml, error, error_sz, vfs.get());
+  EXPECT_THAT(model, IsNull());
+  EXPECT_THAT(error, HasSubstr("resource not found via provider or OS filesystem"));
+}
+
+TEST_F(MjCMeshTest, LoadOBJWithContentType) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="mesh1" content_type="model/obj" file="some_file"/>
+    </asset>
+    <worldbody>
+      <geom type="mesh" mesh="mesh1"/>
+    </worldbody>
+  </mujoco>
+  )";
+
+  char error[1024];
+  size_t error_sz = 1024;
+
+  // load VFS on the heap
+  auto vfs = std::make_unique<mjVFS>();
+  mj_defaultVFS(vfs.get());
+
+  // should try opening the file (not found obviously)
+  mjModel* model = LoadModelFromString(xml, error, error_sz, vfs.get());
+  EXPECT_THAT(model, IsNull());
+  EXPECT_THAT(error, HasSubstr("resource not found via provider or OS filesystem"));
+}
+
+TEST_F(MjCMeshTest, LoadSTLWithContentType) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="mesh1" content_type="model/stl" file="some_file"/>
+    </asset>
+    <worldbody>
+      <geom type="mesh" mesh="mesh1"/>
+    </worldbody>
+  </mujoco>
+  )";
+
+  char error[1024];
+  size_t error_sz = 1024;
+
+  // load VFS on the heap
+  auto vfs = std::make_unique<mjVFS>();
+  mj_defaultVFS(vfs.get());
+
+  // should try opening the file (not found obviously)
+  mjModel* model = LoadModelFromString(xml, error, error_sz, vfs.get());
+  EXPECT_THAT(model, IsNull());
+  EXPECT_THAT(error, HasSubstr("resource not found via provider or OS filesystem"));
+}
+
+TEST_F(MjCMeshTest, LoadMSHWithContentTypeError) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="mesh1" content_type="model/unknown" file="some_file"/>
+    </asset>
+    <worldbody>
+      <geom type="mesh" mesh="mesh1"/>
+    </worldbody>
+  </mujoco>
+  )";
+
+  char error[1024];
+  size_t error_sz = 1024;
+
+  // load VFS on the heap
+  auto vfs = std::make_unique<mjVFS>();
+  mj_defaultVFS(vfs.get());
+
+  // should error with unknown file type
+  mjModel* model = LoadModelFromString(xml, error, error_sz, vfs.get());
+  EXPECT_THAT(model, IsNull());
+  EXPECT_THAT(error, HasSubstr("unsupported content type: 'model/unknown'"));
+}
+
+TEST_F(MjCMeshTest, LoadMSHWithContentTypeParam) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="mesh1" content_type="model/vnd.mujoco.msh;parameter=value" file="some_file"/>
+    </asset>
+    <worldbody>
+      <geom type="mesh" mesh="mesh1"/>
+    </worldbody>
+  </mujoco>
+  )";
+
+  char error[1024];
+  size_t error_sz = 1024;
+
+  // load VFS on the heap
+  auto vfs = std::make_unique<mjVFS>();
+  mj_defaultVFS(vfs.get());
+
+  // should try opening the file (not found obviously)
   mjModel* model = LoadModelFromString(xml, error, error_sz, vfs.get());
   EXPECT_THAT(model, IsNull());
   EXPECT_THAT(error, HasSubstr("resource not found via provider or OS filesystem"));

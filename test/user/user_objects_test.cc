@@ -150,6 +150,224 @@ TEST_F(VfsTest, TextureCustomWithVFS) {
   EXPECT_THAT(error, HasSubstr("resource not found via provider or OS filesystem"));
  }
 
+// ------------------------ test content_type attribute ------------------------
+
+using ContentTypeTest = MujocoTest;
+
+TEST_F(ContentTypeTest, HFieldPngWithContentType) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <hfield name="hfield" content_type="image/png"
+              file="some_file.png" size="0.5 0.5 1 0.1"/>
+    </asset>
+
+    <worldbody>
+      <geom type="hfield" hfield="hfield" pos="-.4 .6 .05"/>
+    </worldbody>
+  </mujoco>
+  )";
+
+  char error[1024];
+  size_t error_sz = 1024;
+
+  // load VFS on the heap
+  auto vfs = std::make_unique<mjVFS>();
+  mj_defaultVFS(vfs.get());
+
+  // should try loading the file
+  mjModel* model = LoadModelFromString(xml, error, error_sz, vfs.get());
+  EXPECT_THAT(model, IsNull());
+  EXPECT_THAT(error, HasSubstr("resource not found via provider or OS filesystem"));
+}
+
+TEST_F(ContentTypeTest, HFieldCustomWithContentType) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <hfield name="hfield" content_type="image/vnd.mujoco.hfield"
+              file="some_file" size="0.5 0.5 1 0.1"/>
+    </asset>
+
+    <worldbody>
+      <geom type="hfield" hfield="hfield" pos="-.4 .6 .05"/>
+    </worldbody>
+  </mujoco>
+  )";
+
+  char error[1024];
+  size_t error_sz = 1024;
+
+  // load VFS on the heap
+  auto vfs = std::make_unique<mjVFS>();
+  mj_defaultVFS(vfs.get());
+
+  // should try loading the file
+  mjModel* model = LoadModelFromString(xml, error, error_sz, vfs.get());
+  EXPECT_THAT(model, IsNull());
+  EXPECT_THAT(error, HasSubstr("resource not found via provider or OS filesystem"));
+}
+
+TEST_F(ContentTypeTest, HFieldWithContentTypeError) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <hfield name="hfield" content_type="image/jpeg"
+              file="some_file" size="0.5 0.5 1 0.1"/>
+    </asset>
+
+    <worldbody>
+      <geom type="hfield" hfield="hfield" pos="-.4 .6 .05"/>
+    </worldbody>
+  </mujoco>
+  )";
+
+  char error[1024];
+  size_t error_sz = 1024;
+
+  // load VFS on the heap
+  auto vfs = std::make_unique<mjVFS>();
+  mj_defaultVFS(vfs.get());
+
+  // should try loading the file
+  mjModel* model = LoadModelFromString(xml, error, error_sz, vfs.get());
+  EXPECT_THAT(model, IsNull());
+  EXPECT_THAT(error, HasSubstr("unsupported content type: 'image/jpeg'"));
+}
+
+TEST_F(ContentTypeTest, TexturePngWithContentType) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <texture name="texture" content_type="image/png" file="some_file" type="2d"/>
+      <material name="material" texture="texture"/>
+    </asset>
+
+    <worldbody>
+      <geom type="plane" material="material" size="4 4 4"/>
+    </worldbody>
+  </mujoco>
+  )";
+
+  char error[1024];
+  size_t error_sz = 1024;
+
+  // load VFS on the heap
+  auto vfs = std::make_unique<mjVFS>();
+  mj_defaultVFS(vfs.get());
+
+  // should try loading the file
+  mjModel* model = LoadModelFromString(xml, error, error_sz, vfs.get());
+  EXPECT_THAT(model, IsNull());
+  EXPECT_THAT(error, HasSubstr("resource not found via provider or OS filesystem"));
+ }
+
+TEST_F(ContentTypeTest, TextureCustomWithContentType) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <texture name="texture" content_type="image/vnd.mujoco.texture"
+              file="some_file" type="2d"/>
+      <material name="material" texture="texture"/>
+    </asset>
+
+    <worldbody>
+      <geom type="plane" material="material" size="4 4 4"/>
+    </worldbody>
+  </mujoco>
+  )";
+
+  char error[1024];
+  size_t error_sz = 1024;
+
+  // load VFS on the heap
+  auto vfs = std::make_unique<mjVFS>();
+  mj_defaultVFS(vfs.get());
+
+  // should try loading the file
+  mjModel* model = LoadModelFromString(xml, error, error_sz, vfs.get());
+  EXPECT_THAT(model, IsNull());
+  EXPECT_THAT(error, HasSubstr("resource not found via provider or OS filesystem"));
+ }
+
+TEST_F(ContentTypeTest, TextureWithContentTypeError) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <texture name="texture" content_type="image/jpeg"
+              file="some_file" type="2d"/>
+      <material name="material" texture="texture"/>
+    </asset>
+
+    <worldbody>
+      <geom type="plane" material="material" size="4 4 4"/>
+    </worldbody>
+  </mujoco>
+  )";
+
+  char error[1024];
+  size_t error_sz = 1024;
+
+  // load VFS on the heap
+  auto vfs = std::make_unique<mjVFS>();
+  mj_defaultVFS(vfs.get());
+
+  // should try loading the file
+  mjModel* model = LoadModelFromString(xml, error, error_sz, vfs.get());
+  EXPECT_THAT(model, IsNull());
+  EXPECT_THAT(error, HasSubstr("unsupported content type: 'image/jpeg'"));
+ }
+
+TEST_F(ContentTypeTest, TextureLoadPng) {
+  static constexpr char filename[] = "tiny";
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <texture content_type="image/png" file="tiny" type="2d"/>
+      <material name="material" texture="tiny"/>
+    </asset>
+
+    <worldbody>
+      <geom type="plane" material="material" size="4 4 4"/>
+    </worldbody>
+  </mujoco>
+  )";
+
+  // credit: https://www.mjt.me.uk/posts/smallest-png/
+  static constexpr unsigned char tiny[] =
+      { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00,
+        0x00, 0x00, 0x0D, 0x49, 0x48, 0x44, 0x52, 0x00, 0x00,
+        0x01, 0x00, 0x00, 0x00, 0x01, 0x00, 0x01, 0x03, 0x00,
+        0x00, 0x00, 0x66, 0xBC, 0x3A, 0x25, 0x00, 0x00, 0x00,
+        0x03, 0x50, 0x4C, 0x54, 0x45, 0xB5, 0xD0, 0xD0, 0x63,
+        0x04, 0x16, 0xEA, 0x00, 0x00, 0x00, 0x1F, 0x49, 0x44,
+        0x41, 0x54, 0x68, 0x81, 0xED, 0xC1, 0x01, 0x0D, 0x00,
+        0x00, 0x00, 0xC2, 0xA0, 0xF7, 0x4F, 0x6D, 0x0E, 0x37,
+        0xA0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0xBE, 0x0D, 0x21, 0x00, 0x00, 0x01, 0x9A, 0x60, 0xE1,
+        0xD5, 0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4E, 0x44,
+        0xAE, 0x42, 0x60, 0x82 };
+  size_t tiny_sz = sizeof(tiny);
+
+  char error[1024];
+  size_t error_sz = 1024;
+
+
+  // load VFS on the heap
+  auto vfs = std::make_unique<mjVFS>();
+  mj_defaultVFS(vfs.get());
+  mj_makeEmptyFileVFS(vfs.get(), filename, 105);
+  int i = mj_findFileVFS(vfs.get(), filename);
+  memcpy(vfs->filedata[i], tiny, tiny_sz);
+
+  // loading the file should be successful
+  mjModel* model = LoadModelFromString(xml, error, error_sz, vfs.get());
+  EXPECT_THAT(model, NotNull());
+
+  mj_deleteModel(model);
+  mj_deleteFileVFS(vfs.get(), filename);
+ }
+
 // ------------------------ test keyframes -------------------------------------
 
 using KeyframeTest = MujocoTest;

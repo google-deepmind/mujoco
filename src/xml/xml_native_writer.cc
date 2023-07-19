@@ -90,6 +90,7 @@ void mjXWriter::OneMesh(XMLElement* elem, mjCMesh* pmesh, mjCDef* def) {
   if (!writingdefaults) {
     WriteAttrTxt(elem, "name", pmesh->name);
     WriteAttrTxt(elem, "class", pmesh->classname);
+    WriteAttrTxt(elem, "content_type", pmesh->content_type);
     WriteAttrTxt(elem, "file", pmesh->file);
 
     // write vertex data
@@ -1255,9 +1256,10 @@ void mjXWriter::Asset(XMLElement* root) {
       WriteAttrInt(elem, "height", ptex->height);
     }
 
-    // write texures loaded from files
+    // write textures loaded from files
     else {
-      // write singe file
+      // write single file
+      WriteAttrTxt(elem, "content_type", ptex->content_type);
       WriteAttrTxt(elem, "file", ptex->file);
 
       // write separate files
@@ -1317,6 +1319,7 @@ void mjXWriter::Asset(XMLElement* root) {
     WriteAttrTxt(elem, "name", phf->name);
     WriteAttr(elem, "size", 4, phf->size);
     if (!phf->file.empty()) {
+      WriteAttrTxt(elem, "content_type", phf->content_type);
       WriteAttrTxt(elem, "file", phf->file);
     } else {
       WriteAttrInt(elem, "nrow", phf->nrow);

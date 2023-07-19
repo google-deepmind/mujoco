@@ -15,6 +15,7 @@
 #ifndef MUJOCO_SRC_USER_USER_UTIL_H_
 #define MUJOCO_SRC_USER_USER_UTIL_H_
 
+#include <optional>
 #include <string>
 #include <string_view>
 
@@ -22,7 +23,6 @@
 extern const double mjNAN;                      // used to mark undefined fields
 const double mjEPS = 1E-14;                     // minimum value in various calculations
 const double mjMINMASS = 1E-6;                  // minimum mass allowed
-
 
 // check if numeric variable is defined:  !_isnan(num)
 bool mjuu_defined(const double num);
@@ -151,5 +151,14 @@ bool mjuu_isabspath(std::string path);
 
 // assemble full filename
 std::string mjuu_makefullname(std::string filedir, std::string meshdir, std::string filename);
+
+// return type from content_type format {type}/{subtype}[;{parameter}={value}]
+std::optional<std::string_view> mjuu_parseContentTypeAttrType(std::string_view text);
+
+// return subtype from content_type format {type}/{subtype}[;{parameter}={value}]
+std::optional<std::string_view> mjuu_parseContentTypeAttrSubtype(std::string_view text);
+
+// convert filename extension to content type; return empty string if not found
+std::string mjuu_extToContentType(std::string_view filename);
 
 #endif  // MUJOCO_SRC_USER_USER_UTIL_H_

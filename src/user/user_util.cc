@@ -18,12 +18,14 @@
 #include <cstddef>
 #include <cstdio>
 #include <limits>
+#include <optional>
 #include <string>
 #include <string_view>
 
 #include <mujoco/mjmacro.h>
 #include <mujoco/mjtnum.h>
 #include <mujoco/mujoco.h>
+#include "engine/engine_crossplatform.h"
 #include "engine/engine_util_spatial.h"
 
 using std::isnan;
@@ -595,4 +597,83 @@ string mjuu_makefullname(string filedir, string meshdir, string filename) {
 
   // default
   return filedir + meshdir + filename;
+}
+
+
+// return true if the text is in a valid content type format:
+// {type}/{subtype}[;{parameter}={value}]
+static bool mjuu_isValidContentType(std::string_view text) {
+  // find a forward slash that's not the last character
+  size_t n = text.find('/');
+  if (n == std::string::npos || n == text.size() - 1) {
+    return false;
+  }
+
+  size_t m = text.find(';');
+  if (m == std::string::npos) {
+    return true;
+  }
+
+  if (m + 1 <= n) {
+    return false;
+  }
+
+  // just check if there's an equal sign; this isn't robust enough for general
+  // validation, but works for our scope, hence this is a private helper
+  // function
+  size_t s = text.find('=');
+  if (s == std::string::npos || s + 1 <= m) {
+    return false;
+  }
+
+  return true;
+}
+
+
+
+// return type from content_type format {type}/{subtype}[;{parameter}={value}]
+// return empty string on invalid format
+std::optional<std::string_view> mjuu_parseContentTypeAttrType(std::string_view text) {
+  if (!mjuu_isValidContentType(text)) {
+    return std::nullopt;
+  }
+
+  return { text.substr(0, text.find('/')) };
+}
+
+
+
+// return subtype from content_type format {type}/{subtype}[;{parameter}={value}]
+// return empty string on invalid format
+std::optional<std::string_view> mjuu_parseContentTypeAttrSubtype(std::string_view text) {
+  if (!mjuu_isValidContentType(text)) {
+    return std::nullopt;
+  }
+
+  size_t n = text.find('/');
+  size_t m = text.find(';', n + 1);
+  if (m == std::string::npos) {
+    return { text.substr(n+1) };
+  }
+
+  return { text.substr(n + 1, m - n - 1) };
+}
+
+
+
+// convert filename extension to content type; return empty string if not found
+std::string mjuu_extToContentType(std::string_view filename) {
+  std::string ext = mjuu_getext(filename);
+
+  if (!strcasecmp(ext.c_str(), ".stl")) {
+    return "model/stl";
+  } else if (!strcasecmp(ext.c_str(), ".obj")) {
+    return "model/obj";
+  } else if (!strcasecmp(ext.c_str(), ".msh")) {
+    return "model/vnd.mujoco.msh";
+  } else if (!strcasecmp(ext.c_str(), ".png")) {
+    return "image/png";
+  } else {
+    return "";
+  }
 }

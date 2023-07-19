@@ -188,21 +188,23 @@ void mjCMesh::Compile(int vfs_provider) {
       file = mjuu_strippath(file);
     }
 
-    // load STL, OBJ or MSH
-    string ext = mjuu_getext(file);
-    if (strcasecmp(ext.c_str(), ".stl") &&
-        strcasecmp(ext.c_str(), ".obj") &&
-        strcasecmp(ext.c_str(), ".msh")) {
-      throw mjCError(this, "Unknown mesh file type: %s", file.c_str());
+    std::string asset_type = GetAssetContentType(file, content_type);
+    if (asset_type.empty()) {
+      throw mjCError(this, "unknown mesh content type for file: '%s'", file.c_str());
+    }
+
+    if (asset_type != "model/stl" && asset_type != "model/obj"
+        && asset_type != "model/vnd.mujoco.msh") {
+      throw mjCError(this, "unsupported content type: '%s'", asset_type.c_str());
     }
 
     string filename = mjuu_makefullname(model->modelfiledir, model->meshdir, file);
     mjResource* resource = LoadResource(filename, vfs_provider);
 
     try {
-      if (!strcasecmp(ext.c_str(), ".stl")) {
+      if (asset_type == "model/stl") {
         LoadSTL(resource);
-      } else if (!strcasecmp(ext.c_str(), ".obj")) {
+      } else if (asset_type == "model/obj") {
         LoadOBJ(resource);
       } else {
         LoadMSH(resource);

@@ -212,12 +212,12 @@ static const char* MJCF[nMJCF][mjXATTRNUM] = {
 
     {"asset", "*", "0"},
     {"<"},
-        {"texture", "*", "21", "name", "type", "file", "gridsize", "gridlayout",
+        {"texture", "*", "22", "name", "type", "content_type", "file", "gridsize", "gridlayout",
             "fileright", "fileleft", "fileup", "filedown", "filefront", "fileback",
             "builtin", "rgb1", "rgb2", "mark", "markrgb", "random", "width", "height",
             "hflip", "vflip"},
-        {"hfield", "*", "5", "name", "file", "nrow", "ncol", "size"},
-        {"mesh", "*", "11", "name", "class", "file", "vertex", "normal",
+        {"hfield", "*", "6", "name", "content_type", "file", "nrow", "ncol", "size"},
+        {"mesh", "*", "12", "name", "class", "content_type", "file", "vertex", "normal",
             "texcoord", "face", "refpos", "refquat", "scale", "smoothnormal"},
         {"skin", "*", "9", "name", "file", "material", "rgba", "inflate",
             "vertex", "texcoord", "face", "group"},
@@ -1186,6 +1186,7 @@ void mjXReader::OneMesh(XMLElement* elem, mjCMesh* pmesh) {
   // read attributes
   ReadAttrTxt(elem, "name", pmesh->name);
   ReadAttrTxt(elem, "class", pmesh->classname);
+  ReadAttrTxt(elem, "content_type", pmesh->content_type);
   ReadAttrTxt(elem, "file", pmesh->file);
   ReadAttr(elem, "refpos", 3, pmesh->refpos, text);
   ReadAttr(elem, "refquat", 4, pmesh->refquat, text);
@@ -2511,6 +2512,7 @@ void mjXReader::Asset(XMLElement* section) {
         ptex->type = (mjtTexture)n;
       }
       ReadAttrTxt(elem, "name", ptex->name);
+      ReadAttrTxt(elem, "content_type", ptex->content_type);
       ReadAttrTxt(elem, "file", ptex->file);
       ReadAttrInt(elem, "width", &ptex->width);
       ReadAttrInt(elem, "height", &ptex->height);
@@ -2583,6 +2585,7 @@ void mjXReader::Asset(XMLElement* section) {
 
       // read attributes
       ReadAttrTxt(elem, "name", phf->name);
+      ReadAttrTxt(elem, "content_type", phf->content_type);
       ReadAttrTxt(elem, "file", phf->file);
       ReadAttrInt(elem, "nrow", &phf->nrow);
       ReadAttrInt(elem, "ncol", &phf->ncol);

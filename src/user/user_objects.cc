@@ -507,6 +507,23 @@ mjResource* mjCBase::LoadResource(string filename, int provider) {
 }
 
 
+// Get and sanitize content type from raw_text if not empty, otherwise parse
+// content type from resource_name; throw error on failure
+std::string mjCBase::GetAssetContentType(std::string_view resource_name,
+                                         std::string_view raw_text) {
+  if (!raw_text.empty()) {
+    auto type = mjuu_parseContentTypeAttrType(raw_text);
+    auto subtype = mjuu_parseContentTypeAttrSubtype(raw_text);
+    if (!type.has_value() || !subtype.has_value()) {
+      throw mjCError(this, "invalid format for content_type");
+    }
+    return std::string(*type) + "/" + std::string(*subtype);
+  } else {
+    return mjuu_extToContentType(resource_name);
+  }
+}
+
+
 //------------------ class mjCBody implementation --------------------------------------------------
 
 // constructor
@@ -2149,15 +2166,22 @@ void mjCHField::Compile(int vfs_provider) {
                      "hfield '%s' (id = %d) specified from file and manually", name.c_str(), id);
     }
 
-    // make filename
+    std::string asset_type = GetAssetContentType(file, content_type);
+
+    // fallback to custom
+    if (asset_type.empty()) {
+      asset_type = "image/vnd.mujoco.hfield";
+    }
+
+    if (asset_type != "image/png" && asset_type != "image/vnd.mujoco.hfield") {
+      throw mjCError(this, "unsupported content type: '%s'", asset_type.c_str());
+    }
+
     string filename = mjuu_makefullname(model->modelfiledir, model->meshdir, file);
     mjResource* resource = LoadResource(filename, vfs_provider);
 
-    // load depending on format
-    string ext = mjuu_getext(filename);
-
     try {
-      if (!strcasecmp(ext.c_str(), ".png")) {
+      if (asset_type == "image/png") {
         LoadPNG(resource);
       } else {
         LoadCustom(resource);
@@ -2548,15 +2572,24 @@ void mjCTexture::LoadCustom(mjResource* resource,
 void mjCTexture::LoadFlip(string filename, int vfs_provider,
                           std::vector<unsigned char>& image,
                           unsigned int& w, unsigned int& h) {
-  // dispatch to PNG or Custom loaded
-  string ext = mjuu_getext(filename);
+  std::string asset_type = GetAssetContentType(filename, content_type);
+
+  // fallback to custom
+  if (asset_type.empty()) {
+    asset_type = "image/vnd.mujoco.texture";
+  }
+
+  if (asset_type != "image/png" && asset_type != "image/vnd.mujoco.texture") {
+    throw mjCError(this, "unsupported content type: '%s'", asset_type.c_str());
+  }
+
   mjResource* resource = LoadResource(filename, vfs_provider);
 
   try {
-    if (!strcasecmp(ext.c_str(), ".png")) {
-     LoadPNG(resource, image, w, h);
+    if (asset_type == "image/png") {
+      LoadPNG(resource, image, w, h);
     } else {
-     LoadCustom(resource, image, w, h);
+      LoadCustom(resource, image, w, h);
     }
     mju_closeResource(resource);
   } catch(mjCError err) {
