@@ -110,6 +110,7 @@ GlfwAdapter::GlfwAdapter() {
 }
 
 GlfwAdapter::~GlfwAdapter() {
+  FreeMjrContext();
   Glfw().glfwMakeContextCurrent(nullptr);
   Glfw().glfwDestroyWindow(window_);
 }

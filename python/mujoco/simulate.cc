@@ -13,14 +13,17 @@
 // limitations under the License.
 
 #include <atomic>
+#include <chrono>
 #include <cstring>
 #include <memory>
 #include <string>
+#include <thread>
 #include <utility>
 
 #include <glfw_adapter.h>
 #include <glfw_dispatch.h>
 #include <simulate.h>
+#include "errors.h"
 #include "structs.h"
 #include <pybind11/gil.h>
 #include <pybind11/pybind11.h>
@@ -31,21 +34,20 @@ namespace {
 namespace py = ::pybind11;
 
 template <typename T, int N>
-constexpr inline std::size_t sizeof_arr(const T(&arr)[N]) {
+constexpr inline std::size_t sizeof_arr(const T (&arr)[N]) {
   return sizeof(arr);
 }
 
-class SimulateWrapper : public mujoco::Simulate {
+class SimulateWrapper {
  public:
   SimulateWrapper(std::unique_ptr<PlatformUIAdapter> platform_ui_adapter,
-                  py::object scn, py::object cam,
-                  py::object opt, py::object pert,  bool fully_managed)
-      : Simulate(std::move(platform_ui_adapter),
-                 scn.cast<MjvSceneWrapper&>().get(),
-                 cam.cast<MjvCameraWrapper&>().get(),
-                 opt.cast<MjvOptionWrapper&>().get(),
-                 pert.cast<MjvPerturbWrapper&>().get(),
-                 fully_managed),
+                  py::object scn, py::object cam, py::object opt,
+                  py::object pert, bool fully_managed)
+      : simulate_(new mujoco::Simulate(
+            std::move(platform_ui_adapter), scn.cast<MjvSceneWrapper&>().get(),
+            cam.cast<MjvCameraWrapper&>().get(),
+            opt.cast<MjvOptionWrapper&>().get(),
+            pert.cast<MjvPerturbWrapper&>().get(), fully_managed)),
         m_(py::none()),
         d_(py::none()),
         scn_(scn),
@@ -53,12 +55,33 @@ class SimulateWrapper : public mujoco::Simulate {
         opt_(opt),
         pert_(pert) {}
 
+  ~SimulateWrapper() { Destroy(); }
+
+  void Destroy() {
+    if (simulate_) {
+      delete simulate_;
+      simulate_ = nullptr;
+      destroyed_.store(1);
+    }
+  }
+
+  void WaitUntilDestroyed() {
+    // TODO: replace with atomic wait when we migrate to C++20
+    while (!destroyed_.load()) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+  }
+
   void Load(py::object m, py::object d, const std::string& path) {
+    if (!simulate_) {
+      return;
+    }
+
     mjModel* m_raw = m.cast<MjModelWrapper&>().get();
     mjData* d_raw = d.cast<MjDataWrapper&>().get();
     {
       py::gil_scoped_release no_gil;
-      Simulate::Load(m_raw, d_raw, path.c_str());
+      simulate_->Load(m_raw, d_raw, path.c_str());
     }
     m_ = m;
     d_ = d;
@@ -66,7 +89,12 @@ class SimulateWrapper : public mujoco::Simulate {
     d_raw_ = d_raw;
   }
 
+  mujoco::Simulate* simulate() { return simulate_; }
+
  private:
+  mujoco::Simulate* simulate_;
+  std::atomic_int destroyed_ = 0;
+
   // Hold references to keep these Python objects alive for as long as the
   // simulate object.
   py::object m_;
@@ -79,6 +107,49 @@ class SimulateWrapper : public mujoco::Simulate {
   mjModel* m_raw_ = nullptr;
   mjData* d_raw_ = nullptr;
 };
+
+inline mujoco::Simulate& SimulateRefOrThrow(SimulateWrapper& wrapper) {
+  auto* sim = wrapper.simulate();
+  if (!sim) {
+    throw UnexpectedError("simulate object is already deleted");
+  }
+  return *sim;
+}
+
+template <typename T, typename... Args>
+inline auto CallIfNotNull(T (*func)(mujoco::Simulate&, Args...)) {
+  return [func](SimulateWrapper& wrapper, Args&&... args) {
+    return func(SimulateRefOrThrow(wrapper), std::forward<Args>(args)...);
+  };
+}
+
+template <typename... Args>
+inline auto CallIfNotNull(void (*func)(mujoco::Simulate&, Args...)) {
+  return [func](SimulateWrapper& wrapper, Args&&... args) -> void {
+    func(SimulateRefOrThrow(wrapper), std::forward<Args>(args)...);
+  };
+}
+
+template <typename... Args>
+inline auto CallIfNotNull(void (mujoco::Simulate::*func)(Args...)) {
+  return [func](SimulateWrapper& wrapper, Args&&... args) -> void {
+    (SimulateRefOrThrow(wrapper).*func)(std::forward<Args>(args)...);
+  };
+}
+
+template <typename T>
+inline auto GetIfNotNull(T mujoco::Simulate::*member) {
+  return [member](SimulateWrapper& wrapper) -> T& {
+    return SimulateRefOrThrow(wrapper).*member;
+  };
+}
+
+template <typename T, typename... Args>
+inline auto SetIfNotNull(T mujoco::Simulate::*member) {
+  return [member](SimulateWrapper& wrapper, const T& value) -> void {
+    SimulateRefOrThrow(wrapper).*member = value;
+  };
+}
 
 PYBIND11_MODULE(_simulate, pymodule) {
   py::class_<SimulateMutex>(pymodule, "Mutex")
@@ -100,110 +171,109 @@ PYBIND11_MODULE(_simulate, pymodule) {
             std::make_unique<mujoco::GlfwAdapter>(), scn, cam, opt, pert,
             fully_managed);
       }))
+      .def("destroy", &SimulateWrapper::Destroy,
+           py::call_guard<py::gil_scoped_release>())
       .def("load", &SimulateWrapper::Load)
-      .def("sync", &mujoco::Simulate::Sync,
+      .def("sync", CallIfNotNull(&mujoco::Simulate::Sync),
            py::call_guard<py::gil_scoped_release>())
 
+      .def("render_loop", CallIfNotNull(&mujoco::Simulate::RenderLoop),
+           py::call_guard<py::gil_scoped_release>())
+      .def("lock", GetIfNotNull(&mujoco::Simulate::mtx),
+           py::call_guard<py::gil_scoped_release>(),
+           py::return_value_policy::reference_internal)
+      .def_property_readonly("ctrl_noise_std",
+                             GetIfNotNull(&mujoco::Simulate::ctrl_noise_std),
+                             py::call_guard<py::gil_scoped_release>())
+      .def_property_readonly("ctrl_noise_rate",
+                             GetIfNotNull(&mujoco::Simulate::ctrl_noise_rate),
+                             py::call_guard<py::gil_scoped_release>())
+
+      .def_property_readonly("real_time_index",
+                             GetIfNotNull(&mujoco::Simulate::real_time_index),
+                             py::call_guard<py::gil_scoped_release>())
+      .def_property("speed_changed",
+                    GetIfNotNull(&mujoco::Simulate::speed_changed),
+                    SetIfNotNull(&mujoco::Simulate::speed_changed),
+                    py::call_guard<py::gil_scoped_release>())
+      .def_property("measured_slowdown",
+                    GetIfNotNull(&mujoco::Simulate::measured_slowdown),
+                    SetIfNotNull(&mujoco::Simulate::measured_slowdown),
+                    py::call_guard<py::gil_scoped_release>())
+      .def_property_readonly("refresh_rate",
+                             GetIfNotNull(&mujoco::Simulate::refresh_rate),
+                             py::call_guard<py::gil_scoped_release>())
+
+      .def_property_readonly("busywait",
+                             GetIfNotNull(&mujoco::Simulate::busywait),
+                             py::call_guard<py::gil_scoped_release>())
+      .def_property_readonly("run", GetIfNotNull(&mujoco::Simulate::run),
+                             py::call_guard<py::gil_scoped_release>())
+
+      .def_property_readonly("exitrequest",
+                             CallIfNotNull(+[](mujoco::Simulate& sim) {
+                               return sim.exitrequest.load();
+                             }),
+                             py::call_guard<py::gil_scoped_release>())
       .def(
-          "render_loop",
-          [](SimulateWrapper& simulate) { simulate.RenderLoop(); },
-          py::call_guard<py::gil_scoped_release>())
-      .def(
-          "lock",
-          [](SimulateWrapper& simulate) -> SimulateMutex& {
-            return simulate.mtx;
+          "exit",
+          [](SimulateWrapper& wrapper) {
+            mujoco::Simulate* sim = wrapper.simulate();
+            if (!sim) {
+              return;
+            }
+
+            int value = 0;
+            sim->exitrequest.compare_exchange_strong(value, 1);
+            wrapper.WaitUntilDestroyed();
           },
-          py::call_guard<py::gil_scoped_release>(),
-          py::return_value_policy::reference_internal)
-      .def_readonly("ctrl_noise_std", &mujoco::Simulate::ctrl_noise_std,
-                    py::call_guard<py::gil_scoped_release>())
-      .def_readonly("ctrl_noise_rate", &mujoco::Simulate::ctrl_noise_rate,
-                    py::call_guard<py::gil_scoped_release>())
+          py::call_guard<py::gil_scoped_release>())
 
-      .def_readonly("real_time_index", &mujoco::Simulate::real_time_index,
-                    py::call_guard<py::gil_scoped_release>())
-      .def_readwrite("speed_changed", &mujoco::Simulate::speed_changed,
-                     py::call_guard<py::gil_scoped_release>())
-      .def_readwrite("measured_slowdown", &mujoco::Simulate::measured_slowdown,
-                     py::call_guard<py::gil_scoped_release>())
-      .def_readonly("refresh_rate", &mujoco::Simulate::refresh_rate,
-                    py::call_guard<py::gil_scoped_release>())
-
-      .def_readonly("busywait", &mujoco::Simulate::busywait,
-                    py::call_guard<py::gil_scoped_release>())
-      .def_readonly("run", &mujoco::Simulate::run,
-                    py::call_guard<py::gil_scoped_release>())
+      .def_property_readonly("uiloadrequest",
+                             CallIfNotNull(+[](mujoco::Simulate& sim) {
+                               return sim.uiloadrequest.load();
+                             }),
+                             py::call_guard<py::gil_scoped_release>())
+      .def("uiloadrequest_decrement", CallIfNotNull(+[](mujoco::Simulate& sim) {
+             sim.uiloadrequest.fetch_sub(1);
+           }),
+           py::call_guard<py::gil_scoped_release>())
+      .def("update_hfield",
+           CallIfNotNull(+[](mujoco::Simulate& sim, int hfieldid) {
+             sim.UpdateHField(hfieldid);
+           }),
+           py::call_guard<py::gil_scoped_release>())
+      .def("update_mesh", CallIfNotNull(+[](mujoco::Simulate& sim, int meshid) {
+             sim.UpdateMesh(meshid);
+           }),
+           py::call_guard<py::gil_scoped_release>())
+      .def("update_texture",
+           CallIfNotNull(+[](mujoco::Simulate& sim, int texid) {
+             sim.UpdateTexture(texid);
+           }),
+           py::call_guard<py::gil_scoped_release>())
 
       .def_property(
-          "exitrequest",
-          [](SimulateWrapper& simulate) { return simulate.exitrequest.load(); },
-          [](SimulateWrapper& simulate, int exitrequest) {
-            simulate.exitrequest.store(exitrequest);
-          },
+          "droploadrequest", CallIfNotNull(+[](mujoco::Simulate& sim) {
+            return sim.droploadrequest.load();
+          }),
+          CallIfNotNull(+[](mujoco::Simulate& sim, bool droploadrequest) {
+            sim.droploadrequest.store(droploadrequest);
+          }),
           py::call_guard<py::gil_scoped_release>())
-
-      .def_property_readonly(
-          "uiloadrequest",
-          [](SimulateWrapper& simulate) {
-            return simulate.uiloadrequest.load();
-          },
-          py::call_guard<py::gil_scoped_release>())
-      .def(
-          "uiloadrequest_decrement",
-          [](SimulateWrapper& simulate) {
-            simulate.uiloadrequest.fetch_sub(1);
-          },
-          py::call_guard<py::gil_scoped_release>())
-      .def(
-          "update_hfield",
-          [](SimulateWrapper& simulate, int hfieldid) {
-            simulate.UpdateHField(hfieldid);
-          },
-          py::call_guard<py::gil_scoped_release>())
-      .def(
-          "update_mesh",
-          [](SimulateWrapper& simulate, int meshid) {
-            simulate.UpdateMesh(meshid);
-          },
-          py::call_guard<py::gil_scoped_release>())
-      .def(
-          "update_texture",
-          [](SimulateWrapper& simulate, int texid) {
-            simulate.UpdateTexture(texid);
-          },
-          py::call_guard<py::gil_scoped_release>())
-
+      .def_property_readonly("dropfilename",
+                             GetIfNotNull(&mujoco::Simulate::dropfilename),
+                             py::call_guard<py::gil_scoped_release>())
+      .def_property_readonly("filename",
+                             GetIfNotNull(&mujoco::Simulate::filename),
+                             py::call_guard<py::gil_scoped_release>())
       .def_property(
-          "droploadrequest",
-          [](SimulateWrapper& simulate) {
-            return simulate.droploadrequest.load();
-          },
-          [](SimulateWrapper& simulate, bool droploadrequest) {
-            simulate.droploadrequest.store(droploadrequest);
-          },
-          py::call_guard<py::gil_scoped_release>())
-      .def_property_readonly(
-          "dropfilename",
-          [](SimulateWrapper& simulate) -> std::string {
-            return simulate.dropfilename;
-          },
-          py::call_guard<py::gil_scoped_release>())
-      .def_property_readonly(
-          "filename",
-          [](SimulateWrapper& simulate) -> std::string {
-            return simulate.filename;
-          },
-          py::call_guard<py::gil_scoped_release>())
-      .def_property(
-          "load_error",
-          [](SimulateWrapper& simulate) -> std::string {
-            return simulate.load_error;
-          },
-          [](SimulateWrapper& simulate, const std::string& error) {
-            const auto max_length = sizeof_arr(simulate.load_error);
-            std::strncpy(simulate.load_error, error.c_str(), max_length - 1);
-            simulate.load_error[max_length - 1] = '\0';
-          });
+          "load_error", GetIfNotNull(&mujoco::Simulate::load_error),
+          CallIfNotNull(+[](mujoco::Simulate& sim, const std::string& error) {
+            const auto max_length = sizeof_arr(sim.load_error);
+            std::strncpy(sim.load_error, error.c_str(), max_length - 1);
+            sim.load_error[max_length - 1] = '\0';
+          }));
 
   pymodule.def("set_glfw_dlhandle", [](std::uintptr_t dlhandle) {
     mujoco::Glfw(reinterpret_cast<void*>(dlhandle));

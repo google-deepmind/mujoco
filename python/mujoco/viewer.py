@@ -96,7 +96,7 @@ class Handle:
   def close(self):
     sim = self._sim()
     if sim is not None:
-      sim.exitrequest = 1
+      sim.exit()
 
   def is_running(self) -> bool:
     sim = self._sim()
@@ -348,18 +348,19 @@ def _launch_internal(
     side_thread = threading.Thread(
         target=_reload, args=(simulate, loader, notify_loaded))
 
-  def make_exit_requester(simulate):
-    def exit_requester():
-      simulate.exitrequest = True
-    return exit_requester
+  def make_exit(simulate):
+    def exit_simulate():
+      simulate.exit()
+    return exit_simulate
 
-  exit_requester = make_exit_requester(simulate)
-  atexit.register(exit_requester)
+  exit_simulate = make_exit(simulate)
+  atexit.register(exit_simulate)
 
   side_thread.start()
   simulate.render_loop()
-  atexit.unregister(exit_requester)
+  atexit.unregister(exit_simulate)
   side_thread.join()
+  simulate.destroy()
 
 
 def launch(model: Optional[mujoco.MjModel] = None,

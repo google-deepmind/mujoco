@@ -21,7 +21,7 @@ PlatformUIAdapter::PlatformUIAdapter() {
   mjr_defaultContext(&con_);
 }
 
-PlatformUIAdapter::~PlatformUIAdapter() {
+void PlatformUIAdapter::FreeMjrContext() {
   mjr_freeContext(&con_);
 }
 
