@@ -1407,6 +1407,7 @@ void mjCModel::CopyTree(mjModel* m) {
       m->jnt_type[jid] = pj->type;
       m->jnt_group[jid] = pj->group;
       m->jnt_limited[jid] = pj->limited;
+      m->jnt_actfrclimited[jid] = pj->actfrclimited;
       m->jnt_qposadr[jid] = qposadr;
       m->jnt_dofadr[jid] = dofadr;
       m->jnt_bodyid[jid] = pj->body->id;
@@ -1414,6 +1415,7 @@ void mjCModel::CopyTree(mjModel* m) {
       copyvec(m->jnt_axis+3*jid, pj->locaxis, 3);
       m->jnt_stiffness[jid] = (mjtNum)pj->stiffness;
       copyvec(m->jnt_range+2*jid, pj->range, 2);
+      copyvec(m->jnt_actfrcrange+2*jid, pj->actfrcrange, 2);
       copyvec(m->jnt_solref+mjNREF*jid, pj->solref_limit, mjNREF);
       copyvec(m->jnt_solimp+mjNIMP*jid, pj->solimp_limit, mjNIMP);
       m->jnt_margin[jid] = (mjtNum)pj->margin;

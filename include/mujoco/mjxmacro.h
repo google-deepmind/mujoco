@@ -191,12 +191,14 @@
     XMJV( int,     jnt_bodyid,            njnt,          1                    ) \
     XMJV( int,     jnt_group,             njnt,          1                    ) \
     X   ( mjtByte, jnt_limited,           njnt,          1                    ) \
+    X   ( mjtByte, jnt_actfrclimited,     njnt,          1                    ) \
     X   ( mjtNum,  jnt_solref,            njnt,          mjNREF               ) \
     X   ( mjtNum,  jnt_solimp,            njnt,          mjNIMP               ) \
     X   ( mjtNum,  jnt_pos,               njnt,          3                    ) \
     X   ( mjtNum,  jnt_axis,              njnt,          3                    ) \
     X   ( mjtNum,  jnt_stiffness,         njnt,          1                    ) \
     X   ( mjtNum,  jnt_range,             njnt,          2                    ) \
+    X   ( mjtNum,  jnt_actfrcrange,       njnt,          2                    ) \
     X   ( mjtNum,  jnt_margin,            njnt,          1                    ) \
     X   ( mjtNum,  jnt_user,              njnt,          MJ_M(nuser_jnt)      ) \
     X   ( int,     dof_bodyid,            nv,            1                    ) \

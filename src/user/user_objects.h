@@ -296,11 +296,13 @@ class mjCJoint : public mjCBase {
   mjtJoint type;                  // type of Joint
   int group;                      // used for rendering
   int limited;                    // does joint have limits: 0 false, 1 true, 2 auto
+  int actfrclimited;              // are actuator forces on joints limited: 0 false, 1 true, 2 auto
   double pos[3];                  // anchor position
   double axis[3];                 // joint axis
   double stiffness;               // stiffness coefficient
   double springdamper[2];         // timeconst, dampratio
   double range[2];                // joint limits
+  double actfrcrange[2];          // actuator force limits
   mjtNum solref_limit[mjNREF];    // solver reference: joint limits
   mjtNum solimp_limit[mjNIMP];    // solver impedance: joint limits
   mjtNum solref_friction[mjNREF]; // solver reference: dof friction

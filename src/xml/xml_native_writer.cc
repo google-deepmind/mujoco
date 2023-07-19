@@ -225,6 +225,12 @@ void mjXWriter::OneJoint(XMLElement* elem, mjCJoint* pjoint, mjCDef* def) {
   if (writingdefaults || !limited_inferred) {
     WriteAttrKey(elem, "limited", TFAuto_map, 3, pjoint->limited, def->joint.limited);
   }
+  bool afrange_defined = pjoint->actfrcrange[0]!=0 || pjoint->actfrcrange[1]!=0;
+  bool aflimited_inferred = def->joint.actfrclimited==2 && pjoint->actfrclimited==afrange_defined;
+  if (writingdefaults || !aflimited_inferred) {
+    WriteAttrKey(elem, "actutorforcelimited", TFAuto_map, 3,
+                 pjoint->actfrclimited, def->joint.actfrclimited);
+  }
 
   // defaults and regular
   if (pjoint->type != def->joint.type) {
@@ -239,6 +245,7 @@ void mjXWriter::OneJoint(XMLElement* elem, mjCJoint* pjoint, mjCDef* def) {
   WriteAttr(elem, "solimpfriction", mjNIMP, pjoint->solimp_friction, def->joint.solimp_friction);
   WriteAttr(elem, "stiffness", 1, &pjoint->stiffness, &def->joint.stiffness);
   WriteAttr(elem, "range", 2, pjoint->range, def->joint.range);
+  WriteAttr(elem, "actuatorforcerange", 2, pjoint->actfrcrange, def->joint.actfrcrange);
   WriteAttr(elem, "margin", 1, &pjoint->margin, &def->joint.margin);
   WriteAttr(elem, "armature", 1, &pjoint->armature, &def->joint.armature);
   WriteAttr(elem, "damping", 1, &pjoint->damping, &def->joint.damping);
@@ -1644,6 +1651,10 @@ void mjXWriter::Sensor(XMLElement* root) {
     case mjSENS_ACTUATORFRC:
       elem = InsertEnd(section, "actuatorfrc");
       WriteAttrTxt(elem, "actuator", psen->objname);
+      break;
+    case mjSENS_JOINTACTFRC:
+      elem = InsertEnd(section, "jointactuatorfrc");
+      WriteAttrTxt(elem, "joint", psen->objname);
       break;
 
     // sensors related to ball joints

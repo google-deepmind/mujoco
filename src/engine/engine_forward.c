@@ -301,6 +301,16 @@ void mj_fwdActuation(const mjModel* m, mjData* d) {
   // qfrc_actuator = moment' * force
   mju_mulMatTVec(d->qfrc_actuator, moment, force, nu, nv);
 
+  // clamp qfrc_actuator
+  int njnt = m->njnt;
+  for (int i=0; i < njnt; i++) {
+    if (m->jnt_actfrclimited[i]) {
+      mjtNum *forcerange = m->jnt_actfrcrange + 2*i;
+      mjtNum *qfrc = d->qfrc_actuator + m->jnt_dofadr[i];
+      qfrc[0] = mju_clip(qfrc[0], forcerange[0], forcerange[1]);
+    }
+  }
+
   // act_dot for stateful actuators
   for (int i=0; i < nu; i++) {
     if (m->actuator_plugin[i] >= 0) {

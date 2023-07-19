@@ -9,6 +9,11 @@ General
 ^^^^^^^
 
 - Added primitive collider for sphere-cylinder contacts, previously this pair used the generic convex-convex collider.
+- Added :ref:`joint-actuatorforcerange<body-joint-actuatorforcerange>` for clamping total actuator force at joints and
+  :ref:`sensor-jointactuatorfrc<sensor-jointactuatorfrc>` for measuring total actuation force applied at a joint. The
+  most important use case for joint-level actuator force clamping is to ensure that
+  :ref:`Cartesian actuator<actuator-general-refsite>` forces are realizable by individual motors at the joints.
+  See :ref:`CForceRange` for details.
 - Added an optional ``content_type`` attribute to hfield, texture, and mesh assets. This attribute supports a formatted
   `MIME <https://en.wikipedia.org/wiki/MIME>`_ string used to determine the type of the asset file without resorting to
   pulling the type from the file extension.
@@ -26,6 +31,10 @@ Python bindings
   (`#812 <https://github.com/deepmind/mujoco/issues/812>`_, `#958 <https://github.com/deepmind/mujoco/issues/958>`_,
   `#965 <https://github.com/deepmind/mujoco/issues/965>`_)
 
+Models
+^^^^^^
+
+- Added simple `car <https://github.com/deepmind/mujoco/blob/main/model/car/car.xml>`__ example model.
 
 Version 2.3.6 (June 20, 2023)
 -----------------------------
@@ -551,7 +560,8 @@ General
 
 #. Cartesian 6D end-effector control is now possible by adding a reference site to actuators with :at:`site`
    transmission. See description of new :at:`refsite` attribute in the :ref:`actuator<actuator-general>` documentation
-   and `refsite.xml <https://github.com/deepmind/mujoco/blob/main/test/engine/testdata/refsite.xml>`_ example model.
+   and `refsite.xml <https://github.com/deepmind/mujoco/blob/main/test/engine/testdata/actuation/refsite.xml>`_ example
+   model.
 
 #. Added :at:`autolimits` compiler option. If ``true``, joint and tendon :at:`limited` attributes and actuator
    :at:`ctrllimited`, :at:`forcelimited` and :at:`actlimited` attributes will automatically be set to ``true`` if the

@@ -79,7 +79,7 @@ void ReadPluginConfigs(tinyxml2::XMLElement* elem, mjCPlugin* pp) {
 
 //---------------------------------- MJCF schema ---------------------------------------------------
 
-static const int nMJCF = 190;
+static const int nMJCF = 191;
 static const char* MJCF[nMJCF][mjXATTRNUM] = {
 {"mujoco", "!", "1", "model"},
 {"<"},
@@ -138,10 +138,10 @@ static const char* MJCF[nMJCF][mjXATTRNUM] = {
         {"mesh", "?", "1", "scale"},
         {"material", "?", "8", "texture", "emission", "specular", "shininess",
             "reflectance", "rgba", "texrepeat", "texuniform"},
-        {"joint", "?", "19", "type", "group", "pos", "axis", "springdamper",
-            "limited", "solreflimit", "solimplimit",
-            "solreffriction", "solimpfriction", "stiffness", "range", "margin",
-            "ref", "springref", "armature", "damping", "frictionloss", "user"},
+        {"joint", "?", "21", "type", "group", "pos", "axis", "springdamper",
+            "limited", "actuatorforcelimited", "solreflimit", "solimplimit",
+            "solreffriction", "solimpfriction", "stiffness", "range", "actuatorforcerange",
+            "margin", "ref", "springref", "armature", "damping", "frictionloss", "user"},
         {"geom", "?", "31", "type", "pos", "quat", "contype", "conaffinity", "condim",
             "group", "priority", "size", "material", "friction", "mass", "density",
             "shellinertia", "solmix", "solref", "solimp",
@@ -237,11 +237,11 @@ static const char* MJCF[nMJCF][mjXATTRNUM] = {
         {">"},
         {"inertial", "?", "9", "pos", "quat", "mass", "diaginertia",
             "axisangle", "xyaxes", "zaxis", "euler", "fullinertia"},
-        {"joint", "*", "21", "name", "class", "type", "group", "pos", "axis",
-            "springdamper", "limited",
+        {"joint", "*", "23", "name", "class", "type", "group", "pos", "axis",
+            "springdamper", "limited", "actuatorforcelimited",
             "solreflimit", "solimplimit", "solreffriction", "solimpfriction",
-            "stiffness", "range", "margin", "ref", "springref", "armature", "damping",
-            "frictionloss", "user"},
+            "stiffness", "range", "actuatorforcerange", "margin", "ref", "springref",
+            "armature", "damping", "frictionloss", "user"},
         {"freejoint", "*", "2", "name", "group"},
         {"geom", "*", "33", "name", "class", "type", "contype", "conaffinity", "condim",
             "group", "priority", "size", "material", "friction", "mass", "density",
@@ -391,6 +391,7 @@ static const char* MJCF[nMJCF][mjXATTRNUM] = {
         {"actuatorpos", "*", "5", "name", "actuator", "cutoff", "noise", "user"},
         {"actuatorvel", "*", "5", "name", "actuator", "cutoff", "noise", "user"},
         {"actuatorfrc", "*", "5", "name", "actuator", "cutoff", "noise", "user"},
+        {"jointactuatorfrc", "*", "5", "name", "joint", "cutoff", "noise", "user"},
         {"ballquat", "*", "5", "name", "joint", "cutoff", "noise", "user"},
         {"ballangvel", "*", "5", "name", "joint", "cutoff", "noise", "user"},
         {"jointlimitpos", "*", "5", "name", "joint", "cutoff", "noise", "user"},
@@ -1314,6 +1315,7 @@ void mjXReader::OneJoint(XMLElement* elem, mjCJoint* pjoint) {
     pjoint->type = (mjtJoint)n;
   }
   MapValue(elem, "limited", &pjoint->limited, TFAuto_map, 3);
+  MapValue(elem, "actuatorforcelimited", &pjoint->actfrclimited, TFAuto_map, 3);
   ReadAttrInt(elem, "group", &pjoint->group);
   ReadAttr(elem, "solreflimit", mjNREF, pjoint->solref_limit, text, false, false);
   ReadAttr(elem, "solimplimit", mjNIMP, pjoint->solimp_limit, text, false, false);
@@ -1324,6 +1326,7 @@ void mjXReader::OneJoint(XMLElement* elem, mjCJoint* pjoint) {
   ReadAttr(elem, "springdamper", 2, pjoint->springdamper, text);
   ReadAttr(elem, "stiffness", 1, &pjoint->stiffness, text);
   ReadAttr(elem, "range", 2, pjoint->range, text);
+  ReadAttr(elem, "actuatorforcerange", 2, pjoint->actfrcrange, text);
   ReadAttr(elem, "margin", 1, &pjoint->margin, text);
   ReadAttr(elem, "ref", 1, &pjoint->ref, text);
   ReadAttr(elem, "springref", 1, &pjoint->springref, text);
@@ -3004,6 +3007,10 @@ void mjXReader::Sensor(XMLElement* section) {
       psen->type = mjSENS_ACTUATORFRC;
       psen->objtype = mjOBJ_ACTUATOR;
       ReadAttrTxt(elem, "actuator", psen->objname, true);
+    } else if (type=="jointactuatorfrc") {
+      psen->type = mjSENS_JOINTACTFRC;
+      psen->objtype = mjOBJ_JOINT;
+      ReadAttrTxt(elem, "joint", psen->objname, true);
     }
 
     // sensors related to ball joints

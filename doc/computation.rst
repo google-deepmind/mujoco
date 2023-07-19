@@ -293,8 +293,8 @@ is attached; the possible attachment object types are :at:`joint`, :at:`tendon`,
    If a :at:`site` transmission target is defined with the optional :at:`refsite` attribute, forces and torques are
    applied in the frame of the reference site rather than the site's own frame. If a reference site is defined then
    the length of the actuator is nonzero and corresponds to the pose difference of the two sites. This length can then
-   be controlled with a :el:`position` actuator, enabling Cartesian end-effector control. See the :at:`refsite`
-   documentation in :ref:`actuator<actuator-general>` reference for more details.
+   be controlled with a :el:`position` actuator, enabling Cartesian end-effector control. See the
+   :ref:`refsite<actuator-general-refsite>` documentation for more details.
 
 .. _geActivation:
 

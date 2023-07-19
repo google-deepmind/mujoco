@@ -593,6 +593,7 @@ void mj_sensorAcc(const mjModel* m, mjData* d) {
       if (rnePost == 0                  &&
           type != mjSENS_TOUCH          &&
           type != mjSENS_ACTUATORFRC    &&
+          type != mjSENS_JOINTACTFRC    &&
           type != mjSENS_JOINTLIMITFRC  &&
           type != mjSENS_TENDONLIMITFRC) {
         // compute cacc, cfrc_int, cfrc_ext
@@ -684,6 +685,10 @@ void mj_sensorAcc(const mjModel* m, mjData* d) {
 
       case mjSENS_ACTUATORFRC:                            // actuatorfrc
         d->sensordata[adr] = d->actuator_force[objid];
+        break;
+
+      case mjSENS_JOINTACTFRC:                            // jointactfrc
+        d->sensordata[adr] = d->qfrc_actuator[m->jnt_dofadr[objid]];
         break;
 
       case mjSENS_JOINTLIMITFRC:                          // jointlimitfrc

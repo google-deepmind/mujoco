@@ -1059,9 +1059,12 @@ mjCJoint::mjCJoint(mjCModel* _model, mjCDef* _def) {
   mjuu_setvec(pos, 0, 0, 0);
   mjuu_setvec(axis, 0, 0, 1);
   limited = 2;
+  actfrclimited = 2;
   stiffness = 0;
   range[0] = 0;
   range[1] = 0;
+  actfrcrange[0] = 0;
+  actfrcrange[1] = 0;
   springdamper[0] = 0;
   springdamper[1] = 0;
   mj_defaultSolRefImp(solref_limit, solimp_limit);
@@ -1143,6 +1146,27 @@ int mjCJoint::Compile(void) {
       if (range[1]) {
         range[1] *= mjPI/180.0;
       }
+    }
+  }
+
+  // actuator force range: none for free or ball joints
+  if (type==mjJNT_FREE || type==mjJNT_BALL) {
+    actfrclimited = 0;
+  }
+  // otherwise if actfrclimited is auto, set according to whether actfrcrange is specified
+  else if (actfrclimited==2) {
+    bool hasrange = !(actfrcrange[0]==0 && actfrcrange[1]==0);
+    checklimited(this, model->autolimits, "joint", "", actfrclimited, hasrange);
+    actfrclimited = hasrange ? 1 : 0;
+  }
+
+  // resolve actuator force range limits
+  if (actfrclimited) {
+    // check data
+    if (actfrcrange[0]>=actfrcrange[1]) {
+      throw mjCError(this,
+                     "actfrcrange[0] should be smaller than actfrcrange[1] in joint '%s' (id = %d)",
+                     name.c_str(), id);
     }
   }
 
@@ -4024,6 +4048,7 @@ void mjCSensor::Compile(void) {
 
   case mjSENS_JOINTPOS:
   case mjSENS_JOINTVEL:
+  case mjSENS_JOINTACTFRC:
     // must be attached to joint
     if (objtype!=mjOBJ_JOINT) {
       throw mjCError(this,
@@ -4041,8 +4066,10 @@ void mjCSensor::Compile(void) {
     datatype = mjDATATYPE_REAL;
     if (type==mjSENS_JOINTPOS) {
       needstage = mjSTAGE_POS;
-    } else {
+    } else if (type==mjSENS_JOINTVEL) {
       needstage = mjSTAGE_VEL;
+    } else if (type==mjSENS_JOINTACTFRC) {
+      needstage = mjSTAGE_ACC;
     }
     break;
 

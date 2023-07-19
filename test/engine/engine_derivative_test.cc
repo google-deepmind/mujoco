@@ -97,7 +97,7 @@ static const char* const kTumblingThinObjectEllipsoidPath =
 static const char* const kDampedActuatorsPath =
     "engine/testdata/derivative/damped_actuators.xml";
 static const char* const kDamperActuatorsPath =
-    "engine/testdata/damper.xml";
+    "engine/testdata/actuation/damper.xml";
 static const char* const kDampedPendulumPath =
     "engine/testdata/derivative/damped_pendulum.xml";
 static const char* const kLinearPath =

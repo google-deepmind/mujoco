@@ -591,6 +591,48 @@ defaults class and in the creation of actual model elements. If a given model re
 create multiple defaults classes, or avoid using defaults for actuators and instead specify all their attributes
 explicitly.
 
+.. _CForceRange:
+
+Actuator force clamping
+~~~~~~~~~~~~~~~~~~~~~~~
+
+Actuator forces are usually limited between lower and upper bounds. These limits can be enforced in three ways:
+
+Control clamping with :ref:`ctrlrange<actuator-general-ctrlrange>`:
+  If this actuator attribute is set, the input control value will be clamped. For simple :ref:`motors<actuator-motor>`,
+  clamping the control input is equivalent to clamping the force output.
+
+Force clamping at actuator output with :ref:`forcerange<actuator-general-forcerange>`:
+  If this actuator attribute is set, the actuator's output force will be clamped. This attribute is useful for e.g.
+  :ref:`position actuators<actuator-position>`, to keep the forces within bounds. Note that position actuators
+  usually also require control range clamping to avoid hitting joint limits.
+
+Force clamping at joint input with :ref:`joint/actuatorforcerange<body-joint-actuatorforcerange>`:
+  This joint attribute clamps input forces from all actuators acting on the joint, after passing through the
+  :ref:`transmission<geTransmission>`. Clamping actuator forces at the joint is equivalent to clamping them at the
+  actuator if the transmission is trivial (there is a one-to-one relationship between the actuator and the joint).
+  However, in situations where multiple actuators act on one joint or one actuator acts on multiple joints---yet the
+  actual torque is applied by a single physical actuator at the joint---it is desirable to clamp the forces at the joint
+  itself. Below are three examples where it is desirable to clamp actuator forces at the joint, rather than the
+  actuator:
+
+  - In `this example model
+    <https://github.com/deepmind/mujoco/blob/main/test/engine/testdata/actuation/joint_force_clamp.xml>`__ ,
+    two actuators, a :ref:`motor<actuator-motor>` and a :ref:`damper<actuator-damper>`, act on a single joint.
+  - In `this example model <https://github.com/deepmind/mujoco/blob/main/model/car/car.xml>`__ (similar to a "Dubin's
+    Car"), two actuators act on two wheels via a ref:`fixed tendon<tendon-fixed>` transmission in order to apply
+    symmetric (roll forward/back) and antisymmetric (turn right/left) torques.
+  - In `this example model <https://github.com/deepmind/mujoco/tree/main/test/engine/testdata/actuation/refsite.xml>`__,
+    a :ref:`site transmission<actuator-general-refsite>` implements a Cartesian controller of an arm end-effector.
+    In order for the computed torques to be realisable by individual, torque-limited joint motors, they need to be
+    clamped at the joints.
+
+  Note that in this case, where forces/torques are combined by the transmission, one should use the
+  :ref:`jointactuatorfrc<sensor-jointactuatorfrc>` sensor to report the total actuator force acting on a joint.
+  The standard :ref:`actuatorfrc<sensor-actuatorfrc>` sensor will continue to report the pre-clamped actuator force.
+
+The three clamping options above are non-exclusive and can be combined as required.
+
 .. _CActRange:
 
 Activation clamping
@@ -601,9 +643,9 @@ with internal dynamics whose states are called "activations". One useful applica
 "integrated-velocity" actuator, implemented by the :ref:`intvelocity<actuator-intvelocity>` shortcut. Different from the
 :ref:`pure velocity<actuator-velocity>` actuators, which implement direct feedback on transmission target's velocity,
 *integrated-velocity* actuators couple an *integrator* with a *position-feedback* actuator. In this case the semantics
-of the activation state are "the target of the position actuator", and the semantics of the control signal are "the
-velocity of the target of the position actuator". Note that in real robotic systems this integrated-velocity actuator is
-the most common implementation of actuators with velocity semantics, rather than pure feedback on velocity which is
+of the activation state are "the setpoint of the position actuator", and the semantics of the control signal are "the
+velocity of the setpoint of the position actuator". Note that in real robotic systems this integrated-velocity actuator
+is the most common implementation of actuators with velocity semantics, rather than pure feedback on velocity which is
 often quite unstable (both in real life and in simulation).
 
 In the case of integrated-velocity actuators, it is often desirable to *clamp* the activation state, since otherwise the

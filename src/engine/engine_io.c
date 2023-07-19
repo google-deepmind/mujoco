@@ -1471,6 +1471,7 @@ static int sensorSize(mjtSensor sensor_type, int sensor_dim) {
   case mjSENS_ACTUATORPOS:
   case mjSENS_ACTUATORVEL:
   case mjSENS_ACTUATORFRC:
+  case mjSENS_JOINTACTFRC:
   case mjSENS_JOINTLIMITPOS:
   case mjSENS_JOINTLIMITVEL:
   case mjSENS_JOINTLIMITFRC:

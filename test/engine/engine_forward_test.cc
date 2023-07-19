@@ -38,6 +38,8 @@ static const char* const kEnergyConservingPendulumPath =
     "engine/testdata/derivative/energy_conserving_pendulum.xml";
 static const char* const kDampedActuatorsPath =
     "engine/testdata/derivative/damped_actuators.xml";
+static const char* const kJointForceClamp =
+    "engine/testdata/actuation/joint_force_clamp.xml";
 
 using ::testing::Pointwise;
 using ::testing::DoubleNear;
@@ -79,7 +81,7 @@ TEST_P(ParametrizedForwardTest, ActLimited) {
 
   data->ctrl[0] = 1.0;
   // integrating up from 0, we will hit the clamp after 99 steps
-  for (int i=0; i<200; i++) {
+  for (int i=0; i < 200; i++) {
     mj_step(model, data);
     // always greater than lower bound
     EXPECT_GT(data->act[0], -1);
@@ -90,7 +92,7 @@ TEST_P(ParametrizedForwardTest, ActLimited) {
 
   data->ctrl[0] = -1.0;
   // integrating down from 1, we will hit the clamp after 199 steps
-  for (int i=0; i<300; i++) {
+  for (int i=0; i < 300; i++) {
     mj_step(model, data);
     // always smaller than upper bound
     EXPECT_LT(data->act[0], model->actuator_actrange[1]);
@@ -139,13 +141,13 @@ TEST_F(ForwardTest, DamperDampens) {
   // move the joint
   data->ctrl[0] = 100.0;
   data->ctrl[1] = 0.0;
-  for (int i=0; i<100; i++)
+  for (int i=0; i < 100; i++)
     mj_step(model, data);
 
   // stop the joint with damping
   data->ctrl[0] = 0.0;
   data->ctrl[1] = 100.0;
-  for (int i=0; i<1000; i++)
+  for (int i=0; i < 1000; i++)
     mj_step(model, data);
 
   EXPECT_LE(data->qvel[0], std::numeric_limits<double>::epsilon());
@@ -178,7 +180,7 @@ TEST_F(ImplicitIntegratorTest, EulerImplicitEqivalent) {
   mjData* data = mj_makeData(model);
 
   // step 10 times with Euler, save copy of qpos as vector
-  for (int i=0; i<10; i++) {
+  for (int i=0; i < 10; i++) {
     mj_step(model, data);
   }
   std::vector<mjtNum> qposEuler = AsVector(data->qpos, model->nq);
@@ -186,7 +188,7 @@ TEST_F(ImplicitIntegratorTest, EulerImplicitEqivalent) {
   // reset, step 10 times with implicit
   mj_resetData(model, data);
   model->opt.integrator = mjINT_IMPLICIT;
-  for (int i=0; i<10; i++) {
+  for (int i=0; i < 10; i++) {
     mj_step(model, data);
   }
 
@@ -208,7 +210,7 @@ TEST_F(ImplicitIntegratorTest, JointActuatorEqivalent) {
   mjData* data = mj_makeData(model);
 
   // take 1000 steps with Euler
-  for (int i=0; i<1000; i++) {
+  for (int i=0; i < 1000; i++) {
     mj_step(model, data);
   }
   // expect corresponding joint values to be significantly different
@@ -218,7 +220,7 @@ TEST_F(ImplicitIntegratorTest, JointActuatorEqivalent) {
   // reset, take 1000 steps with implicit
   mj_resetData(model, data);
   model->opt.integrator = mjINT_IMPLICIT;
-  for (int i=0; i<10; i++) {
+  for (int i=0; i < 10; i++) {
     mj_step(model, data);
   }
 
@@ -241,7 +243,7 @@ TEST_F(ImplicitIntegratorTest, EnergyConservation) {
 
   // take nstep steps with Euler, measure energy (potential + kinetic)
   model->opt.integrator = mjINT_EULER;
-  for (int i=0; i<nstep; i++) {
+  for (int i=0; i < nstep; i++) {
     mj_step(model, data);
   }
   mjtNum energyEuler = data->energy[0] + data->energy[1];
@@ -249,7 +251,7 @@ TEST_F(ImplicitIntegratorTest, EnergyConservation) {
   // take nstep steps with implicit, measure energy
   model->opt.integrator = mjINT_IMPLICIT;
   mj_resetData(model, data);
-  for (int i=0; i<nstep; i++) {
+  for (int i=0; i < nstep; i++) {
     mj_step(model, data);
   }
   mjtNum energyImplicit = data->energy[0] + data->energy[1];
@@ -257,7 +259,7 @@ TEST_F(ImplicitIntegratorTest, EnergyConservation) {
   // take nstep steps with 4th order Runge-Kutta, measure energy
   model->opt.integrator = mjINT_RK4;
   mj_resetData(model, data);
-  for (int i=0; i<nstep; i++) {
+  for (int i=0; i < nstep; i++) {
     mj_step(model, data);
   }
   mjtNum energyRK4 = data->energy[0] + data->energy[1];
@@ -326,7 +328,8 @@ TEST_F(ForwardTest, ControlClamping) {
   // for the unclamped actuator, huge raises warning
   data->ctrl[0] = 10*mjMAXVAL;
   mj_forward(model, data);
-  EXPECT_THAT(warning, HasSubstr("Nan, Inf or huge value in CTRL at ACTUATOR 0"));
+  EXPECT_THAT(warning,
+              HasSubstr("Nan, Inf or huge value in CTRL at ACTUATOR 0"));
 
   // for the clamped actuator, huge does not raise warning
   mj_resetData(model, data);
@@ -339,7 +342,8 @@ TEST_F(ForwardTest, ControlClamping) {
   mj_resetData(model, data);
   data->ctrl[1] = std::numeric_limits<double>::quiet_NaN();
   mj_forward(model, data);
-  EXPECT_THAT(warning, HasSubstr("Nan, Inf or huge value in CTRL at ACTUATOR 1"));
+  EXPECT_THAT(warning,
+              HasSubstr("Nan, Inf or huge value in CTRL at ACTUATOR 1"));
 
   mj_deleteData(data);
   mj_deleteModel(model);
@@ -412,11 +416,11 @@ TEST_F(ForwardTest, gravcomp) {
   ASSERT_THAT(model, NotNull());
 
   mjData* data = mj_makeData(model);
-  while(data->time < 1) { mj_step(model, data); }
+  while (data->time < 1) { mj_step(model, data); }
 
   mjtNum dist = 0.5*mju_norm3(model->opt.gravity)*(data->time*data->time);
 
-  // expect that body 1 moves down allowing some slack from our estimated distance moved
+  // expect that body 1 moved down, allowing some slack from our estimate
   EXPECT_NEAR(data->qpos[0], -dist, 0.011);
 
   // expect that body 2 does not move
@@ -493,11 +497,11 @@ TEST_F(ForwardTest, MjcbActDynSecondOrderExpectsActnum) {
   mj_deleteModel(model);
 }
 
-// -------------------------- adhesion actuators -------------------------------
+// ------------------------------ actuators -----------------------------------
 
-using AdhesionTest = MujocoTest;
+using ActuatorTest = MujocoTest;
 
-TEST_F(AdhesionTest, ExpectedAdhesionForce) {
+TEST_F(ActuatorTest, ExpectedAdhesionForce) {
   static constexpr char xml[] = R"(
   <mujoco>
     <option gravity="0 0 -1"/>
@@ -560,6 +564,34 @@ TEST_F(AdhesionTest, ExpectedAdhesionForce) {
   mj_deleteData(data);
   mj_deleteModel(model);
 }
+
+// Actuator force clamping at joints
+TEST_F(ActuatorTest, ActuatorForceClamping) {
+  const std::string xml_path = GetTestDataFilePath(kJointForceClamp);
+  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, nullptr, 0);
+  mjData* data = mj_makeData(model);
+
+  data->ctrl[0] = 10;
+  mj_forward(model, data);
+
+  // expect clamping as specified in the model
+  EXPECT_EQ(data->actuator_force[0], 1);
+  EXPECT_EQ(data->qfrc_actuator[0], 0.4);
+
+  // simulate for 2 seconds to gain velocity
+  while (data->time < 2) {
+    mj_step(model, data);
+  }
+
+  // activate damper, expect force to be clamped at lower bound
+  data->ctrl[1] = 1;
+  mj_forward(model, data);
+  EXPECT_EQ(data->qfrc_actuator[0], -0.4);
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
 
 }  // namespace
 }  // namespace mujoco

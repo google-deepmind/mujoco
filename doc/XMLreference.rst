@@ -1421,6 +1421,8 @@ if omitted.
 
 .. _default-joint-limited:
 
+.. _default-joint-actuatorforcelimited:
+
 .. _default-joint-solreflimit:
 
 .. _default-joint-solimplimit:
@@ -1432,6 +1434,8 @@ if omitted.
 .. _default-joint-stiffness:
 
 .. _default-joint-range:
+
+.. _default-joint-actuatorforcerange:
 
 .. _default-joint-margin:
 
@@ -3053,6 +3057,16 @@ unit quaternions.
    attribute is "auto", and :at:`autolimits` is set in :ref:`compiler <compiler>`, joint limits will be enabled
    if range is defined.
 
+.. _body-joint-actuatorforcelimited:
+
+:at:`actuatorforcelimited`: :at-val:`[false, true, auto], "auto"`
+   This attribute specifies whether actuator forces acting on the joint should be clamped. See :ref:`CForceRange` for
+   details. It is available only for scalar joints (hinge and slider) and ignored for ball and free joints. |br| This
+   attribute interacts with the actuatorforcerange attribute below. If this attribute is "false", actuator force
+   clamping is disabled. If it is "true", actuator force clamping is enabled. If this attribute is "auto", and
+   :at:`autolimits` is set in :ref:`compiler <compiler>`, actuator force clamping will be enabled if actuatorforcerange
+   is defined.
+
 .. _body-joint-solreflimit:
 
 .. _body-joint-solimplimit:
@@ -3083,6 +3097,14 @@ unit quaternions.
    0. See the :ref:`Limit <coLimit>` section in the Computation chapter for more information.
    |br| Setting this attribute without specifying :at:`limited` is an error, unless :at:`autolimits` is set in
    :ref:`compiler <compiler>`.
+
+.. _body-joint-actuatorforcerange:
+
+:at:`actuatorforcerange`: :at-val:`real(2), "0 0"`
+   Range for clamping total actuator forces acting on this joint. See :ref:`CForceRange` for details. It is available
+   only for scalar joints (hinge and slider) and ignored for ball and free joints. |br| The compiler expects the first
+   value to be smaller than the second value. |br| Setting this attribute without specifying :at:`actuatorforcelimited`
+   is an error, unless :at:`compiler-autolimits` is set.
 
 .. _body-joint-margin:
 
@@ -5009,7 +5031,8 @@ specify them independently.
 :at:`refsite`: :at-val:`string, optional`
    When using a :at:`site` transmission, measure the translation and rotation w.r.t the frame of the :at:`refsite`. In
    this case the actuator *does* have length and :el:`position` actuators can be used to directly control an end
-   effector, see `refsite.xml <https://github.com/deepmind/mujoco/tree/main/test/engine/testdata/refsite.xml>`_ example
+   effector, see `refsite.xml
+   <https://github.com/deepmind/mujoco/tree/main/test/engine/testdata/actuation/refsite.xml>`__ example
    model. As above, the length is the dot product of the :at:`gear` vector and the frame difference. So ``gear="0 1 0 0
    0 0"`` means "Y-offset of :at:`site` in the :at:`refsite` frame", while ``gear="0 0 0 0 0 1"`` means rotation "Z-
    rotation of :at:`site` in the :at:`refsite` frame". It is recommended to use a normalized :at:`gear` vector with
@@ -6215,6 +6238,34 @@ arms determined by the transmission). This sensor can be attached to any actuato
 
 :at:`actuator`: :at-val:`string, required`
    The actuator whose scalar force output will be sensed. The sensor output is copied from mjData.actuator_force.
+
+
+.. _sensor-jointactuatorfrc:
+
+:el-prefix:`sensor/` |-| **jointactuatorfrc** (*)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+This element creates an actuator force sensor, measured at a joint. The quantity being sensed is the
+generalized force contributed by all actuators to a single scalar joint (hinge or slider). This type of sensor is
+important when multiple actuators act on a single joint or when a single actuator act on multiple joints. See
+:ref:`CForceRange` for details.
+
+
+.. _sensor-jointactuatorfrc-name:
+
+.. _sensor-jointactuatorfrc-noise:
+
+.. _sensor-jointactuatorfrc-cutoff:
+
+.. _sensor-jointactuatorfrc-user:
+
+:at:`name`, :at:`noise`, :at:`cutoff`, :at:`user`
+   See :ref:`CSensor`.
+
+.. _sensor-jointactuatorfrc-joint:
+
+:at:`joint`: :at-val:`string, required`
+   The joint where actuator forces will be sensed. The sensor output is copied from ``mjData.qfrc_actuator``.
 
 
 .. _sensor-ballquat:

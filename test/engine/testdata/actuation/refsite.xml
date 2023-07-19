@@ -24,7 +24,12 @@
       -->
       <general gainprm=".5" biasprm="0 -.5 -.05" biastype="affine" ctrlrange="-1.571 1.571"/>
     </default>
-    <joint damping="1e-4"/>
+    <!--
+    Clamping the total actuator torque at the joints means that the motion produced by the Cartesian
+    commands is achievable by individual joint actuators with the specified torque limits.
+    See https://mujoco.readthedocs.io/en/latest//modeling.html#actuator-force-clamping
+    -->
+    <joint stiffness="1e-1" actuatorforcerange="-1 1"/>
     <site type="box" size=".012 .012 .012" rgba=".7 .7 .8 1"/>
   </default>
 
@@ -33,16 +38,21 @@
     <geom type="box" size=".25 .25 .01" pos="0 0 -.01"/>
     <site name="reference" pos="0 0 .25"/>
     <body name="arm" pos="-.25 .25 0">
-      <joint type="ball"/>
+      <joint axis="1 0 0"/>
+      <joint axis="0 1 0"/>
       <geom type="box" size=".01" fromto="0 0 0 0 0 .25"/>
       <body pos="0 0 .25">
-        <joint type="ball"/>
+        <joint axis="0 1 0"/>
+        <joint axis="0 0 1"/>
         <geom type="box" size=".01" fromto="0 0 0 .25 0 0"/>
         <body pos=".25 0 0">
-          <joint type="ball"/>
+          <joint axis="1 0 0"/>
+          <joint axis="0 0 1"/>
           <geom type="box" size=".01" fromto="0 0 0 0 -.2 0"/>
           <body pos="0 -.2 0">
-            <joint type="ball"/>
+            <joint axis="1 0 0"/>
+            <joint axis="0 0 1"/>
+            <joint axis="0 1 0"/>
             <geom type="box" size=".01" fromto="0 0 0 0 -.05 0"/>
             <site name="end_effector" pos="0 -.05 0"/>
           </body>

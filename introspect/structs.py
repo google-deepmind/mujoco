@@ -1392,6 +1392,13 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='does joint have limits                   (njnt x 1)',
              ),
              StructFieldDecl(
+                 name='jnt_actfrclimited',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtByte'),
+                 ),
+                 doc='does joint have actuator force limits    (njnt x 1)',
+             ),
+             StructFieldDecl(
                  name='jnt_solref',
                  type=PointerType(
                      inner_type=ValueType(name='mjtNum'),
@@ -1432,6 +1439,13 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                      inner_type=ValueType(name='mjtNum'),
                  ),
                  doc='joint limits                             (njnt x 2)',
+             ),
+             StructFieldDecl(
+                 name='jnt_actfrcrange',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+                 doc='range of total actuator force            (njnt x 2)',
              ),
              StructFieldDecl(
                  name='jnt_margin',

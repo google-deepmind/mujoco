@@ -284,6 +284,7 @@ typedef enum mjtSensor_ {         // type of sensor
   mjSENS_ACTUATORPOS,             // scalar actuator position
   mjSENS_ACTUATORVEL,             // scalar actuator velocity
   mjSENS_ACTUATORFRC,             // scalar actuator force
+  mjSENS_JOINTACTFRC,             // scalar actuator force, measured at the joint
 
   // sensors related to ball joints
   mjSENS_BALLQUAT,                // 4D ball joint quaternion
@@ -674,12 +675,14 @@ struct mjModel_ {
   int*      jnt_bodyid;           // id of joint's body                       (njnt x 1)
   int*      jnt_group;            // group for visibility                     (njnt x 1)
   mjtByte*  jnt_limited;          // does joint have limits                   (njnt x 1)
+  mjtByte*  jnt_actfrclimited;    // does joint have actuator force limits    (njnt x 1)
   mjtNum*   jnt_solref;           // constraint solver reference: limit       (njnt x mjNREF)
   mjtNum*   jnt_solimp;           // constraint solver impedance: limit       (njnt x mjNIMP)
   mjtNum*   jnt_pos;              // local anchor position                    (njnt x 3)
   mjtNum*   jnt_axis;             // local joint axis                         (njnt x 3)
   mjtNum*   jnt_stiffness;        // stiffness coefficient                    (njnt x 1)
   mjtNum*   jnt_range;            // joint limits                             (njnt x 2)
+  mjtNum*   jnt_actfrcrange;      // range of total actuator force            (njnt x 2)
   mjtNum*   jnt_margin;           // min distance for limit detection         (njnt x 1)
   mjtNum*   jnt_user;             // user data                                (njnt x nuser_jnt)
 
