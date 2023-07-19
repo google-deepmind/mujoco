@@ -19,7 +19,6 @@
 
 // Windows
 #ifdef _WIN32
-//  #define isnan _isnan
   #define strcasecmp _stricmp
   #define strncasecmp _strnicmp
 
@@ -30,6 +29,8 @@
 
 // Unix-common
 #else
+  #include <strings.h>
+
   // Apple
   #ifdef __APPLE__
     #define mjQUICKSORT(buf, elnum, elsz, func, context) \
