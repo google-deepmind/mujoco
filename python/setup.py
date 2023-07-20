@@ -32,7 +32,7 @@ from setuptools import setup
 from setuptools.command import build_ext
 from setuptools.command import install_scripts
 
-__version__ = '2.3.6'
+__version__ = '2.3.7'
 
 MUJOCO_CMAKE = 'MUJOCO_CMAKE'
 MUJOCO_CMAKE_ARGS = 'MUJOCO_CMAKE_ARGS'

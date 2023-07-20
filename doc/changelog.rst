@@ -2,43 +2,44 @@
 Changelog
 =========
 
-Upcoming version (not yet released)
------------------------------------
+Version 2.3.7 (July 20, 2023)
+-----------------------------
 
 General
 ^^^^^^^
 
-- Added primitive collider for sphere-cylinder contacts, previously this pair used the generic convex-convex collider.
-- Added :ref:`joint-actuatorforcerange<body-joint-actuatorforcerange>` for clamping total actuator force at joints and
-  :ref:`sensor-jointactuatorfrc<sensor-jointactuatorfrc>` for measuring total actuation force applied at a joint. The
-  most important use case for joint-level actuator force clamping is to ensure that
-  :ref:`Cartesian actuator<actuator-general-refsite>` forces are realizable by individual motors at the joints.
-  See :ref:`CForceRange` for details.
-- Added an optional ``content_type`` attribute to hfield, texture, and mesh assets. This attribute supports a formatted
-  `Media Type <https://www.iana.org/assignments/media-types/media-types.xhtml>`_ (previously known as MIME type) string
-  used to determine the type of the asset file without resorting to pulling the type from the file extension.
-- Added analytic derivatives for quaternion :ref:`subtraction<mjd_subQuat>` and :ref:`integration<mjd_quatIntegrate>`
-  (rotation with an angular velocity). Derivatives are in the 3D tangent space.
-- Added :ref:`mjv_connector` which has identical functionality to :ref:`mjv_makeConnector`, but with more convenient
-  "from-to" argument parametrization. :ref:`mjv_makeConnector` is now deprecated.
-- Bumped oldest supported MacOS from version 10.12 to 11. MacOS 11 is the oldest version still maintained by Apple.
+1. Added primitive collider for sphere-cylinder contacts, previously this pair used the generic convex-convex collider.
+#. Added :ref:`joint-actuatorforcerange<body-joint-actuatorforcerange>` for clamping total actuator force at joints and
+   :ref:`sensor-jointactuatorfrc<sensor-jointactuatorfrc>` for measuring total actuation force applied at a joint. The
+   most important use case for joint-level actuator force clamping is to ensure that
+   :ref:`Cartesian actuator<actuator-general-refsite>` forces are realizable by individual motors at the joints.
+   See :ref:`CForceRange` for details.
+#. Added an optional ``content_type`` attribute to hfield, texture, and mesh assets. This attribute supports a formatted
+   `Media Type <https://www.iana.org/assignments/media-types/media-types.xhtml>`_ (previously known as MIME type) string
+   used to determine the type of the asset file without resorting to pulling the type from the file extension.
+#. Added analytic derivatives for quaternion :ref:`subtraction<mjd_subQuat>` and :ref:`integration<mjd_quatIntegrate>`
+   (rotation with an angular velocity). Derivatives are in the 3D tangent space.
+#. Added :ref:`mjv_connector` which has identical functionality to :ref:`mjv_makeConnector`, but with more convenient
+   "from-to" argument parametrization. :ref:`mjv_makeConnector` is now deprecated.
+#. Bumped oldest supported MacOS from version 10.12 to 11. MacOS 11 is the oldest version still maintained by Apple.
 
 Python bindings
 ^^^^^^^^^^^^^^^
 
-- The :ref:`passive viewer<PyViewerPassive>` handle now exposes ``update_hfield``, ``update_mesh``, and
-  ``update_texture`` methods to allow users to update renderable assets.
-  (`#812 <https://github.com/deepmind/mujoco/issues/812>`_, `#958 <https://github.com/deepmind/mujoco/issues/958>`_,
-  `#965 <https://github.com/deepmind/mujoco/issues/965>`_)
-- Allow a custom keyboard event callback to be specified in the :ref:`passive viewer<PyViewerPassive>`.
-  (`#766 <https://github.com/deepmind/mujoco/issues/766>`_)
-- Fix GLFW crash when Python exits while the passive viewer is running.
-  (`#790 <https://github.com/deepmind/mujoco/issues/790>`_)
+7. The :ref:`passive viewer<PyViewerPassive>` handle now exposes ``update_hfield``, ``update_mesh``, and
+   ``update_texture`` methods to allow users to update renderable assets.
+   (`#812 <https://github.com/deepmind/mujoco/issues/812>`_, `#958 <https://github.com/deepmind/mujoco/issues/958>`_,
+   `#965 <https://github.com/deepmind/mujoco/issues/965>`_)
+#. Allow a custom keyboard event callback to be specified in the :ref:`passive viewer<PyViewerPassive>`.
+   (`#766 <https://github.com/deepmind/mujoco/issues/766>`_)
+#. Fix GLFW crash when Python exits while the passive viewer is running.
+   (`#790 <https://github.com/deepmind/mujoco/issues/790>`_)
 
 Models
 ^^^^^^
 
-- Added simple `car <https://github.com/deepmind/mujoco/blob/main/model/car/car.xml>`__ example model.
+10. Added simple `car <https://github.com/deepmind/mujoco/blob/main/model/car/car.xml>`__ example model.
+
 
 Version 2.3.6 (June 20, 2023)
 -----------------------------
