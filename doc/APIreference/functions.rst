@@ -244,8 +244,8 @@ mj_jac
 
 .. mujoco-include:: mj_jac
 
-This function computes an "end-effector" Jacobian, which is unrelated to the constraint Jacobian above. Any MuJoCo body
-can be treated as end-effector, and the point for which the Jacobian is computed can be anywhere in space (it is treated
+This function computes an "end-effector" Jacobian, which is unrelated to the constraint Jacobian above. The MuJoCo body specified by :ref:`body`
+is treated as the end-effector, and :ref:`point` is a point in *world frame* for which the Jacobian is computed (it is treated
 as attached to the body). The Jacobian has translational (jacp) and rotational (jacr) components. Passing NULL for
 either pointer will skip part of the computation. Each component is a 3-by-nv matrix. Each row of this matrix is the
 gradient of the corresponding 3D coordinate of the specified point with respect to the degrees of freedom. The ability
