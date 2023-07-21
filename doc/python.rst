@@ -161,7 +161,7 @@ illustrative example that does **not** necessarily keep the physics ticking at t
         time.sleep(time_until_next_step)
 
 Optionally, ``viewer.launch_passive`` also accepts a callable as a keyword argument ``key_callback``, which gets called
-each time a keyboard event occurs in the viewer window. This allows user scripts to react to various key presses, e.g.
+each time a keyboard event occurs in the viewer window. This allows user scripts to react to various key presses, e.g.,
 pause or resume the run loop when the spacebar is pressed.
 
 .. code-block:: python
@@ -170,7 +170,7 @@ pause or resume the run loop when the spacebar is pressed.
 
   def key_callback(keycode):
     if chr(keycode) == ' ':
-      global paused
+      nonlocal paused
       paused = not paused
 
   ...
