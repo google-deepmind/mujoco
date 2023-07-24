@@ -768,7 +768,7 @@ they separate? For semantic as well as computational reasons explained here.
 First the similarities. Bodies, geoms and sites all have spatial frames attached to them (although bodies also have a
 second frame which is centered at the body center of mass and aligned with the principal axes of inertia). The positions
 and orientations of these frames are computed at each time step from ``mjData.qpos`` via forward kinematics. The results
-of forward kinematics are availabe in ``mjData`` as xpos, xquat and xmat for bodies, geom_xpos and geom_xmat for geoms,
+of forward kinematics are available in ``mjData`` as xpos, xquat and xmat for bodies, geom_xpos and geom_xmat for geoms,
 site_xpos and site_xmat for sites.
 
 Now the differences. Bodies are used to construct the kinematic tree and are containers for other elements, including
