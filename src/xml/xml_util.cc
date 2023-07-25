@@ -12,12 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <cfloat>
+#include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstddef>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <functional>
 #include <iostream>
 #include <limits>
 #include <optional>
@@ -44,7 +46,7 @@ using tinyxml2::XMLElement;
 namespace mju = ::mujoco::util;
 
 template <typename T>
-std::optional<T> ParseInfOrNan(const std::string& s) {
+static std::optional<T> ParseInfOrNan(const std::string& s) {
   const char* str = s.c_str();
   if constexpr (std::is_floating_point_v<T>) {
     T sign = 1;
@@ -270,15 +272,6 @@ static void printspace(std::stringstream& str, int n, const char* space) {
 }
 
 
-// max
-static int _max(int a, int b) {
-  if (a>b) {
-    return a;
-  } else {
-    return b;
-  }
-}
-
 
 // print schema as text
 void mjXSchema::Print(std::stringstream& str, int level) {
@@ -294,11 +287,11 @@ void mjXSchema::Print(std::stringstream& str, int level) {
   }
 
   // attributes
-  int cnt = _max(baselen, 30);
+  int cnt = std::max(baselen, 30);
   for (int i=0; i<(int)attr.size(); i++) {
     if (cnt>60) {
       str << "\n";
-      printspace(str, (cnt = _max(30, baselen)), " ");
+      printspace(str, (cnt = std::max(30, baselen)), " ");
 
     }
 
@@ -508,6 +501,63 @@ XMLElement* mjXSchema::Check(XMLElement* elem, int level) {
 
 //---------------------------------- class mjXUtil implementation ----------------------------------
 
+// helper function to read multiple numerical values from an attribute
+// return false if the entire attribute wasn't read (max was reached)
+// throw error if syntax error while trying to read numerical data
+template<typename T>
+bool mjXUtil::ReadAttrValues(XMLElement* elem, const char* attr,
+                             std::function<void (int, T)> push, int max) {
+  const char* pstr = elem->Attribute(attr);
+  T item;
+
+  if (pstr == nullptr) {
+    return true;
+  }
+
+  // get input stream
+  std::string str = std::string(pstr);
+  std::istringstream strm(str);
+  std::string token;
+
+  // read numbers
+  for (int i = 0; (max < 0 || i < max) && !strm.eof(); ++i) {
+    strm >> token;
+    std::istringstream token_strm(token);
+    token_strm >> item;
+    if (token_strm.fail() || !token_strm.eof()) {
+      // C++ standard libraries do not always parse inf and nan as valid floating point values.
+      std::optional<T> maybe_result = ParseInfOrNan<T>(token);
+      if (maybe_result.has_value()) {
+        item = maybe_result.value();
+      } else {
+        throw mjXError(elem, "problem reading attribute '%s'", attr);
+      }
+    }
+
+    push(i, item);
+    if constexpr (std::is_floating_point_v<T>) {
+      if (std::isnan(item)) {
+        mju_warning("XML contains a 'NaN'. Please check it carefully.");
+      }
+    }
+    // clear any trailing whitespace
+    strm >> std::ws;
+  }
+
+  return strm.eof();
+}
+
+template bool mjXUtil::ReadAttrValues(XMLElement* elem, const char* attr,
+                                      std::function<void (int, double)> push, int max);
+template bool mjXUtil::ReadAttrValues(XMLElement* elem, const char* attr,
+                                      std::function<void (int, float)> push, int max);
+template bool mjXUtil::ReadAttrValues(XMLElement* elem, const char* attr,
+                                      std::function<void (int, int)> push, int max);
+template bool mjXUtil::ReadAttrValues(XMLElement* elem, const char* attr,
+                                      std::function<void (int, mjtByte)> push, int max);
+
+
+
 // compare two vectors
 template<typename T>
 bool mjXUtil::SameVector(const T* vec1, const T* vec2, int n) {
@@ -557,6 +607,76 @@ string mjXUtil::FindValue(const mjMap* map, int mapsz, int value) {
 
 
 
+// if attribute is present, return vector of numerical data
+template<typename T>
+std::optional<std::vector<T>> mjXUtil::ReadAttrVec(XMLElement* elem, const char* attr,
+                                                   bool required) {
+  std::vector<T> vec;
+  ReadAttrValues<T>(elem, attr, [&](int i, T num) { vec.push_back(num); });
+  if (!vec.size()) {
+    if (required) {
+      throw mjXError(elem, "required attribute missing: '%s'", attr);
+    } else {
+      return std::nullopt;
+    }
+  }
+
+  return vec;
+}
+
+template std::optional<std::vector<double>>
+mjXUtil::ReadAttrVec(XMLElement* elem, const char* attr, bool required);
+template std::optional<std::vector<float>>
+mjXUtil::ReadAttrVec(XMLElement* elem, const char* attr, bool required);
+template std::optional<std::vector<int>>
+mjXUtil::ReadAttrVec(XMLElement* elem, const char* attr, bool required);
+template std::optional<std::vector<mjtByte>>
+mjXUtil::ReadAttrVec(XMLElement* elem, const char* attr, bool required);
+
+
+
+// if attribute is present, return attribute as a string
+std::optional<std::string> mjXUtil::ReadAttrStr(XMLElement* elem, const char* attr,
+                                                bool required) {
+  const char* pstr = elem->Attribute(attr);
+
+  // check if attribute exists
+  if (pstr == nullptr) {
+    if (required) {
+      throw mjXError(elem, "required attribute missing: '%s'", attr);
+    } else {
+      return std::nullopt;
+    }
+  }
+
+  return std::string(pstr);
+}
+
+
+
+// if attribute is present, return numerical value of attribute
+template<typename T>
+std::optional<T> mjXUtil::ReadAttrNum(XMLElement* elem, const char* attr,
+                                      bool required) {
+  auto maybe_arr = ReadAttrArr<T, 1>(elem, attr, required);
+  if (!maybe_arr.has_value()) {
+    return std::nullopt;
+  }
+
+  return maybe_arr.value()[0];
+}
+
+template std::optional<double>
+mjXUtil::ReadAttrNum(XMLElement* elem, const char* attr, bool required);
+template std::optional<float>
+mjXUtil::ReadAttrNum(XMLElement* elem, const char* attr, bool required);
+template std::optional<int>
+mjXUtil::ReadAttrNum(XMLElement* elem, const char* attr, bool required);
+template std::optional<mjtByte>
+mjXUtil::ReadAttrNum(XMLElement* elem, const char* attr, bool required);
+
+
+
 // read attribute "attr" of element "elem"
 //  "len" is the number of floats or doubles to be read
 //  the content is returned in "text", the numeric data in "data"
@@ -564,59 +684,23 @@ string mjXUtil::FindValue(const mjMap* map, int mapsz, int value) {
 template<typename T>
 int mjXUtil::ReadAttr(XMLElement* elem, const char* attr, const int len,
                       T* data, string& text, bool required, bool exact) {
-  const char* pstr = elem->Attribute(attr);
-
-  // check if attribute exists
-  if (!pstr) {
-    if (required) {
-      throw mjXError(elem, "required attribute missing: '%s'", attr);
-    } else {
-      return 0;
-    }
+  auto maybe_vec = ReadAttrVec<T>(elem, attr, required);
+  if (!maybe_vec.has_value()) {
+    return 0;
   }
-
-  // convert to string
-  text = string(pstr);
-
-  // get input stream
-  istringstream strm(text);
-  std::string token;
-
-  // read numbers
-  int i = 0;
-  while (!strm.eof() && i < len) {
-    strm >> token;
-    istringstream token_strm(token);
-    token_strm >> data[i];
-    if (token_strm.fail() || !token_strm.eof()) {
-      // C++ standard libraries do not always parse inf and nan as valid floating point values.
-      std::optional<T> maybe_result = ParseInfOrNan<T>(token);
-      if (maybe_result.has_value()) {
-        data[i] = *maybe_result;
-      } else {
-        throw mjXError(elem, "problem reading attribute '%s'", attr);
-      }
-    }
-    if constexpr (std::is_floating_point_v<T>) {
-      if (std::isnan(data[i])) {
-        mju_warning("XML contains a 'NaN'. Please check it carefully.");
-      }
-    }
-    ++i;
-  }
-  strm >> std::ws;
 
   // check if there is not enough data
-  if (exact && i < len) {
+  if (exact && maybe_vec->size() < len) {
     throw mjXError(elem, "attribute '%s' does not have enough data", attr);
   }
 
   // check if there is too much data
-  if (!strm.eof()) {
+  if (maybe_vec->size() > len) {
     throw mjXError(elem, "attribute '%s' has too much data", attr);
   }
 
-  return i;
+  std::copy(maybe_vec->begin(), maybe_vec->end(), data);
+  return maybe_vec->size();
 }
 
 template int mjXUtil::ReadAttr(XMLElement* elem, const char* attr, const int len,
@@ -636,59 +720,36 @@ template int mjXUtil::ReadAttr(XMLElement* elem, const char* attr, const int len
 // read DOUBLE array into C++ vector, return number read
 int mjXUtil::ReadVector(XMLElement* elem, const char* attr,
                         vector<double>& vec, string& text, bool required) {
-  double buffer[1000];
-  int n = ReadAttr(elem, attr, 1000, buffer, text, required, false);
-  if (n>0) {
-    vec.resize(n);
-    memcpy(vec.data(), buffer, n*sizeof(double));
+  auto maybe_vec = ReadAttrVec<double>(elem, attr, required);
+  if (!maybe_vec.has_value()) {
+    return 0;
   }
-  return n;
+
+  vec = std::move(maybe_vec.value());
+  return vec.size();
 }
 
 
 
 // read text field
-bool mjXUtil::ReadAttrTxt(XMLElement* elem, const char* attr, string& text, bool required) {
-  const char* pstr = elem->Attribute(attr);
-
-  // check if attribute exists
-  if (!pstr) {
-    if (required) {
-      throw mjXError(elem, "required attribute missing: '%s'", attr);
-    } else {
-      return false;
-    }
+bool mjXUtil::ReadAttrTxt(tinyxml2::XMLElement* elem, const char* attr, string& text, bool required) {
+  auto maybe_str = ReadAttrStr(elem, attr, required);
+  if (!maybe_str.has_value()) {
+    return false;
   }
 
-  // read text
-  text = string(pstr);
-
+  text = maybe_str.value();
   return true;
 }
 
-
-
 // read single int
 bool mjXUtil::ReadAttrInt(XMLElement* elem, const char* attr, int* data, bool required) {
-  const char* pstr = elem->Attribute(attr);
-
-  // check if attribute exists
-  if (!pstr) {
-    if (required) {
-      throw mjXError(elem, "required attribute missing: '%s'", attr);
-    } else {
-      return false;
-    }
+  auto maybe_int = ReadAttrNum<int>(elem, attr, required);
+  if (!maybe_int.has_value()) {
+    return false;
   }
 
-  // convert to int, check
-  int buffer[2] = {0, 0};
-  if (sscanf(pstr, "%d", buffer) != 1) {
-    throw mjXError(elem, "single int expected in attribute %s", attr);
-  }
-
-  // copy data
-  *data = buffer[0];
+  *data = maybe_int.value();
   return true;
 }
 
@@ -796,15 +857,15 @@ XMLElement* mjXUtil::FindSubElem(XMLElement* elem, string name, bool required) {
 bool mjXUtil::MapValue(XMLElement* elem, const char* attr, int* data,
                        const mjMap* map, int mapSz, bool required) {
   // get attribute text
-  string text;
-  if (!ReadAttrTxt(elem, attr, text, required)) {
+  auto maybe_text = ReadAttrStr(elem, attr, required);
+  if (!maybe_text.has_value()) {
     return false;
   }
 
   // find keyword in map
-  int value = FindKey(map, mapSz, text);
-  if (value<0) {
-    throw mjXError(elem, "invalid keyword: '%s'", text.c_str());
+  int value = FindKey(map, mapSz, maybe_text.value());
+  if (value < 0) {
+    throw mjXError(elem, "invalid keyword: '%s'", maybe_text->c_str());
   }
 
   // copy

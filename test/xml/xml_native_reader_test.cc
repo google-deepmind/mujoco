@@ -317,7 +317,7 @@ TEST_F(XMLReaderTest, InvalidArrayLength) {
   <mujoco>
     <worldbody>
       <body>
-        <geom size="1" axisangle="1 0 0 0 asd"/>
+        <geom size="1" axisangle="1 0 0 0 1"/>
       </body>
     </worldbody>
   </mujoco>
