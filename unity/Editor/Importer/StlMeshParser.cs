@@ -101,21 +101,28 @@ public class StlMeshParser {
         writer.Write(_asciiFileTypeId);
         writer.Write(new byte[_headerLength - _asciiFileTypeId.Length - 1]);
 
-        var numTriangles = mesh.triangles.Length / 3;
+        // Reading mesh.triangles etc causes a c# array to be instantiated each time to store a copy
+        // of the data that is owned by the native runtime. For this reason, it's important we do
+        // this once per mesh, and definitely not per triangle.
+        var triangles = mesh.triangles;
+        var normals = mesh.normals;
+        var vertices = mesh.vertices;
+
+        var numTriangles = triangles.Length / 3;
         writer.Write((int)numTriangles);
 
-        for (var i = 0; i < mesh.triangles.Length; i += _verticesPerTriangle) {
+        for (var i = 0; i < triangles.Length; i += _verticesPerTriangle) {
           // STL format uses face normals, while Unity Meshes use vertex normals. We need to convert
           // one into another by calculating a mean of vertex normals.
-          var i1 = mesh.triangles[i];
-          var i2 = mesh.triangles[i + 1];
-          var i3 = mesh.triangles[i + 2];
-          var faceNormal = (mesh.normals[i1] + mesh.normals[i2] + mesh.normals[i3]).normalized;
+          var i1 = triangles[i];
+          var i2 = triangles[i + 1];
+          var i3 = triangles[i + 2];
+          var faceNormal = (normals[i1] + normals[i2] + normals[i3]).normalized;
           writer.Write(ToXZY(faceNormal));
 
-          writer.Write(ToXZY(mesh.vertices[i1]));
-          writer.Write(ToXZY(mesh.vertices[i3]));
-          writer.Write(ToXZY(mesh.vertices[i2]));
+          writer.Write(ToXZY(vertices[i1]));
+          writer.Write(ToXZY(vertices[i3]));
+          writer.Write(ToXZY(vertices[i2]));
 
           writer.Write((short)0);
         }
