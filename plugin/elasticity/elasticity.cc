@@ -14,12 +14,14 @@
 
 #include <mujoco/mjplugin.h>
 #include "cable.h"
+#include "corotational.h"
 #include "solid.h"
 
 namespace mujoco::plugin::elasticity {
 
 mjPLUGIN_LIB_INIT {
   Cable::RegisterPlugin();
+  Corotational::RegisterPlugin();
   Solid::RegisterPlugin();
 }
 
