@@ -161,6 +161,9 @@ static void set0(mjModel* m, mjData* d) {
       m->actuator_acc0[i] = mju_norm(tmp, nv);
     }
   } else {
+    for (int i=0; i < m->ntendon; i++) {
+      m->tendon_invweight0[i] = 0;
+    }
     for (int i=0; i < m->nu; i++) {
       m->actuator_acc0[i] = 0;
     }
