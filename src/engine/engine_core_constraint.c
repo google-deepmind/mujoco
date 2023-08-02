@@ -23,6 +23,7 @@
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjxmacro.h>
 #include "engine/engine_array_safety.h"
+#include "engine/engine_crossplatform.h"
 #include "engine/engine_core_smooth.h"
 #include "engine/engine_io.h"
 #include "engine/engine_support.h"
@@ -1486,7 +1487,7 @@ static inline int mj_nl(const mjModel* m, const mjData* d, int *nnz) {
 
     margin = m->jnt_margin[i];
 
-    // slider and hinge joint limits can be bilateral, check both side
+    // slider and hinge joint limits can be bilateral, check both sides
     if (m->jnt_type[i] == mjJNT_SLIDE || m->jnt_type[i] == mjJNT_HINGE) {
       value = d->qpos[m->jnt_qposadr[i]];
       for (side=-1; side <= 1; side+=2) {
@@ -2094,4 +2095,130 @@ void mj_constraintUpdate(const mjModel* m, mjData* d, const mjtNum* jar,
   if (cost) {
     *cost = s;
   }
+}
+
+
+
+//---------------------------- constraint islands --------------------------------------------------
+
+// comparison function for lexicographic edge sorting
+quicksortfunc(edgecompare, context, edge0, edge1) {
+  int* e0 = (int*)edge0;
+  int* e1 = (int*)edge1;
+  int v00 = e0[0];
+  int v10 = e1[0];
+
+  if (v00 < v10) {
+    return -1;
+  }
+
+  if (v00 == v10) {
+    int v01 = e0[1];
+    int v11 = e1[1];
+
+    if (v01 < v11) {
+      return -1;
+    }
+
+    if (v01 == v11) {
+      return 0;
+    }
+  }
+
+  return 1;
+}
+
+
+
+// construct sparse matrix from unsorted edge array, return number of nonzeros
+int mj_edge2Sparse(int* rownnz, int* rowadr, int* colind, int* edge, int ne, int nr) {
+  if (!ne) {
+    return 0;
+  }
+
+  // sort edges
+  mjQUICKSORT(edge, ne, 2*sizeof(int), edgecompare, NULL);
+
+  // construct sparse
+  int nnz = 0;  // number of nonzeros
+  int e = 0;    // current edge
+  for (int r=0; r < nr; r++) {
+    // init row
+    rownnz[r] = 0;
+    rowadr[r] = nnz;
+
+    // copy values while making unique and checking indices
+    while (e < ne && edge[2*e] == r) {
+      int v0 = edge[2*e];
+      int v1 = edge[2*e + 1];
+
+      // skip if duplicate
+      if (rownnz[r] && v0 == edge[2*e - 2] && v1 == edge[2*e - 1]) {
+        e++;
+        continue;
+      }
+
+      // check for invalid indices
+      if (v0 < 0 || v0 >= nr) mju_error("invalid row index %d in edge %d", v0, e);
+      if (v1 < 0 || v1 >= nr) mju_error("invalid column index %d in edge %d", v1, e);
+
+      // copy column index, increment nnz, e, rownnz
+      colind[nnz++] = edge[2*(e++) + 1];
+      rownnz[r]++;
+    }
+  }
+
+  return nnz;
+}
+
+
+// find disjoint subgraphs ("islands") given sparse symmetric adjacency matrix
+//   arguments:
+//     island  (nr)   - island index assigned to vertex, -1 if vertex has no edges
+//     nr             - number of rows/columns of adjacency matrix
+//     rownnz  (nr)   - matrix row nonzeros
+//     rowadr  (nr)   - matrix row addresses
+//     colind  (nnz)  - matrix column indices
+//     stack   (nnz)  - stack space
+//   returns number of islands
+int mj_floodFill(int* island, int nr, const int* rownnz, const int* rowadr, const int* colind,
+                 int* stack) {
+  // initialize island count, set ids to -1
+  int nisland = 0;
+  for (int i=0; i < nr; i++) island[i] = -1;
+
+  // iterate over vertices, discover islands
+  for (int i=0; i < nr; i++) {
+    // vertex already in island or singleton with no edges: skip
+    if (island[i] != -1 || !rownnz[i]) {
+      continue;
+    }
+
+    // push i onto stack
+    int nstack = 0;
+    stack[nstack++] = i;
+
+    // DFS traversal of island
+    while (nstack) {
+      // pop v from stack
+      int v = stack[--nstack];
+
+      // if v is already assigned, continue
+      if (island[v] != -1) {
+        continue;
+      }
+
+      // assign v to current island
+      island[v] = nisland;
+
+      // push adjacent vertices onto stack
+      memcpy(stack + nstack, colind + rowadr[v], rownnz[v]*sizeof(int));
+      nstack += rownnz[v];
+    }
+
+    // island is filled: increment nisland
+    nisland++;
+  }
+
+  return nisland;
 }

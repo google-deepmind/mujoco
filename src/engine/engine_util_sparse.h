@@ -35,8 +35,8 @@ mjtNum mju_dotSparse2(const mjtNum* vec1, const mjtNum* vec2,
                       const int nnz2, const int* ind2);
 
 // convert matrix from dense to sparse
-void mju_dense2sparse(mjtNum* res, const mjtNum* mat, int nr, int nc,
-                      int* rownnz, int* rowadr, int* colind);
+MJAPI void mju_dense2sparse(mjtNum* res, const mjtNum* mat, int nr, int nc,
+                            int* rownnz, int* rowadr, int* colind);
 
 // convert matrix from sparse to dense
 void mju_sparse2dense(mjtNum* res, const mjtNum* mat, int nr, int nc,

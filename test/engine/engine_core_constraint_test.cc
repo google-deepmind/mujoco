@@ -24,12 +24,15 @@
 #include <mujoco/mujoco.h>
 #include "src/engine/engine_core_constraint.h"
 #include "src/engine/engine_support.h"
+#include "src/engine/engine_util_sparse.h"
 #include "test/fixture.h"
 
 namespace mujoco {
 namespace {
 
 using ::testing::DoubleNear;
+using ::testing::ElementsAre;
+using ::testing::ElementsAreArray;
 using ::testing::Pointwise;
 using CoreConstraintTest = MujocoTest;
 
@@ -83,7 +86,7 @@ TEST_F(CoreConstraintTest, WeldRotJacobian) {
   ASSERT_THAT(model, testing::NotNull());
   ASSERT_EQ(model->nq, 7);
   ASSERT_EQ(model->nv, 6);
-  static const int nv = 6;  // for increased readabilty
+  static const int nv = 6;  // for increased readability
   mjData* data = mj_makeData(model);
 
   // arbitrary initial values for the ball and hinge joints
@@ -267,6 +270,234 @@ TEST_F(CoreConstraintTest, CombineSparseCount) {
     EXPECT_EQ(
         mju_combineSparseCount(a_ind.size(), 0, a_ind.data(), nullptr), 1);
   }
+}
+
+TEST_F(CoreConstraintTest, EdgeToSparse4) {
+  // unsorted edges, with duplication
+  constexpr int ne = 6;
+  constexpr int nr = 5;
+  int edge[2*ne] = {
+    1, 1,
+    0, 0,
+    0, 1,
+    3, 2,
+    1, 1,
+    0, 0
+  };
+
+  int rownnz[nr];
+  int rowadr[nr];
+  int colind[ne];
+
+  int nnz = mj_edge2Sparse(rownnz, rowadr, colind, edge, ne, nr);
+
+  constexpr int expected_nnz = 4;
+
+  EXPECT_EQ(nnz, expected_nnz);
+
+  EXPECT_THAT(rownnz, ElementsAre(2, 1, 0, 1, 0));
+  EXPECT_THAT(rowadr, ElementsAre(0, 2, 3, 3, 4));
+
+  int expected_colind[expected_nnz] = {0, 1, 1, 2};
+  EXPECT_THAT(expected_colind, ElementsAreArray(colind, expected_nnz));
+}
+
+TEST_F(CoreConstraintTest, EdgeToSparse2) {
+  // unsorted edges, with duplication
+  constexpr int ne = 4;
+  constexpr int nr = 5;
+  int edge[2*ne] = {
+    3, 4,
+    1, 1,
+    3, 4,
+    1, 1
+  };
+
+  int rownnz[nr];
+  int rowadr[nr];
+  int colind[ne];
+
+  int nnz = mj_edge2Sparse(rownnz, rowadr, colind, edge, ne, nr);
+
+  constexpr int expected_nnz = 2;
+
+  EXPECT_EQ(nnz, expected_nnz);
+
+  EXPECT_THAT(rownnz, ElementsAre(0, 1, 0, 1, 0));
+  EXPECT_THAT(rowadr, ElementsAre(0, 0, 1, 1, 2));
+
+  int expected_colind[expected_nnz] = {1, 4};
+  EXPECT_THAT(expected_colind, ElementsAreArray(colind, expected_nnz));
+}
+
+TEST_F(CoreConstraintTest, EdgeToSparse3) {
+  // unsorted edges, with duplication
+  constexpr int ne = 3;
+  constexpr int nr = 1;
+  int edge[2*ne] = {
+    0, 0,
+    0, 0,
+    0, 0
+  };
+
+  int rownnz[nr];
+  int rowadr[nr];
+  int colind[ne];
+
+  int nnz = mj_edge2Sparse(rownnz, rowadr, colind, edge, ne, nr);
+
+  constexpr int expected_nnz = 1;
+
+  EXPECT_EQ(nnz, expected_nnz);
+
+  EXPECT_THAT(rownnz, ElementsAre(1));
+  EXPECT_THAT(rowadr, ElementsAre(0));
+
+  int expected_colind[expected_nnz] = {0};
+  EXPECT_THAT(expected_colind, ElementsAreArray(colind, expected_nnz));
+}
+
+
+TEST_F(CoreConstraintTest, FloodFillSingleton) {
+  // adjacency matrix for the graph  0   1   2
+  //                                 U       U
+  // (3 singletons, 0 and 2 have self-edges)
+  mjtNum mat[9] = {
+    1, 0, 0,
+    0, 0, 0,
+    0, 0, 1
+  };
+  constexpr int nr = 3;
+  constexpr int nnz = 2;
+  int rownnz[nr];
+  int rowadr[nr];
+  int colind[nnz];
+  mjtNum res[nnz];  // unused
+  mju_dense2sparse(res, mat, nr, nr, rownnz, rowadr, colind);
+
+  // outputs / scratch
+  int island[nr];
+  int scratch[2*nr];
+
+  // flood fill
+  int nisland = mj_floodFill(island, nr, rownnz, rowadr, colind, scratch);
+
+  EXPECT_EQ(nisland, 2);
+  EXPECT_THAT(island, ElementsAre(0, -1, 1));
+}
+
+TEST_F(CoreConstraintTest, FloodFill1) {
+  // adjacency matrix for the graph  0 - 1 - 2
+  mjtNum mat[9] = {
+    0, 1, 0,
+    1, 0, 1,
+    0, 1, 0
+  };
+  constexpr int nr = 3;
+  constexpr int nnz = 4;
+  int rownnz[nr];
+  int rowadr[nr];
+  int colind[nnz];
+  mjtNum res[nnz];  // unused
+  mju_dense2sparse(res, mat, nr, nr, rownnz, rowadr, colind);
+
+  // outputs / stack
+  int island[nr];
+  int stack[nnz];
+
+  int nisland = mj_floodFill(island, nr, rownnz, rowadr, colind, stack);
+
+  EXPECT_EQ(nisland, 1);
+  EXPECT_THAT(island, ElementsAre(0, 0, 0));
+}
+
+TEST_F(CoreConstraintTest, FloodFill2) {
+  //  adjacency matrix for the graph   6 – 1 – 4   0 – 3 – 5 – 2
+  mjtNum mat[49] = {
+    0, 0, 0, 1, 0, 0, 0,
+    0, 0, 0, 0, 1, 0, 1,
+    0, 0, 0, 0, 0, 1, 0,
+    1, 0, 0, 0, 0, 1, 0,
+    0, 1, 0, 0, 0, 0, 0,
+    0, 0, 1, 1, 0, 0, 0,
+    0, 1, 0, 0, 0, 0, 0,
+  };
+  constexpr int nr = 7;
+  constexpr int nnz = 10;
+  int rownnz[nr];
+  int rowadr[nr];
+  int colind[nnz];
+  mjtNum res[nnz];  // unused
+  mju_dense2sparse(res, mat, nr, nr, rownnz, rowadr, colind);
+
+  // outputs / stack
+  int island[nr];
+  int stack[nnz];
+
+  int nisland = mj_floodFill(island, nr, rownnz, rowadr, colind, stack);
+
+  EXPECT_EQ(nisland, 2);
+  EXPECT_THAT(island, ElementsAre(0, 1, 0, 0, 1, 0, 1));
+}
+
+TEST_F(CoreConstraintTest, FloodFill3a) {
+  //  adjacency matrix for the graph   0   2   1 – 3
+  //                                       U
+  mjtNum mat[16] = {
+    0, 0, 0, 0,
+    0, 0, 0, 1,
+    0, 0, 1, 0,
+    0, 1, 0, 0,
+  };
+  constexpr int nr = 4;
+  constexpr int nnz = 3;
+  int rownnz[nr];
+  int rowadr[nr];
+  int colind[nnz];
+  mjtNum res[nnz];  // unused
+  mju_dense2sparse(res, mat, nr, nr, rownnz, rowadr, colind);
+
+  // outputs / stack
+  int island[nr];
+  int stack[nnz];
+
+  int nisland = mj_floodFill(island, nr, rownnz, rowadr, colind, stack);
+
+  EXPECT_EQ(nisland, 2);
+  EXPECT_THAT(island, ElementsAre(-1, 0, 1, 0));
+}
+
+TEST_F(CoreConstraintTest, FloodFill3b) {
+  /*
+    adjacency matrix for the graph   1 – 2   3   4 – 5
+                                     U           | \ |
+                                                 0 – 6
+  */
+  mjtNum mat[49] = {
+    0, 0, 0, 0, 1, 0, 1,
+    0, 1, 1, 0, 0, 0, 0,
+    0, 1, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0,
+    1, 0, 0, 0, 0, 1, 1,
+    0, 0, 0, 0, 1, 0, 1,
+    1, 0, 0, 0, 1, 1, 0,
+  };
+  constexpr int nr = 7;
+  constexpr int nnz = 13;
+  int rownnz[nr];
+  int rowadr[nr];
+  int colind[nnz];
+  mjtNum res[nnz];  // unused
+  mju_dense2sparse(res, mat, nr, nr, rownnz, rowadr, colind);
+
+  // outputs / stack
+  int island[nr];
+  int stack[nnz];
+
+  int nisland = mj_floodFill(island, nr, rownnz, rowadr, colind, stack);
+
+  EXPECT_EQ(nisland, 2);
+  EXPECT_THAT(island, ElementsAre(0, 1, 1, -1, 0, 0, 0));
 }
 
 }  // namespace
