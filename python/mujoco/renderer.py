@@ -229,6 +229,8 @@ the clause:
       if isinstance(camera_id, str):
         camera_id = _functions.mj_name2id(self._model,
                                           _enums.mjtObj.mjOBJ_CAMERA, camera_id)
+        if camera_id == -1:
+          raise ValueError(f'camera_id={camera_id} is not defined in the XML.')
       if camera_id < -1:
         raise ValueError('camera_id cannot be smaller than -1.')
       if camera_id >= self._model.ncam:
