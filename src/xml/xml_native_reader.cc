@@ -1155,7 +1155,6 @@ void mjXReader::Size(XMLElement* section, mjCModel* mod) {
 
   ReadAttrInt(section, "nuser_sensor", &mod->nuser_sensor);
   if (mod->nuser_sensor < -1) throw mjXError(section, "nuser_sensor must be >= -1");
-
 }
 
 
@@ -1187,26 +1186,27 @@ void mjXReader::OneMesh(XMLElement* elem, mjCMesh* pmesh) {
   // read attributes
   ReadAttrTxt(elem, "name", pmesh->name);
   ReadAttrTxt(elem, "class", pmesh->classname);
-  ReadAttrTxt(elem, "content_type", pmesh->content_type);
-  ReadAttrTxt(elem, "file", pmesh->file);
-  ReadAttr(elem, "refpos", 3, pmesh->refpos, text);
-  ReadAttr(elem, "refquat", 4, pmesh->refquat, text);
-  ReadAttr(elem, "scale", 3, pmesh->scale, text);
+  pmesh->set_content_type(ReadAttrStr(elem, "content_type"));
+  pmesh->set_file(ReadAttrStr(elem, "file"));
+  pmesh->set_refpos(ReadAttrArr<double, 3>(elem, "refpos"));
+  pmesh->set_refquat(ReadAttrArr<double, 4>(elem, "refquat"));
+  pmesh->set_scale(ReadAttrArr<double, 3>(elem, "scale"));
+
   if (MapValue(elem, "smoothnormal", &n, bool_map, 2)) {
-    pmesh->smoothnormal = (n==1);
+    pmesh->set_smoothnormal((n==1));
   }
 
   // read user vertex data
-  if (ReadAttrTxt(elem, "vertex", text)) String2Vector(text, pmesh->uservert);
+  pmesh->set_uservert(ReadAttrVec<float>(elem, "vertex"));
 
   // read user normal data
-  if (ReadAttrTxt(elem, "normal", text)) String2Vector(text, pmesh->usernormal);
+  pmesh->set_usernormal(ReadAttrVec<float>(elem, "normal"));
 
   // read user texcoord data
-  if (ReadAttrTxt(elem, "texcoord", text)) String2Vector(text, pmesh->usertexcoord);
+  pmesh->set_usertexcoord(ReadAttrVec<float>(elem, "texcoord"));
 
   // read user face data
-  if (ReadAttrTxt(elem, "face", text)) String2Vector(text, pmesh->userface);
+  pmesh->set_userface(ReadAttrVec<int>(elem, "face"));
 
   GetXMLPos(elem, pmesh);
 }

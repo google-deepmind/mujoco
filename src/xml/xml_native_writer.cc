@@ -90,39 +90,39 @@ void mjXWriter::OneMesh(XMLElement* elem, mjCMesh* pmesh, mjCDef* def) {
   if (!writingdefaults) {
     WriteAttrTxt(elem, "name", pmesh->name);
     WriteAttrTxt(elem, "class", pmesh->classname);
-    WriteAttrTxt(elem, "content_type", pmesh->content_type);
-    WriteAttrTxt(elem, "file", pmesh->file);
+    WriteAttrTxt(elem, "content_type", pmesh->content_type());
+    WriteAttrTxt(elem, "file", pmesh->file());
 
     // write vertex data
-    if (!pmesh->uservert.empty()) {
-      Vector2String(text, pmesh->uservert);
+    if (!pmesh->uservert().empty()) {
+      Vector2String(text, pmesh->uservert());
       WriteAttrTxt(elem, "vertex", text);
     }
 
     // write normal data
-    if (!pmesh->usernormal.empty()) {
-      Vector2String(text, pmesh->usernormal);
+    if (!pmesh->usernormal().empty()) {
+      Vector2String(text, pmesh->usernormal());
       WriteAttrTxt(elem, "normal", text);
     }
 
     // write texcoord data
-    if (!pmesh->usertexcoord.empty()) {
-      Vector2String(text, pmesh->usertexcoord);
+    if (!pmesh->usertexcoord().empty()) {
+      Vector2String(text, pmesh->usertexcoord());
       WriteAttrTxt(elem, "texcoord", text);
     }
 
     // write face data
-    if (!pmesh->userface.empty()) {
-      Vector2String(text, pmesh->userface);
+    if (!pmesh->userface().empty()) {
+      Vector2String(text, pmesh->userface());
       WriteAttrTxt(elem, "face", text);
     }
   }
 
   // defaults and regular
-  WriteAttr(elem, "refpos", 3, pmesh->refpos, def->mesh.refpos);
-  WriteAttr(elem, "refquat", 4, pmesh->refquat, def->mesh.refquat);
-  WriteAttr(elem, "scale", 3, pmesh->scale, def->mesh.scale);
-  WriteAttrKey(elem, "smoothnormal", bool_map, 2, pmesh->smoothnormal, def->mesh.smoothnormal);
+  WriteAttr(elem, "refpos", 3, pmesh->refpos(), def->mesh.refpos());
+  WriteAttr(elem, "refquat", 4, pmesh->refquat(), def->mesh.refquat());
+  WriteAttr(elem, "scale", 3, pmesh->scale(), def->mesh.scale());
+  WriteAttrKey(elem, "smoothnormal", bool_map, 2, pmesh->smoothnormal(), def->mesh.smoothnormal());
 }
 
 

@@ -542,10 +542,11 @@ mjCGeom* mjXURDF::Geom(XMLElement* geom_elem, mjCBody* pbody, bool collision) {
   // mesh
   else if ((temp = FindSubElem(elem, "mesh"))) {
     // set geom type and read mesh attributes
-    double meshscale[3] = {1, 1, 1};
     pgeom->type = mjGEOM_MESH;
-    ReadAttrTxt(temp, "filename", meshfile, true);
-    ReadAttr(temp, "scale", 3, meshscale, text);
+    meshfile = ReadAttrStr(temp, "filename", true).value();
+    std::array<double, 3> default_meshscale = {1, 1, 1};
+    std::array<double, 3> meshscale = ReadAttrArr<double, 3>(temp, "scale")
+                                      .value_or(default_meshscale);
 
     // strip file name if necessary
     if (model->strippath) {
@@ -565,18 +566,18 @@ mjCGeom* mjXURDF::Geom(XMLElement* geom_elem, mjCBody* pbody, bool collision) {
     }
 
     // exists with different scale: append name with '1', create
-    else if (pmesh->scale[0]!=meshscale[0] ||
-             pmesh->scale[1]!=meshscale[1] ||
-             pmesh->scale[2]!=meshscale[2]) {
+    else if (pmesh->scale()[0]!=meshscale[0] ||
+             pmesh->scale()[1]!=meshscale[1] ||
+             pmesh->scale()[2]!=meshscale[2]) {
       pmesh = model->AddMesh();
       meshname = meshname + "1";
     }
 
     // set fields
-    pmesh->file = meshfile;
+    pmesh->set_file(meshfile);
     pmesh->name = meshname;
     pgeom->mesh = meshname;
-    mjuu_copyvec(pmesh->scale, meshscale, 3);
+    pmesh->set_scale(meshscale);
   }
 
   else {

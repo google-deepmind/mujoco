@@ -1302,7 +1302,8 @@ double mjCGeom::GetVolume(void) {
     if (model->exactmeshinertia || typeinertia==mjSHELL_MESH) {
       return pmesh->GetVolumeRef(typeinertia);
     } else {
-      return pmesh->boxsz_volume[0]*pmesh->boxsz_volume[1]*pmesh->boxsz_volume[2]*8;
+      const double* boxsz_volume = pmesh->boxsz_volume();
+      return boxsz_volume[0]*boxsz_volume[1]*boxsz_volume[2]*8;
     }
   }
 
@@ -1419,7 +1420,7 @@ void mjCGeom::SetInertia(void) {
 
 // compute radius of bounding sphere
 double mjCGeom::GetRBound(void) {
-  double* aabb;
+  const double* aabb;
   double haabb[3] = {0};
 
   switch (type) {
@@ -1439,7 +1440,7 @@ double mjCGeom::GetRBound(void) {
     return sqrt(size[0]*size[0]+size[1]*size[1]+size[2]*size[2]);
 
   case mjGEOM_MESH:
-    aabb = model->meshes[meshid]->aabb;
+    aabb = model->meshes[meshid]->aabb();
     haabb[0] = mjMAX(fabs(aabb[0]), fabs(aabb[3]));
     haabb[1] = mjMAX(fabs(aabb[1]), fabs(aabb[4]));
     haabb[2] = mjMAX(fabs(aabb[2]), fabs(aabb[5]));
@@ -1585,7 +1586,7 @@ void mjCGeom::ComputeAABB() {
     break;
 
   case mjGEOM_MESH:
-    mjuu_copyvec(aabb, model->meshes[meshid]->aabb, 6);
+    mjuu_copyvec(aabb, model->meshes[meshid]->aabb(), 6);
     break;
 
   case mjGEOM_PLANE:
@@ -1752,7 +1753,7 @@ void mjCGeom::Compile(void) {
     size[1] = model->hfields[hfieldid]->size[1];
     size[2] = 0.5*(model->hfields[hfieldid]->size[2]+model->hfields[hfieldid]->size[3]);
   } else if (type==mjGEOM_MESH) {
-    double* aabb = model->meshes[meshid]->aabb;
+    const double* aabb = model->meshes[meshid]->aabb();
     size[0] = mjMAX(fabs(aabb[0]), fabs(aabb[3]));
     size[1] = mjMAX(fabs(aabb[1]), fabs(aabb[4]));
     size[2] = mjMAX(fabs(aabb[2]), fabs(aabb[5]));

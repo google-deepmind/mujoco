@@ -895,7 +895,7 @@ static int Round(double x) {
 
 // write attribute
 template<typename T>
-void mjXUtil::WriteAttr(XMLElement* elem, string name, int n, T* data, const T* def) {
+void mjXUtil::WriteAttr(XMLElement* elem, string name, int n, const T* data, const T* def) {
   // make sure all are defined
   if constexpr (std::is_floating_point_v<T>) {
     for (int i=0; i<n; i++) {
@@ -935,16 +935,16 @@ void mjXUtil::WriteAttr(XMLElement* elem, string name, int n, T* data, const T* 
 
 
 template void mjXUtil::WriteAttr(XMLElement* elem, string name, int n,
-                                 double* data, const double* def);
+                                 const double* data, const double* def);
 
 template void mjXUtil::WriteAttr(XMLElement* elem, string name, int n,
-                                 float* data, const float* def);
+                                 const float* data, const float* def);
 
 template void mjXUtil::WriteAttr(XMLElement* elem, string name, int n,
-                                 int* data, const int* def);
+                                 const int* data, const int* def);
 
 template void mjXUtil::WriteAttr(XMLElement* elem, string name, int n,
-                                 mjtByte* data, const mjtByte* def);
+                                 const mjtByte* data, const mjtByte* def);
 
 
 // write vector<double> attribute, default = zero array

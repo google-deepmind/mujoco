@@ -15,7 +15,9 @@
 #ifndef MUJOCO_SRC_USER_USER_OBJECTS_H_
 #define MUJOCO_SRC_USER_USER_OBJECTS_H_
 
+#include <array>
 #include <map>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -518,42 +520,93 @@ class mjCLight : public mjCBase {
 // Describes a mesh
 
 class mjCMesh: public mjCBase {
-  friend class mjCDef;
-  friend class mjCGeom;
-  friend class mjCBody;
-  friend class mjCSkin;
-  friend class mjCModel;
-  friend class mjXWriter;
-
  public:
+  mjCMesh(mjCModel* = 0, mjCDef* = 0);
+  ~mjCMesh();
+
+  // public getters
+  const std::string& content_type() const { return content_type_; }
+  const std::string& file() const { return file_; }
+  const double* refpos() const { return refpos_; }
+  const double* refquat() const { return refquat_; }
+  const double* scale() const { return scale_; }
+  bool smoothnormal() const { return smoothnormal_; }
+
+  // public getters for user data
+  const std::vector<float>& uservert() const { return uservert_; }
+  const std::vector<float>& usernormal() const { return usernormal_; }
+  const std::vector<float>& usertexcoord() const { return usertexcoord_; }
+  const std::vector<int>& userface() const { return userface_; }
+
+  // mesh properites computed by Compile
+  const double* boxsz_volume() const { return boxsz_volume_; }
+  const double* aabb() const { return aabb_; }
+
+  // number of vertices, normals, texture coordinates, and faces
+  int nvert() const { return nvert_; }
+  int nnormal() const { return nnormal_; }
+  int ntexcoord() const { return ntexcoord_; }
+  int nface() const { return nface_; }
+
+  // return size of graph data in ints
+  int szgraph() const { return szgraph_; }
+
+  // bounding volume hierarchy tree
+  const mjCBoundingVolumeHierarchy& tree() { return tree_; }
+
+  // general setters
+  void set_file(const std::string& file);
+  void set_scale(std::array<double, 3> scale);
+  void set_smoothnormal(bool smoothnormal);
+  void set_needhull(bool needhull);
+
+  // setters used in reading XML attributes (no-op if empty optional)
+  void set_content_type(std::optional<std::string>&& content_type);
+  void set_file(std::optional<std::string>&& file);
+  void set_refpos(std::optional<std::array<double, 3>> refpos);
+  void set_refquat(std::optional<std::array<double, 4>> refquat);
+  void set_scale(std::optional<std::array<double, 3>> scale);
+
+  void set_uservert(std::optional<std::vector<float>>&& uservert);
+  void set_usernormal(std::optional<std::vector<float>>&& usernormal);
+  void set_usertexcoord(std::optional<std::vector<float>>&& usertexcoord);
+  void set_userface(std::optional<std::vector<int>>&& userface);
+
+  void Compile(int vfs_provider);                   // compiler
   double* GetPosPtr(mjtMeshType type);              // get position
   double* GetQuatPtr(mjtMeshType type);             // get orientation
   double* GetInertiaBoxPtr(mjtMeshType type);       // get inertia box
   double& GetVolumeRef(mjtMeshType type);           // get volume
   void FitGeom(mjCGeom* geom, double* meshpos);     // approximate mesh with simple geom
+  bool HasTexcoord() const;                         // texcoord not null
+
+  void CopyVert(float* arr) const;                  // copy vert data into array
+  void CopyNormal(float* arr) const;                // copy normal data into array
+  void CopyFace(int* arr) const;                    // copy face data into array
+  void CopyFaceNormal(int* arr) const;              // copy face normal data into array
+  void CopyFaceTexcoord(int* arr) const;            // copy face texcoord data into array
+  void CopyTexcoord(float* arr) const;              // copy texcoord data into array
+  void CopyGraph(int* arr) const;                   // copy graph data into array
 
   // returns a bounding volume given a face
   mjCBoundingVolume GetBoundingVolume(int faceid);
 
-  std::string content_type;           // content type of file
-  std::string file;                   // mesh file
-  double refpos[3];                   // reference position (translate)
-  double refquat[4];                  // reference orientation (rotate)
-  double scale[3];                    // rescale mesh
-  bool smoothnormal;                  // do not exclude large-angle faces from normals
-
-  std::vector<float> uservert;                   // user vertex data
-  std::vector<float> usernormal;                 // user normal data
-  std::vector<float> usertexcoord;               // user texcoord data
-  std::vector<int> userface;                     // user vertex indices
-  std::vector<int> userfacenormal;               // user normal indices
-  std::vector<int> userfacetexcoord;             // user texcoord indices
-  std::vector< std::pair<int, int> > useredge;   // user half-edge data
-
  private:
-  mjCMesh(mjCModel* = 0, mjCDef* = 0);        // constructor
-  ~mjCMesh();                                 // destructor
-  void Compile(int vfs_provider);             // compiler
+  std::string content_type_;          // content type of file
+  std::string file_;                  // mesh file
+  double refpos_[3];                  // reference position (translate)
+  double refquat_[4];                 // reference orientation (rotate)
+  double scale_[3];                   // rescale mesh
+  bool smoothnormal_;                 // do not exclude large-angle faces from normals
+
+  std::vector<float> uservert_;                  // user vertex data
+  std::vector<float> usernormal_;                // user normal data
+  std::vector<float> usertexcoord_;              // user texcoord data
+  std::vector<int> userface_;                    // user vertex indices
+  std::vector<int> userfacenormal_;              // user normal indices
+  std::vector<int> userfacetexcoord_;            // user texcoord indices
+  std::vector< std::pair<int, int> > useredge_;  // user half-edge data
+
   void LoadOBJ(mjResource* resource);         // load mesh in wavefront OBJ format
   void LoadSTL(mjResource* resource);         // load mesh in STL BIN format
   void LoadMSH(mjResource* resource);         // load mesh in MSH BIN format
@@ -572,43 +625,43 @@ class mjCMesh: public mjCBase {
                      bool exactmeshinertia);
 
   // mesh properties that indicate a well-formed mesh
-  std::pair<int, int> invalidorientation;     // indices of invalid edge; -1 if none
-  bool validarea;                             // false if the area is too small
-  int validvolume;                            // 0: volume is too small, -1: volume is negative
-  bool valideigenvalue;                       // false if inertia eigenvalue is too small
-  bool validinequality;                       // false if inertia inequality is not satisfied
-  bool processed;                             // false if the mesh has not been processed yet
+  std::pair<int, int> invalidorientation_;    // indices of invalid edge; -1 if none
+  bool validarea_;                            // false if the area is too small
+  int validvolume_;                           // 0: volume is too small, -1: volume is negative
+  bool valideigenvalue_;                      // false if inertia eigenvalue is too small
+  bool validinequality_;                      // false if inertia inequality is not satisfied
+  bool processed_;                            // false if the mesh has not been processed yet
 
   // mesh properties computed by Compile
-  double pos_volume[3];               // CoM position
-  double pos_surface[3];              // CoM position
-  double quat_volume[4];              // inertia orientation
-  double quat_surface[4];             // inertia orientation
-  double boxsz_volume[3];             // half-sizes of equivalent inertia box (volume)
-  double boxsz_surface[3];            // half-sizes of equivalent inertia box (surface)
-  double aabb[6];                     // axis-aligned bounding box
-  double volume;                      // volume of the mesh
-  double surface;                     // surface of the mesh
+  double pos_volume_[3];              // CoM position
+  double pos_surface_[3];             // CoM position
+  double quat_volume_[4];             // inertia orientation
+  double quat_surface_[4];            // inertia orientation
+  double boxsz_volume_[3];            // half-sizes of equivalent inertia box (volume)
+  double boxsz_surface_[3];           // half-sizes of equivalent inertia box (surface)
+  double aabb_[6];                    // axis-aligned bounding box
+  double volume_;                     // volume of the mesh
+  double surface_;                    // surface of the mesh
 
   // mesh data to be copied into mjModel
-  int nvert;                          // number of vertices
-  int nnormal;                        // number of normals
-  int ntexcoord;                      // number of texcoords
-  int nface;                          // number of faces
-  int szgraph;                        // size of graph data in ints
-  float* vert;                        // vertex data (3*nvert), relative to (pos, quat)
-  float* normal;                      // vertex normal data (3*nnormal)
-  double* center;                     // face circumcenter data (3*nface)
-  float* texcoord;                    // vertex texcoord data (2*ntexcoord or NULL)
-  int* face;                          // face vertex indices (3*nface)
-  int* facenormal;                    // face normal indices (3*nface)
-  int* facetexcoord;                  // face texcoord indices (3*nface)
-  int* graph;                         // convex graph data
+  int nvert_;                         // number of vertices
+  int nnormal_;                       // number of normals
+  int ntexcoord_;                     // number of texcoords
+  int nface_;                         // number of faces
+  int szgraph_;                       // size of graph data in ints
+  float* vert_;                       // vertex data (3*nvert), relative to (pos, quat)
+  float* normal_;                     // vertex normal data (3*nnormal)
+  double* center_;                    // face circumcenter data (3*nface)
+  float* texcoord_;                   // vertex texcoord data (2*ntexcoord or NULL)
+  int* face_;                         // face vertex indices (3*nface)
+  int* facenormal_;                   // face normal indices (3*nface)
+  int* facetexcoord_;                 // face texcoord indices (3*nface)
+  int* graph_;                        // convex graph data
 
-  bool needhull;                      // needs convex hull for collisions
+  bool needhull_;                     // needs convex hull for collisions
 
-  mjCBoundingVolumeHierarchy tree;    // bounding volume hierarchy
-  std::vector<double> face_aabb;      // bounding boxes of all faces
+  mjCBoundingVolumeHierarchy tree_;   // bounding volume hierarchy
+  std::vector<double> face_aabb_;     // bounding boxes of all faces
 };
 
 

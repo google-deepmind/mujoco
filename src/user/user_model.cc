@@ -828,7 +828,7 @@ void mjCModel::SetDefaultNames(void) {
   // meshes
   for (int i=0; i<meshes.size(); i++) {
     if (meshes[i]->name.empty()) {
-      stripped = mjuu_strippath(meshes[i]->file);
+      stripped = mjuu_strippath(meshes[i]->file());
       meshes[i]->name = mjuu_stripext(stripped);
 
       // name cannot be empty
@@ -934,12 +934,12 @@ void mjCModel::SetSizes(void) {
 
   // nmeshvert, nmeshface, nmeshtexcoord, nmeshgraph
   for (int i=0; i<nmesh; i++) {
-    nmeshvert += meshes[i]->nvert;
-    nmeshnormal += meshes[i]->nnormal;
-    nmeshface += meshes[i]->nface;
-    nmeshtexcoord += (meshes[i]->texcoord ? meshes[i]->ntexcoord : 0);
-    nmeshgraph += meshes[i]->szgraph;
-    nbvh += meshes[i]->tree.nbvh;
+    nmeshvert += meshes[i]->nvert();
+    nmeshnormal += meshes[i]->nnormal();
+    nmeshface += meshes[i]->nface();
+    nmeshtexcoord += (meshes[i]->HasTexcoord() ? meshes[i]->ntexcoord() : 0);
+    nmeshgraph += meshes[i]->szgraph();
+    nbvh += meshes[i]->tree().nbvh;
   }
 
   // nskinvert, nskintexvert, nskinface, nskinbone, nskinbonevert
@@ -1712,43 +1712,43 @@ void mjCModel::CopyObjects(mjModel* m) {
 
     // set fields
     m->mesh_vertadr[i] = vert_adr;
-    m->mesh_vertnum[i] = pme->nvert;
+    m->mesh_vertnum[i] = pme->nvert();
     m->mesh_normaladr[i] = normal_adr;
-    m->mesh_normalnum[i] = pme->nnormal;
-    m->mesh_texcoordadr[i] = (pme->texcoord ? texcoord_adr : -1);
-    m->mesh_texcoordnum[i] = pme->ntexcoord;
+    m->mesh_normalnum[i] = pme->nnormal();
+    m->mesh_texcoordadr[i] = (pme->HasTexcoord() ? texcoord_adr : -1);
+    m->mesh_texcoordnum[i] = pme->ntexcoord();
     m->mesh_faceadr[i] = face_adr;
-    m->mesh_facenum[i] = pme->nface;
-    m->mesh_graphadr[i] = (pme->szgraph ? graph_adr : -1);
+    m->mesh_facenum[i] = pme->nface();
+    m->mesh_graphadr[i] = (pme->szgraph() ? graph_adr : -1);
     m->mesh_bvhadr[i] = bvh_adr;
-    m->mesh_bvhnum[i] = pme->tree.nbvh;
+    m->mesh_bvhnum[i] = pme->tree().nbvh;
 
     // copy vertices, normals, faces, texcoords, aux data
-    memcpy(m->mesh_vert + 3*vert_adr, pme->vert, 3*pme->nvert*sizeof(float));
-    memcpy(m->mesh_normal + 3*normal_adr, pme->normal, 3*pme->nnormal*sizeof(float));
-    memcpy(m->mesh_face + 3*face_adr, pme->face, 3*pme->nface*sizeof(float));
-    memcpy(m->mesh_facenormal + 3*face_adr, pme->facenormal, 3*pme->nface*sizeof(int));
-    if (pme->texcoord) {
-      memcpy(m->mesh_texcoord + 2*texcoord_adr, pme->texcoord, 2*pme->ntexcoord*sizeof(float));
-      memcpy(m->mesh_facetexcoord + 3*face_adr, pme->facetexcoord, 3*pme->nface*sizeof(int));
+    pme->CopyVert(m->mesh_vert + 3*vert_adr);
+    pme->CopyNormal(m->mesh_normal + 3*normal_adr);
+    pme->CopyFace(m->mesh_face + 3*face_adr);
+    pme->CopyFaceNormal(m->mesh_facenormal + 3*face_adr);
+    if (pme->HasTexcoord()) {
+      pme->CopyTexcoord(m->mesh_texcoord + 2*texcoord_adr);
+      pme->CopyFaceTexcoord(m->mesh_facetexcoord + 3*face_adr);
     } else {
-      memset(m->mesh_facetexcoord + 3*face_adr, 0, 3*pme->nface*sizeof(int));
+      memset(m->mesh_facetexcoord + 3*face_adr, 0, 3*pme->nface()*sizeof(int));
     }
-    if (pme->szgraph) {
-      memcpy(m->mesh_graph + graph_adr, pme->graph, pme->szgraph*sizeof(int));
+    if (pme->szgraph()) {
+      pme->CopyGraph(m->mesh_graph + graph_adr);
     }
-    memcpy(m->bvh_aabb + 6*bvh_adr, pme->tree.bvh.data(), 6*pme->tree.nbvh*sizeof(mjtNum));
-    memcpy(m->bvh_child + 2*bvh_adr, pme->tree.child.data(), 2*pme->tree.nbvh*sizeof(int));
-    memcpy(m->bvh_depth + bvh_adr, pme->tree.level.data(), pme->tree.nbvh*sizeof(int));
-    memcpy(m->bvh_geomid + bvh_adr, pme->tree.nodeid.data(), pme->tree.nbvh*sizeof(int));
+    memcpy(m->bvh_aabb + 6*bvh_adr, pme->tree().bvh.data(), 6*pme->tree().nbvh*sizeof(mjtNum));
+    memcpy(m->bvh_child + 2*bvh_adr, pme->tree().child.data(), 2*pme->tree().nbvh*sizeof(int));
+    memcpy(m->bvh_depth + bvh_adr, pme->tree().level.data(), pme->tree().nbvh*sizeof(int));
+    memcpy(m->bvh_geomid + bvh_adr, pme->tree().nodeid.data(), pme->tree().nbvh*sizeof(int));
 
     // advance counters
-    vert_adr += pme->nvert;
-    normal_adr += pme->nnormal;
-    texcoord_adr += (pme->texcoord ? pme->ntexcoord : 0);
-    face_adr += pme->nface;
-    graph_adr += pme->szgraph;
-    bvh_adr += pme->tree.nbvh;
+    vert_adr += pme->nvert();
+    normal_adr += pme->nnormal();
+    texcoord_adr += (pme->HasTexcoord() ? pme->ntexcoord() : 0);
+    face_adr += pme->nface();
+    graph_adr += pme->szgraph();
+    bvh_adr += pme->tree().nbvh;
   }
 
   // skins
@@ -2535,7 +2535,7 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, int vfs_provider) {
   for (int i=0; i<geoms.size(); i++) {
     if (geoms[i]->meshid>=0 && geoms[i]->type==mjGEOM_MESH &&
         (geoms[i]->contype || geoms[i]->conaffinity)) {
-      meshes[geoms[i]->meshid]->needhull = true;
+      meshes[geoms[i]->meshid]->set_needhull(true);
     }
   }
 
