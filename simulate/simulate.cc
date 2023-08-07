@@ -512,14 +512,11 @@ void UpdateInfoText(mj::Simulate* sim, const mjModel* m, const mjData* d,
   }
 
   // prepare info text
-  mju::strcpy_arr(title, "Time\nSize\nPruning\nCPU\nSolver   \nFPS\nMemory");
-  int broad_pruning = d->nbodypair_broad ? (100.0*d->nbodypair_narrow)/d->nbodypair_broad : 0;
-  int mid_pruning = d->ngeompair_mid ? (100.0*d->nbodypair_narrow)/d->ngeompair_mid : 0;
+  mju::strcpy_arr(title, "Time\nSize\nCPU\nSolver   \nFPS\nMemory");
   mju::sprintf_arr(content,
-                   "%-9.3f\n%d  (%d con)\nb: %d%% m: %d%%\n%.3f\n%.1f  (%d it)\n%s\n%.2g of %s",
+                   "%-9.3f\n%d  (%d con)\n%.3f\n%.1f  (%d it)\n%s\n%.2g of %s",
                    d->time,
                    d->nefc, d->ncon,
-                   broad_pruning, mid_pruning,
                    sim->run ?
                    d->timer[mjTIMER_STEP].duration / mjMAX(1, d->timer[mjTIMER_STEP].number) :
                    d->timer[mjTIMER_FORWARD].duration / mjMAX(1, d->timer[mjTIMER_FORWARD].number),
