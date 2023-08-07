@@ -167,13 +167,13 @@ struct mjData_ {
   mjtNum  time;              // simulation time
   mjtNum  energy[2];         // potential, kinetic energy
 
-  //-------------------------------- end of info header
+  //-------------------- end of info header
 
   // buffers
   void*   buffer;            // main buffer; all pointers point in it                (nbuffer bytes)
   void*   arena;             // arena+stack buffer                     (nstack*sizeof(mjtNum) bytes)
 
-  //-------------------------------- main inputs and outputs of the computation
+  //-------------------- main inputs and outputs of the computation
 
   // state
   mjtNum* qpos;              // position                                         (nq x 1)
@@ -205,7 +205,7 @@ struct mjData_ {
   int*        plugin;        // copy of m->plugin, required for deletion         (nplugin x 1)
   uintptr_t*  plugin_data;   // pointer to plugin-managed data structure         (nplugin x 1)
 
-  //-------------------------------- POSITION dependent
+  //-------------------- POSITION dependent
 
   // computed by mj_fwdPosition/mj_kinematics
   mjtNum* xpos;              // Cartesian position of body frame                 (nbody x 3)
@@ -256,7 +256,7 @@ struct mjData_ {
   // computed by mj_collisionTree
   mjtByte* bvh_active;       // volume has been added to collisions              (nbvh x 1)
 
-  //-------------------------------- POSITION, VELOCITY dependent
+  //-------------------- POSITION, VELOCITY dependent
 
   // computed by mj_fwdVelocity
   mjtNum* ten_velocity;      // tendon velocities                                (ntendon x 1)
@@ -271,10 +271,6 @@ struct mjData_ {
 
   // computed by mj_fwdVelocity/mj_passive
   mjtNum* qfrc_passive;      // passive force                                    (nv x 1)
-
-  // computed by mj_fwdVelocity/mj_referenceConstraint
-  mjtNum* efc_vel;           // velocity in constraint space: J*qvel             (nefc x 1)
-  mjtNum* efc_aref;          // reference pseudo-acceleration                    (nefc x 1)
 
   // computed by mj_sensorVel/mj_subtreeVel if needed
   mjtNum* subtree_linvel;    // linear velocity of subtree com                   (nbody x 3)
@@ -298,7 +294,7 @@ struct mjData_ {
   // computed by mj_implicit/mju_factorLUSparse
   mjtNum* qLU;               // sparse LU of (qM - dt*qDeriv)                    (nD x 1)
 
-  //-------------------------------- POSITION, VELOCITY, CONTROL/ACCELERATION dependent
+  //-------------------- POSITION, VELOCITY, CONTROL/ACCELERATION dependent
 
   // computed by mj_fwdActuation
   mjtNum* actuator_force;    // actuator force in actuation space                (nu x 1)
@@ -320,7 +316,7 @@ struct mjData_ {
   mjtNum* cfrc_int;          // com-based interaction force with parent          (nbody x 6)
   mjtNum* cfrc_ext;          // com-based external force on body                 (nbody x 6)
 
-  //-------------------------------- ARENA-ALLOCATED ARRAYS
+  //-------------------- arena-allocated: POSITION dependent
 
   // computed by mj_collision
   mjContact* contact;        // list of all detected contacts                    (ncon x 1)
@@ -346,16 +342,24 @@ struct mjData_ {
   mjtNum* efc_D;             // constraint mass                                  (nefc x 1)
   mjtNum* efc_R;             // inverse constraint mass                          (nefc x 1)
 
+  // computed by mj_projectConstraint (dual solver)
+  int*    efc_AR_rownnz;     // number of non-zeros in AR                        (nefc x 1)
+  int*    efc_AR_rowadr;     // row start address in colind array                (nefc x 1)
+  int*    efc_AR_colind;     // column indices in sparse AR                      (nefc x nefc)
+  mjtNum* efc_AR;            // J*inv(M)*J' + R                                  (nefc x nefc)
+
+  //-------------------- arena-allocated: POSITION, VELOCITY dependent
+
+  // computed by mj_fwdVelocity/mj_referenceConstraint
+  mjtNum* efc_vel;           // velocity in constraint space: J*qvel             (nefc x 1)
+  mjtNum* efc_aref;          // reference pseudo-acceleration                    (nefc x 1)
+
+  //-------------------- arena-allocated: POSITION, VELOCITY, CONTROL/ACCELERATION dependent
+
   // computed by mj_fwdConstraint/mj_inverse
   mjtNum* efc_b;            // linear cost term: J*qacc_smooth - aref            (nefc x 1)
   mjtNum* efc_force;        // constraint force in constraint space              (nefc x 1)
   int*    efc_state;        // constraint state (mjtConstraintState)             (nefc x 1)
-
-  // computed by mj_projectConstraint
-  int*    efc_AR_rownnz;    // number of non-zeros in AR                         (nefc x 1)
-  int*    efc_AR_rowadr;    // row start address in colind array                 (nefc x 1)
-  int*    efc_AR_colind;    // column indices in sparse AR                       (nefc x nefc)
-  mjtNum* efc_AR;           // J*inv(M)*J' + R                                   (nefc x nefc)
 };
 typedef struct mjData_ mjData;
 typedef enum mjtDisableBit_ {     // disable default feature bitflags

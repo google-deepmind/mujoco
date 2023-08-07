@@ -1664,8 +1664,6 @@ public unsafe struct mjData_ {
   public double* cdof_dot;
   public double* qfrc_bias;
   public double* qfrc_passive;
-  public double* efc_vel;
-  public double* efc_aref;
   public double* subtree_linvel;
   public double* subtree_angmom;
   public double* qH;
@@ -1707,13 +1705,15 @@ public unsafe struct mjData_ {
   public double* efc_KBIP;
   public double* efc_D;
   public double* efc_R;
-  public double* efc_b;
-  public double* efc_force;
-  public int* efc_state;
   public int* efc_AR_rownnz;
   public int* efc_AR_rowadr;
   public int* efc_AR_colind;
   public double* efc_AR;
+  public double* efc_vel;
+  public double* efc_aref;
+  public double* efc_b;
+  public double* efc_force;
+  public int* efc_state;
 }
 
 [StructLayout(LayoutKind.Sequential)]

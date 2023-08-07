@@ -3998,20 +3998,6 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='passive force                                    (nv x 1)',  # pylint: disable=line-too-long
              ),
              StructFieldDecl(
-                 name='efc_vel',
-                 type=PointerType(
-                     inner_type=ValueType(name='mjtNum'),
-                 ),
-                 doc='velocity in constraint space: J*qvel             (nefc x 1)',  # pylint: disable=line-too-long
-             ),
-             StructFieldDecl(
-                 name='efc_aref',
-                 type=PointerType(
-                     inner_type=ValueType(name='mjtNum'),
-                 ),
-                 doc='reference pseudo-acceleration                    (nefc x 1)',  # pylint: disable=line-too-long
-             ),
-             StructFieldDecl(
                  name='subtree_linvel',
                  type=PointerType(
                      inner_type=ValueType(name='mjtNum'),
@@ -4299,6 +4285,48 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='inverse constraint mass                          (nefc x 1)',  # pylint: disable=line-too-long
              ),
              StructFieldDecl(
+                 name='efc_AR_rownnz',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='number of non-zeros in AR                        (nefc x 1)',  # pylint: disable=line-too-long
+             ),
+             StructFieldDecl(
+                 name='efc_AR_rowadr',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='row start address in colind array                (nefc x 1)',  # pylint: disable=line-too-long
+             ),
+             StructFieldDecl(
+                 name='efc_AR_colind',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='column indices in sparse AR                      (nefc x nefc)',  # pylint: disable=line-too-long
+             ),
+             StructFieldDecl(
+                 name='efc_AR',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+                 doc="J*inv(M)*J' + R                                  (nefc x nefc)",  # pylint: disable=line-too-long
+             ),
+             StructFieldDecl(
+                 name='efc_vel',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+                 doc='velocity in constraint space: J*qvel             (nefc x 1)',  # pylint: disable=line-too-long
+             ),
+             StructFieldDecl(
+                 name='efc_aref',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+                 doc='reference pseudo-acceleration                    (nefc x 1)',  # pylint: disable=line-too-long
+             ),
+             StructFieldDecl(
                  name='efc_b',
                  type=PointerType(
                      inner_type=ValueType(name='mjtNum'),
@@ -4318,34 +4346,6 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                      inner_type=ValueType(name='int'),
                  ),
                  doc='constraint state (mjtConstraintState)             (nefc x 1)',  # pylint: disable=line-too-long
-             ),
-             StructFieldDecl(
-                 name='efc_AR_rownnz',
-                 type=PointerType(
-                     inner_type=ValueType(name='int'),
-                 ),
-                 doc='number of non-zeros in AR                         (nefc x 1)',  # pylint: disable=line-too-long
-             ),
-             StructFieldDecl(
-                 name='efc_AR_rowadr',
-                 type=PointerType(
-                     inner_type=ValueType(name='int'),
-                 ),
-                 doc='row start address in colind array                 (nefc x 1)',  # pylint: disable=line-too-long
-             ),
-             StructFieldDecl(
-                 name='efc_AR_colind',
-                 type=PointerType(
-                     inner_type=ValueType(name='int'),
-                 ),
-                 doc='column indices in sparse AR                       (nefc x nefc)',  # pylint: disable=line-too-long
-             ),
-             StructFieldDecl(
-                 name='efc_AR',
-                 type=PointerType(
-                     inner_type=ValueType(name='mjtNum'),
-                 ),
-                 doc="J*inv(M)*J' + R                                   (nefc x nefc)",  # pylint: disable=line-too-long
              ),
          ),
      )),
