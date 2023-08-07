@@ -8,10 +8,16 @@ Upcoming version (not yet released)
 General
 ^^^^^^^
 
-- Added a new :ref:`dyntype<actuator-general-dyntype>`, ``filterexact``, which updates first-order filter states with
-  the exact formula rather than with Euler integration.
-- Added an actuator attribute, :ref:`actearly<actuator-general-actearly>`, which uses semi-implicit integration for
-  actuator forces: using the next step's actuator state to compute the current actuator forces at the current timestep.
+1. Added a new :ref:`dyntype<actuator-general-dyntype>`, ``filterexact``, which updates first-order filter states with
+   the exact formula rather than with Euler integration.
+#. Added an actuator attribute, :ref:`actearly<actuator-general-actearly>`, which uses semi-implicit integration for
+   actuator forces: using the next step's actuator state to compute the current actuator forces at the current timestep.
+
+Python bindings
+^^^^^^^^^^^^^^^
+
+3. Fixed issue where calling ``update_scene`` with invalid camera name uses the default camera.
+   (`#870 <https://github.com/deepmind/mujoco/issues/870>`_)
 
 Version 2.3.7 (July 20, 2023)
 -----------------------------

@@ -23,9 +23,54 @@ import numpy as np
 @absltest.skipUnless(hasattr(mujoco, 'GLContext'),
                      'MuJoCo rendering is disabled')
 class MuJoCoRendererTest(parameterized.TestCase):
+  def test_renderer_unknown_camera_name(self):
+    xml = """
+<mujoco>
+  <worldbody>
+    <camera name="a"/>
+  </worldbody>
+</mujoco>
+"""
+    model = mujoco.MjModel.from_xml_string(xml)
+    data = mujoco.MjData(model)
+    renderer = mujoco.Renderer(model, 50, 50)
+    mujoco.mj_forward(model, data)
+    with self.assertRaisesRegex(ValueError, r'camera "b" does not exist'):
+      renderer.update_scene(data, 'b')
+
+  def test_renderer_camera_under_range(self):
+    xml = """
+<mujoco>
+  <worldbody>
+    <camera name="a"/>
+  </worldbody>
+</mujoco>
+"""
+    model = mujoco.MjModel.from_xml_string(xml)
+    data = mujoco.MjData(model)
+    renderer = mujoco.Renderer(model, 50, 50)
+    mujoco.mj_forward(model, data)
+    with self.assertRaisesRegex(ValueError, '-2 is out of range'):
+      renderer.update_scene(data, -2)
+
+  def test_renderer_camera_over_range(self):
+    xml = """
+<mujoco>
+  <worldbody>
+    <camera name="a"/>
+  </worldbody>
+</mujoco>
+"""
+    model = mujoco.MjModel.from_xml_string(xml)
+    data = mujoco.MjData(model)
+    renderer = mujoco.Renderer(model, 50, 50)
+    mujoco.mj_forward(model, data)
+    with self.assertRaisesRegex(ValueError, '1 is out of range'):
+      renderer.update_scene(data, 1)
+
   def test_renderer_renders_scene(self):
     xml = """
- <mujoco>
+<mujoco>
   <worldbody>
     <camera name="closeup" pos="0 -6 0" xyaxes="1 0 0 0 1 100"/>
     <geom name="white_box" type="box" size="1 1 1" rgba="1 1 1 1"/>
@@ -50,7 +95,7 @@ class MuJoCoRendererTest(parameterized.TestCase):
 
   def test_renderer_output_without_out(self):
     xml = """
- <mujoco>
+<mujoco>
   <worldbody>
     <camera name="closeup" pos="0 -6 0" xyaxes="1 0 0 0 1 100"/>
     <geom name="white_box" type="box" size="1 1 1" rgba="1 1 1 1"/>
@@ -82,7 +127,7 @@ class MuJoCoRendererTest(parameterized.TestCase):
 
   def test_renderer_output_with_out(self):
     xml = """
- <mujoco>
+<mujoco>
   <worldbody>
     <camera name="closeup" pos="0 -6 0" xyaxes="1 0 0 0 1 100"/>
     <geom name="white_box" type="box" size="1 1 1" rgba="1 1 1 1"/>

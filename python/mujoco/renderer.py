@@ -223,6 +223,10 @@ the clause:
       camera: An instance of `MjvCamera`, a string or an integer
       scene_option: A custom `MjvOption` instance to use to render
         the scene instead of the default.
+
+    Raises:
+      ValueError: If `camera_id` is outside the valid range, or if camera does
+        not exist.
     """
     if not isinstance(camera, _structs.MjvCamera):
       camera_id = camera
@@ -230,14 +234,10 @@ the clause:
         camera_id = _functions.mj_name2id(self._model,
                                           _enums.mjtObj.mjOBJ_CAMERA, camera_id)
         if camera_id == -1:
-          raise ValueError(f'camera_id={camera_id} is not defined in the XML.')
-      if camera_id < -1:
-        raise ValueError('camera_id cannot be smaller than -1.')
-      if camera_id >= self._model.ncam:
-        raise ValueError(
-            f'model has {self._model.ncam} fixed cameras. '
-            f'camera_id={camera_id} is invalid.'
-        )
+          raise ValueError(f'The camera "{camera}" does not exist.')
+      if camera_id < -1 or camera_id >= self._model.ncam:
+        raise ValueError(f'The camera id {camera_id} is out of'
+                         f' range [-1, {self._model.ncam}).')
 
       # Render camera.
       camera = _structs.MjvCamera()
