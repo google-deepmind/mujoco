@@ -40,6 +40,7 @@
 #include "user/user_model.h"
 #include "user/user_objects.h"
 #include "user/user_util.h"
+#include "xml/xml_base.h"
 #include "xml/xml_util.h"
 #include "tinyxml2.h"
 
@@ -160,9 +161,9 @@ static const char* MJCF[nMJCF][mjXATTRNUM] = {
             "solreflimit", "solimplimit", "solreffriction", "solimpfriction",
             "frictionloss", "springlength", "width", "material",
             "margin", "stiffness", "damping", "rgba", "user"},
-        {"general", "?", "17", "ctrllimited", "forcelimited", "actlimited", "ctrlrange",
+        {"general", "?", "18", "ctrllimited", "forcelimited", "actlimited", "ctrlrange",
             "forcerange", "actrange", "gear", "cranklength", "user", "group", "actdim",
-            "dyntype", "gaintype", "biastype", "dynprm", "gainprm", "biasprm"},
+            "dyntype", "gaintype", "biastype", "dynprm", "gainprm", "biasprm", "actearly"},
         {"motor", "?", "8", "ctrllimited", "forcelimited", "ctrlrange", "forcerange",
             "gear", "cranklength", "user", "group"},
         {"position", "?", "9", "ctrllimited", "forcelimited", "ctrlrange", "forcerange",
@@ -322,11 +323,12 @@ static const char* MJCF[nMJCF][mjXATTRNUM] = {
 
     {"actuator", "*", "0"},
     {"<"},
-        {"general", "*", "28", "name", "class", "group",
+        {"general", "*", "29", "name", "class", "group",
             "ctrllimited", "forcelimited", "actlimited", "ctrlrange", "forcerange", "actrange",
             "lengthrange", "gear", "cranklength", "user",
             "joint", "jointinparent", "tendon", "slidersite", "cranksite", "site", "refsite",
-            "body", "actdim", "dyntype", "gaintype", "biastype", "dynprm", "gainprm", "biasprm"},
+            "body", "actdim", "dyntype", "gaintype", "biastype", "dynprm", "gainprm", "biasprm",
+            "actearly"},
         {"motor", "*", "18", "name", "class", "group",
             "ctrllimited", "forcelimited", "ctrlrange", "forcerange",
             "lengthrange", "gear", "cranklength", "user",
@@ -596,11 +598,12 @@ const mjMap mark_map[mark_sz] = {
 
 
 // dyn type
-const int dyn_sz = 5;
+const int dyn_sz = 6;
 const mjMap dyn_map[dyn_sz] = {
   {"none",        mjDYN_NONE},
   {"integrator",  mjDYN_INTEGRATOR},
   {"filter",      mjDYN_FILTER},
+  {"filterexact", mjDYN_FILTEREXACT},
   {"muscle",      mjDYN_MUSCLE},
   {"user",        mjDYN_USER}
 };
@@ -1685,6 +1688,9 @@ void mjXReader::OneActuator(XMLElement* elem, mjCActuator* pact) {
     }
     if (MapValue(elem, "biastype", &n, bias_map, bias_sz)) {
       pact->biastype = (mjtBias)n;
+    }
+    if (MapValue(elem, "actearly", &n, bool_map, 2)) {
+      pact->actearly = (n==1);
     }
     ReadAttr(elem, "dynprm", mjNDYN, pact->dynprm, text, false, false);
     ReadAttr(elem, "gainprm", mjNGAIN, pact->gainprm, text, false, false);

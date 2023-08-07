@@ -1744,6 +1744,8 @@ if omitted.
 
 .. _default-general-biasprm:
 
+.. _default-general-actearly:
+
 :el-prefix:`default/` |-| **general** (?)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -5086,20 +5088,21 @@ specify them independently.
 
 .. _actuator-general-dyntype:
 
-:at:`dyntype`: :at-val:`[none, integrator, filter, muscle, user], "none"`
+:at:`dyntype`: :at-val:`[none, integrator, filter, filterexact, muscle, user], "none"`
    Activation dynamics type for the actuator. The available dynamics types were already described in the :ref:`Actuation
    model <geActuation>` section. Repeating that description in somewhat different notation (corresponding to the mjModel
    and mjData fields involved) we have:
 
-   ========== ==================================
-   Keyword    Description
-   ========== ==================================
-   none       No internal state
-   integrator act_dot = ctrl
-   filter     act_dot = (ctrl - act) / dynprm[0]
-   muscle     act_dot = mju_muscleDynamics(...)
-   user       act_dot = mjcb_act_dyn(...)
-   ========== ==================================
+   =========== ======================================
+   Keyword     Description
+   =========== ======================================
+   none        No internal state
+   integrator  act_dot = ctrl
+   filter      act_dot = (ctrl - act) / dynprm[0]
+   filterexact Like filter but with exact integration
+   muscle      act_dot = mju_muscleDynamics(...)
+   user        act_dot = mjcb_act_dyn(...)
+   =========== ======================================
 
 .. _actuator-general-gaintype:
 
@@ -5156,6 +5159,11 @@ specify them independently.
    so the user can enter as many parameters as needed. These defaults are not compatible with muscle actuators; see
    :ref:`muscle <actuator-muscle>` below.
 
+.. _actuator-general-actearly:
+
+:at:`actearly`: :at-val:`[false, true], "false"`
+   If true, force computation will use the next value of the activation variable rather than the current one.
+   Setting this flag reduces the delay between the control and accelerations by one time-step.
 
 .. _actuator-motor:
 

@@ -2764,6 +2764,13 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='bias parameters                          (nu x mjNBIAS)',
              ),
              StructFieldDecl(
+                 name='actuator_actearly',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtByte'),
+                 ),
+                 doc='step activation before force             (nu x 1)',
+             ),
+             StructFieldDecl(
                  name='actuator_ctrlrange',
                  type=PointerType(
                      inner_type=ValueType(name='mjtNum'),

@@ -314,14 +314,28 @@ independent of the other actuators. The activation types currently implemented a
 
 .. math::
    \begin{aligned}
-   \text{integrator}: & & \dot{w}_i &= u_i \\
-   \text{filter}:     & & \dot{w}_i &= (u_i - w_i) / t \\
+   \text{integrator}:  & & \dot{w}_i &= u_i \\
+   \text{filter}:      & & \dot{w}_i &= (u_i - w_i) / t \\
+   \text{filterexact}: & & \dot{w}_i &= (u_i - w_i) / t \\
    \end{aligned}
 
 where :math:`t` is an actuator-specific time constant stored in ``mjModel.actuator_dynprm``. In addition the type can
 be "user", in which case :math:`w_i` is computed by the user-defined callback :ref:`mjcb_act_dyn`. The type can also
 be "none" which corresponds to a regular actuator with no activation state. The dimensionality of :math:`w` equals
 the number of actuators whose activation type is different from "none".
+
+For ``filterexact`` activation dynamics, Euler integration of :math:`\dot{w}` is replaced with the analytic integral:
+
+.. math::
+   \begin{aligned}
+   \text{filter}:      & & w_{i+1} &= w_i + h (u_i - w_i) / t \\
+   \text{filterexact}: & & w_{i+1} &= w_i + (u_i - w_i) (1 - e^{-h / t}) \\
+   \end{aligned}
+
+The two expressions converge to the same value in the :math:`h \rightarrow 0` limit.
+
+Note that Euler-integrated filters diverge for :math:`t < h`, while exactly-integrated filters are stable for any
+:math:`t > 0`.
 
 .. _geActuatorForce:
 
@@ -358,6 +372,10 @@ Putting all this together, the net force in generalized coordinates contributed 
 This quantity is stored in ``mjData.qfrc_actuator``. It is added to the applied force vector :math:`\tau`, together
 with any user-defined forces in joint or Cartesian coordinates (which are stored in ``mjData.qfrc_applied`` and
 ``mjData.xfrc_applied`` respectively).
+
+Optionally, the :ref:`actearly<actuator-general-actearly>` attribute on an actuator computes ``mjData.qfrc_actuator``
+based on the value of :math:`w_{i+1}` after integration, reducing the delay between changes to :math:`u` and
+:math:`t`.
 
 .. _gePassive:
 

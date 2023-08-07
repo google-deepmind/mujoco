@@ -1962,6 +1962,7 @@ void mjCModel::CopyObjects(mjModel* m) {
     m->actuator_ctrllimited[i] = pac->ctrllimited;
     m->actuator_forcelimited[i] = pac->forcelimited;
     m->actuator_actlimited[i] = pac->actlimited;
+    m->actuator_actearly[i] = pac->actearly;
     m->actuator_cranklength[i] = (mjtNum)pac->cranklength;
     copyvec(m->actuator_gear + 6*i, pac->gear, 6);
     copyvec(m->actuator_dynprm + mjNDYN*i, pac->dynprm, mjNDYN);

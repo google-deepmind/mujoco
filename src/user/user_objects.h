@@ -1026,6 +1026,7 @@ class mjCActuator : public mjCBase {
   double dynprm[mjNDYN];          // dynamics parameters
   double gainprm[mjNGAIN];        // gain parameters
   double biasprm[mjNGAIN];        // bias parameters
+  bool actearly = false;          // apply activations to qfrc instantly
   double ctrlrange[2];            // control range
   double forcerange[2];           // force range
   double actrange[2];             // activation range

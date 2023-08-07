@@ -387,6 +387,7 @@
     X   ( mjtNum,  actuator_dynprm,       nu,            mjNDYN               ) \
     X   ( mjtNum,  actuator_gainprm,      nu,            mjNGAIN              ) \
     X   ( mjtNum,  actuator_biasprm,      nu,            mjNBIAS              ) \
+    X   ( mjtByte, actuator_actearly,     nu,            1                    ) \
     XMJV( mjtNum,  actuator_ctrlrange,    nu,            2                    ) \
     X   ( mjtNum,  actuator_forcerange,   nu,            2                    ) \
     XMJV( mjtNum,  actuator_actrange,     nu,            2                    ) \

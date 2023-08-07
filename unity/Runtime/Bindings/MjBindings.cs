@@ -250,8 +250,9 @@ public enum mjtDyn : int{
   mjDYN_NONE = 0,
   mjDYN_INTEGRATOR = 1,
   mjDYN_FILTER = 2,
-  mjDYN_MUSCLE = 3,
-  mjDYN_USER = 4,
+  mjDYN_FILTEREXACT = 3,
+  mjDYN_MUSCLE = 4,
+  mjDYN_USER = 5,
 }
 public enum mjtGain : int{
   mjGAIN_FIXED = 0,
@@ -2184,6 +2185,7 @@ public unsafe struct mjModel_ {
   public double* actuator_dynprm;
   public double* actuator_gainprm;
   public double* actuator_biasprm;
+  public byte* actuator_actearly;
   public double* actuator_ctrlrange;
   public double* actuator_forcerange;
   public double* actuator_actrange;

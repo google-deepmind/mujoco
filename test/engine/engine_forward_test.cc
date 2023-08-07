@@ -15,7 +15,11 @@
 // Tests for engine/engine_forward.c.
 
 #include "src/engine/engine_forward.h"
-#include <cstddef>
+
+#include <cmath>
+#include <cstdlib>
+#include <vector>
+#include <string>
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
@@ -46,6 +50,7 @@ using ::testing::DoubleNear;
 using ::testing::Ne;
 using ::testing::HasSubstr;
 using ::testing::NotNull;
+using ::testing::Gt;
 
 // --------------------------- activation limits -------------------------------
 
@@ -592,6 +597,224 @@ TEST_F(ActuatorTest, ActuatorForceClamping) {
   mj_deleteModel(model);
 }
 
+// ----------------------- filterexact actuators -------------------------------
+
+using FilterExactTest = MujocoTest;
+
+TEST_F(FilterExactTest, ApproximatesContinuousTime) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <compiler autolimits="true"/>
+    <worldbody>
+      <body name="box">
+        <joint name="slide" type="slide" axis="1 0 0" />
+        <geom type="box" size=".05 .05 .05" mass="1"/>
+      </body>
+    </worldbody>
+
+    <actuator>
+      <general joint="slide" dyntype="filter" gainprm="1.1" />
+    </actuator>
+  </mujoco>
+  )";
+  mjModel* model = LoadModelFromString(xml);
+  ASSERT_THAT(model, NotNull());
+  mjData* data = mj_makeData(model);
+  const mjtNum kSimulationTime = 1.0;
+
+  // compute act with a small timestep to approximate continuous integration
+  model->opt.timestep = 0.001;
+  mj_resetData(model, data);
+  data->ctrl[0] = 1.0;
+  data->act[0] = 0.0;
+  for (int i = 0; i < std::round(kSimulationTime / model->opt.timestep); i++) {
+    mj_step(model, data);
+  }
+  mjtNum continuous_act = data->act[0];
+
+  // compute again with a larger timestep, introducing integration error
+  model->opt.timestep = 0.01;
+  mj_resetData(model, data);
+  data->ctrl[0] = 1.0;
+  data->act[0] = 0.0;
+  for (int i = 0; i < std::round(kSimulationTime / model->opt.timestep); i++) {
+    mj_step(model, data);
+  }
+  mjtNum discrete_act = data->act[0];
+
+  // compute a third time with exact integration
+  model->actuator_dyntype[0] = mjDYN_FILTEREXACT;
+  mj_resetData(model, data);
+  data->ctrl[0] = 1.0;
+  data->act[0] = 0.0;
+  for (int i = 0; i < std::round(kSimulationTime / model->opt.timestep); i++) {
+    mj_step(model, data);
+  }
+  mjtNum exactfilter_act = data->act[0];
+
+  // expect exact integration to be closer to the small-timestep result
+  EXPECT_THAT(std::abs(continuous_act - discrete_act),
+              Gt(5*std::abs(continuous_act - exactfilter_act)))
+      << "Using filterexact should make the error at least 5 times smaller";
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
+TEST_F(FilterExactTest, TimestepIndependent) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <compiler autolimits="true"/>
+    <worldbody>
+      <body name="box">
+        <joint name="slide" type="slide" axis="1 0 0" />
+        <geom type="box" size=".05 .05 .05" mass="1"/>
+      </body>
+    </worldbody>
+
+    <actuator>
+      <general joint="slide" dyntype="filterexact" dynprm="0.9" gainprm="1.1"/>
+    </actuator>
+  </mujoco>
+  )";
+  mjModel* model = LoadModelFromString(xml);
+  ASSERT_THAT(model, NotNull());
+  mjData* data = mj_makeData(model);
+  const mjtNum kSimulationTime = 1.0;
+
+  // first, compute act based on a small timestep and exact integration
+  model->opt.timestep = 0.01;
+  mj_resetData(model, data);
+  data->ctrl[0] = 1.0;
+  data->act[0] = 0.0;
+  for (int i = 0; i < std::round(kSimulationTime / model->opt.timestep); i++) {
+    mj_step(model, data);
+  }
+  mjtNum small_timestep_act = data->act[0];
+
+  // now change the timestep to a much larger timestep
+  model->opt.timestep = 0.1;
+  mj_resetData(model, data);
+  data->ctrl[0] = 1.0;
+  data->act[0] = 0.0;
+  for (int i = 0; i < std::round(kSimulationTime / model->opt.timestep); i++) {
+    mj_step(model, data);
+  }
+  mjtNum large_timestep_act = data->act[0];
+
+  EXPECT_THAT(small_timestep_act, DoubleNear(large_timestep_act, 1e-14))
+      << "exact integration should be independent of timestep to machine "
+         "precision.";
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
+TEST_F(FilterExactTest, ActEqualsCtrlWhenTauIsZero) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <compiler autolimits="true"/>
+    <worldbody>
+      <body name="box">
+        <joint name="slide" type="slide" axis="1 0 0" />
+        <geom type="box" size=".05 .05 .05" mass="1"/>
+      </body>
+    </worldbody>
+
+    <actuator>
+      <general joint="slide" dyntype="filterexact" dynprm="0" gainprm="1.1"/>
+    </actuator>
+  </mujoco>
+  )";
+  mjModel* model = LoadModelFromString(xml);
+  ASSERT_THAT(model, NotNull());
+  mjData* data = mj_makeData(model);
+  data->ctrl[0] = 0.5;
+  data->act[0] = 0.0;
+  mj_step(model, data);
+  EXPECT_EQ(data->act[0], data->ctrl[0]);
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
+// ----------------------- actearly actuator attribute -------------------------
+
+using ActEarlyTest = MujocoTest;
+
+TEST_F(ActEarlyTest, RemovesOneStepDelay) {
+  const std::string xml_path =
+      GetTestDataFilePath("engine/testdata/actuation/actearly.xml");
+  char error[1000];
+  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
+
+  ASSERT_EQ(model->nu % 2, 0) << "number of actuators should be even";
+  ASSERT_EQ(model->nu, model->na) << "all actuators should be stateful";
+  ASSERT_EQ(model->nq, model->nu);
+  EXPECT_GT(model->nu, 0);
+
+  // actuators are ordered in pairs with actearly=true and actearly=false
+  for (int i = 0; i < model->na / 2; i++) {
+    EXPECT_TRUE(model->actuator_actearly[2*i]);
+    EXPECT_FALSE(model->actuator_actearly[2*i + 1]);
+  }
+
+  mjData* data = mj_makeData(model);
+
+  // set all controls to the same value and make one step
+  mju_fill(data->ctrl, 0.5, model->nu);
+  mj_step(model, data);
+
+  for (int i = 0; i < model->na / 2; i++) {
+    EXPECT_EQ(data->act[2 * i], data->act[2 * i + 1])
+        << "act should be the same after first step for "
+        << mj_id2name(model, mjOBJ_ACTUATOR, 2 * i);
+
+    EXPECT_EQ(data->act_dot[2 * i], data->act_dot[2 * i + 1])
+        << "act_dot should be the same after first step for "
+        << mj_id2name(model, mjOBJ_ACTUATOR, 2 * i);
+  }
+
+  for (int i = 0; i < 100; i++) {
+    std::vector<mjtNum> last_qfrc(data->qfrc_actuator,
+                                  data->qfrc_actuator + model->nu);
+    mj_step(model, data);
+    for (int j = 0; j < model->nu / 2; j++) {
+      // this is true for torque actuators
+      EXPECT_THAT(last_qfrc[2 * j],
+                  DoubleNear(data->qfrc_actuator[2 * j + 1], 1e-3))
+          << "there should be a 1 step delay between qfrc for "
+          << mj_id2name(model, mjOBJ_ACTUATOR, 2 * j);
+    }
+  }
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
+TEST_F(ActEarlyTest, DoesntChangeStateInMjForward) {
+  const std::string xml_path =
+      GetTestDataFilePath("engine/testdata/actuation/actearly.xml");
+  char error[1000];
+  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
+
+  mjData* data = mj_makeData(model);
+
+  // set all controls to the same value and make one step
+  mju_fill(data->ctrl, 0.5, model->nu);
+  mj_forward(model, data);
+
+  for (int i = 0; i < model->na; i++) {
+    EXPECT_EQ(data->act[i], 0)
+        << "act should not change with mj_forward."
+        << mj_id2name(model, mjOBJ_ACTUATOR, i);
+  }
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
 
 }  // namespace
 }  // namespace mujoco

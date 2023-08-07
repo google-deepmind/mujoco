@@ -14,12 +14,10 @@
 
 #include "xml/xml_native_writer.h"
 
-#include <cfloat>
 #include <cstddef>
 #include <cstdio>
 #include <string>
 #include <unordered_set>
-#include <utility>
 #include <vector>
 
 #include <mujoco/mjmodel.h>
@@ -28,8 +26,10 @@
 #include "engine/engine_plugin.h"
 #include "engine/engine_util_errmem.h"
 #include "engine/engine_util_misc.h"
+#include "user/user_model.h"
 #include "user/user_objects.h"
 #include "user/user_util.h"
+#include "xml/xml_base.h"
 #include "xml/xml_util.h"
 #include "tinyxml2.h"
 
@@ -628,6 +628,8 @@ void mjXWriter::OneActuator(XMLElement* elem, mjCActuator* pact, mjCDef* def) {
   WriteAttr(elem, "lengthrange", 2, pact->lengthrange, def->actuator.lengthrange);
   WriteAttr(elem, "gear", 6, pact->gear, def->actuator.gear);
   WriteAttr(elem, "cranklength", 1, &pact->cranklength, &def->actuator.cranklength);
+  WriteAttrKey(elem, "actearly", bool_map, 2, pact->actearly,
+               def->actuator.actearly);
 
   // plugins: write config attributes
   if (pact->is_plugin) {

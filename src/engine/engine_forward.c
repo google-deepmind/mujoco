@@ -152,7 +152,31 @@ void mj_fwdVelocity(const mjModel* m, mjData* d) {
   TM_END(mjTIMER_VELOCITY);
 }
 
+// returns the next act given the current act_dot, after clamping
+static mjtNum nextActivation(const mjModel* m, const mjData* d,
+                                int actuator_id, int act_adr, mjtNum act_dot) {
+  mjtNum act = d->act[act_adr];
 
+  if (m->actuator_dyntype[actuator_id] == mjDYN_FILTEREXACT) {
+    // exact filter integration
+    // act_dot(0) = (ctrl-act(0)) / tau
+    // act(h) = act(0) + (ctrl-act(0)) (1 - exp(-h / tau))
+    //        = act(0) + act_dot(0) * tau * (1 - exp(-h / tau))
+    mjtNum tau = mju_max(mjMINVAL, m->actuator_dynprm[actuator_id * mjNDYN]);
+    act = act + act_dot * tau * (1 - mju_exp(-m->opt.timestep / tau));
+  } else {
+    // Euler integration
+    act = act + act_dot * m->opt.timestep;
+  }
+
+  // clamp to actrange
+  if (m->actuator_actlimited[actuator_id]) {
+    mjtNum* actrange = m->actuator_actrange + 2 * actuator_id;
+    act = mju_clip(act, actrange[0], actrange[1]);
+  }
+
+  return act;
+}
 
 // (qpos, qvel, ctrl, act) => (qfrc_actuator, actuator_force, act_dot)
 void mj_fwdActuation(const mjModel* m, mjData* d) {
@@ -193,6 +217,51 @@ void mj_fwdActuation(const mjModel* m, mjData* d) {
       mj_warning(d, mjWARN_BADCTRL, i);
       mju_zero(ctrl, nu);
       break;
+    }
+  }
+
+  // act_dot for stateful actuators
+  for (int i=0; i < nu; i++) {
+    if (m->actuator_plugin[i] >= 0) {
+      continue;
+    }
+
+    int j = m->actuator_actadr[i];
+    if (j < 0) {
+      continue;
+    }
+
+    // extract info
+    prm = m->actuator_dynprm + i*mjNDYN;
+
+    // compute act_dot according to dynamics type
+    switch (m->actuator_dyntype[i]) {
+    case mjDYN_INTEGRATOR:          // simple integrator
+      d->act_dot[j] = ctrl[i];
+      break;
+
+    case mjDYN_FILTER:              // linear filter: prm = tau
+    case mjDYN_FILTEREXACT:
+      tau = mju_max(mjMINVAL, prm[0]);
+      d->act_dot[j] = (ctrl[i] - d->act[j]) / tau;
+      break;
+
+    case mjDYN_MUSCLE:              // muscle model: prm = (tau_act, tau_deact)
+      d->act_dot[j] = mju_muscleDynamics(ctrl[i], d->act[j], prm);
+      break;
+
+    default:                        // user dynamics
+      if (mjcb_act_dyn) {
+        if (m->actuator_actnum[i] == 1) {
+          // scalar activation dynamics, get act_dot
+          d->act_dot[j] = mjcb_act_dyn(m, d, i);
+        } else {
+          // higher-order dynamics, mjcb_act_dyn writes into act_dot directly
+          mjcb_act_dyn(m, d, i);
+        }
+      } else {
+        d->act_dot[j] = 0;
+      }
     }
   }
 
@@ -237,7 +306,15 @@ void mj_fwdActuation(const mjModel* m, mjData* d) {
       force[i] = gain * ctrl[i];
     } else {
       // use last activation variable associated with actuator i
-      force[i] = gain * d->act[m->actuator_actadr[i] + m->actuator_actnum[i] - 1];
+      int act_adr = m->actuator_actadr[i] + m->actuator_actnum[i] - 1;
+
+      mjtNum act;
+      if (m->actuator_actearly[i]) {
+        act = nextActivation(m, d, i, act_adr, d->act_dot[act_adr]);
+      } else {
+        act = d->act[act_adr];
+      }
+      force[i] = gain * act;
     }
 
     // extract bias info
@@ -311,49 +388,6 @@ void mj_fwdActuation(const mjModel* m, mjData* d) {
     }
   }
 
-  // act_dot for stateful actuators
-  for (int i=0; i < nu; i++) {
-    if (m->actuator_plugin[i] >= 0) {
-      continue;
-    }
-
-    int j = m->actuator_actadr[i];
-    if (j < 0) {
-      continue;
-    }
-
-    // extract info
-    prm = m->actuator_dynprm + i*mjNDYN;
-
-    // compute act_dot according to dynamics type
-    switch (m->actuator_dyntype[i]) {
-    case mjDYN_INTEGRATOR:          // simple integrator
-      d->act_dot[j] = ctrl[i];
-      break;
-
-    case mjDYN_FILTER:              // linear filter: prm = tau
-      tau = mju_max(mjMINVAL, prm[0]);
-      d->act_dot[j] = (ctrl[i] - d->act[j]) / tau;
-      break;
-
-    case mjDYN_MUSCLE:              // muscle model: prm = (tau_act, tau_deact)
-      d->act_dot[j] = mju_muscleDynamics(ctrl[i], d->act[j], prm);
-      break;
-
-    default:                        // user dynamics
-      if (mjcb_act_dyn) {
-        if (m->actuator_actnum[i] == 1) {
-          // scalar activation dynamics, get act_dot
-          d->act_dot[j] = mjcb_act_dyn(m, d, i);
-        } else {
-          // higher-order dynamics, mjcb_act_dyn writes into act_dot directly
-          mjcb_act_dyn(m, d, i);
-        }
-      } else {
-        d->act_dot[j] = 0;
-      }
-    }
-  }
   mjFREESTACK;
   TM_END(mjTIMER_ACTUATION);
 }
@@ -514,16 +548,11 @@ static void mj_advance(const mjModel* m, mjData* d,
                        const mjtNum* act_dot, const mjtNum* qacc, const mjtNum* qvel) {
   // advance activations and clamp
   if (m->na) {
-    mju_addToScl(d->act, act_dot, m->opt.timestep, m->na);
-
-    // clamp activations
     for (int i=0; i < m->nu; i++) {
-      int j = m->actuator_actadr[i];
-      if (j > -1 && m->actuator_actlimited[i]) {
-        mjtNum* actrange = m->actuator_actrange + 2*i;
-        for (int k=0; k < m->actuator_actnum[i]; k++) {
-          d->act[j+k] = mju_clip(d->act[j+k], actrange[0], actrange[1]);
-        }
+      int actadr = m->actuator_actadr[i];
+      int actadr_end = actadr + m->actuator_actnum[i];
+      for (int j=actadr; j < actadr_end; j++) {
+        d->act[j] = nextActivation(m, d, i, j, act_dot[j]);
       }
     }
   }
