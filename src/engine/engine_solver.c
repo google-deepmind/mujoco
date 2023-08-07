@@ -1364,7 +1364,15 @@ static void HessianDirect(const mjModel* m, mjData* d, mjCGContext* ctx) {
 
   // sparse
   if (mj_isSparse(m)) {
+    // create sparse inertia matrix M (uncompressed)
+    mjtNum* M = mj_stackAlloc(d, nv*nv);
+    int* M_rownnz = (int*) mj_stackAlloc(d, nv);
+    int* M_rowadr = (int*) mj_stackAlloc(d, nv);
+    int* M_colind = (int*) mj_stackAlloc(d, nv*nv);
+    mj_createMSparse(m, d, M, M_rownnz, M_rowadr, M_colind);
+
     // compute H = J'*D*J
+
     // TODO(b/266802572): remove uncompressed layout
     mju_sqrMatTDUncompressedInit(ctx->rowadr, nv);
     mju_sqrMatTDSparse(ctx->H, d->efc_J, d->efc_JT, D, nefc, nv,
@@ -1375,7 +1383,8 @@ static void HessianDirect(const mjModel* m, mjData* d, mjCGContext* ctx) {
                        d->efc_JT_colind, d->efc_JT_rowsuper, d);
 
     // compute H = M + J'*D*J
-    mj_addMSparse(m, d, ctx->H, ctx->rownnz, ctx->rowadr, ctx->colind);
+    mj_addMSparse(m, d, ctx->H, ctx->rownnz, ctx->rowadr, ctx->colind,
+                  M, M_rownnz, M_rowadr, M_colind);
 
     // factorize H, uncompressed layout
     int rank = mju_cholFactorSparse(ctx->H, nv, mjMINVAL,

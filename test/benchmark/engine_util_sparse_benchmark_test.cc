@@ -452,14 +452,14 @@ static void BM_combineSparse(benchmark::State& state, CombineFuncPtr func) {
   // compute H = J'*D*J, uncompressed layout
   mju_sqrMatTDUncompressedInit(rowadr, m->nv);
   mju_sqrMatTDSparse(H, d->efc_J, d->efc_JT, D, d->nefc, m->nv,
-                      rownnz, rowadr, colind,
-                      d->efc_J_rownnz, d->efc_J_rowadr,
-                      d->efc_J_colind, d->efc_J_rowsuper,
-                      d->efc_JT_rownnz, d->efc_JT_rowadr,
-                      d->efc_JT_colind, d->efc_JT_rowsuper, d);
+                     rownnz, rowadr, colind,
+                     d->efc_J_rownnz, d->efc_J_rowadr,
+                     d->efc_J_colind, d->efc_J_rowsuper,
+                     d->efc_JT_rownnz, d->efc_JT_rowadr,
+                     d->efc_JT_colind, d->efc_JT_rowsuper, d);
 
   // compute H = M + J'*D*J
-  mj_addMSparse(m, d, H, rownnz, rowadr, colind);
+  mj_addM(m, d, H, rownnz, rowadr, colind);
 
   // time benchmark
   for (auto s : state) {

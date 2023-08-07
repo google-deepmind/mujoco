@@ -948,7 +948,17 @@ void mj_addM(const mjModel* m, mjData* d, mjtNum* dst,
              int* rownnz, int* rowadr, int* colind) {
   // sparse
   if (rownnz && rowadr && colind) {
-    mj_addMSparse(m, d, dst, rownnz, rowadr, colind);
+    int nv = m->nv;
+    mjMARKSTACK;
+    // create sparse inertia matrix M (uncompressed)
+    mjtNum* M = mj_stackAlloc(d, nv*nv);
+    int* M_rownnz = (int*) mj_stackAlloc(d, nv);
+    int* M_rowadr = (int*) mj_stackAlloc(d, nv);
+    int* M_colind = (int*) mj_stackAlloc(d, nv*nv);
+    mj_createMSparse(m, d, M, M_rownnz, M_rowadr, M_colind);
+    mj_addMSparse(m, d, dst, rownnz, rowadr, colind, M,
+                  M_rownnz, M_rowadr, M_colind);
+    mjFREESTACK;
   }
 
   // dense
@@ -959,122 +969,87 @@ void mj_addM(const mjModel* m, mjData* d, mjtNum* dst,
 
 
 
-// add inertia matrix to sparse uncompressed destination matrix
-void mj_addMSparse(const mjModel* m, mjData* d, mjtNum* dst,
-                   int* rownnz, int* rowadr, int* colind) {
+// create inertia matrix M (uncompressed)
+void mj_createMSparse(const mjModel* m, mjData* d, mjtNum* M,
+                      int* M_rownnz, int* M_rowadr, int* M_colind) {
   int adr, adr1, nv = m->nv;
 
-  // special processing of simple dofs
-  int simplecnt = 0;
+  // build M into sparse format, lower-triangular
   for (int i=0; i < nv; i++) {
+    M_rowadr[i] = i*nv;
+    adr = m->dof_Madr[i];
+
     if (m->dof_simplenum[i]) {
-      // count simple
-      simplecnt++;
-
-      // empty row: create entry
-      if (!rownnz[i]) {
-        colind[rowadr[i]] = i;
-        dst[rowadr[i]] = d->qM[m->dof_Madr[i]];
-        rownnz[i] = 1;
-      }
-
-      // non-empty row: assume dof is in dst (J'*D*J satisfies this)
-      else {
-        // find dof in row, add
-        adr = rowadr[i];
-        int end = adr + rownnz[i];
-        while (adr < end)
-          if (colind[adr] == i) {
-            dst[adr] += d->qM[m->dof_Madr[i]];
-            break;
-          } else {
-            adr++;
-          }
-
-        // not found: error
-        if (adr >= end) {
-          mjERROR("dst row expected to be empty");
-        }
-      }
+      M[i*nv] = d->qM[adr];
+      M_colind[i*nv] = i;
+      M_rownnz[i] = 1;
+      continue;
     }
-  }
 
-  // done if all simple
-  if (simplecnt == nv) {
-    return;
-  }
+    // backward pass over dofs: construct M_row(i) in reverse order
+    int j = i;
+    adr1 = 0;
+    while (j >= 0) {
+      // assign
+      M[i*nv+adr1] = d->qM[adr];
+      M_colind[i*nv+adr1] = j;
 
-  // allocate space for sparse M
-  mjMARKSTACK;
-  mjtNum* M = mj_stackAlloc(d, nv*nv);
-  int* M_rownnz = (int*) mj_stackAlloc(d, nv);
-  int* M_rowadr = (int*) mj_stackAlloc(d, nv);
-  int* M_colind = (int*) mj_stackAlloc(d, nv*nv);
-  int* buf_ind = (int*) mj_stackAlloc(d, nv);
-  mjtNum* sparse_buf = mj_stackAlloc(d, nv);
+      // count columns
+      adr1++;
 
-  // convert M into sparse format, lower-triangular
-  for (int i=0; i < nv; i++) {
-    if (!m->dof_simplenum[i]) {
-      // backward pass over dofs: construct M_row(i) in reverse order
-      adr = m->dof_Madr[i];
-      int j = i;
-      adr1 = 0;
-      while (j >= 0) {
-        // assign
-        M[i*nv+adr1] = d->qM[adr];
-        M_colind[i*nv+adr1] = j;
+      // advance
+      adr++;
+      j = m->dof_parentid[j];
+    }
 
-        // count columns
-        adr1++;
+    // assign row descriptors
+    M_rownnz[i] = adr1;
 
-        // advance
-        adr++;
-        j = m->dof_parentid[j];
-      }
+    // reverse order
+    for (int k=0; k < adr1/2; k++) {
+      mjtNum tmp = M[i*nv+k];
+      M[i*nv+k] = M[i*nv+adr1-1-k];
+      M[i*nv+adr1-1-k] = tmp;
 
-      // assign row descriptors
-      M_rownnz[i] = adr1;
-      M_rowadr[i] = i*nv;
-
-      // reverse order
-      for (int k=0; k < adr1/2; k++) {
-        mjtNum tmp = M[i*nv+k];
-        M[i*nv+k] = M[i*nv+adr1-1-k];
-        M[i*nv+adr1-1-k] = tmp;
-
-        int tmpi = M_colind[i*nv+k];
-        M_colind[i*nv+k] = M_colind[i*nv+adr1-1-k];
-        M_colind[i*nv+adr1-1-k] = tmpi;
-      }
+      int tmpi = M_colind[i*nv+k];
+      M_colind[i*nv+k] = M_colind[i*nv+adr1-1-k];
+      M_colind[i*nv+adr1-1-k] = tmpi;
     }
   }
 
   // make symmetric
   for (int i=1; i < nv; i++) {
-    if (!m->dof_simplenum[i]) {
-      for (int k=nv*i; k < nv*i+M_rownnz[i]-1; k++) {
-        // add to row given by column index
-        adr1 = nv*M_colind[k] + M_rownnz[M_colind[k]]++;
-        M[adr1] = M[k];
-        M_colind[adr1] = i;
-      }
+    if (m->dof_simplenum[i]) {
+      continue;
+    }
+
+    for (int k=nv*i; k < nv*i+M_rownnz[i]-1; k++) {
+      // add to row given by column index
+      adr1 = nv*M_colind[k] + M_rownnz[M_colind[k]]++;
+      M[adr1] = M[k];
+      M_colind[adr1] = i;
     }
   }
+}
+
+
+
+// add inertia matrix to sparse destination matrix
+void mj_addMSparse(const mjModel* m, mjData* d, mjtNum* dst,
+                   int* rownnz, int* rowadr, int* colind, mjtNum* M,
+                   int* M_rownnz, int* M_rowadr, int* M_colind) {
+  int nv = m->nv;
+
+  mjMARKSTACK;
+  int* buf_ind = (int*) mj_stackAlloc(d, nv);
+  mjtNum* sparse_buf = mj_stackAlloc(d, nv);
 
   // add to destination
   for (int i=0; i < nv; i++) {
-    if (!m->dof_simplenum[i]) {
-      int new_nnz =
-          mju_combineSparse(dst + rowadr[i], M + M_rowadr[i], nv, 1, 1,
-                            rownnz[i], M_rownnz[i],
-                            colind + rowadr[i], M_colind + M_rowadr[i],
-                            sparse_buf, buf_ind);
-
-      rownnz[i] = new_nnz;
-    }
+    rownnz[i] = mju_combineSparse(dst + rowadr[i], M + M_rowadr[i], nv, 1, 1,
+                                  rownnz[i], M_rownnz[i], colind + rowadr[i],
+                                  M_colind + M_rowadr[i], sparse_buf, buf_ind);
   }
-
   mjFREESTACK;
 }
 
