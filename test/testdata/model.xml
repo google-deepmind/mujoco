@@ -137,6 +137,7 @@
     <intvelocity joint="hipz_0" kp="100" actrange="-1 1"/>
     <general site="wheel_0" gear="0 0 0 0 10 0" dyntype="filter" dynprm="1"/>
     <general joint="wheel_1" biastype="affine" dyntype="integrator" dynprm="1" biasprm="0 -1"/>
+    <general joint="hipy_1" actearly="true" dyntype="filterexact" dynprm="0.9" gear="12.1" />
   </actuator>
 
   <sensor>
