@@ -14,7 +14,6 @@
 
 #include "engine/engine_util_errmem.h"
 
-#include <errno.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -33,15 +32,6 @@
 static inline void* mju_alignedMalloc(size_t size, size_t align) {
 #ifdef _WIN32
   return _aligned_malloc(size, align);
-#elif defined(_POSIX_VERSION) && _POSIX_VERSION >= 200112L
-  // Prefer posix_memalign since C11 aligned_alloc isn't available on macOS < 10.15.
-  void* ptr;
-  const int err = posix_memalign(&ptr, align, size);
-  if (err) {
-    ptr = NULL;
-    errno = err;
-  }
-  return ptr;
 #elif defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L
   return aligned_alloc(align, size);
 #endif
