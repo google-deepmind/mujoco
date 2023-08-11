@@ -29,12 +29,12 @@ includes interactive visualization with a native GUI, rendered in OpenGL. MuJoCo
 further exposes a large number of utility functions for computing
 physics-related quantities.
 
-We also provide Python bindings and a plug-in for the [Unity] game engine.
+We also provide [Python bindings] and a plug-in for the [Unity] game engine.
 
 ## Documentation
 
-MuJoCo's documentation is available at [mujoco.readthedocs.io], which serves
-webpages derived from the [documentation source files].
+MuJoCo's documentation can be found at [mujoco.readthedocs.io]. Upcoming features due for the next
+release can be found in the [changelog] in the latest branch.
 
 ## Getting Started
 
@@ -80,19 +80,23 @@ pip install mujoco
 
 Note that Pre-built Linux wheels target `manylinux2014`, see
 [here](https://github.com/pypa/manylinux) for compatible distributions. For more
-information such as building the bindings from source, see the [Python Bindings]
+information such as building the bindings from source, see the [Python bindings]
 section of the documentation.
 
-## Asking Questions
+## Contributing
 
 We welcome community engagement: questions, requests for help, bug reports and
 feature requests. To read more about bug reports, feature requests and more
-ambitious contributions, please see our [contributors guide](CONTRIBUTING.md).
+ambitious contributions, please see our [contributors guide](CONTRIBUTING.md)
+and [style guide](STYLEGUIDE.md).
 
-Questions and requests for help are welcome on the
-GitHub [issues](https://github.com/deepmind/mujoco/issues) and
-[discussions](https://github.com/deepmind/mujoco/discussions) pages. Issues
-should be focused on a specific problem or question, while discussions should
+## Asking Questions
+
+Questions and requests for help are welcome on the GitHub
+[Issues](https://github.com/deepmind/mujoco/issues) page and should focus on a specific problem
+or question.
+
+[Discussions](https://github.com/deepmind/mujoco/discussions) should
 address wider concerns that might require input from multiple participants.
 
 Here are some guidelines for asking good questions:
@@ -205,7 +209,7 @@ This is not an officially supported Google product.
 [Unity]: https://unity.com/
 [releases page]: https://github.com/deepmind/mujoco/releases
 [GitHub Issues]: https://github.com/deepmind/mujoco/issues
-[documentation source files]: https://github.com/deepmind/mujoco/tree/main/doc
 [mujoco.readthedocs.io]: https://mujoco.readthedocs.io
-[Python Bindings]: https://mujoco.readthedocs.io/en/stable/python.html#python-bindings
+[changelog]: https://https://mujoco.readthedocs.io/en/latest/changelog.html
+[Python bindings]: https://mujoco.readthedocs.io/en/stable/python.html#python-bindings
 [PyPI]: https://pypi.org/project/mujoco/
