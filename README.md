@@ -160,8 +160,8 @@ These packages give users of various languages access to MuJoCo functionality:
 
 ### Converters
 
-- **OpenSim**: [O2MConverter](https://github.com/aikkala/O2MConverter) converts
-  openSIM models to MJCF.
+- **OpenSim**: [MyoConverter](https://github.com/MyoHub/myoconverter) converts
+  OpenSim models to MJCF.
 - **SDFormat**: [gz-mujoco](https://github.com/gazebosim/gz-mujoco/) is a
   two-way SDFormat <-> MJCF conversion tool.
 - **OBJ**: [obj2mjcf](https://github.com/kevinzakka/obj2mjcf)
