@@ -210,6 +210,6 @@ This is not an officially supported Google product.
 [releases page]: https://github.com/deepmind/mujoco/releases
 [GitHub Issues]: https://github.com/deepmind/mujoco/issues
 [mujoco.readthedocs.io]: https://mujoco.readthedocs.io
-[changelog]: https://https://mujoco.readthedocs.io/en/latest/changelog.html
+[changelog]: https://mujoco.readthedocs.io/en/latest/changelog.html
 [Python bindings]: https://mujoco.readthedocs.io/en/stable/python.html#python-bindings
 [PyPI]: https://pypi.org/project/mujoco/
