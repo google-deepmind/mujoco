@@ -140,8 +140,8 @@ static const char* MJCF[nMJCF][mjXATTRNUM] = {
         {"material", "?", "8", "texture", "emission", "specular", "shininess",
             "reflectance", "rgba", "texrepeat", "texuniform"},
         {"joint", "?", "21", "type", "group", "pos", "axis", "springdamper",
-            "limited", "actuatorforcelimited", "solreflimit", "solimplimit",
-            "solreffriction", "solimpfriction", "stiffness", "range", "actuatorforcerange",
+            "limited", "actuatorfrclimited", "solreflimit", "solimplimit",
+            "solreffriction", "solimpfriction", "stiffness", "range", "actuatorfrcrange",
             "margin", "ref", "springref", "armature", "damping", "frictionloss", "user"},
         {"geom", "?", "31", "type", "pos", "quat", "contype", "conaffinity", "condim",
             "group", "priority", "size", "material", "friction", "mass", "density",
@@ -239,9 +239,9 @@ static const char* MJCF[nMJCF][mjXATTRNUM] = {
         {"inertial", "?", "9", "pos", "quat", "mass", "diaginertia",
             "axisangle", "xyaxes", "zaxis", "euler", "fullinertia"},
         {"joint", "*", "23", "name", "class", "type", "group", "pos", "axis",
-            "springdamper", "limited", "actuatorforcelimited",
+            "springdamper", "limited", "actuatorfrclimited",
             "solreflimit", "solimplimit", "solreffriction", "solimpfriction",
-            "stiffness", "range", "actuatorforcerange", "margin", "ref", "springref",
+            "stiffness", "range", "actuatorfrcrange", "margin", "ref", "springref",
             "armature", "damping", "frictionloss", "user"},
         {"freejoint", "*", "2", "name", "group"},
         {"geom", "*", "33", "name", "class", "type", "contype", "conaffinity", "condim",
@@ -1318,7 +1318,7 @@ void mjXReader::OneJoint(XMLElement* elem, mjCJoint* pjoint) {
     pjoint->type = (mjtJoint)n;
   }
   MapValue(elem, "limited", &pjoint->limited, TFAuto_map, 3);
-  MapValue(elem, "actuatorforcelimited", &pjoint->actfrclimited, TFAuto_map, 3);
+  MapValue(elem, "actuatorfrclimited", &pjoint->actfrclimited, TFAuto_map, 3);
   ReadAttrInt(elem, "group", &pjoint->group);
   ReadAttr(elem, "solreflimit", mjNREF, pjoint->solref_limit, text, false, false);
   ReadAttr(elem, "solimplimit", mjNIMP, pjoint->solimp_limit, text, false, false);
@@ -1329,7 +1329,7 @@ void mjXReader::OneJoint(XMLElement* elem, mjCJoint* pjoint) {
   ReadAttr(elem, "springdamper", 2, pjoint->springdamper, text);
   ReadAttr(elem, "stiffness", 1, &pjoint->stiffness, text);
   ReadAttr(elem, "range", 2, pjoint->range, text);
-  ReadAttr(elem, "actuatorforcerange", 2, pjoint->actfrcrange, text);
+  ReadAttr(elem, "actuatorfrcrange", 2, pjoint->actfrcrange, text);
   ReadAttr(elem, "margin", 1, &pjoint->margin, text);
   ReadAttr(elem, "ref", 1, &pjoint->ref, text);
   ReadAttr(elem, "springref", 1, &pjoint->springref, text);

@@ -12,6 +12,9 @@ General
    the exact formula rather than with Euler integration.
 #. Added an actuator attribute, :ref:`actearly<actuator-general-actearly>`, which uses semi-implicit integration for
    actuator forces: using the next step's actuator state to compute the current actuator forces at the current timestep.
+#. Renamed ``actuatorforcerange`` and ``actuatorforcelimited``, introduced in the previous version to
+   :ref:`actuatorfrcrange<body-joint-actuatorfrcrange>` and
+   :ref:`actuatorfrclimited<body-joint-actuatorfrclimied>`, respectively.
 
 Python bindings
 ^^^^^^^^^^^^^^^
@@ -26,7 +29,7 @@ General
 ^^^^^^^
 
 1. Added primitive collider for sphere-cylinder contacts, previously this pair used the generic convex-convex collider.
-#. Added :ref:`joint-actuatorforcerange<body-joint-actuatorforcerange>` for clamping total actuator force at joints and
+#. Added :ref:`joint-actuatorforcerange<body-joint-actuatorfrcrange>` for clamping total actuator force at joints and
    :ref:`sensor-jointactuatorfrc<sensor-jointactuatorfrc>` for measuring total actuation force applied at a joint. The
    most important use case for joint-level actuator force clamping is to ensure that
    :ref:`Cartesian actuator<actuator-general-refsite>` forces are realizable by individual motors at the joints.

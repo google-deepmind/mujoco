@@ -607,7 +607,7 @@ Force clamping at actuator output with :ref:`forcerange<actuator-general-forcera
   :ref:`position actuators<actuator-position>`, to keep the forces within bounds. Note that position actuators
   usually also require control range clamping to avoid hitting joint limits.
 
-Force clamping at joint input with :ref:`joint/actuatorforcerange<body-joint-actuatorforcerange>`:
+Force clamping at joint input with :ref:`joint/actuatorfrcrange<body-joint-actuatorfrcrange>`:
   This joint attribute clamps input forces from all actuators acting on the joint, after passing through the
   :ref:`transmission<geTransmission>`. Clamping actuator forces at the joint is equivalent to clamping them at the
   actuator if the transmission is trivial (there is a one-to-one relationship between the actuator and the joint).

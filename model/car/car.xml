@@ -17,7 +17,7 @@
   </asset>
 
   <default>
-    <joint damping=".03" actuatorforcerange="-0.5 0.5"/>
+    <joint damping=".03" actuatorfrcrange="-0.5 0.5"/>
     <default class="wheel">
       <geom type="cylinder" size=".03 .01" rgba=".5 .5 1 1"/>
     </default>

@@ -2339,14 +2339,14 @@ unit quaternions.
    attribute is "auto", and :at:`autolimits` is set in :ref:`compiler <compiler>`, joint limits will be enabled
    if range is defined.
 
-.. _body-joint-actuatorforcelimited:
+.. _body-joint-actuatorfrclimited:
 
-:at:`actuatorforcelimited`: :at-val:`[false, true, auto], "auto"`
+:at:`actuatorfrclimited`: :at-val:`[false, true, auto], "auto"`
    This attribute specifies whether actuator forces acting on the joint should be clamped. See :ref:`CForceRange` for
    details. It is available only for scalar joints (hinge and slider) and ignored for ball and free joints. |br| This
-   attribute interacts with the actuatorforcerange attribute below. If this attribute is "false", actuator force
+   attribute interacts with the actuatorfrcrange attribute below. If this attribute is "false", actuator force
    clamping is disabled. If it is "true", actuator force clamping is enabled. If this attribute is "auto", and
-   :at:`autolimits` is set in :ref:`compiler <compiler>`, actuator force clamping will be enabled if actuatorforcerange
+   :at:`autolimits` is set in :ref:`compiler <compiler>`, actuator force clamping will be enabled if actuatorfrcrange
    is defined.
 
 .. _body-joint-solreflimit:
@@ -2380,12 +2380,12 @@ unit quaternions.
    |br| Setting this attribute without specifying :at:`limited` is an error, unless :at:`autolimits` is set in
    :ref:`compiler <compiler>`.
 
-.. _body-joint-actuatorforcerange:
+.. _body-joint-actuatorfrcrange:
 
-:at:`actuatorforcerange`: :at-val:`real(2), "0 0"`
+:at:`actuatorfrcrange`: :at-val:`real(2), "0 0"`
    Range for clamping total actuator forces acting on this joint. See :ref:`CForceRange` for details. It is available
    only for scalar joints (hinge and slider) and ignored for ball and free joints. |br| The compiler expects the first
-   value to be smaller than the second value. |br| Setting this attribute without specifying :at:`actuatorforcelimited`
+   value to be smaller than the second value. |br| Setting this attribute without specifying :at:`actuatorfrclimited`
    is an error, unless :at:`compiler-autolimits` is set.
 
 .. _body-joint-margin:
@@ -6417,7 +6417,7 @@ if omitted.
 
 .. _default-joint-limited:
 
-.. _default-joint-actuatorforcelimited:
+.. _default-joint-actuatorfrclimited:
 
 .. _default-joint-solreflimit:
 
@@ -6431,7 +6431,7 @@ if omitted.
 
 .. _default-joint-range:
 
-.. _default-joint-actuatorforcerange:
+.. _default-joint-actuatorfrcrange:
 
 .. _default-joint-margin:
 
