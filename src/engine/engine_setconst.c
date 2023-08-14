@@ -29,6 +29,34 @@
 #include "engine/engine_util_misc.h"
 #include "engine/engine_util_spatial.h"
 
+
+// compute dof_M0 via composite rigid body algorithm
+static void mj_setM0(mjModel* m, mjData* d) {
+  mjtNum buf[6];
+  mjtNum* crb = d->crb;
+  int last_body = m->nbody - 1, nv = m->nv;
+
+  // copy cinert into crb
+  mju_copy(crb, d->cinert, 10*m->nbody);
+
+  // backward pass over bodies, accumulate composite inertias
+  for (int i=last_body; i > 0; i--) {
+    if (m->body_parentid[i] > 0) {
+      mju_addTo(crb+10*m->body_parentid[i], crb+10*i, 10);
+    }
+  }
+
+  for (int i=0; i < nv; i++) {
+    // precomute buf = crb_body_i * cdof_i
+    mju_mulInertVec(buf, crb+10*m->dof_bodyid[i], d->cdof+6*i);
+
+    // dof_M0(i) = armature inertia + cdof_i * (crb_body_i * cdof_i)
+    m->dof_M0[i] = m->dof_armature[i] + mju_dot(d->cdof+6*i, buf, 6);
+  }
+}
+
+
+
 // set quantities that depend on qpos0
 static void set0(mjModel* m, mjData* d) {
   int id, id1, id2, dnum, nv = m->nv;
@@ -60,14 +88,12 @@ static void set0(mjModel* m, mjData* d) {
   mj_kinematics(m, d);
   mj_comPos(m, d);
   mj_camlight(m, d);
-  mj_crbSkip(m, d, 0);
 
-  // save dof_M0
-  for (int i=0; i < nv; i++) {
-    m->dof_M0[i] = d->qM[m->dof_Madr[i]];
-  }
+  // compute dof_M0 for CRB algorithm
+  mj_setM0(m, d);
 
-  // run remaining computations (factorM needs dof_M0)
+  // run remaining computations
+  mj_crb(m, d);
   mj_factorM(m, d);
   mj_tendon(m, d);
   mj_transmission(m, d);

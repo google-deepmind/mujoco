@@ -42,9 +42,6 @@ MJAPI void mj_transmission(const mjModel* m, mjData* d);
 
 //-------------------------- inertia ---------------------------------------------------------------
 
-// composite rigid body inertia algorithm, with skip
-void mj_crbSkip(const mjModel* m, mjData* d, int skipsimple);
-
 // composite rigid body inertia algorithm
 MJAPI void mj_crb(const mjModel* m, mjData* d);
 

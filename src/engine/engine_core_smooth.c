@@ -957,16 +957,17 @@ void mj_transmission(const mjModel* m, mjData* d) {
 
 //-------------------------- inertia ---------------------------------------------------------------
 
-// composite rigid body inertia algorithm, with skipsimple
-void mj_crbSkip(const mjModel* m, mjData* d, int skipsimple) {
-  mjtNum tmp[6];
+// composite rigid body inertia algorithm
+void mj_crb(const mjModel* m, mjData* d) {
+  mjtNum buf[6];
   mjtNum* crb = d->crb;
+  int last_body = m->nbody - 1, nv = m->nv;
 
   // crb = cinert
   mju_copy(crb, d->cinert, 10*m->nbody);
 
   // backward pass over bodies, accumulate composite inertias
-  for (int i=m->nbody-1; i > 0; i--) {
+  for (int i=last_body; i > 0; i--) {
     if (m->body_parentid[i] > 0) {
       mju_addTo(crb+10*m->body_parentid[i], crb+10*i, 10);
     }
@@ -975,41 +976,34 @@ void mj_crbSkip(const mjModel* m, mjData* d, int skipsimple) {
   // clear qM
   mju_zero(d->qM, m->nM);
 
-  // dense backward pass over dofs
-  for (int i=m->nv-1; i >= 0; i--) {
-    // copy
-    if (skipsimple && m->dof_simplenum[i]) {
-      d->qM[m->dof_Madr[i]] = m->dof_M0[i];
-    }
+  // dense forward pass over dofs
+  for (int i=0; i < nv; i++) {
+    // process block of diagonals (simple bodies)
+    if (m->dof_simplenum[i]) {
+      int n = i + m->dof_simplenum[i];
+      for (; i < n; i++) {
+        d->qM[m->dof_Madr[i]] = m->dof_M0[i];
+      }
 
-    // compute
-    else {
-      // init M(i,i) with armature inertia
-      int Madr_ij = m->dof_Madr[i];
-      d->qM[Madr_ij] = m->dof_armature[i];
-
-      // precompute tmp = crb * cdof
-      mju_mulInertVec(tmp, crb+10*m->dof_bodyid[i], d->cdof+6*i);
-
-      // sparse backward pass over ancestors
-      int j = i;
-      while (j >= 0) {
-        // M(i,j) += cdof_j * crb_body(i) * cdof_i = cdof_j * tmp
-        d->qM[Madr_ij] += mju_dot(d->cdof+6*j, tmp, 6);
-
-        // advance to parent
-        j = m->dof_parentid[j];
-        Madr_ij++;
+      // finish or else fall through with next row
+      if (i == nv) {
+        break;
       }
     }
+
+    // init M(i,i) with armature inertia
+    int Madr_ij = m->dof_Madr[i];
+    d->qM[Madr_ij] = m->dof_armature[i];
+
+    // precompute buf = crb_body_i * cdof_i
+    mju_mulInertVec(buf, crb+10*m->dof_bodyid[i], d->cdof+6*i);
+
+    // sparse backward pass over ancestors
+    for (int j=i; j >= 0; j = m->dof_parentid[j]) {
+      // M(i,j) += cdof_j * (crb_body_i * cdof_i)
+      d->qM[Madr_ij++] += mju_dot(d->cdof+6*j, buf, 6);
+    }
   }
-}
-
-
-
-// composite rigid body inertia algorithm
-void mj_crb(const mjModel* m, mjData* d) {
-  mj_crbSkip(m, d, 1);
 }
 
 

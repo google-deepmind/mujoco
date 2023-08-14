@@ -1667,19 +1667,14 @@ void mjCModel::CopyTree(mjModel* m) {
   m->nB = nB;
 
   // set dof_simplenum
-  int scnt = 0;
-  for (int i=nv-1; i>=0; i--) {
-    // dof in simple body
+  int count = 0;
+  for (int i=nv-1; i >= 0; i--) {
     if (m->body_simple[m->dof_bodyid[i]]) {
-      scnt++;
-      m->dof_simplenum[i] = scnt;
+      count++;    // increment counter
+    } else {
+      count = 0;  // reset
     }
-
-    // dof in regular body
-    else {
-      scnt = 0;
-      m->dof_simplenum[i] = 0;
-    }
+    m->dof_simplenum[i] = count;
   }
 }
 
