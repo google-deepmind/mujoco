@@ -54,7 +54,7 @@ void mj_passive(const mjModel* m, mjData* d) {
     int padr = m->jnt_qposadr[i];
     int dadr = m->jnt_dofadr[i];
 
-    switch (m->jnt_type[i]) {
+    switch ((mjtJoint) m->jnt_type[i]) {
     case mjJNT_FREE:
       // apply force
       d->qfrc_passive[dadr+0] -= stiffness*(d->qpos[padr+0] - m->qpos_spring[padr+0]);

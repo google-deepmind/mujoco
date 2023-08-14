@@ -408,7 +408,7 @@ void mj_instantiateEquality(const mjModel* m, mjData* d) {
       NV2 = 0;
 
       // process according to type
-      switch (m->eq_type[i]) {
+      switch ((mjtEq) m->eq_type[i]) {
       case mjEQ_CONNECT:              // connect bodies with ball joint
         // find global points
         for (int j=0; j < 2; j++) {
@@ -898,7 +898,7 @@ void mj_diagApprox(const mjModel* m, mjData* d) {
     }
 
     // process according to constraint type
-    switch (d->efc_type[i]) {
+    switch ((mjtConstraint) d->efc_type[i]) {
     case mjCNSTR_EQUALITY:
       // process according to equality-constraint type
       switch (m->eq_type[id]) {
@@ -1003,7 +1003,7 @@ static void getsolparam(const mjModel* m, const mjData* d, int i,
   mju_zero(solreffriction, mjNREF);
 
   // extract solver parameters from corresponding model element
-  switch (d->efc_type[i]) {
+  switch ((mjtConstraint) d->efc_type[i]) {
   case mjCNSTR_EQUALITY:
     mju_copy(solref, m->eq_solref+mjNREF*id, mjNREF);
     mju_copy(solimp, m->eq_solimp+mjNIMP*id, mjNIMP);
@@ -1079,7 +1079,7 @@ static void getposdim(const mjModel* m, const mjData* d, int i, mjtNum* pos, int
   *pos = d->efc_pos[i];
 
   // change (dim, distance) for special cases
-  switch (d->efc_type[i]) {
+  switch ((mjtConstraint) d->efc_type[i]) {
   case mjCNSTR_CONTACT_ELLIPTIC:
     *dim = d->contact[id].dim;
     break;
@@ -1104,6 +1104,10 @@ static void getposdim(const mjModel* m, const mjData* d, int i, mjtNum* pos, int
       *dim = 3;
       *pos = mju_norm(d->efc_pos+i, 3);
     }
+    break;
+  default:
+    // already handled
+    break;
   }
 }
 
@@ -1368,7 +1372,7 @@ static inline int mj_ne(const mjModel* m, mjData* d, int* nnz) {
       NV2 = 0;
 
       // process according to type
-      switch (m->eq_type[i]) {
+      switch ((mjtEq) m->eq_type[i]) {
       case mjEQ_CONNECT:
         size = 3;
         if (!nnz) {
@@ -1419,6 +1423,9 @@ static inline int mj_ne(const mjModel* m, mjData* d, int* nnz) {
           NV = 2;
         }
         break;
+      default:
+        // might occur in case of the now-removed distance equality constraint
+        mjERROR("unknown constraint type type %d", m->eq_type[i]);    // SHOULD NOT OCCUR
       }
       ne += mj_addConstraintCount(m, size, NV);
       nnze += size*NV;

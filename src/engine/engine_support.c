@@ -1342,7 +1342,7 @@ void mj_differentiatePos(const mjModel* m, mjtNum* qvel, mjtNum dt,
     int padr = m->jnt_qposadr[j];
     int vadr = m->jnt_dofadr[j];
 
-    switch (m->jnt_type[j]) {
+    switch ((mjtJoint) m->jnt_type[j]) {
     case mjJNT_FREE:
       for (int i=0; i < 3; i++) {
         qvel[vadr+i] = (qpos2[padr+i] - qpos1[padr+i]) / dt;
@@ -1376,7 +1376,7 @@ void mj_integratePos(const mjModel* m, mjtNum* qpos, const mjtNum* qvel, mjtNum 
     int padr = m->jnt_qposadr[j];
     int vadr = m->jnt_dofadr[j];
 
-    switch (m->jnt_type[j]) {
+    switch ((mjtJoint) m->jnt_type[j]) {
     case mjJNT_FREE:
       // position update
       for (int i=0; i < 3; i++) {

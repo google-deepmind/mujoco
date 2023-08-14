@@ -58,7 +58,7 @@ void mjccd_support(const void *obj, const ccd_vec3_t *_dir, ccd_vec3_t *vec) {
   mju_rotVecMatT(dir, _dir->v, d->geom_xmat+9*g);
 
   // compute result according to geom type
-  switch (m->geom_type[g]) {
+  switch ((mjtGeom) m->geom_type[g]) {
   case mjGEOM_SPHERE:
     mju_scl3(res, dir, size[0]);
     break;
@@ -877,21 +877,21 @@ void mjc_fixNormal(const mjModel* m, const mjData* d, mjContact* con, int g1, in
 
   // get geom ids and types
   int gid[2] = {g1, g2};
-  int type[2];
+  mjtGeom type[2];
   for (int i=0; i < 2; i++) {
     type[i] = m->geom_type[gid[i]];
 
-    // set to -1 if type cannot be processed
+    // set to mjGEOM_NONE if type cannot be processed
     if (type[i] != mjGEOM_SPHERE    &&
         type[i] != mjGEOM_CAPSULE   &&
         type[i] != mjGEOM_ELLIPSOID &&
         type[i] != mjGEOM_CYLINDER) {
-      type[i] = -1;
+      type[i] = mjGEOM_NONE;
     }
   }
 
   // neither type can be processed: nothing to do
-  if (type[0] < 0 && type[1] < 0) {
+  if (type[0] == mjGEOM_NONE && type[1] == mjGEOM_NONE) {
     return;
   }
 
@@ -904,7 +904,7 @@ void mjc_fixNormal(const mjModel* m, const mjData* d, mjContact* con, int g1, in
   // process geoms in type range
   int processed[2] = {0, 0};
   for (int i=0; i < 2; i++) {
-    if (type[i] >= 0) {
+    if (type[i] != mjGEOM_NONE) {
       // get geom mat and size
       mjtNum* mat = d->geom_xmat + 9*gid[i];
       mjtNum* size = m->geom_size + 3*gid[i];
@@ -983,6 +983,9 @@ void mjc_fixNormal(const mjModel* m, const mjData* d, mjContact* con, int g1, in
         nrm[1] = pos[1];
         nrm[2] = 0;
         processed[i] = 1;
+        break;
+      default:
+        // do nothing: only sphere, capsule, ellipsoid and cylinder are processed
         break;
       }
 

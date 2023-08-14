@@ -99,7 +99,7 @@ void mj_kinematics(const mjModel* m, mjData* d) {
         // get joint id, qpos address, joint type
         int jid = m->body_jntadr[i] + j;
         int qadr = m->jnt_qposadr[jid];
-        int jtype = m->jnt_type[jid];
+        mjtJoint jtype = m->jnt_type[jid];
 
         // compute axis in global frame; ball jnt_axis is (0,0,1), set by compiler
         mju_rotVecQuat(xaxis, m->jnt_axis+3*jid, quat);
@@ -228,7 +228,7 @@ void mj_comPos(const mjModel* m, mjData* d) {
 
     // create motion dof
     int skip = 0;
-    switch (m->jnt_type[j]) {
+    switch ((mjtJoint) m->jnt_type[j]) {
     case mjJNT_FREE:
       // translation components: x, y, z in global frame
       mju_zero(d->cdof+da, 18);
@@ -281,7 +281,9 @@ void mj_camlight(const mjModel* m, mjData* d) {
     int id1 = m->cam_targetbodyid[i];
 
     // adjust for mode
-    switch (m->cam_mode[i]) {
+    switch ((mjtCamLight) m->cam_mode[i]) {
+    case mjCAMLIGHT_FIXED:
+        break;
     case mjCAMLIGHT_TRACK:
     case mjCAMLIGHT_TRACKCOM:
       // fixed global orientation
@@ -341,7 +343,9 @@ void mj_camlight(const mjModel* m, mjData* d) {
     int id1 = m->light_targetbodyid[i];
 
     // adjust for mode
-    switch (m->light_mode[i]) {
+    switch ((mjtCamLight) m->light_mode[i]) {
+    case mjCAMLIGHT_FIXED:
+      break;
     case mjCAMLIGHT_TRACK:
     case mjCAMLIGHT_TRACKCOM:
       // fixed global orientation
@@ -644,7 +648,7 @@ void mj_transmission(const mjModel* m, mjData* d) {
     gear = m->actuator_gear+6*i;
 
     // process according to transmission type
-    switch (m->actuator_trntype[i]) {
+    switch ((mjtTrn) m->actuator_trntype[i]) {
     case mjTRN_JOINT:                   // joint
     case mjTRN_JOINTINPARENT:           // joint, force in parent frame
       // slide and hinge joint: scalar gear
@@ -1269,7 +1273,7 @@ void mj_comVel(const mjModel* m, mjData* d) {
     // cvel = cvel_parent + cdof * qvel,  cdofdot = cvel x cdof
     for (int j=0; j < m->body_dofnum[i]; j++) {
       // compute cvel and cdofdot
-      switch (m->jnt_type[m->dof_jntid[bda+j]]) {
+      switch ((mjtJoint) m->jnt_type[m->dof_jntid[bda+j]]) {
       case mjJNT_FREE:
         // cdofdot = 0
         mju_zero(cdofdot, 18);
@@ -1506,7 +1510,7 @@ void mj_rnePostConstraint(const mjModel* m, mjData* d) {
     mjtNum* eq_data = m->eq_data + mjNEQDATA*id;
     mjtNum pos[3];
     int k;
-    switch (m->eq_type[id]) {
+    switch ((mjtEq) m->eq_type[id]) {
     case mjEQ_CONNECT:
     case mjEQ_WELD:
       // cfrc = world-oriented torque:force vector

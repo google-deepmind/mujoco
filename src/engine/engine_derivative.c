@@ -344,7 +344,7 @@ static void mjd_comVel_vel_dense(const mjModel* m, mjData* d, mjtNum* Dcvel, mjt
 
     // Dcvel += D(cdof * qvel),  Dcdofdot = D(cvel x cdof)
     for (int j=m->body_dofadr[i]; j < m->body_dofadr[i]+m->body_dofnum[i]; j++) {
-      switch (m->jnt_type[m->dof_jntid[j]]) {
+      switch ((mjtJoint) m->jnt_type[m->dof_jntid[j]]) {
       case mjJNT_FREE:
         // Dcdofdot = 0
         mju_zero(Dcdofdot+j*6*nv, 18*nv);
@@ -554,7 +554,7 @@ static void mjd_comVel_vel(const mjModel* m, mjData* d, mjtNum* Dcvel, mjtNum* D
       int Jadr = (j < nv - 1 ? m->dof_Madr[j + 1] : m->nM) - (m->dof_Madr[j] + 1);
 
       // Dcvel += D(cdof * qvel),  Dcdofdot = D(cvel x cdof)
-      switch (m->jnt_type[m->dof_jntid[j]]) {
+      switch ((mjtJoint) m->jnt_type[m->dof_jntid[j]]) {
       case mjJNT_FREE:
         // Dcdofdot = 0 (already cleared)
 

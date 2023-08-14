@@ -343,7 +343,7 @@ void mjv_initGeom(mjvGeom* geom, int type, const mjtNum* size,
 
   // set size (for XYZ scaling)
   if (size) {
-    switch (type) {
+    switch ((mjtGeom) type) {
     case mjGEOM_SPHERE:
       geom->size[0] = (float)size[0];
       geom->size[1] = (float)size[0];
@@ -869,7 +869,7 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
         int j = m->jnt_bodyid[i];
         mjtNum* from;
         mjtNum to[3];
-        switch (m->jnt_type[i]) {
+        switch ((mjtJoint) m->jnt_type[i]) {
         case mjJNT_FREE:
           thisgeom->type = mjGEOM_BOX;
           thisgeom->size[0] = thisgeom->size[1] = thisgeom->size[2] = 0.3*sz[1];

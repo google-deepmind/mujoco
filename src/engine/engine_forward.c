@@ -235,7 +235,7 @@ void mj_fwdActuation(const mjModel* m, mjData* d) {
     prm = m->actuator_dynprm + i*mjNDYN;
 
     // compute act_dot according to dynamics type
-    switch (m->actuator_dyntype[i]) {
+    switch ((mjtDyn) m->actuator_dyntype[i]) {
     case mjDYN_INTEGRATOR:          // simple integrator
       d->act_dot[j] = ctrl[i];
       break;
@@ -276,7 +276,7 @@ void mj_fwdActuation(const mjModel* m, mjData* d) {
     prm = m->actuator_gainprm + mjNGAIN*i;
 
     // handle according to gain type
-    switch (m->actuator_gaintype[i]) {
+    switch ((mjtGain) m->actuator_gaintype[i]) {
     case mjGAIN_FIXED:              // fixed gain: prm = gain
       gain = prm[0];
       break;
@@ -321,7 +321,7 @@ void mj_fwdActuation(const mjModel* m, mjData* d) {
     prm = m->actuator_biasprm + mjNBIAS*i;
 
     // handle according to bias type
-    switch (m->actuator_biastype[i]) {
+    switch ((mjtBias) m->actuator_biastype[i]) {
     case mjBIAS_NONE:               // none
       bias = 0.0;
       break;
@@ -511,7 +511,7 @@ void mj_fwdConstraint(const mjModel* m, mjData* d) {
   d->solver_iter = 0;
 
   // run main solver
-  switch (m->opt.solver) {
+  switch ((mjtSolver) m->opt.solver) {
   case mjSOL_PGS:                     // PGS
     mj_solPGS(m, d, m->opt.iterations);
     break;
@@ -883,7 +883,7 @@ void mj_step(const mjModel* m, mjData* d) {
   }
 
   // use selected integrator
-  switch (m->opt.integrator) {
+  switch ((mjtIntegrator) m->opt.integrator) {
   case mjINT_EULER:
     mj_Euler(m, d);
     break;

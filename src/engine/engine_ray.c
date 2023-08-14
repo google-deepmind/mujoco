@@ -742,7 +742,7 @@ mjtNum mj_rayMesh(const mjModel* m, const mjData* d, int id,
 // intersect ray with pure geom, no meshes or hfields
 mjtNum mju_rayGeom(const mjtNum* pos, const mjtNum* mat, const mjtNum* size,
                    const mjtNum* pnt, const mjtNum* vec, int geomtype) {
-  switch (geomtype) {
+  switch ((mjtGeom) geomtype) {
   case mjGEOM_PLANE:
     return ray_plane(pos, mat, size, pnt, vec);
 

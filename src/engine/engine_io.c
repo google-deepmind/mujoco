@@ -1746,7 +1746,7 @@ const char* mj_validateReferences(const mjModel* m) {
   for (int i=0; i < m->neq; i++) {
     int obj1id = m->eq_obj1id[i];
     int obj2id = m->eq_obj2id[i];
-    switch (m->eq_type[i]) {
+    switch ((mjtEq) m->eq_type[i]) {
     case mjEQ_JOINT:
       if (obj1id >= m->njnt || obj1id < 0) {
         return "Invalid model: eq_obj1id out of bounds.";
@@ -1778,12 +1778,13 @@ const char* mj_validateReferences(const mjModel* m) {
       break;
 
     default:
+      // might occur in case of the now-removed distance equality constraint
       mjERROR("unknown equality constraint type.");
     }
   }
   for (int i=0; i < m->nwrap; i++) {
     int wrap_objid = m->wrap_objid[i];
-    switch (m->wrap_type[i]) {
+    switch ((mjtWrap) m->wrap_type[i]) {
     case mjWRAP_NONE:
     case mjWRAP_PULLEY:
       // wrap_objid not used.
@@ -1810,7 +1811,7 @@ const char* mj_validateReferences(const mjModel* m) {
     int actuator_trntype = m->actuator_trntype[i];
     int id = m->actuator_trnid[2*i];
     int idslider = m->actuator_trnid[2*i+1];
-    switch (actuator_trntype) {
+    switch ((mjtTrn) actuator_trntype) {
     case mjTRN_JOINT:
     case mjTRN_JOINTINPARENT:
       if (id < 0 || id >= m->njnt) {
@@ -1832,6 +1833,11 @@ const char* mj_validateReferences(const mjModel* m) {
         return "Invalid model: actuator_trnid out of bounds.";
       }
       if (idslider < 0 || idslider >= m->nsite) {
+        return "Invalid model: actuator_trnid out of bounds.";
+      }
+      break;
+    case mjTRN_BODY:
+      if (id < 0 || id >= m->nbody) {
         return "Invalid model: actuator_trnid out of bounds.";
       }
       break;

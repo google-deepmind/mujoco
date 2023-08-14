@@ -423,7 +423,7 @@ mjtNum mju_wrap(mjtNum* wpnt, const mjtNum* x0, const mjtNum* x1,
 // all 3 semi-axes of a geom
 void mju_geomSemiAxes(const mjModel* m, int geom_id, mjtNum semiaxes[3]) {
   mjtNum* size = m->geom_size + 3*geom_id;
-  switch (m->geom_type[geom_id]) {
+  switch ((mjtGeom) m->geom_type[geom_id]) {
   case mjGEOM_SPHERE:
     semiaxes[0] = size[0];
     semiaxes[1] = size[0];
@@ -782,7 +782,7 @@ int mju_round(mjtNum x) {
 
 // convert type id to type name
 const char* mju_type2Str(int type) {
-  switch (type) {
+  switch ((mjtObj) type) {
   case mjOBJ_BODY:
     return "body";
 
@@ -992,7 +992,7 @@ const char* mju_writeNumBytes(size_t nbytes) {
 const char* mju_warningText(int warning, size_t info) {
   static mjTHREADLOCAL char str[1000];
 
-  switch (warning) {
+  switch ((mjtWarning) warning) {
   case mjWARN_INERTIA:
     mjSNPRINTF(str, "Inertia matrix is too close to singular at DOF %zu. Check model.", info);
     break;

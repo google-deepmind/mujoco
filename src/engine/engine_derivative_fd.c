@@ -153,7 +153,7 @@ void mj_stepSkip(const mjModel* m, mjData* d, int skipstage, int skipsensor) {
   }
 
   // use selected integrator
-  switch (m->opt.integrator) {
+  switch ((mjtIntegrator) m->opt.integrator) {
   case mjINT_EULER:
     mj_EulerSkip(m, d, skipstage >= mjSTAGE_POS);
     break;

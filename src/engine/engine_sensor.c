@@ -134,7 +134,7 @@ static void apply_cutoff(const mjModel* m, mjData* d, mjtStage stage) {
 
 
 // get xpos and xmat pointers to an object in mjData
-static void get_xpos_xmat(const mjData* d, int type, int id, int sensor_id,
+static void get_xpos_xmat(const mjData* d, mjtObj type, int id, int sensor_id,
                           mjtNum **xpos, mjtNum **xmat) {
   switch (type) {
   case mjOBJ_XBODY:
@@ -163,7 +163,7 @@ static void get_xpos_xmat(const mjData* d, int type, int id, int sensor_id,
 }
 
 // get global quaternion of an object in mjData
-static void get_xquat(const mjModel* m, const mjData* d, int type, int id, int sensor_id,
+static void get_xquat(const mjModel* m, const mjData* d, mjtObj type, int id, int sensor_id,
                       mjtNum *quat) {
   switch (type) {
   case mjOBJ_XBODY:
@@ -216,7 +216,7 @@ void mj_sensorPos(const mjModel* m, mjData* d) {
       adr = m->sensor_adr[i];
 
       // process according to type
-      switch (m->sensor_type[i]) {
+      switch ((mjtSensor) m->sensor_type[i]) {
       case mjSENS_MAGNETOMETER:                           // magnetometer
         mju_mulMatTVec(d->sensordata+adr, d->site_xmat+9*objid, m->opt.magnetic, 3, 3);
         break;
@@ -376,7 +376,7 @@ void mj_sensorPos(const mjModel* m, mjData* d) {
 
 // velocity-dependent sensors
 void mj_sensorVel(const mjModel* m, mjData* d) {
-  int type, objtype, objid, reftype, refid, adr, nusersensor = 0;
+  int objtype, objid, reftype, refid, adr, nusersensor = 0;
   int ne = d->ne, nf = d->nf, nefc = d->nefc;
   mjtNum xvel[6];
 
@@ -395,7 +395,7 @@ void mj_sensorVel(const mjModel* m, mjData* d) {
 
     if (m->sensor_needstage[i] == mjSTAGE_VEL) {
       // get sensor info
-      type = m->sensor_type[i];
+      mjtSensor type = m->sensor_type[i];
       objtype = m->sensor_objtype[i];
       objid = m->sensor_objid[i];
       refid = m->sensor_refid[i];
@@ -564,7 +564,7 @@ void mj_sensorVel(const mjModel* m, mjData* d) {
 
 // acceleration/force-dependent sensors
 void mj_sensorAcc(const mjModel* m, mjData* d) {
-  int rootid, bodyid, type, objtype, objid, body1, body2, adr, nusersensor = 0;
+  int rootid, bodyid, objtype, objid, body1, body2, adr, nusersensor = 0;
   int ne = d->ne, nf = d->nf, nefc = d->nefc;
   mjtNum tmp[6], conforce[6], conray[3];
   mjContact* con;
@@ -584,7 +584,7 @@ void mj_sensorAcc(const mjModel* m, mjData* d) {
 
     if (m->sensor_needstage[i] == mjSTAGE_ACC) {
       // get sensor info
-      type =  m->sensor_type[i];
+      mjtSensor type =  m->sensor_type[i];
       objtype = m->sensor_objtype[i];
       objid = m->sensor_objid[i];
       adr = m->sensor_adr[i];
@@ -803,7 +803,7 @@ void mj_energyPos(const mjModel* m, mjData* d) {
       stiffness = m->jnt_stiffness[i];
       padr = m->jnt_qposadr[i];
 
-      switch (m->jnt_type[i]) {
+      switch ((mjtJoint) m->jnt_type[i]) {
       case mjJNT_FREE:
         mju_sub3(dif, d->qpos+padr, m->qpos_spring+padr);
         d->energy[0] += 0.5*stiffness*mju_dot3(dif, dif);

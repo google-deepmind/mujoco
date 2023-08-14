@@ -266,7 +266,7 @@ static void convert2D(mjtNum* res, int action, mjtNum dx, mjtNum dy, const mjtNu
   mjtNum vec[3];
 
   // construct 3D vector
-  switch (action) {
+  switch ((mjtMouse) action) {
   case mjMOUSE_ROTATE_V:
     vec[0] = dy;
     vec[1] = 0;
@@ -316,7 +316,7 @@ void mjv_moveCamera(const mjModel* m, int action, mjtNum reldx, mjtNum reldy,
   }
 
   // process action
-  switch (action) {
+  switch ((mjtMouse) action) {
   case mjMOUSE_ROTATE_V:
   case mjMOUSE_ROTATE_H:
     cam->azimuth -= reldx * 180.0;
@@ -384,7 +384,7 @@ void mjv_movePerturb(const mjModel* m, const mjData* d, int action, mjtNum reldx
   convert2D(vec, action, reldx, reldy, forward);
 
   // process action
-  switch (action) {
+  switch ((mjtMouse) action) {
   case mjMOUSE_MOVE_V:
   case mjMOUSE_MOVE_H:
     mju_addToScl3(pert->refpos, vec, pert->scale);
@@ -463,7 +463,7 @@ void mjv_moveModel(const mjModel* m, int action, mjtNum reldx, mjtNum reldy,
   mju_normalize3(roomright);
 
   // process action
-  switch (action) {
+  switch ((mjtMouse) action) {
   case mjMOUSE_ROTATE_V:
   case mjMOUSE_ROTATE_H:
     // construct rotation vector
