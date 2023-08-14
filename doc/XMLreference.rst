@@ -28,6 +28,8 @@ through elements and attributes. Text content in elements is not used; if presen
    **R**  optional element, can appear many times recursively
    ====== ===================================================
 
+   .. cssclass:: schema-small
+
    .. include:: XMLschema.rst
 
 

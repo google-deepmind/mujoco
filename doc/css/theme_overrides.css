@@ -18,6 +18,10 @@ body {
   color: var(--body-color);
 }
 
+.schema-small {
+  font-size: 93%;
+}
+
 .sidebar-brand-text {
   display: none;
 }
@@ -192,7 +196,7 @@ table.mjcf-attributes tbody tr td,
 table.mjcf-attributes tbody tr:nth-child(2n-1) td {
   border-style: none;
   padding: 0px 0px 0px 0px;
-  width: 33%;
+  width: 25%;
 }
 
 table.mjcf-attributes tbody tr td p {
