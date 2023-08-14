@@ -16,10 +16,10 @@
 
 #include <random>
 #include <string>
+#include <vector>
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
-
 #include <mujoco/mujoco.h>
 #include "test/fixture.h"
 
@@ -34,6 +34,7 @@ using ::testing::DoubleNear;
 using ::testing::ContainsRegex;
 using ::testing::MatchesRegex;
 using ::testing::Pointwise;
+using ::testing::ElementsAreArray;
 using JacobianTest = MujocoTest;
 static const mjtNum max_abs_err = std::numeric_limits<float>::epsilon();
 
@@ -403,6 +404,53 @@ TEST_F(SupportTest, GetSetStateStepEqual) {
 
   mj_deleteData(data);
   mj_deleteModel(model);
+}
+
+using AddMTest = MujocoTest;
+
+TEST_F(AddMTest, DenseSameAsSparse) {
+  mjModel* m = LoadModelFromPath("humanoid100/humanoid100.xml");
+  mjData* d = mj_makeData(m);
+  int nv = m->nv;
+
+  // force use of sparse matrices
+  m->opt.jacobian = mjJAC_SPARSE;
+
+  // warm-up rollout to get a typical state
+  while (d->time < 2) {
+    mj_step(m, d);
+  }
+
+  // dense zero matrix
+  std::vector<mjtNum> dst_sparse = std::vector(nv * nv, 0.0);
+
+  // sparse zero matrix
+  std::vector<mjtNum> dst_dense = std::vector(nv * nv, 0.0);
+  std::vector<int> rownnz = std::vector(nv, nv);
+  std::vector<int> rowadr = std::vector(nv, 0);
+  std::vector<int> colind = std::vector(nv * nv, 0);
+
+  // set sparse structure
+  for (int i = 0; i < nv; i++) {
+    rowadr[i] = i * nv;
+    for (int j = 0; j < nv; j++) {
+      colind[rowadr[i] + j] = j;
+    }
+  }
+
+  // sparse addM
+  mj_addM(m, d, dst_sparse.data(), rownnz.data(),
+          rowadr.data(), colind.data());
+
+  // dense addM
+  mj_addM(m, d, dst_dense.data(), NULL, NULL, NULL);
+
+  // dense comparison, should be same matrix
+  EXPECT_THAT(dst_dense, ElementsAreArray(dst_sparse));
+
+  // clean up
+  mj_deleteData(d);
+  mj_deleteModel(m);
 }
 
 }  // namespace
