@@ -413,315 +413,6 @@ disable length range computations altogether, include this element and set mode=
    larger, but in that case the results could be inaccurate.
 
 
-.. _option:
-
-**option** (*)
-~~~~~~~~~~~~~~
-
-This element is in one-to-one correspondence with the low level structure mjOption contained in the field mjModel.opt of
-mjModel. These are simulation options and do not affect the compilation process in any way; they are simply copied into
-the low level model. Even though mjOption can be modified by the user at runtime, it is nevertheless a good idea to
-adjust it properly through the XML.
-
-.. _option-timestep:
-
-:at:`timestep`: :at-val:`real, "0.002"`
-   Simulation time step in seconds. This is the single most important parameter affecting the speed-accuracy trade-off
-   which is inherent in every physics simulation. Smaller values result in better accuracy and stability. To achieve
-   real-time performance, the time step must be larger than the CPU time per step (or 4 times larger when using the RK4
-   integrator). The CPU time is measured with internal timers. It should be monitored when adjusting the time step.
-   MuJoCo can simulate most robotic systems a lot faster than real-time, however models with many floating objects
-   (resulting in many contacts) are more demanding computationally. Keep in mind that stability is determined not only
-   by the time step but also by the :ref:`CSolver`; in particular softer constraints can be simulated with larger time
-   steps. When fine-tuning a challenging model, it is recommended to experiment with both settings jointly. In
-   optimization-related applications, real-time is no longer good enough and instead it is desirable to run the
-   simulation as fast as possible. In that case the time step should be made as large as possible.
-
-.. _option-apirate:
-
-:at:`apirate`: :at-val:`real, "100"`
-   This parameter determines the rate (in Hz) at which an external API allows the update function to be executed. This
-   mechanism is used to simulate devices with limited communication bandwidth. It only affects the socket API and not
-   the physics simulation.
-
-.. _option-impratio:
-
-:at:`impratio`: :at-val:`real, "1"`
-   This attribute determines the ratio of frictional-to-normal constraint impedance for elliptic friction cones. The
-   setting of solimp determines a single impedance value for all contact dimensions, which is then modulated by this
-   attribute. Settings larger than 1 cause friction forces to be "harder" than normal forces, having the general effect
-   of preventing slip, without increasing the actual friction coefficient. For pyramidal friction cones the situation is
-   more complex because the pyramidal approximation mixes normal and frictional dimensions within each basis vector; but
-   the overall effect of this attribute is qualitatively similar.
-
-.. _option-gravity:
-
-:at:`gravity`: :at-val:`real(3), "0 0 -9.81"`
-   Gravitational acceleration vector. In the default world orientation the Z-axis points up. The MuJoCo GUI is organized
-   around this convention (both the camera and perturbation commands are based on it) so we do not recommend deviating
-   from it.
-
-.. _option-wind:
-
-:at:`wind`: :at-val:`real(3), "0 0 0"`
-   Velocity vector of the medium (i.e., wind). This vector is subtracted from the 3D translational velocity of each
-   body, and the result is used to compute viscous, lift and drag forces acting on the body; recall :ref:`Passive forces
-   <gePassive>` in the Computation chapter. The magnitude of these forces scales with the values of the next two
-   attributes.
-
-
-.. _option-magnetic:
-
-:at:`magnetic`: :at-val:`real(3), "0 -0.5 0"`
-   Global magnetic flux. This vector is used by magnetometer sensors, which are defined as sites and return the magnetic
-   flux at the site position expressed in the site frame.
-
-.. _option-density:
-
-:at:`density`: :at-val:`real, "0"`
-   Density of the medium, not to be confused with the geom density used to infer masses and inertias. This parameter is
-   used to simulate lift and drag forces, which scale quadratically with velocity. In SI units the density of air is
-   around 1.2 while the density of water is around 1000 depending on temperature. Setting density to 0 disables lift and
-   drag forces.
-
-.. _option-viscosity:
-
-:at:`viscosity`: :at-val:`real, "0"`
-   Viscosity of the medium. This parameter is used to simulate viscous forces, which scale linearly with velocity. In SI
-   units the viscosity of air is around 0.00002 while the viscosity of water is around 0.0009 depending on temperature.
-   Setting viscosity to 0 disables viscous forces. Note that the default Euler :ref:`integrator <geIntegration>` handles
-   damping in the joints implicitly – which improves stability and accuracy. It does not presently do this with body
-   viscosity. Therefore, if the goal is merely to create a damped simulation (as opposed to modeling the specific
-   effects of viscosity), we recommend using joint damping rather than body viscosity, or switching to the
-   :at:`implicit` or :at:`implicitfast` integrators.
-
-.. _option-o_margin:
-
-:at:`o_margin`: :at-val:`real, "0"`
-   This attribute replaces the margin parameter of all active contact pairs when :ref:`Contact override <COverride>` is
-   enabled. Otherwise MuJoCo uses the element-specific margin attribute of :ref:`geom <body-geom>` or :ref:`pair
-   <contact-pair>` depending on how the contact pair was generated. See also :ref:`Collision` in the Computation
-   chapter. The related gap parameter does not have a global override.
-
-.. _option-o_solref:
-
-.. _option-o_solimp:
-
-:at:`o_solref`, :at:`o_solimp`
-   These attributes replace the solref and solimp parameters of all active contact pairs when contact override is
-   enabled. See :ref:`CSolver` for details.
-
-.. _option-integrator:
-
-:at:`integrator`: :at-val:`[Euler, RK4, implicit, implicitfast], "Euler"`
-   This attribute selects the numerical :ref:`integrator <geIntegration>` to be used. Currently the available
-   integrators are the semi-implicit Euler method, the fixed-step 4-th order Runge Kutta method, the
-   Implicit-in-velocity Euler method, and :at:`implicitfast`, which drops the Coriolis and centrifugal terms. See
-   :ref:`Numerical Integration<geIntegration>` for more details.
-
-.. _option-collision:
-
-:at:`collision`: :at-val:`[all, predefined, dynamic], "all"`
-   This attribute specifies which geom pairs should be checked for collision; recall :ref:`Collision` in the Computation
-   chapter. "predefined" means that only the explicitly-defined contact :ref:`pairs <contact-pair>` are checked.
-   "dynamic" means that only the contact pairs generated dynamically are checked. "all" means that the contact pairs
-   from both sources are checked.
-
-.. _option-cone:
-
-:at:`cone`: :at-val:`[pyramidal, elliptic], "pyramidal"`
-   The type of contact friction cone. Elliptic cones are a better model of the physical reality, but pyramidal cones
-   sometimes make the solver faster and more robust.
-
-.. _option-jacobian:
-
-:at:`jacobian`: :at-val:`[dense, sparse, auto], "auto"`
-   The type of constraint Jacobian and matrices computed from it. Auto resolves to dense when the number of degrees of
-   freedom is up to 60, and sparse over 60.
-
-.. _option-solver:
-
-:at:`solver`: :at-val:`[PGS, CG, Newton], "Newton"`
-   This attribute selects one of the constraint solver :ref:`algorithms <soAlgorithms>` described in the Computation
-   chapter. Guidelines for solver selection and parameter tuning are available in the :ref:`Algorithms <CAlgorithms>`
-   section above.
-
-.. _option-iterations:
-
-:at:`iterations`: :at-val:`int, "100"`
-   Maximum number of iterations of the constraint solver. When the warmstart attribute of :ref:`flag <option-flag>` is
-   enabled (which is the default), accurate results are obtained with fewer iterations. Larger and more complex systems
-   with many interacting constraints require more iterations. Note that mjData.solver contains statistics about solver
-   convergence, also shown in the profiler.
-
-.. _option-tolerance:
-
-:at:`tolerance`: :at-val:`real, "1e-8"`
-   Tolerance threshold used for early termination of the iterative solver. For PGS, the threshold is applied to the cost
-   improvement between two iterations. For CG and Newton, it is applied to the smaller of the cost improvement and the
-   gradient norm. Set the tolerance to 0 to disable early termination.
-
-.. _option-noslip_iterations:
-
-:at:`noslip_iterations`: :at-val:`int, "0"`
-   Maximum number of iterations of the Noslip solver. This is a post-processing step executed after the main solver. It
-   uses a modified PGS method to suppress slip/drift in friction dimensions resulting from the soft-constraint model.
-   The default setting 0 disables this post-processing step.
-
-.. _option-noslip_tolerance:
-
-:at:`noslip_tolerance`: :at-val:`real, "1e-6"`
-   Tolerance threshold used for early termination of the Noslip solver.
-
-.. _option-mpr_iterations:
-
-:at:`mpr_iterations`: :at-val:`int, "50"`
-   Maximum number of iterations of the MPR algorithm used for convex mesh collisions. This rarely needs to be adjusted,
-   except in situations where some geoms have very large aspect ratios.
-
-.. _option-mpr_tolerance:
-
-:at:`mpr_tolerance`: :at-val:`real, "1e-6"`
-   Tolerance threshold used for early termination of the MPR algorithm.
-
-
-.. _option-flag:
-
-:el-prefix:`option/` |-| **flag** (?)
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-This element sets the flags that enable and disable different parts of the simulation pipeline. The actual flags used at
-runtime are represented as the bits of two integers, namely mjModel.opt.disableflags and mjModel.opt.enableflags, used
-to disable standard features and enable optional features respectively. The reason for this separation is that setting
-both integers to 0 restores the default. In the XML we do not make this separation explicit, except for the default
-attribute values - which are "enable" for flags corresponding to standard features, and "disable" for flags
-corresponding to optional features. In the documentation below, we explain what happens when the setting is different
-from its default.
-
-.. _option-flag-constraint:
-
-:at:`constraint`: :at-val:`[disable, enable], "enable"`
-   This flag disables all standard computations related to the constraint solver. As a result, no constraint forces are
-   applied. Note that the next four flags disable the computations related to a specific type of constraint. Both this
-   flag and the type-specific flag must be set to "enable" for a given computation to be performed.
-
-.. _option-flag-equality:
-
-:at:`equality`: :at-val:`[disable, enable], "enable"`
-   This flag disables all standard computations related to equality constraints.
-
-.. _option-flag-frictionloss:
-
-:at:`frictionloss`: :at-val:`[disable, enable], "enable"`
-   This flag disables all standard computations related to friction loss constraints.
-
-.. _option-flag-limit:
-
-:at:`limit`: :at-val:`[disable, enable], "enable"`
-   This flag disables all standard computations related to joint and tendon limit constraints.
-
-.. _option-flag-contact:
-
-:at:`contact`: :at-val:`[disable, enable], "enable"`
-   This flag disables all standard computations related to contact constraints.
-
-.. _option-flag-passive:
-
-:at:`passive`: :at-val:`[disable, enable], "enable"`
-   This flag disables the simulation of joint and tendon spring-dampers, fluid dynamics forces, and custom passive
-   forces computed by the :ref:`mjcb_passive` callback. As a result, no passive forces are applied.
-
-.. _option-flag-gravity:
-
-:at:`gravity`: :at-val:`[disable, enable], "enable"`
-   This flag causes the gravitational acceleration vector in mjOption to be replaced with (0 0 0) at runtime, without
-   changing the value in mjOption. Once the flag is re-enabled, the value in mjOption is used.
-
-.. _option-flag-clampctrl:
-
-:at:`clampctrl`: :at-val:`[disable, enable], "enable"`
-   This flag disables the clamping of control inputs to all actuators, even if the actuator-specific attributes are set
-   to enable clamping.
-
-.. _option-flag-warmstart:
-
-:at:`warmstart`: :at-val:`[disable, enable], "enable"`
-   This flag disables warm-starting of the constraint solver. By default the solver uses the solution (i.e., the
-   constraint force) from the previous time step to initialize the iterative optimization. This feature should be
-   disabled when evaluating the dynamics at a collection of states that do not form a trajectory - in which case warm
-   starts make no sense and are likely to slow down the solver.
-
-.. _option-flag-filterparent:
-
-:at:`filterparent`: :at-val:`[disable, enable], "enable"`
-   This flag disables the filtering of contact pairs where the two geoms belong to a parent and child body; recall
-   contact :ref:`selection <coSelection>` in the Computation chapter.
-
-.. _option-flag-actuation:
-
-:at:`actuation`: :at-val:`[disable, enable], "enable"`
-   This flag disables all standard computations related to actuator forces, including the actuator dynamics. As a
-   result, no actuator forces are applied to the simulation.
-
-.. _option-flag-refsafe:
-
-:at:`refsafe`: :at-val:`[disable, enable], "enable"`
-   This flag enables a safety mechanism that prevents instabilities due to solref[0] being too small compared to the
-   simulation timestep. Recall that solref[0] is the stiffness of the virtual spring-damper used for constraint
-   stabilization. If this setting is enabled, the solver uses max(solref[0], 2*timestep) in place of solref[0]
-   separately for each active constraint.
-
-.. _option-flag-sensor:
-
-:at:`sensor`: :at-val:`[disable, enable], "enable"`
-   This flag disables all computations related to sensors. When disabled, sensor values will remain constant, either
-   zeros if disabled at the start of simulation, or, if disabled at runtime, whatever value was last computed.
-
-.. _option-flag-override:
-
-:at:`override`: :at-val:`[disable, enable], "disable"`
-   This flag enables to :ref:`Contact override <COverride>` mechanism explained above.
-
-.. _option-flag-energy:
-
-:at:`energy`: :at-val:`[disable, enable], "disable"`
-   This flag enables the computation of kinetic and potential energy, stored in mjData.energy and displayed in the GUI.
-   This feature adds some CPU time but it is usually negligible. Monitoring energy for a system that is supposed to be
-   energy-conserving is one of the best ways to assess the accuracy of a complex simulation.
-
-.. _option-flag-fwdinv:
-
-:at:`fwdinv`: :at-val:`[disable, enable], "disable"`
-   This flag enables the automatic comparison of forward and inverse dynamics. When enabled, the inverse dynamics is
-   invoked after mj_forward (or internally within mj_step) and the difference in applied forces is recorded in
-   mjData.solver_fwdinv[2]. The first value is the relative norm of the discrepancy in joint space, the next is in
-   constraint space.
-
-.. _option-flag-sensornoise:
-
-:at:`sensornoise`: :at-val:`[disable, enable], "disable"`
-   This flag enables the simulation of sensor noise. When disabled (which is the default) noise is not added to
-   sensordata, even if the sensors specify non-zero noise amplitudes. When enabled, zero-mean Gaussian noise is added to
-   the underlying deterministic sensor data. Its standard deviation is determined by the noise parameter of each sensor.
-
-.. _option-flag-multiccd:
-
-:at:`multiccd`: :at-val:`[disable, enable], "disable"` |nbsp| |nbsp| |nbsp| (experimental feature)
-   This flag enables multiple-contact collision detection for geom pairs that use the general-purpose convex-convex
-   collider based on :ref:`libccd <coChecking>` e.g., mesh-mesh collisions. This can be useful when the contacting geoms
-   have a flat surface, and the single contact point generated by the convex-convex collider cannot accurately capture
-   the surface contact, leading to instabilities that typically manifest as sliding or wobbling. Multiple contact points
-   are found by rotating the two geoms by ±1e-3 radians around the tangential axes and re-running the collision
-   function. If a new contact is detected it is added, allowing for up to 4 additional contact points. This feature is
-   currently considered experimental, and both the behavior and the way it is activated may change in the future.
-
-.. _option-flag-midphase:
-
-:at:`midphase`: :at-val:`[disable, enable], "enable"`
-   This flag disables the mid-phase collision filtering using a static AABB bounding volume hierarchy (a BVH binary
-   tree). If disabled, all geoms pairs that are allowed to collide are checked for collisions.
-
-
 .. _size:
 
 **size** (*)
@@ -817,6 +508,58 @@ compilation.
 
 :at:`nuser_sensor`: :at-val:`int, "-1"`
    The number of custom user parameters added to the definition of each :ref:`sensor <sensor>`.
+
+
+.. _statistic:
+
+**statistic** (*)
+~~~~~~~~~~~~~~~~~
+
+This element is used to override model statistics computed by the compiler. These statistics are not only informational
+but are also used to scale various components of the rendering and perturbation. We provide an override mechanism in the
+XML because it is sometimes easier to adjust a small number of model statistics than a larger number of visual
+parameters.
+
+.. _statistic-meanmass:
+
+:at:`meanmass`: :at-val:`real, optional`
+   If this attribute is specified, it replaces the value of mjModel.stat.meanmass computed by the compiler. The computed
+   value is the average body mass, not counting the massless world body. At runtime this value scales the perturbation
+   force.
+
+.. _statistic-meaninertia:
+
+:at:`meaninertia`: :at-val:`real, optional`
+   If this attribute is specified, it replaces the value of mjModel.stat.meaninertia computed by the compiler. The
+   computed value is the average diagonal element of the joint-space inertia matrix when the model is in qpos0. At
+   runtime this value scales the solver cost and gradient used for early termination.
+
+.. _statistic-meansize:
+
+:at:`meansize`: :at-val:`real, optional`
+   If this attribute is specified, it replaces the value of ``mjModel.stat.meansize`` computed by the compiler. At
+   runtime this value multiplies the attributes of the :ref:`scale <visual-scale>` element above, and acts as their
+   length unit. If specific lengths are desired, it can be convenient to set :at:`meansize` to a round number like 1 or
+   0.01 so that :ref:`scale <visual-scale>` values are in recognized length units. This is the only semantic of
+   :at:`meansize` and setting it has no other side-effect. The automatically computed value is heuristic, representing
+   the average body radius. The heuristic is based on geom sizes when present, the distances between joints when
+   present, and the sizes of the body equivalent inertia boxes.
+
+.. _statistic-extent:
+
+:at:`extent`: :at-val:`real, optional`
+   If this attribute is specified, it replaces the value of mjModel.stat.extent computed by the compiler. The computed
+   value is half the side of the bounding box of the model in the initial configuration. At runtime this value is
+   multiplied by some of the attributes of the :ref:`map <visual-map>` element above. When the model is first loaded,
+   the free camera's initial distance from the :at:`center` (see below) is 1.5 times the :at:`extent`. Must be strictly
+   positive.
+
+.. _statistic-center:
+
+:at:`center`: :at-val:`real(3), optional`
+   If this attribute is specified, it replaces the value of mjModel.stat.center computed by the compiler. The computed
+   value is the center of the bounding box of the entire model in the initial configuration. This 3D vector is used to
+   center the view of the free camera when the model is first loaded.
 
 
 .. _visual:
@@ -1017,7 +760,7 @@ miscellaneous.
 :at:`force`: :at-val:`real, "0.005"`
    This attributes controls the visualization of both contact forces and perturbation forces. The length of the rendered
    force vector equals the force magnitude multiplied by the value of this attribute and divided by the mean body mass
-   for the model (see :ref:`statistic <statistic>` element below).
+   for the model (see :ref:`statistic <statistic>` element).
 
 .. _visual-map-torque:
 
@@ -1035,7 +778,7 @@ miscellaneous.
 
 :at:`fogstart`: :at-val:`real, "3"`
    The visualizer can simulate linear fog, in the sense of OpenGL. The start position of the fog is the model extent
-   (see :ref:`statistic <statistic>` element below) multiplied by the value of this attribute.
+   (see :ref:`statistic <statistic>` element) multiplied by the value of this attribute.
 
 .. _visual-map-fogend:
 
@@ -1090,7 +833,7 @@ miscellaneous.
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 The settings in this element control the spatial extent of various decorative objects. In all cases, the rendered size
-equals the mean body size (see :ref:`statistic <statistic>` element below) multiplied by the value of an attribute
+equals the mean body size (see :ref:`statistic <statistic>` element) multiplied by the value of an attribute
 documented below.
 
 .. _visual-scale-forcewidth:
@@ -1303,783 +1046,6 @@ disables the rendering of the corresponding object.
 :at:`crankbroken`: :at-val:`real(4), "0.9 0 0 1"`
    Color used to render the crank of slide-crank mechanisms, in model configurations where the specified rod length
    cannot be maintained, i.e., it is "broken".
-
-
-.. _statistic:
-
-**statistic** (*)
-~~~~~~~~~~~~~~~~~
-
-This element is used to override model statistics computed by the compiler. These statistics are not only informational
-but are also used to scale various components of the rendering and perturbation. We provide an override mechanism in the
-XML because it is sometimes easier to adjust a small number of model statistics than a larger number of visual
-parameters.
-
-.. _statistic-meanmass:
-
-:at:`meanmass`: :at-val:`real, optional`
-   If this attribute is specified, it replaces the value of mjModel.stat.meanmass computed by the compiler. The computed
-   value is the average body mass, not counting the massless world body. At runtime this value scales the perturbation
-   force.
-
-.. _statistic-meaninertia:
-
-:at:`meaninertia`: :at-val:`real, optional`
-   If this attribute is specified, it replaces the value of mjModel.stat.meaninertia computed by the compiler. The
-   computed value is the average diagonal element of the joint-space inertia matrix when the model is in qpos0. At
-   runtime this value scales the solver cost and gradient used for early termination.
-
-.. _statistic-meansize:
-
-:at:`meansize`: :at-val:`real, optional`
-   If this attribute is specified, it replaces the value of ``mjModel.stat.meansize`` computed by the compiler. At
-   runtime this value multiplies the attributes of the :ref:`scale <visual-scale>` element above, and acts as their
-   length unit. If specific lengths are desired, it can be convenient to set :at:`meansize` to a round number like 1 or
-   0.01 so that :ref:`scale <visual-scale>` values are in recognized length units. This is the only semantic of
-   :at:`meansize` and setting it has no other side-effect. The automatically computed value is heuristic, representing
-   the average body radius. The heuristic is based on geom sizes when present, the distances between joints when
-   present, and the sizes of the body equivalent inertia boxes.
-
-.. _statistic-extent:
-
-:at:`extent`: :at-val:`real, optional`
-   If this attribute is specified, it replaces the value of mjModel.stat.extent computed by the compiler. The computed
-   value is half the side of the bounding box of the model in the initial configuration. At runtime this value is
-   multiplied by some of the attributes of the :ref:`map <visual-map>` element above. When the model is first loaded,
-   the free camera's initial distance from the :at:`center` (see below) is 1.5 times the :at:`extent`. Must be strictly
-   positive.
-
-.. _statistic-center:
-
-:at:`center`: :at-val:`real(3), optional`
-   If this attribute is specified, it replaces the value of mjModel.stat.center computed by the compiler. The computed
-   value is the center of the bounding box of the entire model in the initial configuration. This 3D vector is used to
-   center the view of the free camera when the model is first loaded.
-
-
-.. _default:
-
-**default** (R)
-~~~~~~~~~~~~~~~
-
-This element is used to create a new defaults class; see :ref:`CDefault` above. Defaults classes can be nested,
-inheriting all attribute values from their parent. The top-level defaults class is always defined; it is called "main"
-if omitted.
-
-.. _default-class:
-
-:at:`class`: :at-val:`string, required (except at the top level)`
-   The name of the defaults class. It must be unique among all defaults classes. This name is used to make the class
-   active when creating an actual model element.
-
-
-.. _default-mesh:
-
-.. _default-mesh-scale:
-
-:el-prefix:`default/` |-| **mesh** (?)
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-| This element sets the attributes of the dummy :ref:`mesh <asset-mesh>` element of the defaults class.
-| The only mesh attribute available here is: :ref:`scale <asset-mesh-scale>`.
-
-
-.. _default-material:
-
-.. _default-material-texture:
-
-.. _default-material-emission:
-
-.. _default-material-specular:
-
-.. _default-material-shininess:
-
-.. _default-material-reflectance:
-
-.. _default-material-rgba:
-
-.. _default-material-texrepeat:
-
-.. _default-material-texuniform:
-
-:el-prefix:`default/` |-| **material** (?)
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-| This element sets the attributes of the dummy :ref:`material <asset-material>` element of the defaults class.
-| All material attributes are available here except: name, class.
-
-
-.. _default-joint:
-
-.. _default-joint-type:
-
-.. _default-joint-group:
-
-.. _default-joint-pos:
-
-.. _default-joint-axis:
-
-.. _default-joint-springdamper:
-
-.. _default-joint-limited:
-
-.. _default-joint-actuatorforcelimited:
-
-.. _default-joint-solreflimit:
-
-.. _default-joint-solimplimit:
-
-.. _default-joint-solreffriction:
-
-.. _default-joint-solimpfriction:
-
-.. _default-joint-stiffness:
-
-.. _default-joint-range:
-
-.. _default-joint-actuatorforcerange:
-
-.. _default-joint-margin:
-
-.. _default-joint-ref:
-
-.. _default-joint-springref:
-
-.. _default-joint-armature:
-
-.. _default-joint-damping:
-
-.. _default-joint-frictionloss:
-
-.. _default-joint-user:
-
-:el-prefix:`default/` |-| **joint** (?)
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-| This element sets the attributes of the dummy :ref:`joint <body-joint>` element of the defaults class.
-| All joint attributes are available here except: name, class.
-
-
-.. _default-geom:
-
-.. _default-geom-type:
-
-.. _default-geom-pos:
-
-.. _default-geom-quat:
-
-.. _default-geom-contype:
-
-.. _default-geom-conaffinity:
-
-.. _default-geom-condim:
-
-.. _default-geom-group:
-
-.. _default-geom-priority:
-
-.. _default-geom-size:
-
-.. _default-geom-material:
-
-.. _default-geom-friction:
-
-.. _default-geom-mass:
-
-.. _default-geom-density:
-
-.. _default-geom-shellinertia:
-
-.. _default-geom-solmix:
-
-.. _default-geom-solref:
-
-.. _default-geom-solimp:
-
-.. _default-geom-margin:
-
-.. _default-geom-gap:
-
-.. _default-geom-fromto:
-
-.. _default-geom-axisangle:
-
-.. _default-geom-xyaxes:
-
-.. _default-geom-zaxis:
-
-.. _default-geom-euler:
-
-.. _default-geom-hfield:
-
-.. _default-geom-mesh:
-
-.. _default-geom-fitscale:
-
-.. _default-geom-rgba:
-
-.. _default-geom-fluidshape:
-
-.. _default-geom-fluidcoef:
-
-.. _default-geom-user:
-
-:el-prefix:`default/` |-| **geom** (?)
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-| This element sets the attributes of the dummy :ref:`geom <body-geom>` element of the defaults class.
-| All geom attributes are available here except: name, class.
-
-
-.. _default-site:
-
-.. _default-site-type:
-
-.. _default-site-group:
-
-.. _default-site-pos:
-
-.. _default-site-quat:
-
-.. _default-site-material:
-
-.. _default-site-size:
-
-.. _default-site-fromto:
-
-.. _default-site-axisangle:
-
-.. _default-site-xyaxes:
-
-.. _default-site-zaxis:
-
-.. _default-site-euler:
-
-.. _default-site-rgba:
-
-.. _default-site-user:
-
-:el-prefix:`default/` |-| **site** (?)
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-| This element sets the attributes of the dummy :ref:`site <body-site>` element of the defaults class.
-| All site attributes are available here except: name, class.
-
-
-.. _default-camera:
-
-.. _default-camera-fovy:
-
-.. _default-camera-ipd:
-
-.. _default-camera-pos:
-
-.. _default-camera-quat:
-
-.. _default-camera-axisangle:
-
-.. _default-camera-xyaxes:
-
-.. _default-camera-zaxis:
-
-.. _default-camera-euler:
-
-.. _default-camera-mode:
-
-.. _default-camera-user:
-
-:el-prefix:`default/` |-| **camera** (?)
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-| This element sets the attributes of the dummy :ref:`camera <body-camera>` element of the defaults class.
-| All camera attributes are available here except: name, class.
-
-
-.. _default-light:
-
-.. _default-light-pos:
-
-.. _default-light-dir:
-
-.. _default-light-directional:
-
-.. _default-light-castshadow:
-
-.. _default-light-active:
-
-.. _default-light-attenuation:
-
-.. _default-light-cutoff:
-
-.. _default-light-exponent:
-
-.. _default-light-ambient:
-
-.. _default-light-diffuse:
-
-.. _default-light-specular:
-
-.. _default-light-mode:
-
-:el-prefix:`default/` |-| **light** (?)
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-| This element sets the attributes of the dummy :ref:`light <body-light>` element of the defaults class.
-| All light attributes are available here except: name, class.
-
-
-.. _default-pair:
-
-.. _default-pair-condim:
-
-.. _default-pair-friction:
-
-.. _default-pair-solref:
-
-.. _default-pair-solreffriction:
-
-.. _default-pair-solimp:
-
-.. _default-pair-gap:
-
-.. _default-pair-margin:
-
-:el-prefix:`default/` |-| **pair** (?)
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-| This element sets the attributes of the dummy :ref:`pair <contact-pair>` element of the defaults class.
-| All pair attributes are available here except: name, class, geom1, geom2.
-
-
-.. _default-equality:
-
-.. _default-equality-active:
-
-.. _default-equality-solref:
-
-.. _default-equality-solimp:
-
-:el-prefix:`default/` |-| **equality** (?)
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-| This element sets the attributes of the dummy :ref:`equality <equality>` element of the defaults class. The actual
-  equality constraints have types depending on the sub-element used to define them. However here we are setting
-  attributes common to all equality constraint types, which is why we do not make a distinction between types.
-| The equality sub-element attributes available here are: :at:`active`, :at:`solref`, :at:`solimp`.
-
-
-.. _default-tendon:
-
-.. _default-tendon-group:
-
-.. _default-tendon-limited:
-
-.. _default-tendon-range:
-
-.. _default-tendon-solreflimit:
-
-.. _default-tendon-solimplimit:
-
-.. _default-tendon-solreffriction:
-
-.. _default-tendon-solimpfriction:
-
-.. _default-tendon-frictionloss:
-
-.. _default-tendon-springlength:
-
-.. _default-tendon-width:
-
-.. _default-tendon-material:
-
-.. _default-tendon-margin:
-
-.. _default-tendon-stiffness:
-
-.. _default-tendon-damping:
-
-.. _default-tendon-rgba:
-
-.. _default-tendon-user:
-
-:el-prefix:`default/` |-| **tendon** (?)
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-| This element sets the attributes of the dummy :ref:`tendon <tendon>` element of the defaults class. Similar to
-  equality constraints, the actual tendons have types, but here we are setting attributes common to all types.
-| All tendon sub-element attributes are available here except: name, class.
-
-
-.. _default-general:
-
-.. _default-general-ctrllimited:
-
-.. _default-general-forcelimited:
-
-.. _default-general-actlimited:
-
-.. _default-general-ctrlrange:
-
-.. _default-general-forcerange:
-
-.. _default-general-actrange:
-
-.. _default-general-gear:
-
-.. _default-general-cranklength:
-
-.. _default-general-user:
-
-.. _default-general-group:
-
-.. _default-general-actdim:
-
-.. _default-general-dyntype:
-
-.. _default-general-gaintype:
-
-.. _default-general-biastype:
-
-.. _default-general-dynprm:
-
-.. _default-general-gainprm:
-
-.. _default-general-biasprm:
-
-.. _default-general-actearly:
-
-:el-prefix:`default/` |-| **general** (?)
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-| This element sets the attributes of the dummy :ref:`general <actuator-general>` element of the defaults class.
-| All general attributes are available here except: name, class, joint, jointinparent, site, tendon, slidersite,
-  cranksite.
-
-
-.. _default-motor:
-
-.. _default-motor-ctrllimited:
-
-.. _default-motor-forcelimited:
-
-.. _default-motor-ctrlrange:
-
-.. _default-motor-forcerange:
-
-.. _default-motor-gear:
-
-.. _default-motor-cranklength:
-
-.. _default-motor-user:
-
-.. _default-motor-group:
-
-:el-prefix:`default/` |-| **motor** (?)
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-This and the next three elements set the attributes of the :ref:`general <actuator-general>` element using
-:ref:`Actuator shortcuts <CActuator>`. It does not make sense to use more than one such shortcut in the same defaults
-class, because they set the same underlying attributes, replacing any previous settings. All
-:ref:`motor <actuator-motor>` attributes are available here except: name, class, joint, jointinparent, site, tendon,
-slidersite, cranksite.
-
-
-.. _default-position:
-
-.. _default-position-ctrllimited:
-
-.. _default-position-forcelimited:
-
-.. _default-position-ctrlrange:
-
-.. _default-position-forcerange:
-
-.. _default-position-gear:
-
-.. _default-position-cranklength:
-
-.. _default-position-user:
-
-.. _default-position-group:
-
-.. _default-position-kp:
-
-:el-prefix:`default/` |-| **position** (?)
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-All :ref:`position <actuator-position>` attributes are available here except: name, class, joint, jointinparent, site,
-tendon, slidersite, cranksite.
-
-
-.. _default-velocity:
-
-.. _default-velocity-ctrllimited:
-
-.. _default-velocity-forcelimited:
-
-.. _default-velocity-ctrlrange:
-
-.. _default-velocity-forcerange:
-
-.. _default-velocity-gear:
-
-.. _default-velocity-cranklength:
-
-.. _default-velocity-user:
-
-.. _default-velocity-group:
-
-.. _default-velocity-kv:
-
-:el-prefix:`default/` |-| **velocity** (?)
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-All :ref:`velocity <actuator-velocity>` attributes are available here except: name, class, joint, jointinparent, site,
-tendon, slidersite, cranksite.
-
-
-.. _default-intvelocity:
-
-.. _default-intvelocity-ctrllimited:
-
-.. _default-intvelocity-forcelimited:
-
-.. _default-intvelocity-ctrlrange:
-
-.. _default-intvelocity-forcerange:
-
-.. _default-intvelocity-actrange:
-
-.. _default-intvelocity-gear:
-
-.. _default-intvelocity-cranklength:
-
-.. _default-intvelocity-user:
-
-.. _default-intvelocity-group:
-
-.. _default-intvelocity-kp:
-
-:el-prefix:`default/` |-| **intvelocity** (?)
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-All :ref:`intvelocity <actuator-intvelocity>` attributes are available here except: name, class, joint, jointinparent,
-site, tendon, slidersite, cranksite.
-
-
-.. _default-damper:
-
-.. _default-damper-forcelimited:
-
-.. _default-damper-ctrlrange:
-
-.. _default-damper-forcerange:
-
-.. _default-damper-gear:
-
-.. _default-damper-cranklength:
-
-.. _default-damper-user:
-
-.. _default-damper-group:
-
-.. _default-damper-kv:
-
-:el-prefix:`default/` |-| **damper** (?)
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-All :ref:`damper <actuator-damper>` attributes are available here except: name, class, joint, jointinparent, site,
-tendon, slidersite, cranksite.
-
-
-.. _default-cylinder:
-
-.. _default-cylinder-ctrllimited:
-
-.. _default-cylinder-forcelimited:
-
-.. _default-cylinder-ctrlrange:
-
-.. _default-cylinder-forcerange:
-
-.. _default-cylinder-gear:
-
-.. _default-cylinder-cranklength:
-
-.. _default-cylinder-user:
-
-.. _default-cylinder-group:
-
-.. _default-cylinder-timeconst:
-
-.. _default-cylinder-area:
-
-.. _default-cylinder-diameter:
-
-.. _default-cylinder-bias:
-
-:el-prefix:`default/` |-| **cylinder** (?)
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-All :ref:`cylinder <actuator-cylinder>` attributes are available here except: name, class, joint, jointinparent, site,
-tendon, slidersite, cranksite.
-
-
-.. _default-muscle:
-
-.. _default-muscle-ctrllimited:
-
-.. _default-muscle-forcelimited:
-
-.. _default-muscle-ctrlrange:
-
-.. _default-muscle-forcerange:
-
-.. _default-muscle-gear:
-
-.. _default-muscle-cranklength:
-
-.. _default-muscle-user:
-
-.. _default-muscle-group:
-
-.. _default-muscle-timeconst:
-
-.. _default-muscle-range:
-
-.. _default-muscle-force:
-
-.. _default-muscle-scale:
-
-.. _default-muscle-lmin:
-
-.. _default-muscle-lmax:
-
-.. _default-muscle-vmax:
-
-.. _default-muscle-fpmax:
-
-.. _default-muscle-fvmax:
-
-:el-prefix:`default/` |-| **muscle** (?)
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-All :ref:`muscle <actuator-muscle>` attributes are available here except: name, class, joint, jointinparent, site,
-tendon, slidersite, cranksite.
-
-
-.. _default-adhesion:
-
-.. _default-adhesion-forcelimited:
-
-.. _default-adhesion-ctrlrange:
-
-.. _default-adhesion-forcerange:
-
-.. _default-adhesion-gain:
-
-.. _default-adhesion-user:
-
-.. _default-adhesion-group:
-
-:el-prefix:`default/` |-| **adhesion** (?)
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-All :ref:`adhesion <actuator-adhesion>` attributes are available here except: name, class, body.
-
-
-.. _custom:
-
-**custom** (*)
-~~~~~~~~~~~~~~
-
-This is a grouping element for custom numeric and text elements. It does not have attributes.
-
-
-.. _custom-numeric:
-
-:el-prefix:`custom/` |-| **numeric** (*)
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-This element creates a custom numeric array in mjModel.
-
-.. _custom-numeric-name:
-
-:at:`name`: :at-val:`string, required`
-   The name of the array. This attribute is required because the only way to find a custom element of interest at
-   runtime is through its name.
-
-.. _custom-numeric-size:
-
-:at:`size`: :at-val:`int, optional`
-   If specified this attribute sets the size of the data array, in doubles. If this attribute is not specified, the size
-   will be inferred from the actual data array below.
-
-.. _custom-numeric-data:
-
-:at:`data`: :at-val:`real(size), "0 0 ..."`
-   Numeric data to be copied into mjModel. If size is specified, the length of the array given here cannot exceed the
-   specified size. If the length of the array is smaller, the missing components are set to 0. Note that custom arrays
-   can be created for storing information at runtime - which is why data initialization is optional. It becomes required
-   only when the array size is omitted.
-
-
-.. _custom-text:
-
-:el-prefix:`custom/` |-| **text** (*)
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-This element creates a custom text field in mjModel. It could be used to store keyword commands for user callbacks and
-other custom computations.
-
-.. _custom-text-name:
-
-:at:`name`: :at-val:`string, required`
-   Name of the custom text field.
-
-.. _custom-text-data:
-
-:at:`data`: :at-val:`string, required`
-   Custom text to be copied into mjModel.
-
-
-.. _custom-tuple:
-
-:el-prefix:`custom/` |-| **tuple** (*)
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-This element creates a custom tuple, which is a list of MuJoCo objects. The list is created by referencing the desired
-objects by name.
-
-.. _custom-tuple-name:
-
-:at:`name`: :at-val:`string, required`
-   Name of the custom tuple.
-
-
-.. _tuple-element:
-
-:el-prefix:`tuple/` |-| **element** (*)
-'''''''''''''''''''''''''''''''''''''''
-
-This adds an element to the tuple.
-
-
-.. _tuple-element-objtype:
-
-:at:`objtype`: :at-val:`(any element type that can be named), required`
-   Type of the object being added.
-
-.. _tuple-element-objname:
-
-:at:`objname`: :at-val:`string, required`
-   Name of the object being added. The type and name must reference a named MuJoCo element defined somewhere in the
-   model. Tuples can also be referenced (including self-references).
-
-.. _tuple-element-prm:
-
-:at:`prm`: :at-val:`real, "0"`
-   Real-valued parameter associated with this element of the tuple. Its use is up to the user.
 
 
 .. _asset:
@@ -2838,6 +1804,315 @@ properties are grouped together.
    the default value of "1 1 1 1" has the effect of leaving the texture unchanged. When the material is applied to a
    model element which defines its own local rgba attribute, the local definition has precedence. Note that this "local"
    definition could in fact come from a defaults class. The remaining material properties always apply.
+
+
+.. _option:
+
+**option** (*)
+~~~~~~~~~~~~~~
+
+This element is in one-to-one correspondence with the low level structure mjOption contained in the field mjModel.opt of
+mjModel. These are simulation options and do not affect the compilation process in any way; they are simply copied into
+the low level model. Even though mjOption can be modified by the user at runtime, it is nevertheless a good idea to
+adjust it properly through the XML.
+
+.. _option-timestep:
+
+:at:`timestep`: :at-val:`real, "0.002"`
+   Simulation time step in seconds. This is the single most important parameter affecting the speed-accuracy trade-off
+   which is inherent in every physics simulation. Smaller values result in better accuracy and stability. To achieve
+   real-time performance, the time step must be larger than the CPU time per step (or 4 times larger when using the RK4
+   integrator). The CPU time is measured with internal timers. It should be monitored when adjusting the time step.
+   MuJoCo can simulate most robotic systems a lot faster than real-time, however models with many floating objects
+   (resulting in many contacts) are more demanding computationally. Keep in mind that stability is determined not only
+   by the time step but also by the :ref:`CSolver`; in particular softer constraints can be simulated with larger time
+   steps. When fine-tuning a challenging model, it is recommended to experiment with both settings jointly. In
+   optimization-related applications, real-time is no longer good enough and instead it is desirable to run the
+   simulation as fast as possible. In that case the time step should be made as large as possible.
+
+.. _option-apirate:
+
+:at:`apirate`: :at-val:`real, "100"`
+   This parameter determines the rate (in Hz) at which an external API allows the update function to be executed. This
+   mechanism is used to simulate devices with limited communication bandwidth. It only affects the socket API and not
+   the physics simulation.
+
+.. _option-impratio:
+
+:at:`impratio`: :at-val:`real, "1"`
+   This attribute determines the ratio of frictional-to-normal constraint impedance for elliptic friction cones. The
+   setting of solimp determines a single impedance value for all contact dimensions, which is then modulated by this
+   attribute. Settings larger than 1 cause friction forces to be "harder" than normal forces, having the general effect
+   of preventing slip, without increasing the actual friction coefficient. For pyramidal friction cones the situation is
+   more complex because the pyramidal approximation mixes normal and frictional dimensions within each basis vector; but
+   the overall effect of this attribute is qualitatively similar.
+
+.. _option-gravity:
+
+:at:`gravity`: :at-val:`real(3), "0 0 -9.81"`
+   Gravitational acceleration vector. In the default world orientation the Z-axis points up. The MuJoCo GUI is organized
+   around this convention (both the camera and perturbation commands are based on it) so we do not recommend deviating
+   from it.
+
+.. _option-wind:
+
+:at:`wind`: :at-val:`real(3), "0 0 0"`
+   Velocity vector of the medium (i.e., wind). This vector is subtracted from the 3D translational velocity of each
+   body, and the result is used to compute viscous, lift and drag forces acting on the body; recall :ref:`Passive forces
+   <gePassive>` in the Computation chapter. The magnitude of these forces scales with the values of the next two
+   attributes.
+
+
+.. _option-magnetic:
+
+:at:`magnetic`: :at-val:`real(3), "0 -0.5 0"`
+   Global magnetic flux. This vector is used by magnetometer sensors, which are defined as sites and return the magnetic
+   flux at the site position expressed in the site frame.
+
+.. _option-density:
+
+:at:`density`: :at-val:`real, "0"`
+   Density of the medium, not to be confused with the geom density used to infer masses and inertias. This parameter is
+   used to simulate lift and drag forces, which scale quadratically with velocity. In SI units the density of air is
+   around 1.2 while the density of water is around 1000 depending on temperature. Setting density to 0 disables lift and
+   drag forces.
+
+.. _option-viscosity:
+
+:at:`viscosity`: :at-val:`real, "0"`
+   Viscosity of the medium. This parameter is used to simulate viscous forces, which scale linearly with velocity. In SI
+   units the viscosity of air is around 0.00002 while the viscosity of water is around 0.0009 depending on temperature.
+   Setting viscosity to 0 disables viscous forces. Note that the default Euler :ref:`integrator <geIntegration>` handles
+   damping in the joints implicitly – which improves stability and accuracy. It does not presently do this with body
+   viscosity. Therefore, if the goal is merely to create a damped simulation (as opposed to modeling the specific
+   effects of viscosity), we recommend using joint damping rather than body viscosity, or switching to the
+   :at:`implicit` or :at:`implicitfast` integrators.
+
+.. _option-o_margin:
+
+:at:`o_margin`: :at-val:`real, "0"`
+   This attribute replaces the margin parameter of all active contact pairs when :ref:`Contact override <COverride>` is
+   enabled. Otherwise MuJoCo uses the element-specific margin attribute of :ref:`geom <body-geom>` or :ref:`pair
+   <contact-pair>` depending on how the contact pair was generated. See also :ref:`Collision` in the Computation
+   chapter. The related gap parameter does not have a global override.
+
+.. _option-o_solref:
+
+.. _option-o_solimp:
+
+:at:`o_solref`, :at:`o_solimp`
+   These attributes replace the solref and solimp parameters of all active contact pairs when contact override is
+   enabled. See :ref:`CSolver` for details.
+
+.. _option-integrator:
+
+:at:`integrator`: :at-val:`[Euler, RK4, implicit, implicitfast], "Euler"`
+   This attribute selects the numerical :ref:`integrator <geIntegration>` to be used. Currently the available
+   integrators are the semi-implicit Euler method, the fixed-step 4-th order Runge Kutta method, the
+   Implicit-in-velocity Euler method, and :at:`implicitfast`, which drops the Coriolis and centrifugal terms. See
+   :ref:`Numerical Integration<geIntegration>` for more details.
+
+.. _option-collision:
+
+:at:`collision`: :at-val:`[all, predefined, dynamic], "all"`
+   This attribute specifies which geom pairs should be checked for collision; recall :ref:`Collision` in the Computation
+   chapter. "predefined" means that only the explicitly-defined contact :ref:`pairs <contact-pair>` are checked.
+   "dynamic" means that only the contact pairs generated dynamically are checked. "all" means that the contact pairs
+   from both sources are checked.
+
+.. _option-cone:
+
+:at:`cone`: :at-val:`[pyramidal, elliptic], "pyramidal"`
+   The type of contact friction cone. Elliptic cones are a better model of the physical reality, but pyramidal cones
+   sometimes make the solver faster and more robust.
+
+.. _option-jacobian:
+
+:at:`jacobian`: :at-val:`[dense, sparse, auto], "auto"`
+   The type of constraint Jacobian and matrices computed from it. Auto resolves to dense when the number of degrees of
+   freedom is up to 60, and sparse over 60.
+
+.. _option-solver:
+
+:at:`solver`: :at-val:`[PGS, CG, Newton], "Newton"`
+   This attribute selects one of the constraint solver :ref:`algorithms <soAlgorithms>` described in the Computation
+   chapter. Guidelines for solver selection and parameter tuning are available in the :ref:`Algorithms <CAlgorithms>`
+   section above.
+
+.. _option-iterations:
+
+:at:`iterations`: :at-val:`int, "100"`
+   Maximum number of iterations of the constraint solver. When the warmstart attribute of :ref:`flag <option-flag>` is
+   enabled (which is the default), accurate results are obtained with fewer iterations. Larger and more complex systems
+   with many interacting constraints require more iterations. Note that mjData.solver contains statistics about solver
+   convergence, also shown in the profiler.
+
+.. _option-tolerance:
+
+:at:`tolerance`: :at-val:`real, "1e-8"`
+   Tolerance threshold used for early termination of the iterative solver. For PGS, the threshold is applied to the cost
+   improvement between two iterations. For CG and Newton, it is applied to the smaller of the cost improvement and the
+   gradient norm. Set the tolerance to 0 to disable early termination.
+
+.. _option-noslip_iterations:
+
+:at:`noslip_iterations`: :at-val:`int, "0"`
+   Maximum number of iterations of the Noslip solver. This is a post-processing step executed after the main solver. It
+   uses a modified PGS method to suppress slip/drift in friction dimensions resulting from the soft-constraint model.
+   The default setting 0 disables this post-processing step.
+
+.. _option-noslip_tolerance:
+
+:at:`noslip_tolerance`: :at-val:`real, "1e-6"`
+   Tolerance threshold used for early termination of the Noslip solver.
+
+.. _option-mpr_iterations:
+
+:at:`mpr_iterations`: :at-val:`int, "50"`
+   Maximum number of iterations of the MPR algorithm used for convex mesh collisions. This rarely needs to be adjusted,
+   except in situations where some geoms have very large aspect ratios.
+
+.. _option-mpr_tolerance:
+
+:at:`mpr_tolerance`: :at-val:`real, "1e-6"`
+   Tolerance threshold used for early termination of the MPR algorithm.
+
+
+.. _option-flag:
+
+:el-prefix:`option/` |-| **flag** (?)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+This element sets the flags that enable and disable different parts of the simulation pipeline. The actual flags used at
+runtime are represented as the bits of two integers, namely mjModel.opt.disableflags and mjModel.opt.enableflags, used
+to disable standard features and enable optional features respectively. The reason for this separation is that setting
+both integers to 0 restores the default. In the XML we do not make this separation explicit, except for the default
+attribute values - which are "enable" for flags corresponding to standard features, and "disable" for flags
+corresponding to optional features. In the documentation below, we explain what happens when the setting is different
+from its default.
+
+.. _option-flag-constraint:
+
+:at:`constraint`: :at-val:`[disable, enable], "enable"`
+   This flag disables all standard computations related to the constraint solver. As a result, no constraint forces are
+   applied. Note that the next four flags disable the computations related to a specific type of constraint. Both this
+   flag and the type-specific flag must be set to "enable" for a given computation to be performed.
+
+.. _option-flag-equality:
+
+:at:`equality`: :at-val:`[disable, enable], "enable"`
+   This flag disables all standard computations related to equality constraints.
+
+.. _option-flag-frictionloss:
+
+:at:`frictionloss`: :at-val:`[disable, enable], "enable"`
+   This flag disables all standard computations related to friction loss constraints.
+
+.. _option-flag-limit:
+
+:at:`limit`: :at-val:`[disable, enable], "enable"`
+   This flag disables all standard computations related to joint and tendon limit constraints.
+
+.. _option-flag-contact:
+
+:at:`contact`: :at-val:`[disable, enable], "enable"`
+   This flag disables all standard computations related to contact constraints.
+
+.. _option-flag-passive:
+
+:at:`passive`: :at-val:`[disable, enable], "enable"`
+   This flag disables the simulation of joint and tendon spring-dampers, fluid dynamics forces, and custom passive
+   forces computed by the :ref:`mjcb_passive` callback. As a result, no passive forces are applied.
+
+.. _option-flag-gravity:
+
+:at:`gravity`: :at-val:`[disable, enable], "enable"`
+   This flag causes the gravitational acceleration vector in mjOption to be replaced with (0 0 0) at runtime, without
+   changing the value in mjOption. Once the flag is re-enabled, the value in mjOption is used.
+
+.. _option-flag-clampctrl:
+
+:at:`clampctrl`: :at-val:`[disable, enable], "enable"`
+   This flag disables the clamping of control inputs to all actuators, even if the actuator-specific attributes are set
+   to enable clamping.
+
+.. _option-flag-warmstart:
+
+:at:`warmstart`: :at-val:`[disable, enable], "enable"`
+   This flag disables warm-starting of the constraint solver. By default the solver uses the solution (i.e., the
+   constraint force) from the previous time step to initialize the iterative optimization. This feature should be
+   disabled when evaluating the dynamics at a collection of states that do not form a trajectory - in which case warm
+   starts make no sense and are likely to slow down the solver.
+
+.. _option-flag-filterparent:
+
+:at:`filterparent`: :at-val:`[disable, enable], "enable"`
+   This flag disables the filtering of contact pairs where the two geoms belong to a parent and child body; recall
+   contact :ref:`selection <coSelection>` in the Computation chapter.
+
+.. _option-flag-actuation:
+
+:at:`actuation`: :at-val:`[disable, enable], "enable"`
+   This flag disables all standard computations related to actuator forces, including the actuator dynamics. As a
+   result, no actuator forces are applied to the simulation.
+
+.. _option-flag-refsafe:
+
+:at:`refsafe`: :at-val:`[disable, enable], "enable"`
+   This flag enables a safety mechanism that prevents instabilities due to solref[0] being too small compared to the
+   simulation timestep. Recall that solref[0] is the stiffness of the virtual spring-damper used for constraint
+   stabilization. If this setting is enabled, the solver uses max(solref[0], 2*timestep) in place of solref[0]
+   separately for each active constraint.
+
+.. _option-flag-sensor:
+
+:at:`sensor`: :at-val:`[disable, enable], "enable"`
+   This flag disables all computations related to sensors. When disabled, sensor values will remain constant, either
+   zeros if disabled at the start of simulation, or, if disabled at runtime, whatever value was last computed.
+
+.. _option-flag-override:
+
+:at:`override`: :at-val:`[disable, enable], "disable"`
+   This flag enables to :ref:`Contact override <COverride>` mechanism explained above.
+
+.. _option-flag-energy:
+
+:at:`energy`: :at-val:`[disable, enable], "disable"`
+   This flag enables the computation of kinetic and potential energy, stored in mjData.energy and displayed in the GUI.
+   This feature adds some CPU time but it is usually negligible. Monitoring energy for a system that is supposed to be
+   energy-conserving is one of the best ways to assess the accuracy of a complex simulation.
+
+.. _option-flag-fwdinv:
+
+:at:`fwdinv`: :at-val:`[disable, enable], "disable"`
+   This flag enables the automatic comparison of forward and inverse dynamics. When enabled, the inverse dynamics is
+   invoked after mj_forward (or internally within mj_step) and the difference in applied forces is recorded in
+   mjData.solver_fwdinv[2]. The first value is the relative norm of the discrepancy in joint space, the next is in
+   constraint space.
+
+.. _option-flag-sensornoise:
+
+:at:`sensornoise`: :at-val:`[disable, enable], "disable"`
+   This flag enables the simulation of sensor noise. When disabled (which is the default) noise is not added to
+   sensordata, even if the sensors specify non-zero noise amplitudes. When enabled, zero-mean Gaussian noise is added to
+   the underlying deterministic sensor data. Its standard deviation is determined by the noise parameter of each sensor.
+
+.. _option-flag-multiccd:
+
+:at:`multiccd`: :at-val:`[disable, enable], "disable"` |nbsp| |nbsp| |nbsp| (experimental feature)
+   This flag enables multiple-contact collision detection for geom pairs that use the general-purpose convex-convex
+   collider based on :ref:`libccd <coChecking>` e.g., mesh-mesh collisions. This can be useful when the contacting geoms
+   have a flat surface, and the single contact point generated by the convex-convex collider cannot accurately capture
+   the surface contact, leading to instabilities that typically manifest as sliding or wobbling. Multiple contact points
+   are found by rotating the two geoms by ±1e-3 radians around the tangential axes and re-running the collision
+   function. If a new contact is detected it is added, allowing for up to 4 additional contact points. This feature is
+   currently considered experimental, and both the behavior and the way it is activated may change in the future.
+
+.. _option-flag-midphase:
+
+:at:`midphase`: :at-val:`[disable, enable], "enable"`
+   This flag disables the mid-phase collision filtering using a static AABB bounding volume hierarchy (a BVH binary
+   tree). If disabled, all geoms pairs that are allowed to collide are checked for collisions.
 
 
 .. _body:
@@ -7074,6 +6349,732 @@ This element sets the data for one of the keyframes. They are set in the order i
 
 :at:`mquat`: :at-val:`real(4*mjModel.nmocap), default = mjModel.body_quat`
    Vector of mocap body quaternions, copied into mjData.mocap_quat when the simulation state is set to this keyframe.
+
+
+.. _default:
+
+**default** (R)
+~~~~~~~~~~~~~~~
+
+This element is used to create a new defaults class; see :ref:`CDefault` above. Defaults classes can be nested,
+inheriting all attribute values from their parent. The top-level defaults class is always defined; it is called "main"
+if omitted.
+
+.. _default-class:
+
+:at:`class`: :at-val:`string, required (except at the top level)`
+   The name of the defaults class. It must be unique among all defaults classes. This name is used to make the class
+   active when creating an actual model element.
+
+
+.. _default-mesh:
+
+.. _default-mesh-scale:
+
+:el-prefix:`default/` |-| **mesh** (?)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+| This element sets the attributes of the dummy :ref:`mesh <asset-mesh>` element of the defaults class.
+| The only mesh attribute available here is: :ref:`scale <asset-mesh-scale>`.
+
+
+.. _default-material:
+
+.. _default-material-texture:
+
+.. _default-material-emission:
+
+.. _default-material-specular:
+
+.. _default-material-shininess:
+
+.. _default-material-reflectance:
+
+.. _default-material-rgba:
+
+.. _default-material-texrepeat:
+
+.. _default-material-texuniform:
+
+:el-prefix:`default/` |-| **material** (?)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+| This element sets the attributes of the dummy :ref:`material <asset-material>` element of the defaults class.
+| All material attributes are available here except: name, class.
+
+
+.. _default-joint:
+
+.. _default-joint-type:
+
+.. _default-joint-group:
+
+.. _default-joint-pos:
+
+.. _default-joint-axis:
+
+.. _default-joint-springdamper:
+
+.. _default-joint-limited:
+
+.. _default-joint-actuatorforcelimited:
+
+.. _default-joint-solreflimit:
+
+.. _default-joint-solimplimit:
+
+.. _default-joint-solreffriction:
+
+.. _default-joint-solimpfriction:
+
+.. _default-joint-stiffness:
+
+.. _default-joint-range:
+
+.. _default-joint-actuatorforcerange:
+
+.. _default-joint-margin:
+
+.. _default-joint-ref:
+
+.. _default-joint-springref:
+
+.. _default-joint-armature:
+
+.. _default-joint-damping:
+
+.. _default-joint-frictionloss:
+
+.. _default-joint-user:
+
+:el-prefix:`default/` |-| **joint** (?)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+| This element sets the attributes of the dummy :ref:`joint <body-joint>` element of the defaults class.
+| All joint attributes are available here except: name, class.
+
+
+.. _default-geom:
+
+.. _default-geom-type:
+
+.. _default-geom-pos:
+
+.. _default-geom-quat:
+
+.. _default-geom-contype:
+
+.. _default-geom-conaffinity:
+
+.. _default-geom-condim:
+
+.. _default-geom-group:
+
+.. _default-geom-priority:
+
+.. _default-geom-size:
+
+.. _default-geom-material:
+
+.. _default-geom-friction:
+
+.. _default-geom-mass:
+
+.. _default-geom-density:
+
+.. _default-geom-shellinertia:
+
+.. _default-geom-solmix:
+
+.. _default-geom-solref:
+
+.. _default-geom-solimp:
+
+.. _default-geom-margin:
+
+.. _default-geom-gap:
+
+.. _default-geom-fromto:
+
+.. _default-geom-axisangle:
+
+.. _default-geom-xyaxes:
+
+.. _default-geom-zaxis:
+
+.. _default-geom-euler:
+
+.. _default-geom-hfield:
+
+.. _default-geom-mesh:
+
+.. _default-geom-fitscale:
+
+.. _default-geom-rgba:
+
+.. _default-geom-fluidshape:
+
+.. _default-geom-fluidcoef:
+
+.. _default-geom-user:
+
+:el-prefix:`default/` |-| **geom** (?)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+| This element sets the attributes of the dummy :ref:`geom <body-geom>` element of the defaults class.
+| All geom attributes are available here except: name, class.
+
+
+.. _default-site:
+
+.. _default-site-type:
+
+.. _default-site-group:
+
+.. _default-site-pos:
+
+.. _default-site-quat:
+
+.. _default-site-material:
+
+.. _default-site-size:
+
+.. _default-site-fromto:
+
+.. _default-site-axisangle:
+
+.. _default-site-xyaxes:
+
+.. _default-site-zaxis:
+
+.. _default-site-euler:
+
+.. _default-site-rgba:
+
+.. _default-site-user:
+
+:el-prefix:`default/` |-| **site** (?)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+| This element sets the attributes of the dummy :ref:`site <body-site>` element of the defaults class.
+| All site attributes are available here except: name, class.
+
+
+.. _default-camera:
+
+.. _default-camera-fovy:
+
+.. _default-camera-ipd:
+
+.. _default-camera-pos:
+
+.. _default-camera-quat:
+
+.. _default-camera-axisangle:
+
+.. _default-camera-xyaxes:
+
+.. _default-camera-zaxis:
+
+.. _default-camera-euler:
+
+.. _default-camera-mode:
+
+.. _default-camera-user:
+
+:el-prefix:`default/` |-| **camera** (?)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+| This element sets the attributes of the dummy :ref:`camera <body-camera>` element of the defaults class.
+| All camera attributes are available here except: name, class.
+
+
+.. _default-light:
+
+.. _default-light-pos:
+
+.. _default-light-dir:
+
+.. _default-light-directional:
+
+.. _default-light-castshadow:
+
+.. _default-light-active:
+
+.. _default-light-attenuation:
+
+.. _default-light-cutoff:
+
+.. _default-light-exponent:
+
+.. _default-light-ambient:
+
+.. _default-light-diffuse:
+
+.. _default-light-specular:
+
+.. _default-light-mode:
+
+:el-prefix:`default/` |-| **light** (?)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+| This element sets the attributes of the dummy :ref:`light <body-light>` element of the defaults class.
+| All light attributes are available here except: name, class.
+
+
+.. _default-pair:
+
+.. _default-pair-condim:
+
+.. _default-pair-friction:
+
+.. _default-pair-solref:
+
+.. _default-pair-solreffriction:
+
+.. _default-pair-solimp:
+
+.. _default-pair-gap:
+
+.. _default-pair-margin:
+
+:el-prefix:`default/` |-| **pair** (?)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+| This element sets the attributes of the dummy :ref:`pair <contact-pair>` element of the defaults class.
+| All pair attributes are available here except: name, class, geom1, geom2.
+
+
+.. _default-equality:
+
+.. _default-equality-active:
+
+.. _default-equality-solref:
+
+.. _default-equality-solimp:
+
+:el-prefix:`default/` |-| **equality** (?)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+| This element sets the attributes of the dummy :ref:`equality <equality>` element of the defaults class. The actual
+  equality constraints have types depending on the sub-element used to define them. However here we are setting
+  attributes common to all equality constraint types, which is why we do not make a distinction between types.
+| The equality sub-element attributes available here are: :at:`active`, :at:`solref`, :at:`solimp`.
+
+
+.. _default-tendon:
+
+.. _default-tendon-group:
+
+.. _default-tendon-limited:
+
+.. _default-tendon-range:
+
+.. _default-tendon-solreflimit:
+
+.. _default-tendon-solimplimit:
+
+.. _default-tendon-solreffriction:
+
+.. _default-tendon-solimpfriction:
+
+.. _default-tendon-frictionloss:
+
+.. _default-tendon-springlength:
+
+.. _default-tendon-width:
+
+.. _default-tendon-material:
+
+.. _default-tendon-margin:
+
+.. _default-tendon-stiffness:
+
+.. _default-tendon-damping:
+
+.. _default-tendon-rgba:
+
+.. _default-tendon-user:
+
+:el-prefix:`default/` |-| **tendon** (?)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+| This element sets the attributes of the dummy :ref:`tendon <tendon>` element of the defaults class. Similar to
+  equality constraints, the actual tendons have types, but here we are setting attributes common to all types.
+| All tendon sub-element attributes are available here except: name, class.
+
+
+.. _default-general:
+
+.. _default-general-ctrllimited:
+
+.. _default-general-forcelimited:
+
+.. _default-general-actlimited:
+
+.. _default-general-ctrlrange:
+
+.. _default-general-forcerange:
+
+.. _default-general-actrange:
+
+.. _default-general-gear:
+
+.. _default-general-cranklength:
+
+.. _default-general-user:
+
+.. _default-general-group:
+
+.. _default-general-actdim:
+
+.. _default-general-dyntype:
+
+.. _default-general-gaintype:
+
+.. _default-general-biastype:
+
+.. _default-general-dynprm:
+
+.. _default-general-gainprm:
+
+.. _default-general-biasprm:
+
+.. _default-general-actearly:
+
+:el-prefix:`default/` |-| **general** (?)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+| This element sets the attributes of the dummy :ref:`general <actuator-general>` element of the defaults class.
+| All general attributes are available here except: name, class, joint, jointinparent, site, tendon, slidersite,
+  cranksite.
+
+
+.. _default-motor:
+
+.. _default-motor-ctrllimited:
+
+.. _default-motor-forcelimited:
+
+.. _default-motor-ctrlrange:
+
+.. _default-motor-forcerange:
+
+.. _default-motor-gear:
+
+.. _default-motor-cranklength:
+
+.. _default-motor-user:
+
+.. _default-motor-group:
+
+:el-prefix:`default/` |-| **motor** (?)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+This and the next three elements set the attributes of the :ref:`general <actuator-general>` element using
+:ref:`Actuator shortcuts <CActuator>`. It does not make sense to use more than one such shortcut in the same defaults
+class, because they set the same underlying attributes, replacing any previous settings. All
+:ref:`motor <actuator-motor>` attributes are available here except: name, class, joint, jointinparent, site, tendon,
+slidersite, cranksite.
+
+
+.. _default-position:
+
+.. _default-position-ctrllimited:
+
+.. _default-position-forcelimited:
+
+.. _default-position-ctrlrange:
+
+.. _default-position-forcerange:
+
+.. _default-position-gear:
+
+.. _default-position-cranklength:
+
+.. _default-position-user:
+
+.. _default-position-group:
+
+.. _default-position-kp:
+
+:el-prefix:`default/` |-| **position** (?)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+All :ref:`position <actuator-position>` attributes are available here except: name, class, joint, jointinparent, site,
+tendon, slidersite, cranksite.
+
+
+.. _default-velocity:
+
+.. _default-velocity-ctrllimited:
+
+.. _default-velocity-forcelimited:
+
+.. _default-velocity-ctrlrange:
+
+.. _default-velocity-forcerange:
+
+.. _default-velocity-gear:
+
+.. _default-velocity-cranklength:
+
+.. _default-velocity-user:
+
+.. _default-velocity-group:
+
+.. _default-velocity-kv:
+
+:el-prefix:`default/` |-| **velocity** (?)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+All :ref:`velocity <actuator-velocity>` attributes are available here except: name, class, joint, jointinparent, site,
+tendon, slidersite, cranksite.
+
+
+.. _default-intvelocity:
+
+.. _default-intvelocity-ctrllimited:
+
+.. _default-intvelocity-forcelimited:
+
+.. _default-intvelocity-ctrlrange:
+
+.. _default-intvelocity-forcerange:
+
+.. _default-intvelocity-actrange:
+
+.. _default-intvelocity-gear:
+
+.. _default-intvelocity-cranklength:
+
+.. _default-intvelocity-user:
+
+.. _default-intvelocity-group:
+
+.. _default-intvelocity-kp:
+
+:el-prefix:`default/` |-| **intvelocity** (?)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+All :ref:`intvelocity <actuator-intvelocity>` attributes are available here except: name, class, joint, jointinparent,
+site, tendon, slidersite, cranksite.
+
+
+.. _default-damper:
+
+.. _default-damper-forcelimited:
+
+.. _default-damper-ctrlrange:
+
+.. _default-damper-forcerange:
+
+.. _default-damper-gear:
+
+.. _default-damper-cranklength:
+
+.. _default-damper-user:
+
+.. _default-damper-group:
+
+.. _default-damper-kv:
+
+:el-prefix:`default/` |-| **damper** (?)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+All :ref:`damper <actuator-damper>` attributes are available here except: name, class, joint, jointinparent, site,
+tendon, slidersite, cranksite.
+
+
+.. _default-cylinder:
+
+.. _default-cylinder-ctrllimited:
+
+.. _default-cylinder-forcelimited:
+
+.. _default-cylinder-ctrlrange:
+
+.. _default-cylinder-forcerange:
+
+.. _default-cylinder-gear:
+
+.. _default-cylinder-cranklength:
+
+.. _default-cylinder-user:
+
+.. _default-cylinder-group:
+
+.. _default-cylinder-timeconst:
+
+.. _default-cylinder-area:
+
+.. _default-cylinder-diameter:
+
+.. _default-cylinder-bias:
+
+:el-prefix:`default/` |-| **cylinder** (?)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+All :ref:`cylinder <actuator-cylinder>` attributes are available here except: name, class, joint, jointinparent, site,
+tendon, slidersite, cranksite.
+
+
+.. _default-muscle:
+
+.. _default-muscle-ctrllimited:
+
+.. _default-muscle-forcelimited:
+
+.. _default-muscle-ctrlrange:
+
+.. _default-muscle-forcerange:
+
+.. _default-muscle-gear:
+
+.. _default-muscle-cranklength:
+
+.. _default-muscle-user:
+
+.. _default-muscle-group:
+
+.. _default-muscle-timeconst:
+
+.. _default-muscle-range:
+
+.. _default-muscle-force:
+
+.. _default-muscle-scale:
+
+.. _default-muscle-lmin:
+
+.. _default-muscle-lmax:
+
+.. _default-muscle-vmax:
+
+.. _default-muscle-fpmax:
+
+.. _default-muscle-fvmax:
+
+:el-prefix:`default/` |-| **muscle** (?)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+All :ref:`muscle <actuator-muscle>` attributes are available here except: name, class, joint, jointinparent, site,
+tendon, slidersite, cranksite.
+
+
+.. _default-adhesion:
+
+.. _default-adhesion-forcelimited:
+
+.. _default-adhesion-ctrlrange:
+
+.. _default-adhesion-forcerange:
+
+.. _default-adhesion-gain:
+
+.. _default-adhesion-user:
+
+.. _default-adhesion-group:
+
+:el-prefix:`default/` |-| **adhesion** (?)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+All :ref:`adhesion <actuator-adhesion>` attributes are available here except: name, class, body.
+
+
+.. _custom:
+
+**custom** (*)
+~~~~~~~~~~~~~~
+
+This is a grouping element for custom numeric and text elements. It does not have attributes.
+
+
+.. _custom-numeric:
+
+:el-prefix:`custom/` |-| **numeric** (*)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+This element creates a custom numeric array in mjModel.
+
+.. _custom-numeric-name:
+
+:at:`name`: :at-val:`string, required`
+   The name of the array. This attribute is required because the only way to find a custom element of interest at
+   runtime is through its name.
+
+.. _custom-numeric-size:
+
+:at:`size`: :at-val:`int, optional`
+   If specified this attribute sets the size of the data array, in doubles. If this attribute is not specified, the size
+   will be inferred from the actual data array below.
+
+.. _custom-numeric-data:
+
+:at:`data`: :at-val:`real(size), "0 0 ..."`
+   Numeric data to be copied into mjModel. If size is specified, the length of the array given here cannot exceed the
+   specified size. If the length of the array is smaller, the missing components are set to 0. Note that custom arrays
+   can be created for storing information at runtime - which is why data initialization is optional. It becomes required
+   only when the array size is omitted.
+
+
+.. _custom-text:
+
+:el-prefix:`custom/` |-| **text** (*)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+This element creates a custom text field in mjModel. It could be used to store keyword commands for user callbacks and
+other custom computations.
+
+.. _custom-text-name:
+
+:at:`name`: :at-val:`string, required`
+   Name of the custom text field.
+
+.. _custom-text-data:
+
+:at:`data`: :at-val:`string, required`
+   Custom text to be copied into mjModel.
+
+
+.. _custom-tuple:
+
+:el-prefix:`custom/` |-| **tuple** (*)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+This element creates a custom tuple, which is a list of MuJoCo objects. The list is created by referencing the desired
+objects by name.
+
+.. _custom-tuple-name:
+
+:at:`name`: :at-val:`string, required`
+   Name of the custom tuple.
+
+
+.. _tuple-element:
+
+:el-prefix:`tuple/` |-| **element** (*)
+'''''''''''''''''''''''''''''''''''''''
+
+This adds an element to the tuple.
+
+
+.. _tuple-element-objtype:
+
+:at:`objtype`: :at-val:`(any element type that can be named), required`
+   Type of the object being added.
+
+.. _tuple-element-objname:
+
+:at:`objname`: :at-val:`string, required`
+   Name of the object being added. The type and name must reference a named MuJoCo element defined somewhere in the
+   model. Tuples can also be referenced (including self-references).
+
+.. _tuple-element-prm:
+
+:at:`prm`: :at-val:`real, "0"`
+   Real-valued parameter associated with this element of the tuple. Its use is up to the user.
+
 
 .. _extension:
 
