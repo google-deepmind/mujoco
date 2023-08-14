@@ -1154,7 +1154,8 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
       // mesh: 2*i is original, 2*i+1 is convex hull
       if (m->geom_type[i] == mjGEOM_MESH) {
         thisgeom->dataid *= 2;
-        if (m->mesh_graphadr[m->geom_dataid[i]] >= 0 && vopt->flags[mjVIS_CONVEXHULL]) {
+        if (m->mesh_graphadr[m->geom_dataid[i]] >= 0 && vopt->flags[mjVIS_CONVEXHULL] &&
+           (m->geom_contype[i] || m->geom_conaffinity[i])) {
           thisgeom->dataid += 1;
         }
       }
