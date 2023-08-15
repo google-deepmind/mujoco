@@ -23,7 +23,7 @@ General
    actuator forces: using the next step's actuator state to compute the current actuator forces at the current timestep.
 #. Renamed ``actuatorforcerange`` and ``actuatorforcelimited``, introduced in the previous version to
    :ref:`actuatorfrcrange<body-joint-actuatorfrcrange>` and
-   :ref:`actuatorfrclimited<body-joint-actuatorfrclimied>`, respectively.
+   :ref:`actuatorfrclimited<body-joint-actuatorfrclimited>`, respectively.
 
 Python bindings
 ^^^^^^^^^^^^^^^
