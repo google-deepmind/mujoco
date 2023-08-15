@@ -1845,9 +1845,8 @@ void mj_projectConstraint(const mjModel* m, mjData* d) {
     mju_superSparse(nefc, rowsuper, rownnz, rowadr, colind);
 
     // AR = JM2 * JM2'
-    mju_sqrMatTDSparseInit(d->efc_AR_rownnz, d->efc_AR_rowadr, JM2T, JM2,
-                           nv, nefc, rownnzT, rowadrT, colindT, rownnz,
-                           rowadr, colind, rowsuper, d);
+    mju_sqrMatTDSparseInit(d->efc_AR_rownnz, d->efc_AR_rowadr, nv, nefc, rownnzT,
+                           rowadrT, colindT, rownnz, rowadr, colind, rowsuper, d);
 
     mju_sqrMatTDSparse(d->efc_AR, JM2T, JM2, NULL, nv, nefc,
                        d->efc_AR_rownnz, d->efc_AR_rowadr, d->efc_AR_colind,

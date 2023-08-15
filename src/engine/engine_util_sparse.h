@@ -82,7 +82,6 @@ MJAPI void mju_sqrMatTDSparse(mjtNum* res, const mjtNum* mat, const mjtNum* matT
 
 // precount res_rownnz and precompute res_rowadr for mju_sqrMatTDSparse
 MJAPI void mju_sqrMatTDSparseInit(int* res_rownnz, int* res_rowadr,
-                                  const mjtNum* mat, const mjtNum* matT,
                                   int nr, int nc,  const int* rownnz,
                                   const int* rowadr, const int* colind,
                                   const int* rownnzT, const int* rowadrT,
