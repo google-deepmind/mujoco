@@ -2070,6 +2070,12 @@ from its default.
    This flag disables all computations related to sensors. When disabled, sensor values will remain constant, either
    zeros if disabled at the start of simulation, or, if disabled at runtime, whatever value was last computed.
 
+.. _option-flag-midphase:
+
+:at:`midphase`: :at-val:`[disable, enable], "enable"`
+   This flag disables the mid-phase collision filtering using a static AABB bounding volume hierarchy (a BVH binary
+   tree). If disabled, all geoms pairs that are allowed to collide are checked for collisions.
+
 .. _option-flag-override:
 
 :at:`override`: :at-val:`[disable, enable], "disable"`
@@ -2108,12 +2114,13 @@ from its default.
    function. If a new contact is detected it is added, allowing for up to 4 additional contact points. This feature is
    currently considered experimental, and both the behavior and the way it is activated may change in the future.
 
-.. _option-flag-midphase:
+.. _option-flag-island:
 
-:at:`midphase`: :at-val:`[disable, enable], "enable"`
-   This flag disables the mid-phase collision filtering using a static AABB bounding volume hierarchy (a BVH binary
-   tree). If disabled, all geoms pairs that are allowed to collide are checked for collisions.
-
+:at:`island`: :at-val:`[disable, enable], "disable"`
+   This flag enables discovery of constraint islands: disjoint sets of constraints and
+   degrees-of-freedom that do not interact. The flag currently has no effect on the physics pipeline, but enabling it
+   allows for `island visualization <https://youtu.be/Vc1tq0fFvQA>`__.
+   In a future release, the constraint solver will exploit the disjoint nature of constraint islands.
 
 .. _body:
 

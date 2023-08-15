@@ -61,7 +61,7 @@
 //-------------------------------- mjModel ---------------------------------------------------------
 
 // int fields of mjModel
-#define MJMODEL_INTS        \
+#define MJMODEL_INTS           \
     X   ( nq )                 \
     X   ( nv )                 \
     XMJV( nu )                 \
@@ -122,6 +122,7 @@
     X   ( nemax )              \
     X   ( njmax )              \
     X   ( nconmax )            \
+    X   ( ntree )              \
     X   ( nstack )             \
     X   ( nuserdata )          \
     XMJV( nsensordata )        \
@@ -153,7 +154,7 @@
 // pointer fields of mjModel
 // XMJV means that the field is required to construct mjvScene
 // (by default we define XMJV to be the same as X)
-#define MJMODEL_POINTERS                                                     \
+#define MJMODEL_POINTERS                                                        \
     X   ( mjtNum,  qpos0,                 nq,            1                    ) \
     X   ( mjtNum,  qpos_spring,           nq,            1                    ) \
     XMJV( int,     body_parentid,         nbody,         1                    ) \
@@ -164,6 +165,7 @@
     XMJV( int,     body_jntadr,           nbody,         1                    ) \
     X   ( int,     body_dofnum,           nbody,         1                    ) \
     X   ( int,     body_dofadr,           nbody,         1                    ) \
+    X   ( int,     body_treeid,           nbody,         1                    ) \
     XMJV( int,     body_geomnum,          nbody,         1                    ) \
     XMJV( int,     body_geomadr,          nbody,         1                    ) \
     X   ( mjtByte, body_simple,           nbody,         1                    ) \
@@ -204,6 +206,7 @@
     X   ( int,     dof_bodyid,            nv,            1                    ) \
     X   ( int,     dof_jntid,             nv,            1                    ) \
     X   ( int,     dof_parentid,          nv,            1                    ) \
+    X   ( int,     dof_treeid,            nv,            1                    ) \
     X   ( int,     dof_Madr,              nv,            1                    ) \
     X   ( int,     dof_simplenum,         nv,            1                    ) \
     X   ( mjtNum,  dof_solref,            nv,            mjNREF               ) \
@@ -555,35 +558,35 @@
 #define MJ_D(n) n
 
 // array of contacts
-#define MJDATA_ARENA_POINTERS_CONTACT      \
+#define MJDATA_ARENA_POINTERS_CONTACT             \
     X( mjContact, contact, MJ_D(ncon), 1 )
 
 // array fields of mjData that are used in the primal problem
-#define MJDATA_ARENA_POINTERS_PRIMAL              \
-  X(int,      efc_type,          MJ_D(nefc),  1)  \
-  X(int,      efc_id,            MJ_D(nefc),  1)  \
-  X(int,      efc_J_rownnz,      MJ_D(nefc),  1)  \
-  X(int,      efc_J_rowadr,      MJ_D(nefc),  1)  \
-  X(int,      efc_J_rowsuper,    MJ_D(nefc),  1)  \
-  X(int,      efc_J_colind,      MJ_D(nnzJ),  1)  \
-  X(int,      efc_JT_rownnz,     MJ_M(nv),    1)  \
-  X(int,      efc_JT_rowadr,     MJ_M(nv),    1)  \
-  X(int,      efc_JT_rowsuper,   MJ_M(nv),    1)  \
-  X(int,      efc_JT_colind,     MJ_D(nnzJ),  1)  \
-  X(mjtNum,   efc_J,             MJ_D(nnzJ),  1)  \
-  X(mjtNum,   efc_JT,            MJ_D(nnzJ),  1)  \
-  X(mjtNum,   efc_pos,           MJ_D(nefc),  1)  \
-  X(mjtNum,   efc_margin,        MJ_D(nefc),  1)  \
-  X(mjtNum,   efc_frictionloss,  MJ_D(nefc),  1)  \
-  X(mjtNum,   efc_diagApprox,    MJ_D(nefc),  1)  \
-  X(mjtNum,   efc_KBIP,          MJ_D(nefc),  4)  \
-  X(mjtNum,   efc_D,             MJ_D(nefc),  1)  \
-  X(mjtNum,   efc_R,             MJ_D(nefc),  1)  \
-  X(mjtNum,   efc_vel,           MJ_D(nefc),  1)  \
-  X(mjtNum,   efc_aref,          MJ_D(nefc),  1)  \
-  X(mjtNum,   efc_b,             MJ_D(nefc),  1)  \
-  X(mjtNum,   efc_force,         MJ_D(nefc),  1)  \
-  X(int,      efc_state,         MJ_D(nefc),  1)
+#define MJDATA_ARENA_POINTERS_PRIMAL               \
+  X( int,      efc_type,          MJ_D(nefc),  1)  \
+  X( int,      efc_id,            MJ_D(nefc),  1)  \
+  X( int,      efc_J_rownnz,      MJ_D(nefc),  1)  \
+  X( int,      efc_J_rowadr,      MJ_D(nefc),  1)  \
+  X( int,      efc_J_rowsuper,    MJ_D(nefc),  1)  \
+  X( int,      efc_J_colind,      MJ_D(nnzJ),  1)  \
+  X( int,      efc_JT_rownnz,     MJ_M(nv),    1)  \
+  X( int,      efc_JT_rowadr,     MJ_M(nv),    1)  \
+  X( int,      efc_JT_rowsuper,   MJ_M(nv),    1)  \
+  X( int,      efc_JT_colind,     MJ_D(nnzJ),  1)  \
+  X( mjtNum,   efc_J,             MJ_D(nnzJ),  1)  \
+  X( mjtNum,   efc_JT,            MJ_D(nnzJ),  1)  \
+  X( mjtNum,   efc_pos,           MJ_D(nefc),  1)  \
+  X( mjtNum,   efc_margin,        MJ_D(nefc),  1)  \
+  X( mjtNum,   efc_frictionloss,  MJ_D(nefc),  1)  \
+  X( mjtNum,   efc_diagApprox,    MJ_D(nefc),  1)  \
+  X( mjtNum,   efc_KBIP,          MJ_D(nefc),  4)  \
+  X( mjtNum,   efc_D,             MJ_D(nefc),  1)  \
+  X( mjtNum,   efc_R,             MJ_D(nefc),  1)  \
+  X( mjtNum,   efc_vel,           MJ_D(nefc),  1)  \
+  X( mjtNum,   efc_aref,          MJ_D(nefc),  1)  \
+  X( mjtNum,   efc_b,             MJ_D(nefc),  1)  \
+  X( mjtNum,   efc_force,         MJ_D(nefc),  1)  \
+  X( int,      efc_state,         MJ_D(nefc),  1)
 
 // array fields of mjData that are used in the dual problem
 #define MJDATA_ARENA_POINTERS_DUAL                            \
@@ -592,11 +595,21 @@
     X( int,       efc_AR_colind,     MJ_D(nefc), MJ_D(nefc) ) \
     X( mjtNum,    efc_AR,            MJ_D(nefc), MJ_D(nefc) )
 
+// array fields of mjData that are used for constraint islands
+#define MJDATA_ARENA_POINTERS_ISLAND                \
+    X( int,   island_dofadr,     MJ_D(nisland), 1 ) \
+    X( int,   island_efcadr,     MJ_D(nisland), 1 ) \
+    X( int,   dof_island,        MJ_M(nv),      1 ) \
+    X( int,   dof_islandnext,    MJ_M(nv),      1 ) \
+    X( int,   efc_island,        MJ_D(nefc),    1 ) \
+    X( int,   efc_islandnext,    MJ_D(nefc),    1 )
+
 // array fields of mjData that live in d->arena
 #define MJDATA_ARENA_POINTERS              \
     MJDATA_ARENA_POINTERS_CONTACT          \
     MJDATA_ARENA_POINTERS_PRIMAL           \
-    MJDATA_ARENA_POINTERS_DUAL
+    MJDATA_ARENA_POINTERS_DUAL             \
+    MJDATA_ARENA_POINTERS_ISLAND
 
 
 // scalar fields of mjData
@@ -621,6 +634,7 @@
     X( int,       nefc               ) \
     X( int,       nnzJ               ) \
     X( int,       ncon               ) \
+    X( int,       nisland            ) \
     X( mjtNum,    time               )
 
 

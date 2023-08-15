@@ -343,6 +343,9 @@ MJAPI void mj_collision(const mjModel* m, mjData* d);
 // Construct constraints.
 MJAPI void mj_makeConstraint(const mjModel* m, mjData* d);
 
+// Find constraint islands.
+MJAPI void mj_island(const mjModel* m, mjData* d);
+
 // Compute inverse constraint inertia efc_AR.
 MJAPI void mj_projectConstraint(const mjModel* m, mjData* d);
 

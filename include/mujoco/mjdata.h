@@ -189,6 +189,7 @@ struct mjData_ {
   int     nefc;              // number of constraints
   int     nnzJ;              // number of non-zeros in constraint Jacobian
   int     ncon;              // number of detected contacts
+  int     nisland;           // number of detected constraint islands
 
   // global properties
   mjtNum  time;              // simulation time
@@ -368,6 +369,14 @@ struct mjData_ {
   mjtNum* efc_KBIP;          // stiffness, damping, impedance, imp'              (nefc x 4)
   mjtNum* efc_D;             // constraint mass                                  (nefc x 1)
   mjtNum* efc_R;             // inverse constraint mass                          (nefc x 1)
+
+  // computed by mj_island
+  int*    island_dofadr;     // address of first dof in island                   (nisland x 1)
+  int*    island_efcadr;     // address of first constraint in island            (nisland x 1)
+  int*    dof_island;        // island id of this dof; -1: none                  (nv x 1)
+  int*    dof_islandnext;    // address of next dof in island; -1: last or none  (nv x 1)
+  int*    efc_island;        // island id of this constraint                     (nefc x 1)
+  int*    efc_islandnext;    // address of next constraint in island; -1: last   (nefc x 1)
 
   // computed by mj_projectConstraint (dual solver)
   int*    efc_AR_rownnz;     // number of non-zeros in AR                        (nefc x 1)

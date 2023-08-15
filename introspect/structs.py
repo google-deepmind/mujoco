@@ -813,7 +813,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
              StructFieldDecl(
                  name='nbvh',
                  type=ValueType(name='int'),
-                 doc='number of total bounding volumes in all bodies',
+                 doc='number of bounding volumes in all bodies',
              ),
              StructFieldDecl(
                  name='njnt',
@@ -1071,6 +1071,11 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='number of non-zeros in sparse body-dof matrix',
              ),
              StructFieldDecl(
+                 name='ntree',
+                 type=ValueType(name='int'),
+                 doc='number of kinematic trees under world body',
+             ),
+             StructFieldDecl(
                  name='nemax',
                  type=ValueType(name='int'),
                  doc='number of potential equality-constraint rows',
@@ -1103,7 +1108,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
              StructFieldDecl(
                  name='npluginstate',
                  type=ValueType(name='int'),
-                 doc='number of fields in the plugin state vector',
+                 doc='number of fields in plugin state vector',
              ),
              StructFieldDecl(
                  name='nbuffer',
@@ -1201,6 +1206,13 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                      inner_type=ValueType(name='int'),
                  ),
                  doc='start addr of dofs; -1: no dofs          (nbody x 1)',
+             ),
+             StructFieldDecl(
+                 name='body_treeid',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc="id of body's kinematic tree; -1: static  (nbody x 1)",
              ),
              StructFieldDecl(
                  name='body_geomnum',
@@ -1481,6 +1493,13 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                      inner_type=ValueType(name='int'),
                  ),
                  doc="id of dof's parent; -1: none             (nv x 1)",
+             ),
+             StructFieldDecl(
+                 name='dof_treeid',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc="id of dof's kinematic tree               (nv x 1)",
              ),
              StructFieldDecl(
                  name='dof_Madr',
@@ -3579,6 +3598,11 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='number of detected contacts',
              ),
              StructFieldDecl(
+                 name='nisland',
+                 type=ValueType(name='int'),
+                 doc='number of detected constraint islands',
+             ),
+             StructFieldDecl(
                  name='time',
                  type=ValueType(name='mjtNum'),
                  doc='simulation time',
@@ -4292,6 +4316,48 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='inverse constraint mass                          (nefc x 1)',  # pylint: disable=line-too-long
              ),
              StructFieldDecl(
+                 name='island_dofadr',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='address of first dof in island                   (nisland x 1)',  # pylint: disable=line-too-long
+             ),
+             StructFieldDecl(
+                 name='island_efcadr',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='address of first constraint in island            (nisland x 1)',  # pylint: disable=line-too-long
+             ),
+             StructFieldDecl(
+                 name='dof_island',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='island id of this dof; -1: none                  (nv x 1)',  # pylint: disable=line-too-long
+             ),
+             StructFieldDecl(
+                 name='dof_islandnext',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='address of next dof in island; -1: last or none  (nv x 1)',  # pylint: disable=line-too-long
+             ),
+             StructFieldDecl(
+                 name='efc_island',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='island id of this constraint                     (nefc x 1)',  # pylint: disable=line-too-long
+             ),
+             StructFieldDecl(
+                 name='efc_islandnext',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='address of next constraint in island; -1: last   (nefc x 1)',  # pylint: disable=line-too-long
+             ),
+             StructFieldDecl(
                  name='efc_AR_rownnz',
                  type=PointerType(
                      inner_type=ValueType(name='int'),
@@ -4808,7 +4874,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  name='flags',
                  type=ArrayType(
                      inner_type=ValueType(name='mjtByte'),
-                     extents=(25,),
+                     extents=(26,),
                  ),
                  doc='visualization flags (indexed by mjtVisFlag)',
              ),
@@ -6196,6 +6262,11 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                              doc='',
                          ),
                          StructFieldDecl(
+                             name='nisland',
+                             type=ValueType(name='int'),
+                             doc='',
+                         ),
+                         StructFieldDecl(
                              name='time',
                              type=ValueType(name='mjtNum'),
                              doc='',
@@ -6372,6 +6443,27 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                              name='bvh_active',
                              type=PointerType(
                                  inner_type=ValueType(name='mjtByte'),
+                             ),
+                             doc='',
+                         ),
+                         StructFieldDecl(
+                             name='island_dofadr',
+                             type=PointerType(
+                                 inner_type=ValueType(name='int'),
+                             ),
+                             doc='',
+                         ),
+                         StructFieldDecl(
+                             name='dof_island',
+                             type=PointerType(
+                                 inner_type=ValueType(name='int'),
+                             ),
+                             doc='',
+                         ),
+                         StructFieldDecl(
+                             name='efc_island',
+                             type=PointerType(
+                                 inner_type=ValueType(name='int'),
                              ),
                              doc='',
                          ),

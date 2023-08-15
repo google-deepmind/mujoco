@@ -46,14 +46,17 @@
 
 //-------------------------- utility functions -----------------------------------------------------
 
-// internal function for clearing arena pointers for efc_ arrays in mjData
+// clear arena pointers in mjData
 static inline void clearEfc(mjData* d) {
 #define X(type, name, nr, nc) d->name = NULL;
   MJDATA_ARENA_POINTERS
 #undef X
   d->nefc = 0;
-  d->contact = d->arena;
+  d->nisland = 0;
+  d->contact = (mjContact*) d->arena;
 }
+
+
 
 // determine type of friction cone
 int mj_isPyramidal(const mjModel* m) {
@@ -1606,16 +1609,15 @@ void mj_makeConstraint(const mjModel* m, mjData* d) {
 
   // precount sizes for constraint Jacobian matrices
   int *nnz = mj_isSparse(m) ? &(d->nnzJ) : NULL;
-
   int ne_allocated = mj_ne(m, d, nnz);
   int nf_allocated = mj_nf(m, d, nnz);
-
   int nefc_allocated = ne_allocated + nf_allocated + mj_nl(m, d, nnz) + mj_nc(m, d, nnz);
   if (!mj_isSparse(m)) {
     d->nnzJ = nefc_allocated * m->nv;
   }
   d->nefc = nefc_allocated;
 
+  // ========== begin arena allocation
 #undef MJ_M
 #define MJ_M(n) m->n
 #undef MJ_D
@@ -1623,6 +1625,8 @@ void mj_makeConstraint(const mjModel* m, mjData* d) {
 
   // move arena pointer to end of contact array
   d->parena = d->ncon * sizeof(mjContact);
+
+  // poison remaining memory
 #ifdef ADDRESS_SANITIZER
   ASAN_POISON_MEMORY_REGION(
     (char*)d->arena + d->parena, (d->nstack - d->pstack) * sizeof(mjtNum) - d->parena);
@@ -1648,6 +1652,7 @@ void mj_makeConstraint(const mjModel* m, mjData* d) {
 #define MJ_M(n) n
 #undef MJ_D
 #define MJ_D(n) n
+  // ========== end arena allocation
 
   // reset nefc for the instantiation functions,
   // and instantiate all elements of Jacobian
@@ -2102,130 +2107,4 @@ void mj_constraintUpdate(const mjModel* m, mjData* d, const mjtNum* jar,
   if (cost) {
     *cost = s;
   }
-}
-
-
-
-//---------------------------- constraint islands --------------------------------------------------
-
-// comparison function for lexicographic edge sorting
-quicksortfunc(edgecompare, context, edge0, edge1) {
-  int* e0 = (int*)edge0;
-  int* e1 = (int*)edge1;
-  int v00 = e0[0];
-  int v10 = e1[0];
-
-  if (v00 < v10) {
-    return -1;
-  }
-
-  if (v00 == v10) {
-    int v01 = e0[1];
-    int v11 = e1[1];
-
-    if (v01 < v11) {
-      return -1;
-    }
-
-    if (v01 == v11) {
-      return 0;
-    }
-  }
-
-  return 1;
-}
-
-
-
-// construct sparse matrix from unsorted edge array, return number of nonzeros
-int mj_edge2Sparse(int* rownnz, int* rowadr, int* colind, int* edge, int ne, int nr) {
-  if (!ne) {
-    return 0;
-  }
-
-  // sort edges
-  mjQUICKSORT(edge, ne, 2*sizeof(int), edgecompare, NULL);
-
-  // construct sparse
-  int nnz = 0;  // number of nonzeros
-  int e = 0;    // current edge
-  for (int r=0; r < nr; r++) {
-    // init row
-    rownnz[r] = 0;
-    rowadr[r] = nnz;
-
-    // copy values while making unique and checking indices
-    while (e < ne && edge[2*e] == r) {
-      int v0 = edge[2*e];
-      int v1 = edge[2*e + 1];
-
-      // skip if duplicate
-      if (rownnz[r] && v0 == edge[2*e - 2] && v1 == edge[2*e - 1]) {
-        e++;
-        continue;
-      }
-
-      // check for invalid indices
-      if (v0 < 0 || v0 >= nr) mju_error("invalid row index %d in edge %d", v0, e);
-      if (v1 < 0 || v1 >= nr) mju_error("invalid column index %d in edge %d", v1, e);
-
-      // copy column index, increment nnz, e, rownnz
-      colind[nnz++] = edge[2*(e++) + 1];
-      rownnz[r]++;
-    }
-  }
-
-  return nnz;
-}
-
-
-// find disjoint subgraphs ("islands") given sparse symmetric adjacency matrix
-//   arguments:
-//     island  (nr)   - island index assigned to vertex, -1 if vertex has no edges
-//     nr             - number of rows/columns of adjacency matrix
-//     rownnz  (nr)   - matrix row nonzeros
-//     rowadr  (nr)   - matrix row addresses
-//     colind  (nnz)  - matrix column indices
-//     stack   (nnz)  - stack space
-//   returns number of islands
-int mj_floodFill(int* island, int nr, const int* rownnz, const int* rowadr, const int* colind,
-                 int* stack) {
-  // initialize island count, set ids to -1
-  int nisland = 0;
-  for (int i=0; i < nr; i++) island[i] = -1;
-
-  // iterate over vertices, discover islands
-  for (int i=0; i < nr; i++) {
-    // vertex already in island or singleton with no edges: skip
-    if (island[i] != -1 || !rownnz[i]) {
-      continue;
-    }
-
-    // push i onto stack
-    int nstack = 0;
-    stack[nstack++] = i;
-
-    // DFS traversal of island
-    while (nstack) {
-      // pop v from stack
-      int v = stack[--nstack];
-
-      // if v is already assigned, continue
-      if (island[v] != -1) {
-        continue;
-      }
-
-      // assign v to current island
-      island[v] = nisland;
-
-      // push adjacent vertices onto stack
-      memcpy(stack + nstack, colind + rowadr[v], rownnz[v]*sizeof(int));
-      nstack += rownnz[v];
-    }
-
-    // island is filled: increment nisland
-    nisland++;
-  }
-
-  return nisland;
 }

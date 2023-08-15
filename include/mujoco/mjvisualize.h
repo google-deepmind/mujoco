@@ -79,6 +79,7 @@ typedef enum mjtLabel_ {          // object labeling
   mjLABEL_SELPNT,                 // coordinates of selection point
   mjLABEL_CONTACTPOINT,           // contact information
   mjLABEL_CONTACTFORCE,           // magnitude of contact force
+  mjLABEL_ISLAND,                 // id of island
 
   mjNLABEL                        // number of label types
 } mjtLabel;
@@ -114,6 +115,7 @@ typedef enum mjtVisFlag_ {        // flags enabling model element visualization
   mjVIS_PERTFORCE,                // perturbation force
   mjVIS_PERTOBJ,                  // perturbation object
   mjVIS_CONTACTPOINT,             // contact points
+  mjVIS_ISLAND,                   // constraint islands
   mjVIS_CONTACTFORCE,             // contact force
   mjVIS_CONTACTSPLIT,             // split contact force into normal and tangent
   mjVIS_TRANSPARENT,              // make dynamic geoms more transparent
@@ -540,6 +542,7 @@ struct mjvSceneState_ {
 
     int nefc;
     int ncon;
+    int nisland;
 
     mjtNum time;
 
@@ -574,6 +577,9 @@ struct mjvSceneState_ {
     mjtNum* wrap_xpos;
 
     mjtByte* bvh_active;
+    int* island_dofadr;
+    int* dof_island;
+    int* efc_island;
 
     mjContact* contact;
     mjtNum* efc_force;

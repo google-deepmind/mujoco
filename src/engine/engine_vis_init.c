@@ -47,7 +47,8 @@ const char* mjLABELSTRING[mjNLABEL] = {
   "Selection",
   "SelPoint",
   "Contact",
-  "ContactForce"
+  "ContactForce",
+  "Island"
 };
 
 
@@ -81,6 +82,7 @@ const char* mjVISSTRING[mjNVISFLAG][3] = {
   {"Pertur&b Force",  "0", "B"},
   {"Perturb &Object", "1", "O"},
   {"&Contact Point",  "0", "C"},
+  {"Island",          "1", ""},   // TODO(b/295296178): turn off after islands are on by default.
   {"Contact &Force",  "0", "F"},
   {"Contact S&plit",  "0", "P"},
   {"&Transparent",    "0", "T"},

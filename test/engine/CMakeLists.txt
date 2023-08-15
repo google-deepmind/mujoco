@@ -30,6 +30,9 @@ target_link_libraries(engine_derivative_test fixture gmock)
 mujoco_test(engine_forward_test)
 target_link_libraries(engine_forward_test fixture gmock)
 
+mujoco_test(engine_island_test)
+target_link_libraries(engine_island_test fixture gmock)
+
 mujoco_test(engine_io_test)
 target_link_libraries(
   engine_io_test

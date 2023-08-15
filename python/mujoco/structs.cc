@@ -710,6 +710,7 @@ void MjDataWrapper::Serialize(std::ostream& output) const {
   X(nnzJ);
   X(nefc);
   X(ncon);
+  X(nisland);
   X(time);
   X(energy);
 #undef X
@@ -734,9 +735,11 @@ void MjDataWrapper::Serialize(std::ostream& output) const {
 
     MJDATA_ARENA_POINTERS_CONTACT
     MJDATA_ARENA_POINTERS_PRIMAL
-
     if (this->metadata_.is_dual) {
       MJDATA_ARENA_POINTERS_DUAL
+    }
+    if (this->ptr_->nisland) {
+      MJDATA_ARENA_POINTERS_ISLAND
     }
 #undef MJ_M
 #define MJ_M(x) x
@@ -799,6 +802,7 @@ MjDataWrapper MjDataWrapper::Deserialize(std::istream& input) {
   X(nnzJ);
   X(nefc);
   X(ncon);
+  X(nisland);
   X(time);
   X(energy);
 #undef X
@@ -825,9 +829,11 @@ MjDataWrapper MjDataWrapper::Deserialize(std::istream& input) {
 
     MJDATA_ARENA_POINTERS_CONTACT
     MJDATA_ARENA_POINTERS_PRIMAL
-
     if (metadata.is_dual) {
       MJDATA_ARENA_POINTERS_DUAL
+    }
+    if (d->nisland) {
+      MJDATA_ARENA_POINTERS_ISLAND
     }
 #undef MJ_M
 #define MJ_M(x) x
@@ -1830,6 +1836,7 @@ This is useful for example when the MJB is not available as a file on disk.)"));
 
   MJDATA_ARENA_POINTERS_PRIMAL
   MJDATA_ARENA_POINTERS_DUAL
+  MJDATA_ARENA_POINTERS_ISLAND
 
 #undef MJ_M
 #define MJ_M(x) (x)

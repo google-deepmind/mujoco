@@ -253,6 +253,7 @@ PYBIND11_MODULE(_functions, pymodule) {
   Def<traits::mj_rnePostConstraint>(pymodule);
   Def<traits::mj_collision>(pymodule);
   Def<traits::mj_makeConstraint>(pymodule);
+  Def<traits::mj_island>(pymodule);
   Def<traits::mj_projectConstraint>(pymodule);
   Def<traits::mj_referenceConstraint>(pymodule);
   Def<traits::mj_constraintUpdate>(

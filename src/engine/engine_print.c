@@ -507,10 +507,11 @@ void mj_printFormattedModel(const mjModel* m, const char* filename, const char* 
     fprintf(fp, " %s\n", m->names + m->name_tendonadr[i]);
     object_class = &m->ntendon;
     MJMODEL_POINTERS
-    fprintf(fp, "  path         \n");
+    fprintf(fp, "  path\n");
+    fprintf(fp, "    type  objid  prm\n");
     for (int j=0; j < m->tendon_num[i]; j++) {
       int k = m->tendon_adr[i]+j;
-      fprintf(fp, "    %d %d ", m->wrap_type[k], m->wrap_objid[k]);
+      fprintf(fp, "    %d     %d     ", m->wrap_type[k], m->wrap_objid[k]);
       fprintf(fp, float_format, m->wrap_prm[k]);
       fprintf(fp, "\n");
     }
@@ -1051,6 +1052,45 @@ void mj_printFormattedData(const mjModel* m, mjData* d, const char* filename,
   printArray("CACC", m->nbody, 6, d->cacc, fp, float_format);
   printArray("CFRC_INT", m->nbody, 6, d->cfrc_int, fp, float_format);
   printArray("CFRC_EXT", m->nbody, 6, d->cfrc_ext, fp, float_format);
+
+  if (d->nisland) {
+    fprintf(fp, NAME_FORMAT, "ISLAND_DOFADR");
+    for (int i = 0; i < d->nisland; i++) {
+      fprintf(fp, " %d", d->island_dofadr[i]);
+    }
+    fprintf(fp, "\n\n");
+
+    fprintf(fp, NAME_FORMAT, "ISLAND_EFCADR");
+    for (int i = 0; i < d->nisland; i++) {
+      fprintf(fp, " %d", d->island_efcadr[i]);
+    }
+    fprintf(fp, "\n\n");
+
+    fprintf(fp, NAME_FORMAT, "DOF_ISLAND");
+    for (int i = 0; i < m->nv; i++) {
+      fprintf(fp, " %d", d->dof_island[i]);
+    }
+    fprintf(fp, "\n\n");
+
+    fprintf(fp, NAME_FORMAT, "DOF_ISLANDNEXT");
+    for (int i = 0; i < m->nv; i++) {
+      fprintf(fp, " %d", d->dof_islandnext[i]);
+    }
+    fprintf(fp, "\n\n");
+
+    fprintf(fp, NAME_FORMAT, "EFC_ISLAND");
+    for (int i = 0; i < d->nefc; i++) {
+      fprintf(fp, " %d", d->efc_island[i]);
+    }
+    fprintf(fp, "\n\n");
+
+    fprintf(fp, NAME_FORMAT, "EFC_ISLANDNEXT");
+    for (int i = 0; i < d->nefc; i++) {
+      fprintf(fp, " %d", d->efc_islandnext[i]);
+    }
+    fprintf(fp, "\n\n");
+
+  }
 
 #ifdef MEMORY_SANITIZER
   // restore poisoned status

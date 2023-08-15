@@ -162,6 +162,7 @@ struct mjData_ {
   int     nefc;              // number of constraints
   int     nnzJ;              // number of non-zeros in constraint Jacobian
   int     ncon;              // number of detected contacts
+  int     nisland;           // number of detected constraint islands
 
   // global properties
   mjtNum  time;              // simulation time
@@ -342,6 +343,14 @@ struct mjData_ {
   mjtNum* efc_D;             // constraint mass                                  (nefc x 1)
   mjtNum* efc_R;             // inverse constraint mass                          (nefc x 1)
 
+  // computed by mj_island
+  int*    island_dofadr;     // address of first dof in island                   (nisland x 1)
+  int*    island_efcadr;     // address of first constraint in island            (nisland x 1)
+  int*    dof_island;        // island id of this dof; -1: none                  (nv x 1)
+  int*    dof_islandnext;    // address of next dof in island; -1: last or none  (nv x 1)
+  int*    efc_island;        // island id of this constraint                     (nefc x 1)
+  int*    efc_islandnext;    // address of next constraint in island; -1: last   (nefc x 1)
+
   // computed by mj_projectConstraint (dual solver)
   int*    efc_AR_rownnz;     // number of non-zeros in AR                        (nefc x 1)
   int*    efc_AR_rowadr;     // row start address in colind array                (nefc x 1)
@@ -387,8 +396,9 @@ typedef enum mjtEnableBit_ {      // enable optional feature bitflags
   mjENBL_SENSORNOISE  = 1<<3,     // add noise to sensor data
                                   // experimental features:
   mjENBL_MULTICCD     = 1<<4,     // multi-point convex collision detection
+  mjENBL_ISLAND       = 1<<5,     // constraint island discovery
 
-  mjNENABLE           = 5         // number of enable flags
+  mjNENABLE           = 6         // number of enable flags
 } mjtEnableBit;
 typedef enum mjtJoint_ {          // type of degree of freedom
   mjJNT_FREE          = 0,        // global position and orientation (quat)       (7)
@@ -802,7 +812,7 @@ struct mjModel_ {
   int nu;                         // number of actuators/controls = dim(ctrl)
   int na;                         // number of activation states = dim(act)
   int nbody;                      // number of bodies
-  int nbvh;                       // number of total bounding volumes in all bodies
+  int nbvh;                       // number of bounding volumes in all bodies
   int njnt;                       // number of joints
   int ngeom;                      // number of geoms
   int nsite;                      // number of sites
@@ -856,13 +866,14 @@ struct mjModel_ {
   int nM;                         // number of non-zeros in sparse inertia matrix
   int nD;                         // number of non-zeros in sparse dof-dof matrix
   int nB;                         // number of non-zeros in sparse body-dof matrix
+  int ntree;                      // number of kinematic trees under world body
   int nemax;                      // number of potential equality-constraint rows
   int njmax;                      // number of available rows in constraint Jacobian
   int nconmax;                    // number of potential contacts in contact list
   int nstack;                     // number of fields in mjData stack
   int nuserdata;                  // number of extra fields in mjData
   int nsensordata;                // number of fields in sensor data vector
-  int npluginstate;               // number of fields in the plugin state vector
+  int npluginstate;               // number of fields in plugin state vector
 
   int nbuffer;                    // number of bytes in buffer
 
@@ -890,6 +901,7 @@ struct mjModel_ {
   int*      body_jntadr;          // start addr of joints; -1: no joints      (nbody x 1)
   int*      body_dofnum;          // number of motion degrees of freedom      (nbody x 1)
   int*      body_dofadr;          // start addr of dofs; -1: no dofs          (nbody x 1)
+  int*      body_treeid;          // id of body's kinematic tree; -1: static  (nbody x 1)
   int*      body_geomnum;         // number of geoms                          (nbody x 1)
   int*      body_geomadr;         // start addr of geoms; -1: no geoms        (nbody x 1)
   mjtByte*  body_simple;          // body is simple (has diagonal M)          (nbody x 1)
@@ -936,6 +948,7 @@ struct mjModel_ {
   int*      dof_bodyid;           // id of dof's body                         (nv x 1)
   int*      dof_jntid;            // id of dof's joint                        (nv x 1)
   int*      dof_parentid;         // id of dof's parent; -1: none             (nv x 1)
+  int*      dof_treeid;           // id of dof's kinematic tree               (nv x 1)
   int*      dof_Madr;             // dof address in M-diagonal                (nv x 1)
   int*      dof_simplenum;        // number of consecutive simple dofs        (nv x 1)
   mjtNum*   dof_solref;           // constraint solver reference:frictionloss (nv x mjNREF)
@@ -1663,6 +1676,7 @@ typedef enum mjtLabel_ {          // object labeling
   mjLABEL_SELPNT,                 // coordinates of selection point
   mjLABEL_CONTACTPOINT,           // contact information
   mjLABEL_CONTACTFORCE,           // magnitude of contact force
+  mjLABEL_ISLAND,                 // id of island
 
   mjNLABEL                        // number of label types
 } mjtLabel;
@@ -1694,6 +1708,7 @@ typedef enum mjtVisFlag_ {        // flags enabling model element visualization
   mjVIS_PERTFORCE,                // perturbation force
   mjVIS_PERTOBJ,                  // perturbation object
   mjVIS_CONTACTPOINT,             // contact points
+  mjVIS_ISLAND,                   // constraint islands
   mjVIS_CONTACTFORCE,             // contact force
   mjVIS_CONTACTSPLIT,             // split contact force into normal and tangent
   mjVIS_TRANSPARENT,              // make dynamic geoms more transparent
@@ -2080,6 +2095,7 @@ struct mjvSceneState_ {
 
     int nefc;
     int ncon;
+    int nisland;
 
     mjtNum time;
 
@@ -2114,6 +2130,9 @@ struct mjvSceneState_ {
     mjtNum* wrap_xpos;
 
     mjtByte* bvh_active;
+    int* island_dofadr;
+    int* dof_island;
+    int* efc_island;
 
     mjContact* contact;
     mjtNum* efc_force;
@@ -2204,6 +2223,7 @@ void mj_rne(const mjModel* m, mjData* d, int flg_acc, mjtNum* result);
 void mj_rnePostConstraint(const mjModel* m, mjData* d);
 void mj_collision(const mjModel* m, mjData* d);
 void mj_makeConstraint(const mjModel* m, mjData* d);
+void mj_island(const mjModel* m, mjData* d);
 void mj_projectConstraint(const mjModel* m, mjData* d);
 void mj_referenceConstraint(const mjModel* m, mjData* d);
 void mj_constraintUpdate(const mjModel* m, mjData* d, const mjtNum* jar,

@@ -66,7 +66,8 @@ const char* mjENABLESTRING[mjNENABLE] = {
   "Energy",
   "Fwdinv",
   "Sensornoise",
-  "MultiCCD"
+  "MultiCCD",
+  "Island"
 };
 
 

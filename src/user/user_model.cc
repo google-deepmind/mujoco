@@ -1618,6 +1618,26 @@ void mjCModel::CopyTree(mjModel* m) {
     throw mjCError(0, "unexpected number of DOFs");
   }
 
+  // count kinematic trees under world body, compute dof_treeid
+  int ntree = 0;
+  for (int i=0; i < nv; i++) {
+    if (m->dof_parentid[i] == -1) {
+      ntree++;
+    }
+    m->dof_treeid[i] = ntree - 1;
+  }
+  m->ntree = ntree;
+
+  // compute body_treeid
+  for (int i=0; i < nbody; i++) {
+    int weldid = m->body_weldid[i];
+    if (m->body_dofnum[weldid]) {
+      m->body_treeid[i] = m->dof_treeid[m->body_dofadr[weldid]];
+    } else {
+      m->body_treeid[i] = -1;
+    }
+  }
+
   // compute nM and dof_Madr
   nM = 0;
   for (int i=0; i<nv; i++) {

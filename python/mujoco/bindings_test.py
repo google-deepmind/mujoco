@@ -801,7 +801,7 @@ Euler integrator, semi-implicit in velocity.
     self.assertEqual(mujoco.mjtEnableBit.mjENBL_ENERGY, 1<<1)
     self.assertEqual(mujoco.mjtEnableBit.mjENBL_FWDINV, 1<<2)
     self.assertEqual(mujoco.mjtEnableBit.mjENBL_SENSORNOISE, 1<<3)
-    self.assertEqual(mujoco.mjtEnableBit.mjNENABLE, 5)
+    self.assertEqual(mujoco.mjtEnableBit.mjNENABLE, 6)
     self.assertEqual(mujoco.mjtGeom.mjGEOM_PLANE, 0)
     self.assertEqual(mujoco.mjtGeom.mjGEOM_HFIELD, 1)
     self.assertEqual(mujoco.mjtGeom.mjGEOM_SPHERE, 2)

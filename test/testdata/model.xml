@@ -1,6 +1,6 @@
 <mujoco>
   <option jacobian="dense" density="1.225" viscosity="1.8e-5" wind="0 0 1">
-    <flag fwdinv="enable" energy="enable"/>
+    <flag fwdinv="enable" energy="enable" island="enable"/>
   </option>
 
   <asset>

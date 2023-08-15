@@ -541,6 +541,13 @@ void UpdateInfoText(mj::Simulate* sim, const mjModel* m, const mjData* d,
       mju::strcat_arr(content, tmp);
       mju::strcat_arr(title, "\nFwdInv");
     }
+
+    // add islands if enabled
+    if (mjENABLED(mjENBL_ISLAND)) {
+      mju::sprintf_arr(tmp, "\n%d", d->nisland);
+      mju::strcat_arr(content, tmp);
+      mju::strcat_arr(title, "\nIslands");
+    }
   }
 }
 
@@ -667,7 +674,7 @@ void MakeRenderingSection(mj::Simulate* sim, const mjModel* m, int oldstate) {
       2,
       &(sim->opt.label),
       "None\nBody\nJoint\nGeom\nSite\nCamera\nLight\nTendon\n"
-      "Actuator\nConstraint\nSkin\nSelection\nSel Pnt\nContact\nForce"
+      "Actuator\nConstraint\nSkin\nSelection\nSel Pnt\nContact\nForce\nIsland"
     },
     {
       mjITEM_SELECT,

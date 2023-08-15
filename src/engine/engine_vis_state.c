@@ -173,6 +173,7 @@ void mjv_assignFromSceneState(const mjvSceneState* scnstate, mjModel* m, mjData*
     memcpy(d->warning, scnstate->data.warning, sizeof(d->warning));
     d->nefc = scnstate->data.nefc;
     d->ncon = scnstate->data.ncon;
+    d->nisland = scnstate->data.nisland;
     d->time = scnstate->data.time;
 
   #define X(dtype, var, dim0, dim1)
@@ -183,6 +184,12 @@ void mjv_assignFromSceneState(const mjvSceneState* scnstate, mjModel* m, mjData*
 
     d->contact = scnstate->data.contact;
     d->efc_force = scnstate->data.efc_force;
+
+    if (d->nisland) {
+      d->island_dofadr = scnstate->data.island_dofadr;
+      d->dof_island = scnstate->data.dof_island;
+      d->efc_island = scnstate->data.efc_island;
+    }
   }
 }
 
@@ -317,6 +324,15 @@ void mjv_updateSceneState(const mjModel* m, mjData* d, const mjvOption* opt,
       efc_address += dim;
     }
   }
+
+  // Copy island data.
+  scnstate->data.nisland = d->nisland;
+  if (d->nisland) {
+    memcpy(scnstate->data.island_dofadr, d->island_dofadr, sizeof(int) * d->nisland);
+    memcpy(scnstate->data.dof_island, d->dof_island, sizeof(int) * m->nv);
+    memcpy(scnstate->data.efc_island, d->efc_island, sizeof(int) * d->nefc);
+  }
+
 }
 
 

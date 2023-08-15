@@ -8,7 +8,16 @@ Upcoming version (not yet released)
 General
 ^^^^^^^
 
-1. Added a new :ref:`dyntype<actuator-general-dyntype>`, ``filterexact``, which updates first-order filter states with
+.. youtube:: Vc1tq0fFvQA
+   :align: right
+   :width: 240px
+
+1. Added constraint island discovery in :ref:`mj_island`. Constraint islands are disjoint sets of constraints
+   and degrees-of-freedom that do not interact. In a future release the constraint solver will be refactored to
+   exploit the disjoint structure. Island discovery can be activated using a new :ref:`enable flag<option-flag-island>`
+   which will be removed after the refactor. If island discovery is enabled, geoms, contacts and
+   tendons will be colored according to the corresponding island, see video:
+#. Added a new :ref:`dyntype<actuator-general-dyntype>`, ``filterexact``, which updates first-order filter states with
    the exact formula rather than with Euler integration.
 #. Added an actuator attribute, :ref:`actearly<actuator-general-actearly>`, which uses semi-implicit integration for
    actuator forces: using the next step's actuator state to compute the current actuator forces at the current timestep.
@@ -19,8 +28,9 @@ General
 Python bindings
 ^^^^^^^^^^^^^^^
 
-3. Fixed issue where calling ``update_scene`` with invalid camera name uses the default camera.
-   (`#870 <https://github.com/deepmind/mujoco/issues/870>`_)
+4. Fixed `#870 <https://github.com/deepmind/mujoco/issues/870>`__ where calling ``update_scene`` with an invalid
+   camera name used the default camera.
+
 
 Version 2.3.7 (July 20, 2023)
 -----------------------------

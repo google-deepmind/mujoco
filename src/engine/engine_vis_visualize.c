@@ -84,7 +84,13 @@ static void makeLabel(const mjModel* m, mjtObj type, int id, char* label) {
 // advance counter
 #define FINISH { scn->ngeom++; }
 
-
+// assign pseudo-random rgba to constraint island using Halton sequence
+static void islandColor(float rgba[4], int islanddofadr) {
+  rgba[0] = 0.1f + 0.8f*mju_Halton(islanddofadr + 1, 2);
+  rgba[1] = 0.1f + 0.8f*mju_Halton(islanddofadr + 1, 3);
+  rgba[2] = 0.1f + 0.8f*mju_Halton(islanddofadr + 1, 5);
+  rgba[3] = 1;
+}
 
 // add contact-related geoms in mjvObject
 static void addContactGeom(const mjModel* m, mjData* d, const mjtByte* flags,
@@ -102,7 +108,7 @@ static void addContactGeom(const mjModel* m, mjData* d, const mjtByte* flags,
     return;
   }
 
-  // loop over contacts included in impulse solver
+  // loop over contacts
   for (int i=0; i < d->ncon; i++) {
     // get pointer
     con = d->contact + i;
@@ -121,11 +127,21 @@ static void addContactGeom(const mjModel* m, mjData* d, const mjtByte* flags,
       mju_n2f(thisgeom->pos, con->pos, 3);
       mju_n2f(thisgeom->mat, mat, 9);
 
-      // different colors for included and excluded contacts
-      if (d->contact[i].efc_address >= 0) {
-        f2f(thisgeom->rgba, m->vis.rgba.contactpoint, 4);
-      } else {
-        f2f(thisgeom->rgba, m->vis.rgba.contactgap, 4);
+      int efc_adr = d->contact[i].efc_address;
+
+      // override standard colors if visualizing islands
+      if (vopt->flags[mjVIS_ISLAND] && d->nisland && efc_adr >= 0) {
+        // set color using island's first dof
+        islandColor(thisgeom->rgba, d->island_dofadr[d->efc_island[efc_adr]]);
+      }
+
+      // otherwise regular colors (different for included and excluded contacts)
+      else {
+        if (efc_adr >= 0) {
+          f2f(thisgeom->rgba, m->vis.rgba.contactpoint, 4);
+        } else {
+          f2f(thisgeom->rgba, m->vis.rgba.contactgap, 4);
+        }
       }
 
       // label contacting geom names or ids
@@ -1095,6 +1111,28 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
     }
   }
 
+  // island labels
+  objtype = mjOBJ_UNKNOWN;
+  category = mjCAT_DECOR;
+  if ((category & catmask) && (vopt->label == mjLABEL_ISLAND) && d->nisland) {
+    for (int i=1; i < m->nbody; i++) {
+      int weld_id = m->body_weldid[i];
+      if (m->body_dofnum[weld_id]) {
+        int islandid = d->dof_island[m->body_dofadr[weld_id]];
+        if (islandid > -1) {
+          START
+
+          thisgeom->type = mjGEOM_LABEL;
+          mju_n2f(thisgeom->pos, d->xipos+3*i, 3);
+          mju_n2f(thisgeom->mat, d->ximat+9*i, 9);
+          mjSNPRINTF(thisgeom->label, "%d", islandid);
+
+          FINISH
+        }
+      }
+    }
+  }
+
   // geom
   int planeid = -1;
   for (int i=0; i < m->ngeom; i++) {
@@ -1126,8 +1164,23 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
       // copy rbound from model
       thisgeom->modelrbound = (float)m->geom_rbound[i];
 
-      // set material properties
-      setMaterial(m, thisgeom, m->geom_matid[i], m->geom_rgba+4*i, vopt->flags);
+      // set material properties, override if visualizing islands
+      float* rgba = m->geom_rgba+4*i;
+      float rgba_island[4] = {.5, .5, .5, 1};
+      int geom_matid = m->geom_matid[i];
+      if (vopt->flags[mjVIS_ISLAND] && d->nisland) {
+        geom_matid = -1;
+        rgba = rgba_island;
+        int weld_id = m->body_weldid[m->geom_bodyid[i]];
+        if (m->body_dofnum[weld_id]) {
+          int island = d->dof_island[m->body_dofadr[weld_id]];
+          if (island > -1) {
+            // color using island's first dof
+            islandColor(rgba_island, d->island_dofadr[island]);
+          }
+        }
+      }
+      setMaterial(m, thisgeom, geom_matid, rgba, vopt->flags);
 
       // set texcoord
       if (m->geom_type[i] == mjGEOM_MESH &&
@@ -1474,17 +1527,21 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
   if (vopt->flags[mjVIS_TENDON] && (category & catmask)) {
     for (int i=0; i < m->ntendon; i++) {
       if (vopt->tendongroup[mjMAX(0, mjMIN(mjNGROUP-1, m->tendon_group[i]))]) {
-        // stiff tendon has a deadband spring
+        // tendon has a deadband spring
         int limitedspring =
           m->tendon_stiffness[i] > 0            &&    // positive stiffness
           m->tendon_lengthspring[2*i] == 0      &&    // range lower-bound is 0
           m->tendon_lengthspring[2*i+1] > 0;          // range upper-bound is positive
 
-        // non-stiff tendon has a length constraint
+        // tendon has a simple length constraint, but is currently not limited
+        mjtNum ten_length = d->ten_length[i];
+        mjtNum lower = m->tendon_range[2*i];
+        mjtNum upper = m->tendon_range[2*i + 1];
         int limitedconstraint =
           m->tendon_stiffness[i] == 0           &&    // zero stiffness
           m->tendon_limited[i] == 1             &&    // limited length range
-          m->tendon_range[2*i] == 0;                  // range lower-bound is 0
+          lower == 0                            &&    // range lower-bound is 0
+          ten_length < upper;                         // current length is smaller than upper bound
 
         // conditions for drawing a catenary
         int draw_catenary =
@@ -1511,8 +1568,33 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
               // construct geom
               mjv_connector(thisgeom, mjGEOM_CAPSULE, sz[0], d->wrap_xpos+3*j, d->wrap_xpos+3*j+3);
 
-              // set material if given
-              setMaterial(m, thisgeom, m->tendon_matid[i], m->tendon_rgba+4*i, vopt->flags);
+              // set material properties, override if visualizing islands
+              float* rgba = m->tendon_rgba+4*i;
+              float rgba_island[4] = {.5, .5, .5, 1};
+              int tendon_matid = m->tendon_matid[i];
+              if (vopt->flags[mjVIS_ISLAND] && d->nisland) {
+                tendon_matid = -1;
+                rgba = rgba_island;
+                int frictional = m->tendon_frictionloss[i] > 0;
+                int limited = m->tendon_limited[i] && (ten_length <= lower || ten_length >= upper);
+                if (frictional || limited) {
+                  // search for tendon's island
+                  int island = -1;
+                  for (int k=0; k < d->nefc; k++) {
+                    int istendon = d->efc_type[k] == mjCNSTR_FRICTION_TENDON ||
+                                   d->efc_type[k] == mjCNSTR_LIMIT_TENDON;
+                    if (istendon && d->efc_id[k] == i) {
+                      island = d->efc_island[k];
+                      break;
+                    }
+                  }
+                  if (island > -1) {
+                    // set color using island's first dof
+                    islandColor(rgba_island, d->island_dofadr[island]);
+                  }
+                }
+              }
+              setMaterial(m, thisgeom, tendon_matid, rgba, vopt->flags);
 
               // vopt->label: only the first segment
               if (vopt->label == mjLABEL_TENDON && j == d->ten_wrapadr[i]) {
@@ -1546,7 +1628,7 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
           for (int j=0; j < npoints-1; j++) {
             START
 
-              sz[0] = m->tendon_width[i];
+            sz[0] = m->tendon_width[i];
 
             // construct geom
             mjv_connector(thisgeom, mjGEOM_CAPSULE, sz[0], catenary+3*j, catenary+3*j+3);

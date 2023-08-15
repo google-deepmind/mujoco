@@ -18,6 +18,7 @@
 #include <mujoco/mjdata.h>
 #include <mujoco/mjexport.h>
 #include <mujoco/mjmodel.h>
+#include <mujoco/mjxmacro.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -114,12 +115,6 @@ MJAPI void mj_referenceConstraint(const mjModel* m, mjData* d);
 // optional: cost(qacc) = shat(jar) where jar = Jac*qacc-aref; cone Hessians
 MJAPI void mj_constraintUpdate(const mjModel* m, mjData* d, const mjtNum* jar,
                                mjtNum cost[1], int flg_coneHessian);
-
-// construct sparse matrix from unsorted edge array, return number of nonzeros
-MJAPI int mj_edge2Sparse(int* rownnz, int* rowadr, int* colind, int* edge, int ne, int nr);
-
-MJAPI int mj_floodFill(int* island, int nr, const int* rownnz, const int* rowadr, const int* colind,
-                       int* scratch);
 
 #ifdef __cplusplus
 }

@@ -840,6 +840,15 @@ mj_makeConstraint
 
 Construct constraints.
 
+.. _mj_island:
+
+mj_island
+~~~~~~~~~
+
+.. mujoco-include:: mj_island
+
+Find constraint islands.
+
 .. _mj_projectConstraint:
 
 mj_projectConstraint

@@ -159,7 +159,8 @@ public enum mjtEnableBit : int{
   mjENBL_FWDINV = 4,
   mjENBL_SENSORNOISE = 8,
   mjENBL_MULTICCD = 16,
-  mjNENABLE = 5,
+  mjENBL_ISLAND = 32,
+  mjNENABLE = 6,
 }
 public enum mjtJoint : int{
   mjJNT_FREE = 0,
@@ -455,7 +456,8 @@ public enum mjtLabel : int{
   mjLABEL_SELPNT = 12,
   mjLABEL_CONTACTPOINT = 13,
   mjLABEL_CONTACTFORCE = 14,
-  mjNLABEL = 15,
+  mjLABEL_ISLAND = 15,
+  mjNLABEL = 16,
 }
 public enum mjtFrame : int{
   mjFRAME_NONE = 0,
@@ -484,17 +486,18 @@ public enum mjtVisFlag : int{
   mjVIS_PERTFORCE = 12,
   mjVIS_PERTOBJ = 13,
   mjVIS_CONTACTPOINT = 14,
-  mjVIS_CONTACTFORCE = 15,
-  mjVIS_CONTACTSPLIT = 16,
-  mjVIS_TRANSPARENT = 17,
-  mjVIS_AUTOCONNECT = 18,
-  mjVIS_COM = 19,
-  mjVIS_SELECT = 20,
-  mjVIS_STATIC = 21,
-  mjVIS_SKIN = 22,
-  mjVIS_MIDPHASE = 23,
-  mjVIS_MESHBVH = 24,
-  mjNVISFLAG = 25,
+  mjVIS_ISLAND = 15,
+  mjVIS_CONTACTFORCE = 16,
+  mjVIS_CONTACTSPLIT = 17,
+  mjVIS_TRANSPARENT = 18,
+  mjVIS_AUTOCONNECT = 19,
+  mjVIS_COM = 20,
+  mjVIS_SELECT = 21,
+  mjVIS_STATIC = 22,
+  mjVIS_SKIN = 23,
+  mjVIS_MIDPHASE = 24,
+  mjVIS_MESHBVH = 25,
+  mjNVISFLAG = 26,
 }
 public enum mjtRndFlag : int{
   mjRND_SHADOW = 0,
@@ -1604,6 +1607,7 @@ public unsafe struct mjData_ {
   public int nefc;
   public int nnzJ;
   public int ncon;
+  public int nisland;
   public double time;
   public fixed double energy[2];
   public void* buffer;
@@ -1706,6 +1710,12 @@ public unsafe struct mjData_ {
   public double* efc_KBIP;
   public double* efc_D;
   public double* efc_R;
+  public int* island_dofadr;
+  public int* island_efcadr;
+  public int* dof_island;
+  public int* dof_islandnext;
+  public int* efc_island;
+  public int* efc_islandnext;
   public int* efc_AR_rownnz;
   public int* efc_AR_rowadr;
   public int* efc_AR_colind;
@@ -1940,6 +1950,7 @@ public unsafe struct mjModel_ {
   public int nM;
   public int nD;
   public int nB;
+  public int ntree;
   public int nemax;
   public int njmax;
   public int nconmax;
@@ -1962,6 +1973,7 @@ public unsafe struct mjModel_ {
   public int* body_jntadr;
   public int* body_dofnum;
   public int* body_dofadr;
+  public int* body_treeid;
   public int* body_geomnum;
   public int* body_geomadr;
   public byte* body_simple;
@@ -2002,6 +2014,7 @@ public unsafe struct mjModel_ {
   public int* dof_bodyid;
   public int* dof_jntid;
   public int* dof_parentid;
+  public int* dof_treeid;
   public int* dof_Madr;
   public int* dof_simplenum;
   public double* dof_solref;
@@ -2588,7 +2601,7 @@ public unsafe struct mjvOption_ {
   public fixed byte tendongroup[6];
   public fixed byte actuatorgroup[6];
   public fixed byte skingroup[6];
-  public fixed byte flags[25];
+  public fixed byte flags[26];
   public int bvh_depth;
 }
 
@@ -2911,6 +2924,7 @@ public unsafe struct data {
   public mjWarningStat_ warning7;
   public int nefc;
   public int ncon;
+  public int nisland;
   public double time;
   public double* act;
   public double* ctrl;
@@ -2937,6 +2951,9 @@ public unsafe struct data {
   public int* wrap_obj;
   public double* wrap_xpos;
   public byte* bvh_active;
+  public int* island_dofadr;
+  public int* dof_island;
+  public int* efc_island;
   public mjContact_* contact;
   public double* efc_force;
 }
@@ -3186,6 +3203,9 @@ public static unsafe extern void mj_collision(mjModel_* m, mjData_* d);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern void mj_makeConstraint(mjModel_* m, mjData_* d);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern void mj_island(mjModel_* m, mjData_* d);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern void mj_projectConstraint(mjModel_* m, mjData_* d);

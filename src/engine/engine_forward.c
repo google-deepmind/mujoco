@@ -27,6 +27,7 @@
 #include "engine/engine_core_smooth.h"
 #include "engine/engine_derivative.h"
 #include "engine/engine_inverse.h"
+#include "engine/engine_island.h"
 #include "engine/engine_io.h"
 #include "engine/engine_macro.h"
 #include "engine/engine_passive.h"
@@ -114,6 +115,9 @@ void mj_fwdPosition(const mjModel* m, mjData* d) {
 
   TM_RESTART;
   mj_makeConstraint(m, d);
+  if (mjENABLED(mjENBL_ISLAND)) {
+    mj_island(m, d);
+  }
   mj_transmission(m, d);
   TM_END(mjTIMER_POS_MAKE);
 

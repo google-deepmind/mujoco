@@ -1706,6 +1706,26 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
          ),
          doc='Construct constraints.',
      )),
+    ('mj_island',
+     FunctionDecl(
+         name='mj_island',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='m',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjModel', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='d',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjData'),
+                 ),
+             ),
+         ),
+         doc='Find constraint islands.',
+     )),
     ('mj_projectConstraint',
      FunctionDecl(
          name='mj_projectConstraint',

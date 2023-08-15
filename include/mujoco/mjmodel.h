@@ -70,8 +70,9 @@ typedef enum mjtEnableBit_ {      // enable optional feature bitflags
   mjENBL_SENSORNOISE  = 1<<3,     // add noise to sensor data
                                   // experimental features:
   mjENBL_MULTICCD     = 1<<4,     // multi-point convex collision detection
+  mjENBL_ISLAND       = 1<<5,     // constraint island discovery
 
-  mjNENABLE           = 5         // number of enable flags
+  mjNENABLE           = 6         // number of enable flags
 } mjtEnableBit;
 
 
@@ -557,7 +558,7 @@ struct mjModel_ {
   int nu;                         // number of actuators/controls = dim(ctrl)
   int na;                         // number of activation states = dim(act)
   int nbody;                      // number of bodies
-  int nbvh;                       // number of total bounding volumes in all bodies
+  int nbvh;                       // number of bounding volumes in all bodies
   int njnt;                       // number of joints
   int ngeom;                      // number of geoms
   int nsite;                      // number of sites
@@ -611,13 +612,14 @@ struct mjModel_ {
   int nM;                         // number of non-zeros in sparse inertia matrix
   int nD;                         // number of non-zeros in sparse dof-dof matrix
   int nB;                         // number of non-zeros in sparse body-dof matrix
+  int ntree;                      // number of kinematic trees under world body
   int nemax;                      // number of potential equality-constraint rows
   int njmax;                      // number of available rows in constraint Jacobian
   int nconmax;                    // number of potential contacts in contact list
   int nstack;                     // number of fields in mjData stack
   int nuserdata;                  // number of extra fields in mjData
   int nsensordata;                // number of fields in sensor data vector
-  int npluginstate;               // number of fields in the plugin state vector
+  int npluginstate;               // number of fields in plugin state vector
 
   int nbuffer;                    // number of bytes in buffer
 
@@ -645,6 +647,7 @@ struct mjModel_ {
   int*      body_jntadr;          // start addr of joints; -1: no joints      (nbody x 1)
   int*      body_dofnum;          // number of motion degrees of freedom      (nbody x 1)
   int*      body_dofadr;          // start addr of dofs; -1: no dofs          (nbody x 1)
+  int*      body_treeid;          // id of body's kinematic tree; -1: static  (nbody x 1)
   int*      body_geomnum;         // number of geoms                          (nbody x 1)
   int*      body_geomadr;         // start addr of geoms; -1: no geoms        (nbody x 1)
   mjtByte*  body_simple;          // body is simple (has diagonal M)          (nbody x 1)
@@ -691,6 +694,7 @@ struct mjModel_ {
   int*      dof_bodyid;           // id of dof's body                         (nv x 1)
   int*      dof_jntid;            // id of dof's joint                        (nv x 1)
   int*      dof_parentid;         // id of dof's parent; -1: none             (nv x 1)
+  int*      dof_treeid;           // id of dof's kinematic tree               (nv x 1)
   int*      dof_Madr;             // dof address in M-diagonal                (nv x 1)
   int*      dof_simplenum;        // number of consecutive simple dofs        (nv x 1)
   mjtNum*   dof_solref;           // constraint solver reference:frictionloss (nv x mjNREF)
