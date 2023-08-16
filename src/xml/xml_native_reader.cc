@@ -80,7 +80,7 @@ void ReadPluginConfigs(tinyxml2::XMLElement* elem, mjCPlugin* pp) {
 
 //---------------------------------- MJCF schema ---------------------------------------------------
 
-static const int nMJCF = 191;
+static const int nMJCF = 203;
 static const char* MJCF[nMJCF][mjXATTRNUM] = {
 {"mujoco", "!", "1", "model"},
 {"<"},
@@ -95,12 +95,13 @@ static const char* MJCF[nMJCF][mjXATTRNUM] = {
             "inttotal", "interval", "tolrange"},
     {">"},
 
-    {"option", "*", "22",
+    {"option", "*", "24",
         "timestep", "apirate", "impratio", "tolerance", "noslip_tolerance", "mpr_tolerance",
         "gravity", "wind", "magnetic", "density", "viscosity",
         "o_margin", "o_solref", "o_solimp",
         "integrator", "collision", "cone", "jacobian",
-        "solver", "iterations", "noslip_iterations", "mpr_iterations"},
+        "solver", "iterations", "noslip_iterations", "mpr_iterations",
+        "sdf_iterations", "sdf_initpoints"},
     {"<"},
         {"flag", "?", "19", "constraint", "equality", "frictionloss", "limit", "contact",
             "passive", "gravity", "clampctrl", "warmstart",
@@ -220,6 +221,12 @@ static const char* MJCF[nMJCF][mjXATTRNUM] = {
         {"hfield", "*", "6", "name", "content_type", "file", "nrow", "ncol", "size"},
         {"mesh", "*", "12", "name", "class", "content_type", "file", "vertex", "normal",
             "texcoord", "face", "refpos", "refquat", "scale", "smoothnormal"},
+        {"<"},
+          {"plugin", "*", "2", "plugin", "instance"},
+          {"<"},
+            {"config", "*", "2", "key", "value"},
+          {">"},
+        {">"},
         {"skin", "*", "9", "name", "file", "material", "rgba", "inflate",
             "vertex", "texcoord", "face", "group"},
         {"<"},
@@ -249,6 +256,12 @@ static const char* MJCF[nMJCF][mjXATTRNUM] = {
             "shellinertia", "solmix", "solref", "solimp",
             "margin", "gap", "fromto", "pos", "quat", "axisangle", "xyaxes", "zaxis", "euler",
             "hfield", "mesh", "fitscale", "rgba", "fluidshape", "fluidcoef", "user"},
+        {"<"},
+            {"plugin", "*", "2", "plugin", "instance"},
+            {"<"},
+              {"config", "*", "2", "key", "value"},
+            {">"},
+        {">"},
         {"site", "*", "15", "name", "class", "type", "group", "pos", "quat",
             "material", "size", "fromto", "axisangle", "xyaxes", "zaxis", "euler", "rgba", "user"},
         {"camera", "*", "13", "name", "class", "fovy", "ipd",
@@ -497,7 +510,8 @@ const mjMap geom_map[mjNGEOMTYPES] = {
   {"ellipsoid",   mjGEOM_ELLIPSOID},
   {"cylinder",    mjGEOM_CYLINDER},
   {"box",         mjGEOM_BOX},
-  {"mesh",        mjGEOM_MESH}
+  {"mesh",        mjGEOM_MESH},
+  {"sdf",         mjGEOM_SDF}
 };
 
 
@@ -964,6 +978,8 @@ void mjXReader::Option(XMLElement* section, mjOption* opt) {
   ReadAttrInt(section, "iterations", &opt->iterations);
   ReadAttrInt(section, "noslip_iterations", &opt->noslip_iterations);
   ReadAttrInt(section, "mpr_iterations", &opt->mpr_iterations);
+  ReadAttrInt(section, "sdf_iterations", &opt->sdf_iterations);
+  ReadAttrInt(section, "sdf_initpoints", &opt->sdf_initpoints);
 
   // read disable sub-element
   XMLElement* elem = FindSubElem(section, "flag");
@@ -1196,6 +1212,11 @@ void mjXReader::OneMesh(XMLElement* elem, mjCMesh* pmesh) {
   pmesh->set_refquat(ReadAttrArr<double, 4>(elem, "refquat"));
   pmesh->set_scale(ReadAttrArr<double, 3>(elem, "scale"));
 
+  XMLElement* eplugin = elem->FirstChildElement("plugin");
+  if (eplugin) {
+    OnePlugin(eplugin, pmesh);
+  }
+
   if (MapValue(elem, "smoothnormal", &n, bool_map, 2)) {
     pmesh->set_smoothnormal((n==1));
   }
@@ -1381,6 +1402,12 @@ void mjXReader::OneGeom(XMLElement* elem, mjCGeom* pgeom) {
 
   // read userdata
   ReadVector(elem, "user", pgeom->userdata, text);
+
+  // plugin sub-element
+  XMLElement* eplugin = elem->FirstChildElement("plugin");
+  if (eplugin) {
+    OnePlugin(eplugin, pgeom);
+  }
 
   // remaining attributes
   ReadAttr(elem, "mass", 1, &pgeom->_mass, text);
@@ -2101,10 +2128,10 @@ void mjXReader::OnePlugin(XMLElement* elem, mjCBase* object) {
   ReadAttrTxt(elem, "instance", object->plugin_instance_name);
   if (object->plugin_instance_name.empty()) {
     object->plugin_instance = model->AddPlugin();
+    ReadPluginConfigs(elem, object->plugin_instance);
   } else {
     model->hasImplicitPluginElem = true;
   }
-  ReadPluginConfigs(elem, object->plugin_instance);
 }
 
 

@@ -41,7 +41,12 @@ target_link_libraries(
   absl::str_format
 )
 
-mujoco_test(engine_plugin_test)
+mujoco_test(
+  engine_plugin_test
+  PROPERTIES
+  ENVIRONMENT
+  "MUJOCO_PLUGIN_DIR=$<TARGET_FILE_DIR:elasticity>"
+)
 target_link_libraries(
   engine_plugin_test
   fixture

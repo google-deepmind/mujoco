@@ -123,6 +123,10 @@ void mj_defaultOption(mjOption* opt) {
   opt->mpr_iterations     = 50;
   opt->disableflags       = 0;
   opt->enableflags        = 0;
+
+  // sdf collisions
+  opt->sdf_initpoints     = 40;
+  opt->sdf_iterations     = 10;
 }
 
 
@@ -1716,7 +1720,7 @@ const char* mj_validateReferences(const mjModel* m) {
       if (m->geom_dataid[i] >= m->nhfield || m->geom_dataid[i] < -1) {
         return "Invalid model: geom_dataid out of bounds.";
       }
-    } else if (m->geom_type[i] == mjGEOM_MESH) {
+    } else if ((m->geom_type[i]==mjGEOM_MESH) || (m->geom_type[i]==mjGEOM_SDF)) {
       if (m->geom_dataid[i] >= m->nmesh || m->geom_dataid[i] < -1) {
         return "Invalid model: geom_dataid out of bounds.";
       }

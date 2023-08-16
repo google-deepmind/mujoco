@@ -56,8 +56,6 @@ TEST_F(PluginTest, ElasticEnergy) {
   mjModel* m = LoadModelFromString(cantilever_xml, error, sizeof(error));
   ASSERT_THAT(m, testing::NotNull()) << error;
   mjData* d = mj_makeData(m);
-
-  EXPECT_THAT(mjp_pluginCount(), 2);
   auto* solid = reinterpret_cast<plugin::elasticity::Solid*>(d->plugin_data[0]);
 
   // check that if the entire geometry is rescaled by a factor "scale", then

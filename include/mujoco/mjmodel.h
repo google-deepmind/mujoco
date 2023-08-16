@@ -23,7 +23,7 @@
 #define mjMINMU         1E-5      // minimum friction coefficient
 #define mjMINIMP        0.0001    // minimum constraint impedance
 #define mjMAXIMP        0.9999    // maximum constraint impedance
-#define mjMAXCONPAIR    50        // maximum number of contacts per geom pair
+#define mjMAXCONPAIR    100       // maximum number of contacts per geom pair
 #define mjMAXTREEDEPTH  50        // maximum bounding volume hierarchy depth
 #define mjMAXVFS        2000      // maximum number of files in virtual file system
 #define mjMAXVFSNAME    1000      // maximum filename size in virtual file system
@@ -94,6 +94,7 @@ typedef enum mjtGeom_ {           // type of geometric shape
   mjGEOM_CYLINDER,                // cylinder
   mjGEOM_BOX,                     // box
   mjGEOM_MESH,                    // mesh
+  mjGEOM_SDF,                     // signed distance field
 
   mjNGEOMTYPES,                   // number of regular geom types
 
@@ -437,6 +438,10 @@ struct mjOption_ {                // physics options
   int mpr_iterations;             // maximum number of MPR solver iterations
   int disableflags;               // bit flags for disabling standard features
   int enableflags;                // bit flags for enabling optional features
+
+  // sdf collision settings
+  int sdf_initpoints;             // number of starting points for gradient descent
+  int sdf_iterations;             // max number of iterations for gradient descent
 };
 typedef struct mjOption_ mjOption;
 
@@ -715,6 +720,7 @@ struct mjModel_ {
   int*      geom_matid;           // material id for rendering; -1: none      (ngeom x 1)
   int*      geom_group;           // group for visibility                     (ngeom x 1)
   int*      geom_priority;        // geom contact priority                    (ngeom x 1)
+  int*      geom_plugin;          // plugin instance id; -1: not in use       (ngeom x 1)
   mjtByte*  geom_sameframe;       // same as body frame (1) or iframe (2)     (ngeom x 1)
   mjtNum*   geom_solmix;          // mixing coef for solref/imp in geom pair  (ngeom x 1)
   mjtNum*   geom_solref;          // constraint solver reference: contact     (ngeom x mjNREF)

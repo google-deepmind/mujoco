@@ -39,7 +39,7 @@ public const double mjMAXVAL = 10000000000.0;
 public const double mjMINMU = 1e-05;
 public const double mjMINIMP = 0.0001;
 public const double mjMAXIMP = 0.9999;
-public const int mjMAXCONPAIR = 50;
+public const int mjMAXCONPAIR = 100;
 public const int mjMAXTREEDEPTH = 50;
 public const int mjMAXVFS = 2000;
 public const int mjMAXVFSNAME = 1000;
@@ -177,7 +177,8 @@ public enum mjtGeom : int{
   mjGEOM_CYLINDER = 5,
   mjGEOM_BOX = 6,
   mjGEOM_MESH = 7,
-  mjNGEOMTYPES = 8,
+  mjGEOM_SDF = 8,
+  mjNGEOMTYPES = 9,
   mjGEOM_ARROW = 100,
   mjGEOM_ARROW1 = 101,
   mjGEOM_ARROW2 = 102,
@@ -374,6 +375,7 @@ public enum mjtPluginCapabilityBit : int{
   mjPLUGIN_ACTUATOR = 1,
   mjPLUGIN_SENSOR = 2,
   mjPLUGIN_PASSIVE = 4,
+  mjPLUGIN_SDF = 8,
 }
 public enum mjtGridPos : int{
   mjGRID_TOPLEFT = 0,
@@ -497,7 +499,8 @@ public enum mjtVisFlag : int{
   mjVIS_SKIN = 23,
   mjVIS_MIDPHASE = 24,
   mjVIS_MESHBVH = 25,
-  mjNVISFLAG = 26,
+  mjVIS_SDFITER = 26,
+  mjNVISFLAG = 27,
 }
 public enum mjtRndFlag : int{
   mjRND_SHADOW = 0,
@@ -1776,6 +1779,8 @@ public unsafe struct mjOption_ {
   public int mpr_iterations;
   public int disableflags;
   public int enableflags;
+  public int sdf_initpoints;
+  public int sdf_iterations;
 }
 
 [StructLayout(LayoutKind.Sequential)]
@@ -2033,6 +2038,7 @@ public unsafe struct mjModel_ {
   public int* geom_matid;
   public int* geom_group;
   public int* geom_priority;
+  public int* geom_plugin;
   public byte* geom_sameframe;
   public double* geom_solmix;
   public double* geom_solref;
@@ -2601,7 +2607,7 @@ public unsafe struct mjvOption_ {
   public fixed byte tendongroup[6];
   public fixed byte actuatorgroup[6];
   public fixed byte skingroup[6];
-  public fixed byte flags[26];
+  public fixed byte flags[27];
   public int bvh_depth;
 }
 

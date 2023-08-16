@@ -32,9 +32,9 @@ namespace {
 using ::testing::HasSubstr;
 using ::testing::NotNull;
 
+constexpr int kNumTruePlugins = 8;
 constexpr int kNumFakePlugins = 30;
 constexpr int kNumTestPlugins = 3;
-const int kNumTruePlugins = mjp_pluginCount();
 
 class BaseTestPlugin {
  public:
@@ -319,10 +319,10 @@ int RegisterPassivePlugin() {
   return mjp_registerPlugin(&plugin);
 }
 
-class PluginTest : public MujocoTest {
+class EnginePluginTest : public PluginTest {
  public:
   // register all plugins
-  PluginTest() : MujocoTest() {
+  EnginePluginTest() : PluginTest() {
     RegisterSensorPlugin();
 
     for (int i = 1; i <= kNumFakePlugins; ++i) {
@@ -388,7 +388,11 @@ constexpr char xml[] = R"(
 </mujoco>
 )";
 
-TEST_F(PluginTest, MultiplePluginTableBlocks) {
+TEST_F(PluginTest, FirstPartyPlugins) {
+  EXPECT_THAT(mjp_pluginCount(), kNumTruePlugins);
+}
+
+TEST_F(EnginePluginTest, MultiplePluginTableBlocks) {
   EXPECT_EQ(mjp_pluginCount(), kNumTruePlugins + kNumFakePlugins + kNumTestPlugins);
 
   const mjpPlugin* last_plugin = nullptr;
@@ -412,14 +416,14 @@ TEST_F(PluginTest, MultiplePluginTableBlocks) {
   EXPECT_LT(table_count, kNumFakePlugins);
 }
 
-TEST_F(PluginTest, RegisterIdenticalPlugin) {
+TEST_F(EnginePluginTest, RegisterIdenticalPlugin) {
   EXPECT_EQ(RegisterSensorPlugin(), kNumTruePlugins);
   EXPECT_EQ(RegisterActuatorPlugin(), kNumTruePlugins + kNumFakePlugins + 1);
   EXPECT_EQ(RegisterPassivePlugin(), kNumTruePlugins + kNumFakePlugins + 2);
   EXPECT_EQ(mjp_pluginCount(), kNumTruePlugins + kNumFakePlugins + kNumTestPlugins);
 }
 
-TEST_F(PluginTest, SaveXml) {
+TEST_F(EnginePluginTest, SaveXml) {
   char error[1024] = {0};
 
   mjModel* m = LoadModelFromString(xml, error, sizeof(error));
@@ -471,7 +475,7 @@ TEST_F(PluginTest, SaveXml) {
   mj_deleteModel(m2);
 }
 
-TEST_F(PluginTest, SensorPlugin) {
+TEST_F(EnginePluginTest, SensorPlugin) {
   int expected_init_count = TestSensor::InitCount();
   int expected_destroy_count = TestSensor::DestroyCount();
   EXPECT_EQ(expected_init_count, expected_destroy_count);
@@ -529,7 +533,7 @@ TEST_F(PluginTest, SensorPlugin) {
   EXPECT_EQ(TestSensor::DestroyCount(), expected_destroy_count);
 }
 
-TEST_F(PluginTest, ActuatorPlugin) {
+TEST_F(EnginePluginTest, ActuatorPlugin) {
   int expected_init_count = TestActuator::InitCount();
   int expected_destroy_count = TestActuator::DestroyCount();
   EXPECT_EQ(expected_init_count, expected_destroy_count);

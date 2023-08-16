@@ -8,15 +8,26 @@ Upcoming version (not yet released)
 General
 ^^^^^^^
 
-.. youtube:: Vc1tq0fFvQA
+.. youtube:: QewlEqIZi1o
    :align: right
    :width: 240px
 
-1. Added constraint island discovery in :ref:`mj_island`. Constraint islands are disjoint sets of constraints
+1. Added new signed distance field (SDF) collision primitive. SDFs can take any shape and are not constrained to be
+   convex. Collision points are found by minimizing the maximum of the two colliding SDFs via gradient descent.
+
+   - Added new SDF plugin for defining implicit geometries. The plugin must define methods computing an SDF and its
+     gradient at query points See the :ref:`documentation<exWriting>` for more details.
+   - Increased ``mjMAXCONPAIR`` to 100.
+
+   .. youtube:: Vc1tq0fFvQA
+      :align: right
+      :width: 240px
+
+#. Added constraint island discovery in :ref:`mj_island`. Constraint islands are disjoint sets of constraints
    and degrees-of-freedom that do not interact. In a future release the constraint solver will be refactored to
    exploit the disjoint structure. Island discovery can be activated using a new :ref:`enable flag<option-flag-island>`
    which will be removed after the refactor. If island discovery is enabled, geoms, contacts and
-   tendons will be colored according to the corresponding island, see video:
+   tendons will be colored according to the corresponding island, see video.
 #. Added a new :ref:`dyntype<actuator-general-dyntype>`, ``filterexact``, which updates first-order filter states with
    the exact formula rather than with Euler integration.
 #. Added an actuator attribute, :ref:`actearly<actuator-general-actearly>`, which uses semi-implicit integration for

@@ -41,7 +41,9 @@
     X( int,     noslip_iterations ) \
     X( int,     mpr_iterations    ) \
     X( int,     disableflags      ) \
-    X( int,     enableflags       )
+    X( int,     enableflags       ) \
+    X( int,     sdf_initpoints    ) \
+    X( int,     sdf_iterations    )
 
 
 #define MJOPTION_SCALARS            \
@@ -225,6 +227,7 @@
     XMJV( int,     geom_matid,            ngeom,         1                    ) \
     XMJV( int,     geom_group,            ngeom,         1                    ) \
     X   ( int,     geom_priority,         ngeom,         1                    ) \
+    X   ( int,     geom_plugin,           ngeom,         1                    ) \
     X   ( mjtByte, geom_sameframe,        ngeom,         1                    ) \
     X   ( mjtNum,  geom_solmix,           ngeom,         1                    ) \
     X   ( mjtNum,  geom_solref,           ngeom,         mjNREF               ) \

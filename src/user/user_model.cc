@@ -2743,6 +2743,14 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, int vfs_provider) {
       }
     }
 
+    for (int i = 0; i < ngeom; ++i) {
+      if (geoms[i]->is_plugin) {
+        m->geom_plugin[i] = geoms[i]->plugin_instance->id;
+      } else {
+        m->geom_plugin[i] = -1;
+      }
+    }
+
     std::vector<std::vector<int>> plugin_to_sensors(nplugin);
     for (int i = 0; i < nsensor; ++i) {
       if (sensors[i]->type == mjSENS_PLUGIN) {

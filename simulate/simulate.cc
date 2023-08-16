@@ -27,6 +27,7 @@
 
 #include "lodepng.h"
 #include <mujoco/mjdata.h>
+#include <mujoco/mjui.h>
 #include <mujoco/mjvisualize.h>
 #include <mujoco/mjxmacro.h>
 #include <mujoco/mujoco.h>
@@ -605,6 +606,8 @@ void MakePhysicsSection(mj::Simulate* sim, int oldstate) {
     {mjITEM_EDITINT,   "MRR Iter",      2, &(opt->mpr_iterations),    "1 0 1000"},
     {mjITEM_EDITNUM,   "MPR Tol",       2, &(opt->mpr_tolerance),     "1 0 1"},
     {mjITEM_EDITNUM,   "API Rate",      2, &(opt->apirate),           "1 0 1000"},
+    {mjITEM_EDITINT,   "SDF Iter",      2, &(opt->sdf_iterations),    "1 1 20"},
+    {mjITEM_EDITINT,   "SDF Init",      2, &(opt->sdf_initpoints),    "1 1 100"},
     {mjITEM_SEPARATOR, "Physical Parameters", 1},
     {mjITEM_EDITNUM,   "Gravity",       2, opt->gravity,              "3"},
     {mjITEM_EDITNUM,   "Wind",          2, opt->wind,                 "3"},
@@ -756,7 +759,7 @@ void MakeRenderingSection(mj::Simulate* sim, const mjModel* m, int oldstate) {
 
   // create tree slider
   mjuiDef defTree[] = {
-      {mjITEM_SLIDERINT, "Tree depth", 2, &sim->opt.bvh_depth, "0 15"},
+      {mjITEM_SLIDERINT, "Tree depth", 2, &sim->opt.bvh_depth, "0 20"},
       {mjITEM_END}
   };
   mjui_add(&sim->ui0, defTree);
@@ -1713,6 +1716,8 @@ void Simulate::Sync() {
     X(mpr_iterations);
     X(disableflags);
     X(enableflags);
+    X(sdf_initpoints);
+    X(sdf_iterations);
 
   #undef X
 

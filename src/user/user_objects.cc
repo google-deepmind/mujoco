@@ -484,6 +484,12 @@ mjCBase::mjCBase() {
   xmlpos[0] = xmlpos[1] = -1;
   model = 0;
   def = 0;
+
+  // plugin variables
+  is_plugin = false;
+  plugin_instance = nullptr;
+  plugin_name = "";
+  plugin_instance_name = "";
 }
 
 
@@ -554,12 +560,6 @@ mjCBody::mjCBody(mjCModel* _model) {
   subtreedofs = 0;
   gravcomp = 0;
   userdata.clear();
-
-  // plugin variables
-  is_plugin = false;
-  plugin_instance = nullptr;
-  plugin_name = "";
-  plugin_instance_name = "";
 
   // clear object lists
   bodies.clear();
@@ -1284,6 +1284,12 @@ mjCGeom::mjCGeom(mjCModel* _model, mjCDef* _def) {
   // set model, def
   model = _model;
   def = (_def ? _def : (_model ? _model->defaults[0] : 0));
+
+  // plugin variables
+  is_plugin = false;
+  plugin_instance = nullptr;
+  plugin_name = "";
+  plugin_instance_name = "";
 }
 
 
@@ -1293,7 +1299,7 @@ double mjCGeom::GetVolume(void) {
   double height;
 
   // get from mesh
-  if (type==mjGEOM_MESH) {
+  if (type==mjGEOM_MESH || type==mjGEOM_SDF) {
     if (meshid<0 || meshid>=(int)model->meshes.size()) {
       throw mjCError(this, "invalid meshid in mesh geom '%s' (id = %d)", name.c_str(), id);
     }
@@ -1353,7 +1359,7 @@ void mjCGeom::SetInertia(void) {
   double height;
 
   // get from mesh
-  if (type==mjGEOM_MESH) {
+  if (type==mjGEOM_MESH || type==mjGEOM_SDF) {
     if (meshid<0 || meshid>=(int)model->meshes.size()) {
       throw mjCError(this, "invalid meshid in mesh geom '%s' (id = %d)", name.c_str(), id);
     }
@@ -1440,6 +1446,7 @@ double mjCGeom::GetRBound(void) {
     return sqrt(size[0]*size[0]+size[1]*size[1]+size[2]*size[2]);
 
   case mjGEOM_MESH:
+  case mjGEOM_SDF:
     aabb = model->meshes[meshid]->aabb();
     haabb[0] = mjMAX(fabs(aabb[0]), fabs(aabb[3]));
     haabb[1] = mjMAX(fabs(aabb[1]), fabs(aabb[4]));
@@ -1586,6 +1593,7 @@ void mjCGeom::ComputeAABB() {
     break;
 
   case mjGEOM_MESH:
+  case mjGEOM_SDF:
     mjuu_copyvec(aabb, model->meshes[meshid]->aabb(), 6);
     break;
 
@@ -1647,7 +1655,7 @@ void mjCGeom::Compile(void) {
   }
 
   // check mesh
-  if (type==mjGEOM_MESH && meshid<0) {
+  if ((type==mjGEOM_MESH || type==mjGEOM_SDF) && meshid<0) {
     throw mjCError(this, "mesh geom '%s' (id = %d) must have valid meshid", name.c_str(), id);
   }
 
@@ -1730,7 +1738,7 @@ void mjCGeom::Compile(void) {
 
     // fit geom if type is not mjGEOM_MESH
     double meshpos[3];
-    if (type!=mjGEOM_MESH) {
+    if (type!=mjGEOM_MESH && type!=mjGEOM_SDF) {
       pmesh->FitGeom(this, meshpos);
 
       // remove reference to mesh
@@ -1752,7 +1760,7 @@ void mjCGeom::Compile(void) {
     size[0] = model->hfields[hfieldid]->size[0];
     size[1] = model->hfields[hfieldid]->size[1];
     size[2] = 0.5*(model->hfields[hfieldid]->size[2]+model->hfields[hfieldid]->size[3]);
-  } else if (type==mjGEOM_MESH) {
+  } else if (type==mjGEOM_MESH || type==mjGEOM_SDF) {
     const double* aabb = model->meshes[meshid]->aabb();
     size[0] = mjMAX(fabs(aabb[0]), fabs(aabb[3]));
     size[1] = mjMAX(fabs(aabb[1]), fabs(aabb[4]));
@@ -1792,6 +1800,21 @@ void mjCGeom::Compile(void) {
   // fluid-interaction coefficients, requires computed inertia and mass
   if (fluid_switch > 0) {
     SetFluidCoefs();
+  }
+
+  // plugin
+  if (is_plugin) {
+    if (plugin_name.empty() && plugin_instance_name.empty()) {
+      throw mjCError(
+          this, "neither 'plugin' nor 'instance' is specified for geom '%s', (id = %d)",
+          name.c_str(), id);
+    }
+
+    model->ResolvePlugin(this, plugin_name, plugin_instance_name, &plugin_instance);
+    const mjpPlugin* plugin = mjp_getPluginAtSlot(plugin_instance->plugin_slot);
+    if (!(plugin->capabilityflags & mjPLUGIN_SDF)) {
+      throw mjCError(this, "plugin '%s' does not support sign distance fields", plugin->name);
+    }
   }
 }
 

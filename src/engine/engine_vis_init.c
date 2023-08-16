@@ -92,7 +92,8 @@ const char* mjVISSTRING[mjNVISFLAG][3] = {
   {"Static Bo&dy",    "1", "D"},
   {"Skin",            "1", ";"},
   {"Body Tree",       "0", "`"},
-  {"Mesh Tree",       "0", ""}
+  {"Mesh Tree",       "0", ""},
+  {"SDF iters",       "0", ""}
 };
 
 

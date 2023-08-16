@@ -1,0 +1,55 @@
+
+<mujoco>
+  <extension>
+    <plugin plugin="mujoco.sdf.gear">
+      <instance name="gear1">
+        <config key="alpha" value="0"/>
+      </instance>
+    </plugin>
+    <plugin plugin="mujoco.sdf.gear">
+      <instance name="gear2">
+        <config key="alpha" value="15"/>
+      </instance>
+    </plugin>
+  </extension>
+
+  <asset>
+    <mesh name="gear1">
+      <plugin instance="gear1"/>
+    </mesh>
+    <mesh name="gear2">
+      <plugin instance="gear2"/>
+    </mesh>
+  </asset>
+
+  <option sdf_iterations="5" sdf_initpoints="20"/>
+
+  <default>
+    <geom solref="0.01 1" solimp=".95 .99 .0001" friction="0.2"/>
+  </default>
+
+  <statistic meansize=".1"/>
+
+  <include file="scene.xml"/>
+
+  <worldbody>
+    <body pos="0 0 .2">
+      <joint name="freewheel" type="hinge" damping="1000" axis="0 0 1"/>
+      <geom type="sdf" name="gear1" mesh="gear1" rgba="0.4 0.4 0.4 1">
+        <plugin instance="gear1"/>
+      </geom>
+    </body>
+    <body pos="2.85 0 .2">
+      <joint name="drive" type="hinge" damping=".1" axis="0 0 1"/>
+      <geom type="sdf" name="gear2" mesh="gear2" rgba="0.7 0.7 0.7 1">
+        <plugin instance="gear2"/>
+      </geom>
+    </body>
+    <light name="left" pos="0 0 1"/>
+    <light name="right" pos="1 0 1"/>
+  </worldbody>
+
+  <actuator>
+    <motor name="drive" joint="drive" ctrlrange="-1 1" gear="1500" ctrllimited="true"/>
+  </actuator>
+</mujoco>

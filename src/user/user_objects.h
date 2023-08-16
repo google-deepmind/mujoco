@@ -610,6 +610,7 @@ class mjCMesh: public mjCBase {
   void LoadOBJ(mjResource* resource);         // load mesh in wavefront OBJ format
   void LoadSTL(mjResource* resource);         // load mesh in STL BIN format
   void LoadMSH(mjResource* resource);         // load mesh in MSH BIN format
+  void LoadSDF();                             // generate mesh using marching cubes
   void MakeGraph(void);                       // make graph of convex hull
   void CopyGraph(void);                       // copy graph into face data
   void MakeNormal(void);                      // compute vertex normals

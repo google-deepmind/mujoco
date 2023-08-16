@@ -22,6 +22,7 @@
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjvisualize.h>
 #include "engine/engine_io.h"
+#include "engine/engine_plugin.h"
 #include "engine/engine_util_blas.h"
 #include "engine/engine_util_errmem.h"
 #include "engine/engine_util_misc.h"
@@ -721,6 +722,67 @@ mjtNum mju_rayTree(const mjModel* m, const mjData* d, int id, const mjtNum* pnt,
   return x;
 }
 
+
+
+// intersect ray with signed distance field
+mjtNum ray_sdf(const mjModel* m, const mjData* d, int g,
+               const mjtNum* pnt, const mjtNum* vec) {
+  mjtNum distance_total = 0;
+  mjtNum p[3];
+
+  // exclude using bounding box
+  if (ray_box(d->geom_xpos+3*g, d->geom_xmat+9*g, m->geom_size+3*g, pnt, vec, NULL) < 0) {
+    return -1;
+  }
+
+  // get sdf
+  int instance = m->geom_plugin[g];
+  const int nslot = mjp_pluginCount();
+  const int slot = m->plugin[instance];
+  const mjpPlugin* sdf = mjp_getPluginAtSlotUnsafe(slot, nslot);
+  if (!sdf) mju_error("invalid plugin slot: %d", slot);
+  if (!(sdf->capabilityflags & mjPLUGIN_SDF)) {
+    mju_error("Plugin is not a sign distance field at slot %d", slot);
+  }
+
+  // reset counter
+  sdf->reset(m, NULL, (void*)(d->plugin_data[instance]), instance);
+
+  // compute transformation
+  mjtNum sdf_quat[4], sdf_xmat[9], sdf_xpos[9];
+  mjtNum negpos[3], negquat[4], xquat[4];
+  mjtNum* xpos = d->geom_xpos + 3*g;
+  mjtNum* pos = m->geom_pos + 3*g;
+  mjtNum* quat = m->geom_quat + 4*g;
+  mju_mat2Quat(xquat, d->geom_xmat + 9*g);
+  mju_negPose(negpos, negquat, pos, quat);
+  mju_mulPose(sdf_xpos, sdf_quat, xpos, xquat, negpos, negquat);
+  mju_quat2Mat(sdf_xmat, sdf_quat);
+
+  // unit direction
+  mjtNum dir[3] = {vec[0], vec[1], vec[2]};
+  mju_normalize3(dir);
+
+  // ray marching
+  for (int i=0; i < 40; i++) {
+    mju_addScl3(p, pnt, dir, distance_total);
+    mju_subFrom3(p, sdf_xpos);
+    mju_rotVecMatT(p, p, sdf_xmat);
+    mjtNum distance = sdf->sdf_distance(p, (mjData*)d, instance);
+    distance_total += distance;
+    if (distance < 1e-8) {
+      return distance_total;
+    }
+  }
+
+  // reset counter
+  sdf->reset(m, NULL, (void*)(d->plugin_data[instance]), instance);
+
+  return -1;
+}
+
+
+
 // intersect ray with mesh
 mjtNum mj_rayMesh(const mjModel* m, const mjData* d, int id,
                   const mjtNum* pnt, const mjtNum* vec) {
@@ -911,6 +973,8 @@ mjtNum mj_ray(const mjModel* m, const mjData* d, const mjtNum* pnt, const mjtNum
         newdist = mj_rayMesh(m, d, i, pnt, vec);
       } else if (m->geom_type[i] == mjGEOM_HFIELD) {
         newdist = mj_rayHfield(m, d, i, pnt, vec);
+      } else if (m->geom_type[i] == mjGEOM_SDF) {
+        newdist = ray_sdf(m, d, i, pnt, vec);
       }
 
       // otherwise general dispatch
@@ -1068,6 +1132,8 @@ static mjtNum mju_singleRay(const mjModel* m, mjData* d, const mjtNum pnt[3], co
         newdist = mj_rayMesh(m, d, i, pnt, vec);
       } else if (m->geom_type[i] == mjGEOM_HFIELD) {
         newdist = mj_rayHfield(m, d, i, pnt, vec);
+      } else if (m->geom_type[i] == mjGEOM_SDF) {
+        newdist = ray_sdf(m, d, i, pnt, vec);
       }
 
       // otherwise general dispatch

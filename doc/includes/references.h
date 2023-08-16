@@ -416,6 +416,7 @@ typedef enum mjtGeom_ {           // type of geometric shape
   mjGEOM_CYLINDER,                // cylinder
   mjGEOM_BOX,                     // box
   mjGEOM_MESH,                    // mesh
+  mjGEOM_SDF,                     // signed distance field
 
   mjNGEOMTYPES,                   // number of regular geom types
 
@@ -703,6 +704,10 @@ struct mjOption_ {                // physics options
   int mpr_iterations;             // maximum number of MPR solver iterations
   int disableflags;               // bit flags for disabling standard features
   int enableflags;                // bit flags for enabling optional features
+
+  // sdf collision settings
+  int sdf_initpoints;             // number of starting points for gradient descent
+  int sdf_iterations;             // max number of iterations for gradient descent
 };
 typedef struct mjOption_ mjOption;
 struct mjVisual_ {                // visualization options
@@ -969,6 +974,7 @@ struct mjModel_ {
   int*      geom_matid;           // material id for rendering; -1: none      (ngeom x 1)
   int*      geom_group;           // group for visibility                     (ngeom x 1)
   int*      geom_priority;        // geom contact priority                    (ngeom x 1)
+  int*      geom_plugin;          // plugin instance id; -1: not in use       (ngeom x 1)
   mjtByte*  geom_sameframe;       // same as body frame (1) or iframe (2)     (ngeom x 1)
   mjtNum*   geom_solmix;          // mixing coef for solref/imp in geom pair  (ngeom x 1)
   mjtNum*   geom_solref;          // constraint solver reference: contact     (ngeom x mjNREF)
@@ -1262,6 +1268,7 @@ typedef enum mjtPluginCapabilityBit_ {
   mjPLUGIN_ACTUATOR = 1<<0,       // actuator forces
   mjPLUGIN_SENSOR   = 1<<1,       // sensor measurements
   mjPLUGIN_PASSIVE  = 1<<2,       // passive forces
+  mjPLUGIN_SDF      = 1<<3,       // signed distance fields
 } mjtPluginCapabilityBit;
 struct mjpPlugin_ {
   const char* name;               // globally unique name identifying the plugin
@@ -1298,6 +1305,20 @@ struct mjpPlugin_ {
 
   // called by mjv_updateScene (optional)
   void (*visualize)(const mjModel*m, mjData* d, const mjvOption* opt, mjvScene* scn, int instance);
+
+  // methods specific to signed distance fields (optional)
+
+  // signed distance from the surface
+  mjtNum (*sdf_distance)(const mjtNum point[3], const mjData* d, int instance);
+
+  // gradient of distance with respect to local coordinates
+  void (*sdf_gradient)(mjtNum gradient[3], const mjtNum point[3], const mjData* d, int instance);
+
+  // called during compilation for marching cubes
+  mjtNum (*sdf_staticdistance)(const mjtNum point[3], const mjtNum* attributes);
+
+  // bounding box of implicit surface
+  void (*sdf_aabb)(mjtNum aabb[6], const mjtNum* attributes);
 };
 typedef struct mjpPlugin_ mjpPlugin;
 typedef enum mjtGridPos_ {        // grid position for overlay
@@ -1719,6 +1740,7 @@ typedef enum mjtVisFlag_ {        // flags enabling model element visualization
   mjVIS_SKIN,                     // skin
   mjVIS_MIDPHASE,                 // mid-phase bounding volume hierarchy
   mjVIS_MESHBVH,                  // mesh bounding volume hierarchy
+  mjVIS_SDFITER,                  // iterations of SDF gradient descent
 
   mjNVISFLAG                      // number of visualization flags
 } mjtVisFlag;

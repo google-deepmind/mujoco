@@ -1558,6 +1558,24 @@ The full list of processing steps applied by the compiler to each mesh is as fol
    Reference orientation relative to which the 3D vertex coordinates and normals are defined. The conjugate of this
    quaternion is used to rotate the positions and normals. The model compiler normalizes the quaternion automatically.
 
+.. _mesh-plugin:
+
+:el-prefix:`mesh/` |-| **plugin** (?)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Associate this mesh with an :ref:`engine plugin<exPlugin>`. Either :at:`plugin` or :at:`instance` are required.
+
+.. _mesh-plugin-plugin:
+
+:at:`plugin`: :at-val:`string, optional`
+   Plugin identifier, used for implicit plugin instantiation.
+
+.. _mesh-plugin-instance:
+
+:at:`instance`: :at-val:`string, optional`
+   Instance name, used for explicit plugin instantiation.
+
+
 
 .. _asset-skin:
 
@@ -1976,6 +1994,16 @@ adjust it properly through the XML.
 
 :at:`mpr_tolerance`: :at-val:`real, "1e-6"`
    Tolerance threshold used for early termination of the MPR algorithm.
+
+.. _option-sdf_iterations:
+
+:at:`sdf_iterations`: :at-val:`int, "10"`
+   Number of iterations used for Signed Distance Field collisions (per initial point).
+
+.. _option-sdf_initpoints:
+
+:at:`sdf_initpoints`: :at-val:`int, "40"`
+   Number of starting points used for fining contacts with Signed Distance Field collisions.
 
 
 .. _option-flag:
@@ -2513,7 +2541,7 @@ helps clarify the role of bodies and geoms in MuJoCo.
 
 .. _body-geom-type:
 
-:at:`type`: :at-val:`[plane, hfield, sphere, capsule, ellipsoid, cylinder, box, mesh], "sphere"`
+:at:`type`: :at-val:`[plane, hfield, sphere, capsule, ellipsoid, cylinder, box, mesh, sdf], "sphere"`
    Type of geometric shape. The keywords have the following meaning: The **plane** type defines a plane which is
    infinite for collision detection purposes. It can only be attached to the world body or static children of the world.
    The plane passes through a point specified via the pos attribute. It is normal to the Z axis of the geom's local
@@ -2575,6 +2603,11 @@ helps clarify the role of bodies and geoms in MuJoCo.
    orientation of mesh geoms after compilation do not equal the settings of the corresponding attributes here. Instead
    they are offset by the translation and rotation that were needed to center and align the mesh asset in its own
    coordinate frame. Recall the discussion of centering and alignment in the :ref:`mesh <asset-mesh>` element.
+
+   The **sdf** type defines a signed distance field (SDF, also referred to as signed distance function). In order to
+   visualize the SDF, a custom mesh must be specified using the :ref:`mesh/plugin <mesh-plugin>` attribute. See the
+   `model/plugin/sdf/ <https://github.com/deepmind/mujoco/tree/main/model/plugin/sdf>`__ directory for example models
+   with SDF geometries. For more details regarding SDF plugins, see the :ref:`Extensions chapter<exWriting>`.
 
 .. _body-geom-contype:
 
@@ -2831,6 +2864,23 @@ helps clarify the role of bodies and geoms in MuJoCo.
 
 :at:`user`: :at-val:`real(nuser_geom), "0 0 ..."`
    See :ref:`CUser`.
+
+.. _geom-plugin:
+
+:el-prefix:`geom/` |-| **plugin** (?)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Associate this geom with an :ref:`engine plugin<exPlugin>`. Either :at:`plugin` or :at:`instance` are required.
+
+.. _geom-plugin-plugin:
+
+:at:`plugin`: :at-val:`string, optional`
+   Plugin identifier, used for implicit plugin instantiation.
+
+.. _geom-plugin-instance:
+
+:at:`instance`: :at-val:`string, optional`
+   Instance name, used for explicit plugin instantiation.
 
 
 .. _body-site:

@@ -278,7 +278,7 @@ void mjXWriter::OneGeom(XMLElement* elem, mjCGeom* pgeom, mjCDef* def) {
     }
 
     // mesh geom
-    if (pgeom->type==mjGEOM_MESH) {
+    if (pgeom->type==mjGEOM_MESH || pgeom->type==mjGEOM_SDF) {
       mjCMesh* pmesh = model->meshes[pgeom->meshid];
 
       // write pos/quat if there is a difference
@@ -337,7 +337,7 @@ void mjXWriter::OneGeom(XMLElement* elem, mjCGeom* pgeom, mjCDef* def) {
   if (pgeom->type==mjGEOM_HFIELD) {
     WriteAttrTxt(elem, "hfield", pgeom->hfield);
   }
-  if (pgeom->type==mjGEOM_MESH) {
+  if (pgeom->type==mjGEOM_MESH || pgeom->type==mjGEOM_SDF) {
     WriteAttrTxt(elem, "mesh", pgeom->mesh);
   }
 
@@ -346,6 +346,11 @@ void mjXWriter::OneGeom(XMLElement* elem, mjCGeom* pgeom, mjCDef* def) {
     WriteVector(elem, "user", pgeom->userdata);
   } else {
     WriteVector(elem, "user", pgeom->userdata, def->geom.userdata);
+  }
+
+  // write plugin
+  if (pgeom->is_plugin) {
+    OnePlugin(InsertEnd(elem, "plugin"), pgeom);
   }
 }
 
@@ -807,6 +812,8 @@ void mjXWriter::Option(XMLElement* root) {
   WriteAttrInt(section, "iterations", model->option.iterations, opt.iterations);
   WriteAttrInt(section, "noslip_iterations", model->option.noslip_iterations, opt.noslip_iterations);
   WriteAttrInt(section, "mpr_iterations", model->option.mpr_iterations, opt.mpr_iterations);
+  WriteAttrInt(section, "sdf_iterations", model->option.sdf_iterations, opt.sdf_iterations);
+  WriteAttrInt(section, "sdf_initpoints", model->option.sdf_initpoints, opt.sdf_initpoints);
 
   // write disable/enable flags if any of them are set; invert while writing
   if (model->option.disableflags || model->option.enableflags) {
@@ -1307,8 +1314,14 @@ void mjXWriter::Asset(XMLElement* root) {
   for (int i=0; i<nmesh; i++) {
     // create element and write
     mjCMesh* pmesh = (mjCMesh*)model->GetObject(mjOBJ_MESH, i);
-    elem = InsertEnd(section, "mesh");
-    OneMesh(elem, pmesh, pmesh->def);
+    if (pmesh->is_plugin) {
+      elem = InsertEnd(section, "mesh");
+      WriteAttrTxt(elem, "name", pmesh->name);
+      OnePlugin(InsertEnd(elem, "plugin"), pmesh);
+    } else{
+      elem = InsertEnd(section, "mesh");
+      OneMesh(elem, pmesh, pmesh->def);
+    }
   }
 
   // write skins

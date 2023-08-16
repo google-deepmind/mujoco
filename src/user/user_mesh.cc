@@ -27,7 +27,7 @@
 #define TINYOBJLOADER_IMPLEMENTATION
 #endif
 
-#include <mujoco/mjmacro.h>
+#include <MC.h>
 #include <mujoco/mjmodel.h>
 #include "cc/array_safety.h"
 #include "engine/engine_crossplatform.h"
@@ -256,6 +256,78 @@ void mjCMesh::set_needhull(bool needhull) {
 
 
 
+// generate mesh using marching cubes
+void mjCMesh::LoadSDF() {
+  if (plugin_name.empty() && plugin_instance_name.empty()) {
+    throw mjCError(
+        this, "neither 'plugin' nor 'instance' is specified for mesh '%s', (id = %d)",
+        name.c_str(), id);
+  }
+
+  model->ResolvePlugin(this, plugin_name, plugin_instance_name, &plugin_instance);
+  const mjpPlugin* plugin = mjp_getPluginAtSlot(plugin_instance->plugin_slot);
+  if (!(plugin->capabilityflags & mjPLUGIN_SDF)) {
+    throw mjCError(this, "plugin '%s' does not support signed distance fields", plugin->name);
+  }
+
+  int i=0;
+  mjtNum attributes[10] = {0};
+  for (auto const& pair : plugin_instance->config_attribs) {
+    attributes[i++] = std::stod(pair.second);
+  }
+
+  mjtNum aabb[6] = {0};
+  plugin->sdf_aabb(aabb, attributes);
+  mjtNum total = aabb[3] + aabb[4] + aabb[5];
+
+  const mjtNum n = 300;
+  int nx, ny, nz;
+  nx = floor(n / total * aabb[3]) + 1;
+  ny = floor(n / total * aabb[4]) + 1;
+  nz = floor(n / total * aabb[5]) + 1;
+  MC::MC_FLOAT* field = new MC::MC_FLOAT[nx * ny * nz];
+
+  for (int i = 0; i < nx; i++) {
+    for (int j = 0; j < ny; j++) {
+      for (int k = 0; k < nz; k++) {
+        mjtNum point[] = {aabb[0]-aabb[3] + 2 * aabb[3] * i / (nx-1),
+                          aabb[1]-aabb[4] + 2 * aabb[4] * j / (ny-1),
+                          aabb[2]-aabb[5] + 2 * aabb[5] * k / (nz-1)};
+        field[(k * ny + j) * nx + i] =  plugin->sdf_staticdistance(point, attributes);
+      }
+    }
+  }
+
+  MC::mcMesh mesh;
+  MC::marching_cube(field, nx, ny, nz, mesh);
+  std::vector<float> uservert;
+  std::vector<float> usernormal;
+  std::vector<int> userface;
+
+  for (size_t i = 0; i < mesh.vertices.size(); i++) {
+    uservert.push_back(2*aabb[3]*mesh.vertices.at(i).x/(nx-1) + aabb[0]-aabb[3]);
+    uservert.push_back(2*aabb[4]*mesh.vertices.at(i).y/(ny-1) + aabb[1]-aabb[4]);
+    uservert.push_back(2*aabb[5]*mesh.vertices.at(i).z/(nz-1) + aabb[2]-aabb[5]);
+  }
+
+  for (size_t i = 0; i < mesh.normals.size(); i++) {
+    usernormal.push_back(mesh.normals.at(i).x);
+    usernormal.push_back(mesh.normals.at(i).y);
+    usernormal.push_back(mesh.normals.at(i).z);
+  }
+
+  for (size_t i = 0; i < mesh.indices.size(); i++) {
+    userface.push_back(mesh.indices.at(i));
+  }
+
+  set_uservert(uservert);
+  set_usernormal(usernormal);
+  set_userface(userface);
+  delete[] field;
+}
+
+
+
 // compiler
 void mjCMesh::Compile(int vfs_provider) {
   // load file
@@ -291,6 +363,11 @@ void mjCMesh::Compile(int vfs_provider) {
       mju_closeResource(resource);
       throw err;
     }
+  }
+
+  // create using marching cubes
+  if (is_plugin) {
+    LoadSDF();
   }
 
   // copy user vertex

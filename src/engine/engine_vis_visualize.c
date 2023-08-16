@@ -647,6 +647,10 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
         const mjtNum* xpos = d->geom_xpos + 3 * geomid;
         const mjtNum* xmat = d->geom_xmat + 9 * geomid;
 
+        if (!d->bvh_active[i]) {
+          continue;
+        }
+
         rgba[0] = d->bvh_active[i] ? 1 : 0;
         rgba[1] = d->bvh_active[i] ? 0 : 1;
 
@@ -1053,7 +1057,8 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
           for (int k=geomadr; k < geomadr+geomnum; k++) {
             int geomtype = m->geom_type[k];
             // add inflated geom if it is a regular primitive
-            if (geomtype != mjGEOM_PLANE && geomtype != mjGEOM_HFIELD && geomtype != mjGEOM_MESH) {
+            if (geomtype != mjGEOM_PLANE && geomtype != mjGEOM_HFIELD &&
+                geomtype != mjGEOM_MESH  && geomtype != mjGEOM_SDF) {
               START
               // inflate sizes by 5%
               mju_scl3(sz, m->geom_size+3*k, 1.05);
@@ -1183,7 +1188,7 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
       setMaterial(m, thisgeom, geom_matid, rgba, vopt->flags);
 
       // set texcoord
-      if (m->geom_type[i] == mjGEOM_MESH &&
+      if ((m->geom_type[i] == mjGEOM_MESH || m->geom_type[i] == mjGEOM_SDF) &&
           m->geom_dataid[i] >= 0 &&
           m->mesh_texcoordadr[m->geom_dataid[i]] >= 0) {
         thisgeom->texcoord = 1;
@@ -1205,7 +1210,7 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
       }
 
       // mesh: 2*i is original, 2*i+1 is convex hull
-      if (m->geom_type[i] == mjGEOM_MESH) {
+      if (m->geom_type[i] == mjGEOM_MESH || m->geom_type[i] == mjGEOM_SDF) {
         thisgeom->dataid *= 2;
         if (m->mesh_graphadr[m->geom_dataid[i]] >= 0 && vopt->flags[mjVIS_CONVEXHULL] &&
            (m->geom_contype[i] || m->geom_conaffinity[i])) {

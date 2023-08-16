@@ -356,6 +356,7 @@ static void renderGeom(const mjvGeom* geom, int mode, const float* headpos,
     break;
 
   case mjGEOM_MESH:                           // mesh
+  case mjGEOM_SDF:
     if (geom->dataid >= 0) {
       glCallList(con->baseMesh + geom->dataid);
     }

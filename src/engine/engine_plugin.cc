@@ -55,7 +55,7 @@ namespace {
 constexpr int kMaxNameLength = 1024;
 constexpr int kMaxAttributes = 255;
 
-constexpr int kCacheLine = 64;
+constexpr int kCacheLine = 256;
 
 // vfs prefix
 constexpr const char* kVfsPrefix = mjVFS_PREFIX;

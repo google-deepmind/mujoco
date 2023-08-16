@@ -84,6 +84,7 @@ supported plugin capabilities are:
 * Actuator plugin
 * Sensor plugin
 * Passive force plugin
+* Signed distance field plugin
 
 Additional capabilities will be added in the future as required.
 
@@ -234,7 +235,7 @@ provided for this scan-and-load use case.
 Writing plugins
 ^^^^^^^^^^^^^^^
 
-This section, targeted at developers, is not yet written. We encourage people who wish to write their own plugins
+This section, targeted at developers, is incomplete. We encourage people who wish to write their own plugins
 to contact the MuJoCo development team for help. A good starting point for experienced developers is the
 `associated tests <https://github.com/deepmind/mujoco/blob/main/test/engine/engine_plugin_test.cc>`_ and the first-party
 plugins in the `first-party plugin directory <https://github.com/deepmind/mujoco/tree/main/plugin>`_.
@@ -246,6 +247,55 @@ A future version of this section will include:
 * How to declare custom MJCF attributes for a plugin.
 * Things that developers need to keep in mind in order to ensure that plugins function correctly when :ref:`mjData` is
   copied, stepped, or reset.
+
+Currently, there are three directories of first-party plugins:
+
+* **elasticity:** The plugins in the `elasticity/ <https://github.com/deepmind/mujoco/tree/main/plugin/elasticity>`__
+  directory are passive forces based on continuum mechanics for 1-dimensional and 3-dimensional bodies. The
+  1D model is invariant under rotations and captures the large deformation of elastic cables, decoupling twisting and
+  bending strains. The 3D solid is a
+  `Saint Venant-Kirchhoff <https://en.wikipedia.org/wiki/Hyperelastic_material#Saint_Venant%E2%80%93Kirchhoff_model>`__
+  model discretized with piecewise linear finite elements, which is suitable for large deformations with small strains.
+* **sensor:** The plugins in the `sensor/ <https://github.com/deepmind/mujoco/tree/main/plugin/sensor>`__
+  directory implement custom sensors. Currently the sole sensor plugin is the touch grid sensor, see the
+  `README <https://github.com/deepmind/mujoco/blob/main/plugin/sensor/README.md>`__ for details.
+* **sdf:** The plugins in the `sdf/ <https://github.com/deepmind/mujoco/tree/main/plugin/sdf>`__
+  directory specify custom shapes in a mesh-free manner, by defining methods computing a signed distance field and its
+  gradient at query points. This shape then acts as a new geom type in the collision table at the top of
+  `engine_collision_driver.c <https://github.com/deepmind/mujoco/blob/main/src/engine/engine_collision_driver.c>`__.
+
+  Collision points are found by minimizing the maximum of the two colliding SDFs via gradient descent.
+  Because SDFs are non-convex, multiple starting points are required in order to converge to multiple local minima.
+  The number of starting points is set using :ref:`sdf_initpoints<option-sdf_initpoints>`, and are
+  initialized using the Halton sequence inside the intersection of the axis-aligned bounding boxes.
+  The number of gradient descent iterations is set using :ref:`sdf_iterations<option-sdf_iterations>`.
+
+  While *exact* SDFs---encoding the precise signed distance to the surface---are preferred, collisions are possible with
+  any function whose value vanishes at the surface and grows monotonically away from it, with a negative sign in the
+  interior. For such functions, it is still possible to find collisons, albeit with a possibly
+  increased number of starting points.
+
+  The ``sdf_distance`` method is called by the compiler to produce a visual mesh for rendering using the marching cubes
+  algorithm implemented by `MarchingCubeCpp <https://github.com/aparis69/MarchingCubeCpp>`__.
+
+  Future improvement to the gradient descent algorithm, such as a line search which takes advantage of the properties of
+  SDFs, might reduce the number of iterations and/or starting points.
+
+For the sdf plugin, the following methods need to be specified
+
+``sdf_distance``:
+  Returns the signed distance of the query point given in local coordinates.
+
+``sdf_staticdistance``:
+  This is the static version of the previous function, taking config attributes as additional inputs. This function is
+  required because mesh creation occurs during model compilation before the plugin object has been instantiated.
+
+``sdf_gradient``:
+  Computes the gradient in local coodinates of the SDF at the query point.
+
+``sdf_aabb``:
+  Computes the axis-aligned bounding box in local coordinates. This volume is voxelized uniformly before the call to
+  the marching cubes algorithm.
 
 .. _exProvider:
 

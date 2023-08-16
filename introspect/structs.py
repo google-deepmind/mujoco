@@ -263,6 +263,16 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  type=ValueType(name='int'),
                  doc='bit flags for enabling optional features',
              ),
+             StructFieldDecl(
+                 name='sdf_initpoints',
+                 type=ValueType(name='int'),
+                 doc='number of starting points for gradient descent',
+             ),
+             StructFieldDecl(
+                 name='sdf_iterations',
+                 type=ValueType(name='int'),
+                 doc='max number of iterations for gradient descent',
+             ),
          ),
      )),
     ('mjVisual',
@@ -1626,6 +1636,13 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                      inner_type=ValueType(name='int'),
                  ),
                  doc='geom contact priority                    (ngeom x 1)',
+             ),
+             StructFieldDecl(
+                 name='geom_plugin',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='plugin instance id; -1: not in use       (ngeom x 1)',
              ),
              StructFieldDecl(
                  name='geom_sameframe',
@@ -4874,7 +4891,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  name='flags',
                  type=ArrayType(
                      inner_type=ValueType(name='mjtByte'),
-                     extents=(26,),
+                     extents=(27,),
                  ),
                  doc='visualization flags (indexed by mjtVisFlag)',
              ),

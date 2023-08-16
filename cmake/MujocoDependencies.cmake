@@ -26,6 +26,10 @@ set(MUJOCO_DEP_VERSION_tinyobjloader
     1421a10d6ed9742f5b2c1766d22faa6cfbc56248
     CACHE STRING "Version of `tinyobjloader` to be fetched."
 )
+set(MUJOCO_DEP_VERSION_MarchingCubeCpp
+    5b79e5d6bded086a0abe276a4b5a69fc17ae9bf1
+    CACHE STRING "Version of `MarchingCubeCpp` to be fetched."
+)
 set(MUJOCO_DEP_VERSION_ccd
     7931e764a19ef6b21b443376c699bbc9c6d4fba8 # v2.1
     CACHE STRING "Version of `ccd` to be fetched."
@@ -55,6 +59,7 @@ set(MUJOCO_DEP_VERSION_benchmark
 )
 
 mark_as_advanced(MUJOCO_DEP_VERSION_lodepng)
+mark_as_advanced(MUJOCO_DEP_VERSION_MarchingCubeCpp)
 mark_as_advanced(MUJOCO_DEP_VERSION_tinyxml2)
 mark_as_advanced(MUJOCO_DEP_VERSION_tinyobjloader)
 mark_as_advanced(MUJOCO_DEP_VERSION_ccd)
@@ -96,6 +101,20 @@ if(NOT TARGET lodepng)
     target_compile_options(lodepng PRIVATE ${MUJOCO_MACOS_COMPILE_OPTIONS})
     target_link_options(lodepng PRIVATE ${MUJOCO_MACOS_LINK_OPTIONS})
     target_include_directories(lodepng PUBLIC ${lodepng_SOURCE_DIR})
+  endif()
+endif()
+
+if(NOT TARGET marchingcubecpp)
+  FetchContent_Declare(
+    marchingcubecpp
+    GIT_REPOSITORY https://github.com/aparis69/MarchingCubeCpp.git
+    GIT_TAG ${MUJOCO_DEP_VERSION_MarchingCubeCpp}
+  )
+
+  FetchContent_GetProperties(marchingcubecpp)
+  if(NOT marchingcubecpp_POPULATED)
+    FetchContent_Populate(marchingcubecpp)
+    include_directories(${marchingcubecpp_SOURCE_DIR})
   endif()
 endif()
 
