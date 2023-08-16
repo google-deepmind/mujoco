@@ -24,11 +24,6 @@ extern "C" {
 #endif
 
 
-//-------------------------- utility functions -----------------------------------------------------
-
-// construct sparse matrix from non-unique, unsorted edge array, return number of nonzeros
-MJAPI int mj_edge2Sparse(int* rownnz, int* rowadr, int* colind, int* edge, int ne, int nr);
-
 // find disjoint subgraphs ("islands") given sparse symmetric adjacency matrix
 MJAPI int mj_floodFill(int* island, int nr, const int* rownnz, const int* rowadr, const int* colind,
                        int* scratch);

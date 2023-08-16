@@ -32,91 +32,6 @@
   #include <sanitizer/msan_interface.h>
 #endif
 
-// clear island-related arena pointers in mjData
-static void clearIsland(mjData* d, size_t parena) {
-#define X(type, name, nr, nc) d->name = NULL;
-  MJDATA_ARENA_POINTERS_ISLAND
-#undef X
-  d->nefc = 0;
-  d->nisland = 0;
-  d->parena = parena;
-
-  // poison remaining memory
-#ifdef ADDRESS_SANITIZER
-  ASAN_POISON_MEMORY_REGION(
-    (char*)d->arena + d->parena, (d->nstack - d->pstack) * sizeof(mjtNum) - d->parena);
-#endif
-}
-
-// comparison function for lexicographic edge sorting
-quicksortfunc(edgecompare, context, edge0, edge1) {
-  int* e0 = (int*)edge0;
-  int* e1 = (int*)edge1;
-  int v00 = e0[0];
-  int v10 = e1[0];
-
-  if (v00 < v10) {
-    return -1;
-  }
-
-  if (v00 == v10) {
-    int v01 = e0[1];
-    int v11 = e1[1];
-
-    if (v01 < v11) {
-      return -1;
-    }
-
-    if (v01 == v11) {
-      return 0;
-    }
-  }
-
-  return 1;
-}
-
-
-
-// construct sparse matrix from non-unique, unsorted edge array, return number of nonzeros
-int mj_edge2Sparse(int* rownnz, int* rowadr, int* colind, int* edge, int ne, int nr) {
-  if (!ne) {
-    return 0;
-  }
-
-  // sort edges
-  mjQUICKSORT(edge, ne, 2*sizeof(int), edgecompare, NULL);
-
-  // construct sparse
-  int nnz = 0;  // number of nonzeros
-  int e = 0;    // current edge
-  for (int r=0; r < nr; r++) {
-    // init row
-    rownnz[r] = 0;
-    rowadr[r] = nnz;
-
-    // copy values while making unique and checking indices
-    while (e < ne && edge[2*e] == r) {
-      int v0 = edge[2*e];
-      int v1 = edge[2*e + 1];
-
-      // skip if duplicate
-      if (rownnz[r] && v0 == edge[2*e - 2] && v1 == edge[2*e - 1]) {
-        e++;
-        continue;
-      }
-
-      // check for invalid indices
-      if (v0 < 0 || v0 >= nr) mjERROR("invalid row index %d in edge %d", v0, e);
-      if (v1 < 0 || v1 >= nr) mjERROR("invalid column index %d in edge %d", v1, e);
-
-      // copy column index, increment nnz, e, rownnz
-      colind[nnz++] = edge[2*(e++) + 1];
-      rownnz[r]++;
-    }
-  }
-
-  return nnz;
-}
 
 
 // find disjoint subgraphs ("islands") given sparse symmetric adjacency matrix
@@ -128,6 +43,7 @@ int mj_edge2Sparse(int* rownnz, int* rowadr, int* colind, int* edge, int ne, int
 //     colind  (nnz)  - matrix column indices
 //     stack   (nnz)  - stack space
 //   returns number of islands
+//   note: column indices are not required to be unique or sorted
 int mj_floodFill(int* island, int nr, const int* rownnz, const int* rowadr, const int* colind,
                  int* stack) {
   // initialize island count, set ids to -1
@@ -172,6 +88,24 @@ int mj_floodFill(int* island, int nr, const int* rownnz, const int* rowadr, cons
 
 
 
+// clear island-related arena pointers in mjData
+static void clearIsland(mjData* d, size_t parena) {
+#define X(type, name, nr, nc) d->name = NULL;
+  MJDATA_ARENA_POINTERS_ISLAND
+#undef X
+  d->nefc = 0;
+  d->nisland = 0;
+  d->parena = parena;
+
+  // poison remaining memory
+#ifdef ADDRESS_SANITIZER
+  ASAN_POISON_MEMORY_REGION(
+    (char*)d->arena + d->parena, (d->nstack - d->pstack) * sizeof(mjtNum) - d->parena);
+#endif
+}
+
+
+
 // return upper bound on number of tree-tree edges
 static int countMaxEdge(const mjModel* m, const mjData* d) {
   int nedge_max = 0;
@@ -190,61 +124,6 @@ static int countMaxEdge(const mjModel* m, const mjData* d) {
   }
 
   return nedge_max;
-}
-
-
-
-// add tree-tree edge array: check size, add flipped edge if non-self
-static int addEdge(int* edge, int nedge, int tree1, int tree2, int nedge_max) {
-  // handle the static tree
-  if (tree1 == -1 && tree2 == -1) {
-    mjERROR("self-edge of the static tree");  // SHOULD NOT OCCUR
-    return 0;
-  }
-  if (tree1 == -1) tree1 = tree2;
-  if (tree2 == -1) tree2 = tree1;
-
-  // previous edge
-  int p1 = nedge ? edge[2*nedge - 2] : -1;
-  int p2 = nedge ? edge[2*nedge - 1] : -1;
-
-  // === self edge
-  if (tree1 == tree2) {
-    // same as previous edge, return
-    if (nedge && tree1 == p1 && tree1 == p2) {
-      return nedge;
-    }
-
-    // check size
-    if (nedge >= nedge_max) {
-      mjERROR("edge array too small");
-      return 0;
-    }
-
-    // add tree1-tree1 self-edge
-    edge[2*nedge + 0] = tree1;
-    edge[2*nedge + 1] = tree1;
-    return nedge + 1;
-  }
-
-  // === non-self edge
-  if (nedge && ((tree1 == p1 && tree2 == p2) || (tree1 == p2 && tree2 == p1))) {
-    // same as previous edge, return
-    return nedge;
-  }
-
-  // check size
-  if (nedge + 2 > nedge_max) {
-    mjERROR("edge array too small");
-    return 0;
-  }
-
-  // add tree1-tree2 and tree2-tree1
-  edge[2*nedge + 0] = tree1;
-  edge[2*nedge + 1] = tree2;
-  edge[2*nedge + 2] = tree2;
-  edge[2*nedge + 3] = tree1;
-  return nedge + 2;
 }
 
 
@@ -299,12 +178,74 @@ static int treeNext(const mjModel* m, const mjData* d, int tree, int i, int *ind
 
 
 
-// find tree-tree edges
-static int findEdges(const mjModel* m, const mjData* d, int* edge, int nedge_max) {
+// add 0 edges, 1 self-edge or 2 flipped edges to array, increment treenedge
+//   return current number of edges
+static int addEdge(int* treenedge, int* edge, int nedge, int tree1, int tree2, int nedge_max) {
+  // handle the static tree
+  if (tree1 == -1 && tree2 == -1) {
+    mjERROR("self-edge of the static tree");  // SHOULD NOT OCCUR
+    return 0;
+  }
+  if (tree1 == -1) tree1 = tree2;
+  if (tree2 == -1) tree2 = tree1;
+
+  // previous edge
+  int p1 = nedge ? edge[2*nedge - 2] : -1;
+  int p2 = nedge ? edge[2*nedge - 1] : -1;
+
+  // === self edge
+  if (tree1 == tree2) {
+    // same as previous edge, return
+    if (nedge && tree1 == p1 && tree1 == p2) {
+      return nedge;
+    }
+
+    // check size
+    if (nedge >= nedge_max) {
+      mjERROR("edge array too small");
+      return 0;
+    }
+
+    // add tree1-tree1 self-edge
+    edge[2*nedge + 0] = tree1;
+    edge[2*nedge + 1] = tree1;
+    treenedge[tree1]++;
+    return nedge + 1;
+  }
+
+  // === non-self edge
+  if (nedge && ((tree1 == p1 && tree2 == p2) || (tree1 == p2 && tree2 == p1))) {
+    // same as previous edge, return
+    return nedge;
+  }
+
+  // check size
+  if (nedge + 2 > nedge_max) {
+    mjERROR("edge array too small");
+    return 0;
+  }
+
+  // add tree1-tree2 and tree2-tree1
+  edge[2*nedge + 0] = tree1;
+  edge[2*nedge + 1] = tree2;
+  edge[2*nedge + 2] = tree2;
+  edge[2*nedge + 3] = tree1;
+  treenedge[tree1]++;
+  treenedge[tree2]++;
+  return nedge + 2;
+}
+
+
+
+// find tree-tree edges, increment treenedge counters, return total number of edges
+static int findEdges(const mjModel* m, const mjData* d, int* treenedge, int* edge, int nedge_max) {
   int nefc = d->nefc;
   int efc_type = -1;
   int efc_id = -1;
   int tree1, tree2;
+
+  // clear treenedge
+  memset(treenedge, 0, m->ntree*sizeof(int));
 
   int nedge = 0;
   for (int i=0; i < nefc; i++) {
@@ -320,14 +261,14 @@ static int findEdges(const mjModel* m, const mjData* d, int* edge, int nedge_max
     // joint friction
     if (efc_type == mjCNSTR_FRICTION_DOF) {
       tree1 = m->dof_treeid[efc_id];
-      nedge = addEdge(edge, nedge, tree1, tree1, nedge_max);
+      nedge = addEdge(treenedge, edge, nedge, tree1, tree1, nedge_max);
       continue;
     }
 
     // joint limit
     if (efc_type == mjCNSTR_LIMIT_JOINT) {
       tree1 = m->dof_treeid[m->jnt_dofadr[efc_id]];
-      nedge = addEdge(edge, nedge, tree1, tree1, nedge_max);
+      nedge = addEdge(treenedge, edge, nedge, tree1, tree1, nedge_max);
       continue;
     }
 
@@ -337,7 +278,7 @@ static int findEdges(const mjModel* m, const mjData* d, int* edge, int nedge_max
         efc_type == mjCNSTR_CONTACT_ELLIPTIC) {
       tree1 = m->body_treeid[m->geom_bodyid[d->contact[efc_id].geom1]];
       tree2 = m->body_treeid[m->geom_bodyid[d->contact[efc_id].geom2]];
-      nedge = addEdge(edge, nedge, tree1, tree2, nedge_max);
+      nedge = addEdge(treenedge, edge, nedge, tree1, tree2, nedge_max);
       continue;
     }
 
@@ -347,7 +288,7 @@ static int findEdges(const mjModel* m, const mjData* d, int* edge, int nedge_max
       if (eq_type == mjEQ_CONNECT || eq_type == mjEQ_WELD) {
         tree1 = m->body_treeid[m->eq_obj1id[efc_id]];
         tree2 = m->body_treeid[m->eq_obj2id[efc_id]];
-        nedge = addEdge(edge, nedge, tree1, tree2, nedge_max);
+        nedge = addEdge(treenedge, edge, nedge, tree1, tree2, nedge_max);
         continue;
       }
     }
@@ -359,15 +300,15 @@ static int findEdges(const mjModel* m, const mjData* d, int* edge, int nedge_max
 
     if (tree2 == -1) {
       // 1 tree found: add self-edge
-      nedge = addEdge(edge, nedge, tree1, tree1, nedge_max);
+      nedge = addEdge(treenedge, edge, nedge, tree1, tree1, nedge_max);
     } else {
       // 2 trees found: add edge, keep scanning and adding until no more trees
-      nedge = addEdge(edge, nedge, tree1, tree2, nedge_max);
+      nedge = addEdge(treenedge, edge, nedge, tree1, tree2, nedge_max);
       int tree3 = treeNext(m, d, tree2, i, &index);
       while (tree3 > -1 && tree3 != tree2) {
         tree1 = tree2;
         tree2 = tree3;
-        nedge = addEdge(edge, nedge, tree1, tree2, nedge_max);
+        nedge = addEdge(treenedge, edge, nedge, tree1, tree2, nedge_max);
         tree3 = treeNext(m, d, tree2, i, &index);
       }
     }
@@ -375,6 +316,8 @@ static int findEdges(const mjModel* m, const mjData* d, int* edge, int nedge_max
 
   return nedge;
 }
+
+
 
 // discover islands:
 //   nisland, island_dofadr, dof_island, dof_islandnext, island_efcadr, efc_island, efc_islandnext
@@ -393,20 +336,30 @@ void mj_island(const mjModel* m, mjData* d) {
   int nedge_max = countMaxEdge(m, d);
   int* edge = mj_stackAllocInt(d, 2*nedge_max);
 
-  // find tree-tree edges
-  int nedge = findEdges(m, d, edge, nedge_max);
+  // get tree-tree edges and rownnz counts from efc arrays
+  int* rownnz = mj_stackAllocInt(d, ntree);  // number of edges per tree
+  int nedge = findEdges(m, d, rownnz, edge, nedge_max);
 
-  // TODO: b/295296178 - don't add flipped edges in findEdges, symmetrize in mj_edge2sparse instead
-
-  // construct adjacency matrix from edges
-  int* rownnz = mj_stackAllocInt(d, ntree);
+  // compute starting address of tree's column indices while resetting rownnz
   int* rowadr = mj_stackAllocInt(d, ntree);
+  rowadr[0] = 0;
+  for (int r=1; r < ntree; r++) {
+    rowadr[r] = rowadr[r-1] + rownnz[r-1];
+    rownnz[r-1] = 0;
+  }
+  rownnz[ntree-1] = 0;
+
+  // copy column indices: list each tree's neighbors
   int* colind = mj_stackAllocInt(d, nedge);
-  int nnz = mj_edge2Sparse(rownnz, rowadr, colind, edge, nedge, ntree);
+  for (int e=0; e < nedge; e++) {
+    int row = edge[2*e];
+    int col = edge[2*e + 1];
+    colind[rowadr[row] + rownnz[row]++] = col;
+  }
 
   // discover islands
   int* tree_island = mj_stackAllocInt(d, ntree);  // id of island assigned to tree
-  int* stack = mj_stackAllocInt(d, nnz);
+  int* stack = mj_stackAllocInt(d, nedge);
   d->nisland = mj_floodFill(tree_island, ntree, rownnz, rowadr, colind, stack);
 
   // ========== begin arena allocation of MJDATA_ARENA_POINTERS_ISLAND

@@ -29,68 +29,11 @@ namespace mujoco {
 namespace {
 
 using ::testing::ElementsAre;
-using ::testing::ElementsAreArray;
 using IslandTest = MujocoTest;
 
 std::vector<int> AsVector(const int* array, int n) {
   return std::vector<int>(array, array + n);
 }
-
-TEST_F(IslandTest, EdgeToSparse2) {
-  // unsorted edges, with duplication
-  constexpr int ne = 4;
-  constexpr int nr = 5;
-  int edge[2*ne] = {
-    3, 4,
-    1, 1,
-    3, 4,
-    1, 1
-  };
-
-  int rownnz[nr];
-  int rowadr[nr];
-  int colind[ne];
-
-  int nnz = mj_edge2Sparse(rownnz, rowadr, colind, edge, ne, nr);
-
-  constexpr int expected_nnz = 2;
-
-  EXPECT_EQ(nnz, expected_nnz);
-
-  EXPECT_THAT(rownnz, ElementsAre(0, 1, 0, 1, 0));
-  EXPECT_THAT(rowadr, ElementsAre(0, 0, 1, 1, 2));
-
-  int expected_colind[expected_nnz] = {1, 4};
-  EXPECT_THAT(expected_colind, ElementsAreArray(colind, expected_nnz));
-}
-
-TEST_F(IslandTest, EdgeToSparse3) {
-  // unsorted edges, with duplication
-  constexpr int ne = 3;
-  constexpr int nr = 1;
-  int edge[2*ne] = {
-    0, 0,
-    0, 0,
-    0, 0
-  };
-
-  int rownnz[nr];
-  int rowadr[nr];
-  int colind[ne];
-
-  int nnz = mj_edge2Sparse(rownnz, rowadr, colind, edge, ne, nr);
-
-  constexpr int expected_nnz = 1;
-
-  EXPECT_EQ(nnz, expected_nnz);
-
-  EXPECT_THAT(rownnz, ElementsAre(1));
-  EXPECT_THAT(rowadr, ElementsAre(0));
-
-  int expected_colind[expected_nnz] = {0};
-  EXPECT_THAT(expected_colind, ElementsAreArray(colind, expected_nnz));
-}
-
 
 TEST_F(IslandTest, FloodFillSingleton) {
   // adjacency matrix for the graph  0   1   2
