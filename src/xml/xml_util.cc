@@ -715,7 +715,19 @@ template int mjXUtil::ReadAttr(XMLElement* elem, const char* attr, const int len
 template int mjXUtil::ReadAttr(XMLElement* elem, const char* attr, const int len,
                                mjtByte* data, string& text, bool required, bool exact);
 
+// read quaternion attribute
+//  throw error if identically zero
+int mjXUtil::ReadQuat(XMLElement* elem, const char* attr, double* data, string& text,
+                      bool required) {
+  ReadAttr(elem, attr, /*len=*/4, data, text, required, /*exact=*/true);
 
+  // check for 0 quaternion
+  if (data[0] == 0 && data[1] == 0 && data[2] == 0 && data[3] == 0 ) {
+    throw mjXError(elem, "zero quaternion is not allowed");
+  }
+
+  return 4;
+}
 
 // read DOUBLE array into C++ vector, return number read
 int mjXUtil::ReadVector(XMLElement* elem, const char* attr,

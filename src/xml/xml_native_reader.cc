@@ -1414,7 +1414,7 @@ void mjXReader::OneGeom(XMLElement* elem, mjCGeom* pgeom) {
   ReadAttr(elem, "density", 1, &pgeom->density, text);
   ReadAttr(elem, "fromto", 6, pgeom->fromto, text);
   ReadAttr(elem, "pos", 3, pgeom->pos, text);
-  ReadAttr(elem, "quat", 4, pgeom->quat, text);
+  ReadQuat(elem, "quat", pgeom->quat, text);
   ReadAlternative(elem, pgeom->alt);
 
   // compute inertia using either solid or shell geometry
@@ -1441,7 +1441,7 @@ void mjXReader::OneSite(XMLElement* elem, mjCSite* psite) {
   ReadAttr(elem, "size", 3, psite->size, text, false, false);
   ReadAttrInt(elem, "group", &psite->group);
   ReadAttr(elem, "pos", 3, psite->pos, text);
-  ReadAttr(elem, "quat", 4, psite->quat, text);
+  ReadQuat(elem, "quat", psite->quat, text);
   ReadAttrTxt(elem, "material", psite->material);
   ReadAttr(elem, "rgba", 4, psite->rgba, text);
   ReadAttr(elem, "fromto", 6, psite->fromto, text);
@@ -1468,7 +1468,7 @@ void mjXReader::OneCamera(XMLElement* elem, mjCCamera* pcam) {
     pcam->mode = (mjtCamLight)n;
   }
   ReadAttr(elem, "pos", 3, pcam->pos, text);
-  ReadAttr(elem, "quat", 4, pcam->quat, text);
+  ReadQuat(elem, "quat", pcam->quat, text);
   ReadAlternative(elem, pcam->alt);
   ReadAttr(elem, "fovy", 1, &pcam->fovy, text);
   ReadAttr(elem, "ipd", 1, &pcam->ipd, text);
@@ -2678,7 +2678,7 @@ void mjXReader::Body(XMLElement* section, mjCBody* pbody) {
       }
       pbody->explicitinertial = true;
       ReadAttr(elem, "pos", 3, pbody->ipos, text, true);
-      ReadAttr(elem, "quat", 4, pbody->iquat, text);
+      ReadQuat(elem, "quat", pbody->iquat, text);
       ReadAttr(elem, "mass", 1, &pbody->mass, text, true);
       ReadAttr(elem, "diaginertia", 3, pbody->inertia, text);
       ReadAlternative(elem, pbody->ialt);
@@ -2778,7 +2778,7 @@ void mjXReader::Body(XMLElement* section, mjCBody* pbody) {
       ReadAttrTxt(elem, "name", pchild->name);
       ReadAttrTxt(elem, "childclass", pchild->classname);
       ReadAttr(elem, "pos", 3, pchild->pos, text);
-      ReadAttr(elem, "quat", 4, pchild->quat, text);
+      ReadQuat(elem, "quat", pchild->quat, text);
       if (MapValue(elem, "mocap", &n, bool_map, 2)) {
         pchild->mocap = (n==1);
       }

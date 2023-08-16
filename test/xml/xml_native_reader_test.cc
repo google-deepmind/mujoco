@@ -328,6 +328,22 @@ TEST_F(XMLReaderTest, InvalidArrayLength) {
   EXPECT_THAT(error.data(), HasSubstr("has too much data"));
 }
 
+TEST_F(XMLReaderTest, InvalidQuaternion) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <geom size="1" quat="0 0 0 0"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("zero quaternion is not allowed"));
+}
+
 TEST_F(XMLReaderTest, InvalidNumber) {
   static constexpr char xml[] = R"(
   <mujoco>

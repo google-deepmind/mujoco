@@ -145,6 +145,9 @@ class mjXUtil {
                       T* data, std::string& text,
                       bool required = false, bool exact = true);
 
+  static int ReadQuat(tinyxml2::XMLElement* elem, const char* attr, double* data,
+                      std::string& text, bool required = false);
+
   // deprecated: use ReadAttrVec
   static int ReadVector(tinyxml2::XMLElement* elem, const char* attr,
                         std::vector<double>& vec, std::string& text, bool required = false);
