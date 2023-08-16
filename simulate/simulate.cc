@@ -326,28 +326,30 @@ void UpdateProfiler(mj::Simulate* sim, const mjModel* m, const mjData* d) {
     total = d->timer[mjTIMER_FORWARD].duration;
     number = d->timer[mjTIMER_FORWARD].number;
   }
-  number = mjMAX(1, number);
-  float tdata[5] = {
-    static_cast<float>(total/number),
-    static_cast<float>(d->timer[mjTIMER_POS_COLLISION].duration/number),
-    static_cast<float>(d->timer[mjTIMER_POS_MAKE].duration/number) +
-    static_cast<float>(d->timer[mjTIMER_POS_PROJECT].duration/number),
-    static_cast<float>(d->timer[mjTIMER_CONSTRAINT].duration/number),
-    0
-  };
-  tdata[4] = tdata[0] - tdata[1] - tdata[2] - tdata[3];
 
-  // update figtimer
-  int pnt = mjMIN(201, sim->figtimer.linepnt[0]+1);
-  for (int n=0; n<5; n++) {
-    // shift data
-    for (int i=pnt-1; i>0; i--) {
-      sim->figtimer.linedata[n][2*i+1] = sim->figtimer.linedata[n][2*i-1];
+  if (number) {  // skip update if no measurements
+    float tdata[5] = {
+      static_cast<float>(total/number),
+      static_cast<float>(d->timer[mjTIMER_POS_COLLISION].duration/number),
+      static_cast<float>(d->timer[mjTIMER_POS_MAKE].duration/number) +
+      static_cast<float>(d->timer[mjTIMER_POS_PROJECT].duration/number),
+      static_cast<float>(d->timer[mjTIMER_CONSTRAINT].duration/number),
+      0
+    };
+    tdata[4] = tdata[0] - tdata[1] - tdata[2] - tdata[3];
+
+    // update figtimer
+    int pnt = mjMIN(201, sim->figtimer.linepnt[0]+1);
+    for (int n=0; n<5; n++) {
+      // shift data
+      for (int i=pnt-1; i>0; i--) {
+        sim->figtimer.linedata[n][2*i+1] = sim->figtimer.linedata[n][2*i-1];
+      }
+
+      // assign new
+      sim->figtimer.linepnt[n] = pnt;
+      sim->figtimer.linedata[n][1] = tdata[n];
     }
-
-    // assign new
-    sim->figtimer.linepnt[n] = pnt;
-    sim->figtimer.linedata[n][1] = tdata[n];
   }
 
   // get sizes: nv, nbody, nefc, sqrt(nnz), ncont, iter
@@ -361,7 +363,7 @@ void UpdateProfiler(mj::Simulate* sim, const mjModel* m, const mjData* d) {
   };
 
   // update figsize
-  pnt = mjMIN(201, sim->figsize.linepnt[0]+1);
+  int pnt = mjMIN(201, sim->figsize.linepnt[0]+1);
   for (int n=0; n<6; n++) {
     // shift data
     for (int i=pnt-1; i>0; i--) {
