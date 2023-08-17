@@ -86,9 +86,16 @@ void mjv_makeSceneState(const mjModel* m, const mjData* d, mjvSceneState* scnsta
 #undef XMJV
 #undef X
 
+  // buffer space required for contacts
   int condimmax = mj_isPyramidal(m) ? 10 : 6;
-  scnstate->nbuffer += roundUpToCacheLine(sizeof(mjContact) * maxgeom);
-  scnstate->nbuffer += roundUpToCacheLine(sizeof(mjtNum) * maxgeom * condimmax);
+  scnstate->nbuffer += roundUpToCacheLine(sizeof(*d->contact) * maxgeom);
+  scnstate->nbuffer += roundUpToCacheLine(sizeof(*d->efc_force) * maxgeom * condimmax);
+
+  // buffer space required for islands
+  scnstate->nbuffer += roundUpToCacheLine(sizeof(*d->island_dofadr) * m->ntree);
+  scnstate->nbuffer += roundUpToCacheLine(sizeof(*d->dof_island) * m->nv);
+  scnstate->nbuffer += roundUpToCacheLine(sizeof(*d->efc_island) * maxgeom * condimmax);
+  scnstate->nbuffer += roundUpToCacheLine(sizeof(*d->tendon_efcadr) * m->ntendon);
 
   scnstate->buffer = mju_malloc(scnstate->nbuffer);
 
@@ -111,10 +118,22 @@ void mjv_makeSceneState(const mjModel* m, const mjData* d, mjvSceneState* scnsta
 #undef X
 
   scnstate->data.contact = (mjContact*)ptr;
-  ptr += roundUpToCacheLine(sizeof(mjContact) * scnstate->maxgeom);
+  ptr += roundUpToCacheLine(sizeof(*scnstate->data.contact) * scnstate->maxgeom);
 
   scnstate->data.efc_force = (mjtNum*)ptr;
-  ptr += roundUpToCacheLine(sizeof(mjtNum) * scnstate->maxgeom * condimmax);
+  ptr += roundUpToCacheLine(sizeof(*scnstate->data.efc_force) * scnstate->maxgeom * condimmax);
+
+  scnstate->data.island_dofadr = (int*)ptr;
+  ptr += roundUpToCacheLine(sizeof(*scnstate->data.island_dofadr) * scnstate->model.ntree);
+
+  scnstate->data.dof_island = (int*)ptr;
+  ptr += roundUpToCacheLine(sizeof(*scnstate->data.dof_island) * scnstate->model.nv);
+
+  scnstate->data.efc_island = (int*)ptr;
+  ptr += roundUpToCacheLine(sizeof(*scnstate->data.efc_island) * scnstate->maxgeom * condimmax);
+
+  scnstate->data.tendon_efcadr = (int*)ptr;
+  ptr += roundUpToCacheLine(sizeof(*scnstate->data.tendon_efcadr) * m->ntendon);
 
   // should not occur
   if (ptr - (char*)scnstate->buffer != scnstate->nbuffer) {
@@ -184,12 +203,10 @@ void mjv_assignFromSceneState(const mjvSceneState* scnstate, mjModel* m, mjData*
 
     d->contact = scnstate->data.contact;
     d->efc_force = scnstate->data.efc_force;
-
-    if (d->nisland) {
-      d->island_dofadr = scnstate->data.island_dofadr;
-      d->dof_island = scnstate->data.dof_island;
-      d->efc_island = scnstate->data.efc_island;
-    }
+    d->island_dofadr = scnstate->data.island_dofadr;
+    d->dof_island = scnstate->data.dof_island;
+    d->efc_island = scnstate->data.efc_island;
+    d->tendon_efcadr = scnstate->data.tendon_efcadr;
   }
 }
 
@@ -298,16 +315,17 @@ void mjv_updateSceneState(const mjModel* m, mjData* d, const mjvOption* opt,
     } else {
       scnstate->data.ncon = d->ncon;
     }
-    memcpy(scnstate->data.contact, d->contact, sizeof(mjContact) * scnstate->data.ncon);
+    memcpy(scnstate->data.contact, d->contact, sizeof(*d->contact) * scnstate->data.ncon);
   }
 
-  // Copy only the entries in efc_force that correspond to contacts.
+  // Copy only the entries in efc_force and efc_island that correspond to contacts.
   {
     scnstate->data.nefc = 0;
     for (int i = 0; i < scnstate->data.ncon; ++i) {
       const mjContact* con = &d->contact[i];
       scnstate->data.nefc += con->dim;
     }
+    scnstate->data.nefc += scnstate->model.ntendon;
 
     int efc_address = 0;
     int ispyramid = mj_isPyramidal(m);
@@ -319,20 +337,30 @@ void mjv_updateSceneState(const mjModel* m, mjData* d, const mjvOption* opt,
       }
       for (int j = 0; j < dim; ++j) {
         scnstate->data.efc_force[efc_address + j] = d->efc_force[con->efc_address + j];
+        if (d->nisland) {
+          scnstate->data.efc_island[efc_address + j] = d->efc_island[con->efc_address + j];
+        }
       }
       con->efc_address = efc_address;
       efc_address += dim;
+    }
+    if (d->nisland) {
+      for (int i = 0; i < scnstate->model.ntendon; ++i) {
+        int efcadr = d->tendon_efcadr[i];
+        if (efcadr != -1) {
+          scnstate->data.efc_island[efcadr] = d->efc_island[efcadr];
+        }
+      }
     }
   }
 
   // Copy island data.
   scnstate->data.nisland = d->nisland;
   if (d->nisland) {
-    memcpy(scnstate->data.island_dofadr, d->island_dofadr, sizeof(int) * d->nisland);
-    memcpy(scnstate->data.dof_island, d->dof_island, sizeof(int) * m->nv);
-    memcpy(scnstate->data.efc_island, d->efc_island, sizeof(int) * d->nefc);
+    memcpy(scnstate->data.island_dofadr, d->island_dofadr, sizeof(*d->island_dofadr) * d->nisland);
+    memcpy(scnstate->data.dof_island, d->dof_island, sizeof(*d->dof_island) * m->nv);
+    memcpy(scnstate->data.tendon_efcadr, d->tendon_efcadr, sizeof(*d->tendon_efcadr) * m->ntendon);
   }
-
 }
 
 

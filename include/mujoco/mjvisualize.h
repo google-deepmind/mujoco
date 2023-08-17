@@ -378,6 +378,7 @@ struct mjvSceneState_ {
 
   // fields in mjModel that are necessary to re-render a scene
   struct {
+    int nv;
     int nu;
     int na;
     int nbody;
@@ -396,6 +397,7 @@ struct mjvSceneState_ {
     int nmat;
     int neq;
     int ntendon;
+    int ntree;
     int nwrap;
     int nsensor;
     int nnames;
@@ -411,6 +413,8 @@ struct mjvSceneState_ {
     int* body_mocapid;
     int* body_jntnum;
     int* body_jntadr;
+    int* body_dofnum;
+    int* body_dofadr;
     int* body_geomnum;
     int* body_geomadr;
     mjtNum* body_iquat;
@@ -430,6 +434,8 @@ struct mjvSceneState_ {
 
     int* geom_type;
     int* geom_bodyid;
+    int* geom_contype;
+    int* geom_conaffinity;
     int* geom_dataid;
     int* geom_matid;
     int* geom_group;
@@ -458,6 +464,8 @@ struct mjvSceneState_ {
     float* light_diffuse;
     float* light_specular;
 
+    int* mesh_bvhadr;
+    int* mesh_bvhnum;
     int* mesh_texcoordadr;
     int* mesh_graphadr;
 
@@ -575,12 +583,14 @@ struct mjvSceneState_ {
     int* ten_wrapadr;
     int* ten_wrapnum;
     int* wrap_obj;
+    mjtNum* ten_length;
     mjtNum* wrap_xpos;
 
     mjtByte* bvh_active;
     int* island_dofadr;
     int* dof_island;
     int* efc_island;
+    int* tendon_efcadr;
 
     mjContact* contact;
     mjtNum* efc_force;

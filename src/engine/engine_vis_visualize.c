@@ -73,6 +73,7 @@ static void makeLabel(const mjModel* m, mjtObj type, int id, char* label) {
     return;                                                      \
   } else {                                                       \
     thisgeom = scn->geoms + scn->ngeom;                          \
+    memset(thisgeom, 0, sizeof(mjvGeom));                        \
     mjv_initGeom(thisgeom, mjGEOM_NONE, NULL, NULL, NULL, NULL); \
     thisgeom->objtype = objtype;                                 \
     thisgeom->objid = i;                                         \
@@ -1580,23 +1581,9 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
               if (vopt->flags[mjVIS_ISLAND] && d->nisland) {
                 tendon_matid = -1;
                 rgba = rgba_island;
-                int frictional = m->tendon_frictionloss[i] > 0;
-                int limited = m->tendon_limited[i] && (ten_length <= lower || ten_length >= upper);
-                if (frictional || limited) {
-                  // search for tendon's island
-                  int island = -1;
-                  for (int k=0; k < d->nefc; k++) {
-                    int istendon = d->efc_type[k] == mjCNSTR_FRICTION_TENDON ||
-                                   d->efc_type[k] == mjCNSTR_LIMIT_TENDON;
-                    if (istendon && d->efc_id[k] == i) {
-                      island = d->efc_island[k];
-                      break;
-                    }
-                  }
-                  if (island > -1) {
-                    // set color using island's first dof
-                    islandColor(rgba_island, d->island_dofadr[island]);
-                  }
+                if (d->tendon_efcadr[i] != -1) {
+                  // set color using island's first dof
+                  islandColor(rgba_island, d->island_dofadr[d->efc_island[d->tendon_efcadr[i]]]);
                 }
               }
               setMaterial(m, thisgeom, tendon_matid, rgba, vopt->flags);

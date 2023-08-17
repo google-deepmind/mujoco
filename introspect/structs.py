@@ -4333,6 +4333,13 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='inverse constraint mass                          (nefc x 1)',  # pylint: disable=line-too-long
              ),
              StructFieldDecl(
+                 name='tendon_efcadr',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='first efc address involving tendon; -1: none     (ntendon x 1)',  # pylint: disable=line-too-long
+             ),
+             StructFieldDecl(
                  name='island_dofadr',
                  type=PointerType(
                      inner_type=ValueType(name='int'),
@@ -5316,6 +5323,11 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  type=AnonymousStructDecl(
                      fields=(
                          StructFieldDecl(
+                             name='nv',
+                             type=ValueType(name='int'),
+                             doc='',
+                         ),
+                         StructFieldDecl(
                              name='nu',
                              type=ValueType(name='int'),
                              doc='',
@@ -5406,6 +5418,11 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                              doc='',
                          ),
                          StructFieldDecl(
+                             name='ntree',
+                             type=ValueType(name='int'),
+                             doc='',
+                         ),
+                         StructFieldDecl(
                              name='nwrap',
                              type=ValueType(name='int'),
                              doc='',
@@ -5477,6 +5494,20 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                          ),
                          StructFieldDecl(
                              name='body_jntadr',
+                             type=PointerType(
+                                 inner_type=ValueType(name='int'),
+                             ),
+                             doc='',
+                         ),
+                         StructFieldDecl(
+                             name='body_dofnum',
+                             type=PointerType(
+                                 inner_type=ValueType(name='int'),
+                             ),
+                             doc='',
+                         ),
+                         StructFieldDecl(
+                             name='body_dofadr',
                              type=PointerType(
                                  inner_type=ValueType(name='int'),
                              ),
@@ -5589,6 +5620,20 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                          ),
                          StructFieldDecl(
                              name='geom_bodyid',
+                             type=PointerType(
+                                 inner_type=ValueType(name='int'),
+                             ),
+                             doc='',
+                         ),
+                         StructFieldDecl(
+                             name='geom_contype',
+                             type=PointerType(
+                                 inner_type=ValueType(name='int'),
+                             ),
+                             doc='',
+                         ),
+                         StructFieldDecl(
+                             name='geom_conaffinity',
                              type=PointerType(
                                  inner_type=ValueType(name='int'),
                              ),
@@ -5759,6 +5804,20 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                              name='light_specular',
                              type=PointerType(
                                  inner_type=ValueType(name='float'),
+                             ),
+                             doc='',
+                         ),
+                         StructFieldDecl(
+                             name='mesh_bvhadr',
+                             type=PointerType(
+                                 inner_type=ValueType(name='int'),
+                             ),
+                             doc='',
+                         ),
+                         StructFieldDecl(
+                             name='mesh_bvhnum',
+                             type=PointerType(
+                                 inner_type=ValueType(name='int'),
                              ),
                              doc='',
                          ),
@@ -6450,6 +6509,13 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                              doc='',
                          ),
                          StructFieldDecl(
+                             name='ten_length',
+                             type=PointerType(
+                                 inner_type=ValueType(name='mjtNum'),
+                             ),
+                             doc='',
+                         ),
+                         StructFieldDecl(
                              name='wrap_xpos',
                              type=PointerType(
                                  inner_type=ValueType(name='mjtNum'),
@@ -6479,6 +6545,13 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                          ),
                          StructFieldDecl(
                              name='efc_island',
+                             type=PointerType(
+                                 inner_type=ValueType(name='int'),
+                             ),
+                             doc='',
+                         ),
+                         StructFieldDecl(
+                             name='tendon_efcadr',
                              type=PointerType(
                                  inner_type=ValueType(name='int'),
                              ),

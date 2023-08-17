@@ -369,6 +369,7 @@ struct mjData_ {
   mjtNum* efc_KBIP;          // stiffness, damping, impedance, imp'              (nefc x 4)
   mjtNum* efc_D;             // constraint mass                                  (nefc x 1)
   mjtNum* efc_R;             // inverse constraint mass                          (nefc x 1)
+  int*    tendon_efcadr;     // first efc address involving tendon; -1: none     (ntendon x 1)
 
   // computed by mj_island
   int*    island_dofadr;     // address of first dof in island                   (nisland x 1)

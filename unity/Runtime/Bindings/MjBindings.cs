@@ -1713,6 +1713,7 @@ public unsafe struct mjData_ {
   public double* efc_KBIP;
   public double* efc_D;
   public double* efc_R;
+  public int* tendon_efcadr;
   public int* island_dofadr;
   public int* island_efcadr;
   public int* dof_island;
@@ -2775,6 +2776,7 @@ public unsafe struct mjvFigure_ {
 
 [StructLayout(LayoutKind.Sequential)]
 public unsafe struct model {
+  public int nv;
   public int nu;
   public int na;
   public int nbody;
@@ -2793,6 +2795,7 @@ public unsafe struct model {
   public int nmat;
   public int neq;
   public int ntendon;
+  public int ntree;
   public int nwrap;
   public int nsensor;
   public int nnames;
@@ -2806,6 +2809,8 @@ public unsafe struct model {
   public int* body_mocapid;
   public int* body_jntnum;
   public int* body_jntadr;
+  public int* body_dofnum;
+  public int* body_dofadr;
   public int* body_geomnum;
   public int* body_geomadr;
   public double* body_iquat;
@@ -2822,6 +2827,8 @@ public unsafe struct model {
   public int* jnt_group;
   public int* geom_type;
   public int* geom_bodyid;
+  public int* geom_contype;
+  public int* geom_conaffinity;
   public int* geom_dataid;
   public int* geom_matid;
   public int* geom_group;
@@ -2846,6 +2853,8 @@ public unsafe struct model {
   public float* light_ambient;
   public float* light_diffuse;
   public float* light_specular;
+  public int* mesh_bvhadr;
+  public int* mesh_bvhnum;
   public int* mesh_texcoordadr;
   public int* mesh_graphadr;
   public int* skin_matid;
@@ -2955,11 +2964,13 @@ public unsafe struct data {
   public int* ten_wrapadr;
   public int* ten_wrapnum;
   public int* wrap_obj;
+  public double* ten_length;
   public double* wrap_xpos;
   public byte* bvh_active;
   public int* island_dofadr;
   public int* dof_island;
   public int* efc_island;
+  public int* tendon_efcadr;
   public mjContact_* contact;
   public double* efc_force;
 }

@@ -486,7 +486,7 @@ void mj_instantiateEquality(const mjModel* m, mjData* d) {
       case mjEQ_JOINT:                // couple joint values with cubic
       case mjEQ_TENDON:               // couple tendon lengths with cubic
         // get scalar positions and their Jacobians
-        for (int j=0; j < 1+(id[1] >= 0); j++)
+        for (int j=0; j < 1+(id[1] >= 0); j++) {
           if (m->eq_type[i] == mjEQ_JOINT) {    // joint object
             pos[j][0] = d->qpos[m->jnt_qposadr[id[j]]];
             ref[j] = m->qpos0[m->jnt_qposadr[id[j]]];
@@ -511,6 +511,11 @@ void mj_instantiateEquality(const mjModel* m, mjData* d) {
             pos[j][0] = d->ten_length[id[j]];
             ref[j] = m->tendon_length0[id[j]];
 
+            // set tendon_efcadr
+            if (d->tendon_efcadr[id[j]] == -1) {
+              d->tendon_efcadr[id[j]] = i;
+            }
+
             // copy Jacobian: sparse or dense
             if (issparse) {
               // add first or second chain
@@ -527,6 +532,7 @@ void mj_instantiateEquality(const mjModel* m, mjData* d) {
               mju_copy(jac[j], d->ten_J+id[j]*nv, nv);
             }
           }
+        }
 
         // both objects defined
         if (id[1] >= 0) {
@@ -618,6 +624,7 @@ void mj_instantiateFriction(const mjModel* m, mjData* d) {
   // find frictional tendons
   for (int i=0; i < m->ntendon; i++) {
     if (m->tendon_frictionloss[i] > 0) {
+      int efcadr = d->nefc;
       // add constraint
       if (mj_addConstraint(m, d, d->ten_J + (issparse ? d->ten_J_rowadr[i] : i*nv),
                            0, 0, m->tendon_frictionloss[i],
@@ -625,6 +632,11 @@ void mj_instantiateFriction(const mjModel* m, mjData* d) {
                            issparse ? d->ten_J_rownnz[i] : 0,
                            issparse ? d->ten_J_colind+d->ten_J_rowadr[i] : NULL)) {
         break;
+      } else {
+        // set tendon_efcadr
+        if (d->tendon_efcadr[i] == -1) {
+          d->tendon_efcadr[i] = efcadr;
+        }
       }
     }
   }
@@ -757,11 +769,17 @@ void mj_instantiateLimit(const mjModel* m, mjData* d) {
           }
 
           // add constraint
+          int efcadr = d->nefc;
           if (mj_addConstraint(m, d, jac, &dist, &margin, 0,
                                1, mjCNSTR_LIMIT_TENDON, i,
                                issparse ? d->ten_J_rownnz[i] : 0,
                                issparse ? d->ten_J_colind+d->ten_J_rowadr[i] : NULL)) {
             break;
+          } else {
+            // set tendon_efcadr
+            if (d->tendon_efcadr[i] == -1) {
+              d->tendon_efcadr[i] = efcadr;
+            }
           }
         }
       }
@@ -1653,6 +1671,11 @@ void mj_makeConstraint(const mjModel* m, mjData* d) {
 #undef MJ_D
 #define MJ_D(n) n
   // ========== end arena allocation
+
+  // clear tendon_efcadr
+  for (int i=0; i < m->ntendon; i++) {
+    d->tendon_efcadr[i] = -1;
+  }
 
   // reset nefc for the instantiation functions,
   // and instantiate all elements of Jacobian

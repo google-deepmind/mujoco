@@ -65,7 +65,7 @@
 // int fields of mjModel
 #define MJMODEL_INTS           \
     X   ( nq )                 \
-    X   ( nv )                 \
+    XMJV( nv )                 \
     XMJV( nu )                 \
     XMJV( na )                 \
     XMJV( nbody )              \
@@ -124,7 +124,7 @@
     X   ( nemax )              \
     X   ( njmax )              \
     X   ( nconmax )            \
-    X   ( ntree )              \
+    XMJV( ntree )              \
     X   ( nstack )             \
     X   ( nuserdata )          \
     XMJV( nsensordata )        \
@@ -165,8 +165,8 @@
     XMJV( int,     body_mocapid,          nbody,         1                    ) \
     XMJV( int,     body_jntnum,           nbody,         1                    ) \
     XMJV( int,     body_jntadr,           nbody,         1                    ) \
-    X   ( int,     body_dofnum,           nbody,         1                    ) \
-    X   ( int,     body_dofadr,           nbody,         1                    ) \
+    XMJV( int,     body_dofnum,           nbody,         1                    ) \
+    XMJV( int,     body_dofadr,           nbody,         1                    ) \
     X   ( int,     body_treeid,           nbody,         1                    ) \
     XMJV( int,     body_geomnum,          nbody,         1                    ) \
     XMJV( int,     body_geomadr,          nbody,         1                    ) \
@@ -219,8 +219,8 @@
     X   ( mjtNum,  dof_invweight0,        nv,            1                    ) \
     X   ( mjtNum,  dof_M0,                nv,            1                    ) \
     XMJV( int,     geom_type,             ngeom,         1                    ) \
-    X   ( int,     geom_contype,          ngeom,         1                    ) \
-    X   ( int,     geom_conaffinity,      ngeom,         1                    ) \
+    XMJV( int,     geom_contype,          ngeom,         1                    ) \
+    XMJV( int,     geom_conaffinity,      ngeom,         1                    ) \
     X   ( int,     geom_condim,           ngeom,         1                    ) \
     XMJV( int,     geom_bodyid,           ngeom,         1                    ) \
     XMJV( int,     geom_dataid,           ngeom,         1                    ) \
@@ -289,8 +289,8 @@
     X   ( int,     mesh_texcoordnum,      nmesh,         1                    ) \
     X   ( int,     mesh_faceadr,          nmesh,         1                    ) \
     X   ( int,     mesh_facenum,          nmesh,         1                    ) \
-    X   ( int,     mesh_bvhadr,           nmesh,         1                    ) \
-    X   ( int,     mesh_bvhnum,           nmesh,         1                    ) \
+    XMJV( int,     mesh_bvhadr,           nmesh,         1                    ) \
+    XMJV( int,     mesh_bvhnum,           nmesh,         1                    ) \
     XMJV( int,     mesh_graphadr,         nmesh,         1                    ) \
     X   ( float,   mesh_vert,             nmeshvert,     3                    ) \
     X   ( float,   mesh_normal,           nmeshnormal,   3                    ) \
@@ -515,7 +515,7 @@
     X   ( int,       ten_J_rownnz,      ntendon,     1           ) \
     X   ( int,       ten_J_rowadr,      ntendon,     1           ) \
     X   ( int,       ten_J_colind,      ntendon,     MJ_M(nv)    ) \
-    X   ( mjtNum,    ten_length,        ntendon,     1           ) \
+    XMJV( mjtNum,    ten_length,        ntendon,     1           ) \
     X   ( mjtNum,    ten_J,             ntendon,     MJ_M(nv)    ) \
     XMJV( int,       wrap_obj,          nwrap,       2           ) \
     XMJV( mjtNum,    wrap_xpos,         nwrap,       6           ) \
@@ -561,35 +561,36 @@
 #define MJ_D(n) n
 
 // array of contacts
-#define MJDATA_ARENA_POINTERS_CONTACT             \
+#define MJDATA_ARENA_POINTERS_CONTACT \
     X( mjContact, contact, MJ_D(ncon), 1 )
 
 // array fields of mjData that are used in the primal problem
-#define MJDATA_ARENA_POINTERS_PRIMAL               \
-  X( int,      efc_type,          MJ_D(nefc),  1)  \
-  X( int,      efc_id,            MJ_D(nefc),  1)  \
-  X( int,      efc_J_rownnz,      MJ_D(nefc),  1)  \
-  X( int,      efc_J_rowadr,      MJ_D(nefc),  1)  \
-  X( int,      efc_J_rowsuper,    MJ_D(nefc),  1)  \
-  X( int,      efc_J_colind,      MJ_D(nnzJ),  1)  \
-  X( int,      efc_JT_rownnz,     MJ_M(nv),    1)  \
-  X( int,      efc_JT_rowadr,     MJ_M(nv),    1)  \
-  X( int,      efc_JT_rowsuper,   MJ_M(nv),    1)  \
-  X( int,      efc_JT_colind,     MJ_D(nnzJ),  1)  \
-  X( mjtNum,   efc_J,             MJ_D(nnzJ),  1)  \
-  X( mjtNum,   efc_JT,            MJ_D(nnzJ),  1)  \
-  X( mjtNum,   efc_pos,           MJ_D(nefc),  1)  \
-  X( mjtNum,   efc_margin,        MJ_D(nefc),  1)  \
-  X( mjtNum,   efc_frictionloss,  MJ_D(nefc),  1)  \
-  X( mjtNum,   efc_diagApprox,    MJ_D(nefc),  1)  \
-  X( mjtNum,   efc_KBIP,          MJ_D(nefc),  4)  \
-  X( mjtNum,   efc_D,             MJ_D(nefc),  1)  \
-  X( mjtNum,   efc_R,             MJ_D(nefc),  1)  \
-  X( mjtNum,   efc_vel,           MJ_D(nefc),  1)  \
-  X( mjtNum,   efc_aref,          MJ_D(nefc),  1)  \
-  X( mjtNum,   efc_b,             MJ_D(nefc),  1)  \
-  X( mjtNum,   efc_force,         MJ_D(nefc),  1)  \
-  X( int,      efc_state,         MJ_D(nefc),  1)
+#define MJDATA_ARENA_POINTERS_PRIMAL                 \
+  X( int,      efc_type,          MJ_D(nefc),    1)  \
+  X( int,      efc_id,            MJ_D(nefc),    1)  \
+  X( int,      efc_J_rownnz,      MJ_D(nefc),    1)  \
+  X( int,      efc_J_rowadr,      MJ_D(nefc),    1)  \
+  X( int,      efc_J_rowsuper,    MJ_D(nefc),    1)  \
+  X( int,      efc_J_colind,      MJ_D(nnzJ),    1)  \
+  X( int,      efc_JT_rownnz,     MJ_M(nv),      1)  \
+  X( int,      efc_JT_rowadr,     MJ_M(nv),      1)  \
+  X( int,      efc_JT_rowsuper,   MJ_M(nv),      1)  \
+  X( int,      efc_JT_colind,     MJ_D(nnzJ),    1)  \
+  X( mjtNum,   efc_J,             MJ_D(nnzJ),    1)  \
+  X( mjtNum,   efc_JT,            MJ_D(nnzJ),    1)  \
+  X( mjtNum,   efc_pos,           MJ_D(nefc),    1)  \
+  X( mjtNum,   efc_margin,        MJ_D(nefc),    1)  \
+  X( mjtNum,   efc_frictionloss,  MJ_D(nefc),    1)  \
+  X( mjtNum,   efc_diagApprox,    MJ_D(nefc),    1)  \
+  X( mjtNum,   efc_KBIP,          MJ_D(nefc),    4)  \
+  X( mjtNum,   efc_D,             MJ_D(nefc),    1)  \
+  X( mjtNum,   efc_R,             MJ_D(nefc),    1)  \
+  X( int,      tendon_efcadr,     MJ_M(ntendon), 1)  \
+  X( mjtNum,   efc_vel,           MJ_D(nefc),    1)  \
+  X( mjtNum,   efc_aref,          MJ_D(nefc),    1)  \
+  X( mjtNum,   efc_b,             MJ_D(nefc),    1)  \
+  X( mjtNum,   efc_force,         MJ_D(nefc),    1)  \
+  X( int,      efc_state,         MJ_D(nefc),    1)
 
 // array fields of mjData that are used in the dual problem
 #define MJDATA_ARENA_POINTERS_DUAL                            \

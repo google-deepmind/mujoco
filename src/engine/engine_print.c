@@ -1089,7 +1089,14 @@ void mj_printFormattedData(const mjModel* m, mjData* d, const char* filename,
       fprintf(fp, " %d", d->efc_islandnext[i]);
     }
     fprintf(fp, "\n\n");
+  }
 
+  if (m->ntendon) {
+    fprintf(fp, NAME_FORMAT, "TENDON_EFCADR");
+    for (int i = 0; i < m->ntendon; i++) {
+      fprintf(fp, " %d", d->tendon_efcadr[i]);
+    }
+    fprintf(fp, "\n\n");
   }
 
 #ifdef MEMORY_SANITIZER
