@@ -17,7 +17,6 @@ General
 
    - Added new SDF plugin for defining implicit geometries. The plugin must define methods computing an SDF and its
      gradient at query points See the :ref:`documentation<exWriting>` for more details.
-   - Increased ``mjMAXCONPAIR`` to 100.
 
    .. youtube:: Vc1tq0fFvQA
       :align: right

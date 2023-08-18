@@ -23,7 +23,7 @@
 #define mjMINMU         1E-5      // minimum friction coefficient
 #define mjMINIMP        0.0001    // minimum constraint impedance
 #define mjMAXIMP        0.9999    // maximum constraint impedance
-#define mjMAXCONPAIR    100       // maximum number of contacts per geom pair
+#define mjMAXCONPAIR    50        // maximum number of contacts per geom pair
 #define mjMAXTREEDEPTH  50        // maximum bounding volume hierarchy depth
 #define mjMAXVFS        2000      // maximum number of files in virtual file system
 #define mjMAXVFSNAME    1000      // maximum filename size in virtual file system

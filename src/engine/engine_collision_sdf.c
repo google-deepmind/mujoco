@@ -20,6 +20,7 @@
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjtnum.h>
 #include "engine/engine_collision_primitive.h"
+#include "engine/engine_crossplatform.h"
 #include "engine/engine_io.h"
 #include "engine/engine_plugin.h"
 #include "engine/engine_util_blas.h"
@@ -29,7 +30,7 @@
 
 
 #define MAXSDFFACE 1300
-
+#define MAXMESHPNT 500
 
 
 //---------------------------- primitives sdf ---------------------------------------------
@@ -77,7 +78,7 @@ static mjtNum geomDistance(const mjModel* m, const mjData* d, const mjpPlugin* p
     case mjGEOM_SDF:
       return p->sdf_distance(x, d, i);
     default:
-      mju_error("sdf collisions not available for geom type %d", type);
+      mjERROR("sdf collisions not available for geom type %d", type);
       return 0;
   }
 }
@@ -166,7 +167,7 @@ static void geomGradient(mjtNum gradient[3], const mjModel* m, const mjData* d,
       p->sdf_gradient(gradient, x, d, i);
       break;
     default:
-      mju_error("sdf collisions not available for geom type %d", type);
+      mjERROR("sdf collisions not available for geom type %d", type);
   }
 }
 
@@ -185,7 +186,7 @@ mjtNum mjc_distance(const mjModel* m, const mjData* d, const mjSDF* s, const mjt
       return mju_max(geomDistance(m, d, s->plugin[0], s->id[0], x, s->geomtype[0]),
                      geomDistance(m, d, s->plugin[1], s->id[1], y, s->geomtype[1]));
     default:
-      mju_error("SDF type not available");
+      mjERROR("SDF type not available");
       return 0;
   }
 }
@@ -223,7 +224,7 @@ void mjc_gradient(const mjModel* m, const mjData* d, const mjSDF* s,
       geomGradient(gradient, m, d, s->plugin[0], s->id[0], point[0], s->geomtype[0]);
       break;
     default:
-      mju_error("SDF type not available");
+      mjERROR("SDF type not available");
   }
 }
 
@@ -233,9 +234,9 @@ static const mjpPlugin* getSDF(const mjModel* m, int id) {
   const int nslot = mjp_pluginCount();
   const int slot = m->plugin[instance];
   const mjpPlugin* sdf = mjp_getPluginAtSlotUnsafe(slot, nslot);
-  if (!sdf) mju_error("invalid plugin slot: %d", slot);
+  if (!sdf) mjERROR("invalid plugin slot: %d", slot);
   if (!(sdf->capabilityflags & mjPLUGIN_SDF)) {
-    mju_error("Plugin is not a signed distance field at slot %d", slot);
+    mjERROR("Plugin is not a signed distance field at slot %d", slot);
   }
   return sdf;
 }
@@ -269,6 +270,20 @@ static void undoTransformation(const mjModel* m, const mjData* d, int g,
 }
 
 //---------------------------- narrow phase -----------------------------------------------
+
+// comparison function for contact sorting
+quicksortfunc(distcompare, dist, i1, i2) {
+  mjtNum d1 = ((mjtNum*)dist)[*(int*)i1];
+  mjtNum d2 = ((mjtNum*)dist)[*(int*)i2];
+
+  if (d1 < d2) {
+    return -1;
+  } else if (d1 == d2) {
+    return 0;
+  } else {
+    return 1;
+  }
+}
 
 // check if the collision point already exists
 static int isknown(const mjtNum* points, const mjtNum x[3], int cnt) {
@@ -482,7 +497,7 @@ static void collideBVH(const mjModel* m, mjData* d, int g,
     // recursive call
     for (int i=0; i<2; i++) {
       if (child[2*node+i] != -1) {
-        if (nstack >= max_stack) mju_error("BVH stack depth exceeded.");
+        if (nstack >= max_stack) mjERROR("BVH stack depth exceeded.");
         stack[nstack].node = child[2*node+i];
         nstack++;
       }
@@ -505,11 +520,11 @@ int mjc_MeshSDF(const mjModel* m, const mjData* d, mjContact* con, int g1, int g
   mjtNum* pos1 = d->geom_xpos + 3 * g1;
   mjtNum* mat1 = d->geom_xmat + 9 * g1;
 
-  mjtNum offset[3], rotation[9];
-  mjtNum corners[9], points[3*MAXSDFFACE], x[3], dist;
+  mjtNum offset[3], rotation[9], corners[9], x[3], depth;
+  mjtNum points[3*MAXSDFFACE], dist[MAXMESHPNT], candidate[3*MAXMESHPNT];
   int vertadr = m->mesh_vertadr[m->geom_dataid[g1]];
   int faceadr = m->mesh_faceadr[m->geom_dataid[g1]];
-  int cnt=0, npoints=0, n0=0, faces[MAXSDFFACE]={-1};
+  int cnt=0, npoints=0, ncandidate=0, n0=0, faces[MAXSDFFACE]={-1}, index[MAXMESHPNT];
 
   // get sdf plugin
   int instance = m->geom_plugin[g2];
@@ -558,11 +573,26 @@ int mjc_MeshSDF(const mjModel* m, const mjData* d, mjContact* con, int g1, int g
     x[2] = (corners[2]+corners[5]+corners[8])/3;
 
     // SHOULD NOT OCCUR
-    if (cnt==mjMAXCONPAIR) mju_error("mjc_MeshSDF: too many contact points");
+    if (ncandidate==MAXMESHPNT) mjERROR("too many contact points");
 
     // Frank-Wolfe
-    dist = stepFrankWolfe(x, corners, 3, m, &sdf, (mjData*)d);
-    cnt = addContact(points, con, x, pos2true, sdf_quat, dist, cnt, m, &sdf, (mjData*)d);
+    depth = stepFrankWolfe(x, corners, 3, m, &sdf, (mjData*)d);
+
+    // store candidate if there is penetration
+    if (depth<0) {
+      mju_copy3(candidate + 3*ncandidate, x);
+      index[ncandidate] = ncandidate;
+      dist[ncandidate++] = depth;
+    }
+  }
+
+  // sort contacts using depth
+  mjQUICKSORT(index, ncandidate, sizeof(int), distcompare, dist);
+
+  // add only the first mjMAXCONPAIR pairs
+  for (int i=0; i<mju_min(ncandidate, mjMAXCONPAIR); i++) {
+    cnt = addContact(points, con, candidate + 3*index[i], pos2true, sdf_quat,
+                     dist[index[i]], cnt, m, &sdf, (mjData*)d);
   }
 
   return cnt;
@@ -582,7 +612,7 @@ int mjc_SDF(const mjModel* m, const mjData* d, mjContact* con, int g1, int g2, m
 
   // second geom must be an SDF
   if (m->geom_type[g2] != mjGEOM_SDF) {
-    mju_error("geom is not an SDF");
+    mjERROR("geom is not an SDF");
   }
 
   // compute transformations from/to g1 to/from g2
@@ -688,6 +718,9 @@ int mjc_SDF(const mjModel* m, const mjData* d, mjContact* con, int g1, int g2, m
     dist = stepGradient(x, m, &sdf, (mjData*)d);
     sdf.type = mjSDFTYPE_AVERAGE;
     cnt = addContact(contacts, con, x, pos2true, squat2, dist, cnt, m, &sdf, (mjData*)d);
+
+    // SHOULD NOT OCCUR
+    if (cnt>mjMAXCONPAIR) mjERROR("too many contact points");
   }
 
   return cnt;

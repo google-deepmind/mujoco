@@ -740,9 +740,9 @@ mjtNum ray_sdf(const mjModel* m, const mjData* d, int g,
   const int nslot = mjp_pluginCount();
   const int slot = m->plugin[instance];
   const mjpPlugin* sdf = mjp_getPluginAtSlotUnsafe(slot, nslot);
-  if (!sdf) mju_error("invalid plugin slot: %d", slot);
+  if (!sdf) mjERROR("invalid plugin slot: %d", slot);
   if (!(sdf->capabilityflags & mjPLUGIN_SDF)) {
-    mju_error("Plugin is not a sign distance field at slot %d", slot);
+    mjERROR("Plugin is not a sign distance field at slot %d", slot);
   }
 
   // reset counter
