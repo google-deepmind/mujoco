@@ -208,7 +208,7 @@ static int mju_compare(const int* vec1, const int* vec2, int n) {
 
 
 // combine two sparse vectors: dst = a*dst + b*src, return nnz of result
-int mju_combineSparse(mjtNum* dst, const mjtNum* src, int n, mjtNum a, mjtNum b,
+int mju_combineSparse(mjtNum* dst, const mjtNum* src, mjtNum a, mjtNum b,
                       int dst_nnz, int src_nnz, int* dst_ind, const int* src_ind,
                       mjtNum* buf, int* buf_ind) {
   // check for identical pattern
@@ -226,38 +226,43 @@ int mju_combineSparse(mjtNum* dst, const mjtNum* src, int n, mjtNum a, mjtNum b,
     memcpy(buf_ind, dst_ind, dst_nnz*sizeof(int));
   }
 
-  // prepare to merge buf and scr into dst
+  // prepare to merge buf and src into dst
   int bi = 0, si = 0, nnz = 0;
   int buf_nnz = dst_nnz;
-  int badr = bi < buf_nnz ? buf_ind[bi] : n+1;
-  int sadr = si < src_nnz ? src_ind[si] : n+1;
 
   // merge vectors
-  while (bi < buf_nnz || si < src_nnz) {
-    // both
+  while (bi < buf_nnz && si < src_nnz) {
+    int badr = buf_ind[bi];
+    int sadr = src_ind[si];
+
     if (badr == sadr) {
       dst[nnz] = a*buf[bi++] + b*src[si++];
       dst_ind[nnz++] = badr;
-
-      badr = bi < buf_nnz ? buf_ind[bi] : n+1;
-      sadr = si < src_nnz ? src_ind[si] : n+1;
     }
 
-    // dst only
+    // buf only
     else if (badr < sadr) {
       dst[nnz] = a*buf[bi++];
       dst_ind[nnz++] = badr;
-
-      badr = bi < buf_nnz ? buf_ind[bi] : n+1;
     }
 
     // src only
     else {
       dst[nnz] = b*src[si++];
       dst_ind[nnz++] = sadr;
-
-      sadr = si < src_nnz ? src_ind[si] : n+1;
     }
+  }
+
+  // the rest of src only
+  while (si < src_nnz) {
+    dst[nnz] = b*src[si];
+    dst_ind[nnz++] = src_ind[si++];
+  }
+
+  // the rest of buf only
+  while (bi < buf_nnz) {
+    dst[nnz] = a*buf[bi];
+    dst_ind[nnz++] = buf_ind[bi++];
   }
 
   return nnz;

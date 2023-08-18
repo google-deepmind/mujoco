@@ -190,7 +190,7 @@ int mju_cholFactorSparse(mjtNum* mat, int n, mjtNum mindiag,
       int c = colind[adr+i];
 
       // mat(c,0:c) = mat(c,0:c) - mat(r,c) * mat(r,0:c)
-      int nnz_c = mju_combineSparse(mat + rowadr[c], mat+rowadr[r], c + 1, 1, -mat[adr+i],
+      int nnz_c = mju_combineSparse(mat + rowadr[c], mat+rowadr[r], 1, -mat[adr+i],
                                     rownnz[c], i+1, colind+rowadr[c], colind+rowadr[r],
                                     sparse_buf, buf_ind);
 
@@ -278,7 +278,7 @@ int mju_cholUpdateSparse(mjtNum* mat, mjtNum* x, int n, int flg_plus,
     mat[adr+nnz-1] = r;
 
     // update row:  mat(r,1:r-1) = (mat(r,1:r-1) + s*x(1:r-1)) / c
-    int new_nnz = mju_combineSparse(mat + adr, x, n, 1 / c, (flg_plus ? s / c : -s / c),
+    int new_nnz = mju_combineSparse(mat + adr, x, 1 / c, (flg_plus ? s / c : -s / c),
                                     nnz-1, i, colind + adr, x_ind,
                                     sparse_buf, buf_ind);
 
@@ -288,9 +288,8 @@ int mju_cholUpdateSparse(mjtNum* mat, mjtNum* x, int n, int flg_plus,
     }
 
     // update x:  x(1:r-1) = c*x(1:r-1) - s*mat(r,1:r-1)
-    int new_x_nnz = mju_combineSparse(x, mat+adr, n, c, -s,
-                                      i, nnz-1, x_ind, colind+adr,
-                                      sparse_buf, buf_ind);
+    int new_x_nnz = mju_combineSparse(x, mat+adr, c, -s, i, nnz-1, x_ind,
+                                      colind+adr, sparse_buf, buf_ind);
 
     // update i, correct for changing x
     i = i - 1 + (new_x_nnz - i);

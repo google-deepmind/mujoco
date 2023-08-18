@@ -566,9 +566,9 @@ void mj_tendon(const mjModel* m, mjData* d) {
             mju_mulMatTVec(tmp, jacdif, dif, 3, NV);
 
             // add to existing
-            rownnz[i] = mju_combineSparse(J+rowadr[i], tmp, nv, 1, 1/divisor,
-                                          rownnz[i], NV, colind+rowadr[i], chain,
-                                          sparse_buf, buf_ind);
+            rownnz[i] = mju_combineSparse(J+rowadr[i], tmp, 1, 1/divisor,
+                                          rownnz[i], NV, colind+rowadr[i],
+                                          chain, sparse_buf, buf_ind);
           }
 
           // dense

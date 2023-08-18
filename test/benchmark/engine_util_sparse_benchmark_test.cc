@@ -206,7 +206,7 @@ int compare_memcmp(const int* vec1,
 }
 
 int ABSL_ATTRIBUTE_NOINLINE combineSparse_baseline(mjtNum* dst,
-                                                   const mjtNum* src, int n,
+                                                   const mjtNum* src,
                                                    mjtNum a, mjtNum b,
                                                    int dst_nnz, int src_nnz,
                                                    int* dst_ind,
@@ -223,7 +223,7 @@ int ABSL_ATTRIBUTE_NOINLINE combineSparse_baseline(mjtNum* dst,
 }
 
 int ABSL_ATTRIBUTE_NOINLINE combineSparse_new(mjtNum* dst,
-                                              const mjtNum* src, int n,
+                                              const mjtNum* src,
                                               mjtNum a, mjtNum b,
                                               int dst_nnz, int src_nnz,
                                               int* dst_ind,
@@ -470,7 +470,7 @@ static void BM_combineSparse(benchmark::State& state, CombineFuncPtr func) {
         // true arguments should be i+1 and colind+rowadr[r]
         // but instead we repeat rownnz[c] and colind+rowadr[c]
         // in order to trigger all if's in combineSparse
-         func(H+rowadr[c], H+rowadr[r], c+1, 1, -H[adr+i],
+         func(H+rowadr[c], H+rowadr[r], 1, -H[adr+i],
               rownnz[c], rownnz[c],
               colind+rowadr[c], colind+rowadr[c], NULL, NULL);
       }

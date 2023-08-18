@@ -52,7 +52,7 @@ MJAPI void mju_compressSparse(mjtNum* mat, int nr, int nc,
                               int* rownnz, int* rowadr, int* colind);
 
 // combine two sparse vectors: dst = a*dst + b*src, return nnz of result
-int mju_combineSparse(mjtNum* dst, const mjtNum* src, int n, mjtNum a, mjtNum b,
+int mju_combineSparse(mjtNum* dst, const mjtNum* src, mjtNum a, mjtNum b,
                       int dst_nnz, int src_nnz, int* dst_ind, const int* src_ind,
                       mjtNum* buf, int* buf_ind);
 

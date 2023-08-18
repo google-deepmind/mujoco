@@ -1053,7 +1053,7 @@ void mj_addMSparse(const mjModel* m, mjData* d, mjtNum* dst,
 
   // add to destination
   for (int i=0; i < nv; i++) {
-    rownnz[i] = mju_combineSparse(dst + rowadr[i], M + M_rowadr[i], nv, 1, 1,
+    rownnz[i] = mju_combineSparse(dst + rowadr[i], M + M_rowadr[i], 1, 1,
                                   rownnz[i], M_rownnz[i], colind + rowadr[i],
                                   M_colind + M_rowadr[i], sparse_buf, buf_ind);
   }

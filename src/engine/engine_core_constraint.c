@@ -546,9 +546,8 @@ void mj_instantiateEquality(const mjModel* m, mjData* d) {
 
           // compute Jacobian: sparse or dense
           if (issparse) {
-            NV = mju_combineSparse(jac[0], jac[1], nv, 1, -deriv,
-                                   NV, NV2, chain, chain2,
-                                   sparse_buf, buf_ind);
+            NV = mju_combineSparse(jac[0], jac[1], 1, -deriv, NV, NV2, chain,
+                                   chain2, sparse_buf, buf_ind);
           } else {
             mju_addToScl(jac[0], jac[1], -deriv, nv);
           }
@@ -1310,26 +1309,27 @@ void mj_makeImpedance(const mjModel* m, mjData* d) {
 
 // count the number of non-zeros in the sum of two sparse vectors
 int mju_combineSparseCount(int a_nnz, int b_nnz, const int* a_ind, const int* b_ind) {
-  int a = 0;
-  int b = 0;
-  int nnz = 0;
+  int a = 0, b = 0, c_nnz = 0;
 
-  // while there are elements remaining in both a_ind and b_ind
+  // count c_nnz: nonzero indices common to both a and b
   while (a < a_nnz && b < b_nnz) {
-    // add the smaller element of either a_ind[a] or b_ind[b] to the combined nnz
-    ++nnz;
+    // common index, increment everything
+    if (a_ind[a] == b_ind[b]) {
+      c_nnz++;
+      a++;
+      b++;
+    }
 
-    // if a_ind[a] == b_ind[b], increment both a and b so that we don't double count
-    // otherwise, increment the index pointing to the smaller element
-    int aa = a;
-    int bb = b;
-    if (a_ind[aa] <= b_ind[bb]) ++a;
-    if (a_ind[aa] >= b_ind[bb]) ++b;
+    // update smallest index
+    else if (a_ind[a] < b_ind[b]) {
+      a++;
+    } else {
+      b++;
+    }
   }
 
-  // count remaining elements from the vector with larger nnz
-  nnz += (a_nnz - a) + (b_nnz - b);
-  return nnz;
+  // union minus the intersection
+  return a_nnz + b_nnz - c_nnz;
 }
 
 
