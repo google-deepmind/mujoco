@@ -14,35 +14,72 @@
 # ==============================================================================
 """Exports GLContext for MuJoCo Python bindings."""
 
-import ctypes
-import ctypes.util
+# pylint: disable=g-import-not-at-top
+
 import os
 import platform
 
-# pylint: disable=g-import-not-at-top
-_SYSTEM = platform.system()
-_MUJOCO_GL = os.environ.get('MUJOCO_GL', '').lower().strip()
-if _MUJOCO_GL not in ('disable', 'disabled', 'off', 'false', '0'):
-  _VALID_MUJOCO_GL = ('enable', 'enabled', 'on', 'true', '1' , 'glfw', '')
-  if _SYSTEM == 'Linux':
-    _VALID_MUJOCO_GL += ('glx', 'egl', 'osmesa')
-  elif _SYSTEM == 'Windows':
-    _VALID_MUJOCO_GL += ('wgl',)
-  elif _SYSTEM == 'Darwin':
-    _VALID_MUJOCO_GL += ('cgl',)
-  if _MUJOCO_GL not in _VALID_MUJOCO_GL:
-    raise RuntimeError(
-        f'invalid value for environment variable MUJOCO_GL: {_MUJOCO_GL}')
 
-  if _SYSTEM == 'Linux' and _MUJOCO_GL == 'osmesa':
-    from mujoco.osmesa import GLContext as _GLContext
-    GLContext = _GLContext
-  elif _SYSTEM == 'Linux' and _MUJOCO_GL == 'egl':
-    from mujoco.egl import GLContext as _GLContext
-    GLContext = _GLContext
-  elif _SYSTEM == 'Darwin':
-    from mujoco.cgl import GLContext as _GLContext
-    GLContext = _GLContext
+def _select_gl_context():
+  """Selects the OpenGL context based on the current platform a list of user
+  preferences specified via the MUJOCO_GL environment variable."""
+
+  enabled = ('enable', 'enabled', 'on', 'true', '1', '')
+  disabled = ('disable', 'disabled', 'off', 'false', '0')
+  backends = ('glfw', 'glx', 'egl', 'osmesa', 'wgl', 'cgl')
+  system = platform.system()
+  if system == 'Linux':
+    available = ('glx', 'egl', 'osmesa')
+  elif system == 'Windows':
+    available = ('wgl',)
+  elif system == 'Darwin':
+    available = ('cgl',)
   else:
-    from mujoco.glfw import GLContext as _GLContext
-    GLContext = _GLContext
+    available = ()
+
+  preferences = os.environ.get('MUJOCO_GL', '').lower().strip().split(',')
+
+  valid = backends + enabled + disabled
+  invalid = [x for x in preferences if x not in valid]
+  if invalid:
+    raise RuntimeError(
+        'Invalid value for environment variable MUJOCO_GL.\n'
+        f'  Specified: {",".join(preferences)}\n'
+        f'  Invalid:   {",".join(invalid)}\n'
+        f'  Valid:     {",".join(valid)}')
+
+  avail = available + enabled + disabled
+  if not any(x in avail for x in preferences):
+    raise RuntimeError(
+        'None of the backends in environment variable MUJOCO_GL are '
+        'available on the platform.\n'
+        f'  Specified: {",".join(preferences)}\n'
+        f'  Available: {",".join(avail)}')
+
+  for preference in preferences:
+
+    if preference in disabled:
+      return None
+
+    if preference in enabled:
+      from mujoco.glfw import GLContext
+      return GLContext
+
+    if preference in available:
+      if preference == 'osmesa':
+        from mujoco.osmesa import GLContext
+        return GLContext
+      elif preference == 'egl':
+        from mujoco.egl import GLContext
+        return GLContext
+      elif preference == 'cgl':
+        from mujoco.cgl import GLContext
+        return GLContext
+      elif preference in ('glfw', 'glx', 'wgl'):
+        from mujoco.glfw import GLContext
+        return GLContext
+
+
+_GL_CONTEXT = _select_gl_context()
+if _GL_CONTEXT:
+  GLContext = _GL_CONTEXT
