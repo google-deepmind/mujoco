@@ -20,8 +20,10 @@
 #include <optional>
 
 #include <Eigen/Core>
+#include <mujoco/mjxmacro.h>
 #include "function_traits.h"
 #include "functions.h"
+#include "private.h"
 #include "raw.h"
 #include <pybind11/eigen.h>
 #include <pybind11/pybind11.h>
@@ -1327,6 +1329,62 @@ PYBIND11_MODULE(_functions, pymodule) {
       });
   Def<traits::mjd_subQuat>(pymodule);
   Def<traits::mjd_quatIntegrate>(pymodule);
+
+  pymodule.def(
+      "_realloc_con_efc",
+      [](MjDataWrapper& d, int ncon, int nefc) {
+        raw::MjData* data = d.get();
+
+        auto cleanup = [](raw::MjData* data) {
+#ifdef ADDRESS_SANITIZER
+        ASAN_POISON_MEMORY_REGION(
+            static_cast<char*>(data->arena),
+            (data->nstack - data->pstack) * sizeof(mjtNum));
+#endif
+          data->ncon = 0;
+          data->nefc = 0;
+          data->contact = static_cast<raw::MjContact*>(data->arena);
+#define X(type, name, nr, nc) data->name = nullptr;
+          MJDATA_ARENA_POINTERS_PRIMAL
+          MJDATA_ARENA_POINTERS_DUAL
+#undef X
+        };
+
+        cleanup(data);
+        data->ncon = ncon;
+        data->nefc = nefc;
+        data->contact =
+            static_cast<raw::MjContact*>(InterceptMjErrors(::mj_arenaAlloc)(
+                data, ncon * sizeof(raw::MjContact), alignof(raw::MjContact)));
+        if (!data->contact) {
+          cleanup(data);
+          throw FatalError("insufficient arena memory available");
+        }
+
+#undef MJ_M
+#define MJ_M(x) d.metadata().x
+#undef MJ_D
+#define MJ_D(x) data->x
+#define X(type, name, nr, nc)                                         \
+  data->name = static_cast<type*>(InterceptMjErrors(::mj_arenaAlloc)( \
+      data, sizeof(type) * (nr) * (nc), _Alignof(type)));             \
+  if (!data->name) {                                                  \
+    cleanup(data);                                                    \
+    throw FatalError("insufficient arena memory available");          \
+  }
+
+        MJDATA_ARENA_POINTERS_PRIMAL
+        if (d.metadata().is_dual) {
+          MJDATA_ARENA_POINTERS_DUAL
+        }
+#undef X
+#undef MJ_D
+#define MJ_D(x) x
+#undef MJ_M
+#define MJ_M(x) x
+      },
+      py::arg("d"), py::arg("ncon"), py::arg("nefc"),
+      py::call_guard<py::gil_scoped_release>());
 }  // PYBIND11_MODULE NOLINT(readability/fn_size)
 }  // namespace
 }  // namespace mujoco::python

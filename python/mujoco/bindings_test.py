@@ -540,6 +540,27 @@ class MuJoCoBindingsTest(parameterized.TestCase):
     self.assertLen(expected_H, expected_ncon)
     np.testing.assert_array_equal(self.data.contact.H, expected_H)
 
+  def test_realloc_con_efc(self):
+    self.assertEmpty(self.data.contact)
+
+    ncon = 9
+    nefc = 11
+    mujoco._functions._realloc_con_efc(self.data, ncon, nefc)
+
+    ncon = 13
+    nefc = 17
+    mujoco._functions._realloc_con_efc(self.data, ncon=ncon, nefc=nefc)
+
+    self.assertLen(self.data.contact, ncon)
+    self.assertEqual(self.data.efc_id.shape, (nefc,))
+    self.assertEqual(self.data.efc_KBIP.shape, (nefc, 4))
+
+    expected_error = 'insufficient arena memory available'
+    with self.assertRaisesWithLiteralMatch(mujoco.FatalError, expected_error):
+      mujoco._functions._realloc_con_efc(self.data, 100000000, 100000000)
+    self.assertEmpty(self.data.contact)
+    self.assertEmpty(self.data.efc_id)
+
   def test_mj_struct_list_equality(self):
     model2 = mujoco.MjModel.from_xml_string(TEST_XML)
     data2 = mujoco.MjData(model2)
@@ -1280,6 +1301,7 @@ Euler integrator, semi-implicit in velocity.
 
   def test_load_plugin(self):
     mujoco.MjModel.from_xml_string(TEST_XML_PLUGIN)
+
 
 if __name__ == '__main__':
   absltest.main()
