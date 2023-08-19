@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <stdalign.h>
+
 #include <array>
 #include <cstdint>
 #include <memory>
@@ -1367,7 +1369,7 @@ PYBIND11_MODULE(_functions, pymodule) {
 #define MJ_D(x) data->x
 #define X(type, name, nr, nc)                                         \
   data->name = static_cast<type*>(InterceptMjErrors(::mj_arenaAlloc)( \
-      data, sizeof(type) * (nr) * (nc), _Alignof(type)));             \
+      data, sizeof(type) * (nr) * (nc), alignof(type)));              \
   if (!data->name) {                                                  \
     cleanup(data);                                                    \
     throw FatalError("insufficient arena memory available");          \
