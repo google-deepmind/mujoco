@@ -36,7 +36,7 @@ public class MjBodyVectorSensor : MjBaseSensor {
     FrameAngAcc,
   }
   public AvailableSensors SensorType;
-  public MjBody Body;
+  public MjBaseBody Body;
 
   [Tooltip("Should the Frame sensors use the inertial or the regular frame of reference.")]
   public bool UseInertialFrame;
@@ -64,9 +64,9 @@ public class MjBodyVectorSensor : MjBaseSensor {
     }
     if (mjcf.Name.Contains("frame")) {
       UseInertialFrame = mjcf.HasAttribute("body"); // as opposed to xbody
-      Body = mjcf.GetObjectReferenceAttribute<MjBody>("objname");
+      Body = mjcf.GetObjectReferenceAttribute<MjBaseBody>("objname");
     } else {
-      Body = mjcf.GetObjectReferenceAttribute<MjBody>("body");
+      Body = mjcf.GetObjectReferenceAttribute<MjBaseBody>("body");
     }
   }
 

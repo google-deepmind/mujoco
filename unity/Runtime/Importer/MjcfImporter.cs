@@ -252,7 +252,18 @@ public class MjcfImporter {
         break;
       }
       case "body": {
-        var childObject = CreateGameObjectWithUniqueName<MjBody>(parentObject, child);
+        GameObject childObject = null;
+        const string mocapAttribute = "mocap";
+        if (child.HasAttribute(mocapAttribute)) {
+          var mocapValueStr = child.GetAttribute(mocapAttribute);
+          var mocapValue = bool.Parse(mocapValueStr);
+          if (mocapValue) {
+            childObject = CreateGameObjectWithUniqueName<MjMocapBody>(parentObject, child);
+          }
+        }
+        if (childObject == null) {
+          childObject = CreateGameObjectWithUniqueName<MjBody>(parentObject, child);
+        }
         ParseBodyChildren(childObject, child);
         break;
       }
