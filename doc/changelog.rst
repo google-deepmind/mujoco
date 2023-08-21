@@ -550,12 +550,12 @@ General
 
    - Twist and bending stiffness can be set separately with the parameters :at:`twist` and :at:`bend`.
    - The stress-free configuration can be set to be the initial one or flat with the flag :at:`flat`.
-   - New `cable.xml <https://github.com/deepmind/mujoco/blob/main/model/plugin/cable.xml>`_ example showing the
-     formation of plectoneme.
-   - New `coil.xml <https://github.com/deepmind/mujoco/blob/main/model/plugin/coil.xml>`_  example showing a curved
-     equilibrium configuration.
-   - New `belt.xml <https://github.com/deepmind/mujoco/blob/main/model/plugin/belt.xml>`_  example showing interaction
-     between twist and anisotropy.
+   - New `cable.xml <https://github.com/deepmind/mujoco/blob/main/model/plugin/elasticity/cable.xml>`_ example showing
+     the formation of plectoneme.
+   - New `coil.xml <https://github.com/deepmind/mujoco/blob/main/model/plugin/elasticity/coil.xml>`_  example showing a
+     curved equilibrium configuration.
+   - New `belt.xml <https://github.com/deepmind/mujoco/blob/main/model/plugin/elasticity/belt.xml>`_  example showing
+     interaction between twist and anisotropy.
    - Added test using cantilever exact solution.
 
    +--------------------------+--------------------------+--------------------------+
