@@ -119,7 +119,7 @@ Plugins
 ^^^^^^^
 
 5. Added touch-grid sensor plugin. See `documentation <https://github.com/deepmind/mujoco/blob/main/plugin/sensor/README.md>`_
-   for details, and associated `touch_grid.xml <https://github.com/deepmind/mujoco/blob/main/model/plugin/touch_grid.xml>`_
+   for details, and associated `touch_grid.xml <https://github.com/deepmind/mujoco/blob/main/model/plugin/sensor/touch_grid.xml>`_
    example model. The plugin includes `in-scene visualisation <https://youtu.be/0LOJ3WMnqeA>`_.
 
 Simulate
