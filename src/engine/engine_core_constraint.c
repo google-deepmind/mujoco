@@ -58,6 +58,48 @@ static inline void clearEfc(mjData* d) {
 
 
 
+// allocate efc arrays on arena, return 1 on success, 0 on failure
+static int arenaAllocEfc(const mjModel* m, mjData* d) {
+#undef MJ_M
+#define MJ_M(n) m->n
+#undef MJ_D
+#define MJ_D(n) d->n
+
+  // move arena pointer to end of contact array
+  d->parena = d->ncon * sizeof(mjContact);
+
+  // poison remaining memory
+#ifdef ADDRESS_SANITIZER
+  ASAN_POISON_MEMORY_REGION(
+    (char*)d->arena + d->parena, (d->nstack - d->pstack) * sizeof(mjtNum) - d->parena);
+#endif
+
+#define X(type, name, nr, nc)                                             \
+  d->name = mj_arenaAlloc(d, sizeof(type) * (nr) * (nc), _Alignof(type)); \
+  if (!d->name) {                                                         \
+    mj_warning(d, mjWARN_CNSTRFULL, d->nstack * sizeof(mjtNum));          \
+    clearEfc(d);                                                          \
+    d->parena = d->ncon * sizeof(mjContact);                              \
+    return 0;                                                             \
+  }
+
+  MJDATA_ARENA_POINTERS_PRIMAL
+  if (mj_isDual(m)) {
+    MJDATA_ARENA_POINTERS_DUAL
+  }
+
+#undef X
+
+#undef MJ_M
+#define MJ_M(n) n
+#undef MJ_D
+#define MJ_D(n) n
+
+  return 1;
+}
+
+
+
 // determine type of friction cone
 int mj_isPyramidal(const mjModel* m) {
   if (m->opt.cone == mjCONE_PYRAMIDAL) {
@@ -1613,8 +1655,6 @@ static inline int mj_nc(const mjModel* m, mjData* d, int* nnz) {
 
 //---------------------------- top-level API for constraint construction ---------------------------
 
-
-
 // driver: call all functions above
 void mj_makeConstraint(const mjModel* m, mjData* d) {
   // clear sizes
@@ -1635,42 +1675,10 @@ void mj_makeConstraint(const mjModel* m, mjData* d) {
   }
   d->nefc = nefc_allocated;
 
-  // ========== begin arena allocation
-#undef MJ_M
-#define MJ_M(n) m->n
-#undef MJ_D
-#define MJ_D(n) d->n
-
-  // move arena pointer to end of contact array
-  d->parena = d->ncon * sizeof(mjContact);
-
-  // poison remaining memory
-#ifdef ADDRESS_SANITIZER
-  ASAN_POISON_MEMORY_REGION(
-    (char*)d->arena + d->parena, (d->nstack - d->pstack) * sizeof(mjtNum) - d->parena);
-#endif
-
-#define X(type, name, nr, nc)                                             \
-  d->name = mj_arenaAlloc(d, sizeof(type) * (nr) * (nc), _Alignof(type)); \
-  if (!d->name) {                                                         \
-    mj_warning(d, mjWARN_CNSTRFULL, d->nstack * sizeof(mjtNum));          \
-    clearEfc(d);                                                          \
-    d->parena = d->ncon * sizeof(mjContact);                              \
-    return;                                                               \
+  // allocate efc arrays on arena
+  if (!arenaAllocEfc(m, d)) {
+    return;
   }
-
-  MJDATA_ARENA_POINTERS_PRIMAL
-  if (mj_isDual(m)) {
-    MJDATA_ARENA_POINTERS_DUAL
-  }
-
-#undef X
-
-#undef MJ_M
-#define MJ_M(n) n
-#undef MJ_D
-#define MJ_D(n) n
-  // ========== end arena allocation
 
   // clear tendon_efcadr
   for (int i=0; i < m->ntendon; i++) {
