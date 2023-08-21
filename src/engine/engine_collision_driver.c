@@ -208,11 +208,7 @@ int mj_collideOBB(const mjtNum aabb1[6], const mjtNum aabb2[6],
 }
 
 static mjCollisionTree* mj_stackAllocTree(mjData* d, int max_stack) {
-  // check that the quotient is an integer
-  _Static_assert(sizeof(mjCollisionTree*) % sizeof(mjtNum) == 0,
-                 "mjCollisionTree has a different size from mjtNum");
-  return (mjCollisionTree*)mj_stackAlloc(
-    d, max_stack * sizeof(mjCollisionTree*) / sizeof(mjtNum));
+  return (mjCollisionTree*)mj_stackAllocBytes(d, max_stack * sizeof(mjCollisionTree*));
 }
 
 // binary search between two body trees
@@ -754,10 +750,8 @@ int mj_broadphase(const mjModel* m, mjData* d, int* pair, int maxpair) {
   }
 
   // allocate sort buffer
-  int quot = sizeof(mjtBroadphase)/sizeof(mjtNum);
-  int rem = sizeof(mjtBroadphase)%sizeof(mjtNum);
-  sortbuf = (mjtBroadphase*)mj_stackAlloc(d, 2*bufcnt*(quot + (rem ? 1 : 0)));
-  activebuf = (mjtBroadphase*)mj_stackAlloc(d, 2*bufcnt*(quot + (rem ? 1 : 0)));
+  sortbuf = (mjtBroadphase*)mj_stackAllocBytes(d, 2 * bufcnt * sizeof(mjtBroadphase));
+  activebuf = (mjtBroadphase*)mj_stackAllocBytes(d, 2 *bufcnt * sizeof(mjtBroadphase));
 
   // init sortbuf with axis0
   int k = 0;

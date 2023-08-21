@@ -456,8 +456,8 @@ static void collideBVH(const mjModel* m, mjData* d, int g,
     int node;
   };
   typedef struct CollideTreeArgs_ CollideTreeArgs;
-  CollideTreeArgs* stack = (CollideTreeArgs*)mj_stackAlloc(
-      d, max_stack * sizeof(CollideTreeArgs*) / sizeof(mjtNum));
+  CollideTreeArgs* stack = (CollideTreeArgs*)mj_stackAllocBytes(
+      d, max_stack * sizeof(CollideTreeArgs));
 
   int nstack = 0;
   stack[nstack].node = 0;

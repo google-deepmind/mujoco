@@ -108,6 +108,9 @@ MJAPI mjtNum* mj_stackAlloc(mjData* d, int size);
 // mjData stack allocate for array of ints
 MJAPI int* mj_stackAllocInt(mjData* d, int size);
 
+// mjData stack allocate for a specific size of bytes
+MJAPI void* mj_stackAllocBytes(mjData* d, size_t size);
+
 // de-allocate data
 MJAPI void mj_deleteData(mjData* d);
 

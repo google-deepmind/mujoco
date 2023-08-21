@@ -953,8 +953,8 @@ void mj_addM(const mjModel* m, mjData* d, mjtNum* dst,
     mjMARKSTACK;
     // create sparse inertia matrix M
     int nnz = m->nD;  // use sparse dof-dof matrix
-    int* M_rownnz = (int*) mj_stackAlloc(d, nv);  // actual nnz count
-    int* M_colind = (int*) mj_stackAlloc(d, nnz);
+    int* M_rownnz = mj_stackAllocInt(d, nv);  // actual nnz count
+    int* M_colind = mj_stackAllocInt(d, nnz);
     mjtNum* M = mj_stackAlloc(d, nnz);
 
     mj_makeMSparse(m, d, M, M_rownnz, NULL, M_colind);
@@ -1048,7 +1048,7 @@ void mj_addMSparse(const mjModel* m, mjData* d, mjtNum* dst,
   }
 
   mjMARKSTACK;
-  int* buf_ind = (int*) mj_stackAlloc(d, nv);
+  int* buf_ind = mj_stackAllocInt(d, nv);
   mjtNum* sparse_buf = mj_stackAlloc(d, nv);
 
   // add to destination

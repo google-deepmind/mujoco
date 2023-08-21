@@ -69,14 +69,14 @@ static void set0(mjModel* m, mjData* d) {
 
   // save camera and light mode, set to fixed
   if (m->ncam) {
-    cammode = (int*) mj_stackAlloc(d, m->ncam);
+    cammode = mj_stackAllocInt(d, m->ncam);
     for (int i=0; i < m->ncam; i++) {
       cammode[i] = m->cam_mode[i];
       m->cam_mode[i] = mjCAMLIGHT_FIXED;
     }
   }
   if (m->nlight) {
-    lightmode = (int*) mj_stackAlloc(d, m->nlight);
+    lightmode = mj_stackAllocInt(d, m->nlight);
     for (int i=0; i < m->nlight; i++) {
       lightmode[i] = m->light_mode[i];
       m->light_mode[i] = mjCAMLIGHT_FIXED;

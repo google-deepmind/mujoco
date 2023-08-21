@@ -1277,7 +1277,7 @@ static void HessianCone(const mjModel* m, mjData* d, mjCGContext* ctx) {
   // storage for L'*J
   mjtNum* LTJ = mj_stackAlloc(d, 6*nv);
   mjtNum* LTJ_row = mj_stackAlloc(d, nv);
-  int* LTJ_ind = (int*) mj_stackAlloc(d, nv);
+  int* LTJ_ind = mj_stackAllocInt(d, nv);
 
   // start with Hcone = H
   mju_copy(ctx->Hcone, ctx->H, ctx->nnz);
@@ -1366,8 +1366,8 @@ static void HessianDirect(const mjModel* m, mjData* d, mjCGContext* ctx) {
   if (mj_isSparse(m)) {
     // create sparse inertia matrix M
     int nnz = m->nD;  // use sparse dof-dof matrix
-    int* M_rownnz = (int*) mj_stackAlloc(d, nv);  // actual nnz count
-    int* M_colind = (int*) mj_stackAlloc(d, nnz);
+    int* M_rownnz = mj_stackAllocInt(d, nv);  // actual nnz count
+    int* M_colind = mj_stackAllocInt(d, nnz);
     mjtNum* M = mj_stackAlloc(d, nnz);
     mj_makeMSparse(m, d, M, M_rownnz, NULL, M_colind);
 
@@ -1443,7 +1443,7 @@ static void HessianIncremental(const mjModel* m, mjData* d,
 
   // local space
   mjtNum* vec = mj_stackAlloc(d, nv);
-  int* vec_ind = (int*) mj_stackAlloc(d, nv);
+  int* vec_ind = mj_stackAllocInt(d, nv);
 
   // clear update counter
   ctx->nupdate = 0;

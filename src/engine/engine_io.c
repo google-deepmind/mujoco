@@ -1186,8 +1186,8 @@ void* mj_arenaAlloc(mjData* d, int bytes, int alignment) {
 
 
 
-// allocate size mjtNums on the mjData stack
-mjtNum* mj_stackAlloc(mjData* d, int size) {
+// allocate size bytes on the mjData stack
+void* mj_stackAllocBytes(mjData* d, size_t size) {
   // return NULL if empty
   if (!size) {
     return NULL;
@@ -1195,76 +1195,82 @@ mjtNum* mj_stackAlloc(mjData* d, int size) {
 
   // add red zone padding when built with asan, to detect out-of-bound accesses
 #ifdef ADDRESS_SANITIZER
-  #define mjREDZONE 4
+  #define mjREDZONE 32
 #else
   #define mjREDZONE 0
 #endif
 
+  // size of entire arena/stack in bytes
+  size_t stack_size_bytes = d->nstack * sizeof(mjtNum);
+
+  // end of the arena
+  uintptr_t end_of_arena_ptr = (uintptr_t)d->arena + stack_size_bytes;
+
+  // current top of the stack
+  uintptr_t end_ptr = end_of_arena_ptr - (d->pstack * sizeof(mjtNum));
+
+  // start of the memory to be allocated to the buffer
+  uintptr_t start_ptr = end_ptr - (size + mjREDZONE);
+
+  // move start_ptr back to align to max_align_t
+  start_ptr -= start_ptr % _Alignof(max_align_t);
+
+  // new top of the stack
+  uintptr_t new_pstack_ptr = start_ptr - mjREDZONE;
+  size_t new_pstack = (end_of_arena_ptr - new_pstack_ptr) / sizeof(mjtNum);
+
+  // exclude red zone from stack usage statistics
+  size_t current_alloc_usage = (end_ptr - new_pstack_ptr - 2 * mjREDZONE) / sizeof(mjtNum);
+  size_t usage = current_alloc_usage + d->pstack;
+
   // check size
-  size_t stack_available_bytes = d->nstack * sizeof(mjtNum) - d->parena;
-  size_t stack_required_bytes = (d->pstack + size + 2*mjREDZONE) * sizeof(mjtNum);
+  size_t stack_available_bytes = end_ptr - ((uintptr_t)d->arena + d->parena);
+  size_t stack_required_bytes = end_ptr - new_pstack_ptr;
   if (stack_required_bytes > stack_available_bytes) {
     mjERROR("stack overflow: max = %zu, available = %zu, requested = %zu "
               "(ne = %d, nf = %d, nefc = %d, ncon = %d)",
-              d->nstack * sizeof(mjtNum), stack_available_bytes, stack_required_bytes,
+              stack_size_bytes, stack_available_bytes, stack_required_bytes,
               d->ne, d->nf, d->nefc, d->ncon);
   }
 
-  // allocate at end of arena
-  char* end_ptr = (char*)d->arena + d->nstack * sizeof(mjtNum);
-  char* result = end_ptr - (d->pstack + size + mjREDZONE) * sizeof(mjtNum);
-  size_t new_pstack = d->pstack + size + 2*mjREDZONE;
-  #undef mjREDZONE
-
-  // new stack usage level
-  size_t usage;
-
 #ifdef ADDRESS_SANITIZER
-  if ((uintptr_t)result % sizeof(mjtNum)) {
-    mjERROR("mj_stackAlloc fails to align to sizeof(mjtNum)");
+  if ((uintptr_t)start_ptr % sizeof(mjtNum)) {
+    mjERROR("mj_stackAlloc failed to align to sizeof(mjtNum)");
   }
 
   // actual stack usage (without red zone bytes) is stored in the red zone
   if (d->pstack) {
-    size_t* prev_ptr = (size_t*)(end_ptr - d->pstack*sizeof(mjtNum));
-    ASAN_UNPOISON_MEMORY_REGION(prev_ptr, sizeof(size_t));
-    usage = *prev_ptr + size;
-    ASAN_POISON_MEMORY_REGION(prev_ptr, sizeof(size_t));
-  } else {
-    usage = size;
+    size_t* prev_usage_ptr = (size_t*)(end_of_arena_ptr - d->pstack*sizeof(mjtNum));
+    ASAN_UNPOISON_MEMORY_REGION(prev_usage_ptr, sizeof(size_t));
+    usage = current_alloc_usage + *prev_usage_ptr;
+    ASAN_POISON_MEMORY_REGION(prev_usage_ptr, sizeof(size_t));
   }
 
   // store new stack usage in the red zone
-  size_t* cur_ptr = (size_t*)(end_ptr - new_pstack*sizeof(mjtNum));
-  ASAN_UNPOISON_MEMORY_REGION(cur_ptr, sizeof(size_t));
-  *cur_ptr = usage;
-  ASAN_POISON_MEMORY_REGION(cur_ptr, sizeof(size_t));
+  ASAN_UNPOISON_MEMORY_REGION(new_pstack_ptr, sizeof(size_t));
+  *(size_t*)new_pstack_ptr = usage;
+  ASAN_POISON_MEMORY_REGION(new_pstack_ptr, sizeof(size_t));
 
   // unpoison the actual usable allocation
-  ASAN_UNPOISON_MEMORY_REGION(result, size*sizeof(mjtNum));
-#else
-  usage = d->pstack + size;
+  ASAN_UNPOISON_MEMORY_REGION(start_ptr, size);
 #endif
+
+#undef mjREDZONE
 
   // update pstack and max usage statistics
   d->pstack = new_pstack;
   d->maxuse_stack = mjMAX(d->maxuse_stack, usage);
   d->maxuse_arena = mjMAX(d->maxuse_arena, usage*sizeof(mjtNum) + d->parena);
 
-  return (mjtNum*)result;
+  return (void*)start_ptr;
 }
 
-
+mjtNum* mj_stackAlloc(mjData* d, int size) {
+  return (mjtNum*)mj_stackAllocBytes(d, size * sizeof(mjtNum));
+}
 
 int* mj_stackAllocInt(mjData* d, int size) {
-  // optimize for mjtNum being twice the size of int
-  if (2*sizeof(int) == sizeof(mjtNum)) {
-    return (int*)mj_stackAlloc(d, (size + 1) >> 1);
-  }
-
-  // arbitrary bytes sizes
-  int new_size = (sizeof(int)*size + sizeof(mjtNum) - 1) / sizeof(mjtNum);
-  return (int*)mj_stackAlloc(d, new_size);
+  return (int*)mj_stackAllocBytes(d, size * sizeof(int));
 }
 
 
