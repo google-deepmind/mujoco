@@ -42,7 +42,7 @@ TEST(TestMjArrayList, TestMjArrayListSingleThreaded) {
 
   // Approximately (3 * sizeof(int) + 3 * sizeof(mjArrayList)) / sizeof(mjtNum)
   // However there is padding for alignment/etc.
-  EXPECT_EQ(d->maxuse_stack, 54);
+  EXPECT_EQ(d->maxuse_stack, 53);
 
   for (int i = 0; i < 35; ++i) {
     EXPECT_EQ(*(int*)mju_arrayListAt(array_list, i), i);

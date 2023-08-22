@@ -1213,8 +1213,9 @@ void* mj_stackAllocBytes(mjData* d, size_t size) {
   // start of the memory to be allocated to the buffer
   uintptr_t start_ptr = end_ptr - (size + mjREDZONE);
 
-  // move start_ptr back to align to max_align_t
-  start_ptr -= start_ptr % _Alignof(max_align_t);
+  // move start_ptr back to align to mjtNum
+  // TODO: switch to max_align_t
+  start_ptr -= start_ptr % _Alignof(mjtNum);
 
   // new top of the stack
   uintptr_t new_pstack_ptr = start_ptr - mjREDZONE;
