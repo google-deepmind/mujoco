@@ -24,13 +24,12 @@
 namespace mujoco {
 namespace {
 
-TEST(TestMjArrayList, TestMjArrayListSingleThreaded) {
-  constexpr char xml[] = "<mujoco/>";
+using testing::NotNull;
 
+TEST(TestMjArrayList, TestMjArrayListSingleThreaded) {
   std::array<char, 1024> error;
-  mjModel* m = LoadModelFromString(xml, error.data(), error.size());
-  ASSERT_THAT(m, testing::NotNull()) << "Failed to load model: "
-      << error.data();
+  mjModel* m = LoadModelFromString("<mujoco/>", error.data(), error.size());
+  ASSERT_THAT(m, NotNull()) << "Failed to load model: " << error.data();
   mjData* d = mj_makeData(m);
   mjMARKSTACK;
   mjArrayList* array_list = mju_arrayListCreate(d, sizeof(int), 10);
@@ -48,8 +47,33 @@ TEST(TestMjArrayList, TestMjArrayListSingleThreaded) {
     EXPECT_EQ(*(int*)mju_arrayListAt(array_list, i), i);
   }
 
-  EXPECT_TRUE(mju_arrayListAt(array_list, 100) == NULL);
+  EXPECT_EQ(mju_arrayListAt(array_list, 35), nullptr);
+  EXPECT_EQ(mju_arrayListAt(array_list, 100), nullptr);
 
+  mjFREESTACK;
+  mj_deleteData(d);
+  mj_deleteModel(m);
+}
+
+TEST(TestMjArrayList, ZeroInitialCapacity) {
+  mjModel* m = LoadModelFromString("<mujoco/>", nullptr, 0);
+  ASSERT_THAT(m, NotNull()) << "Failed to load model";
+  mjData* d = mj_makeData(m);
+  mjMARKSTACK;
+  mjArrayList* array_list =
+      mju_arrayListCreate(d, sizeof(double), /*initial_capacity=*/0);
+  EXPECT_EQ(mju_arrayListSize(array_list), 0);
+
+  for (int i = 0; i < 35; ++i) {
+    double value = i;
+    mju_arrayListAdd(array_list, &value);
+  }
+  EXPECT_EQ(mju_arrayListSize(array_list), 35);
+
+  for (int i = 0; i < 35; ++i) {
+    EXPECT_EQ(*(double*)mju_arrayListAt(array_list, i), i);
+  }
+  EXPECT_EQ(mju_arrayListAt(array_list, 35), nullptr);
 
   mjFREESTACK;
   mj_deleteData(d);

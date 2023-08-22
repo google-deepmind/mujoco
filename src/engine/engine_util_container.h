@@ -15,6 +15,8 @@
 #ifndef MUJOCO_SRC_ENGINE_ENGINE_UTIL_CONTAINER_H_
 #define MUJOCO_SRC_ENGINE_ENGINE_UTIL_CONTAINER_H_
 
+#include <stddef.h>
+
 #include <mujoco/mjdata.h>
 
 #ifdef __cplusplus
@@ -47,14 +49,14 @@ typedef struct mjArrayList_ mjArrayList;
 mjArrayList* mju_arrayListCreate(mjData* d, size_t element_size, size_t initial_capacity);
 
 // returns total number of elements in mjArrayList
-size_t mju_arrayListSize(mjArrayList* array_list);
+size_t mju_arrayListSize(const mjArrayList* array_list);
 
 // copies an element into an mjArrayList
 void mju_arrayListAdd(mjArrayList* array_list, void* element);
 
 // returns a pointer to the element at the specified location of the arraylist
 // NULL returned if index is not in the mjArrayList
-void* mju_arrayListAt(mjArrayList* array_list, size_t index);
+void* mju_arrayListAt(const mjArrayList* array_list, size_t index);
 
 #ifdef __cplusplus
 }

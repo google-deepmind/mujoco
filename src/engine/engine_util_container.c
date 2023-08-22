@@ -23,6 +23,7 @@
 // stack allocate and initialize new mjArrayList
 mjArrayList* mju_arrayListCreate(mjData* d, size_t element_size, size_t initial_capacity) {
   mjArrayList* array_list = (mjArrayList*) mj_stackAllocBytes(d, sizeof(mjArrayList));
+  initial_capacity = mjMAX(1, initial_capacity);
   array_list->d = d;
   array_list->element_size = element_size;
   array_list->capacity = initial_capacity;
@@ -37,8 +38,8 @@ mjArrayList* mju_arrayListCreate(mjData* d, size_t element_size, size_t initial_
 
 
 // returns total number of elements in mjArrayList
-size_t mju_arrayListSize(mjArrayList* array_list) {
-  mjArrayList* cursor = array_list;
+size_t mju_arrayListSize(const mjArrayList* array_list) {
+  const mjArrayList* cursor = array_list;
   size_t array_list_size = 0;
   while (cursor) {
     array_list_size += cursor->size;
@@ -70,9 +71,9 @@ void mju_arrayListAdd(mjArrayList* array_list, void* element) {
 
 
 // returns pointer to element at index, NULL if out of bounds
-void* mju_arrayListAt(mjArrayList* array_list, size_t index) {
+void* mju_arrayListAt(const mjArrayList* array_list, size_t index) {
   // if the index is larger than the current capacity, then it is in a later segment
-  mjArrayList* cursor = array_list;
+  const mjArrayList* cursor = array_list;
   size_t total_capacity = 0;
   while (cursor != NULL && index >= total_capacity + cursor->capacity) {
     total_capacity += cursor->capacity;
