@@ -1188,7 +1188,7 @@ void* mj_arenaAlloc(mjData* d, int bytes, int alignment) {
 
 
 // allocate size bytes on the mjData stack
-void* mj_stackAllocBytes(mjData* d, size_t size) {
+void* mj_stackAllocByte(mjData* d, size_t size) {
   // return NULL if empty
   if (!size) {
     return NULL;
@@ -1268,11 +1268,11 @@ void* mj_stackAllocBytes(mjData* d, size_t size) {
 }
 
 mjtNum* mj_stackAlloc(mjData* d, int size) {
-  return (mjtNum*)mj_stackAllocBytes(d, size * sizeof(mjtNum));
+  return (mjtNum*)mj_stackAllocByte(d, size * sizeof(mjtNum));
 }
 
 int* mj_stackAllocInt(mjData* d, int size) {
-  return (int*)mj_stackAllocBytes(d, size * sizeof(int));
+  return (int*)mj_stackAllocByte(d, size * sizeof(int));
 }
 
 
