@@ -16,6 +16,7 @@
 #include "engine/engine_io.h"
 
 #include <limits.h>
+#include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
