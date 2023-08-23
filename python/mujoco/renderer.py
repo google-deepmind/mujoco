@@ -77,13 +77,14 @@ the clause:
     self._rect = _render.MjrRect(0, 0, self._width, self._height)
 
     # Create render contexts.
-    self._gl_context = gl_context.GLContext(width, height)
+    # TODO(nimrod): Figure out why pytype doesn't like gl_context.GLContext
+    self._gl_context = gl_context.GLContext(width, height)  # type: ignore
     self._gl_context.make_current()
     self._mjr_context = _render.MjrContext(
-        model, _enums.mjtFontScale.mjFONTSCALE_150
+        model, _enums.mjtFontScale.mjFONTSCALE_150.value
     )
     _render.mjr_setBuffer(
-        _enums.mjtFramebuffer.mjFB_OFFSCREEN, self._mjr_context
+        _enums.mjtFramebuffer.mjFB_OFFSCREEN.value, self._mjr_context
     )
 
     # Default render flags.
@@ -231,8 +232,9 @@ the clause:
     if not isinstance(camera, _structs.MjvCamera):
       camera_id = camera
       if isinstance(camera_id, str):
-        camera_id = _functions.mj_name2id(self._model,
-                                          _enums.mjtObj.mjOBJ_CAMERA, camera_id)
+        camera_id = _functions.mj_name2id(
+            self._model, _enums.mjtObj.mjOBJ_CAMERA.value, camera_id
+        )
         if camera_id == -1:
           raise ValueError(f'The camera "{camera}" does not exist.')
       if camera_id < -1 or camera_id >= self._model.ncam:
@@ -257,6 +259,6 @@ the clause:
         data,
         scene_option,
         None,
-        camera, _enums.mjtCatBit.mjCAT_ALL,
+        camera, _enums.mjtCatBit.mjCAT_ALL.value,
         self._scene,
     )
