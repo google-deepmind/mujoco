@@ -855,7 +855,7 @@ void mj_mulM(const mjModel* m, const mjData* d, mjtNum* res, const mjtNum* vec) 
     }
 #endif
 
-    // simple: diagonal muiltiplication
+    // simple: diagonal multiplication
     if (m->dof_simplenum[i]) {
       res[i] = M[dofMadr[i]]*vec[i];
     }
