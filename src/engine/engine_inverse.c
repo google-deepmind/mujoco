@@ -151,7 +151,7 @@ void mj_inverseSkip(const mjModel* m, mjData* d,
     mj_sensorAcc(m, d);
   }
 
-  // qfrc_inverse += artmature*qacc - qfrc_passive - qfrc_constraint
+  // qfrc_inverse += armature*qacc - qfrc_passive - qfrc_constraint
   for (int i=0; i < nv; i++) {
     d->qfrc_inverse[i] += m->dof_armature[i]*d->qacc[i]
                           - d->qfrc_passive[i] - d->qfrc_constraint[i];
