@@ -16,7 +16,6 @@
 #include "engine/engine_io.h"
 
 #include <limits.h>
-#include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -26,7 +25,8 @@
 #include <mujoco/mjmacro.h>
 #include <mujoco/mjplugin.h>
 #include <mujoco/mjxmacro.h>
-#include "engine/engine_array_safety.h"
+#include "engine/engine_array_safety.h"  // IWYU pragma: keep
+#include "engine/engine_crossplatform.h"  // IWYU pragma: keep
 #include "engine/engine_resource.h"
 #include "engine/engine_macro.h"
 #include "engine/engine_plugin.h"
@@ -1214,8 +1214,7 @@ void* mj_stackAllocByte(mjData* d, size_t size) {
   uintptr_t start_ptr = end_ptr - (size + mjREDZONE);
 
   // move start_ptr back to align to mjtNum
-  // TODO: switch to max_align_t
-  start_ptr -= start_ptr % _Alignof(mjtNum);
+  start_ptr -= start_ptr % _Alignof(max_align_t);  // NOLINT
 
   // new top of the stack
   uintptr_t new_pstack_ptr = start_ptr - mjREDZONE;

@@ -14,6 +14,7 @@
 #include "src/engine/engine_util_container.h"
 
 #include <array>
+#include <cstddef>
 
 #include <mujoco/mjdata.h>
 #include <gmock/gmock.h>
@@ -26,28 +27,49 @@ namespace {
 
 using testing::NotNull;
 
+template <typename T, int N, int Capacity>
+constexpr int GetExpectedStackUsageBytes() {
+  if constexpr (N <= 0) {
+    return 0;
+  } else {
+    constexpr auto RoundUpToAlignment =
+        [](int x) {
+          constexpr auto kAlignment = alignof(std::max_align_t);
+          return kAlignment * (x / kAlignment + ((x % kAlignment) ? 1 : 0));
+        };
+    return RoundUpToAlignment(sizeof(mjArrayList)) +
+           RoundUpToAlignment(Capacity * sizeof(T)) +
+           GetExpectedStackUsageBytes<T, N - Capacity, 2 * Capacity>();
+  }
+}
+
 TEST(TestMjArrayList, TestMjArrayListSingleThreaded) {
   std::array<char, 1024> error;
   mjModel* m = LoadModelFromString("<mujoco/>", error.data(), error.size());
   ASSERT_THAT(m, NotNull()) << "Failed to load model: " << error.data();
   mjData* d = mj_makeData(m);
   mjMARKSTACK;
-  mjArrayList* array_list = mju_arrayListCreate(d, sizeof(int), 10);
+  using DataType = int;
+  constexpr int kInitialCapacity = 10;
+  mjArrayList* array_list =
+      mju_arrayListCreate(d, sizeof(DataType), kInitialCapacity);
 
-  for (int i = 0; i < 35; ++i) {
+  constexpr int kNumElements = 35;
+  for (int i = 0; i < kNumElements; ++i) {
     mju_arrayListAdd(array_list, &i);
   }
-  EXPECT_EQ(mju_arrayListSize(array_list), 35);
+  EXPECT_EQ(mju_arrayListSize(array_list), kNumElements);
 
-  // Approximately (3 * sizeof(int) + 3 * sizeof(mjArrayList)) / sizeof(mjtNum)
-  // However there is padding for alignment/etc.
-  EXPECT_EQ(d->maxuse_stack, 53);
+  constexpr int kExpectedMaxUseStack =
+      GetExpectedStackUsageBytes<DataType, kNumElements, kInitialCapacity>() /
+      sizeof(mjtNum);
+  EXPECT_EQ(d->maxuse_stack, kExpectedMaxUseStack);
 
-  for (int i = 0; i < 35; ++i) {
-    EXPECT_EQ(*(int*)mju_arrayListAt(array_list, i), i);
+  for (int i = 0; i < kNumElements; ++i) {
+    EXPECT_EQ(*static_cast<int*>(mju_arrayListAt(array_list, i)), i);
   }
 
-  EXPECT_EQ(mju_arrayListAt(array_list, 35), nullptr);
+  EXPECT_EQ(mju_arrayListAt(array_list, kNumElements), nullptr);
   EXPECT_EQ(mju_arrayListAt(array_list, 100), nullptr);
 
   mjFREESTACK;
@@ -71,7 +93,7 @@ TEST(TestMjArrayList, ZeroInitialCapacity) {
   EXPECT_EQ(mju_arrayListSize(array_list), 35);
 
   for (int i = 0; i < 35; ++i) {
-    EXPECT_EQ(*(double*)mju_arrayListAt(array_list, i), i);
+    EXPECT_EQ(*static_cast<double*>(mju_arrayListAt(array_list, i)), i);
   }
   EXPECT_EQ(mju_arrayListAt(array_list, 35), nullptr);
 

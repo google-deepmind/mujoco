@@ -15,7 +15,15 @@
 #ifndef MUJOCO_SRC_ENGINE_ENGINE_CROSSPLATFORM_H_
 #define MUJOCO_SRC_ENGINE_ENGINE_CROSSPLATFORM_H_
 
-#include <stdlib.h>
+// IWYU pragma: begin_keep
+#if !defined(__cplusplus)
+  #include <stddef.h>
+  #include <stdlib.h>
+#else
+  #include <cstddef>
+  #include <cstdlib>
+#endif
+// IWYU pragma: end_keep
 
 // Windows
 #ifdef _WIN32
@@ -53,6 +61,10 @@
   #define mjFALLTHROUGH __attribute__((fallthrough))
 #else
   #define mjFALLTHROUGH ((void) 0)
+#endif
+
+#if defined(_MSC_VER) && !defined(__clang__) && !defined(__cplusplus)
+  typedef long double max_align_t;
 #endif
 
 #endif  // MUJOCO_SRC_ENGINE_ENGINE_CROSSPLATFORM_H_
