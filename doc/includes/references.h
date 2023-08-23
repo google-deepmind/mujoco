@@ -387,8 +387,9 @@ typedef enum mjtDisableBit_ {     // disable default feature bitflags
   mjDSBL_REFSAFE      = 1<<11,    // integrator safety: make ref[0]>=2*timestep
   mjDSBL_SENSOR       = 1<<12,    // sensors
   mjDSBL_MIDPHASE     = 1<<13,    // mid-phase collision filtering
+  mjDSBL_EULERDAMP    = 1<<14,    // implicit integration of joint damping in Euler integrator
 
-  mjNDISABLE          = 14        // number of disable flags
+  mjNDISABLE          = 15        // number of disable flags
 } mjtDisableBit;
 typedef enum mjtEnableBit_ {      // enable optional feature bitflags
   mjENBL_OVERRIDE     = 1<<0,     // override contact parameters

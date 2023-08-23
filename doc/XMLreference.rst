@@ -2104,6 +2104,12 @@ from its default.
    This flag disables the mid-phase collision filtering using a static AABB bounding volume hierarchy (a BVH binary
    tree). If disabled, all geoms pairs that are allowed to collide are checked for collisions.
 
+.. _option-flag-eulerdamp:
+
+:at:`eulerdamp`: :at-val:`[disable, enable], "enable"`
+   This flag disables implicit integration with respect to joint damping in the Euler integrator. See the
+   :ref:`Numerical Integration<geIntegration>` section for more details.
+
 .. _option-flag-override:
 
 :at:`override`: :at-val:`[disable, enable], "disable"`

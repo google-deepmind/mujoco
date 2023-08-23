@@ -836,6 +836,7 @@ void mjXWriter::Option(XMLElement* root) {
     WRITEDSBL("refsafe",        mjDSBL_REFSAFE)
     WRITEDSBL("sensor",         mjDSBL_SENSOR)
     WRITEDSBL("midphase",       mjDSBL_MIDPHASE)
+    WRITEDSBL("eulerdamp",      mjDSBL_EULERDAMP)
 #undef WRITEDSBL
 
 #define WRITEENBL(NAME, MASK) \

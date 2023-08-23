@@ -164,6 +164,123 @@ TEST_F(ForwardTest, DamperDampens) {
 
 using ImplicitIntegratorTest = MujocoTest;
 
+// Disabling implicit joint damping works as expected
+TEST_F(ImplicitIntegratorTest, EulerDampDisable) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option>
+      <flag eulerdamp="disable"/>
+    </option>
+
+    <worldbody>
+      <body>
+        <joint axis="1 0 0" damping="2"/>
+        <geom type="capsule" size=".01" fromto="0 0 0 0 .1 0"/>
+        <body pos="0 .1 0">
+          <joint axis="0 1 0" damping="1"/>
+          <geom type="capsule" size=".01" fromto="0 0 0 .1 0 0"/>
+        </body>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+
+  mjModel* model = LoadModelFromString(xml);
+  mjData* data = mj_makeData(model);
+
+  // step once, call mj_forward, save qvel and qacc
+  mj_step(model, data);
+  mj_forward(model, data);
+  std::vector<mjtNum> qvel = AsVector(data->qvel, model->nv);
+  std::vector<mjtNum> qacc = AsVector(data->qacc, model->nv);
+
+  // second step
+  mj_step(model, data);
+
+  // compute finite-difference acceleration
+  std::vector<mjtNum> qacc_fd(model->nv);
+  for (int i=0; i < model->nv; i++) {
+    qacc_fd[i] = (data->qvel[i] - qvel[i]) / model->opt.timestep;
+  }
+  // expect finite-differenced qacc to match to high precision
+  EXPECT_THAT(qacc_fd, Pointwise(DoubleNear(1e-14), qacc));
+
+  // reach the the same initial state
+  mj_resetData(model, data);
+  mj_step(model, data);
+
+  // second step again, but with implicit integration of joint damping
+  model->opt.disableflags &= ~mjDSBL_EULERDAMP;
+  mj_step(model, data);
+
+  // compute finite-difference acceleration difference
+  std::vector<mjtNum> dqacc(model->nv);
+  for (int i=0; i < model->nv; i++) {
+    dqacc[i] = (data->qvel[i] - qvel[i]) / model->opt.timestep;
+  }
+  // expect finite-differenced qacc to not match
+  EXPECT_GT(mju_norm(dqacc.data(), model->nv), 1);
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
+// Reducing timesteps reduces the difference between implicit/explicit
+TEST_F(ImplicitIntegratorTest, EulerDampLimit) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <joint axis="1 0 0" damping="2"/>
+        <geom type="capsule" size=".01" fromto="0 0 0 0 .1 0"/>
+        <body pos="0 .1 0">
+          <joint axis="0 1 0" damping="1"/>
+          <geom type="capsule" size=".01" fromto="0 0 0 .1 0 0"/>
+        </body>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+
+  mjModel* model = LoadModelFromString(xml);
+  mjData* data = mj_makeData(model);
+
+  mjtNum diff_norm_prev = -1;
+  for (const mjtNum dt : {1e-2, 1e-3, 1e-4, 1e-5, 1e-6, 1e-7, 1e-8}) {
+    // set timestep
+    model->opt.timestep = dt;
+
+    // step twice with implicit damping, save qvel
+    model->opt.disableflags &= ~mjDSBL_EULERDAMP;
+    mj_resetData(model, data);
+    mj_step(model, data);
+    mj_step(model, data);
+    std::vector<mjtNum> qvel_imp = AsVector(data->qvel, model->nv);
+
+    // step once, step again without implicit damping, save qvel
+    mj_resetData(model, data);
+    mj_step(model, data);
+    model->opt.disableflags |= mjDSBL_EULERDAMP;
+    mj_step(model, data);
+    std::vector<mjtNum> qvel_exp = AsVector(data->qvel, model->nv);
+
+    mjtNum diff_norm = 0;
+    for (int i=0; i < model->nv; i++) {
+      diff_norm += (qvel_imp[i] - qvel_exp[i]) * (qvel_imp[i] - qvel_exp[i]);
+    }
+    diff_norm = mju_sqrt(diff_norm);
+
+    if (diff_norm_prev != -1){
+      EXPECT_LT(diff_norm, diff_norm_prev);
+    }
+
+    diff_norm_prev = diff_norm;
+  }
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
 // Euler and implicit should be equivalent if there is only joint damping
 TEST_F(ImplicitIntegratorTest, EulerImplicitEqivalent) {
   static constexpr char xml[] = R"(

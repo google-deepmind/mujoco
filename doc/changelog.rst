@@ -34,11 +34,13 @@ General
 #. Renamed ``actuatorforcerange`` and ``actuatorforcelimited``, introduced in the previous version to
    :ref:`actuatorfrcrange<body-joint-actuatorfrcrange>` and
    :ref:`actuatorfrclimited<body-joint-actuatorfrclimited>`, respectively.
+#. Added the flag :ref:`eulerdamp<option-flag-eulerdamp>`, which disables implicit integration of joint damping in the
+   Euler integrator. See the :ref:`Numerical Integration<geIntegration>` section for more details.
 
 Python bindings
 ^^^^^^^^^^^^^^^
 
-4. Fixed `#870 <https://github.com/deepmind/mujoco/issues/870>`__ where calling ``update_scene`` with an invalid
+7. Fixed `#870 <https://github.com/deepmind/mujoco/issues/870>`__ where calling ``update_scene`` with an invalid
    camera name used the default camera.
 
 

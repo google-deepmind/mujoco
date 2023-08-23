@@ -593,16 +593,18 @@ void mj_EulerSkip(const mjModel* m, mjData* d, int skipfactor) {
   mjtNum* qfrc = mj_stackAlloc(d, nv);
   mjtNum* qacc = mj_stackAlloc(d, nv);
 
-  // check for dof damping
+  // check for dof damping if disable flag is not set
   int dof_damping = 0;
-  for (int i=0; i < nv; i++) {
-    if (m->dof_damping[i] > 0) {
-      dof_damping = 1;
-      break;
+  if (!mjDISABLED(mjDSBL_EULERDAMP)) {
+    for (int i=0; i < nv; i++) {
+      if (m->dof_damping[i] > 0) {
+        dof_damping = 1;
+        break;
+      }
     }
   }
 
-  // no damping: explicit velocity integration
+  // no damping or disabled: explicit velocity integration
   if (!dof_damping) {
     mju_copy(qacc, d->qacc, nv);
   }

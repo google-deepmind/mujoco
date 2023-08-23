@@ -103,9 +103,9 @@ static const char* MJCF[nMJCF][mjXATTRNUM] = {
         "solver", "iterations", "noslip_iterations", "mpr_iterations",
         "sdf_iterations", "sdf_initpoints"},
     {"<"},
-        {"flag", "?", "19", "constraint", "equality", "frictionloss", "limit", "contact",
+        {"flag", "?", "21", "constraint", "equality", "frictionloss", "limit", "contact",
             "passive", "gravity", "clampctrl", "warmstart",
-            "filterparent", "actuation", "refsafe", "sensor",
+            "filterparent", "actuation", "refsafe", "sensor", "midphase", "eulerdamp",
             "override", "energy", "fwdinv", "sensornoise", "multiccd", "island"},
     {">"},
 
@@ -1003,6 +1003,7 @@ void mjXReader::Option(XMLElement* section, mjOption* opt) {
     READDSBL("refsafe",      mjDSBL_REFSAFE)
     READDSBL("sensor",       mjDSBL_SENSOR)
     READDSBL("midphase",     mjDSBL_MIDPHASE)
+    READDSBL("eulerdamp",    mjDSBL_EULERDAMP)
 #undef READDSBL
 
 #define READENBL(NAME, MASK) \

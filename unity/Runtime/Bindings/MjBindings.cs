@@ -151,7 +151,8 @@ public enum mjtDisableBit : int{
   mjDSBL_REFSAFE = 2048,
   mjDSBL_SENSOR = 4096,
   mjDSBL_MIDPHASE = 8192,
-  mjNDISABLE = 14,
+  mjDSBL_EULERDAMP = 16384,
+  mjNDISABLE = 15,
 }
 public enum mjtEnableBit : int{
   mjENBL_OVERRIDE = 1,

@@ -539,7 +539,9 @@ All three single-step integrators in MuJoCo use the update :eq:`eq_implicit_upda
 
 Semi-implicit with implicit joint damping (``Euler``)
    For this method, :math:`D` only includes derivatives of joint damping. Note that in this case :math:`D` is diagonal
-   and :math:`M-h D` is symmetric, so Cholesky decomposition can be used.
+   and :math:`M-h D` is symmetric, so Cholesky decomposition can be used. If the model has no joint damping or the
+   :ref:`eulerdamp<option-flag-eulerdamp>` disable-flag is set, implicit damping is disabled and the semi-implicit
+   update :eq:`eq_semimplicit` is used, rather than :eq:`eq_implicit_update`.
 
 Implicit-in-velocity (``implicit``)
    For this method, :math:`D` includes derivatives of all forces except the constraint forces :math:`J^T f(v)`. These
@@ -690,7 +692,7 @@ also treated as an input variable. All other :ref:`mjData` fields are functions 
 
 Note that the full integration state as given by :ref:`mjSTATE_INTEGRATION<mjtState>` is maximalist and includes fields
 which are often unused. If a small state size is desired, it might be sensible to avoid saving unused fields.
-In particular `xfrc_applied`` can be quite large (``6 x nbody``) yet is often unused.
+In particular ``xfrc_applied`` can be quite large (``6 x nbody``) yet is often unused.
 
 .. _geSimulationState:
 
