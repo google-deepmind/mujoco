@@ -61,7 +61,7 @@ function are incompatible (or NULL) the resulting behavior is unpredictable. mjD
 
 .. code-block:: C
 
-   // option 1: create mjDada corresponding to given mjModel
+   // option 1: create mjData corresponding to given mjModel
    mjData* d = mj_makeData(m);
 
    // option 2: deep copy from existing mjData
