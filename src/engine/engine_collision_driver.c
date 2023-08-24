@@ -244,7 +244,8 @@ void mj_collideTree(const mjModel* m, mjData* d, int b1, int b2,
 
     // both are leaves
     if (isleaf1 && isleaf2 && nodeid1 != -1 && nodeid2 != -1) {
-      if (mj_collideSphere(m, d, nodeid1, nodeid2, /*margin=*/ 0)) {
+      if (mj_collideSphere(m, d, nodeid1, nodeid2, m->geom_margin[nodeid1] +
+                                                   m->geom_margin[nodeid2])) {
         if (mj_collideOBB(m->geom_aabb + 6*nodeid1, m->geom_aabb + 6*nodeid2,
                           d->geom_xpos + 3*nodeid1, d->geom_xmat + 9*nodeid1,
                           d->geom_xpos + 3*nodeid2, d->geom_xmat + 9*nodeid2,
