@@ -214,23 +214,28 @@ TEST_F(IslandTest, Abacus) {
   EXPECT_EQ(nefc, 12);  // 3 pyramidal contacts
   EXPECT_EQ(nisland, 2);
 
-  // the islands begin at dofs 0 and 2
-  EXPECT_THAT(AsVector(data->island_dofadr, nisland), ElementsAre(0, 2));
+  // the islands begin at dofs 0 and 1
+  EXPECT_THAT(AsVector(data->island_dofadr, nisland), ElementsAre(0, 1));
+
+  // number of dofs in the 2 islands
+  EXPECT_THAT(AsVector(data->island_dofnum, nisland), ElementsAre(1, 2));
 
   // dof 0 in    island 0
   // dof 1 in no island
   // dofs 2,3 in island 1
   EXPECT_THAT(AsVector(data->dof_island, nv), ElementsAre(0, -1, 1, 1));
 
-  // dof 0 is last dof of island 0
-  // dof 1 in no island
-  // next dof after 2 is 3
-  // dof 3 is last dof of island 1
-  EXPECT_THAT(AsVector(data->dof_islandnext, nv), ElementsAre(-1, -1, 3, -1));
+  // dof 0 constitutes first island
+  // dofs 2, 3 are the second island
+  // last index is unassigned since dof 1 is unconstrained
+  EXPECT_THAT(AsVector(data->island_dofind, nv), ElementsAre(0, 2, 3, -1));
 
   // island 0 starts at constraint 0
   // island 1 starts at constraint 4
   EXPECT_THAT(AsVector(data->island_efcadr, nisland), ElementsAre(0, 4));
+
+  // number of constraints in the 2 islands
+  EXPECT_THAT(AsVector(data->island_efcnum, nisland), ElementsAre(4, 8));
 
   // first contact (4 constraints) is in island 0
   // second contact (8 constraints) is in island 1
@@ -239,8 +244,8 @@ TEST_F(IslandTest, Abacus) {
 
   // linked list for island 0
   // linked list for island 1
-  EXPECT_THAT(AsVector(data->efc_islandnext, nefc),
-              ElementsAre(1, 2, 3, -1, 5, 6, 7, 8, 9, 10, 11, -1));
+  EXPECT_THAT(AsVector(data->island_efcind, nefc),
+              ElementsAre(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11));
 
   // reset, push 0 to the left, 3 to the right, 1,2 to the middle
   mj_resetData(model, data);
@@ -260,13 +265,15 @@ TEST_F(IslandTest, Abacus) {
 
   EXPECT_EQ(nisland, 3);
   EXPECT_THAT(AsVector(data->island_dofadr, nisland), ElementsAre(0, 1, 3));
+  EXPECT_THAT(AsVector(data->island_dofnum, nisland), ElementsAre(1, 2, 1));
   EXPECT_THAT(AsVector(data->dof_island, nv), ElementsAre(0, 1, 1, 2));
-  EXPECT_THAT(AsVector(data->dof_islandnext, nv), ElementsAre(-1, 2, -1, -1));
+  EXPECT_THAT(AsVector(data->island_dofind, nv), ElementsAre(0, 1, 2, 3));
   EXPECT_THAT(AsVector(data->island_efcadr, nisland), ElementsAre(0, 4, 8));
+  EXPECT_THAT(AsVector(data->island_efcnum, nisland), ElementsAre(4, 4, 4));
   EXPECT_THAT(AsVector(data->efc_island, nefc),
               ElementsAre(0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2));
-  EXPECT_THAT(AsVector(data->efc_islandnext, nefc),
-              ElementsAre(1, 2, 3, -1, 5, 6, 7, -1, 9, 10, 11, -1));
+  EXPECT_THAT(AsVector(data->island_efcind, nefc),
+              ElementsAre(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11));
 
   mj_deleteData(data);
   mj_deleteModel(model);
@@ -304,16 +311,20 @@ TEST_F(IslandTest, DenseSparse) {
   EXPECT_EQ(data1->nefc, data2->nefc);
   EXPECT_EQ(AsVector(data1->island_dofadr, nisland),
             AsVector(data2->island_dofadr, nisland));
+  EXPECT_EQ(AsVector(data1->island_dofnum, nisland),
+            AsVector(data2->island_dofnum, nisland));
   EXPECT_EQ(AsVector(data1->dof_island, nv),
             AsVector(data2->dof_island, nv));
-  EXPECT_EQ(AsVector(data1->dof_islandnext, nv),
-            AsVector(data2->dof_islandnext, nv));
+  EXPECT_EQ(AsVector(data1->island_dofind, nv),
+            AsVector(data2->island_dofind, nv));
   EXPECT_EQ(AsVector(data1->island_efcadr, nisland),
             AsVector(data2->island_efcadr, nisland));
+  EXPECT_EQ(AsVector(data1->island_efcnum, nisland),
+            AsVector(data2->island_efcnum, nisland));
   EXPECT_EQ(AsVector(data1->efc_island, nefc),
             AsVector(data2->efc_island, nefc));
-  EXPECT_EQ(AsVector(data1->efc_islandnext, nefc),
-            AsVector(data2->efc_islandnext, nefc));
+  EXPECT_EQ(AsVector(data1->island_efcind, nefc),
+            AsVector(data2->island_efcind, nefc));
 
   mj_deleteData(data2);
   mj_deleteData(data1);

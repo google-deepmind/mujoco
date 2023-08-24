@@ -345,12 +345,14 @@ struct mjData_ {
   int*    tendon_efcadr;     // first efc address involving tendon; -1: none     (ntendon x 1)
 
   // computed by mj_island
-  int*    island_dofadr;     // address of first dof in island                   (nisland x 1)
-  int*    island_efcadr;     // address of first constraint in island            (nisland x 1)
   int*    dof_island;        // island id of this dof; -1: none                  (nv x 1)
-  int*    dof_islandnext;    // address of next dof in island; -1: last or none  (nv x 1)
+  int*    island_dofnum;     // number of dofs in island                         (nisland x 1)
+  int*    island_dofadr;     // start address in island_dofind                   (nisland x 1)
+  int*    island_dofind;     // island dof indices; -1: none                     (nv x 1)
   int*    efc_island;        // island id of this constraint                     (nefc x 1)
-  int*    efc_islandnext;    // address of next constraint in island; -1: last   (nefc x 1)
+  int*    island_efcnum;     // number of constraints in island                  (nisland x 1)
+  int*    island_efcadr;     // start address in island_efcind                   (nisland x 1)
+  int*    island_efcind;     // island constraint indices                        (nefc x 1)
 
   // computed by mj_projectConstraint (dual solver)
   int*    efc_AR_rownnz;     // number of non-zeros in AR                        (nefc x 1)
@@ -2164,6 +2166,7 @@ struct mjvSceneState_ {
 
     mjtByte* bvh_active;
     int* island_dofadr;
+    int* island_dofind;
     int* dof_island;
     int* efc_island;
     int* tendon_efcadr;

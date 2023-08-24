@@ -588,6 +588,7 @@ struct mjvSceneState_ {
 
     mjtByte* bvh_active;
     int* island_dofadr;
+    int* island_dofind;
     int* dof_island;
     int* efc_island;
     int* tendon_efcadr;

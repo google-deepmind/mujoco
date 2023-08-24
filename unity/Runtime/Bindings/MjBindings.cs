@@ -1715,12 +1715,14 @@ public unsafe struct mjData_ {
   public double* efc_D;
   public double* efc_R;
   public int* tendon_efcadr;
-  public int* island_dofadr;
-  public int* island_efcadr;
   public int* dof_island;
-  public int* dof_islandnext;
+  public int* island_dofnum;
+  public int* island_dofadr;
+  public int* island_dofind;
   public int* efc_island;
-  public int* efc_islandnext;
+  public int* island_efcnum;
+  public int* island_efcadr;
+  public int* island_efcind;
   public int* efc_AR_rownnz;
   public int* efc_AR_rowadr;
   public int* efc_AR_colind;
@@ -2969,6 +2971,7 @@ public unsafe struct data {
   public double* wrap_xpos;
   public byte* bvh_active;
   public int* island_dofadr;
+  public int* island_dofind;
   public int* dof_island;
   public int* efc_island;
   public int* tendon_efcadr;

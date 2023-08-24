@@ -1054,27 +1054,27 @@ void mj_printFormattedData(const mjModel* m, mjData* d, const char* filename,
   printArray("CFRC_EXT", m->nbody, 6, d->cfrc_ext, fp, float_format);
 
   if (d->nisland) {
-    fprintf(fp, NAME_FORMAT, "ISLAND_DOFADR");
-    for (int i = 0; i < d->nisland; i++) {
-      fprintf(fp, " %d", d->island_dofadr[i]);
-    }
-    fprintf(fp, "\n\n");
-
-    fprintf(fp, NAME_FORMAT, "ISLAND_EFCADR");
-    for (int i = 0; i < d->nisland; i++) {
-      fprintf(fp, " %d", d->island_efcadr[i]);
-    }
-    fprintf(fp, "\n\n");
-
     fprintf(fp, NAME_FORMAT, "DOF_ISLAND");
     for (int i = 0; i < m->nv; i++) {
       fprintf(fp, " %d", d->dof_island[i]);
     }
     fprintf(fp, "\n\n");
 
-    fprintf(fp, NAME_FORMAT, "DOF_ISLANDNEXT");
+    fprintf(fp, NAME_FORMAT, "ISLAND_DOFNUM");
+    for (int i = 0; i < d->nisland; i++) {
+      fprintf(fp, " %d", d->island_dofnum[i]);
+    }
+    fprintf(fp, "\n\n");
+
+    fprintf(fp, NAME_FORMAT, "ISLAND_DOFADR");
+    for (int i = 0; i < d->nisland; i++) {
+      fprintf(fp, " %d", d->island_dofadr[i]);
+    }
+    fprintf(fp, "\n\n");
+
+    fprintf(fp, NAME_FORMAT, "ISLAND_DOFIND");
     for (int i = 0; i < m->nv; i++) {
-      fprintf(fp, " %d", d->dof_islandnext[i]);
+      fprintf(fp, " %d", d->island_dofind[i]);
     }
     fprintf(fp, "\n\n");
 
@@ -1084,9 +1084,21 @@ void mj_printFormattedData(const mjModel* m, mjData* d, const char* filename,
     }
     fprintf(fp, "\n\n");
 
-    fprintf(fp, NAME_FORMAT, "EFC_ISLANDNEXT");
+    fprintf(fp, NAME_FORMAT, "ISLAND_EFCNUM");
+    for (int i = 0; i < d->nisland; i++) {
+      fprintf(fp, " %d", d->island_efcnum[i]);
+    }
+    fprintf(fp, "\n\n");
+
+    fprintf(fp, NAME_FORMAT, "ISLAND_EFCADR");
+    for (int i = 0; i < d->nisland; i++) {
+      fprintf(fp, " %d", d->island_efcadr[i]);
+    }
+    fprintf(fp, "\n\n");
+
+    fprintf(fp, NAME_FORMAT, "ISLAND_EFCIND");
     for (int i = 0; i < d->nefc; i++) {
-      fprintf(fp, " %d", d->efc_islandnext[i]);
+      fprintf(fp, " %d", d->island_efcind[i]);
     }
     fprintf(fp, "\n\n");
   }

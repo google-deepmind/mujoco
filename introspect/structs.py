@@ -4340,20 +4340,6 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='first efc address involving tendon; -1: none     (ntendon x 1)',  # pylint: disable=line-too-long
              ),
              StructFieldDecl(
-                 name='island_dofadr',
-                 type=PointerType(
-                     inner_type=ValueType(name='int'),
-                 ),
-                 doc='address of first dof in island                   (nisland x 1)',  # pylint: disable=line-too-long
-             ),
-             StructFieldDecl(
-                 name='island_efcadr',
-                 type=PointerType(
-                     inner_type=ValueType(name='int'),
-                 ),
-                 doc='address of first constraint in island            (nisland x 1)',  # pylint: disable=line-too-long
-             ),
-             StructFieldDecl(
                  name='dof_island',
                  type=PointerType(
                      inner_type=ValueType(name='int'),
@@ -4361,11 +4347,25 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='island id of this dof; -1: none                  (nv x 1)',  # pylint: disable=line-too-long
              ),
              StructFieldDecl(
-                 name='dof_islandnext',
+                 name='island_dofnum',
                  type=PointerType(
                      inner_type=ValueType(name='int'),
                  ),
-                 doc='address of next dof in island; -1: last or none  (nv x 1)',  # pylint: disable=line-too-long
+                 doc='number of dofs in island                         (nisland x 1)',  # pylint: disable=line-too-long
+             ),
+             StructFieldDecl(
+                 name='island_dofadr',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='start address in island_dofind                   (nisland x 1)',  # pylint: disable=line-too-long
+             ),
+             StructFieldDecl(
+                 name='island_dofind',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='island dof indices; -1: none                     (nv x 1)',  # pylint: disable=line-too-long
              ),
              StructFieldDecl(
                  name='efc_island',
@@ -4375,11 +4375,25 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='island id of this constraint                     (nefc x 1)',  # pylint: disable=line-too-long
              ),
              StructFieldDecl(
-                 name='efc_islandnext',
+                 name='island_efcnum',
                  type=PointerType(
                      inner_type=ValueType(name='int'),
                  ),
-                 doc='address of next constraint in island; -1: last   (nefc x 1)',  # pylint: disable=line-too-long
+                 doc='number of constraints in island                  (nisland x 1)',  # pylint: disable=line-too-long
+             ),
+             StructFieldDecl(
+                 name='island_efcadr',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='start address in island_efcind                   (nisland x 1)',  # pylint: disable=line-too-long
+             ),
+             StructFieldDecl(
+                 name='island_efcind',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='island constraint indices                        (nefc x 1)',  # pylint: disable=line-too-long
              ),
              StructFieldDecl(
                  name='efc_AR_rownnz',
@@ -6531,6 +6545,13 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                          ),
                          StructFieldDecl(
                              name='island_dofadr',
+                             type=PointerType(
+                                 inner_type=ValueType(name='int'),
+                             ),
+                             doc='',
+                         ),
+                         StructFieldDecl(
+                             name='island_dofind',
                              type=PointerType(
                                  inner_type=ValueType(name='int'),
                              ),

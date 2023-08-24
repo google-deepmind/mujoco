@@ -106,6 +106,36 @@ static void clearIsland(mjData* d, size_t parena) {
 
 
 
+// allocate island arrays on arena, return 1 on success, 0 on failure
+static int arenaAllocIsland(const mjModel* m, mjData* d) {
+#undef MJ_M
+#define MJ_M(n) m->n
+#undef MJ_D
+#define MJ_D(n) d->n
+
+  size_t parena_old = d->parena;
+
+#define X(type, name, nr, nc)                                             \
+  d->name = mj_arenaAlloc(d, sizeof(type) * (nr) * (nc), _Alignof(type)); \
+  if (!d->name) {                                                         \
+    mj_warning(d, mjWARN_CNSTRFULL, d->nstack * sizeof(mjtNum));          \
+    clearIsland(d, parena_old);                                           \
+    return 0;                                                             \
+  }
+
+  MJDATA_ARENA_POINTERS_ISLAND
+
+#undef X
+
+#undef MJ_M
+#define MJ_M(n) n
+#undef MJ_D
+#define MJ_D(n) n
+  return 1;
+}
+
+
+
 // return upper bound on number of tree-tree edges
 static int countMaxEdge(const mjModel* m, const mjData* d) {
   int nedge_max = 0;
@@ -362,112 +392,80 @@ void mj_island(const mjModel* m, mjData* d) {
   int* stack = mj_stackAllocInt(d, nedge);
   d->nisland = mj_floodFill(tree_island, ntree, rownnz, rowadr, colind, stack);
 
-  // ========== begin arena allocation of MJDATA_ARENA_POINTERS_ISLAND
-#undef MJ_M
-#define MJ_M(n) m->n
-#undef MJ_D
-#define MJ_D(n) d->n
-
-  size_t parena_old = d->parena;
-
-#define X(type, name, nr, nc)                                             \
-  d->name = mj_arenaAlloc(d, sizeof(type) * (nr) * (nc), _Alignof(type)); \
-  if (!d->name) {                                                         \
-    mj_warning(d, mjWARN_CNSTRFULL, d->nstack * sizeof(mjtNum));          \
-    clearIsland(d, parena_old);                                           \
-    mjFREESTACK;                                                          \
-    return;                                                               \
+  // allocate island arrays on arena
+  if (!arenaAllocIsland(m, d)) {
+    mjFREESTACK;
+    return;
   }
 
-  MJDATA_ARENA_POINTERS_ISLAND
+  int nisland = d->nisland;  // local copy
 
-#undef X
-
-#undef MJ_M
-#define MJ_M(n) n
-#undef MJ_D
-#define MJ_D(n) n
-  // ========== end arena allocation
-
-  // prepare island_last: id of last element in each island
-  int* island_last = mj_stackAllocInt(d, d->nisland);
-  for (int i=0; i < d->nisland; i++) {
-    island_last[i] = -1;
-  }
-
-  // compute island_dofadr, dof_island, dof_islandnext
-  int nisland_found = 0;
+  // compute dof_island, island_dofnum
+  int num_dof_unc = 0;  // number of unconstrained dofs
+  memset(d->island_dofnum, 0, nisland*sizeof(int));
   for (int i=0; i < nv; i++) {
     // dof_island
     int island = tree_island[m->dof_treeid[i]];;
     d->dof_island[i] = island;
 
-    // island_dofadr, dof_islandnext
-    if (island == -1) {
-      // dof is not in any island (unconstrained)
-      d->dof_islandnext[i] = -1;
-      continue;
+    // island_dofnum
+    if (island >= 0) {
+      d->island_dofnum[island]++;
     } else {
-      int last = island_last[island];
-      if (last == -1) {
-        // first dof: set island_dofadr, increment nisland_found
-        d->island_dofadr[island] = i;
-        nisland_found++;
-      } else {
-        // subsequent dof: point last dof to i
-        d->dof_islandnext[last] = i;
-      }
-      island_last[island] = i;
+      num_dof_unc++;
+    }
+  }
+
+  // compute island_dofadr
+  if (nisland) d->island_dofadr[0] = 0;
+  for (int i=1; i < nisland; i++) {
+    d->island_dofadr[i] = d->island_dofadr[i-1] + d->island_dofnum[i-1];
+  }
+
+  // reset island_dofnum
+  memset(d->island_dofnum, 0, nisland*sizeof(int));
+
+  // compute dof_islandind
+  int num_dof_island = 0;
+  for (int i=0; i < nv; i++) {
+    int island = d->dof_island[i];
+    if (island >= 0) {
+      d->island_dofind[d->island_dofadr[island] + (d->island_dofnum[island]++)] = i;
+      num_dof_island++;
     }
   }
 
   // sanity check, SHOULD NOT OCCUR
-  if (nisland_found != d->nisland) {
+  if (num_dof_island + num_dof_unc != nv) {
     mjERROR("not all islands assigned to dofs");
   }
 
-  // finalize dof_islandnext: mark last dof in each island with -1
-  for (int i=0; i < d->nisland; i++) {
-    d->dof_islandnext[island_last[i]] = -1;
+  // finalize dof_islandind: set remaning indices to -1
+  for (int i=num_dof_island; i < nv; i++) {
+    d->island_dofind[i] = -1;
   }
 
-  // reset island_last
-  for (int i=0; i < d->nisland; i++) {
-    island_last[i] = -1;
-  }
-
-  // compute island_efcadr, efc_island, efc_islandnext
-  nisland_found = 0;
+  // compute efc_island, island_efcnum
+  memset(d->island_efcnum, 0, nisland*sizeof(int));
   for (int i=0; i < nefc; i++) {
-    // efc_island
     int island = tree_island[treeNext(m, d, -1, i, NULL)];
     d->efc_island[i] = island;
-
-    // island_efcadr, efc_islandnext
-    if (island == -1) {
-      mjERROR("constraint %d not in any island", i);  // SHOULD NOT OCCUR
-    } else {
-      int last = island_last[island];
-      if (last == -1) {
-        // first constraint: set island_efcadr, increment nisland_found
-        d->island_efcadr[island] = i;
-        nisland_found++;
-      } else {
-        // subsequent constraint: point last constraint to i
-        d->efc_islandnext[last] = i;
-      }
-      island_last[island] = i;
-    }
+    d->island_efcnum[island]++;
   }
 
-  // sanity check, SHOULD NOT OCCUR
-  if (nisland_found != d->nisland) {
-    mjERROR("not all islands assigned to constraints");
+  // compute island_efcadr
+  if (nisland) d->island_efcadr[0] = 0;
+  for (int i=1; i < nisland; i++) {
+    d->island_efcadr[i] = d->island_efcadr[i-1] + d->island_efcnum[i-1];
   }
 
-  // finalize efc_islandnext: mark last constraint in each island with -1
-  for (int i=0; i < d->nisland; i++) {
-    d->efc_islandnext[island_last[i]] = -1;
+  // reset island_efcnum
+  memset(d->island_efcnum, 0, nisland*sizeof(int));
+
+  // compute efc_islandind
+  for (int i=0; i < nefc; i++) {
+    int island = d->efc_island[i];
+    d->island_efcind[d->island_efcadr[island] + (d->island_efcnum[island]++)] = i;
   }
 
   mjFREESTACK;
