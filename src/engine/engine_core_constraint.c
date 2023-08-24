@@ -1615,7 +1615,7 @@ static inline int mj_nc(const mjModel* m, mjData* d, int* nnz) {
   }
 
   mjMARKSTACK;
-  int *chain = (int*)mj_stackAlloc(d, m->nv);
+  int *chain = mj_stackAllocInt(d, m->nv);
 
   for (int i=0; i < ncon; i++) {
     if (d->contact[i].exclude) {

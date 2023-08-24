@@ -774,8 +774,9 @@ void mj_implicitSkip(const mjModel* m, mjData* d, int skipfactor) {
       // set qLU = qM - dt*qDeriv
       mju_addToScl(d->qLU, d->qDeriv, -m->opt.timestep, m->nD);
 
-      // factorize qLU, use qacc as scratch space
-      mju_factorLUSparse(d->qLU, nv, (int*)qacc, d->D_rownnz, d->D_rowadr, d->D_colind);
+      // factorize qLU
+      int* scratch = mj_stackAllocInt(d, nv);
+      mju_factorLUSparse(d->qLU, nv, scratch, d->D_rownnz, d->D_rowadr, d->D_colind);
     }
 
     // solve for qacc: (qM - dt*qDeriv) * qacc = qfrc
