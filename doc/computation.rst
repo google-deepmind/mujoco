@@ -1607,6 +1607,8 @@ The top-level function :ref:`mj_inverse` invokes the following sequence of compu
 #. Compute sensor data that depends on velocity, and the kinetic energy if enabled.
 #. Compute all passive forces.
 #. Compute the reference constraint acceleration.
+#. If the :ref:`invdiscrete<option-flag-invdiscrete>` flag is set and the :ref:`integrator<option-integrator>` is not
+   ``RK4``, convert input accelerations from discrete to continuous time.
 #. Compute the constraint force. This is done analytically, without using a numerical solver.
 #. Compute the inverse dynamics for the unconstrained system.
 #. Compute sensor data that depends on force and acceleration if enabled.

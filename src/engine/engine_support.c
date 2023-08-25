@@ -67,6 +67,7 @@ const char* mjENABLESTRING[mjNENABLE] = {
   "Energy",
   "Fwdinv",
   "Sensornoise",
+  "InvDiscrete",
   "MultiCCD",
   "Island"
 };
@@ -1122,7 +1123,7 @@ void mj_copyM2DSparse(const mjModel* m, mjData* d, mjtNum* dst, const mjtNum* sr
     }
   }
 
-  mjFREESTACK
+  mjFREESTACK;
 }
 
 

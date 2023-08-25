@@ -36,17 +36,19 @@ General
    :ref:`actuatorfrclimited<body-joint-actuatorfrclimited>`, respectively.
 #. Added the flag :ref:`eulerdamp<option-flag-eulerdamp>`, which disables implicit integration of joint damping in the
    Euler integrator. See the :ref:`Numerical Integration<geIntegration>` section for more details.
+#. Added the flag :ref:`invdiscrete<option-flag-invdiscrete>`, which enables discrete-time inverse dynamics for all
+   :ref:`integrators<option-integrator>` other than ``RK4``. See the flag documentation for more details.
 
 Python bindings
 ^^^^^^^^^^^^^^^
 
-7. Fixed `#870 <https://github.com/deepmind/mujoco/issues/870>`__ where calling ``update_scene`` with an invalid
+8. Fixed `#870 <https://github.com/deepmind/mujoco/issues/870>`__ where calling ``update_scene`` with an invalid
    camera name used the default camera.
 
 Bug fixes
 ^^^^^^^^^
 
-#. Fixed a bug that was causing the geom margins to be ignored during the midphase.
+9. Fixed a bug that was causing the geom margins to be ignored during the midphase.
 
 
 Version 2.3.7 (July 20, 2023)

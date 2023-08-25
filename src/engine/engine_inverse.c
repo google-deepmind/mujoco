@@ -22,6 +22,7 @@
 #include "engine/engine_collision_driver.h"
 #include "engine/engine_core_constraint.h"
 #include "engine/engine_core_smooth.h"
+#include "engine/engine_derivative.h"
 #include "engine/engine_io.h"
 #include "engine/engine_macro.h"
 #include "engine/engine_passive.h"
@@ -88,6 +89,88 @@ void mj_invVelocity(const mjModel* m, mjData* d) {
 
 
 
+// convert discrete-time qacc to continuous-time qacc
+static void mj_discreteAcc(const mjModel* m, mjData* d) {
+  int nv = m->nv, dof_damping;
+  mjtNum *qacc = d->qacc;
+
+  mjMARKSTACK;
+  mjtNum* qfrc = mj_stackAlloc(d, nv);
+
+  // use selected integrator
+  switch ((mjtIntegrator) m->opt.integrator) {
+  case mjINT_RK4:
+    // not supported by RK4
+    return;
+
+  case mjINT_EULER:
+    // check for dof damping if disable flag is not set
+    dof_damping = 0;
+    if (!mjDISABLED(mjDSBL_EULERDAMP)) {
+      for (int i=0; i < nv; i++) {
+        if (m->dof_damping[i] > 0) {
+          dof_damping = 1;
+          break;
+        }
+      }
+    }
+
+    // if disabled or no dof damping, nothing to do
+    if (!dof_damping) {
+      return;
+    }
+
+    // set qfrc = (M + h*diag(B)) * qacc
+    mj_mulM(m, d, qfrc, qacc);
+    for (int i=0; i < nv; i++) {
+      qfrc[i] += m->opt.timestep * m->dof_damping[i] * d->qacc[i];
+    }
+    break;
+
+  case mjINT_IMPLICIT:
+    // compute qDeriv
+    mjd_smooth_vel(m, d, /* flg_bias = */ 1);
+
+    // set qLU = qM
+    mj_copyM2DSparse(m, d, d->qLU, d->qM);
+
+    // set qLU = qM - dt*qDeriv
+    mju_addToScl(d->qLU, d->qDeriv, -m->opt.timestep, m->nD);
+
+    // set qfrc = qLU * qacc
+    mju_mulMatVecSparse(qfrc, d->qLU, qacc, nv,
+                        d->D_rownnz, d->D_rowadr, d->D_colind, /*rowsuper=*/NULL);
+    break;
+
+  case mjINT_IMPLICITFAST:
+    // compute analytical derivative qDeriv; skip rne derivative
+    mjd_smooth_vel(m, d, /* flg_bias = */ 0);
+
+    // save mass matrix
+    mjtNum* qMsave = mj_stackAlloc(d, m->nM);
+    mju_copy(qMsave, d->qM, m->nM);
+
+    // set M = M - dt*qDeriv (reduced to M nonzeros)
+    mjtNum* qDerivReduced = mj_stackAlloc(d, m->nM);
+    mj_copyD2MSparse(m, d, qDerivReduced, d->qDeriv);
+    mju_addToScl(d->qM, qDerivReduced, -m->opt.timestep, m->nM);
+
+    // set qfrc = (M - dt*qDeriv) * qacc
+    mj_mulM(m, d, qfrc, qacc);
+
+    // restore mass matrix
+    mju_copy(d->qM, qMsave, m->nM);
+    break;
+  }
+
+  // solve for qacc: qfrc = M * qacc
+  mj_solveM(m, d, qacc, qfrc, 1);
+
+  mjFREESTACK;
+}
+
+
+
 // inverse constraint solver
 void mj_invConstraint(const mjModel* m, mjData* d) {
   TM_START;
@@ -142,6 +225,10 @@ void mj_inverseSkip(const mjModel* m, mjData* d,
     if (mjENABLED(mjENBL_ENERGY)) {
       mj_energyVel(m, d);
     }
+  }
+
+  if (mjENABLED(mjENBL_INVDISCRETE)) {
+    mj_discreteAcc(m, d);
   }
 
   // acceleration-dependent

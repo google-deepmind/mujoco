@@ -158,10 +158,11 @@ public enum mjtEnableBit : int{
   mjENBL_OVERRIDE = 1,
   mjENBL_ENERGY = 2,
   mjENBL_FWDINV = 4,
-  mjENBL_SENSORNOISE = 8,
-  mjENBL_MULTICCD = 16,
-  mjENBL_ISLAND = 32,
-  mjNENABLE = 6,
+  mjENBL_INVDISCRETE = 8,
+  mjENBL_SENSORNOISE = 16,
+  mjENBL_MULTICCD = 32,
+  mjENBL_ISLAND = 64,
+  mjNENABLE = 7,
 }
 public enum mjtJoint : int{
   mjJNT_FREE = 0,

@@ -845,6 +845,7 @@ void mjXWriter::Option(XMLElement* root) {
     WRITEENBL("override",       mjENBL_OVERRIDE)
     WRITEENBL("energy",         mjENBL_ENERGY)
     WRITEENBL("fwdinv",         mjENBL_FWDINV)
+    WRITEENBL("invdiscrete",    mjENBL_INVDISCRETE)
     WRITEENBL("sensornoise",    mjENBL_SENSORNOISE)
     WRITEENBL("multiccd",       mjENBL_MULTICCD)
     WRITEENBL("island",         mjENBL_ISLAND)

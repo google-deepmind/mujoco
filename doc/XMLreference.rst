@@ -2130,6 +2130,17 @@ from its default.
    mjData.solver_fwdinv[2]. The first value is the relative norm of the discrepancy in joint space, the next is in
    constraint space.
 
+.. _option-flag-invdiscrete:
+
+:at:`invdiscrete`: :at-val:`[disable, enable], "disable"`
+   This flag enables discrete-time inverse dynamics with :ref:`mj_inverse` for all
+   :ref:`integrators<option-integrator>` other than ``RK4``. Recall from the
+   :ref:`numerical integration<geIntegration>` section that the one-step integrators (``Euler``, ``implicit`` and
+   ``implicitfast``), modify the mass matrix :math:`M \rightarrow M-hD`. This implies that finite-differenced
+   accelerations :math:`(v_{t+h} - v_t)/h` will not correspond to the continuous-time acceleration ``mjData.qacc``.
+   When this flag is enabled, :ref:`mj_inverse` will  interpret ``qacc`` as having been computed from the difference of
+   two sequential velocities, and undo the above modification.
+
 .. _option-flag-sensornoise:
 
 :at:`sensornoise`: :at-val:`[disable, enable], "disable"`
