@@ -647,15 +647,22 @@ void mjd_inverseFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte flg_actuatio
   // skip sensor computations if no sensor Jacobians requested
   int skipsensor = !DsDq && !DsDv && !DsDa;
 
+  // discrete inverse dynamics
+  int invdiscrete = mjENABLED(mjENBL_INVDISCRETE);
+
   // local vectors
-  mjtNum *pos        = mj_stackAlloc(d, nq);                      // position
-  mjtNum *force      = mj_stackAlloc(d, nv);                      // force
-  mjtNum *force_plus = mj_stackAlloc(d, nv);                      // nudged force
-  mjtNum *sensor     = skipsensor ? NULL : mj_stackAlloc(d, ns);  // sensor values
-  mjtNum *mass       = DmDq ? mj_stackAlloc(d, nM) : NULL;        // mass matrix
+  mjtNum *pos        = mj_stackAlloc(d, nq);                       // position
+  mjtNum *force      = mj_stackAlloc(d, nv);                       // force
+  mjtNum *force_plus = mj_stackAlloc(d, nv);                       // nudged force
+  mjtNum *sensor     = skipsensor ? NULL : mj_stackAlloc(d, ns);   // sensor values
+  mjtNum *mass       = DmDq ? mj_stackAlloc(d, nM) : NULL;         // mass matrix
+  mjtNum *qacc       = invdiscrete ? mj_stackAlloc(d, nv) : NULL;  // discrete acceleration
 
   // save current positions
   mju_copy(pos, d->qpos, nq);
+
+  // save acceleration
+  if (invdiscrete) mju_copy(qacc, d->qacc, nv);
 
   // center point outputs
   inverseSkip(m, d, mjSTAGE_NONE, skipsensor, flg_actuation, force);
@@ -665,6 +672,9 @@ void mjd_inverseFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte flg_actuatio
   // acceleration: skip = mjSTAGE_VEL
   if (DfDa || DsDa) {
     for (int i=0; i < nv; i++) {
+      // set acceleration
+      if (invdiscrete) mju_copy(d->qacc, qacc, nv);
+
       // nudge acceleration
       mjtNum tmp = d->qacc[i];
       d->qacc[i] += eps;
@@ -686,6 +696,9 @@ void mjd_inverseFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte flg_actuatio
   // velocity: skip = mjSTAGE_POS
   if (DfDv || DsDv) {
     for (int i=0; i < nv; i++) {
+      // set acceleration
+      if (invdiscrete) mju_copy(d->qacc, qacc, nv);
+
       // nudge velocity
       mjtNum tmp = d->qvel[i];
       d->qvel[i] += eps;
@@ -708,6 +721,9 @@ void mjd_inverseFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte flg_actuatio
   if (DfDq || DsDq || DmDq) {
     mjtNum *dpos  = mj_stackAlloc(d, nv);  // allocate position perturbation
     for (int i=0; i < nv; i++) {
+      // set acceleration
+      if (invdiscrete) mju_copy(d->qacc, qacc, nv);
+
       // nudge
       mju_zero(dpos, nv);
       dpos[i] = 1.0;
