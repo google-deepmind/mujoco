@@ -128,12 +128,13 @@ space.
 
 .. _mj_jac:
 
-This function computes an "end-effector" Jacobian, which is unrelated to the constraint Jacobian above. Any MuJoCo body
-can be treated as end-effector, and the point for which the Jacobian is computed can be anywhere in space (it is treated
-as attached to the body). The Jacobian has translational (jacp) and rotational (jacr) components. Passing NULL for
-either pointer will skip part of the computation. Each component is a 3-by-nv matrix. Each row of this matrix is the
-gradient of the corresponding 3D coordinate of the specified point with respect to the degrees of freedom. The ability
-to compute end-effector Jacobians analytically is one of the advantages of working in minimal coordinates - so use it!
+This function computes an end-effector kinematic Jacobian, describing the local linear relationship between the
+degrees-of-freedom and a given point. Given a body specified by its integer id (``body``) and a 3D point in the world
+frame (``point``) treated as attached to the body, the Jacobian has both translational (``jacp``) and rotational
+(``jacr``) components. Passing ``NULL`` for either pointer will skip that part of the computation. Each component is a
+3-by-nv matrix. Each row of this matrix is the gradient of the corresponding coordinate of the specified point with
+respect to the degrees-of-freedom. The ability to compute end-effector Jacobians efficiently and analytically is one of
+the advantages of working in minimal coordinates.
 
 .. _mj_jacBody:
 
