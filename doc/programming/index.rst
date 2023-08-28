@@ -122,6 +122,9 @@ target directory.
  5. Select the directory: ``cmake $PATH_TO_CLONED_REPO -DCMAKE_INSTALL_PREFIX=<my_install_dir>``
  #. After building, install with ``cmake --install .``
 
+When building on Windows, use Visual Studio 2019 or later and make sure Windows SDK version 10.0.22000 or later is
+installed (see `here <https://github.com/deepmind/mujoco/issues/862>`__ for more details).
+
 .. tip::
    As a reference, a working build configuration can be found in MuJoCo's
    `continuous integration setup <https://github.com/deepmind/mujoco/blob/main/.github/workflows/build.yml>`_ on GitHub.
@@ -134,34 +137,34 @@ Header files
 The distribution contains several header files which are identical on all platforms. They are also available from the
 links below, to make this documentation self-contained.
 
-mujoco.h   `(source) <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mujoco.h>`__
+`mujoco.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mujoco.h>`__
    This is the main header file and must be included in all programs using MuJoCo. It defines all API functions and
    global variables, and includes the all other header files except mjxmacro.h.
-mjmodel.h   `(source) <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjmodel.h>`__
+`mjmodel.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjmodel.h>`__
    Defines the C structure :ref:`mjModel` which is the runtime representation of the
    model being simulated. It also defines a number of primitive types and other structures needed to define mjModel.
-mjdata.h   `(source) <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjdata.h>`__
+`mjdata.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjdata.h>`__
    Defines the C structure :ref:`mjData` which is the workspace where all computations
    read their inputs and write their outputs. It also defines primitive types and other structures needed to define
    mjData.
-mjvisualize.h   `(source) <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjvisualize.h>`__
+`mjvisualize.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjvisualize.h>`__
    Defines the primitive types and structures needed by the abstract visualizer.
-mjrender.h   `(source) <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjrender.h>`__
+`mjrender.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjrender.h>`__
    Defines the primitive types and structures needed by the OpenGL renderer.
-mjui.h   `(source) <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjui.h>`__
+`mjui.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjui.h>`__
    Defines the primitive types and structures needed by the UI framework.
-mjtnum.h   `(source) <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjtnum.h>`__
+`mjtnum.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjtnum.h>`__
    Defines MuJoCo's ``mjtNum`` floating-point type to be either ``double`` or ``float``. See :ref:`mjtNum`.
-mjmacro.h   `(source) <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjmacro.h>`__
+`mjmacro.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjmacro.h>`__
    Defines C macros that are useful in user code.
-mjxmacro.h   `(source) <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjxmacro.h>`__
+`mjxmacro.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjxmacro.h>`__
    This file is optional and is not included by mujoco.h. It defines :ref:`X Macros <tyXMacro>` that can
    automate the mapping of mjModel and mjData into scripting languages, as well as other operations that require
    accessing all fields of mjModel and mjData. See code sample :ref:`testxml.cc <saTestXML>`.
-mjexport.h   `(source) <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjexport.h>`__
+`mjexport.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjexport.h>`__
    Macros used for exporting public symbols from the MuJoCo library. This header should not be used directly by client
    code.
-mjplugin.h   `(source) <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjplugin.h>`__
+`mjplugin.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjplugin.h>`__
    Defines data structures required by :ref:`engine plugins<exPlugin>`.
 
 .. _inVersion:
