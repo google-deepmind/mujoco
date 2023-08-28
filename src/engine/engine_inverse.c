@@ -29,6 +29,7 @@
 #include "engine/engine_sensor.h"
 #include "engine/engine_support.h"
 #include "engine/engine_util_blas.h"
+#include "engine/engine_util_errmem.h"
 #include "engine/engine_util_sparse.h"
 
 // position-dependent computations
@@ -101,6 +102,7 @@ static void mj_discreteAcc(const mjModel* m, mjData* d) {
   switch ((mjtIntegrator) m->opt.integrator) {
   case mjINT_RK4:
     // not supported by RK4
+    mjERROR("discrete inverse dynamics is not supported by RK4 integrator");
     return;
 
   case mjINT_EULER:
@@ -203,6 +205,8 @@ void mj_invConstraint(const mjModel* m, mjData* d) {
 void mj_inverseSkip(const mjModel* m, mjData* d,
                     int skipstage, int skipsensor) {
   TM_START;
+  mjMARKSTACK;
+  mjtNum* qacc;
   int nv = m->nv;
 
   // position-dependent
@@ -228,6 +232,11 @@ void mj_inverseSkip(const mjModel* m, mjData* d,
   }
 
   if (mjENABLED(mjENBL_INVDISCRETE)) {
+    // save current qacc
+    qacc = mj_stackAlloc(d, nv);
+    mju_copy(qacc, d->qacc, nv);
+
+    // modify qacc in-place
     mj_discreteAcc(m, d);
   }
 
@@ -244,6 +253,12 @@ void mj_inverseSkip(const mjModel* m, mjData* d,
                           - d->qfrc_passive[i] - d->qfrc_constraint[i];
   }
 
+  if (mjENABLED(mjENBL_INVDISCRETE)) {
+    // restore qacc
+    mju_copy(d->qacc, qacc, nv);
+  }
+
+  mjFREESTACK;
   TM_END(mjTIMER_INVERSE);
 }
 
