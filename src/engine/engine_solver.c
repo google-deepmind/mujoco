@@ -929,39 +929,43 @@ static void CGeval(const mjModel* m, mjData* d, mjCGContext* ctx, mjCGPnt* p) {
   mjtNum quadTotal[3];
   mju_copy3(quadTotal, ctx->quadGauss);
 
-  // equality
-  for (int i=0; i < ne; i++) {
-    mju_addTo3(quadTotal, ctx->quad+3*i);
-  }
-
-  // friction
-  for (int i=ne; i < ne+nf; i++) {
-    // search point, friction loss, bound (Rf)
-    mjtNum start = ctx->Jaref[i], dir = ctx->Jv[i];
-    mjtNum x = start + alpha*dir;
-    mjtNum f = d->efc_frictionloss[i];
-    mjtNum Rf = d->efc_R[i]*f;
-
-    // -bound < x < bound : quadratic
-    if (-Rf < x && x < Rf) {
+  // process constraints
+  for (int i=0; i < nefc; i++) {
+    // equality
+    if (i < ne) {
       mju_addTo3(quadTotal, ctx->quad+3*i);
+      continue;
     }
 
-    // x < -bound : linear negative
-    else if (x <= -Rf) {
-      mjtNum qf[3] = {f*(-0.5*Rf-start), -f*dir, 0};
-      mju_addTo3(quadTotal, qf);
+
+    // friction
+    if (i < ne + nf) {
+      // search point, friction loss, bound (Rf)
+      mjtNum start = ctx->Jaref[i], dir = ctx->Jv[i];
+      mjtNum x = start + alpha*dir;
+      mjtNum f = d->efc_frictionloss[i];
+      mjtNum Rf = d->efc_R[i]*f;
+
+      // -bound < x < bound : quadratic
+      if (-Rf < x && x < Rf) {
+        mju_addTo3(quadTotal, ctx->quad+3*i);
+      }
+
+      // x < -bound : linear negative
+      else if (x <= -Rf) {
+        mjtNum qf[3] = {f*(-0.5*Rf-start), -f*dir, 0};
+        mju_addTo3(quadTotal, qf);
+      }
+
+      // bound < x : linear positive
+      else {
+        mjtNum qf[3] = {f*(-0.5*Rf+start), f*dir, 0};
+        mju_addTo3(quadTotal, qf);
+      }
+      continue;
     }
 
-    // bound < x : linear positive
-    else {
-      mjtNum qf[3] = {f*(-0.5*Rf+start), f*dir, 0};
-      mju_addTo3(quadTotal, qf);
-    }
-  }
-
-  // limit and contact
-  for (int i=ne+nf; i < nefc; i++) {
+    // limit and contact
     if (d->efc_type[i] == mjCNSTR_CONTACT_ELLIPTIC) {         // elliptic cone
       // extract contact info
       mjContact* con = d->contact + d->efc_id[i];
