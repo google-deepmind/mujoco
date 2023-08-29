@@ -230,6 +230,11 @@ TEST_F(IslandTest, Abacus) {
   // last index is unassigned since dof 1 is unconstrained
   EXPECT_THAT(AsVector(data->island_dofind, nv), ElementsAre(0, 2, 3, -1));
 
+  // dof 0 constitutes first island
+  // dofs 1 is unassigned
+  // dofs 2, 3 are second island
+  EXPECT_THAT(AsVector(data->dof_islandind, nv), ElementsAre(0, -1, 0, 1));
+
   // island 0 starts at constraint 0
   // island 1 starts at constraint 4
   EXPECT_THAT(AsVector(data->island_efcadr, nisland), ElementsAre(0, 4));
@@ -242,8 +247,7 @@ TEST_F(IslandTest, Abacus) {
   EXPECT_THAT(AsVector(data->efc_island, nefc),
               ElementsAre(0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1));
 
-  // linked list for island 0
-  // linked list for island 1
+  // index lists for islands 0 and 1
   EXPECT_THAT(AsVector(data->island_efcind, nefc),
               ElementsAre(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11));
 
@@ -268,6 +272,7 @@ TEST_F(IslandTest, Abacus) {
   EXPECT_THAT(AsVector(data->island_dofnum, nisland), ElementsAre(1, 2, 1));
   EXPECT_THAT(AsVector(data->dof_island, nv), ElementsAre(0, 1, 1, 2));
   EXPECT_THAT(AsVector(data->island_dofind, nv), ElementsAre(0, 1, 2, 3));
+  EXPECT_THAT(AsVector(data->dof_islandind, nv), ElementsAre(0, 0, 1, 0));
   EXPECT_THAT(AsVector(data->island_efcadr, nisland), ElementsAre(0, 4, 8));
   EXPECT_THAT(AsVector(data->island_efcnum, nisland), ElementsAre(4, 4, 4));
   EXPECT_THAT(AsVector(data->efc_island, nefc),
@@ -317,6 +322,8 @@ TEST_F(IslandTest, DenseSparse) {
             AsVector(data2->dof_island, nv));
   EXPECT_EQ(AsVector(data1->island_dofind, nv),
             AsVector(data2->island_dofind, nv));
+  EXPECT_EQ(AsVector(data1->dof_islandind, nv),
+            AsVector(data2->dof_islandind, nv));
   EXPECT_EQ(AsVector(data1->island_efcadr, nisland),
             AsVector(data2->island_efcadr, nisland));
   EXPECT_EQ(AsVector(data1->island_efcnum, nisland),
@@ -328,6 +335,48 @@ TEST_F(IslandTest, DenseSparse) {
 
   mj_deleteData(data2);
   mj_deleteData(data1);
+  mj_deleteModel(model);
+}
+
+static const char* const kIlslandEfcPath =
+    "engine/testdata/island/island_efc.xml";
+
+TEST_F(IslandTest, IslandEfc) {
+  const std::string xml_path = GetTestDataFilePath(kIlslandEfcPath);
+  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, nullptr, 0);
+  mjData* data = mj_makeData(model);
+
+  while (data->time < 0.3) {
+    mj_step(model, data);
+  }
+
+  // sizes
+  int nv      = model->nv;
+  int nefc    = data->nefc;
+  int nisland = data->nisland;
+
+  // expect island structure to correspond to comment at top of xml
+  EXPECT_EQ(nisland, 2);
+  EXPECT_EQ(data->ne, 1);
+  EXPECT_EQ(data->nf, 1);
+  EXPECT_EQ(data->nl, 1);
+  EXPECT_EQ(nefc, 7);
+  EXPECT_THAT(AsVector(data->dof_island, nv),
+              ElementsAre(0, -1, 0, 0, 0, 1, 0));
+  EXPECT_THAT(AsVector(data->island_dofnum, nisland), ElementsAre(5, 1));
+  EXPECT_THAT(AsVector(data->island_dofadr, nisland), ElementsAre(0, 5));
+  EXPECT_THAT(AsVector(data->island_dofind, nv),
+              ElementsAre(0, 2, 3, 4, 6, 5, -1));
+  EXPECT_THAT(AsVector(data->dof_islandind, nv),
+              ElementsAre(0, -1, 1, 2, 3, 0, 4));
+  EXPECT_THAT(AsVector(data->efc_island, nefc),
+              ElementsAre(0, 1, 0, 0, 0, 0, 0));
+  EXPECT_THAT(AsVector(data->island_efcnum, nisland), ElementsAre(6, 1));
+  EXPECT_THAT(AsVector(data->island_efcadr, nisland), ElementsAre(0, 6));
+  EXPECT_THAT(AsVector(data->island_efcind, nefc),
+              ElementsAre(0, 2, 3, 4, 5, 6, 1));
+
+  mj_deleteData(data);
   mj_deleteModel(model);
 }
 

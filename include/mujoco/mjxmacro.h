@@ -605,6 +605,7 @@
     X( int,   island_dofnum,      MJ_D(nisland), 1 ) \
     X( int,   island_dofadr,      MJ_D(nisland), 1 ) \
     X( int,   island_dofind,      MJ_M(nv),      1 ) \
+    X( int,   dof_islandind,      MJ_M(nv),      1 ) \
     X( int,   efc_island,         MJ_D(nefc),    1 ) \
     X( int,   island_efcnum,      MJ_D(nisland), 1 ) \
     X( int,   island_efcadr,      MJ_D(nisland), 1 ) \

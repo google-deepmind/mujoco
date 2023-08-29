@@ -4373,6 +4373,13 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='island dof indices; -1: none                     (nv x 1)',  # pylint: disable=line-too-long
              ),
              StructFieldDecl(
+                 name='dof_islandind',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='dof island indices; -1: none                     (nv x 1)',  # pylint: disable=line-too-long
+             ),
+             StructFieldDecl(
                  name='efc_island',
                  type=PointerType(
                      inner_type=ValueType(name='int'),

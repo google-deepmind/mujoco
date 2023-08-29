@@ -350,6 +350,7 @@ struct mjData_ {
   int*    island_dofnum;     // number of dofs in island                         (nisland x 1)
   int*    island_dofadr;     // start address in island_dofind                   (nisland x 1)
   int*    island_dofind;     // island dof indices; -1: none                     (nv x 1)
+  int*    dof_islandind;     // dof island indices; -1: none                     (nv x 1)
   int*    efc_island;        // island id of this constraint                     (nefc x 1)
   int*    island_efcnum;     // number of constraints in island                  (nisland x 1)
   int*    island_efcadr;     // start address in island_efcind                   (nisland x 1)

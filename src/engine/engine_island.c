@@ -141,6 +141,7 @@ static int countMaxEdge(const mjModel* m, const mjData* d) {
   int nedge_max = 0;
   nedge_max += 2*d->ncon;  // contact: 2 edges
   nedge_max += 2*d->ne;    // equality: 2 edges
+  nedge_max += d->nl;      // limit: 1 edges (always within same tree)
   nedge_max += d->nf;      // joint friction: 1 edge (always within same tree)
 
   // tendon limits and friction add up to tendon_num edges
@@ -425,13 +426,16 @@ void mj_island(const mjModel* m, mjData* d) {
   // reset island_dofnum
   memset(d->island_dofnum, 0, nisland*sizeof(int));
 
-  // compute dof_islandind
+  // compute dof_islandind, island_dofind
   int num_dof_island = 0;
   for (int i=0; i < nv; i++) {
     int island = d->dof_island[i];
     if (island >= 0) {
-      d->island_dofind[d->island_dofadr[island] + (d->island_dofnum[island]++)] = i;
+      d->island_dofind[d->island_dofadr[island] + d->island_dofnum[island]] = i;
+      d->dof_islandind[i] = d->island_dofnum[island]++;
       num_dof_island++;
+    } else {
+      d->dof_islandind[i] = -1;
     }
   }
 

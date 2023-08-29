@@ -1721,6 +1721,7 @@ public unsafe struct mjData_ {
   public int* island_dofnum;
   public int* island_dofadr;
   public int* island_dofind;
+  public int* dof_islandind;
   public int* efc_island;
   public int* island_efcnum;
   public int* island_efcadr;

@@ -1083,6 +1083,12 @@ void mj_printFormattedData(const mjModel* m, mjData* d, const char* filename,
     }
     fprintf(fp, "\n\n");
 
+    fprintf(fp, NAME_FORMAT, "DOF_ISLANDIND");
+    for (int i = 0; i < m->nv; i++) {
+      fprintf(fp, " %d", d->dof_islandind[i]);
+    }
+    fprintf(fp, "\n\n");
+
     fprintf(fp, NAME_FORMAT, "EFC_ISLAND");
     for (int i = 0; i < d->nefc; i++) {
       fprintf(fp, " %d", d->efc_island[i]);
