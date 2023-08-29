@@ -525,8 +525,8 @@ void UpdateInfoText(mj::Simulate* sim, const mjModel* m, const mjData* d,
                    d->timer[mjTIMER_FORWARD].duration / mjMAX(1, d->timer[mjTIMER_FORWARD].number),
                    solerr, d->solver_iter,
                    fps,
-                   d->maxuse_arena/(double)(d->nstack * sizeof(mjtNum)),
-                   mju_writeNumBytes(d->nstack * sizeof(mjtNum)));
+                   d->maxuse_arena/(double)(d->narena),
+                   mju_writeNumBytes(d->narena));
 
   // add Energy if enabled
   {

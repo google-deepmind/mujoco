@@ -125,10 +125,10 @@
     X   ( njmax )              \
     X   ( nconmax )            \
     XMJV( ntree )              \
-    X   ( nstack )             \
     X   ( nuserdata )          \
     XMJV( nsensordata )        \
     X   ( npluginstate )       \
+    X   ( narena )             \
     X   ( nbuffer )
 
 
@@ -620,13 +620,13 @@
 
 // scalar fields of mjData
 #define MJDATA_SCALAR                  \
-    X( int,       nstack             ) \
-    X( int,       nbuffer            ) \
+    X( size_t,    narena             ) \
+    X( size_t,    nbuffer            ) \
     X( int,       nplugin            ) \
-    X( int,       pstack             ) \
-    X( int,       parena             ) \
-    X( int,       maxuse_stack       ) \
-    X( int,       maxuse_arena       ) \
+    X( size_t,    pstack             ) \
+    X( size_t,    parena             ) \
+    X( size_t,    maxuse_stack       ) \
+    X( size_t,    maxuse_arena       ) \
     X( int,       maxuse_con         ) \
     X( int,       maxuse_efc         ) \
     X( int,       solver_iter        ) \

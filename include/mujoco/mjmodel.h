@@ -15,6 +15,8 @@
 #ifndef MUJOCO_MJMODEL_H_
 #define MUJOCO_MJMODEL_H_
 
+#include <stddef.h>
+
 #include <mujoco/mjtnum.h>
 
 // global constants
@@ -623,12 +625,12 @@ struct mjModel_ {
   int nemax;                      // number of potential equality-constraint rows
   int njmax;                      // number of available rows in constraint Jacobian
   int nconmax;                    // number of potential contacts in contact list
-  int nstack;                     // number of fields in mjData stack
   int nuserdata;                  // number of extra fields in mjData
   int nsensordata;                // number of fields in sensor data vector
   int npluginstate;               // number of fields in plugin state vector
 
-  int nbuffer;                    // number of bytes in buffer
+  size_t narena;                  // number of bytes in the mjData arena (inclusive of stack)
+  size_t nbuffer;                 // number of bytes in buffer
 
   // ------------------------------- options and statistics
 

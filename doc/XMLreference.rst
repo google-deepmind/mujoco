@@ -450,7 +450,7 @@ compilation.
 
 :at:`nstack`: :at-val:`int, "-1"` |nbsp| |nbsp| |nbsp| (legacy)
    This is a deprecated legacy attribute. In versions prior to 2.3.0, it determined the maximum size of the
-   :ref:`stack <siStack>`. After version 2.3.0, if :at:`nstack` is specified, then the size of ``mjData.arena`` is
+   :ref:`stack <siStack>`. After version 2.3.0, if :at:`nstack` is specified, then the size of ``mjData.narena`` is
    ``nstack * sizeof(mjtNum)`` bytes, plus an additional space for the constraint solver. Specifying both :at:`nstack`
    and :at:`memory` leads to an error.
 

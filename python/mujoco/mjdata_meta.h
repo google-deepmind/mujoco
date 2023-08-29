@@ -88,7 +88,7 @@ struct MjDataMetadata {
         is_dual(mj_isDual(m)) {
   }
 
-#define X(var) int var;
+#define X(var) decltype(raw::MjModel::var) var;
   MJMODEL_INTS
 #undef X
 #define X(type, var, n) std::shared_ptr<type[]> var;

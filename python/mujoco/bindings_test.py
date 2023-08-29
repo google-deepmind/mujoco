@@ -946,7 +946,7 @@ Euler integrator, semi-implicit in velocity.
                      mujoco.mjtDisableBit.mjDSBL_CONTACT)
 
   def test_can_raise_error(self):
-    self.data.pstack = self.data.nstack
+    self.data.pstack = self.data.narena
     with self.assertRaisesRegex(mujoco.FatalError,
                                 r'\Amj_stackAllocByte: stack overflow'):
       mujoco.mj_forward(self.model, self.data)

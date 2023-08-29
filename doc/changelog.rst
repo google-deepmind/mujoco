@@ -39,6 +39,8 @@ General
 #. Added the flag :ref:`invdiscrete<option-flag-invdiscrete>`, which enables discrete-time inverse dynamics for all
    :ref:`integrators<option-integrator>` other than ``RK4``. See the flag documentation for more details.
 #. Renamed the function ``mj_stackAlloc`` to ``mj_stackAllocNum``.
+#. Renamed the ``nstack`` field in ``mjModel`` and ``mjData`` to ``narena``. Changed ``narena``, ``pstack``, and
+   ``maxuse_stack`` to count number of bytes rather than number of ``mjtNum``s.
 
 Python bindings
 ^^^^^^^^^^^^^^^

@@ -48,7 +48,7 @@ TEST_F(XMLReaderTest, MemorySize) {
     )";
     mjModel* model = LoadModelFromString(xml, error.data(), error.size());
     ASSERT_THAT(model, NotNull()) << error.data();
-    EXPECT_EQ(model->nstack, 256 / sizeof(mjtNum));
+    EXPECT_EQ(model->narena, 256);
     mj_deleteModel(model);
   }
   {
@@ -59,7 +59,7 @@ TEST_F(XMLReaderTest, MemorySize) {
     )";
     mjModel* model = LoadModelFromString(xml, error.data(), error.size());
     ASSERT_THAT(model, NotNull()) << error.data();
-    EXPECT_EQ(model->nstack, 1024 / sizeof(mjtNum));
+    EXPECT_EQ(model->narena, 1024);
     mj_deleteModel(model);
   }
   {
@@ -70,7 +70,7 @@ TEST_F(XMLReaderTest, MemorySize) {
     )";
     mjModel* model = LoadModelFromString(xml, error.data(), error.size());
     ASSERT_THAT(model, NotNull()) << error.data();
-    EXPECT_EQ(model->nstack, 10240 / sizeof(mjtNum));
+    EXPECT_EQ(model->narena, 10240);
     mj_deleteModel(model);
   }
   {
@@ -81,7 +81,7 @@ TEST_F(XMLReaderTest, MemorySize) {
     )";
     mjModel* model = LoadModelFromString(xml, error.data(), error.size());
     ASSERT_THAT(model, NotNull()) << error.data();
-    EXPECT_EQ(model->nstack, 4*1024*1024 / sizeof(mjtNum));
+    EXPECT_EQ(model->narena, 4*1024*1024);
     mj_deleteModel(model);
   }
   {
@@ -92,7 +92,7 @@ TEST_F(XMLReaderTest, MemorySize) {
     )";
     mjModel* model = LoadModelFromString(xml, error.data(), error.size());
     ASSERT_THAT(model, NotNull()) << error.data();
-    EXPECT_EQ(model->nstack, 1024*1024*1024 / sizeof(mjtNum));
+    EXPECT_EQ(model->narena, 1024*1024*1024);
     mj_deleteModel(model);
   }
   {
@@ -103,7 +103,7 @@ TEST_F(XMLReaderTest, MemorySize) {
     )";
     mjModel* model = LoadModelFromString(xml, error.data(), error.size());
     ASSERT_THAT(model, NotNull()) << error.data();
-    EXPECT_EQ(model->nstack, 1024*1024*1024 / sizeof(mjtNum));
+    EXPECT_EQ(model->narena, 1024*1024*1024);
     mj_deleteModel(model);
   }
 }

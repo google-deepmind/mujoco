@@ -1101,11 +1101,6 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='number of potential contacts in contact list',
              ),
              StructFieldDecl(
-                 name='nstack',
-                 type=ValueType(name='int'),
-                 doc='number of fields in mjData stack',
-             ),
-             StructFieldDecl(
                  name='nuserdata',
                  type=ValueType(name='int'),
                  doc='number of extra fields in mjData',
@@ -1121,8 +1116,13 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='number of fields in plugin state vector',
              ),
              StructFieldDecl(
+                 name='narena',
+                 type=ValueType(name='size_t'),
+                 doc='number of bytes in the mjData arena (inclusive of stack)',
+             ),
+             StructFieldDecl(
                  name='nbuffer',
-                 type=ValueType(name='int'),
+                 type=ValueType(name='size_t'),
                  doc='number of bytes in buffer',
              ),
              StructFieldDecl(
@@ -3483,13 +3483,13 @@ STRUCTS: Mapping[str, StructDecl] = dict([
          declname='struct mjData_',
          fields=(
              StructFieldDecl(
-                 name='nstack',
-                 type=ValueType(name='int'),
-                 doc='number of mjtNums that can fit in the arena+stack space',
+                 name='narena',
+                 type=ValueType(name='size_t'),
+                 doc='size of the arena in bytes (inclusive of the stack)',
              ),
              StructFieldDecl(
                  name='nbuffer',
-                 type=ValueType(name='int'),
+                 type=ValueType(name='size_t'),
                  doc='size of main buffer in bytes',
              ),
              StructFieldDecl(
@@ -3509,7 +3509,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
              ),
              StructFieldDecl(
                  name='maxuse_stack',
-                 type=ValueType(name='int'),
+                 type=ValueType(name='size_t'),
                  doc='maximum stack allocation',
              ),
              StructFieldDecl(

@@ -2803,23 +2803,23 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, int vfs_provider) {
     mj_setTotalmass(m, settotalmass);
   }
 
-  // set arena size into m->nstack
+  // set arena size into m->narena
   if (memory != -1) {
-    // memory size is user-specified in bytes, round down to nearest sizeof(mjtNum)
-    m->nstack = memory / sizeof(mjtNum);
+    // memory size is user-specified in bytes
+    m->narena = memory;
   } else {
     const int nconmax = m->nconmax == -1 ? 100 : m->nconmax;
     const int njmax = m->njmax == -1 ? 500 : m->njmax;
     if (nstack != -1) {
-      // (legacy) stack size is user-specified, already as multiple of sizeof(mjtNum)
-      m->nstack = nstack;
+      // (legacy) stack size is user-specified as multiple of sizeof(mjtNum)
+      m->narena = sizeof(mjtNum) * nstack;
     } else {
       // use a conservative heuristic if neither memory nor nstack is specified in XML
-      m->nstack = mjMAX(
+      m->narena = sizeof(mjtNum) * static_cast<size_t>(mjMAX(
           1000,
           5*(njmax + m->neq + m->nv)*(njmax + m->neq + m->nv) +
           20*(m->nq + m->nv + m->nu + m->na + m->nbody + m->njnt +
-              m->ngeom + m->nsite + m->neq + m->ntendon +  m->nwrap));
+              m->ngeom + m->nsite + m->neq + m->ntendon +  m->nwrap)));
     }
 
     // add an arena space equal to memory footprint prior to the introduction of the arena
@@ -2829,13 +2829,13 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, int vfs_provider) {
         m->nv * (3 * sizeof(int)) +
         njmax * m->nv * (2 * sizeof(int) + 2 * sizeof(mjtNum)) +
         njmax * njmax * (sizeof(int) + sizeof(mjtNum)));
-    m->nstack += (arena_bytes / sizeof(mjtNum)) + (arena_bytes % sizeof(mjtNum) ? 1 : 0);
+    m->narena += arena_bytes;
 
     // round up to the nearest megabyte
-    constexpr int kMegabyte = (1 << 20) / sizeof(mjtNum);  // number of mjtNum's in 1 Mb
-    int nstack_mb = m->nstack / kMegabyte;
-    int residual_mb = m->nstack % kMegabyte ? 1 : 0;
-    m->nstack = kMegabyte * (nstack_mb + residual_mb);
+    constexpr std::size_t kMegabyte = 1 << 20;
+    std::size_t nstack_mb = m->narena / kMegabyte;
+    std::size_t residual_mb = m->narena % kMegabyte ? 1 : 0;
+    m->narena = kMegabyte * (nstack_mb + residual_mb);
   }
 
   // create data

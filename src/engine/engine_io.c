@@ -16,6 +16,7 @@
 #include "engine/engine_io.h"
 
 #include <limits.h>
+#include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -251,16 +252,36 @@ void mj_defaultStatistic(mjStatistic* stat) {
 
 //----------------------------------- static utility functions -------------------------------------
 
-// id used to indentify binary mjModel file/buffer
+// id used to identify binary mjModel file/buffer
 static const int ID = 54321;
 
+
+// number of ints in the mjb header
+#define NHEADER 5
+
+
+// macro for referring to a mjModel member in generic expressions
+#define MJMODEL_MEMBER(name) (((mjModel*) NULL)->name)
 
 
 // count ints in mjModel
 static int getnint(void) {
   int cnt = 0;
 
-#define X(name) cnt++;
+#define X(name) cnt += _Generic(MJMODEL_MEMBER(name), int: 1, default: 0);
+  MJMODEL_INTS
+#undef X
+
+  return cnt;
+}
+
+
+
+// count size_t members in mjModel
+static int getnsize(void) {
+  int cnt = 0;
+
+#define X(name) cnt += _Generic(MJMODEL_MEMBER(name), size_t: 1, default: 0);
   MJMODEL_INTS
 #undef X
 
@@ -334,7 +355,7 @@ static inline unsigned int SKIP(intptr_t offset) {
 // set pointers in mjModel buffer
 static void mj_setPtrModel(mjModel* m) {
   char* ptr = (char*)m->buffer;
-  int sz;
+  ptrdiff_t sz;
 
   // prepare symbols needed by xmacro
   MJMODEL_POINTERS_PREAMBLE(m);
@@ -349,9 +370,9 @@ static void mj_setPtrModel(mjModel* m) {
 #undef X
 
   // check size
-  sz = (int)(ptr - (char*)m->buffer);
+  sz = ptr - (char*)m->buffer;
   if (m->nbuffer != sz) {
-    printf("expected size: %d,  actual size: %d\n", m->nbuffer, sz);
+    printf("expected size: %zu,  actual size: %zu\n", m->nbuffer, sz);
     mjERROR("mjModel buffer size mismatch");
   }
 }
@@ -362,7 +383,8 @@ static void mj_setPtrModel(mjModel* m) {
 // performs the following operations:
 // *nbuffer += SKIP(*offset) + type_size*nr*nc;
 // *offset += SKIP(*offset) + type_size*nr*nc;
-static int safeAddToBufferSize(intptr_t* offset, int* nbuffer, size_t type_size, int nr, int nc) {
+static int safeAddToBufferSize(intptr_t* offset, size_t* nbuffer,
+                               size_t type_size, int nr, int nc) {
   if (type_size < 0 || nr < 0 || nc < 0) {
     return 0;
   }
@@ -583,7 +605,7 @@ void mj_saveModel(const mjModel* m, const char* filename, void* buffer, int buff
   int ptrbuf = 0;
 
   // standard header
-  int header[4] = {ID, sizeof(mjtNum), getnint(), getnptr()};
+  int header[NHEADER] = {ID, sizeof(mjtNum), getnint(), getnsize(), getnptr()};
 
   // open file for writing if no buffer
   if (!buffer) {
@@ -596,8 +618,10 @@ void mj_saveModel(const mjModel* m, const char* filename, void* buffer, int buff
 
   // write standard header, info, options, buffer (omit pointers)
   if (fp) {
-    fwrite(header, sizeof(int), 4, fp);
-    fwrite(m, sizeof(int), getnint(), fp);
+    fwrite(header, sizeof(int), NHEADER, fp);
+    #define X(name) fwrite(&m->name, sizeof(m->name), 1, fp);
+    MJMODEL_INTS
+    #undef X
     fwrite((void*)&m->opt, sizeof(mjOption), 1, fp);
     fwrite((void*)&m->vis, sizeof(mjVisual), 1, fp);
     fwrite((void*)&m->stat, sizeof(mjStatistic), 1, fp);
@@ -609,8 +633,10 @@ void mj_saveModel(const mjModel* m, const char* filename, void* buffer, int buff
       #undef X
     }
   } else {
-    bufwrite(header, sizeof(int)*4, buffer_sz, buffer, &ptrbuf);
-    bufwrite(m, sizeof(int)*getnint(), buffer_sz, buffer, &ptrbuf);
+    bufwrite(header, sizeof(int)*sizeof(header) / sizeof(int), buffer_sz, buffer, &ptrbuf);
+    #define X(name) bufwrite(&m->name, sizeof(m->name), buffer_sz, buffer, &ptrbuf);
+    MJMODEL_INTS
+    #undef X
     bufwrite((void*)&m->opt, sizeof(mjOption), buffer_sz, buffer, &ptrbuf);
     bufwrite((void*)&m->vis, sizeof(mjVisual), buffer_sz, buffer, &ptrbuf);
     bufwrite((void*)&m->stat, sizeof(mjStatistic), buffer_sz, buffer, &ptrbuf);
@@ -632,9 +658,10 @@ void mj_saveModel(const mjModel* m, const char* filename, void* buffer, int buff
 
 // load model from binary MJB resource
 static mjModel* _mj_loadModel(const char* filename, int vfs_provider) {
-  int header[4] = {0};
-  int expected_header[4] = {ID, sizeof(mjtNum), getnint(), getnptr()};
-  int info[2000];
+  int header[NHEADER] = {0};
+  int expected_header[NHEADER] = {ID, sizeof(mjtNum), getnint(), getnsize(), getnptr()};
+  int ints[256];
+  size_t sizes[8];
   int ptrbuf = 0;
   mjModel *m = 0;
   mjResource* r = NULL;
@@ -650,16 +677,16 @@ static mjModel* _mj_loadModel(const char* filename, int vfs_provider) {
     return NULL;
   }
 
-  if (buffer_sz < 4*sizeof(int)) {
+  if (buffer_sz < NHEADER*sizeof(int)) {
     mju_warning("Model file has an incomplete header");
     mju_closeResource(r);
     return NULL;
   }
 
-  bufread(header, 4*sizeof(int), buffer_sz, buffer, &ptrbuf);
+  bufread(header, NHEADER*sizeof(int), buffer_sz, buffer, &ptrbuf);
 
   // check header
-  for (int i=0; i < 4; i++) {
+  for (int i=0; i < NHEADER; i++) {
     if (header[i] != expected_header[i]) {
       switch (i) {
       case 0:
@@ -677,6 +704,11 @@ static mjModel* _mj_loadModel(const char* filename, int vfs_provider) {
         mju_closeResource(r);
         return NULL;
 
+      case 3:
+        mju_warning("Model and executable have different number of size_t members in mjModel");
+        mju_closeResource(r);
+        return NULL;
+
       default:
         mju_warning("Model and executable have different number of pointers in mjModel");
         mju_closeResource(r);
@@ -686,26 +718,34 @@ static mjModel* _mj_loadModel(const char* filename, int vfs_provider) {
   }
 
   // read mjModel structure: info only
-  bufread(info, sizeof(int)*getnint(), buffer_sz, buffer, &ptrbuf);
+  bufread(ints, sizeof(int)*getnint(), buffer_sz, buffer, &ptrbuf);
+  bufread(sizes, sizeof(size_t)*getnsize(), buffer_sz, buffer, &ptrbuf);
 
   // allocate new mjModel, check sizes
-  m = mj_makeModel(info[0],  info[1],  info[2],  info[3],  info[4],  info[5],  info[6],
-                   info[7],  info[8],  info[9],  info[10], info[11], info[12], info[13],
-                   info[14], info[15], info[16], info[17], info[18], info[19], info[20],
-                   info[21], info[22], info[23], info[24], info[25], info[26], info[27],
-                   info[28], info[29], info[30], info[31], info[32], info[33], info[34],
-                   info[35], info[36], info[37], info[38], info[39], info[40], info[41],
-                   info[42], info[43], info[44], info[45], info[46], info[47], info[48],
-                   info[49], info[50], info[51], info[52]);
-  if (!m || m->nbuffer != info[getnint()-1]) {
+  m = mj_makeModel(ints[0],  ints[1],  ints[2],  ints[3],  ints[4],  ints[5],  ints[6],
+                   ints[7],  ints[8],  ints[9],  ints[10], ints[11], ints[12], ints[13],
+                   ints[14], ints[15], ints[16], ints[17], ints[18], ints[19], ints[20],
+                   ints[21], ints[22], ints[23], ints[24], ints[25], ints[26], ints[27],
+                   ints[28], ints[29], ints[30], ints[31], ints[32], ints[33], ints[34],
+                   ints[35], ints[36], ints[37], ints[38], ints[39], ints[40], ints[41],
+                   ints[42], ints[43], ints[44], ints[45], ints[46], ints[47], ints[48],
+                   ints[49], ints[50], ints[51], ints[52]);
+  if (!m || m->nbuffer != sizes[getnsize()-1]) {
     mju_closeResource(r);
     mju_warning("Corrupted model, wrong size parameters");
     mj_deleteModel(m);
     return NULL;
   }
 
-  // set info fields
-  memcpy(m, info, sizeof(int)*getnint());
+  // set integer fields
+  {
+    int int_idx = 0;
+    int size_idx = 0;
+    #define X(name) \
+        m->name = _Generic(m->name, size_t: sizes[size_idx++], default: ints[int_idx++]);
+    MJMODEL_INTS
+    #undef X
+  }
 
   // read options and buffer
   bufread((void*)&m->opt, sizeof(mjOption), buffer_sz, buffer, &ptrbuf);
@@ -775,7 +815,8 @@ void mj_deleteModel(mjModel* m) {
 // size of buffer needed to hold model
 int mj_sizeModel(const mjModel* m) {
   int size = (
-    sizeof(int)*(4+getnint())
+    sizeof(int)*(NHEADER+getnint())
+    + sizeof(size_t)*getnsize()
     + sizeof(mjOption)
     + sizeof(mjVisual)
     + sizeof(mjStatistic));
@@ -1030,7 +1071,7 @@ static mjData* _makeData(const mjModel* m) {
 #undef X
 
   // copy stack size from model
-  d->nstack = m->nstack;
+  d->narena = m->narena;
 
   // allocate buffer
   d->buffer = mju_malloc(d->nbuffer);
@@ -1040,7 +1081,7 @@ static mjData* _makeData(const mjModel* m) {
   }
 
   // allocate arena
-  d->arena = mju_malloc(d->nstack * sizeof(mjtNum));
+  d->arena = mju_malloc(d->narena);
   if (!d->arena) {
     mju_free(d->buffer);
     mju_free(d);
@@ -1091,7 +1132,7 @@ mjData* mj_copyData(mjData* dest, const mjModel* m, const mjData* src) {
   if (dest->nbuffer != src->nbuffer) {
     mjERROR("dest and src data buffers have different size");
   }
-  if (dest->nstack != src->nstack) {
+  if (dest->narena != src->narena) {
     mjERROR("dest and src stacks have different size");
   }
 
@@ -1164,7 +1205,7 @@ void* mj_arenaAlloc(mjData* d, int bytes, int alignment) {
   int padding = misalignment ? alignment - misalignment : 0;
 
   // check size
-  size_t bytes_available = (d->nstack - d->pstack) * sizeof(mjtNum);
+  size_t bytes_available = d->narena - d->pstack;
   if (d->parena + padding + bytes > bytes_available) {
     return NULL;
   }
@@ -1172,7 +1213,7 @@ void* mj_arenaAlloc(mjData* d, int bytes, int alignment) {
   // allocate, update max, return pointer to buffer
   void* result = (char*)d->arena + d->parena + padding;
   d->parena += padding + bytes;
-  d->maxuse_arena = mjMAX(d->maxuse_arena, d->pstack*sizeof(mjtNum) + d->parena);
+  d->maxuse_arena = mjMAX(d->maxuse_arena, d->pstack + d->parena);
 
 #ifdef ADDRESS_SANITIZER
   ASAN_UNPOISON_MEMORY_REGION(result, bytes);
@@ -1202,26 +1243,26 @@ void* mj_stackAllocByte(mjData* d, size_t size) {
 #endif
 
   // size of entire arena/stack in bytes
-  size_t stack_size_bytes = d->nstack * sizeof(mjtNum);
+  size_t stack_size_bytes = d->narena;
 
   // end of the arena
   uintptr_t end_of_arena_ptr = (uintptr_t)d->arena + stack_size_bytes;
 
   // current top of the stack
-  uintptr_t end_ptr = end_of_arena_ptr - (d->pstack * sizeof(mjtNum));
+  uintptr_t end_ptr = end_of_arena_ptr - d->pstack;
 
   // start of the memory to be allocated to the buffer
   uintptr_t start_ptr = end_ptr - (size + mjREDZONE);
 
-  // move start_ptr back to align to mjtNum
+  // move start_ptr back to align to max_align_t
   start_ptr -= start_ptr % _Alignof(max_align_t);  // NOLINT
 
   // new top of the stack
   uintptr_t new_pstack_ptr = start_ptr - mjREDZONE;
-  size_t new_pstack = (end_of_arena_ptr - new_pstack_ptr) / sizeof(mjtNum);
+  size_t new_pstack = end_of_arena_ptr - new_pstack_ptr;
 
   // exclude red zone from stack usage statistics
-  size_t current_alloc_usage = (end_ptr - new_pstack_ptr - 2 * mjREDZONE) / sizeof(mjtNum);
+  size_t current_alloc_usage = end_ptr - new_pstack_ptr - 2 * mjREDZONE;
   size_t usage = current_alloc_usage + d->pstack;
 
   // check size
@@ -1235,13 +1276,9 @@ void* mj_stackAllocByte(mjData* d, size_t size) {
   }
 
 #ifdef ADDRESS_SANITIZER
-  if ((uintptr_t)start_ptr % sizeof(mjtNum)) {
-    mjERROR("mj_stackAlloc failed to align to sizeof(mjtNum)");
-  }
-
   // actual stack usage (without red zone bytes) is stored in the red zone
   if (d->pstack) {
-    size_t* prev_usage_ptr = (size_t*)(end_of_arena_ptr - d->pstack*sizeof(mjtNum));
+    size_t* prev_usage_ptr = (size_t*)(end_of_arena_ptr - d->pstack);
     ASAN_UNPOISON_MEMORY_REGION(prev_usage_ptr, sizeof(size_t));
     usage = current_alloc_usage + *prev_usage_ptr;
     ASAN_POISON_MEMORY_REGION(prev_usage_ptr, sizeof(size_t));
@@ -1261,7 +1298,7 @@ void* mj_stackAllocByte(mjData* d, size_t size) {
   // update pstack and max usage statistics
   d->pstack = new_pstack;
   d->maxuse_stack = mjMAX(d->maxuse_stack, usage);
-  d->maxuse_arena = mjMAX(d->maxuse_arena, usage*sizeof(mjtNum) + d->parena);
+  d->maxuse_arena = mjMAX(d->maxuse_arena, usage + d->parena);
 
   return (void*)start_ptr;
 }
@@ -1294,11 +1331,11 @@ static void _resetData(const mjModel* m, mjData* d, unsigned char debug_value) {
 
   // poison the entire arena+stack memory region when built with asan
 #ifdef ADDRESS_SANITIZER
-  ASAN_POISON_MEMORY_REGION(d->arena, d->nstack * sizeof(mjtNum));
+  ASAN_POISON_MEMORY_REGION(d->arena, d->narena);
 #endif
 
 #ifdef MEMORY_SANITIZER
-  __msan_allocated_memory(d->arena, d->nstack * sizeof(mjtNum));
+  __msan_allocated_memory(d->arena, d->narena);
 #endif
 
 #define X(type, name, nr, nc) d->name = NULL;

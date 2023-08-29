@@ -78,7 +78,7 @@ constexpr auto XArrayShapeImpl(const std::string_view dim1_str) {
 }
 
 inline std::size_t NConMax(const mjData* d) {
-  return d->nstack * sizeof(mjtNum) / sizeof(mjContact);
+  return d->narena / sizeof(mjContact);
 }
 }  // namespace
 
@@ -459,7 +459,7 @@ MjModelWrapper MjModelWrapper::Deserialize(std::istream& input) {
     throw py::value_error("Incompatible serialization version.");
   }
 
-  int model_size = ReadInt(input);
+  std::size_t model_size = ReadInt(input);
   CheckInput(input, "mjModel");
   if (model_size < 0) {
     throw py::value_error("Invalid serialized mjModel.");

@@ -124,8 +124,8 @@ struct mjSolverStat_ {       // per-iteration solver statistics
 typedef struct mjSolverStat_ mjSolverStat;
 struct mjData_ {
   // constant sizes
-  int     nstack;            // number of mjtNums that can fit in the arena+stack space
-  int     nbuffer;           // size of main buffer in bytes
+  size_t  narena;            // size of the arena in bytes (inclusive of the stack)
+  size_t  nbuffer;           // size of main buffer in bytes
   int     nplugin;           // number of plugin instances
 
   // stack pointer
@@ -135,7 +135,7 @@ struct mjData_ {
   size_t  parena;            // first available byte in arena
 
   // memory utilization stats
-  int     maxuse_stack;      // maximum stack allocation
+  size_t  maxuse_stack;      // maximum stack allocation
   size_t  maxuse_arena;      // maximum arena allocation
   int     maxuse_con;        // maximum number of contacts
   int     maxuse_efc;        // maximum number of scalar constraints
@@ -881,12 +881,12 @@ struct mjModel_ {
   int nemax;                      // number of potential equality-constraint rows
   int njmax;                      // number of available rows in constraint Jacobian
   int nconmax;                    // number of potential contacts in contact list
-  int nstack;                     // number of fields in mjData stack
   int nuserdata;                  // number of extra fields in mjData
   int nsensordata;                // number of fields in sensor data vector
   int npluginstate;               // number of fields in plugin state vector
 
-  int nbuffer;                    // number of bytes in buffer
+  size_t narena;                  // number of bytes in the mjData arena (inclusive of stack)
+  size_t nbuffer;                 // number of bytes in buffer
 
   // ------------------------------- options and statistics
 

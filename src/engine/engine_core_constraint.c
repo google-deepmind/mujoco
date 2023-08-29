@@ -71,13 +71,13 @@ static int arenaAllocEfc(const mjModel* m, mjData* d) {
   // poison remaining memory
 #ifdef ADDRESS_SANITIZER
   ASAN_POISON_MEMORY_REGION(
-    (char*)d->arena + d->parena, (d->nstack - d->pstack) * sizeof(mjtNum) - d->parena);
+    (char*)d->arena + d->parena, d->narena - d->pstack - d->parena);
 #endif
 
 #define X(type, name, nr, nc)                                             \
   d->name = mj_arenaAlloc(d, sizeof(type) * (nr) * (nc), _Alignof(type)); \
   if (!d->name) {                                                         \
-    mj_warning(d, mjWARN_CNSTRFULL, d->nstack * sizeof(mjtNum));          \
+    mj_warning(d, mjWARN_CNSTRFULL, d->narena);                           \
     clearEfc(d);                                                          \
     d->parena = d->ncon * sizeof(mjContact);                              \
     return 0;                                                             \
@@ -179,7 +179,7 @@ int mj_addContact(const mjModel* m, mjData* d, const mjContact* con) {
   d->parena = d->ncon * sizeof(mjContact);
 #ifdef ADDRESS_SANITIZER
   ASAN_POISON_MEMORY_REGION(
-    (char*)d->arena + d->parena, (d->nstack - d->pstack) * sizeof(mjtNum) - d->parena);
+    (char*)d->arena + d->parena, d->narena - d->pstack - d->parena);
 #endif
   clearEfc(d);
 

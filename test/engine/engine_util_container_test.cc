@@ -61,8 +61,7 @@ TEST(TestMjArrayList, TestMjArrayListSingleThreaded) {
   EXPECT_EQ(mju_arrayListSize(array_list), kNumElements);
 
   constexpr int kExpectedMaxUseStack =
-      GetExpectedStackUsageBytes<DataType, kNumElements, kInitialCapacity>() /
-      sizeof(mjtNum);
+      GetExpectedStackUsageBytes<DataType, kNumElements, kInitialCapacity>();
   EXPECT_EQ(d->maxuse_stack, kExpectedMaxUseStack);
 
   for (int i = 0; i < kNumElements; ++i) {

@@ -54,7 +54,7 @@
     d->pstack = _mark;                                           \
     ASAN_POISON_MEMORY_REGION(                                   \
         (char*)d->arena + d->parena,                             \
-        (d->nstack - d->pstack) * sizeof(mjtNum) - d->parena );  \
+        d->narena - d->pstack - d->parena);                      \
   }
 #endif
 

@@ -151,8 +151,8 @@ typedef struct mjSolverStat_ mjSolverStat;
 
 struct mjData_ {
   // constant sizes
-  int     nstack;            // number of mjtNums that can fit in the arena+stack space
-  int     nbuffer;           // size of main buffer in bytes
+  size_t  narena;            // size of the arena in bytes (inclusive of the stack)
+  size_t  nbuffer;           // size of main buffer in bytes
   int     nplugin;           // number of plugin instances
 
   // stack pointer
@@ -162,7 +162,7 @@ struct mjData_ {
   size_t  parena;            // first available byte in arena
 
   // memory utilization stats
-  int     maxuse_stack;      // maximum stack allocation
+  size_t  maxuse_stack;      // maximum stack allocation
   size_t  maxuse_arena;      // maximum arena allocation
   int     maxuse_con;        // maximum number of contacts
   int     maxuse_efc;        // maximum number of scalar constraints

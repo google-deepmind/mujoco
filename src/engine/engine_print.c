@@ -242,8 +242,13 @@ void mj_printFormattedModel(const mjModel* m, const char* filename, const char* 
   // sizes
 #define X( name )                                 \
   if (m->name) {                                  \
+    const char* format = _Generic(                \
+        m->name,                                  \
+        size_t : SIZE_T_FORMAT,                   \
+        default : INT_FORMAT);                    \
     fprintf(fp, NAME_FORMAT, #name);              \
-    fprintf(fp, INT_FORMAT "\n", m->name);        \
+    fprintf(fp, format, m->name);                 \
+    fprintf(fp, "\n");                            \
   }
 
   MJMODEL_INTS

@@ -570,12 +570,12 @@ public unsafe struct mjSolverStat_ {
 
 [StructLayout(LayoutKind.Sequential)]
 public unsafe struct mjData_ {
-  public int nstack;
-  public int nbuffer;
+  public UIntPtr narena;
+  public UIntPtr nbuffer;
   public int nplugin;
   public UIntPtr pstack;
   public UIntPtr parena;
-  public int maxuse_stack;
+  public UIntPtr maxuse_stack;
   public UIntPtr maxuse_arena;
   public int maxuse_con;
   public int maxuse_efc;
@@ -1965,11 +1965,11 @@ public unsafe struct mjModel_ {
   public int nemax;
   public int njmax;
   public int nconmax;
-  public int nstack;
   public int nuserdata;
   public int nsensordata;
   public int npluginstate;
-  public int nbuffer;
+  public UIntPtr narena;
+  public UIntPtr nbuffer;
   public mjOption_ opt;
   public mjVisual_ vis;
   public mjStatistic_ stat;

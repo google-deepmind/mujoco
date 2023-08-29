@@ -100,7 +100,7 @@ static void clearIsland(mjData* d, size_t parena) {
   // poison remaining memory
 #ifdef ADDRESS_SANITIZER
   ASAN_POISON_MEMORY_REGION(
-    (char*)d->arena + d->parena, (d->nstack - d->pstack) * sizeof(mjtNum) - d->parena);
+    (char*)d->arena + d->parena, d->narena - d->pstack - d->parena);
 #endif
 }
 
@@ -118,7 +118,7 @@ static int arenaAllocIsland(const mjModel* m, mjData* d) {
 #define X(type, name, nr, nc)                                             \
   d->name = mj_arenaAlloc(d, sizeof(type) * (nr) * (nc), _Alignof(type)); \
   if (!d->name) {                                                         \
-    mj_warning(d, mjWARN_CNSTRFULL, d->nstack * sizeof(mjtNum));          \
+    mj_warning(d, mjWARN_CNSTRFULL, d->narena);                           \
     clearIsland(d, parena_old);                                           \
     return 0;                                                             \
   }

@@ -1341,7 +1341,7 @@ PYBIND11_MODULE(_functions, pymodule) {
 #ifdef ADDRESS_SANITIZER
         ASAN_POISON_MEMORY_REGION(
             static_cast<char*>(data->arena),
-            (data->nstack - data->pstack) * sizeof(mjtNum));
+            data->narena - data->pstack);
 #endif
           data->ncon = 0;
           data->nefc = 0;

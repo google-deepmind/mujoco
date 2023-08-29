@@ -151,7 +151,7 @@ class mjCModel {
   int nemax;                      // max number of equality constraints
   int njmax;                      // max number of constraints (Jacobian rows)
   int nconmax;                    // max number of detected contacts (mjContact array size)
-  int nstack;                     // (deprecated) number of fields in mjData stack
+  size_t nstack;                  // (deprecated) number of fields in mjData stack
   int nuserdata;                  // number extra fields in mjData
   int nuser_body;                 // number of mjtNums in body_user
   int nuser_jnt;                  // number of mjtNums in jnt_user
