@@ -309,7 +309,7 @@ void mj_solPGS(const mjModel* m, mjData* d, int maxiter) {
   mjtNum v[6], v1[6], Athis[36], Ac[25], bc[5], res[6], oldforce[6];
   mjContact* con;
   mjMARKSTACK;
-  mjtNum* ARinv = mj_stackAlloc(d, nefc);
+  mjtNum* ARinv = mj_stackAllocNum(d, nefc);
   int* oldstate = mj_stackAllocInt(d, nefc);
 
   // precompute inverse diagonal of AR
@@ -511,7 +511,7 @@ void mj_solNoSlip(const mjModel* m, mjData* d, int maxiter) {
   mjtNum v[5], Ac[25], bc[5], res[5], oldforce[5], delta[5], mid, y, K0, K1;
   mjContact* con;
   mjMARKSTACK;
-  mjtNum* ARinv = mj_stackAlloc(d, nefc);
+  mjtNum* ARinv = mj_stackAllocNum(d, nefc);
   int* oldstate = mj_stackAllocInt(d, nefc);
 
   // precompute inverse diagonal of A
@@ -755,20 +755,20 @@ static void CGallocate(const mjModel* m, mjData* d,
   memset(ctx, 0, sizeof(mjCGContext));
 
   // common arrays
-  ctx->Jaref  = mj_stackAlloc(d, nefc);
-  ctx->Jv     = mj_stackAlloc(d, nefc);
-  ctx->Ma     = mj_stackAlloc(d, nv);
-  ctx->Mv     = mj_stackAlloc(d, nv);
-  ctx->grad   = mj_stackAlloc(d, nv);
-  ctx->Mgrad  = mj_stackAlloc(d, nv);
-  ctx->search = mj_stackAlloc(d, nv);
-  ctx->quad   = mj_stackAlloc(d, nefc*3);
+  ctx->Jaref  = mj_stackAllocNum(d, nefc);
+  ctx->Jv     = mj_stackAllocNum(d, nefc);
+  ctx->Ma     = mj_stackAllocNum(d, nv);
+  ctx->Mv     = mj_stackAllocNum(d, nv);
+  ctx->grad   = mj_stackAllocNum(d, nv);
+  ctx->Mgrad  = mj_stackAllocNum(d, nv);
+  ctx->search = mj_stackAllocNum(d, nv);
+  ctx->quad   = mj_stackAllocNum(d, nefc*3);
 
   // Hessian (Newton only)
   ctx->flg_Newton = flg_Newton;
   if (flg_Newton) {
-    ctx->H      = mj_stackAlloc(d, nv*nv);
-    ctx->Hcone  = mj_stackAlloc(d, nv*nv);
+    ctx->H      = mj_stackAllocNum(d, nv*nv);
+    ctx->Hcone  = mj_stackAllocNum(d, nv*nv);
     ctx->rownnz = mj_stackAllocInt(d, nv);
     ctx->rowadr = mj_stackAllocInt(d, nv);
     ctx->colind = mj_stackAllocInt(d, nv*nv);
@@ -1279,8 +1279,8 @@ static void HessianCone(const mjModel* m, mjData* d, mjCGContext* ctx) {
   mjMARKSTACK;
 
   // storage for L'*J
-  mjtNum* LTJ = mj_stackAlloc(d, 6*nv);
-  mjtNum* LTJ_row = mj_stackAlloc(d, nv);
+  mjtNum* LTJ = mj_stackAllocNum(d, 6*nv);
+  mjtNum* LTJ_row = mj_stackAllocNum(d, nv);
   int* LTJ_ind = mj_stackAllocInt(d, nv);
 
   // start with Hcone = H
@@ -1357,7 +1357,7 @@ static void HessianDirect(const mjModel* m, mjData* d, mjCGContext* ctx) {
   mjMARKSTACK;
 
   // compute D corresponding to quad states
-  mjtNum* D = mj_stackAlloc(d, nefc);
+  mjtNum* D = mj_stackAllocNum(d, nefc);
   for (int i=0; i < nefc; i++) {
     if (d->efc_state[i] == mjCNSTRSTATE_QUADRATIC) {
       D[i] = d->efc_D[i];
@@ -1372,7 +1372,7 @@ static void HessianDirect(const mjModel* m, mjData* d, mjCGContext* ctx) {
     int nnz = m->nD;  // use sparse dof-dof matrix
     int* M_rownnz = mj_stackAllocInt(d, nv);  // actual nnz count
     int* M_colind = mj_stackAllocInt(d, nnz);
-    mjtNum* M = mj_stackAlloc(d, nnz);
+    mjtNum* M = mj_stackAllocNum(d, nnz);
     mj_makeMSparse(m, d, M, M_rownnz, NULL, M_colind);
 
     // compute H = J'*D*J
@@ -1446,7 +1446,7 @@ static void HessianIncremental(const mjModel* m, mjData* d,
   mjMARKSTACK;
 
   // local space
-  mjtNum* vec = mj_stackAlloc(d, nv);
+  mjtNum* vec = mj_stackAllocNum(d, nv);
   int* vec_ind = mj_stackAllocInt(d, nv);
 
   // clear update counter
@@ -1521,9 +1521,9 @@ static void mj_solCGNewton(const mjModel* m, mjData* d, int maxiter, int flg_New
 
   // allocate local storage
   if (!flg_Newton) {
-    gradold     = mj_stackAlloc(d, nv);
-    Mgradold    = mj_stackAlloc(d, nv);
-    Mgraddif    = mj_stackAlloc(d, nv);
+    gradold     = mj_stackAllocNum(d, nv);
+    Mgradold    = mj_stackAllocNum(d, nv);
+    Mgraddif    = mj_stackAllocNum(d, nv);
   }
   int* oldstate = mj_stackAllocInt(d, nefc);
 

@@ -2212,7 +2212,7 @@ mjData* mj_copyData(mjData* dest, const mjModel* m, const mjData* src);
 void mj_resetData(const mjModel* m, mjData* d);
 void mj_resetDataDebug(const mjModel* m, mjData* d, unsigned char debug_value);
 void mj_resetDataKeyframe(const mjModel* m, mjData* d, int key);
-mjtNum* mj_stackAlloc(mjData* d, int size);
+mjtNum* mj_stackAllocNum(mjData* d, int size);
 int* mj_stackAllocInt(mjData* d, int size);
 void mj_deleteData(mjData* d);
 void mj_resetCallbacks(void);

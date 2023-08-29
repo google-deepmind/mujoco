@@ -1161,7 +1161,7 @@ void mj_multiRay(const mjModel* m, mjData* d, const mjtNum pnt[3], const mjtNum*
   mjMARKSTACK;
 
   // allocate source
-  mjtNum* geom_ba = mj_stackAlloc(d, 4*m->ngeom);
+  mjtNum* geom_ba = mj_stackAllocNum(d, 4*m->ngeom);
   int* geom_eliminate = mj_stackAllocInt(d, m->ngeom);
 
   // initialize source

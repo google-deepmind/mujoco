@@ -559,7 +559,7 @@ void mju_sqrMatTDSparse(mjtNum* res, const mjtNum* mat, const mjtNum* matT,
   mjMARKSTACK;
 
   // a dense row buffer that stores the current row in the resulting matrix
-  mjtNum* buffer = mj_stackAlloc(d, nc);
+  mjtNum* buffer = mj_stackAllocNum(d, nc);
 
   // these mark the currently set columns in the dense row buffer,
   // used for when creating the resulting sparse row

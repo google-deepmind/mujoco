@@ -62,8 +62,8 @@ static void set0(mjModel* m, mjData* d) {
   int id, id1, id2, dnum, nv = m->nv;
   mjtNum A[36] = {0}, pos[3], quat[4];
   mjMARKSTACK;
-  mjtNum* jac = mj_stackAlloc(d, 6*nv);
-  mjtNum* tmp = mj_stackAlloc(d, 6*nv);
+  mjtNum* jac = mj_stackAllocNum(d, 6*nv);
+  mjtNum* tmp = mj_stackAllocNum(d, 6*nv);
   int* cammode = 0;
   int* lightmode = 0;
 
@@ -284,7 +284,7 @@ static void setStat(mjModel* m, mjData* d) {
   mjtNum xmax[3] = {-1E+10, -1E+10, -1E+10};
   mjtNum rbound;
   mjMARKSTACK;
-  mjtNum* body = mj_stackAlloc(d, m->nbody);
+  mjtNum* body = mj_stackAllocNum(d, m->nbody);
 
   // compute bounding box of bodies, joint centers, geoms and sites
   for (int i=1; i < m->nbody; i++) {

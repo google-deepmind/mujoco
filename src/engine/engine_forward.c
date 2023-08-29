@@ -200,7 +200,7 @@ void mj_fwdActuation(const mjModel* m, mjData* d) {
 
   // local, clamped copy of ctrl
   mjMARKSTACK;
-  mjtNum *ctrl = mj_stackAlloc(d, nu);
+  mjtNum *ctrl = mj_stackAllocNum(d, nu);
   if (mjDISABLED(mjDSBL_CLAMPCTRL)) {
     mju_copy(ctrl, d->ctrl, nu);
   } else {
@@ -426,7 +426,7 @@ static void warmstart(const mjModel* m, mjData* d) {
   // warmstart with best of (qacc_warmstart, qacc_smooth)
   if (!mjDISABLED(mjDSBL_WARMSTART)) {
     mjMARKSTACK;
-    mjtNum* jar = mj_stackAlloc(d, nefc);
+    mjtNum* jar = mj_stackAllocNum(d, nefc);
 
     // start with qacc = qacc_warmstart
     mju_copy(d->qacc, d->qacc_warmstart, nv);
@@ -443,7 +443,7 @@ static void warmstart(const mjModel* m, mjData* d) {
     if (m->opt.solver == mjSOL_PGS) {
       // cost(force_warmstart)
       mjtNum PGS_warmstart = mju_dot(d->efc_force, d->efc_b, nefc);
-      mjtNum* ARf = mj_stackAlloc(d, nefc);
+      mjtNum* ARf = mj_stackAllocNum(d, nefc);
       if (mj_isSparse(m))
         mju_mulMatVecSparse(ARf, d->efc_AR, d->efc_force, nefc,
                             d->efc_AR_rownnz, d->efc_AR_rowadr,
@@ -463,7 +463,7 @@ static void warmstart(const mjModel* m, mjData* d) {
     // non-PGS
     else {
       // add Gauss to cost(qacc_warmstart)
-      mjtNum* Ma = mj_stackAlloc(d, nv);
+      mjtNum* Ma = mj_stackAllocNum(d, nv);
       mj_mulM(m, d, Ma, d->qacc_warmstart);
       for (int i=0; i < nv; i++) {
         cost_warmstart += 0.5*(Ma[i]-d->qfrc_smooth[i])*(d->qacc_warmstart[i]-d->qacc_smooth[i]);
@@ -590,8 +590,8 @@ static void mj_advance(const mjModel* m, mjData* d,
 void mj_EulerSkip(const mjModel* m, mjData* d, int skipfactor) {
   int nv = m->nv, nM = m->nM;
   mjMARKSTACK;
-  mjtNum* qfrc = mj_stackAlloc(d, nv);
-  mjtNum* qacc = mj_stackAlloc(d, nv);
+  mjtNum* qfrc = mj_stackAllocNum(d, nv);
+  mjtNum* qacc = mj_stackAllocNum(d, nv);
 
   // check for dof damping if disable flag is not set
   int dof_damping = 0;
@@ -612,7 +612,7 @@ void mj_EulerSkip(const mjModel* m, mjData* d, int skipfactor) {
   // damping: integrate implicitly
   else {
     if (!skipfactor) {
-      mjtNum* MhB = mj_stackAlloc(d, nM);
+      mjtNum* MhB = mj_stackAllocNum(d, nM);
 
       // MhB = M + h*diag(B)
       mju_copy(MhB, d->qM, m->nM);
@@ -673,10 +673,10 @@ void mj_RungeKutta(const mjModel* m, mjData* d, int N) {
   }
 
   // allocate space for intermediate solutions
-  dX = mj_stackAlloc(d, 2*nv+na);
+  dX = mj_stackAllocNum(d, 2*nv+na);
   for (int i=0; i < N; i++) {
-    X[i] = mj_stackAlloc(d, nq+nv+na);
-    F[i] = mj_stackAlloc(d, nv+na);
+    X[i] = mj_stackAllocNum(d, nq+nv+na);
+    F[i] = mj_stackAllocNum(d, nv+na);
   }
 
   // precompute C and T;  C,T,A have size (N-1)
@@ -756,8 +756,8 @@ void mj_implicitSkip(const mjModel* m, mjData* d, int skipfactor) {
   int nv = m->nv;
 
   mjMARKSTACK;
-  mjtNum* qfrc = mj_stackAlloc(d, nv);
-  mjtNum* qacc = mj_stackAlloc(d, nv);
+  mjtNum* qfrc = mj_stackAllocNum(d, nv);
+  mjtNum* qacc = mj_stackAllocNum(d, nv);
 
   // set qfrc = qfrc_smooth + qfrc_constraint
   mju_add(qfrc, d->qfrc_smooth, d->qfrc_constraint, nv);
@@ -790,7 +790,7 @@ void mj_implicitSkip(const mjModel* m, mjData* d, int skipfactor) {
       mjd_smooth_vel(m, d, /* flg_bias = */ 0);
 
       // modified mass matrix MhB = qDeriv[Lower]
-      mjtNum* MhB = mj_stackAlloc(d, m->nM);
+      mjtNum* MhB = mj_stackAllocNum(d, m->nM);
       mj_copyD2MSparse(m, d, MhB, d->qDeriv);
 
       // set MhB = M - dt*qDeriv

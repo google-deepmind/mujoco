@@ -38,17 +38,18 @@ General
    Euler integrator. See the :ref:`Numerical Integration<geIntegration>` section for more details.
 #. Added the flag :ref:`invdiscrete<option-flag-invdiscrete>`, which enables discrete-time inverse dynamics for all
    :ref:`integrators<option-integrator>` other than ``RK4``. See the flag documentation for more details.
+#. Renamed the function ``mj_stackAlloc`` to ``mj_stackAllocNum``.
 
 Python bindings
 ^^^^^^^^^^^^^^^
 
-8. Fixed `#870 <https://github.com/deepmind/mujoco/issues/870>`__ where calling ``update_scene`` with an invalid
+9. Fixed `#870 <https://github.com/deepmind/mujoco/issues/870>`__ where calling ``update_scene`` with an invalid
    camera name used the default camera.
 
 Bug fixes
 ^^^^^^^^^
 
-9. Fixed a bug that was causing the geom margins to be ignored during the midphase.
+10. Fixed a bug that was causing the geom margins to be ignored during the midphase.
 
 
 Version 2.3.7 (July 20, 2023)

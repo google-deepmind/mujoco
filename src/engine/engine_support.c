@@ -279,7 +279,7 @@ void mj_jacBodyCom(const mjModel* m, const mjData* d, mjtNum* jacp, mjtNum* jacr
 void mj_jacSubtreeCom(const mjModel* m, mjData* d, mjtNum* jacp, int body) {
   int nv = m->nv;
   mjMARKSTACK;
-  mjtNum* jacp_b = mj_stackAlloc(d, 3*nv);
+  mjtNum* jacp_b = mj_stackAllocNum(d, 3*nv);
 
   // clear output
   mju_zero(jacp, 3*nv);
@@ -325,8 +325,8 @@ void mj_jacPointAxis(const mjModel* m, mjData* d, mjtNum* jacPoint, mjtNum* jacA
 
   // get full Jacobian of point
   mjMARKSTACK;
-  mjtNum* jacp = (jacPoint ? jacPoint : mj_stackAlloc(d, 3*nv));
-  mjtNum* jacr = mj_stackAlloc(d, 3*nv);
+  mjtNum* jacp = (jacPoint ? jacPoint : mj_stackAllocNum(d, 3*nv));
+  mjtNum* jacr = mj_stackAllocNum(d, 3*nv);
   mj_jac(m, d, jacp, jacr, point, body);
 
   // jacAxis_col = cross(jacr_col, axis)
@@ -957,7 +957,7 @@ void mj_addM(const mjModel* m, mjData* d, mjtNum* dst,
     int nnz = m->nD;  // use sparse dof-dof matrix
     int* M_rownnz = mj_stackAllocInt(d, nv);  // actual nnz count
     int* M_colind = mj_stackAllocInt(d, nnz);
-    mjtNum* M = mj_stackAlloc(d, nnz);
+    mjtNum* M = mj_stackAllocNum(d, nnz);
 
     mj_makeMSparse(m, d, M, M_rownnz, NULL, M_colind);
     mj_addMSparse(m, d, dst, rownnz, rowadr, colind, M,
@@ -1051,7 +1051,7 @@ void mj_addMSparse(const mjModel* m, mjData* d, mjtNum* dst,
 
   mjMARKSTACK;
   int* buf_ind = mj_stackAllocInt(d, nv);
-  mjtNum* sparse_buf = mj_stackAlloc(d, nv);
+  mjtNum* sparse_buf = mj_stackAllocNum(d, nv);
 
   // add to destination
   for (int i=0; i < nv; i++) {
@@ -1162,9 +1162,9 @@ void mj_applyFT(const mjModel* m, mjData* d,
 
   // allocate local variables
   mjMARKSTACK;
-  mjtNum* jacp = mj_stackAlloc(d, 3*nv);
-  mjtNum* jacr = mj_stackAlloc(d, 3*nv);
-  mjtNum* qforce = mj_stackAlloc(d, nv);
+  mjtNum* jacp = mj_stackAllocNum(d, 3*nv);
+  mjtNum* jacr = mj_stackAllocNum(d, 3*nv);
+  mjtNum* qforce = mj_stackAllocNum(d, nv);
 
   // make sure body is in range
   if (body < 0 || body >= m->nbody) {

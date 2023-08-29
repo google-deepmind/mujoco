@@ -189,7 +189,7 @@ MJAPI void mj_resetDataDebug(const mjModel* m, mjData* d, unsigned char debug_va
 MJAPI void mj_resetDataKeyframe(const mjModel* m, mjData* d, int key);
 
 // Allocate array of mjtNums on mjData stack. Call mju_error on stack overflow.
-MJAPI mjtNum* mj_stackAlloc(mjData* d, int size);
+MJAPI mjtNum* mj_stackAllocNum(mjData* d, int size);
 
 // Allocate array of ints on mjData stack. Call mju_error on stack overflow.
 MJAPI int* mj_stackAllocInt(mjData* d, int size);

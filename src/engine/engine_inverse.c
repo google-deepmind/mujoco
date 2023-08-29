@@ -96,7 +96,7 @@ static void mj_discreteAcc(const mjModel* m, mjData* d) {
   mjtNum *qacc = d->qacc;
 
   mjMARKSTACK;
-  mjtNum* qfrc = mj_stackAlloc(d, nv);
+  mjtNum* qfrc = mj_stackAllocNum(d, nv);
 
   // use selected integrator
   switch ((mjtIntegrator) m->opt.integrator) {
@@ -149,11 +149,11 @@ static void mj_discreteAcc(const mjModel* m, mjData* d) {
     mjd_smooth_vel(m, d, /* flg_bias = */ 0);
 
     // save mass matrix
-    mjtNum* qMsave = mj_stackAlloc(d, m->nM);
+    mjtNum* qMsave = mj_stackAllocNum(d, m->nM);
     mju_copy(qMsave, d->qM, m->nM);
 
     // set M = M - dt*qDeriv (reduced to M nonzeros)
-    mjtNum* qDerivReduced = mj_stackAlloc(d, m->nM);
+    mjtNum* qDerivReduced = mj_stackAllocNum(d, m->nM);
     mj_copyD2MSparse(m, d, qDerivReduced, d->qDeriv);
     mju_addToScl(d->qM, qDerivReduced, -m->opt.timestep, m->nM);
 
@@ -186,7 +186,7 @@ void mj_invConstraint(const mjModel* m, mjData* d) {
   }
 
   mjMARKSTACK;
-  mjtNum* jar = mj_stackAlloc(d, nefc);
+  mjtNum* jar = mj_stackAllocNum(d, nefc);
 
   // compute jar = Jac*qacc - aref
   mj_mulJacVec(m, d, jar, d->qacc);
@@ -233,7 +233,7 @@ void mj_inverseSkip(const mjModel* m, mjData* d,
 
   if (mjENABLED(mjENBL_INVDISCRETE)) {
     // save current qacc
-    qacc = mj_stackAlloc(d, nv);
+    qacc = mj_stackAllocNum(d, nv);
     mju_copy(qacc, d->qacc, nv);
 
     // modify qacc in-place
@@ -286,10 +286,10 @@ void mj_compareFwdInv(const mjModel* m, mjData* d) {
   }
 
   // allocate
-  qforce = mj_stackAlloc(d, nv);
-  dif = mj_stackAlloc(d, nv);
-  save_qfrc_constraint = mj_stackAlloc(d, nv);
-  save_efc_force = mj_stackAlloc(d, nefc);
+  qforce = mj_stackAllocNum(d, nv);
+  dif = mj_stackAllocNum(d, nv);
+  save_qfrc_constraint = mj_stackAllocNum(d, nv);
+  save_efc_force = mj_stackAllocNum(d, nefc);
 
   // qforce = qfrc_applied + J'*xfrc_applied + qfrc_actuator
   //  should equal result of inverse dynamics

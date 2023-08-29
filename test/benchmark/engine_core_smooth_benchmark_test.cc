@@ -112,9 +112,9 @@ static void BM_solveLD(benchmark::State& state, bool new_function) {
 
   // allocate gadient
   mjMARKSTACK;
-  mjtNum *grad = mj_stackAlloc(d, m->nv);
-  mjtNum *Ma = mj_stackAlloc(d, m->nv);
-  mjtNum *res = mj_stackAlloc(d, m->nv);
+  mjtNum *grad = mj_stackAllocNum(d, m->nv);
+  mjtNum *Ma = mj_stackAllocNum(d, m->nv);
+  mjtNum *res = mj_stackAllocNum(d, m->nv);
 
   // compute gradient
   mj_mulM(m, d, Ma, d->qacc);

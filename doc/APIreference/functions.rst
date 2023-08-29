@@ -1232,12 +1232,12 @@ mj_resetDataKeyframe
 
 Reset data, set fields from specified keyframe.
 
-.. _mj_stackAlloc:
+.. _mj_stackAllocNum:
 
-mj_stackAlloc
-~~~~~~~~~~~~~
+mj_stackAllocNum
+~~~~~~~~~~~~~~~~
 
-.. mujoco-include:: mj_stackAlloc
+.. mujoco-include:: mj_stackAllocNum
 
 Allocate array of mjtNums on :ref:`mjData` stack. Call mju_error on stack overflow.
 

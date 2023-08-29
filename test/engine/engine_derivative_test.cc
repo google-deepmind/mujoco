@@ -291,7 +291,7 @@ static void LinearSystem(const mjModel* m, mjData* d, mjtNum* A, mjtNum* B) {
 
   // === state-transition matrix A
   if (A) {
-    mjtNum *Ac = mj_stackAlloc(d, 2*nv*nv);
+    mjtNum *Ac = mj_stackAllocNum(d, 2*nv*nv);
     // Ac = H^-1 [diag(-stiffness) diag(-damping)]
     mju_zero(Ac, 2*nv*nv);
     for (int i=0; i < nv; i++) {
@@ -321,8 +321,8 @@ static void LinearSystem(const mjModel* m, mjData* d, mjtNum* A, mjtNum* B) {
 
   // === control-transition matrix B
   if (B) {
-    mjtNum *Bc = mj_stackAlloc(d, nu*nv);
-    mjtNum *BcT = mj_stackAlloc(d, nv*nu);
+    mjtNum *Bc = mj_stackAllocNum(d, nu*nv);
+    mjtNum *BcT = mj_stackAllocNum(d, nv*nu);
     mju_copy(Bc, d->actuator_moment, nv*nu);
     mj_solveLD(m, Bc, nu, d->qH, d->qHDiagInv);
     mju_transpose(BcT, Bc, nu, nv);

@@ -755,7 +755,7 @@ void mj_printFormattedData(const mjModel* m, mjData* d, const char* filename,
   }
 
   // allocate full inertia
-  M = mj_stackAlloc(d, m->nv*m->nv);
+  M = mj_stackAllocNum(d, m->nv*m->nv);
 
 #ifdef MEMORY_SANITIZER
   // If memory sanitizer is active, d->buffer will be marked as poisoned, even

@@ -677,9 +677,9 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
          ),
          doc='Reset data, set fields from specified keyframe.',
      )),
-    ('mj_stackAlloc',
+    ('mj_stackAllocNum',
      FunctionDecl(
-         name='mj_stackAlloc',
+         name='mj_stackAllocNum',
          return_type=PointerType(
              inner_type=ValueType(name='mjtNum'),
          ),

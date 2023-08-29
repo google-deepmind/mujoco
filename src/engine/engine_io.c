@@ -1266,7 +1266,7 @@ void* mj_stackAllocByte(mjData* d, size_t size) {
   return (void*)start_ptr;
 }
 
-mjtNum* mj_stackAlloc(mjData* d, int size) {
+mjtNum* mj_stackAllocNum(mjData* d, int size) {
   return (mjtNum*)mj_stackAllocByte(d, size * sizeof(mjtNum));
 }
 

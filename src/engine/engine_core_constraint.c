@@ -433,14 +433,14 @@ void mj_instantiateEquality(const mjModel* m, mjData* d) {
   }
 
   // allocate space
-  jac[0] = mj_stackAlloc(d, 6*nv);
-  jac[1] = mj_stackAlloc(d, 6*nv);
-  jacdif = mj_stackAlloc(d, 6*nv);
+  jac[0] = mj_stackAllocNum(d, 6*nv);
+  jac[1] = mj_stackAllocNum(d, 6*nv);
+  jacdif = mj_stackAllocNum(d, 6*nv);
   if (issparse) {
     chain = mj_stackAllocInt(d, nv);
     chain2 = mj_stackAllocInt(d, nv);
     buf_ind = mj_stackAllocInt(d, nv);
-    sparse_buf = mj_stackAlloc(d, nv);
+    sparse_buf = mj_stackAllocNum(d, nv);
   }
 
   // find active equality constraints
@@ -641,7 +641,7 @@ void mj_instantiateFriction(const mjModel* m, mjData* d) {
   }
 
   // allocate Jacobian
-  jac = mj_stackAlloc(d, nv);
+  jac = mj_stackAllocNum(d, nv);
 
   // find frictional dofs
   for (int i=0; i < nv; i++) {
@@ -702,7 +702,7 @@ void mj_instantiateLimit(const mjModel* m, mjData* d) {
   }
 
   // allocate Jacobian
-  jac = mj_stackAlloc(d, nv);
+  jac = mj_stackAllocNum(d, nv);
 
   // find joint limits
   for (int i=0; i < m->njnt; i++) {
@@ -847,13 +847,13 @@ void mj_instantiateContact(const mjModel* m, mjData* d) {
   }
 
   // allocate Jacobian
-  jac = mj_stackAlloc(d, 6*NV);
-  jacdifp = mj_stackAlloc(d, 3*NV);
-  jacdifr = mj_stackAlloc(d, 3*NV);
-  jac1p = mj_stackAlloc(d, 3*NV);
-  jac2p = mj_stackAlloc(d, 3*NV);
-  jac1r = mj_stackAlloc(d, 3*NV);
-  jac2r = mj_stackAlloc(d, 3*NV);
+  jac = mj_stackAllocNum(d, 6*NV);
+  jacdifp = mj_stackAllocNum(d, 3*NV);
+  jacdifr = mj_stackAllocNum(d, 3*NV);
+  jac1p = mj_stackAllocNum(d, 3*NV);
+  jac2p = mj_stackAllocNum(d, 3*NV);
+  jac1r = mj_stackAllocNum(d, 3*NV);
+  jac2r = mj_stackAllocNum(d, 3*NV);
   if (issparse) {
     chain = mj_stackAllocInt(d, NV);
   }
@@ -1755,8 +1755,8 @@ void mj_projectConstraint(const mjModel* m, mjData* d) {
   }
 
   // space for backsubM2(J')' and its traspose
-  mjtNum* JM2 = mj_stackAlloc(d, nefc*nv);
-  mjtNum* JM2T = mj_stackAlloc(d, nv*nefc);
+  mjtNum* JM2 = mj_stackAllocNum(d, nefc*nv);
+  mjtNum* JM2T = mj_stackAllocNum(d, nv*nefc);
 
   // sparse
   if (mj_isSparse(m)) {

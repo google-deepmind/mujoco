@@ -861,7 +861,7 @@ void mj_energyVel(const mjModel* m, mjData* d) {
     return;
   }
 
-  vec = mj_stackAlloc(d, m->nv);
+  vec = mj_stackAllocNum(d, m->nv);
 
   // kinetic energy:  0.5 * qvel' * M * qvel
   mj_mulM(m, d, vec, d->qvel);

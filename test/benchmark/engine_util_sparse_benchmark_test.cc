@@ -49,7 +49,7 @@ void ABSL_ATTRIBUTE_NOINLINE mju_sqrMatTDSparse_baseline(
     const int* colindT, const int* rowsuperT, mjData* d) {
   mjMARKSTACK;
   int* chain = mj_stackAllocInt(d, 2 * nc);
-  mjtNum* buffer = mj_stackAlloc(d, nc);
+  mjtNum* buffer = mj_stackAllocNum(d, nc);
 
   for (int r = 0; r < nc; r++) {
     res_rowadr[r] = r * nc;
@@ -355,11 +355,11 @@ static void BM_MatVecSparse(benchmark::State& state, int unroll) {
 
   // allocate gradient
   mjMARKSTACK;
-  mjtNum *Ma = mj_stackAlloc(d, m->nv);
-  mjtNum *vec = mj_stackAlloc(d, m->nv);
-  mjtNum *res = mj_stackAlloc(d, d->nefc);
-  mjtNum *grad = mj_stackAlloc(d, m->nv);
-  mjtNum *Mgrad  = mj_stackAlloc(d, m->nv);
+  mjtNum *Ma = mj_stackAllocNum(d, m->nv);
+  mjtNum *vec = mj_stackAllocNum(d, m->nv);
+  mjtNum *res = mj_stackAllocNum(d, d->nefc);
+  mjtNum *grad = mj_stackAllocNum(d, m->nv);
+  mjtNum *Mgrad  = mj_stackAllocNum(d, m->nv);
 
   // compute gradient
   mj_mulM(m, d, Ma, d->qacc);
@@ -434,13 +434,13 @@ static void BM_combineSparse(benchmark::State& state, CombineFuncPtr func) {
 
   // allocate
   mjMARKSTACK;
-  mjtNum* H = mj_stackAlloc(d, m->nv*m->nv);
+  mjtNum* H = mj_stackAllocNum(d, m->nv*m->nv);
   int* rownnz = mj_stackAllocInt(d, m->nv);
   int* rowadr = mj_stackAllocInt(d, m->nv);
   int* colind = mj_stackAllocInt(d, m->nv*m->nv);
 
   // compute D corresponding to quad states
-  mjtNum* D = mj_stackAlloc(d, d->nefc);
+  mjtNum* D = mj_stackAllocNum(d, d->nefc);
   for (int i = 0; i < d->nefc; i++) {
     if (d->efc_state[i] == mjCNSTRSTATE_QUADRATIC) {
       D[i] = d->efc_D[i];
@@ -513,7 +513,7 @@ static void BM_transposeSparse(benchmark::State& state, TransposeFuncPtr func) {
   mjMARKSTACK;
 
   // need uncompressed layout
-  mjtNum* res = mj_stackAlloc(d, m->nv * d->nefc);
+  mjtNum* res = mj_stackAllocNum(d, m->nv * d->nefc);
   int* res_rownnz = mj_stackAllocInt(d, m->nv);
   int* res_rowadr = mj_stackAllocInt(d, m->nv);
   int* res_colind = mj_stackAllocInt(d, m->nv * d->nefc);
@@ -557,13 +557,13 @@ static void BM_sqrMatTDSparse(benchmark::State& state, SqrMatTDFuncPtr func) {
 
   // allocate
   mjMARKSTACK;
-  mjtNum* H = mj_stackAlloc(d, m->nv * m->nv);
+  mjtNum* H = mj_stackAllocNum(d, m->nv * m->nv);
   int* rownnz = mj_stackAllocInt(d, m->nv);
   int* rowadr = mj_stackAllocInt(d, m->nv);
   int* colind = mj_stackAllocInt(d, m->nv * m->nv);
 
   // compute D corresponding to quad states
-  mjtNum* D = mj_stackAlloc(d, d->nefc);
+  mjtNum* D = mj_stackAllocNum(d, d->nefc);
   for (int i = 0; i < d->nefc; i++) {
     if (d->efc_state[i] == mjCNSTRSTATE_QUADRATIC) {
       D[i] = d->efc_D[i];

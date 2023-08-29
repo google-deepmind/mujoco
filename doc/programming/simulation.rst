@@ -713,16 +713,17 @@ the scope. If not, saving and restoring the stack pointer should be done manuall
    mjMARKSTACK;
 
    // allocate space
-   mjtNum* myqpos = mj_stackAlloc(d, m->nq);
-   mjtNum* myqvel = mj_stackAlloc(d, m->nv);
+   mjtNum* myqpos = mj_stackAllocNum(d, m->nq);
+   mjtNum* myqvel = mj_stackAllocNum(d, m->nv);
 
    // restore stack from _mark
    mjFREESTACK;
 
-The function :ref:`mj_stackAlloc` checks if there is enough space, and if so it advances the stack pointer, otherwise it
-triggers an error. It also keeps track of the maximum stack allocation; see :ref:`diagnostics <siDiagnostics>` below.
-Note that :ref:`mj_stackAlloc` is only used for allocating ``mjtNum`` arrays, the most common type of array.
-:ref:`mj_stackAllocInt` is provided for integer array allocation. Allocators for other types are also possible, as in
+The function :ref:`mj_stackAllocNum` checks if there is enough space, and if so it advances the stack pointer,
+otherwise it triggers an error. It also keeps track of the maximum stack allocation;
+see :ref:`diagnostics <siDiagnostics>` below. Note that :ref:`mj_stackAllocNum` is only used for allocating
+``mjtNum`` arrays, the most common type of array. :ref:`mj_stackAllocInt` is provided for integer array allocation.
+Allocators for other types are also possible, as in
 `engine_collision_driver.c <https://github.com/deepmind/mujoco/blob/main/src/engine/engine_collision_driver.c>`__.
 
 .. _siError:

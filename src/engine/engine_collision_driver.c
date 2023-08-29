@@ -732,7 +732,7 @@ int mj_broadphase(const mjModel* m, mjData* d, int* pair, int maxpair) {
   mju_eig3(eigval, frame, quat, cov);
 
   // allocate AABB; clear world entry (not used)
-  aabb = mj_stackAlloc(d, 6*nbody);
+  aabb = mj_stackAllocNum(d, 6*nbody);
   mju_zero(aabb, 6);
 
   // construct body AABB for the aligned frame, count collidable

@@ -62,8 +62,8 @@ void worker(const mjModel* m, const mjData* dmain, mjData* d, int id) {
 
   // allocate stack space for result at center
   mjMARKSTACK;
-  mjtNum* center = mj_stackAlloc(d, nv);
-  mjtNum* warmstart = mj_stackAlloc(d, nv);
+  mjtNum* center = mj_stackAllocNum(d, nv);
+  mjtNum* warmstart = mj_stackAllocNum(d, nv);
 
   // prepare static schedule: range of derivative columns to be computed by this thread
   int chunk = (m->nv + nthread-1) / nthread;
@@ -223,7 +223,7 @@ void checkderiv(const mjModel* m, mjData* d, mjtNum error[7]) {
 
   // allocate space
   mjMARKSTACK;
-  mjtNum* mat = mj_stackAlloc(d, nv*nv);
+  mjtNum* mat = mj_stackAllocNum(d, nv*nv);
 
   // get pointers to derivative matrices
   mjtNum* G0 = deriv;                 // dinv/dpos

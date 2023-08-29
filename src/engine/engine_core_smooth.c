@@ -179,7 +179,7 @@ void mj_kinematics(const mjModel* m, mjData* d) {
 void mj_comPos(const mjModel* m, mjData* d) {
   mjtNum offset[3], axis[3];
   mjMARKSTACK;
-  mjtNum* mass_subtree = mj_stackAlloc(d, m->nbody);
+  mjtNum* mass_subtree = mj_stackAllocNum(d, m->nbody);
 
   // clear subtree
   mju_zero(mass_subtree, m->nbody);
@@ -401,14 +401,14 @@ void mj_tendon(const mjModel* m, mjData* d) {
   }
 
   // allocate space
-  jac1 = mj_stackAlloc(d, 3*nv);
-  jac2 = mj_stackAlloc(d, 3*nv);
-  jacdif = mj_stackAlloc(d, 3*nv);
-  tmp = mj_stackAlloc(d, nv);
+  jac1 = mj_stackAllocNum(d, 3*nv);
+  jac2 = mj_stackAllocNum(d, 3*nv);
+  jacdif = mj_stackAllocNum(d, 3*nv);
+  tmp = mj_stackAllocNum(d, nv);
   if (issparse) {
     chain = mj_stackAllocInt(d, nv);
     buf_ind = mj_stackAllocInt(d, nv);
-    sparse_buf = mj_stackAlloc(d, nv);
+    sparse_buf = mj_stackAllocNum(d, nv);
   }
 
   // clear results
@@ -629,9 +629,9 @@ void mj_transmission(const mjModel* m, mjData* d) {
   }
 
   // allocate space, clear moments
-  jac  = mj_stackAlloc(d, 3*nv);
-  jacA = mj_stackAlloc(d, 3*nv);
-  jacS = mj_stackAlloc(d, 3*nv);
+  jac  = mj_stackAllocNum(d, 3*nv);
+  jacA = mj_stackAllocNum(d, 3*nv);
+  jacS = mj_stackAllocNum(d, 3*nv);
   mju_zero(moment, nu*nv);
 
   // define variables required for body transmission, don't allocate
@@ -804,7 +804,7 @@ void mj_transmission(const mjModel* m, mjData* d) {
       // reference site defined
       else {
         int refid = m->actuator_trnid[2*i+1];
-        if (!jacref) jacref = mj_stackAlloc(d, 3*nv);
+        if (!jacref) jacref = mj_stackAllocNum(d, 3*nv);
 
         // clear length
         length[i] = 0;
@@ -855,7 +855,7 @@ void mj_transmission(const mjModel* m, mjData* d) {
           mju_rotVecMat(wrench, gear+3, d->site_xmat+9*refid);
 
           // moment_tmp: global Jacobian projected on wrench, add to moment
-          if (!moment_tmp) moment_tmp = mj_stackAlloc(d, nv);
+          if (!moment_tmp) moment_tmp = mj_stackAllocNum(d, nv);
           mju_mulMatTVec(moment_tmp, jacS, wrench, 3, nv);
           mju_addTo(moment+i*nv, moment_tmp, nv);
         }
@@ -871,11 +871,11 @@ void mj_transmission(const mjModel* m, mjData* d) {
       {
         // allocate stack variables for the first mjTRN_BODY
         if (!efc_force) {
-          efc_force = mj_stackAlloc(d, d->nefc);
-          moment_exclude = mj_stackAlloc(d, nv);
-          jacdifp = mj_stackAlloc(d, 3*nv);
-          jac1p = mj_stackAlloc(d, 3*nv);
-          jac2p = mj_stackAlloc(d, 3*nv);
+          efc_force = mj_stackAllocNum(d, d->nefc);
+          moment_exclude = mj_stackAllocNum(d, nv);
+          jacdifp = mj_stackAllocNum(d, 3*nv);
+          jac1p = mj_stackAllocNum(d, 3*nv);
+          jac2p = mj_stackAllocNum(d, 3*nv);
           chain = issparse ? mj_stackAllocInt(d, nv) : NULL;
         }
 
@@ -1324,7 +1324,7 @@ void mj_comVel(const mjModel* m, mjData* d) {
 void mj_subtreeVel(const mjModel* m, mjData* d) {
   mjtNum dx[3], dv[3], dp[3], dL[3];
   mjMARKSTACK;
-  mjtNum* body_vel = mj_stackAlloc(d, 6*m->nbody);
+  mjtNum* body_vel = mj_stackAllocNum(d, 6*m->nbody);
 
   // bodywise quantities
   for (int i=0; i < m->nbody; i++) {
@@ -1390,8 +1390,8 @@ void mj_subtreeVel(const mjModel* m, mjData* d) {
 void mj_rne(const mjModel* m, mjData* d, int flg_acc, mjtNum* result) {
   mjtNum tmp[6], tmp1[6];
   mjMARKSTACK;
-  mjtNum* loc_cacc = mj_stackAlloc(d, m->nbody*6);
-  mjtNum* loc_cfrc_body = mj_stackAlloc(d, m->nbody*6);
+  mjtNum* loc_cacc = mj_stackAllocNum(d, m->nbody*6);
+  mjtNum* loc_cfrc_body = mj_stackAllocNum(d, m->nbody*6);
 
   // set world acceleration to -gravity
   mju_zero(loc_cacc, 6);
