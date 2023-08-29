@@ -207,6 +207,33 @@ static int mju_compare(const int* vec1, const int* vec2, int n) {
 
 
 
+// count the number of non-zeros in the sum of two sparse vectors
+int mju_combineSparseCount(int a_nnz, int b_nnz, const int* a_ind, const int* b_ind) {
+  int a = 0, b = 0, c_nnz = 0;
+
+  // count c_nnz: nonzero indices common to both a and b
+  while (a < a_nnz && b < b_nnz) {
+    // common index, increment everything
+    if (a_ind[a] == b_ind[b]) {
+      c_nnz++;
+      a++;
+      b++;
+    }
+
+    // update smallest index
+    else if (a_ind[a] < b_ind[b]) {
+      a++;
+    } else {
+      b++;
+    }
+  }
+
+  // union minus the intersection
+  return a_nnz + b_nnz - c_nnz;
+}
+
+
+
 // combine two sparse vectors: dst = a*dst + b*src, return nnz of result
 int mju_combineSparse(mjtNum* dst, const mjtNum* src, mjtNum a, mjtNum b,
                       int dst_nnz, int src_nnz, int* dst_ind, const int* src_ind,

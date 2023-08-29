@@ -1351,33 +1351,6 @@ void mj_makeImpedance(const mjModel* m, mjData* d) {
 
 //------------------------------------- constraint counting ----------------------------------------
 
-// count the number of non-zeros in the sum of two sparse vectors
-int mju_combineSparseCount(int a_nnz, int b_nnz, const int* a_ind, const int* b_ind) {
-  int a = 0, b = 0, c_nnz = 0;
-
-  // count c_nnz: nonzero indices common to both a and b
-  while (a < a_nnz && b < b_nnz) {
-    // common index, increment everything
-    if (a_ind[a] == b_ind[b]) {
-      c_nnz++;
-      a++;
-      b++;
-    }
-
-    // update smallest index
-    else if (a_ind[a] < b_ind[b]) {
-      a++;
-    } else {
-      b++;
-    }
-  }
-
-  // union minus the intersection
-  return a_nnz + b_nnz - c_nnz;
-}
-
-
-
 // count the non-zero columns in the Jacobian difference of two bodies
 static int mj_jacDifPairCount(const mjModel* m, int* chain,
                               int b1, int b2, int issparse) {

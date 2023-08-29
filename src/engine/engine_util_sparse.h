@@ -51,6 +51,9 @@ MJAPI void mju_mulMatVecSparse(mjtNum* res, const mjtNum* mat, const mjtNum* vec
 MJAPI void mju_compressSparse(mjtNum* mat, int nr, int nc,
                               int* rownnz, int* rowadr, int* colind);
 
+// count the number of non-zeros in the sum of two sparse vectors
+MJAPI int mju_combineSparseCount(int a_nnz, int b_nnz, const int* a_ind, const int* b_ind);
+
 // combine two sparse vectors: dst = a*dst + b*src, return nnz of result
 int mju_combineSparse(mjtNum* dst, const mjtNum* src, mjtNum a, mjtNum b,
                       int dst_nnz, int src_nnz, int* dst_ind, const int* src_ind,
