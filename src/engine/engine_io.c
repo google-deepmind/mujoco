@@ -1329,6 +1329,7 @@ static void _resetData(const mjModel* m, mjData* d, unsigned char debug_value) {
   // clear variable sizes
   d->ne = 0;
   d->nf = 0;
+  d->nl = 0;
   d->nefc = 0;
   d->nnzJ = 0;
   d->ncon = 0;

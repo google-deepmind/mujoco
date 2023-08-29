@@ -637,6 +637,7 @@
     X( int,       ngeompair_narrow   ) \
     X( int,       ne                 ) \
     X( int,       nf                 ) \
+    X( int,       nl                 ) \
     X( int,       nefc               ) \
     X( int,       nnzJ               ) \
     X( int,       ncon               ) \

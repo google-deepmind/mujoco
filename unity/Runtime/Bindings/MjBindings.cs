@@ -1609,6 +1609,7 @@ public unsafe struct mjData_ {
   public int ngeompair_narrow;
   public int ne;
   public int nf;
+  public int nl;
   public int nefc;
   public int nnzJ;
   public int ncon;

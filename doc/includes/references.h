@@ -159,6 +159,7 @@ struct mjData_ {
   // variable sizes
   int     ne;                // number of equality constraints
   int     nf;                // number of friction constraints
+  int     nl;                // number of limit constraints
   int     nefc;              // number of constraints
   int     nnzJ;              // number of non-zeros in constraint Jacobian
   int     ncon;              // number of detected contacts

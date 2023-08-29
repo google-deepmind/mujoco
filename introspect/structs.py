@@ -3600,6 +3600,11 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='number of friction constraints',
              ),
              StructFieldDecl(
+                 name='nl',
+                 type=ValueType(name='int'),
+                 doc='number of limit constraints',
+             ),
+             StructFieldDecl(
                  name='nefc',
                  type=ValueType(name='int'),
                  doc='number of constraints',

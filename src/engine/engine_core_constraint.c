@@ -288,6 +288,8 @@ int mj_addConstraint(const mjModel* m, mjData* d,
     d->ne += size;
   } else if (type == mjCNSTR_FRICTION_DOF || type == mjCNSTR_FRICTION_TENDON) {
     d->nf += size;
+  } else if (type == mjCNSTR_LIMIT_JOINT || type == mjCNSTR_LIMIT_TENDON) {
+    d->nl += size;
   }
 
   return 0;
@@ -1658,7 +1660,7 @@ static inline int mj_nc(const mjModel* m, mjData* d, int* nnz) {
 // driver: call all functions above
 void mj_makeConstraint(const mjModel* m, mjData* d) {
   // clear sizes
-  d->ne = d->nf = d->nefc = d->nnzJ = 0;
+  d->ne = d->nf = d->nl = d->nefc = d->nnzJ = 0;
 
   // disabled or Jacobian not allocated: return
   if (mjDISABLED(mjDSBL_CONSTRAINT)) {
@@ -1669,7 +1671,8 @@ void mj_makeConstraint(const mjModel* m, mjData* d) {
   int *nnz = mj_isSparse(m) ? &(d->nnzJ) : NULL;
   int ne_allocated = mj_ne(m, d, nnz);
   int nf_allocated = mj_nf(m, d, nnz);
-  int nefc_allocated = ne_allocated + nf_allocated + mj_nl(m, d, nnz) + mj_nc(m, d, nnz);
+  int nl_allocated = mj_nl(m, d, nnz);
+  int nefc_allocated = ne_allocated + nf_allocated + nl_allocated + mj_nc(m, d, nnz);
   if (!mj_isSparse(m)) {
     d->nnzJ = nefc_allocated * m->nv;
   }
@@ -1702,6 +1705,10 @@ void mj_makeConstraint(const mjModel* m, mjData* d) {
 
     if (d->nf != nf_allocated) {
       mjERROR("nf mis-allocation: found nf=%d but allocated %d", d->nf, nf_allocated);
+    }
+
+    if (d->nl != nl_allocated) {
+      mjERROR("nl mis-allocation: found nl=%d but allocated %d", d->nl, nl_allocated);
     }
 
     // check that nefc was computed correctly
