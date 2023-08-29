@@ -27,7 +27,6 @@
 #include <mujoco/mjplugin.h>
 #include <mujoco/mjxmacro.h>
 #include "engine/engine_array_safety.h"  // IWYU pragma: keep
-#include "engine/engine_crossplatform.h"  // IWYU pragma: keep
 #include "engine/engine_resource.h"
 #include "engine/engine_macro.h"
 #include "engine/engine_plugin.h"
@@ -1200,9 +1199,9 @@ mjData* mj_copyData(mjData* dest, const mjModel* m, const mjData* src) {
 
 
 // allocate memory from the mjData arena
-void* mj_arenaAlloc(mjData* d, int bytes, int alignment) {
-  int misalignment = d->parena % alignment;
-  int padding = misalignment ? alignment - misalignment : 0;
+void* mj_arenaAlloc(mjData* d, size_t bytes, size_t alignment) {
+  size_t misalignment = d->parena % alignment;
+  size_t padding = misalignment ? alignment - misalignment : 0;
 
   // check size
   size_t bytes_available = d->narena - d->pstack;
@@ -1228,8 +1227,9 @@ void* mj_arenaAlloc(mjData* d, int bytes, int alignment) {
 
 
 
-// allocate size bytes on the mjData stack
-void* mj_stackAllocByte(mjData* d, size_t size) {
+// internal: allocate size bytes on the mjData stack
+// declared inline so that modular arithmetic with specific alignments can be optimized out
+static inline void* stackalloc(mjData* d, size_t size, size_t alignment) {
   // return NULL if empty
   if (!size) {
     return NULL;
@@ -1254,8 +1254,8 @@ void* mj_stackAllocByte(mjData* d, size_t size) {
   // start of the memory to be allocated to the buffer
   uintptr_t start_ptr = end_ptr - (size + mjREDZONE);
 
-  // move start_ptr back to align to max_align_t
-  start_ptr -= start_ptr % _Alignof(max_align_t);  // NOLINT
+  // align the pointer
+  start_ptr -= start_ptr % alignment;
 
   // new top of the stack
   uintptr_t new_pstack_ptr = start_ptr - mjREDZONE;
@@ -1269,7 +1269,7 @@ void* mj_stackAllocByte(mjData* d, size_t size) {
   size_t stack_available_bytes = end_ptr - ((uintptr_t)d->arena + d->parena);
   size_t stack_required_bytes = end_ptr - new_pstack_ptr;
   if (stack_required_bytes > stack_available_bytes) {
-    mjERROR("stack overflow: max = %zu, available = %zu, requested = %zu "
+    mju_error("mjData stack overflow: max = %zu, available = %zu, requested = %zu "
               "(ne = %d, nf = %d, nefc = %d, ncon = %d)",
               stack_size_bytes, stack_available_bytes, stack_required_bytes,
               d->ne, d->nf, d->nefc, d->ncon);
@@ -1303,12 +1303,16 @@ void* mj_stackAllocByte(mjData* d, size_t size) {
   return (void*)start_ptr;
 }
 
+void* mj_stackAlloc(mjData* d, size_t bytes, size_t alignment) {
+  return stackalloc(d, bytes, alignment);
+}
+
 mjtNum* mj_stackAllocNum(mjData* d, int size) {
-  return (mjtNum*)mj_stackAllocByte(d, size * sizeof(mjtNum));
+  return (mjtNum*) stackalloc(d, size * sizeof(mjtNum), _Alignof(mjtNum));
 }
 
 int* mj_stackAllocInt(mjData* d, int size) {
-  return (int*)mj_stackAllocByte(d, size * sizeof(int));
+  return (int*) stackalloc(d, size * sizeof(int), _Alignof(int));
 }
 
 

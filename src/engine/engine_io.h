@@ -20,7 +20,10 @@
 #include <mujoco/mjmodel.h>
 
 #ifdef __cplusplus
+#include <cstddef>
 extern "C" {
+#else
+#include <stddef.h>
 #endif
 
 // internal hash map size factor (2 corresponds to a load factor of 0.5)
@@ -100,16 +103,16 @@ MJAPI void mj_resetDataDebug(const mjModel* m, mjData* d, unsigned char debug_va
 MJAPI void mj_resetDataKeyframe(const mjModel* m, mjData* d, int key);
 
 // mjData arena allocate
-MJAPI void* mj_arenaAlloc(mjData* d, int bytes, int alignment);
+MJAPI void* mj_arenaAlloc(mjData* d, size_t bytes, size_t alignment);
+
+// mjData stack allocate
+MJAPI void* mj_stackAlloc(mjData* d, size_t bytes, size_t alignment);
 
 // mjData stack allocate for array of mjtNums
 MJAPI mjtNum* mj_stackAllocNum(mjData* d, int size);
 
 // mjData stack allocate for array of ints
 MJAPI int* mj_stackAllocInt(mjData* d, int size);
-
-// mjData stack allocate for a specific size of bytes
-MJAPI void* mj_stackAllocByte(mjData* d, size_t size);
 
 // de-allocate data
 MJAPI void mj_deleteData(mjData* d);

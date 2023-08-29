@@ -64,7 +64,9 @@
 #endif
 
 #if defined(_MSC_VER) && !defined(__clang__) && !defined(__cplusplus)
-  typedef long double max_align_t;
+  typedef long double mjtMaxAlign;
+#else
+  typedef max_align_t mjtMaxAlign;
 #endif
 
 #endif  // MUJOCO_SRC_ENGINE_ENGINE_CROSSPLATFORM_H_

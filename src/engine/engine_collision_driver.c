@@ -208,7 +208,8 @@ int mj_collideOBB(const mjtNum aabb1[6], const mjtNum aabb2[6],
 }
 
 static mjCollisionTree* mj_stackAllocTree(mjData* d, int max_stack) {
-  return (mjCollisionTree*)mj_stackAllocByte(d, max_stack * sizeof(mjCollisionTree*));
+  return (mjCollisionTree*) mj_stackAlloc(
+      d, max_stack * sizeof(mjCollisionTree), _Alignof(mjCollisionTree));
 }
 
 // binary search between two body trees
@@ -751,8 +752,10 @@ int mj_broadphase(const mjModel* m, mjData* d, int* pair, int maxpair) {
   }
 
   // allocate sort buffer
-  sortbuf = (mjtBroadphase*)mj_stackAllocByte(d, 2 * bufcnt * sizeof(mjtBroadphase));
-  activebuf = (mjtBroadphase*)mj_stackAllocByte(d, 2 *bufcnt * sizeof(mjtBroadphase));
+  sortbuf = (mjtBroadphase*) mj_stackAlloc(
+      d, 2 * bufcnt * sizeof(mjtBroadphase), _Alignof(mjtBroadphase));
+  activebuf = (mjtBroadphase*) mj_stackAlloc(
+      d, 2 * bufcnt * sizeof(mjtBroadphase), _Alignof(mjtBroadphase));
 
   // init sortbuf with axis0
   int k = 0;

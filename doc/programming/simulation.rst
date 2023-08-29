@@ -722,9 +722,8 @@ the scope. If not, saving and restoring the stack pointer should be done manuall
 The function :ref:`mj_stackAllocNum` checks if there is enough space, and if so it advances the stack pointer,
 otherwise it triggers an error. It also keeps track of the maximum stack allocation;
 see :ref:`diagnostics <siDiagnostics>` below. Note that :ref:`mj_stackAllocNum` is only used for allocating
-``mjtNum`` arrays, the most common type of array. :ref:`mj_stackAllocInt` is provided for integer array allocation.
-Allocators for other types are also possible, as in
-`engine_collision_driver.c <https://github.com/deepmind/mujoco/blob/main/src/engine/engine_collision_driver.c>`__.
+``mjtNum`` arrays, the most common type of array. :ref:`mj_stackAllocInt` is provided for integer array allocation,
+and :ref:`mj_stackAlloc` is provided for allocation of arbitrary number of bytes and alignment.
 
 .. _siError:
 

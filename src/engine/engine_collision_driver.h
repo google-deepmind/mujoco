@@ -21,19 +21,10 @@
 
 #ifdef __cplusplus
 extern "C" {
-#elif !defined(__STDC_VERSION__) || __STDC_VERSION__ < 201112L
-// No C11 support in Visual Studio 2019 update 7 and earlier.
-// However, MSVC allows C++ alignas to be used in C code, so
-// we can just skip the #include <stdalign.h>.
-#ifndef _MSC_VER
-#error "Compiler does not support C11."
-#endif
-#else
-#include <stdalign.h>
 #endif
 
 struct mjCollisionTree_ {
-  alignas(mjtNum) int node1;
+  int node1;
   int node2;
 };
 typedef struct mjCollisionTree_ mjCollisionTree;

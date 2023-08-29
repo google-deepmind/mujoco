@@ -3088,6 +3088,9 @@ public static unsafe extern void mj_resetDataDebug(mjModel_* m, mjData_* d, byte
 public static unsafe extern void mj_resetDataKeyframe(mjModel_* m, mjData_* d, int key);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern void* mj_stackAlloc(mjData_* d, UIntPtr bytes, UIntPtr alignment);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern double* mj_stackAllocNum(mjData_* d, int size);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]

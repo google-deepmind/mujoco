@@ -33,12 +33,11 @@ constexpr int GetExpectedStackUsageBytes() {
     return 0;
   } else {
     constexpr auto RoundUpToAlignment =
-        [](int x) {
-          constexpr auto kAlignment = alignof(std::max_align_t);
-          return kAlignment * (x / kAlignment + ((x % kAlignment) ? 1 : 0));
+        [](int x, int alignment) {
+          return alignment * (x / alignment + ((x % alignment) ? 1 : 0));
         };
-    return RoundUpToAlignment(sizeof(mjArrayList)) +
-           RoundUpToAlignment(Capacity * sizeof(T)) +
+    return RoundUpToAlignment(sizeof(mjArrayList), alignof(mjArrayList)) +
+           RoundUpToAlignment(Capacity * sizeof(T), alignof(std::max_align_t)) +
            GetExpectedStackUsageBytes<T, N - Capacity, 2 * Capacity>();
   }
 }

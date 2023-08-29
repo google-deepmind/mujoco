@@ -677,6 +677,30 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
          ),
          doc='Reset data, set fields from specified keyframe.',
      )),
+    ('mj_stackAlloc',
+     FunctionDecl(
+         name='mj_stackAlloc',
+         return_type=PointerType(
+             inner_type=ValueType(name='void'),
+         ),
+         parameters=(
+             FunctionParameterDecl(
+                 name='d',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjData'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='bytes',
+                 type=ValueType(name='size_t'),
+             ),
+             FunctionParameterDecl(
+                 name='alignment',
+                 type=ValueType(name='size_t'),
+             ),
+         ),
+         doc='Allocate a specific number of bytes on mjData stack. Call mju_error on stack overflow.',  # pylint: disable=line-too-long
+     )),
     ('mj_stackAllocNum',
      FunctionDecl(
          name='mj_stackAllocNum',

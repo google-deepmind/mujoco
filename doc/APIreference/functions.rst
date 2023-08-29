@@ -1232,6 +1232,15 @@ mj_resetDataKeyframe
 
 Reset data, set fields from specified keyframe.
 
+.. _mj_stackAlloc:
+
+mj_stackAlloc
+~~~~~~~~~~~~~
+
+.. mujoco-include:: mj_stackAlloc
+
+Allocate a specific number of bytes on :ref:`mjData` stack. Call mju_error on stack overflow.
+
 .. _mj_stackAllocNum:
 
 mj_stackAllocNum
