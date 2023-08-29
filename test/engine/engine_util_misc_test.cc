@@ -14,6 +14,11 @@
 
 // Tests for engine/engine_util_solve.c.
 
+#include <array>
+#include <cstddef>
+#include <cstdint>
+#include <cstring>
+
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 #include <mujoco/mjdata.h>
@@ -28,6 +33,7 @@ using ::testing::DoubleNear;
 using ::testing::HasSubstr;
 using ::testing::Ne;
 using ::testing::StrEq;
+using ::testing::ElementsAreArray;
 
 TEST_F(MujocoTest, PrintsMemoryWarning) {
   EXPECT_THAT(mju_warningText(mjWARN_CNSTRFULL, pow(2, 10)),
@@ -213,6 +219,211 @@ TEST_F(MujocoTest, mju_makefullname_error5) {
   constexpr char file[] = "file";
   int n = mju_makefullname(buffer, sizeof(buffer), path, file);
   EXPECT_THAT(n, Ne(0));
+}
+
+// --------------------------------- Base64 ------------------------------------
+
+using Base64Test = MujocoTest;
+
+TEST_F(Base64Test, mju_encodeBase64) {
+  std::array<char, 9> buffer;
+  std::array<std::uint8_t, 5> arr = {15, 134, 190, 255, 240};
+
+  std::size_t n = mju_encodeBase64(buffer.data(), arr.data(), arr.size());
+
+  EXPECT_THAT(buffer.data(), StrEq("D4a+//A="));
+  EXPECT_THAT(n, std::strlen(buffer.data()) + 1);
+  EXPECT_THAT(n, buffer.size());
+
+}
+
+TEST_F(Base64Test, mju_encodeBase64_align0) {
+  std::array<char, 5> buffer;
+  std::array<std::uint8_t, 3> arr = {'A', 'B', 'C'};
+
+  std::size_t n = mju_encodeBase64(buffer.data(), arr.data(), arr.size());
+
+  EXPECT_THAT(buffer.data(), StrEq("QUJD"));
+  EXPECT_THAT(n, std::strlen(buffer.data()) + 1);
+  EXPECT_THAT(n, buffer.size());
+}
+
+TEST_F(Base64Test, mju_encodeBase64_align1) {
+  std::array<char, 5> buffer;
+  std::array<std::uint8_t, 2> arr = {'A', 'B'};
+
+  std::size_t n = mju_encodeBase64(buffer.data(), arr.data(), arr.size());
+
+  EXPECT_THAT(buffer.data(), StrEq("QUI="));
+  EXPECT_THAT(n, std::strlen(buffer.data()) + 1);
+  EXPECT_THAT(n, buffer.size());
+
+}
+
+TEST_F(Base64Test, mju_encodeBase64_align2) {
+  std::array<char, 5> buffer;
+  std::array<std::uint8_t, 1> arr = {'A'};
+
+  std::size_t n = mju_encodeBase64(buffer.data(), arr.data(), arr.size());
+
+  EXPECT_THAT(buffer.data(), StrEq("QQ=="));
+  EXPECT_THAT(n, std::strlen(buffer.data()) + 1);
+  EXPECT_THAT(n, buffer.size());
+}
+
+TEST_F(Base64Test, mju_encodeBase64_null) {
+  std::array<char, 1> buffer;
+
+  std::size_t n = mju_encodeBase64(buffer.data(), NULL, 0);
+
+  EXPECT_THAT(n, 1);
+  EXPECT_THAT(buffer[0], '\0');
+}
+
+TEST_F(Base64Test, mju_encodeBase64_ones) {
+  std::array<char, 5> buffer;
+  std::array<std::uint8_t, 3> arr = {255, 255, 255};
+
+  std::size_t n = mju_encodeBase64(buffer.data(), arr.data(), arr.size());
+
+  EXPECT_THAT(buffer.data(), StrEq("////"));
+  EXPECT_THAT(n, std::strlen(buffer.data()) + 1);
+  EXPECT_THAT(n, buffer.size());
+}
+
+TEST_F(Base64Test, mju_isValidBase64_emptyStr) {
+  std::size_t n = mju_isValidBase64("");
+
+  EXPECT_THAT(n, 0);
+}
+
+TEST_F(Base64Test, mju_isValidBase64_invalid1) {
+  std::size_t n = mju_isValidBase64("A");
+
+  EXPECT_THAT(n, 0);
+}
+
+TEST_F(Base64Test, mju_isValidBase64_invalid2) {
+  std::size_t n = mju_isValidBase64("AAA");
+
+  EXPECT_THAT(n, 0);
+}
+
+TEST_F(Base64Test, mju_isValidBase64_invalid3) {
+  std::size_t n = mju_isValidBase64("A==A");
+
+  EXPECT_THAT(n, 0);
+}
+
+TEST_F(Base64Test, mju_isValidBase64_invalid5) {
+  std::size_t n = mju_isValidBase64("A===");
+
+  EXPECT_THAT(n, 0);
+}
+
+TEST_F(Base64Test, mju_isValidBase64_invalid6) {
+  std::size_t n = mju_isValidBase64("aaaa====");
+
+  EXPECT_THAT(n, 0);
+}
+
+TEST_F(Base64Test, mju_isValidBase64_invalid7) {
+  std::size_t n = mju_isValidBase64("A#AA");
+
+  EXPECT_THAT(n, 0);
+}
+
+TEST_F(Base64Test, mju_isValidBase64_valid1) {
+  std::size_t n = mju_isValidBase64("AB+/");
+
+  EXPECT_THAT(n, 3);
+}
+
+TEST_F(Base64Test, mju_isValidBase64_valid2) {
+  std::size_t n = mju_isValidBase64("ABC=");
+
+  EXPECT_THAT(n, 2);
+}
+
+TEST_F(Base64Test, mju_isValidBase64_valid3) {
+  std::size_t n = mju_isValidBase64("AB==");
+
+  EXPECT_THAT(n, 1);
+}
+
+TEST_F(Base64Test, mju_isValidBase64_valid4) {
+  std::size_t n = mju_isValidBase64("az09AZ+/11==");
+
+  EXPECT_THAT(n, 7);
+}
+
+TEST_F(Base64Test, mju_decodeBase64) {
+  std::array<std::uint8_t, 5> buffer;
+  const char *s = "D4a+//A=";
+
+  std::size_t n = mju_decodeBase64(buffer.data(), s);
+
+  EXPECT_THAT(buffer, ElementsAreArray({15, 134, 190, 255, 240}));
+  EXPECT_THAT(n, buffer.size());
+}
+
+TEST_F(Base64Test, mju_decodeBase6_align0) {
+  std::array<std::uint8_t, 3> buffer;
+  const char *s = "QUJD";
+
+  std::size_t n = mju_decodeBase64(buffer.data(), s);
+
+  EXPECT_THAT(buffer, ElementsAreArray({'A', 'B', 'C'}));
+  EXPECT_THAT(n, buffer.size());
+}
+
+TEST_F(Base64Test, mju_decodeBase64_align1) {
+  std::array<std::uint8_t, 2> buffer;
+  const char *s = "QUI=";
+
+  std::size_t n = mju_decodeBase64(buffer.data(), s);
+
+  EXPECT_THAT(buffer, ElementsAreArray({'A', 'B'}));
+  EXPECT_THAT(n, buffer.size());
+}
+
+TEST_F(Base64Test, mju_decodeBase64_align2) {
+  std::array<std::uint8_t, 1> buffer;
+  const char *s = "QQ==";
+
+  std::size_t n = mju_decodeBase64(buffer.data(), s);
+
+  EXPECT_THAT(buffer, ElementsAreArray({'A'}));
+  EXPECT_THAT(n, buffer.size());
+}
+
+TEST_F(Base64Test, mju_decodeBase64_null) {
+  const char *s = "";
+
+  std::size_t n = mju_decodeBase64(NULL, s);
+
+  EXPECT_THAT(n, 0);
+}
+
+TEST_F(Base64Test, mju_decodeBase64_ones) {
+  std::array<std::uint8_t, 3> buffer;
+  const char *s = "////";
+
+  std::size_t n = mju_decodeBase64(buffer.data(), s);
+
+  EXPECT_THAT(buffer, ElementsAreArray({255, 255, 255}));
+  EXPECT_THAT(n, buffer.size());
+}
+
+TEST_F(Base64Test, decodeAndEncode) {
+  std::array<std::uint8_t, 5> buffer1;
+  std::array<char, 9> buffer2;
+  const char *s = "D4a+/vA=";
+
+  mju_decodeBase64(buffer1.data(), s);
+  mju_encodeBase64(buffer2.data(), buffer1.data(), buffer1.size());
+
+  EXPECT_THAT(buffer2.data(), StrEq(s));
 }
 
 }  // namespace

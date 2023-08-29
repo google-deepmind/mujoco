@@ -14,7 +14,9 @@
 
 #include "engine/engine_util_misc.h"
 
+#include <ctype.h>
 #include <math.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -595,6 +597,151 @@ mjtNum mju_muscleDynamics(mjtNum ctrl, mjtNum act, const mjtNum prm[3]) {
 
 
 
+//---------------------------------------- Base64 --------------------------------------------------
+
+// decoding function for Base64
+static uint32_t _decode(char ch) {
+  if (ch >= 'A' && ch <= 'Z') {
+    return ch - 'A';
+  }
+
+  if (ch >= 'a' && ch <= 'z') {
+    return (ch - 'a') + 26;
+  }
+
+  if (ch >= '0' && ch <= '9') {
+    return (ch - '0') + 52;
+  }
+
+  if (ch == '+') {
+    return 62;
+  }
+
+  if (ch == '/') {
+    return 63;
+  }
+
+  return 0;
+}
+
+
+
+// encode data as Base64 into buf (including padding and null char)
+// returns number of chars written in buf: 4 * [(ndata + 2) / 3] + 1
+size_t mju_encodeBase64(char* buf, const uint8_t* data, size_t ndata) {
+  static const char *table =
+      "ABCDEFGHIJKLMNOPQRSTUBWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+
+  int i = 0, j = 0;
+
+  // loop over 24 bit chunks
+  while (i + 3 <= ndata) {
+    // take next 24 bit chunk (3 bytes)
+    uint32_t byte_1 = data[i++];
+    uint32_t byte_2 = data[i++];
+    uint32_t byte_3 = data[i++];
+
+    // merge bytes into one 32 bit int
+    uint32_t k = (byte_1 << 16) | (byte_2 << 8) | byte_3;
+
+    // encode 6 bit chucks into four chars
+    buf[j++] = table[(k >> 18) & 63];
+    buf[j++] = table[(k >> 12) & 63];
+    buf[j++] = table[(k >>  6) & 63];
+    buf[j++] = table[(k >>  0) & 63];
+  }
+
+  // one byte left
+  if (i + 1 == ndata) {
+    uint32_t byte_1 = data[i];
+    uint32_t k = byte_1 << 16;
+    buf[j++] = table[(k >> 18) & 63];
+    buf[j++] = table[(k >> 12) & 63];
+    buf[j++] = '=';  // padding
+    buf[j++] = '=';  // padding
+  }
+
+  // two bytes left
+  if (i + 2 == ndata) {
+    uint32_t byte_1 = data[i++];
+    uint32_t byte_2 = data[i];
+
+    uint32_t k = (byte_1 << 16) + (byte_2 << 8);
+
+    buf[j++] = table[(k >> 18) & 63];
+    buf[j++] = table[(k >> 12) & 63];
+    buf[j++] = table[(k >>  6) & 63];
+    buf[j++] = '=';  // padding
+  }
+
+  buf[j] = '\0';
+  return 4 * ((ndata + 2) / 3) + 1;
+}
+
+
+
+// return size in decoded bytes if s is a valid Base64 encoding
+// return 0 if s is empty or invalid Base64 encoding
+size_t mju_isValidBase64(const char* s) {
+  size_t i = 0;
+  int pad = 0;  // 0, 1, or 2 zero padding at the end of s
+
+  // validate chars
+  for (; s[i] && s[i] != '='; i++) {
+    if (!isalnum(s[i]) && s[i] != '/' && s[i] != '+') {
+      return 0;
+    }
+  }
+
+  // padding at end
+  if (s[i] == '=') {
+    if (!s[i + 1]) {
+      pad = 1;  // one '=' padding at end
+    } else if (s[i + 1] == '=' && !s[i + 2]) {
+      pad = 2;  // two '=' padding at end
+    } else {
+      return 0;
+    }
+  }
+
+  // strlen(s) must be a multiple of 4
+  int len = i + pad;
+  return len % 4 ? 0 : 3 * (len / 4) - pad;
+}
+
+
+
+// decode valid Base64 in string s into buf, undefined behavior if s is not valid Base64
+// returns number of bytes decoded (upper limit of 3 * (strlen(s) / 4))
+size_t mju_decodeBase64(uint8_t* buf, const char* s) {
+  size_t i = 0, j = 0;
+
+  // loop over 24 bit chunks
+  while (s[i] != '\0') {
+    // take next 24 bit chuck (4 chars; 6 bits each)
+    uint32_t char_1 = _decode(s[i++]);
+    uint32_t char_2 = _decode(s[i++]);
+    uint32_t char_3 = _decode(s[i++]);
+    uint32_t char_4 = _decode(s[i++]);
+
+    // merge into 32 bit int
+    uint32_t k = (char_1 << 18) | (char_2 << 12) | (char_3 << 6) | char_4;
+
+
+    // write up to three bytes (exclude padding at end)
+    buf[j++] = (k >> 16) & 0xFF;
+    if (s[i - 2] != '=') {
+      buf[j++] = (k >> 8) & 0xFF;
+    }
+    if (s[i - 1] != '=') {
+      buf[j++] =  k & 0xFF;
+    }
+  }
+  return j;
+}
+
+
+
 //------------------------------ miscellaneous -----------------------------------------------------
 
 // convert contact force to pyramid representation
@@ -603,7 +750,7 @@ mjtNum mju_muscleDynamics(mjtNum ctrl, mjtNum act, const mjtNum prm[3]) {
 void mju_encodePyramid(mjtNum* pyramid, const mjtNum* force, const mjtNum* mu, int dim) {
   mjtNum a = force[0]/(dim-1), b;
 
-  // arbitary redundancy resolution:
+  // arbitrary redundancy resolution:
   //  pyramid0_i + pyramid1_i = force_normal/(dim-1) = a
   //  pyramid0_i - pyramid1_i = force_tangent_i/mu_i = b
   for (int i=0; i < dim-1; i++) {

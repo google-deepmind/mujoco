@@ -17,12 +17,14 @@
 
 #include <mujoco/mjexport.h>
 #include <mujoco/mjmodel.h>
+#include <mujoco/mjtnum.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 #include <stddef.h>
+#include <stdint.h>
 
 //------------------------------ tendons and actuators ---------------------------------------------
 
@@ -48,6 +50,20 @@ MJAPI mjtNum mju_muscleDynamics(mjtNum ctrl, mjtNum act, const mjtNum prm[3]);
 
 // all 3 semi-axes of a geom
 MJAPI void mju_geomSemiAxes(const mjModel* m, int geom_id, mjtNum semiaxes[3]);
+
+// ----------------------------- Base64 -----------------------------------------------------------
+
+// encode data as Base64 into buf (including padding and null char)
+// returns number of chars written in buf: 4 * [(ndata + 2) / 3] + 1
+MJAPI size_t mju_encodeBase64(char* buf, const uint8_t* data, size_t ndata);
+
+// return size in decoded bytes if s is a valid Base64 encoding
+// return 0 if s is empty or invalid Base64 encoding
+MJAPI size_t mju_isValidBase64(const char* s);
+
+// decode valid Base64 in string s into buf, undefined behavior if s is not valid Base64
+// returns number of bytes decoded (upper limit of 3 * (strlen(s) / 4))
+MJAPI size_t mju_decodeBase64(uint8_t* buf, const char* s);
 
 //------------------------------ miscellaneous ----------------------------------------------------
 
