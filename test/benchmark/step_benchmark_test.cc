@@ -86,6 +86,13 @@ void ABSL_ATTRIBUTE_NO_TAIL_CALL BM_StepCloth(benchmark::State& state) {
 }
 BENCHMARK(BM_StepCloth);
 
+void ABSL_ATTRIBUTE_NO_TAIL_CALL BM_StepParticle(benchmark::State& state) {
+  MujocoErrorTestGuard guard;
+  static mjModel* model = LoadModelFromPath("composite/particle.xml");
+  run_step_benchmark(model, state);
+}
+BENCHMARK(BM_StepParticle);
+
 void ABSL_ATTRIBUTE_NO_TAIL_CALL BM_StepFlag(benchmark::State& state) {
   MujocoErrorTestGuard guard;
   static mjModel* model = LoadModelFromPath("flag/flag.xml");
