@@ -208,6 +208,34 @@ TEST_F(XMLWriterTest, NotAddsInertial) {
   mj_deleteModel(model);
 }
 
+TEST_F(XMLWriterTest, KeepsBoundMassInertia) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <compiler boundmass="0.1" boundinertia="0.2"/>
+  </mujoco>
+  )";
+  mjModel* model = LoadModelFromString(xml);
+  ASSERT_THAT(model, NotNull());
+  std::string saved_xml = SaveAndReadXml(model);
+  EXPECT_THAT(saved_xml, HasSubstr("boundmass=\"0.1\""));
+  EXPECT_THAT(saved_xml, HasSubstr("boundinertia=\"0.2\""));
+  mj_deleteModel(model);
+}
+
+TEST_F(XMLWriterTest, DropsZeroBoundMassInertia) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <compiler boundmass="0" boundinertia="0"/>
+  </mujoco>
+  )";
+  mjModel* model = LoadModelFromString(xml);
+  ASSERT_THAT(model, NotNull());
+  std::string saved_xml = SaveAndReadXml(model);
+  EXPECT_THAT(saved_xml, Not(HasSubstr("boundmass")));
+  EXPECT_THAT(saved_xml, Not(HasSubstr("boundinertia")));
+  mj_deleteModel(model);
+}
+
 TEST_F(XMLWriterTest, DropsInertialIfFromGeom) {
   static constexpr char xml[] = R"(
   <mujoco>
