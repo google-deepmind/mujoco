@@ -270,8 +270,8 @@ static const char* MJCF[nMJCF][mjXATTRNUM] = {
         {"light", "*", "15", "name", "class", "directional", "castshadow", "active",
             "pos", "dir", "attenuation", "cutoff", "exponent", "ambient", "diffuse", "specular",
             "mode", "target"},
-        {"composite", "*", "12", "prefix", "type", "count", "spacing", "offset",
-            "flatinertia", "solrefsmooth", "solimpsmooth", "vertex",
+        {"composite", "*", "13", "prefix", "type", "count", "spacing", "offset",
+            "flatinertia", "solrefsmooth", "solimpsmooth", "vertex", "face",
             "initial", "curve", "size"},
         {"<"},
             {"plugin", "*", "2", "plugin", "instance"},
@@ -1942,6 +1942,9 @@ void mjXReader::OneComposite(XMLElement* elem, mjCBody* pbody, mjCDef* def) {
   if (ReadAttrTxt(elem, "vertex", text)){
     String2Vector(text, comp.uservert);
   }
+
+  // shell
+  ReadAttrTxt(elem, "face", comp.userface);
 
   // process curve string
   std::istringstream iss(curves);

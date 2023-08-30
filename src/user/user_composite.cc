@@ -236,7 +236,7 @@ bool mjCComposite::Make(mjCModel* model, mjCBody* body, char* error, int error_s
   }
 
   // check spacing
-  if (type==mjCOMPTYPE_GRID || type==mjCOMPTYPE_PARTICLE) {
+  if (type==mjCOMPTYPE_GRID || (type==mjCOMPTYPE_PARTICLE && uservert.empty())) {
     if (spacing < mju_max(def[0].geom.size[0],
                   mju_max(def[0].geom.size[1], def[0].geom.size[2]))) {
       return comperr(error, "Spacing must be larger than geometry size",
@@ -2192,7 +2192,7 @@ void mjCComposite::MakeSkin3(mjCModel* model) {
   }
 
   // box
-  if (type==mjCOMPTYPE_BOX || type==mjCOMPTYPE_PARTICLE) {
+  else if (type==mjCOMPTYPE_BOX || type==mjCOMPTYPE_PARTICLE) {
     // z-faces
     MakeSkin3Box(skin, count[0], count[1], 1, vcnt, "%sB%d_%d_0");
     fmt = "%sB%d_%d_" + string(cnt2);
