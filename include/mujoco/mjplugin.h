@@ -43,6 +43,11 @@ typedef void (*mjfCloseResource)(mjResource* resource);
 // sets dir to directory string with ndir being size of directory string
 typedef void (*mjfGetResourceDir)(mjResource* resource, const char** dir, int* ndir);
 
+// callback for checking if a resource was modified since last read
+// returns > 0 if resource was modified since last open, 0 if resource was not
+// modified, and < 0 if inconclusive
+typedef int (*mjfResourceModified)(const mjResource* resource);
+
 // struct describing a single resource provider
 struct mjpResourceProvider {
   const char* prefix;               // prefix for match against a resource name
@@ -50,6 +55,7 @@ struct mjpResourceProvider {
   mjfReadResource read;             // reading callback
   mjfCloseResource close;           // closing callback
   mjfGetResourceDir getdir;         // get directory callback (optional)
+  mjfResourceModified modified;     // resource modified callback (optional)
   void* data;                       // opaque data pointer (resource invariant)
 };
 typedef struct mjpResourceProvider mjpResourceProvider;

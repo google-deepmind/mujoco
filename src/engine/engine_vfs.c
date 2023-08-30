@@ -274,6 +274,7 @@ mjResource* mju_openVfsResource(const char* name, const mjVFS* vfs) {
     .read     = &vfs_read_callback,
     .close    = &vfs_close_callback,
     .getdir   = &vfs_getdir_callback,
+    .modified = NULL
   };
 
   // create resource

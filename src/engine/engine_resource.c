@@ -19,6 +19,17 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <time.h>
+
+#if defined (__unix__) || (defined (__APPLE__) && defined (__MACH__))
+  #include <unistd.h>
+#endif
+
+#ifdef _WIN32
+  #define stat _stat
+#endif
 
 #include <mujoco/mjplugin.h>
 #include "engine/engine_plugin.h"
@@ -28,6 +39,7 @@
 typedef struct {
   uint8_t* buffer;  // raw bytes from file
   size_t nbuffer;   // size of buffer in bytes
+  time_t mtime;     // last modified time
 } file_buffer;
 
 // open the given resource; if the name doesn't have a prefix matching with a
@@ -77,6 +89,13 @@ mjResource* mju_openResource(const char* name) {
     mju_closeResource(resource);
     return NULL;
   }
+  struct stat file_stat;
+  if (stat(name, &file_stat) == 0) {
+    memcpy(&fb->mtime, &file_stat.st_mtime, sizeof(time_t));
+  } else {
+    memset(&fb->mtime, 0, sizeof(time_t));
+  }
+
   return resource;
 }
 
@@ -145,6 +164,40 @@ void mju_getResourceDir(mjResource* resource, const char** dir, int* ndir) {
     *dir = resource->name;
     *ndir = mju_dirnamelen(resource->name);
   }
+}
+
+
+
+// modified callback for OS filesystem
+static int mju_isModifiedFile(const char* name, const file_buffer* fb) {
+  if (fb != NULL) {
+    struct stat file_stat;
+    if (stat(name, &file_stat) == 0) {
+      return difftime(fb->mtime, file_stat.st_mtime) < 0;
+    }
+    return -1;
+  }
+  return -2;
+}
+
+
+
+// Returns > 0 if resource has been modified since last read, 0 if not, and < 0
+// if inconclusive
+int mju_isModifiedResource(const mjResource* resource) {
+  if (resource == NULL) {
+    return -2;
+  }
+
+  // provider is not OS filesystem
+  if (resource->provider) {
+    if (resource->provider->modified) {
+      return resource->provider->modified(resource);
+    }
+    return 1;  // default (modified)
+  }
+
+  return mju_isModifiedFile(resource->name, (file_buffer*) resource->data);
 }
 
 

@@ -269,6 +269,7 @@ bool ResourceProvidersAreIdentical(const mjpResourceProvider* p1, const mjpResou
           p1->read == p2->read &&
           p1->close == p2->close &&
           p1->getdir == p2->getdir &&
+          p1->modified == p2->modified &&
           p1->data == p2->data);
 }
 
