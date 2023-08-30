@@ -661,7 +661,7 @@ void mj_saveModel(const mjModel* m, const char* filename, void* buffer, int buff
 
 
 // load model from binary MJB resource
-static mjModel* _mj_loadModel(const char* filename, int vfs_provider) {
+mjModel* mj_loadModel(const char* filename, const mjVFS* vfs) {
   int header[NHEADER] = {0};
   int expected_header[NHEADER] = {ID, sizeof(mjtNum), getnint(), getnsize(), getnptr()};
   int ints[256];
@@ -670,8 +670,11 @@ static mjModel* _mj_loadModel(const char* filename, int vfs_provider) {
   mjModel *m = 0;
   mjResource* r = NULL;
 
-  if((r = mju_openResource(filename, vfs_provider)) == NULL) {
-    return NULL;
+  // first try vfs, otherwise try a provider or OS filesystem
+  if ((r = mju_openVfsResource(filename, vfs)) == NULL) {
+    if ((r = mju_openResource(filename)) == NULL) {
+      return NULL;
+    }
   }
 
   const void* buffer = NULL;
@@ -781,27 +784,6 @@ static mjModel* _mj_loadModel(const char* filename, int vfs_provider) {
 
   mju_closeResource(r);
   return m;
-}
-
-
-
-// load model from binary MJB file
-//  if vfs is not NULL, look up file in vfs before reading from disk
-mjModel* mj_loadModel(const char* filename, const mjVFS* vfs) {
-  if (vfs == NULL) {
-    return _mj_loadModel(filename, 0);
-  }
-
-  int index = mj_registerVfsProvider(vfs);
-  if (index < 1) {
-    mjERROR("could not allocate memory");
-    return NULL;
-  }
-
-  mjModel* model = _mj_loadModel(filename, index);
-
-  mjp_unregisterResourceProvider(index);
-  return model;
 }
 
 

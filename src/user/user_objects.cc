@@ -39,6 +39,7 @@
 #include "engine/engine_util_misc.h"
 #include "engine/engine_util_solve.h"
 #include "engine/engine_util_spatial.h"
+#include "engine/engine_vfs.h"
 #include "user/user_model.h"
 #include "user/user_util.h"
 
@@ -495,17 +496,14 @@ mjCBase::mjCBase() {
 
 
 // load resource if found (fallback to OS filesystem)
-mjResource* mjCBase::LoadResource(string filename, int provider) {
+mjResource* mjCBase::LoadResource(string filename, const mjVFS* vfs) {
   mjResource* r = nullptr;
   const char* cname = filename.c_str();
 
-  // try reading from given provider
-  if ((r = mju_openResource(cname, provider)) == nullptr) {
-    if (!provider) {
-      throw mjCError(0, "file not found: '%s'", cname);
-    }
-    // if provider wasn't the OS filesystem try to fallback to OS filesystem
-    if ((r = mju_openResource(filename.c_str(), 0)) == nullptr) {
+  // try reading from provided VFS
+  if ((r = mju_openVfsResource(cname, vfs)) == nullptr) {
+    // not in vfs try a provider or fallback to OS filesystem
+    if ((r = mju_openResource(filename.c_str())) == nullptr) {
       throw mjCError(this, "resource not found via provider or OS filesystem: '%s'", cname);
     }
   }
@@ -2194,7 +2192,7 @@ void mjCHField::LoadPNG(mjResource* resource) {
 
 
 // compiler
-void mjCHField::Compile(int vfs_provider) {
+void mjCHField::Compile(const mjVFS* vfs) {
   // check size parameters
   for (int i=0; i<4; i++)
     if (size[i]<=0)
@@ -2226,7 +2224,7 @@ void mjCHField::Compile(int vfs_provider) {
     }
 
     string filename = mjuu_makefullname(model->modelfiledir, model->meshdir, file);
-    mjResource* resource = LoadResource(filename, vfs_provider);
+    mjResource* resource = LoadResource(filename, vfs);
 
     try {
       if (asset_type == "image/png") {
@@ -2617,7 +2615,7 @@ void mjCTexture::LoadCustom(mjResource* resource,
 
 
 // load from PNG or custom file, flip if specified
-void mjCTexture::LoadFlip(string filename, int vfs_provider,
+void mjCTexture::LoadFlip(string filename, const mjVFS* vfs,
                           std::vector<unsigned char>& image,
                           unsigned int& w, unsigned int& h) {
   std::string asset_type = GetAssetContentType(filename, content_type);
@@ -2631,7 +2629,7 @@ void mjCTexture::LoadFlip(string filename, int vfs_provider,
     throw mjCError(this, "unsupported content type: '%s'", asset_type.c_str());
   }
 
-  mjResource* resource = LoadResource(filename, vfs_provider);
+  mjResource* resource = LoadResource(filename, vfs);
 
   try {
     if (asset_type == "image/png") {
@@ -2693,11 +2691,11 @@ void mjCTexture::LoadFlip(string filename, int vfs_provider,
 
 
 // load 2D
-void mjCTexture::Load2D(string filename, int vfs_provider) {
+void mjCTexture::Load2D(string filename, const mjVFS* vfs) {
   // load PNG or custom
   unsigned int w, h;
   std::vector<unsigned char> image;
-  LoadFlip(filename, vfs_provider, image, w, h);
+  LoadFlip(filename, vfs, image, w, h);
 
   // assign size
   width = w;
@@ -2716,7 +2714,7 @@ void mjCTexture::Load2D(string filename, int vfs_provider) {
 
 
 // load cube or skybox from single file (repeated or grid)
-void mjCTexture::LoadCubeSingle(string filename, int vfs_provider) {
+void mjCTexture::LoadCubeSingle(string filename, const mjVFS* vfs) {
   // check gridsize
   if (gridsize[0]<1 || gridsize[1]<1 || gridsize[0]*gridsize[1]>12) {
     throw mjCError(this,
@@ -2727,7 +2725,7 @@ void mjCTexture::LoadCubeSingle(string filename, int vfs_provider) {
   // load PNG or custom
   unsigned int w, h;
   std::vector<unsigned char> image;
-  LoadFlip(filename, vfs_provider, image, w, h);
+  LoadFlip(filename, vfs, image, w, h);
 
   // check gridsize for compatibility
   if (w/gridsize[1]!=h/gridsize[0] || (w%gridsize[1]) || (h%gridsize[0])) {
@@ -2816,7 +2814,7 @@ void mjCTexture::LoadCubeSingle(string filename, int vfs_provider) {
 
 
 // load cube or skybox from separate file
-void mjCTexture::LoadCubeSeparate(int vfs_provider) {
+void mjCTexture::LoadCubeSeparate(const mjVFS* vfs) {
   // keep track of which faces were defined
   int loaded[6] = {0, 0, 0, 0, 0, 0};
 
@@ -2834,7 +2832,7 @@ void mjCTexture::LoadCubeSeparate(int vfs_provider) {
       // load PNG or custom
       unsigned int w, h;
       std::vector<unsigned char> image;
-      LoadFlip(filename, vfs_provider, image, w, h);
+      LoadFlip(filename, vfs, image, w, h);
 
       // PNG must be square
       if (w!=h) {
@@ -2888,7 +2886,7 @@ void mjCTexture::LoadCubeSeparate(int vfs_provider) {
 
 
 // compiler
-void mjCTexture::Compile(int vfs_provider) {
+void mjCTexture::Compile(const mjVFS* vfs) {
   // builtin
   if (builtin!=mjBUILTIN_NONE) {
     // check size
@@ -2931,9 +2929,9 @@ void mjCTexture::Compile(int vfs_provider) {
 
     // dispatch
     if (type==mjTEXTURE_2D) {
-      Load2D(filename, vfs_provider);
+      Load2D(filename, vfs);
     } else {
-      LoadCubeSingle(filename, vfs_provider);
+      LoadCubeSingle(filename, vfs);
     }
   }
 
@@ -2961,7 +2959,7 @@ void mjCTexture::Compile(int vfs_provider) {
     }
 
     // only cube and skybox
-    LoadCubeSeparate(vfs_provider);
+    LoadCubeSeparate(vfs);
   }
 
   // make sure someone allocated data; SHOULD NOT OCCUR

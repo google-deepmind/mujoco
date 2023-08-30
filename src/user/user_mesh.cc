@@ -29,6 +29,7 @@
 
 #include <MC.h>
 #include <mujoco/mjmodel.h>
+#include <mujoco/mjplugin.h>
 #include "cc/array_safety.h"
 #include "engine/engine_crossplatform.h"
 #include "engine/engine_resource.h"
@@ -329,7 +330,7 @@ void mjCMesh::LoadSDF() {
 
 
 // compiler
-void mjCMesh::Compile(int vfs_provider) {
+void mjCMesh::Compile(const mjVFS* vfs) {
   // load file
   if (!file_.empty()) {
     // remove path from file if necessary
@@ -348,7 +349,7 @@ void mjCMesh::Compile(int vfs_provider) {
     }
 
     string filename = mjuu_makefullname(model->modelfiledir, model->meshdir, file_);
-    mjResource* resource = LoadResource(filename, vfs_provider);
+    mjResource* resource = LoadResource(filename, vfs);
 
     try {
       if (asset_type == "model/stl") {
@@ -1836,7 +1837,7 @@ mjCSkin::~mjCSkin() {
 
 
 // compiler
-void mjCSkin::Compile(int vfs_provider) {
+void mjCSkin::Compile(const mjVFS* vfs) {
 
   // load file
   if (!file.empty()) {
@@ -1865,7 +1866,7 @@ void mjCSkin::Compile(int vfs_provider) {
     }
 
     string filename = mjuu_makefullname(model->modelfiledir, model->meshdir, file);
-    mjResource* resource = LoadResource(filename, vfs_provider);
+    mjResource* resource = LoadResource(filename, vfs);
 
     try {
       LoadSKN(resource);

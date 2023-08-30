@@ -23,6 +23,7 @@
 
 #include "lodepng.h"
 #include <mujoco/mjmodel.h>
+#include <mujoco/mjplugin.h>
 
 // forward declarations of all mjC/X classes
 class mjCError;
@@ -173,7 +174,7 @@ class mjCBase {
 
  public:
   // load resource if found (fallback to OS filesystem)
-  mjResource* LoadResource(std::string filename, int provider);
+  mjResource* LoadResource(std::string filename, const mjVFS* vfs);
 
   // Get and sanitize content type from raw_text if not empty, otherwise parse
   // content type from resource_name; throw on failure
@@ -572,7 +573,7 @@ class mjCMesh: public mjCBase {
   void set_usertexcoord(std::optional<std::vector<float>>&& usertexcoord);
   void set_userface(std::optional<std::vector<int>>&& userface);
 
-  void Compile(int vfs_provider);                   // compiler
+  void Compile(const mjVFS* vfs);                   // compiler
   double* GetPosPtr(mjtMeshType type);              // get position
   double* GetQuatPtr(mjtMeshType type);             // get orientation
   double* GetInertiaBoxPtr(mjtMeshType type);       // get inertia box
@@ -696,7 +697,7 @@ class mjCSkin: public mjCBase {
  private:
   mjCSkin(mjCModel* = 0);                     // constructor
   ~mjCSkin();                                 // destructor
-  void Compile(int vfs_provider);             // compiler
+  void Compile(const mjVFS* vfs);             // compiler
   void LoadSKN(mjResource* resource);         // load skin in SKN BIN format
 
   int matid;                          // material id
@@ -723,7 +724,7 @@ class mjCHField : public mjCBase {
  private:
   mjCHField(mjCModel* model);             // constructor
   ~mjCHField();                           // destructor
-  void Compile(int vfs_provider);         // compiler
+  void Compile(const mjVFS* vfs);         // compiler
 
   void LoadCustom(mjResource* resource);  // load from custom format
   void LoadPNG(mjResource* resource);     // load from PNG format
@@ -768,15 +769,15 @@ class mjCTexture : public mjCBase {
  private:
   mjCTexture(mjCModel*);                  // constructor
   ~mjCTexture();                          // destructior
-  void Compile(int vfs_provider);         // compiler
+  void Compile(const mjVFS* vfs);         // compiler
 
   void Builtin2D(void);                   // make builtin 2D
   void BuiltinCube(void);                 // make builtin cube
-  void Load2D(std::string filename, int vfs_provider);         // load 2D from file
-  void LoadCubeSingle(std::string filename, int vfs_provider); // load cube from single file
-  void LoadCubeSeparate(int vfs_provider);                     // load cube from separate files
+  void Load2D(std::string filename, const mjVFS* vfs);         // load 2D from file
+  void LoadCubeSingle(std::string filename, const mjVFS* vfs); // load cube from single file
+  void LoadCubeSeparate(const mjVFS* vfs);                     // load cube from separate files
 
-  void LoadFlip(std::string filename, int vfs_provider,        // load and flip
+  void LoadFlip(std::string filename, const mjVFS* vfs,        // load and flip
                 std::vector<unsigned char>& image,
                 unsigned int& w, unsigned int& h);
 

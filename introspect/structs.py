@@ -106,7 +106,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
              StructFieldDecl(
                  name='filesize',
                  type=ArrayType(
-                     inner_type=ValueType(name='int'),
+                     inner_type=ValueType(name='size_t'),
                      extents=(2000,),
                  ),
                  doc='file size in bytes',

@@ -655,28 +655,13 @@ struct mjLROpt_ {                 // options for mj_setLengthRange()
   mjtNum tolrange;                // convergence tolerance (relative to range)
 };
 typedef struct mjLROpt_ mjLROpt;
-struct mjVFS_ {                            // virtual file system for loading from memory
-  int   nfile;                             // number of files present
-  char  filename[mjMAXVFS][mjMAXVFSNAME];  // file name without path
-  int   filesize[mjMAXVFS];                // file size in bytes
-  void* filedata[mjMAXVFS];                // buffer with file data
+struct mjVFS_ {                             // virtual file system for loading from memory
+  int    nfile;                             // number of files present
+  char   filename[mjMAXVFS][mjMAXVFSNAME];  // file name without path
+  size_t filesize[mjMAXVFS];                // file size in bytes
+  void*  filedata[mjMAXVFS];                // buffer with file data
 };
 typedef struct mjVFS_ mjVFS;
-struct mjResource_ {
-  char* name;                     // name of resource (filename, etc)
-  void* data;                     // opaque data pointer
-  const void* provider_data;      // opaque resource provider data
-
-  // reading callback from resource provider
-  int (*read)(struct mjResource_* resource, const void** buffer);
-
-  // closing callback from resource provider
-  void (*close)(struct mjResource_* resource);
-
-  // getdir callback from resource provider
-  void (*getdir)(struct mjResource_* resource, const char** dir, int* ndir);
-};
-typedef struct mjResource_ mjResource;
 struct mjOption_ {                // physics options
   // timing parameters
   mjtNum timestep;                // timestep
@@ -1262,15 +1247,21 @@ struct mjModel_ {
   int*      names_map;            // internal hash map of names               (nnames_map x 1)
 };
 typedef struct mjModel_ mjModel;
-struct mjpResourceProvider_ {
-  const char* prefix;                // prefix for match against a resource name
-  mjfOpenResource open;              // opening callback
-  mjfReadResource read;              // reading callback
-  mjfCloseResource close;            // closing callback
-  mjfGetResourceDir getdir;          // getdir callback (optional)
-  void* data;                        // opaque data pointer (resource invariant)
+struct mjResource_ {
+  char* name;                                   // name of resource (filename, etc)
+  void* data;                                   // opaque data pointer
+  const struct mjpResourceProvider* provider;   // pointer to the provider
 };
-typedef struct mjpResourceProvider_ mjpResourceProvider;
+typedef struct mjResource_ mjResource;
+struct mjpResourceProvider {
+  const char* prefix;               // prefix for match against a resource name
+  mjfOpenResource open;             // opening callback
+  mjfReadResource read;             // reading callback
+  mjfCloseResource close;           // closing callback
+  mjfGetResourceDir getdir;         // get directory callback (optional)
+  void* data;                       // opaque data pointer (resource invariant)
+};
+typedef struct mjpResourceProvider mjpResourceProvider;
 typedef enum mjtPluginCapabilityBit_ {
   mjPLUGIN_ACTUATOR = 1<<0,       // actuator forces
   mjPLUGIN_SENSOR   = 1<<1,       // sensor measurements

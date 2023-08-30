@@ -17,6 +17,7 @@
 
 #include <stddef.h>
 
+
 #include <mujoco/mjtnum.h>
 
 // global constants
@@ -378,33 +379,13 @@ typedef struct mjLROpt_ mjLROpt;
 
 //---------------------------------- mjVFS ---------------------------------------------------------
 
-struct mjVFS_ {                            // virtual file system for loading from memory
-  int   nfile;                             // number of files present
-  char  filename[mjMAXVFS][mjMAXVFSNAME];  // file name without path
-  int   filesize[mjMAXVFS];                // file size in bytes
-  void* filedata[mjMAXVFS];                // buffer with file data
+struct mjVFS_ {                             // virtual file system for loading from memory
+  int    nfile;                             // number of files present
+  char   filename[mjMAXVFS][mjMAXVFSNAME];  // file name without path
+  size_t filesize[mjMAXVFS];                // file size in bytes
+  void*  filedata[mjMAXVFS];                // buffer with file data
 };
 typedef struct mjVFS_ mjVFS;
-
-
-//---------------------------------- mjResource ----------------------------------------------------
-
-struct mjResource_ {
-  char* name;                     // name of resource (filename, etc)
-  void* data;                     // opaque data pointer
-  const void* provider_data;      // opaque resource provider data
-
-  // reading callback from resource provider
-  int (*read)(struct mjResource_* resource, const void** buffer);
-
-  // closing callback from resource provider
-  void (*close)(struct mjResource_* resource);
-
-  // getdir callback from resource provider
-  void (*getdir)(struct mjResource_* resource, const char** dir, int* ndir);
-};
-typedef struct mjResource_ mjResource;
-
 
 //---------------------------------- mjOption ------------------------------------------------------
 
