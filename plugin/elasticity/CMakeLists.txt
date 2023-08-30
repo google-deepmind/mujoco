@@ -20,6 +20,8 @@ set(MUJOCO_ELASTICITY_SRCS
     cable.cc
     cable.h
     elasticity.cc
+    elasticity.h
+    register.cc
     solid.cc
     solid.h
 )

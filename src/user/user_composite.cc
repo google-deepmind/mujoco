@@ -34,6 +34,7 @@
 #include "user/user_model.h"
 #include "user/user_objects.h"
 #include "user/user_util.h"
+#include "xml/xml_util.h"
 
 namespace {
 namespace mju = ::mujoco::util;
@@ -314,66 +315,178 @@ bool mjCComposite::Make(mjCModel* model, mjCBody* body, char* error, int error_s
 
 
 
-// make particles
 bool mjCComposite::MakeParticle(mjCModel* model, mjCBody* body, char* error, int error_sz) {
-  // create bodies and geoms
-  for (int ix=0; ix<count[0]; ix++) {
-    for (int iy=0; iy<count[1]; iy++) {
-      for (int iz=0; iz<count[2]; iz++) {
-        // create body
-        char txt[100];
-        mjCBody* b = body->AddBody(NULL);
-        mju::sprintf_arr(txt, "%sB%d_%d_%d", prefix.c_str(), ix, iy, iz);
-        b->name = txt;
+  char txt[100];
+  std::vector<int> face;
 
-        // set body position
-        b->pos[0] = offset[0] + spacing*(ix - 0.5*count[0]);
-        b->pos[1] = offset[1] + spacing*(iy - 0.5*count[1]);
-        b->pos[2] = offset[2] + spacing*(iz - 0.5*count[2]);
+  // populate vertices and names
+  if (uservert.empty()) {
+    if (spacing < mju_max(def[0].geom.size[0],
+                  mju_max(def[0].geom.size[1], def[0].geom.size[2])))
+      return comperr(error, "Spacing must be larger than geometry size", error_sz);
 
-        // add slider joints if none defined
-        if (!add[mjCOMPKIND_PARTICLE]) {
-          for (int i=0; i<3; i++) {
-            mjCJoint* jnt = b->AddJoint(&defjoint[mjCOMPKIND_JOINT][0], false);
-            jnt->def = body->def;
-            jnt->type = mjJNT_SLIDE;
-            mjuu_setvec(jnt->pos, 0, 0, 0);
-            mjuu_setvec(jnt->axis, 0, 0, 0);
-            jnt->axis[i] = 1;
-          }
-        }
+    for (int ix=0; ix<count[0]; ix++) {
+      for (int iy=0; iy<count[1]; iy++) {
+        for (int iz=0; iz<count[2]; iz++) {
+          uservert.push_back(spacing*(ix - 0.5*count[0]));
+          uservert.push_back(spacing*(iy - 0.5*count[1]));
+          uservert.push_back(spacing*(iz - 0.5*count[2]));
 
-        // add user-specified joints
-        else {
-          for (auto defjnt : defjoint[mjCOMPKIND_PARTICLE]) {
-            mjCJoint* jnt = b->AddJoint(&defjnt, false);
-            jnt->def = body->def;
-          }
-        }
-
-        // add geom
-        mjCGeom* g = b->AddGeom(def);
-        g->def = body->def;
-
-        // add plugin
-        if (plugin_instance) {
-          b->is_plugin = true;
-          b->plugin_name = plugin_name;
-          b->plugin_instance = plugin_instance;
-          b->plugin_instance_name = plugin_instance_name;
-
-          // propagate attributes
-          if (plugin_name == "mujoco.elasticity.solid") {
-            b->plugin_instance->config_attribs["nx"] = std::to_string(count[0]);
-            b->plugin_instance->config_attribs["ny"] = std::to_string(count[1]);
-            b->plugin_instance->config_attribs["nz"] = std::to_string(count[2]);
-          }
+          mju::sprintf_arr(txt, "%sB%d_%d_%d", prefix.c_str(), ix, iy, iz);
+          username.push_back(std::string(txt));
         }
       }
     }
   }
 
-  // skin
+  // create faces
+  if (userface.empty()) {
+    if (dim == 3) {
+      int cube2tets[6][4] = {{0, 3, 1, 7}, {0, 1, 4, 7},
+                             {1, 3, 2, 7}, {1, 2, 6, 7},
+                             {1, 5, 4, 7}, {1, 6, 5, 7}};
+      for (int ix = 0; ix < count[0]-1; ix++) {
+        for (int iy = 0; iy < count[1]-1; iy++) {
+          for (int iz = 0; iz < count[2]-1; iz++) {
+            int vert[8] = {
+              count[2]*count[1]*(ix+0) + count[2]*(iy+0) + iz+0,
+              count[2]*count[1]*(ix+1) + count[2]*(iy+0) + iz+0,
+              count[2]*count[1]*(ix+1) + count[2]*(iy+1) + iz+0,
+              count[2]*count[1]*(ix+0) + count[2]*(iy+1) + iz+0,
+              count[2]*count[1]*(ix+0) + count[2]*(iy+0) + iz+1,
+              count[2]*count[1]*(ix+1) + count[2]*(iy+0) + iz+1,
+              count[2]*count[1]*(ix+1) + count[2]*(iy+1) + iz+1,
+              count[2]*count[1]*(ix+0) + count[2]*(iy+1) + iz+1,
+            };
+            for (int s = 0; s < 6; s++) {
+              for (int v = 0; v < 4; v++) {
+                face.push_back(vert[cube2tets[s][v]]+1);
+              }
+            }
+          }
+        }
+      }
+    } else if (dim == 2) {
+      int quad2tri[2][3] = {{0, 1, 2}, {0, 2, 3}};
+      for (int ix = 0; ix < count[0]-1; ix++) {
+        for (int iy = 0; iy < count[1]-1; iy++) {
+          int vert[4] = {
+            count[2]*count[1]*(ix+0) + count[2]*(iy+0),
+            count[2]*count[1]*(ix+1) + count[2]*(iy+0),
+            count[2]*count[1]*(ix+1) + count[2]*(iy+1),
+            count[2]*count[1]*(ix+0) + count[2]*(iy+1),
+          };
+          for (int s = 0; s < 2; s++) {
+            for (int v = 0; v < 3; v++) {
+              face.push_back(vert[quad2tri[s][v]]+1);
+            }
+          }
+        }
+      }
+    }
+    mjXUtil::Vector2String(userface, face);
+    } else {
+    dim = 2;  // can only load a surface for now
+    mjXUtil::String2Vector(userface, face);
+  }
+
+  // compute volume
+  std::vector<mjtNum> volume(uservert.size()/3);
+  mjtNum t = 1;
+  if (dim == 2 && plugin_instance) {
+    // do nothing for now (until new passive forces are supported)
+  }
+  if (!userface.empty()) {
+    mjXUtil::String2Vector(userface, face);
+    for (int j=0; j<face.size()/3; j++) {
+      mjtNum area[3];
+      mjtNum edge1[3];
+      mjtNum edge2[3];
+
+      for (int i=0; i<3; i++) {
+        edge1[i] = uservert[3*(face[3*j+1]-1)+i] - uservert[3*(face[3*j]-1)+i];
+        edge2[i] = uservert[3*(face[3*j+2]-1)+i] - uservert[3*(face[3*j]-1)+i];
+      }
+
+      mjuu_crossvec(area, edge1, edge2);
+      for (int i=0; i<3; i++) {
+        volume[face[3*j+i]-1] += sqrt(mjuu_dot3(area, area)) / 2 * t;
+      }
+    }
+  } else {
+    for (int i=0; i<uservert.size()/3; i++) {
+      volume[i] = 6 * spacing * spacing / 2 * t;
+    }
+  }
+
+  // create bodies and geoms
+  for (int i=0; i<uservert.size()/3; i++) {
+    // create body
+    mjCBody* b = body->AddBody(NULL);
+
+    if (!username.empty()) {
+      b->name = username[i];
+    } else {
+      mju::sprintf_arr(txt, "%sB%d", prefix.c_str(), i);
+      b->name = txt;
+    }
+
+    // set body position
+    b->pos[0] = offset[0] + uservert[3*i];
+    b->pos[1] = offset[1] + uservert[3*i+1];
+    b->pos[2] = offset[2] + uservert[3*i+2];
+
+    // add slider joints if none defined
+    if (!add[mjCOMPKIND_PARTICLE]) {
+      for (int i=0; i<3; i++) {
+        mjCJoint* jnt = b->AddJoint(&defjoint[mjCOMPKIND_JOINT][0], false);
+        jnt->def = body->def;
+        jnt->type = mjJNT_SLIDE;
+        mjuu_setvec(jnt->pos, 0, 0, 0);
+        mjuu_setvec(jnt->axis, 0, 0, 0);
+        jnt->axis[i] = 1;
+      }
+    }
+
+    // add user-specified joints
+    else {
+      for (auto defjnt : defjoint[mjCOMPKIND_PARTICLE]) {
+        mjCJoint* jnt = b->AddJoint(&defjnt, false);
+        jnt->def = body->def;
+      }
+    }
+
+    // add geom
+    mjCGeom* g = b->AddGeom(def);
+    g->def = body->def;
+
+    // add site
+    mjCSite* s = b->AddSite(def);
+    s->def = body->def;
+    s->type = mjGEOM_SPHERE;
+    mju::sprintf_arr(txt, "%sS%d", prefix.c_str(), i);
+    s->name = txt;
+
+    // add plugin
+    if (plugin_instance) {
+      b->is_plugin = true;
+      b->plugin_name = plugin_name;
+      b->plugin_instance = plugin_instance;
+      b->plugin_instance_name = plugin_instance_name;
+
+      if (i==0 && !plugin_instance->config_attribs["face"].empty()) {
+        return comperr(error, "Face attribute already exists in plugin", error_sz);
+      }
+
+      b->plugin_instance->config_attribs["face"] = userface;
+
+      // update density
+      if (dim == 2) {
+        g->density *= volume[i] / (4./3. * mjPI * pow(g->size[0], 3));
+      }
+    }
+  }
+
   if (skin) {
     MakeSkin3(model);
   }
@@ -2039,6 +2152,44 @@ void mjCComposite::MakeSkin3(mjCModel* model) {
   mjuu_copyvec(skin->rgba, skinrgba, 4);
   skin->inflate = skininflate;
   skin->group = skingroup;
+
+  // copy skin from existing mesh
+  if (type==mjCOMPTYPE_PARTICLE && username.empty()) {
+    std::vector<int> face;
+    mjXUtil::String2Vector(userface, face);
+    int nvert = uservert.size()/3;
+
+    for (int j=0; j<2; j++) {
+      for (int i=0; i<nvert; i++) {
+        skin->vert.push_back(0);
+        skin->vert.push_back(0);
+        skin->vert.push_back(0);
+
+        mju::sprintf_arr(txt, "%sB%d", prefix.c_str(), i);
+        skin->bodyname.push_back(txt);
+        skin->bindpos.push_back(0);
+        skin->bindpos.push_back(0);
+        skin->bindpos.push_back(0);
+        skin->bindquat.push_back(1);
+        skin->bindquat.push_back(0);
+        skin->bindquat.push_back(0);
+        skin->bindquat.push_back(0);
+
+        vector<int> vertid;
+        vector<float> vertweight;
+        vertid.push_back(j*nvert+i);
+        vertweight.push_back(1);
+        skin->vertid.push_back(vertid);
+        skin->vertweight.push_back(vertweight);
+      }
+
+      for (int i=0; i<face.size()/3; i++) {
+        skin->face.push_back(j*nvert+face[3*i]-1);
+        skin->face.push_back(j*nvert+face[3*i+(j==0 ? 1 : 2)]-1);
+        skin->face.push_back(j*nvert+face[3*i+(j==0 ? 2 : 1)]-1);
+      }
+    }
+  }
 
   // box
   if (type==mjCOMPTYPE_BOX || type==mjCOMPTYPE_PARTICLE) {

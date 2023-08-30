@@ -63,10 +63,10 @@ class Solid {
   mjtNum damping;
 
  private:
-  Solid(const mjModel* m, mjData* d, int instance, int nx, int ny, int nz,
-        mjtNum nu, mjtNum E, mjtNum damp);
+  Solid(const mjModel* m, mjData* d, int instance, mjtNum nu, mjtNum E,
+        mjtNum damp, const std::vector<int>& simplex);
 
-  void CreateStencils(int nx, int ny, int nz);
+  void CreateStencils(const std::vector<int>& simplex);
 };
 
 }  // namespace mujoco::plugin::elasticity
