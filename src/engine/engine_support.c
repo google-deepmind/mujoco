@@ -827,25 +827,27 @@ void mj_fullM(const mjModel* m, mjtNum* dst, const mjtNum* M) {
 
 // multiply vector by inertia matrix
 void mj_mulM(const mjModel* m, const mjData* d, mjtNum* res, const mjtNum* vec) {
-  int adr, nv = m->nv;
+  int nv = m->nv;
   const mjtNum* M = d->qM;
-  const int* dofMadr = m->dof_Madr;
+  const int* Madr = m->dof_Madr;
+  const int* parentid = m->dof_parentid;
+  const int* simplenum = m->dof_simplenum;
 
   mju_zero(res, nv);
 
   for (int i=0; i < nv; i++) {
 #ifdef mjUSEAVX
-    // simple: diagonal division, AVX
-    if (m->dof_simplenum[i] >= 4) {
+    // simple: diagonal multiplication, AVX
+    if (simplenum[i] >= 4) {
       // init
       __m256d result, val1, val2;
 
       // parallel computation
       val1 = _mm256_loadu_pd(vec+i);
-      val2 = _mm256_set_pd(M[dofMadr[i+3]],
-                           M[dofMadr[i+2]],
-                           M[dofMadr[i+1]],
-                           M[dofMadr[i+0]]);
+      val2 = _mm256_set_pd(M[Madr[i+3]],
+                           M[Madr[i+2]],
+                           M[Madr[i+1]],
+                           M[Madr[i+0]]);
       result = _mm256_mul_pd(val1, val2);
 
       // store result
@@ -856,29 +858,26 @@ void mj_mulM(const mjModel* m, const mjData* d, mjtNum* res, const mjtNum* vec) 
       continue;
     }
 #endif
+    // address in M
+    int adr = Madr[i];
 
-    // simple: diagonal multiplication
-    if (m->dof_simplenum[i]) {
-      res[i] = M[dofMadr[i]]*vec[i];
+    // compute diagonal
+    res[i] = M[adr]*vec[i];
+
+    // simple dof: continue
+    if (simplenum[i]) {
+      continue;
     }
 
-    // regular: full multiplication
-    else {
-      // diagonal
-      adr = dofMadr[i];
-      res[i] += M[adr]*vec[i];
-
-      // off-diagonal
-      int j = m->dof_parentid[i];
+    // compute off-diagonals
+    int j = parentid[i];
+    while (j >= 0) {
       adr++;
-      while (j >= 0) {
-        res[i] += M[adr]*vec[j];
-        res[j] += M[adr]*vec[i];
+      res[i] += M[adr]*vec[j];
+      res[j] += M[adr]*vec[i];
 
-        // advance to next element
-        j = m->dof_parentid[j];
-        adr++;
-      }
+      // advance to parent
+      j = parentid[j];
     }
   }
 }
