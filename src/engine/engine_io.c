@@ -45,6 +45,11 @@
 
 static const int MAX_ARRAY_SIZE = INT_MAX / 4;
 
+// compute a % b assuming that the second argument is a power of 2
+static inline size_t modpow2(size_t a, size_t b) {
+  return a & (b - 1);
+}
+
 //------------------------------ mjLROpt -----------------------------------------------------------
 
 // set default options for length range computation
@@ -1200,7 +1205,7 @@ mjData* mj_copyData(mjData* dest, const mjModel* m, const mjData* src) {
 
 // allocate memory from the mjData arena
 void* mj_arenaAlloc(mjData* d, size_t bytes, size_t alignment) {
-  size_t misalignment = d->parena % alignment;
+  size_t misalignment = modpow2(d->parena, alignment);
   size_t padding = misalignment ? alignment - misalignment : 0;
 
   // check size
@@ -1255,7 +1260,7 @@ static inline void* stackalloc(mjData* d, size_t size, size_t alignment) {
   uintptr_t start_ptr = end_ptr - (size + mjREDZONE);
 
   // align the pointer
-  start_ptr -= start_ptr % alignment;
+  start_ptr -= modpow2(start_ptr, alignment);
 
   // new top of the stack
   uintptr_t new_pstack_ptr = start_ptr - mjREDZONE;

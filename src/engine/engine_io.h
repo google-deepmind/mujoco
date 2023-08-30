@@ -102,10 +102,10 @@ MJAPI void mj_resetDataDebug(const mjModel* m, mjData* d, unsigned char debug_va
 // reset data, set fields from specified keyframe
 MJAPI void mj_resetDataKeyframe(const mjModel* m, mjData* d, int key);
 
-// mjData arena allocate
+// mjData arena allocate (alignment must be a power of 2)
 MJAPI void* mj_arenaAlloc(mjData* d, size_t bytes, size_t alignment);
 
-// mjData stack allocate
+// mjData stack allocate (alignment must be a power of 2)
 MJAPI void* mj_stackAlloc(mjData* d, size_t bytes, size_t alignment);
 
 // mjData stack allocate for array of mjtNums
