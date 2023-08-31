@@ -386,10 +386,10 @@ MJAPI int mj_isSparse(const mjModel* m);
 MJAPI int mj_isDual(const mjModel* m);
 
 // Multiply dense or sparse constraint Jacobian by vector.
-MJAPI void mj_mulJacVec(const mjModel* m, mjData* d, mjtNum* res, const mjtNum* vec);
+MJAPI void mj_mulJacVec(const mjModel* m, const mjData* d, mjtNum* res, const mjtNum* vec);
 
 // Multiply dense or sparse constraint Jacobian transpose by vector.
-MJAPI void mj_mulJacTVec(const mjModel* m, mjData* d, mjtNum* res, const mjtNum* vec);
+MJAPI void mj_mulJacTVec(const mjModel* m, const mjData* d, mjtNum* res, const mjtNum* vec);
 
 // Compute 3/6-by-nv end-effector Jacobian of global point attached to given body.
 MJAPI void mj_jac(const mjModel* m, const mjData* d, mjtNum* jacp, mjtNum* jacr,

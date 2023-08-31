@@ -375,7 +375,7 @@ int mj_mergeChainSimple(const mjModel* m, int* chain, int b1, int b2) {
 
 
 // multiply Jacobian by vector
-void mj_mulJacVec(const mjModel* m, mjData* d, mjtNum* res, const mjtNum* vec) {
+void mj_mulJacVec(const mjModel* m, const mjData* d, mjtNum* res, const mjtNum* vec) {
   // exit if no constraints
   if (!d->nefc) {
     return;
@@ -396,7 +396,8 @@ void mj_mulJacVec(const mjModel* m, mjData* d, mjtNum* res, const mjtNum* vec) {
 
 
 // multiply Jacobian by vector, for one island
-void mj_mulJacVec_island(const mjModel* m, mjData* d, mjtNum* res, const mjtNum* vec, int island) {
+void mj_mulJacVec_island(const mjModel* m, const mjData* d,
+                         mjtNum* res, const mjtNum* vec, int island) {
   // no island, call regular function
   if (island < 0) {
     mj_mulJacVec(m, d, res, vec);
@@ -435,7 +436,7 @@ void mj_mulJacVec_island(const mjModel* m, mjData* d, mjtNum* res, const mjtNum*
 
 
 // multiply JacobianT by vector
-void mj_mulJacTVec(const mjModel* m, mjData* d, mjtNum* res, const mjtNum* vec) {
+void mj_mulJacTVec(const mjModel* m, const mjData* d, mjtNum* res, const mjtNum* vec) {
   // exit if no constraints
   if (!d->nefc) {
     return;
@@ -456,7 +457,8 @@ void mj_mulJacTVec(const mjModel* m, mjData* d, mjtNum* res, const mjtNum* vec) 
 
 
 // multiply Jacobian transpose by vector, for one island
-void mj_mulJacTVec_island(const mjModel* m, mjData* d, mjtNum* res, const mjtNum* vec, int island) {
+void mj_mulJacTVec_island(const mjModel* m, const mjData* d,
+                          mjtNum* res, const mjtNum* vec, int island) {
   // no island, call regular function
   if (island < 0) {
     mj_mulJacTVec(m, d, res, vec);

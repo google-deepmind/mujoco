@@ -2268,8 +2268,8 @@ int mj_addContact(const mjModel* m, mjData* d, const mjContact* con);
 int mj_isPyramidal(const mjModel* m);
 int mj_isSparse(const mjModel* m);
 int mj_isDual(const mjModel* m);
-void mj_mulJacVec(const mjModel* m, mjData* d, mjtNum* res, const mjtNum* vec);
-void mj_mulJacTVec(const mjModel* m, mjData* d, mjtNum* res, const mjtNum* vec);
+void mj_mulJacVec(const mjModel* m, const mjData* d, mjtNum* res, const mjtNum* vec);
+void mj_mulJacTVec(const mjModel* m, const mjData* d, mjtNum* res, const mjtNum* vec);
 void mj_jac(const mjModel* m, const mjData* d, mjtNum* jacp, mjtNum* jacr,
             const mjtNum point[3], int body);
 void mj_jacBody(const mjModel* m, const mjData* d, mjtNum* jacp, mjtNum* jacr, int body);
