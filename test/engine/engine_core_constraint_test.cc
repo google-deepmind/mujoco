@@ -261,5 +261,67 @@ TEST_F(CoreConstraintTest, MulJacVecIsland) {
   mj_deleteModel(model);
 }
 
+TEST_F(CoreConstraintTest, MulJacTVecIsland) {
+  const std::string xml_path = GetTestDataFilePath(kIlslandEfcPath);
+  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, nullptr, 0);
+  mjData* data = mj_makeData(model);
+
+  // allocate vec_nv
+  mjtNum* vec_nv = (mjtNum*) mju_malloc(sizeof(mjtNum)*model->nv);
+
+  // iterate through dense and sparse
+  for (mjtJacobian sparsity : {mjJAC_DENSE, mjJAC_SPARSE}) {
+    model->opt.jacobian = sparsity;
+
+    // simulate for 0.3 seconds
+    mj_resetData(model, data);
+    while (data->time < 0.3) {
+      mj_step(model, data);
+    }
+    mj_forward(model, data);
+
+    // allocate vec_nefc, fill with arbitrary values
+    mjtNum* vec_nefc = (mjtNum*) mju_malloc(sizeof(mjtNum)*data->nefc);
+    for (int i=0; i < data->nefc; i++) {
+      vec_nefc[i] = 0.2 + 0.3*i;
+    }
+
+    // multiply by Jacobian: vec_nv = J^T * vec_nefc
+    mj_mulJacTVec(model, data, vec_nv, vec_nefc);
+
+    // iterate over islands
+    for (int i=0; i < data->nisland; i++) {
+      // allocate dof and efc vectors for island
+      int dofnum = data->island_dofnum[i];
+      mjtNum* vec_nvi = (mjtNum*)mju_malloc(sizeof(mjtNum) * dofnum);
+      int efcnum = data->island_efcnum[i];
+      mjtNum* vec_nefci = (mjtNum*)mju_malloc(sizeof(mjtNum) * efcnum);
+
+      // copy values into vec_nefci
+      int* efcind = data->island_efcind + data->island_efcadr[i];
+      for (int j=0; j < efcnum; j++) {
+        vec_nefci[j] = vec_nefc[efcind[j]];
+      }
+
+      // multiply by Jacobian, for this island
+      mj_mulJacTVec_island(model, data, vec_nvi, vec_nefci, i);
+
+      // expect corresponding values to match
+      int* dofind = data->island_dofind + data->island_dofadr[i];
+      for (int j=0; j < dofnum; j++) {
+        EXPECT_THAT(vec_nvi[j], DoubleNear(vec_nv[dofind[j]], 1e-12));
+      }
+
+      mju_free(vec_nvi);
+      mju_free(vec_nefci);
+    }
+    mju_free(vec_nefc);
+  }
+
+  mju_free(vec_nv);
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
 }  // namespace
 }  // namespace mujoco

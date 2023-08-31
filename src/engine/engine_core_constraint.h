@@ -42,6 +42,10 @@ MJAPI void mj_mulJacVec(const mjModel* m, mjData* d, mjtNum* res, const mjtNum* 
 MJAPI void mj_mulJacVec_island(const mjModel* m, mjData* d,
                                mjtNum* res, const mjtNum* vec, int island);
 
+// multiply Jacobian transposed by vector, for one island
+MJAPI void mj_mulJacTVec_island(const mjModel* m, mjData* d,
+                                mjtNum* res, const mjtNum* vec, int island);
+
 // multiply JacobianT by vector
 MJAPI void mj_mulJacTVec(const mjModel* m, mjData* d, mjtNum* res, const mjtNum* vec);
 

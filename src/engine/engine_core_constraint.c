@@ -455,6 +455,45 @@ void mj_mulJacTVec(const mjModel* m, mjData* d, mjtNum* res, const mjtNum* vec) 
 
 
 
+// multiply Jacobian transpose by vector, for one island
+void mj_mulJacTVec_island(const mjModel* m, mjData* d, mjtNum* res, const mjtNum* vec, int island) {
+  // no island, call regular function
+  if (island < 0) {
+    mj_mulJacTVec(m, d, res, vec);
+    return;
+  }
+
+  // sizes
+  int vecnnz = d->island_efcnum[island];
+  int resnnz = d->island_dofnum[island];
+
+  // indices
+  int* vecind = d->island_efcind + d->island_efcadr[island];
+  int* resind = d->island_dofind + d->island_dofadr[island];
+
+  // sparse Jacobian
+  if (mj_isSparse(m)) {
+    for (int i=0; i < resnnz; i++) {
+      int row = resind[i];
+      int JTnnz = d->efc_JT_rownnz[row];
+      int JTrowadr = d->efc_JT_rowadr[row];
+      int* JTind = d->efc_JT_colind + JTrowadr;
+      mjtNum* JT = d->efc_JT + JTrowadr;
+      res[i] = mju_dotSparse2(vec, JT, vecnnz, vecind, JTnnz, JTind);
+    }
+  }
+
+  // dense Jacobian
+  else {
+    int nefc = d->nefc;
+    for (int i=0; i < resnnz; i++) {
+      res[i] = mju_dotSparse(vec, d->efc_JT + nefc*resind[i], vecnnz, vecind);
+    }
+  }
+}
+
+
+
 //--------------------- instantiate constraints by type --------------------------------------------
 
 // equality constraints
@@ -1772,6 +1811,10 @@ void mj_makeConstraint(const mjModel* m, mjData* d) {
     // supernodes of JT
     mju_superSparse(m->nv, d->efc_JT_rowsuper,
                     d->efc_JT_rownnz, d->efc_JT_rowadr, d->efc_JT_colind);
+  } else {
+    if (mjENABLED(mjENBL_ISLAND)) {
+      mju_transpose(d->efc_JT, d->efc_J, d->nefc, m->nv);
+    }
   }
 
   // compute diagApprox
