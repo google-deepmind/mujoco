@@ -1272,12 +1272,12 @@ static inline void* stackalloc(mjData* d, size_t size, size_t alignment) {
   }
 
   // store new stack usage in the red zone
-  ASAN_UNPOISON_MEMORY_REGION(new_pstack_ptr, sizeof(size_t));
+  ASAN_UNPOISON_MEMORY_REGION((void*)new_pstack_ptr, sizeof(size_t));
   *(size_t*)new_pstack_ptr = usage;
-  ASAN_POISON_MEMORY_REGION(new_pstack_ptr, sizeof(size_t));
+  ASAN_POISON_MEMORY_REGION((void*)new_pstack_ptr, sizeof(size_t));
 
   // unpoison the actual usable allocation
-  ASAN_UNPOISON_MEMORY_REGION(start_ptr, size);
+  ASAN_UNPOISON_MEMORY_REGION((void*)start_ptr, size);
 #endif
 
 #undef mjREDZONE
