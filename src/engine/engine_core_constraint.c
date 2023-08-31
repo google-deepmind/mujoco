@@ -395,6 +395,45 @@ void mj_mulJacVec(const mjModel* m, mjData* d, mjtNum* res, const mjtNum* vec) {
 
 
 
+// multiply Jacobian by vector, for one island
+void mj_mulJacVec_island(const mjModel* m, mjData* d, mjtNum* res, const mjtNum* vec, int island) {
+  // no island, call regular function
+  if (island < 0) {
+    mj_mulJacVec(m, d, res, vec);
+    return;
+  }
+
+  // sizes
+  int vecnnz = d->island_dofnum[island];
+  int resnnz = d->island_efcnum[island];
+
+  // indices
+  int* vecind = d->island_dofind + d->island_dofadr[island];
+  int* resind = d->island_efcind + d->island_efcadr[island];
+
+  // sparse Jacobian
+  if (mj_isSparse(m)) {
+    for (int i=0; i < resnnz; i++) {
+      int row = resind[i];
+      int Jnnz = d->efc_J_rownnz[row];
+      int Jrowadr = d->efc_J_rowadr[row];
+      int* Jind = d->efc_J_colind + Jrowadr;
+      mjtNum* J = d->efc_J + Jrowadr;
+      res[i] = mju_dotSparse2(vec, J, vecnnz, vecind, Jnnz, Jind);
+    }
+  }
+
+  // dense Jacobian
+  else {
+    int nv = m->nv;
+    for (int i=0; i < resnnz; i++) {
+      res[i] = mju_dotSparse(vec, d->efc_J + nv*resind[i], vecnnz, vecind);
+    }
+  }
+}
+
+
+
 // multiply JacobianT by vector
 void mj_mulJacTVec(const mjModel* m, mjData* d, mjtNum* res, const mjtNum* vec) {
   // exit if no constraints

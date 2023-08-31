@@ -38,6 +38,10 @@ MJAPI int mj_isDual(const mjModel* m);
 // multiply Jacobian by vector
 MJAPI void mj_mulJacVec(const mjModel* m, mjData* d, mjtNum* res, const mjtNum* vec);
 
+// multiply Jacobian by vector, for one island
+MJAPI void mj_mulJacVec_island(const mjModel* m, mjData* d,
+                               mjtNum* res, const mjtNum* vec, int island);
+
 // multiply JacobianT by vector
 MJAPI void mj_mulJacTVec(const mjModel* m, mjData* d, mjtNum* res, const mjtNum* vec);
 
