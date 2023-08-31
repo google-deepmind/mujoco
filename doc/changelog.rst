@@ -38,11 +38,11 @@ General
    Euler integrator. See the :ref:`Numerical Integration<geIntegration>` section for more details.
 #. Added the flag :ref:`invdiscrete<option-flag-invdiscrete>`, which enables discrete-time inverse dynamics for all
    :ref:`integrators<option-integrator>` other than ``RK4``. See the flag documentation for more details.
-#. Changed the function ``mj_stackAlloc`` to allocate an arbitrary number of bytes, rather than in multiples of
+#. Changed the function :ref:`mj_stackAlloc` to allocate an arbitrary number of bytes, rather than in multiples of
    ``sizeof(mjtNum)``, and add an additional argument for specifying the alignment of the returned pointer. The existing
-   functionality of allocating ``mjtNum`` arrays is still available through the new function ``mj_stackAllocNum``.
-#. Renamed the ``nstack`` field in ``mjModel`` and ``mjData`` to ``narena``. Changed ``narena``, ``pstack``, and
-   ``maxuse_stack`` to count number of bytes rather than number of ``mjtNum``s.
+   functionality of allocating ``mjtNum`` arrays is still available through the new function :ref:`mj_stackAllocNum`.
+#. Renamed the ``nstack`` field in :ref:`mjModel` and :ref:`mjData` to ``narena``. Changed ``narena``, ``pstack``, and
+   ``maxuse_stack`` to count number of bytes rather than number of :ref:`mjtNum` |-| s.
 
 Python bindings
 ^^^^^^^^^^^^^^^

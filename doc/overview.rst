@@ -239,8 +239,7 @@ The function :ref:`mj_step` is the top-level function which advances the simulat
 of course is just a passive dynamical system. Things get more interesting when the user specifies controls or applies
 forces and starts interacting with the system.
 
-Next we provide a more elaborate example illustrating several features of MJCF.
-
+Next we provide a more elaborate example illustrating several features of MJCF. Consider the following
 `example.xml <_static/example.xml>`__:
 
 .. code:: xml
@@ -332,18 +331,24 @@ XML file, default values are used. The options are designed such that the user c
 simulation time step. Within a time step however none of the options should be changed.
 
 ``mjOption``
-   This structure contains all options that affect the physics simulation. It is used to select algorithms and set their
-   parameters, enable and disable different portions of the simulation pipeline, and adjust system-level physical
-   properties such as gravity.
+^^^^^^^^^^^^
+
+This structure contains all options that affect the physics simulation. It is used to select algorithms and set their
+parameters, enable and disable different portions of the simulation pipeline, and adjust system-level physical
+properties such as gravity.
 
 ``mjVisual``
-   This structure contains all visualization options. There are additional OpenGL rendering options, but these are
-   session-dependent and are not part of the model.
+^^^^^^^^^^^^
+
+This structure contains all visualization options. There are additional OpenGL rendering options, but these are
+session-dependent and are not part of the model.
 
 ``mjStatistic``
-   This structure contains statistics about the model which are computed by the compiler: average body mass, spatial
-   extent of the model etc. It is included for information purposes, and also because the visualizer uses it for
-   automatic scaling.
+^^^^^^^^^^^^^^^
+
+This structure contains statistics about the model which are computed by the compiler: average body mass, spatial
+extent of the model etc. It is included for information purposes, and also because the visualizer uses it for
+automatic scaling.
 
 .. _Assets:
 
@@ -357,51 +362,61 @@ purpose of including an asset is to reference it, and referencing can only be do
 undefined.
 
 Mesh
-   MuJoCo can load triangulated meshes from OBJ files and binary STL. Software such as `MeshLab
-   <https://www.meshlab.net/>`__ can be used to convert from other formats. While any collection of triangles can be
-   loaded and visualized as a mesh, the collision detector works with the convex hull. There are compile-time options
-   for scaling the mesh, as well as fitting a primitive geometric shape to it. The mesh can also be used to
-   automatically infer inertial properties -- by treating it as a union of triangular pyramids and combining their
-   masses and inertias. Note that meshes have no color, instead the mesh is colored using the material properties of the
-   referencing geom. In contrast, all spatial properties are determined by the mesh data. MuJoCo supports both OBJ and a
-   custom binary file format for normals and texture coordinates. Meshes can also be embedded directly in the XML.
+^^^^
+
+MuJoCo can load triangulated meshes from OBJ files and binary STL. Software such as `MeshLab
+<https://www.meshlab.net/>`__ can be used to convert from other formats. While any collection of triangles can be
+loaded and visualized as a mesh, the collision detector works with the convex hull. There are compile-time options
+for scaling the mesh, as well as fitting a primitive geometric shape to it. The mesh can also be used to
+automatically infer inertial properties -- by treating it as a union of triangular pyramids and combining their
+masses and inertias. Note that meshes have no color, instead the mesh is colored using the material properties of the
+referencing geom. In contrast, all spatial properties are determined by the mesh data. MuJoCo supports both OBJ and a
+custom binary file format for normals and texture coordinates. Meshes can also be embedded directly in the XML.
 
 Skin
-   Skinned meshes (or skins) are meshes whose shape can deform at runtime. Their vertices are attached to rigid bodies
-   (called bones in this context) and each vertex can belong to multiple bones, resulting in smooth deformations of the
-   skin. Skins are purely visualization objects and do not affect the physics, but nevertheless they can enhance visual
-   realism significantly. Skins can be loaded from custom binary files, or embedded directly in the XML, similar to
-   meshes. When generating composite flexible objects automatically, the model compiler also generates skins for these
-   objects.
+^^^^
+
+Skinned meshes (or skins) are meshes whose shape can deform at runtime. Their vertices are attached to rigid bodies
+(called bones in this context) and each vertex can belong to multiple bones, resulting in smooth deformations of the
+skin. Skins are purely visualization objects and do not affect the physics, but nevertheless they can enhance visual
+realism significantly. Skins can be loaded from custom binary files, or embedded directly in the XML, similar to
+meshes. When generating composite flexible objects automatically, the model compiler also generates skins for these
+objects.
 
 Height field
-   Height fields can be loaded from PNG files (converted to gray-scale internally) or from files in a custom binary
-   format described later. A height field is a rectangular grid of elevation data. The compiler normalizes the data to
-   the range [0-1]. The actual spatial extent of the height field is then determined by the size parameters of the
-   referencing geom. Height fields can only be referenced from geoms that are attached to the world body. For rendering
-   and collision detection purposes, the grid rectangles are automatically triangulated, thus the height field is
-   treated as a union of triangular prisms. Collision detection with such a composite object can in principle generate a
-   large number of contact points for a single geom pair. If that happens, only the first 64 contact points are kept.
-   The rationale is that height fields should be used to model terrain maps whose spatial features are large compared to
-   the other objects in the simulation, so the number of contacts will be small for well-designed models.
+^^^^^^^^^^^^
+
+Height fields can be loaded from PNG files (converted to gray-scale internally) or from files in a custom binary
+format described later. A height field is a rectangular grid of elevation data. The compiler normalizes the data to
+the range [0-1]. The actual spatial extent of the height field is then determined by the size parameters of the
+referencing geom. Height fields can only be referenced from geoms that are attached to the world body. For rendering
+and collision detection purposes, the grid rectangles are automatically triangulated, thus the height field is
+treated as a union of triangular prisms. Collision detection with such a composite object can in principle generate a
+large number of contact points for a single geom pair. If that happens, only the first 64 contact points are kept.
+The rationale is that height fields should be used to model terrain maps whose spatial features are large compared to
+the other objects in the simulation, so the number of contacts will be small for well-designed models.
 
 Texture
-   Textures can be loaded from PNG files or synthesized by the compiler based on user-defined procedural parameters.
-   There is also the option to leave the texture empty at model creation time and change it later at runtime -- so as to
-   render video in a MuJoCo simulation, or create other dynamic effects. The visualizer supports two types of texture
-   mapping: 2D and cube. 2D mapping is useful for planes and height fields. Cube mapping is useful for "shrink-wrapping"
-   textures around 3D objects without having to specify texture coordinates. It is also used to create a skybox. The six
-   sides of a cube maps can be loaded from separate image files, or from one composite image file, or generated by
-   repeating the same image. Unlike all other assets which are referenced directly from model elements, textures can
-   only be referenced from another asset (namely material) which is then referenced from model elements.
+^^^^^^^
+
+Textures can be loaded from PNG files or synthesized by the compiler based on user-defined procedural parameters.
+There is also the option to leave the texture empty at model creation time and change it later at runtime -- so as to
+render video in a MuJoCo simulation, or create other dynamic effects. The visualizer supports two types of texture
+mapping: 2D and cube. 2D mapping is useful for planes and height fields. Cube mapping is useful for "shrink-wrapping"
+textures around 3D objects without having to specify texture coordinates. It is also used to create a skybox. The six
+sides of a cube maps can be loaded from separate image files, or from one composite image file, or generated by
+repeating the same image. Unlike all other assets which are referenced directly from model elements, textures can
+only be referenced from another asset (namely material) which is then referenced from model elements.
 
 Material
-   Materials are used to control the appearance of geoms, sites and tendons. This is done by referencing the material
-   from the corresponding model element. Appearance includes texture mapping as well as other properties that interact
-   with OpenGL lights below: RGBA, specularity, shininess, emission. Materials can also be used to make objects
-   reflective. Currently reflections are rendered only on planes and on the Z+ faces of boxes. Note that model elements
-   can also have their local RGBA parameter for setting color. If both material and local RGBA are specified, the local
-   definition has precedence.
+^^^^^^^^
+
+Materials are used to control the appearance of geoms, sites and tendons. This is done by referencing the material
+from the corresponding model element. Appearance includes texture mapping as well as other properties that interact
+with OpenGL lights below: RGBA, specularity, shininess, emission. Materials can also be used to make objects
+reflective. Currently reflections are rendered only on planes and on the Z+ faces of boxes. Note that model elements
+can also have their local RGBA parameter for setting color. If both material and local RGBA are specified, the local
+definition has precedence.
 
 .. _Kinematic:
 
@@ -417,171 +432,209 @@ within a body and belong to that body. This is in contrast with the stand-alone 
 associated with a single body.
 
 Body
-   Bodies have mass and inertial properties but do not have any geometric properties. Instead geometric shapes (or
-   geoms) are attached to the bodies. Each body has two coordinate frames: the frame used to define it as well as to
-   position other elements relative to it, and an inertial frame centered at the body's center of mass and aligned with
-   its principal axes of inertia. The body inertia matrix is therefore diagonal in this frame. At each time step MuJoCo
-   computes the forward kinematics recursively, yielding all body positions and orientations in global Cartesian
-   coordinates. This provides the basis for all subsequent computations.
+^^^^
+
+Bodies have mass and inertial properties but do not have any geometric properties. Instead geometric shapes (or
+geoms) are attached to the bodies. Each body has two coordinate frames: the frame used to define it as well as to
+position other elements relative to it, and an inertial frame centered at the body's center of mass and aligned with
+its principal axes of inertia. The body inertia matrix is therefore diagonal in this frame. At each time step MuJoCo
+computes the forward kinematics recursively, yielding all body positions and orientations in global Cartesian
+coordinates. This provides the basis for all subsequent computations.
 
 Joint
-   Joints are defined within bodies. They create motion degrees of freedom (DOFs) between the body and its parent. In
-   the absence of joints the body is welded to its parent. This is the opposite of gaming engines which use
-   over-complete Cartesian coordinates, where joints remove DOFs instead of adding them. There are four types of joints:
-   ball, slide, hinge, and a "free joint" which creates floating bodies. A single body can have multiple joints. In this
-   way composite joints are created automatically, without having to define dummy bodies. The orientation components of
-   ball and free joints are represented as unit quaternions, and all computations in MuJoCo respect the properties of
-   quaternions.
+^^^^^
+
+Joints are defined within bodies. They create motion degrees of freedom (DOFs) between the body and its parent. In
+the absence of joints the body is welded to its parent. This is the opposite of gaming engines which use
+over-complete Cartesian coordinates, where joints remove DOFs instead of adding them. There are four types of joints:
+ball, slide, hinge, and a "free joint" which creates floating bodies. A single body can have multiple joints. In this
+way composite joints are created automatically, without having to define dummy bodies. The orientation components of
+ball and free joints are represented as unit quaternions, and all computations in MuJoCo respect the properties of
+quaternions.
+
+Joint reference
+'''''''''''''''
+
+The reference pose is a vector of joint positions stored in ``mjModel.qpos0``. It corresponds to the numeric values
+of the joints when the model is in its initial configuration. In our earlier example the elbow was created in a bent
+configuration at 90° angle. But MuJoCo does not know what an elbow is, and so by default it treats this joint
+configuration as having numeric value of 0. We can override the default behavior and specify that the initial
+configuration corresponds to 90°, using the ref attribute of :ref:`joint <body-joint>`. The reference values of all
+joints are assembled into the vector ``mjModel.qpos0``. Whenever the simulation is reset, the joint configuration
+``mjData.qpos`` is set to ``mjModel.qpos0``. At runtime the joint position vector is interpreted relative to the
+reference pose. In particular, the amount of spatial transformation applied by the joints is ``mjData.qpos -
+mjModel.qpos0``. This transformation is in addition to the parent-child translation and rotation offsets stored in
+the body elements of ``mjModel``. The ref attribute only applies to scalar joints (slide and hinge). For ball joints,
+the quaternion saved in ``mjModel.qpos0`` is always (1,0,0,0) which corresponds to the null rotation. For free
+joints, the global 3D position and quaternion of the floating body are saved in ``mjModel.qpos0``.
+
+Spring reference
+''''''''''''''''
+
+This is the pose in which all joint and tendon springs achieve their resting length. Spring forces are generated
+when the joint configuration deviates from the spring reference pose, and are linear in the amount of deviation. The
+spring reference pose is saved in ``mjModel.qpos_spring``. For slide and hinge joints, the spring reference is
+specified with the attribute springref. For ball and free joints, the spring reference corresponds to the initial
+model configuration.
 
 DOF
-   Degrees of freedom are closely related to joints, but are not in one-to-one correspondence because ball and free
-   joints have multiple DOFs. Think of joints as specifying positional information, and of DOFs as specifying velocity
-   and force information. More formally, the joint positions are coordinates over the configuration manifold of the
-   system, while the joint velocities are coordinates over the tangent space to this manifold at the current position.
-   DOFs have velocity-related properties such as friction loss, damping, armature inertia. All generalized forces acting
-   on the system are expressed in the space of DOFs. In contrast, joints have position-related properties such as limits
-   and spring stiffness. DOFs are not specified directly by the user. Instead they are created by the compiler given the
-   joints.
+^^^
+
+Degrees of freedom are closely related to joints, but are not in one-to-one correspondence because ball and free
+joints have multiple DOFs. Think of joints as specifying positional information, and of DOFs as specifying velocity
+and force information. More formally, the joint positions are coordinates over the configuration manifold of the
+system, while the joint velocities are coordinates over the tangent space to this manifold at the current position.
+DOFs have velocity-related properties such as friction loss, damping, armature inertia. All generalized forces acting
+on the system are expressed in the space of DOFs. In contrast, joints have position-related properties such as limits
+and spring stiffness. DOFs are not specified directly by the user. Instead they are created by the compiler given the
+joints.
 
 Geom
-   Geoms are 3D shapes rigidly attached to the bodies. Multiple geoms can be attached to the same body. This is
-   particularly useful in light of the fact that MuJoCo only supports convex geom-geom collisions, and the only way to
-   create non-convex objects is to represent them as a union of convex geoms. Apart from collision detection and
-   subsequent computation of contact forces, geoms are used for rendering, as well as automatic inference of body masses
-   and inertias when the latter are omitted. MuJoCo supports several primitive geometric shapes: plane, sphere, capsule,
-   ellipsoid, cylinder, box. A geom can also be a mesh or a height field; this is done by referencing the corresponding
-   asset. Geoms have a number of material properties that affect the simulation and visualization.
+^^^^
+
+Geoms are 3D shapes rigidly attached to the bodies. Multiple geoms can be attached to the same body. This is
+particularly useful in light of the fact that MuJoCo only supports convex geom-geom collisions, and the only way to
+create non-convex objects is to represent them as a union of convex geoms. Apart from collision detection and
+subsequent computation of contact forces, geoms are used for rendering, as well as automatic inference of body masses
+and inertias when the latter are omitted. MuJoCo supports several primitive geometric shapes: plane, sphere, capsule,
+ellipsoid, cylinder, box. A geom can also be a mesh or a height field; this is done by referencing the corresponding
+asset. Geoms have a number of material properties that affect the simulation and visualization.
 
 Site
-   Sites are essentially light geoms. They represent locations of interest within the body frame. Sites do not
-   participate in collision detection or automated computation of inertial properties, however they can be used to
-   specify the spatial properties of other objects like sensors, tendon routing, and slider-crank endpoints.
+^^^^
+
+Sites are essentially light geoms. They represent locations of interest within the body frame. Sites do not
+participate in collision detection or automated computation of inertial properties, however they can be used to
+specify the spatial properties of other objects like sensors, tendon routing, and slider-crank endpoints.
 
 Camera
-   Multiple cameras can be defined in a model. There is always a default camera which the user can freely move with the
-   mouse in the interactive visualizer. However it is often convenient to define additional cameras that are either
-   fixed to the world, or are attached to one of the bodies and move with it. In addition to the camera position and
-   orientation, the user can adjust the field of view and the inter-pupilary distance for stereoscopic rendering, as
-   well as create oblique projections needed for stereoscopic virtual environments.
+^^^^^^
+
+Multiple cameras can be defined in a model. There is always a default camera which the user can freely move with the
+mouse in the interactive visualizer. However it is often convenient to define additional cameras that are either
+fixed to the world, or are attached to one of the bodies and move with it. In addition to the camera position and
+orientation, the user can adjust the field of view and the inter-pupilary distance for stereoscopic rendering, as
+well as create oblique projections needed for stereoscopic virtual environments.
 
 Light
-   Lights can be fixed to the world body or attached to moving bodies. The visualizer provides access to the full
-   lighting model in OpenGL (fixed function) including ambient, diffuse and specular components, attenuation and cutoff,
-   positional and directional lighting, fog. Lights, or rather the objects illuminated by them, can also cast shadows.
-   However, similar to material reflections, each shadow-casting light adds one rendering pass so this feature should be
-   used with caution. Documenting the lighting model in detail is beyond the scope of this chapter; see `OpenGL
-   documentation <http://www.glprogramming.com/red/chapter05.html>`__ instead. Note that in addition to lights defined
-   by the user in the kinematic tree, there is a default headlight that moves with the camera. Its properties are
-   adjusted through the mjVisual options.
+^^^^^
+
+Lights can be fixed to the world body or attached to moving bodies. The visualizer provides access to the full
+lighting model in OpenGL (fixed function) including ambient, diffuse and specular components, attenuation and cutoff,
+positional and directional lighting, fog. Lights, or rather the objects illuminated by them, can also cast shadows.
+However, similar to material reflections, each shadow-casting light adds one rendering pass so this feature should be
+used with caution. Documenting the lighting model in detail is beyond the scope of this chapter; see `OpenGL
+documentation <http://www.glprogramming.com/red/chapter05.html>`__ instead. Note that in addition to lights defined
+by the user in the kinematic tree, there is a default headlight that moves with the camera. Its properties are
+adjusted through the mjVisual options.
 
 .. _Standalone:
 
-Stand-alone elements
-~~~~~~~~~~~~~~~~~~~~
+Stand-alone
+~~~~~~~~~~~
 
 Here we describe the model elements which do not belong to an individual body, and therefore are described outside the
 kinematic tree.
 
-Reference pose
-   The reference pose is a vector of joint positions stored in ``mjModel.qpos0``. It corresponds to the numeric values
-   of the joints when the model is in its initial configuration. In our earlier example the elbow was created in a bent
-   configuration at 90° angle. But MuJoCo does not know what an elbow is, and so by default it treats this joint
-   configuration as having numeric value of 0. We can override the default behavior and specify that the initial
-   configuration corresponds to 90°, using the ref attribute of :ref:`joint <body-joint>`. The reference values of all
-   joints are assembled into the vector ``mjModel.qpos0``. Whenever the simulation is reset, the joint configuration
-   ``mjData.qpos`` is set to ``mjModel.qpos0``. At runtime the joint position vector is interpreted relative to the
-   reference pose. In particular, the amount of spatial transformation applied by the joints is ``mjData.qpos -
-   mjModel.qpos0``. This transformation is in addition to the parent-child translation and rotation offsets stored in
-   the body elements of ``mjModel``. The ref attribute only applies to scalar joints (slide and hinge). For ball joints,
-   the quaternion saved in ``mjModel.qpos0`` is always (1,0,0,0) which corresponds to the null rotation. For free
-   joints, the global 3D position and quaternion of the floating body are saved in ``mjModel.qpos0``.
-
-Spring reference pose
-   This is the pose in which all joint and tendon springs achieve their resting length. Spring forces are generated
-   when the joint configuration deviates from the spring reference pose, and are linear in the amount of deviation. The
-   spring reference pose is saved in ``mjModel.qpos_spring``. For slide and hinge joints, the spring reference is
-   specified with the attribute springref. For ball and free joints, the spring reference corresponds to the initial
-   model configuration.
-
 Tendon
-   Tendons are scalar length elements that can be used for actuation, imposing limits and equality constraints, or
-   creating spring-dampers and friction loss. There are two types of tendons: fixed and spatial. Fixed tendons are
-   linear combinations of (scalar) joint positions. They are useful for modeling mechanical coupling. Spatial tendons
-   are defined as the shortest path that passes through a sequence of specified sites (or via-points) or wraps around
-   specified geoms. Only spheres and cylinders are supported as wrapping geoms, and cylinders are treated as having
-   infinite length for wrapping purposes. To avoid abrupt jumps of the tendon from one side of the wrapping geom to the
-   other, the user can also specify the preferred side. If there are multiple wrapping geoms in the tendon path they
-   must be separated by sites, so as to avoid the need for an iterative solver. Spatial tendons can also be split into
-   multiple branches using pulleys.
+^^^^^^
+
+Tendons are scalar length elements that can be used for actuation, imposing limits and equality constraints, or
+creating spring-dampers and friction loss. There are two types of tendons: fixed and spatial. Fixed tendons are
+linear combinations of (scalar) joint positions. They are useful for modeling mechanical coupling. Spatial tendons
+are defined as the shortest path that passes through a sequence of specified sites (or via-points) or wraps around
+specified geoms. Only spheres and cylinders are supported as wrapping geoms, and cylinders are treated as having
+infinite length for wrapping purposes. To avoid abrupt jumps of the tendon from one side of the wrapping geom to the
+other, the user can also specify the preferred side. If there are multiple wrapping geoms in the tendon path they
+must be separated by sites, so as to avoid the need for an iterative solver. Spatial tendons can also be split into
+multiple branches using pulleys.
 
 Actuator
-   MuJoCo provides a flexible actuator model, with three components that can be specified independently. Together they
-   determine how the actuator works. Common actuator types are obtained by specifying these components in a coordinated
-   way. The three components are transmission, activation dynamics, and force generation. The transmission specifies how
-   the actuator is attached to the rest of the system; available types are joint, tendon and slider-crank. The
-   activation dynamics can be used to model internal activation states of pneumatic or hydraulic cylinders as well as
-   biological muscles; using such actuators makes the overall system dynamics 3rd-order. The force generation mechanism
-   determines how the scalar control signal provided as input to the actuator is mapped into a scalar force, which is in
-   turn mapped into a generalized force by the moment arms inferred from the transmission.
+^^^^^^^^
+
+MuJoCo provides a flexible actuator model, with three components that can be specified independently. Together they
+determine how the actuator works. Common actuator types are obtained by specifying these components in a coordinated
+way. The three components are transmission, activation dynamics, and force generation. The transmission specifies how
+the actuator is attached to the rest of the system; available types are joint, tendon and slider-crank. The
+activation dynamics can be used to model internal activation states of pneumatic or hydraulic cylinders as well as
+biological muscles; using such actuators makes the overall system dynamics 3rd-order. The force generation mechanism
+determines how the scalar control signal provided as input to the actuator is mapped into a scalar force, which is in
+turn mapped into a generalized force by the moment arms inferred from the transmission.
 
 Sensor
-   MuJoCo can generate simulated sensor data which is saved in the global array ``mjData.sensordata``. The result is not
-   used in any internal computations; instead it is provided because the user presumably needs it for custom computation
-   or data analysis. Available sensor types include touch sensors, inertial measurement units (IMUs), force-torque
-   sensors, joint and tendon position and velocity sensors, actuator position, velocity and force sensors, motion
-   capture marker positions and quaternions, and magnetometers. Some of these require extra computation, while others
-   are copied from the corresponding fields of ``mjData``. There is also a user sensor, allowing user code to insert any
-   other quantity of interest in the sensor data array. MuJoCo also has off-screen rendering capabilities, making it
-   straightforward to simulate both color and depth camera sensors. This is not included in the standard sensor model
-   and instead has to be done programmatically, as illustrated in the code sample :ref:`simulate.cc <saSimulate>`.
+^^^^^^
+
+MuJoCo can generate simulated sensor data which is saved in the global array ``mjData.sensordata``. The result is not
+used in any internal computations; instead it is provided because the user presumably needs it for custom computation
+or data analysis. Available sensor types include touch sensors, inertial measurement units (IMUs), force-torque
+sensors, joint and tendon position and velocity sensors, actuator position, velocity and force sensors, motion
+capture marker positions and quaternions, and magnetometers. Some of these require extra computation, while others
+are copied from the corresponding fields of ``mjData``. There is also a user sensor, allowing user code to insert any
+other quantity of interest in the sensor data array. MuJoCo also has off-screen rendering capabilities, making it
+straightforward to simulate both color and depth camera sensors. This is not included in the standard sensor model
+and instead has to be done programmatically, as illustrated in the code sample :ref:`simulate.cc <saSimulate>`.
 
 Equality
-   Equality constraints can impose additional constraints beyond those already imposed by the kinematic tree structure
-   and the joints/DOFs defined in it. They can be used to create loop joints, or in general model mechanical coupling.
-   The internal forces that enforce these constraints are computed together with all other constraint forces. The
-   available equality constraint types are: connect two bodies at a point (creating a ball joint outside the kinematic
-   tree); weld two bodies together; make two surfaces slide on each other; fix the position of a joint or tendon; couple
-   the positions of two joints or two tendons via a cubic polynomial.
+^^^^^^^^
+
+Equality constraints can impose additional constraints beyond those already imposed by the kinematic tree structure
+and the joints/DOFs defined in it. They can be used to create loop joints, or in general model mechanical coupling.
+The internal forces that enforce these constraints are computed together with all other constraint forces. The
+available equality constraint types are: connect two bodies at a point (creating a ball joint outside the kinematic
+tree); weld two bodies together; make two surfaces slide on each other; fix the position of a joint or tendon; couple
+the positions of two joints or two tendons via a cubic polynomial.
 
 Contact pair
-   Contact generation in MuJoCo is an elaborate process. Geom pairs that are checked for contact can come from two
-   sources: automated proximity tests and other filters collectively called "dynamic", as well as an explicit list of
-   geom pairs provided in the model. The latter is a separate type of model element. Because a contact involves a
-   combination of two geoms, the explicit specification allows the user to define contact parameters in ways that cannot
-   be done with the dynamic mechanism. It is also useful for fine-tuning the contact model, in particular adding contact
-   pairs that were removed by an aggressive filtering scheme.
+^^^^^^^^^^^^
+
+Contact generation in MuJoCo is an elaborate process. Geom pairs that are checked for contact can come from two
+sources: automated proximity tests and other filters collectively called "dynamic", as well as an explicit list of
+geom pairs provided in the model. The latter is a separate type of model element. Because a contact involves a
+combination of two geoms, the explicit specification allows the user to define contact parameters in ways that cannot
+be done with the dynamic mechanism. It is also useful for fine-tuning the contact model, in particular adding contact
+pairs that were removed by an aggressive filtering scheme.
 
 Contact exclude
-   This is the opposite of contact pairs: it specifies pairs of bodies (rather than geoms) which should be excluded from
-   the generation of candidate contact pairs. It is useful for disabling contacts between bodies whose geometry causes
-   an undesirable permanent contact. Note that MuJoCo has other mechanisms for dealing with this situation (in
-   particular geoms cannot collide if they belong to the same body or to a parent and a child body), but sometimes these
-   automated mechanisms are not sufficient and explicit exclusion becomes necessary.
+^^^^^^^^^^^^^^^
+
+This is the opposite of contact pairs: it specifies pairs of bodies (rather than geoms) which should be excluded from
+the generation of candidate contact pairs. It is useful for disabling contacts between bodies whose geometry causes
+an undesirable permanent contact. Note that MuJoCo has other mechanisms for dealing with this situation (in
+particular geoms cannot collide if they belong to the same body or to a parent and a child body), but sometimes these
+automated mechanisms are not sufficient and explicit exclusion becomes necessary.
 
 Custom numeric
-   There are three ways to enter custom numbers in a MuJoCo simulation. First, global numeric fields can be defined in
-   the XML. They have a name and an array of real values. Second, the definition of certain model elements can be
-   extended with element-specific custom arrays. This is done by setting the attributes ``nuser_XXX`` in the XML element
-   ``size``. Third, there is the array ``mjData.userdata`` which is not used by any MuJoCo computations. The user can
-   store results from custom computations there; recall that everything that changes over time should be stored in
-   ``mjData`` and not in ``mjModel``.
+^^^^^^^^^^^^^^
+
+There are three ways to enter custom numbers in a MuJoCo simulation. First, global numeric fields can be defined in
+the XML. They have a name and an array of real values. Second, the definition of certain model elements can be
+extended with element-specific custom arrays. This is done by setting the attributes ``nuser_XXX`` in the XML element
+``size``. Third, there is the array ``mjData.userdata`` which is not used by any MuJoCo computations. The user can
+store results from custom computations there; recall that everything that changes over time should be stored in
+``mjData`` and not in ``mjModel``.
 
 Custom text
-   Custom text fields can be saved in the model. They can be used in custom computations - either to specify keyword
-   commands, or to provide some other textual information. Do not use them for comments though; there is no benefit to
-   saving comments in a compiled model. XML has its own commenting mechanism (ignored by MuJoCo's parser and compiler)
-   which is more suitable.
+^^^^^^^^^^^
+
+Custom text fields can be saved in the model. They can be used in custom computations - either to specify keyword
+commands, or to provide some other textual information. Do not use them for comments though; there is no benefit to
+saving comments in a compiled model. XML has its own commenting mechanism (ignored by MuJoCo's parser and compiler)
+which is more suitable.
 
 Custom tuple
-   Custom tuples are lists of MuJoCo model elements, possibly including other tuples. They are not used by the
-   simulator, but are available for specifying groups of elements that are needed for user code. For example, one can
-   use tuples to define pairs of bodies for custom contact processing.
+^^^^^^^^^^^^
+
+Custom tuples are lists of MuJoCo model elements, possibly including other tuples. They are not used by the
+simulator, but are available for specifying groups of elements that are needed for user code. For example, one can
+use tuples to define pairs of bodies for custom contact processing.
 
 Keyframe
-   A keyframe is a snapshot of the simulation state variables. It contains the vectors of joint positions, joint
-   velocities, actuator activations when present, and the simulation time. The model can contain a library of keyframes.
-   They are useful for resetting the state of the system to a point of interest. Note that keyframes are not intended
-   for storing trajectory data in the model; external files should be used for this purpose.
+^^^^^^^^
+
+A keyframe is a snapshot of the simulation state variables. It contains the vectors of joint positions, joint
+velocities, actuator activations when present, and the simulation time. The model can contain a library of keyframes.
+They are useful for resetting the state of the system to a point of interest. Note that keyframes are not intended
+for storing trajectory data in the model; external files should be used for this purpose.
 
 .. _Clarifications:
 
