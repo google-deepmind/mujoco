@@ -2021,51 +2021,54 @@ void mj_constraintUpdate(const mjModel* m, mjData* d, const mjtNum* jar,
     force[i] = -D[i]*jar[i];
   }
 
-  // equality
-  for (int i=0; i < ne; i++) {
-    if (cost) {
-      s += 0.5*D[i]*jar[i]*jar[i];
-    }
-
-    d->efc_state[i] = mjCNSTRSTATE_QUADRATIC;
-  }
-
-  // friction
-  for (int i=ne; i < ne+nf; i++) {
-    // linear negative
-    if (jar[i] <= -R[i]*floss[i]) {
-      if (cost) {
-        s += -0.5*R[i]*floss[i]*floss[i] - floss[i]*jar[i];
-      }
-
-      force[i] = floss[i];
-
-      d->efc_state[i] = mjCNSTRSTATE_LINEARNEG;
-    }
-
-    // linear positive
-    else if (jar[i] >= R[i]*floss[i]) {
-      if (cost) {
-        s += -0.5*R[i]*floss[i]*floss[i] + floss[i]*jar[i];
-      }
-
-      force[i] = -floss[i];
-
-      d->efc_state[i] = mjCNSTRSTATE_LINEARPOS;
-    }
-
-    // quadratic
-    else {
+  // update constraints
+  for (int i=0; i < nefc; i++) {
+    // ==== equality
+    if (i < ne) {
       if (cost) {
         s += 0.5*D[i]*jar[i]*jar[i];
       }
-
       d->efc_state[i] = mjCNSTRSTATE_QUADRATIC;
+      continue;
     }
-  }
 
-  // contact
-  for (int i=ne+nf; i < nefc; i++) {
+    // ==== friction
+    if (i < ne + nf) {
+      // linear negative
+      if (jar[i] <= -R[i]*floss[i]) {
+        if (cost) {
+          s += -0.5*R[i]*floss[i]*floss[i] - floss[i]*jar[i];
+        }
+
+        force[i] = floss[i];
+
+        d->efc_state[i] = mjCNSTRSTATE_LINEARNEG;
+      }
+
+      // linear positive
+      else if (jar[i] >= R[i]*floss[i]) {
+        if (cost) {
+          s += -0.5*R[i]*floss[i]*floss[i] + floss[i]*jar[i];
+        }
+
+        force[i] = -floss[i];
+
+        d->efc_state[i] = mjCNSTRSTATE_LINEARPOS;
+      }
+
+      // quadratic
+      else {
+        if (cost) {
+          s += 0.5*D[i]*jar[i]*jar[i];
+        }
+
+        d->efc_state[i] = mjCNSTRSTATE_QUADRATIC;
+      }
+      continue;
+    }
+
+    // ==== contact
+
     // non-negative constraint
     if (d->efc_type[i] != mjCNSTR_CONTACT_ELLIPTIC) {
       // constraint is satisfied: no cost
