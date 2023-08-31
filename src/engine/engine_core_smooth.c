@@ -1086,7 +1086,7 @@ void mj_factorM(const mjModel* m, mjData* d) {
 
 
 
-// sparse backsubstitution:  x = inv(L'*D*L)*y
+// in-place sparse backsubstitution:  x = inv(L'*D*L)*x
 //  L is in lower triangle of qLD; D is on diagonal of qLD
 //  handle n vectors at once
 void mj_solveLD(const mjModel* m, mjtNum* restrict x, int n,
@@ -1206,6 +1206,66 @@ void mj_solveM(const mjModel* m, mjData* d, mjtNum* x, const mjtNum* y, int n) {
     mju_copy(x, y, n*m->nv);
   }
   mj_solveLD(m, x, n, d->qLD, d->qLDiagInv);
+}
+
+
+// in-place sparse backsubstitution for one island:  x = inv(L'*D*L)*x
+//  L is in lower triangle of qLD; D is on diagonal of qLD
+void mj_solveM_island(const mjModel* m, const mjData* d, mjtNum* restrict x, int island) {
+  // local constants: general
+  const int* Madr = m->dof_Madr;
+  const int* parentid = m->dof_parentid;
+  const mjtNum* qLD = d->qLD;
+  const mjtNum* qLDiagInv = d->qLDiagInv;
+  const int* simplenum = m->dof_simplenum;
+
+  // local constants: island specific
+  int ndof = d->island_dofnum[island];
+  const int* dofind = d->island_dofind + d->island_dofadr[island];
+  const int* islandind = d->dof_islandind;
+
+  // x <- inv(L') * x; skip simple, exploit sparsity of input vector
+  for (int k=ndof-1; k >= 0; k--) {
+    int i = dofind[k];
+    if (!simplenum[i] && x[k]) {
+      // init
+      int Madr_ij = Madr[i]+1;
+      int j = parentid[i];
+
+      // traverse ancestors backwards
+      // read directly from x[l] since j cannot be a parent of itself
+      while (j >= 0) {
+        x[islandind[j]] -= qLD[Madr_ij++]*x[k];         // x(j) -= L(i,j) * x(i)
+
+        // advance to parent
+        j = parentid[j];
+      }
+    }
+  }
+
+  // x <- inv(D) * x
+  for (int k=ndof-1; k >= 0; k--) {
+    x[k] *= qLDiagInv[dofind[k]];  // x(i) /= L(i,i)
+  }
+
+  // x <- inv(L) * x; skip simple
+  for (int k=0; k < ndof; k++) {
+    int i = dofind[k];
+    if (!simplenum[i]) {
+      // init
+      int Madr_ij = Madr[i]+1;
+      int j = parentid[i];
+
+      // traverse ancestors backwards
+      // write directly in x[i] since i cannot be a parent of itself
+      while (j >= 0) {
+        x[k] -= qLD[Madr_ij++]*x[islandind[j]];             // x(i) -= L(i,j) * x(j)
+
+        // advance to parent
+        j = parentid[j];
+      }
+    }
+  }
 }
 
 
