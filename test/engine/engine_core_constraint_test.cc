@@ -215,9 +215,9 @@ TEST_F(CoreConstraintTest, MulJacVecIsland) {
   for (mjtJacobian sparsity : {mjJAC_DENSE, mjJAC_SPARSE}) {
     model->opt.jacobian = sparsity;
 
-    // simulate for 0.3 seconds
+    // simulate for 0.2 seconds
     mj_resetData(model, data);
-    while (data->time < 0.3) {
+    while (data->time < 0.2) {
       mj_step(model, data);
     }
     mj_forward(model, data);

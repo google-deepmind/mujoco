@@ -346,7 +346,7 @@ TEST_F(IslandTest, IslandEfc) {
   mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, nullptr, 0);
   mjData* data = mj_makeData(model);
 
-  while (data->time < 0.3) {
+  while (data->time < 0.2) {
     mj_step(model, data);
   }
 
@@ -356,25 +356,27 @@ TEST_F(IslandTest, IslandEfc) {
   int nisland = data->nisland;
 
   // expect island structure to correspond to comment at top of xml
-  EXPECT_EQ(nisland, 2);
+  EXPECT_EQ(nisland, 3);
   EXPECT_EQ(data->ne, 1);
-  EXPECT_EQ(data->nf, 1);
+  EXPECT_EQ(data->nf, 2);
   EXPECT_EQ(data->nl, 1);
-  EXPECT_EQ(nefc, 7);
+  EXPECT_EQ(nefc, 24);
   EXPECT_THAT(AsVector(data->dof_island, nv),
-              ElementsAre(0, -1, 0, 0, 0, 1, 0));
-  EXPECT_THAT(AsVector(data->island_dofnum, nisland), ElementsAre(5, 1));
-  EXPECT_THAT(AsVector(data->island_dofadr, nisland), ElementsAre(0, 5));
+              ElementsAre(0, -1, 0, 0, 0, 1, 2, 0, 1, 1, 1, 1, 1, 1));
+  EXPECT_THAT(AsVector(data->island_dofnum, nisland), ElementsAre(5, 7, 1));
+  EXPECT_THAT(AsVector(data->island_dofadr, nisland), ElementsAre(0, 5, 12));
   EXPECT_THAT(AsVector(data->island_dofind, nv),
-              ElementsAre(0, 2, 3, 4, 6, 5, -1));
+              ElementsAre(0, 2, 3, 4, 7, 5, 8, 9, 10, 11, 12, 13, 6, -1));
   EXPECT_THAT(AsVector(data->dof_islandind, nv),
-              ElementsAre(0, -1, 1, 2, 3, 0, 4));
+              ElementsAre(0, -1, 1, 2, 3, 0, 0, 4, 1, 2, 3, 4, 5, 6));
   EXPECT_THAT(AsVector(data->efc_island, nefc),
-              ElementsAre(0, 1, 0, 0, 0, 0, 0));
-  EXPECT_THAT(AsVector(data->island_efcnum, nisland), ElementsAre(6, 1));
-  EXPECT_THAT(AsVector(data->island_efcadr, nisland), ElementsAre(0, 6));
+              ElementsAre(0, 1, 2, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+                          1, 1, 1, 1, 1, 1));
+  EXPECT_THAT(AsVector(data->island_efcnum, nisland), ElementsAre(6, 17, 1));
+  EXPECT_THAT(AsVector(data->island_efcadr, nisland), ElementsAre(0, 6, 23));
   EXPECT_THAT(AsVector(data->island_efcind, nefc),
-              ElementsAre(0, 2, 3, 4, 5, 6, 1));
+              ElementsAre(0, 3, 4, 5, 6, 7, 1, 8, 9, 10, 11, 12, 13, 14, 15, 16,
+                          17, 18, 19, 20, 21, 22, 23, 2));
 
   mj_deleteData(data);
   mj_deleteModel(model);

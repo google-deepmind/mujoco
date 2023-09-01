@@ -311,9 +311,9 @@ TEST_F(CoreSmoothTest, SolveMIsland) {
   }
   mju_copy(res, vec, nv);
 
-  // simulate for 0.3 seconds
+  // simulate for 0.2 seconds
   mj_resetData(model, data);
-  while (data->time < 0.3) {
+  while (data->time < 0.2) {
     mj_step(model, data);
   }
   mj_forward(model, data);
