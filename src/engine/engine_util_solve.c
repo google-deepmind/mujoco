@@ -235,7 +235,7 @@ void mju_cholSolveSparse(mjtNum* res, const mjtNum* mat, const mjtNum* vec, int 
 
     // x(i) -= sum_j L(i,j)*x(j), j=0:i-1
     if (nnz > 1) {
-      res[i] -= mju_dotSparse(mat+adr, res, nnz-1, colind+adr);
+      res[i] -= mju_dotSparse(mat+adr, res, nnz-1, colind+adr, /*flg_unc1=*/0);
       // modulo AVX, the above line does
       // for (int j=0; j<nnz-1; j++)
       //   res[i] -= mat[adr+j]*res[colind[adr+j]];

@@ -30,19 +30,58 @@ using ::testing::ElementsAre;
 using EngineUtilSparseTest = MujocoTest;
 
 TEST_F(EngineUtilSparseTest, MjuDot) {
-  mjtNum a[] = {1, 2, 3, 4, 5, 6, 7};
-  mjtNum b[] = {7, 0, 6, 0, 0, 5, 0, 0, 0, 4, 0, 0, 0, 3, 0, 0, 2, 0, 1};
+  mjtNum a[] = {2,    3,       4,          5,          6,       7,    8};
+  mjtNum u[] = {2, 1, 3, 1, 1, 4, 1, 1, 1, 5, 1, 1, 1, 6, 1, 1, 7, 1, 8};
+  mjtNum b[] = {8, 1, 7, 1, 1, 6, 1, 1, 1, 5, 1, 1, 1, 4, 1, 1, 3, 1, 2};
   int i[] = {0, 2, 5, 9, 13, 16, 18};
 
   // test various vector lengths as mju_dotSparse adds numbers in groups of four
-  EXPECT_EQ(mju_dotSparse(a, b, 0, i), 0);
-  EXPECT_EQ(mju_dotSparse(a, b, 1, i), 7);
-  EXPECT_EQ(mju_dotSparse(a, b, 2, i), 7 + 2*6);
-  EXPECT_EQ(mju_dotSparse(a, b, 3, i), 7 + 2*6 + 3*5);
-  EXPECT_EQ(mju_dotSparse(a, b, 4, i), 7 + 2*6 + 3*5 + 4*4);
-  EXPECT_EQ(mju_dotSparse(a, b, 5, i), 7 + 2*6 + 3*5 + 4*4 + 5*3);
-  EXPECT_EQ(mju_dotSparse(a, b, 6, i), 7 + 2*6 + 3*5 + 4*4 + 5*3 + 6*2);
-  EXPECT_EQ(mju_dotSparse(a, b, 7, i), 7 + 2*6 + 3*5 + 4*4 + 5*3 + 6*2 + 7);
+
+  // a is compressed
+  int flg_unc1 = 0;
+  EXPECT_EQ(mju_dotSparse(a, b, 0, i, flg_unc1), 0);
+  EXPECT_EQ(mju_dotSparse(a, b, 1, i, flg_unc1), 2*8);
+  EXPECT_EQ(mju_dotSparse(a, b, 2, i, flg_unc1), 2*8 + 3*7);
+  EXPECT_EQ(mju_dotSparse(a, b, 3, i, flg_unc1), 2*8 + 3*7 + 4*6);
+  EXPECT_EQ(mju_dotSparse(a, b, 4, i, flg_unc1), 2*8 + 3*7 + 4*6 + 5*5);
+  EXPECT_EQ(mju_dotSparse(a, b, 5, i, flg_unc1), 2*8 + 3*7 + 4*6 + 5*5 + 6*4);
+  EXPECT_EQ(mju_dotSparse(a, b, 6, i, flg_unc1),
+            2*8 + 3*7 + 4*6 + 5*5 + 6*4 + 7*3);
+  EXPECT_EQ(mju_dotSparse(a, b, 7, i, flg_unc1),
+            2*8 + 3*7 + 4*6 + 5*5 + 6*4 + 7*3 + 8*2);
+
+  // u is compressed
+  flg_unc1 = 1;
+  EXPECT_EQ(mju_dotSparse(u, b, 0, i, flg_unc1), 0);
+  EXPECT_EQ(mju_dotSparse(u, b, 1, i, flg_unc1), 2*8);
+  EXPECT_EQ(mju_dotSparse(u, b, 2, i, flg_unc1), 2*8 + 3*7);
+  EXPECT_EQ(mju_dotSparse(u, b, 3, i, flg_unc1), 2*8 + 3*7 + 4*6);
+  EXPECT_EQ(mju_dotSparse(u, b, 4, i, flg_unc1), 2*8 + 3*7 + 4*6 + 5*5);
+  EXPECT_EQ(mju_dotSparse(u, b, 5, i, flg_unc1), 2*8 + 3*7 + 4*6 + 5*5 + 6*4);
+  EXPECT_EQ(mju_dotSparse(u, b, 6, i, flg_unc1),
+            2*8 + 3*7 + 4*6 + 5*5 + 6*4 + 7*3);
+  EXPECT_EQ(mju_dotSparse(u, b, 7, i, flg_unc1),
+            2*8 + 3*7 + 4*6 + 5*5 + 6*4 + 7*3 + 8*2);
+}
+
+TEST_F(EngineUtilSparseTest, MjuDot2) {
+  constexpr int annz = 6;
+  constexpr int bnnz = 5;
+  int ia[annz]   = {0,    2,       5, 6, 7};
+  mjtNum a[annz] = {2,    3,       4, 5, 6};
+  int ib[bnnz]   = {   1, 2, 3,    5,    7};
+  mjtNum b[bnnz] = {   8, 7, 6,    5,    4};
+  mjtNum u[]     = {1, 8, 7, 6, 1, 5, 1, 4};
+
+  // test various vector lengths as mju_dotSparse adds numbers in groups of four
+
+  // a is compressed
+  int flg_unc2 = 0;
+  EXPECT_EQ(mju_dotSparse2(a, b, annz, ia, bnnz, ib, flg_unc2), 3*7+4*5+6*4);
+
+  // u is uncompressed
+  flg_unc2 = 1;
+  EXPECT_EQ(mju_dotSparse2(a, u, annz, ia, bnnz, ib, flg_unc2), 3*7+4*5+6*4);
 }
 
 TEST_F(EngineUtilSparseTest, CombineSparseCount) {

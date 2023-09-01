@@ -420,7 +420,7 @@ void mj_mulJacVec_island(const mjModel* m, const mjData* d,
       int Jrowadr = d->efc_J_rowadr[row];
       int* Jind = d->efc_J_colind + Jrowadr;
       mjtNum* J = d->efc_J + Jrowadr;
-      res[i] = mju_dotSparse2(vec, J, vecnnz, vecind, Jnnz, Jind);
+      res[i] = mju_dotSparse2(vec, J, vecnnz, vecind, Jnnz, Jind, /*flg_unc2=*/0);
     }
   }
 
@@ -428,7 +428,7 @@ void mj_mulJacVec_island(const mjModel* m, const mjData* d,
   else {
     int nv = m->nv;
     for (int i=0; i < resnnz; i++) {
-      res[i] = mju_dotSparse(vec, d->efc_J + nv*resind[i], vecnnz, vecind);
+      res[i] = mju_dotSparse(vec, d->efc_J + nv*resind[i], vecnnz, vecind, /*flg_unc1=*/0);
     }
   }
 }
@@ -481,7 +481,7 @@ void mj_mulJacTVec_island(const mjModel* m, const mjData* d,
       int JTrowadr = d->efc_JT_rowadr[row];
       int* JTind = d->efc_JT_colind + JTrowadr;
       mjtNum* JT = d->efc_JT + JTrowadr;
-      res[i] = mju_dotSparse2(vec, JT, vecnnz, vecind, JTnnz, JTind);
+      res[i] = mju_dotSparse2(vec, JT, vecnnz, vecind, JTnnz, JTind, /*flg_unc2=*/0);
     }
   }
 
@@ -489,7 +489,7 @@ void mj_mulJacTVec_island(const mjModel* m, const mjData* d,
   else {
     int nefc = d->nefc;
     for (int i=0; i < resnnz; i++) {
-      res[i] = mju_dotSparse(vec, d->efc_JT + nefc*resind[i], vecnnz, vecind);
+      res[i] = mju_dotSparse(vec, d->efc_JT + nefc*resind[i], vecnnz, vecind, /*flg_unc1=*/0);
     }
   }
 }

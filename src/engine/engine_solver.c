@@ -168,7 +168,8 @@ static void residual(const mjModel* m, mjData* d, mjtNum* res, int i, int dim, i
     for (int j=0; j < dim; j++) {
       res[j] = d->efc_b[i+j] + mju_dotSparse(d->efc_AR + d->efc_AR_rowadr[i+j],
                                              d->efc_force, d->efc_AR_rownnz[i+j],
-                                             d->efc_AR_colind + d->efc_AR_rowadr[i+j]);
+                                             d->efc_AR_colind + d->efc_AR_rowadr[i+j],
+                                             /*flg_unc1=*/0);
     }
   }
 

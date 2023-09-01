@@ -27,10 +27,11 @@
 //------------------------------ sparse operations -------------------------------------------------
 
 // dot-product, first vector is sparse
+//  flg_unc1: is vec1 memory layout uncompressed
 mjtNum mju_dotSparse(const mjtNum* vec1, const mjtNum* vec2,
-                     const int nnz1, const int* ind1) {
+                     const int nnz1, const int* ind1, int flg_unc1) {
 #ifdef mjUSEAVX
-  return mju_dotSparse_avx(vec1, vec2, nnz1, ind1);
+  return mju_dotSparse_avx(vec1, vec2, nnz1, ind1, flg_unc1);
 #else
   int i = 0;
   mjtNum res = 0;
@@ -40,17 +41,33 @@ mjtNum mju_dotSparse(const mjtNum* vec1, const mjtNum* vec2,
   mjtNum res2 = 0;
   mjtNum res3 = 0;
 
-  for (; i <= n_4; i+=4) {
-    res0 += vec1[i+0] * vec2[ind1[i+0]];
-    res1 += vec1[i+1] * vec2[ind1[i+1]];
-    res2 += vec1[i+2] * vec2[ind1[i+2]];
-    res3 += vec1[i+3] * vec2[ind1[i+3]];
+
+  if (flg_unc1) {
+    for (; i <= n_4; i+=4) {
+      res0 += vec1[ind1[i+0]] * vec2[ind1[i+0]];
+      res1 += vec1[ind1[i+1]] * vec2[ind1[i+1]];
+      res2 += vec1[ind1[i+2]] * vec2[ind1[i+2]];
+      res3 += vec1[ind1[i+3]] * vec2[ind1[i+3]];
+    }
+  } else {
+    for (; i <= n_4; i+=4) {
+      res0 += vec1[i+0] * vec2[ind1[i+0]];
+      res1 += vec1[i+1] * vec2[ind1[i+1]];
+      res2 += vec1[i+2] * vec2[ind1[i+2]];
+      res3 += vec1[i+3] * vec2[ind1[i+3]];
+    }
   }
   res = (res0 + res2) + (res1 + res3);
 
   // scalar part
-  for (; i < nnz1; i++) {
-    res += vec1[i] * vec2[ind1[i]];
+  if (flg_unc1) {
+    for (; i < nnz1; i++) {
+      res += vec1[ind1[i]] * vec2[ind1[i]];
+    }
+  } else {
+    for (; i < nnz1; i++) {
+      res += vec1[i] * vec2[ind1[i]];
+    }
   }
 
   return res;
@@ -91,9 +108,10 @@ void mju_dotSparseX3(mjtNum* res0, mjtNum* res1, mjtNum* res2,
 
 
 // dot-product, both vectors are sparse
+//  flg_unc2: is vec2 memory layout uncompressed
 mjtNum mju_dotSparse2(const mjtNum* vec1, const mjtNum* vec2,
                       const int nnz1, const int* ind1,
-                      const int nnz2, const int* ind2) {
+                      const int nnz2, const int* ind2, int flg_unc2) {
   int i1 = 0, i2 = 0;
   mjtNum res = 0;
 
@@ -108,7 +126,12 @@ mjtNum mju_dotSparse2(const mjtNum* vec1, const mjtNum* vec2,
 
     // match: accumulate result, advance both
     if (adr1 == adr2) {
-      res += vec1[i1++] * vec2[i2++];
+      if (flg_unc2) {
+        res += vec1[i1++] * vec2[adr2];
+        i2++;
+      } else {
+        res += vec1[i1++] * vec2[i2++];
+      }
     }
 
     // otherwise advance smaller
@@ -176,7 +199,7 @@ void mju_mulMatVecSparse(mjtNum* res, const mjtNum* mat, const mjtNum* vec,
 #else
   // regular sparse dot-product
   for (int r=0; r < nr; r++) {
-    res[r] = mju_dotSparse(mat+rowadr[r], vec, rownnz[r], colind+rowadr[r]);
+    res[r] = mju_dotSparse(mat+rowadr[r], vec, rownnz[r], colind+rowadr[r], /*flg_unc1=*/0);
   }
 #endif  // mjUSEAVX
 }
