@@ -195,7 +195,7 @@ void InitializeProfiler(mj::Simulate* sim) {
   mju::strcpy_arr(sim->figsize.xlabel, "Video frame");
   mju::strcpy_arr(sim->figtimer.xlabel, "Video frame");
 
-  // y-tick nubmer formats
+  // y-tick number formats
   mju::strcpy_arr(sim->figconstraint.yformat, "%.0f");
   mju::strcpy_arr(sim->figcost.yformat, "%.1f");
   mju::strcpy_arr(sim->figsize.yformat, "%.0f");
@@ -261,11 +261,12 @@ void InitializeProfiler(mj::Simulate* sim) {
   sim->figtimer.range[1][1] = 0.4f;
 
   // init x axis on history figures (do not show yet)
-  for (int n=0; n<6; n++)
+  for (int n=0; n<6; n++) {
     for (int i=0; i<mjMAXLINEPNT; i++) {
       sim->figtimer.linedata[n][2*i] = -i;
       sim->figsize.linedata[n][2*i] = -i;
     }
+  }
 }
 
 // update profiler figures
@@ -2236,7 +2237,6 @@ void Simulate::Render() {
     mjr_overlay(mjFONT_BIG, mjGRID_TOPLEFT, smallrect,
                 topleftlabel.c_str(), nullptr, &this->platform_ui->mjr_context());
   }
-
 
   // show ui 0
   if (this->ui0_enable) {
