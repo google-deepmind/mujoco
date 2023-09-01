@@ -26,7 +26,7 @@
 #include <mujoco/mjmacro.h>
 #include <mujoco/mjplugin.h>
 #include <mujoco/mjxmacro.h>
-#include "engine/engine_array_safety.h"  // IWYU pragma: keep
+#include "engine/engine_crossplatform.h"
 #include "engine/engine_resource.h"
 #include "engine/engine_macro.h"
 #include "engine/engine_plugin.h"
@@ -45,9 +45,13 @@
 
 static const int MAX_ARRAY_SIZE = INT_MAX / 4;
 
-// compute a % b assuming that the second argument is a power of 2
-static inline size_t modpow2(size_t a, size_t b) {
-  return a & (b - 1);
+// compute a % b with a fast code path if the second argument is a power of 2
+static inline size_t fastmod(size_t a, size_t b) {
+  // (b & (b - 1)) == 0 implies that b is a power of 2
+  if (mjLIKELY((b & (b - 1)) == 0)) {
+    return a & (b - 1);
+  }
+  return a % b;
 }
 
 //------------------------------ mjLROpt -----------------------------------------------------------
@@ -1187,12 +1191,12 @@ mjData* mj_copyData(mjData* dest, const mjModel* m, const mjData* src) {
 
 // allocate memory from the mjData arena
 void* mj_arenaAlloc(mjData* d, size_t bytes, size_t alignment) {
-  size_t misalignment = modpow2(d->parena, alignment);
+  size_t misalignment = fastmod(d->parena, alignment);
   size_t padding = misalignment ? alignment - misalignment : 0;
 
   // check size
   size_t bytes_available = d->narena - d->pstack;
-  if (d->parena + padding + bytes > bytes_available) {
+  if (mjUNLIKELY(d->parena + padding + bytes > bytes_available)) {
     return NULL;
   }
 
@@ -1218,7 +1222,7 @@ void* mj_arenaAlloc(mjData* d, size_t bytes, size_t alignment) {
 // declared inline so that modular arithmetic with specific alignments can be optimized out
 static inline void* stackalloc(mjData* d, size_t size, size_t alignment) {
   // return NULL if empty
-  if (!size) {
+  if (mjUNLIKELY(!size)) {
     return NULL;
   }
 
@@ -1242,7 +1246,7 @@ static inline void* stackalloc(mjData* d, size_t size, size_t alignment) {
   uintptr_t start_ptr = end_ptr - (size + mjREDZONE);
 
   // align the pointer
-  start_ptr -= modpow2(start_ptr, alignment);
+  start_ptr -= fastmod(start_ptr, alignment);
 
   // new top of the stack
   uintptr_t new_pstack_ptr = start_ptr - mjREDZONE;
@@ -1255,8 +1259,8 @@ static inline void* stackalloc(mjData* d, size_t size, size_t alignment) {
   // check size
   size_t stack_available_bytes = end_ptr - ((uintptr_t)d->arena + d->parena);
   size_t stack_required_bytes = end_ptr - new_pstack_ptr;
-  if (stack_required_bytes > stack_available_bytes) {
-    mju_error("mjData stack overflow: max = %zu, available = %zu, requested = %zu "
+  if (mjUNLIKELY(stack_required_bytes > stack_available_bytes)) {
+    mju_error("mj_stackAlloc: insufficient memory: max = %zu, available = %zu, requested = %zu "
               "(ne = %d, nf = %d, nefc = %d, ncon = %d)",
               stack_size_bytes, stack_available_bytes, stack_required_bytes,
               d->ne, d->nf, d->nefc, d->ncon);

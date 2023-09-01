@@ -1239,7 +1239,7 @@ mj_stackAlloc
 
 .. mujoco-include:: mj_stackAlloc
 
-Allocate a number of bytes on :ref:`mjData` stack at a specific alignment which must be a power of 2.
+Allocate a number of bytes on :ref:`mjData` stack at a specific alignment.
 Call mju_error on stack overflow.
 
 .. _mj_stackAllocNum:

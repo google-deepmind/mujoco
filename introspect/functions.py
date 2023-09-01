@@ -699,7 +699,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  type=ValueType(name='size_t'),
              ),
          ),
-         doc='Allocate a number of bytes on mjData stack at a specific alignment which must be a power of 2. Call mju_error on stack overflow.',  # pylint: disable=line-too-long
+         doc='Allocate a number of bytes on mjData stack at a specific alignment. Call mju_error on stack overflow.',  # pylint: disable=line-too-long
      )),
     ('mj_stackAllocNum',
      FunctionDecl(

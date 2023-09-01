@@ -188,7 +188,7 @@ MJAPI void mj_resetDataDebug(const mjModel* m, mjData* d, unsigned char debug_va
 // Reset data, set fields from specified keyframe.
 MJAPI void mj_resetDataKeyframe(const mjModel* m, mjData* d, int key);
 
-// Allocate a number of bytes on mjData stack at a specific alignment which must be a power of 2.
+// Allocate a number of bytes on mjData stack at a specific alignment.
 // Call mju_error on stack overflow.
 MJAPI void* mj_stackAlloc(mjData* d, size_t bytes, size_t alignment);
 
