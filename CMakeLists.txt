@@ -53,17 +53,17 @@ include(MujocoMacOS)
 include(MujocoDependencies)
 
 set(MUJOCO_HEADERS
-    include/mujoco/mjdata.h
-    include/mujoco/mjexport.h
-    include/mujoco/mjmacro.h
-    include/mujoco/mjmodel.h
-    include/mujoco/mjplugin.h
-    include/mujoco/mjrender.h
-    include/mujoco/mjtnum.h
-    include/mujoco/mjui.h
-    include/mujoco/mjvisualize.h
-    include/mujoco/mjxmacro.h
-    include/mujoco/mujoco.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/mujoco/mjdata.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/mujoco/mjexport.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/mujoco/mjmacro.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/mujoco/mjmodel.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/mujoco/mjplugin.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/mujoco/mjrender.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/mujoco/mjtnum.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/mujoco/mjui.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/mujoco/mjvisualize.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/mujoco/mjxmacro.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/mujoco/mujoco.h
 )
 
 # Add metadata to mujoco.dll when building on Windows.
