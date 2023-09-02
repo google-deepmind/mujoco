@@ -920,11 +920,12 @@ void mj_instantiateContact(const mjModel* m, mjData* d) {
   int dim, b1, b2, NV = m->nv, *chain = NULL;
   mjContact* con;
   mjtNum cpos[6], cmargin[6], *jac, *jacdifp, *jacdifr, *jac1p, *jac2p, *jac1r, *jac2r;
-  mjMARKSTACK;
 
   if (mjDISABLED(mjDSBL_CONTACT) || ncon == 0) {
     return;
   }
+
+  mjMARKSTACK;
 
   // allocate Jacobian
   jac = mj_stackAllocNum(d, 6*NV);
@@ -1831,12 +1832,13 @@ void mj_makeConstraint(const mjModel* m, mjData* d) {
 // compute efc_AR
 void mj_projectConstraint(const mjModel* m, mjData* d) {
   int nefc = d->nefc, nv = m->nv;
-  mjMARKSTACK;
 
   // nothing to do
   if (nefc == 0 || !mj_isDual(m)) {
     return;
   }
+
+  mjMARKSTACK;
 
   // space for backsubM2(J')' and its traspose
   mjtNum* JM2 = mj_stackAllocNum(d, nefc*nv);
