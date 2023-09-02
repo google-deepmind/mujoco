@@ -103,46 +103,54 @@ MJAPI void mj_deleteVFS(mjVFS* vfs);
 // Parse XML file in MJCF or URDF format, compile it, return low-level model.
 // If vfs is not NULL, look up files in vfs before reading from disk.
 // If error is not NULL, it must have size error_sz.
-MJAPI mjModel* mj_loadXML(const char* NONNULL_ARG filename, const mjVFS* NULLABLE_ARG vfs, 
-                          char* NULLABLE_ARG error, int error_sz) NONNULL_FUNC(1);
+MJAPI mjModel *mj_loadXML(const char *NONNULL_ARG filename,
+                          const mjVFS *NULLABLE_ARG vfs,
+                          char *NULLABLE_ARG error, int error_sz)
+    NONNULL_FUNC(1);
 
 // Update XML data structures with info from low-level model, save as MJCF.
 // If error is not NULL, it must have size error_sz.
-MJAPI int mj_saveLastXML(const char* NONNULL_ARG filename, const mjModel* NONNULL_ARG m, 
-                          char* NULLABLE_ARG error, int error_sz) NONNULL_FUNC(1,2);
+MJAPI int mj_saveLastXML(const char *NONNULL_ARG filename,
+                         const mjModel *NONNULL_ARG m, char *NULLABLE_ARG error,
+                         int error_sz) NONNULL_FUNC(1, 2);
 
 // Free last XML model if loaded. Called internally at each load.
 MJAPI void mj_freeLastXML(void);
 
 // Print internal XML schema as plain text or HTML, with style-padding or &nbsp;.
-MJAPI int mj_printSchema(const char* NULLABLE_ARG filename, char* NULLABLE_ARG buffer, 
-                          int buffer_sz, int flg_html, int flg_pad);
-
+MJAPI int mj_printSchema(const char *NULLABLE_ARG filename,
+                         char *NULLABLE_ARG buffer, int buffer_sz, int flg_html,
+                         int flg_pad);
 
 //---------------------------------- Main simulation -----------------------------------------------
 
 // Advance simulation, use control callback to obtain external force and control.
-MJAPI void mj_step(const mjModel* NONNULL_ARG m, mjData* NONNULL_ARG d) NONNULL_FUNC(1,2);
+MJAPI void mj_step(const mjModel *NONNULL_ARG m, mjData *NONNULL_ARG d)
+    NONNULL_FUNC(1, 2);
 
 // Advance simulation in two steps: before external force and control is set by user.
-MJAPI void mj_step1(const mjModel* NONNULL_ARG m, mjData* NONNULL_ARG d) NONNULL_FUNC(1,2);
+MJAPI void mj_step1(const mjModel *NONNULL_ARG m, mjData *NONNULL_ARG d)
+    NONNULL_FUNC(1, 2);
 
 // Advance simulation in two steps: after external force and control is set by user.
-MJAPI void mj_step2(const mjModel* NONNULL_ARG m, mjData* NONNULL_ARG d) NONNULL_FUNC(1,2);
+MJAPI void mj_step2(const mjModel *NONNULL_ARG m, mjData *NONNULL_ARG d)
+    NONNULL_FUNC(1, 2);
 
 // Forward dynamics: same as mj_step but do not integrate in time.
-MJAPI void mj_forward(const mjModel* NONNULL_ARG m, mjData* NONNULL_ARG d) NONNULL_FUNC(1,2);
+MJAPI void mj_forward(const mjModel *NONNULL_ARG m, mjData *NONNULL_ARG d)
+    NONNULL_FUNC(1, 2);
 
 // Inverse dynamics: qacc must be set before calling.
-MJAPI void mj_inverse(const mjModel* NONNULL_ARG m, mjData* NONNULL_ARG d) NONNULL_FUNC(1,2);
+MJAPI void mj_inverse(const mjModel *NONNULL_ARG m, mjData *NONNULL_ARG d)
+    NONNULL_FUNC(1, 2);
 
 // Forward dynamics with skip; skipstage is mjtStage.
-MJAPI void mj_forwardSkip(const mjModel* NONNULL_ARG m, mjData* NONNULL_ARG d, 
-                           int skipstage, int skipsensor) NONNULL_FUNC(1,2);
+MJAPI void mj_forwardSkip(const mjModel *NONNULL_ARG m, mjData *NONNULL_ARG d,
+                          int skipstage, int skipsensor) NONNULL_FUNC(1, 2);
 
 // Inverse dynamics with skip; skipstage is mjtStage.
-MJAPI void mj_inverseSkip(const mjModel* NONNULL_ARG m, mjData* NONNULL_ARG d, 
-                           int skipstage, int skipsensor) NONNULL_FUNC(1,2);
+MJAPI void mj_inverseSkip(const mjModel *NONNULL_ARG m, mjData *NONNULL_ARG d,
+                          int skipstage, int skipsensor) NONNULL_FUNC(1, 2);
 
 //---------------------------------- Initialization ------------------------------------------------
 
@@ -159,382 +167,455 @@ MJAPI void mj_defaultOption(mjOption* opt);
 MJAPI void mj_defaultVisual(mjVisual* vis);
 
 // Copy mjModel, allocate new if dest is NULL.
-MJAPI mjModel* mj_copyModel(mjModel* NULLABLE_ARG dest, 
-                            const mjModel* NONNULL_ARG src) NONNULL_FUNC(2);
+MJAPI mjModel *mj_copyModel(mjModel *NULLABLE_ARG dest,
+                            const mjModel *NONNULL_ARG src) NONNULL_FUNC(2);
 
 // Save model to binary MJB file or memory buffer; buffer has precedence when given.
-MJAPI void mj_saveModel(const mjModel* NONNULL_ARG m, const char* NULLABLE_ARG filename, 
-                         void* NULLABLE_ARG buffer, int buffer_sz) NONNULL_FUNC(1);
+MJAPI void mj_saveModel(const mjModel *NONNULL_ARG m,
+                        const char *NULLABLE_ARG filename,
+                        void *NULLABLE_ARG buffer, int buffer_sz)
+    NONNULL_FUNC(1);
 
 // Load model from binary MJB file.
 // If vfs is not NULL, look up file in vfs before reading from disk.
-MJAPI mjModel* mj_loadModel(const char* NONNULL_ARG filename, 
-                             const mjVFS* NULLABLE_ARG vfs) NONNULL_FUNC(1);
+MJAPI mjModel *mj_loadModel(const char *NONNULL_ARG filename,
+                            const mjVFS *NULLABLE_ARG vfs) NONNULL_FUNC(1);
 
 // Free memory allocation in model.
-MJAPI void mj_deleteModel(mjModel* NULLABLE_ARG m);
+MJAPI void mj_deleteModel(mjModel *NULLABLE_ARG m);
 
 // Return size of buffer needed to hold model.
-MJAPI int mj_sizeModel(const mjModel* NONNULL_ARG m) NONNULL_FUNC(1);
+MJAPI int mj_sizeModel(const mjModel *NONNULL_ARG m) NONNULL_FUNC(1);
 
 // Allocate mjData corresponding to given model.
 // If the model buffer is unallocated the initial configuration will not be set.
-MJAPI mjData* mj_makeData(const mjModel* NONNULL_ARG m) NONNULL_FUNC(1);
+MJAPI mjData *mj_makeData(const mjModel *NONNULL_ARG m) NONNULL_FUNC(1);
 
 // Copy mjData.
 // m is only required to contain the size fields from MJMODEL_INTS.
-MJAPI mjData* mj_copyData(mjData* NULLABLE_ARG dest, const mjModel* NONNULL_ARG m, 
-                           const mjData* NONNULL_ARG src) NONNULL_FUNC(2,3);
+MJAPI mjData *mj_copyData(mjData *NULLABLE_ARG dest,
+                          const mjModel *NONNULL_ARG m,
+                          const mjData *NONNULL_ARG src) NONNULL_FUNC(2, 3);
 
 // Reset data to defaults.
-MJAPI void mj_resetData(const mjModel* NONNULL_ARG m, mjData* NONNULL_ARG d) NONNULL_FUNC(1,2);
+MJAPI void mj_resetData(const mjModel *NONNULL_ARG m, mjData *NONNULL_ARG d)
+    NONNULL_FUNC(1, 2);
 
 // Reset data to defaults, fill everything else with debug_value.
-MJAPI void mj_resetDataDebug(const mjModel* NONNULL_ARG m, mjData* NONNULL_ARG d, 
-                              unsigned char debug_value) NONNULL_FUNC(1,2);
+MJAPI void mj_resetDataDebug(const mjModel *NONNULL_ARG m,
+                             mjData *NONNULL_ARG d, unsigned char debug_value)
+    NONNULL_FUNC(1, 2);
 
 // Reset data, set fields from specified keyframe.
-MJAPI void mj_resetDataKeyframe(const mjModel* NONNULL_ARG m, mjData* NONNULL_ARG d, 
-                                 int key) NONNULL_FUNC(1,2);
+MJAPI void mj_resetDataKeyframe(const mjModel *NONNULL_ARG m,
+                                mjData *NONNULL_ARG d, int key)
+    NONNULL_FUNC(1, 2);
 
 // Allocate a number of bytes on mjData stack at a specific alignment which must be a power of 2.
 // Call mju_error on stack overflow.
-MJAPI void* mj_stackAlloc(mjData* NONNULL_ARG d, size_t bytes, size_t alignment) NONNULL_FUNC(1);
+MJAPI void *mj_stackAlloc(mjData *NONNULL_ARG d, size_t bytes, size_t alignment)
+    NONNULL_FUNC(1);
 
 // Allocate array of mjtNums on mjData stack. Call mju_error on stack overflow.
-MJAPI mjtNum* mj_stackAllocNum(mjData* NONNULL_ARG d, int size) NONNULL_FUNC(1);
+MJAPI mjtNum *mj_stackAllocNum(mjData *NONNULL_ARG d, int size) NONNULL_FUNC(1);
 
 // Allocate array of ints on mjData stack. Call mju_error on stack overflow.
-MJAPI int* mj_stackAllocInt(mjData* NONNULL_ARG d, int size) NONNULL_FUNC(1);
+MJAPI int *mj_stackAllocInt(mjData *NONNULL_ARG d, int size) NONNULL_FUNC(1);
 
 // Free memory allocation in mjData.
-MJAPI void mj_deleteData(mjData* NONNULL_ARG d) NONNULL_FUNC(1);
+MJAPI void mj_deleteData(mjData *NONNULL_ARG d) NONNULL_FUNC(1);
 
 // Reset all callbacks to NULL pointers (NULL is the default).
 MJAPI void mj_resetCallbacks(void);
 
 // Set constant fields of mjModel, corresponding to qpos0 configuration.
-MJAPI void mj_setConst(mjModel* NONNULL_ARG m, mjData* NONNULL_ARG d) NONNULL_FUNC(1,2);
+MJAPI void mj_setConst(mjModel *NONNULL_ARG m, mjData *NONNULL_ARG d)
+    NONNULL_FUNC(1, 2);
 
 // Set actuator_lengthrange for specified actuator; return 1 if ok, 0 if error.
-MJAPI int mj_setLengthRange(mjModel* NONNULL_ARG m, mjData* NONNULL_ARG d, 
-                             int index, const mjLROpt* NONNULL_ARG opt, 
-                             char* NULLABLE_ARG error, int error_sz) NONNULL_FUNC(1,2,4);
+MJAPI int mj_setLengthRange(mjModel *NONNULL_ARG m, mjData *NONNULL_ARG d,
+                            int index, const mjLROpt *NONNULL_ARG opt,
+                            char *NULLABLE_ARG error, int error_sz)
+    NONNULL_FUNC(1, 2, 4);
 
 //---------------------------------- Printing ------------------------------------------------------
 
 // Print mjModel to text file, specifying format.
 // float_format must be a valid printf-style format string for a single float value.
-MJAPI void mj_printFormattedModel(const mjModel* NONNULL_ARG m, const char* NONNULL_ARG filename,
-                                   const char* NONNULL_ARG float_format)NONNULL_FUNC(1,2,3);
+MJAPI void mj_printFormattedModel(const mjModel *NONNULL_ARG m,
+                                  const char *NONNULL_ARG filename,
+                                  const char *NONNULL_ARG float_format)
+    NONNULL_FUNC(1, 2, 3);
 
 // Print model to text file.
-MJAPI void mj_printModel(const mjModel* NONNULL_ARG m, 
-                          const char* NONNULL_ARG filename)NONNULL_FUNC(1,2);
+MJAPI void mj_printModel(const mjModel *NONNULL_ARG m,
+                         const char *NONNULL_ARG filename) NONNULL_FUNC(1, 2);
 
 // Print mjData to text file, specifying format.
 // float_format must be a valid printf-style format string for a single float value
-MJAPI void mj_printFormattedData(const mjModel* NONNULL_ARG m, mjData* NONNULL_ARG d, 
-                                  const char* NONNULL_ARG filename,
-                                  const char* NONNULL_ARG float_format) NONNULL_FUNC(1,2,3,4);
+MJAPI void mj_printFormattedData(const mjModel *NONNULL_ARG m,
+                                 mjData *NONNULL_ARG d,
+                                 const char *NONNULL_ARG filename,
+                                 const char *NONNULL_ARG float_format)
+    NONNULL_FUNC(1, 2, 3, 4);
 
 // Print data to text file.
-MJAPI void mj_printData(const mjModel* NONNULL_ARG m, mjData* NONNULL_ARG d, 
-                         const char* NONNULL_ARG filename)NONNULL_FUNC(1,2,3);
+MJAPI void mj_printData(const mjModel *NONNULL_ARG m, mjData *NONNULL_ARG d,
+                        const char *NONNULL_ARG filename) NONNULL_FUNC(1, 2, 3);
 
 // Print matrix to screen.
-MJAPI void mju_printMat(const mjtNum* NONNULL_ARG mat, int nr, int nc) NONNULL_FUNC(1);
+MJAPI void mju_printMat(const mjtNum *NONNULL_ARG mat, int nr, int nc)
+    NONNULL_FUNC(1);
 
 // Print sparse matrix to screen.
-MJAPI void mju_printMatSparse(const mjtNum* NONNULL_ARG mat, int nr,
-                              const int* NONNULL_ARG rownnz, const int* NONNULL_ARG rowadr, 
-                              const int* NONNULL_ARG colind) NONNULL_FUNC(1,3,4,5);
-
+MJAPI void mju_printMatSparse(const mjtNum *NONNULL_ARG mat, int nr,
+                              const int *NONNULL_ARG rownnz,
+                              const int *NONNULL_ARG rowadr,
+                              const int *NONNULL_ARG colind)
+    NONNULL_FUNC(1, 3, 4, 5);
 
 //---------------------------------- Components ----------------------------------------------------
 
 // Run position-dependent computations.
-MJAPI void mj_fwdPosition(const mjModel* NONNULL_ARG m, mjData* NONNULL_ARG d) NONNULL_FUNC(1,2);
+MJAPI void mj_fwdPosition(const mjModel *NONNULL_ARG m, mjData *NONNULL_ARG d)
+    NONNULL_FUNC(1, 2);
 
 // Run velocity-dependent computations.
-MJAPI void mj_fwdVelocity(const mjModel* NONNULL_ARG m, mjData* NONNULL_ARG d) NONNULL_FUNC(1,2);
+MJAPI void mj_fwdVelocity(const mjModel *NONNULL_ARG m, mjData *NONNULL_ARG d)
+    NONNULL_FUNC(1, 2);
 
 // Compute actuator force qfrc_actuator.
-MJAPI void mj_fwdActuation(const mjModel* NONNULL_ARG m, mjData* NONNULL_ARG d) NONNULL_FUNC(1,2);
+MJAPI void mj_fwdActuation(const mjModel *NONNULL_ARG m, mjData *NONNULL_ARG d)
+    NONNULL_FUNC(1, 2);
 
 // Add up all non-constraint forces, compute qacc_smooth.
-MJAPI void mj_fwdAcceleration(const mjModel* NONNULL_ARG m, mjData* NONNULL_ARG d) NONNULL_FUNC(1,2);
+MJAPI void mj_fwdAcceleration(const mjModel *NONNULL_ARG m,
+                              mjData *NONNULL_ARG d) NONNULL_FUNC(1, 2);
 
 // Run selected constraint solver.
-MJAPI void mj_fwdConstraint(const mjModel* NONNULL_ARG m, mjData* NONNULL_ARG d) NONNULL_FUNC(1,2);
+MJAPI void mj_fwdConstraint(const mjModel *NONNULL_ARG m, mjData *NONNULL_ARG d)
+    NONNULL_FUNC(1, 2);
 
 // Euler integrator, semi-implicit in velocity.
-MJAPI void mj_Euler(const mjModel* NONNULL_ARG m, mjData* NONNULL_ARG d) NONNULL_FUNC(1,2);
+MJAPI void mj_Euler(const mjModel *NONNULL_ARG m, mjData *NONNULL_ARG d)
+    NONNULL_FUNC(1, 2);
 
 // Runge-Kutta explicit order-N integrator.
-MJAPI void mj_RungeKutta(const mjModel* NONNULL_ARG m, mjData* NONNULL_ARG d, int N) NONNULL_FUNC(1,2);
+MJAPI void mj_RungeKutta(const mjModel *NONNULL_ARG m, mjData *NONNULL_ARG d,
+                         int N) NONNULL_FUNC(1, 2);
 
 // Run position-dependent computations in inverse dynamics.
-MJAPI void mj_invPosition(const mjModel* NONNULL_ARG m, mjData* NONNULL_ARG d) NONNULL_FUNC(1,2);
+MJAPI void mj_invPosition(const mjModel *NONNULL_ARG m, mjData *NONNULL_ARG d)
+    NONNULL_FUNC(1, 2);
 
 // Run velocity-dependent computations in inverse dynamics.
-MJAPI void mj_invVelocity(const mjModel* NONNULL_ARG m, mjData* NONNULL_ARG d) NONNULL_FUNC(1,2);
+MJAPI void mj_invVelocity(const mjModel *NONNULL_ARG m, mjData *NONNULL_ARG d)
+    NONNULL_FUNC(1, 2);
 
 // Apply the analytical formula for inverse constraint dynamics.
-MJAPI void mj_invConstraint(const mjModel* NONNULL_ARG m, mjData* NONNULL_ARG d) NONNULL_FUNC(1,2);
+MJAPI void mj_invConstraint(const mjModel *NONNULL_ARG m, mjData *NONNULL_ARG d)
+    NONNULL_FUNC(1, 2);
 
 // Compare forward and inverse dynamics, save results in fwdinv.
-MJAPI void mj_compareFwdInv(const mjModel* NONNULL_ARG m, mjData* NONNULL_ARG d) NONNULL_FUNC(1,2);
-
+MJAPI void mj_compareFwdInv(const mjModel *NONNULL_ARG m, mjData *NONNULL_ARG d)
+    NONNULL_FUNC(1, 2);
 
 //---------------------------------- Sub components ------------------------------------------------
 
 // Evaluate position-dependent sensors.
-MJAPI void mj_sensorPos(const mjModel* NONNULL_ARG m, mjData* NONNULL_ARG d) NONNULL_FUNC(1,2);
+MJAPI void mj_sensorPos(const mjModel *NONNULL_ARG m, mjData *NONNULL_ARG d)
+    NONNULL_FUNC(1, 2);
 
 // Evaluate velocity-dependent sensors.
-MJAPI void mj_sensorVel(const mjModel* NONNULL_ARG m, mjData* NONNULL_ARG d) NONNULL_FUNC(1,2);
+MJAPI void mj_sensorVel(const mjModel *NONNULL_ARG m, mjData *NONNULL_ARG d)
+    NONNULL_FUNC(1, 2);
 
 // Evaluate acceleration and force-dependent sensors.
-MJAPI void mj_sensorAcc(const mjModel* NONNULL_ARG m, mjData* NONNULL_ARG d) NONNULL_FUNC(1,2);
+MJAPI void mj_sensorAcc(const mjModel *NONNULL_ARG m, mjData *NONNULL_ARG d)
+    NONNULL_FUNC(1, 2);
 
 // Evaluate position-dependent energy (potential).
-MJAPI void mj_energyPos(const mjModel* NONNULL_ARG m, mjData* NONNULL_ARG d) NONNULL_FUNC(1,2);
+MJAPI void mj_energyPos(const mjModel *NONNULL_ARG m, mjData *NONNULL_ARG d)
+    NONNULL_FUNC(1, 2);
 
 // Evaluate velocity-dependent energy (kinetic).
-MJAPI void mj_energyVel(const mjModel* NONNULL_ARG m, mjData* NONNULL_ARG d) NONNULL_FUNC(1,2);
+MJAPI void mj_energyVel(const mjModel *NONNULL_ARG m, mjData *NONNULL_ARG d)
+    NONNULL_FUNC(1, 2);
 
 // Check qpos, reset if any element is too big or nan.
-MJAPI void mj_checkPos(const mjModel* NONNULL_ARG m, mjData* NONNULL_ARG d) NONNULL_FUNC(1,2);
+MJAPI void mj_checkPos(const mjModel *NONNULL_ARG m, mjData *NONNULL_ARG d)
+    NONNULL_FUNC(1, 2);
 
 // Check qvel, reset if any element is too big or nan.
-MJAPI void mj_checkVel(const mjModel* NONNULL_ARG m, mjData* NONNULL_ARG d) NONNULL_FUNC(1,2);
+MJAPI void mj_checkVel(const mjModel *NONNULL_ARG m, mjData *NONNULL_ARG d)
+    NONNULL_FUNC(1, 2);
 
 // Check qacc, reset if any element is too big or nan.
-MJAPI void mj_checkAcc(const mjModel* NONNULL_ARG m, mjData* NONNULL_ARG d) NONNULL_FUNC(1,2);
+MJAPI void mj_checkAcc(const mjModel *NONNULL_ARG m, mjData *NONNULL_ARG d)
+    NONNULL_FUNC(1, 2);
 
 // Run forward kinematics.
-MJAPI void mj_kinematics(const mjModel* NONNULL_ARG m, mjData* NONNULL_ARG d) NONNULL_FUNC(1,2);
+MJAPI void mj_kinematics(const mjModel *NONNULL_ARG m, mjData *NONNULL_ARG d)
+    NONNULL_FUNC(1, 2);
 
 // Map inertias and motion dofs to global frame centered at CoM.
-MJAPI void mj_comPos(const mjModel* NONNULL_ARG m, mjData* NONNULL_ARG d) NONNULL_FUNC(1,2);
+MJAPI void mj_comPos(const mjModel *NONNULL_ARG m, mjData *NONNULL_ARG d)
+    NONNULL_FUNC(1, 2);
 
 // Compute camera and light positions and orientations.
-MJAPI void mj_camlight(const mjModel* NONNULL_ARG m, mjData* NONNULL_ARG d) NONNULL_FUNC(1,2);
+MJAPI void mj_camlight(const mjModel *NONNULL_ARG m, mjData *NONNULL_ARG d)
+    NONNULL_FUNC(1, 2);
 
 // Compute tendon lengths, velocities and moment arms.
-MJAPI void mj_tendon(const mjModel* NONNULL_ARG m, mjData* NONNULL_ARG d) NONNULL_FUNC(1,2);
+MJAPI void mj_tendon(const mjModel *NONNULL_ARG m, mjData *NONNULL_ARG d)
+    NONNULL_FUNC(1, 2);
 
 // Compute actuator transmission lengths and moments.
-MJAPI void mj_transmission(const mjModel* NONNULL_ARG m, mjData* NONNULL_ARG d) NONNULL_FUNC(1,2);
+MJAPI void mj_transmission(const mjModel *NONNULL_ARG m, mjData *NONNULL_ARG d)
+    NONNULL_FUNC(1, 2);
 
 // Run composite rigid body inertia algorithm (CRB).
-MJAPI void mj_crb(const mjModel* NONNULL_ARG m, mjData* NONNULL_ARG d) NONNULL_FUNC(1,2);
+MJAPI void mj_crb(const mjModel *NONNULL_ARG m, mjData *NONNULL_ARG d)
+    NONNULL_FUNC(1, 2);
 
 // Compute sparse L'*D*L factorizaton of inertia matrix.
-MJAPI void mj_factorM(const mjModel* NONNULL_ARG m, mjData* NONNULL_ARG d) NONNULL_FUNC(1,2);
+MJAPI void mj_factorM(const mjModel *NONNULL_ARG m, mjData *NONNULL_ARG d)
+    NONNULL_FUNC(1, 2);
 
 // Solve linear system M * x = y using factorization:  x = inv(L'*D*L)*y
-MJAPI void mj_solveM(const mjModel* NONNULL_ARG m, mjData* NONNULL_ARG d, 
-                      mjtNum* NONNULL_ARG x, const mjtNum* NONNULL_ARG y, int n) 
-                      NONNULL_FUNC(1,2,3,4);
+MJAPI void mj_solveM(const mjModel *NONNULL_ARG m, mjData *NONNULL_ARG d,
+                     mjtNum *NONNULL_ARG x, const mjtNum *NONNULL_ARG y, int n)
+    NONNULL_FUNC(1, 2, 3, 4);
 
 // Half of linear solve:  x = sqrt(inv(D))*inv(L')*y
-MJAPI void mj_solveM2(const mjModel* NONNULL_ARG m, mjData* NONNULL_ARG d, 
-                       mjtNum* NONNULL_ARG x, const mjtNum* NONNULL_ARG y, int n) 
-                       NONNULL_FUNC(1,2,3,4);
+MJAPI void mj_solveM2(const mjModel *NONNULL_ARG m, mjData *NONNULL_ARG d,
+                      mjtNum *NONNULL_ARG x, const mjtNum *NONNULL_ARG y, int n)
+    NONNULL_FUNC(1, 2, 3, 4);
 
 // Compute cvel, cdof_dot.
-MJAPI void mj_comVel(const mjModel* NONNULL_ARG m, mjData* NONNULL_ARG d) NONNULL_FUNC(1,2);
+MJAPI void mj_comVel(const mjModel *NONNULL_ARG m, mjData *NONNULL_ARG d)
+    NONNULL_FUNC(1, 2);
 
 // Compute qfrc_passive from spring-dampers, viscosity and density.
-MJAPI void mj_passive(const mjModel* NONNULL_ARG m, mjData* NONNULL_ARG d) NONNULL_FUNC(1,2);
+MJAPI void mj_passive(const mjModel *NONNULL_ARG m, mjData *NONNULL_ARG d)
+    NONNULL_FUNC(1, 2);
 
 // subtree linear velocity and angular momentum
-MJAPI void mj_subtreeVel(const mjModel* NONNULL_ARG m, mjData* NONNULL_ARG d) NONNULL_FUNC(1,2);
+MJAPI void mj_subtreeVel(const mjModel *NONNULL_ARG m, mjData *NONNULL_ARG d)
+    NONNULL_FUNC(1, 2);
 
 // RNE: compute M(qpos)*qacc + C(qpos,qvel); flg_acc=0 removes inertial term.
-MJAPI void mj_rne(const mjModel* NONNULL_ARG m, mjData* NONNULL_ARG d, 
-                   int flg_acc, mjtNum* NONNULL_ARG result) NONNULL_FUNC(1,2,4);
+MJAPI void mj_rne(const mjModel *NONNULL_ARG m, mjData *NONNULL_ARG d,
+                  int flg_acc, mjtNum *NONNULL_ARG result)
+    NONNULL_FUNC(1, 2, 4);
 
 // RNE with complete data: compute cacc, cfrc_ext, cfrc_int.
-MJAPI void mj_rnePostConstraint(const mjModel* NONNULL_ARG m, mjData* NONNULL_ARG d) 
-                                NONNULL_FUNC(1,2);
+MJAPI void mj_rnePostConstraint(const mjModel *NONNULL_ARG m,
+                                mjData *NONNULL_ARG d) NONNULL_FUNC(1, 2);
 
 // Run collision detection.
-MJAPI void mj_collision(const mjModel* NONNULL_ARG m, mjData* NONNULL_ARG d) NONNULL_FUNC(1,2);
+MJAPI void mj_collision(const mjModel *NONNULL_ARG m, mjData *NONNULL_ARG d)
+    NONNULL_FUNC(1, 2);
 
 // Construct constraints.
-MJAPI void mj_makeConstraint(const mjModel* NONNULL_ARG m, mjData* NONNULL_ARG d) NONNULL_FUNC(1,2);
+MJAPI void mj_makeConstraint(const mjModel *NONNULL_ARG m,
+                             mjData *NONNULL_ARG d) NONNULL_FUNC(1, 2);
 
 // Find constraint islands.
-MJAPI void mj_island(const mjModel* NONNULL_ARG m, mjData* NONNULL_ARG d) NONNULL_FUNC(1,2);
+MJAPI void mj_island(const mjModel *NONNULL_ARG m, mjData *NONNULL_ARG d)
+    NONNULL_FUNC(1, 2);
 
 // Compute inverse constraint inertia efc_AR.
-MJAPI void mj_projectConstraint(const mjModel* NONNULL_ARG m, mjData* NONNULL_ARG d) 
-                                 NONNULL_FUNC(1,2);
+MJAPI void mj_projectConstraint(const mjModel *NONNULL_ARG m,
+                                mjData *NONNULL_ARG d) NONNULL_FUNC(1, 2);
 
 // Compute efc_vel, efc_aref.
-MJAPI void mj_referenceConstraint(const mjModel* NONNULL_ARG m, mjData* NONNULL_ARG d) 
-                                   NONNULL_FUNC(1,2);
+MJAPI void mj_referenceConstraint(const mjModel *NONNULL_ARG m,
+                                  mjData *NONNULL_ARG d) NONNULL_FUNC(1, 2);
 
 // Compute efc_state, efc_force, qfrc_constraint, and (optionally) cone Hessians.
 // If cost is not NULL, set *cost = s(jar) where jar = Jac*qacc-aref.
-MJAPI void mj_constraintUpdate(const mjModel* NONNULL_ARG m, mjData* NONNULL_ARG d, 
-                               const mjtNum* NONNULL_ARG jar, mjtNum cost[1], int flg_coneHessian) 
-                               NONNULL_FUNC(1,2,3);
-
+MJAPI void mj_constraintUpdate(const mjModel *NONNULL_ARG m,
+                               mjData *NONNULL_ARG d,
+                               const mjtNum *NONNULL_ARG jar, mjtNum cost[1],
+                               int flg_coneHessian) NONNULL_FUNC(1, 2, 3);
 
 //---------------------------------- Support -------------------------------------------------------
 
 // Return size of state specification.
-MJAPI int mj_stateSize(const mjModel* NONNULL_ARG m, unsigned int spec) NONNULL_FUNC(1);
+MJAPI int mj_stateSize(const mjModel *NONNULL_ARG m, unsigned int spec)
+    NONNULL_FUNC(1);
 
 // Get state.
-MJAPI void mj_getState(const mjModel* NONNULL_ARG m, const mjData* NONNULL_ARG d, 
-                        mjtNum* NONNULL_ARG state, unsigned int spec) NONNULL_FUNC(1,2,3);
+MJAPI void mj_getState(const mjModel *NONNULL_ARG m,
+                       const mjData *NONNULL_ARG d, mjtNum *NONNULL_ARG state,
+                       unsigned int spec) NONNULL_FUNC(1, 2, 3);
 
 // Set state.
-MJAPI void mj_setState(const mjModel* NONNULL_ARG m, mjData* NONNULL_ARG d, 
-                        const mjtNum* NONNULL_ARG state, unsigned int spec) NONNULL_FUNC(1,2,3);
+MJAPI void mj_setState(const mjModel *NONNULL_ARG m, mjData *NONNULL_ARG d,
+                       const mjtNum *NONNULL_ARG state, unsigned int spec)
+    NONNULL_FUNC(1, 2, 3);
 
 // Add contact to d->contact list; return 0 if success; 1 if buffer full.
-MJAPI int mj_addContact(const mjModel* NONNULL_ARG m, mjData* NONNULL_ARG d, 
-                         const mjContact* NONNULL_ARG con) NONNULL_FUNC(1,2,3);
+MJAPI int mj_addContact(const mjModel *NONNULL_ARG m, mjData *NONNULL_ARG d,
+                        const mjContact *NONNULL_ARG con) NONNULL_FUNC(1, 2, 3);
 
 // Determine type of friction cone.
-MJAPI int mj_isPyramidal(const mjModel* NONNULL_ARG m) NONNULL_FUNC(1);
+MJAPI int mj_isPyramidal(const mjModel *NONNULL_ARG m) NONNULL_FUNC(1);
 
 // Determine type of constraint Jacobian.
-MJAPI int mj_isSparse(const mjModel* NONNULL_ARG m) NONNULL_FUNC(1);
+MJAPI int mj_isSparse(const mjModel *NONNULL_ARG m) NONNULL_FUNC(1);
 
 // Determine type of solver (PGS is dual, CG and Newton are primal).
-MJAPI int mj_isDual(const mjModel* NONNULL_ARG m) NONNULL_FUNC(1);
+MJAPI int mj_isDual(const mjModel *NONNULL_ARG m) NONNULL_FUNC(1);
 
 // Multiply dense or sparse constraint Jacobian by vector.
-MJAPI void mj_mulJacVec(const mjModel* NONNULL_ARG m, mjData* NONNULL_ARG d, 
-                         mjtNum* NONNULL_ARG res, const mjtNum* NONNULL_ARG vec) 
-                         NONNULL_FUNC(1,2,3,4);
+MJAPI void mj_mulJacVec(const mjModel *NONNULL_ARG m, mjData *NONNULL_ARG d,
+                        mjtNum *NONNULL_ARG res, const mjtNum *NONNULL_ARG vec)
+    NONNULL_FUNC(1, 2, 3, 4);
 
 // Multiply dense or sparse constraint Jacobian transpose by vector.
-MJAPI void mj_mulJacTVec(const mjModel* NONNULL_ARG m, mjData* NONNULL_ARG d, 
-                          mjtNum* NONNULL_ARG res, const mjtNum* NONNULL_ARG vec) 
-                          NONNULL_FUNC(1,2,3,4);
+MJAPI void mj_mulJacTVec(const mjModel *NONNULL_ARG m, mjData *NONNULL_ARG d,
+                         mjtNum *NONNULL_ARG res, const mjtNum *NONNULL_ARG vec)
+    NONNULL_FUNC(1, 2, 3, 4);
 
 // Compute 3/6-by-nv end-effector Jacobian of global point attached to given body.
-MJAPI void mj_jac(const mjModel* NONNULL_ARG m, const mjData* NONNULL_ARG d, 
-                   mjtNum* NONNULL_ARG jacp, mjtNum* NONNULL_ARG jacr, 
-                   const mjtNum NONNULL_ARG point[3], int body) NONNULL_FUNC(1,2,3,4,5);
+MJAPI void mj_jac(const mjModel *NONNULL_ARG m, const mjData *NONNULL_ARG d,
+                  mjtNum *NONNULL_ARG jacp, mjtNum *NONNULL_ARG jacr,
+                  const mjtNum NONNULL_ARG point[3], int body)
+    NONNULL_FUNC(1, 2, 3, 4, 5);
 
 // Compute body frame end-effector Jacobian.
-MJAPI void mj_jacBody(const mjModel* NONNULL_ARG m, const mjData* NONNULL_ARG d, 
-                       mjtNum* NONNULL_ARG jacp, mjtNum* NONNULL_ARG jacr, int body) 
-                       NONNULL_FUNC(1,2,3,4);
+MJAPI void mj_jacBody(const mjModel *NONNULL_ARG m, const mjData *NONNULL_ARG d,
+                      mjtNum *NONNULL_ARG jacp, mjtNum *NONNULL_ARG jacr,
+                      int body) NONNULL_FUNC(1, 2, 3, 4);
 
 // Compute body center-of-mass end-effector Jacobian.
-MJAPI void mj_jacBodyCom(const mjModel* NONNULL_ARG m, const mjData* NONNULL_ARG d, 
-                          mjtNum* NONNULL_ARG jacp, mjtNum* NONNULL_ARG jacr, int body) 
-                          NONNULL_FUNC(1,2,3,4);
+MJAPI void mj_jacBodyCom(const mjModel *NONNULL_ARG m,
+                         const mjData *NONNULL_ARG d, mjtNum *NONNULL_ARG jacp,
+                         mjtNum *NONNULL_ARG jacr, int body)
+    NONNULL_FUNC(1, 2, 3, 4);
 
 // Compute subtree center-of-mass end-effector Jacobian.
-MJAPI void mj_jacSubtreeCom(const mjModel* NONNULL_ARG m, mjData* NONNULL_ARG d, 
-                             mjtNum* NONNULL_ARG jacp, int body) NONNULL_FUNC(1,2,3);
+MJAPI void mj_jacSubtreeCom(const mjModel *NONNULL_ARG m, mjData *NONNULL_ARG d,
+                            mjtNum *NONNULL_ARG jacp, int body)
+    NONNULL_FUNC(1, 2, 3);
 
 // Compute geom end-effector Jacobian.
-MJAPI void mj_jacGeom(const mjModel* NONNULL_ARG m, const mjData* NONNULL_ARG d, 
-                       mjtNum* NONNULL_ARG jacp, mjtNum* NONNULL_ARG jacr, int geom) 
-                       NONNULL_FUNC(1,2,3,4);
+MJAPI void mj_jacGeom(const mjModel *NONNULL_ARG m, const mjData *NONNULL_ARG d,
+                      mjtNum *NONNULL_ARG jacp, mjtNum *NONNULL_ARG jacr,
+                      int geom) NONNULL_FUNC(1, 2, 3, 4);
 
 // Compute site end-effector Jacobian.
-MJAPI void mj_jacSite(const mjModel* NONNULL_ARG m, const mjData* NONNULL_ARG d, 
-                       mjtNum* NONNULL_ARG jacp, mjtNum* NONNULL_ARG jacr, int site) 
-                       NONNULL_FUNC(1,2,3,4);
+MJAPI void mj_jacSite(const mjModel *NONNULL_ARG m, const mjData *NONNULL_ARG d,
+                      mjtNum *NONNULL_ARG jacp, mjtNum *NONNULL_ARG jacr,
+                      int site) NONNULL_FUNC(1, 2, 3, 4);
 
 // Compute translation end-effector Jacobian of point, and rotation Jacobian of axis.
-MJAPI void mj_jacPointAxis(const mjModel* NONNULL_ARG m, mjData* NONNULL_ARG d, 
-                            mjtNum* NONNULL_ARG jacPoint, mjtNum* NONNULL_ARG jacAxis,
-                            const mjtNum NONNULL_ARG point[3], 
-                            const mjtNum NONNULL_ARG axis[3], int body) NONNULL_FUNC(1,2,3,4,5,6);
+MJAPI void mj_jacPointAxis(const mjModel *NONNULL_ARG m, mjData *NONNULL_ARG d,
+                           mjtNum *NONNULL_ARG jacPoint,
+                           mjtNum *NONNULL_ARG jacAxis,
+                           const mjtNum NONNULL_ARG point[3],
+                           const mjtNum NONNULL_ARG axis[3], int body)
+    NONNULL_FUNC(1, 2, 3, 4, 5, 6);
 
 // Get id of object with the specified mjtObj type and name, returns -1 if id not found.
-MJAPI int mj_name2id(const mjModel* NONNULL_ARG m, int type, 
-                      const char* NONNULL_ARG name) NONNULL_FUNC(1,3);
+MJAPI int mj_name2id(const mjModel *NONNULL_ARG m, int type,
+                     const char *NONNULL_ARG name) NONNULL_FUNC(1, 3);
 
 // Get name of object with the specified mjtObj type and id, returns NULL if name not found.
-MJAPI const char* mj_id2name(const mjModel* NONNULL_ARG m, int type, int id) NONNULL_FUNC(1);
+MJAPI const char *mj_id2name(const mjModel *NONNULL_ARG m, int type, int id)
+    NONNULL_FUNC(1);
 
 // Convert sparse inertia matrix M into full (i.e. dense) matrix.
-MJAPI void mj_fullM(const mjModel* NONNULL_ARG m, mjtNum* NONNULL_ARG dst, 
-                     const mjtNum* NONNULL_ARG M) NONNULL_FUNC(1,2,3);
+MJAPI void mj_fullM(const mjModel *NONNULL_ARG m, mjtNum *NONNULL_ARG dst,
+                    const mjtNum *NONNULL_ARG M) NONNULL_FUNC(1, 2, 3);
 
 // Multiply vector by inertia matrix.
-MJAPI void mj_mulM(const mjModel* NONNULL_ARG m, const mjData* NONNULL_ARG d, 
-                    mjtNum* NONNULL_ARG res, const mjtNum* NONNULL_ARG vec) NONNULL_FUNC(1,2,3,4);
+MJAPI void mj_mulM(const mjModel *NONNULL_ARG m, const mjData *NONNULL_ARG d,
+                   mjtNum *NONNULL_ARG res, const mjtNum *NONNULL_ARG vec)
+    NONNULL_FUNC(1, 2, 3, 4);
 
 // Multiply vector by (inertia matrix)^(1/2).
-MJAPI void mj_mulM2(const mjModel* NONNULL_ARG m, const mjData* NONNULL_ARG d, 
-                     mjtNum* NONNULL_ARG res, const mjtNum* NONNULL_ARG vec) NONNULL_FUNC(1,2,3,4);
+MJAPI void mj_mulM2(const mjModel *NONNULL_ARG m, const mjData *NONNULL_ARG d,
+                    mjtNum *NONNULL_ARG res, const mjtNum *NONNULL_ARG vec)
+    NONNULL_FUNC(1, 2, 3, 4);
 
 // Add inertia matrix to destination matrix.
 // Destination can be sparse uncompressed, or dense when all int* are NULL
 MJAPI void mj_addM(const mjModel* m, mjData* d, mjtNum* dst, int* rownnz, int* rowadr, int* colind);
 
 // Apply Cartesian force and torque (outside xfrc_applied mechanism).
-MJAPI void mj_applyFT(const mjModel* NONNULL_ARG m, mjData* NONNULL_ARG d, 
-                      const mjtNum NONNULL_ARG force[3], const mjtNum NONNULL_ARG torque[3],
-                      const mjtNum NONNULL_ARG point[3], int body, mjtNum* NONNULL_ARG qfrc_target) 
-                      NONNULL_FUNC(1,2,3,4,5,7);
+MJAPI void mj_applyFT(const mjModel *NONNULL_ARG m, mjData *NONNULL_ARG d,
+                      const mjtNum NONNULL_ARG force[3],
+                      const mjtNum NONNULL_ARG torque[3],
+                      const mjtNum NONNULL_ARG point[3], int body,
+                      mjtNum *NONNULL_ARG qfrc_target)
+    NONNULL_FUNC(1, 2, 3, 4, 5, 7);
 
-MJAPI void mj_objectVelocity(const mjModel* NONNULL_ARG m, const mjData* NONNULL_ARG d,
-                             int objtype, int objid, mjtNum NONNULL_ARG res[6], int flg_local) 
-                             NONNULL_FUNC(1,2,5);
+MJAPI void mj_objectVelocity(const mjModel *NONNULL_ARG m,
+                             const mjData *NONNULL_ARG d, int objtype,
+                             int objid, mjtNum NONNULL_ARG res[6],
+                             int flg_local) NONNULL_FUNC(1, 2, 5);
 
 // Compute object 6D acceleration (rot:lin) in object-centered frame, world/local orientation.
-MJAPI void mj_objectAcceleration(const mjModel* NONNULL_ARG m, const mjData* NONNULL_ARG d,
-                                 int objtype, int objid, mjtNum NONNULL_ARG res[6], int flg_local) 
-                                 NONNULL_FUNC(1,2,5);
+MJAPI void mj_objectAcceleration(const mjModel *NONNULL_ARG m,
+                                 const mjData *NONNULL_ARG d, int objtype,
+                                 int objid, mjtNum NONNULL_ARG res[6],
+                                 int flg_local) NONNULL_FUNC(1, 2, 5);
 
 // Extract 6D force:torque given contact id, in the contact frame.
-MJAPI void mj_contactForce(const mjModel* NONNULL_ARG m, const mjData* NONNULL_ARG d, 
-                           int id, mjtNum NONNULL_ARG result[6]) NONNULL_FUNC(1,2,4);
+MJAPI void mj_contactForce(const mjModel *NONNULL_ARG m,
+                           const mjData *NONNULL_ARG d, int id,
+                           mjtNum NONNULL_ARG result[6]) NONNULL_FUNC(1, 2, 4);
 
 // Compute velocity by finite-differencing two positions.
-MJAPI void mj_differentiatePos(const mjModel* NONNULL_ARG m, mjtNum* NONNULL_ARG qvel, mjtNum dt,
-                               const mjtNum* NONNULL_ARG qpos1, const mjtNum* NONNULL_ARG qpos2) 
-                               NONNULL_FUNC(1,2,4,5);
+MJAPI void mj_differentiatePos(const mjModel *NONNULL_ARG m,
+                               mjtNum *NONNULL_ARG qvel, mjtNum dt,
+                               const mjtNum *NONNULL_ARG qpos1,
+                               const mjtNum *NONNULL_ARG qpos2)
+    NONNULL_FUNC(1, 2, 4, 5);
 
 // Integrate position with given velocity.
-MJAPI void mj_integratePos(const mjModel* NONNULL_ARG m, mjtNum* NONNULL_ARG qpos, 
-                           const mjtNum* NONNULL_ARG qvel, mjtNum dt) NONNULL_FUNC(1,2,3);
+MJAPI void mj_integratePos(const mjModel *NONNULL_ARG m,
+                           mjtNum *NONNULL_ARG qpos,
+                           const mjtNum *NONNULL_ARG qvel, mjtNum dt)
+    NONNULL_FUNC(1, 2, 3);
 
 // Normalize all quaternions in qpos-type vector.
-MJAPI void mj_normalizeQuat(const mjModel* NONNULL_ARG m, mjtNum* NONNULL_ARG qpos) 
-                            NONNULL_FUNC(1,2);
+MJAPI void mj_normalizeQuat(const mjModel *NONNULL_ARG m,
+                            mjtNum *NONNULL_ARG qpos) NONNULL_FUNC(1, 2);
 
 // Map from body local to global Cartesian coordinates.
-MJAPI void mj_local2Global(mjData* NONNULL_ARG d, mjtNum NONNULL_ARG xpos[3], mjtNum NONNULL_ARG xmat[9], 
-                           const mjtNum NONNULL_ARG pos[3], const mjtNum NONNULL_ARG quat[4], 
-                           int body, mjtByte sameframe) NONNULL_FUNC(1,2,3,4,5);
+MJAPI void mj_local2Global(mjData *NONNULL_ARG d, mjtNum NONNULL_ARG xpos[3],
+                           mjtNum NONNULL_ARG xmat[9],
+                           const mjtNum NONNULL_ARG pos[3],
+                           const mjtNum NONNULL_ARG quat[4], int body,
+                           mjtByte sameframe) NONNULL_FUNC(1, 2, 3, 4, 5);
 
 // Sum all body masses.
-MJAPI mjtNum mj_getTotalmass(const mjModel* NONNULL_ARG m) NONNULL_FUNC(1);
+MJAPI mjtNum mj_getTotalmass(const mjModel *NONNULL_ARG m) NONNULL_FUNC(1);
 
 // Scale body masses and inertias to achieve specified total mass.
-MJAPI void mj_setTotalmass(mjModel* NONNULL_ARG m, mjtNum newmass) NONNULL_FUNC(1);
+MJAPI void mj_setTotalmass(mjModel *NONNULL_ARG m, mjtNum newmass)
+    NONNULL_FUNC(1);
 
 // Return a config attribute value of a plugin instance;
 // NULL: invalid plugin instance ID or attribute name
-MJAPI const char* mj_getPluginConfig(const mjModel* NONNULL_ARG m, int plugin_id, 
-                                     const char* NONNULL_ARG attrib) NONNULL_FUNC(1,3);
+MJAPI const char *mj_getPluginConfig(const mjModel *NONNULL_ARG m,
+                                     int plugin_id,
+                                     const char *NONNULL_ARG attrib)
+    NONNULL_FUNC(1, 3);
 
 // Load a dynamic library. The dynamic library is assumed to register one or more plugins.
-MJAPI void mj_loadPluginLibrary(const char* NONNULL_ARG path) NONNULL_FUNC(1);
+MJAPI void mj_loadPluginLibrary(const char *NONNULL_ARG path) NONNULL_FUNC(1);
 
 // Scan a directory and load all dynamic libraries. Dynamic libraries in the specified directory
 // are assumed to register one or more plugins. Optionally, if a callback is specified, it is called
 // for each dynamic library encountered that registers plugins.
-MJAPI void mj_loadAllPluginLibraries(const char* NONNULL_ARG directory, 
-                                     mjfPluginLibraryLoadCallback callback) NONNULL_FUNC(1);
+MJAPI void mj_loadAllPluginLibraries(const char *NONNULL_ARG directory,
+                                     mjfPluginLibraryLoadCallback callback)
+    NONNULL_FUNC(1);
 
 // Return version number: 1.0.2 is encoded as 102.
 MJAPI int mj_version(void);

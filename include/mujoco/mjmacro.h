@@ -60,20 +60,21 @@
   }
 #endif
 
-//-------------------------- nullability check ----------------------------------------------------
+//-------------------------- nullability check
+//----------------------------------------------------
 
 #ifdef __clang__
 #define NONNULL_ARG _Nonnull
 #define NULLABLE_ARG _Nullable
-#define NONNULL_FUNC(...)                         /* NOT SUPPORTED */
+#define NONNULL_FUNC(...) /* NOT SUPPORTED */
 #elif defined(__GNUC__)
-#define NONNULL_ARG                               /* NOT SUPPORTED */
-#define NULLABLE_ARG                              /* NOT SUPPORTED */
+#define NONNULL_ARG  /* NOT SUPPORTED */
+#define NULLABLE_ARG /* NOT SUPPORTED */
 #define NONNULL_FUNC(...) __attribute__((nonnull(__VA_ARGS__)))
 #else
-#define NONNULL_ARG                              /* NOT SUPPORTED */
-#define NULLABLE_ARG                             /* NOT SUPPORTED */
-#define NONNULL_FUNC(...)                        /* NOT SUPPORTED */
+#define NONNULL_ARG       /* NOT SUPPORTED */
+#define NULLABLE_ARG      /* NOT SUPPORTED */
+#define NONNULL_FUNC(...) /* NOT SUPPORTED */
 #endif
 
 #endif  // MUJOCO_MJMACRO_H_
