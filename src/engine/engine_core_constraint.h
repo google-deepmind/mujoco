@@ -116,6 +116,10 @@ MJAPI void mj_referenceConstraint(const mjModel* m, mjData* d);
 MJAPI void mj_constraintUpdate(const mjModel* m, mjData* d, const mjtNum* jar,
                                mjtNum cost[1], int flg_coneHessian);
 
+// compute efc_state, efc_force, qfrc_constraint for one island
+MJAPI void mj_constraintUpdate_island(const mjModel* m, mjData* d, const mjtNum* jar,
+                                      mjtNum cost[1], int flg_coneHessian, int island);
+
 #ifdef __cplusplus
 }
 #endif

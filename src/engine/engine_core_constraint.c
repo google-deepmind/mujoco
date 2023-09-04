@@ -2003,18 +2003,25 @@ void mj_referenceConstraint(const mjModel* m, mjData* d) {
 
 //---------------------------- update constraint state ---------------------------------------------
 
-// compute efc_state, efc_force, qfrc_constraint
-// optional: cost(qacc) = shat(jar) where jar = Jac*qacc-aref; cone Hessians
-void mj_constraintUpdate(const mjModel* m, mjData* d, const mjtNum* jar,
-                         mjtNum cost[1], int flg_coneHessian) {
-  int ne = d->ne, nf = d->nf, nefc = d->nefc, nv = m->nv;
+// compute efc_state, efc_force, qfrc_constraint, optionally restricted to one island
+//  island < 0: update all d->nefc constraints
+//  island >= 0: update only d->island_efcnum[island] constraints
+//  jar = Jac*qacc-aref is restricted to the island, in the above sense
+//  optional: cost(qacc) = shat(jar); cone Hessians
+void mj_constraintUpdate_island(const mjModel* m, mjData* d, const mjtNum* jar,
+                                mjtNum cost[1], int flg_coneHessian, int island) {
+  int ne = d->ne, nf = d->nf;
   const mjtNum *D = d->efc_D, *R = d->efc_R, *floss = d->efc_frictionloss;
   mjtNum* force = d->efc_force;
   mjtNum s = 0;
 
+  int nefc    = island < 0 ? d->nefc : d->island_efcnum[island];
+  int* efcind = island < 0 ? NULL    : d->island_efcind + d->island_efcadr[island];
+
   // no constraints: clear qfrc_constraint and cost, return
   if (!nefc) {
-    mju_zero(d->qfrc_constraint, nv);
+    // can only occur for island == -1
+    mju_zero(d->qfrc_constraint, m->nv);
     if (cost) {
       *cost = 0;
     }
@@ -2022,16 +2029,19 @@ void mj_constraintUpdate(const mjModel* m, mjData* d, const mjtNum* jar,
   }
 
   // compute unconstrained efc_force
-  for (int i=0; i < nefc; i++) {
-    force[i] = -D[i]*jar[i];
+  for (int c=0; c < nefc; c++) {
+    int i = efcind ? efcind[c] : c;
+    force[i] = -D[i]*jar[c];
   }
 
   // update constraints
-  for (int i=0; i < nefc; i++) {
+  for (int c=0; c < nefc; c++) {
+    int i = efcind ? efcind[c] : c;
+
     // ==== equality
     if (i < ne) {
       if (cost) {
-        s += 0.5*D[i]*jar[i]*jar[i];
+        s += 0.5*D[i]*jar[c]*jar[c];
       }
       d->efc_state[i] = mjCNSTRSTATE_QUADRATIC;
       continue;
@@ -2040,9 +2050,9 @@ void mj_constraintUpdate(const mjModel* m, mjData* d, const mjtNum* jar,
     // ==== friction
     if (i < ne + nf) {
       // linear negative
-      if (jar[i] <= -R[i]*floss[i]) {
+      if (jar[c] <= -R[i]*floss[i]) {
         if (cost) {
-          s += -0.5*R[i]*floss[i]*floss[i] - floss[i]*jar[i];
+          s += -0.5*R[i]*floss[i]*floss[i] - floss[i]*jar[c];
         }
 
         force[i] = floss[i];
@@ -2051,9 +2061,9 @@ void mj_constraintUpdate(const mjModel* m, mjData* d, const mjtNum* jar,
       }
 
       // linear positive
-      else if (jar[i] >= R[i]*floss[i]) {
+      else if (jar[c] >= R[i]*floss[i]) {
         if (cost) {
-          s += -0.5*R[i]*floss[i]*floss[i] + floss[i]*jar[i];
+          s += -0.5*R[i]*floss[i]*floss[i] + floss[i]*jar[c];
         }
 
         force[i] = -floss[i];
@@ -2064,7 +2074,7 @@ void mj_constraintUpdate(const mjModel* m, mjData* d, const mjtNum* jar,
       // quadratic
       else {
         if (cost) {
-          s += 0.5*D[i]*jar[i]*jar[i];
+          s += 0.5*D[i]*jar[c]*jar[c];
         }
 
         d->efc_state[i] = mjCNSTRSTATE_QUADRATIC;
@@ -2077,7 +2087,7 @@ void mj_constraintUpdate(const mjModel* m, mjData* d, const mjtNum* jar,
     // non-negative constraint
     if (d->efc_type[i] != mjCNSTR_CONTACT_ELLIPTIC) {
       // constraint is satisfied: no cost
-      if (jar[i] >= 0) {
+      if (jar[c] >= 0) {
         force[i] = 0;
 
         d->efc_state[i] = mjCNSTRSTATE_SATISFIED;
@@ -2086,7 +2096,7 @@ void mj_constraintUpdate(const mjModel* m, mjData* d, const mjtNum* jar,
       // quadratic
       else {
         if (cost) {
-          s += 0.5*D[i]*jar[i]*jar[i];
+          s += 0.5*D[i]*jar[c]*jar[c];
         }
 
         d->efc_state[i] = mjCNSTRSTATE_QUADRATIC;
@@ -2102,9 +2112,9 @@ void mj_constraintUpdate(const mjModel* m, mjData* d, const mjtNum* jar,
 
       // map to regular dual cone space
       mjtNum U[6];
-      U[0] = jar[i]*mu;
+      U[0] = jar[c]*mu;
       for (int j=1; j < dim; j++) {
-        U[j] = jar[i+j]*friction[j-1];
+        U[j] = jar[c+j]*friction[j-1];
       }
 
       // decompose into normal and tangent
@@ -2122,7 +2132,7 @@ void mj_constraintUpdate(const mjModel* m, mjData* d, const mjtNum* jar,
       else if (mu*N+T <= 0 || (T <= 0 && N < 0)) {
         if (cost) {
           for (int j=0; j < dim; j++) {
-            s += 0.5*D[i+j]*jar[i+j]*jar[i+j];
+            s += 0.5*D[i+j]*jar[c+j]*jar[c+j];
           }
         }
 
@@ -2196,15 +2206,26 @@ void mj_constraintUpdate(const mjModel* m, mjData* d, const mjtNum* jar,
       }
 
       // advance to end of contact
-      i += (dim-1);
+      c += (dim-1);
     }
   }
 
   // compute qfrc_constraint
-  mj_mulJacTVec(m, d, d->qfrc_constraint, d->efc_force);
+  int flg_vecunc = 1;
+  int flg_resunc = 1;
+  mj_mulJacTVec_island(m, d, d->qfrc_constraint, d->efc_force, island, flg_vecunc, flg_resunc);
 
   // assign cost
   if (cost) {
     *cost = s;
   }
+}
+
+
+
+// compute efc_state, efc_force, qfrc_constraint
+// optional: cost(qacc) = shat(jar) where jar = Jac*qacc-aref; cone Hessians
+void mj_constraintUpdate(const mjModel* m, mjData* d, const mjtNum* jar,
+                         mjtNum cost[1], int flg_coneHessian) {
+  mj_constraintUpdate_island(m, d, jar, cost, flg_coneHessian, -1);
 }

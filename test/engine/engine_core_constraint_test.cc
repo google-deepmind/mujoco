@@ -390,5 +390,113 @@ TEST_F(CoreConstraintTest, MulJacTVecIsland) {
   mj_deleteModel(model);
 }
 
+TEST_F(CoreConstraintTest, ConstraintUpdateIsland) {
+  const std::string xml_path = GetTestDataFilePath(kIlslandEfcPath);
+  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, nullptr, 0);
+  mjData* data1 = mj_makeData(model);
+  mjData* data2 = mj_makeData(model);
+
+  // iterate over sparsity and cone
+  for (mjtJacobian sparsity : {mjJAC_SPARSE, mjJAC_DENSE}) {
+    for (mjtCone cone : {mjCONE_PYRAMIDAL, mjCONE_ELLIPTIC}) {
+      model->opt.jacobian = sparsity;
+      model->opt.cone = cone;
+
+      // simulate for 0.2 seconds
+      mj_resetData(model, data1);
+      mj_resetData(model, data2);
+      while (data1->time < 0.2) {
+        mj_step(model, data1);
+        mj_step(model, data2);
+      }
+      mj_forward(model, data1);
+      mj_forward(model, data2);
+
+      // get sizes
+      int nefc = data1->nefc;
+      int nv = model->nv;
+      int nisland = data1->nisland;
+      EXPECT_GT(nisland, 0);
+
+      // get jar = J*a - aref
+      mjtNum* jar = (mjtNum*)mju_malloc(sizeof(mjtNum) * nefc);
+      mj_mulJacVec(model, data1, jar, data1->qacc);
+      mju_subFrom(jar, data1->efc_aref, nefc);
+
+      // constraint update for data1 given jar
+      mjtNum cost1;
+      mj_constraintUpdate(model, data1, jar, &cost1, /*flg_coneHessian=*/1);
+
+      // iterate over islands, check match
+      mjtNum cost2 = 0;
+      for (int island=0; island < nisland; island++) {
+        // clear outputs from data2
+        for (int i=0; i < nefc; i++) data2->efc_state[i] = -1;
+        mju_zero(data2->efc_force, nefc);
+        mju_zero(data2->qfrc_constraint, nv);
+        for (int i=0; i < data2->ncon; i++) mju_zero(data2->contact[i].H, 36);
+
+        // sizes and indices, in this island
+        int dofnum = data2->island_dofnum[island];
+        int efcnum = data2->island_efcnum[island];
+        int* dofind = data2->island_dofind + data2->island_dofadr[island];
+        int* efcind = data2->island_efcind + data2->island_efcadr[island];
+
+        // get jar restricted to island
+        mjtNum* jari = (mjtNum*)mju_malloc(sizeof(mjtNum) * efcnum);
+        for (int c=0; c < efcnum; c++) {
+          jari[c] = jar[efcind[c]];
+        }
+
+        // update constraints for this island
+        mjtNum cost2i;
+        mj_constraintUpdate_island(model, data2, jari, &cost2i,
+                                  /*flg_coneHessian=*/1, island);
+
+        // compare nefc vectors
+        for (int c=0; c < efcnum; c++) {
+          int i = efcind[c];
+          EXPECT_EQ(data2->efc_island[i], island);
+          EXPECT_EQ(data2->efc_state[i], data1->efc_state[i]);
+          EXPECT_THAT(data2->efc_force[i],
+                      DoubleNear(data1->efc_force[i], 1e-12));
+        }
+
+        // compare qfrc_constraint
+        for (int c=0; c < dofnum; c++) {
+          int i = dofind[c];
+          EXPECT_THAT(data2->qfrc_constraint[i],
+                      DoubleNear(data1->qfrc_constraint[i], 1e-12));
+        }
+
+        // compare cone Hessians
+        for (int c=0; c < data2->ncon; c++) {
+          int efcadr = data2->contact[c].efc_address;
+          if (data2->efc_island[efcadr] == island) {
+            for (int j=0; j < 36; j++) {
+              EXPECT_THAT(data2->contact[c].H[j],
+                          DoubleNear(data2->contact[c].H[j], 1e-12));
+            }
+          }
+        }
+
+        // add island cost to total cost
+        cost2 += cost2i;
+
+        mju_free(jari);
+      }
+
+      // expect monolithic total cost
+      EXPECT_THAT(cost1, DoubleNear(cost2, 1e-12));
+
+      mju_free(jar);
+    }
+  }
+
+  mj_deleteData(data2);
+  mj_deleteData(data1);
+  mj_deleteModel(model);
+}
+
 }  // namespace
 }  // namespace mujoco
