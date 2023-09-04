@@ -110,7 +110,7 @@ MJAPI void mj_mulM(const mjModel* m, const mjData* d, mjtNum* res, const mjtNum*
 
 // multiply vector by inertia matrix for one dof island
 MJAPI void mj_mulM_island(const mjModel* m, const mjData* d, mjtNum* res, const mjtNum* vec,
-                          int island);
+                          int island, int flg_vecunc);
 
 // multiply vector by (inertia matrix)^(1/2)
 MJAPI void mj_mulM2(const mjModel* m, const mjData* d, mjtNum* res, const mjtNum* vec);

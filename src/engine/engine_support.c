@@ -885,7 +885,8 @@ void mj_mulM(const mjModel* m, const mjData* d, mjtNum* res, const mjtNum* vec) 
 
 
 // multiply vector by inertia matrix for one dof island
-void mj_mulM_island(const mjModel* m, const mjData* d, mjtNum* res, const mjtNum* vec, int island) {
+void mj_mulM_island(const mjModel* m, const mjData* d, mjtNum* res, const mjtNum* vec,
+                    int island, int flg_vecunc) {
   // if no island, call regular function
   if (island < 0) {
     mj_mulM(m, d, res, vec);
@@ -913,7 +914,11 @@ void mj_mulM_island(const mjModel* m, const mjData* d, mjtNum* res, const mjtNum
     int adr = Madr[i];
 
     // diagonal
-    res[k] = M[adr]*vec[k];
+    if (flg_vecunc) {
+      res[k] = M[adr]*vec[i];
+    } else {
+      res[k] = M[adr]*vec[k];
+    }
 
     // simple dof: continue
     if (simplenum[i]) {
@@ -925,8 +930,13 @@ void mj_mulM_island(const mjModel* m, const mjData* d, mjtNum* res, const mjtNum
     while (j >= 0) {
       adr++;
       int l = islandind[j];
-      res[k] += M[adr]*vec[l];
-      res[l] += M[adr]*vec[k];
+      if (flg_vecunc) {
+        res[k] += M[adr]*vec[j];
+        res[l] += M[adr]*vec[i];
+      } else {
+        res[k] += M[adr]*vec[l];
+        res[l] += M[adr]*vec[k];
+      }
 
       // advance to parent
       j = parentid[j];

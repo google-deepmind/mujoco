@@ -493,8 +493,23 @@ TEST_F(SupportTest, MulMIsland) {
       vec_i[j] = vec[dofind[j]];
     }
 
+    // === compressed: use vec_i
+
     // multiply by Jacobian, for this island
-    mj_mulM_island(model, data, Mvec_i, vec_i, i);
+    int flg_vecunc = 0;
+    mj_mulM_island(model, data, Mvec_i, vec_i, i, flg_vecunc);
+
+    // expect corresponding values to match
+    for (int j=0; j < dofnum; j++) {
+      EXPECT_THAT(Mvec_i[j], DoubleNear(Mvec[dofind[j]], 1e-12));
+    }
+
+    // === uncompressed: use vec
+    mju_zero(Mvec_i, dofnum);  // clear output
+
+    // multiply by Jacobian, for this island
+    flg_vecunc = 1;
+    mj_mulM_island(model, data, Mvec_i, vec, i, flg_vecunc);
 
     // expect corresponding values to match
     for (int j=0; j < dofnum; j++) {
