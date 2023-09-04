@@ -386,8 +386,9 @@ void mj_mulJacVec(const mjModel* m, const mjData* d, mjtNum* res, const mjtNum* 
 
 
 // multiply Jacobian by vector, for one island
-void mj_mulJacVec_island(const mjModel* m, const mjData* d,
-                         mjtNum* res, const mjtNum* vec, int island) {
+//  flg_resunc and flg_vecunc denote whether res/vec are uncompressed
+void mj_mulJacVec_island(const mjModel* m, const mjData* d, mjtNum* res, const mjtNum* vec,
+                         int island, int flg_resunc, int flg_vecunc) {
   // no island, call regular function
   if (island < 0) {
     mj_mulJacVec(m, d, res, vec);
@@ -410,7 +411,8 @@ void mj_mulJacVec_island(const mjModel* m, const mjData* d,
       int Jrowadr = d->efc_J_rowadr[row];
       int* Jind = d->efc_J_colind + Jrowadr;
       mjtNum* J = d->efc_J + Jrowadr;
-      res[i] = mju_dotSparse2(vec, J, vecnnz, vecind, Jnnz, Jind, /*flg_unc2=*/0);
+      int j = flg_resunc ? row : i;
+      res[j] = mju_dotSparse2(J, vec, Jnnz, Jind, vecnnz, vecind, flg_vecunc);
     }
   }
 
@@ -418,7 +420,9 @@ void mj_mulJacVec_island(const mjModel* m, const mjData* d,
   else {
     int nv = m->nv;
     for (int i=0; i < resnnz; i++) {
-      res[i] = mju_dotSparse(vec, d->efc_J + nv*resind[i], vecnnz, vecind, /*flg_unc1=*/0);
+      int row = resind[i];
+      int j = flg_resunc ? row : i;
+      res[j] = mju_dotSparse(vec, d->efc_J + nv*row, vecnnz, vecind, flg_vecunc);
     }
   }
 }
@@ -447,8 +451,9 @@ void mj_mulJacTVec(const mjModel* m, const mjData* d, mjtNum* res, const mjtNum*
 
 
 // multiply Jacobian transpose by vector, for one island
-void mj_mulJacTVec_island(const mjModel* m, const mjData* d,
-                          mjtNum* res, const mjtNum* vec, int island) {
+//  flg_resunc and flg_vecunc denote whether res/vec are uncompressed
+void mj_mulJacTVec_island(const mjModel* m, const mjData* d, mjtNum* res, const mjtNum* vec,
+                          int island, int flg_resunc, int flg_vecunc) {
   // no island, call regular function
   if (island < 0) {
     mj_mulJacTVec(m, d, res, vec);
@@ -471,7 +476,8 @@ void mj_mulJacTVec_island(const mjModel* m, const mjData* d,
       int JTrowadr = d->efc_JT_rowadr[row];
       int* JTind = d->efc_JT_colind + JTrowadr;
       mjtNum* JT = d->efc_JT + JTrowadr;
-      res[i] = mju_dotSparse2(vec, JT, vecnnz, vecind, JTnnz, JTind, /*flg_unc2=*/0);
+      int j = flg_resunc ? row : i;
+      res[j] = mju_dotSparse2(JT, vec, JTnnz, JTind, vecnnz, vecind, flg_vecunc);
     }
   }
 
@@ -479,7 +485,9 @@ void mj_mulJacTVec_island(const mjModel* m, const mjData* d,
   else {
     int nefc = d->nefc;
     for (int i=0; i < resnnz; i++) {
-      res[i] = mju_dotSparse(vec, d->efc_JT + nefc*resind[i], vecnnz, vecind, /*flg_unc1=*/0);
+      int row = resind[i];
+      int j = flg_resunc ? row : i;
+      res[j] = mju_dotSparse(vec, d->efc_JT + nefc*row, vecnnz, vecind, flg_vecunc);
     }
   }
 }

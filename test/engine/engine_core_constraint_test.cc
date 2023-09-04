@@ -15,6 +15,7 @@
 // Tests for engine/engine_core_constraint.c.
 
 #include <cstddef>
+#include <cstring>
 #include <string>
 #include <vector>
 
@@ -225,6 +226,7 @@ TEST_F(CoreConstraintTest, MulJacVecIsland) {
     // multiply by Jacobian: vec_nefc = J * vec_nv
     mjtNum* vec_nefc = (mjtNum*) mju_malloc(sizeof(mjtNum)*data->nefc);
     mj_mulJacVec(model, data, vec_nefc, vec_nv);
+    mjtNum* vec_nefc_tmp = (mjtNum*) mju_malloc(sizeof(mjtNum)*data->nefc);
 
     // iterate over islands
     for (int i=0; i < data->nisland; i++) {
@@ -234,25 +236,57 @@ TEST_F(CoreConstraintTest, MulJacVecIsland) {
       int efcnum = data->island_efcnum[i];
       mjtNum* vec_nefci = (mjtNum*)mju_malloc(sizeof(mjtNum) * efcnum);
 
-      // copy values into vec_nvi
+      // get indices
       int* dofind = data->island_dofind + data->island_dofadr[i];
+      int* efcind = data->island_efcind + data->island_efcadr[i];
+
+      // copy values into vec_nvi
       for (int j=0; j < dofnum; j++) {
         vec_nvi[j] = vec_nv[dofind[j]];
       }
 
-      // multiply by Jacobian, for this island
-      mj_mulJacVec_island(model, data, vec_nefci, vec_nvi, i);
+      // ===== both compressed
+      int flg_resunc = 0;
+      int flg_vecunc = 0;
+      mju_zero(vec_nefci, efcnum);  // clear output
+      mj_mulJacVec_island(model, data, vec_nefci, vec_nvi,
+                          i, flg_resunc, flg_vecunc);
 
       // expect corresponding values to match
-      int* efcind = data->island_efcind + data->island_efcadr[i];
       for (int j=0; j < efcnum; j++) {
         EXPECT_THAT(vec_nefci[j], DoubleNear(vec_nefc[efcind[j]], 1e-12));
+      }
+
+      // ===== input uncompressed: read from vec_nv
+      flg_resunc = 0;
+      flg_vecunc = 1;
+      mju_zero(vec_nefci, efcnum);  // clear output
+      mj_mulJacVec_island(model, data, vec_nefci, vec_nv,
+                          i, flg_resunc, flg_vecunc);
+
+      // expect corresponding values to match
+      for (int j=0; j < efcnum; j++) {
+        EXPECT_THAT(vec_nefci[j], DoubleNear(vec_nefc[efcind[j]], 1e-12));
+      }
+
+      // ===== output uncompressed: write to vec_nefc_tmp
+      flg_resunc = 1;
+      flg_vecunc = 0;
+      mju_zero(vec_nefc_tmp, data->nefc);  // clear output
+      mj_mulJacVec_island(model, data, vec_nefc_tmp, vec_nvi,
+                          i, flg_resunc, flg_vecunc);
+
+      // expect corresponding values to match
+      for (int j=0; j < efcnum; j++) {
+        EXPECT_THAT(vec_nefc_tmp[efcind[j]],
+                    DoubleNear(vec_nefc[efcind[j]], 1e-12));
       }
 
       mju_free(vec_nvi);
       mju_free(vec_nefci);
     }
 
+    mju_free(vec_nefc_tmp);
     mju_free(vec_nefc);
   }
 
@@ -268,6 +302,7 @@ TEST_F(CoreConstraintTest, MulJacTVecIsland) {
 
   // allocate vec_nv
   mjtNum* vec_nv = (mjtNum*) mju_malloc(sizeof(mjtNum)*model->nv);
+  mjtNum* vec_nv_tmp = (mjtNum*) mju_malloc(sizeof(mjtNum)*model->nv);
 
   // iterate through dense and sparse
   for (mjtJacobian sparsity : {mjJAC_DENSE, mjJAC_SPARSE}) {
@@ -297,19 +332,50 @@ TEST_F(CoreConstraintTest, MulJacTVecIsland) {
       int efcnum = data->island_efcnum[i];
       mjtNum* vec_nefci = (mjtNum*)mju_malloc(sizeof(mjtNum) * efcnum);
 
-      // copy values into vec_nefci
+      // get indices
       int* efcind = data->island_efcind + data->island_efcadr[i];
+      int* dofind = data->island_dofind + data->island_dofadr[i];
+
+      // copy values into vec_nefci
       for (int j=0; j < efcnum; j++) {
         vec_nefci[j] = vec_nefc[efcind[j]];
       }
 
-      // multiply by Jacobian, for this island
-      mj_mulJacTVec_island(model, data, vec_nvi, vec_nefci, i);
+      // ==== both compressed
+      int flg_resunc = 0;
+      int flg_vecunc = 0;
+      mju_zero(vec_nvi, dofnum);  // clear output
+      mj_mulJacTVec_island(model, data, vec_nvi, vec_nefci,
+                           i, flg_resunc, flg_vecunc);
 
       // expect corresponding values to match
-      int* dofind = data->island_dofind + data->island_dofadr[i];
       for (int j=0; j < dofnum; j++) {
         EXPECT_THAT(vec_nvi[j], DoubleNear(vec_nv[dofind[j]], 1e-12));
+      }
+
+      // ===== input uncompressed: read from vec_nefc
+      flg_resunc = 0;
+      flg_vecunc = 1;
+      mju_zero(vec_nvi, dofnum);  // clear output
+      mj_mulJacTVec_island(model, data, vec_nvi, vec_nefc,
+                           i, flg_resunc, flg_vecunc);
+
+      // expect corresponding values to match
+      for (int j=0; j < dofnum; j++) {
+        EXPECT_THAT(vec_nvi[j], DoubleNear(vec_nv[dofind[j]], 1e-12));
+      }
+
+      // ===== output uncompressed: write to vec_nv_tmp
+      flg_resunc = 1;
+      flg_vecunc = 0;
+      mju_zero(vec_nv_tmp, model->nv);  // clear output
+      mj_mulJacTVec_island(model, data, vec_nv_tmp, vec_nefci,
+                           i, flg_resunc, flg_vecunc);
+
+      // expect corresponding values to match
+      for (int j=0; j < dofnum; j++) {
+        EXPECT_THAT(vec_nv_tmp[dofind[j]],
+                    DoubleNear(vec_nv[dofind[j]], 1e-12));
       }
 
       mju_free(vec_nvi);
@@ -318,6 +384,7 @@ TEST_F(CoreConstraintTest, MulJacTVecIsland) {
     mju_free(vec_nefc);
   }
 
+  mju_free(vec_nv_tmp);
   mju_free(vec_nv);
   mj_deleteData(data);
   mj_deleteModel(model);

@@ -39,15 +39,15 @@ MJAPI int mj_isDual(const mjModel* m);
 MJAPI void mj_mulJacVec(const mjModel* m, const mjData* d, mjtNum* res, const mjtNum* vec);
 
 // multiply Jacobian by vector, for one island
-MJAPI void mj_mulJacVec_island(const mjModel* m, const mjData* d,
-                               mjtNum* res, const mjtNum* vec, int island);
+MJAPI void mj_mulJacVec_island(const mjModel* m, const mjData* d, mjtNum* res, const mjtNum* vec,
+                               int island, int flg_resunc, int flg_vecunc);
 
 // multiply JacobianT by vector
 MJAPI void mj_mulJacTVec(const mjModel* m, const mjData* d, mjtNum* res, const mjtNum* vec);
 
 // multiply JacobianT by vector, for one island
-MJAPI void mj_mulJacTVec_island(const mjModel* m, const mjData* d,
-                                mjtNum* res, const mjtNum* vec, int island);
+MJAPI void mj_mulJacTVec_island(const mjModel* m, const mjData* d, mjtNum* res, const mjtNum* vec,
+                                int island, int flg_resunc, int flg_vecunc);
 
 //-------------------------- utility functions -----------------------------------------------------
 
