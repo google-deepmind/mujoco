@@ -119,6 +119,7 @@ static void mj_discreteAcc(const mjModel* m, mjData* d) {
 
     // if disabled or no dof damping, nothing to do
     if (!dof_damping) {
+      mjFREESTACK;
       return;
     }
 
@@ -277,7 +278,6 @@ void mj_inverse(const mjModel* m, mjData* d) {
 void mj_compareFwdInv(const mjModel* m, mjData* d) {
   int nv = m->nv, nefc = d->nefc;
   mjtNum *qforce, *dif, *save_qfrc_constraint, *save_efc_force;
-  mjMARKSTACK;
 
   // clear result, return if no constraints
   d->solver_fwdinv[0] = d->solver_fwdinv[1] = 0;
@@ -286,6 +286,7 @@ void mj_compareFwdInv(const mjModel* m, mjData* d) {
   }
 
   // allocate
+  mjMARKSTACK;
   qforce = mj_stackAllocNum(d, nv);
   dif = mj_stackAllocNum(d, nv);
   save_qfrc_constraint = mj_stackAllocNum(d, nv);

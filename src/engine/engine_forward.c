@@ -665,7 +665,6 @@ void mj_RungeKutta(const mjModel* m, mjData* d, int N) {
   mjtNum C[9], T[9], *X[10], *F[10], *dX;
   const mjtNum* A = (N == 4 ? RK4_A : 0);
   const mjtNum* B = (N == 4 ? RK4_B : 0);
-  mjMARKSTACK;
 
   // check order
   if (!A) {
@@ -673,6 +672,7 @@ void mj_RungeKutta(const mjModel* m, mjData* d, int N) {
   }
 
   // allocate space for intermediate solutions
+  mjMARKSTACK;
   dX = mj_stackAllocNum(d, 2*nv+na);
   for (int i=0; i < N; i++) {
     X[i] = mj_stackAllocNum(d, nq+nv+na);

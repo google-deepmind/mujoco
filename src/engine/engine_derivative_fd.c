@@ -634,7 +634,6 @@ void mjd_inverseFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte flg_actuatio
                    mjtNum *DsDq, mjtNum *DsDv, mjtNum *DsDa,
                    mjtNum *DmDq) {
   int nq = m->nq, nv = m->nv, nM = m->nM, ns = m->nsensordata;
-  mjMARKSTACK;
 
   if (m->opt.integrator == mjINT_RK4) {
     mjERROR("RK4 integrator is not supported");
@@ -648,6 +647,7 @@ void mjd_inverseFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte flg_actuatio
   int skipsensor = !DsDq && !DsDv && !DsDa;
 
   // local vectors
+  mjMARKSTACK;
   mjtNum *pos        = mj_stackAllocNum(d, nq);                      // position
   mjtNum *force      = mj_stackAllocNum(d, nv);                      // force
   mjtNum *force_plus = mj_stackAllocNum(d, nv);                      // nudged force

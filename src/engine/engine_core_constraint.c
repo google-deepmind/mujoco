@@ -495,12 +495,13 @@ void mj_instantiateEquality(const mjModel* m, mjData* d) {
   mjtNum cpos[6], pos[2][3], ref[2], dif, deriv;
   mjtNum quat[4], quat1[4], quat2[4], quat3[4], axis[3];
   mjtNum *jac[2], *jacdif, *data, *sparse_buf = NULL;
-  mjMARKSTACK;
 
   // disabled or no equality constraints: return
   if (mjDISABLED(mjDSBL_EQUALITY) || m->nemax == 0) {
     return;
   }
+
+  mjMARKSTACK;
 
   // allocate space
   jac[0] = mj_stackAllocNum(d, 6*nv);
@@ -703,12 +704,13 @@ void mj_instantiateEquality(const mjModel* m, mjData* d) {
 void mj_instantiateFriction(const mjModel* m, mjData* d) {
   int nv = m->nv, issparse = mj_isSparse(m);
   mjtNum* jac;
-  mjMARKSTACK;
 
   // disabled: return
   if (mjDISABLED(mjDSBL_FRICTIONLOSS)) {
     return;
   }
+
+  mjMARKSTACK;
 
   // allocate Jacobian
   jac = mj_stackAllocNum(d, nv);
@@ -764,12 +766,13 @@ void mj_instantiateLimit(const mjModel* m, mjData* d) {
   int side, nv = m->nv, issparse = mj_isSparse(m);
   mjtNum margin, value, dist, angleAxis[3];
   mjtNum *jac;
-  mjMARKSTACK;
 
   // disabled: return
   if (mjDISABLED(mjDSBL_LIMIT)) {
     return;
   }
+
+  mjMARKSTACK;
 
   // allocate Jacobian
   jac = mj_stackAllocNum(d, nv);
@@ -863,7 +866,7 @@ void mj_instantiateLimit(const mjModel* m, mjData* d) {
   // find tendon limits
   for (int i=0; i < m->ntendon; i++) {
     if (m->tendon_limited[i]) {
-      // get value = lenth, margin
+      // get value = length, margin
       value = d->ten_length[i];
       margin = m->tendon_margin[i];
 

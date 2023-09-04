@@ -394,13 +394,13 @@ void mj_tendon(const mjModel* m, mjData* d) {
   mjtNum dif[3], divisor, wpnt[12], wlen;
   mjtNum *L = d->ten_length, *J = d->ten_J;
   mjtNum *jac1, *jac2, *jacdif, *tmp, *sparse_buf = NULL;
-  mjMARKSTACK;
 
   if (!nten) {
     return;
   }
 
   // allocate space
+  mjMARKSTACK;
   jac1 = mj_stackAllocNum(d, 3*nv);
   jac2 = mj_stackAllocNum(d, 3*nv);
   jacdif = mj_stackAllocNum(d, 3*nv);
@@ -622,13 +622,13 @@ void mj_transmission(const mjModel* m, mjData* d) {
   mjtNum *jac, *jacA, *jacS;
   mjtNum *length = d->actuator_length, *moment = d->actuator_moment, *gear;
   mjtNum *jacref = NULL, *moment_tmp = NULL;  // required for site actuators
-  mjMARKSTACK;
 
   if (!nu) {
     return;
   }
 
   // allocate space, clear moments
+  mjMARKSTACK;
   jac  = mj_stackAllocNum(d, 3*nv);
   jacA = mj_stackAllocNum(d, 3*nv);
   jacS = mj_stackAllocNum(d, 3*nv);

@@ -529,6 +529,7 @@ void mjv_initPerturb(const mjModel* m, mjData* d, const mjvScene* scn, mjvPertur
 
   // invalid selected body: return
   if (sel <= 0 || sel >= m->nbody) {
+    mjFREESTACK;
     return;
   }
 

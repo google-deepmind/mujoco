@@ -459,7 +459,7 @@ void mj_island(const mjModel* m, mjData* d) {
   memset(d->island_dofnum, 0, nisland*sizeof(int));
   for (int i=0; i < nv; i++) {
     // dof_island
-    int island = tree_island[m->dof_treeid[i]];;
+    int island = tree_island[m->dof_treeid[i]];
     d->dof_island[i] = island;
 
     // island_dofnum
@@ -497,7 +497,7 @@ void mj_island(const mjModel* m, mjData* d) {
     mjERROR("not all islands assigned to dofs");
   }
 
-  // finalize dof_islandind: set remaning indices to -1
+  // finalize dof_islandind: set remaining indices to -1
   for (int i=num_dof_island; i < nv; i++) {
     d->island_dofind[i] = -1;
   }

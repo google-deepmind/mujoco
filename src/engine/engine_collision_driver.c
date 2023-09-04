@@ -387,7 +387,6 @@ void mj_collision(const mjModel* m, mjData* d) {
   int g1, g2, merged, b1 = 0, b2 = 0, exadr = 0, pairadr = 0, startadr;
   int nexclude = m->nexclude, npair = m->npair, nbodypair = ((m->nbody-1)*m->nbody)/2;
   int *broadphasepair = 0;
-  mjMARKSTACK;
 
   // reset the size of the contact array and invalidate efc arrays
   d->ncon = 0;
@@ -408,6 +407,8 @@ void mj_collision(const mjModel* m, mjData* d) {
       || m->nconmax == 0 || m->nbody < 2) {
     return;
   }
+
+  mjMARKSTACK;
 
   // predefined only; ignore exclude
   if (m->opt.collision == mjCOL_PAIR) {
@@ -677,7 +678,6 @@ int mj_broadphase(const mjModel* m, mjData* d, int* pair, int maxpair) {
   mjtNum cov[9], cen[3], dif[3], eigval[3], frame[9], quat[4];
   mjtBroadphase *sortbuf, *activebuf;
   mjtNum *aabb;
-  mjMARKSTACK;
 
   int dsbl_filterparent = mjDISABLED(mjDSBL_FILTERPARENT);
   // world with geoms, and body with plane or hfield, can collide all bodies
@@ -750,6 +750,7 @@ int mj_broadphase(const mjModel* m, mjData* d, int* pair, int maxpair) {
   mju_eig3(eigval, frame, quat, cov);
 
   // allocate AABB; clear world entry (not used)
+  mjMARKSTACK;
   aabb = mj_stackAllocNum(d, 6*nbody);
   mju_zero(aabb, 6);
 
