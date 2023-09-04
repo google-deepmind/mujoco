@@ -836,7 +836,7 @@ static void makeDSparse(const mjModel* m, mjData* d) {
   int* remaining = mj_stackAllocInt(d, nv);
 
   // compute rownnz
-  memset(rownnz, 0, nv * sizeof(int));
+  mju_zeroInt(rownnz, nv);
   for (int i = nv - 1; i >= 0; i--) {
     // init at diagonal
     int j = i;
@@ -893,7 +893,7 @@ static void makeBSparse(const mjModel* m, mjData* d) {
   int* colind = d->B_colind;
 
   // set rownnz to subtree dofs counts, including self
-  memset(rownnz, 0, sizeof(int) * nbody);
+  mju_zeroInt(rownnz, nbody);
   for (int i = nbody - 1; i > 0; i--) {
     rownnz[i] += m->body_dofnum[i];
     rownnz[m->body_parentid[i]] += rownnz[i];
@@ -927,7 +927,7 @@ static void makeBSparse(const mjModel* m, mjData* d) {
   // allocate and clear incremental row counts
   mjMARKSTACK;
   int* cnt = mj_stackAllocInt(d, nbody);
-  memset(cnt, 0, sizeof(int) * nbody);
+  mju_zeroInt(cnt, nbody);
 
   // add subtree dofs to colind
   for (int i = nbody - 1; i > 0; i--) {

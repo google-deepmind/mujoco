@@ -27,6 +27,7 @@
 #include "engine/engine_io.h"
 #include "engine/engine_support.h"
 #include "engine/engine_util_errmem.h"
+#include "engine/engine_util_misc.h"
 
 #ifdef MEMORY_SANITIZER
   #include <sanitizer/msan_interface.h>
@@ -355,7 +356,7 @@ static int findEdges(const mjModel* m, const mjData* d, int* treenedge, int* edg
   int efc_id = -1;
 
   // clear treenedge
-  memset(treenedge, 0, m->ntree*sizeof(int));
+  mju_zeroInt(treenedge, m->ntree);
 
   int nedge = 0;
   for (int i=0; i < nefc; i++) {
@@ -456,7 +457,7 @@ void mj_island(const mjModel* m, mjData* d) {
 
   // compute dof_island, island_dofnum
   int num_dof_unc = 0;  // number of unconstrained dofs
-  memset(d->island_dofnum, 0, nisland*sizeof(int));
+  mju_zeroInt(d->island_dofnum, nisland);
   for (int i=0; i < nv; i++) {
     // dof_island
     int island = tree_island[m->dof_treeid[i]];
@@ -477,7 +478,7 @@ void mj_island(const mjModel* m, mjData* d) {
   }
 
   // reset island_dofnum
-  memset(d->island_dofnum, 0, nisland*sizeof(int));
+  mju_zeroInt(d->island_dofnum, nisland);
 
   // compute dof_islandind, island_dofind
   int num_dof_island = 0;
@@ -503,7 +504,7 @@ void mj_island(const mjModel* m, mjData* d) {
   }
 
   // compute efc_island, island_efcnum
-  memset(d->island_efcnum, 0, nisland*sizeof(int));
+  mju_zeroInt(d->island_efcnum, nisland);
   for (int i=0; i < nefc; i++) {
     int tree[2];
     treeFirst(m, d, tree, i);
@@ -519,7 +520,7 @@ void mj_island(const mjModel* m, mjData* d) {
   }
 
   // reset island_efcnum
-  memset(d->island_efcnum, 0, nisland*sizeof(int));
+  mju_zeroInt(d->island_efcnum, nisland);
 
   // compute efc_islandind
   for (int i=0; i < nefc; i++) {

@@ -27,6 +27,7 @@
 #include "engine/engine_support.h"
 #include "engine/engine_util_blas.h"
 #include "engine/engine_util_errmem.h"
+#include "engine/engine_util_misc.h"
 
 
 
@@ -202,7 +203,7 @@ void mjd_passive_velFD(const mjModel* m, mjData* d, mjtNum eps) {
   int* cnt = mj_stackAllocInt(d, nv);
 
   // clear row counters
-  memset(cnt, 0, nv*sizeof(int));
+  mju_zeroInt(cnt, nv);
 
   // save qfrc_passive, assume mj_fwdVelocity was called
   mju_copy(qfrc_passive, d->qfrc_passive, nv);
@@ -254,7 +255,7 @@ void mjd_smooth_velFD(const mjModel* m, mjData* d, mjtNum eps) {
   int* cnt = mj_stackAllocInt(d, nv);
 
   // clear row counters
-  memset(cnt, 0, nv*sizeof(int));
+  mju_zeroInt(cnt, nv);
 
   // loop over dofs
   for (int i=0; i < nv; i++) {

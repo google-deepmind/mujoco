@@ -22,6 +22,7 @@
 #include <mujoco/mjtnum.h>
 #include "engine/engine_io.h"
 #include "engine/engine_util_blas.h"
+#include "engine/engine_util_misc.h"
 
 
 //------------------------------ sparse operations -------------------------------------------------
@@ -393,7 +394,7 @@ void mju_transposeSparse(mjtNum* res, const mjtNum* mat, int nr, int nc,
                          int* res_rownnz, int* res_rowadr, int* res_colind,
                          const int* rownnz, const int* rowadr, const int* colind) {
   // clear number of non-zeros for each row of transposed
-  memset(res_rownnz, 0, nc*sizeof(int));
+  mju_zeroInt(res_rownnz, nc);
 
   // total number of non-zeros of mat
   int nnz = rowadr[nr-1] + rownnz[nr-1];

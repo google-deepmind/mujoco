@@ -119,6 +119,9 @@ MJAPI int mju_isBad(mjtNum x);
 // return 1 if all elements are 0
 MJAPI int mju_isZero(mjtNum* vec, int n);
 
+// set integer vector to 0
+MJAPI void mju_zeroInt(int* res, int n);
+
 // standard normal random number generator (optional second number)
 MJAPI mjtNum mju_standardNormal(mjtNum* num2);
 

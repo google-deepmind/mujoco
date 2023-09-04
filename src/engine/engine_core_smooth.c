@@ -417,7 +417,7 @@ void mj_tendon(const mjModel* m, mjData* d) {
 
   // clear Jacobian: sparse or dense
   if (issparse) {
-    memset(rownnz, 0, nten*sizeof(int));
+    mju_zeroInt(rownnz, nten);
   } else {
     mju_zero(J, nten*nv);
   }
