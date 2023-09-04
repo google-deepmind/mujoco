@@ -46,16 +46,6 @@
 
 //-------------------------- utility functions -----------------------------------------------------
 
-// clear arena pointers in mjData
-static inline void clearEfc(mjData* d) {
-#define X(type, name, nr, nc) d->name = NULL;
-  MJDATA_ARENA_POINTERS
-#undef X
-  d->nefc = 0;
-  d->nisland = 0;
-  d->contact = (mjContact*) d->arena;
-}
-
 
 
 // allocate efc arrays on arena, return 1 on success, 0 on failure
@@ -78,7 +68,7 @@ static int arenaAllocEfc(const mjModel* m, mjData* d) {
   d->name = mj_arenaAlloc(d, sizeof(type) * (nr) * (nc), _Alignof(type)); \
   if (!d->name) {                                                         \
     mj_warning(d, mjWARN_CNSTRFULL, d->narena);                           \
-    clearEfc(d);                                                          \
+    mj_clearEfc(d);                                                       \
     d->parena = d->ncon * sizeof(mjContact);                              \
     return 0;                                                             \
   }
@@ -181,7 +171,7 @@ int mj_addContact(const mjModel* m, mjData* d, const mjContact* con) {
   ASAN_POISON_MEMORY_REGION(
     (char*)d->arena + d->parena, d->narena - d->pstack - d->parena);
 #endif
-  clearEfc(d);
+  mj_clearEfc(d);
 
   // copy contact
   mjContact* dst = mj_arenaAlloc(d, sizeof(mjContact), _Alignof(mjContact));
