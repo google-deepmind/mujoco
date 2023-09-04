@@ -1,10 +1,10 @@
 <!--
   test model for constraint islanding:
-- 1 equality
+- 4 equalities (1:joint, 3:connect)
 - 1 limit
 - 2 friction constraints
 - 1 unconstrained dof
-- 3 islands, 2 with non-contiguous dofs
+- 4 islands, 2 with non-contiguous dofs
 -->
 
 <mujoco>
@@ -64,9 +64,15 @@
       <freejoint/>
       <geom type="box" size=".03 .03 .03" pos="0.01 0.01 0.01"/>
     </body>
+
+    <body pos="-.5 0 .3" name="connect">
+      <freejoint/>
+      <geom type="box" size=".05 .05 .05"/>
+    </body>
   </worldbody>
 
   <equality>
     <joint joint1="hinge1" joint2="hinge2"/>
+    <connect body1="connect" body2="world" anchor="-.05 -.05 .05"/>
   </equality>
 </mujoco>

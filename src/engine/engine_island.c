@@ -160,13 +160,12 @@ static int countMaxEdge(const mjModel* m, const mjData* d) {
 
 
 // return id of next tree in Jacobian row i that is different from tree, -1 if not found
-//   write the index of the found tree to *index if given
-//   start search from *index if given, otherwise 0
-//   if J is (dense/sparse) *index is the (column/nonzro) index, respectively
+//   start search from *index
+//   write the index of the found tree to *index
+//   if J is (dense/sparse) *index is the (column/nonzero) index, respectively
 static int treeNext(const mjModel* m, const mjData* d, int tree, int i, int *index) {
   int tree_next = -1;
-  int j0 = index ? *index : 0;  // start searching at *index if given, otherwise 0
-  int j;  // loop variable, saved to *index
+  int j;  // local loop variable, saved to *index
 
   // sparse
   if (mj_isSparse(m)) {
@@ -174,7 +173,7 @@ static int treeNext(const mjModel* m, const mjData* d, int tree, int i, int *ind
     int* colind = d->efc_J_colind + d->efc_J_rowadr[i];
 
     // loop over remaining nonzeros, look for different tree
-    for (j=j0; j < rownnz; j++) {
+    for (j=(*index); j < rownnz; j++) {
       int tree_j = m->dof_treeid[colind[j]];
       if (tree_j != tree) {
         // found different tree
@@ -189,7 +188,7 @@ static int treeNext(const mjModel* m, const mjData* d, int tree, int i, int *ind
     int nv = m->nv;
 
     // scan row, look for different tree
-    for (j=j0; j < nv; j++) {
+    for (j=(*index); j < nv; j++) {
       if (d->efc_J[nv*i + j]) {
         int tree_j = m->dof_treeid[j];
         if (tree_j != tree) {
@@ -202,9 +201,90 @@ static int treeNext(const mjModel* m, const mjData* d, int tree, int i, int *ind
   }
 
   // save last index
-  if (index) *index = j;
+  *index = j;
 
   return tree_next;
+}
+
+
+
+// find first and possibly second nonegative tree ids in Jacobian row i
+//   if row i is special-cased (no more trees), return -1
+//   otherwise call treeNext, starting scan at index 0, return index
+static int treeFirst(const mjModel* m, const mjData* d, int tree[2], int i) {
+  int efc_type = d->efc_type[i];
+  int efc_id = d->efc_id[i];
+
+  // clear outputs
+  tree[0] = -1;
+  tree[1] = -1;
+
+  // ==== fast handling of special cases
+
+  // joint friction
+  if (efc_type == mjCNSTR_FRICTION_DOF) {
+    tree[0] = m->dof_treeid[efc_id];
+    return -1;
+  }
+
+  // joint limit
+  if (efc_type == mjCNSTR_LIMIT_JOINT) {
+    tree[0] = m->dof_treeid[m->jnt_dofadr[efc_id]];
+    return -1;
+  }
+
+  // contact
+  if (efc_type == mjCNSTR_CONTACT_FRICTIONLESS ||
+      efc_type == mjCNSTR_CONTACT_PYRAMIDAL ||
+      efc_type == mjCNSTR_CONTACT_ELLIPTIC) {
+    tree[0] = m->body_treeid[m->geom_bodyid[d->contact[efc_id].geom1]];
+    tree[1] = m->body_treeid[m->geom_bodyid[d->contact[efc_id].geom2]];
+
+    // handle static bodies
+    if (tree[0] < 0) {
+      if (tree[1] < 0) {
+        mjERROR("contact %d is between two static bodies", efc_id);  // SHOULD NOT OCCUR
+      } else {
+        int tmp = tree[0];
+        tree[0] = tree[1];
+        tree[1] = tmp;
+      }
+    }
+
+    return -1;
+  }
+
+  // connect or weld constraints
+  if (efc_type == mjCNSTR_EQUALITY) {
+    mjtEq eq_type = m->eq_type[efc_id];
+    if (eq_type == mjEQ_CONNECT || eq_type == mjEQ_WELD) {
+      tree[0] = m->body_treeid[m->eq_obj1id[efc_id]];
+      tree[1] = m->body_treeid[m->eq_obj2id[efc_id]];
+
+      // handle static bodies
+      if (tree[0] < 0) {
+        if (tree[1] < 0) {
+          mjERROR("equality %d is between two static bodies", efc_id);  // SHOULD NOT OCCUR
+        } else {
+          int tmp = tree[0];
+          tree[0] = tree[1];
+          tree[1] = tmp;
+        }
+      }
+
+      return -1;
+    }
+  }
+
+  // ==== generic case: scan Jacobian
+  int index = 0;
+  tree[0] = treeNext(m, d, -1, i, &index);
+
+  if (tree[0] < 0) {
+    mjERROR("no tree found for constraint %d", i);  // SHOULD NOT OCCUR
+  }
+
+  return index;
 }
 
 
@@ -273,7 +353,6 @@ static int findEdges(const mjModel* m, const mjData* d, int* treenedge, int* edg
   int nefc = d->nefc;
   int efc_type = -1;
   int efc_id = -1;
-  int tree1, tree2;
 
   // clear treenedge
   memset(treenedge, 0, m->ntree*sizeof(int));
@@ -287,60 +366,34 @@ static int findEdges(const mjModel* m, const mjData* d, int* treenedge, int* edg
     efc_type = d->efc_type[i];
     efc_id = d->efc_id[i];
 
-    // ==== fast handling of special cases
+    int tree[2];
+    int index = treeFirst(m, d, tree, i);
+    int tree1 = tree[0];
+    int tree2 = tree[1];
 
-    // joint friction
-    if (efc_type == mjCNSTR_FRICTION_DOF) {
-      tree1 = m->dof_treeid[efc_id];
-      nedge = addEdge(treenedge, edge, nedge, tree1, tree1, nedge_max);
+    // no more edges to find, add and continue
+    if (index == -1) {
+      nedge = addEdge(treenedge, edge, nedge, tree1, tree2 == -1 ? tree1 : tree2, nedge_max);
       continue;
     }
 
-    // joint limit
-    if (efc_type == mjCNSTR_LIMIT_JOINT) {
-      tree1 = m->dof_treeid[m->jnt_dofadr[efc_id]];
-      nedge = addEdge(treenedge, edge, nedge, tree1, tree1, nedge_max);
-      continue;
-    }
+    // possibly more edges, scan Jacobian row
+    else {
+      tree2 = treeNext(m, d, tree1, i, &index);
 
-    // contact
-    if (efc_type == mjCNSTR_CONTACT_FRICTIONLESS ||
-        efc_type == mjCNSTR_CONTACT_PYRAMIDAL ||
-        efc_type == mjCNSTR_CONTACT_ELLIPTIC) {
-      tree1 = m->body_treeid[m->geom_bodyid[d->contact[efc_id].geom1]];
-      tree2 = m->body_treeid[m->geom_bodyid[d->contact[efc_id].geom2]];
-      nedge = addEdge(treenedge, edge, nedge, tree1, tree2, nedge_max);
-      continue;
-    }
-
-    // connect or weld constraints
-    if (efc_type == mjCNSTR_EQUALITY) {
-      mjtEq eq_type = m->eq_type[efc_id];
-      if (eq_type == mjEQ_CONNECT || eq_type == mjEQ_WELD) {
-        tree1 = m->body_treeid[m->eq_obj1id[efc_id]];
-        tree2 = m->body_treeid[m->eq_obj2id[efc_id]];
+      if (tree2 == -1) {
+        // 1 tree found: add self-edge
+        nedge = addEdge(treenedge, edge, nedge, tree1, tree1, nedge_max);
+      } else {
+        // 2 trees found: add edge, keep scanning and adding until no more trees
         nedge = addEdge(treenedge, edge, nedge, tree1, tree2, nedge_max);
-        continue;
-      }
-    }
-
-    // ==== generic case: scan Jacobian
-    int index = 0;
-    tree1 = treeNext(m, d, -1, i, &index);
-    tree2 = treeNext(m, d, tree1, i, &index);
-
-    if (tree2 == -1) {
-      // 1 tree found: add self-edge
-      nedge = addEdge(treenedge, edge, nedge, tree1, tree1, nedge_max);
-    } else {
-      // 2 trees found: add edge, keep scanning and adding until no more trees
-      nedge = addEdge(treenedge, edge, nedge, tree1, tree2, nedge_max);
-      int tree3 = treeNext(m, d, tree2, i, &index);
-      while (tree3 > -1 && tree3 != tree2) {
-        tree1 = tree2;
-        tree2 = tree3;
-        nedge = addEdge(treenedge, edge, nedge, tree1, tree2, nedge_max);
-        tree3 = treeNext(m, d, tree2, i, &index);
+        int tree3 = treeNext(m, d, tree2, i, &index);
+        while (tree3 > -1 && tree3 != tree2) {
+          tree1 = tree2;
+          tree2 = tree3;
+          nedge = addEdge(treenedge, edge, nedge, tree1, tree2, nedge_max);
+          tree3 = treeNext(m, d, tree2, i, &index);
+        }
       }
     }
   }
@@ -452,7 +505,9 @@ void mj_island(const mjModel* m, mjData* d) {
   // compute efc_island, island_efcnum
   memset(d->island_efcnum, 0, nisland*sizeof(int));
   for (int i=0; i < nefc; i++) {
-    int island = tree_island[treeNext(m, d, -1, i, NULL)];
+    int tree[2];
+    treeFirst(m, d, tree, i);
+    int island = tree_island[tree[0]];
     d->efc_island[i] = island;
     d->island_efcnum[island]++;
   }
