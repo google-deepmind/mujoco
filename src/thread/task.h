@@ -20,6 +20,7 @@
 #ifdef __cplusplus
 
 #include <atomic>
+#include <new>
 #include <thread>
 
 namespace mujoco {
