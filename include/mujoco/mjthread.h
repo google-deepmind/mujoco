@@ -27,7 +27,7 @@ extern "C" {
 // These types are implemented in C++, they're just used as opaque pointers in C
 // to provide type safety for functions.
 struct mjTask_ {
-  char buffer[48];
+  char buffer[24];
 };
 typedef struct mjTask_ mjTask;
 

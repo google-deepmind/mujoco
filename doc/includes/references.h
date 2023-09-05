@@ -1440,7 +1440,7 @@ struct mjrContext_ {              // custom OpenGL context
 };
 typedef struct mjrContext_ mjrContext;
 struct mjTask_ {
-  char buffer[48];
+  char buffer[24];
 };
 typedef struct mjTask_ mjTask;
 struct mjThreadPool_ {

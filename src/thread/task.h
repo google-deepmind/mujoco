@@ -20,13 +20,13 @@
 #ifdef __cplusplus
 
 #include <atomic>
-#include <functional>
 #include <thread>
 
 namespace mujoco {
 
 class Task {
  public:
+  using FunctionPtr = void* (*)(void*);
   enum Status {
     QUEUED,
     COMPLETE,
@@ -34,7 +34,7 @@ class Task {
 
   static void Initialize(
       Task* task,
-      std::function<void*(void*)> start_routine,
+      FunctionPtr start_routine,
       void* args) {
     // instantiate a task at the pointer passed in
     new(task) Task();
@@ -55,7 +55,7 @@ class Task {
   }
 
  private:
-  std::function<void*(void*)> start_routine_;
+  FunctionPtr start_routine_;
 
   void* args_;
 

@@ -2358,7 +2358,7 @@ public unsafe struct mjrContext_ {
 
 [StructLayout(LayoutKind.Sequential)]
 public unsafe struct mjTask_ {
-  public fixed sbyte buffer[48];
+  public fixed sbyte buffer[24];
 }
 
 [StructLayout(LayoutKind.Sequential)]

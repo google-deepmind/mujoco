@@ -21,7 +21,6 @@
 
 #include <atomic>
 #include <cstddef>
-#include <functional>
 #include <thread>
 
 #include "thread/lockless_queue.h"
@@ -43,7 +42,7 @@ class ThreadPool {
 
   // start a task in the threadpool
   void Enqueue(
-      Task* task, std::function<void*(void*)> start_routine, void* args) {
+      Task* task, Task::FunctionPtr start_routine, void* args) {
     Task::Initialize(task, start_routine, args);
     lockless_queue_.push(static_cast<void*>(task));
   }

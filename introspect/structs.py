@@ -6992,7 +6992,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  name='buffer',
                  type=ArrayType(
                      inner_type=ValueType(name='char'),
-                     extents=(48,),
+                     extents=(24,),
                  ),
                  doc='',
              ),
