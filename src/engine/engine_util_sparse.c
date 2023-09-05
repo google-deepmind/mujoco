@@ -273,8 +273,8 @@ int mju_combineSparse(mjtNum* dst, const mjtNum* src, mjtNum a, mjtNum b,
 
   // copy dst into buf
   if (dst_nnz) {
-    memcpy(buf, dst, dst_nnz*sizeof(mjtNum));
-    memcpy(buf_ind, dst_ind, dst_nnz*sizeof(int));
+    mju_copy(buf, dst, dst_nnz);
+    mju_copyInt(buf_ind, dst_ind, dst_nnz);
   }
 
   // prepare to merge buf and src into dst
@@ -599,7 +599,7 @@ void mju_sqrMatTDSparse(mjtNum* res, const mjtNum* mat, const mjtNum* matT,
     // if rowsuper, use the previous row sparsity structure
     if (rowsuperT && i > 0 && rowsuperT[i-1]) {
       res_rownnz[i] = res_rownnz[i-1];
-      memcpy(cols, res_colind+res_rowadr[i-1], res_rownnz[i]*sizeof(int));
+      mju_copyInt(cols, res_colind+res_rowadr[i-1], res_rownnz[i]);
     }
 
     // iterate through each row of M'

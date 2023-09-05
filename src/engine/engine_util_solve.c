@@ -16,7 +16,6 @@
 
 #include <math.h>
 #include <stdio.h>
-#include <string.h>
 
 #include <mujoco/mjdata.h>
 #include <mujoco/mjmacro.h>
@@ -592,7 +591,7 @@ void mju_factorLUSparse(mjtNum* LU, int n, int* scratch,
   int* remaining = scratch;
 
   // set remaining = rownnz
-  memcpy(remaining, rownnz, n*sizeof(int));
+  mju_copyInt(remaining, rownnz, n);
 
   // diagonal elements (i,i)
   for (int i=n-1; i >= 0; i--) {

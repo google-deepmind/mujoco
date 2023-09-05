@@ -464,7 +464,7 @@ void mj_solPGS(const mjModel* m, mjData* d, int maxiter) {
     }
 
     // process state
-    memcpy(oldstate, d->efc_state, nefc*sizeof(int));
+    mju_copyInt(oldstate, d->efc_state, nefc);
     int nactive = dualState(m, d);
     int nchange = 0;
     for (int i=0; i < nefc; i++) {
@@ -680,7 +680,7 @@ void mj_solNoSlip(const mjModel* m, mjData* d, int maxiter) {
     }
 
     // process state
-    memcpy(oldstate, d->efc_state, nefc*sizeof(int));
+    mju_copyInt(oldstate, d->efc_state, nefc);
     int nactive = dualState(m, d);
     int nchange = 0;
     for (int i=0; i < nefc; i++) {
@@ -1314,7 +1314,7 @@ static void HessianCone(const mjModel* m, mjData* d, mjCGContext* ctx) {
         for (int r=0; r < dim; r++) {
           // copy data for this row
           mju_copy(LTJ_row, LTJ+r*nnz, nnz);
-          memcpy(LTJ_ind, d->efc_J_colind+d->efc_J_rowadr[i+r], nnz*sizeof(int));
+          mju_copyInt(LTJ_ind, d->efc_J_colind+d->efc_J_rowadr[i+r], nnz);
 
           // update
           mju_cholUpdateSparse(ctx->Hcone, LTJ_row, nv, 1,
@@ -1476,7 +1476,7 @@ static void HessianIncremental(const mjModel* m, mjData* d,
 
         // scale vec, copy colind
         mju_scl(vec, d->efc_J+adr, mju_sqrt(d->efc_D[i]), nnz);
-        memcpy(vec_ind, d->efc_J_colind+adr, nnz*sizeof(int));
+        mju_copyInt(vec_ind, d->efc_J_colind+adr, nnz);
 
         // sparse update
         rank = mju_cholUpdateSparse(ctx->H, vec, nv, flag_update,
@@ -1563,7 +1563,7 @@ static void mj_solCGNewton(const mjModel* m, mjData* d, int maxiter, int flg_New
       mju_copy(gradold, ctx.grad, nv);
       mju_copy(Mgradold, ctx.Mgrad, nv);
     }
-    memcpy(oldstate, d->efc_state, nefc*sizeof(int));
+    mju_copyInt(oldstate, d->efc_state, nefc);
     mjtNum oldcost = ctx.cost;
 
     // update

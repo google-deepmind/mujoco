@@ -16,7 +16,6 @@
 
 #include <stdio.h>
 #include <stddef.h>
-#include <string.h>
 
 #include <mujoco/mjdata.h>
 #include <mujoco/mjmacro.h>
@@ -252,7 +251,7 @@ int mj_addConstraint(const mjModel* m, mjData* d,
 
       // copy if not empty
       if (NV) {
-        memcpy(ind + adr[nefc+i], chain, sizeof(int)*NV);
+        mju_copyInt(ind + adr[nefc+i], chain, NV);
         mju_copy(J + adr[nefc+i], jac + i*NV, NV);
       }
     }
@@ -644,11 +643,11 @@ void mj_instantiateEquality(const mjModel* m, mjData* d) {
               // add first or second chain
               if (j == 0) {
                 NV = d->ten_J_rownnz[id[j]];
-                memcpy(chain, d->ten_J_colind+d->ten_J_rowadr[id[j]], NV*sizeof(int));
+                mju_copyInt(chain, d->ten_J_colind+d->ten_J_rowadr[id[j]], NV);
                 mju_copy(jac[j], d->ten_J+d->ten_J_rowadr[id[j]], NV);
               } else {
                 NV2 = d->ten_J_rownnz[id[j]];
-                memcpy(chain2, d->ten_J_colind+d->ten_J_rowadr[id[j]], NV2*sizeof(int));
+                mju_copyInt(chain2, d->ten_J_colind+d->ten_J_rowadr[id[j]], NV2);
                 mju_copy(jac[j], d->ten_J+d->ten_J_rowadr[id[j]], NV2);
               }
             } else {
@@ -1530,10 +1529,10 @@ static inline int mj_ne(const mjModel* m, mjData* d, int* nnz) {
           } else {
             if (!j) {
               NV = d->ten_J_rownnz[id[j]];
-              memcpy(chain, d->ten_J_colind+d->ten_J_rowadr[id[j]], NV*sizeof(int));
+              mju_copyInt(chain, d->ten_J_colind+d->ten_J_rowadr[id[j]], NV);
             } else {
               NV2 = d->ten_J_rownnz[id[j]];
-              memcpy(chain2, d->ten_J_colind+d->ten_J_rowadr[id[j]], NV2*sizeof(int));
+              mju_copyInt(chain2, d->ten_J_colind+d->ten_J_rowadr[id[j]], NV2);
             }
           }
         }

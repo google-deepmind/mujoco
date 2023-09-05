@@ -238,9 +238,7 @@ mjtNum mju_normalize4(mjtNum vec[4]) {
 
 // res = 0
 void mju_zero(mjtNum* res, int n) {
-  if (n > 0) {
-    memset(res, 0, n*sizeof(mjtNum));
-  }
+  memset(res, 0, n*sizeof(mjtNum));
 }
 
 
@@ -256,9 +254,7 @@ void mju_fill(mjtNum* res, mjtNum val, int n) {
 
 // res = vec
 void mju_copy(mjtNum* res, const mjtNum* vec, int n) {
-  if (n > 0) {
-    memcpy(res, vec, n*sizeof(mjtNum));
-  }
+  memcpy(res, vec, n*sizeof(mjtNum));
 }
 
 

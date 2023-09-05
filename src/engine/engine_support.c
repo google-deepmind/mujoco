@@ -14,8 +14,6 @@
 
 #include "engine/engine_support.h"
 
-#include <string.h>
-
 #include <mujoco/mjdata.h>
 #include <mujoco/mjmacro.h>
 #include <mujoco/mjmodel.h>
@@ -1161,7 +1159,7 @@ void mj_copyM2DSparse(const mjModel* m, mjData* d, mjtNum* dst, const mjtNum* sr
 
   // init remaining
   int* remaining = mj_stackAllocInt(d, nv);
-  memcpy(remaining, d->D_rownnz, nv * sizeof(int));
+  mju_copyInt(remaining, d->D_rownnz, nv);
 
   // copy data
   for (int i = nv - 1; i >= 0; i--) {

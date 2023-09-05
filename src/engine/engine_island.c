@@ -16,7 +16,6 @@
 
 #include <stdio.h>
 #include <stddef.h>
-#include <string.h>
 
 #include <mujoco/mjdata.h>
 #include <mujoco/mjmacro.h>
@@ -76,7 +75,7 @@ int mj_floodFill(int* island, int nr, const int* rownnz, const int* rowadr, cons
       island[v] = nisland;
 
       // push adjacent vertices onto stack
-      memcpy(stack + nstack, colind + rowadr[v], rownnz[v]*sizeof(int));
+      mju_copyInt(stack + nstack, colind + rowadr[v], rownnz[v]);
       nstack += rownnz[v];
     }
 

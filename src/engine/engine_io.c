@@ -874,7 +874,7 @@ static void makeDSparse(const mjModel* m, mjData* d) {
   }
 
   // populate colind
-  memcpy(remaining, rownnz, nv * sizeof(int));
+  mju_copyInt(remaining, rownnz, nv);
   for (int i = nv - 1; i >= 0; i--) {
     // init at diagonal
     remaining[i]--;
