@@ -331,7 +331,7 @@ Resource prefix
 Callbacks
   There are three callbacks that a resource provider is required to implement: :ref:`open<mjfOpenResource>`,
   :ref:`read<mjfReadResource>`, and :ref:`close<mjfCloseResource>`. The other two callback
-  :ref:`getdir<mjfGetResourceDir>` and :ref:`modified<mjfModifiedResource>` are optional. More details on these callbacks
+  :ref:`getdir<mjfGetResourceDir>` and :ref:`modified<mjfResourceModified>` are optional. More details on these callbacks
   are given below.
 
 Data Pointer
@@ -352,7 +352,7 @@ Resource providers work via callbacks:
 - :ref:`mjfGetResourceDir<mjfGetResourceDir>`: This callback is optional and is used to extract the directory from a
   resource name.  For example, the resource name ``http://www.example.com/myasset.obj`` would have
   ``http://www.example.com/`` as its directory.
-- :ref:`mjfModifiedResource<mjfModifiedResource>`: This callback is optional and is used to check if an existing
+- :ref:`mjfResourceModified<mjfResourceModified>`: This callback is optional and is used to check if an existing
   opened resource has been modifed from its orginal source.
 
 .. _exProviderUsage:

@@ -28,7 +28,8 @@ New features
    - Added new SDF plugin for defining implicit geometries. The plugin must define methods computing an SDF and its
      gradient at query points See the :ref:`documentation<exWriting>` for more details.
 
-3. Added :ref:`mjThreadPool` and :ref:`mjTask` which allow for multi-threaded operations within MuJoCo engine pipeline.
+3. Added :ref:`mjThreadPool` and :ref:`mjTask` which allow for multi-threaded operations within the MuJoCo engine
+   pipeline.
 
 General
 ^^^^^^^
@@ -36,23 +37,16 @@ General
 .. admonition:: Breaking API changes
    :class: attention
 
-   4. Removed macros ``mjMARKSTACK`` and ``mjFREESTACK``.
+   4. Removed the macros ``mjMARKSTACK`` and ``mjFREESTACK``.
 
-      .. admonition::  Migration note
-         :class: note
-
-         These macros have been replaced by new functions :ref:`mj_markStack` and :ref:`mj_freeStack`. These functions
-         manages ``mjData`` stack frames in a fully encapsulated way (i.e. without having to introduce a local variable
-         at the call site).
+      **Migration:** These macros have been replaced by new functions :ref:`mj_markStack` and
+      :ref:`mj_freeStack`. These functions manage the :ref:`mjData stack<siStack>` in a fully encapsulated way (i.e.,
+      without introducing a local variable at the call site).
 
    5. Changed the function :ref:`mj_stackAlloc` to allocate an arbitrary number of bytes, rather than in multiples of
-      ``sizeof(mjtNum)``, and add an additional argument for specifying the alignment of the returned pointer.
+      ``sizeof(mjtNum)``, and added an additional argument for specifying the alignment of the returned pointer.
 
-      .. admonition:: Migration note
-         :class: note
-
-         The old functionality for allocating ``mjtNum`` arrays is still available through a new function
-         :ref:`mj_stackAllocNum`.
+      **Migration:** The functionality for allocating ``mjtNum`` arrays is available via :ref:`mj_stackAllocNum`.
 
    6. Renamed the ``nstack`` field in :ref:`mjModel` and :ref:`mjData` to ``narena``. Changed ``narena``, ``pstack``,
       and ``maxuse_stack`` to count number of bytes rather than number of :ref:`mjtNum` |-| s.

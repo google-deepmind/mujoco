@@ -1174,6 +1174,20 @@ mjfGetResourceDir
 This callback is for returning the directory of a resource, by setting dir to the directory string with ndir being size
 of directory string.
 
+.. _mjfResourceModified:
+
+mjfResourceModified
+~~~~~~~~~~~~~~~~~~~
+
+.. code-block:: C
+
+   typedef int (*mjfResourceModified)(const mjResource* resource);
+
+This callback is for checking if a resource was modified since it was last read.
+Returns positive value if the resource was modified since last open, 0 if resource was not modified,
+and negative value if inconclusive.
+
+
 .. _tyNotes:
 
 Notes
