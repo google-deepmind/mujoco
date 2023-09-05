@@ -55,7 +55,7 @@ class ThreadPool {
     }
 
     shutdown_ = true;
-    Task shutdown_tasks[number_of_threads_];
+    Task shutdown_tasks[max_number_of_threads];
     for (int i = 0; i < number_of_threads_; ++i) {
       Enqueue(&shutdown_tasks[i], ShutdownFunction, nullptr);
     }
