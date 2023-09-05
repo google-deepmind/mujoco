@@ -574,6 +574,7 @@ public unsafe struct mjData_ {
   public UIntPtr nbuffer;
   public int nplugin;
   public UIntPtr pstack;
+  public UIntPtr pbase;
   public UIntPtr parena;
   public UIntPtr maxuse_stack;
   public UIntPtr maxuse_arena;
@@ -3086,6 +3087,12 @@ public static unsafe extern void mj_resetDataDebug(mjModel_* m, mjData_* d, byte
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern void mj_resetDataKeyframe(mjModel_* m, mjData_* d, int key);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern void mj_markStack(mjData_* d);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern void mj_freeStack(mjData_* d);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern void* mj_stackAlloc(mjData_* d, UIntPtr bytes, UIntPtr alignment);

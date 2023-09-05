@@ -15,11 +15,22 @@
 #ifndef MUJOCO_TEST_FIXTURE_H_
 #define MUJOCO_TEST_FIXTURE_H_
 
+#include <csetjmp>
+#include <cstring>
+#include <optional>
+#include <string>
+#include <vector>
+
 #include <gtest/gtest.h>
 #include <absl/strings/string_view.h>
 #include <mujoco/mjdata.h>
 #include <mujoco/mjmodel.h>
 #include <mujoco/mujoco.h>
+
+extern "C" {
+MJAPI void _mjPRIVATE__set_tls_error_fn(decltype(mju_user_error));
+MJAPI decltype(mju_user_error)  _mjPRIVATE__get_tls_error_fn();
+}
 
 namespace mujoco {
 
@@ -43,6 +54,30 @@ class MujocoTest : public ::testing::Test {
  private:
   MujocoErrorTestGuard error_guard;
 };
+
+template <typename Return, typename... Args>
+auto MjuErrorMessageFrom(Return (*func)(Args...)) {
+  thread_local std::jmp_buf current_jmp_buf;
+  thread_local char err_msg[1000];
+
+  auto* old_error_handler = _mjPRIVATE__get_tls_error_fn();
+  auto* new_error_handler = +[](const char* msg) -> void {
+    std::strncpy(err_msg, msg, sizeof(err_msg));
+    std::longjmp(current_jmp_buf, 1);
+  };
+
+  return [func, old_error_handler,
+          new_error_handler](Args... args) -> std::string {
+    if (setjmp(current_jmp_buf) == 0) {
+      err_msg[0] = '\0';
+      _mjPRIVATE__set_tls_error_fn(new_error_handler);
+      func(args...);
+    }
+
+    _mjPRIVATE__set_tls_error_fn(old_error_handler);
+    return err_msg;
+  };
+}
 
 // Returns a path to a data file, under the mujoco/test directory.
 const std::string GetTestDataFilePath(absl::string_view path);

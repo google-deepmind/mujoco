@@ -30,10 +30,6 @@ extern "C" {
 #include <stdlib.h>
 #include <math.h>
 
-#ifdef ADDRESS_SANITIZER
-#include <sanitizer/asan_interface.h>
-#endif
-
 // type definitions
 #include <mujoco/mjdata.h>
 #include <mujoco/mjmodel.h>
@@ -187,6 +183,13 @@ MJAPI void mj_resetDataDebug(const mjModel* m, mjData* d, unsigned char debug_va
 
 // Reset data, set fields from specified keyframe.
 MJAPI void mj_resetDataKeyframe(const mjModel* m, mjData* d, int key);
+
+// Mark a new frame on the mjData stack.
+MJAPI void mj_markStack(mjData* d);
+
+// Free the current mjData stack frame. All pointers returned by mj_stackAlloc since the last call
+// to mj_markStack must no longer be used afterwards.
+MJAPI void mj_freeStack(mjData* d);
 
 // Allocate a number of bytes on mjData stack at a specific alignment.
 // Call mju_error on stack overflow.

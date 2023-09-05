@@ -130,6 +130,7 @@ struct mjData_ {
 
   // stack pointer
   size_t  pstack;            // first available mjtNum address in stack
+  size_t  pbase;             // value of pstack when mj_markStack was last called
 
   // arena pointer
   size_t  parena;            // first available byte in arena
@@ -2205,6 +2206,8 @@ mjData* mj_copyData(mjData* dest, const mjModel* m, const mjData* src);
 void mj_resetData(const mjModel* m, mjData* d);
 void mj_resetDataDebug(const mjModel* m, mjData* d, unsigned char debug_value);
 void mj_resetDataKeyframe(const mjModel* m, mjData* d, int key);
+void mj_markStack(mjData* d);
+void mj_freeStack(mjData* d);
 void* mj_stackAlloc(mjData* d, size_t bytes, size_t alignment);
 mjtNum* mj_stackAllocNum(mjData* d, int size);
 int* mj_stackAllocInt(mjData* d, int size);

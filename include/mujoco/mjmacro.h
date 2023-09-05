@@ -15,8 +15,6 @@
 #ifndef MUJOCO_MJMACRO_H_
 #define MUJOCO_MJMACRO_H_
 
-#include <stddef.h>
-
 // include asan interface header, or provide stubs for poison/unpoison macros when not using asan
 #ifdef ADDRESS_SANITIZER
   #include <sanitizer/asan_interface.h>
@@ -33,8 +31,8 @@
 #define mjMIN(a, b) (((a) < (b)) ? (a) : (b))
 
 // mjData stack frame management
-#define mjMARKSTACK   size_t _mark = d->pstack;
-#define mjFREESTACK   d->pstack = _mark;
+#define mjMARKSTACK   mj_markStack(d);
+#define mjFREESTACK   mj_freeStack(d);
 
 // return current value of mjOption enable/disable flags
 #define mjDISABLED(x) (m->opt.disableflags & (x))
@@ -47,17 +45,6 @@
   #else
     #define mjPRINTFLIKE(n, m)
   #endif
-#endif
-
-// implementation of mjFREESTACK when using the address sanitizer
-#ifdef ADDRESS_SANITIZER
-  #undef mjFREESTACK
-  #define mjFREESTACK {                                          \
-    d->pstack = _mark;                                           \
-    ASAN_POISON_MEMORY_REGION(                                   \
-        (char*)d->arena + d->parena,                             \
-        d->narena - d->pstack - d->parena);                      \
-  }
 #endif
 
 #endif  // MUJOCO_MJMACRO_H_

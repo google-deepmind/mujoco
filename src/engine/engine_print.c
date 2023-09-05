@@ -730,6 +730,11 @@ void mj_printModel(const mjModel* m, const char* filename) {
 // valid printf-style format string for a single float value
 void mj_printFormattedData(const mjModel* m, mjData* d, const char* filename,
                            const char* float_format) {
+  // stack in use, SHOULD NOT OCCUR
+  if (d->pstack) {
+    mjERROR("attempting to print mjData when stack is in use");
+  }
+
   mjtNum *M;
   mjMARKSTACK;
 
@@ -737,11 +742,6 @@ void mj_printFormattedData(const mjModel* m, mjData* d, const char* filename,
   if (!validateFloatFormat(float_format)) {
     mju_warning("WARNING: Received invalid float_format. Using default instead.");
     float_format = FLOAT_FORMAT;
-  }
-
-  // stack in use, SHOULD NOT OCCUR
-  if (d->pstack) {
-    mjERROR("attempting to print mjData when stack is in use");
   }
 
   // get file
@@ -776,7 +776,9 @@ void mj_printFormattedData(const mjModel* m, mjData* d, const char* filename,
 
   fprintf(fp, "SIZES\n");
 #define X(type, name)                                                         \
-  if (strcmp(#name, "pstack") != 0 && strcmp(#name, "parena") != 0) {         \
+  if (strcmp(#name, "pstack") != 0 &&                                         \
+      strcmp(#name, "pbase") != 0 &&                                          \
+      strcmp(#name, "parena") != 0) {                                         \
     const char* format = _Generic(                                            \
         d->name,                                                              \
         int : INT_FORMAT,                                                     \

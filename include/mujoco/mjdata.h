@@ -157,6 +157,7 @@ struct mjData_ {
 
   // stack pointer
   size_t  pstack;            // first available mjtNum address in stack
+  size_t  pbase;             // value of pstack when mj_markStack was last called
 
   // arena pointer
   size_t  parena;            // first available byte in arena

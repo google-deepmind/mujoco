@@ -625,6 +625,7 @@
     X( size_t,    nbuffer            ) \
     X( int,       nplugin            ) \
     X( size_t,    pstack             ) \
+    X( size_t,    pbase              ) \
     X( size_t,    parena             ) \
     X( size_t,    maxuse_stack       ) \
     X( size_t,    maxuse_arena       ) \

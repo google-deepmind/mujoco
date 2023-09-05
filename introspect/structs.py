@@ -3503,6 +3503,11 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='first available mjtNum address in stack',
              ),
              StructFieldDecl(
+                 name='pbase',
+                 type=ValueType(name='size_t'),
+                 doc='value of pstack when mj_markStack was last called',
+             ),
+             StructFieldDecl(
                  name='parena',
                  type=ValueType(name='size_t'),
                  doc='first available byte in arena',

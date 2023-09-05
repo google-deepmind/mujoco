@@ -17,6 +17,7 @@
 #include <array>
 #include <limits>
 #include <string>
+#include <vector>
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
@@ -43,12 +44,12 @@ TEST_F(XMLReaderTest, MemorySize) {
   {
     static constexpr char xml[] = R"(
     <mujoco>
-      <size memory="256"/>
+      <size memory="512"/>
     </mujoco>
     )";
     mjModel* model = LoadModelFromString(xml, error.data(), error.size());
     ASSERT_THAT(model, NotNull()) << error.data();
-    EXPECT_EQ(model->narena, 256);
+    EXPECT_EQ(model->narena, 512);
     mj_deleteModel(model);
   }
   {

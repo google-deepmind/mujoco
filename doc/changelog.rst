@@ -43,6 +43,8 @@ General
    functionality of allocating ``mjtNum`` arrays is still available through the new function :ref:`mj_stackAllocNum`.
 #. Renamed the ``nstack`` field in :ref:`mjModel` and :ref:`mjData` to ``narena``. Changed ``narena``, ``pstack``, and
    ``maxuse_stack`` to count number of bytes rather than number of :ref:`mjtNum` |-| s.
+#. Added new functions ``mj_markStack`` and ``mj_freeStack`` that manages ``mjData`` stack frames in a fully
+   encapsulated way (i.e. without having to introduce a local variable at the call site).
 
 Python bindings
 ^^^^^^^^^^^^^^^

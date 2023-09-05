@@ -1232,6 +1232,25 @@ mj_resetDataKeyframe
 
 Reset data, set fields from specified keyframe.
 
+.. _mj_markStack:
+
+mj_markStack
+~~~~~~~~~~~~
+
+.. mujoco-include:: mj_markStack
+
+Mark a new frame on the :ref:`mjData` stack.
+
+.. _mj_freeStack:
+
+mj_freeStack
+~~~~~~~~~~~~
+
+.. mujoco-include:: mj_freeStack
+
+Free the current :ref:`mjData` stack frame. All pointers returned by mj_stackAlloc since the last call
+to mj_markStack must no longer be used afterwards.
+
 .. _mj_stackAlloc:
 
 mj_stackAlloc

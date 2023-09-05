@@ -27,18 +27,21 @@ namespace {
 
 using testing::NotNull;
 
-template <typename T, int N, int Capacity>
+template <int prev_size, typename T, int N, int capacity>
 constexpr int GetExpectedStackUsageBytes() {
   if constexpr (N <= 0) {
-    return 0;
+    return prev_size;
   } else {
     constexpr auto RoundUpToAlignment =
         [](int x, int alignment) {
           return alignment * (x / alignment + ((x % alignment) ? 1 : 0));
         };
-    return RoundUpToAlignment(sizeof(mjArrayList), alignof(mjArrayList)) +
-           RoundUpToAlignment(Capacity * sizeof(T), alignof(std::max_align_t)) +
-           GetExpectedStackUsageBytes<T, N - Capacity, 2 * Capacity>();
+    constexpr int size_with_arraylist = RoundUpToAlignment(
+        prev_size + sizeof(mjArrayList), alignof(mjArrayList));
+    constexpr int size_with_buffer = RoundUpToAlignment(
+        size_with_arraylist + capacity * sizeof(T), alignof(std::max_align_t));
+    return GetExpectedStackUsageBytes<size_with_buffer, T, N - capacity,
+                                      2 * capacity>();
   }
 }
 
@@ -48,6 +51,7 @@ TEST(TestMjArrayList, TestMjArrayListSingleThreaded) {
   ASSERT_THAT(m, NotNull()) << "Failed to load model: " << error.data();
   mjData* d = mj_makeData(m);
   mjMARKSTACK;
+
   using DataType = int;
   constexpr int kInitialCapacity = 10;
   mjArrayList* array_list =
@@ -59,8 +63,10 @@ TEST(TestMjArrayList, TestMjArrayListSingleThreaded) {
   }
   EXPECT_EQ(mju_arrayListSize(array_list), kNumElements);
 
+  constexpr int kFrameMarkerSize = 2 * sizeof(size_t) + sizeof(void*);
   constexpr int kExpectedMaxUseStack =
-      GetExpectedStackUsageBytes<DataType, kNumElements, kInitialCapacity>();
+      GetExpectedStackUsageBytes<kFrameMarkerSize, DataType, kNumElements,
+                                 kInitialCapacity>();
   EXPECT_EQ(d->maxuse_stack, kExpectedMaxUseStack);
 
   for (int i = 0; i < kNumElements; ++i) {
