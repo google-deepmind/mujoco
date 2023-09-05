@@ -14,22 +14,22 @@
 
 #include "user/user_objects.h"
 
+#include <algorithm>
 #include <cmath>
 #include <cstddef>
 #include <cstdlib>
 #include <cstring>
-#include <iostream>
 #include <sstream>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "lodepng.h"
 #include <mujoco/mjmacro.h>
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjplugin.h>
+#include <mujoco/mjtnum.h>
 #include "cc/array_safety.h"
-#include "engine/engine_core_smooth.h"
-#include "engine/engine_crossplatform.h"
 #include "engine/engine_resource.h"
 #include "engine/engine_io.h"
 #include "engine/engine_passive.h"
@@ -131,7 +131,7 @@ mjCError::mjCError(const mjCBase* obj, const char* msg, const char* str, int pos
 // constructor
 mjCAlternative::mjCAlternative() {
   axisangle[0] = xyaxes[0] = zaxis[0] = euler[0] = fullinertia[0] = mjNAN;
-};
+}
 
 
 // compute frame orientation given alternative specifications
@@ -1514,7 +1514,6 @@ void mjCGeom::SetFluidCoefs(void) {
 
   // get semiaxes
   switch (type) {
-
     case mjGEOM_SPHERE:
       dx = size[0];
       dy = size[0];
@@ -4497,7 +4496,6 @@ mjCKey::~mjCKey() {
 
 // compiler
 void mjCKey::Compile(const mjModel* m) {
-
   // qpos: allocate or check size
   if (qpos.empty()) {
     qpos.resize(m->nq);
@@ -4572,7 +4570,6 @@ void mjCKey::Compile(const mjModel* m) {
   } else if (ctrl.size()!=m->nu) {
     throw mjCError(this, "key %d: invalid ctrl size, expected length %d", nullptr, id, m->nu);
   }
-
 }
 
 

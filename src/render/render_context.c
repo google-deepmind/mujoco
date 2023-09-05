@@ -140,7 +140,7 @@ static void makePlane(const mjModel* m, mjrContext* con) {
 
             // record
             grid[k][x] = left;
-            grid[k][x+1] = mjMAX(left, right); // just in case
+            grid[k][x+1] = mjMAX(left, right);  // just in case
           }
         }
 
@@ -1458,7 +1458,7 @@ void GLAPIENTRY debugCallback(GLenum source,
 
 
 // returns 1 if MUJOCO_GL_DEBUG environment variable is set to 1
-static int glDebugEnabled() {
+static int glDebugEnabled(void) {
   char* debug = getenv("MUJOCO_GL_DEBUG");
   return debug && strcmp(debug, "1") == 0;
 }

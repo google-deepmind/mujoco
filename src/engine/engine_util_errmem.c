@@ -70,7 +70,7 @@ typedef void (*callback_fn)(const char*);
 static mjTHREADLOCAL callback_fn _mjPRIVATE_tls_error_fn = NULL;
 static mjTHREADLOCAL callback_fn _mjPRIVATE_tls_warning_fn = NULL;
 
-callback_fn _mjPRIVATE__get_tls_error_fn() {
+callback_fn _mjPRIVATE__get_tls_error_fn(void) {
   return _mjPRIVATE_tls_error_fn;
 }
 
@@ -78,7 +78,7 @@ void _mjPRIVATE__set_tls_error_fn(callback_fn h) {
   _mjPRIVATE_tls_error_fn = h;
 }
 
-callback_fn _mjPRIVATE__get_tls_warning_fn() {
+callback_fn _mjPRIVATE__get_tls_warning_fn(void) {
   return _mjPRIVATE_tls_warning_fn;
 }
 
@@ -113,26 +113,33 @@ void mju_writeLog(const char* type, const char* msg) {
   }
 }
 
-void mju_error_v(const char* msg, va_list args) {
-  char errmsg[1000];
 
-  // Format msg into errmsg
-  vsnprintf(errmsg, mjSIZEOFARRAY(errmsg), msg, args);
 
+void mju_error_raw(const char* msg) {
   if (_mjPRIVATE_tls_error_fn) {
-    _mjPRIVATE_tls_error_fn(errmsg);
+    _mjPRIVATE_tls_error_fn(msg);
   } else if (mju_user_error) {
-    mju_user_error(errmsg);
+    mju_user_error(msg);
   } else {
     // write to log and console
-    mju_writeLog("ERROR", errmsg);
-    printf("ERROR: %s\n\nPress Enter to exit ...", errmsg);
+    mju_writeLog("ERROR", msg);
+    printf("ERROR: %s\n\nPress Enter to exit ...", msg);
 
     // pause, exit
     getchar();
     exit(EXIT_FAILURE);
   }
 }
+
+
+
+void mju_error_v(const char* msg, va_list args) {
+  // Format msg into errmsg
+  char errmsg[1024];
+  vsnprintf(errmsg, mjSIZEOFARRAY(errmsg), msg, args);
+  mju_error_raw(errmsg);
+}
+
 
 
 // write message to logfile and console, pause and exit
@@ -147,7 +154,7 @@ void mju_error(const char* msg, ...) {
 
 // write message to logfile and console
 void mju_warning(const char* msg, ...) {
-  char wrnmsg[1000];
+  char wrnmsg[1024];
 
   // Format msg into wrnmsg
   va_list args;

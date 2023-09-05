@@ -32,10 +32,10 @@ MJAPI int mjp_registerPlugin(const mjpPlugin* plugin);
 MJAPI int mjp_registerResourceProvider(const mjpResourceProvider* provider);
 
 // return the number of globally registered plugins
-MJAPI int mjp_pluginCount();
+MJAPI int mjp_pluginCount(void);
 
 // return the number of globally registered resource providers
-MJAPI int mjp_resourceProviderCount();
+MJAPI int mjp_resourceProviderCount(void);
 
 // look up a plugin by name, optionally also get its registered slot number
 MJAPI const mjpPlugin* mjp_getPlugin(const char* name, int* slot);

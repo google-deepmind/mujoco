@@ -36,6 +36,11 @@
 // Online:
 //     https://glad.dav1d.de/#profile=compatibility&language=c&specification=gl&loader=on&api=gl%3D1.5&extensions=GL_ARB_framebuffer_object&extensions=GL_ARB_seamless_cube_map&extensions=GL_ARB_vertex_buffer_object&extensions=GL_KHR_debug
 
+#if defined(__GNUC__) && !defined(__clang__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic"
+#endif
+
 #if !defined(_WIN32) && !defined(__CYGWIN__) && !defined(__APPLE__) && \
     !defined(__HAIKU__) && !defined(_GNU_SOURCE)
 #define _GNU_SOURCE
@@ -1471,12 +1476,12 @@ static void mjGlad_find_coreGL(void) {
   }
 }
 
-int mjGladLoadGLUnsafe() {
-  if(mjGlad_open_gl()) {
+int mjGladLoadGLUnsafe(void) {
+  if (mjGlad_open_gl()) {
     mjGLVersion.major = 0; mjGLVersion.minor = 0;
     glGetString = (PFNGLGETSTRINGPROC)mjGlad_get_proc("glGetString");
-    if(glGetString == NULL) return 0;
-    if(glGetString(GL_VERSION) == NULL) return 0;
+    if (glGetString == NULL) return 0;
+    if (glGetString(GL_VERSION) == NULL) return 0;
     mjGlad_find_coreGL();
     mjGlad_load_GL_VERSION_1_0(mjGlad_get_proc);
     mjGlad_load_GL_VERSION_1_1(mjGlad_get_proc);
@@ -1496,3 +1501,7 @@ int mjGladLoadGLUnsafe() {
     return 0;
   }
 }
+
+#if defined(__GNUC__) && !defined(__clang__)
+#pragma GCC diagnostic pop
+#endif

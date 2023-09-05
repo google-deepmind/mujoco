@@ -14,10 +14,13 @@
 
 #include "engine/engine_support.h"
 
+#include <stddef.h>
+#include <stdint.h>
+#include <string.h>
+
 #include <mujoco/mjdata.h>
 #include <mujoco/mjmacro.h>
 #include <mujoco/mjmodel.h>
-#include "engine/engine_array_safety.h"
 #include "engine/engine_core_constraint.h"
 #include "engine/engine_crossplatform.h"
 #include "engine/engine_io.h"
@@ -1056,7 +1059,7 @@ void mj_makeMSparse(const mjModel* m, mjData* d, mjtNum* M,
     }
 
     // backward pass over dofs: construct M_row(i) in reverse order
-    int col = M_rowadr[i]; // current column in row i
+    int col = M_rowadr[i];  // current column in row i
     for (int j = i; j >= 0; j = m->dof_parentid[j]) {
       M[col] = d->qM[Madr++];
       M_colind[col++] = j;
@@ -1584,7 +1587,7 @@ int mj_version(void) {
 
 
 // current version of MuJoCo as a null-terminated string
-const char* mj_versionString() {
+const char* mj_versionString(void) {
   static const char versionstring[] = mjVERSIONSTRING;
   return versionstring;
 }

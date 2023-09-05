@@ -2318,7 +2318,7 @@ const char* mj_getPluginConfig(const mjModel* m, int plugin_id, const char* attr
 void mj_loadPluginLibrary(const char* path);
 void mj_loadAllPluginLibraries(const char* directory, mjfPluginLibraryLoadCallback callback);
 int mj_version(void);
-const char* mj_versionString();
+const char* mj_versionString(void);
 void mj_multiRay(const mjModel* m, mjData* d, const mjtNum pnt[3], const mjtNum* vec,
                  const mjtByte* geomgroup, mjtByte flg_static, int bodyexclude,
                  int* geomid, mjtNum* dist, int nray, mjtNum cutoff);
@@ -2575,12 +2575,12 @@ void mjd_quatIntegrate(const mjtNum vel[3], mjtNum scale,
                        mjtNum Dquat[9], mjtNum Dvel[9], mjtNum Dscale[3]);
 void mjp_defaultPlugin(mjpPlugin* plugin);
 int mjp_registerPlugin(const mjpPlugin* plugin);
-int mjp_pluginCount();
+int mjp_pluginCount(void);
 const mjpPlugin* mjp_getPlugin(const char* name, int* slot);
 const mjpPlugin* mjp_getPluginAtSlot(int slot);
 void mjp_defaultResourceProvider(mjpResourceProvider* provider);
 int mjp_registerResourceProvider(const mjpResourceProvider* provider);
-int mjp_resourceProviderCount();
+int mjp_resourceProviderCount(void);
 const mjpResourceProvider* mjp_getResourceProvider(const char* resource_name);
 const mjpResourceProvider* mjp_getResourceProviderAtSlot(int slot);
 mjThreadPool* mju_threadPoolCreate(size_t number_of_threads);

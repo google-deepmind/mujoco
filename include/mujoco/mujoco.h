@@ -488,7 +488,7 @@ MJAPI void mj_loadAllPluginLibraries(const char* directory, mjfPluginLibraryLoad
 MJAPI int mj_version(void);
 
 // Return the current version of MuJoCo as a null-terminated string.
-MJAPI const char* mj_versionString();
+MJAPI const char* mj_versionString(void);
 
 
 //---------------------------------- Ray collisions ------------------------------------------------
@@ -1278,7 +1278,7 @@ MJAPI void mjp_defaultPlugin(mjpPlugin* plugin);
 MJAPI int mjp_registerPlugin(const mjpPlugin* plugin);
 
 // Return the number of globally registered plugins.
-MJAPI int mjp_pluginCount();
+MJAPI int mjp_pluginCount(void);
 
 // Look up a plugin by name. If slot is not NULL, also write its registered slot number into it.
 MJAPI const mjpPlugin* mjp_getPlugin(const char* name, int* slot);
@@ -1295,7 +1295,7 @@ MJAPI void mjp_defaultResourceProvider(mjpResourceProvider* provider);
 MJAPI int mjp_registerResourceProvider(const mjpResourceProvider* provider);
 
 // Return the number of globally registered resource providers.
-MJAPI int mjp_resourceProviderCount();
+MJAPI int mjp_resourceProviderCount(void);
 
 // Return the resource provider with the prefix that matches against the resource name.
 // If no match, return NULL.

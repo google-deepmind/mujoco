@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+void _mj_crossplatform_void(void) {}  // ISO C does not permit empty translation units
+
 #if defined(__APPLE__) && defined(__AVX__)
 
 #include <stdio.h>
@@ -23,7 +25,7 @@ __attribute__((weak, visibility("default"))) void _mj_rosettaError(const char* m
   __asm__ __volatile__ ("ud2");  // raises SIGILL but leave this function at the top of the stack
 }
 
-__attribute__((constructor(10000), target("no-avx"))) static void _mj_checkRosetta() {
+__attribute__((constructor(10000), target("no-avx"))) static void _mj_checkRosetta(void) {
   int is_translated = 0;
   {
     size_t len = sizeof(is_translated);

@@ -3370,6 +3370,10 @@ public static unsafe extern void mj_loadPluginLibrary([MarshalAs(UnmanagedType.L
 public static unsafe extern int mj_version();
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+[return: MarshalAs(UnmanagedType.LPStr)]
+public static unsafe extern string mj_versionString();
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern void mj_multiRay(mjModel_* m, mjData_* d, double* pnt, double* vec, byte* geomgroup, byte flg_static, int bodyexclude, int* geomid, double* dist, int nray, double cutoff);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
