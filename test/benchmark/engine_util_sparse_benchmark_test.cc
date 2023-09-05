@@ -15,6 +15,9 @@
 // A benchmark for comparing different implementations of mj_solveLD.
 
 #include <cstddef>
+#include <cstring>
+#include <vector>
+
 #include <benchmark/benchmark.h>
 #include <gtest/gtest.h>
 #include <absl/base/attributes.h>
@@ -47,7 +50,7 @@ void ABSL_ATTRIBUTE_NOINLINE mju_sqrMatTDSparse_baseline(
     const int* rownnz, const int* rowadr, const int* colind,
     const int* rowsuper, const int* rownnzT, const int* rowadrT,
     const int* colindT, const int* rowsuperT, mjData* d) {
-  mjMARKSTACK;
+  mj_markStack(d);
   int* chain = mj_stackAllocInt(d, 2 * nc);
   mjtNum* buffer = mj_stackAllocNum(d, nc);
 
@@ -149,7 +152,7 @@ void ABSL_ATTRIBUTE_NOINLINE mju_sqrMatTDSparse_baseline(
     }
   }
 
-  mjFREESTACK;
+  mj_freeStack(d);
 }
 
 // transpose sparse matrix (uncompressed)
@@ -354,7 +357,7 @@ static void BM_MatVecSparse(benchmark::State& state, int unroll) {
   }
 
   // allocate gradient
-  mjMARKSTACK;
+  mj_markStack(d);
   mjtNum *Ma = mj_stackAllocNum(d, m->nv);
   mjtNum *vec = mj_stackAllocNum(d, m->nv);
   mjtNum *res = mj_stackAllocNum(d, d->nefc);
@@ -395,7 +398,7 @@ static void BM_MatVecSparse(benchmark::State& state, int unroll) {
   }
 
   // finalize
-  mjFREESTACK;
+  mj_freeStack(d);
   mj_deleteData(d);
   state.SetItemsProcessed(state.iterations());
 }
@@ -433,7 +436,7 @@ static void BM_combineSparse(benchmark::State& state, CombineFuncPtr func) {
   }
 
   // allocate
-  mjMARKSTACK;
+  mj_markStack(d);
   mjtNum* H = mj_stackAllocNum(d, m->nv*m->nv);
   int* rownnz = mj_stackAllocInt(d, m->nv);
   int* rowadr = mj_stackAllocInt(d, m->nv);
@@ -478,7 +481,7 @@ static void BM_combineSparse(benchmark::State& state, CombineFuncPtr func) {
   }
 
   // finalize
-  mjFREESTACK;
+  mj_freeStack(d);
   mj_deleteData(d);
   state.SetItemsProcessed(state.iterations());
 }
@@ -510,7 +513,7 @@ static void BM_transposeSparse(benchmark::State& state, TransposeFuncPtr func) {
     mj_step(m, d);
   }
 
-  mjMARKSTACK;
+  mj_markStack(d);
 
   // need uncompressed layout
   mjtNum* res = mj_stackAllocNum(d, m->nv * d->nefc);
@@ -524,7 +527,7 @@ static void BM_transposeSparse(benchmark::State& state, TransposeFuncPtr func) {
          d->efc_J_rownnz, d->efc_J_rowadr, d->efc_J_colind);
   }
 
-  mjFREESTACK;
+  mj_freeStack(d);
   mj_deleteData(d);
   state.SetItemsProcessed(state.iterations());
 }
@@ -556,7 +559,7 @@ static void BM_sqrMatTDSparse(benchmark::State& state, SqrMatTDFuncPtr func) {
   }
 
   // allocate
-  mjMARKSTACK;
+  mj_markStack(d);
   mjtNum* H = mj_stackAllocNum(d, m->nv * m->nv);
   int* rownnz = mj_stackAllocInt(d, m->nv);
   int* rowadr = mj_stackAllocInt(d, m->nv);
@@ -598,7 +601,7 @@ static void BM_sqrMatTDSparse(benchmark::State& state, SqrMatTDFuncPtr func) {
   }
 
   // finalize
-  mjFREESTACK;
+  mj_freeStack(d);
   mj_deleteData(d);
   state.SetItemsProcessed(state.iterations());
 }

@@ -13,12 +13,11 @@
 // limitations under the License.
 
 #include "engine/engine_util_sparse.h"
-#include "engine/engine_util_sparse_avx.h"
+#include "engine/engine_util_sparse_avx.h"  // IWYU pragma: keep
 
 #include <string.h>
 
 #include <mujoco/mjdata.h>
-#include <mujoco/mjmacro.h>
 #include <mujoco/mjtnum.h>
 #include "engine/engine_io.h"
 #include "engine/engine_util_blas.h"
@@ -474,13 +473,12 @@ void mju_sqrMatTDSparseInit(int* res_rownnz, int* res_rowadr,
                             const int* rownnzT, const int* rowadrT,
                             const int* colindT, const int* rowsuperT,
                             mjData* d) {
-  mjMARKSTACK;
+  mj_markStack(d);
   int* chain = mj_stackAllocInt(d, 2*nc);
   int nchain = 0;
   int* res_colind = NULL;
 
   for (int r=0; r < nc; r++) {
-
     // supernode; copy everything to next row
     if (rowsuperT && r > 0 && rowsuperT[r-1] > 0) {
       res_rownnz[r] = res_rownnz[r - 1];
@@ -556,7 +554,7 @@ void mju_sqrMatTDSparseInit(int* res_rownnz, int* res_rowadr,
     res_rowadr[r] = res_rowadr[r-1] + res_rownnz[r-1];
   }
 
-  mjFREESTACK;
+  mj_freeStack(d);
 }
 
 
@@ -580,7 +578,7 @@ void mju_sqrMatTDSparse(mjtNum* res, const mjtNum* mat, const mjtNum* matT,
                         const int* colindT, const int* rowsuperT,
                         mjData* d) {
   // allocate space for accumulation buffer and matT
-  mjMARKSTACK;
+  mj_markStack(d);
 
   // a dense row buffer that stores the current row in the resulting matrix
   mjtNum* buffer = mj_stackAllocNum(d, nc);
@@ -689,5 +687,5 @@ void mju_sqrMatTDSparse(mjtNum* res, const mjtNum* mat, const mjtNum* matT,
     }
   }
 
-  mjFREESTACK;
+  mj_freeStack(d);
 }

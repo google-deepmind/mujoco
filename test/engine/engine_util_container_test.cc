@@ -50,7 +50,7 @@ TEST(TestMjArrayList, TestMjArrayListSingleThreaded) {
   mjModel* m = LoadModelFromString("<mujoco/>", error.data(), error.size());
   ASSERT_THAT(m, NotNull()) << "Failed to load model: " << error.data();
   mjData* d = mj_makeData(m);
-  mjMARKSTACK;
+  mj_markStack(d);
 
   using DataType = int;
   constexpr int kInitialCapacity = 10;
@@ -76,7 +76,7 @@ TEST(TestMjArrayList, TestMjArrayListSingleThreaded) {
   EXPECT_EQ(mju_arrayListAt(array_list, kNumElements), nullptr);
   EXPECT_EQ(mju_arrayListAt(array_list, 100), nullptr);
 
-  mjFREESTACK;
+  mj_freeStack(d);
   mj_deleteData(d);
   mj_deleteModel(m);
 }
@@ -85,7 +85,7 @@ TEST(TestMjArrayList, ZeroInitialCapacity) {
   mjModel* m = LoadModelFromString("<mujoco/>", nullptr, 0);
   ASSERT_THAT(m, NotNull()) << "Failed to load model";
   mjData* d = mj_makeData(m);
-  mjMARKSTACK;
+  mj_markStack(d);
   mjArrayList* array_list =
       mju_arrayListCreate(d, sizeof(double), /*initial_capacity=*/0);
   EXPECT_EQ(mju_arrayListSize(array_list), 0);
@@ -101,7 +101,7 @@ TEST(TestMjArrayList, ZeroInitialCapacity) {
   }
   EXPECT_EQ(mju_arrayListAt(array_list, 35), nullptr);
 
-  mjFREESTACK;
+  mj_freeStack(d);
   mj_deleteData(d);
   mj_deleteModel(m);
 }

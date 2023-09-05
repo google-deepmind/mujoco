@@ -105,13 +105,13 @@ static void BM_solveLD(benchmark::State& state, bool new_function) {
   static mjModel* m = LoadModelFromPath("composite/cloth.xml");
   mjData* d = mj_makeData(m);
 
-  // warm-up rollout to get a typcal state
+  // warm-up rollout to get a typical state
   for (int i=0; i < kNumWarmupSteps; i++) {
     mj_step(m, d);
   }
 
-  // allocate gadient
-  mjMARKSTACK;
+  // allocate gradient
+  mj_markStack(d);
   mjtNum *grad = mj_stackAllocNum(d, m->nv);
   mjtNum *Ma = mj_stackAllocNum(d, m->nv);
   mjtNum *res = mj_stackAllocNum(d, m->nv);
@@ -145,7 +145,7 @@ static void BM_solveLD(benchmark::State& state, bool new_function) {
   }
 
   // finalize
-  mjFREESTACK;
+  mj_freeStack(d);
   mj_deleteData(d);
   state.SetItemsProcessed(state.iterations());
 }

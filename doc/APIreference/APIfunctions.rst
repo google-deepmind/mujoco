@@ -43,39 +43,6 @@ API function can be classified as:
 Macros
 ^^^^^^
 
-
-.. _mjMARKSTACK:
-
-mjMARKSTACK
-~~~~~~~~~~~
-
-.. code-block:: C
-
-   #define mjMARKSTACK int _mark = d->pstack;
-
-This macro is helpful when using the MuJoCo stack in custom computations. It works together with the next macro and the
-:ref:`mj_stackAlloc` family of functions, and assumes that mjData\* d is defined. The use pattern is this:
-
-.. code-block:: C
-
-   mjMARKSTACK;
-   mjtNum* temp = mj_stackAllocNum(d, 100);
-   // ... use temp as needed
-   mjFREESTACK;
-
-
-.. _mjFREESTACK:
-
-mjFREESTACK
-~~~~~~~~~~~
-
-.. code-block:: C
-
-   #define mjFREESTACK d->pstack = _mark;
-
-Reset the MuJoCo stack pointer to the variable \_mark, normally saved by mjMARKSTACK.
-
-
 .. _mjDISABLED:
 
 mjDISABLED

@@ -30,10 +30,6 @@
 #define mjMAX(a, b) (((a) > (b)) ? (a) : (b))
 #define mjMIN(a, b) (((a) < (b)) ? (a) : (b))
 
-// mjData stack frame management
-#define mjMARKSTACK   mj_markStack(d);
-#define mjFREESTACK   mj_freeStack(d);
-
 // return current value of mjOption enable/disable flags
 #define mjDISABLED(x) (m->opt.disableflags & (x))
 #define mjENABLED(x)  (m->opt.enableflags & (x))

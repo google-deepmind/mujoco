@@ -5558,7 +5558,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
          return_type=ValueType(name='mjtNum'),
          parameters=(
              FunctionParameterDecl(
-                 name='res',
+                 name='vec',
                  type=ArrayType(
                      inner_type=ValueType(name='mjtNum'),
                      extents=(3,),
@@ -5771,7 +5771,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
          return_type=ValueType(name='mjtNum'),
          parameters=(
              FunctionParameterDecl(
-                 name='res',
+                 name='vec',
                  type=ArrayType(
                      inner_type=ValueType(name='mjtNum'),
                      extents=(4,),
@@ -5832,7 +5832,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  ),
              ),
              FunctionParameterDecl(
-                 name='data',
+                 name='vec',
                  type=PointerType(
                      inner_type=ValueType(name='mjtNum', is_const=True),
                  ),

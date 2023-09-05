@@ -703,21 +703,19 @@ internally when an instability is detected in :ref:`mj_step`, :ref:`mj_step1` an
 take advantage of the custom stack, this needs to be done in-between MuJoCo calls that have the potential to reset the
 simulation.
 
-Below is the general template for using the custom stack in user code. This assumes that ``mjData\* d`` is defined in
-the scope. If not, saving and restoring the stack pointer should be done manually instead of using the
-:ref:`mjMARKSTACK` and :ref:`mjFREESTACK` macros.
+Below is the general template for using the custom stack in user code.
 
 .. code-block:: C
 
-   // save stack pointer in the "hidden" variable _mark
-   mjMARKSTACK;
+   // mark an mjData stack frame
+   mj_markStack(d);
 
    // allocate space
    mjtNum* myqpos = mj_stackAllocNum(d, m->nq);
    mjtNum* myqvel = mj_stackAllocNum(d, m->nv);
 
-   // restore stack from _mark
-   mjFREESTACK;
+   // restore the mjData stack frame
+   mj_freeStack(d);
 
 The function :ref:`mj_stackAllocNum` checks if there is enough space, and if so it advances the stack pointer,
 otherwise it triggers an error. It also keeps track of the maximum stack allocation;

@@ -736,7 +736,7 @@ void mj_printFormattedData(const mjModel* m, mjData* d, const char* filename,
   }
 
   mjtNum *M;
-  mjMARKSTACK;
+  mj_markStack(d);
 
   // check format string
   if (!validateFloatFormat(float_format)) {
@@ -755,7 +755,7 @@ void mj_printFormattedData(const mjModel* m, mjData* d, const char* filename,
   // check for nullptr
   if (!fp) {
     mju_warning("Could not open file '%s' for writing mjModel", filename);
-    mjFREESTACK;
+    mj_freeStack(d);
     return;
   }
 
@@ -1145,7 +1145,7 @@ void mj_printFormattedData(const mjModel* m, mjData* d, const char* filename,
     fclose(fp);
   }
 
-  mjFREESTACK;
+  mj_freeStack(d);
 }
 
 

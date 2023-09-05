@@ -61,7 +61,7 @@ static void mj_setM0(mjModel* m, mjData* d) {
 static void set0(mjModel* m, mjData* d) {
   int id, id1, id2, dnum, nv = m->nv;
   mjtNum A[36] = {0}, pos[3], quat[4];
-  mjMARKSTACK;
+  mj_markStack(d);
   mjtNum* jac = mj_stackAllocNum(d, 6*nv);
   mjtNum* tmp = mj_stackAllocNum(d, 6*nv);
   int* cammode = 0;
@@ -264,7 +264,7 @@ static void set0(mjModel* m, mjData* d) {
     mju_copy3(m->light_dir0+3*i, d->light_xdir+3*i);
   }
 
-  mjFREESTACK;
+  mj_freeStack(d);
 }
 
 
@@ -283,7 +283,7 @@ static void setStat(mjModel* m, mjData* d) {
   mjtNum xmin[3] = {1E+10, 1E+10, 1E+10};
   mjtNum xmax[3] = {-1E+10, -1E+10, -1E+10};
   mjtNum rbound;
-  mjMARKSTACK;
+  mj_markStack(d);
   mjtNum* body = mj_stackAllocNum(d, m->nbody);
 
   // compute bounding box of bodies, joint centers, geoms and sites
@@ -383,7 +383,7 @@ static void setStat(mjModel* m, mjData* d) {
     m->stat.meaninertia /= m->nv;
   }
 
-  mjFREESTACK;
+  mj_freeStack(d);
 }
 
 

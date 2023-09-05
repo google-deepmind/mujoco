@@ -21,8 +21,6 @@
 #include <mujoco/mjmacro.h>
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjxmacro.h>
-#include "engine/engine_array_safety.h"
-#include "engine/engine_crossplatform.h"
 #include "engine/engine_core_smooth.h"
 #include "engine/engine_io.h"
 #include "engine/engine_support.h"
@@ -508,7 +506,7 @@ void mj_instantiateEquality(const mjModel* m, mjData* d) {
     return;
   }
 
-  mjMARKSTACK;
+  mj_markStack(d);
 
   // allocate space
   jac[0] = mj_stackAllocNum(d, 6*nv);
@@ -702,7 +700,7 @@ void mj_instantiateEquality(const mjModel* m, mjData* d) {
     }
   }
 
-  mjFREESTACK;
+  mj_freeStack(d);
 }
 
 
@@ -717,7 +715,7 @@ void mj_instantiateFriction(const mjModel* m, mjData* d) {
     return;
   }
 
-  mjMARKSTACK;
+  mj_markStack(d);
 
   // allocate Jacobian
   jac = mj_stackAllocNum(d, nv);
@@ -763,7 +761,7 @@ void mj_instantiateFriction(const mjModel* m, mjData* d) {
     }
   }
 
-  mjFREESTACK;
+  mj_freeStack(d);
 }
 
 
@@ -779,7 +777,7 @@ void mj_instantiateLimit(const mjModel* m, mjData* d) {
     return;
   }
 
-  mjMARKSTACK;
+  mj_markStack(d);
 
   // allocate Jacobian
   jac = mj_stackAllocNum(d, nv);
@@ -909,7 +907,7 @@ void mj_instantiateLimit(const mjModel* m, mjData* d) {
     }
   }
 
-  mjFREESTACK;
+  mj_freeStack(d);
 }
 
 
@@ -925,7 +923,7 @@ void mj_instantiateContact(const mjModel* m, mjData* d) {
     return;
   }
 
-  mjMARKSTACK;
+  mj_markStack(d);
 
   // allocate Jacobian
   jac = mj_stackAllocNum(d, 6*NV);
@@ -1019,7 +1017,7 @@ void mj_instantiateContact(const mjModel* m, mjData* d) {
     }
   }
 
-  mjFREESTACK;
+  mj_freeStack(d);
 }
 
 
@@ -1474,7 +1472,7 @@ static inline int mj_ne(const mjModel* m, mjData* d, int* nnz) {
     return 0;
   }
 
-  mjMARKSTACK;
+  mj_markStack(d);
 
   if (nnz) {
     chain = mj_stackAllocInt(d, nv);
@@ -1555,7 +1553,7 @@ static inline int mj_ne(const mjModel* m, mjData* d, int* nnz) {
     *nnz += nnze;
   }
 
-  mjFREESTACK;
+  mj_freeStack(d);
   return ne;
 }
 
@@ -1670,7 +1668,7 @@ static inline int mj_nc(const mjModel* m, mjData* d, int* nnz) {
     return 0;
   }
 
-  mjMARKSTACK;
+  mj_markStack(d);
   int *chain = mj_stackAllocInt(d, m->nv);
 
   for (int i=0; i < ncon; i++) {
@@ -1703,7 +1701,7 @@ static inline int mj_nc(const mjModel* m, mjData* d, int* nnz) {
     *nnz += nnzc;
   }
 
-  mjFREESTACK;
+  mj_freeStack(d);
   return nc;
 }
 
@@ -1838,7 +1836,7 @@ void mj_projectConstraint(const mjModel* m, mjData* d) {
     return;
   }
 
-  mjMARKSTACK;
+  mj_markStack(d);
 
   // space for backsubM2(J')' and its traspose
   mjtNum* JM2 = mj_stackAllocNum(d, nefc*nv);
@@ -1978,7 +1976,7 @@ void mj_projectConstraint(const mjModel* m, mjData* d) {
     }
   }
 
-  mjFREESTACK;
+  mj_freeStack(d);
 }
 
 

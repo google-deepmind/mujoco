@@ -26,7 +26,7 @@ extern "C" {
 
 // find disjoint subgraphs ("islands") given sparse symmetric adjacency matrix
 MJAPI int mj_floodFill(int* island, int nr, const int* rownnz, const int* rowadr, const int* colind,
-                       int* scratch);
+                       int* stack);
 
 //-------------------------- top-level API for island construction ---------------------------------
 

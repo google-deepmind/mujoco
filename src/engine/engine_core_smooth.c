@@ -178,7 +178,7 @@ void mj_kinematics(const mjModel* m, mjData* d) {
 // map inertias and motion dofs to global frame centered at subtree-CoM
 void mj_comPos(const mjModel* m, mjData* d) {
   mjtNum offset[3], axis[3];
-  mjMARKSTACK;
+  mj_markStack(d);
   mjtNum* mass_subtree = mj_stackAllocNum(d, m->nbody);
 
   // clear subtree
@@ -261,7 +261,7 @@ void mj_comPos(const mjModel* m, mjData* d) {
     }
   }
 
-  mjFREESTACK;
+  mj_freeStack(d);
 }
 
 
@@ -400,7 +400,7 @@ void mj_tendon(const mjModel* m, mjData* d) {
   }
 
   // allocate space
-  mjMARKSTACK;
+  mj_markStack(d);
   jac1 = mj_stackAllocNum(d, 3*nv);
   jac2 = mj_stackAllocNum(d, 3*nv);
   jacdif = mj_stackAllocNum(d, 3*nv);
@@ -609,7 +609,7 @@ void mj_tendon(const mjModel* m, mjData* d) {
     }
   }
 
-  mjFREESTACK;
+  mj_freeStack(d);
 }
 
 
@@ -628,7 +628,7 @@ void mj_transmission(const mjModel* m, mjData* d) {
   }
 
   // allocate space, clear moments
-  mjMARKSTACK;
+  mj_markStack(d);
   jac  = mj_stackAllocNum(d, 3*nv);
   jacA = mj_stackAllocNum(d, 3*nv);
   jacS = mj_stackAllocNum(d, 3*nv);
@@ -954,7 +954,7 @@ void mj_transmission(const mjModel* m, mjData* d) {
     }
   }
 
-  mjFREESTACK;
+  mj_freeStack(d);
 }
 
 
@@ -1383,7 +1383,7 @@ void mj_comVel(const mjModel* m, mjData* d) {
 // subtree linear velocity and angular momentum
 void mj_subtreeVel(const mjModel* m, mjData* d) {
   mjtNum dx[3], dv[3], dp[3], dL[3];
-  mjMARKSTACK;
+  mj_markStack(d);
   mjtNum* body_vel = mj_stackAllocNum(d, 6*m->nbody);
 
   // bodywise quantities
@@ -1440,7 +1440,7 @@ void mj_subtreeVel(const mjModel* m, mjData* d) {
     mju_addTo3(d->subtree_angmom+3*parent, dL);
   }
 
-  mjFREESTACK;
+  mj_freeStack(d);
 }
 
 
@@ -1449,7 +1449,7 @@ void mj_subtreeVel(const mjModel* m, mjData* d) {
 // RNE: compute M(qpos)*qacc + C(qpos,qvel); flg_acc=0 removes inertial term
 void mj_rne(const mjModel* m, mjData* d, int flg_acc, mjtNum* result) {
   mjtNum tmp[6], tmp1[6];
-  mjMARKSTACK;
+  mj_markStack(d);
   mjtNum* loc_cacc = mj_stackAllocNum(d, m->nbody*6);
   mjtNum* loc_cfrc_body = mj_stackAllocNum(d, m->nbody*6);
 
@@ -1495,7 +1495,7 @@ void mj_rne(const mjModel* m, mjData* d, int flg_acc, mjtNum* result) {
     result[i] = mju_dot(d->cdof+6*i, loc_cfrc_body+6*m->dof_bodyid[i], 6);
   }
 
-  mjFREESTACK;
+  mj_freeStack(d);
 }
 
 

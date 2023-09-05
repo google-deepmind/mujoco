@@ -309,7 +309,7 @@ void mj_solPGS(const mjModel* m, mjData* d, int maxiter) {
   mjtNum *mu, x, denom, improvement;
   mjtNum v[6], v1[6], Athis[36], Ac[25], bc[5], res[6], oldforce[6];
   mjContact* con;
-  mjMARKSTACK;
+  mj_markStack(d);
   mjtNum* ARinv = mj_stackAllocNum(d, nefc);
   int* oldstate = mj_stackAllocInt(d, nefc);
 
@@ -497,7 +497,7 @@ void mj_solPGS(const mjModel* m, mjData* d, int maxiter) {
   // map to joint space
   dualFinish(m, d);
 
-  mjFREESTACK;
+  mj_freeStack(d);
 }
 
 
@@ -511,7 +511,7 @@ void mj_solNoSlip(const mjModel* m, mjData* d, int maxiter) {
   mjtNum *mu, improvement;
   mjtNum v[5], Ac[25], bc[5], res[5], oldforce[5], delta[5], mid, y, K0, K1;
   mjContact* con;
-  mjMARKSTACK;
+  mj_markStack(d);
   mjtNum* ARinv = mj_stackAllocNum(d, nefc);
   int* oldstate = mj_stackAllocInt(d, nefc);
 
@@ -703,7 +703,7 @@ void mj_solNoSlip(const mjModel* m, mjData* d, int maxiter) {
   // map to joint space
   dualFinish(m, d);
 
-  mjFREESTACK;
+  mj_freeStack(d);
 }
 
 
@@ -1277,7 +1277,7 @@ static mjtNum CGsearch(const mjModel* m, mjData* d, mjCGContext* ctx) {
 static void HessianCone(const mjModel* m, mjData* d, mjCGContext* ctx) {
   int nv = m->nv, nefc = d->nefc;
   mjtNum local[36];
-  mjMARKSTACK;
+  mj_markStack(d);
 
   // storage for L'*J
   mjtNum* LTJ = mj_stackAllocNum(d, 6*nv);
@@ -1347,7 +1347,7 @@ static void HessianCone(const mjModel* m, mjData* d, mjCGContext* ctx) {
     }
   }
 
-  mjFREESTACK;
+  mj_freeStack(d);
 }
 
 
@@ -1355,7 +1355,7 @@ static void HessianCone(const mjModel* m, mjData* d, mjCGContext* ctx) {
 // compute and factorize Hessian: direct method
 static void HessianDirect(const mjModel* m, mjData* d, mjCGContext* ctx) {
   int nv = m->nv, nefc = d->nefc;
-  mjMARKSTACK;
+  mj_markStack(d);
 
   // compute D corresponding to quad states
   mjtNum* D = mj_stackAllocNum(d, nefc);
@@ -1427,7 +1427,7 @@ static void HessianDirect(const mjModel* m, mjData* d, mjCGContext* ctx) {
     ctx->nnz = nv*nv;
   }
 
-  mjFREESTACK;
+  mj_freeStack(d);
 
   // add cones if present
   if (ctx->ncone) {
@@ -1444,7 +1444,7 @@ static void HessianDirect(const mjModel* m, mjData* d, mjCGContext* ctx) {
 static void HessianIncremental(const mjModel* m, mjData* d,
                                mjCGContext* ctx, const int* oldstate) {
   int rank, nv = m->nv, nefc = d->nefc;
-  mjMARKSTACK;
+  mj_markStack(d);
 
   // local space
   mjtNum* vec = mj_stackAllocNum(d, nv);
@@ -1490,7 +1490,7 @@ static void HessianIncremental(const mjModel* m, mjData* d,
 
       // recompute H directly if accuracy lost
       if (rank < nv) {
-        mjFREESTACK;
+        mj_freeStack(d);
         HessianDirect(m, d, ctx);
 
         // nothing else to do
@@ -1504,7 +1504,7 @@ static void HessianIncremental(const mjModel* m, mjData* d,
     HessianCone(m, d, ctx);
   }
 
-  mjFREESTACK;
+  mj_freeStack(d);
 }
 
 
@@ -1515,7 +1515,7 @@ static void mj_solCGNewton(const mjModel* m, mjData* d, int maxiter, int flg_New
   mjtNum alpha, beta;
   mjtNum *gradold = NULL, *Mgradold = NULL, *Mgraddif = NULL;
   mjCGContext ctx;
-  mjMARKSTACK;
+  mj_markStack(d);
 
   // allocate context
   CGallocate(m, d, &ctx, flg_Newton);
@@ -1625,7 +1625,7 @@ static void mj_solCGNewton(const mjModel* m, mjData* d, int maxiter, int flg_New
     d->solver_nnz = 0;
   }
 
-  mjFREESTACK;
+  mj_freeStack(d);
 }
 
 

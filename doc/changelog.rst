@@ -5,58 +5,80 @@ Changelog
 Upcoming version (not yet released)
 -----------------------------------
 
-General
-^^^^^^^
+New features
+^^^^^^^^^^^^
+
+.. youtube:: Vc1tq0fFvQA
+   :align: right
+   :width: 240px
+
+1. Added constraint island discovery in :ref:`mj_island`. Constraint islands are disjoint sets of constraints
+   and degrees-of-freedom that do not interact. In a future release the constraint solver will be refactored to
+   exploit the disjoint structure. Island discovery can be activated using a new :ref:`enable flag<option-flag-island>`
+   which will be removed after the refactor. If island discovery is enabled, geoms, contacts and
+   tendons will be colored according to the corresponding island, see video.
 
 .. youtube:: QewlEqIZi1o
    :align: right
    :width: 240px
 
-1. Added new signed distance field (SDF) collision primitive. SDFs can take any shape and are not constrained to be
+2. Added new signed distance field (SDF) collision primitive. SDFs can take any shape and are not constrained to be
    convex. Collision points are found by minimizing the maximum of the two colliding SDFs via gradient descent.
 
    - Added new SDF plugin for defining implicit geometries. The plugin must define methods computing an SDF and its
      gradient at query points See the :ref:`documentation<exWriting>` for more details.
 
-   .. youtube:: Vc1tq0fFvQA
-      :align: right
-      :width: 240px
+3. Added :ref:`mjThreadPool` and :ref:`mjTask` which allow for multi-threaded operations within MuJoCo engine pipeline.
 
-#. Added constraint island discovery in :ref:`mj_island`. Constraint islands are disjoint sets of constraints
-   and degrees-of-freedom that do not interact. In a future release the constraint solver will be refactored to
-   exploit the disjoint structure. Island discovery can be activated using a new :ref:`enable flag<option-flag-island>`
-   which will be removed after the refactor. If island discovery is enabled, geoms, contacts and
-   tendons will be colored according to the corresponding island, see video.
-#. Added a new :ref:`dyntype<actuator-general-dyntype>`, ``filterexact``, which updates first-order filter states with
+General
+^^^^^^^
+
+.. admonition:: Breaking API changes
+   :class: attention
+
+   4. Removed macros ``mjMARKSTACK`` and ``mjFREESTACK``.
+
+      .. admonition::  Migration note
+         :class: note
+
+         These macros have been replaced by new functions :ref:`mj_markStack` and :ref:`mj_freeStack`. These functions
+         manages ``mjData`` stack frames in a fully encapsulated way (i.e. without having to introduce a local variable
+         at the call site).
+
+   5. Changed the function :ref:`mj_stackAlloc` to allocate an arbitrary number of bytes, rather than in multiples of
+      ``sizeof(mjtNum)``, and add an additional argument for specifying the alignment of the returned pointer.
+
+      .. admonition:: Migration note
+         :class: note
+
+         The old functionality for allocating ``mjtNum`` arrays is still available through a new function
+         :ref:`mj_stackAllocNum`.
+
+   6. Renamed the ``nstack`` field in :ref:`mjModel` and :ref:`mjData` to ``narena``. Changed ``narena``, ``pstack``,
+      and ``maxuse_stack`` to count number of bytes rather than number of :ref:`mjtNum` |-| s.
+
+7. Added a new :ref:`dyntype<actuator-general-dyntype>`, ``filterexact``, which updates first-order filter states with
    the exact formula rather than with Euler integration.
-#. Added an actuator attribute, :ref:`actearly<actuator-general-actearly>`, which uses semi-implicit integration for
+8. Added an actuator attribute, :ref:`actearly<actuator-general-actearly>`, which uses semi-implicit integration for
    actuator forces: using the next step's actuator state to compute the current actuator forces at the current timestep.
-#. Renamed ``actuatorforcerange`` and ``actuatorforcelimited``, introduced in the previous version to
+9. Renamed ``actuatorforcerange`` and ``actuatorforcelimited``, introduced in the previous version to
    :ref:`actuatorfrcrange<body-joint-actuatorfrcrange>` and
    :ref:`actuatorfrclimited<body-joint-actuatorfrclimited>`, respectively.
-#. Added the flag :ref:`eulerdamp<option-flag-eulerdamp>`, which disables implicit integration of joint damping in the
-   Euler integrator. See the :ref:`Numerical Integration<geIntegration>` section for more details.
-#. Added the flag :ref:`invdiscrete<option-flag-invdiscrete>`, which enables discrete-time inverse dynamics for all
-   :ref:`integrators<option-integrator>` other than ``RK4``. See the flag documentation for more details.
-#. Changed the function :ref:`mj_stackAlloc` to allocate an arbitrary number of bytes, rather than in multiples of
-   ``sizeof(mjtNum)``, and add an additional argument for specifying the alignment of the returned pointer. The existing
-   functionality of allocating ``mjtNum`` arrays is still available through the new function :ref:`mj_stackAllocNum`.
-#. Renamed the ``nstack`` field in :ref:`mjModel` and :ref:`mjData` to ``narena``. Changed ``narena``, ``pstack``, and
-   ``maxuse_stack`` to count number of bytes rather than number of :ref:`mjtNum` |-| s.
-#. Added new functions ``mj_markStack`` and ``mj_freeStack`` that manages ``mjData`` stack frames in a fully
-   encapsulated way (i.e. without having to introduce a local variable at the call site).
-#. Added :ref:`mjThreadPool` and :ref:`mjTask` which allow for multi-threaded operations within MuJoCo engine pipeline.
+10. Added the flag :ref:`eulerdamp<option-flag-eulerdamp>`, which disables implicit integration of joint damping in the
+    Euler integrator. See the :ref:`Numerical Integration<geIntegration>` section for more details.
+11. Added the flag :ref:`invdiscrete<option-flag-invdiscrete>`, which enables discrete-time inverse dynamics for all
+    :ref:`integrators<option-integrator>` other than ``RK4``. See the flag documentation for more details.
 
 Python bindings
 ^^^^^^^^^^^^^^^
 
-10. Fixed `#870 <https://github.com/deepmind/mujoco/issues/870>`__ where calling ``update_scene`` with an invalid
+12. Fixed `#870 <https://github.com/deepmind/mujoco/issues/870>`__ where calling ``update_scene`` with an invalid
     camera name used the default camera.
 
 Bug fixes
 ^^^^^^^^^
 
-11. Fixed a bug that was causing the geom margins to be ignored during the midphase.
+13. Fixed a bug that was causing the geom margins to be ignored during the midphase.
 
 
 Version 2.3.7 (July 20, 2023)

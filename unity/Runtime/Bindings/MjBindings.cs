@@ -3659,7 +3659,7 @@ public static unsafe extern void mju_addToScl3(double* res, double* vec, double 
 public static unsafe extern void mju_addScl3(double* res, double* vec1, double* vec2, double scl);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
-public static unsafe extern double mju_normalize3(double* res);
+public static unsafe extern double mju_normalize3(double* vec);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern double mju_norm3(double* vec);
@@ -3689,7 +3689,7 @@ public static unsafe extern void mju_unit4(double* res);
 public static unsafe extern void mju_copy4(double* res, double* data);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
-public static unsafe extern double mju_normalize4(double* res);
+public static unsafe extern double mju_normalize4(double* vec);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern void mju_zero(double* res, int n);
@@ -3698,7 +3698,7 @@ public static unsafe extern void mju_zero(double* res, int n);
 public static unsafe extern void mju_fill(double* res, double val, int n);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
-public static unsafe extern void mju_copy(double* res, double* data, int n);
+public static unsafe extern void mju_copy(double* res, double* vec, int n);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern double mju_sum(double* vec, int n);

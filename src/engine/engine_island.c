@@ -18,11 +18,9 @@
 #include <stddef.h>
 
 #include <mujoco/mjdata.h>
-#include <mujoco/mjmacro.h>
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjxmacro.h>
 #include "engine/engine_core_constraint.h"
-#include "engine/engine_crossplatform.h"
 #include "engine/engine_io.h"
 #include "engine/engine_support.h"
 #include "engine/engine_util_errmem.h"
@@ -414,7 +412,7 @@ void mj_island(const mjModel* m, mjData* d) {
     return;
   }
 
-  mjMARKSTACK;
+  mj_markStack(d);
 
   // allocate edge array
   int nedge_max = countMaxEdge(m, d);
@@ -448,7 +446,7 @@ void mj_island(const mjModel* m, mjData* d) {
 
   // allocate island arrays on arena
   if (!arenaAllocIsland(m, d)) {
-    mjFREESTACK;
+    mj_freeStack(d);
     return;
   }
 
@@ -527,5 +525,5 @@ void mj_island(const mjModel* m, mjData* d) {
     d->island_efcind[d->island_efcadr[island] + (d->island_efcnum[island]++)] = i;
   }
 
-  mjFREESTACK;
+  mj_freeStack(d);
 }

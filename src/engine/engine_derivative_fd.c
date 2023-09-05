@@ -197,7 +197,7 @@ static void inverseSkip(const mjModel* m, mjData* d, mjtStage stage, int skipsen
 void mjd_passive_velFD(const mjModel* m, mjData* d, mjtNum eps) {
   int nv = m->nv;
 
-  mjMARKSTACK;
+  mj_markStack(d);
   mjtNum* qfrc_passive = mj_stackAllocNum(d, nv);
   mjtNum* fd = mj_stackAllocNum(d, nv);
   int* cnt = mj_stackAllocInt(d, nv);
@@ -237,7 +237,7 @@ void mjd_passive_velFD(const mjModel* m, mjData* d, mjtNum eps) {
   // restore
   mj_fwdVelocity(m, d);
 
-  mjFREESTACK;
+  mj_freeStack(d);
 }
 
 
@@ -248,7 +248,7 @@ void mjd_passive_velFD(const mjModel* m, mjData* d, mjtNum eps) {
 void mjd_smooth_velFD(const mjModel* m, mjData* d, mjtNum eps) {
   int nv = m->nv;
 
-  mjMARKSTACK;
+  mj_markStack(d);
   mjtNum* plus = mj_stackAllocNum(d, nv);
   mjtNum* minus = mj_stackAllocNum(d, nv);
   mjtNum* fd = mj_stackAllocNum(d, nv);
@@ -303,7 +303,7 @@ void mjd_smooth_velFD(const mjModel* m, mjData* d, mjtNum eps) {
   mj_fwdVelocity(m, d);
   mj_fwdActuation(m, d);
 
-  mjFREESTACK;
+  mj_freeStack(d);
 }
 
 
@@ -330,7 +330,7 @@ void mjd_stepFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte flg_centered,
                 mjtNum* DsDq, mjtNum* DsDv, mjtNum* DsDa, mjtNum* DsDu) {
   int nq = m->nq, nv = m->nv, na = m->na, nu = m->nu, ns = m->nsensordata;
   int ndx = 2*nv+na;  // row length of Dy Jacobians
-  mjMARKSTACK;
+  mj_markStack(d);
 
   // states
   mjtNum *state      = mj_stackAllocNum(d, nq+nv+na);  // current state
@@ -558,7 +558,7 @@ void mjd_stepFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte flg_centered,
     }
   }
 
-  mjFREESTACK;
+  mj_freeStack(d);
 }
 
 
@@ -580,7 +580,7 @@ void mjd_transitionFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte flg_cente
   mjtNum *DyDq, *DyDv, *DyDa, *DsDq, *DsDv, *DsDa;
   DyDq = DyDv = DyDa = DsDq = DsDv = DsDa = NULL;
 
-  mjMARKSTACK;
+  mj_markStack(d);
 
   // allocate transposed matrices
   mjtNum *AT = A ? mj_stackAllocNum(d, ndx*ndx) : NULL;  // state-transition matrix   (transposed)
@@ -611,7 +611,7 @@ void mjd_transitionFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte flg_cente
   if (C) mju_transpose(C, CT, ndx, ns);
   if (D) mju_transpose(D, DT, nu, ns);
 
-  mjFREESTACK;
+  mj_freeStack(d);
 }
 
 // finite differenced Jacobians of (force, sensors) = mj_inverse(state, acceleration)
@@ -648,7 +648,7 @@ void mjd_inverseFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte flg_actuatio
   int skipsensor = !DsDq && !DsDv && !DsDa;
 
   // local vectors
-  mjMARKSTACK;
+  mj_markStack(d);
   mjtNum *pos        = mj_stackAllocNum(d, nq);                      // position
   mjtNum *force      = mj_stackAllocNum(d, nv);                      // force
   mjtNum *force_plus = mj_stackAllocNum(d, nv);                      // nudged force
@@ -731,5 +731,5 @@ void mjd_inverseFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte flg_actuatio
     }
   }
 
-  mjFREESTACK;
+  mj_freeStack(d);
 }

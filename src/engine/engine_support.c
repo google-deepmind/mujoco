@@ -279,7 +279,7 @@ void mj_jacBodyCom(const mjModel* m, const mjData* d, mjtNum* jacp, mjtNum* jacr
 // compute subtree-com Jacobian
 void mj_jacSubtreeCom(const mjModel* m, mjData* d, mjtNum* jacp, int body) {
   int nv = m->nv;
-  mjMARKSTACK;
+  mj_markStack(d);
   mjtNum* jacp_b = mj_stackAllocNum(d, 3*nv);
 
   // clear output
@@ -300,7 +300,7 @@ void mj_jacSubtreeCom(const mjModel* m, mjData* d, mjtNum* jacp, int body) {
   // normalize by subtree mass
   mju_scl(jacp, jacp, 1/m->body_subtreemass[body], 3*nv);
 
-  mjFREESTACK;
+  mj_freeStack(d);
 }
 
 
@@ -325,7 +325,7 @@ void mj_jacPointAxis(const mjModel* m, mjData* d, mjtNum* jacPoint, mjtNum* jacA
   int nv = m->nv;
 
   // get full Jacobian of point
-  mjMARKSTACK;
+  mj_markStack(d);
   mjtNum* jacp = (jacPoint ? jacPoint : mj_stackAllocNum(d, 3*nv));
   mjtNum* jacr = mj_stackAllocNum(d, 3*nv);
   mj_jac(m, d, jacp, jacr, point, body);
@@ -339,7 +339,7 @@ void mj_jacPointAxis(const mjModel* m, mjData* d, mjtNum* jacPoint, mjtNum* jacA
     }
   }
 
-  mjFREESTACK;
+  mj_freeStack(d);
 }
 
 
@@ -1014,7 +1014,7 @@ void mj_addM(const mjModel* m, mjData* d, mjtNum* dst,
   // sparse
   if (rownnz && rowadr && colind) {
     int nv = m->nv;
-    mjMARKSTACK;
+    mj_markStack(d);
     // create sparse inertia matrix M
     int nnz = m->nD;  // use sparse dof-dof matrix
     int* M_rownnz = mj_stackAllocInt(d, nv);  // actual nnz count
@@ -1024,7 +1024,7 @@ void mj_addM(const mjModel* m, mjData* d, mjtNum* dst,
     mj_makeMSparse(m, d, M, M_rownnz, NULL, M_colind);
     mj_addMSparse(m, d, dst, rownnz, rowadr, colind, M,
                   M_rownnz, NULL, M_colind);
-    mjFREESTACK;
+    mj_freeStack(d);
   }
 
   // dense
@@ -1111,7 +1111,7 @@ void mj_addMSparse(const mjModel* m, mjData* d, mjtNum* dst,
     M_rowadr = d->D_rowadr;
   }
 
-  mjMARKSTACK;
+  mj_markStack(d);
   int* buf_ind = mj_stackAllocInt(d, nv);
   mjtNum* sparse_buf = mj_stackAllocNum(d, nv);
 
@@ -1121,7 +1121,7 @@ void mj_addMSparse(const mjModel* m, mjData* d, mjtNum* dst,
                                   rownnz[i], M_rownnz[i], colind + rowadr[i],
                                   M_colind + M_rowadr[i], sparse_buf, buf_ind);
   }
-  mjFREESTACK;
+  mj_freeStack(d);
 }
 
 
@@ -1158,7 +1158,7 @@ void mj_addMDense(const mjModel* m, mjData* d, mjtNum* dst) {
 // dst[D] = src[M], handle different sparsity representations
 void mj_copyM2DSparse(const mjModel* m, mjData* d, mjtNum* dst, const mjtNum* src) {
   int nv = m->nv;
-  mjMARKSTACK;
+  mj_markStack(d);
 
   // init remaining
   int* remaining = mj_stackAllocInt(d, nv);
@@ -1185,7 +1185,7 @@ void mj_copyM2DSparse(const mjModel* m, mjData* d, mjtNum* dst, const mjtNum* sr
     }
   }
 
-  mjFREESTACK;
+  mj_freeStack(d);
 }
 
 
@@ -1223,7 +1223,7 @@ void mj_applyFT(const mjModel* m, mjData* d,
   int nv = m->nv;
 
   // allocate local variables
-  mjMARKSTACK;
+  mj_markStack(d);
   mjtNum* jacp = mj_stackAllocNum(d, 3*nv);
   mjtNum* jacr = mj_stackAllocNum(d, 3*nv);
   mjtNum* qforce = mj_stackAllocNum(d, nv);
@@ -1246,7 +1246,7 @@ void mj_applyFT(const mjModel* m, mjData* d,
     mju_addTo(qfrc_target, qforce, nv);
   }
 
-  mjFREESTACK;
+  mj_freeStack(d);
 }
 
 

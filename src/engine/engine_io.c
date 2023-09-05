@@ -850,7 +850,7 @@ static void makeDSparse(const mjModel* m, mjData* d) {
   int* rowadr = d->D_rowadr;
   int* colind = d->D_colind;
 
-  mjMARKSTACK;
+  mj_markStack(d);
   int* remaining = mj_stackAllocInt(d, nv);
 
   // compute rownnz
@@ -898,7 +898,7 @@ static void makeDSparse(const mjModel* m, mjData* d) {
     }
   }
 
-  mjFREESTACK;
+  mj_freeStack(d);
 }
 
 
@@ -943,7 +943,7 @@ static void makeBSparse(const mjModel* m, mjData* d) {
   }
 
   // allocate and clear incremental row counts
-  mjMARKSTACK;
+  mj_markStack(d);
   int* cnt = mj_stackAllocInt(d, nbody);
   mju_zeroInt(cnt, nbody);
 
@@ -991,7 +991,7 @@ static void makeBSparse(const mjModel* m, mjData* d) {
     }
   }
 
-  mjFREESTACK;
+  mj_freeStack(d);
 }
 
 

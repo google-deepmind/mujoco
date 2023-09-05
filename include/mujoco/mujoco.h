@@ -895,7 +895,7 @@ MJAPI void mju_addToScl3(mjtNum res[3], const mjtNum vec[3], mjtNum scl);
 MJAPI void mju_addScl3(mjtNum res[3], const mjtNum vec1[3], const mjtNum vec2[3], mjtNum scl);
 
 // Normalize vector, return length before normalization.
-MJAPI mjtNum mju_normalize3(mjtNum res[3]);
+MJAPI mjtNum mju_normalize3(mjtNum vec[3]);
 
 // Return vector length (without normalizing the vector).
 MJAPI mjtNum mju_norm3(const mjtNum vec[3]);
@@ -925,7 +925,7 @@ MJAPI void mju_unit4(mjtNum res[4]);
 MJAPI void mju_copy4(mjtNum res[4], const mjtNum data[4]);
 
 // Normalize vector, return length before normalization.
-MJAPI mjtNum mju_normalize4(mjtNum res[4]);
+MJAPI mjtNum mju_normalize4(mjtNum vec[4]);
 
 // Set res = 0.
 MJAPI void mju_zero(mjtNum* res, int n);
@@ -934,7 +934,7 @@ MJAPI void mju_zero(mjtNum* res, int n);
 MJAPI void mju_fill(mjtNum* res, mjtNum val, int n);
 
 // Set res = vec.
-MJAPI void mju_copy(mjtNum* res, const mjtNum* data, int n);
+MJAPI void mju_copy(mjtNum* res, const mjtNum* vec, int n);
 
 // Return sum(vec).
 MJAPI mjtNum mju_sum(const mjtNum* vec, int n);

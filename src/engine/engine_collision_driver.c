@@ -240,7 +240,7 @@ static void collideTree(const mjModel* m, mjData* d, int b1, int b2,
   mjtNum offset[12];   // 2 bb x 2 bb x 3 axes (world)
   mjtByte initialize = 1;
 
-  mjMARKSTACK;
+  mj_markStack(d);
   // TODO(b/273737633): Store bvh max depths to make this bound tighter.
   const int max_stack = m->body_bvhnum[b1] + m->body_bvhnum[b2];
   mjCollisionTree* stack = mj_stackAllocTree(d, max_stack);
@@ -345,7 +345,7 @@ static void collideTree(const mjModel* m, mjData* d, int b1, int b2,
       }
     }
   }
-  mjFREESTACK;
+  mj_freeStack(d);
 }
 
 
@@ -408,7 +408,7 @@ void mj_collision(const mjModel* m, mjData* d) {
     return;
   }
 
-  mjMARKSTACK;
+  mj_markStack(d);
 
   // predefined only; ignore exclude
   if (m->opt.collision == mjCOL_PAIR) {
@@ -503,7 +503,7 @@ void mj_collision(const mjModel* m, mjData* d) {
     }
   }
 
-  mjFREESTACK;
+  mj_freeStack(d);
 }
 
 
@@ -750,7 +750,7 @@ int mj_broadphase(const mjModel* m, mjData* d, int* pair, int maxpair) {
   mju_eig3(eigval, frame, quat, cov);
 
   // allocate AABB; clear world entry (not used)
-  mjMARKSTACK;
+  mj_markStack(d);
   aabb = mj_stackAllocNum(d, 6*nbody);
   mju_zero(aabb, 6);
 
@@ -859,7 +859,7 @@ endbroad:
     mjQUICKSORT(pair, npair, sizeof(int), paircompare, 0);
   }
 
-  mjFREESTACK;
+  mj_freeStack(d);
   return npair;
 }
 

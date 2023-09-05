@@ -147,7 +147,7 @@ int mju_cholFactorSparse(mjtNum* mat, int n, mjtNum mindiag,
                          mjData* d) {
   int rank = n;
 
-  mjMARKSTACK;
+  mj_markStack(d);
   int* buf_ind = mj_stackAllocInt(d, n);
   mjtNum* sparse_buf = mj_stackAllocNum(d, n);
 
@@ -198,7 +198,7 @@ int mju_cholFactorSparse(mjtNum* mat, int n, mjtNum mindiag,
     }
   }
 
-  mjFREESTACK;
+  mj_freeStack(d);
   return rank;
 }
 
@@ -253,7 +253,7 @@ void mju_cholSolveSparse(mjtNum* res, const mjtNum* mat, const mjtNum* vec, int 
 int mju_cholUpdateSparse(mjtNum* mat, mjtNum* x, int n, int flg_plus,
                          int* rownnz, int* rowadr, int* colind, int x_nnz, int* x_ind,
                          mjData* d) {
-  mjMARKSTACK;
+  mj_markStack(d);
   int* buf_ind = mj_stackAllocInt(d, n);
   mjtNum* sparse_buf = mj_stackAllocNum(d, n);
 
@@ -294,7 +294,7 @@ int mju_cholUpdateSparse(mjtNum* mat, mjtNum* x, int n, int flg_plus,
     i = i - 1 + (new_x_nnz - i);
   }
 
-  mjFREESTACK;
+  mj_freeStack(d);
   return rank;
 }
 
