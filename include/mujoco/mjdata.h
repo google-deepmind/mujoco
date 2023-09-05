@@ -402,6 +402,9 @@ struct mjData_ {
   mjtNum* efc_b;            // linear cost term: J*qacc_smooth - aref            (nefc x 1)
   mjtNum* efc_force;        // constraint force in constraint space              (nefc x 1)
   int*    efc_state;        // constraint state (mjtConstraintState)             (nefc x 1)
+
+  // ThreadPool for multithreaded operations
+  uintptr_t threadpool;
 };
 typedef struct mjData_ mjData;
 

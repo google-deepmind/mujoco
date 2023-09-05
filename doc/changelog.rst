@@ -45,6 +45,7 @@ General
    ``maxuse_stack`` to count number of bytes rather than number of :ref:`mjtNum` |-| s.
 #. Added new functions ``mj_markStack`` and ``mj_freeStack`` that manages ``mjData`` stack frames in a fully
    encapsulated way (i.e. without having to introduce a local variable at the call site).
+#. Added :ref:`mjThreadPool` and :ref:`mjTask` which allow for multi-threaded operations within MuJoCo engine pipeline.
 
 Python bindings
 ^^^^^^^^^^^^^^^

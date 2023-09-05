@@ -375,6 +375,9 @@ struct mjData_ {
   mjtNum* efc_b;            // linear cost term: J*qacc_smooth - aref            (nefc x 1)
   mjtNum* efc_force;        // constraint force in constraint space              (nefc x 1)
   int*    efc_state;        // constraint state (mjtConstraintState)             (nefc x 1)
+
+  // ThreadPool for multithreaded operations
+  uintptr_t threadpool;
 };
 typedef struct mjData_ mjData;
 typedef enum mjtDisableBit_ {     // disable default feature bitflags
@@ -1436,6 +1439,14 @@ struct mjrContext_ {              // custom OpenGL context
   int     readPixelFormat;        // default color pixel format for mjr_readPixels
 };
 typedef struct mjrContext_ mjrContext;
+struct mjTask_ {
+  char buffer[48];
+};
+typedef struct mjTask_ mjTask;
+struct mjThreadPool_ {
+  char buffer[6208];
+};
+typedef struct mjThreadPool_ mjThreadPool;
 typedef enum mjtButton_ {         // mouse button
   mjBUTTON_NONE = 0,              // no button
   mjBUTTON_LEFT,                  // left button
@@ -2572,4 +2583,10 @@ int mjp_registerResourceProvider(const mjpResourceProvider* provider);
 int mjp_resourceProviderCount();
 const mjpResourceProvider* mjp_getResourceProvider(const char* resource_name);
 const mjpResourceProvider* mjp_getResourceProviderAtSlot(int slot);
+mjThreadPool* mju_threadPoolCreate(size_t number_of_threads);
+void mju_threadPoolEnqueue(
+ThreadPool* thread_pool, mjTask* task, void*(start_routine)(void*),
+id* args);
+void mju_taskJoin(mjTask* task);
+void mju_threadPoolDestroy(mjThreadPool* thread_pool);
 // NOLINTEND

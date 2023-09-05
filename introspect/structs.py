@@ -4475,6 +4475,11 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  ),
                  doc='constraint state (mjtConstraintState)             (nefc x 1)',  # pylint: disable=line-too-long
              ),
+             StructFieldDecl(
+                 name='threadpool',
+                 type=ValueType(name='uintptr_t'),
+                 doc='ThreadPool for multithreaded operations',
+             ),
          ),
      )),
     ('mjvPerturb',
@@ -6975,6 +6980,36 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  name='readPixelFormat',
                  type=ValueType(name='int'),
                  doc='default color pixel format for mjr_readPixels',
+             ),
+         ),
+     )),
+    ('mjTask',
+     StructDecl(
+         name='mjTask',
+         declname='struct mjTask_',
+         fields=(
+             StructFieldDecl(
+                 name='buffer',
+                 type=ArrayType(
+                     inner_type=ValueType(name='char'),
+                     extents=(48,),
+                 ),
+                 doc='',
+             ),
+         ),
+     )),
+    ('mjThreadPool',
+     StructDecl(
+         name='mjThreadPool',
+         declname='struct mjThreadPool_',
+         fields=(
+             StructFieldDecl(
+                 name='buffer',
+                 type=ArrayType(
+                     inner_type=ValueType(name='char'),
+                     extents=(6208,),
+                 ),
+                 doc='',
              ),
          ),
      )),

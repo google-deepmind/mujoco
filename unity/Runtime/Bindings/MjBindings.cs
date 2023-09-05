@@ -56,6 +56,7 @@ public const bool mjEXTERNC = true;
 public const bool THIRD_PARTY_MUJOCO_MJRENDER_H_ = true;
 public const int mjNAUX = 10;
 public const int mjMAXTEXTURE = 1000;
+public const bool THIRD_PARTY_MUJOCO_INCLUDE_MJTHREAD_H_ = true;
 public const bool THIRD_PARTY_MUJOCO_INCLUDE_MJTNUM_H_ = true;
 public const bool mjUSEDOUBLE = true;
 public const double mjMINVAL = 1e-15;
@@ -1736,6 +1737,7 @@ public unsafe struct mjData_ {
   public double* efc_b;
   public double* efc_force;
   public int* efc_state;
+  public UIntPtr threadpool;
 }
 
 [StructLayout(LayoutKind.Sequential)]
@@ -2352,6 +2354,16 @@ public unsafe struct mjrContext_ {
   public int windowDoublebuffer;
   public int currentBuffer;
   public int readPixelFormat;
+}
+
+[StructLayout(LayoutKind.Sequential)]
+public unsafe struct mjTask_ {
+  public fixed sbyte buffer[48];
+}
+
+[StructLayout(LayoutKind.Sequential)]
+public unsafe struct mjThreadPool_ {
+  public fixed sbyte buffer[6208];
 }
 
 [StructLayout(LayoutKind.Sequential)]
@@ -3930,5 +3942,14 @@ public static unsafe extern void mjd_subQuat(double* qa, double* qb, double* Da,
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern void mjd_quatIntegrate(double* vel, double scale, double* Dquat, double* Dvel, double* Dscale);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern mjThreadPool_* mju_threadPoolCreate(UIntPtr number_of_threads);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern void mju_taskJoin(mjTask_* task);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern void mju_threadPoolDestroy(mjThreadPool_* thread_pool);
 }
 }

@@ -644,7 +644,8 @@
     X( int,       nnzJ               ) \
     X( int,       ncon               ) \
     X( int,       nisland            ) \
-    X( mjtNum,    time               )
+    X( mjtNum,    time               ) \
+    X( uintptr_t, threadpool         )
 
 
 // vector fields of mjData

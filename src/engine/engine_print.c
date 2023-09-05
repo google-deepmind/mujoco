@@ -778,7 +778,8 @@ void mj_printFormattedData(const mjModel* m, mjData* d, const char* filename,
 #define X(type, name)                                                         \
   if (strcmp(#name, "pstack") != 0 &&                                         \
       strcmp(#name, "pbase") != 0 &&                                          \
-      strcmp(#name, "parena") != 0) {                                         \
+      strcmp(#name, "parena") != 0 &&                                         \
+      strcmp(#name, "threadpool") != 0) {                                     \
     const char* format = _Generic(                                            \
         d->name,                                                              \
         int : INT_FORMAT,                                                     \
@@ -794,6 +795,16 @@ void mj_printFormattedData(const mjModel* m, mjData* d, const char* filename,
 
   MJDATA_SCALAR
 #undef X
+
+  int threadpool = 0;
+  if (d->threadpool) {
+    threadpool = 1;
+  }
+  fprintf(fp, "  ");
+  fprintf(fp, NAME_FORMAT, "threadpool");
+  fprintf(fp, INT_FORMAT, threadpool);
+  fprintf(fp, "\n");
+
   fprintf(fp, "\n");
 
   // WARNING

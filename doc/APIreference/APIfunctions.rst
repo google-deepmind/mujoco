@@ -32,6 +32,7 @@ API function can be classified as:
 - :ref:`Derivatives<Derivatives-api>`.
 - :ref:`Plugin<Plugins-api>` related functions.
 - :ref:`Macros<Macros>`.
+- :ref:`Thread<Thread>` related functions.
 
 .. TODO(b/273075045): Better category-label namespacing.
 

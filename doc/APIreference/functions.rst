@@ -3433,3 +3433,43 @@ mjp_getResourceProviderAtSlot
 Look up a resource provider by slot number returned by mjp_registerResourceProvider.
 If invalid slot number, return NULL.
 
+.. _Thread:
+
+Thread
+^^^^^^
+.. _mju_threadPoolCreate:
+
+mju_threadPoolCreate
+~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mju_threadPoolCreate
+
+Creates a thread pool with the specified number of threads running.
+
+.. _mju_threadPoolEnqueue:
+
+mju_threadPoolEnqueue
+~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mju_threadPoolEnqueue
+
+Enqueues a task in a thread pool.
+
+.. _mju_taskJoin:
+
+mju_taskJoin
+~~~~~~~~~~~~
+
+.. mujoco-include:: mju_taskJoin
+
+Waits for a task to complete.
+
+.. _mju_threadPoolDestroy:
+
+mju_threadPoolDestroy
+~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mju_threadPoolDestroy
+
+Destroys a thread pool.
+

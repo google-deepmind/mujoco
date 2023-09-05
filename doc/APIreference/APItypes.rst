@@ -712,7 +712,26 @@ Options for configuring the automatic :ref:`actuator length-range computation<CL
 
 .. mujoco-include:: mjLROpt
 
+.. _mjTask:
 
+mjTask
+~~~~~~
+
+This is a representation of a task to be run asynchronously inside of an :ref:`mjThreadPool` . It is created in the
+:ref:`mju_threadPoolEnqueue` method of the :ref:`mjThreadPool`  and is used to join the task at completion.
+
+.. mujoco-include:: mjTask
+
+.. _mjThreadPool:
+
+mjThreadPool
+~~~~~~~~~~~~
+
+This is the data structure of the threadpool. It can only be constructed programmatically, and does not
+have an analog in MJCF. In order to enable multi-threaded calculations, a pointer to an existing :ref:`mjThreadPool`
+should be assigned to the ``mjData.threadpool``.
+
+.. mujoco-include:: mjThreadPool
 
 .. _tyStatStructure:
 

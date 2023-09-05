@@ -1114,6 +1114,8 @@ static mjData* _makeData(const mjModel* m) {
     }
   }
 
+  d->threadpool = 0;
+
   return d;
 }
 
@@ -1201,6 +1203,8 @@ mjData* mj_copyData(mjData* dest, const mjModel* m, const mjData* src) {
       plugin->copy(dest, m, src, i);
     }
   }
+
+  dest->threadpool = src->threadpool;
 
   return dest;
 }
