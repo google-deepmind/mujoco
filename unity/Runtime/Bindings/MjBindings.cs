@@ -1769,6 +1769,7 @@ public unsafe struct mjOption_ {
   public double apirate;
   public double impratio;
   public double tolerance;
+  public double ls_tolerance;
   public double noslip_tolerance;
   public double mpr_tolerance;
   public fixed double gravity[3];
@@ -1785,6 +1786,7 @@ public unsafe struct mjOption_ {
   public int jacobian;
   public int solver;
   public int iterations;
+  public int ls_iterations;
   public int noslip_iterations;
   public int mpr_iterations;
   public int disableflags;

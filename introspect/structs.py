@@ -149,6 +149,11 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='main solver tolerance',
              ),
              StructFieldDecl(
+                 name='ls_tolerance',
+                 type=ValueType(name='mjtNum'),
+                 doc='CG/Newton linesearch tolerance',
+             ),
+             StructFieldDecl(
                  name='noslip_tolerance',
                  type=ValueType(name='mjtNum'),
                  doc='noslip solver tolerance',
@@ -242,6 +247,11 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  name='iterations',
                  type=ValueType(name='int'),
                  doc='maximum number of main solver iterations',
+             ),
+             StructFieldDecl(
+                 name='ls_iterations',
+                 type=ValueType(name='int'),
+                 doc='maximum number of CG/Newton linesearch iterations',
              ),
              StructFieldDecl(
                  name='noslip_iterations',

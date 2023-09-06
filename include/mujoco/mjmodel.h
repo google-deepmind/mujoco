@@ -397,6 +397,7 @@ struct mjOption_ {                // physics options
   // solver parameters
   mjtNum impratio;                // ratio of friction-to-normal contact impedance
   mjtNum tolerance;               // main solver tolerance
+  mjtNum ls_tolerance;            // CG/Newton linesearch tolerance
   mjtNum noslip_tolerance;        // noslip solver tolerance
   mjtNum mpr_tolerance;           // MPR solver tolerance
 
@@ -419,6 +420,7 @@ struct mjOption_ {                // physics options
   int jacobian;                   // type of Jacobian (mjtJacobian)
   int solver;                     // solver algorithm (mjtSolver)
   int iterations;                 // maximum number of main solver iterations
+  int ls_iterations;              // maximum number of CG/Newton linesearch iterations
   int noslip_iterations;          // maximum number of noslip solver iterations
   int mpr_iterations;             // maximum number of MPR solver iterations
   int disableflags;               // bit flags for disabling standard features

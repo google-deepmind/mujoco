@@ -113,6 +113,9 @@ void mj_defaultSolRefImp(mjtNum* solref, mjtNum* solimp) {
 
 // set model options to default values
 void mj_defaultOption(mjOption* opt) {
+  // fill opt with zeros in case struct is padded
+  memset(opt, 0, sizeof(mjOption));
+
   // timing parameters
   opt->timestep           = 0.002;
   opt->apirate            = 100;
@@ -120,6 +123,7 @@ void mj_defaultOption(mjOption* opt) {
   // solver parameters
   opt->impratio           = 1;
   opt->tolerance          = 1e-8;
+  opt->ls_tolerance       = 0.01;
   opt->noslip_tolerance   = 1e-6;
   opt->mpr_tolerance      = 1e-6;
 
@@ -147,6 +151,7 @@ void mj_defaultOption(mjOption* opt) {
   opt->jacobian           = mjJAC_AUTO;
   opt->solver             = mjSOL_NEWTON;
   opt->iterations         = 100;
+  opt->ls_iterations      = 50;
   opt->noslip_iterations  = 0;
   opt->mpr_iterations     = 50;
   opt->disableflags       = 0;

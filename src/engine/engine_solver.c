@@ -1093,9 +1093,6 @@ static int updateBracket(const mjModel* m, mjData* d, mjCGContext* ctx,
 static mjtNum CGsearch(const mjModel* m, mjData* d, mjCGContext* ctx) {
   mjCGPnt p0, p1, p2, pmid, p1next, p2next;
 
-  const int LSmaxiter = 50;
-  const mjtNum LStolscl = 0.01;
-
   // clear results
   ctx->LSiter = 0;
   ctx->LSresult = 0;
@@ -1109,7 +1106,7 @@ static mjtNum CGsearch(const mjModel* m, mjData* d, mjCGContext* ctx) {
   }
 
   // compute scaled gradtol and slope scaling
-  mjtNum gtol = m->opt.tolerance * LStolscl * snorm * m->stat.meaninertia * mjMAX(1, m->nv);
+  mjtNum gtol = m->opt.tolerance * m->opt.ls_tolerance * snorm * m->stat.meaninertia * mjMAX(1, m->nv);
   mjtNum slopescl = 1 / (snorm * m->stat.meaninertia * mjMAX(1, m->nv));
 
   // compute Mv, Jv
@@ -1180,7 +1177,7 @@ static mjtNum CGsearch(const mjModel* m, mjData* d, mjCGContext* ctx) {
 
   // one-sided search
   int p2update = 0;
-  while (p1.deriv[0]*dir <= -gtol && ctx->LSiter < LSmaxiter) {
+  while (p1.deriv[0]*dir <= -gtol && ctx->LSiter < m->opt.ls_iterations) {
     // save current
     p2 = p1;
     p2update = 1;
@@ -1197,7 +1194,7 @@ static mjtNum CGsearch(const mjModel* m, mjData* d, mjCGContext* ctx) {
   }
 
   // check for failure to bracket
-  if (ctx->LSiter >= LSmaxiter) {
+  if (ctx->LSiter >= m->opt.ls_iterations) {
     ctx->LSresult = 3;                          // could not bracket
     ctx->LSslope = mju_abs(p1.deriv[0])*slopescl;
     return p1.alpha;
@@ -1216,7 +1213,7 @@ static mjtNum CGsearch(const mjModel* m, mjData* d, mjCGContext* ctx) {
   CGeval(m, d, ctx, &p1next);
 
   // bracketed search
-  while (ctx->LSiter < LSmaxiter) {
+  while (ctx->LSiter < m->opt.ls_iterations) {
     // evaluate at midpoint
     pmid.alpha = 0.5*(p1.alpha + p2.alpha);
     CGeval(m, d, ctx, &pmid);

@@ -24,6 +24,7 @@
     X( mjtNum,  apirate          )  \
     X( mjtNum,  impratio         )  \
     X( mjtNum,  tolerance        )  \
+    X( mjtNum,  ls_tolerance     )  \
     X( mjtNum,  noslip_tolerance )  \
     X( mjtNum,  mpr_tolerance    )  \
     X( mjtNum,  density          )  \
@@ -38,6 +39,7 @@
     X( int,     jacobian          ) \
     X( int,     solver            ) \
     X( int,     iterations        ) \
+    X( int,     ls_iterations     ) \
     X( int,     noslip_iterations ) \
     X( int,     mpr_iterations    ) \
     X( int,     disableflags      ) \

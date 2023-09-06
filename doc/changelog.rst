@@ -62,17 +62,19 @@ General
     Euler integrator. See the :ref:`Numerical Integration<geIntegration>` section for more details.
 11. Added the flag :ref:`invdiscrete<option-flag-invdiscrete>`, which enables discrete-time inverse dynamics for all
     :ref:`integrators<option-integrator>` other than ``RK4``. See the flag documentation for more details.
+12. Added :ref:`ls_iterations<option-ls_iterations>` and :ref:`ls_iterations<option-ls_tolerance>` options for adjusting
+    linesearch stopping criteria in CG and Newton solvers.  This can be useful for performance tuning.
 
 Python bindings
 ^^^^^^^^^^^^^^^
 
-12. Fixed `#870 <https://github.com/deepmind/mujoco/issues/870>`__ where calling ``update_scene`` with an invalid
+13. Fixed `#870 <https://github.com/deepmind/mujoco/issues/870>`__ where calling ``update_scene`` with an invalid
     camera name used the default camera.
 
 Bug fixes
 ^^^^^^^^^
 
-13. Fixed a bug that was causing the geom margins to be ignored during the midphase.
+14. Fixed a bug that was causing the geom margins to be ignored during the midphase.
 
 
 Version 2.3.7 (July 20, 2023)
