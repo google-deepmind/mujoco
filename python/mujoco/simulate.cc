@@ -31,6 +31,7 @@
 
 namespace mujoco::python {
 namespace {
+using UIAdapter = mujoco::GlfwAdapter;
 namespace py = ::pybind11;
 
 template <typename T, int N>
@@ -196,7 +197,7 @@ PYBIND11_MODULE(_simulate, pymodule) {
                        py::object pert, bool fully_managed,
                        py::object key_callback) {
         return std::make_unique<SimulateWrapper>(
-            std::make_unique<UIAdapterWithPyCallback<mujoco::GlfwAdapter>>(
+            std::make_unique<UIAdapterWithPyCallback<UIAdapter>>(
                 key_callback),
             scn, cam, opt, pert, fully_managed);
       }))
