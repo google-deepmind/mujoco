@@ -1972,6 +1972,18 @@ adjust it properly through the XML.
    improvement between two iterations. For CG and Newton, it is applied to the smaller of the cost improvement and the
    gradient norm. Set the tolerance to 0 to disable early termination.
 
+.. _option-ls_iterations:
+
+:at:`ls_iterations`: :at-val:`int, "50"`
+   Maximum number of linesearch iterations performed by CG/Newton constraint solvers. Ensures that at most
+   :ref:`iterations<option-iterations>` times :ref:`ls_iterations<option-ls_iterations>` linesearch iterations are
+   performed during each constraint solve.
+
+.. _option-ls_tolerance:
+
+:at:`ls_tolerance`: :at-val:`real, "0.01"`
+   Tolerance threshold used for early termination of the linesearch algorithm.
+
 .. _option-noslip_iterations:
 
 :at:`noslip_iterations`: :at-val:`int, "0"`
@@ -3318,6 +3330,11 @@ coordinates results in compiler error. See :ref:`CComposite` in the modeling gui
 
 :at:`vertex`: :at-val:`real(3*nvert), optional`
    Vertex 3D positions in global coordinates (cable only).
+
+.. _body-composite-face:
+
+:at:`face`: :at-val:`real(3*nvert), optional`
+   Face connectivity of the vertices (shell only).
 
 .. _body-composite-initial:
 

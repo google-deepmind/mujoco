@@ -15,9 +15,12 @@
 #ifndef MUJOCO_SRC_ENGINE_ENGINE_SUPPORT_H_
 #define MUJOCO_SRC_ENGINE_ENGINE_SUPPORT_H_
 
+#include <stdint.h>
+
 #include <mujoco/mjdata.h>
 #include <mujoco/mjexport.h>
 #include <mujoco/mjmodel.h>
+#include <mujoco/mjtnum.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -108,6 +111,10 @@ MJAPI void mj_fullM(const mjModel* m, mjtNum* dst, const mjtNum* M);
 // multiply vector by inertia matrix
 MJAPI void mj_mulM(const mjModel* m, const mjData* d, mjtNum* res, const mjtNum* vec);
 
+// multiply vector by inertia matrix for one dof island
+MJAPI void mj_mulM_island(const mjModel* m, const mjData* d, mjtNum* res, const mjtNum* vec,
+                          int island, int flg_vecunc);
+
 // multiply vector by (inertia matrix)^(1/2)
 MJAPI void mj_mulM2(const mjModel* m, const mjData* d, mjtNum* res, const mjtNum* vec);
 
@@ -193,7 +200,7 @@ MJAPI void mj_warning(mjData* d, int warning, int info);
 MJAPI int mj_version(void);
 
 // current version of MuJoCo as a null-terminated string
-MJAPI const char* mj_versionString();
+MJAPI const char* mj_versionString(void);
 #ifdef __cplusplus
 }
 #endif

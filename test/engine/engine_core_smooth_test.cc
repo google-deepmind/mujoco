@@ -14,8 +14,11 @@
 
 // Tests for engine/engine_core_smooth.c.
 
+#include "src/engine/engine_core_smooth.h"
+
 #include <string>
 #include <string_view>
+#include <vector>
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
@@ -287,6 +290,62 @@ TEST_F(CoreSmoothTest, RefsiteBringsToPose) {
   mju_subQuat(relrot, site_xquat, refsite_xquat);
   EXPECT_THAT(relrot, Pointwise(DoubleNear(tol_rot), targetrot));
 
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
+static const char* const kIlslandEfcPath =
+    "engine/testdata/island/island_efc.xml";
+
+TEST_F(CoreSmoothTest, SolveMIsland) {
+  const std::string xml_path = GetTestDataFilePath(kIlslandEfcPath);
+  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, nullptr, 0);
+  mjData* data = mj_makeData(model);
+  int nv = model->nv;
+
+  // allocate vec, fill with arbitrary values, copy to sol
+  mjtNum* vec = (mjtNum*) mju_malloc(sizeof(mjtNum) * nv);
+  mjtNum* res = (mjtNum*) mju_malloc(sizeof(mjtNum) * nv);
+  for (int i=0; i < nv; i++) {
+    vec[i] = 0.2 + 0.3*i;
+  }
+  mju_copy(res, vec, nv);
+
+  // simulate for 0.2 seconds
+  mj_resetData(model, data);
+  while (data->time < 0.2) {
+    mj_step(model, data);
+  }
+  mj_forward(model, data);
+
+  // divide by mass matrix: sol = M^-1 * vec
+  mj_solveM(model, data, res, res, 1);
+
+  // iterate over islands
+  for (int i=0; i < data->nisland; i++) {
+    // allocate dof vectors for island
+    int dofnum = data->island_dofnum[i];
+    mjtNum* res_i = (mjtNum*)mju_malloc(sizeof(mjtNum) * dofnum);
+
+    // copy values into sol_i
+    int* dofind = data->island_dofind + data->island_dofadr[i];
+    for (int j=0; j < dofnum; j++) {
+      res_i[j] = vec[dofind[j]];
+    }
+
+    // divide by mass matrix, for this island
+    mj_solveM_island(model, data, res_i, i);
+
+    // expect corresponding values to match
+    for (int j=0; j < dofnum; j++) {
+      EXPECT_THAT(res_i[j], DoubleNear(res[dofind[j]], 1e-12));
+    }
+
+    mju_free(res_i);
+  }
+
+  mju_free(res);
+  mju_free(vec);
   mj_deleteData(data);
   mj_deleteModel(model);
 }

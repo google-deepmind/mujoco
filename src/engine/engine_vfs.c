@@ -14,10 +14,10 @@
 
 #include "engine/engine_vfs.h"
 
+#include <stddef.h>
 #include <string.h>
 
 #include "engine/engine_array_safety.h"
-#include "engine/engine_plugin.h"
 #include "engine/engine_resource.h"
 #include "engine/engine_util_errmem.h"
 #include "engine/engine_util_misc.h"
@@ -90,7 +90,7 @@ int mj_addFileVFS(mjVFS* vfs, const char* directory, const char* filename) {
   mjSTRNCPY(vfs->filename[vfs->nfile], newname);
 
   // allocate and read
-  int filesize = 0;
+  size_t filesize = 0;
   vfs->filedata[vfs->nfile] = mju_fileToMemory(fullname, &filesize);
   if (!vfs->filedata[vfs->nfile]) {
     return -1;
@@ -211,11 +211,11 @@ void mj_deleteVFS(mjVFS* vfs) {
 
 // open callback for the VFS resource provider
 static int vfs_open_callback(mjResource* resource) {
-  if (!resource || !resource->provider_data || !resource->name) {
+  if (!resource || !resource->name || !resource->data) {
     return 0;
   }
 
-  const mjVFS* vfs = (const mjVFS*) resource->provider_data;
+  const mjVFS* vfs = (const mjVFS*) resource->data;
   return mj_findFileVFS(vfs, resource->name) >= 0;
 }
 
@@ -223,12 +223,12 @@ static int vfs_open_callback(mjResource* resource) {
 
 // read callback for the VFS resource provider
 static int vfs_read_callback(mjResource* resource, const void** buffer) {
-  if (!resource || !resource->provider_data) {
+  if (!resource || !resource->name || !resource->data) {
     *buffer = NULL;
     return -1;
   }
 
-  const mjVFS* vfs = (const mjVFS*) resource->provider_data;
+  const mjVFS* vfs = (const mjVFS*) resource->data;
   int i = mj_findFileVFS(vfs, resource->name);
   if (i < 0) {
     *buffer = NULL;
@@ -260,16 +260,50 @@ static void vfs_getdir_callback(mjResource* resource, const char** dir, int* ndi
 
 
 
-// registers a VFS resource provider; returns the index of the provider
-int mj_registerVfsProvider(const mjVFS* vfs) {
-  mjpResourceProvider provider = {
-    .prefix = mjVFS_PREFIX,
-    .open = &vfs_open_callback,
-    .read = &vfs_read_callback,
-    .close = &vfs_close_callback,
-    .getdir = &vfs_getdir_callback,
-    .data = (void*) vfs
+// open VFS resource
+mjResource* mju_openVfsResource(const char* name, const mjVFS* vfs) {
+  if (vfs == NULL) {
+    return NULL;
+  }
+
+  // VFS provider
+  static struct mjpResourceProvider provider = {
+    .prefix   = NULL,
+    .data     = NULL,
+    .open     = &vfs_open_callback,
+    .read     = &vfs_read_callback,
+    .close    = &vfs_close_callback,
+    .getdir   = &vfs_getdir_callback,
+    .modified = NULL
   };
 
-  return mjp_registerResourceProviderInternal(&provider);
+  // create resource
+  mjResource* resource = (mjResource*) mju_malloc(sizeof(mjResource));
+  if (resource == NULL) {
+    mjERROR("could not allocate memory");
+    return NULL;
+  }
+
+  // clear out resource
+  memset(resource, 0, sizeof(mjResource));
+
+  // copy name
+  resource->name = mju_malloc(sizeof(char) * (strlen(name) + 1));
+  if (resource->name == NULL) {
+    mju_closeResource(resource);
+    mjERROR("could not allocate memory");
+    return NULL;
+  }
+  memcpy(resource->name, name, sizeof(char) * (strlen(name) + 1));
+  resource->data = (void*) vfs;
+
+  // open resource
+  resource->provider = &provider;
+  if (provider.open(resource)) {
+    return resource;
+  }
+
+  // not found in VFS
+  mju_closeResource(resource);
+  return NULL;
 }

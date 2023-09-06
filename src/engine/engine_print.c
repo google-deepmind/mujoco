@@ -730,18 +730,18 @@ void mj_printModel(const mjModel* m, const char* filename) {
 // valid printf-style format string for a single float value
 void mj_printFormattedData(const mjModel* m, mjData* d, const char* filename,
                            const char* float_format) {
+  // stack in use, SHOULD NOT OCCUR
+  if (d->pstack) {
+    mjERROR("attempting to print mjData when stack is in use");
+  }
+
   mjtNum *M;
-  mjMARKSTACK;
+  mj_markStack(d);
 
   // check format string
   if (!validateFloatFormat(float_format)) {
     mju_warning("WARNING: Received invalid float_format. Using default instead.");
     float_format = FLOAT_FORMAT;
-  }
-
-  // stack in use, SHOULD NOT OCCUR
-  if (d->pstack) {
-    mjERROR("attempting to print mjData when stack is in use");
   }
 
   // get file
@@ -755,7 +755,7 @@ void mj_printFormattedData(const mjModel* m, mjData* d, const char* filename,
   // check for nullptr
   if (!fp) {
     mju_warning("Could not open file '%s' for writing mjModel", filename);
-    mjFREESTACK;
+    mj_freeStack(d);
     return;
   }
 
@@ -776,7 +776,10 @@ void mj_printFormattedData(const mjModel* m, mjData* d, const char* filename,
 
   fprintf(fp, "SIZES\n");
 #define X(type, name)                                                         \
-  if (strcmp(#name, "pstack") != 0 && strcmp(#name, "parena") != 0) {         \
+  if (strcmp(#name, "pstack") != 0 &&                                         \
+      strcmp(#name, "pbase") != 0 &&                                          \
+      strcmp(#name, "parena") != 0 &&                                         \
+      strcmp(#name, "threadpool") != 0) {                                     \
     const char* format = _Generic(                                            \
         d->name,                                                              \
         int : INT_FORMAT,                                                     \
@@ -792,6 +795,16 @@ void mj_printFormattedData(const mjModel* m, mjData* d, const char* filename,
 
   MJDATA_SCALAR
 #undef X
+
+  int threadpool = 0;
+  if (d->threadpool) {
+    threadpool = 1;
+  }
+  fprintf(fp, "  ");
+  fprintf(fp, NAME_FORMAT, "threadpool");
+  fprintf(fp, INT_FORMAT, threadpool);
+  fprintf(fp, "\n");
+
   fprintf(fp, "\n");
 
   // WARNING
@@ -1132,7 +1145,7 @@ void mj_printFormattedData(const mjModel* m, mjData* d, const char* filename,
     fclose(fp);
   }
 
-  mjFREESTACK;
+  mj_freeStack(d);
 }
 
 

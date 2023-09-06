@@ -793,6 +793,7 @@ void mjXWriter::Option(XMLElement* root) {
   WriteAttr(section, "apirate", 1, &model->option.apirate, &opt.apirate);
   WriteAttr(section, "impratio", 1, &model->option.impratio, &opt.impratio);
   WriteAttr(section, "tolerance", 1, &model->option.tolerance, &opt.tolerance);
+  WriteAttr(section, "ls_tolerance", 1, &model->option.ls_tolerance, &opt.ls_tolerance);
   WriteAttr(section, "noslip_tolerance", 1, &model->option.noslip_tolerance, &opt.noslip_tolerance);
   WriteAttr(section, "mpr_tolerance", 1, &model->option.mpr_tolerance, &opt.mpr_tolerance);
   WriteAttr(section, "gravity", 3, model->option.gravity, opt.gravity);
@@ -816,6 +817,7 @@ void mjXWriter::Option(XMLElement* root) {
   WriteAttrKey(section, "solver", solver_map, solver_sz,
                model->option.solver, opt.solver);
   WriteAttrInt(section, "iterations", model->option.iterations, opt.iterations);
+  WriteAttrInt(section, "ls_iterations", model->option.ls_iterations, opt.ls_iterations);
   WriteAttrInt(section, "noslip_iterations", model->option.noslip_iterations, opt.noslip_iterations);
   WriteAttrInt(section, "mpr_iterations", model->option.mpr_iterations, opt.mpr_iterations);
   WriteAttrInt(section, "sdf_iterations", model->option.sdf_iterations, opt.sdf_iterations);

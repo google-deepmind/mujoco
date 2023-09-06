@@ -16,14 +16,11 @@
 
 #include <stdio.h>
 #include <stddef.h>
-#include <string.h>
 
 #include <mujoco/mjdata.h>
 #include <mujoco/mjmacro.h>
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjxmacro.h>
-#include "engine/engine_array_safety.h"
-#include "engine/engine_crossplatform.h"
 #include "engine/engine_core_smooth.h"
 #include "engine/engine_io.h"
 #include "engine/engine_support.h"
@@ -45,16 +42,6 @@
 
 
 //-------------------------- utility functions -----------------------------------------------------
-
-// clear arena pointers in mjData
-static inline void clearEfc(mjData* d) {
-#define X(type, name, nr, nc) d->name = NULL;
-  MJDATA_ARENA_POINTERS
-#undef X
-  d->nefc = 0;
-  d->nisland = 0;
-  d->contact = (mjContact*) d->arena;
-}
 
 
 
@@ -78,7 +65,7 @@ static int arenaAllocEfc(const mjModel* m, mjData* d) {
   d->name = mj_arenaAlloc(d, sizeof(type) * (nr) * (nc), _Alignof(type)); \
   if (!d->name) {                                                         \
     mj_warning(d, mjWARN_CNSTRFULL, d->narena);                           \
-    clearEfc(d);                                                          \
+    mj_clearEfc(d);                                                       \
     d->parena = d->ncon * sizeof(mjContact);                              \
     return 0;                                                             \
   }
@@ -181,7 +168,7 @@ int mj_addContact(const mjModel* m, mjData* d, const mjContact* con) {
   ASAN_POISON_MEMORY_REGION(
     (char*)d->arena + d->parena, d->narena - d->pstack - d->parena);
 #endif
-  clearEfc(d);
+  mj_clearEfc(d);
 
   // copy contact
   mjContact* dst = mj_arenaAlloc(d, sizeof(mjContact), _Alignof(mjContact));
@@ -262,7 +249,7 @@ int mj_addConstraint(const mjModel* m, mjData* d,
 
       // copy if not empty
       if (NV) {
-        memcpy(ind + adr[nefc+i], chain, sizeof(int)*NV);
+        mju_copyInt(ind + adr[nefc+i], chain, NV);
         mju_copy(J + adr[nefc+i], jac + i*NV, NV);
       }
     }
@@ -375,7 +362,7 @@ int mj_mergeChainSimple(const mjModel* m, int* chain, int b1, int b2) {
 
 
 // multiply Jacobian by vector
-void mj_mulJacVec(const mjModel* m, mjData* d, mjtNum* res, const mjtNum* vec) {
+void mj_mulJacVec(const mjModel* m, const mjData* d, mjtNum* res, const mjtNum* vec) {
   // exit if no constraints
   if (!d->nefc) {
     return;
@@ -395,8 +382,52 @@ void mj_mulJacVec(const mjModel* m, mjData* d, mjtNum* res, const mjtNum* vec) {
 
 
 
+// multiply Jacobian by vector, for one island
+//  flg_resunc and flg_vecunc denote whether res/vec are uncompressed
+void mj_mulJacVec_island(const mjModel* m, const mjData* d, mjtNum* res, const mjtNum* vec,
+                         int island, int flg_resunc, int flg_vecunc) {
+  // no island, call regular function
+  if (island < 0) {
+    mj_mulJacVec(m, d, res, vec);
+    return;
+  }
+
+  // sizes
+  int vecnnz = d->island_dofnum[island];
+  int resnnz = d->island_efcnum[island];
+
+  // indices
+  int* vecind = d->island_dofind + d->island_dofadr[island];
+  int* resind = d->island_efcind + d->island_efcadr[island];
+
+  // sparse Jacobian
+  if (mj_isSparse(m)) {
+    for (int i=0; i < resnnz; i++) {
+      int row = resind[i];
+      int Jnnz = d->efc_J_rownnz[row];
+      int Jrowadr = d->efc_J_rowadr[row];
+      int* Jind = d->efc_J_colind + Jrowadr;
+      mjtNum* J = d->efc_J + Jrowadr;
+      int j = flg_resunc ? row : i;
+      res[j] = mju_dotSparse2(J, vec, Jnnz, Jind, vecnnz, vecind, flg_vecunc);
+    }
+  }
+
+  // dense Jacobian
+  else {
+    int nv = m->nv;
+    for (int i=0; i < resnnz; i++) {
+      int row = resind[i];
+      int j = flg_resunc ? row : i;
+      res[j] = mju_dotSparse(vec, d->efc_J + nv*row, vecnnz, vecind, flg_vecunc);
+    }
+  }
+}
+
+
+
 // multiply JacobianT by vector
-void mj_mulJacTVec(const mjModel* m, mjData* d, mjtNum* res, const mjtNum* vec) {
+void mj_mulJacTVec(const mjModel* m, const mjData* d, mjtNum* res, const mjtNum* vec) {
   // exit if no constraints
   if (!d->nefc) {
     return;
@@ -416,6 +447,50 @@ void mj_mulJacTVec(const mjModel* m, mjData* d, mjtNum* res, const mjtNum* vec) 
 
 
 
+// multiply Jacobian transpose by vector, for one island
+//  flg_resunc and flg_vecunc denote whether res/vec are uncompressed
+void mj_mulJacTVec_island(const mjModel* m, const mjData* d, mjtNum* res, const mjtNum* vec,
+                          int island, int flg_resunc, int flg_vecunc) {
+  // no island, call regular function
+  if (island < 0) {
+    mj_mulJacTVec(m, d, res, vec);
+    return;
+  }
+
+  // sizes
+  int vecnnz = d->island_efcnum[island];
+  int resnnz = d->island_dofnum[island];
+
+  // indices
+  int* vecind = d->island_efcind + d->island_efcadr[island];
+  int* resind = d->island_dofind + d->island_dofadr[island];
+
+  // sparse Jacobian
+  if (mj_isSparse(m)) {
+    for (int i=0; i < resnnz; i++) {
+      int row = resind[i];
+      int JTnnz = d->efc_JT_rownnz[row];
+      int JTrowadr = d->efc_JT_rowadr[row];
+      int* JTind = d->efc_JT_colind + JTrowadr;
+      mjtNum* JT = d->efc_JT + JTrowadr;
+      int j = flg_resunc ? row : i;
+      res[j] = mju_dotSparse2(JT, vec, JTnnz, JTind, vecnnz, vecind, flg_vecunc);
+    }
+  }
+
+  // dense Jacobian
+  else {
+    int nefc = d->nefc;
+    for (int i=0; i < resnnz; i++) {
+      int row = resind[i];
+      int j = flg_resunc ? row : i;
+      res[j] = mju_dotSparse(vec, d->efc_JT + nefc*row, vecnnz, vecind, flg_vecunc);
+    }
+  }
+}
+
+
+
 //--------------------- instantiate constraints by type --------------------------------------------
 
 // equality constraints
@@ -425,12 +500,13 @@ void mj_instantiateEquality(const mjModel* m, mjData* d) {
   mjtNum cpos[6], pos[2][3], ref[2], dif, deriv;
   mjtNum quat[4], quat1[4], quat2[4], quat3[4], axis[3];
   mjtNum *jac[2], *jacdif, *data, *sparse_buf = NULL;
-  mjMARKSTACK;
 
   // disabled or no equality constraints: return
   if (mjDISABLED(mjDSBL_EQUALITY) || m->nemax == 0) {
     return;
   }
+
+  mj_markStack(d);
 
   // allocate space
   jac[0] = mj_stackAllocNum(d, 6*nv);
@@ -565,11 +641,11 @@ void mj_instantiateEquality(const mjModel* m, mjData* d) {
               // add first or second chain
               if (j == 0) {
                 NV = d->ten_J_rownnz[id[j]];
-                memcpy(chain, d->ten_J_colind+d->ten_J_rowadr[id[j]], NV*sizeof(int));
+                mju_copyInt(chain, d->ten_J_colind+d->ten_J_rowadr[id[j]], NV);
                 mju_copy(jac[j], d->ten_J+d->ten_J_rowadr[id[j]], NV);
               } else {
                 NV2 = d->ten_J_rownnz[id[j]];
-                memcpy(chain2, d->ten_J_colind+d->ten_J_rowadr[id[j]], NV2*sizeof(int));
+                mju_copyInt(chain2, d->ten_J_colind+d->ten_J_rowadr[id[j]], NV2);
                 mju_copy(jac[j], d->ten_J+d->ten_J_rowadr[id[j]], NV2);
               }
             } else {
@@ -624,7 +700,7 @@ void mj_instantiateEquality(const mjModel* m, mjData* d) {
     }
   }
 
-  mjFREESTACK;
+  mj_freeStack(d);
 }
 
 
@@ -633,12 +709,13 @@ void mj_instantiateEquality(const mjModel* m, mjData* d) {
 void mj_instantiateFriction(const mjModel* m, mjData* d) {
   int nv = m->nv, issparse = mj_isSparse(m);
   mjtNum* jac;
-  mjMARKSTACK;
 
   // disabled: return
   if (mjDISABLED(mjDSBL_FRICTIONLOSS)) {
     return;
   }
+
+  mj_markStack(d);
 
   // allocate Jacobian
   jac = mj_stackAllocNum(d, nv);
@@ -684,7 +761,7 @@ void mj_instantiateFriction(const mjModel* m, mjData* d) {
     }
   }
 
-  mjFREESTACK;
+  mj_freeStack(d);
 }
 
 
@@ -694,12 +771,13 @@ void mj_instantiateLimit(const mjModel* m, mjData* d) {
   int side, nv = m->nv, issparse = mj_isSparse(m);
   mjtNum margin, value, dist, angleAxis[3];
   mjtNum *jac;
-  mjMARKSTACK;
 
   // disabled: return
   if (mjDISABLED(mjDSBL_LIMIT)) {
     return;
   }
+
+  mj_markStack(d);
 
   // allocate Jacobian
   jac = mj_stackAllocNum(d, nv);
@@ -793,7 +871,7 @@ void mj_instantiateLimit(const mjModel* m, mjData* d) {
   // find tendon limits
   for (int i=0; i < m->ntendon; i++) {
     if (m->tendon_limited[i]) {
-      // get value = lenth, margin
+      // get value = length, margin
       value = d->ten_length[i];
       margin = m->tendon_margin[i];
 
@@ -829,7 +907,7 @@ void mj_instantiateLimit(const mjModel* m, mjData* d) {
     }
   }
 
-  mjFREESTACK;
+  mj_freeStack(d);
 }
 
 
@@ -840,11 +918,12 @@ void mj_instantiateContact(const mjModel* m, mjData* d) {
   int dim, b1, b2, NV = m->nv, *chain = NULL;
   mjContact* con;
   mjtNum cpos[6], cmargin[6], *jac, *jacdifp, *jacdifr, *jac1p, *jac2p, *jac1r, *jac2r;
-  mjMARKSTACK;
 
   if (mjDISABLED(mjDSBL_CONTACT) || ncon == 0) {
     return;
   }
+
+  mj_markStack(d);
 
   // allocate Jacobian
   jac = mj_stackAllocNum(d, 6*NV);
@@ -938,7 +1017,7 @@ void mj_instantiateContact(const mjModel* m, mjData* d) {
     }
   }
 
-  mjFREESTACK;
+  mj_freeStack(d);
 }
 
 
@@ -1393,7 +1472,7 @@ static inline int mj_ne(const mjModel* m, mjData* d, int* nnz) {
     return 0;
   }
 
-  mjMARKSTACK;
+  mj_markStack(d);
 
   if (nnz) {
     chain = mj_stackAllocInt(d, nv);
@@ -1448,10 +1527,10 @@ static inline int mj_ne(const mjModel* m, mjData* d, int* nnz) {
           } else {
             if (!j) {
               NV = d->ten_J_rownnz[id[j]];
-              memcpy(chain, d->ten_J_colind+d->ten_J_rowadr[id[j]], NV*sizeof(int));
+              mju_copyInt(chain, d->ten_J_colind+d->ten_J_rowadr[id[j]], NV);
             } else {
               NV2 = d->ten_J_rownnz[id[j]];
-              memcpy(chain2, d->ten_J_colind+d->ten_J_rowadr[id[j]], NV2*sizeof(int));
+              mju_copyInt(chain2, d->ten_J_colind+d->ten_J_rowadr[id[j]], NV2);
             }
           }
         }
@@ -1474,7 +1553,7 @@ static inline int mj_ne(const mjModel* m, mjData* d, int* nnz) {
     *nnz += nnze;
   }
 
-  mjFREESTACK;
+  mj_freeStack(d);
   return ne;
 }
 
@@ -1589,7 +1668,7 @@ static inline int mj_nc(const mjModel* m, mjData* d, int* nnz) {
     return 0;
   }
 
-  mjMARKSTACK;
+  mj_markStack(d);
   int *chain = mj_stackAllocInt(d, m->nv);
 
   for (int i=0; i < ncon; i++) {
@@ -1622,7 +1701,7 @@ static inline int mj_nc(const mjModel* m, mjData* d, int* nnz) {
     *nnz += nnzc;
   }
 
-  mjFREESTACK;
+  mj_freeStack(d);
   return nc;
 }
 
@@ -1733,6 +1812,10 @@ void mj_makeConstraint(const mjModel* m, mjData* d) {
     // supernodes of JT
     mju_superSparse(m->nv, d->efc_JT_rowsuper,
                     d->efc_JT_rownnz, d->efc_JT_rowadr, d->efc_JT_colind);
+  } else {
+    if (mjENABLED(mjENBL_ISLAND)) {
+      mju_transpose(d->efc_JT, d->efc_J, d->nefc, m->nv);
+    }
   }
 
   // compute diagApprox
@@ -1747,12 +1830,13 @@ void mj_makeConstraint(const mjModel* m, mjData* d) {
 // compute efc_AR
 void mj_projectConstraint(const mjModel* m, mjData* d) {
   int nefc = d->nefc, nv = m->nv;
-  mjMARKSTACK;
 
   // nothing to do
   if (nefc == 0 || !mj_isDual(m)) {
     return;
   }
+
+  mj_markStack(d);
 
   // space for backsubM2(J')' and its traspose
   mjtNum* JM2 = mj_stackAllocNum(d, nefc*nv);
@@ -1892,7 +1976,7 @@ void mj_projectConstraint(const mjModel* m, mjData* d) {
     }
   }
 
-  mjFREESTACK;
+  mj_freeStack(d);
 }
 
 
@@ -1916,18 +2000,25 @@ void mj_referenceConstraint(const mjModel* m, mjData* d) {
 
 //---------------------------- update constraint state ---------------------------------------------
 
-// compute efc_state, efc_force, qfrc_constraint
-// optional: cost(qacc) = shat(jar) where jar = Jac*qacc-aref; cone Hessians
-void mj_constraintUpdate(const mjModel* m, mjData* d, const mjtNum* jar,
-                         mjtNum cost[1], int flg_coneHessian) {
-  int ne = d->ne, nf = d->nf, nefc = d->nefc, nv = m->nv;
+// compute efc_state, efc_force, qfrc_constraint, optionally restricted to one island
+//  island < 0: update all d->nefc constraints
+//  island >= 0: update only d->island_efcnum[island] constraints
+//  jar = Jac*qacc-aref is restricted to the island, in the above sense
+//  optional: cost(qacc) = shat(jar); cone Hessians
+void mj_constraintUpdate_island(const mjModel* m, mjData* d, const mjtNum* jar,
+                                mjtNum cost[1], int flg_coneHessian, int island) {
+  int ne = d->ne, nf = d->nf;
   const mjtNum *D = d->efc_D, *R = d->efc_R, *floss = d->efc_frictionloss;
   mjtNum* force = d->efc_force;
   mjtNum s = 0;
 
+  int nefc    = island < 0 ? d->nefc : d->island_efcnum[island];
+  int* efcind = island < 0 ? NULL    : d->island_efcind + d->island_efcadr[island];
+
   // no constraints: clear qfrc_constraint and cost, return
   if (!nefc) {
-    mju_zero(d->qfrc_constraint, nv);
+    // can only occur for island == -1
+    mju_zero(d->qfrc_constraint, m->nv);
     if (cost) {
       *cost = 0;
     }
@@ -1935,59 +2026,65 @@ void mj_constraintUpdate(const mjModel* m, mjData* d, const mjtNum* jar,
   }
 
   // compute unconstrained efc_force
-  for (int i=0; i < nefc; i++) {
-    force[i] = -D[i]*jar[i];
+  for (int c=0; c < nefc; c++) {
+    int i = efcind ? efcind[c] : c;
+    force[i] = -D[i]*jar[c];
   }
 
-  // equality
-  for (int i=0; i < ne; i++) {
-    if (cost) {
-      s += 0.5*D[i]*jar[i]*jar[i];
-    }
+  // update constraints
+  for (int c=0; c < nefc; c++) {
+    int i = efcind ? efcind[c] : c;
 
-    d->efc_state[i] = mjCNSTRSTATE_QUADRATIC;
-  }
-
-  // friction
-  for (int i=ne; i < ne+nf; i++) {
-    // linear negative
-    if (jar[i] <= -R[i]*floss[i]) {
+    // ==== equality
+    if (i < ne) {
       if (cost) {
-        s += -0.5*R[i]*floss[i]*floss[i] - floss[i]*jar[i];
+        s += 0.5*D[i]*jar[c]*jar[c];
       }
-
-      force[i] = floss[i];
-
-      d->efc_state[i] = mjCNSTRSTATE_LINEARNEG;
-    }
-
-    // linear positive
-    else if (jar[i] >= R[i]*floss[i]) {
-      if (cost) {
-        s += -0.5*R[i]*floss[i]*floss[i] + floss[i]*jar[i];
-      }
-
-      force[i] = -floss[i];
-
-      d->efc_state[i] = mjCNSTRSTATE_LINEARPOS;
-    }
-
-    // quadratic
-    else {
-      if (cost) {
-        s += 0.5*D[i]*jar[i]*jar[i];
-      }
-
       d->efc_state[i] = mjCNSTRSTATE_QUADRATIC;
+      continue;
     }
-  }
 
-  // contact
-  for (int i=ne+nf; i < nefc; i++) {
+    // ==== friction
+    if (i < ne + nf) {
+      // linear negative
+      if (jar[c] <= -R[i]*floss[i]) {
+        if (cost) {
+          s += -0.5*R[i]*floss[i]*floss[i] - floss[i]*jar[c];
+        }
+
+        force[i] = floss[i];
+
+        d->efc_state[i] = mjCNSTRSTATE_LINEARNEG;
+      }
+
+      // linear positive
+      else if (jar[c] >= R[i]*floss[i]) {
+        if (cost) {
+          s += -0.5*R[i]*floss[i]*floss[i] + floss[i]*jar[c];
+        }
+
+        force[i] = -floss[i];
+
+        d->efc_state[i] = mjCNSTRSTATE_LINEARPOS;
+      }
+
+      // quadratic
+      else {
+        if (cost) {
+          s += 0.5*D[i]*jar[c]*jar[c];
+        }
+
+        d->efc_state[i] = mjCNSTRSTATE_QUADRATIC;
+      }
+      continue;
+    }
+
+    // ==== contact
+
     // non-negative constraint
     if (d->efc_type[i] != mjCNSTR_CONTACT_ELLIPTIC) {
       // constraint is satisfied: no cost
-      if (jar[i] >= 0) {
+      if (jar[c] >= 0) {
         force[i] = 0;
 
         d->efc_state[i] = mjCNSTRSTATE_SATISFIED;
@@ -1996,7 +2093,7 @@ void mj_constraintUpdate(const mjModel* m, mjData* d, const mjtNum* jar,
       // quadratic
       else {
         if (cost) {
-          s += 0.5*D[i]*jar[i]*jar[i];
+          s += 0.5*D[i]*jar[c]*jar[c];
         }
 
         d->efc_state[i] = mjCNSTRSTATE_QUADRATIC;
@@ -2012,9 +2109,9 @@ void mj_constraintUpdate(const mjModel* m, mjData* d, const mjtNum* jar,
 
       // map to regular dual cone space
       mjtNum U[6];
-      U[0] = jar[i]*mu;
+      U[0] = jar[c]*mu;
       for (int j=1; j < dim; j++) {
-        U[j] = jar[i+j]*friction[j-1];
+        U[j] = jar[c+j]*friction[j-1];
       }
 
       // decompose into normal and tangent
@@ -2032,7 +2129,7 @@ void mj_constraintUpdate(const mjModel* m, mjData* d, const mjtNum* jar,
       else if (mu*N+T <= 0 || (T <= 0 && N < 0)) {
         if (cost) {
           for (int j=0; j < dim; j++) {
-            s += 0.5*D[i+j]*jar[i+j]*jar[i+j];
+            s += 0.5*D[i+j]*jar[c+j]*jar[c+j];
           }
         }
 
@@ -2106,15 +2203,26 @@ void mj_constraintUpdate(const mjModel* m, mjData* d, const mjtNum* jar,
       }
 
       // advance to end of contact
-      i += (dim-1);
+      c += (dim-1);
     }
   }
 
   // compute qfrc_constraint
-  mj_mulJacTVec(m, d, d->qfrc_constraint, d->efc_force);
+  int flg_vecunc = 1;
+  int flg_resunc = 1;
+  mj_mulJacTVec_island(m, d, d->qfrc_constraint, d->efc_force, island, flg_vecunc, flg_resunc);
 
   // assign cost
   if (cost) {
     *cost = s;
   }
+}
+
+
+
+// compute efc_state, efc_force, qfrc_constraint
+// optional: cost(qacc) = shat(jar) where jar = Jac*qacc-aref; cone Hessians
+void mj_constraintUpdate(const mjModel* m, mjData* d, const mjtNum* jar,
+                         mjtNum cost[1], int flg_coneHessian) {
+  mj_constraintUpdate_island(m, d, jar, cost, flg_coneHessian, -1);
 }

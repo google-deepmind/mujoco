@@ -56,6 +56,7 @@ public const bool mjEXTERNC = true;
 public const bool THIRD_PARTY_MUJOCO_MJRENDER_H_ = true;
 public const int mjNAUX = 10;
 public const int mjMAXTEXTURE = 1000;
+public const bool THIRD_PARTY_MUJOCO_INCLUDE_MJTHREAD_H_ = true;
 public const bool THIRD_PARTY_MUJOCO_INCLUDE_MJTNUM_H_ = true;
 public const bool mjUSEDOUBLE = true;
 public const double mjMINVAL = 1e-15;
@@ -574,6 +575,7 @@ public unsafe struct mjData_ {
   public UIntPtr nbuffer;
   public int nplugin;
   public UIntPtr pstack;
+  public UIntPtr pbase;
   public UIntPtr parena;
   public UIntPtr maxuse_stack;
   public UIntPtr maxuse_arena;
@@ -1735,6 +1737,7 @@ public unsafe struct mjData_ {
   public double* efc_b;
   public double* efc_force;
   public int* efc_state;
+  public UIntPtr threadpool;
 }
 
 [StructLayout(LayoutKind.Sequential)]
@@ -1756,7 +1759,7 @@ public unsafe struct _mjVFS
 {
   public int nfile;
   [MarshalAs(UnmanagedType.ByValArray, SizeConst = 2000 * 1000)] public char[] filename;
-  [MarshalAs(UnmanagedType.ByValArray, SizeConst = 2000)] public int[] filesize;
+  [MarshalAs(UnmanagedType.ByValArray, SizeConst = 2000)] public UIntPtr[] filesize;
   [MarshalAs(UnmanagedType.ByValArray, SizeConst = 2000)] public IntPtr[] filedata;
 }
 
@@ -1766,6 +1769,7 @@ public unsafe struct mjOption_ {
   public double apirate;
   public double impratio;
   public double tolerance;
+  public double ls_tolerance;
   public double noslip_tolerance;
   public double mpr_tolerance;
   public fixed double gravity[3];
@@ -1782,6 +1786,7 @@ public unsafe struct mjOption_ {
   public int jacobian;
   public int solver;
   public int iterations;
+  public int ls_iterations;
   public int noslip_iterations;
   public int mpr_iterations;
   public int disableflags;
@@ -2351,6 +2356,16 @@ public unsafe struct mjrContext_ {
   public int windowDoublebuffer;
   public int currentBuffer;
   public int readPixelFormat;
+}
+
+[StructLayout(LayoutKind.Sequential)]
+public unsafe struct mjTask_ {
+  public fixed sbyte buffer[24];
+}
+
+[StructLayout(LayoutKind.Sequential)]
+public unsafe struct mjThreadPool_ {
+  public fixed sbyte buffer[6208];
 }
 
 [StructLayout(LayoutKind.Sequential)]
@@ -3088,6 +3103,12 @@ public static unsafe extern void mj_resetDataDebug(mjModel_* m, mjData_* d, byte
 public static unsafe extern void mj_resetDataKeyframe(mjModel_* m, mjData_* d, int key);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern void mj_markStack(mjData_* d);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern void mj_freeStack(mjData_* d);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern void* mj_stackAlloc(mjData_* d, UIntPtr bytes, UIntPtr alignment);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
@@ -3349,6 +3370,10 @@ public static unsafe extern void mj_loadPluginLibrary([MarshalAs(UnmanagedType.L
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern int mj_version();
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+[return: MarshalAs(UnmanagedType.LPStr)]
+public static unsafe extern string mj_versionString();
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern void mj_multiRay(mjModel_* m, mjData_* d, double* pnt, double* vec, byte* geomgroup, byte flg_static, int bodyexclude, int* geomid, double* dist, int nray, double cutoff);
@@ -3636,7 +3661,7 @@ public static unsafe extern void mju_addToScl3(double* res, double* vec, double 
 public static unsafe extern void mju_addScl3(double* res, double* vec1, double* vec2, double scl);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
-public static unsafe extern double mju_normalize3(double* res);
+public static unsafe extern double mju_normalize3(double* vec);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern double mju_norm3(double* vec);
@@ -3666,7 +3691,7 @@ public static unsafe extern void mju_unit4(double* res);
 public static unsafe extern void mju_copy4(double* res, double* data);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
-public static unsafe extern double mju_normalize4(double* res);
+public static unsafe extern double mju_normalize4(double* vec);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern void mju_zero(double* res, int n);
@@ -3675,7 +3700,7 @@ public static unsafe extern void mju_zero(double* res, int n);
 public static unsafe extern void mju_fill(double* res, double val, int n);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
-public static unsafe extern void mju_copy(double* res, double* data, int n);
+public static unsafe extern void mju_copy(double* res, double* vec, int n);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern double mju_sum(double* vec, int n);
@@ -3923,5 +3948,14 @@ public static unsafe extern void mjd_subQuat(double* qa, double* qb, double* Da,
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern void mjd_quatIntegrate(double* vel, double scale, double* Dquat, double* Dvel, double* Dscale);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern mjThreadPool_* mju_threadPoolCreate(UIntPtr number_of_threads);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern void mju_taskJoin(mjTask_* task);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern void mju_threadPoolDestroy(mjThreadPool_* thread_pool);
 }
 }

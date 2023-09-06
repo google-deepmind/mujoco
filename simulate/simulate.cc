@@ -195,7 +195,7 @@ void InitializeProfiler(mj::Simulate* sim) {
   mju::strcpy_arr(sim->figsize.xlabel, "Video frame");
   mju::strcpy_arr(sim->figtimer.xlabel, "Video frame");
 
-  // y-tick nubmer formats
+  // y-tick number formats
   mju::strcpy_arr(sim->figconstraint.yformat, "%.0f");
   mju::strcpy_arr(sim->figcost.yformat, "%.1f");
   mju::strcpy_arr(sim->figsize.yformat, "%.0f");
@@ -261,11 +261,12 @@ void InitializeProfiler(mj::Simulate* sim) {
   sim->figtimer.range[1][1] = 0.4f;
 
   // init x axis on history figures (do not show yet)
-  for (int n=0; n<6; n++)
+  for (int n=0; n<6; n++) {
     for (int i=0; i<mjMAXLINEPNT; i++) {
       sim->figtimer.linedata[n][2*i] = -i;
       sim->figsize.linedata[n][2*i] = -i;
     }
+  }
 }
 
 // update profiler figures
@@ -601,9 +602,11 @@ void MakePhysicsSection(mj::Simulate* sim, int oldstate) {
     {mjITEM_EDITNUM,   "Timestep",      2, &(opt->timestep),          "1 0 1"},
     {mjITEM_EDITINT,   "Iterations",    2, &(opt->iterations),        "1 0 1000"},
     {mjITEM_EDITNUM,   "Tolerance",     2, &(opt->tolerance),         "1 0 1"},
+    {mjITEM_EDITINT,   "LS Iter",       2, &(opt->ls_iterations),     "1 0 100"},
+    {mjITEM_EDITNUM,   "LS Tol",        2, &(opt->ls_tolerance),      "1 0 0.1"},
     {mjITEM_EDITINT,   "Noslip Iter",   2, &(opt->noslip_iterations), "1 0 1000"},
     {mjITEM_EDITNUM,   "Noslip Tol",    2, &(opt->noslip_tolerance),  "1 0 1"},
-    {mjITEM_EDITINT,   "MRR Iter",      2, &(opt->mpr_iterations),    "1 0 1000"},
+    {mjITEM_EDITINT,   "MPR Iter",      2, &(opt->mpr_iterations),    "1 0 1000"},
     {mjITEM_EDITNUM,   "MPR Tol",       2, &(opt->mpr_tolerance),     "1 0 1"},
     {mjITEM_EDITNUM,   "API Rate",      2, &(opt->apirate),           "1 0 1000"},
     {mjITEM_EDITINT,   "SDF Iter",      2, &(opt->sdf_iterations),    "1 1 20"},
@@ -2236,7 +2239,6 @@ void Simulate::Render() {
     mjr_overlay(mjFONT_BIG, mjGRID_TOPLEFT, smallrect,
                 topleftlabel.c_str(), nullptr, &this->platform_ui->mjr_context());
   }
-
 
   // show ui 0
   if (this->ui0_enable) {

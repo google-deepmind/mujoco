@@ -2423,7 +2423,7 @@ static void warninghandler(const char* msg) {
 
 
 // compiler
-mjModel* mjCModel::Compile(int vfs_provider) {
+mjModel* mjCModel::Compile(const mjVFS* vfs) {
   // The volatile keyword is necessary to prevent a possible memory leak due to
   // an interaction between longjmp and compiler optimization. Specifically, at
   // the point where the setjmp takes places, these pointers have never been
@@ -2454,7 +2454,7 @@ mjModel* mjCModel::Compile(int vfs_provider) {
       // TryCompile resulted in an mju_error which was converted to a longjmp.
       throw mjCError(0, "engine error: %s", errortext);
     }
-    TryCompile(*const_cast<mjModel**>(&m), *const_cast<mjData**>(&data), vfs_provider);
+    TryCompile(*const_cast<mjModel**>(&m), *const_cast<mjData**>(&data), vfs);
   } catch (mjCError err) {
     // deallocate everything allocated in Compile
     mj_deleteModel(m);
@@ -2480,7 +2480,7 @@ mjModel* mjCModel::Compile(int vfs_provider) {
 }
 
 
-void mjCModel::TryCompile(mjModel*& m, mjData*& d, int vfs_provider) {
+void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
   // check if nan test works
   double test = mjNAN;
   if (mjuu_defined(test)) {
@@ -2557,7 +2557,7 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, int vfs_provider) {
 
   // compile meshes (needed for geom compilation)
   for (int i=0; i<meshes.size(); i++) {
-    meshes[i]->Compile(vfs_provider);
+    meshes[i]->Compile(vfs);
   }
 
   // automatically set nuser fields
@@ -2616,9 +2616,9 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, int vfs_provider) {
   }
 
   // compile all other objects except for keyframes
-  for (int i=0; i<skins.size(); i++) skins[i]->Compile(vfs_provider);
-  for (int i=0; i<hfields.size(); i++) hfields[i]->Compile(vfs_provider);
-  for (int i=0; i<textures.size(); i++) textures[i]->Compile(vfs_provider);
+  for (int i=0; i<skins.size(); i++) skins[i]->Compile(vfs);
+  for (int i=0; i<hfields.size(); i++) hfields[i]->Compile(vfs);
+  for (int i=0; i<textures.size(); i++) textures[i]->Compile(vfs);
   for (int i=0; i<materials.size(); i++) materials[i]->Compile();
   for (int i=0; i<pairs.size(); i++) pairs[i]->Compile();
   for (int i=0; i<excludes.size(); i++) excludes[i]->Compile();

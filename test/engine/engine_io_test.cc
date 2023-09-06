@@ -17,24 +17,26 @@
 #include "src/engine/engine_io.h"
 
 #include <array>
-#include <climits>
+#include <cstdint>
 #include <cstdio>
 #include <cstring>
 #include <filesystem>
-#include <fstream>
-#include <iostream>
 #include <string>
+#include <vector>
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
+#include <gtest/gtest-spi.h>  // IWYU pragma: keep
 #include <absl/strings/str_format.h>
 #include <mujoco/mjxmacro.h>
+#include <mujoco/mujoco.h>
 #include "src/engine/engine_util_errmem.h"
 #include "test/fixture.h"
 
 namespace mujoco {
 namespace {
 
+using ::testing::ContainsRegex;  // NOLINT(misc-unused-using-decls) asan only
 using ::testing::HasSubstr;
 using ::testing::IsNull;
 using ::testing::NotNull;
@@ -736,6 +738,82 @@ TEST_F(ValidateReferencesTest, Tuples) {
   model->tuple_objid[0] = 1;
   mj_deleteModel(model);
 }
+
+TEST_F(EngineIoTest, CanMarkAndFreeStack) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+    </worldbody>
+  </mujoco>
+  )";
+
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error.data();
+
+  mjData* data = mj_makeData(model);
+  ASSERT_THAT(data, NotNull());
+
+  auto pstack_before = data->pstack;
+  mj_markStack(data);
+  EXPECT_GT(data->pstack, pstack_before);
+  mj_freeStack(data);
+  EXPECT_EQ(data->pstack, pstack_before);
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
+#ifdef ADDRESS_SANITIZER
+void MarkFreeStack(mjData* d, bool free) {
+  mj_markStack(d);
+  if (free) {
+    mj_freeStack(d);
+  }
+}
+
+TEST_F(EngineIoTest, CanDetectStackFrameLeakage) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+    </worldbody>
+  </mujoco>
+  )";
+
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error.data();
+
+  mjData* data = mj_makeData(model);
+  ASSERT_THAT(data, NotNull());
+
+  // MarkFreeStack correctly calls mj_freeStack, should not error.
+  MarkFreeStack(data, /* free= */ true);
+
+  // MarkFreeStack calls mj_markStack without mj_freeStack, the next call to
+  // mj_freeStack should detect the stack frame leakage.
+  mj_markStack(data);
+  MarkFreeStack(data, /* free= */ false);
+  EXPECT_THAT(
+      MjuErrorMessageFrom(mj_freeStack)(data),
+      ContainsRegex(
+          "mj_markStack in MarkFreeStack at .*engine_io_test\\.cc.* has no "
+          "corresponding mj_freeStack"));
+
+  // Dangling stack frames should be detected in mj_deleteData.
+  mj_resetData(model, data);
+  mj_markStack(data);
+  EXPECT_THAT(
+      MjuErrorMessageFrom(mj_deleteData)(data),
+      ContainsRegex(
+          "mj_markStack in .+EngineIoTest_CanDetectStackFrameLeakage.+ has no "
+          "corresponding mj_freeStack"));
+
+  mj_resetData(model, data);
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+#endif
 
 }  // namespace
 }  // namespace mujoco

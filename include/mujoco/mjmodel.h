@@ -17,6 +17,7 @@
 
 #include <stddef.h>
 
+
 #include <mujoco/mjtnum.h>
 
 // global constants
@@ -378,33 +379,13 @@ typedef struct mjLROpt_ mjLROpt;
 
 //---------------------------------- mjVFS ---------------------------------------------------------
 
-struct mjVFS_ {                            // virtual file system for loading from memory
-  int   nfile;                             // number of files present
-  char  filename[mjMAXVFS][mjMAXVFSNAME];  // file name without path
-  int   filesize[mjMAXVFS];                // file size in bytes
-  void* filedata[mjMAXVFS];                // buffer with file data
+struct mjVFS_ {                             // virtual file system for loading from memory
+  int    nfile;                             // number of files present
+  char   filename[mjMAXVFS][mjMAXVFSNAME];  // file name without path
+  size_t filesize[mjMAXVFS];                // file size in bytes
+  void*  filedata[mjMAXVFS];                // buffer with file data
 };
 typedef struct mjVFS_ mjVFS;
-
-
-//---------------------------------- mjResource ----------------------------------------------------
-
-struct mjResource_ {
-  char* name;                     // name of resource (filename, etc)
-  void* data;                     // opaque data pointer
-  const void* provider_data;      // opaque resource provider data
-
-  // reading callback from resource provider
-  int (*read)(struct mjResource_* resource, const void** buffer);
-
-  // closing callback from resource provider
-  void (*close)(struct mjResource_* resource);
-
-  // getdir callback from resource provider
-  void (*getdir)(struct mjResource_* resource, const char** dir, int* ndir);
-};
-typedef struct mjResource_ mjResource;
-
 
 //---------------------------------- mjOption ------------------------------------------------------
 
@@ -416,6 +397,7 @@ struct mjOption_ {                // physics options
   // solver parameters
   mjtNum impratio;                // ratio of friction-to-normal contact impedance
   mjtNum tolerance;               // main solver tolerance
+  mjtNum ls_tolerance;            // CG/Newton linesearch tolerance
   mjtNum noslip_tolerance;        // noslip solver tolerance
   mjtNum mpr_tolerance;           // MPR solver tolerance
 
@@ -438,6 +420,7 @@ struct mjOption_ {                // physics options
   int jacobian;                   // type of Jacobian (mjtJacobian)
   int solver;                     // solver algorithm (mjtSolver)
   int iterations;                 // maximum number of main solver iterations
+  int ls_iterations;              // maximum number of CG/Newton linesearch iterations
   int noslip_iterations;          // maximum number of noslip solver iterations
   int mpr_iterations;             // maximum number of MPR solver iterations
   int disableflags;               // bit flags for disabling standard features

@@ -13,15 +13,17 @@
 // limitations under the License.
 
 #include <algorithm>
-#include <cstddef>
-#include <cstdio>
-#include <sstream>
+#include <cstdint>
+#include <cstdlib>
 #include <optional>
 #include <unordered_map>
+#include <utility>
+#include <vector>
 
 #include <mujoco/mjplugin.h>
 #include <mujoco/mjtnum.h>
 #include <mujoco/mujoco.h>
+#include "elasticity.h"
 #include "solid.h"
 
 
@@ -36,15 +38,6 @@ constexpr int edge[kNumEdges][2] = {{0, 1}, {1, 2}, {2, 0},
 constexpr int face[kNumVerts][3] = {{2, 1, 0}, {0, 1, 3}, {1, 2, 3}, {2, 0, 3}};
 constexpr int e2f[kNumEdges][2] = {{2, 3}, {1, 3}, {2, 1},
                                    {1, 0}, {0, 2}, {0, 3}};
-constexpr int cube2tets[kNumEdges][kNumVerts] = {{0, 3, 1, 7}, {0, 1, 4, 7},
-                                                 {1, 3, 2, 7}, {1, 2, 6, 7},
-                                                 {1, 5, 4, 7}, {1, 6, 5, 7}};
-
-// Cartesian distance between 3D vectors
-mjtNum SquaredDist3(const mjtNum pos1[3], const mjtNum pos2[3]) {
-  mjtNum dif[3] = {pos1[0]-pos2[0], pos1[1]-pos2[1], pos1[2]-pos2[2]};
-  return dif[0]*dif[0] + dif[1]*dif[1] + dif[2]*dif[2];
-}
 
 // volume of a tetrahedron
 mjtNum ComputeVolume(const mjtNum* x, const int v[kNumVerts]) {
@@ -89,17 +82,6 @@ void ComputeBasis(mjtNum basis[9], const mjtNum* x, const int v[kNumVerts],
   }
 }
 
-// update edge lengths
-void UpdateSquaredLengths(std::vector<mjtNum>& len,
-                          const std::vector<std::pair<int, int> >& edges,
-                          const mjtNum* x) {
-  for (int e = 0; e < len.size(); e++) {
-    const mjtNum* p0 = x + 3*edges[e].first;
-    const mjtNum* p1 = x + 3*edges[e].second;
-    len[e] = SquaredDist3(p0, p1);
-  }
-}
-
 // gradients of edge lengths with respect to vertex positions
 void GradSquaredLengths(mjtNum gradient[kNumEdges][2][3],
                         const mjtNum* x,
@@ -113,40 +95,20 @@ void GradSquaredLengths(mjtNum gradient[kNumEdges][2][3],
   }
 }
 
-// reads numeric attributes
-bool CheckAttr(const char* name, const mjModel* m, int instance) {
-  char* end;
-  std::string value = mj_getPluginConfig(m, instance, name);
-  value.erase(std::remove_if(value.begin(), value.end(), isspace), value.end());
-  strtod(value.c_str(), &end);
-  return end == value.data() + value.size();
-}
-
-struct PairHash
-{
-    template <class T1, class T2>
-    std::size_t operator() (const std::pair<T1, T2>& pair) const {
-        return std::hash<T1>()(pair.first) ^ std::hash<T2>()(pair.second);
-    }
-};
-
 }  // namespace
 
 // factory function
 std::optional<Solid> Solid::Create(const mjModel* m, mjData* d, int instance) {
-    if (CheckAttr("nx", m, instance) &&
-        CheckAttr("ny", m, instance) &&
-        CheckAttr("nz", m, instance) &&
+    if (CheckAttr("face", m, instance) &&
         CheckAttr("poisson", m, instance) &&
         CheckAttr("young", m, instance)) {
-        int nx = strtod(mj_getPluginConfig(m, instance, "nx"), nullptr);
-        int ny = strtod(mj_getPluginConfig(m, instance, "ny"), nullptr);
-        int nz = strtod(mj_getPluginConfig(m, instance, "nz"), nullptr);
         mjtNum nu = strtod(mj_getPluginConfig(m, instance, "poisson"), nullptr);
         mjtNum E = strtod(mj_getPluginConfig(m, instance, "young"), nullptr);
         mjtNum damp =
             strtod(mj_getPluginConfig(m, instance, "damping"), nullptr);
-        return Solid(m, d, instance, nx, ny, nz, nu, E, damp);
+        std::vector<int> face;
+        String2Vector(mj_getPluginConfig(m, instance, "face"), face);
+        return Solid(m, d, instance, nu, E, damp, face);
     } else {
         mju_warning("Invalid parameter specification in solid plugin");
         return std::nullopt;
@@ -154,30 +116,13 @@ std::optional<Solid> Solid::Create(const mjModel* m, mjData* d, int instance) {
 }
 
 // create map from tetrahedra to vertices and edges and from edges to vertices
-void Solid::CreateStencils(int nx, int ny, int nz) {
+void Solid::CreateStencils(const std::vector<int>& simplex) {
+  // populate stencil
+  nt = simplex.size() / kNumVerts;
   elements.resize(nt);
-
-  // create a tetrahedral mesh by splitting a grid of hexahedral cells
-  for (int ix = 0; ix < nx-1; ix++) {
-    for (int iy = 0; iy < ny-1; iy++) {
-      for (int iz = 0; iz < nz-1; iz++) {
-        int t = 6*(nz-1)*(ny-1)*ix + 6*(nz-1)*iy + 6*iz;
-        int vert[8] = {
-          nz*ny*(ix+0) + nz*(iy+0) + iz+0,
-          nz*ny*(ix+1) + nz*(iy+0) + iz+0,
-          nz*ny*(ix+1) + nz*(iy+1) + iz+0,
-          nz*ny*(ix+0) + nz*(iy+1) + iz+0,
-          nz*ny*(ix+0) + nz*(iy+0) + iz+1,
-          nz*ny*(ix+1) + nz*(iy+0) + iz+1,
-          nz*ny*(ix+1) + nz*(iy+1) + iz+1,
-          nz*ny*(ix+0) + nz*(iy+1) + iz+1,
-        };
-        for (int s = 0; s < 6; s++) {
-          for (int v = 0; v < kNumVerts; v++) {
-            elements[t+s].vertices[v] = vert[cube2tets[s][v]];
-          }
-        }
-      }
+  for (int t = 0; t < nt; t++) {
+    for (int v = 0; v < kNumVerts; v++) {
+      elements[t].vertices[v] = simplex[kNumVerts*t+v]-1;
     }
   }
 
@@ -209,8 +154,9 @@ void Solid::CreateStencils(int nx, int ny, int nz) {
 }
 
 // plugin constructor
-Solid::Solid(const mjModel* m, mjData* d, int instance, int nx, int ny, int nz,
-             mjtNum nu, mjtNum E, mjtNum damp): damping(damp) {
+Solid::Solid(const mjModel* m, mjData* d, int instance, mjtNum nu, mjtNum E,
+             mjtNum damp, const std::vector<int>& simplex)
+    : damping(damp) {
   // count plugin bodies
   nv = ne = 0;
   for (int i = 1; i < m->nbody; i++) {
@@ -221,13 +167,11 @@ Solid::Solid(const mjModel* m, mjData* d, int instance, int nx, int ny, int nz,
     }
   }
 
-  // allocate arrays
-  nc = (nx-1)*(ny-1)*(nz-1);                  // number of cubes
-  nt = 6*nc;                                  // number of tets
-  metric.assign(kNumEdges*kNumEdges*nt, 0);   // metric induced by the geometry
-
   // generate tetrahedra from the vertices
-  CreateStencils(nx, ny, nz);
+  CreateStencils(simplex);
+
+  // allocate arrays
+  metric.assign(kNumEdges*kNumEdges*nt, 0);
 
   // loop over all tetrahedra
   for (int t = 0; t < nt; t++) {
@@ -357,7 +301,7 @@ void Solid::RegisterPlugin() {
   plugin.name = "mujoco.elasticity.solid";
   plugin.capabilityflags |= mjPLUGIN_PASSIVE;
 
-  const char* attributes[] = {"nx", "ny", "nz", "young", "poisson", "damping"};
+  const char* attributes[] = {"face", "young", "poisson", "damping"};
   plugin.nattribute = sizeof(attributes) / sizeof(attributes[0]);
   plugin.attributes = attributes;
   plugin.nstate = +[](const mjModel* m, int instance) { return 0; };

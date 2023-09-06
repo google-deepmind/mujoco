@@ -13,12 +13,14 @@
 // limitations under the License.
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <csetjmp>
 #include <cstddef>
 #include <cstdio>
 #include <cstring>
 #include <memory>
+#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -27,10 +29,27 @@
 #define TINYOBJLOADER_IMPLEMENTATION
 #endif
 
+#if defined(__clang__)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wgnu-anonymous-struct"
+#pragma clang diagnostic ignored "-Wnested-anon-types"
+#elif defined(__GNUC__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic"
+#endif
 #include <MC.h>
+#if defined(__clang__)
+#pragma clang diagnostic pop
+#elif defined(__GNUC__)
+#pragma GCC diagnostic pop
+#endif
+
+#include <mujoco/mjmacro.h>
 #include <mujoco/mjmodel.h>
-#include "cc/array_safety.h"
+#include <mujoco/mjtnum.h>
+#include <mujoco/mjplugin.h>
 #include "engine/engine_crossplatform.h"
+#include "engine/engine_plugin.h"
 #include "engine/engine_resource.h"
 #include "engine/engine_util_blas.h"
 #include "engine/engine_util_errmem.h"
@@ -329,7 +348,7 @@ void mjCMesh::LoadSDF() {
 
 
 // compiler
-void mjCMesh::Compile(int vfs_provider) {
+void mjCMesh::Compile(const mjVFS* vfs) {
   // load file
   if (!file_.empty()) {
     // remove path from file if necessary
@@ -348,7 +367,7 @@ void mjCMesh::Compile(int vfs_provider) {
     }
 
     string filename = mjuu_makefullname(model->modelfiledir, model->meshdir, file_);
-    mjResource* resource = LoadResource(filename, vfs_provider);
+    mjResource* resource = LoadResource(filename, vfs);
 
     try {
       if (asset_type == "model/stl") {
@@ -1836,8 +1855,7 @@ mjCSkin::~mjCSkin() {
 
 
 // compiler
-void mjCSkin::Compile(int vfs_provider) {
-
+void mjCSkin::Compile(const mjVFS* vfs) {
   // load file
   if (!file.empty()) {
     // make sure data is not present
@@ -1865,7 +1883,7 @@ void mjCSkin::Compile(int vfs_provider) {
     }
 
     string filename = mjuu_makefullname(model->modelfiledir, model->meshdir, file);
-    mjResource* resource = LoadResource(filename, vfs_provider);
+    mjResource* resource = LoadResource(filename, vfs);
 
     try {
       LoadSKN(resource);

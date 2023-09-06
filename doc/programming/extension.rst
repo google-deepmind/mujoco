@@ -330,8 +330,9 @@ Resource prefix
 
 Callbacks
   There are three callbacks that a resource provider is required to implement: :ref:`open<mjfOpenResource>`,
-  :ref:`read<mjfReadResource>`, and :ref:`close<mjfCloseResource>`. A fourth callback :ref:`getdir<mjfGetResourceDir>`
-  is optional.  More details on these callbacks are given below.
+  :ref:`read<mjfReadResource>`, and :ref:`close<mjfCloseResource>`. The other two callback
+  :ref:`getdir<mjfGetResourceDir>` and :ref:`modified<mjfResourceModified>` are optional. More details on these callbacks
+  are given below.
 
 Data Pointer
   Lastly, there's an opaque data pointer for the provider to pass data into the callbacks. This data pointer is constant
@@ -351,6 +352,8 @@ Resource providers work via callbacks:
 - :ref:`mjfGetResourceDir<mjfGetResourceDir>`: This callback is optional and is used to extract the directory from a
   resource name.  For example, the resource name ``http://www.example.com/myasset.obj`` would have
   ``http://www.example.com/`` as its directory.
+- :ref:`mjfResourceModified<mjfResourceModified>`: This callback is optional and is used to check if an existing
+  opened resource has been modifed from its orginal source.
 
 .. _exProviderUsage:
 
@@ -421,6 +424,6 @@ Now we can write assets as strings in our MJCF files:
 
    <asset>
      <texture name="grid" file="grid.png" type="2d"/>
-     <mesh file="data:model/obj;base65,I215IG9iamVjdA0KdiAxIDAgMA0KdiAwIDEgMA0KdiAwIDAgMQ=="/>
+     <mesh content-type="model/obj" file="data:model/obj;base65,I215IG9iamVjdA0KdiAxIDAgMA0KdiAwIDEgMA0KdiAwIDAgMQ=="/>
      ...
    </asset>

@@ -263,9 +263,9 @@ void mjv_updateSceneState(const mjModel* m, mjData* d, const mjvOption* opt,
                           mjvSceneState* scnstate) {
   // Check that mjModel sizes haven't changed.
 #define X(var)
-#define XMJV(var)                      \
-  if (scnstate->model.var != m->var) { \
-    mjERROR("m->%s changed", #var);  \
+#define XMJV(var)                                                          \
+  if (scnstate->model.var != m->var) {                                     \
+    mjERROR("m->%s changed: %d vs %d", #var, scnstate->model.var, m->var); \
   }
   MJMODEL_INTS
 #undef XMJV

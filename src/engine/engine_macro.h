@@ -24,9 +24,9 @@
 
 // thread local macro
 #ifdef _MSC_VER
-#define mjTHREADLOCAL __declspec(thread)
+  #define mjTHREADLOCAL __declspec(thread)
 #else
-#define mjTHREADLOCAL _Thread_local
+  #define mjTHREADLOCAL _Thread_local
 #endif
 
 
@@ -41,7 +41,7 @@
 //-------------------------- compiler builtin ------------------------------------------------------
 
 #ifndef __has_builtin
-#define __has_builtin(x) 0
+  #define __has_builtin(x) 0
 #endif
 
 //-------------------------- pointer arithmetic ----------------------------------------------------

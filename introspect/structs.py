@@ -106,7 +106,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
              StructFieldDecl(
                  name='filesize',
                  type=ArrayType(
-                     inner_type=ValueType(name='int'),
+                     inner_type=ValueType(name='size_t'),
                      extents=(2000,),
                  ),
                  doc='file size in bytes',
@@ -147,6 +147,11 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  name='tolerance',
                  type=ValueType(name='mjtNum'),
                  doc='main solver tolerance',
+             ),
+             StructFieldDecl(
+                 name='ls_tolerance',
+                 type=ValueType(name='mjtNum'),
+                 doc='CG/Newton linesearch tolerance',
              ),
              StructFieldDecl(
                  name='noslip_tolerance',
@@ -242,6 +247,11 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  name='iterations',
                  type=ValueType(name='int'),
                  doc='maximum number of main solver iterations',
+             ),
+             StructFieldDecl(
+                 name='ls_iterations',
+                 type=ValueType(name='int'),
+                 doc='maximum number of CG/Newton linesearch iterations',
              ),
              StructFieldDecl(
                  name='noslip_iterations',
@@ -3503,6 +3513,11 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='first available mjtNum address in stack',
              ),
              StructFieldDecl(
+                 name='pbase',
+                 type=ValueType(name='size_t'),
+                 doc='value of pstack when mj_markStack was last called',
+             ),
+             StructFieldDecl(
                  name='parena',
                  type=ValueType(name='size_t'),
                  doc='first available byte in arena',
@@ -4469,6 +4484,11 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                      inner_type=ValueType(name='int'),
                  ),
                  doc='constraint state (mjtConstraintState)             (nefc x 1)',  # pylint: disable=line-too-long
+             ),
+             StructFieldDecl(
+                 name='threadpool',
+                 type=ValueType(name='uintptr_t'),
+                 doc='ThreadPool for multithreaded operations',
              ),
          ),
      )),
@@ -6970,6 +6990,36 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  name='readPixelFormat',
                  type=ValueType(name='int'),
                  doc='default color pixel format for mjr_readPixels',
+             ),
+         ),
+     )),
+    ('mjTask',
+     StructDecl(
+         name='mjTask',
+         declname='struct mjTask_',
+         fields=(
+             StructFieldDecl(
+                 name='buffer',
+                 type=ArrayType(
+                     inner_type=ValueType(name='char'),
+                     extents=(24,),
+                 ),
+                 doc='',
+             ),
+         ),
+     )),
+    ('mjThreadPool',
+     StructDecl(
+         name='mjThreadPool',
+         declname='struct mjThreadPool_',
+         fields=(
+             StructFieldDecl(
+                 name='buffer',
+                 type=ArrayType(
+                     inner_type=ValueType(name='char'),
+                     extents=(6208,),
+                 ),
+                 doc='',
              ),
          ),
      )),

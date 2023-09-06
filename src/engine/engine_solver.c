@@ -168,7 +168,8 @@ static void residual(const mjModel* m, mjData* d, mjtNum* res, int i, int dim, i
     for (int j=0; j < dim; j++) {
       res[j] = d->efc_b[i+j] + mju_dotSparse(d->efc_AR + d->efc_AR_rowadr[i+j],
                                              d->efc_force, d->efc_AR_rownnz[i+j],
-                                             d->efc_AR_colind + d->efc_AR_rowadr[i+j]);
+                                             d->efc_AR_colind + d->efc_AR_rowadr[i+j],
+                                             /*flg_unc1=*/0);
     }
   }
 
@@ -308,7 +309,7 @@ void mj_solPGS(const mjModel* m, mjData* d, int maxiter) {
   mjtNum *mu, x, denom, improvement;
   mjtNum v[6], v1[6], Athis[36], Ac[25], bc[5], res[6], oldforce[6];
   mjContact* con;
-  mjMARKSTACK;
+  mj_markStack(d);
   mjtNum* ARinv = mj_stackAllocNum(d, nefc);
   int* oldstate = mj_stackAllocInt(d, nefc);
 
@@ -463,7 +464,7 @@ void mj_solPGS(const mjModel* m, mjData* d, int maxiter) {
     }
 
     // process state
-    memcpy(oldstate, d->efc_state, nefc*sizeof(int));
+    mju_copyInt(oldstate, d->efc_state, nefc);
     int nactive = dualState(m, d);
     int nchange = 0;
     for (int i=0; i < nefc; i++) {
@@ -496,7 +497,7 @@ void mj_solPGS(const mjModel* m, mjData* d, int maxiter) {
   // map to joint space
   dualFinish(m, d);
 
-  mjFREESTACK;
+  mj_freeStack(d);
 }
 
 
@@ -510,7 +511,7 @@ void mj_solNoSlip(const mjModel* m, mjData* d, int maxiter) {
   mjtNum *mu, improvement;
   mjtNum v[5], Ac[25], bc[5], res[5], oldforce[5], delta[5], mid, y, K0, K1;
   mjContact* con;
-  mjMARKSTACK;
+  mj_markStack(d);
   mjtNum* ARinv = mj_stackAllocNum(d, nefc);
   int* oldstate = mj_stackAllocInt(d, nefc);
 
@@ -679,7 +680,7 @@ void mj_solNoSlip(const mjModel* m, mjData* d, int maxiter) {
     }
 
     // process state
-    memcpy(oldstate, d->efc_state, nefc*sizeof(int));
+    mju_copyInt(oldstate, d->efc_state, nefc);
     int nactive = dualState(m, d);
     int nchange = 0;
     for (int i=0; i < nefc; i++) {
@@ -702,7 +703,7 @@ void mj_solNoSlip(const mjModel* m, mjData* d, int maxiter) {
   // map to joint space
   dualFinish(m, d);
 
-  mjFREESTACK;
+  mj_freeStack(d);
 }
 
 
@@ -1092,9 +1093,6 @@ static int updateBracket(const mjModel* m, mjData* d, mjCGContext* ctx,
 static mjtNum CGsearch(const mjModel* m, mjData* d, mjCGContext* ctx) {
   mjCGPnt p0, p1, p2, pmid, p1next, p2next;
 
-  const int LSmaxiter = 50;
-  const mjtNum LStolscl = 0.01;
-
   // clear results
   ctx->LSiter = 0;
   ctx->LSresult = 0;
@@ -1108,7 +1106,7 @@ static mjtNum CGsearch(const mjModel* m, mjData* d, mjCGContext* ctx) {
   }
 
   // compute scaled gradtol and slope scaling
-  mjtNum gtol = m->opt.tolerance * LStolscl * snorm * m->stat.meaninertia * mjMAX(1, m->nv);
+  mjtNum gtol = m->opt.tolerance * m->opt.ls_tolerance * snorm * m->stat.meaninertia * mjMAX(1, m->nv);
   mjtNum slopescl = 1 / (snorm * m->stat.meaninertia * mjMAX(1, m->nv));
 
   // compute Mv, Jv
@@ -1179,7 +1177,7 @@ static mjtNum CGsearch(const mjModel* m, mjData* d, mjCGContext* ctx) {
 
   // one-sided search
   int p2update = 0;
-  while (p1.deriv[0]*dir <= -gtol && ctx->LSiter < LSmaxiter) {
+  while (p1.deriv[0]*dir <= -gtol && ctx->LSiter < m->opt.ls_iterations) {
     // save current
     p2 = p1;
     p2update = 1;
@@ -1196,7 +1194,7 @@ static mjtNum CGsearch(const mjModel* m, mjData* d, mjCGContext* ctx) {
   }
 
   // check for failure to bracket
-  if (ctx->LSiter >= LSmaxiter) {
+  if (ctx->LSiter >= m->opt.ls_iterations) {
     ctx->LSresult = 3;                          // could not bracket
     ctx->LSslope = mju_abs(p1.deriv[0])*slopescl;
     return p1.alpha;
@@ -1215,7 +1213,7 @@ static mjtNum CGsearch(const mjModel* m, mjData* d, mjCGContext* ctx) {
   CGeval(m, d, ctx, &p1next);
 
   // bracketed search
-  while (ctx->LSiter < LSmaxiter) {
+  while (ctx->LSiter < m->opt.ls_iterations) {
     // evaluate at midpoint
     pmid.alpha = 0.5*(p1.alpha + p2.alpha);
     CGeval(m, d, ctx, &pmid);
@@ -1276,7 +1274,7 @@ static mjtNum CGsearch(const mjModel* m, mjData* d, mjCGContext* ctx) {
 static void HessianCone(const mjModel* m, mjData* d, mjCGContext* ctx) {
   int nv = m->nv, nefc = d->nefc;
   mjtNum local[36];
-  mjMARKSTACK;
+  mj_markStack(d);
 
   // storage for L'*J
   mjtNum* LTJ = mj_stackAllocNum(d, 6*nv);
@@ -1313,7 +1311,7 @@ static void HessianCone(const mjModel* m, mjData* d, mjCGContext* ctx) {
         for (int r=0; r < dim; r++) {
           // copy data for this row
           mju_copy(LTJ_row, LTJ+r*nnz, nnz);
-          memcpy(LTJ_ind, d->efc_J_colind+d->efc_J_rowadr[i+r], nnz*sizeof(int));
+          mju_copyInt(LTJ_ind, d->efc_J_colind+d->efc_J_rowadr[i+r], nnz);
 
           // update
           mju_cholUpdateSparse(ctx->Hcone, LTJ_row, nv, 1,
@@ -1346,7 +1344,7 @@ static void HessianCone(const mjModel* m, mjData* d, mjCGContext* ctx) {
     }
   }
 
-  mjFREESTACK;
+  mj_freeStack(d);
 }
 
 
@@ -1354,7 +1352,7 @@ static void HessianCone(const mjModel* m, mjData* d, mjCGContext* ctx) {
 // compute and factorize Hessian: direct method
 static void HessianDirect(const mjModel* m, mjData* d, mjCGContext* ctx) {
   int nv = m->nv, nefc = d->nefc;
-  mjMARKSTACK;
+  mj_markStack(d);
 
   // compute D corresponding to quad states
   mjtNum* D = mj_stackAllocNum(d, nefc);
@@ -1426,7 +1424,7 @@ static void HessianDirect(const mjModel* m, mjData* d, mjCGContext* ctx) {
     ctx->nnz = nv*nv;
   }
 
-  mjFREESTACK;
+  mj_freeStack(d);
 
   // add cones if present
   if (ctx->ncone) {
@@ -1443,7 +1441,7 @@ static void HessianDirect(const mjModel* m, mjData* d, mjCGContext* ctx) {
 static void HessianIncremental(const mjModel* m, mjData* d,
                                mjCGContext* ctx, const int* oldstate) {
   int rank, nv = m->nv, nefc = d->nefc;
-  mjMARKSTACK;
+  mj_markStack(d);
 
   // local space
   mjtNum* vec = mj_stackAllocNum(d, nv);
@@ -1475,7 +1473,7 @@ static void HessianIncremental(const mjModel* m, mjData* d,
 
         // scale vec, copy colind
         mju_scl(vec, d->efc_J+adr, mju_sqrt(d->efc_D[i]), nnz);
-        memcpy(vec_ind, d->efc_J_colind+adr, nnz*sizeof(int));
+        mju_copyInt(vec_ind, d->efc_J_colind+adr, nnz);
 
         // sparse update
         rank = mju_cholUpdateSparse(ctx->H, vec, nv, flag_update,
@@ -1489,7 +1487,7 @@ static void HessianIncremental(const mjModel* m, mjData* d,
 
       // recompute H directly if accuracy lost
       if (rank < nv) {
-        mjFREESTACK;
+        mj_freeStack(d);
         HessianDirect(m, d, ctx);
 
         // nothing else to do
@@ -1503,7 +1501,7 @@ static void HessianIncremental(const mjModel* m, mjData* d,
     HessianCone(m, d, ctx);
   }
 
-  mjFREESTACK;
+  mj_freeStack(d);
 }
 
 
@@ -1514,7 +1512,7 @@ static void mj_solCGNewton(const mjModel* m, mjData* d, int maxiter, int flg_New
   mjtNum alpha, beta;
   mjtNum *gradold = NULL, *Mgradold = NULL, *Mgraddif = NULL;
   mjCGContext ctx;
-  mjMARKSTACK;
+  mj_markStack(d);
 
   // allocate context
   CGallocate(m, d, &ctx, flg_Newton);
@@ -1562,7 +1560,7 @@ static void mj_solCGNewton(const mjModel* m, mjData* d, int maxiter, int flg_New
       mju_copy(gradold, ctx.grad, nv);
       mju_copy(Mgradold, ctx.Mgrad, nv);
     }
-    memcpy(oldstate, d->efc_state, nefc*sizeof(int));
+    mju_copyInt(oldstate, d->efc_state, nefc);
     mjtNum oldcost = ctx.cost;
 
     // update
@@ -1624,7 +1622,7 @@ static void mj_solCGNewton(const mjModel* m, mjData* d, int maxiter, int flg_New
     d->solver_nnz = 0;
   }
 
-  mjFREESTACK;
+  mj_freeStack(d);
 }
 
 

@@ -236,7 +236,7 @@ def _physics_loop(simulate: _Simulate, loader: Optional[_InternalLoaderType]):
         assert d is not None
         if simulate.run:
           # Record CPU time at start of iteration.
-          startcpu = glfw.get_time()
+          startcpu = time.time()
 
           elapsedcpu = startcpu - synccpu
           elapsedsim = d.time - syncsim
@@ -281,8 +281,8 @@ def _physics_loop(simulate: _Simulate, loader: Optional[_InternalLoaderType]):
             refreshtime = SIM_REFRESH_FRACTION / simulate.refresh_rate
             # Step while sim lags behind CPU and within refreshtime.
             while (((d.time - syncsim) * slowdown <
-                    (glfw.get_time() - synccpu)) and
-                   ((glfw.get_time() - startcpu) < refreshtime)):
+                    (time.time() - synccpu)) and
+                   ((time.time() - startcpu) < refreshtime)):
               # Measure slowdown before first step.
               if not measured and elapsedsim:
                 simulate.measured_slowdown = elapsedcpu / elapsedsim
@@ -349,7 +349,6 @@ def _launch_internal(
     notify_loaded = (
         lambda: handle_return.put_nowait(Handle(simulate, scn, cam, opt, pert)))
 
-  side_thread = None
   if run_physics_thread:
     side_thread = threading.Thread(
         target=_physics_loop, args=(simulate, loader))
@@ -427,6 +426,7 @@ def launch_passive(
 
 
 if __name__ == '__main__':
+  # pylint: disable=g-bad-import-order
   from absl import app  # pylint: disable=g-import-not-at-top
   from absl import flags  # pylint: disable=g-import-not-at-top
 

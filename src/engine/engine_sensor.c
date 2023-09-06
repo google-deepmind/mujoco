@@ -854,18 +854,18 @@ void mj_energyPos(const mjModel* m, mjData* d) {
 // velocity-dependent energy (kinetic)
 void mj_energyVel(const mjModel* m, mjData* d) {
   mjtNum *vec;
-  mjMARKSTACK;
 
   // return if disabled (already cleared in potential)
   if (!mjENABLED(mjENBL_ENERGY)) {
     return;
   }
 
+  mj_markStack(d);
   vec = mj_stackAllocNum(d, m->nv);
 
   // kinetic energy:  0.5 * qvel' * M * qvel
   mj_mulM(m, d, vec, d->qvel);
   d->energy[1] = 0.5*mju_dot(vec, d->qvel, m->nv);
 
-  mjFREESTACK;
+  mj_freeStack(d);
 }

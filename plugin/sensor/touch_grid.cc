@@ -19,10 +19,8 @@
 #include <cstdint>
 #include <cstdlib>
 #include <sstream>
-#include <iostream>
-#include <optional>
 #include <string>
-#include <utility>
+#include <vector>
 
 #include <mujoco/mjdata.h>
 #include <mujoco/mjmodel.h>
@@ -249,7 +247,7 @@ TouchGrid::TouchGrid(const mjModel* m, mjData* d, int instance, int nchannel,
 void TouchGrid::Reset(const mjModel* m, int instance) {}
 
 void TouchGrid::Compute(const mjModel* m, mjData* d, int instance) {
-  mjMARKSTACK;
+  mj_markStack(d);
 
   // Get sensor id.
   int id;
@@ -283,7 +281,7 @@ void TouchGrid::Compute(const mjModel* m, mjData* d, int instance) {
 
   // No contacts, return.
   if (!ncon) {
-    mjFREESTACK;
+    mj_freeStack(d);
     return;
   }
 
@@ -372,7 +370,7 @@ void TouchGrid::Compute(const mjModel* m, mjData* d, int instance) {
     }
   }
 
-  mjFREESTACK;
+  mj_freeStack(d);
 }
 
 // Thickness of taxel-visualization boxes relative to contact distance.
@@ -380,7 +378,7 @@ static const mjtNum kRelativeThickness = 0.02;
 
 void TouchGrid::Visualize(const mjModel* m, mjData* d, const mjvOption* opt,
                              mjvScene* scn, int instance) {
-  mjMARKSTACK;
+  mj_markStack(d);
 
   // Get sensor id.
   int id;
@@ -403,7 +401,7 @@ void TouchGrid::Visualize(const mjModel* m, mjData* d, const mjvOption* opt,
 
   // If no normal force readings, quick return.
   if (!maxval) {
-    mjFREESTACK;
+    mj_freeStack(d);
     return;
   }
 
@@ -430,7 +428,7 @@ void TouchGrid::Visualize(const mjModel* m, mjData* d, const mjvOption* opt,
       }
       if (scn->ngeom >= scn->maxgeom) {
         mj_warning(d, mjWARN_VGEOMFULL, scn->maxgeom);
-        mjFREESTACK;
+        mj_freeStack(d);
         return;
       } else {
         // size
@@ -478,7 +476,7 @@ void TouchGrid::Visualize(const mjModel* m, mjData* d, const mjvOption* opt,
     }
   }
 
-  mjFREESTACK;
+  mj_freeStack(d);
 }
 
 

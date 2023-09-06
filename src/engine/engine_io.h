@@ -18,6 +18,7 @@
 #include <mujoco/mjdata.h>
 #include <mujoco/mjexport.h>
 #include <mujoco/mjmodel.h>
+#include <mujoco/mjxmacro.h>
 
 #ifdef __cplusplus
 #include <cstddef>
@@ -105,6 +106,12 @@ MJAPI void mj_resetDataKeyframe(const mjModel* m, mjData* d, int key);
 // mjData arena allocate
 MJAPI void* mj_arenaAlloc(mjData* d, size_t bytes, size_t alignment);
 
+// mjData mark stack frame
+MJAPI void mj_markStack(mjData* d);
+
+// mjData free stack frame
+MJAPI void mj_freeStack(mjData* d);
+
 // mjData stack allocate
 MJAPI void* mj_stackAlloc(mjData* d, size_t bytes, size_t alignment);
 
@@ -116,6 +123,16 @@ MJAPI int* mj_stackAllocInt(mjData* d, int size);
 
 // de-allocate data
 MJAPI void mj_deleteData(mjData* d);
+
+// clear arena pointers in mjData
+static inline void mj_clearEfc(mjData* d) {
+#define X(type, name, nr, nc) d->name = NULL;
+  MJDATA_ARENA_POINTERS
+#undef X
+  d->nefc = 0;
+  d->nisland = 0;
+  d->contact = (mjContact*) d->arena;
+}
 
 #ifdef __cplusplus
 }

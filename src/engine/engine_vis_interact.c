@@ -19,7 +19,6 @@
 
 #include <mujoco/mjdata.h>
 #include <mujoco/mjexport.h>
-#include <mujoco/mjmacro.h>
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjvisualize.h>
 #include "engine/engine_core_smooth.h"
@@ -518,7 +517,7 @@ void mjv_moveModel(const mjModel* m, int action, mjtNum reldx, mjtNum reldy,
 
 // copy perturb pos,quat from selected body; set scale for perturbation
 void mjv_initPerturb(const mjModel* m, mjData* d, const mjvScene* scn, mjvPerturb* pert) {
-  mjMARKSTACK;
+  mj_markStack(d);
 
   int nv  = m->nv;
   int sel = pert->select;
@@ -529,6 +528,7 @@ void mjv_initPerturb(const mjModel* m, mjData* d, const mjvScene* scn, mjvPertur
 
   // invalid selected body: return
   if (sel <= 0 || sel >= m->nbody) {
+    mj_freeStack(d);
     return;
   }
 
@@ -557,7 +557,7 @@ void mjv_initPerturb(const mjModel* m, mjData* d, const mjvScene* scn, mjvPertur
   mju_sub3(dif, pert->refselpos, headpos);
   pert->scale = mjv_frustumHeight(scn) * mju_dot3(dif, forward);
 
-  mjFREESTACK;
+  mj_freeStack(d);
 }
 
 

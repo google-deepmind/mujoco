@@ -30,16 +30,13 @@ extern "C" {
 #include <stdlib.h>
 #include <math.h>
 
-#ifdef ADDRESS_SANITIZER
-#include <sanitizer/asan_interface.h>
-#endif
-
 // type definitions
 #include <mujoco/mjdata.h>
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjmacro.h>
 #include <mujoco/mjplugin.h>
 #include <mujoco/mjrender.h>
+#include <mujoco/mjthread.h>
 #include <mujoco/mjtnum.h>
 #include <mujoco/mjui.h>
 #include <mujoco/mjvisualize.h>
@@ -188,7 +185,15 @@ MJAPI void mj_resetDataDebug(const mjModel* m, mjData* d, unsigned char debug_va
 // Reset data, set fields from specified keyframe.
 MJAPI void mj_resetDataKeyframe(const mjModel* m, mjData* d, int key);
 
-// Allocate a specific number of bytes on mjData stack. Call mju_error on stack overflow.
+// Mark a new frame on the mjData stack.
+MJAPI void mj_markStack(mjData* d);
+
+// Free the current mjData stack frame. All pointers returned by mj_stackAlloc since the last call
+// to mj_markStack must no longer be used afterwards.
+MJAPI void mj_freeStack(mjData* d);
+
+// Allocate a number of bytes on mjData stack at a specific alignment.
+// Call mju_error on stack overflow.
 MJAPI void* mj_stackAlloc(mjData* d, size_t bytes, size_t alignment);
 
 // Allocate array of mjtNums on mjData stack. Call mju_error on stack overflow.
@@ -385,10 +390,10 @@ MJAPI int mj_isSparse(const mjModel* m);
 MJAPI int mj_isDual(const mjModel* m);
 
 // Multiply dense or sparse constraint Jacobian by vector.
-MJAPI void mj_mulJacVec(const mjModel* m, mjData* d, mjtNum* res, const mjtNum* vec);
+MJAPI void mj_mulJacVec(const mjModel* m, const mjData* d, mjtNum* res, const mjtNum* vec);
 
 // Multiply dense or sparse constraint Jacobian transpose by vector.
-MJAPI void mj_mulJacTVec(const mjModel* m, mjData* d, mjtNum* res, const mjtNum* vec);
+MJAPI void mj_mulJacTVec(const mjModel* m, const mjData* d, mjtNum* res, const mjtNum* vec);
 
 // Compute 3/6-by-nv end-effector Jacobian of global point attached to given body.
 MJAPI void mj_jac(const mjModel* m, const mjData* d, mjtNum* jacp, mjtNum* jacr,
@@ -483,7 +488,7 @@ MJAPI void mj_loadAllPluginLibraries(const char* directory, mjfPluginLibraryLoad
 MJAPI int mj_version(void);
 
 // Return the current version of MuJoCo as a null-terminated string.
-MJAPI const char* mj_versionString();
+MJAPI const char* mj_versionString(void);
 
 
 //---------------------------------- Ray collisions ------------------------------------------------
@@ -890,7 +895,7 @@ MJAPI void mju_addToScl3(mjtNum res[3], const mjtNum vec[3], mjtNum scl);
 MJAPI void mju_addScl3(mjtNum res[3], const mjtNum vec1[3], const mjtNum vec2[3], mjtNum scl);
 
 // Normalize vector, return length before normalization.
-MJAPI mjtNum mju_normalize3(mjtNum res[3]);
+MJAPI mjtNum mju_normalize3(mjtNum vec[3]);
 
 // Return vector length (without normalizing the vector).
 MJAPI mjtNum mju_norm3(const mjtNum vec[3]);
@@ -920,7 +925,7 @@ MJAPI void mju_unit4(mjtNum res[4]);
 MJAPI void mju_copy4(mjtNum res[4], const mjtNum data[4]);
 
 // Normalize vector, return length before normalization.
-MJAPI mjtNum mju_normalize4(mjtNum res[4]);
+MJAPI mjtNum mju_normalize4(mjtNum vec[4]);
 
 // Set res = 0.
 MJAPI void mju_zero(mjtNum* res, int n);
@@ -929,7 +934,7 @@ MJAPI void mju_zero(mjtNum* res, int n);
 MJAPI void mju_fill(mjtNum* res, mjtNum val, int n);
 
 // Set res = vec.
-MJAPI void mju_copy(mjtNum* res, const mjtNum* data, int n);
+MJAPI void mju_copy(mjtNum* res, const mjtNum* vec, int n);
 
 // Return sum(vec).
 MJAPI mjtNum mju_sum(const mjtNum* vec, int n);
@@ -1273,7 +1278,7 @@ MJAPI void mjp_defaultPlugin(mjpPlugin* plugin);
 MJAPI int mjp_registerPlugin(const mjpPlugin* plugin);
 
 // Return the number of globally registered plugins.
-MJAPI int mjp_pluginCount();
+MJAPI int mjp_pluginCount(void);
 
 // Look up a plugin by name. If slot is not NULL, also write its registered slot number into it.
 MJAPI const mjpPlugin* mjp_getPlugin(const char* name, int* slot);
@@ -1290,7 +1295,7 @@ MJAPI void mjp_defaultResourceProvider(mjpResourceProvider* provider);
 MJAPI int mjp_registerResourceProvider(const mjpResourceProvider* provider);
 
 // Return the number of globally registered resource providers.
-MJAPI int mjp_resourceProviderCount();
+MJAPI int mjp_resourceProviderCount(void);
 
 // Return the resource provider with the prefix that matches against the resource name.
 // If no match, return NULL.
@@ -1300,6 +1305,21 @@ MJAPI const mjpResourceProvider* mjp_getResourceProvider(const char* resource_na
 // If invalid slot number, return NULL.
 MJAPI const mjpResourceProvider* mjp_getResourceProviderAtSlot(int slot);
 
+//---------------------- Thread -------------------------------------------------------------------
+
+// Creates a thread pool with the specified number of threads running.
+MJAPI mjThreadPool* mju_threadPoolCreate(size_t number_of_threads);
+
+// Enqueues a task in a thread pool.
+MJAPI void mju_threadPoolEnqueue(
+    mjThreadPool* thread_pool, mjTask* task, void*(start_routine)(void*),
+    void* args);
+
+// Waits for a task to complete.
+MJAPI void mju_taskJoin(mjTask* task);
+
+// Destroys a thread pool.
+MJAPI void mju_threadPoolDestroy(mjThreadPool* thread_pool);
 
 #if defined(__cplusplus)
 }

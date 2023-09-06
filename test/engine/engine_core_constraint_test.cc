@@ -14,8 +14,8 @@
 
 // Tests for engine/engine_core_constraint.c.
 
-#include <array>
 #include <cstddef>
+#include <cstring>
 #include <string>
 #include <vector>
 
@@ -196,6 +196,306 @@ TEST_F(CoreConstraintTest, JacobianPreAllocate) {
       mj_deleteModel(model);
     }
   }
+}
+
+static const char* const kIlslandEfcPath =
+    "engine/testdata/island/island_efc.xml";
+
+TEST_F(CoreConstraintTest, MulJacVecIsland) {
+  const std::string xml_path = GetTestDataFilePath(kIlslandEfcPath);
+  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, nullptr, 0);
+  mjData* data = mj_makeData(model);
+
+  // allocate vec_nv, fill with arbitrary values
+  mjtNum* vec_nv = (mjtNum*) mju_malloc(sizeof(mjtNum)*model->nv);
+  for (int i=0; i < model->nv; i++) {
+    vec_nv[i] = 0.2 + 0.3*i;
+  }
+
+  // iterate through dense and sparse
+  for (mjtJacobian sparsity : {mjJAC_DENSE, mjJAC_SPARSE}) {
+    model->opt.jacobian = sparsity;
+
+    // simulate for 0.2 seconds
+    mj_resetData(model, data);
+    while (data->time < 0.2) {
+      mj_step(model, data);
+    }
+    mj_forward(model, data);
+
+    // multiply by Jacobian: vec_nefc = J * vec_nv
+    mjtNum* vec_nefc = (mjtNum*) mju_malloc(sizeof(mjtNum)*data->nefc);
+    mj_mulJacVec(model, data, vec_nefc, vec_nv);
+    mjtNum* vec_nefc_tmp = (mjtNum*) mju_malloc(sizeof(mjtNum)*data->nefc);
+
+    // iterate over islands
+    for (int i=0; i < data->nisland; i++) {
+      // allocate dof and efc vectors for island
+      int dofnum = data->island_dofnum[i];
+      mjtNum* vec_nvi = (mjtNum*)mju_malloc(sizeof(mjtNum) * dofnum);
+      int efcnum = data->island_efcnum[i];
+      mjtNum* vec_nefci = (mjtNum*)mju_malloc(sizeof(mjtNum) * efcnum);
+
+      // get indices
+      int* dofind = data->island_dofind + data->island_dofadr[i];
+      int* efcind = data->island_efcind + data->island_efcadr[i];
+
+      // copy values into vec_nvi
+      for (int j=0; j < dofnum; j++) {
+        vec_nvi[j] = vec_nv[dofind[j]];
+      }
+
+      // ===== both compressed
+      int flg_resunc = 0;
+      int flg_vecunc = 0;
+      mju_zero(vec_nefci, efcnum);  // clear output
+      mj_mulJacVec_island(model, data, vec_nefci, vec_nvi,
+                          i, flg_resunc, flg_vecunc);
+
+      // expect corresponding values to match
+      for (int j=0; j < efcnum; j++) {
+        EXPECT_THAT(vec_nefci[j], DoubleNear(vec_nefc[efcind[j]], 1e-12));
+      }
+
+      // ===== input uncompressed: read from vec_nv
+      flg_resunc = 0;
+      flg_vecunc = 1;
+      mju_zero(vec_nefci, efcnum);  // clear output
+      mj_mulJacVec_island(model, data, vec_nefci, vec_nv,
+                          i, flg_resunc, flg_vecunc);
+
+      // expect corresponding values to match
+      for (int j=0; j < efcnum; j++) {
+        EXPECT_THAT(vec_nefci[j], DoubleNear(vec_nefc[efcind[j]], 1e-12));
+      }
+
+      // ===== output uncompressed: write to vec_nefc_tmp
+      flg_resunc = 1;
+      flg_vecunc = 0;
+      mju_zero(vec_nefc_tmp, data->nefc);  // clear output
+      mj_mulJacVec_island(model, data, vec_nefc_tmp, vec_nvi,
+                          i, flg_resunc, flg_vecunc);
+
+      // expect corresponding values to match
+      for (int j=0; j < efcnum; j++) {
+        EXPECT_THAT(vec_nefc_tmp[efcind[j]],
+                    DoubleNear(vec_nefc[efcind[j]], 1e-12));
+      }
+
+      mju_free(vec_nvi);
+      mju_free(vec_nefci);
+    }
+
+    mju_free(vec_nefc_tmp);
+    mju_free(vec_nefc);
+  }
+
+  mju_free(vec_nv);
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
+TEST_F(CoreConstraintTest, MulJacTVecIsland) {
+  const std::string xml_path = GetTestDataFilePath(kIlslandEfcPath);
+  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, nullptr, 0);
+  mjData* data = mj_makeData(model);
+
+  // allocate vec_nv
+  mjtNum* vec_nv = (mjtNum*) mju_malloc(sizeof(mjtNum)*model->nv);
+  mjtNum* vec_nv_tmp = (mjtNum*) mju_malloc(sizeof(mjtNum)*model->nv);
+
+  // iterate through dense and sparse
+  for (mjtJacobian sparsity : {mjJAC_DENSE, mjJAC_SPARSE}) {
+    model->opt.jacobian = sparsity;
+
+    // simulate for 0.3 seconds
+    mj_resetData(model, data);
+    while (data->time < 0.3) {
+      mj_step(model, data);
+    }
+    mj_forward(model, data);
+
+    // allocate vec_nefc, fill with arbitrary values
+    mjtNum* vec_nefc = (mjtNum*) mju_malloc(sizeof(mjtNum)*data->nefc);
+    for (int i=0; i < data->nefc; i++) {
+      vec_nefc[i] = 0.2 + 0.3*i;
+    }
+
+    // multiply by Jacobian: vec_nv = J^T * vec_nefc
+    mj_mulJacTVec(model, data, vec_nv, vec_nefc);
+
+    // iterate over islands
+    for (int i=0; i < data->nisland; i++) {
+      // allocate dof and efc vectors for island
+      int dofnum = data->island_dofnum[i];
+      mjtNum* vec_nvi = (mjtNum*)mju_malloc(sizeof(mjtNum) * dofnum);
+      int efcnum = data->island_efcnum[i];
+      mjtNum* vec_nefci = (mjtNum*)mju_malloc(sizeof(mjtNum) * efcnum);
+
+      // get indices
+      int* efcind = data->island_efcind + data->island_efcadr[i];
+      int* dofind = data->island_dofind + data->island_dofadr[i];
+
+      // copy values into vec_nefci
+      for (int j=0; j < efcnum; j++) {
+        vec_nefci[j] = vec_nefc[efcind[j]];
+      }
+
+      // ==== both compressed
+      int flg_resunc = 0;
+      int flg_vecunc = 0;
+      mju_zero(vec_nvi, dofnum);  // clear output
+      mj_mulJacTVec_island(model, data, vec_nvi, vec_nefci,
+                           i, flg_resunc, flg_vecunc);
+
+      // expect corresponding values to match
+      for (int j=0; j < dofnum; j++) {
+        EXPECT_THAT(vec_nvi[j], DoubleNear(vec_nv[dofind[j]], 1e-12));
+      }
+
+      // ===== input uncompressed: read from vec_nefc
+      flg_resunc = 0;
+      flg_vecunc = 1;
+      mju_zero(vec_nvi, dofnum);  // clear output
+      mj_mulJacTVec_island(model, data, vec_nvi, vec_nefc,
+                           i, flg_resunc, flg_vecunc);
+
+      // expect corresponding values to match
+      for (int j=0; j < dofnum; j++) {
+        EXPECT_THAT(vec_nvi[j], DoubleNear(vec_nv[dofind[j]], 1e-12));
+      }
+
+      // ===== output uncompressed: write to vec_nv_tmp
+      flg_resunc = 1;
+      flg_vecunc = 0;
+      mju_zero(vec_nv_tmp, model->nv);  // clear output
+      mj_mulJacTVec_island(model, data, vec_nv_tmp, vec_nefci,
+                           i, flg_resunc, flg_vecunc);
+
+      // expect corresponding values to match
+      for (int j=0; j < dofnum; j++) {
+        EXPECT_THAT(vec_nv_tmp[dofind[j]],
+                    DoubleNear(vec_nv[dofind[j]], 1e-12));
+      }
+
+      mju_free(vec_nvi);
+      mju_free(vec_nefci);
+    }
+    mju_free(vec_nefc);
+  }
+
+  mju_free(vec_nv_tmp);
+  mju_free(vec_nv);
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
+TEST_F(CoreConstraintTest, ConstraintUpdateIsland) {
+  const std::string xml_path = GetTestDataFilePath(kIlslandEfcPath);
+  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, nullptr, 0);
+  mjData* data1 = mj_makeData(model);
+  mjData* data2 = mj_makeData(model);
+
+  // iterate over sparsity and cone
+  for (mjtJacobian sparsity : {mjJAC_SPARSE, mjJAC_DENSE}) {
+    for (mjtCone cone : {mjCONE_PYRAMIDAL, mjCONE_ELLIPTIC}) {
+      model->opt.jacobian = sparsity;
+      model->opt.cone = cone;
+
+      // simulate for 0.2 seconds
+      mj_resetData(model, data1);
+      mj_resetData(model, data2);
+      while (data1->time < 0.2) {
+        mj_step(model, data1);
+        mj_step(model, data2);
+      }
+      mj_forward(model, data1);
+      mj_forward(model, data2);
+
+      // get sizes
+      int nefc = data1->nefc;
+      int nv = model->nv;
+      int nisland = data1->nisland;
+      EXPECT_GT(nisland, 0);
+
+      // get jar = J*a - aref
+      mjtNum* jar = (mjtNum*)mju_malloc(sizeof(mjtNum) * nefc);
+      mj_mulJacVec(model, data1, jar, data1->qacc);
+      mju_subFrom(jar, data1->efc_aref, nefc);
+
+      // constraint update for data1 given jar
+      mjtNum cost1;
+      mj_constraintUpdate(model, data1, jar, &cost1, /*flg_coneHessian=*/1);
+
+      // iterate over islands, check match
+      mjtNum cost2 = 0;
+      for (int island=0; island < nisland; island++) {
+        // clear outputs from data2
+        for (int i=0; i < nefc; i++) data2->efc_state[i] = -1;
+        mju_zero(data2->efc_force, nefc);
+        mju_zero(data2->qfrc_constraint, nv);
+        for (int i=0; i < data2->ncon; i++) mju_zero(data2->contact[i].H, 36);
+
+        // sizes and indices, in this island
+        int dofnum = data2->island_dofnum[island];
+        int efcnum = data2->island_efcnum[island];
+        int* dofind = data2->island_dofind + data2->island_dofadr[island];
+        int* efcind = data2->island_efcind + data2->island_efcadr[island];
+
+        // get jar restricted to island
+        mjtNum* jari = (mjtNum*)mju_malloc(sizeof(mjtNum) * efcnum);
+        for (int c=0; c < efcnum; c++) {
+          jari[c] = jar[efcind[c]];
+        }
+
+        // update constraints for this island
+        mjtNum cost2i;
+        mj_constraintUpdate_island(model, data2, jari, &cost2i,
+                                  /*flg_coneHessian=*/1, island);
+
+        // compare nefc vectors
+        for (int c=0; c < efcnum; c++) {
+          int i = efcind[c];
+          EXPECT_EQ(data2->efc_island[i], island);
+          EXPECT_EQ(data2->efc_state[i], data1->efc_state[i]);
+          EXPECT_THAT(data2->efc_force[i],
+                      DoubleNear(data1->efc_force[i], 1e-12));
+        }
+
+        // compare qfrc_constraint
+        for (int c=0; c < dofnum; c++) {
+          int i = dofind[c];
+          EXPECT_THAT(data2->qfrc_constraint[i],
+                      DoubleNear(data1->qfrc_constraint[i], 1e-12));
+        }
+
+        // compare cone Hessians
+        for (int c=0; c < data2->ncon; c++) {
+          int efcadr = data2->contact[c].efc_address;
+          if (data2->efc_island[efcadr] == island) {
+            for (int j=0; j < 36; j++) {
+              EXPECT_THAT(data2->contact[c].H[j],
+                          DoubleNear(data2->contact[c].H[j], 1e-12));
+            }
+          }
+        }
+
+        // add island cost to total cost
+        cost2 += cost2i;
+
+        mju_free(jari);
+      }
+
+      // expect monolithic total cost
+      EXPECT_THAT(cost1, DoubleNear(cost2, 1e-12));
+
+      mju_free(jar);
+    }
+  }
+
+  mj_deleteData(data2);
+  mj_deleteData(data1);
+  mj_deleteModel(model);
 }
 
 }  // namespace

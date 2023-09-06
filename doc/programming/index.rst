@@ -30,6 +30,10 @@ OpenGL renderer
    The renderer is written in C and is based on fixed-function OpenGL. It does not have all the features of
    state-of-the-art rendering engines (and can be replaced with such an engine if desired) but nevertheless it provides
    efficient and informative 3D rendering.
+Thread
+   The Threading framework (new in MuJoCo 3.0) is written in C++ and exposed in C. It provides a ThreadPool interface
+   to process Tasks asynchronously. To enable use in MuJoCo, create a ThreadPool and assign it to the thread_pool field
+   in mjData.
 UI framework
    The UI framework (new in MuJoCo 2.0) is written in C. UI elements are rendered in OpenGL. It has its own event
    mechanism and abstract hooks for keyboard and mouse input. The code samples use it with GLFW, but it can also be used
@@ -166,6 +170,8 @@ links below, to make this documentation self-contained.
    code.
 `mjplugin.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjplugin.h>`__
    Defines data structures required by :ref:`engine plugins<exPlugin>`.
+`mjthread.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjthread.h>`__
+   Defines data structures and functions required by :ref:`thread<Thread>`.
 
 .. _inVersion:
 

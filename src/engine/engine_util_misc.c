@@ -1207,6 +1207,20 @@ int mju_isZero(mjtNum* vec, int n) {
 
 
 
+// set integer vector to 0
+void mju_zeroInt(int* res, int n) {
+  memset(res, 0, n*sizeof(int));
+}
+
+
+
+// copy int vector vec into res
+void mju_copyInt(int* res, const int* vec, int n) {
+  memcpy(res, vec, n*sizeof(int));
+}
+
+
+
 // standard normal random number generator (optional second number)
 mjtNum mju_standardNormal(mjtNum* num2) {
   const mjtNum scale = 2.0/((mjtNum)RAND_MAX);

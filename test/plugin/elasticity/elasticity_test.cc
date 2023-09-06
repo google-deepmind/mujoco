@@ -41,9 +41,6 @@ TEST_F(PluginTest, ElasticEnergy) {
     <composite type="particle" count="8 8 8" spacing="1">
       <geom size=".025" group="4"/>
       <plugin plugin="mujoco.elasticity.solid">
-        <config key="nx" value="8"/>
-        <config key="ny" value="8"/>
-        <config key="nz" value="8"/>
         <config key="poisson" value="0"/>
         <config key="young" value="2"/>
       </plugin>

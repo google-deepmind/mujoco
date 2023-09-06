@@ -61,7 +61,7 @@ void worker(const mjModel* m, const mjData* dmain, mjData* d, int id) {
   int nv = m->nv;
 
   // allocate stack space for result at center
-  mjMARKSTACK;
+  mj_markStack(d);
   mjtNum* center = mj_stackAllocNum(d, nv);
   mjtNum* warmstart = mj_stackAllocNum(d, nv);
 
@@ -188,7 +188,7 @@ void worker(const mjModel* m, const mjData* dmain, mjData* d, int id) {
     }
   }
 
-  mjFREESTACK;
+  mj_freeStack(d);
 }
 
 
@@ -222,7 +222,7 @@ void checkderiv(const mjModel* m, mjData* d, mjtNum error[7]) {
   int nv = m->nv;
 
   // allocate space
-  mjMARKSTACK;
+  mj_markStack(d);
   mjtNum* mat = mj_stackAllocNum(d, nv*nv);
 
   // get pointers to derivative matrices
@@ -275,7 +275,7 @@ void checkderiv(const mjModel* m, mjData* d, mjtNum error[7]) {
   mju_addTo(mat, F0, nv*nv);
   error[7] = relnorm(mat, F0, nv*nv);
 
-  mjFREESTACK;
+  mj_freeStack(d);
 }
 
 

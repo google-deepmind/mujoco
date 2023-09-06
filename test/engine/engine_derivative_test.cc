@@ -14,7 +14,10 @@
 
 // Tests for engine/engine_derivative.c.
 
+#include <iomanip>
+#include <iostream>
 #include <random>
+#include <string>
 #include <vector>
 
 #include <gmock/gmock.h>
@@ -287,7 +290,7 @@ TEST_F(DerivativeTest, StepSkip) {
 static void LinearSystem(const mjModel* m, mjData* d, mjtNum* A, mjtNum* B) {
   int nv = m->nv, nu = m->nu;
   mjtNum dt = m->opt.timestep;
-  mjMARKSTACK;
+  mj_markStack(d);
 
   // === state-transition matrix A
   if (A) {
@@ -330,7 +333,7 @@ static void LinearSystem(const mjModel* m, mjData* d, mjtNum* A, mjtNum* B) {
     mju_scl(B+nu*nv, BcT, dt, nu*nv);
   }
 
-  mjFREESTACK;
+  mj_freeStack(d);
 }
 
 // compare FD derivatives to analytic derivatives of linear dynamical system

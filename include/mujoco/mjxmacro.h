@@ -24,6 +24,7 @@
     X( mjtNum,  apirate          )  \
     X( mjtNum,  impratio         )  \
     X( mjtNum,  tolerance        )  \
+    X( mjtNum,  ls_tolerance     )  \
     X( mjtNum,  noslip_tolerance )  \
     X( mjtNum,  mpr_tolerance    )  \
     X( mjtNum,  density          )  \
@@ -38,6 +39,7 @@
     X( int,     jacobian          ) \
     X( int,     solver            ) \
     X( int,     iterations        ) \
+    X( int,     ls_iterations     ) \
     X( int,     noslip_iterations ) \
     X( int,     mpr_iterations    ) \
     X( int,     disableflags      ) \
@@ -625,6 +627,7 @@
     X( size_t,    nbuffer            ) \
     X( int,       nplugin            ) \
     X( size_t,    pstack             ) \
+    X( size_t,    pbase              ) \
     X( size_t,    parena             ) \
     X( size_t,    maxuse_stack       ) \
     X( size_t,    maxuse_arena       ) \
@@ -643,7 +646,8 @@
     X( int,       nnzJ               ) \
     X( int,       ncon               ) \
     X( int,       nisland            ) \
-    X( mjtNum,    time               )
+    X( mjtNum,    time               ) \
+    X( uintptr_t, threadpool         )
 
 
 // vector fields of mjData

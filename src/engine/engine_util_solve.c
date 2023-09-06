@@ -16,7 +16,6 @@
 
 #include <math.h>
 #include <stdio.h>
-#include <string.h>
 
 #include <mujoco/mjdata.h>
 #include <mujoco/mjmacro.h>
@@ -148,7 +147,7 @@ int mju_cholFactorSparse(mjtNum* mat, int n, mjtNum mindiag,
                          mjData* d) {
   int rank = n;
 
-  mjMARKSTACK;
+  mj_markStack(d);
   int* buf_ind = mj_stackAllocInt(d, n);
   mjtNum* sparse_buf = mj_stackAllocNum(d, n);
 
@@ -199,7 +198,7 @@ int mju_cholFactorSparse(mjtNum* mat, int n, mjtNum mindiag,
     }
   }
 
-  mjFREESTACK;
+  mj_freeStack(d);
   return rank;
 }
 
@@ -235,7 +234,7 @@ void mju_cholSolveSparse(mjtNum* res, const mjtNum* mat, const mjtNum* vec, int 
 
     // x(i) -= sum_j L(i,j)*x(j), j=0:i-1
     if (nnz > 1) {
-      res[i] -= mju_dotSparse(mat+adr, res, nnz-1, colind+adr);
+      res[i] -= mju_dotSparse(mat+adr, res, nnz-1, colind+adr, /*flg_unc1=*/0);
       // modulo AVX, the above line does
       // for (int j=0; j<nnz-1; j++)
       //   res[i] -= mat[adr+j]*res[colind[adr+j]];
@@ -254,7 +253,7 @@ void mju_cholSolveSparse(mjtNum* res, const mjtNum* mat, const mjtNum* vec, int 
 int mju_cholUpdateSparse(mjtNum* mat, mjtNum* x, int n, int flg_plus,
                          int* rownnz, int* rowadr, int* colind, int x_nnz, int* x_ind,
                          mjData* d) {
-  mjMARKSTACK;
+  mj_markStack(d);
   int* buf_ind = mj_stackAllocInt(d, n);
   mjtNum* sparse_buf = mj_stackAllocNum(d, n);
 
@@ -295,7 +294,7 @@ int mju_cholUpdateSparse(mjtNum* mat, mjtNum* x, int n, int flg_plus,
     i = i - 1 + (new_x_nnz - i);
   }
 
-  mjFREESTACK;
+  mj_freeStack(d);
   return rank;
 }
 
@@ -592,7 +591,7 @@ void mju_factorLUSparse(mjtNum* LU, int n, int* scratch,
   int* remaining = scratch;
 
   // set remaining = rownnz
-  memcpy(remaining, rownnz, n*sizeof(int));
+  mju_copyInt(remaining, rownnz, n);
 
   // diagonal elements (i,i)
   for (int i=n-1; i >= 0; i--) {

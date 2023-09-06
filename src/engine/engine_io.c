@@ -26,7 +26,7 @@
 #include <mujoco/mjmacro.h>
 #include <mujoco/mjplugin.h>
 #include <mujoco/mjxmacro.h>
-#include "engine/engine_array_safety.h"  // IWYU pragma: keep
+#include "engine/engine_crossplatform.h"
 #include "engine/engine_resource.h"
 #include "engine/engine_macro.h"
 #include "engine/engine_plugin.h"
@@ -34,6 +34,11 @@
 #include "engine/engine_util_errmem.h"
 #include "engine/engine_util_misc.h"
 #include "engine/engine_vfs.h"
+
+#ifdef ADDRESS_SANITIZER
+  #include <sanitizer/asan_interface.h>
+  #include <sanitizer/common_interface_defs.h>
+#endif
 
 #ifdef MEMORY_SANITIZER
   #include <sanitizer/msan_interface.h>
@@ -43,7 +48,29 @@
   #pragma warning (disable: 4305)  // disable MSVC warning: truncation from 'double' to 'float'
 #endif
 
+// add red zone padding when built with asan, to detect out-of-bound accesses
+#ifdef ADDRESS_SANITIZER
+  #define mjREDZONE 32
+#else
+  #define mjREDZONE 0
+#endif
+
 static const int MAX_ARRAY_SIZE = INT_MAX / 4;
+
+// compute a % b with a fast code path if the second argument is a power of 2
+static inline size_t fastmod(size_t a, size_t b) {
+  // (b & (b - 1)) == 0 implies that b is a power of 2
+  if (mjLIKELY((b & (b - 1)) == 0)) {
+    return a & (b - 1);
+  }
+  return a % b;
+}
+
+typedef struct {
+  size_t pbase;   // value of d->pbase immediately before mj_markStack
+  size_t pstack;  // value of d->pstack immediately before mj_markStack
+  void* pc;       // program counter of the call site of mj_markStack (only set when under asan)
+} mjStackFrame;
 
 //------------------------------ mjLROpt -----------------------------------------------------------
 
@@ -86,6 +113,9 @@ void mj_defaultSolRefImp(mjtNum* solref, mjtNum* solimp) {
 
 // set model options to default values
 void mj_defaultOption(mjOption* opt) {
+  // fill opt with zeros in case struct is padded
+  memset(opt, 0, sizeof(mjOption));
+
   // timing parameters
   opt->timestep           = 0.002;
   opt->apirate            = 100;
@@ -93,6 +123,7 @@ void mj_defaultOption(mjOption* opt) {
   // solver parameters
   opt->impratio           = 1;
   opt->tolerance          = 1e-8;
+  opt->ls_tolerance       = 0.01;
   opt->noslip_tolerance   = 1e-6;
   opt->mpr_tolerance      = 1e-6;
 
@@ -120,6 +151,7 @@ void mj_defaultOption(mjOption* opt) {
   opt->jacobian           = mjJAC_AUTO;
   opt->solver             = mjSOL_NEWTON;
   opt->iterations         = 100;
+  opt->ls_iterations      = 50;
   opt->noslip_iterations  = 0;
   opt->mpr_iterations     = 50;
   opt->disableflags       = 0;
@@ -656,7 +688,7 @@ void mj_saveModel(const mjModel* m, const char* filename, void* buffer, int buff
 
 
 // load model from binary MJB resource
-static mjModel* _mj_loadModel(const char* filename, int vfs_provider) {
+mjModel* mj_loadModel(const char* filename, const mjVFS* vfs) {
   int header[NHEADER] = {0};
   int expected_header[NHEADER] = {ID, sizeof(mjtNum), getnint(), getnsize(), getnptr()};
   int ints[256];
@@ -665,8 +697,11 @@ static mjModel* _mj_loadModel(const char* filename, int vfs_provider) {
   mjModel *m = 0;
   mjResource* r = NULL;
 
-  if((r = mju_openResource(filename, vfs_provider)) == NULL) {
-    return NULL;
+  // first try vfs, otherwise try a provider or OS filesystem
+  if ((r = mju_openVfsResource(filename, vfs)) == NULL) {
+    if ((r = mju_openResource(filename)) == NULL) {
+      return NULL;
+    }
   }
 
   const void* buffer = NULL;
@@ -780,27 +815,6 @@ static mjModel* _mj_loadModel(const char* filename, int vfs_provider) {
 
 
 
-// load model from binary MJB file
-//  if vfs is not NULL, look up file in vfs before reading from disk
-mjModel* mj_loadModel(const char* filename, const mjVFS* vfs) {
-  if (vfs == NULL) {
-    return _mj_loadModel(filename, 0);
-  }
-
-  int index = mj_registerVfsProvider(vfs);
-  if (index < 1) {
-    mjERROR("could not allocate memory");
-    return NULL;
-  }
-
-  mjModel* model = _mj_loadModel(filename, index);
-
-  mjp_unregisterResourceProvider(index);
-  return model;
-}
-
-
-
 // de-allocate mjModel
 void mj_deleteModel(mjModel* m) {
   if (m) {
@@ -841,11 +855,11 @@ static void makeDSparse(const mjModel* m, mjData* d) {
   int* rowadr = d->D_rowadr;
   int* colind = d->D_colind;
 
-  mjMARKSTACK;
+  mj_markStack(d);
   int* remaining = mj_stackAllocInt(d, nv);
 
   // compute rownnz
-  memset(rownnz, 0, nv * sizeof(int));
+  mju_zeroInt(rownnz, nv);
   for (int i = nv - 1; i >= 0; i--) {
     // init at diagonal
     int j = i;
@@ -865,7 +879,7 @@ static void makeDSparse(const mjModel* m, mjData* d) {
   }
 
   // populate colind
-  memcpy(remaining, rownnz, nv * sizeof(int));
+  mju_copyInt(remaining, rownnz, nv);
   for (int i = nv - 1; i >= 0; i--) {
     // init at diagonal
     remaining[i]--;
@@ -889,7 +903,7 @@ static void makeDSparse(const mjModel* m, mjData* d) {
     }
   }
 
-  mjFREESTACK;
+  mj_freeStack(d);
 }
 
 
@@ -902,7 +916,7 @@ static void makeBSparse(const mjModel* m, mjData* d) {
   int* colind = d->B_colind;
 
   // set rownnz to subtree dofs counts, including self
-  memset(rownnz, 0, sizeof(int) * nbody);
+  mju_zeroInt(rownnz, nbody);
   for (int i = nbody - 1; i > 0; i--) {
     rownnz[i] += m->body_dofnum[i];
     rownnz[m->body_parentid[i]] += rownnz[i];
@@ -934,9 +948,9 @@ static void makeBSparse(const mjModel* m, mjData* d) {
   }
 
   // allocate and clear incremental row counts
-  mjMARKSTACK;
+  mj_markStack(d);
   int* cnt = mj_stackAllocInt(d, nbody);
-  memset(cnt, 0, sizeof(int) * nbody);
+  mju_zeroInt(cnt, nbody);
 
   // add subtree dofs to colind
   for (int i = nbody - 1; i > 0; i--) {
@@ -982,7 +996,7 @@ static void makeBSparse(const mjModel* m, mjData* d) {
     }
   }
 
-  mjFREESTACK;
+  mj_freeStack(d);
 }
 
 
@@ -1105,6 +1119,8 @@ static mjData* _makeData(const mjModel* m) {
     }
   }
 
+  d->threadpool = 0;
+
   return d;
 }
 
@@ -1193,6 +1209,8 @@ mjData* mj_copyData(mjData* dest, const mjModel* m, const mjData* src) {
     }
   }
 
+  dest->threadpool = src->threadpool;
+
   return dest;
 }
 
@@ -1200,12 +1218,12 @@ mjData* mj_copyData(mjData* dest, const mjModel* m, const mjData* src) {
 
 // allocate memory from the mjData arena
 void* mj_arenaAlloc(mjData* d, size_t bytes, size_t alignment) {
-  size_t misalignment = d->parena % alignment;
+  size_t misalignment = fastmod(d->parena, alignment);
   size_t padding = misalignment ? alignment - misalignment : 0;
 
   // check size
   size_t bytes_available = d->narena - d->pstack;
-  if (d->parena + padding + bytes > bytes_available) {
+  if (mjUNLIKELY(d->parena + padding + bytes > bytes_available)) {
     return NULL;
   }
 
@@ -1231,16 +1249,9 @@ void* mj_arenaAlloc(mjData* d, size_t bytes, size_t alignment) {
 // declared inline so that modular arithmetic with specific alignments can be optimized out
 static inline void* stackalloc(mjData* d, size_t size, size_t alignment) {
   // return NULL if empty
-  if (!size) {
+  if (mjUNLIKELY(!size)) {
     return NULL;
   }
-
-  // add red zone padding when built with asan, to detect out-of-bound accesses
-#ifdef ADDRESS_SANITIZER
-  #define mjREDZONE 32
-#else
-  #define mjREDZONE 0
-#endif
 
   // size of entire arena/stack in bytes
   size_t stack_size_bytes = d->narena;
@@ -1255,7 +1266,7 @@ static inline void* stackalloc(mjData* d, size_t size, size_t alignment) {
   uintptr_t start_ptr = end_ptr - (size + mjREDZONE);
 
   // align the pointer
-  start_ptr -= start_ptr % alignment;
+  start_ptr -= fastmod(start_ptr, alignment);
 
   // new top of the stack
   uintptr_t new_pstack_ptr = start_ptr - mjREDZONE;
@@ -1268,8 +1279,8 @@ static inline void* stackalloc(mjData* d, size_t size, size_t alignment) {
   // check size
   size_t stack_available_bytes = end_ptr - ((uintptr_t)d->arena + d->parena);
   size_t stack_required_bytes = end_ptr - new_pstack_ptr;
-  if (stack_required_bytes > stack_available_bytes) {
-    mju_error("mjData stack overflow: max = %zu, available = %zu, requested = %zu "
+  if (mjUNLIKELY(stack_required_bytes > stack_available_bytes)) {
+    mju_error("mj_stackAlloc: insufficient memory: max = %zu, available = %zu, requested = %zu "
               "(ne = %d, nf = %d, nefc = %d, ncon = %d)",
               stack_size_bytes, stack_available_bytes, stack_required_bytes,
               d->ne, d->nf, d->nefc, d->ncon);
@@ -1285,15 +1296,13 @@ static inline void* stackalloc(mjData* d, size_t size, size_t alignment) {
   }
 
   // store new stack usage in the red zone
-  ASAN_UNPOISON_MEMORY_REGION(new_pstack_ptr, sizeof(size_t));
+  ASAN_UNPOISON_MEMORY_REGION((void*)new_pstack_ptr, sizeof(size_t));
   *(size_t*)new_pstack_ptr = usage;
-  ASAN_POISON_MEMORY_REGION(new_pstack_ptr, sizeof(size_t));
+  ASAN_POISON_MEMORY_REGION((void*)new_pstack_ptr, sizeof(size_t));
 
   // unpoison the actual usable allocation
-  ASAN_UNPOISON_MEMORY_REGION(start_ptr, size);
+  ASAN_UNPOISON_MEMORY_REGION((void*)start_ptr, size);
 #endif
-
-#undef mjREDZONE
 
   // update pstack and max usage statistics
   d->pstack = new_pstack;
@@ -1301,6 +1310,73 @@ static inline void* stackalloc(mjData* d, size_t size, size_t alignment) {
   d->maxuse_arena = mjMAX(d->maxuse_arena, usage + d->parena);
 
   return (void*)start_ptr;
+}
+
+
+
+// mjData mark stack frame
+#ifdef ADDRESS_SANITIZER
+__attribute__((noinline))
+#endif
+void mj_markStack(mjData* d) {
+  size_t pstack_old = d->pstack;
+  mjStackFrame* s =
+      (mjStackFrame*) stackalloc(d, sizeof(mjStackFrame), _Alignof(mjStackFrame));
+  s->pbase = d->pbase;
+  s->pstack = pstack_old;
+#ifdef ADDRESS_SANITIZER
+  // store the program counter to the caller so that we can compare against mj_freeStack later
+  s->pc = __sanitizer_return_address();
+#endif
+  d->pbase = d->pstack - mjREDZONE;
+}
+
+
+
+// mjData free stack frame
+#ifdef ADDRESS_SANITIZER
+__attribute__((noinline))
+#endif
+void mj_freeStack(mjData* d) {
+  if (mjUNLIKELY(!d->pbase)) {
+    return;
+  }
+
+  mjStackFrame* s = (mjStackFrame*) ((char*)d->arena + d->narena - d->pbase);
+#ifdef ADDRESS_SANITIZER
+  #define mjSYMBOLIZELEN 256
+
+  // symbolize s->pc to get the function name of most recent caller to mj_markStack
+  char markstack_func[mjSYMBOLIZELEN];
+  __sanitizer_symbolize_pc(s->pc, "%f", markstack_func, mjSYMBOLIZELEN);
+  markstack_func[mjSYMBOLIZELEN - 1] = '\0';
+
+  // symbolize current program counter to get the function name of caller to this function
+  char freestack_func[mjSYMBOLIZELEN];
+  __sanitizer_symbolize_pc(__sanitizer_return_address(), "%f", freestack_func, mjSYMBOLIZELEN);
+  freestack_func[mjSYMBOLIZELEN - 1] = '\0';
+
+  // raise an error if caller function name doesn't match the most recent caller of mj_markStack
+  if (strncmp(markstack_func, freestack_func, mjSYMBOLIZELEN)) {
+    char dbginfo[mjSYMBOLIZELEN];
+    __sanitizer_symbolize_pc(
+        s->pc, "mj_markStack %F at %S has no corresponding mj_freeStack",
+        dbginfo, sizeof(dbginfo));
+    dbginfo[mjSYMBOLIZELEN - 1] = '\0';
+    mjERROR("%s", dbginfo);
+  }
+
+  #undef mjSYMBOLIZELEN
+#endif
+
+  // restore pbase and pstack
+  d->pbase = s->pbase;
+  d->pstack = s->pstack;
+
+  // if running under asan, poison the newly freed memory region
+#ifdef ADDRESS_SANITIZER
+  ASAN_POISON_MEMORY_REGION((char*)d->arena + d->parena, d->narena - d->pstack - d->parena);
+#endif
 }
 
 void* mj_stackAlloc(mjData* d, size_t bytes, size_t alignment) {
@@ -1329,6 +1405,7 @@ static void _resetData(const mjModel* m, mjData* d, unsigned char debug_value) {
 
   // clear stack pointer
   d->pstack = 0;
+  d->pbase = 0;
 
   // clear arena pointers
   d->parena = 0;
@@ -1496,6 +1573,11 @@ void mj_resetDataKeyframe(const mjModel* m, mjData* d, int key) {
 // de-allocate mjData
 void mj_deleteData(mjData* d) {
   if (d) {
+#ifdef ADDRESS_SANITIZER
+    // raise an error if there's a dangling stack frame
+    mj_freeStack(d);
+#endif
+
     // destroy plugin instances
     for (int i = 0; i < d->nplugin; ++i) {
       const mjpPlugin* plugin = mjp_getPluginAtSlot(d->plugin[i]);

@@ -14,12 +14,13 @@
 
 #include "engine/engine_support.h"
 
+#include <stddef.h>
+#include <stdint.h>
 #include <string.h>
 
 #include <mujoco/mjdata.h>
 #include <mujoco/mjmacro.h>
 #include <mujoco/mjmodel.h>
-#include "engine/engine_array_safety.h"
 #include "engine/engine_core_constraint.h"
 #include "engine/engine_crossplatform.h"
 #include "engine/engine_io.h"
@@ -278,7 +279,7 @@ void mj_jacBodyCom(const mjModel* m, const mjData* d, mjtNum* jacp, mjtNum* jacr
 // compute subtree-com Jacobian
 void mj_jacSubtreeCom(const mjModel* m, mjData* d, mjtNum* jacp, int body) {
   int nv = m->nv;
-  mjMARKSTACK;
+  mj_markStack(d);
   mjtNum* jacp_b = mj_stackAllocNum(d, 3*nv);
 
   // clear output
@@ -299,7 +300,7 @@ void mj_jacSubtreeCom(const mjModel* m, mjData* d, mjtNum* jacp, int body) {
   // normalize by subtree mass
   mju_scl(jacp, jacp, 1/m->body_subtreemass[body], 3*nv);
 
-  mjFREESTACK;
+  mj_freeStack(d);
 }
 
 
@@ -324,7 +325,7 @@ void mj_jacPointAxis(const mjModel* m, mjData* d, mjtNum* jacPoint, mjtNum* jacA
   int nv = m->nv;
 
   // get full Jacobian of point
-  mjMARKSTACK;
+  mj_markStack(d);
   mjtNum* jacp = (jacPoint ? jacPoint : mj_stackAllocNum(d, 3*nv));
   mjtNum* jacr = mj_stackAllocNum(d, 3*nv);
   mj_jac(m, d, jacp, jacr, point, body);
@@ -338,7 +339,7 @@ void mj_jacPointAxis(const mjModel* m, mjData* d, mjtNum* jacPoint, mjtNum* jacA
     }
   }
 
-  mjFREESTACK;
+  mj_freeStack(d);
 }
 
 
@@ -827,25 +828,27 @@ void mj_fullM(const mjModel* m, mjtNum* dst, const mjtNum* M) {
 
 // multiply vector by inertia matrix
 void mj_mulM(const mjModel* m, const mjData* d, mjtNum* res, const mjtNum* vec) {
-  int adr, nv = m->nv;
+  int nv = m->nv;
   const mjtNum* M = d->qM;
-  const int* dofMadr = m->dof_Madr;
+  const int* Madr = m->dof_Madr;
+  const int* parentid = m->dof_parentid;
+  const int* simplenum = m->dof_simplenum;
 
   mju_zero(res, nv);
 
   for (int i=0; i < nv; i++) {
 #ifdef mjUSEAVX
-    // simple: diagonal division, AVX
-    if (m->dof_simplenum[i] >= 4) {
+    // simple: diagonal multiplication, AVX
+    if (simplenum[i] >= 4) {
       // init
       __m256d result, val1, val2;
 
       // parallel computation
       val1 = _mm256_loadu_pd(vec+i);
-      val2 = _mm256_set_pd(M[dofMadr[i+3]],
-                           M[dofMadr[i+2]],
-                           M[dofMadr[i+1]],
-                           M[dofMadr[i+0]]);
+      val2 = _mm256_set_pd(M[Madr[i+3]],
+                           M[Madr[i+2]],
+                           M[Madr[i+1]],
+                           M[Madr[i+0]]);
       result = _mm256_mul_pd(val1, val2);
 
       // store result
@@ -856,29 +859,88 @@ void mj_mulM(const mjModel* m, const mjData* d, mjtNum* res, const mjtNum* vec) 
       continue;
     }
 #endif
+    // address in M
+    int adr = Madr[i];
 
-    // simple: diagonal multiplication
-    if (m->dof_simplenum[i]) {
-      res[i] = M[dofMadr[i]]*vec[i];
+    // compute diagonal
+    res[i] = M[adr]*vec[i];
+
+    // simple dof: continue
+    if (simplenum[i]) {
+      continue;
     }
 
-    // regular: full multiplication
-    else {
-      // diagonal
-      adr = dofMadr[i];
-      res[i] += M[adr]*vec[i];
-
-      // off-diagonal
-      int j = m->dof_parentid[i];
+    // compute off-diagonals
+    int j = parentid[i];
+    while (j >= 0) {
       adr++;
-      while (j >= 0) {
-        res[i] += M[adr]*vec[j];
-        res[j] += M[adr]*vec[i];
+      res[i] += M[adr]*vec[j];
+      res[j] += M[adr]*vec[i];
 
-        // advance to next element
-        j = m->dof_parentid[j];
-        adr++;
+      // advance to parent
+      j = parentid[j];
+    }
+  }
+}
+
+
+
+// multiply vector by inertia matrix for one dof island
+void mj_mulM_island(const mjModel* m, const mjData* d, mjtNum* res, const mjtNum* vec,
+                    int island, int flg_vecunc) {
+  // if no island, call regular function
+  if (island < 0) {
+    mj_mulM(m, d, res, vec);
+    return;
+  }
+
+  // local constants: general
+  const mjtNum* M = d->qM;
+  const int* Madr = m->dof_Madr;
+  const int* parentid = m->dof_parentid;
+  const int* simplenum = m->dof_simplenum;
+
+  // local constants: island specific
+  int ndof = d->island_dofnum[island];
+  const int* dofind = d->island_dofind + d->island_dofadr[island];
+  const int* islandind = d->dof_islandind;
+
+  mju_zero(res, ndof);
+
+  for (int k=0; k < ndof; k++) {
+    // address in full dof vector
+    int i = dofind[k];
+
+    // address in M
+    int adr = Madr[i];
+
+    // diagonal
+    if (flg_vecunc) {
+      res[k] = M[adr]*vec[i];
+    } else {
+      res[k] = M[adr]*vec[k];
+    }
+
+    // simple dof: continue
+    if (simplenum[i]) {
+      continue;
+    }
+
+    // off-diagonal
+    int j = parentid[i];
+    while (j >= 0) {
+      adr++;
+      int l = islandind[j];
+      if (flg_vecunc) {
+        res[k] += M[adr]*vec[j];
+        res[l] += M[adr]*vec[i];
+      } else {
+        res[k] += M[adr]*vec[l];
+        res[l] += M[adr]*vec[k];
       }
+
+      // advance to parent
+      j = parentid[j];
     }
   }
 }
@@ -952,7 +1014,7 @@ void mj_addM(const mjModel* m, mjData* d, mjtNum* dst,
   // sparse
   if (rownnz && rowadr && colind) {
     int nv = m->nv;
-    mjMARKSTACK;
+    mj_markStack(d);
     // create sparse inertia matrix M
     int nnz = m->nD;  // use sparse dof-dof matrix
     int* M_rownnz = mj_stackAllocInt(d, nv);  // actual nnz count
@@ -962,7 +1024,7 @@ void mj_addM(const mjModel* m, mjData* d, mjtNum* dst,
     mj_makeMSparse(m, d, M, M_rownnz, NULL, M_colind);
     mj_addMSparse(m, d, dst, rownnz, rowadr, colind, M,
                   M_rownnz, NULL, M_colind);
-    mjFREESTACK;
+    mj_freeStack(d);
   }
 
   // dense
@@ -997,7 +1059,7 @@ void mj_makeMSparse(const mjModel* m, mjData* d, mjtNum* M,
     }
 
     // backward pass over dofs: construct M_row(i) in reverse order
-    int col = M_rowadr[i]; // current column in row i
+    int col = M_rowadr[i];  // current column in row i
     for (int j = i; j >= 0; j = m->dof_parentid[j]) {
       M[col] = d->qM[Madr++];
       M_colind[col++] = j;
@@ -1049,7 +1111,7 @@ void mj_addMSparse(const mjModel* m, mjData* d, mjtNum* dst,
     M_rowadr = d->D_rowadr;
   }
 
-  mjMARKSTACK;
+  mj_markStack(d);
   int* buf_ind = mj_stackAllocInt(d, nv);
   mjtNum* sparse_buf = mj_stackAllocNum(d, nv);
 
@@ -1059,7 +1121,7 @@ void mj_addMSparse(const mjModel* m, mjData* d, mjtNum* dst,
                                   rownnz[i], M_rownnz[i], colind + rowadr[i],
                                   M_colind + M_rowadr[i], sparse_buf, buf_ind);
   }
-  mjFREESTACK;
+  mj_freeStack(d);
 }
 
 
@@ -1096,11 +1158,11 @@ void mj_addMDense(const mjModel* m, mjData* d, mjtNum* dst) {
 // dst[D] = src[M], handle different sparsity representations
 void mj_copyM2DSparse(const mjModel* m, mjData* d, mjtNum* dst, const mjtNum* src) {
   int nv = m->nv;
-  mjMARKSTACK;
+  mj_markStack(d);
 
   // init remaining
   int* remaining = mj_stackAllocInt(d, nv);
-  memcpy(remaining, d->D_rownnz, nv * sizeof(int));
+  mju_copyInt(remaining, d->D_rownnz, nv);
 
   // copy data
   for (int i = nv - 1; i >= 0; i--) {
@@ -1123,7 +1185,7 @@ void mj_copyM2DSparse(const mjModel* m, mjData* d, mjtNum* dst, const mjtNum* sr
     }
   }
 
-  mjFREESTACK;
+  mj_freeStack(d);
 }
 
 
@@ -1161,7 +1223,7 @@ void mj_applyFT(const mjModel* m, mjData* d,
   int nv = m->nv;
 
   // allocate local variables
-  mjMARKSTACK;
+  mj_markStack(d);
   mjtNum* jacp = mj_stackAllocNum(d, 3*nv);
   mjtNum* jacr = mj_stackAllocNum(d, 3*nv);
   mjtNum* qforce = mj_stackAllocNum(d, nv);
@@ -1184,7 +1246,7 @@ void mj_applyFT(const mjModel* m, mjData* d,
     mju_addTo(qfrc_target, qforce, nv);
   }
 
-  mjFREESTACK;
+  mj_freeStack(d);
 }
 
 
@@ -1525,7 +1587,7 @@ int mj_version(void) {
 
 
 // current version of MuJoCo as a null-terminated string
-const char* mj_versionString() {
+const char* mj_versionString(void) {
   static const char versionstring[] = mjVERSIONSTRING;
   return versionstring;
 }

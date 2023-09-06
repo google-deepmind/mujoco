@@ -399,7 +399,7 @@ void mjd_rne_vel_dense(const mjModel* m, mjData* d) {
   int nv = m->nv, nbody = m->nbody;
   mjtNum mat[36], mat1[36], mat2[36], dmul[36], tmp[6];
 
-  mjMARKSTACK;
+  mj_markStack(d);
   mjtNum* Dcvel = mj_stackAllocNum(d, nbody*6*nv);
   mjtNum* Dcdofdot = mj_stackAllocNum(d, nv*6*nv);
   mjtNum* Dcacc = mj_stackAllocNum(d, nbody*6*nv);
@@ -470,7 +470,7 @@ void mjd_rne_vel_dense(const mjModel* m, mjData* d) {
     }
   }
 
-  mjFREESTACK;
+  mj_freeStack(d);
 }
 
 
@@ -614,7 +614,7 @@ static void mjd_rne_vel(const mjModel* m, mjData* d) {
 
   mjtNum mat[36], mat1[36], mat2[36], dmul[36], tmp[6];
 
-  mjMARKSTACK;
+  mj_markStack(d);
   mjtNum* Dcdofdot = mj_stackAllocNum(d, 6*m->nD);
   mjtNum* Dcvel = mj_stackAllocNum(d, 6*m->nB);
   mjtNum* Dcacc = mj_stackAllocNum(d, 6*m->nB);
@@ -687,7 +687,7 @@ static void mjd_rne_vel(const mjModel* m, mjData* d) {
     mju_subFrom(d->qDeriv + Dadr[j], row, Bnnz[i]);
   }
 
-  mjFREESTACK;
+  mj_freeStack(d);
 }
 
 
@@ -734,7 +734,7 @@ static void addJTBJ(const mjModel* m, mjData* d, const mjtNum* J, const mjtNum* 
   int nv = m->nv;
 
   // allocate dense row
-  mjMARKSTACK;
+  mj_markStack(d);
   mjtNum* row = mj_stackAllocNum(d, nv);
 
   // process non-zero elements of B
@@ -760,7 +760,7 @@ static void addJTBJ(const mjModel* m, mjData* d, const mjtNum* J, const mjtNum* 
     }
   }
 
-  mjFREESTACK;
+  mj_freeStack(d);
 }
 
 
@@ -773,7 +773,7 @@ static void addJTBJSparse(
   int nv = m->nv;
 
   // allocate row
-  mjMARKSTACK;
+  mj_markStack(d);
   mjtNum* row = mj_stackAllocNum(d, nv);
 
   // compute qDeriv(k,p) += sum_{i,j} ( J(i,k)*B(i,j)*J(j,p) )
@@ -808,7 +808,7 @@ static void addJTBJSparse(
   }
 
   // free space
-  mjFREESTACK;
+  mj_freeStack(d);
 }
 
 
@@ -1226,7 +1226,7 @@ static inline void mjd_magnus_force(
 
 // fluid forces based on ellipsoid approximation
 void mjd_ellipsoidFluid(const mjModel* m, mjData* d, int bodyid) {
-  mjMARKSTACK;
+  mj_markStack(d);
 
   int nv = m->nv;
   int nnz = nv;
@@ -1331,14 +1331,14 @@ void mjd_ellipsoidFluid(const mjModel* m, mjData* d, int bodyid) {
     }
   }
 
-  mjFREESTACK;
+  mj_freeStack(d);
 }
 
 
 // fluid forces based on inertia-box approximation
 void mjd_inertiaBoxFluid(const mjModel* m, mjData* d, int i)
 {
-  mjMARKSTACK;
+  mj_markStack(d);
 
   int nv = m->nv;
   int rownnz[6], rowadr[6];
@@ -1488,7 +1488,7 @@ void mjd_inertiaBoxFluid(const mjModel* m, mjData* d, int i)
     }
   }
 
-  mjFREESTACK;
+  mj_freeStack(d);
 }
 
 

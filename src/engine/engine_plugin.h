@@ -31,14 +31,11 @@ MJAPI int mjp_registerPlugin(const mjpPlugin* plugin);
 // globally register a resource provider (thread-safe), return new slot id
 MJAPI int mjp_registerResourceProvider(const mjpResourceProvider* provider);
 
-// globally unregister a resource provider (thread-safe)
-MJAPI void mjp_unregisterResourceProvider(int slot);
-
 // return the number of globally registered plugins
-MJAPI int mjp_pluginCount();
+MJAPI int mjp_pluginCount(void);
 
 // return the number of globally registered resource providers
-MJAPI int mjp_resourceProviderCount();
+MJAPI int mjp_resourceProviderCount(void);
 
 // look up a plugin by name, optionally also get its registered slot number
 MJAPI const mjpPlugin* mjp_getPlugin(const char* name, int* slot);

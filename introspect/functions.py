@@ -677,6 +677,34 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
          ),
          doc='Reset data, set fields from specified keyframe.',
      )),
+    ('mj_markStack',
+     FunctionDecl(
+         name='mj_markStack',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='d',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjData'),
+                 ),
+             ),
+         ),
+         doc='Mark a new frame on the mjData stack.',
+     )),
+    ('mj_freeStack',
+     FunctionDecl(
+         name='mj_freeStack',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='d',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjData'),
+                 ),
+             ),
+         ),
+         doc='Free the current mjData stack frame. All pointers returned by mj_stackAlloc since the last call to mj_markStack must no longer be used afterwards.',  # pylint: disable=line-too-long
+     )),
     ('mj_stackAlloc',
      FunctionDecl(
          name='mj_stackAlloc',
@@ -699,7 +727,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  type=ValueType(name='size_t'),
              ),
          ),
-         doc='Allocate a specific number of bytes on mjData stack. Call mju_error on stack overflow.',  # pylint: disable=line-too-long
+         doc='Allocate a number of bytes on mjData stack at a specific alignment. Call mju_error on stack overflow.',  # pylint: disable=line-too-long
      )),
     ('mj_stackAllocNum',
      FunctionDecl(
@@ -1987,7 +2015,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
              FunctionParameterDecl(
                  name='d',
                  type=PointerType(
-                     inner_type=ValueType(name='mjData'),
+                     inner_type=ValueType(name='mjData', is_const=True),
                  ),
              ),
              FunctionParameterDecl(
@@ -2019,7 +2047,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
              FunctionParameterDecl(
                  name='d',
                  type=PointerType(
-                     inner_type=ValueType(name='mjData'),
+                     inner_type=ValueType(name='mjData', is_const=True),
                  ),
              ),
              FunctionParameterDecl(
@@ -5530,7 +5558,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
          return_type=ValueType(name='mjtNum'),
          parameters=(
              FunctionParameterDecl(
-                 name='res',
+                 name='vec',
                  type=ArrayType(
                      inner_type=ValueType(name='mjtNum'),
                      extents=(3,),
@@ -5743,7 +5771,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
          return_type=ValueType(name='mjtNum'),
          parameters=(
              FunctionParameterDecl(
-                 name='res',
+                 name='vec',
                  type=ArrayType(
                      inner_type=ValueType(name='mjtNum'),
                      extents=(4,),
@@ -5804,7 +5832,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  ),
              ),
              FunctionParameterDecl(
-                 name='data',
+                 name='vec',
                  type=PointerType(
                      inner_type=ValueType(name='mjtNum', is_const=True),
                  ),
@@ -8228,5 +8256,77 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
              ),
          ),
          doc='Look up a resource provider by slot number returned by mjp_registerResourceProvider. If invalid slot number, return NULL.',  # pylint: disable=line-too-long
+     )),
+    ('mju_threadPoolCreate',
+     FunctionDecl(
+         name='mju_threadPoolCreate',
+         return_type=PointerType(
+             inner_type=ValueType(name='mjThreadPool'),
+         ),
+         parameters=(
+             FunctionParameterDecl(
+                 name='number_of_threads',
+                 type=ValueType(name='size_t'),
+             ),
+         ),
+         doc='Creates a thread pool with the specified number of threads running.',  # pylint: disable=line-too-long
+     )),
+    ('mju_threadPoolEnqueue',
+     FunctionDecl(
+         name='mju_threadPoolEnqueue',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='thread_pool',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjThreadPool'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='task',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjTask'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='start_routine',
+                 type=ValueType(name='void *(*)(void *)'),
+             ),
+             FunctionParameterDecl(
+                 name='args',
+                 type=PointerType(
+                     inner_type=ValueType(name='void'),
+                 ),
+             ),
+         ),
+         doc='Enqueues a task in a thread pool.',
+     )),
+    ('mju_taskJoin',
+     FunctionDecl(
+         name='mju_taskJoin',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='task',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjTask'),
+                 ),
+             ),
+         ),
+         doc='Waits for a task to complete.',
+     )),
+    ('mju_threadPoolDestroy',
+     FunctionDecl(
+         name='mju_threadPoolDestroy',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='thread_pool',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjThreadPool'),
+                 ),
+             ),
+         ),
+         doc='Destroys a thread pool.',
      )),
 ])

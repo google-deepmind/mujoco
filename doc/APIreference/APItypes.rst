@@ -712,7 +712,26 @@ Options for configuring the automatic :ref:`actuator length-range computation<CL
 
 .. mujoco-include:: mjLROpt
 
+.. _mjTask:
 
+mjTask
+~~~~~~
+
+This is a representation of a task to be run asynchronously inside of an :ref:`mjThreadPool` . It is created in the
+:ref:`mju_threadPoolEnqueue` method of the :ref:`mjThreadPool`  and is used to join the task at completion.
+
+.. mujoco-include:: mjTask
+
+.. _mjThreadPool:
+
+mjThreadPool
+~~~~~~~~~~~~
+
+This is the data structure of the threadpool. It can only be constructed programmatically, and does not
+have an analog in MJCF. In order to enable multi-threaded calculations, a pointer to an existing :ref:`mjThreadPool`
+should be assigned to the ``mjData.threadpool``.
+
+.. mujoco-include:: mjThreadPool
 
 .. _tyStatStructure:
 
@@ -1154,6 +1173,20 @@ mjfGetResourceDir
 
 This callback is for returning the directory of a resource, by setting dir to the directory string with ndir being size
 of directory string.
+
+.. _mjfResourceModified:
+
+mjfResourceModified
+~~~~~~~~~~~~~~~~~~~
+
+.. code-block:: C
+
+   typedef int (*mjfResourceModified)(const mjResource* resource);
+
+This callback is for checking if a resource was modified since it was last read.
+Returns positive value if the resource was modified since last open, 0 if resource was not modified,
+and negative value if inconclusive.
+
 
 .. _tyNotes:
 

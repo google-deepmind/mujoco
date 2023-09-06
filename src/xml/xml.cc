@@ -22,9 +22,11 @@
 
 #include <string>
 
+#include <mujoco/mjmodel.h>
 #include "cc/array_safety.h"
 #include "engine/engine_crossplatform.h"
 #include "engine/engine_resource.h"
+#include "engine/engine_vfs.h"
 #include "user/user_model.h"
 #include "user/user_util.h"
 #include "xml/xml_native_reader.h"
@@ -110,7 +112,7 @@ string mjWriteXML(mjCModel* model, char* error, int error_sz) {
 
 // find include elements recursively, replace them with subtree from xml file
 static XMLElement* mjIncludeXML(XMLElement* elem, string dir,
-                                int vfs_provider, vector<string>& included) {
+                                const mjVFS* vfs, vector<string>& included) {
   // include element: process
   if (!strcasecmp(elem->Value(), "include")) {
     // make sure include has no children
@@ -133,9 +135,9 @@ static XMLElement* mjIncludeXML(XMLElement* elem, string dir,
     // get data source
     mjResource *resource = nullptr;
     const char* xmlstring = nullptr;
-    if ((resource = mju_openResource(filename.c_str(), vfs_provider)) == nullptr) {
-      // load from OS filesystem
-      if (!vfs_provider || (resource = mju_openResource(filename.c_str(), 0)) == nullptr) {
+    if ((resource = mju_openVfsResource(filename.c_str(), vfs)) == nullptr) {
+      // load from provider or OS filesystem
+      if ((resource = mju_openResource(filename.c_str())) == nullptr) {
         throw mjXError(elem, "Could not open file '%s'", filename.c_str());
       }
     }
@@ -196,14 +198,14 @@ static XMLElement* mjIncludeXML(XMLElement* elem, string dir,
     }
 
     // run XMLInclude on first new child
-    return mjIncludeXML(first->ToElement(), dir, vfs_provider, included);
+    return mjIncludeXML(first->ToElement(), dir, vfs, included);
   }
 
   // otherwise check all child elements, return self
   else {
     XMLElement* child = elem->FirstChildElement();
     while (child) {
-      child = mjIncludeXML(child, dir, vfs_provider, included);
+      child = mjIncludeXML(child, dir, vfs, included);
       if (child) {
         child = child->NextSiblingElement();
       }
@@ -215,7 +217,7 @@ static XMLElement* mjIncludeXML(XMLElement* elem, string dir,
 
 
 // Main parser function
-mjCModel* mjParseXML(const char* filename, int vfs_provider, char* error, int error_sz) {
+mjCModel* mjParseXML(const char* filename, const mjVFS* vfs, char* error, int error_sz) {
   LocaleOverride locale_override;
 
   // check arguments
@@ -235,9 +237,9 @@ mjCModel* mjParseXML(const char* filename, int vfs_provider, char* error, int er
   // get data source
   mjResource* resource = nullptr;
   const char* xmlstring = nullptr;
-  if ((resource = mju_openResource(filename, vfs_provider)) == nullptr) {
-    // load from OS filesystem
-    if (!vfs_provider || (resource = mju_openResource(filename, 0)) == nullptr) {
+  if ((resource = mju_openVfsResource(filename, vfs)) == nullptr) {
+    // load from provider or fallback to OS filesystem
+    if ((resource = mju_openResource(filename)) == nullptr) {
       if (error) {
         snprintf(error, error_sz, "mjParseXML: could not open file '%s'", filename);
       }
@@ -303,7 +305,7 @@ mjCModel* mjParseXML(const char* filename, int vfs_provider, char* error, int er
       // find include elements, replace them with subtree from xml file
       vector<string> included;
       included.push_back(filename);
-      mjIncludeXML(root, model->modelfiledir, vfs_provider, included);
+      mjIncludeXML(root, model->modelfiledir, vfs, included);
 
       // parse MuJoCo model
       mjXReader parser;

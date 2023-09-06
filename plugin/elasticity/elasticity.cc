@@ -12,15 +12,54 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <mujoco/mjplugin.h>
-#include "cable.h"
-#include "solid.h"
+#include "elasticity.h"
+#include <algorithm>
+#include <cctype>
+#include <cstdlib>
+#include <sstream>
+#include <string>
+#include <utility>
+#include <vector>
+#include <mujoco/mujoco.h>
 
 namespace mujoco::plugin::elasticity {
 
-mjPLUGIN_LIB_INIT {
-  Cable::RegisterPlugin();
-  Solid::RegisterPlugin();
+void String2Vector(const std::string& txt, std::vector<int>& vec) {
+  std::stringstream strm(txt);
+  vec.clear();
+
+  while (!strm.eof()) {
+    int num;
+    strm >> num;
+    if (strm.fail()) {
+      break;
+    } else {
+      vec.push_back(num);
+    }
+  }
+}
+
+bool CheckAttr(const char* name, const mjModel* m, int instance) {
+  char* end;
+  std::string value = mj_getPluginConfig(m, instance, name);
+  value.erase(std::remove_if(value.begin(), value.end(), isspace), value.end());
+  strtod(value.c_str(), &end);
+  return end == value.data() + value.size();
+}
+
+mjtNum SquaredDist3(const mjtNum pos1[3], const mjtNum pos2[3]) {
+  mjtNum dif[3] = {pos1[0]-pos2[0], pos1[1]-pos2[1], pos1[2]-pos2[2]};
+  return dif[0]*dif[0] + dif[1]*dif[1] + dif[2]*dif[2];
+}
+
+void UpdateSquaredLengths(std::vector<mjtNum>& len,
+                          const std::vector<std::pair<int, int> >& edges,
+                          const mjtNum* x) {
+  for (int e = 0; e < len.size(); e++) {
+    const mjtNum* p0 = x + 3*edges[e].first;
+    const mjtNum* p1 = x + 3*edges[e].second;
+    len[e] = SquaredDist3(p0, p1);
+  }
 }
 
 }  // namespace mujoco::plugin::elasticity

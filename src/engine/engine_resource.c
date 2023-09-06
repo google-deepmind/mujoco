@@ -16,40 +16,35 @@
 
 #include <limits.h>
 #include <stddef.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <string.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <time.h>
 
-#include <mujoco/mjmodel.h>
+#if defined (__unix__) || (defined (__APPLE__) && defined (__MACH__))
+  #include <unistd.h>
+#endif
+
+#ifdef _WIN32
+  #define stat _stat
+#endif
+
 #include <mujoco/mjplugin.h>
 #include "engine/engine_plugin.h"
 #include "engine/engine_util_errmem.h"
 
 // file buffer used internally for the OS filesystem
 typedef struct {
-  void* buffer;
-  int nbuffer;
+  uint8_t* buffer;  // raw bytes from file
+  size_t nbuffer;   // size of buffer in bytes
+  time_t mtime;     // last modified time
 } file_buffer;
 
-// helper function to fill data from resource provider into provider
-static void fillResource(const mjpResourceProvider* provider, mjResource* resource) {
-  if (provider == NULL) {
-    resource->read = NULL;
-    resource->close = NULL;
-    resource->getdir = NULL;
-    resource->provider_data = NULL;
-  } else {
-    resource->read = provider->read;
-    resource->close = provider->close;
-    resource->getdir = provider->getdir;
-    resource->provider_data = provider->data;
-  }
-}
-
-
 // open the given resource; if the name doesn't have a prefix matching with a
-// resource provider, then the default_provider is used
-// if default_provider non-positive, then the OS filesystem is used
-mjResource* mju_openResource(const char* name, int default_provider) {
+// resource provider, then the OS filesystem is used
+mjResource* mju_openResource(const char* name) {
   mjResource* resource = (mjResource*) mju_malloc(sizeof(mjResource));
   const mjpResourceProvider* provider = NULL;
   if (resource == NULL) {
@@ -57,19 +52,22 @@ mjResource* mju_openResource(const char* name, int default_provider) {
     return NULL;
   }
 
+  // clear out resource
+  memset(resource, 0, sizeof(mjResource));
+
   // copy name
   resource->name = mju_malloc(sizeof(char) * (strlen(name) + 1));
   if (resource->name == NULL) {
-    mju_free(resource);
+    mju_closeResource(resource);
     mjERROR("could not allocate memory");
     return NULL;
   }
-  strcpy(resource->name, name);
+  memcpy(resource->name, name, sizeof(char) * (strlen(name) + 1));
 
   // find provider based off prefix of name
   provider = mjp_getResourceProvider(name);
   if (provider != NULL) {
-    fillResource(provider, resource);
+    resource->provider = provider;
     if (provider->open(resource)) {
       return resource;
     }
@@ -77,49 +75,27 @@ mjResource* mju_openResource(const char* name, int default_provider) {
     mju_warning("mju_openResource: could not open resource '%s' "
                 "using a resource provider matching prefix '%s'",
                 name, provider->prefix);
-    mju_free(resource->name);
-    mju_free(resource);
-    return NULL;
-  }
-
-  // fallback to default provider
-  if (default_provider > 0) {
-    provider = mjp_getResourceProviderAtSlot(default_provider);
-    if (provider == NULL) {
-      mju_warning("mju_openResource: unknown resource provider at slot %d",
-                  default_provider);
-      mju_free(resource->name);
-      mju_free(resource);
-      return NULL;
-    }
-
-    fillResource(provider, resource);
-    if (provider->open(resource)) {
-      return resource;
-    }
-
-    mju_warning("mju_openResource: could not open resource '%s' "
-                "with default provider at slot %d",
-                name, default_provider);
-    mju_free(resource->name);
-    mju_free(resource);
+    mju_closeResource(resource);
     return NULL;
   }
 
   // lastly fallback to OS filesystem
-  else {
-    fillResource(NULL, resource);
-    resource->data = mju_malloc(sizeof(file_buffer));
-    file_buffer* fb = (file_buffer*) resource->data;
-    fb->buffer = mju_fileToMemory(name, &(fb->nbuffer));
-    if (fb->buffer == NULL) {
-      mju_warning("mju_openResource: unknown file '%s'", name);
-      mju_free(fb);
-      mju_free(resource->name);
-      mju_free(resource);
-      return NULL;
-    }
+  resource->provider = NULL;
+  resource->data = mju_malloc(sizeof(file_buffer));
+  file_buffer* fb = (file_buffer*) resource->data;
+  fb->buffer = mju_fileToMemory(name, &(fb->nbuffer));
+  if (fb->buffer == NULL) {
+    mju_warning("mju_openResource: unknown file '%s'", name);
+    mju_closeResource(resource);
+    return NULL;
   }
+  struct stat file_stat;
+  if (stat(name, &file_stat) == 0) {
+    memcpy(&fb->mtime, &file_stat.st_mtime, sizeof(time_t));
+  } else {
+    memset(&fb->mtime, 0, sizeof(time_t));
+  }
+
   return resource;
 }
 
@@ -131,20 +107,20 @@ void mju_closeResource(mjResource* resource) {
     return;
   }
 
-  // use the resource provider to close resource
-  if (resource->close) {
-    resource->close(resource);
-  }
-
-  // if provider is NULL, then OS filesystem is used
-  else {
+  // use the resource provider close callback
+  if (resource->provider && resource->provider->close) {
+    resource->provider->close(resource);
+  } else {
+    // clear OS filesystem if present
     file_buffer* fb = (file_buffer*) resource->data;
-    mju_free(fb->buffer);
-    mju_free(fb);
+    if (fb) {
+      if (fb->buffer) mju_free(fb->buffer);
+      mju_free(fb);
+    }
   }
 
-  // free name and resource
-  mju_free(resource->name);
+  // free resource
+  if (resource->name) mju_free(resource->name);
   mju_free(resource);
 }
 
@@ -157,12 +133,12 @@ int mju_readResource(mjResource* resource, const void** buffer) {
     return 0;
   }
 
-  if (resource->read) {
-    return resource->read(resource, buffer);
+  if (resource->provider) {
+    return resource->provider->read(resource, buffer);
   }
 
 
-  // if provider read callback is NULL, then OS filesystem is used
+  // if provider is NULL, then OS filesystem is used
   const file_buffer* fb = (file_buffer*) resource->data;
   *buffer = fb->buffer;
   return fb->nbuffer;
@@ -175,19 +151,53 @@ void mju_getResourceDir(mjResource* resource, const char** dir, int* ndir) {
   *dir = NULL;
   *ndir = 0;
 
-  if (!resource) {
+  if (resource == NULL) {
     return;
   }
 
   // provider is not OS filesystem
-  if (resource->read) {
-    if (resource->getdir) {
-      resource->getdir(resource, dir, ndir);
+  if (resource->provider) {
+    if (resource->provider->getdir) {
+      resource->provider->getdir(resource, dir, ndir);
     }
   } else {
     *dir = resource->name;
     *ndir = mju_dirnamelen(resource->name);
   }
+}
+
+
+
+// modified callback for OS filesystem
+static int mju_isModifiedFile(const char* name, const file_buffer* fb) {
+  if (fb != NULL) {
+    struct stat file_stat;
+    if (stat(name, &file_stat) == 0) {
+      return difftime(fb->mtime, file_stat.st_mtime) < 0;
+    }
+    return -1;
+  }
+  return -2;
+}
+
+
+
+// Returns > 0 if resource has been modified since last read, 0 if not, and < 0
+// if inconclusive
+int mju_isModifiedResource(const mjResource* resource) {
+  if (resource == NULL) {
+    return -2;
+  }
+
+  // provider is not OS filesystem
+  if (resource->provider) {
+    if (resource->provider->modified) {
+      return resource->provider->modified(resource);
+    }
+    return 1;  // default (modified)
+  }
+
+  return mju_isModifiedFile(resource->name, (file_buffer*) resource->data);
 }
 
 
@@ -211,7 +221,7 @@ int mju_dirnamelen(const char* path) {
 
 
 // read file into memory buffer (allocated here with mju_malloc)
-void* mju_fileToMemory(const char* filename, int* filesize) {
+void* mju_fileToMemory(const char* filename, size_t* filesize) {
   // open file
   *filesize = 0;
   FILE* fp = fopen(filename, "rb");

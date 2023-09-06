@@ -15,6 +15,7 @@
 
 #include "engine/engine_ray.h"
 
+#include <math.h>
 #include <stddef.h>
 
 #include <mujoco/mjdata.h>
@@ -1158,7 +1159,7 @@ static mjtNum mju_singleRay(const mjModel* m, mjData* d, const mjtNum pnt[3], co
 void mj_multiRay(const mjModel* m, mjData* d, const mjtNum pnt[3], const mjtNum* vec,
                  const mjtByte* geomgroup, mjtByte flg_static, int bodyexclude,
                  int* geomid, mjtNum* dist, int nray, mjtNum cutoff) {
-  mjMARKSTACK;
+  mj_markStack(d);
 
   // allocate source
   mjtNum* geom_ba = mj_stackAllocNum(d, 4*m->ngeom);
@@ -1173,5 +1174,5 @@ void mj_multiRay(const mjModel* m, mjData* d, const mjtNum pnt[3], const mjtNum*
     dist[i] = mju_singleRay(m, d, pnt, vec+3*i, geom_eliminate, geom_ba, geomid+i);
   }
 
-  mjFREESTACK;
+  mj_freeStack(d);
 }

@@ -14,6 +14,7 @@
 
 #include "engine/engine_collision_sdf.h"
 
+#include <math.h>
 #include <stdio.h>
 
 #include <mujoco/mjdata.h>
@@ -449,7 +450,7 @@ static void collideBVH(const mjModel* m, mjData* d, int g,
   const int* child = m->bvh_child + 2*bvhadr;
   mjtByte* visited = d->bvh_active + bvhadr;
 
-  mjMARKSTACK;
+  mj_markStack(d);
   // TODO(quaglino): Store bvh max depths to make this bound tighter.
   int max_stack = m->mesh_bvhnum[m->geom_dataid[g]];
   struct CollideTreeArgs_ {
@@ -479,7 +480,7 @@ static void collideBVH(const mjModel* m, mjData* d, int g,
         faces[*npoints] = faceid[node];
         if (++(*npoints)==MAXSDFFACE) {
           mju_warning("mjc_MeshSDF: too many bounding volumes, some contacts may be missed");
-          mjFREESTACK;
+          mj_freeStack(d);
           return;
         }
         visited[node] = 1;
@@ -504,7 +505,7 @@ static void collideBVH(const mjModel* m, mjData* d, int g,
     }
   }
 
-  mjFREESTACK;
+  mj_freeStack(d);
 }
 
 //------------------------------ collision functions -----------------------------------------------

@@ -178,7 +178,7 @@ void mj_kinematics(const mjModel* m, mjData* d) {
 // map inertias and motion dofs to global frame centered at subtree-CoM
 void mj_comPos(const mjModel* m, mjData* d) {
   mjtNum offset[3], axis[3];
-  mjMARKSTACK;
+  mj_markStack(d);
   mjtNum* mass_subtree = mj_stackAllocNum(d, m->nbody);
 
   // clear subtree
@@ -261,7 +261,7 @@ void mj_comPos(const mjModel* m, mjData* d) {
     }
   }
 
-  mjFREESTACK;
+  mj_freeStack(d);
 }
 
 
@@ -394,13 +394,13 @@ void mj_tendon(const mjModel* m, mjData* d) {
   mjtNum dif[3], divisor, wpnt[12], wlen;
   mjtNum *L = d->ten_length, *J = d->ten_J;
   mjtNum *jac1, *jac2, *jacdif, *tmp, *sparse_buf = NULL;
-  mjMARKSTACK;
 
   if (!nten) {
     return;
   }
 
   // allocate space
+  mj_markStack(d);
   jac1 = mj_stackAllocNum(d, 3*nv);
   jac2 = mj_stackAllocNum(d, 3*nv);
   jacdif = mj_stackAllocNum(d, 3*nv);
@@ -417,7 +417,7 @@ void mj_tendon(const mjModel* m, mjData* d) {
 
   // clear Jacobian: sparse or dense
   if (issparse) {
-    memset(rownnz, 0, nten*sizeof(int));
+    mju_zeroInt(rownnz, nten);
   } else {
     mju_zero(J, nten*nv);
   }
@@ -609,7 +609,7 @@ void mj_tendon(const mjModel* m, mjData* d) {
     }
   }
 
-  mjFREESTACK;
+  mj_freeStack(d);
 }
 
 
@@ -622,13 +622,13 @@ void mj_transmission(const mjModel* m, mjData* d) {
   mjtNum *jac, *jacA, *jacS;
   mjtNum *length = d->actuator_length, *moment = d->actuator_moment, *gear;
   mjtNum *jacref = NULL, *moment_tmp = NULL;  // required for site actuators
-  mjMARKSTACK;
 
   if (!nu) {
     return;
   }
 
   // allocate space, clear moments
+  mj_markStack(d);
   jac  = mj_stackAllocNum(d, 3*nv);
   jacA = mj_stackAllocNum(d, 3*nv);
   jacS = mj_stackAllocNum(d, 3*nv);
@@ -954,7 +954,7 @@ void mj_transmission(const mjModel* m, mjData* d) {
     }
   }
 
-  mjFREESTACK;
+  mj_freeStack(d);
 }
 
 
@@ -1086,7 +1086,7 @@ void mj_factorM(const mjModel* m, mjData* d) {
 
 
 
-// sparse backsubstitution:  x = inv(L'*D*L)*y
+// in-place sparse backsubstitution:  x = inv(L'*D*L)*x
 //  L is in lower triangle of qLD; D is on diagonal of qLD
 //  handle n vectors at once
 void mj_solveLD(const mjModel* m, mjtNum* restrict x, int n,
@@ -1209,6 +1209,66 @@ void mj_solveM(const mjModel* m, mjData* d, mjtNum* x, const mjtNum* y, int n) {
 }
 
 
+// in-place sparse backsubstitution for one island:  x = inv(L'*D*L)*x
+//  L is in lower triangle of qLD; D is on diagonal of qLD
+void mj_solveM_island(const mjModel* m, const mjData* d, mjtNum* restrict x, int island) {
+  // local constants: general
+  const int* Madr = m->dof_Madr;
+  const int* parentid = m->dof_parentid;
+  const mjtNum* qLD = d->qLD;
+  const mjtNum* qLDiagInv = d->qLDiagInv;
+  const int* simplenum = m->dof_simplenum;
+
+  // local constants: island specific
+  int ndof = d->island_dofnum[island];
+  const int* dofind = d->island_dofind + d->island_dofadr[island];
+  const int* islandind = d->dof_islandind;
+
+  // x <- inv(L') * x; skip simple, exploit sparsity of input vector
+  for (int k=ndof-1; k >= 0; k--) {
+    int i = dofind[k];
+    if (!simplenum[i] && x[k]) {
+      // init
+      int Madr_ij = Madr[i]+1;
+      int j = parentid[i];
+
+      // traverse ancestors backwards
+      // read directly from x[l] since j cannot be a parent of itself
+      while (j >= 0) {
+        x[islandind[j]] -= qLD[Madr_ij++]*x[k];         // x(j) -= L(i,j) * x(i)
+
+        // advance to parent
+        j = parentid[j];
+      }
+    }
+  }
+
+  // x <- inv(D) * x
+  for (int k=ndof-1; k >= 0; k--) {
+    x[k] *= qLDiagInv[dofind[k]];  // x(i) /= L(i,i)
+  }
+
+  // x <- inv(L) * x; skip simple
+  for (int k=0; k < ndof; k++) {
+    int i = dofind[k];
+    if (!simplenum[i]) {
+      // init
+      int Madr_ij = Madr[i]+1;
+      int j = parentid[i];
+
+      // traverse ancestors backwards
+      // write directly in x[i] since i cannot be a parent of itself
+      while (j >= 0) {
+        x[k] -= qLD[Madr_ij++]*x[islandind[j]];             // x(i) -= L(i,j) * x(j)
+
+        // advance to parent
+        j = parentid[j];
+      }
+    }
+  }
+}
+
+
 
 // half of sparse backsubstitution:  x = sqrt(inv(D))*inv(L')*y
 void mj_solveM2(const mjModel* m, mjData* d, mjtNum* x, const mjtNum* y, int n) {
@@ -1323,7 +1383,7 @@ void mj_comVel(const mjModel* m, mjData* d) {
 // subtree linear velocity and angular momentum
 void mj_subtreeVel(const mjModel* m, mjData* d) {
   mjtNum dx[3], dv[3], dp[3], dL[3];
-  mjMARKSTACK;
+  mj_markStack(d);
   mjtNum* body_vel = mj_stackAllocNum(d, 6*m->nbody);
 
   // bodywise quantities
@@ -1380,7 +1440,7 @@ void mj_subtreeVel(const mjModel* m, mjData* d) {
     mju_addTo3(d->subtree_angmom+3*parent, dL);
   }
 
-  mjFREESTACK;
+  mj_freeStack(d);
 }
 
 
@@ -1389,7 +1449,7 @@ void mj_subtreeVel(const mjModel* m, mjData* d) {
 // RNE: compute M(qpos)*qacc + C(qpos,qvel); flg_acc=0 removes inertial term
 void mj_rne(const mjModel* m, mjData* d, int flg_acc, mjtNum* result) {
   mjtNum tmp[6], tmp1[6];
-  mjMARKSTACK;
+  mj_markStack(d);
   mjtNum* loc_cacc = mj_stackAllocNum(d, m->nbody*6);
   mjtNum* loc_cfrc_body = mj_stackAllocNum(d, m->nbody*6);
 
@@ -1435,7 +1495,7 @@ void mj_rne(const mjModel* m, mjData* d, int flg_acc, mjtNum* result) {
     result[i] = mju_dot(d->cdof+6*i, loc_cfrc_body+6*m->dof_bodyid[i], 6);
   }
 
-  mjFREESTACK;
+  mj_freeStack(d);
 }
 
 

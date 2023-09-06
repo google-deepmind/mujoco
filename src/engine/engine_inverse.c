@@ -95,7 +95,7 @@ static void mj_discreteAcc(const mjModel* m, mjData* d) {
   int nv = m->nv, dof_damping;
   mjtNum *qacc = d->qacc;
 
-  mjMARKSTACK;
+  mj_markStack(d);
   mjtNum* qfrc = mj_stackAllocNum(d, nv);
 
   // use selected integrator
@@ -119,6 +119,7 @@ static void mj_discreteAcc(const mjModel* m, mjData* d) {
 
     // if disabled or no dof damping, nothing to do
     if (!dof_damping) {
+      mj_freeStack(d);
       return;
     }
 
@@ -168,7 +169,7 @@ static void mj_discreteAcc(const mjModel* m, mjData* d) {
   // solve for qacc: qfrc = M * qacc
   mj_solveM(m, d, qacc, qfrc, 1);
 
-  mjFREESTACK;
+  mj_freeStack(d);
 }
 
 
@@ -185,7 +186,7 @@ void mj_invConstraint(const mjModel* m, mjData* d) {
     return;
   }
 
-  mjMARKSTACK;
+  mj_markStack(d);
   mjtNum* jar = mj_stackAllocNum(d, nefc);
 
   // compute jar = Jac*qacc - aref
@@ -195,7 +196,7 @@ void mj_invConstraint(const mjModel* m, mjData* d) {
   // call update function
   mj_constraintUpdate(m, d, jar, NULL, 0);
 
-  mjFREESTACK;
+  mj_freeStack(d);
   TM_END(mjTIMER_CONSTRAINT);
 }
 
@@ -205,7 +206,7 @@ void mj_invConstraint(const mjModel* m, mjData* d) {
 void mj_inverseSkip(const mjModel* m, mjData* d,
                     int skipstage, int skipsensor) {
   TM_START;
-  mjMARKSTACK;
+  mj_markStack(d);
   mjtNum* qacc;
   int nv = m->nv;
 
@@ -258,7 +259,7 @@ void mj_inverseSkip(const mjModel* m, mjData* d,
     mju_copy(d->qacc, qacc, nv);
   }
 
-  mjFREESTACK;
+  mj_freeStack(d);
   TM_END(mjTIMER_INVERSE);
 }
 
@@ -277,7 +278,6 @@ void mj_inverse(const mjModel* m, mjData* d) {
 void mj_compareFwdInv(const mjModel* m, mjData* d) {
   int nv = m->nv, nefc = d->nefc;
   mjtNum *qforce, *dif, *save_qfrc_constraint, *save_efc_force;
-  mjMARKSTACK;
 
   // clear result, return if no constraints
   d->solver_fwdinv[0] = d->solver_fwdinv[1] = 0;
@@ -286,6 +286,7 @@ void mj_compareFwdInv(const mjModel* m, mjData* d) {
   }
 
   // allocate
+  mj_markStack(d);
   qforce = mj_stackAllocNum(d, nv);
   dif = mj_stackAllocNum(d, nv);
   save_qfrc_constraint = mj_stackAllocNum(d, nv);
@@ -313,5 +314,5 @@ void mj_compareFwdInv(const mjModel* m, mjData* d) {
   mju_copy(d->qfrc_constraint, save_qfrc_constraint, nv);
   mju_copy(d->efc_force, save_efc_force, nefc);
 
-  mjFREESTACK;
+  mj_freeStack(d);
 }

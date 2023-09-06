@@ -130,6 +130,7 @@ struct mjData_ {
 
   // stack pointer
   size_t  pstack;            // first available mjtNum address in stack
+  size_t  pbase;             // value of pstack when mj_markStack was last called
 
   // arena pointer
   size_t  parena;            // first available byte in arena
@@ -374,6 +375,9 @@ struct mjData_ {
   mjtNum* efc_b;            // linear cost term: J*qacc_smooth - aref            (nefc x 1)
   mjtNum* efc_force;        // constraint force in constraint space              (nefc x 1)
   int*    efc_state;        // constraint state (mjtConstraintState)             (nefc x 1)
+
+  // ThreadPool for multithreaded operations
+  uintptr_t threadpool;
 };
 typedef struct mjData_ mjData;
 typedef enum mjtDisableBit_ {     // disable default feature bitflags
@@ -655,28 +659,13 @@ struct mjLROpt_ {                 // options for mj_setLengthRange()
   mjtNum tolrange;                // convergence tolerance (relative to range)
 };
 typedef struct mjLROpt_ mjLROpt;
-struct mjVFS_ {                            // virtual file system for loading from memory
-  int   nfile;                             // number of files present
-  char  filename[mjMAXVFS][mjMAXVFSNAME];  // file name without path
-  int   filesize[mjMAXVFS];                // file size in bytes
-  void* filedata[mjMAXVFS];                // buffer with file data
+struct mjVFS_ {                             // virtual file system for loading from memory
+  int    nfile;                             // number of files present
+  char   filename[mjMAXVFS][mjMAXVFSNAME];  // file name without path
+  size_t filesize[mjMAXVFS];                // file size in bytes
+  void*  filedata[mjMAXVFS];                // buffer with file data
 };
 typedef struct mjVFS_ mjVFS;
-struct mjResource_ {
-  char* name;                     // name of resource (filename, etc)
-  void* data;                     // opaque data pointer
-  const void* provider_data;      // opaque resource provider data
-
-  // reading callback from resource provider
-  int (*read)(struct mjResource_* resource, const void** buffer);
-
-  // closing callback from resource provider
-  void (*close)(struct mjResource_* resource);
-
-  // getdir callback from resource provider
-  void (*getdir)(struct mjResource_* resource, const char** dir, int* ndir);
-};
-typedef struct mjResource_ mjResource;
 struct mjOption_ {                // physics options
   // timing parameters
   mjtNum timestep;                // timestep
@@ -685,6 +674,7 @@ struct mjOption_ {                // physics options
   // solver parameters
   mjtNum impratio;                // ratio of friction-to-normal contact impedance
   mjtNum tolerance;               // main solver tolerance
+  mjtNum ls_tolerance;            // CG/Newton linesearch tolerance
   mjtNum noslip_tolerance;        // noslip solver tolerance
   mjtNum mpr_tolerance;           // MPR solver tolerance
 
@@ -707,6 +697,7 @@ struct mjOption_ {                // physics options
   int jacobian;                   // type of Jacobian (mjtJacobian)
   int solver;                     // solver algorithm (mjtSolver)
   int iterations;                 // maximum number of main solver iterations
+  int ls_iterations;              // maximum number of CG/Newton linesearch iterations
   int noslip_iterations;          // maximum number of noslip solver iterations
   int mpr_iterations;             // maximum number of MPR solver iterations
   int disableflags;               // bit flags for disabling standard features
@@ -1262,15 +1253,22 @@ struct mjModel_ {
   int*      names_map;            // internal hash map of names               (nnames_map x 1)
 };
 typedef struct mjModel_ mjModel;
-struct mjpResourceProvider_ {
-  const char* prefix;                // prefix for match against a resource name
-  mjfOpenResource open;              // opening callback
-  mjfReadResource read;              // reading callback
-  mjfCloseResource close;            // closing callback
-  mjfGetResourceDir getdir;          // getdir callback (optional)
-  void* data;                        // opaque data pointer (resource invariant)
+struct mjResource_ {
+  char* name;                                   // name of resource (filename, etc)
+  void* data;                                   // opaque data pointer
+  const struct mjpResourceProvider* provider;   // pointer to the provider
 };
-typedef struct mjpResourceProvider_ mjpResourceProvider;
+typedef struct mjResource_ mjResource;
+struct mjpResourceProvider {
+  const char* prefix;               // prefix for match against a resource name
+  mjfOpenResource open;             // opening callback
+  mjfReadResource read;             // reading callback
+  mjfCloseResource close;           // closing callback
+  mjfGetResourceDir getdir;         // get directory callback (optional)
+  mjfResourceModified modified;     // resource modified callback (optional)
+  void* data;                       // opaque data pointer (resource invariant)
+};
+typedef struct mjpResourceProvider mjpResourceProvider;
 typedef enum mjtPluginCapabilityBit_ {
   mjPLUGIN_ACTUATOR = 1<<0,       // actuator forces
   mjPLUGIN_SENSOR   = 1<<1,       // sensor measurements
@@ -1443,6 +1441,14 @@ struct mjrContext_ {              // custom OpenGL context
   int     readPixelFormat;        // default color pixel format for mjr_readPixels
 };
 typedef struct mjrContext_ mjrContext;
+struct mjTask_ {
+  char buffer[24];
+};
+typedef struct mjTask_ mjTask;
+struct mjThreadPool_ {
+  char buffer[6208];
+};
+typedef struct mjThreadPool_ mjThreadPool;
 typedef enum mjtButton_ {         // mouse button
   mjBUTTON_NONE = 0,              // no button
   mjBUTTON_LEFT,                  // left button
@@ -2213,6 +2219,8 @@ mjData* mj_copyData(mjData* dest, const mjModel* m, const mjData* src);
 void mj_resetData(const mjModel* m, mjData* d);
 void mj_resetDataDebug(const mjModel* m, mjData* d, unsigned char debug_value);
 void mj_resetDataKeyframe(const mjModel* m, mjData* d, int key);
+void mj_markStack(mjData* d);
+void mj_freeStack(mjData* d);
 void* mj_stackAlloc(mjData* d, size_t bytes, size_t alignment);
 mjtNum* mj_stackAllocNum(mjData* d, int size);
 int* mj_stackAllocInt(mjData* d, int size);
@@ -2276,8 +2284,8 @@ int mj_addContact(const mjModel* m, mjData* d, const mjContact* con);
 int mj_isPyramidal(const mjModel* m);
 int mj_isSparse(const mjModel* m);
 int mj_isDual(const mjModel* m);
-void mj_mulJacVec(const mjModel* m, mjData* d, mjtNum* res, const mjtNum* vec);
-void mj_mulJacTVec(const mjModel* m, mjData* d, mjtNum* res, const mjtNum* vec);
+void mj_mulJacVec(const mjModel* m, const mjData* d, mjtNum* res, const mjtNum* vec);
+void mj_mulJacTVec(const mjModel* m, const mjData* d, mjtNum* res, const mjtNum* vec);
 void mj_jac(const mjModel* m, const mjData* d, mjtNum* jacp, mjtNum* jacr,
             const mjtNum point[3], int body);
 void mj_jacBody(const mjModel* m, const mjData* d, mjtNum* jacp, mjtNum* jacr, int body);
@@ -2312,7 +2320,7 @@ const char* mj_getPluginConfig(const mjModel* m, int plugin_id, const char* attr
 void mj_loadPluginLibrary(const char* path);
 void mj_loadAllPluginLibraries(const char* directory, mjfPluginLibraryLoadCallback callback);
 int mj_version(void);
-const char* mj_versionString();
+const char* mj_versionString(void);
 void mj_multiRay(const mjModel* m, mjData* d, const mjtNum pnt[3], const mjtNum* vec,
                  const mjtByte* geomgroup, mjtByte flg_static, int bodyexclude,
                  int* geomid, mjtNum* dist, int nray, mjtNum cutoff);
@@ -2450,7 +2458,7 @@ void mju_addTo3(mjtNum res[3], const mjtNum vec[3]);
 void mju_subFrom3(mjtNum res[3], const mjtNum vec[3]);
 void mju_addToScl3(mjtNum res[3], const mjtNum vec[3], mjtNum scl);
 void mju_addScl3(mjtNum res[3], const mjtNum vec1[3], const mjtNum vec2[3], mjtNum scl);
-mjtNum mju_normalize3(mjtNum res[3]);
+mjtNum mju_normalize3(mjtNum vec[3]);
 mjtNum mju_norm3(const mjtNum vec[3]);
 mjtNum mju_dot3(const mjtNum vec1[3], const mjtNum vec2[3]);
 mjtNum mju_dist3(const mjtNum pos1[3], const mjtNum pos2[3]);
@@ -2460,10 +2468,10 @@ void mju_cross(mjtNum res[3], const mjtNum a[3], const mjtNum b[3]);
 void mju_zero4(mjtNum res[4]);
 void mju_unit4(mjtNum res[4]);
 void mju_copy4(mjtNum res[4], const mjtNum data[4]);
-mjtNum mju_normalize4(mjtNum res[4]);
+mjtNum mju_normalize4(mjtNum vec[4]);
 void mju_zero(mjtNum* res, int n);
 void mju_fill(mjtNum* res, mjtNum val, int n);
-void mju_copy(mjtNum* res, const mjtNum* data, int n);
+void mju_copy(mjtNum* res, const mjtNum* vec, int n);
 mjtNum mju_sum(const mjtNum* vec, int n);
 mjtNum mju_L1(const mjtNum* vec, int n);
 void mju_scl(mjtNum* res, const mjtNum* vec, mjtNum scl, int n);
@@ -2569,12 +2577,18 @@ void mjd_quatIntegrate(const mjtNum vel[3], mjtNum scale,
                        mjtNum Dquat[9], mjtNum Dvel[9], mjtNum Dscale[3]);
 void mjp_defaultPlugin(mjpPlugin* plugin);
 int mjp_registerPlugin(const mjpPlugin* plugin);
-int mjp_pluginCount();
+int mjp_pluginCount(void);
 const mjpPlugin* mjp_getPlugin(const char* name, int* slot);
 const mjpPlugin* mjp_getPluginAtSlot(int slot);
 void mjp_defaultResourceProvider(mjpResourceProvider* provider);
 int mjp_registerResourceProvider(const mjpResourceProvider* provider);
-int mjp_resourceProviderCount();
+int mjp_resourceProviderCount(void);
 const mjpResourceProvider* mjp_getResourceProvider(const char* resource_name);
 const mjpResourceProvider* mjp_getResourceProviderAtSlot(int slot);
+mjThreadPool* mju_threadPoolCreate(size_t number_of_threads);
+void mju_threadPoolEnqueue(
+ThreadPool* thread_pool, mjTask* task, void*(start_routine)(void*),
+id* args);
+void mju_taskJoin(mjTask* task);
+void mju_threadPoolDestroy(mjThreadPool* thread_pool);
 // NOLINTEND

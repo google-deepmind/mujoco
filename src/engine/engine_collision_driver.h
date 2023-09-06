@@ -44,11 +44,6 @@ MJAPI int mj_collideOBB(const mjtNum aabb1[6], const mjtNum aabb2[6],
 // broad phase collision detection; return list of body pairs for narrow phase
 int mj_broadphase(const mjModel* m, mjData* d, int* bodypair, int maxpair);
 
-// test two geoms for collision, apply filters, add to contact list
-//  flg_user disables filters and uses usermargin
-void mj_collideGeoms(const mjModel* m, mjData* d,
-                     int g1, int g2, int flg_user, mjtNum usermargin);
-
 // number of possible collisions based on filters and geom types
 int mj_contactFilter(int contype1, int conaffinity1,
                      int contype2, int conaffinity2);

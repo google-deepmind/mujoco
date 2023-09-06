@@ -199,7 +199,7 @@ void mj_fwdActuation(const mjModel* m, mjData* d) {
   }
 
   // local, clamped copy of ctrl
-  mjMARKSTACK;
+  mj_markStack(d);
   mjtNum *ctrl = mj_stackAllocNum(d, nu);
   if (mjDISABLED(mjDSBL_CLAMPCTRL)) {
     mju_copy(ctrl, d->ctrl, nu);
@@ -392,7 +392,7 @@ void mj_fwdActuation(const mjModel* m, mjData* d) {
     }
   }
 
-  mjFREESTACK;
+  mj_freeStack(d);
   TM_END(mjTIMER_ACTUATION);
 }
 
@@ -401,7 +401,7 @@ void mj_fwdActuation(const mjModel* m, mjData* d) {
 // add up all non-constraint forces, compute qacc_smooth
 void mj_fwdAcceleration(const mjModel* m, mjData* d) {
   TM_START;
-  mjMARKSTACK;
+  mj_markStack(d);
   int nv = m->nv;
 
   // qforce = sum of all non-constraint forces
@@ -413,7 +413,7 @@ void mj_fwdAcceleration(const mjModel* m, mjData* d) {
   // qacc_smooth = M \ qfr_smooth
   mj_solveM(m, d, d->qacc_smooth, d->qfrc_smooth, 1);
 
-  mjFREESTACK;
+  mj_freeStack(d);
   TM_END(mjTIMER_ACCELERATION);
 }
 
@@ -425,7 +425,7 @@ static void warmstart(const mjModel* m, mjData* d) {
 
   // warmstart with best of (qacc_warmstart, qacc_smooth)
   if (!mjDISABLED(mjDSBL_WARMSTART)) {
-    mjMARKSTACK;
+    mj_markStack(d);
     mjtNum* jar = mj_stackAllocNum(d, nefc);
 
     // start with qacc = qacc_warmstart
@@ -479,7 +479,7 @@ static void warmstart(const mjModel* m, mjData* d) {
       }
     }
 
-    mjFREESTACK;
+    mj_freeStack(d);
   }
 
   // coldstart with qacc = qacc_smooth, efc_force = 0
@@ -589,7 +589,7 @@ static void mj_advance(const mjModel* m, mjData* d,
 // Euler integrator, semi-implicit in velocity, possibly skipping factorisation
 void mj_EulerSkip(const mjModel* m, mjData* d, int skipfactor) {
   int nv = m->nv, nM = m->nM;
-  mjMARKSTACK;
+  mj_markStack(d);
   mjtNum* qfrc = mj_stackAllocNum(d, nv);
   mjtNum* qacc = mj_stackAllocNum(d, nv);
 
@@ -633,7 +633,7 @@ void mj_EulerSkip(const mjModel* m, mjData* d, int skipfactor) {
   // advance state and time
   mj_advance(m, d, d->act_dot, qacc, NULL);
 
-  mjFREESTACK;
+  mj_freeStack(d);
 }
 
 
@@ -665,7 +665,6 @@ void mj_RungeKutta(const mjModel* m, mjData* d, int N) {
   mjtNum C[9], T[9], *X[10], *F[10], *dX;
   const mjtNum* A = (N == 4 ? RK4_A : 0);
   const mjtNum* B = (N == 4 ? RK4_B : 0);
-  mjMARKSTACK;
 
   // check order
   if (!A) {
@@ -673,6 +672,7 @@ void mj_RungeKutta(const mjModel* m, mjData* d, int N) {
   }
 
   // allocate space for intermediate solutions
+  mj_markStack(d);
   dX = mj_stackAllocNum(d, 2*nv+na);
   for (int i=0; i < N; i++) {
     X[i] = mj_stackAllocNum(d, nq+nv+na);
@@ -746,7 +746,7 @@ void mj_RungeKutta(const mjModel* m, mjData* d, int N) {
   // advance state and time
   mj_advance(m, d, dX+2*nv, dX+nv, dX);
 
-  mjFREESTACK;
+  mj_freeStack(d);
 }
 
 
@@ -755,7 +755,7 @@ void mj_RungeKutta(const mjModel* m, mjData* d, int N) {
 void mj_implicitSkip(const mjModel* m, mjData* d, int skipfactor) {
   int nv = m->nv;
 
-  mjMARKSTACK;
+  mj_markStack(d);
   mjtNum* qfrc = mj_stackAllocNum(d, nv);
   mjtNum* qacc = mj_stackAllocNum(d, nv);
 
@@ -810,7 +810,7 @@ void mj_implicitSkip(const mjModel* m, mjData* d, int skipfactor) {
   // advance state and time
   mj_advance(m, d, d->act_dot, qacc, NULL);
 
-  mjFREESTACK;
+  mj_freeStack(d);
 }
 
 

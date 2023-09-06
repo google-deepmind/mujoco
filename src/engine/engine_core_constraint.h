@@ -36,11 +36,18 @@ MJAPI int mj_isSparse(const mjModel* m);
 MJAPI int mj_isDual(const mjModel* m);
 
 // multiply Jacobian by vector
-MJAPI void mj_mulJacVec(const mjModel* m, mjData* d, mjtNum* res, const mjtNum* vec);
+MJAPI void mj_mulJacVec(const mjModel* m, const mjData* d, mjtNum* res, const mjtNum* vec);
+
+// multiply Jacobian by vector, for one island
+MJAPI void mj_mulJacVec_island(const mjModel* m, const mjData* d, mjtNum* res, const mjtNum* vec,
+                               int island, int flg_resunc, int flg_vecunc);
 
 // multiply JacobianT by vector
-MJAPI void mj_mulJacTVec(const mjModel* m, mjData* d, mjtNum* res, const mjtNum* vec);
+MJAPI void mj_mulJacTVec(const mjModel* m, const mjData* d, mjtNum* res, const mjtNum* vec);
 
+// multiply JacobianT by vector, for one island
+MJAPI void mj_mulJacTVec_island(const mjModel* m, const mjData* d, mjtNum* res, const mjtNum* vec,
+                                int island, int flg_resunc, int flg_vecunc);
 
 //-------------------------- utility functions -----------------------------------------------------
 
@@ -108,6 +115,10 @@ MJAPI void mj_referenceConstraint(const mjModel* m, mjData* d);
 // optional: cost(qacc) = shat(jar) where jar = Jac*qacc-aref; cone Hessians
 MJAPI void mj_constraintUpdate(const mjModel* m, mjData* d, const mjtNum* jar,
                                mjtNum cost[1], int flg_coneHessian);
+
+// compute efc_state, efc_force, qfrc_constraint for one island
+MJAPI void mj_constraintUpdate_island(const mjModel* m, mjData* d, const mjtNum* jar,
+                                      mjtNum cost[1], int flg_coneHessian, int island);
 
 #ifdef __cplusplus
 }

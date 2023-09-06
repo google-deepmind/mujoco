@@ -346,35 +346,37 @@ TEST_F(IslandTest, IslandEfc) {
   mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, nullptr, 0);
   mjData* data = mj_makeData(model);
 
-  while (data->time < 0.3) {
+  while (data->time < 0.2) {
     mj_step(model, data);
   }
 
-  // sizes
-  int nv      = model->nv;
-  int nefc    = data->nefc;
-  int nisland = data->nisland;
-
   // expect island structure to correspond to comment at top of xml
-  EXPECT_EQ(nisland, 2);
-  EXPECT_EQ(data->ne, 1);
-  EXPECT_EQ(data->nf, 1);
+  EXPECT_EQ(data->nisland, 4);
+  EXPECT_EQ(data->ne, 4);
+  EXPECT_EQ(data->nf, 2);
   EXPECT_EQ(data->nl, 1);
-  EXPECT_EQ(nefc, 7);
-  EXPECT_THAT(AsVector(data->dof_island, nv),
-              ElementsAre(0, -1, 0, 0, 0, 1, 0));
-  EXPECT_THAT(AsVector(data->island_dofnum, nisland), ElementsAre(5, 1));
-  EXPECT_THAT(AsVector(data->island_dofadr, nisland), ElementsAre(0, 5));
-  EXPECT_THAT(AsVector(data->island_dofind, nv),
-              ElementsAre(0, 2, 3, 4, 6, 5, -1));
-  EXPECT_THAT(AsVector(data->dof_islandind, nv),
-              ElementsAre(0, -1, 1, 2, 3, 0, 4));
-  EXPECT_THAT(AsVector(data->efc_island, nefc),
-              ElementsAre(0, 1, 0, 0, 0, 0, 0));
-  EXPECT_THAT(AsVector(data->island_efcnum, nisland), ElementsAre(6, 1));
-  EXPECT_THAT(AsVector(data->island_efcadr, nisland), ElementsAre(0, 6));
-  EXPECT_THAT(AsVector(data->island_efcind, nefc),
-              ElementsAre(0, 2, 3, 4, 5, 6, 1));
+  EXPECT_EQ(data->nefc, 27);
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
+TEST_F(IslandTest, IslandEfcElliptic) {
+  const std::string xml_path = GetTestDataFilePath(kIlslandEfcPath);
+  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, nullptr, 0);
+  mjData* data = mj_makeData(model);
+
+  model->opt.cone = mjCONE_ELLIPTIC;
+  while (data->time < 0.2) {
+    mj_step(model, data);
+  }
+  mj_forward(model, data);
+
+  EXPECT_EQ(data->nisland, 4);
+  EXPECT_EQ(data->ne, 4);
+  EXPECT_EQ(data->nf, 2);
+  EXPECT_EQ(data->nl, 1);
+  EXPECT_EQ(data->nefc, 22);
 
   mj_deleteData(data);
   mj_deleteModel(model);
