@@ -14,7 +14,7 @@ New features
 
 1. Added constraint island discovery in :ref:`mj_island`. Constraint islands are disjoint sets of constraints
    and degrees-of-freedom that do not interact. In a future release the constraint solver will be refactored to
-   exploit the disjoint structure. Island discovery can be activated using a new :ref:`enable flag<option-flag-island>`
+   exploit this disjoint structure. Island discovery can be activated using a new :ref:`enable flag<option-flag-island>`
    which will be removed after the refactor. If island discovery is enabled, geoms, contacts and
    tendons will be colored according to the corresponding island, see video.
 
@@ -26,7 +26,7 @@ New features
    convex. Collision points are found by minimizing the maximum of the two colliding SDFs via gradient descent.
 
    - Added new SDF plugin for defining implicit geometries. The plugin must define methods computing an SDF and its
-     gradient at query points See the :ref:`documentation<exWriting>` for more details.
+     gradient at query points. See the :ref:`documentation<exWriting>` for more details.
 
 3. Added :ref:`mjThreadPool` and :ref:`mjTask` which allow for multi-threaded operations within the MuJoCo engine
    pipeline.
@@ -62,8 +62,8 @@ General
     Euler integrator. See the :ref:`Numerical Integration<geIntegration>` section for more details.
 11. Added the flag :ref:`invdiscrete<option-flag-invdiscrete>`, which enables discrete-time inverse dynamics for all
     :ref:`integrators<option-integrator>` other than ``RK4``. See the flag documentation for more details.
-12. Added :ref:`ls_iterations<option-ls_iterations>` and :ref:`ls_iterations<option-ls_tolerance>` options for adjusting
-    linesearch stopping criteria in CG and Newton solvers.  This can be useful for performance tuning.
+12. Added :ref:`ls_iterations<option-ls_iterations>` and :ref:`ls_tolerance<option-ls_tolerance>` options for adjusting
+    linesearch stopping criteria in CG and Newton solvers. This can be useful for performance tuning.
 
 Python bindings
 ^^^^^^^^^^^^^^^
