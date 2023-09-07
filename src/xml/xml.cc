@@ -52,7 +52,7 @@ namespace mju = ::mujoco::util;
 // In order to ensure that XMLs are locale-inpendent, we temporarily switch to the "C" locale
 // when handling. Since the standard C `setlocale` is not thread-safe, we instead use
 // platform-specific extensions to override the locale only in the calling thread.
-// See also https://github.com/deepmind/mujoco/issues/131.
+// See also https://github.com/google-deepmind/mujoco/issues/131.
 #ifdef _WIN32
 class LocaleOverride {
  public:

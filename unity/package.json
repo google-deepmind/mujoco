@@ -12,6 +12,6 @@
   "changelogUrl": "https://mujoco.readthedocs.io/en/latest/changelog.html",
   "documentationUrl": "https://mujoco.readthedocs.io/en/latest/unity.html",
   "license": "Apache-2.0",
-  "licensesUrl": "https://github.com/deepmind/mujoco/blob/main/LICENSE",
+  "licensesUrl": "https://github.com/google-deepmind/mujoco/blob/main/LICENSE",
   "hideInEditor": false
 }

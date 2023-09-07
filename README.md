@@ -3,14 +3,14 @@
 </h1>
 
 <p>
-  <a href="https://github.com/deepmind/mujoco/actions/workflows/build.yml?query=branch%3Amain" alt="GitHub Actions">
-    <img src="https://img.shields.io/github/actions/workflow/status/deepmind/mujoco/build.yml?branch=main">
+  <a href="https://github.com/google-deepmind/mujoco/actions/workflows/build.yml?query=branch%3Amain" alt="GitHub Actions">
+    <img src="https://img.shields.io/github/actions/workflow/status/google-deepmind/mujoco/build.yml?branch=main">
   </a>
   <a href="https://mujoco.readthedocs.io/" alt="Documentation">
     <img src="https://readthedocs.org/projects/mujoco/badge/?version=latest">
   </a>
-  <a href="https://github.com/deepmind/mujoco/blob/main/LICENSE" alt="License">
-    <img src="https://img.shields.io/github/license/deepmind/mujoco">
+  <a href="https://github.com/google-deepmind/mujoco/blob/main/LICENSE" alt="License">
+    <img src="https://img.shields.io/github/license/google-deepmind/mujoco">
   </a>
 </p>
 
@@ -50,10 +50,11 @@ your machine.
 If you are a Python user, you might want to start with our tutorial notebooks
 running on Google Colab:
 
- - The first tutorial focuses on the basics of MuJoCo: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/deepmind/mujoco/blob/main/python/tutorial.ipynb)
+ - The first tutorial focuses on the basics of MuJoCo:
+   [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/google-deepmind/mujoco/blob/main/python/tutorial.ipynb)
  - For a more advanced example, see the LQR tutorial which creates an LQR
    controller to balance a humanoid on one leg using MuJoCo's dynamics
-   derivatives: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/deepmind/mujoco/blob/main/python/LQR.ipynb)
+   derivatives: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/google-deepmind/mujoco/blob/main/python/LQR.ipynb)
 
 ## Installation
 
@@ -93,10 +94,10 @@ and [style guide](STYLEGUIDE.md).
 ## Asking Questions
 
 Questions and requests for help are welcome on the GitHub
-[Issues](https://github.com/deepmind/mujoco/issues) page and should focus on a specific problem
-or question.
+[Issues](https://github.com/google-deepmind/mujoco/issues) page and should focus
+on a specific problem or question.
 
-[Discussions](https://github.com/deepmind/mujoco/discussions) should
+[Discussions](https://github.com/google-deepmind/mujoco/discussions) should
 address wider concerns that might require input from multiple participants.
 
 Here are some guidelines for asking good questions:
@@ -142,10 +143,10 @@ These packages give users of various languages access to MuJoCo functionality:
 #### First-party bindings:
 
 - [Python bindings](https://mujoco.readthedocs.io/en/stable/python.html)
-  - [dm_control](https://github.com/deepmind/dm_control), Google DeepMind's
-  related environment stack, includes
-  [PyMJCF](https://github.com/deepmind/dm_control/blob/main/dm_control/mjcf/README.md),
-  a module for procedural manipulation of MuJoCo models.
+  - [dm_control](https://github.com/google-deepmind/dm_control), Google
+    DeepMind's related environment stack, includes
+    [PyMJCF](https://github.com/google-deepmind/dm_control/blob/main/dm_control/mjcf/README.md),
+    a module for procedural manipulation of MuJoCo models.
 - [C# bindings and Unity plug-in](https://mujoco.readthedocs.io/en/stable/unity.html)
 
 #### Third-party bindings:
@@ -191,7 +192,7 @@ If you use MuJoCo for published research, please cite:
 
 Copyright 2021 DeepMind Technologies Limited.
 
-Box collision code ([`engine_collision_box.c`](https://github.com/deepmind/mujoco/blob/main/src/engine/engine_collision_box.c))
+Box collision code ([`engine_collision_box.c`](https://github.com/google-deepmind/mujoco/blob/main/src/engine/engine_collision_box.c))
 is Copyright 2016 Svetoslav Kolev.
 
 ReStructuredText documents, images, and videos in the `doc` directory are made
@@ -207,8 +208,8 @@ This is not an officially supported Google product.
 [build from source]: https://mujoco.readthedocs.io/en/latest/programming#building-mujoco-from-source
 [Getting Started]: https://mujoco.readthedocs.io/en/latest/programming#getting-started
 [Unity]: https://unity.com/
-[releases page]: https://github.com/deepmind/mujoco/releases
-[GitHub Issues]: https://github.com/deepmind/mujoco/issues
+[releases page]: https://github.com/google-deepmind/mujoco/releases
+[GitHub Issues]: https://github.com/google-deepmind/mujoco/issues
 [mujoco.readthedocs.io]: https://mujoco.readthedocs.io
 [changelog]: https://mujoco.readthedocs.io/en/latest/changelog.html
 [Python bindings]: https://mujoco.readthedocs.io/en/stable/python.html#python-bindings

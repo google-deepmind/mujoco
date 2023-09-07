@@ -50,7 +50,7 @@ findorfetch(
   LIBRARY_NAME
   mujoco
   GIT_REPO
-  https://github.com/deepmind/mujoco.git
+  https://github.com/google-deepmind/mujoco.git
   GIT_TAG
   main
   TARGETS

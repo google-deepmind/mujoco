@@ -10,7 +10,7 @@ MuJoCo Menagerie
 Menagerie is a collection of high-quality simulation models for MuJoCo, curated
 by Google DeepMind.
 
-For more information, visit the `Menagerie repository <https://github.com/deepmind/mujoco_menagerie>`__.
+For more information, visit the `Menagerie repository <https://github.com/google-deepmind/mujoco_menagerie>`__.
 
 Bipeds & Quadrupeds
 ^^^^^^^^^^^^^^^^^^^
@@ -20,13 +20,13 @@ Bipeds & Quadrupeds
 
    * - Model
      - Preview
-   * - `Agility Cassie <https://github.com/deepmind/mujoco_menagerie/tree/main/agility_cassie>`_
+   * - `Agility Cassie <https://github.com/google-deepmind/mujoco_menagerie/tree/main/agility_cassie>`_
      - .. youtube:: rcdsAdwNhtc
-   * - `Unitree A1 <https://github.com/deepmind/mujoco_menagerie/tree/main/unitree_a1>`_
+   * - `Unitree A1 <https://github.com/google-deepmind/mujoco_menagerie/tree/main/unitree_a1>`_
      - .. youtube:: paQMrMtnTtc
-   * - `Anybotics ANYmal B <https://github.com/deepmind/mujoco_menagerie/tree/main/anybotics_anymal_b>`_
+   * - `Anybotics ANYmal B <https://github.com/google-deepmind/mujoco_menagerie/tree/main/anybotics_anymal_b>`_
      - .. youtube:: fRHau-PMGgM
-   * - `Anybotics ANYmal C <https://github.com/deepmind/mujoco_menagerie/tree/main/anybotics_anymal_c>`_
+   * - `Anybotics ANYmal C <https://github.com/google-deepmind/mujoco_menagerie/tree/main/anybotics_anymal_c>`_
      - .. youtube:: v04uJWBLwFQ
 
 Grippers & Hands
@@ -37,9 +37,9 @@ Grippers & Hands
 
    * - Model
      - Preview
-   * - `Shadow E3M5 <https://github.com/deepmind/mujoco_menagerie/tree/main/shadow_hand>`_
+   * - `Shadow E3M5 <https://github.com/google-deepmind/mujoco_menagerie/tree/main/shadow_hand>`_
      - .. youtube:: wi_zJzRm8Ic
-   * - `Robotiq 2F-85 <https://github.com/deepmind/mujoco_menagerie/tree/main/robotiq_2f85>`_
+   * - `Robotiq 2F-85 <https://github.com/google-deepmind/mujoco_menagerie/tree/main/robotiq_2f85>`_
      - .. youtube:: yYm9fLj32Xw
 
 Arms
@@ -50,8 +50,8 @@ Arms
 
    * - Model
      - Preview
-   * - `Franka Emika Panda <https://github.com/deepmind/mujoco_menagerie/tree/main/franka_emika_panda>`_
+   * - `Franka Emika Panda <https://github.com/google-deepmind/mujoco_menagerie/tree/main/franka_emika_panda>`_
      - .. youtube:: H5zSrWcJlGs
-   * - `Universal Robots UR5e <https://github.com/deepmind/mujoco_menagerie/tree/main/universal_robots_ur5e>`_
+   * - `Universal Robots UR5e <https://github.com/google-deepmind/mujoco_menagerie/tree/main/universal_robots_ur5e>`_
      - .. youtube:: gAqwNeY0juo
 

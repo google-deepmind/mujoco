@@ -354,7 +354,7 @@ SETUP_KWARGS = dict(
     description='MuJoCo Physics Simulator',
     long_description=get_long_description(),
     long_description_content_type='text/markdown',
-    url='https://github.com/deepmind/mujoco',
+    url='https://github.com/google-deepmind/mujoco',
     license='Apache License 2.0',
     classifiers=[
         'Development Status :: 5 - Production/Stable',

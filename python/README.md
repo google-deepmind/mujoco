@@ -8,7 +8,7 @@
 [pypi]: https://pypi.org/project/mujoco/
 
 This package is the canonical Python bindings for the
-[MuJoCo physics engine](https://github.com/deepmind/mujoco).
+[MuJoCo physics engine](https://github.com/google-deepmind/mujoco).
 These bindings are developed and maintained by Google DeepMind, and is kept
 up-to-date with the latest developments in MuJoCo itself.
 
@@ -52,7 +52,7 @@ further detail on the package's API.
 
 We recommend going through the tutorial notebook which covers the basics of
 MuJoCo using Python:
-[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/deepmind/mujoco/blob/main/python/tutorial.ipynb)
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/google-deepmind/mujoco/blob/main/python/tutorial.ipynb)
 
 ## Versioning
 

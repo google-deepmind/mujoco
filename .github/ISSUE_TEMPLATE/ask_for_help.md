@@ -10,7 +10,7 @@ assignees: ''
 **How to ask for help**
 
 First, read our quick guide to
-[asking good questions](https://github.com/deepmind/mujoco#asking-questions).
+[asking good questions](https://github.com/google-deepmind/mujoco#asking-questions).
 Below is a template for you to use:
 
 Hi,

@@ -617,12 +617,12 @@ Force clamping at joint input with :ref:`joint/actuatorfrcrange<body-joint-actua
   actuator:
 
   - In `this example model
-    <https://github.com/deepmind/mujoco/blob/main/test/engine/testdata/actuation/joint_force_clamp.xml>`__ ,
+    <https://github.com/google-deepmind/mujoco/blob/main/test/engine/testdata/actuation/joint_force_clamp.xml>`__ ,
     two actuators, a :ref:`motor<actuator-motor>` and a :ref:`damper<actuator-damper>`, act on a single joint.
-  - In `this example model <https://github.com/deepmind/mujoco/blob/main/model/car/car.xml>`__ (similar to a "Dubin's
+  - In `this example model <https://github.com/google-deepmind/mujoco/blob/main/model/car/car.xml>`__ (similar to a "Dubin's
     Car"), two actuators act on two wheels via a :ref:`fixed tendon<tendon-fixed>` transmission in order to apply
     symmetric (roll forward/back) and antisymmetric (turn right/left) torques.
-  - In `this example model <https://github.com/deepmind/mujoco/tree/main/test/engine/testdata/actuation/refsite.xml>`__,
+  - In `this example model <https://github.com/google-deepmind/mujoco/tree/main/test/engine/testdata/actuation/refsite.xml>`__,
     a :ref:`site transmission<actuator-general-refsite>` implements a Cartesian controller of an arm end-effector.
     In order for the computed torques to be realisable by individual, torque-limited joint motors, they need to be
     clamped at the joints.

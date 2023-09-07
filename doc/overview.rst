@@ -8,8 +8,9 @@ Introduction
 aims to facilitate research and development in robotics, biomechanics, graphics and animation, machine learning, and
 other areas that demand fast and accurate simulation of articulated structures interacting with their environment.
 Initially developed by Roboti LLC, it was acquired and made `freely available
-<https://github.com/deepmind/mujoco/blob/main/LICENSE>`__ by DeepMind in October 2021, and open sourced in May 2022.
-The MuJoCo codebase is available at the `deepmind/mujoco <https://github.com/deepmind/mujoco>`__ repository on GitHub.
+<https://github.com/google-deepmind/mujoco/blob/main/LICENSE>`__ by DeepMind in October 2021, and open sourced in May
+2022. The MuJoCo codebase is available at the `deepmind/mujoco <https://github.com/google-deepmind/mujoco>`__ repository
+on GitHub.
 
 MuJoCo is a C/C++ library with a C API, intended for researchers and developers. The runtime simulation module is tuned
 to maximize performance and operates on low-level data structures which are preallocated by the built-in XML parser and
@@ -788,9 +789,9 @@ first, followed by the limits of the second joint etc. This ordering reflects th
 row-major format.
 
 The available element types are defined in `mjmodel.h
-<https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjmodel.h#L243>`_, in the enum type :ref:`mjtObj`. These
-enums are mostly used internally. One exception are the functions :ref:`mj_name2id` and :ref:`mj_id2name` in the MuJoCo
-API, which map element names to integer ids and vice versa. These functions take an element type as input.
+<https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjmodel.h#L243>`_, in the enum type :ref:`mjtObj`.
+These enums are mostly used internally. One exception are the functions :ref:`mj_name2id` and :ref:`mj_id2name` in the
+MuJoCo API, which map element names to integer ids and vice versa. These functions take an element type as input.
 
 Naming model elements in the XML is optional. Two elements of the same type (e.g. two joints) cannot have the same name.
 Naming is required only when a given element needs to be referenced elsewhere in the model; referencing in the XML can
