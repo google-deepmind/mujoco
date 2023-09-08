@@ -1289,16 +1289,23 @@ static inline void* stackalloc(mjData* d, size_t size, size_t alignment) {
 #ifdef ADDRESS_SANITIZER
   // actual stack usage (without red zone bytes) is stored in the red zone
   if (d->pstack) {
-    size_t* prev_usage_ptr = (size_t*)(end_of_arena_ptr - d->pstack);
+    char* prev_pstack_ptr = (char*)(end_of_arena_ptr - d->pstack);
+    size_t prev_misalign = (uintptr_t)prev_pstack_ptr % _Alignof(size_t);
+    size_t* prev_usage_ptr =
+        (size_t*)(prev_pstack_ptr +
+                  (prev_misalign ? _Alignof(size_t) - prev_misalign : 0));
     ASAN_UNPOISON_MEMORY_REGION(prev_usage_ptr, sizeof(size_t));
     usage = current_alloc_usage + *prev_usage_ptr;
     ASAN_POISON_MEMORY_REGION(prev_usage_ptr, sizeof(size_t));
   }
 
   // store new stack usage in the red zone
-  ASAN_UNPOISON_MEMORY_REGION((void*)new_pstack_ptr, sizeof(size_t));
-  *(size_t*)new_pstack_ptr = usage;
-  ASAN_POISON_MEMORY_REGION((void*)new_pstack_ptr, sizeof(size_t));
+  size_t misalign = new_pstack_ptr % _Alignof(size_t);
+  size_t* usage_ptr =
+      (size_t*)(new_pstack_ptr + (misalign ? _Alignof(size_t) - misalign : 0));
+  ASAN_UNPOISON_MEMORY_REGION(usage_ptr, sizeof(size_t));
+  *usage_ptr = usage;
+  ASAN_POISON_MEMORY_REGION(usage_ptr, sizeof(size_t));
 
   // unpoison the actual usable allocation
   ASAN_UNPOISON_MEMORY_REGION((void*)start_ptr, size);

@@ -114,6 +114,12 @@ static T* VecToArray(std::vector<T>& vector,  bool clear = true){
   }
 }
 
+// Read data of type T from a potentially unaligned buffer pointer.
+template <typename T>
+static void ReadFromBuffer(T* dst, const char* src) {
+  std::memcpy(dst, src, sizeof(T));
+}
+
 //------------------ class mjCMesh implementation --------------------------------------------------
 
 mjCMesh::mjCMesh(mjCModel* _model, mjCDef* _def) {
@@ -961,7 +967,7 @@ void mjCMesh::LoadSTL(mjResource* resource) {
   }
 
   // get number of triangles, check bounds
-  nface_ = *(unsigned int*)(buffer+80);
+  ReadFromBuffer(&nface_, buffer + 80);
   if (nface_<1 || nface_>200000) {
     throw mjCError(this,
                    "number of faces should be between 1 and 200000 in STL file '%s';"
@@ -985,8 +991,10 @@ void mjCMesh::LoadSTL(mjResource* resource) {
   // add vertices and faces, including repeated for now
   for (int i=0; i<nface_; i++) {
     for (int j=0; j<3; j++) {
-      // get pointer to vertex coordiates
-      float* v = (float*)(stl+50*i+12*(j+1));
+      // read vertex coordinates
+      float v[3];
+      ReadFromBuffer(&v, stl+50*i+12*(j+1));
+
       for (int k=0; k < 3; k++) {
         if (std::isnan(v[k]) || std::isinf(v[k])) {
           throw mjCError(this, "STL file '%s' contains invalid vertices.",
@@ -1039,10 +1047,10 @@ void mjCMesh::LoadMSH(mjResource* resource) {
   }
 
   // get sizes from header
-  nvert_ = ((int*)buffer)[0];
-  nnormal_ = ((int*)buffer)[1];
-  ntexcoord_ = ((int*)buffer)[2];
-  nface_ = ((int*)buffer)[3];
+  ReadFromBuffer(&nvert_, buffer);
+  ReadFromBuffer(&nnormal_, buffer + sizeof(int));
+  ReadFromBuffer(&ntexcoord_, buffer + 2*sizeof(int));
+  ReadFromBuffer(&nface_, buffer + 3*sizeof(int));
 
   // check sizes
   if (nvert_<4 || nface_<0 || nnormal_<0 || ntexcoord_<0 ||
@@ -1058,7 +1066,8 @@ void mjCMesh::LoadMSH(mjResource* resource) {
   }
 
   // allocate and copy
-  float* fdata = (float*)(((int*)buffer) + 4);
+  using UnalignedFloat = char[sizeof(float)];
+  auto fdata = reinterpret_cast<UnalignedFloat*>(buffer + 4*sizeof(int));
   if (nvert_) {
     vert_ = (float*) mju_malloc(3*nvert_*sizeof(float));
     memcpy(vert_, fdata, 3*nvert_*sizeof(float));
@@ -1085,7 +1094,7 @@ void mjCMesh::LoadMSH(mjResource* resource) {
     memcpy(facetexcoord_, fdata, 3*nface_*sizeof(int));
   }
 
-  // rearange face data if left-handed scaling
+  // rearrange face data if left-handed scaling
   if (nface_ && !righthand) {
     for (int i=0; i<nface_; i++) {
       int tmp = face_[3*i+1];

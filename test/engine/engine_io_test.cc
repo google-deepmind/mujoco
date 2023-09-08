@@ -813,6 +813,30 @@ TEST_F(EngineIoTest, CanDetectStackFrameLeakage) {
   mj_deleteData(data);
   mj_deleteModel(model);
 }
+
+TEST_F(EngineIoTest, RedZoneAlignmentTest) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+    </worldbody>
+  </mujoco>
+  )";
+
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error.data();
+
+  mjData* data = mj_makeData(model);
+  ASSERT_THAT(data, NotNull());
+
+  mj_markStack(data);
+  mj_stackAlloc(data, 1, 1);
+  mj_stackAlloc(data, 1, 1);
+  mj_freeStack(data);
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
 #endif
 
 }  // namespace
