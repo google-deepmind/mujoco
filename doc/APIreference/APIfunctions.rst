@@ -4,8 +4,8 @@
 Functions
 =========
 
-The main header `mujoco.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mujoco.h>`_ exposes a large
-number of functions. However the functions that most users are likely to need are a small fraction.
+The main header `mujoco.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mujoco.h>`_ exposes a
+large number of functions. However the functions that most users are likely to need are a small fraction.
 
 API function can be classified as:
 

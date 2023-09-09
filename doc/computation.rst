@@ -278,9 +278,9 @@ is attached; the possible attachment object types are :at:`joint`, :at:`tendon`,
 :at:`slider-crank`
    :at:`slider-crank` `transmissions <https://en.wikipedia.org/wiki/Slider-crank_linkage>`_ transform a linear force to
    a torque, as in a piston-driven combustion engine. `This model
-   <https://github.com/deepmind/mujoco/tree/main/model/slider_crank>`_ contains pedagogical examples. Slider-cranks can
-   also be modeled explicitly by creating MuJoCo bodies and coupling them with equality constraints to the rest of the
-   system, but that would be less efficient.
+   <https://github.com/google-deepmind/mujoco/tree/main/model/slider_crank>`_ contains pedagogical examples.
+   Slider-cranks can also be modeled explicitly by creating MuJoCo bodies and coupling them with equality constraints to
+   the rest of the system, but that would be less efficient.
 
 :at:`site`
    :at:`site` transmission (without a :at:`refsite`, see below) and :at:`body` transmission targets have a fixed zero
@@ -573,7 +573,7 @@ Fast implicit-in-velocity (``implicitfast``)
    <https://en.wikipedia.org/wiki/Runge–Kutta_methods#Derivation_of_the_Runge–Kutta_fourth-order_method>`_, though users
    can easily implement other integrators by calling :ref:`mj_forward` and integrating accelerations themselves. We have
    observed that for energy-conserving systems (`example
-   <https://github.com/deepmind/mujoco/blob/main/test/engine/testdata/derivative/energy_conserving_pendulum.xml>`_) RK4
+   <https://github.com/google-deepmind/mujoco/blob/main/test/engine/testdata/derivative/energy_conserving_pendulum.xml>`_) RK4
    is qualitatively better than the single-step methods, both in terms of stability and accuracy, even when the timestep
    is decreased by a factor of 4 (so the computational effort is identical).  In the presence of large velocity-
    dependent forces, if the chosen single-step method integrates those forces implicitly, single-step methods can be

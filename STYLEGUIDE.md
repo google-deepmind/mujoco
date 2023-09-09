@@ -58,7 +58,7 @@ spot such a pattern, feel free to send a PR to update the guide.
 
 Line length is 100 characters. In rare situations, like the collision table at
 the top of
-[engine_collision_driver.c](https://github.com/deepmind/mujoco/blob/c8ff7b3d341560e8cc33fbdcaffbcdbc4c32327c/src/engine/engine_collision_driver.c#L36),
+[engine_collision_driver.c](https://github.com/google-deepmind/mujoco/blob/c8ff7b3d341560e8cc33fbdcaffbcdbc4c32327c/src/engine/engine_collision_driver.c#L36),
 longer lines are allowed for readability.
 
 #### Comments
@@ -99,7 +99,7 @@ including for one-line blocks:
 - Brace-less single line statements are allowed outside of `engine/` code, for
 similar, repeated blocks, that do not contain flow control statements (`return`,
 `continue`, etc.). For an example of this exception, inspect the [`mjCModel`
-destructor](https://github.com/deepmind/mujoco/search?q=repo%3Adeepmind%2Fmujoco+filename%3Auser_model.cc).
+destructor](https://github.com/google-deepmind/mujoco/search?q=repo%3Adeepmind%2Fmujoco+filename%3Auser_model.cc).
 
 - Unattached braces are allowed in `if/else` blocks, when inserting a comment
 before the `else`:

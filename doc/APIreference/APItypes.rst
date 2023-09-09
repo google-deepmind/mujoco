@@ -41,7 +41,7 @@ MuJoCo defines a large number of types:
 Primitive types
 ---------------
 
-The two types below are defined in `mjtnum.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjtnum.h>`_.
+The two types below are defined in `mjtnum.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjtnum.h>`_.
 
 
 .. _mjtNum:
@@ -93,7 +93,7 @@ Enum types
 Model
 ^^^^^
 
-The enums below are defined in `mjmodel.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjmodel.h>`_.
+The enums below are defined in `mjmodel.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjmodel.h>`_.
 
 
 .. _mjtDisableBit:
@@ -343,7 +343,7 @@ These are the possible sensor data types, used in ``mjData.sensor_datatype``.
 Data
 ^^^^
 
-The enums below are defined in `mjdata.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjdata.h>`_.
+The enums below are defined in `mjdata.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjdata.h>`_.
 
 
 
@@ -386,7 +386,7 @@ Timer types. The number of timer types is given by ``mjNTIMER`` which is also th
 Visualization
 ^^^^^^^^^^^^^
 
-The enums below are defined in `mjvisualize.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjvisualize.h>`_.
+The enums below are defined in `mjvisualize.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjvisualize.h>`_.
 
 
 .. _mjtCatBit:
@@ -490,7 +490,7 @@ These are the possible stereo rendering types. They are used in ``mjvScene.stere
 Rendering
 ^^^^^^^^^
 
-The enums below are defined in `mjrender.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjrender.h>`_.
+The enums below are defined in `mjrender.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjrender.h>`_.
 
 
 .. _mjtGridPos:
@@ -540,7 +540,7 @@ These are the possible font types.
 User Interface
 ^^^^^^^^^^^^^^
 
-The enums below are defined in `mjui.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjui.h>`_.
+The enums below are defined in `mjui.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjui.h>`_.
 
 
 .. _mjtButton:
@@ -578,7 +578,7 @@ Item types used in the UI framework.
 Plugins
 ^^^^^^^
 
-The enums below are defined in `mjplugin.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjplugin.h>`_.
+The enums below are defined in `mjplugin.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjplugin.h>`_.
 See :ref:`exPlugin` for details.
 
 
@@ -1016,8 +1016,8 @@ Function types
 --------------
 
 MuJoCo callbacks have corresponding function types. They are defined in `mjdata.h
-<https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjdata.h>`_ and in `mjui.h
-<https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjui.h>`_. The actual callback functions are documented
+<https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjdata.h>`_ and in `mjui.h
+<https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjui.h>`_. The actual callback functions are documented
 in the :doc:`globals<APIglobals>` page.
 
 

@@ -7,10 +7,10 @@ accepting your contributions!
 
 ### Documentation, forums
 
-Please read MuJoCo's [documentation](https://mujoco.readthedocs.io) and look
+Please read MuJoCo's [documentation](https://mujoco.readthedocs.io/) and look
 through current topics on our GitHub
-[issues](https://github.com/deepmind/mujoco/issues) and
-[discussions](https://github.com/deepmind/mujoco/discussions) pages.
+[issues](https://github.com/google-deepmind/mujoco/issues) and
+[discussions](https://github.com/google-deepmind/mujoco/discussions) pages.
 
 ### Contributor License Agreement
 
@@ -35,7 +35,7 @@ How to submit a good bug report:
 
 - Make it easy to reproduce the problem. If this requires a model, attach it as
 a zip file to the bug report. The model and steps required to reproduce the
-proplem should be *minimal*, in the sense that irrelevant parts are
+problem should be *minimal*, in the sense that irrelevant parts are
 removed.
 
 - Clearly state what is the expected behavior.
@@ -54,13 +54,13 @@ What's the most recent version in which the problem doesn't happen?
 Before submitting an enhancement suggestion:
 
 - Check if you're using the [latest
-version](https://github.com/deepmind/mujoco/releases/latest) of MuJoCo.
+version](https://github.com/google-deepmind/mujoco/releases/latest) of MuJoCo.
 
-- Perform a quick [search](https://github.com/deepmind/mujoco/issues) to see if
-the enhancement has already been suggested. If it has, add a comment to the
-existing issue instead of opening a new one.
+- Perform a quick [search](https://github.com/google-deepmind/mujoco/issues) to
+see if the enhancement has already been suggested. If it has, add a comment to
+the existing issue instead of opening a new one.
 
-How to submit a good enhacement suggestion:
+How to submit a good enhancement suggestion:
 
 - Use a clear and descriptive title.
 

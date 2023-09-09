@@ -12,11 +12,11 @@ low-level bindings that are meant to give as close to a direct access to the MuJ
 order to provide an API and semantics that developers would expect in a typical Python library, the bindings
 deliberately diverge from the raw MuJoCo API in a number of places, which are documented throughout this page.
 
-Google DeepMind’s `dm_control <https://github.com/deepmind/dm_control>`__ reinforcement learning library (which prior to
-version 1.0.0 implemented its own MuJoCo bindings based on ``ctypes``) has been updated to depend on the ``mujoco``
-package and continues to be supported by Google DeepMind. Changes in dm_control should be largely transparent to users
-of previous versions, however code that depended directly on its low-level API may need to be updated. Consult the
-`migration guide <https://github.com/deepmind/dm_control/blob/main/migration_guide_1.0.md>`__ for detail.
+Google DeepMind’s `dm_control <https://github.com/google-deepmind/dm_control>`__ reinforcement learning library (which
+prior to version 1.0.0 implemented its own MuJoCo bindings based on ``ctypes``) has been updated to depend on the
+``mujoco`` package and continues to be supported by Google DeepMind. Changes in dm_control should be largely transparent
+to users of previous versions, however code that depended directly on its low-level API may need to be updated. Consult
+the `migration guide <https://github.com/google-deepmind/dm_control/blob/main/migration_guide_1.0.md>`__ for detail.
 
 For mujoco-py users, we include :ref:`notes <PyMjpy_migration>` below to aid migration.
 
@@ -28,7 +28,7 @@ Tutorial notebook
 A MuJoCo tutorial using the Python bindings is available here: |colab|
 
 .. |colab| image:: https://colab.research.google.com/assets/colab-badge.svg
-           :target: https://colab.research.google.com/github/deepmind/mujoco/blob/main/python/tutorial.ipynb
+           :target: https://colab.research.google.com/github/google-deepmind/mujoco/blob/main/python/tutorial.ipynb
 
 .. _PyInstallation:
 
@@ -450,7 +450,7 @@ all inputs including ``time`` and ``qacc_warmstart`` are set to default values, 
 
 Since the Global Interpreter Lock can be released, this function can be efficiently threaded using Python threads. See
 the ``test_threading`` function in
-`rollout_test.py <https://github.com/deepmind/mujoco/blob/main/python/mujoco/rollout_test.py>`_ for an example of
+`rollout_test.py <https://github.com/google-deepmind/mujoco/blob/main/python/mujoco/rollout_test.py>`_ for an example of
 threaded operation.
 
 .. _PyMjpy_migration:
@@ -517,7 +517,7 @@ Building from source
 
 1. Make sure you have CMake and a C++17 compiler installed.
 
-2. Download the `latest binary release <https://github.com/deepmind/mujoco/releases>`__
+2. Download the `latest binary release <https://github.com/google-deepmind/mujoco/releases>`__
    from GitHub. On macOS, the download corresponds to a DMG file from which you
    can drag ``MuJoCo.app`` into your ``/Applications`` folder.
 
@@ -526,7 +526,7 @@ Building from source
 
    .. code-block:: shell
 
-      git clone https://github.com/deepmind/mujoco.git
+      git clone https://github.com/google-deepmind/mujoco.git
       cd mujoco/python
 
 4. Create a virtual environment:
@@ -571,4 +571,5 @@ successfully installed, ``cd`` outside of the ``mujoco`` directory and run
 
 .. tip::
    As a reference, a working build configuration can be found in MuJoCo's
-   `continuous integration setup <https://github.com/deepmind/mujoco/blob/main/.github/workflows/build.yml>`_ on GitHub.
+   `continuous integration setup <https://github.com/google-deepmind/mujoco/blob/main/.github/workflows/build.yml>`_ on
+   GitHub.

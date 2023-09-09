@@ -2635,7 +2635,7 @@ helps clarify the role of bodies and geoms in MuJoCo.
 
    The **sdf** type defines a signed distance field (SDF, also referred to as signed distance function). In order to
    visualize the SDF, a custom mesh must be specified using the :ref:`mesh/plugin <mesh-plugin>` attribute. See the
-   `model/plugin/sdf/ <https://github.com/deepmind/mujoco/tree/main/model/plugin/sdf>`__ directory for example models
+   `model/plugin/sdf/ <https://github.com/google-deepmind/mujoco/tree/main/model/plugin/sdf>`__ directory for example models
    with SDF geometries. For more details regarding SDF plugins, see the :ref:`Extensions chapter<exWriting>`.
 
 .. _body-geom-contype:
@@ -4405,7 +4405,7 @@ specify them independently.
    When using a :at:`site` transmission, measure the translation and rotation w.r.t the frame of the :at:`refsite`. In
    this case the actuator *does* have length and :el:`position` actuators can be used to directly control an end
    effector, see `refsite.xml
-   <https://github.com/deepmind/mujoco/tree/main/test/engine/testdata/actuation/refsite.xml>`__ example
+   <https://github.com/google-deepmind/mujoco/tree/main/test/engine/testdata/actuation/refsite.xml>`__ example
    model. As above, the length is the dot product of the :at:`gear` vector and the frame difference. So ``gear="0 1 0 0
    0 0"`` means "Y-offset of :at:`site` in the :at:`refsite` frame", while ``gear="0 0 0 0 0 1"`` means rotation "Z-
    rotation of :at:`site` in the :at:`refsite` frame". It is recommended to use a normalized :at:`gear` vector with
@@ -5093,7 +5093,7 @@ This element has nine custom attributes in addition to the common attributes:
 
 This element defines an active adhesion actuator which injects forces at contacts in the normal direction, see
 illustration video. The model shown in the video can be found `here
-<https://github.com/deepmind/mujoco/tree/main/model/adhesion>`_ and includes inline annotations. The transmission target
+<https://github.com/google-deepmind/mujoco/tree/main/model/adhesion>`_ and includes inline annotations. The transmission target
 is a :el:`body`, and adhesive forces are injected into all contacts involving geoms which belong to this body. The force
 is divided equally between multiple contacts. When the :at:`gap` attribute is not used, this actuator requires active
 contacts and cannot apply a force at a distance, more like the active adhesion on the feet of geckos and insects rather
