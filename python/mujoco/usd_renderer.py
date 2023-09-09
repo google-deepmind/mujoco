@@ -2,6 +2,7 @@
 import mujoco
 import mujoco.viewer as viewer
 from mujoco.usd_component import *
+from mujoco.usd_utilities import *
 from pxr import Usd, UsdGeom
 
 class USDRenderer(object):
@@ -47,13 +48,29 @@ class USDRenderer(object):
     """
     Loads and initializes the necessary objects to render the scene
     """
+
+    if self.model.nmesh > 0:
+      mesh_vertex_ranges = get_mesh_ranges(self.model.nmesh, self.model.mesh_vertnum)
+      mesh_face_ranges = get_mesh_ranges(self.model.nmesh, self.model.mesh_facenum)
+
+    current_mesh_idx = 0
+
     # initializes an array to store all the geoms in the scene
     # populates with "empty" USDGeom objects
     self.usd_geoms = []
     geoms = self.scene.geoms
     self.ngeom = self.scene.ngeom
     for i in range(self.ngeom):
-      self.usd_geoms.append(create_usd_geom(geoms[i], self.stage))
+      if geoms[i].type == USDGeomType.Mesh.value:
+        self.usd_geoms.append(USDMesh(current_mesh_idx,
+                                      geoms[i], 
+                                      self.stage, 
+                                      self.model,
+                                      mesh_vertex_ranges,
+                                      mesh_face_ranges))
+        current_mesh_idx += 1
+      else:
+        self.usd_geoms.append(create_usd_geom_primitive(geoms[i], self.stage))
 
     # initializes an array to store all the lights in the scene
     # populates with "empty" USDLight objects
@@ -61,7 +78,7 @@ class USDRenderer(object):
     lights = self.scene.lights
     self.nlight = self.scene.nlight
     for i in range(self.nlight):
-      self.usd_lights.append(USDLight())
+      self.usd_lights.append(USDLight(self.stage))
 
   def _update(self):
     self._update_geoms()
@@ -83,9 +100,12 @@ class USDRenderer(object):
     lights = self.scene.lights
     nlight = self.scene.nlight
     for i in range(nlight):
-      print(self.usd_lights[i])
+      self.usd_lights[i].update_light(lights[i])
       
   def _update_camera(self):
+    """
+    Updates the camera to match the current scene
+    """
     pass
 
   def start_viewer(self):
@@ -94,11 +114,11 @@ class USDRenderer(object):
 
   def render(self):
     # should render the usd file given a particular renderer that
-    # works with USD files?
+    # works with USD files
     # TODO: determine if this is valid functionality
     pass
 
-  # TODO: remove later, this is only for debuggin purposes
+  # TODO: remove later, this is only for debugging purposes
   def print_geom_information(self):
     for i in range(self.ngeom):
       print(self.usd_geoms[i])
