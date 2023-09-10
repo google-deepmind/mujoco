@@ -1737,6 +1737,8 @@ void mjCModel::CopyObjects(mjModel* m) {
     m->mesh_graphadr[i] = (pme->szgraph() ? graph_adr : -1);
     m->mesh_bvhadr[i] = bvh_adr;
     m->mesh_bvhnum[i] = pme->tree().nbvh;
+    copyvec(&m->mesh_pos[3 * i], pme->GetOffsetPosPtr(), 3);
+    copyvec(&m->mesh_quat[4 * i], pme->GetOffsetQuatPtr(), 4);
 
     // copy vertices, normals, faces, texcoords, aux data
     pme->CopyVert(m->mesh_vert + 3*vert_adr);
@@ -3013,6 +3015,15 @@ bool mjCModel::CopyBack(const mjModel* m) {
     if (nuser_geom) {
       copyvec(pg->userdata.data(), m->geom_user + nuser_geom*i, nuser_geom);
     }
+  }
+
+  // mesh
+  mjCMesh* pm;
+  for (int i=0; i<nmesh; i++) {
+    pm = meshes[i];
+
+    copyvec(pm->GetOffsetPosPtr(), m->mesh_pos+3*i, 3);
+    copyvec(pm->GetOffsetQuatPtr(), m->mesh_quat+4*i, 4);
   }
 
   // sites

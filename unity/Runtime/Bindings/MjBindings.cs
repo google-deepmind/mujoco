@@ -2115,6 +2115,8 @@ public unsafe struct mjModel_ {
   public int* mesh_texcoordadr;
   public int* mesh_texcoordnum;
   public int* mesh_graphadr;
+  public double* mesh_pos;
+  public double* mesh_quat;
   public float* mesh_vert;
   public float* mesh_normal;
   public float* mesh_texcoord;

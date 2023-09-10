@@ -64,17 +64,17 @@ General
     :ref:`integrators<option-integrator>` other than ``RK4``. See the flag documentation for more details.
 12. Added :ref:`ls_iterations<option-ls_iterations>` and :ref:`ls_tolerance<option-ls_tolerance>` options for adjusting
     linesearch stopping criteria in CG and Newton solvers. This can be useful for performance tuning.
-
+13. Added ``mesh_pos`` and ``mesh_quat`` fields to :ref:`mjModel` to store normalizing transformation.
 Python bindings
 ^^^^^^^^^^^^^^^
 
-13. Fixed `#870 <https://github.com/google-deepmind/mujoco/issues/870>`__ where calling ``update_scene`` with an invalid
+14. Fixed `#870 <https://github.com/google-deepmind/mujoco/issues/870>`__ where calling ``update_scene`` with an invalid
     camera name used the default camera.
 
 Bug fixes
 ^^^^^^^^^
 
-14. Fixed a bug that was causing the geom margins to be ignored during the midphase.
+15. Fixed a bug that was causing the geom margins to be ignored during the midphase.
 
 
 Version 2.3.7 (July 20, 2023)

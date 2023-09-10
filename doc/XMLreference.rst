@@ -1439,16 +1439,16 @@ Positioning and orienting is complicated by the fact that vertex data are often 
 whose origin is not inside the mesh. In contrast, MuJoCo expects the origin of a geom's local frame to coincide with the
 geometric center of the shape. We resolve this discrepancy by pre-processing the mesh in the compiler, so that it is
 centered around (0,0,0) and its principal axes of inertia are the coordinate axes. We also save the translation and
-rotation offsets needed to achieve such alignment. These offsets are then applied to the referencing geom's position and
-orientation; see also :at:`mesh` attribute of :ref:`geom <body-geom>` below. Fortunately most meshes used in robot
-models are designed in a coordinate frame centered at the joint. This makes the corresponding MJCF model intuitive: we
-set the body frame at the joint, so that the joint position is (0,0,0) in the body frame, and simply reference the mesh.
-Below is an MJCF model fragment of a forearm, containing all the information needed to put the mesh where one would
-expect it to be. The body position is specified relative to the parent body, namely the upper arm (not shown). It is
-offset by 35 cm which is the typical length of the human upper arm. If the mesh vertex data were not designed in the
-above convention, we would have to use the geom position and orientation (or the new refpos, refquat mechanism) to
-compensate, but in practice this is rarely needed.
-
+rotation offsets needed to achieve such alignment in :ref:`mjModel.mesh_pos<mjModel>` and
+:ref:`mjModel.mesh_quat<mjModel>`. These offsets are then applied to the referencing geom's position and orientation; see
+also :at:`mesh` attribute of :ref:`geom <body-geom>` below. Fortunately most meshes used in robot models are designed in
+a coordinate frame centered at the joint. This makes the corresponding MJCF model intuitive: we set the body frame at the
+joint, so that the joint position is (0,0,0) in the body frame, and simply reference the mesh. Below is an MJCF model
+fragment of a forearm, containing all the information needed to put the mesh where one would expect it to be. The body
+position is specified relative to the parent body, namely the upper arm (not shown). It is offset by 35 cm which is the
+typical length of the human upper arm. If the mesh vertex data were not designed in the above convention, we would have
+to use the geom position and orientation (or the new refpos, refquat mechanism) to compensate, but in practice this is
+rarely needed.
 .. code-block:: xml
 
    <asset>

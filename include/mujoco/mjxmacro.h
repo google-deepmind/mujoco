@@ -294,6 +294,8 @@
     XMJV( int,     mesh_bvhadr,           nmesh,         1                    ) \
     XMJV( int,     mesh_bvhnum,           nmesh,         1                    ) \
     XMJV( int,     mesh_graphadr,         nmesh,         1                    ) \
+    X   ( mjtNum,  mesh_pos,              nmesh,         3                    ) \
+    X   ( mjtNum,  mesh_quat,             nmesh,         4                    ) \
     X   ( float,   mesh_vert,             nmeshvert,     3                    ) \
     X   ( float,   mesh_normal,           nmeshnormal,   3                    ) \
     X   ( float,   mesh_texcoord,         nmeshtexcoord, 2                    ) \

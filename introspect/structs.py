@@ -2103,6 +2103,20 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='graph data address; -1: no graph         (nmesh x 1)',
              ),
              StructFieldDecl(
+                 name='mesh_pos',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+                 doc='translation applied to asset vertices    (nmesh x 3)',
+             ),
+             StructFieldDecl(
+                 name='mesh_quat',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+                 doc='rotation applied to asset vertices       (nmesh x 4)',
+             ),
+             StructFieldDecl(
                  name='mesh_vert',
                  type=PointerType(
                      inner_type=ValueType(name='float'),

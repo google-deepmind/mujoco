@@ -1747,6 +1747,8 @@ void mjCGeom::Compile(void) {
 
     // apply geom pos/quat as offset
     mjuu_frameaccum(pos, quat, meshpos, pmesh->GetQuatPtr(typeinertia));
+    mjuu_copyvec(pmesh->GetOffsetPosPtr(), meshpos, 3);
+    mjuu_copyvec(pmesh->GetOffsetQuatPtr(), pmesh->GetQuatPtr(typeinertia), 4);
   }
 
   // check size parameters
