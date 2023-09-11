@@ -18,6 +18,7 @@
 #include <cstddef>
 #include <memory>
 #include <thread>
+#include <utility>
 #include <vector>
 
 #include <mujoco/mjthread.h>
@@ -41,8 +42,9 @@ struct WorkerThread {
 
   // An mjTask for shutting down this worker.
   mjTask shutdown_task_ {
-    .func = &ShutdownFunction,
-    .args = nullptr,
+    &ShutdownFunction,
+    nullptr,
+    mjTASK_NEW
   };
 };
 }  // namespace
@@ -51,11 +53,12 @@ struct WorkerThread {
 // (The public mjThreadPool C struct is an opaque one.)
 class ThreadPoolImpl : public mjThreadPool {
  public:
-  ThreadPoolImpl(int num_worker) : mjThreadPool{.nworker = num_worker} {
+  ThreadPoolImpl(int num_worker) : mjThreadPool{num_worker} {
     // initialize worker threads
     for (int i = 0; i < num_worker; ++i) {
-      workers_.push_back(
-          {std::make_unique<std::thread>(ThreadPoolWorker, this)});
+      WorkerThread worker{
+        std::make_unique<std::thread>(ThreadPoolWorker, this)};
+      workers_.push_back(std::move(worker));
     }
   }
 
