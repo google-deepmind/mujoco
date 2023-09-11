@@ -12,13 +12,22 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "thread/task.h"
+#include "thread/thread_task.h"
+
+#include <thread>
 
 #include <mujoco/mjthread.h>
-#include <mujoco/mujoco.h>
 
-// waits for a task to complete
-void mju_taskJoin(mjTask* task) {
-  mujoco::Task* task_ptr = static_cast<mujoco::Task*>(static_cast<void*>(task));
-  task_ptr->Join();
+namespace mujoco {
+void mju_defaultTask(mjTask* task) {
+  task->func = nullptr;
+  task->args = nullptr;
+  task->status = mjTASK_NEW;
 }
+
+void mju_taskJoin(mjTask* task) {
+  while (GetAtomicTaskStatus(task) != mjTASK_COMPLETED) {
+    std::this_thread::yield();
+  }
+}
+}  // namespace mujoco

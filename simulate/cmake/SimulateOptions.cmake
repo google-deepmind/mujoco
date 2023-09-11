@@ -99,8 +99,11 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR (CMAKE_CXX_COMPILER_ID MATCHES "Clang
   if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     # Set -Wimplicit-fallthrough=5 to only allow fallthrough annotation via __attribute__.
     set(EXTRA_COMPILE_OPTIONS ${EXTRA_COMPILE_OPTIONS} -Wimplicit-fallthrough=5
-                              -Wno-maybe-uninitialized
+                              -Wno-maybe-uninitialized -Wno-c++20-extensions
     )
+  endif()
+  if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+    set(EXTRA_COMPILE_OPTIONS ${EXTRA_COMPILE_OPTIONS} -Wno-c++20-designator)
   endif()
 endif()
 

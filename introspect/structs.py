@@ -7007,33 +7007,39 @@ STRUCTS: Mapping[str, StructDecl] = dict([
              ),
          ),
      )),
-    ('mjTask',
-     StructDecl(
-         name='mjTask',
-         declname='struct mjTask_',
-         fields=(
-             StructFieldDecl(
-                 name='buffer',
-                 type=ArrayType(
-                     inner_type=ValueType(name='char'),
-                     extents=(24,),
-                 ),
-                 doc='',
-             ),
-         ),
-     )),
     ('mjThreadPool',
      StructDecl(
          name='mjThreadPool',
          declname='struct mjThreadPool_',
          fields=(
              StructFieldDecl(
-                 name='buffer',
-                 type=ArrayType(
-                     inner_type=ValueType(name='char'),
-                     extents=(6208,),
+                 name='nworker',
+                 type=ValueType(name='int'),
+                 doc='number of workers in the pool',
+             ),
+         ),
+     )),
+    ('mjTask',
+     StructDecl(
+         name='mjTask',
+         declname='struct mjTask_',
+         fields=(
+             StructFieldDecl(
+                 name='func',
+                 type=ValueType(name='mjfTask'),
+                 doc='pointer to the function that implements the task',
+             ),
+             StructFieldDecl(
+                 name='args',
+                 type=PointerType(
+                     inner_type=ValueType(name='void'),
                  ),
-                 doc='',
+                 doc='arguments to func',
+             ),
+             StructFieldDecl(
+                 name='status',
+                 type=ValueType(name='int', is_volatile=True),
+                 doc='status of the task',
              ),
          ),
      )),

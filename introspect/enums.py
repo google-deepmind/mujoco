@@ -642,6 +642,16 @@ ENUMS: Mapping[str, EnumDecl] = dict([
              ('mjFONT_BIG', 2),
          ]),
      )),
+    ('mjtTaskStatus',
+     EnumDecl(
+         name='mjtTaskStatus',
+         declname='enum mjtTaskStatus_',
+         values=dict([
+             ('mjTASK_NEW', 0),
+             ('mjTASK_QUEUED', 1),
+             ('mjTASK_COMPLETED', 2),
+         ]),
+     )),
     ('mjtButton',
      EnumDecl(
          name='mjtButton',

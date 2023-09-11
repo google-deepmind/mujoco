@@ -14,39 +14,114 @@
 
 #include "thread/thread_pool.h"
 
+#include <atomic>
 #include <cstddef>
+#include <memory>
+#include <thread>
+#include <vector>
 
 #include <mujoco/mjthread.h>
-#include <mujoco/mujoco.h>
-#include "thread/task.h"
+#include "engine/engine_crossplatform.h"
+#include "engine/engine_util_errmem.h"
+#include "thread/thread_queue.h"
+#include "thread/thread_task.h"
 
-static constexpr size_t kMaxThreads = 128;
+namespace mujoco {
+namespace {
+constexpr size_t kThreadPoolQueueSize = 640;
+
+struct WorkerThread {
+  // Shutdown function passed to running threads to ensure clean shutdown.
+  static void* ShutdownFunction(void* args) {
+    return nullptr;
+  }
+
+  // Thread for the worker.
+  std::unique_ptr<std::thread> thread_;
+
+  // An mjTask for shutting down this worker.
+  mjTask shutdown_task_ {
+    .func = &ShutdownFunction,
+    .args = nullptr,
+  };
+};
+}  // namespace
+
+// Concrete C++ class definition for mjThreadPool.
+// (The public mjThreadPool C struct is an opaque one.)
+class ThreadPoolImpl : public mjThreadPool {
+ public:
+  ThreadPoolImpl(int num_worker) : mjThreadPool{.nworker = num_worker} {
+    // initialize worker threads
+    for (int i = 0; i < num_worker; ++i) {
+      workers_.push_back(
+          {std::make_unique<std::thread>(ThreadPoolWorker, this)});
+    }
+  }
+
+  // start a task in the threadpool
+  void Enqueue(mjTask* task) {
+    if (mjUNLIKELY(GetAtomicTaskStatus(task).exchange(mjTASK_QUEUED) !=
+                   mjTASK_NEW)) {
+      mjERROR("task->status is not mjTASK_NEW");
+    }
+    lockless_queue_.push(task);
+  }
+
+  // shutdown the threadpool
+  void Shutdown() {
+    if (shutdown_) {
+      return;
+    }
+
+    shutdown_ = true;
+    std::vector<mjTask> shutdown_tasks(workers_.size());
+    for (auto& worker : workers_) {
+      Enqueue(&worker.shutdown_task_);
+    }
+
+    for (auto& worker : workers_) {
+      worker.thread_->join();
+    }
+  }
+
+  ~ThreadPoolImpl() { Shutdown(); }
+
+ private:
+  // method executed by running threads
+  static void ThreadPoolWorker(ThreadPoolImpl* thread_pool) {
+    while (!thread_pool->shutdown_) {
+      auto task = static_cast<mjTask*>(thread_pool->lockless_queue_.pop());
+      task->args = task->func(task->args);
+      GetAtomicTaskStatus(task).store(mjTASK_COMPLETED);
+    }
+  }
+
+  // indicates whether the thread pool is being shut down
+  std::atomic<bool> shutdown_ = false;
+
+  // OS threads that are running in this pool
+  std::vector<WorkerThread> workers_;
+
+  // queue of tasks to execute
+  mujoco::LocklessQueue<void*, kThreadPoolQueueSize> lockless_queue_;
+};
 
 // create a thread pool
 mjThreadPool* mju_threadPoolCreate(size_t number_of_threads) {
-  mujoco::ThreadPool<kMaxThreads>* thread_pool =
-      new mujoco::ThreadPool<kMaxThreads>(number_of_threads);
-  return static_cast<mjThreadPool*>(static_cast<void*>(thread_pool));
+  return new ThreadPoolImpl(number_of_threads);
 }
 
 // start a task in the threadpool
-void mju_threadPoolEnqueue(
-    mjThreadPool* thread_pool, mjTask* task, mjStartRoutine start_routine,
-    void* args) {
-  mujoco::ThreadPool<kMaxThreads>* thread_pool_ptr =
-      static_cast<mujoco::ThreadPool<kMaxThreads>*>(
-          static_cast<void*>(thread_pool));
-  thread_pool_ptr->Enqueue(
-      static_cast<mujoco::Task*>(static_cast<void*>(task)), start_routine,
-      args);
+void mju_threadPoolEnqueue(mjThreadPool* thread_pool, mjTask* task) {
+  auto thread_pool_impl = static_cast<ThreadPoolImpl*>(thread_pool);
+  thread_pool_impl->Enqueue(task);
 }
 
 // shutdown the threadpool and free the memory
 void mju_threadPoolDestroy(mjThreadPool* thread_pool) {
-  mujoco::ThreadPool<kMaxThreads>* thread_pool_ptr =
-      static_cast<mujoco::ThreadPool<kMaxThreads>*>(
-          static_cast<void*>(thread_pool));
-  thread_pool_ptr->Shutdown();
-  delete thread_pool_ptr;
+  auto thread_pool_impl = static_cast<ThreadPoolImpl*>(thread_pool);
+  thread_pool_impl->Shutdown();
+  delete thread_pool_impl;
 }
-
+}  // namespace mujoco

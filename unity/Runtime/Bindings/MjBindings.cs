@@ -403,6 +403,11 @@ public enum mjtFont : int{
   mjFONT_SHADOW = 1,
   mjFONT_BIG = 2,
 }
+public enum mjtTaskStatus : int{
+  mjTASK_NEW = 0,
+  mjTASK_QUEUED = 1,
+  mjTASK_COMPLETED = 2,
+}
 public enum mjtButton : int{
   mjBUTTON_NONE = 0,
   mjBUTTON_LEFT = 1,
@@ -2361,16 +2366,6 @@ public unsafe struct mjrContext_ {
 }
 
 [StructLayout(LayoutKind.Sequential)]
-public unsafe struct mjTask_ {
-  public fixed sbyte buffer[24];
-}
-
-[StructLayout(LayoutKind.Sequential)]
-public unsafe struct mjThreadPool_ {
-  public fixed sbyte buffer[6208];
-}
-
-[StructLayout(LayoutKind.Sequential)]
 public unsafe struct mjuiState_ {
   public int nrect;
   public mjrRect_ rect0;
@@ -3950,14 +3945,5 @@ public static unsafe extern void mjd_subQuat(double* qa, double* qb, double* Da,
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern void mjd_quatIntegrate(double* vel, double scale, double* Dquat, double* Dvel, double* Dscale);
-
-[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
-public static unsafe extern mjThreadPool_* mju_threadPoolCreate(UIntPtr number_of_threads);
-
-[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
-public static unsafe extern void mju_taskJoin(mjTask_* task);
-
-[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
-public static unsafe extern void mju_threadPoolDestroy(mjThreadPool_* thread_pool);
 }
 }

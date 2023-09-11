@@ -15,33 +15,26 @@
 #ifndef MUJOCO_INCLUDE_MJTHREAD_H_
 #define MUJOCO_INCLUDE_MJTHREAD_H_
 
-// C API for MuJoCo threading
-#ifdef __cplusplus
-extern "C" {
-#endif
+typedef enum mjtTaskStatus_ {  // status values for mjTask
+  mjTASK_NEW = 0,              // newly created
+  mjTASK_QUEUED,               // enqueued in a thread pool
+  mjTASK_COMPLETED             // completed execution
+} mjtTaskStatus;
 
-#include <stddef.h>
+// function pointer type for mjTask
+typedef void* (*mjfTask)(void*);
 
-#include <mujoco/mjexport.h>
-
-// These types are implemented in C++, they're just used as opaque pointers in C
-// to provide type safety for functions.
-struct mjTask_ {
-  char buffer[24];
-};
-typedef struct mjTask_ mjTask;
-
+// An opaque type representing a thread pool.
 struct mjThreadPool_ {
-  char buffer[6208];
+  int nworker;  // number of workers in the pool
 };
 typedef struct mjThreadPool_ mjThreadPool;
 
-typedef void*(*mjStartRoutine_)(void*);
-typedef mjStartRoutine_ mjStartRoutine;
-
-#ifdef __cplusplus
-}
-#endif
-
+struct mjTask_ {        // a task that can be executed by a thread pool.
+  mjfTask func;         // pointer to the function that implements the task
+  void* args;           // arguments to func
+  volatile int status;  // status of the task
+};
+typedef struct mjTask_ mjTask;
 
 #endif  // MUJOCO_INCLUDE_MJTHREAD_H_

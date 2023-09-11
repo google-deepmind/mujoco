@@ -8269,7 +8269,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  type=ValueType(name='size_t'),
              ),
          ),
-         doc='Creates a thread pool with the specified number of threads running.',  # pylint: disable=line-too-long
+         doc='Create a thread pool with the specified number of threads running.',  # pylint: disable=line-too-long
      )),
     ('mju_threadPoolEnqueue',
      FunctionDecl(
@@ -8288,32 +8288,8 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                      inner_type=ValueType(name='mjTask'),
                  ),
              ),
-             FunctionParameterDecl(
-                 name='start_routine',
-                 type=ValueType(name='void *(*)(void *)'),
-             ),
-             FunctionParameterDecl(
-                 name='args',
-                 type=PointerType(
-                     inner_type=ValueType(name='void'),
-                 ),
-             ),
          ),
-         doc='Enqueues a task in a thread pool.',
-     )),
-    ('mju_taskJoin',
-     FunctionDecl(
-         name='mju_taskJoin',
-         return_type=ValueType(name='void'),
-         parameters=(
-             FunctionParameterDecl(
-                 name='task',
-                 type=PointerType(
-                     inner_type=ValueType(name='mjTask'),
-                 ),
-             ),
-         ),
-         doc='Waits for a task to complete.',
+         doc='Enqueue a task in a thread pool.',
      )),
     ('mju_threadPoolDestroy',
      FunctionDecl(
@@ -8327,6 +8303,34 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  ),
              ),
          ),
-         doc='Destroys a thread pool.',
+         doc='Destroy a thread pool.',
+     )),
+    ('mju_defaultTask',
+     FunctionDecl(
+         name='mju_defaultTask',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='task',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjTask'),
+                 ),
+             ),
+         ),
+         doc='Initialize an mjTask.',
+     )),
+    ('mju_taskJoin',
+     FunctionDecl(
+         name='mju_taskJoin',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='task',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjTask'),
+                 ),
+             ),
+         ),
+         doc='Wait for a task to complete.',
      )),
 ])

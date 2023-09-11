@@ -12,12 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-set(MUJOCO_THREAD_SRCS
-    thread_pool.cc
-    thread_pool.h
-    thread_queue.h
-    thread_task.cc
-    thread_task.h
-)
+mujoco_test(thread_pool_test)
+target_link_libraries(thread_pool_test fixture gmock)
 
-target_sources(mujoco PRIVATE ${MUJOCO_THREAD_SRCS})
+mujoco_test(thread_queue_test)
+target_link_libraries(thread_queue_test fixture gmock)

@@ -1443,14 +1443,21 @@ struct mjrContext_ {              // custom OpenGL context
   int     readPixelFormat;        // default color pixel format for mjr_readPixels
 };
 typedef struct mjrContext_ mjrContext;
-struct mjTask_ {
-  char buffer[24];
-};
-typedef struct mjTask_ mjTask;
+typedef enum mjtTaskStatus_ {  // status values for mjTask
+  mjTASK_NEW = 0,              // newly created
+  mjTASK_QUEUED,               // enqueued in a thread pool
+  mjTASK_COMPLETED             // completed execution
+} mjtTaskStatus;
 struct mjThreadPool_ {
-  char buffer[6208];
+  int nworker;  // number of workers in the pool
 };
 typedef struct mjThreadPool_ mjThreadPool;
+struct mjTask_ {        // a task that can be executed by a thread pool.
+  mjfTask func;         // pointer to the function that implements the task
+  void* args;           // arguments to func
+  volatile int status;  // status of the task
+};
+typedef struct mjTask_ mjTask;
 typedef enum mjtButton_ {         // mouse button
   mjBUTTON_NONE = 0,              // no button
   mjBUTTON_LEFT,                  // left button
@@ -2588,9 +2595,8 @@ int mjp_resourceProviderCount(void);
 const mjpResourceProvider* mjp_getResourceProvider(const char* resource_name);
 const mjpResourceProvider* mjp_getResourceProviderAtSlot(int slot);
 mjThreadPool* mju_threadPoolCreate(size_t number_of_threads);
-void mju_threadPoolEnqueue(
-ThreadPool* thread_pool, mjTask* task, void*(start_routine)(void*),
-id* args);
-void mju_taskJoin(mjTask* task);
+void mju_threadPoolEnqueue(mjThreadPool* thread_pool, mjTask* task);
 void mju_threadPoolDestroy(mjThreadPool* thread_pool);
+void mju_defaultTask(mjTask* task);
+void mju_taskJoin(mjTask* task);
 // NOLINTEND

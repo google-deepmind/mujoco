@@ -1307,19 +1307,21 @@ MJAPI const mjpResourceProvider* mjp_getResourceProviderAtSlot(int slot);
 
 //---------------------- Thread -------------------------------------------------------------------
 
-// Creates a thread pool with the specified number of threads running.
+// Create a thread pool with the specified number of threads running.
 MJAPI mjThreadPool* mju_threadPoolCreate(size_t number_of_threads);
 
-// Enqueues a task in a thread pool.
-MJAPI void mju_threadPoolEnqueue(
-    mjThreadPool* thread_pool, mjTask* task, void*(start_routine)(void*),
-    void* args);
+// Enqueue a task in a thread pool.
+MJAPI void mju_threadPoolEnqueue(mjThreadPool* thread_pool, mjTask* task);
 
-// Waits for a task to complete.
+// Destroy a thread pool.
+MJAPI void mju_threadPoolDestroy(mjThreadPool* thread_pool);
+
+// Initialize an mjTask.
+MJAPI void mju_defaultTask(mjTask* task);
+
+// Wait for a task to complete.
 MJAPI void mju_taskJoin(mjTask* task);
 
-// Destroys a thread pool.
-MJAPI void mju_threadPoolDestroy(mjThreadPool* thread_pool);
 
 #if defined(__cplusplus)
 }
