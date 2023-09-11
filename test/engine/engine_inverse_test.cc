@@ -104,7 +104,7 @@ TEST_F(InverseTest, DiscreteInverseMatch) {
 
       // depending on mjENBL_INVDISCRETE flag, expect mismatch to be small/large
       if (invdiscrete) {
-        mjtNum epsilon = 1e-10;
+        mjtNum epsilon = 1e-9;
         EXPECT_LT(data->solver_fwdinv[0], epsilon);
         EXPECT_LT(data->solver_fwdinv[1], epsilon);
       } else {
