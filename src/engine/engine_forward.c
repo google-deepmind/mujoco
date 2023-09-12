@@ -264,7 +264,7 @@ void mj_fwdActuation(const mjModel* m, mjData* d) {
           mjcb_act_dyn(m, d, i);
         }
       } else {
-        d->act_dot[j] = 0;
+        mju_zero(d->act_dot + j, m->actuator_actnum[i]);
       }
     }
   }
