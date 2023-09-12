@@ -551,7 +551,7 @@ void mj_fwdConstraint(const mjModel* m, mjData* d) {
 static void mj_advance(const mjModel* m, mjData* d,
                        const mjtNum* act_dot, const mjtNum* qacc, const mjtNum* qvel) {
   // advance activations and clamp
-  if (m->na) {
+  if (m->na && !mjDISABLED(mjDSBL_ACTUATION)) {
     for (int i=0; i < m->nu; i++) {
       int actadr = m->actuator_actadr[i];
       int actadr_end = actadr + m->actuator_actnum[i];
