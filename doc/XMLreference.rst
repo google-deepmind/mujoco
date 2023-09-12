@@ -5453,8 +5453,8 @@ excluded; this is because sensor calculations are independent of the visualizer.
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element creates a camprojection sensor, which returns the location of a target site, projected onto a camera image
-in pixel coordinates. The origin of this system is located at the center of the top left pixel, so a target which
-projects exactly onto the corner of the image, will have value (-0.5, -0.5). Values are not clipped, so targets which
+in pixel coordinates. The origin of this system is located at the top-left corner of the first pixel, so a target
+which projects exactly onto the corner of the image, will have value (0, 0). Values are not clipped, so targets which
 fall outside the camera image will take values above or below the pixel limits. Moreover, points behind the camera
 are also projected onto the image, so it is up to the user to filter out such points, if desired. This can be done using
 a `framepos<sensor-framepos>` sensor with the camera as reference frame, then a negative/positive value in the

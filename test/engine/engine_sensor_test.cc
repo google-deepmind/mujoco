@@ -467,12 +467,12 @@ TEST_F(SensorTest, CameraProjection) {
   EXPECT_THAT(model->cam_resolution[0], 1920);
   EXPECT_THAT(model->cam_resolution[1], 1200);
   mjtNum eps = 1e-4;
-  EXPECT_NEAR(data->sensordata[0], -0.5, eps);
-  EXPECT_NEAR(data->sensordata[1], -0.5, eps);
-  EXPECT_NEAR(data->sensordata[2], 1919.5, eps);
-  EXPECT_NEAR(data->sensordata[3], 1199.5, eps);
-  EXPECT_NEAR(data->sensordata[4], 959.5, eps);
-  EXPECT_NEAR(data->sensordata[5], 599.5, eps);
+  EXPECT_NEAR(data->sensordata[0], 0, eps);
+  EXPECT_NEAR(data->sensordata[1], 0, eps);
+  EXPECT_NEAR(data->sensordata[2], 1920, eps);
+  EXPECT_NEAR(data->sensordata[3], 1200, eps);
+  EXPECT_NEAR(data->sensordata[4], 960, eps);
+  EXPECT_NEAR(data->sensordata[5], 600, eps);
 
   mj_deleteData(data);
   mj_deleteModel(model);

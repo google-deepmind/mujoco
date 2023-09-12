@@ -225,8 +225,8 @@ static void cam_project(mjtNum sensordata[2], const mjtNum target_xpos[3],
   image[0][0] = 1;
   image[1][1] = 1;
   image[2][2] = 1;
-  image[0][2] = ((mjtNum)cam_res[0] - 1) / 2.0;
-  image[1][2] = ((mjtNum)cam_res[1] - 1) / 2.0;
+  image[0][2] = (mjtNum)cam_res[0] / 2.0;
+  image[1][2] = (mjtNum)cam_res[1] / 2.0;
 
   // projection matrix (3x4): product of all 4 matrices
   mjtNum proj[3][4] = {0};
