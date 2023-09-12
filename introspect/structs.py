@@ -1886,6 +1886,13 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='global orientation in qpos0              (ncam x 9)',
              ),
              StructFieldDecl(
+                 name='cam_resolution',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='[width, height] in pixels                (ncam x 2)',
+             ),
+             StructFieldDecl(
                  name='cam_fovy',
                  type=PointerType(
                      inner_type=ValueType(name='mjtNum'),

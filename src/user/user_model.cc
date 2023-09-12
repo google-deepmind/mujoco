@@ -1586,6 +1586,7 @@ void mjCModel::CopyTree(mjModel* m) {
       copyvec(m->cam_quat+4*cid, pc->locquat, 4);
       m->cam_fovy[cid] = (mjtNum)pc->fovy;
       m->cam_ipd[cid] = (mjtNum)pc->ipd;
+      copyvec(m->cam_resolution+2*cid, pc->resolution, 2);
       copyvec(m->cam_user+nuser_cam*cid, pc->userdata.data(), nuser_cam);
     }
 
@@ -3044,6 +3045,7 @@ bool mjCModel::CopyBack(const mjModel* m) {
     copyvec(cameras[i]->quat, m->cam_quat+4*i, 4);
     cameras[i]->fovy = (double)m->cam_fovy[i];
     cameras[i]->ipd = (double)m->cam_ipd[i];
+    copyvec(cameras[i]->resolution, m->cam_resolution+2*i, 2);
 
     if (nuser_cam) {
       copyvec(cameras[i]->userdata.data(), m->cam_user + nuser_cam*i, nuser_cam);

@@ -577,6 +577,7 @@ typedef enum mjtSensor_ {         // type of sensor
   mjSENS_TORQUE,                  // 3D torque between site's body and its parent body
   mjSENS_MAGNETOMETER,            // 3D magnetometer
   mjSENS_RANGEFINDER,             // scalar distance to nearest geom or site along z-axis
+  mjSENS_CAMPROJECTION,           // pixel coordinates of a site in the camera image
 
   // sensors related to scalar joints, tendons, actuators
   mjSENS_JOINTPOS,                // scalar joint position (hinge and slide only)
@@ -1010,6 +1011,7 @@ struct mjModel_ {
   mjtNum*   cam_poscom0;          // global position rel. to sub-com in qpos0 (ncam x 3)
   mjtNum*   cam_pos0;             // global position rel. to body in qpos0    (ncam x 3)
   mjtNum*   cam_mat0;             // global orientation in qpos0              (ncam x 9)
+  int*      cam_resolution;       // [width, height] in pixels                (ncam x 2)
   mjtNum*   cam_fovy;             // y-field of view (deg)                    (ncam x 1)
   mjtNum*   cam_ipd;              // inter-pupilary distance                  (ncam x 1)
   mjtNum*   cam_user;             // user data                                (ncam x nuser_cam)

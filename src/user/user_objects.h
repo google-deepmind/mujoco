@@ -465,6 +465,7 @@ class mjCCamera : public mjCBase {
   double ipd;                     // inter-pupilary distance
   double pos[3];                  // position
   double quat[4];                 // orientation
+  float resolution[2];            // resolution [pixel]
   std::vector<double> userdata;   // user data
   mjCAlternative alt;             // alternative orientation specification
 

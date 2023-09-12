@@ -258,6 +258,7 @@
     X   ( int,     cam_mode,              ncam,          1                    ) \
     X   ( int,     cam_bodyid,            ncam,          1                    ) \
     X   ( int,     cam_targetbodyid,      ncam,          1                    ) \
+    X   ( int,     cam_resolution,        ncam,          2                    ) \
     X   ( mjtNum,  cam_pos,               ncam,          3                    ) \
     X   ( mjtNum,  cam_quat,              ncam,          4                    ) \
     X   ( mjtNum,  cam_poscom0,           ncam,          3                    ) \

@@ -3054,6 +3054,13 @@ and the +Y axis points up. Thus the frame position and orientation are the key a
    Vertical field of view of the camera, expressed in degrees regardless of the global angle setting. The horizontal
    field of view is computed automatically given the window size and the vertical field of view.
 
+.. _body-camera-resolution:
+
+:at:`resolution`: :at-val:`int(2), "1 1"`
+   Resolution of the camera in pixels [width height]. Note that these values are not used for rendering since those
+   dimensions are determined by the size of the rendering context. This attribute serves as a convenient
+   location to save the required resolution when creating a context.
+
 .. _body-camera-ipd:
 
 :at:`ipd`: :at-val:`real, "0.068"`
@@ -5412,7 +5419,6 @@ site frame. The output is a 3D vector.
 :at:`site`: :at-val:`string, required`
    The site where the sensor is attached.
 
-
 .. _sensor-rangefinder:
 
 :el-prefix:`sensor/` |-| **rangefinder** (*)
@@ -5441,6 +5447,39 @@ excluded; this is because sensor calculations are independent of the visualizer.
 :at:`site`: :at-val:`string, required`
    The site where the sensor is attached.
 
+.. _sensor-camprojection:
+
+:el-prefix:`sensor/` |-| **camprojection** (*)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+This element creates a camprojection sensor, which returns the location of a target site, projected onto a camera image
+in pixel coordinates. The origin of this system is located at the center of the top left pixel, so a target which
+projects exactly onto the corner of the image, will have value (-0.5, -0.5). Values are not clipped, so targets which
+fall outside the camera image will take values above or below the pixel limits. Moreover, points behind the camera
+are also projected onto the image, so it is up to the user to filter out such points, if desired. This can be done using
+a `framepos<sensor-framepos>` sensor with the camera as reference frame, then a negative/positive value in the
+z-coordinate indicates (respectively) a location in the front/back of the camera.
+
+.. _sensor-camprojection-site:
+
+:at:`site`: :at-val:`string, required`
+   The site which is projected on to the camera image.
+
+.. _sensor-camprojection-camera:
+
+:at:`camera`: :at-val:`string, required`
+   The camera used for the projection, its :ref:`resolution<body-camera-resolution>` attribute must be positive.
+
+.. _sensor-camprojection-name:
+
+.. _sensor-camprojection-noise:
+
+.. _sensor-camprojection-cutoff:
+
+.. _sensor-camprojection-user:
+
+:at:`name`, :at:`noise`, :at:`cutoff`, :at:`user`
+   See :ref:`CSensor`.
 
 .. _sensor-jointpos:
 
@@ -6654,6 +6693,8 @@ if omitted.
 .. _default-camera:
 
 .. _default-camera-fovy:
+
+.. _default-camera-resolution:
 
 .. _default-camera-ipd:
 

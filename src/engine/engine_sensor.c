@@ -187,6 +187,91 @@ static void get_xquat(const mjModel* m, const mjData* d, mjtObj type, int id, in
 }
 
 
+static void cam_project(mjtNum sensordata[2], const mjtNum target_xpos[3],
+                        const mjtNum cam_xpos[3], const mjtNum cam_xmat[9],
+                        const int cam_res[2], mjtNum cam_fovy) {
+  // translation matrix (4x4)
+  mjtNum translation[4][4] = {0};
+  translation[0][0] = 1;
+  translation[1][1] = 1;
+  translation[2][2] = 1;
+  translation[3][3] = 1;
+  translation[0][3] = -cam_xpos[0];
+  translation[1][3] = -cam_xpos[1];
+  translation[2][3] = -cam_xpos[2];
+
+  // rotation matrix (4x4)
+  mjtNum rotation[4][4] = {0};
+  rotation[0][0] = 1;
+  rotation[1][1] = 1;
+  rotation[2][2] = 1;
+  rotation[3][3] = 1;
+  for (int i=0; i<3; i++) {
+    for (int j=0; j<3; j++) {
+      rotation[i][j] = cam_xmat[j*3+i];
+    }
+  }
+
+  // focal transformation matrix (3x4)
+  mjtNum height = (mjtNum) cam_res[1];
+  mjtNum fy = .5 / mju_tan(cam_fovy * mjPI / 360.) * height;
+  mjtNum focal[3][4] = {0};
+  focal[0][0] = -fy;
+  focal[1][1] =  fy;
+  focal[2][2] = 1.0;
+
+  // image matrix (3x3)
+  mjtNum image[3][3] = {0};
+  image[0][0] = 1;
+  image[1][1] = 1;
+  image[2][2] = 1;
+  image[0][2] = ((mjtNum)cam_res[0] - 1) / 2.0;
+  image[1][2] = ((mjtNum)cam_res[1] - 1) / 2.0;
+
+  // projection matrix (3x4): product of all 4 matrices
+  mjtNum proj[3][4] = {0};
+  for (int i=0; i<3; i++) {
+    for (int j=0; j<3; j++) {
+      for (int k=0; k<4; k++) {
+        for (int l=0; l<4; l++) {
+          for (int n=0; n<4; n++) {
+            proj[i][n] += image[i][j] * focal[j][k] * rotation[k][l] * translation[l][n];
+          }
+        }
+      }
+    }
+  }
+
+  // projection matrix multiplies homogenous [x, y, z, 1] vectors
+  mjtNum pos_hom[4] = {0, 0, 0, 1};
+  mju_copy3(pos_hom, target_xpos);
+
+  // project world coordinates into pixel space, see:
+  // https://en.wikipedia.org/wiki/3D_projection#Mathematical_formula
+  mjtNum pixel_coord_hom[3] = {0};
+  for (int i=0; i<3; i++) {
+      for (int j=0; j<4; j++) {
+        pixel_coord_hom[i] += proj[i][j] * pos_hom[j];
+      }
+  }
+
+  // avoid dividing by tiny numbers
+  mjtNum denom = pixel_coord_hom[2];
+  if (mju_abs(denom) < mjMINVAL) {
+    if (denom < 0) {
+      denom = mju_min(denom, -mjMINVAL);
+    } else {
+      denom = mju_max(denom, mjMINVAL);
+    }
+  }
+
+  // compute projection
+  sensordata[0] = pixel_coord_hom[0] / denom;
+  sensordata[1] = pixel_coord_hom[1] / denom;
+}
+
+
+
 //-------------------------------- sensor ----------------------------------------------------------
 
 // position-dependent sensors
@@ -219,6 +304,11 @@ void mj_sensorPos(const mjModel* m, mjData* d) {
       switch ((mjtSensor) m->sensor_type[i]) {
       case mjSENS_MAGNETOMETER:                           // magnetometer
         mju_mulMatTVec(d->sensordata+adr, d->site_xmat+9*objid, m->opt.magnetic, 3, 3);
+        break;
+
+      case mjSENS_CAMPROJECTION:                          // camera projection
+        cam_project(d->sensordata+adr, d->site_xpos+3*objid, d->cam_xpos+3*refid,
+                    d->cam_xmat+9*refid, m->cam_resolution+2*refid, m->cam_fovy[refid]);
         break;
 
       case mjSENS_RANGEFINDER:                            // rangefinder

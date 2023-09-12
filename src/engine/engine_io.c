@@ -1612,6 +1612,9 @@ static int sensorSize(mjtSensor sensor_type, int sensor_dim) {
   case mjSENS_CLOCK:
     return 1;
 
+  case mjSENS_CAMPROJECTION:
+    return 2;
+
   case mjSENS_ACCELEROMETER:
   case mjSENS_VELOCIMETER:
   case mjSENS_GYRO:
