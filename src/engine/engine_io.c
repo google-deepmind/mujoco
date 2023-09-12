@@ -1351,29 +1351,17 @@ void mj_freeStack(mjData* d) {
 
   mjStackFrame* s = (mjStackFrame*) ((char*)d->arena + d->narena - d->pbase);
 #ifdef ADDRESS_SANITIZER
-  #define mjSYMBOLIZELEN 256
-
-  // symbolize s->pc to get the function name of most recent caller to mj_markStack
-  char markstack_func[mjSYMBOLIZELEN];
-  __sanitizer_symbolize_pc(s->pc, "%f", markstack_func, mjSYMBOLIZELEN);
-  markstack_func[mjSYMBOLIZELEN - 1] = '\0';
-
-  // symbolize current program counter to get the function name of caller to this function
-  char freestack_func[mjSYMBOLIZELEN];
-  __sanitizer_symbolize_pc(__sanitizer_return_address(), "%f", freestack_func, mjSYMBOLIZELEN);
-  freestack_func[mjSYMBOLIZELEN - 1] = '\0';
-
   // raise an error if caller function name doesn't match the most recent caller of mj_markStack
-  if (strncmp(markstack_func, freestack_func, mjSYMBOLIZELEN)) {
+  if (!_mj_comparePcFuncName(s->pc, __sanitizer_return_address())) {
+    #define mjSYMBOLIZELEN 256
     char dbginfo[mjSYMBOLIZELEN];
     __sanitizer_symbolize_pc(
         s->pc, "mj_markStack %F at %S has no corresponding mj_freeStack",
         dbginfo, sizeof(dbginfo));
     dbginfo[mjSYMBOLIZELEN - 1] = '\0';
     mjERROR("%s", dbginfo);
+    #undef mjSYMBOLIZELEN
   }
-
-  #undef mjSYMBOLIZELEN
 #endif
 
   // restore pbase and pstack
