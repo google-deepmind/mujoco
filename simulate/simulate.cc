@@ -14,6 +14,7 @@
 
 #include "simulate.h"
 
+#include <algorithm>
 #include <atomic>
 #include <chrono>
 #include <cstdio>
@@ -1638,8 +1639,8 @@ void Simulate::Sync() {
     return;
   }
 
-  bool update_profiler = this->profiler && (this->run || !this->m_);
-  bool update_sensor = this->sensor && (this->run || !this->m_);
+  bool update_profiler = this->profiler && (this->pause_update || this->run);
+  bool update_sensor = this->sensor && (this->pause_update || this->run);
 
   for (int i = 0; i < m_->njnt; ++i) {
     std::optional<std::pair<mjtNum, mjtNum>> range;
