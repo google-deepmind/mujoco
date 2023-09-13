@@ -3583,19 +3583,30 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  name='solver',
                  type=ArrayType(
                      inner_type=ValueType(name='mjSolverStat'),
-                     extents=(1000,),
+                     extents=(4000,),
                  ),
-                 doc='solver statistics per iteration',
+                 doc='solver statistics per island, per iteration',
              ),
              StructFieldDecl(
-                 name='solver_iter',
+                 name='solver_nisland',
                  type=ValueType(name='int'),
-                 doc='number of solver iterations',
+                 doc='number of islands processed by solver',
+             ),
+             StructFieldDecl(
+                 name='solver_niter',
+                 type=ArrayType(
+                     inner_type=ValueType(name='int'),
+                     extents=(20,),
+                 ),
+                 doc='number of solver iterations, per island',
              ),
              StructFieldDecl(
                  name='solver_nnz',
-                 type=ValueType(name='int'),
-                 doc='number of non-zeros in Hessian or efc_AR',
+                 type=ArrayType(
+                     inner_type=ValueType(name='int'),
+                     extents=(20,),
+                 ),
+                 doc='number of non-zeros in Hessian or efc_AR, per island',
              ),
              StructFieldDecl(
                  name='solver_fwdinv',

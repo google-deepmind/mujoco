@@ -1212,11 +1212,17 @@ void mj_solveM(const mjModel* m, mjData* d, mjtNum* x, const mjtNum* y, int n) {
 // in-place sparse backsubstitution for one island:  x = inv(L'*D*L)*x
 //  L is in lower triangle of qLD; D is on diagonal of qLD
 void mj_solveM_island(const mjModel* m, const mjData* d, mjtNum* restrict x, int island) {
+  // if no islands, call mj_solveLD
+  const mjtNum* qLD = d->qLD;
+  const mjtNum* qLDiagInv = d->qLDiagInv;
+  if (island < 0) {
+    mj_solveLD(m, x, 1, qLD, qLDiagInv);
+    return;
+  }
+
   // local constants: general
   const int* Madr = m->dof_Madr;
   const int* parentid = m->dof_parentid;
-  const mjtNum* qLD = d->qLD;
-  const mjtNum* qLDiagInv = d->qLDiagInv;
   const int* simplenum = m->dof_simplenum;
 
   // local constants: island specific

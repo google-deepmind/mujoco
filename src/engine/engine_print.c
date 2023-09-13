@@ -837,24 +837,33 @@ void mj_printFormattedData(const mjModel* m, mjData* d, const char* filename,
   }
 
   // SOLVER STAT
-  if (d->solver_iter) {
+  if (d->nefc) {
     fprintf(fp, "SOLVER STAT\n");
-    fprintf(fp, "  solver_iter = %d\n", d->solver_iter);
-    fprintf(fp, "  solver_nnz = %d\n",  d->solver_nnz);
-    for (int i=0; i < mjMIN(mjNSOLVER, d->solver_iter); i++) {
-      fprintf(fp, "    %d:  improvement = ", i);
-      fprintf(fp, float_format, d->solver[i].improvement);
-      fprintf(fp, "  gradient = ");
-      fprintf(fp, float_format, d->solver[i].gradient);
-      fprintf(fp, "  lineslope = ");
-      fprintf(fp, float_format, d->solver[i].lineslope);
-      fprintf(fp, "\n");
-      fprintf(fp, "        nactive = %d   nchange = %d   neval = %d   nupdate = %d\n",
-              d->solver[i].nactive, d->solver[i].nchange,
-              d->solver[i].neval, d->solver[i].nupdate);
+    fprintf(fp, "  solver_nisland = %d\n", d->solver_nisland);
+    printVector("  solver_fwdinv = ", d->solver_fwdinv, 2, fp, float_format);
+    int nisland_stat = mjMIN(d->solver_nisland, mjNISLAND);
+    for (int island=0; island < nisland_stat; island++) {
+      int niter_stat = mjMIN(mjNSOLVER, d->solver_niter[island]);
+      if (niter_stat) {
+        fprintf(fp, "  ISLAND %d\n", island);
+        fprintf(fp, "    solver_niter = %d\n", d->solver_niter[island]);
+        fprintf(fp, "    solver_nnz = %d\n",  d->solver_nnz[island]);
+        for (int i=0; i < niter_stat; i++) {
+          mjSolverStat* stat = d->solver + island*mjNSOLVER + i;
+          fprintf(fp, "      %d:  improvement = ", i);
+          fprintf(fp, float_format, stat->improvement);
+          fprintf(fp, "    gradient = ");
+          fprintf(fp, float_format, stat->gradient);
+          fprintf(fp, "    lineslope = ");
+          fprintf(fp, float_format, stat->lineslope);
+          fprintf(fp, "\n");
+          fprintf(fp, "          nactive = %d   nchange = %d   neval = %d   nupdate = %d\n",
+                  stat->nactive, stat->nchange,
+                  stat->neval, stat->nupdate);
+        }
+        fprintf(fp, "\n");
+      }
     }
-    printVector("solver_fwdinv = ", d->solver_fwdinv, 2, fp, float_format);
-    fprintf(fp, "\n");
   }
 
   printVector("ENERGY = ", d->energy, 2, fp, float_format);

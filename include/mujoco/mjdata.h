@@ -173,9 +173,10 @@ struct mjData_ {
   mjTimerStat   timer[mjNTIMER];      // timer statistics
 
   // solver statistics
-  mjSolverStat  solver[mjNSOLVER];  // solver statistics per iteration
-  int     solver_iter;              // number of solver iterations
-  int     solver_nnz;               // number of non-zeros in Hessian or efc_AR
+  mjSolverStat  solver[mjNISLAND*mjNSOLVER];  // solver statistics per island, per iteration
+  int     solver_nisland;           // number of islands processed by solver
+  int     solver_niter[mjNISLAND];  // number of solver iterations, per island
+  int     solver_nnz[mjNISLAND];    // number of non-zeros in Hessian or efc_AR, per island
   mjtNum  solver_fwdinv[2];         // forward-inverse comparison: qfrc, efc
 
   // collision statistics

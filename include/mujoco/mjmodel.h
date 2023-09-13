@@ -41,7 +41,8 @@
 #define mjNFLUID        12        // number of fluid interaction parameters
 #define mjNREF          2         // number of solver reference parameters
 #define mjNIMP          5         // number of solver impedance parameters
-#define mjNSOLVER       1000      // size of mjData.solver_XXX arrays
+#define mjNSOLVER       200       // size of one mjData.solver array
+#define mjNISLAND       20        // number of mjData.solver arrays
 
 
 //---------------------------------- enum types (mjt) ----------------------------------------------

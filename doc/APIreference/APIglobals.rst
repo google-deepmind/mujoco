@@ -450,9 +450,15 @@ shown in the table below. Their names are in the format ``mjKEY_XXX``. They corr
      - The maximal number of real-valued parameters used to define the impedance of each scalar constraint.
        Determines the size of all ``mjModel.XXX_solimp`` fields.
    * - ``mjNSOLVER``
-     - 1000
-     - The size of the preallocated array ``mjData.solver``. This is used to store diagnostic information about each
-       iteration of the constraint solver. The actual number of iterations is given by ``mjData.solver_iter``.
+     - 200
+     - The number of iterations where solver statistics can be stored in ``mjData.solver``. This array is used
+       to store diagnostic information about each iteration of the constraint solver.
+       The actual number of iterations is given by ``mjData.solver_iter``.
+   * - ``mjNISLAND``
+     - 20
+     - The number of islands for which solver statistics can be stored in ``mjData.solver``. This array is
+       used to store diagnostic information about each iteration of the constraint solver.
+       The actual number of islands for which the solver was run is given by ``mjData.nsolver_island``.
    * - ``mjNGROUP``
      - 6
      - The number of geom, site, joint, tendon and actuator groups whose rendering can be enabled and disabled via

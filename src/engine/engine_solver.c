@@ -39,24 +39,30 @@ static mjtNum rescale(const mjModel* m, mjtNum x) {
 
 
 
-// save solver statistics, count
-static void saveStats(const mjModel* m, mjData* d, int* piter,
+// save solver statistics
+static void saveStats(const mjModel* m, mjData* d, int island, int iter,
                       mjtNum improvement, mjtNum gradient, mjtNum lineslope,
                       int nactive, int nchange, int neval, int nupdate) {
-  // compute position, increase iter
-  int i = d->solver_iter + (*piter);
-  (*piter)++;
-
-  // save if within range
-  if (i < mjNSOLVER) {
-    d->solver[i].improvement = improvement;
-    d->solver[i].gradient = gradient;
-    d->solver[i].lineslope = lineslope;
-    d->solver[i].nactive = nactive;
-    d->solver[i].nchange = nchange;
-    d->solver[i].neval = neval;
-    d->solver[i].nupdate = nupdate;
+  // if out of range, return
+  if (island >= mjNISLAND) {
+    return;
   }
+
+  // if no islands, use first island
+  island = mjMAX(0, island);
+
+  // get mjSolverStat pointer
+  iter += d->solver_niter[island];  // add current niter (in case of noslip)
+  mjSolverStat* stat = d->solver + island*mjNSOLVER + iter;
+
+  // save stats
+  stat->improvement = improvement;
+  stat->gradient = gradient;
+  stat->lineslope = lineslope;
+  stat->nactive = nactive;
+  stat->nchange = nchange;
+  stat->neval = neval;
+  stat->nupdate = nupdate;
 }
 
 
@@ -313,6 +319,9 @@ void mj_solPGS(const mjModel* m, mjData* d, int maxiter) {
   mjtNum* ARinv = mj_stackAllocNum(d, nefc);
   int* oldstate = mj_stackAllocInt(d, nefc);
 
+  // TODO: b/295296178 - Use island index (currently hardcoded to 0)
+  int island = 0;
+
   // precompute inverse diagonal of AR
   ARdiaginv(m, d, ARinv, 0);
 
@@ -471,9 +480,13 @@ void mj_solPGS(const mjModel* m, mjData* d, int maxiter) {
       nchange += (oldstate[i] != d->efc_state[i]);
     }
 
-    // scale improvement, save stats, count
+    // scale improvement, save stats
     improvement = rescale(m, improvement);
-    saveStats(m, d, &iter, improvement, 0, 0, nactive, nchange, 0, 0);
+    saveStats(m, d, island, iter, improvement, 0, 0, nactive, nchange, 0, 0);
+
+    // increment iteration count
+    iter++;
+
 
     // terminate
     if (improvement < m->opt.tolerance) {
@@ -481,17 +494,20 @@ void mj_solPGS(const mjModel* m, mjData* d, int maxiter) {
     }
   }
 
-  // update solver iterations
-  d->solver_iter += iter;
+  // finalize statistics
+  if (island < mjNISLAND) {
+    // update solver iterations
+    d->solver_niter[island] += iter;
 
-  // set nnz
-  if (mj_isSparse(m)) {
-    d->solver_nnz = 0;
-    for (int i=0; i < nefc; i++) {
-      d->solver_nnz += d->efc_AR_rownnz[i];
+    // set nnz
+    if (mj_isSparse(m)) {
+      d->solver_nnz[island] = 0;
+      for (int i=0; i < nefc; i++) {
+        d->solver_nnz[island] += d->efc_AR_rownnz[i];
+      }
+    } else {
+      d->solver_nnz[island] = nefc*nefc;
     }
-  } else {
-    d->solver_nnz = nefc*nefc;
   }
 
   // map to joint space
@@ -514,6 +530,9 @@ void mj_solNoSlip(const mjModel* m, mjData* d, int maxiter) {
   mj_markStack(d);
   mjtNum* ARinv = mj_stackAllocNum(d, nefc);
   int* oldstate = mj_stackAllocInt(d, nefc);
+
+  // TODO: b/295296178 - Use island index (currently hardcoded to 0)
+  int island = 0;
 
   // precompute inverse diagonal of A
   ARdiaginv(m, d, ARinv, 1);
@@ -687,9 +706,12 @@ void mj_solNoSlip(const mjModel* m, mjData* d, int maxiter) {
       nchange += (oldstate[i] != d->efc_state[i]);
     }
 
-    // scale improvement, save stats, count
+    // scale improvement, save stats
     improvement = rescale(m, improvement);
-    saveStats(m, d, &iter, improvement, 0, 0, nactive, nchange, 0, 0);
+    saveStats(m, d, island, iter, improvement, 0, 0, nactive, nchange, 0, 0);
+
+    // increment iteration count
+    iter++;
 
     // terminate
     if (improvement < m->opt.noslip_tolerance) {
@@ -698,7 +720,7 @@ void mj_solNoSlip(const mjModel* m, mjData* d, int maxiter) {
   }
 
   // update solver iterations
-  d->solver_iter += iter;
+  d->solver_niter[island] += iter;
 
   // map to joint space
   dualFinish(m, d);
@@ -1514,6 +1536,9 @@ static void mj_solCGNewton(const mjModel* m, mjData* d, int maxiter, int flg_New
   mjCGContext ctx;
   mj_markStack(d);
 
+  // TODO: b/295296178 - Use island index (currently hardcoded to 0)
+  int island = 0;
+
   // allocate context
   CGallocate(m, d, &ctx, flg_Newton);
 
@@ -1576,11 +1601,14 @@ static void mj_solCGNewton(const mjModel* m, mjData* d, int maxiter, int flg_New
       nchange += (d->efc_state[i] != oldstate[i]);
     }
 
-    // scale improvement, save stats, count
+    // scale improvement, save stats
     mjtNum improvement = rescale(m, oldcost-ctx.cost);
     mjtNum gradient = rescale(m, mju_norm(ctx.grad, nv));
-    saveStats(m, d, &iter, improvement, gradient, ctx.LSslope,
+    saveStats(m, d, island, iter, improvement, gradient, ctx.LSslope,
               ctx.nactive, nchange, ctx.LSiter, ctx.nupdate);
+
+    // increment iteration count
+    iter++;
 
     // termination
     if (improvement < m->opt.tolerance || gradient < m->opt.tolerance) {
@@ -1608,18 +1636,21 @@ static void mj_solCGNewton(const mjModel* m, mjData* d, int maxiter, int flg_New
     }
   }
 
-  // update solver iterations
-  d->solver_iter += iter;
+  // finalize statistics
+  if (island < mjNISLAND) {
+    // update solver iterations
+    d->solver_niter[island] += iter;
 
-  // set solver_nnz
-  if (flg_Newton) {
-    if (mj_isSparse(m)) {
-      d->solver_nnz = 2*ctx.nnz - nv;
+    // set solver_nnz
+    if (flg_Newton) {
+      if (mj_isSparse(m)) {
+        d->solver_nnz[island] = 2*ctx.nnz - nv;
+      } else {
+        d->solver_nnz[island] = nv*nv;
+      }
     } else {
-      d->solver_nnz = nv*nv;
+      d->solver_nnz[island] = 0;
     }
-  } else {
-    d->solver_nnz = 0;
   }
 
   mj_freeStack(d);

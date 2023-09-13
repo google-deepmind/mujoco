@@ -501,7 +501,7 @@ void mj_fwdConstraint(const mjModel* m, mjData* d) {
     mju_copy(d->qacc, d->qacc_smooth, nv);
     mju_copy(d->qacc_warmstart, d->qacc_smooth, nv);
     mju_zero(d->qfrc_constraint, nv);
-    d->solver_iter = 0;
+    mju_zeroInt(d->solver_niter, mjNISLAND);
     TM_END(mjTIMER_CONSTRAINT);
     return;
   }
@@ -512,7 +512,7 @@ void mj_fwdConstraint(const mjModel* m, mjData* d) {
 
   // warmstart solver
   warmstart(m, d);
-  d->solver_iter = 0;
+  mju_zeroInt(d->solver_niter, mjNISLAND);
 
   // run main solver
   switch ((mjtSolver) m->opt.solver) {
@@ -531,6 +531,9 @@ void mj_fwdConstraint(const mjModel* m, mjData* d) {
   default:
     mjERROR("unknown solver type %d", m->opt.solver);
   }
+
+  // one (monolithic) island
+  d->solver_nisland = 1;
 
   // save result for next step warmstart
   mju_copy(d->qacc_warmstart, d->qacc, nv);
