@@ -105,8 +105,8 @@ General
    :ref:`Cartesian actuator<actuator-general-refsite>` forces are realizable by individual motors at the joints.
    See :ref:`CForceRange` for details.
 #. Added an optional ``content_type`` attribute to hfield, texture, and mesh assets. This attribute supports a formatted
-   `Media Type <https://www.iana.org/assignments/media-types/media-types.xhtml>`_ (previously known as MIME type) string
-   used to determine the type of the asset file without resorting to pulling the type from the file extension.
+   `Media Type <https://www.iana.org/assignments/media-types/media-types.xhtml>`__ (previously known as MIME type)
+   string used to determine the type of the asset file without resorting to pulling the type from the file extension.
 #. Added analytic derivatives for quaternion :ref:`subtraction<mjd_subQuat>` and :ref:`integration<mjd_quatIntegrate>`
    (rotation with an angular velocity). Derivatives are in the 3D tangent space.
 #. Added :ref:`mjv_connector` which has identical functionality to :ref:`mjv_makeConnector`, but with more convenient

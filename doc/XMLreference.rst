@@ -1322,9 +1322,9 @@ also known as terrain map, is a 2D matrix of elevation data. The data can be spe
 
 .. _asset-hfield-content_type:
 
-:at:`content_type`: :at-val: `string, optional`
+:at:`content_type`: :at-val:`string, optional`
    If the file attribute is specified, then this sets the
-   `Media Type <https://www.iana.org/assignments/media-types/media-types.xhtml>`_ (formerly known as MIME types) of the
+   `Media Type <https://www.iana.org/assignments/media-types/media-types.xhtml>`__ (formerly known as MIME types) of the
    file to be loaded. Any filename extensions will be overloaded.  Currently ``image/png`` and
    ``image/vnd.mujoco.hfield`` are supported.
 
