@@ -394,7 +394,7 @@ void mjCMesh::Compile(const mjVFS* vfs) {
   }
 
   // create using marching cubes
-  if (is_plugin) {
+  else if (is_plugin) {
     LoadSDF();
   }
 

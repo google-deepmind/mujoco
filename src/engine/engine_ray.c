@@ -774,6 +774,9 @@ mjtNum ray_sdf(const mjModel* m, const mjData* d, int g,
     if (distance < 1e-8) {
       return distance_total;
     }
+    if (distance > 1e6) {
+      break;
+    }
   }
 
   // reset counter

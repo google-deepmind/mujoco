@@ -367,7 +367,9 @@ static mjtNum stepGradient(mjtNum x[3], const mjModel* m, const mjSDF* s,
     mjc_gradient(m, d, s, grad, x);
 
     // sanity check
-    if (isnan(grad[0]) || isnan(grad[1]) || isnan(grad[2])) {
+    if (isnan(grad[0]) || grad[0]>mjMAXVAL || grad[0]<-mjMAXVAL ||
+        isnan(grad[1]) || grad[1]>mjMAXVAL || grad[1]<-mjMAXVAL ||
+        isnan(grad[2]) || grad[2]>mjMAXVAL || grad[2]<-mjMAXVAL) {
       return mjMAXVAL;
     }
 

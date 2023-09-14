@@ -1,0 +1,64 @@
+<mujoco>
+  <compiler texturedir="asset"/>
+
+  <extension>
+    <plugin plugin="mujoco.sdf.torus">
+      <instance name="torus">
+        <config key="radius1" value="0.15"/>
+        <config key="radius2" value="0.05"/>
+      </instance>
+    </plugin>
+    <plugin plugin="mujoco.sdf.sdflib">
+      <instance name="sdf">
+        <config key="aabb" value="0"/>
+      </instance>
+    </plugin>
+  </extension>
+
+  <asset>
+    <texture name="texspot" type="2d" file="spot.png"/>
+    <material name="matspot" texture="texspot"/>
+    <mesh name="spot" file="asset/spot.obj">
+      <plugin instance="sdf"/>
+    </mesh>
+    <mesh name="torus">
+      <plugin instance="torus"/>
+    </mesh>
+  </asset>
+
+  <option sdf_iterations="20" sdf_initpoints="40"/>
+
+  <visual>
+    <map force="1000"/>
+  </visual>
+
+  <default>
+    <geom solref="0.01 1" solimp=".95 .99 .0001" friction="0.5"/>
+  </default>
+
+  <statistic meansize="0.2"/>
+
+  <include file="scene.xml"/>
+
+  <worldbody>
+    <body pos="0.1 .25 5.7">
+      <freejoint/>
+      <geom type="sdf" mesh="torus" rgba=".2 .8 .2 1">
+        <plugin instance="torus"/>
+      </geom>
+    </body>
+    <body euler="90 0 0" pos="0 0 .7">
+      <geom type="sdf" name="cow1" mesh="spot" material="matspot">
+        <plugin instance="sdf"/>
+      </geom>
+    </body>
+    <body pos="0.05 .25 2.2">
+      <freejoint/>
+      <geom type="sdf" name="cow2" mesh="spot" material="matspot">
+        <plugin instance="sdf"/>
+      </geom>
+    </body>
+    <light name="left" pos="0 0 1"/>
+    <light name="right" pos="1 0 1"/>
+  </worldbody>
+</mujoco>

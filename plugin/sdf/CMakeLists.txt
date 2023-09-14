@@ -28,6 +28,8 @@ set(MUJOCO_SDF_SRCS
     register.cc
     nut.cc
     nut.h
+    sdflib.cc
+    sdflib.h
     torus.cc
     torus.h
 )
@@ -35,7 +37,7 @@ set(MUJOCO_SDF_SRCS
 add_library(sdf SHARED)
 target_sources(sdf PRIVATE ${MUJOCO_SDF_SRCS})
 target_include_directories(sdf PRIVATE ${MUJOCO_SDF_INCLUDE})
-target_link_libraries(sdf PRIVATE mujoco)
+target_link_libraries(sdf PRIVATE mujoco SdfLib)
 target_compile_options(
   sdf
   PRIVATE ${AVX_COMPILE_OPTIONS}
