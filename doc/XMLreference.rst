@@ -1449,6 +1449,7 @@ position is specified relative to the parent body, namely the upper arm (not sho
 typical length of the human upper arm. If the mesh vertex data were not designed in the above convention, we would have
 to use the geom position and orientation (or the new refpos, refquat mechanism) to compensate, but in practice this is
 rarely needed.
+
 .. code-block:: xml
 
    <asset>
@@ -5450,7 +5451,7 @@ excluded; this is because sensor calculations are independent of the visualizer.
 .. _sensor-camprojection:
 
 :el-prefix:`sensor/` |-| **camprojection** (*)
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element creates a camprojection sensor, which returns the location of a target site, projected onto a camera image
 in pixel coordinates. The origin of this system is located at the top-left corner of the first pixel, so a target
