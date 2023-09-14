@@ -12,8 +12,8 @@ by Google DeepMind.
 
 For more information, visit the `Menagerie repository <https://github.com/google-deepmind/mujoco_menagerie>`__.
 
-Humanoids
-^^^^^^^^^
+Bipeds
+^^^^^^
 
 .. list-table::
    :header-rows: 1
