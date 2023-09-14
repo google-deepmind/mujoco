@@ -1,9 +1,11 @@
-
+import os
 import mujoco
 import mujoco.viewer as viewer
 from mujoco.usd_component import *
 from mujoco.usd_utilities import *
 from pxr import Usd, UsdGeom
+
+from PIL import Image as im
 
 class USDRenderer(object):
   """
@@ -20,6 +22,7 @@ class USDRenderer(object):
     self.loaded_scene_info = False
 
     self.stage = Usd.Stage.CreateNew('usd_stage.usda')
+    UsdGeom.SetStageUpAxis(self.stage, UsdGeom.Tokens.z)
 
   @property
   def usd(self):
@@ -52,9 +55,27 @@ class USDRenderer(object):
     if self.model.nmesh > 0:
       mesh_vertex_ranges = get_mesh_ranges(self.model.nmesh, self.model.mesh_vertnum)
       mesh_face_ranges = get_mesh_ranges(self.model.nmesh, self.model.mesh_facenum)
+      mesh_texcoord_ranges = get_mesh_ranges(self.model.nmesh, self.model.mesh_texcoordnum)
+      mesh_facetexcoord_ranges = get_facetexcoord_ranges(self.model.nmesh, self.model.mesh_facenum)
+
+
+    # create and load the texture files
+    # iterate through all the textures and build list of tex_rgb ranges
+    data_adr = 0
+    texture_files = []
+    for texid in range(self.model.ntex):
+      height = self.model.tex_height[texid]
+      width = self.model.tex_width[texid]
+      pixels = 3*height*width
+      rgb = self.model.tex_rgb[data_adr:data_adr+pixels]
+      img = rgb.reshape(height, width, 3)
+      file_name = f'{texid}.png'
+      im.fromarray(img).save(file_name)
+      texture_file = os.path.abspath(file_name)
+      texture_files.append(texture_file)
+      data_adr += pixels
 
     current_mesh_idx = 0
-
     # initializes an array to store all the geoms in the scene
     # populates with "empty" USDGeom objects
     self.usd_geoms = []
@@ -67,7 +88,10 @@ class USDRenderer(object):
                                       self.stage, 
                                       self.model,
                                       mesh_vertex_ranges,
-                                      mesh_face_ranges))
+                                      mesh_face_ranges,
+                                      mesh_texcoord_ranges,
+                                      mesh_facetexcoord_ranges,
+                                      texture_files[geoms[i].texid]))
         current_mesh_idx += 1
       else:
         self.usd_geoms.append(create_usd_geom_primitive(geoms[i], self.stage))
@@ -110,7 +134,7 @@ class USDRenderer(object):
 
   def start_viewer(self):
     if self.data:
-      viewer.launch(self.model, self.data)
+      viewer.launch(self.model)
 
   def render(self):
     # should render the usd file given a particular renderer that

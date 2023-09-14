@@ -1,7 +1,8 @@
+import os
 from enum import Enum
 
 import mujoco
-from pxr import Usd, UsdGeom, UsdLux, Vt, Gf
+from pxr import Usd, UsdGeom, UsdLux, UsdShade, Vt, Gf, Sdf
 from scipy.spatial.transform import Rotation as R
 
 def create_usd_geom_primitive(geom, stage):
@@ -146,7 +147,10 @@ class USDMesh(USDGeom):
                stage,
                model,
                mesh_vertex_ranges,
-               mesh_face_ranges):
+               mesh_face_ranges,
+               mesh_texcoord_ranges,
+               mesh_facetexcoord_ranges,
+               texture_file):
     super().__init__(geom, stage)
     self.type = 7
     USDMesh.mesh_count += 1
@@ -164,12 +168,44 @@ class USDMesh(USDGeom):
     self.faces = model.mesh_face[mesh_face_ranges[mesh_idx]:mesh_face_ranges[mesh_idx+1]]
     self.prim.GetFaceVertexIndicesAttr().Set(self.faces)
 
+    texid = geom.texid
+    texcoords = model.mesh_texcoord[mesh_texcoord_ranges[texid]:mesh_texcoord_ranges[texid+1]]
+
+    facetexcoords = model.mesh_facetexcoord.flatten()
+    facetexcoords = facetexcoords[mesh_facetexcoord_ranges[mesh_idx]:mesh_facetexcoord_ranges[mesh_idx+1]]
+    self.texcoords = UsdGeom.PrimvarsAPI(self.prim).CreatePrimvar("st",
+                                    Sdf.ValueTypeNames.TexCoord2fArray,
+                                    UsdGeom.Tokens.faceVarying)
+
+    self.texcoords.Set(texcoords)
+    self.texcoords.SetIndices(Vt.IntArray(facetexcoords.tolist()));
+
+    mtl_path = Sdf.Path(f"/World/Looks/Material_{os.path.splitext(os.path.basename(texture_file))[0]}")
+    mtl = UsdShade.Material.Define(stage, mtl_path)
+    shader = UsdShade.Shader.Define(stage, mtl_path.AppendPath("Shader"))
+    shader.CreateIdAttr("UsdPreviewSurface")
+    shader.CreateInput("diffuseColor", Sdf.ValueTypeNames.Color3f).Set((1.0, 0.0, 0.0))
+    shader.CreateInput("roughness", Sdf.ValueTypeNames.Float).Set(0.5)
+    shader.CreateInput("metallic", Sdf.ValueTypeNames.Float).Set(0.0)
+
+    diffuse_tx = UsdShade.Shader.Define(stage,mtl_path.AppendPath("DiffuseColorTx"))
+    diffuse_tx.CreateIdAttr('UsdUVTexture') 
+
+    # TODO: don't hardcode the image file
+    diffuse_tx.CreateInput('file', Sdf.ValueTypeNames.Asset).Set(texture_file)
+    diffuse_tx.CreateOutput('rgb', Sdf.ValueTypeNames.Float3)
+    shader.CreateInput("diffuseColor", Sdf.ValueTypeNames.Color3f).ConnectToSource(diffuse_tx.ConnectableAPI(), 'rgb')
+    mtl.CreateSurfaceOutput().ConnectToSource(shader.ConnectableAPI(), "surface")
+
+    self.prim.GetPrim().ApplyAPI(UsdShade.MaterialBindingAPI)
+    UsdShade.MaterialBindingAPI(self.prim).Bind(mtl)
+
   def update_geom(self, new_geom):
     self.update_pos(new_geom.pos)
     self.update_rotation(new_geom.mat)
 
     # TODO: remove this, temporary
-    self.xform.AddScaleOp().Set(value=(10.0, 10.0, 10.0))
+    # self.xform.AddScaleOp().Set(value=(10.0, 10.0, 10.0))
   
 class USDLight(object):
   """
