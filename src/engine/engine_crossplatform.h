@@ -75,4 +75,16 @@
   #define mjUNLIKELY(x) (x)
 #endif
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#ifdef ADDRESS_SANITIZER
+int _mj_comparePcFuncName(void* pc1, void* pc2);
+#endif
+
+#ifdef __cplusplus
+}  // extern "C"
+#endif
+
 #endif  // MUJOCO_SRC_ENGINE_ENGINE_CROSSPLATFORM_H_

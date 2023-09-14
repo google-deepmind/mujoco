@@ -56,7 +56,10 @@ class MjEnumVisitor:
       child_kind = child.get('kind')
       if child_kind == 'EnumConstantDecl':
         next_idx = values[-1][1] + 1 if values else 0
-        value = int(child['inner'][0].get('value', next_idx))
+        if 'inner' in child:
+          value = int(child['inner'][0].get('value', next_idx))
+        else:
+          value = next_idx
         values.append((child['name'], value))
     return ast_nodes.EnumDecl(name=name, declname=name, values=dict(values))
 

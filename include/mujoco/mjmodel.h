@@ -41,7 +41,8 @@
 #define mjNFLUID        12        // number of fluid interaction parameters
 #define mjNREF          2         // number of solver reference parameters
 #define mjNIMP          5         // number of solver impedance parameters
-#define mjNSOLVER       1000      // size of mjData.solver_XXX arrays
+#define mjNSOLVER       200       // size of one mjData.solver array
+#define mjNISLAND       20        // number of mjData.solver arrays
 
 
 //---------------------------------- enum types (mjt) ----------------------------------------------
@@ -283,6 +284,7 @@ typedef enum mjtSensor_ {         // type of sensor
   mjSENS_TORQUE,                  // 3D torque between site's body and its parent body
   mjSENS_MAGNETOMETER,            // 3D magnetometer
   mjSENS_RANGEFINDER,             // scalar distance to nearest geom or site along z-axis
+  mjSENS_CAMPROJECTION,           // pixel coordinates of a site in the camera image
 
   // sensors related to scalar joints, tendons, actuators
   mjSENS_JOINTPOS,                // scalar joint position (hinge and slide only)
@@ -745,6 +747,7 @@ struct mjModel_ {
   mjtNum*   cam_poscom0;          // global position rel. to sub-com in qpos0 (ncam x 3)
   mjtNum*   cam_pos0;             // global position rel. to body in qpos0    (ncam x 3)
   mjtNum*   cam_mat0;             // global orientation in qpos0              (ncam x 9)
+  int*      cam_resolution;       // [width, height] in pixels                (ncam x 2)
   mjtNum*   cam_fovy;             // y-field of view (deg)                    (ncam x 1)
   mjtNum*   cam_ipd;              // inter-pupilary distance                  (ncam x 1)
   mjtNum*   cam_user;             // user data                                (ncam x nuser_cam)
@@ -780,6 +783,8 @@ struct mjModel_ {
   int*      mesh_texcoordadr;     // texcoord data address; -1: no texcoord   (nmesh x 1)
   int*      mesh_texcoordnum;     // number of texcoord                       (nmesh x 1)
   int*      mesh_graphadr;        // graph data address; -1: no graph         (nmesh x 1)
+  mjtNum*   mesh_pos;             // translation applied to asset vertices    (nmesh x 3)
+  mjtNum*   mesh_quat;            // rotation applied to asset vertices       (nmesh x 4)
   float*    mesh_vert;            // vertex positions for all meshes          (nmeshvert x 3)
   float*    mesh_normal;          // normals for all meshes                   (nmeshnormal x 3)
   float*    mesh_texcoord;        // vertex texcoords for all meshes          (nmeshtexcoord x 2)

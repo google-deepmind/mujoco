@@ -802,5 +802,62 @@ TEST_F(MjCMeshTest, ExactShellInertia) {
   mj_deleteModel(model);
 }
 
+TEST_F(MjCMeshTest, MeshPosQuat) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="pyramid" vertex="0 0 0  1 0 0  0 1 0  0 0 1"/>
+    </asset>
+    <worldbody>
+      <geom type="mesh" name="geom1" mesh="pyramid"/>
+      <geom type="mesh" name="geom2" pos="1 2 3" quat="0.5 0.5 0.5 0.5" mesh="pyramid"/>
+    </worldbody>
+  </mujoco>
+  )";
+  mjModel* model = LoadModelFromString(xml);
+  ASSERT_THAT(model, testing::NotNull());
+  // Loading the mesh results in an offset of the geom's pos and quat due to the
+  // fact that the geom's center is not the volumetric center of the mesh. To
+  // recover the geom's originally specified pose, the offset used is stored in
+  // mesh_pos and mesh_quat. In order to recover the originally specified pose
+  // and orientation, first invert the specified mesh_pos and mesh_quat.
+  mjtNum inverse_mesh_pos[3];
+  mjtNum inverse_mesh_quat[4];
+  mju_negPose(inverse_mesh_pos, inverse_mesh_quat,
+              &model->mesh_pos[0], &model->mesh_quat[0]);
+
+  // Apply the inverted mesh_pos and inverted mesh_quat to the geom's pos and
+  // quat. It should match the originally specified values.
+  double recovered_pos[3];
+  double recovered_quat[4];
+  mju_mulPose(recovered_pos, recovered_quat,
+              &model->geom_pos[0], &model->geom_quat[0],
+              inverse_mesh_pos, inverse_mesh_quat);
+  EXPECT_NEAR(recovered_pos[0], 0, 1e-12);
+  EXPECT_NEAR(recovered_pos[1], 0, 1e-12);
+  EXPECT_NEAR(recovered_pos[2], 0, 1e-12);
+
+  EXPECT_NEAR(recovered_quat[0], 1, 1e-12);
+  EXPECT_NEAR(recovered_quat[1], 0, 1e-12);
+  EXPECT_NEAR(recovered_quat[2], 0, 1e-12);
+  EXPECT_NEAR(recovered_quat[3], 0, 1e-12);
+
+  // Same test on the other geom.
+  mju_negPose(inverse_mesh_pos, inverse_mesh_quat,
+              &model->mesh_pos[0], &model->mesh_quat[0]);
+  mju_mulPose(recovered_pos, recovered_quat,
+              &model->geom_pos[3], &model->geom_quat[4],
+              inverse_mesh_pos, inverse_mesh_quat);
+  EXPECT_NEAR(recovered_pos[0], 1, 1e-12);
+  EXPECT_NEAR(recovered_pos[1], 2, 1e-12);
+  EXPECT_NEAR(recovered_pos[2], 3, 1e-12);
+
+  EXPECT_NEAR(recovered_quat[0], 0.5, 1e-12);
+  EXPECT_NEAR(recovered_quat[1], 0.5, 1e-12);
+  EXPECT_NEAR(recovered_quat[2], 0.5, 1e-12);
+  EXPECT_NEAR(recovered_quat[3], 0.5, 1e-12);
+  mj_deleteModel(model);
+}
+
 }  // namespace
 }  // namespace mujoco

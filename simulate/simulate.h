@@ -155,6 +155,7 @@ class Simulate {
   int info = 0;
   int profiler = 0;
   int sensor = 0;
+  int pause_update = 1;
   int fullscreen = 0;
   int vsync = 1;
   int busywait = 0;
@@ -187,7 +188,7 @@ class Simulate {
   int real_time_index = 0;
   bool speed_changed = true;
   float measured_slowdown = 1.0;
-  // logarithmically spaced realtime slow-down coefficients (percent)
+  // logarithmically spaced real-time slow-down coefficients (percent)
   static constexpr float percentRealTime[] = {
       100, 80, 66,  50,  40, 33,  25,  20, 16,  13,
       10,  8,  6.6, 5.0, 4,  3.3, 2.5, 2,  1.6, 1.3,
@@ -232,7 +233,7 @@ class Simulate {
 
   // Constant arrays needed for the option section of UI and the UI interface
   // TODO setting the size here is not ideal
-  const mjuiDef def_option[14] = {
+  const mjuiDef def_option[15] = {
     {mjITEM_SECTION,  "Option",        1, nullptr,           "AO"},
     {mjITEM_SELECT,   "Spacing",       1, &this->spacing,    "Tight\nWide"},
     {mjITEM_SELECT,   "Color",         1, &this->color,      "Default\nOrange\nWhite\nBlack"},
@@ -243,6 +244,7 @@ class Simulate {
     {mjITEM_CHECKINT, "Info",          2, &this->info,       " #291"},
     {mjITEM_CHECKINT, "Profiler",      2, &this->profiler,   " #292"},
     {mjITEM_CHECKINT, "Sensor",        2, &this->sensor,     " #293"},
+    {mjITEM_CHECKINT, "Pause update",  2, &this->pause_update,    ""},
   #ifdef __APPLE__
     {mjITEM_CHECKINT, "Fullscreen",    0, &this->fullscreen, " #294"},
   #else

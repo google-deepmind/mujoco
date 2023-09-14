@@ -1322,9 +1322,9 @@ also known as terrain map, is a 2D matrix of elevation data. The data can be spe
 
 .. _asset-hfield-content_type:
 
-:at:`content_type`: :at-val: `string, optional`
+:at:`content_type`: :at-val:`string, optional`
    If the file attribute is specified, then this sets the
-   `Media Type <https://www.iana.org/assignments/media-types/media-types.xhtml>`_ (formerly known as MIME types) of the
+   `Media Type <https://www.iana.org/assignments/media-types/media-types.xhtml>`__ (formerly known as MIME types) of the
    file to be loaded. Any filename extensions will be overloaded.  Currently ``image/png`` and
    ``image/vnd.mujoco.hfield`` are supported.
 
@@ -1439,15 +1439,16 @@ Positioning and orienting is complicated by the fact that vertex data are often 
 whose origin is not inside the mesh. In contrast, MuJoCo expects the origin of a geom's local frame to coincide with the
 geometric center of the shape. We resolve this discrepancy by pre-processing the mesh in the compiler, so that it is
 centered around (0,0,0) and its principal axes of inertia are the coordinate axes. We also save the translation and
-rotation offsets needed to achieve such alignment. These offsets are then applied to the referencing geom's position and
-orientation; see also :at:`mesh` attribute of :ref:`geom <body-geom>` below. Fortunately most meshes used in robot
-models are designed in a coordinate frame centered at the joint. This makes the corresponding MJCF model intuitive: we
-set the body frame at the joint, so that the joint position is (0,0,0) in the body frame, and simply reference the mesh.
-Below is an MJCF model fragment of a forearm, containing all the information needed to put the mesh where one would
-expect it to be. The body position is specified relative to the parent body, namely the upper arm (not shown). It is
-offset by 35 cm which is the typical length of the human upper arm. If the mesh vertex data were not designed in the
-above convention, we would have to use the geom position and orientation (or the new refpos, refquat mechanism) to
-compensate, but in practice this is rarely needed.
+rotation offsets needed to achieve such alignment in :ref:`mjModel.mesh_pos<mjModel>` and
+:ref:`mjModel.mesh_quat<mjModel>`. These offsets are then applied to the referencing geom's position and orientation; see
+also :at:`mesh` attribute of :ref:`geom <body-geom>` below. Fortunately most meshes used in robot models are designed in
+a coordinate frame centered at the joint. This makes the corresponding MJCF model intuitive: we set the body frame at the
+joint, so that the joint position is (0,0,0) in the body frame, and simply reference the mesh. Below is an MJCF model
+fragment of a forearm, containing all the information needed to put the mesh where one would expect it to be. The body
+position is specified relative to the parent body, namely the upper arm (not shown). It is offset by 35 cm which is the
+typical length of the human upper arm. If the mesh vertex data were not designed in the above convention, we would have
+to use the geom position and orientation (or the new refpos, refquat mechanism) to compensate, but in practice this is
+rarely needed.
 
 .. code-block:: xml
 
@@ -3053,6 +3054,13 @@ and the +Y axis points up. Thus the frame position and orientation are the key a
 :at:`fovy`: :at-val:`real, "45"`
    Vertical field of view of the camera, expressed in degrees regardless of the global angle setting. The horizontal
    field of view is computed automatically given the window size and the vertical field of view.
+
+.. _body-camera-resolution:
+
+:at:`resolution`: :at-val:`int(2), "1 1"`
+   Resolution of the camera in pixels [width height]. Note that these values are not used for rendering since those
+   dimensions are determined by the size of the rendering context. This attribute serves as a convenient
+   location to save the required resolution when creating a context.
 
 .. _body-camera-ipd:
 
@@ -5412,7 +5420,6 @@ site frame. The output is a 3D vector.
 :at:`site`: :at-val:`string, required`
    The site where the sensor is attached.
 
-
 .. _sensor-rangefinder:
 
 :el-prefix:`sensor/` |-| **rangefinder** (*)
@@ -5441,6 +5448,39 @@ excluded; this is because sensor calculations are independent of the visualizer.
 :at:`site`: :at-val:`string, required`
    The site where the sensor is attached.
 
+.. _sensor-camprojection:
+
+:el-prefix:`sensor/` |-| **camprojection** (*)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+This element creates a camprojection sensor, which returns the location of a target site, projected onto a camera image
+in pixel coordinates. The origin of this system is located at the top-left corner of the first pixel, so a target
+which projects exactly onto the corner of the image, will have value (0, 0). Values are not clipped, so targets which
+fall outside the camera image will take values above or below the pixel limits. Moreover, points behind the camera
+are also projected onto the image, so it is up to the user to filter out such points, if desired. This can be done using
+a `framepos<sensor-framepos>` sensor with the camera as reference frame, then a negative/positive value in the
+z-coordinate indicates (respectively) a location in the front/back of the camera.
+
+.. _sensor-camprojection-site:
+
+:at:`site`: :at-val:`string, required`
+   The site which is projected on to the camera image.
+
+.. _sensor-camprojection-camera:
+
+:at:`camera`: :at-val:`string, required`
+   The camera used for the projection, its :ref:`resolution<body-camera-resolution>` attribute must be positive.
+
+.. _sensor-camprojection-name:
+
+.. _sensor-camprojection-noise:
+
+.. _sensor-camprojection-cutoff:
+
+.. _sensor-camprojection-user:
+
+:at:`name`, :at:`noise`, :at:`cutoff`, :at:`user`
+   See :ref:`CSensor`.
 
 .. _sensor-jointpos:
 
@@ -6654,6 +6694,8 @@ if omitted.
 .. _default-camera:
 
 .. _default-camera-fovy:
+
+.. _default-camera-resolution:
 
 .. _default-camera-ipd:
 

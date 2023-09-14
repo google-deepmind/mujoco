@@ -1063,7 +1063,8 @@ TEST_F(PluginTest, WriteReadCompare) {
 
         // if file is meant to fail, skip it
         if (absl::StrContains(p.path().string(), "malformed_") ||
-            absl::StrContains(p.path().string(), "touch_grid")) {
+            absl::StrContains(p.path().string(), "touch_grid") ||
+            absl::StrContains(p.path().string(), "cow")) {
           continue;
         }
 

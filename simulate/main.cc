@@ -437,7 +437,8 @@ __attribute__((used, visibility("default"))) extern "C" void _mj_rosettaError(co
 #endif
 
 // run event loop
-int main(int argc, const char** argv) {
+int main(int argc, char** argv) {
+
   // display an error if running on macOS under Rosetta 2
 #if defined(__APPLE__) && defined(__AVX__)
   if (rosetta_error_msg) {

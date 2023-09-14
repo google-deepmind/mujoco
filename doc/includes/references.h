@@ -146,9 +146,10 @@ struct mjData_ {
   mjTimerStat   timer[mjNTIMER];      // timer statistics
 
   // solver statistics
-  mjSolverStat  solver[mjNSOLVER];  // solver statistics per iteration
-  int     solver_iter;              // number of solver iterations
-  int     solver_nnz;               // number of non-zeros in Hessian or efc_AR
+  mjSolverStat  solver[mjNISLAND*mjNSOLVER];  // solver statistics per island, per iteration
+  int     solver_nisland;           // number of islands processed by solver
+  int     solver_niter[mjNISLAND];  // number of solver iterations, per island
+  int     solver_nnz[mjNISLAND];    // number of non-zeros in Hessian or efc_AR, per island
   mjtNum  solver_fwdinv[2];         // forward-inverse comparison: qfrc, efc
 
   // collision statistics
@@ -577,6 +578,7 @@ typedef enum mjtSensor_ {         // type of sensor
   mjSENS_TORQUE,                  // 3D torque between site's body and its parent body
   mjSENS_MAGNETOMETER,            // 3D magnetometer
   mjSENS_RANGEFINDER,             // scalar distance to nearest geom or site along z-axis
+  mjSENS_CAMPROJECTION,           // pixel coordinates of a site in the camera image
 
   // sensors related to scalar joints, tendons, actuators
   mjSENS_JOINTPOS,                // scalar joint position (hinge and slide only)
@@ -1010,6 +1012,7 @@ struct mjModel_ {
   mjtNum*   cam_poscom0;          // global position rel. to sub-com in qpos0 (ncam x 3)
   mjtNum*   cam_pos0;             // global position rel. to body in qpos0    (ncam x 3)
   mjtNum*   cam_mat0;             // global orientation in qpos0              (ncam x 9)
+  int*      cam_resolution;       // [width, height] in pixels                (ncam x 2)
   mjtNum*   cam_fovy;             // y-field of view (deg)                    (ncam x 1)
   mjtNum*   cam_ipd;              // inter-pupilary distance                  (ncam x 1)
   mjtNum*   cam_user;             // user data                                (ncam x nuser_cam)
@@ -1045,6 +1048,8 @@ struct mjModel_ {
   int*      mesh_texcoordadr;     // texcoord data address; -1: no texcoord   (nmesh x 1)
   int*      mesh_texcoordnum;     // number of texcoord                       (nmesh x 1)
   int*      mesh_graphadr;        // graph data address; -1: no graph         (nmesh x 1)
+  mjtNum*   mesh_pos;             // translation applied to asset vertices    (nmesh x 3)
+  mjtNum*   mesh_quat;            // rotation applied to asset vertices       (nmesh x 4)
   float*    mesh_vert;            // vertex positions for all meshes          (nmeshvert x 3)
   float*    mesh_normal;          // normals for all meshes                   (nmeshnormal x 3)
   float*    mesh_texcoord;        // vertex texcoords for all meshes          (nmeshtexcoord x 2)
@@ -1441,14 +1446,21 @@ struct mjrContext_ {              // custom OpenGL context
   int     readPixelFormat;        // default color pixel format for mjr_readPixels
 };
 typedef struct mjrContext_ mjrContext;
-struct mjTask_ {
-  char buffer[24];
-};
-typedef struct mjTask_ mjTask;
+typedef enum mjtTaskStatus_ {  // status values for mjTask
+  mjTASK_NEW = 0,              // newly created
+  mjTASK_QUEUED,               // enqueued in a thread pool
+  mjTASK_COMPLETED             // completed execution
+} mjtTaskStatus;
 struct mjThreadPool_ {
-  char buffer[6208];
+  int nworker;  // number of workers in the pool
 };
 typedef struct mjThreadPool_ mjThreadPool;
+struct mjTask_ {        // a task that can be executed by a thread pool.
+  mjfTask func;         // pointer to the function that implements the task
+  void* args;           // arguments to func
+  volatile int status;  // status of the task
+};
+typedef struct mjTask_ mjTask;
 typedef enum mjtButton_ {         // mouse button
   mjBUTTON_NONE = 0,              // no button
   mjBUTTON_LEFT,                  // left button
@@ -2586,9 +2598,8 @@ int mjp_resourceProviderCount(void);
 const mjpResourceProvider* mjp_getResourceProvider(const char* resource_name);
 const mjpResourceProvider* mjp_getResourceProviderAtSlot(int slot);
 mjThreadPool* mju_threadPoolCreate(size_t number_of_threads);
-void mju_threadPoolEnqueue(
-ThreadPool* thread_pool, mjTask* task, void*(start_routine)(void*),
-id* args);
-void mju_taskJoin(mjTask* task);
+void mju_threadPoolEnqueue(mjThreadPool* thread_pool, mjTask* task);
 void mju_threadPoolDestroy(mjThreadPool* thread_pool);
+void mju_defaultTask(mjTask* task);
+void mju_taskJoin(mjTask* task);
 // NOLINTEND

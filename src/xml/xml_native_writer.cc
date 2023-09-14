@@ -408,6 +408,7 @@ void mjXWriter::OneCamera(XMLElement* elem, mjCCamera* pcam, mjCDef* def) {
   WriteAttr(elem, "ipd", 1, &pcam->ipd, &def->camera.ipd);
   WriteAttr(elem, "fovy", 1, &pcam->fovy, &def->camera.fovy);
   WriteAttrKey(elem, "mode", camlight_map, camlight_sz, pcam->mode, def->camera.mode);
+  WriteAttr(elem, "resolution", 2, pcam->resolution, def->camera.resolution);
 
   // userdata
   if (writingdefaults) {
@@ -1648,6 +1649,11 @@ void mjXWriter::Sensor(XMLElement* root) {
       elem = InsertEnd(section, "rangefinder");
       WriteAttrTxt(elem, "site", psen->objname);
       break;
+    case mjSENS_CAMPROJECTION:
+      elem = InsertEnd(section, "camprojection");
+      WriteAttrTxt(elem, "site", psen->objname);
+      WriteAttrTxt(elem, "camera", psen->refname);
+      break;
 
     // sensors related to scalar joints, tendons, actuators
     case mjSENS_JOINTPOS:
@@ -1836,7 +1842,7 @@ void mjXWriter::Sensor(XMLElement* root) {
     WriteVector(elem, "user", psen->userdata);
 
     // add reference if present
-    if (psen->reftype != mjOBJ_UNKNOWN) {
+    if (psen->reftype != mjOBJ_UNKNOWN && psen->type != mjSENS_CAMPROJECTION) {
       WriteAttrTxt(elem, "reftype", mju_type2Str(psen->reftype));
       WriteAttrTxt(elem, "refname", psen->refname);
     }

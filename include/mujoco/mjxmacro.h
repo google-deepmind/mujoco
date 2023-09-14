@@ -258,6 +258,7 @@
     X   ( int,     cam_mode,              ncam,          1                    ) \
     X   ( int,     cam_bodyid,            ncam,          1                    ) \
     X   ( int,     cam_targetbodyid,      ncam,          1                    ) \
+    X   ( int,     cam_resolution,        ncam,          2                    ) \
     X   ( mjtNum,  cam_pos,               ncam,          3                    ) \
     X   ( mjtNum,  cam_quat,              ncam,          4                    ) \
     X   ( mjtNum,  cam_poscom0,           ncam,          3                    ) \
@@ -294,6 +295,8 @@
     XMJV( int,     mesh_bvhadr,           nmesh,         1                    ) \
     XMJV( int,     mesh_bvhnum,           nmesh,         1                    ) \
     XMJV( int,     mesh_graphadr,         nmesh,         1                    ) \
+    X   ( mjtNum,  mesh_pos,              nmesh,         3                    ) \
+    X   ( mjtNum,  mesh_quat,             nmesh,         4                    ) \
     X   ( float,   mesh_vert,             nmeshvert,     3                    ) \
     X   ( float,   mesh_normal,           nmeshnormal,   3                    ) \
     X   ( float,   mesh_texcoord,         nmeshtexcoord, 2                    ) \
@@ -633,8 +636,7 @@
     X( size_t,    maxuse_arena       ) \
     X( int,       maxuse_con         ) \
     X( int,       maxuse_efc         ) \
-    X( int,       solver_iter        ) \
-    X( int,       solver_nnz         ) \
+    X( int,       solver_nisland     ) \
     X( int,       nbodypair_broad    ) \
     X( int,       nbodypair_narrow   ) \
     X( int,       ngeompair_mid      ) \
@@ -651,12 +653,14 @@
 
 
 // vector fields of mjData
-#define MJDATA_VECTOR                                   \
-    X( mjWarningStat,  warning,        mjNWARNING,  1 ) \
-    X( mjTimerStat,    timer,          mjNTIMER,    1 ) \
-    X( mjSolverStat,   solver,         mjNSOLVER,   1 ) \
-    X( mjtNum,         solver_fwdinv,  2,           1 ) \
-    X( mjtNum,         energy,         2,           1 )
+#define MJDATA_VECTOR                                              \
+    X( mjWarningStat,  warning,           mjNWARNING,  1         ) \
+    X( mjTimerStat,    timer,             mjNTIMER,    1         ) \
+    X( mjSolverStat,   solver,            mjNILSAND,   mjNSOLVER ) \
+    X( int,            solver_niter,      mjNISLAND,   1         ) \
+    X( int,            solver_nnz,        mjNISLAND,   1         ) \
+    X( mjtNum,         solver_fwdinv,     2,           1         ) \
+    X( mjtNum,         energy,            2,           1         )
 
 
 // alias XMJV to be the same as X

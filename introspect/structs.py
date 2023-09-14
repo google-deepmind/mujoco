@@ -1886,6 +1886,13 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='global orientation in qpos0              (ncam x 9)',
              ),
              StructFieldDecl(
+                 name='cam_resolution',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='[width, height] in pixels                (ncam x 2)',
+             ),
+             StructFieldDecl(
                  name='cam_fovy',
                  type=PointerType(
                      inner_type=ValueType(name='mjtNum'),
@@ -2101,6 +2108,20 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                      inner_type=ValueType(name='int'),
                  ),
                  doc='graph data address; -1: no graph         (nmesh x 1)',
+             ),
+             StructFieldDecl(
+                 name='mesh_pos',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+                 doc='translation applied to asset vertices    (nmesh x 3)',
+             ),
+             StructFieldDecl(
+                 name='mesh_quat',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+                 doc='rotation applied to asset vertices       (nmesh x 4)',
              ),
              StructFieldDecl(
                  name='mesh_vert',
@@ -3562,19 +3583,30 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  name='solver',
                  type=ArrayType(
                      inner_type=ValueType(name='mjSolverStat'),
-                     extents=(1000,),
+                     extents=(4000,),
                  ),
-                 doc='solver statistics per iteration',
+                 doc='solver statistics per island, per iteration',
              ),
              StructFieldDecl(
-                 name='solver_iter',
+                 name='solver_nisland',
                  type=ValueType(name='int'),
-                 doc='number of solver iterations',
+                 doc='number of islands processed by solver',
+             ),
+             StructFieldDecl(
+                 name='solver_niter',
+                 type=ArrayType(
+                     inner_type=ValueType(name='int'),
+                     extents=(20,),
+                 ),
+                 doc='number of solver iterations, per island',
              ),
              StructFieldDecl(
                  name='solver_nnz',
-                 type=ValueType(name='int'),
-                 doc='number of non-zeros in Hessian or efc_AR',
+                 type=ArrayType(
+                     inner_type=ValueType(name='int'),
+                     extents=(20,),
+                 ),
+                 doc='number of non-zeros in Hessian or efc_AR, per island',
              ),
              StructFieldDecl(
                  name='solver_fwdinv',
@@ -6993,33 +7025,39 @@ STRUCTS: Mapping[str, StructDecl] = dict([
              ),
          ),
      )),
-    ('mjTask',
-     StructDecl(
-         name='mjTask',
-         declname='struct mjTask_',
-         fields=(
-             StructFieldDecl(
-                 name='buffer',
-                 type=ArrayType(
-                     inner_type=ValueType(name='char'),
-                     extents=(24,),
-                 ),
-                 doc='',
-             ),
-         ),
-     )),
     ('mjThreadPool',
      StructDecl(
          name='mjThreadPool',
          declname='struct mjThreadPool_',
          fields=(
              StructFieldDecl(
-                 name='buffer',
-                 type=ArrayType(
-                     inner_type=ValueType(name='char'),
-                     extents=(6208,),
+                 name='nworker',
+                 type=ValueType(name='int'),
+                 doc='number of workers in the pool',
+             ),
+         ),
+     )),
+    ('mjTask',
+     StructDecl(
+         name='mjTask',
+         declname='struct mjTask_',
+         fields=(
+             StructFieldDecl(
+                 name='func',
+                 type=ValueType(name='mjfTask'),
+                 doc='pointer to the function that implements the task',
+             ),
+             StructFieldDecl(
+                 name='args',
+                 type=PointerType(
+                     inner_type=ValueType(name='void'),
                  ),
-                 doc='',
+                 doc='arguments to func',
+             ),
+             StructFieldDecl(
+                 name='status',
+                 type=ValueType(name='int', is_volatile=True),
+                 doc='status of the task',
              ),
          ),
      )),

@@ -669,6 +669,8 @@ std::string mjuu_extToContentType(std::string_view filename) {
     return "model/stl";
   } else if (!strcasecmp(ext.c_str(), ".obj")) {
     return "model/obj";
+  } else if (!strcasecmp(ext.c_str(), ".ply")) {
+    return "model/ply";
   } else if (!strcasecmp(ext.c_str(), ".msh")) {
     return "model/vnd.mujoco.msh";
   } else if (!strcasecmp(ext.c_str(), ".png")) {

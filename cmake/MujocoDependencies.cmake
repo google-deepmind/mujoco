@@ -58,6 +58,11 @@ set(MUJOCO_DEP_VERSION_benchmark
     CACHE STRING "Version of `benchmark` to be fetched."
 )
 
+set(MUJOCO_DEP_VERSION_sdflib
+    492847fa81e46653114da48e8886730ccefed377
+    CACHE STRING "Version of `openVDB` to be fetched."
+)
+
 mark_as_advanced(MUJOCO_DEP_VERSION_lodepng)
 mark_as_advanced(MUJOCO_DEP_VERSION_MarchingCubeCpp)
 mark_as_advanced(MUJOCO_DEP_VERSION_tinyxml2)
@@ -68,6 +73,7 @@ mark_as_advanced(MUJOCO_DEP_VERSION_Eigen3)
 mark_as_advanced(MUJOCO_DEP_VERSION_abseil)
 mark_as_advanced(MUJOCO_DEP_VERSION_gtest)
 mark_as_advanced(MUJOCO_DEP_VERSION_benchmark)
+mark_as_advanced(MUJOCO_DEP_VERSION_sdflib)
 
 include(FetchContent)
 include(FindOrFetch)
@@ -177,6 +183,26 @@ findorfetch(
   tinyobjloader
   EXCLUDE_FROM_ALL
 )
+
+findorfetch(
+  USE_SYSTEM_PACKAGE
+  OFF
+  PACKAGE_NAME
+  sdflib
+  LIBRARY_NAME
+  sdflib
+  GIT_REPO
+  https://github.com/UPC-ViRVIG/SdfLib.git
+  GIT_TAG
+  ${MUJOCO_DEP_VERSION_sdflib}
+  PATCH_COMMAND
+  git apply --reject --whitespace=fix ${CMAKE_SOURCE_DIR}/cmake/sdflib-optional-dependencies.patch
+  TARGETS
+  SdfLib
+  EXCLUDE_FROM_ALL
+)
+target_compile_options(SdfLib PRIVATE ${MUJOCO_MACOS_COMPILE_OPTIONS})
+target_link_options(SdfLib PRIVATE ${MUJOCO_MACOS_LINK_OPTIONS})
 
 set(ENABLE_DOUBLE_PRECISION ON)
 set(CCD_HIDE_ALL_SYMBOLS ON)

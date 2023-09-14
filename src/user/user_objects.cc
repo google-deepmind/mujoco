@@ -1747,6 +1747,8 @@ void mjCGeom::Compile(void) {
 
     // apply geom pos/quat as offset
     mjuu_frameaccum(pos, quat, meshpos, pmesh->GetQuatPtr(typeinertia));
+    mjuu_copyvec(pmesh->GetOffsetPosPtr(), meshpos, 3);
+    mjuu_copyvec(pmesh->GetOffsetQuatPtr(), pmesh->GetQuatPtr(typeinertia), 4);
   }
 
   // check size parameters
@@ -1947,6 +1949,7 @@ mjCCamera::mjCCamera(mjCModel* _model, mjCDef* _def) {
   fovy = 45;
   ipd = 0.068;
   userdata.clear();
+  resolution[0] = resolution[1] = 1;
 
   // clear private variables
   body = 0;
@@ -2000,6 +2003,12 @@ void mjCCamera::Compile(void) {
   // make sure it is not targeting parent body
   if (targetbodyid==body->id) {
     throw mjCError(this, "parent-targeting in camera '%s' (id = %d)", name.c_str(), id);
+  }
+
+  // make sure the image size is finite
+  if (fovy >= 180) {
+    throw mjCError(this, "fovy too large in camera '%s' (id = %d, value = %d)",
+                   name.c_str(), id, fovy);
   }
 }
 
@@ -4042,6 +4051,7 @@ void mjCSensor::Compile(void) {
   case mjSENS_TORQUE:
   case mjSENS_MAGNETOMETER:
   case mjSENS_RANGEFINDER:
+  case mjSENS_CAMPROJECTION:
     // must be attached to site
     if (objtype!=mjOBJ_SITE) {
       throw mjCError(this,
@@ -4052,18 +4062,31 @@ void mjCSensor::Compile(void) {
     if (type==mjSENS_TOUCH || type==mjSENS_RANGEFINDER) {
       dim = 1;
       datatype = mjDATATYPE_POSITIVE;
+    } else if (type==mjSENS_CAMPROJECTION) {
+      dim = 2;
+      datatype = mjDATATYPE_REAL;
     } else {
       dim = 3;
       datatype = mjDATATYPE_REAL;
     }
 
     // set stage
-    if (type==mjSENS_MAGNETOMETER || type==mjSENS_RANGEFINDER) {
+    if (type==mjSENS_MAGNETOMETER || type==mjSENS_RANGEFINDER || type==mjSENS_CAMPROJECTION) {
       needstage = mjSTAGE_POS;
     } else if (type==mjSENS_GYRO || type==mjSENS_VELOCIMETER) {
       needstage = mjSTAGE_VEL;
     } else {
       needstage = mjSTAGE_ACC;
+    }
+
+    // check for camera resolution for camera projection sensor
+    if (type==mjSENS_CAMPROJECTION) {
+      mjCCamera* camref = (mjCCamera*) model->FindObject(mjOBJ_CAMERA, refname);
+      if (!camref->resolution[0] || !camref->resolution[1]) {
+        throw mjCError(this,
+                       "camera projection sensor requires camera resolution '%s' (id = %d)",
+                       name.c_str(), id);
+      }
     }
     break;
 

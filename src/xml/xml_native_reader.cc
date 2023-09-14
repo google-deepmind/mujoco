@@ -80,7 +80,7 @@ void ReadPluginConfigs(tinyxml2::XMLElement* elem, mjCPlugin* pp) {
 
 //---------------------------------- MJCF schema ---------------------------------------------------
 
-static const int nMJCF = 203;
+static const int nMJCF = 204;
 static const char* MJCF[nMJCF][mjXATTRNUM] = {
 {"mujoco", "!", "1", "model"},
 {"<"},
@@ -151,7 +151,7 @@ static const char* MJCF[nMJCF][mjXATTRNUM] = {
             "hfield", "mesh", "fitscale", "rgba", "fluidshape", "fluidcoef", "user"},
         {"site", "?", "13", "type", "group", "pos", "quat", "material",
             "size", "fromto", "axisangle", "xyaxes", "zaxis", "euler", "rgba", "user"},
-        {"camera", "?", "10", "fovy", "ipd", "pos", "quat",
+        {"camera", "?", "11", "fovy", "ipd", "pos", "quat", "resolution",
             "axisangle", "xyaxes", "zaxis", "euler", "mode", "user"},
         {"light", "?", "12", "pos", "dir", "directional", "castshadow", "active",
             "attenuation", "cutoff", "exponent", "ambient", "diffuse", "specular", "mode"},
@@ -264,7 +264,7 @@ static const char* MJCF[nMJCF][mjXATTRNUM] = {
         {">"},
         {"site", "*", "15", "name", "class", "type", "group", "pos", "quat",
             "material", "size", "fromto", "axisangle", "xyaxes", "zaxis", "euler", "rgba", "user"},
-        {"camera", "*", "13", "name", "class", "fovy", "ipd",
+        {"camera", "*", "14", "name", "class", "fovy", "ipd", "resolution",
             "pos", "quat", "axisangle", "xyaxes", "zaxis", "euler",
             "mode", "target", "user"},
         {"light", "*", "15", "name", "class", "directional", "castshadow", "active",
@@ -398,6 +398,7 @@ static const char* MJCF[nMJCF][mjXATTRNUM] = {
         {"force", "*", "5", "name", "site", "cutoff", "noise", "user"},
         {"torque", "*", "5", "name", "site", "cutoff", "noise", "user"},
         {"magnetometer", "*", "5", "name", "site", "cutoff", "noise", "user"},
+        {"camprojection", "*", "6", "name", "site", "camera", "cutoff", "noise", "user"},
         {"rangefinder", "*", "5", "name", "site", "cutoff", "noise", "user"},
         {"jointpos", "*", "5", "name", "joint", "cutoff", "noise", "user"},
         {"jointvel", "*", "5", "name", "joint", "cutoff", "noise", "user"},
@@ -1476,6 +1477,10 @@ void mjXReader::OneCamera(XMLElement* elem, mjCCamera* pcam) {
   ReadAlternative(elem, pcam->alt);
   ReadAttr(elem, "fovy", 1, &pcam->fovy, text);
   ReadAttr(elem, "ipd", 1, &pcam->ipd, text);
+  ReadAttr(elem, "resolution", 2, pcam->resolution, text);
+  if (pcam->resolution[0] < 0 || pcam->resolution[1] < 0) {
+    throw mjXError(elem, "camera resolution cannot be negative");
+  }
 
   // read userdata
   ReadVector(elem, "user", pcam->userdata, text);
@@ -3013,6 +3018,12 @@ void mjXReader::Sensor(XMLElement* section) {
       psen->type = mjSENS_MAGNETOMETER;
       psen->objtype = mjOBJ_SITE;
       ReadAttrTxt(elem, "site", psen->objname, true);
+    } else if (type=="camprojection") {
+      psen->type = mjSENS_CAMPROJECTION;
+      psen->objtype = mjOBJ_SITE;
+      ReadAttrTxt(elem, "site", psen->objname, true);
+      ReadAttrTxt(elem, "camera", psen->refname, true);
+      psen->reftype = mjOBJ_CAMERA;
     } else if (type=="rangefinder") {
       psen->type = mjSENS_RANGEFINDER;
       psen->objtype = mjOBJ_SITE;

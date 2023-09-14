@@ -51,30 +51,45 @@ General
    6. Renamed the ``nstack`` field in :ref:`mjModel` and :ref:`mjData` to ``narena``. Changed ``narena``, ``pstack``,
       and ``maxuse_stack`` to count number of bytes rather than number of :ref:`mjtNum` |-| s.
 
-7. Added a new :ref:`dyntype<actuator-general-dyntype>`, ``filterexact``, which updates first-order filter states with
+   7. Changed :ref:`mjData.solver<mjData>`, the array used to collect solver diagnostic information.
+      This array of :ref:`mjSolverStat` structs is now of length ``mjNISLAND * mjNSOLVER``, interpreted as as a matrix.
+      Each row of length ``mjNSOLVER`` contains separate solver statistics for each constraint island.
+      If the solver does not use islands, only row 0 is filled.
+
+      - The new constant :ref:`mjNISLAND<glNumeric>` was set to 20.
+      - :ref:`mjNSOLVER<glNumeric>` was reduced from 1000 to 200.
+      - Added :ref:`mjData.solver_nisland<mjData>`: the number of islands for which the solver ran.
+      - Renamed ``mjData.solver_iter`` to ``solver_niter``. Both this member and ``mjData.solver_nnz`` are now integer
+        vectors of length ``mjNISLAND``.
+
+8. Added a new :ref:`dyntype<actuator-general-dyntype>`, ``filterexact``, which updates first-order filter states with
    the exact formula rather than with Euler integration.
-8. Added an actuator attribute, :ref:`actearly<actuator-general-actearly>`, which uses semi-implicit integration for
+9. Added an actuator attribute, :ref:`actearly<actuator-general-actearly>`, which uses semi-implicit integration for
    actuator forces: using the next step's actuator state to compute the current actuator forces at the current timestep.
-9. Renamed ``actuatorforcerange`` and ``actuatorforcelimited``, introduced in the previous version to
-   :ref:`actuatorfrcrange<body-joint-actuatorfrcrange>` and
-   :ref:`actuatorfrclimited<body-joint-actuatorfrclimited>`, respectively.
-10. Added the flag :ref:`eulerdamp<option-flag-eulerdamp>`, which disables implicit integration of joint damping in the
+10. Renamed ``actuatorforcerange`` and ``actuatorforcelimited``, introduced in the previous version to
+    :ref:`actuatorfrcrange<body-joint-actuatorfrcrange>` and
+    :ref:`actuatorfrclimited<body-joint-actuatorfrclimited>`, respectively.
+11. Added the flag :ref:`eulerdamp<option-flag-eulerdamp>`, which disables implicit integration of joint damping in the
     Euler integrator. See the :ref:`Numerical Integration<geIntegration>` section for more details.
-11. Added the flag :ref:`invdiscrete<option-flag-invdiscrete>`, which enables discrete-time inverse dynamics for all
+12. Added the flag :ref:`invdiscrete<option-flag-invdiscrete>`, which enables discrete-time inverse dynamics for all
     :ref:`integrators<option-integrator>` other than ``RK4``. See the flag documentation for more details.
-12. Added :ref:`ls_iterations<option-ls_iterations>` and :ref:`ls_tolerance<option-ls_tolerance>` options for adjusting
+13. Added :ref:`ls_iterations<option-ls_iterations>` and :ref:`ls_tolerance<option-ls_tolerance>` options for adjusting
     linesearch stopping criteria in CG and Newton solvers. This can be useful for performance tuning.
+14. Added ``mesh_pos`` and ``mesh_quat`` fields to :ref:`mjModel` to store normalizing transformation.
+15. Added camera :ref:`resolution<body-camera-resolution>` attribute and :ref:`camprojection<sensor-camprojection>`
+    sensor. If camera resolution is set to positive values, the camera projection sensor will report the location of a
+    target site, projected onto the camera image, in pixel coordinates.
 
 Python bindings
 ^^^^^^^^^^^^^^^
 
-13. Fixed `#870 <https://github.com/google-deepmind/mujoco/issues/870>`__ where calling ``update_scene`` with an invalid
+16. Fixed `#870 <https://github.com/google-deepmind/mujoco/issues/870>`__ where calling ``update_scene`` with an invalid
     camera name used the default camera.
 
 Bug fixes
 ^^^^^^^^^
 
-14. Fixed a bug that was causing the geom margins to be ignored during the midphase.
+17. Fixed a bug that was causing the geom margins to be ignored during the midphase.
 
 
 Version 2.3.7 (July 20, 2023)
@@ -90,8 +105,8 @@ General
    :ref:`Cartesian actuator<actuator-general-refsite>` forces are realizable by individual motors at the joints.
    See :ref:`CForceRange` for details.
 #. Added an optional ``content_type`` attribute to hfield, texture, and mesh assets. This attribute supports a formatted
-   `Media Type <https://www.iana.org/assignments/media-types/media-types.xhtml>`_ (previously known as MIME type) string
-   used to determine the type of the asset file without resorting to pulling the type from the file extension.
+   `Media Type <https://www.iana.org/assignments/media-types/media-types.xhtml>`__ (previously known as MIME type)
+   string used to determine the type of the asset file without resorting to pulling the type from the file extension.
 #. Added analytic derivatives for quaternion :ref:`subtraction<mjd_subQuat>` and :ref:`integration<mjd_quatIntegrate>`
    (rotation with an angular velocity). Derivatives are in the 3D tangent space.
 #. Added :ref:`mjv_connector` which has identical functionality to :ref:`mjv_makeConnector`, but with more convenient

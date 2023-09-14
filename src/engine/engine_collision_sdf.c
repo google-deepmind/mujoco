@@ -259,8 +259,8 @@ static void undoTransformation(const mjModel* m, const mjData* d, int g,
   mjtNum* xmat = d->geom_xmat + 9 * g;
   if (m->geom_type[g]==mjGEOM_MESH || m->geom_type[g]==mjGEOM_SDF) {
     mjtNum negpos[3], negquat[4], xquat[4];
-    mjtNum* pos = m->geom_pos + 3 * g;
-    mjtNum* quat = m->geom_quat + 4 * g;
+    mjtNum* pos = m->mesh_pos + 3 * m->geom_dataid[g];
+    mjtNum* quat = m->mesh_quat + 4 * m->geom_dataid[g];
     mju_mat2Quat(xquat, xmat);
     mju_negPose(negpos, negquat, pos, quat);
     mju_mulPose(sdf_xpos, sdf_quat, xpos, xquat, negpos, negquat);
@@ -367,7 +367,9 @@ static mjtNum stepGradient(mjtNum x[3], const mjModel* m, const mjSDF* s,
     mjc_gradient(m, d, s, grad, x);
 
     // sanity check
-    if (isnan(grad[0]) || isnan(grad[1]) || isnan(grad[2])) {
+    if (isnan(grad[0]) || grad[0]>mjMAXVAL || grad[0]<-mjMAXVAL ||
+        isnan(grad[1]) || grad[1]>mjMAXVAL || grad[1]<-mjMAXVAL ||
+        isnan(grad[2]) || grad[2]>mjMAXVAL || grad[2]<-mjMAXVAL) {
       return mjMAXVAL;
     }
 

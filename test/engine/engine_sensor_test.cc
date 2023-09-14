@@ -432,5 +432,51 @@ TEST_F(SensorTest, Clock) {
   mj_deleteModel(model);
 }
 
+// ------------------------- camera sensor tests  -----------------------------
+
+// test clock sensor
+TEST_F(SensorTest, CameraProjection) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body pos="1.1 0 1">
+        <geom type="box" size=".1 .6 .375"/>
+        <site name="frontorigin" pos="-.1  .6  .375"/>
+        <site name="frontcorner" pos="-.1 -.6 -.375"/>
+      </body>
+      <body pos="-1.1 0 1">
+        <geom type="box" size=".1 .6 .375"/>
+        <site name="backcenter" pos="-.1 0 0"/>
+      </body>
+      <camera pos="0 0 1" xyaxes="0 -1 0 0 0 1" fovy="41.11209"
+              resolution="1920 1200" name="fixedcamera"/>
+    </worldbody>
+    <sensor>
+      <camprojection site="frontorigin" camera="fixedcamera"/>
+      <camprojection site="frontcorner" camera="fixedcamera"/>
+      <camprojection site="backcenter" camera="fixedcamera"/>
+    </sensor>
+  </mujoco>
+  )";
+  mjModel* model = LoadModelFromString(xml);
+  mjData* data = mj_makeData(model);
+
+  // call step to update sensors
+  mj_step(model, data);
+  mj_step1(model, data);  // update values of position-based sensors
+  EXPECT_THAT(model->cam_resolution[0], 1920);
+  EXPECT_THAT(model->cam_resolution[1], 1200);
+  mjtNum eps = 1e-4;
+  EXPECT_NEAR(data->sensordata[0], 0, eps);
+  EXPECT_NEAR(data->sensordata[1], 0, eps);
+  EXPECT_NEAR(data->sensordata[2], 1920, eps);
+  EXPECT_NEAR(data->sensordata[3], 1200, eps);
+  EXPECT_NEAR(data->sensordata[4], 960, eps);
+  EXPECT_NEAR(data->sensordata[5], 600, eps);
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
 }  // namespace
 }  // namespace mujoco

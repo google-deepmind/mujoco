@@ -3444,7 +3444,7 @@ mju_threadPoolCreate
 
 .. mujoco-include:: mju_threadPoolCreate
 
-Creates a thread pool with the specified number of threads running.
+Create a thread pool with the specified number of threads running.
 
 .. _mju_threadPoolEnqueue:
 
@@ -3453,16 +3453,7 @@ mju_threadPoolEnqueue
 
 .. mujoco-include:: mju_threadPoolEnqueue
 
-Enqueues a task in a thread pool.
-
-.. _mju_taskJoin:
-
-mju_taskJoin
-~~~~~~~~~~~~
-
-.. mujoco-include:: mju_taskJoin
-
-Waits for a task to complete.
+Enqueue a task in a thread pool.
 
 .. _mju_threadPoolDestroy:
 
@@ -3471,5 +3462,23 @@ mju_threadPoolDestroy
 
 .. mujoco-include:: mju_threadPoolDestroy
 
-Destroys a thread pool.
+Destroy a thread pool.
+
+.. _mju_defaultTask:
+
+mju_defaultTask
+~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mju_defaultTask
+
+Initialize an mjTask.
+
+.. _mju_taskJoin:
+
+mju_taskJoin
+~~~~~~~~~~~~
+
+.. mujoco-include:: mju_taskJoin
+
+Wait for a task to complete.
 

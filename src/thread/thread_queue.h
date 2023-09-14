@@ -11,8 +11,6 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-// IWYU pragma: private, include "third_party/mujoco/include/mujoco.h"
-// IWYU pragma: friend "third_party/(py/)?mujoco/.*"
 
 #ifndef MUJOCO_SRC_THREAD_LOCKLESS_QUEUE_H_
 #define MUJOCO_SRC_THREAD_LOCKLESS_QUEUE_H_

@@ -732,6 +732,28 @@ TEST_F(QuatNorm, QuatNotNormalized) {
   mj_deleteModel(m);
 }
 
+// ------------- test camera specifications ------------------------------------
+
+using CameraSpecTest = MujocoTest;
+
+TEST_F(CameraSpecTest, FovyLimits) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <geom size="1"/>
+        <camera fovy="180"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* m = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(m, IsNull()) << error.data();
+  EXPECT_THAT(error.data(), HasSubstr("fovy too large"));
+  mj_deleteModel(m);
+}
+
 // ------------- test actuator order -------------------------------------------
 
 using ActuatorTest = MujocoTest;

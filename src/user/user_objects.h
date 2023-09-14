@@ -465,6 +465,7 @@ class mjCCamera : public mjCBase {
   double ipd;                     // inter-pupilary distance
   double pos[3];                  // position
   double quat[4];                 // orientation
+  float resolution[2];            // resolution [pixel]
   std::vector<double> userdata;   // user data
   mjCAlternative alt;             // alternative orientation specification
 
@@ -576,6 +577,8 @@ class mjCMesh: public mjCBase {
   void Compile(const mjVFS* vfs);                   // compiler
   double* GetPosPtr(mjtMeshType type);              // get position
   double* GetQuatPtr(mjtMeshType type);             // get orientation
+  double* GetOffsetPosPtr();                        // get position offset for geom
+  double* GetOffsetQuatPtr();                       // get orientation offset for geom
   double* GetInertiaBoxPtr(mjtMeshType type);       // get inertia box
   double& GetVolumeRef(mjtMeshType type);           // get volume
   void FitGeom(mjCGeom* geom, double* meshpos);     // approximate mesh with simple geom
@@ -639,6 +642,8 @@ class mjCMesh: public mjCBase {
   double pos_surface_[3];             // CoM position
   double quat_volume_[4];             // inertia orientation
   double quat_surface_[4];            // inertia orientation
+  double pos_[3];                     // translation applied to asset vertices
+  double quat_[4];                    // rotation applied to asset vertices
   double boxsz_volume_[3];            // half-sizes of equivalent inertia box (volume)
   double boxsz_surface_[3];           // half-sizes of equivalent inertia box (surface)
   double aabb_[6];                    // axis-aligned bounding box

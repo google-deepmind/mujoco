@@ -118,7 +118,7 @@ Windows power plan so that the minimum processor state is 100%.
 .. _saRecord:
 
 `record <https://github.com/google-deepmind/mujoco/blob/main/sample/record.cc>`_
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 This code sample simulates the passive dynamics of a given model, renders it offscreen, reads the color and depth pixel
 values, and saves them into a raw data file that can then be converted into a movie file with tools such as ffmpeg. The

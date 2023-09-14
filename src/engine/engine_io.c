@@ -1351,29 +1351,17 @@ void mj_freeStack(mjData* d) {
 
   mjStackFrame* s = (mjStackFrame*) ((char*)d->arena + d->narena - d->pbase);
 #ifdef ADDRESS_SANITIZER
-  #define mjSYMBOLIZELEN 256
-
-  // symbolize s->pc to get the function name of most recent caller to mj_markStack
-  char markstack_func[mjSYMBOLIZELEN];
-  __sanitizer_symbolize_pc(s->pc, "%f", markstack_func, mjSYMBOLIZELEN);
-  markstack_func[mjSYMBOLIZELEN - 1] = '\0';
-
-  // symbolize current program counter to get the function name of caller to this function
-  char freestack_func[mjSYMBOLIZELEN];
-  __sanitizer_symbolize_pc(__sanitizer_return_address(), "%f", freestack_func, mjSYMBOLIZELEN);
-  freestack_func[mjSYMBOLIZELEN - 1] = '\0';
-
   // raise an error if caller function name doesn't match the most recent caller of mj_markStack
-  if (strncmp(markstack_func, freestack_func, mjSYMBOLIZELEN)) {
+  if (!_mj_comparePcFuncName(s->pc, __sanitizer_return_address())) {
+    #define mjSYMBOLIZELEN 256
     char dbginfo[mjSYMBOLIZELEN];
     __sanitizer_symbolize_pc(
         s->pc, "mj_markStack %F at %S has no corresponding mj_freeStack",
         dbginfo, sizeof(dbginfo));
     dbginfo[mjSYMBOLIZELEN - 1] = '\0';
     mjERROR("%s", dbginfo);
+    #undef mjSYMBOLIZELEN
   }
-
-  #undef mjSYMBOLIZELEN
 #endif
 
   // restore pbase and pstack
@@ -1440,9 +1428,10 @@ static void _resetData(const mjModel* m, mjData* d, unsigned char debug_value) {
   // clear solver diagnostics
   memset(d->warning, 0, mjNWARNING*sizeof(mjWarningStat));
   memset(d->timer, 0, mjNTIMER*sizeof(mjTimerStat));
-  memset(d->solver, 0, mjNSOLVER*sizeof(mjSolverStat));
-  d->solver_iter = 0;
-  d->solver_nnz = 0;
+  memset(d->solver, 0, mjNSOLVER*mjNISLAND*sizeof(mjSolverStat));
+  d->solver_nisland = 0;
+  mju_zeroInt(d->solver_niter, mjNISLAND);
+  mju_zeroInt(d->solver_nnz, mjNISLAND);
   mju_zero(d->solver_fwdinv, 2);
 
   // clear collision diagnostics
@@ -1623,6 +1612,9 @@ static int sensorSize(mjtSensor sensor_type, int sensor_dim) {
   case mjSENS_TENDONLIMITFRC:
   case mjSENS_CLOCK:
     return 1;
+
+  case mjSENS_CAMPROJECTION:
+    return 2;
 
   case mjSENS_ACCELEROMETER:
   case mjSENS_VELOCIMETER:

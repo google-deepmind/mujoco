@@ -220,7 +220,7 @@ mjtNum mju_normalize4(mjtNum vec[4]) {
     vec[1] = 0;
     vec[2] = 0;
     vec[3] = 0;
-  } else {
+  } else if (mju_abs(norm - 1) > mjMINVAL) {
     mjtNum normInv = 1/norm;
     vec[0] *= normInv;
     vec[1] *= normInv;

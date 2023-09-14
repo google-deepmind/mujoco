@@ -134,6 +134,9 @@ mjCMesh::mjCMesh(mjCModel* _model, mjCDef* _def) {
   mjuu_setvec(pos_volume_, 0, 0, 0);
   mjuu_setvec(quat_surface_, 1, 0, 0, 0);
   mjuu_setvec(quat_volume_, 1, 0, 0, 0);
+  mjuu_setvec(pos_, 0, 0, 0);
+  mjuu_setvec(quat_, 1, 0, 0, 0);
+
   mjuu_setvec(boxsz_surface_, 0, 0, 0);
   mjuu_setvec(boxsz_volume_, 0, 0, 0);
   mjuu_setvec(aabb_, 1e10, 1e10, 1e10);
@@ -391,7 +394,7 @@ void mjCMesh::Compile(const mjVFS* vfs) {
   }
 
   // create using marching cubes
-  if (is_plugin) {
+  else if (is_plugin) {
     LoadSDF();
   }
 
@@ -626,6 +629,18 @@ double* mjCMesh::GetQuatPtr(mjtMeshType type) {
   } else {
     return quat_volume_;
   }
+}
+
+
+
+double* mjCMesh::GetOffsetPosPtr() {
+  return pos_;
+}
+
+
+
+double* mjCMesh::GetOffsetQuatPtr() {
+  return quat_;
 }
 
 
