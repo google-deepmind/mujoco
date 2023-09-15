@@ -60,7 +60,7 @@ set(MUJOCO_DEP_VERSION_benchmark
 
 set(MUJOCO_DEP_VERSION_sdflib
     492847fa81e46653114da48e8886730ccefed377
-    CACHE STRING "Version of `openVDB` to be fetched."
+    CACHE STRING "Version of `SdfLib` to be fetched."
 )
 
 mark_as_advanced(MUJOCO_DEP_VERSION_lodepng)
