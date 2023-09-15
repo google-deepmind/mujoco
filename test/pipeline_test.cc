@@ -64,7 +64,7 @@ TEST_F(PipelineTest, SparseDenseEquivalent) {
   mj_deleteModel(model);
 }
 
-// mj_forward should be deterministic when warm starts are disabled
+// mj_forward should be idempotent when warm starts are disabled
 TEST_F(PipelineTest, DeterministicNoWarmstart) {
   const std::string xml_path = GetTestDataFilePath(kDefaultModel);
   mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, nullptr, 0);

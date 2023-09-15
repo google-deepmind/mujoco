@@ -12,11 +12,11 @@ New features
    :align: right
    :width: 240px
 
-1. Added constraint island discovery in :ref:`mj_island`. Constraint islands are disjoint sets of constraints
-   and degrees-of-freedom that do not interact. In a future release the constraint solver will be refactored to
-   exploit this disjoint structure. Island discovery can be activated using a new :ref:`enable flag<option-flag-island>`
-   which will be removed after the refactor. If island discovery is enabled, geoms, contacts and
-   tendons will be colored according to the corresponding island, see video.
+1. Added constraint island discovery with :ref:`mj_island`. Constraint islands are disjoint sets of constraints
+   and degrees-of-freedom that do not interact. The only solver which currently supports islands is
+   :ref:`CG<option-solver>`. Island discovery can be activated using a new :ref:`enable flag<option-flag-island>`.
+   If island discovery is enabled, geoms, contacts and tendons will be colored according to the corresponding island,
+   see video.
 
 .. youtube:: QewlEqIZi1o
    :align: right
@@ -74,8 +74,9 @@ General
 12. Added the flag :ref:`invdiscrete<option-flag-invdiscrete>`, which enables discrete-time inverse dynamics for all
     :ref:`integrators<option-integrator>` other than ``RK4``. See the flag documentation for more details.
 13. Added :ref:`ls_iterations<option-ls_iterations>` and :ref:`ls_tolerance<option-ls_tolerance>` options for adjusting
-    linesearch stopping criteria in CG and Newton solvers. This can be useful for performance tuning.
-14. Added ``mesh_pos`` and ``mesh_quat`` fields to :ref:`mjModel` to store normalizing transformation.
+    linesearch stopping criteria in CG and Newton solvers. These can be useful for performance tuning.
+14. Added ``mesh_pos`` and ``mesh_quat`` fields to :ref:`mjModel` to store the normalizing transformation applied to
+    mesh assets. Fixes `#409 <https://github.com/google-deepmind/mujoco/issues/409>`__ .
 15. Added camera :ref:`resolution<body-camera-resolution>` attribute and :ref:`camprojection<sensor-camprojection>`
     sensor. If camera resolution is set to positive values, the camera projection sensor will report the location of a
     target site, projected onto the camera image, in pixel coordinates.
@@ -89,7 +90,8 @@ Python bindings
 Bug fixes
 ^^^^^^^^^
 
-17. Fixed a bug that was causing the geom margins to be ignored during the midphase.
+17. Fixed a bug that was causing :ref:`geom margin<body-geom-margin>` to be ignored during the construction of
+    midphase collision trees.
 
 
 Version 2.3.7 (July 20, 2023)

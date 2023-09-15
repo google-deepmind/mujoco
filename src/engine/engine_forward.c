@@ -494,13 +494,15 @@ static void warmstart(const mjModel* m, mjData* d) {
 // compute efc_b, efc_force, qfrc_constraint; update qacc
 void mj_fwdConstraint(const mjModel* m, mjData* d) {
   TM_START;
-  int nv = m->nv, nefc = d->nefc;
+  int nv = m->nv, nefc = d->nefc, nisland = d->nisland;
+
+  // always clear qfrc_constraint
+  mju_zero(d->qfrc_constraint, nv);
 
   // no constraints: copy unconstrained acc, clear forces, return
   if (!nefc) {
     mju_copy(d->qacc, d->qacc_smooth, nv);
     mju_copy(d->qacc_warmstart, d->qacc_smooth, nv);
-    mju_zero(d->qfrc_constraint, nv);
     mju_zeroInt(d->solver_niter, mjNISLAND);
     TM_END(mjTIMER_CONSTRAINT);
     return;
@@ -514,26 +516,42 @@ void mj_fwdConstraint(const mjModel* m, mjData* d) {
   warmstart(m, d);
   mju_zeroInt(d->solver_niter, mjNISLAND);
 
-  // run main solver
-  switch ((mjtSolver) m->opt.solver) {
-  case mjSOL_PGS:                     // PGS
-    mj_solPGS(m, d, m->opt.iterations);
-    break;
+  // check if islands are supported
+  int islands_supported = mjENABLED(mjENBL_ISLAND)  &&
+                          m->opt.solver == mjSOL_CG &&
+                          m->opt.noslip_iterations == 0;
 
-  case mjSOL_CG:                      // CG
-    mj_solCG(m, d, m->opt.iterations);
-    break;
-
-  case mjSOL_NEWTON:                  // Newton
-    mj_solNewton(m, d, m->opt.iterations);
-    break;
-
-  default:
-    mjERROR("unknown solver type %d", m->opt.solver);
+  // run solver over constraint islands
+  if (islands_supported) {
+    // loop over islands
+    for (int island=0; island < nisland; island++) {
+      mj_solCG_island(m, d, island, m->opt.iterations);
+    }
+    d->solver_nisland = nisland;
   }
 
-  // one (monolithic) island
-  d->solver_nisland = 1;
+  // run solver over all constraints
+  else {
+    switch ((mjtSolver) m->opt.solver) {
+    case mjSOL_PGS:                     // PGS
+      mj_solPGS(m, d, m->opt.iterations);
+      break;
+
+    case mjSOL_CG:                      // CG
+      mj_solCG(m, d, m->opt.iterations);
+      break;
+
+    case mjSOL_NEWTON:                  // Newton
+      mj_solNewton(m, d, m->opt.iterations);
+      break;
+
+    default:
+      mjERROR("unknown solver type %d", m->opt.solver);
+    }
+
+    // one (monolithic) island
+    d->solver_nisland = 1;
+  }
 
   // save result for next step warmstart
   mju_copy(d->qacc_warmstart, d->qacc, nv);
