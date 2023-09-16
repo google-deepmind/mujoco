@@ -196,7 +196,7 @@ findorfetch(
   GIT_TAG
   ${MUJOCO_DEP_VERSION_sdflib}
   PATCH_COMMAND
-  git apply --reject --whitespace=fix ${CMAKE_SOURCE_DIR}/cmake/sdflib-optional-dependencies.patch
+  git apply --reject --whitespace=fix ${mujoco_SOURCE_DIR}/cmake/sdflib-optional-dependencies.patch
   TARGETS
   SdfLib
   EXCLUDE_FROM_ALL
