@@ -239,7 +239,7 @@ int main(int argc, char** argv) {
 
         // save step time, add up timing of components
         if (i == 0) total = istep;
-        if (i >= mjTIMER_POSITION && i <= mjTIMER_CONSTRAINT) {
+        if (i >= mjTIMER_POSITION && i <= mjTIMER_ADVANCE) {
           components += istep;
         }
       }

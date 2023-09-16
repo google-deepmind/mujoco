@@ -118,8 +118,11 @@ void mj_fwdPosition(const mjModel* m, mjData* d) {
   if (mjENABLED(mjENBL_ISLAND)) {
     mj_island(m, d);
   }
-  mj_transmission(m, d);
   TM_END(mjTIMER_POS_MAKE);
+
+  TM_RESTART;
+  mj_transmission(m, d);
+  TM_END(mjTIMER_POS_KINEMATICS);
 
   TM_RESTART;
   mj_projectConstraint(m, d);
@@ -400,7 +403,6 @@ void mj_fwdActuation(const mjModel* m, mjData* d) {
 
 // add up all non-constraint forces, compute qacc_smooth
 void mj_fwdAcceleration(const mjModel* m, mjData* d) {
-  TM_START;
   mj_markStack(d);
   int nv = m->nv;
 
@@ -414,7 +416,6 @@ void mj_fwdAcceleration(const mjModel* m, mjData* d) {
   mj_solveM(m, d, d->qacc_smooth, d->qfrc_smooth, 1);
 
   mj_freeStack(d);
-  TM_END(mjTIMER_ACCELERATION);
 }
 
 
@@ -609,6 +610,7 @@ static void mj_advance(const mjModel* m, mjData* d,
 
 // Euler integrator, semi-implicit in velocity, possibly skipping factorisation
 void mj_EulerSkip(const mjModel* m, mjData* d, int skipfactor) {
+  TM_START;
   int nv = m->nv, nM = m->nM;
   mj_markStack(d);
   mjtNum* qfrc = mj_stackAllocNum(d, nv);
@@ -655,6 +657,8 @@ void mj_EulerSkip(const mjModel* m, mjData* d, int skipfactor) {
   mj_advance(m, d, d->act_dot, qacc, NULL);
 
   mj_freeStack(d);
+
+  TM_END(mjTIMER_ADVANCE);
 }
 
 
@@ -774,6 +778,7 @@ void mj_RungeKutta(const mjModel* m, mjData* d, int N) {
 
 // fully implicit in velocity, possibly skipping factorization
 void mj_implicitSkip(const mjModel* m, mjData* d, int skipfactor) {
+  TM_START;
   int nv = m->nv;
 
   mj_markStack(d);
@@ -832,6 +837,8 @@ void mj_implicitSkip(const mjModel* m, mjData* d, int skipfactor) {
   mj_advance(m, d, d->act_dot, qacc, NULL);
 
   mj_freeStack(d);
+
+  TM_END(mjTIMER_ADVANCE);
 }
 
 

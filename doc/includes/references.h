@@ -61,8 +61,8 @@ typedef enum mjtTimer_ {     // internal timers
   mjTIMER_POSITION,          // fwdPosition
   mjTIMER_VELOCITY,          // fwdVelocity
   mjTIMER_ACTUATION,         // fwdActuation
-  mjTIMER_ACCELERATION,      // fwdAcceleration
   mjTIMER_CONSTRAINT,        // fwdConstraint
+  mjTIMER_ADVANCE,           // mj_Euler, mj_implicit
 
   // breakdown of fwdPosition
   mjTIMER_POS_KINEMATICS,    // kinematics, com, tendon, transmission
