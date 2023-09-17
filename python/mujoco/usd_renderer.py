@@ -6,6 +6,7 @@ from mujoco.usd_utilities import *
 from pxr import Usd, UsdGeom
 
 from PIL import Image as im
+from PIL import ImageOps
 
 class USDRenderer(object):
   """
@@ -58,7 +59,6 @@ class USDRenderer(object):
       mesh_texcoord_ranges = get_mesh_ranges(self.model.nmesh, self.model.mesh_texcoordnum)
       mesh_facetexcoord_ranges = get_facetexcoord_ranges(self.model.nmesh, self.model.mesh_facenum)
 
-
     # create and load the texture files
     # iterate through all the textures and build list of tex_rgb ranges
     data_adr = 0
@@ -70,20 +70,26 @@ class USDRenderer(object):
       rgb = self.model.tex_rgb[data_adr:data_adr+pixels]
       img = rgb.reshape(height, width, 3)
       file_name = f'{texid}.png'
-      im.fromarray(img).save(file_name)
+      img = im.fromarray(img)
+      img = ImageOps.flip(img)
+      img.save(file_name)
       texture_file = os.path.abspath(file_name)
       texture_files.append(texture_file)
       data_adr += pixels
 
-    current_mesh_idx = 0
     # initializes an array to store all the geoms in the scene
     # populates with "empty" USDGeom objects
     self.usd_geoms = []
     geoms = self.scene.geoms
     self.ngeom = self.scene.ngeom
     for i in range(self.ngeom):
+      if geoms[i].texid == -1:
+        texture_file = None
+      else:
+        texture_file = texture_files[geoms[i].texid]
+
       if geoms[i].type == USDGeomType.Mesh.value:
-        self.usd_geoms.append(USDMesh(current_mesh_idx,
+        self.usd_geoms.append(USDMesh(self.model.geom_dataid[i],
                                       geoms[i], 
                                       self.stage, 
                                       self.model,
@@ -91,10 +97,11 @@ class USDRenderer(object):
                                       mesh_face_ranges,
                                       mesh_texcoord_ranges,
                                       mesh_facetexcoord_ranges,
-                                      texture_files[geoms[i].texid]))
-        current_mesh_idx += 1
+                                      texture_file))
       else:
-        self.usd_geoms.append(create_usd_geom_primitive(geoms[i], self.stage))
+        self.usd_geoms.append(create_usd_geom_primitive(geoms[i], 
+                                                        self.stage,
+                                                        texture_file))
 
     # initializes an array to store all the lights in the scene
     # populates with "empty" USDLight objects
@@ -115,7 +122,8 @@ class USDRenderer(object):
     """
     geoms = self.scene.geoms
     for i in range(self.ngeom):
-      self.usd_geoms[i].update_geom(geoms[i])
+      if self.usd_geoms[i] != None: # TODO: remove this once all primitives are added
+        self.usd_geoms[i].update_geom(geoms[i])
 
   def _update_lights(self):
     """

@@ -5,14 +5,14 @@ import mujoco
 from pxr import Usd, UsdGeom, UsdLux, UsdShade, Vt, Gf, Sdf
 from scipy.spatial.transform import Rotation as R
 
-def create_usd_geom_primitive(geom, stage):
+def create_usd_geom_primitive(geom, stage, texture_file):
   geom_type = geom.type
   if geom_type==USDGeomType.Plane.value:
-    return USDPlane(geom, stage)
+    return USDPlane(geom, stage, texture_file)
   elif geom_type==USDGeomType.Sphere.value:
-    return USDSphere(geom, stage)
+    return USDSphere(geom, stage, texture_file)
   elif geom_type==USDGeomType.Cube.value:
-    return USDCube(geom, stage)
+    return USDCube(geom, stage, texture_file)
 
 class USDGeomType(Enum):
   """
@@ -31,14 +31,16 @@ class USDGeom(object):
   """
   def __init__(self,
                geom=None,
-               stage=None):
+               stage=None,
+               texture_file=None):
     self.geom = geom
     self.stage = stage # TODO: remove, not being used
+    self.texture_file = texture_file
     self.type = None
     self.xform = None
     self.prim = None
     self.ref = None
-
+    
   def update_geom(self, new_geom):
     self.update_pos(new_geom.pos)
     self.update_rotation(new_geom.mat)
@@ -81,8 +83,9 @@ class USDPlane(USDGeom):
 
   def __init__(self, 
                geom=None,
-               stage=None):
-    super().__init__(geom, stage)
+               stage=None,
+               texture_file=None):
+    super().__init__(geom, stage, texture_file)
     self.type = 0
     USDPlane.plane_count += 1
     xform_path = f'/Plane_Xform_{USDPlane.plane_count}'
@@ -104,9 +107,10 @@ class USDSphere(USDGeom):
   sphere_count = 0
 
   def __init__(self, 
-               geom,
-               stage):
-    super().__init__(geom, stage)
+               geom=None,
+               stage=None,
+               texture_file=None):
+    super().__init__(geom, stage, texture_file)
     self.type = 2
     USDSphere.sphere_count += 1
     xform_path = f'/Sphere_Xform_{USDSphere.sphere_count}'
@@ -123,9 +127,10 @@ class USDCube(USDGeom):
   cube_count = 0
 
   def __init__(self, 
-               geom,
-               stage):
-    super().__init__(geom, stage)
+               geom=None,
+               stage=None,
+               texture_file=None):
+    super().__init__(geom, stage, texture_file)
     self.type = 6
     USDCube.cube_count += 1
     xform_path = f'/Cube_Xform_{USDCube.cube_count}'
@@ -133,6 +138,26 @@ class USDCube(USDGeom):
     self.xform = UsdGeom.Xform.Define(stage, xform_path)
     self.prim = UsdGeom.Cube.Define(stage, cube_path)
     self.ref = stage.GetPrimAtPath(cube_path)
+
+    if texture_file:
+      mtl_path = Sdf.Path(f"/World/Looks/Material_{os.path.splitext(os.path.basename(texture_file))[0]}")
+      mtl = UsdShade.Material.Define(stage, mtl_path)
+      shader = UsdShade.Shader.Define(stage, mtl_path.AppendPath("Shader"))
+      shader.CreateIdAttr("UsdPreviewSurface")
+      shader.CreateInput("diffuseColor", Sdf.ValueTypeNames.Color3f).Set((1.0, 0.0, 0.0))
+      shader.CreateInput("roughness", Sdf.ValueTypeNames.Float).Set(0.5)
+      shader.CreateInput("metallic", Sdf.ValueTypeNames.Float).Set(0.0)
+
+      diffuse_tx = UsdShade.Shader.Define(stage,mtl_path.AppendPath("DiffuseColorTx"))
+      diffuse_tx.CreateIdAttr('UsdUVTexture') 
+
+      diffuse_tx.CreateInput('file', Sdf.ValueTypeNames.Asset).Set(texture_file)
+      diffuse_tx.CreateOutput('rgb', Sdf.ValueTypeNames.Float3)
+      shader.CreateInput("diffuseColor", Sdf.ValueTypeNames.Color3f).ConnectToSource(diffuse_tx.ConnectableAPI(), 'rgb')
+      mtl.CreateSurfaceOutput().ConnectToSource(shader.ConnectableAPI(), "surface")
+
+      self.prim.GetPrim().ApplyAPI(UsdShade.MaterialBindingAPI)
+      UsdShade.MaterialBindingAPI(self.prim).Bind(mtl)
 
 class USDMesh(USDGeom):
   """
@@ -152,6 +177,9 @@ class USDMesh(USDGeom):
                mesh_facetexcoord_ranges,
                texture_file):
     super().__init__(geom, stage)
+
+    assert mesh_idx != -1
+
     self.type = 7
     USDMesh.mesh_count += 1
     xform_path = f'/Mesh_Xform_{USDMesh.mesh_count}'
@@ -159,7 +187,7 @@ class USDMesh(USDGeom):
     self.xform = UsdGeom.Xform.Define(stage, xform_path)
     self.prim = UsdGeom.Mesh.Define(stage, mesh_path)
     self.ref = stage.GetPrimAtPath(mesh_path)
-    
+
     self.vertices = model.mesh_vert[mesh_vertex_ranges[mesh_idx]:mesh_vertex_ranges[mesh_idx+1]]
     self.prim.GetPointsAttr().Set(self.vertices)
 
@@ -168,41 +196,45 @@ class USDMesh(USDGeom):
     self.faces = model.mesh_face[mesh_face_ranges[mesh_idx]:mesh_face_ranges[mesh_idx+1]]
     self.prim.GetFaceVertexIndicesAttr().Set(self.faces)
 
-    texid = geom.texid
-    texcoords = model.mesh_texcoord[mesh_texcoord_ranges[texid]:mesh_texcoord_ranges[texid+1]]
+    self.texture_file = texture_file
+    if texture_file:
 
-    facetexcoords = model.mesh_facetexcoord.flatten()
-    facetexcoords = facetexcoords[mesh_facetexcoord_ranges[mesh_idx]:mesh_facetexcoord_ranges[mesh_idx+1]]
-    self.texcoords = UsdGeom.PrimvarsAPI(self.prim).CreatePrimvar("st",
-                                    Sdf.ValueTypeNames.TexCoord2fArray,
-                                    UsdGeom.Tokens.faceVarying)
+      texid = geom.texid
+      texcoords = model.mesh_texcoord[mesh_texcoord_ranges[texid]:mesh_texcoord_ranges[texid+1]]
 
-    self.texcoords.Set(texcoords)
-    self.texcoords.SetIndices(Vt.IntArray(facetexcoords.tolist()));
+      facetexcoords = model.mesh_facetexcoord.flatten()
+      facetexcoords = facetexcoords[mesh_facetexcoord_ranges[mesh_idx]:mesh_facetexcoord_ranges[mesh_idx+1]]
+      self.texcoords = UsdGeom.PrimvarsAPI(self.prim).CreatePrimvar("st",
+                                      Sdf.ValueTypeNames.TexCoord2fArray,
+                                      UsdGeom.Tokens.faceVarying)
 
-    mtl_path = Sdf.Path(f"/World/Looks/Material_{os.path.splitext(os.path.basename(texture_file))[0]}")
-    mtl = UsdShade.Material.Define(stage, mtl_path)
-    shader = UsdShade.Shader.Define(stage, mtl_path.AppendPath("Shader"))
-    shader.CreateIdAttr("UsdPreviewSurface")
-    shader.CreateInput("diffuseColor", Sdf.ValueTypeNames.Color3f).Set((1.0, 0.0, 0.0))
-    shader.CreateInput("roughness", Sdf.ValueTypeNames.Float).Set(0.5)
-    shader.CreateInput("metallic", Sdf.ValueTypeNames.Float).Set(0.0)
+      self.texcoords.Set(texcoords)
+      self.texcoords.SetIndices(Vt.IntArray(facetexcoords.tolist()));
 
-    diffuse_tx = UsdShade.Shader.Define(stage,mtl_path.AppendPath("DiffuseColorTx"))
-    diffuse_tx.CreateIdAttr('UsdUVTexture') 
+      mtl_path = Sdf.Path(f"/World/Looks/Material_{os.path.splitext(os.path.basename(texture_file))[0]}")
+      mtl = UsdShade.Material.Define(stage, mtl_path)
+      shader = UsdShade.Shader.Define(stage, mtl_path.AppendPath("Shader"))
+      shader.CreateIdAttr("UsdPreviewSurface")
+      shader.CreateInput("diffuseColor", Sdf.ValueTypeNames.Color3f).Set((1.0, 0.0, 0.0))
+      shader.CreateInput("roughness", Sdf.ValueTypeNames.Float).Set(0.5)
+      shader.CreateInput("metallic", Sdf.ValueTypeNames.Float).Set(0.0)
 
-    # TODO: don't hardcode the image file
-    diffuse_tx.CreateInput('file', Sdf.ValueTypeNames.Asset).Set(texture_file)
-    diffuse_tx.CreateOutput('rgb', Sdf.ValueTypeNames.Float3)
-    shader.CreateInput("diffuseColor", Sdf.ValueTypeNames.Color3f).ConnectToSource(diffuse_tx.ConnectableAPI(), 'rgb')
-    mtl.CreateSurfaceOutput().ConnectToSource(shader.ConnectableAPI(), "surface")
+      diffuse_tx = UsdShade.Shader.Define(stage,mtl_path.AppendPath("DiffuseColorTx"))
+      diffuse_tx.CreateIdAttr('UsdUVTexture') 
 
-    self.prim.GetPrim().ApplyAPI(UsdShade.MaterialBindingAPI)
-    UsdShade.MaterialBindingAPI(self.prim).Bind(mtl)
+      diffuse_tx.CreateInput('file', Sdf.ValueTypeNames.Asset).Set(texture_file)
+      diffuse_tx.CreateOutput('rgb', Sdf.ValueTypeNames.Float3)
+      shader.CreateInput("diffuseColor", Sdf.ValueTypeNames.Color3f).ConnectToSource(diffuse_tx.ConnectableAPI(), 'rgb')
+      mtl.CreateSurfaceOutput().ConnectToSource(shader.ConnectableAPI(), "surface")
+
+      self.prim.GetPrim().ApplyAPI(UsdShade.MaterialBindingAPI)
+      UsdShade.MaterialBindingAPI(self.prim).Bind(mtl)
 
   def update_geom(self, new_geom):
     self.update_pos(new_geom.pos)
     self.update_rotation(new_geom.mat)
+    if not self.texture_file:
+      self.update_color(new_geom.rgba)
 
     # TODO: remove this, temporary
     # self.xform.AddScaleOp().Set(value=(10.0, 10.0, 10.0))
@@ -235,7 +267,7 @@ class USDLight(object):
     #   - radius
     #   - specular
 
-    self.prim.GetIntensityAttr().Set(5000);
+    self.prim.GetIntensityAttr().Set(30000);
 
 
 
