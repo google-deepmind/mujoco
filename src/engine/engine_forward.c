@@ -118,8 +118,11 @@ void mj_fwdPosition(const mjModel* m, mjData* d) {
   if (mjENABLED(mjENBL_ISLAND)) {
     mj_island(m, d);
   }
-  mj_transmission(m, d);
   TM_END(mjTIMER_POS_MAKE);
+
+  TM_RESTART;
+  mj_transmission(m, d);
+  TM_END(mjTIMER_POS_KINEMATICS);
 
   TM_RESTART;
   mj_projectConstraint(m, d);
@@ -400,7 +403,6 @@ void mj_fwdActuation(const mjModel* m, mjData* d) {
 
 // add up all non-constraint forces, compute qacc_smooth
 void mj_fwdAcceleration(const mjModel* m, mjData* d) {
-  TM_START;
   mj_markStack(d);
   int nv = m->nv;
 
@@ -414,7 +416,6 @@ void mj_fwdAcceleration(const mjModel* m, mjData* d) {
   mj_solveM(m, d, d->qacc_smooth, d->qfrc_smooth, 1);
 
   mj_freeStack(d);
-  TM_END(mjTIMER_ACCELERATION);
 }
 
 
@@ -494,13 +495,15 @@ static void warmstart(const mjModel* m, mjData* d) {
 // compute efc_b, efc_force, qfrc_constraint; update qacc
 void mj_fwdConstraint(const mjModel* m, mjData* d) {
   TM_START;
-  int nv = m->nv, nefc = d->nefc;
+  int nv = m->nv, nefc = d->nefc, nisland = d->nisland;
+
+  // always clear qfrc_constraint
+  mju_zero(d->qfrc_constraint, nv);
 
   // no constraints: copy unconstrained acc, clear forces, return
   if (!nefc) {
     mju_copy(d->qacc, d->qacc_smooth, nv);
     mju_copy(d->qacc_warmstart, d->qacc_smooth, nv);
-    mju_zero(d->qfrc_constraint, nv);
     mju_zeroInt(d->solver_niter, mjNISLAND);
     TM_END(mjTIMER_CONSTRAINT);
     return;
@@ -514,26 +517,42 @@ void mj_fwdConstraint(const mjModel* m, mjData* d) {
   warmstart(m, d);
   mju_zeroInt(d->solver_niter, mjNISLAND);
 
-  // run main solver
-  switch ((mjtSolver) m->opt.solver) {
-  case mjSOL_PGS:                     // PGS
-    mj_solPGS(m, d, m->opt.iterations);
-    break;
+  // check if islands are supported
+  int islands_supported = mjENABLED(mjENBL_ISLAND)  &&
+                          m->opt.solver == mjSOL_CG &&
+                          m->opt.noslip_iterations == 0;
 
-  case mjSOL_CG:                      // CG
-    mj_solCG(m, d, m->opt.iterations);
-    break;
-
-  case mjSOL_NEWTON:                  // Newton
-    mj_solNewton(m, d, m->opt.iterations);
-    break;
-
-  default:
-    mjERROR("unknown solver type %d", m->opt.solver);
+  // run solver over constraint islands
+  if (islands_supported) {
+    // loop over islands
+    for (int island=0; island < nisland; island++) {
+      mj_solCG_island(m, d, island, m->opt.iterations);
+    }
+    d->solver_nisland = nisland;
   }
 
-  // one (monolithic) island
-  d->solver_nisland = 1;
+  // run solver over all constraints
+  else {
+    switch ((mjtSolver) m->opt.solver) {
+    case mjSOL_PGS:                     // PGS
+      mj_solPGS(m, d, m->opt.iterations);
+      break;
+
+    case mjSOL_CG:                      // CG
+      mj_solCG(m, d, m->opt.iterations);
+      break;
+
+    case mjSOL_NEWTON:                  // Newton
+      mj_solNewton(m, d, m->opt.iterations);
+      break;
+
+    default:
+      mjERROR("unknown solver type %d", m->opt.solver);
+    }
+
+    // one (monolithic) island
+    d->solver_nisland = 1;
+  }
 
   // save result for next step warmstart
   mju_copy(d->qacc_warmstart, d->qacc, nv);
@@ -591,6 +610,7 @@ static void mj_advance(const mjModel* m, mjData* d,
 
 // Euler integrator, semi-implicit in velocity, possibly skipping factorisation
 void mj_EulerSkip(const mjModel* m, mjData* d, int skipfactor) {
+  TM_START;
   int nv = m->nv, nM = m->nM;
   mj_markStack(d);
   mjtNum* qfrc = mj_stackAllocNum(d, nv);
@@ -637,6 +657,8 @@ void mj_EulerSkip(const mjModel* m, mjData* d, int skipfactor) {
   mj_advance(m, d, d->act_dot, qacc, NULL);
 
   mj_freeStack(d);
+
+  TM_END(mjTIMER_ADVANCE);
 }
 
 
@@ -756,6 +778,7 @@ void mj_RungeKutta(const mjModel* m, mjData* d, int N) {
 
 // fully implicit in velocity, possibly skipping factorization
 void mj_implicitSkip(const mjModel* m, mjData* d, int skipfactor) {
+  TM_START;
   int nv = m->nv;
 
   mj_markStack(d);
@@ -814,6 +837,8 @@ void mj_implicitSkip(const mjModel* m, mjData* d, int skipfactor) {
   mj_advance(m, d, d->act_dot, qacc, NULL);
 
   mj_freeStack(d);
+
+  TM_END(mjTIMER_ADVANCE);
 }
 
 
