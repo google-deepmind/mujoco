@@ -1562,7 +1562,7 @@ The full list of processing steps applied by the compiler to each mesh is as fol
 .. _mesh-plugin:
 
 :el-prefix:`mesh/` |-| **plugin** (?)
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+'''''''''''''''''''''''''''''''''''''
 
 Associate this mesh with an :ref:`engine plugin<exPlugin>`. Either :at:`plugin` or :at:`instance` are required.
 
@@ -2246,24 +2246,6 @@ defined. Its body name is automatically defined as "world".
    See :ref:`CUser`.
 
 
-.. _body-plugin:
-
-:el-prefix:`body/` |-| **plugin** (?)
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-Associate this body with an :ref:`engine plugin<exPlugin>`. Either :at:`plugin` or :at:`instance` are required.
-
-.. _body-plugin-plugin:
-
-:at:`plugin`: :at-val:`string, optional`
-   Plugin identifier, used for implicit plugin instantiation.
-
-.. _body-plugin-instance:
-
-:at:`instance`: :at-val:`string, optional`
-   Instance name, used for explicit plugin instantiation.
-
-
 .. _body-inertial:
 
 :el-prefix:`body/` |-| **inertial** (?)
@@ -2898,7 +2880,7 @@ helps clarify the role of bodies and geoms in MuJoCo.
 .. _geom-plugin:
 
 :el-prefix:`geom/` |-| **plugin** (?)
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+'''''''''''''''''''''''''''''''''''''
 
 Associate this geom with an :ref:`engine plugin<exPlugin>`. Either :at:`plugin` or :at:`instance` are required.
 
@@ -3198,6 +3180,24 @@ the direction specified by the dir attribute. It does not have a full spatial fr
 
 :at:`specular`: :at-val:`real(3), "0.3 0.3 0.3"`
    The specular color of the light.
+
+
+.. _body-plugin:
+
+:el-prefix:`body/` |-| **plugin** (?)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Associate this body with an :ref:`engine plugin<exPlugin>`. Either :at:`plugin` or :at:`instance` are required.
+
+.. _body-plugin-plugin:
+
+:at:`plugin`: :at-val:`string, optional`
+   Plugin identifier, used for implicit plugin instantiation.
+
+.. _body-plugin-instance:
+
+:at:`instance`: :at-val:`string, optional`
+   Instance name, used for explicit plugin instantiation.
 
 
 .. _body-composite:
@@ -3650,7 +3650,7 @@ handle where the composite object is attached. For other composite types this su
 .. _composite-plugin:
 
 :el-prefix:`composite/` |-| **plugin** (?)
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+''''''''''''''''''''''''''''''''''''''''''
 
 Associate this composite with an :ref:`engine plugin<exPlugin>`. Either :at:`plugin` or :at:`instance` are required.
 
