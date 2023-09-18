@@ -830,8 +830,8 @@ TEST_F(EngineIoTest, RedZoneAlignmentTest) {
   ASSERT_THAT(data, NotNull());
 
   mj_markStack(data);
-  mj_stackAlloc(data, 1, 1);
-  mj_stackAlloc(data, 1, 1);
+  mj_stackAllocByte(data, 1, 1);
+  mj_stackAllocByte(data, 1, 1);
   mj_freeStack(data);
 
   mj_deleteData(data);

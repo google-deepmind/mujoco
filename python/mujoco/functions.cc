@@ -126,7 +126,7 @@ PYBIND11_MODULE(_functions, pymodule) {
   Def<traits::mj_resetData>(pymodule);
   Def<traits::mj_resetDataDebug>(pymodule);
   Def<traits::mj_resetDataKeyframe>(pymodule);
-  // Skipped: mj_stackAlloc (doesn't make sense in Python)
+  // Skipped: mj_stackAllocByte (doesn't make sense in Python)
   // Skipped: mj_deleteData (have MjData.__del__)
   Def<traits::mj_resetCallbacks>(pymodule);
   Def<traits::mj_setConst>(pymodule);
@@ -1356,7 +1356,7 @@ PYBIND11_MODULE(_functions, pymodule) {
         data->ncon = ncon;
         data->nefc = nefc;
         data->contact =
-            static_cast<raw::MjContact*>(InterceptMjErrors(::mj_arenaAlloc)(
+            static_cast<raw::MjContact*>(InterceptMjErrors(::mj_arenaAllocByte)(
                 data, ncon * sizeof(raw::MjContact), alignof(raw::MjContact)));
         if (!data->contact) {
           cleanup(data);
@@ -1367,12 +1367,12 @@ PYBIND11_MODULE(_functions, pymodule) {
 #define MJ_M(x) d.metadata().x
 #undef MJ_D
 #define MJ_D(x) data->x
-#define X(type, name, nr, nc)                                         \
-  data->name = static_cast<type*>(InterceptMjErrors(::mj_arenaAlloc)( \
-      data, sizeof(type) * (nr) * (nc), alignof(type)));              \
-  if (!data->name) {                                                  \
-    cleanup(data);                                                    \
-    throw FatalError("insufficient arena memory available");          \
+#define X(type, name, nr, nc)                                             \
+  data->name = static_cast<type*>(InterceptMjErrors(::mj_arenaAllocByte)( \
+      data, sizeof(type) * (nr) * (nc), alignof(type)));                  \
+  if (!data->name) {                                                      \
+    cleanup(data);                                                        \
+    throw FatalError("insufficient arena memory available");              \
   }
 
         MJDATA_ARENA_POINTERS_PRIMAL

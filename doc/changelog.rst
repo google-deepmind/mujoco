@@ -43,10 +43,10 @@ General
       :ref:`mj_freeStack`. These functions manage the :ref:`mjData stack<siStack>` in a fully encapsulated way (i.e.,
       without introducing a local variable at the call site).
 
-   5. Changed the function :ref:`mj_stackAlloc` to allocate an arbitrary number of bytes, rather than in multiples of
-      ``sizeof(mjtNum)``, and added an additional argument for specifying the alignment of the returned pointer.
+   5. Renamed ``mj_stackAlloc`` to :ref:`mj_stackAllocNum`. The new function :ref:`mj_stackAllocByte` allocates an
+      arbitrary number of bytes and has an additional argument for specifying the alignment of the returned pointer.
 
-      **Migration:** The functionality for allocating ``mjtNum`` arrays is available via :ref:`mj_stackAllocNum`.
+      **Migration:** The functionality for allocating ``mjtNum`` arrays is now available via :ref:`mj_stackAllocNum`.
 
    6. Renamed the ``nstack`` field in :ref:`mjModel` and :ref:`mjData` to ``narena``. Changed ``narena``, ``pstack``,
       and ``maxuse_stack`` to count number of bytes rather than number of :ref:`mjtNum` |-| s.

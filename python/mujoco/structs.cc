@@ -820,11 +820,11 @@ MjDataWrapper MjDataWrapper::Deserialize(std::istream& input) {
 #define MJ_M(x) m.x
 #undef MJ_D
 #define MJ_D(x) d->x
-#define X(type, name, nr, nc)                                          \
-  if ((nr) * (nc)) {                                                   \
-    d->name = static_cast<decltype(d->name)>(                          \
-        mj_arenaAlloc(d, sizeof(type) * (nr) * (nc), alignof(type)));  \
-    ReadBytes(input, d->name, sizeof(type) * (nr) * (nc));             \
+#define X(type, name, nr, nc)                                              \
+  if ((nr) * (nc)) {                                                       \
+    d->name = static_cast<decltype(d->name)>(                              \
+        mj_arenaAllocByte(d, sizeof(type) * (nr) * (nc), alignof(type)));  \
+    ReadBytes(input, d->name, sizeof(type) * (nr) * (nc));                 \
   }
 
     MJDATA_ARENA_POINTERS_CONTACT

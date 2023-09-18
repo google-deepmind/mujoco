@@ -1251,12 +1251,12 @@ mj_freeStack
 Free the current :ref:`mjData` stack frame. All pointers returned by mj_stackAlloc since the last call
 to mj_markStack must no longer be used afterwards.
 
-.. _mj_stackAlloc:
+.. _mj_stackAllocByte:
 
-mj_stackAlloc
-~~~~~~~~~~~~~
+mj_stackAllocByte
+~~~~~~~~~~~~~~~~~
 
-.. mujoco-include:: mj_stackAlloc
+.. mujoco-include:: mj_stackAllocByte
 
 Allocate a number of bytes on :ref:`mjData` stack at a specific alignment.
 Call mju_error on stack overflow.

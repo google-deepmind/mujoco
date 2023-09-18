@@ -721,7 +721,7 @@ The function :ref:`mj_stackAllocNum` checks if there is enough space, and if so 
 otherwise it triggers an error. It also keeps track of the maximum stack allocation;
 see :ref:`diagnostics <siDiagnostics>` below. Note that :ref:`mj_stackAllocNum` is only used for allocating
 ``mjtNum`` arrays, the most common type of array. :ref:`mj_stackAllocInt` is provided for integer array allocation,
-and :ref:`mj_stackAlloc` is provided for allocation of arbitrary number of bytes and alignment.
+and :ref:`mj_stackAllocByte` is provided for allocation of arbitrary number of bytes and alignment.
 
 .. _siError:
 

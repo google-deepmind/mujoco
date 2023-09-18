@@ -104,7 +104,7 @@ MJAPI void mj_resetDataDebug(const mjModel* m, mjData* d, unsigned char debug_va
 MJAPI void mj_resetDataKeyframe(const mjModel* m, mjData* d, int key);
 
 // mjData arena allocate
-MJAPI void* mj_arenaAlloc(mjData* d, size_t bytes, size_t alignment);
+MJAPI void* mj_arenaAllocByte(mjData* d, size_t bytes, size_t alignment);
 
 // mjData mark stack frame
 MJAPI void mj_markStack(mjData* d);
@@ -113,7 +113,7 @@ MJAPI void mj_markStack(mjData* d);
 MJAPI void mj_freeStack(mjData* d);
 
 // mjData stack allocate
-MJAPI void* mj_stackAlloc(mjData* d, size_t bytes, size_t alignment);
+MJAPI void* mj_stackAllocByte(mjData* d, size_t bytes, size_t alignment);
 
 // mjData stack allocate for array of mjtNums
 MJAPI mjtNum* mj_stackAllocNum(mjData* d, int size);

@@ -61,13 +61,13 @@ static int arenaAllocEfc(const mjModel* m, mjData* d) {
     (char*)d->arena + d->parena, d->narena - d->pstack - d->parena);
 #endif
 
-#define X(type, name, nr, nc)                                             \
-  d->name = mj_arenaAlloc(d, sizeof(type) * (nr) * (nc), _Alignof(type)); \
-  if (!d->name) {                                                         \
-    mj_warning(d, mjWARN_CNSTRFULL, d->narena);                           \
-    mj_clearEfc(d);                                                       \
-    d->parena = d->ncon * sizeof(mjContact);                              \
-    return 0;                                                             \
+#define X(type, name, nr, nc)                                                 \
+  d->name = mj_arenaAllocByte(d, sizeof(type) * (nr) * (nc), _Alignof(type)); \
+  if (!d->name) {                                                             \
+    mj_warning(d, mjWARN_CNSTRFULL, d->narena);                               \
+    mj_clearEfc(d);                                                           \
+    d->parena = d->ncon * sizeof(mjContact);                                  \
+    return 0;                                                                 \
   }
 
   MJDATA_ARENA_POINTERS_PRIMAL
@@ -171,7 +171,7 @@ int mj_addContact(const mjModel* m, mjData* d, const mjContact* con) {
   mj_clearEfc(d);
 
   // copy contact
-  mjContact* dst = mj_arenaAlloc(d, sizeof(mjContact), _Alignof(mjContact));
+  mjContact* dst = mj_arenaAllocByte(d, sizeof(mjContact), _Alignof(mjContact));
   if (!dst) {
     mj_warning(d, mjWARN_CONTACTFULL, d->ncon);
     return 1;

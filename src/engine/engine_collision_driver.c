@@ -223,7 +223,7 @@ int mj_collideOBB(const mjtNum aabb1[6], const mjtNum aabb2[6],
 }
 
 static mjCollisionTree* mj_stackAllocTree(mjData* d, int max_stack) {
-  return (mjCollisionTree*) mj_stackAlloc(
+  return (mjCollisionTree*) mj_stackAllocByte(
       d, max_stack * sizeof(mjCollisionTree), _Alignof(mjCollisionTree));
 }
 
@@ -770,9 +770,9 @@ int mj_broadphase(const mjModel* m, mjData* d, int* pair, int maxpair) {
   }
 
   // allocate sort buffer
-  sortbuf = (mjtBroadphase*) mj_stackAlloc(
+  sortbuf = (mjtBroadphase*) mj_stackAllocByte(
       d, 2 * bufcnt * sizeof(mjtBroadphase), _Alignof(mjtBroadphase));
-  activebuf = (mjtBroadphase*) mj_stackAlloc(
+  activebuf = (mjtBroadphase*) mj_stackAllocByte(
       d, 2 * bufcnt * sizeof(mjtBroadphase), _Alignof(mjtBroadphase));
 
   // init sortbuf with axis0
@@ -955,7 +955,7 @@ static void collideGeoms(const mjModel* m, mjData* d,
 
   // allocate mjContact[mjMAXCONPAIR] on the arena
   mjContact* con =
-      (mjContact*) mj_arenaAlloc(d, sizeof(mjContact) * mjMAXCONPAIR, _Alignof(mjContact));
+      (mjContact*) mj_arenaAllocByte(d, sizeof(mjContact) * mjMAXCONPAIR, _Alignof(mjContact));
   if (!con) {
     mj_warning(d, mjWARN_CONTACTFULL, d->ncon);
     return;

@@ -194,7 +194,7 @@ MJAPI void mj_freeStack(mjData* d);
 
 // Allocate a number of bytes on mjData stack at a specific alignment.
 // Call mju_error on stack overflow.
-MJAPI void* mj_stackAlloc(mjData* d, size_t bytes, size_t alignment);
+MJAPI void* mj_stackAllocByte(mjData* d, size_t bytes, size_t alignment);
 
 // Allocate array of mjtNums on mjData stack. Call mju_error on stack overflow.
 MJAPI mjtNum* mj_stackAllocNum(mjData* d, int size);

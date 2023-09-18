@@ -1217,7 +1217,7 @@ mjData* mj_copyData(mjData* dest, const mjModel* m, const mjData* src) {
 
 
 // allocate memory from the mjData arena
-void* mj_arenaAlloc(mjData* d, size_t bytes, size_t alignment) {
+void* mj_arenaAllocByte(mjData* d, size_t bytes, size_t alignment) {
   size_t misalignment = fastmod(d->parena, alignment);
   size_t padding = misalignment ? alignment - misalignment : 0;
 
@@ -1374,7 +1374,7 @@ void mj_freeStack(mjData* d) {
 #endif
 }
 
-void* mj_stackAlloc(mjData* d, size_t bytes, size_t alignment) {
+void* mj_stackAllocByte(mjData* d, size_t bytes, size_t alignment) {
   return stackalloc(d, bytes, alignment);
 }
 

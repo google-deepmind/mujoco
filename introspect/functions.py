@@ -705,9 +705,9 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
          ),
          doc='Free the current mjData stack frame. All pointers returned by mj_stackAlloc since the last call to mj_markStack must no longer be used afterwards.',  # pylint: disable=line-too-long
      )),
-    ('mj_stackAlloc',
+    ('mj_stackAllocByte',
      FunctionDecl(
-         name='mj_stackAlloc',
+         name='mj_stackAllocByte',
          return_type=PointerType(
              inner_type=ValueType(name='void'),
          ),

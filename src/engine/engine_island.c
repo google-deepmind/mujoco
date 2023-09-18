@@ -113,12 +113,12 @@ static int arenaAllocIsland(const mjModel* m, mjData* d) {
 
   size_t parena_old = d->parena;
 
-#define X(type, name, nr, nc)                                             \
-  d->name = mj_arenaAlloc(d, sizeof(type) * (nr) * (nc), _Alignof(type)); \
-  if (!d->name) {                                                         \
-    mj_warning(d, mjWARN_CNSTRFULL, d->narena);                           \
-    clearIsland(d, parena_old);                                           \
-    return 0;                                                             \
+#define X(type, name, nr, nc)                                                 \
+  d->name = mj_arenaAllocByte(d, sizeof(type) * (nr) * (nc), _Alignof(type)); \
+  if (!d->name) {                                                             \
+    mj_warning(d, mjWARN_CNSTRFULL, d->narena);                               \
+    clearIsland(d, parena_old);                                               \
+    return 0;                                                                 \
   }
 
   MJDATA_ARENA_POINTERS_ISLAND

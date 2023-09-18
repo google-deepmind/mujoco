@@ -2233,7 +2233,7 @@ void mj_resetDataDebug(const mjModel* m, mjData* d, unsigned char debug_value);
 void mj_resetDataKeyframe(const mjModel* m, mjData* d, int key);
 void mj_markStack(mjData* d);
 void mj_freeStack(mjData* d);
-void* mj_stackAlloc(mjData* d, size_t bytes, size_t alignment);
+void* mj_stackAllocByte(mjData* d, size_t bytes, size_t alignment);
 mjtNum* mj_stackAllocNum(mjData* d, int size);
 int* mj_stackAllocInt(mjData* d, int size);
 void mj_deleteData(mjData* d);
