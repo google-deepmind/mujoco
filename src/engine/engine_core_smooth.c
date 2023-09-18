@@ -632,7 +632,6 @@ void mj_transmission(const mjModel* m, mjData* d) {
   jac  = mj_stackAllocNum(d, 3*nv);
   jacA = mj_stackAllocNum(d, 3*nv);
   jacS = mj_stackAllocNum(d, 3*nv);
-  mju_zero(moment, nu*nv);
 
   // define variables required for body transmission, don't allocate
   int issparse = mj_isSparse(m);
@@ -773,6 +772,9 @@ void mj_transmission(const mjModel* m, mjData* d) {
 
       // moment: sparse or dense
       if (mj_isSparse(m)) {
+        // clear moment
+        mju_zero(moment+i*nv, nv);
+
         int end = d->ten_J_rowadr[id] + d->ten_J_rownnz[id];
         for (int j=d->ten_J_rowadr[id]; j < end; j++) {
           moment[i*nv + d->ten_J_colind[j]] = d->ten_J[j] * gear[0];
@@ -786,11 +788,11 @@ void mj_transmission(const mjModel* m, mjData* d) {
       // get site translation (jac) and rotation (jacS) Jacobians in global frame
       mj_jacSite(m, d, jac, jacS, id);
 
+      // clear length
+      length[i] = 0;
+
       // reference site undefined
       if (m->actuator_trnid[2*i+1] == -1) {
-        // cannot compute meaningful length, set to 0
-        length[i] = 0;
-
         // wrench: gear expressed in global frame
         mju_rotVecMat(wrench, gear, d->site_xmat+9*id);      // translation
         mju_rotVecMat(wrench+3, gear+3, d->site_xmat+9*id);  // rotation
@@ -806,8 +808,8 @@ void mj_transmission(const mjModel* m, mjData* d) {
         int refid = m->actuator_trnid[2*i+1];
         if (!jacref) jacref = mj_stackAllocNum(d, 3*nv);
 
-        // clear length
-        length[i] = 0;
+        // clear moment
+        mju_zero(moment+i*nv, nv);
 
         // translational transmission
         if (!mju_isZero(gear, 3)) {
@@ -866,6 +868,9 @@ void mj_transmission(const mjModel* m, mjData* d) {
     case mjTRN_BODY:                  // body (adhesive contacts)
       // cannot compute meaningful length, set to 0
       length[i] = 0;
+
+      // clear moment
+      mju_zero(moment+i*nv, nv);
 
       // moment is average of all contact normal Jacobians
       {
