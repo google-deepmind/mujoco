@@ -224,11 +224,6 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='integration mode (mjtIntegrator)',
              ),
              StructFieldDecl(
-                 name='collision',
-                 type=ValueType(name='int'),
-                 doc='collision mode (mjtCollision)',
-             ),
-             StructFieldDecl(
                  name='cone',
                  type=ValueType(name='int'),
                  doc='type of friction cone (mjtCone)',

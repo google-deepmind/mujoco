@@ -95,11 +95,11 @@ static const char* MJCF[nMJCF][mjXATTRNUM] = {
             "inttotal", "interval", "tolrange"},
     {">"},
 
-    {"option", "*", "26",
+    {"option", "*", "25",
         "timestep", "apirate", "impratio", "tolerance", "ls_tolerance", "noslip_tolerance",
         "mpr_tolerance", "gravity", "wind", "magnetic", "density", "viscosity",
         "o_margin", "o_solref", "o_solimp",
-        "integrator", "collision", "cone", "jacobian",
+        "integrator", "cone", "jacobian",
         "solver", "iterations", "ls_iterations", "noslip_iterations", "mpr_iterations",
         "sdf_iterations", "sdf_initpoints"},
     {"<"},
@@ -536,16 +536,6 @@ const mjMap integrator_map[integrator_sz] = {
   {"implicitfast", mjINT_IMPLICITFAST}
 };
 
-
-// collision type
-const int collision_sz = 3;
-const mjMap collision_map[collision_sz] = {
-  {"all",         mjCOL_ALL},
-  {"predefined",  mjCOL_PAIR},
-  {"dynamic",     mjCOL_DYNAMIC}
-};
-
-
 // cone type
 const int cone_sz = 2;
 const mjMap cone_map[cone_sz] = {
@@ -973,7 +963,6 @@ void mjXReader::Option(XMLElement* section, mjOption* opt) {
   ReadAttr(section, "o_solimp", mjNIMP, opt->o_solimp, text, false, false);
 
   MapValue(section, "integrator", &opt->integrator, integrator_map, integrator_sz);
-  MapValue(section, "collision", &opt->collision, collision_map, collision_sz);
   MapValue(section, "cone", &opt->cone, cone_map, cone_sz);
   MapValue(section, "jacobian", &opt->jacobian, jac_map, jac_sz);
   MapValue(section, "solver", &opt->solver, solver_map, solver_sz);

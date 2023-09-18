@@ -1931,14 +1931,6 @@ adjust it properly through the XML.
    Implicit-in-velocity Euler method, and :at:`implicitfast`, which drops the Coriolis and centrifugal terms. See
    :ref:`Numerical Integration<geIntegration>` for more details.
 
-.. _option-collision:
-
-:at:`collision`: :at-val:`[all, predefined, dynamic], "all"`
-   This attribute specifies which geom pairs should be checked for collision; recall :ref:`Collision` in the Computation
-   chapter. "predefined" means that only the explicitly-defined contact :ref:`pairs <contact-pair>` are checked.
-   "dynamic" means that only the contact pairs generated dynamically are checked. "all" means that the contact pairs
-   from both sources are checked.
-
 .. _option-cone:
 
 :at:`cone`: :at-val:`[pyramidal, elliptic], "pyramidal"`

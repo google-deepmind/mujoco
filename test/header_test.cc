@@ -39,7 +39,6 @@ TEST_F(HeaderTest, EnumsAreInts) {
   EXPECT_EQ(sizeof(mjtCamLight),        sizeof(int));
   EXPECT_EQ(sizeof(mjtTexture),         sizeof(int));
   EXPECT_EQ(sizeof(mjtIntegrator),      sizeof(int));
-  EXPECT_EQ(sizeof(mjtCollision),       sizeof(int));
   EXPECT_EQ(sizeof(mjtCone),            sizeof(int));
   EXPECT_EQ(sizeof(mjtJacobian),        sizeof(int));
   EXPECT_EQ(sizeof(mjtSolver),          sizeof(int));

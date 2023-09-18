@@ -174,18 +174,6 @@ Numerical integrator types. These values are used in ``m->opt.integrator``.
 
 .. mujoco-include:: mjtIntegrator
 
-
-.. _mjtCollision:
-
-mjtCollision
-~~~~~~~~~~~~
-
-Collision modes specifying how candidate geom pairs are generated for near-phase collision checking. These values are
-used in ``m->opt.collision``.
-
-.. mujoco-include:: mjtCollision
-
-
 .. _mjtCone:
 
 mjtCone

@@ -49,22 +49,6 @@ static std::vector<GeomPair> colliding_pairs(
   return result;
 }
 
-TEST_F(MjCollisionTest, PredefinedPairsOnly) {
-  static const char* const kModelFilePath =
-      "engine/testdata/collisions.xml";
-  const std::string xml_path = GetTestDataFilePath(kModelFilePath);
-  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, 0, 0);
-
-  model->opt.collision = mjCOL_PAIR;
-  mjData* data = mj_makeData(model);
-  mj_fwdPosition(model, data);
-  EXPECT_THAT(colliding_pairs(model, data), ElementsAre(
-      GeomPair("box", "sphere_predefined")));
-
-  mj_deleteData(data);
-  mj_deleteModel(model);
-}
-
 TEST_F(MjCollisionTest, AllCollisions) {
   static const char* const kModelFilePath =
       "engine/testdata/collisions.xml";

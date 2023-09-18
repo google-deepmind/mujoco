@@ -809,8 +809,6 @@ void mjXWriter::Option(XMLElement* root) {
 
   WriteAttrKey(section, "integrator", integrator_map, integrator_sz,
                model->option.integrator, opt.integrator);
-  WriteAttrKey(section, "collision", collision_map, collision_sz,
-               model->option.collision, opt.collision);
   WriteAttrKey(section, "cone", cone_map, cone_sz,
                model->option.cone, opt.cone);
   WriteAttrKey(section, "jacobian", jac_map, jac_sz,

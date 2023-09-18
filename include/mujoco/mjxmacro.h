@@ -34,7 +34,6 @@
 
 #define MJOPTION_INTS               \
     X( int,     integrator        ) \
-    X( int,     collision         ) \
     X( int,     cone              ) \
     X( int,     jacobian          ) \
     X( int,     solver            ) \

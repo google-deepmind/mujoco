@@ -128,16 +128,6 @@ ENUMS: Mapping[str, EnumDecl] = dict([
              ('mjINT_IMPLICITFAST', 3),
          ]),
      )),
-    ('mjtCollision',
-     EnumDecl(
-         name='mjtCollision',
-         declname='enum mjtCollision_',
-         values=dict([
-             ('mjCOL_ALL', 0),
-             ('mjCOL_PAIR', 1),
-             ('mjCOL_DYNAMIC', 2),
-         ]),
-     )),
     ('mjtCone',
      EnumDecl(
          name='mjtCone',

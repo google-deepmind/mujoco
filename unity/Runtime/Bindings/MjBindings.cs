@@ -209,11 +209,6 @@ public enum mjtIntegrator : int{
   mjINT_IMPLICIT = 2,
   mjINT_IMPLICITFAST = 3,
 }
-public enum mjtCollision : int{
-  mjCOL_ALL = 0,
-  mjCOL_PAIR = 1,
-  mjCOL_DYNAMIC = 2,
-}
 public enum mjtCone : int{
   mjCONE_PYRAMIDAL = 0,
   mjCONE_ELLIPTIC = 1,
@@ -4789,7 +4784,6 @@ public unsafe struct mjOption_ {
   public fixed double o_solref[2];
   public fixed double o_solimp[5];
   public int integrator;
-  public int collision;
   public int cone;
   public int jacobian;
   public int solver;

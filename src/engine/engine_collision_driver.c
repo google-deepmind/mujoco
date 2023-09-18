@@ -385,7 +385,7 @@ quicksortfunc(contactcompare, context, el1, el2) {
 
 void mj_collision(const mjModel* m, mjData* d) {
   int g1, g2, merged, b1 = 0, b2 = 0, exadr = 0, pairadr = 0, startadr;
-  int nexclude = m->nexclude, npair = m->npair, nbodypair = ((m->nbody-1)*m->nbody)/2;
+  int nexclude = m->nexclude, npair = m->npair;
   int *broadphasepair = 0;
 
   // reset the size of the contact array and invalidate efc arrays
@@ -410,96 +410,81 @@ void mj_collision(const mjModel* m, mjData* d) {
 
   mj_markStack(d);
 
-  // predefined only; ignore exclude
-  if (m->opt.collision == mjCOL_PAIR) {
-    d->nbodypair_broad = npair;
-    for (pairadr=0; pairadr < npair; pairadr++) {
-      int ngeompair_narrow_before = d->ngeompair_narrow;
-      int ngeompair_mid_before = d->ngeompair_mid;
-      collideGeoms(m, d, pairadr, -1, 0, 0);
-      if (d->ngeompair_narrow > ngeompair_narrow_before) d->nbodypair_narrow++;
-      if (d->ngeompair_mid > ngeompair_mid_before) d->nbodypair_broad++;
+  // call broadphase collision detector
+  int nbodypair = (m->nbody*(m->nbody - 1))/2;
+  broadphasepair = mj_stackAllocInt(d, nbodypair);
+  nbodypair = mj_broadphase(m, d, broadphasepair, nbodypair);
+  unsigned int last_signature = -1;
+
+  // loop over body pairs
+  for (int i=0; i < nbodypair; i++) {
+    // reconstruct body pair ids
+    b1 = (broadphasepair[i]>>16) & 0xFFFF;
+    b2 = broadphasepair[i] & 0xFFFF;
+
+    // compute signature for this body pair
+    unsigned int signature = ((b1+1)<<16) + (b2+1);
+    // pairs come sorted by signature, but may not be unique
+    // if signature is repeated, skip it
+    if (signature == last_signature) {
+      continue;
     }
-  }
+    last_signature = signature;
 
-  // dynamic only or merge; apply exclude
-  else {
-    // call broadphase collision detector
-    int npairs = (m->nbody*(m->nbody - 1))/2;
-    broadphasepair = mj_stackAllocInt(d, npairs);
-    nbodypair = mj_broadphase(m, d, broadphasepair, npairs);
-    unsigned int last_signature = -1;
-
-    // loop over body pairs (broadphase or all)
-    for (int i=0; i < nbodypair; i++) {
-      // reconstruct body pair ids
-      b1 = (broadphasepair[i]>>16) & 0xFFFF;
-      b2 = broadphasepair[i] & 0xFFFF;
-
-      // compute signature for this body pair
-      unsigned int signature = ((b1+1)<<16) + (b2+1);
-      // pairs come sorted by signature, but may not be unique
-      // if signature is repeated, skip it
-      if (signature == last_signature) {
-        continue;
-      }
-      last_signature = signature;
-
-      // merge predefined pairs
-      merged = 0;
-      startadr = pairadr;
-      if (npair && m->opt.collision == mjCOL_ALL) {
-        // test all predefined pairs for which pair_signature<=signature
-        while (pairadr < npair && m->pair_signature[pairadr] <= signature) {
-          if (m->pair_signature[pairadr] == signature) {
-            merged = 1;
-          }
-          collideGeoms(m, d, pairadr++, -1, 0, 0);
+    // merge predefined pairs
+    merged = 0;
+    startadr = pairadr;
+    if (npair) {
+      // test all predefined pairs for which pair_signature<=signature
+      while (pairadr < npair && m->pair_signature[pairadr] <= signature) {
+        if (m->pair_signature[pairadr] == signature) {
+          merged = 1;
         }
-      }
-
-      // handle exclusion
-      if (nexclude) {
-        // advance exadr while exclude_signature < signature
-        while (exadr < nexclude && m->exclude_signature[exadr] < signature) {
-          exadr++;
-        }
-
-        // skip this body pair if its signature is found in exclude array
-        if (exadr < nexclude && m->exclude_signature[exadr] == signature) {
-          continue;
-        }
-      }
-
-      int ngeompair_narrow_before = d->ngeompair_narrow;
-      int ngeompair_mid_before = d->ngeompair_mid;
-
-      // test all geom pairs within this body pair
-      if (m->body_geomnum[b1] && m->body_geomnum[b2]) {
-        if (!mjDISABLED(mjDSBL_MIDPHASE) && m->body_geomnum[b1]*m->body_geomnum[b2] > 1) {
-          int ncon_before = d->ncon;
-          collideTree(m, d, b1, b2, merged, startadr, pairadr);
-          int ncon_after = d->ncon;
-          void* context = (void*) m;
-          mjQUICKSORT(d->contact + ncon_before, ncon_after - ncon_before,
-                      sizeof(mjContact), contactcompare, context);
-        } else {
-          for (g1=m->body_geomadr[b1]; g1 < m->body_geomadr[b1]+m->body_geomnum[b1]; g1++) {
-            for (g2=m->body_geomadr[b2]; g2 < m->body_geomadr[b2]+m->body_geomnum[b2]; g2++) {
-              collidePair(m, d, g1, g2, merged, startadr, pairadr);
-            }
-          }
-        }
-      }
-      if (d->ngeompair_narrow > ngeompair_narrow_before) d->nbodypair_narrow++;
-      if (d->ngeompair_mid > ngeompair_mid_before) d->nbodypair_broad++;
-    }
-
-    // finish merging predefined pairs
-    if (npair && m->opt.collision == mjCOL_ALL) {
-      while (pairadr < npair) {
         collideGeoms(m, d, pairadr++, -1, 0, 0);
       }
+    }
+
+    // handle exclusion
+    if (nexclude) {
+      // advance exadr while exclude_signature < signature
+      while (exadr < nexclude && m->exclude_signature[exadr] < signature) {
+        exadr++;
+      }
+
+      // skip this body pair if its signature is found in exclude array
+      if (exadr < nexclude && m->exclude_signature[exadr] == signature) {
+        continue;
+      }
+    }
+
+    int ngeompair_narrow_before = d->ngeompair_narrow;
+    int ngeompair_mid_before = d->ngeompair_mid;
+
+    // test all geom pairs within this body pair
+    if (m->body_geomnum[b1] && m->body_geomnum[b2]) {
+      if (!mjDISABLED(mjDSBL_MIDPHASE) && m->body_geomnum[b1]*m->body_geomnum[b2] > 1) {
+        int ncon_before = d->ncon;
+        collideTree(m, d, b1, b2, merged, startadr, pairadr);
+        int ncon_after = d->ncon;
+        void* context = (void*) m;
+        mjQUICKSORT(d->contact + ncon_before, ncon_after - ncon_before,
+                    sizeof(mjContact), contactcompare, context);
+      } else {
+        for (g1=m->body_geomadr[b1]; g1 < m->body_geomadr[b1]+m->body_geomnum[b1]; g1++) {
+          for (g2=m->body_geomadr[b2]; g2 < m->body_geomadr[b2]+m->body_geomnum[b2]; g2++) {
+            collidePair(m, d, g1, g2, merged, startadr, pairadr);
+          }
+        }
+      }
+    }
+    if (d->ngeompair_narrow > ngeompair_narrow_before) d->nbodypair_narrow++;
+    if (d->ngeompair_mid > ngeompair_mid_before) d->nbodypair_broad++;
+  }
+
+  // finish merging predefined pairs
+  if (npair) {
+    while (pairadr < npair) {
+      collideGeoms(m, d, pairadr++, -1, 0, 0);
     }
   }
 

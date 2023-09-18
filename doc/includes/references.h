@@ -460,11 +460,6 @@ typedef enum mjtIntegrator_ {     // integrator mode
   mjINT_IMPLICIT,                 // implicit in velocity
   mjINT_IMPLICITFAST              // implicit in velocity, no rne derivative
 } mjtIntegrator;
-typedef enum mjtCollision_ {      // collision mode for selecting geom pairs
-  mjCOL_ALL           = 0,        // test precomputed and dynamic pairs
-  mjCOL_PAIR,                     // test predefined pairs only
-  mjCOL_DYNAMIC                   // test dynamic pairs only
-} mjtCollision;
 typedef enum mjtCone_ {           // type of friction cone
   mjCONE_PYRAMIDAL     = 0,       // pyramidal
   mjCONE_ELLIPTIC                 // elliptic
@@ -694,7 +689,6 @@ struct mjOption_ {                // physics options
 
   // discrete settings
   int integrator;                 // integration mode (mjtIntegrator)
-  int collision;                  // collision mode (mjtCollision)
   int cone;                       // type of friction cone (mjtCone)
   int jacobian;                   // type of Jacobian (mjtJacobian)
   int solver;                     // solver algorithm (mjtSolver)
