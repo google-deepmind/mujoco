@@ -1,8 +1,8 @@
 diff --git a/CMakeLists.txt b/CMakeLists.txt
-index 20551cf..9145032 100644
+index 20551cf..0d2a364 100644
 --- a/CMakeLists.txt
 +++ b/CMakeLists.txt
-@@ -70,14 +70,21 @@ add_custom_target(copyShaders ALL SOURCES ${SHADER_FILES})
+@@ -70,15 +70,25 @@ add_custom_target(copyShaders ALL SOURCES ${SHADER_FILES})
  # Add dependencies
  add_subdirectory(libs)
  
@@ -16,19 +16,25 @@ index 20551cf..9145032 100644
 +    target_link_libraries(${PROJECT_NAME} PUBLIC assimp)
 +    target_compile_definitions(${PROJECT_NAME} PUBLIC -DASSIMP_AVAILABLE)
 +endif()
++
++if(SDFLIB_BUILD_APPS OR SDFLIB_BUILD_DEBUG_APPS)
++    target_link_libraries(${PROJECT_NAME} PUBLIC args)
++    target_link_libraries(${PROJECT_NAME} PUBLIC stb_image)
++endif()
 +    
  target_link_libraries(${PROJECT_NAME} PUBLIC glm)
 -target_link_libraries(${PROJECT_NAME} PUBLIC assimp)
- target_link_libraries(${PROJECT_NAME} PUBLIC args)
+-target_link_libraries(${PROJECT_NAME} PUBLIC args)
  target_link_libraries(${PROJECT_NAME} PUBLIC spdlog)
  target_link_libraries(${PROJECT_NAME} PUBLIC cereal)
 -target_link_libraries(${PROJECT_NAME} PUBLIC enoki)
 -target_link_libraries(${PROJECT_NAME} PUBLIC eigen)
 -target_link_libraries(${PROJECT_NAME} PUBLIC fcpw)
- target_link_libraries(${PROJECT_NAME} PUBLIC stb_image)
+-target_link_libraries(${PROJECT_NAME} PUBLIC stb_image)
  target_link_libraries(${PROJECT_NAME} PUBLIC icg)
  
-@@ -86,17 +93,22 @@ if(CMAKE_CXX_COMPILER_ID MATCHES GNU)
+ if(CMAKE_CXX_COMPILER_ID MATCHES GNU)
+@@ -86,17 +96,22 @@ if(CMAKE_CXX_COMPILER_ID MATCHES GNU)
  endif()
  
  # Add openMP
@@ -62,7 +68,7 @@ index 20551cf..9145032 100644
  
  # Add executable
  if (NOT UNIX)
-@@ -160,6 +172,7 @@ if(SDFLIB_BUILD_DEBUG_APPS)
+@@ -160,6 +175,7 @@ if(SDFLIB_BUILD_DEBUG_APPS)
      add_executable(GJKtest src/tools/GJKtest/main.cpp)
      target_link_libraries(GJKtest PUBLIC ${PROJECT_NAME})
  
@@ -269,10 +275,10 @@ index 9f930ed..6ee2304 100644
 \ No newline at end of file
 +#endif
 diff --git a/libs/CMakeLists.txt b/libs/CMakeLists.txt
-index b48bf39..3f143c8 100644
+index b48bf39..ea22b9a 100644
 --- a/libs/CMakeLists.txt
 +++ b/libs/CMakeLists.txt
-@@ -14,23 +14,25 @@ if(NOT glm_lib_POPULATED)
+@@ -14,37 +14,41 @@ if(NOT glm_lib_POPULATED)
  endif()
  
  # assimp
@@ -314,7 +320,34 @@ index b48bf39..3f143c8 100644
  endif()
  
  # args
-@@ -76,43 +78,47 @@ if(NOT cereal_lib_POPULATED)
+-FetchContent_Declare(args_lib
+-  GIT_REPOSITORY https://github.com/Taywee/args.git
+-  GIT_TAG a48e1f880813b367d2354963a58dedbf2b708584 # 6.3.0
+-)
+-
+-FetchContent_GetProperties(args_lib)
+-if(NOT args_lib_POPULATED)
+-	FetchContent_Populate(args_lib)
+-	add_library(args INTERFACE)
+-	target_include_directories(args INTERFACE ${args_lib_SOURCE_DIR})
+-endif()
++if(SDFLIB_BUILD_APPS OR SDFLIB_BUILD_DEBUG_APPS)
++	FetchContent_Declare(args_lib
++	  GIT_REPOSITORY https://github.com/Taywee/args.git
++	  GIT_TAG a48e1f880813b367d2354963a58dedbf2b708584 # 6.3.0
++	)
++	
++	FetchContent_GetProperties(args_lib)
++	if(NOT args_lib_POPULATED)
++		FetchContent_Populate(args_lib)
++		add_library(args INTERFACE)
++		target_include_directories(args INTERFACE ${args_lib_SOURCE_DIR})
++	endif()
++ endif()
+ 
+ # spdlog
+ FetchContent_Declare(spdlog_lib
+@@ -76,47 +80,53 @@ if(NOT cereal_lib_POPULATED)
  endif()
  
  # Enoki
@@ -395,7 +428,15 @@ index b48bf39..3f143c8 100644
 + endif()
  
  # stb
- add_library(stb_image INTERFACE)
+-add_library(stb_image INTERFACE)
+-target_include_directories(stb_image INTERFACE stb)
++if(SDFLIB_BUILD_APPS OR SDFLIB_BUILD_DEBUG_APPS)
++	add_library(stb_image INTERFACE)
++	target_include_directories(stb_image INTERFACE stb)
++ endif()
+ 
+ # icg
+ add_library(icg INTERFACE)
 diff --git a/src/sdf/OctreeSdf.cpp b/src/sdf/OctreeSdf.cpp
 index ef8ed4d..0e1eb97 100644
 --- a/src/sdf/OctreeSdf.cpp
