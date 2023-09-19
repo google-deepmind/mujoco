@@ -17,7 +17,6 @@
 #include <stddef.h>
 
 #include <mujoco/mjdata.h>
-#include <mujoco/mjmacro.h>
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjplugin.h>
 #include "engine/engine_callback.h"
@@ -59,7 +58,7 @@ static void add_noise(const mjModel* m, mjData* d, mjtStage stage) {
           if (m->sensor_datatype[i] == mjDATATYPE_POSITIVE) {
             // add noise only if positive, keep it positive
             if (d->sensordata[adr+j] > 0) {
-              d->sensordata[adr+j] = mjMAX(0, d->sensordata[adr+j]+rnd[0]*noise);
+              d->sensordata[adr+j] = mju_max(0, d->sensordata[adr+j]+rnd[0]*noise);
             }
           }
 

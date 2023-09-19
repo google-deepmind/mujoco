@@ -15,7 +15,6 @@
 #include "engine/engine_derivative.h"
 
 #include <mujoco/mjdata.h>
-#include <mujoco/mjmacro.h>
 #include <mujoco/mjmodel.h>
 #include "engine/engine_core_constraint.h"
 #include "engine/engine_crossplatform.h"
@@ -829,7 +828,7 @@ static mjtNum mjd_muscleGain_vel(mjtNum len, mjtNum vel, const mjtNum lengthrang
 
   // scale force if negative
   if (force < 0) {
-    force = scale / mjMAX(mjMINVAL, acc0);
+    force = scale / mju_max(mjMINVAL, acc0);
   }
 
   // mid-ranges
@@ -838,25 +837,25 @@ static mjtNum mjd_muscleGain_vel(mjtNum len, mjtNum vel, const mjtNum lengthrang
   mjtNum x;
 
   // optimum length
-  mjtNum L0 = (lengthrange[1]-lengthrange[0]) / mjMAX(mjMINVAL, range[1]-range[0]);
+  mjtNum L0 = (lengthrange[1]-lengthrange[0]) / mju_max(mjMINVAL, range[1]-range[0]);
 
   // normalized length and velocity
-  mjtNum L = range[0] + (len-lengthrange[0]) / mjMAX(mjMINVAL, L0);
-  mjtNum V = vel / mjMAX(mjMINVAL, L0*vmax);
+  mjtNum L = range[0] + (len-lengthrange[0]) / mju_max(mjMINVAL, L0);
+  mjtNum V = vel / mju_max(mjMINVAL, L0*vmax);
 
   // length curve
   mjtNum FL = 0;
   if (L >= lmin && L <= a) {
-    x = (L-lmin) / mjMAX(mjMINVAL, a-lmin);
+    x = (L-lmin) / mju_max(mjMINVAL, a-lmin);
     FL = 0.5*x*x;
   } else if (L <= 1) {
-    x = (1-L) / mjMAX(mjMINVAL, 1-a);
+    x = (1-L) / mju_max(mjMINVAL, 1-a);
     FL = 1 - 0.5*x*x;
   } else if (L <= b) {
-    x = (L-1) / mjMAX(mjMINVAL, b-1);
+    x = (L-1) / mju_max(mjMINVAL, b-1);
     FL = 1 - 0.5*x*x;
   } else if (L <= lmax) {
-    x = (lmax-L) / mjMAX(mjMINVAL, lmax-b);
+    x = (lmax-L) / mju_max(mjMINVAL, lmax-b);
     FL = 0.5*x*x;
   }
 
@@ -870,15 +869,15 @@ static mjtNum mjd_muscleGain_vel(mjtNum len, mjtNum vel, const mjtNum lengthrang
     // FV = (V+1)*(V+1)
     dFV = 2*V + 2;
   } else if (V <= y) {
-    // FV = fvmax - (y-V)*(y-V) / mjMAX(mjMINVAL, y)
-    dFV = (-2*V + 2*y) / mjMAX(mjMINVAL, y);
+    // FV = fvmax - (y-V)*(y-V) / mju_max(mjMINVAL, y)
+    dFV = (-2*V + 2*y) / mju_max(mjMINVAL, y);
   } else {
     // FV = fvmax
     dFV = 0;
   }
 
   // compute FVL and scale, make it negative
-  return -force*FL*dFV/mjMAX(mjMINVAL, L0*vmax);
+  return -force*FL*dFV/mju_max(mjMINVAL, L0*vmax);
 }
 
 

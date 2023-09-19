@@ -1260,7 +1260,7 @@ void mjCComposite::BoxProject(double* pos) {
 
   // cylinder
   else if (type==mjCOMPTYPE_CYLINDER) {
-    double L0 = mjMAX(mju_abs(pos[0]), mju_abs(pos[1]));
+    double L0 = mju_max(mju_abs(pos[0]), mju_abs(pos[1]));
     mjuu_normvec(pos, 2);
     pos[0] *= size[0]*L0;
     pos[1] *= size[1]*L0;

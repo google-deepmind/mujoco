@@ -22,7 +22,6 @@
 #include <mujoco/mjmacro.h>
 #include <mujoco/mjvisualize.h>
 #include <mujoco/mujoco.h>
-#include "engine/engine_array_safety.h"
 #include "engine/engine_crossplatform.h"
 #include "engine/engine_vis_init.h"
 #include "render/render_context.h"

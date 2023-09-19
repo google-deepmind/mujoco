@@ -13,7 +13,6 @@
 // limitations under the License.
 
 #include <algorithm>
-#include <array>
 #include <cmath>
 #include <csetjmp>
 #include <cstddef>
@@ -53,6 +52,7 @@
 #include "engine/engine_resource.h"
 #include "engine/engine_util_blas.h"
 #include "engine/engine_util_errmem.h"
+#include "engine/engine_util_misc.h"
 #include "engine/engine_util_solve.h"
 #include "engine/engine_util_spatial.h"
 #include "user/user_model.h"
@@ -709,7 +709,7 @@ void mjCMesh::FitGeom(mjCGeom* geom, double* meshpos) {
 
     case mjGEOM_CAPSULE:
       geom->size[0] = (boxsz[0] + boxsz[1])/2;
-      geom->size[1] = mjMAX(0, boxsz[2] - geom->size[0]/2);
+      geom->size[1] = mju_max(0, boxsz[2] - geom->size[0]/2);
       break;
 
     case mjGEOM_CYLINDER:
@@ -747,7 +747,7 @@ void mjCMesh::FitGeom(mjCGeom* geom, double* meshpos) {
       for (int i=0; i<nvert_; i++) {
         double v[3] = {vert_[3*i], vert_[3*i+1], vert_[3*i+2]};
         double dst = mjuu_dist3(v, cen);
-        geom->size[0] = mjMAX(geom->size[0], dst);
+        geom->size[0] = mju_max(geom->size[0], dst);
       }
       break;
 
@@ -760,11 +760,11 @@ void mjCMesh::FitGeom(mjCGeom* geom, double* meshpos) {
         double v[3] = {vert_[3*i], vert_[3*i+1], vert_[3*i+2]};
         double dst = sqrt((v[0]-cen[0])*(v[0]-cen[0]) +
                           (v[1]-cen[1])*(v[1]-cen[1]));
-        geom->size[0] = mjMAX(geom->size[0], dst);
+        geom->size[0] = mju_max(geom->size[0], dst);
 
         // proceed with z: valid for cylinder
         double dst2 = fabs(v[2]-cen[2]);
-        geom->size[1] = mjMAX(geom->size[1], dst2);
+        geom->size[1] = mju_max(geom->size[1], dst2);
       }
 
       // special handling of capsule: consider curved cap
@@ -779,7 +779,7 @@ void mjCMesh::FitGeom(mjCGeom* geom, double* meshpos) {
 
           // get spherical elevation at horizontal distance dst
           double h = geom->size[0] * sin(acos(dst/geom->size[0]));
-          geom->size[1] = mjMAX(geom->size[1], dst2-h);
+          geom->size[1] = mju_max(geom->size[1], dst2-h);
         }
       }
       break;
@@ -1399,8 +1399,8 @@ void mjCMesh::Process() {
         vert_[3*i+j] = (float) res[j];
 
         // axis-aligned bounding box
-        aabb_[j+0] = mjMIN(aabb_[j+0], res[j]);
-        aabb_[j+3] = mjMAX(aabb_[j+3], res[j]);
+        aabb_[j+0] = mju_min(aabb_[j+0], res[j]);
+        aabb_[j+3] = mju_max(aabb_[j+3], res[j]);
       }
     }
     for (int i=0; i<nnormal_; i++) {

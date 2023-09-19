@@ -946,10 +946,10 @@ void mjCBody::Compile(void) {
   // check and correct mass and inertia
   if (id>0) {
     // fix minimum
-    mass = mjMAX(mass, model->boundmass);
-    inertia[0] = mjMAX(inertia[0], model->boundinertia);
-    inertia[1] = mjMAX(inertia[1], model->boundinertia);
-    inertia[2] = mjMAX(inertia[2], model->boundinertia);
+    mass = mju_max(mass, model->boundmass);
+    inertia[0] = mju_max(inertia[0], model->boundinertia);
+    inertia[1] = mju_max(inertia[1], model->boundinertia);
+    inertia[2] = mju_max(inertia[2], model->boundinertia);
 
     // check for negative values
     if (mass<0 || inertia[0]<0 || inertia[1]<0 ||inertia[2]<0) {
@@ -1438,7 +1438,7 @@ double mjCGeom::GetRBound(void) {
     return sqrt(size[0]*size[0]+size[1]*size[1]);
 
   case mjGEOM_ELLIPSOID:
-    return mjMAX(mjMAX(size[0], size[1]), size[2]);
+    return mju_max(mju_max(size[0], size[1]), size[2]);
 
   case mjGEOM_BOX:
     return sqrt(size[0]*size[0]+size[1]*size[1]+size[2]*size[2]);
@@ -1446,9 +1446,9 @@ double mjCGeom::GetRBound(void) {
   case mjGEOM_MESH:
   case mjGEOM_SDF:
     aabb = model->meshes[meshid]->aabb();
-    haabb[0] = mjMAX(fabs(aabb[0]), fabs(aabb[3]));
-    haabb[1] = mjMAX(fabs(aabb[1]), fabs(aabb[4]));
-    haabb[2] = mjMAX(fabs(aabb[2]), fabs(aabb[5]));
+    haabb[0] = mju_max(fabs(aabb[0]), fabs(aabb[3]));
+    haabb[1] = mju_max(fabs(aabb[1]), fabs(aabb[4]));
+    haabb[2] = mju_max(fabs(aabb[2]), fabs(aabb[5]));
     return sqrt(haabb[0]*haabb[0] + haabb[1]*haabb[1] + haabb[2]*haabb[2]);
 
   default:
@@ -1761,9 +1761,9 @@ void mjCGeom::Compile(void) {
     size[2] = 0.5*(model->hfields[hfieldid]->size[2]+model->hfields[hfieldid]->size[3]);
   } else if (type==mjGEOM_MESH || type==mjGEOM_SDF) {
     const double* aabb = model->meshes[meshid]->aabb();
-    size[0] = mjMAX(fabs(aabb[0]), fabs(aabb[3]));
-    size[1] = mjMAX(fabs(aabb[1]), fabs(aabb[4]));
-    size[2] = mjMAX(fabs(aabb[2]), fabs(aabb[5]));
+    size[0] = mju_max(fabs(aabb[0]), fabs(aabb[3]));
+    size[1] = mju_max(fabs(aabb[1]), fabs(aabb[4]));
+    size[2] = mju_max(fabs(aabb[2]), fabs(aabb[5]));
   }
 
   for (double s : size) {
@@ -3132,9 +3132,9 @@ void mjCPair::Compile(void) {
 
     // friction: max
     if (!mjuu_defined(friction[0])) {
-      friction[0] = friction[1] = mjMAX(pg1->friction[0], pg2->friction[0]);
-      friction[2] =               mjMAX(pg1->friction[1], pg2->friction[1]);
-      friction[3] = friction[4] = mjMAX(pg1->friction[2], pg2->friction[2]);
+      friction[0] = friction[1] = mju_max(pg1->friction[0], pg2->friction[0]);
+      friction[2] =               mju_max(pg1->friction[1], pg2->friction[1]);
+      friction[3] = friction[4] = mju_max(pg1->friction[2], pg2->friction[2]);
     }
 
     // solver mix factor

@@ -14,13 +14,10 @@
 
 #include "xml/xml_native_reader.h"
 
-#include <cfloat>
 #include <cstddef>
-#include <cstdint>
 #include <cstdio>
 #include <cstring>
 #include <functional>
-#include <iostream>
 #include <limits>
 #include <map>
 #include <optional>
@@ -2314,10 +2311,12 @@ void mjXReader::Custom(XMLElement* section) {
 
       // read attributes
       ReadAttrTxt(elem, "name", pnum->name, true);
-      if (ReadAttrInt(elem, "size", &pnum->size))
-        for (int i=0; i<mjMIN(pnum->size, 500); i++) {
+      if (ReadAttrInt(elem, "size", &pnum->size)) {
+        int sz = pnum->size < 500 ? pnum->size : 500;
+        for (int i=0; i<sz; i++) {
           data[i] = 0;
-        } else {
+        }
+      } else {
         pnum->size = 501;
       }
       int len = ReadAttr(elem, "data", pnum->size, data, text, false, false);

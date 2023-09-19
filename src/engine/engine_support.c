@@ -19,7 +19,6 @@
 #include <string.h>
 
 #include <mujoco/mjdata.h>
-#include <mujoco/mjmacro.h>
 #include <mujoco/mjmodel.h>
 #include "engine/engine_core_constraint.h"
 #include "engine/engine_crossplatform.h"
@@ -1543,7 +1542,7 @@ mjtNum mj_getTotalmass(const mjModel* m) {
 // scale all body masses and inertias to achieve specified total mass
 void mj_setTotalmass(mjModel* m, mjtNum newmass) {
   // compute scale factor, avoid zeros
-  mjtNum scale = mjMAX(mjMINVAL, newmass / mjMAX(mjMINVAL, mj_getTotalmass(m)));
+  mjtNum scale = mju_max(mjMINVAL, newmass / mju_max(mjMINVAL, mj_getTotalmass(m)));
 
   // scale all masses and inertias
   for (int i=1; i < m->nbody; i++) {
