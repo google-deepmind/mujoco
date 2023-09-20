@@ -1343,6 +1343,7 @@ PYBIND11_MODULE(_functions, pymodule) {
             static_cast<char*>(data->arena),
             data->narena - data->pstack);
 #endif
+          data->parena = 0;
           data->ncon = 0;
           data->nefc = 0;
           data->contact = static_cast<raw::MjContact*>(data->arena);
