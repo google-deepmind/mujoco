@@ -22,6 +22,10 @@ body {
   font-size: 93%;
 }
 
+.caption-small {
+  font-size: 85%;
+}
+
 .sidebar-brand-text {
   display: none;
 }

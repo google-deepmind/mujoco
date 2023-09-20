@@ -2838,31 +2838,48 @@ helps clarify the role of bodies and geoms in MuJoCo.
 .. _body-geom-fluidshape:
 
 :at:`fluidshape`: :at-val:`[none, ellipsoid], "none"`
-   "ellipsoid" Activates geom-level stateless fluid interaction model based on an ellipsoidal approximation of the geom
-   shape. When active, the model based on :ref:`body inertia sizes <gePassive>` is disabled for the parent body.
+   "ellipsoid" activates the geom-level fluid interaction model based on an ellipsoidal approximation of the geom
+   shape. When active, the model based on :ref:`body inertia sizes <flInertia>` is disabled for the parent body.
+   See section on :ref:`ellipsoid-based<flEllipsoid>` fluid interaction model for details.
 
 .. _body-geom-fluidcoef:
 
 :at:`fluidcoef`: :at-val:`real(5), "0.5 0.25 1.5 1.0 1.0"`
    Dimensionless coefficients of fluid interaction model, as follows.
+   See section on :ref:`ellipsoid-based<flEllipsoid>` fluid interaction model for details.
 
 
-.. table::
+.. list-table::
+   :width: 60%
    :align: left
+   :widths: 1 5 2 1
+   :header-rows: 1
 
-   +--------+-----------------------------+----------+
-   | Index  | Description                 | Default  |
-   +========+=============================+==========+
-   | 0      | Blunt drag coefficient.     | 0.5      |
-   +--------+-----------------------------+----------+
-   | 1      | Slender drag coeficient.    | 0.25     |
-   +--------+-----------------------------+----------+
-   | 2      | Angular drag coefficient.   | 1.5      |
-   +--------+-----------------------------+----------+
-   | 3      | Kutta lift coeficient.      | 1.0      |
-   +--------+-----------------------------+----------+
-   | 4      | Magnus lift coeficient.     | 1.0      |
-   +--------+-----------------------------+----------+
+   * - Index
+     - Description
+     - Symbol
+     - Default
+   * - 0
+     - Blunt drag coefficient
+     - :math:`C_{D, \text{blunt}}`
+     - 0.5
+   * - 1
+     - Slender drag coeficient
+     - :math:`C_{D, \text{slender}}`
+     - 0.25
+   * - 2
+     - Angular drag coeficient
+     - :math:`C_{D, \text{angular}}`
+     - 1.5
+   * - 3
+     - Kutta lift coeficient
+     - :math:`C_K`
+     - 1.0
+   * - 4
+     - Magnus lift coeficient
+     - :math:`C_M`
+     - 1.0
+
 
 .. _body-geom-user:
 

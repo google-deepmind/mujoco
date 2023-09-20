@@ -1,6 +1,12 @@
 Computation
 ===========
 
+.. toctree::
+    :hidden:
+
+    fluid
+
+
 Introduction
 ------------
 
@@ -389,59 +395,16 @@ by MuJoCo are also passive in the sense of physics, i.e., they do not increase e
 callback :ref:`mjcb_passive` and add forces to ``mjData.qfrc_passive`` that may increase energy. This will not interfere
 with MuJoCo's operation as long as such user forces depend only on position and velocity.
 
-MuJoCo can compute three types of passive forces: spring-dampers in joints and tendons, gravity compensation forces, and
-fluid dynamics.
+MuJoCo can compute three types of passive forces:
 
-When Euler or the implicit integator are used, joint damping is integrated implicitly which significantly increases
-stability. Thus, even though damping can be modeled as an actuator property, it is better to model it as a joint
-property. Note also the XML :ref:`joint <body-joint>` attribute springdamper which automates the creation of mass-
-spring-dampers with desired time constants and damping ratios; in that case the compiler computes the stiffness and
-damping coefficients of the joint by taking the joint inertia into account.
-
-Gravity compensation is a force applied to a body's center of mass opposing gravity, see :ref:`body gravcomp<body>` for
-details.
-
-Proper simulation of fluid dynamics is beyond the scope of MuJoCo, and would be too slow for the applications we aim to
-facilitate. Nevertheless we provide a phenomenological model which is sufficient for simulating behaviors such as flying
-and swimming. It is enabled by setting ``mjModel.opt.viscosity`` and ``mjModel.opt.density`` to positive values (they
-are zero by default). These parameters specify the viscosity :math:`\beta` and density :math:`\rho` of the medium and
-apply to all bodies. The shape of each body for fluid dynamics purposes is assumed to be the equivalent inertia box,
-which can also be visualized. Each forward-facing (relative to the linear velocity) face of the box experiences force
-along its normal direction. All faces also experience torque due to the angular velocity; this torque is obtained by
-integrating the force resulting from the rotation over the surface area. In this sub-section only, let :math:`v` and
-:math:`\omega` denote the linear and angular body velocity in its local frame (which is aligned with the equivalent
-inertia box), and :math:`s` the 3D vector of box sizes. When the contributions from all faces are added, the resulting
-force and torque in local body coordinates have :math:`i`-th component
-
-.. math::
-   \begin{aligned}
-   \text{density force} : \quad &- {1 \over 2} \rho s_j s_k |v_i| v_i \\
-   \text{density torque} : \quad &- {1 \over 64} \rho s_i \left(s_j^4 + s_k^4 \right) |\omega_i| \omega_i \\
-   \end{aligned}
-
-This model implicitly assumes high Reynolds numbers, with lift-to-drag ratio equal to the tangent of the angle of
-attack. One can also specify a non-zero ``mjModel.opt.wind``, which is a 3D vector subtracted from the body linear
-velocity in the fluid dynamics computation.
-
-Each body also experiences a force and a torque proportional to viscosity and opposite to its linear and angular
-velocity. Note that viscosity can be used independent of density, to make the simulation more damped. We use the
-formulas for a sphere at low Reynolds numbers, with diameter :math:`d` equal to the average of the equivalent inertia
-box sizes. The resulting 3D force and torque in local body coordinates are
-
-.. math::
-   \begin{aligned}
-   \text{viscosity force} : \quad &- 3 \beta \pi d v \\
-   \text{viscosity torque} : \quad &- \beta \pi d^3 \omega \\
-   \end{aligned}
-
-Existing phenomenological models of fluid dynamics tend to be valid for one regime (e.g. flat vs. spherical objects) and
-it is difficult to construct a model which can be simulated efficiently and is broadly valid. For example, drag forces
-are known to transition from being linear in velocity at low Reynolds numbers, to being quadratic in velocity at high
-Reynolds numbers. However it is not clear how this transition should occur for lift forces. This motivated the above
-separation, using density to compute all quadratic forces and viscosity to compute all linear forces. Users who need a
-more detailed simulation of fluid dynamics should leave the density and viscosity parameters set to zero so as to
-disable the built-in mechanism. A custom model of fluid dynamics (or any other force field that depends only on position
-and velocity) can be implemented in the callback :ref:`mjcb_passive`.
+- Spring-dampers in joints and tendons. See the following attribues for details.
+  |br| **Joints:**
+  :ref:`stiffness<body-joint-stiffness>`, :ref:`springref<body-joint-springref>`,
+  :ref:`damping<body-joint-damping>`, :ref:`springdamper<body-joint-springdamper>`.
+  |br| **Tendons:** :ref:`stiffness<tendon-spatial-stiffness>`,
+  :ref:`springlength<tendon-spatial-springlength>`, :ref:`damping<tendon-spatial-damping>`.
+- Gravity compensation forces. See the body :ref:`gravcomp<body-gravcomp>` attribute for details.
+- Fluid forces exerted by the surrounding medium. See the :doc:`Fluid forces <fluid>` chapter for details.
 
 .. _geIntegration:
 
@@ -786,7 +749,6 @@ dimensionality of the constraint residual in each case.
    computed by the compiler in the initial model configuration ``mjModel.qpos0``.
 
 ``distance`` : 1
-
    .. attention::
       Distance equality constraints were removed in MuJoCo version 2.2.2. If you are using an earlier version, please
       switch to the corresponding version of the documentation.
@@ -968,7 +930,7 @@ each component of :math:`f`. The basis vectors are spatial vectors: 3D force fol
 vectors into the columns of a matrix :math:`E`, the force/torque generated by the constraint force in the contact frame
 is :math:`E f`. The matrix of basis vectors is constructed as follows.
 
-.. image:: images/computation/contact_frame.svg
+.. image:: ../images/computation/contact_frame.svg
    :width: 700px
    :align: center
 
@@ -1330,7 +1292,7 @@ representations of the constraint Jacobian and related matrices.
    the computational complexity of one matrix-vector multiplication (although the constants are larger). It has
    first-order convergence but nevertheless makes rapid progress in a few iterations.
 
-   .. image:: images/computation/gPGS.svg
+   .. image:: ../images/computation/gPGS.svg
       :width: 500px
       :align: center
 
@@ -1435,7 +1397,7 @@ coefficients varying from left to right. Mathematically, the penalty in the pyra
 the penalty in the elliptic case contains pieces that are quadratics minus square roots of quadratics - allowing
 circular contours around the tip of the cone.
 
-.. image:: images/computation/softcontact.png
+.. image:: ../images/computation/softcontact.png
    :width: 600px
    :align: center
 
@@ -1466,18 +1428,25 @@ others can be pruned quickly without a detailed check. MuJoCo has flexible mecha
 checked in detail. The decision process involves two stages: generation and filtering.
 
 Generation
-   First we generate a list of candidate geom pairs in two ways:
+   First we generate a list of candidate geom pairs in one of two ways: "pair" or "dynamic". The user can also specify
+   "all" which merges both sources (and is the default). This is done via the setting ``mjModel.opt.collision``. "Pair"
+   refers to an explicit list of geom pairs defined with the :ref:`pair <contact-pair>` element in MJCF. It gives the
+   user full control, however it is a static mechanism (independent of the spatial arrangement of the geoms at runtime)
+   and can be tedious for large models. It is normally used to supplement the output of the "dynamic" mechanism. Dynamic
+   generation works with bodies rather than geoms; when a body pair is included this means that all geoms attached to
+   one body can collide with all geoms attached to the other body.
 
-   - Using predefined geom pairs, specified with the :ref:`contact-pair <contact-pair>` element. This mechanism is
-     independent of the spatial arrangement of the geoms at runtime.
-   - Generating candidate geom pairs by examining the runtime locations of bodies. First, a sweep-and-prune broadphase
-     collision stage prunes bodies that cannot collide. Then, a mid-phase collision stage further prunes geom pairs from
-     remaining body pairs using a static Bounding Volume Hierarchy (a binary tree) of axis-aligned bounding boxes.
-     Each body is equipped with an AABB tree of its geoms, aligned with the body inertial or geom frames for all inner
-     or leaf nodes, respectively.
-   - The user can also explicitly exclude certain body pairs using the :ref:`exclude <contact-exclude>` element.
+   The body pairs are generated via broad-phase collision detection based on a modified sweep-and-prune algorithm. The
+   modification is that the axis for sorting is chosen as the principal eigenvector of the covariance matrix of all geom
+   centers - which maximizes the spread. Then, for each body pair, a mid-phase collision detection using a static
+   bounding volume hierarchy (a BVH binary tree) of axis-aligned bounding boxes (AABB) is performed. Each body is
+   equipped with an AABB tree of its geoms, aligned with the body inertial or geom frames for all inner or leaf nodes,
+   respectively.
 
-   These two lists are then merged.
+   Finally, the user can explicitly exclude certain body pairs using the :ref:`exclude <contact-exclude>` element
+   in MJCF. Exclusion is applied when "dynamic" or "all" are selected, but not when "pair" is selected. At the end of
+   this step we have a list of geoms pairs that is typically much smaller than :math:`n (n-1)/2`, but can still be
+   pruned further before detailed collision checking.
 
 Filtering
    Next we apply four filters to the list generated in the previous step. Filters 1 and 2 are applied to all geom pairs.

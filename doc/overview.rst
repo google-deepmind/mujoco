@@ -48,11 +48,12 @@ Soft, convex and analytically-invertible contact dynamics
    In the modern approach to contact dynamics, the forces or impulses caused by frictional contacts are usually defined
    as the solution to a linear or non-linear complementarity problem (LCP or NCP), both of which are NP-hard. MuJoCo is
    based on a different formulation of the physics of contact which reduces to a convex optimization problem, as
-   explained in detail in the :doc:`computation` chapter. Our model allows soft contacts and other constraints, and has
-   a uniquely-defined inverse facilitating data analysis and control applications. There is a choice of optimization
-   algorithms, including a generalization to the projected Gauss-Seidel method that can handle elliptic friction cones.
-   The solver provides unified treatment of frictional contacts including torsional and rolling friction, frictionless
-   contacts, joint and tendon limits, dry friction in joints and tendons, as well as a variety of equality constraints.
+   explained in detail in the :doc:`computation/index` chapter. Our model allows soft contacts and other constraints,
+   and has a uniquely-defined inverse facilitating data analysis and control applications. There is a choice of
+   optimization algorithms, including a generalization to the projected Gauss-Seidel method that can handle elliptic
+   friction cones. The solver provides unified treatment of frictional contacts including torsional and rolling
+   friction, frictionless contacts, joint and tendon limits, dry friction in joints and tendons, as well as a variety of
+   equality constraints.
 
 Tendon geometry
    MuJoCo can model the 3D geometry of tendons - which are minimum-path-length strings obeying wrapping and via-point
@@ -746,13 +747,13 @@ multi-threading, but we do so in a way that is different from how object-oriente
 Softness and slip
 ~~~~~~~~~~~~~~~~~
 
-As we will explain at length in the :doc:`computation` chapter, MuJoCo is based on a mathematical model of the physics
-of contact and other constraints. This model is inherently soft, in the sense that pushing harder against a constraint
-will always result in larger acceleration, and so the inverse dynamics can be uniquely defined. This is desirable
-because it yields a convex optimization problem and enables analyses that rely on inverse dynamics, and furthermore,
-most contacts that we need to model in practice have some softness. However once we allow soft constraints, we are
-effectively creating a new type of dynamics -- namely deformation dynamics -- and now we must specify how these dynamics
-behave. This calls for elaborate parameterization of contacts and other constraints, involving the attributes
+As we will explain at length in the :doc:`computation/index` chapter, MuJoCo is based on a mathematical model of the
+physics of contact and other constraints. This model is inherently soft, in the sense that pushing harder against a
+constraint will always result in larger acceleration, and so the inverse dynamics can be uniquely defined. This is
+desirable because it yields a convex optimization problem and enables analyses that rely on inverse dynamics, and
+furthermore, most contacts that we need to model in practice have some softness. However once we allow soft constraints,
+we are effectively creating a new type of dynamics -- namely deformation dynamics -- and now we must specify how these
+dynamics behave. This calls for elaborate parameterization of contacts and other constraints, involving the attributes
 :at:`solref` and :at:`solimp` that can be set per constraints and will be described later.
 
 An often confusing aspect of this soft model is that gradual contact slip cannot be avoided. Similarly, frictional

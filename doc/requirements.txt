@@ -1,5 +1,6 @@
 Sphinx==4.5.0
 furo==2022.9.29
+sphinxcontrib-bibtex==2.6.1
 sphinxcontrib-katex==0.9.4
 sphinxcontrib-youtube==1.2.0
 sphinx-copybutton==0.5.2

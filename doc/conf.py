@@ -42,6 +42,7 @@ master_doc = 'index'
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
 extensions = [
+    'sphinxcontrib.bibtex',
     'sphinxcontrib.katex',
     'sphinxcontrib.youtube',
     'sphinx_copybutton',
@@ -50,6 +51,9 @@ extensions = [
     'sphinx_toolbox.collapse',
     'mujoco_include',
 ]
+
+# Bibtex references for sphinxcontrib.bibtex
+bibtex_bibfiles = ['references.bib']
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['templates']

@@ -888,8 +888,8 @@ function is essentially free in terms of CPU cost; so do not hesitate to use thi
 Contacts
 ~~~~~~~~
 
-Collision detection and solving for contact forces were explained in detail in the :doc:`../computation` chapter. Here
-we further clarify contact processing from a programming perspective.
+Collision detection and solving for contact forces were explained in detail in the :doc:`../computation/index` chapter.
+Here we further clarify contact processing from a programming perspective.
 
 The collision detection stage finds contacts between geoms, and records them in the array ``mjData.contact`` of
 :ref:`mjContact` data structures. They are sorted such that multiple contacts between the same pair of bodies are
