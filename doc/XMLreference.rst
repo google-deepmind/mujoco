@@ -3346,7 +3346,7 @@ coordinates results in compiler error. See :ref:`CComposite` in the modeling gui
 .. _body-composite-vertex:
 
 :at:`vertex`: :at-val:`real(3*nvert), optional`
-   Vertex 3D positions in global coordinates (cable only).
+   Vertex 3D positions in global coordinates (cable and shell).
 
 .. _body-composite-face:
 

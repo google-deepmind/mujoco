@@ -14,6 +14,7 @@
 
 #include "user/user_composite.h"
 
+#include <algorithm>
 #include <cmath>
 #include <cstddef>
 #include <cstdio>
@@ -25,9 +26,9 @@
 
 #include <mujoco/mjmacro.h>
 #include <mujoco/mjmodel.h>
+#include <mujoco/mujoco.h>
 #include "cc/array_safety.h"
 #include "engine/engine_io.h"
-#include "engine/engine_macro.h"
 #include "engine/engine_util_blas.h"
 #include "engine/engine_util_errmem.h"
 #include "engine/engine_util_misc.h"
@@ -394,7 +395,7 @@ bool mjCComposite::MakeParticle(mjCModel* model, mjCBody* body, char* error, int
   std::vector<mjtNum> volume(uservert.size()/3);
   mjtNum t = 1;
   if (dim == 2 && plugin_instance) {
-    // do nothing for now (until new passive forces are supported)
+    t = stod(plugin_instance->config_attribs["thickness"], nullptr);
   }
   if (!userface.empty()) {
     mjXUtil::String2Vector(userface, face);
@@ -484,6 +485,49 @@ bool mjCComposite::MakeParticle(mjCModel* model, mjCBody* body, char* error, int
       if (dim == 2) {
         g->density *= volume[i] / (4./3. * mjPI * pow(g->size[0], 3));
       }
+    }
+  }
+
+  // add isometry constraints
+  if (dim==2) {
+    char txt0[100], txt1[100], txt2[100];
+    std::vector<std::pair<int, int>> edge;
+
+    // create edges
+    for (int i=0; i<face.size()/3; i++) {
+      for (int j=0; j<3; j++) {
+        int v0 = face[3*i+(j+0)%3]-1;
+        int v1 = face[3*i+(j+1)%3]-1;
+        edge.push_back(v0 < v1 ? std::pair(v0, v1) : std::pair(v1, v0));
+      }
+    }
+
+    std::sort(edge.begin(), edge.end());
+    auto last = std::unique(edge.begin(), edge.end());
+    edge.erase(last, edge.end());
+
+    // create constraints
+    for (int i=0; i<edge.size(); i++) {
+      int v0 = edge[i].first;
+      int v1 = edge[i].second;
+
+      mju::sprintf_arr(txt0, "%sT%d_%d", prefix.c_str(), v0, v1);
+      mju::sprintf_arr(txt1, "%sS%d", prefix.c_str(), v0);
+      mju::sprintf_arr(txt2, "%sS%d", prefix.c_str(), v1);
+
+      // create tendon
+      mjCTendon* ten = model->AddTendon(def + mjCOMPKIND_TENDON);
+      ten->def = model->defaults[0];
+      ten->name = txt0;
+      ten->group = 4;
+      ten->WrapSite(txt1);
+      ten->WrapSite(txt2);
+
+      // add equality constraint
+      mjCEquality* eq = model->AddEquality(def + mjCOMPKIND_TENDON);
+      eq->def = model->defaults[0];
+      eq->type = mjEQ_TENDON;
+      eq->name1 = ten->name;
     }
   }
 

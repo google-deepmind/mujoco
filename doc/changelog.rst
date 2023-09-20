@@ -31,27 +31,38 @@ New features
 3. Added :ref:`mjThreadPool` and :ref:`mjTask` which allow for multi-threaded operations within the MuJoCo engine
    pipeline.
 
+.. youtube:: ra2bTiZHGlw
+   :align: right
+   :width: 240px
+
+4. Added capability to initialize :ref:`composite<body-composite>` particles with arbitrary positions.
+
+5. Added `shell <https://github.com/deepmind/mujoco/blob/main/plugin/elasticity/shell.cc>`_ passive force plugin:
+
+   - Collisions use spheres located at mesh vertices.
+   - Stretching as tendon constraints and bending using a constant precomputed Hessian (cotangent operator).
+
 General
 ^^^^^^^
 
 .. admonition:: Breaking API changes
    :class: attention
 
-   4. Removed the macros ``mjMARKSTACK`` and ``mjFREESTACK``.
+   6. Removed the macros ``mjMARKSTACK`` and ``mjFREESTACK``.
 
       **Migration:** These macros have been replaced by new functions :ref:`mj_markStack` and
       :ref:`mj_freeStack`. These functions manage the :ref:`mjData stack<siStack>` in a fully encapsulated way (i.e.,
       without introducing a local variable at the call site).
 
-   5. Renamed ``mj_stackAlloc`` to :ref:`mj_stackAllocNum`. The new function :ref:`mj_stackAllocByte` allocates an
+   7. Renamed ``mj_stackAlloc`` to :ref:`mj_stackAllocNum`. The new function :ref:`mj_stackAllocByte` allocates an
       arbitrary number of bytes and has an additional argument for specifying the alignment of the returned pointer.
 
       **Migration:** The functionality for allocating ``mjtNum`` arrays is now available via :ref:`mj_stackAllocNum`.
 
-   6. Renamed the ``nstack`` field in :ref:`mjModel` and :ref:`mjData` to ``narena``. Changed ``narena``, ``pstack``,
+   8. Renamed the ``nstack`` field in :ref:`mjModel` and :ref:`mjData` to ``narena``. Changed ``narena``, ``pstack``,
       and ``maxuse_stack`` to count number of bytes rather than number of :ref:`mjtNum` |-| s.
 
-   7. Changed :ref:`mjData.solver<mjData>`, the array used to collect solver diagnostic information.
+   9. Changed :ref:`mjData.solver<mjData>`, the array used to collect solver diagnostic information.
       This array of :ref:`mjSolverStat` structs is now of length ``mjNISLAND * mjNSOLVER``, interpreted as as a matrix.
       Each row of length ``mjNSOLVER`` contains separate solver statistics for each constraint island.
       If the solver does not use islands, only row 0 is filled.
@@ -62,46 +73,46 @@ General
       - Renamed ``mjData.solver_iter`` to ``solver_niter``. Both this member and ``mjData.solver_nnz`` are now integer
         vectors of length ``mjNISLAND``.
 
-   8. Removed ``mjOption.collision`` and the associated ``option/collision`` attribute.
+   10. Removed ``mjOption.collision`` and the associated ``option/collision`` attribute.
 
-      **Migration:**
+       **Migration:**
 
-      - For models which have ``<option collision="all"/>``, delete the attribute.
-      - For models which have ``<option collision="dynamic"/>``, delete all :ref:`pair<contact-pair>` elements.
-      - For models which have ``<option collision="pair"/>``, disable all dynamic collisions (determined
-        via contype/conaffinity) by first deleting all :ref:`contype<body-geom-contype>` and
-        :ref:`conaffinity<body-geom-conaffinity>` attributes in the model and then setting them globally to ``0`` using
-        |br| ``<default> <geom contype="0" conaffinity="0"/> </default>``.
+       - For models which have ``<option collision="all"/>``, delete the attribute.
+       - For models which have ``<option collision="dynamic"/>``, delete all :ref:`pair<contact-pair>` elements.
+       - For models which have ``<option collision="pair"/>``, disable all dynamic collisions (determined
+         via contype/conaffinity) by first deleting all :ref:`contype<body-geom-contype>` and
+         :ref:`conaffinity<body-geom-conaffinity>` attributes in the model and then setting them globally to ``0`` using
+         |br| ``<default> <geom contype="0" conaffinity="0"/> </default>``.
 
-9. Added a new :ref:`dyntype<actuator-general-dyntype>`, ``filterexact``, which updates first-order filter states with
-   the exact formula rather than with Euler integration.
-10. Added an actuator attribute, :ref:`actearly<actuator-general-actearly>`, which uses semi-implicit integration for
+11. Added a new :ref:`dyntype<actuator-general-dyntype>`, ``filterexact``, which updates first-order filter states with
+    the exact formula rather than with Euler integration.
+12. Added an actuator attribute, :ref:`actearly<actuator-general-actearly>`, which uses semi-implicit integration for
     actuator forces: using the next step's actuator state to compute the current actuator forces at the current timestep.
-11. Renamed ``actuatorforcerange`` and ``actuatorforcelimited``, introduced in the previous version to
+13. Renamed ``actuatorforcerange`` and ``actuatorforcelimited``, introduced in the previous version to
     :ref:`actuatorfrcrange<body-joint-actuatorfrcrange>` and
     :ref:`actuatorfrclimited<body-joint-actuatorfrclimited>`, respectively.
-12. Added the flag :ref:`eulerdamp<option-flag-eulerdamp>`, which disables implicit integration of joint damping in the
+14. Added the flag :ref:`eulerdamp<option-flag-eulerdamp>`, which disables implicit integration of joint damping in the
     Euler integrator. See the :ref:`Numerical Integration<geIntegration>` section for more details.
-13. Added the flag :ref:`invdiscrete<option-flag-invdiscrete>`, which enables discrete-time inverse dynamics for all
+15. Added the flag :ref:`invdiscrete<option-flag-invdiscrete>`, which enables discrete-time inverse dynamics for all
     :ref:`integrators<option-integrator>` other than ``RK4``. See the flag documentation for more details.
-14. Added :ref:`ls_iterations<option-ls_iterations>` and :ref:`ls_tolerance<option-ls_tolerance>` options for adjusting
+16. Added :ref:`ls_iterations<option-ls_iterations>` and :ref:`ls_tolerance<option-ls_tolerance>` options for adjusting
     linesearch stopping criteria in CG and Newton solvers. These can be useful for performance tuning.
-15. Added ``mesh_pos`` and ``mesh_quat`` fields to :ref:`mjModel` to store the normalizing transformation applied to
+17. Added ``mesh_pos`` and ``mesh_quat`` fields to :ref:`mjModel` to store the normalizing transformation applied to
     mesh assets. Fixes `#409 <https://github.com/google-deepmind/mujoco/issues/409>`__ .
-16. Added camera :ref:`resolution<body-camera-resolution>` attribute and :ref:`camprojection<sensor-camprojection>`
+18. Added camera :ref:`resolution<body-camera-resolution>` attribute and :ref:`camprojection<sensor-camprojection>`
     sensor. If camera resolution is set to positive values, the camera projection sensor will report the location of a
     target site, projected onto the camera image, in pixel coordinates.
 
 Python bindings
 ^^^^^^^^^^^^^^^
 
-17. Fixed `#870 <https://github.com/google-deepmind/mujoco/issues/870>`__ where calling ``update_scene`` with an invalid
+19. Fixed `#870 <https://github.com/google-deepmind/mujoco/issues/870>`__ where calling ``update_scene`` with an invalid
     camera name used the default camera.
 
 Bug fixes
 ^^^^^^^^^
 
-18. Fixed a bug that was causing :ref:`geom margin<body-geom-margin>` to be ignored during the construction of
+20. Fixed a bug that was causing :ref:`geom margin<body-geom-margin>` to be ignored during the construction of
     midphase collision trees.
 
 

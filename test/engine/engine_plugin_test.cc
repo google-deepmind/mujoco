@@ -32,7 +32,7 @@ namespace {
 using ::testing::HasSubstr;
 using ::testing::NotNull;
 
-constexpr int kNumTruePlugins = 9;
+constexpr int kNumTruePlugins = 10;
 constexpr int kNumFakePlugins = 30;
 constexpr int kNumTestPlugins = 3;
 

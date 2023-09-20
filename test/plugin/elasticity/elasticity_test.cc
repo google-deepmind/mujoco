@@ -14,23 +14,77 @@
 
 // Tests for plugin-related functionalities.
 
-#include <array>
-#include <cstdint>
-#include <cstring>
-#include <sstream>
+#include <cmath>
+#include <limits>
 #include <vector>
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 #include <mujoco/mujoco.h>
 #include "test/fixture.h"
+#include "plugin/elasticity/shell.h"
 #include "plugin/elasticity/solid.h"
 
 namespace mujoco {
 namespace {
 
+
+// -------------------------------- shell -----------------------------------
+TEST_F(PluginTest, ElasticEnergyShell) {
+  static constexpr char cantilever_xml[] = R"(
+  <mujoco>
+  <extension>
+    <plugin plugin="mujoco.elasticity.shell"/>
+  </extension>
+
+  <worldbody>
+    <composite type="particle" count="8 8 1" spacing="1">
+      <geom size=".025" group="4"/>
+      <plugin plugin="mujoco.elasticity.shell">
+        <config key="poisson" value="0"/>
+        <config key="young" value="2"/>
+        <config key="thickness" value="1"/>
+      </plugin>
+    </composite>
+  </worldbody>
+  </mujoco>
+  )";
+
+  char error[1024] = {0};
+  mjModel* m = LoadModelFromString(cantilever_xml, error, sizeof(error));
+  ASSERT_THAT(m, testing::NotNull()) << error;
+  mjData* d = mj_makeData(m);
+  auto* shell = reinterpret_cast<plugin::elasticity::Shell*>(d->plugin_data[0]);
+
+  // check that a plane is in the kernel of the energy
+  for (mjtNum scale = 1; scale < 4; scale++) {
+    for (int e = 0; e < shell->ne; e++) {
+      int* v = shell->flaps[e].vertices;
+      if (v[3]== -1) {
+        continue;
+      }
+      mjtNum energy = 0;
+      mjtNum volume = 1./2.;
+      for (int i = 0; i < 4; i++) {
+        for (int j = 0; j < 4; j++) {
+          for (int x = 0; x < 3; x++) {
+            mjtNum elongation1 = scale * shell->position[3*v[i]+x];
+            mjtNum elongation2 = scale * shell->position[3*v[j]+x];
+            energy += shell->bending[16*e+4*i+j] * elongation1 * elongation2;
+          }
+        }
+      }
+      EXPECT_NEAR(
+        4*energy/volume, 0, std::numeric_limits<float>::epsilon());
+    }
+  }
+
+  mj_deleteData(d);
+  mj_deleteModel(m);
+}
+
 // -------------------------------- solid -----------------------------------
-TEST_F(PluginTest, ElasticEnergy) {
+TEST_F(PluginTest, ElasticEnergySolid) {
   static constexpr char cantilever_xml[] = R"(
   <mujoco>
   <extension>
