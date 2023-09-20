@@ -413,7 +413,7 @@ mj_differentiatePos
 This function subtracts two vectors in the format of qpos (and divides the result by dt), while respecting the
 properties of quaternions. Recall that unit quaternions represent spatial orientations. They are points on the unit
 sphere in 4D. The tangent to that sphere is a 3D plane of rotational velocities. Thus when we subtract two quaternions
-in the right way, the result is a 3D vector and not a 4D vector. This the output qvel has dimensionality nv while the
+in the right way, the result is a 3D vector and not a 4D vector. Thus the output qvel has dimensionality nv while the
 inputs have dimensionality nq.
 
 .. _mj_integratePos:
