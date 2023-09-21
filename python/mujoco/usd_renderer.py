@@ -53,11 +53,12 @@ class USDRenderer(object):
     Loads and initializes the necessary objects to render the scene
     """
 
-    if self.model.nmesh > 0:
-      mesh_vertex_ranges = get_mesh_ranges(self.model.nmesh, self.model.mesh_vertnum)
-      mesh_face_ranges = get_mesh_ranges(self.model.nmesh, self.model.mesh_facenum)
-      mesh_texcoord_ranges = get_mesh_ranges(self.model.nmesh, self.model.mesh_texcoordnum)
-      mesh_facetexcoord_ranges = get_facetexcoord_ranges(self.model.nmesh, self.model.mesh_facenum)
+    # TODO: remove these and replace by reading directly from model
+    # if self.model.nmesh > 0:
+    #   mesh_vertex_ranges = get_mesh_ranges(self.model.nmesh, self.model.mesh_vertnum)
+    #   mesh_face_ranges = get_mesh_ranges(self.model.nmesh, self.model.mesh_facenum)
+    #   mesh_texcoord_ranges = get_mesh_ranges(self.model.nmesh, self.model.mesh_texcoordnum)
+    #   mesh_facetexcoord_ranges = get_facetexcoord_ranges(self.model.nmesh, self.model.mesh_facenum)
 
     # create and load the texture files
     # iterate through all the textures and build list of tex_rgb ranges
@@ -83,23 +84,23 @@ class USDRenderer(object):
     geoms = self.scene.geoms
     self.ngeom = self.scene.ngeom
     for i in range(self.ngeom):
-      if geoms[i].texid == -1:
+      geom = geoms[i]
+      if geom.category == 1:
+        self.usd_geoms.append(None)
+        continue
+      if geom.texid == -1:
         texture_file = None
       else:
-        texture_file = texture_files[geoms[i].texid]
+        texture_file = texture_files[geom.texid]
 
-      if geoms[i].type == USDGeomType.Mesh.value:
+      if geom.type == USDGeomType.Mesh.value:
         self.usd_geoms.append(USDMesh(self.model.geom_dataid[i],
-                                      geoms[i], 
+                                      geom, 
                                       self.stage, 
                                       self.model,
-                                      mesh_vertex_ranges,
-                                      mesh_face_ranges,
-                                      mesh_texcoord_ranges,
-                                      mesh_facetexcoord_ranges,
                                       texture_file))
       else:
-        self.usd_geoms.append(create_usd_geom_primitive(geoms[i], 
+        self.usd_geoms.append(create_usd_geom_primitive(geom, 
                                                         self.stage,
                                                         texture_file))
 

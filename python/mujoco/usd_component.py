@@ -2,6 +2,7 @@ import os
 from enum import Enum
 
 import mujoco
+from mujoco.usd_utilities import *
 from pxr import Usd, UsdGeom, UsdLux, UsdShade, Vt, Gf, Sdf
 from scipy.spatial.transform import Rotation as R
 
@@ -171,36 +172,46 @@ class USDMesh(USDGeom):
                geom,
                stage,
                model,
-               mesh_vertex_ranges,
-               mesh_face_ranges,
-               mesh_texcoord_ranges,
-               mesh_facetexcoord_ranges,
                texture_file):
     super().__init__(geom, stage)
 
     assert mesh_idx != -1
 
+    mesh_vert_adr_from = model.mesh_vertadr[mesh_idx]
+    mesh_vert_adr_to = model.mesh_vertadr[mesh_idx+1] if mesh_idx < model.nmesh - 1 else len(model.mesh_vert)
+    mesh_vert = model.mesh_vert[mesh_vert_adr_from:mesh_vert_adr_to]
+
+    mesh_face_adr_from = model.mesh_faceadr[mesh_idx]
+    mesh_face_adr_to = model.mesh_faceadr[mesh_idx+1] if mesh_idx < model.nmesh - 1 else len(model.mesh_face)
+    mesh_face = model.mesh_face[mesh_face_adr_from:mesh_face_adr_to]
+
     self.type = 7
-    USDMesh.mesh_count += 1
     xform_path = f'/Mesh_Xform_{USDMesh.mesh_count}'
     mesh_path= f'{xform_path}/Mesh_{USDMesh.mesh_count}'
     self.xform = UsdGeom.Xform.Define(stage, xform_path)
     self.prim = UsdGeom.Mesh.Define(stage, mesh_path)
     self.ref = stage.GetPrimAtPath(mesh_path)
 
-    self.vertices = model.mesh_vert[mesh_vertex_ranges[mesh_idx]:mesh_vertex_ranges[mesh_idx+1]]
+    self.vertices = mesh_vert
     self.prim.GetPointsAttr().Set(self.vertices)
 
+    model.mesh_facenum[mesh_idx]
     self.prim.GetFaceVertexCountsAttr().Set([3 for _ in range(model.mesh_facenum[mesh_idx])])
 
-    self.faces = model.mesh_face[mesh_face_ranges[mesh_idx]:mesh_face_ranges[mesh_idx+1]]
+    self.faces = mesh_face
     self.prim.GetFaceVertexIndicesAttr().Set(self.faces)
 
     self.texture_file = texture_file
     if texture_file:
 
-      texid = geom.texid
-      texcoords = model.mesh_texcoord[mesh_texcoord_ranges[texid]:mesh_texcoord_ranges[texid+1]]
+      mesh_texcoord_adr_from = model.mesh_texcoordadr[mesh_idx]
+      mesh_texcoord_adr_to = model.mesh_texcoordadr[mesh_idx+1] if mesh_idx < model.nmesh - 1 else len(model.mesh_texcoord)
+      mesh_texcoord = model.mesh_texcoord[mesh_texcoord_adr_from:mesh_texcoord_adr_to]
+
+      # texid = geom.texid
+      # texcoords = model.mesh_texcoord[mesh_texcoord_ranges[texid]:mesh_texcoord_ranges[texid+1]]
+
+      mesh_facetexcoord_ranges = get_facetexcoord_ranges(model.nmesh, model.mesh_facenum)
 
       facetexcoords = model.mesh_facetexcoord.flatten()
       facetexcoords = facetexcoords[mesh_facetexcoord_ranges[mesh_idx]:mesh_facetexcoord_ranges[mesh_idx+1]]
@@ -208,7 +219,7 @@ class USDMesh(USDGeom):
                                       Sdf.ValueTypeNames.TexCoord2fArray,
                                       UsdGeom.Tokens.faceVarying)
 
-      self.texcoords.Set(texcoords)
+      self.texcoords.Set(mesh_texcoord)
       self.texcoords.SetIndices(Vt.IntArray(facetexcoords.tolist()));
 
       mtl_path = Sdf.Path(f"/World/Looks/Material_{os.path.splitext(os.path.basename(texture_file))[0]}")
@@ -229,6 +240,9 @@ class USDMesh(USDGeom):
 
       self.prim.GetPrim().ApplyAPI(UsdShade.MaterialBindingAPI)
       UsdShade.MaterialBindingAPI(self.prim).Bind(mtl)
+
+    USDMesh.mesh_count += 1
+
 
   def update_geom(self, new_geom):
     self.update_pos(new_geom.pos)
