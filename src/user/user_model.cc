@@ -275,6 +275,7 @@ void mjCModel::Clear(void) {
   ntupledata = 0;
   npluginattr = 0;
   nnames = 0;
+  npaths = 0;
   memory = -1;
   nstack = -1;
   nemax = 0;
@@ -1002,6 +1003,18 @@ void mjCModel::SetSizes(void) {
   for (int i=0; i<nkey; i++)     nnames += (int)keys[i]->name.length() + 1;
   for (int i=0; i<nplugin; i++)  nnames += (int)plugins[i]->name.length() + 1;
 
+  // npaths
+  npaths = 0;
+  for (int i=0; i<nmesh; i++) {
+    if (meshes[i]->file().empty()) {
+      continue;
+    }
+    npaths += (int)meshes[i]->file().length() + 1;
+  }
+  if (npaths == 0) {
+    npaths = 1;
+  }
+
   // nemax
   for (int i=0; i<neq; i++)
     if (equalities[i]->type==mjEQ_CONNECT) {
@@ -1197,7 +1210,6 @@ void mjCModel::LengthRange(mjModel* m, mjData* data) {
 }
 
 
-
 // process names from one list: concatenate, compute addresses
 template <class T>
 static int namelist(vector<T*>& list, int adr, int* name_adr, char* names, int* map) {
@@ -1309,6 +1321,30 @@ void mjCModel::CopyNames(mjModel* m) {
   // check size, SHOULD NOT OCCUR
   if (adr != nnames) {
     throw mjCError(0, "size mismatch in %s: expected %d, got %d", "names", nnames, adr);
+  }
+}
+
+
+void mjCModel::CopyPaths(mjModel* m) {
+  // start with 0 address.
+  size_t adr = 0;
+  m->paths[0] = 0;
+
+  for (unsigned int i=0; i<meshes.size(); i++) {
+    if (meshes[i]->file().empty()) {
+      m->mesh_assetpathadr[i] = -1;
+      continue;
+    }
+    m->mesh_assetpathadr[i] = adr;
+
+    // copy path
+    size_t path_size = meshes[i]->file().size();
+    memcpy(m->paths+adr, meshes[i]->file().c_str(), path_size);
+    adr += path_size;
+
+    // append 0
+    m->paths[adr] = 0;
+    adr++;
   }
 }
 
@@ -2703,7 +2739,7 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
                    nnumeric, nnumericdata, ntext, ntextdata,
                    ntuple, ntupledata, nkey, nmocap, nplugin, npluginattr,
                    nuser_body, nuser_jnt, nuser_geom, nuser_site, nuser_cam,
-                   nuser_tendon, nuser_actuator, nuser_sensor, nnames);
+                   nuser_tendon, nuser_actuator, nuser_sensor, nnames, npaths);
   if (!m) {
     throw mjCError(0, "could not create mjModel");
   }
@@ -2712,6 +2748,7 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
   m->opt = option;
   m->vis = visual;
   CopyNames(m);
+  CopyPaths(m);
   CopyTree(m);
 
   // assign plugin slots and copy plugin config attributes
@@ -2918,7 +2955,8 @@ bool mjCModel::CopyBack(const mjModel* m) {
       neq!=m->neq || ntendon!=m->ntendon || nwrap!=m->nwrap || nsensor!=m->nsensor ||
       nnumeric!=m->nnumeric || nnumericdata!=m->nnumericdata || ntext!=m->ntext ||
       ntextdata!=m->ntextdata || nnames!=m->nnames || nM!=m->nM || nD!=m->nD ||
-      nB!=m->nB || nemax!=m->nemax || nconmax!=m->nconmax || njmax!=m->njmax) {
+      nB!=m->nB || nemax!=m->nemax || nconmax!=m->nconmax || njmax!=m->njmax ||
+      npaths!=m->npaths) {
     errInfo = mjCError(0, "incompatible models in CopyBack");
     return false;
   }

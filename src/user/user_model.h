@@ -182,6 +182,7 @@ class mjCModel {
   void AutoSpringDamper(mjModel*);// automatic stiffness and damping computation
   void LengthRange(mjModel*, mjData*); // compute actuator lengthrange
   void CopyNames(mjModel*);       // copy names, compute name addresses
+  void CopyPaths(mjModel*);       // copy paths, compute path addresses
   void CopyObjects(mjModel*);     // copy objects outside kinematic tree
   void CopyTree(mjModel*);        // copy objects inside kinematic tree
 
@@ -235,6 +236,7 @@ class mjCModel {
   int ntupledata;                 // number of objects in all tuple fields
   int npluginattr;                // number of chars in all plugin config attributes
   int nnames;                     // number of chars in all names
+  int npaths;                     // number of chars in all paths
   int nM;                         // number of non-zeros in sparse inertia matrix
   int nD;                         // number of non-zeros in sparse dof-dof matrix
   int nB;                         // number of non-zeros in sparse body-dof matrix

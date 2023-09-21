@@ -5095,6 +5095,7 @@ public unsafe struct mjModel_ {
   public int nuser_sensor;
   public int nnames;
   public int nnames_map;
+  public int npaths;
   public int nM;
   public int nD;
   public int nB;
@@ -5249,6 +5250,7 @@ public unsafe struct mjModel_ {
   public int* mesh_graphadr;
   public double* mesh_pos;
   public double* mesh_quat;
+  public int* mesh_assetpathadr;
   public float* mesh_vert;
   public float* mesh_normal;
   public float* mesh_texcoord;
@@ -5421,6 +5423,7 @@ public unsafe struct mjModel_ {
   public int* name_pluginadr;
   public char* names;
   public int* names_map;
+  public char* paths;
 }
 
 [StructLayout(LayoutKind.Sequential)]
@@ -5944,6 +5947,7 @@ public unsafe struct model {
   public int nwrap;
   public int nsensor;
   public int nnames;
+  public int npaths;
   public int nsensordata;
   public mjOption_ opt;
   public mjVisual_ vis;
@@ -6002,6 +6006,7 @@ public unsafe struct model {
   public int* mesh_bvhnum;
   public int* mesh_texcoordadr;
   public int* mesh_graphadr;
+  public int* mesh_assetpathadr;
   public int* skin_matid;
   public int* skin_group;
   public float* skin_rgba;
@@ -6070,6 +6075,7 @@ public unsafe struct model {
   public int* name_tendonadr;
   public int* name_actuatoradr;
   public char* names;
+  public char* paths;
 }
 
 [StructLayout(LayoutKind.Sequential)]

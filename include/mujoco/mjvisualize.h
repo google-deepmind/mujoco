@@ -401,6 +401,7 @@ struct mjvSceneState_ {
     int nwrap;
     int nsensor;
     int nnames;
+    int npaths;
     int nsensordata;
 
     mjOption opt;
@@ -468,6 +469,7 @@ struct mjvSceneState_ {
     int* mesh_bvhnum;
     int* mesh_texcoordadr;
     int* mesh_graphadr;
+    int* mesh_assetpathadr;
 
     int* skin_matid;
     int* skin_group;
@@ -543,6 +545,7 @@ struct mjvSceneState_ {
     int* name_tendonadr;
     int* name_actuatoradr;
     char* names;
+    char* paths;
   } model;
 
   // fields in mjData that are necessary to re-render a scene

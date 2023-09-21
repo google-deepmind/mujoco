@@ -234,6 +234,7 @@ MjModelWrapper::MjWrapper(raw::MjModel* ptr)
       MJMODEL_POINTERS,
       text_data_bytes(ptr->text_data, ptr->ntextdata),
       names_bytes(ptr->names, ptr->nnames),
+      paths_bytes(ptr->paths, ptr->npaths),
       indexer_(ptr, owner_) {
   bool is_newly_inserted = false;
   {
@@ -255,6 +256,7 @@ MjModelWrapper::MjWrapper(MjModelWrapper&& other)
       MJMODEL_POINTERS,
       text_data_bytes(ptr_->text_data, ptr_->ntextdata),
       names_bytes(ptr_->names, ptr_->nnames),
+      paths_bytes(ptr_->paths, ptr_->npaths),
       indexer_(ptr_, owner_) {
   bool is_newly_inserted = false;
   {
@@ -1509,10 +1511,11 @@ This is useful for example when the MJB is not available as a file on disk.)"));
   MJMODEL_INTS
 #undef X
 
-#define X(dtype, var, dim0, dim1)                        \
-  if constexpr (std::string_view(#var) != "text_data" &&     \
-                std::string_view(#var) != "names") { \
-    DefinePyArray(mjModel, #var, &MjModelWrapper::var);  \
+#define X(dtype, var, dim0, dim1)                             \
+  if constexpr (std::string_view(#var) != "text_data" &&      \
+                std::string_view(#var) != "names" &&          \
+                std::string_view(#var) != "paths") {          \
+    DefinePyArray(mjModel, #var, &MjModelWrapper::var);       \
   }
   MJMODEL_POINTERS
 #undef X
@@ -1526,6 +1529,11 @@ This is useful for example when the MJB is not available as a file on disk.)"));
       "names", [](const MjModelWrapper& m) -> const auto& {
         // Return the full bytes array of concatenated names
         return m.names_bytes;
+      });
+  mjModel.def_property_readonly(
+      "paths", [](const MjModelWrapper& m) -> const auto& {
+        // Return the full bytes array of concatenated paths
+        return m.paths_bytes;
       });
 
 #define XGROUP(MjModelGroupedViews, field, nfield, FIELD_XMACROS)             \

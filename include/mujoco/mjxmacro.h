@@ -118,6 +118,7 @@
     X   ( nuser_actuator )     \
     X   ( nuser_sensor )       \
     XMJV( nnames )             \
+    XMJV( npaths )             \
     X   ( nnames_map )         \
     X   ( nM )                 \
     X   ( nD )                 \
@@ -131,6 +132,8 @@
     X   ( npluginstate )       \
     X   ( narena )             \
     X   ( nbuffer )
+
+    /* nbuffer needs to be the final field */
 
 
 // define symbols needed in MJMODEL_POINTERS (corresponding to number of columns)
@@ -296,6 +299,7 @@
     XMJV( int,     mesh_graphadr,         nmesh,         1                    ) \
     X   ( mjtNum,  mesh_pos,              nmesh,         3                    ) \
     X   ( mjtNum,  mesh_quat,             nmesh,         4                    ) \
+    XMJV( int,     mesh_assetpathadr,     nmesh,         1                    ) \
     X   ( float,   mesh_vert,             nmeshvert,     3                    ) \
     X   ( float,   mesh_normal,           nmeshnormal,   3                    ) \
     X   ( float,   mesh_texcoord,         nmeshtexcoord, 2                    ) \
@@ -468,6 +472,7 @@
     X   ( int,     name_pluginadr,        nplugin,       1                    ) \
     XMJV( char,    names,                 nnames,        1                    ) \
     X   ( int,     names_map,             nnames_map,    1                    ) \
+    XMJV( char,    paths,                 npaths,        1                    ) \
 
 //-------------------------------- mjData ----------------------------------------------------------
 

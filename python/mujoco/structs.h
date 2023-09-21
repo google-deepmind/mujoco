@@ -477,6 +477,7 @@ class MjWrapper<raw::MjModel> : public WrapperBase<raw::MjModel> {
   // TODO(nimrod): Exclude text_data and names from the MJMODEL_POINTERS macro.
   pybind11::bytes text_data_bytes;
   pybind11::bytes names_bytes;
+  pybind11::bytes paths_bytes;
 
  protected:
   explicit MjWrapper(raw::MjModel* ptr);

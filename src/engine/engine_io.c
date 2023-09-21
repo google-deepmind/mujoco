@@ -450,7 +450,7 @@ mjModel* mj_makeModel(int nq, int nv, int nu, int na, int nbody, int nbvh, int n
                       int ntuple, int ntupledata, int nkey, int nmocap, int nplugin,
                       int npluginattr, int nuser_body, int nuser_jnt, int nuser_geom,
                       int nuser_site, int nuser_cam, int nuser_tendon, int nuser_actuator,
-                      int nuser_sensor, int nnames) {
+                      int nuser_sensor, int nnames, int npaths) {
   intptr_t offset = 0;
 
   // allocate mjModel
@@ -519,6 +519,7 @@ mjModel* mj_makeModel(int nq, int nv, int nu, int na, int nbody, int nbvh, int n
                      + nskin + nhfield + ntex + nmat + npair + nexclude + neq
                      + ntendon  + nu + nsensor + nnumeric + ntext + ntuple
                      + nkey + nplugin);
+  m->npaths = npaths;
 
 #define X(name)                                    \
   if ((m->name) < 0) {                             \
@@ -597,7 +598,7 @@ mjModel* mj_copyModel(mjModel* dest, const mjModel* src) {
                         src->ntuple, src->ntupledata, src->nkey, src->nmocap, src->nplugin,
                         src->npluginattr, src->nuser_body, src->nuser_jnt, src->nuser_geom,
                         src->nuser_site, src->nuser_cam, src->nuser_tendon, src->nuser_actuator,
-                        src->nuser_sensor, src->nnames);
+                        src->nuser_sensor, src->nnames, src->npaths);
   }
   if (!dest) {
     mjERROR("failed to make mjModel. Invalid sizes.");
@@ -762,7 +763,7 @@ mjModel* mj_loadModel(const char* filename, const mjVFS* vfs) {
                    ints[28], ints[29], ints[30], ints[31], ints[32], ints[33], ints[34],
                    ints[35], ints[36], ints[37], ints[38], ints[39], ints[40], ints[41],
                    ints[42], ints[43], ints[44], ints[45], ints[46], ints[47], ints[48],
-                   ints[49], ints[50], ints[51], ints[52]);
+                   ints[49], ints[50], ints[51], ints[52], ints[53]);
   if (!m || m->nbuffer != sizes[getnsize()-1]) {
     mju_closeResource(r);
     mju_warning("Corrupted model, wrong size parameters");
@@ -1791,7 +1792,8 @@ const char* mj_validateReferences(const mjModel* m) {
   X(name_numericadr,    nnumeric,      nnames       , 0                      ) \
   X(name_textadr,       ntext,         nnames       , 0                      ) \
   X(name_tupleadr,      ntuple,        nnames       , 0                      ) \
-  X(name_keyadr,        nkey,          nnames       , 0                      )
+  X(name_keyadr,        nkey,          nnames       , 0                      ) \
+  X(mesh_assetpathadr,  nmesh,         npaths       , 0                      )
 
   #define X(adrarray, nadrs, ntarget, numarray) {             \
     int *nums = (numarray);                                   \

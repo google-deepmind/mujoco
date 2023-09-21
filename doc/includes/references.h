@@ -861,6 +861,7 @@ struct mjModel_ {
   int nuser_sensor;               // number of mjtNums in sensor_user
   int nnames;                     // number of chars in all names
   int nnames_map;                 // number of slots in the names hash map
+  int npaths;                     // number of chars in all paths
 
   // sizes set after mjModel construction (only affect mjData)
   int nM;                         // number of non-zeros in sparse inertia matrix
@@ -1045,6 +1046,7 @@ struct mjModel_ {
   int*      mesh_graphadr;        // graph data address; -1: no graph         (nmesh x 1)
   mjtNum*   mesh_pos;             // translation applied to asset vertices    (nmesh x 3)
   mjtNum*   mesh_quat;            // rotation applied to asset vertices       (nmesh x 4)
+  int*      mesh_assetpathadr;    // address of asset path for mesh; -1: none (nmesh x 1)
   float*    mesh_vert;            // vertex positions for all meshes          (nmeshvert x 3)
   float*    mesh_normal;          // normals for all meshes                   (nmeshnormal x 3)
   float*    mesh_texcoord;        // vertex texcoords for all meshes          (nmeshtexcoord x 2)
@@ -1251,6 +1253,9 @@ struct mjModel_ {
   int*      name_pluginadr;       // plugin instance name pointers            (nplugin x 1)
   char*     names;                // names of all objects, 0-terminated       (nnames x 1)
   int*      names_map;            // internal hash map of names               (nnames_map x 1)
+
+  // paths
+  char*     paths;                // paths to assets, 0-terminated            (npaths x 1)
 };
 typedef struct mjModel_ mjModel;
 struct mjResource_ {
@@ -1995,6 +2000,7 @@ struct mjvSceneState_ {
     int nwrap;
     int nsensor;
     int nnames;
+    int npaths;
     int nsensordata;
 
     mjOption opt;
@@ -2062,6 +2068,7 @@ struct mjvSceneState_ {
     int* mesh_bvhnum;
     int* mesh_texcoordadr;
     int* mesh_graphadr;
+    int* mesh_assetpathadr;
 
     int* skin_matid;
     int* skin_group;
@@ -2137,6 +2144,7 @@ struct mjvSceneState_ {
     int* name_tendonadr;
     int* name_actuatoradr;
     char* names;
+    char* paths;
   } model;
 
   // fields in mjData that are necessary to re-render a scene

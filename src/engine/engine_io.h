@@ -62,7 +62,7 @@ mjModel* mj_makeModel(int nq, int nv, int nu, int na, int nbody, int nbvh, int n
                       int ntuple, int ntupledata, int nkey, int nmocap, int nplugin,
                       int npluginattr, int nuser_body, int nuser_jnt, int nuser_geom,
                       int nuser_site, int nuser_cam, int nuser_tendon, int nuser_actuator,
-                      int nuser_sensor, int nnames);
+                      int nuser_sensor, int nnames, int npaths);
 
 // copy mjModel; allocate new if dest is NULL
 MJAPI mjModel* mj_copyModel(mjModel* dest, const mjModel* src);

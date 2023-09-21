@@ -1071,6 +1071,11 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='number of slots in the names hash map',
              ),
              StructFieldDecl(
+                 name='npaths',
+                 type=ValueType(name='int'),
+                 doc='number of chars in all paths',
+             ),
+             StructFieldDecl(
                  name='nM',
                  type=ValueType(name='int'),
                  doc='number of non-zeros in sparse inertia matrix',
@@ -2117,6 +2122,13 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                      inner_type=ValueType(name='mjtNum'),
                  ),
                  doc='rotation applied to asset vertices       (nmesh x 4)',
+             ),
+             StructFieldDecl(
+                 name='mesh_assetpathadr',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='address of asset path for mesh; -1: none (nmesh x 1)',
              ),
              StructFieldDecl(
                  name='mesh_vert',
@@ -3321,6 +3333,13 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                      inner_type=ValueType(name='int'),
                  ),
                  doc='internal hash map of names               (nnames_map x 1)',  # pylint: disable=line-too-long
+             ),
+             StructFieldDecl(
+                 name='paths',
+                 type=PointerType(
+                     inner_type=ValueType(name='char'),
+                 ),
+                 doc='paths to assets, 0-terminated            (npaths x 1)',
              ),
          ),
      )),
@@ -5555,6 +5574,11 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                              doc='',
                          ),
                          StructFieldDecl(
+                             name='npaths',
+                             type=ValueType(name='int'),
+                             doc='',
+                         ),
+                         StructFieldDecl(
                              name='nsensordata',
                              type=ValueType(name='int'),
                              doc='',
@@ -5947,6 +5971,13 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                          ),
                          StructFieldDecl(
                              name='mesh_graphadr',
+                             type=PointerType(
+                                 inner_type=ValueType(name='int'),
+                             ),
+                             doc='',
+                         ),
+                         StructFieldDecl(
+                             name='mesh_assetpathadr',
                              type=PointerType(
                                  inner_type=ValueType(name='int'),
                              ),
@@ -6423,6 +6454,13 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                          ),
                          StructFieldDecl(
                              name='names',
+                             type=PointerType(
+                                 inner_type=ValueType(name='char'),
+                             ),
+                             doc='',
+                         ),
+                         StructFieldDecl(
+                             name='paths',
                              type=PointerType(
                                  inner_type=ValueType(name='char'),
                              ),
