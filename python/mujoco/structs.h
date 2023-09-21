@@ -16,6 +16,7 @@
 #define MUJOCO_PYTHON_STRUCTS_H_
 
 #include <array>
+#include <cstddef>
 #include <istream>
 #include <memory>
 #include <optional>
@@ -579,6 +580,7 @@ class MjWrapper<raw::MjData>: public WrapperBase<raw::MjData> {
 
   py_array_or_tuple_t<mjContact> contact;
 
+  py_array_or_tuple_t<size_t> maxuse_threadstack;
   py_array_or_tuple_t<raw::MjWarningStat> warning;
   py_array_or_tuple_t<raw::MjTimerStat> timer;
   py_array_or_tuple_t<raw::MjSolverStat> solver;

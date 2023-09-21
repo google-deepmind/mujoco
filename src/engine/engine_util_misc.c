@@ -1213,6 +1213,10 @@ void mju_zeroInt(int* res, int n) {
 }
 
 
+void mju_zeroSizeT(size_t* res, size_t n) {
+  memset(res, 0, n*sizeof(size_t));
+}
+
 
 // copy int vector vec into res
 void mju_copyInt(int* res, const int* vec, int n) {

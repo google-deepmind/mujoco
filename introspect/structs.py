@@ -3324,6 +3324,42 @@ STRUCTS: Mapping[str, StructDecl] = dict([
              ),
          ),
      )),
+    ('mjThreadPool',
+     StructDecl(
+         name='mjThreadPool',
+         declname='struct mjThreadPool_',
+         fields=(
+             StructFieldDecl(
+                 name='nworker',
+                 type=ValueType(name='int'),
+                 doc='number of workers in the pool',
+             ),
+         ),
+     )),
+    ('mjTask',
+     StructDecl(
+         name='mjTask',
+         declname='struct mjTask_',
+         fields=(
+             StructFieldDecl(
+                 name='func',
+                 type=ValueType(name='mjfTask'),
+                 doc='pointer to the function that implements the task',
+             ),
+             StructFieldDecl(
+                 name='args',
+                 type=PointerType(
+                     inner_type=ValueType(name='void'),
+                 ),
+                 doc='arguments to func',
+             ),
+             StructFieldDecl(
+                 name='status',
+                 type=ValueType(name='int', is_volatile=True),
+                 doc='status of the task',
+             ),
+         ),
+     )),
     ('mjContact',
      StructDecl(
          name='mjContact',
@@ -3541,12 +3577,20 @@ STRUCTS: Mapping[str, StructDecl] = dict([
              StructFieldDecl(
                  name='maxuse_stack',
                  type=ValueType(name='size_t'),
-                 doc='maximum stack allocation',
+                 doc='maximum stack allocation in bytes',
+             ),
+             StructFieldDecl(
+                 name='maxuse_threadstack',
+                 type=ArrayType(
+                     inner_type=ValueType(name='size_t'),
+                     extents=(128,),
+                 ),
+                 doc='maximum stack allocation per thread in bytes',
              ),
              StructFieldDecl(
                  name='maxuse_arena',
                  type=ValueType(name='size_t'),
-                 doc='maximum arena allocation',
+                 doc='maximum arena allocation in bytes',
              ),
              StructFieldDecl(
                  name='maxuse_con',
@@ -7017,42 +7061,6 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  name='readPixelFormat',
                  type=ValueType(name='int'),
                  doc='default color pixel format for mjr_readPixels',
-             ),
-         ),
-     )),
-    ('mjThreadPool',
-     StructDecl(
-         name='mjThreadPool',
-         declname='struct mjThreadPool_',
-         fields=(
-             StructFieldDecl(
-                 name='nworker',
-                 type=ValueType(name='int'),
-                 doc='number of workers in the pool',
-             ),
-         ),
-     )),
-    ('mjTask',
-     StructDecl(
-         name='mjTask',
-         declname='struct mjTask_',
-         fields=(
-             StructFieldDecl(
-                 name='func',
-                 type=ValueType(name='mjfTask'),
-                 doc='pointer to the function that implements the task',
-             ),
-             StructFieldDecl(
-                 name='args',
-                 type=PointerType(
-                     inner_type=ValueType(name='void'),
-                 ),
-                 doc='arguments to func',
-             ),
-             StructFieldDecl(
-                 name='status',
-                 type=ValueType(name='int', is_volatile=True),
-                 doc='status of the task',
              ),
          ),
      )),

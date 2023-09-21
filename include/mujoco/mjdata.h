@@ -20,6 +20,7 @@
 
 #include <mujoco/mjtnum.h>
 #include <mujoco/mjmodel.h>
+#include <mujoco/mjthread.h>
 
 //---------------------------------- primitive types (mjt) -----------------------------------------
 
@@ -163,10 +164,11 @@ struct mjData_ {
   size_t  parena;            // first available byte in arena
 
   // memory utilization stats
-  size_t  maxuse_stack;      // maximum stack allocation
-  size_t  maxuse_arena;      // maximum arena allocation
-  int     maxuse_con;        // maximum number of contacts
-  int     maxuse_efc;        // maximum number of scalar constraints
+  size_t  maxuse_stack;                      // maximum stack allocation in bytes
+  size_t  maxuse_threadstack[mjMAXTHREADS];  // maximum stack allocation per thread in bytes
+  size_t  maxuse_arena;                      // maximum arena allocation in bytes
+  int     maxuse_con;                        // maximum number of contacts
+  int     maxuse_efc;                        // maximum number of scalar constraints
 
   // diagnostics
   mjWarningStat warning[mjNWARNING];  // warning statistics

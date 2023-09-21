@@ -15,6 +15,8 @@
 #ifndef MUJOCO_INCLUDE_MJTHREAD_H_
 #define MUJOCO_INCLUDE_MJTHREAD_H_
 
+#define mjMAXTHREADS 128       // maximum number of threads in a thread pool
+
 typedef enum mjtTaskStatus_ {  // status values for mjTask
   mjTASK_NEW = 0,              // newly created
   mjTASK_QUEUED,               // enqueued in a thread pool

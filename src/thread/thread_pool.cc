@@ -14,6 +14,7 @@
 
 #include "thread/thread_pool.h"
 
+#include <algorithm>
 #include <atomic>
 #include <cstddef>
 #include <memory>
@@ -55,7 +56,7 @@ class ThreadPoolImpl : public mjThreadPool {
  public:
   ThreadPoolImpl(int num_worker) : mjThreadPool{num_worker} {
     // initialize worker threads
-    for (int i = 0; i < num_worker; ++i) {
+    for (int i = 0; i < std::min(num_worker, mjMAXTHREADS); ++i) {
       WorkerThread worker{
         std::make_unique<std::thread>(ThreadPoolWorker, this)};
       workers_.push_back(std::move(worker));
