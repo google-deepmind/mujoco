@@ -5,6 +5,8 @@ from mujoco.usd_component import *
 from mujoco.usd_utilities import *
 from pxr import Usd, UsdGeom
 
+from mujoco import _structs
+
 from PIL import Image as im
 from PIL import ImageOps
 
@@ -15,7 +17,8 @@ class USDRenderer(object):
   def __init__(self,
                model,
                height=480,
-               width=480):
+               width=480,
+               geom_groups=[1,1,1,1,1,1]):
     self.model = model
     self.data = None
     self.renderer = mujoco.Renderer(model, height, width)
@@ -24,6 +27,10 @@ class USDRenderer(object):
 
     self.stage = Usd.Stage.CreateNew('usd_stage.usda')
     UsdGeom.SetStageUpAxis(self.stage, UsdGeom.Tokens.z)
+
+    # TODO: maybe change where we initialize this?
+    self.scene_option = _structs.MjvOption()
+    self.scene_option.geomgroup = geom_groups
 
   @property
   def usd(self):
@@ -37,7 +44,7 @@ class USDRenderer(object):
     self.stage.GetRootLayer().Save()
 
   def update_scene(self, data):
-    self.renderer.update_scene(data)
+    self.renderer.update_scene(data, scene_option=self.scene_option)
     self.data = data
 
     if not self.loaded_scene_info:
@@ -53,15 +60,9 @@ class USDRenderer(object):
     Loads and initializes the necessary objects to render the scene
     """
 
-    # TODO: remove these and replace by reading directly from model
-    # if self.model.nmesh > 0:
-    #   mesh_vertex_ranges = get_mesh_ranges(self.model.nmesh, self.model.mesh_vertnum)
-    #   mesh_face_ranges = get_mesh_ranges(self.model.nmesh, self.model.mesh_facenum)
-    #   mesh_texcoord_ranges = get_mesh_ranges(self.model.nmesh, self.model.mesh_texcoordnum)
-    #   mesh_facetexcoord_ranges = get_facetexcoord_ranges(self.model.nmesh, self.model.mesh_facenum)
-
     # create and load the texture files
     # iterate through all the textures and build list of tex_rgb ranges
+    # TODO: remove once added to mujoco
     data_adr = 0
     texture_files = []
     for texid in range(self.model.ntex):
@@ -85,20 +86,17 @@ class USDRenderer(object):
     self.ngeom = self.scene.ngeom
     for i in range(self.ngeom):
       geom = geoms[i]
-      if geom.category == 1:
-        self.usd_geoms.append(None)
-        continue
       if geom.texid == -1:
         texture_file = None
       else:
         texture_file = texture_files[geom.texid]
 
       if geom.type == USDGeomType.Mesh.value:
-        self.usd_geoms.append(USDMesh(self.model.geom_dataid[i],
-                                      geom, 
-                                      self.stage, 
-                                      self.model,
-                                      texture_file))
+        self.usd_geoms.append(USDMesh(self.model.geom_dataid[geom.objid],
+                                        geom, 
+                                        self.stage, 
+                                        self.model,
+                                        texture_file))
       else:
         self.usd_geoms.append(create_usd_geom_primitive(geom, 
                                                         self.stage,
@@ -112,10 +110,17 @@ class USDRenderer(object):
     for i in range(self.nlight):
       self.usd_lights.append(USDLight(self.stage))
 
+    # initializes an array to store all the cameras in the scene
+    # populates with "empty" USDCamera objects
+    self.usd_cameras = []
+    cameras = self.scene.camera
+    for i in range(2):
+      self.usd_cameras.append(USDCamera(self.stage))
+
   def _update(self):
     self._update_geoms()
     self._update_lights()
-    self._update_camera()
+    self._update_cameras()
 
   def _update_geoms(self):
     """
@@ -135,11 +140,13 @@ class USDRenderer(object):
     for i in range(nlight):
       self.usd_lights[i].update_light(lights[i])
       
-  def _update_camera(self):
+  def _update_cameras(self):
     """
     Updates the camera to match the current scene
     """
-    pass
+    cameras = self.scene.camera
+    for i in range(2):
+      self.usd_cameras[i].update_camera(cameras[i])
 
   def start_viewer(self):
     if self.data:
