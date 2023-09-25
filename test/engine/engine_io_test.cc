@@ -31,6 +31,7 @@
 #include <mujoco/mjxmacro.h>
 #include <mujoco/mujoco.h>
 #include "src/engine/engine_util_errmem.h"
+#include "src/thread/thread_pool.h"
 #include "test/fixture.h"
 
 namespace mujoco {
@@ -762,6 +763,82 @@ TEST_F(EngineIoTest, CanMarkAndFreeStack) {
 
   mj_deleteData(data);
   mj_deleteModel(model);
+}
+
+struct TestFunctionArgs_ {
+  mjData* d;
+  int input;
+  int stack_output;
+  int arena_output;
+  size_t output_thread_worker;
+};
+typedef TestFunctionArgs_ TestFunctionArgs;
+
+void* TestFunction(void* args) {
+  TestFunctionArgs* test_args = static_cast<TestFunctionArgs*>(args);
+  test_args->output_thread_worker =
+      mju_threadPoolCurrentWorkerId((mjThreadPool*)test_args->d->threadpool);
+  mj_markStack(test_args->d);
+  int* test_ints = mj_stackAllocInt(test_args->d, 10);
+  test_ints[0] = test_args->input;
+  test_args->stack_output = test_ints[0];
+
+  int* test_arena_ints =
+      (int*)mj_arenaAllocByte(test_args->d, sizeof(int) * 10, _Alignof(int));
+  test_arena_ints[0] = test_args->input;
+  test_args->arena_output = test_arena_ints[0];
+
+
+  mj_freeStack(test_args->d);
+  return nullptr;
+}
+
+TEST_F(EngineIoTest, TestStackShardingForThreads) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+    </worldbody>
+  </mujoco>
+  )";
+
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error.data();
+
+  mjData* data = mj_makeData(model);
+  ASSERT_THAT(data, NotNull());
+  mjThreadPool* thread_pool = mju_threadPoolCreate(10);
+  mju_bindThreadPool(data, thread_pool);
+
+  constexpr int kTasks = 1000;
+  TestFunctionArgs test_function_args[kTasks];
+  mjTask tasks[kTasks];
+  for (int i = 0; i < kTasks; ++i) {
+    test_function_args[i].d = data;
+    test_function_args[i].input = i;
+    mju_defaultTask(&tasks[i]);
+    tasks[i].func = TestFunction;
+    tasks[i].args = &test_function_args[i];
+    mju_threadPoolEnqueue(thread_pool, &tasks[i]);
+  }
+
+  mj_markStack(data);
+  int* test_ints = mj_stackAllocInt(data, 10);
+  test_ints[0] = 1;
+  mj_freeStack(data);
+
+  for (int i = 0; i < kTasks; ++i) {
+    mju_taskJoin(&tasks[i]);
+  }
+
+  for (int i = 0; i < kTasks; ++i) {
+    EXPECT_EQ(test_function_args[i].input, test_function_args[i].stack_output);
+    EXPECT_EQ(test_function_args[i].input, test_function_args[i].arena_output);
+  }
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+  mju_threadPoolDestroy(thread_pool);
 }
 
 #ifdef ADDRESS_SANITIZER
