@@ -57,34 +57,6 @@ TEST_F(UserCompositeTest, MultipleJointsNotAllowedUnlessParticle) {
               HasSubstr("Only particles are allowed to have multiple joints"));
 }
 
-TEST_F(UserCompositeTest, StretchAndTwistAllowed) {
-  static constexpr char xml[] = R"(
-  <mujoco>
-  <worldbody>
-    <body name="B10">
-      <freejoint/>
-      <composite type="rope" count="21 1 1" spacing="0.04">
-        <joint kind="main" damping="0.005"/>
-        <joint kind="stretch" damping="0.005"/>
-        <joint kind="twist" damping="0.005"/>
-        <geom type="capsule" size=".01 .015"/>
-      </composite>
-    </body>
-  </worldbody>
-  </mujoco>
-  )";
-  static char warning[1024];
-  warning[0] = '\0';
-  mju_user_warning = [](const char* msg) {
-    util::strcpy_arr(warning, msg);
-  };
-  std::array<char, 1024> error;
-  mjModel* m = LoadModelFromString(xml, error.data(), error.size());
-  EXPECT_THAT(m, NotNull());
-  EXPECT_THAT(warning, HasSubstr("deprecated"));
-  mj_deleteModel(m);
-}
-
 TEST_F(UserCompositeTest, SpacingGreaterThanGeometry) {
   static constexpr char xml[] = R"(
   <mujoco>

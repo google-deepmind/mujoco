@@ -795,12 +795,10 @@ TEST_F(XMLWriterTest, WritesSkin) {
   static constexpr char xml[] = R"(
   <mujoco>
     <worldbody>
-      <body name="B0_0" pos="0 0 0">
-        <composite type="cloth" count="2 2 1" spacing="0.05">
-          <skin texcoord="true"/>
-          <geom type="ellipsoid" size="1 1 1"/>
-        </composite>
-      </body>
+      <composite type="grid" count="2 2 1" spacing="0.05">
+        <skin texcoord="true"/>
+        <geom size=".01"/>
+      </composite>
     </worldbody>
   </mujoco>
   )";
@@ -1085,7 +1083,8 @@ TEST_F(PluginTest, WriteReadCompare) {
 
         if (!mtemp) {
           // if failing because assets are missing, accept the test
-          ASSERT_THAT(error.data(), HasSubstr("file")) << error.data();
+          ASSERT_THAT(error.data(), HasSubstr("file"))
+              << error.data() << " from " << xml.c_str();
         } else {
           // for a particularly difficult example, relax the tolerance
           mjtNum tol =

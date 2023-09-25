@@ -41,7 +41,7 @@
     <composite type="particle" count="16 16 1" spacing="0.05" offset="0 0 1">
       <geom size=".02" rgba=".8 .2 .1 1" group="4" density="1000"
             condim="3" solref="0.01 1" solimp=".95 .99 .0001"/>
-      <skin inflate="0.01" rgba=".4 0 .3 1" subgrid="4"/>
+      <skin inflate="0.0001" rgba=".4 0 .3 1" subgrid="1"/>
       <plugin plugin="mujoco.elasticity.shell">
         <config key="poisson" value="0"/>
         <config key="damping" value="0.001"/>

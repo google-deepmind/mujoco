@@ -25,7 +25,7 @@ namespace mujoco {
 namespace {
 
 // number of steps to roll out before benhmarking
-static const int kNumWarmupSteps = 500;
+static const int kNumWarmupSteps = 200;
 
 // number of steps to benchmark
 static const int kNumBenchmarkSteps = 50;
@@ -102,7 +102,7 @@ void solveM_baseline(const mjModel* m, mjData* d, mjtNum* x, const mjtNum* y) {
 // ----------------------------- benchmark ------------------------------------
 
 static void BM_solveLD(benchmark::State& state, bool new_function) {
-  static mjModel* m = LoadModelFromPath("composite/cloth.xml");
+  static mjModel* m = LoadModelFromPath("plugin/elasticity/coil.xml");
   mjData* d = mj_makeData(m);
 
   // warm-up rollout to get a typical state
