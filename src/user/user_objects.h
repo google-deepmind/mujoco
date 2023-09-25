@@ -152,7 +152,7 @@ class mjCBoundingVolumeHierarchy {
   // make bounding volume hierarchy
   void CreateBVH();
   void Set(mjtNum ipos_element[3], mjtNum iquat_element[4]);
-  void AddBundingVolume(const mjCBoundingVolume& bv);
+  void AddBoundingVolume(const mjCBoundingVolume& bv);
 
  private:
   int MakeBVH(std::vector<mjCBoundingVolume>& elements, int lev = 0);
