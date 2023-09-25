@@ -282,7 +282,7 @@ void mjCBoundingVolumeHierarchy::Set(mjtNum ipos_element[3], mjtNum iquat_elemen
 
 
 // add geom to bvh
-void mjCBoundingVolumeHierarchy::AddBundingVolume(const mjCBoundingVolume& bv) {
+void mjCBoundingVolumeHierarchy::AddBoundingVolume(const mjCBoundingVolume& bv) {
   bvh_.push_back(bv);
 }
 
@@ -987,7 +987,7 @@ void mjCBody::Compile(void) {
   if (!geoms.empty()) {
     tree.Set(ipos, iquat);
     for (int i=0; i<geoms.size(); i++) {
-      tree.AddBundingVolume(geoms[i]->GetBoundingVolume());
+      tree.AddBoundingVolume(geoms[i]->GetBoundingVolume());
     }
     tree.CreateBVH();
   }

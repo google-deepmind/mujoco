@@ -573,7 +573,7 @@ void mjCMesh::Compile(const mjVFS* vfs) {
   if (tree_.bvh.empty()) {
     face_aabb_.assign(6*nface_, 0);
     for (int i=0; i<nface_; i++) {
-      tree_.AddBundingVolume(GetBoundingVolume(i));
+      tree_.AddBoundingVolume(GetBoundingVolume(i));
     }
     tree_.CreateBVH();
   }
