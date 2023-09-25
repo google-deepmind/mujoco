@@ -62,9 +62,17 @@ class Simulate {
   void UpdateMesh(int meshid);
   void UpdateTexture(int texid);
 
+  // Request that the Simulate UI display a "loading" message
+  // Called prior to Load or LoadMessageClear
+  void LoadMessage(const char* displayed_filename);
+
   // Request that the Simulate UI thread render a new model
-  // optionally delete the old model and data when done
   void Load(mjModel* m, mjData* d, const char* displayed_filename);
+
+  // Clear the loading message
+  // Can be called instead of Load to clear the message without
+  // requesting the UI load a model
+  void LoadMessageClear(void);
 
   // functions below are used by the renderthread
   // load mjb or xml model that has been requested by load()
@@ -173,6 +181,7 @@ class Simulate {
   std::atomic_int uiloadrequest = 0;
 
   // loadrequest
+  //   3: display a loading message
   //   2: render thread asked to update its model
   //   1: showing "loading" label, about to load
   //   0: model loaded or no load requested.

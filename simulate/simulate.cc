@@ -1977,6 +1977,15 @@ void Simulate::Sync() {
 }
 
 //------------------------- Tell the render thread to load a file and wait -------------------------
+void Simulate::LoadMessage(const char* displayed_filename) {
+  mju::strcpy_arr(this->filename, displayed_filename);
+
+  {
+    MutexLock lock(mtx);
+    this->loadrequest = 3;
+  }
+}
+
 void Simulate::Load(mjModel* m, mjData* d, const char* displayed_filename) {
   this->mnew_ = m;
   this->dnew_ = d;
@@ -1992,6 +2001,15 @@ void Simulate::Load(mjModel* m, mjData* d, const char* displayed_filename) {
     cond_loadrequest.wait(lock, [this]() { return this->loadrequest == 0; });
   }
 }
+
+void Simulate::LoadMessageClear(void) {
+  {
+    MutexLock lock(mtx);
+    this->loadrequest = 0;
+  }
+}
+
+
 
 //------------------------------------- load mjb or xml model --------------------------------------
 void Simulate::LoadOnRenderThread() {
@@ -2167,7 +2185,7 @@ void Simulate::Render() {
 
     // label
     if (this->loadrequest) {
-      mjr_overlay(mjFONT_BIG, mjGRID_TOPRIGHT, smallrect, "loading", nullptr,
+      mjr_overlay(mjFONT_BIG, mjGRID_TOPLEFT, smallrect, "loading", nullptr,
                   &this->platform_ui->mjr_context());
     } else {
       char intro_message[Simulate::kMaxFilenameLength];
@@ -2450,7 +2468,7 @@ void Simulate::RenderLoop() {
       // load model (not on first pass, to show "loading" label)
       if (this->loadrequest==1) {
         this->LoadOnRenderThread();
-      } else if (this->loadrequest>1) {
+      } else if (this->loadrequest == 2) {
         this->loadrequest = 1;
       }
 

@@ -203,7 +203,11 @@ PYBIND11_MODULE(_simulate, pymodule) {
       }))
       .def("destroy", &SimulateWrapper::Destroy,
            py::call_guard<py::gil_scoped_release>())
+      .def("load_message", CallIfNotNull(&mujoco::Simulate::LoadMessage),
+           py::call_guard<py::gil_scoped_release>())
       .def("load", &SimulateWrapper::Load)
+      .def("load_message_clear", CallIfNotNull(&mujoco::Simulate::LoadMessageClear),
+           py::call_guard<py::gil_scoped_release>())
       .def("sync", CallIfNotNull(&mujoco::Simulate::Sync),
            py::call_guard<py::gil_scoped_release>())
 

@@ -259,6 +259,7 @@ void PhysicsLoop(mj::Simulate& sim) {
   // run until asked to exit
   while (!sim.exitrequest.load()) {
     if (sim.droploadrequest.load()) {
+      sim.LoadMessage(sim.dropfilename);
       mjModel* mnew = LoadModel(sim.dropfilename, sim);
       sim.droploadrequest.store(false);
 
@@ -279,10 +280,14 @@ void PhysicsLoop(mj::Simulate& sim) {
         ctrlnoise = (mjtNum*) malloc(sizeof(mjtNum)*m->nu);
         mju_zero(ctrlnoise, m->nu);
       }
+      else {
+        sim.LoadMessageClear();
+      }
     }
 
     if (sim.uiloadrequest.load()) {
       sim.uiloadrequest.fetch_sub(1);
+      sim.LoadMessage(sim.filename);
       mjModel* mnew = LoadModel(sim.filename, sim);
       mjData* dnew = nullptr;
       if (mnew) dnew = mj_makeData(mnew);
@@ -300,6 +305,9 @@ void PhysicsLoop(mj::Simulate& sim) {
         free(ctrlnoise);
         ctrlnoise = static_cast<mjtNum*>(malloc(sizeof(mjtNum)*m->nu));
         mju_zero(ctrlnoise, m->nu);
+      }
+      else {
+        sim.LoadMessageClear();
       }
     }
 
@@ -404,6 +412,7 @@ void PhysicsLoop(mj::Simulate& sim) {
 void PhysicsThread(mj::Simulate* sim, const char* filename) {
   // request loadmodel if file given (otherwise drag-and-drop)
   if (filename != nullptr) {
+    sim->LoadMessage(filename);
     m = LoadModel(filename, *sim);
     if (m) d = mj_makeData(m);
     if (d) {
@@ -414,6 +423,8 @@ void PhysicsThread(mj::Simulate* sim, const char* filename) {
       free(ctrlnoise);
       ctrlnoise = static_cast<mjtNum*>(malloc(sizeof(mjtNum)*m->nu));
       mju_zero(ctrlnoise, m->nu);
+    } else {
+      sim->LoadMessageClear();
     }
   }
 
