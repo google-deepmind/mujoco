@@ -53,6 +53,11 @@ class USDGeom(object):
     self.prim = None
     self.ref = None
 
+    # xform operations, set when updating geoms
+    self.translate_op = None
+    self.rotate_op = None
+    self.scale_op = None
+
   def set_texture(self):
     if self.texture_file:
       mtl_path = Sdf.Path(f"/World/Looks/Material_{os.path.splitext(os.path.basename(self.texture_file))[0]}")
@@ -83,18 +88,24 @@ class USDGeom(object):
   
   def update_pos(self, new_pos):
     pos = tuple([float(x) for x in new_pos])
-    self.xform.AddTranslateOp().Set(pos)
+    if not self.translate_op:
+      self.translate_op = self.xform.AddTranslateOp()
+    self.translate_op.Set(pos)
 
   def update_rotation(self, new_mat):
     r = R.from_matrix(new_mat)
     euler_rotation = r.as_euler('xyz', degrees=True)
     rotation = Gf.Vec3f(float(euler_rotation[0]), float(euler_rotation[1]), float(euler_rotation[2]))
-    self.xform.AddRotateXYZOp().Set(rotation)
+    if not self.rotate_op:
+      self.rotate_op = self.xform.AddRotateXYZOp()
+    self.rotate_op.Set(rotation)
 
   # TODO: check to make sure scale and size are the same thing
   def update_size(self, new_size):
     size = tuple([float(x) for x in new_size])
-    self.xform.AddScaleOp().Set(value=size)
+    if not self.scale_op:
+      self.scale_op = self.xform.AddScaleOp()
+    self.scale_op.Set(value=size)
 
   def update_color(self, new_color):
     # new_color is the rgba (we extract first three)
@@ -124,15 +135,16 @@ class USDPlane(USDGeom):
     xform_path = f'/World/Plane_Xform_{USDPlane.plane_count}'
     plane_path = f'{xform_path}/Plane_{USDPlane.plane_count}'
     self.xform = UsdGeom.Xform.Define(stage, xform_path)
-    self.prim = UsdGeom.Plane.Define(stage, plane_path)
+    self.prim = UsdGeom.Cube.Define(stage, plane_path) # temporary fix for planes
     self.ref = stage.GetPrimAtPath(plane_path)
 
     self.set_texture()
 
   def update_size(self, new_size):
-    self.prim.GetAxisAttr().Set("Z")
-    self.prim.GetWidthAttr().Set(float(new_size[0]))
-    self.prim.GetLengthAttr().Set(float(new_size[1]))
+    size = tuple([float(new_size[0]), float(new_size[1]), 0.005])
+    if not self.scale_op:
+      self.scale_op = self.xform.AddScaleOp()
+    self.scale_op.Set(value=size)
 
 class USDSphere(USDGeom):
   """
@@ -173,7 +185,7 @@ class USDCapsule(USDGeom):
     xform_path = f'/World/Capsule_Xform_{USDCapsule.capsule_count}'
     capsule_path = f'{xform_path}/Capsule_{USDCapsule.capsule_count}'
     self.xform = UsdGeom.Xform.Define(stage, xform_path)
-    self.prim = UsdGeom.Capsule.Define(stage, sphere_path)
+    self.prim = UsdGeom.Capsule.Define(stage, capsule_path)
     self.ref = stage.GetPrimAtPath(capsule_path)
 
     self.set_texture()
@@ -197,28 +209,6 @@ class USDCylinder(USDGeom):
     self.xform = UsdGeom.Xform.Define(stage, xform_path)
     self.prim = UsdGeom.Cylinder.Define(stage, cylinder_path)
     self.ref = stage.GetPrimAtPath(cylinder_path)
-
-    self.set_texture()
-
-class USDSphere(USDGeom):
-  """
-  Stores information regarding a sphere geom in USD
-  """
-
-  sphere_count = 0
-
-  def __init__(self, 
-               geom=None,
-               stage=None,
-               texture_file=None):
-    super().__init__(geom, stage, texture_file)
-    self.type = 2
-    USDSphere.sphere_count += 1
-    xform_path = f'/World/Sphere_Xform_{USDSphere.sphere_count}'
-    sphere_path = f'{xform_path}/Sphere_{USDSphere.sphere_count}'
-    self.xform = UsdGeom.Xform.Define(stage, xform_path)
-    self.prim = UsdGeom.Sphere.Define(stage, sphere_path)
-    self.ref = stage.GetPrimAtPath(sphere_path)
 
     self.set_texture()
 
@@ -332,9 +322,6 @@ class USDMesh(USDGeom):
     self.update_rotation(new_geom.mat)
     if not self.texture_file:
       self.update_color(new_geom.rgba)
-
-    # TODO: remove this, temporary
-    # self.xform.AddScaleOp().Set(value=(10.0, 10.0, 10.0))
   
 class USDLight(object):
   """
@@ -353,9 +340,13 @@ class USDLight(object):
     self.prim = UsdLux.SphereLight.Define(stage, light_path)
     self.ref = stage.GetPrimAtPath(light_path)
 
+    self.translate_op = None
+
   def update_light(self, new_light):
     pos = tuple([float(x) for x in new_light.pos])
-    self.xform.AddTranslateOp().Set(pos)
+    if not self.translate_op:
+      self.translate_op = self.xform.AddTranslateOp()
+    self.translate_op.Set(pos)
 
     # TODO attributes:
     #   - direction
@@ -365,7 +356,6 @@ class USDLight(object):
     #   - specular
 
     self.prim.GetIntensityAttr().Set(15000);
-
 
 class USDCamera(object):
   """
@@ -382,15 +372,22 @@ class USDCamera(object):
     self.prim = UsdGeom.Camera.Define(stage, camera_path)
     self.ref = stage.GetPrimAtPath(camera_path)
 
-  def update_camera(self, new_camera):
+  def update_camera(self, new_pos, new_quat):
     # print("---- Updating camera in USD ----")
     xformAPI = UsdGeom.XformCommonAPI(self.prim)
 
+    pos = tuple([float(x) for x in new_pos])
+
+    # convert a quat to euler rotation angles
+    r = R.from_quat(new_quat)
+    euler_rotation = r.as_euler('xyz', degrees=True)
+    rotation = Gf.Vec3f(float(euler_rotation[2]), float(euler_rotation[1]), float(euler_rotation[0]))
+
     # hardcoded values for Robosuite testing and prototype 
     # TODO: use actual camera values
-    xformAPI.SetTranslate((2.25, 0.0, 2.1))
-    xformAPI.SetRotate((65.0, 0.0, 90.0))
-    xformAPI.SetScale((1, 1, 1))
+    xformAPI.SetTranslate(pos)
+    xformAPI.SetRotate(rotation)
+    # xformAPI.SetScale((1, 1, 1))
 
     self.prim.CreateFocalLengthAttr().Set(24)
     self.prim.CreateFocusDistanceAttr().Set(400)

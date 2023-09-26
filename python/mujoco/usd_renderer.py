@@ -113,8 +113,8 @@ class USDRenderer(object):
     # initializes an array to store all the cameras in the scene
     # populates with "empty" USDCamera objects
     self.usd_cameras = []
-    cameras = self.scene.camera
-    for i in range(2):
+    ncam = self.model.ncam
+    for i in range(ncam):
       self.usd_cameras.append(USDCamera(self.stage))
 
   def _update(self):
@@ -144,9 +144,9 @@ class USDRenderer(object):
     """
     Updates the camera to match the current scene
     """
-    cameras = self.scene.camera
-    for i in range(2):
-      self.usd_cameras[i].update_camera(cameras[i])
+    ncam = self.model.ncam
+    for i in range(ncam):
+      self.usd_cameras[i].update_camera(self.model.cam_pos[i], self.model.cam_quat[i])
 
   def start_viewer(self):
     if self.data:
