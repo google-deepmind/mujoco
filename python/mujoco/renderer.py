@@ -86,6 +86,7 @@ the clause:
     _render.mjr_setBuffer(
         _enums.mjtFramebuffer.mjFB_OFFSCREEN.value, self._mjr_context
     )
+    self._mjr_context.readDepthMapping = _enums.mjtDepthMapping.mjDM_ONETOZERO
 
     # Default render flags.
     self._depth_rendering = False
@@ -196,6 +197,7 @@ the clause:
       out_64 = D / (out_64 + C)
 
       # Cast result back to float32 for backwards compatibility
+      # This has a small accuracy cost
       out[:] = out_64.astype(np.float32)
 
       # Reset scene flags.

@@ -389,6 +389,10 @@ public enum mjtFramebuffer : int{
   mjFB_WINDOW = 0,
   mjFB_OFFSCREEN = 1,
 }
+public enum mjtDepthMapping : int{
+  mjDM_ZEROTOONE = 0,
+  mjDM_ONETOZERO = 1,
+}
 public enum mjtFontScale : int{
   mjFONTSCALE_50 = 50,
   mjFONTSCALE_100 = 100,
