@@ -784,7 +784,7 @@ void* TestFunction(void* args) {
   test_args->stack_output = test_ints[0];
 
   int* test_arena_ints =
-      (int*)mj_arenaAllocByte(test_args->d, sizeof(int) * 10, _Alignof(int));
+      (int*)mj_arenaAllocByte(test_args->d, sizeof(int) * 10, alignof(int));
   test_arena_ints[0] = test_args->input;
   test_args->arena_output = test_arena_ints[0];
 
