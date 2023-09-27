@@ -298,6 +298,7 @@ def _physics_loop(simulate: _Simulate, loader: Optional[_InternalLoaderType]):
 
           # Run mj_forward, to update rendering and joint sliders.
           mujoco.mj_forward(m, d)
+          synccpu = time.time()
 
 
 def _launch_internal(
