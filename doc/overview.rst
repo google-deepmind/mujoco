@@ -937,5 +937,5 @@ can be obtained as:
 
 Now if everything went well (i.e., "myfloatingbody" was indeed a floating body), qposadr and qveladr are the addresses
 in qpos and qvel where the data for our floating body/joint lives. The position data is 7 numbers (3D position followed
-by unit quaternion) while the velocity data is 6 numbers (3D linear velocity followed by 3D angular velocity). These
-numbers can now be set to the desired pose and velocity of the body.
+by unit quaternion) while the velocity data is 6 numbers (3D linear velocity followed by 3D angular velocity, both in
+the body frame). These numbers can now be set to the desired pose and velocity of the body.
