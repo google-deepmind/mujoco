@@ -174,9 +174,11 @@ def _reload(
 ) -> Optional[Tuple[mujoco.MjModel, mujoco.MjData]]:
   """Internal function for reloading a model in the viewer."""
   try:
+    simulate.load_message('') # path is unknown at this point
     load_tuple = loader()
   except Exception as e:  # pylint: disable=broad-except
     simulate.load_error = str(e)
+    simulate.load_message_clear()
   else:
     m, d = load_tuple[:2]
 
