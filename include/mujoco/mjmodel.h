@@ -778,7 +778,6 @@ struct mjModel_ {
   int*      mesh_graphadr;        // graph data address; -1: no graph         (nmesh x 1)
   mjtNum*   mesh_pos;             // translation applied to asset vertices    (nmesh x 3)
   mjtNum*   mesh_quat;            // rotation applied to asset vertices       (nmesh x 4)
-  int*      mesh_assetpathadr;    // address of asset path for mesh; -1: none (nmesh x 1)
   float*    mesh_vert;            // vertex positions for all meshes          (nmeshvert x 3)
   float*    mesh_normal;          // normals for all meshes                   (nmeshnormal x 3)
   float*    mesh_texcoord;        // vertex texcoords for all meshes          (nmeshtexcoord x 2)
@@ -786,6 +785,7 @@ struct mjModel_ {
   int*      mesh_facenormal;      // normal face data                         (nmeshface x 3)
   int*      mesh_facetexcoord;    // texture face data                        (nmeshface x 3)
   int*      mesh_graph;           // convex graph data                        (nmeshgraph x 1)
+  int*      mesh_pathadr;         // address of asset path for mesh; -1: none (nmesh x 1)
 
   // skins
   int*      skin_matid;           // skin material id; -1: none               (nskin x 1)

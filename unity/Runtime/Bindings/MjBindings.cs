@@ -5250,7 +5250,6 @@ public unsafe struct mjModel_ {
   public int* mesh_graphadr;
   public double* mesh_pos;
   public double* mesh_quat;
-  public int* mesh_assetpathadr;
   public float* mesh_vert;
   public float* mesh_normal;
   public float* mesh_texcoord;
@@ -5258,6 +5257,7 @@ public unsafe struct mjModel_ {
   public int* mesh_facenormal;
   public int* mesh_facetexcoord;
   public int* mesh_graph;
+  public int* mesh_pathadr;
   public int* skin_matid;
   public int* skin_group;
   public float* skin_rgba;
@@ -6006,7 +6006,7 @@ public unsafe struct model {
   public int* mesh_bvhnum;
   public int* mesh_texcoordadr;
   public int* mesh_graphadr;
-  public int* mesh_assetpathadr;
+  public int* mesh_pathadr;
   public int* skin_matid;
   public int* skin_group;
   public float* skin_rgba;

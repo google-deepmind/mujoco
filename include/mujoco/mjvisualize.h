@@ -469,7 +469,7 @@ struct mjvSceneState_ {
     int* mesh_bvhnum;
     int* mesh_texcoordadr;
     int* mesh_graphadr;
-    int* mesh_assetpathadr;
+    int* mesh_pathadr;
 
     int* skin_matid;
     int* skin_group;

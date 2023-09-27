@@ -1332,10 +1332,10 @@ void mjCModel::CopyPaths(mjModel* m) {
 
   for (unsigned int i=0; i<meshes.size(); i++) {
     if (meshes[i]->file().empty()) {
-      m->mesh_assetpathadr[i] = -1;
+      m->mesh_pathadr[i] = -1;
       continue;
     }
-    m->mesh_assetpathadr[i] = adr;
+    m->mesh_pathadr[i] = adr;
 
     // copy path
     size_t path_size = meshes[i]->file().size();

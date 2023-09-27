@@ -299,7 +299,6 @@
     XMJV( int,     mesh_graphadr,         nmesh,         1                    ) \
     X   ( mjtNum,  mesh_pos,              nmesh,         3                    ) \
     X   ( mjtNum,  mesh_quat,             nmesh,         4                    ) \
-    XMJV( int,     mesh_assetpathadr,     nmesh,         1                    ) \
     X   ( float,   mesh_vert,             nmeshvert,     3                    ) \
     X   ( float,   mesh_normal,           nmeshnormal,   3                    ) \
     X   ( float,   mesh_texcoord,         nmeshtexcoord, 2                    ) \
@@ -307,6 +306,7 @@
     X   ( int,     mesh_facenormal,       nmeshface,     3                    ) \
     X   ( int,     mesh_facetexcoord,     nmeshface,     3                    ) \
     X   ( int,     mesh_graph,            nmeshgraph,    1                    ) \
+    XMJV( int,     mesh_pathadr,          nmesh,         1                    ) \
     XMJV( int,     skin_matid,            nskin,         1                    ) \
     XMJV( int,     skin_group,            nskin,         1                    ) \
     XMJV( float,   skin_rgba,             nskin,         4                    ) \

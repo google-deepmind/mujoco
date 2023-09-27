@@ -1867,7 +1867,7 @@ const char* mj_validateReferences(const mjModel* m) {
   X(name_textadr,       ntext,         nnames       , 0                      ) \
   X(name_tupleadr,      ntuple,        nnames       , 0                      ) \
   X(name_keyadr,        nkey,          nnames       , 0                      ) \
-  X(mesh_assetpathadr,  nmesh,         npaths       , 0                      )
+  X(mesh_pathadr,       nmesh,         npaths       , 0                      )
 
   #define X(adrarray, nadrs, ntarget, numarray) {             \
     int *nums = (numarray);                                   \

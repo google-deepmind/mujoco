@@ -2124,13 +2124,6 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='rotation applied to asset vertices       (nmesh x 4)',
              ),
              StructFieldDecl(
-                 name='mesh_assetpathadr',
-                 type=PointerType(
-                     inner_type=ValueType(name='int'),
-                 ),
-                 doc='address of asset path for mesh; -1: none (nmesh x 1)',
-             ),
-             StructFieldDecl(
                  name='mesh_vert',
                  type=PointerType(
                      inner_type=ValueType(name='float'),
@@ -2178,6 +2171,13 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                      inner_type=ValueType(name='int'),
                  ),
                  doc='convex graph data                        (nmeshgraph x 1)',  # pylint: disable=line-too-long
+             ),
+             StructFieldDecl(
+                 name='mesh_pathadr',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='address of asset path for mesh; -1: none (nmesh x 1)',
              ),
              StructFieldDecl(
                  name='skin_matid',
@@ -5977,7 +5977,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                              doc='',
                          ),
                          StructFieldDecl(
-                             name='mesh_assetpathadr',
+                             name='mesh_pathadr',
                              type=PointerType(
                                  inner_type=ValueType(name='int'),
                              ),
