@@ -228,3 +228,13 @@ jobs:
       run: >
         source ${{ matrix.tmpdir }}/venv/bin/activate &&
         pytest -v --pyargs mujoco
+    - name: Notify team chat
+      if: ${{ always() && github.event_name == "push" }}
+      env:
+        GCHAT_API: "${{ secrets.GCHAT_API }}"
+        RUN_URL: "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+        RUN_RESULT: ${{ success() && 'SUCCEEDED' || 'FAILED' }}
+      run: >
+        curl -X POST "$GCHAT_API"
+        -H "Content-Type: application/json"
+        -d '{"text": "GitHub Actions run *$RUN_RESULT* for commit <$RUN_URL|$(echo $GITHUB_SHA | head -c6)\n\n${{ github.event.head_commit.message }}>."}'
