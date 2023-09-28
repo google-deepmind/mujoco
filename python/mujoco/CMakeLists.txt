@@ -311,6 +311,11 @@ macro(mujoco_pybind11_module name)
     if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
       # Only allow fallthrough annotation via __attribute__.
       target_compile_options(${name} PRIVATE -Wimplicit-fallthrough=5)
+
+      # https://gcc.gnu.org/bugzilla/show_bug.cgi?id=109561
+      if (CMAKE_CXX_COMPILER_VERSION VERSION_GREATER 11)
+        target_compile_options(${name} PRIVATE -Wno-maybe-uninitialized)
+      endif()
     endif()
   endif()
   set_target_properties(${name} PROPERTIES LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
