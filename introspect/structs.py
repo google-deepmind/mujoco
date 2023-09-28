@@ -1900,6 +1900,20 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='y-field of view (deg)                    (ncam x 1)',
              ),
              StructFieldDecl(
+                 name='cam_intrinsic',
+                 type=PointerType(
+                     inner_type=ValueType(name='float'),
+                 ),
+                 doc='[focal length; principal point]          (ncam x 4)',
+             ),
+             StructFieldDecl(
+                 name='cam_sensorsize',
+                 type=PointerType(
+                     inner_type=ValueType(name='float'),
+                 ),
+                 doc='sensor size                              (ncam x 2)',
+             ),
+             StructFieldDecl(
                  name='cam_ipd',
                  type=PointerType(
                      inner_type=ValueType(name='mjtNum'),
@@ -4731,6 +4745,11 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='hor. center (left,right set to match aspect)',
              ),
              StructFieldDecl(
+                 name='frustum_width',
+                 type=ValueType(name='float'),
+                 doc='width (not used for rendering)',
+             ),
+             StructFieldDecl(
                  name='frustum_bottom',
                  type=ValueType(name='float'),
                  doc='bottom',
@@ -5882,6 +5901,13 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                              name='cam_ipd',
                              type=PointerType(
                                  inner_type=ValueType(name='mjtNum'),
+                             ),
+                             doc='',
+                         ),
+                         StructFieldDecl(
+                             name='cam_sensorsize',
+                             type=PointerType(
+                                 inner_type=ValueType(name='float'),
                              ),
                              doc='',
                          ),

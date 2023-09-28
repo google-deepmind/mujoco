@@ -199,6 +199,7 @@ struct mjvGLCamera_ {             // OpenGL camera
 
   // camera projection
   float    frustum_center;        // hor. center (left,right set to match aspect)
+  float    frustum_width;         // width (not used for rendering)
   float    frustum_bottom;        // bottom
   float    frustum_top;           // top
   float    frustum_near;          // near
@@ -454,6 +455,7 @@ struct mjvSceneState_ {
 
     mjtNum* cam_fovy;
     mjtNum* cam_ipd;
+    float* cam_sensorsize;
 
     mjtByte* light_directional;
     mjtByte* light_castshadow;

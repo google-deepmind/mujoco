@@ -406,9 +406,22 @@ void mjXWriter::OneCamera(XMLElement* elem, mjCCamera* pcam, mjCDef* def) {
 
   // defaults and regular
   WriteAttr(elem, "ipd", 1, &pcam->ipd, &def->camera.ipd);
-  WriteAttr(elem, "fovy", 1, &pcam->fovy, &def->camera.fovy);
   WriteAttrKey(elem, "mode", camlight_map, camlight_sz, pcam->mode, def->camera.mode);
   WriteAttr(elem, "resolution", 2, pcam->resolution, def->camera.resolution);
+
+  // resolution if positive
+  WriteAttr(elem, "resolution", 2, pcam->resolution, def->camera.resolution);
+
+  // camera intrinsics if specified
+  if (pcam->sensor_size[0]>0 && pcam->sensor_size[1]>0) {
+    WriteAttr(elem, "sensorsize", 2, pcam->sensor_size);
+    WriteAttr(elem, "focal", 2, pcam->focal_length, def->camera.focal_length);
+    WriteAttr(elem, "focalpixel", 2, pcam->focal_pixel, def->camera.focal_pixel);
+    WriteAttr(elem, "principal", 2, pcam->principal_length, def->camera.principal_length);
+    WriteAttr(elem, "principalpixel", 2, pcam->principal_pixel, def->camera.principal_pixel);
+  } else {
+    WriteAttr(elem, "fovy", 1, &pcam->fovy, &def->camera.fovy);
+  }
 
   // userdata
   if (writingdefaults) {

@@ -404,6 +404,14 @@ static void renderGeom(const mjvGeom* geom, int mode, const float* headpos,
     }
     break;
 
+  case mjGEOM_TRIANGLE:                       // triangle
+    glBegin(GL_TRIANGLES);
+    glVertex3f(0, 0, 0);
+    glVertex3f(size[0], 0, 0);
+    glVertex3f(0, size[1], 0);
+    glEnd();
+    break;
+
   case mjGEOM_SKIN:                           // skin
     // vertex positions
     glEnableClientState(GL_VERTEX_ARRAY);
@@ -585,8 +593,9 @@ static void setView(int view, mjrRect viewport, const mjvScene* scn, const mjrCo
   }
 
   // compute frustum halfwidth so as to match viewport aspect ratio
-  float halfwidth = 0.5f * (float)viewport.width/(float)viewport.height *
-                    (cam.frustum_top - cam.frustum_bottom);
+  float halfwidth = cam.frustum_width ? cam.frustum_width
+                    : 0.5f * (float)viewport.width / (float)viewport.height *
+                             (cam.frustum_top - cam.frustum_bottom);
 
   // set projection
   glMatrixMode(GL_PROJECTION);

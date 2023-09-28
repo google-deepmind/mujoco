@@ -17,6 +17,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <sstream>
@@ -1950,6 +1951,12 @@ mjCCamera::mjCCamera(mjCModel* _model, mjCDef* _def) {
   ipd = 0.068;
   userdata.clear();
   resolution[0] = resolution[1] = 1;
+  principal_length[0] = principal_length[1] = 0;
+  principal_pixel[0] = principal_pixel[1] = 0;
+  focal_length[0] = focal_length[1] = 0;
+  focal_pixel[0] = focal_pixel[1] = 0;
+  sensor_size[0] = sensor_size[1] = 0;
+  mjuu_setvec(intrinsic, 0, 0, 0, 0);
 
   // clear private variables
   body = 0;
@@ -2009,6 +2016,39 @@ void mjCCamera::Compile(void) {
   if (fovy >= 180) {
     throw mjCError(this, "fovy too large in camera '%s' (id = %d, value = %d)",
                    name.c_str(), id, fovy);
+  }
+
+  // check that specs are not duplicated
+  if ((principal_length[0] && principal_pixel[0]) ||
+      (principal_length[1] && principal_pixel[1])) {
+    throw mjCError(this, "principal length duplicated in camera '%s' (id = %d)",
+                   name.c_str(), id);
+  }
+
+  if ((focal_length[0] && focal_pixel[0]) ||
+      (focal_length[1] && focal_pixel[1])) {
+    throw mjCError(this, "focal length duplicated in camera '%s' (id = %d)",
+                   name.c_str(), id);
+  }
+
+  // compute number of pixels per unit length
+  if (sensor_size[0]>0 && sensor_size[1]>0) {
+    float pixel_density[2] = {
+      (float)resolution[0] / sensor_size[0],
+      (float)resolution[1] / sensor_size[1],
+    };
+
+    // defaults are zero, so only one term in each sum is nonzero
+    intrinsic[0] = focal_pixel[0] / pixel_density[0] + focal_length[0];
+    intrinsic[1] = focal_pixel[1] / pixel_density[1] + focal_length[1];
+    intrinsic[2] = principal_pixel[0] / pixel_density[0] + principal_length[0];
+    intrinsic[3] = principal_pixel[1] / pixel_density[1] + principal_length[1];
+
+    // fovy with principal point at (0, 0)
+    fovy = mju_atan2((float)sensor_size[1]/2, intrinsic[1]) * 360.0 / mjPI;
+  } else {
+    intrinsic[0] = model->visual.map.znear;
+    intrinsic[1] = model->visual.map.znear;
   }
 }
 

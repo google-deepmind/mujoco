@@ -2044,6 +2044,7 @@ This is useful for example when the MJB is not available as a file on disk.)"));
         c.get()->var = rhs;                                            \
       })
   X(frustum_center);
+  X(frustum_width);
   X(frustum_bottom);
   X(frustum_top);
   X(frustum_near);

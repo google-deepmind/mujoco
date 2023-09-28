@@ -188,7 +188,10 @@ static void get_xquat(const mjModel* m, const mjData* d, mjtObj type, int id, in
 
 static void cam_project(mjtNum sensordata[2], const mjtNum target_xpos[3],
                         const mjtNum cam_xpos[3], const mjtNum cam_xmat[9],
-                        const int cam_res[2], mjtNum cam_fovy) {
+                        const int cam_res[2], mjtNum cam_fovy,
+                        const float cam_intrinsic[4], const float cam_sensorsize[2]) {
+  mjtNum fx, fy;
+
   // translation matrix (4x4)
   mjtNum translation[4][4] = {0};
   translation[0][0] = 1;
@@ -212,10 +215,15 @@ static void cam_project(mjtNum sensordata[2], const mjtNum target_xpos[3],
   }
 
   // focal transformation matrix (3x4)
-  mjtNum height = (mjtNum) cam_res[1];
-  mjtNum fy = .5 / mju_tan(cam_fovy * mjPI / 360.) * height;
+  if (cam_sensorsize[0] && cam_sensorsize[1]) {
+    fx = cam_intrinsic[0] / cam_sensorsize[0] * cam_res[0];
+    fy = cam_intrinsic[1] / cam_sensorsize[1] * cam_res[1];
+  } else {
+    fx = fy = .5 / mju_tan(cam_fovy * mjPI / 360.) * cam_res[1];
+  }
+
   mjtNum focal[3][4] = {0};
-  focal[0][0] = -fy;
+  focal[0][0] = -fx;
   focal[1][1] =  fy;
   focal[2][2] = 1.0;
 
@@ -307,7 +315,8 @@ void mj_sensorPos(const mjModel* m, mjData* d) {
 
       case mjSENS_CAMPROJECTION:                          // camera projection
         cam_project(d->sensordata+adr, d->site_xpos+3*objid, d->cam_xpos+3*refid,
-                    d->cam_xmat+9*refid, m->cam_resolution+2*refid, m->cam_fovy[refid]);
+                    d->cam_xmat+9*refid, m->cam_resolution+2*refid, m->cam_fovy[refid],
+                    m->cam_intrinsic+4*refid, m->cam_sensorsize+2*refid);
         break;
 
       case mjSENS_RANGEFINDER:                            // rangefinder

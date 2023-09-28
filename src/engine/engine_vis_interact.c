@@ -722,6 +722,7 @@ mjvGLCamera mjv_averageCamera(const mjvGLCamera* cam1, const mjvGLCamera* cam2) 
   cam.frustum_bottom = 0.5f * (cam1->frustum_bottom + cam2->frustum_bottom);
   cam.frustum_top    = 0.5f * (cam1->frustum_top + cam2->frustum_top);
   cam.frustum_center = 0.5f * (cam1->frustum_center + cam2->frustum_center);
+  cam.frustum_width  = 0.5f * (cam1->frustum_width + cam2->frustum_width);
   cam.frustum_near   = 0.5f * (cam1->frustum_near + cam2->frustum_near);
   cam.frustum_far    = 0.5f * (cam1->frustum_far + cam2->frustum_far);
 

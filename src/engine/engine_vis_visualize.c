@@ -523,6 +523,17 @@ static void drawBoundingBox(mjvGeom* thisgeom, mjData* d, mjvScene* scn,
 
 
 
+// computes the camera frustum
+static void getFrustum(float zver[2], float zhor[2], float znear,
+                       const float K[4], const float sensorsize[2]) {
+  zhor[0] = znear / K[0] * (sensorsize[0]/2.f - K[2]);
+  zhor[1] = znear / K[0] * (sensorsize[0]/2.f + K[2]);
+  zver[0] = znear / K[1] * (sensorsize[1]/2.f - K[3]);
+  zver[1] = znear / K[1] * (sensorsize[1]/2.f + K[3]);
+}
+
+
+
 // add abstract geoms
 void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
                   const mjvPerturb* pert, int catmask, mjvScene* scn) {
@@ -1461,6 +1472,87 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
     }
   }
 
+  // camera frustum
+  if (vopt->flags[mjVIS_CAMERA]) {
+    float rgba[] = {1, 1, 0, .2};
+    mjtNum vnear[4][3], vfar[4][3];
+    mjtNum center[3];
+    mjtNum znear = m->vis.map.znear * m->stat.extent;
+    mjtNum zfar = m->vis.map.zfar * m->stat.extent;
+    float zver[2], zhor[2];
+    for (int i=0; i < m->ncam; i++) {
+      if (m->cam_sensorsize[2*i+1] == 0) {
+        continue;
+      }
+      getFrustum(zver, zhor, znear, m->cam_intrinsic + 4*i, m->cam_sensorsize + 2*i);
+
+      // frustum frame to convert from planes to vertex representation
+      mjtNum *cam_xpos = d->cam_xpos+3*i;
+      mjtNum *cam_xmat = d->cam_xmat+9*i;
+      mjtNum x[] = {cam_xmat[0], cam_xmat[3], cam_xmat[6]};
+      mjtNum y[] = {cam_xmat[1], cam_xmat[4], cam_xmat[7]};
+      mjtNum z[] = {cam_xmat[2], cam_xmat[5], cam_xmat[8]};
+
+      // vertices of the near plane
+      mju_addScl3(center, cam_xpos, z, -znear);
+      mju_addScl3(vnear[0], center, x, -zhor[0]);
+      mju_addScl3(vnear[1], center, x,  zhor[1]);
+      mju_addScl3(vnear[2], center, x,  zhor[1]);
+      mju_addScl3(vnear[3], center, x, -zhor[0]);
+      mju_addToScl3(vnear[0], y, -zver[0]);
+      mju_addToScl3(vnear[1], y, -zver[0]);
+      mju_addToScl3(vnear[2], y,  zver[1]);
+      mju_addToScl3(vnear[3], y,  zver[1]);
+
+      // vertices of the far plane
+      zhor[0] *= zfar / znear;
+      zhor[1] *= zfar / znear;
+      zver[0] *= zfar / znear;
+      zver[1] *= zfar / znear;
+      mju_addScl3(center, cam_xpos, z, -zfar);
+      mju_addScl3(vfar[0], center, x, -zhor[0]);
+      mju_addScl3(vfar[1], center, x,  zhor[1]);
+      mju_addScl3(vfar[2], center, x,  zhor[1]);
+      mju_addScl3(vfar[3], center, x, -zhor[0]);
+      mju_addToScl3(vfar[0], y, -zver[0]);
+      mju_addToScl3(vfar[1], y, -zver[0]);
+      mju_addToScl3(vfar[2], y,  zver[1]);
+      mju_addToScl3(vfar[3], y,  zver[1]);
+
+      // triangulation and wireframe of the frustum
+      for (int e=0; e<4; e++) {
+        START
+        mju_sub3(x, vfar[e], vnear[e]);
+        mju_sub3(y, vnear[(e+1)%4], vnear[e]);
+        mju_cross(z, x, y);
+        mjtNum tri1[3] = {mju_normalize3(x), mju_normalize3(y), mju_normalize3(z)};
+        mjtNum xmat1[9] = {x[0], y[0], z[0], x[1], y[1], z[1], x[2], y[2], z[2]};
+        mjv_initGeom(thisgeom, mjGEOM_TRIANGLE, tri1, vnear[e], xmat1, rgba);
+        FINISH
+        START
+        mju_sub3(y, vnear[(e+1)%4], vfar[e]);
+        mju_sub3(x, vfar[(e+1)%4], vfar[e]);
+        mju_cross(z, x, y);
+        mjtNum tri2[3] = {mju_normalize3(x), mju_normalize3(y), mju_normalize3(z)};
+        mjtNum xmat2[9] = {x[0], y[0], z[0], x[1], y[1], z[1], x[2], y[2], z[2]};
+        mjv_initGeom(thisgeom, mjGEOM_TRIANGLE, tri2, vfar[e], xmat2, rgba);
+        FINISH
+        START
+        mjv_connector(thisgeom, mjGEOM_LINE, 3, vnear[e], vnear[(e+1)%4]);
+        f2f(thisgeom->rgba, rgba, 4);
+        FINISH
+        START
+        mjv_connector(thisgeom, mjGEOM_LINE, 3, vfar[e], vfar[(e+1)%4]);
+        f2f(thisgeom->rgba, rgba, 4);
+        FINISH
+        START
+        mjv_connector(thisgeom, mjGEOM_LINE, 3, vnear[e], vfar[e]);
+        f2f(thisgeom->rgba, rgba, 4);
+        FINISH
+      }
+    }
+  }
+
   // lights
   objtype = mjOBJ_LIGHT;
   category = mjCAT_DECOR;
@@ -1907,24 +1999,27 @@ void mjv_makeLights(const mjModel* m, mjData* d, mjvScene* scn) {
 // update camera only
 void mjv_updateCamera(const mjModel* m, mjData* d, mjvCamera* cam, mjvScene* scn) {
   mjtNum ca, sa, ce, se, move[3], *mat;
-  mjtNum headpos[3], forward[3], up[3], right[3], ipd, fovy, znear, zfar;
+  mjtNum headpos[3], forward[3], up[3], right[3], ipd;
 
   // return if nothing to do
   if (!m || !cam || cam->type == mjCAMERA_USER) {
     return;
   }
 
-  // get znear, zfar
-  znear = m->vis.map.znear * m->stat.extent;
-  zfar = m->vis.map.zfar * m->stat.extent;
+  // initialize frustum
+  float zver[2], zhor[2] = {0, 0};
+  float znear = m->vis.map.znear * m->stat.extent;
+  float zfar = m->vis.map.zfar * m->stat.extent;
 
   // get headpos, forward[3], up, right, ipd, fovy
   switch (cam->type) {
   case mjCAMERA_FREE:
   case mjCAMERA_TRACKING:
-    // get global ipd and fovy
+    // get global ipd
     ipd = m->vis.global.ipd;
-    fovy = m->vis.global.fovy;
+
+    // compute image size from global fovy
+    zver[0] = zver[1] = (float)znear * mju_tan(m->vis.global.fovy * (float)(mjPI/360.0));
 
     // move lookat for tracking
     if (cam->type == mjCAMERA_TRACKING) {
@@ -1965,7 +2060,13 @@ void mjv_updateCamera(const mjModel* m, mjData* d, mjvCamera* cam, mjvScene* scn
 
     // get camera-specific ipd and fovy
     ipd = m->cam_ipd[cid];
-    fovy = m->cam_fovy[cid];
+
+    // get frustum from intrinsics or from fovy
+    if (m->cam_sensorsize[2*cid+1]) {
+      getFrustum(zver, zhor, znear, m->cam_intrinsic + 4*cid, m->cam_sensorsize + 2*cid);
+    } else {
+      zver[0] = zver[1] = (float)znear * mju_tan(m->cam_fovy[cid] * (float)(mjPI/360.0));
+    }
 
     // get pointer to camera orientation matrix
     mat = d->cam_xmat + 9*cid;
@@ -1997,12 +2098,13 @@ void mjv_updateCamera(const mjModel* m, mjData* d, mjvCamera* cam, mjvScene* scn
       scn->camera[view].up[i] = (float)up[i];
     }
 
-    // set symmetric frustum
-    scn->camera[view].frustum_center = 0;
-    scn->camera[view].frustum_top = (float)znear * tanf(fovy * (float)(mjPI/360.0));
-    scn->camera[view].frustum_bottom = -scn->camera[view].frustum_top;
-    scn->camera[view].frustum_near = (float)znear;
-    scn->camera[view].frustum_far = (float)zfar;
+    // set symmetric frustum using intrinsic camera matrix
+    scn->camera[view].frustum_top = zver[1];
+    scn->camera[view].frustum_bottom = -zver[0];
+    scn->camera[view].frustum_center = (zhor[1] - zhor[0]) / 2;
+    scn->camera[view].frustum_width = (zhor[1] + zhor[0]) / 2;
+    scn->camera[view].frustum_near = znear;
+    scn->camera[view].frustum_far = zfar;
   }
 
   // disable model transformation (do not clear float data; user may need it later)

@@ -106,17 +106,26 @@ General
 19. Added camera :ref:`resolution<body-camera-resolution>` attribute and :ref:`camprojection<sensor-camprojection>`
     sensor. If camera resolution is set to positive values, the camera projection sensor will report the location of a
     target site, projected onto the camera image, in pixel coordinates.
+20. Added :ref:`camera<body-camera>` calibration attributes:
+
+    - The new attributes are :ref:`resolution<body-camera-resolution>`, :ref:`focal<body-camera-focal>`,
+      :ref:`focalpixel<body-camera-focalpixel>`, :ref:`principal<body-camera-principal>`,
+      :ref:`principalpixel<body-camera-principalpixel>` and :ref:`sensorsize<body-camera-sensorsize>`.
+    - Visualize the calibrated frustum using the :ref:`mjVIS_CAMERA<mjtVisFlag>` visualization flag when these
+      attributes are specified. See the following
+      `example model <https://github.com/deepmind/mujoco/blob/main/test/engine/testdata/vis_visualize/frustum.xml>`__.
+    - Note that these attributes only take effect for offline rendering and do not affect interactive visualisation.
 
 Python bindings
 ^^^^^^^^^^^^^^^
 
-20. Fixed `#870 <https://github.com/google-deepmind/mujoco/issues/870>`__ where calling ``update_scene`` with an invalid
+21. Fixed `#870 <https://github.com/google-deepmind/mujoco/issues/870>`__ where calling ``update_scene`` with an invalid
     camera name used the default camera.
 
 Bug fixes
 ^^^^^^^^^
 
-21. Fixed a bug that was causing :ref:`geom margin<body-geom-margin>` to be ignored during the construction of
+22. Fixed a bug that was causing :ref:`geom margin<body-geom-margin>` to be ignored during the construction of
     midphase collision trees.
 
 

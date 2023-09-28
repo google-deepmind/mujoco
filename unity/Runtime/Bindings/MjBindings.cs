@@ -190,6 +190,7 @@ public enum mjtGeom : int{
   mjGEOM_LINE = 103,
   mjGEOM_SKIN = 104,
   mjGEOM_LABEL = 105,
+  mjGEOM_TRIANGLE = 106,
   mjGEOM_NONE = 1001,
 }
 public enum mjtCamLight : int{
@@ -5218,6 +5219,8 @@ public unsafe struct mjModel_ {
   public double* cam_mat0;
   public int* cam_resolution;
   public double* cam_fovy;
+  public float* cam_intrinsic;
+  public float* cam_sensorsize;
   public double* cam_ipd;
   public double* cam_user;
   public int* light_mode;
@@ -5699,6 +5702,7 @@ public unsafe struct mjvGLCamera_ {
   public fixed float forward[3];
   public fixed float up[3];
   public float frustum_center;
+  public float frustum_width;
   public float frustum_bottom;
   public float frustum_top;
   public float frustum_near;
@@ -5993,6 +5997,7 @@ public unsafe struct model {
   public float* site_rgba;
   public double* cam_fovy;
   public double* cam_ipd;
+  public float* cam_sensorsize;
   public byte* light_directional;
   public byte* light_castshadow;
   public byte* light_active;

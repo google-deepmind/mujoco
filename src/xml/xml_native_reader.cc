@@ -148,8 +148,9 @@ static const char* MJCF[nMJCF][mjXATTRNUM] = {
             "hfield", "mesh", "fitscale", "rgba", "fluidshape", "fluidcoef", "user"},
         {"site", "?", "13", "type", "group", "pos", "quat", "material",
             "size", "fromto", "axisangle", "xyaxes", "zaxis", "euler", "rgba", "user"},
-        {"camera", "?", "11", "fovy", "ipd", "pos", "quat", "resolution",
-            "axisangle", "xyaxes", "zaxis", "euler", "mode", "user"},
+        {"camera", "?", "16", "fovy", "ipd", "resolution", "pos", "quat", "axisangle", "xyaxes",
+            "zaxis", "euler", "mode", "focal", "focalpixel", "principal", "principalpixel",
+            "sensorsize", "user"},
         {"light", "?", "12", "pos", "dir", "directional", "castshadow", "active",
             "attenuation", "cutoff", "exponent", "ambient", "diffuse", "specular", "mode"},
         {"pair", "?", "7", "condim", "friction", "solref", "solreffriction", "solimp",
@@ -257,9 +258,9 @@ static const char* MJCF[nMJCF][mjXATTRNUM] = {
         {">"},
         {"site", "*", "15", "name", "class", "type", "group", "pos", "quat",
             "material", "size", "fromto", "axisangle", "xyaxes", "zaxis", "euler", "rgba", "user"},
-        {"camera", "*", "14", "name", "class", "fovy", "ipd", "resolution",
-            "pos", "quat", "axisangle", "xyaxes", "zaxis", "euler",
-            "mode", "target", "user"},
+        {"camera", "*", "19", "name", "class", "fovy", "ipd", "resolution", "pos", "quat",
+            "axisangle", "xyaxes", "zaxis", "euler", "mode", "target", "focal", "focalpixel",
+            "principal", "principalpixel", "sensorsize", "user"},
         {"light", "*", "15", "name", "class", "directional", "castshadow", "active",
             "pos", "dir", "attenuation", "cutoff", "exponent", "ambient", "diffuse", "specular",
             "mode", "target"},
@@ -1461,11 +1462,26 @@ void mjXReader::OneCamera(XMLElement* elem, mjCCamera* pcam) {
   ReadAttr(elem, "pos", 3, pcam->pos, text);
   ReadQuat(elem, "quat", pcam->quat, text);
   ReadAlternative(elem, pcam->alt);
-  ReadAttr(elem, "fovy", 1, &pcam->fovy, text);
   ReadAttr(elem, "ipd", 1, &pcam->ipd, text);
-  ReadAttr(elem, "resolution", 2, pcam->resolution, text);
+
+  bool has_principal = ReadAttr(elem, "principalpixel", 2, pcam->principal_pixel, text) ||
+                       ReadAttr(elem, "principal", 2, pcam->principal_length, text);
+  bool has_focal = ReadAttr(elem, "focalpixel", 2, pcam->focal_pixel, text) ||
+                   ReadAttr(elem, "focal", 2, pcam->focal_length, text);
+  bool needs_sensorsize = has_principal || has_focal;
+  bool has_sensorsize = ReadAttr(elem, "sensorsize", 2, pcam->sensor_size, text, needs_sensorsize);
+  bool has_fovy = ReadAttr(elem, "fovy", 1, &pcam->fovy, text);
+  bool needs_resolution = has_focal || has_sensorsize;
+  ReadAttr(elem, "resolution", 2, pcam->resolution, text, needs_resolution);
+
   if (pcam->resolution[0] < 0 || pcam->resolution[1] < 0) {
     throw mjXError(elem, "camera resolution cannot be negative");
+  }
+
+  if (has_fovy && has_sensorsize) {
+    throw mjXError(
+        elem,
+        "either 'fovy' or 'sensorsize' attribute can be specified, not both");
   }
 
   // read userdata

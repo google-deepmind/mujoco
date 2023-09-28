@@ -3053,6 +3053,35 @@ and the +Y axis points up. Thus the frame position and orientation are the key a
    dimensions are determined by the size of the rendering context. This attribute serves as a convenient
    location to save the required resolution when creating a context.
 
+.. _body-camera-focal:
+
+:at:`focal`: :at-val:`real(2), "0 0"`
+   Focal length of the camera in length units. It is mutually exclusive with :ref:`fovy <body-camera-fovy>`.
+   See :ref:`CCamera` for details.
+
+.. _body-camera-focalpixel:
+
+:at:`focalpixel`: :at-val:`int(2), "0 0"`
+   Focal length of the camera in pixel units. If both :at:`focal`: and :at:`focalpixel`: are specified, the former is
+   ignored.
+
+.. _body-camera-principal:
+
+:at:`principal`: :at-val:`real(2), "0 0"`
+   Principal point of the camera in length units. It is mutually exclusive with :ref:`fovy <body-camera-fovy>`.
+
+.. _body-camera-principalpixel:
+
+:at:`principalpixel`: :at-val:`real(2), "0 0"`
+   Principal point of the camera in pixel units. If both :at:`principal`: and :at:`principalpixel`: are specified, the
+   former is ignored.
+
+.. _body-camera-sensorsize:
+
+:at:`sensorsize`: :at-val:`real(2), "0 0"`
+   Size of the camera sensor in length units. It is mutually exclusive with :ref:`fovy <body-camera-fovy>`. If
+   specified, :ref:`resolution <body-camera-resolution>` and :ref:`focal <body-camera-focal>` are required.
+
 .. _body-camera-ipd:
 
 :at:`ipd`: :at-val:`real, "0.068"`
@@ -6700,8 +6729,6 @@ if omitted.
 | All site attributes are available here except: name, class.
 
 
-.. _default-camera:
-
 .. _default-camera-fovy:
 
 .. _default-camera-resolution:
@@ -6724,11 +6751,26 @@ if omitted.
 
 .. _default-camera-user:
 
+.. _default-camera-resolution:
+
+.. _default-camera-focal:
+
+.. _default-camera-focalpixel:
+
+.. _default-camera-principal:
+
+.. _default-camera-principalpixel:
+
+.. _default-camera-sensorsize:
+
+.. _default-camera:
+
+
 :el-prefix:`default/` |-| **camera** (?)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 | This element sets the attributes of the dummy :ref:`camera <body-camera>` element of the defaults class.
-| All camera attributes are available here except: name, class.
+| All camera attributes are available here except: name, class, mode, target.
 
 
 .. _default-light:

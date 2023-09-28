@@ -465,7 +465,13 @@ class mjCCamera : public mjCBase {
   double ipd;                     // inter-pupilary distance
   double pos[3];                  // position
   double quat[4];                 // orientation
+  float intrinsic[4];             // camera intrinsics [length]
+  float sensor_size[2];           // sensor size [length]
   float resolution[2];            // resolution [pixel]
+  float focal_length[2];          // focal length [length]
+  float focal_pixel[2];           // focal length [pixel]
+  float principal_length[2];      // principal point [length]
+  float principal_pixel[2];       // principal point [pixel]
   std::vector<double> userdata;   // user data
   mjCAlternative alt;             // alternative orientation specification
 

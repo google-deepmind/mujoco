@@ -515,8 +515,10 @@ Camera
 Multiple cameras can be defined in a model. There is always a default camera which the user can freely move with the
 mouse in the interactive visualizer. However it is often convenient to define additional cameras that are either
 fixed to the world, or are attached to one of the bodies and move with it. In addition to the camera position and
-orientation, the user can adjust the field of view and the inter-pupilary distance for stereoscopic rendering, as
-well as create oblique projections needed for stereoscopic virtual environments.
+orientation, the user can adjust the vertical field of view and the inter-pupilary distance for stereoscopic rendering,
+as well as create oblique projections needed for stereoscopic virtual environments. When modeling real cameras with
+imperfect optics, it is possible to specify separate focal lengths for the horizontal and vertical directions and a
+non-centered principal point.
 
 Light
 ^^^^^

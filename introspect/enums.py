@@ -92,6 +92,7 @@ ENUMS: Mapping[str, EnumDecl] = dict([
              ('mjGEOM_LINE', 103),
              ('mjGEOM_SKIN', 104),
              ('mjGEOM_LABEL', 105),
+             ('mjGEOM_TRIANGLE', 106),
              ('mjGEOM_NONE', 1001),
          ]),
      )),

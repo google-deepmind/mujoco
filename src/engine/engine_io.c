@@ -251,7 +251,7 @@ void mj_defaultVisual(mjVisual* vis) {
   setf4(vis->rgba.actuatornegative, .2, .6, .9, 1.);
   setf4(vis->rgba.actuatorpositive, .9, .4, .2, 1.);
   setf4(vis->rgba.com,              .9, .9, .9, 1.);
-  setf4(vis->rgba.camera,           .6, .9, .6, 1.);
+  setf4(vis->rgba.camera,           .6, .9, .6, .3);
   setf4(vis->rgba.light,            .6, .6, .9, 1.);
   setf4(vis->rgba.selectpoint,      .9, .9, .1, 1.);
   setf4(vis->rgba.connect,          .2, .2, .8, 1.);
