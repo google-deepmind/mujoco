@@ -386,7 +386,6 @@ static inline unsigned int SKIP(intptr_t offset) {
 // set pointers in mjModel buffer
 static void mj_setPtrModel(mjModel* m) {
   char* ptr = (char*)m->buffer;
-  ptrdiff_t sz;
 
   // prepare symbols needed by xmacro
   MJMODEL_POINTERS_PREAMBLE(m);
@@ -401,10 +400,9 @@ static void mj_setPtrModel(mjModel* m) {
 #undef X
 
   // check size
-  sz = ptr - (char*)m->buffer;
+  ptrdiff_t sz = ptr - (char*)m->buffer;
   if (m->nbuffer != sz) {
-    printf("expected size: %zu,  actual size: %zu\n", m->nbuffer, sz);
-    mjERROR("mjModel buffer size mismatch");
+    mjERROR("mjModel buffer size mismatch, expected size: %zd,  actual size: %zu", m->nbuffer, sz);
   }
 }
 
@@ -1028,7 +1026,6 @@ static void checkDBSparse(const mjModel* m, mjData* d) {
 // set pointers into mjData buffer
 static void mj_setPtrData(const mjModel* m, mjData* d) {
   char* ptr = (char*)d->buffer;
-  int sz;
 
   // prepare symbols needed by xmacro
   MJDATA_POINTERS_PREAMBLE(m);
@@ -1043,9 +1040,9 @@ static void mj_setPtrData(const mjModel* m, mjData* d) {
 #undef X
 
   // check size
-  sz = (int)(ptr - (char*)d->buffer);
+  ptrdiff_t sz = ptr - (char*)d->buffer;
   if (d->nbuffer != sz) {
-    mjERROR("mjData buffer size mismatch");
+    mjERROR("mjData buffer size mismatch, expected size: %zd,  actual size: %zu", d->nbuffer, sz);
   }
 
   // zero-initialize arena pointers
