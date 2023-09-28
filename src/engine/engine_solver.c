@@ -37,7 +37,7 @@
 static void saveStats(const mjModel* m, mjData* d, int island, int iter,
                       mjtNum improvement, mjtNum gradient, mjtNum lineslope,
                       int nactive, int nchange, int neval, int nupdate) {
-  // if out of range, return
+  // if island out of range, return
   if (island >= mjNISLAND) {
     return;
   }
@@ -45,8 +45,12 @@ static void saveStats(const mjModel* m, mjData* d, int island, int iter,
   // if no islands, use first island
   island = mjMAX(0, island);
 
+  // if iter out of range, return
+  if (iter >= mjNSOLVER) {
+    return;
+  }
+
   // get mjSolverStat pointer
-  iter += d->solver_niter[island];  // add current niter (in case of noslip)
   mjSolverStat* stat = d->solver + island*mjNSOLVER + iter;
 
   // save stats
@@ -712,7 +716,10 @@ void mj_solNoSlip(const mjModel* m, mjData* d, int maxiter) {
 
     // scale improvement, save stats
     improvement *= scale;
-    saveStats(m, d, island, iter, improvement, 0, 0, nactive, nchange, 0, 0);
+
+    // save noslip stats after all the entries from regular solver
+    int stats_iter = iter + d->solver_niter[island];
+    saveStats(m, d, island, stats_iter, improvement, 0, 0, nactive, nchange, 0, 0);
 
     // increment iteration count
     iter++;
