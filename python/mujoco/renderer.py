@@ -86,7 +86,7 @@ the clause:
     _render.mjr_setBuffer(
         _enums.mjtFramebuffer.mjFB_OFFSCREEN.value, self._mjr_context
     )
-    self._mjr_context.readDepthMap = _enums.mjtDepthMap.mjDEPTHMAP_10
+    self._mjr_context.readDepthMap = _enums.mjtDepthMap.mjDEPTH_ZEROFAR
 
     # Default render flags.
     self._depth_rendering = False

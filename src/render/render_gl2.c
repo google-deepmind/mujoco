@@ -115,7 +115,7 @@ void mjr_readPixels(unsigned char* rgb, float* depth,
     if (depth) {
       glReadPixels(viewport.left, viewport.bottom, viewport.width, viewport.height,
                    GL_DEPTH_COMPONENT, GL_FLOAT, depth);
-      if (con->readDepthMap == mjDEPTHMAP_01) {
+      if (con->readDepthMap == mjDEPTH_ZERONEAR) {
         int N_pixels = viewport.width * viewport.height;
         for (int i = 0; i < N_pixels; i++) depth[i] = 1.0 - depth[i]; // Reverse the reversed Z buffer
       }
@@ -164,7 +164,7 @@ void mjr_readPixels(unsigned char* rgb, float* depth,
       glReadPixels(viewport.left, viewport.bottom, viewport.width, viewport.height,
                    GL_DEPTH_COMPONENT, GL_FLOAT, depth);
 
-      if (con->readDepthMap == mjDEPTHMAP_01) {
+      if (con->readDepthMap == mjDEPTH_ZERONEAR) {
         int N_pixels = viewport.width * viewport.height;
         for (int i = 0; i < N_pixels; i++) depth[i] = 1.0 - depth[i]; // Reverse the reversed Z buffer
       }

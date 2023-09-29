@@ -1614,7 +1614,7 @@ void mjr_makeContext_offSize(const mjModel* m, mjrContext* con, int fontscale,
   con->readPixelFormat = GL_RGB;
 
   // set default depth mapping for mjr_readPixels
-  con->readDepthMap = mjDEPTHMAP_01;
+  con->readDepthMap = mjDEPTH_ZERONEAR;
 }
 
 

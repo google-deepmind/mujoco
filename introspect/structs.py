@@ -7129,7 +7129,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
              StructFieldDecl(
                  name='readDepthMap',
                  type=ValueType(name='int'),
-                 doc='depth mapping: mjDEPTHMAP_01 or mjDEPTHMAP_10',
+                 doc='depth mapping: mjDEPTH_ZERONEAR or mjDEPTH_ZEROFAR',
              ),
          ),
      )),

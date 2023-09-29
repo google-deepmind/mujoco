@@ -40,8 +40,8 @@ typedef enum mjtFramebuffer_ {    // OpenGL framebuffer option
 } mjtFramebuffer;
 
 typedef enum mjtDepthMap_ {       // depth mapping for `mjr_readPixels`
-  mjDEPTHMAP_01  = 0,             // standard depth map; 0: znear, 1: zfar
-  mjDEPTHMAP_10  = 1              // reversed depth map; 1: znear, 0: zfar
+  mjDEPTH_ZERONEAR    = 0,        // standard depth map; 0: znear, 1: zfar
+  mjDEPTH_ZEROFAR     = 1         // reversed depth map; 1: znear, 0: zfar
 } mjtDepthMap;
 
 typedef enum mjtFontScale_ {      // font scale, used at context creation
@@ -157,7 +157,7 @@ struct mjrContext_ {              // custom OpenGL context
   int     readPixelFormat;        // default color pixel format for mjr_readPixels
 
   // depth output format
-  int     readDepthMap;           // depth mapping: mjDEPTHMAP_01 or mjDEPTHMAP_10
+  int     readDepthMap;           // depth mapping: mjDEPTH_ZERONEAR or mjDEPTH_ZEROFAR
 };
 typedef struct mjrContext_ mjrContext;
 
