@@ -1614,7 +1614,7 @@ void mjr_makeContext_offSize(const mjModel* m, mjrContext* con, int fontscale,
   con->readPixelFormat = GL_RGB;
 
   // set default depth mapping for mjr_readPixels
-  con->readDepthMapping = mjDM_ZEROTOONE;
+  con->readDepthMap = mjDEPTHMAP_01;
 }
 
 
@@ -1835,7 +1835,6 @@ MJAPI void mjr_resizeOffscreen(int width, int height, mjrContext* con) {
   } else {
     glRenderbufferStorage(GL_RENDERBUFFER, GL_RGBA8, con->offWidth, con->offHeight);
   }
-
 
   glBindRenderbuffer(GL_RENDERBUFFER, con->offDepthStencil);
   if (con->offSamples) {

@@ -621,13 +621,13 @@ ENUMS: Mapping[str, EnumDecl] = dict([
              ('mjFB_OFFSCREEN', 1),
          ]),
      )),
-    ('mjtDepthMapping',
+    ('mjtDepthMap',
      EnumDecl(
-         name='mjtDepthMapping',
-         declname='enum mjtDepthMapping_',
+         name='mjtDepthMap',
+         declname='enum mjtDepthMap_',
          values=dict([
-             ('mjDM_ZEROTOONE', 0),
-             ('mjDM_ONETOZERO', 1),
+             ('mjDEPTHMAP_01', 0),
+             ('mjDEPTHMAP_10', 1),
          ]),
      )),
     ('mjtFontScale',

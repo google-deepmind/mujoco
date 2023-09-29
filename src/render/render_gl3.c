@@ -601,9 +601,9 @@ static void setView(int view, mjrRect viewport, const mjvScene* scn, const mjrCo
   // set projection
   glMatrixMode(GL_PROJECTION);
   glLoadIdentity();
-  // reverse Z rendering mapping (znear, zfar) -> (1, 0)
-  glTranslatef(0,0,0.5);
-  glScalef(1,1,-0.5);
+  // reverse Z rendering mapping [znear, zfar] -> [1, 0]
+  glTranslatef(0.0f, 0.0f, 0.5f);
+  glScalef(1.0f, 1.0f, -0.5f);
   glFrustum(cam.frustum_center - halfwidth,
             cam.frustum_center + halfwidth,
             cam.frustum_bottom,
@@ -682,7 +682,6 @@ void mjr_render(mjrRect viewport, mjvScene* scn, const mjrContext* con) {
     0.0f, 0.0f, 1.0f, 0.0f,
     0.5f, 0.5f, 0.0f, 1.0f
   };
-
   float tempMatrix[16], textureMatrix[16];
   mjvGeom *thisgeom, tempgeom;
   mjvLight *thislight;
@@ -1030,9 +1029,9 @@ void mjr_render(mjrRect viewport, mjvScene* scn, const mjrContext* con) {
           // set projection: from light viewpoint
           glMatrixMode(GL_PROJECTION);
           glLoadIdentity();
-          // reverse Z rendering mapping (znear, zfar) -> (1, 0)
-          glTranslatef(0,0,0.5);
-          glScalef(1,1,-0.5);
+          // reverse Z rendering mapping [znear, zfar] -> [1, 0]
+          glTranslatef(0.0f, 0.0f, 0.5f);
+          glScalef(1.0f , 1.0f, -0.5f);
           if (thislight->directional) {
             glOrtho(-con->shadowClip, con->shadowClip,
                     -con->shadowClip, con->shadowClip,
