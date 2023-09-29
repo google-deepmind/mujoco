@@ -25,7 +25,7 @@ jobs:
       matrix:
         include:
           - os: ubuntu-22.04
-            additional_label: "with GCC 12"
+            additional_label: "-gcc-12"
             cmake_args: >-
               -G Ninja
               -DCMAKE_C_COMPILER:STRING=gcc-12
@@ -33,7 +33,7 @@ jobs:
               -DCMAKE_EXE_LINKER_FLAGS:STRING=-Wl,--no-as-needed
             tmpdir: "/tmp"
           - os: ubuntu-22.04
-            additional_label: "with GCC 11"
+            additional_label: "-gcc-11"
             cmake_args: >-
               -G Ninja
               -DCMAKE_C_COMPILER:STRING=gcc-11
@@ -41,7 +41,7 @@ jobs:
               -DCMAKE_EXE_LINKER_FLAGS:STRING=-Wl,--no-as-needed
             tmpdir: "/tmp"
           - os: ubuntu-22.04
-            additional_label: "with GCC 10"
+            additional_label: "-gcc-10"
             cmake_args: >-
               -G Ninja
               -DCMAKE_C_COMPILER:STRING=gcc-10
@@ -49,7 +49,7 @@ jobs:
               -DCMAKE_EXE_LINKER_FLAGS:STRING=-Wl,--no-as-needed
             tmpdir: "/tmp"
           - os: ubuntu-22.04
-            additional_label: "with GCC 9"
+            additional_label: "-gcc-9"
             cmake_args: >-
               -G Ninja
               -DCMAKE_C_COMPILER:STRING=gcc-9
@@ -57,7 +57,7 @@ jobs:
               -DCMAKE_EXE_LINKER_FLAGS:STRING=-Wl,--no-as-needed
             tmpdir: "/tmp"
           - os: ubuntu-22.04
-            additional_label: "with Clang 14"
+            additional_label: "-clang-14"
             cmake_args: >-
               -G Ninja
               -DCMAKE_C_COMPILER:STRING=clang-14
@@ -65,7 +65,7 @@ jobs:
               -DMUJOCO_HARDEN:BOOL=ON
             tmpdir: "/tmp"
           - os: ubuntu-22.04
-            additional_label: "with Clang 13"
+            additional_label: "-clang-13"
             cmake_args: >-
               -G Ninja
               -DCMAKE_C_COMPILER:STRING=clang-13
@@ -73,7 +73,7 @@ jobs:
               -DMUJOCO_HARDEN:BOOL=ON
             tmpdir: "/tmp"
           - os: ubuntu-20.04
-            additional_label: "with Clang 12"
+            additional_label: "-clang-12"
             cmake_args: >-
               -G Ninja
               -DCMAKE_C_COMPILER:STRING=clang-12
@@ -81,7 +81,7 @@ jobs:
               -DMUJOCO_HARDEN:BOOL=ON
             tmpdir: "/tmp"
           - os: ubuntu-20.04
-            additional_label: "with Clang 11"
+            additional_label: "-clang-11"
             cmake_args: >-
               -G Ninja
               -DCMAKE_C_COMPILER:STRING=clang-11
@@ -89,7 +89,7 @@ jobs:
               -DMUJOCO_HARDEN:BOOL=ON
             tmpdir: "/tmp"
           - os: ubuntu-20.04
-            additional_label: "with Clang 10"
+            additional_label: "-clang-10"
             cmake_args: >-
               -G Ninja
               -DCMAKE_C_COMPILER:STRING=clang-10
@@ -107,7 +107,7 @@ jobs:
             cmake_build_args: "-- -m"
             tmpdir: "C:/Temp"
 
-    name: "MuJoCo on ${{ matrix.os }} ${{ matrix.additional_label }}"
+    name: "${{ matrix.os }}${{ matrix.additional_label }}"
     runs-on: ${{ matrix.os }}
 
     steps:
@@ -230,11 +230,22 @@ jobs:
         pytest -v --pyargs mujoco
     - name: Notify team chat
       if: ${{ always() && github.event_name == 'push' }}
+      shell: bash
       env:
-        GCHAT_API: "${{ secrets.GCHAT_API }}"
-        RUN_URL: "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-        RUN_RESULT: ${{ success() && 'SUCCEEDED' || 'FAILED' }}
+        GCHAT_API: ${{ secrets.GCHAT_API }}
+        RUN_URL: "${{ github.server_url }}/${{ github.repository }}/actions/runs/\
+          ${{ github.run_id }}"
+        JOB_STATUS: ${{ job.status }}
       run: >
-        curl -X POST "$GCHAT_API"
+        curl
+        "$GCHAT_API&threadKey=$GITHUB_SHA&messageReplyOption=REPLY_MESSAGE_FALLBACK_TO_NEW_THREAD"
+        -X POST
         -H "Content-Type: application/json"
-        -d '{"text": "GitHub Actions run *$RUN_RESULT* for commit <$RUN_URL|$(echo $GITHUB_SHA | head -c6)\n\n${{ github.event.head_commit.message }}>."}'
+        -d "{
+        'text': '<$RUN_URL|*${JOB_STATUS^^}*>:
+        job \`${{ matrix.os }}${{ matrix.additional_label }}\`
+        commit \`$(echo $GITHUB_SHA | head -c6)\`\n
+        \`\`\`Author: ${{ github.event.head_commit.author.name }}
+        <${{ github.event.head_commit.author.email }}>
+        \n\n${{ github.event.head_commit.message }}\`\`\`
+        '}"
