@@ -774,10 +774,21 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
                (pert->active & mjPERT_ROTATE) > 0,
                (pert->active2 & mjPERT_ROTATE) > 0);
 
-      // construct geom
-      sz[0] = sz[1] = sz[2] = scl;
+      // construct geom: if body i has a collision aabb, use that
+      mjtNum pos[3] = {0};
+      if (m->body_bvhnum[i]) {
+        mjtNum* aabb = m->bvh_aabb+6*m->body_bvhadr[i];
+        mju_copy3(sz, aabb+3);
+        mju_rotVecMat(pos, aabb, d->ximat+9*i);
+      }
+
+      // otherwise box of size meansize
+      else {
+        sz[0] = sz[1] = sz[2] = scl;
+      }
       mju_quat2Mat(mat, pert->refquat);
-      mjv_initGeom(thisgeom, mjGEOM_BOX, sz, d->xipos+3*i, mat, rgba);
+      mju_addTo3(pos, d->xipos+3*i);
+      mjv_initGeom(thisgeom, mjGEOM_BOX, sz, pos, mat, rgba);
 
       FINISH
     }
