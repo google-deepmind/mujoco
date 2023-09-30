@@ -115,6 +115,9 @@ General
       attributes are specified. See the following
       `example model <https://github.com/deepmind/mujoco/blob/main/test/engine/testdata/vis_visualize/frustum.xml>`__.
     - Note that these attributes only take effect for offline rendering and do not affect interactive visualisation.
+21. Implemented reversed Z rendering and added enum ``mjtDepthMap`` with elements ``mjDEPTH_ZERONEAR`` and
+    ``mjDEPTH_ZEROFAR`` which can be used to set ``readDepthMap`` in ``mjrContext`` to control how the depth returned by
+    ``mjr_readPixels`` is mapped from ``znear`` to ``zfar``.
 
 Python bindings
 ^^^^^^^^^^^^^^^
