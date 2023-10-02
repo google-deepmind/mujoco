@@ -1338,7 +1338,11 @@ typedef enum mjtGridPos_ {        // grid position for overlay
   mjGRID_TOPLEFT      = 0,        // top left
   mjGRID_TOPRIGHT,                // top right
   mjGRID_BOTTOMLEFT,              // bottom left
-  mjGRID_BOTTOMRIGHT              // bottom right
+  mjGRID_BOTTOMRIGHT,             // bottom right
+  mjGRID_TOP,                     // top center
+  mjGRID_BOTTOM,                  // bottom center
+  mjGRID_LEFT,                    // left center
+  mjGRID_RIGHT                    // right center
 } mjtGridPos;
 typedef enum mjtFramebuffer_ {    // OpenGL framebuffer option
   mjFB_WINDOW         = 0,        // default/window buffer

@@ -479,6 +479,26 @@ static int draw_overlay(int font, mjrRect viewport, int skip, int gridpos,
   case mjGRID_BOTTOMRIGHT:
     glViewport(viewport.left+viewport.width-skip-1-PAD-W,
                viewport.bottom+PAD, W, H);
+    break;
+
+  case mjGRID_TOP:
+    glViewport(viewport.left+(viewport.width-skip-W)/2-1-PAD,
+               viewport.bottom+viewport.height-1-PAD-H, W, H);
+    break;
+
+  case mjGRID_BOTTOM:
+    glViewport(viewport.left+(viewport.width-skip-W)/2-1-PAD,
+               viewport.bottom+PAD, W, H);
+    break;
+
+  case mjGRID_LEFT:
+    glViewport(viewport.left+skip+PAD,
+               viewport.bottom+(viewport.height-H)/2-1-PAD, W, H);
+    break;
+
+  case mjGRID_RIGHT:
+    glViewport(viewport.left+viewport.width-skip-1-PAD-W,
+               viewport.bottom+(viewport.height-H)/2-1-PAD, W, H);
   }
 
   // set projection in pixels

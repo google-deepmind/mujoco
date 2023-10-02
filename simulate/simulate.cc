@@ -2185,7 +2185,7 @@ void Simulate::Render() {
 
     // label
     if (this->loadrequest) {
-      mjr_overlay(mjFONT_BIG, mjGRID_TOPLEFT, smallrect, "loading", nullptr,
+      mjr_overlay(mjFONT_BIG, mjGRID_TOP, smallrect, "LOADING...", nullptr,
                   &this->platform_ui->mjr_context());
     } else {
       char intro_message[Simulate::kMaxFilenameLength];
@@ -2283,10 +2283,11 @@ void Simulate::Render() {
                 &this->platform_ui->mjr_context());
   }
 
-  // make pause/loading label
-  std::string pauseloadlabel;
+  // show pause/loading label
   if (!this->run || this->loadrequest) {
-    pauseloadlabel = this->loadrequest ? "loading" : "pause";
+    const char* label = this->loadrequest ? "LOADING..." : "PAUSE";
+    mjr_overlay(mjFONT_BIG, mjGRID_TOP, smallrect, label, nullptr,
+                &this->platform_ui->mjr_context());
   }
 
   // get desired and actual percent-of-real-time
@@ -2301,22 +2302,18 @@ void Simulate::Render() {
   char rtlabel[30] = {'\0'};
   if (desiredRealtime != 100.0 || misaligned) {
     // print desired realtime
-    int labelsize = std::snprintf(rtlabel,
-                                  sizeof(rtlabel), "%g%%", desiredRealtime);
+    int labelsize = std::snprintf(rtlabel, sizeof(rtlabel), "%g%%", desiredRealtime);
 
     // if misaligned, append to label
     if (misaligned) {
-      std::snprintf(rtlabel+labelsize,
-                    sizeof(rtlabel)-labelsize, " (%-4.1f%%)", actualRealtime);
+      std::snprintf(rtlabel+labelsize, sizeof(rtlabel)-labelsize, " (%-4.1f%%)", actualRealtime);
     }
   }
 
-  // draw top left overlay
-  if (!pauseloadlabel.empty() || rtlabel[0]) {
-    std::string newline = !pauseloadlabel.empty() && rtlabel[0] ? "\n" : "";
-    std::string topleftlabel = rtlabel + newline + pauseloadlabel;
-    mjr_overlay(mjFONT_BIG, mjGRID_TOPLEFT, smallrect,
-                topleftlabel.c_str(), nullptr, &this->platform_ui->mjr_context());
+  // show real-time overlay
+  if (rtlabel[0]) {
+    mjr_overlay(mjFONT_BIG, mjGRID_TOPLEFT, smallrect, rtlabel, nullptr,
+                &this->platform_ui->mjr_context());
   }
 
   // show ui 0

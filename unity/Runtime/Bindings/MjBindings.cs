@@ -384,6 +384,10 @@ public enum mjtGridPos : int{
   mjGRID_TOPRIGHT = 1,
   mjGRID_BOTTOMLEFT = 2,
   mjGRID_BOTTOMRIGHT = 3,
+  mjGRID_TOP = 4,
+  mjGRID_BOTTOM = 5,
+  mjGRID_LEFT = 6,
+  mjGRID_RIGHT = 7,
 }
 public enum mjtFramebuffer : int{
   mjFB_WINDOW = 0,
