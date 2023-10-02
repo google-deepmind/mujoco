@@ -400,7 +400,7 @@ void PhysicsLoop(mj::Simulate& sim) {
         else {
           // run mj_forward, to update rendering and joint sliders
           mj_forward(m, d);
-          syncCPU = mj::Simulate::Clock::now();
+          sim.speed_changed = true;
         }
       }
     }  // release std::lock_guard<std::mutex>
