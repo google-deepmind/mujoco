@@ -1489,9 +1489,6 @@ void mjr_makeContext_offSize(const mjModel* m, mjrContext* con, int fontscale,
     if (!mjGLAD_GL_ARB_vertex_buffer_object) {
       mju_error("OpenGL ARB_vertex_buffer_object required");
     }
-    if (!mjGLAD_GL_ARB_clip_control) {
-      mju_error("OpenGL ARB_clip_control required");
-    }
     if (!mjGLAD_GL_ARB_depth_buffer_float) {
       mju_error("OpenGL ARB_depth_buffer_float required");
     }

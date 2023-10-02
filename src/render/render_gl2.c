@@ -119,6 +119,9 @@ void mjr_readPixels(unsigned char* rgb, float* depth,
         int N_pixels = viewport.width * viewport.height;
         for (int i = 0; i < N_pixels; i++) depth[i] = 1.0 - depth[i]; // Reverse the reversed Z buffer
       }
+      else if (!mjGLAD_GL_ARB_clip_control) {
+        mju_warning("ARB_clip_control unavailable while mjDEPTH_ZEROFAR requested, depth accuracy will be limited");
+      }
     }
   }
 
@@ -163,10 +166,12 @@ void mjr_readPixels(unsigned char* rgb, float* depth,
     if (depth) {
       glReadPixels(viewport.left, viewport.bottom, viewport.width, viewport.height,
                    GL_DEPTH_COMPONENT, GL_FLOAT, depth);
-
       if (con->readDepthMap == mjDEPTH_ZERONEAR) {
         int N_pixels = viewport.width * viewport.height;
         for (int i = 0; i < N_pixels; i++) depth[i] = 1.0 - depth[i]; // Reverse the reversed Z buffer
+      }
+      else if (!mjGLAD_GL_ARB_clip_control) {
+        mju_warning("ARB_clip_control unavailable while mjDEPTH_ZEROFAR requested, depth accuracy will be limited");
       }
     }
 

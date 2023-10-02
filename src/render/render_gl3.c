@@ -498,7 +498,7 @@ static void initGL3(const mjvScene* scn, const mjrContext* con) {
   // common options
   glDisable(GL_BLEND);
   glEnable(GL_NORMALIZE);
-  glClipControl(GL_LOWER_LEFT, GL_ZERO_TO_ONE);
+  if (mjGLAD_GL_ARB_clip_control) glClipControl(GL_LOWER_LEFT, GL_ZERO_TO_ONE);
   glEnable(GL_DEPTH_TEST);
   glDepthMask(GL_TRUE);
   if (scn->flags[mjRND_CULL_FACE]) {
@@ -601,9 +601,15 @@ static void setView(int view, mjrRect viewport, const mjvScene* scn, const mjrCo
   // set projection
   glMatrixMode(GL_PROJECTION);
   glLoadIdentity();
-  // reverse Z rendering mapping [znear, zfar] -> [1, 0]
-  glTranslatef(0.0f, 0.0f, 0.5f);
-  glScalef(1.0f, 1.0f, -0.5f);
+  if (mjGLAD_GL_ARB_clip_control) {
+    // reverse Z rendering mapping [znear, zfar] -> [1, 0] (ndc)
+    glTranslatef(0.0f, 0.0f, 0.5f);
+    glScalef(1.0f, 1.0f, -0.5f);
+  }
+  else {
+    // reverse Z rendering mapping without shift [znear, zfar] -> [1, -1] (ndc)
+    glScalef(1.0f, 1.0f, -1.0f);
+  }
   glFrustum(cam.frustum_center - halfwidth,
             cam.frustum_center + halfwidth,
             cam.frustum_bottom,
@@ -682,6 +688,12 @@ void mjr_render(mjrRect viewport, mjvScene* scn, const mjrContext* con) {
     0.0f, 0.0f, 1.0f, 0.0f,
     0.5f, 0.5f, 0.0f, 1.0f
   };
+  if (!mjGLAD_GL_ARB_clip_control) {
+    // account for conversion from ndc to window coordinates
+    biasMatrix[2*4+2] = 0.5;
+    biasMatrix[3*4+2] = 0.5;
+  }
+
   float tempMatrix[16], textureMatrix[16];
   mjvGeom *thisgeom, tempgeom;
   mjvLight *thislight;
@@ -1029,9 +1041,15 @@ void mjr_render(mjrRect viewport, mjvScene* scn, const mjrContext* con) {
           // set projection: from light viewpoint
           glMatrixMode(GL_PROJECTION);
           glLoadIdentity();
-          // reverse Z rendering mapping [znear, zfar] -> [1, 0]
-          glTranslatef(0.0f, 0.0f, 0.5f);
-          glScalef(1.0f , 1.0f, -0.5f);
+          if (mjGLAD_GL_ARB_clip_control) {
+            // reverse Z rendering mapping [znear, zfar] -> [1, 0] (ndc)
+            glTranslatef(0.0f, 0.0f, 0.5f);
+            glScalef(1.0f, 1.0f, -0.5f);
+          }
+          else {
+            // reverse Z rendering mapping without shift [znear, zfar] -> [1, -1] (ndc)
+            glScalef(1.0f, 1.0f, -1.0f);
+          }
           if (thislight->directional) {
             glOrtho(-con->shadowClip, con->shadowClip,
                     -con->shadowClip, con->shadowClip,
