@@ -88,25 +88,31 @@ General
 
        **Migration:** Users should use the :at:`cable` and :at:`shell` elasticity plugins.
 
-12. Added a new :ref:`dyntype<actuator-general-dyntype>`, ``filterexact``, which updates first-order filter states with
+   12. Added :ref:`mjData.eq_active<mjData>` user input variable, for enabling/disabling the state of equality
+       constraints. Renamed ``mjModel.eq_active`` to :ref:`mjModel.eq_active0<mjModel>`, which now has the semantic of
+       "initial value of `mjData.eq_active`". Fixes `#876 <https://github.com/google-deepmind/mujoco/issues/876>`__
+
+       **Migration:** Replace uses of ``mjModel.eq_active`` with ``mjData.eq_active``.
+
+13. Added a new :ref:`dyntype<actuator-general-dyntype>`, ``filterexact``, which updates first-order filter states with
     the exact formula rather than with Euler integration.
-13. Added an actuator attribute, :ref:`actearly<actuator-general-actearly>`, which uses semi-implicit integration for
+14. Added an actuator attribute, :ref:`actearly<actuator-general-actearly>`, which uses semi-implicit integration for
     actuator forces: using the next step's actuator state to compute the current actuator forces at the current timestep.
-14. Renamed ``actuatorforcerange`` and ``actuatorforcelimited``, introduced in the previous version to
+15. Renamed ``actuatorforcerange`` and ``actuatorforcelimited``, introduced in the previous version to
     :ref:`actuatorfrcrange<body-joint-actuatorfrcrange>` and
     :ref:`actuatorfrclimited<body-joint-actuatorfrclimited>`, respectively.
-15. Added the flag :ref:`eulerdamp<option-flag-eulerdamp>`, which disables implicit integration of joint damping in the
+16. Added the flag :ref:`eulerdamp<option-flag-eulerdamp>`, which disables implicit integration of joint damping in the
     Euler integrator. See the :ref:`Numerical Integration<geIntegration>` section for more details.
-16. Added the flag :ref:`invdiscrete<option-flag-invdiscrete>`, which enables discrete-time inverse dynamics for all
+17. Added the flag :ref:`invdiscrete<option-flag-invdiscrete>`, which enables discrete-time inverse dynamics for all
     :ref:`integrators<option-integrator>` other than ``RK4``. See the flag documentation for more details.
-17. Added :ref:`ls_iterations<option-ls_iterations>` and :ref:`ls_tolerance<option-ls_tolerance>` options for adjusting
+18. Added :ref:`ls_iterations<option-ls_iterations>` and :ref:`ls_tolerance<option-ls_tolerance>` options for adjusting
     linesearch stopping criteria in CG and Newton solvers. These can be useful for performance tuning.
-18. Added ``mesh_pos`` and ``mesh_quat`` fields to :ref:`mjModel` to store the normalizing transformation applied to
+19. Added ``mesh_pos`` and ``mesh_quat`` fields to :ref:`mjModel` to store the normalizing transformation applied to
     mesh assets. Fixes `#409 <https://github.com/google-deepmind/mujoco/issues/409>`__ .
-19. Added camera :ref:`resolution<body-camera-resolution>` attribute and :ref:`camprojection<sensor-camprojection>`
+20. Added camera :ref:`resolution<body-camera-resolution>` attribute and :ref:`camprojection<sensor-camprojection>`
     sensor. If camera resolution is set to positive values, the camera projection sensor will report the location of a
     target site, projected onto the camera image, in pixel coordinates.
-20. Added :ref:`camera<body-camera>` calibration attributes:
+21. Added :ref:`camera<body-camera>` calibration attributes:
 
     - The new attributes are :ref:`resolution<body-camera-resolution>`, :ref:`focal<body-camera-focal>`,
       :ref:`focalpixel<body-camera-focalpixel>`, :ref:`principal<body-camera-principal>`,
@@ -119,13 +125,13 @@ General
 Python bindings
 ^^^^^^^^^^^^^^^
 
-21. Fixed `#870 <https://github.com/google-deepmind/mujoco/issues/870>`__ where calling ``update_scene`` with an invalid
+22. Fixed `#870 <https://github.com/google-deepmind/mujoco/issues/870>`__ where calling ``update_scene`` with an invalid
     camera name used the default camera.
 
 Bug fixes
 ^^^^^^^^^
 
-22. Fixed a bug that was causing :ref:`geom margin<body-geom-margin>` to be ignored during the construction of
+23. Fixed a bug that was causing :ref:`geom margin<body-geom-margin>` to be ignored during the construction of
     midphase collision trees.
 
 

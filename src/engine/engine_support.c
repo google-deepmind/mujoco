@@ -105,6 +105,7 @@ static inline int mj_stateElemSize(const mjModel* m, mjtState spec) {
     case mjSTATE_CTRL:          return m->nu;
     case mjSTATE_QFRC_APPLIED:  return m->nv;
     case mjSTATE_XFRC_APPLIED:  return 6*m->nbody;
+    case mjSTATE_EQ_ACTIVE:     return m->neq;  // mjtByte, stored as mjtNum in state vector
     case mjSTATE_MOCAP_POS:     return 3*m->nmocap;
     case mjSTATE_MOCAP_QUAT:    return 4*m->nmocap;
     case mjSTATE_USERDATA:      return m->nuserdata;
@@ -176,9 +177,21 @@ void mj_getState(const mjModel* m, const mjData* d, mjtNum* state, unsigned int 
     mjtState element = 1<<i;
     if (element & spec) {
       int size = mj_stateElemSize(m, element);
-      const mjtNum* ptr = mj_stateElemConstPtr(m, d, element);
-      mju_copy(state + adr, ptr, size);
-      adr += size;
+
+      // special handling of eq_active (mjtByte)
+      if (element == mjSTATE_EQ_ACTIVE) {
+        int neq = m->neq;
+        for (int j=0; j < neq; j++) {
+          state[adr++] = d->eq_active[j];
+        }
+      }
+
+      // regular state components (mjtNum)
+      else {
+        const mjtNum* ptr = mj_stateElemConstPtr(m, d, element);
+        mju_copy(state + adr, ptr, size);
+        adr += size;
+      }
     }
   }
 }
@@ -196,9 +209,21 @@ void mj_setState(const mjModel* m, mjData* d, const mjtNum* state, unsigned int 
     mjtState element = 1<<i;
     if (element & spec) {
       int size = mj_stateElemSize(m, element);
-      mjtNum* ptr = mj_stateElemPtr(m, d, element);
-      mju_copy(ptr, state + adr, size);
-      adr += size;
+
+      // special handling of eq_active (mjtByte)
+      if (element == mjSTATE_EQ_ACTIVE) {
+        int neq = m->neq;
+        for (int j=0; j < neq; j++) {
+          d->eq_active[j] = state[adr++];
+        }
+      }
+
+      // regular state components (mjtNum)
+      else {
+        mjtNum* ptr = mj_stateElemPtr(m, d, element);
+        mju_copy(ptr, state + adr, size);
+        adr += size;
+      }
     }
   }
 }

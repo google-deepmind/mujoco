@@ -521,7 +521,7 @@ void mj_instantiateEquality(const mjModel* m, mjData* d) {
 
   // find active equality constraints
   for (int i=0; i < m->neq; i++) {
-    if (m->eq_active[i]) {
+    if (d->eq_active[i]) {
       // get constraint data
       data = m->eq_data + mjNEQDATA*i;
       id[0] = m->eq_obj1id[i];
@@ -1481,7 +1481,7 @@ static inline int mj_ne(const mjModel* m, mjData* d, int* nnz) {
 
   // find active equality constraints
   for (int i=0; i < neq; i++) {
-    if (m->eq_active[i]) {
+    if (d->eq_active[i]) {
       id[0] = m->eq_obj1id[i];
       id[1] = m->eq_obj2id[i];
       size = 0;

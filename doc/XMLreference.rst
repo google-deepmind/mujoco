@@ -3854,8 +3854,8 @@ geoms volumes of either body. This constraint can be used to define ball joints 
 
 :at:`active`: :at-val:`[false, true], "true"`
    If this attribute is set to "true", the constraint is active and the constraint solver will try to enforce it. The
-   corresponding field in mjModel is mjData.eq_active. This field can be used at runtime to turn specific constraints on
-   an off.
+   field :ref:`mjModel.eq_active0<mjModel>` corresponds to this value, and is used to initialize
+   :ref:`mjData.eq_active<mjData>`, which is user-settable at runtime.
 
 .. _equality-connect-solref:
 
@@ -3920,7 +3920,8 @@ of the other body, without any joint elements in the child body.
 
 :at:`body2`: :at-val:`string, optional`
    Name of the second body. If this attribute is omitted, the second body is the world body. Welding a body to the world
-   and changing the corresponding component of mjModel.eq_active at runtime can be used to fix the body temporarily.
+   and changing the corresponding component of :ref:`mjData.eq_active<mjData>` at runtime can be used to fix the body
+   temporarily.
 
 .. _equality-weld-relpose:
 

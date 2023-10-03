@@ -880,6 +880,13 @@ void mj_printFormattedData(const mjModel* m, mjData* d, const char* filename,
   printArray("CTRL", m->nu, 1, d->ctrl, fp, float_format);
   printArray("QFRC_APPLIED", m->nv, 1, d->qfrc_applied, fp, float_format);
   printArray("XFRC_APPLIED", m->nbody, 6, d->xfrc_applied, fp, float_format);
+  if (m->neq) {
+    fprintf(fp, NAME_FORMAT, "EQ_ACTIVE");
+    for (int c=0; c < m->neq; c++) {
+      fprintf(fp, " %d", d->eq_active[c]);
+    }
+    fprintf(fp, "\n\n");
+  }
   printArray("MOCAP_POS", m->nmocap, 3, d->mocap_pos, fp, float_format);
   printArray("MOCAP_QUAT", m->nmocap, 4, d->mocap_quat, fp, float_format);
   printArray("QACC", m->nv, 1, d->qacc, fp, float_format);

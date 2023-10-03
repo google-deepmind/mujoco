@@ -1908,7 +1908,7 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
   if (vopt->flags[mjVIS_CONSTRAINT] && (category & catmask) && m->neq) {
     // connect or weld
     for (int i=0; i < m->neq; i++) {
-      if (m->eq_active[i] && (m->eq_type[i] == mjEQ_CONNECT || m->eq_type[i] == mjEQ_WELD)) {
+      if (d->eq_active[i] && (m->eq_type[i] == mjEQ_CONNECT || m->eq_type[i] == mjEQ_WELD)) {
         // compute endpoints in global coordinates
         int j = m->eq_obj1id[i], k = m->eq_obj2id[i];
         mju_rotVecMat(vec, m->eq_data+mjNEQDATA*i+3*(m->eq_type[i] == mjEQ_WELD), d->xmat+9*j);

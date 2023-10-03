@@ -4765,6 +4765,7 @@ public unsafe struct mjData_ {
   public double* ctrl;
   public double* qfrc_applied;
   public double* xfrc_applied;
+  public byte* eq_active;
   public double* mocap_pos;
   public double* mocap_quat;
   public double* qacc;
@@ -5318,7 +5319,7 @@ public unsafe struct mjModel_ {
   public int* eq_type;
   public int* eq_obj1id;
   public int* eq_obj2id;
-  public byte* eq_active;
+  public byte* eq_active0;
   public double* eq_solref;
   public double* eq_solimp;
   public double* eq_data;
@@ -6047,7 +6048,6 @@ public unsafe struct model {
   public int* eq_type;
   public int* eq_obj1id;
   public int* eq_obj2id;
-  public byte* eq_active;
   public double* eq_data;
   public int* tendon_num;
   public int* tendon_matid;
@@ -6104,6 +6104,7 @@ public unsafe struct data {
   public double* act;
   public double* ctrl;
   public double* xfrc_applied;
+  public byte* eq_active;
   public double* sensordata;
   public double* xpos;
   public double* xquat;

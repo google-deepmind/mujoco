@@ -2565,11 +2565,11 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='id of object 2                           (neq x 1)',
              ),
              StructFieldDecl(
-                 name='eq_active',
+                 name='eq_active0',
                  type=PointerType(
                      inner_type=ValueType(name='mjtByte'),
                  ),
-                 doc='enable/disable constraint                (neq x 1)',
+                 doc='initial enable/disable constraint state  (neq x 1)',
              ),
              StructFieldDecl(
                  name='eq_solref',
@@ -3825,6 +3825,13 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                      inner_type=ValueType(name='mjtNum'),
                  ),
                  doc='applied Cartesian force/torque                   (nbody x 6)',  # pylint: disable=line-too-long
+             ),
+             StructFieldDecl(
+                 name='eq_active',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtByte'),
+                 ),
+                 doc='enable/disable constraints                       (neq x 1)',  # pylint: disable=line-too-long
              ),
              StructFieldDecl(
                  name='mocap_pos',
@@ -6227,13 +6234,6 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                              doc='',
                          ),
                          StructFieldDecl(
-                             name='eq_active',
-                             type=PointerType(
-                                 inner_type=ValueType(name='mjtByte'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
                              name='eq_data',
                              type=PointerType(
                                  inner_type=ValueType(name='mjtNum'),
@@ -6546,6 +6546,13 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                              name='xfrc_applied',
                              type=PointerType(
                                  inner_type=ValueType(name='mjtNum'),
+                             ),
+                             doc='',
+                         ),
+                         StructFieldDecl(
+                             name='eq_active',
+                             type=PointerType(
+                                 inner_type=ValueType(name='mjtByte'),
                              ),
                              doc='',
                          ),

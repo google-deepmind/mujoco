@@ -1549,6 +1549,7 @@ static void _resetData(const mjModel* m, mjData* d, unsigned char debug_value) {
   mju_zero(d->qvel, m->nv);
   mju_zero(d->act, m->na);
   mju_zero(d->ctrl, m->nu);
+  for (int i=0; i<m->neq; i++) d->eq_active[i] = m->eq_active0[i];
   mju_zero(d->qfrc_applied, m->nv);
   mju_zero(d->xfrc_applied, 6*m->nbody);
   mju_zero(d->qacc, m->nv);

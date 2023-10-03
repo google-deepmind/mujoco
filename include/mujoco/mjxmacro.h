@@ -362,7 +362,7 @@
     XMJV( int,     eq_type,               neq,           1                    ) \
     XMJV( int,     eq_obj1id,             neq,           1                    ) \
     XMJV( int,     eq_obj2id,             neq,           1                    ) \
-    XMJV( mjtByte, eq_active,             neq,           1                    ) \
+    X   ( mjtByte, eq_active0,            neq,           1                    ) \
     X   ( mjtNum,  eq_solref,             neq,           mjNREF               ) \
     X   ( mjtNum,  eq_solimp,             neq,           mjNIMP               ) \
     XMJV( mjtNum,  eq_data,               neq,           mjNEQDATA            ) \
@@ -495,6 +495,7 @@
     XMJV( mjtNum,    ctrl,              nu,          1           ) \
     X   ( mjtNum,    qfrc_applied,      nv,          1           ) \
     XMJV( mjtNum,    xfrc_applied,      nbody,       6           ) \
+    XMJV( mjtByte,   eq_active,         neq,         1           ) \
     X   ( mjtNum,    mocap_pos,         nmocap,      3           ) \
     X   ( mjtNum,    mocap_quat,        nmocap,      4           ) \
     X   ( mjtNum,    qacc,              nv,          1           ) \

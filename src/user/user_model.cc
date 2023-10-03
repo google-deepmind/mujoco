@@ -1950,7 +1950,7 @@ void mjCModel::CopyObjects(mjModel* m) {
     m->eq_type[i] = peq->type;
     m->eq_obj1id[i] = peq->obj1id;
     m->eq_obj2id[i] = peq->obj2id;
-    m->eq_active[i] = peq->active;
+    m->eq_active0[i] = peq->active;
     copyvec(m->eq_solref+mjNREF*i, peq->solref, mjNREF);
     copyvec(m->eq_solimp+mjNIMP*i, peq->solimp, mjNIMP);
     copyvec(m->eq_data+mjNEQDATA*i, peq->data, mjNEQDATA);

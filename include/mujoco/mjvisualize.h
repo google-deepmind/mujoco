@@ -506,7 +506,6 @@ struct mjvSceneState_ {
     int* eq_type;
     int* eq_obj1id;
     int* eq_obj2id;
-    mjtByte* eq_active;
     mjtNum* eq_data;
 
     int* tendon_num;
@@ -564,6 +563,7 @@ struct mjvSceneState_ {
 
     mjtNum* ctrl;
     mjtNum* xfrc_applied;
+    mjtByte* eq_active;
 
     mjtNum* sensordata;
 

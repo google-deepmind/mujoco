@@ -25,18 +25,20 @@ typedef enum mjtState_ {          // state elements
   mjSTATE_CTRL          = 1<<5,   // control
   mjSTATE_QFRC_APPLIED  = 1<<6,   // applied generalized force
   mjSTATE_XFRC_APPLIED  = 1<<7,   // applied Cartesian force/torque
-  mjSTATE_MOCAP_POS     = 1<<8,   // positions of mocap bodies
-  mjSTATE_MOCAP_QUAT    = 1<<9,   // orientations of mocap bodies
-  mjSTATE_USERDATA      = 1<<10,  // user data
-  mjSTATE_PLUGIN        = 1<<11,  // plugin state
+  mjSTATE_EQ_ACTIVE     = 1<<8,   // enable/disable constraints
+  mjSTATE_MOCAP_POS     = 1<<9,   // positions of mocap bodies
+  mjSTATE_MOCAP_QUAT    = 1<<10,  // orientations of mocap bodies
+  mjSTATE_USERDATA      = 1<<11,  // user data
+  mjSTATE_PLUGIN        = 1<<12,  // plugin state
 
-  mjNSTATE              = 12,     // number of state elements
+  mjNSTATE              = 13,     // number of state elements
 
   // convenience values for commonly used state specifications
   mjSTATE_PHYSICS       = mjSTATE_QPOS | mjSTATE_QVEL | mjSTATE_ACT,
   mjSTATE_FULLPHYSICS   = mjSTATE_PHYSICS | mjSTATE_TIME | mjSTATE_PLUGIN,
   mjSTATE_USER          = mjSTATE_CTRL | mjSTATE_QFRC_APPLIED | mjSTATE_XFRC_APPLIED |
-                          mjSTATE_MOCAP_POS | mjSTATE_MOCAP_QUAT | mjSTATE_USERDATA,
+                          mjSTATE_EQ_ACTIVE | mjSTATE_MOCAP_POS | mjSTATE_MOCAP_QUAT |
+                          mjSTATE_USERDATA,
   mjSTATE_INTEGRATION   = mjSTATE_FULLPHYSICS | mjSTATE_USER | mjSTATE_WARMSTART
 } mjtState;
 typedef enum mjtWarning_ {   // warning types
@@ -191,6 +193,7 @@ struct mjData_ {
   mjtNum* ctrl;              // control                                          (nu x 1)
   mjtNum* qfrc_applied;      // applied generalized force                        (nv x 1)
   mjtNum* xfrc_applied;      // applied Cartesian force/torque                   (nbody x 6)
+  mjtByte* eq_active;        // enable/disable constraints                       (neq x 1)
 
   // mocap data
   mjtNum* mocap_pos;         // positions of mocap bodies                        (nmocap x 3)
@@ -207,8 +210,8 @@ struct mjData_ {
   mjtNum* sensordata;        // sensor data array                                (nsensordata x 1)
 
   // plugins
-  int*        plugin;        // copy of m->plugin, required for deletion         (nplugin x 1)
-  uintptr_t*  plugin_data;   // pointer to plugin-managed data structure         (nplugin x 1)
+  int*       plugin;         // copy of m->plugin, required for deletion         (nplugin x 1)
+  uintptr_t* plugin_data;    // pointer to plugin-managed data structure         (nplugin x 1)
 
   //-------------------- POSITION dependent
 
@@ -1124,7 +1127,7 @@ struct mjModel_ {
   int*      eq_type;              // constraint type (mjtEq)                  (neq x 1)
   int*      eq_obj1id;            // id of object 1                           (neq x 1)
   int*      eq_obj2id;            // id of object 2                           (neq x 1)
-  mjtByte*  eq_active;            // enable/disable constraint                (neq x 1)
+  mjtByte*  eq_active0;           // initial enable/disable constraint state  (neq x 1)
   mjtNum*   eq_solref;            // constraint solver reference              (neq x mjNREF)
   mjtNum*   eq_solimp;            // constraint solver impedance              (neq x mjNIMP)
   mjtNum*   eq_data;              // numeric data for constraint              (neq x mjNEQDATA)
@@ -2112,7 +2115,6 @@ struct mjvSceneState_ {
     int* eq_type;
     int* eq_obj1id;
     int* eq_obj2id;
-    mjtByte* eq_active;
     mjtNum* eq_data;
 
     int* tendon_num;
@@ -2170,6 +2172,7 @@ struct mjvSceneState_ {
 
     mjtNum* ctrl;
     mjtNum* xfrc_applied;
+    mjtByte* eq_active;
 
     mjtNum* sensordata;
 
