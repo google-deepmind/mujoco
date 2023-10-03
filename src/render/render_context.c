@@ -1126,11 +1126,13 @@ static void makeOff(mjrContext* con) {
     mju_error("Could not allocate offscreen depth and stencil buffer");
   }
   glBindRenderbuffer(GL_RENDERBUFFER, con->offDepthStencil);
+
+  GLenum depth_buffer_format = mjGLAD_GL_ARB_depth_buffer_float ? GL_DEPTH32F_STENCIL8 : GL_DEPTH24_STENCIL8;
   if (con->offSamples) {
-    glRenderbufferStorageMultisample(GL_RENDERBUFFER, con->offSamples, GL_DEPTH32F_STENCIL8,
+    glRenderbufferStorageMultisample(GL_RENDERBUFFER, con->offSamples, depth_buffer_format,
                                      con->offWidth, con->offHeight);
   } else {
-    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH32F_STENCIL8, con->offWidth, con->offHeight);
+    glRenderbufferStorage(GL_RENDERBUFFER, depth_buffer_format, con->offWidth, con->offHeight);
   }
   glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT,
                             GL_RENDERBUFFER, con->offDepthStencil);
@@ -1169,7 +1171,7 @@ static void makeOff(mjrContext* con) {
       mju_error("Could not allocate offscreen depth and stencil buffer_r");
     }
     glBindRenderbuffer(GL_RENDERBUFFER, con->offDepthStencil_r);
-    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH32F_STENCIL8, con->offWidth, con->offHeight);
+    glRenderbufferStorage(GL_RENDERBUFFER, depth_buffer_format, con->offWidth, con->offHeight);
     glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT,
                               GL_RENDERBUFFER, con->offDepthStencil_r);
 
@@ -1488,9 +1490,6 @@ void mjr_makeContext_offSize(const mjModel* m, mjrContext* con, int fontscale,
     }
     if (!mjGLAD_GL_ARB_vertex_buffer_object) {
       mju_error("OpenGL ARB_vertex_buffer_object required");
-    }
-    if (!mjGLAD_GL_ARB_depth_buffer_float) {
-      mju_error("OpenGL ARB_depth_buffer_float required");
     }
     con->glInitialized = 1;
 

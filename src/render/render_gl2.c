@@ -119,8 +119,11 @@ void mjr_readPixels(unsigned char* rgb, float* depth,
         int N_pixels = viewport.width * viewport.height;
         for (int i = 0; i < N_pixels; i++) depth[i] = 1.0 - depth[i]; // Reverse the reversed Z buffer
       }
-      else if (!mjGLAD_GL_ARB_clip_control) {
-        mju_warning("ARB_clip_control unavailable while mjDEPTH_ZEROFAR requested, depth accuracy will be limited");
+      if (con->readDepthMap == mjDEPTH_ZEROFAR && !mjGLAD_GL_ARB_clip_control) {
+        mju_warning("mjDEPTH_ZEROFAR requested but ARB_clip_control unavailable, depth accuracy will be limited");
+      }
+      if (con->readDepthMap == mjDEPTH_ZEROFAR) {
+        mju_warning("mjDEPTH_ZEROFAR requested but window depth buffer precision may be limited");
       }
     }
   }
@@ -170,8 +173,11 @@ void mjr_readPixels(unsigned char* rgb, float* depth,
         int N_pixels = viewport.width * viewport.height;
         for (int i = 0; i < N_pixels; i++) depth[i] = 1.0 - depth[i]; // Reverse the reversed Z buffer
       }
-      else if (!mjGLAD_GL_ARB_clip_control) {
-        mju_warning("ARB_clip_control unavailable while mjDEPTH_ZEROFAR requested, depth accuracy will be limited");
+      if (con->readDepthMap == mjDEPTH_ZEROFAR && !mjGLAD_GL_ARB_clip_control) {
+        mju_warning("mjDEPTH_ZEROFAR requested but ARB_clip_control unavailable, depth accuracy will be limited");
+      }
+      if (con->readDepthMap == mjDEPTH_ZEROFAR && !mjGLAD_GL_ARB_depth_buffer_float) {
+        mju_warning("mjDEPTH_ZEROFAR requested but ARB_depth_buffer_float unavailable, depth accuracy will be limited");
       }
     }
 
