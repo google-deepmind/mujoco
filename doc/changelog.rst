@@ -129,12 +129,26 @@ Python bindings
 22. Fixed `#870 <https://github.com/google-deepmind/mujoco/issues/870>`__ where calling ``update_scene`` with an invalid
     camera name used the default camera.
 
+Simulate
+^^^^^^^^
+
+.. youtube:: YSvWn_poqWs
+   :align: right
+   :width: 240px
+
+23. Added **state history** mechanism to :ref:`simulate<saSimulate>` and the managed
+    :ref:`Python viewer<PyViewerManaged>`. State history can be viewed by scrubbing the History slider and (more
+    precisely) with the left and right arrow keys. See screen capture:
+
+24. The ``LOADING...`` label is now shown correctly.
+    `Contribution <https://github.com/google-deepmind/mujoco/pull/1070>`__ by
+    `Levi Burner <https://github.com/aftersomemath>`__.
+
 Bug fixes
 ^^^^^^^^^
 
-23. Fixed a bug that was causing :ref:`geom margin<body-geom-margin>` to be ignored during the construction of
+25. Fixed a bug that was causing :ref:`geom margin<body-geom-margin>` to be ignored during the construction of
     midphase collision trees.
-
 
 Version 2.3.7 (July 20, 2023)
 -----------------------------

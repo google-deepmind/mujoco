@@ -210,7 +210,8 @@ PYBIND11_MODULE(_simulate, pymodule) {
            py::call_guard<py::gil_scoped_release>())
       .def("sync", CallIfNotNull(&mujoco::Simulate::Sync),
            py::call_guard<py::gil_scoped_release>())
-
+      .def("add_to_history", CallIfNotNull(&mujoco::Simulate::AddToHistory),
+           py::call_guard<py::gil_scoped_release>())
       .def("render_loop", CallIfNotNull(&mujoco::Simulate::RenderLoop),
            py::call_guard<py::gil_scoped_release>())
       .def("lock", GetIfNotNull(&mujoco::Simulate::mtx),

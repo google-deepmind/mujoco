@@ -237,6 +237,7 @@ def _physics_loop(simulate: _Simulate, loader: Optional[_InternalLoaderType]):
       if m is not None:
         assert d is not None
         if simulate.run:
+          stepped = False
           # Record CPU time at start of iteration.
           startcpu = time.time()
 
@@ -275,6 +276,7 @@ def _physics_loop(simulate: _Simulate, loader: Optional[_InternalLoaderType]):
 
             # Run single step, let next iteration deal with timing.
             mujoco.mj_step(m, d)
+            stepped = True
 
           # In-sync: step until ahead of cpu.
           else:
@@ -292,10 +294,16 @@ def _physics_loop(simulate: _Simulate, loader: Optional[_InternalLoaderType]):
 
               # Call mj_step.
               mujoco.mj_step(m, d)
+              stepped = True
 
               # Break if reset.
               if d.time < prevsim:
                 break
+
+          # save current state to history buffer
+          if (stepped):
+            simulate.add_to_history()
+
         else:  # simulate.run is False: GUI is paused.
 
           # Run mj_forward, to update rendering and joint sliders.

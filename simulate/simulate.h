@@ -84,6 +84,9 @@ class Simulate {
   // loop to render the UI (must be called from main thread because of MacOS)
   void RenderLoop();
 
+  // add state to history buffer
+  void AddToHistory();
+
   // constants
   static constexpr int kMaxFilenameLength = 1000;
 
@@ -100,6 +103,9 @@ class Simulate {
 
   int ncam_ = 0;
   int nkey_ = 0;
+  int state_size_ = 0;      // number of mjtNums in a history buffer state
+  int nhistory_ = 0;        // number of states saved in history buffer
+  int history_cursor_ = 0;  // cursor pointing at last saved state
 
   std::vector<int> body_parentid_;
 
@@ -112,6 +118,8 @@ class Simulate {
   std::vector<int> actuator_group_;
   std::vector<std::optional<std::pair<mjtNum, mjtNum>>> actuator_ctrlrange_;
   std::vector<std::string> actuator_names_;
+
+  std::vector<mjtNum> history_;  // history buffer (nhistory x state_size)
 
   // mjModel and mjData fields that can be modified by the user through the GUI
   std::vector<mjtNum> qpos_;
@@ -134,6 +142,7 @@ class Simulate {
     bool reset;
     bool align;
     bool copy_pose;
+    bool load_from_history;
     bool load_key;
     bool save_key;
     bool zero_ctrl;
@@ -170,6 +179,9 @@ class Simulate {
 
   // keyframe index
   int key = 0;
+
+  // index of history-scrubber slider
+  int scrub_index = 0;
 
   // simulation
   int run = 1;
@@ -266,7 +278,7 @@ class Simulate {
 
 
   // simulation section of UI
-  const mjuiDef def_simulation[12] = {
+  const mjuiDef def_simulation[14] = {
     {mjITEM_SECTION,   "Simulation",    1, nullptr,              "AS"},
     {mjITEM_RADIO,     "",              5, &this->run,           "Pause\nRun"},
     {mjITEM_BUTTON,    "Reset",         2, nullptr,              " #259"},
@@ -278,6 +290,8 @@ class Simulate {
     {mjITEM_BUTTON,    "Save key",      3},
     {mjITEM_SLIDERNUM, "Noise scale",   5, &this->ctrl_noise_std,  "0 2"},
     {mjITEM_SLIDERNUM, "Noise rate",    5, &this->ctrl_noise_rate, "0 2"},
+    {mjITEM_SEPARATOR, "History",       1},
+    {mjITEM_SLIDERINT, "",              5, &this->scrub_index,     "0 0"},
     {mjITEM_END}
   };
 

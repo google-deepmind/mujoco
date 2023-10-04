@@ -279,8 +279,7 @@ void PhysicsLoop(mj::Simulate& sim) {
         free(ctrlnoise);
         ctrlnoise = (mjtNum*) malloc(sizeof(mjtNum)*m->nu);
         mju_zero(ctrlnoise, m->nu);
-      }
-      else {
+      } else {
         sim.LoadMessageClear();
       }
     }
@@ -305,8 +304,7 @@ void PhysicsLoop(mj::Simulate& sim) {
         free(ctrlnoise);
         ctrlnoise = static_cast<mjtNum*>(malloc(sizeof(mjtNum)*m->nu));
         mju_zero(ctrlnoise, m->nu);
-      }
-      else {
+      } else {
         sim.LoadMessageClear();
       }
     }
@@ -327,6 +325,8 @@ void PhysicsLoop(mj::Simulate& sim) {
       if (m) {
         // running
         if (sim.run) {
+          bool stepped = false;
+
           // record cpu time at start of iteration
           const auto startCPU = mj::Simulate::Clock::now();
 
@@ -366,6 +366,7 @@ void PhysicsLoop(mj::Simulate& sim) {
 
             // run single step, let next iteration deal with timing
             mj_step(m, d);
+            stepped = true;
           }
 
           // in-sync: step until ahead of cpu
@@ -387,12 +388,18 @@ void PhysicsLoop(mj::Simulate& sim) {
 
               // call mj_step
               mj_step(m, d);
+              stepped = true;
 
               // break if reset
               if (d->time < prevSim) {
                 break;
               }
             }
+          }
+
+          // save current state to history buffer
+          if (stepped) {
+            sim.AddToHistory();
           }
         }
 

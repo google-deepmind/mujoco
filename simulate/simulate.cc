@@ -131,6 +131,7 @@ const char help_content[] =
   "Space\n"
   "+  -\n"
   "Right arrow\n"
+  "Left arrow\n"
   "[  ]\n"
   "Esc\n"
   "Double-click\n"
@@ -153,7 +154,8 @@ const char help_content[] =
 const char help_title[] =
   "Play / Pause\n"
   "Speed up / down\n"
-  "Step\n"
+  "Step forward\n"
+  "Step back\n"
   "Cycle cameras\n"
   "Free camera\n"
   "Select\n"
@@ -537,6 +539,25 @@ void ShowSensor(mj::Simulate* sim, mjrRect rect) {
     rect.height/3
   };
   mjr_figure(viewport, &sim->figsensor, &sim->platform_ui->mjr_context());
+}
+
+// load state from history buffer
+static void LoadScrubState(mj::Simulate* sim) {
+  // get index into circular buffer
+  int i = (sim->scrub_index + sim->history_cursor_) % sim->nhistory_;
+  i = (i + sim->nhistory_) % sim->nhistory_;
+
+  // load state
+  mjtNum* state = &sim->history_[i * sim->state_size_];
+  mj_setState(sim->m_, sim->d_, state, mjSTATE_INTEGRATION);
+
+  // call forward dynamics
+  mj_forward(sim->m_, sim->d_);
+}
+
+// update an entire section of ui0
+static void mjui0_update_section(mj::Simulate* sim, int section) {
+  mjui_update(section, -1, &sim->ui0, &sim->uistate, &sim->platform_ui->mjr_context());
 }
 
 // prepare info text
@@ -1369,6 +1390,12 @@ void UiEvent(mjuiState* state) {
       case 7:             // Save key
         sim->pending_.save_key = true;
         break;
+
+      case 11:            // History scrubber
+        sim->run = 0;
+        sim->pending_.load_from_history = true;
+        mjui0_update_section(sim, SECT_SIMULATION);
+        break;
       }
     }
 
@@ -1404,8 +1431,7 @@ void UiEvent(mjuiState* state) {
         } else {
           sim->cam.type = mjCAMERA_FREE;
           sim->camera = 0;
-          mjui_update(SECT_RENDERING, -1, &sim->ui0, &sim->uistate,
-                      &sim->platform_ui->mjr_context());
+          mjui0_update_section(sim, SECT_RENDERING);
         }
       } else {
         sim->cam.type = mjCAMERA_FIXED;
@@ -1477,17 +1503,48 @@ void UiEvent(mjuiState* state) {
       if (sim->fully_managed_ && sim->m_) {
         sim->run = 1 - sim->run;
         sim->pert.active = 0;
-        mjui_update(-1, -1, &sim->ui0, state, &sim->platform_ui->mjr_context());
+
+        if (sim->run) sim->scrub_index = 0;  // reset scrubber
+
+        mjui0_update_section(sim, -1);
       }
       break;
 
     case mjKEY_RIGHT:           // step forward
       if (sim->fully_managed_ && sim->m_ && !sim->run) {
         ClearTimers(sim->d_);
-        mj_step(sim->m_, sim->d_);
+
+        // currently in scrubber: increment scrub, load state, update slider UI
+        if (sim->scrub_index < 0) {
+          sim->scrub_index++;
+          sim->pending_.load_from_history = true;
+          mjui0_update_section(sim, SECT_SIMULATION);
+        }
+
+        // not in scrubber: step
+        else {
+          mj_step(sim->m_, sim->d_);
+        }
+
         UpdateProfiler(sim, sim->m_, sim->d_);
         UpdateSensor(sim, sim->m_, sim->d_);
         UpdateSettings(sim, sim->m_);
+      }
+      break;
+
+    case mjKEY_LEFT:           // step backward
+      if (sim->fully_managed_ && sim->m_) {
+        sim->run = 0;
+        ClearTimers(sim->d_);
+
+        // decrement scrub, load state
+        sim->scrub_index = mjMAX(sim->scrub_index - 1, 1 - sim->nhistory_);
+        sim->pending_.load_from_history = true;
+
+        // update slider UI, profiler, sensor
+        mjui0_update_section(sim, SECT_SIMULATION);
+        UpdateProfiler(sim, sim->m_, sim->d_);
+        UpdateSensor(sim, sim->m_, sim->d_);
       }
       break;
 
@@ -1514,7 +1571,7 @@ void UiEvent(mjuiState* state) {
           sim->camera += 1;
         }
         sim->cam.fixedcamid = sim->camera - 2;
-        mjui_update(SECT_RENDERING, -1, &sim->ui0, &sim->uistate, &sim->platform_ui->mjr_context());
+        mjui0_update_section(sim, SECT_RENDERING);
       }
       break;
 
@@ -1528,28 +1585,28 @@ void UiEvent(mjuiState* state) {
           sim->camera -= 1;
         }
         sim->cam.fixedcamid = sim->camera - 2;
-        mjui_update(SECT_RENDERING, -1, &sim->ui0, &sim->uistate, &sim->platform_ui->mjr_context());
+        mjui0_update_section(sim, SECT_RENDERING);
       }
       break;
 
     case mjKEY_F6:                   // cycle frame visualisation
       if (sim->m_ || !sim->fully_managed_) {
         sim->opt.frame = (sim->opt.frame + 1) % mjNFRAME;
-        mjui_update(SECT_RENDERING, -1, &sim->ui0, &sim->uistate, &sim->platform_ui->mjr_context());
+        mjui0_update_section(sim, SECT_RENDERING);
       }
       break;
 
     case mjKEY_F7:                   // cycle label visualisation
       if (sim->m_ || !sim->fully_managed_) {
         sim->opt.label = (sim->opt.label + 1) % mjNLABEL;
-        mjui_update(SECT_RENDERING, -1, &sim->ui0, &sim->uistate, &sim->platform_ui->mjr_context());
+        mjui0_update_section(sim, SECT_RENDERING);
       }
       break;
 
     case mjKEY_ESCAPE:          // free camera
       sim->cam.type = mjCAMERA_FREE;
       sim->camera = 0;
-      mjui_update(SECT_RENDERING, -1, &sim->ui0, &sim->uistate, &sim->platform_ui->mjr_context());
+      mjui0_update_section(sim, SECT_RENDERING);
       break;
 
     case '-':                   // slow down
@@ -1693,6 +1750,8 @@ Simulate::Simulate(std::unique_ptr<PlatformUIAdapter> platform_ui,
   mjv_defaultSceneState(&scnstate_);
 }
 
+// synchronize model and data
+// operations which require holding the mutex, prevents racing with physics thread
 void Simulate::Sync() {
   MutexLock lock(this->mtx);
 
@@ -1826,6 +1885,8 @@ void Simulate::Sync() {
     mj_forward(m_, d_);
     update_profiler = true;
     update_sensor = true;
+    scrub_index = 0;
+    mjui0_update_section(this, SECT_SIMULATION);
     pending_.reset = false;
   }
 
@@ -1839,6 +1900,13 @@ void Simulate::Sync() {
     pending_.copy_pose = false;
   }
 
+  if (pending_.load_from_history) {
+    LoadScrubState(this);
+    update_profiler = true;
+    update_sensor = true;
+    pending_.load_from_history = false;
+  }
+
   if (pending_.load_key) {
     int i = this->key;
     d_->time = m_->key_time[i];
@@ -1846,8 +1914,7 @@ void Simulate::Sync() {
     mju_copy(d_->qvel, m_->key_qvel + i*m_->nv, m_->nv);
     mju_copy(d_->act, m_->key_act + i*m_->na, m_->na);
     mju_copy(d_->mocap_pos, m_->key_mpos + i*3*m_->nmocap, 3*m_->nmocap);
-    mju_copy(d_->mocap_quat, m_->key_mquat + i*4*m_->nmocap,
-              4*m_->nmocap);
+    mju_copy(d_->mocap_quat, m_->key_mquat + i*4*m_->nmocap, 4*m_->nmocap);
     mju_copy(d_->ctrl, m_->key_ctrl + i*m_->nu, m_->nu);
     mj_forward(m_, d_);
     update_profiler = true;
@@ -2080,6 +2147,30 @@ void Simulate::LoadOnRenderThread() {
   std::memcpy(ctrl_.data(), this->d_->ctrl, sizeof(this->d_->ctrl[0]) * this->m_->nu);
   ctrl_prev_ = ctrl_;
 
+  // allocate history buffer: smaller of {2000 states, 100 MB}
+  if (this->fully_managed_) {
+    constexpr int kHistoryLength = 2000;
+    constexpr int kMaxHistoryBytes = 1e8;
+
+    // get state size, size of history buffer
+    state_size_ = mj_stateSize(this->m_, mjSTATE_INTEGRATION);
+    int state_bytes = state_size_ * sizeof(mjtNum);
+    int history_bytes = mjMIN(state_bytes * kHistoryLength, kMaxHistoryBytes);
+    nhistory_ = history_bytes / state_bytes;
+
+    // allocate history buffer, reset cursor and UI slider
+    history_.clear();
+    history_.resize(nhistory_ * state_size_);
+    history_cursor_ = 0;
+    scrub_index = 0;
+
+    // fill buffer with initial state
+    mj_getState(this->m_, this->d_, history_.data(), mjSTATE_INTEGRATION);
+    for (int i = 1; i < nhistory_; ++i) {
+      mju_copy(&history_[i * state_size_], history_.data(), state_size_);
+    }
+  }
+
   // re-create scene and context
   if (this->fully_managed_) {
     mjv_makeScene(this->m_, &this->scn, kMaxGeom);
@@ -2131,6 +2222,10 @@ void Simulate::LoadOnRenderThread() {
   this->ui0.sect[SECT_SIMULATION].item[5].slider.range[0] = 0;
   this->ui0.sect[SECT_SIMULATION].item[5].slider.range[1] = mjMAX(0, this->m_->nkey - 1);
   this->ui0.sect[SECT_SIMULATION].item[5].slider.divisions = mjMAX(1, this->m_->nkey - 1);
+
+  // set scrubber range and divisions
+  this->ui0.sect[SECT_SIMULATION].item[11].slider.range[0] = 1 - nhistory_;
+  this->ui0.sect[SECT_SIMULATION].item[11].slider.divisions = nhistory_;
 
   // rebuild UI sections
   MakeUiSections(this, this->m_, this->d_);
@@ -2217,12 +2312,12 @@ void Simulate::Render() {
 
   // update UI sections from last sync
   if (this->ui0_enable && this->ui0.sect[SECT_WATCH].state) {
-    mjui_update(SECT_WATCH, -1, &this->ui0, &this->uistate, &this->platform_ui->mjr_context());
+    mjui0_update_section(this, SECT_WATCH);
   }
 
   if (pending_.ui_update_physics) {
     if (this->ui0_enable && this->ui0.sect[SECT_PHYSICS].state) {
-      mjui_update(SECT_PHYSICS, -1, &this->ui0, &this->uistate, &this->platform_ui->mjr_context());
+      mjui0_update_section(this, SECT_PHYSICS);
     }
     pending_.ui_update_physics = false;
   }
@@ -2244,8 +2339,7 @@ void Simulate::Render() {
          IsDifferent(opt_prev_.tendongroup, opt.tendongroup) ||
          IsDifferent(opt_prev_.actuatorgroup, opt.actuatorgroup) ||
          IsDifferent(opt_prev_.skingroup, opt.skingroup))) {
-      mjui_update(SECT_GROUP, -1, &this->ui0, &this->uistate,
-                  &this->platform_ui->mjr_context());
+      mjui0_update_section(this, SECT_GROUP);
     }
 
     opt_prev_ = opt;
@@ -2254,8 +2348,7 @@ void Simulate::Render() {
 
   if (pending_.ui_update_rendering) {
     if (this->ui0_enable && this->ui0.sect[SECT_RENDERING].state) {
-      mjui_update(SECT_RENDERING, -1, &this->ui0, &this->uistate,
-                  &this->platform_ui->mjr_context());
+      mjui0_update_section(this, SECT_RENDERING);
     }
     pending_.ui_update_rendering = false;
   }
@@ -2523,6 +2616,20 @@ void Simulate::RenderLoop() {
   }
 
   this->exitrequest.store(2);
+}
+
+// add state to history buffer
+void Simulate::AddToHistory() {
+  if (history_.empty()) {
+    return;
+  }
+
+  // circular increment of cursor
+  history_cursor_ = (history_cursor_ + 1) % nhistory_;
+
+  // add state at cursor
+  mjtNum* state = &history_[state_size_ * history_cursor_];
+  mj_getState(m_, d_, state, mjSTATE_INTEGRATION);
 }
 
 void Simulate::UpdateHField(int hfieldid) {
