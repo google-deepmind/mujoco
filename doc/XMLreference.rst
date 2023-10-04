@@ -6752,8 +6752,6 @@ if omitted.
 
 .. _default-camera-user:
 
-.. _default-camera-resolution:
-
 .. _default-camera-focal:
 
 .. _default-camera-focalpixel:

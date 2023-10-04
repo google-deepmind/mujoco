@@ -90,7 +90,8 @@ General
 
    12. Added :ref:`mjData.eq_active<mjData>` user input variable, for enabling/disabling the state of equality
        constraints. Renamed ``mjModel.eq_active`` to :ref:`mjModel.eq_active0<mjModel>`, which now has the semantic of
-       "initial value of `mjData.eq_active`". Fixes `#876 <https://github.com/google-deepmind/mujoco/issues/876>`__
+       "initial value of ``mjData.eq_active``".
+       Fixes `#876 <https://github.com/google-deepmind/mujoco/discussions/876>`__
 
        **Migration:** Replace uses of ``mjModel.eq_active`` with ``mjData.eq_active``.
 
