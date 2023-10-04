@@ -52,7 +52,7 @@ class Simulate {
   Simulate(
       std::unique_ptr<PlatformUIAdapter> platform_ui_adapter,
       mjvScene* scn, mjvCamera* cam,
-      mjvOption* opt, mjvPerturb* pert, bool fully_managed);
+      mjvOption* opt, mjvPerturb* pert, bool is_passive);
 
   // Synchronize mjModel and mjData state with UI inputs, and update
   // visualization.
@@ -90,9 +90,9 @@ class Simulate {
   // constants
   static constexpr int kMaxFilenameLength = 1000;
 
-  // whether the viewer is operating in fully managed mode, where it can assume
+  // whether the viewer is operating in passive mode, where it cannot assume
   // that it has exclusive access to mjModel, mjData, and various mjv objects
-  bool fully_managed_ = true;
+  bool is_passive_ = false;
 
   // model and data to be visualized
   mjModel* mnew_ = nullptr;

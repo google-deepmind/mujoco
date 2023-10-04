@@ -15,6 +15,7 @@
 #include <chrono>
 #include <cstdint>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <iostream>
 #include <memory>
@@ -22,8 +23,6 @@
 #include <new>
 #include <string>
 #include <thread>
-#include <type_traits>
-#include <vector>
 
 #include <mujoco/mujoco.h>
 #include "glfw_adapter.h"
@@ -490,7 +489,7 @@ int main(int argc, char** argv) {
   // simulate object encapsulates the UI
   auto sim = std::make_unique<mj::Simulate>(
       std::make_unique<mj::GlfwAdapter>(),
-      &scn, &cam, &opt, &pert, /* fully_managed = */ true
+      &scn, &cam, &opt, &pert, /* is_passive = */ false
   );
 
   const char* filename = nullptr;

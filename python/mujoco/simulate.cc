@@ -70,12 +70,12 @@ class SimulateWrapper {
  public:
   SimulateWrapper(std::unique_ptr<PlatformUIAdapter> platform_ui_adapter,
                   py::object scn, py::object cam, py::object opt,
-                  py::object pert, bool fully_managed)
+                  py::object pert, bool is_passive)
       : simulate_(new mujoco::Simulate(
             std::move(platform_ui_adapter), scn.cast<MjvSceneWrapper&>().get(),
             cam.cast<MjvCameraWrapper&>().get(),
             opt.cast<MjvOptionWrapper&>().get(),
-            pert.cast<MjvPerturbWrapper&>().get(), fully_managed)),
+            pert.cast<MjvPerturbWrapper&>().get(), is_passive)),
         m_(py::none()),
         d_(py::none()),
         scn_(scn),
@@ -194,12 +194,13 @@ PYBIND11_MODULE(_simulate, pymodule) {
   py::class_<SimulateWrapper>(pymodule, "Simulate")
       .def_readonly_static("MAX_GEOM", &mujoco::Simulate::kMaxGeom)
       .def(py::init([](py::object scn, py::object cam, py::object opt,
-                       py::object pert, bool fully_managed,
+                       py::object pert, bool run_physics_thread,
                        py::object key_callback) {
+        bool is_passive = !run_physics_thread;
         return std::make_unique<SimulateWrapper>(
             std::make_unique<UIAdapterWithPyCallback<UIAdapter>>(
                 key_callback),
-            scn, cam, opt, pert, fully_managed);
+            scn, cam, opt, pert, is_passive);
       }))
       .def("destroy", &SimulateWrapper::Destroy,
            py::call_guard<py::gil_scoped_release>())
