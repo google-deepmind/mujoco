@@ -18,6 +18,11 @@ body {
   color: var(--body-color);
 }
 
+/* Make the search bar query text readable in dark theme. */
+body[data-theme=dark] {
+  --color-sidebar-search-foreground: white;
+}
+
 .schema-small {
   font-size: 93%;
 }
