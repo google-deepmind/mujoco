@@ -107,7 +107,7 @@ TEST_F(SolverTest, OneBigIsland) {
   mjData* data_noisland = mj_makeData(model);
 
   int nv = model->nv;
-  mjtNum tol = 1e-9;
+  mjtNum tol = 1e-8;
 
   // save current (default) iterations
   int iterations_default = model->opt.iterations;

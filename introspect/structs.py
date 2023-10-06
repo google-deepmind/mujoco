@@ -1253,7 +1253,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  type=PointerType(
                      inner_type=ValueType(name='mjtByte'),
                  ),
-                 doc='body is simple (has diagonal M)          (nbody x 1)',
+                 doc='1: diagonal M; 2: diag M, no rotations   (nbody x 1)',
              ),
              StructFieldDecl(
                  name='body_sameframe',

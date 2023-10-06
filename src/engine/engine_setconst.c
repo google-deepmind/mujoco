@@ -59,7 +59,7 @@ static void mj_setM0(mjModel* m, mjData* d) {
 
 // set quantities that depend on qpos0
 static void set0(mjModel* m, mjData* d) {
-  int id, id1, id2, dnum, nv = m->nv;
+  int nv = m->nv;
   mjtNum A[36] = {0}, pos[3], quat[4];
   mj_markStack(d);
   mjtNum* jac = mj_stackAllocNum(d, 6*nv);
@@ -112,53 +112,85 @@ static void set0(mjModel* m, mjData* d) {
 
   // compute body_invweight0
   m->body_invweight0[0] = m->body_invweight0[1] = 0.0;
-  for (int i=1; i < m->nbody; i++) {
-    if (nv) {
-      // inverse spatial inertia:  A = J*inv(M)*J'
-      mj_jacBodyCom(m, d, jac, jac+3*nv, i);
-      mj_solveM(m, d, tmp, jac, 6);
-      mju_mulMatMatT(A, jac, tmp, 6, nv, 6);
+  for (int i=1; i<m->nbody; i++) {
+    // static bodies: zero invweight0
+    if (m->body_weldid[i] == 0) {
+      m->body_invweight0[2*i] = m->body_invweight0[2*i+1] = 0;
     }
 
-    // average diagonal and assign
-    m->body_invweight0[2*i] = (A[0] + A[7] + A[14])/3;
-    m->body_invweight0[2*i+1] = (A[21] + A[28] + A[35])/3;
+    // accelerate simple bodies with no rotations
+    else if (m->body_simple[i]==2) {
+      mjtNum mass = m->body_mass[i];
+      if (!mass) {  // SHOULD NOT OCCUR
+        mjERROR("moving body %d has 0 mass", i);
+      }
+      m->body_invweight0[2*i+0] = 1/mju_max(mjMINVAL, mass);
+      m->body_invweight0[2*i+1] = 0;
+    }
+
+    // general body: full inertia
+    else {
+      if (nv) {
+        // inverse spatial inertia: A = J*inv(M)*J'
+        mj_jacBodyCom(m, d, jac, jac+3*nv, i);
+        mj_solveM(m, d, tmp, jac, 6);
+        mju_mulMatMatT(A, jac, tmp, 6, nv, 6);
+      }
+
+      // average diagonal and assign
+      m->body_invweight0[2*i] = (A[0] + A[7] + A[14])/3;
+      m->body_invweight0[2*i+1] = (A[21] + A[28] + A[35])/3;
+    }
   }
 
   // compute dof_invweight0
-  for (int i=0; i < m->njnt; i++) {
-    id = m->jnt_dofadr[i];
-
-    // get number of components
-    if (m->jnt_type[i] == mjJNT_FREE) {
-      dnum = 6;
-    } else if (m->jnt_type[i] == mjJNT_BALL) {
-      dnum = 3;
-    } else {
-      dnum = 1;
-    }
-
-    // inverse joint inertia:  A = J*inv(M)*J'
-    if (nv) {
-      mju_zero(jac, dnum*nv);
-      for (int j=0; j < dnum; j++) {
-        jac[j*(nv+1) + id] = 1;
+  for (int i=0; i<m->njnt; i++) {
+    // simple body with no rotations: no off-diagonal inertia
+    if (m->body_simple[m->jnt_bodyid[i]] == 2) {
+      int id = m->jnt_dofadr[i];
+      int bi = m->jnt_bodyid[i];
+      mjtNum mass = m->body_mass[bi];
+      if (!mass) {  // SHOULD NOT OCCUR
+        mjERROR("moving body %d has 0 mass", bi);
       }
-      mj_solveM(m, d, tmp, jac, dnum);
-      mju_mulMatMatT(A, jac, tmp, dnum, nv, dnum);
+      m->dof_invweight0[id] = 1/mju_max(mjMINVAL, mass);
     }
 
-    // average diagonal and assign
-    if (dnum == 6) {
-      m->dof_invweight0[id] = m->dof_invweight0[id+1] = m->dof_invweight0[id+2] =
-        (A[0] + A[7] + A[14])/3;
-      m->dof_invweight0[id+3] = m->dof_invweight0[id+4] = m->dof_invweight0[id+5] =
-        (A[21] + A[28] + A[35])/3;
-    } else if (dnum == 3)
-      m->dof_invweight0[id] = m->dof_invweight0[id+1] = m->dof_invweight0[id+2] =
-        (A[0] + A[4] + A[8])/3;
+    // general joint: full inertia
     else {
-      m->dof_invweight0[id] = A[0];
+      int dnum, id = m->jnt_dofadr[i];
+
+      // get number of components
+      if (m->jnt_type[i] == mjJNT_FREE) {
+        dnum = 6;
+      } else if (m->jnt_type[i] == mjJNT_BALL) {
+        dnum = 3;
+      } else {
+        dnum = 1;
+      }
+
+      // inverse joint inertia:  A = J*inv(M)*J'
+      if (nv) {
+        mju_zero(jac, dnum*nv);
+        for (int j=0; j < dnum; j++) {
+          jac[j*(nv+1) + id] = 1;
+        }
+        mj_solveM(m, d, tmp, jac, dnum);
+        mju_mulMatMatT(A, jac, tmp, dnum, nv, dnum);
+      }
+
+      // average diagonal and assign
+      if (dnum == 6) {
+        m->dof_invweight0[id] = m->dof_invweight0[id+1] = m->dof_invweight0[id+2] =
+          (A[0] + A[7] + A[14])/3;
+        m->dof_invweight0[id+3] = m->dof_invweight0[id+4] = m->dof_invweight0[id+5] =
+          (A[21] + A[28] + A[35])/3;
+      } else if (dnum == 3) {
+        m->dof_invweight0[id] = m->dof_invweight0[id+1] = m->dof_invweight0[id+2] =
+          (A[0] + A[4] + A[8])/3;
+      } else {
+        m->dof_invweight0[id] = A[0];
+      }
     }
   }
 
@@ -198,8 +230,8 @@ static void set0(mjModel* m, mjData* d) {
   // compute missing eq_data for body constraints
   for (int i=0; i < m->neq; i++) {
     // get ids
-    id1 = m->eq_obj1id[i];
-    id2 = m->eq_obj2id[i];
+    int id1 = m->eq_obj1id[i];
+    int id2 = m->eq_obj2id[i];
 
     // connect constraint
     if (m->eq_type[i] == mjEQ_CONNECT) {
@@ -239,8 +271,8 @@ static void set0(mjModel* m, mjData* d) {
   // camera compos0, pos0, mat0
   for (int i=0; i < m->ncam; i++) {
     // get body ids
-    id = m->cam_bodyid[i];              // camera body
-    id1 = m->cam_targetbodyid[i];       // target body
+    int id = m->cam_bodyid[i];              // camera body
+    int id1 = m->cam_targetbodyid[i];       // target body
 
     // compute positional offsets
     mju_sub3(m->cam_pos0+3*i, d->cam_xpos+3*i, d->xpos+3*id);
@@ -253,8 +285,8 @@ static void set0(mjModel* m, mjData* d) {
   // light compos0, pos0, dir0
   for (int i=0; i < m->nlight; i++) {
     // get body ids
-    id = m->light_bodyid[i];            // light body
-    id1 = m->light_targetbodyid[i];     // target body
+    int id = m->light_bodyid[i];            // light body
+    int id1 = m->light_targetbodyid[i];     // target body
 
     // compute positional offsets
     mju_sub3(m->light_pos0+3*i, d->light_xpos+3*i, d->xpos+3*id);

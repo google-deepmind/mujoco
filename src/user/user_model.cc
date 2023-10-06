@@ -1520,6 +1520,17 @@ void mjCModel::CopyTree(mjModel* m) {
       qposadr += nPOS[pj->type];
     }
 
+    // simple body with no rotational dofs: promote to simple level 2
+    if (m->body_simple[i]) {
+      m->body_simple[i] = 2;
+      for (int j=0; j<(int)pb->joints.size(); j++) {
+        if (pb->joints[j]->type!=mjJNT_SLIDE) {
+        m->body_simple[i] = 1;
+        break;
+        }
+      }
+    }
+
     // loop over geoms for this body
     for (int j=0; j<(int)pb->geoms.size(); j++) {
       // get pointer and id
