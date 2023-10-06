@@ -40,6 +40,8 @@
 #include "engine/engine_util_misc.h"
 #include "engine/engine_util_solve.h"
 #include "engine/engine_util_sparse.h"
+#include "thread/thread_pool.h"
+#include "thread/thread_task.h"
 
 
 
@@ -492,6 +494,52 @@ static void warmstart(const mjModel* m, mjData* d) {
 
 
 
+// struct encapsulating arguments to thread task
+struct mjSolIslandArgs_ {
+  const mjModel* m;
+  mjData* d;
+  int island;
+};
+typedef struct mjSolIslandArgs_ mjSolIslandArgs;
+
+// extract arguments, pass to solver
+void* mj_solCG_island_wrapper(void* args) {
+  mjSolIslandArgs* solargs = (mjSolIslandArgs*) args;
+  mj_solCG_island(solargs->m, solargs->d, solargs->island, solargs->m->opt.iterations);
+  return NULL;
+}
+
+
+
+
+// CG solver, multi-threaded over islands
+void mj_solCG_island_multithreaded(const mjModel* m, mjData* d) {
+  mj_markStack(d);
+  // allocate array of arguments to be passed to threads
+  mjSolIslandArgs* sol_cg_island_args =
+      mj_stackAllocByte(d, sizeof(mjSolIslandArgs) * d->nisland, _Alignof(mjSolIslandArgs));
+  mjTask* tasks = mj_stackAllocByte(d, sizeof(mjTask)  * d->nisland, _Alignof(mjTask));
+
+  for (int island = 0; island < d->nisland; ++island) {
+    sol_cg_island_args[island].m = m;
+    sol_cg_island_args[island].d = d;
+    sol_cg_island_args[island].island = island;
+
+    mju_defaultTask(&tasks[island]);
+    tasks[island].func = mj_solCG_island_wrapper;
+    tasks[island].args = &sol_cg_island_args[island];
+    mju_threadPoolEnqueue((mjThreadPool*)d->threadpool, &tasks[island]);
+  }
+
+  for (int island = 0; island < d->nisland; ++island) {
+    mju_taskJoin(&tasks[island]);
+  }
+
+  mj_freeStack(d);
+}
+
+
+
 // compute efc_b, efc_force, qfrc_constraint; update qacc
 void mj_fwdConstraint(const mjModel* m, mjData* d) {
   TM_START;
@@ -524,9 +572,15 @@ void mj_fwdConstraint(const mjModel* m, mjData* d) {
 
   // run solver over constraint islands
   if (islands_supported) {
-    // loop over islands
-    for (int island=0; island < nisland; island++) {
-      mj_solCG_island(m, d, island, m->opt.iterations);
+    // no threadpool, loop over islands
+    if (!d->threadpool) {
+      for (int island=0; island < nisland; island++) {
+        mj_solCG_island(m, d, island, m->opt.iterations);
+      }
+    }
+    else {
+      // solve using threads
+      mj_solCG_island_multithreaded(m, d);
     }
     d->solver_nisland = nisland;
   }

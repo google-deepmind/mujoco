@@ -54,7 +54,7 @@ MJAPI mjThreadPool* mju_threadPoolCreate(size_t number_of_threads);
 mjStackInfo* mju_getStackInfoForThread(mjData* d, size_t thread_id);
 
 // Adds a thread pool to mjData and configures it for multi-threaded use.
-MJAPI void mju_bindThreadPool(mjData* d, mjThreadPool* thread_pool);
+MJAPI void mju_bindThreadPool(mjData* d, void* thread_pool);
 
 // Gets the number of running threads in the thread pool.
 MJAPI size_t mju_threadPoolNumberOfThreads(mjThreadPool* thread_pool);

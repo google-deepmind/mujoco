@@ -122,11 +122,13 @@ General
       attributes are specified. See the following
       `example model <https://github.com/deepmind/mujoco/blob/main/test/engine/testdata/vis_visualize/frustum.xml>`__.
     - Note that these attributes only take effect for offline rendering and do not affect interactive visualisation.
-
+22. Added multi-threaded constraint solving via :ref:`mj_island` and :ref:`mjThreadPool` to :ref:`testspeed<saTestspeed>`
+    exposed via npoolthread flag. The `22 humanoids <https://github.com/deepmind/mujoco/blob/main/model/humanoid/22_humanoids.xml>`__
+    model shows a 3x speedup compared to the single threaded simulation.
 Python bindings
 ^^^^^^^^^^^^^^^
 
-22. Fixed `#870 <https://github.com/google-deepmind/mujoco/issues/870>`__ where calling ``update_scene`` with an invalid
+23. Fixed `#870 <https://github.com/google-deepmind/mujoco/issues/870>`__ where calling ``update_scene`` with an invalid
     camera name used the default camera.
 
 Simulate
@@ -136,18 +138,18 @@ Simulate
    :align: right
    :width: 240px
 
-23. Added **state history** mechanism to :ref:`simulate<saSimulate>` and the managed
+24. Added **state history** mechanism to :ref:`simulate<saSimulate>` and the managed
     :ref:`Python viewer<PyViewerManaged>`. State history can be viewed by scrubbing the History slider and (more
     precisely) with the left and right arrow keys. See screen capture:
 
-24. The ``LOADING...`` label is now shown correctly.
+25. The ``LOADING...`` label is now shown correctly.
     `Contribution <https://github.com/google-deepmind/mujoco/pull/1070>`__ by
     `Levi Burner <https://github.com/aftersomemath>`__.
 
 Bug fixes
 ^^^^^^^^^
 
-25. Fixed a bug that was causing :ref:`geom margin<body-geom-margin>` to be ignored during the construction of
+26. Fixed a bug that was causing :ref:`geom margin<body-geom-margin>` to be ignored during the construction of
     midphase collision trees.
 
 Version 2.3.7 (July 20, 2023)

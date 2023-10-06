@@ -206,7 +206,10 @@ mjStackInfo* mju_getStackInfoForThread(mjData* d, size_t thread_id) {
   // align the end of the shard to be mjStackInfo.
   misalignment = result % alignof(mjStackInfo);
   result -= misalignment;
-
+#ifdef ADDRESS_SANITIZER
+  // Ensure StackInfo is always accessible
+  ASAN_UNPOISON_MEMORY_REGION((void*)result, sizeof(mjStackInfo));
+#endif
   return (mjStackInfo*) result;
 }
 
@@ -253,7 +256,7 @@ static void  ConfigureMultiThreadedStack(mjData* d) {
 }
 
 // adds a thread pool to mjData and configures it for multi-threaded use.
-void mju_bindThreadPool(mjData* d, mjThreadPool* thread_pool) {
+void mju_bindThreadPool(mjData* d, void* thread_pool) {
   if (d->threadpool) {
     mju_error("Thread Pool already bound to mjData");
   }

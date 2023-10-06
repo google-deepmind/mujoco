@@ -14,6 +14,7 @@
 
 #include "engine/engine_collision_driver.h"
 
+#include <math.h>
 #include <stddef.h>
 #include <string.h>
 
@@ -61,8 +62,10 @@ static void collideGeoms(const mjModel* m, mjData* d,
 static inline void resetArena(mjData* d) {
   d->parena = d->ncon * sizeof(mjContact);
 #ifdef ADDRESS_SANITIZER
-  ASAN_POISON_MEMORY_REGION(
-      (char*)d->arena + d->parena, d->narena - d->pstack - d->parena);
+  if (!d->threadpool) {
+    ASAN_POISON_MEMORY_REGION(
+        (char*)d->arena + d->parena, d->narena - d->pstack - d->parena);
+  }
 #endif
 }
 

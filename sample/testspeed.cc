@@ -119,12 +119,12 @@ void simulate(int id, int nstep, mjtNum* ctrl) {
 int main(int argc, char** argv) {
 
   // print help if arguments are missing
-  if (argc < 2 || argc > 6) {
-    return finish("\n Usage:  testspeed modelfile [nstep nthread ctrlnoise profile]\n");
+  if (argc < 2 || argc > 7) {
+    return finish("\n Usage:  testspeed modelfile [nstep nthread ctrlnoise profile npoolthread]\n");
   }
 
   // read arguments
-  int nstep = 10000, nthread = 0, profile = 1;
+  int nstep = 10000, nthread = 0, profile = 1, npoolthread = 0;
   // inject small noise by default, to avoid fixed contact state
   mjtNum ctrlnoise = 0.01;
   if (argc > 2 && (std::sscanf(argv[2], "%d", &nstep) != 1 || nstep <= 0)) {
@@ -139,12 +139,16 @@ int main(int argc, char** argv) {
   if (argc > 5 && std::sscanf(argv[5], "%d", &profile) != 1) {
     return finish("Invalid profile argument");
   }
+  if (argc > 6 && std::sscanf(argv[6], "%d", &npoolthread) != 1) {
+    return finish("Invalid npoolthread argument");
+  }
 
   // clamp ctrlnoise to [0.0, 1.0]
   ctrlnoise = mjMAX(0.0, mjMIN(ctrlnoise, 1.0));
 
   // clamp nthread to [1, maxthread]
   nthread = mjMAX(1, mjMIN(maxthread, nthread));
+  npoolthread = mjMAX(0, mjMIN(maxthread, npoolthread));
 
   // get filename, determine file type
   std::string filename(argv[1]);
@@ -169,6 +173,10 @@ int main(int argc, char** argv) {
       return finish("Could not allocate mjData", m);
     }
 
+    if (npoolthread > 0) {
+      mjThreadPool* threadpool = mju_threadPoolCreate(npoolthread);
+      mju_bindThreadPool(d[id], threadpool);
+    }
     // init to keyframe "test" if present
     if (testkey>=0) {
       mju_copy(d[id]->qpos, m->key_qpos + testkey*m->nq, m->nq);
@@ -254,7 +262,11 @@ int main(int argc, char** argv) {
 
   // free per-thread data
   for (int id=0; id<nthread; id++) {
+    mjThreadPool* threadpool = (mjThreadPool*) d[id]->threadpool;
     mj_deleteData(d[id]);
+    if (threadpool) {
+      mju_threadPoolDestroy(threadpool);
+    }
   }
 
   // finalize

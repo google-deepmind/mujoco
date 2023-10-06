@@ -7088,5 +7088,8 @@ public static unsafe extern void mjd_subQuat(double* qa, double* qb, double* Da,
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern void mjd_quatIntegrate(double* vel, double scale, double* Dquat, double* Dvel, double* Dscale);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern void mju_bindThreadPool(mjData_* d, void* thread_pool);
 }
 }

@@ -3446,6 +3446,15 @@ mju_threadPoolCreate
 
 Create a thread pool with the specified number of threads running.
 
+.. _mju_bindThreadPool:
+
+mju_bindThreadPool
+~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mju_bindThreadPool
+
+Adds a thread pool to :ref:`mjData` and configures it for multi-threaded use.
+
 .. _mju_threadPoolEnqueue:
 
 mju_threadPoolEnqueue

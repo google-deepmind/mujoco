@@ -2613,6 +2613,7 @@ int mjp_resourceProviderCount(void);
 const mjpResourceProvider* mjp_getResourceProvider(const char* resource_name);
 const mjpResourceProvider* mjp_getResourceProviderAtSlot(int slot);
 mjThreadPool* mju_threadPoolCreate(size_t number_of_threads);
+void mju_bindThreadPool(mjData* d, void* thread_pool);
 void mju_threadPoolEnqueue(mjThreadPool* thread_pool, mjTask* task);
 void mju_threadPoolDestroy(mjThreadPool* thread_pool);
 void mju_defaultTask(mjTask* task);

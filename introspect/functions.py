@@ -8271,6 +8271,26 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
          ),
          doc='Create a thread pool with the specified number of threads running.',  # pylint: disable=line-too-long
      )),
+    ('mju_bindThreadPool',
+     FunctionDecl(
+         name='mju_bindThreadPool',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='d',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjData'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='thread_pool',
+                 type=PointerType(
+                     inner_type=ValueType(name='void'),
+                 ),
+             ),
+         ),
+         doc='Adds a thread pool to mjData and configures it for multi-threaded use.',  # pylint: disable=line-too-long
+     )),
     ('mju_threadPoolEnqueue',
      FunctionDecl(
          name='mju_threadPoolEnqueue',

@@ -1470,7 +1470,9 @@ static void _resetData(const mjModel* m, mjData* d, unsigned char debug_value) {
   //------------------------------ clear header
 
   // clear stack pointer
-  d->pstack = 0;
+  if (!d->threadpool) {
+    d->pstack = 0;
+  }
   d->pbase = 0;
 
   // clear arena pointers
