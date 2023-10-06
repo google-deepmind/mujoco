@@ -708,7 +708,7 @@ void mju_solveLUSparse(mjtNum* res, const mjtNum* LU, const mjtNum* vec, int n,
 
 // eigenvalue decomposition of symmetric 3x3 matrix
 static const mjtNum eigEPS = 1E-12;
-int mju_eig3(mjtNum* eigval, mjtNum* eigvec, mjtNum quat[4], const mjtNum mat[9]) {
+int mju_eig3(mjtNum eigval[3], mjtNum eigvec[9], mjtNum quat[4], const mjtNum mat[9]) {
   mjtNum D[9], tmp[9];
   mjtNum tau, t, c;
   int iter, rk, ck, rotk;
