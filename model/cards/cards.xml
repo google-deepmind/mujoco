@@ -1,0 +1,518 @@
+<mujoco>
+  <compiler assetdir="assets"/>
+
+  <size memory="5M"/>
+
+  <statistic extent="0.5" center="0 -.5 0"/>
+
+  <visual>
+    <map znear="0.1" zfar="10"/>
+    <quality shadowsize="8192"/>
+  </visual>
+
+  <option density="1.225" viscosity="1.8e-5" timestep="1e-3" integrator="implicitfast"/>
+
+  <asset>
+    <texture name="grid" type="2d" builtin="checker" rgb1=".1 .2 .3" rgb2=".2 .3 .4" width="100" height="100"/>
+    <material name="grid" texture="grid" texrepeat="8 8" texuniform="true" reflectance=".2"/>
+
+    <mesh file="card.obj"/>
+
+    <texture type="2d" file="2_of_clubs.png"/>
+    <material name="2_of_clubs" texture="2_of_clubs"/>
+
+    <texture type="2d" file="2_of_diamonds.png"/>
+    <material name="2_of_diamonds" texture="2_of_diamonds"/>
+
+    <texture type="2d" file="2_of_hearts.png"/>
+    <material name="2_of_hearts" texture="2_of_hearts"/>
+
+    <texture type="2d" file="2_of_spades.png"/>
+    <material name="2_of_spades" texture="2_of_spades"/>
+
+    <texture type="2d" file="3_of_clubs.png"/>
+    <material name="3_of_clubs" texture="3_of_clubs"/>
+
+    <texture type="2d" file="3_of_diamonds.png"/>
+    <material name="3_of_diamonds" texture="3_of_diamonds"/>
+
+    <texture type="2d" file="3_of_hearts.png"/>
+    <material name="3_of_hearts" texture="3_of_hearts"/>
+
+    <texture type="2d" file="3_of_spades.png"/>
+    <material name="3_of_spades" texture="3_of_spades"/>
+
+    <texture type="2d" file="4_of_clubs.png"/>
+    <material name="4_of_clubs" texture="4_of_clubs"/>
+
+    <texture type="2d" file="4_of_diamonds.png"/>
+    <material name="4_of_diamonds" texture="4_of_diamonds"/>
+
+    <texture type="2d" file="4_of_hearts.png"/>
+    <material name="4_of_hearts" texture="4_of_hearts"/>
+
+    <texture type="2d" file="4_of_spades.png"/>
+    <material name="4_of_spades" texture="4_of_spades"/>
+
+    <texture type="2d" file="5_of_clubs.png"/>
+    <material name="5_of_clubs" texture="5_of_clubs"/>
+
+    <texture type="2d" file="5_of_diamonds.png"/>
+    <material name="5_of_diamonds" texture="5_of_diamonds"/>
+
+    <texture type="2d" file="5_of_hearts.png"/>
+    <material name="5_of_hearts" texture="5_of_hearts"/>
+
+    <texture type="2d" file="5_of_spades.png"/>
+    <material name="5_of_spades" texture="5_of_spades"/>
+
+    <texture type="2d" file="6_of_clubs.png"/>
+    <material name="6_of_clubs" texture="6_of_clubs"/>
+
+    <texture type="2d" file="6_of_diamonds.png"/>
+    <material name="6_of_diamonds" texture="6_of_diamonds"/>
+
+    <texture type="2d" file="6_of_hearts.png"/>
+    <material name="6_of_hearts" texture="6_of_hearts"/>
+
+    <texture type="2d" file="6_of_spades.png"/>
+    <material name="6_of_spades" texture="6_of_spades"/>
+
+    <texture type="2d" file="7_of_clubs.png"/>
+    <material name="7_of_clubs" texture="7_of_clubs"/>
+
+    <texture type="2d" file="7_of_diamonds.png"/>
+    <material name="7_of_diamonds" texture="7_of_diamonds"/>
+
+    <texture type="2d" file="7_of_hearts.png"/>
+    <material name="7_of_hearts" texture="7_of_hearts"/>
+
+    <texture type="2d" file="7_of_spades.png"/>
+    <material name="7_of_spades" texture="7_of_spades"/>
+
+    <texture type="2d" file="8_of_clubs.png"/>
+    <material name="8_of_clubs" texture="8_of_clubs"/>
+
+    <texture type="2d" file="8_of_diamonds.png"/>
+    <material name="8_of_diamonds" texture="8_of_diamonds"/>
+
+    <texture type="2d" file="8_of_hearts.png"/>
+    <material name="8_of_hearts" texture="8_of_hearts"/>
+
+    <texture type="2d" file="8_of_spades.png"/>
+    <material name="8_of_spades" texture="8_of_spades"/>
+
+    <texture type="2d" file="9_of_clubs.png"/>
+    <material name="9_of_clubs" texture="9_of_clubs"/>
+
+    <texture type="2d" file="9_of_diamonds.png"/>
+    <material name="9_of_diamonds" texture="9_of_diamonds"/>
+
+    <texture type="2d" file="9_of_hearts.png"/>
+    <material name="9_of_hearts" texture="9_of_hearts"/>
+
+    <texture type="2d" file="9_of_spades.png"/>
+    <material name="9_of_spades" texture="9_of_spades"/>
+
+    <texture type="2d" file="10_of_clubs.png"/>
+    <material name="10_of_clubs" texture="10_of_clubs"/>
+
+    <texture type="2d" file="10_of_diamonds.png"/>
+    <material name="10_of_diamonds" texture="10_of_diamonds"/>
+
+    <texture type="2d" file="10_of_hearts.png"/>
+    <material name="10_of_hearts" texture="10_of_hearts"/>
+
+    <texture type="2d" file="10_of_spades.png"/>
+    <material name="10_of_spades" texture="10_of_spades"/>
+
+    <texture type="2d" file="ace_of_clubs.png"/>
+    <material name="ace_of_clubs" texture="ace_of_clubs"/>
+
+    <texture type="2d" file="ace_of_diamonds.png"/>
+    <material name="ace_of_diamonds" texture="ace_of_diamonds"/>
+
+    <texture type="2d" file="ace_of_hearts.png"/>
+    <material name="ace_of_hearts" texture="ace_of_hearts"/>
+
+    <texture type="2d" file="ace_of_spades.png"/>
+    <material name="ace_of_spades" texture="ace_of_spades"/>
+
+    <texture type="2d" file="black_joker.png"/>
+    <material name="black_joker" texture="black_joker"/>
+
+    <texture type="2d" file="jack_of_clubs.png"/>
+    <material name="jack_of_clubs" texture="jack_of_clubs"/>
+
+    <texture type="2d" file="jack_of_diamonds.png"/>
+    <material name="jack_of_diamonds" texture="jack_of_diamonds"/>
+
+    <texture type="2d" file="jack_of_hearts.png"/>
+    <material name="jack_of_hearts" texture="jack_of_hearts"/>
+
+    <texture type="2d" file="jack_of_spades.png"/>
+    <material name="jack_of_spades" texture="jack_of_spades"/>
+
+    <texture type="2d" file="king_of_clubs.png"/>
+    <material name="king_of_clubs" texture="king_of_clubs"/>
+
+    <texture type="2d" file="king_of_diamonds.png"/>
+    <material name="king_of_diamonds" texture="king_of_diamonds"/>
+
+    <texture type="2d" file="king_of_hearts.png"/>
+    <material name="king_of_hearts" texture="king_of_hearts"/>
+
+    <texture type="2d" file="king_of_spades.png"/>
+    <material name="king_of_spades" texture="king_of_spades"/>
+
+    <texture type="2d" file="queen_of_clubs.png"/>
+    <material name="queen_of_clubs" texture="queen_of_clubs"/>
+
+    <texture type="2d" file="queen_of_diamonds.png"/>
+    <material name="queen_of_diamonds" texture="queen_of_diamonds"/>
+
+    <texture type="2d" file="queen_of_hearts.png"/>
+    <material name="queen_of_hearts" texture="queen_of_hearts"/>
+
+    <texture type="2d" file="queen_of_spades.png"/>
+    <material name="queen_of_spades" texture="queen_of_spades"/>
+  </asset>
+
+  <default>
+    <geom solref=".5e-4" solimp="0.9 0.99 1e-4" fluidcoef="0.5 0.25 0.5 2.0 1.0"/>
+    <default class="card">
+      <geom type="mesh" mesh="card" mass="1.84e-4" fluidshape="ellipsoid" contype="0" conaffinity="0"/>
+    </default>
+    <default class="collision">
+      <geom type="box" mass="0" size="0.047 0.032 .00035" group="3" friction=".1"/>
+    </default>
+  </default>
+
+  <worldbody>
+    <light cutoff="30" pos="0 1 1" dir="0 -1 -2"/>
+    <light cutoff="30" pos="0 -1 1" dir="0 1 -2"/>
+    <camera name="cinematic" pos="0.119 -0.507 0.239" xyaxes="1 0 0 0 0.608 0.794"  mode="trackcom" fovy="40"/>
+
+    <geom type="plane" size="5 5 .01" pos="0 0 -1" material="grid"/>
+    <geom type="capsule" size="0.03" fromto=".1 -.1 -.3 .1 .1 -.3"/>
+
+    <body pos="0.000 -0.040 -0.000" euler="-100 180 0">
+      <freejoint/>
+      <geom class="card" material="2_of_clubs"/>
+      <geom class="collision"/>
+    </body>
+
+    <body pos="0.005 -0.037 -0.005" euler="-103 180 0">
+      <freejoint/>
+      <geom class="card" material="2_of_diamonds"/>
+      <geom class="collision"/>
+    </body>
+
+    <body pos="0.010 -0.034 -0.010" euler="-106 180 0">
+      <freejoint/>
+      <geom class="card" material="2_of_hearts"/>
+      <geom class="collision"/>
+    </body>
+
+    <body pos="0.015 -0.031 -0.015" euler="-109 180 0">
+      <freejoint/>
+      <geom class="card" material="2_of_spades"/>
+      <geom class="collision"/>
+    </body>
+
+    <body pos="0.020 -0.029 -0.020" euler="-112 180 0">
+      <freejoint/>
+      <geom class="card" material="3_of_clubs"/>
+      <geom class="collision"/>
+    </body>
+
+    <body pos="0.025 -0.026 -0.025" euler="-115 180 0">
+      <freejoint/>
+      <geom class="card" material="3_of_diamonds"/>
+      <geom class="collision"/>
+    </body>
+
+    <body pos="0.030 -0.024 -0.030" euler="-118 180 0">
+      <freejoint/>
+      <geom class="card" material="3_of_hearts"/>
+      <geom class="collision"/>
+    </body>
+
+    <body pos="0.035 -0.021 -0.035" euler="-121 180 0">
+      <freejoint/>
+      <geom class="card" material="3_of_spades"/>
+      <geom class="collision"/>
+    </body>
+
+    <body pos="0.040 -0.019 -0.040" euler="-124 180 0">
+      <freejoint/>
+      <geom class="card" material="4_of_clubs"/>
+      <geom class="collision"/>
+    </body>
+
+    <body pos="0.045 -0.017 -0.045" euler="-127 180 0">
+      <freejoint/>
+      <geom class="card" material="4_of_diamonds"/>
+      <geom class="collision"/>
+    </body>
+
+    <body pos="0.050 -0.015 -0.050" euler="-130 180 0">
+      <freejoint/>
+      <geom class="card" material="4_of_hearts"/>
+      <geom class="collision"/>
+    </body>
+
+    <body pos="0.055 -0.013 -0.055" euler="-133 180 0">
+      <freejoint/>
+      <geom class="card" material="4_of_spades"/>
+      <geom class="collision"/>
+    </body>
+
+    <body pos="0.060 -0.012 -0.060" euler="-136 180 0">
+      <freejoint/>
+      <geom class="card" material="5_of_clubs"/>
+      <geom class="collision"/>
+    </body>
+
+    <body pos="0.065 -0.010 -0.065" euler="-139 180 0">
+      <freejoint/>
+      <geom class="card" material="5_of_diamonds"/>
+      <geom class="collision"/>
+    </body>
+
+    <body pos="0.070 -0.009 -0.070" euler="-142 180 0">
+      <freejoint/>
+      <geom class="card" material="5_of_hearts"/>
+      <geom class="collision"/>
+    </body>
+
+    <body pos="0.075 -0.007 -0.075" euler="-145 180 0">
+      <freejoint/>
+      <geom class="card" material="5_of_spades"/>
+      <geom class="collision"/>
+    </body>
+
+    <body pos="0.080 -0.006 -0.080" euler="-148 180 0">
+      <freejoint/>
+      <geom class="card" material="6_of_clubs"/>
+      <geom class="collision"/>
+    </body>
+
+    <body pos="0.085 -0.005 -0.085" euler="-151 180 0">
+      <freejoint/>
+      <geom class="card" material="6_of_diamonds"/>
+      <geom class="collision"/>
+    </body>
+
+    <body pos="0.090 -0.004 -0.090" euler="-154 180 0">
+      <freejoint/>
+      <geom class="card" material="6_of_hearts"/>
+      <geom class="collision"/>
+    </body>
+
+    <body pos="0.095 -0.003 -0.095" euler="-157 180 0">
+      <freejoint/>
+      <geom class="card" material="6_of_spades"/>
+      <geom class="collision"/>
+    </body>
+
+    <body pos="0.100 -0.002 -0.100" euler="-160 180 0">
+      <freejoint/>
+      <geom class="card" material="7_of_clubs"/>
+      <geom class="collision"/>
+    </body>
+
+    <body pos="0.105 -0.001 -0.105" euler="-163 180 0">
+      <freejoint/>
+      <geom class="card" material="7_of_diamonds"/>
+      <geom class="collision"/>
+    </body>
+
+    <body pos="0.110 -0.001 -0.110" euler="-166 180 0">
+      <freejoint/>
+      <geom class="card" material="7_of_hearts"/>
+      <geom class="collision"/>
+    </body>
+
+    <body pos="0.115 -0.001 -0.115" euler="-169 180 0">
+      <freejoint/>
+      <geom class="card" material="7_of_spades"/>
+      <geom class="collision"/>
+    </body>
+
+    <body pos="0.120 -0.000 -0.120" euler="-172 180 0">
+      <freejoint/>
+      <geom class="card" material="8_of_clubs"/>
+      <geom class="collision"/>
+    </body>
+
+    <body pos="0.125 -0.000 -0.125" euler="-175 180 0">
+      <freejoint/>
+      <geom class="card" material="8_of_diamonds"/>
+      <geom class="collision"/>
+    </body>
+
+    <body pos="0.130 -0.000 -0.130" euler="-178 180 0">
+      <freejoint/>
+      <geom class="card" material="8_of_hearts"/>
+      <geom class="collision"/>
+    </body>
+
+    <body pos="0.135 -0.000 -0.135" euler="-181 180 0">
+      <freejoint/>
+      <geom class="card" material="8_of_spades"/>
+      <geom class="collision"/>
+    </body>
+
+    <body pos="0.140 -0.000 -0.140" euler="-184 180 0">
+      <freejoint/>
+      <geom class="card" material="9_of_clubs"/>
+      <geom class="collision"/>
+    </body>
+
+    <body pos="0.145 -0.001 -0.145" euler="-187 180 0">
+      <freejoint/>
+      <geom class="card" material="9_of_diamonds"/>
+      <geom class="collision"/>
+    </body>
+
+    <body pos="0.150 -0.001 -0.150" euler="-190 180 0">
+      <freejoint/>
+      <geom class="card" material="9_of_hearts"/>
+      <geom class="collision"/>
+    </body>
+
+    <body pos="0.155 -0.001 -0.155" euler="-193 180 0">
+      <freejoint/>
+      <geom class="card" material="9_of_spades"/>
+      <geom class="collision"/>
+    </body>
+
+    <body pos="0.160 -0.002 -0.160" euler="-196 180 0">
+      <freejoint/>
+      <geom class="card" material="10_of_clubs"/>
+      <geom class="collision"/>
+    </body>
+
+    <body pos="0.165 -0.003 -0.165" euler="-199 180 0">
+      <freejoint/>
+      <geom class="card" material="10_of_diamonds"/>
+      <geom class="collision"/>
+    </body>
+
+    <body pos="0.170 -0.004 -0.170" euler="-202 180 0">
+      <freejoint/>
+      <geom class="card" material="10_of_hearts"/>
+      <geom class="collision"/>
+    </body>
+
+    <body pos="0.175 -0.005 -0.175" euler="-205 180 0">
+      <freejoint/>
+      <geom class="card" material="10_of_spades"/>
+      <geom class="collision"/>
+    </body>
+
+    <body pos="0.180 -0.006 -0.180" euler="-208 180 0">
+      <freejoint/>
+      <geom class="card" material="ace_of_clubs"/>
+      <geom class="collision"/>
+    </body>
+
+    <body pos="0.185 -0.007 -0.185" euler="-211 180 0">
+      <freejoint/>
+      <geom class="card" material="ace_of_diamonds"/>
+      <geom class="collision"/>
+    </body>
+
+    <body pos="0.190 -0.009 -0.190" euler="-214 180 0">
+      <freejoint/>
+      <geom class="card" material="ace_of_hearts"/>
+      <geom class="collision"/>
+    </body>
+
+    <body pos="0.195 -0.010 -0.195" euler="-217 180 0">
+      <freejoint/>
+      <geom class="card" material="ace_of_spades"/>
+      <geom class="collision"/>
+    </body>
+
+    <body pos="0.200 -0.012 -0.200" euler="-220 180 0">
+      <freejoint/>
+      <geom class="card" material="black_joker"/>
+      <geom class="collision"/>
+    </body>
+
+    <body pos="0.205 -0.013 -0.205" euler="-223 180 0">
+      <freejoint/>
+      <geom class="card" material="jack_of_clubs"/>
+      <geom class="collision"/>
+    </body>
+
+    <body pos="0.210 -0.015 -0.210" euler="-226 180 0">
+      <freejoint/>
+      <geom class="card" material="jack_of_diamonds"/>
+      <geom class="collision"/>
+    </body>
+
+    <body pos="0.215 -0.017 -0.215" euler="-229 180 0">
+      <freejoint/>
+      <geom class="card" material="jack_of_hearts"/>
+      <geom class="collision"/>
+    </body>
+
+    <body pos="0.220 -0.019 -0.220" euler="-232 180 0">
+      <freejoint/>
+      <geom class="card" material="jack_of_spades"/>
+      <geom class="collision"/>
+    </body>
+
+    <body pos="0.225 -0.021 -0.225" euler="-235 180 0">
+      <freejoint/>
+      <geom class="card" material="king_of_clubs"/>
+      <geom class="collision"/>
+    </body>
+
+    <body pos="0.230 -0.024 -0.230" euler="-238 180 0">
+      <freejoint/>
+      <geom class="card" material="king_of_diamonds"/>
+      <geom class="collision"/>
+    </body>
+
+    <body pos="0.235 -0.026 -0.235" euler="-241 180 0">
+      <freejoint/>
+      <geom class="card" material="king_of_hearts"/>
+      <geom class="collision"/>
+    </body>
+
+    <body pos="0.240 -0.029 -0.240" euler="-244 180 0">
+      <freejoint/>
+      <geom class="card" material="king_of_spades"/>
+      <geom class="collision"/>
+    </body>
+
+    <body pos="0.245 -0.031 -0.245" euler="-247 180 0">
+      <freejoint/>
+      <geom class="card" material="queen_of_clubs"/>
+      <geom class="collision"/>
+    </body>
+
+    <body pos="0.250 -0.034 -0.250" euler="-250 180 0">
+      <freejoint/>
+      <geom class="card" material="queen_of_diamonds"/>
+      <geom class="collision"/>
+    </body>
+
+    <body pos="0.255 -0.037 -0.255" euler="-253 180 0">
+      <freejoint/>
+      <geom class="card" material="queen_of_hearts"/>
+      <geom class="collision"/>
+    </body>
+
+    <body pos="0.260 -0.040 -0.260" euler="-256 180 0">
+      <freejoint/>
+      <geom class="card" material="queen_of_spades"/>
+      <geom class="collision"/>
+    </body>
+
+  </worldbody>
+</mujoco>
