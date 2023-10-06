@@ -37,7 +37,7 @@ New features
 
 4. Added capability to initialize :ref:`composite<body-composite>` particles with arbitrary positions.
 
-5. Added `shell <https://github.com/deepmind/mujoco/blob/main/plugin/elasticity/shell.cc>`_ passive force plugin:
+5. Added `shell <https://github.com/deepmind/mujoco/blob/main/plugin/elasticity/shell.cc>`__ passive force plugin:
 
    - Collisions use spheres located at mesh vertices.
    - Stretching as tendon constraints and bending using a constant precomputed Hessian (cotangent operator).
@@ -229,9 +229,9 @@ Bug fixes
 Plugins
 ^^^^^^^
 
-5. Added touch-grid sensor plugin. See `documentation <https://github.com/google-deepmind/mujoco/blob/main/plugin/sensor/README.md>`_
-   for details, and associated `touch_grid.xml <https://github.com/google-deepmind/mujoco/blob/main/model/plugin/sensor/touch_grid.xml>`_
-   example model. The plugin includes `in-scene visualisation <https://youtu.be/0LOJ3WMnqeA>`_.
+5. Added touch-grid sensor plugin. See `documentation <https://github.com/google-deepmind/mujoco/blob/main/plugin/sensor/README.md>`__
+   for details, and associated `touch_grid.xml <https://github.com/google-deepmind/mujoco/blob/main/model/plugin/sensor/touch_grid.xml>`__
+   example model. The plugin includes `in-scene visualisation <https://youtu.be/0LOJ3WMnqeA>`__.
 
 Simulate
 ^^^^^^^^
@@ -354,8 +354,8 @@ Python bindings
 #. Fixed a race condition in ``viewer.launch_passive`` and  ``viewer.launch_repl``. These functions could previously
    return before an internal call to ``mj_forward``. This allows user code to continue and potentially modify physics
    state concurrently with the internal ``mj_forward``, resulting in e.g.
-   `MuJoCo stack overflow error <https://github.com/google-deepmind/mujoco/issues/783>`_
-   or `segmentation fault <https://github.com/google-deepmind/mujoco/issues/790>`_.
+   `MuJoCo stack overflow error <https://github.com/google-deepmind/mujoco/issues/783>`__
+   or `segmentation fault <https://github.com/google-deepmind/mujoco/issues/790>`__.
 #. The ``viewer.launch_passive`` function now returns a handle which can be used to interact with the viewer. The
    passive viewer now also requires an explicit call to ``sync`` on its handle to pick up any update to the physics
    state. This is to avoid race conditions that can result in visual artifacts. See
@@ -368,9 +368,9 @@ Bug fixes
 
 12. Fixed bug in the handling of ellipsoid-based fluid model forces in the new implicitfast integrator.
 #.  Removed spurious whole-arena copying in `mj_copyData`, which can considerably
-    `slow down <https://github.com/google-deepmind/mujoco/issues/568>`_ the copying operation.
+    `slow down <https://github.com/google-deepmind/mujoco/issues/568>`__ the copying operation.
 #.  Make :ref:`shellinertia<body-geom-shellinertia>` ignore :ref:`exactmeshinertia<compiler-exactmeshinertia>`, which is
-    only used for legacy volume computations (`#759 <https://github.com/google-deepmind/mujoco/issues/759>`_).
+    only used for legacy volume computations (`#759 <https://github.com/google-deepmind/mujoco/issues/759>`__).
 
 
 Version 2.3.3 (March 20, 2023)
@@ -389,7 +389,7 @@ General
      become the default integrator in a future version.
 
    The table below shows the compute cost of the 627-DoF `humanoid100
-   <https://github.com/google-deepmind/mujoco/blob/main/model/humanoid100/humanoid100.xml>`_ model using different
+   <https://github.com/google-deepmind/mujoco/blob/main/model/humanoid100/humanoid100.xml>`__ model using different
    integrators. "implicit (old)" uses dense RNE derivatives, "implicit (new)" is after the sparsification mentioned
    above. Timings were measured on a single core of an AMD 3995WX CPU.
 
@@ -407,14 +407,14 @@ General
 
 2. Added a collision mid-phase for pruning geoms in body pairs, see :ref:`documentation<coSelection>` for more details.
    This is based on static AABB bounding volume hierarchy (a BVH binary tree) in the body inertial frame. The GIF on
-   the right is cut from `this longer video <https://youtu.be/e0babIM8hBo>`_.
+   the right is cut from `this longer video <https://youtu.be/e0babIM8hBo>`__.
 #. The ``mjd_transitionFD`` function no longer triggers sensor calculation unless explicitly requested.
 #. Corrected the spelling of the ``inteval`` attribute to ``interval`` in the :ref:`mjLROpt` struct.
 #. Mesh texture and normal mappings are now 3-per-triangle rather than 1-per-vertex. Mesh vertices are no longer
    duplicated in order to circumvent this limitation as they previously were.
 #. The non-zeros for the sparse constraint Jacobian matrix are now precounted and used for matrix memory allocation.
    For instance, the constraint Jacobian matrix from the `humanoid100
-   <https://github.com/google-deepmind/mujoco/blob/main/model/humanoid100/humanoid100.xml>`_ model, which previously
+   <https://github.com/google-deepmind/mujoco/blob/main/model/humanoid100/humanoid100.xml>`__ model, which previously
    required ~500,000 ``mjtNum``'s, now only requires ~6000. Very large models can now load and run with the CG solver.
 #. Modified :ref:`mju_error` and :ref:`mju_warning` to be variadic functions (support for printf-like arguments). The
    functions :ref:`mju_error_i`, :ref:`mju_error_s`, :ref:`mju_warning_i`, and :ref:`mju_warning_s` are now deprecated.
@@ -441,7 +441,7 @@ Python bindings
 Simulate
 ^^^^^^^^
 
-15. Implemented a workaround for `broken VSync <https://github.com/glfw/glfw/issues/2249>`_ on macOS so that the frame
+15. Implemented a workaround for `broken VSync <https://github.com/glfw/glfw/issues/2249>`__ on macOS so that the frame
     rate is correctly capped when the Vertical Sync toggle is enabled.
 
 .. image:: images/changelog/contactlabel.png
@@ -462,7 +462,7 @@ General
 
 1. A more performant mju_transposeSparse has been implemented that doesn't require dense memory allocation.
    For a constraint Jacobian matrix from the
-   `humanoid100.xml <https://github.com/google-deepmind/mujoco/blob/main/model/humanoid100/humanoid100.xml>`_ model,
+   `humanoid100.xml <https://github.com/google-deepmind/mujoco/blob/main/model/humanoid100/humanoid100.xml>`__ model,
    this function is 35% faster.
 #. The function :ref:`mj_name2id` is now implemented using a hash function instead of a linear search for better
    performance.
@@ -512,18 +512,18 @@ Python bindings
 ^^^^^^^^^^^^^^^
 
 1. The ``simulate`` GUI is now available through the ``mujoco`` Python package as ``mujoco.viewer``.
-   See :ref:`documentation<PyViewer>` for details. (Contribution by `Levi Burner <https://github.com/aftersomemath>`_.)
+   See :ref:`documentation<PyViewer>` for details. (Contribution by `Levi Burner <https://github.com/aftersomemath>`__.)
 #. The ``Renderer`` class from the MuJoCo tutorial Colab is now available directly in the native Python bindings.
 
 General
 ^^^^^^^
 
 3. The tendon :at:`springlength` attribute can now take two values. Given two non-decreasing values, `springlength`
-   specifies a `deadband  <https://en.wikipedia.org/wiki/Deadband>`_ range for spring stiffness. If the tendon length is
+   specifies a `deadband  <https://en.wikipedia.org/wiki/Deadband>`__ range for spring stiffness. If the tendon length is
    between the two values, the force is 0. If length is outside this range, the force behaves like a regular spring, with
    the spring resting length corresponding to the nearest :at:`springlength` value. This can be used to create tendons
    whose limits are enforced by springs rather than constraints, which are cheaper and easier to analyse. See
-   `tendon_springlength.xml <https://github.com/google-deepmind/mujoco/blob/main/test/engine/testdata/tendon_springlength.xml>`_
+   `tendon_springlength.xml <https://github.com/google-deepmind/mujoco/blob/main/test/engine/testdata/tendon_springlength.xml>`__
    example model.
 
    .. attention::
@@ -537,22 +537,22 @@ General
 #. Removed the requirement that stateless actuators come before stateful actuators.
 #. Added :ref:`mju_fill`, :ref:`mju_symmetrize` and :ref:`mju_eye` utility functions.
 #. Added :at:`gravcomp` attribute to :ref:`body<body>`, implementing gravity compensation and buoyancy.
-   See `balloons.xml <https://github.com/google-deepmind/mujoco/blob/main/model/balloons/balloons.xml>`_ example model.
+   See `balloons.xml <https://github.com/google-deepmind/mujoco/blob/main/model/balloons/balloons.xml>`__ example model.
 #. Renamed the ``cable`` plugin library to ``elasticity``.
 #. Added :at:`actdim` attribute to :ref:`general actuators<actuator-general>`. Values greater than 1 are only allowed
    for dyntype :at-val:`user`, as native activation dynamics are all scalar. Added example test implementing 2nd-order
    activation dynamics to
-   `engine_forward_test.cc <https://github.com/google-deepmind/mujoco/blob/main/test/engine/engine_forward_test.cc>`_.
+   `engine_forward_test.cc <https://github.com/google-deepmind/mujoco/blob/main/test/engine/engine_forward_test.cc>`__.
 #. Improved particle :ref:`composite<body-composite>` type, which now permits a user-specified geometry and multiple
    joints. See the two new examples:
-   `particle_free.xml <https://github.com/google-deepmind/mujoco/blob/main/model/composite/particle_free.xml>`_ and
-   `particle_free2d.xml <https://github.com/google-deepmind/mujoco/blob/main/model/composite/particle_free2d.xml>`_.
+   `particle_free.xml <https://github.com/google-deepmind/mujoco/blob/main/model/composite/particle_free.xml>`__ and
+   `particle_free2d.xml <https://github.com/google-deepmind/mujoco/blob/main/model/composite/particle_free2d.xml>`__.
 #. Performance improvements for non-AVX configurations:
 
-   - 14% faster ``mj_solveLD`` using `restrict <https://en.wikipedia.org/wiki/Restrict>`_. See `engine_core_smooth_benchmark_test
-     <https://github.com/google-deepmind/mujoco/blob/main/test/benchmark/engine_core_smooth_benchmark_test.cc>`_.
+   - 14% faster ``mj_solveLD`` using `restrict <https://en.wikipedia.org/wiki/Restrict>`__. See `engine_core_smooth_benchmark_test
+     <https://github.com/google-deepmind/mujoco/blob/main/test/benchmark/engine_core_smooth_benchmark_test.cc>`__.
    - 50% faster ``mju_dotSparse`` using manual loop unroll. See `engine_util_sparse_benchmark_test
-     <https://github.com/google-deepmind/mujoco/blob/main/test/benchmark/engine_util_sparse_benchmark_test.cc>`_.
+     <https://github.com/google-deepmind/mujoco/blob/main/test/benchmark/engine_util_sparse_benchmark_test.cc>`__.
 #. Added new :at:`solid` passive force plugin:
 
    .. youtube:: AGcTGHbbze4
@@ -576,9 +576,9 @@ General
    unspecified, the objtype is now :ref:`mjOBJ_UNKNOWN<mjtObj>`. ``user`` sensors :at:`datatype` default is now
    :at-val:`"real"`, :at:`needstage` default is now :at-val:`"acc"`.
 #. Added support for capsules in URDF import.
-#. On macOS, issue an informative error message when run under `Rosetta 2 <https://support.apple.com/en-gb/HT211861>`_
+#. On macOS, issue an informative error message when run under `Rosetta 2 <https://support.apple.com/en-gb/HT211861>`__
    translation on an Apple Silicon machine. Pre-built MuJoCo binaries make use of
-   `AVX <https://en.wikipedia.org/wiki/Advanced_Vector_Extensions>`_ instructions on x86-64 machines, which is not
+   `AVX <https://en.wikipedia.org/wiki/Advanced_Vector_Extensions>`__ instructions on x86-64 machines, which is not
    supported by Rosetta 2. (Before this version, users only get a cryptic "Illegal instruction" message.)
 
 Bug fixes
@@ -631,7 +631,7 @@ General
 
       x^* = \text{argmin} \; \tfrac{1}{2} x^T H x + x^T g \quad \text{s.t.} \quad l \le x \le u
 
-   The algorithm, introduced in `Tassa et al. 2014 <https://doi.org/10.1109/ICRA.2014.6907001>`_,
+   The algorithm, introduced in `Tassa et al. 2014 <https://doi.org/10.1109/ICRA.2014.6907001>`__,
    converges after 2-5 Cholesky factorisations, independent of problem size.
 
 #. Added :ref:`mju_mulVecMatVec` to multiply a square matrix :math:`M` with vectors :math:`x` and :math:`y` on both
@@ -661,11 +661,11 @@ General
 
    - Twist and bending stiffness can be set separately with the parameters :at:`twist` and :at:`bend`.
    - The stress-free configuration can be set to be the initial one or flat with the flag :at:`flat`.
-   - New `cable.xml <https://github.com/google-deepmind/mujoco/blob/main/model/plugin/elasticity/cable.xml>`_ example
+   - New `cable.xml <https://github.com/google-deepmind/mujoco/blob/main/model/plugin/elasticity/cable.xml>`__ example
      showing the formation of plectoneme.
-   - New `coil.xml <https://github.com/google-deepmind/mujoco/blob/main/model/plugin/elasticity/coil.xml>`_  example
+   - New `coil.xml <https://github.com/google-deepmind/mujoco/blob/main/model/plugin/elasticity/coil.xml>`__  example
      showing a curved equilibrium configuration.
-   - New `belt.xml <https://github.com/google-deepmind/mujoco/blob/main/model/plugin/elasticity/belt.xml>`_  example
+   - New `belt.xml <https://github.com/google-deepmind/mujoco/blob/main/model/plugin/elasticity/belt.xml>`__  example
      showing interaction between twist and anisotropy.
    - Added test using cantilever exact solution.
 
@@ -678,14 +678,14 @@ General
 Python bindings
 ^^^^^^^^^^^^^^^
 11. Added ``id`` and ``name`` properties to
-    `named accessor <https://mujoco.readthedocs.io/en/latest/python.html#named-access>`_ objects.
+    `named accessor <https://mujoco.readthedocs.io/en/latest/python.html#named-access>`__ objects.
     These provide more Pythonic API access to ``mj_name2id`` and ``mj_id2name`` respectively.
 
 #. The length of ``MjData.contact`` is now ``ncon`` rather than ``nconmax``, allowing it to be straightforwardly used as
    an iterator without needing to check ``ncon``.
 
 #. Fix a memory leak when a Python callable is installed as callback
-   (`#527 <https://github.com/google-deepmind/mujoco/issues/527>`_).
+   (`#527 <https://github.com/google-deepmind/mujoco/issues/527>`__).
 
 
 Version 2.2.2 (September 7, 2022)
@@ -699,7 +699,7 @@ General
    :height: 150px
 
 1. Added :ref:`adhesion actuators<actuator-adhesion>` mimicking vacuum grippers and adhesive biomechanical appendages.
-#. Added related `example model <https://github.com/google-deepmind/mujoco/tree/main/model/adhesion>`_ and video:
+#. Added related `example model <https://github.com/google-deepmind/mujoco/tree/main/model/adhesion>`__ and video:
 #. Added :ref:`mj_jacSubtreeCom` for computing the translational Jacobian of the center-of-mass of a subtree.
 #. Added :at:`torquescale` and :at:`anchor` attributes to :el:`weld` constraints. :at:`torquescale` sets the
    torque-to-force ratio exerted by the constraint, :at:`anchor` sets the point at which the weld wrench is
@@ -707,7 +707,7 @@ General
 #. Increased ``mjNEQDATA``, the row length of equality constraint parameters in ``mjModel.eq_data``, from 7 to 11.
 #. Added visualisation of anchor points for both :el:`connect` and :el:`weld` constraints (activated by the 'N' key in
    ``simulate``).
-#. Added `weld.xml <https://github.com/google-deepmind/mujoco/blob/main/test/engine/testdata/weld.xml>`_ showing
+#. Added `weld.xml <https://github.com/google-deepmind/mujoco/blob/main/test/engine/testdata/weld.xml>`__ showing
    different uses of new weld attributes.
 
    .. youtube:: s-0JHanqV1A
@@ -716,7 +716,7 @@ General
 
 #. Cartesian 6D end-effector control is now possible by adding a reference site to actuators with :at:`site`
    transmission. See description of new :at:`refsite` attribute in the :ref:`actuator<actuator-general>` documentation
-   and `refsite.xml <https://github.com/google-deepmind/mujoco/blob/main/test/engine/testdata/actuation/refsite.xml>`_
+   and `refsite.xml <https://github.com/google-deepmind/mujoco/blob/main/test/engine/testdata/actuation/refsite.xml>`__
    example model.
 
 #. Added :at:`autolimits` compiler option. If ``true``, joint and tendon :at:`limited` attributes and actuator
@@ -743,7 +743,7 @@ General
       :height: 150px
 
 #. Added catenary visualisation for hanging tendons. The model seen in the video can be found
-   `here <https://github.com/google-deepmind/mujoco/blob/main/test/engine/testdata/catenary.xml>`_.
+   `here <https://github.com/google-deepmind/mujoco/blob/main/test/engine/testdata/catenary.xml>`__.
 #. Added ``azimuth`` and ``elevation`` attributes to :ref:`visual/global<visual-global>`, defining the initial
    orientation of the free camera at model load time.
 #. Added ``mjv_defaultFreeCamera`` which sets the default free camera, respecting the above attributes.
@@ -791,7 +791,7 @@ General
    and `Memory Sanitizer (MSAN) <https://clang.llvm.org/docs/MemorySanitizer.html>`__. This allows ASAN to
    detect reads and writes to regions in ``mjModel.buffer`` and ``mjData.buffer`` that do not lie within an array, and
    for MSAN to detect reads from uninitialised fields in ``mjData`` following ``mj_resetData``.
-#. Added a `slider-crank example model <https://github.com/google-deepmind/mujoco/tree/main/model/slider_crank>`_.
+#. Added a `slider-crank example model <https://github.com/google-deepmind/mujoco/tree/main/model/slider_crank>`__.
 
 Bug fixes
 ^^^^^^^^^
@@ -837,8 +837,8 @@ Open Sourcing
 
    c. ``dist/``: Files related to packaging and binary distribution.
 
-#. Added `contributor's guide <https://github.com/google-deepmind/mujoco/blob/main/CONTRIBUTING.md>`_ and
-   `style guide <https://github.com/google-deepmind/mujoco/blob/main/STYLEGUIDE.md>`_.
+#. Added `contributor's guide <https://github.com/google-deepmind/mujoco/blob/main/CONTRIBUTING.md>`__ and
+   `style guide <https://github.com/google-deepmind/mujoco/blob/main/STYLEGUIDE.md>`__.
 
 General
 ^^^^^^^
@@ -969,7 +969,7 @@ Bug fixes
 ^^^^^^^^^
 
 5. Fixed rendering bug for planes, introduced in 2.1.2. This broke maze environments in
-   `dm_control <https://github.com/google-deepmind/dm_control>`_.
+   `dm_control <https://github.com/google-deepmind/dm_control>`__.
 
 
 Version 2.1.2 (Mar. 15, 2022)
@@ -990,7 +990,7 @@ API changes
 ^^^^^^^^^^^
 
 4. Moved definition of ``mjtNum`` floating point type into a new header
-   `mjtnum.h <https://github.com/google-deepmind/mujoco/blob/3577e2cf8bf841475b489aefff52276a39f24d51/include/mjtnum.h>`_.
+   `mjtnum.h <https://github.com/google-deepmind/mujoco/blob/3577e2cf8bf841475b489aefff52276a39f24d51/include/mjtnum.h>`__.
 #. Renamed header `mujoco_export.h` to :ref:`mjexport.h<inHeader>`.
 #. Added ``mj_printFormattedData``, which accepts a format string for floating point numbers, for example to increase
    precision.
@@ -998,12 +998,12 @@ API changes
 General
 ^^^^^^^
 
-7. MuJoCo can load `OBJ <https://en.wikipedia.org/wiki/Wavefront_.obj_file>`_ mesh files.
+7. MuJoCo can load `OBJ <https://en.wikipedia.org/wiki/Wavefront_.obj_file>`__ mesh files.
 
    a. Meshes containing polygons with more than 4 vertices are not supported.
    #. In OBJ files containing multiple object groups, any groups after the first one will be ignored.
    #. Added (post-release, not included in the 2.1.2 archive) textured
-      `mug <https://github.com/google-deepmind/mujoco/blob/main/model/mug/mug.xml>`_ example model:
+      `mug <https://github.com/google-deepmind/mujoco/blob/main/model/mug/mug.xml>`__ example model:
 
       .. image:: images/changelog/mug.png
          :width: 300px
@@ -1093,7 +1093,7 @@ Bug Fixes
 #. Computed capsule inertias are now exact. Until this change, capsule masses and inertias computed by the
    :ref:`compiler <compiler>`'s :at:`inertiafromgeom` mechanism were approximated by a cylinder, formed by the
    capsule's cylindrical middle section, extended on both ends by half the capsule radius. Capsule inertias are now
-   computed with the `Parallel Axis theorem <https://en.wikipedia.org/wiki/Parallel_axis_theorem>`_, applied to the two
+   computed with the `Parallel Axis theorem <https://en.wikipedia.org/wiki/Parallel_axis_theorem>`__, applied to the two
    hemispherical end-caps.
 
    .. attention::
@@ -1136,7 +1136,7 @@ Binary build
 
     a. MuJoCo library is now packaged as a `Framework Bundle
        <https://developer.apple.com/library/archive/documentation/MacOSX/Conceptual/BPFrameworks/Concepts/FrameworkAnato
-       my.html>`_, allowing it to be incorporated more easily into Xcode projects (including Swift projects). Developers
+       my.html>`__, allowing it to be incorporated more easily into Xcode projects (including Swift projects). Developers
        are encouraged to compile and link against MuJoCo using the ``-framework mujoco`` flag, however all header files
        and the ``libmujoco.2.1.1.dylib`` library can still be directly accessed inside the framework.
     #. Sample applications are now packaged into an Application Bundle called ``MuJoCo.app``. When launched via GUI,
@@ -1184,7 +1184,7 @@ General
 #. Fixed: The array of sensors in ``mjCModel`` was not cleared.
 #. Cleaned up cross-platform code (internal changes, not visible via the API).
 #. Fixed a bug in parsing of XML ``texcoord`` data (related to number of vertices).
-#. Fixed a bug in `simulate.cc <https://github.com/google-deepmind/mujoco/blob/main/simulate/simulate.cc>`_ related to
+#. Fixed a bug in `simulate.cc <https://github.com/google-deepmind/mujoco/blob/main/simulate/simulate.cc>`__ related to
    ``nkey`` (the number of keyframes).
 #. Accelerated collision detection in the presence of large numbers of non-colliding geoms (with ``contype==0 and
    conaffinity==0``).
@@ -1221,7 +1221,7 @@ License manager
 Earlier versions
 ----------------
 
-For changelogs of earlier versions please see `roboti.us <https://www.roboti.us/download.html>`_.
+For changelogs of earlier versions please see `roboti.us <https://www.roboti.us/download.html>`__.
 
 .. |humanoid| image:: images/models/humanoid.gif
    :width: 270px
