@@ -781,7 +781,8 @@ int mju_eig3(mjtNum eigval[3], mjtNum eigvec[9], mjtNum quat[4], const mjtNum ma
   for (int j=0; j < 3; j++) {
     int j1 = j%2;       // lead index
 
-    if (eigval[j1] < eigval[j1+1]) {
+    // only swap if the eigenvalues are different
+    if (eigval[j1]+eigEPS < eigval[j1+1]) {
       // swap eigenvalues
       t = eigval[j1];
       eigval[j1] = eigval[j1+1];
