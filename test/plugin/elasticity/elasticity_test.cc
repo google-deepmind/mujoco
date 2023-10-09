@@ -28,9 +28,10 @@
 namespace mujoco {
 namespace {
 
+using ElasticityTest = PluginTest;
 
 // -------------------------------- shell -----------------------------------
-TEST_F(PluginTest, ElasticEnergyShell) {
+TEST_F(ElasticityTest, ElasticEnergyShell) {
   static constexpr char cantilever_xml[] = R"(
   <mujoco>
   <extension>
@@ -84,7 +85,7 @@ TEST_F(PluginTest, ElasticEnergyShell) {
 }
 
 // -------------------------------- solid -----------------------------------
-TEST_F(PluginTest, ElasticEnergySolid) {
+TEST_F(ElasticityTest, ElasticEnergySolid) {
   static constexpr char cantilever_xml[] = R"(
   <mujoco>
   <extension>
@@ -136,7 +137,7 @@ TEST_F(PluginTest, ElasticEnergySolid) {
 
 // -------------------------------- cable -----------------------------------
 
-TEST_F(PluginTest, CantileverIntoCircle) {
+TEST_F(ElasticityTest, CantileverIntoCircle) {
   static constexpr char cantilever_xml[] = R"(
   <mujoco>
     <option gravity="0 0 0"/>
@@ -190,7 +191,7 @@ TEST_F(PluginTest, CantileverIntoCircle) {
   mj_deleteModel(m);
 }
 
-TEST_F(PluginTest, InvalidTxtAttribute) {
+TEST_F(ElasticityTest, InvalidTxtAttribute) {
   static constexpr char cantilever_xml[] = R"(
   <mujoco>
     <extension>
@@ -213,7 +214,7 @@ TEST_F(PluginTest, InvalidTxtAttribute) {
   ASSERT_THAT(m, testing::IsNull());
 }
 
-TEST_F(PluginTest, InvalidMixedAttribute) {
+TEST_F(ElasticityTest, InvalidMixedAttribute) {
   static constexpr char cantilever_xml[] = R"(
   <mujoco>
     <extension>
@@ -236,7 +237,7 @@ TEST_F(PluginTest, InvalidMixedAttribute) {
   ASSERT_THAT(m, testing::IsNull());
 }
 
-TEST_F(PluginTest, ValidAttributes) {
+TEST_F(ElasticityTest, ValidAttributes) {
   static constexpr char cantilever_xml[] = R"(
   <mujoco>
     <extension>
