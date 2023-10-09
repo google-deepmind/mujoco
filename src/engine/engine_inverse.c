@@ -41,21 +41,20 @@ void mj_invPosition(const mjModel* m, mjData* d) {
   mj_comPos(m, d);
   mj_camlight(m, d);
   mj_tendon(m, d);
-  mj_transmission(m, d);
   TM_END(mjTIMER_POS_KINEMATICS);
 
-  TM_RESTART;
-  mj_crb(m, d);
-  mj_factorM(m, d);
-  TM_END(mjTIMER_POS_INERTIA);
+  mj_crb(m, d);        // timed internally (POS_INERTIA)
+  mj_factorM(m, d);    // timed internally (POS_INERTIA)
 
-  TM_RESTART;
-  mj_collision(m, d);
-  TM_END(mjTIMER_POS_COLLISION);
+  mj_collision(m, d);  // timed internally (POS_COLLISION)
 
   TM_RESTART;
   mj_makeConstraint(m, d);
   TM_END(mjTIMER_POS_MAKE);
+
+  TM_RESTART;
+  mj_transmission(m, d);
+  TM_ADD(mjTIMER_POS_KINEMATICS);
 
   TM_END1(mjTIMER_POSITION);
 }

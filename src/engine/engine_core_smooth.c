@@ -23,6 +23,7 @@
 #include "engine/engine_core_constraint.h"
 #include "engine/engine_crossplatform.h"
 #include "engine/engine_io.h"
+#include "engine/engine_macro.h"
 #include "engine/engine_support.h"
 #include "engine/engine_util_blas.h"
 #include "engine/engine_util_errmem.h"
@@ -968,6 +969,7 @@ void mj_transmission(const mjModel* m, mjData* d) {
 
 // composite rigid body inertia algorithm
 void mj_crb(const mjModel* m, mjData* d) {
+  TM_START;
   mjtNum buf[6];
   mjtNum* crb = d->crb;
   int last_body = m->nbody - 1, nv = m->nv;
@@ -1013,6 +1015,7 @@ void mj_crb(const mjModel* m, mjData* d) {
       d->qM[Madr_ij++] += mju_dot(d->cdof+6*j, buf, 6);
     }
   }
+  TM_END(mjTIMER_POS_INERTIA);
 }
 
 
@@ -1086,7 +1089,9 @@ void mj_factorI(const mjModel* m, mjData* d, const mjtNum* M, mjtNum* qLD, mjtNu
 
 // sparse L'*D*L factorizaton of the inertia matrix M, assumed spd
 void mj_factorM(const mjModel* m, mjData* d) {
+  TM_START;
   mj_factorI(m, d, d->qM, d->qLD, d->qLDiagInv, d->qLDiagSqrtInv);
+  TM_ADD(mjTIMER_POS_INERTIA);
 }
 
 

@@ -28,6 +28,7 @@
 #include "engine/engine_core_constraint.h"
 #include "engine/engine_crossplatform.h"
 #include "engine/engine_io.h"
+#include "engine/engine_macro.h"
 #include "engine/engine_support.h"
 #include "engine/engine_util_blas.h"
 #include "engine/engine_util_errmem.h"
@@ -387,6 +388,7 @@ quicksortfunc(contactcompare, context, el1, el2) {
 }
 
 void mj_collision(const mjModel* m, mjData* d) {
+  TM_START;
   int g1, g2, merged, b1 = 0, b2 = 0, exadr = 0, pairadr = 0, startadr;
   int nexclude = m->nexclude, npair = m->npair;
   int *broadphasepair = 0;
@@ -492,6 +494,7 @@ void mj_collision(const mjModel* m, mjData* d) {
   }
 
   mj_freeStack(d);
+  TM_END(mjTIMER_POS_COLLISION);
 }
 
 

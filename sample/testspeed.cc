@@ -15,6 +15,7 @@
 #include <chrono>
 #include <cstdio>
 #include <cstring>
+#include <ratio>
 #include <string>
 #include <thread>
 #include <vector>
@@ -39,9 +40,10 @@ double simtime[maxthread];
 
 
 // timer
-std::chrono::system_clock::time_point tm_start;
+std::chrono::steady_clock::time_point tm_start;
 mjtNum gettm(void) {
-  std::chrono::duration<double> elapsed = std::chrono::system_clock::now() - tm_start;
+  std::chrono::duration<double, std::micro> elapsed;
+  elapsed = std::chrono::steady_clock::now() - tm_start;
   return elapsed.count();
 }
 
@@ -90,8 +92,8 @@ void simulate(int id, int nstep, mjtNum* ctrl) {
 
   // run and time
   double start = gettm();
-  for (int i=0; i<nstep; i++) {
-    // inject pseuso-random control noise
+  for (int i=0; i < nstep; i++) {
+    // inject pseudo-random control noise
     mju_copy(d[id]->ctrl, ctrl + i*m->nu, m->nu);
 
     // advance simulation
@@ -111,7 +113,7 @@ void simulate(int id, int nstep, mjtNum* ctrl) {
       accuracy_mid[id] += 100;
     }
   }
-  simtime[id] = gettm() - start;
+  simtime[id] = 1e-6 * (gettm() - start);
 }
 
 
@@ -119,12 +121,24 @@ void simulate(int id, int nstep, mjtNum* ctrl) {
 int main(int argc, char** argv) {
 
   // print help if arguments are missing
-  if (argc < 2 || argc > 7) {
-    return finish("\n Usage:  testspeed modelfile [nstep nthread ctrlnoise profile npoolthread]\n");
+  if (argc < 2 || argc > 6) {
+    return finish(
+      "\n"
+      "Usage:  testspeed modelfile [nstep nthread ctrlnoise npoolthread]\n"
+      "\n"
+      "  argument      default     semantic\n"
+      "  --------      -------     --------\n"
+      "  modelfile                 path to model (required)\n"
+      "  nstep         10000       number of steps per rollout\n"
+      "  nthread       1           number of threads for which to run parallel rollouts\n"
+      "  ctrlnoise     0.01        scale of pseudo-random noise injected into actuators\n"
+      "  npoolthread   1           number of threads in engine-internal threadpool\n"
+      "\n"
+      "Note: If the model has a keyframe named \"test\", it will be loaded prior to simulation\n");
   }
 
   // read arguments
-  int nstep = 10000, nthread = 0, profile = 1, npoolthread = 0;
+  int nstep = 10000, nthread = 0, npoolthread = 0;
   // inject small noise by default, to avoid fixed contact state
   mjtNum ctrlnoise = 0.01;
   if (argc > 2 && (std::sscanf(argv[2], "%d", &nstep) != 1 || nstep <= 0)) {
@@ -136,10 +150,7 @@ int main(int argc, char** argv) {
   if (argc > 4 && std::sscanf(argv[4], "%lf", &ctrlnoise) != 1) {
     return finish("Invalid ctrlnoise argument");
   }
-  if (argc > 5 && std::sscanf(argv[5], "%d", &profile) != 1) {
-    return finish("Invalid profile argument");
-  }
-  if (argc > 6 && std::sscanf(argv[6], "%d", &npoolthread) != 1) {
+  if (argc > 5 && std::sscanf(argv[5], "%d", &npoolthread) != 1) {
     return finish("Invalid npoolthread argument");
   }
 
@@ -148,7 +159,7 @@ int main(int argc, char** argv) {
 
   // clamp nthread to [1, maxthread]
   nthread = mjMAX(1, mjMIN(maxthread, nthread));
-  npoolthread = mjMAX(0, mjMIN(maxthread, npoolthread));
+  npoolthread = mjMAX(1, mjMIN(maxthread, npoolthread));
 
   // get filename, determine file type
   std::string filename(argv[1]);
@@ -167,36 +178,37 @@ int main(int argc, char** argv) {
 
   // make per-thread data
   int testkey = mj_name2id(m, mjOBJ_KEY, "test");
-  for (int id=0; id<nthread; id++) {
+  for (int id=0; id < nthread; id++) {
+    // make mjData(s)
     d[id] = mj_makeData(m);
     if (!d[id]) {
       return finish("Could not allocate mjData", m);
     }
 
-    if (npoolthread > 0) {
+    // reset to keyframe
+    if (testkey >= 0) {
+      mj_resetDataKeyframe(m, d[id], testkey);
+    }
+
+    // make and bind threadpool
+    if (npoolthread > 1) {
       mjThreadPool* threadpool = mju_threadPoolCreate(npoolthread);
       mju_bindThreadPool(d[id], threadpool);
     }
-    // init to keyframe "test" if present
-    if (testkey>=0) {
-      mju_copy(d[id]->qpos, m->key_qpos + testkey*m->nq, m->nq);
-      mju_copy(d[id]->qvel, m->key_qvel + testkey*m->nv, m->nv);
-      mju_copy(d[id]->act,  m->key_act  + testkey*m->na, m->na);
-    }
   }
 
-  // install timer callback for profiling if requested
-  tm_start = std::chrono::system_clock::now();
-  if (profile) {
-    mjcb_time = gettm;
-  }
+  // install timer callback for profiling
+  mjcb_time = gettm;
 
   // print start
-  if (nthread>1) {
-    std::printf("\nRunning %d steps per thread at dt = %g ...\n\n", nstep, m->opt.timestep);
-  } else {
-    std::printf("\nRunning %d steps at dt = %g ...\n\n", nstep, m->opt.timestep);
+  std::printf("\nRolling out %d steps%s, at dt = %g",
+              nstep,
+              nthread > 1 ? " per thread" : "",
+              m->opt.timestep);
+  if (npoolthread > 1) {
+    std::printf(", using %d threads for engine-internal threadpool", npoolthread);
   }
+  std::printf("...\n\n");
 
   // create pseudo-random control sequence
   std::vector<mjtNum> ctrl = CtrlNoise(m, nstep, ctrlnoise);
@@ -204,17 +216,17 @@ int main(int argc, char** argv) {
   // run simulation, record total time
   std::thread th[maxthread];
   double starttime = gettm();
-  for (int id=0; id<nthread; id++) {
+  for (int id=0; id < nthread; id++) {
     th[id] = std::thread(simulate, id, nstep, ctrl.data());
   }
-  for (int id=0; id<nthread; id++) {
+  for (int id=0; id < nthread; id++) {
     th[id].join();
   }
-  double tottime = gettm() - starttime;
+  double tottime = 1e-6 * (gettm() - starttime);  // total time, in seconds
 
   // all-thread summary
   constexpr char mu_str[3] = "\u00B5";  // unicode mu character
-  if (nthread>1) {
+  if (nthread > 1) {
     std::printf("Summary for all %d threads\n\n", nthread);
     std::printf(" Total simulation time  : %.2f s\n", tottime);
     std::printf(" Total steps per second : %.0f\n", nthread*nstep/tottime);
@@ -235,33 +247,32 @@ int main(int argc, char** argv) {
   std::printf(" Constraints per step : %.2f\n", static_cast<float>(constraints[0])/nstep);
   std::printf(" Degrees of freedom   : %d\n\n", m->nv);
 
-  // profiler results for thread 0
-  if (profile) {
-    printf(" Internal profiler for thread 0 (%ss per step)\n", mu_str);
-    mjtNum tstep = d[0]->timer[mjTIMER_STEP].duration/d[0]->timer[mjTIMER_STEP].number;
-    mjtNum components = 0, total = 0;
-    for (int i=0; i<mjNTIMER; i++) {
-      if (d[0]->timer[i].number > 0) {
-        mjtNum istep = d[0]->timer[i].duration/d[0]->timer[i].number;
-        std::printf(" %16s : %6.1f  (%6.2f %%)\n", mjTIMERSTRING[i], 1e6*istep, 100*istep/tstep);
+  // profiler results
+  printf(" Internal profiler%s, %ss per step\n", nthread > 1 ? " for thread 0" : "", mu_str);
+  mjtNum tstep = d[0]->timer[mjTIMER_STEP].duration/d[0]->timer[mjTIMER_STEP].number;
+  mjtNum components = 0, total = 0;
+  for (int i=0; i < mjNTIMER; i++) {
+    if (d[0]->timer[i].number > 0) {
+      mjtNum istep = d[0]->timer[i].duration/d[0]->timer[i].number;
+      std::printf(" %16s : %6.1f  (%6.2f %%)\n", mjTIMERSTRING[i], istep, 100*istep/tstep);
 
-        // save step time, add up timing of components
-        if (i == 0) total = istep;
-        if (i >= mjTIMER_POSITION && i <= mjTIMER_ADVANCE) {
-          components += istep;
-        }
+      // save step time, add up timing of components
+      if (i == 0) total = istep;
+      if (i >= mjTIMER_POSITION && i <= mjTIMER_ADVANCE) {
+        components += istep;
       }
-    }
-
-    // compute "other" (computation not covered by timers)
-    if (tstep > 0) {
-      mjtNum other = total - components;
-      std::printf(" %16s : %6.1f  (%6.2f %%)\n", "other", 1e6*other, 100*other/tstep);
     }
   }
 
+  // compute "other" (computation not covered by timers)
+  if (tstep > 0) {
+    mjtNum other = total - components;
+    std::printf(" %16s : %6.1f  (%6.2f %%)\n", "other", other, 100*other/tstep);
+  }
+
+
   // free per-thread data
-  for (int id=0; id<nthread; id++) {
+  for (int id=0; id < nthread; id++) {
     mjThreadPool* threadpool = (mjThreadPool*) d[id]->threadpool;
     mj_deleteData(d[id]);
     if (threadpool) {

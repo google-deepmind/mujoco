@@ -106,14 +106,10 @@ void mj_fwdPosition(const mjModel* m, mjData* d) {
   mj_tendon(m, d);
   TM_END(mjTIMER_POS_KINEMATICS);
 
-  TM_RESTART;
-  mj_crb(m, d);
-  mj_factorM(m, d);
-  TM_END(mjTIMER_POS_INERTIA);
+  mj_crb(m, d);        // timed internally (POS_INERTIA)
+  mj_factorM(m, d);    // timed internally (POS_INERTIA)
 
-  TM_RESTART;
-  mj_collision(m, d);
-  TM_END(mjTIMER_POS_COLLISION);
+  mj_collision(m, d);  // timed internally (POS_COLLISION)
 
   TM_RESTART;
   mj_makeConstraint(m, d);
@@ -124,7 +120,7 @@ void mj_fwdPosition(const mjModel* m, mjData* d) {
 
   TM_RESTART;
   mj_transmission(m, d);
-  TM_END(mjTIMER_POS_KINEMATICS);
+  TM_ADD(mjTIMER_POS_KINEMATICS);
 
   TM_RESTART;
   mj_projectConstraint(m, d);
