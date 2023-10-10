@@ -125,6 +125,7 @@ General
 22. Added multi-threaded constraint solving via :ref:`mj_island` and :ref:`mjThreadPool` to :ref:`testspeed<saTestspeed>`
     exposed via npoolthread flag. The `22 humanoids <https://github.com/deepmind/mujoco/blob/main/model/humanoid/22_humanoids.xml>`__
     model shows a 3x speedup compared to the single threaded simulation.
+
 Python bindings
 ^^^^^^^^^^^^^^^
 
