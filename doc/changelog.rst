@@ -153,6 +153,8 @@ Bug fixes
 26. Fixed a bug that was causing :ref:`geom margin<body-geom-margin>` to be ignored during the construction of
     midphase collision trees.
 
+27. Fixed a bug that was generating incorrect values in ``efc_diagApprox`` for weld equality constraints.
+
 Version 2.3.7 (July 20, 2023)
 -----------------------------
 

@@ -1035,11 +1035,6 @@ void mj_diagApprox(const mjModel* m, mjData* d) {
     // get constraint id
     id = d->efc_id[i];
 
-    // clear weld counter
-    if (d->efc_type[i] != mjEQ_WELD) {
-      weldcnt = 0;
-    }
-
     // process according to constraint type
     switch ((mjtConstraint) d->efc_type[i]) {
     case mjCNSTR_EQUALITY:
@@ -1052,13 +1047,13 @@ void mj_diagApprox(const mjModel* m, mjData* d) {
         dA[i] = m->body_invweight0[2*b1] + m->body_invweight0[2*b2];
         break;
 
-      case mjEQ_WELD:  // distingush translation and rotation inertia
+      case mjEQ_WELD:  // distinguish translation and rotation inertia
         // body translation or rotation depending on weldcnt
         b1 = m->eq_obj1id[id];
         b2 = m->eq_obj2id[id];
         dA[i] = m->body_invweight0[2*b1 + (weldcnt > 2)] +
                 m->body_invweight0[2*b2 + (weldcnt > 2)];
-        weldcnt++;
+        weldcnt = (weldcnt + 1) % 6;
         break;
 
       case mjEQ_JOINT:
