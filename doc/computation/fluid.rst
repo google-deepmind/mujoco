@@ -173,18 +173,149 @@ Finally, we use the subscripts :math:`i, j, k` to denote triplets of equations t
 Ellipsoid projection
 ~~~~~~~~~~~~~~~~~~~~
 
-We provide the following result without proof. For the derivation, contact the development team.
+We present the following result.
 
 .. admonition:: Lemma
    :class: note
 
-   Given an ellipsoid at the origin with semi-axes :math:`(d_x, d_y, d_z)` aligned
-   with the coordinate axes :math:`(x, y, z)`, and a unit vector :math:`\mathbf{u} = (u_x, u_y, u_z)`,
-   the area projected by the ellipsoid onto the plane normal to :math:`\mathbf{u}` is
+   Given an ellipsoid with semi-axes :math:`(d_x, d_y, d_z)` aligned with the coordinate axes :math:`(x, y, z)`, and a
+   unit vector :math:`\mathbf{u} = (u_x, u_y, u_z)`, the area projected by the ellipsoid onto the plane normal to
+   :math:`\mathbf{u}` is
 
    .. math::
-      A^{\mathrm{proj}}_{\mathbf{u}} = \pi \sqrt{\frac{d_y^4 d_z^4 u_x^2 + d_x^4 d_z^4 u_y^2 + d_x^4 d_y^4 u_z^2}{d_y^2 d_z^2 u_x^2 + d_x^2 d_z^2 u_y^2 + d_x^2 d_y^2 u_z^2}}
+      A^{\mathrm{proj}}_{\mathbf{u}} = \pi \sqrt{\frac{d_y^4 d_z^4 u_x^2 + d_z^4 d_x^4 u_y^2 + d_x^4 d_y^4 u_z^2}{d_y^2 d_z^2 u_x^2 + d_z^2 d_x^2 u_y^2 + d_x^2 d_y^2 u_z^2}}
 
+.. collapse:: Expand for derivation
+
+   .. admonition:: Derivation of lemma
+      :class: tip
+
+      **Area of an ellipse**
+         Any ellipse centered at the origin can be described in terms of a quadratic form a
+         :math:`\mathbf{x}^T Q \mathbf{x} = 1`, where :math:`Q` is a real, symmetric, positive-definite 2x2 matrix that
+         defines the orientation and  semi-axis lengths of the ellipse, and :math:`\mathbf{x} = (x, y)` are points on the
+         ellipse. The area of the ellipse is given by
+
+         .. math::
+            A = \frac{\pi}{\sqrt{\det Q}} .
+
+      **Ellipsoid cross-section**
+         We begin by computing the area of the ellipse formed by intersecting an ellipsoid centered at the origin with the
+         plane :math:`\Pi_{\mathbf{n}}` through the origin with unit normal :math:`\mathbf{n} = (n_x, n_y, n_z)`. Let
+         :math:`(d_x, d_y, d_z)` be the semi-axis lengths of the ellipsoid. Without loss of generality, it is sufficient to
+         assume that the axes of the ellipsoid are aligned with the coordinate axes. The ellipsoid can then be described as
+         :math:`\mathbf{x}^T Q \mathbf{x} = 1`, where
+         :math:`Q = \textrm{diag}\mathopen{}\left( \left. 1 \middle/ d_x^2 \right., \left. 1 \middle/ d_y^2 \right., \left. 1 \middle/ d_z^2 \right. \right)\mathclose{}`
+         and :math:`\mathbf{x} = (x, y, z)` are the points on the ellipsoid.
+
+         We proceed by rotating the plane :math:`\Pi_{\mathbf{n}}` together with the ellipsoid so that the normal of the
+         rotated plane points along the :math:`z` axis. This would then allow us to get the desired intersection by setting
+         the :math:`z` coordinate to zero. Writing :math:`\mathbf{\hat{z}}` for the unit vector along the :math:`z` axis, we
+         have
+
+         .. math::
+            \begin{align*}
+            \mathbf{n} \times \mathbf{\hat{z}} &= \sin\theta \, \mathbf{m}, \\
+            \mathbf{n} \cdot \mathbf{\hat{z}} &= \cos\theta ,
+            \end{align*}
+
+         where :math:`\mathbf{m}` is the unit vector that defines the rotation axis and :math:`\theta` is the rotation
+         angle. We can rearrange these to get quantities that we need to form a rotation quaternion, namely
+
+         .. math::
+            \begin{align*}
+            \cos\frac{\theta}{2}
+            &= \sqrt{\frac{1+\cos\theta}{2}}
+            &= \sqrt{\frac{1 + \mathbf{n} \cdot \mathbf{\hat{z}}}{2}}, \\
+            \sin\frac{\theta}{2}\,\mathbf{m}
+            &= \frac{\mathbf{n} \times \mathbf{\hat{z}}}{2\cos\frac{\theta}{2}}
+            &= \frac{\mathbf{n} \times \mathbf{\hat{z}}}{\sqrt{2 (1 + \mathbf{n} \cdot \mathbf{\hat{z}})}} .
+            \end{align*}
+
+         The rotation quaternion :math:`q = q_r + q_x \mathbf{i} + q_y \mathbf{j} + q_z \mathbf{k}` is therefore given by
+
+         .. math::
+            q_r = \sqrt{\frac{1 + n_z}{2}}, \quad
+            q_x = \frac{n_y}{\sqrt{2 \left(1+n_z\right)}},  \quad
+            q_y = \frac{-n_x}{\sqrt{2 \left(1+n_z\right)}}, \quad
+            q_z = 0 .
+
+         From this, the rotation matrix is given by
+
+         .. math::
+            \def\arraystretch{1.33}
+            \begin{align*}
+            R &= \begin{pmatrix}
+            1 - 2 q_y^2 - 2 q_z^2 & 2 \left(q_x q_y - q_r q_z\right) & 2 \left(q_x q_z + q_r q_y\right) \\
+            2 \left(q_x q_y + q_r q_z\right) & 1 - 2 q_x^2 - 2 q_z^2 & 2 \left(q_y q_z - q_r q_x\right) \\
+            2 \left(q_x q_z - q_r q_y\right) & 2 \left(q_y q_z + q_r q_x\right) & 1 - 2 q_x^2 - 2 q_y^2
+            \end{pmatrix} \\
+            &= \begin{pmatrix}
+            1 - \left. n_x^2 \middle/ \left( 1+n_z \right) \right. & \left. -n_x n_y \middle/ \left( 1+n_z \right) \right. & -n_x \\
+            \left. -n_x n_y \middle/ \left( 1+n_z \right) \right. & 1 - \left. n_y^2 \middle/ \left( 1+n_z \right) \right. & -n_y \\
+            n_x & n_y & 1 - \left. \left( n_x^2 + n_y^2 \right) \middle/ \left( \vphantom{n_x^2} 1+n_z \right) \right.
+            \end{pmatrix},
+            \end{align*}
+
+         and the rotated ellipsoid is described via the transformed quadratic form
+
+         .. math::
+            \mathbf{x}^T Q' \mathbf{x} = \mathbf{x}^T \left( R^T Q R \right) \mathbf{x} = 1 .
+
+         From the formula for ellipse area above, for the area of the ellipse at :math:`z=0`, we need
+
+         .. math::
+            \begin{align*}
+            Q'_{xx} &= \frac{1}{d_x^2} R_{xx}^2 + \frac{1}{d_y^2} R_{yx}^2 + \frac{1}{d_z^2} R_{zx}^2 , \\
+            Q'_{yy} &= \frac{1}{d_x^2} R_{xy}^2 + \frac{1}{d_y^2} R_{yy}^2 + \frac{1}{d_z^2} R_{zy}^2 , \\
+            Q'_{xy} &= \frac{1}{d_x^2} R_{xx} R_{xy} + \frac{1}{d_y^2} R_{yx} R_{yy} + \frac{1}{d_z^2} R_{zx} R_{zy} ,
+            \end{align*}
+
+         and the desired area is given by
+
+         .. math::
+            A^{\cap}_{\mathbf{n}}
+            = \frac{\pi}{\sqrt{\vphantom{Q'^2_{xy}} \det Q'}}
+            = \frac{\pi}{\sqrt{Q'_{xx} Q'_{yy} - Q'^2_{xy}}}
+            = \frac{\pi d_x d_y d_z}{\sqrt{d_x^2 n_x^2 + d_y^2 n_y^2 + d_z^2 n_z^2}},
+
+         where the superscript :math:`\cap` denotes that the area pertains to the ellipse at the *intersection*
+         with :math:`\Pi_{\mathbf{n}}`.
+
+      **Projected ellipse**
+         Let :math:`\mathbf{u} = (u_x, u_y, u_z)` be some unit vector (in our context, it is the direction of the velocity
+         of the fluid impinging on an ellipsoid) and let :math:`\Pi_{\mathbf{u}}` be the plane normal to :math:`\mathbf{u}`.
+         In general, the ellipse formed by projecting an ellipsoid :math:`\mathcal{E}` onto :math:`\Pi_{\mathbf{u}}`
+         (denoted :math:`\mathcal{E}^{\mathrm{proj}}_{\mathbf{u}}`) is different from the one formed by intersecting
+         :math:`\mathcal{E}` with :math:`\Pi_{\mathbf{u}}` (denoted :math:`\mathcal{E}^{\cap}_{\mathbf{u}}`).
+
+         An important property of :math:`\mathcal{E}^{\mathrm{proj}}_{\mathbf{u}}` is that :math:`\mathbf{u}` is tangent
+         tangent to the ellipsoid :math:`\mathcal{E}` at every point on :math:`\mathcal{E}^{\mathrm{proj}}_{\mathbf{u}}`.
+
+         We can regard :math:`\mathcal{E}` as the image of the unit sphere :math:`\mathcal{S}` under a stretching
+         transformation :math:`T = \mathrm{diag}(d_x, d_y, d_z)`. Furthermore, if :math:`\mathbf{\tilde{u}}` is a vector
+         tangent to :math:`\mathcal{S}`, then its image
+         :math:`\mathbf{u}=T\mathbf{\tilde{u}}=(d_x \tilde{u}_x, d_y \tilde{u}_y, d_z \tilde{u}_z)` is tangent to the
+         ellipsoid. The ellipse :math:`\mathcal{E}^{\mathrm{proj}}_{\mathbf{u}}` is therefore the image
+         under :math:`T` of the circle :math:`\mathcal{C}^{\cap}_{\mathbf{\tilde{u}}}` at the intersection between
+         :math:`\mathcal{S}` and :math:`\Pi_{\mathbf{\tilde{u}}}` (for spheres :math:`\mathcal{C}^{\cap}` and
+         :math:`\mathcal{C}^{\mathrm{proj}}` do coincide).
+
+         Let :math:`\mathbf{\tilde{v}}` and :math:`\mathbf{\tilde{w}}` be some orthogonal pair of vectors in the plane
+         :math:`\Pi_{\mathbf{\tilde{u}}}`, then :math:`\mathbf{\tilde{u}} = \mathbf{\tilde{v}} \times \mathbf{\tilde{w}}`.
+         Their images under :math:`T` are :math:`\mathbf{v} = (d_x \tilde{v}_x, d_y \tilde{v}_y, d_z \tilde {v}_z)` and
+         :math:`\mathbf{w} = (d_x \tilde{w}_x, d_y \tilde{w}_y, d_z \tilde {w}_z)` respectively, and they remain orthogonal
+         vectors in the plane of :math:`\mathcal{E}^{\mathrm{proj}}_{\mathbf{u}}`. A (non-unit) normal to the ellipse
+         :math:`\mathcal{E}^{\mathrm{proj}}_{\mathbf{u}}` is therefore given by
+
+         .. math::
+            \mathbf{N} = \mathbf{v} \times \mathbf{w}
+            = (d_y d_z \tilde{u}_x, d_z d_x \tilde{u}_y, d_x d_y \tilde{u}_z)
+            = \left( \frac{d_y d_z}{d_x} u_x, \frac{d_z d_x}{d_y} u_y, \frac{d_x d_y}{d_z} u_z \right).
+
+         This shows that :math:`\mathcal{E}^{\mathrm{proj}}_{\mathbf{u}} = \mathcal{E}^{\cap}_{\mathbf{n}}`, where
+         :math:`\mathbf{n} = \mathbf{N} / \left\Vert\mathbf{N}\right\Vert`. Its area is given by the formula derived in the
+         previous section, leading to the result stated above.
 
 Added mass
 ~~~~~~~~~~
