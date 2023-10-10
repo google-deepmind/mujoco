@@ -388,7 +388,7 @@ quicksortfunc(contactcompare, context, el1, el2) {
 }
 
 void mj_collision(const mjModel* m, mjData* d) {
-  TM_START;
+  TM_START1;
   int g1, g2, merged, b1 = 0, b2 = 0, exadr = 0, pairadr = 0, startadr;
   int nexclude = m->nexclude, npair = m->npair;
   int *broadphasepair = 0;
@@ -415,11 +415,19 @@ void mj_collision(const mjModel* m, mjData* d) {
 
   mj_markStack(d);
 
-  // call broadphase collision detector
+  // broadphase collision detector
+  TM_START;
   int nbodypair = (m->nbody*(m->nbody - 1))/2;
   broadphasepair = mj_stackAllocInt(d, nbodypair);
   nbodypair = mj_broadphase(m, d, broadphasepair, nbodypair);
   unsigned int last_signature = -1;
+  TM_END(mjTIMER_COL_BROAD);
+
+  // midphase collision detector
+  TM_RESTART;
+
+  // save current narrowphase duration
+  mjtNum tmNarrow = d->timer[mjTIMER_COL_NARROW].duration;
 
   // loop over body pairs
   for (int i=0; i < nbodypair; i++) {
@@ -493,8 +501,17 @@ void mj_collision(const mjModel* m, mjData* d) {
     }
   }
 
+  // end midphase timer
+  TM_END(mjTIMER_COL_MID);
+
+  // subtract nested narrowphase timing from midphase timer
+  d->timer[mjTIMER_COL_MID].duration -= (d->timer[mjTIMER_COL_NARROW].duration - tmNarrow);
+
+  // increment narrowphase counter
+  d->timer[mjTIMER_COL_NARROW].number++;
+
   mj_freeStack(d);
-  TM_END(mjTIMER_POS_COLLISION);
+  TM_END1(mjTIMER_POS_COLLISION);
 }
 
 
@@ -863,6 +880,7 @@ endbroad:
 //  flg_user disables filters and uses usermargin
 static void collideGeoms(const mjModel* m, mjData* d,
                          int g1, int g2, int flg_user, mjtNum usermargin) {
+  TM_START;
   int num, type1, type2, condim;
   mjtNum margin, gap, mix, friction[5], solref[mjNREF], solimp[mjNIMP];
   mjtNum solreffriction[mjNREF] = {0};
@@ -1127,6 +1145,9 @@ static void collideGeoms(const mjModel* m, mjData* d,
 
   // move arena pointer back to the end of the contact array
   resetArena(d);
+
+  // add duration without incrementing counter
+  TM_ADD(mjTIMER_COL_NARROW);
 }
 
 

@@ -73,6 +73,11 @@ typedef enum mjtTimer_ {     // internal timers
   mjTIMER_POS_MAKE,          // make constraints
   mjTIMER_POS_PROJECT,       // project constraints
 
+  // breakdown of mj_collision
+  mjTIMER_COL_BROAD,         // broadphase
+  mjTIMER_COL_MID,           // midphase
+  mjTIMER_COL_NARROW,        // narrowphase
+
   mjNTIMER                   // number of timers
 } mjtTimer;
 struct mjContact_ {                // result of collision detection functions

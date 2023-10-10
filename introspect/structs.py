@@ -3647,7 +3647,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  name='timer',
                  type=ArrayType(
                      inner_type=ValueType(name='mjTimerStat'),
-                     extents=(13,),
+                     extents=(16,),
                  ),
                  doc='timer statistics',
              ),
