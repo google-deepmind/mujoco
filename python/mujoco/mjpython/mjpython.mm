@@ -115,12 +115,27 @@ class _MjPythonImpl(mujoco.viewer._MjPythonBase):
     self._termination = self.__class__.NOT_TERMINATED
     self._busy = False
 
-  def launch_on_ui_thread(self, model, data, handle_return, key_callback):
+  def launch_on_ui_thread(
+      self,
+      model,
+      data,
+      handle_return,
+      key_callback,
+      show_left_ui,
+      show_right_ui,
+  ):
     with self._cond:
       if self._busy or self._task is not None:
         raise RuntimeError('another MuJoCo viewer is already open')
       else:
-        self._task = (model, data, handle_return, key_callback)
+        self._task = (
+            model,
+            data,
+            handle_return,
+            key_callback,
+            show_left_ui,
+            show_right_ui,
+        )
         self._cond.notify()
 
   def terminate(self):
