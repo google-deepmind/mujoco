@@ -191,28 +191,33 @@ illustrative example that does **not** necessarily keep the physics ticking at t
       if time_until_next_step > 0:
         time.sleep(time_until_next_step)
 
-Optionally, ``viewer.launch_passive`` also accepts a callable as a keyword argument ``key_callback``, which gets called
-each time a keyboard event occurs in the viewer window. This allows user scripts to react to various key presses, e.g.,
-pause or resume the run loop when the spacebar is pressed.
+Optionally, ``viewer.launch_passive`` accepts the following keyword arguments.
 
-.. code-block:: python
+- ``key_callback``: A callable which gets called each time a keyboard event occurs in the viewer window. This allows
+  user scripts to react to various key presses, e.g., pause or resume the run loop when the spacebar is pressed.
 
-  paused = False
+  .. code-block:: python
 
-  def key_callback(keycode):
-    if chr(keycode) == ' ':
-      nonlocal paused
-      paused = not paused
+    paused = False
 
-  ...
+    def key_callback(keycode):
+      if chr(keycode) == ' ':
+        nonlocal paused
+        paused = not paused
 
-  with mujoco.viewer.launch_passive(m, d, key_callback=key_callback) as viewer:
-    while viewer.is_running():
-      ...
-      if not paused:
-        mujoco.mj_step(m, d)
-        viewer.sync()
-      ...
+    ...
+
+    with mujoco.viewer.launch_passive(m, d, key_callback=key_callback) as viewer:
+      while viewer.is_running():
+        ...
+        if not paused:
+          mujoco.mj_step(m, d)
+          viewer.sync()
+        ...
+
+- ``show_left_ui_panel`` and ``show_right_ui_panel``: Boolean arguments indicating whether UI panels should be visible
+  or hidden when the viewer is launched. Note that regardless of the values specified, the user can still toggle the
+  visibility of these panels after launch by pressing Tab or Shift+Tab.
 
 .. _PyUsage:
 

@@ -294,11 +294,17 @@ while True:
       break
 
     # Otherwise, launch the viewer.
-    model, data, handle_return, key_callback = task
+    model, data, handle_return, key_callback, show_left_ui, show_right_ui = task
     ctypes.CDLL(None).mjpython_show_dock_icon()
     mujoco.viewer._launch_internal(
-        model, data, run_physics_thread=False, handle_return=handle_return,
-        key_callback=key_callback)
+        model,
+        data,
+        run_physics_thread=False,
+        handle_return=handle_return,
+        key_callback=key_callback,
+        show_left_ui=show_left_ui,
+        show_right_ui=show_right_ui,
+    )
     ctypes.CDLL(None).mjpython_hide_dock_icon()
 
   finally:

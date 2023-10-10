@@ -314,7 +314,17 @@ PYBIND11_MODULE(_simulate, pymodule) {
             const auto max_length = sizeof_arr(sim.load_error);
             std::strncpy(sim.load_error, error.c_str(), max_length - 1);
             sim.load_error[max_length - 1] = '\0';
-          }));
+          }))
+      .def_property("ui0_enable", GetIfNotNull(&mujoco::Simulate::ui0_enable),
+                    CallIfNotNull(+[](mujoco::Simulate& sim, int enabled) {
+                      sim.ui0_enable = enabled;
+                    }),
+                    py::call_guard<py::gil_scoped_release>())
+      .def_property("ui1_enable", GetIfNotNull(&mujoco::Simulate::ui1_enable),
+                    CallIfNotNull(+[](mujoco::Simulate& sim, int enabled) {
+                      sim.ui1_enable = enabled;
+                    }),
+                    py::call_guard<py::gil_scoped_release>());
 
   pymodule.def("set_glfw_dlhandle", [](std::uintptr_t dlhandle) {
     mujoco::Glfw(reinterpret_cast<void*>(dlhandle));

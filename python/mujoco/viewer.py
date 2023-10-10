@@ -319,6 +319,8 @@ def _launch_internal(
     loader: Optional[_InternalLoaderType] = None,
     handle_return: Optional['queue.Queue[Handle]'] = None,
     key_callback: Optional[KeyCallbackType] = None,
+    show_left_ui: bool = True,
+    show_right_ui: bool = True,
 ) -> None:
   """Internal API, so that the public API has more readable type annotations."""
   if model is None and data is not None:
@@ -350,6 +352,9 @@ def _launch_internal(
   simulate = _Simulate(
       cam, opt, pert, user_scn, run_physics_thread, key_callback
   )
+
+  simulate.ui0_enable = show_left_ui
+  simulate.ui1_enable = show_right_ui
 
   # Initialize GLFW if not using mjpython.
   if _MJPYTHON is None:
@@ -385,13 +390,23 @@ def _launch_internal(
   simulate.destroy()
 
 
-def launch(model: Optional[mujoco.MjModel] = None,
-           data: Optional[mujoco.MjData] = None,
-           *,
-           loader: Optional[LoaderType] = None) -> None:
+def launch(
+    model: Optional[mujoco.MjModel] = None,
+    data: Optional[mujoco.MjData] = None,
+    *,
+    loader: Optional[LoaderType] = None,
+    show_left_ui: bool = True,
+    show_right_ui: bool = True,
+) -> None:
   """Launches the Simulate GUI."""
   _launch_internal(
-      model, data, run_physics_thread=True, loader=loader)
+      model,
+      data,
+      run_physics_thread=True,
+      loader=loader,
+      show_left_ui=show_left_ui,
+      show_right_ui=show_right_ui,
+  )
 
 
 def launch_from_path(path: str) -> None:
@@ -404,6 +419,8 @@ def launch_passive(
     data: mujoco.MjData,
     *,
     key_callback: Optional[KeyCallbackType] = None,
+    show_left_ui: bool = True,
+    show_right_ui: bool = True,
 ) -> Handle:
   """Launches a passive Simulate GUI without blocking the running thread."""
   if not isinstance(model, mujoco.MjModel):
@@ -425,6 +442,8 @@ def launch_passive(
             run_physics_thread=False,
             handle_return=handle_return,
             key_callback=key_callback,
+            show_left_ui=show_left_ui,
+            show_right_ui=show_right_ui,
         ),
     )
     thread.daemon = True
@@ -434,7 +453,14 @@ def launch_passive(
       raise RuntimeError(
           '`launch_passive` requires that the Python script be run under '
           '`mjpython` on macOS')
-    _MJPYTHON.launch_on_ui_thread(model, data, handle_return, key_callback)
+    _MJPYTHON.launch_on_ui_thread(
+        model,
+        data,
+        handle_return,
+        key_callback,
+        show_left_ui,
+        show_right_ui,
+    )
 
   return handle_return.get()
 
