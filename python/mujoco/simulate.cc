@@ -97,9 +97,9 @@ class SimulateWrapper {
     }
   }
 
-  void WaitUntilDestroyed() {
+  void WaitUntilExit() {
     // TODO: replace with atomic wait when we migrate to C++20
-    while (!destroyed_.load()) {
+    while (simulate_ && simulate_->exitrequest.load() != 2) {
       std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
   }
@@ -206,8 +206,7 @@ PYBIND11_MODULE(_simulate, pymodule) {
                 key_callback),
             scn, cam, opt, pert, is_passive);
       }))
-      .def("destroy", &SimulateWrapper::Destroy,
-           py::call_guard<py::gil_scoped_release>())
+      .def("destroy", &SimulateWrapper::Destroy)
       .def("load_message", CallIfNotNull(&mujoco::Simulate::LoadMessage),
            py::call_guard<py::gil_scoped_release>())
       .def("load", &SimulateWrapper::Load)
@@ -266,9 +265,8 @@ PYBIND11_MODULE(_simulate, pymodule) {
 
             int value = 0;
             sim->exitrequest.compare_exchange_strong(value, 1);
-            wrapper.WaitUntilDestroyed();
-          },
-          py::call_guard<py::gil_scoped_release>())
+            wrapper.WaitUntilExit();
+          })
 
       .def_property_readonly("uiloadrequest",
                              CallIfNotNull(+[](mujoco::Simulate& sim) {

@@ -99,35 +99,43 @@ class Handle:
     if sim is not None:
       sim.exit()
 
-  def is_running(self) -> bool:
+  def _get_sim(self) -> Optional[_Simulate]:
     sim = self._sim()
     if sim is not None:
-      return sim.exitrequest < 2
-    return False
+      try:
+        return sim if sim.exitrequest == 0 else None
+      except mujoco.UnexpectedError:
+        # UnexpectedError is raised when accessing `exitrequest` after the
+        # underlying simulate instance has been deleted in C++.
+        return None
+    return None
+
+  def is_running(self) -> bool:
+    return self._get_sim() is not None
 
   def lock(self):
-    sim = self._sim()
+    sim = self._get_sim()
     if sim is not None:
       return sim.lock()
     return contextlib.nullcontext()
 
   def sync(self):
-    sim = self._sim()
+    sim = self._get_sim()
     if sim is not None:
       sim.sync()  # locks internally
 
   def update_hfield(self, hfieldid: int):
-    sim = self._sim()
+    sim = self._get_sim()
     if sim is not None:
       sim.update_hfield(hfieldid)  # locks internally and blocks until done
 
   def update_mesh(self, meshid: int):
-    sim = self._sim()
+    sim = self._get_sim()
     if sim is not None:
       sim.update_mesh(meshid)  # locks internally and blocks until done
 
   def update_texture(self, texid: int):
-    sim = self._sim()
+    sim = self._get_sim()
     if sim is not None:
       sim.update_texture(texid)  # locks internally and blocks until done
 
