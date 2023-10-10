@@ -39,7 +39,7 @@ int finish(const char* msg = 0, mjModel* m = 0) {
     std::cout << msg << std::endl;
   }
 
-  return 0;
+  return EXIT_SUCCESS;
 }
 
 
