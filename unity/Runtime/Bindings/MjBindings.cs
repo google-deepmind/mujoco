@@ -6148,7 +6148,7 @@ public unsafe struct mjvSceneState_ {
   public int nbuffer;
   public void* buffer;
   public int maxgeom;
-  public mjvScene_ plugincache;
+  public mjvScene_ scratch;
   public model model;
   public data data;
 }public struct mjuiItem_ {}public struct mjfItemEnable {}

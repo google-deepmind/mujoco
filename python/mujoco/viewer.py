@@ -67,20 +67,16 @@ class Handle:
   def __init__(
       self,
       sim: _Simulate,
-      scn: mujoco.MjvScene,
       cam: mujoco.MjvCamera,
       opt: mujoco.MjvOption,
       pert: mujoco.MjvPerturb,
+      user_scn: Optional[mujoco.MjvScene],
   ):
     self._sim = weakref.ref(sim)
-    self._scn = scn
     self._cam = cam
     self._opt = opt
     self._pert = pert
-
-  @property
-  def scn(self):
-    return self._scn
+    self._user_scn = user_scn
 
   @property
   def cam(self):
@@ -93,6 +89,10 @@ class Handle:
   @property
   def perturb(self):
     return self._pert
+
+  @property
+  def user_scn(self):
+    return self._user_scn
 
   def close(self):
     sim = self._sim()
@@ -340,14 +340,16 @@ def _launch_internal(
 
     loader = _loader
 
-  if model and not run_physics_thread:
-    scn = mujoco.MjvScene(model, _Simulate.MAX_GEOM)
-  else:
-    scn = mujoco.MjvScene()
   cam = mujoco.MjvCamera()
   opt = mujoco.MjvOption()
   pert = mujoco.MjvPerturb()
-  simulate = _Simulate(scn, cam, opt, pert, run_physics_thread, key_callback)
+  if model and not run_physics_thread:
+    user_scn = mujoco.MjvScene(model, _Simulate.MAX_GEOM)
+  else:
+    user_scn = None
+  simulate = _Simulate(
+      cam, opt, pert, user_scn, run_physics_thread, key_callback
+  )
 
   # Initialize GLFW if not using mjpython.
   if _MJPYTHON is None:
@@ -357,8 +359,9 @@ def _launch_internal(
 
   notify_loaded = None
   if handle_return:
-    notify_loaded = (
-        lambda: handle_return.put_nowait(Handle(simulate, scn, cam, opt, pert)))
+    notify_loaded = lambda: handle_return.put_nowait(
+        Handle(simulate, cam, opt, pert, user_scn)
+    )
 
   if run_physics_thread:
     side_thread = threading.Thread(

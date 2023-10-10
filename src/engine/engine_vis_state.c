@@ -48,19 +48,19 @@ static inline size_t roundUpToCacheLine(size_t n) {
 // set default scene
 void mjv_defaultSceneState(mjvSceneState* scnstate) {
   memset(scnstate, 0, sizeof(mjvSceneState));
-  mjv_defaultScene(&scnstate->plugincache);
+  mjv_defaultScene(&scnstate->scratch);
 }
 
 
 
 // allocate and init scene state
 void mjv_makeSceneState(const mjModel* m, const mjData* d, mjvSceneState* scnstate, int maxgeom) {
-  mjv_freeScene(&scnstate->plugincache);
+  mjv_freeScene(&scnstate->scratch);
   mju_free(scnstate->buffer);
 
 #ifdef MEMORY_SANITIZER
   __msan_allocated_memory(scnstate, sizeof(mjvSceneState));
-  mjv_defaultScene(&scnstate->plugincache);
+  mjv_defaultScene(&scnstate->scratch);
 #endif
 
   scnstate->nbuffer = 0;
@@ -144,14 +144,14 @@ void mjv_makeSceneState(const mjModel* m, const mjData* d, mjvSceneState* scnsta
     mjERROR("mjvSceneState buffer is not fully used");
   }
 
-  mjv_makeScene(m, &scnstate->plugincache, maxgeom);
+  mjv_makeScene(m, &scnstate->scratch, maxgeom);
 }
 
 
 
 // free scene state
 void mjv_freeSceneState(mjvSceneState* scnstate) {
-  mjv_freeScene(&scnstate->plugincache);
+  mjv_freeScene(&scnstate->scratch);
   mju_free(scnstate->buffer);
   mjv_defaultSceneState(scnstate);
 }
@@ -229,14 +229,14 @@ int mjv_updateSceneFromState(const mjvSceneState* scnstate, const mjvOption* opt
   int warning_start = d.warning[mjWARN_VGEOMFULL].number;
 
   // copy mjvGeoms added by plugins
-  int nplugingeom = scnstate->plugincache.ngeom;
+  int nplugingeom = scnstate->scratch.ngeom;
   if (nplugingeom > scn->maxgeom) {
     mj_warning(&d, mjWARN_VGEOMFULL, scn->maxgeom);
     scn->ngeom = scn->maxgeom;
   } else {
     scn->ngeom = nplugingeom;
   }
-  memcpy(scn->geoms, scnstate->plugincache.geoms, sizeof(mjvGeom) * scn->ngeom);
+  memcpy(scn->geoms, scnstate->scratch.geoms, sizeof(mjvGeom) * scn->ngeom);
 
   // add all categories
   mjv_addGeoms(&m, &d, opt, pert, catmask, scn);
@@ -272,7 +272,7 @@ void mjv_updateSceneState(const mjModel* m, mjData* d, const mjvOption* opt,
 #undef X
 
   // Update plugin visualization cache.
-  scnstate->plugincache.ngeom = 0;
+  scnstate->scratch.ngeom = 0;
   if (m->nplugin) {
     const int nslot = mjp_pluginCount();
     // iterate over plugins, call visualize if defined
@@ -283,7 +283,7 @@ void mjv_updateSceneState(const mjModel* m, mjData* d, const mjvOption* opt,
         mjERROR("invalid plugin slot: %d", slot);
       }
       if (plugin->visualize) {
-        plugin->visualize(m, d, opt, &scnstate->plugincache, i);
+        plugin->visualize(m, d, opt, &scnstate->scratch, i);
       }
     }
   }

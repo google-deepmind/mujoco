@@ -5476,9 +5476,9 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='maximum number of mjvGeom supported by this state object',
              ),
              StructFieldDecl(
-                 name='plugincache',
+                 name='scratch',
                  type=ValueType(name='mjvScene'),
-                 doc='scratch space for vis geoms inserted by plugins',
+                 doc='scratch space for vis geoms inserted by the user and plugins',  # pylint: disable=line-too-long
              ),
              StructFieldDecl(
                  name='model',

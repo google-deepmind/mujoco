@@ -1737,16 +1737,15 @@ namespace mujoco {
 namespace mju = ::mujoco::sample_util;
 
 Simulate::Simulate(std::unique_ptr<PlatformUIAdapter> platform_ui,
-                   mjvScene* scn, mjvCamera* cam,
-                   mjvOption* opt, mjvPerturb* pert,
+                   mjvCamera* cam, mjvOption* opt, mjvPerturb* pert,
                    bool is_passive)
     : is_passive_(is_passive),
-      scn(*scn),
       cam(*cam),
       opt(*opt),
       pert(*pert),
       platform_ui(std::move(platform_ui)),
       uistate(this->platform_ui->state()) {
+  mjv_defaultScene(&scn);
   mjv_defaultSceneState(&scnstate_);
 }
 
@@ -2011,6 +2010,23 @@ void Simulate::Sync() {
     mjv_updateScene(m_, d_, &this->opt, &this->pert, &this->cam, mjCAT_ALL, &this->scn);
   } else {
     mjv_updateSceneState(m_, d_, &this->opt, &scnstate_);
+
+    // append geoms from user_scn to scnstate_ scratch space
+    if (user_scn) {
+      int ngeom = user_scn->ngeom;
+      int maxgeom = scnstate_.scratch.maxgeom - scnstate_.scratch.ngeom;
+      if (ngeom > maxgeom) {
+        mj_warning(d_, mjWARN_VGEOMFULL, scnstate_.scratch.maxgeom);
+        ngeom = maxgeom;
+      }
+      if (ngeom > 0) {
+        std::memcpy(scnstate_.scratch.geoms + scnstate_.scratch.ngeom,
+                    user_scn->geoms,
+                    sizeof(mjvGeom) * ngeom);
+        scnstate_.scratch.ngeom += ngeom;
+      }
+    }
+
     mjopt_prev_ = scnstate_.model.opt;
     warn_vgeomfull_prev_ = scnstate_.data.warning[mjWARN_VGEOMFULL].number;
   }
@@ -2172,9 +2188,8 @@ void Simulate::LoadOnRenderThread() {
   }
 
   // re-create scene and context
-  if (!this->is_passive_) {
-    mjv_makeScene(this->m_, &this->scn, kMaxGeom);
-  } else {
+  mjv_makeScene(this->m_, &this->scn, kMaxGeom);
+  if (this->is_passive_) {
     mjopt_prev_ = m_->opt;
     opt_prev_ = opt;
     cam_prev_ = cam;

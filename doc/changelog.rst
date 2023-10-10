@@ -131,6 +131,8 @@ Python bindings
 
 23. Fixed `#870 <https://github.com/google-deepmind/mujoco/issues/870>`__ where calling ``update_scene`` with an invalid
     camera name used the default camera.
+24. Added ``user_scn`` to the :ref:`passive viewer<PyViewerPassive>` handle, which allows users to add custom
+    visualization geoms (`#1023 <https://github.com/google-deepmind/mujoco/issues/870>`__).
 
 Simulate
 ^^^^^^^^
@@ -139,18 +141,18 @@ Simulate
    :align: right
    :width: 240px
 
-24. Added **state history** mechanism to :ref:`simulate<saSimulate>` and the managed
+25. Added **state history** mechanism to :ref:`simulate<saSimulate>` and the managed
     :ref:`Python viewer<PyViewerManaged>`. State history can be viewed by scrubbing the History slider and (more
     precisely) with the left and right arrow keys. See screen capture:
 
-25. The ``LOADING...`` label is now shown correctly.
+26. The ``LOADING...`` label is now shown correctly.
     `Contribution <https://github.com/google-deepmind/mujoco/pull/1070>`__ by
     `Levi Burner <https://github.com/aftersomemath>`__.
 
 Bug fixes
 ^^^^^^^^^
 
-26. Fixed a bug that was causing :ref:`geom margin<body-geom-margin>` to be ignored during the construction of
+27. Fixed a bug that was causing :ref:`geom margin<body-geom-margin>` to be ignored during the construction of
     midphase collision trees.
 
 27. Fixed a bug that was generating incorrect values in ``efc_diagApprox`` for weld equality constraints.

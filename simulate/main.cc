@@ -474,9 +474,6 @@ int main(int argc, char** argv) {
   // scan for libraries in the plugin directory to load additional plugins
   scanPluginLibraries();
 
-  mjvScene scn;
-  mjv_defaultScene(&scn);
-
   mjvCamera cam;
   mjv_defaultCamera(&cam);
 
@@ -489,7 +486,7 @@ int main(int argc, char** argv) {
   // simulate object encapsulates the UI
   auto sim = std::make_unique<mj::Simulate>(
       std::make_unique<mj::GlfwAdapter>(),
-      &scn, &cam, &opt, &pert, /* is_passive = */ false
+      &cam, &opt, &pert, /* is_passive = */ false
   );
 
   const char* filename = nullptr;

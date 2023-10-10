@@ -1989,7 +1989,7 @@ struct mjvSceneState_ {
   int nbuffer;                     // size of the buffer in bytes
   void* buffer;                    // heap-allocated memory for all arrays in this struct
   int maxgeom;                     // maximum number of mjvGeom supported by this state object
-  mjvScene plugincache;            // scratch space for vis geoms inserted by plugins
+  mjvScene scratch;                // scratch space for vis geoms inserted by the user and plugins
 
   // fields in mjModel that are necessary to re-render a scene
   struct {

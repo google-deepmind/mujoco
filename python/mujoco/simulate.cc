@@ -69,19 +69,23 @@ class UIAdapterWithPyCallback : public Adapter {
 class SimulateWrapper {
  public:
   SimulateWrapper(std::unique_ptr<PlatformUIAdapter> platform_ui_adapter,
-                  py::object scn, py::object cam, py::object opt,
-                  py::object pert, bool is_passive)
+                  py::object cam, py::object opt,
+                  py::object pert, py::object user_scn, bool is_passive)
       : simulate_(new mujoco::Simulate(
-            std::move(platform_ui_adapter), scn.cast<MjvSceneWrapper&>().get(),
+            std::move(platform_ui_adapter),
             cam.cast<MjvCameraWrapper&>().get(),
             opt.cast<MjvOptionWrapper&>().get(),
             pert.cast<MjvPerturbWrapper&>().get(), is_passive)),
         m_(py::none()),
         d_(py::none()),
-        scn_(scn),
         cam_(cam),
         opt_(opt),
-        pert_(pert) {}
+        pert_(pert),
+        user_scn_(user_scn) {
+    if (!user_scn.is_none()) {
+      simulate_->user_scn = user_scn_.cast<MjvSceneWrapper&>().get();
+    }
+  }
 
   ~SimulateWrapper() { Destroy(); }
 
@@ -127,10 +131,10 @@ class SimulateWrapper {
   // simulate object.
   py::object m_;
   py::object d_;
-  py::object scn_;
   py::object cam_;
   py::object opt_;
   py::object pert_;
+  py::object user_scn_;
 
   mjModel* m_raw_ = nullptr;
   mjData* d_raw_ = nullptr;
@@ -207,7 +211,8 @@ PYBIND11_MODULE(_simulate, pymodule) {
       .def("load_message", CallIfNotNull(&mujoco::Simulate::LoadMessage),
            py::call_guard<py::gil_scoped_release>())
       .def("load", &SimulateWrapper::Load)
-      .def("load_message_clear", CallIfNotNull(&mujoco::Simulate::LoadMessageClear),
+      .def("load_message_clear",
+           CallIfNotNull(&mujoco::Simulate::LoadMessageClear),
            py::call_guard<py::gil_scoped_release>())
       .def("sync", CallIfNotNull(&mujoco::Simulate::Sync),
            py::call_guard<py::gil_scoped_release>())

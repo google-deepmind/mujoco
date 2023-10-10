@@ -51,8 +51,7 @@ class Simulate {
   // create object and initialize the simulate ui
   Simulate(
       std::unique_ptr<PlatformUIAdapter> platform_ui_adapter,
-      mjvScene* scn, mjvCamera* cam,
-      mjvOption* opt, mjvPerturb* pert, bool is_passive);
+      mjvCamera* cam, mjvOption* opt, mjvPerturb* pert, bool is_passive);
 
   // Synchronize mjModel and mjData state with UI inputs, and update
   // visualization.
@@ -233,7 +232,7 @@ class Simulate {
   int camera = 0;
 
   // abstract visualization
-  mjvScene& scn;
+  mjvScene scn;
   mjvCamera& cam;
   mjvOption& opt;
   mjvPerturb& pert;
@@ -242,6 +241,9 @@ class Simulate {
   mjvFigure figtimer = {};
   mjvFigure figsize = {};
   mjvFigure figsensor = {};
+
+  // additional user-defined visualization geoms (used in passive mode)
+  mjvScene* user_scn = nullptr;
 
   // OpenGL rendering and UI
   int refresh_rate = 60;
