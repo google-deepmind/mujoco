@@ -219,7 +219,7 @@ jobs:
       working-directory: python/dist
       run: >
         source ${{ matrix.tmpdir }}/venv/bin/activate &&
-        pip install mujoco-*.whl
+        pip install --no-deps --no-index mujoco-*.whl
     - name: Test Python bindings
       if: ${{ runner.os != 'Windows' }}
       shell: bash
