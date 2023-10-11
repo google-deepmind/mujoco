@@ -95,6 +95,30 @@ void mj_checkAcc(const mjModel* m, mjData* d) {
 
 //-------------------------- solver components -----------------------------------------------------
 
+// args for internal functions in mj_fwdPosition
+struct mjFwdPositionArgs_ {
+  const mjModel* m;
+  mjData* d;
+};
+typedef struct mjFwdPositionArgs_ mjFwdPositionArgs;
+
+// wrapper for mj_crb and mj_factorM
+void* mj_inertialThreaded(void* args) {
+  mjFwdPositionArgs* forward_args = (mjFwdPositionArgs*) args;
+  mj_crb(forward_args->m, forward_args->d);       // timed internally (POS_INERTIA)
+  mj_factorM(forward_args->m, forward_args->d);   // timed internally (POS_INERTIA)
+  return NULL;
+}
+
+// wrapper for mj_collision
+void* mj_collisionThreaded(void* args) {
+  mjFwdPositionArgs* forward_args = (mjFwdPositionArgs*) args;
+  mj_collision(forward_args->m, forward_args->d);   // timed internally (POS_COLLISION)
+  return NULL;
+}
+
+
+
 // position-dependent computations
 void mj_fwdPosition(const mjModel* m, mjData* d) {
   TM_START1;
@@ -106,10 +130,33 @@ void mj_fwdPosition(const mjModel* m, mjData* d) {
   mj_tendon(m, d);
   TM_END(mjTIMER_POS_KINEMATICS);
 
-  mj_crb(m, d);        // timed internally (POS_INERTIA)
-  mj_factorM(m, d);    // timed internally (POS_INERTIA)
+  // no threadpool: inertia and collision on main thread
+  if (!d->threadpool) {
+    mj_crb(m, d);        // timed internally (POS_INERTIA)
+    mj_factorM(m, d);    // timed internally (POS_INERTIA)
+    mj_collision(m, d);  // timed internally (POS_COLLISION)
+  }
 
-  mj_collision(m, d);  // timed internally (POS_COLLISION)
+  // have threadpool: inertia and collision on seperate threads
+  else {
+    mjTask tasks[2];
+    mjFwdPositionArgs forward_args;
+    forward_args.m = m;
+    forward_args.d = d;
+
+    mju_defaultTask(&tasks[0]);
+    tasks[0].func = mj_inertialThreaded;
+    tasks[0].args = &forward_args;
+    mju_threadPoolEnqueue((mjThreadPool*)d->threadpool, &tasks[0]);
+
+    mju_defaultTask(&tasks[1]);
+    tasks[1].func = mj_collisionThreaded;
+    tasks[1].args = &forward_args;
+    mju_threadPoolEnqueue((mjThreadPool*)d->threadpool, &tasks[1]);
+
+    mju_taskJoin(&tasks[0]);
+    mju_taskJoin(&tasks[1]);
+  }
 
   TM_RESTART;
   mj_makeConstraint(m, d);

@@ -132,7 +132,7 @@ int main(int argc, char** argv) {
       "  nstep         10000       number of steps per rollout\n"
       "  nthread       1           number of threads for which to run parallel rollouts\n"
       "  ctrlnoise     0.01        scale of pseudo-random noise injected into actuators\n"
-      "  npoolthread   1           number of threads in engine-internal threadpool\n"
+      "  npoolthread   0           number of threads in engine-internal threadpool\n"
       "\n"
       "Note: If the model has a keyframe named \"test\", it will be loaded prior to simulation\n");
   }

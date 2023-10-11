@@ -31,6 +31,12 @@ New features
 3. Added :ref:`mjThreadPool` and :ref:`mjTask` which allow for multi-threaded operations within the MuJoCo engine
    pipeline.
 
+   If engine-level threading is enabled, the following operations will be multi-threaded:
+
+   - Island constraint resolution, if island discovery is :ref:`enable flag<option-flag-island>` and the :ref:`CG<option-solver>` is selected.
+   - Inertia-related computations and collision detection will happen in parallel.
+
+
 .. youtube:: ra2bTiZHGlw
    :align: right
    :width: 240px
