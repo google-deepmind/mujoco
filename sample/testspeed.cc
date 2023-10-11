@@ -247,27 +247,56 @@ int main(int argc, char** argv) {
   std::printf(" Constraints per step : %.2f\n", static_cast<float>(constraints[0])/nstep);
   std::printf(" Degrees of freedom   : %d\n\n", m->nv);
 
-  // profiler results
+  // profiler, top-level
   printf(" Internal profiler%s, %ss per step\n", nthread > 1 ? " for thread 0" : "", mu_str);
   mjtNum tstep = d[0]->timer[mjTIMER_STEP].duration/d[0]->timer[mjTIMER_STEP].number;
   mjtNum components = 0, total = 0;
-  for (int i=0; i < mjNTIMER; i++) {
+  for (int i=0; i <= mjTIMER_ADVANCE; i++) {
     if (d[0]->timer[i].number > 0) {
       mjtNum istep = d[0]->timer[i].duration/d[0]->timer[i].number;
-      std::printf(" %16s : %6.1f  (%6.2f %%)\n", mjTIMERSTRING[i], istep, 100*istep/tstep);
+      std::printf(" %17s : %6.1f  (%6.2f %%)\n", mjTIMERSTRING[i], istep, 100*istep/tstep);
 
       // save step time, add up timing of components
       if (i == 0) total = istep;
-      if (i >= mjTIMER_POSITION && i <= mjTIMER_ADVANCE) {
+      if (i >= mjTIMER_POSITION) {
         components += istep;
       }
     }
   }
 
-  // compute "other" (computation not covered by timers)
+  // "other" (computation not covered by timers)
   if (tstep > 0) {
     mjtNum other = total - components;
-    std::printf(" %16s : %6.1f  (%6.2f %%)\n", "other", other, 100*other/tstep);
+    std::printf(" %17s : %6.1f  (%6.2f %%)\n", "other", other, 100*other/tstep);
+  }
+
+  std::printf("\n");
+
+  // mjTIMER_POSITION and its components
+  for (int i : {mjTIMER_POSITION,
+                mjTIMER_POS_KINEMATICS,
+                mjTIMER_POS_INERTIA,
+                mjTIMER_POS_COLLISION,
+                mjTIMER_POS_MAKE,
+                mjTIMER_POS_PROJECT}) {
+    if (d[0]->timer[i].number > 0) {
+      mjtNum istep = d[0]->timer[i].duration/d[0]->timer[i].number;
+      if (i == mjTIMER_POSITION) {
+        std::printf("   position total  : %6.1f  (%6.2f %%)\n",  istep, 100*istep/tstep);
+      } else {
+        std::printf("     %-10s    : %6.1f  (%6.2f %%)\n",
+                    mjTIMERSTRING[i]+4, istep, 100*istep/tstep);
+      }
+    }
+
+    // components of mjTIMER_POS_COLLISION
+    if (i == mjTIMER_POS_COLLISION) {
+      for (int j : {mjTIMER_COL_BROAD, mjTIMER_COL_MID, mjTIMER_COL_NARROW}) {
+        mjtNum jstep = d[0]->timer[j].duration/d[0]->timer[j].number;
+        std::printf("       %-11s : %6.1f  (%6.2f %%)\n",
+                    mjTIMERSTRING[j]+4, jstep, 100*jstep/tstep);
+      }
+    }
   }
 
 
