@@ -1885,7 +1885,7 @@ void Simulate::Sync() {
     update_profiler = true;
     update_sensor = true;
     scrub_index = 0;
-    mjui0_update_section(this, SECT_SIMULATION);
+    pending_.ui_update_simulation = true;
     pending_.reset = false;
   }
 
@@ -2326,6 +2326,13 @@ void Simulate::Render() {
   }
 
   // update UI sections from last sync
+  if (pending_.ui_update_simulation) {
+    if (this->ui0_enable && this->ui0.sect[SECT_SIMULATION].state) {
+      mjui0_update_section(this, SECT_SIMULATION);
+    }
+    pending_.ui_update_simulation = false;
+  }
+
   if (this->ui0_enable && this->ui0.sect[SECT_WATCH].state) {
     mjui0_update_section(this, SECT_WATCH);
   }

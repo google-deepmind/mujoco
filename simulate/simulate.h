@@ -148,6 +148,7 @@ class Simulate {
     int newperturb;
     bool select;
     mjuiState select_state;
+    bool ui_update_simulation;
     bool ui_update_physics;
     bool ui_update_rendering;
     bool ui_update_joint;
