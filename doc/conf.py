@@ -74,6 +74,9 @@ exclude_patterns = [
 redirects = {
     # index.rst just contains the table of contents definition.
     'index': 'overview.html',
+    'computation': 'computation/index.html',
+    'programming': 'programming/index.html',
+    'APIreference': 'APIreference/index.html',
 }
 
 rst_prolog = """
