@@ -1049,8 +1049,10 @@ mjtNum CompareModel(const mjModel* m1, const mjModel* m2,
 }
 
 TEST_F(PluginTest, WriteReadCompare) {
+  // full precision float printing
   FullFloatPrecision increase_precision;
-  // Loop over all xml files in data
+
+  // loop over all xml files in data
   std::vector<std::string> paths = {GetTestDataFilePath("."),
                                     GetModelPath(".")};
   std::string ext(".xml");
@@ -1100,6 +1102,11 @@ TEST_F(PluginTest, WriteReadCompare) {
               << "Different field: " << field << '\n';
           mj_deleteModel(mtemp);
         }
+
+        // check for stack memory leak
+        mj_step(m, d);
+        EXPECT_EQ(d->pstack, 0) << "mjData stack memory leak detected in " <<
+            p.path().string() << '\n';
 
         // delete original structures
         mj_deleteData(d);
