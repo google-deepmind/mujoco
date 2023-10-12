@@ -770,6 +770,11 @@ mjModel* mj_loadModel(const char* filename, const mjVFS* vfs) {
   }
 
   // read mjModel structure: info only
+  if (ptrbuf + sizeof(int)*getnint() + sizeof(size_t)*getnsize() > buffer_sz) {
+    mju_closeResource(r);
+    mju_warning("Truncated model file - ran out of data while reading sizes");
+    return NULL;
+  }
   bufread(ints, sizeof(int)*getnint(), buffer_sz, buffer, &ptrbuf);
   bufread(sizes, sizeof(size_t)*getnsize(), buffer_sz, buffer, &ptrbuf);
 
@@ -802,13 +807,26 @@ mjModel* mj_loadModel(const char* filename, const mjVFS* vfs) {
   }
 
   // read options and buffer
+  if (ptrbuf + sizeof(mjOption) + sizeof(mjVisual) + sizeof(mjStatistic) > buffer_sz) {
+    mju_closeResource(r);
+    mju_warning("Truncated model file - ran out of data while reading structs");
+    return NULL;
+  }
   bufread((void*)&m->opt, sizeof(mjOption), buffer_sz, buffer, &ptrbuf);
   bufread((void*)&m->vis, sizeof(mjVisual), buffer_sz, buffer, &ptrbuf);
   bufread((void*)&m->stat, sizeof(mjStatistic), buffer_sz, buffer, &ptrbuf);
   {
     MJMODEL_POINTERS_PREAMBLE(m)
-    #define X(type, name, nr, nc)  \
+    #define X(type, name, nr, nc)                                           \
+      if (ptrbuf + sizeof(type) * (m->nr) * (nc) > buffer_sz) {             \
+        mju_closeResource(r);                                               \
+        mju_warning(                                                        \
+            "Truncated model file - ran out of data while reading " #name); \
+        mj_deleteModel(m);                                                  \
+        return NULL;                                                        \
+      }                                                                     \
       bufread(m->name, sizeof(type)*(m->nr)*(nc), buffer_sz, buffer, &ptrbuf);
+
     MJMODEL_POINTERS
     #undef X
   }
