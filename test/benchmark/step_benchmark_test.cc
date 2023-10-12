@@ -77,12 +77,12 @@ static void run_step_benchmark(const mjModel* model, benchmark::State& state) {
 // separately in CPU profiles (and don't get replaced with raw calls to
 // run_step_benchmark).
 
-void ABSL_ATTRIBUTE_NO_TAIL_CALL BM_StepCable(benchmark::State& state) {
+void ABSL_ATTRIBUTE_NO_TAIL_CALL BM_StepFlagPlugin(benchmark::State& state) {
   MujocoErrorTestGuard guard;
   static mjModel* model = LoadModelFromPath("plugin/elasticity/flag.xml");
   run_step_benchmark(model, state);
 }
-BENCHMARK(BM_StepCable);
+BENCHMARK(BM_StepFlagPlugin);
 
 void ABSL_ATTRIBUTE_NO_TAIL_CALL BM_StepParticle(benchmark::State& state) {
   MujocoErrorTestGuard guard;

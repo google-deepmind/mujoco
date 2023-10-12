@@ -48,10 +48,10 @@ static void run_parse_benchmark(const std::string xml_path, benchmark::State& st
 // separately in CPU profiles (and don't get replaced with raw calls to
 // run_parse_benchmark).
 
-void ABSL_ATTRIBUTE_NO_TAIL_CALL BM_ParseCable(benchmark::State& state) {
+void ABSL_ATTRIBUTE_NO_TAIL_CALL BM_ParseFlagPlugin(benchmark::State& state) {
   run_parse_benchmark(GetModelPath("plugin/elasticity/flag.xml"), state);
 }
-BENCHMARK(BM_ParseCable);
+BENCHMARK(BM_ParseFlagPlugin);
 
 void ABSL_ATTRIBUTE_NO_TAIL_CALL BM_ParseFlag(benchmark::State& state) {
   run_parse_benchmark(GetModelPath("../test/benchmark/testdata/flag.xml"),
