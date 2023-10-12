@@ -147,7 +147,7 @@ static void addContactGeom(const mjModel* m, mjData* d, const mjtByte* flags,
 
       // label contacting geom names or ids
       if (vopt->label == mjLABEL_CONTACTPOINT) {
-        char contactlabel[2][220];
+        char contactlabel[2][48];
         for (int k=0; k<2; k++) {
           // make geom label
           if (con->geom[k]>=0) {
