@@ -284,9 +284,9 @@ static void renderGeom(const mjvGeom* geom, int mode, const float* headpos,
     }
   }
 
-  // apply coordinate transformation, except for skin which is global
+  // apply coordinate transformation, except for flex and skin which are global
   glPushMatrix();
-  if (geom->type != mjGEOM_SKIN) {
+  if (geom->type != mjGEOM_FLEX && geom->type != mjGEOM_SKIN) {
     glTranslatef(geom->pos[0], geom->pos[1], geom->pos[2]);
     glMultMatrixf(mat);
   }
@@ -410,6 +410,85 @@ static void renderGeom(const mjvGeom* geom, int mode, const float* headpos,
     glVertex3f(size[0], 0, 0);
     glVertex3f(0, size[1], 0);
     glEnd();
+    break;
+
+  case mjGEOM_FLEX:                           // flex
+    // no texture for vertices and edges
+    if (glIsEnabled(GL_TEXTURE_2D)) {
+      glDisable(GL_TEXTURE_2D);
+    }
+
+    // vertex spheres
+    if (size[0]>0 && scn->flexvertopt &&
+        !(scn->flexskinopt && scn->flexfaceused[geom->objid])) {
+      for (int v=scn->flexvertadr[geom->objid];
+               v<scn->flexvertadr[geom->objid]+scn->flexvertnum[geom->objid]; v++) {
+        glPushMatrix();
+        glTranslatef(scn->flexvert[3*v], scn->flexvert[3*v+1], scn->flexvert[3*v+2]);
+        glScalef(size[0], size[0], size[0]);
+        glCallList(con->baseBuiltin + mjrSPHERE);
+        glPopMatrix();
+      }
+    }
+
+    // edge cylinders
+    if (size[0]>0 && scn->flexedgeopt &&
+        !(scn->flexskinopt && scn->flexfaceused[geom->objid])) {
+      for (int e=scn->flexedgeadr[geom->objid];
+               e<scn->flexedgeadr[geom->objid]+scn->flexedgenum[geom->objid]; e++) {
+        // get vertices for this edge
+        float* v1 = scn->flexvert + 3*(scn->flexvertadr[geom->objid]+scn->flexedge[2*e]);
+        float* v2 = scn->flexvert + 3*(scn->flexvertadr[geom->objid]+scn->flexedge[2*e+1]);
+
+        // compute legth and rotation matrix
+        mjtNum vec[3] = {v2[0]-v1[0], v2[1]-v1[1], v2[2]-v1[2]};
+        mjtNum len = mju_normalize3(vec);
+        mjtNum edgequat[4], edgemat[9];
+        mju_quatZ2Vec(edgequat, vec);
+        mju_negQuat(edgequat, edgequat);
+        mju_quat2Mat(edgemat, edgequat);
+        mat[0] = (float)edgemat[0];
+        mat[1] = (float)edgemat[1];
+        mat[2] = (float)edgemat[2];
+        mat[4] = (float)edgemat[3];
+        mat[5] = (float)edgemat[4];
+        mat[6] = (float)edgemat[5];
+        mat[8] = (float)edgemat[6];
+        mat[9] = (float)edgemat[7];
+        mat[10] = (float)edgemat[8];
+
+        // transform and render
+        glPushMatrix();
+        glTranslatef((v1[0]+v2[0])*0.5f, (v1[1]+v2[1])*0.5f, (v1[2]+v2[2])*0.5f);
+        glMultMatrixf(mat);
+        glScalef(size[0], size[0], (float)(len*0.5));
+        glCallList(con->baseBuiltin + mjrCYLINDEROPEN);
+        glPopMatrix();
+      }
+    }
+
+    // restore texture for faces
+    if (glIsEnabled(GL_TEXTURE_2D)) {
+      glEnable(GL_TEXTURE_2D);
+    }
+
+    // face triangles
+    if (scn->flexfaceused[geom->objid]) {
+      glEnableClientState(GL_VERTEX_ARRAY);
+      glEnableClientState(GL_NORMAL_ARRAY);
+      glVertexPointer(3, GL_FLOAT, 0, scn->flexface + 9*scn->flexfaceadr[geom->objid]);
+      glNormalPointer(GL_FLOAT, 0, scn->flexnormal + 9*scn->flexfaceadr[geom->objid]);
+      if (geom->texcoord && geom->texid>=0) {
+        glEnableClientState(GL_TEXTURE_COORD_ARRAY);
+        glTexCoordPointer(2, GL_FLOAT, 0, scn->flextexcoord + 6*scn->flexfaceadr[geom->objid]);
+      }
+      glDrawArrays(GL_TRIANGLES, 0, 3*scn->flexfaceused[geom->objid]);
+      glDisableClientState(GL_VERTEX_ARRAY);
+      glDisableClientState(GL_NORMAL_ARRAY);
+      if (geom->texcoord && geom->texid>=0) {
+        glDisableClientState(GL_TEXTURE_COORD_ARRAY);
+      }
+    }
     break;
 
   case mjGEOM_SKIN:                           // skin

@@ -139,6 +139,7 @@ mjCModel::mjCModel() {
   //------------------------ private variables
   cameras.clear();
   lights.clear();
+  flexes.clear();
   meshes.clear();
   skins.clear();
   hfields.clear();
@@ -185,6 +186,7 @@ mjCModel::~mjCModel() {
   delete bodies[0];
 
   // delete objects allocated in mjCModel
+  for (int i=0; i<flexes.size(); i++) delete flexes[i];
   for (int i=0; i<meshes.size(); i++) delete meshes[i];
   for (int i=0; i<skins.size(); i++) delete skins[i];
   for (int i=0; i<hfields.size(); i++) delete hfields[i];
@@ -204,6 +206,7 @@ mjCModel::~mjCModel() {
   for (int i=0; i<defaults.size(); i++) delete defaults[i];
 
   // clear pointer lists created in model construction
+  flexes.clear();
   meshes.clear();
   skins.clear();
   hfields.clear();
@@ -233,11 +236,14 @@ void mjCModel::Clear(void) {
   // sizes set from list lengths
   nbody = 0;
   nbvh = 0;
+  nbvhstatic = 0;
+  nbvhdynamic = 0;
   njnt = 0;
   ngeom = 0;
   nsite = 0;
   ncam = 0;
   nlight = 0;
+  nflex = 0;
   nmesh = 0;
   nskin = 0;
   nhfield = 0;
@@ -256,6 +262,13 @@ void mjCModel::Clear(void) {
   nv = 0;
   nu = 0;
   na = 0;
+  nflexvert = 0;
+  nflexedge = 0;
+  nflexelem = 0;
+  nflexelemdata = 0;
+  nflexshelldata = 0;
+  nflexevpair = 0;
+  nflextexcoord = 0;
   nmeshvert = 0;
   nmeshnormal = 0;
   nmeshtexcoord = 0;
@@ -323,6 +336,12 @@ T* mjCModel::AddObjectDef(vector<T*>& list, string type, mjCDef* def) {
   obj->def = def ? def : defaults[0];
   list.push_back(obj);
   return obj;
+}
+
+
+// add flex
+mjCFlex* mjCModel::AddFlex(void) {
+  return AddObject(flexes, "flex");
 }
 
 
@@ -443,6 +462,8 @@ int mjCModel::NumObjects(mjtObj type) {
     return (int)cameras.size();
   case mjOBJ_LIGHT:
     return (int)lights.size();
+  case mjOBJ_FLEX:
+    return (int)flexes.size();
   case mjOBJ_MESH:
     return (int)meshes.size();
   case mjOBJ_SKIN:
@@ -499,6 +520,8 @@ mjCBase* mjCModel::GetObject(mjtObj type, int id) {
       return cameras[id];
     case mjOBJ_LIGHT:
       return lights[id];
+    case mjOBJ_FLEX:
+      return flexes[id];
     case mjOBJ_MESH:
       return meshes[id];
     case mjOBJ_SKIN:
@@ -640,6 +663,8 @@ mjCBase* mjCModel::FindObject(mjtObj type, string name) {
     return findobject(name, cameras);
   case mjOBJ_LIGHT:
     return findobject(name, lights);
+  case mjOBJ_FLEX:
+    return findobject(name, flexes);
   case mjOBJ_MESH:
     return findobject(name, meshes);
   case mjOBJ_SKIN:
@@ -896,6 +921,7 @@ void mjCModel::SetSizes(void) {
   nsite = (int)sites.size();
   ncam = (int)cameras.size();
   nlight = (int)lights.size();
+  nflex = (int)flexes.size();
   nmesh = (int)meshes.size();
   nskin = (int)skins.size();
   nhfield = (int)hfields.size();
@@ -928,22 +954,38 @@ void mjCModel::SetSizes(void) {
     }
   }
 
-  // nbvh
+  // nbvh, nbvhstatic, nbvhdynamic
   for (int i=0; i<nbody; i++) {
-    nbvh += bodies[i]->tree.nbvh;
+    nbvhstatic += bodies[i]->tree.nbvh;
+  }
+  for (int i=0; i<nmesh; i++) {
+    nbvhstatic += meshes[i]->tree().nbvh;
+  }
+  for (int i=0; i<nflex; i++) {
+    nbvhdynamic += flexes[i]->tree.nbvh;
+  }
+  nbvh = nbvhstatic + nbvhdynamic;
+
+  // flex counts
+  for (int i=0; i<nflex; i++) {
+    nflexvert += flexes[i]->nvert;
+    nflexedge += flexes[i]->nedge;
+    nflexelem += flexes[i]->nelem;
+    nflexelemdata += flexes[i]->nelem * (flexes[i]->dim + 1);
+    nflexshelldata += (int)flexes[i]->shell.size();
+    nflexevpair += (int)flexes[i]->evpair.size()/2;
   }
 
-  // nmeshvert, nmeshface, nmeshtexcoord, nmeshgraph
+  // mesh counts
   for (int i=0; i<nmesh; i++) {
     nmeshvert += meshes[i]->nvert();
     nmeshnormal += meshes[i]->nnormal();
     nmeshface += meshes[i]->nface();
     nmeshtexcoord += (meshes[i]->HasTexcoord() ? meshes[i]->ntexcoord() : 0);
     nmeshgraph += meshes[i]->szgraph();
-    nbvh += meshes[i]->tree().nbvh;
   }
 
-  // nskinvert, nskintexvert, nskinface, nskinbone, nskinbonevert
+  // skin counts
   for (int i=0; i<nskin; i++) {
     nskinvert += skins[i]->vert.size()/3;
     nskintexvert += skins[i]->texcoord.size()/2;
@@ -986,6 +1028,7 @@ void mjCModel::SetSizes(void) {
   for (int i=0; i<nsite; i++)    nnames += (int)sites[i]->name.length() + 1;
   for (int i=0; i<ncam; i++)     nnames += (int)cameras[i]->name.length() + 1;
   for (int i=0; i<nlight; i++)   nnames += (int)lights[i]->name.length() + 1;
+  for (int i=0; i<nflex; i++)    nnames += (int)flexes[i]->name.length() + 1;
   for (int i=0; i<nmesh; i++)    nnames += (int)meshes[i]->name.length() + 1;
   for (int i=0; i<nskin; i++)    nnames += (int)skins[i]->name.length() + 1;
   for (int i=0; i<nhfield; i++)  nnames += (int)hfields[i]->name.length() + 1;
@@ -1271,6 +1314,9 @@ void mjCModel::CopyNames(mjModel* m) {
   adr = namelist(lights, adr, m->name_lightadr, m->names, map_adr);
   map_adr += mjLOAD_MULTIPLE*lights.size();
 
+  adr = namelist(flexes, adr, m->name_flexadr, m->names, map_adr);
+  map_adr += mjLOAD_MULTIPLE*flexes.size();
+
   adr = namelist(meshes, adr, m->name_meshadr, m->names, map_adr);
   map_adr += mjLOAD_MULTIPLE*meshes.size();
 
@@ -1382,13 +1428,17 @@ void mjCModel::CopyTree(mjModel* m) {
     m->body_gravcomp[i] = pb->gravcomp;
     copyvec(m->body_user+nuser_body*i, pb->userdata.data(), nuser_body);
 
+    m->body_contype[i] = pb->contype;
+    m->body_conaffinity[i] = pb->conaffinity;
+    m->body_margin[i] = (mjtNum)pb->margin;
+
     // bounding volume hierarchy
-    m->body_bvhadr[i] = (!pb->geoms.empty() ? bvh_adr : -1);
+    m->body_bvhadr[i] = pb->tree.nbvh ? bvh_adr : -1;
     m->body_bvhnum[i] = pb->tree.nbvh;
     if (pb->tree.nbvh) {
       memcpy(m->bvh_aabb + 6*bvh_adr, pb->tree.bvh.data(), 6*pb->tree.nbvh*sizeof(mjtNum));
       memcpy(m->bvh_child + 2*bvh_adr, pb->tree.child.data(), 2*pb->tree.nbvh*sizeof(int));
-      memcpy(m->bvh_geomid + bvh_adr, pb->tree.nodeid.data(), pb->tree.nbvh*sizeof(int));
+      memcpy(m->bvh_nodeid + bvh_adr, pb->tree.nodeid.data(), pb->tree.nbvh*sizeof(int));
       memcpy(m->bvh_depth + bvh_adr, pb->tree.level.data(), pb->tree.nbvh*sizeof(int));
     }
     bvh_adr += pb->tree.nbvh;
@@ -1753,7 +1803,8 @@ void mjCModel::CopyTree(mjModel* m) {
 // copy objects outside kinematic tree
 void mjCModel::CopyObjects(mjModel* m) {
   int adr, bone_adr, vert_adr, normal_adr, face_adr, texcoord_adr;
-  int bonevert_adr, graph_adr, data_adr, bvh_adr=0;
+  int edge_adr, elem_adr, elemdata_adr, shelldata_adr, evpair_adr;
+  int bonevert_adr, graph_adr, data_adr, bvh_adr;
 
   // sizes outside call to mj_makeModel
   m->nemax = nemax;
@@ -1762,15 +1813,18 @@ void mjCModel::CopyObjects(mjModel* m) {
   m->nsensordata = nsensordata;
   m->nuserdata = nuserdata;
 
+  // find bvh_adr after bodies
+  bvh_adr = 0;
+  for (int i=0; i<nbody; i++) {
+    bvh_adr = mjMAX(bvh_adr, m->body_bvhadr[i] + m->body_bvhnum[i]);
+  }
+
   // meshes
   vert_adr = 0;
   normal_adr = 0;
   texcoord_adr = 0;
   face_adr = 0;
   graph_adr = 0;
-  for (int i=0; i<nbody; i++) {
-    bvh_adr = mju_max(bvh_adr, m->body_bvhadr[i] + m->body_bvhnum[i]);
-  }
   for (int i=0; i<nmesh; i++) {
     // get pointer
     mjCMesh* pme = meshes[i];
@@ -1785,8 +1839,8 @@ void mjCModel::CopyObjects(mjModel* m) {
     m->mesh_faceadr[i] = face_adr;
     m->mesh_facenum[i] = pme->nface();
     m->mesh_graphadr[i] = (pme->szgraph() ? graph_adr : -1);
-    m->mesh_bvhadr[i] = bvh_adr;
     m->mesh_bvhnum[i] = pme->tree().nbvh;
+    m->mesh_bvhadr[i] = pme->tree().nbvh ? bvh_adr : -1;
     copyvec(&m->mesh_pos[3 * i], pme->GetOffsetPosPtr(), 3);
     copyvec(&m->mesh_quat[4 * i], pme->GetOffsetQuatPtr(), 4);
 
@@ -1804,10 +1858,14 @@ void mjCModel::CopyObjects(mjModel* m) {
     if (pme->szgraph()) {
       pme->CopyGraph(m->mesh_graph + graph_adr);
     }
-    memcpy(m->bvh_aabb + 6*bvh_adr, pme->tree().bvh.data(), 6*pme->tree().nbvh*sizeof(mjtNum));
-    memcpy(m->bvh_child + 2*bvh_adr, pme->tree().child.data(), 2*pme->tree().nbvh*sizeof(int));
-    memcpy(m->bvh_depth + bvh_adr, pme->tree().level.data(), pme->tree().nbvh*sizeof(int));
-    memcpy(m->bvh_geomid + bvh_adr, pme->tree().nodeid.data(), pme->tree().nbvh*sizeof(int));
+
+    // copy bvh data
+    if (pme->tree().nbvh) {
+      memcpy(m->bvh_aabb + 6*bvh_adr, pme->tree().bvh.data(), 6*pme->tree().nbvh*sizeof(mjtNum));
+      memcpy(m->bvh_child + 2*bvh_adr, pme->tree().child.data(), 2*pme->tree().nbvh*sizeof(int));
+      memcpy(m->bvh_depth + bvh_adr, pme->tree().level.data(), pme->tree().nbvh*sizeof(int));
+      memcpy(m->bvh_nodeid + bvh_adr, pme->tree().nodeid.data(), pme->tree().nbvh*sizeof(int));
+    }
 
     // advance counters
     vert_adr += pme->nvert();
@@ -1816,6 +1874,127 @@ void mjCModel::CopyObjects(mjModel* m) {
     face_adr += pme->nface();
     graph_adr += pme->szgraph();
     bvh_adr += pme->tree().nbvh;
+  }
+
+  // flexes
+  vert_adr = 0;
+  edge_adr = 0;
+  elem_adr = 0;
+  elemdata_adr = 0;
+  shelldata_adr = 0;
+  evpair_adr = 0;
+  texcoord_adr = 0;
+  for (int i=0; i<nflex; i++) {
+    // get pointer
+    mjCFlex* pfl = flexes[i];
+
+    // set fields: geom-like
+    m->flex_contype[i] = pfl->contype;
+    m->flex_conaffinity[i] = pfl->conaffinity;
+    m->flex_condim[i] = pfl->condim;
+    m->flex_matid[i] = pfl->matid;
+    m->flex_group[i] = pfl->group;
+    m->flex_priority[i] = pfl->priority;
+    m->flex_solmix[i] = (mjtNum)pfl->solmix;
+    copyvec(m->flex_solref + mjNREF * i, pfl->solref, mjNREF);
+    copyvec(m->flex_solimp + mjNIMP * i, pfl->solimp, mjNIMP);
+    m->flex_radius[i] = (mjtNum)pfl->radius;
+    copyvec(m->flex_friction + 3 * i, pfl->friction, 3);
+    m->flex_margin[i] = (mjtNum)pfl->margin;
+    m->flex_gap[i] = (mjtNum)pfl->gap;
+    copyvec(m->flex_rgba + 4 * i, pfl->rgba, 4);
+
+    // set fields: mesh-like
+    m->flex_dim[i] = pfl->dim;
+    m->flex_vertadr[i] = vert_adr;
+    m->flex_vertnum[i] = pfl->nvert;
+    m->flex_edgeadr[i] = edge_adr;
+    m->flex_edgenum[i] = pfl->nedge;
+    m->flex_elemadr[i] = elem_adr;
+    m->flex_elemdataadr[i] = elemdata_adr;
+    m->flex_shellnum[i] = (int)pfl->shell.size()/pfl->dim;
+    m->flex_shelldataadr[i] = m->flex_shellnum[i] ? shelldata_adr : -1;
+    if (pfl->evpair.empty()) {
+      m->flex_evpairadr[i] = -1;
+      m->flex_evpairnum[i] = 0;
+    } else {
+      m->flex_evpairadr[i] = evpair_adr;
+      m->flex_evpairnum[i] = (int)pfl->evpair.size()/2;
+      memcpy(m->flex_evpair + 2*evpair_adr, pfl->evpair.data(), pfl->evpair.size()*sizeof(int));
+    }
+    if (pfl->texcoord.empty()) {
+      m->flex_texcoordadr[i] = -1;
+    } else {
+      m->flex_texcoordadr[i] = texcoord_adr;
+      memcpy(m->flex_texcoord + 2*texcoord_adr,
+            pfl->texcoord.data(), pfl->texcoord.size()*sizeof(float));
+    }
+    m->flex_elemnum[i] = pfl->nelem;
+    memcpy(m->flex_elem + elemdata_adr, pfl->elem.data(), pfl->elem.size()*sizeof(int));
+    memcpy(m->flex_elemlayer + elem_adr, pfl->elemlayer.data(), pfl->nelem*sizeof(int));
+    if (m->flex_shellnum[i]) {
+      memcpy(m->flex_shell + shelldata_adr, pfl->shell.data(), pfl->shell.size()*sizeof(int));
+    }
+    m->flex_edgestiffness[i] = (mjtNum)pfl->edgestiffness;
+    m->flex_edgedamping[i] = (mjtNum)pfl->edgedamping;
+    m->flex_rigid[i] = pfl->rigid;
+    m->flex_centered[i] = pfl->centered;
+    m->flex_internal[i] = pfl->internal;
+    m->flex_flatskin[i] = pfl->flatskin;
+    m->flex_selfcollide[i] = pfl->selfcollide;
+    m->flex_activelayers[i] = pfl->activelayers;
+    m->flex_bvhnum[i] = pfl->tree.nbvh;
+    m->flex_bvhadr[i] = pfl->tree.nbvh ? bvh_adr : -1;
+
+    // find equality constraint referencing this flex
+    m->flex_edgeequality[i] = 0;
+    for (int k=0; k<(int)equalities.size(); k++) {
+      if (equalities[k]->type==mjEQ_FLEX && equalities[k]->name1==pfl->name) {
+        m->flex_edgeequality[i] = 1;
+        break;
+      }
+    }
+
+    // copy bvh data (flex aabb computed dynamically in mjData)
+    if (pfl->tree.nbvh) {
+      memcpy(m->bvh_child + 2*bvh_adr, pfl->tree.child.data(), 2*pfl->tree.nbvh*sizeof(int));
+      memcpy(m->bvh_depth + bvh_adr, pfl->tree.level.data(), pfl->tree.nbvh*sizeof(int));
+      memcpy(m->bvh_nodeid + bvh_adr, pfl->tree.nodeid.data(), pfl->tree.nbvh*sizeof(int));
+    }
+
+    // copy or set vert
+    if (pfl->centered) {
+      mju_zero(m->flex_vert + 3*vert_adr, 3*pfl->nvert);
+    }
+    else {
+      memcpy(m->flex_vert + 3*vert_adr, pfl->vert.data(), 3*pfl->nvert*sizeof(mjtNum));
+    }
+
+    // copy or set vertbodyid
+    if (pfl->rigid) {
+      for (int k=0; k<pfl->nvert; k++) {
+        m->flex_vertbodyid[vert_adr + k] = pfl->vertbodyid[0];
+      }
+    }
+    else {
+      memcpy(m->flex_vertbodyid + vert_adr, pfl->vertbodyid.data(), pfl->nvert*sizeof(int));
+    }
+
+    // convert edge pairs to int array
+    for (int i=0; i<pfl->nedge; i++) {
+      m->flex_edge[2*(edge_adr+i)] = pfl->edge[i].first;
+      m->flex_edge[2*(edge_adr+i)+1] = pfl->edge[i].second;
+    }
+
+    // advance counters
+    vert_adr += pfl->nvert;
+    edge_adr += pfl->nedge;
+    elem_adr += pfl->nelem;
+    elemdata_adr += (pfl->dim+1) * pfl->nelem;
+    shelldata_adr += (int)pfl->shell.size();
+    evpair_adr += (int)pfl->evpair.size()/2;
+    texcoord_adr += (int)pfl->texcoord.size()/2;
+    bvh_adr += pfl->tree.nbvh;
   }
 
   // skins
@@ -1830,8 +2009,8 @@ void mjCModel::CopyObjects(mjModel* m) {
 
     // set fields
     m->skin_matid[i] = psk->matid;
-    copyvec(m->skin_rgba+4*i, psk->rgba, 4);
     m->skin_group[i] = psk->group;
+    copyvec(m->skin_rgba+4*i, psk->rgba, 4);
     m->skin_inflate[i] = psk->inflate;
     m->skin_vertadr[i] = vert_adr;
     m->skin_vertnum[i] = psk->vert.size()/3;
@@ -2412,7 +2591,6 @@ void mjCModel::FuseStatic(void) {
 
 
 
-
 //------------------------------- COMPILER ---------------------------------------------------------
 
 // signature comparisons
@@ -2445,13 +2623,25 @@ static void processlist(vector<T*>& list, string defname, bool checkrepeat=true)
 
     // id equals position in array
     list[i]->id = i;
+  }
 
-    // compare to all previous names
-    if (checkrepeat) {
-      for (int j=0; j<i; j++) {
-        if (list[i]->name == list[j]->name && list[j]->name != "") {
-          throw mjCError(list[i], "repeated name in %s array, position %d", defname.c_str(), i);
-        }
+  // check for repeated names
+  if (checkrepeat) {
+    // created vectors with all names
+    vector<string> allnames;
+    for (int i=0; i<(int)list.size(); i++) {
+      if (!list[i]->name.empty()) {
+        allnames.push_back(list[i]->name);
+      }
+    }
+
+    // sort and check for duplicates
+    if (allnames.size()>1) {
+      std::sort(allnames.begin(), allnames.end());
+      auto adjacent = std::adjacent_find(allnames.begin(), allnames.end());
+      if (adjacent!=allnames.end()) {
+        string msg = "repeated name '" + *adjacent + "' in " + defname;
+        throw mjCError(NULL, msg.c_str());
       }
     }
   }
@@ -2549,6 +2739,11 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
     throw mjCError(0, "joint found in world body");
   }
 
+  // check for too many body+flex
+  if (bodies.size()+flexes.size()>=65534) {
+    throw mjCError(0, "number of bodies plus flexes must be less than 65534");
+  }
+
   // append directory separator
   if (!meshdir.empty()) {
     int n = meshdir.length();
@@ -2578,6 +2773,7 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
   processlist(sites, "site");
   processlist(cameras, "camera");
   processlist(lights, "light");
+  processlist(flexes, "flex");
   processlist(meshes, "mesh");
   processlist(skins, "skin");
   processlist(hfields, "hfield");
@@ -2668,6 +2864,7 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
   }
 
   // compile all other objects except for keyframes
+  for (int i=0; i<flexes.size(); i++) flexes[i]->Compile(vfs);
   for (int i=0; i<skins.size(); i++) skins[i]->Compile(vfs);
   for (int i=0; i<hfields.size(); i++) hfields[i]->Compile(vfs);
   for (int i=0; i<textures.size(); i++) textures[i]->Compile(vfs);
@@ -2744,12 +2941,13 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
   }
 
   // create low-level model
-  m = mj_makeModel(nq, nv, nu, na, nbody, nbvh, njnt, ngeom, nsite, ncam, nlight,
+  m = mj_makeModel(nq, nv, nu, na, nbody, nbvh, nbvhstatic, nbvhdynamic, njnt, ngeom, nsite,
+                   ncam, nlight, nflex, nflexvert, nflexedge, nflexelem,
+                   nflexelemdata, nflexshelldata, nflexevpair, nflextexcoord,
                    nmesh, nmeshvert, nmeshnormal, nmeshtexcoord, nmeshface, nmeshgraph,
                    nskin, nskinvert, nskintexvert, nskinface, nskinbone, nskinbonevert,
                    nhfield, nhfielddata, ntex, ntexdata, nmat, npair, nexclude,
-                   neq, ntendon, nwrap, nsensor,
-                   nnumeric, nnumericdata, ntext, ntextdata,
+                   neq, ntendon, nwrap, nsensor, nnumeric, nnumericdata, ntext, ntextdata,
                    ntuple, ntupledata, nkey, nmocap, nplugin, npluginattr,
                    nuser_body, nuser_jnt, nuser_geom, nuser_site, nuser_cam,
                    nuser_tendon, nuser_actuator, nuser_sensor, nnames, npaths);

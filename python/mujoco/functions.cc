@@ -199,6 +199,7 @@ PYBIND11_MODULE(_functions, pymodule) {
   Def<traits::mj_kinematics>(pymodule);
   Def<traits::mj_comPos>(pymodule);
   Def<traits::mj_camlight>(pymodule);
+  Def<traits::mj_flex>(pymodule);
   Def<traits::mj_tendon>(pymodule);
   Def<traits::mj_transmission>(pymodule);
   Def<traits::mj_crb>(pymodule);
@@ -581,6 +582,7 @@ PYBIND11_MODULE(_functions, pymodule) {
   Def<traits::mj_rayHfield>(pymodule);
   Def<traits::mj_rayMesh>(pymodule);
   Def<traits::mju_rayGeom>(pymodule);
+  Def<traits::mju_rayFlex>(pymodule);
   Def<traits::mju_raySkin>(pymodule);
 
   // Interaction

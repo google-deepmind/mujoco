@@ -247,6 +247,12 @@ int mjv_updateSceneFromState(const mjvSceneState* scnstate, const mjvOption* opt
   // update camera
   mjv_updateCamera(&m, &d, cam, scn);
 
+  // update flexes
+  if (opt->flags[mjVIS_FLEXVERT] || opt->flags[mjVIS_FLEXEDGE] ||
+      opt->flags[mjVIS_FLEXFACE] || opt->flags[mjVIS_FLEXSKIN]) {
+    mjv_updateActiveFlex(&m, &d, scn, opt);
+  }
+
   // update skins
   if (opt->flags[mjVIS_SKIN]) {
     mjv_updateActiveSkin(&m, &d, scn, opt);

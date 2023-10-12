@@ -631,7 +631,7 @@ TEST_F(XMLReaderTest, InvalidSkinGroup) {
   )";
   std::array<char, 1024> error;
   mjModel* model = LoadModelFromString(xml, error.data(), error.size());
-  ASSERT_THAT(model, IsNull());
+  EXPECT_THAT(model, IsNull());
   EXPECT_THAT(
       error.data(),
       HasSubstr("skin group must be between 0 and 5\nElement 'skin', line 7"));

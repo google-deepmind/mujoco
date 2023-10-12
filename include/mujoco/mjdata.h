@@ -97,7 +97,7 @@ typedef enum mjtTimer_ {     // internal timers
 //---------------------------------- mjContact -----------------------------------------------------
 
 struct mjContact_ {                // result of collision detection functions
-  // contact parameters set by geom-specific collision detector
+  // contact parameters set by near-phase collision function
   mjtNum  dist;                    // distance between nearest points; neg: penetration
   mjtNum  pos[3];                  // position of contact point: midpoint between geoms
   mjtNum  frame[9];                // normal is in [0-2]
@@ -113,12 +113,16 @@ struct mjContact_ {                // result of collision detection functions
   mjtNum  mu;                      // friction of regularized cone, set by mj_makeConstraint
   mjtNum  H[36];                   // cone Hessian, set by mj_updateConstraint
 
-  // contact descriptors set by mj_collideGeoms
+  // contact descriptors set by mj_collideXXX
   int     dim;                     // contact space dimensionality: 1, 3, 4 or 6
   int     geom1;                   // id of geom 1
   int     geom2;                   // id of geom 2
+  int     geom[2];                 // geom ids; -1 for flex
+  int     flex[2];                 // flex ids; -1 for geom
+  int     elem[2];                 // element ids; -1 for geom or flex vertex
+  int     vert[2];                 // vertex ids;  -1 for geom or flex element
 
-  // flag set by mj_instantianteEquality
+  // flag set by mj_setContact or mj_instantiateContact
   int     exclude;                 // 0: include, 1: in gap, 2: fused, 3: no dofs
 
   // address computed by mj_instantiateContact
@@ -187,12 +191,6 @@ struct mjData_ {
   int     solver_niter[mjNISLAND];  // number of solver iterations, per island
   int     solver_nnz[mjNISLAND];    // number of non-zeros in Hessian or efc_AR, per island
   mjtNum  solver_fwdinv[2];         // forward-inverse comparison: qfrc, efc
-
-  // collision statistics
-  int     nbodypair_broad;   // number of body pairs in collision according to the broad-phase
-  int     nbodypair_narrow;  // number of body pairs actually in collision in the narrow-phase
-  int     ngeompair_mid;     // number of geom pairs in collision according to the mid-phase
-  int     ngeompair_narrow;  // number of geom pairs actually in collision in the narrow-phase
 
   // variable sizes
   int     ne;                // number of equality constraints
@@ -270,14 +268,23 @@ struct mjData_ {
   mjtNum* cdof;              // com-based motion axis of each dof                (nv x 6)
   mjtNum* cinert;            // com-based body inertia and mass                  (nbody x 10)
 
+  // computed by mj_fwdPosition/mj_flex
+  mjtNum* flexvert_xpos;     // Cartesian flex vertex positions                  (nflexvert x 3)
+  mjtNum* flexelem_aabb;     // flex element bounding boxes (center, size)       (nflexelem x 6)
+  int*    flexedge_J_rownnz; // number of non-zeros in Jacobian row              (nflexedge x 1)
+  int*    flexedge_J_rowadr; // row start address in colind array                (nflexedge x 1)
+  int*    flexedge_J_colind; // column indices in sparse Jacobian                (nflexedge x nv)
+  mjtNum* flexedge_J;        // flex edge Jacobian                               (nflexedge x nv)
+  mjtNum* flexedge_length;   // flex edge lengths                                (nflexedge x 1)
+
   // computed by mj_fwdPosition/mj_tendon
   int*    ten_wrapadr;       // start address of tendon's path                   (ntendon x 1)
   int*    ten_wrapnum;       // number of wrap points in path                    (ntendon x 1)
   int*    ten_J_rownnz;      // number of non-zeros in Jacobian row              (ntendon x 1)
   int*    ten_J_rowadr;      // row start address in colind array                (ntendon x 1)
   int*    ten_J_colind;      // column indices in sparse Jacobian                (ntendon x nv)
-  mjtNum* ten_length;        // tendon lengths                                   (ntendon x 1)
   mjtNum* ten_J;             // tendon Jacobian                                  (ntendon x nv)
+  mjtNum* ten_length;        // tendon lengths                                   (ntendon x 1)
   int*    wrap_obj;          // geom id; -1: site; -2: pulley                    (nwrap*2 x 1)
   mjtNum* wrap_xpos;         // Cartesian 3D points in all path                  (nwrap*2 x 3)
 
@@ -295,11 +302,13 @@ struct mjData_ {
   mjtNum* qLDiagSqrtInv;     // 1/sqrt(diag(D))                                  (nv x 1)
 
   // computed by mj_collisionTree
+  mjtNum*  bvh_aabb_dyn;     // global bounding box (center, size)               (nbvhdynamic x 6)
   mjtByte* bvh_active;       // volume has been added to collisions              (nbvh x 1)
 
   //-------------------- POSITION, VELOCITY dependent
 
   // computed by mj_fwdVelocity
+  mjtNum* flexedge_velocity; // flex edge velocities                             (nflexedge x 1)
   mjtNum* ten_velocity;      // tendon velocities                                (ntendon x 1)
   mjtNum* actuator_velocity; // actuator velocities                              (nu x 1)
 
@@ -318,8 +327,8 @@ struct mjData_ {
   mjtNum* subtree_angmom;    // angular momentum about subtree com               (nbody x 3)
 
   // computed by mj_Euler or mj_implicit
-  mjtNum*   qH;              // L'*D*L factorization of modified M               (nM x 1)
-  mjtNum*   qHDiagInv;       // 1/diag(D) of modified M                          (nv x 1)
+  mjtNum* qH;                // L'*D*L factorization of modified M               (nM x 1)
+  mjtNum* qHDiagInv;         // 1/diag(D) of modified M                          (nv x 1)
 
   // computed by mj_resetData
   int*    D_rownnz;          // non-zeros in each row                            (nv x 1)

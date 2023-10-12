@@ -127,6 +127,7 @@ void mj_fwdPosition(const mjModel* m, mjData* d) {
   mj_kinematics(m, d);
   mj_comPos(m, d);
   mj_camlight(m, d);
+  mj_flex(m, d);
   mj_tendon(m, d);
   TM_END(mjTIMER_POS_KINEMATICS);
 
@@ -182,6 +183,14 @@ void mj_fwdPosition(const mjModel* m, mjData* d) {
 void mj_fwdVelocity(const mjModel* m, mjData* d) {
   TM_START;
 
+  // flexedge velocity: dense or sparse
+  if (mj_isSparse(m)) {
+    mju_mulMatVecSparse(d->flexedge_velocity, d->flexedge_J, d->qvel, m->nflexedge,
+                        d->flexedge_J_rownnz, d->flexedge_J_rowadr, d->flexedge_J_colind, NULL);
+  } else {
+    mju_mulMatVec(d->flexedge_velocity, d->flexedge_J, d->qvel, m->nflexedge, m->nv);
+  }
+
   // tendon velocity: dense or sparse
   if (mj_isSparse(m)) {
     mju_mulMatVecSparse(d->ten_velocity, d->ten_J, d->qvel, m->ntendon,
@@ -190,10 +199,10 @@ void mj_fwdVelocity(const mjModel* m, mjData* d) {
     mju_mulMatVec(d->ten_velocity, d->ten_J, d->qvel, m->ntendon, m->nv);
   }
 
-  // actuator velocity
+  // actuator velocity: always dense
   mju_mulMatVec(d->actuator_velocity, d->actuator_moment, d->qvel, m->nu, m->nv);
 
-  // standard velocity computations
+  // com-based velocities, passive forces, constraint references
   mj_comVel(m, d);
   mj_passive(m, d);
   mj_referenceConstraint(m, d);

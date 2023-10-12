@@ -312,6 +312,9 @@ MJAPI void mj_comPos(const mjModel* m, mjData* d);
 // Compute camera and light positions and orientations.
 MJAPI void mj_camlight(const mjModel* m, mjData* d);
 
+// Compute flex-related quantities.
+MJAPI void mj_flex(const mjModel* m, mjData* d);
+
 // Compute tendon lengths, velocities and moment arms.
 MJAPI void mj_tendon(const mjModel* m, mjData* d);
 
@@ -518,6 +521,12 @@ MJAPI mjtNum mj_rayMesh(const mjModel* m, const mjData* d, int geomid,
 MJAPI mjtNum mju_rayGeom(const mjtNum pos[3], const mjtNum mat[9], const mjtNum size[3],
                          const mjtNum pnt[3], const mjtNum vec[3], int geomtype);
 
+// Intersect ray with flex, return nearest distance or -1 if no intersection,
+// and also output nearest vertex id.
+MJAPI mjtNum mju_rayFlex(const mjModel* m, const mjData* d, int flex_layer, mjtByte flg_vert,
+                         mjtByte flg_edge, mjtByte flg_face, mjtByte flg_skin, int flexid,
+                         const mjtNum* pnt, const mjtNum* vec, int vertid[1]);
+
 // Intersect ray with skin, return nearest distance or -1 if no intersection,
 // and also output nearest vertex id.
 MJAPI mjtNum mju_raySkin(int nface, int nvert, const int* face, const float* vert,
@@ -593,10 +602,11 @@ MJAPI void mjv_applyPerturbForce(const mjModel* m, mjData* d, const mjvPerturb* 
 // Return the average of two OpenGL cameras.
 MJAPI mjvGLCamera mjv_averageCamera(const mjvGLCamera* cam1, const mjvGLCamera* cam2);
 
-// Select geom or skin with mouse, return bodyid; -1: none selected.
+// Select geom, flex or skin with mouse, return bodyid; -1: none selected.
 MJAPI int mjv_select(const mjModel* m, const mjData* d, const mjvOption* vopt,
                      mjtNum aspectratio, mjtNum relx, mjtNum rely,
-                     const mjvScene* scn, mjtNum selpnt[3], int geomid[1], int skinid[1]);
+                     const mjvScene* scn, mjtNum selpnt[3],
+                     int geomid[1], int flexid[1], int skinid[1]);
 
 
 //---------------------------------- Visualization -------------------------------------------------

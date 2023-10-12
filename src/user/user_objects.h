@@ -35,8 +35,9 @@ class mjCGeom;
 class mjCSite;
 class mjCCamera;
 class mjCLight;
-class mjCMesh;
-class mjCSkin;
+class mjCFlex;                        // defined in user_mesh
+class mjCMesh;                        // defined in user_mesh
+class mjCSkin;                        // defined in user_mesh
 class mjCTexture;
 class mjCMaterial;
 class mjCPair;
@@ -50,7 +51,6 @@ class mjCNumeric;
 class mjCText;
 class mjCTuple;
 class mjCDef;
-class mjCMesh;                      // defined in user_mesh
 class mjCModel;                     // defined in user_model
 class mjXWriter;                    // defined in xml_native
 class mjXURDF;                      // defined in xml_urdf
@@ -118,10 +118,6 @@ class mjCAlternative {
 
 
 
-
-
-
-
 //------------------------- class mjCBoundingVolumeHierarchy ---------------------------------------
 
 // bounding volume
@@ -132,7 +128,7 @@ class mjCBoundingVolume {
   int id;                       // object id
   int contype;                  // contact type
   int conaffinity;              // contact affinity
-  const mjtNum* aabb;           // half-sizes of axis-aligned bounding box
+  const mjtNum* aabb;           // axis-aligned bounding box (center, size)
   const mjtNum* pos;            // position (set by user or Compile1)
   const mjtNum* quat;           // orientation (set by user or Compile1)
 };
@@ -146,11 +142,11 @@ class mjCBoundingVolumeHierarchy {
   int nbvh;
   std::vector<mjtNum> bvh;            // bounding boxes                                (nbvh x 6)
   std::vector<int> child;             // children of each node                         (nbvh x 2)
-  std::vector<int> nodeid;            // id of the geom contained by the node          (nbvh x 1)
+  std::vector<int> nodeid;            // geom of elem id contained by the node         (nbvh x 1)
   std::vector<int> level;             // levels of each node                           (nbvh x 1)
 
   // make bounding volume hierarchy
-  void CreateBVH();
+  void CreateBVH(void);
   void Set(mjtNum ipos_element[3], mjtNum iquat_element[4]);
   void AddBoundingVolume(const mjCBoundingVolume& bv);
 
@@ -174,7 +170,7 @@ class mjCBase {
 
  public:
   // load resource if found (fallback to OS filesystem)
-  mjResource* LoadResource(std::string filename, const mjVFS* vfs);
+  static mjResource* LoadResource(std::string filename, const mjVFS* vfs);
 
   // Get and sanitize content type from raw_text if not empty, otherwise parse
   // content type from resource_name; throw on failure
@@ -208,6 +204,7 @@ class mjCBody : public mjCBase {
   friend class mjCSite;
   friend class mjCCamera;
   friend class mjCLight;
+  friend class mjCFlex;
   friend class mjCEquality;
   friend class mjCPair;
   friend class mjCModel;
@@ -265,6 +262,12 @@ class mjCBody : public mjCBase {
   int dofnum;                     // number of motion dofs for body
   int mocapid;                    // mocap id, -1: not mocap
   bool explicitinertial;          // whether to save the body with an explicit inertial clause
+
+  int contype;                    // OR over geom contypes
+  int conaffinity;                // OR over geom conaffinities
+  double margin;                  // MAX over geom margins
+  mjtNum xpos0[3];                // global position in qpos0
+  mjtNum xquat0[4];               // global orientation in qpos0
 
   // used internally by compiler
   int lastdof;                    // id of last dof
@@ -389,7 +392,7 @@ class mjCGeom : public mjCBase {
   double fromto[6];               // alternative for capsule, cylinder, box, ellipsoid
   mjCAlternative alt;             // alternative orientation specifications
 
-  // variables set by user or 'Compile1'
+  // variables set by user or 'Compile'
   double pos[3];                  // position
   double quat[4];                 // orientation
 
@@ -406,7 +409,7 @@ class mjCGeom : public mjCBase {
   double inertia[3];              // local diagonal inertia
   double locpos[3];               // local position
   double locquat[4];              // local orientation
-  double aabb[6];                 // half-sizes of axis-aligned bounding box
+  double aabb[6];                 // axis-aligned bounding box (center, size)
   mjCBody* body;                  // geom's body
 };
 
@@ -524,10 +527,75 @@ class mjCLight : public mjCBase {
 
 
 
+//------------------------- class mjCFlex ----------------------------------------------------------
+// Describes a flex
+
+class mjCFlex: public mjCBase {
+  friend class mjCDef;
+  friend class mjCModel;
+  friend class mjCFlexcomp;
+  friend class mjCEquality;
+  friend class mjXWriter;
+
+ public:
+  // contact properties
+  int contype;                    // contact type
+  int conaffinity;                // contact affinity
+  int condim;                     // contact dimensionality
+  int priority;                   // contact priority
+  double friction[3];             // one-sided friction coefficients: slide, roll, spin
+  double solmix;                  // solver mixing for contact pairs
+  mjtNum solref[mjNREF];          // solver reference
+  mjtNum solimp[mjNIMP];          // solver impedance
+  double margin;                  // margin for contact detection
+  double gap;                     // include in solver if dist<margin-gap
+
+  // other properties
+  int dim;                        // element dimensionality
+  double radius;                  // radius around primitive element
+  bool internal;                  // enable internal collisions
+  bool flatskin;                  // render flex skin with flat shading
+  int selfcollide;                // mode for flex self colllision
+  int activelayers;               // number of active element layers in 3D
+  int group;                      // group for visualizatioh
+  double edgestiffness;           // edge stiffness
+  double edgedamping;             // edge damping
+  std::string material;           // name of material used for rendering
+  float rgba[4];                  // rgba when material is omitted
+
+  std::vector<std::string> vertbody;  // vertex body names
+  std::vector<mjtNum> vert;           // vertex positions
+  std::vector<int> elem;              // element vertex ids
+  std::vector<float> texcoord;        // vertex texture coordinates
+
+ private:
+  mjCFlex(mjCModel* = 0);                     // constructor
+  void Compile(const mjVFS* vfs);             // compiler
+  void CreateBVH(void);                       // create flex BVH
+  void CreateShellPair(void);                 // create shells and evpairs
+
+  int nvert;                          // number of verices
+  int nedge;                          // number of edges
+  int nelem;                          // number of elements
+  int matid;                          // material id
+  bool rigid;                         // all vertices attached to the same body
+  bool centered;                      // all vertices coordinates (0,0,0)
+  std::vector<int> vertbodyid;        // vertex body ids
+  std::vector<std::pair<int,int>> edge; // edge vertex ids
+  std::vector<int> shell;             // shell fragment vertex ids (dim per fragment)
+  std::vector<int> elemlayer;         // element layer (distance from border)
+  std::vector<int> evpair;            // element-vertex pairs
+  std::vector<mjtNum> vertxpos;       // global vertex positions
+  mjCBoundingVolumeHierarchy tree;    // bounding volume hierarchy
+};
+
+
+
 //------------------------- class mjCMesh ----------------------------------------------------------
 // Describes a mesh
 
 class mjCMesh: public mjCBase {
+ friend class mjCFlexcomp;
  public:
   mjCMesh(mjCModel* = 0, mjCDef* = 0);
   ~mjCMesh();
@@ -548,7 +616,7 @@ class mjCMesh: public mjCBase {
 
   // mesh properites computed by Compile
   const double* boxsz_volume() const { return boxsz_volume_; }
-  const double* aabb() const { return aabb_; }
+  const double* aamm() const { return aamm_; }
 
   // number of vertices, normals, texture coordinates, and faces
   int nvert() const { return nvert_; }
@@ -652,7 +720,7 @@ class mjCMesh: public mjCBase {
   double quat_[4];                    // rotation applied to asset vertices
   double boxsz_volume_[3];            // half-sizes of equivalent inertia box (volume)
   double boxsz_surface_[3];           // half-sizes of equivalent inertia box (surface)
-  double aabb_[6];                    // axis-aligned bounding box
+  double aamm_[6];                    // axis-aligned bounding box in (min, max) format
   double volume_;                     // volume of the mesh
   double surface_;                    // surface of the mesh
 
@@ -864,7 +932,7 @@ class mjCPair : public mjCBase {
 
   int geom1;                      // id of geom1
   int geom2;                      // id of geom2
-  int signature;                  // (body1+1)<<16 + body2+1
+  int signature;                  // body1<<16 + body2
 };
 
 
@@ -891,7 +959,7 @@ class mjCBodyPair : public mjCBase {
 
   int body1;                      // id of body1
   int body2;                      // id of body2
-  int signature;                  // (body1+1)<<16 + body2+1
+  int signature;                  // body1<<16 + body2
 };
 
 
@@ -1199,6 +1267,7 @@ class mjCDef {
   mjCSite     site;
   mjCCamera   camera;
   mjCLight    light;
+  mjCFlex     flex;
   mjCMesh     mesh;
   mjCMaterial material;
   mjCPair     pair;

@@ -44,6 +44,7 @@ class mjCModel {
   friend class mjCBody;
   friend class mjCJoint;
   friend class mjCGeom;
+  friend class mjCFlex;
   friend class mjCMesh;
   friend class mjCSkin;
   friend class mjCHField;
@@ -72,6 +73,7 @@ class mjCModel {
 
 
   //------------------------ API for adding model elements
+  mjCFlex*     AddFlex(void);                          // flex
   mjCMesh*     AddMesh(mjCDef* def = 0);               // mesh
   mjCSkin*     AddSkin(void);                          // skin
   mjCHField*   AddHField(void);                        // heightfield
@@ -194,6 +196,7 @@ class mjCModel {
   int nsite;                      // number of sites
   int ncam;                       // number of cameras
   int nlight;                     // number of lights
+  int nflex;                      // number of flexes
   int nmesh;                      // number of meshes
   int nskin;                      // number of skins
   int nhfield;                    // number of height fields
@@ -216,7 +219,16 @@ class mjCModel {
   int nv;                         // number of degrees of freedom = dim(qvel)
   int nu;                         // number of actuators/controls
   int na;                         // number of activation variables
-  int nbvh;                       // number of boundary volume hierarchies
+  int nbvh;                       // number of total boundary volume hierarchies
+  int nbvhstatic;                 // number of static boundary volume hierarchies
+  int nbvhdynamic;                // number of dynamic boundary volume hierarchies
+  int nflexvert;                  // number of vertices in all flexes
+  int nflexedge;                  // number of edges in all flexes
+  int nflexelem;                  // number of elements in all flexes
+  int nflexelemdata;              // number of element vertex ids in all flexes
+  int nflexshelldata;             // number of shell fragment vertex ids in all flexes
+  int nflexevpair;                // number of element-vertex pairs in all flexes
+  int nflextexcoord;              // number of vertex texture coordinates in all flexes
   int nmeshvert;                  // number of vertices in all meshes
   int nmeshnormal;                // number of normals in all meshes
   int nmeshtexcoord;              // number of texture coordinates in all meshes
@@ -243,6 +255,7 @@ class mjCModel {
 
   //------------------------ object lists
   // objects created here
+  std::vector<mjCFlex*>     flexes;      // list of flexes
   std::vector<mjCMesh*>     meshes;      // list of meshes
   std::vector<mjCSkin*>     skins;       // list of skins
   std::vector<mjCHField*>   hfields;     // list of height fields

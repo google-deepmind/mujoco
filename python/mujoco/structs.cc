@@ -490,7 +490,11 @@ MjContactWrapper::MjWrapper()
       X(solref),
       X(solreffriction),
       X(solimp),
-      X(H) {}
+      X(H),
+      X(geom),
+      X(flex),
+      X(elem),
+      X(vert) {}
 
 MjContactWrapper::MjWrapper(raw::MjContact* ptr, py::handle owner)
     : WrapperBase(ptr, owner),
@@ -500,7 +504,11 @@ MjContactWrapper::MjWrapper(raw::MjContact* ptr, py::handle owner)
       X(solref),
       X(solreffriction),
       X(solimp),
-      X(H) {}
+      X(H),
+      X(geom),
+      X(flex),
+      X(elem),
+      X(vert) {}
 #undef X
 
 MjContactWrapper::MjWrapper(const MjContactWrapper& other)
@@ -1110,6 +1118,7 @@ MjvOptionWrapper::MjWrapper()
       X(jointgroup),
       X(tendongroup),
       X(actuatorgroup),
+      X(flexgroup),
       X(skingroup),
       X(flags) {}
 #undef X
@@ -1141,6 +1150,18 @@ MjvSceneWrapper::MjWrapper()
       nskinvert(0),
       XN(geoms, 0),
       XN(geomorder, 0),
+      XN(flexedgeadr, 0),
+      XN(flexedgenum, 0),
+      XN(flexvertadr, 0),
+      XN(flexvertnum, 0),
+      XN(flexfaceadr, 0),
+      XN(flexfacenum, 0),
+      XN(flexfaceused, 0),
+      XN(flexedge, 0),
+      XN(flexvert, 0),
+      XN(flexface, 0),
+      XN(flexnormal, 0),
+      XN(flextexcoord, 0),
       XN(skinfacenum, 0),
       XN(skinvertadr, 0),
       XN(skinvertnum, 0),
@@ -1170,8 +1191,54 @@ MjvSceneWrapper::MjWrapper(const MjModelWrapper& model, int maxgeom)
         }
         return nskinvert;
       }(model.get())),
+      nflexface([](const raw::MjModel* m) {
+        int nflexface = 0;
+        int flexfacenum = 0;
+        for (int f=0; f < m->nflex; f++) {
+          if (m->flex_dim[f] == 0) {
+            // 1D : 0
+            flexfacenum = 0;
+          } else if (m->flex_dim[f] == 2) {
+            // 2D: 2*fragments + 2*elements
+            flexfacenum = 2*m->flex_shellnum[f] + 2*m->flex_elemnum[f];
+          } else {
+            // 3D: max(fragments, 4*maxlayer)
+            // find number of elements in biggest layer
+            int maxlayer = 0, layer = 0, nlayer = 1;
+            while (nlayer) {
+              nlayer = 0;
+              for (int e=0; e < m->flex_elemnum[f]; e++) {
+                if (m->flex_elemlayer[m->flex_elemadr[f]+e] == layer) {
+                  nlayer++;
+                }
+              }
+              maxlayer = mjMAX(maxlayer, nlayer);
+              layer++;
+            }
+            flexfacenum = mjMAX(m->flex_shellnum[f], 4*maxlayer);
+          }
+
+          // accumulate over flexes
+          nflexface += flexfacenum;
+        }
+        return nflexface;
+      }(model.get())),
+      nflexedge(model.get()->nflexedge),
+      nflexvert(model.get()->nflexvert),
       XN(geoms, ptr_->maxgeom),
       XN(geomorder, ptr_->maxgeom),
+      XN(flexedgeadr, ptr_->nflex),
+      XN(flexedgenum, ptr_->nflex),
+      XN(flexvertadr, ptr_->nflex),
+      XN(flexvertnum, ptr_->nflex),
+      XN(flexfaceadr, ptr_->nflex),
+      XN(flexfacenum, ptr_->nflex),
+      XN(flexfaceused, ptr_->nflex),
+      XN(flexedge, 2*nflexedge),
+      XN(flexvert, 3*nflexvert),
+      XN(flexface, 9*nflexface),
+      XN(flexnormal, 9*nflexface),
+      XN(flextexcoord, 6*nflexface),
       XN(skinfacenum, ptr_->nskin),
       XN(skinvertadr, ptr_->nskin),
       XN(skinvertnum, ptr_->nskin),
@@ -1208,6 +1275,18 @@ MjvSceneWrapper::MjWrapper(const MjvSceneWrapper& other)
 
   XN(geoms, ptr_->ngeom);
   XN(geomorder, ptr_->ngeom);
+  XN(flexedgeadr, ptr_->nflex);
+  XN(flexedgenum, ptr_->nflex);
+  XN(flexvertadr, ptr_->nflex);
+  XN(flexvertnum, ptr_->nflex);
+  XN(flexfaceadr, ptr_->nflex);
+  XN(flexfacenum, ptr_->nflex);
+  XN(flexfaceused, ptr_->nflex);
+  XN(flexedge, 2*nflexedge);
+  XN(flexvert, 3*nflexvert);
+  XN(flexface, 9*nflexface);
+  XN(flexnormal, 9*nflexface);
+  XN(flextexcoord, 6*nflexface);
   XN(skinfacenum, ptr_->nskin);
   XN(skinvertadr, ptr_->nskin);
   XN(skinvertnum, ptr_->nskin);
@@ -1756,6 +1835,10 @@ This is useful for example when the MJB is not available as a file on disk.)"));
   X(solreffriction);
   X(solimp);
   X(H);
+  X(geom);
+  X(flex);
+  X(elem);
+  X(vert);
 #undef X
 
   py::class_<MjContactList> mjContactList(m, "_MjContactList");
@@ -1794,6 +1877,10 @@ This is useful for example when the MJB is not available as a file on disk.)"));
   X(int, geom2);
   X(int, exclude);
   X(int, efc_address);
+  XN(int, geom);
+  XN(int, flex);
+  XN(int, elem);
+  XN(int, vert);
 #undef X
 #undef XN
 
@@ -1985,6 +2072,7 @@ This is useful for example when the MJB is not available as a file on disk.)"));
         c.get()->var = rhs;                                          \
       })
   X(select);
+  X(flexselect);
   X(skinselect);
   X(active);
   X(active2);
@@ -2154,6 +2242,7 @@ This is useful for example when the MJB is not available as a file on disk.)"));
   X(label);
   X(frame);
   X(bvh_depth);
+  X(flex_layer);
 #undef X
 
 #define X(var) DefinePyArray(mjvOption, #var, &MjvOptionWrapper::var)
@@ -2162,6 +2251,7 @@ This is useful for example when the MJB is not available as a file on disk.)"));
   X(jointgroup);
   X(tendongroup);
   X(actuatorgroup);
+  X(flexgroup);
   X(skingroup);
   X(flags);
 #undef X
@@ -2185,8 +2275,13 @@ This is useful for example when the MJB is not available as a file on disk.)"));
       })
   X(maxgeom);
   X(ngeom);
+  X(nflex);
   X(nskin);
   X(nlight);
+  X(flexvertopt);
+  X(flexedgeopt);
+  X(flexfaceopt);
+  X(flexskinopt);
   X(enabletransform);
   X(scale);
   X(stereo);
@@ -2196,6 +2291,18 @@ This is useful for example when the MJB is not available as a file on disk.)"));
 #define X(var) DefinePyArray(mjvScene, #var, &MjvSceneWrapper::var)
   X(geoms);
   X(geomorder);
+  X(flexedgeadr);
+  X(flexedgenum);
+  X(flexvertadr);
+  X(flexvertnum);
+  X(flexfaceadr);
+  X(flexfacenum);
+  X(flexfaceused);
+  X(flexedge);
+  X(flexvert);
+  X(flexface);
+  X(flexnormal);
+  X(flextexcoord);
   X(skinfacenum);
   X(skinvertadr);
   X(skinvertnum);

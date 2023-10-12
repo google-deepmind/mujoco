@@ -32,8 +32,6 @@ mjData* d[maxthread];
 
 
 // per-thread statistics
-double accuracy_broad[maxthread];
-double accuracy_mid[maxthread];
 int contacts[maxthread];
 int constraints[maxthread];
 double simtime[maxthread];
@@ -87,8 +85,6 @@ void simulate(int id, int nstep, mjtNum* ctrl) {
   // clear statistics
   contacts[id] = 0;
   constraints[id] = 0;
-  accuracy_broad[id] = 0;
-  accuracy_mid[id] = 0;
 
   // run and time
   double start = gettm();
@@ -102,16 +98,6 @@ void simulate(int id, int nstep, mjtNum* ctrl) {
     // accumulate statistics
     contacts[id] += d[id]->ncon;
     constraints[id] += d[id]->nefc;
-    if (d[id]->nbodypair_broad) {
-      accuracy_broad[id] += (100.0*d[id]->nbodypair_narrow)/d[id]->nbodypair_broad;
-    } else {
-      accuracy_broad[id] += 100;
-    }
-    if (d[id]->ngeompair_mid) {
-      accuracy_mid[id] += (100.0*d[id]->nbodypair_narrow)/d[id]->ngeompair_mid;
-    } else {
-      accuracy_mid[id] += 100;
-    }
   }
   simtime[id] = 1e-6 * (gettm() - start);
 }
@@ -241,8 +227,6 @@ int main(int argc, char** argv) {
   std::printf(" Steps per second     : %.0f\n", nstep/simtime[0]);
   std::printf(" Realtime factor      : %.2f x\n", nstep*m->opt.timestep/simtime[0]);
   std::printf(" Time per step        : %.1f %ss\n\n", 1e6*simtime[0]/nstep, mu_str);
-  std::printf(" Broadphase accuracy  : %.2f%%\n", accuracy_broad[0]/nstep);
-  std::printf(" Midphase accuracy    : %.2f%%\n", accuracy_mid[0]/nstep);
   std::printf(" Contacts per step    : %.2f\n", static_cast<float>(contacts[0])/nstep);
   std::printf(" Constraints per step : %.2f\n", static_cast<float>(constraints[0])/nstep);
   std::printf(" Degrees of freedom   : %d\n\n", m->nv);

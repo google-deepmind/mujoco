@@ -48,6 +48,7 @@
 #include <mujoco/mjtnum.h>
 #include <mujoco/mjplugin.h>
 #include "engine/engine_crossplatform.h"
+#include "engine/engine_io.h"
 #include "engine/engine_plugin.h"
 #include "engine/engine_resource.h"
 #include "engine/engine_util_blas.h"
@@ -139,8 +140,8 @@ mjCMesh::mjCMesh(mjCModel* _model, mjCDef* _def) {
 
   mjuu_setvec(boxsz_surface_, 0, 0, 0);
   mjuu_setvec(boxsz_volume_, 0, 0, 0);
-  mjuu_setvec(aabb_, 1e10, 1e10, 1e10);
-  mjuu_setvec(aabb_+3, -1e10, -1e10, -1e10);
+  mjuu_setvec(aamm_, 1e10, 1e10, 1e10);
+  mjuu_setvec(aamm_+3, -1e10, -1e10, -1e10);
   nvert_ = 0;
   nnormal_ = 0;
   ntexcoord_ = 0;
@@ -589,22 +590,22 @@ mjCBoundingVolume mjCMesh::GetBoundingVolume(int faceid) {
   node.contype = 1;
   node.pos = center_ + 3*faceid;
   node.quat = NULL;
-  mjtNum AABB[6] = {1E+10, 1E+10, 1E+10, -1E+10, -1E+10, -1E+10};
+  mjtNum face_aamm[6] = {1E+10, 1E+10, 1E+10, -1E+10, -1E+10, -1E+10};
   for (int j=0; j<3; j++) {
     int vertid = face_[3*faceid+j];
-    AABB[0] = mjMIN(AABB[0], vert_[3*vertid+0]);
-    AABB[1] = mjMIN(AABB[1], vert_[3*vertid+1]);
-    AABB[2] = mjMIN(AABB[2], vert_[3*vertid+2]);
-    AABB[3] = mjMAX(AABB[3], vert_[3*vertid+0]);
-    AABB[4] = mjMAX(AABB[4], vert_[3*vertid+1]);
-    AABB[5] = mjMAX(AABB[5], vert_[3*vertid+2]);
+    face_aamm[0] = mjMIN(face_aamm[0], vert_[3*vertid+0]);
+    face_aamm[1] = mjMIN(face_aamm[1], vert_[3*vertid+1]);
+    face_aamm[2] = mjMIN(face_aamm[2], vert_[3*vertid+2]);
+    face_aamm[3] = mjMAX(face_aamm[3], vert_[3*vertid+0]);
+    face_aamm[4] = mjMAX(face_aamm[4], vert_[3*vertid+1]);
+    face_aamm[5] = mjMAX(face_aamm[5], vert_[3*vertid+2]);
   }
-  face_aabb_[6*faceid+0] = .5 * (AABB[0] + AABB[3]);
-  face_aabb_[6*faceid+1] = .5 * (AABB[1] + AABB[4]);
-  face_aabb_[6*faceid+2] = .5 * (AABB[2] + AABB[5]);
-  face_aabb_[6*faceid+3] = .5 * (AABB[3] - AABB[0]);
-  face_aabb_[6*faceid+4] = .5 * (AABB[4] - AABB[1]);
-  face_aabb_[6*faceid+5] = .5 * (AABB[5] - AABB[2]);
+  face_aabb_[6*faceid+0] = .5 * (face_aamm[0] + face_aamm[3]);
+  face_aabb_[6*faceid+1] = .5 * (face_aamm[1] + face_aamm[4]);
+  face_aabb_[6*faceid+2] = .5 * (face_aamm[2] + face_aamm[5]);
+  face_aabb_[6*faceid+3] = .5 * (face_aamm[3] - face_aamm[0]);
+  face_aabb_[6*faceid+4] = .5 * (face_aamm[4] - face_aamm[1]);
+  face_aabb_[6*faceid+5] = .5 * (face_aamm[5] - face_aamm[2]);
   node.aabb = face_aabb_.data() + 6*faceid;
   return node;
 }
@@ -729,10 +730,10 @@ void mjCMesh::FitGeom(mjCGeom* geom, double* meshpos) {
     }
   }
 
-  // use aabb
+  // use aamm
   else {
     // find aabb box center
-    double cen[3] = {(aabb_[0]+aabb_[3])/2, (aabb_[1]+aabb_[4])/2, (aabb_[2]+aabb_[5])/2};
+    double cen[3] = {(aamm_[0]+aamm_[3])/2, (aamm_[1]+aamm_[4])/2, (aamm_[2]+aamm_[5])/2};
 
     // add box center into meshpos
     meshpos[0] += cen[0];
@@ -786,9 +787,9 @@ void mjCMesh::FitGeom(mjCGeom* geom, double* meshpos) {
 
     case mjGEOM_ELLIPSOID:
     case mjGEOM_BOX:
-      geom->size[0] = aabb_[3] - cen[0];
-      geom->size[1] = aabb_[4] - cen[1];
-      geom->size[2] = aabb_[5] - cen[2];
+      geom->size[0] = aamm_[3] - cen[0];
+      geom->size[1] = aamm_[4] - cen[1];
+      geom->size[2] = aamm_[5] - cen[2];
       break;
 
     default:
@@ -1399,8 +1400,8 @@ void mjCMesh::Process() {
         vert_[3*i+j] = (float) res[j];
 
         // axis-aligned bounding box
-        aabb_[j+0] = mju_min(aabb_[j+0], res[j]);
-        aabb_[j+3] = mju_max(aabb_[j+3], res[j]);
+        aamm_[j+0] = mju_min(aamm_[j+0], res[j]);
+        aamm_[j+3] = mju_max(aamm_[j+3], res[j]);
       }
     }
     for (int i=0; i<nnormal_; i++) {
@@ -2149,5 +2150,492 @@ void mjCSkin::LoadSKN(mjResource* resource) {
   // check final size
   if (buffer_sz != 16+4*cnt) {
     throw mjCError(this, "unexpected buffer size in SKN file '%s'", resource->name);
+  }
+}
+
+
+
+//------------------ class mjCFlex implementation --------------------------------------------------
+
+// constructor
+mjCFlex::mjCFlex(mjCModel* _model) {
+  // set model
+  model = _model;
+
+  // set contact defaults
+  contype = 1;
+  conaffinity = 1;
+  condim = 3;
+  priority = 0;
+  mjuu_setvec(friction, 1, 0.005, 0.0001);
+  solmix = 1.0;
+  mj_defaultSolRefImp(solref, solimp);
+  margin = 0;
+  gap = 0;
+
+  // set other defaults
+  dim = 2;
+  radius = 0.005;
+  internal = true;
+  flatskin = false;
+  selfcollide = mjFLEXSELF_AUTO;
+  activelayers = 1;
+  group = 0;
+  edgestiffness = 0;
+  edgedamping = 0;
+  material.clear();
+  rgba[0] = rgba[1] = rgba[2] = 0.5f;
+  rgba[3] = 1.0f;
+
+  // clear internal variables
+  nvert = 0;
+  nedge = 0;
+  nelem = 0;
+  matid = -1;
+  rigid = false;
+  centered = false;
+}
+
+
+
+// compiler
+void mjCFlex::Compile(const mjVFS* vfs) {
+  // set nelem; check sizes
+  if (dim<1 || dim>3) {
+      throw mjCError(this, "dim must be 1, 2 or 3");
+  }
+  if (elem.empty()) {
+      throw mjCError(this, "elem is empty");
+  }
+  if (elem.size() % (dim+1)) {
+      throw mjCError(this, "elem size must be multiple of (dim+1)");
+  }
+  if (vertbody.empty()) {
+      throw mjCError(this, "vertbody is empty");
+  }
+  if (vert.size() % 3) {
+      throw mjCError(this, "vert size must be a multiple of 3");
+  }
+  nelem = (int)elem.size()/(dim+1);
+
+  // set nvert, rigid, centered; check size
+  if (vert.empty()) {
+    centered = true;
+    nvert = (int)vertbody.size();
+  }
+  else {
+    nvert = (int)vert.size()/3;
+    if (vertbody.size()==1) {
+      rigid = true;
+    }
+  }
+  if (nvert<dim+1) {
+    throw mjCError(this, "not enough vertices");
+  }
+
+  // check elem vertex ids
+  for (int i=0; i<(int)elem.size(); i++) {
+    if (elem[i]<0 || elem[i]>=nvert) {
+      throw mjCError(this, "elem vertex id out of range");
+    }
+  }
+
+  // check texcoord
+  if (!texcoord.empty() && texcoord.size()!=2*nvert) {
+    throw mjCError(this, "two texture coordinates per vertex expected");
+  }
+
+  // resolve material name
+  mjCBase* pmat = model->FindObject(mjOBJ_MATERIAL, material);
+  if (pmat) {
+    matid = pmat->id;
+  } else if (!material.empty()) {
+      throw mjCError(this, "unkown material '%s' in flex", material.c_str());
+  }
+
+  // resolve body ids
+  for (int i=0; i<(int)vertbody.size(); i++) {
+    mjCBase* pbody = model->FindObject(mjOBJ_BODY, vertbody[i]);
+    if (pbody) {
+      vertbodyid.push_back(pbody->id);
+    } else {
+        throw mjCError(this, "unkown body '%s' in flex", vertbody[i].c_str());
+    }
+  }
+
+  // process elements
+  for (int e=0; e<(int)elem.size()/(dim+1); e++) {
+    // make sorted copy of element
+    vector<int> el;
+    el.assign(elem.begin()+e*(dim+1), elem.begin()+(e+1)*(dim+1));
+    std::sort(el.begin(), el.end());
+
+    // check for repeated vertices
+    for (int k=0; k<dim; k++) {
+      if (el[k]==el[k+1]) {
+        throw mjCError(this, "repeated vertex in element");
+      }
+    }
+
+    // make edges from sorted element
+    switch (dim) {
+    case 1:   // line
+      edge.push_back(std::make_pair(el[0], el[1]));
+      break;
+
+    case 2:   // triangle
+      edge.push_back(std::make_pair(el[0], el[1]));
+      edge.push_back(std::make_pair(el[1], el[2]));
+      edge.push_back(std::make_pair(el[0], el[2]));
+      break;
+
+    case 3:   // tetrahedron
+      edge.push_back(std::make_pair(el[0], el[1]));
+      edge.push_back(std::make_pair(el[1], el[2]));
+      edge.push_back(std::make_pair(el[2], el[3]));
+      edge.push_back(std::make_pair(el[0], el[2]));
+      edge.push_back(std::make_pair(el[0], el[3]));
+      edge.push_back(std::make_pair(el[1], el[3]));
+      break;
+    }
+  }
+
+  // sort edges
+  std::sort(edge.begin(), edge.end());
+
+  // remove repeated edges
+  std::vector<std::pair<int,int>> edge1;
+  edge1.push_back(edge[0]);
+  for (int i=1; i<(int)edge.size(); i++) {
+    if (edge1[edge1.size()-1]!=edge[i]) {
+      edge1.push_back(edge[i]);
+    }
+  }
+  edge = edge1;
+
+  // set size
+  nedge = (int)edge.size();
+
+  // determine rigid if not already set
+  if (!rigid) {
+    rigid = true;
+    for (int i=1; i<(int)vertbodyid.size(); i++) {
+      if (vertbodyid[i]!=vertbodyid[0]) {
+        rigid = false;
+        break;
+      }
+    }
+  }
+
+  // determine centered if not already set
+  if (!centered) {
+    centered = true;
+    for (int i=0; i<(int)vert.size(); i++) {
+      if (vert[i]!=0) {
+        centered = false;
+        break;
+      }
+    }
+  }
+
+  // compute global vertex positions
+  vertxpos = vector<mjtNum> (3*nvert);
+  for (int i=0; i<nvert; i++) {
+    // get body id, set vertxpos = body.xpos0
+    int b = rigid ? vertbodyid[0] : vertbodyid[i];
+    mju_copy3(vertxpos.data()+3*i, model->bodies[b]->xpos0);
+
+    // add vertex offset within body if not centered
+    if (!centered) {
+      mjtNum offset[3];
+      mju_rotVecQuat(offset, vert.data()+3*i, model->bodies[b]->xquat0);
+      mju_addTo3(vertxpos.data()+3*i, offset);
+    }
+  }
+
+  // reorder tetrahedra so right-handed face orientation is outside
+  // faces are (0,1,2); (0,2,3); (0,3,1); (1,3,2)
+  if (dim==3) {
+    for (int e=0; e<nelem; e++) {
+      const int* edata = elem.data() + e*(dim+1);
+      mjtNum* v0 = vertxpos.data() + 3*edata[0];
+      mjtNum* v1 = vertxpos.data() + 3*edata[1];
+      mjtNum* v2 = vertxpos.data() + 3*edata[2];
+      mjtNum* v3 = vertxpos.data() + 3*edata[3];
+      mjtNum v01[3] = {v1[0]-v0[0], v1[1]-v0[1], v1[2]-v0[2]};
+      mjtNum v02[3] = {v2[0]-v0[0], v2[1]-v0[1], v2[2]-v0[2]};
+      mjtNum v03[3] = {v3[0]-v0[0], v3[1]-v0[1], v3[2]-v0[2]};
+
+      // detect wrong orientation
+      mjtNum nrm[3];
+      mju_cross(nrm, v01, v02);
+      if (mju_dot3(nrm, v03)>0) {
+        // flip orientation
+        int tmp = elem[e*(dim+1)+1];
+        elem[e*(dim+1)+1] = elem[e*(dim+1)+2];
+        elem[e*(dim+1)+2] = tmp;
+      }
+    }
+  }
+
+  // create shell fragments and element-vertex collision pairs
+  CreateShellPair();
+
+  // create bounding volume hierarchy
+  CreateBVH();
+}
+
+
+
+// create flex BVH
+void mjCFlex::CreateBVH(void) {
+  // init bounding volume object
+  mjCBoundingVolume bv;
+  bv.contype = contype;
+  bv.conaffinity = conaffinity;
+  bv.quat = NULL;
+
+  // allocate element bounding boxes
+  vector<mjtNum> elemaabb(6*nelem);
+
+  // construct element bounding boxes, add to hierarchy
+  for (int e=0; e<nelem; e++) {
+    const int* edata = elem.data() + e*(dim+1);
+
+    // skip inactive in 3D
+    if (dim==3 && elemlayer[e]>=activelayers) {
+      continue;
+    }
+
+    // compute min and max along each global axis
+    mjtNum xmin[3], xmax[3];
+    mju_copy3(xmin, vertxpos.data() + 3*edata[0]);
+    mju_copy3(xmax, vertxpos.data() + 3*edata[0]);
+    for (int i=1; i<=dim; i++) {
+      for (int j=0; j<3; j++) {
+        xmin[j] = mjMIN(xmin[j], vertxpos[3*edata[i]+j]);
+        xmax[j] = mjMAX(xmax[j], vertxpos[3*edata[i]+j]);
+      }
+    }
+
+    // compute aabb (center, size)
+    elemaabb[6*e+0] = 0.5*(xmax[0]+xmin[0]);
+    elemaabb[6*e+1] = 0.5*(xmax[1]+xmin[1]);
+    elemaabb[6*e+2] = 0.5*(xmax[2]+xmin[2]);
+    elemaabb[6*e+3] = 0.5*(xmax[0]-xmin[0]) + radius;
+    elemaabb[6*e+4] = 0.5*(xmax[1]-xmin[1]) + radius;
+    elemaabb[6*e+5] = 0.5*(xmax[2]-xmin[2]) + radius;
+
+    // add bounding volume for this element
+    bv.id = e;
+    bv.aabb = elemaabb.data() + 6*e;
+    bv.pos = bv.aabb;
+    tree.AddBoundingVolume(bv);
+  }
+
+  // create hierarchy
+  tree.CreateBVH();
+}
+
+
+
+// create shells and element-vertex collision pairs
+void mjCFlex::CreateShellPair(void) {
+  vector<vector<int>> fragspec(nelem*(dim+1));   // [sorted frag vertices, elem, original frag vertices]
+  vector<vector<int>> connectspec;               // [elem1, elem2, common sorted frag vertices]
+  vector<bool> border(nelem, false);             // is element on the border
+  vector<bool> borderfrag(nelem*(dim+1), false); // is fragment on the border
+
+  // make fragspec
+  for (int e=0; e<nelem; e++) {
+    int n = e*(dim+1);
+
+    // element vertices in original (unsorted) order
+    vector<int> el;
+    el.assign(elem.begin()+n, elem.begin()+n+dim+1);
+
+    // line: 2 vertex fragments
+    if (dim==1) {
+      fragspec[n].push_back(el[0]);
+      fragspec[n].push_back(e);
+      fragspec[n].push_back(el[0]);
+
+      fragspec[n+1].push_back(el[1]);
+      fragspec[n+1].push_back(e);
+      fragspec[n+1].push_back(el[1]);
+    }
+
+    // triangle: 3 edge fragments
+    else if (dim==2) {
+      fragspec[n].push_back(el[0]);
+      fragspec[n].push_back(el[1]);
+      fragspec[n].push_back(e);
+      fragspec[n].push_back(el[0]);
+      fragspec[n].push_back(el[1]);
+
+      fragspec[n+2].push_back(el[1]);
+      fragspec[n+2].push_back(el[2]);
+      fragspec[n+2].push_back(e);
+      fragspec[n+2].push_back(el[1]);
+      fragspec[n+2].push_back(el[2]);
+
+      fragspec[n+1].push_back(el[2]);
+      fragspec[n+1].push_back(el[0]);
+      fragspec[n+1].push_back(e);
+      fragspec[n+1].push_back(el[2]);
+      fragspec[n+1].push_back(el[0]);
+    }
+
+    // tetrahedron: 4 face fragments
+    else {
+      fragspec[n].push_back(el[0]);
+      fragspec[n].push_back(el[1]);
+      fragspec[n].push_back(el[2]);
+      fragspec[n].push_back(e);
+      fragspec[n].push_back(el[0]);
+      fragspec[n].push_back(el[1]);
+      fragspec[n].push_back(el[2]);
+
+      fragspec[n+2].push_back(el[0]);
+      fragspec[n+2].push_back(el[2]);
+      fragspec[n+2].push_back(el[3]);
+      fragspec[n+2].push_back(e);
+      fragspec[n+2].push_back(el[0]);
+      fragspec[n+2].push_back(el[2]);
+      fragspec[n+2].push_back(el[3]);
+
+      fragspec[n+1].push_back(el[0]);
+      fragspec[n+1].push_back(el[3]);
+      fragspec[n+1].push_back(el[1]);
+      fragspec[n+1].push_back(e);
+      fragspec[n+1].push_back(el[0]);
+      fragspec[n+1].push_back(el[3]);
+      fragspec[n+1].push_back(el[1]);
+
+      fragspec[n+3].push_back(el[1]);
+      fragspec[n+3].push_back(el[3]);
+      fragspec[n+3].push_back(el[2]);
+      fragspec[n+3].push_back(e);
+      fragspec[n+3].push_back(el[1]);
+      fragspec[n+3].push_back(el[3]);
+      fragspec[n+3].push_back(el[2]);
+    }
+  }
+
+  // sort first segment of each fragspec
+  if (dim>1) {
+    for (int n=0; n<nelem*(dim+1); n++) {
+      std::sort(fragspec[n].begin(), fragspec[n].begin()+dim);
+    }
+  }
+
+  // sort fragspec
+  std::sort(fragspec.begin(), fragspec.end());
+
+  // make border and connectspec, record borderfrag
+  int cnt = 1;
+  for (int n=1; n<nelem*(dim+1); n++) {
+    // extract frag vertices, without elem
+    vector<int> previous = {fragspec[n-1].begin(), fragspec[n-1].begin()+dim};
+    vector<int> current = {fragspec[n].begin(), fragspec[n].begin()+dim};
+
+    // same sequential fragments
+    if (previous==current) {
+      // found pair of elements connected by common fragment
+      vector<int> connect;
+      connect.insert(connect.end(), fragspec[n-1][dim]);
+      connect.insert(connect.end(), fragspec[n][dim]);
+      connect.insert(connect.end(), fragspec[n].begin(), fragspec[n].begin()+dim);
+      connectspec.push_back(connect);
+
+      // count same sequential fragments
+      cnt++;
+    }
+
+    // different sequential fragments
+    else {
+      // found border fragment
+      if (cnt==1) {
+        border[fragspec[n-1][dim]] = true;
+        borderfrag[n-1] = true;
+      }
+
+      // reset count
+      cnt = 1;
+    }
+  }
+
+  // last fragment is border
+  if (cnt==1) {
+    int n = nelem*(dim+1);
+    border[fragspec[n-1][dim]] = true;
+    borderfrag[n-1] = true;
+  }
+
+  // create shell
+  for (int i=0; i<(int)borderfrag.size(); i++) {
+    if (borderfrag[i]) {
+      // add fragment vertices, in original order
+      shell.insert(shell.end(), fragspec[i].begin()+dim+1, fragspec[i].end());
+    }
+  }
+
+  // compute elemlayer (distance from border) via value iteration in 3D
+  if (dim<3) {
+    elemlayer = vector<int> (nelem, 0);
+  }
+  else {
+    elemlayer = vector<int> (nelem, nelem+1);   // init with greater than max value
+    for (int e=0; e<nelem; e++) {
+      if (border[e]) {
+        elemlayer[e] = 0;                       // set border elements to 0
+      }
+    }
+
+    bool change = true;
+    while (change) {                            // repeat while changes are happening
+      change = false;
+
+      // process edges of element connectivity graph
+      for (int i=0; i<(int)connectspec.size(); i++) {
+        int e1 = connectspec[i][0];             // get element pair for this edge
+        int e2 = connectspec[i][1];
+          if (elemlayer[e1]>elemlayer[e2]+1) {
+            elemlayer[e1] = elemlayer[e2]+1;    // better value found for e1: update
+          change = true;
+        } else if (elemlayer[e2]>elemlayer[e1]+1) {
+          elemlayer[e2] = elemlayer[e1]+1;      // better value found for e2: update
+          change = true;
+        }
+      }
+    }
+  }
+
+  // create evpairs in 1D and 2D
+  if (dim<3) {
+    // process connected element pairs containing a border element
+    for (int n=0; n<(int)connectspec.size(); n++) {
+      if (border[connectspec[n][0]] || border[connectspec[n][1]]) {
+        // extract common fragment
+        vector<int> frag = {connectspec[n].begin()+2, connectspec[n].end()};
+
+        // process both elements
+        for (int ei=0; ei<2; ei++) {
+          const int* edata = elem.data() + connectspec[n][ei]*(dim+1);
+
+          // find element vertex that is not in the common fragment
+          for (int i=0; i<=dim; i++) {
+            if (frag.end() == std::find(frag.begin(), frag.end(), edata[i])) {
+              // add ev pair, involving the other element in connectspec
+              evpair.push_back(connectspec[n][1-ei]);
+              evpair.push_back(edata[i]);
+
+              // one such vertex exists
+              break;
+            }
+          }
+        }
+      }
+    }
   }
 }

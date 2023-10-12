@@ -72,6 +72,7 @@ MJAPI void mju_writeLog(const char* type, const char* msg);
 //------------------------------ internal error macros --------------------------------------------
 
 // internal macro to prepend the calling function name to the error message
+#pragma warning(disable : 4996)  // needed to use strncpy with Visual Studio
 #define mjERROR(...)                                                          \
 {                                                                             \
   char _errbuf[1024];                                                         \

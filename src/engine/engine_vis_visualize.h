@@ -53,6 +53,9 @@ MJAPI void mjv_makeLights(const mjModel* m, mjData* d, mjvScene* scn);
 // update camera only
 MJAPI void mjv_updateCamera(const mjModel* m, mjData* d, mjvCamera* cam, mjvScene* scn);
 
+// update visible flexes only
+MJAPI void mjv_updateActiveFlex(const mjModel* m, mjData* d, mjvScene* scn, const mjvOption* opt);
+
 // update skins only
 MJAPI void mjv_updateSkin(const mjModel* m, mjData* d, mjvScene* scn);
 

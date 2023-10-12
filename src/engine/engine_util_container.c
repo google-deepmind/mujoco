@@ -68,7 +68,8 @@ void mju_arrayListAdd(mjArrayList* array_list, void* element) {
     cursor = cursor->next_segment;
   }
   // copy element into segment
-  memcpy(cursor->buffer + cursor->element_size * cursor->size, element, cursor->element_size);
+  memcpy((mjtByte*)cursor->buffer + cursor->element_size * cursor->size,
+         element, cursor->element_size);
   ++cursor->size;
 }
 
@@ -92,7 +93,6 @@ void* mju_arrayListAt(const mjArrayList* array_list, size_t index) {
     return NULL;
   }
 
-  return cursor->buffer +
-      (cursor->element_size * (index - total_capacity));
+  return (mjtByte*)cursor->buffer + (cursor->element_size * (index - total_capacity));
 }
 

@@ -45,13 +45,15 @@ class mjXWriter : public mjXBase {
   void Asset(tinyxml2::XMLElement* root);                       // asset section
   void Body(tinyxml2::XMLElement* elem, mjCBody* body);         // body/world section
   void Contact(tinyxml2::XMLElement* root);                     // contact section
-  void Equality(tinyxml2::XMLElement* root);                    // equality constraint section
+  void Deformable(tinyxml2::XMLElement* root);                  // deformable section
+  void Equality(tinyxml2::XMLElement* root);                    // equality section
   void Tendon(tinyxml2::XMLElement* root);                      // tendon section
   void Actuator(tinyxml2::XMLElement* root);                    // actuator section
   void Sensor(tinyxml2::XMLElement* root);                      // sensor section
   void Keyframe(tinyxml2::XMLElement* root);                    // keyframe section
 
   // single element writers, used in defaults and main body
+  void OneFlex(tinyxml2::XMLElement* elem,      mjCFlex* pflex);
   void OneMesh(tinyxml2::XMLElement* elem,      mjCMesh* pmesh,         mjCDef* def);
   void OneSkin(tinyxml2::XMLElement* elem,      mjCSkin* pskin);
   void OneMaterial(tinyxml2::XMLElement* elem,  mjCMaterial* pmaterial, mjCDef* def);

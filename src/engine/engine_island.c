@@ -235,8 +235,8 @@ static int treeFirst(const mjModel* m, const mjData* d, int tree[2], int i) {
   if (efc_type == mjCNSTR_CONTACT_FRICTIONLESS ||
       efc_type == mjCNSTR_CONTACT_PYRAMIDAL ||
       efc_type == mjCNSTR_CONTACT_ELLIPTIC) {
-    tree[0] = m->body_treeid[m->geom_bodyid[d->contact[efc_id].geom1]];
-    tree[1] = m->body_treeid[m->geom_bodyid[d->contact[efc_id].geom2]];
+    tree[0] = m->body_treeid[m->geom_bodyid[d->contact[efc_id].geom[0]]];
+    tree[1] = m->body_treeid[m->geom_bodyid[d->contact[efc_id].geom[1]]];
 
     // handle static bodies
     if (tree[0] < 0) {

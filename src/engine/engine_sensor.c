@@ -662,7 +662,7 @@ void mj_sensorVel(const mjModel* m, mjData* d) {
 
 // acceleration/force-dependent sensors
 void mj_sensorAcc(const mjModel* m, mjData* d) {
-  int rootid, bodyid, objtype, objid, body1, body2, adr, nusersensor = 0;
+  int rootid, bodyid, objtype, objid, adr, nusersensor = 0;
   int ne = d->ne, nf = d->nf, nefc = d->nefc;
   mjtNum tmp[6], conforce[6], conray[3];
   mjContact* con;
@@ -713,13 +713,15 @@ void mj_sensorAcc(const mjModel* m, mjData* d) {
 
         // find contacts in sensor zone, add normal forces
         for (int j=0; j < d->ncon; j++) {
-          // contact pointer, contacting bodies
+          // contact pointer, contacting bodies  (-1 for flex)
           con = d->contact + j;
-          body1 = m->geom_bodyid[con->geom1];
-          body2 = m->geom_bodyid[con->geom2];
+          int conbody[2];
+          for (int k=0; k<2; k++) {
+            conbody[k] = (con->geom[k]>=0) ? m->geom_bodyid[con->geom[k]] : -1;
+          }
 
           // select contacts involving sensorized body
-          if (con->efc_address >= 0 && (bodyid == body1 || bodyid == body2)) {
+          if (con->efc_address >= 0 && (bodyid == conbody[0] || bodyid == conbody[1])) {
             // get contact force:torque in contact frame
             mj_contactForce(m, d, j, conforce);
 
@@ -733,7 +735,7 @@ void mj_sensorAcc(const mjModel* m, mjData* d) {
             mju_normalize3(conray);
 
             // flip ray direction if sensor is on body2
-            if (bodyid == body2) {
+            if (bodyid == conbody[1]) {
               mju_scl3(conray, conray, -1);
             }
 
@@ -943,6 +945,22 @@ void mj_energyPos(const mjModel* m, mjData* d) {
       }
 
       d->energy[0] += 0.5*stiffness*displacement*displacement;
+    }
+  }
+
+  // add flex-level springs
+  if (!mjDISABLED(mjDSBL_PASSIVE)) {
+    for (int i=0; i<m->nflex; i++) {
+      stiffness = m->flex_edgestiffness[i];
+      if (m->flex_rigid[i] || stiffness==0) {
+        continue;
+      }
+
+      // process edges of this flex
+      for (int e=m->flex_edgeadr[i]; e<m->flex_edgeadr[i]+m->flex_edgenum[i]; e++) {
+        mjtNum displacement = m->flexedge_length0[e] - d->flexedge_length[e];
+        d->energy[0] += 0.5*stiffness*displacement*displacement;
+      }
     }
   }
 }

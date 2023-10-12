@@ -191,9 +191,10 @@ public enum mjtGeom : int{
   mjGEOM_ARROW1 = 101,
   mjGEOM_ARROW2 = 102,
   mjGEOM_LINE = 103,
-  mjGEOM_SKIN = 104,
-  mjGEOM_LABEL = 105,
-  mjGEOM_TRIANGLE = 106,
+  mjGEOM_FLEX = 104,
+  mjGEOM_SKIN = 105,
+  mjGEOM_LABEL = 106,
+  mjGEOM_TRIANGLE = 107,
   mjGEOM_NONE = 1001,
 }
 public enum mjtCamLight : int{
@@ -233,7 +234,8 @@ public enum mjtEq : int{
   mjEQ_WELD = 1,
   mjEQ_JOINT = 2,
   mjEQ_TENDON = 3,
-  mjEQ_DISTANCE = 4,
+  mjEQ_FLEX = 4,
+  mjEQ_DISTANCE = 5,
 }
 public enum mjtWrap : int{
   mjWRAP_NONE = 0,
@@ -282,22 +284,23 @@ public enum mjtObj : int{
   mjOBJ_SITE = 6,
   mjOBJ_CAMERA = 7,
   mjOBJ_LIGHT = 8,
-  mjOBJ_MESH = 9,
-  mjOBJ_SKIN = 10,
-  mjOBJ_HFIELD = 11,
-  mjOBJ_TEXTURE = 12,
-  mjOBJ_MATERIAL = 13,
-  mjOBJ_PAIR = 14,
-  mjOBJ_EXCLUDE = 15,
-  mjOBJ_EQUALITY = 16,
-  mjOBJ_TENDON = 17,
-  mjOBJ_ACTUATOR = 18,
-  mjOBJ_SENSOR = 19,
-  mjOBJ_NUMERIC = 20,
-  mjOBJ_TEXT = 21,
-  mjOBJ_TUPLE = 22,
-  mjOBJ_KEY = 23,
-  mjOBJ_PLUGIN = 24,
+  mjOBJ_FLEX = 9,
+  mjOBJ_MESH = 10,
+  mjOBJ_SKIN = 11,
+  mjOBJ_HFIELD = 12,
+  mjOBJ_TEXTURE = 13,
+  mjOBJ_MATERIAL = 14,
+  mjOBJ_PAIR = 15,
+  mjOBJ_EXCLUDE = 16,
+  mjOBJ_EQUALITY = 17,
+  mjOBJ_TENDON = 18,
+  mjOBJ_ACTUATOR = 19,
+  mjOBJ_SENSOR = 20,
+  mjOBJ_NUMERIC = 21,
+  mjOBJ_TEXT = 22,
+  mjOBJ_TUPLE = 23,
+  mjOBJ_KEY = 24,
+  mjOBJ_PLUGIN = 25,
 }
 public enum mjtConstraint : int{
   mjCNSTR_EQUALITY = 0,
@@ -375,6 +378,13 @@ public enum mjtLRMode : int{
   mjLRMODE_MUSCLE = 1,
   mjLRMODE_MUSCLEUSER = 2,
   mjLRMODE_ALL = 3,
+}
+public enum mjtFlexSelf : int{
+  mjFLEXSELF_NONE = 0,
+  mjFLEXSELF_NARROW = 1,
+  mjFLEXSELF_BVH = 2,
+  mjFLEXSELF_SAP = 3,
+  mjFLEXSELF_AUTO = 4,
 }
 public enum mjtPluginCapabilityBit : int{
   mjPLUGIN_ACTUATOR = 1,
@@ -467,13 +477,14 @@ public enum mjtLabel : int{
   mjLABEL_TENDON = 7,
   mjLABEL_ACTUATOR = 8,
   mjLABEL_CONSTRAINT = 9,
-  mjLABEL_SKIN = 10,
-  mjLABEL_SELECTION = 11,
-  mjLABEL_SELPNT = 12,
-  mjLABEL_CONTACTPOINT = 13,
-  mjLABEL_CONTACTFORCE = 14,
-  mjLABEL_ISLAND = 15,
-  mjNLABEL = 16,
+  mjLABEL_FLEX = 10,
+  mjLABEL_SKIN = 11,
+  mjLABEL_SELECTION = 12,
+  mjLABEL_SELPNT = 13,
+  mjLABEL_CONTACTPOINT = 14,
+  mjLABEL_CONTACTFORCE = 15,
+  mjLABEL_ISLAND = 16,
+  mjNLABEL = 17,
 }
 public enum mjtFrame : int{
   mjFRAME_NONE = 0,
@@ -511,10 +522,15 @@ public enum mjtVisFlag : int{
   mjVIS_SELECT = 21,
   mjVIS_STATIC = 22,
   mjVIS_SKIN = 23,
-  mjVIS_MIDPHASE = 24,
-  mjVIS_MESHBVH = 25,
-  mjVIS_SDFITER = 26,
-  mjNVISFLAG = 27,
+  mjVIS_FLEXVERT = 24,
+  mjVIS_FLEXEDGE = 25,
+  mjVIS_FLEXFACE = 26,
+  mjVIS_FLEXSKIN = 27,
+  mjVIS_BODYBVH = 28,
+  mjVIS_FLEXBVH = 29,
+  mjVIS_MESHBVH = 30,
+  mjVIS_SDFITER = 31,
+  mjNVISFLAG = 32,
 }
 public enum mjtRndFlag : int{
   mjRND_SHADOW = 0,
@@ -553,6 +569,10 @@ public unsafe struct mjContact_ {
   public int dim;
   public int geom1;
   public int geom2;
+  public fixed int geom[2];
+  public fixed int flex[2];
+  public fixed int elem[2];
+  public fixed int vert[2];
   public int exclude;
   public int efc_address;
 }
@@ -4748,10 +4768,6 @@ public unsafe struct mjData_ {
   public fixed int solver_niter[20];
   public fixed int solver_nnz[20];
   public fixed double solver_fwdinv[2];
-  public int nbodypair_broad;
-  public int nbodypair_narrow;
-  public int ngeompair_mid;
-  public int ngeompair_narrow;
   public int ne;
   public int nf;
   public int nl;
@@ -4798,13 +4814,20 @@ public unsafe struct mjData_ {
   public double* subtree_com;
   public double* cdof;
   public double* cinert;
+  public double* flexvert_xpos;
+  public double* flexelem_aabb;
+  public int* flexedge_J_rownnz;
+  public int* flexedge_J_rowadr;
+  public int* flexedge_J_colind;
+  public double* flexedge_J;
+  public double* flexedge_length;
   public int* ten_wrapadr;
   public int* ten_wrapnum;
   public int* ten_J_rownnz;
   public int* ten_J_rowadr;
   public int* ten_J_colind;
-  public double* ten_length;
   public double* ten_J;
+  public double* ten_length;
   public int* wrap_obj;
   public double* wrap_xpos;
   public double* actuator_length;
@@ -4814,7 +4837,9 @@ public unsafe struct mjData_ {
   public double* qLD;
   public double* qLDiagInv;
   public double* qLDiagSqrtInv;
+  public double* bvh_aabb_dyn;
   public byte* bvh_active;
+  public double* flexedge_velocity;
   public double* ten_velocity;
   public double* actuator_velocity;
   public double* cvel;
@@ -4924,6 +4949,7 @@ public unsafe struct mjOption_ {
   public double o_margin;
   public fixed double o_solref[2];
   public fixed double o_solimp[5];
+  public fixed double o_friction[5];
   public int integrator;
   public int cone;
   public int jacobian;
@@ -5059,11 +5085,21 @@ public unsafe struct mjModel_ {
   public int na;
   public int nbody;
   public int nbvh;
+  public int nbvhstatic;
+  public int nbvhdynamic;
   public int njnt;
   public int ngeom;
   public int nsite;
   public int ncam;
   public int nlight;
+  public int nflex;
+  public int nflexvert;
+  public int nflexedge;
+  public int nflexelem;
+  public int nflexelemdata;
+  public int nflexshelldata;
+  public int nflexevpair;
+  public int nflextexcoord;
   public int nmesh;
   public int nmeshvert;
   public int nmeshnormal;
@@ -5148,13 +5184,16 @@ public unsafe struct mjModel_ {
   public double* body_inertia;
   public double* body_invweight0;
   public double* body_gravcomp;
+  public double* body_margin;
   public double* body_user;
   public int* body_plugin;
+  public int* body_contype;
+  public int* body_conaffinity;
   public int* body_bvhadr;
   public int* body_bvhnum;
   public int* bvh_depth;
   public int* bvh_child;
-  public int* bvh_geomid;
+  public int* bvh_nodeid;
   public double* bvh_aabb;
   public int* jnt_type;
   public int* jnt_qposadr;
@@ -5251,6 +5290,55 @@ public unsafe struct mjModel_ {
   public float* light_ambient;
   public float* light_diffuse;
   public float* light_specular;
+  public int* flex_contype;
+  public int* flex_conaffinity;
+  public int* flex_condim;
+  public int* flex_priority;
+  public double* flex_solmix;
+  public double* flex_solref;
+  public double* flex_solimp;
+  public double* flex_friction;
+  public double* flex_margin;
+  public double* flex_gap;
+  public byte* flex_internal;
+  public int* flex_selfcollide;
+  public int* flex_activelayers;
+  public int* flex_dim;
+  public int* flex_matid;
+  public int* flex_group;
+  public int* flex_vertadr;
+  public int* flex_vertnum;
+  public int* flex_edgeadr;
+  public int* flex_edgenum;
+  public int* flex_elemadr;
+  public int* flex_elemnum;
+  public int* flex_elemdataadr;
+  public int* flex_shellnum;
+  public int* flex_shelldataadr;
+  public int* flex_evpairadr;
+  public int* flex_evpairnum;
+  public int* flex_texcoordadr;
+  public int* flex_vertbodyid;
+  public int* flex_edge;
+  public int* flex_elem;
+  public int* flex_elemlayer;
+  public int* flex_shell;
+  public int* flex_evpair;
+  public double* flex_vert;
+  public double* flex_xvert0;
+  public double* flexedge_length0;
+  public double* flexedge_invweight0;
+  public double* flex_radius;
+  public double* flex_edgestiffness;
+  public double* flex_edgedamping;
+  public byte* flex_edgeequality;
+  public byte* flex_rigid;
+  public byte* flex_centered;
+  public byte* flex_flatskin;
+  public int* flex_bvhadr;
+  public int* flex_bvhnum;
+  public float* flex_rgba;
+  public float* flex_texcoord;
   public int* mesh_vertadr;
   public int* mesh_vertnum;
   public int* mesh_faceadr;
@@ -5419,6 +5507,7 @@ public unsafe struct mjModel_ {
   public int* name_siteadr;
   public int* name_camadr;
   public int* name_lightadr;
+  public int* name_flexadr;
   public int* name_meshadr;
   public int* name_skinadr;
   public int* name_hfieldadr;
@@ -5685,6 +5774,7 @@ public unsafe struct mjuiDef_ {
 [StructLayout(LayoutKind.Sequential)]
 public unsafe struct mjvPerturb_ {
   public int select;
+  public int flexselect;
   public int skinselect;
   public int active;
   public int active2;
@@ -5770,9 +5860,11 @@ public unsafe struct mjvOption_ {
   public fixed byte jointgroup[6];
   public fixed byte tendongroup[6];
   public fixed byte actuatorgroup[6];
+  public fixed byte flexgroup[6];
   public fixed byte skingroup[6];
-  public fixed byte flags[27];
+  public fixed byte flags[32];
   public int bvh_depth;
+  public int flex_layer;
 }
 
 [StructLayout(LayoutKind.Sequential)]
@@ -5781,6 +5873,23 @@ public unsafe struct mjvScene_ {
   public int ngeom;
   public mjvGeom_* geoms;
   public int* geomorder;
+  public int nflex;
+  public int* flexedgeadr;
+  public int* flexedgenum;
+  public int* flexvertadr;
+  public int* flexvertnum;
+  public int* flexfaceadr;
+  public int* flexfacenum;
+  public int* flexfaceused;
+  public int* flexedge;
+  public float* flexvert;
+  public float* flexface;
+  public float* flexnormal;
+  public float* flextexcoord;
+  public byte flexvertopt;
+  public byte flexedgeopt;
+  public byte flexfaceopt;
+  public byte flexskinopt;
   public int nskin;
   public int* skinfacenum;
   public int* skinvertadr;
@@ -5944,6 +6053,7 @@ public unsafe struct model {
   public int na;
   public int nbody;
   public int nbvh;
+  public int nbvhstatic;
   public int njnt;
   public int ngeom;
   public int nsite;
@@ -5951,6 +6061,8 @@ public unsafe struct model {
   public int nlight;
   public int nmesh;
   public int nskin;
+  public int nflex;
+  public int nflexvert;
   public int nskinvert;
   public int nskinface;
   public int nskinbone;
@@ -5984,7 +6096,7 @@ public unsafe struct model {
   public int* body_bvhnum;
   public int* bvh_depth;
   public int* bvh_child;
-  public int* bvh_geomid;
+  public int* bvh_nodeid;
   public double* bvh_aabb;
   public int* jnt_type;
   public int* jnt_bodyid;
@@ -6018,6 +6130,23 @@ public unsafe struct model {
   public float* light_ambient;
   public float* light_diffuse;
   public float* light_specular;
+  public byte* flex_flatskin;
+  public int* flex_dim;
+  public int* flex_matid;
+  public int* flex_group;
+  public int* flex_vertadr;
+  public int* flex_vertnum;
+  public int* flex_elem;
+  public int* flex_elemadr;
+  public int* flex_elemnum;
+  public int* flex_elemdataadr;
+  public int* flex_shell;
+  public int* flex_shellnum;
+  public int* flex_shelldataadr;
+  public int* flex_bvhadr;
+  public int* flex_bvhnum;
+  public double* flex_radius;
+  public float* flex_rgba;
   public int* mesh_bvhadr;
   public int* mesh_bvhnum;
   public int* mesh_texcoordadr;
@@ -6139,6 +6268,7 @@ public unsafe struct data {
   public int* dof_island;
   public int* efc_island;
   public int* tendon_efcadr;
+  public double* flexvert_xpos;
   public mjContact_* contact;
   public double* efc_force;
 }
@@ -6360,6 +6490,9 @@ public static unsafe extern void mj_comPos(mjModel_* m, mjData_* d);
 public static unsafe extern void mj_camlight(mjModel_* m, mjData_* d);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern void mj_flex(mjModel_* m, mjData_* d);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern void mj_tendon(mjModel_* m, mjData_* d);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
@@ -6537,6 +6670,9 @@ public static unsafe extern double mj_rayMesh(mjModel_* m, mjData_* d, int geomi
 public static unsafe extern double mju_rayGeom(double* pos, double* mat, double* size, double* pnt, double* vec, int geomtype);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern double mju_rayFlex(mjModel_* m, mjData_* d, int flex_layer, byte flg_vert, byte flg_edge, byte flg_face, byte flg_skin, int flexid, double* pnt, double* vec, int* vertid);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern double mju_raySkin(int nface, int nvert, int* face, float* vert, double* pnt, double* vec, int* vertid);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
@@ -6594,7 +6730,7 @@ public static unsafe extern void mjv_applyPerturbForce(mjModel_* m, mjData_* d, 
 public static unsafe extern mjvGLCamera_* mjv_averageCamera(mjvGLCamera_* cam1, mjvGLCamera_* cam2);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
-public static unsafe extern int mjv_select(mjModel_* m, mjData_* d, mjvOption_* vopt, double aspectratio, double relx, double rely, mjvScene_* scn, double* selpnt, int* geomid, int* skinid);
+public static unsafe extern int mjv_select(mjModel_* m, mjData_* d, mjvOption_* vopt, double aspectratio, double relx, double rely, mjvScene_* scn, double* selpnt, int* geomid, int* flexid, int* skinid);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern void mjv_defaultOption(mjvOption_* opt);

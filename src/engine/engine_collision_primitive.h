@@ -32,6 +32,20 @@
 extern "C" {
 #endif
 
+// raw collision functions (called by mjc_XXX)
+int mjraw_SphereCapsule (mjContact* con, mjtNum margin,
+                         const mjtNum* pos1, const mjtNum* mat1, const mjtNum* size1,
+                         const mjtNum* pos2, const mjtNum* mat2, const mjtNum* size2);
+int mjraw_CapsuleCapsule(mjContact* con, mjtNum margin,
+                         const mjtNum* pos1, const mjtNum* mat1, const mjtNum* size1,
+                         const mjtNum* pos2, const mjtNum* mat2, const mjtNum* size2);
+int mjraw_CapsuleBox    (mjContact* con, mjtNum margin,
+                         const mjtNum* pos1, const mjtNum* mat1, const mjtNum* size1,
+                         const mjtNum* pos2, const mjtNum* mat2, const mjtNum* size2);
+int mjraw_SphereTriangle(mjContact* con, mjtNum margin,
+                         const mjtNum* s, mjtNum rs,
+                         const mjtNum* t1, const mjtNum* t2, const mjtNum* t3, mjtNum rt);
+
 // plane collisions
 int mjc_PlaneSphere     (const mjModel* m, const mjData* d,
                          mjContact* con, int g1, int g2, mjtNum margin);
@@ -52,7 +66,7 @@ int mjc_SphereCylinder  (const mjModel* m, const mjData* d,
 int mjc_CapsuleCapsule  (const mjModel* m, const mjData* d,
                          mjContact* con, int g1, int g2, mjtNum margin);
 
-// box collisions: from boxcollisions.c
+// box collisions: from engine_collision_box.c
 int mjc_CapsuleBox      (const mjModel* m, const mjData* d,
                          mjContact* con, int g1, int g2, mjtNum margin);
 int mjc_SphereBox       (const mjModel* m, const mjData* d,

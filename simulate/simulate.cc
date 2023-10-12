@@ -713,6 +713,7 @@ void MakePhysicsSection(mj::Simulate* sim, int oldstate) {
     {mjITEM_EDITNUM,   "Margin",        2, &(opt->o_margin),          "1"},
     {mjITEM_EDITNUM,   "Sol Imp",       2, &(opt->o_solimp),          "5"},
     {mjITEM_EDITNUM,   "Sol Ref",       2, &(opt->o_solref),          "2"},
+    {mjITEM_EDITNUM,   "Friction",      2, &(opt->o_friction),        "5"},
     {mjITEM_END}
   };
 
@@ -765,7 +766,7 @@ void MakeRenderingSection(mj::Simulate* sim, const mjModel* m, int oldstate) {
       2,
       &(sim->opt.label),
       "None\nBody\nJoint\nGeom\nSite\nCamera\nLight\nTendon\n"
-      "Actuator\nConstraint\nSkin\nSelection\nSel Pnt\nContact\nForce\nIsland"
+      "Actuator\nConstraint\nFlex\nSkin\nSelection\nSel Pnt\nContact\nForce\nIsland"
     },
     {
       mjITEM_SELECT,
@@ -846,6 +847,7 @@ void MakeRenderingSection(mj::Simulate* sim, const mjModel* m, int oldstate) {
   // create tree slider
   mjuiDef defTree[] = {
       {mjITEM_SLIDERINT, "Tree depth", 2, &sim->opt.bvh_depth, "0 20"},
+      {mjITEM_SLIDERINT, "Flex layer", 2, &sim->opt.flex_layer, "0 10"},
       {mjITEM_END}
   };
   mjui_add(&sim->ui0, defTree);
@@ -962,6 +964,13 @@ void MakeGroupSection(mj::Simulate* sim, int oldstate) {
     {mjITEM_CHECKBYTE,  "Actuator 3",       2, sim->opt.actuatorgroup+3,    ""},
     {mjITEM_CHECKBYTE,  "Actuator 4",       2, sim->opt.actuatorgroup+4,    ""},
     {mjITEM_CHECKBYTE,  "Actuator 5",       2, sim->opt.actuatorgroup+5,    ""},
+    {mjITEM_SEPARATOR,  "Flex groups", 1},
+    {mjITEM_CHECKBYTE,  "Flex 0",           2, sim->opt.flexgroup,          ""},
+    {mjITEM_CHECKBYTE,  "Flex 1",           2, sim->opt.flexgroup+1,        ""},
+    {mjITEM_CHECKBYTE,  "Flex 2",           2, sim->opt.flexgroup+2,        ""},
+    {mjITEM_CHECKBYTE,  "Flex 3",           2, sim->opt.flexgroup+3,        ""},
+    {mjITEM_CHECKBYTE,  "Flex 4",           2, sim->opt.flexgroup+4,        ""},
+    {mjITEM_CHECKBYTE,  "Flex 5",           2, sim->opt.flexgroup+5,        ""},
     {mjITEM_SEPARATOR,  "Skin groups", 1},
     {mjITEM_CHECKBYTE,  "Skin 0",           2, sim->opt.skingroup,          ""},
     {mjITEM_CHECKBYTE,  "Skin 1",           2, sim->opt.skingroup+1,        ""},
@@ -1551,6 +1560,7 @@ void UiEvent(mjuiState* state) {
     case mjKEY_PAGE_UP:         // select parent body
       if ((sim->m_ || sim->is_passive_) && sim->pert.select > 0) {
         sim->pert.select = sim->body_parentid_[sim->pert.select];
+        sim->pert.flexselect = -1;
         sim->pert.skinselect = -1;
 
         // stop perturbation if world reached
@@ -1829,6 +1839,7 @@ void Simulate::Sync() {
     X(o_margin);
     X(o_solref);
     X(o_solimp);
+    X(o_friction);
     X(integrator);
     X(cone);
     X(jacobian);
@@ -1959,12 +1970,12 @@ void Simulate::Sync() {
     // find geom and 3D click point, get corresponding body
     mjrRect r = pending_.select_state.rect[3];
     mjtNum selpnt[3];
-    int selgeom, selskin;
+    int selgeom, selflex, selskin;
     int selbody = mjv_select(m_, d_, &this->opt,
                              static_cast<mjtNum>(r.width) / r.height,
                              (pending_.select_state.x - r.left) / r.width,
                              (pending_.select_state.y - r.bottom) / r.height,
-                             &this->scn, selpnt, &selgeom, &selskin);
+                             &this->scn, selpnt, &selgeom, &selflex, &selskin);
 
     // set lookat point, start tracking is requested
     if (selmode==2 || selmode==3) {
@@ -1991,6 +2002,7 @@ void Simulate::Sync() {
       if (selbody>=0) {
         // record selection
         this->pert.select = selbody;
+        this->pert.flexselect = selflex;
         this->pert.skinselect = selskin;
 
         // compute localpos
@@ -1999,6 +2011,7 @@ void Simulate::Sync() {
         mju_mulMatTVec(this->pert.localpos, d_->xmat + 9*this->pert.select, tmp, 3, 3);
       } else {
         this->pert.select = 0;
+        this->pert.flexselect = -1;
         this->pert.skinselect = -1;
       }
     }
@@ -2209,6 +2222,7 @@ void Simulate::LoadOnRenderThread() {
   // clear perturbation state
   this->pert.active = 0;
   this->pert.select = 0;
+  this->pert.flexselect = -1;
   this->pert.skinselect = -1;
 
   // align and scale view unless reloading the same file
@@ -2360,6 +2374,7 @@ void Simulate::Render() {
          IsDifferent(opt_prev_.jointgroup, opt.jointgroup) ||
          IsDifferent(opt_prev_.tendongroup, opt.tendongroup) ||
          IsDifferent(opt_prev_.actuatorgroup, opt.actuatorgroup) ||
+         IsDifferent(opt_prev_.flexgroup, opt.flexgroup) ||
          IsDifferent(opt_prev_.skingroup, opt.skingroup))) {
       mjui0_update_section(this, SECT_GROUP);
     }

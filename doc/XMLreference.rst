@@ -1322,9 +1322,9 @@ also known as terrain map, is a 2D matrix of elevation data. The data can be spe
 
 .. _asset-hfield-content_type:
 
-:at:`content_type`: :at-val:`string, optional`
+:at:`content_type`: :at-val: `string, optional`
    If the file attribute is specified, then this sets the
-   `Media Type <https://www.iana.org/assignments/media-types/media-types.xhtml>`__ (formerly known as MIME types) of the
+   `Media Type <https://www.iana.org/assignments/media-types/media-types.xhtml>`_ (formerly known as MIME types) of the
    file to be loaded. Any filename extensions will be overloaded.  Currently ``image/png`` and
    ``image/vnd.mujoco.hfield`` are supported.
 
@@ -1578,6 +1578,7 @@ Associate this mesh with an :ref:`engine plugin<exPlugin>`. Either :at:`plugin` 
 
 
 
+.. _deformable-skin:
 .. _asset-skin:
 
 :el-prefix:`asset/` |-| **skin** (*)
@@ -1641,11 +1642,13 @@ Similar to the other custom binary formats used in MuJoCo, the file size in byte
 compiler. The skin file format has subelements so the overall file size formula is difficult to write down, but should
 be clear from the above specification.
 
+.. _deformable-skin-name:
 .. _asset-skin-name:
 
 :at:`name`: :at-val:`string, optional`
    Name of the skin.
 
+.. _deformable-skin-file:
 .. _asset-skin-file:
 
 :at:`file`: :at-val:`string, optional`
@@ -1653,11 +1656,13 @@ be clear from the above specification.
    :ref:`compiler <compiler>`. If the file is omitted, the skin specification must be provided in the XML using the
    attributes below.
 
+.. _deformable-skin-vertex:
 .. _asset-skin-vertex:
 
 :at:`vertex`: :at-val:`real(3*nvert), optional`
    Vertex 3D positions, in the global bind pose where the skin is defined.
 
+.. _deformable-skin-texcoord:
 .. _asset-skin-texcoord:
 
 :at:`texcoord`: :at-val:`real(2*nvert), optional`
@@ -1667,22 +1672,26 @@ be clear from the above specification.
    skin using this attribute. Otherwise the texture will appear to be stationary in the world while the skin moves
    around (creating an interesting effect but probably not as intended).
 
+.. _deformable-skin-face:
 .. _asset-skin-face:
 
 :at:`face`: :at-val:`int(3*nface), optional`
    Trinagular skin faces. Each face is a triple of vertex indices, which are integers between zero and nvert-1.
 
+.. _deformable-skin-inflate:
 .. _asset-skin-inflate:
 
 :at:`inflate`: :at-val:`real, "0"`
    If this number is not zero, the position of vertex during updating will be offset along the vertex normal, but the
    distance specified in this attribute. This is particularly useful for skins representing flexible 2D shapes.
 
+.. _deformable-skin-material:
 .. _asset-skin-material:
 
 :at:`material`: :at-val:`string, optional`
    If specified, this attribute applies a material to the skin.
 
+.. _deformable-skin-rgba:
 .. _asset-skin-rgba:
 
 :at:`rgba`: :at-val:`real(4), "0.5 0.5 0.5 1"`
@@ -1690,6 +1699,7 @@ be clear from the above specification.
    only. This is not as flexible as the material mechanism, but is more convenient and is often sufficient. If the value
    of this attribute is different from the internal default, it takes precedence over the material.
 
+.. _deformable-skin-group:
 .. _asset-skin-group:
 
 :at:`group`: :at-val:`int, "0"`
@@ -1919,9 +1929,11 @@ adjust it properly through the XML.
 
 .. _option-o_solimp:
 
-:at:`o_solref`, :at:`o_solimp`
-   These attributes replace the solref and solimp parameters of all active contact pairs when contact override is
-   enabled. See :ref:`CSolver` for details.
+.. _option-o_friction:
+
+:at:`o_solref`, :at:`o_solimp`, :at:`o_friction`
+   These attributes replace the solref, solimp, and friction parameters of all active contact pairs when contact
+   override is enabled. See :ref:`CSolver` for details.
 
 .. _option-integrator:
 
@@ -3702,6 +3714,160 @@ Associate this composite with an :ref:`engine plugin<exPlugin>`. Either :at:`plu
 :at:`instance`: :at-val:`string, optional`
    Instance name, used for explicit plugin instantiation.
 
+
+.. _body-flexcomp:
+
+:el-prefix:`body/` |-| **flex** (*)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. _body-flexcomp-name:
+
+.. _body-flexcomp-class:
+
+.. _body-flexcomp-type:
+
+.. _body-flexcomp-dim:
+
+.. _body-flexcomp-count:
+
+.. _body-flexcomp-spacing:
+
+.. _body-flexcomp-radius:
+
+.. _body-flexcomp-rigid:
+
+.. _body-flexcomp-mass:
+
+.. _body-flexcomp-inertiabox:
+
+.. _body-flexcomp-scale:
+
+.. _body-flexcomp-file:
+
+.. _body-flexcomp-point:
+
+.. _body-flexcomp-element:
+
+.. _body-flexcomp-material:
+
+.. _body-flexcomp-rgba:
+
+.. _body-flexcomp-texcoord:
+
+.. _body-flexcomp-pos:
+
+.. _body-flexcomp-quat:
+
+.. _body-flexcomp-axisangle:
+
+.. _body-flexcomp-xyaxes:
+
+.. _body-flexcomp-zaxis:
+
+.. _body-flexcomp-euler:
+
+.. _body-flexcomp-selfcollide:
+
+.. _body-flexcomp-flatskin:
+
+.. _flex-edge:
+.. _flexcomp-edge:
+
+.. _flex-edge-equality:
+.. _flexcomp-edge-equality:
+
+.. _flex-edge-solref:
+.. _flexcomp-edge-solref:
+
+.. _flex-edge-solimp:
+.. _flexcomp-edge-solimp:
+
+.. _flex-edge-stiffness:
+.. _flexcomp-edge-stiffness:
+
+.. _flex-edge-damping:
+.. _flexcomp-edge-damping:
+
+.. _flex-contact:
+.. _flexcomp-contact:
+
+.. _flexcomp-contact-:
+
+.. _flex-contact-contype:
+.. _flexcomp-contact-contype:
+
+.. _flex-contact-conaffinity:
+.. _flexcomp-contact-conaffinity:
+
+.. _flex-contact-condim:
+.. _flexcomp-contact-condim:
+
+.. _flex-contact-priority:
+.. _flexcomp-contact-priority:
+
+.. _flex-contact-friction:
+.. _flexcomp-contact-friction:
+
+.. _flex-contact-solmix:
+.. _flexcomp-contact-solmix:
+
+.. _flex-contact-solref:
+.. _flexcomp-contact-solref:
+
+.. _flex-contact-solimp:
+.. _flexcomp-contact-solimp:
+
+.. _flex-contact-margin:
+.. _flexcomp-contact-margin:
+
+.. _flex-contact-gap:
+.. _flexcomp-contact-gap:
+
+.. _flexcomp-pin:
+
+.. _flexcomp-pin-id:
+
+.. _flexcomp-pin-range:
+
+.. _flexcomp-pin-grid:
+
+.. _flexcomp-pin-gridrange:
+
+
+.. _deformable:
+
+.. _deformable-flex:
+
+.. _deformable-flex-name:
+
+.. _deformable-flex-group:
+
+.. _deformable-flex-material:
+
+.. _deformable-flex-radius:
+
+.. _deformable-flex-rgba:
+
+.. _deformable-flex-texcoord:
+
+.. _deformable-flex-flatskin:
+
+.. _deformable-flex-selfcollide:
+
+.. _deformable-flex-dim:
+
+.. _deformable-flex-body:
+
+.. _deformable-flex-vertex:
+
+.. _deformable-flex-element:
+
+
+
+**deformable** (*)
+~~~~~~~~~~~~~~~
+
+
 .. _contact:
 
 **contact** (*)
@@ -4025,6 +4191,24 @@ This element constrains the length of one tendon to be a quartic polynomial of a
 :at:`polycoef`: :at-val:`real(5), "0 1 0 0 0"`
    Same as in the equality/ :ref:`joint <equality-joint>` element above, but applied to tendon lengths instead of joint
    positions.
+
+
+.. _equality-flex:
+
+:el-prefix:`equality/` |-| **flex** (*)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. _equality-flex-name:
+
+.. _equality-flex-class:
+
+.. _equality-flex-flex:
+
+.. _equality-flex-active:
+
+.. _equality-flex-solref:
+
+.. _equality-flex-solimp:
 
 
 .. _equality-distance:
@@ -7163,6 +7347,44 @@ tendon, slidersite, cranksite.
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 All :ref:`adhesion <actuator-adhesion>` attributes are available here except: name, class, body.
+
+
+.. _default-flex:
+
+.. _default-flex-contype:
+
+.. _default-flex-conaffinity:
+
+.. _default-flex-condim:
+
+.. _default-flex-priority:
+
+.. _default-flex-material:
+
+.. _default-flex-friction:
+
+.. _default-flex-solmix:
+
+.. _default-flex-solref:
+
+.. _default-flex-solimp:
+
+.. _default-flex-margin:
+
+.. _default-flex-gap:
+
+.. _default-flex-stiffness:
+
+.. _default-flex-damping:
+
+.. _default-flex-radius:
+
+.. _default-flex-rgba:
+
+.. _default-flex-dim:
+
+:el-prefix:`default/` |-| **flex** (?)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 
 .. _custom:

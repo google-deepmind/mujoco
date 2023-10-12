@@ -508,6 +508,10 @@ class MjWrapper<raw::MjContact> : public WrapperBase<raw::MjContact> {
   X(solreffriction);
   X(solimp);
   X(H);
+  X(geom);
+  X(flex);
+  X(elem);
+  X(vert);
   #undef X
 };
 
@@ -733,6 +737,7 @@ class MjWrapper<raw::MjvOption> : public WrapperBase<raw::MjvOption> {
   X(jointgroup);
   X(tendongroup);
   X(actuatorgroup);
+  X(flexgroup);
   X(skingroup);
   X(flags);
   #undef X
@@ -754,10 +759,23 @@ class MjWrapper<raw::MjvScene> : public WrapperBase<raw::MjvScene> {
   ~MjWrapper() = default;
 
   int nskinvert;
+  int nflexface, nflexedge, nflexvert;
 
   #define X(dtype, var) py_array_or_tuple_t<dtype> var
   X(mjvGeom, geoms);
   X(int, geomorder);
+  X(int, flexedgeadr);
+  X(int, flexedgenum);
+  X(int, flexvertadr);
+  X(int, flexvertnum);
+  X(int, flexfaceadr);
+  X(int, flexfacenum);
+  X(int, flexfaceused);
+  X(int, flexedge);
+  X(float, flexvert);
+  X(float, flexface);
+  X(float, flexnormal);
+  X(float, flextexcoord);
   X(int, skinfacenum);
   X(int, skinvertadr);
   X(int, skinvertnum);

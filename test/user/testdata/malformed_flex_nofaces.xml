@@ -1,0 +1,5 @@
+  <mujoco>
+    <worldbody>
+      <flexcomp name="test" type="mesh" file="cube.obj"/>
+    </worldbody>
+  </mujoco>

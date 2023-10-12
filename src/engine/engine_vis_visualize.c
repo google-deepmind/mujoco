@@ -22,6 +22,7 @@
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjvisualize.h>
 #include "engine/engine_array_safety.h"
+#include "engine/engine_io.h"
 #include "engine/engine_plugin.h"
 #include "engine/engine_support.h"
 #include "engine/engine_util_blas.h"
@@ -96,7 +97,6 @@ static void islandColor(float rgba[4], int islanddofadr) {
 // add contact-related geoms in mjvObject
 static void addContactGeom(const mjModel* m, mjData* d, const mjtByte* flags,
                            const mjvOption* vopt, mjvScene* scn) {
-  int body1, body2;
   int objtype = mjOBJ_UNKNOWN, category = mjCAT_DECOR;
   mjtNum mat[9], tmp[9], vec[3], frc[3], confrc[6], axis[3];
   mjtNum framewidth, framelength, scl = m->stat.meansize;
@@ -147,13 +147,42 @@ static void addContactGeom(const mjModel* m, mjData* d, const mjtByte* flags,
 
       // label contacting geom names or ids
       if (vopt->label == mjLABEL_CONTACTPOINT) {
-        const char* name1 = mj_id2name(m, mjOBJ_GEOM, con->geom1);
-        char id1[10];
-        mjSNPRINTF(id1, "%d", con->geom1);
-        const char* name2 = mj_id2name(m, mjOBJ_GEOM, con->geom2);
-        char id2[10];
-        mjSNPRINTF(id2, "%d", con->geom2);
-        mjSNPRINTF(thisgeom->label, "%s | %s", name1 ? name1 : id1 , name2 ? name2 : id2);
+        char contactlabel[2][10];
+        for (int k=0; k<2; k++) {
+          // make geom label
+          if (con->geom[k]>=0) {
+            const char* geomname = mj_id2name(m, mjOBJ_GEOM, con->geom[k]);
+            if (geomname) {
+              mjSNPRINTF(contactlabel[k], "%s", geomname);
+            }
+            else {
+              mjSNPRINTF(contactlabel[k], "g%d", con->geom[k]);
+            }
+          }
+
+          // make flex elem or vert label
+          else {
+            const char* flexname = mj_id2name(m, mjOBJ_FLEX, con->flex[k]);
+            if (flexname) {
+              if (con->elem[k]>=0) {
+                mjSNPRINTF(contactlabel[k], "%s.e%d", flexname, con->elem[k]);
+              }
+              else {
+                mjSNPRINTF(contactlabel[k], "%s.v%d", flexname, con->vert[k]);
+              }
+            }
+            else {
+              if (con->elem[k]>=0) {
+                mjSNPRINTF(contactlabel[k], "f%d.e%d", con->flex[k], con->elem[k]);
+              }
+              else {
+                mjSNPRINTF(contactlabel[k], "f%d.v%d", con->flex[k], con->vert[k]);
+              }
+            }
+          }
+        }
+
+        mjSNPRINTF(thisgeom->label, "%s | %s", contactlabel[0], contactlabel[1]);
       }
 
       FINISH
@@ -234,12 +263,15 @@ static void addContactGeom(const mjModel* m, mjData* d, const mjtByte* flags,
         // scale vector
         mju_scl3(vec, vec, m->vis.map.force/m->stat.meanmass);
 
-        // get body ids
-        body1 = m->geom_bodyid[con->geom1];
-        body2 = m->geom_bodyid[con->geom2];
+        // get bodyflex ids
+        int bf[2];
+        for (int k=0; k<2; k++) {
+          bf[k] = (con->geom[k]>=0) ? m->geom_bodyid[con->geom[k]] :
+                                      m->nbody + con->flex[k];
+        }
 
-        // make sure arrow points towards body with higher id
-        if (body1 > body2) {
+        // make sure arrow points towards bodyflex with higher id
+        if (bf[0] > bf[1]) {
           mju_scl3(vec, vec, -1);
         }
 
@@ -249,8 +281,8 @@ static void addContactGeom(const mjModel* m, mjData* d, const mjtByte* flags,
         mjtNum to[3];
         mju_add3(to, from, vec);
         mjv_connector(thisgeom,
-                          body1 > 0 && body2 > 0 && !split ? mjGEOM_ARROW2 : mjGEOM_ARROW,
-                          m->vis.scale.forcewidth * scl,from, to);
+                      bf[0] > 0 && bf[1] > 0 && !split ? mjGEOM_ARROW2 : mjGEOM_ARROW,
+                      m->vis.scale.forcewidth * scl,from, to);
         f2f(thisgeom->rgba, j == 2 ? m->vis.rgba.contactfriction : m->vis.rgba.contactforce, 4);
         if (vopt->label == mjLABEL_CONTACTFORCE && j == (split ? 1 : 0)) {
           mjSNPRINTF(thisgeom->label, "%-.3g", mju_norm3(frc));
@@ -477,12 +509,15 @@ static int bodycategory(const mjModel* m, int bodyid) {
 
 
 // draw bounding box
-static void drawBoundingBox(mjvGeom* thisgeom, mjData* d, mjvScene* scn,
+static void drawBoundingBox(mjData* d, mjvScene* scn,
                             const mjtNum aabb[6], const mjtNum xpos[3],
-                            const mjtNum xmat[9], const float rgba[4],
-                            int i, int objtype, int category) {
+                            const mjtNum xmat[9], const float rgba[4]) {
   mjtNum x[3];
   mjtNum dist[3][3];
+  mjvGeom* thisgeom;
+  int category = mjCAT_DECOR;
+  int objtype = mjOBJ_UNKNOWN;
+  int i = -1;
 
   if (xmat != NULL) {
     mju_rotVecMat(x, aabb, xmat);
@@ -558,49 +593,98 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
     catmask &= (~mjCAT_STATIC);
   }
 
+  // flex
+  objtype = mjOBJ_FLEX;
+  category = mjCAT_DYNAMIC;
+  if ((vopt->flags[mjVIS_FLEXVERT] || vopt->flags[mjVIS_FLEXEDGE] ||
+       vopt->flags[mjVIS_FLEXFACE] || vopt->flags[mjVIS_FLEXSKIN]) &&
+      (category & catmask)) {
+    for (int i=0; i<m->nflex; i++) {
+      if (vopt->flexgroup[mjMAX(0, mjMIN(mjNGROUP-1, m->flex_group[i]))]) {
+        START
+
+        // construct geom, pos = first vertex
+        mjv_initGeom(thisgeom, mjGEOM_FLEX, NULL,
+                     d->flexvert_xpos + 3*m->flex_vertadr[i], NULL, NULL);
+
+        // size[0] = radius
+        thisgeom->size[0] = m->flex_radius[i];
+
+        // set material properties
+        setMaterial(m, thisgeom, m->flex_matid[i], m->flex_rgba+4*i, vopt->flags);
+
+        // set texcoord
+        if (m->flex_texcoordadr[i]>=0) {
+          thisgeom->texcoord = 1;
+        }
+        else {
+          thisgeom->texid = -1;
+        }
+
+        // glow flex if selected
+        if (pert->flexselect==i) {
+          markselected(&m->vis, thisgeom);
+        }
+
+        // skip if alpha is 0
+        if (thisgeom->rgba[3]==0) {
+          continue;
+        }
+
+        // vopt->label
+        if (vopt->label==mjLABEL_FLEX) {
+          makeLabel(m, mjOBJ_FLEX, i, thisgeom->label);
+        }
+
+        FINISH
+      }
+    }
+  }
+
   // skin
   objtype = mjOBJ_SKIN;
   category = mjCAT_DYNAMIC;
   if (vopt->flags[mjVIS_SKIN] && (category & catmask)) {
     for (int i=0; i < m->nskin; i++) {
-      START
+      if (vopt->skingroup[mjMAX(0, mjMIN(mjNGROUP-1, m->skin_group[i]))]) {
+        START
 
-      // construct geom, pos = first bone
-      mjv_initGeom(thisgeom, mjGEOM_SKIN, NULL,
-                   d->xpos + 3*m->skin_bonebodyid[m->skin_boneadr[i]], NULL, NULL);
+        // construct geom, pos = first bone
+        mjv_initGeom(thisgeom, mjGEOM_SKIN, NULL,
+                     d->xpos + 3*m->skin_bonebodyid[m->skin_boneadr[i]], NULL, NULL);
 
-      // set material properties
-      setMaterial(m, thisgeom, m->skin_matid[i], m->skin_rgba+4*i, vopt->flags);
+        // set material properties
+        setMaterial(m, thisgeom, m->skin_matid[i], m->skin_rgba+4*i, vopt->flags);
 
-      // glow skin if selected
-      if (pert->skinselect == i) {
-        markselected(&m->vis, thisgeom);
+        // glow skin if selected
+        if (pert->skinselect == i) {
+          markselected(&m->vis, thisgeom);
+        }
+
+        // set texcoord
+        if (m->skin_texcoordadr[i] >= 0) {
+          thisgeom->texcoord = 1;
+        }
+
+        // skip if alpha is 0
+        if (thisgeom->rgba[3] == 0) {
+          continue;
+        }
+
+        // vopt->label
+        if (vopt->label == mjLABEL_SKIN) {
+          makeLabel(m, mjOBJ_SKIN, i, thisgeom->label);
+        }
+
+        FINISH
       }
-
-      // set texcoord
-      if (m->skin_texcoordadr[i] >= 0) {
-        thisgeom->texcoord = 1;
-      }
-
-      // skip if alpha is 0
-      if (thisgeom->rgba[3] == 0) {
-        continue;
-      }
-
-      // vopt->label
-      if (vopt->label == mjLABEL_SKIN) {
-        makeLabel(m, mjOBJ_SKIN, i, thisgeom->label);
-      }
-
-      FINISH
     }
   }
 
-  // bounding volume hierarchy
-  if (vopt->flags[mjVIS_MIDPHASE]) {
-    int bodyid = 0;
+  // body BVH
+  if (vopt->flags[mjVIS_BODYBVH]) {
     float rgba[] = {1, 0, 0, 1};
-    for (int i = 0; i < m->nbvh; i++) {
+    for (int i = 0; i < m->nbvhstatic; i++) {
       int isleaf = m->bvh_child[2*i] == -1 && m->bvh_child[2*i+1] == -1;
       if (scn->ngeom >= scn->maxgeom) break;
       if (m->bvh_depth[i] != vopt->bvh_depth) {
@@ -610,7 +694,8 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
       }
 
       // find geom number
-      int geomid = m->bvh_geomid[i];
+      int bodyid = 0;
+      int geomid = m->bvh_nodeid[i];
       while (i >= m->body_bvhadr[bodyid] + m->body_bvhnum[bodyid]) {
         if (++bodyid >= m->nbody) {
           break;
@@ -631,11 +716,41 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
       rgba[0] = d->bvh_active[i] ? 1 : 0;
       rgba[1] = d->bvh_active[i] ? 0 : 1;
 
-      drawBoundingBox(thisgeom, d, scn, aabb, xpos, xmat, rgba, i, objtype, category);
+      drawBoundingBox(d, scn, aabb, xpos, xmat, rgba);
     }
   }
 
-  // mesh bounding volume hierarchy
+  // flex BVH
+  if (vopt->flags[mjVIS_FLEXBVH]) {
+    float rgba[] = {1, 0, 0, 0.1};
+    for (int f=0; f<m->nflex; f++) {
+      if (m->flex_bvhnum[f] &&
+          vopt->flexgroup[mjMAX(0, mjMIN(mjNGROUP-1, m->flex_group[f]))]) {
+        for (int i=m->flex_bvhadr[f]; i<m->flex_bvhadr[f]+m->flex_bvhnum[f]; i++) {
+          int isleaf = m->bvh_child[2*i]==-1 && m->bvh_child[2*i+1]==-1;
+          if (scn->ngeom >= scn->maxgeom) break;
+          if (m->bvh_depth[i] != vopt->bvh_depth) {
+            if (!isleaf || m->bvh_depth[i] > vopt->bvh_depth) {
+              continue;
+            }
+          }
+
+          // set box data
+          mjtNum *aabb = d->bvh_aabb_dyn + 6*(i - m->nbvhstatic);
+          rgba[0] = d->bvh_active[i] ? 1 : 0;
+          rgba[1] = d->bvh_active[i] ? 0 : 1;
+
+          // b/304453879 : add LINEBOX geom for bounding box visualization
+
+          START
+            mjv_initGeom(thisgeom, mjGEOM_BOX, aabb+3, aabb, NULL, rgba);
+          FINISH
+        }
+      }
+    }
+  }
+
+  // mesh BVH
   if (vopt->flags[mjVIS_MESHBVH]) {
     float rgba[] = {1, 0, 0, 1};
     for (int geomid = 0; geomid < m->ngeom; geomid++) {
@@ -666,7 +781,7 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
         rgba[0] = d->bvh_active[i] ? 1 : 0;
         rgba[1] = d->bvh_active[i] ? 0 : 1;
 
-        drawBoundingBox(thisgeom, d, scn, aabb, xpos, xmat, rgba, i, objtype, category);
+        drawBoundingBox(d, scn, aabb, xpos, xmat, rgba);
       }
     }
   }
@@ -2123,6 +2238,320 @@ void mjv_updateCamera(const mjModel* m, mjData* d, mjvCamera* cam, mjvScene* scn
 }
 
 
+
+// construct face, flat normals
+static void makeFace(float* _face, float* _normal,  mjtNum radius, const mjtNum* vertxpos,
+                     int nface, int i0, int i1, int i2) {
+  float* face = _face + 9*nface;
+  float* normal = _normal + 9*nface;
+  const mjtNum* v0 = vertxpos + 3*i0;
+  const mjtNum* v1 = vertxpos + 3*i1;
+  const mjtNum* v2 = vertxpos + 3*i2;
+
+  // compute normal
+  mjtNum v01[3] = {v1[0]-v0[0], v1[1]-v0[1], v1[2]-v0[2]};
+  mjtNum v02[3] = {v2[0]-v0[0], v2[1]-v0[1], v2[2]-v0[2]};
+  mjtNum nrm[3];
+  mju_cross(nrm, v01, v02);
+  mju_normalize3(nrm);
+
+  // set vertices: offset by radius*normal
+  mjtNum temp[3];
+  mju_addScl3(temp, v0, nrm, radius);
+  mju_n2f(face, temp, 3);
+  mju_addScl3(temp, v1, nrm, radius);
+  mju_n2f(face+3, temp, 3);
+  mju_addScl3(temp, v2, nrm, radius);
+  mju_n2f(face+6, temp, 3);
+
+  // set normals
+  mju_n2f(normal, nrm, 3);
+  mju_n2f(normal+3, nrm, 3);
+  mju_n2f(normal+6, nrm, 3);
+}
+
+
+
+// add face normal to vertices
+static void addNormal(mjtNum* vertnorm, const mjtNum* vertxpos,
+                      int i0, int i1, int i2) {
+  // compute normal*area
+  const mjtNum* v0 = vertxpos + 3*i0;
+  const mjtNum* v1 = vertxpos + 3*i1;
+  const mjtNum* v2 = vertxpos + 3*i2;
+  mjtNum v01[3] = {v1[0]-v0[0], v1[1]-v0[1], v1[2]-v0[2]};
+  mjtNum v02[3] = {v2[0]-v0[0], v2[1]-v0[1], v2[2]-v0[2]};
+  mjtNum nrm[3];
+  mju_cross(nrm, v01, v02);
+  mju_normalize3(nrm);
+
+  // accumulate at each vertex
+  mju_addTo3(vertnorm + 3*i0, nrm);
+  mju_addTo3(vertnorm + 3*i1, nrm);
+  mju_addTo3(vertnorm + 3*i2, nrm);
+}
+
+
+
+// construct face, smooth normals
+static void makeSmooth(float* _face, float* _normal, mjtNum radius, mjtByte flg_flat,
+                       const mjtNum* vertnorm, const mjtNum* vertxpos,
+                       int nface, int i0, int i1, int i2) {
+  float* face = _face + 9*nface;
+  float* normal = _normal + 9*nface;
+  int ind[3] = {i0, i1, i2};
+  int sign = radius>0 ? 1 : -1;
+
+  // flat shading
+  if (flg_flat) {
+    // compute face normal
+    const mjtNum* v0 = vertxpos + 3*i0;
+    const mjtNum* v1 = vertxpos + 3*i1;
+    const mjtNum* v2 = vertxpos + 3*i2;
+    mjtNum v01[3] = {v1[0]-v0[0], v1[1]-v0[1], v1[2]-v0[2]};
+    mjtNum v02[3] = {v2[0]-v0[0], v2[1]-v0[1], v2[2]-v0[2]};
+    mjtNum nrm[3];
+    mju_cross(nrm, v01, v02);
+    mju_normalize3(nrm);
+
+    // set all vertex normals equal to face normal
+    for (int k=0; k<3; k++){
+      normal[3*k+0] = (float) (sign*nrm[0]);
+      normal[3*k+1] = (float) (sign*nrm[1]);
+      normal[3*k+2] = (float) (sign*nrm[2]);
+    }
+  }
+
+  // smooth shading
+  else {
+    for (int k=0; k<3; k++){
+      normal[3*k+0] = (float) (sign*vertnorm[3*ind[k]+0]);
+      normal[3*k+1] = (float) (sign*vertnorm[3*ind[k]+1]);
+      normal[3*k+2] = (float) (sign*vertnorm[3*ind[k]+2]);
+    }
+  }
+
+  // set positions: vertices offset by radius*normal
+  for (int k=0; k<3; k++){
+    face[3*k+0] = (float) (vertxpos[3*ind[k]+0] + radius*vertnorm[3*ind[k]+0]);
+    face[3*k+1] = (float) (vertxpos[3*ind[k]+1] + radius*vertnorm[3*ind[k]+1]);
+    face[3*k+2] = (float) (vertxpos[3*ind[k]+2] + radius*vertnorm[3*ind[k]+2]);
+  }
+}
+
+
+
+// construct side in 2D face
+static void makeSide(float* _face, float* _normal, mjtNum radius,
+                     const mjtNum* vertnorm, const mjtNum* vertxpos,
+                     int nface, int i0, int i1) {
+  float* face = _face + 9*nface;
+  float* normal = _normal + 9*nface;
+
+  // compute normal
+  const mjtNum* v0 = vertxpos + 3*i0;
+  const mjtNum* v1 = vertxpos + 3*i1;
+  mjtNum v01[3] = {v1[0]-v0[0], v1[1]-v0[1], v1[2]-v0[2]};
+  mjtNum nrm[3];
+  mju_cross(nrm, v01, vertnorm+3*i1);
+  if (radius<0) {
+    mju_scl3(nrm, nrm, -1);
+  }
+  mju_normalize3(nrm);
+
+  // set normals
+  for (int k=0; k<3; k++){
+    normal[3*k+0] = (float) nrm[0];
+    normal[3*k+1] = (float) nrm[1];
+    normal[3*k+2] = (float) nrm[2];
+  }
+
+  // set positions
+  int ind[3] = {i0, i1, i1};
+  for (int k=0; k<3; k++){
+    mjtNum sign = (k==1 ? -1 : +1);
+    face[3*k+0] = (float) (vertxpos[3*ind[k]+0] + sign*radius*vertnorm[3*ind[k]+0]);
+    face[3*k+1] = (float) (vertxpos[3*ind[k]+1] + sign*radius*vertnorm[3*ind[k]+1]);
+    face[3*k+2] = (float) (vertxpos[3*ind[k]+2] + sign*radius*vertnorm[3*ind[k]+2]);
+  }
+}
+
+
+
+// copy texcoord for face
+static void copyTex(float* dst, const float* src, int nface, int i0, int i1, int i2) {
+  if (!dst || !src) {
+    return;
+  }
+
+  dst[6*nface+0] = src[2*i0];
+  dst[6*nface+1] = src[2*i0+1];
+  dst[6*nface+2] = src[2*i1];
+  dst[6*nface+3] = src[2*i1+1];
+  dst[6*nface+4] = src[2*i2];
+  dst[6*nface+5] = src[2*i2+1];
+}
+
+
+
+// update visible flexes only
+void mjv_updateActiveFlex(const mjModel* m, mjData* d, mjvScene* scn, const mjvOption* opt) {
+  // save flex visualization flags in scene (needed by renderer)
+  scn->flexvertopt = opt->flags[mjVIS_FLEXVERT];
+  scn->flexedgeopt = opt->flags[mjVIS_FLEXEDGE];
+  scn->flexfaceopt = opt->flags[mjVIS_FLEXFACE];
+  scn->flexskinopt = opt->flags[mjVIS_FLEXSKIN];
+
+  // convert vertex positions from mjtNum to float
+  for (int v=0; v<3*m->nflexvert; v++) {
+    scn->flexvert[v] = (float) d->flexvert_xpos[v];
+  }
+
+  // construct faces
+  for (int f=0; f<m->nflex; f++) {
+    int dim = m->flex_dim[f];
+    mjtNum radius = m->flex_radius[f];
+    mjtByte flg_flat = m->flex_flatskin[f];
+    const mjtNum* vertxpos = d->flexvert_xpos + 3*m->flex_vertadr[f];
+    float* face = scn->flexface + 9*scn->flexfaceadr[f];
+    float* normal = scn->flexnormal + 9*scn->flexfaceadr[f];
+    float* texdst = m->flex_texcoordadr[f]>=0 ?
+                       scn->flextexcoord + 6*scn->flexfaceadr[f] : NULL;
+    const float* texsrc = m->flex_texcoordadr[f]>=0 ?
+                            m->flex_texcoord + 2*m->flex_texcoordadr[f] : NULL;
+
+    // 1D, or face and skin disabled: no faces
+    if (dim==1 || (!opt->flags[mjVIS_FLEXFACE] && !opt->flags[mjVIS_FLEXSKIN])) {
+      scn->flexfaceused[f] = 0;
+    }
+
+    // 2D or 3D face: faces from elements, flat normals, texture
+    else if (!opt->flags[mjVIS_FLEXSKIN]) {
+      int nface = 0;
+      for (int e=0; e<m->flex_elemnum[f]; e++) {
+        // in 3D, show only elements in selected layer
+        if (dim==2 || m->flex_elemlayer[m->flex_elemadr[f]+e]==opt->flex_layer) {
+          // get element data
+          const int* edata = m->flex_elem + m->flex_elemdataadr[f] + e*(dim+1);
+
+          // triangles: two faces per element
+          if (dim==2) {
+            makeFace(face, normal, radius, vertxpos, nface, edata[0], edata[1], edata[2]);
+            copyTex(texdst, texsrc, nface, edata[0], edata[1], edata[2]);
+            nface++;
+
+            makeFace(face, normal, radius, vertxpos, nface, edata[0], edata[2], edata[1]);
+            copyTex(texdst, texsrc, nface, edata[0], edata[2], edata[1]);
+            nface++;
+          }
+
+          // tetrahedra: four faces per element
+          else {
+            makeFace(face, normal, radius, vertxpos,
+                     nface, edata[0], edata[1], edata[2]);
+            copyTex(texdst, texsrc, nface, edata[0], edata[1], edata[2]);
+            nface++;
+
+            makeFace(face, normal, radius, vertxpos,
+                     nface, edata[0], edata[2], edata[3]);
+            copyTex(texdst, texsrc, nface, edata[0], edata[2], edata[3]);
+            nface++;
+
+            makeFace(face, normal, radius, vertxpos,
+                     nface, edata[0], edata[3], edata[1]);
+            copyTex(texdst, texsrc, nface, edata[0], edata[3], edata[1]);
+            nface++;
+
+            makeFace(face, normal, radius, vertxpos,
+                     nface, edata[1], edata[3], edata[2]);
+            copyTex(texdst, texsrc, nface, edata[1], edata[3], edata[2]);
+            nface++;
+          }
+        }
+      }
+
+      // save face count
+      scn->flexfaceused[f] = nface;
+    }
+
+    // 2D or 3D skin: faces from elements (2D) or shells (3D), smooth normals, texture
+    else {
+      // allocate and clear vertex normals for smoothing
+      mj_markStack(d);
+      mjtNum* vertnorm = mj_stackAllocNum(d, 3*m->flex_vertnum[f]);
+      mju_zero(vertnorm, 3*m->flex_vertnum[f]);
+
+      // add vertex normals: top element sides in 2D, shell fragments in 3D
+      if (dim==2) {
+        for (int e=0; e<m->flex_elemnum[f]; e++) {
+          const int* edata = m->flex_elem + m->flex_elemdataadr[f] + e*(dim+1);
+          addNormal(vertnorm, vertxpos, edata[0], edata[1], edata[2]);
+        }
+      } else {
+        for (int s=0; s<m->flex_shellnum[f]; s++) {
+          const int* sdata = m->flex_shell + m->flex_shelldataadr[f] + s*dim;
+          addNormal(vertnorm, vertxpos, sdata[0], sdata[1], sdata[2]);
+        }
+      }
+
+      // normalize vertex normals
+      for (int i=0; i<m->flex_vertnum[f]; i++) {
+        mju_normalize3(vertnorm+3*i);
+      }
+
+      // create faces, offset along smoothed vertex normals, and texcoord
+      int nface = 0;
+      if (dim==2) {
+        for (int e=0; e<m->flex_elemnum[f]; e++) {
+          const int* edata = m->flex_elem + m->flex_elemdataadr[f] + e*(dim+1);
+          makeSmooth(face, normal, radius, flg_flat, vertnorm, vertxpos,
+                     nface, edata[0], edata[1], edata[2]);
+          copyTex(texdst, texsrc, nface, edata[0], edata[1], edata[2]);
+          nface++;
+          makeSmooth(face, normal, -radius, flg_flat, vertnorm, vertxpos,
+                     nface, edata[0], edata[2], edata[1]);
+          copyTex(texdst, texsrc, nface, edata[0], edata[2], edata[1]);
+          nface++;
+        }
+      } else {
+        for (int s=0; s<m->flex_shellnum[f]; s++) {
+          const int* sdata = m->flex_shell + m->flex_shelldataadr[f] + s*dim;
+          makeSmooth(face, normal, radius, flg_flat, vertnorm, vertxpos,
+                     nface, sdata[0], sdata[1], sdata[2]);
+          copyTex(texdst, texsrc, nface, sdata[0], sdata[1], sdata[2]);
+          nface++;
+        }
+      }
+
+      // 2D: close sides using shell fragments
+      if (dim==2) {
+        for (int s=0; s<m->flex_shellnum[f]; s++) {
+          const int* sdata = m->flex_shell + m->flex_shelldataadr[f] + s*dim;
+          makeSide(face, normal, radius, vertnorm, vertxpos,
+                   nface, sdata[0], sdata[1]);
+          copyTex(texdst, texsrc, nface, sdata[0], sdata[1], sdata[1]);
+          nface++;
+          makeSide(face, normal, -radius, vertnorm, vertxpos,
+                   nface, sdata[1], sdata[0]);
+          copyTex(texdst, texsrc, nface, sdata[1], sdata[0], sdata[0]);
+          nface++;
+        }
+      }
+
+      // save face count
+      scn->flexfaceused[f] = nface;
+      mj_freeStack(d);
+    }
+
+    // check face count, SHOULD NOT OCCUR
+    if (scn->flexfaceused[f] > scn->flexfacenum[f]) {
+      mju_error("too many flex faces in mjv_updateActiveFlex");
+    }
+  }
+}
+
+
+
 // update all skins, here for backward API compatibility
 void mjv_updateSkin(const mjModel* m, mjData* d, mjvScene* scn) {
   mjvOption opt;
@@ -2130,6 +2559,7 @@ void mjv_updateSkin(const mjModel* m, mjData* d, mjvScene* scn) {
   mjv_updateActiveSkin(m, d, scn, &opt);
   mju_warning("mjv_updateSkin is deprecated, please use mjv_updateActiveSkin.");
 }
+
 
 
 // update visible skins only
@@ -2146,7 +2576,8 @@ void mjv_updateActiveSkin(const mjModel* m, mjData* d, mjvScene* scn, const mjvO
     memset(scn->skinvert + 3*vertadr, 0, 3*vertnum*sizeof(float));
     memset(scn->skinnormal + 3*vertadr, 0, 3*vertnum*sizeof(float));
 
-    if (opt->skingroup[m->skin_group[i]]) {
+    // update only if visible
+    if (opt->skingroup[mjMAX(0, mjMIN(mjNGROUP-1, m->skin_group[i]))]) {
       // accumulate positions from all bones
       for (int j=m->skin_boneadr[i];
            j < m->skin_boneadr[i]+m->skin_bonenum[i];
@@ -2234,10 +2665,10 @@ void mjv_updateActiveSkin(const mjModel* m, mjData* d, mjvScene* scn, const mjvO
       // normalize normals
       for (int k=vertadr; k < vertadr+vertnum; k++) {
         float s = sqrtf(
-          scn->skinnormal[3*k]*scn->skinnormal[3*k] +
-          scn->skinnormal[3*k+1]*scn->skinnormal[3*k+1] +
-          scn->skinnormal[3*k+2]*scn->skinnormal[3*k+2]
-          );
+                    scn->skinnormal[3*k]*scn->skinnormal[3*k] +
+                    scn->skinnormal[3*k+1]*scn->skinnormal[3*k+1] +
+                    scn->skinnormal[3*k+2]*scn->skinnormal[3*k+2]
+                  );
         float scl = 1/mjMAX(mjMINVAL, s);
 
         scn->skinnormal[3*k] *= scl;
@@ -2290,6 +2721,12 @@ void mjv_updateScene(const mjModel* m, mjData* d, const mjvOption* opt,
 
   // update camera
   mjv_updateCamera(m, d, cam, scn);
+
+  // update flexes
+  if (opt->flags[mjVIS_FLEXVERT] || opt->flags[mjVIS_FLEXEDGE] ||
+      opt->flags[mjVIS_FLEXFACE] || opt->flags[mjVIS_FLEXSKIN]) {
+    mjv_updateActiveFlex(m, d, scn, opt);
+  }
 
   // update skins
   if (opt->flags[mjVIS_SKIN]) {

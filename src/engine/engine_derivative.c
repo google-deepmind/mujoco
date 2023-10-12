@@ -25,6 +25,7 @@
 #include "engine/engine_util_errmem.h"
 #include "engine/engine_util_misc.h"
 #include "engine/engine_util_spatial.h"
+#include "engine/engine_util_sparse.h"
 
 
 
@@ -693,41 +694,6 @@ static void mjd_rne_vel(const mjModel* m, mjData* d) {
 
 //--------------------- utility functions for (d force / d vel) Jacobians --------------------------
 
-// construct sparse Jacobian structure of body; return nnz
-static int bodyJacSparse(const mjModel* m, int body, int* ind) {
-  // skip fixed bodies
-  while (body > 0 && m->body_dofnum[body] == 0) {
-    body = m->body_parentid[body];
-  }
-
-  // body is not movable: empty chain
-  if (body == 0) {
-    return 0;
-  }
-
-  // count dofs
-  int nnz = 0;
-  int dof = m->body_dofadr[body] + m->body_dofnum[body] - 1;
-  while (dof >= 0) {
-    nnz++;
-    dof = m->dof_parentid[dof];
-  }
-
-  // fill array in reverse (increasing dof)
-  int cnt = 0;
-  dof = m->body_dofadr[body] + m->body_dofnum[body] - 1;
-  while (dof >= 0) {
-    ind[nnz-cnt-1] = dof;
-    cnt++;
-    dof = m->dof_parentid[dof];
-  }
-
-  return nnz;
-}
-
-
-
-
 // add J'*B*J to qDeriv
 static void addJTBJ(const mjModel* m, mjData* d, const mjtNum* J, const mjtNum* B, int n) {
   int nv = m->nv;
@@ -778,30 +744,23 @@ static void addJTBJSparse(
   // compute qDeriv(k,p) += sum_{i,j} ( J(i,k)*B(i,j)*J(j,p) )
   for (int i = 0; i < n; i++) {
     for (int j = 0; j < n; j++) {
+      int offset_i = offset+i, offset_j = offset+j;
       if (!B[i*n+j]) {
         continue;
       }
 
-      mju_zero(row, nv);
-
       // loop over non-zero elements of J(i,:)
-      for (int k = 0; k < J_rownnz[offset+i]; k++) {
-        int ik = J_rowadr[offset+i] + k;
-        mjtNum scl = J[ik]*B[i*n+j];
+      for (int k = 0; k < J_rownnz[offset_i]; k++) {
+        int ik = J_rowadr[offset_i] + k;
+        int colik = J_colind[ik];
 
-        // loop over non-zero elements of J(j,:)
-        // (pJ is the sparse column index into J)
-        for (int pJ = 0; pJ < J_rownnz[offset+j]; pJ++) {
-          int adr = J_rowadr[offset+j] + pJ;
-          row[J_colind[adr]] = scl * J[adr];
-        }
+        // row = J(i,k)*B(i,j)*J(j,:)
+        mju_scl(row, J + J_rowadr[offset_j], J[ik]*B[i*n+j], J_rownnz[offset_j]);
 
-        // add row to qDeriv(k,:)
-        // (pD is the sparse column index into qDeriv)
-        for (int pD = 0; pD < d->D_rownnz[k]; pD++) {
-          int adr = d->D_rowadr[k] + pD;
-          d->qDeriv[adr] += row[d->D_colind[adr]];
-        }
+        // qDeriv(k,:) += row
+        mju_addToSparseInc(d->qDeriv + d->D_rowadr[colik], row,
+                           d->D_rownnz[colik], d->D_colind + d->D_rowadr[colik],
+                           J_rownnz[offset_j], J_colind + J_rowadr[offset_j]);
       }
     }
   }
@@ -1242,7 +1201,7 @@ void mjd_ellipsoidFluid(const mjModel* m, mjData* d, int bodyid) {
 
   if (mj_isSparse(m)) {
     // get sparse body Jacobian structure
-    nnz = bodyJacSparse(m, bodyid, colind);
+    nnz = mj_bodyChain(m, bodyid, colind);
 
     // prepare rownnz, rowadr, colind for all 6 rows
     for (int i=0; i < 6; i++) {
@@ -1282,16 +1241,11 @@ void mjd_ellipsoidFluid(const mjModel* m, mjData* d, int bodyid) {
     // subtract translational component from grom velocity
     mju_subFrom3(lvel+3, lwind+3);
 
-    // get body global Jacobian: rotation then translation
-    mj_jacGeom(m, d, J+3*nv, J, geomid);
-
-    // compress geom Jacobian in-place
+    // get geom global Jacobian: rotation then translation
     if (mj_isSparse(m)) {
-      for (int i=0; i < 6; i++) {
-        for (int k=0; k < nnz; k++) {
-          J[i*nnz+k] = J[i*nv+colind[k]];
-        }
-      }
+      mj_jacSparse(m, d, J+3*nnz, J, d->geom_xpos+3*geomid, m->geom_bodyid[geomid], nnz, colind);
+    } else {
+      mj_jacGeom(m, d, J+3*nv, J, geomid);
     }
 
     // rotate (compressed) Jacobian to local frame
@@ -1334,6 +1288,7 @@ void mjd_ellipsoidFluid(const mjModel* m, mjData* d, int bodyid) {
 }
 
 
+
 // fluid forces based on inertia-box approximation
 void mjd_inertiaBoxFluid(const mjModel* m, mjData* d, int i)
 {
@@ -1368,23 +1323,16 @@ void mjd_inertiaBoxFluid(const mjModel* m, mjData* d, int i)
   // subtract translational component from body velocity
   mju_subFrom3(lvel+3, lwind+3);
 
-  // get body global Jacobian: rotation then translation
-  mj_jacBodyCom(m, d, J+3*nv, J, i);
-
   // init with dense
   int nnz = nv;
 
-  // prepare for sparse
+  // sparse Jacobian
   if (mj_isSparse(m)) {
     // get sparse body Jacobian structure
-    nnz = bodyJacSparse(m, i, colind);
+    nnz = mj_bodyChain(m, i, colind);
 
-    // compress body Jacobian in-place
-    for (int j=0; j < 6; j++) {
-      for (int k=0; k < nnz; k++) {
-        J[j*nnz+k] = J[j*nv+colind[k]];
-      }
-    }
+    // get sparse jacBodyCom
+    mj_jacSparse(m, d, J+3*nnz, J, d->xipos+3*i, i, nnz, colind);
 
     // prepare rownnz, rowadr, colind for all 6 rows
     rownnz[0] = nnz;
@@ -1396,6 +1344,11 @@ void mjd_inertiaBoxFluid(const mjModel* m, mjData* d, int i)
         colind[j*nnz+k] = colind[k];
       }
     }
+  }
+
+  // dense Jacobian
+  else {
+    mj_jacBodyCom(m, d, J+3*nv, J, i);
   }
 
   // rotate (compressed) Jacobian to local frame
@@ -1513,6 +1466,24 @@ void mjd_passive_vel(const mjModel* m, mjData* d) {
       if (d->D_colind[ij] == i) {
         d->qDeriv[ij] -= m->dof_damping[i];
         break;
+      }
+    }
+  }
+
+  // flex edge damping
+  for (int f=0; f<m->nflex; f++) {
+    if (!m->flex_rigid[f] && m->flex_edgedamping[f]) {
+      mjtNum B = -m->flex_edgedamping[f];
+
+      // process edges of this flex
+      for (int e=m->flex_edgeadr[f]; e<m->flex_edgeadr[f]+m->flex_edgenum[f]; e++) {
+        // add sparse or dense
+        if (mj_isSparse(m)) {
+          addJTBJSparse(m, d, d->flexedge_J, &B, 1, e,
+                        d->flexedge_J_rownnz, d->flexedge_J_rowadr, d->flexedge_J_colind);
+        } else {
+          addJTBJ(m, d, d->flexedge_J+e*nv, &B, 1);
+        }
       }
     }
   }

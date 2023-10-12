@@ -63,6 +63,20 @@ int mju_combineSparse(mjtNum* dst, const mjtNum* src, mjtNum a, mjtNum b,
 void mju_combineSparseInc(mjtNum* dst, const mjtNum* src, int n, mjtNum a, mjtNum b,
                           int dst_nnz, int src_nnz, int* dst_ind, const int* src_ind);
 
+// dst += src, only at common non-zero indices
+void mju_addToSparseInc(mjtNum* dst, const mjtNum* src,
+                        int nnzdst, const int* inddst,
+                        int nnzsrc, const int* indsrc);
+
+// add to sparse matrix: dst = dst + scl*src, return nnz of result
+int mju_addToSparseMat(mjtNum* dst, const mjtNum* src, int n, int nrow, mjtNum scl,
+                       int dst_nnz, int src_nnz, int* dst_ind, const int* src_ind,
+                       mjtNum* buf, int* buf_ind);
+
+// add(merge) two chains
+int mju_addChains(int* res, int n, int NV1, int NV2,
+                  const int* chain1, const int* chain2);
+
 // transpose sparse matrix
 MJAPI void mju_transposeSparse(mjtNum* res, const mjtNum* mat, int nr, int nc,
                                int* res_rownnz, int* res_rowadr, int* res_colind,

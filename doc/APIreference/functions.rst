@@ -724,6 +724,15 @@ mj_camlight
 
 Compute camera and light positions and orientations.
 
+.. _mj_flex:
+
+mj_flex
+~~~~~~~
+
+.. mujoco-include:: mj_flex
+
+Compute flex-related quantities.
+
 .. _mj_tendon:
 
 mj_tendon
@@ -947,6 +956,16 @@ mju_rayGeom
 .. mujoco-include:: mju_rayGeom
 
 Intersect ray with pure geom, return nearest distance or -1 if no intersection.
+
+.. _mju_rayFlex:
+
+mju_rayFlex
+~~~~~~~~~~~
+
+.. mujoco-include:: mju_rayFlex
+
+Intersect ray with flex, return nearest distance or -1 if no intersection,
+and also output nearest vertex id.
 
 .. _mju_raySkin:
 

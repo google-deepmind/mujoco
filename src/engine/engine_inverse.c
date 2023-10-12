@@ -25,7 +25,7 @@
 #include "engine/engine_derivative.h"
 #include "engine/engine_io.h"
 #include "engine/engine_macro.h"
-#include "engine/engine_passive.h"
+#include "engine/engine_forward.h"
 #include "engine/engine_sensor.h"
 #include "engine/engine_support.h"
 #include "engine/engine_util_blas.h"
@@ -40,6 +40,7 @@ void mj_invPosition(const mjModel* m, mjData* d) {
   mj_kinematics(m, d);
   mj_comPos(m, d);
   mj_camlight(m, d);
+  mj_flex(m, d);
   mj_tendon(m, d);
   TM_END(mjTIMER_POS_KINEMATICS);
 
@@ -63,28 +64,7 @@ void mj_invPosition(const mjModel* m, mjData* d) {
 
 // velocity-dependent computations
 void mj_invVelocity(const mjModel* m, mjData* d) {
-  TM_START;
-
-  // tendon velocity: dense or sparse
-  if (mj_isSparse(m)) {
-    mju_mulMatVecSparse(d->ten_velocity, d->ten_J, d->qvel, m->ntendon,
-                        d->ten_J_rownnz, d->ten_J_rowadr, d->ten_J_colind, NULL);
-  } else {
-    mju_mulMatVec(d->ten_velocity, d->ten_J, d->qvel, m->ntendon, m->nv);
-  }
-
-  // actuator velocity
-  mju_mulMatVec(d->actuator_velocity, d->actuator_moment, d->qvel, m->nu, m->nv);
-
-  // standard velocity computations
-  mj_comVel(m, d);
-  mj_passive(m, d);
-  mj_referenceConstraint(m, d);
-
-  // compute qfrc_bias with abbreviated RNE (without acceleration)
-  mj_rne(m, d, 0, d->qfrc_bias);
-
-  TM_END(mjTIMER_VELOCITY);
+  mj_fwdVelocity(m, d);
 }
 
 

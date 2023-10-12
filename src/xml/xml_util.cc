@@ -767,6 +767,42 @@ bool mjXUtil::ReadAttrInt(XMLElement* elem, const char* attr, int* data, bool re
 
 
 
+// read vector<string> from string
+void mjXUtil::String2Vector(const string& txt, vector<string>& vec) {
+  stringstream strm(txt);
+  vec.clear();
+
+  while (!strm.eof()) {
+    string word;
+    strm >> word;
+    if (strm.fail()) {
+      break;
+    } else {
+      vec.push_back(word);
+    }
+  }
+}
+
+
+
+// read vector<mjtNum> from string
+void mjXUtil::String2Vector(const string& txt, vector<double>& vec) {
+  stringstream strm(txt);
+  vec.clear();
+
+  while (!strm.eof()) {
+    double num;
+    strm >> num;
+    if (strm.fail()) {
+      break;
+    } else {
+      vec.push_back(num);
+    }
+  }
+}
+
+
+
 // read vector<float> from string
 void mjXUtil::String2Vector(const string& txt, vector<float>& vec) {
   stringstream strm(txt);
@@ -799,6 +835,38 @@ void mjXUtil::String2Vector(const string& txt, vector<int>& vec) {
       vec.push_back(num);
     }
   }
+}
+
+
+
+// write vector<float> to string
+void mjXUtil::Vector2String(string& txt, const vector<string>& vec) {
+  stringstream strm;
+
+  for (size_t i=0; i<vec.size(); i++) {
+    if (i>0) {
+      strm << " ";
+    }
+    strm << vec[i];
+  }
+
+  txt = strm.str();
+}
+
+
+
+// write vector<double> to string
+void mjXUtil::Vector2String(string& txt, const vector<double>& vec) {
+  stringstream strm;
+
+  for (size_t i=0; i<vec.size(); i++) {
+    if (i>0) {
+      strm << " ";
+    }
+    strm << vec[i];
+  }
+
+  txt = strm.str();
 }
 
 
