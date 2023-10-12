@@ -18,14 +18,20 @@ class USDRenderer(object):
                model,
                height=480,
                width=480,
-               geom_groups=[1,1,1,1,1,1]):
+               geom_groups=[1,1,1,1,1,1],
+               in_memory=True,
+               tmp_usd_stage_file='tmp_usd_stage.usd'):
     self.model = model
     self.data = None
     self.renderer = mujoco.Renderer(model, height, width)
-
+    self.in_memory = in_memory
     self.loaded_scene_info = False
 
-    self.stage = Usd.Stage.CreateNew('usd_stage.usda')
+    if in_memory:
+      self.stage = Usd.Stage.CreateInMemory()
+    else:
+      self.stage = Usd.Stage.CreateNew(tmp_usd_stage_file)
+
     UsdGeom.SetStageUpAxis(self.stage, UsdGeom.Tokens.z)
 
     # TODO: maybe change where we initialize this?
@@ -41,7 +47,10 @@ class USDRenderer(object):
     return self.renderer.scene
   
   def save_scene(self):
-    self.stage.GetRootLayer().Save()
+    if not self.in_memory:
+      self.stage.GetRootLayer().Save()
+    else:
+      raise Exception("Can only save files if in_memory=False")
 
   def update_scene(self, data):
     self.renderer.update_scene(data, scene_option=self.scene_option)
