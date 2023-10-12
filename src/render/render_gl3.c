@@ -580,6 +580,9 @@ static void initGL3(const mjvScene* scn, const mjrContext* con) {
   // common options
   glDisable(GL_BLEND);
   glEnable(GL_NORMALIZE);
+  if (mjGLAD_GL_ARB_clip_control) {
+    glClipControl(GL_LOWER_LEFT, GL_ZERO_TO_ONE);
+  }
   glEnable(GL_DEPTH_TEST);
   glDepthMask(GL_TRUE);
   if (scn->flags[mjRND_CULL_FACE]) {
@@ -588,11 +591,11 @@ static void initGL3(const mjvScene* scn, const mjrContext* con) {
     glDisable(GL_CULL_FACE);
   }
   glShadeModel(GL_SMOOTH);
-  glDepthFunc(GL_LEQUAL);
+  glDepthFunc(GL_GEQUAL);
   glDepthRange(0, 1);
   glAlphaFunc(GL_GEQUAL, 0.99f);
   glClearColor(0, 0, 0, 0);
-  glClearDepth(1);
+  glClearDepth(0);
   glClearStencil(0);
   glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
 
@@ -682,6 +685,15 @@ static void setView(int view, mjrRect viewport, const mjvScene* scn, const mjrCo
   // set projection
   glMatrixMode(GL_PROJECTION);
   glLoadIdentity();
+  if (mjGLAD_GL_ARB_clip_control) {
+    // reverse Z rendering mapping [znear, zfar] -> [1, 0] (ndc)
+    glTranslatef(0.0f, 0.0f, 0.5f);
+    glScalef(1.0f, 1.0f, -0.5f);
+  }
+  else {
+    // reverse Z rendering mapping without shift [znear, zfar] -> [1, -1] (ndc)
+    glScalef(1.0f, 1.0f, -1.0f);
+  }
   glFrustum(cam.frustum_center - halfwidth,
             cam.frustum_center + halfwidth,
             cam.frustum_bottom,
@@ -757,9 +769,15 @@ void mjr_render(mjrRect viewport, mjvScene* scn, const mjrContext* con) {
   float biasMatrix[16] = {
     0.5f, 0.0f, 0.0f, 0.0f,
     0.0f, 0.5f, 0.0f, 0.0f,
-    0.0f, 0.0f, 0.5f, 0.0f,
-    0.5f, 0.5f, 0.5f, 1.0f
+    0.0f, 0.0f, 1.0f, 0.0f,
+    0.5f, 0.5f, 0.0f, 1.0f
   };
+  if (!mjGLAD_GL_ARB_clip_control) {
+    // account for conversion from ndc to window coordinates
+    biasMatrix[2*4+2] = 0.5;
+    biasMatrix[3*4+2] = 0.5;
+  }
+
   float tempMatrix[16], textureMatrix[16];
   mjvGeom *thisgeom, tempgeom;
   mjvLight *thislight;
@@ -884,7 +902,7 @@ void mjr_render(mjrRect viewport, mjvScene* scn, const mjrContext* con) {
   }
 
   // render with stereo
-  for (int view=(stereo?0:-1); view < (stereo?2:0); view++) {
+  for (int view = (stereo ? 0 : -1); view < (stereo ? 2 : 0); view++) {
     // change drawbuffer for QUADBUFFERED stereo
     if (stereo == mjSTEREO_QUADBUFFERED) {
       if (con->windowDoublebuffer) {
@@ -1107,6 +1125,15 @@ void mjr_render(mjrRect viewport, mjvScene* scn, const mjrContext* con) {
           // set projection: from light viewpoint
           glMatrixMode(GL_PROJECTION);
           glLoadIdentity();
+          if (mjGLAD_GL_ARB_clip_control) {
+            // reverse Z rendering mapping [znear, zfar] -> [1, 0] (ndc)
+            glTranslatef(0.0f, 0.0f, 0.5f);
+            glScalef(1.0f, 1.0f, -0.5f);
+          }
+          else {
+            // reverse Z rendering mapping without shift [znear, zfar] -> [1, -1] (ndc)
+            glScalef(1.0f, 1.0f, -1.0f);
+          }
           if (thislight->directional) {
             glOrtho(-con->shadowClip, con->shadowClip,
                     -con->shadowClip, con->shadowClip,
@@ -1127,7 +1154,8 @@ void mjr_render(mjrRect viewport, mjvScene* scn, const mjrContext* con) {
           glBindFramebuffer(GL_FRAMEBUFFER, con->shadowFBO);
           glDrawBuffer(GL_NONE);
           glClear(GL_DEPTH_BUFFER_BIT);
-          glViewport(1, 1, con->shadowSize-2, con->shadowSize-2); // avoid infinite shadows from edges
+          glViewport(
+              1, 1, con->shadowSize-2, con->shadowSize-2);  // avoid infinite shadows from edges
           glCullFace(GL_FRONT);
           glShadeModel(GL_FLAT);
           glDisable(GL_LIGHTING);

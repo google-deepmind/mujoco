@@ -502,6 +502,16 @@ These are the possible framebuffers. They are used as an argument to the functio
 .. mujoco-include:: mjtFramebuffer
 
 
+mjtDepthMap
+~~~~~~~~~~~
+
+These are the depth mapping options. They are used as a value for the ``readPixelDepth`` attribute of the
+:ref:`mjrContext` struct, to control how the depth returned by :ref:`mjr_readPixels` is mapped from
+``znear`` to ``zfar``.
+
+.. mujoco-include:: mjtDepthMap
+
+
 .. _mjtFontScale:
 
 mjtFontScale

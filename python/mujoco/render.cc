@@ -215,6 +215,7 @@ PYBIND11_MODULE(_render, pymodule) {
   X(windowDoublebuffer);
   X(currentBuffer);
   X(readPixelFormat);
+  X(readDepthMap);
 #undef X
 
 #define X(var)                      \

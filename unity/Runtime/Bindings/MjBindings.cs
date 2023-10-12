@@ -406,6 +406,10 @@ public enum mjtFramebuffer : int{
   mjFB_WINDOW = 0,
   mjFB_OFFSCREEN = 1,
 }
+public enum mjtDepthMap : int{
+  mjDEPTH_ZERONEAR = 0,
+  mjDEPTH_ZEROFAR = 1,
+}
 public enum mjtFontScale : int{
   mjFONTSCALE_50 = 50,
   mjFONTSCALE_100 = 100,
@@ -5596,6 +5600,7 @@ public unsafe struct mjrContext_ {
   public int windowDoublebuffer;
   public int currentBuffer;
   public int readPixelFormat;
+  public int readDepthMap;
 }
 
 [StructLayout(LayoutKind.Sequential)]

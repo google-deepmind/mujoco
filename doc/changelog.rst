@@ -131,15 +131,19 @@ General
 22. Added multi-threaded constraint solving via :ref:`mj_island` and :ref:`mjThreadPool` to :ref:`testspeed<saTestspeed>`
     exposed via npoolthread flag. The `22 humanoids <https://github.com/deepmind/mujoco/blob/main/model/humanoid/22_humanoids.xml>`__
     model shows a 3x speedup compared to the single threaded simulation.
+23. Implemented reversed Z rendering for better depth precision. An enum :ref:`mjtDepthMap` was added with values
+    :ref:`mjDEPTH_ZERONEAR` and :ref:`mjDEPTH_ZEROFAR`, which can be used to set the new ``readDepthMap`` attribute in
+    :ref:`mjrContext`` to control how the depth returned by :ref:`mjr_readPixels` is mapped from ``znear`` to ``zfar``.
+    `Contribution <https://github.com/google-deepmind/mujoco/pull/978>`__ by `Levi Burner <https://github.com/aftersomemath>`__.
 
 Python bindings
 ^^^^^^^^^^^^^^^
 
-23. Fixed `#870 <https://github.com/google-deepmind/mujoco/issues/870>`__ where calling ``update_scene`` with an invalid
+24. Fixed `#870 <https://github.com/google-deepmind/mujoco/issues/870>`__ where calling ``update_scene`` with an invalid
     camera name used the default camera.
-24. Added ``user_scn`` to the :ref:`passive viewer<PyViewerPassive>` handle, which allows users to add custom
-    visualization geoms (`#1023 <https://github.com/google-deepmind/mujoco/issues/870>`__).
-25. Added optional boolean keyword arguments ``show_left_ui`` and ``show_right_ui`` to the functions ``viewer.launch``
+25. Added ``user_scn`` to the :ref:`passive viewer<PyViewerPassive>` handle, which allows users to add custom
+   visualization geoms (`#1023 <https://github.com/google-deepmind/mujoco/issues/870>`__).
+26. Added optional boolean keyword arguments ``show_left_ui`` and ``show_right_ui`` to the functions ``viewer.launch``
     and ``viewer.launch_passive``, which allow users to launch a viewer with UI panels hidden.
 
 Simulate
@@ -149,21 +153,21 @@ Simulate
    :align: right
    :width: 240px
 
-26. Added **state history** mechanism to :ref:`simulate<saSimulate>` and the managed
+27. Added **state history** mechanism to :ref:`simulate<saSimulate>` and the managed
     :ref:`Python viewer<PyViewerManaged>`. State history can be viewed by scrubbing the History slider and (more
     precisely) with the left and right arrow keys. See screen capture:
 
-27. The ``LOADING...`` label is now shown correctly.
+28. The ``LOADING...`` label is now shown correctly.
     `Contribution <https://github.com/google-deepmind/mujoco/pull/1070>`__ by
     `Levi Burner <https://github.com/aftersomemath>`__.
 
 Bug fixes
 ^^^^^^^^^
 
-28. Fixed a bug that was causing :ref:`geom margin<body-geom-margin>` to be ignored during the construction of
+29. Fixed a bug that was causing :ref:`geom margin<body-geom-margin>` to be ignored during the construction of
     midphase collision trees.
 
-29. Fixed a bug that was generating incorrect values in ``efc_diagApprox`` for weld equality constraints.
+30. Fixed a bug that was generating incorrect values in ``efc_diagApprox`` for weld equality constraints.
 
 
 Version 2.3.7 (July 20, 2023)

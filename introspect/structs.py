@@ -7905,6 +7905,11 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  type=ValueType(name='int'),
                  doc='default color pixel format for mjr_readPixels',
              ),
+             StructFieldDecl(
+                 name='readDepthMap',
+                 type=ValueType(name='int'),
+                 doc='depth mapping: mjDEPTH_ZERONEAR or mjDEPTH_ZEROFAR',
+             ),
          ),
      )),
     ('mjuiState',
