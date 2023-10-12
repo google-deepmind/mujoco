@@ -19,7 +19,7 @@ body {
 }
 
 /* Make the search bar query text readable in dark theme. */
-body[data-theme=dark] {
+body:not([data-theme="light"]) {
   --color-sidebar-search-foreground: white;
 }
 
