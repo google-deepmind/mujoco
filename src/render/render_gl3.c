@@ -413,8 +413,10 @@ static void renderGeom(const mjvGeom* geom, int mode, const float* headpos,
     break;
 
   case mjGEOM_FLEX:                           // flex
+  {
     // no texture for vertices and edges
-    if (glIsEnabled(GL_TEXTURE_2D)) {
+    GLboolean texture_is_enabled = glIsEnabled(GL_TEXTURE_2D);
+    if (texture_is_enabled == GL_TRUE) {
       glDisable(GL_TEXTURE_2D);
     }
 
@@ -468,7 +470,7 @@ static void renderGeom(const mjvGeom* geom, int mode, const float* headpos,
     }
 
     // restore texture for faces
-    if (glIsEnabled(GL_TEXTURE_2D)) {
+    if (texture_is_enabled == GL_TRUE) {
       glEnable(GL_TEXTURE_2D);
     }
 
@@ -490,6 +492,7 @@ static void renderGeom(const mjvGeom* geom, int mode, const float* headpos,
       }
     }
     break;
+  }
 
   case mjGEOM_SKIN:                           // skin
     // vertex positions
