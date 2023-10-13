@@ -146,13 +146,12 @@ any effect. The settings here are global and apply to the entire model.
 
 .. _compiler-autolimits:
 
-:at:`autolimits`: :at-val:`[false, true], "false"`
+:at:`autolimits`: :at-val:`[false, true], "true"`
    This attribute affects the behavior of attributes such as "limited" (on <body-joint> or <tendon>), "forcelimited",
    "ctrllimited", and "actlimited" (on <actuator>). If "true", these attributes are unnecessary and their value
    will be inferred from the presence of their corresponding "range" attribute.
    If "false", no such inference will happen: For a joint to be limited, both limited="true" and range="min max" must
    be specified. In this mode, it is an error to specify a range without a limit.
-   |br| The default for this option will be set to "true" in an upcoming release.
 
 .. _compiler-boundmass:
 

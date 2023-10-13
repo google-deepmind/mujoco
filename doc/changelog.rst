@@ -101,25 +101,29 @@ General
 
        **Migration:** Replace uses of ``mjModel.eq_active`` with ``mjData.eq_active``.
 
-13. Added a new :ref:`dyntype<actuator-general-dyntype>`, ``filterexact``, which updates first-order filter states with
+   13. Changed the default of :ref:`autolimits<compiler-autolimits>` from "false" to "true". This is a minor breaking
+       change. The potential breakage applies to models which have elements with "range" defined and "limited" not set.
+       Such models cannot be loaded since version 2.2.2 (July 2022).
+
+14. Added a new :ref:`dyntype<actuator-general-dyntype>`, ``filterexact``, which updates first-order filter states with
     the exact formula rather than with Euler integration.
-14. Added an actuator attribute, :ref:`actearly<actuator-general-actearly>`, which uses semi-implicit integration for
+15. Added an actuator attribute, :ref:`actearly<actuator-general-actearly>`, which uses semi-implicit integration for
     actuator forces: using the next step's actuator state to compute the current actuator forces at the current timestep.
-15. Renamed ``actuatorforcerange`` and ``actuatorforcelimited``, introduced in the previous version to
+16. Renamed ``actuatorforcerange`` and ``actuatorforcelimited``, introduced in the previous version to
     :ref:`actuatorfrcrange<body-joint-actuatorfrcrange>` and
     :ref:`actuatorfrclimited<body-joint-actuatorfrclimited>`, respectively.
-16. Added the flag :ref:`eulerdamp<option-flag-eulerdamp>`, which disables implicit integration of joint damping in the
+17. Added the flag :ref:`eulerdamp<option-flag-eulerdamp>`, which disables implicit integration of joint damping in the
     Euler integrator. See the :ref:`Numerical Integration<geIntegration>` section for more details.
-17. Added the flag :ref:`invdiscrete<option-flag-invdiscrete>`, which enables discrete-time inverse dynamics for all
+18. Added the flag :ref:`invdiscrete<option-flag-invdiscrete>`, which enables discrete-time inverse dynamics for all
     :ref:`integrators<option-integrator>` other than ``RK4``. See the flag documentation for more details.
-18. Added :ref:`ls_iterations<option-ls_iterations>` and :ref:`ls_tolerance<option-ls_tolerance>` options for adjusting
+19. Added :ref:`ls_iterations<option-ls_iterations>` and :ref:`ls_tolerance<option-ls_tolerance>` options for adjusting
     linesearch stopping criteria in CG and Newton solvers. These can be useful for performance tuning.
-19. Added ``mesh_pos`` and ``mesh_quat`` fields to :ref:`mjModel` to store the normalizing transformation applied to
+20. Added ``mesh_pos`` and ``mesh_quat`` fields to :ref:`mjModel` to store the normalizing transformation applied to
     mesh assets. Fixes `#409 <https://github.com/google-deepmind/mujoco/issues/409>`__ .
-20. Added camera :ref:`resolution<body-camera-resolution>` attribute and :ref:`camprojection<sensor-camprojection>`
+21. Added camera :ref:`resolution<body-camera-resolution>` attribute and :ref:`camprojection<sensor-camprojection>`
     sensor. If camera resolution is set to positive values, the camera projection sensor will report the location of a
     target site, projected onto the camera image, in pixel coordinates.
-21. Added :ref:`camera<body-camera>` calibration attributes:
+22. Added :ref:`camera<body-camera>` calibration attributes:
 
     - The new attributes are :ref:`resolution<body-camera-resolution>`, :ref:`focal<body-camera-focal>`,
       :ref:`focalpixel<body-camera-focalpixel>`, :ref:`principal<body-camera-principal>`,
@@ -128,10 +132,10 @@ General
       attributes are specified. See the following
       `example model <https://github.com/deepmind/mujoco/blob/main/test/engine/testdata/vis_visualize/frustum.xml>`__.
     - Note that these attributes only take effect for offline rendering and do not affect interactive visualisation.
-22. Added multi-threaded constraint solving via :ref:`mj_island` and :ref:`mjThreadPool` to :ref:`testspeed<saTestspeed>`
+23. Added multi-threaded constraint solving via :ref:`mj_island` and :ref:`mjThreadPool` to :ref:`testspeed<saTestspeed>`
     exposed via npoolthread flag. The `22 humanoids <https://github.com/deepmind/mujoco/blob/main/model/humanoid/22_humanoids.xml>`__
     model shows a 3x speedup compared to the single threaded simulation.
-23. Implemented reversed Z rendering for better depth precision. An enum :ref:`mjtDepthMap` was added with values
+24. Implemented reversed Z rendering for better depth precision. An enum :ref:`mjtDepthMap` was added with values
     :ref:`mjDEPTH_ZERONEAR` and :ref:`mjDEPTH_ZEROFAR`, which can be used to set the new ``readDepthMap`` attribute in
     :ref:`mjrContext`` to control how the depth returned by :ref:`mjr_readPixels` is mapped from ``znear`` to ``zfar``.
     `Contribution <https://github.com/google-deepmind/mujoco/pull/978>`__ by `Levi Burner <https://github.com/aftersomemath>`__.
@@ -139,11 +143,11 @@ General
 Python bindings
 ^^^^^^^^^^^^^^^
 
-24. Fixed `#870 <https://github.com/google-deepmind/mujoco/issues/870>`__ where calling ``update_scene`` with an invalid
+25. Fixed `#870 <https://github.com/google-deepmind/mujoco/issues/870>`__ where calling ``update_scene`` with an invalid
     camera name used the default camera.
-25. Added ``user_scn`` to the :ref:`passive viewer<PyViewerPassive>` handle, which allows users to add custom
+26. Added ``user_scn`` to the :ref:`passive viewer<PyViewerPassive>` handle, which allows users to add custom
     visualization geoms (`#1023 <https://github.com/google-deepmind/mujoco/issues/870>`__).
-26. Added optional boolean keyword arguments ``show_left_ui`` and ``show_right_ui`` to the functions ``viewer.launch``
+27. Added optional boolean keyword arguments ``show_left_ui`` and ``show_right_ui`` to the functions ``viewer.launch``
     and ``viewer.launch_passive``, which allow users to launch a viewer with UI panels hidden.
 
 Simulate
@@ -153,21 +157,21 @@ Simulate
    :align: right
    :width: 240px
 
-27. Added **state history** mechanism to :ref:`simulate<saSimulate>` and the managed
+28. Added **state history** mechanism to :ref:`simulate<saSimulate>` and the managed
     :ref:`Python viewer<PyViewerManaged>`. State history can be viewed by scrubbing the History slider and (more
     precisely) with the left and right arrow keys. See screen capture:
 
-28. The ``LOADING...`` label is now shown correctly.
+29. The ``LOADING...`` label is now shown correctly.
     `Contribution <https://github.com/google-deepmind/mujoco/pull/1070>`__ by
     `Levi Burner <https://github.com/aftersomemath>`__.
 
 Bug fixes
 ^^^^^^^^^
 
-29. Fixed a bug that was causing :ref:`geom margin<body-geom-margin>` to be ignored during the construction of
+30. Fixed a bug that was causing :ref:`geom margin<body-geom-margin>` to be ignored during the construction of
     midphase collision trees.
 
-30. Fixed a bug that was generating incorrect values in ``efc_diagApprox`` for weld equality constraints.
+31. Fixed a bug that was generating incorrect values in ``efc_diagApprox`` for weld equality constraints.
 
 
 Version 2.3.7 (July 20, 2023)

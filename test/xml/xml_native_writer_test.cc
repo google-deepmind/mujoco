@@ -255,6 +255,19 @@ TEST_F(XMLWriterTest, DropsInertialIfFromGeom) {
   mj_deleteModel(model);
 }
 
+TEST_F(XMLWriterTest, KeepsAutoLimitsFalse) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <compiler autolimits="false"/>
+  </mujoco>
+  )";
+  mjModel* model = LoadModelFromString(xml);
+  ASSERT_THAT(model, NotNull());
+  std::string saved_xml = SaveAndReadXml(model);
+  EXPECT_THAT(saved_xml, HasSubstr("autolimits=\"false\""));
+  mj_deleteModel(model);
+}
+
 TEST_F(XMLWriterTest, DoesNotKeepInferredJointLimited) {
   static constexpr char xml[] = R"(
   <mujoco>
@@ -272,6 +285,7 @@ TEST_F(XMLWriterTest, DoesNotKeepInferredJointLimited) {
   std::string saved_xml = SaveAndReadXml(model);
   EXPECT_THAT(saved_xml, HasSubstr("range=\"-1 1\""));
   EXPECT_THAT(saved_xml, Not(HasSubstr("limited=\"true\"")));
+  EXPECT_THAT(saved_xml, Not(HasSubstr("autolimits=\"true\"")));
   mj_deleteModel(model);
 }
 
@@ -290,7 +304,7 @@ TEST_F(XMLWriterTest, DoesNotKeepExplicitJointLimitedIfAutoLimits) {
   mjModel* model = LoadModelFromString(xml);
   ASSERT_THAT(model, NotNull());
   std::string saved_xml = SaveAndReadXml(model);
-  EXPECT_THAT(saved_xml, HasSubstr("autolimits=\"true\""));
+  EXPECT_THAT(saved_xml, Not(HasSubstr("autolimits=\"true\"")));
   EXPECT_THAT(saved_xml, HasSubstr("range=\"-1 1\""));
   EXPECT_THAT(saved_xml, Not(HasSubstr("limited=\"true\"")));
   mj_deleteModel(model);
@@ -338,7 +352,7 @@ TEST_F(XMLWriterTest, DoesNotKeepInferredTendonLimited) {
   mjModel* model = LoadModelFromString(xml);
   ASSERT_THAT(model, NotNull());
   std::string saved_xml = SaveAndReadXml(model);
-  EXPECT_THAT(saved_xml, HasSubstr("autolimits=\"true\""));
+  EXPECT_THAT(saved_xml, Not(HasSubstr("autolimits=\"true\"")));
   EXPECT_THAT(saved_xml, HasSubstr("range=\"-1 1\""));
   EXPECT_THAT(saved_xml, Not(HasSubstr("limited=\"true\"")));
   mj_deleteModel(model);
@@ -367,7 +381,7 @@ TEST_F(XMLWriterTest, DoesNotKeepExplicitTendonLimitedIfAutoLimits) {
   mjModel* model = LoadModelFromString(xml);
   ASSERT_THAT(model, NotNull());
   std::string saved_xml = SaveAndReadXml(model);
-  EXPECT_THAT(saved_xml, HasSubstr("autolimits=\"true\""));
+  EXPECT_THAT(saved_xml, Not(HasSubstr("autolimits=\"true\"")));
   EXPECT_THAT(saved_xml, HasSubstr("range=\"-1 1\""));
   EXPECT_THAT(saved_xml, Not(HasSubstr("limited=\"true\"")));
   mj_deleteModel(model);
@@ -418,7 +432,7 @@ TEST_F(XMLWriterTest, DoesNotKeepInferredActlimited) {
   mjModel* model = LoadModelFromString(xml);
   ASSERT_THAT(model, NotNull());
   std::string saved_xml = SaveAndReadXml(model);
-  EXPECT_THAT(saved_xml, HasSubstr("autolimits=\"true\""));
+  EXPECT_THAT(saved_xml, Not(HasSubstr("autolimits=\"true\"")));
   EXPECT_THAT(saved_xml, HasSubstr("actrange=\"-1 1\""));
   EXPECT_THAT(saved_xml, Not(HasSubstr("actlimited=\"true\"")));
   mj_deleteModel(model);
@@ -442,7 +456,7 @@ TEST_F(XMLWriterTest, DoesNotKeepExplicitActlimitedIfAutoLimits) {
   mjModel* model = LoadModelFromString(xml);
   ASSERT_THAT(model, NotNull());
   std::string saved_xml = SaveAndReadXml(model);
-  EXPECT_THAT(saved_xml, HasSubstr("autolimits=\"true\""));
+  EXPECT_THAT(saved_xml, Not(HasSubstr("autolimits=\"true\"")));
   EXPECT_THAT(saved_xml, HasSubstr("actrange=\"-1 1\""));
   EXPECT_THAT(saved_xml, Not(HasSubstr("actlimited=\"true\"")));
   mj_deleteModel(model);
@@ -555,7 +569,7 @@ TEST_F(XMLWriterTest, DoesNotKeepInferredForcelimited) {
   mjModel* model = LoadModelFromString(xml);
   ASSERT_THAT(model, NotNull());
   std::string saved_xml = SaveAndReadXml(model);
-  EXPECT_THAT(saved_xml, HasSubstr("autolimits=\"true\""));
+  EXPECT_THAT(saved_xml, Not(HasSubstr("autolimits=\"true\"")));
   EXPECT_THAT(saved_xml, HasSubstr("forcerange=\"-1 1\""));
   EXPECT_THAT(saved_xml, Not(HasSubstr("forcelimited=\"true\"")));
   mj_deleteModel(model);
@@ -578,7 +592,7 @@ TEST_F(XMLWriterTest, DoesNotKeepExplicitForcelimited) {
   mjModel* model = LoadModelFromString(xml);
   ASSERT_THAT(model, NotNull());
   std::string saved_xml = SaveAndReadXml(model);
-  EXPECT_THAT(saved_xml, HasSubstr("autolimits=\"true\""));
+  EXPECT_THAT(saved_xml, Not(HasSubstr("autolimits=\"true\"")));
   EXPECT_THAT(saved_xml, HasSubstr("forcerange=\"-1 1\""));
   EXPECT_THAT(saved_xml, Not(HasSubstr("forcelimited=\"true\"")));
   mj_deleteModel(model);
