@@ -86,15 +86,9 @@ target_compile_options(testspeed PUBLIC ${MUJOCO_SAMPLE_COMPILE_OPTIONS})
 target_link_libraries(testspeed Threads::Threads)
 target_link_options(testspeed PRIVATE ${MUJOCO_SAMPLE_LINK_OPTIONS})
 
-add_executable(testxml testxml.cc array_safety.h)
-target_compile_options(testxml PUBLIC ${MUJOCO_SAMPLE_COMPILE_OPTIONS})
-target_link_libraries(testxml Threads::Threads)
-target_link_options(testxml PRIVATE ${MUJOCO_SAMPLE_LINK_OPTIONS})
-
 target_link_libraries(compile mujoco::mujoco)
 target_link_libraries(derivative mujoco::mujoco)
 target_link_libraries(testspeed mujoco::mujoco)
-target_link_libraries(testxml mujoco::mujoco)
 
 # Build samples that require GLFW.
 
@@ -124,7 +118,6 @@ if(APPLE AND MUJOCO_BUILD_MACOS_FRAMEWORKS)
   embed_in_bundle(derivative simulate)
   embed_in_bundle(record simulate)
   embed_in_bundle(testspeed simulate)
-  embed_in_bundle(testxml simulate)
 endif()
 
 # Do not install if macOS Bundles are created as RPATH is managed manually there.
@@ -144,7 +137,6 @@ if(_INSTALL_SAMPLES)
     derivative
     record
     testspeed
-    testxml
     INSTALL_DIRECTORY
     "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_BINDIR}"
     LIB_DIRS
@@ -159,7 +151,6 @@ if(_INSTALL_SAMPLES)
             derivative
             record
             testspeed
-            testxml
     EXPORT ${PROJECT_NAME}
     RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}" COMPONENT samples
     LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}" COMPONENT samples

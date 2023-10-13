@@ -165,7 +165,7 @@ links below, to make this documentation self-contained.
 `mjxmacro.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjxmacro.h>`__
    This file is optional and is not included by mujoco.h. It defines :ref:`X Macros <tyXMacro>` that can
    automate the mapping of mjModel and mjData into scripting languages, as well as other operations that require
-   accessing all fields of mjModel and mjData. See code sample :ref:`testxml.cc <saTestXML>`.
+   accessing all fields of mjModel and mjData.
 `mjexport.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjexport.h>`__
    Macros used for exporting public symbols from the MuJoCo library. This header should not be used directly by client
    code.

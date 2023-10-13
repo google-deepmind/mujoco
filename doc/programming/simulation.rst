@@ -676,10 +676,7 @@ correct way to do it is the hard way:
    mju_copy(myqposqvel, d->qpos, m->nq + m->nv);
 
 The :ref:`X Macros <tyXMacro>` defined in the optional header file ``mjxmacro.h`` can be used to automate allocation of
-data structure that match mjModel and mjData, for example when writing a MuJoCo wrapper for a scripting language. In
-the code sample :ref:`testxml.cc <saTestXML>` we use these unusual macros to compare all data arrays from two instances
-of mjModel and find the one with the largest difference. Apparently X Macros were invented in the 1960's for assembly
-language, and remain a great idea.
+data structure that match mjModel and mjData, for example when writing a MuJoCo wrapper for a scripting language.
 
 .. _siStack:
 
@@ -840,13 +837,6 @@ associated with increasing energy. In some special cases (when all unilateral co
 forces are disabled) the underlying physical system is energy-conserving. In that case any temporal fluctuations in
 the total energy indicate inaccuracies in numerical integration. For such systems the Runge-Kutta integrator has much
 better performance than the default semi-implicit Euler integrator.
-
-Finally, the user can implement additional diagnostics as needed. Two examples were provided in the code samples
-``testxml.cc`` and ``derivative.cc``, where we computed model mismatches after save and load, and assessed the accuracy
-of the numerical derivatives respectively. Key to such diagnostics is to implement two different algorithms or
-simulation paths that compute the same quantity, and compare the results numerically. This type of sanity check is
-essential when dealing with complex dynamical systems where we do not really know what the numerical output should be;
-if we knew that, we would not be using a simulator in the first place.
 
 .. _siJacobian:
 

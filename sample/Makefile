@@ -6,7 +6,6 @@ COMMON=-O2 -I../include -L../lib -std=c++17 -pthread -Wl,-no-as-needed -Wl,-rpat
 
 .PHONY: all
 all:
-	$(CXX) $(COMMON) testxml.cc            -lmujoco          -o ../bin/testxml
 	$(CXX) $(COMMON) testspeed.cc          -lmujoco          -o ../bin/testspeed
 	$(CXX) $(COMMON) compile.cc            -lmujoco          -o ../bin/compile
 	$(CXX) $(COMMON) derivative.cc         -lmujoco -fopenmp -o ../bin/derivative

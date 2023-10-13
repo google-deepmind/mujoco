@@ -10,7 +10,6 @@ COMMON=/O2 /MT /EHsc /arch:AVX /I../include /Fe../bin/
 
 .PHONY: all
 all:
-	cl $(COMMON) testxml.cc                                ../lib/mujoco.lib
 	cl $(COMMON) testspeed.cc                              ../lib/mujoco.lib
 	cl $(COMMON) compile.cc                                ../lib/mujoco.lib
 	cl $(COMMON) derivative.cc /openmp                     ../lib/mujoco.lib

@@ -26,28 +26,6 @@ profiling. The results are then printed in the console. To simulate controlled d
 one can either install the control callback :ref:`mjcb_control`, or set control signals
 explicitly as explained in the :ref:`simulation loop <siSimulation>` section below.
 
-.. _saTestXML:
-
-`testxml <https://github.com/google-deepmind/mujoco/blob/main/sample/testxml.cc>`_
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-This code sample tests the parser, compiler and XML writer. The testing code does the following:
-
--  Parse and compile a specified XML model in MJCF or URDF. This yields an mjModel structure ready for simulation;
--  Save the model as a temporary MJCF file, using a "canonical" subset of MJCF where a number of conversions have
-   already been performed by the compiler;
--  Parse and compile the temporary MJCF file. This yields a second mjModel structure ready for simulation;
--  Compare the two mjModel structures field by field, and print the field with the largest numerical difference. Since
-   MJCF is a text format, the real-valued numbers saved in it have lower precision than the double precision used
-   internally, thus we cannot expect the two models to be identical on the bit level. But we can expect the largest
-   difference to be on the order of 1e-6. A substantially larger difference indicates a bug in the parser, compiler or
-   XML writer - and should be reported.
-
-The code uses the :ref:`X Macros <tyXMacro>` described in the Reference chapter. This is a convenient way
-to apply the same operation to all fields in mjModel, without explicitly typing their names. The code sample
-:ref:`simulate.cc <saSimulate>` also uses X Macros to implement a watch, where the user can type the name of any mjData
-field which is resolved at runtime.
-
 .. _saCompile:
 
 `compile <https://github.com/google-deepmind/mujoco/blob/main/sample/compile.cc>`_
