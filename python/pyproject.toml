@@ -27,6 +27,7 @@ classifiers = [
 ]
 dependencies = [
     "absl-py",
+    "etils[epath]",
     "glfw",
     "numpy",
     "pyopengl",
@@ -55,4 +56,6 @@ mujoco = [
     "libmujoco*.so.*",
     "mujoco.dll",
     "include/mujoco/*.h",
+    "testdata/*.xml",
+    "testdata/*.msh",
 ]
