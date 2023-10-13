@@ -142,7 +142,7 @@ Python bindings
 24. Fixed `#870 <https://github.com/google-deepmind/mujoco/issues/870>`__ where calling ``update_scene`` with an invalid
     camera name used the default camera.
 25. Added ``user_scn`` to the :ref:`passive viewer<PyViewerPassive>` handle, which allows users to add custom
-   visualization geoms (`#1023 <https://github.com/google-deepmind/mujoco/issues/870>`__).
+    visualization geoms (`#1023 <https://github.com/google-deepmind/mujoco/issues/870>`__).
 26. Added optional boolean keyword arguments ``show_left_ui`` and ``show_right_ui`` to the functions ``viewer.launch``
     and ``viewer.launch_passive``, which allow users to launch a viewer with UI panels hidden.
 

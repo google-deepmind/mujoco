@@ -3791,8 +3791,6 @@ Associate this composite with an :ref:`engine plugin<exPlugin>`. Either :at:`plu
 .. _flex-contact:
 .. _flexcomp-contact:
 
-.. _flexcomp-contact-:
-
 .. _flex-contact-contype:
 .. _flexcomp-contact-contype:
 
@@ -3865,7 +3863,7 @@ Associate this composite with an :ref:`engine plugin<exPlugin>`. Either :at:`plu
 
 
 **deformable** (*)
-~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~
 
 
 .. _contact:

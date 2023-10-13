@@ -300,7 +300,7 @@ static const char* MJCF[nMJCF][mjXATTRNUM] = {
         {"<"},
             {"edge", "?", "5", "equality", "solref", "solimp", "stiffness", "damping"},
             {"contact", "?", "10", "contype", "conaffinity", "condim", "priority",
-                "friction", "solmix", "solref", "solimp", "margin", "gap", },
+                "friction", "solmix", "solref", "solimp", "margin", "gap"},
             {"pin", "*", "4", "id", "range", "grid", "gridrange"},
         {">"},
     {">"},
