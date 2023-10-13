@@ -502,6 +502,8 @@ These are the possible framebuffers. They are used as an argument to the functio
 .. mujoco-include:: mjtFramebuffer
 
 
+.. _mjtDepthMap:
+
 mjtDepthMap
 ~~~~~~~~~~~
 

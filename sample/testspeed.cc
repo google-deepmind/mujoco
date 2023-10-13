@@ -116,7 +116,7 @@ int main(int argc, char** argv) {
       "  --------      -------     --------\n"
       "  modelfile                 path to model (required)\n"
       "  nstep         10000       number of steps per rollout\n"
-      "  nthread       1           number of threads for which to run parallel rollouts\n"
+      "  nthread       1           number of threads running parallel rollouts\n"
       "  ctrlnoise     0.01        scale of pseudo-random noise injected into actuators\n"
       "  npoolthread   0           number of threads in engine-internal threadpool\n"
       "\n"

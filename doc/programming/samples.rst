@@ -12,19 +12,66 @@ with the library.
 `testspeed <https://github.com/google-deepmind/mujoco/blob/main/sample/testspeed.cc>`_
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-This code sample tests the simulation speed for a given model. The command line arguments are the model file, the
-number of time steps to simulate, the number of parallel threads to use, and a flag to enable internal profiling (the
-last two are optional). When N threads are specified with N>1, the code allocates a single mjModel and per-thread
-mjData, and runs N identical simulations in parallel. The idea is to test performance with all cores active, similar
-to Reinforcement Learning scenarios where samples are collected in parallel. The optimal N usually equals the number
-of logical cores. By default the simulation starts from the model reference configuration qpos0 and qvel=0. However if
-a keyframe named "test" is present in the model, it is used as the initial state state.
+This code sample times the simulation of a given model. The timing is straightforward: the simulation of the passive
+dynamics (with optional control noise) is rolled-out for the specified number of steps, while collecting statistics
+about the number of contacts, scalar constraints, and CPU times from internal profiling. The results are then printed to
+the console. To simulate controlled dynamics instead of passive dynamics one can either install a control callback
+:ref:`mjcb_control`, or modify the code to set control signals explicitly, as explained in the :ref:`simulation loop
+<siSimulation>` section below. This command-line utility is run with
 
-The timing code is straightforward: the simulation of the passive dynamics is advanced for the specified number of
-steps, while collecting statistics about the number of contacts, scalar constraints, and CPU times from internal
-profiling. The results are then printed in the console. To simulate controlled dynamics instead of passive dynamics
-one can either install the control callback :ref:`mjcb_control`, or set control signals
-explicitly as explained in the :ref:`simulation loop <siSimulation>` section below.
+.. code-block:: Shell
+
+   testspeed modelfile [nstep nthread ctrlnoise npoolthread]
+
+Where the command line arguments are
+
+.. list-table::
+   :width: 95%
+   :align: left
+   :widths: 1 1 5
+   :header-rows: 1
+
+   * - Argument
+     - Default
+     - Meaning
+   * - ``modelfile``
+     - (required)
+     - path to model
+   * - ``nstep``
+     - 10000
+     - number of steps per rollout
+   * - ``nthread``
+     - 1
+     - number of threads running parallel rollouts
+   * - ``ctrlnoise``
+     - 0.01
+     - scale of pseudo-random noise injected into actuators
+   * - ``npoolthread``
+     - 1
+     - number of threads in engine-internal threadpool
+
+**Notes:**
+
+- When ``nthread > 1`` is specified, the code allocates a single mjModel and per-thread mjData, and runs ``nthread``
+  identical simulations in parallel. This tests performance with all cores active, as in Reinforcement
+  Learning scenarios where samples are collected in parallel. The optimal ``nthread`` usually equals the number of
+  logical cores.
+- By default, the simulation starts from the model reference configuration with zero velocities. However, if a
+  keyframe named "test" is present in the model, it is used as the initial state.
+- The ``ctrlnoise`` argument prevents models from settling into a static state where, due to warmstarts, one can
+  measure artificially faster simulation.
+- When ``npoolthread > 1`` is specified, an engine-internal :ref:`mjThreadPool` is created with the specified number of
+  threads, to speed up simulation of large scenes. Note that while it is possible to to use both ``nthread`` and
+  ``npoolthread``, the scenarios for which one would want these different type of multithreading are usually mutually
+  exclusive.
+- For more repeatable performance statistics, run the tool with the ``performance``
+  `governor <https://www.kernel.org/doc/Documentation/cpu-freq/governors.txt>`__ on Linux, or the
+  ``High Performance`` power plan on Windows, to reduce noise from CPU scaling.
+- Many modern CPUs contain a mixture of "performance" and "efficiency" cores. Users should consider restricting the
+  process to only run on the same type of cores for more interpretable performance statistics. This can be done via the
+  `taskset <https://man7.org/linux/man-pages/man1/taskset.1.html>`__ command on Linux, or the
+  `start /affinity <https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/start>`__
+  command on Windows (processor affinity cannot be specified through documented API means on macOS).
 
 .. _saCompile:
 
