@@ -25,23 +25,31 @@ jobs:
       matrix:
         include:
           - os: ubuntu-22.04
-            additional_label: "with GCC 11"
+            additional_label: "-gcc-12"
+            cmake_args: >-
+              -G Ninja
+              -DCMAKE_C_COMPILER:STRING=gcc-12
+              -DCMAKE_CXX_COMPILER:STRING=g++-12
+              -DCMAKE_EXE_LINKER_FLAGS:STRING=-Wl,--no-as-needed
+            tmpdir: "/tmp"
+          - os: ubuntu-22.04
+            additional_label: "-gcc-11"
             cmake_args: >-
               -G Ninja
               -DCMAKE_C_COMPILER:STRING=gcc-11
               -DCMAKE_CXX_COMPILER:STRING=g++-11
               -DCMAKE_EXE_LINKER_FLAGS:STRING=-Wl,--no-as-needed
             tmpdir: "/tmp"
-          - os: ubuntu-20.04
-            additional_label: "with GCC 10"
+          - os: ubuntu-22.04
+            additional_label: "-gcc-10"
             cmake_args: >-
               -G Ninja
               -DCMAKE_C_COMPILER:STRING=gcc-10
               -DCMAKE_CXX_COMPILER:STRING=g++-10
               -DCMAKE_EXE_LINKER_FLAGS:STRING=-Wl,--no-as-needed
             tmpdir: "/tmp"
-          - os: ubuntu-20.04
-            additional_label: "with GCC 9"
+          - os: ubuntu-22.04
+            additional_label: "-gcc-9"
             cmake_args: >-
               -G Ninja
               -DCMAKE_C_COMPILER:STRING=gcc-9
@@ -49,7 +57,7 @@ jobs:
               -DCMAKE_EXE_LINKER_FLAGS:STRING=-Wl,--no-as-needed
             tmpdir: "/tmp"
           - os: ubuntu-22.04
-            additional_label: "with Clang 14"
+            additional_label: "-clang-14"
             cmake_args: >-
               -G Ninja
               -DCMAKE_C_COMPILER:STRING=clang-14
@@ -57,15 +65,15 @@ jobs:
               -DMUJOCO_HARDEN:BOOL=ON
             tmpdir: "/tmp"
           - os: ubuntu-22.04
-            additional_label: "with Clang 13"
+            additional_label: "-clang-13"
             cmake_args: >-
               -G Ninja
               -DCMAKE_C_COMPILER:STRING=clang-13
               -DCMAKE_CXX_COMPILER:STRING=clang++-13
               -DMUJOCO_HARDEN:BOOL=ON
             tmpdir: "/tmp"
-          - os: ubuntu-22.04
-            additional_label: "with Clang 12"
+          - os: ubuntu-20.04
+            additional_label: "-clang-12"
             cmake_args: >-
               -G Ninja
               -DCMAKE_C_COMPILER:STRING=clang-12
@@ -73,7 +81,7 @@ jobs:
               -DMUJOCO_HARDEN:BOOL=ON
             tmpdir: "/tmp"
           - os: ubuntu-20.04
-            additional_label: "with Clang 11"
+            additional_label: "-clang-11"
             cmake_args: >-
               -G Ninja
               -DCMAKE_C_COMPILER:STRING=clang-11
@@ -81,7 +89,7 @@ jobs:
               -DMUJOCO_HARDEN:BOOL=ON
             tmpdir: "/tmp"
           - os: ubuntu-20.04
-            additional_label: "with Clang 10"
+            additional_label: "-clang-10"
             cmake_args: >-
               -G Ninja
               -DCMAKE_C_COMPILER:STRING=clang-10
@@ -98,13 +106,8 @@ jobs:
               -DCMAKE_SYSTEM_VERSION="10.0.22621.0"
             cmake_build_args: "-- -m"
             tmpdir: "C:/Temp"
-          - os: windows-2019
-            cmake_args: >-
-              -DCMAKE_SYSTEM_VERSION="10.0.22621.0"
-            cmake_build_args: "-- -m"
-            tmpdir: "C:/Temp"
 
-    name: "MuJoCo on ${{ matrix.os }} ${{ matrix.additional_label }}"
+    name: "${{ matrix.os }}${{ matrix.additional_label }}"
     runs-on: ${{ matrix.os }}
 
     steps:
@@ -216,7 +219,7 @@ jobs:
       working-directory: python/dist
       run: >
         source ${{ matrix.tmpdir }}/venv/bin/activate &&
-        pip install mujoco-*.whl
+        pip install --no-deps --no-index mujoco-*.whl
     - name: Test Python bindings
       if: ${{ runner.os != 'Windows' }}
       shell: bash
@@ -225,3 +228,23 @@ jobs:
       run: >
         source ${{ matrix.tmpdir }}/venv/bin/activate &&
         pytest -v --pyargs mujoco
+    - name: Notify team chat
+      shell: bash
+      env:
+        GCHAT_API: ${{ secrets.GCHAT_API }}
+        JOB_URL: "${{ github.server_url }}/${{ github.repository }}/actions/runs/\
+          ${{ github.run_id }}"
+      if: ${{ failure() && github.event_name == 'push' && env.GCHAT_API != '' }}
+      run: >
+        curl
+        "$GCHAT_API&threadKey=$GITHUB_SHA&messageReplyOption=REPLY_MESSAGE_FALLBACK_TO_NEW_THREAD"
+        -X POST
+        -H "Content-Type: application/json"
+        -d "{
+        'text': '<$JOB_URL|*FAILURE*>:
+        job \`${{ matrix.os }}${{ matrix.additional_label }}\`
+        commit \`$(echo $GITHUB_SHA | head -c6)\`\n
+        \`\`\`Author: ${{ github.event.head_commit.author.name }}
+        <${{ github.event.head_commit.author.email }}>
+        \n\n${{ github.event.head_commit.message }}\`\`\`
+        '}"

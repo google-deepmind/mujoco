@@ -16,6 +16,7 @@
 #define MUJOCO_PYTHON_STRUCTS_H_
 
 #include <array>
+#include <cstddef>
 #include <istream>
 #include <memory>
 #include <optional>
@@ -476,6 +477,7 @@ class MjWrapper<raw::MjModel> : public WrapperBase<raw::MjModel> {
   // TODO(nimrod): Exclude text_data and names from the MJMODEL_POINTERS macro.
   pybind11::bytes text_data_bytes;
   pybind11::bytes names_bytes;
+  pybind11::bytes paths_bytes;
 
  protected:
   explicit MjWrapper(raw::MjModel* ptr);
@@ -506,6 +508,10 @@ class MjWrapper<raw::MjContact> : public WrapperBase<raw::MjContact> {
   X(solreffriction);
   X(solimp);
   X(H);
+  X(geom);
+  X(flex);
+  X(elem);
+  X(vert);
   #undef X
 };
 
@@ -579,6 +585,7 @@ class MjWrapper<raw::MjData>: public WrapperBase<raw::MjData> {
 
   py_array_or_tuple_t<mjContact> contact;
 
+  py_array_or_tuple_t<size_t> maxuse_threadstack;
   py_array_or_tuple_t<raw::MjWarningStat> warning;
   py_array_or_tuple_t<raw::MjTimerStat> timer;
   py_array_or_tuple_t<raw::MjSolverStat> solver;
@@ -730,6 +737,7 @@ class MjWrapper<raw::MjvOption> : public WrapperBase<raw::MjvOption> {
   X(jointgroup);
   X(tendongroup);
   X(actuatorgroup);
+  X(flexgroup);
   X(skingroup);
   X(flags);
   #undef X
@@ -751,10 +759,23 @@ class MjWrapper<raw::MjvScene> : public WrapperBase<raw::MjvScene> {
   ~MjWrapper() = default;
 
   int nskinvert;
+  int nflexface, nflexedge, nflexvert;
 
   #define X(dtype, var) py_array_or_tuple_t<dtype> var
   X(mjvGeom, geoms);
   X(int, geomorder);
+  X(int, flexedgeadr);
+  X(int, flexedgenum);
+  X(int, flexvertadr);
+  X(int, flexvertnum);
+  X(int, flexfaceadr);
+  X(int, flexfacenum);
+  X(int, flexfaceused);
+  X(int, flexedge);
+  X(float, flexvert);
+  X(float, flexface);
+  X(float, flexnormal);
+  X(float, flextexcoord);
   X(int, skinfacenum);
   X(int, skinvertadr);
   X(int, skinvertnum);

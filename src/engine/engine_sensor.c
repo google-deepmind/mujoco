@@ -17,7 +17,6 @@
 #include <stddef.h>
 
 #include <mujoco/mjdata.h>
-#include <mujoco/mjmacro.h>
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjplugin.h>
 #include "engine/engine_callback.h"
@@ -59,7 +58,7 @@ static void add_noise(const mjModel* m, mjData* d, mjtStage stage) {
           if (m->sensor_datatype[i] == mjDATATYPE_POSITIVE) {
             // add noise only if positive, keep it positive
             if (d->sensordata[adr+j] > 0) {
-              d->sensordata[adr+j] = mjMAX(0, d->sensordata[adr+j]+rnd[0]*noise);
+              d->sensordata[adr+j] = mju_max(0, d->sensordata[adr+j]+rnd[0]*noise);
             }
           }
 
@@ -189,7 +188,10 @@ static void get_xquat(const mjModel* m, const mjData* d, mjtObj type, int id, in
 
 static void cam_project(mjtNum sensordata[2], const mjtNum target_xpos[3],
                         const mjtNum cam_xpos[3], const mjtNum cam_xmat[9],
-                        const int cam_res[2], mjtNum cam_fovy) {
+                        const int cam_res[2], mjtNum cam_fovy,
+                        const float cam_intrinsic[4], const float cam_sensorsize[2]) {
+  mjtNum fx, fy;
+
   // translation matrix (4x4)
   mjtNum translation[4][4] = {0};
   translation[0][0] = 1;
@@ -213,10 +215,15 @@ static void cam_project(mjtNum sensordata[2], const mjtNum target_xpos[3],
   }
 
   // focal transformation matrix (3x4)
-  mjtNum height = (mjtNum) cam_res[1];
-  mjtNum fy = .5 / mju_tan(cam_fovy * mjPI / 360.) * height;
+  if (cam_sensorsize[0] && cam_sensorsize[1]) {
+    fx = cam_intrinsic[0] / cam_sensorsize[0] * cam_res[0];
+    fy = cam_intrinsic[1] / cam_sensorsize[1] * cam_res[1];
+  } else {
+    fx = fy = .5 / mju_tan(cam_fovy * mjPI / 360.) * cam_res[1];
+  }
+
   mjtNum focal[3][4] = {0};
-  focal[0][0] = -fy;
+  focal[0][0] = -fx;
   focal[1][1] =  fy;
   focal[2][2] = 1.0;
 
@@ -308,7 +315,8 @@ void mj_sensorPos(const mjModel* m, mjData* d) {
 
       case mjSENS_CAMPROJECTION:                          // camera projection
         cam_project(d->sensordata+adr, d->site_xpos+3*objid, d->cam_xpos+3*refid,
-                    d->cam_xmat+9*refid, m->cam_resolution+2*refid, m->cam_fovy[refid]);
+                    d->cam_xmat+9*refid, m->cam_resolution+2*refid, m->cam_fovy[refid],
+                    m->cam_intrinsic+4*refid, m->cam_sensorsize+2*refid);
         break;
 
       case mjSENS_RANGEFINDER:                            // rangefinder
@@ -654,7 +662,7 @@ void mj_sensorVel(const mjModel* m, mjData* d) {
 
 // acceleration/force-dependent sensors
 void mj_sensorAcc(const mjModel* m, mjData* d) {
-  int rootid, bodyid, objtype, objid, body1, body2, adr, nusersensor = 0;
+  int rootid, bodyid, objtype, objid, adr, nusersensor = 0;
   int ne = d->ne, nf = d->nf, nefc = d->nefc;
   mjtNum tmp[6], conforce[6], conray[3];
   mjContact* con;
@@ -705,13 +713,15 @@ void mj_sensorAcc(const mjModel* m, mjData* d) {
 
         // find contacts in sensor zone, add normal forces
         for (int j=0; j < d->ncon; j++) {
-          // contact pointer, contacting bodies
+          // contact pointer, contacting bodies  (-1 for flex)
           con = d->contact + j;
-          body1 = m->geom_bodyid[con->geom1];
-          body2 = m->geom_bodyid[con->geom2];
+          int conbody[2];
+          for (int k=0; k<2; k++) {
+            conbody[k] = (con->geom[k]>=0) ? m->geom_bodyid[con->geom[k]] : -1;
+          }
 
           // select contacts involving sensorized body
-          if (con->efc_address >= 0 && (bodyid == body1 || bodyid == body2)) {
+          if (con->efc_address >= 0 && (bodyid == conbody[0] || bodyid == conbody[1])) {
             // get contact force:torque in contact frame
             mj_contactForce(m, d, j, conforce);
 
@@ -725,7 +735,7 @@ void mj_sensorAcc(const mjModel* m, mjData* d) {
             mju_normalize3(conray);
 
             // flip ray direction if sensor is on body2
-            if (bodyid == body2) {
+            if (bodyid == conbody[1]) {
               mju_scl3(conray, conray, -1);
             }
 
@@ -935,6 +945,22 @@ void mj_energyPos(const mjModel* m, mjData* d) {
       }
 
       d->energy[0] += 0.5*stiffness*displacement*displacement;
+    }
+  }
+
+  // add flex-level springs
+  if (!mjDISABLED(mjDSBL_PASSIVE)) {
+    for (int i=0; i<m->nflex; i++) {
+      stiffness = m->flex_edgestiffness[i];
+      if (m->flex_rigid[i] || stiffness==0) {
+        continue;
+      }
+
+      // process edges of this flex
+      for (int e=m->flex_edgeadr[i]; e<m->flex_edgeadr[i]+m->flex_edgenum[i]; e++) {
+        mjtNum displacement = m->flexedge_length0[e] - d->flexedge_length[e];
+        d->energy[0] += 0.5*stiffness*displacement*displacement;
+      }
     }
   }
 }

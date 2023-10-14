@@ -51,6 +51,11 @@ void mj_passive(const mjModel* m, mjData* d) {
   for (int i=0; i < m->njnt; i++) {
     stiffness = m->jnt_stiffness[i];
 
+    // disabled : nothing to do
+    if (stiffness==0) {
+      continue;
+    }
+
     int padr = m->jnt_qposadr[i];
     int dadr = m->jnt_dofadr[i];
 
@@ -86,14 +91,49 @@ void mj_passive(const mjModel* m, mjData* d) {
 
   // dof-level dampers
   for (int i=0; i < m->nv; i++) {
-    damping = m->dof_damping[i];
-    d->qfrc_passive[i] -= damping*d->qvel[i];
+    if ((damping = m->dof_damping[i]) != 0) {
+      d->qfrc_passive[i] -= damping*d->qvel[i];
+    }
+  }
+
+  // flexedge-level spring-dampers
+  for (int f=0; f < m->nflex; f++) {
+    stiffness = m->flex_edgestiffness[f];
+    damping = m->flex_edgedamping[f];
+
+    // disabled or rigid: nothing to do
+    if (m->flex_rigid[f] || (stiffness==0 && damping==0)) {
+      continue;
+    }
+
+    // process edges of this flex (global edge index)
+    int edgeend = m->flex_edgeadr[f] + m->flex_edgenum[f];
+    for (int e=m->flex_edgeadr[f]; e < edgeend; e++) {
+      // compute spring-damper force along edge
+      frc = stiffness * (m->flexedge_length0[e] - d->flexedge_length[e])
+            - damping * d->flexedge_velocity[e];
+
+      // transform to joint torque, add to qfrc_passive: dense or sparse
+      if (issparse) {
+        int end = d->flexedge_J_rowadr[e] + d->flexedge_J_rownnz[e];
+        for (int j=d->flexedge_J_rowadr[e]; j < end; j++) {
+          d->qfrc_passive[d->flexedge_J_colind[j]] += d->flexedge_J[j] * frc;
+        }
+      } else {
+        mju_addToScl(d->qfrc_passive, d->flexedge_J+e*nv, frc, nv);
+      }
+    }
   }
 
   // tendon-level spring-dampers
   for (int i=0; i < m->ntendon; i++) {
     stiffness = m->tendon_stiffness[i];
     damping = m->tendon_damping[i];
+
+    // disabled : nothing to do
+    if (stiffness == 0 && damping == 0) {
+      continue;
+    }
 
     // compute spring force along tendon
     mjtNum length = d->ten_length[i];

@@ -51,9 +51,10 @@ void mj_defaultStatistic(mjStatistic* stat);
 //------------------------------- mjModel ----------------------------------------------------------
 
 // allocate mjModel
-mjModel* mj_makeModel(int nq, int nv, int nu, int na, int nbody, int nbvh, int njnt,
-                      int ngeom, int nsite, int ncam, int nlight,
-                      int nmesh, int nmeshvert, int nmeshnormal, int nmeshtexcoord, int nmeshface,
+mjModel* mj_makeModel(int nq, int nv, int nu, int na, int nbody, int nbvh, int nbvhstatic, int nbvhdynamic,
+                      int njnt, int ngeom, int nsite, int ncam, int nlight, int nflex, int nflexvert,
+                      int nflexedge, int nflexelem, int nflexelemdata, int nflexshelldata, int nflexevpair,
+                      int nflextexcoord, int nmesh, int nmeshvert, int nmeshnormal, int nmeshtexcoord, int nmeshface,
                       int nmeshgraph, int nskin, int nskinvert, int nskintexvert, int nskinface,
                       int nskinbone, int nskinbonevert, int nhfield, int nhfielddata,
                       int ntex, int ntexdata, int nmat, int npair, int nexclude,
@@ -62,7 +63,7 @@ mjModel* mj_makeModel(int nq, int nv, int nu, int na, int nbody, int nbvh, int n
                       int ntuple, int ntupledata, int nkey, int nmocap, int nplugin,
                       int npluginattr, int nuser_body, int nuser_jnt, int nuser_geom,
                       int nuser_site, int nuser_cam, int nuser_tendon, int nuser_actuator,
-                      int nuser_sensor, int nnames);
+                      int nuser_sensor, int nnames, int npaths);
 
 // copy mjModel; allocate new if dest is NULL
 MJAPI mjModel* mj_copyModel(mjModel* dest, const mjModel* src);
@@ -104,7 +105,7 @@ MJAPI void mj_resetDataDebug(const mjModel* m, mjData* d, unsigned char debug_va
 MJAPI void mj_resetDataKeyframe(const mjModel* m, mjData* d, int key);
 
 // mjData arena allocate
-MJAPI void* mj_arenaAlloc(mjData* d, size_t bytes, size_t alignment);
+MJAPI void* mj_arenaAllocByte(mjData* d, size_t bytes, size_t alignment);
 
 // mjData mark stack frame
 MJAPI void mj_markStack(mjData* d);
@@ -113,7 +114,7 @@ MJAPI void mj_markStack(mjData* d);
 MJAPI void mj_freeStack(mjData* d);
 
 // mjData stack allocate
-MJAPI void* mj_stackAlloc(mjData* d, size_t bytes, size_t alignment);
+MJAPI void* mj_stackAllocByte(mjData* d, size_t bytes, size_t alignment);
 
 // mjData stack allocate for array of mjtNums
 MJAPI mjtNum* mj_stackAllocNum(mjData* d, int size);

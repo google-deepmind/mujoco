@@ -954,6 +954,9 @@ const char* mju_type2Str(int type) {
   case mjOBJ_LIGHT:
     return "light";
 
+  case mjOBJ_FLEX:
+    return "flex";
+
   case mjOBJ_MESH:
     return "mesh";
 
@@ -1041,6 +1044,10 @@ int mju_str2Type(const char* str) {
 
   else if (!strcmp(str, "light")) {
     return mjOBJ_LIGHT;
+  }
+
+  else if (!strcmp(str, "flex")) {
+    return mjOBJ_FLEX;
   }
 
   else if (!strcmp(str, "mesh")) {
@@ -1212,6 +1219,10 @@ void mju_zeroInt(int* res, int n) {
   memset(res, 0, n*sizeof(int));
 }
 
+
+void mju_zeroSizeT(size_t* res, size_t n) {
+  memset(res, 0, n*sizeof(size_t));
+}
 
 
 // copy int vector vec into res

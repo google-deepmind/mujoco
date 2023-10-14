@@ -705,9 +705,9 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
          ),
          doc='Free the current mjData stack frame. All pointers returned by mj_stackAlloc since the last call to mj_markStack must no longer be used afterwards.',  # pylint: disable=line-too-long
      )),
-    ('mj_stackAlloc',
+    ('mj_stackAllocByte',
      FunctionDecl(
-         name='mj_stackAlloc',
+         name='mj_stackAllocByte',
          return_type=PointerType(
              inner_type=ValueType(name='void'),
          ),
@@ -1455,6 +1455,26 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
              ),
          ),
          doc='Compute camera and light positions and orientations.',
+     )),
+    ('mj_flex',
+     FunctionDecl(
+         name='mj_flex',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='m',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjModel', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='d',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjData'),
+                 ),
+             ),
+         ),
+         doc='Compute flex-related quantities.',
      )),
     ('mj_tendon',
      FunctionDecl(
@@ -3161,6 +3181,69 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
          ),
          doc='Intersect ray with pure geom, return nearest distance or -1 if no intersection.',  # pylint: disable=line-too-long
      )),
+    ('mju_rayFlex',
+     FunctionDecl(
+         name='mju_rayFlex',
+         return_type=ValueType(name='mjtNum'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='m',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjModel', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='d',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjData', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='flex_layer',
+                 type=ValueType(name='int'),
+             ),
+             FunctionParameterDecl(
+                 name='flg_vert',
+                 type=ValueType(name='mjtByte'),
+             ),
+             FunctionParameterDecl(
+                 name='flg_edge',
+                 type=ValueType(name='mjtByte'),
+             ),
+             FunctionParameterDecl(
+                 name='flg_face',
+                 type=ValueType(name='mjtByte'),
+             ),
+             FunctionParameterDecl(
+                 name='flg_skin',
+                 type=ValueType(name='mjtByte'),
+             ),
+             FunctionParameterDecl(
+                 name='flexid',
+                 type=ValueType(name='int'),
+             ),
+             FunctionParameterDecl(
+                 name='pnt',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='vec',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='vertid',
+                 type=ArrayType(
+                     inner_type=ValueType(name='int'),
+                     extents=(1,),
+                 ),
+             ),
+         ),
+         doc='Intersect ray with flex, return nearest distance or -1 if no intersection, and also output nearest vertex id.',  # pylint: disable=line-too-long
+     )),
     ('mju_raySkin',
      FunctionDecl(
          name='mju_raySkin',
@@ -3816,6 +3899,13 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  ),
              ),
              FunctionParameterDecl(
+                 name='flexid',
+                 type=ArrayType(
+                     inner_type=ValueType(name='int'),
+                     extents=(1,),
+                 ),
+             ),
+             FunctionParameterDecl(
                  name='skinid',
                  type=ArrayType(
                      inner_type=ValueType(name='int'),
@@ -3823,7 +3913,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  ),
              ),
          ),
-         doc='Select geom or skin with mouse, return bodyid; -1: none selected.',  # pylint: disable=line-too-long
+         doc='Select geom, flex or skin with mouse, return bodyid; -1: none selected.',  # pylint: disable=line-too-long
      )),
     ('mjv_defaultOption',
      FunctionDecl(
@@ -8270,6 +8360,26 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
              ),
          ),
          doc='Create a thread pool with the specified number of threads running.',  # pylint: disable=line-too-long
+     )),
+    ('mju_bindThreadPool',
+     FunctionDecl(
+         name='mju_bindThreadPool',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='d',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjData'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='thread_pool',
+                 type=PointerType(
+                     inner_type=ValueType(name='void'),
+                 ),
+             ),
+         ),
+         doc='Adds a thread pool to mjData and configures it for multi-threaded use.',  # pylint: disable=line-too-long
      )),
     ('mju_threadPoolEnqueue',
      FunctionDecl(

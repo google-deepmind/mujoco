@@ -22,10 +22,10 @@
 #include <string>
 #include <string_view>
 
-#include <mujoco/mjmacro.h>
 #include <mujoco/mjtnum.h>
 #include <mujoco/mujoco.h>
 #include "engine/engine_crossplatform.h"
+#include "engine/engine_util_misc.h"
 #include "engine/engine_util_spatial.h"
 
 using std::isnan;
@@ -443,9 +443,9 @@ void mjuu_offcenter(double* res, const double mass, const double* vec) {
 void mjuu_visccoef(double* visccoef, double mass, const double* inertia, double scl) {
   // compute equivalent box
   double equivbox[3];
-  equivbox[0] = sqrt(mjMAX(mjMINVAL, (inertia[1] + inertia[2] - inertia[0])) / mass * 6.0);
-  equivbox[1] = sqrt(mjMAX(mjMINVAL, (inertia[0] + inertia[2] - inertia[1])) / mass * 6.0);
-  equivbox[2] = sqrt(mjMAX(mjMINVAL, (inertia[0] + inertia[1] - inertia[2])) / mass * 6.0);
+  equivbox[0] = sqrt(mju_max(mjMINVAL, (inertia[1] + inertia[2] - inertia[0])) / mass * 6.0);
+  equivbox[1] = sqrt(mju_max(mjMINVAL, (inertia[0] + inertia[2] - inertia[1])) / mass * 6.0);
+  equivbox[2] = sqrt(mju_max(mjMINVAL, (inertia[0] + inertia[1] - inertia[2])) / mass * 6.0);
 
   // apply formula for box (or rather cross) viscosity
 

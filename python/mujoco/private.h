@@ -22,7 +22,7 @@
 // They should be regarded as part of MuJoCo's internal implementation detail.
 extern "C" {
 MJAPI void _mjPRIVATE__set_tls_error_fn(void (*h)(const char*));
-MJAPI void* mj_arenaAlloc(mjData* d, int bytes, int alignment);
+MJAPI void* mj_arenaAllocByte(mjData* d, int bytes, int alignment);
 }
 
 #endif  // MUJOCO_PYTHON_PRIVATE_H_

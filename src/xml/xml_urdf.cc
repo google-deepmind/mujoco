@@ -87,9 +87,6 @@ void mjXURDF::Parse(
   int id_parent, id_child;
   urPrefix = prefix;
 
-  // set compiler defaults suitable for URDF
-  model->discardvisual = true;
-
   // parse MuJoCo sections (not part of URDF)
   XMLElement* mjc = FindSubElem(root, "mujoco");
   if (mjc) {

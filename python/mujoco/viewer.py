@@ -67,20 +67,16 @@ class Handle:
   def __init__(
       self,
       sim: _Simulate,
-      scn: mujoco.MjvScene,
       cam: mujoco.MjvCamera,
       opt: mujoco.MjvOption,
       pert: mujoco.MjvPerturb,
+      user_scn: Optional[mujoco.MjvScene],
   ):
     self._sim = weakref.ref(sim)
-    self._scn = scn
     self._cam = cam
     self._opt = opt
     self._pert = pert
-
-  @property
-  def scn(self):
-    return self._scn
+    self._user_scn = user_scn
 
   @property
   def cam(self):
@@ -94,40 +90,52 @@ class Handle:
   def perturb(self):
     return self._pert
 
+  @property
+  def user_scn(self):
+    return self._user_scn
+
   def close(self):
     sim = self._sim()
     if sim is not None:
       sim.exit()
 
-  def is_running(self) -> bool:
+  def _get_sim(self) -> Optional[_Simulate]:
     sim = self._sim()
     if sim is not None:
-      return sim.exitrequest < 2
-    return False
+      try:
+        return sim if sim.exitrequest == 0 else None
+      except mujoco.UnexpectedError:
+        # UnexpectedError is raised when accessing `exitrequest` after the
+        # underlying simulate instance has been deleted in C++.
+        return None
+    return None
+
+  def is_running(self) -> bool:
+    return self._get_sim() is not None
 
   def lock(self):
-    sim = self._sim()
+    sim = self._get_sim()
     if sim is not None:
       return sim.lock()
     return contextlib.nullcontext()
 
   def sync(self):
-    sim = self._sim()
+    sim = self._get_sim()
     if sim is not None:
       sim.sync()  # locks internally
 
   def update_hfield(self, hfieldid: int):
-    sim = self._sim()
+    sim = self._get_sim()
     if sim is not None:
       sim.update_hfield(hfieldid)  # locks internally and blocks until done
 
   def update_mesh(self, meshid: int):
-    sim = self._sim()
+    sim = self._get_sim()
     if sim is not None:
       sim.update_mesh(meshid)  # locks internally and blocks until done
 
   def update_texture(self, texid: int):
-    sim = self._sim()
+    sim = self._get_sim()
     if sim is not None:
       sim.update_texture(texid)  # locks internally and blocks until done
 
@@ -174,9 +182,11 @@ def _reload(
 ) -> Optional[Tuple[mujoco.MjModel, mujoco.MjData]]:
   """Internal function for reloading a model in the viewer."""
   try:
+    simulate.load_message('') # path is unknown at this point
     load_tuple = loader()
   except Exception as e:  # pylint: disable=broad-except
     simulate.load_error = str(e)
+    simulate.load_message_clear()
   else:
     m, d = load_tuple[:2]
 
@@ -235,6 +245,7 @@ def _physics_loop(simulate: _Simulate, loader: Optional[_InternalLoaderType]):
       if m is not None:
         assert d is not None
         if simulate.run:
+          stepped = False
           # Record CPU time at start of iteration.
           startcpu = time.time()
 
@@ -273,6 +284,7 @@ def _physics_loop(simulate: _Simulate, loader: Optional[_InternalLoaderType]):
 
             # Run single step, let next iteration deal with timing.
             mujoco.mj_step(m, d)
+            stepped = True
 
           # In-sync: step until ahead of cpu.
           else:
@@ -290,14 +302,21 @@ def _physics_loop(simulate: _Simulate, loader: Optional[_InternalLoaderType]):
 
               # Call mj_step.
               mujoco.mj_step(m, d)
+              stepped = True
 
               # Break if reset.
               if d.time < prevsim:
                 break
+
+          # save current state to history buffer
+          if (stepped):
+            simulate.add_to_history()
+
         else:  # simulate.run is False: GUI is paused.
 
           # Run mj_forward, to update rendering and joint sliders.
           mujoco.mj_forward(m, d)
+          simulate.speed_changed = True
 
 
 def _launch_internal(
@@ -308,6 +327,8 @@ def _launch_internal(
     loader: Optional[_InternalLoaderType] = None,
     handle_return: Optional['queue.Queue[Handle]'] = None,
     key_callback: Optional[KeyCallbackType] = None,
+    show_left_ui: bool = True,
+    show_right_ui: bool = True,
 ) -> None:
   """Internal API, so that the public API has more readable type annotations."""
   if model is None and data is not None:
@@ -329,14 +350,19 @@ def _launch_internal(
 
     loader = _loader
 
-  if model and not run_physics_thread:
-    scn = mujoco.MjvScene(model, _Simulate.MAX_GEOM)
-  else:
-    scn = mujoco.MjvScene()
   cam = mujoco.MjvCamera()
   opt = mujoco.MjvOption()
   pert = mujoco.MjvPerturb()
-  simulate = _Simulate(scn, cam, opt, pert, run_physics_thread, key_callback)
+  if model and not run_physics_thread:
+    user_scn = mujoco.MjvScene(model, _Simulate.MAX_GEOM)
+  else:
+    user_scn = None
+  simulate = _Simulate(
+      cam, opt, pert, user_scn, run_physics_thread, key_callback
+  )
+
+  simulate.ui0_enable = show_left_ui
+  simulate.ui1_enable = show_right_ui
 
   # Initialize GLFW if not using mjpython.
   if _MJPYTHON is None:
@@ -346,8 +372,9 @@ def _launch_internal(
 
   notify_loaded = None
   if handle_return:
-    notify_loaded = (
-        lambda: handle_return.put_nowait(Handle(simulate, scn, cam, opt, pert)))
+    notify_loaded = lambda: handle_return.put_nowait(
+        Handle(simulate, cam, opt, pert, user_scn)
+    )
 
   if run_physics_thread:
     side_thread = threading.Thread(
@@ -371,13 +398,23 @@ def _launch_internal(
   simulate.destroy()
 
 
-def launch(model: Optional[mujoco.MjModel] = None,
-           data: Optional[mujoco.MjData] = None,
-           *,
-           loader: Optional[LoaderType] = None) -> None:
+def launch(
+    model: Optional[mujoco.MjModel] = None,
+    data: Optional[mujoco.MjData] = None,
+    *,
+    loader: Optional[LoaderType] = None,
+    show_left_ui: bool = True,
+    show_right_ui: bool = True,
+) -> None:
   """Launches the Simulate GUI."""
   _launch_internal(
-      model, data, run_physics_thread=True, loader=loader)
+      model,
+      data,
+      run_physics_thread=True,
+      loader=loader,
+      show_left_ui=show_left_ui,
+      show_right_ui=show_right_ui,
+  )
 
 
 def launch_from_path(path: str) -> None:
@@ -390,6 +427,8 @@ def launch_passive(
     data: mujoco.MjData,
     *,
     key_callback: Optional[KeyCallbackType] = None,
+    show_left_ui: bool = True,
+    show_right_ui: bool = True,
 ) -> Handle:
   """Launches a passive Simulate GUI without blocking the running thread."""
   if not isinstance(model, mujoco.MjModel):
@@ -411,6 +450,8 @@ def launch_passive(
             run_physics_thread=False,
             handle_return=handle_return,
             key_callback=key_callback,
+            show_left_ui=show_left_ui,
+            show_right_ui=show_right_ui,
         ),
     )
     thread.daemon = True
@@ -420,7 +461,14 @@ def launch_passive(
       raise RuntimeError(
           '`launch_passive` requires that the Python script be run under '
           '`mjpython` on macOS')
-    _MJPYTHON.launch_on_ui_thread(model, data, handle_return, key_callback)
+    _MJPYTHON.launch_on_ui_thread(
+        model,
+        data,
+        handle_return,
+        key_callback,
+        show_left_ui,
+        show_right_ui,
+    )
 
   return handle_return.get()
 

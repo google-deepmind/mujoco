@@ -40,6 +40,8 @@
 #include "engine/engine_util_misc.h"
 #include "engine/engine_util_solve.h"
 #include "engine/engine_util_sparse.h"
+#include "thread/thread_pool.h"
+#include "thread/thread_task.h"
 
 
 
@@ -93,6 +95,30 @@ void mj_checkAcc(const mjModel* m, mjData* d) {
 
 //-------------------------- solver components -----------------------------------------------------
 
+// args for internal functions in mj_fwdPosition
+struct mjFwdPositionArgs_ {
+  const mjModel* m;
+  mjData* d;
+};
+typedef struct mjFwdPositionArgs_ mjFwdPositionArgs;
+
+// wrapper for mj_crb and mj_factorM
+void* mj_inertialThreaded(void* args) {
+  mjFwdPositionArgs* forward_args = (mjFwdPositionArgs*) args;
+  mj_crb(forward_args->m, forward_args->d);       // timed internally (POS_INERTIA)
+  mj_factorM(forward_args->m, forward_args->d);   // timed internally (POS_INERTIA)
+  return NULL;
+}
+
+// wrapper for mj_collision
+void* mj_collisionThreaded(void* args) {
+  mjFwdPositionArgs* forward_args = (mjFwdPositionArgs*) args;
+  mj_collision(forward_args->m, forward_args->d);   // timed internally (POS_COLLISION)
+  return NULL;
+}
+
+
+
 // position-dependent computations
 void mj_fwdPosition(const mjModel* m, mjData* d) {
   TM_START1;
@@ -101,17 +127,37 @@ void mj_fwdPosition(const mjModel* m, mjData* d) {
   mj_kinematics(m, d);
   mj_comPos(m, d);
   mj_camlight(m, d);
+  mj_flex(m, d);
   mj_tendon(m, d);
   TM_END(mjTIMER_POS_KINEMATICS);
 
-  TM_RESTART;
-  mj_crb(m, d);
-  mj_factorM(m, d);
-  TM_END(mjTIMER_POS_INERTIA);
+  // no threadpool: inertia and collision on main thread
+  if (!d->threadpool) {
+    mj_crb(m, d);        // timed internally (POS_INERTIA)
+    mj_factorM(m, d);    // timed internally (POS_INERTIA)
+    mj_collision(m, d);  // timed internally (POS_COLLISION)
+  }
 
-  TM_RESTART;
-  mj_collision(m, d);
-  TM_END(mjTIMER_POS_COLLISION);
+  // have threadpool: inertia and collision on seperate threads
+  else {
+    mjTask tasks[2];
+    mjFwdPositionArgs forward_args;
+    forward_args.m = m;
+    forward_args.d = d;
+
+    mju_defaultTask(&tasks[0]);
+    tasks[0].func = mj_inertialThreaded;
+    tasks[0].args = &forward_args;
+    mju_threadPoolEnqueue((mjThreadPool*)d->threadpool, &tasks[0]);
+
+    mju_defaultTask(&tasks[1]);
+    tasks[1].func = mj_collisionThreaded;
+    tasks[1].args = &forward_args;
+    mju_threadPoolEnqueue((mjThreadPool*)d->threadpool, &tasks[1]);
+
+    mju_taskJoin(&tasks[0]);
+    mju_taskJoin(&tasks[1]);
+  }
 
   TM_RESTART;
   mj_makeConstraint(m, d);
@@ -122,7 +168,7 @@ void mj_fwdPosition(const mjModel* m, mjData* d) {
 
   TM_RESTART;
   mj_transmission(m, d);
-  TM_END(mjTIMER_POS_KINEMATICS);
+  TM_ADD(mjTIMER_POS_KINEMATICS);
 
   TM_RESTART;
   mj_projectConstraint(m, d);
@@ -137,6 +183,14 @@ void mj_fwdPosition(const mjModel* m, mjData* d) {
 void mj_fwdVelocity(const mjModel* m, mjData* d) {
   TM_START;
 
+  // flexedge velocity: dense or sparse
+  if (mj_isSparse(m)) {
+    mju_mulMatVecSparse(d->flexedge_velocity, d->flexedge_J, d->qvel, m->nflexedge,
+                        d->flexedge_J_rownnz, d->flexedge_J_rowadr, d->flexedge_J_colind, NULL);
+  } else {
+    mju_mulMatVec(d->flexedge_velocity, d->flexedge_J, d->qvel, m->nflexedge, m->nv);
+  }
+
   // tendon velocity: dense or sparse
   if (mj_isSparse(m)) {
     mju_mulMatVecSparse(d->ten_velocity, d->ten_J, d->qvel, m->ntendon,
@@ -145,10 +199,10 @@ void mj_fwdVelocity(const mjModel* m, mjData* d) {
     mju_mulMatVec(d->ten_velocity, d->ten_J, d->qvel, m->ntendon, m->nv);
   }
 
-  // actuator velocity
+  // actuator velocity: always dense
   mju_mulMatVec(d->actuator_velocity, d->actuator_moment, d->qvel, m->nu, m->nv);
 
-  // standard velocity computations
+  // com-based velocities, passive forces, constraint references
   mj_comVel(m, d);
   mj_passive(m, d);
   mj_referenceConstraint(m, d);
@@ -492,6 +546,52 @@ static void warmstart(const mjModel* m, mjData* d) {
 
 
 
+// struct encapsulating arguments to thread task
+struct mjSolIslandArgs_ {
+  const mjModel* m;
+  mjData* d;
+  int island;
+};
+typedef struct mjSolIslandArgs_ mjSolIslandArgs;
+
+// extract arguments, pass to solver
+void* mj_solCG_island_wrapper(void* args) {
+  mjSolIslandArgs* solargs = (mjSolIslandArgs*) args;
+  mj_solCG_island(solargs->m, solargs->d, solargs->island, solargs->m->opt.iterations);
+  return NULL;
+}
+
+
+
+
+// CG solver, multi-threaded over islands
+void mj_solCG_island_multithreaded(const mjModel* m, mjData* d) {
+  mj_markStack(d);
+  // allocate array of arguments to be passed to threads
+  mjSolIslandArgs* sol_cg_island_args =
+      mj_stackAllocByte(d, sizeof(mjSolIslandArgs) * d->nisland, _Alignof(mjSolIslandArgs));
+  mjTask* tasks = mj_stackAllocByte(d, sizeof(mjTask)  * d->nisland, _Alignof(mjTask));
+
+  for (int island = 0; island < d->nisland; ++island) {
+    sol_cg_island_args[island].m = m;
+    sol_cg_island_args[island].d = d;
+    sol_cg_island_args[island].island = island;
+
+    mju_defaultTask(&tasks[island]);
+    tasks[island].func = mj_solCG_island_wrapper;
+    tasks[island].args = &sol_cg_island_args[island];
+    mju_threadPoolEnqueue((mjThreadPool*)d->threadpool, &tasks[island]);
+  }
+
+  for (int island = 0; island < d->nisland; ++island) {
+    mju_taskJoin(&tasks[island]);
+  }
+
+  mj_freeStack(d);
+}
+
+
+
 // compute efc_b, efc_force, qfrc_constraint; update qacc
 void mj_fwdConstraint(const mjModel* m, mjData* d) {
   TM_START;
@@ -524,9 +624,15 @@ void mj_fwdConstraint(const mjModel* m, mjData* d) {
 
   // run solver over constraint islands
   if (islands_supported) {
-    // loop over islands
-    for (int island=0; island < nisland; island++) {
-      mj_solCG_island(m, d, island, m->opt.iterations);
+    // no threadpool, loop over islands
+    if (!d->threadpool) {
+      for (int island=0; island < nisland; island++) {
+        mj_solCG_island(m, d, island, m->opt.iterations);
+      }
+    }
+    else {
+      // solve using threads
+      mj_solCG_island_multithreaded(m, d);
     }
     d->solver_nisland = nisland;
   }

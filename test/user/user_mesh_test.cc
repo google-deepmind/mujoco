@@ -375,6 +375,9 @@ TEST_F(MjCMeshTest, SaveMeshOnce) {
   const std::string xml_path = GetTestDataFilePath(kCubePath);
   std::array<char, 1024> error;
   mjModel* model = mj_loadXML(xml_path.c_str(), 0, error.data(), error.size());
+  // Confirm the mesh file is loaded and stored in paths
+  EXPECT_EQ(
+      std::string(&model->paths[model->mesh_pathadr[0]]), "cube.obj");
   std::string saved_xml = SaveAndReadXml(model);
   EXPECT_THAT(saved_xml, Not(testing::HasSubstr("vertex")));
   mj_deleteModel(model);

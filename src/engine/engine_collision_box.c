@@ -16,6 +16,7 @@
 #include <string.h>
 
 #include <mujoco/mjmacro.h>
+#include <mujoco/mujoco.h>
 #include "engine/engine_collision_primitive.h"
 #include "engine/engine_util_blas.h"
 
@@ -36,15 +37,15 @@ static void mju_clampVec(mjtNum* vec, const mjtNum* limit, int n)
 }
 
 
-static int _SphereBox(mjContact* con, mjtNum mindist,
-                      const mjtNum* pos1, const mjtNum* mat1, const mjtNum* size1,
-                      const mjtNum* pos2, const mjtNum* mat2, const mjtNum* size2)
+// raw sphere : box
+int mjraw_SphereBox(mjContact* con, mjtNum margin,
+                    const mjtNum* pos1, const mjtNum* mat1, const mjtNum* size1,
+                    const mjtNum* pos2, const mjtNum* mat2, const mjtNum* size2)
 {
   int i, k;
   mjtNum tmp[3], center[3], clamped[3], deepest[3], nearest[3];
   mjtNum pos[3];
   mjtNum dist, closest;
-
 
   mju_sub3(tmp, pos1, pos2);
   mju_rotVecMatT(center, tmp, mat2);
@@ -56,9 +57,8 @@ static int _SphereBox(mjContact* con, mjtNum mindist,
   mju_sub3(tmp, clamped, center);
   dist = mju_normalize3(tmp);
 
-  if (dist - size1[0] > mindist)
+  if (dist - size1[0] > margin)
     return 0;
-
 
   // sphere center inside box
   if (dist <= mjMINVAL) {
@@ -93,32 +93,36 @@ static int _SphereBox(mjContact* con, mjtNum mindist,
   return 1;
 }
 
+
+
+// sphere : box
 int mjc_SphereBox(const mjModel* m, const mjData* d, mjContact* con,
                   int g1, int g2, mjtNum margin)
 {
   mjGETINFO;
 
-  return _SphereBox(con, margin, pos1, mat1, size1, pos2, mat2, size2);
+  return mjraw_SphereBox(con, margin, pos1, mat1, size1, pos2, mat2, size2);
 }
 
 
-// GENERAL THEORY OF OPERATION
-// the following code is mostly for finding (line segment)/(box) collision
-// after which box-sphere is called
 
-// First the closest point to the box is found.
-// Then a "sensible" second point is found if the angle
-// between the segment and the box is low enough < 45
+/* GENERAL THEORY OF OPERATION
+   the following code is mostly for finding (line segment)/(box) collision
+   after which box-sphere is called
 
-// In the comments that follow, capsule just means the capsule's line segment
-// It might be hard to understand all comments but you would need
-// a picture to see what is happening at each line of the code
+   First the closest point to the box is found.
+   Then a "sensible" second point is found if the angle
+   between the segment and the box is low enough < 45
 
-int mjc_CapsuleBox(const mjModel* m, const mjData* d, mjContact* con,
-                   int g1, int g2, mjtNum margin)
-{
-  mjGETINFO
+   In the comments that follow, capsule just means the capsule's line segment
+   It might be hard to understand all comments but you would need
+   a picture to see what is happening at each line of the code
+*/
 
+// raw capsule : box
+int mjraw_CapsuleBox(mjContact* con, mjtNum margin,
+                     const mjtNum* pos1, const mjtNum* mat1, const mjtNum* size1,
+                     const mjtNum* pos2, const mjtNum* mat2, const mjtNum* size2) {
   mjtNum tmp1[3], tmp2[3], tmp3[3], halfaxis[3], axis[3], dif[3];
   mjtNum pos[3];          // position of capsule in box-local frame
 
@@ -576,7 +580,7 @@ skip:
   mju_addTo3(tmp2, pos2);
 
   // collide with
-  n = _SphereBox(con, margin, tmp2, mat1, size1, pos2, mat2, size2);
+  n = mjraw_SphereBox(con, margin, tmp2, mat1, size1, pos2, mat2, size2);
 
 
   if (secondpos > -3) {  // secondpos was modified
@@ -584,15 +588,24 @@ skip:
     mju_addToScl3(tmp1, halfaxis, secondpos + bestsegmentpos);  // note the summation
     mju_rotVecMat(tmp2, tmp1, mat2);
     mju_addTo3(tmp2, pos2);
-    n += _SphereBox(con + n, margin, tmp2, mat1, size1, pos2, mat2, size2);
+    n += mjraw_SphereBox(con + n, margin, tmp2, mat1, size1, pos2, mat2, size2);
   }
 
   return n;
 }
 
 
+// capsule : box
+int mjc_CapsuleBox(const mjModel* m, const mjData* d, mjContact* con,
+                   int g1, int g2, mjtNum margin)
+{
+  mjGETINFO
+  return mjraw_CapsuleBox(con, margin, pos1, mat1, size1, pos2, mat2, size2);
+}
 
 
+
+// box : box
 int mjc_BoxBox(const mjModel* M, const mjData* D, mjContact* con, int g1, int g2, mjtNum margin)
 {
   const mjtNum* pos1 = D->geom_xpos + 3 * g1;

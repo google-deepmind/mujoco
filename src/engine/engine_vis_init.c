@@ -43,6 +43,7 @@ const char* mjLABELSTRING[mjNLABEL] = {
   "Tendon",
   "Actuator",
   "Constraint",
+  "Flex",
   "Skin",
   "Selection",
   "SelPoint",
@@ -91,8 +92,13 @@ const char* mjVISSTRING[mjNVISFLAG][3] = {
   {"S&elect Point",   "0", "E"},
   {"Static Bo&dy",    "1", "D"},
   {"Skin",            "1", ";"},
+  {"Flex Vert",       "1", "."},
+  {"Flex Edge",       "1", ""},
+  {"Flex Face",       "1", ""},
+  {"Flex Skin",       "0", ""},
   {"Body Tree",       "0", "`"},
-  {"Mesh Tree",       "0", ""},
+  {"Flex Tree",       "0", ""},
+  {"Mesh Tree",       "0", "\\"},
   {"SDF iters",       "0", ""}
 };
 
@@ -107,7 +113,7 @@ const char* mjRNDSTRING[mjNRNDFLAG][3] = {
   {"Fog",         "0", "G"},
   {"Haze",        "1", "/"},
   {"Segment",     "0", ","},
-  {"Id Color",    "0", "."},
+  {"Id Color",    "0", ""},
   {"Cull Face",   "1", ""}
 };
 
@@ -143,6 +149,96 @@ void mjv_makeScene(const mjModel* m, mjvScene* scn, int maxgeom) {
   scn->scale = 1;
   scn->rotate[0] = 1;
 
+  // set number of flexes
+  scn->nflex = m ? m->nflex : 0;
+
+  // allocate flex data
+  if (scn->nflex) {
+    int nflex = scn->nflex;
+
+    // allocate fixed
+    scn->flexedgeadr = (int*) mju_malloc(nflex*sizeof(int));
+    scn->flexedgenum = (int*) mju_malloc(nflex*sizeof(int));
+    scn->flexvertadr = (int*) mju_malloc(nflex*sizeof(int));
+    scn->flexvertnum = (int*) mju_malloc(nflex*sizeof(int));
+    scn->flexfaceadr = (int*) mju_malloc(nflex*sizeof(int));
+    scn->flexfacenum = (int*) mju_malloc(nflex*sizeof(int));
+    scn->flexfaceused= (int*) mju_malloc(nflex*sizeof(int));
+    scn->flexedge    = (int*) mju_malloc(2*m->nflexedge*sizeof(int));
+    scn->flexvert    = (float*) mju_malloc(3*m->nflexvert*sizeof(float));
+
+    // count max number of flex faces to be rendered (depending on vis options)
+    int nface = 0;
+    for (int f=0; f<nflex; f++) {
+      // 1D : 0
+      if (m->flex_dim[f]==0) {
+        scn->flexfacenum[f] = 0;
+      }
+
+      // 2D: 2*fragments + 2*elements
+      else if (m->flex_dim[f]==2) {
+         scn->flexfacenum[f] = 2*m->flex_shellnum[f] + 2*m->flex_elemnum[f];
+      }
+
+      // 3D: max(fragments, 4*maxlayer)
+      else {
+        // find number of elements in biggest layer
+        int maxlayer = 0, layer = 0, nlayer = 1;
+        while (nlayer) {
+          // count elements in this layer
+          nlayer = 0;
+          for (int e=0; e<m->flex_elemnum[f]; e++) {
+            if (m->flex_elemlayer[m->flex_elemadr[f]+e]==layer) {
+              nlayer++;
+            }
+          }
+
+          // accumulate max over layers, advance layer
+          maxlayer = mjMAX(maxlayer, nlayer);
+          layer++;
+        }
+
+        scn->flexfacenum[f] = mjMAX(m->flex_shellnum[f], 4*maxlayer);
+      }
+
+      // accumulate over flexes
+      nface += scn->flexfacenum[f];
+    }
+
+    // allocate face-related
+    scn->flexface     = nface ? (float*) mju_malloc(9*nface*sizeof(float)) : NULL;
+    scn->flexnormal   = nface ? (float*) mju_malloc(9*nface*sizeof(float)) : NULL;
+    scn->flextexcoord = nface ? (float*) mju_malloc(6*nface*sizeof(float)) : NULL;
+
+    // check allocation
+    if (!scn->flexedgeadr ||
+        !scn->flexedgenum ||
+        !scn->flexfaceadr ||
+        !scn->flexfacenum ||
+        !scn->flexfaceused||
+        !scn->flexvertadr ||
+        !scn->flexvertnum ||
+        !scn->flexedge    ||
+        !scn->flexvert    ||
+        (nface && !scn->flexface)   ||
+        (nface && !scn->flexnormal) ||
+        (nface && !scn->flextexcoord)) {
+      mju_error("Could not allocate flex buffers");
+    }
+
+    // copy constant edge and vertex data
+    memcpy(scn->flexedgeadr, m->flex_edgeadr, nflex*sizeof(int));
+    memcpy(scn->flexedgenum, m->flex_edgenum, nflex*sizeof(int));
+    memcpy(scn->flexvertadr, m->flex_vertadr, nflex*sizeof(int));
+    memcpy(scn->flexvertnum, m->flex_vertnum, nflex*sizeof(int));
+    memcpy(scn->flexedge, m->flex_edge, 2*m->nflexedge*sizeof(int));
+
+    // compute flexfaceadr
+    for (int f=0; f<nflex; f++) {
+      scn->flexfaceadr[f] = f==0 ? 0 : scn->flexfaceadr[f-1]+scn->flexfacenum[f-1];
+    }
+  }
+
   // set number of skins
   if (m) {
     scn->nskin = m->nskin;
@@ -152,19 +248,14 @@ void mjv_makeScene(const mjModel* m, mjvScene* scn, int maxgeom) {
 
   // allocate skin data
   if (scn->nskin) {
-    // compute number of vertices in all skins
     int nskin = m->nskin;
-    int totvert = 0;
-    for (int i=0; i < nskin; i++) {
-      totvert += m->skin_vertnum[i];
-    }
 
     // allocate
     scn->skinfacenum = (int*) mju_malloc(nskin*sizeof(int));
     scn->skinvertadr = (int*) mju_malloc(nskin*sizeof(int));
     scn->skinvertnum = (int*) mju_malloc(nskin*sizeof(int));
-    scn->skinvert    = (float*) mju_malloc(3*totvert*sizeof(float));
-    scn->skinnormal  = (float*) mju_malloc(3*totvert*sizeof(float));
+    scn->skinvert    = (float*) mju_malloc(3*m->nskinvert*sizeof(float));
+    scn->skinnormal  = (float*) mju_malloc(3*m->nskinvert*sizeof(float));
 
     // check allocation
     if (!scn->skinfacenum ||
@@ -176,11 +267,9 @@ void mjv_makeScene(const mjModel* m, mjvScene* scn, int maxgeom) {
     }
 
     // copy constant data
-    for (int i=0; i < nskin; i++) {
-      scn->skinfacenum[i] = m->skin_facenum[i];
-      scn->skinvertadr[i] = m->skin_vertadr[i];
-      scn->skinvertnum[i] = m->skin_vertnum[i];
-    }
+    mju_copyInt(scn->skinfacenum, m->skin_facenum, nskin);
+    mju_copyInt(scn->skinvertadr, m->skin_vertadr, nskin);
+    mju_copyInt(scn->skinvertnum, m->skin_vertnum, nskin);
   }
 
   // mjvGeom, mjvLight, mjvGLCamera objects are invalid
@@ -193,6 +282,20 @@ void mjv_freeScene(mjvScene* scn) {
   // free buffers allocated by mjv_makeScene
   mju_free(scn->geoms);
   mju_free(scn->geomorder);
+
+  mju_free(scn->flexedgeadr);
+  mju_free(scn->flexedgenum);
+  mju_free(scn->flexvertadr);
+  mju_free(scn->flexvertnum);
+  mju_free(scn->flexfaceadr);
+  mju_free(scn->flexfacenum);
+  mju_free(scn->flexfaceused);
+  mju_free(scn->flexedge);
+  mju_free(scn->flexvert);
+  mju_free(scn->flexface);
+  mju_free(scn->flexnormal);
+  mju_free(scn->flextexcoord);
+
   mju_free(scn->skinfacenum);
   mju_free(scn->skinvertadr);
   mju_free(scn->skinvertnum);
@@ -224,6 +327,7 @@ void mjv_defaultOption(mjvOption* vopt) {
     vopt->jointgroup[i] = state;
     vopt->tendongroup[i] = state;
     vopt->actuatorgroup[i] = state;
+    vopt->flexgroup[i] = state;
     vopt->skingroup[i] = state;
   }
 
@@ -232,6 +336,7 @@ void mjv_defaultOption(mjvOption* vopt) {
   }
 
   vopt->bvh_depth = 1;
+  vopt->flex_layer = 0;
 }
 
 
@@ -271,6 +376,7 @@ void mjv_defaultFreeCamera(const mjModel* m, mjvCamera* cam) {
 void mjv_defaultPerturb(mjvPerturb* pert) {
   memset(pert, 0, sizeof(mjvPerturb));
 
+  pert->flexselect = -1;
   pert->skinselect = -1;
   pert->refquat[0] = 1;
   pert->scale = 1;

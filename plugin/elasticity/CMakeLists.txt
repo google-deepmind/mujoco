@@ -22,6 +22,8 @@ set(MUJOCO_ELASTICITY_SRCS
     elasticity.cc
     elasticity.h
     register.cc
+    shell.cc
+    shell.h
     solid.cc
     solid.h
 )

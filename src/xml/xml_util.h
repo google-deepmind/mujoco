@@ -160,11 +160,23 @@ class mjXUtil {
   static bool ReadAttrInt(tinyxml2::XMLElement* elem, const char* attr, int* data,
                           bool required = false);
 
+  // read vector<string> from string
+  static void String2Vector(const std::string& txt, std::vector<std::string>& vec);
+
+  // read vector<double> from string
+  static void String2Vector(const std::string& txt, std::vector<double>& vec);
+
   // read vector<float> from string
   static void String2Vector(const std::string& txt, std::vector<float>& vec);
 
   // read vector<int> from string
   static void String2Vector(const std::string& txt, std::vector<int>& vec);
+
+  // write vector<string> to string
+  static void Vector2String(std::string& txt, const std::vector<std::string>& vec);
+
+  // write vector<double> to string
+  static void Vector2String(std::string& txt, const std::vector<double>& vec);
 
   // write vector<float> to string
   static void Vector2String(std::string& txt, const std::vector<float>& vec);

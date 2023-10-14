@@ -361,6 +361,14 @@ void mj_printFormattedModel(const mjModel* m, const char* filename, const char* 
   }
   if (m->nbody) fprintf(fp, "\n");
 
+  // BVHs
+  for (int i=0; i<m->nbvh; i++) {
+    fprintf(fp, "\nBVH %d:\n", i);
+    object_class = &m->nbvh;
+    MJMODEL_POINTERS
+  }
+  if (m->nbvh) fprintf(fp, "\n");
+
   // joints
   for (int i=0; i < m->njnt; i++) {
     fprintf(fp, "\nJOINT %d:\n", i);
@@ -418,6 +426,16 @@ void mj_printFormattedModel(const mjModel* m, const char* filename, const char* 
     MJMODEL_POINTERS
   }
   if (m->nlight) fprintf(fp, "\n");
+
+  // flexes
+  for (int i=0; i<m->nflex; i++) {
+    fprintf(fp, "\nFLEX %d:\n", i);
+    fprintf(fp, "  " NAME_FORMAT, "name");
+    fprintf(fp, " %s\n", m->names + m->name_flexadr[i]);
+    object_class = &m->nflex;
+    MJMODEL_POINTERS
+  }
+  if (m->nflex) fprintf(fp, "\n");
 
   // meshes
   for (int i=0; i < m->nmesh; i++) {
@@ -880,6 +898,13 @@ void mj_printFormattedData(const mjModel* m, mjData* d, const char* filename,
   printArray("CTRL", m->nu, 1, d->ctrl, fp, float_format);
   printArray("QFRC_APPLIED", m->nv, 1, d->qfrc_applied, fp, float_format);
   printArray("XFRC_APPLIED", m->nbody, 6, d->xfrc_applied, fp, float_format);
+  if (m->neq) {
+    fprintf(fp, NAME_FORMAT, "EQ_ACTIVE");
+    for (int c=0; c < m->neq; c++) {
+      fprintf(fp, " %d", d->eq_active[c]);
+    }
+    fprintf(fp, "\n\n");
+  }
   printArray("MOCAP_POS", m->nmocap, 3, d->mocap_pos, fp, float_format);
   printArray("MOCAP_QUAT", m->nmocap, 4, d->mocap_quat, fp, float_format);
   printArray("QACC", m->nv, 1, d->qacc, fp, float_format);
@@ -906,6 +931,18 @@ void mj_printFormattedData(const mjModel* m, mjData* d, const char* filename,
   printArray("SUBTREE_COM", m->nbody, 3, d->subtree_com, fp, float_format);
   printArray("CDOF", m->nv, 6, d->cdof, fp, float_format);
   printArray("CINERT", m->nbody, 10, d->cinert, fp, float_format);
+
+  printArray("FLEXVERT_XPOS", m->nflexvert, 3, d->flexvert_xpos, fp, float_format);
+  printArray("FLEXELEM_AABB", m->nflexelem, 6, d->flexelem_aabb, fp, float_format);
+  if (!mj_isSparse(m)) {
+    printArray("FLEXEDGE_J", m->nflexedge, m->nv, d->flexedge_J, fp, float_format);
+  } else {
+    printArrayInt("FLEXEDGE_J_ROWNNZ", m->nflexedge, 1, d->flexedge_J_rownnz, fp);
+    printArrayInt("FLEXEDGE_J_ROWADR", m->nflexedge, 1, d->flexedge_J_rowadr, fp);
+    printSparse("FLEXEDGE_J", d->flexedge_J, m->nflexedge, d->flexedge_J_rownnz,
+                              d->flexedge_J_rowadr, d->flexedge_J_colind, fp, float_format);
+  }
+  printArray("FLEXEDGE_LENGTH", m->nflexedge, 1, d->flexedge_length, fp, float_format);
 
   printArray("TEN_LENGTH", m->ntendon, 1, d->ten_length, fp, float_format);
   if (!mj_isSparse(m)) {
@@ -994,20 +1031,12 @@ void mj_printFormattedData(const mjModel* m, mjData* d, const char* filename,
   // contact
   fprintf(fp, "CONTACT\n");
   for (int i=0; i < d->ncon; i++) {
-    fprintf(fp, "  %d:\n     dim           %d\n     geom          ", i, d->contact[i].dim);
-    const char* geom1 = mj_id2name(m, mjOBJ_GEOM, d->contact[i].geom1);
-    if (geom1) {
-      fprintf(fp, "%s ", geom1);
-    } else {
-      fprintf(fp, "%d ", d->contact[i].geom1);
-    }
-    const char* geom2 = mj_id2name(m, mjOBJ_GEOM, d->contact[i].geom2);
-    if (geom2) {
-      if (geom1) fprintf(fp, " ");  // two spaces between two names
-      fprintf(fp, "%s\n", geom2);
-    } else {
-      fprintf(fp, "%d\n", d->contact[i].geom2);
-    }
+    fprintf(fp, "  %d:\n     dim           %d\n", i, d->contact[i].dim);
+    fprintf(fp, "     gfev          %d %d %d %d : %d %d %d %d\n",
+            d->contact[i].geom[0], d->contact[i].flex[0],
+            d->contact[i].elem[0], d->contact[i].vert[0],
+            d->contact[i].geom[1], d->contact[i].flex[1],
+            d->contact[i].elem[1], d->contact[i].vert[1]);
     fprintf(fp, "     exclude       %d\n     efc_address   %d\n",
             d->contact[i].exclude, d->contact[i].efc_address);
     printVector("     solref       ", d->contact[i].solref, mjNREF, fp, float_format);
@@ -1047,6 +1076,7 @@ void mj_printFormattedData(const mjModel* m, mjData* d, const char* filename,
   printArray("EFC_D", d->nefc, 1, d->efc_D, fp, float_format);
   printArray("EFC_R", d->nefc, 1, d->efc_R, fp, float_format);
 
+  printArray("FLEXEDGE_VELOCITY", m->nflexedge, 1, d->flexedge_velocity, fp, float_format);
   printArray("TEN_VELOCITY", m->ntendon, 1, d->ten_velocity, fp, float_format);
   printArray("ACTUATOR_VELOCITY", m->nu, 1, d->actuator_velocity, fp, float_format);
 

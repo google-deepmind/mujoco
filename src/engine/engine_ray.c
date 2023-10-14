@@ -629,7 +629,7 @@ mjtNum mju_rayTree(const mjModel* m, const mjData* d, int id, const mjtNum* pnt,
                    const mjtNum* vec) {
   const int meshid = m->geom_dataid[id];
   const int bvhadr = m->mesh_bvhadr[meshid];
-  const int* faceid = m->bvh_geomid + bvhadr;
+  const int* faceid = m->bvh_nodeid + bvhadr;
   const mjtNum* bvh = m->bvh_aabb + 6*bvhadr;
   const int* child = m->bvh_child + 2*bvhadr;
 
@@ -835,6 +835,184 @@ mjtNum mju_rayGeom(const mjtNum* pos, const mjtNum* mat, const mjtNum* size,
 
 
 
+// intersect ray with flex, return nearest vertex id
+mjtNum mju_rayFlex(const mjModel* m, const mjData* d, int flex_layer, mjtByte flg_vert,
+                   mjtByte flg_edge, mjtByte flg_face, mjtByte flg_skin, int flexid,
+                   const mjtNum* pnt, const mjtNum* vec, int vertid[1]) {
+  int dim = m->flex_dim[flexid];
+
+  // compute bounding box
+  mjtNum box[3][2] = {{0, 0}, {0, 0}, {0, 0}};
+  mjtNum* vert = d->flexvert_xpos + 3*m->flex_vertadr[flexid];
+  for (int i=0; i<m->flex_vertnum[flexid]; i++) {
+    for (int j=0; j<3; j++) {
+      // update minimum along side j
+      if (box[j][0]>vert[3*i+j] || i==0) {
+        box[j][0] = vert[3*i+j];
+      }
+
+      // update maximum along side j
+      if (box[j][1]<vert[3*i+j] || i==0) {
+        box[j][1] = vert[3*i+j];
+      }
+    }
+  }
+
+  // adjust box for radius
+  mjtNum radius = m->flex_radius[flexid];
+  for (int j=0; j<3; j++) {
+    box[j][0] -= radius;
+    box[j][1] += radius;
+  }
+
+  // construct box geom
+  mjtNum pos[3], size[3], mat[9] = {1, 0, 0, 0, 1, 0, 0, 0, 1};
+  for (int j=0; j<3; j++) {
+    pos[j] = 0.5*(box[j][0]+box[j][1]);
+    size[j] = 0.5*(box[j][1]-box[j][0]);
+  }
+
+  // apply bounding-box filter
+  if (ray_box(pos, mat, size, pnt, vec, NULL)<0) {
+    return -1;
+  }
+
+  // construct basis vectors of normal plane
+  mjtNum b0[3] = {1, 1, 1}, b1[3];
+  if (mju_abs(vec[0])>=mju_abs(vec[1]) && mju_abs(vec[0])>=mju_abs(vec[2])) {
+    b0[0] = 0;
+  } else if (mju_abs(vec[1])>=mju_abs(vec[2])) {
+    b0[1] = 0;
+  } else {
+    b0[2] = 0;
+  }
+  mju_addScl3(b1, b0, vec, -mju_dot3(vec, b0)/mju_dot3(vec, vec));
+  mju_normalize3(b1);
+  mju_cross(b0, b1, vec);
+  mju_normalize3(b0);
+
+  // init solution
+  mjtNum x = -1;
+
+  // check edges if rendered, or if skin
+  if (flg_edge || (dim>1 && flg_skin)) {
+    for (int e=m->flex_edgeadr[flexid];
+             e<m->flex_edgeadr[flexid]+m->flex_edgenum[flexid]; e++) {
+      // get vertices for this edge
+      mjtNum* v1 = d->flexvert_xpos + 3*(m->flex_vertadr[flexid]+m->flex_edge[2*e]);
+      mjtNum* v2 = d->flexvert_xpos + 3*(m->flex_vertadr[flexid]+m->flex_edge[2*e+1]);
+
+      // construct capsule geom
+      mju_add3(pos, v1, v2);
+      mju_scl3(pos, pos, 0.5);
+      mjtNum dif[3] = {v2[0]-v1[0], v2[1]-v1[1], v2[2]-v1[2]};
+      size[0] = radius;
+      size[1] = 0.5*mju_normalize3(dif);
+      mjtNum quat[4];
+      mju_quatZ2Vec(quat, dif);
+      mju_quat2Mat(mat, quat);
+
+      // intersect ray with capsule
+      mjtNum sol = mju_rayGeom(pos, mat, size, pnt, vec, mjGEOM_CAPSULE);
+
+      // update
+      if (sol>=0 && (x<0 || sol<x)) {
+        x = sol;
+
+        // construct intersection point
+        mjtNum intersect[3];
+        mju_addScl3(intersect, pnt, vec, sol);
+
+        // find nearest vertex
+        if (mju_dist3(v1, intersect) < mju_dist3(v2, intersect)) {
+          *vertid = m->flex_edge[2*e];
+        }
+        else {
+          *vertid = m->flex_edge[2*e+1];
+        }
+      }
+    }
+  }
+
+  // check vertices if rendered (and edges not checked)
+  else if (flg_vert && !(dim>1 && flg_skin)) {
+    for (int v=0; v<m->flex_vertnum[flexid]; v++) {
+      // get vertex
+      mjtNum* vpos = d->flexvert_xpos + 3*(m->flex_vertadr[flexid] + v);
+
+      // construct sphere geom
+      size[0] = radius;
+
+      // intersect ray with sphere
+      mjtNum sol = mju_rayGeom(vpos, NULL, size, pnt, vec, mjGEOM_SPHERE);
+
+      // update
+      if (sol>=0 && (x<0 || sol<x)) {
+        x = sol;
+        *vertid = v;
+      }
+    }
+  }
+
+  // check faces if rendered
+  if (dim>1 && (flg_face || flg_skin)) {
+    for (int e=0; e<m->flex_elemnum[flexid]; e++) {
+      // skip if 3D element is not visible
+      int elayer = m->flex_elemlayer[m->flex_elemadr[flexid]+e];
+      if (dim==3 && ((flg_skin && elayer>0) || (!flg_skin && elayer!=flex_layer))) {
+        continue;
+      }
+
+      // get element data
+      const int* edata = m->flex_elem + m->flex_elemdataadr[flexid] + e*(dim+1);
+      mjtNum* v1 = d->flexvert_xpos + 3*(m->flex_vertadr[flexid] + edata[0]);
+      mjtNum* v2 = d->flexvert_xpos + 3*(m->flex_vertadr[flexid] + edata[1]);
+      mjtNum* v3 = d->flexvert_xpos + 3*(m->flex_vertadr[flexid] + edata[2]);
+      mjtNum* v4 = dim==2 ? NULL : d->flexvert_xpos + 3*(m->flex_vertadr[flexid] + edata[3]);
+      mjtNum* vptr[4][3] = {{v1, v2, v3}, {v1, v2, v4}, {v1, v3, v4}, {v2, v3, v4}};
+      int vid[4][3] = {{0, 1, 2}, {0, 1, 3}, {0, 2, 3}, {1, 2, 3}};
+
+      // process triangles of this element
+      for (int i=0; i<(dim==2?1:4); i++) {
+        // copy vertices into triangle representation
+        mjtNum v[3][3];
+        for (int j=0; j<3; j++)
+          mju_copy3(v[j], vptr[i][j]);
+
+        // intersect ray with triangle
+        mjtNum sol = ray_triangle(v, pnt, vec, b0, b1);
+
+        // update
+        if (sol>=0 && (x<0 || sol<x)) {
+          x = sol;
+
+          // construct intersection point
+          mjtNum intersect[3];
+          mju_addScl3(intersect, pnt, vec, sol);
+
+          // find nearest vertex
+          mjtNum dist[3] = {
+            mju_dist3(v[0], intersect),
+            mju_dist3(v[1], intersect),
+            mju_dist3(v[2], intersect)
+          };
+          if (dist[0]<=dist[1] && dist[0]<=dist[2]) {
+            *vertid = edata[vid[i][0]];
+          } else if (dist[1]<=dist[2]){
+            *vertid = edata[vid[i][1]];
+          } else {
+            *vertid = edata[vid[i][2]];
+          }
+        }
+      }
+    }
+  }
+
+  return x;
+}
+
+
+
 // intersect ray with skin, return nearest vertex id
 mjtNum mju_raySkin(int nface, int nvert, const int* face, const float* vert,
                    const mjtNum* pnt, const mjtNum* vec, int vertid[1]) {
@@ -881,7 +1059,7 @@ mjtNum mju_raySkin(int nface, int nvert, const int* face, const float* vert,
   mju_normalize3(b0);
 
   // init solution
-  mjtNum x = -1, sol;
+  mjtNum x = -1;
 
   // process all faces
   for (int i=0; i < nface; i++) {
@@ -900,7 +1078,7 @@ mjtNum mju_raySkin(int nface, int nvert, const int* face, const float* vert,
     }
 
     // solve
-    sol = ray_triangle(v, pnt, vec, b0, b1);
+    mjtNum sol = ray_triangle(v, pnt, vec, b0, b1);
 
     // update
     if (sol >= 0 && (x < 0 || sol < x)) {

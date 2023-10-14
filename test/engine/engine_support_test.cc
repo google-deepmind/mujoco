@@ -369,6 +369,7 @@ TEST_F(SupportTest, GetSetStateStepEqual) {
   // set controls and applied joint forces to random values
   for (int i=0; i < model->nu; i++) data->ctrl[i] = dist(rng);
   for (int i=0; i < model->nv; i++) data->qfrc_applied[i] = dist(rng);
+  for (int i=0; i < model->neq; i++) data->eq_active[i] = dist(rng) > 0;
 
   // take one step
   mj_step(model, data);

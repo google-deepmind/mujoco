@@ -96,13 +96,13 @@ perturbations will not work unless the user explicitly synchronizes incoming eve
 The ``launch_passive`` function returns a handle which can be used to interact with the viewer. It has the following
 attributes:
 
-- ``scn``, ``cam``, ``opt``, and ``pert`` properties: correspond to :ref:`mjvScene`, :ref:`mjvCamera`,
-  :ref:`mjvOption`, and :ref:`mjvPerturb` structs, respectively.
+- ``cam``, ``opt``, and ``pert`` properties: correspond to :ref:`mjvCamera`, :ref:`mjvOption`, and :ref:`mjvPerturb`
+  structs, respectively.
 
 - ``lock()``: provides a mutex lock for the viewer as a context manager. Since the viewer operates its own
   thread, user code must ensure that it is holding the viewer lock before modifying any physics or visualization
-  state. These include the ``mjModel`` and ``mjData`` instance passed to ``launch_passive``, and also the ``scn``,
-  ``cam``, ``opt``, and ``pert`` properties of the viewer handle.
+  state. These include the ``mjModel`` and ``mjData`` instance passed to ``launch_passive``, and also the ``cam``,
+  ``opt``, and ``pert`` properties of the viewer handle.
 
 - ``sync()``: synchronizes state between ``mjModel``, ``mjData``, and GUI user inputs since the previous call to
   ``sync``. In order to allow user scripts to make arbitrary modifications to ``mjModel`` and ``mjData`` without
@@ -123,6 +123,37 @@ attributes:
 
 - ``is_running()``: returns ``True`` if the viewer window is running and ``False`` if it is closed.
   This method can be safely called without locking.
+
+- ``user_scn``: an :ref:`mjvScene` object that allows users to add custom visualization geoms to the rendered scene.
+  This is separate from the ``mjvScene`` that the viewer uses internally to render the final scene, and is entirely
+  under the user's control. User scripts can call e.g. :ref:`mjv_initGeom` or :ref:`mjv_makeConnector` to add
+  visualization geoms to ``user_scn``, and upon the next call to ``sync()``, the viewer will incorporate
+  these geoms to future rendered images. For example:
+
+  .. code-block:: python
+
+    with mujoco.viewer.launch_passive(m, d, key_callback=key_callback) as viewer:
+      while viewer.is_running():
+        ...
+        # Step the physics.
+        mujoco.mj_step(m, d)
+
+        # Add a 3x3x3 grid of variously colored spheres to the middle of the scene.
+        viewer.user_scn.ngeom = 0
+        i = 0
+        for x, y, z in itertools.product(*((range(-1, 2),) * 3)):
+          mujoco.mjv_initGeom(
+              viewer.user_scn.geoms[i],
+              type=mujoco.mjtGeom.mjGEOM_SPHERE,
+              size=[0.02, 0, 0],
+              pos=0.1*np.array([x, y, z]),
+              mat=np.eye(3).flatten(),
+              rgba=0.5*np.array([x + 1, y + 1, z + 1, 2])
+          )
+          i += 1
+        viewer.user_scn.ngeom = i
+        viewer.sync()
+        ...
 
 The viewer handle can also be used as a context manager which calls ``close()`` automatically upon exit. A minimal
 example of a user script that uses ``launch_passive`` might look like the following. (Note that example is a simple
@@ -160,29 +191,33 @@ illustrative example that does **not** necessarily keep the physics ticking at t
       if time_until_next_step > 0:
         time.sleep(time_until_next_step)
 
-Optionally, ``viewer.launch_passive`` also accepts a callable as a keyword argument ``key_callback``, which gets called
-each time a keyboard event occurs in the viewer window. This allows user scripts to react to various key presses, e.g.,
-pause or resume the run loop when the spacebar is pressed.
+Optionally, ``viewer.launch_passive`` accepts the following keyword arguments.
 
-.. code-block:: python
+- ``key_callback``: A callable which gets called each time a keyboard event occurs in the viewer window. This allows
+  user scripts to react to various key presses, e.g., pause or resume the run loop when the spacebar is pressed.
 
-  paused = False
+  .. code-block:: python
 
-  def key_callback(keycode):
-    if chr(keycode) == ' ':
-      nonlocal paused
-      paused = not paused
+    paused = False
 
-  ...
+    def key_callback(keycode):
+      if chr(keycode) == ' ':
+        nonlocal paused
+        paused = not paused
 
-  with mujoco.viewer.launch_passive(m, d, key_callback=key_callback) as viewer:
-    while viewer.is_running():
-      ...
-      if not paused:
-        mujoco.mj_step(m, d)
-        viewer.sync()
-      ...
+    ...
 
+    with mujoco.viewer.launch_passive(m, d, key_callback=key_callback) as viewer:
+      while viewer.is_running():
+        ...
+        if not paused:
+          mujoco.mj_step(m, d)
+          viewer.sync()
+        ...
+
+- ``show_left_ui_panel`` and ``show_right_ui_panel``: Boolean arguments indicating whether UI panels should be visible
+  or hidden when the viewer is launched. Note that regardless of the values specified, the user can still toggle the
+  visibility of these panels after launch by pressing Tab or Shift+Tab.
 
 .. _PyUsage:
 

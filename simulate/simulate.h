@@ -51,8 +51,7 @@ class Simulate {
   // create object and initialize the simulate ui
   Simulate(
       std::unique_ptr<PlatformUIAdapter> platform_ui_adapter,
-      mjvScene* scn, mjvCamera* cam,
-      mjvOption* opt, mjvPerturb* pert, bool fully_managed);
+      mjvCamera* cam, mjvOption* opt, mjvPerturb* pert, bool is_passive);
 
   // Synchronize mjModel and mjData state with UI inputs, and update
   // visualization.
@@ -62,9 +61,17 @@ class Simulate {
   void UpdateMesh(int meshid);
   void UpdateTexture(int texid);
 
+  // Request that the Simulate UI display a "loading" message
+  // Called prior to Load or LoadMessageClear
+  void LoadMessage(const char* displayed_filename);
+
   // Request that the Simulate UI thread render a new model
-  // optionally delete the old model and data when done
   void Load(mjModel* m, mjData* d, const char* displayed_filename);
+
+  // Clear the loading message
+  // Can be called instead of Load to clear the message without
+  // requesting the UI load a model
+  void LoadMessageClear(void);
 
   // functions below are used by the renderthread
   // load mjb or xml model that has been requested by load()
@@ -76,12 +83,15 @@ class Simulate {
   // loop to render the UI (must be called from main thread because of MacOS)
   void RenderLoop();
 
+  // add state to history buffer
+  void AddToHistory();
+
   // constants
   static constexpr int kMaxFilenameLength = 1000;
 
-  // whether the viewer is operating in fully managed mode, where it can assume
+  // whether the viewer is operating in passive mode, where it cannot assume
   // that it has exclusive access to mjModel, mjData, and various mjv objects
-  bool fully_managed_ = true;
+  bool is_passive_ = false;
 
   // model and data to be visualized
   mjModel* mnew_ = nullptr;
@@ -92,6 +102,9 @@ class Simulate {
 
   int ncam_ = 0;
   int nkey_ = 0;
+  int state_size_ = 0;      // number of mjtNums in a history buffer state
+  int nhistory_ = 0;        // number of states saved in history buffer
+  int history_cursor_ = 0;  // cursor pointing at last saved state
 
   std::vector<int> body_parentid_;
 
@@ -104,6 +117,8 @@ class Simulate {
   std::vector<int> actuator_group_;
   std::vector<std::optional<std::pair<mjtNum, mjtNum>>> actuator_ctrlrange_;
   std::vector<std::string> actuator_names_;
+
+  std::vector<mjtNum> history_;  // history buffer (nhistory x state_size)
 
   // mjModel and mjData fields that can be modified by the user through the GUI
   std::vector<mjtNum> qpos_;
@@ -126,12 +141,14 @@ class Simulate {
     bool reset;
     bool align;
     bool copy_pose;
+    bool load_from_history;
     bool load_key;
     bool save_key;
     bool zero_ctrl;
     int newperturb;
     bool select;
     mjuiState select_state;
+    bool ui_update_simulation;
     bool ui_update_physics;
     bool ui_update_rendering;
     bool ui_update_joint;
@@ -163,6 +180,9 @@ class Simulate {
   // keyframe index
   int key = 0;
 
+  // index of history-scrubber slider
+  int scrub_index = 0;
+
   // simulation
   int run = 1;
 
@@ -173,6 +193,7 @@ class Simulate {
   std::atomic_int uiloadrequest = 0;
 
   // loadrequest
+  //   3: display a loading message
   //   2: render thread asked to update its model
   //   1: showing "loading" label, about to load
   //   0: model loaded or no load requested.
@@ -212,7 +233,7 @@ class Simulate {
   int camera = 0;
 
   // abstract visualization
-  mjvScene& scn;
+  mjvScene scn;
   mjvCamera& cam;
   mjvOption& opt;
   mjvPerturb& pert;
@@ -221,6 +242,9 @@ class Simulate {
   mjvFigure figtimer = {};
   mjvFigure figsize = {};
   mjvFigure figsensor = {};
+
+  // additional user-defined visualization geoms (used in passive mode)
+  mjvScene* user_scn = nullptr;
 
   // OpenGL rendering and UI
   int refresh_rate = 60;
@@ -257,7 +281,7 @@ class Simulate {
 
 
   // simulation section of UI
-  const mjuiDef def_simulation[12] = {
+  const mjuiDef def_simulation[14] = {
     {mjITEM_SECTION,   "Simulation",    1, nullptr,              "AS"},
     {mjITEM_RADIO,     "",              5, &this->run,           "Pause\nRun"},
     {mjITEM_BUTTON,    "Reset",         2, nullptr,              " #259"},
@@ -269,6 +293,8 @@ class Simulate {
     {mjITEM_BUTTON,    "Save key",      3},
     {mjITEM_SLIDERNUM, "Noise scale",   5, &this->ctrl_noise_std,  "0 2"},
     {mjITEM_SLIDERNUM, "Noise rate",    5, &this->ctrl_noise_rate, "0 2"},
+    {mjITEM_SEPARATOR, "History",       1},
+    {mjITEM_SLIDERINT, "",              5, &this->scrub_index,     "0 0"},
     {mjITEM_END}
   };
 

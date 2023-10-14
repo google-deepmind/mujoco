@@ -140,7 +140,7 @@ findorfetch(
   GIT_REPO
   https://github.com/abseil/abseil-cpp
   GIT_TAG
-  c2435f8342c2d0ed8101cb43adfd605fdc52dca2 # LTS 20230125.3
+  fb3621f4f897824c0dbe0615fa94543df6192f30 # LTS 20230802.1
   TARGETS
   ${MUJOCO_PYTHON_ABSL_TARGETS}
   EXCLUDE_FROM_ALL
@@ -173,7 +173,7 @@ findorfetch(
   GIT_REPO
   https://gitlab.com/libeigen/eigen
   GIT_TAG
-  211c5dfc6741a5570ad007983c113ef4d144f9f3
+  e8515f78ac098329ab9f8cab21c87caede090a3f
   TARGETS
   Eigen3::Eigen
   EXCLUDE_FROM_ALL
@@ -311,6 +311,11 @@ macro(mujoco_pybind11_module name)
     if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
       # Only allow fallthrough annotation via __attribute__.
       target_compile_options(${name} PRIVATE -Wimplicit-fallthrough=5)
+
+      # https://gcc.gnu.org/bugzilla/show_bug.cgi?id=109561
+      if (CMAKE_CXX_COMPILER_VERSION VERSION_GREATER 11)
+        target_compile_options(${name} PRIVATE -Wno-maybe-uninitialized)
+      endif()
     endif()
   endif()
   set_target_properties(${name} PROPERTIES LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})

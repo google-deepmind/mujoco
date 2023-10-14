@@ -973,6 +973,31 @@ Here we describe the XML attributes common to all sensor types, so as to avoid r
 :at:`user`: :at-val:`real(nuser_sensor), "0 0 ..."`
    See :ref:`User parameters <CUser>`.
 
+.. _CCamera:
+
+Cameras
+~~~~~~~
+
+Besides the default, user-controllable, free camera, "fixed" cameras can be attached to the kinematic tree.
+
+Extrinsics
+   By default, camera frames are attached to the parent body. The optional :ref:`mode<body-camera-mode>` and
+   :ref:`target<body-camera-target>` attributes can be used to specify camera that track (move with) or target (look at)
+   a body or subtree. Cameras look towards the negative Z axis of the camera frame, while positive X and Y correspond to
+   *right* and *up* in the image plane, respectively.
+
+Intrinsics
+   Camera intrinsics are specified using :ref:`ipd<body-camera-ipd>` (inter-pupilary distance, required for
+   stereoscopic rendering and VR) and :ref:`fovy<body-camera-fovy>` (vertical field of view, in degrees).
+
+   The above specification implies a perfect point camera with no aberrations. However when calibrating real cameras,
+   two types of linear aberration can be expressed using standard rendering pipelines. The first is different focal
+   lengths in the vertical and horizontal directions (axis-aligned astigmatism). The second is a non-centered principal
+   point. These can be specified using the :ref:`focal<body-camera-focal>` and :ref:`principal<body-camera-principal>`
+   attributes. When these calibration-related attributes are used, the physical
+   :ref:`sensor size<body-camera-sensorsize>` and camera :ref:`resolution<body-camera-resolution>` must also be
+   specified. In this case, the rendering frustum can be visualized.
+
 .. _CComposite:
 
 Composite objects

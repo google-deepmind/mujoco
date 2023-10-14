@@ -57,24 +57,14 @@ void mj_assignRef(const mjModel* m, mjtNum* target, const mjtNum* source);
 // assign/override solver impedance parameters
 void mj_assignImp(const mjModel* m, mjtNum* target, const mjtNum* source);
 
-// assign/override geom/limit/tendon margin
+// assign/clamp contact friction parameters
+void mj_assignFriction(const mjModel* m, mjtNum* target, const mjtNum* source);
+
+// assign/override geom margin
 mjtNum mj_assignMargin(const mjModel* m, mjtNum source);
 
 // add contact to d->contact list; return 0 if success; 1 if buffer full
 MJAPI int mj_addContact(const mjModel* m, mjData* d, const mjContact* con);
-
-// add #size rows to constraint Jacobian; set pos, margin, frictionloss, type, id
-//  result: 0=success; 1=buffer full
-int mj_addConstraint(const mjModel* m, mjData* d,
-                     const mjtNum* jac, const mjtNum* pos,
-                     const mjtNum* margin, mjtNum frictionloss,
-                     int size, int type, int id, int NV, const int* chain);
-
-// merge dof chains for two bodies
-int mj_mergeChain(const mjModel* m, int* chain, int b1, int b2);
-
-// merge dof chains for two simple bodies
-int mj_mergeChainSimple(const mjModel* m, int* chain, int b1, int b2);
 
 
 //-------------------------- constraint instantiation ----------------------------------------------

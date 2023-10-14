@@ -23,6 +23,7 @@
 #include "engine/engine_core_constraint.h"
 #include "engine/engine_crossplatform.h"
 #include "engine/engine_io.h"
+#include "engine/engine_macro.h"
 #include "engine/engine_support.h"
 #include "engine/engine_util_blas.h"
 #include "engine/engine_util_errmem.h"
@@ -385,6 +386,221 @@ void mj_camlight(const mjModel* m, mjData* d) {
 
 
 
+// update dynamic BVH; leaf aabbs must be updated before call
+void mj_updateDynamicBVH(const mjModel* m, mjData* d, int bvhadr, int bvhnum) {
+  mj_markStack(d);
+  int* modified = mj_stackAllocInt(d, bvhnum);
+  mju_zeroInt(modified, bvhnum);
+
+  // mark leafs as modified
+  for (int i=0; i<bvhnum; i++) {
+    if (m->bvh_nodeid[bvhadr+i]>=0) {
+      modified[i] = 1;
+    }
+  }
+
+  // update non-leafs in backward pass (parents come before children)
+  for (int i=bvhnum-1; i>=0; i--) {
+    if (m->bvh_nodeid[bvhadr+i]<0) {
+      int child1 = m->bvh_child[2*(bvhadr+i)];
+      int child2 = m->bvh_child[2*(bvhadr+i)+1];
+
+      // update if either child is modified
+      if (modified[child1] || modified[child2]) {
+        mjtNum* aabb = d->bvh_aabb_dyn + 6*(bvhadr - m->nbvhstatic + i);
+        const mjtNum* aabb1 = d->bvh_aabb_dyn + 6*(bvhadr - m->nbvhstatic + child1);
+        const mjtNum* aabb2 = d->bvh_aabb_dyn + 6*(bvhadr - m->nbvhstatic + child2);
+
+        // compute new (min, max)
+        mjtNum xmin[3], xmax[3];
+        for (int k=0; k<3; k++) {
+          xmin[k] = mju_min(aabb1[k] - aabb1[k+3], aabb2[k] - aabb2[k+3]);
+          xmax[k] = mju_max(aabb1[k] + aabb1[k+3], aabb2[k] + aabb2[k+3]);
+        }
+
+        // convert to (center, size)
+        for (int k=0; k<3; k++) {
+          aabb[k]   = 0.5*(xmax[k]+xmin[k]);
+          aabb[k+3] = 0.5*(xmax[k]-xmin[k]);
+        }
+
+        modified[i] = 1;
+      }
+    }
+  }
+
+  mj_freeStack(d);
+}
+
+
+
+// compute flex-related quantities
+void mj_flex(const mjModel* m, mjData* d) {
+  int nv = m->nv, issparse = mj_isSparse(m);
+  int* rowadr = d->flexedge_J_rowadr, *rownnz = d->flexedge_J_rownnz;
+  mjtNum* J = d->flexedge_J;
+
+  // skip if no flexes
+  if (!m->nflex) {
+    return;
+  }
+
+  // compute Cartesian positions of flex vertices
+  for (int f=0; f<m->nflex; f++) {
+    int vstart = m->flex_vertadr[f];
+    int vend = m->flex_vertadr[f] + m->flex_vertnum[f];
+
+    // centered: copy body position
+    if (m->flex_centered[f]) {
+      for (int i=vstart; i<vend; i++) {
+        mju_copy3(d->flexvert_xpos+3*i, d->xpos+3*m->flex_vertbodyid[i]);
+      }
+    }
+
+    // non-centered: map from local to global
+    else {
+      for (int i=vstart; i<vend; i++) {
+        mju_rotVecMat(d->flexvert_xpos+3*i, m->flex_vert+3*i, d->xmat+9*m->flex_vertbodyid[i]);
+        mju_addTo3(d->flexvert_xpos+3*i, d->xpos+3*m->flex_vertbodyid[i]);
+      }
+    }
+  }
+
+  // compute flex element aabb
+  for (int f=0; f<m->nflex; f++) {
+    int dim = m->flex_dim[f];
+
+    // process elements of this flex
+    for (int e=0; e<m->flex_elemnum[f]; e++) {
+      const int* edata = m->flex_elem + m->flex_elemdataadr[f] + e*(dim+1);
+      const mjtNum* vert = d->flexvert_xpos + 3*m->flex_vertadr[f];
+
+      // compute min and max along each global axis
+      mjtNum xmin[3], xmax[3];
+      mju_copy3(xmin, vert+3*edata[0]);
+      mju_copy3(xmax, vert+3*edata[0]);
+      for (int i=1; i<=dim; i++) {
+        for (int j=0; j<3; j++) {
+          mjtNum value = vert[3*edata[i]+j];
+          xmin[j] = mju_min(xmin[j], value);
+          xmax[j] = mju_max(xmax[j], value);
+        }
+      }
+
+      // compute aabb (center, size)
+      int base = m->flex_elemadr[f] + e;
+      d->flexelem_aabb[6*base+0] = 0.5*(xmax[0]+xmin[0]);
+      d->flexelem_aabb[6*base+1] = 0.5*(xmax[1]+xmin[1]);
+      d->flexelem_aabb[6*base+2] = 0.5*(xmax[2]+xmin[2]);
+      d->flexelem_aabb[6*base+3] = 0.5*(xmax[0]-xmin[0]) + m->flex_radius[f];
+      d->flexelem_aabb[6*base+4] = 0.5*(xmax[1]-xmin[1]) + m->flex_radius[f];
+      d->flexelem_aabb[6*base+5] = 0.5*(xmax[2]-xmin[2]) + m->flex_radius[f];
+    }
+  }
+
+  // update flex bhv_aabb_dyn if needed
+  if (!mjDISABLED(mjDSBL_MIDPHASE)) {
+    for (int f=0; f<m->nflex; f++) {
+      if (m->flex_bvhadr[f]>=0) {
+        int flex_bvhadr = m->flex_bvhadr[f];
+        int flex_bvhnum = m->flex_bvhnum[f];
+
+        // copy element aabbs to bhv leaf aabbs
+        for (int i=flex_bvhadr; i<flex_bvhadr+flex_bvhnum; i++) {
+          if (m->bvh_nodeid[i]>=0) {
+            mju_copy(d->bvh_aabb_dyn + 6*(i - m->nbvhstatic),
+                     d->flexelem_aabb + 6*(m->flex_elemadr[f] + m->bvh_nodeid[i]), 6);
+          }
+        }
+
+        // update dynamic BVH
+        mj_updateDynamicBVH(m, d, m->flex_bvhadr[f], m->flex_bvhnum[f]);
+      }
+    }
+  }
+
+  // allocate space
+  mj_markStack(d);
+  mjtNum* jac1 = mj_stackAllocNum(d, 3*nv);
+  mjtNum* jac2 = mj_stackAllocNum(d, 3*nv);
+  mjtNum* jacdif = mj_stackAllocNum(d, 3*nv);
+  int* chain = issparse ? mj_stackAllocInt(d, nv) : NULL;
+
+  // clear Jacobian: sparse or dense
+  if (issparse) {
+    mju_zeroInt(rowadr, m->nflexedge);
+    mju_zeroInt(rownnz, m->nflexedge);
+  } else {
+    mju_zero(J, m->nflexedge*nv);
+  }
+
+  // compute lengths and Jacobians of edges
+  for (int f=0; f<m->nflex; f++) {
+    // skip if edges cannot generate forces
+    if (m->flex_rigid[f] ||
+        (m->flex_edgeequality[f]==0 &&
+         m->flex_edgestiffness[f]==0 && m->flex_edgedamping[f]==0)) {
+      continue;
+    }
+
+    // process edges of this flex
+    int vbase = m->flex_vertadr[f];
+    int ebase = m->flex_edgeadr[f];
+    for (int e=0; e<m->flex_edgenum[f]; e++) {
+      int v1 = m->flex_edge[2*(ebase+e)];
+      int v2 = m->flex_edge[2*(ebase+e)+1];
+      int b1 = m->flex_vertbodyid[vbase+v1];
+      int b2 = m->flex_vertbodyid[vbase+v2];
+      mjtNum* pos1 = d->flexvert_xpos + 3*(vbase+v1);
+      mjtNum* pos2 = d->flexvert_xpos + 3*(vbase+v2);
+
+      // vec = unit vector from v1 to v2, compute edge length
+      mjtNum vec[3];
+      mju_sub3(vec, pos2, pos1);
+      d->flexedge_length[ebase+e] = mju_normalize3(vec);
+
+      // sparse edge Jacobian
+      if (issparse) {
+        // set rowadr
+        if (ebase+e>0) {
+          rowadr[ebase+e] = rowadr[ebase+e-1] + rownnz[ebase+e-1];
+        }
+
+        // get endpoint Jacobians, subtract
+        int NV = mj_jacDifPair(m, d, chain, b1, b2, pos1, pos2,
+                               jac1, jac2, jacdif, NULL, NULL, NULL);
+
+        // no dofs: skip
+        if (!NV) {
+          continue;
+        }
+
+        // apply chain rule to compute edge Jacobian
+        mju_mulMatTVec(J + rowadr[ebase+e], jacdif, vec, 3, NV);
+
+        // copy sparsity info
+        rownnz[ebase+e] = NV;
+        mju_copyInt(d->flexedge_J_colind + rowadr[ebase+e], chain, NV);
+      }
+
+      // dense edge Jacobian
+      else {
+        // get endpoint Jacobians, subtract
+        mj_jac(m, d, jac1, NULL, pos1, b1);
+        mj_jac(m, d, jac2, NULL, pos2, b2);
+        mju_sub(jacdif, jac2, jac1, 3*nv);
+
+        // apply chain rule to compute edge Jacobian
+        mju_mulMatTVec(J + (ebase+e)*nv, jacdif, vec, 3, nv);
+      }
+    }
+  }
+
+  mj_freeStack(d);
+}
+
+
+
 // compute tendon lengths and moments
 void mj_tendon(const mjModel* m, mjData* d) {
   int issparse = mj_isSparse(m), nv = m->nv, nten = m->ntendon;
@@ -632,7 +848,6 @@ void mj_transmission(const mjModel* m, mjData* d) {
   jac  = mj_stackAllocNum(d, 3*nv);
   jacA = mj_stackAllocNum(d, 3*nv);
   jacS = mj_stackAllocNum(d, 3*nv);
-  mju_zero(moment, nu*nv);
 
   // define variables required for body transmission, don't allocate
   int issparse = mj_isSparse(m);
@@ -773,6 +988,9 @@ void mj_transmission(const mjModel* m, mjData* d) {
 
       // moment: sparse or dense
       if (mj_isSparse(m)) {
+        // clear moment
+        mju_zero(moment+i*nv, nv);
+
         int end = d->ten_J_rowadr[id] + d->ten_J_rownnz[id];
         for (int j=d->ten_J_rowadr[id]; j < end; j++) {
           moment[i*nv + d->ten_J_colind[j]] = d->ten_J[j] * gear[0];
@@ -786,11 +1004,11 @@ void mj_transmission(const mjModel* m, mjData* d) {
       // get site translation (jac) and rotation (jacS) Jacobians in global frame
       mj_jacSite(m, d, jac, jacS, id);
 
+      // clear length
+      length[i] = 0;
+
       // reference site undefined
       if (m->actuator_trnid[2*i+1] == -1) {
-        // cannot compute meaningful length, set to 0
-        length[i] = 0;
-
         // wrench: gear expressed in global frame
         mju_rotVecMat(wrench, gear, d->site_xmat+9*id);      // translation
         mju_rotVecMat(wrench+3, gear+3, d->site_xmat+9*id);  // rotation
@@ -806,8 +1024,8 @@ void mj_transmission(const mjModel* m, mjData* d) {
         int refid = m->actuator_trnid[2*i+1];
         if (!jacref) jacref = mj_stackAllocNum(d, 3*nv);
 
-        // clear length
-        length[i] = 0;
+        // clear moment
+        mju_zero(moment+i*nv, nv);
 
         // translational transmission
         if (!mju_isZero(gear, 3)) {
@@ -867,6 +1085,9 @@ void mj_transmission(const mjModel* m, mjData* d) {
       // cannot compute meaningful length, set to 0
       length[i] = 0;
 
+      // clear moment
+      mju_zero(moment+i*nv, nv);
+
       // moment is average of all contact normal Jacobians
       {
         // allocate stack variables for the first mjTRN_BODY
@@ -887,8 +1108,15 @@ void mj_transmission(const mjModel* m, mjData* d) {
         int counter = 0;
         for (int j=0; j < d->ncon; j++) {
           const mjContact* con = d->contact+j;
-          int b1 = m->geom_bodyid[con->geom1];
-          int b2 = m->geom_bodyid[con->geom2];
+
+          // contact involving flex, continue
+          if (con->geom[0]<0 || con->geom[1]<0) {
+            continue;
+          }
+
+          // get body ids
+          int b1 = m->geom_bodyid[con->geom[0]];
+          int b2 = m->geom_bodyid[con->geom[1]];
 
           // irrelevant contact, continue
           if (b1 != id && b2 != id) {
@@ -963,6 +1191,7 @@ void mj_transmission(const mjModel* m, mjData* d) {
 
 // composite rigid body inertia algorithm
 void mj_crb(const mjModel* m, mjData* d) {
+  TM_START;
   mjtNum buf[6];
   mjtNum* crb = d->crb;
   int last_body = m->nbody - 1, nv = m->nv;
@@ -1008,6 +1237,7 @@ void mj_crb(const mjModel* m, mjData* d) {
       d->qM[Madr_ij++] += mju_dot(d->cdof+6*j, buf, 6);
     }
   }
+  TM_END(mjTIMER_POS_INERTIA);
 }
 
 
@@ -1081,7 +1311,9 @@ void mj_factorI(const mjModel* m, mjData* d, const mjtNum* M, mjtNum* qLD, mjtNu
 
 // sparse L'*D*L factorizaton of the inertia matrix M, assumed spd
 void mj_factorM(const mjModel* m, mjData* d) {
+  TM_START;
   mj_factorI(m, d, d->qM, d->qLD, d->qLDiagInv, d->qLDiagSqrtInv);
+  TM_ADD(mjTIMER_POS_INERTIA);
 }
 
 
@@ -1539,6 +1771,11 @@ void mj_rnePostConstraint(const mjModel* m, mjData* d) {
       // get contact pointer
       con = d->contact+i;
 
+      // skip contact involving flex
+      if (con->geom[0]<0 || con->geom[1]<0) {
+        continue;
+      }
+
       // tmp = contact-local force:torque vector
       mj_contactForce(m, d, i, lfrc);
 
@@ -1548,7 +1785,7 @@ void mj_rnePostConstraint(const mjModel* m, mjData* d) {
 
       // body 1
       int k;
-      if ((k = m->geom_bodyid[con->geom1])) {
+      if ((k = m->geom_bodyid[con->geom[0]])) {
         // tmp = subtree CoM-based torque_force vector
         mju_transformSpatial(cfrc_com, cfrc, 1, d->subtree_com+3*m->body_rootid[k], con->pos, 0);
 
@@ -1557,7 +1794,7 @@ void mj_rnePostConstraint(const mjModel* m, mjData* d) {
       }
 
       // body 2
-      if ((k = m->geom_bodyid[con->geom2])) {
+      if ((k = m->geom_bodyid[con->geom[1]])) {
         // tmp = subtree CoM-based torque_force vector
         mju_transformSpatial(cfrc_com, cfrc, 1, d->subtree_com+3*m->body_rootid[k], con->pos, 0);
 
@@ -1619,6 +1856,11 @@ void mj_rnePostConstraint(const mjModel* m, mjData* d) {
     case mjEQ_TENDON:
       // increment 1 row
       i++;
+      break;
+
+    case mjEQ_FLEX:
+      // increment edgenum rows
+      i += m->flex_edgenum[m->eq_obj1id[id]];
       break;
 
     default:

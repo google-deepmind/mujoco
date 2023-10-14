@@ -34,7 +34,6 @@
 
 #define MJOPTION_INTS               \
     X( int,     integrator        ) \
-    X( int,     collision         ) \
     X( int,     cone              ) \
     X( int,     jacobian          ) \
     X( int,     solver            ) \
@@ -59,7 +58,8 @@
     X( wind,            3       )   \
     X( magnetic,        3       )   \
     X( o_solref,        mjNREF  )   \
-    X( o_solimp,        mjNIMP  )
+    X( o_solimp,        mjNIMP  )   \
+    X( o_friction,      5       )
 
 
 //-------------------------------- mjModel ---------------------------------------------------------
@@ -72,11 +72,21 @@
     XMJV( na )                 \
     XMJV( nbody )              \
     XMJV( nbvh )               \
+    XMJV( nbvhstatic )         \
+    X   ( nbvhdynamic )        \
     XMJV( njnt )               \
     XMJV( ngeom )              \
     XMJV( nsite )              \
     XMJV( ncam )               \
     XMJV( nlight )             \
+    XMJV( nflex )              \
+    XMJV( nflexvert )          \
+    X   ( nflexedge )          \
+    X   ( nflexelem )          \
+    X   ( nflexelemdata )      \
+    X   ( nflexshelldata )     \
+    X   ( nflexevpair )        \
+    X   ( nflextexcoord )      \
     XMJV( nmesh )              \
     X   ( nmeshvert )          \
     X   ( nmeshnormal )        \
@@ -119,6 +129,7 @@
     X   ( nuser_actuator )     \
     X   ( nuser_sensor )       \
     XMJV( nnames )             \
+    XMJV( npaths )             \
     X   ( nnames_map )         \
     X   ( nM )                 \
     X   ( nD )                 \
@@ -132,6 +143,8 @@
     X   ( npluginstate )       \
     X   ( narena )             \
     X   ( nbuffer )
+
+    /* nbuffer needs to be the final field */
 
 
 // define symbols needed in MJMODEL_POINTERS (corresponding to number of columns)
@@ -183,14 +196,17 @@
     XMJV( mjtNum,  body_inertia,          nbody,         3                    ) \
     X   ( mjtNum,  body_invweight0,       nbody,         2                    ) \
     X   ( mjtNum,  body_gravcomp,         nbody,         1                    ) \
+    X   ( mjtNum,  body_margin,           nbody,         1                    ) \
     X   ( mjtNum,  body_user,             nbody,         MJ_M(nuser_body)     ) \
     X   ( int,     body_plugin,           nbody,         1                    ) \
+    X   ( int,     body_contype,          nbody,         1                    ) \
+    X   ( int,     body_conaffinity,      nbody,         1                    ) \
     XMJV( int,     body_bvhadr,           nbody,         1                    ) \
     XMJV( int,     body_bvhnum,           nbody,         1                    ) \
     XMJV( int,     bvh_depth,             nbvh,          1                    ) \
     XMJV( int,     bvh_child,             nbvh,          2                    ) \
-    XMJV( int,     bvh_geomid,            nbvh,          1                    ) \
-    XMJV( mjtNum,  bvh_aabb,              nbvh,          6                    ) \
+    XMJV( int,     bvh_nodeid,            nbvh,          1                    ) \
+    XMJV( mjtNum,  bvh_aabb,              nbvhstatic,    6                    ) \
     XMJV( int,     jnt_type,              njnt,          1                    ) \
     X   ( int,     jnt_qposadr,           njnt,          1                    ) \
     X   ( int,     jnt_dofadr,            njnt,          1                    ) \
@@ -259,6 +275,8 @@
     X   ( int,     cam_bodyid,            ncam,          1                    ) \
     X   ( int,     cam_targetbodyid,      ncam,          1                    ) \
     X   ( int,     cam_resolution,        ncam,          2                    ) \
+    XMJV( float,   cam_sensorsize,        ncam,          2                    ) \
+    X   ( float,   cam_intrinsic,         ncam,          4                    ) \
     X   ( mjtNum,  cam_pos,               ncam,          3                    ) \
     X   ( mjtNum,  cam_quat,              ncam,          4                    ) \
     X   ( mjtNum,  cam_poscom0,           ncam,          3                    ) \
@@ -284,6 +302,55 @@
     XMJV( float,   light_ambient,         nlight,        3                    ) \
     XMJV( float,   light_diffuse,         nlight,        3                    ) \
     XMJV( float,   light_specular,        nlight,        3                    ) \
+    X   ( int,     flex_contype,          nflex,         1                    ) \
+    X   ( int,     flex_conaffinity,      nflex,         1                    ) \
+    X   ( int,     flex_condim,           nflex,         1                    ) \
+    X   ( int,     flex_priority,         nflex,         1                    ) \
+    X   ( mjtNum,  flex_solmix,           nflex,         1                    ) \
+    X   ( mjtNum,  flex_solref,           nflex,         mjNREF               ) \
+    X   ( mjtNum,  flex_solimp,           nflex,         mjNIMP               ) \
+    X   ( mjtNum,  flex_friction,         nflex,         3                    ) \
+    X   ( mjtNum,  flex_margin,           nflex,         1                    ) \
+    X   ( mjtNum,  flex_gap,              nflex,         1                    ) \
+    X   ( mjtByte, flex_internal,         nflex,         1                    ) \
+    X   ( int,     flex_selfcollide,      nflex,         1                    ) \
+    X   ( int,     flex_activelayers,     nflex,         1                    ) \
+    XMJV( int,     flex_dim,              nflex,         1                    ) \
+    XMJV( int,     flex_matid,            nflex,         1                    ) \
+    XMJV( int,     flex_group,            nflex,         1                    ) \
+    XMJV( int,     flex_vertadr,          nflex,         1                    ) \
+    XMJV( int,     flex_vertnum,          nflex,         1                    ) \
+    X   ( int,     flex_edgeadr,          nflex,         1                    ) \
+    X   ( int,     flex_edgenum,          nflex,         1                    ) \
+    XMJV( int,     flex_elemadr,          nflex,         1                    ) \
+    XMJV( int,     flex_elemnum,          nflex,         1                    ) \
+    XMJV( int,     flex_elemdataadr,      nflex,         1                    ) \
+    XMJV( int,     flex_shellnum,         nflex,         1                    ) \
+    XMJV( int,     flex_shelldataadr,     nflex,         1                    ) \
+    X   ( int,     flex_evpairadr,        nflex,         1                    ) \
+    X   ( int,     flex_evpairnum,        nflex,         1                    ) \
+    X   ( int,     flex_texcoordadr,      nflex,         1                    ) \
+    X   ( int,     flex_vertbodyid,       nflexvert,     1                    ) \
+    X   ( int,     flex_edge,             nflexedge,     2                    ) \
+    XMJV( int,     flex_elem,             nflexelemdata, 1                    ) \
+    X   ( int,     flex_elemlayer,        nflexelem,     1                    ) \
+    XMJV( int,     flex_shell,            nflexshelldata,1                    ) \
+    X   ( int,     flex_evpair,           nflexevpair,   2                    ) \
+    X   ( mjtNum,  flex_vert,             nflexvert,     3                    ) \
+    X   ( mjtNum,  flex_xvert0,           nflexvert,     3                    ) \
+    X   ( mjtNum,  flexedge_length0,      nflexedge,     1                    ) \
+    X   ( mjtNum,  flexedge_invweight0,   nflexedge,     1                    ) \
+    XMJV( mjtNum,  flex_radius,           nflex,         1                    ) \
+    X   ( mjtNum,  flex_edgestiffness,    nflex,         1                    ) \
+    X   ( mjtNum,  flex_edgedamping,      nflex,         1                    ) \
+    X   ( mjtByte, flex_edgeequality,     nflex,         1                    ) \
+    X   ( mjtByte, flex_rigid,            nflex,         1                    ) \
+    X   ( mjtByte, flex_centered,         nflex,         1                    ) \
+    XMJV( mjtByte, flex_flatskin,         nflex,         1                    ) \
+    XMJV( int,     flex_bvhadr,           nflex,         1                    ) \
+    XMJV( int,     flex_bvhnum,           nflex,         1                    ) \
+    XMJV( float,   flex_rgba,             nflex,         4                    ) \
+    X   ( float,   flex_texcoord,         nflextexcoord, 2                    ) \
     X   ( int,     mesh_vertadr,          nmesh,         1                    ) \
     X   ( int,     mesh_vertnum,          nmesh,         1                    ) \
     X   ( int,     mesh_normaladr,        nmesh,         1                    ) \
@@ -304,6 +371,7 @@
     X   ( int,     mesh_facenormal,       nmeshface,     3                    ) \
     X   ( int,     mesh_facetexcoord,     nmeshface,     3                    ) \
     X   ( int,     mesh_graph,            nmeshgraph,    1                    ) \
+    XMJV( int,     mesh_pathadr,          nmesh,         1                    ) \
     XMJV( int,     skin_matid,            nskin,         1                    ) \
     XMJV( int,     skin_group,            nskin,         1                    ) \
     XMJV( float,   skin_rgba,             nskin,         4                    ) \
@@ -357,7 +425,7 @@
     XMJV( int,     eq_type,               neq,           1                    ) \
     XMJV( int,     eq_obj1id,             neq,           1                    ) \
     XMJV( int,     eq_obj2id,             neq,           1                    ) \
-    XMJV( mjtByte, eq_active,             neq,           1                    ) \
+    X   ( mjtByte, eq_active0,            neq,           1                    ) \
     X   ( mjtNum,  eq_solref,             neq,           mjNREF               ) \
     X   ( mjtNum,  eq_solimp,             neq,           mjNIMP               ) \
     XMJV( mjtNum,  eq_data,               neq,           mjNEQDATA            ) \
@@ -451,6 +519,7 @@
     XMJV( int,     name_siteadr,          nsite,         1                    ) \
     XMJV( int,     name_camadr,           ncam,          1                    ) \
     XMJV( int,     name_lightadr,         nlight,        1                    ) \
+    X   ( int,     name_flexadr,          nflex,         1                    ) \
     X   ( int,     name_meshadr,          nmesh,         1                    ) \
     X   ( int,     name_skinadr,          nskin,         1                    ) \
     X   ( int,     name_hfieldadr,        nhfield,       1                    ) \
@@ -469,6 +538,7 @@
     X   ( int,     name_pluginadr,        nplugin,       1                    ) \
     XMJV( char,    names,                 nnames,        1                    ) \
     X   ( int,     names_map,             nnames_map,    1                    ) \
+    XMJV( char,    paths,                 npaths,        1                    ) \
 
 //-------------------------------- mjData ----------------------------------------------------------
 
@@ -489,6 +559,7 @@
     XMJV( mjtNum,    ctrl,              nu,          1           ) \
     X   ( mjtNum,    qfrc_applied,      nv,          1           ) \
     XMJV( mjtNum,    xfrc_applied,      nbody,       6           ) \
+    XMJV( mjtByte,   eq_active,         neq,         1           ) \
     X   ( mjtNum,    mocap_pos,         nmocap,      3           ) \
     X   ( mjtNum,    mocap_quat,        nmocap,      4           ) \
     X   ( mjtNum,    qacc,              nv,          1           ) \
@@ -515,6 +586,13 @@
     XMJV( mjtNum,    subtree_com,       nbody,       3           ) \
     X   ( mjtNum,    cdof,              nv,          6           ) \
     X   ( mjtNum,    cinert,            nbody,       10          ) \
+    XMJV( mjtNum,    flexvert_xpos,     nflexvert,   3           ) \
+    X   ( mjtNum,    flexelem_aabb,     nflexelem,   6           ) \
+    X   ( int,       flexedge_J_rownnz, nflexedge,   1           ) \
+    X   ( int,       flexedge_J_rowadr, nflexedge,   1           ) \
+    X   ( int,       flexedge_J_colind, nflexedge,   MJ_M(nv)    ) \
+    X   ( mjtNum,    flexedge_J,        nflexedge,   MJ_M(nv)    ) \
+    X   ( mjtNum,    flexedge_length,   nflexedge,   1           ) \
     XMJV( int,       ten_wrapadr,       ntendon,     1           ) \
     XMJV( int,       ten_wrapnum,       ntendon,     1           ) \
     X   ( int,       ten_J_rownnz,      ntendon,     1           ) \
@@ -531,7 +609,9 @@
     X   ( mjtNum,    qLD,               nM,          1           ) \
     X   ( mjtNum,    qLDiagInv,         nv,          1           ) \
     X   ( mjtNum,    qLDiagSqrtInv,     nv,          1           ) \
+    X   ( mjtNum,    bvh_aabb_dyn,      nbvhdynamic, 6           ) \
     XMJV( mjtByte,   bvh_active,        nbvh,        1           ) \
+    X   ( mjtNum,    flexedge_velocity, nflexedge,   1           ) \
     X   ( mjtNum,    ten_velocity,      ntendon,     1           ) \
     X   ( mjtNum,    actuator_velocity, nu,          1           ) \
     X   ( mjtNum,    cvel,              nbody,       6           ) \
@@ -637,10 +717,6 @@
     X( int,       maxuse_con         ) \
     X( int,       maxuse_efc         ) \
     X( int,       solver_nisland     ) \
-    X( int,       nbodypair_broad    ) \
-    X( int,       nbodypair_narrow   ) \
-    X( int,       ngeompair_mid      ) \
-    X( int,       ngeompair_narrow   ) \
     X( int,       ne                 ) \
     X( int,       nf                 ) \
     X( int,       nl                 ) \
@@ -653,14 +729,15 @@
 
 
 // vector fields of mjData
-#define MJDATA_VECTOR                                              \
-    X( mjWarningStat,  warning,           mjNWARNING,  1         ) \
-    X( mjTimerStat,    timer,             mjNTIMER,    1         ) \
-    X( mjSolverStat,   solver,            mjNILSAND,   mjNSOLVER ) \
-    X( int,            solver_niter,      mjNISLAND,   1         ) \
-    X( int,            solver_nnz,        mjNISLAND,   1         ) \
-    X( mjtNum,         solver_fwdinv,     2,           1         ) \
-    X( mjtNum,         energy,            2,           1         )
+#define MJDATA_VECTOR                                                \
+    X( size_t,         maxuse_threadstack, mjMAXTHREADS, 1         ) \
+    X( mjWarningStat,  warning,            mjNWARNING,   1         ) \
+    X( mjTimerStat,    timer,              mjNTIMER,     1         ) \
+    X( mjSolverStat,   solver,             mjNILSAND,    mjNSOLVER ) \
+    X( int,            solver_niter,       mjNISLAND,    1         ) \
+    X( int,            solver_nnz,         mjNISLAND,    1         ) \
+    X( mjtNum,         solver_fwdinv,      2,            1         ) \
+    X( mjtNum,         energy,             2,            1         )
 
 
 // alias XMJV to be the same as X
