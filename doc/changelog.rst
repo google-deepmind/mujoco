@@ -142,15 +142,16 @@ General
     `Levi Burner <https://github.com/aftersomemath>`__.
 24. Deleted the code sample ``testxml``. The functionality provided by this utility is implemented in the
     `WriteReadCompare <https://github.com/google-deepmind/mujoco/blob/main/test/xml/xml_native_writer_test.cc>`__ test.
+25. Deleted the code sample ``derivative``. Functionality provided by :ref:`mjd_transitionFD`.
 
 Python bindings
 ^^^^^^^^^^^^^^^
 
-25. Fixed `#870 <https://github.com/google-deepmind/mujoco/issues/870>`__ where calling ``update_scene`` with an invalid
+26. Fixed `#870 <https://github.com/google-deepmind/mujoco/issues/870>`__ where calling ``update_scene`` with an invalid
     camera name used the default camera.
-26. Added ``user_scn`` to the :ref:`passive viewer<PyViewerPassive>` handle, which allows users to add custom
+27. Added ``user_scn`` to the :ref:`passive viewer<PyViewerPassive>` handle, which allows users to add custom
     visualization geoms (`#1023 <https://github.com/google-deepmind/mujoco/issues/870>`__).
-27. Added optional boolean keyword arguments ``show_left_ui`` and ``show_right_ui`` to the functions ``viewer.launch``
+28. Added optional boolean keyword arguments ``show_left_ui`` and ``show_right_ui`` to the functions ``viewer.launch``
     and ``viewer.launch_passive``, which allow users to launch a viewer with UI panels hidden.
 
 Simulate
@@ -160,21 +161,21 @@ Simulate
    :align: right
    :width: 240px
 
-28. Added **state history** mechanism to :ref:`simulate<saSimulate>` and the managed
+29. Added **state history** mechanism to :ref:`simulate<saSimulate>` and the managed
     :ref:`Python viewer<PyViewerManaged>`. State history can be viewed by scrubbing the History slider and (more
     precisely) with the left and right arrow keys. See screen capture:
 
-29. The ``LOADING...`` label is now shown correctly.
+30. The ``LOADING...`` label is now shown correctly.
     `Contribution <https://github.com/google-deepmind/mujoco/pull/1070>`__ by
     `Levi Burner <https://github.com/aftersomemath>`__.
 
 Bug fixes
 ^^^^^^^^^
 
-30. Fixed a bug that was causing :ref:`geom margin<body-geom-margin>` to be ignored during the construction of
+31. Fixed a bug that was causing :ref:`geom margin<body-geom-margin>` to be ignored during the construction of
     midphase collision trees.
 
-31. Fixed a bug that was generating incorrect values in ``efc_diagApprox`` for weld equality constraints.
+32. Fixed a bug that was generating incorrect values in ``efc_diagApprox`` for weld equality constraints.
 
 
 Version 2.3.7 (July 20, 2023)

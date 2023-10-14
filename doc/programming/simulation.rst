@@ -428,9 +428,7 @@ However, MuJoCo is designed not only for simulation but also for more advanced a
 optimization, machine learning etc. In such settings one often needs to sample the dynamics at a cloud of nearby
 states, or approximate derivatives via finite differences - which is another form of sampling. If the samples are
 arranged on a grid, where only the position or only the velocity or only the control is different from the center
-point, then the above mechanism can improve performance by about a factor of 2. The code sample :ref:`derivative.cc
-<saDerivative>` illustrates this approach, and also shows how :ref:`multi-threading <siMultithread>` can be used for
-additional speedup.
+point, then the above mechanism can improve performance by about a factor of 2.
 
 .. _siInverse:
 
@@ -494,10 +492,7 @@ bodies, we may eventually implement within-step multi-threading, but for now thi
 Rather than speed up a single simulation, we prefer to use multi-threading to speed up sampling operations that are
 common in more advanced applications. Simulation is inherently serial over time (the output of one mj_step is the
 input to the next), while in sampling many calls to either forward or inverse dynamics can be executed in parallel
-since there are no dependencies among them, except perhaps for a common initial state. The code sample
-:ref:`derivative.cc <saDerivative>` illustrates one important example of sampling, namely the approximation of
-dynamics derivatives via finite differences. Here we will not repeat the material from that section, but will instead
-explain MuJoCo's general approach to parallel processing.
+since there are no dependencies among them, except perhaps for a common initial state.
 
 MuJoCo was designed for multi-threading from its beginning. Unlike most existing simulators where the notion of
 dynamical system state is difficult to map to the software state and is often distributed among multiple objects, in
@@ -515,7 +510,7 @@ management.
 
    // allocate per-thread mjData
    mjData* d[64];
-   for( int n=0; n<nthread; n++ )
+   for( int n=0; n < nthread; n++ )
        d[n] = mj_makeData(m);
 
    // ... serial code, perhaps using its own mjData* dmain
@@ -541,8 +536,8 @@ writes to its own mjData. Therefore no further synchronization among threads is 
 The above template reflects a particular style of parallel processing. Instead of creating a large number of threads,
 one for each work item, and letting OpenMP distribute them among processors, we rely on manual scheduling. More
 precisely, we create as many threads as there are processors, and then within the ``worker`` function we distribute the
-work explicitly among threads (not shown here, but see :ref:`derivative.cc <saDerivative>` for an example). This
-approach is more efficient because the thread-specific mjData is large compared to the processor cache.
+work explicitly among threads. This approach is more efficient because the thread-specific mjData is large compared to
+the processor cache.
 
 We also use a shared mjModel for cache-efficiency. In some situations it may not be possible to use the same mjModel
 for all threads. One obvious reason is that mjModel may need to be modified within the thread function. Another reason

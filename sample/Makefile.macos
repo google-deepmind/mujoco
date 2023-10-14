@@ -14,6 +14,5 @@ ALLFLAGS=$(CXXFLAGS) -L$(GLFWROOT)/lib -Wl,-rpath,$(MUJOCOPATH)
 all:
 	clang++ $(ALLFLAGS)    testspeed.cc  -framework mujoco        -o testspeed
 	clang++ $(ALLFLAGS)    compile.cc    -framework mujoco        -o compile
-	clang++ $(ALLFLAGS)    derivative.cc -framework mujoco        -o derivative
 	clang++ $(ALLFLAGS)    basic.cc      -framework mujoco -lglfw -o basic
 	clang++ $(ALLFLAGS)    record.cc     -framework mujoco -lglfw -o record

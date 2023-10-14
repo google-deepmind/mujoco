@@ -98,7 +98,7 @@ Separation of model and data
    :ref:`mjModel` is constructed by the compiler. :ref:`mjData` is constructed at runtime, given
    :ref:`mjModel`. This separation makes it easy to simulate multiple models as well as multiple states and controls for
    each model, in turn facilitating :ref:`multi-threading <siMultithread>` for sampling and :ref:`finite
-   differences <saDerivative>`. The top-level API functions reflect this basic separation, and have
+   differences <mjd_transitionFD>`. The top-level API functions reflect this basic separation, and have
    the format:
 
    .. code:: C

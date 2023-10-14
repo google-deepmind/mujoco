@@ -8,6 +8,5 @@ COMMON=-O2 -I../include -L../lib -std=c++17 -pthread -Wl,-no-as-needed -Wl,-rpat
 all:
 	$(CXX) $(COMMON) testspeed.cc          -lmujoco          -o ../bin/testspeed
 	$(CXX) $(COMMON) compile.cc            -lmujoco          -o ../bin/compile
-	$(CXX) $(COMMON) derivative.cc         -lmujoco -fopenmp -o ../bin/derivative
 	$(CXX) $(COMMON) basic.cc              -lmujoco -lglfw   -o ../bin/basic
 	$(CXX) $(COMMON) record.cc             -lmujoco -lglfw   -o ../bin/record

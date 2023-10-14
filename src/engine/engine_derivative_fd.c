@@ -309,10 +309,8 @@ void mjd_stepFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte flg_centered,
   int ndx = 2*nv+na;  // row length of Dy Jacobians
   mj_markStack(d);
 
-  // states
   // state to restore after finite differencing
   unsigned int restore_spec = mjSTATE_FULLPHYSICS | mjSTATE_CTRL;
-
   restore_spec |= mjDISABLED(mjDSBL_WARMSTART) ? 0 : mjSTATE_WARMSTART;
 
   mjtNum *fullstate  = mj_stackAllocNum(d, mj_stateSize(m, restore_spec));

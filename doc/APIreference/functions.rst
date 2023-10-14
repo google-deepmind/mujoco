@@ -3275,6 +3275,9 @@ These matrices and their dimensions are:
 - All outputs are optional (can be NULL).
 - ``eps`` is the finite-differencing epsilon.
 - ``flg_centered`` denotes whether to use forward (0) or centered (1) differences.
+- Accuracy can be somewhat improved if solver :ref:`iterations<option-iterations>` are set to a
+  fixed (small) value and solver :ref:`tolerance<option-tolerance>` is set to 0. This insures that
+  all calls to the solver will perform exactly the same number of iterations.
 
 .. _mjd_inverseFD:
 
