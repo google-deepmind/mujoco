@@ -99,8 +99,7 @@ General
 
    12. Added :ref:`mjData.eq_active<mjData>` user input variable, for enabling/disabling the state of equality
        constraints. Renamed ``mjModel.eq_active`` to :ref:`mjModel.eq_active0<mjModel>`, which now has the semantic of
-       "initial value of ``mjData.eq_active``".
-       Fixes `#876 <https://github.com/google-deepmind/mujoco/discussions/876>`__
+       "initial value of ``mjData.eq_active``". Fixes :github:issue:`876`.
 
        **Migration:** Replace uses of ``mjModel.eq_active`` with ``mjData.eq_active``.
 
@@ -122,7 +121,7 @@ General
 19. Added :ref:`ls_iterations<option-ls_iterations>` and :ref:`ls_tolerance<option-ls_tolerance>` options for adjusting
     linesearch stopping criteria in CG and Newton solvers. These can be useful for performance tuning.
 20. Added ``mesh_pos`` and ``mesh_quat`` fields to :ref:`mjModel` to store the normalizing transformation applied to
-    mesh assets. Fixes `#409 <https://github.com/google-deepmind/mujoco/issues/409>`__ .
+    mesh assets. Fixes :github:issue:`409`.
 21. Added camera :ref:`resolution<body-camera-resolution>` attribute and :ref:`camprojection<sensor-camprojection>`
     sensor. If camera resolution is set to positive values, the camera projection sensor will report the location of a
     target site, projected onto the camera image, in pixel coordinates.
@@ -138,8 +137,7 @@ General
 23. Implemented reversed Z rendering for better depth precision. An enum :ref:`mjtDepthMap` was added with values
     ``mjDEPTH_ZERONEAR`` and ``mjDEPTH_ZEROFAR``, which can be used to set the new ``readDepthMap`` attribute in
     :ref:`mjrContext` to control how the depth returned by :ref:`mjr_readPixels` is mapped from ``znear`` to ``zfar``.
-    `Contribution <https://github.com/google-deepmind/mujoco/pull/978>`__ by
-    `Levi Burner <https://github.com/aftersomemath>`__.
+    Contribution :github:pull:`978` by `Levi Burner <https://github.com/aftersomemath>`__.
 24. Deleted the code sample ``testxml``. The functionality provided by this utility is implemented in the
     `WriteReadCompare <https://github.com/google-deepmind/mujoco/blob/main/test/xml/xml_native_writer_test.cc>`__ test.
 25. Deleted the code sample ``derivative``. Functionality provided by :ref:`mjd_transitionFD`.
@@ -147,10 +145,9 @@ General
 Python bindings
 ^^^^^^^^^^^^^^^
 
-26. Fixed `#870 <https://github.com/google-deepmind/mujoco/issues/870>`__ where calling ``update_scene`` with an invalid
-    camera name used the default camera.
+26. Fixed :github:issue:`870` where calling ``update_scene`` with an invalid camera name used the default camera.
 27. Added ``user_scn`` to the :ref:`passive viewer<PyViewerPassive>` handle, which allows users to add custom
-    visualization geoms (`#1023 <https://github.com/google-deepmind/mujoco/issues/870>`__).
+    visualization geoms (:github:issue:`1023`).
 28. Added optional boolean keyword arguments ``show_left_ui`` and ``show_right_ui`` to the functions ``viewer.launch``
     and ``viewer.launch_passive``, which allow users to launch a viewer with UI panels hidden.
 
@@ -165,8 +162,7 @@ Simulate
     :ref:`Python viewer<PyViewerManaged>`. State history can be viewed by scrubbing the History slider and (more
     precisely) with the left and right arrow keys. See screen capture:
 
-30. The ``LOADING...`` label is now shown correctly.
-    `Contribution <https://github.com/google-deepmind/mujoco/pull/1070>`__ by
+30. The ``LOADING...`` label is now shown correctly. Contribution :github:pull:`1070` by
     `Levi Burner <https://github.com/aftersomemath>`__.
 
 Bug fixes
@@ -204,13 +200,10 @@ Python bindings
 
 7. The :ref:`passive viewer<PyViewerPassive>` handle now exposes ``update_hfield``, ``update_mesh``, and
    ``update_texture`` methods to allow users to update renderable assets.
-   (`#812 <https://github.com/google-deepmind/mujoco/issues/812>`_,
-   `#958 <https://github.com/google-deepmind/mujoco/issues/958>`_,
-   `#965 <https://github.com/google-deepmind/mujoco/issues/965>`_)
-#. Allow a custom keyboard event callback to be specified in the :ref:`passive viewer<PyViewerPassive>`.
-   (`#766 <https://github.com/google-deepmind/mujoco/issues/766>`_)
-#. Fix GLFW crash when Python exits while the passive viewer is running.
-   (`#790 <https://github.com/google-deepmind/mujoco/issues/790>`_)
+   (Issues :github:issue:`812`, :github:issue:`958`, :github:issue:`965`).
+#. Allow a custom keyboard event callback to be specified in the :ref:`passive viewer<PyViewerPassive>`
+   (:github:issue:`766`).
+#. Fix GLFW crash when Python exits while the passive viewer is running (:github:issue:`790`).
 
 Models
 ^^^^^^
