@@ -25,7 +25,7 @@
 // stack allocate and initialize new mjArrayList
 mjArrayList* mju_arrayListCreate(mjData* d, size_t element_size, size_t initial_capacity) {
   mjArrayList* array_list = (mjArrayList*) mj_stackAllocByte(
-      d, sizeof(mjArrayList), _Alignof(mjArrayList));
+    d, sizeof(mjArrayList), _Alignof(mjArrayList));
   initial_capacity = mjMAX(1, initial_capacity);
   array_list->d = d;
   array_list->element_size = element_size;
@@ -35,7 +35,7 @@ mjArrayList* mju_arrayListCreate(mjData* d, size_t element_size, size_t initial_
 
   // allocate array list buffer
   array_list->buffer = (void*) mj_stackAllocByte(
-      d, element_size * initial_capacity, _Alignof(mjtMaxAlign));
+    d, element_size * initial_capacity, _Alignof(mjtMaxAlign));
   return array_list;
 }
 
@@ -63,7 +63,7 @@ void mju_arrayListAdd(mjArrayList* array_list, void* element) {
     if (cursor->next_segment == NULL) {
       // add a new segment with twice the capacity of the last segment
       cursor->next_segment = mju_arrayListCreate(
-          cursor->d, cursor->element_size, 2 * cursor->capacity);
+        cursor->d, cursor->element_size, 2 * cursor->capacity);
     }
     cursor = cursor->next_segment;
   }

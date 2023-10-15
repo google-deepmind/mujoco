@@ -115,14 +115,14 @@ static void set0(mjModel* m, mjData* d) {
 
   // compute body_invweight0
   m->body_invweight0[0] = m->body_invweight0[1] = 0.0;
-  for (int i=1; i<m->nbody; i++) {
+  for (int i=1; i < m->nbody; i++) {
     // static bodies: zero invweight0
     if (m->body_weldid[i] == 0) {
       m->body_invweight0[2*i] = m->body_invweight0[2*i+1] = 0;
     }
 
     // accelerate simple bodies with no rotations
-    else if (m->body_simple[i]==2) {
+    else if (m->body_simple[i] == 2) {
       mjtNum mass = m->body_mass[i];
       if (!mass) {  // SHOULD NOT OCCUR
         mjERROR("moving body %d has 0 mass", i);
@@ -147,7 +147,7 @@ static void set0(mjModel* m, mjData* d) {
   }
 
   // compute dof_invweight0
-  for (int i=0; i<m->njnt; i++) {
+  for (int i=0; i < m->njnt; i++) {
     // simple body with no rotations: no off-diagonal inertia
     if (m->body_simple[m->jnt_bodyid[i]] == 2) {
       int id = m->jnt_dofadr[i];
@@ -200,14 +200,14 @@ static void set0(mjModel* m, mjData* d) {
   // compute flexedge_invweight0, tendon_invweight0, actuator_acc0
   if (nv) {
     // compute flexedge_invweight0
-    for (int f=0; f<m->nflex; f++) {
-      for (int i=m->flex_edgeadr[f]; i<m->flex_edgeadr[f]+m->flex_edgenum[f]; i++) {
+    for (int f=0; f < m->nflex; f++) {
+      for (int i=m->flex_edgeadr[f]; i < m->flex_edgeadr[f]+m->flex_edgenum[f]; i++) {
         // bodies connected by edge
         int b1 = m->flex_vertbodyid[m->flex_vertadr[f] + m->flex_edge[2*i]];
         int b2 = m->flex_vertbodyid[m->flex_vertadr[f] + m->flex_edge[2*i+1]];
 
         // accelerate edges that connect simple bodies with no rotations
-        if (m->body_simple[b1]==2 && m->body_simple[b2]==2) {
+        if (m->body_simple[b1] == 2 && m->body_simple[b2] == 2) {
           m->flexedge_invweight0[i] = (1/m->body_mass[b1] + 1/m->body_mass[b2])/2;
         }
 
@@ -217,7 +217,7 @@ static void set0(mjModel* m, mjData* d) {
           if (mj_isSparse(m)) {
             mju_zero(tmp, nv);
             int end = d->flexedge_J_rowadr[i] + d->flexedge_J_rownnz[i];
-            for (int j=d->flexedge_J_rowadr[i]; j<end; j++) {
+            for (int j=d->flexedge_J_rowadr[i]; j < end; j++) {
               tmp[d->flexedge_J_colind[j]] = d->flexedge_J[j];
             }
           } else {
@@ -232,7 +232,7 @@ static void set0(mjModel* m, mjData* d) {
     }
 
     // compute tendon_invweight0
-    for (int i=0; i<m->ntendon; i++) {
+    for (int i=0; i < m->ntendon; i++) {
       // make dense vector into tmp
       if (mj_isSparse(m)) {
         mju_zero(tmp, nv);
@@ -422,8 +422,8 @@ static void setStat(mjModel* m, mjData* d) {
   }
 
   // adjust body size for flex edges involving body
-  for (int f=0; f<m->nflex; f++) {
-    for (int e=m->flex_edgeadr[f]; e<m->flex_edgeadr[f]+m->flex_edgenum[f]; e++) {
+  for (int f=0; f < m->nflex; f++) {
+    for (int e=m->flex_edgeadr[f]; e < m->flex_edgeadr[f]+m->flex_edgenum[f]; e++) {
       int b1 = m->flex_vertbodyid[m->flex_vertadr[f]+m->flex_edge[2*e]];
       int b2 = m->flex_vertbodyid[m->flex_vertadr[f]+m->flex_edge[2*e+1]];
 

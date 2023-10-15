@@ -52,7 +52,7 @@ void mj_passive(const mjModel* m, mjData* d) {
     stiffness = m->jnt_stiffness[i];
 
     // disabled : nothing to do
-    if (stiffness==0) {
+    if (stiffness == 0) {
       continue;
     }
 
@@ -102,7 +102,7 @@ void mj_passive(const mjModel* m, mjData* d) {
     damping = m->flex_edgedamping[f];
 
     // disabled or rigid: nothing to do
-    if (m->flex_rigid[f] || (stiffness==0 && damping==0)) {
+    if (m->flex_rigid[f] || (stiffness == 0 && damping == 0)) {
       continue;
     }
 

@@ -39,12 +39,12 @@ void mjccd_center(const void *obj, ccd_vec3_t *center) {
   int v = ccd->vert;
 
   // return geom position
-  if (g>=0) {
+  if (g >= 0) {
     mju_copy3(center->v, ccd->data->geom_xpos + 3*g);
   }
 
   // return flex element position
-  else if (e>=0) {
+  else if (e >= 0) {
     mju_copy3(center->v, ccd->data->flexelem_aabb + 6*(ccd->model->flex_elemadr[f]+e));
   }
 
@@ -64,14 +64,14 @@ void mjccd_support(const void *obj, const ccd_vec3_t *_dir, ccd_vec3_t *vec) {
   int g = ccd->geom;
 
   //-------------------------- flex element or vertex -----------------------------
-  if (g<0) {
+  if (g < 0) {
     int f = ccd->flex;
     int dim = m->flex_dim[f];
     mjtNum *res = vec->v;
     const mjtNum *dir = _dir->v;
 
     // flex element
-    if (ccd->elem>=0) {
+    if (ccd->elem >= 0) {
       int e = ccd->elem;
       const int* edata = m->flex_elem + m->flex_elemdataadr[f] + e*(dim+1);
       const mjtNum* vert = d->flexvert_xpos + 3*m->flex_vertadr[f];
@@ -79,11 +79,11 @@ void mjccd_support(const void *obj, const ccd_vec3_t *_dir, ccd_vec3_t *vec) {
       // find element vertex with largest projection along dir
       mju_copy3(res, vert+3*edata[0]);
       mjtNum best = mju_dot3(res, dir);
-      for (int i=1; i<=dim; i++) {
+      for (int i=1; i <= dim; i++) {
         mjtNum dot = mju_dot3(vert+3*edata[i], dir);
 
         // better vertex found: assign
-        if (dot>best) {
+        if (dot > best) {
           best = dot;
           mju_copy3(res, vert+3*edata[i]);
         }
@@ -285,7 +285,7 @@ static int mjc_MPRIteration(mjtCCD* obj1, mjtCCD* obj2, const ccd_t* ccd,
     mju_zero3(con->frame+3);
 
     // both geoms: fix contact frame normal
-    if (obj1->geom>=0 && obj2->geom>=0) {
+    if (obj1->geom >= 0 && obj2->geom >= 0) {
       mjc_fixNormal(m, d, con, obj1->geom, obj2->geom);
     }
 
@@ -1130,7 +1130,7 @@ int mjc_HFieldElem(const mjModel* m, const mjData* d, mjContact* con,
   int dim = m->flex_dim[f];
   const int* edata = m->flex_elem + m->flex_elemdataadr[f] + e*(dim+1);
   mjtNum* evert[4] = {NULL, NULL, NULL, NULL};
-  for (int i=0; i<=dim; i++) {
+  for (int i=0; i <= dim; i++) {
     evert[i] = d->flexvert_xpos + 3*(m->flex_vertadr[f] + edata[i]);
   }
   mjtNum* ecenter = d->flexelem_aabb + 6*(m->flex_elemadr[f]+e);
@@ -1145,7 +1145,7 @@ int mjc_HFieldElem(const mjModel* m, const mjData* d, mjContact* con,
 
   // save elem vertices, transform to hfield frame
   mjtNum savevert[4][3];
-  for (int i=0; i<=dim; i++) {
+  for (int i=0; i <= dim; i++) {
     mju_copy3(savevert[i], evert[i]);
     mju_sub3(vec, evert[i], hpos);
     mju_mulMatTVec(evert[i], hmat, vec, 3, 3);
@@ -1161,7 +1161,7 @@ int mjc_HFieldElem(const mjModel* m, const mjData* d, mjContact* con,
   xmin = xmax = evert[0][0];
   ymin = ymax = evert[0][1];
   zmin = zmax = evert[0][2];
-  for (int i=1; i<=dim; i++) {
+  for (int i=1; i <= dim; i++) {
     xmin = mju_min(xmin, evert[i][0]);
     xmax = mju_max(xmax, evert[i][0]);
     ymin = mju_min(ymin, evert[i][1]);
@@ -1175,7 +1175,7 @@ int mjc_HFieldElem(const mjModel* m, const mjData* d, mjContact* con,
       (ymin-margin > hsize[1]) || (ymax+margin < -hsize[1]) ||
       (zmin-margin > hsize[2]) || (zmax+margin < -hsize[3])) {
     // restore vertices and center
-    for (int i=0; i<=dim; i++) {
+    for (int i=0; i <= dim; i++) {
       mju_copy3(evert[i], savevert[i]);
     }
     mju_copy3(ecenter, savecenter);
@@ -1217,23 +1217,23 @@ int mjc_HFieldElem(const mjModel* m, const mjData* d, mjContact* con,
 
   // process all prisms in sub-grid
   cnt = 0;
-  for (int r=rmin; r<rmax; r++) {
+  for (int r=rmin; r < rmax; r++) {
     int nvert = 0;
-    for (int c=cmin; c<=cmax; c++) {
-      for (int k=0; k<2; k++) {
+    for (int c=cmin; c <= cmax; c++) {
+      for (int k=0; k < 2; k++) {
         // send vertex to prism constructor
         addVert(&nvert, &prism, dx*c-hsize[0], dy*(r+dr[k])-hsize[1],
                 hdata[(r+dr[k])*ncol+c]*hsize[2]+margin);
 
         // check for enough vertices
-        if (nvert>2) {
+        if (nvert > 2) {
           // prism height test
-          if (prism.v[3][2]<zmin && prism.v[4][2]<zmin && prism.v[5][2]<zmin) {
+          if (prism.v[3][2] < zmin && prism.v[4][2] < zmin && prism.v[5][2] < zmin) {
             continue;
           }
 
           // run MPR, save contact
-          if (ccdMPRPenetration(&prism, &obj, &ccd, &depth, &dirccd, &vecccd)==0) {
+          if (ccdMPRPenetration(&prism, &obj, &ccd, &depth, &dirccd, &vecccd) == 0) {
             if (!ccdVec3Eq(&dirccd, ccd_vec3_origin)) {
               // fill in contact data, transform to global coordinates
               con[cnt].dist = -depth;
@@ -1244,7 +1244,7 @@ int mjc_HFieldElem(const mjModel* m, const mjData* d, mjContact* con,
 
               // count, stop if max number reached
               cnt++;
-              if (cnt>=mjMAXCONPAIR) {
+              if (cnt >= mjMAXCONPAIR) {
                 r = rmax+1;
                 c = cmax+1;
                 k = 3;
@@ -1258,7 +1258,7 @@ int mjc_HFieldElem(const mjModel* m, const mjData* d, mjContact* con,
   }
 
   // restore elem vertices and center
-  for (int i=0; i<=dim; i++) {
+  for (int i=0; i <= dim; i++) {
     mju_copy3(evert[i], savevert[i]);
   }
   mju_copy3(ecenter, savecenter);

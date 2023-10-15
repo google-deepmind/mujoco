@@ -124,11 +124,11 @@ int mj_isDual(const mjModel* m) {
 // assign/clamp contact friction parameters
 void mj_assignFriction(const mjModel* m, mjtNum* target, const mjtNum* source) {
   if (mjENABLED(mjENBL_OVERRIDE)) {
-    for (int i=0; i<5; i++) {
+    for (int i=0; i < 5; i++) {
       target[i] = mju_max(mjMINMU, m->opt.o_friction[i]);
     }
   } else {
-    for (int i=0; i<5; i++) {
+    for (int i=0; i < 5; i++) {
       target[i] = mju_max(mjMINMU, source[i]);
     }
   }
@@ -181,20 +181,20 @@ static int mj_elemBodyWeight(const mjModel* m, const mjData* d, int f, int e, in
   // compute inverse distances from contact point to element vertices
   // save body ids, find vertex v in element
   int vid = -1;
-  for (int i=0; i<=dim; i++) {
+  for (int i=0; i <= dim; i++) {
     mjtNum dist = mju_dist3(point, vert+3*edata[i]);
     weight[i] = 1.0/(mju_max(mjMINVAL, dist));
     body[i] = m->flex_vertbodyid[m->flex_vertadr[f] + edata[i]];
 
     // check if element vertex matches v
-    if (edata[i]==v) {
+    if (edata[i] == v) {
       vid = i;
     }
   }
 
   // v found in e: skip and shift remaining
-  if (vid>=0) {
-    while (vid<dim) {
+  if (vid >= 0) {
+    while (vid < dim) {
       weight[vid] = weight[vid+1];
       body[vid] = body[vid+1];
       vid++;
@@ -242,9 +242,9 @@ int mj_addContact(const mjModel* m, mjData* d, const mjContact* con) {
 
 // add #size rows to constraint Jacobian; set pos, margin, frictionloss, type, id
 static void mj_addConstraint(const mjModel* m, mjData* d,
-                              const mjtNum* jac, const mjtNum* pos,
-                              const mjtNum* margin, mjtNum frictionloss,
-                              int size, int type, int id, int NV, const int* chain) {
+                             const mjtNum* jac, const mjtNum* pos,
+                             const mjtNum* margin, mjtNum frictionloss,
+                             int size, int type, int id, int NV, const int* chain) {
   int empty, nv = m->nv, nefc = d->nefc;
   int *nnz = d->efc_J_rownnz, *adr = d->efc_J_rowadr, *ind = d->efc_J_colind;
   mjtNum *J = d->efc_J;
@@ -665,7 +665,7 @@ void mj_instantiateEquality(const mjModel* m, mjData* d) {
         flex_edgenum = m->flex_edgenum[id[0]];
 
         // add one constraint per edge
-        for (int e=flex_edgeadr; e<flex_edgeadr+flex_edgenum; e++) {
+        for (int e=flex_edgeadr; e < flex_edgeadr+flex_edgenum; e++) {
           // position error
           cpos[0] = d->flexedge_length[e] - m->flexedge_length0[e];
 
@@ -930,14 +930,14 @@ void mj_instantiateContact(const mjModel* m, mjData* d) {
       con->efc_address = d->nefc;
 
       // special case: single body on each side
-      if ((con->geom[0]>=0 || con->vert[0]>=0) &&
-          (con->geom[1]>=0 || con->vert[1]>=0)) {
+      if ((con->geom[0] >= 0 || con->vert[0] >= 0) &&
+          (con->geom[1] >= 0 || con->vert[1] >= 0)) {
         // get bodies
         int bid[2];
         for (int side=0; side < 2; side++) {
-          bid[side] = (con->geom[side]>=0) ?
-                        m->geom_bodyid[con->geom[side]] :
-                        m->flex_vertbodyid[m->flex_vertadr[con->flex[side]] + con->vert[side]];
+          bid[side] = (con->geom[side] >= 0) ?
+                      m->geom_bodyid[con->geom[side]] :
+                      m->flex_vertbodyid[m->flex_vertadr[con->flex[side]] + con->vert[side]];
         }
 
         // compute Jacobian differences
@@ -956,16 +956,16 @@ void mj_instantiateContact(const mjModel* m, mjData* d) {
         int nb = 0;
         int bid[8];
         mjtNum bweight[8];
-        for (int side=0; side<2; side++) {
+        for (int side=0; side < 2; side++) {
           // geom
-          if (con->geom[side]>=0) {
+          if (con->geom[side] >= 0) {
             bid[nb] = m->geom_bodyid[con->geom[side]];
             bweight[nb] = side ? +1 : -1;
             nb++;
           }
 
           // flex vert
-          else if (con->vert[side]>=0) {
+          else if (con->vert[side] >= 0) {
             bid[nb] = m->flex_vertbodyid[m->flex_vertadr[con->flex[side]] + con->vert[side]];
             bweight[nb] = side ? +1 : -1;
             nb++;
@@ -977,7 +977,7 @@ void mj_instantiateContact(const mjModel* m, mjData* d) {
                                        con->vert[1-side], con->pos, bid+nb, bweight+nb);
 
             // negative sign for first side of contact
-            if (side==0) {
+            if (side == 0) {
               mju_scl(bweight+nb, bweight+nb, -1, nw);
             }
 
@@ -986,7 +986,7 @@ void mj_instantiateContact(const mjModel* m, mjData* d) {
         }
 
         // combine weighted Jacobians
-        NV = mj_jacSum(m, d, chain, nb, bid, bweight, con->pos, jacdif, dim>3);
+        NV = mj_jacSum(m, d, chain, nb, bid, bweight, con->pos, jacdif, dim > 3);
       }
 
       // skip contact if no DOFs affected
@@ -1068,7 +1068,7 @@ void mj_diagApprox(const mjModel* m, mjData* d) {
     id = d->efc_id[i];
 
     // clear edge counter
-    if (d->efc_type[i]!=mjEQ_FLEX) {
+    if (d->efc_type[i] != mjEQ_FLEX) {
       edgecnt = 0;
     }
 
@@ -1139,31 +1139,33 @@ void mj_diagApprox(const mjModel* m, mjData* d) {
 
       // add the average translation and rotation components from both sides
       tran = rot = 0;
-      for (int side=0; side<2; side++) {
+      for (int side=0; side < 2; side++) {
         // get bodies and weights
         int nb, bid[4];
         mjtNum bweight[4];
 
         // geom
-        if (con->geom[side]>=0) {
+        if (con->geom[side] >= 0) {
           bid[0] = m->geom_bodyid[con->geom[side]];
           bweight[0] = 1;
           nb = 1;
+        }
 
         // flex vert
-        } else if (con->vert[side]>=0) {
+        else if (con->vert[side] >= 0) {
           bid[0] = m->flex_vertbodyid[m->flex_vertadr[con->flex[side]] + con->vert[side]];
           bweight[0] = 1;
           nb = 1;
+        }
 
         // flex elem
-        } else {
+        else {
           nb = mj_elemBodyWeight(m, d, con->flex[side], con->elem[side],
                                  con->vert[1-side], con->pos, bid, bweight);
         }
 
         // add weighted average over bodies
-        for (int k=0; k<nb; k++) {
+        for (int k=0; k < nb; k++) {
           tran += m->body_invweight0[2*bid[k]] * bweight[k];
           rot += m->body_invweight0[2*bid[k]+1] * bweight[k];
         }
@@ -1188,7 +1190,7 @@ void mj_diagApprox(const mjModel* m, mjData* d) {
       else {
         for (int j=0; j < dim-1; j++) {
           fri = con->friction[j];
-          dA[i+2*j] = dA[i+2*j+1] = tran + fri*fri*(j<2 ? tran : rot);
+          dA[i+2*j] = dA[i+2*j+1] = tran + fri*fri*(j < 2 ? tran : rot);
         }
 
         // processed 2*dim-2 elements in one i-loop iteration; advance counter
@@ -1401,7 +1403,7 @@ void mj_makeImpedance(const mjModel* m, mjData* d) {
       // elliptic contacts use solreffriction in non-normal directions, if non-zero
       int elliptic_friction = (tp == mjCNSTR_CONTACT_ELLIPTIC) && (j > 0);
       mjtNum* ref = elliptic_friction && (solreffriction[0] || solreffriction[1]) ?
-          solreffriction : solref;
+                    solreffriction : solref;
 
       // friction: K = 0
       if (tp == mjCNSTR_FRICTION_DOF || tp == mjCNSTR_FRICTION_TENDON || elliptic_friction) {
@@ -1526,7 +1528,7 @@ static int mj_jacSumCount(const mjModel* m, mjData* d, int* chain,
   NV = mj_bodyChain(m, body[0], chain);
 
   // accumulate remaining
-  for (int i=1; i<n; i++) {
+  for (int i=1; i < n; i++) {
     // get body chain
     int bodyNV = mj_bodyChain(m, body[i], bodychain);
     if (!bodyNV) {
@@ -1649,7 +1651,7 @@ static int mj_ne(const mjModel* m, mjData* d, int* nnz) {
         flex_edgenum = m->flex_edgenum[id[0]];
 
         // process edges of this flex
-        for (int e=flex_edgeadr; e<flex_edgeadr+flex_edgenum; e++) {
+        for (int e=flex_edgeadr; e < flex_edgeadr+flex_edgenum; e++) {
           int b1 = m->flex_vertbodyid[m->flex_vertadr[id[0]] + m->flex_edge[2*e]];
           int b2 = m->flex_vertbodyid[m->flex_vertadr[id[0]] + m->flex_edge[2*e+1]];
 
@@ -1665,7 +1667,7 @@ static int mj_ne(const mjModel* m, mjData* d, int* nnz) {
 
       // accumulate counts; flex NV already accumulated
       ne += mj_addConstraintCount(m, size, NV);
-      nnze += (m->eq_type[i]==mjEQ_FLEX) ? NV : size*NV;
+      nnze += (m->eq_type[i] == mjEQ_FLEX) ? NV : size*NV;
     }
   }
 
@@ -1805,7 +1807,7 @@ static int mj_nc(const mjModel* m, mjData* d, int* nnz) {
       int nb = 0, bid[8];
       for (int side=0; side < 2; side++) {
         // geom
-        if (con->geom[side]>=0) {
+        if (con->geom[side] >= 0) {
           bid[nb++] = m->geom_bodyid[con->geom[side]];
         }
 
@@ -1819,7 +1821,7 @@ static int mj_nc(const mjModel* m, mjData* d, int* nnz) {
           int f = con->flex[side];
           int fdim = m->flex_dim[f];
           const int* edata = m->flex_elem + m->flex_elemdataadr[f] + con->elem[side]*(fdim+1);
-          for (int k=0; k<=fdim; k++) {
+          for (int k=0; k <= fdim; k++) {
             bid[nb++] = m->flex_vertbodyid[m->flex_vertadr[f] + edata[k]];
           }
         }

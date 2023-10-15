@@ -379,19 +379,19 @@ void mju_addToSparseInc(mjtNum* dst, const mjtNum* src,
   int adrs = 0, adrd = 0, inds = indsrc[0], indd = inddst[0];
   while (1) {
     // common non-zero index
-    if (inds==indd) {
+    if (inds == indd) {
       // add
       dst[adrd] += src[adrs];
 
       // advance src
-      if (++adrs<nnzsrc) {
+      if (++adrs < nnzsrc) {
         inds = indsrc[adrs];
       } else {
         return;
       }
 
       // advance dst
-      if (++adrd<nnzdst) {
+      if (++adrd < nnzdst) {
         indd = inddst[adrd];
       } else {
         return;
@@ -399,8 +399,8 @@ void mju_addToSparseInc(mjtNum* dst, const mjtNum* src,
     }
 
     // src non-zero index smaller: advance src
-    else if (inds<indd) {
-      if (++adrs<nnzsrc) {
+    else if (inds < indd) {
+      if (++adrs < nnzsrc) {
         inds = indsrc[adrs];
       } else {
         return;
@@ -409,7 +409,7 @@ void mju_addToSparseInc(mjtNum* dst, const mjtNum* src,
 
     // dst non-zero index smaller: advance dst
     else {
-      if (++adrd<nnzdst) {
+      if (++adrd < nnzdst) {
         indd = inddst[adrd];
       } else {
         return;
@@ -425,8 +425,8 @@ int mju_addToSparseMat(mjtNum* dst, const mjtNum* src, int n, int nrow, mjtNum s
                        int dst_nnz, int src_nnz, int* dst_ind, const int* src_ind,
                        mjtNum* buf, int* buf_ind) {
   // check for identical pattern
-  if (dst_nnz==src_nnz) {
-    if (dst_nnz==0) {
+  if (dst_nnz == src_nnz) {
+    if (dst_nnz == 0) {
       return 0;
     }
     if (mju_compare(dst_ind, src_ind, dst_nnz)) {
@@ -442,40 +442,40 @@ int mju_addToSparseMat(mjtNum* dst, const mjtNum* src, int n, int nrow, mjtNum s
   int dadr = dst_nnz ? dst_ind[0] : n+1;
 
   // merge matrices
-  while (si<src_nnz || di<dst_nnz) {
+  while (si < src_nnz || di < dst_nnz) {
     // both
-    if (sadr==dadr) {
-      for (int k=0; k<nrow; k++) {
+    if (sadr == dadr) {
+      for (int k=0; k < nrow; k++) {
         buf[nrow*nnz + k] = dst[di + k*dst_nnz] + scl*src[si + k*src_nnz];
       }
 
       buf_ind[nnz++] = sadr;
       si++;
       di++;
-      sadr = si<src_nnz ? src_ind[si] : n+1;
-      dadr = di<dst_nnz ? dst_ind[di] : n+1;
+      sadr = si < src_nnz ? src_ind[si] : n+1;
+      dadr = di < dst_nnz ? dst_ind[di] : n+1;
     }
 
     // dst only
-    else if (dadr<sadr) {
-      for (int k=0; k<nrow; k++) {
+    else if (dadr < sadr) {
+      for (int k=0; k < nrow; k++) {
         buf[nrow*nnz + k] = dst[di + k*dst_nnz];
       }
 
       buf_ind[nnz++] = dadr;
       di++;
-      dadr = di<dst_nnz ? dst_ind[di] : n+1;
+      dadr = di < dst_nnz ? dst_ind[di] : n+1;
     }
 
     // src only
     else {
-      for (int k=0; k<nrow; k++) {
+      for (int k=0; k < nrow; k++) {
         buf[nrow*nnz + k] = scl*src[si + k*src_nnz];
       }
 
       buf_ind[nnz++] = sadr;
       si++;
-      sadr = si<src_nnz ? src_ind[si] : n+1;
+      sadr = si < src_nnz ? src_ind[si] : n+1;
     }
   }
 
@@ -492,8 +492,8 @@ int mju_addToSparseMat(mjtNum* dst, const mjtNum* src, int n, int nrow, mjtNum s
 int mju_addChains(int* res, int n, int NV1, int NV2,
                   const int* chain1, const int* chain2) {
   // check for identical pattern
-  if (NV1==NV2) {
-    if (NV1==0) {
+  if (NV1 == NV2) {
+    if (NV1 == 0) {
       return 0;
     }
     if (mju_compare(chain1, chain2, NV1)) {
@@ -508,28 +508,28 @@ int mju_addChains(int* res, int n, int NV1, int NV2,
   int adr2 = NV2 ? chain2[0] : n+1;
 
   // merge chains
-  while (i1<NV1 || i2<NV2) {
+  while (i1 < NV1 || i2 < NV2) {
     // both
-    if (adr1==adr2) {
+    if (adr1 == adr2) {
       res[NV++] = adr1;
       i1++;
       i2++;
-      adr1 = i1<NV1 ? chain1[i1] : n+1;
-      adr2 = i2<NV2 ? chain2[i2] : n+1;
+      adr1 = i1 < NV1 ? chain1[i1] : n+1;
+      adr2 = i2 < NV2 ? chain2[i2] : n+1;
     }
 
     // chain1 only
-    else if (adr1<adr2) {
+    else if (adr1 < adr2) {
       res[NV++] = adr1;
       i1++;
-      adr1 = i1<NV1 ? chain1[i1] : n+1;
+      adr1 = i1 < NV1 ? chain1[i1] : n+1;
     }
 
     // chain2 only
     else {
       res[NV++] = adr2;
       i2++;
-      adr2 = i2<NV2 ? chain2[i2] : n+1;
+      adr2 = i2 < NV2 ? chain2[i2] : n+1;
     }
   }
 

@@ -215,7 +215,7 @@ void mj_fwdVelocity(const mjModel* m, mjData* d) {
 
 // returns the next act given the current act_dot, after clamping
 static mjtNum nextActivation(const mjModel* m, const mjData* d,
-                                int actuator_id, int act_adr, mjtNum act_dot) {
+                             int actuator_id, int act_adr, mjtNum act_dot) {
   mjtNum act = d->act[act_adr];
 
   if (m->actuator_dyntype[actuator_id] == mjDYN_FILTEREXACT) {
@@ -569,7 +569,7 @@ void mj_solCG_island_multithreaded(const mjModel* m, mjData* d) {
   mj_markStack(d);
   // allocate array of arguments to be passed to threads
   mjSolIslandArgs* sol_cg_island_args =
-      mj_stackAllocByte(d, sizeof(mjSolIslandArgs) * d->nisland, _Alignof(mjSolIslandArgs));
+    mj_stackAllocByte(d, sizeof(mjSolIslandArgs) * d->nisland, _Alignof(mjSolIslandArgs));
   mjTask* tasks = mj_stackAllocByte(d, sizeof(mjTask)  * d->nisland, _Alignof(mjTask));
 
   for (int island = 0; island < d->nisland; ++island) {

@@ -520,10 +520,10 @@ static mjtNum pointSegment(mjtNum res[2], const mjtNum p[2],
   mjtNum a = mju_dot(uv, up, 2) / mju_max(mjMINVAL, mju_dot(uv, uv, 2));
 
   // find nearest point to p, clamp to u or v if a is not in (0,1)
-  if (a<=0) {
+  if (a <= 0) {
     res[0] = u[0];
     res[1] = u[1];
-  } else if (a>=1) {
+  } else if (a >= 1) {
     res[0] = v[0];
     res[1] = v[1];
   } else {
@@ -582,7 +582,7 @@ int mjraw_SphereTriangle(mjContact* con, mjtNum margin,
   mjtNum sign3 = areaSign(p, b, o);
 
   // p is inside triangle
-  if (sign1==sign2 && sign2==sign3) {
+  if (sign1 == sign2 && sign2 == sign3) {
     // P is nearest point to S within triangle
     mju_copy3(X, P);
   }
@@ -596,7 +596,7 @@ int mjraw_SphereTriangle(mjContact* con, mjtNum margin,
     dstx[2] = pointSegment(x[2], p, b, o);
 
     // select minimum
-    int best = (dstx[0]<dstx[1] && dstx[0]<dstx[2]) ? 0 : (dstx[1]<dstx[2] ? 1 : 2);
+    int best = (dstx[0] < dstx[1] && dstx[0] < dstx[2]) ? 0 : (dstx[1] < dstx[2] ? 1 : 2);
 
     // convert x[best] to 3D
     mju_scl3(X, V1, x[best][0]);
@@ -609,7 +609,7 @@ int mjraw_SphereTriangle(mjContact* con, mjtNum margin,
   mjtNum dst = mju_normalize3(nrm);
 
   // exit if too far
-  if (dst>rbound) {
+  if (dst > rbound) {
     return 0;
   }
 

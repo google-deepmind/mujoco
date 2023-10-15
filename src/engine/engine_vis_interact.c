@@ -546,7 +546,7 @@ void mjv_initPerturb(const mjModel* m, mjData* d, const mjvScene* scn, mjvPertur
   pert->localmass = 3 / mju_max(invmass, mjMINVAL);
 
   // scale localmass with flex average number of edges per vertex
-  if (pert->flexselect>=0 && !m->flex_rigid[pert->flexselect]) {
+  if (pert->flexselect >= 0 && !m->flex_rigid[pert->flexselect]) {
     pert->localmass *= (2.0*m->flex_edgenum[pert->flexselect]) /
                        (mjtNum)m->flex_vertnum[pert->flexselect];
   }
@@ -773,7 +773,7 @@ int mjv_select(const mjModel* m, const mjData* d, const mjvOption* vopt,
   *flexid = -1;
   if (vopt->flags[mjVIS_FLEXVERT] || vopt->flags[mjVIS_FLEXEDGE] ||
       vopt->flags[mjVIS_FLEXFACE] || vopt->flags[mjVIS_FLEXSKIN]) {
-    for (int i=0; i<m->nflex; i++) {
+    for (int i=0; i < m->nflex; i++) {
       // process one flex
       int vertid;
       mjtNum newdist = mju_rayFlex(m, d, vopt->flex_layer,
@@ -782,7 +782,7 @@ int mjv_select(const mjModel* m, const mjData* d, const mjvOption* vopt,
                                    i, pos, ray, &vertid);
 
       // update if closer intersection found
-      if (newdist>=0 && (newdist<flexdist || flexdist<0)) {
+      if (newdist >= 0 && (newdist < flexdist || flexdist < 0)) {
         flexdist = newdist;
         flexbodyid = m->flex_vertbodyid[m->flex_vertadr[i] + vertid];
         *flexid = i;
@@ -842,9 +842,9 @@ int mjv_select(const mjModel* m, const mjData* d, const mjvOption* vopt,
   // find smallest non-negative distance
   mjtNum raydist[3] = {geomdist, flexdist, skindist};
   int best = -1;
-  for (int i=0; i<3; i++) {
-    if (raydist[i]>=0) {
-      if (best<0 || raydist[best]>raydist[i]) {
+  for (int i=0; i < 3; i++) {
+    if (raydist[i] >= 0) {
+      if (best < 0 || raydist[best] > raydist[i]) {
         best = i;
       }
     }

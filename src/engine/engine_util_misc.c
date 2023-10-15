@@ -630,7 +630,7 @@ static uint32_t _decode(char ch) {
 // returns number of chars written in buf: 4 * [(ndata + 2) / 3] + 1
 size_t mju_encodeBase64(char* buf, const uint8_t* data, size_t ndata) {
   static const char *table =
-      "ABCDEFGHIJKLMNOPQRSTUBWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    "ABCDEFGHIJKLMNOPQRSTUBWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
   int i = 0, j = 0;
 

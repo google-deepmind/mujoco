@@ -284,7 +284,7 @@ void mj_camlight(const mjModel* m, mjData* d) {
     // adjust for mode
     switch ((mjtCamLight) m->cam_mode[i]) {
     case mjCAMLIGHT_FIXED:
-        break;
+      break;
     case mjCAMLIGHT_TRACK:
     case mjCAMLIGHT_TRACKCOM:
       // fixed global orientation
@@ -393,15 +393,15 @@ void mj_updateDynamicBVH(const mjModel* m, mjData* d, int bvhadr, int bvhnum) {
   mju_zeroInt(modified, bvhnum);
 
   // mark leafs as modified
-  for (int i=0; i<bvhnum; i++) {
-    if (m->bvh_nodeid[bvhadr+i]>=0) {
+  for (int i=0; i < bvhnum; i++) {
+    if (m->bvh_nodeid[bvhadr+i] >= 0) {
       modified[i] = 1;
     }
   }
 
   // update non-leafs in backward pass (parents come before children)
-  for (int i=bvhnum-1; i>=0; i--) {
-    if (m->bvh_nodeid[bvhadr+i]<0) {
+  for (int i=bvhnum-1; i >= 0; i--) {
+    if (m->bvh_nodeid[bvhadr+i] < 0) {
       int child1 = m->bvh_child[2*(bvhadr+i)];
       int child2 = m->bvh_child[2*(bvhadr+i)+1];
 
@@ -413,13 +413,13 @@ void mj_updateDynamicBVH(const mjModel* m, mjData* d, int bvhadr, int bvhnum) {
 
         // compute new (min, max)
         mjtNum xmin[3], xmax[3];
-        for (int k=0; k<3; k++) {
+        for (int k=0; k < 3; k++) {
           xmin[k] = mju_min(aabb1[k] - aabb1[k+3], aabb2[k] - aabb2[k+3]);
           xmax[k] = mju_max(aabb1[k] + aabb1[k+3], aabb2[k] + aabb2[k+3]);
         }
 
         // convert to (center, size)
-        for (int k=0; k<3; k++) {
+        for (int k=0; k < 3; k++) {
           aabb[k]   = 0.5*(xmax[k]+xmin[k]);
           aabb[k+3] = 0.5*(xmax[k]-xmin[k]);
         }
@@ -446,20 +446,20 @@ void mj_flex(const mjModel* m, mjData* d) {
   }
 
   // compute Cartesian positions of flex vertices
-  for (int f=0; f<m->nflex; f++) {
+  for (int f=0; f < m->nflex; f++) {
     int vstart = m->flex_vertadr[f];
     int vend = m->flex_vertadr[f] + m->flex_vertnum[f];
 
     // centered: copy body position
     if (m->flex_centered[f]) {
-      for (int i=vstart; i<vend; i++) {
+      for (int i=vstart; i < vend; i++) {
         mju_copy3(d->flexvert_xpos+3*i, d->xpos+3*m->flex_vertbodyid[i]);
       }
     }
 
     // non-centered: map from local to global
     else {
-      for (int i=vstart; i<vend; i++) {
+      for (int i=vstart; i < vend; i++) {
         mju_rotVecMat(d->flexvert_xpos+3*i, m->flex_vert+3*i, d->xmat+9*m->flex_vertbodyid[i]);
         mju_addTo3(d->flexvert_xpos+3*i, d->xpos+3*m->flex_vertbodyid[i]);
       }
@@ -467,11 +467,11 @@ void mj_flex(const mjModel* m, mjData* d) {
   }
 
   // compute flex element aabb
-  for (int f=0; f<m->nflex; f++) {
+  for (int f=0; f < m->nflex; f++) {
     int dim = m->flex_dim[f];
 
     // process elements of this flex
-    for (int e=0; e<m->flex_elemnum[f]; e++) {
+    for (int e=0; e < m->flex_elemnum[f]; e++) {
       const int* edata = m->flex_elem + m->flex_elemdataadr[f] + e*(dim+1);
       const mjtNum* vert = d->flexvert_xpos + 3*m->flex_vertadr[f];
 
@@ -479,8 +479,8 @@ void mj_flex(const mjModel* m, mjData* d) {
       mjtNum xmin[3], xmax[3];
       mju_copy3(xmin, vert+3*edata[0]);
       mju_copy3(xmax, vert+3*edata[0]);
-      for (int i=1; i<=dim; i++) {
-        for (int j=0; j<3; j++) {
+      for (int i=1; i <= dim; i++) {
+        for (int j=0; j < 3; j++) {
           mjtNum value = vert[3*edata[i]+j];
           xmin[j] = mju_min(xmin[j], value);
           xmax[j] = mju_max(xmax[j], value);
@@ -500,14 +500,14 @@ void mj_flex(const mjModel* m, mjData* d) {
 
   // update flex bhv_aabb_dyn if needed
   if (!mjDISABLED(mjDSBL_MIDPHASE)) {
-    for (int f=0; f<m->nflex; f++) {
-      if (m->flex_bvhadr[f]>=0) {
+    for (int f=0; f < m->nflex; f++) {
+      if (m->flex_bvhadr[f] >= 0) {
         int flex_bvhadr = m->flex_bvhadr[f];
         int flex_bvhnum = m->flex_bvhnum[f];
 
         // copy element aabbs to bhv leaf aabbs
-        for (int i=flex_bvhadr; i<flex_bvhadr+flex_bvhnum; i++) {
-          if (m->bvh_nodeid[i]>=0) {
+        for (int i=flex_bvhadr; i < flex_bvhadr+flex_bvhnum; i++) {
+          if (m->bvh_nodeid[i] >= 0) {
             mju_copy(d->bvh_aabb_dyn + 6*(i - m->nbvhstatic),
                      d->flexelem_aabb + 6*(m->flex_elemadr[f] + m->bvh_nodeid[i]), 6);
           }
@@ -535,18 +535,18 @@ void mj_flex(const mjModel* m, mjData* d) {
   }
 
   // compute lengths and Jacobians of edges
-  for (int f=0; f<m->nflex; f++) {
+  for (int f=0; f < m->nflex; f++) {
     // skip if edges cannot generate forces
     if (m->flex_rigid[f] ||
-        (m->flex_edgeequality[f]==0 &&
-         m->flex_edgestiffness[f]==0 && m->flex_edgedamping[f]==0)) {
+        (m->flex_edgeequality[f] == 0 &&
+         m->flex_edgestiffness[f] == 0 && m->flex_edgedamping[f] == 0)) {
       continue;
     }
 
     // process edges of this flex
     int vbase = m->flex_vertadr[f];
     int ebase = m->flex_edgeadr[f];
-    for (int e=0; e<m->flex_edgenum[f]; e++) {
+    for (int e=0; e < m->flex_edgenum[f]; e++) {
       int v1 = m->flex_edge[2*(ebase+e)];
       int v2 = m->flex_edge[2*(ebase+e)+1];
       int b1 = m->flex_vertbodyid[vbase+v1];
@@ -562,7 +562,7 @@ void mj_flex(const mjModel* m, mjData* d) {
       // sparse edge Jacobian
       if (issparse) {
         // set rowadr
-        if (ebase+e>0) {
+        if (ebase+e > 0) {
           rowadr[ebase+e] = rowadr[ebase+e-1] + rownnz[ebase+e-1];
         }
 
@@ -1110,7 +1110,7 @@ void mj_transmission(const mjModel* m, mjData* d) {
           const mjContact* con = d->contact+j;
 
           // contact involving flex, continue
-          if (con->geom[0]<0 || con->geom[1]<0) {
+          if (con->geom[0] < 0 || con->geom[1] < 0) {
             continue;
           }
 
@@ -1772,7 +1772,7 @@ void mj_rnePostConstraint(const mjModel* m, mjData* d) {
       con = d->contact+i;
 
       // skip contact involving flex
-      if (con->geom[0]<0 || con->geom[1]<0) {
+      if (con->geom[0] < 0 || con->geom[1] < 0) {
         continue;
       }
 
