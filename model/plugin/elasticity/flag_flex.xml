@@ -33,22 +33,22 @@
   <worldbody>
     <geom name="floor" type="plane" size="0 0 .1"/>
     <light diffuse=".6 .6 .6" specular="0.2 0.2 0.2" pos="0 0 4" dir="0 0 -1"/>
-    <body pos="0 0 1">
-      <composite type="particle" count="9 19 1" spacing="0.05" flatinertia="0.01">
-        <skin texcoord="true" inflate="0.005" subgrid="4"/>
-        <geom type="ellipsoid" size="0.025 0.01 0.025" rgba=".8 .2 .1 1" group="4"/>
+    <body name="pin" pos="0 0 1.5">
+      <flexcomp type="grid" count="9 19 1" spacing=".05 .05 .05" mass="10"
+                name="flag" radius="0.001">
+        <edge equality="true" damping="0.001"/>
         <plugin plugin="mujoco.elasticity.shell">
           <config key="poisson" value="0"/>
           <config key="thickness" value="1e-2"/>
           <!--Units are in Pa (SI)-->
           <config key="young" value="3e6"/>
         </plugin>
-      </composite>
+      </flexcomp>
     </body>
   </worldbody>
 
   <equality>
-    <connect body1="B0_0_0" anchor="0 0 0" solref="0.0002 1"/>
+    <connect body1="flag_0" anchor="0 0 0"/>
   </equality>
 </mujoco>
 

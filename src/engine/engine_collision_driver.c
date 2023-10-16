@@ -1814,6 +1814,8 @@ void mj_collideFlexSAP(const mjModel* m, mjData* d, int f) {
 
 // test a geom and an elem for collision, add to contact list
 void mj_collideGeomElem(const mjModel* m, mjData* d, int g, int f, int e) {
+  TM_START;
+
   mjtNum margin = mj_assignMargin(m, mju_max(m->geom_margin[g], m->flex_margin[f]));
   int dim = m->flex_dim[f], type = m->geom_type[g];
   int num;
@@ -1927,6 +1929,9 @@ void mj_collideGeomElem(const mjModel* m, mjData* d, int g, int f, int e) {
 
   // move arena pointer back to the end of the contact array
   resetArena(d);
+
+  // add duration without incrementing counter
+  TM_ADD(mjTIMER_COL_NARROW);
 }
 
 
@@ -1934,6 +1939,7 @@ void mj_collideGeomElem(const mjModel* m, mjData* d, int g, int f, int e) {
 // test two elems for collision, add to contact list
 void mj_collideElems(const mjModel* m, mjData* d, int f1, int e1, int f2, int e2) {
   TM_START;
+
   mjtNum margin = mj_assignMargin(m, mju_max(m->flex_margin[f1], m->flex_margin[f2]));
   int dim1 = m->flex_dim[f1], dim2 = m->flex_dim[f2];
   int num;

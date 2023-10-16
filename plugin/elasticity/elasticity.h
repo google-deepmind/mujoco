@@ -31,19 +31,26 @@ struct PairHash
     }
 };
 
+inline mjtNum SquaredDist3(const mjtNum pos1[3], const mjtNum pos2[3]) {
+  mjtNum dif[3] = {pos1[0]-pos2[0], pos1[1]-pos2[1], pos1[2]-pos2[2]};
+  return dif[0]*dif[0] + dif[1]*dif[1] + dif[2]*dif[2];
+}
+
+inline void UpdateSquaredLengths(std::vector<mjtNum>& len,
+                                 const std::vector<std::pair<int, int> >& edges,
+                                 const mjtNum* x) {
+  for (int e = 0; e < len.size(); e++) {
+    const mjtNum* p0 = x + 3*edges[e].first;
+    const mjtNum* p1 = x + 3*edges[e].second;
+    len[e] = SquaredDist3(p0, p1);
+  }
+}
+
 // copied from mjXUtil
 void String2Vector(const std::string& txt, std::vector<int>& vec);
 
 // reads numeric attributes
 bool CheckAttr(const char* name, const mjModel* m, int instance);
-
-// Cartesian distance between 3D vectors
-mjtNum SquaredDist3(const mjtNum pos1[3], const mjtNum pos2[3]);
-
-// updates square lengths of edges
-void UpdateSquaredLengths(std::vector<mjtNum>& len,
-                          const std::vector<std::pair<int, int> >& edges,
-                          const mjtNum* x);
 
 }  // namespace mujoco::plugin::elasticity
 

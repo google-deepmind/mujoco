@@ -537,9 +537,7 @@ void mj_flex(const mjModel* m, mjData* d) {
   // compute lengths and Jacobians of edges
   for (int f=0; f < m->nflex; f++) {
     // skip if edges cannot generate forces
-    if (m->flex_rigid[f] ||
-        (m->flex_edgeequality[f] == 0 &&
-         m->flex_edgestiffness[f] == 0 && m->flex_edgedamping[f] == 0)) {
+    if (m->flex_rigid[f]) {
       continue;
     }
 

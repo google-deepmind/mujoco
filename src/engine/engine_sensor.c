@@ -948,11 +948,11 @@ void mj_energyPos(const mjModel* m, mjData* d) {
     }
   }
 
-  // add flex-level springs
+  // add flex-level springs for dim=1 (dim>1 requires plugins)
   if (!mjDISABLED(mjDSBL_PASSIVE)) {
     for (int i=0; i < m->nflex; i++) {
       stiffness = m->flex_edgestiffness[i];
-      if (m->flex_rigid[i] || stiffness == 0) {
+      if (m->flex_rigid[i] || stiffness == 0 || m->flex_dim[i] > 1) {
         continue;
       }
 

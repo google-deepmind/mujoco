@@ -3765,7 +3765,7 @@ Associate this composite with an :ref:`engine plugin<exPlugin>`. Either :at:`plu
 
 .. _body-flexcomp-euler:
 
-.. _body-flexcomp-selfcollide:
+.. _body-flexcomp-group:
 
 .. _body-flexcomp-flatskin:
 
@@ -3820,6 +3820,15 @@ Associate this composite with an :ref:`engine plugin<exPlugin>`. Either :at:`plu
 .. _flex-contact-gap:
 .. _flexcomp-contact-gap:
 
+.. _flex-contact-internal:
+.. _flexcomp-contact-internal:
+
+.. _flex-contact-selfcollide:
+.. _flexcomp-contact-selfcollide:
+
+.. _flex-contact-activelayers:
+.. _flexcomp-contact-activelayers:
+
 .. _flexcomp-pin:
 
 .. _flexcomp-pin-id:
@@ -3829,6 +3838,12 @@ Associate this composite with an :ref:`engine plugin<exPlugin>`. Either :at:`plu
 .. _flexcomp-pin-grid:
 
 .. _flexcomp-pin-gridrange:
+
+.. _flexcomp-plugin:
+
+.. _flexcomp-plugin-plugin:
+
+.. _flexcomp-plugin-instance:
 
 
 .. _deformable:

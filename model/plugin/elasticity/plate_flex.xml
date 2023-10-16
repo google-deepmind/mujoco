@@ -20,7 +20,7 @@
     <plugin plugin="mujoco.elasticity.shell"/>
   </extension>
 
-  <option solver="CG" tolerance="1e-6"/>
+  <option solver="CG" tolerance="1e-6" integrator="implicitfast"/>
 
   <size memory="10M"/>
 
@@ -38,16 +38,16 @@
     <body mocap="true" pos="-.1 .05 0" zaxis=".5 0 1">
       <geom type="capsule" size=".1 .1" group="1"/>
     </body>
-    <composite type="particle" count="16 16 1" spacing="0.05" offset="0 0 1">
-      <geom size=".02" rgba=".8 .2 .1 1" group="4" density="1000"
-            condim="3" solref="0.01 1" solimp=".95 .99 .0001"/>
-      <skin inflate="0.0001" rgba=".4 0 .3 1" subgrid="1"/>
+    <flexcomp type="grid" count="16 16 1" spacing=".05 .05 .05" pos="0 0 1"
+              radius=".001" mass="100" name="plate">
+      <contact condim="3" solref="0.01 1" solimp=".95 .99 .0001"/>
+      <edge equality="true" damping="0.001"/>
       <plugin plugin="mujoco.elasticity.shell">
         <config key="poisson" value="0"/>
         <config key="thickness" value="1e-2"/>
         <!--Units are in Pa (SI)-->
         <config key="young" value="3e7"/>
       </plugin>
-    </composite>
+    </flexcomp>
   </worldbody>
 </mujoco>
