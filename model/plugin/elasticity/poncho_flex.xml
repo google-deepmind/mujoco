@@ -30,11 +30,15 @@
     <global offwidth="800" offheight="800"/>
   </visual>
 
+  <default>
+    <geom solref="0.003 1"/>
+  </default>
+
   <worldbody>
     <light directional="false" diffuse=".2 .2 .2" specular="0 0 0" pos="0 0 5" dir="0 0 -1"/>
 
     <flexcomp name="f1" type="direct" rgba=".8 .2 .2 1" radius="0.01" dim="2" pos="0 0 2"
-              mass="3"
+              mass="1"
          point="0 0 0
                 -1 1 0
                 -0.875 1 0
@@ -1414,6 +1418,7 @@
                 398 399 418
                 398 376 378">
       <edge equality="true" damping="0.1"/>
+      <contact solref="0.003"/>
       <plugin plugin="mujoco.elasticity.shell">
         <config key="poisson" value="0"/>
         <config key="thickness" value="8e-3"/>

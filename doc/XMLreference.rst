@@ -1321,9 +1321,9 @@ also known as terrain map, is a 2D matrix of elevation data. The data can be spe
 
 .. _asset-hfield-content_type:
 
-:at:`content_type`: :at-val: `string, optional`
+:at:`content_type`: :at-val:`string, optional`
    If the file attribute is specified, then this sets the
-   `Media Type <https://www.iana.org/assignments/media-types/media-types.xhtml>`_ (formerly known as MIME types) of the
+   `Media Type <https://www.iana.org/assignments/media-types/media-types.xhtml>`__ (formerly known as MIME types) of the
    file to be loaded. Any filename extensions will be overloaded.  Currently ``image/png`` and
    ``image/vnd.mujoco.hfield`` are supported.
 
@@ -1576,173 +1576,23 @@ Associate this mesh with an :ref:`engine plugin<exPlugin>`. Either :at:`plugin` 
    Instance name, used for explicit plugin instantiation.
 
 
-
-.. _deformable-skin:
 .. _asset-skin:
 
 :el-prefix:`asset/` |-| **skin** (*)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Skinned meshes (or skins) were added in MuJoCo 2.0. These are deformable meshes whose vertex positions and normals are
-computed each time the model is rendered. MuJoCo skins are only used for visualization and do not affect the physics
-in any way. In particular, collisions involve the geoms of the bodies to which the skin is attached, and not the skin
-itself. Unlike regular meshes which are referenced from geoms and participate in collisions, the skin is not
-referenced from anywhere else in the model. It is a stand-alone asset that is used by renderer and not by the
-simulator.
-
-The skin has vertex positions and normals updated at runtime, and triangle faces and optional texture coordinates
-which are predefined. It also has "bones" used for updating. Bones are regular MuJoCo bodies referenced with the
-:el:`bone` subelement. Each bone has a list of vertex indices and corresponding real-valued weights which specify how
-much the bone position and orientation influence the corresponding vertex. The vertex has local coordinates with
-respect to every bone that influences it. The local coordinates are computed by the model compiler, given global
-vertex coordinates and global bind poses for each body. The bind poses do not have to correspond to the model
-reference configuration qpos0. Note that the vertex positions and bone bind poses provided in the skin definition are
-always global, even if the model itself is defined in local coordinates.
-
-At runtime the local coordinates of each vertex with respect to each bone that influences it are converted to global
-coordinates, and averaged in proportion to the corresponding weights to obtain a single set of 3D coordinates for each
-vertex. Normals then are computed automatically given the resulting global vertex positions and face information.
-Finally, the skin can be inflated by applying an offset to each vertex position along its (computed) normal.
-Skins are one-sided for rendering purposes; this is because back-face culling is needed to avoid shading and aliasing
-artifacts. When the skin is a closed 3D shape this does not matter because the back sides cannot be seen. But if the
-skin is a 2D object, we have to specify both sides and offset them slightly to avoid artifacts. Note that the
-composite objects introduced in MuJoCo 2.0 generate skins automatically. So one can save an XML model with a composite
-object, and obtain an elaborate example of how a skin is specified in the XML.
-
-Similar to meshes, skins can be specified directly in the XML via attributes documented later, or loaded from a binary
-SKN file which is in a custom format. The specification of skins is more complex than meshes because of the bone
-subelements. The file format starts with a header of 4 integers: nvertex, ntexcoord, nface, nbone. The first three are
-the same as in meshes, and specify the total number of vertices, texture coordinate pairs, and triangle faces in the
-skin. ntexcoord can be zero or equal to nvertex. nbone specifies the number of MuJoCo bodies that will be used as
-bones in the skin. The header is followed by the vertex, texcoord and face data, followed by a specification for each
-bone. The bone specification contains the name of the corresponding model body, 3D bind position, 4D bind quaternion,
-number of vertices influenced by the bone, and the vertex index array and weight array. Body names are represented as
-fixed-length character arrays and are expected to be 0-terminated. Characters after the first 0 are ignored. The
-contents of the SKN file are:
-
-.. code:: Text
-
-       (int32)   nvertex
-       (int32)   ntexcoord
-       (int32)   nface
-       (int32)   nbone
-       (float)   vertex_positions[3*nvertex]
-       (float)   vertex_texcoords[2*ntexcoord]
-       (int32)   face_vertex_indices[3*nface]
-       for each bone:
-           (char)    body_name[40]
-           (float)   bind_position[3]
-           (float)   bind_quaternion[4]
-           (int32)   vertex_count
-           (int32)   vertex_index[vertex_count]
-           (float)   vertex_weight[vertex_count]
-
-Similar to the other custom binary formats used in MuJoCo, the file size in bytes is strictly enforced by the model
-compiler. The skin file format has subelements so the overall file size formula is difficult to write down, but should
-be clear from the above specification.
-
-.. _deformable-skin-name:
 .. _asset-skin-name:
-
-:at:`name`: :at-val:`string, optional`
-   Name of the skin.
-
-.. _deformable-skin-file:
 .. _asset-skin-file:
-
-:at:`file`: :at-val:`string, optional`
-   The SKN file from which the skin will be loaded. The path is determined as described in the meshdir attribute of
-   :ref:`compiler <compiler>`. If the file is omitted, the skin specification must be provided in the XML using the
-   attributes below.
-
-.. _deformable-skin-vertex:
 .. _asset-skin-vertex:
-
-:at:`vertex`: :at-val:`real(3*nvert), optional`
-   Vertex 3D positions, in the global bind pose where the skin is defined.
-
-.. _deformable-skin-texcoord:
 .. _asset-skin-texcoord:
-
-:at:`texcoord`: :at-val:`real(2*nvert), optional`
-   Vertex 2D texture coordinates, between 0 and 1. Note that skin and geom texturing are somewhat different. Geoms can
-   use automated texture coordinate generation while skins cannot. This is because skin data are computed directly in
-   global coordinates. So if the material references a texture, one should specify explicit texture coordinates for the
-   skin using this attribute. Otherwise the texture will appear to be stationary in the world while the skin moves
-   around (creating an interesting effect but probably not as intended).
-
-.. _deformable-skin-face:
 .. _asset-skin-face:
-
-:at:`face`: :at-val:`int(3*nface), optional`
-   Trinagular skin faces. Each face is a triple of vertex indices, which are integers between zero and nvert-1.
-
-.. _deformable-skin-inflate:
 .. _asset-skin-inflate:
-
-:at:`inflate`: :at-val:`real, "0"`
-   If this number is not zero, the position of vertex during updating will be offset along the vertex normal, but the
-   distance specified in this attribute. This is particularly useful for skins representing flexible 2D shapes.
-
-.. _deformable-skin-material:
 .. _asset-skin-material:
-
-:at:`material`: :at-val:`string, optional`
-   If specified, this attribute applies a material to the skin.
-
-.. _deformable-skin-rgba:
 .. _asset-skin-rgba:
-
-:at:`rgba`: :at-val:`real(4), "0.5 0.5 0.5 1"`
-   Instead of creating material assets and referencing them, this attribute can be used to set color and transparency
-   only. This is not as flexible as the material mechanism, but is more convenient and is often sufficient. If the value
-   of this attribute is different from the internal default, it takes precedence over the material.
-
-.. _deformable-skin-group:
 .. _asset-skin-group:
 
-:at:`group`: :at-val:`int, "0"`
-   Integer group to which the skin belongs. This attribute can be used for custom tags. It is also used by the
-   visualizer to enable and disable the rendering of entire groups of skins.
-
-
-.. _skin-bone:
-
-:el-prefix:`skin/` |-| **bone** (*)
-'''''''''''''''''''''''''''''''''''
-
-This element defines a bone of the skin. The bone is a regular MuJoCo body which is referenced by name here.
-
-
-.. _skin-bone-body:
-
-:at:`body`: :at-val:`string, required`
-   Name of the body corresponding to this bone.
-
-.. _skin-bone-bindpos:
-
-:at:`bindpos`: :at-val:`real(3), required`
-   Global body position corresponding to the bind pose.
-
-.. _skin-bone-bindquat:
-
-:at:`bindquat`: :at-val:`real(4), required`
-   Global body orientation corresponding to the bind pose.
-
-.. _skin-bone-vertid:
-
-:at:`vertid`: :at-val:`int(nvert), required`
-   Integer indices of the vertices influenced by this bone. The vertex index corresponds to the order of the vertex in
-   the skin mesh. The number of vertex indices specified here (nvert) must equal the number of vertex weights specified
-   with the next attribute. The same vertex may be influenced by multiple bones, and each vertex must be influenced by
-   at least one bone.
-
-.. _skin-bone-vertweight:
-
-:at:`vertweight`: :at-val:`real(nvert), required`
-   Weights for the vertices influenced by this bone, in the same order as the vertex indices. Negative weights are
-   allowed (which is needed for cubic interpolation for example) however the sum of all bone weights for a given vertex
-   must be positive.
+:ref:`Skins<deformable-skin>` have been moved under the new grouping element :ref:`deformable<deformable>`. They can
+still be specified here but this functionality is now deprecated and will be removed in the future.
 
 
 .. _asset-material:
@@ -1750,7 +1600,7 @@ This element defines a bone of the skin. The bone is a regular MuJoCo body which
 :el-prefix:`asset/` |-| **material** (*)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-This element creates a material asset. It can be referenced from :ref:`skins <asset-skin>`, :ref:`geoms <body-geom>`,
+This element creates a material asset. It can be referenced from :ref:`skins <deformable-skin>`, :ref:`geoms <body-geom>`,
 :ref:`sites <body-site>` and :ref:`tendons <tendon>` to set their appearance. Note that all these elements also have a
 local rgba attribute, which is more convenient when only colors need to be adjusted, because it does not require
 creating materials and referencing them. Materials are useful for adjusting appearance properties beyond color. However
@@ -1920,19 +1770,17 @@ adjust it properly through the XML.
 
 :at:`o_margin`: :at-val:`real, "0"`
    This attribute replaces the margin parameter of all active contact pairs when :ref:`Contact override <COverride>` is
-   enabled. Otherwise MuJoCo uses the element-specific margin attribute of :ref:`geom <body-geom>` or :ref:`pair
-   <contact-pair>` depending on how the contact pair was generated. See also :ref:`Collision` in the Computation
-   chapter. The related gap parameter does not have a global override.
+   enabled. Otherwise MuJoCo uses the element-specific margin attribute of :ref:`geom<body-geom>` or
+   :ref:`pair<contact-pair>` depending on how the contact pair was generated. See also :ref:`Collision` in the
+   Computation chapter. The related gap parameter does not have a global override.
 
 .. _option-o_solref:
-
 .. _option-o_solimp:
-
 .. _option-o_friction:
 
 :at:`o_solref`, :at:`o_solimp`, :at:`o_friction`
-   These attributes replace the solref, solimp, and friction parameters of all active contact pairs when contact
-   override is enabled. See :ref:`CSolver` for details.
+   These attributes replace the solref, solimp and friction parameters of all active contact pairs when contact override is
+   enabled. See :ref:`CSolver` for details.
 
 .. _option-integrator:
 
@@ -3714,171 +3562,344 @@ Associate this composite with an :ref:`engine plugin<exPlugin>`. Either :at:`plu
    Instance name, used for explicit plugin instantiation.
 
 
+
 .. _body-flexcomp:
 
-:el-prefix:`body/` |-| **flex** (*)
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+:el-prefix:`body/` |-| **flexcomp** (*)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-.. _body-flexcomp-name:
+Similar to :el:`composite`, this element (new in MuJoCo 3.0) is not a model element, but rather a macro which expands
+into multiple model elements representing a deformable entity. In particular this macro creates one
+:ref:`flex<deformable-flex>` element, a number of bodies that are children of the body in which the :el:`flexcomp` is
+defined, and optionally one :ref:`flex equality<equality-flex>` which constrains all flex edges to their initial length.
+A number of attributes are specified here and then passed through to the automatically-constructed flex. The primary
+role of :el:`flexcomp` is to automate the creation of a (possibly large) collection of moving bodies with corresponding
+joints, and connect them with stretchable flex elements. See :ref:`flex<deformable-flex>` and :ref:`deformable
+objects<CDeformable>` documentation for specifics on how flexes work. Here we only describe the automated construction
+process.
+
+An important distinction between :el:`flex` and :el:`flexcomp` is that the flex references bodies and specifies vertex
+coordinates in the frames of those bodies, while the flexcomp defines *points*. Each flexcomp point corresponds to one
+body and one vertex in the underlying flex. If the flexcomp point is *pinned*, the corresponding flex body is the parent
+body of the flexcomp, while the corresponding flex vertex coordinates equal the flexcomp point coordinates. If the
+flexcomp point is not pinned, a new child body is created at the coordinates of the flexcomp point (within the flexcomp
+parent body), and then the coordinates of the flex vertex within that new body are (0,0,0). The mechanism for
+:ref:`pinning<flexcomp-pin>` flexcomp points is explained below.
+
+Composite objects (available prior to MuJoCo 3.0) needed bodies with geoms for collisions, and sites for connecting
+tendons which generated shape-preserving forces. In contrast, flexes generate their own collisions and shape-preserving
+forces (as well as rendering), thus the bodies created here are much simpler: no geoms, sites or tendons are needed.
+Most of the bodies created here have 3 orthogonal slider joints, corresponding to freely moving point masses. In some
+cases we generate radial slider joints, allowing only expansion and contraction. Since no geoms are generated, the
+bodies need to have explicit inertial parameters.
+
+Below is a simple example of a flexcomp, modeling a (somewhat flexible) double pendulum with one end pinned to the
+world:
+
+.. code-block:: xml
+
+   <mujoco>
+     <worldbody>
+       <flexcomp name="FL" type="grid" dim="1" count="3 1 1" mass="3" spacing="0.2 0.2 0.2">
+         <pin id="0"/>
+       </flexcomp>
+     </worldbody>
+   </mujoco>
+
+This flexcomp has 3 points, however the first point is pinned to the world (i.e. the parent of the flexcomp) and so only
+two bodies are automatically created, namely FL_1 and FL_2. Here is what this flexcomp generates after loading and
+saving the XML:
+
+.. code-block:: xml
+
+   <mujoco>
+     <worldbody>
+       <body name="FL_1">
+         <inertial pos="0 0 0" mass="1" diaginertia="1.66667e-05 1.66667e-05 1.66667e-05"/>
+         <joint pos="0 0 0" axis="1 0 0" type="slide"/>
+         <joint pos="0 0 0" axis="0 1 0" type="slide"/>
+         <joint pos="0 0 0" axis="0 0 1" type="slide"/>
+       </body>
+       <body name="FL_2" pos="0.2 0 0">
+         <inertial pos="0 0 0" mass="1" diaginertia="1.66667e-05 1.66667e-05 1.66667e-05"/>
+         <joint pos="0 0 0" axis="1 0 0" type="slide"/>
+         <joint pos="0 0 0" axis="0 1 0" type="slide"/>
+         <joint pos="0 0 0" axis="0 0 1" type="slide"/>
+       </body>
+     </worldbody>
+     <deformable>
+       <flex name="FL" dim="1" body="world FL_1 FL_2" vertex="-0.2 0 0 0 0 0 0 0 0" element="0 1 1 2"/>
+     </deformable>
+     <equality>
+       <flex flex="FL"/>
+     </equality>
+   </mujoco>
+
 
 .. _body-flexcomp-class:
 
-.. _body-flexcomp-type:
+:at:`class`: :at-val:`string, optional`
+   Defaults class for setting unspecified attributes.
+
+.. _body-flexcomp-name:
+
+:at:`name`: :at-val:`string, required`
+   The name of the flex element being generated automatically. This name is used as a prefix for all bodies that are
+   automatically generated here, and is also referenced by the corresponding flex equality constraint (if applicable).
 
 .. _body-flexcomp-dim:
 
+:at:`dim`: :at-val:`int(1), "2"`
+   Dimensionality of the flex object. This value must be 1, 2 or 3. The flex elements are capsules in 1D, triangles with
+   radius in 2D, and tetrahedra with radius in 3D. Certain flexcomp types imply a dimensionality, in which case the
+   value specified here is ignored.
+
+.. _body-flexcomp-type:
+
+:at:`type`: :at-val:`[grid, box, cylinder, ellipsoid, mesh, gmsh, direct], "grid"`
+   This attribute determines the type of :el:`flexcomp` object. The remaining attributes and sub-elements are then
+   interpreted according to the type. Default settings are also adjusted depending on the type. Different types
+   correspond to different methods for specifying the flexcomp points and the stretchable elements that connect them.
+   They fall in three categories: direct specification entered in the XML, direct specification loaded from file, and
+   automated generation from higher-level specification.
+
+   **grid** generates a rectangular grid of points in 1D, 2D or 3D as specified by :at:`dim`. The number of points in
+   each dimension is determined by :at:`count` while the grid spacing in each dimension is determined by :at:`spacing`.
+   Make sure the spacing is sufficiently large relative to :at:`radius` to avoid permanent contacts. In 2D and 3D the
+   grid is automatically triangulated, and corresponding flex elements are created (triangles or tetrahedra). In 1D the
+   elements are capsules connecting consecutive pairs of points.
+
+   **box** generates a 3D box object, however flex bodies are only generated on the outer shell. Each flex body has a
+   radial slider joint allowing it to move in and out from the center of the box. The parent body would normally be a
+   floating body. The box surface is triangulated, and each flex element is a tetrahedron connecting the center of the
+   box with one triangle face. :at:`count` and :at:`spacing` determine the count and spacing of the flex bodies, similar
+   to the **grid** type in 3D. Note that the resulting flex has the same topology as the box generated by
+   :el:`composite`.
+
+   **cylinder** is the same as **box**, except the points are projected on the surface of a cylinder.
+
+   **ellipsoid** is the same as **box**, except the points are projected on the surface of an ellipsoid.
+
+   **mesh** loads the flexcomp points and elements (i.e. triangles) from a mesh file, in the same file formats as mesh
+   assets. A mesh asset is not actually added to the model. Instead the vertex and face data from the mesh file are used
+   to populate the point and element data of the flexcomp. :at:`dim` is automatically set to 2. Recall that a mesh asset
+   in MuJoCo can be used as a rigid geom attached to a single body. In contrast, the flex generated here corresponds to
+   a soft mesh with the same initial shape, where each vertex is a separate moving body (unless pinned).
+
+   **gmsh** is similar to mesh, but it loads a `GMSH file <https://gmsh.info//doc/texinfo/gmsh.html#MSH-file-format>`__
+   in format 4.1 (ascii or binary). The file extension can be anything; the parser recognizes the format by examining
+   the file header. This is a very rich file format, allowing all kinds of elements with different dimensionality and
+   topology. MuJoCo only supports GMSH element types 1, 2, 4 which happen to correspond to our 1D, 2D and 3D flexes.
+   Only the Nodes and Elements sections of the GMHS file are processed, and used to populate the point and element data
+   of the flexcomp. The parser will generate an error if the GMSH file contains meshes that are not supported by MuJoCo.
+   :at:`dim` is automatically set to the dimensionality specified in the GMSH file. Presently this is the only mechanism
+   to load a large tetrahedral mesh in MuJoCo and generate a corresponding soft entity. If such a mesh is available in a
+   different file format, use the freely available `GMSH software <https://gmsh.info/>`__ to convert it to GMSH 4.1.
+
+   **direct** allows the user to specify the point and element data of the flexcomp directly in the XML. Note that
+   flexcomp will still generate moving bodies automatically, as well as automate other settings; so it still provides
+   convenience compared to specifing the corresponding flex directly.
+
 .. _body-flexcomp-count:
+
+:at:`count`: :at-val:`int(3), "10 10 10"`
+   The number of automatically generated points in each dimension. This and the next attribute only apply to types grid,
+   box, cylinder, ellipsoid.
 
 .. _body-flexcomp-spacing:
 
-.. _body-flexcomp-radius:
-
-.. _body-flexcomp-rigid:
-
-.. _body-flexcomp-mass:
-
-.. _body-flexcomp-inertiabox:
-
-.. _body-flexcomp-scale:
-
-.. _body-flexcomp-file:
+:at:`spacing`: :at-val:`real(3), "0.02 0.02 0.02"`
+   The spacing between the automatically generated points in each dimension. The spacing should be sufficiently large
+   compared to the radius, to avoid permanent contacts.
 
 .. _body-flexcomp-point:
 
+:at:`point`: :at-val:`real(3*npoint), optional`
+
+   The 3D coordinates of the points. This attribute is only used with type **direct**. All other flexcomp types generate
+   their own points. The points are used to construct bodies and vertices as explained earlier.
+
 .. _body-flexcomp-element:
 
-.. _body-flexcomp-material:
+:at:`element`: :at-val:`int((dim+1)*npoint), optional`
 
-.. _body-flexcomp-rgba:
+   The zero-based point ids forming each flex elements. This attribute is only used with type **direct**. All other
+   flexcomp types generate their own elements. This data is passed through to the automatically-generated flex.
 
 .. _body-flexcomp-texcoord:
 
+:at:`texcoord`: :at-val:`real(2*npoint), optional`
+
+   Texture coordinates of each point, passed through to the automatically-generated flex. Note that flexcomp does not
+   generate texture coordinates automatically, except for 2D grids. For all other types, the user can specify explicit
+   texture coordinates here, even if the points themselves were generated automatically. This requires understanding of
+   the layout of the automatically-generated points and how they correspond to the texture referenced by the material.
+
+.. _body-flexcomp-mass:
+
+:at:`mass`: :at-val:`real(1), "1"`
+   The mass of each automatically-generated body equals this value divided by the number of points. Note that pinning
+   some points does not affect the mass of the other bodies.
+
+.. _body-flexcomp-inertiabox:
+
+:at:`inertiabox`: :at-val:`real(1), "0.005"`
+   Even though the automatically-generated bodies have the physics of point masses, with slider joints, MuJoCo still
+   requires each body to have rotational inertia. The inertias generated here are diagonal, and are computed such that
+   the corresponding equivalent-inertia boxes have sides equal to this value.
+
+.. _body-flexcomp-file:
+
+:at:`file`: :at-val:`string, optional`
+   The name of the file from which a **mesh** or a **gmsh** is loaded. For mesh, the file extentsion is used to
+   determine the file format. Supported formats are the same as in :ref:`mesh assets<asset-mesh>`. For gmsh, the file is
+   expected to be in GMSH format 4.1, ascii or binary.
+
+.. _body-flexcomp-rigid:
+
+:at:`rigid`: :at-val:`[true, false], "false"`
+   If this is true, all points correspond to vertices within the parent body, and no new bodies are created. This is
+   equivalent to pinning all points. Note that if all points are indeed pinned, the model compiler will detect that the
+   flex is rigid (which behaves is a non-convex mesh in collision detection).
+
 .. _body-flexcomp-pos:
+
+:at:`pos`: :at-val:`real(3), "0 0 0"`
+   This 3D vector translates all points relative to the frame of the parent body.
 
 .. _body-flexcomp-quat:
 
+:at:`quat`: :at-val:`real(4), "1 0 0 0"`
+   This is a quaternion rotation of all points around the :at:`pos` vector specified above. Together these two vectors
+   define a pose transformation, used to position and orient the points as needed.
+
 .. _body-flexcomp-axisangle:
-
 .. _body-flexcomp-xyaxes:
-
 .. _body-flexcomp-zaxis:
-
 .. _body-flexcomp-euler:
 
-.. _body-flexcomp-group:
+:at:`axisangle`, :at:`xyaxes`, :at:`zaxis`, :at:`euler`
 
+   Alternative specification of rotation, that can be used instead of :at:`quat`.
+
+.. _body-flexcomp-scale:
+
+:at:`scale`: :at-val:`real(3), "1 1 1"`
+   Scaling of all point coordinates, for types that specify coordinates explicitly. Scaling is applied after the pose
+   transformation.
+
+.. _body-flexcomp-radius:
+.. _body-flexcomp-material:
+.. _body-flexcomp-rgba:
+.. _body-flexcomp-group:
 .. _body-flexcomp-flatskin:
 
-.. _flex-edge:
-.. _flexcomp-edge:
+:at:`radius`, :at:`material`, :at:`rgba`, :at:`group`, :at:`flatskin`
 
-.. _flex-edge-equality:
-.. _flexcomp-edge-equality:
+These attributes are directly passed through to the automatically-generated :ref:`flex<deformable-flex>` object and have
+the same meaning.
 
-.. _flex-edge-solref:
-.. _flexcomp-edge-solref:
-
-.. _flex-edge-solimp:
-.. _flexcomp-edge-solimp:
-
-.. _flex-edge-stiffness:
-.. _flexcomp-edge-stiffness:
-
-.. _flex-edge-damping:
-.. _flexcomp-edge-damping:
-
-.. _flex-contact:
 .. _flexcomp-contact:
 
-.. _flex-contact-contype:
+:el-prefix:`flexcomp/` |-| **contact** (*)
+''''''''''''''''''''''''''''''''''''''''''
+
+.. _flexcomp-contact-internal:
+.. _flexcomp-contact-selfcollide:
+.. _flexcomp-contact-activelayers:
 .. _flexcomp-contact-contype:
-
-.. _flex-contact-conaffinity:
 .. _flexcomp-contact-conaffinity:
-
-.. _flex-contact-condim:
 .. _flexcomp-contact-condim:
-
-.. _flex-contact-priority:
 .. _flexcomp-contact-priority:
-
-.. _flex-contact-friction:
 .. _flexcomp-contact-friction:
-
-.. _flex-contact-solmix:
 .. _flexcomp-contact-solmix:
-
-.. _flex-contact-solref:
 .. _flexcomp-contact-solref:
-
-.. _flex-contact-solimp:
 .. _flexcomp-contact-solimp:
-
-.. _flex-contact-margin:
 .. _flexcomp-contact-margin:
-
-.. _flex-contact-gap:
 .. _flexcomp-contact-gap:
 
-.. _flex-contact-internal:
-.. _flexcomp-contact-internal:
+:at:`internal`, :at:`selfcollide`, :at:`activelayers`, :at:`contype`, :at:`conaffinity`, :at:`condim`, :at:`priority`,
+:at:`friction`, :at:`solmix`, :at:`solimp`, :at:`margin`, :at:`gap`
 
-.. _flex-contact-selfcollide:
-.. _flexcomp-contact-selfcollide:
+Same as in :ref:`flex/contact<flex-contact>`. All attributes are passed through to the automatically-generated flex.
 
-.. _flex-contact-activelayers:
-.. _flexcomp-contact-activelayers:
+.. _flexcomp-edge:
+
+:el-prefix:`flexcomp/` |-| **edge** (*)
+'''''''''''''''''''''''''''''''''''''''
+
+Each flex element has one edge in 1D (coinciding with the capsule element), three edges in 2D, and six edges in 3D. The
+edges are generated automatically when the flex element is compiled, and the user cannot specify them directly. This
+element is used to adjust the properties of all edges in the flex.
+
+.. _flexcomp-edge-equality:
+
+:at:`equality`: :at-val:`[true, false], "false"`
+   When enabled, an equality constraint of :ref:`type flex<equality-flex>` is added to the model, referencing the
+   automatically-generated flex by name.
+
+.. _flexcomp-edge-solref:
+.. _flexcomp-edge-solimp:
+
+:at:`solref`, :at:`solimp`
+   The standard constraint parameters, passed through to the automatically generated equality constraint.
+
+.. _flexcomp-edge-stiffness:
+.. _flexcomp-edge-damping:
+
+:at:`stiffness`, :at:`damping`
+   Edge stiffness and damping, passed through to the automatically generated flex.
+
 
 .. _flexcomp-pin:
 
+:el-prefix:`flexcomp/` |-| **pin** (*)
+''''''''''''''''''''''''''''''''''''''
+
+Each point is either pinned or not pinned. The effect of pinning was explained earlier. This element is used to specify
+which points are pinned. Note that each attribute below can be used to specify multiple pins, and in addition to that,
+the :el:`pin` element itself can be repeated for user convenience. The effects are cumulative; pinning the same point
+multiple times is allowed.
+
 .. _flexcomp-pin-id:
+
+:at:`id`: :at-val:`int(n), required`
+   Zero-based ids of points to pin. When the points are automatically-generaged, the user needs to understand their
+   layout in order to decide which points to pin. This can be done by first creating a flexcomp without any pins,
+   loading it in the simulator, and showing the body labels.
 
 .. _flexcomp-pin-range:
 
+:at:`range`: :at-val:`int(2*n), required`
+   Ranges of points to pin. Each range is specified by two integers.
+
 .. _flexcomp-pin-grid:
+
+:at:`grid`: :at-val:`int(dim*n), required`
+   Grid coordinates of points to pin. This can only be used with type grid.
 
 .. _flexcomp-pin-gridrange:
 
+:at:`gridrange`: :at-val:`int(2*dim*n), required`
+   Ranges of grid coordinates of points to pin. Each range is specified by (dim) integers for the minimum of the range
+   followed by (dim) integers for the maximum of the range. This can only be used with type grid.
+
 .. _flexcomp-plugin:
+
+:el-prefix:`flexcomp/` |-| **plugin** (?)
+'''''''''''''''''''''''''''''''''''''''''
+
+Associate this flexcomp with an :ref:`engine plugin<exPlugin>`. Either :at:`plugin` or :at:`instance` are required.
 
 .. _flexcomp-plugin-plugin:
 
+:at:`plugin`: :at-val:`string, optional`
+   Plugin identifier, used for implicit plugin instantiation.
+
 .. _flexcomp-plugin-instance:
 
-
-.. _deformable:
-
-.. _deformable-flex:
-
-.. _deformable-flex-name:
-
-.. _deformable-flex-group:
-
-.. _deformable-flex-material:
-
-.. _deformable-flex-radius:
-
-.. _deformable-flex-rgba:
-
-.. _deformable-flex-texcoord:
-
-.. _deformable-flex-flatskin:
-
-.. _deformable-flex-selfcollide:
-
-.. _deformable-flex-dim:
-
-.. _deformable-flex-body:
-
-.. _deformable-flex-vertex:
-
-.. _deformable-flex-element:
-
-
-
-**deformable** (*)
-~~~~~~~~~~~~~~~~~~
-
+:at:`instance`: :at-val:`string, optional`
+   Instance name, used for explicit plugin instantiation.
 
 .. _contact:
 
@@ -3999,6 +4020,342 @@ the :ref:`pair <contact-pair>` element above are checked for collisions.
    The name of the second body in the pair.
 
 
+.. _deformable:
+
+**deformable** (*)
+~~~~~~~~~~~~~~~~~~
+
+This is a grouping element and does not have any attributes. It groups elements that specify deformable objects, namely flexes and skins.
+
+
+.. _deformable-flex:
+
+:el-prefix:`deformable/` |-| **flex** (*)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Flexible objects (or flexes) were added in MuJoCo 3.0. These are collections of massless stretchable geometric elements
+(capsules, triangles or tetrahedra) connecting vertices that are defined within different moving body frames. These
+stretchable elements support collisions and contact forces, which are then distributed to all the interconnected bodies.
+Flexes also generate passive and constraint forces as needed to simulate deformable entities with the desired material
+properties. The modeling of flexes is automated and simplified by the :ref:`flexcomp<body-flexcomp>` element. In most
+cases, the user will specify a :el:`flexcomp` which will then automatically construct the corresponding low-level
+:el:`flex`. See :ref:`deformable objects<CDeformable>` for additional information.
+
+.. _deformable-flex-name:
+
+:at:`name`: :at-val:`string, optional`
+   Name of the flex.
+
+.. _deformable-flex-dim:
+
+:at:`dim`: :at-val:`int, "2"`
+   Dimensionality of the flex. Allowed values are 1, 2 and 3. In 1D the elements are capsules, in 2D the elements are
+   triangles with radius, in 3D the elements are tetrahedra with (optional) radius.
+
+.. _deformable-flex-radius:
+
+:at:`radius`: :at-val:`real, "0.005"`
+   Radius of all flex elements. It can be zero in 3D, but must be positive in 1D and 2D. The radius affects both
+   collision detection and rendering. In 1D and 2D it is needed to make the elements volumetric.
+
+.. _deformable-flex-body:
+
+:at:`body`: :at-val:`string(nvert or 1), required`
+   An array of MuJoCo body names (separated by white space) to which each vertex belongs. The number of body names
+   should either equal the number of vertices (nvert), or be a single body. If a single body is specified, all vertices
+   are defined within that body - in which case the flex becomes a rigid body. The latter functionality effectively
+   creates a general non-convex mesh (unlike mesh geoms which are convexified for collision detection purposes).
+
+.. _deformable-flex-vertex:
+
+:at:`vertex`: :at-val:`real(3*nvert), optional`
+   The local coordinates of the vertices within the corresponding body frames. If this attribute is omitted, all
+   coordinates are (0,0,0) or in other words, the vertices coincide with the centers of the body frames.
+
+.. _deformable-flex-texcoord:
+
+:at:`texcoord`: :at-val:`real(2*nvert), optional`
+   Texture coordinates for each vertex. If omitted, texture mapping for this flex is disabled, even if a texture is
+   specified in the material.
+
+.. _deformable-flex-element:
+
+:at:`element`: :at-val:`int((dim+1)*nelem), required`
+   For each element of the flex, this lists the zero-based indices of the vertices forming that flex element. We need
+   two vertices to specify a capsule, three vertices to specify a triangle, and four vertices to specify a tetrahedron -
+   which is why the number of indices equals (dim+1) times the number of elements. In 2D, the vertices should be listed
+   in counter-clockwise order. In 1D and 3D the order is irrelevant; in 3D the model compiler will rearrange the
+   vertices as needed. Repeated vertex indices within a flex element are not allowed. The topology of the flex is not
+   enforced; it could corespond to a continuous soft body, or a collection of disconnected stretchable elements, or
+   anything in-between.
+
+.. _deformable-flex-flatskin:
+
+:at:`flatskin`: :at-val:`[true, false], "false"`
+   This attribute determines whether 2D and 3D flexes that are rendered in flexskin mode will use smooth or flat
+   shading. The default smooth shading is suitable in most cases, however if the object is intended to have visible
+   sharp edges (such as a cube) then flat shading is more natural.
+
+.. _deformable-flex-material:
+
+:at:`material`: :at-val:`string, optional`
+   If specified, this attribute applies a :ref:`material<asset-material>` to the flex. Note that textures specified in
+   the material will be applied only if the flex has explicit texture coordinates.
+
+.. _deformable-flex-rgba:
+
+:at:`rgba`: :at-val:`real(4), "0.5 0.5 0.5 1"`
+   Instead of creating material assets and referencing them, this attribute can be used to set color and transparency
+   only. This is not as flexible as the material mechanism, but is more convenient and is often sufficient. If the value
+   of this attribute is different from the internal default, it takes precedence over the material.
+
+.. _deformable-flex-group:
+
+:at:`group`: :at-val:`int, "0"`
+   Integer group to which the flex belongs. This attribute can be used for custom tags. It is also used by the
+   visualizer to enable and disable the rendering of entire groups of flexes.
+
+
+.. _flex-edge:
+
+:el-prefix:`flex/` |-| **edge** (?)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+This element adjusts the passive or constraint properties of all edges of the flex. A flex edge can have a damping
+passive force and an :ref:`equality constraint<equality-flex>` associated with it, resulting in edge constraint forces.
+In the latter case, passive forces are usually unnecessary. For a 1D flex, an edge can also have a passive stiffness,
+while ``Solid`` or ``Membrane`` first-party plugins can be used for the 2D and 3D case, respectively. which would
+generally make edge constraints unnecessary. However these are modeling choices left to the user. MuJoCo allows all
+these mechanisms to be combined as desired.
+
+.. _flex-edge-stiffness:
+
+:at:`stiffness`: :at-val:`real(1), "0"`
+   Stiffness of all edges. Only for 1D flex. For 2D and 3D, plugins must be used.
+
+.. _flex-edge-damping:
+
+:at:`damping`: :at-val:`real(1), "0"`
+   Damping of all edges.
+
+.. _flex-contact:
+
+:el-prefix:`flex/` |-| **contact** (?)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+This element adjusts the contact properties of the flex. It is mostly identical to geom contact properties, with some
+extensions specific to flexes.
+
+.. _flex-contact-internal:
+
+:at:`internal`: :at-val:`[true, false], "true"`
+   Enables or disables internal collisions which prevent flex self-penetration and element inversion. Note that flex
+   elements that have shared vertices cannot collide (or else there will be permanent contacts). In 1D and 2D, internal
+   collision checks rely on predefined vertex-element pairs, where the vertex is treated as a sphere with the same
+   radius as the flex. These spheres correspond to non-shared vertices of neighboring elements on the periphery of the
+   flex. The pre-defined vertex-element pairs are generated by the model compiler automatically. In 3D, internal
+   collision checks are performed within each tetraheron: each vertex is collided with the plane corresponding to the
+   opposing triangle face (again using the flex radius). The resulting contacts are always created with condim 1, gap 0,
+   margin 0.
+
+.. _flex-contact-selfcollide:
+
+:at:`selfcollide`: :at-val:`[none, narrow, bvh, sap, auto], "auto"`
+   This determines the strategy for midphase collision pruning of element pairs belonging to the same flex. **none**
+   means flex elements cannot collide with each other. **narrow** means narrow phase only (i.e. all pairs are checked).
+   This is a diagnostic tool and is never a good idea in practice. **bvh** and **sap** refer to bounding volume
+   hierarchies and sweep-and-prune (which are two different strategies for midphase collision pruning). **auto** selects
+   **sap** in 1D and 2D, and **bvh** in 3D. Which strategy performs better depends on the specifics of the model. The
+   automatic setting is just a simple rule which we have found to perform well in general.
+
+.. _flex-contact-activelayers:
+
+:at:`activelayers`: :at-val:`int(1), "1"`
+   This only has an effect for 3D flexes. Each tetrahedron is labeled by the model compiler with an integer
+   corresponding to (graph) distance to the outside surface of the flex. Thus outside-facing elements are in layer 0,
+   their neighbors are in layer 1, etc. This attribute specifies how many layers will be allowed to participate in
+   collisions. The default setting 1 means that only one layer (i.e. layer 0) can collide, with itself and with the rest
+   of the world. This is usually sufficient, however if the outer layer is composed of small tetrahedra, another body
+   can "pierce" it and get stuck. In that case the value should be increased.
+
+
+.. _flex-contact-contype:
+.. _flex-contact-conaffinity:
+.. _flex-contact-condim:
+.. _flex-contact-priority:
+.. _flex-contact-friction:
+.. _flex-contact-solmix:
+.. _flex-contact-solref:
+.. _flex-contact-solimp:
+.. _flex-contact-margin:
+.. _flex-contact-gap:
+
+.. |deformable/flex/contact attrib list| replace::
+   :at:`contype`, :at:`conaffinity`, :at:`condim`, :at:`priority`, :at:`friction`,
+   :at:`solmix`, :at:`solref`, :at:`solimp`, :at:`margin`, :at:`gap`
+
+|deformable/flex/contact attrib list|
+   Same meaning as regular :ref:`geom <body-geom>` attributes.
+
+
+.. _deformable-skin:
+
+:el-prefix:`deformable/` |-| **skin** (*)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+These are deformable meshes whose vertex positions and normals are computed each time the model is rendered. MuJoCo
+skins are only used for visualization and do not affect the physics in any way. In particular, collisions involve the
+geoms of the bodies to which the skin is attached, and not the skin itself. Unlike regular meshes which are referenced
+from geoms and participate in collisions, the skin is not referenced from anywhere else in the model. It is a
+stand-alone element that is used by renderer and not by the simulator.
+
+The skin has vertex positions and normals updated at runtime, and triangle faces and optional texture coordinates
+which are predefined. It also has "bones" used for updating. Bones are regular MuJoCo bodies referenced with the
+:el:`bone` subelement. Each bone has a list of vertex indices and corresponding real-valued weights which specify how
+much the bone position and orientation influence the corresponding vertex. The vertex has local coordinates with
+respect to every bone that influences it. The local coordinates are computed by the model compiler, given global
+vertex coordinates and global bind poses for each body. The bind poses do not have to correspond to the model
+reference configuration qpos0. Note that the vertex positions and bone bind poses provided in the skin definition are
+always global, even if the model itself is defined in local coordinates.
+
+At runtime the local coordinates of each vertex with respect to each bone that influences it are converted to global
+coordinates, and averaged in proportion to the corresponding weights to obtain a single set of 3D coordinates for each
+vertex. Normals then are computed automatically given the resulting global vertex positions and face information.
+Finally, the skin can be inflated by applying an offset to each vertex position along its (computed) normal.
+Skins are one-sided for rendering purposes; this is because back-face culling is needed to avoid shading and aliasing
+artifacts. When the skin is a closed 3D shape this does not matter because the back sides cannot be seen. But if the
+skin is a 2D object, we have to specify both sides and offset them slightly to avoid artifacts. Note that the
+composite objects introduced in MuJoCo 2.0 generate skins automatically. So one can save an XML model with a composite
+object, and obtain an elaborate example of how a skin is specified in the XML.
+
+Similar to meshes, skins can be specified directly in the XML via attributes documented later, or loaded from a binary
+SKN file which is in a custom format. The specification of skins is more complex than meshes because of the bone
+subelements. The file format starts with a header of 4 integers: nvertex, ntexcoord, nface, nbone. The first three are
+the same as in meshes, and specify the total number of vertices, texture coordinate pairs, and triangle faces in the
+skin. ntexcoord can be zero or equal to nvertex. nbone specifies the number of MuJoCo bodies that will be used as
+bones in the skin. The header is followed by the vertex, texcoord and face data, followed by a specification for each
+bone. The bone specification contains the name of the corresponding model body, 3D bind position, 4D bind quaternion,
+number of vertices influenced by the bone, and the vertex index array and weight array. Body names are represented as
+fixed-length character arrays and are expected to be 0-terminated. Characters after the first 0 are ignored. The
+contents of the SKN file are:
+
+.. code:: Text
+
+       (int32)   nvertex
+       (int32)   ntexcoord
+       (int32)   nface
+       (int32)   nbone
+       (float)   vertex_positions[3*nvertex]
+       (float)   vertex_texcoords[2*ntexcoord]
+       (int32)   face_vertex_indices[3*nface]
+       for each bone:
+           (char)    body_name[40]
+           (float)   bind_position[3]
+           (float)   bind_quaternion[4]
+           (int32)   vertex_count
+           (int32)   vertex_index[vertex_count]
+           (float)   vertex_weight[vertex_count]
+
+Similar to the other custom binary formats used in MuJoCo, the file size in bytes is strictly enforced by the model
+compiler. The skin file format has subelements so the overall file size formula is difficult to write down, but should
+be clear from the above specification.
+
+.. _deformable-skin-name:
+
+:at:`name`: :at-val:`string, optional`
+   Name of the skin.
+
+.. _deformable-skin-file:
+
+:at:`file`: :at-val:`string, optional`
+   The SKN file from which the skin will be loaded. The path is determined as described in the meshdir attribute of
+   :ref:`compiler <compiler>`. If the file is omitted, the skin specification must be provided in the XML using the
+   attributes below.
+
+.. _deformable-skin-vertex:
+
+:at:`vertex`: :at-val:`real(3*nvert), optional`
+   Vertex 3D positions, in the global bind pose where the skin is defined.
+
+.. _deformable-skin-texcoord:
+
+:at:`texcoord`: :at-val:`real(2*nvert), optional`
+   Vertex 2D texture coordinates, between 0 and 1. Note that skin and geom texturing are somewhat different. Geoms can
+   use automated texture coordinate generation while skins cannot. This is because skin data are computed directly in
+   global coordinates. So if the material references a texture, one should specify explicit texture coordinates for the
+   skin using this attribute. Otherwise the texture will appear to be stationary in the world while the skin moves
+   around (creating an interesting effect but probably not as intended).
+
+.. _deformable-skin-face:
+
+:at:`face`: :at-val:`int(3*nface), optional`
+   Trinagular skin faces. Each face is a triple of vertex indices, which are integers between zero and nvert-1.
+
+.. _deformable-skin-inflate:
+
+:at:`inflate`: :at-val:`real, "0"`
+   If this number is not zero, the position of vertex during updating will be offset along the vertex normal, but the
+   distance specified in this attribute. This is particularly useful for skins representing flexible 2D shapes.
+
+.. _deformable-skin-material:
+
+:at:`material`: :at-val:`string, optional`
+   If specified, this attribute applies a material to the skin.
+
+.. _deformable-skin-rgba:
+
+:at:`rgba`: :at-val:`real(4), "0.5 0.5 0.5 1"`
+   Instead of creating material assets and referencing them, this attribute can be used to set color and transparency
+   only. This is not as flexible as the material mechanism, but is more convenient and is often sufficient. If the value
+   of this attribute is different from the internal default, it takes precedence over the material.
+
+.. _deformable-skin-group:
+
+:at:`group`: :at-val:`int, "0"`
+   Integer group to which the skin belongs. This attribute can be used for custom tags. It is also used by the
+   visualizer to enable and disable the rendering of entire groups of skins.
+
+
+.. _skin-bone:
+
+:el-prefix:`skin/` |-| **bone** (*)
+'''''''''''''''''''''''''''''''''''
+
+This element defines a bone of the skin. The bone is a regular MuJoCo body which is referenced by name here.
+
+
+.. _skin-bone-body:
+
+:at:`body`: :at-val:`string, required`
+   Name of the body corresponding to this bone.
+
+.. _skin-bone-bindpos:
+
+:at:`bindpos`: :at-val:`real(3), required`
+   Global body position corresponding to the bind pose.
+
+.. _skin-bone-bindquat:
+
+:at:`bindquat`: :at-val:`real(4), required`
+   Global body orientation corresponding to the bind pose.
+
+.. _skin-bone-vertid:
+
+:at:`vertid`: :at-val:`int(nvert), required`
+   Integer indices of the vertices influenced by this bone. The vertex index corresponds to the order of the vertex in
+   the skin mesh. The number of vertex indices specified here (nvert) must equal the number of vertex weights specified
+   with the next attribute. The same vertex may be influenced by multiple bones, and each vertex must be influenced by
+   at least one bone.
+
+.. _skin-bone-vertweight:
+
+:at:`vertweight`: :at-val:`real(nvert), required`
+   Weights for the vertices influenced by this bone, in the same order as the vertex indices. Negative weights are
+   allowed (which is needed for cubic interpolation for example) however the sum of all bone weights for a given vertex
+   must be positive.
+
+
+
 .. _equality:
 
 **equality** (*)
@@ -4098,8 +4455,7 @@ of the other body, without any joint elements in the child body.
 
 :at:`body2`: :at-val:`string, optional`
    Name of the second body. If this attribute is omitted, the second body is the world body. Welding a body to the world
-   and changing the corresponding component of :ref:`mjData.eq_active<mjData>` at runtime can be used to fix the body
-   temporarily.
+   and changing the corresponding component of mjModel.eq_active at runtime can be used to fix the body temporarily.
 
 .. _equality-weld-relpose:
 
@@ -4208,19 +4564,26 @@ This element constrains the length of one tendon to be a quartic polynomial of a
 .. _equality-flex:
 
 :el-prefix:`equality/` |-| **flex** (*)
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+This element constrains the lengths of all edges of a specified flex to their respective lengths in the initial model
+configuration. In this way the edges are used to maintain the shape of the deformable entity. Note that all other
+equality constraint types add a fixed number of scalar constraints, while this element adds as many scalar constraints
+as there are edges in the specified flex.
 
 .. _equality-flex-name:
-
 .. _equality-flex-class:
+.. _equality-flex-active:
+.. _equality-flex-solref:
+.. _equality-flex-solimp:
+
+:at:`name`, :at:`class`, :at:`active`, :at:`solref`, :at:`solimp`
+   Same as in :ref:`connect <equality-connect>` element.
 
 .. _equality-flex-flex:
 
-.. _equality-flex-active:
-
-.. _equality-flex-solref:
-
-.. _equality-flex-solimp:
+:at:`flex`: :at-val:`string, required`
+   Name of the flex whose edges are being constrained.
 
 
 .. _equality-distance:
@@ -7359,44 +7722,6 @@ tendon, slidersite, cranksite.
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 All :ref:`adhesion <actuator-adhesion>` attributes are available here except: name, class, body.
-
-
-.. _default-flex:
-
-.. _default-flex-contype:
-
-.. _default-flex-conaffinity:
-
-.. _default-flex-condim:
-
-.. _default-flex-priority:
-
-.. _default-flex-material:
-
-.. _default-flex-friction:
-
-.. _default-flex-solmix:
-
-.. _default-flex-solref:
-
-.. _default-flex-solimp:
-
-.. _default-flex-margin:
-
-.. _default-flex-gap:
-
-.. _default-flex-stiffness:
-
-.. _default-flex-damping:
-
-.. _default-flex-radius:
-
-.. _default-flex-rgba:
-
-.. _default-flex-dim:
-
-:el-prefix:`default/` |-| **flex** (?)
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 
 .. _custom:

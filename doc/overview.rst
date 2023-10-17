@@ -588,6 +588,14 @@ available equality constraint types are: connect two bodies at a point (creating
 tree); weld two bodies together; make two surfaces slide on each other; fix the position of a joint or tendon; couple
 the positions of two joints or two tendons via a cubic polynomial.
 
+Deformable
+^^^^^^^^^^
+
+These are collections of massless stretchable geometric elements (capsules, triangles or tetrahedra) connecting vertices
+that are defined within different moving body frames. These stretchable elements support collisions and contact forces,
+which are then distributed to all the interconnected bodies. Flexes also generate passive and constraint forces as
+needed to simulate deformable entities with the desired material properties.
+
 Contact pair
 ^^^^^^^^^^^^
 

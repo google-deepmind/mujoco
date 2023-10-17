@@ -8,27 +8,47 @@ Upcoming version (not yet released)
 New features
 ^^^^^^^^^^^^
 
-.. youtube:: Vc1tq0fFvQA
-   :align: right
-   :width: 240px
-
-1. Added constraint island discovery with :ref:`mj_island`. Constraint islands are disjoint sets of constraints
-   and degrees-of-freedom that do not interact. The only solver which currently supports islands is
-   :ref:`CG<option-solver>`. Island discovery can be activated using a new :ref:`enable flag<option-flag-island>`.
-   If island discovery is enabled, geoms, contacts and tendons will be colored according to the corresponding island,
-   see video.
-
 .. youtube:: QewlEqIZi1o
    :align: right
    :width: 240px
 
-2. Added new signed distance field (SDF) collision primitive. SDFs can take any shape and are not constrained to be
+1. Added new signed distance field (SDF) collision primitive. SDFs can take any shape and are not constrained to be
    convex. Collision points are found by minimizing the maximum of the two colliding SDFs via gradient descent.
 
    - Added new SDF plugin for defining implicit geometries. The plugin must define methods computing an SDF and its
      gradient at query points. See the :ref:`documentation<exWriting>` for more details.
 
-3. Added :ref:`mjThreadPool` and :ref:`mjTask` which allow for multi-threaded operations within the MuJoCo engine
+.. youtube:: ra2bTiZHGlw
+   :align: right
+   :width: 240px
+
+2. Added new low-level model element called ``flex``, used to define deformable objects. These
+   `simplicial complexes <https://en.wikipedia.org/wiki/Simplicial_complex>`__ can be of dimension 1, 2
+   or 3, corresponding to stretchable lines, triangles or tetrahedra. Two new MJCF elements are used
+   to define flexes. The top-level :ref:`deformable<deformable>` section contains the low-level flex definition.
+   The :ref:`flexcomp<body-flexcomp>` element, similar to :ref:`composite<body-composite>` is a convenience macro for
+   creating deformables, and supports the GMSH tetrahedral file format.
+
+   - Added `shell <https://github.com/deepmind/mujoco/blob/main/plugin/elasticity/shell.cc>`__ passive force plugin,
+     computing bending forces using a constant precomputed Hessian (cotangent operator).
+
+   **Note**: This feature is still under development and subject to change. In particular, deformable object
+   functionality is currently available both via :ref:`deformable<CDeformable>` and :ref:`composite<CComposite>`,
+   and both are modifiable by the first-party
+   `elasticity plugins <https://github.com/google-deepmind/mujoco/tree/main/plugin/elasticity>`__. We expect some of
+   this functionallity to be unified in the future.
+
+.. youtube:: Vc1tq0fFvQA
+   :align: right
+   :width: 240px
+
+3. Added constraint island discovery with :ref:`mj_island`. Constraint islands are disjoint sets of constraints
+   and degrees-of-freedom that do not interact. The only solver which currently supports islands is
+   :ref:`CG<option-solver>`. Island discovery can be activated using a new :ref:`enable flag<option-flag-island>`.
+   If island discovery is enabled, geoms, contacts and tendons will be colored according to the corresponding island,
+   see video.
+
+4. Added :ref:`mjThreadPool` and :ref:`mjTask` which allow for multi-threaded operations within the MuJoCo engine
    pipeline. If engine-internal threading is enabled, the following operations will be multi-threaded:
 
    - Island constraint resolution, if island discovery is :ref:`enabled<option-flag-island>` and the
@@ -40,16 +60,8 @@ New features
    Engine-internal threading is a work in progress and currently only available in first-party code via the
    :ref:`testspeed<saTestspeed>` utility, exposed with the ``npoolthread`` flag.
 
-.. youtube:: ra2bTiZHGlw
-   :align: right
-   :width: 240px
-
-4. Added capability to initialize :ref:`composite<body-composite>` particles with arbitrary positions.
-
-5. Added `shell <https://github.com/deepmind/mujoco/blob/main/plugin/elasticity/shell.cc>`__ passive force plugin:
-
-   - Collisions use spheres located at mesh vertices.
-   - Stretching as tendon constraints and bending using a constant precomputed Hessian (cotangent operator).
+5. Added capability to initialize :ref:`composite<body-composite>` particles from OBJ files. Fixes :github:issue:`642`
+   and :github:issue:`674`.
 
 General
 ^^^^^^^
