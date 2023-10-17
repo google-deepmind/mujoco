@@ -27,34 +27,53 @@ Inertia model
 -------------
 
 In this model, the shape of each body, for fluid dynamics purposes, is assumed to be the *equivalent inertia box*,
-which can also be visualized. Each forward-facing (relative to the linear velocity) face of the box experiences force
-along its normal direction. All faces also experience torque due to the angular velocity; this torque is obtained by
-integrating the force resulting from the rotation over the surface area. In this sub-section, let :math:`v` and
-:math:`\omega` denote the linear and angular body velocity in the body local frame (aligned with the equivalent
-inertia box), and :math:`s` the 3D vector of box sizes. When the contributions from all faces are added, the resulting
-force and torque applied to the body by a fluid of density :math:`\rho`, in local body coordinates, have the
-:math:`i`-th component
+which can also be visualized. For a body with mass :math:`\mathcal{M}` and inertia matrix :math:`\mathcal{I}`, the
+half-dimensions (i.e. half-width, half-depth and half-height) of the equivalent inertia box are
+
+.. math::
+   \begin{align*}
+   r_x = \sqrt{\frac{3}{2 \mathcal{M}} \left(\mathcal{I}_{yy} + \mathcal{I}_{zz} - \mathcal{I}_{xx} \right)}  \\
+   r_y = \sqrt{\frac{3}{2 \mathcal{M}} \left(\mathcal{I}_{zz} + \mathcal{I}_{xx} - \mathcal{I}_{yy} \right)}  \\
+   r_z = \sqrt{\frac{3}{2 \mathcal{M}} \left(\mathcal{I}_{xx} + \mathcal{I}_{yy} - \mathcal{I}_{zz} \right)}.
+   \end{align*}
+
+Let :math:`\mathbf{v}` and :math:`\boldsymbol{\omega}` denote the linear and angular body velocity of the body in
+the body-local frame (aligned with the equivalent inertia box). The force :math:`\mathbf{f}_{\text{inertia}}` and
+torque :math:`\mathbf{g}_{\text{inertia}}` exerted by the fluid onto the solid are the sum of of the terms
+
+.. math::
+   \begin{align*}
+   \mathbf{f}_{\text{inertia}} &= \mathbf{f}_D + \mathbf{f}_V  \\
+   \mathbf{g}_{\text{inertia}} &= \mathbf{g}_D + \mathbf{g}_V.
+   \end{align*}
+
+Here subscripts :math:`D` and :math:`V` denote quadratic Drag and Viscous resistance.
+
+The quadratic drag terms depend on the density :math:`\rho` of the fluid, scale quadratically with the velocity
+of the body, and are a valid approximation of the fluid forces at high Reynolds numbers.
+The torque is obtained by integrating the force resulting from the rotation over the surface area.
+The :math:`i`-th component of the force and torque can be written as
 
 .. math::
    \begin{aligned}
-   \text{density force} : \quad &- {1 \over 2} \rho s_j s_k |v_i| v_i \\
-   \text{density torque} : \quad &- {1 \over 64} \rho s_i \left(s_j^4 + s_k^4 \right) |\omega_i| \omega_i \\
+   f_{D, i} = \quad &- 2  \rho r_j r_k |v_i| v_i \\
+   g_{D, i} = \quad &- {1 \over 2} \rho r_i \left(r_j^4 + r_k^4 \right) |\omega_i| \omega_i \\
    \end{aligned}
 
-This model implicitly assumes high Reynolds numbers, with lift-to-drag ratio equal to the tangent of the angle of
-attack. One can also specify a non-zero :ref:`wind<option-wind>`, which is a 3D vector subtracted from the body linear
-velocity in the fluid dynamics computation.
-
-Each body also experiences a force and a torque proportional to the viscosity :math:`\beta` and opposite to its linear and
-angular velocity. Note that viscosity can be used independent of density, to make the simulation more damped. We use the
-formulas for a sphere at low Reynolds numbers, with diameter :math:`d` equal to the average of the equivalent inertia
-box sizes. The resulting 3D force and torque in local body coordinates are
+The viscous resistance terms depend on the fluid viscosity :math:`\beta`, scale linearly with the body velocity, and
+approximate the fluid forces at low Reynolds numbers. Note that viscosity can be used independent of density to make
+the simulation more damped. We use the formulas for the equivalent sphere with radius
+:math:`r_{eq} = (r_x + r_y + r_z) / 3`  at low Reynolds numbers. The resulting 3D force and torque in local
+body coordinates are
 
 .. math::
    \begin{aligned}
-   \text{viscosity force} : \quad &- 3 \beta \pi d v \\
-   \text{viscosity torque} : \quad &- \beta \pi d^3 \omega \\
+   f_{V, i} = \quad &- 6 \beta \pi r_{eq} v_i \\
+   g_{V, i} = \quad &- 8 \beta \pi r_{eq}^3 \omega_i \\
    \end{aligned}
+
+One can also affect these forces by specifing a non-zero :ref:`wind<option-wind>`, which is a 3D vector subtracted
+from the body linear velocity in the fluid dynamics computation.
 
 .. _flEllipsoid:
 
@@ -116,35 +135,36 @@ also disables the inertia-based model for the parent body. The
      - 1.0
 
 Elements of the model are a generalization of :cite:t:`andersen2005b` to 3 dimensions.
-The force :math:`\mathbf{f}_{\text{fluid}\rightarrow \text{solid}}` and torque
-:math:`\mathbf{g}_{\text{fluid} \rightarrow \text{solid}}` exerted by the fluid onto the solid are
+The force :math:`\mathbf{f}_{\text{ellipsoid}}` and torque
+:math:`\mathbf{g}_{\text{ellipsoid}}` exerted by the fluid onto the solid are
 the sum of of the terms
 
 .. math::
    \begin{align*}
-   \mathbf{f}_{\text{fluid} \rightarrow \text{solid}} &= \mathbf{f}_A + \mathbf{f}_D + \mathbf{f}_M + \mathbf{f}_K  \\
-   \mathbf{g}_{\text{fluid} \rightarrow \text{solid}} &= \mathbf{g}_A + \mathbf{g}_D
+   \mathbf{f}_{\text{ellipsoid}} &= \mathbf{f}_A + \mathbf{f}_D + \mathbf{f}_M + \mathbf{f}_K + \mathbf{f}_V  \\
+   \mathbf{g}_{\text{ellipsoid}} &= \mathbf{g}_A + \mathbf{g}_D + \mathbf{g}_V
    \end{align*}
 
-Where subscripts :math:`A`, :math:`D`, :math:`M` and :math:`K`, denote Added mass, viscous Drag, Magnus lift and
-Kutta lift, respectively. The :math:`D`, :math:`M` and :math:`K` terms are scaled by the respective
-:math:`C_D`, :math:`C_M` and :math:`C_K` coefficients above, while the added mass term cannot be scaled.
+Where subscripts :math:`A`, :math:`D`, :math:`M`, :math:`K` and  :math:`V` denote Added mass, viscous Drag, Magnus lift,
+Kutta lift and Viscous resistance, respectively. The :math:`D`, :math:`M` and :math:`K` terms are scaled by the respective
+:math:`C_D`, :math:`C_M` and :math:`C_K` coefficients above, the viscous resistance scales with the fluid viscosity
+:math:`\beta`, while the added mass term cannot be scaled.
 
 Notation
 ~~~~~~~~
 
 We describe the motion of the object in an inviscid, incompressible quiescent fluid of density :math:`\rho`. The
 arbitrarily-shaped object is described in the model as the equivalent ellipsoid of semi-axes
-:math:`\mathbf{d} = \{d_x, d_y, d_z\}`.
+:math:`\mathbf{r} = \{r_x, r_y, r_z\}`.
 The problem is described in a reference frame aligned with the sides of the ellipsoid and moving with it. The
 body has velocity :math:`\mathbf{v} = \{v_x, v_y, v_z\}` and angular velocity
 :math:`\boldsymbol{\omega} = \{\omega_x, \omega_y, \omega_z\}`. We will also use
 
 .. math::
    \begin{align*}
-       d_\text{max} &= \max(d_x, d_y, d_z) \\
-       d_\text{min} &= \min(d_x, d_y, d_z) \\
-       d_\text{mid} &= d_x + d_y + d_z - d_\text{max} - d_\text{min}
+       r_\text{max} &= \max(r_x, r_y, r_z) \\
+       r_\text{min} &= \min(r_x, r_y, r_z) \\
+       r_\text{mid} &= r_x + r_y + r_z - r_\text{max} - r_\text{min}
    \end{align*}
 
 The Reynolds number is the ratio between inertial and viscous forces within a flow and is defined as :math:`Re=u~l/\beta`, where
@@ -178,12 +198,12 @@ We present the following result.
 .. admonition:: Lemma
    :class: note
 
-   Given an ellipsoid with semi-axes :math:`(d_x, d_y, d_z)` aligned with the coordinate axes :math:`(x, y, z)`, and a
+   Given an ellipsoid with semi-axes :math:`(r_x, r_y, r_z)` aligned with the coordinate axes :math:`(x, y, z)`, and a
    unit vector :math:`\mathbf{u} = (u_x, u_y, u_z)`, the area projected by the ellipsoid onto the plane normal to
    :math:`\mathbf{u}` is
 
    .. math::
-      A^{\mathrm{proj}}_{\mathbf{u}} = \pi \sqrt{\frac{d_y^4 d_z^4 u_x^2 + d_z^4 d_x^4 u_y^2 + d_x^4 d_y^4 u_z^2}{d_y^2 d_z^2 u_x^2 + d_z^2 d_x^2 u_y^2 + d_x^2 d_y^2 u_z^2}}
+      A^{\mathrm{proj}}_{\mathbf{u}} = \pi \sqrt{\frac{r_y^4 r_z^4 u_x^2 + r_z^4 r_x^4 u_y^2 + r_x^4 r_y^4 u_z^2}{r_y^2 r_z^2 u_x^2 + r_z^2 r_x^2 u_y^2 + r_x^2 r_y^2 u_z^2}}
 
 .. collapse:: Expand for derivation
 
@@ -202,10 +222,10 @@ We present the following result.
       **Ellipsoid cross-section**
          We begin by computing the area of the ellipse formed by intersecting an ellipsoid centered at the origin with the
          plane :math:`\Pi_{\mathbf{n}}` through the origin with unit normal :math:`\mathbf{n} = (n_x, n_y, n_z)`. Let
-         :math:`(d_x, d_y, d_z)` be the semi-axis lengths of the ellipsoid. Without loss of generality, it is sufficient to
+         :math:`(r_x, r_y, r_z)` be the semi-axis lengths of the ellipsoid. Without loss of generality, it is sufficient to
          assume that the axes of the ellipsoid are aligned with the coordinate axes. The ellipsoid can then be described as
          :math:`\mathbf{x}^T Q \mathbf{x} = 1`, where
-         :math:`Q = \textrm{diag}\mathopen{}\left( \left. 1 \middle/ d_x^2 \right., \left. 1 \middle/ d_y^2 \right., \left. 1 \middle/ d_z^2 \right. \right)\mathclose{}`
+         :math:`Q = \textrm{diag}\mathopen{}\left( \left. 1 \middle/ r_x^2 \right., \left. 1 \middle/ r_y^2 \right., \left. 1 \middle/ r_z^2 \right. \right)\mathclose{}`
          and :math:`\mathbf{x} = (x, y, z)` are the points on the ellipsoid.
 
          We proceed by rotating the plane :math:`\Pi_{\mathbf{n}}` together with the ellipsoid so that the normal of the
@@ -266,9 +286,9 @@ We present the following result.
 
          .. math::
             \begin{align*}
-            Q'_{xx} &= \frac{1}{d_x^2} R_{xx}^2 + \frac{1}{d_y^2} R_{yx}^2 + \frac{1}{d_z^2} R_{zx}^2 , \\
-            Q'_{yy} &= \frac{1}{d_x^2} R_{xy}^2 + \frac{1}{d_y^2} R_{yy}^2 + \frac{1}{d_z^2} R_{zy}^2 , \\
-            Q'_{xy} &= \frac{1}{d_x^2} R_{xx} R_{xy} + \frac{1}{d_y^2} R_{yx} R_{yy} + \frac{1}{d_z^2} R_{zx} R_{zy} ,
+            Q'_{xx} &= \frac{1}{r_x^2} R_{xx}^2 + \frac{1}{r_y^2} R_{yx}^2 + \frac{1}{r_z^2} R_{zx}^2 , \\
+            Q'_{yy} &= \frac{1}{r_x^2} R_{xy}^2 + \frac{1}{r_y^2} R_{yy}^2 + \frac{1}{r_z^2} R_{zy}^2 , \\
+            Q'_{xy} &= \frac{1}{r_x^2} R_{xx} R_{xy} + \frac{1}{r_y^2} R_{yx} R_{yy} + \frac{1}{r_z^2} R_{zx} R_{zy} ,
             \end{align*}
 
          and the desired area is given by
@@ -277,7 +297,7 @@ We present the following result.
             A^{\cap}_{\mathbf{n}}
             = \frac{\pi}{\sqrt{\vphantom{Q'^2_{xy}} \det Q'}}
             = \frac{\pi}{\sqrt{Q'_{xx} Q'_{yy} - Q'^2_{xy}}}
-            = \frac{\pi d_x d_y d_z}{\sqrt{d_x^2 n_x^2 + d_y^2 n_y^2 + d_z^2 n_z^2}},
+            = \frac{\pi r_x r_y r_z}{\sqrt{r_x^2 n_x^2 + r_y^2 n_y^2 + r_z^2 n_z^2}},
 
          where the superscript :math:`\cap` denotes that the area pertains to the ellipse at the *intersection*
          with :math:`\Pi_{\mathbf{n}}`.
@@ -293,9 +313,9 @@ We present the following result.
          tangent to the ellipsoid :math:`\mathcal{E}` at every point on :math:`\mathcal{E}^{\mathrm{proj}}_{\mathbf{u}}`.
 
          We can regard :math:`\mathcal{E}` as the image of the unit sphere :math:`\mathcal{S}` under a stretching
-         transformation :math:`T = \mathrm{diag}(d_x, d_y, d_z)`. Furthermore, if :math:`\mathbf{\tilde{u}}` is a vector
+         transformation :math:`T = \mathrm{diag}(r_x, r_y, r_z)`. Furthermore, if :math:`\mathbf{\tilde{u}}` is a vector
          tangent to :math:`\mathcal{S}`, then its image
-         :math:`\mathbf{u}=T\mathbf{\tilde{u}}=(d_x \tilde{u}_x, d_y \tilde{u}_y, d_z \tilde{u}_z)` is tangent to the
+         :math:`\mathbf{u}=T\mathbf{\tilde{u}}=(r_x \tilde{u}_x, r_y \tilde{u}_y, r_z \tilde{u}_z)` is tangent to the
          ellipsoid. The ellipse :math:`\mathcal{E}^{\mathrm{proj}}_{\mathbf{u}}` is therefore the image
          under :math:`T` of the circle :math:`\mathcal{C}^{\cap}_{\mathbf{\tilde{u}}}` at the intersection between
          :math:`\mathcal{S}` and :math:`\Pi_{\mathbf{\tilde{u}}}` (for spheres :math:`\mathcal{C}^{\cap}` and
@@ -303,15 +323,15 @@ We present the following result.
 
          Let :math:`\mathbf{\tilde{v}}` and :math:`\mathbf{\tilde{w}}` be some orthogonal pair of vectors in the plane
          :math:`\Pi_{\mathbf{\tilde{u}}}`, then :math:`\mathbf{\tilde{u}} = \mathbf{\tilde{v}} \times \mathbf{\tilde{w}}`.
-         Their images under :math:`T` are :math:`\mathbf{v} = (d_x \tilde{v}_x, d_y \tilde{v}_y, d_z \tilde {v}_z)` and
-         :math:`\mathbf{w} = (d_x \tilde{w}_x, d_y \tilde{w}_y, d_z \tilde {w}_z)` respectively, and they remain orthogonal
+         Their images under :math:`T` are :math:`\mathbf{v} = (r_x \tilde{v}_x, r_y \tilde{v}_y, r_z \tilde {v}_z)` and
+         :math:`\mathbf{w} = (r_x \tilde{w}_x, r_y \tilde{w}_y, r_z \tilde {w}_z)` respectively, and they remain orthogonal
          vectors in the plane of :math:`\mathcal{E}^{\mathrm{proj}}_{\mathbf{u}}`. A (non-unit) normal to the ellipse
          :math:`\mathcal{E}^{\mathrm{proj}}_{\mathbf{u}}` is therefore given by
 
          .. math::
             \mathbf{N} = \mathbf{v} \times \mathbf{w}
-            = (d_y d_z \tilde{u}_x, d_z d_x \tilde{u}_y, d_x d_y \tilde{u}_z)
-            = \left( \frac{d_y d_z}{d_x} u_x, \frac{d_z d_x}{d_y} u_y, \frac{d_x d_y}{d_z} u_z \right).
+            = (r_y r_z \tilde{u}_x, r_z r_x \tilde{u}_y, r_x r_y \tilde{u}_z)
+            = \left( \frac{r_y r_z}{r_x} u_x, \frac{r_z r_x}{r_y} u_y, \frac{r_x r_y}{r_z} u_z \right).
 
          This shows that :math:`\mathcal{E}^{\mathrm{proj}}_{\mathbf{u}} = \mathcal{E}^{\cap}_{\mathbf{n}}`, where
          :math:`\mathbf{n} = \mathbf{N} / \left\Vert\mathbf{N}\right\Vert`. Its area is given by the formula derived in the
@@ -359,11 +379,11 @@ Here :math:`\circ` denotes an element-wise product, :math:`\dot{\mathbf{v}}` is 
 :math:`\dot{\boldsymbol{\omega}}` is the angular acceleration. :math:`\mathbf{m}_A \circ \mathbf{v}` and
 :math:`\mathbf{I}_A \circ \boldsymbol{\omega}` are the virtual linear and angular momentum respectively.
 
-For an ellipsoid of semi-axis :math:`\mathbf{d} = \{d_x, d_y, d_z\}` and volume :math:`V = 4 \pi d_x d_y d_z / 3`, the
+For an ellipsoid of semi-axis :math:`\mathbf{r} = \{r_x, r_y, r_z\}` and volume :math:`V = 4 \pi r_x r_y r_z / 3`, the
 virtual inertia coefficients were derived by :cite:t:`tuckerman1925`. Let:
 
 .. math::
-   \kappa_i = \int_0^\infty \frac{d_i d_j d_k}{\sqrt{(d_i^2 + \lambda)^3 (d_j^2 + \lambda) (d_k^2 + \lambda)}} \textrm{d} \lambda
+   \kappa_i = \int_0^\infty \frac{r_i r_j r_k}{\sqrt{(r_i^2 + \lambda)^3 (r_j^2 + \lambda) (r_k^2 + \lambda)}} \textrm{d} \lambda
 
 
 It should be noted that these coefficients are non-dimensional (i.e. if all semi-axes are multiplied by the same scalar
@@ -375,7 +395,7 @@ the coefficients remain the same). The virtual masses of the ellipsoid are:
 And the virtual moments of inertia are:
 
 .. math::
-   I_{A, i} = \frac{\rho V}{5} \frac{(d_j^2 - d_k^2)^2 (\kappa_k-\kappa_j)}{2(d_j^2 - d_k^2) + (d_j^2 + d_k^2) (\kappa_j-\kappa_k)}
+   I_{A, i} = \frac{\rho V}{5} \frac{(r_j^2 - r_k^2)^2 (\kappa_k-\kappa_j)}{2(r_j^2 - r_k^2) + (r_j^2 + r_k^2) (\kappa_j-\kappa_k)}
 
 Viscous drag
 ~~~~~~~~~~~~
@@ -411,7 +431,7 @@ bagheri2016`. See screen capture of the
 We derive a formula for :math:`\mathbf{f}_\text{D}` based on two surfaces :math:`A^\text{proj}_\mathbf{v}` and
 :math:`A_\text{max}`. The first, :math:`A^\text{proj}_\mathbf{v}`, is the cylindrical projection of the body onto a
 plane normal to the velocity :math:`\mathbf{v}`. The second is the maximum projected surface
-:math:`A_\text{max} = 4 \pi d_{max} d_{min}`.
+:math:`A_\text{max} = 4 \pi r_{max} r_{min}`.
 
 .. math::
    \mathbf{f}_\text{D} = - \rho~ \big[  C_{D, \text{blunt}} ~ A^\text{proj}_\mathbf{v} ~ +
@@ -424,7 +444,7 @@ maximum swept ellipsoid obtained by the rotation of the body around the axis. Th
 moment of inertia are:
 
 .. math::
-   \mathbf{I}_{D,ii} = \frac{8\pi}{15} ~d_i ~\max(d_j, ~d_k)^4 .
+   \mathbf{I}_{D,ii} = \frac{8\pi}{15} ~r_i ~\max(r_j, ~r_k)^4 .
 
 Given this reference moment of inertia, the angular drag torque is computed as:
 
@@ -435,22 +455,21 @@ Given this reference moment of inertia, the angular drag torque is computed as:
 
 Here :math:`\mathbf{I}_\text{max}` is a vector with each entry equal to the maximal component of :math:`\mathbf{I}_D`.
 
-The viscosity :math:`\beta`
-For Reynolds numbers around or below :math:`O(10)`, the drag is best approximated as linear in the flow velocity
-(e.g. Stokes' law). For example, for a sphere the drag force :cite:p:`stokes1850` and torque :cite:p:`lamb1932` are:
+Finally, the viscous resistance terms, also known as linear drag, well approvimate the fluid forces for Reynolds
+numbers around or below :math:`O(10)`. These are computed for the equivalent sphere with Stokes' law
+:cite:p:`stokes1850,lamb1932`:
 
 .. math::
    \begin{align*}
-   \mathbf{f}_\text{S} &= - 6 \pi r_D \rho ~ \beta \mathbf{v}\\
-   \mathbf{g}_\text{S} &= - 8 \pi r_D^3 \rho ~ \beta \boldsymbol{\omega}
+   \mathbf{f}_\text{V} &= - 6 \pi r_D \beta \mathbf{v}\\
+   \mathbf{g}_\text{V} &= - 8 \pi r_D^3 \beta \boldsymbol{\omega}
    \end{align*}
 
-Here, :math:`r_D` is the radius of the sphere and :math:`\beta` is the kinematic viscosity of the medium (e.g.
-:math:`1.48~\times 10^{-5}~m^2/s` for ambient-temperature air and :math:`0.89 \times 10^{-4}~m^2/s` for water). Here,
-for simplicity, we estimate the radius of the equivalent sphere as :math:`r_D = (d_x + d_y + d_z)/3`. To make a
-quantitative example, Stokes' law become accurate for room-temperature air if
-:math:`u\cdot l \lesssim 2 \times 10^{-4}~m^2/s`, where :math:`u` is the speed and :math:`l` a characteristic length of
-the body.
+Here, :math:`r_D = (r_x + r_y + r_z)/3` is the radius of the equivalent sphere and :math:`\beta` is the kinematic
+viscosity of the medium (e.g. :math:`1.48~\times 10^{-5}~m^2/s` for ambient-temperature air and
+:math:`0.89 \times 10^{-4}~m^2/s` for water). To make a quantitative example, Stokes' law become accurate for
+room-temperature air if :math:`u\cdot l \lesssim 2 \times 10^{-4}~m^2/s`, where :math:`u` is the speed and
+:math:`l` a characteristic length of the body.
 
 Viscous lift
 ~~~~~~~~~~~~
@@ -487,7 +506,7 @@ It's worth making an example. To reduce the number of variables, suppose a body 
 sum of the force due to added mass and the force due to the Magnus effect along, for example, :math:`x` is:
 
 .. math::
-   \frac{f}{\pi \rho d_z} = v_y \omega_z \left(2 d_x \min\{d_x, d_z\} - (d_x + d_z)^2\right)
+   \frac{f}{\pi \rho r_z} = v_y \omega_z \left(2 r_x \min\{r_x, r_z\} - (r_x + r_z)^2\right)
 
 Note that the two terms have opposite signs.
 
@@ -512,13 +531,13 @@ as slender bodies or the trailing edges of airfoils.
    upward force acting on the plate.
 
 For a two-dimensional flow sketched in the figure above, the circulation due to the Kutta condition can be estimated as:
-:math:`\Gamma_\text{K} = C_K ~ d_x ~ \| \mathbf{v}\| ~ \sin(2\alpha)`,
+:math:`\Gamma_\text{K} = C_K ~ r_x ~ \| \mathbf{v}\| ~ \sin(2\alpha)`,
 where :math:`C_K` is a lift coefficient, and :math:`\alpha` is the angle between the velocity vector and its projection
 onto the surface. The lift force per unit length can be computed with the Kutta–Joukowski theorem as
 :math:`\mathbf{f}_K / L = \rho \Gamma_\text{K} \times \mathbf{v}`.
 
 In order to extend the lift force equation to three-dimensional motions, we consider the normal
-:math:`\mathbf{n}_{s, \mathbf{v}} = \{\frac{d_y d_z}{d_x}v_x, \frac{d_z d_x}{d_y}v_y, \frac{d_x d_x}{d_z}v_z\}`
+:math:`\mathbf{n}_{s, \mathbf{v}} = \{\frac{r_y r_z}{r_x}v_x, \frac{r_z r_x}{r_y}v_y, \frac{r_x r_x}{r_z}v_z\}`
 to the cross-section of the body which generates the body's projection :math:`A^\text{proj}_\mathbf{v}` onto a plane
 normal to the velocity given in the :ref:`lemma<flProjection>` above and the corresponding unit vector
 :math:`\hat{\mathbf{n}}_{s, \mathbf{v}}`.
@@ -539,25 +558,25 @@ Here, :math:`\hat{\mathbf{v}}` is the unit-normal along :math:`\mathbf{v}`. Note
 example, for spherical bodies :math:`\hat{\mathbf{n}}_{s, \mathbf{v}} \equiv \hat{\mathbf{v}}` and by construction
 :math:`\mathbf{f}_\text{K} = 0`.
 
-Let's unpack the relation with an example. Suppose a body with :math:`d_x = d_y` and :math:`d_z \ll d_x`. Note that the vector
+Let's unpack the relation with an example. Suppose a body with :math:`r_x = r_y` and :math:`r_z \ll r_x`. Note that the vector
 :math:`\hat{\mathbf{n}}_{s, \mathbf{v}} \times \hat{\mathbf{v}}` gives the direction of the circulation induced by the
-deflection of the flow by the solid body. Along :math:`z`, the circulation will be proportional to :math:`\frac{d_y d_z}{d_x}v_x v_y
-- \frac{d_z d_x}{d_y}v_x v_y = 0` (due to :math:`d_x = d_y`). Therefore, on the plane where the solid is blunt, the motion
+deflection of the flow by the solid body. Along :math:`z`, the circulation will be proportional to :math:`\frac{r_y r_z}{r_x}v_x v_y
+- \frac{r_z r_x}{r_y}v_x v_y = 0` (due to :math:`r_x = r_y`). Therefore, on the plane where the solid is blunt, the motion
 produces no circulation.
 
 Now, for simplicity, let :math:`v_x = 0`. In this case also the circulation along :math:`y`, proportional
-to :math:`\frac{d_y d_z}{d_x}v_x v_z - \frac{d_y d_x}{d_y}v_x v_z`, is zero. The only non-zero component of the circulation
-will be along :math:`x` and be proportional to :math:`\left(\frac{d_x d_z}{d_y} - \frac{d_x d_y}{d_z}\right) v_y v_z \approx
-\frac{d_x^2}{d_z} v_y v_z`.
+to :math:`\frac{r_y r_z}{r_x}v_x v_z - \frac{r_y r_x}{r_y}v_x v_z`, is zero. The only non-zero component of the circulation
+will be along :math:`x` and be proportional to :math:`\left(\frac{r_x r_z}{r_y} - \frac{r_x r_y}{r_z}\right) v_y v_z \approx
+\frac{r_x^2}{r_z} v_y v_z`.
 
 We would have :math:`\mathbf{v}_\parallel = \{v_x, 0, v_z\}` and
-:math:`\Gamma \propto \{d_z v_y v_z, ~ 0,~ - d_x v_x v_y \} / \|\mathbf{v}\|`.
+:math:`\Gamma \propto \{r_z v_y v_z, ~ 0,~ - r_x v_x v_y \} / \|\mathbf{v}\|`.
 The motion produces no circulation on the plane where the solid is blunt, and on the other two planes
 the circulation is
 :math:`\Gamma \propto r_\Gamma ~ \|\mathbf{v}\|~ \sin(2 \alpha) ~ = ~2 r_\Gamma ~\|\mathbf{v}\| ~\sin(\alpha)~\cos(\alpha)`
 with :math:`\alpha` the angle between the velocity and its projection on the body on the plane (e.g. on the plane
 orthogonal to :math:`x` we have :math:`\sin(\alpha) = v_y/\|\mathbf{v}\|` and
-:math:`\cos(\alpha) = v_z/\|\mathbf{v}\|`), and :math:`r_\Gamma`, the lift surface on the plane (e.g. :math:`d_z` for
+:math:`\cos(\alpha) = v_z/\|\mathbf{v}\|`), and :math:`r_\Gamma`, the lift surface on the plane (e.g. :math:`r_z` for
 the plane orthogonal to :math:`x`). Furthermore, the direction of the circulation is given by the cross product (because
 the solid boundary "rotates" the incoming flow velocity towards its projection on the body).
 
