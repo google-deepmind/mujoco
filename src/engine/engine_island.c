@@ -407,7 +407,7 @@ void mj_island(const mjModel* m, mjData* d) {
   int nv = m->nv, nefc = d->nefc, ntree=m->ntree;
 
   // no constraints: quick return
-  if (!nefc) {
+  if (!nefc || m->nflex) {  // TODO: add flex support to island discovery
     d->nisland = 0;
     return;
   }

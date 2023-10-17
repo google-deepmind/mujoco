@@ -46,7 +46,7 @@ New features
    and degrees-of-freedom that do not interact. The only solver which currently supports islands is
    :ref:`CG<option-solver>`. Island discovery can be activated using a new :ref:`enable flag<option-flag-island>`.
    If island discovery is enabled, geoms, contacts and tendons will be colored according to the corresponding island,
-   see video.
+   see video. Island discovery is currently disabled for models that have deformable objects (see prevous item).
 
 4. Added :ref:`mjThreadPool` and :ref:`mjTask` which allow for multi-threaded operations within the MuJoCo engine
    pipeline. If engine-internal threading is enabled, the following operations will be multi-threaded:

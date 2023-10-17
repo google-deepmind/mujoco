@@ -619,6 +619,7 @@ void mj_fwdConstraint(const mjModel* m, mjData* d) {
 
   // check if islands are supported
   int islands_supported = mjENABLED(mjENBL_ISLAND)  &&
+                          d->nisland > 0            &&
                           m->opt.solver == mjSOL_CG &&
                           m->opt.noslip_iterations == 0;
 
