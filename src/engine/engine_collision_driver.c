@@ -238,7 +238,8 @@ quicksortfunc(contactcompare, context, el1, el2) {
   // for geom:geom, reproduce the order of contacts without mj_collideTree
   // normally sorted by (g1, g2), but in mj_collideGeoms, g1 and g2 are swapped based on geom_type
   // here we undo this swapping for the purpose of sorting - needs to be done for each mjContact
-  if (c1->geom[0] >= 0 && c1->geom[1] && c2->geom[0] >= 0 && c2->geom[1]) {
+  if (c1->geom[0] >= 0 && c1->geom[1] >= 0 &&
+      c2->geom[0] >= 0 && c2->geom[1] >= 0) {
     if (m->geom_type[con1_obj1] > m->geom_type[con1_obj2]) {
       int tmp = con1_obj1;
       con1_obj1 = con1_obj2;
