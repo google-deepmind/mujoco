@@ -21,16 +21,10 @@
 #include <mujoco/mjdata.h>
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjtnum.h>
+#include "elasticity.h"
 
 
 namespace mujoco::plugin::elasticity {
-
-struct Stencil3D {
-  static constexpr int kNumEdges = 6;
-  static constexpr int kNumVerts = 4;
-  int vertices[kNumVerts];
-  int edges[kNumEdges];
-};
 
 class Solid {
  public:
@@ -67,9 +61,6 @@ class Solid {
   Solid(const mjModel* m, mjData* d, int instance, mjtNum nu, mjtNum E,
         mjtNum damp, const std::vector<int>& simplex,
         const std::vector<int>& edgeidx);
-
-  void CreateStencils(const std::vector<int>& simplex,
-                      const std::vector<int>& edgeidx);
 };
 
 }  // namespace mujoco::plugin::elasticity

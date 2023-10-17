@@ -12,10 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef MUJOCO_PLUGIN_ELASTICITY_SHELL_H_
-#define MUJOCO_PLUGIN_ELASTICITY_SHELL_H_
+#ifndef MUJOCO_PLUGIN_ELASTICITY_MEMBRANE_H_
+#define MUJOCO_PLUGIN_ELASTICITY_MEMBRANE_H_
 
 #include <optional>
+#include <utility>
 #include <vector>
 
 #include <mujoco/mjdata.h>
@@ -26,49 +27,41 @@
 
 namespace mujoco::plugin::elasticity {
 
-struct StencilFlap {
-  static constexpr int kNumVerts = 4;
-  int vertices[kNumVerts];
-};
-
-class Shell {
+class Membrane {
  public:
-  // Returns a new Shell instance or nullopt on failure.
-  static std::optional<Shell> Create(const mjModel* m, mjData* d,
+  // Returns a new Membrane instance or nullopt on failure.
+  static std::optional<Membrane> Create(const mjModel* m, mjData* d,
                                      int instance);
-  Shell(Shell&&) = default;
+  Membrane(Membrane&&) = default;
 
-  Shell& operator=(Shell&& other) = default;
+  Membrane& operator=(Membrane&& other) = default;
 
   void Compute(const mjModel* m, mjData* d, int instance);
 
   static void RegisterPlugin();
 
+  int f0;  // index of corresponding flex
   int i0;  // index of first body
   int nc;  // number of quads in the grid
-  int nv;  // number of vertices (bodies) in the Shell
+  int nv;  // number of vertices (bodies) in the Membrane
   int nt;  // number of area elements (triangles)
-  int ne;  // number of edges in the Shell
+  int ne;  // number of edges in the Membrane
 
   // connectivity info for mapping tetrahedra to edges and vertices
   std::vector<Stencil2D> elements;          // triangles              (nt x 6)
-  std::vector<StencilFlap> flaps;           // adjacent triangles     (ne x 4)
+  std::vector<std::pair<int, int> > edges;  // edge to vertex map     (ne x 2)
 
   // precomputed quantities
-  std::vector<mjtNum> position;             // previous-step positions (nv x 3)
-  std::vector<mjtNum> bending;              // bending Hessian         (ne x 16)
+  std::vector<mjtNum> metric;               // geom-induced metric     (nt x 9)
 
   mjtNum thickness;
 
  private:
-  Shell(const mjModel* m, mjData* d, int instance, mjtNum nu, mjtNum E,
-        mjtNum thick, const std::vector<int>& face,
-        const std::vector<int>& edgeidx);
-
-  void CreateStencils(const std::vector<int>& simplex,
-                      const std::vector<int>& edgeidx);
+  Membrane(const mjModel* m, mjData* d, int instance, mjtNum nu, mjtNum E,
+           mjtNum thick, const std::vector<int>& simplex,
+           const std::vector<int>& edgeidx);
 };
 
 }  // namespace mujoco::plugin::elasticity
 
-#endif  // MUJOCO_PLUGIN_ELASTICITY_SHELL_H_
+#endif  // MUJOCO_PLUGIN_ELASTICITY_MEMBRANE_H_

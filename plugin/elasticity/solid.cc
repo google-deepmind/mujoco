@@ -17,7 +17,6 @@
 #include <cstdint>
 #include <cstdlib>
 #include <optional>
-#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -34,8 +33,6 @@ namespace {
 // local tetrahedron numbering
 constexpr int kNumEdges = Stencil3D::kNumEdges;
 constexpr int kNumVerts = Stencil3D::kNumVerts;
-constexpr int edge[kNumEdges][2] = {{0, 1}, {1, 2}, {2, 0},
-                                    {2, 3}, {0, 3}, {1, 3}};
 constexpr int face[kNumVerts][3] = {{2, 1, 0}, {0, 1, 3}, {1, 2, 3}, {2, 0, 3}};
 constexpr int e2f[kNumEdges][2] = {{2, 3}, {1, 3}, {2, 1},
                                    {1, 0}, {0, 2}, {0, 3}};
@@ -83,19 +80,6 @@ void ComputeBasis(mjtNum basis[9], const mjtNum* x, const int v[kNumVerts],
   }
 }
 
-// gradients of edge lengths with respect to vertex positions
-void GradSquaredLengths(mjtNum gradient[kNumEdges][2][3],
-                        const mjtNum* x,
-                        const int v[kNumVerts],
-                        const int edge[kNumEdges][2]) {
-  for (int e = 0; e < kNumEdges; e++) {
-    for (int d = 0; d < 3; d++) {
-      gradient[e][0][d] = x[3*v[edge[e][0]]+d] - x[3*v[edge[e][1]]+d];
-      gradient[e][1][d] = x[3*v[edge[e][1]]+d] - x[3*v[edge[e][0]]+d];
-    }
-  }
-}
-
 }  // namespace
 
 // factory function
@@ -116,49 +100,6 @@ std::optional<Solid> Solid::Create(const mjModel* m, mjData* d, int instance) {
         mju_warning("Invalid parameter specification in solid plugin");
         return std::nullopt;
     }
-}
-
-// create map from tetrahedra to vertices and edges and from edges to vertices
-void Solid::CreateStencils(const std::vector<int>& simplex,
-                           const std::vector<int>& edgeidx) {
-  // populate stencil
-  nt = simplex.size() / kNumVerts;
-  elements.resize(nt);
-  for (int t = 0; t < nt; t++) {
-    for (int v = 0; v < kNumVerts; v++) {
-      elements[t].vertices[v] = simplex[kNumVerts*t+v];
-    }
-  }
-
-  // map from edge vertices to their index in `edges` vector
-  std::unordered_map<std::pair<int, int>, int, PairHash> edge_indices;
-
-  // loop over all tetrahedra
-  for (int t = 0; t < nt; t++) {
-    int* v = elements[t].vertices;
-
-    // compute edges to vertices map for fast computations
-    for (int e = 0; e < kNumEdges; e++) {
-      auto pair = std::pair(
-        std::min(v[edge[e][0]], v[edge[e][1]]),
-        std::max(v[edge[e][0]], v[edge[e][1]])
-      );
-
-      // if edge is already present in the vector only store its index
-      auto [it, inserted] = edge_indices.insert({pair, ne});
-
-      if (inserted) {
-        edges.push_back(pair);
-        elements[t].edges[e] = ne++;
-      } else {
-        elements[t].edges[e] = it->second;
-      }
-
-      if (!edgeidx.empty()) {
-        assert(elements[t].edges[e] == edgeidx[kNumEdges*t+e]);
-      }
-    }
-  }
 }
 
 // plugin constructor
@@ -185,7 +126,7 @@ Solid::Solid(const mjModel* m, mjData* d, int instance, mjtNum nu, mjtNum E,
   }
 
   // generate tetrahedra from the vertices
-  CreateStencils(simplex, edgeidx);
+  nt = CreateStencils<Stencil3D>(elements, edges, simplex, edgeidx);
 
   // allocate arrays
   metric.assign(kNumEdges*kNumEdges*nt, 0);
@@ -204,8 +145,6 @@ Solid::Solid(const mjModel* m, mjData* d, int instance, mjtNum nu, mjtNum E,
 
     // local geometric quantities
     mjtNum basis[kNumEdges][9] = {{0}, {0}, {0}, {0}, {0}, {0}};
-    mjtNum trT[kNumEdges] = {0};
-    mjtNum trTT[kNumEdges*kNumEdges] = {0};
 
     // compute edge basis
     for (int e = 0; e < kNumEdges; e++) {
@@ -213,38 +152,16 @@ Solid::Solid(const mjModel* m, mjData* d, int instance, mjtNum nu, mjtNum E,
                    face[e2f[e][0]], face[e2f[e][1]], volume);
     }
 
-    // compute first invariant i.e. trace(strain)
-    for (int e = 0; e < kNumEdges; e++) {
-      for (int i = 0; i < 3; i++) {
-        trT[e] += basis[e][4*i];
-      }
-    }
-
-    // compute second invariant i.e. trace(strain^2)
-    for (int ed1 = 0; ed1 < kNumEdges; ed1++) {
-      for (int ed2 = 0; ed2 < kNumEdges; ed2++) {
-        for (int i = 0; i < 3; i++) {
-          for (int j = 0; j < 3; j++) {
-            trTT[kNumEdges*ed1+ed2] += basis[ed1][3*i+j] * basis[ed2][3*j+i];
-          }
-        }
-      }
-    }
-
     // material parameters
     mjtNum mu = E / (2*(1+nu)) * volume;
     mjtNum la = E*nu / ((1+nu)*(1-2*nu)) * volume;
 
-    // assembly of strain metric tensor
-    for (int ed1 = 0; ed1 < kNumEdges; ed1++) {
-      for (int ed2 = 0; ed2 < kNumEdges; ed2++) {
-        int index = kNumEdges*kNumEdges*t + kNumEdges*ed1 + ed2;
-        metric[index] = mu * trTT[kNumEdges*ed1+ed2] + la * trT[ed2]*trT[ed1];
-      }
-    }
+    // compute metric tensor
+    MetricTensor<Stencil3D>(metric, t, mu, la, basis);
   }
 
   // allocate array
+  ne = edges.size();
   reference.assign(ne, 0);
   deformed.assign(ne, 0);
   previous.assign(ne, 0);
@@ -266,7 +183,7 @@ void Solid::Compute(const mjModel* m, mjData* d, int instance) {
 
     // compute length gradient with respect to dofs
     mjtNum gradient[kNumEdges][2][3];
-    GradSquaredLengths(gradient, d->xpos+3*i0, v, edge);
+    GradSquaredLengths<Stencil3D>(gradient, d->xpos+3*i0, v);
 
     // we add generalized Rayleigh damping as decribed in Section 5.2 of
     // Kharevych et al., "Geometric, Variational Integrators for Computer
@@ -299,7 +216,7 @@ void Solid::Compute(const mjModel* m, mjData* d, int instance) {
       for (int ed2 = 0; ed2 < kNumEdges; ed2++) {
         for (int i = 0; i < 2; i++) {
           for (int x = 0; x < 3; x++) {
-            force[3 * edge[ed2][i] + x] +=
+            force[3 * Stencil3D::edge[ed2][i] + x] +=
                 elongation[ed1] * gradient[ed2][i][x] *
                 metric[offset * t + kNumEdges * ed1 + ed2];
           }
