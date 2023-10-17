@@ -177,13 +177,24 @@ Simulate
 30. The ``LOADING...`` label is now shown correctly. Contribution :github:pull:`1070` by
     `Levi Burner <https://github.com/aftersomemath>`__.
 
+Documentation
+^^^^^^^^^^^^^
+
+.. youtube:: nljr0X79vI0
+   :align: right
+   :width: 240px
+
+31. Added :doc:`detailed documentation <computation/fluid>` of fluid force modeling, and an illustrative example model
+    showing `tumbling cards <https://github.com/google-deepmind/mujoco/blob/main/model/cards/cards.xml>`__ using the
+    ellipsoid-based fluid model.
+
 Bug fixes
 ^^^^^^^^^
 
-31. Fixed a bug that was causing :ref:`geom margin<body-geom-margin>` to be ignored during the construction of
+32. Fixed a bug that was causing :ref:`geom margin<body-geom-margin>` to be ignored during the construction of
     midphase collision trees.
 
-32. Fixed a bug that was generating incorrect values in ``efc_diagApprox`` for weld equality constraints.
+33. Fixed a bug that was generating incorrect values in ``efc_diagApprox`` for weld equality constraints.
 
 
 Version 2.3.7 (July 20, 2023)
