@@ -2302,36 +2302,6 @@ void mjCFlex::Compile(const mjVFS* vfs) {
     }
   }
 
-  // create edges
-  std::vector<int> edgeidx(elem.size()*kNumEdges[dim-1]);
-
-  // map from edge vertices to their index in `edges` vector
-  std::unordered_map<std::pair<int, int>, int, PairHash> edge_indices;
-
-  // insert local edges into global vector
-  for (int f = 0; f < (int)elem.size()/(dim+1); f++) {
-    int* v = elem.data() + f*(dim+1);
-    for (int e = 0; e < kNumEdges[dim-1]; e++) {
-      auto pair = std::pair(
-        std::min(v[eledge[dim-1][e][0]], v[eledge[dim-1][e][1]]),
-        std::max(v[eledge[dim-1][e][0]], v[eledge[dim-1][e][1]])
-      );
-
-      // if edge is already present in the vector only store its index
-      auto [it, inserted] = edge_indices.insert({pair, nedge});
-
-      if (inserted) {
-        edge.push_back(pair);
-        edgeidx[f*kNumEdges[dim-1]+e] = nedge++;
-      } else {
-        edgeidx[f*kNumEdges[dim-1]+e] = it->second;
-      }
-    }
-  }
-
-  // set size
-  nedge = (int)edge.size();
-
   // determine rigid if not already set
   if (!rigid) {
     rigid = true;
@@ -2393,6 +2363,36 @@ void mjCFlex::Compile(const mjVFS* vfs) {
       }
     }
   }
+
+  // create edges
+  std::vector<int> edgeidx(elem.size()*kNumEdges[dim-1]);
+
+  // map from edge vertices to their index in `edges` vector
+  std::unordered_map<std::pair<int, int>, int, PairHash> edge_indices;
+
+  // insert local edges into global vector
+  for (int f = 0; f < (int)elem.size()/(dim+1); f++) {
+    int* v = elem.data() + f*(dim+1);
+    for (int e = 0; e < kNumEdges[dim-1]; e++) {
+      auto pair = std::pair(
+        std::min(v[eledge[dim-1][e][0]], v[eledge[dim-1][e][1]]),
+        std::max(v[eledge[dim-1][e][0]], v[eledge[dim-1][e][1]])
+      );
+
+      // if edge is already present in the vector only store its index
+      auto [it, inserted] = edge_indices.insert({pair, nedge});
+
+      if (inserted) {
+        edge.push_back(pair);
+        edgeidx[f*kNumEdges[dim-1]+e] = nedge++;
+      } else {
+        edgeidx[f*kNumEdges[dim-1]+e] = it->second;
+      }
+    }
+  }
+
+  // set size
+  nedge = (int)edge.size();
 
   // add plugins
   std::string userface, useredge;
