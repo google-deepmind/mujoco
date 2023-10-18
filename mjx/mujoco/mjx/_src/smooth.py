@@ -462,5 +462,6 @@ def transmission(m: Model, d: Data) -> Data:
       group_by='u',
   )
   moment = jp.zeros((m.nu, m.nv)).at[m_i, m_j].set(m_val)
-  d = d.replace(actuator_length=length.squeeze(), actuator_moment=moment)
+  length = length.reshape((m.nu,))
+  d = d.replace(actuator_length=length, actuator_moment=moment)
   return d

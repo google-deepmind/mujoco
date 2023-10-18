@@ -127,11 +127,11 @@ def _nvmap(f: Callable[..., Y], *args) -> Y:
 def _check_input(m: Model, args: Any, in_types: str) -> None:
   """Checks that scan input has the right shape."""
   size = {'b': m.nbody, 'j': m.njnt, 'q': m.nq, 'v': m.nv, 'u': m.nu, 'a': m.na}
-  for idx, (a, typ) in enumerate(zip(args, in_types)):
-    if len(a) != size[typ]:
+  for idx, (arg, typ) in enumerate(zip(args, in_types)):
+    if len(arg) != size[typ]:
       raise IndexError(
           (
-              f'f argument "{idx}" with type "{typ}" has length "{len(a)}"'
+              f'f argument "{idx}" with type "{typ}" has length "{len(arg)}"'
               f' which does not match the in_types[{idx}] expected length of '
               f'"{size[typ]}".'
           )
