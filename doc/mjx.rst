@@ -285,7 +285,7 @@ Scenes with collisions between meshes with many vertices
   `mesh collision algorithms <https://ubm-twvideo01.s3.amazonaws.com/o1/vault/gdc2013/slides/822403Gregorius_Dirk_TheSeparatingAxisTest.pdf>`__.
   These algorithms work well for smaller meshes (with hundreds of vertices) but suffer with large meshes. With careful
   tuning, MJX can simulate scenes with mesh collisions well -- see the MJX
-  `shadow hand <https://github.com/google-deepmind/mujoco/tree/main/mjx/benchmark/model/shadow_hand/scene_right.xmld>`__
+  `shadow hand <https://github.com/google-deepmind/mujoco/tree/main/mjx/mujoco/mjx/benchmark/model/shadow_hand>`__
   config for an example.
 
 .. _MjxPerformance:
