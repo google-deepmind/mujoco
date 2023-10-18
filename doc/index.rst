@@ -14,6 +14,7 @@
    programming/index.rst
    APIreference/index.rst
    python
+   MJX <mjx>
    unity
    models
    changelog

@@ -1,0 +1,31 @@
+<mujoco model="right_shadow_hand scene">
+
+  <include file="right_hand.xml"/>
+
+  <statistic extent="0.3" center="0.3 0 0"/>
+
+  <visual>
+    <rgba haze="0.15 0.25 0.35 1"/>
+    <quality shadowsize="8192"/>
+    <global azimuth="220" elevation="-30"/>
+  </visual>
+
+  <asset>
+    <texture type="skybox" builtin="gradient" rgb1="0.3 0.5 0.7" rgb2="0 0 0" width="512" height="3072"/>
+    <texture type="2d" name="groundplane" builtin="checker" mark="edge" rgb1="0.2 0.3 0.4" rgb2="0.1 0.2 0.3"
+      markrgb="0.8 0.8 0.8" width="300" height="300"/>
+    <material name="groundplane" texture="groundplane" texuniform="true" texrepeat="5 5" reflectance="0.2"/>
+  </asset>
+
+  <worldbody>
+    <light pos="0 0 1"/>
+    <light pos="0.3 0 1.5" dir="0 0 -1" directional="true"/>
+    <geom name="floor" pos="0 0 -0.1" size="0 0 0.05" type="plane" material="groundplane" contype="0" conaffinity="4"/>
+    <body name="object" pos="0.3 0 0.1">
+      <freejoint/>
+      <geom type="sphere" size="0.03" rgba="0.5 0.7 0.5 1" condim="3" priority="1"
+        friction="0.5 0.01 0.003" contype="7"/>
+    </body>
+  </worldbody>
+
+</mujoco>

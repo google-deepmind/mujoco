@@ -2,6 +2,8 @@ absl-py==2.0.0 \
     --hash=sha256:9a28abb62774ae4e8edbe2dd4c49ffcd45a6a848952a5eccc6a49f3f0fc1e2f3
 auditwheel==5.4.0; platform_system == 'Linux' \
     --hash=sha256:d8410a17523427ba3f7b60c9701d23de28b8f94fa5dab732aa6c30d160df8127
+build==1.0.3 \
+    --hash=sha256:589bf99a67df7c9cf07ec0ac0e5e2ea5d4b37ac63301c4986d1acb126aa83f8f
 etils[epath]==1.3.0; python_version == '3.8' \
     --hash=sha256:809a92ff72f12149441492cf4d9a26b56a4741dffb4dfb9c4c7b7afe055c2d28
 etils[epath]==1.5.1; python_version >= '3.9' \
@@ -54,6 +56,18 @@ wheel==0.41.2 \
 pyelftools==0.30; platform_system == 'Linux' \
     --hash=sha256:544c3440eddb9a0dce70b6611de0b28163d71def759d2ed57a0d00118fc5da86
 
+# Transitive dependencies of build
+colorama==0.4.6; platform_system == 'Windows' \
+    --hash=sha256:4f1d9991f5acc0ca119f9d443620b77f9d6b33703e51011c16baf57afb285fc6
+importlib-metadata==6.8.0; python_version < '3.10' \
+    --hash=sha256:3ebb78df84a805d7698245025b975d9d67053cd94c79245ba4b3eb694abe68bb
+packaging==23.2 \
+    --hash=sha256:8c491190033a9af7e1d931d0b5dacc2ef47509b34dd0de67ed209b5203fc88c7
+pyproject_hooks==1.0.0 \
+    --hash=sha256:283c11acd6b928d2f6a7c73fa0d01cb2bdc5f07c57a2eeb6e83d5e56b97976f8
+tomli==2.0.1; python_version < '3.11' \
+    --hash=sha256:939de3e7a6161af0c887ef91b7d41a53e7c5a1ca976325f429cb46ea9bc30ecc
+
 # Transitive dependencies of etils[epath]
 fsspec==2023.9.2 \
     --hash=sha256:603dbc52c75b84da501b9b2ec8c11e1f61c25984c4a0dda1f129ef391fbfc9b4
@@ -67,17 +81,11 @@ zipp==3.17.0 \
 # Transitive dependencies of pytest
 attrs==23.1.0; platform_system == 'Windows' \
     --hash=sha256:1f28b4522cdc2fb4256ac1a020c78acf9cba2c6b461ccd2c126f3aa8e8335d04
-colorama==0.4.6; platform_system == 'Windows' \
-    --hash=sha256:4f1d9991f5acc0ca119f9d443620b77f9d6b33703e51011c16baf57afb285fc6
 exceptiongroup==1.1.3; python_version < '3.11' \
     --hash=sha256:343280667a4585d195ca1cf9cef84a4e178c4b6cf2274caef9859782b567d5e3
 iniconfig==2.0.0 \
     --hash=sha256:b6a85871a79d2e3b22d2d1b94ac2824226a63c6b741c88f7ae975f18b6778374
-packaging==23.2 \
-    --hash=sha256:8c491190033a9af7e1d931d0b5dacc2ef47509b34dd0de67ed209b5203fc88c7
 pluggy==1.3.0 \
     --hash=sha256:d89c696a773f8bd377d18e5ecda92b7a3793cbe66c87060a6fb58c7b6e1061f7
 pyparsing==3.1.1 \
     --hash=sha256:32c7c0b711493c72ff18a981d24f28aaf9c1fb7ed5e9667c9e84e3db623bdbfb
-tomli==2.0.1; python_version < '3.11' \
-    --hash=sha256:939de3e7a6161af0c887ef91b7d41a53e7c5a1ca976325f429cb46ea9bc30ecc

@@ -1,0 +1,9 @@
+<mujoco model="pendulum">
+  <option timestep="0.02" solver="CG" iterations="6" ls_iterations="6"/>
+  <worldbody>
+    <body>
+      <joint axis="1 0 0" type="hinge"/>
+      <geom pos="0 0.5 0" size=".15" mass="1" type="sphere"/>
+    </body>
+  </worldbody>
+</mujoco>

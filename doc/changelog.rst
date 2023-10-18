@@ -2,17 +2,28 @@
 Changelog
 =========
 
-Upcoming version (not yet released)
------------------------------------
+Version 3.0.0 (October 18, 2023)
+--------------------------------
 
 New features
 ^^^^^^^^^^^^
+
+1. Added simulation on GPU and TPU via the new :doc:`mjx` (MJX) Python module. Python users can now
+   natively run MuJoCo simulations at millions of steps per second on Google TPU or their own accelerator hardware.
+
+   - MJX is designed to work with on-device reinforcement learning algorithms.  This Colab notebook demonstrates using
+     MJX along with reinforcement learning to train humanoid and quadruped robots to locomote: |colab|
+   - The MJX API is compatible with MuJoCo but is missing some features in this release.  See the outline of
+     :ref:`MJX feature parity <MjxFeatureParity>` for more details.
+
+.. |colab| image:: https://colab.research.google.com/assets/colab-badge.svg
+           :target: https://colab.research.google.com/github/google-deepmind/mujoco/blob/main/mjx/tutorial.ipynb
 
 .. youtube:: QewlEqIZi1o
    :align: right
    :width: 240px
 
-1. Added new signed distance field (SDF) collision primitive. SDFs can take any shape and are not constrained to be
+2. Added new signed distance field (SDF) collision primitive. SDFs can take any shape and are not constrained to be
    convex. Collision points are found by minimizing the maximum of the two colliding SDFs via gradient descent.
 
    - Added new SDF plugin for defining implicit geometries. The plugin must define methods computing an SDF and its
@@ -22,7 +33,7 @@ New features
    :align: right
    :width: 240px
 
-2. Added new low-level model element called ``flex``, used to define deformable objects. These
+3. Added new low-level model element called ``flex``, used to define deformable objects. These
    `simplicial complexes <https://en.wikipedia.org/wiki/Simplicial_complex>`__ can be of dimension 1, 2
    or 3, corresponding to stretchable lines, triangles or tetrahedra. Two new MJCF elements are used
    to define flexes. The top-level :ref:`deformable<deformable>` section contains the low-level flex definition.
@@ -36,19 +47,19 @@ New features
    functionality is currently available both via :ref:`deformable<CDeformable>` and :ref:`composite<CComposite>`,
    and both are modifiable by the first-party
    `elasticity plugins <https://github.com/google-deepmind/mujoco/tree/main/plugin/elasticity>`__. We expect some of
-   this functionallity to be unified in the future.
+   this functionality to be unified in the future.
 
 .. youtube:: Vc1tq0fFvQA
    :align: right
    :width: 240px
 
-3. Added constraint island discovery with :ref:`mj_island`. Constraint islands are disjoint sets of constraints
+4. Added constraint island discovery with :ref:`mj_island`. Constraint islands are disjoint sets of constraints
    and degrees-of-freedom that do not interact. The only solver which currently supports islands is
    :ref:`CG<option-solver>`. Island discovery can be activated using a new :ref:`enable flag<option-flag-island>`.
    If island discovery is enabled, geoms, contacts and tendons will be colored according to the corresponding island,
-   see video. Island discovery is currently disabled for models that have deformable objects (see prevous item).
+   see video. Island discovery is currently disabled for models that have deformable objects (see previous item).
 
-4. Added :ref:`mjThreadPool` and :ref:`mjTask` which allow for multi-threaded operations within the MuJoCo engine
+5. Added :ref:`mjThreadPool` and :ref:`mjTask` which allow for multi-threaded operations within the MuJoCo engine
    pipeline. If engine-internal threading is enabled, the following operations will be multi-threaded:
 
    - Island constraint resolution, if island discovery is :ref:`enabled<option-flag-island>` and the
@@ -60,7 +71,7 @@ New features
    Engine-internal threading is a work in progress and currently only available in first-party code via the
    :ref:`testspeed<saTestspeed>` utility, exposed with the ``npoolthread`` flag.
 
-5. Added capability to initialize :ref:`composite<body-composite>` particles from OBJ files. Fixes :github:issue:`642`
+6. Added capability to initialize :ref:`composite<body-composite>` particles from OBJ files. Fixes :github:issue:`642`
    and :github:issue:`674`.
 
 General
@@ -69,32 +80,32 @@ General
 .. admonition:: Breaking API changes
    :class: attention
 
-   6. Removed the macros ``mjMARKSTACK`` and ``mjFREESTACK``.
+   7. Removed the macros ``mjMARKSTACK`` and ``mjFREESTACK``.
 
       **Migration:** These macros have been replaced by new functions :ref:`mj_markStack` and
       :ref:`mj_freeStack`. These functions manage the :ref:`mjData stack<siStack>` in a fully encapsulated way (i.e.,
       without introducing a local variable at the call site).
 
-   7. Renamed ``mj_stackAlloc`` to :ref:`mj_stackAllocNum`. The new function :ref:`mj_stackAllocByte` allocates an
+   8. Renamed ``mj_stackAlloc`` to :ref:`mj_stackAllocNum`. The new function :ref:`mj_stackAllocByte` allocates an
       arbitrary number of bytes and has an additional argument for specifying the alignment of the returned pointer.
 
       **Migration:** The functionality for allocating ``mjtNum`` arrays is now available via :ref:`mj_stackAllocNum`.
 
-   8. Renamed the ``nstack`` field in :ref:`mjModel` and :ref:`mjData` to ``narena``. Changed ``narena``, ``pstack``,
+   9. Renamed the ``nstack`` field in :ref:`mjModel` and :ref:`mjData` to ``narena``. Changed ``narena``, ``pstack``,
       and ``maxuse_stack`` to count number of bytes rather than number of :ref:`mjtNum` |-| s.
 
-   9. Changed :ref:`mjData.solver<mjData>`, the array used to collect solver diagnostic information.
-      This array of :ref:`mjSolverStat` structs is now of length ``mjNISLAND * mjNSOLVER``, interpreted as as a matrix.
-      Each row of length ``mjNSOLVER`` contains separate solver statistics for each constraint island.
-      If the solver does not use islands, only row 0 is filled.
+   10. Changed :ref:`mjData.solver<mjData>`, the array used to collect solver diagnostic information.
+       This array of :ref:`mjSolverStat` structs is now of length ``mjNISLAND * mjNSOLVER``, interpreted as as a matrix.
+       Each row of length ``mjNSOLVER`` contains separate solver statistics for each constraint island.
+       If the solver does not use islands, only row 0 is filled.
 
-      - The new constant :ref:`mjNISLAND<glNumeric>` was set to 20.
-      - :ref:`mjNSOLVER<glNumeric>` was reduced from 1000 to 200.
-      - Added :ref:`mjData.solver_nisland<mjData>`: the number of islands for which the solver ran.
-      - Renamed ``mjData.solver_iter`` to ``solver_niter``. Both this member and ``mjData.solver_nnz`` are now integer
-        vectors of length ``mjNISLAND``.
+       - The new constant :ref:`mjNISLAND<glNumeric>` was set to 20.
+       - :ref:`mjNSOLVER<glNumeric>` was reduced from 1000 to 200.
+       - Added :ref:`mjData.solver_nisland<mjData>`: the number of islands for which the solver ran.
+       - Renamed ``mjData.solver_iter`` to ``solver_niter``. Both this member and ``mjData.solver_nnz`` are now integer
+         vectors of length ``mjNISLAND``.
 
-   10. Removed ``mjOption.collision`` and the associated ``option/collision`` attribute.
+   11. Removed ``mjOption.collision`` and the associated ``option/collision`` attribute.
 
        **Migration:**
 
@@ -105,39 +116,39 @@ General
          :ref:`conaffinity<body-geom-conaffinity>` attributes in the model and then setting them globally to ``0`` using
          |br| ``<default> <geom contype="0" conaffinity="0"/> </default>``.
 
-   11. Removed the :at:`rope` and :at:`cloth` composite objects.
+   12. Removed the :at:`rope` and :at:`cloth` composite objects.
 
        **Migration:** Users should use the :at:`cable` and :at:`shell` elasticity plugins.
 
-   12. Added :ref:`mjData.eq_active<mjData>` user input variable, for enabling/disabling the state of equality
+   13. Added :ref:`mjData.eq_active<mjData>` user input variable, for enabling/disabling the state of equality
        constraints. Renamed ``mjModel.eq_active`` to :ref:`mjModel.eq_active0<mjModel>`, which now has the semantic of
        "initial value of ``mjData.eq_active``". Fixes :github:issue:`876`.
 
        **Migration:** Replace uses of ``mjModel.eq_active`` with ``mjData.eq_active``.
 
-   13. Changed the default of :ref:`autolimits<compiler-autolimits>` from "false" to "true". This is a minor breaking
+   14. Changed the default of :ref:`autolimits<compiler-autolimits>` from "false" to "true". This is a minor breaking
        change. The potential breakage applies to models which have elements with "range" defined and "limited" not set.
        Such models cannot be loaded since version 2.2.2 (July 2022).
 
-14. Added a new :ref:`dyntype<actuator-general-dyntype>`, ``filterexact``, which updates first-order filter states with
+15. Added a new :ref:`dyntype<actuator-general-dyntype>`, ``filterexact``, which updates first-order filter states with
     the exact formula rather than with Euler integration.
-15. Added an actuator attribute, :ref:`actearly<actuator-general-actearly>`, which uses semi-implicit integration for
+16. Added an actuator attribute, :ref:`actearly<actuator-general-actearly>`, which uses semi-implicit integration for
     actuator forces: using the next step's actuator state to compute the current actuator forces.
-16. Renamed ``actuatorforcerange`` and ``actuatorforcelimited``, introduced in the previous version to
+17. Renamed ``actuatorforcerange`` and ``actuatorforcelimited``, introduced in the previous version to
     :ref:`actuatorfrcrange<body-joint-actuatorfrcrange>` and
     :ref:`actuatorfrclimited<body-joint-actuatorfrclimited>`, respectively.
-17. Added the flag :ref:`eulerdamp<option-flag-eulerdamp>`, which disables implicit integration of joint damping in the
+18. Added the flag :ref:`eulerdamp<option-flag-eulerdamp>`, which disables implicit integration of joint damping in the
     Euler integrator. See the :ref:`Numerical Integration<geIntegration>` section for more details.
-18. Added the flag :ref:`invdiscrete<option-flag-invdiscrete>`, which enables discrete-time inverse dynamics for all
+19. Added the flag :ref:`invdiscrete<option-flag-invdiscrete>`, which enables discrete-time inverse dynamics for all
     :ref:`integrators<option-integrator>` other than ``RK4``. See the flag documentation for more details.
-19. Added :ref:`ls_iterations<option-ls_iterations>` and :ref:`ls_tolerance<option-ls_tolerance>` options for adjusting
+20. Added :ref:`ls_iterations<option-ls_iterations>` and :ref:`ls_tolerance<option-ls_tolerance>` options for adjusting
     linesearch stopping criteria in CG and Newton solvers. These can be useful for performance tuning.
-20. Added ``mesh_pos`` and ``mesh_quat`` fields to :ref:`mjModel` to store the normalizing transformation applied to
+21. Added ``mesh_pos`` and ``mesh_quat`` fields to :ref:`mjModel` to store the normalizing transformation applied to
     mesh assets. Fixes :github:issue:`409`.
-21. Added camera :ref:`resolution<body-camera-resolution>` attribute and :ref:`camprojection<sensor-camprojection>`
+22. Added camera :ref:`resolution<body-camera-resolution>` attribute and :ref:`camprojection<sensor-camprojection>`
     sensor. If camera resolution is set to positive values, the camera projection sensor will report the location of a
     target site, projected onto the camera image, in pixel coordinates.
-22. Added :ref:`camera<body-camera>` calibration attributes:
+23. Added :ref:`camera<body-camera>` calibration attributes:
 
     - The new attributes are :ref:`resolution<body-camera-resolution>`, :ref:`focal<body-camera-focal>`,
       :ref:`focalpixel<body-camera-focalpixel>`, :ref:`principal<body-camera-principal>`,
@@ -146,21 +157,21 @@ General
       attributes are specified. See the following
       `example model <https://github.com/deepmind/mujoco/blob/main/test/engine/testdata/vis_visualize/frustum.xml>`__.
     - Note that these attributes only take effect for offline rendering and do not affect interactive visualisation.
-23. Implemented reversed Z rendering for better depth precision. An enum :ref:`mjtDepthMap` was added with values
+24. Implemented reversed Z rendering for better depth precision. An enum :ref:`mjtDepthMap` was added with values
     ``mjDEPTH_ZERONEAR`` and ``mjDEPTH_ZEROFAR``, which can be used to set the new ``readDepthMap`` attribute in
     :ref:`mjrContext` to control how the depth returned by :ref:`mjr_readPixels` is mapped from ``znear`` to ``zfar``.
     Contribution :github:pull:`978` by `Levi Burner <https://github.com/aftersomemath>`__.
-24. Deleted the code sample ``testxml``. The functionality provided by this utility is implemented in the
+25. Deleted the code sample ``testxml``. The functionality provided by this utility is implemented in the
     `WriteReadCompare <https://github.com/google-deepmind/mujoco/blob/main/test/xml/xml_native_writer_test.cc>`__ test.
-25. Deleted the code sample ``derivative``. Functionality provided by :ref:`mjd_transitionFD`.
+26. Deleted the code sample ``derivative``. Functionality provided by :ref:`mjd_transitionFD`.
 
 Python bindings
 ^^^^^^^^^^^^^^^
 
-26. Fixed :github:issue:`870` where calling ``update_scene`` with an invalid camera name used the default camera.
-27. Added ``user_scn`` to the :ref:`passive viewer<PyViewerPassive>` handle, which allows users to add custom
+27. Fixed :github:issue:`870` where calling ``update_scene`` with an invalid camera name used the default camera.
+28. Added ``user_scn`` to the :ref:`passive viewer<PyViewerPassive>` handle, which allows users to add custom
     visualization geoms (:github:issue:`1023`).
-28. Added optional boolean keyword arguments ``show_left_ui`` and ``show_right_ui`` to the functions ``viewer.launch``
+29. Added optional boolean keyword arguments ``show_left_ui`` and ``show_right_ui`` to the functions ``viewer.launch``
     and ``viewer.launch_passive``, which allow users to launch a viewer with UI panels hidden.
 
 Simulate
@@ -170,11 +181,11 @@ Simulate
    :align: right
    :width: 240px
 
-29. Added **state history** mechanism to :ref:`simulate<saSimulate>` and the managed
+30. Added **state history** mechanism to :ref:`simulate<saSimulate>` and the managed
     :ref:`Python viewer<PyViewerManaged>`. State history can be viewed by scrubbing the History slider and (more
     precisely) with the left and right arrow keys. See screen capture:
 
-30. The ``LOADING...`` label is now shown correctly. Contribution :github:pull:`1070` by
+31. The ``LOADING...`` label is now shown correctly. Contribution :github:pull:`1070` by
     `Levi Burner <https://github.com/aftersomemath>`__.
 
 Documentation
@@ -184,17 +195,17 @@ Documentation
    :align: right
    :width: 240px
 
-31. Added :doc:`detailed documentation <computation/fluid>` of fluid force modeling, and an illustrative example model
+32. Added :doc:`detailed documentation <computation/fluid>` of fluid force modeling, and an illustrative example model
     showing `tumbling cards <https://github.com/google-deepmind/mujoco/blob/main/model/cards/cards.xml>`__ using the
     ellipsoid-based fluid model.
 
 Bug fixes
 ^^^^^^^^^
 
-32. Fixed a bug that was causing :ref:`geom margin<body-geom-margin>` to be ignored during the construction of
+33. Fixed a bug that was causing :ref:`geom margin<body-geom-margin>` to be ignored during the construction of
     midphase collision trees.
 
-33. Fixed a bug that was generating incorrect values in ``efc_diagApprox`` for weld equality constraints.
+34. Fixed a bug that was generating incorrect values in ``efc_diagApprox`` for weld equality constraints.
 
 
 Version 2.3.7 (July 20, 2023)

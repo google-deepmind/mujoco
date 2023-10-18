@@ -29,7 +29,7 @@ set(MUJOCO_DEP_VERSION_lodepng
 
 project(
   mujoco_simulate
-  VERSION 2.3.8
+  VERSION 3.0.0
   DESCRIPTION "MuJoCo simulate binaries"
   HOMEPAGE_URL "https://mujoco.org"
 )
