@@ -1688,6 +1688,7 @@ static int planeVertex(mjContact* con, const mjtNum* pos, mjtNum rad,
   // construct contact
   con->dist = -dst-2*rad;
   mju_scl3(con->frame, nrm, -1);
+  mju_zero3(con->frame+3);
   mju_addScl3(con->pos, pos+3*v, nrm, -0.5*dst);
   con->vert[1] = v;
   return 1;
