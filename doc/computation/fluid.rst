@@ -26,7 +26,7 @@ to positive values. These parameters correspond to the density :math:`\rho` and 
 Inertia model
 -------------
 
-In this model, the shape of each body, for fluid dynamics purposes, is assumed to be the *equivalent inertia box*,
+In this model the shape of each body, for fluid dynamics purposes, is assumed to be the *equivalent inertia box*,
 which can also be visualized. For a body with mass :math:`\mathcal{M}` and inertia matrix :math:`\mathcal{I}`, the
 half-dimensions (i.e. half-width, half-depth and half-height) of the equivalent inertia box are
 
@@ -34,17 +34,17 @@ half-dimensions (i.e. half-width, half-depth and half-height) of the equivalent 
    \begin{align*}
    r_x = \sqrt{\frac{3}{2 \mathcal{M}} \left(\mathcal{I}_{yy} + \mathcal{I}_{zz} - \mathcal{I}_{xx} \right)}  \\
    r_y = \sqrt{\frac{3}{2 \mathcal{M}} \left(\mathcal{I}_{zz} + \mathcal{I}_{xx} - \mathcal{I}_{yy} \right)}  \\
-   r_z = \sqrt{\frac{3}{2 \mathcal{M}} \left(\mathcal{I}_{xx} + \mathcal{I}_{yy} - \mathcal{I}_{zz} \right)}.
+   r_z = \sqrt{\frac{3}{2 \mathcal{M}} \left(\mathcal{I}_{xx} + \mathcal{I}_{yy} - \mathcal{I}_{zz} \right)}
    \end{align*}
 
 Let :math:`\mathbf{v}` and :math:`\boldsymbol{\omega}` denote the linear and angular body velocity of the body in
 the body-local frame (aligned with the equivalent inertia box). The force :math:`\mathbf{f}_{\text{inertia}}` and
-torque :math:`\mathbf{g}_{\text{inertia}}` exerted by the fluid onto the solid are the sum of of the terms
+torque :math:`\mathbf{g}_{\text{inertia}}` exerted by the fluid onto the solid are the sum of the terms
 
 .. math::
    \begin{align*}
    \mathbf{f}_{\text{inertia}} &= \mathbf{f}_D + \mathbf{f}_V  \\
-   \mathbf{g}_{\text{inertia}} &= \mathbf{g}_D + \mathbf{g}_V.
+   \mathbf{g}_{\text{inertia}} &= \mathbf{g}_D + \mathbf{g}_V
    \end{align*}
 
 Here subscripts :math:`D` and :math:`V` denote quadratic Drag and Viscous resistance.
@@ -455,7 +455,7 @@ Given this reference moment of inertia, the angular drag torque is computed as:
 
 Here :math:`\mathbf{I}_\text{max}` is a vector with each entry equal to the maximal component of :math:`\mathbf{I}_D`.
 
-Finally, the viscous resistance terms, also known as linear drag, well approvimate the fluid forces for Reynolds
+Finally the viscous resistance terms, also known as linear drag, well approvimate the fluid forces for Reynolds
 numbers around or below :math:`O(10)`. These are computed for the equivalent sphere with Stokes' law
 :cite:p:`stokes1850,lamb1932`:
 
