@@ -585,16 +585,21 @@ Equality constraints can impose additional constraints beyond those already impo
 and the joints/DOFs defined in it. They can be used to create loop joints, or in general model mechanical coupling.
 The internal forces that enforce these constraints are computed together with all other constraint forces. The
 available equality constraint types are: connect two bodies at a point (creating a ball joint outside the kinematic
-tree); weld two bodies together; make two surfaces slide on each other; fix the position of a joint or tendon; couple
-the positions of two joints or two tendons via a cubic polynomial.
+tree); weld two bodies together; fix the position of a joint or tendon; couple the positions of two joints or two
+tendons via a cubic polynomial; constrain the edges of a flex (i.e. deformable mesh) to their initial lengths.
 
-Deformable
-^^^^^^^^^^
 
-These are collections of massless stretchable geometric elements (capsules, triangles or tetrahedra) connecting vertices
-that are defined within different moving body frames. These stretchable elements support collisions and contact forces,
-which are then distributed to all the interconnected bodies. Flexes also generate passive and constraint forces as
-needed to simulate deformable entities with the desired material properties.
+Flex
+^^^^
+
+Flexes were added in MuJoCo 3.0. They represent deformable meshes that can be 1, 2 or 3 dimensional (thus their elements
+are capsules, triangles or tetrahedra). Unlike geoms which are static shapes attached rigidly to a single body, the
+elements of a flex are deformable: they are constructed by connecting multiple bodies, thus the body positions and
+orientations determine the shape of the flex elements at runtime. These deformable elements suport collisions and
+contact forces, as well as generate passive and constraint forces which softly preserve the shape of the deformable
+entity. Automation is provided to load a mesh from a file, construct bodies corresponding to the mesh vertices,
+construct flex elements corresponding to the mesh faces (or lines or tetrahedra, depending on dimensionality), and
+obtain a corresponding deformable mesh.
 
 Contact pair
 ^^^^^^^^^^^^
@@ -604,7 +609,9 @@ sources: automated proximity tests and other filters collectively called "dynami
 geom pairs provided in the model. The latter is a separate type of model element. Because a contact involves a
 combination of two geoms, the explicit specification allows the user to define contact parameters in ways that cannot
 be done with the dynamic mechanism. It is also useful for fine-tuning the contact model, in particular adding contact
-pairs that were removed by an aggressive filtering scheme.
+pairs that were removed by an aggressive filtering scheme. The contact machinery is now extended to flex elements,
+which can create contact interactions between more than two bodies. However such collisions are automated and cannot
+be finetuned using contact pairs.
 
 Contact exclude
 ^^^^^^^^^^^^^^^
