@@ -1343,28 +1343,18 @@ void UiEvent(mjuiState* state) {
 
     // option section
     else if (it && it->sectionid==SECT_OPTION) {
-      switch (it->itemid) {
-      case 0:             // Spacing
+      if (it->pdata == &sim->spacing) {
         sim->ui0.spacing = mjui_themeSpacing(sim->spacing);
         sim->ui1.spacing = mjui_themeSpacing(sim->spacing);
-        break;
-
-      case 1:             // Color
+      } else if (it->pdata == &sim->color) {
         sim->ui0.color = mjui_themeColor(sim->color);
         sim->ui1.color = mjui_themeColor(sim->color);
-        break;
-
-      case 2:             // Font
+      } else if (it->pdata == &sim->font) {
         mjr_changeFont(50*(sim->font+1), &sim->platform_ui->mjr_context());
-        break;
-
-      case 9:             // Full screen
+      } else if (it->pdata == &sim->fullscreen) {
         sim->platform_ui->ToggleFullscreen();
-        break;
-
-      case 10:            // Vertical sync
+      } else if (it->pdata == &sim->vsync) {
         sim->platform_ui->SetVSync(sim->vsync);
-        break;
       }
 
       // modify UI

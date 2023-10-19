@@ -2,6 +2,14 @@
 Changelog
 =========
 
+Upcoming version (not yet released)
+-----------------------------------
+
+Bug fixes
+^^^^^^^^^
+
+1. Fix in simulate: correct handling of "Pause update", "Fullscreen" and "VSync" buttons.
+
 Version 3.0.0 (October 18, 2023)
 --------------------------------
 
