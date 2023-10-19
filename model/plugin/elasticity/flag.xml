@@ -39,7 +39,6 @@
         <geom type="ellipsoid" size="0.025 0.01 0.025" rgba=".8 .2 .1 1" group="4"/>
         <plugin plugin="mujoco.elasticity.shell">
           <config key="poisson" value="0"/>
-          <config key="damping" value="0.001"/>
           <config key="thickness" value="1e-2"/>
           <!--Units are in Pa (SI)-->
           <config key="young" value="3e6"/>

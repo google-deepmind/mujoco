@@ -169,15 +169,15 @@ void mjv_makeScene(const mjModel* m, mjvScene* scn, int maxgeom) {
 
     // count max number of flex faces to be rendered (depending on vis options)
     int nface = 0;
-    for (int f=0; f<nflex; f++) {
+    for (int f=0; f < nflex; f++) {
       // 1D : 0
-      if (m->flex_dim[f]==0) {
+      if (m->flex_dim[f] == 0) {
         scn->flexfacenum[f] = 0;
       }
 
       // 2D: 2*fragments + 2*elements
-      else if (m->flex_dim[f]==2) {
-         scn->flexfacenum[f] = 2*m->flex_shellnum[f] + 2*m->flex_elemnum[f];
+      else if (m->flex_dim[f] == 2) {
+        scn->flexfacenum[f] = 2*m->flex_shellnum[f] + 2*m->flex_elemnum[f];
       }
 
       // 3D: max(fragments, 4*maxlayer)
@@ -187,8 +187,8 @@ void mjv_makeScene(const mjModel* m, mjvScene* scn, int maxgeom) {
         while (nlayer) {
           // count elements in this layer
           nlayer = 0;
-          for (int e=0; e<m->flex_elemnum[f]; e++) {
-            if (m->flex_elemlayer[m->flex_elemadr[f]+e]==layer) {
+          for (int e=0; e < m->flex_elemnum[f]; e++) {
+            if (m->flex_elemlayer[m->flex_elemadr[f]+e] == layer) {
               nlayer++;
             }
           }
@@ -234,8 +234,8 @@ void mjv_makeScene(const mjModel* m, mjvScene* scn, int maxgeom) {
     memcpy(scn->flexedge, m->flex_edge, 2*m->nflexedge*sizeof(int));
 
     // compute flexfaceadr
-    for (int f=0; f<nflex; f++) {
-      scn->flexfaceadr[f] = f==0 ? 0 : scn->flexfaceadr[f-1]+scn->flexfacenum[f-1];
+    for (int f=0; f < nflex; f++) {
+      scn->flexfaceadr[f] = f == 0 ? 0 : scn->flexfaceadr[f-1]+scn->flexfacenum[f-1];
     }
   }
 

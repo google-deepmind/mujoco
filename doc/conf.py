@@ -49,8 +49,14 @@ extensions = [
     'sphinx_favicon',
     'sphinx_reredirects',
     'sphinx_toolbox.collapse',
+    'sphinx_toolbox.github',
+    'sphinx_toolbox.sidebar_links',
     'mujoco_include',
 ]
+
+# GitHub-related options
+github_username = 'google-deepmind'
+github_repository = 'mujoco'
 
 # Bibtex references for sphinxcontrib.bibtex
 bibtex_bibfiles = ['references.bib']

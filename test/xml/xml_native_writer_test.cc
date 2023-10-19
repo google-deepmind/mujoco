@@ -44,7 +44,7 @@ using ::testing::HasSubstr;
 using ::testing::Not;
 using ::testing::NotNull;
 
-using XMLWriterTest = MujocoTest;
+using XMLWriterTest = PluginTest;
 
 TEST_F(XMLWriterTest, EmptyModel) {
   static constexpr char xml[] = "<mujoco/>";
@@ -1062,7 +1062,7 @@ mjtNum CompareModel(const mjModel* m1, const mjModel* m2,
   return maxdif;
 }
 
-TEST_F(PluginTest, WriteReadCompare) {
+TEST_F(XMLWriterTest, WriteReadCompare) {
   // full precision float printing
   FullFloatPrecision increase_precision;
 
@@ -1132,7 +1132,7 @@ TEST_F(PluginTest, WriteReadCompare) {
 
 // ---------------- test CopyBack functionality (decompiler) ------------------
 using DecompilerTest = MujocoTest;
-TEST_F(XMLWriterTest, SavesStatitics) {
+TEST_F(DecompilerTest, SavesStatitics) {
   static constexpr char xml[] = R"(
   <mujoco>
     <statistic meansize="2" extent="3" center="4 5 6"/>

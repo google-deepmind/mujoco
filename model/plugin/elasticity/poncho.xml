@@ -1407,7 +1407,6 @@
       <skin inflate="0.001" rgba=".4 0 .3 1"/>
       <plugin plugin="mujoco.elasticity.shell">
         <config key="poisson" value="0"/>
-        <config key="damping" value="0.001"/>
         <config key="thickness" value="8e-3"/>
         <!--Units are in Pa (SI)-->
         <config key="young" value="3e7"/>

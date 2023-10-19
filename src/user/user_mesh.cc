@@ -18,9 +18,11 @@
 #include <cstddef>
 #include <cstdio>
 #include <cstring>
+#include <functional>
 #include <memory>
 #include <optional>
 #include <string>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -59,6 +61,7 @@
 #include "user/user_model.h"
 #include "user/user_objects.h"
 #include "user/user_util.h"
+#include "xml/xml_util.h"
 #include <tiny_obj_loader.h>
 
 extern "C" {
@@ -2157,6 +2160,24 @@ void mjCSkin::LoadSKN(mjResource* resource) {
 
 //------------------ class mjCFlex implementation --------------------------------------------------
 
+// hash function for std::pair
+struct PairHash
+{
+    template <class T1, class T2>
+    std::size_t operator() (const std::pair<T1, T2>& pair) const {
+        return std::hash<T1>()(pair.first) ^ std::hash<T2>()(pair.second);
+    }
+};
+
+// simplex connectivity
+constexpr int kNumEdges[3] = {1, 3, 6};
+constexpr int eledge[3][6][2] = {{{ 0,  1}, {-1, -1}, {-1, -1},
+                                  {-1, -1}, {-1, -1}, {-1, -1}},
+                                 {{ 1,  2}, { 2,  0}, { 0,  1},
+                                  {-1, -1}, {-1, -1}, {-1, -1}},
+                                 {{ 0,  1}, { 1,  2}, { 2,  0},
+                                  { 2,  3}, { 0,  3}, { 1,  3}}};
+
 // constructor
 mjCFlex::mjCFlex(mjCModel* _model) {
   // set model
@@ -2215,6 +2236,9 @@ void mjCFlex::Compile(const mjVFS* vfs) {
   }
   if (vert.size() % 3) {
       throw mjCError(this, "vert size must be a multiple of 3");
+  }
+  if (edgestiffness>0 && dim>1) {
+    throw mjCError(this, "edge stiffness only available for dim=1, please use elasticity plugins");
   }
   nelem = (int)elem.size()/(dim+1);
 
@@ -2276,45 +2300,7 @@ void mjCFlex::Compile(const mjVFS* vfs) {
         throw mjCError(this, "repeated vertex in element");
       }
     }
-
-    // make edges from sorted element
-    switch (dim) {
-    case 1:   // line
-      edge.push_back(std::make_pair(el[0], el[1]));
-      break;
-
-    case 2:   // triangle
-      edge.push_back(std::make_pair(el[0], el[1]));
-      edge.push_back(std::make_pair(el[1], el[2]));
-      edge.push_back(std::make_pair(el[0], el[2]));
-      break;
-
-    case 3:   // tetrahedron
-      edge.push_back(std::make_pair(el[0], el[1]));
-      edge.push_back(std::make_pair(el[1], el[2]));
-      edge.push_back(std::make_pair(el[2], el[3]));
-      edge.push_back(std::make_pair(el[0], el[2]));
-      edge.push_back(std::make_pair(el[0], el[3]));
-      edge.push_back(std::make_pair(el[1], el[3]));
-      break;
-    }
   }
-
-  // sort edges
-  std::sort(edge.begin(), edge.end());
-
-  // remove repeated edges
-  std::vector<std::pair<int,int>> edge1;
-  edge1.push_back(edge[0]);
-  for (int i=1; i<(int)edge.size(); i++) {
-    if (edge1[edge1.size()-1]!=edge[i]) {
-      edge1.push_back(edge[i]);
-    }
-  }
-  edge = edge1;
-
-  // set size
-  nedge = (int)edge.size();
 
   // determine rigid if not already set
   if (!rigid) {
@@ -2375,6 +2361,48 @@ void mjCFlex::Compile(const mjVFS* vfs) {
         elem[e*(dim+1)+1] = elem[e*(dim+1)+2];
         elem[e*(dim+1)+2] = tmp;
       }
+    }
+  }
+
+  // create edges
+  std::vector<int> edgeidx(elem.size()*kNumEdges[dim-1]);
+
+  // map from edge vertices to their index in `edges` vector
+  std::unordered_map<std::pair<int, int>, int, PairHash> edge_indices;
+
+  // insert local edges into global vector
+  for (int f = 0; f < (int)elem.size()/(dim+1); f++) {
+    int* v = elem.data() + f*(dim+1);
+    for (int e = 0; e < kNumEdges[dim-1]; e++) {
+      auto pair = std::pair(
+        std::min(v[eledge[dim-1][e][0]], v[eledge[dim-1][e][1]]),
+        std::max(v[eledge[dim-1][e][0]], v[eledge[dim-1][e][1]])
+      );
+
+      // if edge is already present in the vector only store its index
+      auto [it, inserted] = edge_indices.insert({pair, nedge});
+
+      if (inserted) {
+        edge.push_back(pair);
+        edgeidx[f*kNumEdges[dim-1]+e] = nedge++;
+      } else {
+        edgeidx[f*kNumEdges[dim-1]+e] = it->second;
+      }
+    }
+  }
+
+  // set size
+  nedge = (int)edge.size();
+
+  // add plugins
+  std::string userface, useredge;
+  mjXUtil::Vector2String(userface, elem);
+  mjXUtil::Vector2String(useredge, edgeidx);
+
+  for (int i=0; i<(int)vertbodyid.size(); i++) {
+    if (model->bodies[vertbodyid[i]]->plugin_instance) {
+      model->bodies[vertbodyid[i]]->plugin_instance->config_attribs["face"] = userface;
+      model->bodies[vertbodyid[i]]->plugin_instance->config_attribs["edge"] = useredge;
     }
   }
 

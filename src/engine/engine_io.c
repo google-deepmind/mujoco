@@ -444,19 +444,16 @@ static int safeAddToBufferSize(intptr_t* offset, size_t* nbuffer,
 
 // allocate and initialize mjModel structure
 mjModel* mj_makeModel(
-    int nq, int nv, int nu, int na, int nbody, int nbvh, int nbvhstatic,
-    int nbvhdynamic, int njnt, int ngeom, int nsite, int ncam, int nlight,
-    int nflex, int nflexvert, int nflexedge, int nflexelem, int nflexelemdata,
-    int nflexshelldata, int nflexevpair, int nflextexcoord, int nmesh,
-    int nmeshvert, int nmeshnormal, int nmeshtexcoord, int nmeshface,
-    int nmeshgraph, int nskin, int nskinvert, int nskintexvert, int nskinface,
-    int nskinbone, int nskinbonevert, int nhfield, int nhfielddata, int ntex,
-    int ntexdata, int nmat, int npair, int nexclude, int neq, int ntendon,
-    int nwrap, int nsensor, int nnumeric, int nnumericdata, int ntext,
-    int ntextdata, int ntuple, int ntupledata, int nkey, int nmocap,
-    int nplugin, int npluginattr, int nuser_body, int nuser_jnt, int nuser_geom,
-    int nuser_site, int nuser_cam, int nuser_tendon, int nuser_actuator,
-    int nuser_sensor, int nnames, int npaths) {
+  int nq, int nv, int nu, int na, int nbody, int nbvh, int nbvhstatic, int nbvhdynamic, int njnt,
+  int ngeom, int nsite, int ncam, int nlight, int nflex, int nflexvert, int nflexedge,
+  int nflexelem, int nflexelemdata, int nflexshelldata, int nflexevpair, int nflextexcoord,
+  int nmesh, int nmeshvert, int nmeshnormal, int nmeshtexcoord, int nmeshface,  int nmeshgraph,
+  int nskin, int nskinvert, int nskintexvert, int nskinface, int nskinbone, int nskinbonevert,
+  int nhfield, int nhfielddata, int ntex, int ntexdata, int nmat, int npair, int nexclude, int neq,
+  int ntendon, int nwrap, int nsensor, int nnumeric, int nnumericdata, int ntext, int ntextdata,
+  int ntuple, int ntupledata, int nkey, int nmocap, int nplugin, int npluginattr, int nuser_body,
+  int nuser_jnt, int nuser_geom, int nuser_site, int nuser_cam, int nuser_tendon,
+  int nuser_actuator, int nuser_sensor, int nnames, int npaths) {
   intptr_t offset = 0;
 
   // allocate mjModel
@@ -602,21 +599,21 @@ mjModel* mj_copyModel(mjModel* dest, const mjModel* src) {
   // allocate new model if needed
   if (!dest) {
     dest = mj_makeModel(
-        src->nq, src->nv, src->nu, src->na, src->nbody, src->nbvh,
-        src->nbvhstatic, src->nbvhdynamic, src->njnt, src->ngeom, src->nsite,
-        src->ncam, src->nlight, src->nflex, src->nflexvert, src->nflexedge,
-        src->nflexelem, src->nflexelemdata, src->nflexshelldata,
-        src->nflexevpair, src->nflextexcoord, src->nmesh, src->nmeshvert,
-        src->nmeshnormal, src->nmeshtexcoord, src->nmeshface, src->nmeshgraph,
-        src->nskin, src->nskinvert, src->nskintexvert, src->nskinface,
-        src->nskinbone, src->nskinbonevert, src->nhfield, src->nhfielddata,
-        src->ntex, src->ntexdata, src->nmat, src->npair, src->nexclude,
-        src->neq, src->ntendon, src->nwrap, src->nsensor, src->nnumeric,
-        src->nnumericdata, src->ntext, src->ntextdata, src->ntuple,
-        src->ntupledata, src->nkey, src->nmocap, src->nplugin, src->npluginattr,
-        src->nuser_body, src->nuser_jnt, src->nuser_geom, src->nuser_site,
-        src->nuser_cam, src->nuser_tendon, src->nuser_actuator,
-        src->nuser_sensor, src->nnames, src->npaths);
+      src->nq, src->nv, src->nu, src->na, src->nbody, src->nbvh,
+      src->nbvhstatic, src->nbvhdynamic, src->njnt, src->ngeom, src->nsite,
+      src->ncam, src->nlight, src->nflex, src->nflexvert, src->nflexedge,
+      src->nflexelem, src->nflexelemdata, src->nflexshelldata,
+      src->nflexevpair, src->nflextexcoord, src->nmesh, src->nmeshvert,
+      src->nmeshnormal, src->nmeshtexcoord, src->nmeshface, src->nmeshgraph,
+      src->nskin, src->nskinvert, src->nskintexvert, src->nskinface,
+      src->nskinbone, src->nskinbonevert, src->nhfield, src->nhfielddata,
+      src->ntex, src->ntexdata, src->nmat, src->npair, src->nexclude,
+      src->neq, src->ntendon, src->nwrap, src->nsensor, src->nnumeric,
+      src->nnumericdata, src->ntext, src->ntextdata, src->ntuple,
+      src->ntupledata, src->nkey, src->nmocap, src->nplugin, src->npluginattr,
+      src->nuser_body, src->nuser_jnt, src->nuser_geom, src->nuser_site,
+      src->nuser_cam, src->nuser_tendon, src->nuser_actuator,
+      src->nuser_sensor, src->nnames, src->npaths);
   }
   if (!dest) {
     mjERROR("failed to make mjModel. Invalid sizes.");
@@ -1333,8 +1330,8 @@ static inline void* stackallocinternal(mjData* d, mjStackInfo* stack_info, size_
     char* prev_pstack_ptr = (char*)(stack_info->top);
     size_t prev_misalign = (uintptr_t)prev_pstack_ptr % _Alignof(size_t);
     size_t* prev_usage_ptr =
-        (size_t*)(prev_pstack_ptr +
-                  (prev_misalign ? _Alignof(size_t) - prev_misalign : 0));
+      (size_t*)(prev_pstack_ptr +
+                (prev_misalign ? _Alignof(size_t) - prev_misalign : 0));
     ASAN_UNPOISON_MEMORY_REGION(prev_usage_ptr, sizeof(size_t));
     usage = current_alloc_usage + *prev_usage_ptr;
     ASAN_POISON_MEMORY_REGION(prev_usage_ptr, sizeof(size_t));
@@ -1343,7 +1340,7 @@ static inline void* stackallocinternal(mjData* d, mjStackInfo* stack_info, size_
   // store new stack usage in the red zone
   size_t misalign = new_top_ptr % _Alignof(size_t);
   size_t* usage_ptr =
-      (size_t*)(new_top_ptr + (misalign ? _Alignof(size_t) - misalign : 0));
+    (size_t*)(new_top_ptr + (misalign ? _Alignof(size_t) - misalign : 0));
   ASAN_UNPOISON_MEMORY_REGION(usage_ptr, sizeof(size_t));
   *usage_ptr = usage;
   ASAN_POISON_MEMORY_REGION(usage_ptr, sizeof(size_t));
@@ -1403,7 +1400,7 @@ __attribute__((always_inline))
 static inline void markstackinternal(mjData* d, mjStackInfo* stack_info) {
   size_t top_old = stack_info->top;
   mjStackFrame* s =
-      (mjStackFrame*) stackallocinternal(d, stack_info, sizeof(mjStackFrame), _Alignof(mjStackFrame));
+    (mjStackFrame*) stackallocinternal(d, stack_info, sizeof(mjStackFrame), _Alignof(mjStackFrame));
   s->pbase = stack_info->stack_base;
   s->pstack = top_old;
 #ifdef ADDRESS_SANITIZER
@@ -1447,8 +1444,8 @@ static inline void freestackinternal(mjStackInfo* stack_info) {
     #define mjSYMBOLIZELEN 256
     char dbginfo[mjSYMBOLIZELEN];
     __sanitizer_symbolize_pc(
-        s->pc, "mj_markStack %F at %S has no corresponding mj_freeStack",
-        dbginfo, sizeof(dbginfo));
+      s->pc, "mj_markStack %F at %S has no corresponding mj_freeStack",
+      dbginfo, sizeof(dbginfo));
     dbginfo[mjSYMBOLIZELEN - 1] = '\0';
     mjERROR("%s", dbginfo);
     #undef mjSYMBOLIZELEN
@@ -1584,7 +1581,7 @@ static void _resetData(const mjModel* m, mjData* d, unsigned char debug_value) {
   mju_zero(d->qvel, m->nv);
   mju_zero(d->act, m->na);
   mju_zero(d->ctrl, m->nu);
-  for (int i=0; i<m->neq; i++) d->eq_active[i] = m->eq_active0[i];
+  for (int i=0; i < m->neq; i++) d->eq_active[i] = m->eq_active0[i];
   mju_zero(d->qfrc_applied, m->nv);
   mju_zero(d->xfrc_applied, 6*m->nbody);
   mju_zero(d->qacc, m->nv);
@@ -1966,7 +1963,7 @@ const char* mj_validateReferences(const mjModel* m) {
       if (m->geom_dataid[i] >= m->nhfield || m->geom_dataid[i] < -1) {
         return "Invalid model: geom_dataid out of bounds.";
       }
-    } else if ((m->geom_type[i]==mjGEOM_MESH) || (m->geom_type[i]==mjGEOM_SDF)) {
+    } else if ((m->geom_type[i] == mjGEOM_MESH) || (m->geom_type[i] == mjGEOM_SDF)) {
       if (m->geom_dataid[i] >= m->nmesh || m->geom_dataid[i] < -1) {
         return "Invalid model: geom_dataid out of bounds.";
       }

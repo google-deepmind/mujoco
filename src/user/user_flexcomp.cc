@@ -65,11 +65,12 @@ mjCFlexcomp::mjCFlexcomp(void) {
   mjuu_setvec(scale, 1, 1, 1);
   mass = 1;
   inertiabox = 0.005;
-  equality = true;
+  equality = false;
   mjuu_setvec(pos, 0, 0, 0);
   mjuu_setvec(quat, 1, 0, 0, 0);
   rigid = false;
   centered = false;
+  plugin_instance = nullptr;
 }
 
 
@@ -453,6 +454,14 @@ bool mjCFlexcomp::Make(mjCModel* model, mjCBody* body, char* error, int error_sz
         pf->vert[3*i+1] = 0;
         pf->vert[3*i+2] = 0;
       }
+
+      // add plugin
+      if (plugin_instance) {
+        pb->is_plugin = true;
+        pb->plugin_name = plugin_name;
+        pb->plugin_instance = plugin_instance;
+        pb->plugin_instance_name = plugin_instance_name;
+      }
     }
   }
 
@@ -503,6 +512,7 @@ bool mjCFlexcomp::MakeGrid(char* error, int error_sz) {
 
   // 2D
   else if (dim==2) {
+    int quad2tri[2][3] = {{0, 1, 2}, {0, 2, 3}};
     for (int ix=0; ix<count[0]; ix++) {
       for (int iy=0; iy<count[1]; iy++) {
         // add point
@@ -518,13 +528,17 @@ bool mjCFlexcomp::MakeGrid(char* error, int error_sz) {
 
         // add elements
         if (ix<count[0]-1 && iy<count[1]-1) {
-          element.push_back(GridID(ix, iy));
-          element.push_back(GridID(ix+1, iy));
-          element.push_back(GridID(ix+1, iy+1));
-
-          element.push_back(GridID(ix, iy));
-          element.push_back(GridID(ix+1, iy+1));
-          element.push_back(GridID(ix, iy+1));
+          int vert[4] = {
+            count[2]*count[1]*(ix+0) + count[2]*(iy+0),
+            count[2]*count[1]*(ix+1) + count[2]*(iy+0),
+            count[2]*count[1]*(ix+1) + count[2]*(iy+1),
+            count[2]*count[1]*(ix+0) + count[2]*(iy+1),
+          };
+          for (int s = 0; s < 2; s++) {
+            for (int v = 0; v < 3; v++) {
+              element.push_back(vert[quad2tri[s][v]]);
+            }
+          }
         }
       }
     }

@@ -34,7 +34,7 @@ namespace {
 using ThreadTest = MujocoTest;
 
 TEST_F(ThreadTest, SingleAndMultiThreadedMatch) {
-  auto model_path = GetTestDataFilePath("benchmark/testdata/22_humanoids.xml");
+  auto model_path = GetModelPath("humanoid/22_humanoids.xml");
   std::array<char, 1024> error;
   mjModel* model =
       mj_loadXML(model_path.c_str(), nullptr, error.data(), error.size());
@@ -88,7 +88,7 @@ TEST_F(ThreadTest, SingleAndMultiThreadedMatch) {
 }
 
 TEST_F(ThreadTest, IslandSingleAndMultiThreadedMatch) {
-  auto model_path = GetTestDataFilePath("benchmark/testdata/22_humanoids.xml");
+  auto model_path = GetModelPath("humanoid/22_humanoids.xml");
   std::array<char, 1024> error;
   mjModel* model =
       mj_loadXML(model_path.c_str(), nullptr, error.data(), error.size());

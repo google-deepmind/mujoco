@@ -78,7 +78,7 @@ void ReadPluginConfigs(tinyxml2::XMLElement* elem, mjCPlugin* pp) {
 
 //---------------------------------- MJCF schema ---------------------------------------------------
 
-static const int nMJCF = 223;
+static const int nMJCF = 227;
 static const char* MJCF[nMJCF][mjXATTRNUM] = {
 {"mujoco", "!", "1", "model"},
 {"<"},
@@ -293,25 +293,31 @@ static const char* MJCF[nMJCF][mjXATTRNUM] = {
               {"config", "*", "2", "key", "value"},
             {">"},
         {">"},
-        {"flexcomp", "*", "26", "name", "class", "type", "dim", "flatskin",
+        {"flexcomp", "*", "25", "name", "class", "type", "group", "dim",
             "count", "spacing", "radius", "rigid", "mass", "inertiabox",
-            "scale", "file", "point", "element", "texcoord", "material", "rgba", "selfcollide",
+            "scale", "file", "point", "element", "texcoord", "material", "rgba",
             "flatskin", "pos", "quat", "axisangle", "xyaxes", "zaxis", "euler"},
         {"<"},
             {"edge", "?", "5", "equality", "solref", "solimp", "stiffness", "damping"},
-            {"contact", "?", "10", "contype", "conaffinity", "condim", "priority",
-                "friction", "solmix", "solref", "solimp", "margin", "gap"},
+            {"contact", "?", "13", "contype", "conaffinity", "condim", "priority",
+                "friction", "solmix", "solref", "solimp", "margin", "gap",
+                "internal", "selfcollide", "activelayers"},
             {"pin", "*", "4", "id", "range", "grid", "gridrange"},
+            {"plugin", "*", "2", "plugin", "instance"},
+            {"<"},
+              {"config", "*", "2", "key", "value"},
+            {">"},
         {">"},
     {">"},
 
     {"deformable", "*", "0"},
     {"<"},
-        {"flex", "*", "12", "name", "group", "dim", "radius", "material", "rgba", "flatskin",
-            "selfcollide", "body", "vertex", "element", "texcoord"},
+        {"flex", "*", "11", "name", "group", "dim", "radius", "material",
+            "rgba", "flatskin", "body", "vertex", "element", "texcoord"},
         {"<"},
-            {"contact", "?", "10", "contype", "conaffinity", "condim", "priority",
-                "friction", "solmix", "solref", "solimp", "margin", "gap"},
+            {"contact", "?", "13", "contype", "conaffinity", "condim", "priority",
+                "friction", "solmix", "solref", "solimp", "margin", "gap",
+                "internal", "selfcollide", "activelayers"},
             {"edge", "?", "2", "stiffness", "damping"},
         {">"},
         {"skin", "*", "9", "name", "file", "material", "rgba", "inflate",
@@ -2364,6 +2370,21 @@ void mjXReader::OneFlexcomp(XMLElement* elem, mjCBody* pbody) {
 
     // advance
     epin = epin->NextSiblingElement("pin");
+  }
+
+  // plugin
+  XMLElement* eplugin = elem->FirstChildElement("plugin");
+  if (eplugin) {
+    ReadAttrTxt(eplugin, "plugin", fcomp.plugin_name);
+    ReadAttrTxt(eplugin, "instance", fcomp.plugin_instance_name);
+    if (fcomp.plugin_instance_name.empty()) {
+      fcomp.plugin_instance = model->AddPlugin();
+      fcomp.plugin_instance->name = "flexcomp_" + fcomp.name;
+      fcomp.plugin_instance_name = fcomp.plugin_instance->name;
+    } else {
+      model->hasImplicitPluginElem = true;
+    }
+    ReadPluginConfigs(eplugin, fcomp.plugin_instance);
   }
 
   // make flexcomp

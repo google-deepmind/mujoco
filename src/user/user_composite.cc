@@ -370,7 +370,7 @@ bool mjCComposite::MakeParticle(mjCModel* model, mjCBody* body, char* error, int
             };
             for (int s = 0; s < 6; s++) {
               for (int v = 0; v < 4; v++) {
-                face.push_back(vert[cube2tets[s][v]]+1);
+                face.push_back(vert[cube2tets[s][v]]);
               }
             }
           }
@@ -388,7 +388,7 @@ bool mjCComposite::MakeParticle(mjCModel* model, mjCBody* body, char* error, int
           };
           for (int s = 0; s < 2; s++) {
             for (int v = 0; v < 3; v++) {
-              face.push_back(vert[quad2tri[s][v]]+1);
+              face.push_back(vert[quad2tri[s][v]]);
             }
           }
         }
@@ -398,6 +398,8 @@ bool mjCComposite::MakeParticle(mjCModel* model, mjCBody* body, char* error, int
     } else {
     dim = 2;  // can only load a surface for now
     mjXUtil::String2Vector(userface, face);
+    for (int i=0; i<face.size(); face[i++]--) {};
+    mjXUtil::Vector2String(userface, face);
   }
 
   // compute volume
@@ -414,13 +416,13 @@ bool mjCComposite::MakeParticle(mjCModel* model, mjCBody* body, char* error, int
       mjtNum edge2[3];
 
       for (int i=0; i<3; i++) {
-        edge1[i] = uservert[3*(face[3*j+1]-1)+i] - uservert[3*(face[3*j]-1)+i];
-        edge2[i] = uservert[3*(face[3*j+2]-1)+i] - uservert[3*(face[3*j]-1)+i];
+        edge1[i] = uservert[3*face[3*j+1]+i] - uservert[3*face[3*j]+i];
+        edge2[i] = uservert[3*face[3*j+2]+i] - uservert[3*face[3*j]+i];
       }
 
       mjuu_crossvec(area, edge1, edge2);
       for (int i=0; i<3; i++) {
-        volume[face[3*j+i]-1] += sqrt(mjuu_dot3(area, area)) / 2 * t;
+        volume[face[3*j+i]] += sqrt(mjuu_dot3(area, area)) / 2 * t;
       }
     }
   } else {
@@ -489,6 +491,7 @@ bool mjCComposite::MakeParticle(mjCModel* model, mjCBody* body, char* error, int
       }
 
       b->plugin_instance->config_attribs["face"] = userface;
+      b->plugin_instance->config_attribs["edge"] = "";
 
       // update density
       if (dim == 2) {
@@ -505,8 +508,8 @@ bool mjCComposite::MakeParticle(mjCModel* model, mjCBody* body, char* error, int
     // create edges
     for (int i=0; i<face.size()/3; i++) {
       for (int j=0; j<3; j++) {
-        int v0 = face[3*i+(j+0)%3]-1;
-        int v1 = face[3*i+(j+1)%3]-1;
+        int v0 = face[3*i+(j+0)%3];
+        int v1 = face[3*i+(j+1)%3];
         edge.push_back(v0 < v1 ? std::pair(v0, v1) : std::pair(v1, v0));
       }
     }
@@ -1271,9 +1274,9 @@ void mjCComposite::MakeSkin2(mjCModel* model, mjtNum inflate) {
       }
 
       for (int i=0; i<face.size()/3; i++) {
-        skin->face.push_back(j*nvert+face[3*i]-1);
-        skin->face.push_back(j*nvert+face[3*i+(j==0 ? 1 : 2)]-1);
-        skin->face.push_back(j*nvert+face[3*i+(j==0 ? 2 : 1)]-1);
+        skin->face.push_back(j*nvert+face[3*i]);
+        skin->face.push_back(j*nvert+face[3*i+(j==0 ? 1 : 2)]);
+        skin->face.push_back(j*nvert+face[3*i+(j==0 ? 2 : 1)]);
       }
     }
 
