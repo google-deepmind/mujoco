@@ -489,6 +489,10 @@ shown in the table below. Their names are in the format ``mjKEY_XXX``. They corr
      - 1000
      - Maximum number of textures allowed.
        Defined in `mjrender.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjrender.h>`_.
+   * - ``mjMAXTHREADS``
+     - 128
+     - Maximum number OS threads that can be used in a thread pool.
+       Defined in `mjthread.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjthread.h>`_.
    * - ``mjMAXUISECT``
      - 10
      - Maximum number of UI sections.

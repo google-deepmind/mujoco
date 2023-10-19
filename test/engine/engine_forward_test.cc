@@ -555,6 +555,57 @@ TEST_F(ForwardTest, gravcomp) {
   mj_deleteModel(model);
 }
 
+// test disabling of equality constraints
+TEST_F(ForwardTest, eq_active) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <joint name="vertical" type="slide" axis="0 0 1"/>
+        <geom size="1"/>
+      </body>
+    </worldbody>
+    <equality>
+      <joint joint1="vertical"/>
+    </equality>
+  </mujoco>
+  )";
+  mjModel* model = LoadModelFromString(xml);
+  ASSERT_THAT(model, NotNull());
+
+  mjData* data = mj_makeData(model);
+
+  // simulate for 1 second
+  while (data->time < 1) {
+    mj_step(model, data);
+  }
+
+  // expect that the body has barely moved
+  EXPECT_LT(mju_abs(data->qpos[0]), 0.001);
+
+  // turn the equality off, simulate for another second
+  data->eq_active[0] = 0;
+  while (data->time < 2) {
+    mj_step(model, data);
+  }
+
+  // expect that the body has fallen about 5m
+  EXPECT_LT(data->qpos[0], -4.5);
+  EXPECT_GT(data->qpos[0], -5.5);
+
+  // turn the equality back on, simulate for another second
+  data->eq_active[0] = 1;
+  while (data->time < 3) {
+    mj_step(model, data);
+  }
+
+  // expect that the body has snapped back
+  EXPECT_LT(mju_abs(data->qpos[0]), 0.001);
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
 // user defined 2nd-order activation dynamics: frequency-controlled oscillator
 //  note that scalar mjcb_act_dyn callbacks are expected to return act_dot, but
 //  since we have a vector output we write into act_dot directly

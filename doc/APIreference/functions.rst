@@ -413,7 +413,7 @@ mj_differentiatePos
 This function subtracts two vectors in the format of qpos (and divides the result by dt), while respecting the
 properties of quaternions. Recall that unit quaternions represent spatial orientations. They are points on the unit
 sphere in 4D. The tangent to that sphere is a 3D plane of rotational velocities. Thus when we subtract two quaternions
-in the right way, the result is a 3D vector and not a 4D vector. This the output qvel has dimensionality nv while the
+in the right way, the result is a 3D vector and not a 4D vector. Thus the output qvel has dimensionality nv while the
 inputs have dimensionality nq.
 
 .. _mj_integratePos:
@@ -724,6 +724,15 @@ mj_camlight
 
 Compute camera and light positions and orientations.
 
+.. _mj_flex:
+
+mj_flex
+~~~~~~~
+
+.. mujoco-include:: mj_flex
+
+Compute flex-related quantities.
+
 .. _mj_tendon:
 
 mj_tendon
@@ -947,6 +956,16 @@ mju_rayGeom
 .. mujoco-include:: mju_rayGeom
 
 Intersect ray with pure geom, return nearest distance or -1 if no intersection.
+
+.. _mju_rayFlex:
+
+mju_rayFlex
+~~~~~~~~~~~
+
+.. mujoco-include:: mju_rayFlex
+
+Intersect ray with flex, return nearest distance or -1 if no intersection,
+and also output nearest vertex id.
 
 .. _mju_raySkin:
 
@@ -1251,12 +1270,12 @@ mj_freeStack
 Free the current :ref:`mjData` stack frame. All pointers returned by mj_stackAlloc since the last call
 to mj_markStack must no longer be used afterwards.
 
-.. _mj_stackAlloc:
+.. _mj_stackAllocByte:
 
-mj_stackAlloc
-~~~~~~~~~~~~~
+mj_stackAllocByte
+~~~~~~~~~~~~~~~~~
 
-.. mujoco-include:: mj_stackAlloc
+.. mujoco-include:: mj_stackAllocByte
 
 Allocate a number of bytes on :ref:`mjData` stack at a specific alignment.
 Call mju_error on stack overflow.
@@ -3256,6 +3275,9 @@ These matrices and their dimensions are:
 - All outputs are optional (can be NULL).
 - ``eps`` is the finite-differencing epsilon.
 - ``flg_centered`` denotes whether to use forward (0) or centered (1) differences.
+- Accuracy can be somewhat improved if solver :ref:`iterations<option-iterations>` are set to a
+  fixed (small) value and solver :ref:`tolerance<option-tolerance>` is set to 0. This insures that
+  all calls to the solver will perform exactly the same number of iterations.
 
 .. _mjd_inverseFD:
 
@@ -3445,6 +3467,15 @@ mju_threadPoolCreate
 .. mujoco-include:: mju_threadPoolCreate
 
 Create a thread pool with the specified number of threads running.
+
+.. _mju_bindThreadPool:
+
+mju_bindThreadPool
+~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mju_bindThreadPool
+
+Adds a thread pool to :ref:`mjData` and configures it for multi-threaded use.
 
 .. _mju_threadPoolEnqueue:
 

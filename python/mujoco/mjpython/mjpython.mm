@@ -115,12 +115,27 @@ class _MjPythonImpl(mujoco.viewer._MjPythonBase):
     self._termination = self.__class__.NOT_TERMINATED
     self._busy = False
 
-  def launch_on_ui_thread(self, model, data, handle_return, key_callback):
+  def launch_on_ui_thread(
+      self,
+      model,
+      data,
+      handle_return,
+      key_callback,
+      show_left_ui,
+      show_right_ui,
+  ):
     with self._cond:
       if self._busy or self._task is not None:
         raise RuntimeError('another MuJoCo viewer is already open')
       else:
-        self._task = (model, data, handle_return, key_callback)
+        self._task = (
+            model,
+            data,
+            handle_return,
+            key_callback,
+            show_left_ui,
+            show_right_ui,
+        )
         self._cond.notify()
 
   def terminate(self):
@@ -294,11 +309,17 @@ while True:
       break
 
     # Otherwise, launch the viewer.
-    model, data, handle_return, key_callback = task
+    model, data, handle_return, key_callback, show_left_ui, show_right_ui = task
     ctypes.CDLL(None).mjpython_show_dock_icon()
     mujoco.viewer._launch_internal(
-        model, data, run_physics_thread=False, handle_return=handle_return,
-        key_callback=key_callback)
+        model,
+        data,
+        run_physics_thread=False,
+        handle_return=handle_return,
+        key_callback=key_callback,
+        show_left_ui=show_left_ui,
+        show_right_ui=show_right_ui,
+    )
     ctypes.CDLL(None).mjpython_hide_dock_icon()
 
   finally:

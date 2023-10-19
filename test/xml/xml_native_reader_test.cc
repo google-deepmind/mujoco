@@ -407,6 +407,61 @@ TEST_F(XMLReaderTest, InvalidDoubleOrientation) {
   }
 }
 
+// ---------------------- test camera parsing ---------------------------------
+
+TEST_F(XMLReaderTest, CameraInvalidFovyAndSensorsize) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <geom size="1"/>
+        <camera fovy="1" sensorsize="1 1" resolution="100 100"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* m = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(m, testing::IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("either 'fovy' or 'sensorsize'"));
+}
+
+TEST_F(XMLReaderTest, CameraPricipalRequiresSensorsize) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <geom size="1"/>
+        <camera principal="1 1"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* m = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(m, testing::IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("attribute missing: 'sensorsize'"));
+}
+
+TEST_F(XMLReaderTest, CameraSensorsizeRequiresResolution) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <geom size="1"/>
+        <camera sensorsize="1 1"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* m = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(m, testing::IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("attribute missing: 'resolution'"));
+}
+
+// ---------------------- test inertia parsing --------------------------------
+
 TEST_F(XMLReaderTest, InvalidInertialOrientation) {
   static constexpr char xml[] = R"(
   <mujoco>
@@ -576,7 +631,7 @@ TEST_F(XMLReaderTest, InvalidSkinGroup) {
   )";
   std::array<char, 1024> error;
   mjModel* model = LoadModelFromString(xml, error.data(), error.size());
-  ASSERT_THAT(model, IsNull());
+  EXPECT_THAT(model, IsNull());
   EXPECT_THAT(
       error.data(),
       HasSubstr("skin group must be between 0 and 5\nElement 'skin', line 7"));

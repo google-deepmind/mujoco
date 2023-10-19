@@ -17,6 +17,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <sstream>
@@ -282,7 +283,7 @@ void mjCBoundingVolumeHierarchy::Set(mjtNum ipos_element[3], mjtNum iquat_elemen
 
 
 // add geom to bvh
-void mjCBoundingVolumeHierarchy::AddBundingVolume(const mjCBoundingVolume& bv) {
+void mjCBoundingVolumeHierarchy::AddBoundingVolume(const mjCBoundingVolume& bv) {
   bvh_.push_back(bv);
 }
 
@@ -295,34 +296,39 @@ void mjCBoundingVolumeHierarchy::CreateBVH() {
 
 // compute bounding volume hierarchy
 int mjCBoundingVolumeHierarchy::MakeBVH(std::vector<mjCBoundingVolume>& elements, int lev) {
+  if (elements.empty()) {
+    return -1;
+  }
+
   int nelements = elements.size();
-  mjtNum AABB[6] = {mjMAXVAL, mjMAXVAL, mjMAXVAL, -mjMAXVAL, -mjMAXVAL, -mjMAXVAL};
+  mjtNum AAMM[6] = {mjMAXVAL, mjMAXVAL, mjMAXVAL, -mjMAXVAL, -mjMAXVAL, -mjMAXVAL};
 
   // inverse transformation
   mjtNum qinv[4] = {iquat_[0], -iquat_[1], -iquat_[2], -iquat_[3]};
 
+  // accumulate AAMM over elements
   for (int i=0; i<nelements; i++) {
     // skip visual objects
     if (elements[i].conaffinity==0 && elements[i].contype==0) {
       continue;
     }
 
-    // transform aabb representation
-    mjtNum aabb[6] = {elements[i].aabb[0] - elements[i].aabb[3],
+    // transform element aabb to aamm format
+    mjtNum aamm[6] = {elements[i].aabb[0] - elements[i].aabb[3],
                       elements[i].aabb[1] - elements[i].aabb[4],
                       elements[i].aabb[2] - elements[i].aabb[5],
                       elements[i].aabb[0] + elements[i].aabb[3],
                       elements[i].aabb[1] + elements[i].aabb[4],
                       elements[i].aabb[2] + elements[i].aabb[5]};
 
-    // update node AABB
+    // update node AAMM
     for (int v=0; v<8; v++) {
       mjtNum vert[3], box[3];
-      vert[0] = (v&1 ? aabb[3] : aabb[0]);
-      vert[1] = (v&2 ? aabb[4] : aabb[1]);
-      vert[2] = (v&4 ? aabb[5] : aabb[2]);
+      vert[0] = (v&1 ? aamm[3] : aamm[0]);
+      vert[1] = (v&2 ? aamm[4] : aamm[1]);
+      vert[2] = (v&4 ? aamm[5] : aamm[2]);
 
-      // rotate to the body inertial frame
+      // rotate to the body inertial frame if specified
       if (elements[i].quat) {
         mju_rotVecQuat(box, vert, elements[i].quat);
         box[0] += elements[i].pos[0] - ipos_[0];
@@ -331,20 +337,20 @@ int mjCBoundingVolumeHierarchy::MakeBVH(std::vector<mjCBoundingVolume>& elements
         mju_rotVecQuat(vert, box, qinv);
       }
 
-      AABB[0] = mjMIN(AABB[0], vert[0]);
-      AABB[1] = mjMIN(AABB[1], vert[1]);
-      AABB[2] = mjMIN(AABB[2], vert[2]);
-      AABB[3] = mjMAX(AABB[3], vert[0]);
-      AABB[4] = mjMAX(AABB[4], vert[1]);
-      AABB[5] = mjMAX(AABB[5], vert[2]);
+      AAMM[0] = mjMIN(AAMM[0], vert[0]);
+      AAMM[1] = mjMIN(AAMM[1], vert[1]);
+      AAMM[2] = mjMIN(AAMM[2], vert[2]);
+      AAMM[3] = mjMAX(AAMM[3], vert[0]);
+      AAMM[4] = mjMAX(AAMM[4], vert[1]);
+      AAMM[5] = mjMAX(AAMM[5], vert[2]);
     }
   }
 
   // inflate flat AABBs
   for (int i=0; i<3; i++) {
-    if (mju_abs(AABB[i]-AABB[i+3])<mjEPS) {
-      AABB[i+0] -= mjEPS;
-      AABB[i+3] += mjEPS;
+    if (mju_abs(AAMM[i]-AAMM[i+3])<mjEPS) {
+      AAMM[i+0] -= mjEPS;
+      AAMM[i+3] += mjEPS;
     }
   }
 
@@ -357,10 +363,10 @@ int mjCBoundingVolumeHierarchy::MakeBVH(std::vector<mjCBoundingVolume>& elements
 
   // store bounding box of the current node
   for (int i=0; i<3; i++) {
-    bvh.push_back((AABB[3+i] + AABB[i]) / 2);
+    bvh.push_back((AAMM[3+i] + AAMM[i]) / 2);
   }
   for (int i=0; i<3; i++) {
-    bvh.push_back((AABB[3+i] - AABB[i]) / 2);
+    bvh.push_back((AAMM[3+i] - AAMM[i]) / 2);
   }
 
   // leaf node, return
@@ -373,7 +379,7 @@ int mjCBoundingVolumeHierarchy::MakeBVH(std::vector<mjCBoundingVolume>& elements
   }
 
   // find longest axis for splitting the bounding box
-  mjtNum edges[3] = { AABB[3]-AABB[0], AABB[4]-AABB[1], AABB[5]-AABB[2] };
+  mjtNum edges[3] = { AAMM[3]-AAMM[0], AAMM[4]-AAMM[1], AAMM[5]-AAMM[2] };
   int axis = edges[0] > edges[1] ? 0 : 1;
   axis = edges[axis] > edges[2] ? axis : 2;
 
@@ -504,7 +510,7 @@ mjResource* mjCBase::LoadResource(string filename, const mjVFS* vfs) {
   if ((r = mju_openVfsResource(cname, vfs)) == nullptr) {
     // not in vfs try a provider or fallback to OS filesystem
     if ((r = mju_openResource(filename.c_str())) == nullptr) {
-      throw mjCError(this, "resource not found via provider or OS filesystem: '%s'", cname);
+      throw mjCError(nullptr, "resource not found via provider or OS filesystem: '%s'", cname);
     }
   }
   return r;
@@ -558,6 +564,12 @@ mjCBody::mjCBody(mjCModel* _model) {
   subtreedofs = 0;
   gravcomp = 0;
   userdata.clear();
+
+  contype = 0;
+  conaffinity = 0;
+  margin = 0;
+  mjuu_zerovec(xpos0, 3);
+  mjuu_setvec(xquat0, 1, 0, 0, 0);
 
   // clear object lists
   bodies.clear();
@@ -946,10 +958,10 @@ void mjCBody::Compile(void) {
   // check and correct mass and inertia
   if (id>0) {
     // fix minimum
-    mass = mjMAX(mass, model->boundmass);
-    inertia[0] = mjMAX(inertia[0], model->boundinertia);
-    inertia[1] = mjMAX(inertia[1], model->boundinertia);
-    inertia[2] = mjMAX(inertia[2], model->boundinertia);
+    mass = mju_max(mass, model->boundmass);
+    inertia[0] = mju_max(inertia[0], model->boundinertia);
+    inertia[1] = mju_max(inertia[1], model->boundinertia);
+    inertia[2] = mju_max(inertia[2], model->boundinertia);
 
     // check for negative values
     if (mass<0 || inertia[0]<0 || inertia[1]<0 ||inertia[2]<0) {
@@ -983,11 +995,20 @@ void mjCBody::Compile(void) {
     MakeLocal(geoms[i]->locpos, geoms[i]->locquat, geoms[i]->pos, geoms[i]->quat);
   }
 
+  // accumulate rbound, contype, conaffinity over geoms
+  contype = conaffinity = 0;
+  margin = 0;
+  for (int i=0; i<geoms.size(); i++) {
+    contype |= geoms[i]->contype;
+    conaffinity |= geoms[i]->conaffinity;
+    margin = mju_max(margin, geoms[i]->margin);
+  }
+
   // compute bounding volume hierarchy
   if (!geoms.empty()) {
     tree.Set(ipos, iquat);
     for (int i=0; i<geoms.size(); i++) {
-      tree.AddBundingVolume(geoms[i]->GetBoundingVolume());
+      tree.AddBoundingVolume(geoms[i]->GetBoundingVolume());
     }
     tree.CreateBVH();
   }
@@ -1019,6 +1040,14 @@ void mjCBody::Compile(void) {
     if (dofnum || parentid) {
       throw mjCError(this, "mocap body '%s' is not a fixed child of world", name.c_str());
     }
+
+  // compute body global pose (no joint transformations in qpos0)
+  if (id>0) {
+    mjCBody* par = model->bodies[parentid];
+    mju_rotVecQuat(xpos0, locpos, par->xquat0);
+    mju_addTo3(xpos0, par->xpos0);
+    mju_mulQuat(xquat0, par->xquat0, locquat);
+  }
 
   // compile all sites
   for (int i=0; i<sites.size(); i++) sites[i]->Compile();
@@ -1328,6 +1357,7 @@ double mjCGeom::GetVolume(void) {
     case mjGEOM_ELLIPSOID:
       return 4*mjPI*size[0]*size[1]*size[2]/3;
 
+    case mjGEOM_HFIELD:
     case mjGEOM_BOX:
       return size[0]*size[1]*size[2]*8;
 
@@ -1407,6 +1437,7 @@ void mjCGeom::SetInertia(void) {
       inertia[2] = mass*(size[0]*size[0]+size[1]*size[1])/5;
       return;
 
+    case mjGEOM_HFIELD:
     case mjGEOM_BOX:
       inertia[0] = mass*(size[1]*size[1]+size[2]*size[2])/3;
       inertia[1] = mass*(size[0]*size[0]+size[2]*size[2])/3;
@@ -1424,10 +1455,15 @@ void mjCGeom::SetInertia(void) {
 
 // compute radius of bounding sphere
 double mjCGeom::GetRBound(void) {
-  const double* aabb;
+  const double *aamm, *hsize;
   double haabb[3] = {0};
 
   switch (type) {
+  case mjGEOM_HFIELD:
+    hsize = model->hfields[hfieldid]->size;
+    return sqrt(hsize[0]*hsize[0] + hsize[1]*hsize[1] +
+                mjMAX(hsize[2]*hsize[2], hsize[3]*hsize[3]));
+
   case mjGEOM_SPHERE:
     return size[0];
 
@@ -1438,17 +1474,17 @@ double mjCGeom::GetRBound(void) {
     return sqrt(size[0]*size[0]+size[1]*size[1]);
 
   case mjGEOM_ELLIPSOID:
-    return mjMAX(mjMAX(size[0], size[1]), size[2]);
+    return mju_max(mju_max(size[0], size[1]), size[2]);
 
   case mjGEOM_BOX:
     return sqrt(size[0]*size[0]+size[1]*size[1]+size[2]*size[2]);
 
   case mjGEOM_MESH:
   case mjGEOM_SDF:
-    aabb = model->meshes[meshid]->aabb();
-    haabb[0] = mjMAX(fabs(aabb[0]), fabs(aabb[3]));
-    haabb[1] = mjMAX(fabs(aabb[1]), fabs(aabb[4]));
-    haabb[2] = mjMAX(fabs(aabb[2]), fabs(aabb[5]));
+    aamm = model->meshes[meshid]->aamm();
+    haabb[0] = mju_max(fabs(aamm[0]), fabs(aamm[3]));
+    haabb[1] = mju_max(fabs(aamm[1]), fabs(aamm[4]));
+    haabb[2] = mju_max(fabs(aamm[2]), fabs(aamm[5]));
     return sqrt(haabb[0]*haabb[0] + haabb[1]*haabb[1] + haabb[2]*haabb[2]);
 
   default:
@@ -1570,66 +1606,61 @@ void mjCGeom::SetFluidCoefs(void) {
 
 
 // compute bounding box
-void mjCGeom::ComputeAABB() {
+void mjCGeom::ComputeAABB(void) {
+  double aamm[6]; // axis-aligned bounding box in (min, max) format
   switch (type) {
+  case mjGEOM_HFIELD:
+    aamm[0] = -model->hfields[hfieldid]->size[0];
+    aamm[1] = -model->hfields[hfieldid]->size[1];
+    aamm[2] = -model->hfields[hfieldid]->size[3];
+    aamm[3] = model->hfields[hfieldid]->size[0];
+    aamm[4] = model->hfields[hfieldid]->size[1];
+    aamm[5] = model->hfields[hfieldid]->size[2];
+    break;
+
   case mjGEOM_SPHERE:
-    aabb[3] = aabb[4] = aabb[5] = size[0];
-    mjuu_setvec(aabb, -aabb[3], -aabb[4], -aabb[5]);
+    aamm[3] = aamm[4] = aamm[5] = size[0];
+    mjuu_setvec(aamm, -aamm[3], -aamm[4], -aamm[5]);
     break;
 
   case mjGEOM_CAPSULE:
-    aabb[3] = aabb[4] = size[0];
-    aabb[5] = size[0] + size[1];
-    mjuu_setvec(aabb, -aabb[3], -aabb[4], -aabb[5]);
+    aamm[3] = aamm[4] = size[0];
+    aamm[5] = size[0] + size[1];
+    mjuu_setvec(aamm, -aamm[3], -aamm[4], -aamm[5]);
     break;
 
   case mjGEOM_CYLINDER:
-    aabb[3] = aabb[4] = size[0];
-    aabb[5] = size[1];
-    mjuu_setvec(aabb, -aabb[3], -aabb[4], -aabb[5]);
+    aamm[3] = aamm[4] = size[0];
+    aamm[5] = size[1];
+    mjuu_setvec(aamm, -aamm[3], -aamm[4], -aamm[5]);
     break;
 
   case mjGEOM_MESH:
   case mjGEOM_SDF:
-    mjuu_copyvec(aabb, model->meshes[meshid]->aabb(), 6);
+    mjuu_copyvec(aamm, model->meshes[meshid]->aamm(), 6);
     break;
 
   case mjGEOM_PLANE:
-    aabb[0] = aabb[1] = aabb[2] = -mjMAXVAL;
-    aabb[3] = aabb[4] = mjMAXVAL;
-    aabb[5] = 0;
-    break;
-
-  case mjGEOM_HFIELD:
-    aabb[0] = -size[0];
-    aabb[1] = -size[1];
-    aabb[2] = -model->hfields[hfieldid]->size[3];
-    aabb[3] = size[0];
-    aabb[4] = size[1];
-    aabb[5] = model->hfields[hfieldid]->size[2];
+    aamm[0] = aamm[1] = aamm[2] = -mjMAXVAL;
+    aamm[3] = aamm[4] = mjMAXVAL;
+    aamm[5] = 0;
     break;
 
   default:
-    mjuu_copyvec(aabb+3, size, 3);
-    mjuu_setvec(aabb, -size[0], -size[1], -size[2]);
+    mjuu_copyvec(aamm+3, size, 3);
+    mjuu_setvec(aamm, -size[0], -size[1], -size[2]);
     break;
   }
 
-  aabb[0] -= margin;
-  aabb[1] -= margin;
-  aabb[2] -= margin;
-  aabb[3] += margin;
-  aabb[4] += margin;
-  aabb[5] += margin;
-
-  mjtNum pos[] = {(aabb[3] + aabb[0]) / 2, (aabb[4] + aabb[1]) / 2,
-                  (aabb[5] + aabb[2]) / 2};
-  mjtNum size[] = {(aabb[3] - aabb[0]) / 2, (aabb[4] - aabb[1]) / 2,
-                   (aabb[5] - aabb[2]) / 2};
-
+  // convert aamm to aabb (center, size) format
+  double pos[] = {(aamm[3] + aamm[0]) / 2, (aamm[4] + aamm[1]) / 2,
+                  (aamm[5] + aamm[2]) / 2};
+  double size[] = {(aamm[3] - aamm[0]) / 2, (aamm[4] - aamm[1]) / 2,
+                   (aamm[5] - aamm[2]) / 2};
   mjuu_copyvec(aabb, pos, 3);
   mjuu_copyvec(aabb+3, size, 3);
 }
+
 
 
 // compiler
@@ -1661,9 +1692,9 @@ void mjCGeom::Compile(void) {
     throw mjCError(this, "hfield geom '%s' (id = %d) must have valid hfieldid", name.c_str(), id);
   }
 
-  // plane and hfield only allowed in static bodies
-  if ((type==mjGEOM_PLANE || type==mjGEOM_HFIELD) && body->weldid!=0) {
-    throw mjCError(this, "plane and hfield only allowed in static bodies: geom '%s' (id = %d)",
+  // plane only allowed in static bodies
+  if (type==mjGEOM_PLANE && body->weldid!=0) {
+    throw mjCError(this, "plane only allowed in static bodies: geom '%s' (id = %d)",
                    name.c_str(), id);
   }
 
@@ -1758,12 +1789,13 @@ void mjCGeom::Compile(void) {
   if (type==mjGEOM_HFIELD) {
     size[0] = model->hfields[hfieldid]->size[0];
     size[1] = model->hfields[hfieldid]->size[1];
-    size[2] = 0.5*(model->hfields[hfieldid]->size[2]+model->hfields[hfieldid]->size[3]);
+    size[2] = 0.5*(0.5*model->hfields[hfieldid]->size[2] +
+                   model->hfields[hfieldid]->size[3]);
   } else if (type==mjGEOM_MESH || type==mjGEOM_SDF) {
-    const double* aabb = model->meshes[meshid]->aabb();
-    size[0] = mjMAX(fabs(aabb[0]), fabs(aabb[3]));
-    size[1] = mjMAX(fabs(aabb[1]), fabs(aabb[4]));
-    size[2] = mjMAX(fabs(aabb[2]), fabs(aabb[5]));
+    const double* aamm = model->meshes[meshid]->aamm();
+    size[0] = mju_max(fabs(aamm[0]), fabs(aamm[3]));
+    size[1] = mju_max(fabs(aamm[1]), fabs(aamm[4]));
+    size[2] = mju_max(fabs(aamm[2]), fabs(aamm[5]));
   }
 
   for (double s : size) {
@@ -1950,6 +1982,12 @@ mjCCamera::mjCCamera(mjCModel* _model, mjCDef* _def) {
   ipd = 0.068;
   userdata.clear();
   resolution[0] = resolution[1] = 1;
+  principal_length[0] = principal_length[1] = 0;
+  principal_pixel[0] = principal_pixel[1] = 0;
+  focal_length[0] = focal_length[1] = 0;
+  focal_pixel[0] = focal_pixel[1] = 0;
+  sensor_size[0] = sensor_size[1] = 0;
+  mjuu_setvec(intrinsic, 0, 0, 0, 0);
 
   // clear private variables
   body = 0;
@@ -2009,6 +2047,39 @@ void mjCCamera::Compile(void) {
   if (fovy >= 180) {
     throw mjCError(this, "fovy too large in camera '%s' (id = %d, value = %d)",
                    name.c_str(), id, fovy);
+  }
+
+  // check that specs are not duplicated
+  if ((principal_length[0] && principal_pixel[0]) ||
+      (principal_length[1] && principal_pixel[1])) {
+    throw mjCError(this, "principal length duplicated in camera '%s' (id = %d)",
+                   name.c_str(), id);
+  }
+
+  if ((focal_length[0] && focal_pixel[0]) ||
+      (focal_length[1] && focal_pixel[1])) {
+    throw mjCError(this, "focal length duplicated in camera '%s' (id = %d)",
+                   name.c_str(), id);
+  }
+
+  // compute number of pixels per unit length
+  if (sensor_size[0]>0 && sensor_size[1]>0) {
+    float pixel_density[2] = {
+      (float)resolution[0] / sensor_size[0],
+      (float)resolution[1] / sensor_size[1],
+    };
+
+    // defaults are zero, so only one term in each sum is nonzero
+    intrinsic[0] = focal_pixel[0] / pixel_density[0] + focal_length[0];
+    intrinsic[1] = focal_pixel[1] / pixel_density[1] + focal_length[1];
+    intrinsic[2] = principal_pixel[0] / pixel_density[0] + principal_length[0];
+    intrinsic[3] = principal_pixel[1] / pixel_density[1] + principal_length[1];
+
+    // fovy with principal point at (0, 0)
+    fovy = mju_atan2((float)sensor_size[1]/2, intrinsic[1]) * 360.0 / mjPI;
+  } else {
+    intrinsic[0] = model->visual.map.znear;
+    intrinsic[1] = model->visual.map.znear;
   }
 }
 
@@ -3080,7 +3151,7 @@ void mjCPair::Compile(void) {
   // get geom ids and body signature
   geom1 = pg1->id;
   geom2 = pg2->id;
-  signature = ((pg1->body->id+1)<<16) + pg2->body->id+1;
+  signature = ((pg1->body->id)<<16) + pg2->body->id;
 
   // set undefined margin: max
   if (!mjuu_defined(margin)) {
@@ -3132,9 +3203,9 @@ void mjCPair::Compile(void) {
 
     // friction: max
     if (!mjuu_defined(friction[0])) {
-      friction[0] = friction[1] = mjMAX(pg1->friction[0], pg2->friction[0]);
-      friction[2] =               mjMAX(pg1->friction[1], pg2->friction[1]);
-      friction[3] = friction[4] = mjMAX(pg1->friction[2], pg2->friction[2]);
+      friction[0] = friction[1] = mju_max(pg1->friction[0], pg2->friction[0]);
+      friction[2] =               mju_max(pg1->friction[1], pg2->friction[1]);
+      friction[3] = friction[4] = mju_max(pg1->friction[2], pg2->friction[2]);
     }
 
     // solver mix factor
@@ -3222,7 +3293,7 @@ void mjCBodyPair::Compile(void) {
   // get body ids and body signature
   body1 = pb1->id;
   body2 = pb2->id;
-  signature = ((body1+1)<<16) + body2+1;
+  signature = (body1<<16) + body2;
 }
 
 
@@ -3270,6 +3341,8 @@ void mjCEquality::Compile(void) {
     objtype = mjOBJ_JOINT;
   } else if (type==mjEQ_TENDON) {
     objtype = mjOBJ_TENDON;
+  } else if (type==mjEQ_FLEX) {
+    objtype = mjOBJ_FLEX;
   } else {
     throw mjCError(this, "invalid type in equality constraint '%s' (id = %d)'", name.c_str(), id);
   }
@@ -3290,7 +3363,7 @@ void mjCEquality::Compile(void) {
     obj2id = px2->id;
   }
 
-  // object 2 unspecified: set to -1, except for distance
+  // object 2 unspecified: set to -1
   else {
     if (objtype==mjOBJ_GEOM) {
       throw mjCError(this, "both geom are required in equality constraint '%s' (id = %d)",
@@ -3304,6 +3377,11 @@ void mjCEquality::Compile(void) {
   // set missing body = world
   if (objtype==mjOBJ_BODY && obj2id==-1) {
     obj2id = 0;
+  }
+
+  // make sure flex is not rigid
+  if (type==mjEQ_FLEX && model->flexes[obj1id]->rigid) {
+    throw mjCError(this, "rigid flex '%s' in equality constraint %d", name1.c_str(), id);
   }
 
   // make sure the two objects are different

@@ -69,19 +69,23 @@ class UIAdapterWithPyCallback : public Adapter {
 class SimulateWrapper {
  public:
   SimulateWrapper(std::unique_ptr<PlatformUIAdapter> platform_ui_adapter,
-                  py::object scn, py::object cam, py::object opt,
-                  py::object pert, bool fully_managed)
+                  py::object cam, py::object opt,
+                  py::object pert, py::object user_scn, bool is_passive)
       : simulate_(new mujoco::Simulate(
-            std::move(platform_ui_adapter), scn.cast<MjvSceneWrapper&>().get(),
+            std::move(platform_ui_adapter),
             cam.cast<MjvCameraWrapper&>().get(),
             opt.cast<MjvOptionWrapper&>().get(),
-            pert.cast<MjvPerturbWrapper&>().get(), fully_managed)),
+            pert.cast<MjvPerturbWrapper&>().get(), is_passive)),
         m_(py::none()),
         d_(py::none()),
-        scn_(scn),
         cam_(cam),
         opt_(opt),
-        pert_(pert) {}
+        pert_(pert),
+        user_scn_(user_scn) {
+    if (!user_scn.is_none()) {
+      simulate_->user_scn = user_scn_.cast<MjvSceneWrapper&>().get();
+    }
+  }
 
   ~SimulateWrapper() { Destroy(); }
 
@@ -93,9 +97,9 @@ class SimulateWrapper {
     }
   }
 
-  void WaitUntilDestroyed() {
+  void WaitUntilExit() {
     // TODO: replace with atomic wait when we migrate to C++20
-    while (!destroyed_.load()) {
+    while (simulate_ && simulate_->exitrequest.load() != 2) {
       std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
   }
@@ -127,10 +131,10 @@ class SimulateWrapper {
   // simulate object.
   py::object m_;
   py::object d_;
-  py::object scn_;
   py::object cam_;
   py::object opt_;
   py::object pert_;
+  py::object user_scn_;
 
   mjModel* m_raw_ = nullptr;
   mjData* d_raw_ = nullptr;
@@ -194,19 +198,25 @@ PYBIND11_MODULE(_simulate, pymodule) {
   py::class_<SimulateWrapper>(pymodule, "Simulate")
       .def_readonly_static("MAX_GEOM", &mujoco::Simulate::kMaxGeom)
       .def(py::init([](py::object scn, py::object cam, py::object opt,
-                       py::object pert, bool fully_managed,
+                       py::object pert, bool run_physics_thread,
                        py::object key_callback) {
+        bool is_passive = !run_physics_thread;
         return std::make_unique<SimulateWrapper>(
             std::make_unique<UIAdapterWithPyCallback<UIAdapter>>(
                 key_callback),
-            scn, cam, opt, pert, fully_managed);
+            scn, cam, opt, pert, is_passive);
       }))
-      .def("destroy", &SimulateWrapper::Destroy,
+      .def("destroy", &SimulateWrapper::Destroy)
+      .def("load_message", CallIfNotNull(&mujoco::Simulate::LoadMessage),
            py::call_guard<py::gil_scoped_release>())
       .def("load", &SimulateWrapper::Load)
+      .def("load_message_clear",
+           CallIfNotNull(&mujoco::Simulate::LoadMessageClear),
+           py::call_guard<py::gil_scoped_release>())
       .def("sync", CallIfNotNull(&mujoco::Simulate::Sync),
            py::call_guard<py::gil_scoped_release>())
-
+      .def("add_to_history", CallIfNotNull(&mujoco::Simulate::AddToHistory),
+           py::call_guard<py::gil_scoped_release>())
       .def("render_loop", CallIfNotNull(&mujoco::Simulate::RenderLoop),
            py::call_guard<py::gil_scoped_release>())
       .def("lock", GetIfNotNull(&mujoco::Simulate::mtx),
@@ -255,9 +265,8 @@ PYBIND11_MODULE(_simulate, pymodule) {
 
             int value = 0;
             sim->exitrequest.compare_exchange_strong(value, 1);
-            wrapper.WaitUntilDestroyed();
-          },
-          py::call_guard<py::gil_scoped_release>())
+            wrapper.WaitUntilExit();
+          })
 
       .def_property_readonly("uiloadrequest",
                              CallIfNotNull(+[](mujoco::Simulate& sim) {
@@ -303,7 +312,17 @@ PYBIND11_MODULE(_simulate, pymodule) {
             const auto max_length = sizeof_arr(sim.load_error);
             std::strncpy(sim.load_error, error.c_str(), max_length - 1);
             sim.load_error[max_length - 1] = '\0';
-          }));
+          }))
+      .def_property("ui0_enable", GetIfNotNull(&mujoco::Simulate::ui0_enable),
+                    CallIfNotNull(+[](mujoco::Simulate& sim, int enabled) {
+                      sim.ui0_enable = enabled;
+                    }),
+                    py::call_guard<py::gil_scoped_release>())
+      .def_property("ui1_enable", GetIfNotNull(&mujoco::Simulate::ui1_enable),
+                    CallIfNotNull(+[](mujoco::Simulate& sim, int enabled) {
+                      sim.ui1_enable = enabled;
+                    }),
+                    py::call_guard<py::gil_scoped_release>());
 
   pymodule.def("set_glfw_dlhandle", [](std::uintptr_t dlhandle) {
     mujoco::Glfw(reinterpret_cast<void*>(dlhandle));

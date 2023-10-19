@@ -15,14 +15,13 @@
 #ifndef MUJOCO_SRC_THREAD_THREAD_TASK_H_
 #define MUJOCO_SRC_THREAD_THREAD_TASK_H_
 
-#include <atomic>
-#include <new>
-#include <type_traits>
-
 #include <mujoco/mjexport.h>
 #include <mujoco/mjthread.h>
 
 #ifdef __cplusplus
+#include <atomic>
+#include <new>
+#include <type_traits>
 namespace mujoco {
 extern "C" {
 #endif

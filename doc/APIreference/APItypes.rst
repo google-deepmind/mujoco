@@ -174,18 +174,6 @@ Numerical integrator types. These values are used in ``m->opt.integrator``.
 
 .. mujoco-include:: mjtIntegrator
 
-
-.. _mjtCollision:
-
-mjtCollision
-~~~~~~~~~~~~
-
-Collision modes specifying how candidate geom pairs are generated for near-phase collision checking. These values are
-used in ``m->opt.collision``.
-
-.. mujoco-include:: mjtCollision
-
-
 .. _mjtCone:
 
 mjtCone
@@ -512,6 +500,18 @@ mjtFramebuffer
 These are the possible framebuffers. They are used as an argument to the function :ref:`mjr_setBuffer`.
 
 .. mujoco-include:: mjtFramebuffer
+
+
+.. _mjtDepthMap:
+
+mjtDepthMap
+~~~~~~~~~~~
+
+These are the depth mapping options. They are used as a value for the ``readPixelDepth`` attribute of the
+:ref:`mjrContext` struct, to control how the depth returned by :ref:`mjr_readPixels` is mapped from
+``znear`` to ``zfar``.
+
+.. mujoco-include:: mjtDepthMap
 
 
 .. _mjtFontScale:

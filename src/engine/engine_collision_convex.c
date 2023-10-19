@@ -15,6 +15,7 @@
 #include "engine/engine_collision_convex.h"
 
 #include <math.h>
+#include <stddef.h>
 
 #include <ccd/ccd.h>
 #include <ccd/vec3.h>
@@ -28,12 +29,29 @@
 #include "engine/engine_util_misc.h"
 #include "engine/engine_util_spatial.h"
 
+
 // ccd center function
 void mjccd_center(const void *obj, ccd_vec3_t *center) {
   const mjtCCD* ccd = (const mjtCCD*)obj;
+  int g = ccd->geom;
+  int f = ccd->flex;
+  int e = ccd->elem;
+  int v = ccd->vert;
 
   // return geom position
-  mju_copy3(center->v, ccd->data->geom_xpos + 3*ccd->geom);
+  if (g>=0) {
+    mju_copy3(center->v, ccd->data->geom_xpos + 3*g);
+  }
+
+  // return flex element position
+  else if (e>=0) {
+    mju_copy3(center->v, ccd->data->flexelem_aabb + 6*(ccd->model->flex_elemadr[f]+e));
+  }
+
+  // return flex vertex position
+  else {
+    mju_copy3(center->v, ccd->data->flexvert_xpos + 3*(ccd->model->flex_vertadr[f]+v));
+  }
 }
 
 
@@ -45,6 +63,46 @@ void mjccd_support(const void *obj, const ccd_vec3_t *_dir, ccd_vec3_t *vec) {
   const mjData* d = ccd->data;
   int g = ccd->geom;
 
+  //-------------------------- flex element or vertex -----------------------------
+  if (g<0) {
+    int f = ccd->flex;
+    int dim = m->flex_dim[f];
+    mjtNum *res = vec->v;
+    const mjtNum *dir = _dir->v;
+
+    // flex element
+    if (ccd->elem>=0) {
+      int e = ccd->elem;
+      const int* edata = m->flex_elem + m->flex_elemdataadr[f] + e*(dim+1);
+      const mjtNum* vert = d->flexvert_xpos + 3*m->flex_vertadr[f];
+
+      // find element vertex with largest projection along dir
+      mju_copy3(res, vert+3*edata[0]);
+      mjtNum best = mju_dot3(res, dir);
+      for (int i=1; i<=dim; i++) {
+        mjtNum dot = mju_dot3(vert+3*edata[i], dir);
+
+        // better vertex found: assign
+        if (dot>best) {
+          best = dot;
+          mju_copy3(res, vert+3*edata[i]);
+        }
+      }
+
+      // add radius and margin/2
+      mju_addToScl3(res, dir, m->flex_radius[f] + 0.5*ccd->margin);
+      return;
+    }
+
+    // flex vertex
+    else {
+      const mjtNum* vert = d->flexvert_xpos + 3*(m->flex_vertadr[f] + ccd->vert);
+      mju_addScl3(res, vert, dir, m->flex_radius[f] + 0.5*ccd->margin);
+      return;
+    }
+  }
+
+  //-------------------------- geom -------------------------------------------
   float* vertdata;
   int ibest, graphadr, numvert, change, locid;
   int *vert_edgeadr, *vert_globalid, *edge_localid;
@@ -211,7 +269,7 @@ void mjccd_support(const void *obj, const ccd_vec3_t *_dir, ccd_vec3_t *vec) {
 // find single convex-convex collision, using libccd
 static int mjc_MPRIteration(mjtCCD* obj1, mjtCCD* obj2, const ccd_t* ccd,
                             const mjModel* m, const mjData* d,
-                            mjContact* con, int g1, int g2, mjtNum margin) {
+                            mjContact* con, mjtNum margin) {
   ccd_vec3_t dir, pos;
   ccd_real_t depth;
   if (ccdMPRPenetration(obj1, obj2, ccd, &depth, &dir, &pos) == 0) {
@@ -226,8 +284,10 @@ static int mjc_MPRIteration(mjtCCD* obj1, mjtCCD* obj2, const ccd_t* ccd,
     mju_copy3(con->pos, pos.v);
     mju_zero3(con->frame+3);
 
-    // fix contact frame normal
-    mjc_fixNormal(m, d, con, g1, g2);
+    // both geoms: fix contact frame normal
+    if (obj1->geom>=0 && obj2->geom>=0) {
+      mjc_fixNormal(m, d, con, obj1->geom, obj2->geom);
+    }
 
     return 1;
   }
@@ -278,8 +338,8 @@ static void mju_rotateFrame(const mjtNum origin[3], const mjtNum rot[9],
 int mjc_Convex(const mjModel* m, const mjData* d,
                mjContact* con, int g1, int g2, mjtNum margin) {
   ccd_t ccd;
-  mjtCCD obj1 = {m, d, g1, -1, margin, {1, 0, 0, 0}};
-  mjtCCD obj2 = {m, d, g2, -1, margin, {1, 0, 0, 0}};
+  mjtCCD obj1 = {m, d, g1, -1, -1, -1, -1, margin, {1, 0, 0, 0}};
+  mjtCCD obj2 = {m, d, g2, -1, -1, -1, -1, margin, {1, 0, 0, 0}};
 
   // init ccd structure
   ccd.first_dir = ccdFirstDirDefault;
@@ -288,12 +348,12 @@ int mjc_Convex(const mjModel* m, const mjData* d,
   ccd.support1 = mjccd_support;
   ccd.support2 = mjccd_support;
 
-  // set ccd paramters
+  // set ccd parameters
   ccd.max_iterations = m->opt.mpr_iterations;
   ccd.mpr_tolerance = m->opt.mpr_tolerance;
 
   // find initial contact
-  int ncon = mjc_MPRIteration(&obj1, &obj2, &ccd, m, d, con, g1, g2, margin);
+  int ncon = mjc_MPRIteration(&obj1, &obj2, &ccd, m, d, con, margin);
 
   // look for additional contacts
   if (ncon && mjENABLED(mjENBL_MULTICCD)  // TODO(tassa) leave as bitflag or make geom attribute (?)
@@ -342,7 +402,7 @@ int mjc_Convex(const mjModel* m, const mjData* d,
         mju_rotateFrame(con[0].pos, invrot, d->geom_xmat+9*g2, d->geom_xpos+3*g2);
 
         // search for new contact
-        int new_contact = mjc_MPRIteration(&obj1, &obj2, &ccd, m, d, con+ncon, g1, g2, margin);
+        int new_contact = mjc_MPRIteration(&obj1, &obj2, &ccd, m, d, con+ncon, margin);
 
         // check new contact
         if (new_contact && mjc_isDistinctContact(con, ncon + 1, tolerance)) {
@@ -410,7 +470,7 @@ int mjc_PlaneConvex(const mjModel* m, const mjData* d,
   mjGETINFO
   mjtNum dist, dif[3], normal[3] = {mat1[2], mat1[5], mat1[8]};
   ccd_vec3_t dir, vec;
-  mjtCCD obj = {m, d, g2, -1, 0, {1, 0, 0, 0}};
+  mjtCCD obj = {m, d, g2, -1, -1, -1, -1, 0, {1, 0, 0, 0}};
 
   // get support point in -normal direction
   ccdVec3Set(&dir, -mat1[2], -mat1[5], -mat1[8]);
@@ -584,14 +644,14 @@ int mjc_ConvexHField(const mjModel* m, const mjData* d,
   int hid = m->geom_dataid[g1];
   int nrow = m->hfield_nrow[hid];
   int ncol = m->hfield_ncol[hid];
-  int dr[2], cnt, rmin, rmax, cmin, cmax, nvert;
+  int dr[2], cnt, rmin, rmax, cmin, cmax;
   const float* data = m->hfield_data + m->hfield_adr[hid];
   mjtPrism prism;
 
   // ccd-related
   ccd_vec3_t dirccd, vecccd;
   ccd_real_t depth;
-  mjtCCD obj = {m, d, g2, -1, 0, {1, 0, 0, 0}};
+  mjtCCD obj = {m, d, g2, -1, -1, -1, -1, 0, {1, 0, 0, 0}};
   ccd_t ccd;
 
   // point size1 to hfield size instead of geom1 size
@@ -711,7 +771,7 @@ int mjc_ConvexHField(const mjModel* m, const mjData* d,
   // process all prisms in sub-grid
   cnt = 0;
   for (int r=rmin; r < rmax; r++) {
-    nvert = 0;
+    int nvert = 0;
     for (int c=cmin; c <= cmax; c++) {
       for (int i=0; i < 2; i++) {
         // send vertex to prism constructor
@@ -1017,4 +1077,191 @@ void mjc_fixNormal(const mjModel* m, const mjData* d, mjContact* con, int g1, in
   if (processed[0] || processed[1]) {
     mju_zero3(con->frame+3);
   }
+}
+
+
+
+//----------------------------  flex collisions ---------------------------------------------
+
+// geom-elem or elem-elem or vert-elem convex collision using ccd
+int mjc_ConvexElem(const mjModel* m, const mjData* d, mjContact* con,
+                   int g1, int f1, int e1, int v1, int f2, int e2, mjtNum margin) {
+  ccd_t ccd;
+  mjtCCD obj1 = {m, d, g1, -1, f1, e1, v1, margin, {1, 0, 0, 0}};
+  mjtCCD obj2 = {m, d, -1, -1, f2, e2, -1, margin, {1, 0, 0, 0}};
+
+  // init ccd structure
+  ccd.first_dir = ccdFirstDirDefault;
+  ccd.center1 = mjccd_center;
+  ccd.center2 = mjccd_center;
+  ccd.support1 = mjccd_support;
+  ccd.support2 = mjccd_support;
+
+  // set ccd parameters
+  ccd.max_iterations = m->opt.mpr_iterations;
+  ccd.mpr_tolerance = m->opt.mpr_tolerance;
+
+  // find contacts
+  int ncon = mjc_MPRIteration(&obj1, &obj2, &ccd, m, d, con, margin);
+
+  return ncon;
+}
+
+
+
+// test a heighfield geom and a flex flex element for collision
+int mjc_HFieldElem(const mjModel* m, const mjData* d, mjContact* con,
+                   int g, int f, int e, mjtNum margin) {
+  mjtNum vec[3], dx, dy;
+  mjtNum xmin, xmax, ymin, ymax, zmin, zmax;
+  int dr[2], cnt, rmin, rmax, cmin, cmax;
+  mjtPrism prism;
+
+  // get hfield info
+  int hid = m->geom_dataid[g];
+  int nrow = m->hfield_nrow[hid];
+  int ncol = m->hfield_ncol[hid];
+  mjtNum* hpos = d->geom_xpos + 3*g;
+  mjtNum* hmat = d->geom_xmat + 9*g;
+  mjtNum* hsize = m->hfield_size + 4*hid;
+  const float* hdata = m->hfield_data + m->hfield_adr[hid];
+
+  // get elem indo
+  int dim = m->flex_dim[f];
+  const int* edata = m->flex_elem + m->flex_elemdataadr[f] + e*(dim+1);
+  mjtNum* evert[4] = {NULL, NULL, NULL, NULL};
+  for (int i=0; i<=dim; i++) {
+    evert[i] = d->flexvert_xpos + 3*(m->flex_vertadr[f] + edata[i]);
+  }
+  mjtNum* ecenter = d->flexelem_aabb + 6*(m->flex_elemadr[f]+e);
+
+  // ccd-related
+  ccd_vec3_t dirccd, vecccd;
+  ccd_real_t depth;
+  mjtCCD obj = {m, d, -1, -1, f, e, -1, margin, {1, 0, 0, 0}};
+  ccd_t ccd;
+
+  //------------------------------------- AABB computation, box-box test
+
+  // save elem vertices, transform to hfield frame
+  mjtNum savevert[4][3];
+  for (int i=0; i<=dim; i++) {
+    mju_copy3(savevert[i], evert[i]);
+    mju_sub3(vec, evert[i], hpos);
+    mju_mulMatTVec(evert[i], hmat, vec, 3, 3);
+  }
+
+  // save elem center, transform to hfield frame
+  mjtNum savecenter[3];
+  mju_copy3(savecenter, ecenter);
+  mju_sub3(vec, ecenter, hpos);
+  mju_mulMatTVec(ecenter, hmat, vec, 3, 3);
+
+  // compute elem bounding box (in hfield frame)
+  xmin = xmax = evert[0][0];
+  ymin = ymax = evert[0][1];
+  zmin = zmax = evert[0][2];
+  for (int i=1; i<=dim; i++) {
+    xmin = mju_min(xmin, evert[i][0]);
+    xmax = mju_max(xmax, evert[i][0]);
+    ymin = mju_min(ymin, evert[i][1]);
+    ymax = mju_max(ymax, evert[i][1]);
+    zmin = mju_min(zmin, evert[i][2]);
+    zmax = mju_max(zmax, evert[i][2]);
+  }
+
+  // box-box test
+  if ((xmin-margin > hsize[0]) || (xmax+margin < -hsize[0]) ||
+      (ymin-margin > hsize[1]) || (ymax+margin < -hsize[1]) ||
+      (zmin-margin > hsize[2]) || (zmax+margin < -hsize[3])) {
+    // restore vertices and center
+    for (int i=0; i<=dim; i++) {
+      mju_copy3(evert[i], savevert[i]);
+    }
+    mju_copy3(ecenter, savecenter);
+
+    return 0;
+  }
+
+  // compute sub-grid bounds
+  cmin = (int) floor((xmin + hsize[0]) / (2*hsize[0]) * (ncol-1));
+  cmax = (int) ceil ((xmax + hsize[0]) / (2*hsize[0]) * (ncol-1));
+  rmin = (int) floor((ymin + hsize[1]) / (2*hsize[1]) * (nrow-1));
+  rmax = (int) ceil ((ymax + hsize[1]) / (2*hsize[1]) * (nrow-1));
+  cmin = mjMAX(0, cmin);
+  cmax = mjMIN(ncol-1, cmax);
+  rmin = mjMAX(0, rmin);
+  rmax = mjMIN(nrow-1, rmax);
+
+  //------------------------------------- collision testing
+
+  // init ccd structure
+  ccd.first_dir = prism_firstdir;
+  ccd.center1 = prism_center;
+  ccd.center2 = mjccd_center;
+  ccd.support1 = prism_support;
+  ccd.support2 = mjccd_support;
+
+  // set ccd parameters
+  ccd.max_iterations = m->opt.mpr_iterations;
+  ccd.mpr_tolerance = m->opt.mpr_tolerance;
+
+  // compute real-valued grid step, and triangulation direction
+  dx = (2.0*hsize[0]) / (ncol-1);
+  dy = (2.0*hsize[1]) / (nrow-1);
+  dr[0] = 1;
+  dr[1] = 0;
+
+  // set zbottom value using base size
+  prism.v[0][2] = prism.v[1][2] = prism.v[2][2] = -hsize[3];
+
+  // process all prisms in sub-grid
+  cnt = 0;
+  for (int r=rmin; r<rmax; r++) {
+    int nvert = 0;
+    for (int c=cmin; c<=cmax; c++) {
+      for (int k=0; k<2; k++) {
+        // send vertex to prism constructor
+        addVert(&nvert, &prism, dx*c-hsize[0], dy*(r+dr[k])-hsize[1],
+                hdata[(r+dr[k])*ncol+c]*hsize[2]+margin);
+
+        // check for enough vertices
+        if (nvert>2) {
+          // prism height test
+          if (prism.v[3][2]<zmin && prism.v[4][2]<zmin && prism.v[5][2]<zmin) {
+            continue;
+          }
+
+          // run MPR, save contact
+          if (ccdMPRPenetration(&prism, &obj, &ccd, &depth, &dirccd, &vecccd)==0) {
+            if (!ccdVec3Eq(&dirccd, ccd_vec3_origin)) {
+              // fill in contact data, transform to global coordinates
+              con[cnt].dist = -depth;
+              mju_rotVecMat(con[cnt].frame, dirccd.v, hmat);
+              mju_rotVecMat(con[cnt].pos, vecccd.v, hmat);
+              mju_addTo3(con[cnt].pos, hpos);
+              mju_zero3(con[cnt].frame+3);
+
+              // count, stop if max number reached
+              cnt++;
+              if (cnt>=mjMAXCONPAIR) {
+                r = rmax+1;
+                c = cmax+1;
+                k = 3;
+                break;
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // restore elem vertices and center
+  for (int i=0; i<=dim; i++) {
+    mju_copy3(evert[i], savevert[i]);
+  }
+  mju_copy3(ecenter, savecenter);
+
+  return cnt;
 }

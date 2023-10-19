@@ -14,15 +14,20 @@
 
 // Tests for engine/engine_island.c.
 
+#include <array>
+#include <cstring>
 #include <string>
 #include <vector>
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 #include <mujoco/mjmodel.h>
+#include <mujoco/mjthread.h>
+#include <mujoco/mjxmacro.h>
 #include <mujoco/mujoco.h>
 #include "src/engine/engine_island.h"
 #include "src/engine/engine_util_sparse.h"
+#include "src/thread/thread_pool.h"
 #include "test/fixture.h"
 
 namespace mujoco {

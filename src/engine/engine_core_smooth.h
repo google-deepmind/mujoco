@@ -33,6 +33,9 @@ MJAPI void mj_comPos(const mjModel* m, mjData* d);
 // compute camera and light positions and orientations
 MJAPI void mj_camlight(const mjModel* m, mjData* d);
 
+// compute flex-related quantities
+MJAPI void mj_flex(const mjModel* m, mjData* d);
+
 // compute tendon lengths, velocities and moment arms
 MJAPI void mj_tendon(const mjModel* m, mjData* d);
 

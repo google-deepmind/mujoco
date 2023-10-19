@@ -78,14 +78,14 @@
   X( mjtNum, cam_, ipd,          ncam, 1               ) \
   X( mjtNum, cam_, user,         ncam, MJ_M(nuser_cam) )
 
-#define MJMODEL_EQUALITY                    \
-  X( int,     eq_, type,   neq, 1         ) \
-  X( int,     eq_, obj1id, neq, 1         ) \
-  X( int,     eq_, obj2id, neq, 1         ) \
-  X( mjtByte, eq_, active, neq, 1         ) \
-  X( mjtNum,  eq_, solref, neq, mjNREF    ) \
-  X( mjtNum,  eq_, solimp, neq, mjNIMP    ) \
-  X( mjtNum,  eq_, data,   neq, mjNEQDATA )
+#define MJMODEL_EQUALITY                     \
+  X( int,     eq_, type,    neq, 1         ) \
+  X( int,     eq_, obj1id,  neq, 1         ) \
+  X( int,     eq_, obj2id,  neq, 1         ) \
+  X( mjtByte, eq_, active0, neq, 1         ) \
+  X( mjtNum,  eq_, solref,  neq, mjNREF    ) \
+  X( mjtNum,  eq_, solimp,  neq, mjNIMP    ) \
+  X( mjtNum,  eq_, data,    neq, mjNEQDATA )
 
 #define MJMODEL_EXCLUDE                      \
   X( int, exclude_, signature, nexclude, 1 )

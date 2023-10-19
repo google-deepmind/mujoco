@@ -24,7 +24,7 @@
 
 // stack allocate and initialize new mjArrayList
 mjArrayList* mju_arrayListCreate(mjData* d, size_t element_size, size_t initial_capacity) {
-  mjArrayList* array_list = (mjArrayList*) mj_stackAlloc(
+  mjArrayList* array_list = (mjArrayList*) mj_stackAllocByte(
       d, sizeof(mjArrayList), _Alignof(mjArrayList));
   initial_capacity = mjMAX(1, initial_capacity);
   array_list->d = d;
@@ -34,7 +34,7 @@ mjArrayList* mju_arrayListCreate(mjData* d, size_t element_size, size_t initial_
   array_list->next_segment = NULL;
 
   // allocate array list buffer
-  array_list->buffer = (void*) mj_stackAlloc(
+  array_list->buffer = (void*) mj_stackAllocByte(
       d, element_size * initial_capacity, _Alignof(mjtMaxAlign));
   return array_list;
 }
@@ -68,7 +68,8 @@ void mju_arrayListAdd(mjArrayList* array_list, void* element) {
     cursor = cursor->next_segment;
   }
   // copy element into segment
-  memcpy(cursor->buffer + cursor->element_size * cursor->size, element, cursor->element_size);
+  memcpy((mjtByte*)cursor->buffer + cursor->element_size * cursor->size,
+         element, cursor->element_size);
   ++cursor->size;
 }
 
@@ -92,7 +93,6 @@ void* mju_arrayListAt(const mjArrayList* array_list, size_t index) {
     return NULL;
   }
 
-  return cursor->buffer +
-      (cursor->element_size * (index - total_capacity));
+  return (mjtByte*)cursor->buffer + (cursor->element_size * (index - total_capacity));
 }
 

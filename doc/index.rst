@@ -8,7 +8,7 @@
    :hidden:
 
    overview
-   computation
+   computation/index.rst
    modeling
    XMLreference
    programming/index.rst

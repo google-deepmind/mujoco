@@ -44,6 +44,18 @@ MJAPI void mj_getState(const mjModel* m, const mjData* d, mjtNum* state, unsigne
 MJAPI void mj_setState(const mjModel* m, mjData* d, const mjtNum* state, unsigned int spec);
 
 
+//-------------------------- sparse chains ---------------------------------------------------------
+
+// merge dof chains for two bodies
+int mj_mergeChain(const mjModel* m, int* chain, int b1, int b2);
+
+// merge dof chains for two simple bodies
+int mj_mergeChainSimple(const mjModel* m, int* chain, int b1, int b2);
+
+// get body chain
+int mj_bodyChain(const mjModel* m, int body, int* chain);
+
+
 //-------------------------- Jacobians -------------------------------------------------------------
 
 // compute 3/6-by-nv Jacobian of global point attached to given body
@@ -77,7 +89,7 @@ MJAPI void mj_jacPointAxis(const mjModel* m, mjData* d,
 // compute 3/6-by-nv sparse Jacobian of global point attached to given body
 void mj_jacSparse(const mjModel* m, const mjData* d,
                   mjtNum* jacp, mjtNum* jacr, const mjtNum* point, int body,
-                  int NV, int* chain);
+                  int NV, const int* chain);
 
 // sparse Jacobian difference for simple body contacts
 void mj_jacSparseSimple(const mjModel* m, const mjData* d,
@@ -89,6 +101,11 @@ MJAPI int mj_jacDifPair(const mjModel* m, const mjData* d, int* chain,
                         int b1, int b2, const mjtNum pos1[3], const mjtNum pos2[3],
                         mjtNum* jac1p, mjtNum* jac2p, mjtNum* jacdifp,
                         mjtNum* jac1r, mjtNum* jac2r, mjtNum* jacdifr);
+
+// dense or sparse weighted sum of multiple body Jacobians at same point
+int mj_jacSum(const mjModel* m, mjData* d, int* chain,
+              int n, const int* body, const mjtNum* weight,
+              const mjtNum point[3], mjtNum* jac, int flg_rot);
 
 
 //-------------------------- name functions --------------------------------------------------------

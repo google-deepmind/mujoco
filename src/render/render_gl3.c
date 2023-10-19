@@ -22,7 +22,6 @@
 #include <mujoco/mjmacro.h>
 #include <mujoco/mjvisualize.h>
 #include <mujoco/mujoco.h>
-#include "engine/engine_array_safety.h"
 #include "engine/engine_crossplatform.h"
 #include "engine/engine_vis_init.h"
 #include "render/render_context.h"
@@ -285,9 +284,9 @@ static void renderGeom(const mjvGeom* geom, int mode, const float* headpos,
     }
   }
 
-  // apply coordinate transformation, except for skin which is global
+  // apply coordinate transformation, except for flex and skin which are global
   glPushMatrix();
-  if (geom->type != mjGEOM_SKIN) {
+  if (geom->type != mjGEOM_FLEX && geom->type != mjGEOM_SKIN) {
     glTranslatef(geom->pos[0], geom->pos[1], geom->pos[2]);
     glMultMatrixf(mat);
   }
@@ -405,6 +404,96 @@ static void renderGeom(const mjvGeom* geom, int mode, const float* headpos,
     }
     break;
 
+  case mjGEOM_TRIANGLE:                       // triangle
+    glBegin(GL_TRIANGLES);
+    glVertex3f(0, 0, 0);
+    glVertex3f(size[0], 0, 0);
+    glVertex3f(0, size[1], 0);
+    glEnd();
+    break;
+
+  case mjGEOM_FLEX:                           // flex
+  {
+    // no texture for vertices and edges
+    GLboolean texture_is_enabled = glIsEnabled(GL_TEXTURE_2D);
+    if (texture_is_enabled == GL_TRUE) {
+      glDisable(GL_TEXTURE_2D);
+    }
+
+    // vertex spheres
+    if (size[0]>0 && scn->flexvertopt &&
+        !(scn->flexskinopt && scn->flexfaceused[geom->objid])) {
+      for (int v=scn->flexvertadr[geom->objid];
+               v<scn->flexvertadr[geom->objid]+scn->flexvertnum[geom->objid]; v++) {
+        glPushMatrix();
+        glTranslatef(scn->flexvert[3*v], scn->flexvert[3*v+1], scn->flexvert[3*v+2]);
+        glScalef(size[0], size[0], size[0]);
+        glCallList(con->baseBuiltin + mjrSPHERE);
+        glPopMatrix();
+      }
+    }
+
+    // edge cylinders
+    if (size[0]>0 && scn->flexedgeopt &&
+        !(scn->flexskinopt && scn->flexfaceused[geom->objid])) {
+      for (int e=scn->flexedgeadr[geom->objid];
+               e<scn->flexedgeadr[geom->objid]+scn->flexedgenum[geom->objid]; e++) {
+        // get vertices for this edge
+        float* v1 = scn->flexvert + 3*(scn->flexvertadr[geom->objid]+scn->flexedge[2*e]);
+        float* v2 = scn->flexvert + 3*(scn->flexvertadr[geom->objid]+scn->flexedge[2*e+1]);
+
+        // compute legth and rotation matrix
+        mjtNum vec[3] = {v2[0]-v1[0], v2[1]-v1[1], v2[2]-v1[2]};
+        mjtNum len = mju_normalize3(vec);
+        mjtNum edgequat[4], edgemat[9];
+        mju_quatZ2Vec(edgequat, vec);
+        mju_negQuat(edgequat, edgequat);
+        mju_quat2Mat(edgemat, edgequat);
+        mat[0] = (float)edgemat[0];
+        mat[1] = (float)edgemat[1];
+        mat[2] = (float)edgemat[2];
+        mat[4] = (float)edgemat[3];
+        mat[5] = (float)edgemat[4];
+        mat[6] = (float)edgemat[5];
+        mat[8] = (float)edgemat[6];
+        mat[9] = (float)edgemat[7];
+        mat[10] = (float)edgemat[8];
+
+        // transform and render
+        glPushMatrix();
+        glTranslatef((v1[0]+v2[0])*0.5f, (v1[1]+v2[1])*0.5f, (v1[2]+v2[2])*0.5f);
+        glMultMatrixf(mat);
+        glScalef(size[0], size[0], (float)(len*0.5));
+        glCallList(con->baseBuiltin + mjrCYLINDEROPEN);
+        glPopMatrix();
+      }
+    }
+
+    // restore texture for faces
+    if (texture_is_enabled == GL_TRUE) {
+      glEnable(GL_TEXTURE_2D);
+    }
+
+    // face triangles
+    if (scn->flexfaceused[geom->objid]) {
+      glEnableClientState(GL_VERTEX_ARRAY);
+      glEnableClientState(GL_NORMAL_ARRAY);
+      glVertexPointer(3, GL_FLOAT, 0, scn->flexface + 9*scn->flexfaceadr[geom->objid]);
+      glNormalPointer(GL_FLOAT, 0, scn->flexnormal + 9*scn->flexfaceadr[geom->objid]);
+      if (geom->texcoord && geom->texid>=0) {
+        glEnableClientState(GL_TEXTURE_COORD_ARRAY);
+        glTexCoordPointer(2, GL_FLOAT, 0, scn->flextexcoord + 6*scn->flexfaceadr[geom->objid]);
+      }
+      glDrawArrays(GL_TRIANGLES, 0, 3*scn->flexfaceused[geom->objid]);
+      glDisableClientState(GL_VERTEX_ARRAY);
+      glDisableClientState(GL_NORMAL_ARRAY);
+      if (geom->texcoord && geom->texid>=0) {
+        glDisableClientState(GL_TEXTURE_COORD_ARRAY);
+      }
+    }
+    break;
+  }
+
   case mjGEOM_SKIN:                           // skin
     // vertex positions
     glEnableClientState(GL_VERTEX_ARRAY);
@@ -491,6 +580,9 @@ static void initGL3(const mjvScene* scn, const mjrContext* con) {
   // common options
   glDisable(GL_BLEND);
   glEnable(GL_NORMALIZE);
+  if (mjGLAD_GL_ARB_clip_control) {
+    glClipControl(GL_LOWER_LEFT, GL_ZERO_TO_ONE);
+  }
   glEnable(GL_DEPTH_TEST);
   glDepthMask(GL_TRUE);
   if (scn->flags[mjRND_CULL_FACE]) {
@@ -499,11 +591,11 @@ static void initGL3(const mjvScene* scn, const mjrContext* con) {
     glDisable(GL_CULL_FACE);
   }
   glShadeModel(GL_SMOOTH);
-  glDepthFunc(GL_LEQUAL);
+  glDepthFunc(GL_GEQUAL);
   glDepthRange(0, 1);
   glAlphaFunc(GL_GEQUAL, 0.99f);
   glClearColor(0, 0, 0, 0);
-  glClearDepth(1);
+  glClearDepth(0);
   glClearStencil(0);
   glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
 
@@ -586,12 +678,22 @@ static void setView(int view, mjrRect viewport, const mjvScene* scn, const mjrCo
   }
 
   // compute frustum halfwidth so as to match viewport aspect ratio
-  float halfwidth = 0.5f * (float)viewport.width/(float)viewport.height *
-                    (cam.frustum_top - cam.frustum_bottom);
+  float halfwidth = cam.frustum_width ? cam.frustum_width
+                    : 0.5f * (float)viewport.width / (float)viewport.height *
+                             (cam.frustum_top - cam.frustum_bottom);
 
   // set projection
   glMatrixMode(GL_PROJECTION);
   glLoadIdentity();
+  if (mjGLAD_GL_ARB_clip_control) {
+    // reverse Z rendering mapping [znear, zfar] -> [1, 0] (ndc)
+    glTranslatef(0.0f, 0.0f, 0.5f);
+    glScalef(1.0f, 1.0f, -0.5f);
+  }
+  else {
+    // reverse Z rendering mapping without shift [znear, zfar] -> [1, -1] (ndc)
+    glScalef(1.0f, 1.0f, -1.0f);
+  }
   glFrustum(cam.frustum_center - halfwidth,
             cam.frustum_center + halfwidth,
             cam.frustum_bottom,
@@ -667,9 +769,15 @@ void mjr_render(mjrRect viewport, mjvScene* scn, const mjrContext* con) {
   float biasMatrix[16] = {
     0.5f, 0.0f, 0.0f, 0.0f,
     0.0f, 0.5f, 0.0f, 0.0f,
-    0.0f, 0.0f, 0.5f, 0.0f,
-    0.5f, 0.5f, 0.5f, 1.0f
+    0.0f, 0.0f, 1.0f, 0.0f,
+    0.5f, 0.5f, 0.0f, 1.0f
   };
+  if (!mjGLAD_GL_ARB_clip_control) {
+    // account for conversion from ndc to window coordinates
+    biasMatrix[2*4+2] = 0.5;
+    biasMatrix[3*4+2] = 0.5;
+  }
+
   float tempMatrix[16], textureMatrix[16];
   mjvGeom *thisgeom, tempgeom;
   mjvLight *thislight;
@@ -794,7 +902,7 @@ void mjr_render(mjrRect viewport, mjvScene* scn, const mjrContext* con) {
   }
 
   // render with stereo
-  for (int view=(stereo?0:-1); view < (stereo?2:0); view++) {
+  for (int view = (stereo ? 0 : -1); view < (stereo ? 2 : 0); view++) {
     // change drawbuffer for QUADBUFFERED stereo
     if (stereo == mjSTEREO_QUADBUFFERED) {
       if (con->windowDoublebuffer) {
@@ -1017,6 +1125,15 @@ void mjr_render(mjrRect viewport, mjvScene* scn, const mjrContext* con) {
           // set projection: from light viewpoint
           glMatrixMode(GL_PROJECTION);
           glLoadIdentity();
+          if (mjGLAD_GL_ARB_clip_control) {
+            // reverse Z rendering mapping [znear, zfar] -> [1, 0] (ndc)
+            glTranslatef(0.0f, 0.0f, 0.5f);
+            glScalef(1.0f, 1.0f, -0.5f);
+          }
+          else {
+            // reverse Z rendering mapping without shift [znear, zfar] -> [1, -1] (ndc)
+            glScalef(1.0f, 1.0f, -1.0f);
+          }
           if (thislight->directional) {
             glOrtho(-con->shadowClip, con->shadowClip,
                     -con->shadowClip, con->shadowClip,
@@ -1037,7 +1154,8 @@ void mjr_render(mjrRect viewport, mjvScene* scn, const mjrContext* con) {
           glBindFramebuffer(GL_FRAMEBUFFER, con->shadowFBO);
           glDrawBuffer(GL_NONE);
           glClear(GL_DEPTH_BUFFER_BIT);
-          glViewport(1, 1, con->shadowSize-2, con->shadowSize-2); // avoid infinite shadows from edges
+          glViewport(
+              1, 1, con->shadowSize-2, con->shadowSize-2);  // avoid infinite shadows from edges
           glCullFace(GL_FRONT);
           glShadeModel(GL_FLAT);
           glDisable(GL_LIGHTING);

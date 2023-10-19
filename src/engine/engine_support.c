@@ -19,7 +19,6 @@
 #include <string.h>
 
 #include <mujoco/mjdata.h>
-#include <mujoco/mjmacro.h>
 #include <mujoco/mjmodel.h>
 #include "engine/engine_core_constraint.h"
 #include "engine/engine_crossplatform.h"
@@ -88,7 +87,10 @@ const char* mjTIMERSTRING[mjNTIMER]= {
   "pos_inertia",
   "pos_collision",
   "pos_make",
-  "pos_project"
+  "pos_project",
+  "col_broadphase",
+  "col_midphase",
+  "col_narrowphase"
 };
 
 
@@ -106,6 +108,7 @@ static inline int mj_stateElemSize(const mjModel* m, mjtState spec) {
     case mjSTATE_CTRL:          return m->nu;
     case mjSTATE_QFRC_APPLIED:  return m->nv;
     case mjSTATE_XFRC_APPLIED:  return 6*m->nbody;
+    case mjSTATE_EQ_ACTIVE:     return m->neq;  // mjtByte, stored as mjtNum in state vector
     case mjSTATE_MOCAP_POS:     return 3*m->nmocap;
     case mjSTATE_MOCAP_QUAT:    return 4*m->nmocap;
     case mjSTATE_USERDATA:      return m->nuserdata;
@@ -177,9 +180,21 @@ void mj_getState(const mjModel* m, const mjData* d, mjtNum* state, unsigned int 
     mjtState element = 1<<i;
     if (element & spec) {
       int size = mj_stateElemSize(m, element);
-      const mjtNum* ptr = mj_stateElemConstPtr(m, d, element);
-      mju_copy(state + adr, ptr, size);
-      adr += size;
+
+      // special handling of eq_active (mjtByte)
+      if (element == mjSTATE_EQ_ACTIVE) {
+        int neq = m->neq;
+        for (int j=0; j < neq; j++) {
+          state[adr++] = d->eq_active[j];
+        }
+      }
+
+      // regular state components (mjtNum)
+      else {
+        const mjtNum* ptr = mj_stateElemConstPtr(m, d, element);
+        mju_copy(state + adr, ptr, size);
+        adr += size;
+      }
     }
   }
 }
@@ -197,10 +212,147 @@ void mj_setState(const mjModel* m, mjData* d, const mjtNum* state, unsigned int 
     mjtState element = 1<<i;
     if (element & spec) {
       int size = mj_stateElemSize(m, element);
-      mjtNum* ptr = mj_stateElemPtr(m, d, element);
-      mju_copy(ptr, state + adr, size);
-      adr += size;
+
+      // special handling of eq_active (mjtByte)
+      if (element == mjSTATE_EQ_ACTIVE) {
+        int neq = m->neq;
+        for (int j=0; j < neq; j++) {
+          d->eq_active[j] = state[adr++];
+        }
+      }
+
+      // regular state components (mjtNum)
+      else {
+        mjtNum* ptr = mj_stateElemPtr(m, d, element);
+        mju_copy(ptr, state + adr, size);
+        adr += size;
+      }
     }
+  }
+}
+
+
+
+//-------------------------- sparse chains ---------------------------------------------------------
+
+// merge dof chains for two bodies
+int mj_mergeChain(const mjModel* m, int* chain, int b1, int b2) {
+  int da1, da2, NV = 0;
+
+  // skip fixed bodies
+  while (b1 && !m->body_dofnum[b1]) {
+    b1 = m->body_parentid[b1];
+  }
+  while (b2 && !m->body_dofnum[b2]) {
+    b2 = m->body_parentid[b2];
+  }
+
+  // neither body is movable: empty chain
+  if (b1==0 && b2==0) {
+    return 0;
+  }
+
+  // intialize last dof address for each body
+  da1 = m->body_dofadr[b1] + m->body_dofnum[b1] - 1;
+  da2 = m->body_dofadr[b2] + m->body_dofnum[b2] - 1;
+
+  // merge chains
+  while (da1>=0 || da2>=0) {
+    chain[NV] = mjMAX(da1, da2);
+    if (da1==chain[NV]) {
+      da1 = m->dof_parentid[da1];
+    }
+    if (da2==chain[NV]) {
+      da2 = m->dof_parentid[da2];
+    }
+    NV++;
+  }
+
+  // reverse order of chain: make it increasing
+  for (int i=0; i<NV/2; i++) {
+    int tmp = chain[i];
+    chain[i] = chain[NV-i-1];
+    chain[NV-i-1] = tmp;
+  }
+
+  return NV;
+}
+
+
+
+// merge dof chains for two simple bodies
+int mj_mergeChainSimple(const mjModel* m, int* chain, int b1, int b2) {
+  // swap bodies if wrong order
+  if (b1>b2) {
+    int tmp = b1;
+    b1 = b2;
+    b2 = tmp;
+  }
+
+  // init
+  int n1 = m->body_dofnum[b1], n2 = m->body_dofnum[b2];
+
+  // both fixed: nothing to do
+  if (n1==0 && n2==0) {
+    return 0;
+  }
+
+  // copy b1 dofs
+  for (int i=0; i<n1; i++) {
+    chain[i] = m->body_dofadr[b1] + i;
+  }
+
+  // copy b2 dofs
+  for (int i=0; i<n2; i++) {
+    chain[n1+i] = m->body_dofadr[b2] + i;
+  }
+
+  return (n1+n2);
+}
+
+
+
+// get body chain
+int mj_bodyChain(const mjModel* m, int body, int* chain) {
+  // simple body
+  if (m->body_simple[body]) {
+    int dofnum = m->body_dofnum[body];
+    for (int i=0; i<dofnum; i++) {
+      chain[i] = m->body_dofadr[body] + i;
+    }
+    return dofnum;
+  }
+
+  // general case
+  else {
+    // skip fixed bodies
+    while (body && !m->body_dofnum[body]) {
+      body = m->body_parentid[body];
+    }
+
+    // not movable: empty chain
+    if (body==0) {
+      return 0;
+    }
+
+    // intialize last dof
+    int da = m->body_dofadr[body] + m->body_dofnum[body] - 1;
+    int NV = 0;
+
+    // construct chain from child to parent
+    while (da>=0) {
+      chain[NV++] = da;
+      da = m->dof_parentid[da];
+    }
+
+    // reverse order of chain: make it increasing
+    for (int i=0; i<NV/2; i++) {
+      int tmp = chain[i];
+      chain[i] = chain[NV-i-1];
+      chain[NV-i-1] = tmp;
+    }
+
+    return NV;
   }
 }
 
@@ -347,7 +499,7 @@ void mj_jacPointAxis(const mjModel* m, mjData* d, mjtNum* jacPoint, mjtNum* jacA
 // compute 3/6-by-nv sparse Jacobian of global point attached to given body
 void mj_jacSparse(const mjModel* m, const mjData* d,
                   mjtNum* jacp, mjtNum* jacr, const mjtNum* point, int body,
-                  int NV, int* chain) {
+                  int NV, const int* chain) {
   int da, ci;
   mjtNum offset[3], tmp[3], *cdof = d->cdof;
 
@@ -551,6 +703,80 @@ int mj_jacDifPair(const mjModel* m, const mjData* d, int* chain,
 
 
 
+// dense or sparse weighted sum of multiple body Jacobians at same point
+int mj_jacSum(const mjModel* m, mjData* d, int* chain,
+              int n, const int* body, const mjtNum* weight,
+              const mjtNum point[3], mjtNum* jac, int flg_rot) {
+  int nv = m->nv, NV;
+  mjtNum* jacp = jac;
+  mjtNum* jacr = flg_rot ? jac + 3*nv : NULL;
+
+  mj_markStack(d);
+  mjtNum* jtmp = mj_stackAllocNum(d, flg_rot ? 6*nv : 3*nv);
+  mjtNum* jp = jtmp;
+  mjtNum* jr = flg_rot ? jtmp + 3*nv : NULL;
+
+  // sparse
+  if (mj_isSparse(m)) {
+    mjtNum* buf = mj_stackAllocNum(d, flg_rot ? 6*nv : 3*nv);
+    int* buf_ind = mj_stackAllocInt(d, nv);
+    int* bodychain = mj_stackAllocInt(d, nv);
+
+    // set first
+    NV = mj_bodyChain(m, body[0], chain);
+    if (NV) {
+      // get Jacobian
+      if (m->body_simple[body[0]]) {
+        mj_jacSparseSimple(m, d, jacp, jacr, point, body[0], 1, NV, 0);
+      } else {
+        mj_jacSparse(m, d, jacp, jacr, point, body[0], NV, chain);
+      }
+
+      // apply weight
+      mju_scl(jac, jac, weight[0], flg_rot ? 6*NV : 3*NV);
+    }
+
+    // accumulate remaining
+    for (int i=1; i<n; i++) {
+      // get body chain and Jacobian
+      int bodyNV = mj_bodyChain(m, body[i], bodychain);
+      if (!bodyNV) {
+        continue;
+      }
+      if (m->body_simple[body[i]]) {
+        mj_jacSparseSimple(m, d, jp, jr, point, body[i], 1, bodyNV, 0);
+      } else {
+        mj_jacSparse(m, d, jp, jr, point, body[i], bodyNV, bodychain);
+      }
+
+      // combine sparse matrices
+      NV = mju_addToSparseMat(jac, jtmp, nv, flg_rot ? 6 : 3, weight[i],
+                              NV, bodyNV, chain, bodychain, buf, buf_ind);
+    }
+  }
+
+  // dense
+  else {
+    // set first
+    mj_jac(m, d, jacp, jacr, point, body[0]);
+    mju_scl(jac, jac, weight[0], flg_rot ? 6*nv : 3*nv);
+
+    // accumulate remaining
+    for (int i=1; i<n; i++) {
+      mj_jac(m, d, jp, jr, point, body[i]);
+      mju_addToScl(jac, jtmp, weight[i], flg_rot ? 6*nv : 3*nv);
+    }
+
+    NV = nv;
+  }
+
+  mj_freeStack(d);
+
+  return NV;
+}
+
+
+
 //-------------------------- name functions --------------------------------------------------------
 
 // get number of objects and name addresses for given object type
@@ -605,6 +831,14 @@ static int _getnumadr(const mjModel* m, mjtObj type, int** padr, int* mapadr) {
     if (num < 0) {
       *padr = m->name_lightadr;
       num = m->nlight;
+    }
+    mjFALLTHROUGH;
+
+  case mjOBJ_FLEX:
+    *mapadr -= mjLOAD_MULTIPLE*m->nflex;
+    if (num < 0) {
+      *padr = m->name_flexadr;
+      num =  m->nflex;
     }
     mjFALLTHROUGH;
 
@@ -1224,8 +1458,8 @@ void mj_applyFT(const mjModel* m, mjData* d,
 
   // allocate local variables
   mj_markStack(d);
-  mjtNum* jacp = mj_stackAllocNum(d, 3*nv);
-  mjtNum* jacr = mj_stackAllocNum(d, 3*nv);
+  mjtNum* jacp = force ? mj_stackAllocNum(d, 3*nv) : NULL;
+  mjtNum* jacr = torque ? mj_stackAllocNum(d, 3*nv) : NULL;
   mjtNum* qforce = mj_stackAllocNum(d, nv);
 
   // make sure body is in range
@@ -1233,17 +1467,42 @@ void mj_applyFT(const mjModel* m, mjData* d,
     mjERROR("invalid body %d", body);
   }
 
-  // compute Jacobians
-  mj_jac(m, d, jacp, jacr, point, body);
+  // sparse case
+  if (mj_isSparse(m)) {
+    // construct chain and sparse Jacobians
+    int* chain = mj_stackAllocInt(d, nv);
+    int NV = mj_bodyChain(m, body, chain);
+    mj_jacSparse(m, d, jacp, jacr, point, body, NV, chain);
 
-  // compute J'*f and accumulate
-  if (force) {
-    mju_mulMatTVec(qforce, jacp, force, 3, nv);
-    mju_addTo(qfrc_target, qforce, nv);
+    // compute J'*f and accumulate
+    if (force) {
+      mju_mulMatTVec(qforce, jacp, force, 3, NV);
+      for (int i=0; i<NV; i++) {
+        qfrc_target[chain[i]] += qforce[i];
+      }
+    }
+    if (torque) {
+      mju_mulMatTVec(qforce, jacr, torque, 3, NV);
+      for (int i=0; i<NV; i++) {
+        qfrc_target[chain[i]] += qforce[i];
+      }
+    }
   }
-  if (torque) {
-    mju_mulMatTVec(qforce, jacr, torque, 3, nv);
-    mju_addTo(qfrc_target, qforce, nv);
+
+  // dense case
+  else {
+    // compute Jacobians
+    mj_jac(m, d, jacp, jacr, point, body);
+
+    // compute J'*f and accumulate
+    if (force) {
+      mju_mulMatTVec(qforce, jacp, force, 3, nv);
+      mju_addTo(qfrc_target, qforce, nv);
+    }
+    if (torque) {
+      mju_mulMatTVec(qforce, jacr, torque, 3, nv);
+      mju_addTo(qfrc_target, qforce, nv);
+    }
   }
 
   mj_freeStack(d);
@@ -1543,7 +1802,7 @@ mjtNum mj_getTotalmass(const mjModel* m) {
 // scale all body masses and inertias to achieve specified total mass
 void mj_setTotalmass(mjModel* m, mjtNum newmass) {
   // compute scale factor, avoid zeros
-  mjtNum scale = mjMAX(mjMINVAL, newmass / mjMAX(mjMINVAL, mj_getTotalmass(m)));
+  mjtNum scale = mju_max(mjMINVAL, newmass / mju_max(mjMINVAL, mj_getTotalmass(m)));
 
   // scale all masses and inertias
   for (int i=1; i < m->nbody; i++) {

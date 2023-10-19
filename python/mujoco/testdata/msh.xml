@@ -1,0 +1,5 @@
+<mujoco>
+  <asset>
+    <mesh name="abdomen_1_body" file="abdomen_1_body.msh"/>
+  </asset>
+</mujoco>

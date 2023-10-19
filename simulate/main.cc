@@ -15,6 +15,7 @@
 #include <chrono>
 #include <cstdint>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <iostream>
 #include <memory>
@@ -22,8 +23,6 @@
 #include <new>
 #include <string>
 #include <thread>
-#include <type_traits>
-#include <vector>
 
 #include <mujoco/mujoco.h>
 #include "glfw_adapter.h"
@@ -259,6 +258,7 @@ void PhysicsLoop(mj::Simulate& sim) {
   // run until asked to exit
   while (!sim.exitrequest.load()) {
     if (sim.droploadrequest.load()) {
+      sim.LoadMessage(sim.dropfilename);
       mjModel* mnew = LoadModel(sim.dropfilename, sim);
       sim.droploadrequest.store(false);
 
@@ -278,11 +278,14 @@ void PhysicsLoop(mj::Simulate& sim) {
         free(ctrlnoise);
         ctrlnoise = (mjtNum*) malloc(sizeof(mjtNum)*m->nu);
         mju_zero(ctrlnoise, m->nu);
+      } else {
+        sim.LoadMessageClear();
       }
     }
 
     if (sim.uiloadrequest.load()) {
       sim.uiloadrequest.fetch_sub(1);
+      sim.LoadMessage(sim.filename);
       mjModel* mnew = LoadModel(sim.filename, sim);
       mjData* dnew = nullptr;
       if (mnew) dnew = mj_makeData(mnew);
@@ -300,6 +303,8 @@ void PhysicsLoop(mj::Simulate& sim) {
         free(ctrlnoise);
         ctrlnoise = static_cast<mjtNum*>(malloc(sizeof(mjtNum)*m->nu));
         mju_zero(ctrlnoise, m->nu);
+      } else {
+        sim.LoadMessageClear();
       }
     }
 
@@ -319,6 +324,8 @@ void PhysicsLoop(mj::Simulate& sim) {
       if (m) {
         // running
         if (sim.run) {
+          bool stepped = false;
+
           // record cpu time at start of iteration
           const auto startCPU = mj::Simulate::Clock::now();
 
@@ -358,6 +365,7 @@ void PhysicsLoop(mj::Simulate& sim) {
 
             // run single step, let next iteration deal with timing
             mj_step(m, d);
+            stepped = true;
           }
 
           // in-sync: step until ahead of cpu
@@ -379,6 +387,7 @@ void PhysicsLoop(mj::Simulate& sim) {
 
               // call mj_step
               mj_step(m, d);
+              stepped = true;
 
               // break if reset
               if (d->time < prevSim) {
@@ -386,12 +395,18 @@ void PhysicsLoop(mj::Simulate& sim) {
               }
             }
           }
+
+          // save current state to history buffer
+          if (stepped) {
+            sim.AddToHistory();
+          }
         }
 
         // paused
         else {
           // run mj_forward, to update rendering and joint sliders
           mj_forward(m, d);
+          sim.speed_changed = true;
         }
       }
     }  // release std::lock_guard<std::mutex>
@@ -404,6 +419,7 @@ void PhysicsLoop(mj::Simulate& sim) {
 void PhysicsThread(mj::Simulate* sim, const char* filename) {
   // request loadmodel if file given (otherwise drag-and-drop)
   if (filename != nullptr) {
+    sim->LoadMessage(filename);
     m = LoadModel(filename, *sim);
     if (m) d = mj_makeData(m);
     if (d) {
@@ -414,6 +430,8 @@ void PhysicsThread(mj::Simulate* sim, const char* filename) {
       free(ctrlnoise);
       ctrlnoise = static_cast<mjtNum*>(malloc(sizeof(mjtNum)*m->nu));
       mju_zero(ctrlnoise, m->nu);
+    } else {
+      sim->LoadMessageClear();
     }
   }
 
@@ -456,9 +474,6 @@ int main(int argc, char** argv) {
   // scan for libraries in the plugin directory to load additional plugins
   scanPluginLibraries();
 
-  mjvScene scn;
-  mjv_defaultScene(&scn);
-
   mjvCamera cam;
   mjv_defaultCamera(&cam);
 
@@ -471,7 +486,7 @@ int main(int argc, char** argv) {
   // simulate object encapsulates the UI
   auto sim = std::make_unique<mj::Simulate>(
       std::make_unique<mj::GlfwAdapter>(),
-      &scn, &cam, &opt, &pert, /* fully_managed = */ true
+      &cam, &opt, &pert, /* is_passive = */ false
   );
 
   const char* filename = nullptr;
