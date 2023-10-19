@@ -303,7 +303,7 @@ class ConvexTest(absltest.TestCase):
     c = dx.contact
 
     self.assertEqual(c.pos.shape[0], 4)
-    self.assertTrue((c.dist < 0).all())
+    np.testing.assert_array_less(c.dist, 0)
     np.testing.assert_array_almost_equal(c.pos[:, 2], np.array([0.39] * 4), 2)
     np.testing.assert_array_almost_equal(
         c.frame[:, 0, :], np.array([[0.0, 0.0, 1.0]] * 4)
@@ -375,7 +375,7 @@ class ConvexTest(absltest.TestCase):
 
     # Only one contact point for an edge contact.
     self.assertLess(c.dist[0], 0)
-    self.assertTrue((c.dist[1:] > 0).all())
+    np.testing.assert_array_less(0, c.dist[1:])
     np.testing.assert_array_almost_equal(c.frame[0, 0], np.array([0, 0, 1]))
 
 
