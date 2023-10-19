@@ -187,6 +187,8 @@ The following features are **fully supported** in MJX:
      - ``PLANE``, ``SPHERE``, ``CAPSULE``, ``BOX``, ``MESH``
    * - :ref:`Constraint <mjtConstraint>`
      - ``EQUALITY``, ``FRICTION_DOF``, ``LIMIT_JOINT``, ``CONTACT_PYRAMIDAL``
+   * - :ref:`Equality <mjtEq>`
+     - ``CONNECT``, ``WELD``
    * - :ref:`Integrator <mjtIntegrator>`
      - ``EULER``, ``RK4``
    * - :ref:`Cone <mjtCone>`
@@ -226,6 +228,8 @@ The following features are **in development** and coming soon:
      - :ref:`flEllipsoid`
    * - :ref:`Tendons <tendon>`
      - :ref:`Spatial <tendon-spatial>`, :ref:`Fixed <tendon-fixed>`
+   * - :ref:`Equality <mjtEq>`
+     - ``JOINT``, ``TENDON``
 
 The following features are **unsupported**:
 

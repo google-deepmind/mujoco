@@ -10,6 +10,12 @@ Bug fixes
 
 1. Fix in simulate: correct handling of "Pause update", "Fullscreen" and "VSync" buttons.
 
+MJX Bug fixes
+^^^^^^^^^
+
+1. Fix typos and supported fields in the docs (fixes :github:issue:`1105` and :github:issue:`1106`).
+
+
 Version 3.0.0 (October 18, 2023)
 --------------------------------
 
