@@ -94,7 +94,7 @@ Neither ``mjx.Model`` nor ``mjx.Data`` are meant to be constructed manually.  An
    mjx_model = mjx.device_put(model)
    mjx_data = mjx.make_data(model)
 
-Using ``mx.make_data`` may be preferable when constructing batched ``mjx.Data`` structures inside of a ``vmap``.
+Using ``mjx.make_data`` may be preferable when constructing batched ``mjx.Data`` structures inside of a ``vmap``.
 
 .. _MjxFunctions:
 
