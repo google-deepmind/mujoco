@@ -219,7 +219,7 @@ jobs:
       working-directory: python/dist
       run: >
         source ${{ matrix.tmpdir }}/venv/bin/activate &&
-        pip install --no-deps --no-index mujoco-*.whl
+        pip install --no-index mujoco-*.whl
     - name: Test Python bindings
       if: ${{ runner.os != 'Windows' }}
       shell: bash
@@ -228,6 +228,27 @@ jobs:
       run: >
         source ${{ matrix.tmpdir }}/venv/bin/activate &&
         pytest -v --pyargs mujoco
+    - name: Package MJX
+      if: ${{ runner.os != 'Windows' }}
+      shell: bash
+      working-directory: mjx
+      run:
+        source ${{ matrix.tmpdir }}/venv/bin/activate &&
+        python -m build .
+    - name: Install MJX
+      if: ${{ runner.os != 'Windows' }}
+      shell: bash
+      working-directory: mjx
+      run:
+        source ${{ matrix.tmpdir }}/venv/bin/activate &&
+        pip install --require-hashes -r requirements.txt &&
+        pip install --no-index dist/mujoco_mjx-*.whl
+    - name: Test MJX
+      if: ${{ runner.os != 'Windows' }}
+      shell: bash
+      run:
+        source ${{ matrix.tmpdir }}/venv/bin/activate &&
+        pytest -n auto -v --pyargs mujoco.mjx
     - name: Notify team chat
       shell: bash
       env:
