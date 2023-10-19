@@ -24,6 +24,7 @@ from mujoco.mjx._src import constraint
 from mujoco.mjx._src import test_util
 # pylint: disable=g-importing-member
 from mujoco.mjx._src.types import DisableBit
+from mujoco.mjx._src.types import SolverType
 # pylint: enable=g-importing-member
 import numpy as np
 
@@ -78,6 +79,39 @@ class ConstraintTest(parameterized.TestCase):
           i,
           fname,
       )
+
+  _JNT_RANGE = """
+    <mujoco>
+      <worldbody>
+        <body pos="0 0 1">
+          <joint type="slide" axis="1 0 0" range="-1.8 1.8" solreflimit=".08 1"
+           damping="5e-4"/>
+          <geom type="box" size="0.2 0.15 0.1" mass="1"/>
+          <body>
+            <joint axis="0 1 0" damping="2e-6"/>
+            <geom type="capsule" fromto="0 0 0 0 0 1" size="0.045" mass=".1"/>
+          </body>
+        </body>
+      </worldbody>
+    </mujoco>
+  """
+
+  def test_jnt_range(self):
+    """Tests that mixed joint ranges are respected."""
+    m = mujoco.MjModel.from_xml_string(self._JNT_RANGE)
+    m.opt.solver = SolverType.CG.value
+    d = mujoco.MjData(m)
+    d.qpos = np.array([2.0, 15.0])
+
+    mx = mjx.device_put(m)
+    dx = mjx.device_put(d)
+    efc = jax.jit(constraint._instantiate_limit)(mx, dx)
+
+    # first joint is outside the joint range
+    np.testing.assert_array_almost_equal(efc.J[0, 0], -1.0)
+
+    # second joint does not hit joint range
+    np.testing.assert_array_almost_equal(efc.aref[1], 0.0)
 
   def test_disable_refsafe(self):
     m = test_util.load_test_file('ant.xml')

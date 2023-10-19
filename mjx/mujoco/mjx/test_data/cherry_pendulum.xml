@@ -5,7 +5,7 @@
   </default>
   <worldbody>
     <body>
-      <joint axis="1 0 0" type="hinge"/>
+      <joint axis="1 0 0" type="hinge" range="-45 45"/>
       <geom pos="0 0.5 0" size=".15" mass="1" type="sphere"/>
       <body pos="0 0.5 0">
         <joint axis="1 0 0" type="hinge"/>

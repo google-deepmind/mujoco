@@ -14,7 +14,7 @@ MJX Bug fixes
 ^^^^^^^^^
 
 1. Fix typos and supported fields in the docs (fixes :github:issue:`1105` and :github:issue:`1106`).
-
+2. Fix bug where mixed `jnt_limited` joints are not being constrained correctly.
 
 Version 3.0.0 (October 18, 2023)
 --------------------------------

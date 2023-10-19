@@ -228,13 +228,19 @@ def _instantiate_limit(m: Model, d: Data) -> _Efc:
 
     return jp.stack(js), jp.stack(rs), jp.stack(arefs)
 
+  jnt_range = jp.where(
+      m.jnt_limited[:, None],
+      m.jnt_range,
+      jp.array([-jp.inf, jp.inf]),
+  )
+
   j, r, aref = scan.flat(
       m,
       fn,
       'jjjjjqvv',
       'jjj',
       m.jnt_type,
-      m.jnt_range,
+      jnt_range,
       m.jnt_solref,
       m.jnt_solimp,
       m.jnt_margin,
