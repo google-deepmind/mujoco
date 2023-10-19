@@ -28,7 +28,7 @@ from mujoco import mjx
 from mujoco.mjx._src.types import Contact
 from mujoco.mjx._src.types import Data
 from mujoco.mjx._src.types import Model
-# pylint: emable=g-importing-member
+# pylint: enable=g-importing-member
 import numpy as np
 
 
@@ -289,7 +289,7 @@ class ConvexTest(absltest.TestCase):
           <joint axis="1 0 0" type="free"/>
           <geom size="0.2 0.2 0.2" type="box"/>
         </body>
-        <body pos="0.1 1.0 0.495" euler="0.1 -0.1 45">
+        <body pos="0.1 1.0 0.495" euler="0.1 -0.1 0">
           <joint axis="1 0 0" type="free"/>
           <geom size="0.1 0.1 0.1" type="box"/>
         </body>
