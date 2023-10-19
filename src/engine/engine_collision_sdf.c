@@ -43,44 +43,44 @@ static mjtNum geomDistance(const mjModel* m, const mjData* d, const mjpPlugin* p
 
   // see https://iquilezles.org/articles/distfunctions/
   switch (type) {
-    case mjGEOM_PLANE:
-      return x[2];
-    case mjGEOM_SPHERE:
-      return mju_norm3(x) - size[0];
-    case mjGEOM_BOX:
-      a[0] = mju_abs(x[0]) - size[0];
-      a[1] = mju_abs(x[1]) - size[1];
-      a[2] = mju_abs(x[2]) - size[2];
-      b[0] = mju_max(a[0], 0);
-      b[1] = mju_max(a[1], 0);
-      b[2] = mju_max(a[2], 0);
-      return mju_norm3(b) + mju_min(mju_max(a[0], mju_max(a[1], a[2])), 0);
-    case mjGEOM_CAPSULE:
-      a[0] = x[0];
-      a[1] = x[1];
-      a[2] = x[2] - mju_clip(x[2], -size[1], size[1]);
-      return mju_norm3(a) - size[0];
-    case mjGEOM_ELLIPSOID:
-      a[0] = x[0] / size[0];
-      a[1] = x[1] / size[1];
-      a[2] = x[2] / size[2];
-      b[0] = a[0] / size[0];
-      b[1] = a[1] / size[1];
-      b[2] = a[2] / size[2];
-      mjtNum k0 = mju_norm3(a);
-      mjtNum k1 = mju_norm3(b);
-      return k0 * (k0 - 1.0) / k1;
-    case mjGEOM_CYLINDER:
-      a[0] = mju_sqrt(x[0]*x[0]+x[1]*x[1]) - size[0];
-      a[1] = mju_abs(x[2]) - size[1];
-      b[0] = mju_max(a[0], 0);
-      b[1] = mju_max(a[1], 0);
-      return mju_min(mju_max(a[0], a[1]), 0) + mju_norm(b, 2);
-    case mjGEOM_SDF:
-      return p->sdf_distance(x, d, i);
-    default:
-      mjERROR("sdf collisions not available for geom type %d", type);
-      return 0;
+  case mjGEOM_PLANE:
+    return x[2];
+  case mjGEOM_SPHERE:
+    return mju_norm3(x) - size[0];
+  case mjGEOM_BOX:
+    a[0] = mju_abs(x[0]) - size[0];
+    a[1] = mju_abs(x[1]) - size[1];
+    a[2] = mju_abs(x[2]) - size[2];
+    b[0] = mju_max(a[0], 0);
+    b[1] = mju_max(a[1], 0);
+    b[2] = mju_max(a[2], 0);
+    return mju_norm3(b) + mju_min(mju_max(a[0], mju_max(a[1], a[2])), 0);
+  case mjGEOM_CAPSULE:
+    a[0] = x[0];
+    a[1] = x[1];
+    a[2] = x[2] - mju_clip(x[2], -size[1], size[1]);
+    return mju_norm3(a) - size[0];
+  case mjGEOM_ELLIPSOID:
+    a[0] = x[0] / size[0];
+    a[1] = x[1] / size[1];
+    a[2] = x[2] / size[2];
+    b[0] = a[0] / size[0];
+    b[1] = a[1] / size[1];
+    b[2] = a[2] / size[2];
+    mjtNum k0 = mju_norm3(a);
+    mjtNum k1 = mju_norm3(b);
+    return k0 * (k0 - 1.0) / k1;
+  case mjGEOM_CYLINDER:
+    a[0] = mju_sqrt(x[0]*x[0]+x[1]*x[1]) - size[0];
+    a[1] = mju_abs(x[2]) - size[1];
+    b[0] = mju_max(a[0], 0);
+    b[1] = mju_max(a[1], 0);
+    return mju_min(mju_max(a[0], a[1]), 0) + mju_norm(b, 2);
+  case mjGEOM_SDF:
+    return p->sdf_distance(x, d, i);
+  default:
+    mjERROR("sdf collisions not available for geom type %d", type);
+    return 0;
   }
 }
 
@@ -92,83 +92,83 @@ static void geomGradient(mjtNum gradient[3], const mjModel* m, const mjData* d,
 
   // see https://iquilezles.org/articles/distfunctions/
   switch (type) {
-    case mjGEOM_PLANE:
-      mju_zero3(gradient);
-      gradient[2] = 1;
-      break;
-    case mjGEOM_SPHERE:
-      mju_copy3(gradient, x);
-      c = mju_norm3(x);
-      gradient[0] *= 1. / c;
-      gradient[1] *= 1. / c;
-      gradient[2] *= 1. / c;
-      break;
-    case mjGEOM_BOX:
-      mju_zero3(gradient);
-      a[0] = mju_abs(x[0]) - size[0];
-      a[1] = mju_abs(x[1]) - size[1];
-      a[2] = mju_abs(x[2]) - size[2];
-      int k = a[0] > a[1] ? 0 : 1;
-      int l = a[2] > a[k] ? 2 : k;
-      if (a[l]<0) {
-        gradient[l] = x[l] / mju_abs(x[l]);
-      } else {
-        b[0] = mju_max(a[0], 0);
-        b[1] = mju_max(a[1], 0);
-        b[2] = mju_max(a[2], 0);
-        c = mju_norm3(b);
-        gradient[0] = a[0]>0 ? b[0] / c * x[0] / mju_abs(x[0]) : 0;
-        gradient[1] = a[1]>0 ? b[1] / c * x[1] / mju_abs(x[1]) : 0;
-        gradient[2] = a[2]>0 ? b[2] / c * x[2] / mju_abs(x[2]) : 0;
-      }
-      break;
-    case mjGEOM_CAPSULE:
-      a[0] = x[0];
-      a[1] = x[1];
-      a[2] = x[2] - mju_clip(x[2], -size[1], size[1]);
-      c = mju_norm3(a);
-      gradient[0] = a[0] / c;
-      gradient[1] = a[1] / c;
-      gradient[2] = a[2] / c;
-      break;
-    case mjGEOM_ELLIPSOID:
-      a[0] = x[0] / size[0];
-      a[1] = x[1] / size[1];
-      a[2] = x[2] / size[2];
-      b[0] = a[0] / size[0];
-      b[1] = a[1] / size[1];
-      b[2] = a[2] / size[2];
-      mjtNum k0 = mju_norm3(a);
-      mjtNum k1 = mju_norm3(b);
-      gradient[0] = a[0]*(2.*k0 - 1.) / k1 + k0*(k0 - 1.) * b[0]/(k1*k1);
-      gradient[1] = a[1]*(2.*k0 - 1.) / k1 + k0*(k0 - 1.) * b[1]/(k1*k1);
-      gradient[2] = a[2]*(2.*k0 - 1.) / k1 + k0*(k0 - 1.) * b[2]/(k1*k1);
-      break;
-    case mjGEOM_CYLINDER:
-      c = mju_sqrt(x[0]*x[0]+x[1]*x[1]);
-      e = mju_abs(x[2]);
-      a[0] = c - size[0];
-      a[1] = e - size[1];
-      mjtNum grada[3] = {x[0] / c, x[1] / c, x[2] / e};
-      int j = a[0] > a[1] ? 0 : 1;
-      if (a[j] < 0) {
-        gradient[0] = j==0 ? grada[0] : 0;
-        gradient[1] = j==0 ? grada[1] : 0;
-        gradient[2] = j==1 ? grada[2] : 0;
-      } else {
-        b[0] = mju_max(a[0], 0);
-        b[1] = mju_max(a[1], 0);
-        mjtNum bnorm = mju_norm(b, 2);
-        gradient[0] = grada[0] * b[0] / bnorm;
-        gradient[1] = grada[1] * b[0] / bnorm;
-        gradient[2] = grada[2] * b[1] / bnorm;
-      }
-      break;
-    case mjGEOM_SDF:
-      p->sdf_gradient(gradient, x, d, i);
-      break;
-    default:
-      mjERROR("sdf collisions not available for geom type %d", type);
+  case mjGEOM_PLANE:
+    mju_zero3(gradient);
+    gradient[2] = 1;
+    break;
+  case mjGEOM_SPHERE:
+    mju_copy3(gradient, x);
+    c = mju_norm3(x);
+    gradient[0] *= 1. / c;
+    gradient[1] *= 1. / c;
+    gradient[2] *= 1. / c;
+    break;
+  case mjGEOM_BOX:
+    mju_zero3(gradient);
+    a[0] = mju_abs(x[0]) - size[0];
+    a[1] = mju_abs(x[1]) - size[1];
+    a[2] = mju_abs(x[2]) - size[2];
+    int k = a[0] > a[1] ? 0 : 1;
+    int l = a[2] > a[k] ? 2 : k;
+    if (a[l] < 0) {
+      gradient[l] = x[l] / mju_abs(x[l]);
+    } else {
+      b[0] = mju_max(a[0], 0);
+      b[1] = mju_max(a[1], 0);
+      b[2] = mju_max(a[2], 0);
+      c = mju_norm3(b);
+      gradient[0] = a[0] > 0 ? b[0] / c * x[0] / mju_abs(x[0]) : 0;
+      gradient[1] = a[1] > 0 ? b[1] / c * x[1] / mju_abs(x[1]) : 0;
+      gradient[2] = a[2] > 0 ? b[2] / c * x[2] / mju_abs(x[2]) : 0;
+    }
+    break;
+  case mjGEOM_CAPSULE:
+    a[0] = x[0];
+    a[1] = x[1];
+    a[2] = x[2] - mju_clip(x[2], -size[1], size[1]);
+    c = mju_norm3(a);
+    gradient[0] = a[0] / c;
+    gradient[1] = a[1] / c;
+    gradient[2] = a[2] / c;
+    break;
+  case mjGEOM_ELLIPSOID:
+    a[0] = x[0] / size[0];
+    a[1] = x[1] / size[1];
+    a[2] = x[2] / size[2];
+    b[0] = a[0] / size[0];
+    b[1] = a[1] / size[1];
+    b[2] = a[2] / size[2];
+    mjtNum k0 = mju_norm3(a);
+    mjtNum k1 = mju_norm3(b);
+    gradient[0] = a[0]*(2.*k0 - 1.) / k1 + k0*(k0 - 1.) * b[0]/(k1*k1);
+    gradient[1] = a[1]*(2.*k0 - 1.) / k1 + k0*(k0 - 1.) * b[1]/(k1*k1);
+    gradient[2] = a[2]*(2.*k0 - 1.) / k1 + k0*(k0 - 1.) * b[2]/(k1*k1);
+    break;
+  case mjGEOM_CYLINDER:
+    c = mju_sqrt(x[0]*x[0]+x[1]*x[1]);
+    e = mju_abs(x[2]);
+    a[0] = c - size[0];
+    a[1] = e - size[1];
+    mjtNum grada[3] = {x[0] / c, x[1] / c, x[2] / e};
+    int j = a[0] > a[1] ? 0 : 1;
+    if (a[j] < 0) {
+      gradient[0] = j == 0 ? grada[0] : 0;
+      gradient[1] = j == 0 ? grada[1] : 0;
+      gradient[2] = j == 1 ? grada[2] : 0;
+    } else {
+      b[0] = mju_max(a[0], 0);
+      b[1] = mju_max(a[1], 0);
+      mjtNum bnorm = mju_norm(b, 2);
+      gradient[0] = grada[0] * b[0] / bnorm;
+      gradient[1] = grada[1] * b[0] / bnorm;
+      gradient[2] = grada[2] * b[1] / bnorm;
+    }
+    break;
+  case mjGEOM_SDF:
+    p->sdf_gradient(gradient, x, d, i);
+    break;
+  default:
+    mjERROR("sdf collisions not available for geom type %d", type);
   }
 }
 
@@ -179,16 +179,16 @@ mjtNum mjc_distance(const mjModel* m, const mjData* d, const mjSDF* s, const mjt
   mjtNum y[3];
 
   switch (s->type) {
-    case mjSDFTYPE_SINGLE:
-      return geomDistance(m, d, s->plugin[0], s->id[0], x, s->geomtype[0]);
-    case mjSDFTYPE_INTERSECTION:
-      mju_rotVecMat(y, x, s->relmat);
-      mju_addTo3(y, s->relpos);
-      return mju_max(geomDistance(m, d, s->plugin[0], s->id[0], x, s->geomtype[0]),
-                     geomDistance(m, d, s->plugin[1], s->id[1], y, s->geomtype[1]));
-    default:
-      mjERROR("SDF type not available");
-      return 0;
+  case mjSDFTYPE_SINGLE:
+    return geomDistance(m, d, s->plugin[0], s->id[0], x, s->geomtype[0]);
+  case mjSDFTYPE_INTERSECTION:
+    mju_rotVecMat(y, x, s->relmat);
+    mju_addTo3(y, s->relpos);
+    return mju_max(geomDistance(m, d, s->plugin[0], s->id[0], x, s->geomtype[0]),
+                   geomDistance(m, d, s->plugin[1], s->id[1], y, s->geomtype[1]));
+  default:
+    mjERROR("SDF type not available");
+    return 0;
   }
 }
 
@@ -199,33 +199,33 @@ void mjc_gradient(const mjModel* m, const mjData* d, const mjSDF* s,
   const mjtNum* point[2] = {x, y};
 
   switch (s->type) {
-    case mjSDFTYPE_INTERSECTION:
-      mju_rotVecMat(y, x, s->relmat);
-      mju_addTo3(y, s->relpos);
-      int i = geomDistance(m, d, s->plugin[0], s->id[0], x, s->geomtype[0]) >
-              geomDistance(m, d, s->plugin[1], s->id[1], y, s->geomtype[1]) ? 0 : 1;
-      geomGradient(gradient, m, d, s->plugin[i], s->id[i], point[i], s->geomtype[i]);
-      if (i==1) {
-        mju_rotVecMatT(gradient, gradient, s->relmat);
-      }
-      break;
-    case mjSDFTYPE_AVERAGE:
-      mju_rotVecMat(y, x, s->relmat);
-      mju_addTo3(y, s->relpos);
-      mjtNum grad1[3], grad2[3];
-      geomGradient(grad1, m, d, s->plugin[0], s->id[0], x, s->geomtype[0]);
-      mju_normalize3(grad1);
-      geomGradient(grad2, m, d, s->plugin[1], s->id[1], y, s->geomtype[1]);
-      mju_rotVecMatT(grad2, grad2, s->relmat);
-      mju_normalize3(grad2);
-      mju_sub3(gradient, grad1, grad2);
-      mju_normalize3(gradient);
-      break;
-    case mjSDFTYPE_SINGLE:
-      geomGradient(gradient, m, d, s->plugin[0], s->id[0], point[0], s->geomtype[0]);
-      break;
-    default:
-      mjERROR("SDF type not available");
+  case mjSDFTYPE_INTERSECTION:
+    mju_rotVecMat(y, x, s->relmat);
+    mju_addTo3(y, s->relpos);
+    int i = geomDistance(m, d, s->plugin[0], s->id[0], x, s->geomtype[0]) >
+            geomDistance(m, d, s->plugin[1], s->id[1], y, s->geomtype[1]) ? 0 : 1;
+    geomGradient(gradient, m, d, s->plugin[i], s->id[i], point[i], s->geomtype[i]);
+    if (i == 1) {
+      mju_rotVecMatT(gradient, gradient, s->relmat);
+    }
+    break;
+  case mjSDFTYPE_AVERAGE:
+    mju_rotVecMat(y, x, s->relmat);
+    mju_addTo3(y, s->relpos);
+    mjtNum grad1[3], grad2[3];
+    geomGradient(grad1, m, d, s->plugin[0], s->id[0], x, s->geomtype[0]);
+    mju_normalize3(grad1);
+    geomGradient(grad2, m, d, s->plugin[1], s->id[1], y, s->geomtype[1]);
+    mju_rotVecMatT(grad2, grad2, s->relmat);
+    mju_normalize3(grad2);
+    mju_sub3(gradient, grad1, grad2);
+    mju_normalize3(gradient);
+    break;
+  case mjSDFTYPE_SINGLE:
+    geomGradient(gradient, m, d, s->plugin[0], s->id[0], point[0], s->geomtype[0]);
+    break;
+  default:
+    mjERROR("SDF type not available");
   }
 }
 
@@ -257,7 +257,7 @@ static void undoTransformation(const mjModel* m, const mjData* d, int g,
                                mjtNum sdf_xpos[3], mjtNum sdf_quat[4]) {
   mjtNum* xpos = d->geom_xpos + 3 * g;
   mjtNum* xmat = d->geom_xmat + 9 * g;
-  if (m->geom_type[g]==mjGEOM_MESH || m->geom_type[g]==mjGEOM_SDF) {
+  if (m->geom_type[g] == mjGEOM_MESH || m->geom_type[g] == mjGEOM_SDF) {
     mjtNum negpos[3], negquat[4], xquat[4];
     mjtNum* pos = m->mesh_pos + 3 * m->geom_dataid[g];
     mjtNum* quat = m->mesh_quat + 4 * m->geom_dataid[g];
@@ -328,19 +328,19 @@ static int addContact(mjtNum* points, mjContact* con, const mjtNum x[3],
 // finds minimum of Frank-Wolfe objective
 static mjtNum stepFrankWolfe(mjtNum x[3], const mjtNum* corners, int ncorners,
                              const mjModel* m, const mjSDF* sdf, mjData* d) {
-  for (int step=0; step<m->opt.sdf_iterations; step++) {
+  for (int step=0; step < m->opt.sdf_iterations; step++) {
     mjtNum best = 1e10, fun, s[3], grad[3];
 
     // evaluate gradient
     mjc_gradient(m, d, sdf, grad, x);
 
     // evaluate all corners
-    for (int i=0; i<ncorners; i++) {
+    for (int i=0; i < ncorners; i++) {
       // compute sdf
       fun = mju_dot3(corners + 3*i, grad);
 
       // save argmin
-      if (fun<best) {
+      if (fun < best) {
         best = fun;
         mju_copy3(s, corners + 3*i);
       }
@@ -360,16 +360,16 @@ static mjtNum stepGradient(mjtNum x[3], const mjModel* m, const mjSDF* s,
                            mjData* d) {
   mjtNum alpha = 0.2;    // step along the gradient direction
 
-  for (int step=0; step<m->opt.sdf_iterations; step++) {
+  for (int step=0; step < m->opt.sdf_iterations; step++) {
     mjtNum grad[3];
 
     // evaluate gradient
     mjc_gradient(m, d, s, grad, x);
 
     // sanity check
-    if (isnan(grad[0]) || grad[0]>mjMAXVAL || grad[0]<-mjMAXVAL ||
-        isnan(grad[1]) || grad[1]>mjMAXVAL || grad[1]<-mjMAXVAL ||
-        isnan(grad[2]) || grad[2]>mjMAXVAL || grad[2]<-mjMAXVAL) {
+    if (isnan(grad[0]) || grad[0] > mjMAXVAL || grad[0] < -mjMAXVAL ||
+        isnan(grad[1]) || grad[1] > mjMAXVAL || grad[1] < -mjMAXVAL ||
+        isnan(grad[2]) || grad[2] > mjMAXVAL || grad[2] < -mjMAXVAL) {
       return mjMAXVAL;
     }
 
@@ -422,7 +422,7 @@ static int triangleIntersect(const mjtNum triangle[9], const mjModel* m,
   // coordinate change
   mju_addTo3(center, p);
 
-  return mjc_distance(m, d, sdf, center)<r;
+  return mjc_distance(m, d, sdf, center) < r;
 }
 
 // intersect with circumsphere of bounding box
@@ -436,7 +436,7 @@ static int boxIntersect(const mjtNum bvh[6], const mjtNum offset[3],
   mju_addTo3(candidate, offset);
 
   // check if inside the bounding box
-  return mjc_distance(m, d, s, candidate)<r;
+  return mjc_distance(m, d, s, candidate) < r;
 }
 
 //---------------------------- mesh vs sdf broad phase --------------------------------------------
@@ -460,7 +460,7 @@ static void collideBVH(const mjModel* m, mjData* d, int g,
   };
   typedef struct CollideTreeArgs_ CollideTreeArgs;
   CollideTreeArgs* stack = (CollideTreeArgs*) mj_stackAllocByte(
-      d, max_stack * sizeof(CollideTreeArgs), _Alignof(CollideTreeArgs));
+    d, max_stack * sizeof(CollideTreeArgs), _Alignof(CollideTreeArgs));
 
   int nstack = 0;
   stack[nstack].node = 0;
@@ -480,7 +480,7 @@ static void collideBVH(const mjModel* m, mjData* d, int g,
       }
       if (boxIntersect(bvh+6*node, offset, rotation, m, sdf, d)) {
         faces[*npoints] = faceid[node];
-        if (++(*npoints)==MAXSDFFACE) {
+        if (++(*npoints) == MAXSDFFACE) {
           mju_warning("mjc_MeshSDF: too many bounding volumes, some contacts may be missed");
           mj_freeStack(d);
           return;
@@ -498,7 +498,7 @@ static void collideBVH(const mjModel* m, mjData* d, int g,
     visited[node] = 1;
 
     // recursive call
-    for (int i=0; i<2; i++) {
+    for (int i=0; i < 2; i++) {
       if (child[2*node+i] != -1) {
         if (nstack >= max_stack) mjERROR("BVH stack depth exceeded.");
         stack[nstack].node = child[2*node+i];
@@ -551,9 +551,9 @@ int mjc_MeshSDF(const mjModel* m, const mjData* d, mjContact* con, int g1, int g
   collideBVH(m, (mjData*)d, g1, offset, rotation, faces, &npoints, &n0, &sdf);
 
   // Frank-Wolfe algorithm
-  for (int i=0; i<npoints; i++) {
+  for (int i=0; i < npoints; i++) {
     int face = faceadr + faces[i];
-    for (int v=0; v<3; v++) {
+    for (int v=0; v < 3; v++) {
       mjtNum vec[3] = {
         m->mesh_vert[3*(vertadr+m->mesh_face[3*face+v])+0],
         m->mesh_vert[3*(vertadr+m->mesh_face[3*face+v])+1],
@@ -576,13 +576,13 @@ int mjc_MeshSDF(const mjModel* m, const mjData* d, mjContact* con, int g1, int g
     x[2] = (corners[2]+corners[5]+corners[8])/3;
 
     // SHOULD NOT OCCUR
-    if (ncandidate==MAXMESHPNT) mjERROR("too many contact points");
+    if (ncandidate == MAXMESHPNT)mjERROR("too many contact points");
 
     // Frank-Wolfe
     depth = stepFrankWolfe(x, corners, 3, m, &sdf, (mjData*)d);
 
     // store candidate if there is penetration
-    if (depth<0) {
+    if (depth < 0) {
       mju_copy3(candidate + 3*ncandidate, x);
       index[ncandidate] = ncandidate;
       dist[ncandidate++] = depth;
@@ -593,7 +593,7 @@ int mjc_MeshSDF(const mjModel* m, const mjData* d, mjContact* con, int g1, int g
   mjQUICKSORT(index, ncandidate, sizeof(int), distcompare, dist);
 
   // add only the first mjMAXCONPAIR pairs
-  for (int i=0; i<mju_min(ncandidate, mjMAXCONPAIR); i++) {
+  for (int i=0; i < mju_min(ncandidate, mjMAXCONPAIR); i++) {
     cnt = addContact(points, con, candidate + 3*index[i], pos2true, sdf_quat,
                      dist[index[i]], cnt, m, &sdf, (mjData*)d);
   }
@@ -633,7 +633,7 @@ int mjc_SDF(const mjModel* m, const mjData* d, mjContact* con, int g1, int g2, m
   mapPose(pos1true, squat1, pos2true, squat2, offset12, rotation12);
 
   // axis-aligned bounding boxes in g1 frame
-  for (int i=0; i<8; i++) {
+  for (int i=0; i < 8; i++) {
     vec1[0] = (i&1 ? size1[0]+size1[3] : size1[0]-size1[3]);
     vec1[1] = (i&2 ? size1[1]+size1[4] : size1[1]-size1[4]);
     vec1[2] = (i&4 ? size1[2]+size1[5] : size1[2]-size1[5]);
@@ -645,7 +645,7 @@ int mjc_SDF(const mjModel* m, const mjData* d, mjContact* con, int g1, int g2, m
     mju_rotVecMat(vec2, vec2, rotation1);
     mju_addTo3(vec2, offset1);
 
-    for (int k=0; k<3; k++) {
+    for (int k=0; k < 3; k++) {
       aabb1[0+k] = mju_min(aabb1[0+k], vec1[k]);
       aabb1[3+k] = mju_max(aabb1[3+k], vec1[k]);
       aabb2[0+k] = mju_min(aabb2[0+k], vec2[k]);
@@ -654,13 +654,13 @@ int mjc_SDF(const mjModel* m, const mjData* d, mjContact* con, int g1, int g2, m
   }
 
   // intersection of aabbs
-  for (int k=0; k<3; k++) {
+  for (int k=0; k < 3; k++) {
     aabb[0+k] = mju_max(aabb1[0+k], aabb2[0+k]);
     aabb[3+k] = mju_min(aabb1[3+k], aabb2[3+k]);
   }
 
   // no intersection if max < min
-  if (aabb[3]<aabb[0] || aabb[4]<aabb[1] || aabb[5]<aabb[2]) {
+  if (aabb[3] < aabb[0] || aabb[4] < aabb[1] || aabb[5] < aabb[2]) {
     return cnt;
   }
 
@@ -696,7 +696,7 @@ int mjc_SDF(const mjModel* m, const mjData* d, mjContact* con, int g1, int g2, m
   mjtNum contacts[3*mjMAXCONPAIR];
 
   int i = 0, j = 0;
-  while (i<m->opt.sdf_initpoints) {
+  while (i < m->opt.sdf_initpoints) {
     x[0] = aabb[0] + (aabb[3]-aabb[0]) * mju_Halton(j, 2);
     x[1] = aabb[1] + (aabb[4]-aabb[1]) * mju_Halton(j, 3);
     x[2] = aabb[2] + (aabb[5]-aabb[2]) * mju_Halton(j, 5);
@@ -723,7 +723,9 @@ int mjc_SDF(const mjModel* m, const mjData* d, mjContact* con, int g1, int g2, m
     cnt = addContact(contacts, con, x, pos2true, squat2, dist, cnt, m, &sdf, (mjData*)d);
 
     // SHOULD NOT OCCUR
-    if (cnt>mjMAXCONPAIR) mjERROR("too many contact points");
+    if (cnt > mjMAXCONPAIR) {
+      mjERROR("too many contact points");
+    }
   }
 
   return cnt;

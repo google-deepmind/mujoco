@@ -256,6 +256,7 @@ Currently, there are three directories of first-party plugins:
   bending strains. The 3D solid is a
   `Saint Venant-Kirchhoff <https://en.wikipedia.org/wiki/Hyperelastic_material#Saint_Venant%E2%80%93Kirchhoff_model>`__
   model discretized with piecewise linear finite elements, which is suitable for large deformations with small strains.
+  See also :ref:`composite <CComposite>` and :ref:`deformable <CDeformable>` objects.
 * **sensor:** The plugins in the `sensor/ <https://github.com/google-deepmind/mujoco/tree/main/plugin/sensor>`__
   directory implement custom sensors. Currently the sole sensor plugin is the touch grid sensor, see the
   `README <https://github.com/google-deepmind/mujoco/blob/main/plugin/sensor/README.md>`__ for details.

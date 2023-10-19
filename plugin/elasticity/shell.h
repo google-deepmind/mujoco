@@ -21,16 +21,10 @@
 #include <mujoco/mjdata.h>
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjtnum.h>
+#include "elasticity.h"
 
 
 namespace mujoco::plugin::elasticity {
-
-struct Stencil2D {
-  static constexpr int kNumEdges = 3;
-  static constexpr int kNumVerts = 3;
-  int vertices[kNumVerts];
-  int edges[kNumEdges];
-};
 
 struct StencilFlap {
   static constexpr int kNumVerts = 4;
@@ -64,14 +58,15 @@ class Shell {
   std::vector<mjtNum> position;             // previous-step positions (nv x 3)
   std::vector<mjtNum> bending;              // bending Hessian         (ne x 16)
 
-  mjtNum damping;
   mjtNum thickness;
 
  private:
   Shell(const mjModel* m, mjData* d, int instance, mjtNum nu, mjtNum E,
-        mjtNum damp, mjtNum thick, const std::vector<int>& face);
+        mjtNum thick, const std::vector<int>& face,
+        const std::vector<int>& edgeidx);
 
-  void CreateStencils(const std::vector<int>& face);
+  void CreateStencils(const std::vector<int>& simplex,
+                      const std::vector<int>& edgeidx);
 };
 
 }  // namespace mujoco::plugin::elasticity

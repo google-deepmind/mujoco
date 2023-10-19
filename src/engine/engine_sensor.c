@@ -208,8 +208,8 @@ static void cam_project(mjtNum sensordata[2], const mjtNum target_xpos[3],
   rotation[1][1] = 1;
   rotation[2][2] = 1;
   rotation[3][3] = 1;
-  for (int i=0; i<3; i++) {
-    for (int j=0; j<3; j++) {
+  for (int i=0; i < 3; i++) {
+    for (int j=0; j < 3; j++) {
       rotation[i][j] = cam_xmat[j*3+i];
     }
   }
@@ -237,11 +237,11 @@ static void cam_project(mjtNum sensordata[2], const mjtNum target_xpos[3],
 
   // projection matrix (3x4): product of all 4 matrices
   mjtNum proj[3][4] = {0};
-  for (int i=0; i<3; i++) {
-    for (int j=0; j<3; j++) {
-      for (int k=0; k<4; k++) {
-        for (int l=0; l<4; l++) {
-          for (int n=0; n<4; n++) {
+  for (int i=0; i < 3; i++) {
+    for (int j=0; j < 3; j++) {
+      for (int k=0; k < 4; k++) {
+        for (int l=0; l < 4; l++) {
+          for (int n=0; n < 4; n++) {
             proj[i][n] += image[i][j] * focal[j][k] * rotation[k][l] * translation[l][n];
           }
         }
@@ -256,10 +256,10 @@ static void cam_project(mjtNum sensordata[2], const mjtNum target_xpos[3],
   // project world coordinates into pixel space, see:
   // https://en.wikipedia.org/wiki/3D_projection#Mathematical_formula
   mjtNum pixel_coord_hom[3] = {0};
-  for (int i=0; i<3; i++) {
-      for (int j=0; j<4; j++) {
-        pixel_coord_hom[i] += proj[i][j] * pos_hom[j];
-      }
+  for (int i=0; i < 3; i++) {
+    for (int j=0; j < 4; j++) {
+      pixel_coord_hom[i] += proj[i][j] * pos_hom[j];
+    }
   }
 
   // avoid dividing by tiny numbers
@@ -716,8 +716,8 @@ void mj_sensorAcc(const mjModel* m, mjData* d) {
           // contact pointer, contacting bodies  (-1 for flex)
           con = d->contact + j;
           int conbody[2];
-          for (int k=0; k<2; k++) {
-            conbody[k] = (con->geom[k]>=0) ? m->geom_bodyid[con->geom[k]] : -1;
+          for (int k=0; k < 2; k++) {
+            conbody[k] = (con->geom[k] >= 0) ? m->geom_bodyid[con->geom[k]] : -1;
           }
 
           // select contacts involving sensorized body
@@ -948,16 +948,16 @@ void mj_energyPos(const mjModel* m, mjData* d) {
     }
   }
 
-  // add flex-level springs
+  // add flex-level springs for dim=1 (dim>1 requires plugins)
   if (!mjDISABLED(mjDSBL_PASSIVE)) {
-    for (int i=0; i<m->nflex; i++) {
+    for (int i=0; i < m->nflex; i++) {
       stiffness = m->flex_edgestiffness[i];
-      if (m->flex_rigid[i] || stiffness==0) {
+      if (m->flex_rigid[i] || stiffness == 0 || m->flex_dim[i] > 1) {
         continue;
       }
 
       // process edges of this flex
-      for (int e=m->flex_edgeadr[i]; e<m->flex_edgeadr[i]+m->flex_edgenum[i]; e++) {
+      for (int e=m->flex_edgeadr[i]; e < m->flex_edgeadr[i]+m->flex_edgenum[i]; e++) {
         mjtNum displacement = m->flexedge_length0[e] - d->flexedge_length[e];
         d->energy[0] += 0.5*stiffness*displacement*displacement;
       }

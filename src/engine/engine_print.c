@@ -362,7 +362,7 @@ void mj_printFormattedModel(const mjModel* m, const char* filename, const char* 
   if (m->nbody) fprintf(fp, "\n");
 
   // BVHs
-  for (int i=0; i<m->nbvh; i++) {
+  for (int i=0; i < m->nbvh; i++) {
     fprintf(fp, "\nBVH %d:\n", i);
     object_class = &m->nbvh;
     MJMODEL_POINTERS
@@ -428,7 +428,7 @@ void mj_printFormattedModel(const mjModel* m, const char* filename, const char* 
   if (m->nlight) fprintf(fp, "\n");
 
   // flexes
-  for (int i=0; i<m->nflex; i++) {
+  for (int i=0; i < m->nflex; i++) {
     fprintf(fp, "\nFLEX %d:\n", i);
     fprintf(fp, "  " NAME_FORMAT, "name");
     fprintf(fp, " %s\n", m->names + m->name_flexadr[i]);

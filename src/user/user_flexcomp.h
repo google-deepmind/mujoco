@@ -85,6 +85,12 @@ class mjCFlexcomp {
   std::vector<bool> used;         // is point used by any element (false: skip)
   std::vector<int> element;       // flex elements
   std::vector<float> texcoord;    // vertex texture coordinates
+
+  // plugin support
+  bool is_plugin;
+  std::string plugin_name;
+  std::string plugin_instance_name;
+  mjCPlugin* plugin_instance;
 };
 
 #endif  // MUJOCO_SRC_USER_USER_FLEXCOMP_H_

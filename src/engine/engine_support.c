@@ -38,8 +38,8 @@
 
 //-------------------------- Constants -------------------------------------------------------------
 
- #define mjVERSION 238
-#define mjVERSIONSTRING "2.3.8"
+ #define mjVERSION 301
+#define mjVERSIONSTRING "3.0.1"
 
 // names of disable flags
 const char* mjDISABLESTRING[mjNDISABLE] = {
@@ -100,22 +100,22 @@ const char* mjTIMERSTRING[mjNTIMER]= {
 // return size of a single state element
 static inline int mj_stateElemSize(const mjModel* m, mjtState spec) {
   switch (spec) {
-    case mjSTATE_TIME:          return 1;
-    case mjSTATE_QPOS:          return m->nq;
-    case mjSTATE_QVEL:          return m->nv;
-    case mjSTATE_ACT:           return m->na;
-    case mjSTATE_WARMSTART:     return m->nv;
-    case mjSTATE_CTRL:          return m->nu;
-    case mjSTATE_QFRC_APPLIED:  return m->nv;
-    case mjSTATE_XFRC_APPLIED:  return 6*m->nbody;
-    case mjSTATE_EQ_ACTIVE:     return m->neq;  // mjtByte, stored as mjtNum in state vector
-    case mjSTATE_MOCAP_POS:     return 3*m->nmocap;
-    case mjSTATE_MOCAP_QUAT:    return 4*m->nmocap;
-    case mjSTATE_USERDATA:      return m->nuserdata;
-    case mjSTATE_PLUGIN:        return m->npluginstate;
-    default:
-      mjERROR("invalid state element %u", spec);
-      return 0;
+  case mjSTATE_TIME:          return 1;
+  case mjSTATE_QPOS:          return m->nq;
+  case mjSTATE_QVEL:          return m->nv;
+  case mjSTATE_ACT:           return m->na;
+  case mjSTATE_WARMSTART:     return m->nv;
+  case mjSTATE_CTRL:          return m->nu;
+  case mjSTATE_QFRC_APPLIED:  return m->nv;
+  case mjSTATE_XFRC_APPLIED:  return 6*m->nbody;
+  case mjSTATE_EQ_ACTIVE:     return m->neq;    // mjtByte, stored as mjtNum in state vector
+  case mjSTATE_MOCAP_POS:     return 3*m->nmocap;
+  case mjSTATE_MOCAP_QUAT:    return 4*m->nmocap;
+  case mjSTATE_USERDATA:      return m->nuserdata;
+  case mjSTATE_PLUGIN:        return m->npluginstate;
+  default:
+    mjERROR("invalid state element %u", spec);
+    return 0;
   }
 }
 
@@ -124,21 +124,21 @@ static inline int mj_stateElemSize(const mjModel* m, mjtState spec) {
 // return pointer to a single state element
 static inline mjtNum* mj_stateElemPtr(const mjModel* m, mjData* d, mjtState spec) {
   switch (spec) {
-    case mjSTATE_TIME:          return &d->time;
-    case mjSTATE_QPOS:          return d->qpos;
-    case mjSTATE_QVEL:          return d->qvel;
-    case mjSTATE_ACT:           return d->act;
-    case mjSTATE_WARMSTART:     return d->qacc_warmstart;
-    case mjSTATE_CTRL:          return d->ctrl;
-    case mjSTATE_QFRC_APPLIED:  return d->qfrc_applied;
-    case mjSTATE_XFRC_APPLIED:  return d->xfrc_applied;
-    case mjSTATE_MOCAP_POS:     return d->mocap_pos;
-    case mjSTATE_MOCAP_QUAT:    return d->mocap_quat;
-    case mjSTATE_USERDATA:      return d->userdata;
-    case mjSTATE_PLUGIN:        return d->plugin_state;
-    default:
-      mjERROR("invalid state element %u", spec);
-      return NULL;
+  case mjSTATE_TIME:          return &d->time;
+  case mjSTATE_QPOS:          return d->qpos;
+  case mjSTATE_QVEL:          return d->qvel;
+  case mjSTATE_ACT:           return d->act;
+  case mjSTATE_WARMSTART:     return d->qacc_warmstart;
+  case mjSTATE_CTRL:          return d->ctrl;
+  case mjSTATE_QFRC_APPLIED:  return d->qfrc_applied;
+  case mjSTATE_XFRC_APPLIED:  return d->xfrc_applied;
+  case mjSTATE_MOCAP_POS:     return d->mocap_pos;
+  case mjSTATE_MOCAP_QUAT:    return d->mocap_quat;
+  case mjSTATE_USERDATA:      return d->userdata;
+  case mjSTATE_PLUGIN:        return d->plugin_state;
+  default:
+    mjERROR("invalid state element %u", spec);
+    return NULL;
   }
 }
 
@@ -248,7 +248,7 @@ int mj_mergeChain(const mjModel* m, int* chain, int b1, int b2) {
   }
 
   // neither body is movable: empty chain
-  if (b1==0 && b2==0) {
+  if (b1 == 0 && b2 == 0) {
     return 0;
   }
 
@@ -257,19 +257,19 @@ int mj_mergeChain(const mjModel* m, int* chain, int b1, int b2) {
   da2 = m->body_dofadr[b2] + m->body_dofnum[b2] - 1;
 
   // merge chains
-  while (da1>=0 || da2>=0) {
+  while (da1 >= 0 || da2 >= 0) {
     chain[NV] = mjMAX(da1, da2);
-    if (da1==chain[NV]) {
+    if (da1 == chain[NV]) {
       da1 = m->dof_parentid[da1];
     }
-    if (da2==chain[NV]) {
+    if (da2 == chain[NV]) {
       da2 = m->dof_parentid[da2];
     }
     NV++;
   }
 
   // reverse order of chain: make it increasing
-  for (int i=0; i<NV/2; i++) {
+  for (int i=0; i < NV/2; i++) {
     int tmp = chain[i];
     chain[i] = chain[NV-i-1];
     chain[NV-i-1] = tmp;
@@ -283,7 +283,7 @@ int mj_mergeChain(const mjModel* m, int* chain, int b1, int b2) {
 // merge dof chains for two simple bodies
 int mj_mergeChainSimple(const mjModel* m, int* chain, int b1, int b2) {
   // swap bodies if wrong order
-  if (b1>b2) {
+  if (b1 > b2) {
     int tmp = b1;
     b1 = b2;
     b2 = tmp;
@@ -293,17 +293,17 @@ int mj_mergeChainSimple(const mjModel* m, int* chain, int b1, int b2) {
   int n1 = m->body_dofnum[b1], n2 = m->body_dofnum[b2];
 
   // both fixed: nothing to do
-  if (n1==0 && n2==0) {
+  if (n1 == 0 && n2 == 0) {
     return 0;
   }
 
   // copy b1 dofs
-  for (int i=0; i<n1; i++) {
+  for (int i=0; i < n1; i++) {
     chain[i] = m->body_dofadr[b1] + i;
   }
 
   // copy b2 dofs
-  for (int i=0; i<n2; i++) {
+  for (int i=0; i < n2; i++) {
     chain[n1+i] = m->body_dofadr[b2] + i;
   }
 
@@ -317,7 +317,7 @@ int mj_bodyChain(const mjModel* m, int body, int* chain) {
   // simple body
   if (m->body_simple[body]) {
     int dofnum = m->body_dofnum[body];
-    for (int i=0; i<dofnum; i++) {
+    for (int i=0; i < dofnum; i++) {
       chain[i] = m->body_dofadr[body] + i;
     }
     return dofnum;
@@ -331,7 +331,7 @@ int mj_bodyChain(const mjModel* m, int body, int* chain) {
     }
 
     // not movable: empty chain
-    if (body==0) {
+    if (body == 0) {
       return 0;
     }
 
@@ -340,13 +340,13 @@ int mj_bodyChain(const mjModel* m, int body, int* chain) {
     int NV = 0;
 
     // construct chain from child to parent
-    while (da>=0) {
+    while (da >= 0) {
       chain[NV++] = da;
       da = m->dof_parentid[da];
     }
 
     // reverse order of chain: make it increasing
-    for (int i=0; i<NV/2; i++) {
+    for (int i=0; i < NV/2; i++) {
       int tmp = chain[i];
       chain[i] = chain[NV-i-1];
       chain[NV-i-1] = tmp;
@@ -737,7 +737,7 @@ int mj_jacSum(const mjModel* m, mjData* d, int* chain,
     }
 
     // accumulate remaining
-    for (int i=1; i<n; i++) {
+    for (int i=1; i < n; i++) {
       // get body chain and Jacobian
       int bodyNV = mj_bodyChain(m, body[i], bodychain);
       if (!bodyNV) {
@@ -762,7 +762,7 @@ int mj_jacSum(const mjModel* m, mjData* d, int* chain,
     mju_scl(jac, jac, weight[0], flg_rot ? 6*nv : 3*nv);
 
     // accumulate remaining
-    for (int i=1; i<n; i++) {
+    for (int i=1; i < n; i++) {
       mj_jac(m, d, jp, jr, point, body[i]);
       mju_addToScl(jac, jtmp, weight[i], flg_rot ? 6*nv : 3*nv);
     }
@@ -1477,13 +1477,13 @@ void mj_applyFT(const mjModel* m, mjData* d,
     // compute J'*f and accumulate
     if (force) {
       mju_mulMatTVec(qforce, jacp, force, 3, NV);
-      for (int i=0; i<NV; i++) {
+      for (int i=0; i < NV; i++) {
         qfrc_target[chain[i]] += qforce[i];
       }
     }
     if (torque) {
       mju_mulMatTVec(qforce, jacr, torque, 3, NV);
-      for (int i=0; i<NV; i++) {
+      for (int i=0; i < NV; i++) {
         qfrc_target[chain[i]] += qforce[i];
       }
     }

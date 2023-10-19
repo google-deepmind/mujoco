@@ -1,0 +1,24 @@
+<mujoco model="triple_pendulum_free">
+  <option timestep="0.02" solver="CG" iterations="6" ls_iterations="6"/>
+  <default>
+    <geom contype="0" conaffinity="0"/>
+  </default>
+  <worldbody>
+    <body>
+      <joint type="free"/>
+      <geom pos="0 0.5 0" size=".15" mass="1" type="sphere"/>
+    </body>
+    <body>
+      <joint axis="1 0 0" type="hinge"/>
+      <geom pos="0 0.5 0" size=".15" mass="1" type="sphere"/>
+      <body pos="0 0.5 0">
+        <joint axis="1 0 0" type="hinge"/>
+        <geom pos="0 0.5 0" size=".15" mass="2" type="sphere"/>
+        <body pos="0 0.5 0">
+          <joint axis="1 0 0" type="hinge"/>
+          <geom pos="0 0.5 0" size=".15" mass="3" type="sphere"/>
+        </body>
+      </body>
+    </body>
+  </worldbody>
+</mujoco>

@@ -13,10 +13,10 @@
 // limitations under the License.
 
 #include <algorithm>
+#include <cassert>
 #include <cstdint>
 #include <cstdlib>
 #include <optional>
-#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -33,8 +33,6 @@ namespace {
 // local tetrahedron numbering
 constexpr int kNumEdges = Stencil3D::kNumEdges;
 constexpr int kNumVerts = Stencil3D::kNumVerts;
-constexpr int edge[kNumEdges][2] = {{0, 1}, {1, 2}, {2, 0},
-                                    {2, 3}, {0, 3}, {1, 3}};
 constexpr int face[kNumVerts][3] = {{2, 1, 0}, {0, 1, 3}, {1, 2, 3}, {2, 0, 3}};
 constexpr int e2f[kNumEdges][2] = {{2, 3}, {1, 3}, {2, 1},
                                    {1, 0}, {0, 2}, {0, 3}};
@@ -82,81 +80,33 @@ void ComputeBasis(mjtNum basis[9], const mjtNum* x, const int v[kNumVerts],
   }
 }
 
-// gradients of edge lengths with respect to vertex positions
-void GradSquaredLengths(mjtNum gradient[kNumEdges][2][3],
-                        const mjtNum* x,
-                        const int v[kNumVerts],
-                        const int edge[kNumEdges][2]) {
-  for (int e = 0; e < kNumEdges; e++) {
-    for (int d = 0; d < 3; d++) {
-      gradient[e][0][d] = x[3*v[edge[e][0]]+d] - x[3*v[edge[e][1]]+d];
-      gradient[e][1][d] = x[3*v[edge[e][1]]+d] - x[3*v[edge[e][0]]+d];
-    }
-  }
-}
-
 }  // namespace
 
 // factory function
 std::optional<Solid> Solid::Create(const mjModel* m, mjData* d, int instance) {
     if (CheckAttr("face", m, instance) &&
+        CheckAttr("edge", m, instance) &&
         CheckAttr("poisson", m, instance) &&
         CheckAttr("young", m, instance)) {
         mjtNum nu = strtod(mj_getPluginConfig(m, instance, "poisson"), nullptr);
         mjtNum E = strtod(mj_getPluginConfig(m, instance, "young"), nullptr);
         mjtNum damp =
             strtod(mj_getPluginConfig(m, instance, "damping"), nullptr);
-        std::vector<int> face;
+        std::vector<int> face, edge;
         String2Vector(mj_getPluginConfig(m, instance, "face"), face);
-        return Solid(m, d, instance, nu, E, damp, face);
+        String2Vector(mj_getPluginConfig(m, instance, "edge"), edge);
+        return Solid(m, d, instance, nu, E, damp, face, edge);
     } else {
         mju_warning("Invalid parameter specification in solid plugin");
         return std::nullopt;
     }
 }
 
-// create map from tetrahedra to vertices and edges and from edges to vertices
-void Solid::CreateStencils(const std::vector<int>& simplex) {
-  // populate stencil
-  nt = simplex.size() / kNumVerts;
-  elements.resize(nt);
-  for (int t = 0; t < nt; t++) {
-    for (int v = 0; v < kNumVerts; v++) {
-      elements[t].vertices[v] = simplex[kNumVerts*t+v]-1;
-    }
-  }
-
-  // map from edge vertices to their index in `edges` vector
-  std::unordered_map<std::pair<int, int>, int, PairHash> edge_indices;
-
-  // loop over all tetrahedra
-  for (int t = 0; t < nt; t++) {
-    int* v = elements[t].vertices;
-
-    // compute edges to vertices map for fast computations
-    for (int e = 0; e < kNumEdges; e++) {
-      auto pair = std::pair(
-        std::min(v[edge[e][0]], v[edge[e][1]]),
-        std::max(v[edge[e][0]], v[edge[e][1]])
-      );
-
-      // if edge is already present in the vector only store its index
-      auto [it, inserted] = edge_indices.insert({pair, ne});
-
-      if (inserted) {
-        edges.push_back(pair);
-        elements[t].edges[e] = ne++;
-      } else {
-        elements[t].edges[e] = it->second;
-      }
-    }
-  }
-}
-
 // plugin constructor
 Solid::Solid(const mjModel* m, mjData* d, int instance, mjtNum nu, mjtNum E,
-             mjtNum damp, const std::vector<int>& simplex)
-    : damping(damp) {
+             mjtNum damp, const std::vector<int>& simplex,
+             const std::vector<int>& edgeidx)
+    : f0(-1), damping(damp) {
   // count plugin bodies
   nv = ne = 0;
   for (int i = 1; i < m->nbody; i++) {
@@ -167,8 +117,16 @@ Solid::Solid(const mjModel* m, mjData* d, int instance, mjtNum nu, mjtNum E,
     }
   }
 
+  // count flexes
+  for (int i = 0; i < m->nflex; i++) {
+    if (m->flex_vertbodyid[m->flex_vertadr[i]] == i0) {
+      f0 = i;
+      break;
+    }
+  }
+
   // generate tetrahedra from the vertices
-  CreateStencils(simplex);
+  nt = CreateStencils<Stencil3D>(elements, edges, simplex, edgeidx);
 
   // allocate arrays
   metric.assign(kNumEdges*kNumEdges*nt, 0);
@@ -187,8 +145,6 @@ Solid::Solid(const mjModel* m, mjData* d, int instance, mjtNum nu, mjtNum E,
 
     // local geometric quantities
     mjtNum basis[kNumEdges][9] = {{0}, {0}, {0}, {0}, {0}, {0}};
-    mjtNum trT[kNumEdges] = {0};
-    mjtNum trTT[kNumEdges*kNumEdges] = {0};
 
     // compute edge basis
     for (int e = 0; e < kNumEdges; e++) {
@@ -196,38 +152,16 @@ Solid::Solid(const mjModel* m, mjData* d, int instance, mjtNum nu, mjtNum E,
                    face[e2f[e][0]], face[e2f[e][1]], volume);
     }
 
-    // compute first invariant i.e. trace(strain)
-    for (int e = 0; e < kNumEdges; e++) {
-      for (int i = 0; i < 3; i++) {
-        trT[e] += basis[e][4*i];
-      }
-    }
-
-    // compute second invariant i.e. trace(strain^2)
-    for (int ed1 = 0; ed1 < kNumEdges; ed1++) {
-      for (int ed2 = 0; ed2 < kNumEdges; ed2++) {
-        for (int i = 0; i < 3; i++) {
-          for (int j = 0; j < 3; j++) {
-            trTT[kNumEdges*ed1+ed2] += basis[ed1][3*i+j] * basis[ed2][3*j+i];
-          }
-        }
-      }
-    }
-
     // material parameters
     mjtNum mu = E / (2*(1+nu)) * volume;
     mjtNum la = E*nu / ((1+nu)*(1-2*nu)) * volume;
 
-    // assembly of strain metric tensor
-    for (int ed1 = 0; ed1 < kNumEdges; ed1++) {
-      for (int ed2 = 0; ed2 < kNumEdges; ed2++) {
-        int index = kNumEdges*kNumEdges*t + kNumEdges*ed1 + ed2;
-        metric[index] = mu * trTT[kNumEdges*ed1+ed2] + la * trT[ed2]*trT[ed1];
-      }
-    }
+    // compute metric tensor
+    MetricTensor<Stencil3D>(metric, t, mu, la, basis);
   }
 
   // allocate array
+  ne = edges.size();
   reference.assign(ne, 0);
   deformed.assign(ne, 0);
   previous.assign(ne, 0);
@@ -238,7 +172,10 @@ Solid::Solid(const mjModel* m, mjData* d, int instance, mjtNum nu, mjtNum E,
 }
 
 void Solid::Compute(const mjModel* m, mjData* d, int instance) {
-  UpdateSquaredLengths(deformed, edges, d->xpos+3*i0);
+  // update edges if no flex
+  if (f0 < 0) {
+    UpdateSquaredLengths(deformed, edges, d->xpos+3*i0);
+  }
 
   // loop over all elements
   for (int t = 0; t < nt; t++)  {
@@ -246,7 +183,7 @@ void Solid::Compute(const mjModel* m, mjData* d, int instance) {
 
     // compute length gradient with respect to dofs
     mjtNum gradient[kNumEdges][2][3];
-    GradSquaredLengths(gradient, d->xpos+3*i0, v, edge);
+    GradSquaredLengths<Stencil3D>(gradient, d->xpos+3*i0, v);
 
     // we add generalized Rayleigh damping as decribed in Section 5.2 of
     // Kharevych et al., "Geometric, Variational Integrators for Computer
@@ -254,11 +191,18 @@ void Solid::Compute(const mjModel* m, mjData* d, int instance) {
 
     // compute elongation
     mjtNum elongation[kNumEdges];
-    mjtNum kD = damping / m->opt.timestep;
     for (int e = 0; e < kNumEdges; e++) {
-      int idx = elements[t].edges[e];
-      elongation[e] = deformed[idx] - reference[idx] +
-                    ( deformed[idx] -  previous[idx] ) * kD;
+      if (f0 < 0) {
+        int idx = elements[t].edges[e];
+        mjtNum kD = damping / m->opt.timestep;
+        elongation[e] = deformed[idx] - reference[idx] +
+                      ( deformed[idx] -  previous[idx] ) * kD;
+      } else {
+        int idx = elements[t].edges[e] + m->flex_edgeadr[f0];
+        mjtNum deformed = d->flexedge_length[idx]*d->flexedge_length[idx];
+        mjtNum reference = m->flexedge_length0[idx]*m->flexedge_length0[idx];
+        elongation[e] = deformed - reference;
+      }
     }
 
     // we now multiply the elongations by the precomputed metric tensor,
@@ -272,7 +216,7 @@ void Solid::Compute(const mjModel* m, mjData* d, int instance) {
       for (int ed2 = 0; ed2 < kNumEdges; ed2++) {
         for (int i = 0; i < 2; i++) {
           for (int x = 0; x < 3; x++) {
-            force[3 * edge[ed2][i] + x] +=
+            force[3 * Stencil3D::edge[ed2][i] + x] +=
                 elongation[ed1] * gradient[ed2][i][x] *
                 metric[offset * t + kNumEdges * ed1 + ed2];
           }
@@ -289,7 +233,9 @@ void Solid::Compute(const mjModel* m, mjData* d, int instance) {
   }
 
   // update stored lengths
-  previous = deformed;
+  if (f0 < 0) {
+    previous = deformed;
+  }
 }
 
 
@@ -301,7 +247,7 @@ void Solid::RegisterPlugin() {
   plugin.name = "mujoco.elasticity.solid";
   plugin.capabilityflags |= mjPLUGIN_PASSIVE;
 
-  const char* attributes[] = {"face", "young", "poisson", "damping"};
+  const char* attributes[] = {"face", "edge", "young", "poisson", "damping"};
   plugin.nattribute = sizeof(attributes) / sizeof(attributes[0]);
   plugin.attributes = attributes;
   plugin.nstate = +[](const mjModel* m, int instance) { return 0; };

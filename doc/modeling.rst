@@ -1069,6 +1069,14 @@ has 1000 bodies (each with a geom), 3000 degrees of freedom and around 1000 acti
 takes around 1 ms on a single core of a modern processor. As with most other MuJoCo models, the soft constraints allow
 simulation at much larger timesteps (this model is stable at 30 ms timestep and even higher).
 
+Particles are also compatible with the passive forces 2D and 3D plugins, discussed in the :ref:`deformable
+<CDeformable>` section. However, collisions are limited to the particle themselves and not to the whole boundary of the
+skin that encloses them. This makes contacts very fast but does not guarantee that all penetrations can be avoided. For
+a more complete treatment, see again the :ref:`deformable <CDeformable>` section, which outlines how to use
+:ref:`flexcomp<body-flexcomp>` to create such an object. It is easy to port models create with composite particles to
+flex, see the folder `elasticity/ <https://github.com/google-deepmind/mujoco/tree/main/model/plugin/elasticity>`__ for
+several examples.
+
 **1D grid**.
 
 |image6| |image7|
@@ -1111,59 +1119,51 @@ coordinates. The plot on the right shows a cloth pinned to the world body at the
 capsule probe. The skin on the right is subdivided using bi-cubic interpolation, which increases visual quality in the
 absence of textures. When textures are present (left) the benefits of subdivision are less visible.
 
-**Rope and loop**.
+**Cable**.
 
-|image10| |image11|
+|coil|
 
 .. code-block:: xml
 
-   <body name="B10" pos="0 0 1">
-     <freejoint/>
-     <composite type="rope" count="21 1 1" spacing="0.04" offset="0 0 2">
-       <joint kind="main" damping="0.005"/>
-       <geom type="capsule" size=".01 .015" rgba=".8 .2 .1 1"/>
-     </composite>
-   </body>
+   <extension>
+      <plugin plugin="mujoco.elasticity.cable"/>
+   </extension>
 
-The remaining composite object types create kinematic trees of element bodies, and the parent body becomes the root of
-the tree. This is why :el:`composite` appears inside a moving body, and not inside the world body as in particle and
-grid objects. If it appeared inside the world body, the root of the composite object would not move. Unlike grids and
-particles, the orientation of the element bodies here can change. The kinematic tree is constructed using (mostly)
-hinge joints. In the case of rope and loop objects illustrated here, the tree is a chain. Note the naming of the
-parent body. This name must correspond to one of the automatically-generated names of the element bodies. This
-mechanism is used to specify where the composite object should attach to the parent. Compared to 1D grids, the rope
-and loop are less jittery and can use capsule and ellipsoid geoms in addition to spheres (thus filling the gaps for
-collision detection). However this comes at a price. Because we have long kinematic chains, the resulting differential
-equations become stiff and can no longer be integrated at large timesteps. The examples we provide illustrate
-comfortable timesteps where the models are stable. The rope can be easily tied into a knot using mouse perturbations,
-as shown in the left plot. Using a larger number of smaller elements makes knots and other manipulations even easier.
-The loop is similar to a rope but the first and last element bodies are connected with an equality constraint.
+   <worldbody>
+      <composite prefix="actuated" type="cable" curve="cos(s) sin(s) s" count="41 1 1"
+                 size="0.25 .1 4" offset="0.25 0 .05" initial="none">
+         <plugin plugin="mujoco.elasticity.cable">
+            <!--Units are in Pa (SI)-->
+            <config key="twist" value="5e8"/>
+            <config key="bend" value="15e8"/>
+            <config key="vmax" value="0"/>
+         </plugin>
+         <joint kind="main" damping="0.15" armature="0.01"/>
+         <geom type="capsule" size=".005" rgba=".8 .2 .1 1"/>
+      </composite>
+   </worldbody>
+
+The cable simulates an inextensible elastic 1D object having twist and bending stiffness. It is discretized using a
+sequence of capsules or boxes. Its stiffness and inertia properties are computed directly from the given parameters and
+the shape of the cross section, which allows for anisotropic behaviors, which can be found in e.g. belts or computer
+cables. It is a single kinematic tree, so it is exactly inextensible without the use of additional constraints, enabling
+the use of large time steps. The elastic model is geometrically exact and based on computing the Bishop or twist-free
+frame of the centerline, i.e., the line passing through the center of the cross section. The orientations of the geoms
+are expressed with respect to this frame and then decomposed into twist and bending components, hence different
+stiffnesses can be set independently. Moreover, it is possible to specify if the stress-free configuration is flat or
+curve, such as in the case of coil springs. The cable requires using a first-party :ref:`engine plugin<exPlugin>`, which
+may be integrated directly into the engine in the future.
+
+**Rope and loop**.
+
+The rope and loop are deprecated. It is recommended to use the cable for simulating inextensible elastic rods that are
+bent and twisted and 1D flex :ref:`deformable objects <CDeformable>` for extensible strings in a tensile loading
+scenario (e.g. a stretched rubber band).
 
 **Cloth**.
 
-|image12| |image13|
-
-.. code-block:: xml
-
-   <body name="B3_5" pos="0 0 1">
-     <freejoint/>
-     <composite type="cloth" count="9 9 1" spacing="0.05" flatinertia="0.01">
-       <joint kind="main" damping="0.001"/>
-       <skin material="matcarpet" texcoord="true" inflate="0.005" subgrid="2"/>
-       <geom type="capsule" size="0.015 0.01" rgba=".8 .2 .1 1"/>
-     </composite>
-   </body>
-
-The cloth type is an alternative to a 2D grid, and has somewhat different properties. Similar to rope vs. 1D grid, the
-cloth is less jittery than a 2D grid and can also fill collision holes better. This is done by using capsules or
-ellipsoids, and arranging them in the pattern shown on the right. The geom capsules are shown in red, the kinematic
-tree in thick blue, the equality-constrained tendons holding the cloth together in thin gray, and the joints in cyan.
-The element body corresponding to the parent body has a floating joint rendered as a cube, while the rest of the tree
-is constructed using pairs of hinge joints that form universal joints. Note the naming of the parent body: similar to
-rope, it must coincide with one of the automatically-generated element body names in the composite object. Explicit
-pinning is not possible. However if the parent is a static body, the cloth is essentially pinned but only at one
-point. Similar to rope, the cloth object involves long kinematic chains that require relatively small timesteps and
-some damping for stable integration. The parameters can be found in the XML model files in the software distribution.
+The cloth is deprecated. It is recommended to use 2D flex :ref:`deformable objects <CDeformable>` for simulating thin
+elastic structures.
 
 **Box**.
 
@@ -1221,6 +1221,94 @@ solref and solimp attributes of the equality constraints that hold the soft obje
 of the system making it softer or harder, damped or springy, etc. Note that box, cylinder and ellipsoid objects do not
 involve long kinematic chains, and can be simulated at large timesteps - similar to particle and grid, and unlike rope
 and cloth.
+
+.. _CDeformable:
+
+Deformable objects
+~~~~~~~~~~~~~~~~~~
+
+The :ref:`composite objects <CComposite>` described earlier were intended to emulate soft bodies in what is effectively
+a rigid-body simulator. This was possible because MuJoCo constraints are soft, but nevertheless it was limited in
+functionality and modeling power. In MuJoCo 3.0 we have introduced true deformable objects involving new model elements.
+The :ref:`skin<deformable-skin>` described earlier was actually one such element, but it is merely used for
+visualization. We now have a related element :ref:`flex<deformable-flex>` which generates contact forces, constraint
+forces and passive forces as needed to model a wide range of deformable entities. Both skins and flexes are now defined
+within a new grouping element in the XML called :ref:`deformable<deformable>`. A flex is a low-level element that
+specifies everything needed at runtime, but is difficult to design at modeling time. To aid with modeling, we have
+further introduced the element :ref:`flexcomp<body-flexcomp>` which automates the creation of the low-level flex,
+similar to how :ref:`composite<body-composite>` automates the creation of (collections of) MuJoCo objects needed to
+emulate a soft body. Flexes may eventually supersede composites, but for now both are useful for somewhat different
+purposes.
+
+A flex is a collection of MuJoCo bodies that are connected with massless stretchable elements. These elements can be
+capsules (1D flex), triangles (2D flex), or tetrahedra (3D flex). In all cases we allow a radius, which makes the
+elements smooth and also volumetric in 1D and 2D. The primitive elements are illustrated below:
+
+|flexelem|
+
+Thus far these look like geoms. But the key difference is that they deform: as the bodies (vertices) move independently
+of each other, the shape of the elements changes in real time. Collisions and contact forces are now generalized to
+handle these deformable geometric elements. Note that when two such elements collide, the contact no longer involves
+just two bodies, but can involve up to 8 bodies (if both elements are tetrahedra). Contact forces are computed as
+before, given the contact frame and relevant quantities expressed in that frame. But then the contact force is
+distributed among all interacting bodies. The notion of contact Jacobian is complicated because the contact point cannot
+be considered fixed in any body frame. Instead we use a weighting scheme to "assign" each contact point to multiple
+bodies. It is also possible to create a rigid flex, by assigning all vertices to the same body. This is a way to
+re-purpose the new flex collision machinery to implement rigid non-convex mesh collisions (unlike mesh geoms which are
+convexified for collision purposes).
+
+**Deformation model**.
+
+In order to preserve the shape of the flex (in a soft sense), we need to generate passive or constraint forces. Prior to
+MuJoCo 3.0 this would involve a large number of tendons plus constraints on tendons and joints. This is still possible
+here, but inefficient both in terms of modeling and in terms of simulation when the flex is large. Instead, the design
+philosophy is to use a single set of parameters and provide two modeling choices: a new (soft) equality constraint type
+that applies to all edges of a given flex, which permits large time steps, or a discretized continuum representation,
+where each element is in a constant stress state, which is equivalent to piecewise linear finite elements and achieves
+improved realism and accuracy. The edge-based model could be seen as a "lumped" stiffness model, where the correct
+coupling of deformation modes (e.g. shear and volumetric) is averaged in a single quantity. The continuum model enables
+instead to specify shear and volumetic stiffnesses separately using the `Poisson's ratio
+<https://en.wikipedia.org/wiki/Poisson%27s_ratio>`__ of the material. For more details, see the `Saint Venant-Kirchhoff
+<https://en.wikipedia.org/wiki/Hyperelastic_material#Saint_Venant%E2%80%93Kirchhoff_model>`__ hyperelastic model. This
+functionality is currently based on first-party :ref:`engine plugins<exPlugin>` as of MuJoCo 3.0 but may be integrated
+into the engine in future releases.
+
+**Creation and visualization**.
+
+.. code-block:: xml
+
+   <extension>
+      <plugin plugin="mujoco.elasticity.solid"/>
+   </extension>
+
+   <worldbody>
+      <flexcomp type="grid" count="24 4 4" spacing=".1 .1 .1" pos=".1 0 1.5"
+                radius=".0" rgba="0 .7 .7 1" name="softbody" dim="3" mass="7">
+         <contact condim="3" solref="0.01 1" solimp=".95 .99 .0001" selfcollide="none"/>
+         <edge damping="1"/>
+         <plugin plugin="mujoco.elasticity.solid">
+            <config key="poisson" value="0.2"/>
+            <!--Units are in Pa (SI)-->
+            <config key="young" value="5e4"/>
+         </plugin>
+      </flexcomp>
+   </worldbody>
+
+Using the :ref:`flexcomp<body-flexcomp>` element, we can create flexes from meshes, including tetrahedral meshes, and
+automatically generate all the bodies/vertices and connect them with suitable elements. We can also create grids and
+other topologies automatically. This machinery makes it easy to create very large flexes, involving thousands or even
+tens of thousands of bodies, elements and edges. Obviously such simulations will not be fast. Even for medium-sized
+flexes, pruning of collision pairs and essential. This is why we have developed elaborate methods for pruning
+self-collisions; see XML reference.
+
+In case of 3D flexes made of tetrahedra, it may be useful to examine how the flex is "triangulated" internally. We have
+a special visualization mode that peels off the outer layers. Below is an example with the Stanford Bunny. Note how it
+has smaller tetrahedra on the outside and larger ones on the inside. This mesh design makes sense, because we want the
+collision surface to be accurate, but on the inside we just need soft material properties - which require less spatial
+resolution.
+
+|bunny1| |bunny2|
+
 
 .. _CInclude:
 
@@ -1562,3 +1650,11 @@ in a visible way, and the energy fluctuates around the initial value instead of 
    :height: 250px
 .. |particle| image:: images/models/particle.gif
    :width: 270px
+.. |flexelem| image:: images/modeling/flexelem.png
+   :width: 400px
+.. |bunny1| image:: images/modeling/bunny1.png
+   :width: 300px
+.. |bunny2| image:: images/modeling/bunny2.png
+   :width: 300px
+.. |coil| image:: images/modeling/coil.png
+   :width: 300px

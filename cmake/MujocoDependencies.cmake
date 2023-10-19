@@ -59,7 +59,7 @@ set(MUJOCO_DEP_VERSION_benchmark
 )
 
 set(MUJOCO_DEP_VERSION_sdflib
-    492847fa81e46653114da48e8886730ccefed377
+    7c49cfba9bbec763b5d0f7b90b26555f3dde8088
     CACHE STRING "Version of `SdfLib` to be fetched."
 )
 
@@ -184,6 +184,9 @@ findorfetch(
   EXCLUDE_FROM_ALL
 )
 
+option(SDFLIB_USE_ASSIMP OFF)
+option(SDFLIB_USE_OPENMP OFF)
+option(SDFLIB_USE_ENOKI OFF)
 findorfetch(
   USE_SYSTEM_PACKAGE
   OFF
@@ -195,8 +198,6 @@ findorfetch(
   https://github.com/UPC-ViRVIG/SdfLib.git
   GIT_TAG
   ${MUJOCO_DEP_VERSION_sdflib}
-  PATCH_COMMAND
-  git apply --reject --whitespace=fix ${mujoco_SOURCE_DIR}/cmake/sdflib-optional-dependencies.patch
   TARGETS
   SdfLib
   EXCLUDE_FROM_ALL

@@ -13,13 +13,10 @@
 // limitations under the License.
 
 #include <algorithm>
-#include <cctype>
+#include <cassert>
 #include <cmath>
-#include <cstddef>
 #include <cstdint>
 #include <cstdlib>
-#include <functional>
-#include <sstream>
 #include <optional>
 #include <string>
 #include <unordered_map>
@@ -29,6 +26,7 @@
 #include <mujoco/mjplugin.h>
 #include <mujoco/mjtnum.h>
 #include <mujoco/mujoco.h>
+#include "elasticity.h"
 #include "shell.h"
 
 
@@ -39,22 +37,6 @@ namespace {
 constexpr int kNumEdges = Stencil2D::kNumEdges;
 constexpr int kNumVerts = Stencil2D::kNumVerts;
 constexpr int edge[kNumEdges][2] = {{1, 2}, {2, 0}, {0, 1}};
-
-// copied from void mjXUtil
-void String2Vector(const std::string& txt, std::vector<int>& vec) {
-  std::stringstream strm(txt);
-  vec.clear();
-
-  while (!strm.eof()) {
-    int num;
-    strm >> num;
-    if (strm.fail()) {
-      break;
-    } else {
-      vec.push_back(num);
-    }
-  }
-}
 
 // cotangent between two edges
 mjtNum cot(mjtNum* x, int v0, int v1, int v2) {
@@ -82,28 +64,12 @@ mjtNum ComputeVolume(const mjtNum* x, const int v[kNumVerts]) {
   return mju_norm3(normal) / 2;
 }
 
-// reads numeric attributes
-bool CheckAttr(const char* name, const mjModel* m, int instance) {
-  char* end;
-  std::string value = mj_getPluginConfig(m, instance, name);
-  value.erase(std::remove_if(value.begin(), value.end(), isspace), value.end());
-  strtod(value.c_str(), &end);
-  return end == value.data() + value.size();
-}
-
-struct PairHash
-{
-    template <class T1, class T2>
-    std::size_t operator() (const std::pair<T1, T2>& pair) const {
-        return std::hash<T1>()(pair.first) ^ std::hash<T2>()(pair.second);
-    }
-};
-
 }  // namespace
 
 // factory function
 std::optional<Shell> Shell::Create(const mjModel* m, mjData* d, int instance) {
     if (CheckAttr("face", m, instance) &&
+        CheckAttr("edge", m, instance) &&
         CheckAttr("poisson", m, instance) &&
         CheckAttr("young", m, instance) &&
         CheckAttr("thickness", m, instance)) {
@@ -111,11 +77,10 @@ std::optional<Shell> Shell::Create(const mjModel* m, mjData* d, int instance) {
       mjtNum E = strtod(mj_getPluginConfig(m, instance, "young"), nullptr);
       mjtNum thick =
           strtod(mj_getPluginConfig(m, instance, "thickness"), nullptr);
-      mjtNum damp =
-          strtod(mj_getPluginConfig(m, instance, "damping"), nullptr);
-      std::vector<int> face;
+      std::vector<int> face, edge;
       String2Vector(mj_getPluginConfig(m, instance, "face"), face);
-      return Shell(m, d, instance, nu, E, damp, thick, face);
+      String2Vector(mj_getPluginConfig(m, instance, "edge"), edge);
+      return Shell(m, d, instance, nu, E, thick, face, edge);
     } else {
       mju_warning("Invalid parameter specification in shell plugin");
       return std::nullopt;
@@ -123,13 +88,14 @@ std::optional<Shell> Shell::Create(const mjModel* m, mjData* d, int instance) {
 }
 
 // create map from triangles to vertices and edges and from edges to vertices
-void Shell::CreateStencils(const std::vector<int>& face) {
+void Shell::CreateStencils(const std::vector<int>& simplex,
+                           const std::vector<int>& edgeidx) {
   // populate stencil
-  nt = face.size() / kNumVerts;
+  nt = simplex.size() / kNumVerts;
   elements.resize(nt);
   for (int t = 0; t < nt; t++) {
     for (int v = 0; v < kNumVerts; v++) {
-      elements[t].vertices[v] = face[kNumVerts*t+v]-1;
+      elements[t].vertices[v] = simplex[kNumVerts*t+v];
     }
   }
 
@@ -162,14 +128,19 @@ void Shell::CreateStencils(const std::vector<int>& face) {
         elements[t].edges[e] = it->second;
         flaps[it->second].vertices[3] = v[(edge[e][1]+1) % 3];
       }
+
+      if (!edgeidx.empty()) {
+        assert(elements[t].edges[e] == edgeidx[kNumEdges*t+e]);
+      }
     }
   }
 }
 
 // plugin constructor
 Shell::Shell(const mjModel* m, mjData* d, int instance, mjtNum nu, mjtNum E,
-             mjtNum damp, mjtNum thick, const std::vector<int>& face)
-    : damping(damp), thickness(thick) {
+             mjtNum thick, const std::vector<int>& face,
+             const std::vector<int>& edgeidx)
+    : thickness(thick) {
   // count plugin bodies
   nv = ne = 0;
   for (int i = 1; i < m->nbody; i++) {
@@ -181,7 +152,7 @@ Shell::Shell(const mjModel* m, mjData* d, int instance, mjtNum nu, mjtNum E,
   }
 
   // generate triangles from the vertices
-  CreateStencils(face);
+  CreateStencils(face, edgeidx);
 
   // material parameters
   mjtNum mu = E / (2*(1+nu));
@@ -234,10 +205,6 @@ Shell::Shell(const mjModel* m, mjData* d, int instance, mjtNum nu, mjtNum E,
 }
 
 void Shell::Compute(const mjModel* m, mjData* d, int instance) {
-  mjtNum kD = damping / m->opt.timestep;
-
-  // compute bending contribution
-  mjtNum embedding;
   for (int e = 0; e < ne; e++) {
     int* v = flaps[e].vertices;
     mjtNum force[12] = {0};
@@ -248,8 +215,7 @@ void Shell::Compute(const mjModel* m, mjData* d, int instance) {
     for (int i = 0; i < StencilFlap::kNumVerts; i++) {
       for (int j = 0; j < StencilFlap::kNumVerts; j++) {
         for (int x = 0; x < 3; x++) {
-          embedding = d->xpos[3*(i0+v[j])+x]*(kD+1) - position[3*v[j]+x]*kD;
-          force[3*i+x] += bending[16*e+4*i+j] * embedding;
+          force[3*i+x] += bending[16*e+4*i+j] * d->xpos[3*(i0+v[j])+x];
         }
       }
     }
@@ -275,8 +241,8 @@ void Shell::RegisterPlugin() {
   plugin.name = "mujoco.elasticity.shell";
   plugin.capabilityflags |= mjPLUGIN_PASSIVE;
 
-  const char* attributes[] = {"face", "young", "poisson", "damping",
-                              "thickness"};
+  const char* attributes[] = {"face",    "edge",    "young",
+                              "poisson", "thickness"};
   plugin.nattribute = sizeof(attributes) / sizeof(attributes[0]);
   plugin.attributes = attributes;
   plugin.nstate = +[](const mjModel* m, int instance) { return 0; };
