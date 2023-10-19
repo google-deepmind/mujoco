@@ -19,18 +19,21 @@ class USDRenderer(object):
                height=480,
                width=480,
                geom_groups=[1,1,1,1,1,1],
-               in_memory=True,
-               tmp_usd_stage_file='tmp_usd_stage.usd'):
+               output_frame_dir="frame_tmp"):
     self.model = model
     self.data = None
     self.renderer = mujoco.Renderer(model, height, width)
-    self.in_memory = in_memory
     self.loaded_scene_info = False
+    self.frame_count = 0
+    self.output_frame_dir = output_frame_dir
+    if not os.path.exists(self.output_frame_dir):
+      os.mkdir(self.output_frame_dir)
 
-    if in_memory:
-      self.stage = Usd.Stage.CreateInMemory()
-    else:
-      self.stage = Usd.Stage.CreateNew(tmp_usd_stage_file)
+    # Directory to store all image assets used by the usd scene
+    if not os.path.exists("image_assets"):
+      os.mkdir("image_assets")
+      
+    self.stage = Usd.Stage.CreateInMemory()
 
     UsdGeom.SetStageUpAxis(self.stage, UsdGeom.Tokens.z)
 
@@ -47,10 +50,10 @@ class USDRenderer(object):
     return self.renderer.scene
   
   def save_scene(self):
-    if not self.in_memory:
-      self.stage.GetRootLayer().Save()
-    else:
-      raise Exception("Can only save files if in_memory=False")
+    output_file_path = os.path.join(self.output_frame_dir, f'frame_{self.frame_count}.usd')
+    with open(output_file_path, "w") as f:
+      f.write(self.usd)
+    self.frame_count += 1 
 
   def update_scene(self, data):
     self.renderer.update_scene(data, scene_option=self.scene_option)
@@ -80,7 +83,7 @@ class USDRenderer(object):
       pixels = 3*height*width
       rgb = self.model.tex_rgb[data_adr:data_adr+pixels]
       img = rgb.reshape(height, width, 3)
-      file_name = f'{texid}.png'
+      file_name = f'image_assets/{texid}.png'
       img = im.fromarray(img)
       img = ImageOps.flip(img)
       img.save(file_name)

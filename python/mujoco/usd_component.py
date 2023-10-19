@@ -348,14 +348,17 @@ class USDLight(object):
       self.translate_op = self.xform.AddTranslateOp()
     self.translate_op.Set(pos)
 
+    if pos == (0, 0, 0):
+      self.prim.GetIntensityAttr().Set(0);
+    else:
+      self.prim.GetIntensityAttr().Set(50000);
+
     # TODO attributes:
     #   - direction
     #   - intensity
     #   - exposure
     #   - radius
     #   - specular
-
-    self.prim.GetIntensityAttr().Set(15000);
 
 class USDCamera(object):
   """
