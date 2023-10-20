@@ -116,8 +116,9 @@ def _validate(m: mujoco.MjModel):
 
     typs = set(val) if isinstance(val, Iterable) else {val}
     unsupported_typs = typs - set(_TYPE_MAP[mj_type])
-    if unsupported_typs:
-      raise NotImplementedError(f'{unsupported_typs} not implemented.')
+    unsupported = [mj_type(t) for t in unsupported_typs]
+    if unsupported:
+      raise NotImplementedError(f'{unsupported} not implemented.')
 
   # check condim
   if any(dim != 3 for dim in m.geom_condim) or any(

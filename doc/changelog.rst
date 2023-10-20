@@ -15,6 +15,7 @@ MJX Bug fixes
 
 1. Fix typos and supported fields in the docs (fixes :github:issue:`1105` and :github:issue:`1106`).
 2. Fix bug where mixed `jnt_limited` joints are not being constrained correctly.
+3. Make `device_put` type validation more verbose (fixed :github:issue:`1113`).
 
 Version 3.0.0 (October 18, 2023)
 --------------------------------
