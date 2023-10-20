@@ -24,9 +24,12 @@ import jax
 import jax.numpy as jp
 import mujoco
 from mujoco import mjx
+from mujoco.mjx._src import collision_driver
+from mujoco.mjx._src import test_util
 # pylint: disable=g-importing-member
 from mujoco.mjx._src.types import Contact
 from mujoco.mjx._src.types import Data
+from mujoco.mjx._src.types import DisableBit
 from mujoco.mjx._src.types import Model
 # pylint: enable=g-importing-member
 import numpy as np
@@ -448,6 +451,29 @@ class BodyPairFilterTest(absltest.TestCase):
     # one collision between parent-child spheres
     self.assertEqual(dx.contact.pos.shape[0], d.contact.pos.shape[0])
     self.assertEqual(dx.contact.pos.shape[0], 1)
+
+
+class NconTest(parameterized.TestCase):
+  """Tests ncon."""
+
+  def test_ncon(self):
+    m = test_util.load_test_file('ant.xml')
+    d = mujoco.MjData(m)
+    d.qpos[2] = 0.0
+
+    mx = mjx.device_put(m)
+    ncon = collision_driver.ncon(mx)
+    self.assertEqual(ncon, 4)
+
+  def test_disable_contact(self):
+    m = test_util.load_test_file('ant.xml')
+    d = mujoco.MjData(m)
+    d.qpos[2] = 0.0
+
+    m.opt.disableflags = m.opt.disableflags | DisableBit.CONTACT
+    mx = mjx.device_put(m)
+    ncon = collision_driver.ncon(mx)
+    self.assertEqual(ncon, 0)
 
 
 class TopKContactTest(absltest.TestCase):
