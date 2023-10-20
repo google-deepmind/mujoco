@@ -1857,8 +1857,16 @@ void mj_rnePostConstraint(const mjModel* m, mjData* d) {
       break;
 
     case mjEQ_FLEX:
-      // increment edgenum rows
-      i += m->flex_edgenum[m->eq_obj1id[id]];
+      // increment with number of non-rigid edges
+      k = m->eq_obj1id[id];
+      int flex_edgeadr = m->flex_edgeadr[k];
+      int flex_edgenum = m->flex_edgenum[k];
+
+      for (int e=flex_edgeadr; e < flex_edgeadr+flex_edgenum; e++) {
+        if (!m->flexedge_rigid[e]) {
+          i++;
+        }
+      }
       break;
 
     default:

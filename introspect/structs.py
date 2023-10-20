@@ -1311,7 +1311,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  type=PointerType(
                      inner_type=ValueType(name='mjtByte'),
                  ),
-                 doc='1: diagonal M; 2: diag M, no rotations   (nbody x 1)',
+                 doc='1: diag M; 2: diag M, sliders only       (nbody x 1)',
              ),
              StructFieldDecl(
                  name='body_sameframe',
@@ -2425,6 +2425,13 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                      inner_type=ValueType(name='mjtByte'),
                  ),
                  doc='are all verices in the same body         (nflex x 1)',
+             ),
+             StructFieldDecl(
+                 name='flexedge_rigid',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtByte'),
+                 ),
+                 doc='are both edge vertices in same body      (nflexedge x 1)',
              ),
              StructFieldDecl(
                  name='flex_centered',

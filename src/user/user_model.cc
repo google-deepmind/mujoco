@@ -1569,8 +1569,8 @@ void mjCModel::CopyTree(mjModel* m) {
       qposadr += nPOS[pj->type];
     }
 
-    // simple body with no rotational dofs: promote to simple level 2
-    if (m->body_simple[i]) {
+    // simple body with sliders and no rotational dofs: promote to simple level 2
+    if (m->body_simple[i] && m->body_dofnum[i]) {
       m->body_simple[i] = 2;
       for (int j=0; j<(int)pb->joints.size(); j++) {
         if (pb->joints[j]->type!=mjJNT_SLIDE) {
@@ -1979,10 +1979,15 @@ void mjCModel::CopyObjects(mjModel* m) {
       memcpy(m->flex_vertbodyid + vert_adr, pfl->vertbodyid.data(), pfl->nvert*sizeof(int));
     }
 
-    // convert edge pairs to int array
-    for (int i=0; i<pfl->nedge; i++) {
-      m->flex_edge[2*(edge_adr+i)] = pfl->edge[i].first;
-      m->flex_edge[2*(edge_adr+i)+1] = pfl->edge[i].second;
+    // convert edge pairs to int array, set edge rigid
+    for (int k=0; k<pfl->nedge; k++) {
+      m->flex_edge[2*(edge_adr+k)] = pfl->edge[k].first;
+      m->flex_edge[2*(edge_adr+k)+1] = pfl->edge[k].second;
+
+      // check if vertex body weldids are the same
+      int b1 = pfl->vertbodyid[pfl->edge[k].first];
+      int b2 = pfl->vertbodyid[pfl->edge[k].second];
+      m->flexedge_rigid[edge_adr+k] = (bodies[b1]->weldid == bodies[b2]->weldid);
     }
 
     // advance counters

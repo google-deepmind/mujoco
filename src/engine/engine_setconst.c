@@ -206,8 +206,13 @@ static void set0(mjModel* m, mjData* d) {
         int b1 = m->flex_vertbodyid[m->flex_vertadr[f] + m->flex_edge[2*i]];
         int b2 = m->flex_vertbodyid[m->flex_vertadr[f] + m->flex_edge[2*i+1]];
 
+        // rigid edge: set to 0
+        if (m->flexedge_rigid[i]) {
+          m->flexedge_invweight0[i] = 0;
+        }
+
         // accelerate edges that connect simple bodies with no rotations
-        if (m->body_simple[b1] == 2 && m->body_simple[b2] == 2) {
+        else if (m->body_simple[b1] == 2 && m->body_simple[b2] == 2) {
           m->flexedge_invweight0[i] = (1/m->body_mass[b1] + 1/m->body_mass[b2])/2;
         }
 

@@ -106,9 +106,14 @@ void mj_passive(const mjModel* m, mjData* d) {
       continue;
     }
 
-    // process edges of this flex (global edge index)
+    // process non-rigid edges of this flex (global edge index)
     int edgeend = m->flex_edgeadr[f] + m->flex_edgenum[f];
     for (int e=m->flex_edgeadr[f]; e < edgeend; e++) {
+      // skip rigid
+      if (m->flexedge_rigid[e]) {
+        continue;
+      }
+
       // compute spring-damper force along edge
       frc = stiffness * (m->flexedge_length0[e] - d->flexedge_length[e])
             - damping * d->flexedge_velocity[e];

@@ -5337,6 +5337,7 @@ public unsafe struct mjModel_ {
   public double* flex_edgedamping;
   public byte* flex_edgeequality;
   public byte* flex_rigid;
+  public byte* flexedge_rigid;
   public byte* flex_centered;
   public byte* flex_flatskin;
   public int* flex_bvhadr;

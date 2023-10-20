@@ -956,10 +956,14 @@ void mj_energyPos(const mjModel* m, mjData* d) {
         continue;
       }
 
-      // process edges of this flex
-      for (int e=m->flex_edgeadr[i]; e < m->flex_edgeadr[i]+m->flex_edgenum[i]; e++) {
-        mjtNum displacement = m->flexedge_length0[e] - d->flexedge_length[e];
-        d->energy[0] += 0.5*stiffness*displacement*displacement;
+      // process non-rigid edges of this flex
+      int flex_edgeadr = m->flex_edgeadr[i];
+      int flex_edgenum = m->flex_edgenum[i];
+      for (int e=flex_edgeadr; e < flex_edgeadr+flex_edgenum; e++) {
+        if (!m->flexedge_rigid[e]) {
+          mjtNum displacement = m->flexedge_length0[e] - d->flexedge_length[e];
+          d->energy[0] += 0.5*stiffness*displacement*displacement;
+        };
       }
     }
   }

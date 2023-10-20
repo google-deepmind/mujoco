@@ -1474,9 +1474,16 @@ void mjd_passive_vel(const mjModel* m, mjData* d) {
   for (int f=0; f < m->nflex; f++) {
     if (!m->flex_rigid[f] && m->flex_edgedamping[f]) {
       mjtNum B = -m->flex_edgedamping[f];
+      int flex_edgeadr = m->flex_edgeadr[f];
+      int flex_edgenum = m->flex_edgenum[f];
 
-      // process edges of this flex
-      for (int e=m->flex_edgeadr[f]; e < m->flex_edgeadr[f]+m->flex_edgenum[f]; e++) {
+      // process non-rigid edges of this flex
+      for (int e=flex_edgeadr; e < flex_edgeadr+flex_edgenum; e++) {
+        // skip rigid
+        if (m->flexedge_rigid[e]) {
+          continue;
+        }
+
         // add sparse or dense
         if (mj_isSparse(m)) {
           addJTBJSparse(m, d, d->flexedge_J, &B, 1, e,

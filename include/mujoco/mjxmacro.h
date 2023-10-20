@@ -345,6 +345,7 @@
     X   ( mjtNum,  flex_edgedamping,      nflex,         1                    ) \
     X   ( mjtByte, flex_edgeequality,     nflex,         1                    ) \
     X   ( mjtByte, flex_rigid,            nflex,         1                    ) \
+    X   ( mjtByte, flexedge_rigid,        nflexedge,     1                    ) \
     X   ( mjtByte, flex_centered,         nflex,         1                    ) \
     XMJV( mjtByte, flex_flatskin,         nflex,         1                    ) \
     XMJV( int,     flex_bvhadr,           nflex,         1                    ) \

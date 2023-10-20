@@ -663,9 +663,13 @@ void mj_instantiateEquality(const mjModel* m, mjData* d) {
       case mjEQ_FLEX:
         flex_edgeadr = m->flex_edgeadr[id[0]];
         flex_edgenum = m->flex_edgenum[id[0]];
-
-        // add one constraint per edge
+        // add one constraint per non-rigid edge
         for (int e=flex_edgeadr; e < flex_edgeadr+flex_edgenum; e++) {
+          // skip rigid
+          if (m->flexedge_rigid[e]) {
+            continue;
+          }
+
           // position error
           cpos[0] = d->flexedge_length[e] - m->flexedge_length0[e];
 
@@ -1057,7 +1061,7 @@ void mj_instantiateContact(const mjModel* m, mjData* d) {
 
 // compute diagApprox
 void mj_diagApprox(const mjModel* m, mjData* d) {
-  int id, dim, b1, b2, weldcnt = 0, edgecnt = 0;
+  int id, dim, b1, b2, f, weldcnt = 0;
   int nefc = d->nefc;
   mjtNum tran, rot, fri, *dA = d->efc_diagApprox;
   mjContact* con = NULL;
@@ -1066,11 +1070,6 @@ void mj_diagApprox(const mjModel* m, mjData* d) {
   for (int i=0; i < nefc; i++) {
     // get constraint id
     id = d->efc_id[i];
-
-    // clear edge counter
-    if (d->efc_type[i] != mjEQ_FLEX) {
-      edgecnt = 0;
-    }
 
     // process according to constraint type
     switch ((mjtConstraint) d->efc_type[i]) {
@@ -1108,8 +1107,18 @@ void mj_diagApprox(const mjModel* m, mjData* d) {
         break;
 
       case mjEQ_FLEX:
-        dA[i] = m->flexedge_invweight0[m->flex_edgeadr[m->eq_obj1id[id]] + edgecnt];
-        edgecnt++;
+        // process all non-rigid edges for this flex
+        f = m->eq_obj1id[id];
+        int flex_edgeadr = m->flex_edgeadr[f];
+        int flex_edgenum = m->flex_edgenum[f];
+        for (int e=flex_edgeadr; e<flex_edgeadr+flex_edgenum; e++) {
+          if (!m->flexedge_rigid[e]) {
+            dA[i++] = m->flexedge_invweight0[e];
+          }
+        }
+
+        // adjust constraint counter
+        i--;
         break;
 
       default:
@@ -1642,21 +1651,26 @@ static int mj_ne(const mjModel* m, mjData* d, int* nnz) {
         break;
 
       case mjEQ_FLEX:
-        size = m->flex_edgenum[id[0]];
-        if (!nnz) {
-          break;
-        }
-
         flex_edgeadr = m->flex_edgeadr[id[0]];
         flex_edgenum = m->flex_edgenum[id[0]];
 
+        // init with all edges, subract rigid later
+        size = flex_edgenum;
+
         // process edges of this flex
         for (int e=flex_edgeadr; e < flex_edgeadr+flex_edgenum; e++) {
-          int b1 = m->flex_vertbodyid[m->flex_vertadr[id[0]] + m->flex_edge[2*e]];
-          int b2 = m->flex_vertbodyid[m->flex_vertadr[id[0]] + m->flex_edge[2*e+1]];
+          // rigid: reduce size and skip
+          if (m->flexedge_rigid[e]) {
+            size--;
+            continue;
+          }
 
-          // accumulate NV
-          NV += mj_jacDifPairCount(m, chain, b1, b2, issparse);
+          // accumulate NV if needed
+          if (nnz) {
+            int b1 = m->flex_vertbodyid[m->flex_vertadr[id[0]] + m->flex_edge[2*e]];
+            int b2 = m->flex_vertbodyid[m->flex_vertadr[id[0]] + m->flex_edge[2*e+1]];
+            NV += mj_jacDifPairCount(m, chain, b1, b2, issparse);
+          }
         }
         break;
 
