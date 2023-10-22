@@ -1,6 +1,6 @@
-==========
-MuJoCo XLA
-==========
+================
+MuJoCo XLA (MJX)
+================
 
 Starting with version 3.0.0, MuJoCo includes MuJoCo XLA (MJX) under the
 `mjx <https://github.com/google-deepmind/mujoco/tree/main/mjx>`__ directory.  MJX allows MuJoCo to run on compute
