@@ -8,14 +8,10 @@ Upcoming version (not yet released)
 Bug fixes
 ^^^^^^^^^
 
-1. Fix in simulate: correct handling of "Pause update", "Fullscreen" and "VSync" buttons.
-
-MJX Bug fixes
-^^^^^^^^^
-
-1. Fix typos and supported fields in the docs (fixes :github:issue:`1105` and :github:issue:`1106`).
-2. Fix bug where mixed `jnt_limited` joints are not being constrained correctly.
-3. Make `device_put` type validation more verbose (fixed :github:issue:`1113`).
+1. :ref:`simulate<saSimulate>`: correct handling of "Pause update", "Fullscreen" and "VSync" buttons.
+2. Fixed typos and supported fields in docs (fixes :github:issue:`1105` and :github:issue:`1106`).
+3. Fixed bug where mixed ``jnt_limited`` joints were not being constrained correctly.
+4. Made ``device_put`` type validation more verbose (fixes :github:issue:`1113`).
 
 Version 3.0.0 (October 18, 2023)
 --------------------------------
