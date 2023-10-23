@@ -1945,6 +1945,8 @@ Find first rectangle containing mouse, -1: not found.
 UI framework
 ^^^^^^^^^^^^
 
+For a high-level description of the UI framework, see :ref:`UI`.
+
 .. _mjui_themeSpacing:
 
 mjui_themeSpacing
@@ -1970,7 +1972,12 @@ mjui_add
 
 .. mujoco-include:: mjui_add
 
-Add definitions to UI.
+This is the helper function used to construct a UI. The second argument points to an array of :ref:`mjuiDef` structs,
+each corresponding to one item. The last (unused) item has its type set to -1, to mark termination. The items are added
+after the end of the last used section. There is also another version of this function
+(:ref:`mjui_addToSection<mjui_addToSection>`) which adds items to a specified section instead of adding them at the end
+of the UI. Keep in mind that there is a maximum preallocated number of sections and items per section, given by
+:ref:`mjMAXUISECT<glNumeric>` and :ref:`mjMAXUIITEM<glNumeric>`. Exceeding these maxima results in low-level errors.
 
 .. _mjui_addToSection:
 
@@ -1997,7 +2004,12 @@ mjui_update
 
 .. mujoco-include:: mjui_update
 
-Update specific section/item; -1: update all.
+This is the main UI update function. It needs to be called whenever the user data (pointed to by the item data pointers)
+changes, or when the UI state itself changes. It is normally called by a higher-level function implemented by the user
+(``UiModify`` in :ref:`simulate.cc <saSimulate>`) which also recomputes the layout of all rectangles and associated
+auxiliary buffers. The function updates the pixels in the offscreen OpenGL buffer. To perform minimal updates, the user
+specifies the section and the item that was modified. A value of -1 means all items and/or sections need to be updated
+(which is needed following major changes.)
 
 .. _mjui_event:
 
@@ -2006,7 +2018,10 @@ mjui_event
 
 .. mujoco-include:: mjui_event
 
-Handle UI event, return pointer to changed item, NULL if no change.
+This function is the low-level event handler. It makes the necessary changes in the UI and returns a pointer to the item
+that received the event (or ``NULL`` if no valid event was recorded). This is normally called within the event handler
+implemented by the user (``UiEvent`` in :ref:`simulate.cc <saSimulate>`), and then some action is taken by user code
+depending on which UI item was modified and what the state of that item is after the event is handled.
 
 .. _mjui_render:
 
@@ -2015,7 +2030,9 @@ mjui_render
 
 .. mujoco-include:: mjui_render
 
-Copy UI image to current buffer.
+This function is called in the screen refresh loop. It copies the offscreen OpenGL buffer to the window framebuffer. If
+there are multiple UIs in the application, it should be called once for each UI. Thus ``mjui_render`` is called all the
+time, while :ref:`mjui_update` is called only when changes in the UI take place.
 
 .. _Errorandmemory:
 

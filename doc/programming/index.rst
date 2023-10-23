@@ -275,5 +275,6 @@ now lazily resolved at runtime after the switch to GLAD, the "nogl" libraries ar
 
     simulation
     visualization
+    ui
     samples
     extension

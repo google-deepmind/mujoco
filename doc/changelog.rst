@@ -13,6 +13,11 @@ Bug fixes
 3. Fixed bug where mixed ``jnt_limited`` joints were not being constrained correctly.
 4. Made ``device_put`` type validation more verbose (fixes :github:issue:`1113`).
 
+Documentation
+^^^^^^^^^^^^^
+
+5. Added documentation for the :ref:`UI` framework.
+
 Version 3.0.0 (October 18, 2023)
 --------------------------------
 
