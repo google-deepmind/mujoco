@@ -3098,6 +3098,7 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
   m->opt.disableflags |= mjDSBL_CONTACT;
   d = mj_makeData(m);
   if (!d) {
+    mj_deleteModel(m);
     throw mjCError(0, "could not create mjData");
   }
 
@@ -3125,6 +3126,8 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
   // assert that model has valid references
   const char* validationerr = mj_validateReferences(m);
   if (validationerr) {  // SHOULD NOT OCCUR
+    mj_deleteData(d);
+    mj_deleteModel(m);
     throw mjCError(0, validationerr);
   }
   // test forward simulation
