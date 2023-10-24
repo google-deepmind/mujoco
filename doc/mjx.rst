@@ -230,6 +230,8 @@ The following features are **in development** and coming soon:
      - :ref:`Spatial <tendon-spatial>`, :ref:`Fixed <tendon-fixed>`
    * - :ref:`Equality <mjtEq>`
      - ``JOINT``, ``TENDON``
+   * - :ref:`Sensors <mjtSensor>`
+     - All except ``mjSENS_PLUGIN``, ``mjSENS_USER``
 
 The following features are **unsupported**:
 
