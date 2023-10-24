@@ -110,8 +110,8 @@ class ConstraintTest(parameterized.TestCase):
     # first joint is outside the joint range
     np.testing.assert_array_almost_equal(efc.J[0, 0], -1.0)
 
-    # second joint does not hit joint range
-    np.testing.assert_array_almost_equal(efc.aref[1], 0.0)
+    # second joint has no range, so only one efc row
+    self.assertEqual(efc.J.shape[0], 1)
 
   def test_disable_refsafe(self):
     m = test_util.load_test_file('ant.xml')

@@ -203,7 +203,8 @@ def _instantiate_limit(m: Model, d: Data) -> _Efc:
       jnt_typ = JointType(jnt_typs[i])
 
       if jnt_typ == JointType.FREE:
-        return None  # omit constraint rows for free joints
+        # this row gets removed via jnt_limited filter:
+        dist, j = jp.zeros(()), jp.zeros((m.nv))
       elif jnt_typ == JointType.BALL:
         axis, angle = math.quat_to_axis_angle(qpos[qpos_i : qpos_i + 4])
         dist = jp.amax(jnt_range[i]) - angle
@@ -228,19 +229,13 @@ def _instantiate_limit(m: Model, d: Data) -> _Efc:
 
     return jp.stack(js), jp.stack(rs), jp.stack(arefs)
 
-  jnt_range = jp.where(
-      m.jnt_limited[:, None],
-      m.jnt_range,
-      jp.array([-jp.inf, jp.inf]),
-  )
-
   j, r, aref = scan.flat(
       m,
       fn,
       'jjjjjqvv',
       'jjj',
       m.jnt_type,
-      jnt_range,
+      m.jnt_range,
       m.jnt_solref,
       m.jnt_solimp,
       m.jnt_margin,
@@ -248,6 +243,10 @@ def _instantiate_limit(m: Model, d: Data) -> _Efc:
       jp.eye(m.nv),
       m.dof_invweight0,
   )
+
+  # ignore rows for joints with no limits
+  jnt_limited = m.jnt_limited.astype(bool)
+  j, r, aref = j[jnt_limited], r[jnt_limited], aref[jnt_limited]
 
   return _Efc(J=j, R=r, aref=aref, frictionloss=jp.zeros_like(r))
 
@@ -303,12 +302,12 @@ def count_constraints(m: Model, d: Data) -> Tuple[int, int, int, int]:
 
   nf = 0
 
-  if (m.opt.disableflags & DisableBit.LIMIT) or not m.jnt_limited.any():
+  if m.opt.disableflags & DisableBit.LIMIT:
     nl = 0
   else:
-    nl = (m.jnt_type != JointType.FREE).sum()
+    nl = int(m.jnt_limited.sum())
 
-  if (m.opt.disableflags & DisableBit.CONTACT):
+  if m.opt.disableflags & DisableBit.CONTACT:
     nc = 0
   else:
     nc = d.ncon * 4
