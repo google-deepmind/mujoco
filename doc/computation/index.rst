@@ -526,29 +526,48 @@ Fast implicit-in-velocity (``implicitfast``)
    derivatives are also the main source of asymmetry of :math:`D`, by dropping them and symmetrizing, we can use the
    faster Cholesky rather than LU decomposition.
 
-   .. tip::
-      The implicitfast integrator has similar computational cost to Euler, yet provides increased stability, and is
-      therefore a strict improvement. It is the recommended integrator and will become the default in a future version.
-
 4th-order Runge-Kutta (``RK4``)
    One advantage of our continuous-time formulation is that we can use higher order integrators such as Runge-Kutta or
    multistep methods. The only such integrator currently implemented is the fixed-step `4th-order Runge-Kutta method
-   <https://en.wikipedia.org/wiki/Runge–Kutta_methods#Derivation_of_the_Runge–Kutta_fourth-order_method>`_, though users
-   can easily implement other integrators by calling :ref:`mj_forward` and integrating accelerations themselves. We have
-   observed that for energy-conserving systems (`example
-   <https://github.com/google-deepmind/mujoco/blob/main/test/engine/testdata/derivative/energy_conserving_pendulum.xml>`_) RK4
-   is qualitatively better than the single-step methods, both in terms of stability and accuracy, even when the timestep
-   is decreased by a factor of 4 (so the computational effort is identical).  In the presence of large velocity-
-   dependent forces, if the chosen single-step method integrates those forces implicitly, single-step methods can be
-   significantly more stable than RK4.
+   <https://en.wikipedia.org/wiki/Runge–Kutta_methods#Derivation_of_the_Runge–Kutta_fourth-order_method>`__, though
+   users can easily implement other integrators by calling :ref:`mj_forward` and integrating accelerations themselves.
+   We have observed that for energy-conserving systems (`example <../_static/pendulum.xml>`__), RK4 is qualitatively
+   better than the single-step methods, both in terms of stability and accuracy, even when the timestep is decreased by
+   a factor of 4 (so the computational effort is identical). In the presence of large velocity- dependent forces, if the
+   chosen single-step method integrates those forces implicitly, single-step methods can be significantly more stable
+   than RK4.
 
-.. note::
-   The accuracy and stability of all integrators can be improved by reducing the time step :math:`h` which is stored in
-   ``mjModel.opt.timestep``. Of course this also slows down the simulation. The time step is perhaps the most important
-   parameter that the user can adjust. If it is too large, the simulation will become unstable. If it is too small, CPU
-   time will be wasted without meaningful improvement in accuracy. There is always a comfortable range where the time
-   step is "just right", but that range is model-dependent.
+.. admonition:: Choosing timestep and integrator
+   :class: tip
 
+   :ref:`timestep<option-timestep>`
+    The accuracy and stability of all integrators can be improved by reducing the time step :math:`h`.
+    Of course a smaller time step also slows down the simulation. The time step is perhaps the single most important
+    parameter that the user can adjust. If it is too large, the simulation will become unstable. If it is too small, CPU
+    time will be wasted without meaningful improvement in accuracy. There is always a comfortable range where the time
+    step is "just right", but that range is model-dependent.
+
+   :ref:`integrator<option-integrator>`
+    Summary: The recommended integrator is ``implicitfast`` which usually has the best tradeoff of stabillity and
+    performance.
+
+    **Euler**:
+     Use ``Euler`` for compatibillity with older models and :ref:`MJX<Mjx>`. Specifically for MJX,
+     setting the :ref:`eulerdamp<option-flag-eulerdamp>` disable flag can :ref:`improve performance<MjxPerformance>`.
+    **implicitfast**:
+     The ``implicitfast`` integrator has similar computational cost to ``Euler``, yet provides
+     increased stability, and is therefore a strict improvement. It is the recommended integrator for most models.
+    **implicit**:
+     The benefit over ``implicitfast`` is the implicit integration of Coriolis and centripetal forces, including
+     gyroscopic forces. The most common case where integrating such forces implicitly leads to noticable improvement is
+     when free objects with assymetric inertia are spinning quickly. `gyroscopic.xml <../_static/gyroscopic.xml>`__
+     shows an ellipsoid rolling on an inclined plane which quickly diverges with ``implicitfast`` but is stable with
+     ``implicit``.
+    **RK4**:
+     This integrator is best for systems which are energy conserving, or almost energy-conserving. `pendulum.xml
+     <../_static/pendulum.xml>`__ shows a complicated pendulum mechanism which diverges quickly using ``Euler`` or
+     ``implicitfast`` yet conserves energy well under ``RK4``. Note that under ``implicit``, this model doesn't diverge
+     but rather loses energy.
 
 .. _geState:
 
