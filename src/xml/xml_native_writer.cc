@@ -1082,6 +1082,7 @@ void mjXWriter::Visual(XMLElement* root) {
   WriteAttr(elem, "framewidth",     1, &vis->scale.framewidth,     &visdef.scale.framewidth);
   WriteAttr(elem, "constraint",     1, &vis->scale.constraint,     &visdef.scale.constraint);
   WriteAttr(elem, "slidercrank",    1, &vis->scale.slidercrank,    &visdef.scale.slidercrank);
+  WriteAttr(elem, "frustum",        1, &vis->scale.frustum,        &visdef.scale.frustum);
   if (!elem->FirstAttribute()) {
     section->DeleteChild(elem);
   }
@@ -1110,6 +1111,7 @@ void mjXWriter::Visual(XMLElement* root) {
   WriteAttr(elem, "constraint",       4, vis->rgba.constraint,       visdef.rgba.constraint);
   WriteAttr(elem, "slidercrank",      4, vis->rgba.slidercrank,      visdef.rgba.slidercrank);
   WriteAttr(elem, "crankbroken",      4, vis->rgba.crankbroken,      visdef.rgba.crankbroken);
+  WriteAttr(elem, "frustum",          4, vis->rgba.frustum,          visdef.rgba.frustum);
   if (!elem->FirstAttribute()) {
     section->DeleteChild(elem);
   }

@@ -5038,6 +5038,7 @@ public unsafe struct scale {
   public float framewidth;
   public float constraint;
   public float slidercrank;
+  public float frustum;
 }
 
 [StructLayout(LayoutKind.Sequential)]
@@ -5064,6 +5065,7 @@ public unsafe struct rgba {
   public fixed float constraint[4];
   public fixed float slidercrank[4];
   public fixed float crankbroken[4];
+  public fixed float frustum[4];
 }
 
 [StructLayout(LayoutKind.Sequential)]

@@ -1407,7 +1407,7 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
       FINISH
 
       // set type and category: frame
-        objtype = mjOBJ_UNKNOWN;
+      objtype = mjOBJ_UNKNOWN;
       category = mjCAT_DECOR;
       if (!(category & catmask) || vopt->frame != mjFRAME_GEOM) {
         continue;
@@ -1483,7 +1483,7 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
       FINISH
 
       // set category for site frame
-        category = mjCAT_DECOR;
+      category = mjCAT_DECOR;
       if (!(category & catmask) || vopt->frame != mjFRAME_SITE) {
         continue;
       }
@@ -1563,7 +1563,7 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
       FINISH
 
       // set category for camera frame
-        category = mjCAT_DECOR;
+      category = mjCAT_DECOR;
       if (!(category & catmask) || vopt->frame != mjFRAME_CAMERA) {
         continue;
       }
@@ -1600,11 +1600,13 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
 
   // camera frustum
   if (vopt->flags[mjVIS_CAMERA]) {
-    float rgba[] = {1, 1, 0, .2};
+    objtype = mjOBJ_CAMERA;
+    category = mjCAT_DECOR;
+    const float* rgba = m->vis.rgba.frustum;
     mjtNum vnear[4][3], vfar[4][3];
     mjtNum center[3];
     mjtNum znear = m->vis.map.znear * m->stat.extent;
-    mjtNum zfar = m->vis.map.zfar * m->stat.extent;
+    mjtNum zfar = m->vis.scale.frustum * scl;
     float zver[2], zhor[2];
     for (int i=0; i < m->ncam; i++) {
       if (m->cam_sensorsize[2*i+1] == 0) {
@@ -1710,7 +1712,7 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
       FINISH
 
       // set category for light frame
-        category = mjCAT_DECOR;
+      category = mjCAT_DECOR;
       if (!(category & catmask) || vopt->frame != mjFRAME_LIGHT) {
         continue;
       }

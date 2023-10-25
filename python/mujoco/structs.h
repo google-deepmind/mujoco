@@ -232,6 +232,7 @@ class MjWrapper<raw::MjVisualRgba> : public WrapperBase<raw::MjVisualRgba> {
   X(constraint);
   X(slidercrank);
   X(crankbroken);
+  X(frustum);
   #undef X
 };
 

@@ -578,6 +578,11 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                              type=ValueType(name='float'),
                              doc='slidercrank width',
                          ),
+                         StructFieldDecl(
+                             name='frustum',
+                             type=ValueType(name='float'),
+                             doc='frustum zfar plane',
+                         ),
                      ),
                  ),
                  doc='',
@@ -761,6 +766,14 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                                  extents=(4,),
                              ),
                              doc='used when crank must be stretched/broken',
+                         ),
+                         StructFieldDecl(
+                             name='frustum',
+                             type=ArrayType(
+                                 inner_type=ValueType(name='float'),
+                                 extents=(4,),
+                             ),
+                             doc='camera frustum',
                          ),
                      ),
                  ),

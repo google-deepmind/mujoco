@@ -121,14 +121,14 @@ static const char* MJCF[nMJCF][mjXATTRNUM] = {
         {"map", "?", "13", "stiffness", "stiffnessrot", "force", "torque", "alpha",
             "fogstart", "fogend", "znear", "zfar", "haze", "shadowclip", "shadowscale",
             "actuatortendon"},
-        {"scale", "?", "16", "forcewidth", "contactwidth", "contactheight", "connect", "com",
+        {"scale", "?", "17", "forcewidth", "contactwidth", "contactheight", "connect", "com",
             "camera", "light", "selectpoint", "jointlength", "jointwidth", "actuatorlength",
-            "actuatorwidth", "framelength", "framewidth", "constraint", "slidercrank"},
-        {"rgba", "?", "22", "fog", "haze", "force", "inertia", "joint",
+            "actuatorwidth", "framelength", "framewidth", "constraint", "slidercrank", "frustum"},
+        {"rgba", "?", "23", "fog", "haze", "force", "inertia", "joint",
             "actuator", "actuatornegative", "actuatorpositive", "com",
             "camera", "light", "selectpoint", "connect", "contactpoint", "contactforce",
             "contactfriction", "contacttorque", "contactgap", "rangefinder",
-            "constraint", "slidercrank", "crankbroken"},
+            "constraint", "slidercrank", "crankbroken", "frustum"},
     {">"},
 
     {"statistic", "*", "5", "meaninertia", "meanmass", "meansize", "extent", "center"},
@@ -2765,6 +2765,7 @@ void mjXReader::Visual(XMLElement* section) {
       ReadAttr(elem, "framewidth",     1, &vis->scale.framewidth,     text);
       ReadAttr(elem, "constraint",     1, &vis->scale.constraint,     text);
       ReadAttr(elem, "slidercrank",    1, &vis->scale.slidercrank,    text);
+      ReadAttr(elem, "frustum",        1, &vis->scale.frustum,        text);
     }
 
     // rgba sub-element
@@ -2791,6 +2792,7 @@ void mjXReader::Visual(XMLElement* section) {
       ReadAttr(elem, "constraint",       4, vis->rgba.constraint,      text);
       ReadAttr(elem, "slidercrank",      4, vis->rgba.slidercrank,     text);
       ReadAttr(elem, "crankbroken",      4, vis->rgba.crankbroken,     text);
+      ReadAttr(elem, "frustum",          4, vis->rgba.frustum,         text);
     }
 
     // advance to next element

@@ -800,6 +800,7 @@ struct mjVisual_ {                // visualization options
     float framewidth;             // bodyframe axis width
     float constraint;             // constraint width
     float slidercrank;            // slidercrank width
+    float frustum;                // frustum zfar plane
   } scale;
 
   struct {                        // color of decor elements
@@ -825,6 +826,7 @@ struct mjVisual_ {                // visualization options
     float constraint[4];          // constraint
     float slidercrank[4];         // slidercrank
     float crankbroken[4];         // used when crank must be stretched/broken
+    float frustum[4];             // camera frustum
   } rgba;
 };
 typedef struct mjVisual_ mjVisual;

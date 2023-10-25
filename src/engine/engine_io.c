@@ -245,6 +245,7 @@ void mj_defaultVisual(mjVisual* vis) {
   vis->scale.framewidth           = 0.1;
   vis->scale.constraint           = 0.1;
   vis->scale.slidercrank          = 0.2;
+  vis->scale.frustum             = 10.0;
 
   // colors
   setf4(vis->rgba.fog,              0., 0., 0., 1.);
@@ -269,6 +270,7 @@ void mj_defaultVisual(mjVisual* vis) {
   setf4(vis->rgba.constraint,       .9, .0, .0, 1.);
   setf4(vis->rgba.slidercrank,      .5, .3, .8, 1.);
   setf4(vis->rgba.crankbroken,      .9, .0, .0, 1.);
+  setf4(vis->rgba.frustum,          1., 1., .0, .2);
 }
 
 

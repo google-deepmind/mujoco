@@ -920,6 +920,11 @@ documented below.
    The radius of the capsules used to render slider-crank mechanisms. The second part of the mechanism is automatically
    scaled relative to this setting.
 
+.. _visual-scale-frustum:
+
+:at:`frustum`: :at-val:`real, "10"`
+   The distance of the zfar plane from the camera pinhole for rendering the frustum.
+
 
 .. _visual-rgba:
 
@@ -1045,6 +1050,11 @@ disables the rendering of the corresponding object.
 :at:`crankbroken`: :at-val:`real(4), "0.9 0 0 1"`
    Color used to render the crank of slide-crank mechanisms, in model configurations where the specified rod length
    cannot be maintained, i.e., it is "broken".
+
+.. _visual-rgba-frustum:
+
+:at:`frustum`: :at-val:`real(4), "1 1 0 0.2"`
+   Color used to render the camera frustum.
 
 
 .. _asset:

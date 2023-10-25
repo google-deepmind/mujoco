@@ -147,7 +147,8 @@ MjVisualRgbaWrapper::MjWrapper()
       X(rangefinder),
       X(constraint),
       X(slidercrank),
-      X(crankbroken) {}
+      X(crankbroken),
+      X(frustum) {}
 
 MjVisualRgbaWrapper::MjWrapper(raw::MjVisualRgba* ptr, py::handle owner)
     : WrapperBase(ptr, owner),
@@ -172,7 +173,8 @@ MjVisualRgbaWrapper::MjWrapper(raw::MjVisualRgba* ptr, py::handle owner)
       X(rangefinder),
       X(constraint),
       X(slidercrank),
-      X(crankbroken) {}
+      X(crankbroken),
+      X(frustum) {}
 #undef X
 
 MjVisualRgbaWrapper::MjWrapper(const MjVisualRgbaWrapper& other)
@@ -1488,6 +1490,7 @@ PYBIND11_MODULE(_structs, m) {
   X(framewidth);
   X(constraint);
   X(slidercrank);
+  X(frustum);
 #undef X
 
   py::class_<MjVisualRgbaWrapper> mjVisualRgba(mjVisual, "Rgba");
@@ -1522,6 +1525,7 @@ PYBIND11_MODULE(_structs, m) {
   X(constraint);
   X(slidercrank);
   X(crankbroken);
+  X(frustum);
 #undef X
 
 #define X(var)                    \
