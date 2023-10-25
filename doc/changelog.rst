@@ -5,19 +5,26 @@ Changelog
 Upcoming version (not yet released)
 -----------------------------------
 
+General
+^^^^^^^
+
+1. Added sub-terms of total passive forces in ``mjData.qfrc_passive`` to :ref:`mjData`:
+   ``qfrc_{spring, damper, gravcomp, fluid}``. The sum of these vectors equals ``qfrc_passive``.
+
+
 Bug fixes
 ^^^^^^^^^
 
-1. :ref:`simulate<saSimulate>`: correct handling of "Pause update", "Fullscreen" and "VSync" buttons.
-2. Fixed typos and supported fields in docs (fixes :github:issue:`1105` and :github:issue:`1106`).
-3. Fixed bug where mixed ``jnt_limited`` joints were not being constrained correctly.
-4. Made ``device_put`` type validation more verbose (fixes :github:issue:`1113`).
-5. Removed empty EFC rows from `MJX`, for joints with no limits (fixes :github:issue:`1117`).
+2. :ref:`simulate<saSimulate>`: correct handling of "Pause update", "Fullscreen" and "VSync" buttons.
+3. Fixed typos and supported fields in docs (fixes :github:issue:`1105` and :github:issue:`1106`).
+4. Fixed bug where mixed ``jnt_limited`` joints were not being constrained correctly.
+5. Made ``device_put`` type validation more verbose (fixes :github:issue:`1113`).
+6. Removed empty EFC rows from `MJX`, for joints with no limits (fixes :github:issue:`1117`).
 
 Documentation
 ^^^^^^^^^^^^^
 
-5. Added documentation for the :ref:`UI` framework.
+7. Added documentation for the :ref:`UI` framework.
 
 Version 3.0.0 (October 18, 2023)
 --------------------------------

@@ -618,6 +618,10 @@
     X   ( mjtNum,    cvel,              nbody,       6           ) \
     X   ( mjtNum,    cdof_dot,          nv,          6           ) \
     X   ( mjtNum,    qfrc_bias,         nv,          1           ) \
+    X   ( mjtNum,    qfrc_spring,       nv,          1           ) \
+    X   ( mjtNum,    qfrc_damper,       nv,          1           ) \
+    X   ( mjtNum,    qfrc_gravcomp,     nv,          1           ) \
+    X   ( mjtNum,    qfrc_fluid,        nv,          1           ) \
     X   ( mjtNum,    qfrc_passive,      nv,          1           ) \
     X   ( mjtNum,    subtree_linvel,    nbody,       3           ) \
     X   ( mjtNum,    subtree_angmom,    nbody,       3           ) \

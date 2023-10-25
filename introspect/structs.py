@@ -4681,11 +4681,39 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='C(qpos,qvel)                                     (nv x 1)',  # pylint: disable=line-too-long
              ),
              StructFieldDecl(
+                 name='qfrc_spring',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+                 doc='passive spring force                             (nv x 1)',  # pylint: disable=line-too-long
+             ),
+             StructFieldDecl(
+                 name='qfrc_damper',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+                 doc='passive damper force                             (nv x 1)',  # pylint: disable=line-too-long
+             ),
+             StructFieldDecl(
+                 name='qfrc_gravcomp',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+                 doc='passive gravity compensation force               (nv x 1)',  # pylint: disable=line-too-long
+             ),
+             StructFieldDecl(
+                 name='qfrc_fluid',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+                 doc='passive fluid force                              (nv x 1)',  # pylint: disable=line-too-long
+             ),
+             StructFieldDecl(
                  name='qfrc_passive',
                  type=PointerType(
                      inner_type=ValueType(name='mjtNum'),
                  ),
-                 doc='passive force                                    (nv x 1)',  # pylint: disable=line-too-long
+                 doc='total passive force                              (nv x 1)',  # pylint: disable=line-too-long
              ),
              StructFieldDecl(
                  name='subtree_linvel',

@@ -4849,6 +4849,10 @@ public unsafe struct mjData_ {
   public double* cvel;
   public double* cdof_dot;
   public double* qfrc_bias;
+  public double* qfrc_spring;
+  public double* qfrc_damper;
+  public double* qfrc_gravcomp;
+  public double* qfrc_fluid;
   public double* qfrc_passive;
   public double* subtree_linvel;
   public double* subtree_angmom;

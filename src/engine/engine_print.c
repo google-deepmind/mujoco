@@ -1085,7 +1085,11 @@ void mj_printFormattedData(const mjModel* m, mjData* d, const char* filename,
 
   printArray("QFRC_BIAS", m->nv, 1, d->qfrc_bias, fp, float_format);
 
-  printArray("QFRC_PASSIVE", m->nv, 1, d->qfrc_passive, fp, float_format);
+  printArray("QFRC_SPRING",   m->nv, 1, d->qfrc_spring,   fp, float_format);
+  printArray("QFRC_DAMPER",   m->nv, 1, d->qfrc_damper,   fp, float_format);
+  printArray("QFRC_GRAVCOMP", m->nv, 1, d->qfrc_gravcomp, fp, float_format);
+  printArray("QFRC_FLUID",    m->nv, 1, d->qfrc_fluid,    fp, float_format);
+  printArray("QFRC_PASSIVE",  m->nv, 1, d->qfrc_passive,  fp, float_format);
 
   printArray("EFC_VEL", d->nefc, 1, d->efc_vel, fp, float_format);
   printArray("EFC_AREF", d->nefc, 1, d->efc_aref, fp, float_format);

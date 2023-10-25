@@ -292,7 +292,11 @@ struct mjData_ {
   mjtNum* qfrc_bias;         // C(qpos,qvel)                                     (nv x 1)
 
   // computed by mj_fwdVelocity/mj_passive
-  mjtNum* qfrc_passive;      // passive force                                    (nv x 1)
+  mjtNum* qfrc_spring;       // passive spring force                             (nv x 1)
+  mjtNum* qfrc_damper;       // passive damper force                             (nv x 1)
+  mjtNum* qfrc_gravcomp;     // passive gravity compensation force               (nv x 1)
+  mjtNum* qfrc_fluid;        // passive fluid force                              (nv x 1)
+  mjtNum* qfrc_passive;      // total passive force                              (nv x 1)
 
   // computed by mj_sensorVel/mj_subtreeVel if needed
   mjtNum* subtree_linvel;    // linear velocity of subtree com                   (nbody x 3)
