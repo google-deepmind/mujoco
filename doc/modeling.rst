@@ -198,8 +198,8 @@ Coordinate frames
 ~~~~~~~~~~~~~~~~~
 
 The positions and orientations of all elements defined in the kinematic tree are expressed in local coordinates,
-relative to the parent body for bodies, and relative to the body that owns the element for geoms, joints, sites, cameras
-and lights.
+relative to the parent body for bodies, and relative to the body that contains the element for geoms, joints, sites,
+cameras and lights.
 
 A related attribute is :ref:`compiler/angle<compiler-angle>`. It specifies whether angles in the MJCF file are expressed
 in degrees or radians (after compilation, angles are always expressed in radians).
@@ -981,7 +981,7 @@ Cameras
 Besides the default, user-controllable, free camera, "fixed" cameras can be attached to the kinematic tree.
 
 Extrinsics
-   By default, camera frames are attached to the parent body. The optional :ref:`mode<body-camera-mode>` and
+   By default, camera frames are attached to the containing body. The optional :ref:`mode<body-camera-mode>` and
    :ref:`target<body-camera-target>` attributes can be used to specify camera that track (move with) or target (look at)
    a body or subtree. Cameras look towards the negative Z axis of the camera frame, while positive X and Y correspond to
    *right* and *up* in the image plane, respectively.

@@ -2161,10 +2161,10 @@ This element creates a joint. As explained in :ref:`Kinematic tree <CTree>`, a j
 between the body where it is defined and the body's parent. If multiple joints are defined in the same body, the
 corresponding spatial transformations (of the body frame relative to the parent frame) are applied in order. If no
 joints are defined, the body is welded to its parent. Joints cannot be defined in the world body. At runtime the
-positions and orientations of all joints defined in the model are stored in the vector mjData.qpos, in the order in
-which the appear in the kinematic tree. The linear and angular velocities are stored in the vector mjData.qvel. These
-two vectors have different dimensionality when free or ball joints are used, because such joints represent rotations as
-unit quaternions.
+positions and orientations of all joints defined in the model are stored in the vector ``mjData.qpos``, in the order in
+which the appear in the kinematic tree. The linear and angular velocities are stored in the vector ``mjData.qvel``.
+These two vectors have different dimensionality when free or ball joints are used, because such joints represent
+rotations as unit quaternions.
 
 .. _body-joint-name:
 
@@ -2211,7 +2211,8 @@ unit quaternions.
 .. _body-joint-pos:
 
 :at:`pos`: :at-val:`real(3), "0 0 0"`
-   Position of the joint, specified in the frame of the parent body. For free joints this attribute is ignored.
+   Position of the joint, specified in the frame of the body where the joint is defined.
+   For free joints this attribute is ignored.
 
 .. _body-joint-axis:
 
@@ -2654,7 +2655,7 @@ helps clarify the role of bodies and geoms in MuJoCo.
 .. _body-geom-pos:
 
 :at:`pos`: :at-val:`real(3), "0 0 0"`
-   Position of the geom, specified in the frame of the parent body.
+   Position of the geom, specified in the frame of the body where the geom is defined.
 
 .. _body-geom-quat:
 
@@ -2698,8 +2699,8 @@ helps clarify the role of bodies and geoms in MuJoCo.
 
 :at:`fluidshape`: :at-val:`[none, ellipsoid], "none"`
    "ellipsoid" activates the geom-level fluid interaction model based on an ellipsoidal approximation of the geom
-   shape. When active, the model based on :ref:`body inertia sizes <flInertia>` is disabled for the parent body.
-   See section on :ref:`ellipsoid-based<flEllipsoid>` fluid interaction model for details.
+   shape. When active, the model based on :ref:`body inertia sizes <flInertia>` is disabled for the body in which the
+   geom is defined. See section on :ref:`ellipsoid-based<flEllipsoid>` fluid interaction model for details.
 
 .. _body-geom-fluidcoef:
 
@@ -2879,15 +2880,15 @@ and the +Y axis points up. Thus the frame position and orientation are the key a
 :at:`mode`: :at-val:`[fixed, track, trackcom, targetbody, targetbodycom], "fixed"`
    This attribute specifies how the camera position and orientation in world coordinates are computed in forward
    kinematics (which in turn determine what the camera sees). "fixed" means that the position and orientation specified
-   below are fixed relative to the parent (i.e., the body where the camera is defined). "track" means that the camera
-   position is at a constant offset from the parent in world coordinates, while the camera orientation is constant in
-   world coordinates. These constants are determined by applying forward kinematics in qpos0 and treating the camera as
-   fixed. Tracking can be used for example to position a camera above a body, point it down so it sees the body, and
-   have it always remain above the body no matter how the body translates and rotates. "trackcom" is similar to "track"
-   but the constant spatial offset is defined relative to the center of mass of the kinematic subtree starting at the
-   parent body. This can be used to keep an entire mechanism in view. Note that the subtree center of mass for the world
-   body is the center of mass of the entire model. So if a camera is defined in the world body in mode "trackcom", it
-   will track the entire model. "targetbody" means that the camera position is fixed in the parent body, while the
+   below are fixed relative to the the body where the camera is defined. "track" means that the camera position is at a
+   constant offset from the body in world coordinates, while the camera orientation is constant in world coordinates.
+   These constants are determined by applying forward kinematics in qpos0 and treating the camera as fixed. Tracking can
+   be used for example to position a camera above a body, point it down so it sees the body, and have it always remain
+   above the body no matter how the body translates and rotates. "trackcom" is similar to "track" but the constant
+   spatial offset is defined relative to the center of mass of the kinematic subtree starting at the body in which the
+   camera is defined. This can be used to keep an entire mechanism in view. Note that the subtree center of mass for the
+   world body is the center of mass of the entire model. So if a camera is defined in the world body in mode "trackcom",
+   it will track the entire model. "targetbody" means that the camera position is fixed in the body frame, while the
    camera orientation is adjusted so that it always points towards the targeted body (which is specified with the target
    attribute below). This can be used for example to model an eye that fixates a moving object; the object will be the
    target, and the camera/eye will be defined in the body corresponding to the head. "targetbodycom" is the same as
