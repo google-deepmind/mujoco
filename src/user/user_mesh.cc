@@ -21,6 +21,7 @@
 #include <functional>
 #include <memory>
 #include <optional>
+#include <stdexcept>
 #include <string>
 #include <unordered_map>
 #include <utility>
@@ -303,13 +304,18 @@ void mjCMesh::LoadSDF() {
   }
 
   int i=0;
-  mjtNum attributes[10] = {0};
+  std::vector<mjtNum> attributes(plugin->nattribute, 0);
   for (auto const& pair : plugin_instance->config_attribs) {
-    attributes[i++] = std::stod(pair.second);
+    try {
+      attributes[i++] = std::stod(pair.second);
+    } catch (const std::invalid_argument& e) {
+      throw mjCError(this, "invalid attribute value for '%s'",
+                     pair.first.c_str());
+    }
   }
 
   mjtNum aabb[6] = {0};
-  plugin->sdf_aabb(aabb, attributes);
+  plugin->sdf_aabb(aabb, attributes.data());
   mjtNum total = aabb[3] + aabb[4] + aabb[5];
 
   const mjtNum n = 300;
@@ -325,7 +331,7 @@ void mjCMesh::LoadSDF() {
         mjtNum point[] = {aabb[0]-aabb[3] + 2 * aabb[3] * i / (nx-1),
                           aabb[1]-aabb[4] + 2 * aabb[4] * j / (ny-1),
                           aabb[2]-aabb[5] + 2 * aabb[5] * k / (nz-1)};
-        field[(k * ny + j) * nx + i] =  plugin->sdf_staticdistance(point, attributes);
+        field[(k * ny + j) * nx + i] =  plugin->sdf_staticdistance(point, attributes.data());
       }
     }
   }
