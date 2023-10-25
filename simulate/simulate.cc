@@ -130,8 +130,8 @@ const mjuiDef defFile[] = {
 const char help_content[] =
   "Space\n"
   "+  -\n"
-  "Right arrow\n"
-  "Left arrow\n"
+  "Left / Right arrow\n"
+  "Tab / Shift-Tab\n"
   "[  ]\n"
   "Esc\n"
   "Double-click\n"
@@ -148,25 +148,25 @@ const char help_content[] =
   "F3\n"
   "F4\n"
   "F5\n"
-  "UI right hold\n"
+  "UI right-button hold\n"
   "UI title double-click";
 
 const char help_title[] =
   "Play / Pause\n"
-  "Speed up / down\n"
-  "Step forward\n"
-  "Step back\n"
+  "Speed Up / Down\n"
+  "Step Back / Forward\n"
+  "Toggle Left / Right UI\n"
   "Cycle cameras\n"
   "Free camera\n"
   "Select\n"
   "Select parent\n"
-  "Center\n"
+  "Center camera\n"
   "Tracking camera\n"
   "Zoom\n"
-  "View rotate\n"
-  "View translate\n"
-  "Object rotate\n"
-  "Object translate\n"
+  "View Orbit\n"
+  "View Pan\n"
+  "Object Rotate\n"
+  "Object Translate\n"
   "Help\n"
   "Info\n"
   "Profiler\n"
@@ -1623,6 +1623,18 @@ void UiEvent(mjuiState* state) {
       if (!sim->is_passive_ && sim->real_time_index > 0 && !state->shift) {
         sim->real_time_index--;
         sim->speed_changed = true;
+      }
+      break;
+
+    case mjKEY_TAB:             // toggle left/right UI
+      if (!state->shift) {
+        // toggle left UI
+        sim->ui0_enable = !sim->ui0_enable;
+        UiModify(&sim->ui0, state, &sim->platform_ui->mjr_context());
+      } else {
+        // toggle right UI
+        sim->ui1_enable = !sim->ui1_enable;
+        UiModify(&sim->ui1, state, &sim->platform_ui->mjr_context());
       }
       break;
     }
