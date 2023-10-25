@@ -33,12 +33,16 @@ static const char* const kHammockPath =
     "engine/testdata/hammock/hammock.xml";
 static const char* const kTendonPath =
     "engine/testdata/island/tendon_wrap.xml";
-static const char* const kModelPath = "testdata/model.xml";
+static const char* const kFrustumPath =
+    "engine/testdata/vis_visualize/frustum.xml";
+static const char* const kModelPath =
+    "testdata/model.xml";
 
 #define EXPECT_ZERO(exp) EXPECT_EQ(0, exp);
 
 TEST_F(MjvSceneStateTest, CanUpdateFromState) {
-  for (const char* path : {kHammockPath, kTendonPath, kModelPath}) {
+  for (const char* path :
+       {kHammockPath, kTendonPath, kModelPath, kFrustumPath}) {
     const std::string xml_path = GetTestDataFilePath(path);
     mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, 0, 0);
     ASSERT_THAT(model, NotNull());

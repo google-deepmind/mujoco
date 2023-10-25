@@ -6132,6 +6132,7 @@ public unsafe struct model {
   public float* site_rgba;
   public double* cam_fovy;
   public double* cam_ipd;
+  public float* cam_intrinsic;
   public float* cam_sensorsize;
   public byte* light_directional;
   public byte* light_castshadow;

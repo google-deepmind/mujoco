@@ -6606,6 +6606,13 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                              doc='',
                          ),
                          StructFieldDecl(
+                             name='cam_intrinsic',
+                             type=PointerType(
+                                 inner_type=ValueType(name='float'),
+                             ),
+                             doc='',
+                         ),
+                         StructFieldDecl(
                              name='cam_sensorsize',
                              type=PointerType(
                                  inner_type=ValueType(name='float'),

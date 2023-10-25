@@ -486,6 +486,7 @@ struct mjvSceneState_ {
 
     mjtNum* cam_fovy;
     mjtNum* cam_ipd;
+    float* cam_intrinsic;
     float* cam_sensorsize;
 
     mjtByte* light_directional;

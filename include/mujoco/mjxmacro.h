@@ -276,7 +276,7 @@
     X   ( int,     cam_targetbodyid,      ncam,          1                    ) \
     X   ( int,     cam_resolution,        ncam,          2                    ) \
     XMJV( float,   cam_sensorsize,        ncam,          2                    ) \
-    X   ( float,   cam_intrinsic,         ncam,          4                    ) \
+    XMJV( float,   cam_intrinsic,         ncam,          4                    ) \
     X   ( mjtNum,  cam_pos,               ncam,          3                    ) \
     X   ( mjtNum,  cam_quat,              ncam,          4                    ) \
     X   ( mjtNum,  cam_poscom0,           ncam,          3                    ) \
