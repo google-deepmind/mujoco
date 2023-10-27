@@ -17,16 +17,22 @@ MJX
 3. Made ``device_put`` type validation more verbose (fixes :github:issue:`1113`).
 4. Removed empty EFC rows from `MJX`, for joints with no limits (fixes :github:issue:`1117`).
 
+Python bindings
+^^^^^^^^^^^^^^^
+
+5. Fix the macOS ``mjpython`` launcher to work with the Python interpreter from Apple Command Line
+   Tools.
+
 Simulate
 ^^^^^^^^
 
-5. :ref:`simulate<saSimulate>`: correct handling of "Pause update", "Fullscreen" and "VSync" buttons.
+6. :ref:`simulate<saSimulate>`: correct handling of "Pause update", "Fullscreen" and "VSync" buttons.
 
 Documentation
 ^^^^^^^^^^^^^
 
-6. Added documentation for the :ref:`UI` framework.
-7. Fixed typos and supported fields in docs (fixes :github:issue:`1105` and :github:issue:`1106`).
+7. Added documentation for the :ref:`UI` framework.
+8. Fixed typos and supported fields in docs (fixes :github:issue:`1105` and :github:issue:`1106`).
 
 
 Version 3.0.0 (October 18, 2023)
