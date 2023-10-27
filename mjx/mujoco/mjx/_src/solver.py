@@ -73,7 +73,7 @@ class _CGContext(PyTreeNode):
         qacc=d.qacc,
         qfrc_constraint=d.qfrc_constraint,
         Jaref=jaref,
-        efc_force=-jaref * d.efc_D,
+        efc_force=jp.zeros(d.nefc),
         M=M,
         Ma=ma,
         grad=nv_0,
@@ -110,6 +110,7 @@ class _LSPoint(PyTreeNode):
   @classmethod
   def create(
       cls,
+      d: Data,
       ctx: _CGContext,
       alpha: jax.Array,
       jv: jax.Array,
@@ -119,8 +120,8 @@ class _LSPoint(PyTreeNode):
     """Creates a linesearch point with first and second derivatives."""
     # roughly corresponds to CGEval in mujoco/src/engine/engine_solver.c
 
-    # TODO(robotics-team): change this to support equality, friction constraints
-    active = (ctx.Jaref + alpha * jv) < 0
+    # TODO(robotics-team): change this to support friction constraints
+    active = ((ctx.Jaref + alpha * jv) < 0).at[:d.ne + d.nf].set(True)
     quad = jax.vmap(jp.multiply)(quad, active)  # only active
     quad_total = quad_gauss + jp.sum(quad, axis=0)
 
@@ -177,14 +178,15 @@ def _cg_update_constraint(m: Model, d: Data, ctx: _CGContext) -> _CGContext:
   """
   del m
 
-  # TODO(robotics-team): add equality, friction constraints
-  # also consider moving to _constraint.py to match mujoco layout
+  # TODO(robotics-team): add friction constraints
 
-  jaref = ctx.Jaref * (ctx.Jaref < 0)  # non-negative constraints
-  efc_force = -jaref * d.efc_D
+  # only count active constraints
+  active = (ctx.Jaref < 0).at[:d.ne + d.nf].set(True)
+
+  efc_force = d.efc_D * -ctx.Jaref * active
   qfrc_constraint = d.efc_J.T @ efc_force
   gauss = 0.5 * jp.dot(ctx.Ma - d.qfrc_smooth, ctx.qacc - d.qacc_smooth)
-  cost = 0.5 * jp.sum(jaref * jaref * d.efc_D) + gauss
+  cost = 0.5 * jp.sum(d.efc_D * ctx.Jaref * ctx.Jaref * active) + gauss
 
   ctx = ctx.replace(
       qfrc_constraint=qfrc_constraint,
@@ -250,7 +252,7 @@ def _cg_search(m: Model, d: Data, ctx: _CGContext) -> _CGContext:
   quad = jp.stack((0.5 * ctx.Jaref * ctx.Jaref, jv * ctx.Jaref, 0.5 * jv * jv))
   quad = (quad * d.efc_D).T
 
-  point_fn = lambda alpha: _LSPoint.create(ctx, alpha, jv, quad, quad_gauss)
+  point_fn = lambda alpha: _LSPoint.create(d, ctx, alpha, jv, quad, quad_gauss)
 
   def cond(ctx: _LSContext) -> jax.Array:
     done = ctx.ls_iter >= m.opt.ls_iterations
