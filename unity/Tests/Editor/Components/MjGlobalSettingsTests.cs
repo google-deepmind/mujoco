@@ -26,16 +26,13 @@ public class MjGlobalSettingsGenerationTests {
 
   private MjGlobalSettings _settings;
   private XmlDocument _doc;
-  private XmlElement _option;
-  private XmlElement _size;
+  private XmlElement _root;
 
   [SetUp]
   public void SetUp() {
     _settings = new GameObject("settings").AddComponent<MjGlobalSettings>();
     _doc = new XmlDocument();
-    var root = (XmlElement)_doc.AppendChild(_doc.CreateElement("root"));
-    _option = (XmlElement)root.AppendChild(_doc.CreateElement("option"));
-    _size = (XmlElement)root.AppendChild(_doc.CreateElement("size"));
+    _root = (XmlElement)_doc.AppendChild(_doc.CreateElement("root"));
   }
 
   [TearDown]
@@ -44,7 +41,7 @@ public class MjGlobalSettingsGenerationTests {
   }
 
   [Test]
-  public void GenerateOptionAndSize() {
+  public void GenerateOptionSizeFlagCustomNumeric() {
     _settings.GlobalOptions.ImpRatio = 1.2f;
     _settings.GlobalOptions.Magnetic = new Vector3(3.4f, 4.5f, 5.6f);
     _settings.GlobalOptions.Wind = new Vector3(6.7f, 7.8f, 8.9f);
@@ -61,9 +58,9 @@ public class MjGlobalSettingsGenerationTests {
     _settings.GlobalOptions.NoSlipTolerance = 6.7f;
     _settings.GlobalOptions.MprIterations = 8;
     _settings.GlobalOptions.MprTolerance = 0.9f;
-    _settings.GlobalSizes.Nconmax = 321;
+    _settings.GlobalSizes.Memory = "1M";
 
-    _settings.OptionSizeToMjcf(_option, _size);
+    _settings.GlobalsToMjcf(_root);
     Assert.That(_doc.OuterXml, Does.Contain(@"impratio=""1.2"""));
     Assert.That(_doc.OuterXml, Does.Contain(@"magnetic=""3.4 4.5 5.6"""));
     Assert.That(_doc.OuterXml, Does.Contain(@"wind=""6.7 7.8 8.9"""));
@@ -83,13 +80,13 @@ public class MjGlobalSettingsGenerationTests {
     Assert.That(_doc.OuterXml, Does.Contain(@"noslip_tolerance=""6.7"""));
     Assert.That(_doc.OuterXml, Does.Contain(@"mpr_iterations=""8"""));
     Assert.That(_doc.OuterXml, Does.Contain(@"mpr_tolerance=""0.9"""));
-    Assert.That(_doc.OuterXml, Does.Contain(@"nconmax=""321"""));
+    Assert.That(_doc.OuterXml, Does.Contain(@"memory=""1M"""));
   }
 
   [Test]
   public void GenerateFlag() {
     _settings.GlobalOptions.Flag.Gravity = EnableDisableFlag.disable;
-    _settings.OptionSizeToMjcf(_option, _size);
+    _settings.GlobalsToMjcf(_root);
     Assert.That(_doc.OuterXml, Does.Contain(@"gravity=""disable"""));
     Assert.That(_doc.OuterXml, Does.Contain(@"constraint="));
     Assert.That(_doc.OuterXml, Does.Contain(@"equality="));
@@ -113,18 +110,22 @@ public class MjGlobalSettingsGenerationTests {
 public class MjGlobalSettingsParsingTests {
 
   private MjGlobalSettings _settings;
+  private XmlElement _root;
   private XmlElement _option;
   private XmlElement _size;
   private XmlElement _flag;
+  private XmlElement _numeric;
 
   [SetUp]
   public void SetUp() {
     _settings = new GameObject("settings").AddComponent<MjGlobalSettings>();
     var doc = new XmlDocument();
-    var root = (XmlElement)doc.AppendChild(doc.CreateElement("root"));
-    _option = (XmlElement)root.AppendChild(doc.CreateElement("option"));
-    _size = (XmlElement)root.AppendChild(doc.CreateElement("size"));
+    _root = (XmlElement)doc.AppendChild(doc.CreateElement("root"));
+    _option = (XmlElement)_root.AppendChild(doc.CreateElement("option"));
+    _size = (XmlElement)_root.AppendChild(doc.CreateElement("size"));
     _flag = (XmlElement)_option.AppendChild(doc.CreateElement("flag"));
+    var custom = (XmlElement)_root.AppendChild(doc.CreateElement("custom"));
+    _numeric = (XmlElement)custom.AppendChild(doc.CreateElement("numeric"));
   }
 
   [TearDown]
@@ -133,7 +134,7 @@ public class MjGlobalSettingsParsingTests {
   }
 
   [Test]
-  public void ParseSizeOptionAndFlag() {
+  public void ParseSizeOptionFlagCustomNumeric() {
     _option.SetAttribute("impratio", "1.2");
     _option.SetAttribute("magnetic", "3.4 4.5 5.6");
     _option.SetAttribute("wind", "6.7 7.8 8.9");
@@ -154,9 +155,12 @@ public class MjGlobalSettingsParsingTests {
 
     _flag.SetAttribute("gravity", "disable");
 
-    _size.SetAttribute("nconmax", "432");
+    _size.SetAttribute("memory", "1M");
 
-    _settings.ParseOptionSizeMjcf(_option, _size);
+    _numeric.SetAttribute("name", "numeric_name");
+    _numeric.SetAttribute("data", "1 2 3");
+
+    _settings.ParseGlobalMjcfSections(_root);
     Assert.That(_settings.GlobalOptions.ImpRatio, Is.EqualTo(1.2f));
     Assert.That(_settings.GlobalOptions.Magnetic, Is.EqualTo(new Vector3(3.4f, 4.5f, 5.6f)));
     Assert.That(_settings.GlobalOptions.Wind, Is.EqualTo(new Vector3(6.7f, 7.8f, 8.9f)));
@@ -176,22 +180,11 @@ public class MjGlobalSettingsParsingTests {
 
     Assert.That(_settings.GlobalOptions.Flag.Gravity, Is.EqualTo(EnableDisableFlag.disable));
 
-    Assert.That(_settings.GlobalSizes.Nconmax, Is.EqualTo(432));
-    // these statements shouldn't fail:
-    _settings.ParseOptionSizeMjcf(_option, null);
-    _settings.ParseOptionSizeMjcf(null, _size);
-  }
+    Assert.That(_settings.GlobalSizes.Memory, Is.EqualTo("1M"));
 
-  [Test]
-  public void AvoidMultipleFlagClauses() {
-    var doubleFlagXML = @"<option>
-      <flag/> <flag/>
-      </option>";
-    var doc = new XmlDocument();
-    doc.LoadXml(doubleFlagXML);
-    Assert.That(
-        () => { _settings.ParseOptionSizeMjcf(doc.DocumentElement, null); },
-        Throws.ArgumentException);
+    Assert.That(_settings.CustomNumeric.Count, Is.EqualTo(1));
+    Assert.That(_settings.CustomNumeric[0].Name, Is.EqualTo("numeric_name"));
+    Assert.That(_settings.CustomNumeric[0].Data, Is.EqualTo("1 2 3"));
   }
 }
 }

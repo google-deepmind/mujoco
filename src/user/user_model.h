@@ -16,10 +16,12 @@
 #define MUJOCO_SRC_USER_USER_MODEL_H_
 
 #include <string>
+#include <utility>
 #include <vector>
 
 #include <mujoco/mjdata.h>
 #include <mujoco/mjmodel.h>
+#include <mujoco/mjplugin.h>
 #include "user/user_objects.h"
 
 typedef enum _mjtInertiaFromGeom {
@@ -42,6 +44,7 @@ class mjCModel {
   friend class mjCBody;
   friend class mjCJoint;
   friend class mjCGeom;
+  friend class mjCFlex;
   friend class mjCMesh;
   friend class mjCSkin;
   friend class mjCHField;
@@ -60,31 +63,33 @@ class mjCModel {
   friend class mjXWriter;
 
  public:
-  mjCModel();                                 // constructor
-  ~mjCModel();                                // destructor
+  mjCModel();                                          // constructor
+  ~mjCModel();                                         // destructor
 
-  mjModel*    Compile(const mjVFS* vfs = 0);  // COMPILER: construct mjModel
-  bool        CopyBack(const mjModel*);       // DECOMPILER: copy numeric back
-  void        FuseStatic(void);               // fuse static bodies with parent
-  void        FuseReindex(mjCBody* body);     // reindex elements during fuse
+  mjModel*    Compile(const mjVFS* vfs = 0);           // COMPILER: construct mjModel
+  bool        CopyBack(const mjModel*);                // DECOMPILER: copy numeric back
+  void        FuseStatic(void);                        // fuse static bodies with parent
+  void        FuseReindex(mjCBody* body);              // reindex elements during fuse
 
 
   //------------------------ API for adding model elements
-  mjCMesh*    AddMesh(mjCDef* def = 0);               // mesh
-  mjCSkin*    AddSkin(void);                          // skin
-  mjCHField*  AddHField(void);                        // heightfield
-  mjCTexture* AddTexture(void);                       // texture
-  mjCMaterial*AddMaterial(mjCDef* def = 0);           // material
-  mjCPair*    AddPair(mjCDef* def = 0);               // geom pair for inclusion
-  mjCBodyPair*AddExclude(void);                       // body pair for exclusion
-  mjCEquality*AddEquality(mjCDef* def = 0);           // equality constraint
-  mjCTendon*  AddTendon(mjCDef* def = 0);             // tendon
-  mjCActuator*AddActuator(mjCDef* def = 0);           // actuator
-  mjCSensor*  AddSensor(void);                        // sensor
-  mjCNumeric* AddNumeric(void);                       // custom numeric
-  mjCText*    AddText(void);                          // custom text
-  mjCTuple*   AddTuple(void);                         // custom tuple
-  mjCKey*     AddKey(void);                           // keyframe
+  mjCFlex*     AddFlex(void);                          // flex
+  mjCMesh*     AddMesh(mjCDef* def = 0);               // mesh
+  mjCSkin*     AddSkin(void);                          // skin
+  mjCHField*   AddHField(void);                        // heightfield
+  mjCTexture*  AddTexture(void);                       // texture
+  mjCMaterial* AddMaterial(mjCDef* def = 0);           // material
+  mjCPair*     AddPair(mjCDef* def = 0);               // geom pair for inclusion
+  mjCBodyPair* AddExclude(void);                       // body pair for exclusion
+  mjCEquality* AddEquality(mjCDef* def = 0);           // equality constraint
+  mjCTendon*   AddTendon(mjCDef* def = 0);             // tendon
+  mjCActuator* AddActuator(mjCDef* def = 0);           // actuator
+  mjCSensor*   AddSensor(void);                        // sensor
+  mjCNumeric*  AddNumeric(void);                       // custom numeric
+  mjCText*     AddText(void);                          // custom text
+  mjCTuple*    AddTuple(void);                         // custom tuple
+  mjCKey*      AddKey(void);                           // keyframe
+  mjCPlugin*   AddPlugin(void);                        // plugin instance
 
   //------------------------ API for access to model elements (outside tree)
   int         NumObjects(mjtObj type);                // number of objects in specified list
@@ -100,6 +105,12 @@ class mjCModel {
   mjCBase*    FindObject(mjtObj type, std::string name);  // find object given type and name
   bool        IsNullPose(const mjtNum* pos, const mjtNum* quat); // detect null pose
 
+  //------------------------ API for plugins
+  void        ResolvePlugin(mjCBase* obj,     // resolve plugin instance, create a new one if needed
+                            const std::string& plugin_name,
+                            const std::string& plugin_instance_name,
+                            mjCPlugin** plugin_instance);
+
 
   //------------------------ global data
   std::string comment;            // comment at top of XML
@@ -107,13 +118,13 @@ class mjCModel {
   std::vector<mjCDef*> defaults;  // settings for each defaults class
 
   //------------------------ compiler settings
-  double boundmass;               // enfore minimum body mass
-  double boundinertia;            // enfore minimum body diagonal inertia
+  bool autolimits;                // infer "limited" attribute based on range
+  double boundmass;               // enforce minimum body mass
+  double boundinertia;            // enforce minimum body diagonal inertia
   double settotalmass;            // rescale masses and inertias; <=0: ignore
   bool balanceinertia;            // automatically impose A + B >= C rule
   bool strippath;                 // automatically strip paths from mesh files
   bool fitaabb;                   // meshfit to aabb instead of inertia box
-  bool global;                    // local or global coordinates
   bool degree;                    // angles in radians or degrees
   char euler[3];                  // sequence for euler rotations
   std::string meshdir;            // mesh and hfield directory
@@ -124,6 +135,7 @@ class mjCModel {
   bool fusestatic;                // fuse static bodies with parent
   int inertiafromgeom;            // use geom inertias (mjtInertiaFromGeom)
   int inertiagrouprange[2];       // range of geom groups used to compute inertia
+  bool exactmeshinertia;          // if false, use old formula
   mjLROpt LRopt;                  // options for lengthrange computation
 
   //------------------------ statistics override (if defined)
@@ -137,10 +149,11 @@ class mjCModel {
   std::string modelname;          // model name
   mjOption option;                // options
   mjVisual visual;                // visual options
+  std::size_t memory;             // size of arena+stack memory in bytes
   int nemax;                      // max number of equality constraints
   int njmax;                      // max number of constraints (Jacobian rows)
   int nconmax;                    // max number of detected contacts (mjContact array size)
-  int nstack;                     // number of fields in mjData stack
+  size_t nstack;                  // (deprecated) number of fields in mjData stack
   int nuserdata;                  // number extra fields in mjData
   int nuser_body;                 // number of mjtNums in body_user
   int nuser_jnt;                  // number of mjtNums in jnt_user
@@ -152,6 +165,9 @@ class mjCModel {
   int nuser_sensor;               // number of mjtNums in sensor_user
 
  private:
+  void TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs);
+  mjModel* _Compile(const mjVFS* vfs);
+
   void Clear(void);               // clear objects allocated by Compile
 
   template <class T>              // add object of any type
@@ -168,6 +184,7 @@ class mjCModel {
   void AutoSpringDamper(mjModel*);// automatic stiffness and damping computation
   void LengthRange(mjModel*, mjData*); // compute actuator lengthrange
   void CopyNames(mjModel*);       // copy names, compute name addresses
+  void CopyPaths(mjModel*);       // copy paths, compute path addresses
   void CopyObjects(mjModel*);     // copy objects outside kinematic tree
   void CopyTree(mjModel*);        // copy objects inside kinematic tree
 
@@ -179,6 +196,7 @@ class mjCModel {
   int nsite;                      // number of sites
   int ncam;                       // number of cameras
   int nlight;                     // number of lights
+  int nflex;                      // number of flexes
   int nmesh;                      // number of meshes
   int nskin;                      // number of skins
   int nhfield;                    // number of height fields
@@ -194,14 +212,26 @@ class mjCModel {
   int ntuple;                     // number of tuple fields
   int nkey;                       // number of keyframes
   int nmocap;                     // number of mocap bodies
+  int nplugin;                    // number of plugin instances
 
   // sizes computed by Compile
   int nq;                         // number of generalized coordinates = dim(qpos)
   int nv;                         // number of degrees of freedom = dim(qvel)
   int nu;                         // number of actuators/controls
   int na;                         // number of activation variables
+  int nbvh;                       // number of total boundary volume hierarchies
+  int nbvhstatic;                 // number of static boundary volume hierarchies
+  int nbvhdynamic;                // number of dynamic boundary volume hierarchies
+  int nflexvert;                  // number of vertices in all flexes
+  int nflexedge;                  // number of edges in all flexes
+  int nflexelem;                  // number of elements in all flexes
+  int nflexelemdata;              // number of element vertex ids in all flexes
+  int nflexshelldata;             // number of shell fragment vertex ids in all flexes
+  int nflexevpair;                // number of element-vertex pairs in all flexes
+  int nflextexcoord;              // number of vertex texture coordinates in all flexes
   int nmeshvert;                  // number of vertices in all meshes
-  int nmeshtexvert;               // number of texture coordinates in all meshes
+  int nmeshnormal;                // number of normals in all meshes
+  int nmeshtexcoord;              // number of texture coordinates in all meshes
   int nmeshface;                  // number of triangular faces in all meshes
   int nmeshgraph;                 // number of shorts in mesh auxiliary data
   int nskinvert;                  // number of vertices in all skins
@@ -216,12 +246,16 @@ class mjCModel {
   int nnumericdata;               // number of mjtNums in all custom fields
   int ntextdata;                  // number of chars in all text fields, including 0
   int ntupledata;                 // number of objects in all tuple fields
+  int npluginattr;                // number of chars in all plugin config attributes
   int nnames;                     // number of chars in all names
+  int npaths;                     // number of chars in all paths
   int nM;                         // number of non-zeros in sparse inertia matrix
-  int nD;                         // number of non-zeros in sparse derivative matrix
+  int nD;                         // number of non-zeros in sparse dof-dof matrix
+  int nB;                         // number of non-zeros in sparse body-dof matrix
 
   //------------------------ object lists
   // objects created here
+  std::vector<mjCFlex*>     flexes;      // list of flexes
   std::vector<mjCMesh*>     meshes;      // list of meshes
   std::vector<mjCSkin*>     skins;       // list of skins
   std::vector<mjCHField*>   hfields;     // list of height fields
@@ -238,6 +272,9 @@ class mjCModel {
   std::vector<mjCTuple*>    tuples;      // list of tuple fields
   std::vector<mjCKey*>      keys;        // list of keyframe fields
 
+  std::vector<std::pair<const mjpPlugin*, int>> active_plugins;  // list of active plugins
+  std::vector<mjCPlugin*>   plugins;     // list of plugin instances
+
   // pointers to objects created inside kinematic tree
   std::vector<mjCBody*>   bodies;   // list of bodies
   std::vector<mjCJoint*>  joints;   // list of joints allowing motion relative to parent
@@ -247,6 +284,7 @@ class mjCModel {
   std::vector<mjCLight*>  lights;   // list of lights
 
   //------------------------ internal variables
+  bool hasImplicitPluginElem;     // already encountered an implicit plugin sensor/actuator
   bool compiled;                  // already compiled flag (cannot be compiled again)
   mjCError errInfo;               // last error info
   int fixCount;                   // how many bodies have been fixed

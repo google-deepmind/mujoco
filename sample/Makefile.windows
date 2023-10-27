@@ -8,12 +8,10 @@
 
 COMMON=/O2 /MT /EHsc /arch:AVX /I../include /Fe../bin/
 
+.PHONY: all
 all:
-	cl $(COMMON) testxml.cc                                ../lib/mujoco.lib
 	cl $(COMMON) testspeed.cc                              ../lib/mujoco.lib
 	cl $(COMMON) compile.cc                                ../lib/mujoco.lib
-	cl $(COMMON) derivative.cc /openmp                     ../lib/mujoco.lib
 	cl $(COMMON) basic.cc              ../lib/glfw3dll.lib ../lib/mujoco.lib
 	cl $(COMMON) record.cc             ../lib/glfw3dll.lib ../lib/mujoco.lib
-	cl $(COMMON) simulate.cc uitools.c ../lib/glfw3dll.lib ../lib/mujoco.lib
 	del *.obj

@@ -48,9 +48,41 @@ target_link_libraries(
   benchmark::benchmark
 )
 
+mujoco_benchmark_test(thread_performance_test)
+target_link_libraries(
+  thread_performance_test
+  fixture
+  gmock
+  benchmark::benchmark
+)
+
 mujoco_benchmark_test(parse_benchmark_test)
 target_link_libraries(
   parse_benchmark_test
+  fixture
+  gmock
+  benchmark::benchmark
+)
+
+mujoco_benchmark_test(engine_util_spatial_benchmark_test)
+target_link_libraries(
+  engine_util_spatial_benchmark_test
+  fixture
+  gmock
+  benchmark::benchmark
+)
+
+mujoco_benchmark_test(engine_core_smooth_benchmark_test)
+target_link_libraries(
+  engine_core_smooth_benchmark_test
+  fixture
+  gmock
+  benchmark::benchmark
+)
+
+mujoco_benchmark_test(engine_util_sparse_benchmark_test)
+target_link_libraries(
+  engine_util_sparse_benchmark_test
   fixture
   gmock
   benchmark::benchmark

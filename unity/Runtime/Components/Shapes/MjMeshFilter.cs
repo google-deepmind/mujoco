@@ -32,6 +32,7 @@ public class MjMeshFilter : MonoBehaviour {
     _geom = GetComponent<MjShapeComponent>();
     _shapeChangeStamp = new Vector4(0, 0, 0, -1);
     _meshFilter = GetComponent<MeshFilter>();
+    _meshFilter.mesh = new Mesh();
   }
 
   protected void Update() {
@@ -47,6 +48,12 @@ public class MjMeshFilter : MonoBehaviour {
       throw new ArgumentException("Unsupported geom shape detected");
     }
 
+    if(_geom.ShapeType == MjShapeComponent.ShapeTypes.Mesh) { 
+      MjMeshShape meshShape = _geom.Shape as MjMeshShape;
+      _meshFilter.sharedMesh = meshShape.Mesh;
+      return;
+    }
+
     DisposeCurrentMesh();
 
     var mesh = new Mesh();
@@ -55,6 +62,12 @@ public class MjMeshFilter : MonoBehaviour {
     _meshFilter.sharedMesh = mesh;
     mesh.vertices = meshData.Item1;
     mesh.triangles = meshData.Item2;
+    Vector2[] uvs = new Vector2[mesh.vertices.Length];
+    for (int i = 0; i < uvs.Length; i++){
+      uvs[i] = new Vector2(mesh.vertices[i].x, mesh.vertices[i].z);
+    }
+    mesh.uv = uvs;
+    
     mesh.RecalculateNormals();
     mesh.RecalculateTangents();
   }
@@ -66,7 +79,7 @@ public class MjMeshFilter : MonoBehaviour {
   // Dynamically created meshes with no references are only disposed automatically on scene changes.
   // This prevents resource leaks in case the host environment doesn't reload scenes.
   private void DisposeCurrentMesh() {
-    if (_meshFilter.sharedMesh != null) {
+    if (_meshFilter.sharedMesh != null && _geom.ShapeType != MjShapeComponent.ShapeTypes.Mesh) {
 #if UNITY_EDITOR
       DestroyImmediate(_meshFilter.sharedMesh);
 #else

@@ -115,7 +115,7 @@ int main(int argc, const char** argv) {
     m = mj_loadXML(argv[1], 0, error, 1000);
   }
   if (!m) {
-    mju_error_s("Load model error: %s", error);
+    mju_error("Load model error: %s", error);
   }
 
   // make data

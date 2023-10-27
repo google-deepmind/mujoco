@@ -15,6 +15,8 @@
 set(MUJOCO_USER_SRCS
     user_composite.cc
     user_composite.h
+    user_flexcomp.cc
+    user_flexcomp.h
     user_mesh.cc
     user_model.cc
     user_model.h
@@ -25,3 +27,4 @@ set(MUJOCO_USER_SRCS
 )
 
 target_sources(mujoco PRIVATE ${MUJOCO_USER_SRCS})
+target_compile_definitions(mujoco PRIVATE MUJOCO_TINYOBJLOADER_IMPL)

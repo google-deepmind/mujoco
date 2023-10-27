@@ -15,21 +15,19 @@
 #ifndef MUJOCO_SRC_ENGINE_ENGINE_MACRO_H_
 #define MUJOCO_SRC_ENGINE_ENGINE_MACRO_H_
 
-#include "engine/engine_callback.h"
+#include <stdint.h>
+
+#include <mujoco/mjmacro.h>
+#include "engine/engine_callback.h"  // IWYU pragma: export
 
 //-------------------------------- utility macros --------------------------------------------------
 
-// mark and free stack
-#define mjMARKSTACK int _mark = d->pstack;
-#define mjFREESTACK d->pstack = _mark;
-
-// check bitflag
-#define mjDISABLED(x) (m->opt.disableflags & (x))
-#define mjENABLED(x)  (m->opt.enableflags & (x))
-
-// max and min macros
-#define mjMAX(a,b)    (((a) > (b)) ? (a) : (b))
-#define mjMIN(a,b)    (((a) < (b)) ? (a) : (b))
+// thread local macro
+#ifdef _MSC_VER
+  #define mjTHREADLOCAL __declspec(thread)
+#else
+  #define mjTHREADLOCAL _Thread_local
+#endif
 
 
 //-------------------------- timer macros ----------------------------------------------------------
@@ -37,7 +35,18 @@
 #define TM_START mjtNum _tm = (mjcb_time ? mjcb_time() : 0);
 #define TM_RESTART _tm = (mjcb_time ? mjcb_time() : 0);
 #define TM_END(i) {d->timer[i].duration += ((mjcb_time ? mjcb_time() : 0) - _tm); d->timer[i].number++;}
+#define TM_ADD(i) {d->timer[i].duration += ((mjcb_time ? mjcb_time() : 0) - _tm);}
 #define TM_START1 mjtNum _tm1 = (mjcb_time ? mjcb_time() : 0);
 #define TM_END1(i) {d->timer[i].duration += ((mjcb_time ? mjcb_time() : 0) - _tm1); d->timer[i].number++;}
+
+//-------------------------- compiler builtin ------------------------------------------------------
+
+#ifndef __has_builtin
+  #define __has_builtin(x) 0
+#endif
+
+//-------------------------- pointer arithmetic ----------------------------------------------------
+
+#define PTRDIFF(x, y) ((char*)(x) - (char*)(y))
 
 #endif  // MUJOCO_SRC_ENGINE_ENGINE_MACRO_H_

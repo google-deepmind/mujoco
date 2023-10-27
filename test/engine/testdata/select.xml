@@ -1,0 +1,39 @@
+<mujoco>
+  <visual>
+    <scale constraint="0.02"/>
+  </visual>
+
+  <worldbody>
+    <light pos="0 0 3"/>
+    <geom type="plane" size="1 1 .01"/>
+
+    <body name="non-diag inertia" pos="0 0 1" quat="0 0.534522 0.801784 0.267261">
+      <freejoint/>
+      <geom type="box" size="0.15 0.1 0.05" pos="0.15 0.1 0.05" euler="30 30 30" rgba="1 0 0 1"/>
+    </body>
+
+    <body name="diagonal inertia" pos="0 0 2" quat="0 0.534522 0.801784 0.267261">
+      <freejoint/>
+      <geom type="box" size="0.15 0.1 0.05" rgba="0 0 1 1"/>
+    </body>
+
+    <body name="mocap body" pos="-.5 -.5 .5" mocap="true" quat=".1 .2 .3 .4">
+      <geom type="box" size="0.15 0.1 0.05" pos="0.15 0.1 0.05" euler="30 30 30" rgba="0 .7 0 1"/>
+    </body>
+
+    <body name="small sphere" pos="-0.4 0.4 0.2">
+      <freejoint/>
+      <geom type="sphere" size="0.01" rgba="1 1 1 1"/>
+    </body>
+
+    <body name="heavy sphere" pos="-0.5 0.4 0.2">
+      <freejoint/>
+      <geom type="sphere" size="0.02" rgba="1 1 1 1" mass="1000"/>
+    </body>
+
+    <body name="ball joint" pos=".5 -.5 .5" >
+      <joint type="ball" damping="10"/>
+      <geom type="box" size="0.1 0.1 0.1"/>
+    </body>
+  </worldbody>
+</mujoco>

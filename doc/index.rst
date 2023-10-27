@@ -8,11 +8,17 @@
    :hidden:
 
    overview
-   computation
+   computation/index.rst
    modeling
    XMLreference
-   programming
-   APIreference
+   programming/index.rst
+   APIreference/index.rst
    python
+   MJX <mjx>
    unity
+   models
    changelog
+
+
+.. sidebar-links::
+   :github:

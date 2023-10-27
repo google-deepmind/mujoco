@@ -15,6 +15,7 @@
 #ifndef MUJOCO_SRC_XML_XML_NATIVE_WRITER_H_
 #define MUJOCO_SRC_XML_XML_NATIVE_WRITER_H_
 
+#include <cstdlib>
 #include <string>
 
 #include "xml/xml_base.h"
@@ -24,7 +25,9 @@ class mjXWriter : public mjXBase {
  public:
   mjXWriter();                                        // constructor
   virtual ~mjXWriter() = default;                     // destructor
-  void Write(FILE* fp);                               // write XML document
+
+  // write XML document to string
+  std::string Write(char *error, std::size_t error_sz);
 
  private:
   // insert end child with given name, return child
@@ -37,17 +40,20 @@ class mjXWriter : public mjXBase {
   void Visual(tinyxml2::XMLElement* root);                      // visual section
   void Statistic(tinyxml2::XMLElement* root);                   // statistic section
   void Default(tinyxml2::XMLElement* root, mjCDef* def);        // default section
+  void Extension(tinyxml2::XMLElement* root);                   // extension section
   void Custom(tinyxml2::XMLElement* root);                      // custom section
   void Asset(tinyxml2::XMLElement* root);                       // asset section
   void Body(tinyxml2::XMLElement* elem, mjCBody* body);         // body/world section
   void Contact(tinyxml2::XMLElement* root);                     // contact section
-  void Equality(tinyxml2::XMLElement* root);                    // equality constraint section
+  void Deformable(tinyxml2::XMLElement* root);                  // deformable section
+  void Equality(tinyxml2::XMLElement* root);                    // equality section
   void Tendon(tinyxml2::XMLElement* root);                      // tendon section
   void Actuator(tinyxml2::XMLElement* root);                    // actuator section
   void Sensor(tinyxml2::XMLElement* root);                      // sensor section
   void Keyframe(tinyxml2::XMLElement* root);                    // keyframe section
 
   // single element writers, used in defaults and main body
+  void OneFlex(tinyxml2::XMLElement* elem,      mjCFlex* pflex);
   void OneMesh(tinyxml2::XMLElement* elem,      mjCMesh* pmesh,         mjCDef* def);
   void OneSkin(tinyxml2::XMLElement* elem,      mjCSkin* pskin);
   void OneMaterial(tinyxml2::XMLElement* elem,  mjCMaterial* pmaterial, mjCDef* def);
@@ -60,6 +66,7 @@ class mjXWriter : public mjXBase {
   void OneEquality(tinyxml2::XMLElement* elem,  mjCEquality* pequality, mjCDef* def);
   void OneTendon(tinyxml2::XMLElement* elem,    mjCTendon* ptendon,     mjCDef* def);
   void OneActuator(tinyxml2::XMLElement* elem,  mjCActuator* pactuator, mjCDef* def);
+  void OnePlugin(tinyxml2::XMLElement* elem,    mjCBase* object);
 
   bool writingdefaults;                       // true during defaults write
 };

@@ -26,15 +26,21 @@
 // rotate vector by quaternion
 void mju_rotVecQuat(mjtNum res[3], const mjtNum vec[3], const mjtNum quat[4]) {
   // null quat: copy vec
-  if (quat[0]==1 && quat[1]==0 && quat[2]==0 && quat[3]==0) {
+  if (quat[0] == 1 && quat[1] == 0 && quat[2] == 0 && quat[3] == 0) {
     mju_copy3(res, vec);
   }
 
   // regular processing
   else {
-    mjtNum mat[9];
-    mju_quat2Mat(mat, quat);
-    mju_rotVecMat(res, vec, mat);
+    mjtNum tmp[3];
+    // tmp = q_w * v + cross(q_xyz, v)
+    tmp[0] = quat[0]*vec[0] + quat[2]*vec[2] - quat[3]*vec[1];
+    tmp[1] = quat[0]*vec[1] + quat[3]*vec[0] - quat[1]*vec[2];
+    tmp[2] = quat[0]*vec[2] + quat[1]*vec[1] - quat[2]*vec[0];
+    // res = v + 2 * cross(q_xyz, t)
+    res[0] = vec[0] + 2 * (quat[2]*tmp[2] - quat[3]*tmp[1]);
+    res[1] = vec[1] + 2 * (quat[3]*tmp[0] - quat[1]*tmp[2]);
+    res[2] = vec[2] + 2 * (quat[1]*tmp[1] - quat[2]*tmp[0]);
   }
 }
 
@@ -52,20 +58,32 @@ void mju_negQuat(mjtNum res[4], const mjtNum quat[4]) {
 
 // multiply quaternions
 void mju_mulQuat(mjtNum res[4], const mjtNum qa[4], const mjtNum qb[4]) {
-  res[0] = qa[0]*qb[0] - qa[1]*qb[1] - qa[2]*qb[2] - qa[3]*qb[3];
-  res[1] = qa[0]*qb[1] + qa[1]*qb[0] + qa[2]*qb[3] - qa[3]*qb[2];
-  res[2] = qa[0]*qb[2] - qa[1]*qb[3] + qa[2]*qb[0] + qa[3]*qb[1];
-  res[3] = qa[0]*qb[3] + qa[1]*qb[2] - qa[2]*qb[1] + qa[3]*qb[0];
+  mjtNum tmp[4] = {
+    qa[0]*qb[0] - qa[1]*qb[1] - qa[2]*qb[2] - qa[3]*qb[3],
+    qa[0]*qb[1] + qa[1]*qb[0] + qa[2]*qb[3] - qa[3]*qb[2],
+    qa[0]*qb[2] - qa[1]*qb[3] + qa[2]*qb[0] + qa[3]*qb[1],
+    qa[0]*qb[3] + qa[1]*qb[2] - qa[2]*qb[1] + qa[3]*qb[0]
+  };
+  res[0] = tmp[0];
+  res[1] = tmp[1];
+  res[2] = tmp[2];
+  res[3] = tmp[3];
 }
 
 
 
 // multiply quaternion and axis
 void mju_mulQuatAxis(mjtNum res[4], const mjtNum quat[4], const mjtNum axis[3]) {
-  res[0] = - (quat[1]*axis[0] + quat[2]*axis[1] + quat[3]*axis[2]);
-  res[1] = quat[0]*axis[0] + quat[2]*axis[2] - quat[3]*axis[1];
-  res[2] = quat[0]*axis[1] + quat[3]*axis[0] - quat[1]*axis[2];
-  res[3] = quat[0]*axis[2] + quat[1]*axis[1] - quat[2]*axis[0];
+  mjtNum tmp[4] = {
+    -quat[1]*axis[0] - quat[2]*axis[1] - quat[3]*axis[2],
+    quat[0]*axis[0] + quat[2]*axis[2] - quat[3]*axis[1],
+    quat[0]*axis[1] + quat[3]*axis[0] - quat[1]*axis[2],
+    quat[0]*axis[2] + quat[1]*axis[1] - quat[2]*axis[0]
+  };
+  res[0] = tmp[0];
+  res[1] = tmp[1];
+  res[2] = tmp[2];
+  res[3] = tmp[3];
 }
 
 
@@ -73,7 +91,7 @@ void mju_mulQuatAxis(mjtNum res[4], const mjtNum quat[4], const mjtNum axis[3]) 
 // convert axisAngle to quaternion
 void mju_axisAngle2Quat(mjtNum res[4], const mjtNum axis[3], mjtNum angle) {
   // zero angle: null quat
-  if (angle==0) {
+  if (angle == 0) {
     res[0] = 1;
     res[1] = 0;
     res[2] = 0;
@@ -99,7 +117,7 @@ void mju_quat2Vel(mjtNum res[3], const mjtNum quat[4], mjtNum dt) {
   mjtNum speed = 2 * mju_atan2(sin_a_2, quat[0]);
 
   // when axis-angle is larger than pi, rotation is in the opposite direction
-  if (speed>mjPI) {
+  if (speed > mjPI) {
     speed -= 2*mjPI;
   }
   speed /= dt;
@@ -125,7 +143,7 @@ void mju_subQuat(mjtNum res[3], const mjtNum qa[4], const mjtNum qb[4]) {
 // convert quaternion to 3D rotation matrix
 void mju_quat2Mat(mjtNum res[9], const mjtNum quat[4]) {
   // null quat: identity
-  if (quat[0]==1 && quat[1]==0 && quat[2]==0 && quat[3]==0) {
+  if (quat[0] == 1 && quat[1] == 0 && quat[2] == 0 && quat[3] == 0) {
     res[0] = 1;
     res[1] = 0;
     res[2] = 0;
@@ -165,10 +183,10 @@ void mju_quat2Mat(mjtNum res[9], const mjtNum quat[4]) {
 
 
 
-// convert 3D rotation matrix to quaterion
+// convert 3D rotation matrix to quaternion
 void mju_mat2Quat(mjtNum quat[4], const mjtNum mat[9]) {
   // q0 largest
-  if (mat[0]+mat[4]+mat[8]>0) {
+  if (mat[0]+mat[4]+mat[8] > 0) {
     quat[0] = 0.5 * mju_sqrt(1 + mat[0] + mat[4] + mat[8]);
     quat[1] = 0.25 * (mat[7] - mat[5]) / quat[0];
     quat[2] = 0.25 * (mat[2] - mat[6]) / quat[0];
@@ -176,7 +194,7 @@ void mju_mat2Quat(mjtNum quat[4], const mjtNum mat[9]) {
   }
 
   // q1 largest
-  else if (mat[0]>mat[4] && mat[0]>mat[8]) {
+  else if (mat[0] > mat[4] && mat[0] > mat[8]) {
     quat[1] = 0.5 * mju_sqrt(1 + mat[0] - mat[4] - mat[8]);
     quat[0] = 0.25 * (mat[7] - mat[5]) / quat[1];
     quat[2] = 0.25 * (mat[1] + mat[3]) / quat[1];
@@ -184,7 +202,7 @@ void mju_mat2Quat(mjtNum quat[4], const mjtNum mat[9]) {
   }
 
   // q2 largest
-  else if (mat[4]>mat[8]) {
+  else if (mat[4] > mat[8]) {
     quat[2] = 0.5 * mju_sqrt(1 - mat[0] + mat[4] - mat[8]);
     quat[0] = 0.25 * (mat[2] - mat[6]) / quat[2];
     quat[1] = 0.25 * (mat[1] + mat[3]) / quat[2];
@@ -214,7 +232,7 @@ void mju_derivQuat(mjtNum res[4], const mjtNum quat[4], const mjtNum vel[3]) {
 
 
 
-// integrate quaterion given 3D angular velocity
+// integrate quaternion given 3D angular velocity
 void mju_quatIntegrate(mjtNum quat[4], const mjtNum vel[3], mjtNum scale) {
   mjtNum angle, tmp[4], qrot[4];
 
@@ -222,9 +240,8 @@ void mju_quatIntegrate(mjtNum quat[4], const mjtNum vel[3], mjtNum scale) {
   mju_copy3(tmp, vel);
   angle = scale * mju_normalize3(tmp);
   mju_axisAngle2Quat(qrot, tmp, angle);
-  mju_mulQuat(tmp, quat, qrot);
-  mju_normalize4(tmp);
-  mju_copy4(quat, tmp);
+  mju_mulQuat(quat, quat, qrot);
+  mju_normalize4(quat);
 }
 
 
@@ -238,7 +255,7 @@ void mju_quatZ2Vec(mjtNum quat[4], const mjtNum vec[3]) {
   mju_zero3(quat+1);
 
   // normalize vector; if too small, no rotation
-  if (mju_normalize3(vn)<mjMINVAL) {
+  if (mju_normalize3(vn) < mjMINVAL) {
     return;
   }
 
@@ -247,7 +264,7 @@ void mju_quatZ2Vec(mjtNum quat[4], const mjtNum vec[3]) {
   a = mju_normalize3(axis);
 
   // almost parallel
-  if (fabs(a)<mjMINVAL) {
+  if (fabs(a) < mjMINVAL) {
     // opposite: 180 deg rotation around x axis
     if (mju_dot3(vn, z) < 0) {
       quat[0] = 0;
@@ -257,7 +274,7 @@ void mju_quatZ2Vec(mjtNum quat[4], const mjtNum vec[3]) {
     return;
   }
 
-  // make quaterion from angle and axis
+  // make quaternion from angle and axis
   a = mju_atan2(a, mju_dot3(vn, z));
   mju_axisAngle2Quat(quat, axis, a);
 }
@@ -306,9 +323,14 @@ void mju_trnVecPose(mjtNum res[3], const mjtNum pos[3], const mjtNum quat[4], co
 
 // vector cross-product, 3D
 void mju_cross(mjtNum res[3], const mjtNum a[3], const mjtNum b[3]) {
-  res[0] = a[1]*b[2] - a[2]*b[1];
-  res[1] = a[2]*b[0] - a[0]*b[2];
-  res[2] = a[0]*b[1] - a[1]*b[0];
+  mjtNum tmp[3] = {
+    a[1]*b[2] - a[2]*b[1],
+    a[2]*b[0] - a[0]*b[2],
+    a[0]*b[1] - a[1]*b[0]
+  };
+  res[0] = tmp[0];
+  res[1] = tmp[1];
+  res[2] = tmp[2];
 }
 
 
@@ -351,8 +373,7 @@ void mju_inertCom(mjtNum res[10], const mjtNum inert[3], const mjtNum mat[9],
   // tmp = diag(inert) * mat'  (mat is local-to-global rotation)
   mjtNum tmp[9] = {mat[0]*inert[0], mat[3]*inert[0], mat[6]*inert[0],
                    mat[1]*inert[1], mat[4]*inert[1], mat[7]*inert[1],
-                   mat[2]*inert[2], mat[5]*inert[2], mat[8]*inert[2]
-                  };
+                   mat[2]*inert[2], mat[5]*inert[2], mat[8]*inert[2]};
 
   // res_rot = mat * diag(inert) * mat'
   res[0] = mat[0]*tmp[0] + mat[1]*tmp[3] + mat[2]*tmp[6];
@@ -412,9 +433,9 @@ void mju_dofCom(mjtNum res[6], const mjtNum axis[3], const mjtNum offset[3]) {
 
 // multiply dof matrix (6-by-n, transposed) by vector (n-by-1)
 void mju_mulDofVec(mjtNum* res, const mjtNum* dof, const mjtNum* vec, int n) {
-  if (n==1) {
+  if (n == 1) {
     mju_scl(res, dof, vec[0], 6);
-  } else if (n<=0) {
+  } else if (n <= 0) {
     mju_zero(res, 6);
   } else {
     mju_mulMatTVec(res, dof, vec, n, 6);
@@ -461,14 +482,14 @@ void mju_makeFrame(mjtNum frame[9]) {
 
   // normalize xaxis
   if (mju_normalize3(frame) < 0.5) {
-    mju_error("xaxis of contact frame undefined");
+    mjERROR("xaxis of contact frame undefined");
   }
 
-  // if yaxis undefined, set yaxis to (0,1,0) if possible, otherwize (0,0,1)
+  // if yaxis undefined, set yaxis to (0,1,0) if possible, otherwise (0,0,1)
   if (mju_norm3(frame+3) < 0.5) {
     mju_zero3(frame+3);
 
-    if (frame[1]<0.5 && frame[1]>-0.5) {
+    if (frame[1] < 0.5 && frame[1] > -0.5) {
       frame[4] = 1;
     } else {
       frame[5] = 1;

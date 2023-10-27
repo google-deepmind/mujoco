@@ -23,6 +23,8 @@
   X( int,     actuator_, gaintype,     nu, 1                    ) \
   X( int,     actuator_, biastype,     nu, 1                    ) \
   X( int,     actuator_, trnid,        nu, 2                    ) \
+  X( int,     actuator_, actadr,       nu, 1                    ) \
+  X( int,     actuator_, actnum,       nu, 1                    ) \
   X( int,     actuator_, group,        nu, 1                    ) \
   X( mjtByte, actuator_, ctrllimited,  nu, 1                    ) \
   X( mjtByte, actuator_, forcelimited, nu, 1                    ) \
@@ -76,14 +78,14 @@
   X( mjtNum, cam_, ipd,          ncam, 1               ) \
   X( mjtNum, cam_, user,         ncam, MJ_M(nuser_cam) )
 
-#define MJMODEL_EQUALITY                    \
-  X( int,     eq_, type,   neq, 1         ) \
-  X( int,     eq_, obj1id, neq, 1         ) \
-  X( int,     eq_, obj2id, neq, 1         ) \
-  X( mjtByte, eq_, active, neq, 1         ) \
-  X( mjtNum,  eq_, solref, neq, mjNREF    ) \
-  X( mjtNum,  eq_, solimp, neq, mjNIMP    ) \
-  X( mjtNum,  eq_, data,   neq, mjNEQDATA )
+#define MJMODEL_EQUALITY                     \
+  X( int,     eq_, type,    neq, 1         ) \
+  X( int,     eq_, obj1id,  neq, 1         ) \
+  X( int,     eq_, obj2id,  neq, 1         ) \
+  X( mjtByte, eq_, active0, neq, 1         ) \
+  X( mjtNum,  eq_, solref,  neq, mjNREF    ) \
+  X( mjtNum,  eq_, solimp,  neq, mjNIMP    ) \
+  X( mjtNum,  eq_, data,    neq, mjNEQDATA )
 
 #define MJMODEL_EXCLUDE                      \
   X( int, exclude_, signature, nexclude, 1 )
@@ -279,7 +281,8 @@
   X( mjtNum, key_, qvel,  nkey, MJ_M(nv)       ) \
   X( mjtNum, key_, act,   nkey, MJ_M(na)       ) \
   X( mjtNum, key_, mpos,  nkey, MJ_M(nmocap)*3 ) \
-  X( mjtNum, key_, mquat, nkey, MJ_M(nmocap)*4 )
+  X( mjtNum, key_, mquat, nkey, MJ_M(nmocap)*4 ) \
+  X( mjtNum, key_, ctrl,  nkey, MJ_M(nu)       )
 
 #define MJMODEL_VIEW_GROUPS                                            \
   XGROUP( MjModelActuatorViews, actuator, nu,       MJMODEL_ACTUATOR ) \
@@ -354,11 +357,6 @@
   X( mjtNum, , cdof,            nv,   6           ) \
   X( mjtNum, , qLDiagInv,       nv,   1           ) \
   X( mjtNum, , qLDiagSqrtInv,   nv,   1           ) \
-  X( int,    , efc_JT_rownnz,   nv,   1           ) \
-  X( int,    , efc_JT_rowadr,   nv,   1           ) \
-  X( int,    , efc_JT_rowsuper, nv,   1           ) \
-  X( int,    , efc_JT_colind,   nv,   MJ_M(njmax) ) \
-  X( mjtNum, , efc_JT,          nv,   MJ_M(njmax) ) \
   X( mjtNum, , cdof_dot,        nv,   6           ) \
   X( mjtNum, , qfrc_bias,       nv,   1           ) \
   X( mjtNum, , qfrc_passive,    nv,   1           ) \

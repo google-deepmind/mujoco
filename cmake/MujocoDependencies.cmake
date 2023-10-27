@@ -14,51 +14,57 @@
 
 # Build configuration for third party libraries used in MuJoCo.
 
-# Override the BUILD_SHARED_LIBS setting, just for building third party libs (since we always want
-# static libraries). The ccd CMakeLists.txt doesn't expose an option to build a static ccd library,
-# unless BUILD_SHARED_LIBS is set.
-
 set(MUJOCO_DEP_VERSION_lodepng
-    48e5364ef48ec2408f44c727657ac1b6703185f8
+    b4ed2cd7ecf61d29076169b49199371456d4f90b
     CACHE STRING "Version of `lodepng` to be fetched."
 )
 set(MUJOCO_DEP_VERSION_tinyxml2
-    1dee28e51f9175a31955b9791c74c430fe13dc82 # 9.0.0
+    9a89766acc42ddfa9e7133c7d81a5bda108a0ade
     CACHE STRING "Version of `tinyxml2` to be fetched."
 )
 set(MUJOCO_DEP_VERSION_tinyobjloader
     1421a10d6ed9742f5b2c1766d22faa6cfbc56248
     CACHE STRING "Version of `tinyobjloader` to be fetched."
 )
+set(MUJOCO_DEP_VERSION_MarchingCubeCpp
+    5b79e5d6bded086a0abe276a4b5a69fc17ae9bf1
+    CACHE STRING "Version of `MarchingCubeCpp` to be fetched."
+)
 set(MUJOCO_DEP_VERSION_ccd
     7931e764a19ef6b21b443376c699bbc9c6d4fba8 # v2.1
     CACHE STRING "Version of `ccd` to be fetched."
 )
 set(MUJOCO_DEP_VERSION_qhull
-    3df027b91202cf179f3fba3c46eebe65bbac3790
+    0c8fc90d2037588024d9964515c1e684f6007ecc
     CACHE STRING "Version of `qhull` to be fetched."
 )
 set(MUJOCO_DEP_VERSION_Eigen3
-    b02c384ef4e8eba7b8bdef16f9dc6f8f4d6a6b2b
+    e8515f78ac098329ab9f8cab21c87caede090a3f
     CACHE STRING "Version of `Eigen3` to be fetched."
 )
 
 set(MUJOCO_DEP_VERSION_abseil
-    78f9680225b9792c26dfdd99d0bd26c96de53dd4 # Fixes universal builds for macOS
+    fb3621f4f897824c0dbe0615fa94543df6192f30 # LTS 20230802.1
     CACHE STRING "Version of `abseil` to be fetched."
 )
 
 set(MUJOCO_DEP_VERSION_gtest
-    e2239ee6043f73722e7aa812a459f54a28552929 # release-1.11.0
+    f8d7d77c06936315286eb55f8de22cd23c188571 # v1.14.0
     CACHE STRING "Version of `gtest` to be fetched."
 )
 
 set(MUJOCO_DEP_VERSION_benchmark
-    0d98dba29d66e93259db7daa53a9327df767a415 # v1.6.1
+    344117638c8ff7e239044fd0fa7085839fc03021 # v1.8.3
     CACHE STRING "Version of `benchmark` to be fetched."
 )
 
+set(MUJOCO_DEP_VERSION_sdflib
+    7c49cfba9bbec763b5d0f7b90b26555f3dde8088
+    CACHE STRING "Version of `SdfLib` to be fetched."
+)
+
 mark_as_advanced(MUJOCO_DEP_VERSION_lodepng)
+mark_as_advanced(MUJOCO_DEP_VERSION_MarchingCubeCpp)
 mark_as_advanced(MUJOCO_DEP_VERSION_tinyxml2)
 mark_as_advanced(MUJOCO_DEP_VERSION_tinyobjloader)
 mark_as_advanced(MUJOCO_DEP_VERSION_ccd)
@@ -67,9 +73,14 @@ mark_as_advanced(MUJOCO_DEP_VERSION_Eigen3)
 mark_as_advanced(MUJOCO_DEP_VERSION_abseil)
 mark_as_advanced(MUJOCO_DEP_VERSION_gtest)
 mark_as_advanced(MUJOCO_DEP_VERSION_benchmark)
+mark_as_advanced(MUJOCO_DEP_VERSION_sdflib)
 
 include(FetchContent)
 include(FindOrFetch)
+
+# Override the BUILD_SHARED_LIBS setting, just for building third party libs (since we always want
+# static libraries). The ccd CMakeLists.txt doesn't expose an option to build a static ccd library,
+# unless BUILD_SHARED_LIBS is set.
 
 # We force all the dependencies to be compiled as static libraries.
 # TODO(fraromano) Revisit this choice when adding support for install.
@@ -99,10 +110,21 @@ if(NOT TARGET lodepng)
   endif()
 endif()
 
-# TODO(fraromano) We fetch qhull before the other libraries as it needs to go before until https://github.com/qhull/qhull/pull/111 is merged.
+if(NOT TARGET marchingcubecpp)
+  FetchContent_Declare(
+    marchingcubecpp
+    GIT_REPOSITORY https://github.com/aparis69/MarchingCubeCpp.git
+    GIT_TAG ${MUJOCO_DEP_VERSION_MarchingCubeCpp}
+  )
+
+  FetchContent_GetProperties(marchingcubecpp)
+  if(NOT marchingcubecpp_POPULATED)
+    FetchContent_Populate(marchingcubecpp)
+    include_directories(${marchingcubecpp_SOURCE_DIR})
+  endif()
+endif()
+
 set(QHULL_ENABLE_TESTING OFF)
-# We need Git to apply the patch using git apply.
-find_package(Git REQUIRED)
 
 findorfetch(
   USE_SYSTEM_PACKAGE
@@ -117,17 +139,6 @@ findorfetch(
   ${MUJOCO_DEP_VERSION_qhull}
   TARGETS
   qhull
-  # TODO(fraromano) Remove when https://github.com/qhull/qhull/pull/112 is merged.
-  # Do not fail if patch fails. This will happen the second time we run CMake as the sources will be already patched.
-  PATCH_COMMAND
-  "${GIT_EXECUTABLE}"
-  "apply"
-  "-q"
-  "${PROJECT_SOURCE_DIR}/cmake/qhull_fix_testing.patch"
-  "||"
-  "${CMAKE_COMMAND}"
-  "-E"
-  "true"
   EXCLUDE_FROM_ALL
 )
 # MuJoCo includes a file from libqhull_r which is not exported by the qhull include directories.
@@ -172,6 +183,27 @@ findorfetch(
   tinyobjloader
   EXCLUDE_FROM_ALL
 )
+
+option(SDFLIB_USE_ASSIMP OFF)
+option(SDFLIB_USE_OPENMP OFF)
+option(SDFLIB_USE_ENOKI OFF)
+findorfetch(
+  USE_SYSTEM_PACKAGE
+  OFF
+  PACKAGE_NAME
+  sdflib
+  LIBRARY_NAME
+  sdflib
+  GIT_REPO
+  https://github.com/UPC-ViRVIG/SdfLib.git
+  GIT_TAG
+  ${MUJOCO_DEP_VERSION_sdflib}
+  TARGETS
+  SdfLib
+  EXCLUDE_FROM_ALL
+)
+target_compile_options(SdfLib PRIVATE ${MUJOCO_MACOS_COMPILE_OPTIONS})
+target_link_options(SdfLib PRIVATE ${MUJOCO_MACOS_LINK_OPTIONS})
 
 set(ENABLE_DOUBLE_PRECISION ON)
 set(CCD_HIDE_ALL_SYMBOLS ON)

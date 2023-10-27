@@ -1,0 +1,35 @@
+
+<mujoco>
+  <extension>
+    <plugin plugin="mujoco.sdf.torus">
+      <instance name="torus">
+        <config key="radius1" value="0.35"/>
+        <config key="radius2" value="0.15"/>
+      </instance>
+    </plugin>
+  </extension>
+
+  <option gravity="0 0 -9.81"/>
+  <asset>
+    <mesh name="torus">
+      <plugin instance="torus"/>
+    </mesh>
+    <mesh file="../../mug/mug.obj" scale=".2 .2 .2"/>
+  </asset>
+
+  <include file="scene.xml"/>
+
+  <worldbody>
+    <body pos="0 .05 2.5" euler="90 0 0">
+      <freejoint/>
+      <geom type="sdf" mesh="torus" rgba=".8 .17 .15 1" group="1">
+        <plugin instance="torus"/>
+      </geom>
+    </body>
+    <body>
+      <geom type="mesh" mesh="mug" euler="90 0 0" rgba="0 0 1 .2"/>
+    </body>
+    <light pos="1 0 7" dir="0 0 -1" castshadow="false"/>
+    <light pos="-1 0 7" dir="0 0 -1" castshadow="false"/>
+  </worldbody>
+</mujoco>

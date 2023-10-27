@@ -15,7 +15,6 @@
 #ifndef MUJOCO_MJRENDER_H_
 #define MUJOCO_MJRENDER_H_
 
-#include <mujoco/mjmodel.h>
 
 #if defined(__cplusplus)
 extern "C" {
@@ -31,17 +30,25 @@ typedef enum mjtGridPos_ {        // grid position for overlay
   mjGRID_TOPLEFT      = 0,        // top left
   mjGRID_TOPRIGHT,                // top right
   mjGRID_BOTTOMLEFT,              // bottom left
-  mjGRID_BOTTOMRIGHT              // bottom right
+  mjGRID_BOTTOMRIGHT,             // bottom right
+  mjGRID_TOP,                     // top center
+  mjGRID_BOTTOM,                  // bottom center
+  mjGRID_LEFT,                    // left center
+  mjGRID_RIGHT                    // right center
 } mjtGridPos;
 
 
-typedef enum mjtFramebuffer_ {      // OpenGL framebuffer option
+typedef enum mjtFramebuffer_ {    // OpenGL framebuffer option
   mjFB_WINDOW         = 0,        // default/window buffer
   mjFB_OFFSCREEN                  // offscreen buffer
 } mjtFramebuffer;
 
+typedef enum mjtDepthMap_ {       // depth mapping for `mjr_readPixels`
+  mjDEPTH_ZERONEAR    = 0,        // standard depth map; 0: znear, 1: zfar
+  mjDEPTH_ZEROFAR     = 1         // reversed depth map; 1: znear, 0: zfar
+} mjtDepthMap;
 
-typedef enum mjtFontScale_ {        // font scale, used at context creation
+typedef enum mjtFontScale_ {      // font scale, used at context creation
   mjFONTSCALE_50      = 50,       // 50% scale, suitable for low-res rendering
   mjFONTSCALE_100     = 100,      // normal scale, suitable in the absence of DPI scaling
   mjFONTSCALE_150     = 150,      // 150% scale
@@ -149,6 +156,12 @@ struct mjrContext_ {              // custom OpenGL context
 
   // framebuffer
   int     currentBuffer;          // currently active framebuffer: mjFB_WINDOW or mjFB_OFFSCREEN
+
+  // pixel output format
+  int     readPixelFormat;        // default color pixel format for mjr_readPixels
+
+  // depth output format
+  int     readDepthMap;           // depth mapping: mjDEPTH_ZERONEAR or mjDEPTH_ZEROFAR
 };
 typedef struct mjrContext_ mjrContext;
 

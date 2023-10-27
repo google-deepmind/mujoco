@@ -56,7 +56,8 @@ public sealed class MjVfs : IDisposable {
     if (fileIndex < 0) {
       throw new IndexOutOfRangeException("VFS didn't properly create the empty file.");
     }
-    SetFileContents(fileIndex, contents);
+    var contents_bytes = Encoding.UTF8.GetBytes(contents);
+    Marshal.Copy(contents_bytes, 0, Data.filedata[fileIndex], contents_bytes.Length);
   }
 
   // Searches the VFS for the specified file and returns its index.
@@ -82,17 +83,10 @@ public sealed class MjVfs : IDisposable {
     return model;
   }
 
-  private unsafe void SetFileContents(int fileIndex, string contents) {
-    var data = Data;
-    Marshal.FreeHGlobal(data.filedata[fileIndex]);
-    data.filedata[fileIndex] = Marshal.StringToHGlobalAnsi(contents);
-    Data = data;
-  }
-
-  public MjVfs() {
-    _managedVfs = new _mjVFS();
+  public unsafe MjVfs() {
     _unmanagedVfs = Marshal.AllocHGlobal(Marshal.SizeOf(_managedVfs));
-    Marshal.StructureToPtr(_managedVfs, _unmanagedVfs, true);
+    mj_defaultVFS(_unmanagedVfs.ToPointer());
+    _managedVfs = (_mjVFS)Marshal.PtrToStructure(_unmanagedVfs, typeof(_mjVFS));
   }
 
   ~MjVfs() {
@@ -104,13 +98,9 @@ public sealed class MjVfs : IDisposable {
     ReleaseUnmanagedMemory();
   }
 
-  private void ReleaseUnmanagedMemory() {
+  private unsafe void ReleaseUnmanagedMemory() {
     if (_unmanagedVfs != IntPtr.Zero) {
-      var data = Data;
-      for (var fileIndex = 0; fileIndex < data.nfile; ++fileIndex) {
-        Marshal.FreeHGlobal(data.filedata[fileIndex]);
-      }
-
+      mj_deleteVFS(_unmanagedVfs.ToPointer());
       Marshal.FreeHGlobal(_unmanagedVfs);
       _unmanagedVfs = IntPtr.Zero;
     }

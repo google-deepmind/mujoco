@@ -15,6 +15,10 @@
 #ifndef MUJOCO_PYTHON_MJDATA_META_H_
 #define MUJOCO_PYTHON_MJDATA_META_H_
 
+#include <cstring>
+#include <memory>
+
+#include <mujoco/mujoco.h>
 #include <mujoco/mjxmacro.h>
 #include "raw.h"
 #include "util/crossplatform.h"
@@ -66,38 +70,37 @@ template <typename T> class MjWrapper;
 struct MjDataMetadata {
  public:
   friend class _impl::MjWrapper<raw::MjData>;
-
-#define X(var) int var;
-  MJMODEL_INTS
-#undef X
-#define X(type, var, n) std::shared_ptr<type[]> var;
-  MJDATA_METADATA
-#undef X
-
- private:
-  MjDataMetadata() = default;
-  MjDataMetadata(const MjDataMetadata& other) = default;
-  MjDataMetadata(MjDataMetadata&& other) = default;
   explicit MjDataMetadata(const raw::MjModel* m)
       :
 #define X(var) var(m->var),
         MJMODEL_INTS
 #undef X
 
-#define X(dtype, var, n)                            \
-  var(                                              \
-      [](dtype* src, int len) {                     \
-        dtype* dst = new dtype[len];                \
-        std::memcpy(dst, src, len * sizeof(dtype)); \
-        return dst;                                 \
-      }(m->var, m->n)),
+#define X(dtype, var, n)                        \
+  var([](dtype* src, int len) {                 \
+    dtype* dst = new dtype[len];                \
+    std::memcpy(dst, src, len * sizeof(dtype)); \
+    return dst;                                 \
+  }(m->var, m->n)),
 
         MJDATA_METADATA
 #undef X
-        dummy_() {}
+        is_dual(mj_isDual(m)) {
+  }
 
-  // Dummy variable to terminate X macro sequences.
-  MUJOCO_MAYBE_UNUSED bool dummy_;
+#define X(var) decltype(raw::MjModel::var) var;
+  MJMODEL_INTS
+#undef X
+#define X(type, var, n) std::shared_ptr<type[]> var;
+  MJDATA_METADATA
+#undef X
+
+  bool is_dual;
+
+ private:
+  MjDataMetadata() = default;
+  MjDataMetadata(const MjDataMetadata& other) = default;
+  MjDataMetadata(MjDataMetadata&& other) = default;
 };
 
 }  // namespace mujoco::python

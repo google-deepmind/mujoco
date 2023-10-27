@@ -13,13 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""A script for running step_benchmark_test for a variety of build settings.
-
-This is not meant to be run in google3, but in the git repository's root.
-
-This will be used for release 2.1.1, and adapted for future use when more
-decisions about the build need to be made.
-"""
+"""A script for running step_benchmark_test for a variety of build settings."""
 
 import argparse
 import os

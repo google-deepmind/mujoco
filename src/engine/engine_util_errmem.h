@@ -15,13 +15,26 @@
 #ifndef MUJOCO_SRC_ENGINE_ENGINE_UTIL_ERRMEM_H_
 #define MUJOCO_SRC_ENGINE_ENGINE_UTIL_ERRMEM_H_
 
+#include <stdarg.h>
 #include <stddef.h>
+#include <stdio.h>
+#include <string.h>
 
 #include <mujoco/mjexport.h>
+#include <mujoco/mjmacro.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+#ifndef mjPRINTFLIKE
+  #if defined(__GNUC__)
+    #define mjPRINTFLIKE(n, m) __attribute__((format(printf, n, m)))
+  #else
+    #define mjPRINTFLIKE(n, m)
+  #endif  // __GNUC__
+#endif  // mjPRINTFLIKE
+
 
 //------------------------------ user handlers -----------------------------------------------------
 
@@ -42,18 +55,32 @@ MJAPI void _mjPRIVATE__set_tls_warning_fn(void (*h)(const char*));
 //------------------------------ errors and warnings -----------------------------------------------
 
 // errors
-MJAPI void mju_error(const char* msg);
+MJAPI void mju_error_raw(const char* msg);
+MJAPI void mju_error(const char* msg, ...) mjPRINTFLIKE(1, 2);
+MJAPI void mju_error_v(const char* msg, va_list args);
 MJAPI void mju_error_i(const char* msg, int i);
 MJAPI void mju_error_s(const char* msg, const char* text);
 
 // warnings
-MJAPI void mju_warning(const char* msg);
+MJAPI void mju_warning(const char* msg, ...) mjPRINTFLIKE(1, 2);
 MJAPI void mju_warning_i(const char* msg, int i);
 MJAPI void mju_warning_s(const char* msg, const char* text);
 
 // write [datetime, type: message] to MUJOCO_LOG.TXT
 MJAPI void mju_writeLog(const char* type, const char* msg);
 
+//------------------------------ internal error macros --------------------------------------------
+
+// internal macro to prepend the calling function name to the error message
+#pragma warning(disable : 4996)  // needed to use strncpy with Visual Studio
+#define mjERROR(...)                                                          \
+{                                                                             \
+  char _errbuf[1024];                                                         \
+  size_t _funclen = strlen(__func__);                                         \
+  strncpy(_errbuf, __func__, sizeof(_errbuf));                                \
+  snprintf(_errbuf + _funclen, sizeof(_errbuf) - _funclen, ": " __VA_ARGS__); \
+  mju_error_raw(_errbuf);                                                     \
+}
 
 //------------------------------ malloc and free ---------------------------------------------------
 

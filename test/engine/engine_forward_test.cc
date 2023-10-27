@@ -16,10 +16,18 @@
 
 #include "src/engine/engine_forward.h"
 
+#include <cmath>
+#include <cstdlib>
+#include <vector>
+#include <string>
+
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 #include <mujoco/mjmodel.h>
+#include <mujoco/mjtnum.h>
 #include <mujoco/mujoco.h>
+#include "src/cc/array_safety.h"
+#include "src/engine/engine_callback.h"
 #include "src/engine/engine_io.h"
 #include "test/fixture.h"
 
@@ -34,15 +42,26 @@ static const char* const kEnergyConservingPendulumPath =
     "engine/testdata/derivative/energy_conserving_pendulum.xml";
 static const char* const kDampedActuatorsPath =
     "engine/testdata/derivative/damped_actuators.xml";
+static const char* const kJointForceClamp =
+    "engine/testdata/actuation/joint_force_clamp.xml";
 
 using ::testing::Pointwise;
 using ::testing::DoubleNear;
 using ::testing::Ne;
-using ForwardTest = MujocoTest;
+using ::testing::HasSubstr;
+using ::testing::NotNull;
+using ::testing::Gt;
 
 // --------------------------- activation limits -------------------------------
 
-TEST_F(ForwardTest, ActLimited) {
+struct ActLimitedTestCase {
+  std::string test_name;
+  mjtIntegrator integrator;
+};
+
+using ParametrizedForwardTest = ::testing::TestWithParam<ActLimitedTestCase>;
+
+TEST_P(ParametrizedForwardTest, ActLimited) {
   static constexpr char xml[] = R"(
   <mujoco>
     <option timestep="0.01"/>
@@ -63,28 +82,80 @@ TEST_F(ForwardTest, ActLimited) {
   mjModel* model = LoadModelFromString(xml);
   mjData* data = mj_makeData(model);
 
+  model->opt.integrator = GetParam().integrator;
+
   data->ctrl[0] = 1.0;
   // integrating up from 0, we will hit the clamp after 99 steps
-  for (int i=0; i<200; i++) {
+  for (int i=0; i < 200; i++) {
     mj_step(model, data);
     // always greater than lower bound
-    ASSERT_GT(data->act[0], -1);
+    EXPECT_GT(data->act[0], -1);
     // after 99 steps we hit the upper bound
-    if (i < 99) ASSERT_LT(data->act[0], 1);
-    if (i >= 99) ASSERT_EQ(data->act[0], 1);
+    if (i < 99) EXPECT_LT(data->act[0], 1);
+    if (i >= 99) EXPECT_EQ(data->act[0], 1);
   }
 
   data->ctrl[0] = -1.0;
   // integrating down from 1, we will hit the clamp after 199 steps
-  for (int i=0; i<300; i++) {
+  for (int i=0; i < 300; i++) {
     mj_step(model, data);
     // always smaller than upper bound
-    ASSERT_LT(data->act[0], model->actuator_actrange[1]);
+    EXPECT_LT(data->act[0], model->actuator_actrange[1]);
     // after 199 steps we hit the lower bound
-    if (i < 199) ASSERT_GT(data->act[0], model->actuator_actrange[0]);
-    if (i >= 199) ASSERT_EQ(data->act[0], model->actuator_actrange[0]);
+    if (i < 199) EXPECT_GT(data->act[0], model->actuator_actrange[0]);
+    if (i >= 199) EXPECT_EQ(data->act[0], model->actuator_actrange[0]);
   }
 
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    ParametrizedForwardTest, ParametrizedForwardTest,
+    testing::ValuesIn<ActLimitedTestCase>({
+        {"Euler", mjINT_EULER},
+        {"Implicit", mjINT_IMPLICIT},
+        {"RK4", mjINT_RK4},
+    }),
+    [](const testing::TestParamInfo<ParametrizedForwardTest::ParamType>& info) {
+      return info.param.test_name;
+    });
+
+// --------------------------- damping actuator --------------------------------
+
+using ForwardTest = MujocoTest;
+
+TEST_F(ForwardTest, DamperDampens) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <geom size="1"/>
+        <joint name="jnt" type="slide" axis="1 0 0"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <motor joint="jnt"/>
+      <damper joint="jnt" kv="1000" ctrlrange="0 100"/>
+    </actuator>
+  </mujoco>
+  )";
+  mjModel* model = LoadModelFromString(xml);
+  mjData* data = mj_makeData(model);
+
+  // move the joint
+  data->ctrl[0] = 100.0;
+  data->ctrl[1] = 0.0;
+  for (int i=0; i < 100; i++)
+    mj_step(model, data);
+
+  // stop the joint with damping
+  data->ctrl[0] = 0.0;
+  data->ctrl[1] = 100.0;
+  for (int i=0; i < 1000; i++)
+    mj_step(model, data);
+
+  EXPECT_LE(data->qvel[0], std::numeric_limits<double>::epsilon());
   mj_deleteData(data);
   mj_deleteModel(model);
 }
@@ -92,6 +163,123 @@ TEST_F(ForwardTest, ActLimited) {
 // --------------------------- implicit integrator -----------------------------
 
 using ImplicitIntegratorTest = MujocoTest;
+
+// Disabling implicit joint damping works as expected
+TEST_F(ImplicitIntegratorTest, EulerDampDisable) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option>
+      <flag eulerdamp="disable"/>
+    </option>
+
+    <worldbody>
+      <body>
+        <joint axis="1 0 0" damping="2"/>
+        <geom type="capsule" size=".01" fromto="0 0 0 0 .1 0"/>
+        <body pos="0 .1 0">
+          <joint axis="0 1 0" damping="1"/>
+          <geom type="capsule" size=".01" fromto="0 0 0 .1 0 0"/>
+        </body>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+
+  mjModel* model = LoadModelFromString(xml);
+  mjData* data = mj_makeData(model);
+
+  // step once, call mj_forward, save qvel and qacc
+  mj_step(model, data);
+  mj_forward(model, data);
+  std::vector<mjtNum> qvel = AsVector(data->qvel, model->nv);
+  std::vector<mjtNum> qacc = AsVector(data->qacc, model->nv);
+
+  // second step
+  mj_step(model, data);
+
+  // compute finite-difference acceleration
+  std::vector<mjtNum> qacc_fd(model->nv);
+  for (int i=0; i < model->nv; i++) {
+    qacc_fd[i] = (data->qvel[i] - qvel[i]) / model->opt.timestep;
+  }
+  // expect finite-differenced qacc to match to high precision
+  EXPECT_THAT(qacc_fd, Pointwise(DoubleNear(1e-14), qacc));
+
+  // reach the the same initial state
+  mj_resetData(model, data);
+  mj_step(model, data);
+
+  // second step again, but with implicit integration of joint damping
+  model->opt.disableflags &= ~mjDSBL_EULERDAMP;
+  mj_step(model, data);
+
+  // compute finite-difference acceleration difference
+  std::vector<mjtNum> dqacc(model->nv);
+  for (int i=0; i < model->nv; i++) {
+    dqacc[i] = (data->qvel[i] - qvel[i]) / model->opt.timestep;
+  }
+  // expect finite-differenced qacc to not match
+  EXPECT_GT(mju_norm(dqacc.data(), model->nv), 1);
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
+// Reducing timesteps reduces the difference between implicit/explicit
+TEST_F(ImplicitIntegratorTest, EulerDampLimit) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <joint axis="1 0 0" damping="2"/>
+        <geom type="capsule" size=".01" fromto="0 0 0 0 .1 0"/>
+        <body pos="0 .1 0">
+          <joint axis="0 1 0" damping="1"/>
+          <geom type="capsule" size=".01" fromto="0 0 0 .1 0 0"/>
+        </body>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+
+  mjModel* model = LoadModelFromString(xml);
+  mjData* data = mj_makeData(model);
+
+  mjtNum diff_norm_prev = -1;
+  for (const mjtNum dt : {1e-2, 1e-3, 1e-4, 1e-5, 1e-6, 1e-7, 1e-8}) {
+    // set timestep
+    model->opt.timestep = dt;
+
+    // step twice with implicit damping, save qvel
+    model->opt.disableflags &= ~mjDSBL_EULERDAMP;
+    mj_resetData(model, data);
+    mj_step(model, data);
+    mj_step(model, data);
+    std::vector<mjtNum> qvel_imp = AsVector(data->qvel, model->nv);
+
+    // step once, step again without implicit damping, save qvel
+    mj_resetData(model, data);
+    mj_step(model, data);
+    model->opt.disableflags |= mjDSBL_EULERDAMP;
+    mj_step(model, data);
+    std::vector<mjtNum> qvel_exp = AsVector(data->qvel, model->nv);
+
+    mjtNum diff_norm = 0;
+    for (int i=0; i < model->nv; i++) {
+      diff_norm += (qvel_imp[i] - qvel_exp[i]) * (qvel_imp[i] - qvel_exp[i]);
+    }
+    diff_norm = mju_sqrt(diff_norm);
+
+    if (diff_norm_prev != -1){
+      EXPECT_LT(diff_norm, diff_norm_prev);
+    }
+
+    diff_norm_prev = diff_norm;
+  }
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
 
 // Euler and implicit should be equivalent if there is only joint damping
 TEST_F(ImplicitIntegratorTest, EulerImplicitEqivalent) {
@@ -114,7 +302,7 @@ TEST_F(ImplicitIntegratorTest, EulerImplicitEqivalent) {
   mjData* data = mj_makeData(model);
 
   // step 10 times with Euler, save copy of qpos as vector
-  for (int i=0; i<10; i++) {
+  for (int i=0; i < 10; i++) {
     mj_step(model, data);
   }
   std::vector<mjtNum> qposEuler = AsVector(data->qpos, model->nq);
@@ -122,7 +310,7 @@ TEST_F(ImplicitIntegratorTest, EulerImplicitEqivalent) {
   // reset, step 10 times with implicit
   mj_resetData(model, data);
   model->opt.integrator = mjINT_IMPLICIT;
-  for (int i=0; i<10; i++) {
+  for (int i=0; i < 10; i++) {
     mj_step(model, data);
   }
 
@@ -144,7 +332,7 @@ TEST_F(ImplicitIntegratorTest, JointActuatorEqivalent) {
   mjData* data = mj_makeData(model);
 
   // take 1000 steps with Euler
-  for (int i=0; i<1000; i++) {
+  for (int i=0; i < 1000; i++) {
     mj_step(model, data);
   }
   // expect corresponding joint values to be significantly different
@@ -154,7 +342,7 @@ TEST_F(ImplicitIntegratorTest, JointActuatorEqivalent) {
   // reset, take 1000 steps with implicit
   mj_resetData(model, data);
   model->opt.integrator = mjINT_IMPLICIT;
-  for (int i=0; i<10; i++) {
+  for (int i=0; i < 10; i++) {
     mj_step(model, data);
   }
 
@@ -177,7 +365,7 @@ TEST_F(ImplicitIntegratorTest, EnergyConservation) {
 
   // take nstep steps with Euler, measure energy (potential + kinetic)
   model->opt.integrator = mjINT_EULER;
-  for (int i=0; i<nstep; i++) {
+  for (int i=0; i < nstep; i++) {
     mj_step(model, data);
   }
   mjtNum energyEuler = data->energy[0] + data->energy[1];
@@ -185,7 +373,7 @@ TEST_F(ImplicitIntegratorTest, EnergyConservation) {
   // take nstep steps with implicit, measure energy
   model->opt.integrator = mjINT_IMPLICIT;
   mj_resetData(model, data);
-  for (int i=0; i<nstep; i++) {
+  for (int i=0; i < nstep; i++) {
     mj_step(model, data);
   }
   mjtNum energyImplicit = data->energy[0] + data->energy[1];
@@ -193,7 +381,7 @@ TEST_F(ImplicitIntegratorTest, EnergyConservation) {
   // take nstep steps with 4th order Runge-Kutta, measure energy
   model->opt.integrator = mjINT_RK4;
   mj_resetData(model, data);
-  for (int i=0; i<nstep; i++) {
+  for (int i=0; i < nstep; i++) {
     mj_step(model, data);
   }
   mjtNum energyRK4 = data->energy[0] + data->energy[1];
@@ -208,6 +396,589 @@ TEST_F(ImplicitIntegratorTest, EnergyConservation) {
   EXPECT_LT(fabs(energyRK4), fabs(energyImplicit));
   // expect implicit to be better than Euler
   EXPECT_LT(fabs(energyImplicit), fabs(energyEuler));
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
+TEST_F(ForwardTest, ControlClamping) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <geom size="1"/>
+        <joint name="slide" type="slide" axis="1 0 0"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <motor name="unclamped" joint="slide"/>
+      <motor name="clamped" joint="slide" ctrllimited="true" ctrlrange="-1 1"/>
+    </actuator>
+  </mujoco>
+  )";
+  mjModel* model = LoadModelFromString(xml);
+  mjData* data = mj_makeData(model);
+
+  // for the unclamped actuator, ctrl={1, 2} produce different accelerations
+  data->ctrl[0] = 1;
+  mj_forward(model, data);
+  mjtNum qacc1 = data->qacc[0];
+  data->ctrl[0] = 2;
+  mj_forward(model, data);
+  mjtNum qacc2 = data->qacc[0];
+  EXPECT_NE(qacc1, qacc2);
+
+  // for the clamped actuator, ctrl={1, 2} produce identical accelerations
+  data->ctrl[1] = 1;
+  mj_forward(model, data);
+  qacc1 = data->qacc[0];
+  data->ctrl[1] = 2;
+  mj_forward(model, data);
+  qacc2 = data->qacc[0];
+  EXPECT_EQ(qacc1, qacc2);
+
+  // data->ctrl[1] remains pristine
+  EXPECT_EQ(data->ctrl[1], 2);
+
+  // install warning handler
+  static char warning[1024];
+  warning[0] = '\0';
+  mju_user_warning = [](const char* msg) {
+    util::strcpy_arr(warning, msg);
+  };
+
+  // for the unclamped actuator, huge raises warning
+  data->ctrl[0] = 10*mjMAXVAL;
+  mj_forward(model, data);
+  EXPECT_THAT(warning,
+              HasSubstr("Nan, Inf or huge value in CTRL at ACTUATOR 0"));
+
+  // for the clamped actuator, huge does not raise warning
+  mj_resetData(model, data);
+  warning[0] = '\0';
+  data->ctrl[1] = 10*mjMAXVAL;
+  mj_forward(model, data);
+  EXPECT_EQ(warning[0], '\0');
+
+  // for the clamped actuator, NaN raises warning
+  mj_resetData(model, data);
+  data->ctrl[1] = std::numeric_limits<double>::quiet_NaN();
+  mj_forward(model, data);
+  EXPECT_THAT(warning,
+              HasSubstr("Nan, Inf or huge value in CTRL at ACTUATOR 1"));
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
+void control_callback(const mjModel* m, mjData *d) {
+  d->ctrl[0] = 2;
+}
+
+TEST_F(ForwardTest, MjcbControlDisabled) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <geom size="1"/>
+        <joint name="hinge"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <motor joint="hinge"/>
+    </actuator>
+  </mujoco>
+  )";
+  mjModel* model = LoadModelFromString(xml);
+  mjData* data = mj_makeData(model);
+
+  // install global control callback
+  mjcb_control = control_callback;
+
+  // call forward
+  mj_forward(model, data);
+  // expect that callback was used
+  EXPECT_EQ(data->ctrl[0], 2.0);
+
+  // reset, disable actuation, call forward
+  mj_resetData(model, data);
+  model->opt.disableflags |= mjDSBL_ACTUATION;
+  mj_forward(model, data);
+  // expect that callback was not used
+  EXPECT_EQ(data->ctrl[0], 0.0);
+
+  // remove global control callback
+  mjcb_control = nullptr;
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
+TEST_F(ForwardTest, gravcomp) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option gravity="0 0 -10" />
+    <worldbody>
+      <body>
+        <joint type="slide" axis="0 0 1"/>
+        <geom size="1"/>
+      </body>
+      <body pos="3 0 0" gravcomp="1">
+        <joint type="slide" axis="0 0 1"/>
+        <geom size="1"/>
+      </body>
+      <body pos="6 0 0" gravcomp="2">
+        <joint type="slide" axis="0 0 1"/>
+        <geom size="1"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  mjModel* model = LoadModelFromString(xml);
+  ASSERT_THAT(model, NotNull());
+
+  mjData* data = mj_makeData(model);
+  while (data->time < 1) { mj_step(model, data); }
+
+  mjtNum dist = 0.5*mju_norm3(model->opt.gravity)*(data->time*data->time);
+
+  // expect that body 1 moved down, allowing some slack from our estimate
+  EXPECT_NEAR(data->qpos[0], -dist, 0.011);
+
+  // expect that body 2 does not move
+  EXPECT_EQ(data->qpos[1], 0.0);
+
+  // expect that body 3 moves up the same distance that body 0 moved down
+  EXPECT_EQ(data->qpos[0], -data->qpos[2]);
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
+// test disabling of equality constraints
+TEST_F(ForwardTest, eq_active) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <joint name="vertical" type="slide" axis="0 0 1"/>
+        <geom size="1"/>
+      </body>
+    </worldbody>
+    <equality>
+      <joint joint1="vertical"/>
+    </equality>
+  </mujoco>
+  )";
+  mjModel* model = LoadModelFromString(xml);
+  ASSERT_THAT(model, NotNull());
+
+  mjData* data = mj_makeData(model);
+
+  // simulate for 1 second
+  while (data->time < 1) {
+    mj_step(model, data);
+  }
+
+  // expect that the body has barely moved
+  EXPECT_LT(mju_abs(data->qpos[0]), 0.001);
+
+  // turn the equality off, simulate for another second
+  data->eq_active[0] = 0;
+  while (data->time < 2) {
+    mj_step(model, data);
+  }
+
+  // expect that the body has fallen about 5m
+  EXPECT_LT(data->qpos[0], -4.5);
+  EXPECT_GT(data->qpos[0], -5.5);
+
+  // turn the equality back on, simulate for another second
+  data->eq_active[0] = 1;
+  while (data->time < 3) {
+    mj_step(model, data);
+  }
+
+  // expect that the body has snapped back
+  EXPECT_LT(mju_abs(data->qpos[0]), 0.001);
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
+// user defined 2nd-order activation dynamics: frequency-controlled oscillator
+//  note that scalar mjcb_act_dyn callbacks are expected to return act_dot, but
+//  since we have a vector output we write into act_dot directly
+mjtNum oscillator(const mjModel* m, const mjData *d, int id) {
+  // check that actnum == 2
+  if (m->actuator_actnum[id] != 2) {
+    mju_error("callback expected actnum == 2");
+  }
+
+  // get pointers to activations (inputs) and their derivatives (outputs)
+  mjtNum* act = d->act + m->actuator_actadr[id];
+  mjtNum* act_dot = d->act_dot + m->actuator_actadr[id];
+
+  // harmonic oscillator with controlled frequency
+  mjtNum frequency = 2*mjPI*d->ctrl[id];
+  act_dot[0] = -act[1] * frequency;
+  act_dot[1] = act[0] * frequency;
+
+  return 0;  // ignored by caller
+}
+
+TEST_F(ForwardTest, MjcbActDynSecondOrderExpectsActnum) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option timestep="1e-4"/>
+    <worldbody>
+      <body>
+        <geom size="1"/>
+        <joint name="hinge"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <general joint="hinge" dyntype="user" actdim="2"/>
+    </actuator>
+  </mujoco>
+  )";
+  mjModel* model = LoadModelFromString(xml);
+  mjData* data = mj_makeData(model);
+
+  // install global dynamics callback
+  mjcb_act_dyn = oscillator;
+
+  // for two arbitrary frequencies, compare actuator force as output by the
+  // user-defined oscillator and analytical sine function
+  for (mjtNum frequency : {1.5, 0.7}) {
+    mj_resetData(model, data);
+    data->ctrl[0] = frequency;  // set desired oscillation frequency
+    data->act[0] = 1;  // initialise activation
+
+    // simulate and compare to sine function
+    while (data->time < 1) {
+      mjtNum expected_force = mju_sin(2*mjPI*data->time*frequency);
+      mj_step(model, data);
+      EXPECT_NEAR(data->actuator_force[0], expected_force, .01);
+    }
+  }
+
+  // uninstall global dynamics callback
+  mjcb_act_dyn = nullptr;
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
+// ------------------------------ actuators -----------------------------------
+
+using ActuatorTest = MujocoTest;
+
+TEST_F(ActuatorTest, ExpectedAdhesionForce) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option gravity="0 0 -1"/>
+
+    <worldbody>
+      <body name="static">
+        <!-- small increase to size to ensure contact -->
+        <geom size=".02001" pos=" .01  .01 .07"/>
+        <geom size=".02001" pos="-.01  .01 .07"/>
+        <geom size=".02001" pos=" .01 -.01 .07"/>
+        <geom size=".02001" pos="-.01 -.01 .07"/>
+      </body>
+      <body name="free">
+        <freejoint/>
+        <geom type="box" size=".05 .05 .05" mass="1"/>
+      </body>
+    </worldbody>
+
+    <actuator>
+      <adhesion body="static" ctrlrange="0 2"/>
+      <adhesion body="free" ctrlrange="0 2"/>
+    </actuator>
+  </mujoco>
+  )";
+  mjModel* model = LoadModelFromString(xml);
+  mjData* data = mj_makeData(model);
+
+  // iterate over cone type
+  for (mjtCone cone : {mjCONE_ELLIPTIC, mjCONE_PYRAMIDAL}) {
+    // set cone
+    model->opt.cone = cone;
+    // iterate over condim
+    for (int condim : {1, 3, 4, 6}) {
+      // set condim
+      for (int id=0; id < model->ngeom; id++) {
+        model->geom_condim[id] = condim;
+      }
+      // iterate over actuators
+      for (int id=0; id < 2; id++) {
+        // set ctrl > 1, expect free body to not fall
+        mj_resetData(model, data);
+        data->ctrl[id] = 1.01;
+        for (int i = 0; i < 100; i++) {
+          mj_step(model, data);
+        }
+        // moved down at most 10 microns
+        EXPECT_GT(data->qpos[2], -1e-5);
+
+        // set ctrl < 1, expect free body to fall below 1cm
+        mj_resetData(model, data);
+        data->ctrl[id] = 0.99;
+        for (int i = 0; i < 100; i++) {
+          mj_step(model, data);
+        }
+        // fell lower than 1cm
+        EXPECT_LT(data->qpos[2], -0.01);
+      }
+    }
+  }
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
+// Actuator force clamping at joints
+TEST_F(ActuatorTest, ActuatorForceClamping) {
+  const std::string xml_path = GetTestDataFilePath(kJointForceClamp);
+  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, nullptr, 0);
+  mjData* data = mj_makeData(model);
+
+  data->ctrl[0] = 10;
+  mj_forward(model, data);
+
+  // expect clamping as specified in the model
+  EXPECT_EQ(data->actuator_force[0], 1);
+  EXPECT_EQ(data->qfrc_actuator[0], 0.4);
+
+  // simulate for 2 seconds to gain velocity
+  while (data->time < 2) {
+    mj_step(model, data);
+  }
+
+  // activate damper, expect force to be clamped at lower bound
+  data->ctrl[1] = 1;
+  mj_forward(model, data);
+  EXPECT_EQ(data->qfrc_actuator[0], -0.4);
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
+// ----------------------- filterexact actuators -------------------------------
+
+using FilterExactTest = MujocoTest;
+
+TEST_F(FilterExactTest, ApproximatesContinuousTime) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <compiler autolimits="true"/>
+    <worldbody>
+      <body name="box">
+        <joint name="slide" type="slide" axis="1 0 0" />
+        <geom type="box" size=".05 .05 .05" mass="1"/>
+      </body>
+    </worldbody>
+
+    <actuator>
+      <general joint="slide" dyntype="filter" gainprm="1.1" />
+    </actuator>
+  </mujoco>
+  )";
+  mjModel* model = LoadModelFromString(xml);
+  ASSERT_THAT(model, NotNull());
+  mjData* data = mj_makeData(model);
+  const mjtNum kSimulationTime = 1.0;
+
+  // compute act with a small timestep to approximate continuous integration
+  model->opt.timestep = 0.001;
+  mj_resetData(model, data);
+  data->ctrl[0] = 1.0;
+  data->act[0] = 0.0;
+  for (int i = 0; i < std::round(kSimulationTime / model->opt.timestep); i++) {
+    mj_step(model, data);
+  }
+  mjtNum continuous_act = data->act[0];
+
+  // compute again with a larger timestep, introducing integration error
+  model->opt.timestep = 0.01;
+  mj_resetData(model, data);
+  data->ctrl[0] = 1.0;
+  data->act[0] = 0.0;
+  for (int i = 0; i < std::round(kSimulationTime / model->opt.timestep); i++) {
+    mj_step(model, data);
+  }
+  mjtNum discrete_act = data->act[0];
+
+  // compute a third time with exact integration
+  model->actuator_dyntype[0] = mjDYN_FILTEREXACT;
+  mj_resetData(model, data);
+  data->ctrl[0] = 1.0;
+  data->act[0] = 0.0;
+  for (int i = 0; i < std::round(kSimulationTime / model->opt.timestep); i++) {
+    mj_step(model, data);
+  }
+  mjtNum exactfilter_act = data->act[0];
+
+  // expect exact integration to be closer to the small-timestep result
+  EXPECT_THAT(std::abs(continuous_act - discrete_act),
+              Gt(5*std::abs(continuous_act - exactfilter_act)))
+      << "Using filterexact should make the error at least 5 times smaller";
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
+TEST_F(FilterExactTest, TimestepIndependent) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <compiler autolimits="true"/>
+    <worldbody>
+      <body name="box">
+        <joint name="slide" type="slide" axis="1 0 0" />
+        <geom type="box" size=".05 .05 .05" mass="1"/>
+      </body>
+    </worldbody>
+
+    <actuator>
+      <general joint="slide" dyntype="filterexact" dynprm="0.9" gainprm="1.1"/>
+    </actuator>
+  </mujoco>
+  )";
+  mjModel* model = LoadModelFromString(xml);
+  ASSERT_THAT(model, NotNull());
+  mjData* data = mj_makeData(model);
+  const mjtNum kSimulationTime = 1.0;
+
+  // first, compute act based on a small timestep and exact integration
+  model->opt.timestep = 0.01;
+  mj_resetData(model, data);
+  data->ctrl[0] = 1.0;
+  data->act[0] = 0.0;
+  for (int i = 0; i < std::round(kSimulationTime / model->opt.timestep); i++) {
+    mj_step(model, data);
+  }
+  mjtNum small_timestep_act = data->act[0];
+
+  // now change the timestep to a much larger timestep
+  model->opt.timestep = 0.1;
+  mj_resetData(model, data);
+  data->ctrl[0] = 1.0;
+  data->act[0] = 0.0;
+  for (int i = 0; i < std::round(kSimulationTime / model->opt.timestep); i++) {
+    mj_step(model, data);
+  }
+  mjtNum large_timestep_act = data->act[0];
+
+  EXPECT_THAT(small_timestep_act, DoubleNear(large_timestep_act, 1e-14))
+      << "exact integration should be independent of timestep to machine "
+         "precision.";
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
+TEST_F(FilterExactTest, ActEqualsCtrlWhenTauIsZero) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <compiler autolimits="true"/>
+    <worldbody>
+      <body name="box">
+        <joint name="slide" type="slide" axis="1 0 0" />
+        <geom type="box" size=".05 .05 .05" mass="1"/>
+      </body>
+    </worldbody>
+
+    <actuator>
+      <general joint="slide" dyntype="filterexact" dynprm="0" gainprm="1.1"/>
+    </actuator>
+  </mujoco>
+  )";
+  mjModel* model = LoadModelFromString(xml);
+  ASSERT_THAT(model, NotNull());
+  mjData* data = mj_makeData(model);
+  data->ctrl[0] = 0.5;
+  data->act[0] = 0.0;
+  mj_step(model, data);
+  EXPECT_EQ(data->act[0], data->ctrl[0]);
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
+// ----------------------- actearly actuator attribute -------------------------
+
+using ActEarlyTest = MujocoTest;
+
+TEST_F(ActEarlyTest, RemovesOneStepDelay) {
+  const std::string xml_path =
+      GetTestDataFilePath("engine/testdata/actuation/actearly.xml");
+  char error[1000];
+  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
+
+  ASSERT_EQ(model->nu % 2, 0) << "number of actuators should be even";
+  ASSERT_EQ(model->nu, model->na) << "all actuators should be stateful";
+  ASSERT_EQ(model->nq, model->nu);
+  EXPECT_GT(model->nu, 0);
+
+  // actuators are ordered in pairs with actearly=true and actearly=false
+  for (int i = 0; i < model->na / 2; i++) {
+    EXPECT_TRUE(model->actuator_actearly[2*i]);
+    EXPECT_FALSE(model->actuator_actearly[2*i + 1]);
+  }
+
+  mjData* data = mj_makeData(model);
+
+  // set all controls to the same value and make one step
+  mju_fill(data->ctrl, 0.5, model->nu);
+  mj_step(model, data);
+
+  for (int i = 0; i < model->na / 2; i++) {
+    EXPECT_EQ(data->act[2 * i], data->act[2 * i + 1])
+        << "act should be the same after first step for "
+        << mj_id2name(model, mjOBJ_ACTUATOR, 2 * i);
+
+    EXPECT_EQ(data->act_dot[2 * i], data->act_dot[2 * i + 1])
+        << "act_dot should be the same after first step for "
+        << mj_id2name(model, mjOBJ_ACTUATOR, 2 * i);
+  }
+
+  for (int i = 0; i < 100; i++) {
+    std::vector<mjtNum> last_qfrc(data->qfrc_actuator,
+                                  data->qfrc_actuator + model->nu);
+    mj_step(model, data);
+    for (int j = 0; j < model->nu / 2; j++) {
+      // this is true for torque actuators
+      EXPECT_THAT(last_qfrc[2 * j],
+                  DoubleNear(data->qfrc_actuator[2 * j + 1], 1e-3))
+          << "there should be a 1 step delay between qfrc for "
+          << mj_id2name(model, mjOBJ_ACTUATOR, 2 * j);
+    }
+  }
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
+TEST_F(ActEarlyTest, DoesntChangeStateInMjForward) {
+  const std::string xml_path =
+      GetTestDataFilePath("engine/testdata/actuation/actearly.xml");
+  char error[1000];
+  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
+
+  mjData* data = mj_makeData(model);
+
+  // set all controls to the same value and make one step
+  mju_fill(data->ctrl, 0.5, model->nu);
+  mj_forward(model, data);
+
+  for (int i = 0; i < model->na; i++) {
+    EXPECT_EQ(data->act[i], 0)
+        << "act should not change with mj_forward."
+        << mj_id2name(model, mjOBJ_ACTUATOR, i);
+  }
 
   mj_deleteData(data);
   mj_deleteModel(model);

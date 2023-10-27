@@ -22,8 +22,10 @@
 
 #include <string>
 
+#include <mujoco/mjmodel.h>
 #include "cc/array_safety.h"
 #include "engine/engine_crossplatform.h"
+#include "engine/engine_resource.h"
 #include "engine/engine_vfs.h"
 #include "user/user_model.h"
 #include "user/user_util.h"
@@ -50,7 +52,7 @@ namespace mju = ::mujoco::util;
 // In order to ensure that XMLs are locale-inpendent, we temporarily switch to the "C" locale
 // when handling. Since the standard C `setlocale` is not thread-safe, we instead use
 // platform-specific extensions to override the locale only in the calling thread.
-// See also https://github.com/deepmind/mujoco/issues/131.
+// See also https://github.com/google-deepmind/mujoco/issues/131.
 #ifdef _WIN32
 class LocaleOverride {
  public:
@@ -62,13 +64,13 @@ class LocaleOverride {
   }
 
   ~LocaleOverride() {
-    setlocale(LC_ALL, old_locale_);
+    setlocale(LC_ALL, old_locale_.c_str());
     _configthreadlocale(old_per_thread_locale_type_);
   }
 
  private:
   int old_per_thread_locale_type_;
-  char* old_locale_;
+  std::string old_locale_;
 };
 #else
 class LocaleOverride {
@@ -92,37 +94,18 @@ class LocaleOverride {
 }  // namespace
 
 // Main writer function - calls mjXWrite
-bool mjWriteXML(mjCModel* model, string filename, char* error, int error_sz) {
+string mjWriteXML(mjCModel* model, char* error, int error_sz) {
   LocaleOverride locale_override;
 
   // check for empty model
   if (!model) {
     mjCopyError(error, "Cannot write empty model", error_sz);
-    return false;
+    return "";
   }
 
-  // write
-  FILE* fp = fopen(filename.c_str(), "w");
-  if (!fp) {
-    mjCopyError(error, "File not found", error_sz);
-    return false;
-  }
-
-  try {
-    mjXWriter writer;
-    writer.SetModel(model);
-    writer.Write(fp);
-  }
-
-  // catch known errors
-  catch (mjXError err) {
-    mjCopyError(error, err.message, error_sz);
-    fclose(fp);
-    return false;
-  }
-
-  fclose(fp);
-  return true;
+  mjXWriter writer;
+  writer.SetModel(model);
+  return writer.Write(error, error_sz);
 }
 
 
@@ -150,23 +133,30 @@ static XMLElement* mjIncludeXML(XMLElement* elem, string dir,
     }
 
     // get data source
-    const char* xmlstring = 0;
-    int buffer_size = 0;
-    if (vfs) {
-      int id = mj_findFileVFS(vfs, filename.c_str());
-      if (id>=0) {
-        xmlstring = (const char*)vfs->filedata[id];
-        buffer_size = vfs->filesize[id];
+    mjResource *resource = nullptr;
+    const char* xmlstring = nullptr;
+    if ((resource = mju_openVfsResource(filename.c_str(), vfs)) == nullptr) {
+      // load from provider or OS filesystem
+      if ((resource = mju_openResource(filename.c_str())) == nullptr) {
+        throw mjXError(elem, "Could not open file '%s'", filename.c_str());
       }
+    }
+
+    int buffer_size = mju_readResource(resource, (const void**) &xmlstring);
+    if (buffer_size < 0) {
+      mju_closeResource(resource);
+      throw mjXError(elem, "Error reading file '%s'", filename.c_str());
+    } else if (!buffer_size) {
+      mju_closeResource(resource);
+      throw mjXError(elem, "Empty file '%s'", filename.c_str());
     }
 
     // load XML file or parse string
     XMLDocument doc;
-    if (xmlstring) {
-      doc.Parse(xmlstring, buffer_size);
-    } else {
-      doc.LoadFile(filename.c_str());
-    }
+    doc.Parse(xmlstring, buffer_size);
+
+    // close resource
+    mju_closeResource(resource);
 
     // check error
     if (doc.Error()) {
@@ -220,14 +210,13 @@ static XMLElement* mjIncludeXML(XMLElement* elem, string dir,
         child = child->NextSiblingElement();
       }
     }
-
     return elem;
   }
 }
 
 
 
-// Main parser function: from file or VFS
+// Main parser function
 mjCModel* mjParseXML(const char* filename, const mjVFS* vfs, char* error, int error_sz) {
   LocaleOverride locale_override;
 
@@ -236,33 +225,47 @@ mjCModel* mjParseXML(const char* filename, const mjVFS* vfs, char* error, int er
     if (error) {
       snprintf(error, error_sz, "mjParseXML: filename argument required\n");
     }
-    return 0;
+    return nullptr;
   }
 
   // clear
   mjCModel* model = 0;
   if (error) {
-    error[0] = 0;
+    error[0] = '\0';
   }
 
   // get data source
-  const char* xmlstring = 0;
-  int buffer_size = 0;
-  if (vfs) {
-    int id = mj_findFileVFS(vfs, filename);
-    if (id>=0) {
-      xmlstring = (const char*)vfs->filedata[id];
-      buffer_size = vfs->filesize[id];
+  mjResource* resource = nullptr;
+  const char* xmlstring = nullptr;
+  if ((resource = mju_openVfsResource(filename, vfs)) == nullptr) {
+    // load from provider or fallback to OS filesystem
+    if ((resource = mju_openResource(filename)) == nullptr) {
+      if (error) {
+        snprintf(error, error_sz, "mjParseXML: could not open file '%s'", filename);
+      }
+      return nullptr;
     }
   }
 
+  int buffer_size = mju_readResource(resource, (const void**) &xmlstring);
+  if (buffer_size < 0) {
+    if (error) {
+      snprintf(error, error_sz, "mjParseXML: error reading file '%s'", filename);
+    }
+    mju_closeResource(resource);
+    return nullptr;
+  } else if (!buffer_size) {
+    if (error) {
+      snprintf(error, error_sz, "mjParseXML: empty file '%s'", filename);
+    }
+    mju_closeResource(resource);
+    return nullptr;
+  }
+
+
   // load XML file or parse string
   XMLDocument doc;
-  if (xmlstring) {
-    doc.Parse(xmlstring, buffer_size);
-  } else {
-    doc.LoadFile(filename);
-  }
+  doc.Parse(xmlstring, buffer_size);
 
   // error checking
   if (doc.Error()) {
@@ -270,19 +273,31 @@ mjCModel* mjParseXML(const char* filename, const mjVFS* vfs, char* error, int er
       snprintf(error, error_sz, "XML parse error %d:\n%s\n",
                doc.ErrorID(), doc.ErrorStr());
     }
-    return 0;
+    mju_closeResource(resource);
+    return nullptr;
   }
 
   // get top-level element
   XMLElement* root = doc.RootElement();
   if (!root) {
+    mju_closeResource(resource);
     mjCopyError(error, "XML root element not found", error_sz);
-    return 0;
+    return nullptr;
   }
 
   // create model, set filedir
   model = new mjCModel;
-  model->modelfiledir = mjuu_getfiledir(filename);
+  const char* dir;
+  int ndir = 0;
+  mju_getResourceDir(resource, &dir, &ndir);
+  if (dir != nullptr) {
+    model->modelfiledir = std::string(dir, ndir);
+  } else {
+    model->modelfiledir = "";
+  }
+
+  // close resource
+  mju_closeResource(resource);
 
   // parse with exceptions
   try {
@@ -301,6 +316,13 @@ mjCModel* mjParseXML(const char* filename, const mjVFS* vfs, char* error, int er
     else if (!strcasecmp(root->Value(), "robot")) {
       // parse URDF model
       mjXURDF parser;
+
+      // set reasonable default for parsing a URDF
+      // this is separate from the Parser to allow multiple URDFs to be loaded.
+      model->strippath = true;
+      model->fusestatic = true;
+      model->discardvisual = true;
+
       parser.SetModel(model);
       parser.Parse(root);
     }
@@ -314,7 +336,7 @@ mjCModel* mjParseXML(const char* filename, const mjVFS* vfs, char* error, int er
   catch (mjXError err) {
     mjCopyError(error, err.message, error_sz);
     delete model;
-    return 0;
+    return nullptr;
   }
 
   return model;

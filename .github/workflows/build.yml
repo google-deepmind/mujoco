@@ -1,5 +1,5 @@
 # This configuration is used to build and test on GitHub Actions only.
-# It is not the same configuration that is used by DeepMind to create release binaries.
+# It is not the same configuration that is used by Google DeepMind to create release binaries.
 # The "official" binaries are built with Clang 13 on all platforms, and are linked against libc++
 # on Linux.
 #
@@ -10,28 +10,90 @@ name: build
 
 on:
   push:
-    branches: [main]
+    paths-ignore:
+      - "doc/**"
+      - "**/README.md"
   pull_request:
-    branches: [main]
+    paths-ignore:
+      - "doc/**"
+      - "**/README.md"
 
 jobs:
   mujoco:
     strategy:
+      fail-fast: false
       matrix:
         include:
           - os: ubuntu-22.04
-            additional_label: "with GCC 11"
+            additional_label: "-gcc-12"
+            cmake_args: >-
+              -G Ninja
+              -DCMAKE_C_COMPILER:STRING=gcc-12
+              -DCMAKE_CXX_COMPILER:STRING=g++-12
+              -DCMAKE_EXE_LINKER_FLAGS:STRING=-Wl,--no-as-needed
+            tmpdir: "/tmp"
+          - os: ubuntu-22.04
+            additional_label: "-gcc-11"
             cmake_args: >-
               -G Ninja
               -DCMAKE_C_COMPILER:STRING=gcc-11
               -DCMAKE_CXX_COMPILER:STRING=g++-11
+              -DCMAKE_EXE_LINKER_FLAGS:STRING=-Wl,--no-as-needed
             tmpdir: "/tmp"
           - os: ubuntu-22.04
-            additional_label: "with Clang 12"
+            additional_label: "-gcc-10"
+            cmake_args: >-
+              -G Ninja
+              -DCMAKE_C_COMPILER:STRING=gcc-10
+              -DCMAKE_CXX_COMPILER:STRING=g++-10
+              -DCMAKE_EXE_LINKER_FLAGS:STRING=-Wl,--no-as-needed
+            tmpdir: "/tmp"
+          - os: ubuntu-22.04
+            additional_label: "-gcc-9"
+            cmake_args: >-
+              -G Ninja
+              -DCMAKE_C_COMPILER:STRING=gcc-9
+              -DCMAKE_CXX_COMPILER:STRING=g++-9
+              -DCMAKE_EXE_LINKER_FLAGS:STRING=-Wl,--no-as-needed
+            tmpdir: "/tmp"
+          - os: ubuntu-22.04
+            additional_label: "-clang-14"
+            cmake_args: >-
+              -G Ninja
+              -DCMAKE_C_COMPILER:STRING=clang-14
+              -DCMAKE_CXX_COMPILER:STRING=clang++-14
+              -DMUJOCO_HARDEN:BOOL=ON
+            tmpdir: "/tmp"
+          - os: ubuntu-22.04
+            additional_label: "-clang-13"
+            cmake_args: >-
+              -G Ninja
+              -DCMAKE_C_COMPILER:STRING=clang-13
+              -DCMAKE_CXX_COMPILER:STRING=clang++-13
+              -DMUJOCO_HARDEN:BOOL=ON
+            tmpdir: "/tmp"
+          - os: ubuntu-20.04
+            additional_label: "-clang-12"
             cmake_args: >-
               -G Ninja
               -DCMAKE_C_COMPILER:STRING=clang-12
               -DCMAKE_CXX_COMPILER:STRING=clang++-12
+              -DMUJOCO_HARDEN:BOOL=ON
+            tmpdir: "/tmp"
+          - os: ubuntu-20.04
+            additional_label: "-clang-11"
+            cmake_args: >-
+              -G Ninja
+              -DCMAKE_C_COMPILER:STRING=clang-11
+              -DCMAKE_CXX_COMPILER:STRING=clang++-11
+              -DMUJOCO_HARDEN:BOOL=ON
+            tmpdir: "/tmp"
+          - os: ubuntu-20.04
+            additional_label: "-clang-10"
+            cmake_args: >-
+              -G Ninja
+              -DCMAKE_C_COMPILER:STRING=clang-10
+              -DCMAKE_CXX_COMPILER:STRING=clang++-10
               -DMUJOCO_HARDEN:BOOL=ON
             tmpdir: "/tmp"
           - os: macos-12
@@ -40,10 +102,12 @@ jobs:
               -DMUJOCO_HARDEN:BOOL=ON
             tmpdir: "/tmp"
           - os: windows-2022
+            cmake_args: >-
+              -DCMAKE_SYSTEM_VERSION="10.0.22621.0"
             cmake_build_args: "-- -m"
             tmpdir: "C:/Temp"
 
-    name: "MuJoCo on ${{ matrix.os }} ${{ matrix.additional_label }}"
+    name: "${{ matrix.os }}${{ matrix.additional_label }}"
     runs-on: ${{ matrix.os }}
 
     steps:
@@ -51,7 +115,7 @@ jobs:
     - name: Prepare Linux
       if: ${{ runner.os == 'Linux' }}
       run: >
-        sudo apt-get install
+        sudo apt-get update && sudo apt-get install
         libgl1-mesa-dev
         libxinerama-dev
         libxcursor-dev
@@ -61,12 +125,13 @@ jobs:
     - name: Prepare macOS
       if: ${{ runner.os == 'macOS' }}
       run: brew install ninja
-    - uses: actions/setup-python@v3
+    - uses: actions/setup-python@v4
       with:
-        python-version: "3.10"
+        python-version: "3.11"
     - name: Prepare Python
       shell: bash
       run: |
+        repo="${PWD}"
         cd ${{ matrix.tmpdir }}
         python -m venv venv
         if [[ $RUNNER_OS == "Windows" ]]; then
@@ -76,8 +141,7 @@ jobs:
         ln -s ../Scripts/activate venv/bin/activate
         fi
         source venv/bin/activate
-        python -m pip install --upgrade pip
-        pip install pytest wheel
+        python -m pip install --upgrade --require-hashes -r "${repo}/python/build_requirements.txt"
     - name: Configure MuJoCo
       run: >
         mkdir build &&
@@ -92,10 +156,23 @@ jobs:
       run: cmake --build . --config=Release ${{ matrix.cmake_build_args }}
     - name: Test MuJoCo
       working-directory: build
-      run: ctest -C Release .
+      run: ctest -C Release --output-on-failure .
     - name: Install MuJoCo
       working-directory: build
       run: cmake --install .
+    - name: Copy plugins (POSIX)
+      if: ${{ runner.os != 'Windows' }}
+      working-directory: build
+      run: mkdir -p ${{ matrix.tmpdir }}/mujoco_install/mujoco_plugin &&
+           cp lib/libelasticity.* ${{ matrix.tmpdir }}/mujoco_install/mujoco_plugin &&
+           cp lib/libsensor.* ${{ matrix.tmpdir }}/mujoco_install/mujoco_plugin &&
+           cp lib/libsdf.* ${{ matrix.tmpdir }}/mujoco_install/mujoco_plugin
+    - name: Copy plugins (Windows)
+      if: ${{ runner.os == 'Windows' }}
+      working-directory: build
+      run: mkdir -p ${{ matrix.tmpdir }}/mujoco_install/mujoco_plugin &&
+           cp bin/Release/elasticity.dll ${{ matrix.tmpdir }}/mujoco_install/mujoco_plugin &&
+           cp bin/Release/sensor.dll ${{ matrix.tmpdir }}/mujoco_install/mujoco_plugin
     - name: Configure samples
       working-directory: sample
       run: >
@@ -107,6 +184,18 @@ jobs:
         ${{ matrix.cmake_args }}
     - name: Build samples
       working-directory: sample/build
+      run: cmake --build . --config=Release ${{ matrix.cmake_build_args }}
+    - name: Configure simulate
+      working-directory: simulate
+      run: >
+        mkdir build &&
+        cd build &&
+        cmake ..
+        -DCMAKE_BUILD_TYPE:STRING=Release
+        -Dmujoco_ROOT:STRING=${{ matrix.tmpdir }}/mujoco_install
+        ${{ matrix.cmake_args }}
+    - name: Build simulate
+      working-directory: simulate/build
       run: cmake --build . --config=Release ${{ matrix.cmake_build_args }}
     - name: Make Python sdist
       shell: bash
@@ -121,6 +210,7 @@ jobs:
       run: >
         source ${{ matrix.tmpdir }}/venv/bin/activate &&
         MUJOCO_PATH="${{ matrix.tmpdir }}/mujoco_install"
+        MUJOCO_PLUGIN_PATH="${{ matrix.tmpdir }}/mujoco_install/mujoco_plugin"
         MUJOCO_CMAKE_ARGS="-DCMAKE_INTERPROCEDURAL_OPTIMIZATION:BOOL=OFF ${{ matrix.cmake_args }}"
         pip wheel -v --no-deps mujoco-*.tar.gz
     - name: Install Python bindings
@@ -129,7 +219,7 @@ jobs:
       working-directory: python/dist
       run: >
         source ${{ matrix.tmpdir }}/venv/bin/activate &&
-        pip install mujoco-*.whl
+        pip install --no-index mujoco-*.whl
     - name: Test Python bindings
       if: ${{ runner.os != 'Windows' }}
       shell: bash
@@ -138,3 +228,44 @@ jobs:
       run: >
         source ${{ matrix.tmpdir }}/venv/bin/activate &&
         pytest -v --pyargs mujoco
+    - name: Package MJX
+      if: ${{ runner.os != 'Windows' }}
+      shell: bash
+      working-directory: mjx
+      run:
+        source ${{ matrix.tmpdir }}/venv/bin/activate &&
+        python -m build .
+    - name: Install MJX
+      if: ${{ runner.os != 'Windows' }}
+      shell: bash
+      working-directory: mjx
+      run:
+        source ${{ matrix.tmpdir }}/venv/bin/activate &&
+        pip install --require-hashes -r requirements.txt &&
+        pip install --no-index dist/mujoco_mjx-*.whl
+    - name: Test MJX
+      if: ${{ runner.os != 'Windows' }}
+      shell: bash
+      run:
+        source ${{ matrix.tmpdir }}/venv/bin/activate &&
+        pytest -n auto -v --pyargs mujoco.mjx
+    - name: Notify team chat
+      shell: bash
+      env:
+        GCHAT_API: ${{ secrets.GCHAT_API }}
+        JOB_URL: "${{ github.server_url }}/${{ github.repository }}/actions/runs/\
+          ${{ github.run_id }}"
+      if: ${{ failure() && github.event_name == 'push' && env.GCHAT_API != '' }}
+      run: >
+        curl
+        "$GCHAT_API&threadKey=$GITHUB_SHA&messageReplyOption=REPLY_MESSAGE_FALLBACK_TO_NEW_THREAD"
+        -X POST
+        -H "Content-Type: application/json"
+        -d "{
+        'text': '<$JOB_URL|*FAILURE*>:
+        job \`${{ matrix.os }}${{ matrix.additional_label }}\`
+        commit \`$(echo $GITHUB_SHA | head -c6)\`\n
+        \`\`\`Author: ${{ github.event.head_commit.author.name }}
+        <${{ github.event.head_commit.author.email }}>
+        \n\n${{ github.event.head_commit.message }}\`\`\`
+        '}"

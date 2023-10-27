@@ -29,18 +29,47 @@ MJAPI extern mjfCollision mjCOLLISIONFUNC[mjNGEOMTYPES][mjNGEOMTYPES];
 // collision detection entry point
 MJAPI void mj_collision(const mjModel* m, mjData* d);
 
-// broad phase collistion detection; return list of body pairs for narrow phase
-int mj_broadphase(const mjModel* m, mjData* d, int* bodypair, int maxpair);
+// applies Separating Axis Theorem for rotated AABBs
+MJAPI int mj_collideOBB(const mjtNum aabb1[6], const mjtNum aabb2[6],
+                        const mjtNum xpos1[3], const mjtNum xmat1[9],
+                        const mjtNum xpos2[3], const mjtNum xmat2[9], mjtNum margin,
+                        mjtNum product[36], mjtNum offset[12], mjtByte* initialize);
+
+// is element active (for collisions)
+MJAPI int mj_isElemActive(const mjModel* m, int f, int e);
+
+// checks if pair is already present in pair_geom and calls narrow phase
+void mj_collideGeomPair(const mjModel* m, mjData* d, int g1, int g2, int merged,
+                        int startadr, int pairadr);
+
+// binary search between two bodyflex trees
+void mj_collideTree(const mjModel* m, mjData* d, int bf1, int bf2,
+                    int merged, int startadr, int pairadr);
+
+// broad phase collision detection; return list of bodyflex pairs
+int mj_broadphase(const mjModel* m, mjData* d, int* bfpair, int maxpair);
 
 // test two geoms for collision, apply filters, add to contact list
-//  flg_user disables filters and uses usermargin
-void mj_collideGeoms(const mjModel* m, mjData* d,
-                     int g1, int g2, int flg_user, mjtNum usermargin);
+void mj_collideGeoms(const mjModel* m, mjData* d, int g1, int g2);
 
-// number of possible collisions based on fitlers and geom types
-int mj_contactFilter(int type1, int contype1, int conaffinity1, int weldbody1, int weldparent1,
-                     int type2, int contype2, int conaffinity2, int weldbody2, int weldparent2,
-                     int filterparent);
+// test a plane geom and a flex for collision, add to contact list
+void mj_collidePlaneFlex(const mjModel* m, mjData* d, int g, int f);
+
+// test for internal flex collisions, add to contact list
+void mj_collideFlexInternal(const mjModel* m, mjData* d, int f);
+
+// test active element self-collisions with SAP
+void mj_collideFlexSAP(const mjModel* m, mjData* d, int f);
+
+// test a geom and an elem for collision, add to contact list
+void mj_collideGeomElem(const mjModel* m, mjData* d, int g, int f, int e);
+
+// test two elems for collision, add to contact list
+void mj_collideElems(const mjModel* m, mjData* d, int f1, int e1, int f2, int e2);
+
+// test element and vertex for collision, add to contact list
+void mj_collideElemVert(const mjModel* m, mjData* d, int f, int e, int v);
+
 
 #ifdef __cplusplus
 }

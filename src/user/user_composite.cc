@@ -14,25 +14,29 @@
 
 #include "user/user_composite.h"
 
+#include <algorithm>
 #include <cmath>
 #include <cstddef>
 #include <cstdio>
 #include <cstring>
 #include <map>
+#include <stdexcept>
 #include <string>
 #include <utility>
 #include <vector>
 
+#include <mujoco/mjmacro.h>
 #include <mujoco/mjmodel.h>
+#include <mujoco/mujoco.h>
 #include "cc/array_safety.h"
 #include "engine/engine_io.h"
-#include "engine/engine_macro.h"
 #include "engine/engine_util_blas.h"
 #include "engine/engine_util_errmem.h"
 #include "engine/engine_util_misc.h"
 #include "user/user_model.h"
 #include "user/user_objects.h"
 #include "user/user_util.h"
+#include "xml/xml_util.h"
 
 namespace {
 namespace mju = ::mujoco::util;
@@ -59,6 +63,12 @@ mjCComposite::mjCComposite(void) {
   pin.clear();
   flatinertia = 0;
   mj_defaultSolRefImp(solrefsmooth, solimpsmooth);
+  plugin_instance = nullptr;
+
+  // cable
+  curve[0] = curve[1] = curve[2] = mjCOMPSHAPE_ZERO;
+  mjuu_setvec(size, 1, 0, 0);
+  initial = "ball";
 
   // skin
   skin = false;
@@ -67,6 +77,7 @@ mjCComposite::mjCComposite(void) {
   mjuu_setvec(skinrgba, 1, 1, 1, 1);
   skininflate = 0;
   skinsubgrid = 0;
+  skingroup = 0;
 
   // clear add flags
   for (int i=0; i<mjNCOMPKINDS; i++) {
@@ -96,13 +107,28 @@ void mjCComposite::AdjustSoft(mjtNum* solref, mjtNum* solimp, int level) {
 
 
 
+// create the array of default joint options, append new elements only for particles type
+bool mjCComposite::AddDefaultJoint(char* error, int error_sz) {
+  for (int i=0; i<mjNCOMPKINDS; i++) {
+    if (!defjoint[(mjtCompKind)i].empty() && type!=mjCOMPTYPE_PARTICLE) {
+      comperr(error, "Only particles are allowed to have multiple joints", error_sz);
+      return false;
+    } else {
+      mjCDef jnt;
+      jnt.joint.group = 3;
+      defjoint[(mjtCompKind)i].push_back(jnt);
+    }
+  }
+  return true;
+}
+
+
+
 // set defaults, after reading top-level info and skin
 void mjCComposite::SetDefault(void) {
-  int i;
-
   // determine dimensionality
   int tmpdim = 0;
-  for (i=0; i<3; i++) {
+  for (int i=0; i<3; i++) {
     if (count[i]>1) {
       tmpdim++;
     }
@@ -112,17 +138,20 @@ void mjCComposite::SetDefault(void) {
   for (int i=0; i<mjNCOMPKINDS; i++) {
     def[i].geom.group = 3;
     def[i].site.group = 3;
-    def[i].joint.group = 3;
     def[i].tendon.group = 3;
   }
+
+  // set default joint
+  AddDefaultJoint();
 
   // set default geom and tendon group to 0 if needed to be visible
   if (!skin ||
       type==mjCOMPTYPE_PARTICLE   ||
       type==mjCOMPTYPE_ROPE       ||
       type==mjCOMPTYPE_LOOP       ||
+      type==mjCOMPTYPE_CABLE      ||
       (type==mjCOMPTYPE_GRID && tmpdim==1)) {
-    for (i=0; i<mjNCOMPKINDS; i++) {
+    for (int i=0; i<mjNCOMPKINDS; i++) {
       def[i].geom.group = 0;
       def[i].tendon.group = 0;
     }
@@ -145,6 +174,7 @@ void mjCComposite::SetDefault(void) {
 
     break;
 
+  case mjCOMPTYPE_CABLE:          // cable
   case mjCOMPTYPE_ROPE:           // rope
     break;
 
@@ -168,7 +198,7 @@ void mjCComposite::SetDefault(void) {
     AdjustSoft(solrefsmooth, solimpsmooth, 1);
 
     // soft fix everywhere
-    for (i=0; i<mjNCOMPKINDS; i++) {
+    for (int i=0; i<mjNCOMPKINDS; i++) {
       AdjustSoft(def[i].equality.solref, def[i].equality.solimp, 1);
     }
 
@@ -178,7 +208,7 @@ void mjCComposite::SetDefault(void) {
     break;
   default:
     // SHOULD NOT OCCUR
-    mju_error_i("Invalid composite type: %d", type);
+    mju_error("Invalid composite type: %d", type);
     break;
   }
 }
@@ -187,15 +217,11 @@ void mjCComposite::SetDefault(void) {
 
 // make composite object
 bool mjCComposite::Make(mjCModel* model, mjCBody* body, char* error, int error_sz) {
-  // require local coordinates
-  if (model->global) {
-    return comperr(error, "Composite requires local coordinates", error_sz);
-  }
-
   // check geom type
-  if (def[0].geom.type!=mjGEOM_SPHERE &&
-      def[0].geom.type!=mjGEOM_CAPSULE &&
-      def[0].geom.type!=mjGEOM_ELLIPSOID) {
+  if ((def[0].geom.type!=mjGEOM_SPHERE &&
+       def[0].geom.type!=mjGEOM_CAPSULE &&
+       def[0].geom.type!=mjGEOM_ELLIPSOID) &&
+      type!=mjCOMPTYPE_PARTICLE && type!=mjCOMPTYPE_CABLE) {
     return comperr(error, "Composite geom type must be sphere, capsule or ellipsoid", error_sz);
   }
 
@@ -212,8 +238,31 @@ bool mjCComposite::Make(mjCModel* model, mjCBody* body, char* error, int error_s
   }
 
   // check spacing
-  if (spacing<mjMINVAL) {
-    return comperr(error, "Positive spacing expected in composite", error_sz);
+  if (type==mjCOMPTYPE_GRID || (type==mjCOMPTYPE_PARTICLE && uservert.empty())) {
+    if (spacing < mju_max(def[0].geom.size[0],
+                  mju_max(def[0].geom.size[1], def[0].geom.size[2]))) {
+      return comperr(error, "Spacing must be larger than geometry size",
+                     error_sz);
+    }
+  }
+
+  // check cable sizes are nonzero if vertices are not prescribed
+  if (mjuu_dot3(size, size)<mjMINVAL && uservert.empty()) {
+    return comperr(error, "Positive spacing or length expected in composite", error_sz);
+  }
+
+  // check spacing is not used by cable
+  if (spacing && type==mjCOMPTYPE_CABLE) {
+    return comperr(error, "Spacing is not supported by cable composite", error_sz);
+  }
+
+  // check either uservert or count but not both
+  if (!uservert.empty()) {
+    if (count[0]>1) {
+      return comperr(error, "Either vertex or count can be specified, not both", error_sz);
+    }
+    count[0] = uservert.size()/3;
+    count[1] = 1;
   }
 
   // determine dimensionality, check singleton order
@@ -230,7 +279,7 @@ bool mjCComposite::Make(mjCModel* model, mjCBody* body, char* error, int error_s
   }
 
   // require 3x3 for subgrid
-  if (skin && skinsubgrid>0) {
+  if (skin && skinsubgrid>0 && type!=mjCOMPTYPE_CABLE) {
     if (count[0]<3 || count[1]<3) {
       return comperr(error, "At least 3x3 required for skin subgrid", error_sz);
     }
@@ -245,11 +294,25 @@ bool mjCComposite::Make(mjCModel* model, mjCBody* body, char* error, int error_s
     return MakeGrid(model, body, error, error_sz);
 
   case mjCOMPTYPE_ROPE:
+    return comperr(error,
+                "The \"rope\" composite type is deprecated. Please use "
+                "\"cable\" instead.",
+                error_sz);
+
   case mjCOMPTYPE_LOOP:
+    mju_warning(
+        "The \"loop\" composite type is deprecated. Please use \"cable\" "
+        "instead.");
     return MakeRope(model, body, error, error_sz);
 
+  case mjCOMPTYPE_CABLE:
+    return MakeCable(model, body, error, error_sz);
+
   case mjCOMPTYPE_CLOTH:
-    return MakeCloth(model, body, error, error_sz);
+    return comperr(error,
+                   "The \"cloth\" composite type is deprecated. Please use "
+                   "\"shell\" instead.",
+                   error_sz);
 
   case mjCOMPTYPE_BOX:
   case mjCOMPTYPE_CYLINDER:
@@ -263,35 +326,237 @@ bool mjCComposite::Make(mjCModel* model, mjCBody* body, char* error, int error_s
 
 
 
-// make particles
 bool mjCComposite::MakeParticle(mjCModel* model, mjCBody* body, char* error, int error_sz) {
-  // create bodies and geoms
-  for (int ix=0; ix<count[0]; ix++) {
-    for (int iy=0; iy<count[1]; iy++) {
-      for (int iz=0; iz<count[2]; iz++) {
-        // create body
-        mjCBody* b = body->AddBody(NULL);
+  char txt[100];
+  std::vector<int> face;
 
-        // set body position
-        b->pos[0] = offset[0] + spacing*(ix - 0.5*count[0]);
-        b->pos[1] = offset[1] + spacing*(iy - 0.5*count[1]);
-        b->pos[2] = offset[2] + spacing*(iz - 0.5*count[2]);
+  // populate vertices and names
+  if (uservert.empty()) {
+    if (spacing < mju_max(def[0].geom.size[0],
+                  mju_max(def[0].geom.size[1], def[0].geom.size[2])))
+      return comperr(error, "Spacing must be larger than geometry size", error_sz);
 
-        // add slider joints
-        for (int i=0; i<3; i++) {
-          mjCJoint* jnt = b->AddJoint(def + mjCOMPKIND_JOINT, false);
-          jnt->def = body->def;
-          jnt->type = mjJNT_SLIDE;
-          mjuu_setvec(jnt->pos, 0, 0, 0);
-          mjuu_setvec(jnt->axis, 0, 0, 0);
-          jnt->axis[i] = 1;
+    for (int ix=0; ix<count[0]; ix++) {
+      for (int iy=0; iy<count[1]; iy++) {
+        for (int iz=0; iz<count[2]; iz++) {
+          uservert.push_back(spacing*(ix - 0.5*count[0]));
+          uservert.push_back(spacing*(iy - 0.5*count[1]));
+          uservert.push_back(spacing*(iz - 0.5*count[2]));
+
+          mju::sprintf_arr(txt, "%sB%d_%d_%d", prefix.c_str(), ix, iy, iz);
+          username.push_back(std::string(txt));
         }
-
-        // add geom
-        mjCGeom* g = b->AddGeom(def);
-        g->def = body->def;
-        g->type = mjGEOM_SPHERE;
       }
+    }
+  }
+
+  // create faces
+  if (userface.empty()) {
+    if (dim == 3) {
+      int cube2tets[6][4] = {{0, 3, 1, 7}, {0, 1, 4, 7},
+                             {1, 3, 2, 7}, {1, 2, 6, 7},
+                             {1, 5, 4, 7}, {1, 6, 5, 7}};
+      for (int ix = 0; ix < count[0]-1; ix++) {
+        for (int iy = 0; iy < count[1]-1; iy++) {
+          for (int iz = 0; iz < count[2]-1; iz++) {
+            int vert[8] = {
+              count[2]*count[1]*(ix+0) + count[2]*(iy+0) + iz+0,
+              count[2]*count[1]*(ix+1) + count[2]*(iy+0) + iz+0,
+              count[2]*count[1]*(ix+1) + count[2]*(iy+1) + iz+0,
+              count[2]*count[1]*(ix+0) + count[2]*(iy+1) + iz+0,
+              count[2]*count[1]*(ix+0) + count[2]*(iy+0) + iz+1,
+              count[2]*count[1]*(ix+1) + count[2]*(iy+0) + iz+1,
+              count[2]*count[1]*(ix+1) + count[2]*(iy+1) + iz+1,
+              count[2]*count[1]*(ix+0) + count[2]*(iy+1) + iz+1,
+            };
+            for (int s = 0; s < 6; s++) {
+              for (int v = 0; v < 4; v++) {
+                face.push_back(vert[cube2tets[s][v]]);
+              }
+            }
+          }
+        }
+      }
+    } else if (dim == 2) {
+      int quad2tri[2][3] = {{0, 1, 2}, {0, 2, 3}};
+      for (int ix = 0; ix < count[0]-1; ix++) {
+        for (int iy = 0; iy < count[1]-1; iy++) {
+          int vert[4] = {
+            count[2]*count[1]*(ix+0) + count[2]*(iy+0),
+            count[2]*count[1]*(ix+1) + count[2]*(iy+0),
+            count[2]*count[1]*(ix+1) + count[2]*(iy+1),
+            count[2]*count[1]*(ix+0) + count[2]*(iy+1),
+          };
+          for (int s = 0; s < 2; s++) {
+            for (int v = 0; v < 3; v++) {
+              face.push_back(vert[quad2tri[s][v]]);
+            }
+          }
+        }
+      }
+    }
+    mjXUtil::Vector2String(userface, face);
+    } else {
+    dim = 2;  // can only load a surface for now
+    mjXUtil::String2Vector(userface, face);
+    for (int i=0; i<face.size(); face[i++]--) {};
+    mjXUtil::Vector2String(userface, face);
+  }
+
+  // compute volume
+  std::vector<mjtNum> volume(uservert.size()/3);
+  mjtNum t = 1;
+  if (dim == 2 && plugin_instance) {
+    try {
+      t = std::stod(plugin_instance->config_attribs["thickness"], nullptr);
+    } catch (const std::invalid_argument& e) {
+      return comperr(error, "Invalid thickness attribute", error_sz);
+    }
+  }
+  if (!userface.empty()) {
+    mjXUtil::String2Vector(userface, face);
+    for (int j=0; j<face.size()/3; j++) {
+      mjtNum area[3];
+      mjtNum edge1[3];
+      mjtNum edge2[3];
+
+      for (int i=0; i<3; i++) {
+        edge1[i] = uservert[3*face[3*j+1]+i] - uservert[3*face[3*j]+i];
+        edge2[i] = uservert[3*face[3*j+2]+i] - uservert[3*face[3*j]+i];
+      }
+
+      mjuu_crossvec(area, edge1, edge2);
+      for (int i=0; i<3; i++) {
+        volume[face[3*j+i]] += sqrt(mjuu_dot3(area, area)) / 2 * t;
+      }
+    }
+  } else {
+    for (int i=0; i<uservert.size()/3; i++) {
+      volume[i] = 6 * spacing * spacing / 2 * t;
+    }
+  }
+
+  // create bodies and geoms
+  for (int i=0; i<uservert.size()/3; i++) {
+    // create body
+    mjCBody* b = body->AddBody(NULL);
+
+    if (!username.empty()) {
+      b->name = username[i];
+    } else {
+      mju::sprintf_arr(txt, "%sB%d", prefix.c_str(), i);
+      b->name = txt;
+    }
+
+    // set body position
+    b->pos[0] = offset[0] + uservert[3*i];
+    b->pos[1] = offset[1] + uservert[3*i+1];
+    b->pos[2] = offset[2] + uservert[3*i+2];
+
+    // add slider joints if none defined
+    if (!add[mjCOMPKIND_PARTICLE]) {
+      for (int i=0; i<3; i++) {
+        mjCJoint* jnt = b->AddJoint(&defjoint[mjCOMPKIND_JOINT][0], false);
+        jnt->def = body->def;
+        jnt->type = mjJNT_SLIDE;
+        mjuu_setvec(jnt->pos, 0, 0, 0);
+        mjuu_setvec(jnt->axis, 0, 0, 0);
+        jnt->axis[i] = 1;
+      }
+    }
+
+    // add user-specified joints
+    else {
+      for (auto defjnt : defjoint[mjCOMPKIND_PARTICLE]) {
+        mjCJoint* jnt = b->AddJoint(&defjnt, false);
+        jnt->def = body->def;
+      }
+    }
+
+    // add geom
+    mjCGeom* g = b->AddGeom(def);
+    g->def = body->def;
+
+    // add site
+    mjCSite* s = b->AddSite(def);
+    s->def = body->def;
+    s->type = mjGEOM_SPHERE;
+    mju::sprintf_arr(txt, "%sS%d", prefix.c_str(), i);
+    s->name = txt;
+
+    // add plugin
+    if (plugin_instance) {
+      b->is_plugin = true;
+      b->plugin_name = plugin_name;
+      b->plugin_instance = plugin_instance;
+      b->plugin_instance_name = plugin_instance_name;
+
+      if (i==0 && !plugin_instance->config_attribs["face"].empty()) {
+        return comperr(error, "Face attribute already exists in plugin", error_sz);
+      }
+
+      b->plugin_instance->config_attribs["face"] = userface;
+      b->plugin_instance->config_attribs["edge"] = "";
+
+      // update density
+      if (dim == 2) {
+        g->density *= volume[i] / (4./3. * mjPI * pow(g->size[0], 3));
+      }
+    }
+  }
+
+  // add isometry constraints
+  if (dim==2) {
+    char txt0[100], txt1[100], txt2[100];
+    std::vector<std::pair<int, int>> edge;
+
+    // create edges
+    for (int i=0; i<face.size()/3; i++) {
+      for (int j=0; j<3; j++) {
+        int v0 = face[3*i+(j+0)%3];
+        int v1 = face[3*i+(j+1)%3];
+        edge.push_back(v0 < v1 ? std::pair(v0, v1) : std::pair(v1, v0));
+      }
+    }
+
+    std::sort(edge.begin(), edge.end());
+    auto last = std::unique(edge.begin(), edge.end());
+    edge.erase(last, edge.end());
+
+    // create constraints
+    for (int i=0; i<edge.size(); i++) {
+      int v0 = edge[i].first;
+      int v1 = edge[i].second;
+
+      mju::sprintf_arr(txt0, "%sT%d_%d", prefix.c_str(), v0, v1);
+      mju::sprintf_arr(txt1, "%sS%d", prefix.c_str(), v0);
+      mju::sprintf_arr(txt2, "%sS%d", prefix.c_str(), v1);
+
+      // create tendon
+      mjCTendon* ten = model->AddTendon(def + mjCOMPKIND_TENDON);
+      ten->def = model->defaults[0];
+      ten->name = txt0;
+      ten->group = 4;
+      ten->WrapSite(txt1);
+      ten->WrapSite(txt2);
+
+      // add equality constraint
+      mjCEquality* eq = model->AddEquality(def + mjCOMPKIND_TENDON);
+      eq->def = model->defaults[0];
+      eq->type = mjEQ_TENDON;
+      eq->name1 = ten->name;
+    }
+  }
+
+  if (skin && dim==3) {
+    MakeSkin3(model);
+  }
+
+  if (skin && dim==2) {
+    if (skinsubgrid>0) {
+      MakeSkin2Subgrid(model, skininflate);
+    } else {
+      MakeSkin2(model, skininflate);
     }
   }
 
@@ -361,7 +626,7 @@ bool mjCComposite::MakeGrid(mjCModel* model, mjCBody* body, char* error, int err
       // add slider joint
       mjCJoint* jnt[3];
       for (int i=0; i<3; i++) {
-        jnt[i] = b->AddJoint(def + mjCOMPKIND_JOINT);
+        jnt[i] = b->AddJoint(&defjoint[mjCOMPKIND_JOINT][0]);
         jnt[i]->def = body->def;
         mju::sprintf_arr(txt, "%sJ%d_%d_%d", prefix.c_str(), i, ix, iy);
         jnt[i]->name = txt;
@@ -406,15 +671,212 @@ bool mjCComposite::MakeGrid(mjCModel* model, mjCBody* body, char* error, int err
   // skin
   if (skin) {
     if (skinsubgrid>0) {
-      MakeSkin2Subgrid(model);
+      MakeSkin2Subgrid(model, skininflate);
     } else {
-      MakeSkin2(model);
+      MakeSkin2(model, skininflate);
     }
   }
 
   return true;
 }
 
+
+
+bool mjCComposite::MakeCable(mjCModel* model, mjCBody* body, char* error, int error_sz) {
+  // check dim
+  if (dim!=1) {
+    return comperr(error, "Cable must be one-dimensional", error_sz);
+  }
+
+  // check geom type
+  if (def[0].geom.type!=mjGEOM_CYLINDER &&
+      def[0].geom.type!=mjGEOM_CAPSULE &&
+      def[0].geom.type!=mjGEOM_BOX) {
+    return comperr(error, "Cable geom type must be sphere, capsule or box", error_sz);
+  }
+
+  // add name to model
+  mjCText* pte = model->AddText();
+  pte->name = "composite_" + prefix;
+  pte->data = "rope_" + prefix;
+
+  // populate uservert if not specified
+  if (uservert.empty()) {
+    for (int ix=0; ix<count[0]; ix++) {
+      for (int k=0; k<3; k++) {
+        switch (curve[k]) {
+        case mjCOMPSHAPE_LINE:
+          uservert.push_back(ix*size[0]/(count[0]-1));
+          break;
+        case mjCOMPSHAPE_COS:
+          uservert.push_back(size[1]*cos(mjPI*ix*size[2]/(count[0]-1)));
+          break;
+        case mjCOMPSHAPE_SIN:
+          uservert.push_back(size[1]*sin(mjPI*ix*size[2]/(count[0]-1)));
+          break;
+        case mjCOMPSHAPE_ZERO:
+          uservert.push_back(0);
+          break;
+        default:
+          // SHOULD NOT OCCUR
+          mju_error("Invalid composite shape: %d", curve[k]);
+          break;
+        }
+      }
+    }
+  }
+
+  // create frame
+  mjtNum normal[3], prev_quat[4];
+  mjuu_setvec(normal, 0, 1, 0);
+  mjuu_setvec(prev_quat, 1, 0, 0, 0);
+
+  // add one body after the other
+  for (int ix=0; ix<count[0]-1; ix++) {
+    body = AddCableBody(model, body, ix, normal, prev_quat);
+  }
+
+  // add skin
+  if (def[0].geom.type==mjGEOM_BOX) {
+    if (skinsubgrid>0) {
+      count[1]+=2;
+      MakeSkin2Subgrid(model, 2*def[0].geom.size[2]);
+      count[1]-=2;
+    } else {
+      count[1]++;
+      MakeSkin2(model, 2*def[0].geom.size[2]);
+      count[1]--;
+    }
+  }
+  return true;
+}
+
+
+
+mjCBody* mjCComposite::AddCableBody(mjCModel* model, mjCBody* body, int ix, mjtNum normal[3], mjtNum prev_quat[4]) {
+  char txt_geom[100], txt_site[100], txt_slide[100];
+  char this_body[100], next_body[100], this_joint[100];
+  mjtNum dquat[4], this_quat[4];
+
+  // set flags
+  int lastidx = count[0]-2;
+  bool first = ix==0;
+  bool last = ix==lastidx;
+  bool secondlast = ix==lastidx-1;
+
+  // compute edge and tangent vectors
+  mjtNum edge[3], tprev[3], tnext[3];
+  mjuu_setvec(edge, uservert[3*(ix+1)+0]-uservert[3*ix+0],
+                    uservert[3*(ix+1)+1]-uservert[3*ix+1],
+                    uservert[3*(ix+1)+2]-uservert[3*ix+2]);
+  if (!first) {
+    mjuu_setvec(tprev, uservert[3*ix+0]-uservert[3*(ix-1)+0],
+                       uservert[3*ix+1]-uservert[3*(ix-1)+1],
+                       uservert[3*ix+2]-uservert[3*(ix-1)+2]);
+    mjuu_normvec(tprev, 3);
+  }
+  if (!last) {
+    mjuu_setvec(tnext, uservert[3*(ix+2)+0]-uservert[3*(ix+1)+0],
+                       uservert[3*(ix+2)+1]-uservert[3*(ix+1)+1],
+                       uservert[3*(ix+2)+2]-uservert[3*(ix+1)+2]);
+    mjuu_normvec(tnext, 3);
+  }
+
+  // update moving frame
+  mjtNum length = mju_updateFrame(this_quat, normal, edge, tprev, tnext, first);
+
+  // create body, joint, and geom names
+  if (first) {
+    mju::sprintf_arr(this_body, "%sB_first", prefix.c_str());
+    mju::sprintf_arr(next_body, "%sB_%d", prefix.c_str(), ix+1);
+    mju::sprintf_arr(this_joint, "%sJ_first", prefix.c_str());
+    mju::sprintf_arr(txt_site, "%sS_first", prefix.c_str());
+  } else if (last) {
+    mju::sprintf_arr(this_body, "%sB_last", prefix.c_str());
+    mju::sprintf_arr(next_body, "%sB_first", prefix.c_str());
+    mju::sprintf_arr(this_joint, "%sJ_last", prefix.c_str());
+    mju::sprintf_arr(txt_site, "%sS_last", prefix.c_str());
+  } else if (secondlast){
+    mju::sprintf_arr(this_body, "%sB_%d", prefix.c_str(), ix);
+    mju::sprintf_arr(next_body, "%sB_last", prefix.c_str());
+    mju::sprintf_arr(this_joint, "%sJ_%d", prefix.c_str(), ix);
+  } else {
+    mju::sprintf_arr(this_body, "%sB_%d", prefix.c_str(), ix);
+    mju::sprintf_arr(next_body, "%sB_%d", prefix.c_str(), ix+1);
+    mju::sprintf_arr(this_joint, "%sJ_%d", prefix.c_str(), ix);
+  }
+  mju::sprintf_arr(txt_geom, "%sG%d", prefix.c_str(), ix);
+  mju::sprintf_arr(txt_slide, "%sJs%d", prefix.c_str(), ix);
+
+  // add body
+  body = body->AddBody();
+  body->name = this_body;
+  if (first) {
+    mjuu_setvec(body->pos, offset[0]+uservert[3*ix],
+                           offset[1]+uservert[3*ix+1],
+                           offset[2]+uservert[3*ix+2]);
+    mjuu_copyvec(body->quat, this_quat, 4);
+  } else {
+    mjuu_setvec(body->pos, length, 0, 0);
+    mjtNum negquat[4] = {prev_quat[0], -prev_quat[1], -prev_quat[2], -prev_quat[3]};
+    mjuu_mulquat(dquat, negquat, this_quat);
+    mjuu_copyvec(body->quat, dquat, 4);
+  }
+
+  // add geom
+  mjCGeom* geom = body->AddGeom(def);
+  geom->def = body->def;
+  geom->name = txt_geom;
+  if (def[0].geom.type==mjGEOM_CYLINDER ||
+      def[0].geom.type==mjGEOM_CAPSULE) {
+    mjuu_zerovec(geom->fromto, 6);
+    geom->fromto[3] = length;
+  } else if (def[0].geom.type==mjGEOM_BOX) {
+    mjuu_zerovec(geom->pos, 3);
+    geom->pos[0] = length/2;
+    geom->size[0] = length/2;
+  }
+
+  // add plugin
+  if (plugin_instance) {
+    body->is_plugin = true;
+    body->plugin_name = plugin_name;
+    body->plugin_instance = plugin_instance;
+    body->plugin_instance_name = plugin_instance_name;
+  }
+
+  // update orientation
+  mjuu_copyvec(prev_quat, this_quat, 4);
+
+  // add curvature joint
+  if (!first || strcmp(initial.c_str(), "none")) {
+    mjCJoint* jnt = body->AddJoint(&defjoint[mjCOMPKIND_JOINT][0]);
+    jnt->def = body->def;
+    jnt->type = (first && strcmp(initial.c_str(), "free")==0) ? mjJNT_FREE : mjJNT_BALL;
+    jnt->damping = jnt->type==mjJNT_FREE ? 0 : jnt->damping;
+    jnt->armature = jnt->type==mjJNT_FREE ? 0 : jnt->armature;
+    jnt->frictionloss = jnt->type==mjJNT_FREE ? 0 : jnt->frictionloss;
+    jnt->name = this_joint;
+  }
+
+  // exclude contact pair
+  if (!last) {
+    mjCBodyPair* exclude = model->AddExclude();
+    exclude->bodyname1 = this_body;
+    exclude->bodyname2 = next_body;
+  }
+
+  // add site at the boundary
+  if (last || first) {
+    mjCSite* site = body->AddSite(def);
+    site->def = body->def;
+    site->name = txt_site;
+    mjuu_setvec(site->pos, last ? length : 0, 0, 0);
+    mjuu_setvec(site->quat, 1, 0, 0, 0);
+  }
+
+  return body;
+}
 
 
 // make rope
@@ -531,7 +993,7 @@ mjCBody* mjCComposite::AddRopeBody(mjCModel* model, mjCBody* body, int ix, int i
   // add main joint
   for (int i=0; i<2; i++) {
     // add joint
-    mjCJoint* jnt = body->AddJoint(def + mjCOMPKIND_JOINT);
+    mjCJoint* jnt = body->AddJoint(&defjoint[mjCOMPKIND_JOINT][0]);
     jnt->def = body->def;
     mju::sprintf_arr(txt, "%sJ%d_%d", prefix.c_str(), i, ix1);
     jnt->name = txt;
@@ -544,7 +1006,7 @@ mjCBody* mjCComposite::AddRopeBody(mjCModel* model, mjCBody* body, int ix, int i
   // add twist joint
   if (add[mjCOMPKIND_TWIST]) {
     // add joint
-    mjCJoint* jnt = body->AddJoint(def + mjCOMPKIND_TWIST);
+    mjCJoint* jnt = body->AddJoint(&defjoint[mjCOMPKIND_TWIST][0]);
     jnt->def = body->def;
     mju::sprintf_arr(txt, "%sJT%d", prefix.c_str(), ix1);
     jnt->name = txt;
@@ -562,280 +1024,13 @@ mjCBody* mjCComposite::AddRopeBody(mjCModel* model, mjCBody* body, int ix, int i
   // add stretch joint
   if (add[mjCOMPKIND_STRETCH]) {
     // add joint
-    mjCJoint* jnt = body->AddJoint(def + mjCOMPKIND_STRETCH);
+    mjCJoint* jnt = body->AddJoint(&defjoint[mjCOMPKIND_STRETCH][0]);
     jnt->def = body->def;
     mju::sprintf_arr(txt, "%sJS%d", prefix.c_str(), ix1);
     jnt->name = txt;
     jnt->type = mjJNT_SLIDE;
     mjuu_setvec(jnt->pos, -0.5*dx, 0, 0);
     mjuu_setvec(jnt->axis, 1, 0, 0);
-
-    // add constraint
-    mjCEquality* eq = model->AddEquality(def + mjCOMPKIND_STRETCH);
-    eq->def = model->defaults[0];
-    eq->type = mjEQ_JOINT;
-    eq->name1 = jnt->name;
-  }
-
-  return body;
-}
-
-
-
-// make 2d cloth
-bool mjCComposite::MakeCloth(mjCModel* model, mjCBody* body, char* error, int error_sz) {
-  // check dim
-  if (dim!=2) {
-    return comperr(error, "Cloth must be two-dimensional", error_sz);
-  }
-
-  // check root body name prefix
-  char txt[200];
-  mju::sprintf_arr(txt, "%sB", prefix.c_str());
-  if (std::strncmp(txt, body->name.substr(0, strlen(txt)).c_str(), mju::sizeof_arr(txt))) {
-    mju::strcat_arr(txt, " must be the beginning of root body name");
-    return comperr(error, txt, error_sz);
-  }
-
-  // read origin coordinate from root body
-  mju::strcpy_arr(txt, body->name.substr(strlen(txt)).c_str());
-  int ox = -1, oy = -1;
-  char c;
-  if (sscanf(txt, "%d%c%d", &ox, &c, &oy)!=3 || c!='_') {
-    return comperr(error, "Root body name must contain X_Y coordinates", error_sz);
-  }
-  if (ox<0 || ox>=count[0] || oy<0 || oy>=count[1]) {
-    return comperr(error, "Root body coordinates out of range", error_sz);
-  }
-
-  // add origin
-  AddClothBody(model, body, ox, oy, ox, oy);
-
-  // add row: both directions
-  for (int i=-2; i<=2; i+=2) {
-    // init at origin
-    int ix = ox;
-
-    // process row to end
-    mjCBody* pbodyx = body;
-    while (1) {
-      // candidate neighbor
-      int ix1 = ix;
-      if (i==0) {
-        ix1 = mjMIN(count[0]-1, ix+1);
-      } else if (i==2) {
-        ix1 = mjMAX(0, ix-1);
-      }
-
-      // regular column
-      if (i!=-2) {
-        // stop if same
-        if (ix1==ix) {
-          break;
-        }
-
-        // add body, assign counter
-        pbodyx = AddClothBody(model, pbodyx, ix, oy, ix1, oy);
-        ix = ix1;
-      }
-
-      // add column: regular or center
-      for (int j=1; j<=3; j+=2) {
-        // init at row
-        int iy = oy;
-
-        // process column to end
-        mjCBody* pbodyy = pbodyx;
-        while (1) {
-          // candidate neighbor
-          int iy1;
-          if (j==1) {
-            iy1 = mjMIN(count[1]-1, iy+1);
-          } else {
-            iy1 = mjMAX(0, iy-1);
-          }
-
-          // stop if same
-          if (iy1==iy) {
-            break;
-          }
-
-          // add body, assign counter
-          pbodyy = AddClothBody(model, pbodyy, ix, iy, ix, iy1);
-          iy = iy1;
-        }
-      }
-
-      // center column added
-      if (i==-2) {
-        break;
-      }
-    }
-  }
-
-  // add main tendons
-  for (int iy=0; iy<count[1]; iy++) {
-    if (iy!=oy) {
-      for (int ix=0; ix<count[0]-1; ix++) {
-        char txt1[100], txt2[100];
-
-        // recover site names
-        mju::sprintf_arr(txt1, "%sS%d_%d", prefix.c_str(), ix, iy);
-        mju::sprintf_arr(txt2, "%sS%d_%d", prefix.c_str(), ix+1, iy);
-
-        // create tendon
-        mjCTendon* ten = model->AddTendon(def + mjCOMPKIND_TENDON);
-        ten->def = model->defaults[0];
-        mju::sprintf_arr(txt, "%sT%d_%d", prefix.c_str(), ix, iy);
-        ten->name = txt;
-        ten->WrapSite(txt1);
-        ten->WrapSite(txt2);
-
-        // add equality constraint
-        mjCEquality* eq = model->AddEquality(def + mjCOMPKIND_TENDON);
-        eq->def = model->defaults[0];
-        eq->type = mjEQ_TENDON;
-        eq->name1 = ten->name;
-      }
-    }
-  }
-
-  // shear for 2D
-  if (add[mjCOMPKIND_SHEAR]) {
-    MakeShear(model);
-  }
-
-  // skin
-  if (skin) {
-    if (skinsubgrid>0) {
-      MakeSkin2Subgrid(model);
-    } else {
-      MakeSkin2(model);
-    }
-  }
-
-  return true;
-}
-
-
-
-// add child body for cloth
-mjCBody* mjCComposite::AddClothBody(mjCModel* model, mjCBody* body,
-                                    int ix, int iy, int ix1, int iy1) {
-  char txt[100];
-  bool isroot = (ix==ix1 && iy==iy1);
-  double dx = spacing*(ix1-ix);
-  double dy = spacing*(iy1-iy);
-
-  // add child if not root
-  if (!isroot) {
-    body = body->AddBody();
-    mju::sprintf_arr(txt, "%sB%d_%d", prefix.c_str(), ix1, iy1);
-    body->name = txt;
-    mjuu_setvec(body->pos, dx, dy, 0);
-  }
-
-  // add geom, alternating rotations
-  mjCGeom* geom = body->AddGeom(def);
-  geom->def = body->def;
-  mju::sprintf_arr(txt, "%sG%d_%d", prefix.c_str(), ix1, iy1);
-  geom->name = txt;
-  mjuu_setvec(geom->pos, 0, 0, 0);
-  if ((ix1+iy1)%2) {
-    mjuu_setvec(geom->quat, sqrt(0.5), sqrt(0.5), 0, 0);
-  } else {
-    mjuu_setvec(geom->quat, 0.5, 0.5, 0.5, 0.5);
-  }
-
-  // make inertia flat
-  if (flatinertia>0) {
-    // set body mass = geom mass
-    body->mass = mjuu_defined(geom->_mass) ? geom->_mass :
-                 geom->density * geom->GetVolume();
-
-    // set body i-frame
-    mjuu_setvec(body->ipos, 0, 0, 0);
-    mjuu_setvec(body->iquat, 1, 0, 0, 0);
-
-    // desired equivalent inertia box
-    double size[3] = {0.5*spacing, 0.5*spacing, 0.5*spacing*flatinertia};
-
-    // convert to inertia
-    body->inertia[0] = body->mass*(size[1]*size[1]+size[2]*size[2])/3;
-    body->inertia[1] = body->mass*(size[0]*size[0]+size[2]*size[2])/3;
-    body->inertia[2] = body->mass*(size[0]*size[0]+size[1]*size[1])/3;
-
-    body->MakeInertialExplicit();
-  }
-
-  // add site
-  mjCSite* site = body->AddSite(def);
-  site->def = body->def;
-  site->type = mjGEOM_SPHERE;
-  mju::sprintf_arr(txt, "%sS%d_%d", prefix.c_str(), ix1, iy1);
-  site->name = txt;
-  mjuu_setvec(site->pos, 0, 0, 0);
-  mjuu_setvec(site->quat, 1, 0, 0, 0);
-
-  // root: no joints
-  if (isroot) {
-    return body;
-  }
-
-  // add main joint
-  for (int i=0; i<2; i++) {
-    // add joint
-    mjCJoint* jnt = body->AddJoint(def + mjCOMPKIND_JOINT);
-    jnt->def = body->def;
-    mju::sprintf_arr(txt, "%sJ%d_%d_%d", prefix.c_str(), i, ix1, iy1);
-    jnt->name = txt;
-    jnt->type = mjJNT_HINGE;
-    mjuu_setvec(jnt->pos, -dx, -dy, 0);
-
-    // set universal axis depending on parent direction
-    mjuu_setvec(jnt->axis, 0, 0, 0);
-    if (ix!=ix1) {
-      jnt->axis[i+1] = 1;
-    } else {
-      jnt->axis[2*i] = 1;
-    }
-  }
-
-  // add twist joint
-  if (add[mjCOMPKIND_TWIST]) {
-    mjCJoint* jnt = body->AddJoint(def + mjCOMPKIND_TWIST);
-    jnt->def = body->def;
-    mju::sprintf_arr(txt, "%sJT%d_%d", prefix.c_str(), ix1, iy1);
-    jnt->name = txt;
-    jnt->type = mjJNT_HINGE;
-    mjuu_setvec(jnt->pos, -dx, -dy, 0);
-    if (ix!=ix1) {
-      mjuu_setvec(jnt->axis, 1, 0, 0);
-    } else {
-      mjuu_setvec(jnt->axis, 0, 1, 0);
-    }
-
-    // add constraint
-    mjCEquality* eq = model->AddEquality(def + mjCOMPKIND_TWIST);
-    eq->def = model->defaults[0];
-    eq->type = mjEQ_JOINT;
-    eq->name1 = jnt->name;
-  }
-
-  // add stretch joint
-  if (add[mjCOMPKIND_STRETCH]) {
-    // add joint
-    mjCJoint* jnt = body->AddJoint(def + mjCOMPKIND_STRETCH);
-    jnt->def = body->def;
-    mju::sprintf_arr(txt, "%sJS%d_%d", prefix.c_str(), ix1, iy1);
-    jnt->name = txt;
-    jnt->type = mjJNT_SLIDE;
-    mjuu_setvec(jnt->pos, -dx, -dy, 0);
-    if (ix!=ix1) {
-      mjuu_setvec(jnt->axis, 1, 0, 0);
-    } else {
-      mjuu_setvec(jnt->axis, 0, 1, 0);
-    }
 
     // add constraint
     mjCEquality* eq = model->AddEquality(def + mjCOMPKIND_STRETCH);
@@ -867,7 +1062,7 @@ void mjCComposite::BoxProject(double* pos) {
 
   // cylinder
   else if (type==mjCOMPTYPE_CYLINDER) {
-    double L0 = mjMAX(mju_abs(pos[0]), mju_abs(pos[1]));
+    double L0 = mju_max(mju_abs(pos[0]), mju_abs(pos[1]));
     mjuu_normvec(pos, 2);
     pos[0] *= size[0]*L0;
     pos[1] *= size[1]*L0;
@@ -887,7 +1082,6 @@ void mjCComposite::BoxProject(double* pos) {
 
 // make 3d box, ellipsoid or cylinder
 bool mjCComposite::MakeBox(mjCModel* model, mjCBody* body, char* error, int error_sz) {
-  int ix, iy, iz;
   char txt[100];
 
   // check dim
@@ -913,9 +1107,9 @@ bool mjCComposite::MakeBox(mjCModel* model, mjCBody* body, char* error, int erro
   ten->name = txt;
 
   // create bodies, geoms and joints: outside shell only
-  for (ix=0; ix<count[0]; ix++) {
-    for (iy=0; iy<count[1]; iy++) {
-      for (iz=0; iz<count[2]; iz++) {
+  for (int ix=0; ix<count[0]; ix++) {
+    for (int iy=0; iy<count[1]; iy++) {
+      for (int iz=0; iz<count[2]; iz++) {
         if (ix==0 || ix==count[0]-1 ||
             iy==0 || iy==count[1]-1 ||
             iz==0 || iz==count[2]-1) {
@@ -951,7 +1145,7 @@ bool mjCComposite::MakeBox(mjCModel* model, mjCBody* body, char* error, int erro
           }
 
           // add slider joint
-          mjCJoint* jnt = b->AddJoint(def + mjCOMPKIND_JOINT);
+          mjCJoint* jnt = b->AddJoint(&defjoint[mjCOMPKIND_JOINT][0]);
           jnt->def = body->def;
           mju::sprintf_arr(txt, "%sJ%d_%d_%d", prefix.c_str(), ix, iy, iz);
           jnt->name = txt;
@@ -1011,11 +1205,10 @@ bool mjCComposite::MakeBox(mjCModel* model, mjCBody* body, char* error, int erro
 
 // add shear tendons to 2D
 void mjCComposite::MakeShear(mjCModel* model) {
-  int ix, iy;
   char txt[100], txt1[100], txt2[100];
 
-  for (ix=0; ix<count[0]-1; ix++) {
-    for (iy=0; iy<count[1]-1; iy++) {
+  for (int ix=0; ix<count[0]-1; ix++) {
+    for (int iy=0; iy<count[1]-1; iy++) {
       // recover site names
       mju::sprintf_arr(txt1, "%sS%d_%d", prefix.c_str(), ix, iy);
       mju::sprintf_arr(txt2, "%sS%d_%d", prefix.c_str(), ix+1, iy+1);
@@ -1042,7 +1235,7 @@ void mjCComposite::MakeShear(mjCModel* model) {
 
 
 // add skin to 2D
-void mjCComposite::MakeSkin2(mjCModel* model) {
+void mjCComposite::MakeSkin2(mjCModel* model, mjtNum inflate) {
   char txt[100];
   int N = count[0]*count[1];
 
@@ -1052,7 +1245,48 @@ void mjCComposite::MakeSkin2(mjCModel* model) {
   skin->name = txt;
   skin->material = skinmaterial;
   mjuu_copyvec(skin->rgba, skinrgba, 4);
-  skin->inflate = skininflate;
+  skin->inflate = inflate;
+  skin->group = skingroup;
+
+  // copy skin from existing mesh
+  if (type==mjCOMPTYPE_PARTICLE && username.empty()) {
+    std::vector<int> face;
+    mjXUtil::String2Vector(userface, face);
+    int nvert = uservert.size()/3;
+
+    for (int j=0; j<2; j++) {
+      for (int i=0; i<nvert; i++) {
+        skin->vert.push_back(0);
+        skin->vert.push_back(0);
+        skin->vert.push_back(0);
+
+        mju::sprintf_arr(txt, "%sB%d", prefix.c_str(), i);
+        skin->bodyname.push_back(txt);
+        skin->bindpos.push_back(0);
+        skin->bindpos.push_back(0);
+        skin->bindpos.push_back(0);
+        skin->bindquat.push_back(1);
+        skin->bindquat.push_back(0);
+        skin->bindquat.push_back(0);
+        skin->bindquat.push_back(0);
+
+        vector<int> vertid;
+        vector<float> vertweight;
+        vertid.push_back(j*nvert+i);
+        vertweight.push_back(1);
+        skin->vertid.push_back(vertid);
+        skin->vertweight.push_back(vertweight);
+      }
+
+      for (int i=0; i<face.size()/3; i++) {
+        skin->face.push_back(j*nvert+face[3*i]);
+        skin->face.push_back(j*nvert+face[3*i+(j==0 ? 1 : 2)]);
+        skin->face.push_back(j*nvert+face[3*i+(j==0 ? 2 : 1)]);
+      }
+    }
+
+    return;
+  }
 
   // populate mesh: two sides
   for (int i=0; i<2; i++) {
@@ -1127,11 +1361,30 @@ void mjCComposite::MakeSkin2(mjCModel* model) {
     skin->face.push_back(N + iy+1 + (count[0]-1)*count[1]);
   }
 
+  // couple with bones
+  if (type==mjCOMPTYPE_PARTICLE || type==mjCOMPTYPE_GRID) {
+    MakeClothBones(model, skin);
+  } else if (type==mjCOMPTYPE_CABLE) {
+    MakeCableBones(model, skin);
+  }
+}
+
+
+
+// add bones in 2D
+void mjCComposite::MakeClothBones(mjCModel* model, mjCSkin* skin) {
+  char txt[100];
+  int N = count[0]*count[1];
+
   // populate bones
   for (int ix=0; ix<count[0]; ix++) {
     for (int iy=0; iy<count[1]; iy++) {
       // body name
-      mju::sprintf_arr(txt, "%sB%d_%d", prefix.c_str(), ix, iy);
+      if (type==mjCOMPTYPE_GRID) {
+        mju::sprintf_arr(txt, "%sB%d_%d", prefix.c_str(), ix, iy);
+      } else {
+        mju::sprintf_arr(txt, "%sB%d_%d_0", prefix.c_str(), ix, iy);
+      }
 
       // bind pose
       skin->bodyname.push_back(txt);
@@ -1155,6 +1408,128 @@ void mjCComposite::MakeSkin2(mjCModel* model) {
     }
   }
 }
+
+
+
+void mjCComposite::MakeClothBonesSubgrid(mjCModel* model, mjCSkin* skin) {
+  char txt[100];
+
+  // populate bones
+  for (int ix=0; ix<count[0]; ix++) {
+    for (int iy=0; iy<count[1]; iy++) {
+      // body name
+      if (type==mjCOMPTYPE_GRID) {
+        mju::sprintf_arr(txt, "%sB%d_%d", prefix.c_str(), ix, iy);
+      } else {
+        mju::sprintf_arr(txt, "%sB%d_%d_0", prefix.c_str(), ix, iy);
+      }
+
+      // bind pose
+      skin->bodyname.push_back(txt);
+      skin->bindpos.push_back(ix*spacing);
+      skin->bindpos.push_back(iy*spacing);
+      skin->bindpos.push_back(0);
+      skin->bindquat.push_back(1);
+      skin->bindquat.push_back(0);
+      skin->bindquat.push_back(0);
+      skin->bindquat.push_back(0);
+
+      // empty vertid and vertweight
+      vector<int> vertid;
+      vector<float> vertweight;
+      skin->vertid.push_back(vertid);
+      skin->vertweight.push_back(vertweight);
+    }
+  }
+}
+
+
+
+// add bones to 1D
+void mjCComposite::MakeCableBones(mjCModel* model, mjCSkin* skin) {
+  char this_body[100];
+  int N = count[0]*count[1];
+
+  // populate bones
+  for (int ix=0; ix<count[0]; ix++) {
+    for (int iy=0; iy<count[1]; iy++) {
+      // body name
+      if (ix==0) {
+        mju::sprintf_arr(this_body, "%sB_first", prefix.c_str());
+      } else if (ix>=count[0]-2) {
+        mju::sprintf_arr(this_body, "%sB_last", prefix.c_str());
+      } else {
+        mju::sprintf_arr(this_body, "%sB_%d", prefix.c_str(), ix);
+      }
+
+      // bind pose
+      if (iy==0) {
+        skin->bodyname.push_back(this_body);
+        skin->bindpos.push_back((ix==count[0]-1) ? -2*def[0].geom.size[0] : 0);
+        skin->bindpos.push_back(-def[0].geom.size[1]);
+        skin->bindpos.push_back(0);
+        skin->bindquat.push_back(1); skin->bindquat.push_back(0);
+        skin->bindquat.push_back(0); skin->bindquat.push_back(0);
+      } else {
+        skin->bodyname.push_back(this_body);
+        skin->bindpos.push_back((ix==count[0]-1) ? -2*def[0].geom.size[0] : 0);
+        skin->bindpos.push_back(def[0].geom.size[1]);
+        skin->bindpos.push_back(0);
+        skin->bindquat.push_back(1); skin->bindquat.push_back(0);
+        skin->bindquat.push_back(0); skin->bindquat.push_back(0);
+      }
+
+      // create vertid and vertweight
+      skin->vertid.push_back({ix*count[1]+iy, N + ix*count[1]+iy});
+      skin->vertweight.push_back({1, 1});
+    }
+  }
+}
+
+
+
+void mjCComposite::MakeCableBonesSubgrid(mjCModel* model, mjCSkin* skin) {
+  // populate bones
+  for (int ix=0; ix<count[0]; ix++) {
+    for (int iy=0; iy<count[1]; iy++) {
+      char txt[100];
+
+      // body name
+      if (ix==0) {
+        mju::sprintf_arr(txt, "%sB_first", prefix.c_str());
+      } else if (ix>=count[0]-2) {
+        mju::sprintf_arr(txt, "%sB_last", prefix.c_str());
+      } else {
+        mju::sprintf_arr(txt, "%sB_%d", prefix.c_str(), ix);
+      }
+
+      // bind pose
+      if (iy==0) {
+        skin->bindpos.push_back((ix==count[0]-1) ? -2*def[0].geom.size[0] : 0);
+        skin->bindpos.push_back(-def[0].geom.size[1]);
+        skin->bindpos.push_back(0);
+      } else if (iy==2) {
+        skin->bindpos.push_back((ix==count[0]-1) ? -2*def[0].geom.size[0] : 0);
+        skin->bindpos.push_back(def[0].geom.size[1]);
+        skin->bindpos.push_back(0);
+      } else {
+        skin->bindpos.push_back((ix==count[0]-1) ? -2*def[0].geom.size[0] : 0);
+        skin->bindpos.push_back(0);
+        skin->bindpos.push_back(0);
+      }
+      skin->bodyname.push_back(txt);
+      skin->bindquat.push_back(1);
+      skin->bindquat.push_back(0);
+      skin->bindquat.push_back(0);
+      skin->bindquat.push_back(0);
+
+      // empty vertid and vertweight
+      skin->vertid.push_back({});
+      skin->vertweight.push_back({});
+    }
+  }
+}
+
 
 
 //------------------------------------- subgrid matrices
@@ -1388,7 +1763,7 @@ static const mjtNum subD22[] = {
 
 
 // add skin to 2D, with subgrid
-void mjCComposite::MakeSkin2Subgrid(mjCModel* model) {
+void mjCComposite::MakeSkin2Subgrid(mjCModel* model, mjtNum inflate) {
   // assemble pointers to Dxx matrices
   const mjtNum* Dp[3][3] = {
     {subD00, subD01, subD02},
@@ -1472,7 +1847,8 @@ void mjCComposite::MakeSkin2Subgrid(mjCModel* model) {
   skin->name = txt;
   skin->material = skinmaterial;
   mjuu_copyvec(skin->rgba, skinrgba, 4);
-  skin->inflate = skininflate;
+  skin->inflate = inflate;
+  skin->group = skingroup;
 
   // populate mesh: two sides
   mjtNum S = spacing/(1+skinsubgrid);
@@ -1551,28 +1927,10 @@ void mjCComposite::MakeSkin2Subgrid(mjCModel* model) {
     skin->face.push_back(NN + iy+1 + (C0-1)*C1);
   }
 
-  // populate bones
-  for (int ix=0; ix<count[0]; ix++) {
-    for (int iy=0; iy<count[1]; iy++) {
-      // body name
-      mju::sprintf_arr(txt, "%sB%d_%d", prefix.c_str(), ix, iy);
-
-      // bind pose
-      skin->bodyname.push_back(txt);
-      skin->bindpos.push_back(ix*spacing);
-      skin->bindpos.push_back(iy*spacing);
-      skin->bindpos.push_back(0);
-      skin->bindquat.push_back(1);
-      skin->bindquat.push_back(0);
-      skin->bindquat.push_back(0);
-      skin->bindquat.push_back(0);
-
-      // empty vertid and vertweight
-      vector<int> vertid;
-      vector<float> vertweight;
-      skin->vertid.push_back(vertid);
-      skin->vertweight.push_back(vertweight);
-    }
+  if (type==mjCOMPTYPE_PARTICLE || type==mjCOMPTYPE_GRID) {
+    MakeClothBonesSubgrid(model, skin);
+  } else if (type==mjCOMPTYPE_CABLE) {
+    MakeCableBonesSubgrid(model, skin);
   }
 
   // bind vertices to bones: one big square at a time
@@ -1643,9 +2001,10 @@ void mjCComposite::MakeSkin3(mjCModel* model) {
   skin->material = skinmaterial;
   mjuu_copyvec(skin->rgba, skinrgba, 4);
   skin->inflate = skininflate;
+  skin->group = skingroup;
 
   // box
-  if (type==mjCOMPTYPE_BOX) {
+  if (type==mjCOMPTYPE_BOX || type==mjCOMPTYPE_PARTICLE) {
     // z-faces
     MakeSkin3Box(skin, count[0], count[1], 1, vcnt, "%sB%d_%d_0");
     fmt = "%sB%d_%d_" + string(cnt2);
@@ -1784,12 +2143,11 @@ void mjCComposite::MakeSkin3(mjCModel* model) {
 // make one face of 3D skin, box
 void mjCComposite::MakeSkin3Box(mjCSkin* skin, int c0, int c1, int side,
                                 int& vcnt, const char* format) {
-  int i0, i1;
   char txt[100];
 
   // loop over bodies/vertices of specified face
-  for (i0=0; i0<c0; i0++) {
-    for (i1=0; i1<c1; i1++) {
+  for (int i0=0; i0<c0; i0++) {
+    for (int i1=0; i1<c1; i1++) {
       // vertex
       skin->vert.push_back(0);
       skin->vert.push_back(0);
@@ -1844,12 +2202,11 @@ void mjCComposite::MakeSkin3Box(mjCSkin* skin, int c0, int c1, int side,
 // make one face of 3D skin, smooth
 void mjCComposite::MakeSkin3Smooth(mjCSkin* skin, int c0, int c1, int side,
                                    const std::map<string, int>& vmap, const char* format) {
-  int i0, i1;
   char txt00[100], txt01[100], txt10[100], txt11[100];
 
   // loop over bodies/vertices of specified face
-  for (i0=0; i0<c0; i0++) {
-    for (i1=0; i1<c1; i1++) {
+  for (int i0=0; i0<c0; i0++) {
+    for (int i1=0; i1<c1; i1++) {
       // body names
       mju::sprintf_arr(txt00, format, prefix.c_str(), i0, i1);
       mju::sprintf_arr(txt01, format, prefix.c_str(), i0, i1+1);

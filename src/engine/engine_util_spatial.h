@@ -47,13 +47,13 @@ MJAPI void mju_subQuat(mjtNum res[3], const mjtNum qa[4], const mjtNum qb[4]);
 // convert quaternion to 3D rotation matrix
 MJAPI void mju_quat2Mat(mjtNum res[9], const mjtNum quat[4]);
 
-// convert 3D rotation matrix to quaterion
+// convert 3D rotation matrix to quaternion
 MJAPI void mju_mat2Quat(mjtNum quat[4], const mjtNum mat[9]);
 
 // time-derivative of quaternion, given 3D rotational velocity
 MJAPI void mju_derivQuat(mjtNum res[4], const mjtNum quat[4], const mjtNum vel[3]);
 
-// integrate quaterion given 3D angular velocity
+// integrate quaternion given 3D angular velocity
 MJAPI void mju_quatIntegrate(mjtNum quat[4], const mjtNum vel[3], mjtNum scale);
 
 // compute quaternion performing rotation from z-axis to given vector

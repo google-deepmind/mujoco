@@ -14,6 +14,7 @@
 
 #include "test/fixture.h"
 
+#include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <memory>
@@ -29,6 +30,8 @@
 
 namespace mujoco {
 namespace {
+
+using ::testing::NotNull;
 
 ABSL_CONST_INIT static absl::Mutex handlers_mutex(absl::kConstInit);
 static int guard_count ABSL_GUARDED_BY(handlers_mutex) = 0;
@@ -67,17 +70,41 @@ const std::string GetModelPath(std::string_view path) {
 }
 
 mjModel* LoadModelFromString(std::string_view xml, char* error,
-                             int error_size) {
-  static constexpr char file[] = "filename.xml";
-  // mjVFS structs need to be allocated on the heap, because it's ~2MB
-  auto vfs = std::make_unique<mjVFS>();
-  mj_defaultVFS(vfs.get());
-  mj_makeEmptyFileVFS(vfs.get(), file, xml.size());
-  int file_idx = mj_findFileVFS(vfs.get(), file);
-  memcpy(vfs->filedata[file_idx], xml.data(), xml.size());
-  mjModel* m = mj_loadXML(file, vfs.get(), error, error_size);
-  mj_deleteFileVFS(vfs.get(), file);
-  return m;
+                             int error_size, mjVFS* vfs) {
+  // register string resource provider if not registered before
+  if (mjp_getResourceProvider("LoadModelFromString:") == nullptr) {
+    mjpResourceProvider resourceProvider;
+    mjp_defaultResourceProvider(&resourceProvider);
+    resourceProvider.prefix = "LoadModelFromString";
+    resourceProvider.open = +[](mjResource* resource) {
+      resource->data = &(resource->name[strlen("LoadModelFromString:")]);
+      return 1;
+    };
+    resourceProvider.read =
+        +[](mjResource* resource, const void** buffer) {
+          *buffer = resource->data;
+          return (int) strlen((const char*) resource->data);
+        };
+    resourceProvider.close = +[](mjResource* resource) {};
+    mjp_registerResourceProvider(&resourceProvider);
+  }
+  std::string xml2 = {xml.begin(), xml.end()};
+  std::string str = "LoadModelFromString:" +  xml2;
+  return mj_loadXML(str.c_str(), vfs, error, error_size);
+}
+
+static void AssertModelNotNull(mjModel* model,
+                                  const std::array<char, 1024>& error) {
+  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error.data();
+}
+
+mjModel* LoadModelFromPath(const char* model_path) {
+  const std::string xml_path = GetModelPath(model_path);
+  std::array<char, 1024> error;
+  mjModel* model = mj_loadXML(
+    xml_path.c_str(), nullptr, error.data(), error.size());
+  AssertModelNotNull(model, error);
+  return model;
 }
 
 const std::string GetFileContents(const char* path) {
@@ -116,6 +143,25 @@ const std::string SaveAndReadXml(const mjModel* model) {
   std::remove(filepath);
 
   return contents;
+}
+
+std::vector<mjtNum> GetCtrlNoise(const mjModel* m, int nsteps,
+                                 mjtNum ctrlnoise) {
+  std::vector<mjtNum> ctrl;
+  for (int step=0; step < nsteps; step++) {
+    for (int i = 0; i < m->nu; i++) {
+      mjtNum center = 0.0;
+      mjtNum radius = 1.0;
+      mjtNum* range = m->actuator_ctrlrange + 2 * i;
+      if (m->actuator_ctrllimited[i]) {
+        center = (range[1] + range[0]) / 2;
+        radius = (range[1] - range[0]) / 2;
+      }
+      radius *= ctrlnoise;
+      ctrl.push_back(center + radius * (2 * mju_Halton(step, i+2) - 1));
+    }
+  }
+  return ctrl;
 }
 
 }  // namespace mujoco

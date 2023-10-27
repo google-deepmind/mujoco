@@ -14,6 +14,7 @@
 # ==============================================================================
 """Code generator for function_traits.h."""
 
+import keyword
 from typing import Mapping, Sequence
 
 from absl import app
@@ -24,12 +25,23 @@ from introspect import functions
 FUNCTIONS: Mapping[str, ast_nodes.FunctionDecl] = functions.FUNCTIONS
 
 
+def _sanitize_keyword(s: str) -> str:
+  if keyword.iskeyword(s):
+    return s + '_'
+  return s
+
+
 def main(argv: Sequence[str]) -> None:
   if len(argv) > 1:
     raise app.UsageError('Too many command-line arguments.')
 
   struct_decls = []
   for func in FUNCTIONS.values():
+    # Skip mju_error_{i,s} and mju_warning_{i,s} as these are not
+    # supported in the Python bindings, and Introspect currently
+    # doesn't support variadic functions.
+    if func.name.startswith('mju_error') or func.name == 'mju_warning':
+      continue
 
     # Modify some parameter types.
     parameters = []
@@ -54,7 +66,9 @@ def main(argv: Sequence[str]) -> None:
     else:
       getfunc = f'::{func.name}'
 
-    param_names = ', '.join(f'"{p.name}"' for p in parameters)
+    param_names = ', '.join(
+        f'"{_sanitize_keyword(p.name)}"' for p in parameters
+    )
 
     struct_decls.append(f"""
 struct {func.name} {{

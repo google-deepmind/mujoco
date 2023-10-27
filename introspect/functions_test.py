@@ -16,9 +16,9 @@
 
 from absl.testing import absltest
 
-from google3.third_party.mujoco.introspect import ast_nodes
-from google3.third_party.mujoco.introspect import functions
-from google3.third_party.mujoco.introspect import type_parsing
+from . import ast_nodes
+from . import functions
+from . import type_parsing
 
 
 class FunctionsTest(absltest.TestCase):

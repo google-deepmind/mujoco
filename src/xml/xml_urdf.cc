@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include <cstring>
+#include <iostream>
 #include <string>
 #include <vector>
 
@@ -64,20 +65,27 @@ void mjXURDF::Clear(void) {
   urChildren.clear();
   urMat.clear();
   urRGBA.clear();
+  urGeomNames.clear();
 }
 
-
+std::string mjXURDF::GetPrefixedName(const std::string& name) {
+  if (name.empty()) {
+    return name;
+  }
+  if (urPrefix.empty()) {
+    return name;
+  }
+  return urPrefix + "/" + name;
+}
 
 // actual parser
-void mjXURDF::Parse(XMLElement* root) {
+void mjXURDF::Parse(
+    XMLElement* root, const std::string& prefix, double* pos, double* quat,
+    const bool static_body) {
   std::string name, text;
   XMLElement *elem, *temp;
-  int id_parent, id_child, i;
-
-  // set compiler defaults suitable for URDF
-  model->strippath = true;
-  model->discardvisual = true;
-  model->fusestatic = true;
+  int id_parent, id_child;
+  urPrefix = prefix;
 
   // parse MuJoCo sections (not part of URDF)
   XMLElement* mjc = FindSubElem(root, "mujoco");
@@ -96,8 +104,7 @@ void mjXURDF::Parse(XMLElement* root) {
     }
   }
 
-  // enfore required compiler defaults for URDF
-  model->global = false;
+  // enforce required compiler defaults for URDF
   model->degree = false;
 
   // get model name
@@ -113,6 +120,7 @@ void mjXURDF::Parse(XMLElement* root) {
     name = elem->Value();
     if (name=="link") {
       ReadAttrTxt(elem, "name", text, true);
+      text = GetPrefixedName(text);
       AddBody(text);
     }
 
@@ -129,11 +137,13 @@ void mjXURDF::Parse(XMLElement* root) {
       // find parent, get name and id
       temp = FindSubElem(elem, "parent", true);
       ReadAttrTxt(temp, "link", text, true);
+      text = GetPrefixedName(text);
       id_parent = FindName(text, urName);
 
       // find child, get name and id
       temp = FindSubElem(elem, "child", true);
       ReadAttrTxt(temp, "link", text, true);
+      text = GetPrefixedName(text);
       id_child = FindName(text, urName);
 
       // make sure parent and child exist
@@ -156,7 +166,7 @@ void mjXURDF::Parse(XMLElement* root) {
   }
 
   // find all top-level bodies, call recursive tree constructor
-  for (i=0; i<(int)urName.size(); i++) {
+  for (int i=0; i<(int)urName.size(); i++) {
     if (urParent[i] < 0) {
       AddToTree(i);
     }
@@ -187,9 +197,24 @@ void mjXURDF::Parse(XMLElement* root) {
     // advance to next element
     elem = elem->NextSiblingElement();
   }
+
+  // override the pose for the base link and add a free joint
+  for (int i = 0; i < (int)urName.size(); i++) {
+    if (urParent[i] < 0) {
+      mjCBody* pbody = (mjCBody*)model->GetWorld()->FindObject(mjOBJ_BODY, urName[i]);
+      mjuu_copyvec(pbody->pos, pos, 3);
+      mjuu_copyvec(pbody->quat, quat, 4);
+
+      // add a free joint to allow motion of the body
+      // if the mass is 0, assume the object is static
+      if (!static_body && pbody->mass > 0) {
+        auto pjoint = pbody->AddJoint();
+        pjoint->name = urName[i] + "_free_joint";
+        pjoint->type = mjJNT_FREE;
+      }
+    }
+  }
 }
-
-
 
 // parse body/link
 void mjXURDF::Body(XMLElement* body_elem) {
@@ -200,14 +225,14 @@ void mjXURDF::Body(XMLElement* body_elem) {
 
   // get body name and pointer to mjCBody
   ReadAttrTxt(body_elem, "name", name, true);
+  name = GetPrefixedName(name);
   pbody = (mjCBody*) model->GetWorld()->FindObject(mjOBJ_BODY, name);
   if (!pbody) {
     throw mjXError(body_elem, "URDF body not found");  // SHOULD NOT OCCUR
   }
-
   // inertial element: copy into alternative body frame
   if ((elem = FindSubElem(body_elem, "inertial"))) {
-    pbody->explicit_inertial = true;
+    pbody->explicitinertial = true;
     // origin- relative to joint frame for now
     Origin(elem, pbody->ipos, pbody->iquat);
 
@@ -245,6 +270,8 @@ void mjXURDF::Body(XMLElement* body_elem) {
 
   // process all visual and geometry elements in order
   float rgba[4] = {-1, 0, 0, 0};
+  std::string geom_name;
+
   elem = body_elem->FirstChildElement();
   while (elem) {
     name = elem->Value();
@@ -255,19 +282,19 @@ void mjXURDF::Body(XMLElement* body_elem) {
       if ((temp = FindSubElem(elem, "material"))) {
         // if color specified - use directly
         if ((temp1 = FindSubElem(temp, "color"))) {
-          ReadAttr(temp1, "rgba", 4, rgba, text);
+          ReadAttr(temp1, "rgba", 4, rgba, text, /*required=*/true);
         }
 
         // otherwise use material table
         else {
           ReadAttrTxt(temp, "name", name, true);
+          name = GetPrefixedName(name);
           int imat = FindName(name, urMat);
           if (imat>=0) {
             std::memcpy(rgba, urRGBA[imat].val, 4*sizeof(float));
           }
         }
       }
-
       // create geom if not discarded
       if (!model->discardvisual) {
         pgeom = Geom(elem, pbody, false);
@@ -275,6 +302,18 @@ void mjXURDF::Body(XMLElement* body_elem) {
         // save color
         if (rgba[0]>=0) {
           std::memcpy(pgeom->rgba, rgba, 4*sizeof(float));
+        }
+
+        // save name if it doesn't already exist.
+        mjXUtil::ReadAttrTxt(elem, "name", geom_name);
+        name = GetPrefixedName(name);
+        if (urGeomNames.find(geom_name) == urGeomNames.end()) {
+          pgeom->name = geom_name;
+          urGeomNames.insert(geom_name);
+        } else {
+          std::cerr << "WARNING: Geom with duplicate name '" << geom_name
+                    << "' encountered in URDF, creating an unnamed geom."
+                    << std::endl;
         }
       }
     }
@@ -287,14 +326,31 @@ void mjXURDF::Body(XMLElement* body_elem) {
       if (rgba[0]>=0) {
         std::memcpy(pgeom->rgba, rgba, 4*sizeof(float));
       }
-    }
 
+      // save name if it doesn't already exist.
+      mjXUtil::ReadAttrTxt(elem, "name", geom_name);
+      geom_name = GetPrefixedName(geom_name);
+      if (urGeomNames.find(geom_name) == urGeomNames.end()) {
+        pgeom->name = geom_name;
+        urGeomNames.insert(geom_name);
+      } else {
+        std::cerr << "WARNING: Geom with duplicate name '" << geom_name
+                  << "' encountered in URDF, creating an unnamed geom."
+                  << std::endl;
+      }
+    }
     // advance
     elem = elem->NextSiblingElement();
   }
 }
 
-
+void mjXURDF::Parse(XMLElement* root) {
+  double pos[3] = {0};
+  mjuu_setvec(pos, 0, 0, 0);
+  double quat[4] = {1, 0, 0, 0};
+  mjuu_setvec(quat, 1, 0, 0, 0);
+  Parse(root, /*prefix=*/"", pos, quat, true);
+}
 
 // parse joint
 void mjXURDF::Joint(XMLElement* joint_elem) {
@@ -307,19 +363,24 @@ void mjXURDF::Joint(XMLElement* joint_elem) {
   // get type and name
   ReadAttrTxt(joint_elem, "type", text, true);
   jointtype = FindKey(urJoint_map, urJoint_sz, text);
+  if (jointtype < 0) {
+    throw mjXError(joint_elem, "invalid joint type in URDF joint definition");
+  }
   ReadAttrTxt(joint_elem, "name", jntname, true);
 
   // get parent, check
   elem = FindSubElem(joint_elem, "parent", true);
   ReadAttrTxt(elem, "link", name, true);
+  name = GetPrefixedName(name);
   parent = (mjCBody*) model->GetWorld()->FindObject(mjOBJ_BODY, name);
   if (!parent) {                      // SHOULD NOT OCCUR
-    mjXError(elem, "invalid parent name in URDF joint definition");
+    throw mjXError(elem, "invalid parent name in URDF joint definition");
   }
 
   // get child=this, check
   elem = FindSubElem(joint_elem, "child", true);
   ReadAttrTxt(elem, "link", name, true);
+  name = GetPrefixedName(name);
   pbody = (mjCBody*) model->GetWorld()->FindObject(mjOBJ_BODY, name);
   if (!pbody) {                       // SHOULD NOT OCCUR
     throw mjXError(elem, "invalid child name in URDF joint definition");
@@ -329,7 +390,7 @@ void mjXURDF::Joint(XMLElement* joint_elem) {
   double axis[3] = {1, 0, 0};
   Origin(joint_elem, pbody->pos, pbody->quat);
   if ((elem = FindSubElem(joint_elem, "axis"))) {
-    ReadAttr(elem, "xyz", 3, axis, text);
+    ReadAttr(elem, "xyz", 3, axis, text, /*required=*/true);
   }
 
   // create joint (unless fixed)
@@ -467,13 +528,22 @@ mjCGeom* mjXURDF::Geom(XMLElement* geom_elem, mjCBody* pbody, bool collision) {
     ReadAttr(temp, "radius", 1, pgeom->size, text, true, true);
   }
 
+  // capsule
+  else if ((temp = FindSubElem(elem, "capsule"))) {
+    pgeom->type = mjGEOM_CAPSULE;
+    ReadAttr(temp, "radius", 1, pgeom->size, text, true, true);
+    ReadAttr(temp, "length", 1, pgeom->size+1, text, true, true);
+    pgeom->size[1] /= 2;            // MuJoCo uses half-length
+  }
+
   // mesh
   else if ((temp = FindSubElem(elem, "mesh"))) {
     // set geom type and read mesh attributes
-    double meshscale[3] = {1, 1, 1};
     pgeom->type = mjGEOM_MESH;
-    ReadAttrTxt(temp, "filename", meshfile, true);
-    ReadAttr(temp, "scale", 3, meshscale, text);
+    meshfile = ReadAttrStr(temp, "filename", true).value();
+    std::array<double, 3> default_meshscale = {1, 1, 1};
+    std::array<double, 3> meshscale = ReadAttrArr<double, 3>(temp, "scale")
+                                      .value_or(default_meshscale);
 
     // strip file name if necessary
     if (model->strippath) {
@@ -493,18 +563,18 @@ mjCGeom* mjXURDF::Geom(XMLElement* geom_elem, mjCBody* pbody, bool collision) {
     }
 
     // exists with different scale: append name with '1', create
-    else if (pmesh->scale[0]!=meshscale[0] ||
-             pmesh->scale[1]!=meshscale[1] ||
-             pmesh->scale[2]!=meshscale[2]) {
+    else if (pmesh->scale()[0]!=meshscale[0] ||
+             pmesh->scale()[1]!=meshscale[1] ||
+             pmesh->scale()[2]!=meshscale[2]) {
       pmesh = model->AddMesh();
       meshname = meshname + "1";
     }
 
     // set fields
-    pmesh->file = meshfile;
+    pmesh->set_file(meshfile);
     pmesh->name = meshname;
     pgeom->mesh = meshname;
-    mjuu_copyvec(pmesh->scale, meshscale, 3);
+    pmesh->set_scale(meshscale);
   }
 
   else {
@@ -623,7 +693,7 @@ void mjXURDF::MakeMaterials(XMLElement* elem) {
       if (FindName(name, urMat) < 0) {
         // add rgba value if available
         if ((color = FindSubElem(elem, "color"))) {
-          ReadAttr(color, "rgba", 4, rgba.val, text);
+          ReadAttr(color, "rgba", 4, rgba.val, text, /*required=*/true);
           AddName(name, urMat);
           urRGBA.push_back(rgba);
         }

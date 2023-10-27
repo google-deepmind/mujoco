@@ -37,12 +37,14 @@ class mjXReader : public mjXBase {
  private:
   // XML section specific to MJCF
   void Default(tinyxml2::XMLElement* section,   int parentid);         // default section
+  void Extension(tinyxml2::XMLElement* section);                       // extension section
   void Custom(tinyxml2::XMLElement* section);                          // custom section
   void Visual(tinyxml2::XMLElement* section);                          // visual section
   void Statistic(tinyxml2::XMLElement* section);                       // statistic section
   void Asset(tinyxml2::XMLElement* section);                           // asset section
   void Body(tinyxml2::XMLElement* section, mjCBody* pbody);            // body/world section
   void Contact(tinyxml2::XMLElement* section);                         // contact section
+  void Deformable(tinyxml2::XMLElement* section);                      // deformable section
   void Equality(tinyxml2::XMLElement* section);                        // equality section
   void Tendon(tinyxml2::XMLElement* section);                          // tendon section
   void Actuator(tinyxml2::XMLElement* section);                        // actuator section
@@ -50,6 +52,7 @@ class mjXReader : public mjXBase {
   void Keyframe(tinyxml2::XMLElement* section);                        // keyframe section
 
   // single element parsers, used in defaults and main body
+  void OneFlex(tinyxml2::XMLElement* elem, mjCFlex* pflex);
   void OneMesh(tinyxml2::XMLElement* elem, mjCMesh* pmesh);
   void OneSkin(tinyxml2::XMLElement* elem, mjCSkin* pskin);
   void OneMaterial(tinyxml2::XMLElement* elem, mjCMaterial* pmaterial);
@@ -63,6 +66,8 @@ class mjXReader : public mjXBase {
   void OneTendon(tinyxml2::XMLElement* elem, mjCTendon* ptendon);
   void OneActuator(tinyxml2::XMLElement* elem, mjCActuator* pactuator);
   void OneComposite(tinyxml2::XMLElement* elem, mjCBody* pbody, mjCDef* def);
+  void OneFlexcomp(tinyxml2::XMLElement* elem, mjCBody* pbody);
+  void OnePlugin(tinyxml2::XMLElement* elem, mjCBase* object);
 
   mjXSchema schema;                                                   // schema used for validation
   mjCDef* GetClass(tinyxml2::XMLElement* section);                    // get default class name

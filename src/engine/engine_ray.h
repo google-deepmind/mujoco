@@ -23,6 +23,18 @@
 extern "C" {
 #endif
 
+MJAPI void mju_multiRayPrepare(const mjModel* m, const mjData* d,
+                               const mjtNum pnt[3], const mjtNum* ray_xmat,
+                               const mjtByte* geomgroup, mjtByte flg_static,
+                               int bodyexclude, mjtNum cutoff, mjtNum* geom_ba,
+                               int* geom_eliminate);
+
+// Intersect multiple rays emanating from a single source
+// Similar semantics to mj_ray, but vec is an array of (nray x 3) directions.
+MJAPI void mj_multiRay(const mjModel* m, mjData* d, const mjtNum pnt[3], const mjtNum* vec,
+                       const mjtByte* geomgroup, mjtByte flg_static, int bodyexclude,
+                       int* geomid, mjtNum* dist, int nray, mjtNum cutoff);
+
 // intersect ray (pnt+x*vec, x>=0) with visible geoms, except geoms on bodyexclude
 //  return geomid and distance (x) to nearest surface, or -1 if no intersection
 //  geomgroup, flg_static are as in mjvOption; geomgroup==NULL skips group exclusion
@@ -30,19 +42,28 @@ MJAPI mjtNum mj_ray(const mjModel* m, const mjData* d, const mjtNum* pnt, const 
                     const mjtByte* geomgroup, mjtByte flg_static, int bodyexclude,
                     int geomid[1]);
 
-// interect ray with hfield
+// intersect ray with hfield
 MJAPI mjtNum mj_rayHfield(const mjModel* m, const mjData* d, int geomid,
                           const mjtNum* pnt, const mjtNum* vec);
 
-// interect ray with mesh
+// intersect ray with triangle
+MJAPI mjtNum ray_triangle(mjtNum v[][3], const mjtNum* lpnt, const mjtNum* lvec,
+                          const mjtNum* b0, const mjtNum* b1);
+
+// intersect ray with mesh
 MJAPI mjtNum mj_rayMesh(const mjModel* m, const mjData* d, int geomid,
                         const mjtNum* pnt, const mjtNum* vec);
 
-// interect ray with pure geom, no meshes or hfields
+// intersect ray with pure geom, no meshes or hfields
 MJAPI mjtNum mju_rayGeom(const mjtNum* pos, const mjtNum* mat, const mjtNum* size,
                          const mjtNum* pnt, const mjtNum* vec, int geomtype);
 
-// interect ray with skin, return nearest vertex id
+// intersect ray with flex, return nearest vertex id
+MJAPI mjtNum mju_rayFlex(const mjModel* m, const mjData* d, int flex_layer, mjtByte flg_vert,
+                         mjtByte flg_edge, mjtByte flg_face, mjtByte flg_skin, int flexid,
+                         const mjtNum* pnt, const mjtNum* vec, int vertid[1]);
+
+// intersect ray with skin, return nearest vertex id
 MJAPI mjtNum mju_raySkin(int nface, int nvert, const int* face, const float* vert,
                          const mjtNum* pnt, const mjtNum* vec, int vertid[1]);
 

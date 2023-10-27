@@ -22,14 +22,17 @@ namespace Mujoco {
   public class MjConnect : MjBaseConstraint {
     public MjBaseBody Body1;
     public MjBaseBody Body2;
+    public Transform Anchor;
     protected override string _constraintName => "connect";
 
     protected override void FromMjcf(XmlElement mjcf) {
       Body1 = mjcf.GetObjectReferenceAttribute<MjBaseBody>("body1");
       Body2 = mjcf.GetObjectReferenceAttribute<MjBaseBody>("body2");
-      if (mjcf.GetStringAttribute("anchor") != null) {
-        Debug.Log($"anchor in connect {name} ignored. Set Transforms in the editor.");
-      }
+      var anchorPos = MjEngineTool.UnityVector3(
+          mjcf.GetVector3Attribute("anchor", defaultValue: Vector3.zero));
+      Anchor = new GameObject("connect_anchor").transform;
+      Anchor.parent = Body1.transform;
+      Anchor.localPosition = anchorPos;
     }
 
     // Generate implementation specific XML element.
@@ -37,8 +40,13 @@ namespace Mujoco {
       if (Body1 == null || Body2 == null) {
         throw new NullReferenceException($"Both bodies in connect {name} are required.");
       }
+      if (Anchor == null) {
+        throw new NullReferenceException($"Anchor in connect {name} is required.");
+      }
       mjcf.SetAttribute("body1", Body1.MujocoName);
       mjcf.SetAttribute("body2", Body2.MujocoName);
+      mjcf.SetAttribute("anchor",
+                        MjEngineTool.Vector3ToMjcf(MjEngineTool.MjVector3(Anchor.localPosition)));
     }
 
     public void OnValidate() {

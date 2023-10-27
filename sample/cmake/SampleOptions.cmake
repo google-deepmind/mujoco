@@ -85,22 +85,29 @@ include(MujocoLinkOptions)
 get_mujoco_extra_link_options(EXTRA_LINK_OPTIONS)
 
 if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR (CMAKE_CXX_COMPILER_ID MATCHES "Clang" AND NOT MSVC))
-  set(EXTRA_COMPILE_OPTIONS -Wall -Werror)
+  set(EXTRA_COMPILE_OPTIONS
+      -Werror
+      -Wall
+      -Wpedantic
+      -Wimplicit-fallthrough
+      -Wunused
+      -Wvla
+      -Wno-int-in-bool-context
+      -Wno-sign-compare
+      -Wno-unknown-pragmas
+  )
   if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
-    set(EXTRA_COMPILE_OPTIONS
-        -Wno-int-in-bool-context
-        -Wno-maybe-uninitialized
-        -Wno-sign-compare
-        -Wno-stringop-overflow
-        -Wno-stringop-truncation
+    # Set -Wimplicit-fallthrough=5 to only allow fallthrough annotation via __attribute__.
+    set(EXTRA_COMPILE_OPTIONS ${EXTRA_COMPILE_OPTIONS} -Wimplicit-fallthrough=5
+                              -Wno-maybe-uninitialized
     )
   endif()
-endif()
-
-if(WIN32)
-  add_compile_definitions(_CRT_SECURE_NO_WARNINGS)
 endif()
 
 include(MujocoHarden)
 set(EXTRA_COMPILE_OPTIONS ${EXTRA_COMPILE_OPTIONS} ${MUJOCO_HARDEN_COMPILE_OPTIONS})
 set(EXTRA_LINK_OPTIONS ${EXTRA_LINK_OPTIONS} ${MUJOCO_HARDEN_LINK_OPTIONS})
+
+if(WIN32)
+  add_definitions(-D_CRT_SECURE_NO_WARNINGS -D_CRT_SECURE_NO_DEPRECATE)
+endif()

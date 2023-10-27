@@ -28,42 +28,47 @@
 namespace mujoco {
 namespace {
 
-using ::testing::NotNull;
+// number of steps to roll out before benhmarking
+static const int kNumWarmupSteps = 500;
 
-static void add_ctrl_noise(const mjModel* m, mjData* d, int step) {
-  for (int i = 0; i < m->nu; i++) {
-    mjtNum center = 0.0;
-    mjtNum radius = 1.0;
-    mjtNum* range = m->actuator_ctrlrange + 2 * i;
-    if (m->actuator_ctrllimited[i]) {
-      center = (range[1] + range[0]) / 2;
-      radius = (range[1] - range[0]) / 2;
-    }
-    radius *= 0.01;
-    d->ctrl[i] = center + radius * (2 * mju_Halton(step, i + 2) - 1);
-  }
-}
+// number of steps to benchmark
+static const int kNumBenchmarkSteps = 50;
 
-static void assert_model_not_null(mjModel* model,
-                                  const std::array<char, 1024>& error) {
-  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error.data();
-}
-
-static mjModel* load_model(const char* model_path) {
-  const std::string xml_path = GetModelPath(model_path);
-  std::array<char, 1024> error;
-  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, error.data(), error.size());
-  assert_model_not_null(model, error);
-  return model;
+// copy array into vector
+std::vector<mjtNum> AsVector(const mjtNum* array, int n) {
+  return std::vector<mjtNum>(array, array + n);
 }
 
 static void run_step_benchmark(const mjModel* model, benchmark::State& state) {
   mjData* data = mj_makeData(model);
-  int i = 0;
-  for (auto s : state) {
-    add_ctrl_noise(model, data, i++);
+
+  // compute noise
+  int nsteps = kNumWarmupSteps+kNumBenchmarkSteps;
+  std::vector<mjtNum> ctrl = GetCtrlNoise(model, nsteps);
+
+  // warm-up rollout to get a typical state
+  for (int i=0; i < kNumWarmupSteps; i++) {
+    mju_copy(data->ctrl, ctrl.data()+model->nu*i, model->nu);
     mj_step(model, data);
   }
+
+  // save state
+  int spec = mjSTATE_INTEGRATION;
+  int size = mj_stateSize(model, spec);
+  std::vector<mjtNum> initial_state(size);
+  mj_getState(model, data, initial_state.data(), spec);
+
+  // reset state, benchmark subsequent kNumBenchmarkSteps steps
+  while (state.KeepRunningBatch(kNumBenchmarkSteps)) {
+    mj_setState(model, data, initial_state.data(), spec);
+
+    for (int i=kNumWarmupSteps; i < nsteps; i++) {
+      mju_copy(data->ctrl, ctrl.data()+model->nu*i, model->nu);
+      mj_step(model, data);
+    }
+  }
+
+  // finalize
   mj_deleteData(data);
   state.SetItemsProcessed(state.iterations());
 }
@@ -72,24 +77,38 @@ static void run_step_benchmark(const mjModel* model, benchmark::State& state) {
 // separately in CPU profiles (and don't get replaced with raw calls to
 // run_step_benchmark).
 
-void ABSL_ATTRIBUTE_NO_TAIL_CALL BM_StepCloth(benchmark::State& state) {
+void ABSL_ATTRIBUTE_NO_TAIL_CALL BM_StepFlagPlugin(benchmark::State& state) {
   MujocoErrorTestGuard guard;
-  static mjModel* model = load_model("composite/cloth.xml");
+  static mjModel* model = LoadModelFromPath("plugin/elasticity/flag.xml");
   run_step_benchmark(model, state);
 }
-BENCHMARK(BM_StepCloth);
+BENCHMARK(BM_StepFlagPlugin);
+
+void ABSL_ATTRIBUTE_NO_TAIL_CALL BM_StepParticle(benchmark::State& state) {
+  MujocoErrorTestGuard guard;
+  static mjModel* model = LoadModelFromPath("composite/particle.xml");
+  run_step_benchmark(model, state);
+}
+BENCHMARK(BM_StepParticle);
+
+void ABSL_ATTRIBUTE_NO_TAIL_CALL BM_StepFlag(benchmark::State& state) {
+  MujocoErrorTestGuard guard;
+  static mjModel* model =
+      LoadModelFromPath("../test/benchmark/testdata/flag.xml");
+  run_step_benchmark(model, state);
+}
+BENCHMARK(BM_StepFlag);
 
 void ABSL_ATTRIBUTE_NO_TAIL_CALL BM_StepHumanoid(benchmark::State& state) {
   MujocoErrorTestGuard guard;
-  static mjModel* model = load_model("humanoid/humanoid.xml");
+  static mjModel* model = LoadModelFromPath("humanoid/humanoid.xml");
   run_step_benchmark(model, state);
 }
 BENCHMARK(BM_StepHumanoid);
-BENCHMARK(BM_StepHumanoid)->ThreadRange(2, 16);
 
 void ABSL_ATTRIBUTE_NO_TAIL_CALL BM_StepHumanoid100(benchmark::State& state) {
   MujocoErrorTestGuard guard;
-  static mjModel* model = load_model("humanoid100/humanoid100.xml");
+  static mjModel* model = LoadModelFromPath("humanoid100/humanoid100.xml");
   run_step_benchmark(model, state);
 }
 BENCHMARK(BM_StepHumanoid100);

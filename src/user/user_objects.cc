@@ -14,25 +14,32 @@
 
 #include "user/user_objects.h"
 
+#include <algorithm>
 #include <cmath>
 #include <cstddef>
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include <iostream>
+#include <sstream>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "lodepng.h"
+#include <mujoco/mjmacro.h>
 #include <mujoco/mjmodel.h>
+#include <mujoco/mjplugin.h>
+#include <mujoco/mjtnum.h>
 #include "cc/array_safety.h"
-#include "engine/engine_core_smooth.h"
-#include "engine/engine_crossplatform.h"
-#include "engine/engine_file.h"
+#include "engine/engine_resource.h"
 #include "engine/engine_io.h"
-#include "engine/engine_macro.h"
+#include "engine/engine_passive.h"
+#include "engine/engine_plugin.h"
+#include "engine/engine_util_blas.h"
 #include "engine/engine_util_errmem.h"
 #include "engine/engine_util_misc.h"
 #include "engine/engine_util_solve.h"
+#include "engine/engine_util_spatial.h"
 #include "engine/engine_vfs.h"
 #include "user/user_model.h"
 #include "user/user_util.h"
@@ -62,6 +69,18 @@ static void checksize(double* size, mjtGeom type, mjCBase* object, const char* n
   }
 }
 
+// error message for missing "limited" attribute
+static void checklimited(
+    const mjCBase* obj,
+    bool autolimits, const char* entity, const char* attr, int limited, bool hasrange) {
+  if (!autolimits && limited == 2 && hasrange) {
+    std::stringstream ss;
+    ss << entity << " has `" << attr << "range` but not `" << attr << "limited`. "
+       << "set the autolimits=\"true\" compiler option, specify `" << attr << "limited` "
+       << "explicitly (\"true\" or \"false\"), or remove the `" << attr << "range` attribute.";
+    throw mjCError(obj, "%s", ss.str().c_str());
+  }
+}
 
 
 //------------------------- class mjCError implementation ------------------------------------------
@@ -113,23 +132,13 @@ mjCError::mjCError(const mjCBase* obj, const char* msg, const char* str, int pos
 // constructor
 mjCAlternative::mjCAlternative() {
   axisangle[0] = xyaxes[0] = zaxis[0] = euler[0] = fullinertia[0] = mjNAN;
-};
+}
 
 
 // compute frame orientation given alternative specifications
 // used for geom, site, body and camera frames
 const char* mjCAlternative::Set(double* quat, double* inertia,
                                 bool degree, const char* sequence) {
-  // check for multiple defitions
-  int ndef = (int)mjuu_defined(axisangle[0]) +
-             (int)mjuu_defined(xyaxes[0]) +
-             (int)mjuu_defined(zaxis[0]) +
-             (int)mjuu_defined(euler[0]) +
-             (int)mjuu_defined(fullinertia[0]);
-  if (ndef>1) {
-    return "too many alternative definitions";
-  }
-
   // set quat using axisangle
   if (mjuu_defined(axisangle[0])) {
     // convert to radians if necessary, normalize axis
@@ -256,6 +265,198 @@ const char* mjCAlternative::Set(double* quat, double* inertia,
 
 
 
+//------------------------- class mjCBoundingVolumeHierarchy implementation ------------------------
+
+// constructor
+mjCBoundingVolumeHierarchy::mjCBoundingVolumeHierarchy() {
+  nbvh = 0;
+  mjuu_setvec(ipos_, 0, 0, 0);
+  mjuu_setvec(iquat_, 1, 0, 0, 0);
+}
+
+
+// assign position and orientation
+void mjCBoundingVolumeHierarchy::Set(mjtNum ipos_element[3], mjtNum iquat_element[4]) {
+  mjuu_copyvec(ipos_, ipos_element, 3);
+  mjuu_copyvec(iquat_, iquat_element, 4);
+}
+
+
+// add geom to bvh
+void mjCBoundingVolumeHierarchy::AddBoundingVolume(const mjCBoundingVolume& bv) {
+  bvh_.push_back(bv);
+}
+
+
+// create bounding volume hierarchy
+void mjCBoundingVolumeHierarchy::CreateBVH() {
+  MakeBVH(bvh_);
+}
+
+
+// compute bounding volume hierarchy
+int mjCBoundingVolumeHierarchy::MakeBVH(std::vector<mjCBoundingVolume>& elements, int lev) {
+  if (elements.empty()) {
+    return -1;
+  }
+
+  int nelements = elements.size();
+  mjtNum AAMM[6] = {mjMAXVAL, mjMAXVAL, mjMAXVAL, -mjMAXVAL, -mjMAXVAL, -mjMAXVAL};
+
+  // inverse transformation
+  mjtNum qinv[4] = {iquat_[0], -iquat_[1], -iquat_[2], -iquat_[3]};
+
+  // accumulate AAMM over elements
+  for (int i=0; i<nelements; i++) {
+    // skip visual objects
+    if (elements[i].conaffinity==0 && elements[i].contype==0) {
+      continue;
+    }
+
+    // transform element aabb to aamm format
+    mjtNum aamm[6] = {elements[i].aabb[0] - elements[i].aabb[3],
+                      elements[i].aabb[1] - elements[i].aabb[4],
+                      elements[i].aabb[2] - elements[i].aabb[5],
+                      elements[i].aabb[0] + elements[i].aabb[3],
+                      elements[i].aabb[1] + elements[i].aabb[4],
+                      elements[i].aabb[2] + elements[i].aabb[5]};
+
+    // update node AAMM
+    for (int v=0; v<8; v++) {
+      mjtNum vert[3], box[3];
+      vert[0] = (v&1 ? aamm[3] : aamm[0]);
+      vert[1] = (v&2 ? aamm[4] : aamm[1]);
+      vert[2] = (v&4 ? aamm[5] : aamm[2]);
+
+      // rotate to the body inertial frame if specified
+      if (elements[i].quat) {
+        mju_rotVecQuat(box, vert, elements[i].quat);
+        box[0] += elements[i].pos[0] - ipos_[0];
+        box[1] += elements[i].pos[1] - ipos_[1];
+        box[2] += elements[i].pos[2] - ipos_[2];
+        mju_rotVecQuat(vert, box, qinv);
+      }
+
+      AAMM[0] = mjMIN(AAMM[0], vert[0]);
+      AAMM[1] = mjMIN(AAMM[1], vert[1]);
+      AAMM[2] = mjMIN(AAMM[2], vert[2]);
+      AAMM[3] = mjMAX(AAMM[3], vert[0]);
+      AAMM[4] = mjMAX(AAMM[4], vert[1]);
+      AAMM[5] = mjMAX(AAMM[5], vert[2]);
+    }
+  }
+
+  // inflate flat AABBs
+  for (int i=0; i<3; i++) {
+    if (mju_abs(AAMM[i]-AAMM[i+3])<mjEPS) {
+      AAMM[i+0] -= mjEPS;
+      AAMM[i+3] += mjEPS;
+    }
+  }
+
+  // store current index
+  int index = nbvh++;
+  child.push_back(-1);
+  child.push_back(-1);
+  nodeid.push_back(-1);
+  level.push_back(lev);
+
+  // store bounding box of the current node
+  for (int i=0; i<3; i++) {
+    bvh.push_back((AAMM[3+i] + AAMM[i]) / 2);
+  }
+  for (int i=0; i<3; i++) {
+    bvh.push_back((AAMM[3+i] - AAMM[i]) / 2);
+  }
+
+  // leaf node, return
+  if (nelements==1) {
+    for (int i=0; i<2; i++) {
+      child[2*index+i] = -1;
+    }
+    nodeid[index] = elements[0].id;
+    return index;
+  }
+
+  // find longest axis for splitting the bounding box
+  mjtNum edges[3] = { AAMM[3]-AAMM[0], AAMM[4]-AAMM[1], AAMM[5]-AAMM[2] };
+  int axis = edges[0] > edges[1] ? 0 : 1;
+  axis = edges[axis] > edges[2] ? axis : 2;
+
+  // find median along the axis
+  std::vector<mjtNum> pos(nelements);
+
+  for (int i=0; i<nelements; i++) {
+    // get position in the body inertial frame
+    mjtNum vert[3] = {elements[i].pos[0] - ipos_[0],
+                      elements[i].pos[1] - ipos_[1],
+                      elements[i].pos[2] - ipos_[2]};
+    mjtNum lpos[3];
+    mju_rotVecQuat(lpos, vert, qinv);
+    pos[i] = lpos[axis];
+  }
+
+  auto m = pos.size()/2;
+  std::nth_element(pos.begin(), pos.begin() + m, pos.end());
+  mjtNum threshold = pos[m];
+
+  // split using median
+  std::vector<mjCBoundingVolume> left;
+  std::vector<mjCBoundingVolume> right;
+  int skipped = 0;
+
+  for (int i=0; i<nelements; i++) {
+    // get position in the body inertial frame
+    mjtNum vert[3] = {elements[i].pos[0] - ipos_[0],
+                      elements[i].pos[1] - ipos_[1],
+                      elements[i].pos[2] - ipos_[2]};
+    mjtNum lpos[3];
+    mju_rotVecQuat(lpos, vert, qinv);
+
+    // skip visual objects
+    if (elements[i].conaffinity==0 && elements[i].contype==0) {
+      skipped++;
+      continue;
+    }
+    if (lpos[axis] < threshold) {
+      left.push_back(elements[i]);
+    } else if (lpos[axis] > threshold) {
+      right.push_back(elements[i]);
+    } else {
+      if (left.size() < right.size()) left.push_back(elements[i]);
+      else right.push_back(elements[i]);
+    }
+  }
+
+  // recursive calls
+  if (!left.empty()) {
+    child[2*index+0] = MakeBVH(left, lev+1);
+  }
+
+  if (!right.empty()) {
+    child[2*index+1] = MakeBVH(right, lev+1);
+  }
+
+  // SHOULD NOT OCCUR
+  if (left.size()+right.size()+skipped != nelements) {
+    mju_error("some elements were lost, body=%s parent=%d children=%lu",
+              name_.c_str(), nelements, left.size()+right.size()+skipped);
+  }
+
+  if (child[2*index+0]==-1 && child[2*index+1]==-1 && !skipped) {
+    mju_error("this should have been a leaf, body=%s nelements=%d",
+              name_.c_str(), nelements);
+  }
+
+  if (lev>mjMAXTREEDEPTH) {
+    mju_warning("max tree depth exceeded in body=%s", name_.c_str());
+  }
+
+  return index;
+}
+
+
+
 //------------------------- class mjCDef implementation --------------------------------------------
 
 // constructor
@@ -290,8 +491,47 @@ mjCBase::mjCBase() {
   xmlpos[0] = xmlpos[1] = -1;
   model = 0;
   def = 0;
+
+  // plugin variables
+  is_plugin = false;
+  plugin_instance = nullptr;
+  plugin_name = "";
+  plugin_instance_name = "";
 }
 
+
+
+// load resource if found (fallback to OS filesystem)
+mjResource* mjCBase::LoadResource(string filename, const mjVFS* vfs) {
+  mjResource* r = nullptr;
+  const char* cname = filename.c_str();
+
+  // try reading from provided VFS
+  if ((r = mju_openVfsResource(cname, vfs)) == nullptr) {
+    // not in vfs try a provider or fallback to OS filesystem
+    if ((r = mju_openResource(filename.c_str())) == nullptr) {
+      throw mjCError(nullptr, "resource not found via provider or OS filesystem: '%s'", cname);
+    }
+  }
+  return r;
+}
+
+
+// Get and sanitize content type from raw_text if not empty, otherwise parse
+// content type from resource_name; throw error on failure
+std::string mjCBase::GetAssetContentType(std::string_view resource_name,
+                                         std::string_view raw_text) {
+  if (!raw_text.empty()) {
+    auto type = mjuu_parseContentTypeAttrType(raw_text);
+    auto subtype = mjuu_parseContentTypeAttrSubtype(raw_text);
+    if (!type.has_value() || !subtype.has_value()) {
+      throw mjCError(this, "invalid format for content_type");
+    }
+    return std::string(*type) + "/" + std::string(*subtype);
+  } else {
+    return mjuu_extToContentType(resource_name);
+  }
+}
 
 
 //------------------ class mjCBody implementation --------------------------------------------------
@@ -305,7 +545,7 @@ mjCBody::mjCBody(mjCModel* _model) {
   pos[0] = ipos[0] = mjNAN;
 
   // clear variables
-  explicit_inertial = false;
+  explicitinertial = false;
   mocap = false;
   mjuu_setvec(quat, 1, 0, 0, 0);
   mjuu_setvec(iquat, 1, 0, 0, 0);
@@ -321,7 +561,15 @@ mjCBody::mjCBody(mjCModel* _model) {
   weldid = -1;
   dofnum = 0;
   lastdof = -1;
+  subtreedofs = 0;
+  gravcomp = 0;
   userdata.clear();
+
+  contype = 0;
+  conaffinity = 0;
+  margin = 0;
+  mjuu_zerovec(xpos0, 3);
+  mjuu_setvec(xquat0, 1, 0, 0, 0);
 
   // clear object lists
   bodies.clear();
@@ -336,15 +584,13 @@ mjCBody::mjCBody(mjCModel* _model) {
 
 // destructor
 mjCBody::~mjCBody() {
-  unsigned int i;
-
   // delete objects allocated here
-  for (i=0; i<bodies.size(); i++) delete bodies[i];
-  for (i=0; i<geoms.size(); i++) delete geoms[i];
-  for (i=0; i<joints.size(); i++) delete joints[i];
-  for (i=0; i<sites.size(); i++) delete sites[i];
-  for (i=0; i<cameras.size(); i++) delete cameras[i];
-  for (i=0; i<lights.size(); i++) delete lights[i];
+  for (int i=0; i<bodies.size(); i++) delete bodies[i];
+  for (int i=0; i<geoms.size(); i++) delete geoms[i];
+  for (int i=0; i<joints.size(); i++) delete joints[i];
+  for (int i=0; i<sites.size(); i++) delete sites[i];
+  for (int i=0; i<cameras.size(); i++) delete cameras[i];
+  for (int i=0; i<lights.size(); i++) delete lights[i];
 
   bodies.clear();
   geoms.clear();
@@ -556,14 +802,14 @@ mjCBase* mjCBody::FindObject(mjtObj type, string _name, bool recursive) {
 
 // compute geom inertial frame: ipos, iquat, mass, inertia
 void mjCBody::GeomFrame(void) {
-  int i, sz;
+  int sz;
   double com[3] = {0, 0, 0};
   double toti[6] = {0, 0, 0, 0, 0, 0};
   vector<mjCGeom*> sel;
 
   // select geoms based on group
   sel.clear();
-  for (i=0; i<geoms.size(); i++) {
+  for (int i=0; i<geoms.size(); i++) {
     if (geoms[i]->group>=model->inertiagrouprange[0] &&
         geoms[i]->group<=model->inertiagrouprange[1]) {
       sel.push_back(geoms[i]);
@@ -583,7 +829,7 @@ void mjCBody::GeomFrame(void) {
   else if (sz>1) {
     // compute total mass and center of mass
     mass = 0;
-    for (i=0; i<sz; i++) {
+    for (int i=0; i<sz; i++) {
       mass += sel[i]->mass;
       com[0] += sel[i]->mass * sel[i]->pos[0];
       com[1] += sel[i]->mass * sel[i]->pos[1];
@@ -601,7 +847,7 @@ void mjCBody::GeomFrame(void) {
     ipos[2] = com[2]/mass;
 
     // add geom inertias
-    for (i=0; i<sz; i++) {
+    for (int i=0; i<sz; i++) {
       double inert0[6], inert1[6];
       double dpos[3] = {
         sel[i]->pos[0] - ipos[0],
@@ -631,29 +877,18 @@ void mjCBody::GeomFrame(void) {
 // setup child local frame: pos
 void mjCBody::MakeLocal(double* _locpos, double* _locquat,
                         const double* _pos, const double* _quat) {
-  // global: transform to local
-  if (model->global) {
-    mjuu_localpos(_locpos, _pos, pos, quat);
-    mjuu_localquat(_locquat, _quat, quat);
-  }
-
-  // local: copy
-  else {
-    mjuu_copyvec(_locpos, _pos, 3);
-    mjuu_copyvec(_locquat, _quat, 4);
-  }
+  mjuu_copyvec(_locpos, _pos, 3);
+  mjuu_copyvec(_locquat, _quat, 4);
 }
 
-// set explicit_inertial to true
+// set explicitinertial to true
 void mjCBody::MakeInertialExplicit() {
-  explicit_inertial = true;
+  explicitinertial = true;
 }
 
 
 // compiler
 void mjCBody::Compile(void) {
-  unsigned int i;
-
   // resize userdata
   if (userdata.size() > model->nuser_body) {
     throw mjCError(this, "user has more values than nuser_body in body '%s' (id = %d)",
@@ -661,9 +896,9 @@ void mjCBody::Compile(void) {
   }
   userdata.resize(model->nuser_body);
 
-  // pos defaults to (0,0,0) in local coordinates
-  if (!mjuu_defined(pos[0]) && !model->global) {
-    mjuu_setvec(pos, 0, 0, 0);
+  // pos defaults to (0,0,0)
+  if (!mjuu_defined(pos[0])) {
+     mjuu_setvec(pos, 0, 0, 0);
   }
 
   // normalize user-defined quaternions
@@ -671,7 +906,7 @@ void mjCBody::Compile(void) {
   mjuu_normvec(iquat, 4);
 
   // set parentid and weldid of children
-  for (i=0; i<bodies.size(); i++) {
+  for (int i=0; i<bodies.size(); i++) {
     bodies[i]->parentid = id;
     bodies[i]->weldid = (!bodies[i]->joints.empty() ? bodies[i]->id : weldid);
   }
@@ -689,7 +924,11 @@ void mjCBody::Compile(void) {
   }
 
   // compile all geoms, phase 1
-  for (i=0; i<geoms.size(); i++) {
+  for (int i=0; i<geoms.size(); i++) {
+    geoms[i]->inferinertia = id>0 &&
+      (!explicitinertial || model->inertiafromgeom == mjINERTIAFROMGEOM_TRUE) &&
+      geoms[i]->group >= model->inertiagrouprange[0] &&
+      geoms[i]->group <= model->inertiagrouprange[1];
     geoms[i]->Compile();
   }
 
@@ -719,10 +958,10 @@ void mjCBody::Compile(void) {
   // check and correct mass and inertia
   if (id>0) {
     // fix minimum
-    mass = mjMAX(mass, model->boundmass);
-    inertia[0] = mjMAX(inertia[0], model->boundinertia);
-    inertia[1] = mjMAX(inertia[1], model->boundinertia);
-    inertia[2] = mjMAX(inertia[2], model->boundinertia);
+    mass = mju_max(mass, model->boundmass);
+    inertia[0] = mju_max(inertia[0], model->boundinertia);
+    inertia[1] = mju_max(inertia[1], model->boundinertia);
+    inertia[2] = mju_max(inertia[2], model->boundinertia);
 
     // check for negative values
     if (mass<0 || inertia[0]<0 || inertia[1]<0 ||inertia[2]<0) {
@@ -752,13 +991,31 @@ void mjCBody::Compile(void) {
   }
 
   // make local frames of geoms
-  for (i=0; i<geoms.size(); i++) {
+  for (int i=0; i<geoms.size(); i++) {
     MakeLocal(geoms[i]->locpos, geoms[i]->locquat, geoms[i]->pos, geoms[i]->quat);
+  }
+
+  // accumulate rbound, contype, conaffinity over geoms
+  contype = conaffinity = 0;
+  margin = 0;
+  for (int i=0; i<geoms.size(); i++) {
+    contype |= geoms[i]->contype;
+    conaffinity |= geoms[i]->conaffinity;
+    margin = mju_max(margin, geoms[i]->margin);
+  }
+
+  // compute bounding volume hierarchy
+  if (!geoms.empty()) {
+    tree.Set(ipos, iquat);
+    for (int i=0; i<geoms.size(); i++) {
+      tree.AddBoundingVolume(geoms[i]->GetBoundingVolume());
+    }
+    tree.CreateBVH();
   }
 
   // compile all joints, count dofs
   dofnum = 0;
-  for (i=0; i<joints.size(); i++) {
+  for (int i=0; i<joints.size(); i++) {
     dofnum += joints[i]->Compile();
   }
 
@@ -769,7 +1026,7 @@ void mjCBody::Compile(void) {
 
   // check for rotation dof after ball joint
   bool hasball = false;
-  for (i=0; i<joints.size(); i++) {
+  for (int i=0; i<joints.size(); i++) {
     if ((joints[i]->type==mjJNT_BALL || joints[i]->type==mjJNT_HINGE) && hasball) {
       throw mjCError(this, "ball followed by rotation in body '%s'", name.c_str());
     }
@@ -784,14 +1041,37 @@ void mjCBody::Compile(void) {
       throw mjCError(this, "mocap body '%s' is not a fixed child of world", name.c_str());
     }
 
+  // compute body global pose (no joint transformations in qpos0)
+  if (id>0) {
+    mjCBody* par = model->bodies[parentid];
+    mju_rotVecQuat(xpos0, locpos, par->xquat0);
+    mju_addTo3(xpos0, par->xpos0);
+    mju_mulQuat(xquat0, par->xquat0, locquat);
+  }
+
   // compile all sites
-  for (i=0; i<sites.size(); i++) sites[i]->Compile();
+  for (int i=0; i<sites.size(); i++) sites[i]->Compile();
 
   // compile all cameras
-  for (i=0; i<cameras.size(); i++) cameras[i]->Compile();
+  for (int i=0; i<cameras.size(); i++) cameras[i]->Compile();
 
   // compile all lights
-  for (i=0; i<lights.size(); i++) lights[i]->Compile();
+  for (int i=0; i<lights.size(); i++) lights[i]->Compile();
+
+  // plugin
+  if (is_plugin) {
+    if (plugin_name.empty() && plugin_instance_name.empty()) {
+      throw mjCError(
+          this, "neither 'plugin' nor 'instance' is specified for body '%s', (id = %d)",
+          name.c_str(), id);
+    }
+
+    model->ResolvePlugin(this, plugin_name, plugin_instance_name, &plugin_instance);
+    const mjpPlugin* plugin = mjp_getPluginAtSlot(plugin_instance->plugin_slot);
+    if (!(plugin->capabilityflags & mjPLUGIN_PASSIVE)) {
+      throw mjCError(this, "plugin '%s' does not support passive forces", plugin->name);
+    }
+  }
 }
 
 
@@ -805,10 +1085,13 @@ mjCJoint::mjCJoint(mjCModel* _model, mjCDef* _def) {
   group = 0;
   mjuu_setvec(pos, 0, 0, 0);
   mjuu_setvec(axis, 0, 0, 1);
-  limited = false;
+  limited = 2;
+  actfrclimited = 2;
   stiffness = 0;
   range[0] = 0;
   range[1] = 0;
+  actfrcrange[0] = 0;
+  actfrcrange[1] = 0;
   springdamper[0] = 0;
   springdamper[1] = 0;
   mj_defaultSolRefImp(solref_limit, solimp_limit);
@@ -859,6 +1142,17 @@ int mjCJoint::Compile(void) {
     }
   }
 
+  // free joints cannot be limited
+  if (type==mjJNT_FREE) {
+    limited = 0;
+  }
+  // otherwise if limited is auto, set according to whether range is specified
+  else if (limited==2) {
+    bool hasrange = !(range[0]==0 && range[1]==0);
+    checklimited(this, model->autolimits, "joint", "", limited, hasrange);
+    limited = hasrange ? 1 : 0;
+  }
+
   // resolve limits
   if (limited) {
     // check data
@@ -879,6 +1173,27 @@ int mjCJoint::Compile(void) {
       if (range[1]) {
         range[1] *= mjPI/180.0;
       }
+    }
+  }
+
+  // actuator force range: none for free or ball joints
+  if (type==mjJNT_FREE || type==mjJNT_BALL) {
+    actfrclimited = 0;
+  }
+  // otherwise if actfrclimited is auto, set according to whether actfrcrange is specified
+  else if (actfrclimited==2) {
+    bool hasrange = !(actfrcrange[0]==0 && actfrcrange[1]==0);
+    checklimited(this, model->autolimits, "joint", "", actfrclimited, hasrange);
+    actfrclimited = hasrange ? 1 : 0;
+  }
+
+  // resolve actuator force range limits
+  if (actfrclimited) {
+    // check data
+    if (actfrcrange[0]>=actfrcrange[1]) {
+      throw mjCError(this,
+                     "actfrcrange[0] should be smaller than actfrcrange[1] in joint '%s' (id = %d)",
+                     name.c_str(), id);
     }
   }
 
@@ -913,12 +1228,8 @@ int mjCJoint::Compile(void) {
     mjuu_zerovec(locpos, 3);
   }
 
-  // compute local axis relative to specified body
-  if (model->global) {
-    mjuu_localaxis(locaxis, axis, body->quat);
-  } else {
-    mjuu_copyvec(locaxis, axis, 3);
-  }
+  // copy axis to local
+  mjuu_copyvec(locaxis, axis, 3);
 
   // convert reference angles to radians for hinge joints
   if (type==mjJNT_HINGE && model->degree) {
@@ -977,6 +1288,8 @@ mjCGeom::mjCGeom(mjCModel* _model, mjCDef* _def) {
   rgba[0] = rgba[1] = rgba[2] = 0.5f;
   rgba[3] = 1.0f;
   userdata.clear();
+  typeinertia = mjVOLUME_MESH;
+  inferinertia = true;
 
   // clear internal variables
   mjuu_setvec(quat, 1, 0, 0, 0);
@@ -998,6 +1311,12 @@ mjCGeom::mjCGeom(mjCModel* _model, mjCDef* _def) {
   // set model, def
   model = _model;
   def = (_def ? _def : (_model ? _model->defaults[0] : 0));
+
+  // plugin variables
+  is_plugin = false;
+  plugin_instance = nullptr;
+  plugin_name = "";
+  plugin_instance_name = "";
 }
 
 
@@ -1007,13 +1326,18 @@ double mjCGeom::GetVolume(void) {
   double height;
 
   // get from mesh
-  if (type==mjGEOM_MESH) {
+  if (type==mjGEOM_MESH || type==mjGEOM_SDF) {
     if (meshid<0 || meshid>=(int)model->meshes.size()) {
       throw mjCError(this, "invalid meshid in mesh geom '%s' (id = %d)", name.c_str(), id);
     }
 
     mjCMesh* pmesh = model->meshes[meshid];
-    return pmesh->boxsz[0]*pmesh->boxsz[1]*pmesh->boxsz[2]*8;
+    if (model->exactmeshinertia || typeinertia==mjSHELL_MESH) {
+      return pmesh->GetVolumeRef(typeinertia);
+    } else {
+      const double* boxsz_volume = pmesh->boxsz_volume();
+      return boxsz_volume[0]*boxsz_volume[1]*boxsz_volume[2]*8;
+    }
   }
 
   // compute from geom shape
@@ -1033,6 +1357,7 @@ double mjCGeom::GetVolume(void) {
     case mjGEOM_ELLIPSOID:
       return 4*mjPI*size[0]*size[1]*size[2]/3;
 
+    case mjGEOM_HFIELD:
     case mjGEOM_BOX:
       return size[0]*size[1]*size[2]*8;
 
@@ -1044,24 +1369,41 @@ double mjCGeom::GetVolume(void) {
 
 
 
+mjCBoundingVolume mjCGeom::GetBoundingVolume() const {
+  mjCBoundingVolume bv;
+  bv.id = id;
+  bv.contype = contype;
+  bv.conaffinity = conaffinity;
+  bv.aabb = aabb;
+  bv.pos = pos;
+  bv.quat = quat;
+  return bv;
+}
+
+
+
 // set geom diagonal inertia given density
 void mjCGeom::SetInertia(void) {
   double height;
 
   // get from mesh
-  if (type==mjGEOM_MESH) {
+  if (type==mjGEOM_MESH || type==mjGEOM_SDF) {
     if (meshid<0 || meshid>=(int)model->meshes.size()) {
       throw mjCError(this, "invalid meshid in mesh geom '%s' (id = %d)", name.c_str(), id);
     }
 
     mjCMesh* pmesh = model->meshes[meshid];
-    inertia[0] = mass*(pmesh->boxsz[1]*pmesh->boxsz[1] + pmesh->boxsz[2]*pmesh->boxsz[2]) / 3;
-    inertia[1] = mass*(pmesh->boxsz[0]*pmesh->boxsz[0] + pmesh->boxsz[2]*pmesh->boxsz[2]) / 3;
-    inertia[2] = mass*(pmesh->boxsz[0]*pmesh->boxsz[0] + pmesh->boxsz[1]*pmesh->boxsz[1]) / 3;
+    double* boxsz = pmesh->GetInertiaBoxPtr(typeinertia);
+    inertia[0] = mass*(boxsz[1]*boxsz[1] + boxsz[2]*boxsz[2]) / 3;
+    inertia[1] = mass*(boxsz[0]*boxsz[0] + boxsz[2]*boxsz[2]) / 3;
+    inertia[2] = mass*(boxsz[0]*boxsz[0] + boxsz[1]*boxsz[1]) / 3;
   }
 
   // compute from geom shape
   else {
+    if (typeinertia)
+      throw mjCError(this, "typeinertia currently only available for meshes'%s' (id = %d)",
+                     name.c_str(), id);
     switch (type) {
     case mjGEOM_SPHERE:
       inertia[0] = inertia[1] = inertia[2] = 2*mass*size[0]*size[0]/5;
@@ -1078,7 +1420,7 @@ void mjCGeom::SetInertia(void) {
       // add two hemispheres, displace along third axis
       double sphere_inertia = 2*sphere_mass*radius*radius/5;
       inertia[0] += sphere_inertia + sphere_mass*height*(3*radius + 2*height)/8;
-      inertia[1] += sphere_inertia + sphere_mass*height*(3*radius + 2*height)/8;;
+      inertia[1] += sphere_inertia + sphere_mass*height*(3*radius + 2*height)/8;
       inertia[2] += sphere_inertia;
       return;
     }
@@ -1095,6 +1437,7 @@ void mjCGeom::SetInertia(void) {
       inertia[2] = mass*(size[0]*size[0]+size[1]*size[1])/5;
       return;
 
+    case mjGEOM_HFIELD:
     case mjGEOM_BOX:
       inertia[0] = mass*(size[1]*size[1]+size[2]*size[2])/3;
       inertia[1] = mass*(size[0]*size[0]+size[2]*size[2])/3;
@@ -1112,9 +1455,15 @@ void mjCGeom::SetInertia(void) {
 
 // compute radius of bounding sphere
 double mjCGeom::GetRBound(void) {
-  double* aabb;
+  const double *aamm, *hsize;
+  double haabb[3] = {0};
 
   switch (type) {
+  case mjGEOM_HFIELD:
+    hsize = model->hfields[hfieldid]->size;
+    return sqrt(hsize[0]*hsize[0] + hsize[1]*hsize[1] +
+                mjMAX(hsize[2]*hsize[2], hsize[3]*hsize[3]));
+
   case mjGEOM_SPHERE:
     return size[0];
 
@@ -1125,14 +1474,18 @@ double mjCGeom::GetRBound(void) {
     return sqrt(size[0]*size[0]+size[1]*size[1]);
 
   case mjGEOM_ELLIPSOID:
-    return mjMAX(mjMAX(size[0], size[1]), size[2]);
+    return mju_max(mju_max(size[0], size[1]), size[2]);
 
   case mjGEOM_BOX:
     return sqrt(size[0]*size[0]+size[1]*size[1]+size[2]*size[2]);
 
   case mjGEOM_MESH:
-    aabb = model->meshes[meshid]->aabb;
-    return sqrt(aabb[0]*aabb[0]+aabb[1]*aabb[1]+aabb[2]*aabb[2]);
+  case mjGEOM_SDF:
+    aamm = model->meshes[meshid]->aamm();
+    haabb[0] = mju_max(fabs(aamm[0]), fabs(aamm[3]));
+    haabb[1] = mju_max(fabs(aamm[1]), fabs(aamm[4]));
+    haabb[2] = mju_max(fabs(aamm[2]), fabs(aamm[5]));
+    return sqrt(haabb[0]*haabb[0] + haabb[1]*haabb[1] + haabb[2]*haabb[2]);
 
   default:
     return 0;
@@ -1197,7 +1550,6 @@ void mjCGeom::SetFluidCoefs(void) {
 
   // get semiaxes
   switch (type) {
-
     case mjGEOM_SPHERE:
       dx = size[0];
       dy = size[0];
@@ -1253,6 +1605,63 @@ void mjCGeom::SetFluidCoefs(void) {
 }
 
 
+// compute bounding box
+void mjCGeom::ComputeAABB(void) {
+  double aamm[6]; // axis-aligned bounding box in (min, max) format
+  switch (type) {
+  case mjGEOM_HFIELD:
+    aamm[0] = -model->hfields[hfieldid]->size[0];
+    aamm[1] = -model->hfields[hfieldid]->size[1];
+    aamm[2] = -model->hfields[hfieldid]->size[3];
+    aamm[3] = model->hfields[hfieldid]->size[0];
+    aamm[4] = model->hfields[hfieldid]->size[1];
+    aamm[5] = model->hfields[hfieldid]->size[2];
+    break;
+
+  case mjGEOM_SPHERE:
+    aamm[3] = aamm[4] = aamm[5] = size[0];
+    mjuu_setvec(aamm, -aamm[3], -aamm[4], -aamm[5]);
+    break;
+
+  case mjGEOM_CAPSULE:
+    aamm[3] = aamm[4] = size[0];
+    aamm[5] = size[0] + size[1];
+    mjuu_setvec(aamm, -aamm[3], -aamm[4], -aamm[5]);
+    break;
+
+  case mjGEOM_CYLINDER:
+    aamm[3] = aamm[4] = size[0];
+    aamm[5] = size[1];
+    mjuu_setvec(aamm, -aamm[3], -aamm[4], -aamm[5]);
+    break;
+
+  case mjGEOM_MESH:
+  case mjGEOM_SDF:
+    mjuu_copyvec(aamm, model->meshes[meshid]->aamm(), 6);
+    break;
+
+  case mjGEOM_PLANE:
+    aamm[0] = aamm[1] = aamm[2] = -mjMAXVAL;
+    aamm[3] = aamm[4] = mjMAXVAL;
+    aamm[5] = 0;
+    break;
+
+  default:
+    mjuu_copyvec(aamm+3, size, 3);
+    mjuu_setvec(aamm, -size[0], -size[1], -size[2]);
+    break;
+  }
+
+  // convert aamm to aabb (center, size) format
+  double pos[] = {(aamm[3] + aamm[0]) / 2, (aamm[4] + aamm[1]) / 2,
+                  (aamm[5] + aamm[2]) / 2};
+  double size[] = {(aamm[3] - aamm[0]) / 2, (aamm[4] - aamm[1]) / 2,
+                   (aamm[5] - aamm[2]) / 2};
+  mjuu_copyvec(aabb, pos, 3);
+  mjuu_copyvec(aabb+3, size, 3);
+}
+
+
 
 // compiler
 void mjCGeom::Compile(void) {
@@ -1274,7 +1683,7 @@ void mjCGeom::Compile(void) {
   }
 
   // check mesh
-  if (type==mjGEOM_MESH && meshid<0) {
+  if ((type==mjGEOM_MESH || type==mjGEOM_SDF) && meshid<0) {
     throw mjCError(this, "mesh geom '%s' (id = %d) must have valid meshid", name.c_str(), id);
   }
 
@@ -1283,9 +1692,9 @@ void mjCGeom::Compile(void) {
     throw mjCError(this, "hfield geom '%s' (id = %d) must have valid hfieldid", name.c_str(), id);
   }
 
-  // plane and hfield only allowed in static bodies
-  if ((type==mjGEOM_PLANE || type==mjGEOM_HFIELD) && body->weldid!=0) {
-    throw mjCError(this, "plane and hfield only allowed in static bodies: geom '%s' (id = %d)",
+  // plane only allowed in static bodies
+  if (type==mjGEOM_PLANE && body->weldid!=0) {
+    throw mjCError(this, "plane only allowed in static bodies: geom '%s' (id = %d)",
                    name.c_str(), id);
   }
 
@@ -1341,7 +1750,7 @@ void mjCGeom::Compile(void) {
   else {
     const char* err = alt.Set(quat, inertia, model->degree, model->euler);
     if (err) {
-      throw mjCError(this, "alternative specification error '%s' in geom %d", err, id);
+      throw mjCError(this, "orientation specification error '%s' in geom %d", err, id);
     }
   }
 
@@ -1357,18 +1766,20 @@ void mjCGeom::Compile(void) {
 
     // fit geom if type is not mjGEOM_MESH
     double meshpos[3];
-    if (type!=mjGEOM_MESH) {
+    if (type!=mjGEOM_MESH && type!=mjGEOM_SDF) {
       pmesh->FitGeom(this, meshpos);
 
       // remove reference to mesh
       mesh.clear();
       meshid = -1;
     } else {
-      mjuu_copyvec(meshpos, pmesh->pos, 3);
+      mjuu_copyvec(meshpos, pmesh->GetPosPtr(typeinertia), 3);
     }
 
     // apply geom pos/quat as offset
-    mjuu_frameaccum(pos, quat, meshpos, pmesh->quat);
+    mjuu_frameaccum(pos, quat, meshpos, pmesh->GetQuatPtr(typeinertia));
+    mjuu_copyvec(pmesh->GetOffsetPosPtr(), meshpos, 3);
+    mjuu_copyvec(pmesh->GetOffsetQuatPtr(), pmesh->GetQuatPtr(typeinertia), 4);
   }
 
   // check size parameters
@@ -1378,30 +1789,63 @@ void mjCGeom::Compile(void) {
   if (type==mjGEOM_HFIELD) {
     size[0] = model->hfields[hfieldid]->size[0];
     size[1] = model->hfields[hfieldid]->size[1];
-    size[2] = 0.5*(model->hfields[hfieldid]->size[2]+model->hfields[hfieldid]->size[3]);
-  } else if (type==mjGEOM_MESH) {
-    size[0] = model->meshes[meshid]->aabb[0];
-    size[1] = model->meshes[meshid]->aabb[1];
-    size[2] = model->meshes[meshid]->aabb[2];
+    size[2] = 0.5*(0.5*model->hfields[hfieldid]->size[2] +
+                   model->hfields[hfieldid]->size[3]);
+  } else if (type==mjGEOM_MESH || type==mjGEOM_SDF) {
+    const double* aamm = model->meshes[meshid]->aamm();
+    size[0] = mju_max(fabs(aamm[0]), fabs(aamm[3]));
+    size[1] = mju_max(fabs(aamm[1]), fabs(aamm[4]));
+    size[2] = mju_max(fabs(aamm[2]), fabs(aamm[5]));
   }
+
+  for (double s : size) {
+    if (std::isnan(s)) {
+      throw mjCError(this, "nan size in geom '%s' (id = %d)", name.c_str(), id);
+    }
+  }
+  // compute aabb
+  ComputeAABB();
 
   // compute geom mass and inertia
-  if (mjuu_defined(_mass) && GetVolume()>mjMINVAL) {
-    mass = _mass;
-    density = _mass / GetVolume();
-  } else {
-    mass = density * GetVolume();
-  }
-  SetInertia();
+  if (inferinertia) {
+    if (mjuu_defined(_mass)) {
+      if (_mass==0) {
+        mass = 0;
+        density = 0;
+      } else if (GetVolume()>mjMINVAL) {
+        mass = _mass;
+        density = _mass / GetVolume();
+        SetInertia();
+      }
+    } else {
+      mass = density * GetVolume();
+      SetInertia();
+    }
 
-  // check for negative values
-  if (mass<0 || inertia[0]<0 || inertia[1]<0 || inertia[2]<0 || density<0)
-    throw mjCError(this, "mass, inertia or density are negative in geom '%s' (id = %d)",
-                   name.c_str(), id);
+    // check for negative values
+    if (mass<0 || inertia[0]<0 || inertia[1]<0 || inertia[2]<0 || density<0)
+      throw mjCError(this, "mass, inertia or density are negative in geom '%s' (id = %d)",
+                    name.c_str(), id);
+  }
 
   // fluid-interaction coefficients, requires computed inertia and mass
   if (fluid_switch > 0) {
     SetFluidCoefs();
+  }
+
+  // plugin
+  if (is_plugin) {
+    if (plugin_name.empty() && plugin_instance_name.empty()) {
+      throw mjCError(
+          this, "neither 'plugin' nor 'instance' is specified for geom '%s', (id = %d)",
+          name.c_str(), id);
+    }
+
+    model->ResolvePlugin(this, plugin_name, plugin_instance_name, &plugin_instance);
+    const mjpPlugin* plugin = mjp_getPluginAtSlot(plugin_instance->plugin_slot);
+    if (!(plugin->capabilityflags & mjPLUGIN_SDF)) {
+      throw mjCError(this, "plugin '%s' does not support sign distance fields", plugin->name);
+    }
   }
 }
 
@@ -1509,7 +1953,7 @@ void mjCSite::Compile(void) {
   else {
     const char* err = alt.Set(quat, 0, model->degree, model->euler);
     if (err) {
-      throw mjCError(this, "alternative specification error '%s' in site %d", err, id);
+      throw mjCError(this, "orientation specification error '%s' in site %d", err, id);
     }
   }
 
@@ -1537,6 +1981,13 @@ mjCCamera::mjCCamera(mjCModel* _model, mjCDef* _def) {
   fovy = 45;
   ipd = 0.068;
   userdata.clear();
+  resolution[0] = resolution[1] = 1;
+  principal_length[0] = principal_length[1] = 0;
+  principal_pixel[0] = principal_pixel[1] = 0;
+  focal_length[0] = focal_length[1] = 0;
+  focal_pixel[0] = focal_pixel[1] = 0;
+  sensor_size[0] = sensor_size[1] = 0;
+  mjuu_setvec(intrinsic, 0, 0, 0, 0);
 
   // clear private variables
   body = 0;
@@ -1568,7 +2019,7 @@ void mjCCamera::Compile(void) {
   // process orientation specifications
   const char* err = alt.Set(quat, 0, model->degree, model->euler);
   if (err) {
-    throw mjCError(this, "alternative specification error '%s' in site %d", err, id);
+    throw mjCError(this, "orientation specification error '%s' in camera %d", err, id);
   }
 
   // normalize quaternion
@@ -1590,6 +2041,45 @@ void mjCCamera::Compile(void) {
   // make sure it is not targeting parent body
   if (targetbodyid==body->id) {
     throw mjCError(this, "parent-targeting in camera '%s' (id = %d)", name.c_str(), id);
+  }
+
+  // make sure the image size is finite
+  if (fovy >= 180) {
+    throw mjCError(this, "fovy too large in camera '%s' (id = %d, value = %d)",
+                   name.c_str(), id, fovy);
+  }
+
+  // check that specs are not duplicated
+  if ((principal_length[0] && principal_pixel[0]) ||
+      (principal_length[1] && principal_pixel[1])) {
+    throw mjCError(this, "principal length duplicated in camera '%s' (id = %d)",
+                   name.c_str(), id);
+  }
+
+  if ((focal_length[0] && focal_pixel[0]) ||
+      (focal_length[1] && focal_pixel[1])) {
+    throw mjCError(this, "focal length duplicated in camera '%s' (id = %d)",
+                   name.c_str(), id);
+  }
+
+  // compute number of pixels per unit length
+  if (sensor_size[0]>0 && sensor_size[1]>0) {
+    float pixel_density[2] = {
+      (float)resolution[0] / sensor_size[0],
+      (float)resolution[1] / sensor_size[1],
+    };
+
+    // defaults are zero, so only one term in each sum is nonzero
+    intrinsic[0] = focal_pixel[0] / pixel_density[0] + focal_length[0];
+    intrinsic[1] = focal_pixel[1] / pixel_density[1] + focal_length[1];
+    intrinsic[2] = principal_pixel[0] / pixel_density[0] + principal_length[0];
+    intrinsic[3] = principal_pixel[1] / pixel_density[1] + principal_length[1];
+
+    // fovy with principal point at (0, 0)
+    fovy = mju_atan2((float)sensor_size[1]/2, intrinsic[1]) * 360.0 / mjPI;
+  } else {
+    intrinsic[0] = model->visual.map.znear;
+    intrinsic[1] = model->visual.map.znear;
   }
 }
 
@@ -1644,14 +2134,8 @@ void mjCLight::Compile(void) {
   // ask parent body to compute our local pos and quat relative to itself
   body->MakeLocal(locpos, locquat, pos, quat);
 
-  // copy/convert dir to local frame
-  if (model->global) {
-    double mat[9], q[4] = {locquat[0], -locquat[1], -locquat[2], -locquat[3]};
-    mjuu_quat2mat(mat, q);
-    mjuu_mulvecmat(locdir, dir, mat);
-  } else {
-    mjuu_copyvec(locdir, dir, 3);
-  }
+  // copy dir to local frame
+  mjuu_copyvec(locdir, dir, 3);
 
   // get targetbodyid
   if (!targetbody.empty()) {
@@ -1698,34 +2182,20 @@ mjCHField::~mjCHField() {
 
 
 // load elevation data from custom format
-void mjCHField::LoadCustom(string filename, const mjVFS* vfs) {
+void mjCHField::LoadCustom(mjResource* resource) {
   // get file data in buffer
-  void* buffer = 0;
-  int buffer_sz = 0, flag_existing = 0;
-  if (vfs) {
-    int id = mj_findFileVFS(vfs, filename.c_str());
-    if (id>=0) {
-      buffer = vfs->filedata[id];
-      buffer_sz = vfs->filesize[id];
-      flag_existing = 1;
-    }
+  const void* buffer = 0;
+  int buffer_sz = mju_readResource(resource, &buffer);
+
+  if (buffer_sz < 1) {
+    throw mjCError(this, "could not read hfield file '%s'", resource->name);
+  } else if (!buffer_sz) {
+    throw mjCError(this, "empty hfield file '%s'", resource->name);
   }
 
-  // if not found in vfs, read from file
-  if (!buffer) {
-    buffer = mju_fileToMemory(filename.c_str(), &buffer_sz);
-  }
-
-  // still not found
-  if (!buffer || !buffer_sz) {
-    throw mjCError(this, "could not open hfield file '%s'", filename.c_str());
-  }
 
   if (buffer_sz < 2*sizeof(int)) {
-    if (!flag_existing) {
-      mju_free(buffer);
-    }
-    throw mjCError(this, "hfield missing header '%s'", filename.c_str());
+    throw mjCError(this, "hfield missing header '%s'", resource->name);
   }
 
   // read dimensions
@@ -1735,71 +2205,51 @@ void mjCHField::LoadCustom(string filename, const mjVFS* vfs) {
 
   // check dimensions
   if (nrow<1 || ncol<1) {
-    if (!flag_existing) {
-      mju_free(buffer);
-    }
-
-    throw mjCError(this, "non-positive hfield dimensions in file '%s'", filename.c_str());
+    throw mjCError(this, "non-positive hfield dimensions in file '%s'", resource->name);
   }
 
   // check buffer size
   if (buffer_sz != nrow*ncol*sizeof(float)+8) {
-    if (!flag_existing) {
-      mju_free(buffer);
-    }
-
-    throw mjCError(this, "unexpected file size in file '%s'", filename.c_str());
+    throw mjCError(this, "unexpected file size in file '%s'", resource->name);
   }
 
   // allocate
   data = (float*) mju_malloc(nrow*ncol*sizeof(float));
   if (!data) {
-    if (!flag_existing) {
-      mju_free(buffer);
-    }
-
     throw mjCError(this, "could not allocate buffers in hfield");
   }
 
   // copy data
   memcpy(data, (void*)(pint+2), nrow*ncol*sizeof(float));
-
-  // free buffer if allocated here
-  if (!flag_existing) {
-    mju_free(buffer);
-  }
 }
 
 
 
 // load elevation data from PNG format
-void mjCHField::LoadPNG(string filename, const mjVFS* vfs) {
+void mjCHField::LoadPNG(mjResource* resource) {
   // determine data source
-  const unsigned char* inbuffer = 0;
-  size_t inbuffer_sz = 0;
-  if (vfs) {
-    int id = mj_findFileVFS(vfs, filename.c_str());
-    if (id>=0) {
-      inbuffer = (const unsigned char*)vfs->filedata[id];
-      inbuffer_sz = (size_t)vfs->filesize[id];
-    }
+  const void* inbuffer = 0;
+  int inbuffer_sz = mju_readResource(resource, &inbuffer);
+
+  if (inbuffer_sz < 1) {
+    throw mjCError(this, "could not read hfield PNG file '%s'", resource->name);
+  }
+
+  if (!inbuffer_sz) {
+    throw mjCError(this, "empty hfield PNG file '%s'", resource->name);
   }
 
   // load PNG from file or memory
   unsigned int w, h, err;
   std::vector<unsigned char> image;
-  if (inbuffer_sz) {
-    err = lodepng::decode(image, w, h, inbuffer, inbuffer_sz, LCT_GREY, 8);
-  } else {
-    err = lodepng::decode(image, w, h, filename, LCT_GREY, 8);
-  }
+  err = lodepng::decode(image, w, h, (const unsigned char*) inbuffer, inbuffer_sz, LCT_GREY, 8);
 
   // check
   if (err) {
     throw mjCError(this, "PNG load error '%s' in hfield id = %d", lodepng_error_text(err), id);
   }
   if (!w || !h) {
-    throw mjCError(this, "Zero dimension in PNG hfield '%s' (id = %d)", name.c_str(), id);
+    throw mjCError(this, "Zero dimension in PNG hfield '%s' (id = %d)", resource->name, id);
   }
 
   // allocate
@@ -1841,14 +2291,30 @@ void mjCHField::Compile(const mjVFS* vfs) {
                      "hfield '%s' (id = %d) specified from file and manually", name.c_str(), id);
     }
 
-    // make filename
-    string filename = mjuu_makefullname(model->modelfiledir, model->meshdir, file);
+    std::string asset_type = GetAssetContentType(file, content_type);
 
-    // load depending on format
-    if (!strcasecmp(filename.substr(filename.length()-4, 5).c_str(), ".png")) {
-      LoadPNG(filename, vfs);
-    } else {
-      LoadCustom(filename, vfs);
+    // fallback to custom
+    if (asset_type.empty()) {
+      asset_type = "image/vnd.mujoco.hfield";
+    }
+
+    if (asset_type != "image/png" && asset_type != "image/vnd.mujoco.hfield") {
+      throw mjCError(this, "unsupported content type: '%s'", asset_type.c_str());
+    }
+
+    string filename = mjuu_makefullname(model->modelfiledir, model->meshdir, file);
+    mjResource* resource = LoadResource(filename, vfs);
+
+    try {
+      if (asset_type == "image/png") {
+        LoadPNG(resource);
+      } else {
+        LoadCustom(resource);
+      }
+      mju_closeResource(resource);
+    } catch(mjCError err) {
+      mju_closeResource(resource);
+      throw err;
     }
   }
 
@@ -1926,11 +2392,10 @@ mjCTexture::~mjCTexture() {
 // insert random dots
 static void randomdot(unsigned char* rgb, const double* markrgb,
                       int width, int height, double probability) {
-  int r, c, j;
-  for (r=0; r<height; r++) {
-    for (c=0; c<width; c++) {
+  for (int r=0; r<height; r++) {
+    for (int c=0; c<width; c++) {
       if (rand()<probability*RAND_MAX) {
-        for (j=0; j<3; j++) {
+        for (int j=0; j<3; j++) {
           rgb[3*(r*width+c)+j] = (mjtByte)(255*markrgb[j]);
         }
       }
@@ -1960,25 +2425,23 @@ static void interp(unsigned char* rgb, const double* rgb1, const double* rgb2, d
 // make checker pattern for one side
 static void checker(unsigned char* rgb, const unsigned char* RGB1, const unsigned char* RGB2,
                     int width, int height) {
-  int r, c;
-
-  for (r=0; r<height/2; r++) {
-    for (c=0; c<width/2; c++) {
+  for (int r=0; r<height/2; r++) {
+    for (int c=0; c<width/2; c++) {
       memcpy(rgb+3*(r*width+c), RGB1, 3);
     }
   }
-  for (r=height/2; r<height; r++) {
-    for (c=width/2; c<width; c++) {
+  for (int r=height/2; r<height; r++) {
+    for (int c=width/2; c<width; c++) {
       memcpy(rgb+3*(r*width+c), RGB1, 3);
     }
   }
-  for (r=0; r<height/2; r++) {
-    for (c=width/2; c<width; c++) {
+  for (int r=0; r<height/2; r++) {
+    for (int c=width/2; c<width; c++) {
       memcpy(rgb+3*(r*width+c), RGB2, 3);
     }
   }
-  for (r=height/2; r<height; r++) {
-    for (c=0; c<width/2; c++) {
+  for (int r=height/2; r<height; r++) {
+    for (int c=0; c<width/2; c++) {
       memcpy(rgb+3*(r*width+c), RGB2, 3);
     }
   }
@@ -1989,10 +2452,8 @@ static void checker(unsigned char* rgb, const unsigned char* RGB1, const unsigne
 // make builtin: 2D
 void mjCTexture::Builtin2D(void) {
   unsigned char RGB1[3], RGB2[3], RGBm[3];
-  int r, c, j;
-
   // convert fixed colors
-  for (j=0; j<3; j++) {
+  for (int j=0; j<3; j++) {
     RGB1[j] = (mjtByte)(255*rgb1[j]);
     RGB2[j] = (mjtByte)(255*rgb2[j]);
     RGBm[j] = (mjtByte)(255*markrgb[j]);
@@ -2002,8 +2463,8 @@ void mjCTexture::Builtin2D(void) {
 
   // gradient
   if (builtin==mjBUILTIN_GRADIENT) {
-    for (r=0; r<height; r++) {
-      for (c=0; c<width; c++) {
+    for (int r=0; r<height; r++) {
+      for (int c=0; c<width; c++) {
         // compute normalized coordinates and radius
         double x = 2*c/((double)(width-1)) - 1;
         double y = 1 - 2*r/((double)(height-1));
@@ -2022,8 +2483,8 @@ void mjCTexture::Builtin2D(void) {
 
   // flat
   else if (builtin==mjBUILTIN_FLAT) {
-    for (r=0; r<height; r++) {
-      for (c=0; c<width; c++) {
+    for (int r=0; r<height; r++) {
+      for (int c=0; c<width; c++) {
         memcpy(rgb+3*(r*width+c), RGB1, 3);
       }
     }
@@ -2033,11 +2494,11 @@ void mjCTexture::Builtin2D(void) {
 
   // edge
   if (mark==mjMARK_EDGE) {
-    for (r=0; r<height; r++) {
+    for (int r=0; r<height; r++) {
       memcpy(rgb+3*(r*width+0), RGBm, 3);
       memcpy(rgb+3*(r*width+width-1), RGBm, 3);
     }
-    for (c=0; c<width; c++) {
+    for (int c=0; c<width; c++) {
       memcpy(rgb+3*(0*width+c), RGBm, 3);
       memcpy(rgb+3*((height-1)*width+c), RGBm, 3);
     }
@@ -2045,10 +2506,10 @@ void mjCTexture::Builtin2D(void) {
 
   // cross
   else if (mark==mjMARK_CROSS) {
-    for (r=0; r<height; r++) {
+    for (int r=0; r<height; r++) {
       memcpy(rgb+3*(r*width+width/2), RGBm, 3);
     }
-    for (c=0; c<width; c++) {
+    for (int c=0; c<width; c++) {
       memcpy(rgb+3*(height/2*width+c), RGBm, 3);
     }
   }
@@ -2064,10 +2525,9 @@ void mjCTexture::Builtin2D(void) {
 // make builtin: Cube
 void mjCTexture::BuiltinCube(void) {
   unsigned char RGB1[3], RGB2[3], RGBm[3], RGBi[3];
-  int r, c, j;
 
   // convert fixed colors
-  for (j=0; j<3; j++) {
+  for (int j=0; j<3; j++) {
     RGB1[j] = (mjtByte)(255*rgb1[j]);
     RGB2[j] = (mjtByte)(255*rgb2[j]);
     RGBm[j] = (mjtByte)(255*markrgb[j]);
@@ -2077,8 +2537,8 @@ void mjCTexture::BuiltinCube(void) {
 
   // gradient
   if (builtin==mjBUILTIN_GRADIENT) {
-    for (r=0; r<width; r++) {
-      for (c=0; c<width; c++) {
+    for (int r=0; r<width; r++) {
+      for (int c=0; c<width; c++) {
         // compute normalized pixel coordinates
         double x = 2*c/((double)(width-1)) - 1;
         double y = 1 - 2*r/((double)(width-1));
@@ -2113,8 +2573,8 @@ void mjCTexture::BuiltinCube(void) {
 
   // flat
   else if (builtin==mjBUILTIN_FLAT) {
-    for (r=0; r<width; r++) {
-      for (c=0; c<width; c++) {
+    for (int r=0; r<width; r++) {
+      for (int c=0; c<width; c++) {
         // set sides and up
         memcpy(rgb+0*3*width*width+3*(r*width+c), RGB1, 3);
         memcpy(rgb+1*3*width*width+3*(r*width+c), RGB1, 3);
@@ -2132,12 +2592,12 @@ void mjCTexture::BuiltinCube(void) {
 
   // edge
   if (mark==mjMARK_EDGE) {
-    for (j=0; j<6; j++) {
-      for (r=0; r<width; r++) {
+    for (int j=0; j<6; j++) {
+      for (int r=0; r<width; r++) {
         memcpy(rgb+j*3*width*width+3*(r*width+0), RGBm, 3);
         memcpy(rgb+j*3*width*width+3*(r*width+width-1), RGBm, 3);
       }
-      for (c=0; c<width; c++) {
+      for (int c=0; c<width; c++) {
         memcpy(rgb+j*3*width*width+3*(0*width+c), RGBm, 3);
         memcpy(rgb+j*3*width*width+3*((width-1)*width+c), RGBm, 3);
       }
@@ -2146,11 +2606,11 @@ void mjCTexture::BuiltinCube(void) {
 
   // cross
   else if (mark==mjMARK_CROSS) {
-    for (j=0; j<6; j++) {
-      for (r=0; r<width; r++) {
+    for (int j=0; j<6; j++) {
+      for (int r=0; r<width; r++) {
         memcpy(rgb+j*3*width*width+3*(r*width+width/2), RGBm, 3);
       }
-      for (c=0; c<width; c++) {
+      for (int c=0; c<width; c++) {
         memcpy(rgb+j*3*width*width+3*(width/2*width+c), RGBm, 3);
       }
     }
@@ -2165,27 +2625,22 @@ void mjCTexture::BuiltinCube(void) {
 
 
 // load PNG file
-void mjCTexture::LoadPNG(string filename, const mjVFS* vfs,
+void mjCTexture::LoadPNG(mjResource* resource,
                          std::vector<unsigned char>& image,
                          unsigned int& w, unsigned int& h) {
-  // determine data source
-  const unsigned char* inbuffer = 0;
-  size_t inbuffer_sz = 0;
-  if (vfs) {
-    int id = mj_findFileVFS(vfs, filename.c_str());
-    if (id>=0) {
-      inbuffer = (const unsigned char*)vfs->filedata[id];
-      inbuffer_sz = (size_t)vfs->filesize[id];
-    }
+  const void* inbuffer = 0;
+  int inbuffer_sz = mju_readResource(resource, &inbuffer);
+
+  // still not found
+  if (inbuffer_sz < 1) {
+    throw mjCError(this, "could not read PNG texture file '%s'", resource->name);
+  } else if (!inbuffer_sz) {
+    throw mjCError(this, "PNG texture file '%s' is empty", resource->name);
   }
 
+
   // load PNG from file or memory
-  unsigned int err;
-  if (inbuffer_sz) {
-    err = lodepng::decode(image, w, h, inbuffer, inbuffer_sz, LCT_RGB, 8);
-  } else {
-    err = lodepng::decode(image, w, h, filename, LCT_RGB, 8);
-  }
+  unsigned int err = lodepng::decode(image, w, h, (const unsigned char*) inbuffer, inbuffer_sz, LCT_RGB, 8);
 
   // check
   if (err) {
@@ -2193,37 +2648,26 @@ void mjCTexture::LoadPNG(string filename, const mjVFS* vfs,
                    "PNG file load error '%s' in texture id = %d", lodepng_error_text(err), id);
   }
   if (w<1 || h<1) {
-    throw mjCError(this, "Empty PNG file in texture '%s' (id %d)", (const char*)file.c_str(), id);
+    throw mjCError(this, "Empty PNG file in texture '%s' (id %d)", resource->name, id);
   }
 }
 
 
 
 // load custom file
-void mjCTexture::LoadCustom(string filename, const mjVFS* vfs,
+void mjCTexture::LoadCustom(mjResource* resource,
                             std::vector<unsigned char>& image,
                             unsigned int& w, unsigned int& h) {
-  // get file data in buffer
-  void* buffer = 0;
-  int buffer_sz = 0, flag_existing = 0;
-  if (vfs) {
-    int id = mj_findFileVFS(vfs, filename.c_str());
-    if (id>=0) {
-      buffer = vfs->filedata[id];
-      buffer_sz = vfs->filesize[id];
-      flag_existing = 1;
-    }
-  }
-
-  // if not found in vfs, read from file
-  if (!buffer) {
-    buffer = mju_fileToMemory(filename.c_str(), &buffer_sz);
-  }
+  const void* buffer = 0;
+  int buffer_sz = mju_readResource(resource, &buffer);
 
   // still not found
-  if (!buffer || !buffer_sz) {
-    throw mjCError(this, "could not open texture file '%s'", filename.c_str());
+  if (buffer_sz < 0) {
+    throw mjCError(this, "could not read texture file '%s'", resource->name);
+  } else if (!buffer_sz) {
+    throw mjCError(this, "texture file is empty: '%s'", resource->name);
   }
+
 
   // read dimensions
   int* pint = (int*)buffer;
@@ -2232,32 +2676,19 @@ void mjCTexture::LoadCustom(string filename, const mjVFS* vfs,
 
   // check dimensions
   if (w<1 || h<1) {
-    if (!flag_existing) {
-      mju_free(buffer);
-    }
-
     throw mjCError(this, "Non-PNG texture, assuming custom binary file format,\n"
-                         "non-positive texture dimensions in file '%s'", filename.c_str());
+                         "non-positive texture dimensions in file '%s'", resource->name);
   }
 
   // check buffer size
   if (buffer_sz != 2*sizeof(int) + w*h*3*sizeof(char)) {
-    if (!flag_existing) {
-      mju_free(buffer);
-    }
-
     throw mjCError(this, "Non-PNG texture, assuming custom binary file format,\n"
-                         "unexpected file size in file '%s'", filename.c_str());
+                         "unexpected file size in file '%s'", resource->name);
   }
 
   // allocate and copy
   image.resize(w*h*3);
   memcpy(image.data(), (void*)(pint+2), w*h*3*sizeof(char));
-
-  // free buffer if allocated here
-  if (!flag_existing) {
-    mju_free(buffer);
-  }
 }
 
 
@@ -2266,11 +2697,29 @@ void mjCTexture::LoadCustom(string filename, const mjVFS* vfs,
 void mjCTexture::LoadFlip(string filename, const mjVFS* vfs,
                           std::vector<unsigned char>& image,
                           unsigned int& w, unsigned int& h) {
-  // dispatch to PNG or Custom loaded
-  if (!strcasecmp(filename.substr(filename.length()-4, 5).c_str(), ".png")) {
-    LoadPNG(filename, vfs, image, w, h);
-  } else {
-    LoadCustom(filename, vfs, image, w, h);
+  std::string asset_type = GetAssetContentType(filename, content_type);
+
+  // fallback to custom
+  if (asset_type.empty()) {
+    asset_type = "image/vnd.mujoco.texture";
+  }
+
+  if (asset_type != "image/png" && asset_type != "image/vnd.mujoco.texture") {
+    throw mjCError(this, "unsupported content type: '%s'", asset_type.c_str());
+  }
+
+  mjResource* resource = LoadResource(filename, vfs);
+
+  try {
+    if (asset_type == "image/png") {
+      LoadPNG(resource, image, w, h);
+    } else {
+      LoadCustom(resource, image, w, h);
+    }
+    mju_closeResource(resource);
+  } catch(mjCError err) {
+    mju_closeResource(resource);
+    throw err;
   }
 
   // horizontal flip
@@ -2345,8 +2794,6 @@ void mjCTexture::Load2D(string filename, const mjVFS* vfs) {
 
 // load cube or skybox from single file (repeated or grid)
 void mjCTexture::LoadCubeSingle(string filename, const mjVFS* vfs) {
-  int i, j, k, s;
-
   // check gridsize
   if (gridsize[0]<1 || gridsize[1]<1 || gridsize[0]*gridsize[1]>12) {
     throw mjCError(this,
@@ -2393,9 +2840,9 @@ void mjCTexture::LoadCubeSingle(string filename, const mjVFS* vfs) {
     int loaded[6] = {0, 0, 0, 0, 0, 0};
 
     // process grid
-    for (k=0; k<gridsize[0]*gridsize[1]; k++) {
+    for (int k=0; k<gridsize[0]*gridsize[1]; k++) {
       // decode face symbol
-      i = -1;
+      int i = -1;
       if (gridlayout[k]=='R') {
         i = 0;
       } else if (gridlayout[k]=='L') {
@@ -2417,7 +2864,7 @@ void mjCTexture::LoadCubeSingle(string filename, const mjVFS* vfs) {
         // extract sub-image
         int rstart = width*(k/gridsize[1]);
         int cstart = width*(k%gridsize[1]);
-        for (j=0; j<width; j++) {
+        for (int j=0; j<width; j++) {
           memcpy(rgb+i*3*width*width+j*3*width, image.data()+(j+rstart)*3*w+3*cstart, 3*width);
         }
 
@@ -2427,11 +2874,11 @@ void mjCTexture::LoadCubeSingle(string filename, const mjVFS* vfs) {
     }
 
     // set undefined faces to rgb1
-    for (i=0; i<6; i++) {
+    for (int i=0; i<6; i++) {
       if (!loaded[i]) {
-        for (k=0; k<width; k++) {
-          for (s=0; s<width; s++) {
-            for (j=0; j<3; j++) {
+        for (int k=0; k<width; k++) {
+          for (int s=0; s<width; s++) {
+            for (int j=0; j<3; j++) {
               rgb[i*3*width*width + 3*(k*width+s) + j] = (mjtByte)(255*rgb1[j]);
             }
           }
@@ -2447,13 +2894,11 @@ void mjCTexture::LoadCubeSingle(string filename, const mjVFS* vfs) {
 
 // load cube or skybox from separate file
 void mjCTexture::LoadCubeSeparate(const mjVFS* vfs) {
-  int i, j, k, s;
-
   // keep track of which faces were defined
   int loaded[6] = {0, 0, 0, 0, 0, 0};
 
   // process nonempty files
-  for (i=0; i<6; i++) {
+  for (int i=0; i<6; i++) {
     if (!cubefiles[i].empty()) {
       // remove path from file if necessary
       if (model->strippath) {
@@ -2504,11 +2949,11 @@ void mjCTexture::LoadCubeSeparate(const mjVFS* vfs) {
   }
 
   // set undefined faces to rgb1
-  for (i=0; i<6; i++) {
+  for (int i=0; i<6; i++) {
     if (!loaded[i]) {
-      for (k=0; k<width; k++) {
-        for (s=0; s<width; s++) {
-          for (j=0; j<3; j++) {
+      for (int k=0; k<width; k++) {
+        for (int s=0; s<width; s++) {
+          for (int j=0; j<3; j++) {
             rgb[i*3*width*width + 3*(k*width+s) + j] = (mjtByte)(255*rgb1[j]);
           }
         }
@@ -2649,6 +3094,7 @@ mjCPair::mjCPair(mjCModel* _model, mjCDef* _def) {
 
   condim = 3;
   mj_defaultSolRefImp(solref, solimp);
+  mju_zero(solreffriction, mjNREF);
   margin = 0;
   gap = 0;
   friction[0] = 1;
@@ -2705,7 +3151,7 @@ void mjCPair::Compile(void) {
   // get geom ids and body signature
   geom1 = pg1->id;
   geom2 = pg2->id;
-  signature = ((pg1->body->id+1)<<16) + pg2->body->id+1;
+  signature = ((pg1->body->id)<<16) + pg2->body->id;
 
   // set undefined margin: max
   if (!mjuu_defined(margin)) {
@@ -2757,9 +3203,9 @@ void mjCPair::Compile(void) {
 
     // friction: max
     if (!mjuu_defined(friction[0])) {
-      friction[0] = friction[1] = mjMAX(pg1->friction[0], pg2->friction[0]);
-      friction[2] =               mjMAX(pg1->friction[1], pg2->friction[1]);
-      friction[3] = friction[4] = mjMAX(pg1->friction[2], pg2->friction[2]);
+      friction[0] = friction[1] = mju_max(pg1->friction[0], pg2->friction[0]);
+      friction[2] =               mju_max(pg1->friction[1], pg2->friction[1]);
+      friction[3] = friction[4] = mju_max(pg1->friction[2], pg2->friction[2]);
     }
 
     // solver mix factor
@@ -2847,7 +3293,7 @@ void mjCBodyPair::Compile(void) {
   // get body ids and body signature
   body1 = pb1->id;
   body2 = pb2->id;
-  signature = ((body1+1)<<16) + body2+1;
+  signature = (body1<<16) + body2;
 }
 
 
@@ -2865,6 +3311,7 @@ mjCEquality::mjCEquality(mjCModel* _model, mjCDef* _def) {
 
   mjuu_zerovec(data, mjNEQDATA);
   data[1] = 1;
+  data[10] = 1;  // torque:force ratio
 
   // clear internal variables
   obj1id = obj2id = -1;
@@ -2894,8 +3341,8 @@ void mjCEquality::Compile(void) {
     objtype = mjOBJ_JOINT;
   } else if (type==mjEQ_TENDON) {
     objtype = mjOBJ_TENDON;
-  } else if (type==mjEQ_DISTANCE) {
-    objtype = mjOBJ_GEOM;
+  } else if (type==mjEQ_FLEX) {
+    objtype = mjOBJ_FLEX;
   } else {
     throw mjCError(this, "invalid type in equality constraint '%s' (id = %d)'", name.c_str(), id);
   }
@@ -2916,7 +3363,7 @@ void mjCEquality::Compile(void) {
     obj2id = px2->id;
   }
 
-  // object 2 unspecified: set to -1, except for distance
+  // object 2 unspecified: set to -1
   else {
     if (objtype==mjOBJ_GEOM) {
       throw mjCError(this, "both geom are required in equality constraint '%s' (id = %d)",
@@ -2930,6 +3377,11 @@ void mjCEquality::Compile(void) {
   // set missing body = world
   if (objtype==mjOBJ_BODY && obj2id==-1) {
     obj2id = 0;
+  }
+
+  // make sure flex is not rigid
+  if (type==mjEQ_FLEX && model->flexes[obj1id]->rigid) {
+    throw mjCError(this, "rigid flex '%s' in equality constraint %d", name1.c_str(), id);
   }
 
   // make sure the two objects are different
@@ -2952,6 +3404,11 @@ void mjCEquality::Compile(void) {
   if (type==mjEQ_CONNECT) {
     ((mjCBody*)px1)->MakeLocal(anchor, qdummy, data, qunit);
     mjuu_copyvec(data, anchor, 3);
+  } else if (type==mjEQ_WELD) {
+    if (px2) {
+      ((mjCBody*)px2)->MakeLocal(anchor, qdummy, data, qunit);
+      mjuu_copyvec(data, anchor, 3);
+    }
   }
 }
 
@@ -2965,7 +3422,7 @@ mjCTendon::mjCTendon(mjCModel* _model, mjCDef* _def) {
   group = 0;
   material.clear();
   width = 0.003;
-  limited = false;
+  limited = 2;
   range[0] = 0;
   range[1] = 0;
   mj_defaultSolRefImp(solref_limit, solimp_limit);
@@ -2974,7 +3431,7 @@ mjCTendon::mjCTendon(mjCModel* _model, mjCDef* _def) {
   stiffness = 0;
   damping = 0;
   frictionloss = 0;
-  springlength = -1;
+  springlength[0] = springlength[1] = -1;
   rgba[0] = rgba[1] = rgba[2] = 0.5f;
   rgba[3] = 1.0f;
   userdata.clear();
@@ -3195,9 +3652,21 @@ void mjCTendon::Compile(void) {
     }
   }
 
+  // if limited is auto, set to 1 if range is specified, otherwise unlimited
+  if (limited==2) {
+    bool hasrange = !(range[0]==0 && range[1]==0);
+    checklimited(this, model->autolimits, "tendon", "", limited, hasrange);
+    limited = hasrange ? 1 : 0;
+  }
+
   // check limits
   if (range[0]>=range[1] && limited) {
     throw mjCError(this, "invalid limits in tendon '%s (id = %d)'", name.c_str(), id);
+  }
+
+  // check springlength
+  if (springlength[0] > springlength[1]) {
+    throw mjCError(this, "invalid springlength in tendon '%s (id = %d)'", name.c_str(), id);
   }
 }
 
@@ -3307,9 +3776,10 @@ void mjCWrap::Compile(void) {
 mjCActuator::mjCActuator(mjCModel* _model, mjCDef* _def) {
   // actuator defaults
   group = 0;
-  ctrllimited = false;
-  forcelimited = false;
-  actlimited = false;
+  ctrllimited = 2;
+  forcelimited = 2;
+  actlimited = 2;
+  actdim = -1;
   trntype = mjTRN_UNDEFINED;
   dyntype = mjDYN_NONE;
   gaintype = mjGAIN_FIXED;
@@ -3328,6 +3798,7 @@ mjCActuator::mjCActuator(mjCModel* _model, mjCDef* _def) {
   cranklength = 0;
   target.clear();
   slidersite.clear();
+  refsite.clear();
   userdata.clear();
 
   // clear private variables
@@ -3341,6 +3812,11 @@ mjCActuator::mjCActuator(mjCModel* _model, mjCDef* _def) {
   // set model, def
   model = _model;
   def = (_def ? _def : (_model ? _model->defaults[0] : 0));
+
+  is_plugin = false;
+  plugin_instance = nullptr;
+  plugin_name = "";
+  plugin_instance_name = "";
 }
 
 
@@ -3356,6 +3832,23 @@ void mjCActuator::Compile(void) {
   }
   userdata.resize(model->nuser_actuator);
 
+  // if limited is auto, set to 1 if range is specified, otherwise unlimited
+  if (forcelimited==2) {
+    bool hasrange = !(forcerange[0]==0 && forcerange[1]==0);
+    checklimited(this, model->autolimits, "actuator", "force", forcelimited, hasrange);
+    forcelimited = hasrange ? 1 : 0;
+  }
+  if (ctrllimited==2) {
+    bool hasrange = !(ctrlrange[0]==0 && ctrlrange[1]==0);
+    checklimited(this, model->autolimits, "actuator", "ctrl", ctrllimited, hasrange);
+    ctrllimited = hasrange ? 1 : 0;
+  }
+  if (actlimited==2) {
+    bool hasrange = !(actrange[0]==0 && actrange[1]==0);
+    checklimited(this, model->autolimits, "actuator", "act", actlimited, hasrange);
+    actlimited = hasrange ? 1 : 0;
+  }
+
   // check limits
   if (forcerange[0]>=forcerange[1] && forcelimited) {
     throw mjCError(this, "invalid force range for actuator '%s' (id = %d)", name.c_str(), id);
@@ -3369,6 +3862,23 @@ void mjCActuator::Compile(void) {
   if (actlimited && dyntype == mjDYN_NONE) {
     throw mjCError(this, "actrange specified but dyntype is 'none' in actuator '%s' (id = %d)",
                    name.c_str(), id);
+  }
+
+  // check and set actdim
+  if (actdim > 1 && dyntype != mjDYN_USER) {
+    throw mjCError(this, "actdim > 1 is only allowed for dyntype 'user' in actuator '%s' (id = %d)",
+                   name.c_str(), id);
+  }
+  if (actdim == 1 && dyntype == mjDYN_NONE) {
+    throw mjCError(this, "invalid actdim 1 in stateless actuator '%s' (id = %d)", name.c_str(), id);
+  }
+  if (actdim == 0 && dyntype != mjDYN_NONE) {
+    throw mjCError(this, "invalid actdim 0 in stateful actuator '%s' (id = %d)", name.c_str(), id);
+  }
+
+  // set actdim
+  if (actdim < 0) {
+    actdim = (dyntype != mjDYN_NONE);
   }
 
   // check muscle parameters
@@ -3427,7 +3937,7 @@ void mjCActuator::Compile(void) {
     if (pjnt->urdfeffort>0) {
       forcerange[0] = -pjnt->urdfeffort;
       forcerange[1] = pjnt->urdfeffort;
-      forcelimited = true;
+      forcelimited = 1;
     }
     break;
 
@@ -3458,8 +3968,22 @@ void mjCActuator::Compile(void) {
     break;
 
   case mjTRN_SITE:
-    // get site
+    // get refsite, copy into trnid[1]
+    if (!refsite.empty()) {
+      ptarget = model->FindObject(mjOBJ_SITE, refsite);
+      if (!ptarget) {
+        throw mjCError(this, "reference site '%s' not found for actuator %d", refsite.c_str(), id);
+      }
+      trnid[1] = ptarget->id;
+    }
+
+    // proceed with regular site target
     ptarget = model->FindObject(mjOBJ_SITE, target);
+    break;
+
+  case mjTRN_BODY:
+    // get body
+    ptarget = model->FindObject(mjOBJ_BODY, target);
     break;
 
   default:
@@ -3471,6 +3995,21 @@ void mjCActuator::Compile(void) {
     throw mjCError(this, "transmission target '%s' not found in actuator %d", target.c_str(), id);
   } else {
     trnid[0] = ptarget->id;
+  }
+
+  // plugin
+  if (is_plugin) {
+    if (plugin_name.empty() && plugin_instance_name.empty()) {
+      throw mjCError(
+          this, "neither 'plugin' nor 'instance' is specified for actuator '%s', (id = %d)",
+          name.c_str(), id);
+    }
+
+    model->ResolvePlugin(this, plugin_name, plugin_instance_name, &plugin_instance);
+    const mjpPlugin* plugin = mjp_getPluginAtSlot(plugin_instance->plugin_slot);
+    if (!(plugin->capabilityflags & mjPLUGIN_ACTUATOR)) {
+      throw mjCError(this, "plugin '%s' does not support actuators", plugin->name);
+    }
   }
 }
 
@@ -3499,6 +4038,10 @@ mjCSensor::mjCSensor(mjCModel* _model) {
   // clear private variables
   objid = -1;
   refid = -1;
+
+  plugin_instance = nullptr;
+  plugin_name = "";
+  plugin_instance_name = "";
 }
 
 
@@ -3543,7 +4086,7 @@ void mjCSensor::Compile(void) {
 
     // get sensorized object id
     objid = pobj->id;
-  } else {
+  } else if (type != mjSENS_CLOCK && type != mjSENS_PLUGIN && type != mjSENS_USER) {
     throw mjCError(this, "invalid type in sensor '%s' (id = %d)", name.c_str(), id);
   }
 
@@ -3586,6 +4129,7 @@ void mjCSensor::Compile(void) {
   case mjSENS_TORQUE:
   case mjSENS_MAGNETOMETER:
   case mjSENS_RANGEFINDER:
+  case mjSENS_CAMPROJECTION:
     // must be attached to site
     if (objtype!=mjOBJ_SITE) {
       throw mjCError(this,
@@ -3596,23 +4140,37 @@ void mjCSensor::Compile(void) {
     if (type==mjSENS_TOUCH || type==mjSENS_RANGEFINDER) {
       dim = 1;
       datatype = mjDATATYPE_POSITIVE;
+    } else if (type==mjSENS_CAMPROJECTION) {
+      dim = 2;
+      datatype = mjDATATYPE_REAL;
     } else {
       dim = 3;
       datatype = mjDATATYPE_REAL;
     }
 
     // set stage
-    if (type==mjSENS_MAGNETOMETER || type==mjSENS_RANGEFINDER) {
+    if (type==mjSENS_MAGNETOMETER || type==mjSENS_RANGEFINDER || type==mjSENS_CAMPROJECTION) {
       needstage = mjSTAGE_POS;
     } else if (type==mjSENS_GYRO || type==mjSENS_VELOCIMETER) {
       needstage = mjSTAGE_VEL;
     } else {
       needstage = mjSTAGE_ACC;
     }
+
+    // check for camera resolution for camera projection sensor
+    if (type==mjSENS_CAMPROJECTION) {
+      mjCCamera* camref = (mjCCamera*) model->FindObject(mjOBJ_CAMERA, refname);
+      if (!camref->resolution[0] || !camref->resolution[1]) {
+        throw mjCError(this,
+                       "camera projection sensor requires camera resolution '%s' (id = %d)",
+                       name.c_str(), id);
+      }
+    }
     break;
 
   case mjSENS_JOINTPOS:
   case mjSENS_JOINTVEL:
+  case mjSENS_JOINTACTFRC:
     // must be attached to joint
     if (objtype!=mjOBJ_JOINT) {
       throw mjCError(this,
@@ -3625,13 +4183,15 @@ void mjCSensor::Compile(void) {
                      "joint must be slide or hinge in sensor '%s' (id = %d)", name.c_str(), id);
     }
 
-    //set
+    // set
     dim = 1;
     datatype = mjDATATYPE_REAL;
     if (type==mjSENS_JOINTPOS) {
       needstage = mjSTAGE_POS;
-    } else {
+    } else if (type==mjSENS_JOINTVEL) {
       needstage = mjSTAGE_VEL;
+    } else if (type==mjSENS_JOINTACTFRC) {
+      needstage = mjSTAGE_ACC;
     }
     break;
 
@@ -3814,6 +4374,12 @@ void mjCSensor::Compile(void) {
     }
     break;
 
+  case mjSENS_CLOCK:
+    dim = 1;
+    needstage = mjSTAGE_POS;
+    datatype = mjDATATYPE_REAL;
+    break;
+
   case mjSENS_USER:
     // check for negative dim
     if (dim<0) {
@@ -3830,6 +4396,28 @@ void mjCSensor::Compile(void) {
                      "datatype QUATERNION requires dim=4 in sensor '%s' (id = %d)",
                      name.c_str(), id);
     }
+    break;
+
+  case mjSENS_PLUGIN:
+    dim = 0;  // to be filled in by the plugin later
+    datatype = mjDATATYPE_REAL;  // no noise added to plugin sensors, this attribute is unused
+
+    if (plugin_name.empty() && plugin_instance_name.empty()) {
+      throw mjCError(
+          this, "neither 'plugin' nor 'instance' is specified for sensor '%s', (id = %d)",
+          name.c_str(), id);
+    }
+
+    // resolve plugin instance, or create one if using the "plugin" attribute shortcut
+    {
+      model->ResolvePlugin(this, plugin_name, plugin_instance_name, &plugin_instance);
+      const mjpPlugin* plugin = mjp_getPluginAtSlot(plugin_instance->plugin_slot);
+      if (!(plugin->capabilityflags & mjPLUGIN_SENSOR)) {
+        throw mjCError(this, "plugin '%s' does not support sensors", plugin->name);
+      }
+      needstage = static_cast<mjtStage>(plugin->needstage);
+    }
+
     break;
 
   default:
@@ -3990,6 +4578,7 @@ mjCKey::mjCKey(mjCModel* _model) {
   act.clear();
   mpos.clear();
   mquat.clear();
+  ctrl.clear();
 }
 
 
@@ -4001,49 +4590,48 @@ mjCKey::~mjCKey() {
   act.clear();
   mpos.clear();
   mquat.clear();
+  ctrl.clear();
 }
 
 
 
 // compiler
 void mjCKey::Compile(const mjModel* m) {
-  int i;
-
   // qpos: allocate or check size
   if (qpos.empty()) {
     qpos.resize(m->nq);
-    for (i=0; i<m->nq; i++) {
+    for (int i=0; i<m->nq; i++) {
       qpos[i] = (double)m->qpos0[i];
     }
   } else if (qpos.size()!=m->nq) {
-    throw mjCError(this, "key %d: invalid qpos size", 0, id);
+    throw mjCError(this, "key %d: invalid qpos size, expected length %d", nullptr, id, m->nq);
   }
 
   // qvel: allocate or check size
   if (qvel.empty()) {
     qvel.resize(m->nv);
-    for (i=0; i<m->nv; i++) {
+    for (int i=0; i<m->nv; i++) {
       qvel[i] = 0;
     }
   } else if (qvel.size()!=m->nv) {
-    throw mjCError(this, "key %d: invalid qvel size", 0, id);
+    throw mjCError(this, "key %d: invalid qvel size, expected length %d", nullptr, id, m->nv);
   }
 
   // act: allocate or check size
   if (act.empty()) {
     act.resize(m->na);
-    for (i=0; i<m->na; i++) {
+    for (int i=0; i<m->na; i++) {
       act[i] = 0;
     }
   } else if (act.size()!=m->na) {
-    throw mjCError(this, "key %d: invalid act size", 0, id);
+    throw mjCError(this, "key %d: invalid act size, expected length %d", nullptr, id, m->na);
   }
 
   // mpos: allocate or check size
   if (mpos.empty()) {
     mpos.resize(3*m->nmocap);
     if (m->nmocap) {
-      for (i=0; i<m->nbody; i++) {
+      for (int i=0; i<m->nbody; i++) {
         if (m->body_mocapid[i]>=0) {
           int mocapid = m->body_mocapid[i];
           mpos[3*mocapid]   = m->body_pos[3*i];
@@ -4053,14 +4641,14 @@ void mjCKey::Compile(const mjModel* m) {
       }
     }
   } else if (mpos.size()!=3*m->nmocap) {
-    throw mjCError(this, "key %d: invalid mpos size", 0, id);
+    throw mjCError(this, "key %d: invalid mpos size, expected length %d", nullptr, id, 3*m->nmocap);
   }
 
   // mquat: allocate or check size
   if (mquat.empty()) {
     mquat.resize(4*m->nmocap);
     if (m->nmocap) {
-      for (i=0; i<m->nbody; i++) {
+      for (int i=0; i<m->nbody; i++) {
         if (m->body_mocapid[i]>=0) {
           int mocapid = m->body_mocapid[i];
           mquat[4*mocapid]   = m->body_quat[4*i];
@@ -4071,6 +4659,60 @@ void mjCKey::Compile(const mjModel* m) {
       }
     }
   } else if (mquat.size()!=4*m->nmocap) {
-    throw mjCError(this, "key %d: invalid mquat size", 0, id);
+    throw mjCError(this, "key %d: invalid mquat size, expected length %d", nullptr, id, 4*m->nmocap);
+  }
+
+  // ctrl: allocate or check size
+  if (ctrl.empty()) {
+    ctrl.resize(m->nu);
+    for (int i=0; i<m->nu; i++) {
+      ctrl[i] = 0;
+    }
+  } else if (ctrl.size()!=m->nu) {
+    throw mjCError(this, "key %d: invalid ctrl size, expected length %d", nullptr, id, m->nu);
+  }
+}
+
+
+//------------------ class mjCPlugin implementation ------------------------------------------------
+
+// initialize defaults
+mjCPlugin::mjCPlugin(mjCModel* _model) {
+  name = "";
+  plugin_slot = -1;
+  nstate = 0;
+  parent = this;
+  model = _model;
+}
+
+
+
+// compiler
+void mjCPlugin::Compile(void) {
+  const mjpPlugin* plugin = mjp_getPluginAtSlot(this->plugin_slot);
+
+  // concatenate all of the plugin's attribute values (as null-terminated strings) into
+  // flattened_attributes, in the order declared in the mjpPlugin
+  // each valid attribute found is appended to flattened_attributes and removed from xml_attributes
+  for (int i = 0; i < plugin->nattribute; ++i) {
+    std::string_view attr(plugin->attributes[i]);
+    auto it = config_attribs.find(attr);
+    if (it == config_attribs.end()) {
+      flattened_attributes.push_back('\0');
+    } else {
+      auto original_size = flattened_attributes.size();
+      flattened_attributes.resize(original_size + it->second.size() + 1);
+      std::memcpy(&flattened_attributes[original_size], it->second.c_str(),
+                  it->second.size() + 1);
+      config_attribs.erase(it);
+    }
+  }
+
+  // anything left in xml_attributes at this stage is not a valid attribute
+  if (!config_attribs.empty()) {
+    std::string error =
+        "unrecognized attribute 'plugin:" + config_attribs.begin()->first +
+        "' for plugin " + std::string(plugin->name) + "'";
+    throw mjCError(parent, error.c_str());
   }
 }

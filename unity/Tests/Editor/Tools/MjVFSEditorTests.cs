@@ -49,14 +49,5 @@ namespace Mujoco {
       _vfs.AddFile(filename, "contents");
       Assert.That(_vfs.FindFile(filename), Is.EqualTo(0));
     }
-
-    [Test]
-    public unsafe void AddedFileContentsAreCorrect() {
-      var filename = "filename";
-      var contents = "contents";
-      _vfs.AddFile(filename, contents);
-      var filedata = Marshal.PtrToStringAnsi(_vfs.Data.filedata[0]);
-      Assert.That(filedata, Is.EqualTo(contents));
-    }
   }
 }

@@ -24,6 +24,7 @@ namespace Mujoco {
   public class MjConnectTests {
     private MjBody _body1;
     private MjBody _body2;
+    private Transform _anchor;
     private MjConnect _constraint;
     private XmlDocument _doc;
 
@@ -31,6 +32,7 @@ namespace Mujoco {
     public void SetUp() {
       _body1 = new GameObject("body1").AddComponent<MjBody>();
       _body2 = new GameObject("body2").AddComponent<MjBody>();
+      _anchor = _body1.transform;
       _constraint = new GameObject("connect").AddComponent<MjConnect>();
       _doc = new XmlDocument();
     }
@@ -44,10 +46,7 @@ namespace Mujoco {
 
     [Test]
     public void ErrorThrownWhenBody1Empty() {
-      // This is an illegal MJCF, but the purpose of this test is to verify that if
-      // the user didn't assign the body in the editor, an error will be thrown when play is hit.
-      _doc.LoadXml("<body/>");
-      _constraint.ParseMjcf(_doc.GetElementsByTagName("body")[0] as XmlElement);
+      _constraint.Body1 = null;
       Assert.That(() => { _constraint.GenerateMjcf("name", _doc); }, Throws.Exception);
     }
 
@@ -71,10 +70,12 @@ namespace Mujoco {
     public void GenerateXML() {
       _constraint.Body1 = _body1;
       _constraint.Body2 = _body2;
+      _constraint.Anchor = _anchor;
       var mjcf = _constraint.GenerateMjcf("name", _doc);
       Assert.That(mjcf.OuterXml, Does.Contain("<connect"));
       Assert.That(mjcf.OuterXml, Does.Contain("body1=\""));
       Assert.That(mjcf.OuterXml, Does.Contain("body2=\""));
+      Assert.That(mjcf.OuterXml, Does.Contain("anchor=\""));
     }
   }
 }

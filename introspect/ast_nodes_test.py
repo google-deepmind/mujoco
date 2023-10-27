@@ -16,7 +16,7 @@
 
 from absl.testing import absltest
 
-from google3.third_party.mujoco.introspect import ast_nodes
+from . import ast_nodes
 
 
 class AstNodesTest(absltest.TestCase):
@@ -117,6 +117,62 @@ class AstNodesTest(absltest.TestCase):
     self.assertEqual(
         complex_type.decl('var'),
         'const unsigned int (* * const (* const * var[9])[7])[3][4]')
+
+  def test_struct_decl(self):
+    struct = ast_nodes.StructDecl(
+        name='mystruct',
+        declname='struct mystruct_',
+        fields=[
+            ast_nodes.StructFieldDecl(
+                name='foo',
+                type=ast_nodes.ValueType('int'),
+                doc='',
+            )
+        ],
+    )
+    self.assertEqual(struct.decl('var'), 'mystruct var')
+
+  def test_anonymous_struct_decl(self):
+    struct = ast_nodes.AnonymousStructDecl(
+        fields=[
+            ast_nodes.StructFieldDecl(
+                name='foo',
+                type=ast_nodes.ValueType('int'),
+                doc='',
+            ),
+            ast_nodes.StructFieldDecl(
+                name='bar',
+                type=ast_nodes.ArrayType(
+                    inner_type=ast_nodes.ValueType('float'), extents=(3,)
+                ),
+                doc='',
+            ),
+        ],
+    )
+    self.assertEqual(str(struct), 'struct {int foo; float bar[3];}')
+    self.assertEqual(struct.decl('var'), 'struct {int foo; float bar[3];} var')
+    self.assertEqual(struct.fields[0].decltype, 'int')
+    self.assertEqual(struct.fields[1].decltype, 'float [3]')
+
+  def test_anonymous_union_decl(self):
+    union = ast_nodes.AnonymousUnionDecl(
+        fields=[
+            ast_nodes.StructFieldDecl(
+                name='foo',
+                type=ast_nodes.ValueType('int'),
+                doc='',
+            ),
+            ast_nodes.StructFieldDecl(
+                name='bar',
+                type=ast_nodes.ArrayType(
+                    inner_type=ast_nodes.ValueType('float'), extents=(3,)
+                ),
+                doc='',
+            ),
+        ],
+    )
+    self.assertEqual(str(union), 'union {int foo; float bar[3];}')
+    self.assertEqual(union.decl('var'), 'union {int foo; float bar[3];} var')
 
 
 if __name__ == '__main__':

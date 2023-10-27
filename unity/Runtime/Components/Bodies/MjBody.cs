@@ -20,17 +20,23 @@ namespace Mujoco {
 
   // The component represents the apex of hierarchy that defines a single rigid body.
   public class MjBody : MjBaseBody {
+
+    [Tooltip("Gravity compensation force, specified as fraction of body weight.")]
+    public float GravityCompensation;
+
     protected override void OnParseMjcf(XmlElement mjcf) {
       // Transform
       transform.localPosition =
           MjEngineTool.UnityVector3(mjcf.GetVector3Attribute("pos", defaultValue: Vector3.zero));
       transform.localRotation = MjEngineTool.UnityQuaternion(
           mjcf.GetQuaternionAttribute("quat", defaultValue: MjEngineTool.MjQuaternionIdentity));
+      GravityCompensation = mjcf.GetFloatAttribute("gravcomp", defaultValue: 0.0f);
     }
 
     protected override XmlElement OnGenerateMjcf(XmlDocument doc) {
       var mjcf = (XmlElement)doc.CreateElement("body");
       MjEngineTool.PositionRotationToMjcf(mjcf, this);
+      mjcf.SetAttribute("gravcomp", MjEngineTool.MakeLocaleInvariant($"{GravityCompensation}"));
       return mjcf;
     }
 

@@ -1,0 +1,8 @@
+<mujoco>
+  <worldbody>
+    <body>
+      <joint axis="1 0 0" range="0 0.1" limited="true" margin="0.2"/>
+      <geom size="1"/>
+    </body>
+  </worldbody>
+</mujoco>

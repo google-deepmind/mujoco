@@ -30,6 +30,11 @@ MJAPI void mjv_makeConnector(mjvGeom* geom, int type, mjtNum width,
                              mjtNum a0, mjtNum a1, mjtNum a2,
                              mjtNum b0, mjtNum b1, mjtNum b2);
 
+// set (type, size, pos, mat) connector-type geom between given points
+//  assume that mjv_initGeom was already called to set all other properties
+MJAPI void mjv_connector(mjvGeom* geom, int type, mjtNum width,
+                         const mjtNum from[3], const mjtNum to[3]);
+
 // initialize given fields when not NULL, set the rest to their default values
 MJAPI void mjv_initGeom(mjvGeom* geom, int type, const mjtNum* size,
                         const mjtNum* pos, const mjtNum* mat, const float* rgba);
@@ -48,8 +53,19 @@ MJAPI void mjv_makeLights(const mjModel* m, mjData* d, mjvScene* scn);
 // update camera only
 MJAPI void mjv_updateCamera(const mjModel* m, mjData* d, mjvCamera* cam, mjvScene* scn);
 
+// update visible flexes only
+MJAPI void mjv_updateActiveFlex(const mjModel* m, mjData* d, mjvScene* scn, const mjvOption* opt);
+
 // update skins only
 MJAPI void mjv_updateSkin(const mjModel* m, mjData* d, mjvScene* scn);
+
+// update visible skins only
+MJAPI void mjv_updateActiveSkin(const mjModel* m, mjData* d, mjvScene* scn, const mjvOption* opt);
+
+#define mjNCATENARY 31
+
+int mjv_catenary(const mjtNum x0[3], const mjtNum x1[3], const mjtNum gravity[3], mjtNum length,
+                 mjtNum catenary[3*mjNCATENARY]);
 
 #ifdef __cplusplus
 }

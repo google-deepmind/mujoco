@@ -33,6 +33,9 @@ MJAPI void mj_comPos(const mjModel* m, mjData* d);
 // compute camera and light positions and orientations
 MJAPI void mj_camlight(const mjModel* m, mjData* d);
 
+// compute flex-related quantities
+MJAPI void mj_flex(const mjModel* m, mjData* d);
+
 // compute tendon lengths, velocities and moment arms
 MJAPI void mj_tendon(const mjModel* m, mjData* d);
 
@@ -42,17 +45,25 @@ MJAPI void mj_transmission(const mjModel* m, mjData* d);
 
 //-------------------------- inertia ---------------------------------------------------------------
 
-// composite rigid body inertia algorithm, with skip
-void mj_crbSkip(const mjModel* m, mjData* d, int skipsimple);
-
 // composite rigid body inertia algorithm
 MJAPI void mj_crb(const mjModel* m, mjData* d);
+
+// sparse L'*D*L factorizaton of inertia-like matrix M, assumed spd
+MJAPI void mj_factorI(const mjModel* m, mjData* d, const mjtNum* M, mjtNum* qLD, mjtNum* qLDiagInv,
+                      mjtNum* qLDiagSqrtInv);
 
 // sparse L'*D*L factorizaton of the inertia matrix M, assumed spd
 MJAPI void mj_factorM(const mjModel* m, mjData* d);
 
 // sparse backsubstitution:  x = inv(L'*D*L)*y
+MJAPI void mj_solveLD(const mjModel* m, mjtNum* x, int n,
+                      const mjtNum* qLD, const mjtNum* qLDiagInv);
+
+// sparse backsubstitution:  x = inv(L'*D*L)*y, use factorization in d
 MJAPI void mj_solveM(const mjModel* m, mjData* d, mjtNum* x, const mjtNum* y, int n);
+
+// sparse backsubstitution for one island:  x = inv(L'*D*L)*x, use factorization in d
+MJAPI void mj_solveM_island(const mjModel* m, const mjData* d, mjtNum* x, int island);
 
 // half of sparse backsubstitution:  x = sqrt(inv(D))*inv(L')*y
 MJAPI void mj_solveM2(const mjModel* m, mjData* d, mjtNum* x, const mjtNum* y, int n);
@@ -63,53 +74,8 @@ MJAPI void mj_solveM2(const mjModel* m, mjData* d, mjtNum* x, const mjtNum* y, i
 // compute cvel, cdof_dot
 MJAPI void mj_comVel(const mjModel* m, mjData* d);
 
-// passive forces
-MJAPI void mj_passive(const mjModel* m, mjData* d);
-
 // subtree linear velocity and angular momentum
 MJAPI void mj_subtreeVel(const mjModel* m, mjData* d);
-
-
-//------------------------- fluid model ------------------------------------------------------------
-
-
-void mj_inertiaBoxFluidModel(const mjModel* m, mjData* d, int i);
-
-void mj_ellipsoidFluidModel(const mjModel* m, mjData* d, int bodyid);
-
-// compute forces due to added mass (potential flow)
-void mj_addedMassForces(
-    const mjtNum local_vels[6], const mjtNum local_accels[6],
-    const mjtNum fluid_density, const mjtNum virtual_mass[3],
-    const mjtNum virtual_inertia[3], mjtNum local_force[6]);
-
-// compute forces due to viscous effects
-void mj_viscousForces(
-    const mjtNum local_vels[6], const mjtNum fluid_density,
-    const mjtNum fluid_viscosity, const mjtNum size[3],
-    const mjtNum magnus_lift_coef, const mjtNum kutta_lift_coef,
-    const mjtNum blunt_drag_coef, const mjtNum slender_drag_coef,
-    const mjtNum ang_drag_coef, mjtNum local_force[6]);
-
-void readFluidGeomInteraction(const mjtNum * geom_fluid_coefs,
-                              mjtNum * geom_fluid_coef,
-                              mjtNum * blunt_drag_coef,
-                              mjtNum * slender_drag_coef,
-                              mjtNum * ang_drag_coef,
-                              mjtNum * kutta_lift_coef,
-                              mjtNum * magnus_lift_coef,
-                              mjtNum virtual_mass[3],
-                              mjtNum virtual_inertia[3]);
-
-void writeFluidGeomInteraction (mjtNum * geom_fluid_coefs,
-                                const mjtNum * geom_fluid_coef,
-                                const mjtNum * blunt_drag_coef,
-                                const mjtNum * slender_drag_coef,
-                                const mjtNum * ang_drag_coef,
-                                const mjtNum * kutta_lift_coef,
-                                const mjtNum * magnus_lift_coef,
-                                const mjtNum virtual_mass[3],
-                                const mjtNum virtual_inertia[3]);
 
 
 //-------------------------- RNE -------------------------------------------------------------------

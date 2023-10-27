@@ -25,14 +25,14 @@ import sys
 sys.path.insert(0, os.path.abspath('../'))
 sys.path.append(os.path.abspath('ext'))
 
-import sphinxcontrib.katex as katex  # pylint: disable=g-import-not-at-top
-import sphinxcontrib.youtube as youtube  # pylint: disable=g-import-not-at-top
+from sphinxcontrib import katex  # pylint: disable=g-import-not-at-top
+from sphinxcontrib import youtube  # pylint: disable=g-import-not-at-top,unused-import
 
 # -- Project information -----------------------------------------------------
 
 project = 'MuJoCo'
 copyright = 'DeepMind Technologies Limited'  # pylint: disable=redefined-builtin
-author = 'DeepMind'
+author = 'Google DeepMind'
 
 # -- General configuration ---------------------------------------------------
 
@@ -42,10 +42,24 @@ master_doc = 'index'
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
 extensions = [
+    'sphinxcontrib.bibtex',
     'sphinxcontrib.katex',
     'sphinxcontrib.youtube',
+    'sphinx_copybutton',
+    'sphinx_favicon',
     'sphinx_reredirects',
+    'sphinx_toolbox.collapse',
+    'sphinx_toolbox.github',
+    'sphinx_toolbox.sidebar_links',
+    'mujoco_include',
 ]
+
+# GitHub-related options
+github_username = 'google-deepmind'
+github_repository = 'mujoco'
+
+# Bibtex references for sphinxcontrib.bibtex
+bibtex_bibfiles = ['references.bib']
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['templates']
@@ -53,16 +67,27 @@ templates_path = ['templates']
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
 # This pattern also affects html_static_path and html_extra_path.
-exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store', 'includes/*']
+exclude_patterns = [
+    '_build',
+    'Thumbs.db',
+    '.DS_Store',
+    'includes/*',
+    'APIreference/functions.rst',
+    'APIreference/functions_override.rst',
+    'XMLschema.rst',
+]
 
 redirects = {
     # index.rst just contains the table of contents definition.
     'index': 'overview.html',
+    'computation': 'computation/index.html',
+    'programming': 'programming/index.html',
+    'APIreference': 'APIreference/index.html',
 }
 
 rst_prolog = """
-.. include:: includes/macros.rst
-.. include:: includes/roles.rst
+.. include:: /includes/macros.rst
+.. include:: /includes/roles.rst
 .. include:: <isonum.txt>
 """
 
@@ -79,7 +104,55 @@ autodoc_default_options = {
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
 #
-html_theme = 'sphinx_rtd_theme'
+html_theme = 'furo'
+html_title = 'MuJoCo Documentation'
+html_logo = 'images/banner.svg'
+
+SHARED_CSS_VARIABLES = {
+    'admonition-font-size': '1rem',
+    'admonition-title-font-size': '1rem',
+    'sidebar-item-font-size': '115%',
+}
+
+# font-stack--monospace used in code blocks, Inconsolata fits in 100 chars.
+html_theme_options = {
+    'light_css_variables': {
+        'font-stack--monospace': 'Inconsolata,Consolas,ui-monospace,monospace',
+        'at-color': '#bc103e',
+        'at-val-color': '#bc103e',
+        'body-color': '#14234b',
+        'color-highlight-on-target': '#e5e8ed',
+        'primary-header-color': '#0053d6',
+        'row-odd-background-color': '#f0f3f7',
+        'rst-content-a-color': '#2980b9',
+        'secondary-header-color': '#123693',
+        'wy-menu-vertical-background-color': '#0053d6',
+        'wy-menu-vertical-color': 'white',
+        'wy-nav-side-background-color': '#0053d6',
+    },
+    'dark_css_variables': {
+        'at-color': '#ff95a6',
+        'at-val-color': '#ff95a6',
+        'body-color': '#14234b',
+        'color-admonition-background': '#1e1e21',
+        'color-highlight-on-target': '#3d4045',
+        'primary-header-color': '#a8caff',
+        'row-odd-background-color': '#222326',
+        'rst-content-a-color': '#2980b9',
+        'secondary-header-color': '#458dff',
+        'wy-menu-vertical-background-color': '#0053d6',
+        'wy-menu-vertical-color': 'white',
+        'wy-nav-side-background-color': '#0053d6',
+    },
+    "announcement": "<em>CoRL 2023</em> meetup in Atlanta, RSVP <a href='https://rsvp.withgoogle.com/events/mujoco-corl-2023'>here</a>!",
+}
+
+for v in html_theme_options.values():
+  if isinstance(v, dict):
+    v.update(SHARED_CSS_VARIABLES)
+
+pygments_style = 'default'
+pygments_dark_style = 'monokai'
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
@@ -87,13 +160,34 @@ html_theme = 'sphinx_rtd_theme'
 html_static_path = [
     '_static',
     'css',
-    'favicons',
 ]
 html_css_files = [
     'theme_overrides.css',
 ]
 
-html_favicon = 'favicons/favicon-32x32.png'
+favicons = [
+    {
+        'sizes': '16x16',
+        'href': 'favicons/favicon-16x16.png',
+    },
+    {
+        'sizes': '32x32',
+        'href': 'favicons/favicon-32x32.png',
+    },
+    {
+        'rel': 'apple-touch-icon',
+        'sizes': '180x180',
+        'href': 'favicons/favicon-180x180.png',
+    },
+    {
+        'sizes': '180x180',
+        'href': 'favicons/favicon-180x180.png',
+    },
+    {
+        'sizes': '192x192',
+        'href': 'favicons/favicon-192x192.png',
+    },
+]
 
 # -- Options for katex ------------------------------------------------------
 

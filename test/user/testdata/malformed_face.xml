@@ -1,0 +1,10 @@
+<mujoco>
+  <asset>
+    <mesh file="malformed_face.obj"/>
+  </asset>
+  <worldbody>
+    <body>
+      <geom type="mesh" mesh="malformed_face"/>
+    </body>
+  </worldbody>
+</mujoco>

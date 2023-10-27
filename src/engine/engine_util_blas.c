@@ -16,7 +16,7 @@
 
 #include <string.h>
 
-#include <mujoco/mjmodel.h>
+#include <mujoco/mjtnum.h>
 
 #ifdef mjUSEPLATFORMSIMD
   #if defined(__AVX__) && defined(mjUSEDOUBLE)
@@ -114,7 +114,7 @@ void mju_addScl3(mjtNum res[3], const mjtNum vec1[3], const mjtNum vec2[3], mjtN
 mjtNum mju_normalize3(mjtNum vec[3]) {
   mjtNum norm = mju_sqrt(vec[0]*vec[0] + vec[1]*vec[1] + vec[2]*vec[2]);
 
-  if (norm<mjMINVAL) {
+  if (norm < mjMINVAL) {
     vec[0] = 1;
     vec[1] = 0;
     vec[2] = 0;
@@ -154,18 +154,28 @@ mjtNum mju_dist3(const mjtNum pos1[3], const mjtNum pos2[3]) {
 
 // multiply vector by 3D rotation matrix
 void mju_rotVecMat(mjtNum res[3], const mjtNum vec[3], const mjtNum mat[9]) {
-  res[0] = mat[0]*vec[0] + mat[1]*vec[1] + mat[2]*vec[2];
-  res[1] = mat[3]*vec[0] + mat[4]*vec[1] + mat[5]*vec[2];
-  res[2] = mat[6]*vec[0] + mat[7]*vec[1] + mat[8]*vec[2];
+  mjtNum tmp[3] = {
+    mat[0]*vec[0] + mat[1]*vec[1] + mat[2]*vec[2],
+    mat[3]*vec[0] + mat[4]*vec[1] + mat[5]*vec[2],
+    mat[6]*vec[0] + mat[7]*vec[1] + mat[8]*vec[2]
+  };
+  res[0] = tmp[0];
+  res[1] = tmp[1];
+  res[2] = tmp[2];
 }
 
 
 
 // multiply vector by transposed 3D rotation matrix
 void mju_rotVecMatT(mjtNum res[3], const mjtNum vec[3], const mjtNum mat[9]) {
-  res[0] = mat[0]*vec[0] + mat[3]*vec[1] + mat[6]*vec[2];
-  res[1] = mat[1]*vec[0] + mat[4]*vec[1] + mat[7]*vec[2];
-  res[2] = mat[2]*vec[0] + mat[5]*vec[1] + mat[8]*vec[2];
+  mjtNum tmp[3] = {
+    mat[0]*vec[0] + mat[3]*vec[1] + mat[6]*vec[2],
+    mat[1]*vec[0] + mat[4]*vec[1] + mat[7]*vec[2],
+    mat[2]*vec[0] + mat[5]*vec[1] + mat[8]*vec[2]
+  };
+  res[0] = tmp[0];
+  res[1] = tmp[1];
+  res[2] = tmp[2];
 }
 
 
@@ -205,12 +215,12 @@ void mju_copy4(mjtNum res[4], const mjtNum data[4]) {
 mjtNum mju_normalize4(mjtNum vec[4]) {
   mjtNum norm = mju_sqrt(vec[0]*vec[0] + vec[1]*vec[1] + vec[2]*vec[2] + vec[3]*vec[3]);
 
-  if (norm<mjMINVAL) {
+  if (norm < mjMINVAL) {
     vec[0] = 1;
     vec[1] = 0;
     vec[2] = 0;
     vec[3] = 0;
-  } else {
+  } else if (mju_abs(norm - 1) > mjMINVAL) {
     mjtNum normInv = 1/norm;
     vec[0] *= normInv;
     vec[1] *= normInv;
@@ -227,8 +237,15 @@ mjtNum mju_normalize4(mjtNum vec[4]) {
 
 // res = 0
 void mju_zero(mjtNum* res, int n) {
-  if (n>0) {
-    memset(res, 0, n*sizeof(mjtNum));
+  memset(res, 0, n*sizeof(mjtNum));
+}
+
+
+
+// res = val
+void mju_fill(mjtNum* res, mjtNum val, int n) {
+  for (int i=0; i < n; i++) {
+    res[i] = val;
   }
 }
 
@@ -236,9 +253,7 @@ void mju_zero(mjtNum* res, int n) {
 
 // res = vec
 void mju_copy(mjtNum* res, const mjtNum* vec, int n) {
-  if (n>0) {
-    memcpy(res, vec, n*sizeof(mjtNum));
-  }
+  memcpy(res, vec, n*sizeof(mjtNum));
 }
 
 
@@ -247,7 +262,7 @@ void mju_copy(mjtNum* res, const mjtNum* vec, int n) {
 mjtNum mju_sum(const mjtNum* vec, int n) {
   mjtNum res = 0;
 
-  for (int i=0; i<n; i++) {
+  for (int i=0; i < n; i++) {
     res += vec[i];
   }
 
@@ -260,7 +275,7 @@ mjtNum mju_sum(const mjtNum* vec, int n) {
 mjtNum mju_L1(const mjtNum* vec, int n) {
   mjtNum res = 0;
 
-  for (int i=0; i<n; i++) {
+  for (int i=0; i < n; i++) {
     res += mju_abs(vec[i]);
   }
 
@@ -277,14 +292,14 @@ void mju_scl(mjtNum* res, const mjtNum* vec, mjtNum scl, int n) {
   int n_4 = n - 4;
 
   // vector part
-  if (n_4>=0) {
+  if (n_4 >= 0) {
     __m256d sclpar, val1, val1scl;
 
     // init
     sclpar = _mm256_set1_pd(scl);
 
     // parallel computation
-    while (i<=n_4) {
+    while (i <= n_4) {
       val1 = _mm256_loadu_pd(vec+i);
       val1scl = _mm256_mul_pd(val1, sclpar);
       _mm256_storeu_pd(res+i, val1scl);
@@ -294,19 +309,19 @@ void mju_scl(mjtNum* res, const mjtNum* vec, mjtNum scl, int n) {
 
   // process remaining
   int n_i = n - i;
-  if (n_i==3) {
+  if (n_i == 3) {
     res[i] = vec[i]*scl;
     res[i+1] = vec[i+1]*scl;
     res[i+2] = vec[i+2]*scl;
-  } else if (n_i==2) {
+  } else if (n_i == 2) {
     res[i] = vec[i]*scl;
     res[i+1] = vec[i+1]*scl;
-  } else if (n_i==1) {
+  } else if (n_i == 1) {
     res[i] = vec[i]*scl;
   }
 
 #else
-  for (; i<n; i++) {
+  for (; i < n; i++) {
     res[i] = vec[i]*scl;
   }
 #endif
@@ -322,11 +337,11 @@ void mju_add(mjtNum* res, const mjtNum* vec1, const mjtNum* vec2, int n) {
   int n_4 = n - 4;
 
   // vector part
-  if (n_4>=0) {
+  if (n_4 >= 0) {
     __m256d sum, val1, val2;
 
     // parallel computation
-    while (i<=n_4) {
+    while (i <= n_4) {
       val1 = _mm256_loadu_pd(vec1+i);
       val2 = _mm256_loadu_pd(vec2+i);
       sum = _mm256_add_pd(val1, val2);
@@ -337,19 +352,19 @@ void mju_add(mjtNum* res, const mjtNum* vec1, const mjtNum* vec2, int n) {
 
   // process remaining
   int n_i = n - i;
-  if (n_i==3) {
+  if (n_i == 3) {
     res[i] = vec1[i] + vec2[i];
     res[i+1] = vec1[i+1] + vec2[i+1];
     res[i+2] = vec1[i+2] + vec2[i+2];
-  } else if (n_i==2) {
+  } else if (n_i == 2) {
     res[i] = vec1[i] + vec2[i];
     res[i+1] = vec1[i+1] + vec2[i+1];
-  } else if (n_i==1) {
+  } else if (n_i == 1) {
     res[i] = vec1[i] + vec2[i];
   }
 
 #else
-  for (; i<n; i++) {
+  for (; i < n; i++) {
     res[i] = vec1[i] + vec2[i];
   }
 #endif
@@ -365,11 +380,11 @@ void mju_sub(mjtNum* res, const mjtNum* vec1, const mjtNum* vec2, int n) {
   int n_4 = n - 4;
 
   // vector part
-  if (n_4>=0) {
+  if (n_4 >= 0) {
     __m256d dif, val1, val2;
 
     // parallel computation
-    while (i<=n_4) {
+    while (i <= n_4) {
       val1 = _mm256_loadu_pd(vec1+i);
       val2 = _mm256_loadu_pd(vec2+i);
       dif = _mm256_sub_pd(val1, val2);
@@ -380,19 +395,19 @@ void mju_sub(mjtNum* res, const mjtNum* vec1, const mjtNum* vec2, int n) {
 
   // process remaining
   int n_i = n - i;
-  if (n_i==3) {
+  if (n_i == 3) {
     res[i] = vec1[i] - vec2[i];
     res[i+1] = vec1[i+1] - vec2[i+1];
     res[i+2] = vec1[i+2] - vec2[i+2];
-  } else if (n_i==2) {
+  } else if (n_i == 2) {
     res[i] = vec1[i] - vec2[i];
     res[i+1] = vec1[i+1] - vec2[i+1];
-  } else if (n_i==1) {
+  } else if (n_i == 1) {
     res[i] = vec1[i] - vec2[i];
   }
 
 #else
-  for (; i<n; i++) {
+  for (; i < n; i++) {
     res[i] = vec1[i] - vec2[i];
   }
 #endif
@@ -408,11 +423,11 @@ void mju_addTo(mjtNum* res, const mjtNum* vec, int n) {
   int n_4 = n - 4;
 
   // vector part
-  if (n_4>=0) {
+  if (n_4 >= 0) {
     __m256d sum, val1, val2;
 
     // parallel computation
-    while (i<=n_4) {
+    while (i <= n_4) {
       val1 = _mm256_loadu_pd(res+i);
       val2 = _mm256_loadu_pd(vec+i);
       sum = _mm256_add_pd(val1, val2);
@@ -423,19 +438,19 @@ void mju_addTo(mjtNum* res, const mjtNum* vec, int n) {
 
   // process remaining
   int n_i = n - i;
-  if (n_i==3) {
+  if (n_i == 3) {
     res[i] += vec[i];
     res[i+1] += vec[i+1];
     res[i+2] += vec[i+2];
-  } else if (n_i==2) {
+  } else if (n_i == 2) {
     res[i] += vec[i];
     res[i+1] += vec[i+1];
-  } else if (n_i==1) {
+  } else if (n_i == 1) {
     res[i] += vec[i];
   }
 
 #else
-  for (; i<n; i++) {
+  for (; i < n; i++) {
     res[i] += vec[i];
   }
 #endif
@@ -451,11 +466,11 @@ void mju_subFrom(mjtNum* res, const mjtNum* vec, int n) {
   int n_4 = n - 4;
 
   // vector part
-  if (n_4>=0) {
+  if (n_4 >= 0) {
     __m256d dif, val1, val2;
 
     // parallel computation
-    while (i<=n_4) {
+    while (i <= n_4) {
       val1 = _mm256_loadu_pd(res+i);
       val2 = _mm256_loadu_pd(vec+i);
       dif = _mm256_sub_pd(val1, val2);
@@ -466,19 +481,19 @@ void mju_subFrom(mjtNum* res, const mjtNum* vec, int n) {
 
   // process remaining
   int n_i = n - i;
-  if (n_i==3) {
+  if (n_i == 3) {
     res[i] -= vec[i];
     res[i+1] -= vec[i+1];
     res[i+2] -= vec[i+2];
-  } else if (n_i==2) {
+  } else if (n_i == 2) {
     res[i] -= vec[i];
     res[i+1] -= vec[i+1];
-  } else if (n_i==1) {
+  } else if (n_i == 1) {
     res[i] -= vec[i];
   }
 
 #else
-  for (; i<n; i++) {
+  for (; i < n; i++) {
     res[i] -= vec[i];
   }
 #endif
@@ -494,14 +509,14 @@ void mju_addToScl(mjtNum* res, const mjtNum* vec, mjtNum scl, int n) {
   int n_4 = n - 4;
 
   // vector part
-  if (n_4>=0) {
+  if (n_4 >= 0) {
     __m256d sclpar, sum, val1, val2, val2scl;
 
     // init
     sclpar = _mm256_set1_pd(scl);
 
     // parallel computation
-    while (i<=n_4) {
+    while (i <= n_4) {
       val1 = _mm256_loadu_pd(res+i);
       val2 = _mm256_loadu_pd(vec+i);
       val2scl = _mm256_mul_pd(val2, sclpar);
@@ -513,19 +528,19 @@ void mju_addToScl(mjtNum* res, const mjtNum* vec, mjtNum scl, int n) {
 
   // process remaining
   int n_i = n - i;
-  if (n_i==3) {
+  if (n_i == 3) {
     res[i] += vec[i]*scl;
     res[i+1] += vec[i+1]*scl;
     res[i+2] += vec[i+2]*scl;
-  } else if (n_i==2) {
+  } else if (n_i == 2) {
     res[i] += vec[i]*scl;
     res[i+1] += vec[i+1]*scl;
-  } else if (n_i==1) {
+  } else if (n_i == 1) {
     res[i] += vec[i]*scl;
   }
 
 #else
-  for (; i<n; i++) {
+  for (; i < n; i++) {
     res[i] += vec[i]*scl;
   }
 #endif
@@ -539,14 +554,14 @@ void mju_addScl(mjtNum* res, const mjtNum* vec1, const mjtNum* vec2, mjtNum scl,
   int n_4 = n - 4;
 
   // vector part
-  if (n_4>=0) {
+  if (n_4 >= 0) {
     __m256d sclpar, sum, val1, val2, val2scl;
 
     // init
     sclpar = _mm256_set1_pd(scl);
 
     // parallel computation
-    while (i<=n_4) {
+    while (i <= n_4) {
       val1 = _mm256_loadu_pd(vec1+i);
       val2 = _mm256_loadu_pd(vec2+i);
       val2scl = _mm256_mul_pd(val2, sclpar);
@@ -558,19 +573,19 @@ void mju_addScl(mjtNum* res, const mjtNum* vec1, const mjtNum* vec2, mjtNum scl,
 
   // process remaining
   int n_i = n - i;
-  if (n_i==3) {
+  if (n_i == 3) {
     res[i] = vec1[i] + vec2[i]*scl;
     res[i+1] = vec1[i+1] + vec2[i+1]*scl;
     res[i+2] = vec1[i+2] + vec2[i+2]*scl;
-  } else if (n_i==2) {
+  } else if (n_i == 2) {
     res[i] = vec1[i] + vec2[i]*scl;
     res[i+1] = vec1[i+1] + vec2[i+1]*scl;
-  } else if (n_i==1) {
+  } else if (n_i == 1) {
     res[i] = vec1[i] + vec2[i]*scl;
   }
 
 #else
-  for (; i<n; i++) {
+  for (; i < n; i++) {
     res[i] = vec1[i] + vec2[i]*scl;
   }
 #endif
@@ -583,14 +598,14 @@ mjtNum mju_normalize(mjtNum* res, int n) {
   mjtNum norm = (mjtNum)mju_sqrt(mju_dot(res, res, n));
   mjtNum normInv;
 
-  if (norm<mjMINVAL) {
+  if (norm < mjMINVAL) {
     res[0] = 1;
-    for (int i=1; i<n; i++) {
+    for (int i=1; i < n; i++) {
       res[i] = 0;
     }
   } else {
     normInv = 1/norm;
-    for (int i=0; i<n; i++) {
+    for (int i=0; i < n; i++) {
       res[i] *= normInv;
     }
   }
@@ -608,14 +623,14 @@ mjtNum mju_norm(const mjtNum* res, int n) {
 
 
 // vector dot-product
-mjtNum mju_dot(const mjtNum* vec1, const mjtNum* vec2, const int n) {
+mjtNum mju_dot(const mjtNum* vec1, const mjtNum* vec2, int n) {
   mjtNum res = 0;
   int i = 0;
   int n_4 = n - 4;
 #ifdef mjUSEAVX
 
   // vector part
-  if (n_4>=0) {
+  if (n_4 >= 0) {
     __m256d sum, prod, val1, val2;
     __m128d vlow, vhigh, high64;
 
@@ -626,7 +641,7 @@ mjtNum mju_dot(const mjtNum* vec1, const mjtNum* vec2, const int n) {
     i = 4;
 
     // parallel computation
-    while (i<=n_4) {
+    while (i <= n_4) {
       val1 = _mm256_loadu_pd(vec1+i);
       val2 = _mm256_loadu_pd(vec2+i);
       prod = _mm256_mul_pd(val1, val2);
@@ -651,7 +666,7 @@ mjtNum mju_dot(const mjtNum* vec1, const mjtNum* vec2, const int n) {
   mjtNum res2 = 0;
   mjtNum res3 = 0;
 
-  for (; i<=n_4; i+=4) {
+  for (; i <= n_4; i+=4) {
     res0 += vec1[i] * vec2[i];
     res1 += vec1[i+1] * vec2[i+1];
     res2 += vec1[i+2] * vec2[i+2];
@@ -662,11 +677,11 @@ mjtNum mju_dot(const mjtNum* vec1, const mjtNum* vec2, const int n) {
 
   // process remaining
   int n_i = n - i;
-  if (n_i==3) {
+  if (n_i == 3) {
     res += vec1[i]*vec2[i] + vec1[i+1]*vec2[i+1] + vec1[i+2]*vec2[i+2];
-  } else if (n_i==2) {
+  } else if (n_i == 2) {
     res += vec1[i]*vec2[i] + vec1[i+1]*vec2[i+1];
-  } else if (n_i==1) {
+  } else if (n_i == 1) {
     res += vec1[i]*vec2[i];
   }
   return res;
@@ -675,9 +690,8 @@ mjtNum mju_dot(const mjtNum* vec1, const mjtNum* vec2, const int n) {
 //------------------------------ matrix-vector operations ------------------------------------------
 
 // multiply matrix and vector
-void mju_mulMatVec(mjtNum* res, const mjtNum* mat, const mjtNum* vec,
-                   int nr, int nc) {
-  for (int r=0; r<nr; r++) {
+void mju_mulMatVec(mjtNum* res, const mjtNum* mat, const mjtNum* vec, int nr, int nc) {
+  for (int r=0; r < nr; r++) {
     res[r] = mju_dot(mat + r*nc, vec, nc);
   }
 }
@@ -685,12 +699,11 @@ void mju_mulMatVec(mjtNum* res, const mjtNum* mat, const mjtNum* vec,
 
 
 // multiply transposed matrix and vector
-void mju_mulMatTVec(mjtNum* res, const mjtNum* mat, const mjtNum* vec,
-                    int nr, int nc) {
+void mju_mulMatTVec(mjtNum* res, const mjtNum* mat, const mjtNum* vec, int nr, int nc) {
   mjtNum tmp;
   mju_zero(res, nc);
 
-  for (int r=0; r<nr; r++) {
+  for (int r=0; r < nr; r++) {
     if ((tmp = vec[r])) {
       mju_addToScl(res, mat+r*nc, tmp, nc);
     }
@@ -699,18 +712,53 @@ void mju_mulMatTVec(mjtNum* res, const mjtNum* mat, const mjtNum* vec,
 
 
 
-//------------------------------ matrix-matrix operations ------------------------------------------
+// multiply square matrix with vectors on both sides: return vec1'*mat*vec2
+mjtNum mju_mulVecMatVec(const mjtNum* vec1, const mjtNum* mat, const mjtNum* vec2, int n) {
+  mjtNum res = 0;
+  for (int i=0; i < n; i++) {
+    res += vec1[i] * mju_dot(mat + i*n, vec2, n);
+  }
+  return res;
+}
+
+
+
+//------------------------------ matrix operations -------------------------------------------------
 
 // transpose matrix
 void mju_transpose(mjtNum* res, const mjtNum* mat, int nr, int nc) {
-  for (int i=0; i<nr; i++) {
-    for (int j=0; j<nc; j++) {
+  for (int i=0; i < nr; i++) {
+    for (int j=0; j < nc; j++) {
       res[j*nr+i] = mat[i*nc+j];
     }
   }
 }
 
 
+
+// symmetrize square matrix res = (mat + mat')/2
+void mju_symmetrize(mjtNum* res, const mjtNum* mat, int n) {
+  for (int i=0; i < n; i++) {
+    res[i*(n+1)] = mat[i*(n+1)];
+    for (int j=0; j < i; j++) {
+      res[i*n+j] = res[j*n+i] = 0.5 * (mat[i*n+j] + mat[j*n+i]);
+    }
+  }
+}
+
+
+
+// identity matrix
+void mju_eye(mjtNum* mat, int n) {
+  mju_zero(mat, n*n);
+  for (int i=0; i < n; i++) {
+    mat[i*(n + 1)] = 1;
+  }
+}
+
+
+
+//------------------------------ matrix-matrix operations ------------------------------------------
 
 // multiply matrices, exploit sparsity of mat1
 void mju_mulMatMat(mjtNum* res, const mjtNum* mat1, const mjtNum* mat2,
@@ -719,8 +767,8 @@ void mju_mulMatMat(mjtNum* res, const mjtNum* mat1, const mjtNum* mat2,
 
   mju_zero(res, r1*c2);
 
-  for (int i=0; i<r1; i++) {
-    for (int k=0; k<c1; k++) {
+  for (int i=0; i < r1; i++) {
+    for (int k=0; k < c1; k++) {
       if ((tmp = mat1[i*c1+k])) {
         mju_addToScl(res+i*c2, mat2+k*c2, tmp, c2);
       }
@@ -733,8 +781,8 @@ void mju_mulMatMat(mjtNum* res, const mjtNum* mat1, const mjtNum* mat2,
 // multiply matrices, second argument transposed
 void mju_mulMatMatT(mjtNum* res, const mjtNum* mat1, const mjtNum* mat2,
                     int r1, int c1, int r2) {
-  for (int i=0; i<r1; i++) {
-    for (int j=0; j<r2; j++) {
+  for (int i=0; i < r1; i++) {
+    for (int j=0; j < r2; j++) {
       res[i*r2+j] = mju_dot(mat1+i*c1, mat2+j*c1, c1);
     }
   }
@@ -749,9 +797,9 @@ void mju_sqrMatTD(mjtNum* res, const mjtNum* mat, const mjtNum* diag, int nr, in
   // half of MatMat routine: only lower triangle
   mju_zero(res, nc*nc);
   if (diag) {
-    for (int j=0; j<nr; j++) {
+    for (int j=0; j < nr; j++) {
       if (diag[j]) {
-        for (int i=0; i<nc; i++) {
+        for (int i=0; i < nc; i++) {
           if ((tmp = mat[j*nc+i])) {
             mju_addToScl(res+i*nc, mat+j*nc, tmp*diag[j], i+1);
           }
@@ -759,8 +807,8 @@ void mju_sqrMatTD(mjtNum* res, const mjtNum* mat, const mjtNum* diag, int nr, in
       }
     }
   } else {
-    for (int i=0; i<nc; i++) {
-      for (int j=0; j<nr; j++) {
+    for (int i=0; i < nc; i++) {
+      for (int j=0; j < nr; j++) {
         if ((tmp = mat[j*nc+i])) {
           mju_addToScl(res+i*nc, mat+j*nc, tmp, i+1);
         }
@@ -769,8 +817,8 @@ void mju_sqrMatTD(mjtNum* res, const mjtNum* mat, const mjtNum* diag, int nr, in
   }
 
   // make symmetric
-  for (int i=0; i<nc; i++) {
-    for (int j=i+1; j<nc; j++) {
+  for (int i=0; i < nc; i++) {
+    for (int j=i+1; j < nc; j++) {
       res[i*nc+j] = res[j*nc+i];
     }
   }
@@ -785,8 +833,8 @@ void mju_mulMatTMat(mjtNum* res, const mjtNum* mat1, const mjtNum* mat2,
 
   mju_zero(res, c1*c2);
 
-  for (int i=0; i<r1; i++) {
-    for (int j=0; j<c1; j++) {
+  for (int i=0; i < r1; i++) {
+    for (int j=0; j < c1; j++) {
       if ((tmp = mat1[i*c1+j])) {
         mju_addToScl(res+j*c2, mat2+i*c2, tmp, c2);
       }

@@ -77,7 +77,7 @@ public abstract class MjComponent : MonoBehaviour {
 
   private bool _sceneExcludesMe = false;
 
-  protected unsafe virtual void Start() {
+  protected unsafe virtual void OnEnable() {
     if (MjScene.Instance == null) {
       throw new Exception("MuJoCo Scene not found");
     }
@@ -99,7 +99,7 @@ public abstract class MjComponent : MonoBehaviour {
   }
 
   public void OnDisable() {
-    if (!_exiting) {
+    if (!_exiting && MjScene.InstanceExists) {
       MjScene.Instance.SceneRecreationAtLateUpdateRequested = true;
     }
   }

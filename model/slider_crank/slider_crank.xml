@@ -1,0 +1,57 @@
+<mujoco model="slider-crank">
+  <!-- visual properties associated with the slider-crank mechanism -->
+  <visual>
+    <scale slidercrank=".1"/>
+    <rgba slidercrank="0.5 0.4 0.8 1" crankbroken="0.0 0.6 0.2 1"/>
+  </visual>
+
+  <!-- defining some defaults for readability -->
+  <default>
+    <position ctrllimited="true" ctrlrange="-.1 .1" kp="30"/>
+    <default class="joint">
+      <geom type="cylinder" size=".006" fromto="0 0 0 0 0 .05" rgba=".9 .6 1 1"/>
+    </default>
+    <default class="slidersite">
+      <site type="cylinder" size=".01 .015" rgba="1 0 0 1" />
+    </default>
+    <default class="cranksite">
+      <site size=".012" rgba="0 0 1 1" />
+    </default>
+  </default>
+
+  <worldbody>
+    <light pos="0 0 1"/>
+    <geom type="plane" size=".5 .5 .01" pos="0 0 -.05"/>
+    <site name="slidersite" class="slidersite" pos="0 -.1 0" zaxis="1 .5 0"/>
+    <body>
+      <joint damping=".1"/>
+      <geom class="joint"/>
+      <geom type="capsule" size=".01" fromto="0 0 0 .2 0 0"/>
+      <site name="cranksite" class="cranksite" pos=".1 0 0"/>
+      <site name="cranksite2" class="cranksite" pos=".2 0 0"/>
+      <body pos=".15 0 0">
+        <joint damping=".1"/>
+        <geom class="joint"/>
+        <geom type="capsule" size=".01" fromto="0 -.15 0 0 0 0"/>
+        <site name="slidersite2" class="slidersite" pos=".02 -.1 0" zaxis="1 2 0"/>
+      </body>
+    </body>
+    <site name="slidersite3" class="slidersite" pos="0 .1 0" zaxis="1 .2 0"/>
+    <body pos="0 .2 0">
+      <joint  damping=".1"/>
+      <geom class="joint"/>
+      <geom type="capsule" size=".01" fromto="0 0 0 .15 0 0"/>
+      <site name="cranksite3" class="cranksite" pos=".1 0 0" size=".012"/>
+    </body>
+  </worldbody>
+
+  <actuator>
+    <!-- forward slider-crank: the slider site is attached to the parent -->
+    <position name="forward" cranksite="cranksite" slidersite="slidersite" cranklength=".08"/>
+    <!-- backward slider-crank: the slider site is attached to the child -->
+    <position name="backward" cranksite="cranksite2" slidersite="slidersite2" cranklength=".06"/>
+    <!--  The "broken-crank" actuator is "broken" in the initial state: the crank length is too
+          short to maintain the requested geometric relationship -->
+    <position name="broken" cranksite="cranksite3" slidersite="slidersite3" cranklength=".05"/>
+  </actuator>
+</mujoco>

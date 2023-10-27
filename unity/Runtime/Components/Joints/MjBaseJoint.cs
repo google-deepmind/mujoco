@@ -49,8 +49,7 @@ namespace Mujoco {
       DofAddress = model->jnt_dofadr[MujocoId];
     }
 
-    protected override void Start() {
-      base.Start();
+    protected void Start() {
       MjBaseBody grandparentBody, parentBody;
       GetConnectedBodies(out grandparentBody, out parentBody);
       GrandParentBody = grandparentBody;

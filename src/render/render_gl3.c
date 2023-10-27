@@ -19,9 +19,9 @@
 #include <string.h>
 #include <stdlib.h>
 
+#include <mujoco/mjmacro.h>
 #include <mujoco/mjvisualize.h>
 #include <mujoco/mujoco.h>
-#include "engine/engine_array_safety.h"
 #include "engine/engine_crossplatform.h"
 #include "engine/engine_vis_init.h"
 #include "render/render_context.h"
@@ -43,9 +43,9 @@ static int isBehind(const float* headpos, const float* pos, const float* mat) {
 
 // check if geom is reflective
 static int isReflective(const mjvGeom* geom) {
-  return ((geom->type==mjGEOM_PLANE || geom->type==mjGEOM_BOX) &&
+  return ((geom->type == mjGEOM_PLANE || geom->type == mjGEOM_BOX) &&
           !geom->transparent &&
-          (geom->reflectance>0));
+          (geom->reflectance > 0));
 }
 
 
@@ -63,7 +63,7 @@ static void settexture(int type, int state, const mjrContext* con, const mjvGeom
   float plane[4], scl[2];
 
   // shadow
-  if (type==mjtexSHADOW) {
+  if (type == mjtexSHADOW) {
     // enable
     if (state) {
       glActiveTexture(GL_TEXTURE1);
@@ -87,7 +87,7 @@ static void settexture(int type, int state, const mjrContext* con, const mjvGeom
   }
 
   // explicit texture coordinates
-  else if (type==mjtexREGULAR && geom->texcoord) {
+  else if (type == mjtexREGULAR && geom->texcoord) {
     // enable
     if (state) {
       glActiveTexture(GL_TEXTURE0);
@@ -103,7 +103,7 @@ static void settexture(int type, int state, const mjrContext* con, const mjvGeom
   }
 
   // 2D
-  else if (type==mjtexREGULAR && con->textureType[geom->texid]==mjTEXTURE_2D) {
+  else if (type == mjtexREGULAR && con->textureType[geom->texid] == mjTEXTURE_2D) {
     // enable
     if (state) {
       glActiveTexture(GL_TEXTURE0);
@@ -115,23 +115,23 @@ static void settexture(int type, int state, const mjrContext* con, const mjvGeom
       // determine scaling, adjust for pre-scaled geoms
       scl[0] = geom->texrepeat[0];
       scl[1] = geom->texrepeat[1];
-      if (geom->dataid>=0) {
-        if (geom->size[0]>0) {
+      if (geom->dataid >= 0) {
+        if (geom->size[0] > 0) {
           scl[0] = scl[0] / mju_max(mjMINVAL, geom->size[0]);
         }
 
-        if (geom->size[1]>0) {
+        if (geom->size[1] > 0) {
           scl[1] = scl[1] / mju_max(mjMINVAL, geom->size[1]);
         }
       }
 
       // uniform: repeat relative to spatial units rather than object
       if (geom->texuniform) {
-        if (geom->size[0]>0) {
+        if (geom->size[0] > 0) {
           scl[0] = scl[0] * geom->size[0];
         }
 
-        if (geom->size[1]>0) {
+        if (geom->size[1] > 0) {
           scl[1] = scl[1] * geom->size[1];
         }
       }
@@ -164,7 +164,7 @@ static void settexture(int type, int state, const mjrContext* con, const mjvGeom
       glBindTexture(GL_TEXTURE_CUBE_MAP, con->texture[geom->texid]);
 
       // set mapping : cube
-      if (type==mjtexREGULAR) {
+      if (type == mjtexREGULAR) {
         mjr_setf4(plane, geom->texuniform ? geom->size[0] : 1, 0, 0, 0);
         glTexGenfv(GL_S, GL_OBJECT_PLANE, plane);
         mjr_setf4(plane, 0, geom->texuniform ? geom->size[1] : 1, 0, 0);
@@ -215,8 +215,8 @@ static void renderGeom(const mjvGeom* geom, int mode, const float* headpos,
   float rgba[4] = {geom->rgba[0], geom->rgba[1], geom->rgba[2], geom->rgba[3]};
   int behind, whichface, lighting;
 
-  // lines to do not cast shadows
-  if (mode==mjrRND_SHADOWCAST && geom->type==mjGEOM_LINE) {
+  // lines and triangles do not cast shadows
+  if (mode == mjrRND_SHADOWCAST && (geom->type == mjGEOM_LINE || geom->category == mjCAT_DECOR)) {
     return;
   }
 
@@ -232,18 +232,18 @@ static void renderGeom(const mjvGeom* geom, int mode, const float* headpos,
   behind = isBehind(headpos, geom->pos, geom->mat);
 
   // enable texture in normal and shadowmap mode
-  if (geom->texid>=0 && con->ntexture>0 &&
-      (mode==mjrRND_NORMAL || mode==mjrRND_SHADOWMAP)) {
+  if (geom->texid >= 0 && con->ntexture > 0 &&
+      (mode == mjrRND_NORMAL || mode == mjrRND_SHADOWMAP)) {
     settexture(mjtexREGULAR, 1, con, geom);
   }
 
   // make plane more transparent from the back
-  if (geom->type==mjGEOM_PLANE && behind && mode==mjrRND_NORMAL) {
+  if (geom->type == mjGEOM_PLANE && behind && mode == mjrRND_NORMAL) {
     rgba[3] *= 0.3;
   }
 
   // set material emission: none in shadow mode
-  if (mode==mjrRND_NORMAL) {
+  if (mode == mjrRND_NORMAL) {
     mjr_setf4(temp,
               geom->emission*rgba[0],
               geom->emission*rgba[1],
@@ -260,9 +260,9 @@ static void renderGeom(const mjvGeom* geom, int mode, const float* headpos,
   glMaterialfv(GL_FRONT_AND_BACK, GL_SPECULAR, temp);
 
   // set color for segmentation mode
-  if (mode>=mjrRND_SEGMENT) {
+  if (mode >= mjrRND_SEGMENT) {
     // segid color
-    if (mode==mjrRND_IDCOLOR) {
+    if (mode == mjrRND_IDCOLOR) {
       unsigned char seg[4] = {
         (geom->segid+1) & 0xFF,
         ((geom->segid+1)>>8) & 0xFF,
@@ -284,9 +284,9 @@ static void renderGeom(const mjvGeom* geom, int mode, const float* headpos,
     }
   }
 
-  // apply coordinate transformation, except for skin which is global
+  // apply coordinate transformation, except for flex and skin which are global
   glPushMatrix();
-  if (geom->type!=mjGEOM_SKIN) {
+  if (geom->type != mjGEOM_FLEX && geom->type != mjGEOM_SKIN) {
     glTranslatef(geom->pos[0], geom->pos[1], geom->pos[2]);
     glMultMatrixf(mat);
   }
@@ -296,13 +296,13 @@ static void renderGeom(const mjvGeom* geom, int mode, const float* headpos,
   case mjGEOM_PLANE:                              // plane
     if (behind) {
       glGetIntegerv(GL_CULL_FACE_MODE, &whichface);
-      if (whichface==GL_BACK) {
+      if (whichface == GL_BACK) {
         glCullFace(GL_FRONT);
       }
     }
 
     // use plane-specific displaylist if available
-    if (geom->dataid>=0) {
+    if (geom->dataid >= 0) {
       glCallList(con->basePlane + geom->dataid+1);
     }
 
@@ -312,13 +312,13 @@ static void renderGeom(const mjvGeom* geom, int mode, const float* headpos,
       glCallList(con->basePlane);
     }
 
-    if (behind && whichface==GL_BACK) {
+    if (behind && whichface == GL_BACK) {
       glCullFace(GL_BACK);
     }
     break;
 
   case mjGEOM_HFIELD:                         // height field
-    if (geom->dataid>=0) {
+    if (geom->dataid >= 0) {
       glCallList(con->baseHField + geom->dataid);
     }
     break;
@@ -355,7 +355,8 @@ static void renderGeom(const mjvGeom* geom, int mode, const float* headpos,
     break;
 
   case mjGEOM_MESH:                           // mesh
-    if (geom->dataid>=0) {
+  case mjGEOM_SDF:
+    if (geom->dataid >= 0) {
       glCallList(con->baseMesh + geom->dataid);
     }
     break;
@@ -390,7 +391,7 @@ static void renderGeom(const mjvGeom* geom, int mode, const float* headpos,
     break;
 
   case mjGEOM_LINE:                           // line
-    glLineWidth(3*con->lineWidth);
+    glLineWidth(size[0]*con->lineWidth);
     lighting = glIsEnabled(GL_LIGHTING);
     glDisable(GL_LIGHTING);
     glBegin(GL_LINES);
@@ -402,6 +403,96 @@ static void renderGeom(const mjvGeom* geom, int mode, const float* headpos,
       glEnable(GL_LIGHTING);
     }
     break;
+
+  case mjGEOM_TRIANGLE:                       // triangle
+    glBegin(GL_TRIANGLES);
+    glVertex3f(0, 0, 0);
+    glVertex3f(size[0], 0, 0);
+    glVertex3f(0, size[1], 0);
+    glEnd();
+    break;
+
+  case mjGEOM_FLEX:                           // flex
+  {
+    // no texture for vertices and edges
+    GLboolean texture_is_enabled = glIsEnabled(GL_TEXTURE_2D);
+    if (texture_is_enabled == GL_TRUE) {
+      glDisable(GL_TEXTURE_2D);
+    }
+
+    // vertex spheres
+    if (size[0]>0 && scn->flexvertopt &&
+        !(scn->flexskinopt && scn->flexfaceused[geom->objid])) {
+      for (int v=scn->flexvertadr[geom->objid];
+               v<scn->flexvertadr[geom->objid]+scn->flexvertnum[geom->objid]; v++) {
+        glPushMatrix();
+        glTranslatef(scn->flexvert[3*v], scn->flexvert[3*v+1], scn->flexvert[3*v+2]);
+        glScalef(size[0], size[0], size[0]);
+        glCallList(con->baseBuiltin + mjrSPHERE);
+        glPopMatrix();
+      }
+    }
+
+    // edge cylinders
+    if (size[0]>0 && scn->flexedgeopt &&
+        !(scn->flexskinopt && scn->flexfaceused[geom->objid])) {
+      for (int e=scn->flexedgeadr[geom->objid];
+               e<scn->flexedgeadr[geom->objid]+scn->flexedgenum[geom->objid]; e++) {
+        // get vertices for this edge
+        float* v1 = scn->flexvert + 3*(scn->flexvertadr[geom->objid]+scn->flexedge[2*e]);
+        float* v2 = scn->flexvert + 3*(scn->flexvertadr[geom->objid]+scn->flexedge[2*e+1]);
+
+        // compute legth and rotation matrix
+        mjtNum vec[3] = {v2[0]-v1[0], v2[1]-v1[1], v2[2]-v1[2]};
+        mjtNum len = mju_normalize3(vec);
+        mjtNum edgequat[4], edgemat[9];
+        mju_quatZ2Vec(edgequat, vec);
+        mju_negQuat(edgequat, edgequat);
+        mju_quat2Mat(edgemat, edgequat);
+        mat[0] = (float)edgemat[0];
+        mat[1] = (float)edgemat[1];
+        mat[2] = (float)edgemat[2];
+        mat[4] = (float)edgemat[3];
+        mat[5] = (float)edgemat[4];
+        mat[6] = (float)edgemat[5];
+        mat[8] = (float)edgemat[6];
+        mat[9] = (float)edgemat[7];
+        mat[10] = (float)edgemat[8];
+
+        // transform and render
+        glPushMatrix();
+        glTranslatef((v1[0]+v2[0])*0.5f, (v1[1]+v2[1])*0.5f, (v1[2]+v2[2])*0.5f);
+        glMultMatrixf(mat);
+        glScalef(size[0], size[0], (float)(len*0.5));
+        glCallList(con->baseBuiltin + mjrCYLINDEROPEN);
+        glPopMatrix();
+      }
+    }
+
+    // restore texture for faces
+    if (texture_is_enabled == GL_TRUE) {
+      glEnable(GL_TEXTURE_2D);
+    }
+
+    // face triangles
+    if (scn->flexfaceused[geom->objid]) {
+      glEnableClientState(GL_VERTEX_ARRAY);
+      glEnableClientState(GL_NORMAL_ARRAY);
+      glVertexPointer(3, GL_FLOAT, 0, scn->flexface + 9*scn->flexfaceadr[geom->objid]);
+      glNormalPointer(GL_FLOAT, 0, scn->flexnormal + 9*scn->flexfaceadr[geom->objid]);
+      if (geom->texcoord && geom->texid>=0) {
+        glEnableClientState(GL_TEXTURE_COORD_ARRAY);
+        glTexCoordPointer(2, GL_FLOAT, 0, scn->flextexcoord + 6*scn->flexfaceadr[geom->objid]);
+      }
+      glDrawArrays(GL_TRIANGLES, 0, 3*scn->flexfaceused[geom->objid]);
+      glDisableClientState(GL_VERTEX_ARRAY);
+      glDisableClientState(GL_NORMAL_ARRAY);
+      if (geom->texcoord && geom->texid>=0) {
+        glDisableClientState(GL_TEXTURE_COORD_ARRAY);
+      }
+    }
+    break;
+  }
 
   case mjGEOM_SKIN:                           // skin
     // vertex positions
@@ -442,9 +533,30 @@ static void renderGeom(const mjvGeom* geom, int mode, const float* headpos,
   glPopMatrix();
 
   // disable texture if enabled
-  if (geom->texid>=0 && con->ntexture>0 &&
-      (mode==mjrRND_NORMAL || mode==mjrRND_SHADOWMAP)) {
+  if (geom->texid >= 0 && con->ntexture > 0 &&
+      (mode == mjrRND_NORMAL || mode == mjrRND_SHADOWMAP)) {
     settexture(mjtexREGULAR, 0, con, geom);
+  }
+}
+
+
+
+void renderGeomReflection(int id, float reflectance, float headpos[3],
+                          mjvScene* scn, const mjrContext* con) {
+  float old_rgb[3];
+
+  // save rgb, modulate rgb by this->reflectance
+  for (int k=0; k < 3; k++) {
+    old_rgb[k] = scn->geoms[id].rgba[k];
+    scn->geoms[id].rgba[k] *= reflectance;
+  }
+
+  // render
+  renderGeom(scn->geoms+id, mjrRND_NORMAL, headpos, scn, con);
+
+  // restore rgb
+  for (int k=0; k < 3; k++) {
+    scn->geoms[id].rgba[k] = old_rgb[k];
   }
 }
 
@@ -468,15 +580,22 @@ static void initGL3(const mjvScene* scn, const mjrContext* con) {
   // common options
   glDisable(GL_BLEND);
   glEnable(GL_NORMALIZE);
+  if (mjGLAD_GL_ARB_clip_control) {
+    glClipControl(GL_LOWER_LEFT, GL_ZERO_TO_ONE);
+  }
   glEnable(GL_DEPTH_TEST);
   glDepthMask(GL_TRUE);
-  glEnable(GL_CULL_FACE);
+  if (scn->flags[mjRND_CULL_FACE]) {
+    glEnable(GL_CULL_FACE);
+  } else {
+    glDisable(GL_CULL_FACE);
+  }
   glShadeModel(GL_SMOOTH);
-  glDepthFunc(GL_LEQUAL);
+  glDepthFunc(GL_GEQUAL);
   glDepthRange(0, 1);
   glAlphaFunc(GL_GEQUAL, 0.99f);
   glClearColor(0, 0, 0, 0);
-  glClearDepth(1);
+  glClearDepth(0);
   glClearStencil(0);
   glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
 
@@ -506,14 +625,14 @@ static void initLights(mjvScene* scn, const float* headpos, const float* gazedir
 
   // headlight: set pos and dir
   if (scn->lights[0].headlight) {
-    for (int i=0; i<3; i++) {
+    for (int i=0; i < 3; i++) {
       scn->lights[0].pos[i] = headpos[i];
       scn->lights[0].dir[i] = gazedir[i];
     }
   }
 
   // set light properties
-  for (int i=0; i<scn->nlight; i++) {
+  for (int i=0; i < scn->nlight; i++) {
     // colors
     glLightfv(GL_LIGHT0+i, GL_AMBIENT, scn->lights[i].ambient);
     glLightfv(GL_LIGHT0+i, GL_DIFFUSE, scn->lights[i].diffuse);
@@ -539,7 +658,7 @@ static void initLights(mjvScene* scn, const float* headpos, const float* gazedir
   }
 
   // disable all lights (enable selectively in render)
-  for (int i=0; i<scn->nlight; i++) {
+  for (int i=0; i < scn->nlight; i++) {
     glDisable(GL_LIGHT0+i);
   }
 }
@@ -552,19 +671,29 @@ static void setView(int view, mjrRect viewport, const mjvScene* scn, const mjrCo
   mjvGLCamera cam;
 
   // copy specified camera for stereo, average for mono (view = -1)
-  if (view>=0) {
+  if (view >= 0) {
     cam = scn->camera[view];
   } else {
     cam = mjv_averageCamera(scn->camera, scn->camera+1);
   }
 
   // compute frustum halfwidth so as to match viewport aspect ratio
-  float halfwidth = 0.5f * (float)viewport.width/(float)viewport.height *
-                    (cam.frustum_top - cam.frustum_bottom);
+  float halfwidth = cam.frustum_width ? cam.frustum_width
+                    : 0.5f * (float)viewport.width / (float)viewport.height *
+                             (cam.frustum_top - cam.frustum_bottom);
 
   // set projection
   glMatrixMode(GL_PROJECTION);
   glLoadIdentity();
+  if (mjGLAD_GL_ARB_clip_control) {
+    // reverse Z rendering mapping [znear, zfar] -> [1, 0] (ndc)
+    glTranslatef(0.0f, 0.0f, 0.5f);
+    glScalef(1.0f, 1.0f, -0.5f);
+  }
+  else {
+    // reverse Z rendering mapping without shift [znear, zfar] -> [1, -1] (ndc)
+    glScalef(1.0f, 1.0f, -1.0f);
+  }
   glFrustum(cam.frustum_center - halfwidth,
             cam.frustum_center + halfwidth,
             cam.frustum_bottom,
@@ -640,15 +769,21 @@ void mjr_render(mjrRect viewport, mjvScene* scn, const mjrContext* con) {
   float biasMatrix[16] = {
     0.5f, 0.0f, 0.0f, 0.0f,
     0.0f, 0.5f, 0.0f, 0.0f,
-    0.0f, 0.0f, 0.5f, 0.0f,
-    0.5f, 0.5f, 0.5f, 1.0f
+    0.0f, 0.0f, 1.0f, 0.0f,
+    0.5f, 0.5f, 0.0f, 1.0f
   };
+  if (!mjGLAD_GL_ARB_clip_control) {
+    // account for conversion from ndc to window coordinates
+    biasMatrix[2*4+2] = 0.5;
+    biasMatrix[3*4+2] = 0.5;
+  }
+
   float tempMatrix[16], textureMatrix[16];
   mjvGeom *thisgeom, tempgeom;
   mjvLight *thislight;
 
   // empty viewport: nothing to do
-  if (viewport.width<=0 || viewport.height<=0) {
+  if (viewport.width <= 0 || viewport.height <= 0) {
     return;
   }
 
@@ -656,7 +791,7 @@ void mjr_render(mjrRect viewport, mjvScene* scn, const mjrContext* con) {
   cam = mjv_averageCamera(scn->camera, scn->camera+1);
 
   // check znear
-  if (cam.frustum_near<mjMINVAL) {
+  if (cam.frustum_near < mjMINVAL) {
     // geoms: error
     if (scn->ngeom) {
       mju_error("mjvScene frustum_near too small in mjr_render");
@@ -669,7 +804,7 @@ void mjr_render(mjrRect viewport, mjvScene* scn, const mjrContext* con) {
   }
 
   // upload dynamic skin data to GPU
-  for (int i=0; i<scn->nskin; i++) {
+  for (int i=0; i < scn->nskin; i++) {
     // upload positions to VBO
     glBindBuffer(GL_ARRAY_BUFFER, con->skinvertVBO[i]);
     glBufferData(GL_ARRAY_BUFFER,
@@ -686,7 +821,7 @@ void mjr_render(mjrRect viewport, mjvScene* scn, const mjrContext* con) {
   }
 
   // determine drawbuffer; may be changed by stereo later
-  if (con->currentBuffer==mjFB_WINDOW) {
+  if (con->currentBuffer == mjFB_WINDOW) {
     drawbuffer = (con->windowDoublebuffer ? GL_BACK : GL_FRONT);
   } else {
     drawbuffer = GL_COLOR_ATTACHMENT0;
@@ -702,12 +837,12 @@ void mjr_render(mjrRect viewport, mjvScene* scn, const mjrContext* con) {
 
   // make list of transparent geoms
   nt = 0;
-  for (int i=0; i<ngeom; i++) {
+  for (int i=0; i < ngeom; i++) {
     // get geom pointer
     thisgeom = scn->geoms + i;
 
-    if (thisgeom->rgba[3]<0.995 || (thisgeom->type==mjGEOM_PLANE &&
-                                    isBehind(headpos, thisgeom->pos, thisgeom->mat))) {
+    if (thisgeom->rgba[3] < 0.995 || (thisgeom->type == mjGEOM_PLANE &&
+                                      isBehind(headpos, thisgeom->pos, thisgeom->mat))) {
       // include index in list
       scn->geomorder[nt++] = i;
       thisgeom->transparent = 1;
@@ -721,7 +856,7 @@ void mjr_render(mjrRect viewport, mjvScene* scn, const mjrContext* con) {
       thisgeom->camdist -= mjv_rbound(thisgeom);
 
       // plane always far away
-      if (thisgeom->type==mjGEOM_PLANE) {
+      if (thisgeom->type == mjGEOM_PLANE) {
         thisgeom->camdist = 1E+10;
       }
     } else {
@@ -734,7 +869,7 @@ void mjr_render(mjrRect viewport, mjvScene* scn, const mjrContext* con) {
 
   // allow only one reflective geom
   int j = 0;
-  for (int i=0; i<ngeom; i++) {
+  for (int i=0; i < ngeom; i++) {
     if (j) {
       scn->geoms[i].reflectance = 0;
     } else if (isReflective(scn->geoms + i)) {
@@ -756,19 +891,20 @@ void mjr_render(mjrRect viewport, mjvScene* scn, const mjrContext* con) {
 
   // determine stereo; quadbuffered reverts to sidebyside if hardware not available
   stereo = scn->stereo;
-  if (stereo==mjSTEREO_QUADBUFFERED && (con->currentBuffer!=mjFB_WINDOW || !con->windowStereo)) {
+  if (stereo == mjSTEREO_QUADBUFFERED &&
+      (con->currentBuffer != mjFB_WINDOW || !con->windowStereo)) {
     stereo = mjSTEREO_SIDEBYSIDE;
   }
 
   // SIDEBYSIDE: reduce viewport
-  if (stereo==mjSTEREO_SIDEBYSIDE) {
+  if (stereo == mjSTEREO_SIDEBYSIDE) {
     viewport.width /= 2;
   }
 
   // render with stereo
-  for (int view=(stereo?0:-1); view<(stereo?2:0); view++) {
+  for (int view = (stereo ? 0 : -1); view < (stereo ? 2 : 0); view++) {
     // change drawbuffer for QUADBUFFERED stereo
-    if (stereo==mjSTEREO_QUADBUFFERED) {
+    if (stereo == mjSTEREO_QUADBUFFERED) {
       if (con->windowDoublebuffer) {
         drawbuffer = (view ? GL_BACK_RIGHT : GL_BACK_LEFT);
       } else {
@@ -783,7 +919,7 @@ void mjr_render(mjrRect viewport, mjvScene* scn, const mjrContext* con) {
     }
 
     // change viewport for SIDEBYSIDE stereo
-    else if (stereo==mjSTEREO_SIDEBYSIDE) {
+    else if (stereo == mjSTEREO_SIDEBYSIDE) {
       // move viewport to the right for view 1
       if (view) {
         viewport.left += viewport.width;
@@ -808,8 +944,8 @@ void mjr_render(mjrRect viewport, mjvScene* scn, const mjrContext* con) {
       glDisable(GL_MULTISAMPLE);
 
       // render all geoms
-      for (int i=0; i<ngeom; i++) {
-        if (scn->geoms[i].segid>=0) {
+      for (int i=0; i < ngeom; i++) {
+        if (scn->geoms[i].segid >= 0) {
           renderGeom(scn->geoms+i,
                      scn->flags[mjRND_IDCOLOR] ? mjrRND_IDCOLOR : mjrRND_SEGMENT,
                      headpos, scn, con);
@@ -824,13 +960,13 @@ void mjr_render(mjrRect viewport, mjvScene* scn, const mjrContext* con) {
 
     // plane and box reflection rendering
     if (scn->flags[mjRND_REFLECTION]) {
-      for (int i=0; i<ngeom; i++) {
+      for (int i=0; i < ngeom; i++) {
         // get geom pointer
         thisgeom = scn->geoms + i;
 
         if (isReflective(thisgeom)) {
           // if box, replace with temporary plane matching Z+ box side
-          if (thisgeom->type==mjGEOM_BOX) {
+          if (thisgeom->type == mjGEOM_BOX) {
             // copy and convert to plane
             tempgeom = *thisgeom;
             tempgeom.type = mjGEOM_PLANE;
@@ -885,31 +1021,43 @@ void mjr_render(mjrRect viewport, mjvScene* scn, const mjrContext* con) {
           mjr_reflect(thisgeom->pos, thisgeom->mat);
 
           // set light position and direction, enable
-          for (int j=0; j<nlight; j++) {
+          for (int j=0; j < nlight; j++) {
             adjustLight(scn->lights+j, j);
             glEnable(GL_LIGHT0+j);
           }
 
-          // render reflected scene except for thisgeom
-          for (int j=0; j<ngeom; j++)
-            if (i!=j) {
-              // save rgb, modulate rgb by this->reflectance
-              for (int k=0; k<3; k++) {
-                temp[k] = scn->geoms[j].rgba[k];
-                scn->geoms[j].rgba[k] *= thisgeom->reflectance;
-              }
+          // render reflected non-transparent geoms, except for thisgeom
+          for (int j=0; j < ngeom; j++) {
+            if (!scn->geoms[j].transparent && i != j) {
+              renderGeomReflection(j, thisgeom->reflectance, headpos, scn, con);
+            }
+          }
 
-              // render
-              renderGeom(scn->geoms+j, mjrRND_NORMAL, headpos, scn, con);
-
-              // restore rgb
-              for (int k=0; k<3; k++) {
-                scn->geoms[j].rgba[k] = temp[k];
+          // render reflected transparent geoms, except for thisgeom
+          glDepthMask(GL_FALSE);
+          glEnable(GL_BLEND);
+          if (scn->flags[mjRND_ADDITIVE]) {
+            glBlendFunc(GL_SRC_ALPHA, GL_ONE);
+          } else {
+            glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+          }
+          for (int j=0; j < nt; j++) {
+            if (i != scn->geomorder[j]) {
+              renderGeomReflection(scn->geomorder[j], thisgeom->reflectance, headpos, scn, con);
+            }
+          }
+          if (!scn->flags[mjRND_ADDITIVE]) {
+            for (int j=nt-1; j >= 0; j--) {
+              if (i != scn->geomorder[j]) {
+                renderGeomReflection(scn->geomorder[j], thisgeom->reflectance, headpos, scn, con);
               }
             }
+          }
+          glDepthMask(GL_TRUE);
+          glDisable(GL_BLEND);
 
           // disable lights
-          for (int j=0; j<nlight; j++) {
+          for (int j=0; j < nlight; j++) {
             glDisable(GL_LIGHT0+j);
           }
 
@@ -925,7 +1073,7 @@ void mjr_render(mjrRect viewport, mjvScene* scn, const mjrContext* con) {
     //---------------------------------- regular rendering
 
     // set light position and direction, enable non-shadow lights
-    for (int i=0; i<nlight; i++) {
+    for (int i=0; i < nlight; i++) {
       // set light
       thislight = scn->lights + i;
       adjustLight(thislight, i);
@@ -940,21 +1088,21 @@ void mjr_render(mjrRect viewport, mjvScene* scn, const mjrContext* con) {
     //  (only one allowed, more would result in weird transparency)
     glEnable(GL_BLEND);
     glBlendFunc(GL_ONE, GL_ONE);
-    for (int i=0; i<ngeom; i++)
+    for (int i=0; i < ngeom; i++)
       if (isReflective(scn->geoms+i)) {
         renderGeom(scn->geoms+i, mjrRND_NORMAL, headpos, scn, con);
       }
     glDisable(GL_BLEND);
 
     // render remaining opaque geoms
-    for (int i=0; i<ngeom; i++) {
+    for (int i=0; i < ngeom; i++) {
       if (!scn->geoms[i].transparent && !isReflective(scn->geoms+i)) {
         renderGeom(scn->geoms+i, mjrRND_NORMAL, headpos, scn, con);
       }
     }
 
     // disable lights
-    for (int i=0; i<nlight; i++) {
+    for (int i=0; i < nlight; i++) {
       glDisable(GL_LIGHT0+i);
     }
 
@@ -966,7 +1114,7 @@ void mjr_render(mjrRect viewport, mjvScene* scn, const mjrContext* con) {
 
     // shadow map rendering
     if (scn->flags[mjRND_SHADOW] && con->shadowFBO) {
-      for (int i=0; i<nlight; i++) {
+      for (int i=0; i < nlight; i++) {
         // get pointer
         thislight = scn->lights + i;
 
@@ -977,6 +1125,15 @@ void mjr_render(mjrRect viewport, mjvScene* scn, const mjrContext* con) {
           // set projection: from light viewpoint
           glMatrixMode(GL_PROJECTION);
           glLoadIdentity();
+          if (mjGLAD_GL_ARB_clip_control) {
+            // reverse Z rendering mapping [znear, zfar] -> [1, 0] (ndc)
+            glTranslatef(0.0f, 0.0f, 0.5f);
+            glScalef(1.0f, 1.0f, -0.5f);
+          }
+          else {
+            // reverse Z rendering mapping without shift [znear, zfar] -> [1, -1] (ndc)
+            glScalef(1.0f, 1.0f, -1.0f);
+          }
           if (thislight->directional) {
             glOrtho(-con->shadowClip, con->shadowClip,
                     -con->shadowClip, con->shadowClip,
@@ -997,20 +1154,21 @@ void mjr_render(mjrRect viewport, mjvScene* scn, const mjrContext* con) {
           glBindFramebuffer(GL_FRAMEBUFFER, con->shadowFBO);
           glDrawBuffer(GL_NONE);
           glClear(GL_DEPTH_BUFFER_BIT);
-          glViewport(1, 1, con->shadowSize-2, con->shadowSize-2); // avoid infinite shadows from edges
+          glViewport(
+              1, 1, con->shadowSize-2, con->shadowSize-2);  // avoid infinite shadows from edges
           glCullFace(GL_FRONT);
           glShadeModel(GL_FLAT);
           glDisable(GL_LIGHTING);
           glColorMask(0, 0, 0, 0);
 
           // render all geoms to depth texture
-          for (int j=0; j<ngeom; j++) {
+          for (int j=0; j < ngeom; j++) {
             renderGeom(scn->geoms+j, mjrRND_SHADOWCAST, headpos, scn, con);
           }
 
           // restore OpenGL settings
           glBindFramebuffer(GL_FRAMEBUFFER,
-                            con->currentBuffer==mjFB_WINDOW ? 0 : con->offFBO);
+                            con->currentBuffer == mjFB_WINDOW ? 0 : con->offFBO);
           glDrawBuffer(drawbuffer);
           glViewport(viewport.left, viewport.bottom, viewport.width, viewport.height);
           glCullFace(GL_BACK);
@@ -1044,7 +1202,7 @@ void mjr_render(mjrRect viewport, mjvScene* scn, const mjrContext* con) {
           glEnable(GL_LIGHT0+i);
 
           // only opaque geoms accept shadows
-          for (int j=0; j<ngeom; j++) {
+          for (int j=0; j < ngeom; j++) {
             if (!scn->geoms[j].transparent) {
               renderGeom(scn->geoms+j, mjrRND_SHADOWMAP, headpos, scn, con);
             }
@@ -1070,8 +1228,8 @@ void mjr_render(mjrRect viewport, mjvScene* scn, const mjrContext* con) {
       glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 
       // find skybox texture
-      for (int i=0; i<con->ntexture; i++) {
-        if (con->textureType[i]==mjTEXTURE_SKYBOX) {
+      for (int i=0; i < con->ntexture; i++) {
+        if (con->textureType[i] == mjTEXTURE_SKYBOX) {
           // save first skybox texture id in tempgeom
           memset(&tempgeom, 0, sizeof(mjvGeom));
           tempgeom.texid = i;
@@ -1098,10 +1256,10 @@ void mjr_render(mjrRect viewport, mjvScene* scn, const mjrContext* con) {
 
           // haze
           if (scn->flags[mjRND_HAZE]) {
-            for (int j=0; j<ngeom; j++) {
-              if (scn->geoms[j].type==mjGEOM_PLANE &&
-                  scn->geoms[j].size[0]==0 &&
-                  scn->geoms[j].size[1]==0) {
+            for (int j=0; j < ngeom; j++) {
+              if (scn->geoms[j].type == mjGEOM_PLANE &&
+                  scn->geoms[j].size[0] == 0 &&
+                  scn->geoms[j].size[1] == 0) {
                 // compute headpos elevation above plane
                 float* mat3 = scn->geoms[j].mat;
                 float elevation = ((headpos[0]-scn->geoms[j].pos[0])*mat3[2] +
@@ -1110,7 +1268,7 @@ void mjr_render(mjrRect viewport, mjvScene* scn, const mjrContext* con) {
                                   skyboxdst;
 
                 // below plane: no rendering
-                if (elevation<0) {
+                if (elevation < 0) {
                   break;
                 }
 
@@ -1157,7 +1315,7 @@ void mjr_render(mjrRect viewport, mjvScene* scn, const mjrContext* con) {
     //------------------------------------ transparent regular rendering
 
     // enable lights
-    for (int i=0; i<nlight; i++) {
+    for (int i=0; i < nlight; i++) {
       glEnable(GL_LIGHT0+i);
     }
 
@@ -1171,13 +1329,13 @@ void mjr_render(mjrRect viewport, mjvScene* scn, const mjrContext* con) {
     }
 
     // render transparent geoms: front to back
-    for (int i=0; i<nt; i++) {
+    for (int i=0; i < nt; i++) {
       renderGeom(scn->geoms+scn->geomorder[i], mjrRND_NORMAL, headpos, scn, con);
     }
 
     // render transparent geoms: back to front, if not additive
     if (!scn->flags[mjRND_ADDITIVE]) {
-      for (int i=nt-1; i>=0; i--) {
+      for (int i=nt-1; i >= 0; i--) {
         renderGeom(scn->geoms+scn->geomorder[i], mjrRND_NORMAL, headpos, scn, con);
       }
     }
@@ -1187,7 +1345,7 @@ void mjr_render(mjrRect viewport, mjvScene* scn, const mjrContext* con) {
     glDisable(GL_BLEND);
 
     // disable lights
-    for (int i=0; i<nlight; i++) {
+    for (int i=0; i < nlight; i++) {
       glDisable(GL_LIGHT0+i);
     }
 
@@ -1196,7 +1354,7 @@ void mjr_render(mjrRect viewport, mjvScene* scn, const mjrContext* con) {
     // render text labels if present
     glDisable(GL_DEPTH_TEST);
     glDisable(GL_LIGHTING);
-    for (int i=0; i<ngeom; i++) {
+    for (int i=0; i < ngeom; i++) {
       thisgeom = scn->geoms + i;
 
       if (thisgeom->label[0]) {

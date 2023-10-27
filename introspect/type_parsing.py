@@ -18,7 +18,7 @@ import collections
 import re
 from typing import Mapping, MutableSequence, Optional, Sequence, Tuple, Union
 
-from google3.third_party.mujoco.introspect import ast_nodes
+from . import ast_nodes
 
 ARRAY_EXTENTS_PATTERN = re.compile(r'(\[[^\]]+\]\s*)+\Z')
 ARRAY_N_PATTERN = re.compile(r'\[([^\]]+)\]')
@@ -37,7 +37,7 @@ def _parse_qualifiers(
     if part in qualifiers:
       counter[part] += 1
       if counter[part] > 1:
-        ValueError('duplicate qualifier: {part!r}')
+        raise ValueError('duplicate qualifier: {part!r}')
     else:
       non_qualifiers.append(part)
   is_qualifier = dict()
@@ -68,6 +68,8 @@ def _parse_maybe_pointer(
                                                    ast_nodes.PointerType]]
 ) -> Union[ast_nodes.ValueType, ast_nodes.PointerType, ast_nodes.ArrayType]:
   """Internal-only helper that parses a type that may be a pointer type."""
+  if type_name == 'void *(*)(void *)':
+    return ast_nodes.ValueType(name=type_name)
   p = type_name.rfind('*')
   if p != -1:
     leftover, is_qualifier = _parse_qualifiers(
@@ -107,6 +109,9 @@ def _peel_nested_parens(input_str: str) -> MutableSequence[str]:
     A sequence of substrings enclosed with in respective parentheses. See the
     description above for the precise detail of the output.
   """
+  if input_str == 'void *(*)(void *)':
+    return ['void *(*)(void *)']
+
   start = input_str.find('(')
   end = input_str.rfind(')')
 
@@ -128,15 +133,16 @@ def parse_type(
   """Parses a string that represents a C type into an AST node."""
   try:
     type_str_stack = _peel_nested_parens(type_name.strip())
-  except AssertionError:
-    raise ValueError(f'{type_name!r} contains incorrectly nested parentheses')
+  except AssertionError as e:
+    raise ValueError(f'{type_name!r} contains incorrectly nested '
+                     f'parentheses') from e
 
   result = None
   while type_str_stack:
     try:
       result = _parse_maybe_array(type_str_stack.pop(), result)
-    except AssertionError:
-      raise ValueError(f'invalid type name {type_name!r}')
+    except AssertionError as e:
+      raise ValueError(f'invalid type name {type_name!r}') from e
 
   assert result  # hint for pytype that `result` isn't None
   return result
@@ -145,4 +151,4 @@ def parse_type(
 def parse_function_return_type(
     type_name: str
 ) -> Union[ast_nodes.ValueType, ast_nodes.PointerType, ast_nodes.ArrayType]:
-  return parse_type(type_name[:type_name.rfind('(')])
+  return parse_type(type_name[:type_name.find('(')])

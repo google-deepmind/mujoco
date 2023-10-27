@@ -14,16 +14,12 @@
 
 // Tests for engine/engine_sensor.c.
 
-#include <array>
-#include <cstddef>
-#include <cstdio>
-#include <string>
-
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjtnum.h>
 #include <mujoco/mujoco.h>
+#include "src/engine/engine_support.h"
 #include "src/engine/engine_util_blas.h"
 #include "src/engine/engine_util_spatial.h"
 #include "test/fixture.h"
@@ -31,20 +27,65 @@
 namespace mujoco {
 namespace {
 
+const mjtNum tol = 1e-14;  // nearness tolerance for floating point numbers
+
 // returns as a vector the measured values from sensor with index `id`
-static std::vector<mjtNum> GetSensor(const mjModel* model, const mjData* data, int id) {
-  return std::vector<mjtNum>(data->sensordata + model->sensor_adr[id],
-                             data->sensordata + model->sensor_adr[id] + model->sensor_dim[id]);
+static std::vector<mjtNum> GetSensor(const mjModel* model,
+                                     const mjData* data,
+                                     int id) {
+  return std::vector<mjtNum>(
+      data->sensordata + model->sensor_adr[id],
+      data->sensordata + model->sensor_adr[id] + model->sensor_dim[id]);
 }
-
-
-// --------------------- test relative frame sensors  --------------------------
 
 using ::testing::Pointwise;
 using ::testing::DoubleNear;
-using RelativeFrameSensorTest = MujocoTest;
+using ::testing::StrEq;
 
-const mjtNum tol = 1e-14;  // nearness tolerance for floating point numbers
+using SensorTest = MujocoTest;
+
+// --------------------- test sensor disableflag  -----------------------------
+
+// hand-picked positions and orientations for simple expected values
+TEST_F(SensorTest, DisableSensors) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <sensor>
+      <clock/>
+    </sensor>
+  </mujoco>
+  )";
+  mjModel* model = LoadModelFromString(xml);
+  mjData* data = mj_makeData(model);
+
+  // before calling anything, check that sensors are initialised to 0
+  EXPECT_EQ(data->sensordata[0], 0.0);
+
+  // call mj_step, mj_step1, expect clock to be incremented by timestep
+  mj_step(model, data);
+  mj_step1(model, data);
+  EXPECT_EQ(data->sensordata[0], model->opt.timestep);
+
+  // disable sensors, call mj_step, mj_step1, expect clock to not increment
+  model->opt.disableflags |= mjDSBL_SENSOR;
+  mj_step(model, data);
+  mj_step1(model, data);
+  EXPECT_EQ(data->time, 2*model->opt.timestep);
+  EXPECT_EQ(data->sensordata[0], model->opt.timestep);
+
+  // re-enable sensors, call mj_step, mj_step1, expect clock to match time
+  model->opt.disableflags = 0;
+  mj_step(model, data);
+  mj_step1(model, data);
+  EXPECT_EQ(data->time, data->sensordata[0]);
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
+// --------------------- test relative frame sensors  --------------------------
+
+using RelativeFrameSensorTest = MujocoTest;
 
 // hand-picked positions and orientations for simple expected values
 TEST_F(RelativeFrameSensorTest, ReferencePosMat) {
@@ -64,7 +105,7 @@ TEST_F(RelativeFrameSensorTest, ReferencePosMat) {
     </sensor>
   </mujoco>
   )";
-  mjModel* model = LoadModelFromString(xml, 0, 0);
+  mjModel* model = LoadModelFromString(xml);
   mjData* data = mj_makeData(model);
   mj_forward(model, data);
 
@@ -102,7 +143,7 @@ TEST_F(RelativeFrameSensorTest, ReferenceQuatMat) {
     </sensor>
   </mujoco>
   )";
-  mjModel* model = LoadModelFromString(xml, 0, 0);
+  mjModel* model = LoadModelFromString(xml);
   mjData* data = mj_makeData(model);
 
   // call mj_forward and convert orientation matrix to quaternion
@@ -149,7 +190,7 @@ TEST_F(RelativeFrameSensorTest, ReferencePosMatQuat) {
     </sensor>
   </mujoco>
   )";
-  mjModel* model = LoadModelFromString(xml, 0, 0);
+  mjModel* model = LoadModelFromString(xml);
   constexpr int nsensordata = 32;
   ASSERT_EQ(model->nsensordata, nsensordata);
   mjData* data = mj_makeData(model);
@@ -159,7 +200,7 @@ TEST_F(RelativeFrameSensorTest, ReferencePosMatQuat) {
   std::vector expected_values(data->sensordata, data->sensordata+nsensordata/2);
 
   // set qpos to arbitrary values, call mj_forward
-  for (int i=0; i<7; i++) {
+  for (int i=0; i < 7; i++) {
     data->qpos[i] = i+1;
   }
   mj_forward(model, data);
@@ -199,7 +240,7 @@ TEST_F(RelativeFrameSensorTest, FrameVelLinearFixed) {
     </sensor>
   </mujoco>
   )";
-  mjModel* model = LoadModelFromString(xml, 0, 0);
+  mjModel* model = LoadModelFromString(xml);
   mjData* data = mj_makeData(model);
   data->qvel[0] = mju_sqrt(2);
   data->qvel[1] = 1;
@@ -231,7 +272,7 @@ TEST_F(RelativeFrameSensorTest, FrameVelAngFixed) {
     </sensor>
   </mujoco>
   )";
-  mjModel* model = LoadModelFromString(xml, 0, 0);
+  mjModel* model = LoadModelFromString(xml);
   mjData* data = mj_makeData(model);
 
   // set joint velocities and call forward dynamics
@@ -266,7 +307,7 @@ TEST_F(RelativeFrameSensorTest, FrameVelAngOpposing) {
     </sensor>
   </mujoco>
   )";
-  mjModel* model = LoadModelFromString(xml, 0, 0);
+  mjModel* model = LoadModelFromString(xml);
   mjData* data = mj_makeData(model);
 
   // set joint velocities and call forward dynamics
@@ -309,7 +350,7 @@ TEST_F(RelativeFrameSensorTest, FrameVelGeneral) {
     </sensor>
   </mujoco>
   )";
-  mjModel* model = LoadModelFromString(xml, 0, 0);
+  mjModel* model = LoadModelFromString(xml);
   mjData* data = mj_makeData(model);
   mjtNum dt = 1e-6;  // timestep used for finite differencing
 
@@ -356,6 +397,86 @@ TEST_F(RelativeFrameSensorTest, FrameVelGeneral) {
   mj_deleteModel(model);
 }
 
+// ------------------------- general sensor tests  -----------------------------
+using SensorTest = MujocoTest;
+
+// test clock sensor
+TEST_F(SensorTest, Clock) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <option timestep="1e-3"/>
+    <sensor>
+      <clock/>
+      <clock name="clampedclock" cutoff="3e-3"/>
+    </sensor>
+  </mujoco>
+  )";
+  mjModel* model = LoadModelFromString(xml);
+  mjData* data = mj_makeData(model);
+
+  // call step 4 times, checking that clock works as expected
+  for (int i=0; i<5; i++) {
+    mj_step(model, data);
+    mj_step1(model, data); // update values of position-based sensors
+    EXPECT_EQ(data->sensordata[0], data->time);
+    EXPECT_EQ(data->sensordata[1], mju_min(data->time, 3e-3));
+  }
+
+  // chack names
+  const char* name0 = mj_id2name(model, mjOBJ_SENSOR, 0);
+  EXPECT_EQ(name0, nullptr);
+  const char* name1 = mj_id2name(model, mjOBJ_SENSOR, 1);
+  EXPECT_THAT(name1, StrEq("clampedclock"));
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
+// ------------------------- camera sensor tests  -----------------------------
+
+// test clock sensor
+TEST_F(SensorTest, CameraProjection) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body pos="1.1 0 1">
+        <geom type="box" size=".1 .6 .375"/>
+        <site name="frontorigin" pos="-.1  .6  .375"/>
+        <site name="frontcorner" pos="-.1 -.6 -.375"/>
+      </body>
+      <body pos="-1.1 0 1">
+        <geom type="box" size=".1 .6 .375"/>
+        <site name="backcenter" pos="-.1 0 0"/>
+      </body>
+      <camera pos="0 0 1" xyaxes="0 -1 0 0 0 1" fovy="41.11209"
+              resolution="1920 1200" name="fixedcamera"/>
+    </worldbody>
+    <sensor>
+      <camprojection site="frontorigin" camera="fixedcamera"/>
+      <camprojection site="frontcorner" camera="fixedcamera"/>
+      <camprojection site="backcenter" camera="fixedcamera"/>
+    </sensor>
+  </mujoco>
+  )";
+  mjModel* model = LoadModelFromString(xml);
+  mjData* data = mj_makeData(model);
+
+  // call step to update sensors
+  mj_step(model, data);
+  mj_step1(model, data);  // update values of position-based sensors
+  EXPECT_THAT(model->cam_resolution[0], 1920);
+  EXPECT_THAT(model->cam_resolution[1], 1200);
+  mjtNum eps = 1e-4;
+  EXPECT_NEAR(data->sensordata[0], 0, eps);
+  EXPECT_NEAR(data->sensordata[1], 0, eps);
+  EXPECT_NEAR(data->sensordata[2], 1920, eps);
+  EXPECT_NEAR(data->sensordata[3], 1200, eps);
+  EXPECT_NEAR(data->sensordata[4], 960, eps);
+  EXPECT_NEAR(data->sensordata[5], 600, eps);
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
 
 }  // namespace
 }  // namespace mujoco

@@ -369,8 +369,8 @@ class MuJoCoRolloutTest(parameterized.TestCase):
     ctrl = np.zeros((3, model.nu))
 
     model.opt.solver = 10  # invalid solver type
-    with self.assertRaisesWithLiteralMatch(mujoco.FatalError,
-                                           'Unknown solver type 10'):
+    with self.assertRaisesWithLiteralMatch(
+        mujoco.FatalError, 'mj_fwdConstraint: unknown solver type 10'):
       state, sensordata = rollout.rollout(model, data, initial_state, ctrl)
 
   def test_invalid(self):

@@ -5,7 +5,7 @@
     <key>CFBundleName</key>
     <string>MuJoCo</string>
     <key>CFBundleIdentifier</key>
-    <string>org.mujoco.mujoco</string>
+    <string>org.mujoco.framework</string>
     <key>CFBundleVersion</key>
     <string>${PROJECT_VERSION}</string>
     <key>CFBundleGetInfoString</key>

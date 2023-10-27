@@ -21,7 +21,7 @@
 
   <option solver="CG" tolerance="1e-6" timestep=".01"/>
 
-  <size nconmax="6000" njmax="6000" nstack="50000000"/>
+  <size memory="1G"/>
 
   <visual>
     <map stiffness="100"/>

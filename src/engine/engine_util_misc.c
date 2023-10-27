@@ -14,12 +14,15 @@
 
 #include "engine/engine_util_misc.h"
 
+#include <ctype.h>
 #include <math.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 #include <mujoco/mjdata.h>
+#include <mujoco/mjmacro.h>
 #include <mujoco/mjmodel.h>
 #include "engine/engine_array_safety.h"
 #include "engine/engine_macro.h"
@@ -29,14 +32,14 @@
 
 //------------------------------ tendon wrapping ---------------------------------------------------
 
-// check for intersection of two 2D line segmetns
+// check for intersection of two 2D line segments
 static mjtByte is_intersect(const mjtNum* p1, const mjtNum* p2,
                             const mjtNum* p3, const mjtNum* p4) {
   mjtNum a, b;
 
   // compute determinant, check
   mjtNum det = (p4[1]-p3[1])*(p2[0]-p1[0]) - (p4[0]-p3[0])*(p2[1]-p1[1]);
-  if (fabs(det)<mjMINVAL) {
+  if (fabs(det) < mjMINVAL) {
     return 0;
   }
 
@@ -44,7 +47,7 @@ static mjtByte is_intersect(const mjtNum* p1, const mjtNum* p2,
   a = ((p4[0]-p3[0])*(p1[1]-p3[1]) - (p4[1]-p3[1])*(p1[0]-p3[0])) / det;
   b = ((p2[0]-p1[0])*(p1[1]-p3[1]) - (p2[1]-p1[1])*(p1[0]-p3[0])) / det;
 
-  return ((a>=0 && a<=1 && b>=0 && b<=1) ? 1 : 0);
+  return ((a >= 0 && a <= 1 && b >= 0 && b <= 1) ? 1 : 0);
 }
 
 
@@ -62,7 +65,7 @@ static mjtNum length_circle(const mjtNum* p0, const mjtNum* p1, int ind, mjtNum 
 
   // flip if necessary
   cross = p0[1]*p1[0]-p0[0]*p1[1];
-  if ((cross>0 && ind) || (cross<0 && !ind)) {
+  if ((cross > 0 && ind) || (cross < 0 && !ind)) {
     angle = 2*mjPI - angle;
   }
 
@@ -81,40 +84,40 @@ static mjtNum wrap_circle(mjtNum* pnt, const mjtNum* d, const mjtNum* sd, mjtNum
   mjtNum dif[2] = {d[2]-d[0], d[3]-d[1]};
   mjtNum a, tmp[2], dd, sqrt0, sqrt1;
   mjtNum sol[2][2][2], good[2], wlen;
-  int i, sgn;
+  int sgn;
 
   // either point inside circle or circle too small: no wrap
-  if (sqlen0<sqrad || sqlen1<sqrad || rad<mjMINVAL) {
+  if (sqlen0 < sqrad || sqlen1 < sqrad || rad < mjMINVAL) {
     return -1;
   }
 
   // points too close: no wrap
   dd = dif[0]*dif[0] + dif[1]*dif[1];
-  if (dd<mjMINVAL) {
+  if (dd < mjMINVAL) {
     return -1;
   }
 
   // find nearest point on line segment to origin: a*dif + d0
   a = -(dif[0]*d[0]+dif[1]*d[1])/dd;
-  if (a<0) {
+  if (a < 0) {
     a = 0;
-  } else if (a>1) {
+  } else if (a > 1) {
     a = 1;
   }
   tmp[0] = a*dif[0] + d[0];
   tmp[1] = a*dif[1] + d[1];
 
   // check for intersection and side
-  if (tmp[0]*tmp[0]+tmp[1]*tmp[1]>sqrad && (!sd || mju_dot(sd, tmp, 2)>=0)) {
+  if (tmp[0]*tmp[0]+tmp[1]*tmp[1] > sqrad && (!sd || mju_dot(sd, tmp, 2) >= 0)) {
     return -1;
   }
 
   // construct the two solutions, compute goodness
-  for (int i=0; i<2; i++) {
+  for (int i=0; i < 2; i++) {
     sqrt0 = mju_sqrt(sqlen0 - sqrad);
     sqrt1 = mju_sqrt(sqlen1 - sqrad);
 
-    sgn = (i==0 ? 1 : -1);
+    sgn = (i == 0 ? 1 : -1);
 
     sol[i][0][0] = (d[0]*sqrad + sgn*rad*d[1]*sqrt0)/sqlen0;
     sol[i][0][1] = (d[1]*sqrad - sgn*rad*d[0]*sqrt0)/sqlen0;
@@ -138,7 +141,7 @@ static mjtNum wrap_circle(mjtNum* pnt, const mjtNum* d, const mjtNum* sd, mjtNum
   }
 
   // select the better solution
-  i = (good[0]>good[1] ? 0 : 1);
+  int i = (good[0] > good[1] ? 0 : 1);
   pnt[0] = sol[i][0][0];
   pnt[1] = sol[i][0][1];
   pnt[2] = sol[i][1][0];
@@ -172,20 +175,20 @@ static mjtNum wrap_inside(mjtNum* pnt, const mjtNum* d, mjtNum rad) {
   mjtNum dd = dif[0]*dif[0] + dif[1]*dif[1];
 
   // either point inside circle or circle too small: no wrap
-  if (len0<=rad || len1<=rad || rad<mjMINVAL || len0<mjMINVAL || len1<mjMINVAL) {
+  if (len0 <= rad || len1 <= rad || rad < mjMINVAL || len0 < mjMINVAL || len1 < mjMINVAL) {
     return -1;
   }
 
   // segment-circle intersection: no wrap
-  if (dd>mjMINVAL) {
+  if (dd > mjMINVAL) {
     // find nearest point on line segment to origin: d0 + a*dif
     mjtNum a = -(dif[0]*d[0]+dif[1]*d[1])/dd;
 
     // in segment
-    if (a>0 && a<1) {
+    if (a > 0 && a < 1) {
       mjtNum tmp[2];
       mju_addScl(tmp, d, dif, a, 2);
-      if (mju_norm(tmp, 2)<=rad) {
+      if (mju_norm(tmp, 2) <= rad) {
         return -1;
       }
     }
@@ -203,9 +206,9 @@ static mjtNum wrap_inside(mjtNum* pnt, const mjtNum* d, mjtNum rad) {
   mjtNum A = rad/len0;
   mjtNum B = rad/len1;
   mjtNum cosG = (len0*len0 + len1*len1 - dd) / (2*len0*len1);
-  if (cosG<-1+mjMINVAL) {
+  if (cosG < -1+mjMINVAL) {
     return -1;
-  } else if (cosG>1-mjMINVAL) {
+  } else if (cosG > 1-mjMINVAL) {
     return 0;
   }
   mjtNum G = mju_acos(cosG);
@@ -215,20 +218,20 @@ static mjtNum wrap_inside(mjtNum* pnt, const mjtNum* d, mjtNum rad) {
   mjtNum f = mju_asin(A*z) + mju_asin(B*z) - 2*mju_asin(z) + G;
 
   // make sure init is not on the other side
-  if (f>0) {
+  if (f > 0) {
     return 0;
   }
 
   // Newton method
   int iter;
-  for (iter=0; iter<maxiter && mju_abs(f)>tolerance; iter++) {
+  for (iter=0; iter < maxiter && mju_abs(f) > tolerance; iter++) {
     // derivative
     mjtNum df = A/mju_max(mjMINVAL, mju_sqrt(1-z*z*A*A)) +
                 B/mju_max(mjMINVAL, mju_sqrt(1-z*z*B*B)) -
                 2/mju_max(mjMINVAL, mju_sqrt(1-z*z));
 
     // check sign; SHOULD NOT OCCUR
-    if (df>-mjMINVAL) {
+    if (df > -mjMINVAL) {
       return 0;
     }
 
@@ -236,7 +239,7 @@ static mjtNum wrap_inside(mjtNum* pnt, const mjtNum* d, mjtNum rad) {
     mjtNum z1 = z - f/df;
 
     // make sure we are moving to the left; SHOULD NOT OCCUR
-    if (z1>z) {
+    if (z1 > z) {
       return 0;
     }
 
@@ -245,13 +248,13 @@ static mjtNum wrap_inside(mjtNum* pnt, const mjtNum* d, mjtNum rad) {
     f = mju_asin(A*z) + mju_asin(B*z) - 2*mju_asin(z) + G;
 
     // exit if positive; SHOULD NOT OCCUR
-    if (f>tolerance) {
+    if (f > tolerance) {
       return 0;
     }
   }
 
   // check convergence
-  if (iter>=maxiter) {
+  if (iter >= maxiter) {
     return 0;
   }
 
@@ -285,8 +288,8 @@ mjtNum mju_wrap(mjtNum* wpnt, const mjtNum* x0, const mjtNum* x1,
   mjtNum L0, L1;
 
   // check object type;  SHOULD NOT OCCUR
-  if (type!=mjWRAP_SPHERE && type!=mjWRAP_CYLINDER) {
-    mju_error_i("mju_wrap: unknown wrapping object type %d", type);
+  if (type != mjWRAP_SPHERE && type != mjWRAP_CYLINDER) {
+    mjERROR("unknown wrapping object type %d", type);
   }
 
   // map sites to wrap object's local frame
@@ -296,12 +299,12 @@ mjtNum mju_wrap(mjtNum* wpnt, const mjtNum* x0, const mjtNum* x1,
   mju_mulMatTVec(p[1], xmat, tmp, 3, 3);
 
   // too close to origin: return
-  if (mju_norm3(p[0])<mjMINVAL || mju_norm3(p[1])<mjMINVAL) {
+  if (mju_norm3(p[0]) < mjMINVAL || mju_norm3(p[1]) < mjMINVAL) {
     return -1;
   }
 
   // construct 2D frame for circle wrap
-  if (type==mjWRAP_SPHERE) {
+  if (type == mjWRAP_SPHERE) {
     // 1st axis = p0
     mju_copy3(axis[0], p[0]);
     mju_normalize3(axis[0]);
@@ -311,15 +314,15 @@ mjtNum mju_wrap(mjtNum* wpnt, const mjtNum* x0, const mjtNum* x1,
     mjtNum nrm = mju_normalize3(normal);
 
     // if (p0, p1) parallel: different normal
-    if (nrm<mjMINVAL) {
+    if (nrm < mjMINVAL) {
       // find max component of axis0
       int i = 0;
-      if (mju_abs(axis[0][1])>mju_abs(axis[0][0]) &&
-          mju_abs(axis[0][1])>mju_abs(axis[0][2])) {
+      if (mju_abs(axis[0][1]) > mju_abs(axis[0][0]) &&
+          mju_abs(axis[0][1]) > mju_abs(axis[0][2])) {
         i = 1;
       }
-      if (mju_abs(axis[0][2])>mju_abs(axis[0][0]) &&
-          mju_abs(axis[0][2])>mju_abs(axis[0][1])) {
+      if (mju_abs(axis[0][2]) > mju_abs(axis[0][0]) &&
+          mju_abs(axis[0][2]) > mju_abs(axis[0][1])) {
         i = 2;
       }
 
@@ -373,7 +376,7 @@ mjtNum mju_wrap(mjtNum* wpnt, const mjtNum* x0, const mjtNum* x1,
   }
 
   // apply inside wrap
-  if (side && sd[0]==0 && sd[1]==0) {
+  if (side && sd[0] == 0 && sd[1] == 0) {
     wlen = wrap_inside(pnt, d, size[0]);
   }
 
@@ -383,12 +386,12 @@ mjtNum mju_wrap(mjtNum* wpnt, const mjtNum* x0, const mjtNum* x1,
   }
 
   // no wrap
-  if (wlen<0) {
+  if (wlen < 0) {
     return -1;
   }
 
   // reconstruct 3D points in local frame: res
-  for (int i=0; i<2; i++) {
+  for (int i=0; i < 2; i++) {
     // res = axis0*d0 + axis1*d1
     mju_scl3(res+3*i, axis[0], pnt[2*i]);
     mju_scl3(tmp, axis[1], pnt[2*i+1]);
@@ -396,7 +399,7 @@ mjtNum mju_wrap(mjtNum* wpnt, const mjtNum* x0, const mjtNum* x1,
   }
 
   // cylinder: correct along z
-  if (type==mjWRAP_CYLINDER) {
+  if (type == mjWRAP_CYLINDER) {
     // set vertical coordinates
     L0 = mju_sqrt((p[0][0]-res[0])*(p[0][0]-res[0]) + (p[0][1]-res[1])*(p[0][1]-res[1]));
     L1 = mju_sqrt((p[1][0]-res[3])*(p[1][0]-res[3]) + (p[1][1]-res[4])*(p[1][1]-res[4]));
@@ -419,6 +422,37 @@ mjtNum mju_wrap(mjtNum* wpnt, const mjtNum* x0, const mjtNum* x1,
 
 
 
+// all 3 semi-axes of a geom
+void mju_geomSemiAxes(const mjModel* m, int geom_id, mjtNum semiaxes[3]) {
+  mjtNum* size = m->geom_size + 3*geom_id;
+  switch ((mjtGeom) m->geom_type[geom_id]) {
+  case mjGEOM_SPHERE:
+    semiaxes[0] = size[0];
+    semiaxes[1] = size[0];
+    semiaxes[2] = size[0];
+    break;
+
+  case mjGEOM_CAPSULE:
+    semiaxes[0] = size[0];
+    semiaxes[1] = size[0];
+    semiaxes[2] = size[1] + size[0];
+    break;
+
+  case mjGEOM_CYLINDER:
+    semiaxes[0] = size[0];
+    semiaxes[1] = size[0];
+    semiaxes[2] = size[1];
+    break;
+
+  default:
+    semiaxes[0] = size[0];
+    semiaxes[1] = size[1];
+    semiaxes[2] = size[2];
+  }
+}
+
+
+
 //------------------------------ actuator models ---------------------------------------------------
 
 // muscle active force, prm = (range[2], force, scale, lmin, lmax, vmax, fpmax, fvmax)
@@ -434,7 +468,7 @@ mjtNum mju_muscleGain(mjtNum len, mjtNum vel, const mjtNum lengthrange[2],
   mjtNum fvmax    = prm[8];
 
   // scale force if negative
-  if (force<0) {
+  if (force < 0) {
     force = scale / mjMAX(mjMINVAL, acc0);
   }
 
@@ -452,16 +486,16 @@ mjtNum mju_muscleGain(mjtNum len, mjtNum vel, const mjtNum lengthrange[2],
 
   // length curve
   mjtNum FL = 0;
-  if (L>=lmin && L<=a) {
+  if (L >= lmin && L <= a) {
     x = (L-lmin) / mjMAX(mjMINVAL, a-lmin);
     FL = 0.5*x*x;
-  } else if (L<=1) {
+  } else if (L <= 1) {
     x = (1-L) / mjMAX(mjMINVAL, 1-a);
     FL = 1 - 0.5*x*x;
-  } else if (L<=b) {
+  } else if (L <= b) {
     x = (L-1) / mjMAX(mjMINVAL, b-1);
     FL = 1 - 0.5*x*x;
-  } else if (L<=lmax) {
+  } else if (L <= lmax) {
     x = (lmax-L) / mjMAX(mjMINVAL, lmax-b);
     FL = 0.5*x*x;
   }
@@ -469,11 +503,11 @@ mjtNum mju_muscleGain(mjtNum len, mjtNum vel, const mjtNum lengthrange[2],
   // velocity curve
   mjtNum FV;
   mjtNum y = fvmax-1;
-  if (V<=-1) {
+  if (V <= -1) {
     FV = 0;
-  } else if (V<=0) {
+  } else if (V <= 0) {
     FV = (V+1)*(V+1);
-  } else if (V<=y) {
+  } else if (V <= y) {
     FV = fvmax - (y-V)*(y-V) / mjMAX(mjMINVAL, y);
   } else {
     FV = fvmax;
@@ -496,7 +530,7 @@ mjtNum mju_muscleBias(mjtNum len, const mjtNum lengthrange[2],
   mjtNum fpmax    = prm[7];
 
   // scale force if negative
-  if (force<0) {
+  if (force < 0) {
     force = scale / mjMAX(mjMINVAL, acc0);
   }
 
@@ -508,9 +542,9 @@ mjtNum mju_muscleBias(mjtNum len, const mjtNum lengthrange[2],
 
   // half-quadratic to (L0+lmax)/2, linear beyond
   mjtNum b = 0.5*(1+lmax);
-  if (L<=1) {
+  if (L <= 1) {
     return 0;
-  } else if (L<=b) {
+  } else if (L <= b) {
     mjtNum x = (L-1) / mjMAX(mjMINVAL, b-1);
     return -force*fpmax*0.5*x*x;
   } else {
@@ -521,24 +555,189 @@ mjtNum mju_muscleBias(mjtNum len, const mjtNum lengthrange[2],
 
 
 
-// muscle activation dynamics, prm = (tau_act, tau_deact)
-mjtNum mju_muscleDynamics(mjtNum ctrl, mjtNum act, const mjtNum prm[2]) {
-  // clamp control
-  mjtNum ctrlclamp = mjMIN(1, mjMAX(0, ctrl));
-
-  // clamp activation
-  mjtNum actclamp = mjMIN(1, mjMAX(0, act));
-
-  // compute time constant as in Millard et al. (2013) https://doi.org/10.1115/1.4023390
+// muscle time constant with optional smoothing
+mjtNum mju_muscleDynamicsTimescale(mjtNum dctrl, mjtNum tau_act, mjtNum tau_deact,
+                                   mjtNum smoothing_width) {
   mjtNum tau;
-  if (ctrlclamp>act) {
-    tau = prm[0] * (0.5 + 1.5*actclamp);
-  } else {
-    tau = prm[1] / (0.5 + 1.5*actclamp);
+
+  // hard switching
+  if (smoothing_width < mjMINVAL) {
+    tau = dctrl > 0 ? tau_act : tau_deact;
   }
 
+  // smooth switching
+  else {
+    // scale by width, center around 0.5 midpoint, rescale to bounds
+    tau = tau_deact + (tau_act-tau_deact)*mju_sigmoid(dctrl/smoothing_width + 0.5);
+  }
+  return tau;
+}
+
+
+
+// muscle activation dynamics, prm = (tau_act, tau_deact, smoothing_width)
+mjtNum mju_muscleDynamics(mjtNum ctrl, mjtNum act, const mjtNum prm[3]) {
+  // clamp control
+  mjtNum ctrlclamp = mju_clip(ctrl, 0, 1);
+
+  // clamp activation
+  mjtNum actclamp = mju_clip(act, 0, 1);
+
+  // compute timescales as in Millard et al. (2013) https://doi.org/10.1115/1.4023390
+  mjtNum tau_act = prm[0] * (0.5 + 1.5*actclamp);    // activation timscale
+  mjtNum tau_deact = prm[1] / (0.5 + 1.5*actclamp);  // deactivation timscale
+  mjtNum smoothing_width = prm[2];                   // width of smoothing sigmoid
+  mjtNum dctrl = ctrlclamp - act;                    // excess excitation
+
+  mjtNum tau = mju_muscleDynamicsTimescale(dctrl, tau_act, tau_deact, smoothing_width);
+
   // filter output
-  return (ctrlclamp-act) / mjMAX(mjMINVAL, tau);
+  return dctrl / mjMAX(mjMINVAL, tau);
+}
+
+
+
+//---------------------------------------- Base64 --------------------------------------------------
+
+// decoding function for Base64
+static uint32_t _decode(char ch) {
+  if (ch >= 'A' && ch <= 'Z') {
+    return ch - 'A';
+  }
+
+  if (ch >= 'a' && ch <= 'z') {
+    return (ch - 'a') + 26;
+  }
+
+  if (ch >= '0' && ch <= '9') {
+    return (ch - '0') + 52;
+  }
+
+  if (ch == '+') {
+    return 62;
+  }
+
+  if (ch == '/') {
+    return 63;
+  }
+
+  return 0;
+}
+
+
+
+// encode data as Base64 into buf (including padding and null char)
+// returns number of chars written in buf: 4 * [(ndata + 2) / 3] + 1
+size_t mju_encodeBase64(char* buf, const uint8_t* data, size_t ndata) {
+  static const char *table =
+    "ABCDEFGHIJKLMNOPQRSTUBWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+
+  int i = 0, j = 0;
+
+  // loop over 24 bit chunks
+  while (i + 3 <= ndata) {
+    // take next 24 bit chunk (3 bytes)
+    uint32_t byte_1 = data[i++];
+    uint32_t byte_2 = data[i++];
+    uint32_t byte_3 = data[i++];
+
+    // merge bytes into one 32 bit int
+    uint32_t k = (byte_1 << 16) | (byte_2 << 8) | byte_3;
+
+    // encode 6 bit chucks into four chars
+    buf[j++] = table[(k >> 18) & 63];
+    buf[j++] = table[(k >> 12) & 63];
+    buf[j++] = table[(k >>  6) & 63];
+    buf[j++] = table[(k >>  0) & 63];
+  }
+
+  // one byte left
+  if (i + 1 == ndata) {
+    uint32_t byte_1 = data[i];
+    uint32_t k = byte_1 << 16;
+    buf[j++] = table[(k >> 18) & 63];
+    buf[j++] = table[(k >> 12) & 63];
+    buf[j++] = '=';  // padding
+    buf[j++] = '=';  // padding
+  }
+
+  // two bytes left
+  if (i + 2 == ndata) {
+    uint32_t byte_1 = data[i++];
+    uint32_t byte_2 = data[i];
+
+    uint32_t k = (byte_1 << 16) + (byte_2 << 8);
+
+    buf[j++] = table[(k >> 18) & 63];
+    buf[j++] = table[(k >> 12) & 63];
+    buf[j++] = table[(k >>  6) & 63];
+    buf[j++] = '=';  // padding
+  }
+
+  buf[j] = '\0';
+  return 4 * ((ndata + 2) / 3) + 1;
+}
+
+
+
+// return size in decoded bytes if s is a valid Base64 encoding
+// return 0 if s is empty or invalid Base64 encoding
+size_t mju_isValidBase64(const char* s) {
+  size_t i = 0;
+  int pad = 0;  // 0, 1, or 2 zero padding at the end of s
+
+  // validate chars
+  for (; s[i] && s[i] != '='; i++) {
+    if (!isalnum(s[i]) && s[i] != '/' && s[i] != '+') {
+      return 0;
+    }
+  }
+
+  // padding at end
+  if (s[i] == '=') {
+    if (!s[i + 1]) {
+      pad = 1;  // one '=' padding at end
+    } else if (s[i + 1] == '=' && !s[i + 2]) {
+      pad = 2;  // two '=' padding at end
+    } else {
+      return 0;
+    }
+  }
+
+  // strlen(s) must be a multiple of 4
+  int len = i + pad;
+  return len % 4 ? 0 : 3 * (len / 4) - pad;
+}
+
+
+
+// decode valid Base64 in string s into buf, undefined behavior if s is not valid Base64
+// returns number of bytes decoded (upper limit of 3 * (strlen(s) / 4))
+size_t mju_decodeBase64(uint8_t* buf, const char* s) {
+  size_t i = 0, j = 0;
+
+  // loop over 24 bit chunks
+  while (s[i] != '\0') {
+    // take next 24 bit chuck (4 chars; 6 bits each)
+    uint32_t char_1 = _decode(s[i++]);
+    uint32_t char_2 = _decode(s[i++]);
+    uint32_t char_3 = _decode(s[i++]);
+    uint32_t char_4 = _decode(s[i++]);
+
+    // merge into 32 bit int
+    uint32_t k = (char_1 << 18) | (char_2 << 12) | (char_3 << 6) | char_4;
+
+
+    // write up to three bytes (exclude padding at end)
+    buf[j++] = (k >> 16) & 0xFF;
+    if (s[i - 2] != '=') {
+      buf[j++] = (k >> 8) & 0xFF;
+    }
+    if (s[i - 1] != '=') {
+      buf[j++] =  k & 0xFF;
+    }
+  }
+  return j;
 }
 
 
@@ -551,10 +750,10 @@ mjtNum mju_muscleDynamics(mjtNum ctrl, mjtNum act, const mjtNum prm[2]) {
 void mju_encodePyramid(mjtNum* pyramid, const mjtNum* force, const mjtNum* mu, int dim) {
   mjtNum a = force[0]/(dim-1), b;
 
-  // arbitary redundancy resolution:
+  // arbitrary redundancy resolution:
   //  pyramid0_i + pyramid1_i = force_normal/(dim-1) = a
   //  pyramid0_i - pyramid1_i = force_tangent_i/mu_i = b
-  for (int i=0; i<dim-1; i++) {
+  for (int i=0; i < dim-1; i++) {
     b = mju_min(a, force[i+1]/mu[i]);
     pyramid[2*i] = 0.5*(a+b);
     pyramid[2*i+1] = 0.5*(a-b);
@@ -566,19 +765,19 @@ void mju_encodePyramid(mjtNum* pyramid, const mjtNum* force, const mjtNum* mu, i
 // convert pyramid representation to contact force
 void mju_decodePyramid(mjtNum* force, const mjtNum* pyramid, const mjtNum* mu, int dim) {
   // special handling of frictionless contacts
-  if (dim==1) {
+  if (dim == 1) {
     force[0] = pyramid[0];
     return;
   }
 
   // force_normal = sum(pyramid0_i + pyramid1_i)
   force[0] = 0;
-  for (int i=0; i<2*(dim-1); i++) {
+  for (int i=0; i < 2*(dim-1); i++) {
     force[0] += pyramid[i];
   }
 
   // force_tangent_i = (pyramid0_i - pyramid1_i) * mu_i
-  for (int i=0; i<dim-1; i++) {
+  for (int i=0; i < dim-1; i++) {
     force[i+1] = (pyramid[2*i] - pyramid[2*i+1]) * mu[i];
   }
 }
@@ -594,7 +793,7 @@ mjtNum mju_springDamper(mjtNum pos0, mjtNum vel0, mjtNum k, mjtNum b, mjtNum t) 
 
   // overdamping
   //  pos(t) = c1*exp(r1*t) + c2*exp(r2*t);  r12 = (-b +- sqrt(det))/2
-  if (det>mjMINVAL) {
+  if (det > mjMINVAL) {
     // compute w = sqrt(det)/2
     w = mju_sqrt(det)/2;
 
@@ -612,7 +811,7 @@ mjtNum mju_springDamper(mjtNum pos0, mjtNum vel0, mjtNum k, mjtNum b, mjtNum t) 
 
   // critical damping
   //  pos(t) = exp(-b*t/2) * (c1 + c2*t)
-  else if (det<=mjMINVAL && det>=-mjMINVAL) {
+  else if (det <= mjMINVAL && det >= -mjMINVAL) {
     // compute coefficients
     c1 = pos0;
     c2 = vel0 + b*c1/2;
@@ -640,8 +839,8 @@ mjtNum mju_springDamper(mjtNum pos0, mjtNum vel0, mjtNum k, mjtNum b, mjtNum t) 
 
 // print matrix to screen
 void mju_printMat(const mjtNum* mat, int nr, int nc) {
-  for (int r=0; r<nr; r++) {
-    for (int c=0; c<nc; c++) {
+  for (int r=0; r < nr; r++) {
+    for (int c=0; c < nc; c++) {
       printf("%.8f ", mat[r*nc+c]);
     }
     printf("\n");
@@ -655,8 +854,8 @@ void mju_printMat(const mjtNum* mat, int nr, int nc) {
 void mju_printMatSparse(const mjtNum* mat, int nr,
                         const int* rownnz, const int* rowadr,
                         const int* colind) {
-  for (int r=0; r<nr; r++) {
-    for (int adr=rowadr[r]; adr<rowadr[r]+rownnz[r]; adr++) {
+  for (int r=0; r < nr; r++) {
+    for (int adr=rowadr[r]; adr < rowadr[r]+rownnz[r]; adr++) {
       printf("(%d %d): %9.6f  ", r, colind[adr], mat[adr]);
     }
     printf("\n");
@@ -688,11 +887,24 @@ mjtNum mju_max(mjtNum a, mjtNum b) {
 
 
 
+// clip x to the range [min, max]
+mjtNum mju_clip(mjtNum x, mjtNum min, mjtNum max) {
+  if (x < min) {
+    return min;
+  } else if (x > max) {
+    return max;
+  } else {
+    return x;
+  }
+}
+
+
+
 // sign function
 mjtNum mju_sign(mjtNum x) {
-  if (x<0) {
+  if (x < 0) {
     return -1;
-  } else if (x>0) {
+  } else if (x > 0) {
     return 1;
   } else {
     return 0;
@@ -717,7 +929,7 @@ int mju_round(mjtNum x) {
 
 // convert type id to type name
 const char* mju_type2Str(int type) {
-  switch (type) {
+  switch ((mjtObj) type) {
   case mjOBJ_BODY:
     return "body";
 
@@ -741,6 +953,9 @@ const char* mju_type2Str(int type) {
 
   case mjOBJ_LIGHT:
     return "light";
+
+  case mjOBJ_FLEX:
+    return "flex";
 
   case mjOBJ_MESH:
     return "mesh";
@@ -787,6 +1002,9 @@ const char* mju_type2Str(int type) {
   case mjOBJ_KEY:
     return "key";
 
+  case mjOBJ_PLUGIN:
+    return "plugin";
+
   default:
     return 0;
   }
@@ -826,6 +1044,10 @@ int mju_str2Type(const char* str) {
 
   else if (!strcmp(str, "light")) {
     return mjOBJ_LIGHT;
+  }
+
+  else if (!strcmp(str, "flex")) {
+    return mjOBJ_FLEX;
   }
 
   else if (!strcmp(str, "mesh")) {
@@ -888,6 +1110,10 @@ int mju_str2Type(const char* str) {
     return mjOBJ_KEY;
   }
 
+  else if (!strcmp(str, "plugin")) {
+    return mjOBJ_PLUGIN;
+  }
+
   else {
     return mjOBJ_UNKNOWN;
   }
@@ -895,41 +1121,72 @@ int mju_str2Type(const char* str) {
 
 
 
-// warning text
-const char* mju_warningText(int warning, int info) {
-  static char str[1000];
+// return human readable number of bytes using standard letter suffix
+const char* mju_writeNumBytes(size_t nbytes) {
+  int i;
+  static mjTHREADLOCAL char message[20];
+  static const char suffix[] = " KMGTPE";
+  for (i=0; i < 6; i++) {
+    const size_t bits = (size_t)(1) << (10*(6-i));
+    if (nbytes >= bits && !(nbytes & (bits - 1))) {
+      break;
+    }
+  }
+  if (i < 6) {
+    mjSNPRINTF(message, "%zu%c", nbytes >> (10*(6-i)), suffix[6-i]);
+  } else {
+    mjSNPRINTF(message, "%zu", nbytes >> (10*(6-i)));
+  }
+  return message;
+}
 
-  switch (warning) {
+
+
+// warning text
+const char* mju_warningText(int warning, size_t info) {
+  static mjTHREADLOCAL char str[1000];
+
+  switch ((mjtWarning) warning) {
   case mjWARN_INERTIA:
-    mjSNPRINTF(str, "Inertia matrix is too close to singular at DOF %d. Check model.", info);
+    mjSNPRINTF(str, "Inertia matrix is too close to singular at DOF %zu. Check model.", info);
     break;
 
   case mjWARN_CONTACTFULL:
-    mjSNPRINTF(str, "Pre-allocated contact buffer is full. Increase nconmax above %d.", info);
+    mjSNPRINTF(str,
+               "Too many contacts. Either the arena memory is full, or nconmax is specified and is "
+               "exceeded. Increase arena memory allocation, or increase/remove nconmax. "
+               "(ncon = %zu)", info);
     break;
 
   case mjWARN_CNSTRFULL:
-    mjSNPRINTF(str, "Pre-allocated constraint buffer is full. Increase njmax above %d.", info);
+    mjSNPRINTF(str,
+               "Insufficient arena memory for the number of constraints generated. "
+               "Increase arena memory allocation above %s bytes.", mju_writeNumBytes(info));
     break;
 
   case mjWARN_VGEOMFULL:
-    mjSNPRINTF(str, "Pre-allocated visual geom buffer is full. Increase maxgeom above %d.", info);
+    mjSNPRINTF(str, "Pre-allocated visual geom buffer is full. Increase maxgeom above %zu.", info);
     break;
 
   case mjWARN_BADQPOS:
-    mjSNPRINTF(str, "Nan, Inf or huge value in QPOS at DOF %d. The simulation is unstable.", info);
+    mjSNPRINTF(str, "Nan, Inf or huge value in QPOS at DOF %zu. The simulation is unstable.", info);
     break;
 
   case mjWARN_BADQVEL:
-    mjSNPRINTF(str, "Nan, Inf or huge value in QVEL at DOF %d. The simulation is unstable.", info);
+    mjSNPRINTF(str, "Nan, Inf or huge value in QVEL at DOF %zu. The simulation is unstable.", info);
     break;
 
   case mjWARN_BADQACC:
-    mjSNPRINTF(str, "Nan, Inf or huge value in QACC at DOF %d. The simulation is unstable.", info);
+    mjSNPRINTF(str, "Nan, Inf or huge value in QACC at DOF %zu. The simulation is unstable.", info);
+    break;
+
+  case mjWARN_BADCTRL:
+    mjSNPRINTF(str, "Nan, Inf or huge value in CTRL at ACTUATOR %zu. The simulation is unstable.",
+               info);
     break;
 
   default:
-    mjSTRNCPY(str, "Unknown warning type");
+    mjSNPRINTF(str, "Unknown warning type %d.", warning);
   }
 
   return str;
@@ -939,20 +1196,38 @@ const char* mju_warningText(int warning, int info) {
 
 // return 1 if nan or abs(x)>mjMAXVAL, 0 otherwise
 int mju_isBad(mjtNum x) {
-  return (x!=x || x>mjMAXVAL || x<-mjMAXVAL);
+  return (x != x || x > mjMAXVAL || x < -mjMAXVAL);
 }
 
 
 
 // return 1 if all elements are 0
 int mju_isZero(mjtNum* vec, int n) {
-  for (int i=0; i<n; i++) {
-    if (vec[i]!=0) {
+  for (int i=0; i < n; i++) {
+    if (vec[i] != 0) {
       return 0;
     }
   }
 
   return 1;
+}
+
+
+
+// set integer vector to 0
+void mju_zeroInt(int* res, int n) {
+  memset(res, 0, n*sizeof(int));
+}
+
+
+void mju_zeroSizeT(size_t* res, size_t n) {
+  memset(res, 0, n*sizeof(size_t));
+}
+
+
+// copy int vector vec into res
+void mju_copyInt(int* res, const int* vec, int n) {
+  memcpy(res, vec, n*sizeof(int));
 }
 
 
@@ -966,7 +1241,7 @@ mjtNum mju_standardNormal(mjtNum* num2) {
     x1 = scale * (mjtNum)rand() - 1.0;
     x2 = scale * (mjtNum)rand() - 1.0;
     w = x1 * x1 + x2 * x2;
-  } while (w>=1.0 || w==0);
+  } while (w >= 1.0 || w == 0);
 
   w = mju_sqrt((-2.0 * mju_log(w)) / w);
   if (num2) {
@@ -980,7 +1255,7 @@ mjtNum mju_standardNormal(mjtNum* num2) {
 
 // convert from float to mjtNum
 void mju_f2n(mjtNum* res, const float* vec, int n) {
-  for (int i=0; i<n; i++) {
+  for (int i=0; i < n; i++) {
     res[i] = (mjtNum) vec[i];
   }
 }
@@ -989,7 +1264,7 @@ void mju_f2n(mjtNum* res, const float* vec, int n) {
 
 // convert from mjtNum to float
 void mju_n2f(float* res, const mjtNum* vec, int n) {
-  for (int i=0; i<n; i++) {
+  for (int i=0; i < n; i++) {
     res[i] = (float) vec[i];
   }
 }
@@ -997,7 +1272,7 @@ void mju_n2f(float* res, const mjtNum* vec, int n) {
 
 // convert from double to mjtNum
 void mju_d2n(mjtNum* res, const double* vec, int n) {
-  for (int i=0; i<n; i++) {
+  for (int i=0; i < n; i++) {
     res[i] = (mjtNum) vec[i];
   }
 }
@@ -1006,7 +1281,7 @@ void mju_d2n(mjtNum* res, const double* vec, int n) {
 
 // convert from mjtNum to double
 void mju_n2d(double* res, const mjtNum* vec, int n) {
-  for (int i=0; i<n; i++) {
+  for (int i=0; i < n; i++) {
     res[i] = (double) vec[i];
   }
 }
@@ -1015,10 +1290,10 @@ void mju_n2d(double* res, const mjtNum* vec, int n) {
 
 // insertion sort, increasing order
 void mju_insertionSort(mjtNum* list, int n) {
-  for (int i=1; i<n; i++) {
+  for (int i=1; i < n; i++) {
     mjtNum x = list[i];
     int j = i-1;
-    while (j>=0 && list[j]>x) {
+    while (j >= 0 && list[j] > x) {
       list[j+1] = list[j];
       j--;
     }
@@ -1030,10 +1305,10 @@ void mju_insertionSort(mjtNum* list, int n) {
 
 // integer insertion sort, increasing order
 void mju_insertionSortInt(int* list, int n) {
-  for (int i=1; i<n; i++) {
+  for (int i=1; i < n; i++) {
     int x = list[i];
     int j = i-1;
-    while (j>=0 && list[j]>x) {
+    while (j >= 0 && list[j] > x) {
       list[j+1] = list[j];
       j--;
     }
@@ -1049,7 +1324,7 @@ mjtNum mju_Halton(int index, int base) {
   mjtNum b = (mjtNum)base;
   mjtNum f = 1/b, hn = 0;
 
-  while (n0>0) {
+  while (n0 > 0) {
     int n1 = n0/base;
     int r = n0 - n1*base;
     hn += f*r;
@@ -1064,7 +1339,7 @@ mjtNum mju_Halton(int index, int base) {
 
 // Call strncpy, then set dst[n-1] = 0.
 char* mju_strncpy(char *dst, const char *src, int n) {
-  if (dst && src && n>0) {
+  if (dst && src && n > 0) {
     strncpy(dst, src, n);
     dst[n-1] = 0;
   }
@@ -1074,24 +1349,62 @@ char* mju_strncpy(char *dst, const char *src, int n) {
 
 
 
-// Sigmoid function over 0<=x<=1 constructed from half-quadratics.
-mjtNum mju_sigmoid(mjtNum x) {
-  // fast return
-  if (x<=0) {
+// assemble full filename from directory and filename, return 0 on success
+int mju_makefullname(char* full, size_t nfull, const char* dir, const char* file) {
+  int dirlen = (!dir) ? 0 : strlen(dir);
+  int filelen = (!file) ? 0 : strlen(file);
+  char* filepos = full + dirlen;
+
+  // missing filename
+  if (!filelen) {
+    return -1;
+  }
+
+  // no directory then just copy filename over
+  if (!dirlen) {
+    // make sure full has space
+    if (filelen >= nfull) {
+      return -1;
+    }
+    strcpy(full, file);
     return 0;
   }
-  if (x>=1) {
+
+  // make sure full has space
+  if (dirlen + filelen >= nfull) {
+    return -1;
+  }
+
+  // dir doesn't end with a slash
+  if (dir[dirlen - 1] != '\\' && dir[dirlen - 1] != '/') {
+    // need extra space for forward slash
+    if ((dirlen + filelen + 1) >= nfull) {
+      return -1;
+    }
+
+    // add forward slash
+    *filepos++ = '/';
+  }
+
+  // copy directory and file over
+  memcpy(full, dir, sizeof(char) * dirlen);
+  strcpy(filepos, file);
+  return 0;
+}
+
+
+
+// sigmoid function over 0<=x<=1 using quintic polynomial
+mjtNum mju_sigmoid(mjtNum x) {
+  // fast return
+  if (x <= 0) {
+    return 0;
+  }
+  if (x >= 1) {
     return 1;
   }
-  if (x==0.5) {
-    return 0.5;
-  }
 
-  // lower part
-  if (x<0.5) {
-    return 2*x*x;
-  }
-
-  // higher part
-  return (1 - 2*(1-x)*(1-x));
+  // sigmoid: f(x) = 6*x^5 - 15*x^4 + 10*x^3
+  // solution of f(0) = f'(0) = f''(0) = 0, f(1) = 1, f'(1) = f''(1) = 0
+  return x*x*x * (3*x * (2*x - 5) + 10);
 }

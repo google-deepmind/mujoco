@@ -18,6 +18,7 @@
 #include <limits>
 #include <sstream>
 #include <type_traits>
+#include <utility>
 
 #include <mujoco/mujoco.h>
 #include "errors.h"
@@ -93,8 +94,8 @@ static enable_if_not_const_t<Raw, py::handle> MjWrapperLookup(Raw* ptr) {
     const auto [src, type] =
         py::detail::type_caster_base<MjWrapper<Raw>>::src_and_type(wrapper);
     if (type) {
-      py::handle instance =
-          py::detail::find_registered_python_instance(wrapper, type);
+      py::object instance = py::reinterpret_steal<py::object>(
+          py::detail::find_registered_python_instance(wrapper, type));
       if (!instance) {
         if (!PyErr_Occurred()) {
           PyErr_SetString(
@@ -102,7 +103,7 @@ static enable_if_not_const_t<Raw, py::handle> MjWrapperLookup(Raw* ptr) {
               "cannot find the Python instance of the MjWrapper");
         }
       } else {
-        return instance;
+        return std::move(instance);
       }
     } else {
       if (!PyErr_Occurred()) {
@@ -172,28 +173,28 @@ static PyObject* py_mju_user_free = nullptr;
 static PyObject* py_mjcb_passive = nullptr;
 static void PyMjcbPassive(const raw::MjModel* m, raw::MjData* d) {
   CallPyCallback<void>("mjcb_passive", py_mjcb_passive,
-                        MjWrapperLookup(m), MjWrapperLookup(d));
+                       MjWrapperLookup(m), MjWrapperLookup(d));
 }
 
 static PyObject* py_mjcb_control = nullptr;
 static void PyMjcbControl(const raw::MjModel* m, raw::MjData* d) {
   CallPyCallback<void>("mjcb_control", py_mjcb_control,
-                         MjWrapperLookup(m), MjWrapperLookup(d));
+                       MjWrapperLookup(m), MjWrapperLookup(d));
 }
 
 static PyObject* py_mjcb_contactfilter = nullptr;
 static int PyMjcbContactfilter(
     const raw::MjModel* m, raw::MjData* d, int geom1, int geom2) {
   return CallPyCallback<int>("mjcb_contactfilter", py_mjcb_contactfilter,
-                               MjWrapperLookup(m), MjWrapperLookup(d),
-                               geom1, geom2);
+                             MjWrapperLookup(m), MjWrapperLookup(d),
+                             geom1, geom2);
 }
 
 static PyObject* py_mjcb_sensor = nullptr;
 static void
 PyMjcbSensor(const raw::MjModel* m, raw::MjData* d, int stage) {
   CallPyCallback<void>("mjcb_sensor", py_mjcb_sensor,
-                         MjWrapperLookup(m), MjWrapperLookup(d), stage);
+                       MjWrapperLookup(m), MjWrapperLookup(d), stage);
 }
 
 static PyObject* py_mjcb_time = nullptr;

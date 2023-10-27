@@ -18,7 +18,7 @@
 #include <mujoco/mjrender.h>
 
 #define mjMAXUISECT     10      // maximum number of sections
-#define mjMAXUIITEM     80      // maximum number of items per section
+#define mjMAXUIITEM     100     // maximum number of items per section
 #define mjMAXUITEXT     300     // maximum number of chars in edittext and other
 #define mjMAXUINAME     40      // maximum number of chars in name
 #define mjMAXUIMULTI    35      // maximum number of radio/select items in group
@@ -55,6 +55,8 @@
 #define mjKEY_F10        299
 #define mjKEY_F11        300
 #define mjKEY_F12        301
+#define mjKEY_NUMPAD_0   320
+#define mjKEY_NUMPAD_9   329
 
 
 //---------------------------------- primitive types (mjt) -----------------------------------------
@@ -74,7 +76,9 @@ typedef enum mjtEvent_ {          // mouse and keyboard event type
   mjEVENT_RELEASE,                // mouse button release
   mjEVENT_SCROLL,                 // scroll
   mjEVENT_KEY,                    // key press
-  mjEVENT_RESIZE                  // resize
+  mjEVENT_RESIZE,                 // resize
+  mjEVENT_REDRAW,                 // redraw
+  mjEVENT_FILESDROP               // files drop
 } mjtEvent;
 
 
@@ -95,6 +99,7 @@ typedef enum mjtItem_ {           // UI item type
   mjITEM_SLIDERNUM,               // slider, mjtNum value
   mjITEM_EDITINT,                 // editable array, int values
   mjITEM_EDITNUM,                 // editable array, mjtNum values
+  mjITEM_EDITFLOAT,               // editable array, float values
   mjITEM_EDITTXT,                 // editable text
 
   mjNITEM                         // number of item types
@@ -143,6 +148,10 @@ struct mjuiState_ {               // mouse and keyboard state
   int mouserect;                  // which rectangle contains mouse
   int dragrect;                   // which rectangle is dragged with mouse
   int dragbutton;                 // which button started drag (mjtButton)
+
+  // files dropping (only valid when type == mjEVENT_FILESDROP)
+  int dropcount;                  // number of files dropped
+  const char** droppaths;         // paths to files dropped
 };
 typedef struct mjuiState_ mjuiState;
 
@@ -201,9 +210,9 @@ struct mjuiItemSingle_ {          // check and button-related
 };
 
 
-struct mjuiItemMulti_ {           // static, radio and select-related
-  int nelem;                      // number of elements in group
-  char name[mjMAXUIMULTI][mjMAXUINAME]; // element names
+struct mjuiItemMulti_ {                  // static, radio and select-related
+  int nelem;                             // number of elements in group
+  char name[mjMAXUIMULTI][mjMAXUINAME];  // element names
 };
 
 
@@ -230,10 +239,10 @@ struct mjuiItem_ {                // UI item
 
   // type-specific properties
   union {
-    struct mjuiItemSingle_ single; // check and button
-    struct mjuiItemMulti_ multi;   // static, radio and select
-    struct mjuiItemSlider_ slider; // slider
-    struct mjuiItemEdit_ edit;     // edit
+    struct mjuiItemSingle_ single;  // check and button
+    struct mjuiItemMulti_ multi;    // static, radio and select
+    struct mjuiItemSlider_ slider;  // slider
+    struct mjuiItemEdit_ edit;      // edit
   };
 
   // internal

@@ -247,27 +247,27 @@ public class MjcfImporterTests {
   [Test]
   public void ReadingSize() {
     var mjcfString = @"<mujoco>
-      <size njmax='1234'/>
+      <size memory='1M'/>
       <worldbody/>
     </mujoco>";
     _sceneRoot = _importer.ImportString(
         name: string.Empty, mjcfString: mjcfString);
     var settings = _sceneRoot.GetComponentInChildren<MjGlobalSettings>();
-    Assert.That(settings.GlobalSizes.Njmax, Is.EqualTo(1234));
+    Assert.That(settings.GlobalSizes.Memory, Is.EqualTo("1M"));
   }
 
   [Test]
   public void ReadingOptionAndSize() {
     var mjcfString = @"<mujoco>
       <option impratio='5.4321'/>
-      <size njmax='4321'/>
+      <size memory='16K'/>
       <worldbody/>
     </mujoco>";
     _sceneRoot = _importer.ImportString(
         name: string.Empty, mjcfString: mjcfString);
     var settings = _sceneRoot.GetComponentInChildren<MjGlobalSettings>();
     Assert.That(settings.GlobalOptions.ImpRatio, Is.EqualTo(5.4321f));
-    Assert.That(settings.GlobalSizes.Njmax, Is.EqualTo(4321));
+    Assert.That(settings.GlobalSizes.Memory, Is.EqualTo("16K"));
   }
 
   [Test]

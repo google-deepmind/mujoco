@@ -18,13 +18,13 @@
 #include <math.h>
 
 #include <mujoco/mjexport.h>
-#include <mujoco/mjmodel.h>
+#include <mujoco/mjtnum.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-//------------------------------ standard library fuctions -----------------------------------------
+//------------------------------ standard library functions ----------------------------------------
 
 #ifdef mjUSEDOUBLE
   #define mju_sqrt    sqrt
@@ -91,7 +91,7 @@ MJAPI void mju_addToScl3(mjtNum res[3], const mjtNum vec[3], mjtNum scl);
 // res = vec1 + vec2*scl
 MJAPI void mju_addScl3(mjtNum res[3], const mjtNum vec1[3], const mjtNum vec2[3], mjtNum scl);
 
-// normalize vector, return length before normalization
+// normalize vector, return length before normalization, set to [1, 0, 0] if norm is tiny
 MJAPI mjtNum mju_normalize3(mjtNum vec[3]);
 
 // compute vector length (without normalizing)
@@ -130,6 +130,9 @@ MJAPI mjtNum mju_normalize4(mjtNum vec[4]);
 // res = 0
 MJAPI void mju_zero(mjtNum* res, int n);
 
+// res = val
+MJAPI void mju_fill(mjtNum* res, mjtNum val, int n);
+
 // res = vec
 MJAPI void mju_copy(mjtNum* res, const mjtNum* vec, int n);
 
@@ -167,7 +170,7 @@ MJAPI mjtNum mju_normalize(mjtNum* res, int n);
 MJAPI mjtNum mju_norm(const mjtNum* res, int n);
 
 // vector dot-product
-MJAPI mjtNum mju_dot(const mjtNum* vec1, const mjtNum* vec2, const int n);
+MJAPI mjtNum mju_dot(const mjtNum* vec1, const mjtNum* vec2, int n);
 
 
 //------------------------------ matrix-vector operations ------------------------------------------
@@ -180,11 +183,22 @@ MJAPI void mju_mulMatVec(mjtNum* res, const mjtNum* mat, const mjtNum* vec,
 MJAPI void mju_mulMatTVec(mjtNum* res, const mjtNum* mat, const mjtNum* vec,
                           int nr, int nc);
 
+// multiply square matrix with vectors on both sides: return vec1'*mat*vec2
+MJAPI mjtNum mju_mulVecMatVec(const mjtNum* vec1, const mjtNum* mat, const mjtNum* vec2, int n);
 
-//------------------------------ matrix-matrix operations ------------------------------------------
+
+//------------------------------ matrix operations -------------------------------------------------
 
 // transpose matrix
 MJAPI void mju_transpose(mjtNum* res, const mjtNum* mat, int nr, int nc);
+
+// symmetrize square matrix res = (mat + mat')/2
+MJAPI void mju_symmetrize(mjtNum* res, const mjtNum* mat, int n);
+
+// identity matrix
+MJAPI void mju_eye(mjtNum* mat, int n);
+
+//------------------------------ matrix-matrix operations ------------------------------------------
 
 // multiply matrices
 MJAPI void mju_mulMatMat(mjtNum* res, const mjtNum* mat1, const mjtNum* mat2,

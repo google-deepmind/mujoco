@@ -27,6 +27,7 @@ public static class MjEngineTool {
   private const int _elementsPerPosition = 3;
   private const int _elementsPerRotation = 4;
   private const int _elementsPerTransform = 7;
+  private const int _elementsPerEquality = 11;
   private static double[] _mjQuat = new double[4];
   private static double[] _mjMat = new double[9];
 
@@ -104,6 +105,11 @@ public static class MjEngineTool {
   // Returns a pointer to an entry in the MuJoCo field that's 9*offsetEntry down the buffer.
   public static unsafe double* MjMatrixAtEntry(double* mjTarget, int offsetEntry) {
     return mjTarget + offsetEntry * _mjMat.Length;
+  }
+
+  // Returns a pointer to an entry in the MuJoCo field that's 11*offsetEntry down the buffer.
+  public static unsafe double* MjEqualityAtEntry(double* mjTarget, int offsetEntry) {
+    return mjTarget + offsetEntry * _elementsPerEquality;
   }
 
   // Stores a unity transform (position+rotation) in a Mujoco target buffer.

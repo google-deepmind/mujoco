@@ -20,6 +20,8 @@
 #include <mutex>
 #include <random>
 
+#include "engine/engine_resource.h"
+#include "engine/engine_vfs.h"
 #include "user/user_model.h"
 #include "xml/xml.h"
 #include "xml/xml_native_reader.h"
@@ -60,39 +62,27 @@ void GlobalModel::Clear() {
 }
 
 
-
 // single instance of global model, protected with mutex
-GlobalModel themodel;
-std::mutex themutex;
+static GlobalModel themodel;
+static std::mutex themutex;
+
 
 
 //---------------------------------- Functions -----------------------------------------------------
-
-// Return 1 (for backward compatibility).
-int mj_activate(const char* filename) {
-  return 1;
-}
-
-
-
-// Do nothing (for backward compatibility).
-void mj_deactivate(void) {
-}
-
-
 
 // parse XML file in MJCF or URDF format, compile it, return low-level model
 //  if vfs is not NULL, look up files in vfs before reading from disk
 //  error can be NULL; otherwise assumed to have size error_sz
 mjModel* mj_loadXML(const char* filename, const mjVFS* vfs,
                     char* error, int error_sz) {
+
   // serialize access to themodel
   std::lock_guard<std::mutex> lock(themutex);
 
   // parse new model
   mjCModel* newmodel = mjParseXML(filename, vfs, error, error_sz);
   if (!newmodel) {
-    return 0;
+    return nullptr;
   }
 
   // compile new model
@@ -100,7 +90,7 @@ mjModel* mj_loadXML(const char* filename, const mjVFS* vfs,
   if (!m) {
     mjCopyError(error, newmodel->GetError().message, error_sz);
     delete newmodel;
-    return 0;
+    return nullptr;
   }
 
   // clear old and assign new
@@ -111,7 +101,7 @@ mjModel* mj_loadXML(const char* filename, const mjVFS* vfs,
   if (themodel.model->GetError().warning) {
     mjCopyError(error, themodel.model->GetError().message, error_sz);
   } else if (error) {
-    error[0] = 0;
+    error[0] = '\0';
   }
 
   return m;
@@ -119,27 +109,41 @@ mjModel* mj_loadXML(const char* filename, const mjVFS* vfs,
 
 
 
-
 // update XML data structures with info from low-level model, save as MJCF
+//  returns 1 if successful, 0 otherwise
+//  error can be NULL; otherwise assumed to have size error_sz
 int mj_saveLastXML(const char* filename, const mjModel* m, char* error, int error_sz) {
   // serialize access to themodel
   std::lock_guard<std::mutex> lock(themutex);
+  FILE *fp = stdout;
 
   if (!themodel.model) {
     mjCopyError(error, "No XML model loaded", error_sz);
     return 0;
   }
 
-  themodel.model->CopyBack(m);
-  if (mjWriteXML(themodel.model, filename, error, error_sz)) {
-    if (error) {
-      error[0] = 0;
+  if (filename != nullptr && filename[0] != '\0') {
+    fp = fopen(filename, "w");
+    if (!fp) {
+      mjCopyError(error, "File not found", error_sz);
+      return 0;
     }
-    return 1;
-  } else {
-    return 0;
   }
+
+  themodel.model->CopyBack(m);
+  std::string result = mjWriteXML(themodel.model, error, error_sz);
+
+  if (!result.empty()) {
+    fprintf(fp, "%s", result.c_str());
+  }
+
+  if (fp != stdout) {
+    fclose(fp);
+  }
+
+  return !result.empty();
 }
+
 
 
 // free last XML

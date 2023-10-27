@@ -73,7 +73,16 @@ static inline int sprintf_arr(char (&dest)[N], const char* format, ...) {
 // dest is guaranteed to be null-terminated
 template <std::size_t N>
 static inline char* strcat_arr(char (&dest)[N], const char* src) {
-  return std::strncat(dest, src, sizeof_arr(dest) - strlen_arr(dest) - 1);
+  const std::size_t dest_len = strlen_arr(dest);
+  const std::size_t dest_size = sizeof_arr(dest);
+  for (std::size_t i = dest_len; i < dest_size; ++i) {
+    dest[i] = src[i - dest_len];
+    if (!dest[i]) {
+      break;
+    }
+  }
+  dest[dest_size - 1] = '\0';
+  return dest;
 }
 
 // like std::strcpy but won't write beyond the bound of dest

@@ -13,9 +13,33 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-MODEL="${CMAKE_SOURCE_DIR}/model/humanoid100/humanoid100.xml"
+MODEL_DIRS=(
+  "${CMAKE_SOURCE_DIR}/model"
+  "${CMAKE_SOURCE_DIR}/test"
+)
 
 die() { echo "$*" 1>&2 ; exit 1; }
+
+test_model() {
+  local EXPECTED_STR='Simulation time'
+  local model="$1"
+  echo "Testing $model" >&2
+
+  local iterations=10
+  if [[ "$model" == */composite/particle.xml && ${TESTSPEED_ASAN:-0} != 0 ]]; then
+    iterations=2
+  fi
+
+  # run testspeed, writing its output to stderr.
+  # die if testspeed returns a failure code, or if it doesn't have the string
+  # "Simulation time" in the output.
+  ("$TARGET_BINARY" "$model" "$iterations" || die "testspeed failed") \
+      | tee >(cat 1>&2) | grep -q "$EXPECTED_STR"
+
+  if [ "$?" != 0 ]; then
+    die "Expected string not found in output ($EXPECTED_STR)."
+  fi
+}
 
 if [ -z "$TARGET_BINARY" ]; then
   die "Expecting environment variable TARGET_BINARY."
@@ -27,12 +51,20 @@ if [ -z "$MUJOCO_DLL_DIR" ]; then
   PATH=$PATH:$MUJOCO_DLL_DIR
 fi
 
-readonly EXPECTED_STR='Simulation time'
-("$TARGET_BINARY" "$MODEL" 10 || die "testspeed failed") | grep "$EXPECTED_STR"
-
-if [ "$?" != 0 ]; then
-die "Expected string not found in output ($EXPECTED_STR)."
-fi
+shopt -s globstar
+for model_dir in ${MODEL_DIRS[@]}; do
+  echo "Looking in $model_dir"
+  for model in $model_dir/**/*.xml; do
+    if [[ $(basename $model) == malformed* ]]; then
+      echo "Skipping $model" >&2
+      continue
+    fi
+    if grep -q "plugin" $model; then
+      continue
+    fi
+    test_model "$model"
+  done
+done
 
 cd $CURRENT_DIR
 echo "PASS"

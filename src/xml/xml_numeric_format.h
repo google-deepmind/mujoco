@@ -20,15 +20,15 @@
 namespace mujoco {
 
 extern "C" {
-  MJAPI const char* _mjPRIVATE__get_xml_precision();
-  MJAPI void _mjPRIVATE__set_xml_precision(const char* precision);
+  MJAPI int _mjPRIVATE__get_xml_precision();
+  MJAPI void _mjPRIVATE__set_xml_precision(const int precision);
 }
 
 // Full precision printing of floating point numbers in saved XMLs, useful for testing
 class FullFloatPrecision {
  public:
-  FullFloatPrecision() { _mjPRIVATE__set_xml_precision("%.17g");}
-  ~FullFloatPrecision() { _mjPRIVATE__set_xml_precision("%g");}
+  FullFloatPrecision() { _mjPRIVATE__set_xml_precision(17);}
+  ~FullFloatPrecision() { _mjPRIVATE__set_xml_precision(6);}
 };
 
 }  // namespace mujoco

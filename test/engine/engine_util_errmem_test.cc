@@ -17,14 +17,13 @@
 #include <cstring>
 #include <string>
 
-#include <gmock/gmock.h>
 #include <gtest/gtest.h>
 #include "src/engine/engine_util_errmem.h"
 
 namespace mujoco {
 namespace {
 
-constexpr int kBufferSize = 1000;
+constexpr int kBufferSize = 1024;
 
 char* ErrorMessageBuffer() {
   static char error_message[kBufferSize] = "";
@@ -131,6 +130,14 @@ TEST_F(MujocoErrorAndWarningTest, MjuWarningS) {
   ClearWarningMessage();
   mju_warning_s(format_string.c_str(), "foobar");
   EXPECT_EQ(std::string(WarningMessageBuffer()), expected_message);
+}
+
+TEST_F(MujocoErrorAndWarningTest, MjuErrorInternal) {
+  ClearErrorMessage();
+  mjERROR("foobar %d", 123);
+  std::string funcname(__func__);
+  ASSERT_TRUE(funcname.length());
+  EXPECT_EQ(std::string(ErrorMessageBuffer()), funcname + ": foobar 123");
 }
 
 }  // namespace

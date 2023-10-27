@@ -1,0 +1,24 @@
+<mujoco>
+  <worldbody>
+    <body name="1" >
+      <freejoint />
+      <geom size="1" pos="7 0 0"/>
+    </body>
+    <body name="2" >
+      <freejoint />
+      <geom size="1" pos="8.5 0 0"/>
+    </body>
+
+    <body name="3" >
+      <geom size="1"/>
+    </body>
+    <body name="4" >
+      <geom size="1" pos="1.5 0 0"/>
+    </body>
+  </worldbody>
+
+  <equality>
+    <weld body1="1" body2="2"/>
+    <weld body1="3" body2="4"/>
+  </equality>
+</mujoco>

@@ -15,6 +15,7 @@
 """Install script for MuJoCo."""
 
 import fnmatch
+import logging
 import os
 import platform
 import random
@@ -26,15 +27,13 @@ import sys
 import sysconfig
 
 import setuptools
-from setuptools import find_packages
-from setuptools import setup
 from setuptools.command import build_ext
-
-__version__ = '2.2.0'
+from setuptools.command import install_scripts
 
 MUJOCO_CMAKE = 'MUJOCO_CMAKE'
 MUJOCO_CMAKE_ARGS = 'MUJOCO_CMAKE_ARGS'
 MUJOCO_PATH = 'MUJOCO_PATH'
+MUJOCO_PLUGIN_PATH = 'MUJOCO_PLUGIN_PATH'
 
 EXT_PREFIX = 'mujoco.'
 
@@ -68,6 +67,15 @@ def get_external_lib_patterns():
     return ['libmujoco.*.dylib']
   else:
     return ['libmujoco.so.*']
+
+
+def get_plugin_lib_patterns():
+  if platform.system() == 'Windows':
+    return ['*.dll']
+  elif platform.system() == 'Darwin':
+    return ['lib*.dylib']
+  else:
+    return ['lib*']
 
 
 def start_and_end(iterable):
@@ -140,6 +148,7 @@ class BuildCMakeExtension(build_ext.build_ext):
     self._is_apple = (platform.system() == 'Darwin')
     (self._mujoco_library_path,
      self._mujoco_include_path,
+     self._mujoco_plugins_path,
      self._mujoco_framework_path) = self._find_mujoco()
     self._configure_cmake()
     for ext in self.extensions:
@@ -148,29 +157,49 @@ class BuildCMakeExtension(build_ext.build_ext):
       self.build_extension(ext)
     self._copy_external_libraries()
     self._copy_mujoco_headers()
+    self._copy_plugin_libraries()
+    if self._is_apple:
+      self._copy_mjpython()
 
   def _find_mujoco(self):
     if MUJOCO_PATH not in os.environ:
-      raise RuntimeError(f'{MUJOCO_PATH} environment variable is not set')
+      raise RuntimeError(
+          f'{MUJOCO_PATH} environment variable is not set')
+    if MUJOCO_PLUGIN_PATH not in os.environ:
+      raise RuntimeError(
+          f'{MUJOCO_PLUGIN_PATH} environment variable is not set')
     library_path = None
     include_path = None
-    for directory, subdirs, filenames in os.walk(os.environ['MUJOCO_PATH']):
+    plugin_path = os.environ[MUJOCO_PLUGIN_PATH]
+    for directory, subdirs, filenames in os.walk(os.environ[MUJOCO_PATH]):
       if self._is_apple and 'mujoco.framework' in subdirs:
         return (os.path.join(directory, 'mujoco.framework/Versions/A'),
                 os.path.join(directory, 'mujoco.framework/Headers'),
+                plugin_path,
                 directory)
       if fnmatch.filter(filenames, get_mujoco_lib_pattern()):
         library_path = directory
       if os.path.exists(os.path.join(directory, 'mujoco/mujoco.h')):
         include_path = directory
       if library_path and include_path:
-        return library_path, include_path, None
+        return library_path, include_path, plugin_path, None
     raise RuntimeError('Cannot find MuJoCo library and/or include paths')
 
   def _copy_external_libraries(self):
     dst = os.path.dirname(self.get_ext_fullpath(self.extensions[0].name))
-    for directory, _, filenames in os.walk(os.environ['MUJOCO_PATH']):
+    for directory, _, filenames in os.walk(os.environ[MUJOCO_PATH]):
       for pattern in get_external_lib_patterns():
+        for filename in fnmatch.filter(filenames, pattern):
+          shutil.copyfile(os.path.join(directory, filename),
+                          os.path.join(dst, filename))
+
+  def _copy_plugin_libraries(self):
+    dst = os.path.join(
+        os.path.dirname(self.get_ext_fullpath(self.extensions[0].name)),
+        'plugin')
+    os.makedirs(dst)
+    for directory, _, filenames in os.walk(self._mujoco_plugins_path):
+      for pattern in get_plugin_lib_patterns():
         for filename in fnmatch.filter(filenames, pattern):
           shutil.copyfile(os.path.join(directory, filename),
                           os.path.join(dst, filename))
@@ -185,11 +214,32 @@ class BuildCMakeExtension(build_ext.build_ext):
         shutil.copyfile(os.path.join(directory, filename),
                         os.path.join(dst, filename))
 
+  def _copy_mjpython(self):
+    src_dir = os.path.join(os.path.dirname(__file__), 'mujoco/mjpython')
+    dst_contents_dir = os.path.join(
+        os.path.dirname(self.get_ext_fullpath(self.extensions[0].name)),
+        'MuJoCo (mjpython).app/Contents')
+    os.makedirs(dst_contents_dir)
+    shutil.copyfile(os.path.join(src_dir, 'Info.plist'),
+                    os.path.join(dst_contents_dir, 'Info.plist'))
+
+    dst_bin_dir = os.path.join(dst_contents_dir, 'MacOS')
+    os.makedirs(dst_bin_dir)
+    shutil.copyfile(os.path.join(self.build_temp, 'mjpython'),
+                    os.path.join(dst_bin_dir, 'mjpython'))
+    os.chmod(os.path.join(dst_bin_dir, 'mjpython'), 0o755)
+
+    dst_resources_dir = os.path.join(dst_contents_dir, 'Resources')
+    os.makedirs(dst_resources_dir)
+    shutil.copyfile(os.path.join(src_dir, 'mjpython.icns'),
+                    os.path.join(dst_resources_dir, 'mjpython.icns'))
+
   def _configure_cmake(self):
     """Check for CMake."""
     cmake = os.environ.get(MUJOCO_CMAKE, 'cmake')
     build_cfg = 'Debug' if self.debug else 'Release'
-    cmake_module_path = os.path.join(os.path.dirname(__file__), 'cmake')
+    cmake_module_path = os.path.join(
+        os.path.dirname(__file__), 'mujoco', 'cmake')
     cmake_args = [
         f'-DPython3_ROOT_DIR:PATH={sys.prefix}',
         f'-DPython3_EXECUTABLE:STRING={sys.executable}',
@@ -246,35 +296,48 @@ class BuildCMakeExtension(build_ext.build_ext):
   def build_extension(self, ext):
     dest_path = self.get_ext_fullpath(ext.name)
     build_path = os.path.join(self.build_temp, os.path.basename(dest_path))
-    subprocess.check_call(['cp', build_path, dest_path])
+    shutil.copyfile(build_path, dest_path)
 
 
-def find_data_files(package_dir, patterns):
-  """Recursively finds files whose names match the given shell patterns."""
-  paths = set()
-  for directory, _, filenames in os.walk(package_dir):
-    for pattern in patterns:
-      for filename in fnmatch.filter(filenames, pattern):
-        # NB: paths must be relative to the package directory.
-        relative_dirpath = os.path.relpath(directory, package_dir)
-        paths.add(os.path.join(relative_dirpath, filename))
-  return list(paths)
+class InstallScripts(install_scripts.install_scripts):
+  """Strips file extension from executable scripts whose names end in `.py`."""
 
+  def run(self):
+    super().run()
+    oldfiles = self.outfiles
+    files = set(oldfiles)
+    self.outfiles = []
+    for oldfile in oldfiles:
+      if oldfile.endswith('.py'):
+        newfile = oldfile[:-3]
+      else:
+        newfile = oldfile
 
-setup(
-    name='mujoco',
-    version=__version__,
-    author='DeepMind',
-    author_email='mujoco@deepmind.com',
-    description='MuJoCo Physics Simulator',
+      renamed = False
+      if newfile not in files and not os.path.exists(newfile):
+        if not self.dry_run:
+          os.rename(oldfile, newfile)
+        renamed = True
+
+      if renamed:
+        logging.info(
+            'Renaming %s script to %s',
+            os.path.basename(oldfile),
+            os.path.basename(newfile),
+        )
+        self.outfiles.append(newfile)
+        files.remove(oldfile)
+        files.add(newfile)
+      else:
+        self.outfiles.append(oldfile)
+
+setuptools.setup(
     long_description=get_long_description(),
     long_description_content_type='text/markdown',
-    url='https://github.com/deepmind/mujoco',
-    license='Apache License 2.0',
-    classifiers=[
-        'License :: OSI Approved :: Apache Software License',
-    ],
-    cmdclass=dict(build_ext=BuildCMakeExtension),
+    cmdclass=dict(
+        build_ext=BuildCMakeExtension,
+        install_scripts=InstallScripts,
+    ),
     ext_modules=[
         CMakeExtension('mujoco._callbacks'),
         CMakeExtension('mujoco._constants'),
@@ -283,32 +346,10 @@ setup(
         CMakeExtension('mujoco._functions'),
         CMakeExtension('mujoco._render'),
         CMakeExtension('mujoco._rollout'),
+        CMakeExtension('mujoco._simulate'),
         CMakeExtension('mujoco._structs'),
     ],
-    python_requires='>=3.7',
-    install_requires=[
-        'absl-py',
-        'glfw',
-        'numpy',
-        'pyopengl',
-    ],
-    tests_require=[
-        'absl-py',
-        'glfw',
-        'numpy',
-        'pyopengl',
-    ],
-    test_suite='mujoco',
-    packages=find_packages(),
-    package_data={
-        'mujoco':
-            find_data_files(
-                package_dir='mujoco',
-                patterns=[
-                    'libmujoco.*.dylib',
-                    'libmujoco*.so.*',
-                    'mujoco.dll',
-                    'include/mujoco/*.h',
-                ]),
-    },
+    scripts=[
+        'mujoco/mjpython/mjpython.py'
+    ] if platform.system() == 'Darwin' else [],
 )

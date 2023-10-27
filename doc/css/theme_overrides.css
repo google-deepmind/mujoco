@@ -1,31 +1,68 @@
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,700;1,400;1,500;1,700&display=swap');
-@import url('https://fonts.googleapis.com/css2?family=DM+Serif+Text:ital,wght@0,400;1,400&display=swap');
-@import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital,wght@0,400;1,400&display=swap');
-@import url('https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,400;0,500;1,400;1,500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inconsolata:wdth,wght@110,500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=DM+Mono&display=swap');
+
+/* Font used for ``inline code``, should match body sans-serif. */
+code {
+  font-family: 'DM Mono', monospace;
+}
+
+/* Disable scroll on anchor. */
+html {
+  scroll-behavior: auto;
+}
 
 body {
   font-family: 'DM Sans', 'Helvetica Neue', 'Arial', sans-serif;
   -webkit-font-smoothing: antialiased;
-  color: rgb(20, 35, 75);
+  color: var(--body-color);
 }
 
-.rst-content .toctree-wrapper>p.caption,h1 {
-  font-size: 250%;
-  font-family: 'DM Serif Display', 'Times New Roman', serif;
-  font-weight: 400;
-  color: rgb(0, 83, 214);
+/* Make the search bar query text readable in dark theme. */
+body:not([data-theme="light"]) {
+  --color-sidebar-search-foreground: white;
 }
 
-.rst-content .toctree-wrapper>p.caption,h2,h3,h4,h5,h6,legend {
+.schema-small {
+  font-size: 93%;
+}
+
+.caption-small {
+  font-size: 85%;
+}
+
+.sidebar-brand-text {
+  display: none;
+}
+
+h1 {
+  font-size: 300%;
+  font-family: 'DM Sans', 'Helvetica Neue', 'Arial', sans-serif;
+  font-weight: 600;
+  color: var(--primary-header-color);
+  margin-top: 1em;
+}
+
+h2,h3,h4,h5,h6,legend {
   font-family: 'DM Sans', 'Helvetica Neue', 'Arial', sans-serif;
   -webkit-font-smoothing: antialiased;
   font-weight: 700;
-  color: rgb(18, 54, 147);
+  color: var(--secondary-header-color);
 }
 
-/* Adjust paragraph margins to make top and bottom of images more symmetric. */
-p {
-  margin: 20px 0px 20px 0px;
+h2 {
+  margin-top: 1.2em;
+  margin-bottom: 0.75em;
+}
+
+h3 {
+  margin-top: 0.75em;
+  margin-bottom: 0.5em;
+}
+
+h4 {
+  margin-top: 0.5em;
+  margin-bottom: 0.25em;
 }
 
 /* Paragraph margins don't apply to table cell contents. */
@@ -38,10 +75,10 @@ p {
   padding: 6px;
 }
 
-/* Don't change color of visited links. */
+/* Don't change color of visited links.
 .rst-content a.reference:visited {
-  color: #2980b9;
-}
+  color: var(--rst-content-a-color);
+} */
 
 .rst-content code, .rst-content tt {
   font-size: 90%;
@@ -57,17 +94,24 @@ p {
 ul.simple {
   list-style: disc;
   margin-left: 24px;
+  margin-top: 0.5em;
+  margin-bottom: 0.5em;
 }
 
 ul.simple li {
   list-style: disc;
 }
 
+ol {
+  margin-top: 0.5em;
+  margin-bottom: 0.5em;
+}
+
 /* Change background color of the nav bars. */
 .wy-side-nav-search,
 .wy-nav-top,
 .wy-nav-side {
-  background-color: rgb(0, 83, 214);
+  background-color: var(--wy-nav-side-background-color);
 }
 
 /* Make text wrap in table cells. */
@@ -115,7 +159,7 @@ html.writer-html5 .rst-content table.docutils th>p {
 .wy-menu-vertical li.toctree-l8 a:hover span.toctree-expand,
 .wy-menu-vertical li.toctree-l9 a:hover span.toctree-expand,
 .wy-menu-vertical li.toctree-l10 a:hover span.toctree-expand {
-  color: white;
+  color: var(--wy-menu-vertical-color);
 }
 
 /* Change color of TOC background. */
@@ -133,28 +177,53 @@ html.writer-html5 .rst-content table.docutils th>p {
 .wy-menu-vertical li.toctree-l7.current li.toctree-l8>a,
 .wy-menu-vertical li.toctree-l8.current li.toctree-l9>a,
 .wy-menu-vertical li.toctree-l9.current li.toctree-l10>a {
-  background-color: rgb(0, 83, 214);
+  background-color: var(--wy-menu-vertical-background-color);
   border: none;
 }
 
+/* Table with top-aligned cell contents. */
+table.aligntop > tbody {
+  vertical-align: top;
+}
+
+
+/* Alternate row colors. */
+table.docutils:not(.mjcf-attributes) > tbody > tr.row-odd {
+  background-color: var(--row-odd-background-color);
+}
+
 /* MJCF attributes table. */
-.rst-content table.mjcf-attributes {
+table.mjcf-attributes {
   border-style: none;
   margin-left: 0px;
   margin-right: 0px;
   width: 100%;
+  box-shadow: none;
 }
 
-.rst-content table.mjcf-attributes:not(.field-list) tr td,
-.rst-content table.mjcf-attributes:not(.field-list) tr:nth-child(2n-1) td {
+table.mjcf-attributes tbody tr td,
+table.mjcf-attributes tbody tr:nth-child(2n-1) td {
   border-style: none;
-  background-color: rgba(255, 255, 255, 0);
   padding: 0px 0px 0px 0px;
-  width: 33%;
+  width: 25%;
+}
+
+table.mjcf-attributes tbody tr td p {
+  margin: 0;
+}
+
+div.table-wrapper.mjcf-attributes {
+  margin: 0.5em;
+  padding: 0;
 }
 
 table td > div.wy-table-responsive {
   margin-bottom: 0px;
+}
+
+/* Remove vertical spacing before/after code blocks. */
+div[class*=" highlight-"], div[class^=highlight-] {
+  margin: 0;
 }
 
 /* MJCF element names. */
@@ -164,16 +233,28 @@ table td > div.wy-table-responsive {
 
 /* MJCF attribute names. */
 .at {
-  color: darkred;
+  color: var(--at-color);
+}
+
+dt .at {
+  font-weight: 600;
 }
 
 /* MJCF attribute value specs. */
 .at-val {
-  color: darkred;
+  color: var(--at-val-color);
   font-weight: normal;
 }
 
 /* Hide the prefix for XML element names, but only in toctree */
 .toctree-l1 .el-prefix {
   display: none;
+}
+
+.admonition p:not(.admonition-title) {
+  margin-left: 0.5em;
+}
+
+details summary {
+  font-weight: 600;
 }

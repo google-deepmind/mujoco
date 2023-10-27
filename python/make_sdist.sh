@@ -28,8 +28,8 @@ else
   readonly tmp_dir="$(mktemp -d)"
 fi
 
-python -m pip install --upgrade pip setuptools
-python -m pip install absl-py
+python -m pip install --upgrade --require-hashes \
+    -r ${package_dir}/make_sdist_requirements.txt
 pushd ${tmp_dir}
 cp -r "${package_dir}"/* .
 
@@ -50,10 +50,13 @@ export PYTHONPATH="${old_pythonpath}"
 cp "${package_dir}"/../LICENSE .
 
 # Copy over CMake scripts.
-mkdir cmake
-cp "${package_dir}"/../cmake/*.cmake cmake
+mkdir mujoco/cmake
+cp "${package_dir}"/../cmake/*.cmake mujoco/cmake
 
-python setup.py sdist --formats=gztar
+# Copy over Simulate source code.
+cp -r "${package_dir}"/../simulate mujoco
+
+python -m build . --sdist
 tar -tf dist/mujoco-*.tar.gz
 popd
 

@@ -18,12 +18,15 @@
 #include <cstddef>
 #include <cstdio>
 #include <limits>
+#include <optional>
 #include <string>
+#include <string_view>
 
-#include <mujoco/mjmodel.h>
-#include "engine/engine_file.h"
-#include "engine/engine_macro.h"
-#include "engine/engine_util_errmem.h"
+#include <mujoco/mjtnum.h>
+#include <mujoco/mujoco.h>
+#include "engine/engine_crossplatform.h"
+#include "engine/engine_util_misc.h"
+#include "engine/engine_util_spatial.h"
 
 using std::isnan;
 using std::string;
@@ -141,9 +144,8 @@ double mjuu_L1(const double* a, const double* b, int n) {
 // normalize vector to unit length, return previous length
 double mjuu_normvec(double* vec, const int n) {
   double nrm = 0;
-  int i;
 
-  for (i=0; i<n; i++) {
+  for (int i=0; i<n; i++) {
     nrm += vec[i]*vec[i];
   }
   if (nrm < mjEPS) {
@@ -151,7 +153,7 @@ double mjuu_normvec(double* vec, const int n) {
   }
 
   nrm = sqrt(nrm);
-  for (i=0; i<n; i++) {
+  for (int i=0; i<n; i++) {
     vec[i] /= nrm;
   }
 
@@ -441,9 +443,9 @@ void mjuu_offcenter(double* res, const double mass, const double* vec) {
 void mjuu_visccoef(double* visccoef, double mass, const double* inertia, double scl) {
   // compute equivalent box
   double equivbox[3];
-  equivbox[0] = sqrt(mjMAX(mjMINVAL, (inertia[1] + inertia[2] - inertia[0])) / mass * 6.0);
-  equivbox[1] = sqrt(mjMAX(mjMINVAL, (inertia[0] + inertia[2] - inertia[1])) / mass * 6.0);
-  equivbox[2] = sqrt(mjMAX(mjMINVAL, (inertia[0] + inertia[1] - inertia[2])) / mass * 6.0);
+  equivbox[0] = sqrt(mju_max(mjMINVAL, (inertia[1] + inertia[2] - inertia[0])) / mass * 6.0);
+  equivbox[1] = sqrt(mju_max(mjMINVAL, (inertia[0] + inertia[2] - inertia[1])) / mass * 6.0);
+  equivbox[2] = sqrt(mju_max(mjMINVAL, (inertia[0] + inertia[1] - inertia[2])) / mass * 6.0);
 
   // apply formula for box (or rather cross) viscosity
 
@@ -459,6 +461,55 @@ void mjuu_visccoef(double* visccoef, double mass, const double* inertia, double 
   visccoef[3] = scl * 4*equivbox[1]*equivbox[2];
   visccoef[4] = scl * 4*equivbox[0]*equivbox[2];
   visccoef[5] = scl * 4*equivbox[0]*equivbox[1];
+}
+
+
+// update moving frame along a curve or initialize it, returns edge length
+//   inputs:
+//     normal    - normal vector computed by a previous call to the function
+//     edge      - edge vector (non-unit tangent vector)
+//     tprv      - unit tangent vector of previous body
+//     tnxt      - unit tangent vector of next body
+//     first     - 1 if the frame requires initialization
+//   outputs:
+//     quat      - frame orientation
+//     normal    - unit normal vector
+mjtNum mju_updateFrame(mjtNum quat[4], mjtNum normal[3], const mjtNum edge[3],
+                       const mjtNum tprv[3], const mjtNum tnxt[3], int first) {
+  mjtNum tangent[3], binormal[3];
+
+  // normalize tangent
+  mjuu_copyvec(tangent, edge, 3);
+  mjuu_normvec(tangent, 3);
+
+  // compute moving frame
+  if (first) {
+    // use the first vertex binormal for the first edge
+    mjuu_crossvec(binormal, tangent, tnxt);
+    mjuu_normvec(binormal, 3);
+
+    // compute edge normal given tangent and binormal
+    mjuu_crossvec(normal, binormal, tangent);
+    mjuu_normvec(normal, 3);
+  } else {
+    mjtNum darboux[4];
+
+    // rotate edge normal about the vertex binormal
+    mjuu_crossvec(binormal, tprv, tangent);
+    mjtNum angle = atan2(mjuu_normvec(binormal, 3), mjuu_dot3(tprv, tangent));
+    mju_axisAngle2Quat(darboux, binormal, angle);
+    mju_rotVecQuat(normal, normal, darboux);
+    mjuu_normvec(normal, 3);
+
+    // compute edge binormal given tangent and normal
+    mjuu_crossvec(binormal, tangent, normal);
+    mjuu_normvec(binormal, 3);
+  }
+  // global orientation of the frame
+  mjuu_frame2quat(quat, tangent, normal, binormal);
+
+  // return edge length
+  return sqrt(mjuu_dot3(edge, edge));
 }
 
 
@@ -490,9 +541,16 @@ string mjuu_stripext(string filename) {
   }
 
   // return name without extension
-  else {
-    return filename.substr(0, end);
+  return filename.substr(0, end);
+}
+
+string mjuu_getext(std::string_view filename) {
+  size_t dot = filename.find_last_of('.');
+
+  if (dot==string::npos) {
+    return "";
   }
+  return string(filename.substr(dot, filename.size() - dot));
 }
 
 
@@ -501,6 +559,12 @@ bool mjuu_isabspath(string path) {
   // empty: not absolute
   if (path.empty()) {
     return false;
+  }
+
+  // path is scheme:filename which we consider an absolute path
+  // e.g. file URI's are always absolute paths
+  if (mjp_getResourceProvider(path.c_str()) != nullptr) {
+    return true;
   }
 
   // check first char
@@ -518,25 +582,6 @@ bool mjuu_isabspath(string path) {
 }
 
 
-// get directory path of file
-string mjuu_getfiledir(string filename) {
-  // no filename
-  if (filename.empty()) {
-    return "";
-  }
-
-  // find last pathsymbol
-  size_t last = filename.find_last_of("/\\");
-
-  // no pathsymbol: unknown dir
-  if (last==string::npos) {
-    return "";
-  }
-
-  // extract path from filename
-  return filename.substr(0, last+1);
-}
-
 
 // assemble full filename
 string mjuu_makefullname(string filedir, string meshdir, string filename) {
@@ -552,4 +597,85 @@ string mjuu_makefullname(string filedir, string meshdir, string filename) {
 
   // default
   return filedir + meshdir + filename;
+}
+
+
+// return true if the text is in a valid content type format:
+// {type}/{subtype}[;{parameter}={value}]
+static bool mjuu_isValidContentType(std::string_view text) {
+  // find a forward slash that's not the last character
+  size_t n = text.find('/');
+  if (n == std::string::npos || n == text.size() - 1) {
+    return false;
+  }
+
+  size_t m = text.find(';');
+  if (m == std::string::npos) {
+    return true;
+  }
+
+  if (m + 1 <= n) {
+    return false;
+  }
+
+  // just check if there's an equal sign; this isn't robust enough for general
+  // validation, but works for our scope, hence this is a private helper
+  // function
+  size_t s = text.find('=');
+  if (s == std::string::npos || s + 1 <= m) {
+    return false;
+  }
+
+  return true;
+}
+
+
+
+// return type from content_type format {type}/{subtype}[;{parameter}={value}]
+// return empty string on invalid format
+std::optional<std::string_view> mjuu_parseContentTypeAttrType(std::string_view text) {
+  if (!mjuu_isValidContentType(text)) {
+    return std::nullopt;
+  }
+
+  return { text.substr(0, text.find('/')) };
+}
+
+
+
+// return subtype from content_type format {type}/{subtype}[;{parameter}={value}]
+// return empty string on invalid format
+std::optional<std::string_view> mjuu_parseContentTypeAttrSubtype(std::string_view text) {
+  if (!mjuu_isValidContentType(text)) {
+    return std::nullopt;
+  }
+
+  size_t n = text.find('/');
+  size_t m = text.find(';', n + 1);
+  if (m == std::string::npos) {
+    return { text.substr(n+1) };
+  }
+
+  return { text.substr(n + 1, m - n - 1) };
+}
+
+
+
+// convert filename extension to content type; return empty string if not found
+std::string mjuu_extToContentType(std::string_view filename) {
+  std::string ext = mjuu_getext(filename);
+
+  if (!strcasecmp(ext.c_str(), ".stl")) {
+    return "model/stl";
+  } else if (!strcasecmp(ext.c_str(), ".obj")) {
+    return "model/obj";
+  } else if (!strcasecmp(ext.c_str(), ".ply")) {
+    return "model/ply";
+  } else if (!strcasecmp(ext.c_str(), ".msh")) {
+    return "model/vnd.mujoco.msh";
+  } else if (!strcasecmp(ext.c_str(), ".png")) {
+    return "image/png";
+  } else {
+    return "";
+  }
 }

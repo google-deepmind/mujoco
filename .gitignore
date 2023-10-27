@@ -22,6 +22,9 @@ build_cmake/
 # Exclude macOS folder attributes
 .DS_Store
 
+# Exclude macOS Info.framework.plist
+Info.framework.plist
+
 # Python byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

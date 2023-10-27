@@ -1,0 +1,29 @@
+<mujoco>
+
+  <worldbody>
+    <geom type="plane" size="1 1 .01"/>
+    <light pos="0 0 2"/>
+    <body pos="0 -.1 .3">
+      <joint name="slide" type="slide" axis="1 0 0"/>
+      <geom type="box" size=".05 .05 .05"/>
+    </body>
+    <body pos="0 .1 .3" mocap="true">
+      <geom type="box" size=".05 .05 .05"/>
+    </body>
+  </worldbody>
+
+  <actuator>
+    <motor name="stateless" joint="slide"/>
+    <general name="stateful" joint="slide" dyntype="integrator"/>
+  </actuator>
+
+  <keyframe>
+    <key time=".1"/>
+    <key qpos=".2"/>
+    <key qvel=".3"/>
+    <key act=".4"/>
+    <key ctrl=".5 .6"/>
+    <key mpos=".1 .2 .3"/>
+    <key mquat="1 1 1 1"/>
+  </keyframe>
+</mujoco>

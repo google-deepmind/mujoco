@@ -22,7 +22,7 @@ from typing import Dict, Optional, Sequence, Tuple, Union
 # We are relying on Clang to do the actual source parsing and are only doing
 # a little bit of extra parsing of function parameter type declarations here.
 # These patterns are here for sanity checking rather than actual parsing.
-VALID_TYPE_NAME_PATTERN = re.compile('[A-Za-z_][A-Za-z0-9_]*')
+VALID_TYPE_NAME_PATTERN = re.compile('(struct )?[A-Za-z_][A-Za-z0-9_]*')
 C_INVALID_TYPE_NAMES = frozenset([
     'auto', 'break', 'case', 'const', 'continue', 'default', 'do', 'else',
     'enum', 'extern', 'for', 'goto', 'if', 'inline', 'register', 'restrict',
@@ -66,6 +66,7 @@ class ValueType:
   def __init__(self, name: str, is_const: bool = False,
                is_volatile: bool = False):
     is_valid_type_name = (
+        name == 'void *(*)(void *)' or
         VALID_TYPE_NAME_PATTERN.fullmatch(name) or
         _is_valid_integral_type(name)) and name not in C_INVALID_TYPE_NAMES
     if not is_valid_type_name:
@@ -94,7 +95,7 @@ class ArrayType:
   """Represents a C array type."""
 
   inner_type: Union[ValueType, 'PointerType']
-  extents: Tuple[int]
+  extents: Tuple[int, ...]
 
   def __init__(self, inner_type: Union[ValueType, 'PointerType'],
                extents: Sequence[int]):
@@ -169,7 +170,7 @@ class FunctionDecl:
 
   name: str
   return_type: Union[ValueType, ArrayType, PointerType]
-  parameters: Tuple[FunctionParameterDecl]
+  parameters: Tuple[FunctionParameterDecl, ...]
   doc: str
 
   def __init__(self, name: str,
@@ -218,3 +219,79 @@ class EnumDecl:
     self.name = name
     self.declname = declname
     self.values = _EnumDeclValues(values)
+
+
+@dataclasses.dataclass
+class StructFieldDecl:
+  """Represents a field in a struct or union declaration."""
+
+  name: str
+  type: Union[
+      ValueType,
+      ArrayType,
+      PointerType,
+      'AnonymousStructDecl',
+      'AnonymousUnionDecl',
+  ]
+  doc: str
+
+  def __str__(self):
+    return self.type.decl(self.name)
+
+  @property
+  def decltype(self) -> str:
+    return self.type.decl()
+
+
+@dataclasses.dataclass
+class AnonymousStructDecl:
+  """Represents an anonymous struct declaration."""
+
+  fields: Tuple[Union[StructFieldDecl, 'AnonymousUnionDecl'], ...]
+
+  def __init__(self, fields: Sequence[StructFieldDecl]):
+    self.fields = tuple(fields)
+
+  def __str__(self):
+    return self.decl()
+
+  def _inner_decl(self):
+    return '; '.join(str(field) for field in self.fields) + ';'
+
+  def decl(self, name_or_decl: Optional[str] = None):
+    parts = ['struct', f'{{{self._inner_decl()}}}']
+    if name_or_decl:
+      parts.append(name_or_decl)
+    return ' '.join(parts)
+
+
+class AnonymousUnionDecl(AnonymousStructDecl):
+  """Represents an anonymous union declaration."""
+
+  def decl(self, name_or_decl: Optional[str] = None):
+    parts = ['union', f'{{{self._inner_decl()}}}']
+    if name_or_decl:
+      parts.append(name_or_decl)
+    return ' '.join(parts)
+
+
+@dataclasses.dataclass
+class StructDecl:
+  """Represents a struct declaration."""
+
+  name: str
+  declname: str
+  fields: Tuple[Union[StructFieldDecl, AnonymousUnionDecl], ...]
+
+  def __init__(self, name: str,
+               declname: str,
+               fields: Sequence[Union[StructFieldDecl, AnonymousUnionDecl]]):
+    self.name = name
+    self.declname = declname
+    self.fields = tuple(fields)
+
+  def decl(self, name_or_decl: Optional[str] = None) -> str:
+    parts = [self.name]
+    if name_or_decl:
+      parts.append(name_or_decl)
+    return ' '.join(parts)

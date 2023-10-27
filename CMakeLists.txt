@@ -28,7 +28,7 @@ set(MSVC_INCREMENTAL_DEFAULT ON)
 
 project(
   mujoco
-  VERSION 2.2.0
+  VERSION 3.0.1
   DESCRIPTION "MuJoCo Physics Simulator"
   HOMEPAGE_URL "https://mujoco.org"
 )
@@ -39,10 +39,11 @@ enable_language(CXX)
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
 
 option(MUJOCO_BUILD_EXAMPLES "Build samples for MuJoCo" ON)
+option(MUJOCO_BUILD_SIMULATE "Build simulate library for MuJoCo" ON)
 option(MUJOCO_BUILD_TESTS "Build tests for MuJoCo" ON)
 option(MUJOCO_TEST_PYTHON_UTIL "Build and test utility libraries for Python bindings" ON)
 
-if(APPLE AND MUJOCO_BUILD_EXAMPLES)
+if(APPLE AND (MUJOCO_BUILD_EXAMPLES OR MUJOCO_BUILD_SIMULATE))
   enable_language(OBJC)
   enable_language(OBJCXX)
 endif()
@@ -54,8 +55,11 @@ include(MujocoDependencies)
 set(MUJOCO_HEADERS
     include/mujoco/mjdata.h
     include/mujoco/mjexport.h
+    include/mujoco/mjmacro.h
     include/mujoco/mjmodel.h
+    include/mujoco/mjplugin.h
     include/mujoco/mjrender.h
+    include/mujoco/mjthread.h
     include/mujoco/mjtnum.h
     include/mujoco/mjui.h
     include/mujoco/mjvisualize.h
@@ -63,21 +67,32 @@ set(MUJOCO_HEADERS
     include/mujoco/mujoco.h
 )
 
-add_library(mujoco SHARED)
+# Add metadata to mujoco.dll when building on Windows.
+if(WIN32)
+  set(MUJOCO_RESOURCE_FILES ${CMAKE_CURRENT_SOURCE_DIR}/dist/mujoco.rc)
+else()
+  set(MUJOCO_RESOURCE_FILES "")
+endif()
+
+add_library(mujoco SHARED ${MUJOCO_RESOURCE_FILES})
 target_include_directories(
   mujoco
-  PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
+  PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
          $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/>
   PRIVATE src
 )
 
+add_subdirectory(plugin/elasticity)
+add_subdirectory(plugin/sensor)
+add_subdirectory(plugin/sdf)
 add_subdirectory(src/engine)
 add_subdirectory(src/user)
 add_subdirectory(src/xml)
 add_subdirectory(src/render)
+add_subdirectory(src/thread)
 add_subdirectory(src/ui)
 
-target_compile_definitions(mujoco PRIVATE _GNU_SOURCE CCD_STATIC_DEFINE MUJOCO_DLL_EXPORTS)
+target_compile_definitions(mujoco PRIVATE _GNU_SOURCE CCD_STATIC_DEFINE MUJOCO_DLL_EXPORTS -DMC_IMPLEM_ENABLE)
 if(MUJOCO_ENABLE_AVX_INTRINSICS)
   target_compile_definitions(mujoco PUBLIC mjUSEPLATFORMSIMD)
 endif()
@@ -136,8 +151,9 @@ if(APPLE AND MUJOCO_BUILD_MACOS_FRAMEWORKS)
     COMMAND mkdir -p $<TARGET_FILE_DIR:mujoco>/Resources
     COMMAND mv ${CMAKE_CURRENT_SOURCE_DIR}/dist/Info.framework.plist
             $<TARGET_FILE_DIR:mujoco>/Resources/Info.plist
+    COMMAND ${TAPI} stubify $<TARGET_FILE:mujoco> -o $<TARGET_FILE_DIR:mujoco>/mujoco.tbd
     COMMAND ln -fhs A $<TARGET_FILE_DIR:mujoco>/../Current
-    COMMAND ${TAPI} stubify $<TARGET_FILE:mujoco> -o $<TARGET_FILE_DIR:mujoco>/../../mujoco.tbd
+    COMMAND ln -fhs Versions/Current/mujoco.tbd $<TARGET_FILE_DIR:mujoco>/../../mujoco.tbd
     COMMAND ln -fhs Versions/Current/Headers $<TARGET_FILE_DIR:mujoco>/../../Headers
     COMMAND ln -fhs Versions/Current/Modules $<TARGET_FILE_DIR:mujoco>/../../Modules
     COMMAND ln -fhs Versions/Current/Resources $<TARGET_FILE_DIR:mujoco>/../../Resources
@@ -151,6 +167,13 @@ add_library(mujoco::mujoco ALIAS mujoco)
 
 add_subdirectory(model)
 
+# `simulate` defines a macro, embed_in_bundle, that's used by `sample`, so that
+# subdirectory needs to be added first.
+# TODO: Remove this order dependency.
+if(MUJOCO_BUILD_SIMULATE)
+  add_subdirectory(simulate)
+endif()
+
 if(MUJOCO_BUILD_EXAMPLES)
   add_subdirectory(sample)
 endif()
@@ -158,11 +181,9 @@ endif()
 if(BUILD_TESTING AND MUJOCO_BUILD_TESTS)
   enable_testing()
   add_subdirectory(test)
-endif()
-
-if(BUILD_TESTING AND MUJOCO_TEST_PYTHON_UTIL)
-  enable_testing()
-  add_subdirectory(python/mujoco/util)
+  if(MUJOCO_TEST_PYTHON_UTIL)
+    add_subdirectory(python/mujoco/util)
+  endif()
 endif()
 
 if(NOT (APPLE AND MUJOCO_BUILD_MACOS_FRAMEWORKS))

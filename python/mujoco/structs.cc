@@ -23,10 +23,8 @@
 #include <ios>
 #include <iostream>
 #include <memory>
-#include <numeric>
 #include <optional>
 #include <sstream>
-#include <stdexcept>
 #include <string>
 #include <string_view>
 #include <type_traits>
@@ -39,6 +37,8 @@
 #include "errors.h"
 #include "function_traits.h"
 #include "indexers.h"
+#include "mjdata_meta.h"
+#include "private.h"
 #include "raw.h"
 #include "serialization.h"
 #include <pybind11/numpy.h>
@@ -52,6 +52,9 @@ namespace mujoco::python::_impl {
 namespace py = ::pybind11;
 
 namespace {
+#define PTRDIFF(x, y) \
+  reinterpret_cast<const char*>(x) - reinterpret_cast<const char*>(y)
+
 // Returns the shape of a NumPy array given the dimensions from an X Macro.
 // If dim1 is a _literal_ constant 1, the resulting array is 1-dimensional of
 // length dim0, otherwise the resulting array is 2-dimensional of shape
@@ -74,86 +77,8 @@ constexpr auto XArrayShapeImpl(const std::string_view dim1_str) {
   }
 }
 
-// An equals operator that works for comparing numpy arrays too.
-// Unlike other objects, the equality operator for numpy arrays returns a
-// numpy array.
-bool FieldsEqual(py::handle lhs, py::handle rhs, py::handle array_equal) {
-  // np.array_equal handles non-arrays.
-  return PyObject_IsTrue(array_equal(lhs, rhs).ptr());
-}
-
-// Returns an iterable object for iterating over attributes of T.
-template <typename T>
-py::object Dir() {
-  py::object type = py::type::of<T>();
-  auto dir = py::reinterpret_steal<py::object>(PyObject_Dir(type.ptr()));
-  if (PyErr_Occurred()) {
-    throw py::error_already_set();
-  }
-  return dir;
-}
-
-// Returns true if all public fields in lhs and rhs are equal.
-template <typename T>
-bool StructsEqual(py::object lhs, py::object rhs) {
-  // Equivalent to the following python code:
-  // if type(lhs) != type(rhs):
-  //   return False
-  // for field in dir(lhs):
-  //   if field.startswith("_"):
-  //     continue
-  //   # equal() handles equality of numpy arrays
-  //   if not equal(getattr(lhs, field, None), getattr(rhs, field, None)):
-  //     return False
-  //
-  // return True
-
-  auto np = py::module::import("numpy");
-  auto array_equal = np.attr("array_equal");
-
-  const py::handle lhs_t = py::type::handle_of(lhs);
-  const py::handle rhs_t = py::type::handle_of(rhs);
-  if (!lhs_t.is(rhs_t)) {
-    return false;
-  }
-  for (py::handle f : Dir<T>()) {
-    auto name = f.cast<std::string_view>();
-
-    if (name.empty() || name[0] == '_') {
-      continue;
-    }
-    py::object l = py::getattr(lhs, f, py::none());
-    py::object r = py::getattr(rhs, f, py::none());
-    if (!FieldsEqual(l, r, array_equal)) {
-      return false;
-    }
-  }
-  return true;
-}
-
-// Returns a string representation of a struct like object.
-template <typename T>
-std::string StructRepr(py::object self) {
-  std::ostringstream result;
-  result << "<"
-         << self.attr("__class__").attr("__name__").cast<std::string_view>();
-  for (py::handle f : Dir<T>()) {
-    auto name = f.cast<std::string_view>();
-    if (name.empty() || name[0] == '_') {
-      continue;
-    }
-
-    result << "\n  " << name << ": "
-           << self.attr(f).attr("__repr__")().cast<std::string_view>();
-  }
-  result << "\n>";
-  return result.str();
-}
-
-template <typename C, typename... O>
-void DefineStructFunctions(py::class_<C, O...> c) {
-  c.def("__eq__", StructsEqual<C>);
-  c.def("__repr__", StructRepr<C>);
+inline std::size_t NConMax(const mjData* d) {
+  return d->narena / sizeof(mjContact);
 }
 }  // namespace
 
@@ -222,7 +147,8 @@ MjVisualRgbaWrapper::MjWrapper()
       X(rangefinder),
       X(constraint),
       X(slidercrank),
-      X(crankbroken) {}
+      X(crankbroken),
+      X(frustum) {}
 
 MjVisualRgbaWrapper::MjWrapper(raw::MjVisualRgba* ptr, py::handle owner)
     : WrapperBase(ptr, owner),
@@ -247,7 +173,8 @@ MjVisualRgbaWrapper::MjWrapper(raw::MjVisualRgba* ptr, py::handle owner)
       X(rangefinder),
       X(constraint),
       X(slidercrank),
-      X(crankbroken) {}
+      X(crankbroken),
+      X(frustum) {}
 #undef X
 
 MjVisualRgbaWrapper::MjWrapper(const MjVisualRgbaWrapper& other)
@@ -309,6 +236,7 @@ MjModelWrapper::MjWrapper(raw::MjModel* ptr)
       MJMODEL_POINTERS,
       text_data_bytes(ptr->text_data, ptr->ntextdata),
       names_bytes(ptr->names, ptr->nnames),
+      paths_bytes(ptr->paths, ptr->npaths),
       indexer_(ptr, owner_) {
   bool is_newly_inserted = false;
   {
@@ -330,6 +258,7 @@ MjModelWrapper::MjWrapper(MjModelWrapper&& other)
       MJMODEL_POINTERS,
       text_data_bytes(ptr_->text_data, ptr_->ntextdata),
       names_bytes(ptr_->names, ptr_->nnames),
+      paths_bytes(ptr_->paths, ptr_->npaths),
       indexer_(ptr_, owner_) {
   bool is_newly_inserted = false;
   {
@@ -502,8 +431,8 @@ MjModelWrapper MjModelWrapper::LoadXML(
 
 namespace {
 // A byte at the start of serialized mjModel structs, which can be incremented
-//  when we change the serialization logic to reject pickles from an
-// unsupported future version.
+// when we change the serialization logic to reject pickles from an unsupported
+// future version.
 constexpr static char kSerializationVersion = 1;
 
 void CheckInput(const std::istream& input, std::string class_name) {
@@ -534,7 +463,7 @@ MjModelWrapper MjModelWrapper::Deserialize(std::istream& input) {
     throw py::value_error("Incompatible serialization version.");
   }
 
-  int model_size = ReadInt(input);
+  std::size_t model_size = ReadInt(input);
   CheckInput(input, "mjModel");
   if (model_size < 0) {
     throw py::value_error("Invalid serialized mjModel.");
@@ -561,8 +490,13 @@ MjContactWrapper::MjWrapper()
       X(frame),
       X(friction),
       X(solref),
+      X(solreffriction),
       X(solimp),
-      X(H) {}
+      X(H),
+      X(geom),
+      X(flex),
+      X(elem),
+      X(vert) {}
 
 MjContactWrapper::MjWrapper(raw::MjContact* ptr, py::handle owner)
     : WrapperBase(ptr, owner),
@@ -570,8 +504,13 @@ MjContactWrapper::MjWrapper(raw::MjContact* ptr, py::handle owner)
       X(frame),
       X(friction),
       X(solref),
+      X(solreffriction),
       X(solimp),
-      X(H) {}
+      X(H),
+      X(geom),
+      X(flex),
+      X(elem),
+      X(vert) {}
 #undef X
 
 MjContactWrapper::MjWrapper(const MjContactWrapper& other)
@@ -579,51 +518,15 @@ MjContactWrapper::MjWrapper(const MjContactWrapper& other)
   *this->ptr_ = *other.ptr_;
 }
 
-#define X(type, var)                                                   \
-  var(std::vector<int>{num}, std::vector<int>{sizeof(raw::MjContact)}, \
-      &ptr->var, owner)
-#define XN(type, var)                                                       \
-  var(std::vector<int>{num, sizeof(raw::MjContact::var) / sizeof(type)},    \
-      std::vector<int>{sizeof(raw::MjContact), sizeof(type)}, &ptr->var[0], \
-      owner)
-MjContactList::MjStructList(raw::MjContact* ptr, int num, py::handle owner)
-    : StructListBase(ptr, num, owner),
-      X(mjtNum, dist),
-      XN(mjtNum, pos),
-      XN(mjtNum, frame),
-      X(mjtNum, includemargin),
-      XN(mjtNum, friction),
-      XN(mjtNum, solref),
-      XN(mjtNum, solimp),
-      X(mjtNum, mu),
-      XN(mjtNum, H),
-      X(int, dim),
-      X(int, geom1),
-      X(int, geom2),
-      X(int, exclude),
-      X(int, efc_address) {}
-#undef X
-#undef XN
+MjContactList::MjStructList(raw::MjContact* ptr, int nconmax,
+                            int* ncon, py::handle owner)
+    : StructListBase(ptr, nconmax, owner, /* lazy = */ true),
+      ncon_(ncon) {}
 
 // Slicing
-#define X(type, var) var(other.var[slice])
 MjContactList::MjStructList(MjContactList& other, py::slice slice)
     : StructListBase(other, slice),
-      X(mjtNum, dist),
-      X(mjtNum, pos),
-      X(mjtNum, frame),
-      X(mjtNum, includemargin),
-      X(mjtNum, friction),
-      X(mjtNum, solref),
-      X(mjtNum, solimp),
-      X(mjtNum, mu),
-      X(mjtNum, H),
-      X(int, dim),
-      X(int, geom1),
-      X(int, geom2),
-      X(int, exclude),
-      X(int, efc_address) {}
-#undef X
+      ncon_(other.ncon_) {}
 
 // ==================== MJDATA =================================================
 static void MjDataCapsuleDestructor(PyObject* pyobj) {
@@ -660,8 +563,10 @@ MjDataWrapper::MjWrapper(const MjModelWrapper& model)
   var(InitPyArray(X_ARRAY_SHAPE(model.get()->dim0, dim1), ptr_->var, owner_)),
       MJDATA_POINTERS
 #undef MJ_M
-#define MJ_M(x) x
+#define MJ_M(x) (x)
 #undef X
+
+  contact(MjContactList(ptr_->contact, NConMax(ptr_), &ptr_->ncon, owner_)),
 
 #define X(dtype, var, dim0, dim1) var(InitPyArray(ptr_->var, owner_)),
       MJDATA_VECTOR
@@ -688,8 +593,10 @@ MjDataWrapper::MjWrapper(const MjDataWrapper& other)
                   owner_)),
       MJDATA_POINTERS
 #undef MJ_M
-#define MJ_M(x) x
+#define MJ_M(x) (x)
 #undef X
+
+  contact(MjContactList(ptr_->contact, NConMax(ptr_), &ptr_->ncon, owner_)),
 
 #define X(dtype, var, dim0, dim1) var(InitPyArray(ptr_->var, owner_)),
       MJDATA_VECTOR
@@ -716,8 +623,10 @@ MjDataWrapper::MjWrapper(MjDataWrapper&& other)
                   owner_)),
       MJDATA_POINTERS
 #undef MJ_M
-#define MJ_M(x) x
+#define MJ_M(x) (x)
 #undef X
+
+  contact(MjContactList(ptr_->contact, NConMax(ptr_), &ptr_->ncon,owner_)),
 
 #define X(dtype, var, dim0, dim1) var(InitPyArray(ptr_->var, owner_)),
       MJDATA_VECTOR
@@ -745,8 +654,10 @@ MjDataWrapper::MjWrapper(MjDataMetadata&& metadata, raw::MjData* d)
   var(InitPyArray(X_ARRAY_SHAPE(metadata.dim0, dim1), ptr_->var, owner_)),
       MJDATA_POINTERS
 #undef MJ_M
-#define MJ_M(x) x
+#define MJ_M(x) (x)
 #undef X
+
+  contact(MjContactList(ptr_->contact, NConMax(ptr_), &ptr_->ncon, owner_)),
 
 #define X(dtype, var, dim0, dim1) var(InitPyArray(ptr_->var, owner_)),
       MJDATA_VECTOR
@@ -788,6 +699,8 @@ void MjDataWrapper::Serialize(std::ostream& output) const {
   MJMODEL_INTS
 #undef X
 
+  WriteInt(output, this->metadata_.is_dual);
+
 #define X(dtype, var, n)                        \
   WriteBytes(output, this->metadata_.var.get(), \
              this->metadata_.n * sizeof(dtype));
@@ -797,10 +710,19 @@ void MjDataWrapper::Serialize(std::ostream& output) const {
 
   // Write struct and scalar fields
 #define X(var) WriteBytes(output, &ptr_->var, sizeof(ptr_->var))
+  X(maxuse_stack);
+  X(maxuse_arena);
+  X(maxuse_con);
+  X(maxuse_efc);
   X(solver);
   X(timer);
   X(warning);
+  X(ne);
+  X(nf);
+  X(nnzJ);
+  X(nefc);
   X(ncon);
+  X(nisland);
   X(time);
   X(energy);
 #undef X
@@ -808,9 +730,33 @@ void MjDataWrapper::Serialize(std::ostream& output) const {
   // Write buffer contents
   {
     MJDATA_POINTERS_PREAMBLE((&this->metadata_))
+
 #define X(type, name, nr, nc)  \
     WriteBytes(output, ptr_->name, sizeof(type)*(this->metadata_.nr)*(nc));
     MJDATA_POINTERS
+#undef X
+
+#undef MJ_M
+#define MJ_M(x) this->metadata_.x
+#undef MJ_D
+#define MJ_D(x) this->ptr_->x
+#define X(type, name, nr, nc)                                   \
+  if ((nr) * (nc)) {                                            \
+    WriteBytes(output, ptr_->name, sizeof(type) * (nr) * (nc)); \
+  }
+
+    MJDATA_ARENA_POINTERS_CONTACT
+    MJDATA_ARENA_POINTERS_PRIMAL
+    if (this->metadata_.is_dual) {
+      MJDATA_ARENA_POINTERS_DUAL
+    }
+    if (this->ptr_->nisland) {
+      MJDATA_ARENA_POINTERS_ISLAND
+    }
+#undef MJ_M
+#define MJ_M(x) x
+#undef MJ_D
+#define MJ_D(x) x
 #undef X
   }
 }
@@ -835,6 +781,8 @@ MjDataWrapper MjDataWrapper::Deserialize(std::istream& input) {
   MJMODEL_INTS
 #undef X
 
+  metadata.is_dual = ReadInt(input);
+
 #define X(dtype, var, n)                                            \
   metadata.var.reset(new dtype[metadata.n]);                        \
   ReadBytes(input, metadata.var.get(), metadata.n * sizeof(dtype)); \
@@ -854,10 +802,19 @@ MjDataWrapper MjDataWrapper::Deserialize(std::istream& input) {
   ReadBytes(input, (void*) &d->var, sizeof(d->var)); \
   CheckInput(input, "mjData");
 
+  X(maxuse_stack);
+  X(maxuse_arena);
+  X(maxuse_con);
+  X(maxuse_efc);
   X(solver);
   X(timer);
   X(warning);
+  X(ne);
+  X(nf);
+  X(nnzJ);
+  X(nefc);
   X(ncon);
+  X(nisland);
   X(time);
   X(energy);
 #undef X
@@ -865,9 +822,35 @@ MjDataWrapper MjDataWrapper::Deserialize(std::istream& input) {
   // Read buffer contents
   {
     MJDATA_POINTERS_PREAMBLE((&m))
+
 #define X(type, name, nr, nc)  \
     ReadBytes(input, d->name, sizeof(type)*(m.nr)*(nc));
     MJDATA_POINTERS
+#undef X
+
+#undef MJ_M
+#define MJ_M(x) m.x
+#undef MJ_D
+#define MJ_D(x) d->x
+#define X(type, name, nr, nc)                                              \
+  if ((nr) * (nc)) {                                                       \
+    d->name = static_cast<decltype(d->name)>(                              \
+        mj_arenaAllocByte(d, sizeof(type) * (nr) * (nc), alignof(type)));  \
+    ReadBytes(input, d->name, sizeof(type) * (nr) * (nc));                 \
+  }
+
+    MJDATA_ARENA_POINTERS_CONTACT
+    MJDATA_ARENA_POINTERS_PRIMAL
+    if (metadata.is_dual) {
+      MJDATA_ARENA_POINTERS_DUAL
+    }
+    if (d->nisland) {
+      MJDATA_ARENA_POINTERS_ISLAND
+    }
+#undef MJ_M
+#define MJ_M(x) x
+#undef MJ_D
+#define MJ_D(x) x
 #undef X
   }
   CheckInput(input, "mjData");
@@ -1016,6 +999,7 @@ MjvPerturbWrapper::MjWrapper()
       }()),
       X(refpos),
       X(refquat),
+      X(refselpos),
       X(localpos) {}
 #undef X
 
@@ -1076,7 +1060,9 @@ MjvGeomWrapper::MjWrapper()
         static_assert(sizeof(ptr_->mat) == sizeof(ptr_->mat[0])*9);
         return InitPyArray(std::array{3, 3}, ptr_->mat, owner_);
       }()),
-      X(rgba) {}
+      X(rgba) {
+  mjv_initGeom(ptr_, mjGEOM_NONE, nullptr, nullptr, nullptr, nullptr);
+}
 
 MjvGeomWrapper::MjWrapper(raw::MjvGeom* ptr, py::handle owner)
     : WrapperBase(ptr, owner),
@@ -1134,6 +1120,8 @@ MjvOptionWrapper::MjWrapper()
       X(jointgroup),
       X(tendongroup),
       X(actuatorgroup),
+      X(flexgroup),
+      X(skingroup),
       X(flags) {}
 #undef X
 
@@ -1164,6 +1152,18 @@ MjvSceneWrapper::MjWrapper()
       nskinvert(0),
       XN(geoms, 0),
       XN(geomorder, 0),
+      XN(flexedgeadr, 0),
+      XN(flexedgenum, 0),
+      XN(flexvertadr, 0),
+      XN(flexvertnum, 0),
+      XN(flexfaceadr, 0),
+      XN(flexfacenum, 0),
+      XN(flexfaceused, 0),
+      XN(flexedge, 0),
+      XN(flexvert, 0),
+      XN(flexface, 0),
+      XN(flexnormal, 0),
+      XN(flextexcoord, 0),
       XN(skinfacenum, 0),
       XN(skinvertadr, 0),
       XN(skinvertnum, 0),
@@ -1193,8 +1193,54 @@ MjvSceneWrapper::MjWrapper(const MjModelWrapper& model, int maxgeom)
         }
         return nskinvert;
       }(model.get())),
+      nflexface([](const raw::MjModel* m) {
+        int nflexface = 0;
+        int flexfacenum = 0;
+        for (int f=0; f < m->nflex; f++) {
+          if (m->flex_dim[f] == 0) {
+            // 1D : 0
+            flexfacenum = 0;
+          } else if (m->flex_dim[f] == 2) {
+            // 2D: 2*fragments + 2*elements
+            flexfacenum = 2*m->flex_shellnum[f] + 2*m->flex_elemnum[f];
+          } else {
+            // 3D: max(fragments, 4*maxlayer)
+            // find number of elements in biggest layer
+            int maxlayer = 0, layer = 0, nlayer = 1;
+            while (nlayer) {
+              nlayer = 0;
+              for (int e=0; e < m->flex_elemnum[f]; e++) {
+                if (m->flex_elemlayer[m->flex_elemadr[f]+e] == layer) {
+                  nlayer++;
+                }
+              }
+              maxlayer = mjMAX(maxlayer, nlayer);
+              layer++;
+            }
+            flexfacenum = mjMAX(m->flex_shellnum[f], 4*maxlayer);
+          }
+
+          // accumulate over flexes
+          nflexface += flexfacenum;
+        }
+        return nflexface;
+      }(model.get())),
+      nflexedge(model.get()->nflexedge),
+      nflexvert(model.get()->nflexvert),
       XN(geoms, ptr_->maxgeom),
       XN(geomorder, ptr_->maxgeom),
+      XN(flexedgeadr, ptr_->nflex),
+      XN(flexedgenum, ptr_->nflex),
+      XN(flexvertadr, ptr_->nflex),
+      XN(flexvertnum, ptr_->nflex),
+      XN(flexfaceadr, ptr_->nflex),
+      XN(flexfacenum, ptr_->nflex),
+      XN(flexfaceused, ptr_->nflex),
+      XN(flexedge, 2*nflexedge),
+      XN(flexvert, 3*nflexvert),
+      XN(flexface, 9*nflexface),
+      XN(flexnormal, 9*nflexface),
+      XN(flextexcoord, 6*nflexface),
       XN(skinfacenum, ptr_->nskin),
       XN(skinvertadr, ptr_->nskin),
       XN(skinvertnum, ptr_->nskin),
@@ -1231,6 +1277,18 @@ MjvSceneWrapper::MjWrapper(const MjvSceneWrapper& other)
 
   XN(geoms, ptr_->ngeom);
   XN(geomorder, ptr_->ngeom);
+  XN(flexedgeadr, ptr_->nflex);
+  XN(flexedgenum, ptr_->nflex);
+  XN(flexvertadr, ptr_->nflex);
+  XN(flexvertnum, ptr_->nflex);
+  XN(flexfaceadr, ptr_->nflex);
+  XN(flexfacenum, ptr_->nflex);
+  XN(flexfaceused, ptr_->nflex);
+  XN(flexedge, 2*nflexedge);
+  XN(flexvert, 3*nflexvert);
+  XN(flexface, 9*nflexface);
+  XN(flexnormal, 9*nflexface);
+  XN(flextexcoord, 6*nflexface);
   XN(skinfacenum, ptr_->nskin);
   XN(skinvertadr, ptr_->nskin);
   XN(skinvertnum, ptr_->nskin);
@@ -1331,10 +1389,14 @@ PYBIND11_MODULE(_structs, m) {
 #define X(var) mjVisualGlobal.def_readwrite(#var, &raw::MjVisualGlobal::var)
   X(fovy);
   X(ipd);
+  X(azimuth);
+  X(elevation);
   X(linewidth);
   X(glow);
+  X(realtime);
   X(offwidth);
   X(offheight);
+  X(ellipsoidinertia);
 #undef X
 
   py::class_<raw::MjVisualQuality> mjVisualQuality(mjVisual, "Quality");
@@ -1428,6 +1490,7 @@ PYBIND11_MODULE(_structs, m) {
   X(framewidth);
   X(constraint);
   X(slidercrank);
+  X(frustum);
 #undef X
 
   py::class_<MjVisualRgbaWrapper> mjVisualRgba(mjVisual, "Rgba");
@@ -1462,6 +1525,7 @@ PYBIND11_MODULE(_structs, m) {
   X(constraint);
   X(slidercrank);
   X(crankbroken);
+  X(frustum);
 #undef X
 
 #define X(var)                    \
@@ -1532,10 +1596,11 @@ This is useful for example when the MJB is not available as a file on disk.)"));
   MJMODEL_INTS
 #undef X
 
-#define X(dtype, var, dim0, dim1)                        \
-  if constexpr (std::string_view(#var) != "text_data" &&     \
-                std::string_view(#var) != "names") { \
-    DefinePyArray(mjModel, #var, &MjModelWrapper::var);  \
+#define X(dtype, var, dim0, dim1)                             \
+  if constexpr (std::string_view(#var) != "text_data" &&      \
+                std::string_view(#var) != "names" &&          \
+                std::string_view(#var) != "paths") {          \
+    DefinePyArray(mjModel, #var, &MjModelWrapper::var);       \
   }
   MJMODEL_POINTERS
 #undef X
@@ -1550,6 +1615,11 @@ This is useful for example when the MJB is not available as a file on disk.)"));
         // Return the full bytes array of concatenated names
         return m.names_bytes;
       });
+  mjModel.def_property_readonly(
+      "paths", [](const MjModelWrapper& m) -> const auto& {
+        // Return the full bytes array of concatenated paths
+        return m.paths_bytes;
+      });
 
 #define XGROUP(MjModelGroupedViews, field, nfield, FIELD_XMACROS)             \
   mjModel.def(                                                                \
@@ -1560,7 +1630,8 @@ This is useful for example when the MJB is not available as a file on disk.)"));
       #field, [](MjModelWrapper& m, std::string_view name) -> auto& {         \
         return m.indexer().field##_by_name(name);                             \
       },                                                                      \
-      py::return_value_policy::reference_internal);
+      py::return_value_policy::reference_internal, py::arg_v("name", ""));
+
 
   MJMODEL_VIEW_GROUPS
 #undef XGROUP
@@ -1574,16 +1645,23 @@ This is useful for example when the MJB is not available as a file on disk.)"));
       #altname, [](MjModelWrapper& m, std::string_view name) -> auto& {       \
         return m.indexer().field##_by_name(name);                             \
       },                                                                      \
-      py::return_value_policy::reference_internal);
+      py::return_value_policy::reference_internal, py::arg_v("name", ""));
 
   MJMODEL_VIEW_GROUPS_ALTNAMES
 #undef XGROUP
 
-#define XGROUP(MjModelGroupedViews, field, nfield, FIELD_XMACROS)           \
-  {                                                                         \
-    using GroupedViews = MjModelGroupedViews;                               \
+#define XGROUP(MjModelGroupedViews, field, nfield, FIELD_XMACROS)              \
+  {                                                                            \
+    using GroupedViews = MjModelGroupedViews;                                  \
     py::class_<MjModelGroupedViews> groupedViews(m, "_" #MjModelGroupedViews); \
-    FIELD_XMACROS                                                           \
+    FIELD_XMACROS                                                              \
+    groupedViews.def("__repr__", MjModelStructRepr<GroupedViews>);             \
+    groupedViews.def_property_readonly("id", [](GroupedViews& views) {         \
+      return views.index();                                                    \
+    });                                                                        \
+    groupedViews.def_property_readonly("name", [](GroupedViews& views) {       \
+      return views.name();                                                     \
+    });                                                                        \
   }
 #define X(type, prefix, var, dim0, dim1)                                    \
   groupedViews.def_property(                                                \
@@ -1758,8 +1836,13 @@ This is useful for example when the MJB is not available as a file on disk.)"));
   X(frame);
   X(friction);
   X(solref);
+  X(solreffriction);
   X(solimp);
   X(H);
+  X(geom);
+  X(flex);
+  X(elem);
+  X(vert);
 #undef X
 
   py::class_<MjContactList> mjContactList(m, "_MjContactList");
@@ -1769,22 +1852,41 @@ This is useful for example when the MJB is not available as a file on disk.)"));
   mjContactList.def("__len__", &MjContactList::size);
   DefineStructFunctions(mjContactList);
 
-#define X(type, var) mjContactList.def_readonly(#var, &MjContactList::var)
+#define X(type, var)                                                     \
+  mjContactList.def_property_readonly(#var, [](const MjContactList& c) { \
+    return py::array_t<type>(std::vector<int>{c.size()},                 \
+                             std::vector<int>{sizeof(raw::MjContact)},   \
+                             &c.get()->var, c.owner());                  \
+  });
+#define XN(type, var)                                                    \
+  mjContactList.def_property_readonly(#var, [](const MjContactList& c) { \
+    return py::array_t<type>(                                            \
+        std::vector<int>{c.size(),                                       \
+                         sizeof(raw::MjContact::var) / sizeof(type)},    \
+        std::vector<int>{sizeof(raw::MjContact), sizeof(type)},          \
+        &c.get()->var[0], c.owner());                                    \
+  });
   X(mjtNum, dist);
-  X(mjtNum, pos);
-  X(mjtNum, frame);
+  XN(mjtNum, pos);
+  XN(mjtNum, frame);
   X(mjtNum, includemargin);
-  X(mjtNum, friction);
-  X(mjtNum, solref);
-  X(mjtNum, solimp);
+  XN(mjtNum, friction);
+  XN(mjtNum, solref);
+  XN(mjtNum, solreffriction);
+  XN(mjtNum, solimp);
   X(mjtNum, mu);
-  X(mjtNum, H);
+  XN(mjtNum, H);
   X(int, dim);
   X(int, geom1);
   X(int, geom2);
   X(int, exclude);
   X(int, efc_address);
+  XN(int, geom);
+  XN(int, flex);
+  XN(int, elem);
+  XN(int, vert);
 #undef X
+#undef XN
 
   // ==================== MJDATA ===============================================
   py::class_<MjDataWrapper> mjData(m, "MjData");
@@ -1821,6 +1923,30 @@ This is useful for example when the MJB is not available as a file on disk.)"));
 #define X(dtype, var, dim0, dim1) \
   DefinePyArray(mjData, #var, &MjDataWrapper::var);
   MJDATA_POINTERS
+  MJDATA_ARENA_POINTERS_CONTACT
+#undef X
+
+#undef MJ_M
+#define MJ_M(x) d.metadata().x
+#undef MJ_D
+#define MJ_D(x) d.get()->x
+#define X(dtype, var, dim0, dim1)                                           \
+  mjData.def_property_readonly(#var, [](const MjDataWrapper& d) {           \
+    return InitPyArray(X_ARRAY_SHAPE(dim0, dim1), d.get()->var, d.owner()); \
+  });
+
+  MJDATA_ARENA_POINTERS_PRIMAL
+  MJDATA_ARENA_POINTERS_DUAL
+  MJDATA_ARENA_POINTERS_ISLAND
+
+#undef MJ_M
+#define MJ_M(x) (x)
+#undef MJ_D
+#define MJ_D(x) (x)
+#undef X
+
+#define X(dtype, var, dim0, dim1) \
+  DefinePyArray(mjData, #var, &MjDataWrapper::var);
   MJDATA_VECTOR
 #undef X
 
@@ -1833,7 +1959,7 @@ This is useful for example when the MJB is not available as a file on disk.)"));
       #field, [](MjDataWrapper& d, std::string_view name) -> auto& {         \
         return d.indexer().field##_by_name(name);                            \
       },                                                                     \
-      py::return_value_policy::reference_internal);
+      py::return_value_policy::reference_internal, py::arg_v("name", ""));
 
   MJDATA_VIEW_GROUPS
 #undef XGROUP
@@ -1847,7 +1973,7 @@ This is useful for example when the MJB is not available as a file on disk.)"));
       #altname, [](MjDataWrapper& d, std::string_view name) -> auto& {       \
         return d.indexer().field##_by_name(name);                            \
       },                                                                     \
-      py::return_value_policy::reference_internal);
+      py::return_value_policy::reference_internal, py::arg_v("name", ""));
 
   MJDATA_VIEW_GROUPS_ALTNAMES
 #undef XGROUP
@@ -1857,6 +1983,13 @@ This is useful for example when the MJB is not available as a file on disk.)"));
     using GroupedViews = MjDataGroupedViews;                                 \
     py::class_<MjDataGroupedViews> groupedViews(m, "_" #MjDataGroupedViews); \
     FIELD_XMACROS                                                            \
+    groupedViews.def("__repr__", MjDataStructRepr<GroupedViews>);            \
+    groupedViews.def_property_readonly("id", [](GroupedViews& views) {       \
+      return views.index();                                                  \
+    });                                                                      \
+    groupedViews.def_property_readonly("name", [](GroupedViews& views) {     \
+      return views.name();                                                   \
+    });                                                                      \
   }
 #define X(type, prefix, var, dim0, dim1)                                    \
   groupedViews.def_property(                                                \
@@ -1922,7 +2055,7 @@ This is useful for example when the MJB is not available as a file on disk.)"));
   X(timeconst);
   X(timestep);
   X(inttotal);
-  X(inteval);
+  X(interval);
   X(tolrange);
 #undef X
 
@@ -1943,14 +2076,18 @@ This is useful for example when the MJB is not available as a file on disk.)"));
         c.get()->var = rhs;                                          \
       })
   X(select);
+  X(flexselect);
   X(skinselect);
   X(active);
   X(active2);
+  X(localmass);
+  X(scale);
 #undef X
 
 #define X(var) DefinePyArray(mjvPerturb, #var, &MjvPerturbWrapper::var)
   X(refpos);
   X(refquat);
+  X(refselpos);
   X(localpos);
 #undef X
 
@@ -2001,6 +2138,7 @@ This is useful for example when the MJB is not available as a file on disk.)"));
         c.get()->var = rhs;                                            \
       })
   X(frustum_center);
+  X(frustum_width);
   X(frustum_bottom);
   X(frustum_top);
   X(frustum_near);
@@ -2107,6 +2245,8 @@ This is useful for example when the MJB is not available as a file on disk.)"));
       })
   X(label);
   X(frame);
+  X(bvh_depth);
+  X(flex_layer);
 #undef X
 
 #define X(var) DefinePyArray(mjvOption, #var, &MjvOptionWrapper::var)
@@ -2115,6 +2255,8 @@ This is useful for example when the MJB is not available as a file on disk.)"));
   X(jointgroup);
   X(tendongroup);
   X(actuatorgroup);
+  X(flexgroup);
+  X(skingroup);
   X(flags);
 #undef X
 
@@ -2137,7 +2279,13 @@ This is useful for example when the MJB is not available as a file on disk.)"));
       })
   X(maxgeom);
   X(ngeom);
+  X(nflex);
+  X(nskin);
   X(nlight);
+  X(flexvertopt);
+  X(flexedgeopt);
+  X(flexfaceopt);
+  X(flexskinopt);
   X(enabletransform);
   X(scale);
   X(stereo);
@@ -2147,6 +2295,18 @@ This is useful for example when the MJB is not available as a file on disk.)"));
 #define X(var) DefinePyArray(mjvScene, #var, &MjvSceneWrapper::var)
   X(geoms);
   X(geomorder);
+  X(flexedgeadr);
+  X(flexedgenum);
+  X(flexvertadr);
+  X(flexvertnum);
+  X(flexfaceadr);
+  X(flexfacenum);
+  X(flexfaceused);
+  X(flexedge);
+  X(flexvert);
+  X(flexface);
+  X(flexnormal);
+  X(flextexcoord);
   X(skinfacenum);
   X(skinvertadr);
   X(skinvertnum);
@@ -2198,6 +2358,7 @@ This is useful for example when the MJB is not available as a file on disk.)"));
   X(textrgb);
   X(linergb);
   X(range);
+  X(highlight);
   X(linepnt);
   X(linedata);
   X(xaxispixel);

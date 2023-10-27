@@ -1,0 +1,23 @@
+<mujoco model="revolute">
+  <option timestep="0.02" solver="CG" iterations="6" ls_iterations="6"/>
+  <compiler autolimits="true"/>
+  <default>
+    <geom contype="0" conaffinity="0"/>
+    <joint damping="20"/>
+  </default>
+  <worldbody>
+    <body>
+      <joint axis="1 0 0" type="ball" range="0 10"/>
+      <geom pos="0 0.5 0" size=".15" mass="1" type="sphere"/>
+      <body pos="0.3 0.4 0.5">
+        <joint axis="1 0 0" type="hinge" range="-20 20"/>
+        <joint axis="0 1 0" type="hinge" range="-20 20"/>
+        <geom pos="0 0.5 0" size=".15" mass="2" type="sphere"/>
+        <body pos="0 0.5 0">
+          <joint axis="1 0 0" type="hinge" range="-30 30"/>
+          <geom pos="0 0.5 0" size=".15" mass="3" type="sphere"/>
+        </body>
+      </body>
+    </body>
+  </worldbody>
+</mujoco>

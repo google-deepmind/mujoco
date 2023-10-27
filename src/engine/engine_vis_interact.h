@@ -59,8 +59,7 @@ MJAPI void mjv_moveModel(const mjModel* m, int action, mjtNum reldx, mjtNum reld
                          const mjtNum roomup[3], mjvScene* scn);
 
 // copy perturb pos,quat from selected body; set scale perturbation
-MJAPI void mjv_initPerturb(const mjModel* m, const mjData* d,
-                           const mjvScene* scn, mjvPerturb* pert);
+MJAPI void mjv_initPerturb(const mjModel* m, mjData* d, const mjvScene* scn, mjvPerturb* pert);
 
 // set perturb pos,quat in d->mocap when selected body is mocap, and in d->qpos otherwise
 //  d->qpos written only if flg_paused and subtree root for selected body has free joint
@@ -73,10 +72,11 @@ MJAPI void mjv_applyPerturbForce(const mjModel* m, mjData* d, const mjvPerturb* 
 // return the average of two OpenGL cameras
 MJAPI mjvGLCamera mjv_averageCamera(const mjvGLCamera* cam1, const mjvGLCamera* cam2);
 
-// Select geom or skin with mouse, return bodyid; -1: none selected.
+// Select geom, flex or skin with mouse, return bodyid; -1: none selected.
 MJAPI int mjv_select(const mjModel* m, const mjData* d, const mjvOption* vopt,
                      mjtNum aspectratio, mjtNum relx, mjtNum rely,
-                     const mjvScene* scn, mjtNum selpnt[3], int geomid[1], int skinid[1]);
+                     const mjvScene* scn, mjtNum selpnt[3],
+                     int geomid[1], int flexid[1], int skinid[1]);
 
 #ifdef __cplusplus
 }

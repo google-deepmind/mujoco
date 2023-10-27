@@ -9,7 +9,7 @@
     <map force="0.1"/>
   </visual>
 
-  <size njmax="3000" nconmax="1000"/>
+  <size memory="100M"/>
 
   <asset>
     <mesh name="box" vertex="-1 -1 -1 1 -1 -1 1 1 -1 1 1 1 1 -1 1 -1 1 -1 -1 1 1 -1 -1 1"

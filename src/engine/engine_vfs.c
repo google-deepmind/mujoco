@@ -14,40 +14,41 @@
 
 #include "engine/engine_vfs.h"
 
+#include <stddef.h>
 #include <string.h>
-#include <stdlib.h>
 
 #include "engine/engine_array_safety.h"
-#include "engine/engine_file.h"
+#include "engine/engine_resource.h"
 #include "engine/engine_util_errmem.h"
 #include "engine/engine_util_misc.h"
 
 // strip path prefix from filename
 static void vfs_strippath(char* newname, const char* oldname) {
-  int i, sz = strlen(oldname);
+  int sz = strlen(oldname);
 
   // find last delimiter
-  for (i=sz-1; i>=0; i--) {
-    if (oldname[i]=='\\' || oldname[i]=='/') {
+  int i;
+  for (i=sz-1; i >= 0; i--) {
+    if (oldname[i] == '\\' || oldname[i] == '/') {
       break;
     }
   }
 
   // check resulting length
-  if (sz-(i+1)>=mjMAXVFSNAME) {
-    mju_error("Filename too long in VFS");
+  if (sz-(i+1) >= mjMAXVFSNAME) {
+    mjERROR("filename too long");
   }
-  if (sz-(i+1)<=0) {
-    mju_error("Empty filename in VFS");
+  if (sz-(i+1) <= 0) {
+    mjERROR("empty filename");
   }
 
   // copy
   mju_strncpy(newname, oldname+i+1, mjMAXVFSNAME);
 
   // make lowercase
-  for (i=strlen(newname)-1; i>=0; i--) {
-    if (newname[i]>='A' && newname[i]<='Z') {
-      newname[i] = (char)(((int)newname[i]) +'a' - 'A');
+  for (int j=strlen(newname)-1; j >= 0; j--) {
+    if (newname[j] >= 'A' && newname[j] <= 'Z') {
+      newname[j] = (char)(((int)newname[j]) +'a' - 'A');
     }
   }
 }
@@ -64,17 +65,14 @@ void mj_defaultVFS(mjVFS* vfs) {
 // add file to VFS, return 0: success, 1: full, 2: repeated name, -1: failed to load
 int mj_addFileVFS(mjVFS* vfs, const char* directory, const char* filename) {
   // check vfs size
-  if (vfs->nfile>=mjMAXVFS-1) {
+  if (vfs->nfile >= mjMAXVFS-1) {
     return 1;
   }
 
   // make full name
   char fullname[1000];
-  if (directory) {
-    mjSTRNCPY(fullname, directory);
-    mjSTRNCAT(fullname, filename);
-  } else {
-    mjSTRNCPY(fullname, filename);
+  if (mju_makefullname(fullname, sizeof(fullname), directory, filename)) {
+    return -1;
   }
 
   // strip path
@@ -82,8 +80,8 @@ int mj_addFileVFS(mjVFS* vfs, const char* directory, const char* filename) {
   vfs_strippath(newname, filename);
 
   // check for repeated name
-  for (int i=0; i<vfs->nfile; i++) {
-    if (strncmp(newname, vfs->filename[i], mjMAXVFSNAME)==0) {
+  for (int i=0; i < vfs->nfile; i++) {
+    if (strncmp(newname, vfs->filename[i], mjMAXVFSNAME) == 0) {
       return 2;
     }
   }
@@ -92,8 +90,8 @@ int mj_addFileVFS(mjVFS* vfs, const char* directory, const char* filename) {
   mjSTRNCPY(vfs->filename[vfs->nfile], newname);
 
   // allocate and read
-  int filesize = 0;
-  vfs->filedata[vfs->nfile] = mju_fileToMemory(filename, &filesize);
+  size_t filesize = 0;
+  vfs->filedata[vfs->nfile] = mju_fileToMemory(fullname, &filesize);
   if (!vfs->filedata[vfs->nfile]) {
     return -1;
   }
@@ -109,13 +107,13 @@ int mj_addFileVFS(mjVFS* vfs, const char* directory, const char* filename) {
 // make empty file in VFS, return 0: success, 1: full, 2: repeated name
 int mj_makeEmptyFileVFS(mjVFS* vfs, const char* filename, int filesize) {
   // check vfs size
-  if (vfs->nfile>=mjMAXVFS-1) {
+  if (vfs->nfile >= mjMAXVFS-1) {
     return 1;
   }
 
   // check filesize
-  if (filesize<=0) {
-    mju_error("mj_makeEmptyFileVFS expects positive filesize");
+  if (filesize <= 0) {
+    mjERROR("expects positive filesize");
   }
 
   // strip path
@@ -123,8 +121,8 @@ int mj_makeEmptyFileVFS(mjVFS* vfs, const char* filename, int filesize) {
   vfs_strippath(newname, filename);
 
   // check for repeated name
-  for (int i=0; i<vfs->nfile; i++) {
-    if (strncmp(newname, vfs->filename[i], mjMAXVFSNAME)==0) {
+  for (int i=0; i < vfs->nfile; i++) {
+    if (strncmp(newname, vfs->filename[i], mjMAXVFSNAME) == 0) {
       return 2;
     }
   }
@@ -135,7 +133,7 @@ int mj_makeEmptyFileVFS(mjVFS* vfs, const char* filename, int filesize) {
   // allocate and clear
   vfs->filedata[vfs->nfile] = mju_malloc(filesize);
   if (!vfs->filedata[vfs->nfile]) {
-    mju_error("mj_makeEmptyFileVFS: could not allocate memory");
+    mjERROR("could not allocate memory");
   }
   memset(vfs->filedata[vfs->nfile], 0, filesize);
 
@@ -153,10 +151,9 @@ int mj_findFileVFS(const mjVFS* vfs, const char* filename) {
   // strip path
   char newname[mjMAXVFSNAME];
   vfs_strippath(newname, filename);
-
   // find specific file
-  for (int i=0; i<vfs->nfile; i++) {
-    if (strncmp(newname, vfs->filename[i], mjMAXVFSNAME)==0) {
+  for (int i=0; i < vfs->nfile; i++) {
+    if (strncmp(newname, vfs->filename[i], mjMAXVFSNAME) == 0) {
       return i;
     }
   }
@@ -173,16 +170,16 @@ int mj_deleteFileVFS(mjVFS* vfs, const char* filename) {
   vfs_strippath(newname, filename);
 
   // find specified file
-  for (int i=0; i<vfs->nfile; i++) {
-    if (strncmp(newname, vfs->filename[i], mjMAXVFSNAME)==0) {
+  for (int i=0; i < vfs->nfile; i++) {
+    if (strncmp(newname, vfs->filename[i], mjMAXVFSNAME) == 0) {
       // free buffer
       mju_free(vfs->filedata[i]);
 
       // scroll remaining files forward
-      while (i<vfs->nfile-1) {
-        mjSTRNCPY(vfs->filename[i], vfs->filename[i+1]);
-        vfs->filesize[i] = vfs->filesize[i+1];
-        vfs->filedata[i] = vfs->filedata[i+1];
+      for (int j=i; j < vfs->nfile-1; j++) {
+        mjSTRNCPY(vfs->filename[j], vfs->filename[j+1]);
+        vfs->filesize[j] = vfs->filesize[j+1];
+        vfs->filedata[j] = vfs->filedata[j+1];
       }
 
       // set last to 0, for style
@@ -203,9 +200,110 @@ int mj_deleteFileVFS(mjVFS* vfs, const char* filename) {
 
 // delete all files from VFS
 void mj_deleteVFS(mjVFS* vfs) {
-  for (int i=0; i<vfs->nfile; i++) {
+  for (int i=0; i < vfs->nfile; i++) {
     mju_free(vfs->filedata[i]);
   }
 
   memset(vfs, 0, sizeof(mjVFS));
+}
+
+
+
+// open callback for the VFS resource provider
+static int vfs_open_callback(mjResource* resource) {
+  if (!resource || !resource->name || !resource->data) {
+    return 0;
+  }
+
+  const mjVFS* vfs = (const mjVFS*) resource->data;
+  return mj_findFileVFS(vfs, resource->name) >= 0;
+}
+
+
+
+// read callback for the VFS resource provider
+static int vfs_read_callback(mjResource* resource, const void** buffer) {
+  if (!resource || !resource->name || !resource->data) {
+    *buffer = NULL;
+    return -1;
+  }
+
+  const mjVFS* vfs = (const mjVFS*) resource->data;
+  int i = mj_findFileVFS(vfs, resource->name);
+  if (i < 0) {
+    *buffer = NULL;
+    return -1;
+  }
+
+  *buffer = vfs->filedata[i];
+  return vfs->filesize[i];
+}
+
+
+
+// close callback for the VFS resource provider
+static void vfs_close_callback(mjResource* resource) {
+}
+
+
+
+// getdir callback for the VFS resource provider
+static void vfs_getdir_callback(mjResource* resource, const char** dir, int* ndir) {
+  if (resource) {
+    *dir = resource->name;
+    *ndir = mju_dirnamelen(resource->name);
+  } else {
+    *dir = NULL;
+    *ndir = 0;
+  }
+}
+
+
+
+// open VFS resource
+mjResource* mju_openVfsResource(const char* name, const mjVFS* vfs) {
+  if (vfs == NULL) {
+    return NULL;
+  }
+
+  // VFS provider
+  static struct mjpResourceProvider provider = {
+    .prefix   = NULL,
+    .data     = NULL,
+    .open     = &vfs_open_callback,
+    .read     = &vfs_read_callback,
+    .close    = &vfs_close_callback,
+    .getdir   = &vfs_getdir_callback,
+    .modified = NULL
+  };
+
+  // create resource
+  mjResource* resource = (mjResource*) mju_malloc(sizeof(mjResource));
+  if (resource == NULL) {
+    mjERROR("could not allocate memory");
+    return NULL;
+  }
+
+  // clear out resource
+  memset(resource, 0, sizeof(mjResource));
+
+  // copy name
+  resource->name = mju_malloc(sizeof(char) * (strlen(name) + 1));
+  if (resource->name == NULL) {
+    mju_closeResource(resource);
+    mjERROR("could not allocate memory");
+    return NULL;
+  }
+  memcpy(resource->name, name, sizeof(char) * (strlen(name) + 1));
+  resource->data = (void*) vfs;
+
+  // open resource
+  resource->provider = &provider;
+  if (provider.open(resource)) {
+    return resource;
+  }
+
+  // not found in VFS
+  mju_closeResource(resource);
+  return NULL;
 }

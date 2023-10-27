@@ -63,6 +63,8 @@ public class MjScene : MonoBehaviour {
     }
   }
 
+  public static bool InstanceExists { get => _instance != null; }
+
   public void Awake() {
     if (_instance == null) {
       _instance = this;
@@ -76,7 +78,14 @@ public class MjScene : MonoBehaviour {
 
   private List<MjComponent> _orderedComponents;
 
+  public EventHandler<MjStepArgs> postInitEvent;
+  public EventHandler preUpdateEvent;
+  public EventHandler<MjStepArgs> ctrlCallback;
+  public EventHandler postUpdateEvent;
+  public EventHandler<MjStepArgs> preDestroyEvent;
+
   protected unsafe void Start() {
+    SceneRecreationAtLateUpdateRequested = false;
     CreateScene();
   }
 
@@ -85,7 +94,9 @@ public class MjScene : MonoBehaviour {
   }
 
   protected unsafe void FixedUpdate() {
+    preUpdateEvent?.Invoke(this, EventArgs.Empty);
     StepScene();
+    postUpdateEvent?.Invoke(this, EventArgs.Empty);
   }
 
   public bool SceneRecreationAtLateUpdateRequested = false;
@@ -159,6 +170,7 @@ public class MjScene : MonoBehaviour {
       // Compile the scene from the Mjcf.
       CompileScene(sceneMjcf, _orderedComponents);
     }
+    postInitEvent?.Invoke(this, new MjStepArgs(Model, Data));
     return sceneMjcf;
   }
 
@@ -166,12 +178,12 @@ public class MjScene : MonoBehaviour {
       XmlDocument mjcf, IEnumerable<MjComponent> components) {
     Model = MjEngineTool.LoadModelFromString(mjcf.OuterXml);
     if (Model == null) {
-      throw new NullReferenceException("Failed to create Mujoco runtime model.");
+      throw new NullReferenceException("Model loading failed, see other errors for root cause.");
     } else {
       Data = MujocoLib.mj_makeData(Model);
     }
     if (Data == null) {
-      throw new NullReferenceException("Failed to create Mujoco runtime data.");
+      throw new NullReferenceException("Model loaded but mj_makeData failed.");
     }
 
     // Bind the components to their Mujoco counterparts.
@@ -297,6 +309,7 @@ public class MjScene : MonoBehaviour {
 
   // Destroys the Mujoco scene.
   public unsafe void DestroyScene() {
+    preDestroyEvent?.Invoke(this, new MjStepArgs(Model, Data));
     if (Model != null) {
       MujocoLib.mj_deleteModel(Model);
       Model = null;
@@ -314,7 +327,14 @@ public class MjScene : MonoBehaviour {
     }
     Profiler.BeginSample("MjStep");
     Profiler.BeginSample("MjStep.mj_step");
-    MujocoLib.mj_step(Model, Data);
+    if (ctrlCallback != null){
+      MujocoLib.mj_step1(Model, Data);
+      ctrlCallback?.Invoke(this, new MjStepArgs(Model, Data));
+      MujocoLib.mj_step2(Model, Data);
+    }
+    else {
+      MujocoLib.mj_step(Model, Data);
+    }
     Profiler.EndSample(); // MjStep.mj_step
     CheckForPhysicsException();
 
@@ -386,12 +406,17 @@ public class MjScene : MonoBehaviour {
     MjRoot.AppendChild(GenerateMjcfSection(
         doc, components.Where(component => component is MjBaseConstraint), "equality"));
 
-    MjRoot.AppendChild(GenerateMjcfSection(
-        doc, components.Where(component => component is MjActuator), "actuator"));
+    MjRoot.AppendChild(
+        GenerateMjcfSection(doc,
+                            components.Where(component => component is MjActuator)
+                                .OrderBy(component => component.transform.GetSiblingIndex()),
+                            "actuator"));
 
-    MjRoot.AppendChild(GenerateMjcfSection(
-        doc, components.Where(component => component is MjBaseSensor), "sensor"));
-
+    MjRoot.AppendChild(
+        GenerateMjcfSection(doc,
+                            components.Where(component => component is MjBaseSensor)
+                                .OrderBy(component => component.transform.GetSiblingIndex()),
+                            "sensor"));
     // Generate the Mjcf of the runtime dependencies added to the context.
     _generationContext.GenerateMjcf(MjRoot);
     return doc;
@@ -447,5 +472,15 @@ public class MjScene : MonoBehaviour {
       Debug.LogWarning("Failed to save Xml to a file: " + ex.ToString(), this);
     }
   }
+}
+
+public class MjStepArgs : EventArgs
+{
+  public unsafe MjStepArgs(MujocoLib.mjModel_* model, MujocoLib.mjData_* data){
+    this.model = model;
+    this.data = data;
+  }
+  public readonly unsafe MujocoLib.mjModel_* model;
+  public readonly unsafe MujocoLib.mjData_* data;
 }
 }
