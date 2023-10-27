@@ -144,6 +144,7 @@ html_theme_options = {
         'wy-menu-vertical-color': 'white',
         'wy-nav-side-background-color': '#0053d6',
     },
+    "announcement": "<em>CoRL 2023</em> meetup in Atlanta, RSVP <a href='https://rsvp.withgoogle.com/events/mujoco-corl-2023'>here</a>!",
 }
 
 for v in html_theme_options.values():
