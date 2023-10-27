@@ -14,8 +14,8 @@
 # ==============================================================================
 """An example integration of MJX with the MuJoCo viewer."""
 
-from collections.abc import Sequence
 import time
+from typing import Sequence
 
 from absl import app
 from absl import flags
