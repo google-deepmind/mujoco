@@ -64,8 +64,10 @@ int CreateStencils(std::vector<T>& elements,
         elements[t].edges[e] = it->second;
       }
 
-      if (!edgeidx.empty()) {
-        assert(elements[t].edges[e] == edgeidx[T::kNumEdges*t+e]);
+      if (!edgeidx.empty()) {  // SHOULD NOT OCCUR
+        if (elements[t].edges[e] != edgeidx[T::kNumEdges*t+e]) {
+          mju_error("edge ordering is incoherent between flex and plugin");
+        }
       }
     }
   }
