@@ -25,15 +25,17 @@ Python bindings
 
 Simulate
 ^^^^^^^^
-
 6. :ref:`simulate<saSimulate>`: correct handling of "Pause update", "Fullscreen" and "VSync" buttons.
 
 Documentation
 ^^^^^^^^^^^^^
-
 7. Added documentation for the :ref:`UI` framework.
 8. Fixed typos and supported fields in docs (fixes :github:issue:`1105` and :github:issue:`1106`).
 
+
+Bug fixes
+^^^^^^^^^
+9. Fixed bug relating to welds modified with :ref:`torquescale<equality-weld-torquescale>`.
 
 Version 3.0.0 (October 18, 2023)
 --------------------------------

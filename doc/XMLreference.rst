@@ -4486,11 +4486,12 @@ of the other body, without any joint elements in the child body.
 .. _equality-weld-torquescale:
 
 :at:`torquescale`: :at-val:`real, "1"`
-   Relative torque-to-force ratio. This ratio is used by the weld to scale how much it "cares" about rotational
-   displacements vs. translational displacements. Setting this value to 0 makes the :el:`weld` behave like a
-   :el:`connect` constraint. Note that this value has units of length and can therefore be interpreted as follows.
-   Imagining that the weld is implemented by a patch of glue sticking the two bodies together, :at:`torquescale` can be
-   interpreted as the diameter of this glue patch.
+   A constant that scales the angular residual (angular constraint violation). Notionally in units of
+   :math:`\textrm{torque}/\textrm{force}=\textrm{length}`. Intuitively this coefficient defines how much the weld
+   "cares" about rotational displacements vs. translational displacements. Setting this value to 0 makes the :el:`weld`
+   behave like a :el:`connect` constraint. Note that this value has units of length and can therefore be understood as
+   follows. Imagining that the weld is implemented by a flat patch of glue sticking the two bodies together,
+   :at:`torquescale` can be interpreted as the diameter of this glue patch.
 
 
 .. _equality-joint:

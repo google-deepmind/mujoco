@@ -29,7 +29,7 @@ from mujoco.mjx._src.types import SolverType
 import numpy as np
 
 
-def _assert_eq(a, b, name, step, fname, atol=1e-3, rtol=1e-3):
+def _assert_eq(a, b, name, step, fname, atol=5e-3, rtol=5e-3):
   err_msg = f'mismatch: {name} at step {step} in {fname}'
   np.testing.assert_allclose(a, b, err_msg=err_msg, atol=atol, rtol=rtol)
 

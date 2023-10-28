@@ -168,10 +168,10 @@ def _instantiate_weld(m: Model, d: Data) -> _Efc:
     jacdifr = 0.5 * jax.vmap(jac_fn)(jacdifr)
 
     j = jp.concatenate((jacdifp.T, jacdifr.T))
-    pos = jp.concatenate((cpos, crot))
+    pos = jp.concatenate((cpos, crot)).at[3:].mul(torquescale)
 
     # impedance, inverse constraint mass, reference acceleration
-    k, b, imp = _kbi(m, solref, solimp, math.norm(pos.at[3:].mul(torquescale)))
+    k, b, imp = _kbi(m, solref, solimp, math.norm(pos))
     invweight = m.body_invweight0[id1] + m.body_invweight0[id2]
     r = jp.maximum(invweight * (1 - imp) / imp, mujoco.mjMINVAL).repeat(3)
     aref = -b * (j @ d.qvel) - k * imp * pos

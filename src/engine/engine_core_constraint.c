@@ -539,6 +539,9 @@ void mj_instantiateEquality(const mjModel* m, mjData* d) {
         // compute position error
         mju_sub3(cpos, pos[0], pos[1]);
 
+        // get torquescale coefficient
+        mjtNum torquescale = data[10];
+
         // compute error Jacobian (opposite of contact: 0 - 1)
         NV = mj_jacDifPair(m, d, chain, id[1], id[0], pos[1], pos[0],
                            jac[1], jac[0], jacdif,
@@ -553,7 +556,7 @@ void mj_instantiateEquality(const mjModel* m, mjData* d) {
         mju_mulQuat(quat, d->xquat+4*id[0], relpose);   // quat = q0*relpose
         mju_negQuat(quat1, d->xquat+4*id[1]);           // quat1 = neg(q1)
         mju_mulQuat(quat2, quat1, quat);                // quat2 = neg(q1)*q0*relpose
-        mju_copy3(cpos+3, quat2+1);                     // copy axis components
+        mju_scl3(cpos+3, quat2+1, torquescale);         // scale axis components by torquescale
 
         // correct rotation Jacobian: 0.5 * neg(q1) * (jac0-jac1) * q0 * relpose
         for (int j=0; j < NV; j++) {
@@ -572,8 +575,7 @@ void mj_instantiateEquality(const mjModel* m, mjData* d) {
           jac[0][5*NV+j] = 0.5*quat3[3];
         }
 
-        // scale rotational jacobian by torquescale factor
-        mjtNum torquescale = data[10];
+        // scale rotational jacobian by torquescale
         mju_scl(jac[0]+3*NV, jac[0]+3*NV, torquescale, 3*NV);
 
         size = 6;
