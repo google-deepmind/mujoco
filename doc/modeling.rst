@@ -259,14 +259,14 @@ available in :ref:`option <option>`; it can be used to change all contact-relate
 experiment interactively with parameter settings or implement continuation methods for numerical optimization.
 
 Here we focus on a single scalar constraint. Using slightly different notation from the Computation chapter, let
-:math:`a_1` denote the acceleration, :math:`v` the velocity, :math:`r` the position or residual (defined as 0 in
+:math:`\ac` denote the acceleration, :math:`v` the velocity, :math:`r` the position or residual (defined as 0 in
 friction dimensions), :math:`k` and :math:`b` the stiffness and damping of the virtual spring used to define the
-reference acceleration :math:`a_{\rm ref} = -b v - k r`. Let :math:`d` be the constraint impedance, and :math:`a_0` the
+reference acceleration :math:`\ar = -b v - k r`. Let :math:`d` be the constraint impedance, and :math:`\au` the
 acceleration in the absence of constraint force. Our earlier analysis revealed that the dynamics in constraint space are
 approximately
 
 .. math::
-   a_1 + d \cdot (b v + k r) = (1 - d)\cdot a_0
+   \ac + d \cdot (b v + k r) = (1 - d)\cdot \au
 
 Again, the parameters that are under the user's control are :math:`d, b, k`. The remaining quantities are functions of
 the system state and are computed automatically at each time step.
@@ -278,15 +278,16 @@ Impedance
 
 We begin by explaining the constraint impedance :math:`d`.
 
-.. admonition:: Intuitive description
+.. admonition:: Intuitive description of the **impedance**
 
-   The *impedance* :math:`d \in (0, 1)` determines a constraint's **ability to generate force**.
+   The *impedance* :math:`d \in (0, 1)` corresponds to a constraint's **ability to generate force**.
    Small values of :math:`d` correspond to weak constraints while large values of :math:`d`
-   correspond to strong constraints. Impedance is set using the :at:`solimp` attribute.
+   correspond to strong constraints. The impedance affects the constraint at all times, in particular when the system is
+   at rest. Impedance is set using the :at:`solimp` attribute.
 
 Recall that :math:`d` must lie between 0 and 1; internally MuJoCo clamps it to the range [:ref:`mjMINIMP mjMAXIMP
 <glNumeric>`] which is currently set to [0.0001 0.9999]. It causes the solver to interpolate between the unforced
-acceleration :math:`a_0` and reference acceleration :math:`a_{\rm ref}`. The user can set :math:`d` to a constant, or
+acceleration :math:`\au` and reference acceleration :math:`\ar`. The user can set :math:`d` to a constant, or
 take advantage of its interpolating property and make it position-dependent, i.e., a function of the constraint
 violation :math:`r`. Position-dependent impedance can be used to model soft contact layers around objects, or define
 equality constraints that become stronger with larger violation (so as to approximate backlash, for example). The shape
@@ -333,15 +334,26 @@ Reference
 ^^^^^^^^^
 
 Next we explain the setting of the stiffness :math:`k` and damping :math:`b` which control the reference acceleration
-:math:`a_{\rm ref}`.
+:math:`\ar`.
 
-.. admonition:: Intuitive description
+.. admonition:: Intuitive description of the **reference acceleration**
 
-   The *reference acceleration* :math:`a_{\rm ref}` determines **what the constraint is trying to achieve** (as opposed
-   to how well it can achieve it). This acceleration is defined by two numbers, a stiffness :math:`k` and damping
-   :math:`b` which can be set directly or re-parameterized as the time-constant and damping ratio of a
-   mass-spring-damper system (a `harmonic oscillator <https://en.wikipedia.org/wiki/Harmonic_oscillator>`__).
-   The reference acceleration is controlled by the :at:`solref` attribute.
+   The *reference acceleration* :math:`\ar` determines the **motion that constraint is trying to achieve** in
+   order to rectify violation. For example, consider a contact between a motionless free body pulled down by gravity
+   onto a static plane geom. Since there is no motion, the penetration will be entirely determined by the impedance
+   while the reference has no effect. Now imagine that the body is dropped onto the plane. Upon impact the constraint
+   will generate a normal force which attempts to rectify the penetration using a particular motion; this motion is
+   the reference acceleration.
+
+   Another way of understanding the reference acceleration is to think of the unmodeled deformation variables
+   described in the :ref:`Computation chapter<soPrimal>`. Imagine two bodies pressed together, leading to deformation at
+   the contact. Now pull the bodies apart very quickly; the motion of the deformation as it settles into its undeformed
+   state is the reference acceleration.
+
+   This acceleration is defined by two numbers, a stiffness :math:`k` and damping :math:`b` which can be set directly or
+   re-parameterized as the time-constant and damping ratio of a mass-spring-damper system (a `harmonic oscillator
+   <https://en.wikipedia.org/wiki/Harmonic_oscillator>`__). The reference acceleration is controlled by the :at:`solref`
+   attribute.
 
 There are two formats for this attribute, determined by the sign of the numbers. If both numbers are positive the
 specification is considered to be in the :math:`(\text{timeconst}, \text{dampratio})` format. If negative it is in the

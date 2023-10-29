@@ -143,47 +143,59 @@ Our notation is summarized in the table below. Additional notation specific to c
 When available, we also show the fields of main data structures :ref:`mjModel` and :ref:`mjData` corresponding to the
 mathematical notation.
 
-+-----------------+----------------+----------------+----------------------+
-| Symbol          | Size           | Description    | MuJoCo field         |
-+=================+================+================+======================+
-| :math:`n_Q`     |                | number of      | ``mjModel.nq``       |
-|                 |                | position       |                      |
-|                 |                | coordinates    |                      |
-+-----------------+----------------+----------------+----------------------+
-| :math:`n_V`     |                | number of      | ``mjModel.nv``       |
-|                 |                | degrees of     |                      |
-|                 |                | freedom        |                      |
-+-----------------+----------------+----------------+----------------------+
-| :math:`n_C`     |                | number of      | ``mjData.nefc``      |
-|                 |                | active         |                      |
-|                 |                | constraints    |                      |
-+-----------------+----------------+----------------+----------------------+
-| :math:`q`       | :math:`n_Q`    | joint position | ``mjData.qpos``      |
-+-----------------+----------------+----------------+----------------------+
-| :math:`v`       | :math:`n_V`    | joint velocity | ``mjData.qvel``      |
-+-----------------+----------------+----------------+----------------------+
-| :math:`\tau`    | :math:`n_V`    | applied force: |                      |
-|                 |                | passive,       |                      |
-|                 |                | actuation,     |                      |
-|                 |                | external       |                      |
-+-----------------+----------------+----------------+----------------------+
-| :math:`c(q, v)` | :math:`n_V`    | bias force:    | ``mjData.qfrc_bias`` |
-|                 |                | Coriolis,      |                      |
-|                 |                | centrifugal,   |                      |
-|                 |                | gravitational  |                      |
-+-----------------+----------------+----------------+----------------------+
-| :math:`M(q)`    | :math:`n_V     | inertia in     | ``mjData.qM``        |
-|                 | \times n_V`    | joint space    |                      |
-+-----------------+----------------+----------------+----------------------+
-| :math:`J(q)`    | :math:`n_C     | constraint     | ``mjData.efc_J``     |
-|                 | \times n_V`    | Jacobian       |                      |
-+-----------------+----------------+----------------+----------------------+
-| :math:`r(q)`    | :math:`n_C`    | constraint     | ``mjData.efc_pos``   |
-|                 |                | residual       |                      |
-+-----------------+----------------+----------------+----------------------+
-| :math:`f(q, v,  | :math:`n_C`    | constraint     | ``mjData.efc_force`` |
-| \tau)`          |                | force          |                      |
-+-----------------+----------------+----------------+----------------------+
+.. list-table::
+   :widths: 2 2 7 4
+   :header-rows: 1
+
+   * - Symbol
+     - Size
+     - Description
+     - MuJoCo field
+   * - :math:`n_Q`
+     -
+     - number of position coordinates
+     - ``mjModel.nq``
+   * - :math:`n_V`
+     -
+     - number of degrees of freedom
+     - ``mjModel.nv``
+   * - :math:`n_C`
+     -
+     - number of active constraints
+     - ``mjData.nefc``
+   * - :math:`q`
+     - :math:`n_Q`
+     - joint position
+     - ``mjData.qpos``
+   * - :math:`v`
+     - :math:`n_V`
+     - joint velocity
+     - ``mjData.qvel``
+   * - :math:`\tau`
+     - :math:`n_V`
+     - applied force: passive, actuation, external
+     - ``mjData.qfrc_passive`` + ``mjData.qfrc_actuator`` + ``mjData.qfrc_applied``
+   * - :math:`c(q, v)`
+     - :math:`n_V`
+     - bias force: Coriolis, centrifugal, gravitational
+     - ``mjData.qfrc_bias``
+   * - :math:`M(q)`
+     - :math:`n_V \times n_V`
+     - inertia in joint space
+     - ``mjData.qM``
+   * - :math:`J(q)`
+     - :math:`n_C \times n_V`
+     - constraint
+       Jacobian
+     - ``mjData.efc_J``
+   * - :math:`r(q)`
+     - :math:`n_C`
+     - constraint residual
+     - ``mjData.efc_pos``
+   * - :math:`f(q, v,\tau)`
+     - :math:`n_C`
+     - constraint force
+     - ``mjData.efc_force``
 
 All model elements are enumerated at compile time and assembled into the above system-level vectors and matrices. In our
 earlier arm model :ref:`example <Examples>` the model has :math:`n_V = 13` degrees of freedom: 3 for the ball joint, one
@@ -869,33 +881,25 @@ spatial frame and normal distance are given by the collision detector.
 In addition to the above quantities which are computed online, each contact has several parameters obtained from the
 model definition.
 
-+---------------------------+-----------------------------------+
-| Parameter                 | Description                       |
-+===========================+===================================+
-| ``condim``                | Dimensionality of the contact     |
-|                           | force/torque in the contact       |
-|                           | frame. It can be 1, 3, 4 or 6.    |
-+---------------------------+-----------------------------------+
-| ``friction``              | Vector of friction coefficients,  |
-|                           | with dimensionality ``condim-1``. |
-+---------------------------+-----------------------------------+
-| ``margin``                | The distance margin used to       |
-|                           | determine if the contact should   |
-|                           | be included in the global contact |
-|                           | array ``mjData.contact``.         |
-+---------------------------+-----------------------------------+
-| ``gap``                   | For custom computations it is     |
-|                           | sometimes convenient to include   |
-|                           | contacts in ``mjData.contact``    |
-|                           | but not generate contact forces.  |
-|                           | This is what ``gap`` does:        |
-|                           | contact forces are generated only |
-|                           | when the normal distance is below |
-|                           | margin-gap.                       |
-+---------------------------+-----------------------------------+
-| ``solref`` and ``solimp`` | :ref:`Solver <Solver>`            |
-|                           | parameters explained later.       |
-+---------------------------+-----------------------------------+
+.. list-table::
+   :widths: 1 5
+   :header-rows: 1
+
+   * - Parameter
+     - Description
+   * - ``condim``
+     - Dimensionality of the contact force/torque in the contact frame. |br| It can be 1, 3, 4 or 6.
+   * - ``friction``
+     - Vector of friction coefficients with dimensionality ``condim-1``.
+   * - ``margin``
+     - The distance margin used to determine if the contact should be included in the global contact array
+       ``mjData.contact``.
+   * - ``gap``
+     - For custom computations it is sometimes convenient to include contacts in ``mjData.contact`` but not generate
+       contact forces. This is what ``gap`` does: contact forces are generated only when the normal distance is below
+       (margin - gap).
+   * - ``solref`` and ``solimp``
+     - :ref:`Solver <Solver>` parameters, explained later.
 
 The contact friction cone can be either elliptic or pyramidal. This is a global setting determined by the choice of
 constraint solver: the elliptic solvers work with elliptic cones, while the pyramidal solvers work with pyramidal cones,
@@ -986,11 +990,11 @@ to be solved numerically. In inverse dynamics, the problem becomes diagonal and 
 
 The primal formulation is based on a generalization of the Gauss principle of least constraint. In its basic form, the
 Gauss principle states that if we have unconstrained dynamics :math:`M \dot{v} = \tau` and impose acceleration
-constraint :math:`J \dot{v} = a^*`, the resulting acceleration will be
+constraint :math:`J \dot{v} = \ar`, the resulting acceleration will be
 
 .. math::
    \dot{v} = \arg \min_x \left\| x-M^{-1} \tau \right\|^2_M \\
-   \textrm{subject to} \; J x = a^*
+   \textrm{subject to} \; J x = \ar
 
 where the weighted :math:`L_2` norm is the usual :math:`\|x\|^2_M = x^T M x`. Thus the constraint causes the smallest
 possible deviation from the unconstrained acceleration :math:`M^{-1}\tau`, where the metric for measuring deviations in
@@ -1000,58 +1004,55 @@ will be done by generalizing both the cost function and the constraints in the G
 
 We will use the following notation beyond the notation introduced earlier:
 
-+----------------------+----------------------+----------------------+
-| Symbol               | Size                 | Description          |
-+======================+======================+======================+
-| :math:`z`            | :math:`n_C`          | constraint           |
-|                      |                      | deformations         |
-+----------------------+----------------------+----------------------+
-| :math:`\omega`       | :math:`n_C`          | velocity of          |
-|                      |                      | constraint           |
-|                      |                      | deformations         |
-+----------------------+----------------------+----------------------+
-| :math:`d`            | :math:`n_C`          | constraint impedance |
-+----------------------+----------------------+----------------------+
-| :math:`b`            | :math:`n_C`          | virtual constraint   |
-|                      |                      | damping              |
-+----------------------+----------------------+----------------------+
-| :math:`k`            | :math:`n_C`          | virtual constraint   |
-|                      |                      | stiffness            |
-+----------------------+----------------------+----------------------+
-| :math:`A(q)`         | :math:`n_C \times    | inverse inertia in   |
-|                      | n_C`                 | constraint space     |
-+----------------------+----------------------+----------------------+
-| :math:`R(q)`         | :math:`n_C \times    | diagonal regularizer |
-|                      | n_C`                 | in constraint space  |
-+----------------------+----------------------+----------------------+
-| :math:`a^*(q,v)`     | :math:`n_C`          | reference            |
-|                      |                      | acceleration in      |
-|                      |                      | constraint space     |
-+----------------------+----------------------+----------------------+
-| :math:`a^0(q, v,     | :math:`n_C`          | unconstrained        |
-| \tau)`               |                      | acceleration in      |
-|                      |                      | constraint space     |
-+----------------------+----------------------+----------------------+
-| :math:`a^1(q, v,     | :math:`n_C`          | constrained          |
-| \dot{v})`            |                      | acceleration in      |
-|                      |                      | constraint space     |
-+----------------------+----------------------+----------------------+
-| :math:`\mathcal{K}   |                      | product of all       |
-| (q)`                 |                      | contact friction     |
-|                      |                      | cones                |
-+----------------------+----------------------+----------------------+
-| :math:`\eta`         |                      | upper bounds on      |
-|                      |                      | friction loss forces |
-+----------------------+----------------------+----------------------+
-| :math:`\Omega(q)`    |                      | convex set of        |
-|                      |                      | admissible           |
-|                      |                      | constraint forces    |
-+----------------------+----------------------+----------------------+
-| :math:`\mathcal{E},  |                      | index sets for       |
-| \mathcal{F},         |                      | Equality, Friction   |
-| \mathcal{C}`         |                      | loss, Contact        |
-|                      |                      | constraints          |
-+----------------------+----------------------+----------------------+
+.. list-table::
+   :widths: 1 1 4
+   :header-rows: 1
+
+   * - Symbol
+     - Size
+     - Description
+   * - :math:`z`
+     - :math:`n_C`
+     - constraint deformations
+   * - :math:`\omega`
+     - :math:`n_C`
+     - velocity of constraint deformations
+   * - :math:`k`
+     - :math:`n_C`
+     - virtual constraint stiffness
+   * - :math:`b`
+     - :math:`n_C`
+     - virtual constraint damping
+   * - :math:`d`
+     - :math:`n_C`
+     - constraint impedance
+   * - :math:`A(q)`
+     - :math:`n_C \times n_C`
+     - inverse inertia in constraint space
+   * - :math:`R(q)`
+     - :math:`n_C \times n_C`
+     - diagonal regularizer in constraint space
+   * - :math:`\ar`
+     - :math:`n_C`
+     - reference acceleration in constraint space
+   * - :math:`\au(q, v, \tau)`
+     - :math:`n_C`
+     - unconstrained acceleration in constraint space
+   * - :math:`\ac(q, v, \dot{v})`
+     - :math:`n_C`
+     - constrained acceleration in constraint space
+   * - :math:`\mathcal{K}(q)`
+     -
+     - product of all contact friction cones
+   * - :math:`\eta`
+     -
+     - upper bounds on friction loss forces
+   * - :math:`\Omega(q)`
+     -
+     - convex set of admissible constraint forces
+   * - :math:`\mathcal{E}, \mathcal{F}, \mathcal{C}`
+     -
+     - index sets for Equality, Friction loss, Contact constraints
 
 The index sets will be used to refer to parts of vectors and matrices. For example, :math:`J_\mathcal{C}` is the
 sub-matrix of all rows of the Jacobian that correspond to contact constraints.
@@ -1067,7 +1068,7 @@ explain what it means and why it makes sense. That problem is
 .. math::
    (\dot{v}, \dot{\omega}) = \arg \min_{(x, y)}
                              \left\|x-M^{-1}(\tau-c)\right\|^2_M +
-                             \left\|y-a^*\right\|^{\text{Huber}(\eta)}_{R^{-1}} \\
+                             \left\|y-\ar\right\|^{\text{Huber}(\eta)}_{R^{-1}} \\
    \textrm{subject to} \;
    J_\mathcal{E} x_\mathcal{E} - y_\mathcal{E} = 0, \;
    J_\mathcal{F} x_\mathcal{F} - y_\mathcal{F} = 0, \;
@@ -1075,15 +1076,15 @@ explain what it means and why it makes sense. That problem is
    :label: eq:primal
 
 The new players here are the diagonal regularizer :math:`R > 0` which makes the constraints soft, and the reference
-acceleration :math:`a^*` which stabilizes the constraints. The latter is similar in spirit to Baumgarte stabilization,
+acceleration :math:`\ar` which stabilizes the constraints. The latter is similar in spirit to Baumgarte stabilization,
 but instead of adding a constraint force directly, it modifies the optimization problem whose solution is the constraint
-force. Since this problem is itself constrained, the relation between :math:`a^*` and :math:`f` is generally non-linear.
-The quantities :math:`R` and :math:`a^*` are computed from the solver :ref:`parameters <soParameters>` as described
+force. Since this problem is itself constrained, the relation between :math:`\ar` and :math:`f` is generally non-linear.
+The quantities :math:`R` and :math:`\ar` are computed from the solver :ref:`parameters <soParameters>` as described
 later. For now we assume they are given.
 
 The optimization variable :math:`x` stands for acceleration as in the Gauss principle, while :math:`y` is a slack
 variable in constraint space. It is needed to model soft constraints. If we forced the solution to reach
-:math:`y = a^*`, which we could do by taking the limit :math:`R \to 0`, we would obtain a hard constraint model. This
+:math:`y = \ar`, which we could do by taking the limit :math:`R \to 0`, we would obtain a hard constraint model. This
 limit is not allowed in MuJoCo, but nevertheless one can construct models that are phenomenologically hard.
 
 The symbol :math:`\mathcal{K}^*` denotes the dual to the friction cone. It is motivated by mathematical reverse
@@ -1114,7 +1115,7 @@ constraint space (which the constraint force aims to prevent), there is no posit
    \tilde{q} &= {q \brack z}, &
    \tilde{v} &= {v \brack \omega}, &
    \tilde{c} &= {c \brack 0}, \\
-   \tilde{\tau} &= {\tau \brack {R^{-1} a^*}}, &
+   \tilde{\tau} &= {\tau \brack {R^{-1} \ar}}, &
    \tilde{M} &= \left[\begin{array}{cc}
                       M & 0 \\
                       0 & R^{-1}
@@ -1133,20 +1134,20 @@ Unpacking all the tildes yields the explicit form of the original and the deform
 .. math::
    \begin{aligned}
    M \dot{v} + c &= \tau +J^T f \\
-   \dot{\omega} &= a^* - R f \\
+   \dot{\omega} &= \ar - R f \\
    \end{aligned}
 
-Thus :math:`R` has the meaning of inverse deformation inertia, while :math:`a^*` has the meaning of unforced deformation
+Thus :math:`R` has the meaning of inverse deformation inertia, while :math:`\ar` has the meaning of unforced deformation
 acceleration.
 
 Does MuJoCo keep these deformation variables as part of the system state and integrate their dynamics together with the
 joint positions and velocities? No, although such an option may be worth providing in the future. Recall that we defined
-the functional dependence of the regularizer and the reference acceleration as :math:`R(q)` and :math:`a^*(q, v)`. This
+the functional dependence of the regularizer and the reference acceleration as :math:`R(q)` and :math:`\ar(q, v)`. This
 makes problem :eq:`eq:primal` dependent only on :math:`(q, v, \tau)`, and so the original dynamics are not actually
 affected by the deformation dynamics. Since the general constraint model we developed up to now makes no assumptions
-about how :math:`R` and :math:`a^*` are computed, our choice is consistent and improves simulator efficiency.
+about how :math:`R` and :math:`\ar` are computed, our choice is consistent and improves simulator efficiency.
 Nevertheless, given that these quantities turned out to be related to the deformation dynamics, it may be more natural
-to define them as :math:`R(z)` and :math:`a^* (z, \omega)` and simulate the entire augmented system. Below we clarify
+to define them as :math:`R(z)` and :math:`\ar (z, \omega)` and simulate the entire augmented system. Below we clarify
 some of the benefits of such a simulation.
 
 When do the deformation dynamics "track" the original dynamics exactly? One can verify that this happens when the
@@ -1178,7 +1179,7 @@ we obtain the unconstrained problem
 
 .. math::
    \dot{v} = \arg \min_{x} \left\|x-M^{-1}(\tau-c)\right\|^2_M +
-             s \left( J x - a^* \right)
+             s \left( J x - \ar \right)
    :label: eq:reduced
 
 The function :math:`s(\cdot)` plays the role of a soft-constraint penalty. It can be shown to be convex and
@@ -1188,7 +1189,7 @@ Another appealing feature of the reduced formulation is that the inverse dynamic
 above problem is unconstrained and convex, the unique global minimum makes the gradient vanish. This yields the identity
 
 .. math::
-   M \dot{v} + c = \tau - J^T \nabla s \left( J \dot{v} - a^* \right)
+   M \dot{v} + c = \tau - J^T \nabla s \left( J \dot{v} - \ar \right)
 
 which is the analytical inverse dynamics in the presence of soft constraints. Comparing to the equations of motion
 :eq:`eq:motion`, we see that the constraint forces :math:`f` are given by the negative gradient of the function
@@ -1210,7 +1211,7 @@ Lagrange dual to the primal problem defined above is
 
 .. math::
    f = \arg\min_\lambda \frac{1}{2} \lambda^{T} \left( A+R \right) \lambda +
-       \lambda^T \left( a^0 - a^* \right) \\
+       \lambda^T \left( \au - \ar \right) \\
    \text{subject to} \; \lambda \in \Omega
    :label: eq:dual
 
@@ -1222,7 +1223,7 @@ where the inverse inertia in constraint space is
 and the unconstrained acceleration in constraint space is
 
 .. math::
-   a^0 = J M^{-1} (\tau-c) + \dot{J} v
+   \au = J M^{-1} (\tau-c) + \dot{J} v
 
 The constraint set :math:`\Omega` is as follows. :math:`\lambda_\mathcal{E}` is unconstrained, because it is the
 Lagrange multiplier for an equality constraint in the primal problem. For friction loss we have the box constraint
@@ -1237,28 +1238,28 @@ problem are described later.
 As mentioned earlier, MuJoCo's constraint model has uniquely-defined inverse dynamics, and we already saw one way to
 derive it in the reduced formulation above. Here we derive it again from the dual formulation. Recall that in inverse
 dynamics we have access to :math:`(q, v, \dot{v})` instead of :math:`(q, v, \tau)`, so the unconstrained acceleration
-:math:`a^0` is unknown. However we can compute the constrained acceleration
+:math:`\au` is unknown. However we can compute the constrained acceleration
 
 .. math::
-   a^1 = J \dot{v} + \dot{J} v
+   \ac = J \dot{v} + \dot{J} v
 
 Inverse dynamics can now be computed by solving the optimization problem
 
 .. math::
    f = \arg \min_\lambda \frac{1}{2} \lambda^{T} R \lambda +
-       \lambda^T \left( a^1 - a^* \right) \\
+       \lambda^T \left( \ac - \ar \right) \\
    \text{subject to} \; \lambda \in \Omega
 
 By comparing the KKT conditions for these two convex optimization problems, one can verify that their solutions coincide
 when
 
 .. math::
-   a^1 = a^0 + Af
+   \ac = \au + Af
    :label: eq:identity
 
 This key identity is essentially Newton's second law projected in constraint space. It is derived by moving the term
 :math:`c` in the equations of motion :eq:`eq:motion` to the right hand side, multiplying by :math:`J M^{-1}` from the
-left, adding :math:`\dot{J} v` to both sides, and substituting the above definitions of :math:`A, a^0, a^1`. In terms of
+left, adding :math:`\dot{J} v` to both sides, and substituting the above definitions of :math:`A, \au, \ac`. In terms of
 implementation, we do not actually compute the acceleration term :math:`\dot{J} v`. This is because our optimization
 problems depend on differences of constraint-space accelerations, and so this term would cancel out even if we were to
 compute it.
@@ -1335,12 +1336,12 @@ representations of the constraint Jacobian and related matrices.
 Parameters
 ~~~~~~~~~~
 
-Here we explain how the quantities :math:`R, a^*` are computed from model parameters. For the chosen parameterization to
-make sense, we first need to understand how these quantities affect the dynamics. We focus on the unconstrained
-minimizer of :eq:`eq:dual`, namely
+Here we explain how the quantities :math:`R, \ar` are computed from model parameters. For the chosen
+parameterization to make sense, we first need to understand how these quantities affect the dynamics. We focus on the
+unconstrained minimizer of :eq:`eq:dual`, namely
 
 .. math::
-   f^+ = (A+R)^{-1} (a^* - a^0)
+   f^+ = (A+R)^{-1} (\ar - \au)
 
 If it happens that :math:`f^+ \in \Omega`, then :math:`f^+ = f` is the actual constraint force generated by our model.
 We focus on this case because it is common, in the sense that the subset of the constraints in :math:`\Omega` that are
@@ -1348,11 +1349,11 @@ active at any given time is usually small, and furthermore it is the only case t
 Substituting :math:`f^+` in the constraint dynamics :eq:`eq:identity` and rearranging terms yields
 
 .. math::
-   a^1 = A(A+R)^{-1} a^* + R (A+R)^{-1} a^0
+   \ac = A(A+R)^{-1} \ar + R (A+R)^{-1} \au
 
 Thus the constrained acceleration interpolates between the unconstrained and the reference acceleration. In particular,
-in the limit :math:`R \to 0` we have a hard constraint and :math:`a^1 = a^*`, while in the limit :math:`R \to \infty` we
-have have an infinitely soft constraint (i.e., no constraint) and :math:`a^1 = a^0`. It is then natural to introduce a
+in the limit :math:`R \to 0` we have a hard constraint and :math:`\ac = \ar`, while in the limit :math:`R \to \infty` we
+have have an infinitely soft constraint (i.e., no constraint) and :math:`\ac = \au`. It is then natural to introduce a
 model parameter which directly controls the interpolation. We call this parameter *impedance* and denote it :math:`d`.
 It is a vector with dimensionality :math:`n_C` satisfying :math:`0<d<1` element-wise. Once it is specified, we compute
 the diagonal elements of the regularizer as
@@ -1368,7 +1369,7 @@ approximation happened to be exact, and :math:`A` itself happened to be diagonal
 constraint would satisfy
 
 .. math::
-   a^1_i = d_i a^*_i + (1-d_i) a^0_i
+   \aci = d_i \ari + (1-d_i) \aui
 
 and so we would achieve the desired interpolation effect. This of course does not hold exactly in general, but the goal
 here is to construct a sensible and intuitive parameterization of the constraint model and get the scaling right.
@@ -1377,14 +1378,14 @@ Next we explain how the reference acceleration is computed. As already mentioned
 parameterized by *damping* and *stiffness* coefficients element-wise:
 
 .. math::
-   a^*_i = -b_i (J v)_i - k_i r_i
+   \ari = -b_i (J v)_i - k_i r_i
 
 Recall that :math:`r` is the position residual (which is zero for friction loss and friction dimensions of elliptic
 cones), while :math:`J v` is the joint velocity projected in constraint space; the indexing notation refers to one
 component of the projected velocity vector.
 
 To summarize, the user specifies the vectors of impedance coefficients :math:`0<d<1`, damping coefficients :math:`b > 0`
-and stiffness coefficients :math:`k > 0`. The quantities :math:`R, a^*` are then computed by MuJoCo as shown above, and
+and stiffness coefficients :math:`k > 0`. The quantities :math:`R, \ar` are then computed by MuJoCo as shown above, and
 the selected optimization algorithm is applied to solve problem :eq:`eq:dual`. As explained in the :ref:`solver
 parameters <CSolver>` section of the Modeling chapter, MuJoCo offers additional automation for setting :math:`d, b, k`
 so as to achieve critical damping, or model a soft contact layer by varying :math:`d` with distance.
