@@ -15,6 +15,9 @@
 #ifndef MUJOCO_PLUGIN_SDF_SDF_H_
 #define MUJOCO_PLUGIN_SDF_SDF_H_
 
+#include <map>
+#include <stdexcept>
+#include <string>
 #include <vector>
 
 #include <mujoco/mujoco.h>
@@ -40,6 +43,43 @@ inline mjtNum Fract(mjtNum x) {
 // reads numeric attributes
 bool CheckAttr(const char* name, const mjModel* m, int instance);
 
+// converts attributes to numeric or returns default if not present
+template <typename T>
+class SdfDefault {
+ public:
+  SdfDefault() {
+    for (int i = 0; i < T::nattribute; i++) {
+      default_[T::names[i]] = T::defaults[i];
+    }
+  }
+
+  // get a single default value
+  mjtNum GetDefault(const char* name, const char* value) {
+    if (std::string(value).empty()) {
+      return default_[name];
+    }
+    try {
+      mjtNum num = std::stod(value);
+      return num;
+    } catch (const std::invalid_argument& e) {
+      mju_error("invalid attribute value for '%s'", name);
+      return 0;
+    }
+  }
+
+  // populate attribute array
+  void GetDefaults(mjtNum* attribute, const char* names[],
+                   const char* values[]) {
+    for (int i = 0; i < default_.size(); i++) {
+      attribute[i] = GetDefault(names[i], values[i]);
+    }
+  }
+
+ private:
+  std::map<std::string, mjtNum> default_;
+};
+
+// stores the history of gradient descent iterations
 class SdfVisualizer {
  public:
   SdfVisualizer();

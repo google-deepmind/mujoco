@@ -13,10 +13,12 @@
 // limitations under the License.
 
 #include <algorithm>
+#include <cctype>
 #include <cstddef>
+#include <cstdio>
+#include <cstdlib>
 #include <string>
 
-#include <mujoco/mjplugin.h>
 #include <mujoco/mujoco.h>
 #include "sdf.h"
 

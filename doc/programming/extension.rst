@@ -250,20 +250,24 @@ A future version of this section will include:
 
 Currently, there are three directories of first-party plugins:
 
-* **elasticity:** The plugins in the `elasticity/ <https://github.com/google-deepmind/mujoco/tree/main/plugin/elasticity>`__
-  directory are passive forces based on continuum mechanics for 1-dimensional and 3-dimensional bodies. The
-  1D model is invariant under rotations and captures the large deformation of elastic cables, decoupling twisting and
-  bending strains. The 3D solid is a
-  `Saint Venant-Kirchhoff <https://en.wikipedia.org/wiki/Hyperelastic_material#Saint_Venant%E2%80%93Kirchhoff_model>`__
-  model discretized with piecewise linear finite elements, which is suitable for large deformations with small strains.
-  See also :ref:`composite <CComposite>` and :ref:`deformable <CDeformable>` objects.
+* **elasticity:** The plugins in the `elasticity/
+  <https://github.com/google-deepmind/mujoco/tree/main/plugin/elasticity>`__ directory are passive forces based on
+  continuum mechanics for 1-dimensional and 3-dimensional bodies. The 1D model is invariant under rotations and captures
+  the large deformation of elastic cables, decoupling twisting and bending strains. The 3D solid is a `Saint
+  Venant-Kirchhoff <https://en.wikipedia.org/wiki/Hyperelastic_material#Saint_Venant%E2%80%93Kirchhoff_model>`__ model
+  discretized with piecewise linear finite elements, which is suitable for large deformations with small strains. See
+  also :ref:`composite <CComposite>` and :ref:`deformable <CDeformable>` objects. For more information, please see the
+  `README <https://github.com/google-deepmind/mujoco/blob/main/plugin/elasticity/README.md>`__.
 * **sensor:** The plugins in the `sensor/ <https://github.com/google-deepmind/mujoco/tree/main/plugin/sensor>`__
   directory implement custom sensors. Currently the sole sensor plugin is the touch grid sensor, see the
   `README <https://github.com/google-deepmind/mujoco/blob/main/plugin/sensor/README.md>`__ for details.
-* **sdf:** The plugins in the `sdf/ <https://github.com/google-deepmind/mujoco/tree/main/plugin/sdf>`__
-  directory specify custom shapes in a mesh-free manner, by defining methods computing a signed distance field and its
-  gradient at query points. This shape then acts as a new geom type in the collision table at the top of
-  `engine_collision_driver.c <https://github.com/google-deepmind/mujoco/blob/main/src/engine/engine_collision_driver.c>`__.
+* **sdf:** The plugins in the `sdf/ <https://github.com/google-deepmind/mujoco/tree/main/plugin/sdf>`__ directory
+  specify custom shapes in a mesh-free manner, by defining methods computing a signed distance field and its gradient at
+  query points. This shape then acts as a new geom type in the collision table at the top of `engine_collision_driver.c
+  <https://github.com/google-deepmind/mujoco/blob/main/src/engine/engine_collision_driver.c>`__. For more information
+  concerning the available SDFs and how to write your own implicit geometry, please see the `README
+  <https://github.com/google-deepmind/mujoco/blob/main/plugin/sdf/README.md>`__. The rest of this section will give more
+  detail concerning the collision algorithm and the plugin engine interface.
 
   Collision points are found by minimizing the maximum of the two colliding SDFs via gradient descent.
   Because SDFs are non-convex, multiple starting points are required in order to converge to multiple local minima.

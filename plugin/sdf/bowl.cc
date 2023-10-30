@@ -12,12 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <sstream>
+#include <cstdint>
 #include <optional>
+#include <utility>
 
 #include <mujoco/mjplugin.h>
 #include <mujoco/mjtnum.h>
 #include <mujoco/mujoco.h>
+#include "sdf.h"
 #include "bowl.h"
 
 namespace mujoco::plugin::sdf {
@@ -51,9 +53,16 @@ std::optional<Bowl> Bowl::Create(
 
 // plugin constructor
 Bowl::Bowl(const mjModel* m, mjData* d, int instance) {
-  radius = strtod(mj_getPluginConfig(m, instance, "radius"), nullptr);
-  height = strtod(mj_getPluginConfig(m, instance, "height"), nullptr);
-  thick = strtod(mj_getPluginConfig(m, instance, "thickness"), nullptr);
+  SdfDefault<BowlAttribute> defattribute;
+
+  for (int i=0; i < BowlAttribute::nattribute; i++) {
+    attribute[i] = defattribute.GetDefault(
+        BowlAttribute::names[i],
+        mj_getPluginConfig(m, instance, BowlAttribute::names[i]));
+  }
+
+  mjtNum height = attribute[0];
+  mjtNum radius = attribute[1];
   width = mju_sqrt(radius*radius - height*height);
 }
 
@@ -75,8 +84,7 @@ void Bowl::Visualize(const mjModel* m, mjData* d, const mjvOption* opt, mjvScene
 
 // sdf
 mjtNum Bowl::Distance(const mjtNum point[3]) const {
-  mjtNum attributes[3]= {height, radius, thick};
-  return distance(point, attributes);
+  return distance(point, attribute);
 }
 
 // gradient of sdf
@@ -98,16 +106,15 @@ void Bowl::Gradient(mjtNum grad[3], const mjtNum point[3]) const {
   //   grad[1] = - grad_dist * point[1] / pnorm;
   //   grad[2] = - grad_dist * point[2] / pnorm;
   // }
-  mjtNum attributes[3]= {height, radius, thick};
   mjtNum eps = 1e-8;
-  mjtNum dist0 = distance(point, attributes);
+  mjtNum dist0 = distance(point, attribute);
 
   mjtNum pointX[3] = {point[0]+eps, point[1], point[2]};
-  mjtNum distX = distance(pointX, attributes);
+  mjtNum distX = distance(pointX, attribute);
   mjtNum pointY[3] = {point[0], point[1]+eps, point[2]};
-  mjtNum distY = distance(pointY, attributes);
+  mjtNum distY = distance(pointY, attribute);
   mjtNum pointZ[3] = {point[0], point[1], point[2]+eps};
-  mjtNum distZ = distance(pointZ, attributes);
+  mjtNum distZ = distance(pointZ, attribute);
 
   grad[0] = (distX - dist0) / eps;
   grad[1] = (distY - dist0) / eps;
@@ -122,9 +129,8 @@ void Bowl::RegisterPlugin() {
   plugin.name = "mujoco.sdf.bowl";
   plugin.capabilityflags |= mjPLUGIN_SDF;
 
-  const char* attributes[] = {"radius", "height", "thickness"};
-  plugin.nattribute = sizeof(attributes) / sizeof(attributes[0]);
-  plugin.attributes = attributes;
+  plugin.nattribute = BowlAttribute::nattribute;
+  plugin.attributes = BowlAttribute::names;
   plugin.nstate = +[](const mjModel* m, int instance) { return 0; };
 
   plugin.init = +[](const mjModel* m, mjData* d, int instance) {
@@ -176,6 +182,11 @@ void Bowl::RegisterPlugin() {
         mjtNum thick = attributes[2];
         aabb[0] = aabb[1] = aabb[2] = 0;
         aabb[3] = aabb[4] = aabb[5] = radius + thick;
+      };
+  plugin.sdf_attribute =
+      +[](mjtNum attribute[], const char* name[], const char* value[]) {
+        SdfDefault<BowlAttribute> defattribute;
+        defattribute.GetDefaults(attribute, name, value);
       };
 
   mjp_registerPlugin(&plugin);

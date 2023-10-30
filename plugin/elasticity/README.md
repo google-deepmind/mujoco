@@ -1,5 +1,5 @@
 <h1>
-  <a href="#"><img alt="MuJoCo" src="banner.png" width="100%"/></a>
+  <a href="#"><img alt="MuJoCo" src="../../banner.png" width="100%"/></a>
 </h1>
 
 ## Elasticity plugins

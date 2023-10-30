@@ -17,6 +17,7 @@
 
 #include <mujoco/mjdata.h>
 #include <mujoco/mjmodel.h>
+#include <mujoco/mjtnum.h>
 #include <mujoco/mjvisualize.h>
 
 
@@ -116,6 +117,9 @@ struct mjpPlugin_ {
 
   // called during compilation for marching cubes
   mjtNum (*sdf_staticdistance)(const mjtNum point[3], const mjtNum* attributes);
+
+  // convert attributes and provide defaults if not present
+  void (*sdf_attribute)(mjtNum attribute[], const char* name[], const char* value[]);
 
   // bounding box of implicit surface
   void (*sdf_aabb)(mjtNum aabb[6], const mjtNum* attributes);

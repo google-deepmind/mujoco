@@ -25,6 +25,13 @@
 
 namespace mujoco::plugin::sdf {
 
+struct BowlAttribute {
+  static constexpr int nattribute = 3;
+  static constexpr char const* names[nattribute] = {"height", "radius",
+                                                    "thickness"};
+  static constexpr mjtNum defaults[nattribute] = {.4, 1., .02};
+};
+
 class Bowl {
  public:
   // Creates a new Bowl instance (allocated with `new`) or
@@ -42,9 +49,7 @@ class Bowl {
 
   static void RegisterPlugin();
 
-  mjtNum radius;
-  mjtNum height;
-  mjtNum thick;
+  mjtNum attribute[BowlAttribute::nattribute];
   mjtNum width;
 
  private:

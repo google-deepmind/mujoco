@@ -21,7 +21,6 @@
 #include <functional>
 #include <memory>
 #include <optional>
-#include <stdexcept>
 #include <string>
 #include <unordered_map>
 #include <utility>
@@ -303,15 +302,16 @@ void mjCMesh::LoadSDF() {
     throw mjCError(this, "plugin '%s' does not support signed distance fields", plugin->name);
   }
 
-  int i=0;
   std::vector<mjtNum> attributes(plugin->nattribute, 0);
-  for (auto const& pair : plugin_instance->config_attribs) {
-    try {
-      attributes[i++] = std::stod(pair.second);
-    } catch (const std::invalid_argument& e) {
-      throw mjCError(this, "invalid attribute value for '%s'",
-                     pair.first.c_str());
-    }
+  std::vector<const char*> names(plugin->nattribute, 0);
+  std::vector<const char*> values(plugin->nattribute, 0);
+  for (int i=0; i < plugin->nattribute; i++) {
+    names[i] = plugin->attributes[i];
+    values[i] = plugin_instance->config_attribs[names[i]].c_str();
+  }
+
+  if (plugin->sdf_attribute) {
+    plugin->sdf_attribute(attributes.data(), names.data(), values.data());
   }
 
   mjtNum aabb[6] = {0};

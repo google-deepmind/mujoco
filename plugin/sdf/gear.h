@@ -26,6 +26,13 @@
 
 namespace mujoco::plugin::sdf {
 
+struct GearAttribute {
+  static constexpr int nattribute = 4;
+  static constexpr char const* names[nattribute] = {"alpha", "diameter",
+                                                    "teeth", "thickness"};
+  static constexpr mjtNum defaults[nattribute] = { 0, 2.8, 25, .2 };
+};
+
 class Gear {
  public:
   // Creates a new Gear instance (allocated with `new`) or
@@ -43,7 +50,7 @@ class Gear {
 
   static void RegisterPlugin();
 
-  mjtNum alpha;
+  mjtNum attribute[GearAttribute::nattribute];
 
  private:
   Gear(const mjModel* m, mjData* d, int instance);

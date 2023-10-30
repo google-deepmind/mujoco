@@ -24,6 +24,12 @@
 
 namespace mujoco::plugin::sdf {
 
+struct TorusAttribute {
+  static constexpr int nattribute = 2;
+  static constexpr char const* names[nattribute] = {"radius1", "radius2"};
+  static constexpr mjtNum defaults[nattribute] = { .35, .15 };
+};
+
 class Torus {
  public:
   // Creates a new Torus instance or returns null on failure.
@@ -36,7 +42,7 @@ class Torus {
 
   static void RegisterPlugin();
 
-  mjtNum radius[2];
+  mjtNum attribute[TorusAttribute::nattribute];
 
  private:
   Torus(const mjModel* m, mjData* d, int instance);
