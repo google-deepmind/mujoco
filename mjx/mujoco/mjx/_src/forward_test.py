@@ -41,7 +41,7 @@ class ForwardTest(parameterized.TestCase):
   @parameterized.parameters(enumerate(test_util.TEST_FILES))
   def test_forward(self, seed, fname):
     """Test mujoco mj forward function matches mujoco_mjx forward function."""
-    if fname in ('weld.xml',):
+    if fname in ('equality.xml',):
       return
 
     np.random.seed(seed)
@@ -71,7 +71,7 @@ class ForwardTest(parameterized.TestCase):
         'convex.xml',
         'humanoid.xml',
         'triple_pendulum.xml',  # TODO(b/301485081)
-        'weld.xml',
+        'equality.xml',
     ):
       # skip models with big constraint violations at step 0 or too slow to run
       return
@@ -101,8 +101,8 @@ class ForwardTest(parameterized.TestCase):
       mujoco.mj_step(m, d)
       dx = step_jit_fn(mx, dx)
 
-      _assert_attr_eq(d, dx, 'qpos', i, test_name, atol=1e-2)
       _assert_attr_eq(d, dx, 'qvel', i, test_name, atol=1e-2)
+      _assert_attr_eq(d, dx, 'qpos', i, test_name, atol=1e-2)
       _assert_attr_eq(d, dx, 'act', i, test_name)
       _assert_attr_eq(d, dx, 'time', i, test_name)
 

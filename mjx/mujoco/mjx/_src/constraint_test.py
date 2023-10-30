@@ -98,6 +98,7 @@ class ConstraintTest(parameterized.TestCase):
 
   def test_jnt_range(self):
     """Tests that mixed joint ranges are respected."""
+    # TODO(robotics-simulation): also test ball
     m = mujoco.MjModel.from_xml_string(self._JNT_RANGE)
     m.opt.solver = SolverType.CG.value
     d = mujoco.MjData(m)
@@ -105,7 +106,7 @@ class ConstraintTest(parameterized.TestCase):
 
     mx = mjx.device_put(m)
     dx = mjx.device_put(d)
-    efc = jax.jit(constraint._instantiate_limit)(mx, dx)
+    efc = jax.jit(constraint._instantiate_limit_slide_hinge)(mx, dx)
 
     # first joint is outside the joint range
     np.testing.assert_array_almost_equal(efc.J[0, 0], -1.0)
@@ -146,7 +147,7 @@ class ConstraintTest(parameterized.TestCase):
     self.assertEqual(dx.efc_J.shape[0], 0)
 
   def test_disable_equality(self):
-    m = test_util.load_test_file('weld.xml')
+    m = test_util.load_test_file('equality.xml')
     d = mujoco.MjData(m)
 
     m.opt.disableflags = m.opt.disableflags | DisableBit.EQUALITY
@@ -171,7 +172,7 @@ class ConstraintTest(parameterized.TestCase):
     m.opt.disableflags = m.opt.disableflags | DisableBit.CONTACT
     mx, dx = mjx.device_put(m), mjx.device_put(d)
     efc = constraint._instantiate_contact(mx, dx)
-    self.assertEqual(efc.J.shape[0], 0)
+    self.assertIsNone(efc)
 
 
 if __name__ == '__main__':

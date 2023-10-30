@@ -13,29 +13,30 @@ General
 
 MJX
 ^^^
-2. Fixed bug where mixed ``jnt_limited`` joints were not being constrained correctly.
-3. Made ``device_put`` type validation more verbose (fixes :github:issue:`1113`).
-4. Removed empty EFC rows from `MJX`, for joints with no limits (fixes :github:issue:`1117`).
+2. Added support for joint equality constraints (``mjEQ_JOINT`` in :ref:`mjtEq`).
+3. Fixed bug where mixed ``jnt_limited`` joints were not being constrained correctly.
+4. Made ``device_put`` type validation more verbose (fixes :github:issue:`1113`).
+5. Removed empty EFC rows from `MJX`, for joints with no limits (fixes :github:issue:`1117`).
 
 Python bindings
 ^^^^^^^^^^^^^^^
 
-5. Fix the macOS ``mjpython`` launcher to work with the Python interpreter from Apple Command Line
+6. Fix the macOS ``mjpython`` launcher to work with the Python interpreter from Apple Command Line
    Tools.
 
 Simulate
 ^^^^^^^^
-6. :ref:`simulate<saSimulate>`: correct handling of "Pause update", "Fullscreen" and "VSync" buttons.
+7. :ref:`simulate<saSimulate>`: correct handling of "Pause update", "Fullscreen" and "VSync" buttons.
 
 Documentation
 ^^^^^^^^^^^^^
-7. Added documentation for the :ref:`UI` framework.
-8. Fixed typos and supported fields in docs (fixes :github:issue:`1105` and :github:issue:`1106`).
+8. Added documentation for the :ref:`UI` framework.
+9. Fixed typos and supported fields in docs (fixes :github:issue:`1105` and :github:issue:`1106`).
 
 
 Bug fixes
 ^^^^^^^^^
-9. Fixed bug relating to welds modified with :ref:`torquescale<equality-weld-torquescale>`.
+10. Fixed bug relating to welds modified with :ref:`torquescale<equality-weld-torquescale>`.
 
 Version 3.0.0 (October 18, 2023)
 --------------------------------

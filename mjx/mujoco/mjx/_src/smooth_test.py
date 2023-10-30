@@ -43,7 +43,7 @@ class SmoothTest(parameterized.TestCase):
   @parameterized.parameters(enumerate(test_util.TEST_FILES))
   def test_smooth(self, seed, fname):
     """Tests mujoco mj smooth functions match mujoco_mjx smooth functions."""
-    if fname in ('convex.xml', 'weld.xml'):
+    if fname in ('convex.xml', 'equality.xml'):
       return
 
     np.random.seed(seed)

@@ -188,9 +188,9 @@ The following features are **fully supported** in MJX:
    * - :ref:`Geom <mjtGeom>`
      - ``PLANE``, ``SPHERE``, ``CAPSULE``, ``BOX``, ``MESH``
    * - :ref:`Constraint <mjtConstraint>`
-     - ``EQUALITY``, ``FRICTION_DOF``, ``LIMIT_JOINT``, ``CONTACT_PYRAMIDAL``
+     - ``EQUALITY``, ``LIMIT_JOINT``, ``CONTACT_PYRAMIDAL``
    * - :ref:`Equality <mjtEq>`
-     - ``CONNECT``, ``WELD``
+     - ``CONNECT``, ``WELD``, ``JOINT``
    * - :ref:`Integrator <mjtIntegrator>`
      - ``EULER``, ``RK4``
    * - :ref:`Cone <mjtCone>`
@@ -218,6 +218,8 @@ The following features are **in development** and coming soon:
      - ``TRN_TENDON``
    * - :ref:`Geom <mjtGeom>`
      - ``HFIELD``, ``ELLIPSOID``, ``CYLINDER``, ``SDF``
+   * - :ref:`Constraint <mjtConstraint>`
+     - ``CONTACT_FRICTIONLESS``, ``CONTACT_ELLIPTIC``, ``FRICTION_DOF``
    * - :ref:`Integrator <mjtIntegrator>`
      - ``IMPLICIT``, ``IMPLICITFAST``
    * - :ref:`Cone <mjtCone>`
@@ -231,7 +233,7 @@ The following features are **in development** and coming soon:
    * - :ref:`Tendons <tendon>`
      - :ref:`Spatial <tendon-spatial>`, :ref:`Fixed <tendon-fixed>`
    * - :ref:`Equality <mjtEq>`
-     - ``JOINT``, ``TENDON``
+     - ``TENDON``
    * - :ref:`Sensors <mjtSensor>`
      - All except ``mjSENS_PLUGIN``, ``mjSENS_USER``
 

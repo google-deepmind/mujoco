@@ -27,13 +27,13 @@ TEST_FILES: List[str] = [
     'ball_pendulum.xml',
     'cherry_pendulum.xml',
     'convex.xml',
+    'equality.xml',
     'humanoid.xml',
     'mixed_joint_pendulum.xml',
     'single_pendulum.xml',
     'slide_pendulum.xml',
     'triple_pendulum.xml',
     'triple_pendulum_free.xml',
-    'weld.xml',
 ]
 
 _ACTUATOR_TYPES = ['motor', 'velocity', 'position', 'general', 'intvelocity']
