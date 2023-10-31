@@ -126,6 +126,9 @@ def _validate(m: mujoco.MjModel):
   ):
     raise NotImplementedError('Only condim=3 is supported.')
 
+  if m.ntendon:
+    raise NotImplementedError('Tendons are not supported.')
+
   # check collision geom types
   candidate_set = collision_driver.collision_candidates(m)
   for g1, g2, *_ in candidate_set:

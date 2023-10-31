@@ -18,6 +18,8 @@ MJX
 3. Fixed bug where mixed ``jnt_limited`` joints were not being constrained correctly.
 4. Made ``device_put`` type validation more verbose (fixes :github:issue:`1113`).
 5. Removed empty EFC rows from `MJX`, for joints with no limits (fixes :github:issue:`1117`).
+6. Fixed bug where equality constraints became inactive (fixes :github:issue:`1129`).
+7. Added an error when loading a model with tendons (fixes :github:issue:`1149`).
 
 Python bindings
 ^^^^^^^^^^^^^^^
