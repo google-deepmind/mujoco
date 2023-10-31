@@ -1232,7 +1232,7 @@ mjData* mj_copyData(mjData* dest, const mjModel* m, const mjData* src) {
   // restore plugin_data
   if (plugin_data_size) {
     memcpy(dest->plugin_data, save_plugin_data, plugin_data_size);
-    free(save_plugin_data);
+    mju_free(save_plugin_data);
     save_plugin_data = NULL;
   }
 
