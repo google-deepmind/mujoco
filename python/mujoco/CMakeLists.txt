@@ -265,7 +265,6 @@ target_sources(
   structs_header
   INTERFACE indexer_xmacro.h
             indexers.h
-            mjdata_meta.h
             structs.h
 )
 set_target_properties(structs_header PROPERTIES PUBLIC_HEADER structs.h)

@@ -23,20 +23,22 @@ Python bindings
 
 6. Fix the macOS ``mjpython`` launcher to work with the Python interpreter from Apple Command Line
    Tools.
+7. Fixed a crash when copying instances of ``mujoco.MjData`` for models that use plugins. Introduced a ``model``
+   attribute to ``MjData`` which is reference to the model that was used to create that ``MjData`` instance.
 
 Simulate
 ^^^^^^^^
-7. :ref:`simulate<saSimulate>`: correct handling of "Pause update", "Fullscreen" and "VSync" buttons.
+8. :ref:`simulate<saSimulate>`: correct handling of "Pause update", "Fullscreen" and "VSync" buttons.
 
 Documentation
 ^^^^^^^^^^^^^
-8. Added documentation for the :ref:`UI` framework.
-9. Fixed typos and supported fields in docs (fixes :github:issue:`1105` and :github:issue:`1106`).
+9.  Added documentation for the :ref:`UI` framework.
+10. Fixed typos and supported fields in docs (fixes :github:issue:`1105` and :github:issue:`1106`).
 
 
 Bug fixes
 ^^^^^^^^^
-10. Fixed bug relating to welds modified with :ref:`torquescale<equality-weld-torquescale>`.
+11. Fixed bug relating to welds modified with :ref:`torquescale<equality-weld-torquescale>`.
 
 Version 3.0.0 (October 18, 2023)
 --------------------------------

@@ -23,6 +23,7 @@
 
 #include <Eigen/Core>
 #include <mujoco/mjxmacro.h>
+#include <mujoco/mujoco.h>
 #include "function_traits.h"
 #include "functions.h"
 #include "private.h"
@@ -1367,7 +1368,7 @@ PYBIND11_MODULE(_functions, pymodule) {
         }
 
 #undef MJ_M
-#define MJ_M(x) d.metadata().x
+#define MJ_M(x) d.model().get()->x
 #undef MJ_D
 #define MJ_D(x) data->x
 #define X(type, name, nr, nc)                                             \
@@ -1379,7 +1380,7 @@ PYBIND11_MODULE(_functions, pymodule) {
   }
 
         MJDATA_ARENA_POINTERS_PRIMAL
-        if (d.metadata().is_dual) {
+        if (mj_isDual(d.model().get())) {
           MJDATA_ARENA_POINTERS_DUAL
         }
 #undef X
