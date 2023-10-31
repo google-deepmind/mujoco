@@ -190,7 +190,7 @@ element, it must be undefined in the active defaults class.
 
 A final twist here is actuators. They are different because some of the actuator-related elements are actually
 shortcuts, and shortcuts interact with the defaults setting mechanism in a non-obvious way. This is explained in the
-:ref:`Actuator shortcuts <CActuator>` section below.
+:ref:`Actuator shortcuts <CActShortcuts>` section below.
 
 .. _CFrame:
 
@@ -567,10 +567,44 @@ general guidelines and observations:
    setup operation for the main PGS and Noslip PGS is the same, thus the setup cost is paid only once when both are
    enabled.
 
-.. _CActuator:
+.. _CActuators:
 
-Actuator shortcuts
-~~~~~~~~~~~~~~~~~~
+Actuators
+~~~~~~~~~
+
+This section describes various aspects of using actuators in MuJoCo. See the :ref:`Actuation model <geActuation>`
+regarding the computational model.
+
+.. _CActDisable:
+
+Group disable
+^^^^^^^^^^^^^
+
+The :ref:`actuatorgroupdisable<option-actuatorgroupdisable>` attribute, which can be changed at runtime by setting the
+:ref:`mjOption.disableactuator<mjOption>` integer bitfield, allows the user to disable sets of actuators according to
+their :ref:`group<actuator-general-group>`. This feature is convenient when one would like to use multiple types of
+actuators for the same kinematic tree. For example consider a robot with firmware that supports mutiple control modes
+e.g., torque-control and position-control. In this case, one can define both types of actuators in the same MJCF
+model, assigning one type of actuator to group 0 and the other to group 1.
+
+.. youtube:: H9qG9Zf2W44
+   :align: right
+   :width: 40%
+
+The :ref:`actuatorgroupdisable<option-actuatorgroupdisable>` MJCF attribute selects which groups are disabled by
+default, and :ref:`mjOption.disableactuator<mjOption>` can be set at runtime to switch the active set. Note that the
+total number of actuators ``mjModel.nu`` remains unchanged, as do the actuator indices, so it is up to the user to know
+that the respective ``mjData.ctrl`` values of disabled actuators will be ignored and produce no force. `This example
+model <https://github.com/google-deepmind/mujoco/blob/main/test/engine/testdata/actuation/actuator_group_disable.xml>`__
+has three actuator groups which can be toggled at runtime in the :ref:`simulate<saSimulate>` interactive viewer.
+See `example model
+<https://github.com/google-deepmind/mujoco/blob/main/test/engine/testdata/actuation/actuator_group_disable.xml>`__
+and associated screen-capture on the right.
+
+.. _CActShortcuts:
+
+Shortcuts
+^^^^^^^^^
 
 As explained in the :ref:`Actuation model <geActuation>` section of the Computation chapter, MuJoCo offers a flexible
 actuator model with transmission, activation dynamics and force generation components that can be specified
@@ -605,8 +639,8 @@ explicitly.
 
 .. _CForceRange:
 
-Actuator force clamping
-~~~~~~~~~~~~~~~~~~~~~~~
+Force limits
+^^^^^^^^^^^^
 
 Actuator forces are usually limited between lower and upper bounds. These limits can be enforced in three ways:
 
@@ -645,62 +679,14 @@ Force clamping at joint input with :ref:`joint/actuatorfrcrange<body-joint-actua
 
 The three clamping options above are non-exclusive and can be combined as required.
 
-.. _CActRange:
-
-Activation clamping
-~~~~~~~~~~~~~~~~~~~
-
-As described in the :ref:`Actuation model <geActuation>` section of the Computation chapter, MuJoCo supports actuators
-with internal dynamics whose states are called "activations". One useful application of these stateful actuators is the
-"integrated-velocity" actuator, implemented by the :ref:`intvelocity<actuator-intvelocity>` shortcut. Different from the
-:ref:`pure velocity<actuator-velocity>` actuators, which implement direct feedback on transmission target's velocity,
-*integrated-velocity* actuators couple an *integrator* with a *position-feedback* actuator. In this case the semantics
-of the activation state are "the setpoint of the position actuator", and the semantics of the control signal are "the
-velocity of the setpoint of the position actuator". Note that in real robotic systems this integrated-velocity actuator
-is the most common implementation of actuators with velocity semantics, rather than pure feedback on velocity which is
-often quite unstable (both in real life and in simulation).
-
-In the case of integrated-velocity actuators, it is often desirable to *clamp* the activation state, since otherwise the
-position target would keep integrating beyond the joint limits, leading to loss of controllabillity. To see the effect
-of activation clamping, load the example model below:
-
-.. code-block:: xml
-
-   <mujoco>
-     <default>
-       <joint axis="0 0 1" limited="true" range="-90 90" damping="0.3"/>
-       <geom size=".1 .1 .1" type="box"/>
-     </default>
-
-     <worldbody>
-       <body>
-         <joint name="joint1"/>
-         <geom/>
-       </body>
-       <body pos=".3 0 0">
-         <joint name="joint2"/>
-         <geom/>
-       </body>
-     </worldbody>
-
-     <actuator>
-       <general name="unclamped" joint="joint1" gainprm="1" biastype="affine"
-         biasprm="0 -1" dyntype="integrator"/>
-       <intvelocity name="clamped" joint="joint2" actrange="-1.57 1.57"/>
-     </actuator>
-   </mujoco>
-
-Note that the :at:`actrange` attribute is always specified in native units (radians), even though the joint range
-can be either in degrees (the default) or radians, depending on the :ref:`compiler/angle <compiler>` attribute.
-
 .. _CLengthRange:
 
-Actuator length range
-~~~~~~~~~~~~~~~~~~~~~
+Length range
+^^^^^^^^^^^^
 
-As of MuJoCo 2.0, the field mjModel.actuator_lengthrange contains the range of feasible actuator lengths (or more
-precisely, lengths of the actuator's transmission). This is needed to simulate :ref:`muscle actuators <CMuscle>` as
-explained below. Here we focus on what actuator_lengthrange means and how to set it.
+The field ``mjModel.actuator_lengthrange`` contains the range of feasible actuator lengths (or more
+precisely, lengths of the actuator's transmission). This is needed to simulate :ref:`muscle actuators <CMuscle>`.
+Here we focus on what actuator_lengthrange means and how to set it.
 
 Unlike all other fields of mjModel which are exact physical or geometric quantities, actuator_lengthrange is an
 approximation. Intuitively it corresponds to the minimum and maximum length that the actuator's transmission can reach
@@ -744,12 +730,69 @@ practice length ranges will almost always be used with muscle actuators attached
 joint limits defined in the model, effectively limiting the lengths of the muscle actuators. If you get a convergence
 error in such a model, the most likely explanation is that you forgot to include joint limits.
 
+.. _CActivation:
+
+Stateful actuators
+^^^^^^^^^^^^^^^^^^
+
+As described in the :ref:`Actuation model <geActuation>` section of the Computation chapter, MuJoCo supports actuators
+with internal dynamics whose states are called "activations".
+
+.. _CActRange:
+
+Activation limits
+'''''''''''''''''
+
+One useful application of stateful actuators is the
+"integrated-velocity" actuator, implemented by the :ref:`intvelocity<actuator-intvelocity>` shortcut. Different from the
+:ref:`pure velocity<actuator-velocity>` actuators, which implement direct feedback on transmission target's velocity,
+*integrated-velocity* actuators couple an *integrator* with a *position-feedback* actuator. In this case the semantics
+of the activation state are "the setpoint of the position actuator", and the semantics of the control signal are "the
+velocity of the setpoint of the position actuator". Note that in real robotic systems this integrated-velocity actuator
+is the most common implementation of actuators with velocity semantics, rather than pure feedback on velocity which is
+often quite unstable (both in real life and in simulation).
+
+In the case of integrated-velocity actuators, it is often desirable to *clamp* the activation state, since otherwise the
+position target would keep integrating beyond the joint limits, leading to loss of controllabillity. To see the effect
+of activation clamping, load the example model below:
+
+.. collapse:: Example model with activation limits
+
+   .. code-block:: xml
+
+      <mujoco>
+      <default>
+         <joint axis="0 0 1" limited="true" range="-90 90" damping="0.3"/>
+         <geom size=".1 .1 .1" type="box"/>
+      </default>
+
+      <worldbody>
+         <body>
+            <joint name="joint1"/>
+            <geom/>
+         </body>
+         <body pos=".3 0 0">
+            <joint name="joint2"/>
+            <geom/>
+         </body>
+      </worldbody>
+
+      <actuator>
+         <general name="unclamped" joint="joint1" gainprm="1" biastype="affine"
+            biasprm="0 -1" dyntype="integrator"/>
+         <intvelocity name="clamped" joint="joint2" actrange="-1.57 1.57"/>
+      </actuator>
+      </mujoco>
+
+Note that the :at:`actrange` attribute is always specified in native units (radians), even though the joint range
+can be either in degrees (the default) or radians, depending on the :ref:`compiler/angle <compiler>` attribute.
+
 .. _CMuscle:
 
-Muscle actuators
-~~~~~~~~~~~~~~~~
+Muscles
+'''''''
 
-As of MuJoCo 2.0, we provide a set of tools for modeling biological muscles. Users who want to add muscles with minimum
+MuJoCo 2.0 provides a set of tools for modeling biological muscles. Users who want to add muscles with minimum
 effort can do so with a single line of XML in the actuator section:
 
 .. code-block:: xml

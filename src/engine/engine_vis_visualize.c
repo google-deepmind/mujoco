@@ -1072,6 +1072,11 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
   if (vopt->flags[mjVIS_ACTUATOR] && (category & catmask)) {
     for (int i=0; i < m->nu; i++) {
       if (vopt->actuatorgroup[mjMAX(0, mjMIN(mjNGROUP-1, m->actuator_group[i]))]) {
+        // skip if disabled
+        if (mj_actuatorDisabled(m, i)) {
+          continue;
+        }
+
         // determine extended range
         mjtNum rng[3] = {-1, 0, +1};
         mjtNum rmin = -1, rmax = 1, act = 0;

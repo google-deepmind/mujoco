@@ -1049,6 +1049,44 @@ TEST_F(ActuatorParseTest, MusclesSmoothdynNegative) {
   EXPECT_THAT(error.data(), HasSubstr("muscle tausmooth cannot be negative"));
 }
 
+TEST_F(ActuatorParseTest, GroupDisable) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option actuatorgroupdisable="0 3 8 3"/>
+    <!-- note: repeated numbers are okay -->
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, NotNull());
+  EXPECT_EQ(model->opt.disableactuator, (1<<0) + (1<<3) + (1<<8));
+  mj_deleteModel(model);
+}
+
+TEST_F(ActuatorParseTest, GroupDisableNegative) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option actuatorgroupdisable="0 -3 5"/>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("must be non-negative"));
+}
+
+TEST_F(ActuatorParseTest, GroupDisableTooBig) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option actuatorgroupdisable="0 31"/>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("cannot exceed 30"));
+}
+
 // ------------- test sensor parsing -------------------------------------------
 
 using SensorParseTest = MujocoTest;

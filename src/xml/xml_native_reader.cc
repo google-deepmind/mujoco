@@ -93,13 +93,13 @@ static const char* MJCF[nMJCF][mjXATTRNUM] = {
             "inttotal", "interval", "tolrange"},
     {">"},
 
-    {"option", "*", "26",
+    {"option", "*", "27",
         "timestep", "apirate", "impratio", "tolerance", "ls_tolerance", "noslip_tolerance",
         "mpr_tolerance", "gravity", "wind", "magnetic", "density", "viscosity",
         "o_margin", "o_solref", "o_solimp", "o_friction",
         "integrator", "cone", "jacobian",
         "solver", "iterations", "ls_iterations", "noslip_iterations", "mpr_iterations",
-        "sdf_iterations", "sdf_initpoints"},
+        "sdf_iterations", "sdf_initpoints", "actuatorgroupdisable"},
     {"<"},
         {"flag", "?", "22", "constraint", "equality", "frictionloss", "limit", "contact",
             "passive", "gravity", "clampctrl", "warmstart",
@@ -1035,6 +1035,22 @@ void mjXReader::Option(XMLElement* section, mjOption* opt) {
   ReadAttrInt(section, "mpr_iterations", &opt->mpr_iterations);
   ReadAttrInt(section, "sdf_iterations", &opt->sdf_iterations);
   ReadAttrInt(section, "sdf_initpoints", &opt->sdf_initpoints);
+
+  // actuatorgroupdisable
+  constexpr int num_bitflags = 31;
+  int disabled_act_groups[num_bitflags];
+  int num_found = ReadAttr(section, "actuatorgroupdisable", num_bitflags, disabled_act_groups,
+                           text, false, false);
+  for (int i=0; i < num_found; i++) {
+    int group = disabled_act_groups[i];
+    if (group < 0 ) {
+      throw mjXError(section, "disabled actuator group value must be non-negative");
+    }
+    if (group > num_bitflags - 1) {
+      throw mjXError(section, "disabled actuator group value cannot exceed 30");
+    }
+    opt->disableactuator |= (1 << group);
+  }
 
   // read disable sub-element
   XMLElement* elem = FindSubElem(section, "flag");

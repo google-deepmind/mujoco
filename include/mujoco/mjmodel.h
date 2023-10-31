@@ -433,6 +433,7 @@ struct mjOption_ {                // physics options
   int mpr_iterations;             // maximum number of MPR solver iterations
   int disableflags;               // bit flags for disabling standard features
   int enableflags;                // bit flags for enabling optional features
+  int disableactuator;            // bit flags for disabling actuators by group id
 
   // sdf collision settings
   int sdf_initpoints;             // number of starting points for gradient descent

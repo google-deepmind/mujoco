@@ -7,41 +7,54 @@ Upcoming version (not yet released)
 
 General
 ^^^^^^^
+- Added sub-terms of total passive forces in ``mjData.qfrc_passive`` to :ref:`mjData`:
+  ``qfrc_{spring, damper, gravcomp, fluid}``. The sum of these vectors equals ``qfrc_passive``.
 
-1. Added sub-terms of total passive forces in ``mjData.qfrc_passive`` to :ref:`mjData`:
-   ``qfrc_{spring, damper, gravcomp, fluid}``. The sum of these vectors equals ``qfrc_passive``.
-2. Increased ``mjMAXUIITEM`` (maximum number of UI elements per section in Simulate) to 200.
+.. youtube:: H9qG9Zf2W44
+   :align: right
+   :width: 240px
+
+- Added :ref:`actuatorgroupdisable<option-actuatorgroupdisable>` attribute and associated
+  :ref:`mjOption.disableactuator<mjOption>` integer bitfield, which can be used to disable sets of actuators at runtime
+  according to their :ref:`group<actuator-general-group>`. Fixes :github:issue:`1092`. See :ref:`CActDisable`.
+
+  - The first 6 actuator groups are toggleable in the :ref:`simulate<saSimulate>` viewer. See `example model
+    <https://github.com/google-deepmind/mujoco/blob/main/test/engine/testdata/actuation/actuator_group_disable.xml>`__
+    and associated screen-capture on the right.
+
+
+
+- Increased ``mjMAXUIITEM`` (maximum number of UI elements per section in Simulate) to 200.
 
 MJX
 ^^^
-2. Added support for joint equality constraints (``mjEQ_JOINT`` in :ref:`mjtEq`).
-3. Fixed bug where mixed ``jnt_limited`` joints were not being constrained correctly.
-4. Made ``device_put`` type validation more verbose (fixes :github:issue:`1113`).
-5. Removed empty EFC rows from `MJX`, for joints with no limits (fixes :github:issue:`1117`).
-6. Fixed bug where equality constraints became inactive (fixes :github:issue:`1129`).
-7. Added an error when loading a model with tendons (fixes :github:issue:`1149`).
+- Added support for joint equality constraints (``mjEQ_JOINT`` in :ref:`mjtEq`).
+- Fixed bug where mixed ``jnt_limited`` joints were not being constrained correctly.
+- Made ``device_put`` type validation more verbose (fixes :github:issue:`1113`).
+- Removed empty EFC rows from `MJX`, for joints with no limits (fixes :github:issue:`1117`).
+- Fixed bug where equality constraints became inactive (fixes :github:issue:`1129`).
+- Added an error when loading a model with tendons (fixes :github:issue:`1149`).
 
 Python bindings
 ^^^^^^^^^^^^^^^
 
-6. Fix the macOS ``mjpython`` launcher to work with the Python interpreter from Apple Command Line
-   Tools.
-7. Fixed a crash when copying instances of ``mujoco.MjData`` for models that use plugins. Introduced a ``model``
-   attribute to ``MjData`` which is reference to the model that was used to create that ``MjData`` instance.
+- Fix the macOS ``mjpython`` launcher to work with the Python interpreter from Apple Command Line Tools.
+- Fixed a crash when copying instances of ``mujoco.MjData`` for models that use plugins. Introduced a ``model``
+  attribute to ``MjData`` which is reference to the model that was used to create that ``MjData`` instance.
 
 Simulate
 ^^^^^^^^
-8. :ref:`simulate<saSimulate>`: correct handling of "Pause update", "Fullscreen" and "VSync" buttons.
+- :ref:`simulate<saSimulate>`: correct handling of "Pause update", "Fullscreen" and "VSync" buttons.
 
 Documentation
 ^^^^^^^^^^^^^
-9.  Added documentation for the :ref:`UI` framework.
-10. Fixed typos and supported fields in docs (fixes :github:issue:`1105` and :github:issue:`1106`).
+- Added documentation for the :ref:`UI` framework.
+- Fixed typos and supported fields in docs (fixes :github:issue:`1105` and :github:issue:`1106`).
 
 
 Bug fixes
 ^^^^^^^^^
-11. Fixed bug relating to welds modified with :ref:`torquescale<equality-weld-torquescale>`.
+- Fixed bug relating to welds modified with :ref:`torquescale<equality-weld-torquescale>`.
 
 Version 3.0.0 (October 18, 2023)
 --------------------------------

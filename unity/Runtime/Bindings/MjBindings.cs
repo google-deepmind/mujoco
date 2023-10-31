@@ -4968,6 +4968,7 @@ public unsafe struct mjOption_ {
   public int mpr_iterations;
   public int disableflags;
   public int enableflags;
+  public int disableactuator;
   public int sdf_initpoints;
   public int sdf_iterations;
 }

@@ -498,7 +498,7 @@ shown in the table below. Their names are in the format ``mjKEY_XXX``. They corr
      - Maximum number of UI sections.
        Defined in `mjui.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjui.h>`_.
    * - ``mjMAXUIITEM``
-     - 80
+     - 200
      - Maximum number of items per UI section.
        Defined in `mjui.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjui.h>`_.
    * - ``mjMAXUITEXT``

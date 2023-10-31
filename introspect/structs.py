@@ -277,6 +277,11 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='bit flags for enabling optional features',
              ),
              StructFieldDecl(
+                 name='disableactuator',
+                 type=ValueType(name='int'),
+                 doc='bit flags for disabling actuators by group id',
+             ),
+             StructFieldDecl(
                  name='sdf_initpoints',
                  type=ValueType(name='int'),
                  doc='number of starting points for gradient descent',

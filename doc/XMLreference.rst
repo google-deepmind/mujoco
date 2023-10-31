@@ -1879,6 +1879,12 @@ adjust it properly through the XML.
 :at:`sdf_initpoints`: :at-val:`int, "40"`
    Number of starting points used for fining contacts with Signed Distance Field collisions.
 
+.. _option-actuatorgroupdisable:
+
+:at:`actuatorgroupdisable`: :at-val:`int(30), ""`
+   List of actuator groups to disable. Actuators whose :ref:`group<actuator-general-group>` is in this list will produce
+   no force. If they are stateful, their activation states will not be integrated. Internally this list is
+   implemented as an integer bitfield, so values must be in the range ``0 <= group <= 30``.
 
 .. _option-flag:
 
@@ -4883,7 +4889,7 @@ multiplied by the corresponding coef value, and added up to obtain the tendon le
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 This is a grouping element for actuator definitions. Recall the discussion of MuJoCo's :ref:`Actuation model
-<geActuation>` in the Computation chapter, and the :ref:`Actuator shortcuts <CActuator>` discussed earlier in this
+<geActuation>` in the Computation chapter, and the :ref:`Actuator shortcuts <CActShortcuts>` discussed earlier in this
 chapter. The first 13 attributes of all actuator-related elements below are the same, so we document them only once,
 under the :el:`general` actuator.
 
@@ -5156,7 +5162,7 @@ specify them independently.
 :el-prefix:`actuator/` |-| **motor** (*)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-This and the next three elements are the :ref:`Actuator shortcuts <CActuator>` discussed earlier. When a
+This and the next three elements are the :ref:`Actuator shortcuts <CActShortcuts>` discussed earlier. When a
 such shortcut is encountered, the parser creates a :el:`general` actuator and sets its dynprm, gainprm and biasprm
 attributes to the internal defaults shown above, regardless of any default settings. It then adjusts dyntype, gaintype
 and biastype depending on the shortcut, parses any custom attributes (beyond the common ones), and translates them
@@ -7526,7 +7532,7 @@ if omitted.
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This and the next three elements set the attributes of the :ref:`general <actuator-general>` element using
-:ref:`Actuator shortcuts <CActuator>`. It does not make sense to use more than one such shortcut in the same defaults
+:ref:`Actuator shortcuts <CActShortcuts>`. It does not make sense to use more than one such shortcut in the same defaults
 class, because they set the same underlying attributes, replacing any previous settings. All
 :ref:`motor <actuator-motor>` attributes are available here except: name, class, joint, jointinparent, site, tendon,
 slidersite, cranksite.

@@ -153,6 +153,7 @@ class Simulate {
     bool ui_update_rendering;
     bool ui_update_joint;
     bool ui_update_ctrl;
+    bool ui_remake_ctrl;
   } pending_ = {};
 
   SimulateMutex mtx;
@@ -228,6 +229,7 @@ class Simulate {
   // physics: need sync
   int disable[mjNDISABLE] = {0};
   int enable[mjNENABLE] = {0};
+  int enableactuator[mjNGROUP] = {0};
 
   // rendering: need sync
   int camera = 0;

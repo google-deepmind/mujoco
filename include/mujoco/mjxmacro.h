@@ -43,6 +43,7 @@
     X( int,     mpr_iterations    ) \
     X( int,     disableflags      ) \
     X( int,     enableflags       ) \
+    X( int,     disableactuator   ) \
     X( int,     sdf_initpoints    ) \
     X( int,     sdf_iterations    )
 

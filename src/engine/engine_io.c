@@ -161,6 +161,7 @@ void mj_defaultOption(mjOption* opt) {
   opt->mpr_iterations     = 50;
   opt->disableflags       = 0;
   opt->enableflags        = 0;
+  opt->disableactuator    = 0;
 
   // sdf collisions
   opt->sdf_initpoints     = 40;

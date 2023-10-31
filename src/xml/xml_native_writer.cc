@@ -909,6 +909,16 @@ void mjXWriter::Option(XMLElement* root) {
   WriteAttrInt(section, "sdf_iterations", model->option.sdf_iterations, opt.sdf_iterations);
   WriteAttrInt(section, "sdf_initpoints", model->option.sdf_initpoints, opt.sdf_initpoints);
 
+  // actuator group disable
+  int disabled_groups[31];
+  int ndisabled = 0;
+  for (int i = 0; i < 31; ++i) {
+    if (model->option.disableactuator & (1 << i)) {
+      disabled_groups[ndisabled++] = i;
+    }
+  }
+  WriteAttr(section, "actuatorgroupdisable", ndisabled, disabled_groups);
+
   // write disable/enable flags if any of them are set; invert while writing
   if (model->option.disableflags || model->option.enableflags) {
     XMLElement* sub = InsertEnd(section, "flag");

@@ -31,6 +31,15 @@ namespace {
 
 using HeaderTest = MujocoTest;
 
+TEST_F(HeaderTest, IntsHave4Bytes) {
+  EXPECT_EQ(4, sizeof(int));
+}
+
+TEST_F(HeaderTest, IntsHaveAtLeast31Bits) {
+  int shift_left_30 = 1 << 30;
+  EXPECT_GT(shift_left_30, 0);
+}
+
 TEST_F(HeaderTest, EnumsAreInts) {
   EXPECT_EQ(sizeof(mjtDisableBit),      sizeof(int));
   EXPECT_EQ(sizeof(mjtEnableBit),       sizeof(int));
