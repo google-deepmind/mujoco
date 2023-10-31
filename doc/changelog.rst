@@ -10,6 +10,7 @@ General
 
 1. Added sub-terms of total passive forces in ``mjData.qfrc_passive`` to :ref:`mjData`:
    ``qfrc_{spring, damper, gravcomp, fluid}``. The sum of these vectors equals ``qfrc_passive``.
+2. Increased ``mjMAXUIITEM`` (maximum number of UI elements per section in Simulate) to 200.
 
 MJX
 ^^^
