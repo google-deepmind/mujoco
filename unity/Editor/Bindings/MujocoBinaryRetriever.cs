@@ -19,95 +19,76 @@ using UnityEditor;
 using UnityEditor.PackageManager;
 using UnityEngine;
 
-namespace Mujoco
-{
-  public class MujocoBinaryRetriever
-  {
+namespace Mujoco {
+public class MujocoBinaryRetriever {
 
-    [InitializeOnLoadMethod]
-    static void SubscribeToEvent()
-    {
-      // This causes the method to be invoked after the Editor registers the new list of packages.
-      Events.registeredPackages += RegisteredPackagesEventHandler;
-    }
+  [InitializeOnLoadMethod]
+  static void SubscribeToEvent() {
+    // This causes the method to be invoked after the Editor registers the new list of packages.
+    Events.registeredPackages += RegisteredPackagesEventHandler;
+  }
 
-    static void RegisteredPackagesEventHandler(
-        PackageRegistrationEventArgs packageRegistrationEventArgs)
-    {
-      foreach (var packageInfo in packageRegistrationEventArgs.added)
-      {
-        if (packageInfo.name.Equals("org.mujoco"))
-        {
-          var mujocoPath = packageInfo.assetPath;
-          if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
-          {
-            if (AssetDatabase.LoadMainAssetAtPath(mujocoPath + "/mujoco.dylib") == null)
-            {
-              File.Copy(
-                  "/Applications/MuJoCo.app/Contents/Frameworks" +
-                  "/mujoco.framework/Versions/Current/libmujoco.3.0.1.dylib",
-                  mujocoPath + "/mujoco.dylib");
-              GenerateMetaFile(mujocoPath + "/mujoco.dylib");
-              AssetDatabase.Refresh();
-
-            }
+  static void RegisteredPackagesEventHandler(
+      PackageRegistrationEventArgs packageRegistrationEventArgs) {
+    foreach (var packageInfo in packageRegistrationEventArgs.added) {
+      if (packageInfo.name.Equals("org.mujoco")) {
+        var mujocoPath = packageInfo.assetPath;
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX)) {
+          if (AssetDatabase.LoadMainAssetAtPath(mujocoPath + "/mujoco.dylib") == null) {
+            File.Copy(
+                "/Applications/MuJoCo.app/Contents/Frameworks" +
+                "/mujoco.framework/Versions/Current/libmujoco.3.0.1.dylib",
+                mujocoPath + "/mujoco.dylib");
+            GenerateMetaFile(mujocoPath + "/mujoco.dylib");
+            AssetDatabase.Refresh();
           }
-          else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-          {
-            if (AssetDatabase.LoadMainAssetAtPath(mujocoPath + "/libmujoco.so") == null)
-            {
-              File.Copy(
-                  Environment.GetFolderPath(Environment.SpecialFolder.UserProfile) +
-                  "/.mujoco/mujoco-3.0.1/lib/libmujoco.so.3.0.1",
-                  mujocoPath + "/libmujoco.so");
-              GenerateMetaFile(mujocoPath + "/libmujoco.so");
-              AssetDatabase.Refresh();
-
-            }
+        } else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux)) {
+          if (AssetDatabase.LoadMainAssetAtPath(mujocoPath + "/libmujoco.so") == null) {
+            File.Copy(
+                Environment.GetFolderPath(Environment.SpecialFolder.UserProfile) +
+                "/.mujoco/mujoco-3.0.1/lib/libmujoco.so.3.0.1",
+                mujocoPath + "/libmujoco.so");
+            GenerateMetaFile(mujocoPath + "/libmujoco.so");
+            AssetDatabase.Refresh();
           }
-          else
-          {
-            if (AssetDatabase.LoadMainAssetAtPath(mujocoPath + "/mujoco.dll") == null)
-            {
-              File.Copy(
-                  Environment.GetFolderPath(Environment.SpecialFolder.UserProfile) +
-                  "\\MuJoCo\\bin\\mujoco.dll",
-                  mujocoPath + "\\mujoco.dll");
-              GenerateMetaFile(mujocoPath + "\\mujoco.dll");
-              AssetDatabase.Refresh();
-
-            }
+        } else {
+          if (AssetDatabase.LoadMainAssetAtPath(mujocoPath + "/mujoco.dll") == null) {
+            File.Copy(
+                Environment.GetFolderPath(Environment.SpecialFolder.UserProfile) +
+                "\\MuJoCo\\bin\\mujoco.dll",
+                mujocoPath + "\\mujoco.dll");
+            GenerateMetaFile(mujocoPath + "\\mujoco.dll");
+            AssetDatabase.Refresh();
           }
         }
       }
     }
-    static void GenerateMetaFile(string file)
-    {
-      string metaFileName = file + ".meta";
-
-      // Check if .meta file exists.
-      if (File.Exists(metaFileName))
-      {
-        Console.WriteLine("Meta file for " + file + " is already created!");
-        return;
-      }
-
-      // Create a uuid
-      var uuidN = Guid.NewGuid().ToString("N");
-
-      // Write content to .meta
-      using (StreamWriter writer = File.CreateText(metaFileName))
-      {
-        writer.WriteLine("fileFormatVersion: 2");
-        writer.WriteLine("guid: " + (uuidN.ToString()));
-        writer.WriteLine("DefaultImporter:");
-        writer.WriteLine("  externalObjects: {}");
-        writer.WriteLine("  userData: ");
-        writer.WriteLine("  assetBundleName: ");
-        writer.WriteLine("  assetBundleVariant: ");
-      }
-
-      Console.WriteLine("Meta file for " + file + "created!");
-    }
   }
+  
+  static void GenerateMetaFile(string file) {
+    string metaFileName = file + ".meta";
+
+    // Check if .meta file exists.
+    if (File.Exists(metaFileName)) {
+      Debug.Log("Meta file for " + file + " is already created!");
+      return;
+    }
+
+    // Create a uuid
+    var uuidN = Guid.NewGuid().ToString("N");
+
+    // Write content to .meta
+    using (StreamWriter writer = File.CreateText(metaFileName)) {
+      writer.WriteLine("fileFormatVersion: 2");
+      writer.WriteLine("guid: " + (uuidN.ToString()));
+      writer.WriteLine("DefaultImporter:");
+      writer.WriteLine("  externalObjects: {}");
+      writer.WriteLine("  userData: ");
+      writer.WriteLine("  assetBundleName: ");
+      writer.WriteLine("  assetBundleVariant: ");
+    }
+
+    Debug.Log("Meta file for " + file + "created!");
+  }
+}
 }
