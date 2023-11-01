@@ -108,7 +108,7 @@ illustration of the concepts in that guide.
 This code sample is a fully-featured interactive simulator. It opens an OpenGL window using the platform-independent
 GLFW library, and renders the simulation state in it. There is built-in help, simulation statistics, profiler, sensor
 data plots. The model file can be specified as a command-line argument, or loaded at runtime using drag-and-drop
-functionality. As of MuJoCo 2.0, this code sample uses the native UI to render various controls, and provides an
+functionality. This code sample uses the native UI to render various controls, and provides an
 illustration of how the new UI framework is intended to be used. Below is a screen-capture of ``simulate`` in action:
 
 ..  youtube:: 0ORsj_E17B0
