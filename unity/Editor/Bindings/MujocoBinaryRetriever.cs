@@ -88,7 +88,7 @@ public class MujocoBinaryRetriever {
       writer.WriteLine("  assetBundleVariant: ");
     }
 
-    Debug.Log("Meta file for " + file + "created!");
+    Debug.Log("Meta file for " + file + " created!");
   }
 }
 }
