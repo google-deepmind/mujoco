@@ -33,8 +33,9 @@ jaxlib==0.4.18; python_version >= '3.9' \
     --hash=sha256:6cb20bbbdafd90e71ad0deb9295519a0175c108c8c557b84fb9fe94f751daee4 \
     --hash=sha256:116a0d6aedd3e856b52493d7e392fb1b40952b84fb72448fde1c1ab5687db667 \
     --hash=sha256:9593ff69f424947567e206f3e356b2a2df55ca68e6d815d5adc6cae308e8f652
-pip==23.2.1 \
-    --hash=sha256:7ccf472345f20d35bdc9d1841ff5f313260c2c33fe417f48c30ac46cccabf5be
+pip==23.3 \
+    --hash=sha256:bb7d4f69f488432e4e96394612f43ab43dd478d073ef7422604a570f7157561e \
+    --hash=sha256:bc38bb52bc286514f8f7cb3a1ba5ed100b76aaef29b521d48574329331c5ae7b
 pytest==7.4.2 \
     --hash=sha256:1d881c6124e08ff0a1bb75ba3ec0bfd8b5354a01c194ddd5a0a870a48d99b002
 pytest-xdist==3.3.1 \
