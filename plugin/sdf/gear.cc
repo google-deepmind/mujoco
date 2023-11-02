@@ -82,6 +82,9 @@ static mjtNum distance2D(const mjtNum p[3],
   mjtNum h = 2.2 / Pd;
 
   mjtNum innerR = Ro - h - 0.14*D;
+  if (attributes[4] >= 0.0) {
+    innerR = attributes[4] / 2.0;
+  }
 
   // Early exit
   if (innerR - rho > 0.0)
@@ -144,10 +147,10 @@ static mjtNum distance(const mjtNum p[3],
 }  // namespace
 
 // factory function
-std::optional<Gear> Gear::Create(
-  const mjModel* m, mjData* d, int instance) {
+std::optional<Gear> Gear::Create(const mjModel* m, mjData* d, int instance) {
   if (CheckAttr("alpha", m, instance) && CheckAttr("diameter", m, instance) &&
-      CheckAttr("teeth", m, instance)) {
+      CheckAttr("teeth", m, instance) &&
+      CheckAttr("innerdiameter", m, instance)) {
       return Gear(m, d, instance);
   } else {
       mju_warning("Invalid parameter specification in Gear plugin");
