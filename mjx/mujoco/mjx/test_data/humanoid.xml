@@ -5,7 +5,7 @@
         <geom conaffinity="0" condim="3" contype="0" material="geom"/>
         <motor ctrllimited="true" ctrlrange="-.4 .4"/>
     </default>
-    <option iterations="8" timestep="0.003" solver="CG"/>
+    <option iterations="8" timestep="0.003"/>
     <size nkey="5" nuser_geom="1"/>
     <visual>
         <map fogend="5" fogstart="3"/>

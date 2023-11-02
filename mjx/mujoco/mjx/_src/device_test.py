@@ -110,11 +110,10 @@ class ValidateInputTest(absltest.TestCase):
 
   def test_solver(self):
     m = mujoco.MjModel.from_xml_string(
-        '<mujoco><option solver="Newton"/><worldbody/></mujoco>'
+        '<mujoco><option solver="PGS"/><worldbody/></mujoco>'
     )
-    with self.assertWarns(UserWarning):
-      mx = mjx.device_put(m)
-    self.assertEqual(mx.opt.solver, mujoco.mjtSolver.mjSOL_CG)
+    with self.assertRaises(NotImplementedError):
+      mjx.device_put(m)
 
   def test_integrator(self):
     m = mujoco.MjModel.from_xml_string(

@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # ==============================================================================
-"""CG and Newton solvers."""
+"""Constraint solvers."""
 
 from typing import Optional
 
@@ -26,11 +26,12 @@ from mujoco.mjx._src.dataclasses import PyTreeNode
 from mujoco.mjx._src.types import Data
 from mujoco.mjx._src.types import DisableBit
 from mujoco.mjx._src.types import Model
+from mujoco.mjx._src.types import SolverType
 # pylint: enable=g-importing-member
 
 
-class _CGContext(PyTreeNode):
-  """Data updated during each cg solver iteration.
+class _Context(PyTreeNode):
+  """Data updated during each solver iteration.
 
   Attributes:
     qacc: acceleration (from Data)                    (nv,)
@@ -44,7 +45,7 @@ class _CGContext(PyTreeNode):
     search: linesearch vector                         (nv,)
     gauss: gauss Cost
     cost: constraint + Gauss cost
-    prev_cost: cost from previous cg iter
+    prev_cost: cost from previous iter
     solver_niter: number of solver iterations
   """
 
@@ -63,13 +64,13 @@ class _CGContext(PyTreeNode):
   solver_niter: jax.Array
 
   @classmethod
-  def create(cls, m: Model, d: Data, grad: bool = True) -> '_CGContext':
+  def create(cls, m: Model, d: Data, grad: bool = True) -> '_Context':
     jaref = d.efc_J @ d.qacc - d.efc_aref
     # TODO(robotics-team): determine nv at which sparse mul is faster
     M = smooth.dense_m(m, d) if m.nv < 100 else None  # pylint: disable=invalid-name
     ma = smooth.mul_m(m, d, d.qacc) if M is None else M @ d.qacc
     nv_0 = jp.zeros((m.nv,))
-    ctx = _CGContext(
+    ctx = _Context(
         qacc=d.qacc,
         qfrc_constraint=d.qfrc_constraint,
         Jaref=jaref,
@@ -84,9 +85,9 @@ class _CGContext(PyTreeNode):
         prev_cost=0.0,
         solver_niter=0,
     )
-    ctx = _cg_update_constraint(m, d, ctx)
+    ctx = _update_constraint(m, d, ctx)
     if grad:
-      ctx = _cg_update_gradient(m, d, ctx)
+      ctx = _update_gradient(m, d, ctx)
       ctx = ctx.replace(search=-ctx.Mgrad)  # start with preconditioned gradient
 
     return ctx
@@ -111,7 +112,7 @@ class _LSPoint(PyTreeNode):
   def create(
       cls,
       d: Data,
-      ctx: _CGContext,
+      ctx: _Context,
       alpha: jax.Array,
       jv: jax.Array,
       quad: jax.Array,
@@ -132,7 +133,7 @@ class _LSPoint(PyTreeNode):
 
 
 class _LSContext(PyTreeNode):
-  """Data updated during each cg line search iteration.
+  """Data updated during each line search iteration.
 
   Attributes:
     lo: low point bounding the line search interval
@@ -163,15 +164,15 @@ def _while_loop_scan(cond_fun, body_fun, init_val, max_iter):
   return jax.lax.scan(_fun, init, None, length=max_iter)[0][0]
 
 
-def _cg_update_constraint(m: Model, d: Data, ctx: _CGContext) -> _CGContext:
-  """Updates constraint force and resulting cost given latst CG iteration.
+def _update_constraint(m: Model, d: Data, ctx: _Context) -> _Context:
+  """Updates constraint force and resulting cost given latst solver iteration.
 
   Corresponds to CGupdateConstraint in mujoco/src/engine/engine_solver.c
 
   Args:
     m: model defining constraints
     d: data which contains latest qacc and smooth terms
-    ctx: current CG context
+    ctx: current solver context
 
   Returns:
     context with new constraint force and costs
@@ -199,22 +200,34 @@ def _cg_update_constraint(m: Model, d: Data, ctx: _CGContext) -> _CGContext:
   return ctx
 
 
-def _cg_update_gradient(m: Model, d: Data, ctx: _CGContext) -> _CGContext:
-  """Updates grad and M / grad given latest CG iteration.
+def _update_gradient(m: Model, d: Data, ctx: _Context) -> _Context:
+  """Updates grad and M / grad given latest solver iteration.
 
   Corresponds to CGupdateGradient in mujoco/src/engine/engine_solver.c
 
   Args:
     m: model defining constraints
     d: data which contains latest smooth terms
-    ctx: current CG contet
+    ctx: current solver context
 
   Returns:
     context with new grad and M / grad
+  Raises:
+    NotImplementedError: for unsupported solver type
   """
 
   grad = ctx.Ma - d.qfrc_smooth - ctx.qfrc_constraint
-  mgrad = smooth.solve_m(m, d, grad)
+
+  if m.opt.solver == SolverType.CG:
+    mgrad = smooth.solve_m(m, d, grad)
+  elif m.opt.solver == SolverType.NEWTON:
+    active = (ctx.Jaref < 0).at[:d.ne + d.nf].set(True)
+    h = (d.efc_J.T * d.efc_D * active) @ d.efc_J
+    h = smooth.dense_m(m, d) + h
+    h_ = jax.scipy.linalg.cho_factor(h)
+    mgrad = jax.scipy.linalg.cho_solve(h_, grad)
+  else:
+    raise NotImplementedError(f"unsupported solver type: {m.opt.solver}")
 
   ctx = ctx.replace(grad=grad, Mgrad=mgrad)
 
@@ -225,13 +238,13 @@ def _rescale(m: Model, value: jax.Array) -> jax.Array:
   return value / (m.stat.meaninertia * max(1, m.nv))
 
 
-def _cg_search(m: Model, d: Data, ctx: _CGContext) -> _CGContext:
+def _linesearch(m: Model, d: Data, ctx: _Context) -> _Context:
   """Performs a zoom linesearch to find optimal search step size.
 
   Args:
     m: model defining search options and other needed terms
     d: data with inertia matrix and other needed terms
-    ctx: current CG context
+    ctx: current solver context
 
   Returns:
     updated context with new qacc, Ma, Jaref
@@ -310,10 +323,10 @@ def _cg_search(m: Model, d: Data, ctx: _CGContext) -> _CGContext:
   return ctx
 
 
-def cg_solve(m: Model, d: Data) -> Data:
+def solve(m: Model, d: Data) -> Data:
   """Finds forces that satisfy constraints using conjugate gradient descent."""
 
-  def cond(ctx: _CGContext) -> jax.Array:
+  def cond(ctx: _Context) -> jax.Array:
     improvement = _rescale(m, ctx.prev_cost - ctx.cost)
     gradient = _rescale(m, math.norm(ctx.grad))
 
@@ -323,11 +336,11 @@ def cg_solve(m: Model, d: Data) -> Data:
 
     return ~done
 
-  def body(ctx: _CGContext) -> _CGContext:
-    ctx = _cg_search(m, d, ctx)
+  def body(ctx: _Context) -> _Context:
+    ctx = _linesearch(m, d, ctx)
     prev_grad, prev_Mgrad = ctx.grad, ctx.Mgrad  # pylint: disable=invalid-name
-    ctx = _cg_update_constraint(m, d, ctx)
-    ctx = _cg_update_gradient(m, d, ctx)
+    ctx = _update_constraint(m, d, ctx)
+    ctx = _update_gradient(m, d, ctx)
 
     # polak-ribiere:
     beta = jp.dot(ctx.grad, ctx.Mgrad - prev_Mgrad)
@@ -341,12 +354,16 @@ def cg_solve(m: Model, d: Data) -> Data:
   # warmstart:
   qacc = d.qacc_smooth
   if not m.opt.disableflags & DisableBit.WARMSTART:
-    warm = _CGContext.create(m, d.replace(qacc=d.qacc_warmstart), grad=False)
-    smth = _CGContext.create(m, d.replace(qacc=d.qacc_smooth), grad=False)
+    warm = _Context.create(m, d.replace(qacc=d.qacc_warmstart), grad=False)
+    smth = _Context.create(m, d.replace(qacc=d.qacc_smooth), grad=False)
     qacc = jp.where(warm.cost < smth.cost, d.qacc_warmstart, d.qacc_smooth)
   d = d.replace(qacc=qacc)
 
-  ctx = jax.lax.while_loop(cond, body, _CGContext.create(m, d))
+  ctx = _Context.create(m, d)
+  if m.opt.iterations == 1:
+    ctx = body(ctx)
+  else:
+    ctx = jax.lax.while_loop(cond, body, ctx)
 
   d = d.replace(
       qacc_warmstart=ctx.qacc,

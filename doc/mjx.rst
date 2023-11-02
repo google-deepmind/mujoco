@@ -198,7 +198,7 @@ The following features are **fully supported** in MJX:
    * - :ref:`Condim <coContact>`
      - 3
    * - :ref:`Solver <mjtSolver>`
-     - ``CG``
+     - ``CG``, ``NEWTON``
    * - Fluid Model
      - :ref:`flInertia`
 
@@ -226,8 +226,6 @@ The following features are **in development** and coming soon:
      - ``ELLIPTIC``
    * - :ref:`Condim <coContact>`
      - 1, 4, 6
-   * - :ref:`Solver <mjtSolver>`
-     - ``NEWTON``
    * - Fluid Model
      - :ref:`flEllipsoid`
    * - :ref:`Tendons <tendon>`
@@ -306,10 +304,11 @@ Performance tuning
 For MJX to perform well, some configuration parameters should be adjusted from their default MuJoCo values:
 
 :ref:`option` element
-  For now, solver must be set to ``CG`` (but Newton is on its way!).  The ``iterations`` and ``ls_iterations``
-  attributes---which control solver and linesearch iterations, respectively---should be brought down to just low enough
-  that the simulation remains stable.  Accurate solver forces are not so important in reinforcement learning in which
-  domain randomization is often used to add noise to physics for sim2real.
+  The ``iterations`` and ``ls_iterations`` attributes---which control solver and linesearch iterations, respectively---
+  should be brought down to just low enough that the simulation remains stable.  Accurate solver forces are not so
+  important in reinforcement learning in which domain randomization is often used to add noise to physics for sim-to-real.
+  The ``NEWTON`` :ref:`Solver <mjtSolver>` often delivers reasonable convergence with one solver iteration, and performs
+  well on GPU.  ``CG`` is currently a better choice for TPU.
 
 :ref:`contact-pair` element
   Consider explicitly marking geoms for collision detection to reduce the number of contacts that MJX must consider

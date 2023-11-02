@@ -1,7 +1,7 @@
 <mujoco model="right_shadow_hand">
   <compiler angle="radian" meshdir="assets" autolimits="true"/>
 
-  <option impratio="10" solver="CG" iterations="8" ls_iterations="6">
+  <option impratio="10" iterations="1" ls_iterations="4">
     <flag eulerdamp="disable"/>
   </option>
 

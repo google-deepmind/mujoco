@@ -131,8 +131,9 @@ class SolverType(enum.IntEnum):
   Attributes:
     CG: Conjugate gradient (primal)
   """
-  # unsupported: PGS, NEWTON
+  # unsupported: PGS
   CG = mujoco.mjtSolver.mjSOL_CG
+  NEWTON = mujoco.mjtSolver.mjSOL_NEWTON
 
 
 class EqType(enum.IntEnum):

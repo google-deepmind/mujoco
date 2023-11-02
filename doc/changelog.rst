@@ -28,12 +28,37 @@ General
 
 MJX
 ^^^
+- Added support for Newton solver (``mjSOL_NEWTON`` in :ref:`mjtSolver`).  The Newton solver significantly speeds up
+  simulation on GPU.  See updated benchmarks on an Nvidia A100 (reported numbers are steps-per-second):
+
+  .. list-table:: Steps-per-second, Conjugate Gradient vs. Newton on A100
+     :header-rows: 1
+     :align: left
+
+     * - Model
+       - CG
+       - Newton
+       - Speedup
+     * - `Humanoid <https://github.com/google-deepmind/mujoco/tree/main/mjx/mujoco/mjx/benchmark/model/humanoid>`__
+       - 640,000
+       - 1,020,000
+       - **1.6 x**
+     * - `Barkour v0 <https://github.com/google-deepmind/mujoco/tree/main/mjx/mujoco/mjx/benchmark/model/barkour_v0>`__
+       - 1,290,000
+       - 1,750,000
+       - **1.35 x**
+     * - `Shadow Hand <https://github.com/google-deepmind/mujoco/tree/main/mjx/mujoco/mjx/benchmark/model/shadow_hand>`__
+       - 215,000
+       - 270,000
+       - **1.25 x**
+
+  Humanoid is the standard MuJoCo humanoid,
+  `Google Barkour <https://blog.research.google/2023/05/barkour-benchmarking-animal-level.html>`__ and the Shadow Hand
+  are both available in the :ref:`MuJoCo Menagerie<Menagerie>`.
 - Added support for joint equality constraints (``mjEQ_JOINT`` in :ref:`mjtEq`).
 - Fixed bug where mixed ``jnt_limited`` joints were not being constrained correctly.
 - Made ``device_put`` type validation more verbose (fixes :github:issue:`1113`).
-- Removed empty EFC rows from `MJX`, for joints with no limits (fixes :github:issue:`1117`).
-- Fixed bug where equality constraints became inactive (fixes :github:issue:`1129`).
-- Added an error when loading a model with tendons (fixes :github:issue:`1149`).
+- Removed empty EFC rows from ``MJX``, for joints with no limits (fixes :github:issue:`1117`).
 
 Python bindings
 ^^^^^^^^^^^^^^^

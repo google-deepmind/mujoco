@@ -40,6 +40,10 @@ _MJ_TYPE_ATTR = {
         mujoco.MjModel.opt,
         mujoco.MjOption.integrator,
     ),
+    mujoco.mjtSolver: (
+        mujoco.MjModel.opt,
+        mujoco.MjOption.solver,
+    ),
 }
 
 _TYPE_MAP = {
@@ -103,10 +107,6 @@ def _option_derived(value: types.Option) -> Dict[str, Any]:
 
 def _validate(m: mujoco.MjModel):
   """Validates that an mjModel is compatible with MJX."""
-  if m.opt.solver not in set(types.SolverType):
-    name = mujoco.mjtSolver(m.opt.solver).name
-    warnings.warn(f'Solver {name} is not supported, reverting to CG.')
-    m.opt.solver = mujoco.mjtSolver.mjSOL_CG.value
 
   # check enum types
   for mj_type, attrs in _MJ_TYPE_ATTR.items():
@@ -116,7 +116,7 @@ def _validate(m: mujoco.MjModel):
 
     typs = set(val) if isinstance(val, Iterable) else {val}
     unsupported_typs = typs - set(_TYPE_MAP[mj_type])
-    unsupported = [mj_type(t) for t in unsupported_typs]
+    unsupported = [mj_type(t) for t in unsupported_typs]  # pylint: disable=too-many-function-args
     if unsupported:
       raise NotImplementedError(f'{unsupported} not implemented.')
 
