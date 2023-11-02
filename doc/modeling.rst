@@ -1330,6 +1330,8 @@ into the engine in future releases.
 
 .. code-block:: xml
 
+   <option timestep=".001"/>
+
    <extension>
       <plugin plugin="mujoco.elasticity.solid"/>
    </extension>

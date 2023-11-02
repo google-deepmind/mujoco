@@ -3706,12 +3706,13 @@ saving the XML:
    **gmsh** is similar to mesh, but it loads a `GMSH file <https://gmsh.info//doc/texinfo/gmsh.html#MSH-file-format>`__
    in format 4.1 (ascii or binary). The file extension can be anything; the parser recognizes the format by examining
    the file header. This is a very rich file format, allowing all kinds of elements with different dimensionality and
-   topology. MuJoCo only supports GMSH element types 1, 2, 4 which happen to correspond to our 1D, 2D and 3D flexes.
-   Only the Nodes and Elements sections of the GMHS file are processed, and used to populate the point and element data
-   of the flexcomp. The parser will generate an error if the GMSH file contains meshes that are not supported by MuJoCo.
-   :at:`dim` is automatically set to the dimensionality specified in the GMSH file. Presently this is the only mechanism
-   to load a large tetrahedral mesh in MuJoCo and generate a corresponding soft entity. If such a mesh is available in a
-   different file format, use the freely available `GMSH software <https://gmsh.info/>`__ to convert it to GMSH 4.1.
+   topology. MuJoCo only supports GMSH element types 1, 2, 4 which happen to correspond to our 1D, 2D and 3D flexes and
+   assumes that the nodes are specified in a single block. Only the Nodes and Elements sections of the GMHS file are
+   processed, and used to populate the point and element data of the flexcomp. The parser will generate an error if the
+   GMSH file contains meshes that are not supported by MuJoCo. :at:`dim` is automatically set to the dimensionality
+   specified in the GMSH file. Presently this is the only mechanism to load a large tetrahedral mesh in MuJoCo and
+   generate a corresponding soft entity. If such a mesh is available in a different file format, use the freely
+   available `GMSH software <https://gmsh.info/>`__ to convert it to GMSH 4.1.
 
    **direct** allows the user to specify the point and element data of the flexcomp directly in the XML. Note that
    flexcomp will still generate moving bodies automatically, as well as automate other settings; so it still provides
