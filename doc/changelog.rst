@@ -29,7 +29,7 @@ General
 MJX
 ^^^
 - Added support for Newton solver (``mjSOL_NEWTON`` in :ref:`mjtSolver`).  The Newton solver significantly speeds up
-  simulation on GPU.  See updated benchmarks on an Nvidia A100 (reported numbers are steps-per-second):
+  simulation on GPU:
 
   .. list-table:: Steps-per-second, Conjugate Gradient vs. Newton on A100
      :header-rows: 1
@@ -73,6 +73,13 @@ Simulate
 
 Documentation
 ^^^^^^^^^^^^^
+
+.. youtube:: cE3s_IfO4g4
+   :align: right
+   :width: 240px
+
+- Added cell to the `tutorial colab <https://github.com/google-deepmind/mujoco#getting-started>`__ providing an example
+  of procedural camera control:
 - Added documentation for the :ref:`UI` framework.
 - Fixed typos and supported fields in docs (fixes :github:issue:`1105` and :github:issue:`1106`).
 
