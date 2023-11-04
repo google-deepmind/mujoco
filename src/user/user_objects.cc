@@ -1612,7 +1612,7 @@ void mjCGeom::ComputeAABB(void) {
   case mjGEOM_HFIELD:
     aamm[0] = -model->hfields[hfieldid]->size[0];
     aamm[1] = -model->hfields[hfieldid]->size[1];
-    aamm[2] = -model->hfields[hfieldid]->size[3];
+    aamm[2] = -model->hfields[hfieldid]->size[2];
     aamm[3] = model->hfields[hfieldid]->size[0];
     aamm[4] = model->hfields[hfieldid]->size[1];
     aamm[5] = model->hfields[hfieldid]->size[2];
