@@ -3871,7 +3871,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                      inner_type=ValueType(name='mjtNum'),
                      extents=(9,),
                  ),
-                 doc='normal is in [0-2]',
+                 doc='normal is in [0-2], points from geom[0] to geom[1]',
              ),
              StructFieldDecl(
                  name='includemargin',
@@ -3931,12 +3931,12 @@ STRUCTS: Mapping[str, StructDecl] = dict([
              StructFieldDecl(
                  name='geom1',
                  type=ValueType(name='int'),
-                 doc='id of geom 1',
+                 doc='id of geom 1; deprecated, use geom[0]',
              ),
              StructFieldDecl(
                  name='geom2',
                  type=ValueType(name='int'),
-                 doc='id of geom 2',
+                 doc='id of geom 2; deprecated, use geom[1]',
              ),
              StructFieldDecl(
                  name='geom',
