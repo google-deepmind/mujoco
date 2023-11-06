@@ -1556,6 +1556,7 @@ The top-level function :ref:`mj_step` invokes the sequence of computations below
    the subtree centers of mass.
 #. Compute all passive forces: spring-dampers in joints and tendons, and fluid dynamics forces.
 #. Compute sensor data that depends on velocity, and the kinetic energy if enabled.
+   If required by sensors, call :ref:`mj_subtreeVel`.
 #. Compute the reference constraint acceleration.
 #. Compute the vector of Coriolis, centrifugal and gravitational forces.
 #. Compute the actuator forces and activation dynamics if defined.
@@ -1563,6 +1564,7 @@ The top-level function :ref:`mj_step` invokes the sequence of computations below
 #. Compute the constraint forces with the selected solver, and update the joint acceleration so as to account for the
    constraint forces. This yields the vector ``mjData.qacc`` which is the main output of forward dynamics.
 #. Compute sensor data that depends on force and acceleration if enabled.
+   If required by sensors, call :ref:`mj_rnePostConstraint`.
 #. Check the acceleration for invalid or unacceptably large real values. If divergence is detected, the state is
    automatically reset and the corresponding warning is raised.
 #. Compare the results of forward and inverse dynamics, so as to diagnose poor solver convergence in the forward
@@ -1589,6 +1591,7 @@ The top-level function :ref:`mj_inverse` invokes the following sequence of compu
 #. Compute the tendon and actuator velocities.
 #. Compute the body velocities and joint axes rates of change.
 #. Compute sensor data that depends on velocity, and the kinetic energy if enabled.
+   If required by sensors, call :ref:`mj_subtreeVel`.
 #. Compute all passive forces.
 #. Compute the reference constraint acceleration.
 #. If the :ref:`invdiscrete<option-flag-invdiscrete>` flag is set and the :ref:`integrator<option-integrator>` is not
@@ -1596,6 +1599,7 @@ The top-level function :ref:`mj_inverse` invokes the following sequence of compu
 #. Compute the constraint force. This is done analytically, without using a numerical solver.
 #. Compute the inverse dynamics for the unconstrained system.
 #. Compute sensor data that depends on force and acceleration if enabled.
+   If required by sensors, call :ref:`mj_rnePostConstraint`.
 #. Compute the vector ``mjData.qfrc_inverse`` by combining all results. This is the main output of inverse dynamics. It
    equals the sum of external and actuation forces.
 

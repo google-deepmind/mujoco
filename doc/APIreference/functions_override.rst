@@ -2,10 +2,6 @@
   This file contains each section text along with function doc overrides.  By default the docs use the function doc
   pulled from the header files.
 
-.. _Activation:
-
-The functions in this section are maintained for backward compatibility with the now-removed activation mechanism.
-
 .. _Virtualfilesystem:
 
 Virtual file system (VFS) enables the user to load all necessary files in memory, including MJB binary model files, XML
@@ -90,10 +86,40 @@ Solve linear system :math:`M x = y` using factorization: :math:`x = (L^T D L)^{-
 
 Half of linear solve: :math:`x = \sqrt{D^{-1}} (L^T)^{-1} y`
 
+.. _mj_subtreeVel:
+
+Sub-tree linear velocity and angular momentum: compute ``subtree_linvel``, ``subtree_angmom``.
+This function is triggered automatically if the subtree :ref:`velocity<sensor-subtreelinvel>` or
+:ref:`momentum<sensor-subtreeangmom>` sensors are present in the model.
+It is also triggered for :ref:`user sensors<sensor-user>` of :ref:`stage<sensor-user-needstage>` "vel".
+
+.. _mj_rne:
+
+Recursive Newton Euler: compute :math:`M(q) \ddot q + C(q,\dot q)`. ``flg_acc=0`` removes the inertial term (i.e.
+assumes :math:`\ddot q = 0`).
+
+.. _mj_rnePostConstraint:
+
+Recursive Newton Euler with final computed forces and accelerations.
+Computes three body-level ``nv x 6`` arrays, all defined in the subtreecom-based
+:ref:`c-frame<tyNotesCom>` and arranged in ``[rotation(3), translation(3)]`` order.
+
+- ``cacc``: Body acceleration, required for :ref:`mj_objectAcceleration`.
+- ``cfrc_int``: Interaction force with the parent body.
+- ``cfrc_ext``: External force acting on the body.
+
+This function is triggered automatically if the following sensors are present in the model:
+:ref:`accelerometer<sensor-accelerometer>`, :ref:`force<sensor-force>`, :ref:`torque<sensor-torque>`,
+:ref:`framelinacc<sensor-framelinacc>`, :ref:`frameangacc<sensor-frameangacc>`.
+It is also triggered for :ref:`user sensors<sensor-user>` of :ref:`stage<sensor-user-needstage>` "acc".
+
+The computed force arrays ``cfrc_int`` and ``cfrc_ext`` currently suffer from a know bug, they do not take into account
+the effect of spatial tendons, see :github:issue:`832`.
+
 .. _mj_constraintUpdate:
 
-Compute efc_state, efc_force, qfrc_constraint, and (optionally) cone Hessians. If cost is not NULL, set \*cost = s(jar)
-where jar = Jac*qacc-aref.
+Compute ``efc_state``, ``efc_force``, ``qfrc_constraint``, and (optionally) cone Hessians.
+If ``cost`` is not ``NULL``, set ``*cost = s(jar)`` where ``jar = Jac*qacc - aref``.
 
 .. _Support:
 
@@ -153,6 +179,12 @@ sparsity.
 This function can be used to apply a Cartesian force and torque to a point on a body, and add the result to the vector
 mjData.qfrc_applied of all applied forces. Note that the function requires a pointer to this vector, because sometimes
 we want to add the result to a different vector.
+
+.. _mj_objectAcceleration:
+
+Compute object 6D acceleration (rot:lin) in object-centered frame, world/local orientation. If acceleration or force
+sensors are not present in the model, :ref:`mj_rnePostConstraint` must be manually called in order to calculate
+mjData.cacc -- the total body acceleration, including contributions from the constraint solver.
 
 .. _mj_differentiatePos:
 

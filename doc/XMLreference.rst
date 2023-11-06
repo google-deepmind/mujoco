@@ -5886,6 +5886,8 @@ This element creates a 3-axis accelerometer. The sensor is mounted at a site, an
 as the site frame. This sensor outputs three numbers, which are the linear acceleration of the site (including gravity)
 in local coordinates.
 
+The presence of this sensor in a model triggers a call to :ref:`mj_rnePostConstraint` during sensor computation.
+
 .. _sensor-accelerometer-name:
 
 .. _sensor-accelerometer-noise:
@@ -5966,6 +5968,8 @@ the child body, and the force points from the child towards the parent. The comp
 forces acting on the system, including contacts as well as external perturbations. Using this sensor often requires
 creating a dummy body welded to its parent (i.e., having no joint elements).
 
+The presence of this sensor in a model triggers a call to :ref:`mj_rnePostConstraint` during sensor computation.
+
 .. _sensor-force-name:
 
 .. _sensor-force-noise:
@@ -5994,6 +5998,8 @@ creating a dummy body welded to its parent (i.e., having no joint elements).
 
 This element creates a 3-axis torque sensor. This is similar to the :ref:`force <sensor-force>` sensor above, but
 measures torque rather than force.
+
+The presence of this sensor in a model triggers a call to :ref:`mj_rnePostConstraint` during sensor computation.
 
 .. _sensor-torque-name:
 
@@ -6798,6 +6804,8 @@ coordinates.
 This element creates a sensor that returns the 3D linear acceleration of the spatial frame of the object, in global
 coordinates.
 
+The presence of this sensor in a model triggers a call to :ref:`mj_rnePostConstraint` during sensor computation.
+
 .. _sensor-framelinacc-name:
 
 .. _sensor-framelinacc-noise:
@@ -6827,6 +6835,8 @@ coordinates.
 
 This element creates a sensor that returns the 3D angular acceleration of the spatial frame of the object, in global
 coordinates.
+
+The presence of this sensor in a model triggers a call to :ref:`mj_rnePostConstraint` during sensor computation.
 
 .. _sensor-frameangacc-name:
 
@@ -6883,6 +6893,8 @@ global coordinates.
 This element creates sensor that returns the linear velocity of the center of mass of the kinematic subtree rooted at a
 specified body, in global coordinates.
 
+The presence of this sensor in a model triggers a call to :ref:`mj_subtreeVel` during sensor computation.
+
 .. _sensor-subtreelinvel-name:
 
 .. _sensor-subtreelinvel-noise:
@@ -6907,6 +6919,8 @@ specified body, in global coordinates.
 
 This element creates sensor that returns the angular momentum around the center of mass of the kinematic subtree rooted
 at a specified body, in global coordinates.
+
+The presence of this sensor in a model triggers a call to :ref:`mj_subtreeVel` during sensor computation.
 
 .. _sensor-subtreeangmom-name:
 
@@ -6950,11 +6964,14 @@ This element creates sensor that returns the simulation time.
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element creates a user sensor. MuJoCo does not know how to compute the output of this sensor. Instead the user
-should install the callback :ref:`mjcb_sensor` which is expected to fill in the sensor data in mjData.sensordata. The
-specification in the XML is used to allocate space for this sensor, and also determine which MuJoCo object it is
+should install the callback :ref:`mjcb_sensor` which is expected to fill in the sensor data in ``mjData.sensordata``.
+The specification in the XML is used to allocate space for this sensor, and also determine which MuJoCo object it is
 attached to and what stage of computation it needs before the data can be computed. Note that the MuJoCo object
-referenced here can be a tuple, which in turn can reference a custom collection of MuJoCo objects - for example several
+referenced here can be a tuple, which in turn can reference a custom collection of MuJoCo objects -- for example several
 bodies whose center of mass is of interest.
+
+If a user sensor is of :ref:`stage<sensor-user-needstage>` "vel" or "acc", then :ref:`mj_subtreeVel` and
+:ref:`mj_rnePostConstraint` will be triggered, respectively.
 
 .. _sensor-user-name:
 

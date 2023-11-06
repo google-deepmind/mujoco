@@ -392,7 +392,9 @@ mj_objectAcceleration
 
 .. mujoco-include:: mj_objectAcceleration
 
-Compute object 6D acceleration (rot:lin) in object-centered frame, world/local orientation.
+Compute object 6D acceleration (rot:lin) in object-centered frame, world/local orientation. If acceleration or force
+sensors are not present in the model, :ref:`mj_rnePostConstraint` must be manually called in order to calculate
+:ref:`mjData`.cacc -- the total body acceleration, including contributions from the constraint solver.
 
 .. _mj_contactForce:
 
@@ -812,7 +814,10 @@ mj_subtreeVel
 
 .. mujoco-include:: mj_subtreeVel
 
-Sub-tree linear velocity and angular momentum: compute subtree_linvel, subtree_angmom.
+Sub-tree linear velocity and angular momentum: compute ``subtree_linvel``, ``subtree_angmom``.
+This function is triggered automatically if the subtree :ref:`velocity<sensor-subtreelinvel>` or
+:ref:`momentum<sensor-subtreeangmom>` sensors are present in the model.
+It is also triggered for :ref:`user sensors<sensor-user>` of :ref:`stage<sensor-user-needstage>` "vel".
 
 .. _mj_rne:
 
@@ -821,7 +826,8 @@ mj_rne
 
 .. mujoco-include:: mj_rne
 
-RNE: compute M(qpos)*qacc + C(qpos,qvel); flg_acc=0 removes inertial term.
+Recursive Newton Euler: compute :math:`M(q) \ddot q + C(q,\dot q)`. ``flg_acc=0`` removes the inertial term (i.e.
+assumes :math:`\ddot q = 0`).
 
 .. _mj_rnePostConstraint:
 
@@ -830,7 +836,21 @@ mj_rnePostConstraint
 
 .. mujoco-include:: mj_rnePostConstraint
 
-RNE with complete data: compute cacc, cfrc_ext, cfrc_int.
+Recursive Newton Euler with final computed forces and accelerations.
+Computes three body-level ``nv x 6`` arrays, all defined in the subtreecom-based
+:ref:`c-frame<tyNotesCom>` and arranged in ``[rotation(3), translation(3)]`` order.
+
+- ``cacc``: Body acceleration, required for :ref:`mj_objectAcceleration`.
+- ``cfrc_int``: Interaction force with the parent body.
+- ``cfrc_ext``: External force acting on the body.
+
+This function is triggered automatically if the following sensors are present in the model:
+:ref:`accelerometer<sensor-accelerometer>`, :ref:`force<sensor-force>`, :ref:`torque<sensor-torque>`,
+:ref:`framelinacc<sensor-framelinacc>`, :ref:`frameangacc<sensor-frameangacc>`.
+It is also triggered for :ref:`user sensors<sensor-user>` of :ref:`stage<sensor-user-needstage>` "acc".
+
+The computed force arrays ``cfrc_int`` and ``cfrc_ext`` currently suffer from a know bug, they do not take into account
+the effect of spatial tendons, see :github:issue:`832`.
 
 .. _mj_collision:
 
@@ -884,8 +904,8 @@ mj_constraintUpdate
 
 .. mujoco-include:: mj_constraintUpdate
 
-Compute efc_state, efc_force, qfrc_constraint, and (optionally) cone Hessians. If cost is not NULL, set \*cost = s(jar)
-where jar = Jac*qacc-aref.
+Compute ``efc_state``, ``efc_force``, ``qfrc_constraint``, and (optionally) cone Hessians.
+If ``cost`` is not ``NULL``, set ``*cost = s(jar)`` where ``jar = Jac*qacc - aref``.
 
 .. _Raycollisions:
 
