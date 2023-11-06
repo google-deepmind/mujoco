@@ -2982,6 +2982,8 @@ and the +Y axis points up. Thus the frame position and orientation are the key a
 
 :at:`quat`, :at:`axisangle`, :at:`xyaxes`, :at:`zaxis`, :at:`euler`
    Orientation of the camera frame. See :ref:`COrientation`.
+   Note that specifically for cameras, the :at:`xyaxes` attribute is semantically convenient as the X and Y axes
+   correspond to the directions "right" and "up" in pixel space, respectively.
 
 .. _body-camera-user:
 
@@ -6970,7 +6972,7 @@ attached to and what stage of computation it needs before the data can be comput
 referenced here can be a tuple, which in turn can reference a custom collection of MuJoCo objects -- for example several
 bodies whose center of mass is of interest.
 
-If a user sensor is of :ref:`stage<sensor-user-needstage>` "vel" or "acc", then :ref:`mj_subtreeVel` and
+If a user sensor is of :ref:`stage<sensor-user-needstage>` "vel" or "acc", then :ref:`mj_subtreeVel` or
 :ref:`mj_rnePostConstraint` will be triggered, respectively.
 
 .. _sensor-user-name:
