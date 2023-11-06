@@ -803,7 +803,7 @@ mj_passive
 
 .. mujoco-include:: mj_passive
 
-Compute qfrc_passive from spring-dampers, viscosity and density.
+Compute qfrc_passive from spring-dampers, gravity compensation and fluid forces.
 
 .. _mj_subtreeVel:
 
@@ -812,7 +812,7 @@ mj_subtreeVel
 
 .. mujoco-include:: mj_subtreeVel
 
-subtree linear velocity and angular momentum
+Sub-tree linear velocity and angular momentum: compute subtree_linvel, subtree_angmom.
 
 .. _mj_rne:
 
