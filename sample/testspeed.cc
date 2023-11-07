@@ -233,12 +233,15 @@ int main(int argc, char** argv) {
 
   // profiler, top-level
   printf(" Internal profiler%s, %ss per step\n", nthread > 1 ? " for thread 0" : "", mu_str);
-  mjtNum tstep = d[0]->timer[mjTIMER_STEP].duration/d[0]->timer[mjTIMER_STEP].number;
+  int number = d[0]->timer[mjTIMER_STEP].number;
+  mjtNum tstep = number ? d[0]->timer[mjTIMER_STEP].duration/number : 0.0;
   mjtNum components = 0, total = 0;
   for (int i=0; i <= mjTIMER_ADVANCE; i++) {
     if (d[0]->timer[i].number > 0) {
-      mjtNum istep = d[0]->timer[i].duration/d[0]->timer[i].number;
-      std::printf(" %17s : %6.1f  (%6.2f %%)\n", mjTIMERSTRING[i], istep, 100*istep/tstep);
+      int number = d[0]->timer[i].number;
+      mjtNum istep = number ? d[0]->timer[i].duration/number : 0.0;
+      mjtNum percent = number ? 100*istep/tstep : 0.0;
+      std::printf(" %17s : %6.1f  (%6.2f %%)\n", mjTIMERSTRING[i], istep, percent);
 
       // save step time, add up timing of components
       if (i == 0) total = istep;
@@ -276,9 +279,10 @@ int main(int argc, char** argv) {
     // components of mjTIMER_POS_COLLISION
     if (i == mjTIMER_POS_COLLISION) {
       for (int j : {mjTIMER_COL_BROAD, mjTIMER_COL_MID, mjTIMER_COL_NARROW}) {
-        mjtNum jstep = d[0]->timer[j].duration/d[0]->timer[j].number;
-        std::printf("       %-11s : %6.1f  (%6.2f %%)\n",
-                    mjTIMERSTRING[j]+4, jstep, 100*jstep/tstep);
+        int number = d[0]->timer[j].number;
+        mjtNum jstep = number ? d[0]->timer[j].duration/number : 0.0;
+        mjtNum percent = number ? 100*jstep/tstep : 0.0;
+        std::printf("       %-11s : %6.1f  (%6.2f %%)\n", mjTIMERSTRING[j]+4, jstep, percent);
       }
     }
   }
