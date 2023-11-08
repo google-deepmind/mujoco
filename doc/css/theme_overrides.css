@@ -19,8 +19,13 @@ body {
 }
 
 /* Make the search bar query text readable in dark theme. */
-body:not([data-theme="light"]) {
+body[data-theme="dark"] {
   --color-sidebar-search-foreground: white;
+}
+@media (prefers-color-scheme: dark) {
+  body[data-theme="auto"] {
+    --color-sidebar-search-foreground: white;
+  }
 }
 
 .schema-small {
