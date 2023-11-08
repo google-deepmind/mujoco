@@ -1,4 +1,6 @@
 import os
+import shutil
+from termcolor import colored
 import mujoco
 import mujoco.viewer as viewer
 from mujoco.usd_component import *
@@ -12,32 +14,32 @@ from PIL import ImageOps
 
 class USDRenderer(object):
   """
-  Renderer class the creates USD representations for mujoco scenes
+  Renderer class that creates USD representations for mujoco scenes
   """
   def __init__(self,
                model,
                height=480,
                width=480,
-               geom_groups=[1,1,1,1,1,1],
-               output_frame_dir="frame_tmp"):
+               root_dir_name="usdpkg",
+               root_dir_path=None,
+               verbose=True):
     self.model = model
+    self.root_dir_name = root_dir_name
+    self.root_dir_path = root_dir_path
+    self.verbose = verbose
     self.data = None
     self.renderer = mujoco.Renderer(model, height, width)
-    self.loaded_scene_info = False
+    self.reload_scene_info = True
     self.frame_count = 0
-    self.output_frame_dir = output_frame_dir
-    if not os.path.exists(self.output_frame_dir):
-      os.mkdir(self.output_frame_dir)
 
-    # Directory to store all image assets used by the usd scene
-    if not os.path.exists("image_assets"):
-      os.mkdir("image_assets")
+    self.create_output_directories()
       
     self.stage = Usd.Stage.CreateInMemory()
 
     UsdGeom.SetStageUpAxis(self.stage, UsdGeom.Tokens.z)
 
-    # TODO: maybe change where we initialize this?
+    geom_groups = [0,1,0,0,0,0] # Setting default geom groups for now
+
     self.scene_option = _structs.MjvOption()
     self.scene_option.geomgroup = geom_groups
 
@@ -49,21 +51,46 @@ class USDRenderer(object):
   def scene(self):
     return self.renderer.scene
   
+  def create_output_directories(self):
+    if not self.root_dir_path:
+      self.root_dir_path = os.getcwd()
+
+    self.output_dir = os.path.join(self.root_dir_path, self.root_dir_name)
+    if not os.path.exists(self.output_dir):
+      os.makedirs(self.output_dir)
+
+    self.scenes_dir = os.path.join(self.output_dir, "scenes")
+    if not os.path.exists(self.scenes_dir):
+      os.makedirs(self.scenes_dir)
+    
+    self.assets_dir = os.path.join(self.output_dir, "assets")
+    if not os.path.exists(self.assets_dir):
+      os.makedirs(self.assets_dir)
+
+    if self.verbose:
+      output_dir_msg = colored(f"Writing files to {self.output_dir}", "green")
+      print(output_dir_msg)
+
   def save_scene(self):
-    output_file_path = os.path.join(self.output_frame_dir, f'frame_{self.frame_count}.usd')
+    output_file_path = os.path.join(self.scenes_dir, f'frame_{self.frame_count}_.usd')
     with open(output_file_path, "w") as f:
       f.write(self.usd)
     self.frame_count += 1 
+
+  def update_geom_groups(self, geom_groups):
+    self.scene_option.geomgroup = geom_groups
+    self.reload_scene_info = True
+    self.update_scene(self.data)
 
   def update_scene(self, data):
     self.renderer.update_scene(data, scene_option=self.scene_option)
     self.data = data
 
-    if not self.loaded_scene_info:
+    if self.reload_scene_info:
       # loads the initial geoms, lights, and camera information 
       # from the scene
       self._load()
-      self.loaded_scene_info = True
+      self.reload_scene_info = False
     
     self._update()
 
@@ -72,9 +99,8 @@ class USDRenderer(object):
     Loads and initializes the necessary objects to render the scene
     """
 
-    # create and load the texture files
-    # iterate through all the textures and build list of tex_rgb ranges
-    # TODO: remove once added to mujoco
+    # Create and loads the texture files to the assets directory
+    # TODO: remove code once added internally to mujoco
     data_adr = 0
     texture_files = []
     for texid in range(self.model.ntex):
@@ -83,12 +109,16 @@ class USDRenderer(object):
       pixels = 3*height*width
       rgb = self.model.tex_rgb[data_adr:data_adr+pixels]
       img = rgb.reshape(height, width, 3)
-      file_name = f'image_assets/{texid}.png'
+      texture_file_name = f"texture_{texid}.png"
+      file_path = os.path.join(self.assets_dir, texture_file_name)
       img = im.fromarray(img)
       img = ImageOps.flip(img)
-      img.save(file_name)
-      texture_file = os.path.abspath(file_name)
-      texture_files.append(texture_file)
+      img.save(file_path)
+
+      relative_path = os.path.relpath(self.assets_dir, self.scenes_dir)
+      img_path = os.path.join(relative_path, texture_file_name)
+
+      texture_files.append(img_path)
       data_adr += pixels
 
     # initializes an array to store all the geoms in the scene
@@ -105,10 +135,10 @@ class USDRenderer(object):
 
       if geom.type == USDGeomType.Mesh.value:
         self.usd_geoms.append(USDMesh(self.model.geom_dataid[geom.objid],
-                                        geom, 
-                                        self.stage, 
-                                        self.model,
-                                        texture_file))
+                                      geom, 
+                                      self.stage, 
+                                      self.model,
+                                      texture_file))
       else:
         self.usd_geoms.append(create_usd_geom_primitive(geom, 
                                                         self.stage,
@@ -140,7 +170,7 @@ class USDRenderer(object):
     """
     geoms = self.scene.geoms
     for i in range(self.ngeom):
-      if self.usd_geoms[i] != None: # TODO: remove this once all primitives are added
+      if self.usd_geoms[i]: # TODO: remove this once all primitives are added
         self.usd_geoms[i].update_geom(geoms[i])
 
   def _update_lights(self):
@@ -159,6 +189,17 @@ class USDRenderer(object):
     ncam = self.model.ncam
     for i in range(ncam):
       self.usd_cameras[i].update_camera(self.model.cam_pos[i], self.model.cam_quat[i])
+
+  def compress(self):
+    """
+    Compresses the output directory to a zip file for easy transfer
+    """
+    if self.verbose:
+      output_dir_msg = colored(f"Compressing files at {self.output_dir} and saving at {self.output_dir}", "green")
+      print(output_dir_msg)
+    shutil.make_archive(base_name=self.output_dir, 
+                        format='zip', 
+                        base_dir=self.root_dir_name)
 
   def start_viewer(self):
     if self.data:

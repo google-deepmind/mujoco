@@ -21,6 +21,8 @@ def create_usd_geom_primitive(geom, stage, texture_file):
     return USDCube(geom, stage, texture_file)
   elif geom_type==USDGeomType.Cube.value:
     return USDCube(geom, stage, texture_file)
+  else:
+    return None
 
 class USDGeomType(Enum):
   """
@@ -113,7 +115,9 @@ class USDGeom(object):
     self.prim.GetDisplayColorAttr().Set(rgba)
 
   def update_transparency(self, new_transparency):
-    self.prim.GetDisplayOpacityAttr().Set(new_transparency)
+    self.prim.GetDisplayOpacityAttr().Set([float(abs(new_transparency))])
+    if new_transparency < 0:
+      self.prim.MakeInvisible()
 
   def __str__(self):
     return f'type = {self.type} \ngeom = {self.geom}'
@@ -322,6 +326,7 @@ class USDMesh(USDGeom):
     self.update_rotation(new_geom.mat)
     if not self.texture_file:
       self.update_color(new_geom.rgba)
+      self.update_transparency(new_geom.rgba[3])
   
 class USDLight(object):
   """
@@ -351,7 +356,7 @@ class USDLight(object):
     if pos == (0, 0, 0):
       self.prim.GetIntensityAttr().Set(0);
     else:
-      self.prim.GetIntensityAttr().Set(50000);
+      self.prim.GetIntensityAttr().Set(20000);
 
     # TODO attributes:
     #   - direction
