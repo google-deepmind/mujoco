@@ -1310,16 +1310,8 @@ static void getposdim(const mjModel* m, const mjData* d, int i, mjtNum* pos, int
 
   case mjCNSTR_EQUALITY:
     if (m->eq_type[id] == mjEQ_WELD) {
-      mjtNum rotlinratio = m->eq_data[mjNEQDATA*id+10];
-      mjtNum efc_pos[6];
-
-      // copy translational residual
-      mju_copy3(efc_pos, d->efc_pos+i);
-
-      // multiply orientations by torquescale
-      mju_scl3(efc_pos+3, d->efc_pos+i+3, rotlinratio);
       *dim = 6;
-      *pos = mju_norm(efc_pos, 6);
+      *pos = mju_norm(d->efc_pos+i, 6);
     } else if (m->eq_type[id] == mjEQ_CONNECT) {
       *dim = 3;
       *pos = mju_norm(d->efc_pos+i, 3);
