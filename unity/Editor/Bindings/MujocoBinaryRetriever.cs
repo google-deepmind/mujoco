@@ -65,12 +65,12 @@ public class MujocoBinaryRetriever {
     }
   }
   
-  static void GenerateMetaFile(string file) {
-    string metaFileName = file + ".meta";
+  static void GenerateMetaFile(string filePath) {
+    string metaFileName = filePath + ".meta";
 
     // Check if .meta file exists.
     if (File.Exists(metaFileName)) {
-      Debug.Log("Meta file for " + file + " is already created!");
+      Debug.Log("Meta file for " + filePath + " already exists.");
       return;
     }
 
@@ -88,7 +88,7 @@ public class MujocoBinaryRetriever {
       writer.WriteLine("  assetBundleVariant: ");
     }
 
-    Debug.Log("Meta file for " + file + " created!");
+    Debug.Log("MuJoCo library successfully imported to " + filePath);
   }
 }
 }
