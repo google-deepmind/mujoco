@@ -180,9 +180,10 @@ findorfetch(
 )
 
 # ==================== PYBIND11 ================================================
+option(MUJOCO_PYTHON_USE_SYSTEM_PYBIND11 "Use installed pybind11 version." OFF)
 findorfetch(
   USE_SYSTEM_PACKAGE
-  OFF
+  MUJOCO_PYTHON_USE_SYSTEM_PYBIND11
   PACKAGE_NAME
   pybind11
   LIBRARY_NAME
