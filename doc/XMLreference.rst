@@ -5826,9 +5826,9 @@ Associate this actuator with an :ref:`engine plugin<exPlugin>`. Either :at:`plug
 
 .. _actuator-plugin-user:
 
-.. |actuator/plugin attrib list| replace:: :at:`name`, :at:`class`, :at:`group`, :at:`ctrllimited`, :at:`forcelimited`
-   :at:`ctrlrange`, :at:`forcerange`, :at:`lengthrange`, :at:`gear`, :at:`cranklength`, :at:`joint`, :at:`jointinparent`
-   :at:`site`, :at:`tendon`, :at:`cranksite`, :at:`slidersite`, :at:`user`
+.. |actuator/plugin attrib list| replace:: :at:`name`, :at:`class`, :at:`group`, :at:`ctrllimited`,
+   :at:`forcelimited`, :at:`ctrlrange`, :at:`forcerange`, :at:`lengthrange`, :at:`gear`, :at:`cranklength`,
+   :at:`joint`, :at:`jointinparent`, :at:`site`, :at:`tendon`, :at:`cranksite`, :at:`slidersite`, :at:`user`
 
 |actuator/plugin attrib list|
    Same as in actuator/ :ref:`general <actuator-general>`.
@@ -7047,7 +7047,7 @@ Ascociate this sensor with an :ref:`engine plugin<exPlugin>`. Either :at:`plugin
 
 .. _sensor-plugin-user:
 
-.. |sensor/plugin attrib list| replace:: :at:`name`, :at:`cutoff`, :at:`objtype`, :at:`objname`, :at:`reftype`
+.. |sensor/plugin attrib list| replace:: :at:`name`, :at:`cutoff`, :at:`objtype`, :at:`objname`, :at:`reftype`,
    :at:`refname`, :at:`user`
 
 |sensor/plugin attrib list|
