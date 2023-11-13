@@ -191,7 +191,7 @@ TEST_F(RayTest, MultiRayEqualsSingleRay) {
   }
 
   // compute intersections with multiray functions
-  mjtNum dist_multiray[3*N*M];
+  mjtNum dist_multiray[N*M];
   int rgeomid_multiray[N*M];
   mj_multiRay(m, d, pnt, vec, NULL, 1, -1, rgeomid_multiray, dist_multiray,
               N * M, mjMAXVAL);

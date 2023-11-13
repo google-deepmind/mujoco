@@ -1135,6 +1135,41 @@ Euler integrator, semi-implicit in velocity.
         bodyexclude=0,
         geomid=geomid)
 
+  def test_mj_multi_ray(self):
+    nray = 3
+    geom1 = np.zeros(1, np.int32)
+    pnt = np.array([-0.3, 0, 0.1])
+    vec = np.array([[1, 0, 0], [0, 0, 1], [0, 0, -1]], np.float64)
+    dist_ex = np.array([0.2, -1, 0.1])
+    geom_ex = np.array([1, -1, 0])
+    geomid = np.zeros(nray, np.int32)
+    dist = np.zeros(nray, np.float64)
+
+    mujoco.mj_forward(self.model, self.data)
+    mujoco.mj_multiRay(
+        m=self.model,
+        d=self.data,
+        pnt=pnt,
+        vec=vec.flatten(),
+        geomgroup=None,
+        flg_static=1,
+        bodyexclude=-1,
+        geomid=geomid,
+        dist=dist,
+        nray=nray,
+        cutoff=mujoco.mjMAXVAL)
+
+    for i in range(0, 3):
+      self.assertEqual(
+          dist[i],
+          mujoco.mj_ray(
+              self.model, self.data, pnt, vec[i], None, 1, -1, geom1
+          ),
+      )
+      self.assertEqual(geomid[i], geom1)
+      self.assertEqual(geomid[i], geom_ex[i])
+      self.assertAlmostEqual(dist[i], dist_ex[i])
+
   def test_inverse_fd_none(self):
     eps = 1e-6
     flg_centered = 0
