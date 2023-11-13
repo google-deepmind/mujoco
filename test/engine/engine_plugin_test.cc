@@ -19,6 +19,8 @@
 
 #include <cstdint>
 #include <sstream>
+#include <string>
+#include <string_view>
 #include <vector>
 
 #include <gmock/gmock.h>
@@ -167,11 +169,6 @@ class TestActuator : public BaseTestPlugin {
 
   void Compute() {
     BaseTestPlugin::Compute();
-    WriteActuatorForce();
-  }
-
-  void Advance() {
-    BaseTestPlugin::Advance();
     WriteActuatorForce();
   }
 
