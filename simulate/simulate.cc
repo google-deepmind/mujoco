@@ -1281,7 +1281,7 @@ int UiPredicate(int category, void* userdata) {
     return sim->m_ || sim->is_passive_;
 
   case 3:                 // require model and nkey
-    return !sim->is_passive_ && sim->nkey_;
+    return (sim->m_ || sim->is_passive_) && sim->nkey_;
 
   case 4:                 // require model and paused
     return sim->m_ && !sim->run;
