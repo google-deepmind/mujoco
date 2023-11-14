@@ -321,10 +321,10 @@ def count_constraints(m: Model, d: Data) -> Tuple[int, int, int, int]:
   if m.opt.disableflags & DisableBit.EQUALITY:
     ne = 0
   else:
-    ne_weld = (m.eq_type == EqType.WELD).sum()
     ne_connect = (m.eq_type == EqType.CONNECT).sum()
+    ne_weld = (m.eq_type == EqType.WELD).sum()
     ne_joint = (m.eq_type == EqType.JOINT).sum()
-    ne = ne_weld * 6 + ne_connect * 3 + ne_joint
+    ne = ne_connect * 3 + ne_weld * 6 + ne_joint
 
   nf = 0
 

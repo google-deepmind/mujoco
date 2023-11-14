@@ -59,6 +59,7 @@ MJX
 - Fixed bug where mixed ``jnt_limited`` joints were not being constrained correctly.
 - Made ``device_put`` type validation more verbose (fixes :github:issue:`1113`).
 - Removed empty EFC rows from ``MJX``, for joints with no limits (fixes :github:issue:`1117`).
+- Fixed bug in ``scan.body_tree`` that led to incorrect smooth dynamics for some kinematic tree layouts.
 
 Python bindings
 ^^^^^^^^^^^^^^^

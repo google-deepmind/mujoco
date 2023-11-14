@@ -37,7 +37,7 @@ def _assert_eq(a, b, name, step, fname, atol=5e-3, rtol=5e-3):
 class ConstraintTest(parameterized.TestCase):
 
   @parameterized.parameters(enumerate(test_util.TEST_FILES))
-  def testconstraints(self, seed, fname):
+  def test_constraints(self, seed, fname):
     """Test constraints."""
     np.random.seed(seed)
 
