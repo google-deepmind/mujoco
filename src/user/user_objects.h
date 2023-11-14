@@ -615,7 +615,6 @@ class mjCMesh: public mjCBase {
   const std::vector<int>& userface() const { return userface_; }
 
   // mesh properites computed by Compile
-  const double* boxsz_volume() const { return boxsz_volume_; }
   const double* aamm() const { return aamm_; }
 
   // number of vertices, normals, texture coordinates, and faces

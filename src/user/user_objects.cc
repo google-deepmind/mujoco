@@ -1332,12 +1332,7 @@ double mjCGeom::GetVolume(void) {
     }
 
     mjCMesh* pmesh = model->meshes[meshid];
-    if (model->exactmeshinertia || typeinertia==mjSHELL_MESH) {
-      return pmesh->GetVolumeRef(typeinertia);
-    } else {
-      const double* boxsz_volume = pmesh->boxsz_volume();
-      return boxsz_volume[0]*boxsz_volume[1]*boxsz_volume[2]*8;
-    }
+    return pmesh->GetVolumeRef(typeinertia);
   }
 
   // compute from geom shape
