@@ -3655,11 +3655,6 @@ saving the XML:
    </mujoco>
 
 
-.. _body-flexcomp-class:
-
-:at:`class`: :at-val:`string, optional`
-   Defaults class for setting unspecified attributes.
-
 .. _body-flexcomp-name:
 
 :at:`name`: :at-val:`string, required`

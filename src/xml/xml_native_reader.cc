@@ -293,7 +293,7 @@ static const char* MJCF[nMJCF][mjXATTRNUM] = {
               {"config", "*", "2", "key", "value"},
             {">"},
         {">"},
-        {"flexcomp", "*", "25", "name", "class", "type", "group", "dim",
+        {"flexcomp", "*", "24", "name", "type", "group", "dim",
             "count", "spacing", "radius", "rigid", "mass", "inertiabox",
             "scale", "file", "point", "element", "texcoord", "material", "rgba",
             "flatskin", "pos", "quat", "axisangle", "xyaxes", "zaxis", "euler"},
