@@ -84,10 +84,12 @@ std::optional<Membrane> Membrane::Create(const mjModel* m, mjData* d,
     mjtNum E = strtod(mj_getPluginConfig(m, instance, "young"), nullptr);
     mjtNum thick =
         strtod(mj_getPluginConfig(m, instance, "thickness"), nullptr);
+    mjtNum damp =
+            strtod(mj_getPluginConfig(m, instance, "damping"), nullptr);
     std::vector<int> face, edge;
     String2Vector(mj_getPluginConfig(m, instance, "face"), face);
     String2Vector(mj_getPluginConfig(m, instance, "edge"), edge);
-    return Membrane(m, d, instance, nu, E, thick, face, edge);
+    return Membrane(m, d, instance, nu, E, thick, damp, face, edge);
   } else {
     mju_warning("Invalid parameter specification in shell plugin");
     return std::nullopt;
@@ -96,9 +98,10 @@ std::optional<Membrane> Membrane::Create(const mjModel* m, mjData* d,
 
 // plugin constructor
 Membrane::Membrane(const mjModel* m, mjData* d, int instance, mjtNum nu,
-                   mjtNum E, mjtNum thick, const std::vector<int>& simplex,
+                   mjtNum E, mjtNum thick, mjtNum damp,
+                   const std::vector<int>& simplex,
                    const std::vector<int>& edgeidx)
-    : thickness(thick) {
+    : f0(-1), damping(damp), thickness(thick) {
   // count plugin bodies
   nv = ne = 0;
   for (int i = 1; i < m->nbody; i++) {
@@ -152,50 +155,48 @@ Membrane::Membrane(const mjModel* m, mjData* d, int instance, mjtNum nu,
     // compute metric tensor
     MetricTensor<Stencil2D>(metric, t, mu, la, basis);
   }
+
+  // allocate array
+  ne = edges.size();
+  reference.assign(ne, 0);
+  deformed.assign(ne, 0);
+  previous.assign(ne, 0);
+  elongation.assign(ne, 0);
+
+  // compute edge lengths at equilibrium (m->flexedge_length0 not yet available)
+  UpdateSquaredLengths(reference, edges, m->body_pos+3*i0);
+
+  // save previous lengths
+  previous = reference;
 }
 
 void Membrane::Compute(const mjModel* m, mjData* d, int instance) {
-  for (int t = 0; t < nt; t++)  {
-    int* v = elements[t].vertices;
+  mjtNum kD = damping / m->opt.timestep;
 
-    // compute length gradient with respect to dofs
-    mjtNum gradient[kNumEdges][2][3];
-    GradSquaredLengths<Stencil2D>(gradient, d->xpos+3*i0, v);
+  // update edge lengths
+  if (f0 < 0) {
+    UpdateSquaredLengths(deformed, edges, d->xpos+3*i0);
+  } else {
+    UpdateSquaredLengthsFlex(deformed,
+                             d->flexedge_length + m->flex_edgeadr[f0]);
+  }
 
-    // compute elongation
-    mjtNum elongation[kNumEdges];
-    for (int e = 0; e < kNumEdges; e++) {
-      int idx = elements[t].edges[e] + m->flex_edgeadr[f0];
-      mjtNum deformed = d->flexedge_length[idx]*d->flexedge_length[idx];
-      mjtNum reference = m->flexedge_length0[idx]*m->flexedge_length0[idx];
-      elongation[e] = deformed - reference;
-    }
+  // we add generalized Rayleigh damping as decribed in Section 5.2 of
+  // Kharevych et al., "Geometric, Variational Integrators for Computer
+  // Animation" http://multires.caltech.edu/pubs/DiscreteLagrangian.pdf
 
-    // we now multiply the elongations by the precomputed metric tensor,
-    // notice that if metric=diag(1/reference) then this would yield a
-    // mass-spring model
+  for (int idx = 0; idx < ne; idx++) {
+    elongation[idx] = deformed[idx] - reference[idx] +
+                    ( deformed[idx] -  previous[idx] ) * kD;
+  }
 
-    // compute local force
-    mjtNum force[kNumVerts*3] = {0};
-    int offset = kNumEdges*kNumEdges;
-    for (int ed1 = 0; ed1 < kNumEdges; ed1++) {
-      for (int ed2 = 0; ed2 < kNumEdges; ed2++) {
-        for (int i = 0; i < 2; i++) {
-          for (int x = 0; x < 3; x++) {
-            force[3 * Stencil2D::edge[ed2][i] + x] +=
-                elongation[ed1] * gradient[ed2][i][x] *
-                metric[offset * t + kNumEdges * ed1 + ed2];
-          }
-        }
-      }
-    }
+  // compute gradient of elastic energy and insert into passive force
+  ComputeForce<Stencil2D>(d->qfrc_passive + m->body_dofadr[i0], elements,
+                          metric, elongation, d->xpos + 3 * i0);
 
-    // insert into global force
-    for (int i = 0; i < kNumVerts; i++) {
-      for (int x = 0; x < 3; x++) {
-        d->qfrc_passive[m->body_dofadr[i0]+3*v[i]+x] -= force[3*i+x];
-      }
-    }
+  // update stored lengths
+  if (kD > 0) {
+    previous = deformed;
   }
 }
 
@@ -208,7 +209,7 @@ void Membrane::RegisterPlugin() {
   plugin.name = "mujoco.elasticity.membrane";
   plugin.capabilityflags |= mjPLUGIN_PASSIVE;
 
-  const char* attributes[] = {"face", "edge", "young", "poisson", "thickness"};
+  const char* attributes[] = {"face", "edge", "young", "poisson", "thickness", "damping"};
   plugin.nattribute = sizeof(attributes) / sizeof(attributes[0]);
   plugin.attributes = attributes;
   plugin.nstate = +[](const mjModel* m, int instance) { return 0; };

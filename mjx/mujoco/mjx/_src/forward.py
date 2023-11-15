@@ -37,7 +37,6 @@ from mujoco.mjx._src.types import GainType
 from mujoco.mjx._src.types import IntegratorType
 from mujoco.mjx._src.types import JointType
 from mujoco.mjx._src.types import Model
-from mujoco.mjx._src.types import SolverType
 # pylint: enable=g-importing-member
 import numpy as np
 
@@ -333,10 +332,7 @@ def forward(m: Model, d: Data) -> Data:
     d = d.replace(qacc=d.qacc_smooth)
     return d
 
-  if m.opt.solver == SolverType.CG:
-    d = named_scope(solver.cg_solve)(m, d)
-  else:
-    raise NotImplementedError(f'solver {m.opt.solver} not implemented.')
+  d = named_scope(solver.solve)(m, d)
 
   return d
 

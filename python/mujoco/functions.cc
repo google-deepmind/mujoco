@@ -23,6 +23,8 @@
 
 #include <Eigen/Core>
 #include <mujoco/mjxmacro.h>
+#include <mujoco/mujoco.h>
+#include "errors.h"
 #include "function_traits.h"
 #include "functions.h"
 #include "private.h"
@@ -37,6 +39,7 @@ PYBIND11_MODULE(_functions, pymodule) {
   namespace py = ::pybind11;
   namespace traits = python_traits;
 
+  using EigenVectorI = Eigen::Vector<int, Eigen::Dynamic>;
   using EigenVectorX = Eigen::Vector<mjtNum, Eigen::Dynamic>;
   using EigenArrayXX = Eigen::Array<
       mjtNum, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>;
@@ -567,7 +570,25 @@ PYBIND11_MODULE(_functions, pymodule) {
   Def<traits::mj_versionString>(pymodule);
 
   // Ray collision
-  Def<traits::mj_multiRay>(pymodule);
+  Def<traits::mj_multiRay>(
+      pymodule,
+      [](const raw::MjModel* m, raw::MjData* d, const mjtNum(*pnt)[3],
+         Eigen::Ref<const EigenVectorX> vec,
+         std::optional<Eigen::Ref<const Eigen::Vector<mjtByte, mjNGROUP>>>
+             geomgroup,
+         mjtByte flg_static, int bodyexclude, Eigen::Ref<EigenVectorI> geomid,
+         Eigen::Ref<EigenVectorX> dist, int nray, mjtNum cutoff) {
+        if (dist.size() != nray || geomid.size() != nray) {
+          throw py::type_error("dist and geomid should be of size nray");
+        }
+        if (vec.size() != 3 * nray) {
+          throw py::type_error("vec should be of size 3*nray");
+        }
+        InterceptMjErrors(::mj_multiRay)(
+            m, d, &(*pnt)[0], vec.data(),
+            geomgroup.has_value() ? geomgroup->data() : nullptr, flg_static,
+            bodyexclude, geomid.data(), dist.data(), nray, cutoff);
+      });
   Def<traits::mj_ray>(
       pymodule,
       [](const raw::MjModel* m, const raw::MjData* d, const mjtNum(*pnt)[3],
@@ -1367,7 +1388,7 @@ PYBIND11_MODULE(_functions, pymodule) {
         }
 
 #undef MJ_M
-#define MJ_M(x) d.metadata().x
+#define MJ_M(x) d.model().get()->x
 #undef MJ_D
 #define MJ_D(x) data->x
 #define X(type, name, nr, nc)                                             \
@@ -1379,7 +1400,7 @@ PYBIND11_MODULE(_functions, pymodule) {
   }
 
         MJDATA_ARENA_POINTERS_PRIMAL
-        if (d.metadata().is_dual) {
+        if (mj_isDual(d.model().get())) {
           MJDATA_ARENA_POINTERS_DUAL
         }
 #undef X

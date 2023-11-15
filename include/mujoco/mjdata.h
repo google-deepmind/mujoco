@@ -100,7 +100,7 @@ struct mjContact_ {                // result of collision detection functions
   // contact parameters set by near-phase collision function
   mjtNum  dist;                    // distance between nearest points; neg: penetration
   mjtNum  pos[3];                  // position of contact point: midpoint between geoms
-  mjtNum  frame[9];                // normal is in [0-2]
+  mjtNum  frame[9];                // normal is in [0-2], points from geom[0] to geom[1]
 
   // contact parameters set by mj_collideGeoms
   mjtNum  includemargin;           // include if dist<includemargin=margin-gap
@@ -115,8 +115,8 @@ struct mjContact_ {                // result of collision detection functions
 
   // contact descriptors set by mj_collideXXX
   int     dim;                     // contact space dimensionality: 1, 3, 4 or 6
-  int     geom1;                   // id of geom 1
-  int     geom2;                   // id of geom 2
+  int     geom1;                   // id of geom 1; deprecated, use geom[0]
+  int     geom2;                   // id of geom 2; deprecated, use geom[1]
   int     geom[2];                 // geom ids; -1 for flex
   int     flex[2];                 // flex ids; -1 for geom
   int     elem[2];                 // element ids; -1 for geom or flex vertex
@@ -320,7 +320,11 @@ struct mjData_ {
   mjtNum* qfrc_bias;         // C(qpos,qvel)                                     (nv x 1)
 
   // computed by mj_fwdVelocity/mj_passive
-  mjtNum* qfrc_passive;      // passive force                                    (nv x 1)
+  mjtNum* qfrc_spring;       // passive spring force                             (nv x 1)
+  mjtNum* qfrc_damper;       // passive damper force                             (nv x 1)
+  mjtNum* qfrc_gravcomp;     // passive gravity compensation force               (nv x 1)
+  mjtNum* qfrc_fluid;        // passive fluid force                              (nv x 1)
+  mjtNum* qfrc_passive;      // total passive force                              (nv x 1)
 
   // computed by mj_sensorVel/mj_subtreeVel if needed
   mjtNum* subtree_linvel;    // linear velocity of subtree com                   (nbody x 3)

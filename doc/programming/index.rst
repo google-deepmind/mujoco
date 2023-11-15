@@ -35,7 +35,7 @@ Thread
    to process Tasks asynchronously. To enable use in MuJoCo, create a ThreadPool and assign it to the thread_pool field
    in mjData.
 UI framework
-   The UI framework (new in MuJoCo 2.0) is written in C. UI elements are rendered in OpenGL. It has its own event
+   The UI framework is written in C. UI elements are rendered in OpenGL. It has its own event
    mechanism and abstract hooks for keyboard and mouse input. The code samples use it with GLFW, but it can also be used
    with other window libraries.
 
@@ -275,5 +275,6 @@ now lazily resolved at runtime after the switch to GLAD, the "nogl" libraries ar
 
     simulation
     visualization
+    ui
     samples
     extension

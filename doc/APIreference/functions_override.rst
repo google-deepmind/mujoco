@@ -2,10 +2,6 @@
   This file contains each section text along with function doc overrides.  By default the docs use the function doc
   pulled from the header files.
 
-.. _Activation:
-
-The functions in this section are maintained for backward compatibility with the now-removed activation mechanism.
-
 .. _Virtualfilesystem:
 
 Virtual file system (VFS) enables the user to load all necessary files in memory, including MJB binary model files, XML
@@ -90,10 +86,40 @@ Solve linear system :math:`M x = y` using factorization: :math:`x = (L^T D L)^{-
 
 Half of linear solve: :math:`x = \sqrt{D^{-1}} (L^T)^{-1} y`
 
+.. _mj_subtreeVel:
+
+Sub-tree linear velocity and angular momentum: compute ``subtree_linvel``, ``subtree_angmom``.
+This function is triggered automatically if the subtree :ref:`velocity<sensor-subtreelinvel>` or
+:ref:`momentum<sensor-subtreeangmom>` sensors are present in the model.
+It is also triggered for :ref:`user sensors<sensor-user>` of :ref:`stage<sensor-user-needstage>` "vel".
+
+.. _mj_rne:
+
+Recursive Newton Euler: compute :math:`M(q) \ddot q + C(q,\dot q)`. ``flg_acc=0`` removes the inertial term (i.e.
+assumes :math:`\ddot q = 0`).
+
+.. _mj_rnePostConstraint:
+
+Recursive Newton Euler with final computed forces and accelerations.
+Computes three body-level ``nv x 6`` arrays, all defined in the subtreecom-based
+:ref:`c-frame<tyNotesCom>` and arranged in ``[rotation(3), translation(3)]`` order.
+
+- ``cacc``: Body acceleration, required for :ref:`mj_objectAcceleration`.
+- ``cfrc_int``: Interaction force with the parent body.
+- ``cfrc_ext``: External force acting on the body.
+
+This function is triggered automatically if the following sensors are present in the model:
+:ref:`accelerometer<sensor-accelerometer>`, :ref:`force<sensor-force>`, :ref:`torque<sensor-torque>`,
+:ref:`framelinacc<sensor-framelinacc>`, :ref:`frameangacc<sensor-frameangacc>`.
+It is also triggered for :ref:`user sensors<sensor-user>` of :ref:`stage<sensor-user-needstage>` "acc".
+
+The computed force arrays ``cfrc_int`` and ``cfrc_ext`` currently suffer from a know bug, they do not take into account
+the effect of spatial tendons, see :github:issue:`832`.
+
 .. _mj_constraintUpdate:
 
-Compute efc_state, efc_force, qfrc_constraint, and (optionally) cone Hessians. If cost is not NULL, set \*cost = s(jar)
-where jar = Jac*qacc-aref.
+Compute ``efc_state``, ``efc_force``, ``qfrc_constraint``, and (optionally) cone Hessians.
+If ``cost`` is not ``NULL``, set ``*cost = s(jar)`` where ``jar = Jac*qacc - aref``.
 
 .. _Support:
 
@@ -153,6 +179,12 @@ sparsity.
 This function can be used to apply a Cartesian force and torque to a point on a body, and add the result to the vector
 mjData.qfrc_applied of all applied forces. Note that the function requires a pointer to this vector, because sometimes
 we want to add the result to a different vector.
+
+.. _mj_objectAcceleration:
+
+Compute object 6D acceleration (rot:lin) in object-centered frame, world/local orientation. If acceleration or force
+sensors are not present in the model, :ref:`mj_rnePostConstraint` must be manually called in order to calculate
+mjData.cacc -- the total body acceleration, including contributions from the constraint solver.
 
 .. _mj_differentiatePos:
 
@@ -217,6 +249,43 @@ These functions expose the OpenGL renderer. See :ref:`simulate<saSimulate>` for 
 of how to use these functions.
 
 .. _UIframework:
+
+For a high-level description of the UI framework, see :ref:`UI`.
+
+.. _mjui_add:
+
+This is the helper function used to construct a UI. The second argument points to an array of :ref:`mjuiDef` structs,
+each corresponding to one item. The last (unused) item has its type set to -1, to mark termination. The items are added
+after the end of the last used section. There is also another version of this function
+(:ref:`mjui_addToSection<mjui_addToSection>`) which adds items to a specified section instead of adding them at the end
+of the UI. Keep in mind that there is a maximum preallocated number of sections and items per section, given by
+:ref:`mjMAXUISECT<glNumeric>` and :ref:`mjMAXUIITEM<glNumeric>`. Exceeding these maxima results in low-level errors.
+
+.. _mjui_update:
+
+This is the main UI update function. It needs to be called whenever the user data (pointed to by the item data pointers)
+changes, or when the UI state itself changes. It is normally called by a higher-level function implemented by the user
+(``UiModify`` in :ref:`simulate.cc <saSimulate>`) which also recomputes the layout of all rectangles and associated
+auxiliary buffers. The function updates the pixels in the offscreen OpenGL buffer. To perform minimal updates, the user
+specifies the section and the item that was modified. A value of -1 means all items and/or sections need to be updated
+(which is needed following major changes.)
+
+.. _mjui_event:
+
+This function is the low-level event handler. It makes the necessary changes in the UI and returns a pointer to the item
+that received the event (or ``NULL`` if no valid event was recorded). This is normally called within the event handler
+implemented by the user (``UiEvent`` in :ref:`simulate.cc <saSimulate>`), and then some action is taken by user code
+depending on which UI item was modified and what the state of that item is after the event is handled.
+
+
+.. _mjui_render:
+
+This function is called in the screen refresh loop. It copies the offscreen OpenGL buffer to the window framebuffer. If
+there are multiple UIs in the application, it should be called once for each UI. Thus ``mjui_render`` is called all the
+time, while :ref:`mjui_update` is called only when changes in the UI take place.
+
+
+
 
 .. _Errorandmemory:
 

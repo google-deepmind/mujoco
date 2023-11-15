@@ -20,6 +20,7 @@
 #include <cstdio>
 #include <cstring>
 #include <map>
+#include <stdexcept>
 #include <string>
 #include <utility>
 #include <vector>
@@ -406,7 +407,11 @@ bool mjCComposite::MakeParticle(mjCModel* model, mjCBody* body, char* error, int
   std::vector<mjtNum> volume(uservert.size()/3);
   mjtNum t = 1;
   if (dim == 2 && plugin_instance) {
-    t = stod(plugin_instance->config_attribs["thickness"], nullptr);
+    try {
+      t = std::stod(plugin_instance->config_attribs["thickness"], nullptr);
+    } catch (const std::invalid_argument& e) {
+      return comperr(error, "Invalid thickness attribute", error_sz);
+    }
   }
   if (!userface.empty()) {
     mjXUtil::String2Vector(userface, face);

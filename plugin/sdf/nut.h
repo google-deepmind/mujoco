@@ -28,6 +28,12 @@ namespace mujoco::plugin::sdf {
 // this plugin implements a modification of the signed distance function
 // from https://www.shadertoy.com/view/XtffzX  of hexagonal nut
 
+struct NutAttribute {
+  static constexpr int nattribute = 1;
+  static constexpr char const* names[nattribute] = {"radius"};
+  static constexpr mjtNum defaults[nattribute] = {0.26};
+};
+
 class Nut {
  public:
   // Creates a new Nut instance (allocated with `new`) or
@@ -45,7 +51,7 @@ class Nut {
 
   static void RegisterPlugin();
 
-  mjtNum radius;
+  mjtNum attribute[NutAttribute::nattribute];
 
  private:
   Nut(const mjModel* m, mjData* d, int instance);

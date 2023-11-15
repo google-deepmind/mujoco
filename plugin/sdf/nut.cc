@@ -13,12 +13,15 @@
 // limitations under the License.
 
 #include <cmath>
-#include <sstream>
+#include <cstdint>
+#include <cstdlib>
 #include <optional>
+#include <utility>
 
 #include <mujoco/mjplugin.h>
 #include <mujoco/mjtnum.h>
 #include <mujoco/mujoco.h>
+#include "sdf.h"
 #include "nut.h"
 
 namespace mujoco::plugin::sdf {
@@ -74,7 +77,13 @@ std::optional<Nut> Nut::Create(
 
 // plugin constructor
 Nut::Nut(const mjModel* m, mjData* d, int instance) {
-  radius = strtod(mj_getPluginConfig(m, instance, "radius"), nullptr);
+  SdfDefault<NutAttribute> defattribute;
+
+  for (int i=0; i < NutAttribute::nattribute; i++) {
+    attribute[i] = defattribute.GetDefault(
+        NutAttribute::names[i],
+        mj_getPluginConfig(m, instance, NutAttribute::names[i]));
+  }
 }
 
 // plugin computation
@@ -95,19 +104,19 @@ void Nut::Visualize(const mjModel* m, mjData* d, const mjvOption* opt,
 
 // sdf
 mjtNum Nut::Distance(const mjtNum point[3]) const {
-  return distance(point, &radius);
+  return distance(point, attribute);
 }
 
 // gradient of sdf
 void Nut::Gradient(mjtNum grad[3], const mjtNum point[3]) const {
   mjtNum eps = 1e-8;
-  mjtNum dist0 = distance(point, &radius);
+  mjtNum dist0 = distance(point, attribute);
   mjtNum pointX[3] = {point[0]+eps, point[1], point[2]};
-  mjtNum distX = distance(pointX, &radius);
+  mjtNum distX = distance(pointX, attribute);
   mjtNum pointY[3] = {point[0], point[1]+eps, point[2]};
-  mjtNum distY = distance(pointY, &radius);
+  mjtNum distY = distance(pointY, attribute);
   mjtNum pointZ[3] = {point[0], point[1], point[2]+eps};
-  mjtNum distZ = distance(pointZ, &radius);
+  mjtNum distZ = distance(pointZ, attribute);
 
   grad[0] = (distX - dist0) / eps;
   grad[1] = (distY - dist0) / eps;
@@ -122,9 +131,8 @@ void Nut::RegisterPlugin() {
   plugin.name = "mujoco.sdf.nut";
   plugin.capabilityflags |= mjPLUGIN_SDF;
 
-  const char* attributes[] = {"radius"};
-  plugin.nattribute = sizeof(attributes) / sizeof(attributes[0]);
-  plugin.attributes = attributes;
+  plugin.nattribute = NutAttribute::nattribute;
+  plugin.attributes = NutAttribute::names;
   plugin.nstate = +[](const mjModel* m, int instance) { return 0; };
 
   plugin.init = +[](const mjModel* m, mjData* d, int instance) {
@@ -175,6 +183,11 @@ void Nut::RegisterPlugin() {
         aabb[0] = aabb[1] = aabb[2] = 0;
         aabb[3] = aabb[4] = .6;
         aabb[5] = 1;
+      };
+  plugin.sdf_attribute =
+      +[](mjtNum attribute[], const char* name[], const char* value[]) {
+        SdfDefault<NutAttribute> defattribute;
+        defattribute.GetDefaults(attribute, name, value);
       };
 
   mjp_registerPlugin(&plugin);

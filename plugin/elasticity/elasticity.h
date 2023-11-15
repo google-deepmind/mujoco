@@ -48,6 +48,13 @@ inline void UpdateSquaredLengths(std::vector<mjtNum>& len,
   }
 }
 
+inline void UpdateSquaredLengthsFlex(std::vector<mjtNum>& len,
+                                     const mjtNum* flexedge_length) {
+  for (int e = 0; e < len.size(); e++) {
+    len[e] = flexedge_length[e]*flexedge_length[e];
+  }
+}
+
 struct Stencil2D {
   static constexpr int kNumEdges = 3;
   static constexpr int kNumVerts = 3;
@@ -74,6 +81,54 @@ void inline GradSquaredLengths(mjtNum gradient[T::kNumEdges][2][3],
     for (int d = 0; d < 3; d++) {
       gradient[e][0][d] = x[3*v[T::edge[e][0]]+d] - x[3*v[T::edge[e][1]]+d];
       gradient[e][1][d] = x[3*v[T::edge[e][1]]+d] - x[3*v[T::edge[e][0]]+d];
+    }
+  }
+}
+
+template <typename T>
+inline void ComputeForce(mjtNum* qfrc_passive,
+                         const std::vector<T>& elements,
+                         const std::vector<mjtNum>& metric,
+                         const std::vector<mjtNum>& elongationglob,
+                         const mjtNum* xpos) {
+  for (int t = 0; t < elements.size(); t++)  {
+    const int* v = elements[t].vertices;
+
+    // compute length gradient with respect to dofs
+    mjtNum gradient[T::kNumEdges][2][3];
+    GradSquaredLengths<T>(gradient, xpos, v);
+
+    // extract elongation of edges belonging to this element
+    mjtNum elongation[T::kNumEdges];
+    for (int e = 0; e < T::kNumEdges; e++) {
+      int idx = elements[t].edges[e];
+      elongation[e] = elongationglob[idx];
+    }
+
+    // we now multiply the elongations by the precomputed metric tensor,
+    // notice that if metric=diag(1/reference) then this would yield a
+    // mass-spring model
+
+    // compute local force
+    mjtNum force[T::kNumVerts*3] = {0};
+    int offset = T::kNumEdges*T::kNumEdges;
+    for (int ed1 = 0; ed1 < T::kNumEdges; ed1++) {
+      for (int ed2 = 0; ed2 < T::kNumEdges; ed2++) {
+        for (int i = 0; i < 2; i++) {
+          for (int x = 0; x < 3; x++) {
+            force[3 * T::edge[ed2][i] + x] +=
+                elongation[ed1] * gradient[ed2][i][x] *
+                metric[offset * t + T::kNumEdges * ed1 + ed2];
+          }
+        }
+      }
+    }
+
+    // insert into global force
+    for (int i = 0; i < T::kNumVerts; i++) {
+      for (int x = 0; x < 3; x++) {
+        qfrc_passive[3*v[i]+x] -= force[3*i+x];
+      }
     }
   }
 }

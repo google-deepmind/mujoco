@@ -215,7 +215,7 @@ Optionally, ``viewer.launch_passive`` accepts the following keyword arguments.
           viewer.sync()
         ...
 
-- ``show_left_ui_panel`` and ``show_right_ui_panel``: Boolean arguments indicating whether UI panels should be visible
+- ``show_left_ui`` and ``show_right_ui``: Boolean arguments indicating whether UI panels should be visible
   or hidden when the viewer is launched. Note that regardless of the values specified, the user can still toggle the
   visibility of these panels after launch by pressing Tab or Shift+Tab.
 

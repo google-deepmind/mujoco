@@ -2,13 +2,90 @@
 Changelog
 =========
 
-Upcoming version (not yet released)
------------------------------------
+Version 3.0.1 (November 15, 2023)
+---------------------------------
+
+General
+^^^^^^^
+1. Added sub-terms of total passive forces in ``mjData.qfrc_passive`` to :ref:`mjData`:
+   ``qfrc_{spring, damper, gravcomp, fluid}``. The sum of these vectors equals ``qfrc_passive``.
+
+.. youtube:: H9qG9Zf2W44
+   :align: right
+   :width: 240px
+
+2. Added :ref:`actuatorgroupdisable<option-actuatorgroupdisable>` attribute and associated
+   :ref:`mjOption.disableactuator<mjOption>` integer bitfield, which can be used to disable sets of actuators at runtime
+   according to their :ref:`group<actuator-general-group>`. Fixes :github:issue:`1092`. See :ref:`CActDisable`.
+
+   - The first 6 actuator groups are toggleable in the :ref:`simulate<saSimulate>` viewer. See `example model
+     <https://github.com/google-deepmind/mujoco/blob/main/test/engine/testdata/actuation/actuator_group_disable.xml>`__
+     and associated screen-capture on the right.
+
+3. Increased ``mjMAXUIITEM`` (maximum number of UI elements per section in Simulate) to 200.
+
+MJX
+^^^
+4. Added support for Newton solver (``mjSOL_NEWTON`` in :ref:`mjtSolver`).  The Newton solver significantly speeds up
+   simulation on GPU:
+
+   .. list-table:: Steps-per-second, Conjugate Gradient vs. Newton on A100
+      :header-rows: 1
+      :align: left
+
+      * - Model
+        - CG
+        - Newton
+        - Speedup
+      * - `Humanoid <https://github.com/google-deepmind/mujoco/tree/main/mjx/mujoco/mjx/benchmark/model/humanoid>`__
+        - 640,000
+        - 1,020,000
+        - **1.6 x**
+      * - `Barkour v0 <https://github.com/google-deepmind/mujoco/tree/main/mjx/mujoco/mjx/benchmark/model/barkour_v0>`__
+        - 1,290,000
+        - 1,750,000
+        - **1.35 x**
+      * - `Shadow Hand <https://github.com/google-deepmind/mujoco/tree/main/mjx/mujoco/mjx/benchmark/model/shadow_hand>`__
+        - 215,000
+        - 270,000
+        - **1.25 x**
+
+   Humanoid is the standard MuJoCo humanoid,
+   `Google Barkour <https://blog.research.google/2023/05/barkour-benchmarking-animal-level.html>`__ and the Shadow Hand
+   are both available in the :ref:`MuJoCo Menagerie<Menagerie>`.
+5. Added support for joint equality constraints (``mjEQ_JOINT`` in :ref:`mjtEq`).
+6. Fixed bug where mixed ``jnt_limited`` joints were not being constrained correctly.
+7. Made ``device_put`` type validation more verbose (fixes :github:issue:`1113`).
+8. Removed empty EFC rows from ``MJX``, for joints with no limits (fixes :github:issue:`1117`).
+9. Fixed bug in ``scan.body_tree`` that led to incorrect smooth dynamics for some kinematic tree layouts.
+
+Python bindings
+^^^^^^^^^^^^^^^
+
+10. Fix the macOS ``mjpython`` launcher to work with the Python interpreter from Apple Command Line Tools.
+11. Fixed a crash when copying instances of ``mujoco.MjData`` for models that use plugins. Introduced a ``model``
+    attribute to ``MjData`` which is reference to the model that was used to create that ``MjData`` instance.
+
+Simulate
+^^^^^^^^
+12. :ref:`simulate<saSimulate>`: correct handling of "Pause update", "Fullscreen" and "VSync" buttons.
+
+Documentation
+^^^^^^^^^^^^^
+
+.. youtube:: cE3s_IfO4g4
+   :align: right
+   :width: 240px
+
+13. Added cell to the `tutorial colab <https://github.com/google-deepmind/mujoco#getting-started>`__ providing an
+    example of procedural camera control:
+14. Added documentation for the :ref:`UI` framework.
+15. Fixed typos and supported fields in docs (fixes :github:issue:`1105` and :github:issue:`1106`).
+
 
 Bug fixes
 ^^^^^^^^^
-
-1. Fix in simulate: correct handling of "Pause update", "Fullscreen" and "VSync" buttons.
+16. Fixed bug relating to welds modified with :ref:`torquescale<equality-weld-torquescale>`.
 
 Version 3.0.0 (October 18, 2023)
 --------------------------------

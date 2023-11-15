@@ -539,6 +539,9 @@ void mj_instantiateEquality(const mjModel* m, mjData* d) {
         // compute position error
         mju_sub3(cpos, pos[0], pos[1]);
 
+        // get torquescale coefficient
+        mjtNum torquescale = data[10];
+
         // compute error Jacobian (opposite of contact: 0 - 1)
         NV = mj_jacDifPair(m, d, chain, id[1], id[0], pos[1], pos[0],
                            jac[1], jac[0], jacdif,
@@ -553,7 +556,7 @@ void mj_instantiateEquality(const mjModel* m, mjData* d) {
         mju_mulQuat(quat, d->xquat+4*id[0], relpose);   // quat = q0*relpose
         mju_negQuat(quat1, d->xquat+4*id[1]);           // quat1 = neg(q1)
         mju_mulQuat(quat2, quat1, quat);                // quat2 = neg(q1)*q0*relpose
-        mju_copy3(cpos+3, quat2+1);                     // copy axis components
+        mju_scl3(cpos+3, quat2+1, torquescale);         // scale axis components by torquescale
 
         // correct rotation Jacobian: 0.5 * neg(q1) * (jac0-jac1) * q0 * relpose
         for (int j=0; j < NV; j++) {
@@ -572,8 +575,7 @@ void mj_instantiateEquality(const mjModel* m, mjData* d) {
           jac[0][5*NV+j] = 0.5*quat3[3];
         }
 
-        // scale rotational jacobian by torquescale factor
-        mjtNum torquescale = data[10];
+        // scale rotational jacobian by torquescale
         mju_scl(jac[0]+3*NV, jac[0]+3*NV, torquescale, 3*NV);
 
         size = 6;
@@ -663,9 +665,13 @@ void mj_instantiateEquality(const mjModel* m, mjData* d) {
       case mjEQ_FLEX:
         flex_edgeadr = m->flex_edgeadr[id[0]];
         flex_edgenum = m->flex_edgenum[id[0]];
-
-        // add one constraint per edge
+        // add one constraint per non-rigid edge
         for (int e=flex_edgeadr; e < flex_edgeadr+flex_edgenum; e++) {
+          // skip rigid
+          if (m->flexedge_rigid[e]) {
+            continue;
+          }
+
           // position error
           cpos[0] = d->flexedge_length[e] - m->flexedge_length0[e];
 
@@ -1057,7 +1063,7 @@ void mj_instantiateContact(const mjModel* m, mjData* d) {
 
 // compute diagApprox
 void mj_diagApprox(const mjModel* m, mjData* d) {
-  int id, dim, b1, b2, weldcnt = 0, edgecnt = 0;
+  int id, dim, b1, b2, f, weldcnt = 0;
   int nefc = d->nefc;
   mjtNum tran, rot, fri, *dA = d->efc_diagApprox;
   mjContact* con = NULL;
@@ -1066,11 +1072,6 @@ void mj_diagApprox(const mjModel* m, mjData* d) {
   for (int i=0; i < nefc; i++) {
     // get constraint id
     id = d->efc_id[i];
-
-    // clear edge counter
-    if (d->efc_type[i] != mjEQ_FLEX) {
-      edgecnt = 0;
-    }
 
     // process according to constraint type
     switch ((mjtConstraint) d->efc_type[i]) {
@@ -1108,8 +1109,18 @@ void mj_diagApprox(const mjModel* m, mjData* d) {
         break;
 
       case mjEQ_FLEX:
-        dA[i] = m->flexedge_invweight0[m->flex_edgeadr[m->eq_obj1id[id]] + edgecnt];
-        edgecnt++;
+        // process all non-rigid edges for this flex
+        f = m->eq_obj1id[id];
+        int flex_edgeadr = m->flex_edgeadr[f];
+        int flex_edgenum = m->flex_edgenum[f];
+        for (int e=flex_edgeadr; e<flex_edgeadr+flex_edgenum; e++) {
+          if (!m->flexedge_rigid[e]) {
+            dA[i++] = m->flexedge_invweight0[e];
+          }
+        }
+
+        // adjust constraint counter
+        i--;
         break;
 
       default:
@@ -1299,16 +1310,8 @@ static void getposdim(const mjModel* m, const mjData* d, int i, mjtNum* pos, int
 
   case mjCNSTR_EQUALITY:
     if (m->eq_type[id] == mjEQ_WELD) {
-      mjtNum rotlinratio = m->eq_data[mjNEQDATA*id+10];
-      mjtNum efc_pos[6];
-
-      // copy translational residual
-      mju_copy3(efc_pos, d->efc_pos+i);
-
-      // multiply orientations by torquescale
-      mju_scl3(efc_pos+3, d->efc_pos+i+3, rotlinratio);
       *dim = 6;
-      *pos = mju_norm(efc_pos, 6);
+      *pos = mju_norm(d->efc_pos+i, 6);
     } else if (m->eq_type[id] == mjEQ_CONNECT) {
       *dim = 3;
       *pos = mju_norm(d->efc_pos+i, 3);
@@ -1642,21 +1645,26 @@ static int mj_ne(const mjModel* m, mjData* d, int* nnz) {
         break;
 
       case mjEQ_FLEX:
-        size = m->flex_edgenum[id[0]];
-        if (!nnz) {
-          break;
-        }
-
         flex_edgeadr = m->flex_edgeadr[id[0]];
         flex_edgenum = m->flex_edgenum[id[0]];
 
+        // init with all edges, subract rigid later
+        size = flex_edgenum;
+
         // process edges of this flex
         for (int e=flex_edgeadr; e < flex_edgeadr+flex_edgenum; e++) {
-          int b1 = m->flex_vertbodyid[m->flex_vertadr[id[0]] + m->flex_edge[2*e]];
-          int b2 = m->flex_vertbodyid[m->flex_vertadr[id[0]] + m->flex_edge[2*e+1]];
+          // rigid: reduce size and skip
+          if (m->flexedge_rigid[e]) {
+            size--;
+            continue;
+          }
 
-          // accumulate NV
-          NV += mj_jacDifPairCount(m, chain, b1, b2, issparse);
+          // accumulate NV if needed
+          if (nnz) {
+            int b1 = m->flex_vertbodyid[m->flex_vertadr[id[0]] + m->flex_edge[2*e]];
+            int b2 = m->flex_vertbodyid[m->flex_vertadr[id[0]] + m->flex_edge[2*e+1]];
+            NV += mj_jacDifPairCount(m, chain, b1, b2, issparse);
+          }
         }
         break;
 

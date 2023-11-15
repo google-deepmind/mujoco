@@ -110,56 +110,55 @@ class ValidateInputTest(absltest.TestCase):
 
   def test_solver(self):
     m = mujoco.MjModel.from_xml_string(
-        '<mujoco><option solver="Newton"/><worldbody/></mujoco>'
+        '<mujoco><option solver="PGS"/><worldbody/></mujoco>'
     )
-    with self.assertWarns(UserWarning):
-      mx = mjx.device_put(m)
-    self.assertEqual(mx.opt.solver, mujoco.mjtSolver.mjSOL_CG)
+    with self.assertRaises(NotImplementedError):
+      mjx.device_put(m)
 
   def test_integrator(self):
     m = mujoco.MjModel.from_xml_string(
         '<mujoco><option integrator="implicit"/><worldbody/></mujoco>'
     )
     with self.assertRaises(NotImplementedError):
-      _ = mjx.device_put(m)
+      mjx.device_put(m)
 
   def test_cone(self):
     m = mujoco.MjModel.from_xml_string(
         '<mujoco><option cone="elliptic"/><worldbody/></mujoco>'
     )
     with self.assertRaises(NotImplementedError):
-      _ = mjx.device_put(m)
+      mjx.device_put(m)
 
   def test_trn(self):
     m = test_util.load_test_file('ant.xml')
     m.actuator_trntype[0] = mujoco.mjtTrn.mjTRN_SITE
     with self.assertRaises(NotImplementedError):
-      _ = mjx.device_put(m)
+      mjx.device_put(m)
 
   def test_dyn(self):
     m = test_util.load_test_file('ant.xml')
     m.actuator_dyntype[0] = mujoco.mjtDyn.mjDYN_MUSCLE
     with self.assertRaises(NotImplementedError):
-      _ = mjx.device_put(m)
+      mjx.device_put(m)
 
   def test_gain(self):
     m = test_util.load_test_file('ant.xml')
     m.actuator_gaintype[0] = mujoco.mjtGain.mjGAIN_MUSCLE
     with self.assertRaises(NotImplementedError):
-      _ = mjx.device_put(m)
+      mjx.device_put(m)
 
   def test_bias(self):
     m = test_util.load_test_file('ant.xml')
     m.actuator_gaintype[0] = mujoco.mjtGain.mjGAIN_MUSCLE
     with self.assertRaises(NotImplementedError):
-      _ = mjx.device_put(m)
+      mjx.device_put(m)
 
   def test_condim(self):
     m = test_util.load_test_file('ant.xml')
     for i in [1, 4, 6]:
       m.geom_condim[0] = i
       with self.assertRaises(NotImplementedError):
-        _ = mjx.device_put(m)
+        mjx.device_put(m)
 
   def test_geoms(self):
     m = mujoco.MjModel.from_xml_string("""
@@ -177,7 +176,31 @@ class ValidateInputTest(absltest.TestCase):
       </mujoco>
     """)
     with self.assertRaises(NotImplementedError):
-      _ = mjx.device_put(m)
+      mjx.device_put(m)
+
+  def test_tendon(self):
+    m = mujoco.MjModel.from_xml_string("""
+      <mujoco>
+        <worldbody>
+        <body name="left_thigh" pos="0 0.1 -0.04">
+          <joint axis="0 1 0" name="left_hip_y" type="hinge"/>
+          <geom fromto="0 0 0 0 -0.01 -.34" name="left_thigh1" size="0.06" type="capsule"/>
+          <body name="left_shin" pos="0 -0.01 -0.403">
+            <joint axis="0 -1 0" name="left_knee" pos="0 0 .02" range="-160 -2" type="hinge"/>
+            <geom fromto="0 0 0 0 0 -.3" name="left_shin1" size="0.049" type="capsule"/>
+          </body>
+        </body>
+        </worldbody>
+        <tendon>
+          <fixed name="left_hipknee">
+            <joint coef="-1" joint="left_hip_y"/>
+            <joint coef="1" joint="left_knee"/>
+          </fixed>
+        </tendon>
+      </mujoco>
+    """)
+    with self.assertRaises(NotImplementedError):
+      mjx.device_put(m)
 
 
 if __name__ == '__main__':

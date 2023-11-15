@@ -52,13 +52,18 @@ class Membrane {
   std::vector<std::pair<int, int> > edges;  // edge to vertex map     (ne x 2)
 
   // precomputed quantities
-  std::vector<mjtNum> metric;               // geom-induced metric     (nt x 9)
+  std::vector<mjtNum> metric;               // geom-induced metric    (nt x 9)
+  std::vector<mjtNum> reference;            // reference lengths      (ne x 1)
+  std::vector<mjtNum> deformed;             // deformed lengths       (ne x 1)
+  std::vector<mjtNum> previous;             // previous-step lengths  (ne x 1)
+  std::vector<mjtNum> elongation;           // edge elongation        (ne x 1)
 
+  mjtNum damping;
   mjtNum thickness;
 
  private:
   Membrane(const mjModel* m, mjData* d, int instance, mjtNum nu, mjtNum E,
-           mjtNum thick, const std::vector<int>& simplex,
+           mjtNum thick, mjtNum damp, const std::vector<int>& simplex,
            const std::vector<int>& edgeidx);
 };
 

@@ -16,7 +16,6 @@
 #define MUJOCO_PLUGIN_SDF_GEAR_H_
 
 #include <optional>
-#include <vector>
 
 #include <mujoco/mjdata.h>
 #include <mujoco/mjmodel.h>
@@ -25,6 +24,14 @@
 #include "sdf.h"
 
 namespace mujoco::plugin::sdf {
+
+struct GearAttribute {
+  static constexpr int nattribute = 5;
+  static constexpr char const* names[nattribute] = {"alpha", "diameter",
+                                                    "teeth", "thickness",
+                                                    "innerdiameter"};
+  static constexpr mjtNum defaults[nattribute] = { 0, 2.8, 25, .2 , -1};
+};
 
 class Gear {
  public:
@@ -43,7 +50,7 @@ class Gear {
 
   static void RegisterPlugin();
 
-  mjtNum alpha;
+  mjtNum attribute[GearAttribute::nattribute];
 
  private:
   Gear(const mjModel* m, mjData* d, int instance);

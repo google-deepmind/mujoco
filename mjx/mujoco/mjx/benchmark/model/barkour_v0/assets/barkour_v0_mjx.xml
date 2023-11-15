@@ -2,7 +2,7 @@
 
   <compiler angle="radian" meshdir="." texturedir="assets" autolimits="true"/>
 
-  <option timestep="0.002" iterations="4" ls_iterations="6" solver="CG">
+  <option timestep="0.002" iterations="1" ls_iterations="4">
     <flag eulerdamp="disable"/>
   </option>
 

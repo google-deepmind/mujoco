@@ -1666,7 +1666,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  ),
              ),
          ),
-         doc='Compute qfrc_passive from spring-dampers, viscosity and density.',
+         doc='Compute qfrc_passive from spring-dampers, gravity compensation and fluid forces.',  # pylint: disable=line-too-long
      )),
     ('mj_subtreeVel',
      FunctionDecl(
@@ -1686,7 +1686,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  ),
              ),
          ),
-         doc='subtree linear velocity and angular momentum',
+         doc='Sub-tree linear velocity and angular momentum: compute subtree_linvel, subtree_angmom.',  # pylint: disable=line-too-long
      )),
     ('mj_rne',
      FunctionDecl(

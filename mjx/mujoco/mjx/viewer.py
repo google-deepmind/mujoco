@@ -14,8 +14,8 @@
 # ==============================================================================
 """An example integration of MJX with the MuJoCo viewer."""
 
-from collections.abc import Sequence
 import time
+from typing import Sequence
 
 from absl import app
 from absl import flags
@@ -37,10 +37,6 @@ def main(argv: Sequence[str]) -> None:
   print(f'Loading model from: {_MODEL_PATH.value}.')
   m = mujoco.MjModel.from_xml_path(_MODEL_PATH.value)
   d = mujoco.MjData(m)
-
-  # Override the solver option to CG since that is currently the only one
-  # supported by MJX.
-  m.opt.solver = mujoco.mjtSolver.mjSOL_CG
 
   mx = mjx.device_put(m)
   dx = mjx.make_data(mx)

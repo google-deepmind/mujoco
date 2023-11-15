@@ -33,21 +33,34 @@ _PATHS = {
     'shadow_hand': 'benchmark/model/shadow_hand/scene_right.xml',
 }
 
-
 _BATCH_SIZE = {
-    ('humanoid', 'TPU v5 lite'): 1024,
-    ('barkour', 'TPU v5 lite'): 1024,
-    ('shadow_hand', 'TPU v5 lite'): 1024,
-    ('humanoid', 'Tesla V100-SXM2-16GB'): 8192,
-    ('barkour', 'Tesla V100-SXM2-16GB'): 8192,
-    ('shadow_hand', 'Tesla V100-SXM2-16GB'): 4096,
-    ('humanoid', 'cpu'): 64,
+    ('barkour', 'tpu_v5e'): 1024,
+    ('humanoid', 'tpu_v5e'): 1024,
+    ('shadow_hand', 'tpu_v5e'): 1024,
+    ('barkour', 'gpu_a100'): 8192,
+    ('humanoid', 'gpu_a100'): 8192,
+    ('shadow_hand', 'gpu_a100'): 4096,
     ('barkour', 'cpu'): 64,
+    ('humanoid', 'cpu'): 64,
     ('shadow_hand', 'cpu'): 64,
 }
 
+_SOLVER_CONFIG = {
+    ('barkour', 'tpu_v5e'): (mujoco.mjtSolver.mjSOL_CG, 4, 6),
+    ('humanoid', 'tpu_v5e'): (mujoco.mjtSolver.mjSOL_CG, 6, 6),
+    ('shadow_hand', 'tpu_v5e'): (mujoco.mjtSolver.mjSOL_CG, 8, 6),
+    ('humanoid', 'gpu_a100'): (mujoco.mjtSolver.mjSOL_NEWTON, 1, 4),
+    ('barkour', 'gpu_a100'): (mujoco.mjtSolver.mjSOL_NEWTON, 1, 4),
+    ('shadow_hand', 'gpu_a100'): (mujoco.mjtSolver.mjSOL_NEWTON, 1, 4),
+    ('barkour', 'cpu'): (mujoco.mjtSolver.mjSOL_NEWTON, 1, 4),
+    ('humanoid', 'cpu'): (mujoco.mjtSolver.mjSOL_NEWTON, 1, 4),
+    ('shadow_hand', 'cpu'): (mujoco.mjtSolver.mjSOL_NEWTON, 1, 4),
+}
+
+
 flags.DEFINE_string('model', 'humanoid', 'Model to benchmark')
-flags.DEFINE_string('device', 'cpu', 'Device benchmark is running on')
+flags.DEFINE_enum('device', 'cpu', ('cpu', 'tpu_v5e', 'gpu_a100'),
+                  'Device benchmark is running on')
 
 
 def _measure_fn(state, init_fn, step_fn, batch_size: int = 1024) -> float:
@@ -95,6 +108,9 @@ def _run(state: benchmark.State):
 
   f = epath.resource_path('mujoco.mjx') / _PATHS[FLAGS.model]
   m = mujoco.MjModel.from_xml_path(f.as_posix())
+  m.opt.solver, m.opt.iterations, m.opt.ls_iterations = _SOLVER_CONFIG[
+      (FLAGS.model, FLAGS.device)
+  ]
   m = mjx.device_put(m)
 
   def init(rng):
@@ -106,7 +122,7 @@ def _run(state: benchmark.State):
   def step(d):
     return mjx.step(m, d)
 
-  batch_size = _BATCH_SIZE[(FLAGS.model, jax.devices()[0].device_kind)]
+  batch_size = _BATCH_SIZE[(FLAGS.model, FLAGS.device)]
   _measure_fn(state, init, step, batch_size=batch_size)
 
 

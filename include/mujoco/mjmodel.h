@@ -433,6 +433,7 @@ struct mjOption_ {                // physics options
   int mpr_iterations;             // maximum number of MPR solver iterations
   int disableflags;               // bit flags for disabling standard features
   int enableflags;                // bit flags for enabling optional features
+  int disableactuator;            // bit flags for disabling actuators by group id
 
   // sdf collision settings
   int sdf_initpoints;             // number of starting points for gradient descent
@@ -505,6 +506,7 @@ struct mjVisual_ {                // visualization options
     float framewidth;             // bodyframe axis width
     float constraint;             // constraint width
     float slidercrank;            // slidercrank width
+    float frustum;                // frustum zfar plane
   } scale;
 
   struct {                        // color of decor elements
@@ -530,6 +532,7 @@ struct mjVisual_ {                // visualization options
     float constraint[4];          // constraint
     float slidercrank[4];         // slidercrank
     float crankbroken[4];         // used when crank must be stretched/broken
+    float frustum[4];             // camera frustum
   } rgba;
 };
 typedef struct mjVisual_ mjVisual;
@@ -661,7 +664,7 @@ struct mjModel_ {
   int*      body_treeid;          // id of body's kinematic tree; -1: static  (nbody x 1)
   int*      body_geomnum;         // number of geoms                          (nbody x 1)
   int*      body_geomadr;         // start addr of geoms; -1: no geoms        (nbody x 1)
-  mjtByte*  body_simple;          // 1: diagonal M; 2: diag M, no rotations   (nbody x 1)
+  mjtByte*  body_simple;          // 1: diag M; 2: diag M, sliders only       (nbody x 1)
   mjtByte*  body_sameframe;       // inertial frame is same as body frame     (nbody x 1)
   mjtNum*   body_pos;             // position offset rel. to parent body      (nbody x 3)
   mjtNum*   body_quat;            // orientation offset rel. to parent body   (nbody x 4)
@@ -839,6 +842,7 @@ struct mjModel_ {
   mjtNum*   flex_edgedamping;     // edge damping                             (nflex x 1)
   mjtByte*  flex_edgeequality;    // is edge equality constraint defined      (nflex x 1)
   mjtByte*  flex_rigid;           // are all verices in the same body         (nflex x 1)
+  mjtByte*  flexedge_rigid;       // are both edge vertices in same body      (nflexedge x 1)
   mjtByte*  flex_centered;        // are all vertex coordinates (0,0,0)       (nflex x 1)
   mjtByte*  flex_flatskin;        // render flex skin with flat shading       (nflex x 1)
   int*      flex_bvhadr;          // address of bvh root; -1: no bvh          (nflex x 1)

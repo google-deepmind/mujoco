@@ -34,6 +34,8 @@ MuJoCo defines a large number of types:
   - Structs used by :ref:`engine plugins<tyPluginStructure>`.
 
 - Several :ref:`tyFunction` for user-defined callbacks.
+- :ref:`tyNotes` regarding specific data structures that require detailed description.
+
 
 
 .. _tyPrimitive:
@@ -909,6 +911,7 @@ This structure contains the custom OpenGL rendering context, with the ids of all
 User Interface
 ^^^^^^^^^^^^^^
 
+For a high-level description of the UI framework, see :ref:`UI`.
 The names of these struct types are prefixed with ``mjui``, except for the main :ref:`mjUI` struct itself.
 
 
@@ -917,7 +920,9 @@ The names of these struct types are prefixed with ``mjui``, except for the main 
 mjuiState
 ~~~~~~~~~
 
-This structure contains the keyboard and mouse state used by the UI framework.
+This C struct represents the global state of the window, keyboard and mouse, input event descriptors, and all window
+rectangles (including the visible UI rectangles). There is only one ``mjuiState`` per application, even if there are
+multiple UIs. This struct would normally be defined as a global variable.
 
 .. mujoco-include:: mjuiState
 
@@ -967,7 +972,9 @@ This structure defines one section of the UI.
 mjuiDef
 ~~~~~~~
 
-This structure defines one entry in the definition table used for simplified UI construction.
+This structure defines one entry in the definition table used for simplified UI construction. It contains everything
+needed to define one UI item. Some translation is performed by the helper functions, so that multiple mjuiDefs can be
+defined as a static table.
 
 .. mujoco-include:: mjuiDef
 
@@ -977,7 +984,12 @@ This structure defines one entry in the definition table used for simplified UI 
 mjUI
 ~~~~
 
-This structure defines the entire UI.
+This C struct represents an entire UI. The same application could have multiple UIs, for example on the left and the
+right of the window. This would normally be defined as a global variable. As explained earlier, it contains static
+allocation for a maximum number of supported UI sections (:ref:`mjuiSection<mjuiSection>`) each with a maximum number
+of supported items (:ref:`mjuiItem<mjuiItem>`). It also contains the color and spacing themes, enable/disable
+callback, virtual window descriptor, text edit state, mouse focus. Some of these fields are set only once when the UI
+is initialized, others change at runtime.
 
 .. mujoco-include:: mjUI
 

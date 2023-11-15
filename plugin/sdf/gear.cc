@@ -12,14 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <cstdio>
-#include <sstream>
+#include <cstdint>
+#include <cstdlib>
 #include <optional>
+#include <utility>
 
 #include <mujoco/mjplugin.h>
 #include <mujoco/mjtnum.h>
 #include <mujoco/mjvisualize.h>
 #include <mujoco/mujoco.h>
+#include "sdf.h"
 #include "gear.h"
 
 namespace mujoco::plugin::sdf {
@@ -50,10 +52,11 @@ static mjtNum mod(mjtNum x, mjtNum y) {
   return x - y * floor(x/y);
 }
 
-static mjtNum distance2D(const mjtNum p[3], const mjtNum attributes[3]) {
+static mjtNum distance2D(const mjtNum p[3],
+                         const mjtNum attributes[GearAttribute::nattribute]) {
   // see https://www.shadertoy.com/view/3lG3WR
-  mjtNum D = 2.8;  // should be an attribute
-  mjtNum N = 25;  // should be an attribute
+  mjtNum D = attributes[1];
+  mjtNum N = attributes[2];
   mjtNum psi = 3.096e-5 * N * N -6.557e-3 * N + 0.551;  // pressure angle
   mjtNum alpha = attributes[0];
 
@@ -78,7 +81,10 @@ static mjtNum distance2D(const mjtNum p[3], const mjtNum attributes[3]) {
 
   mjtNum h = 2.2 / Pd;
 
-  mjtNum innerR = Ro - h - 0.4;
+  mjtNum innerR = Ro - h - 0.14*D;
+  if (attributes[4] >= 0.0) {
+    innerR = attributes[4] / 2.0;
+  }
 
   // Early exit
   if (innerR - rho > 0.0)
@@ -126,33 +132,41 @@ static mjtNum distance2D(const mjtNum p[3], const mjtNum attributes[3]) {
                                    fib - (alphaStride - shift));
 
   cogs = Intersection(baseWalls, cogs);
-  cogs = smoothIntersection(gearOuter, cogs, 0.01);
+  cogs = smoothIntersection(gearOuter, cogs, 0.0035*D);
   cogs = smoothUnion(gearLowBase, cogs, Rb - Ro + h);
   cogs = Subtraction(cogs, crownBase);
 
-  return extrusion(p, cogs, .1);
+  return cogs;
 }
 
-static mjtNum distance(const mjtNum p[3], const mjtNum attributes[3]) {
-  return extrusion(p, distance2D(p, attributes), .1) - .005;
+static mjtNum distance(const mjtNum p[3],
+                       const mjtNum attributes[GearAttribute::nattribute]) {
+  return extrusion(p, distance2D(p, attributes), attributes[3]/2.);
 }
 
 }  // namespace
 
 // factory function
-std::optional<Gear> Gear::Create(
-  const mjModel* m, mjData* d, int instance) {
-  if (CheckAttr("alpha", m, instance)) {
-    return Gear(m, d, instance);
+std::optional<Gear> Gear::Create(const mjModel* m, mjData* d, int instance) {
+  if (CheckAttr("alpha", m, instance) && CheckAttr("diameter", m, instance) &&
+      CheckAttr("teeth", m, instance) &&
+      CheckAttr("innerdiameter", m, instance)) {
+      return Gear(m, d, instance);
   } else {
-    mju_warning("Invalid parameter specification in Gear plugin");
-    return std::nullopt;
+      mju_warning("Invalid parameter specification in Gear plugin");
+      return std::nullopt;
   }
 }
 
 // plugin constructor
 Gear::Gear(const mjModel* m, mjData* d, int instance) {
-  alpha = strtod(mj_getPluginConfig(m, instance, "alpha"), nullptr);
+  SdfDefault<GearAttribute> defattribute;
+
+  for (int i=0; i < GearAttribute::nattribute; i++) {
+      attribute[i] = defattribute.GetDefault(
+          GearAttribute::names[i],
+          mj_getPluginConfig(m, instance, GearAttribute::names[i]));
+  }
 }
 
 // plugin computation
@@ -173,21 +187,20 @@ void Gear::Visualize(const mjModel* m, mjData* d, const mjvOption* opt,
 
 // sdf
 mjtNum Gear::Distance(const mjtNum point[3]) const {
-  return distance(point, &alpha);
+  return distance(point, attribute);
 }
 
 // gradient of sdf
 void Gear::Gradient(mjtNum grad[3], const mjtNum point[3]) const {
-  mjtNum attributes[1]= {alpha};
   mjtNum eps = 1e-8;
-  mjtNum dist0 = distance(point, attributes);
+  mjtNum dist0 = distance(point, attribute);
 
   mjtNum pointX[3] = {point[0]+eps, point[1], point[2]};
-  mjtNum distX = distance(pointX, attributes);
+  mjtNum distX = distance(pointX, attribute);
   mjtNum pointY[3] = {point[0], point[1]+eps, point[2]};
-  mjtNum distY = distance(pointY, attributes);
+  mjtNum distY = distance(pointY, attribute);
   mjtNum pointZ[3] = {point[0], point[1], point[2]+eps};
-  mjtNum distZ = distance(pointZ, attributes);
+  mjtNum distZ = distance(pointZ, attribute);
 
   grad[0] = (distX - dist0) / eps;
   grad[1] = (distY - dist0) / eps;
@@ -202,9 +215,8 @@ void Gear::RegisterPlugin() {
   plugin.name = "mujoco.sdf.gear";
   plugin.capabilityflags |= mjPLUGIN_SDF;
 
-  const char* attributes[] = {"alpha"};
-  plugin.nattribute = sizeof(attributes) / sizeof(attributes[0]);
-  plugin.attributes = attributes;
+  plugin.nattribute = GearAttribute::nattribute;
+  plugin.attributes = GearAttribute::names;
   plugin.nstate = +[](const mjModel* m, int instance) { return 0; };
 
   plugin.init = +[](const mjModel* m, mjData* d, int instance) {
@@ -253,8 +265,13 @@ void Gear::RegisterPlugin() {
   plugin.sdf_aabb =
       +[](mjtNum aabb[6], const mjtNum* attributes) {
         aabb[0] = aabb[1] = aabb[2] = 0;
-        aabb[3] = aabb[4] = 1.7;
-        aabb[5] = .11;
+        aabb[3] = aabb[4] = attributes[1] / 2. * 1.25;
+        aabb[5] = attributes[3] / 2. * 1.1;
+  };
+  plugin.sdf_attribute =
+      +[](mjtNum attribute[], const char* name[], const char* value[]) {
+        SdfDefault<GearAttribute> defattribute;
+        defattribute.GetDefaults(attribute, name, value);
       };
 
   mjp_registerPlugin(&plugin);

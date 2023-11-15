@@ -909,6 +909,16 @@ void mjXWriter::Option(XMLElement* root) {
   WriteAttrInt(section, "sdf_iterations", model->option.sdf_iterations, opt.sdf_iterations);
   WriteAttrInt(section, "sdf_initpoints", model->option.sdf_initpoints, opt.sdf_initpoints);
 
+  // actuator group disable
+  int disabled_groups[31];
+  int ndisabled = 0;
+  for (int i = 0; i < 31; ++i) {
+    if (model->option.disableactuator & (1 << i)) {
+      disabled_groups[ndisabled++] = i;
+    }
+  }
+  WriteAttr(section, "actuatorgroupdisable", ndisabled, disabled_groups);
+
   // write disable/enable flags if any of them are set; invert while writing
   if (model->option.disableflags || model->option.enableflags) {
     XMLElement* sub = InsertEnd(section, "flag");
@@ -1082,6 +1092,7 @@ void mjXWriter::Visual(XMLElement* root) {
   WriteAttr(elem, "framewidth",     1, &vis->scale.framewidth,     &visdef.scale.framewidth);
   WriteAttr(elem, "constraint",     1, &vis->scale.constraint,     &visdef.scale.constraint);
   WriteAttr(elem, "slidercrank",    1, &vis->scale.slidercrank,    &visdef.scale.slidercrank);
+  WriteAttr(elem, "frustum",        1, &vis->scale.frustum,        &visdef.scale.frustum);
   if (!elem->FirstAttribute()) {
     section->DeleteChild(elem);
   }
@@ -1110,6 +1121,7 @@ void mjXWriter::Visual(XMLElement* root) {
   WriteAttr(elem, "constraint",       4, vis->rgba.constraint,       visdef.rgba.constraint);
   WriteAttr(elem, "slidercrank",      4, vis->rgba.slidercrank,      visdef.rgba.slidercrank);
   WriteAttr(elem, "crankbroken",      4, vis->rgba.crankbroken,      visdef.rgba.crankbroken);
+  WriteAttr(elem, "frustum",          4, vis->rgba.frustum,          visdef.rgba.frustum);
   if (!elem->FirstAttribute()) {
     section->DeleteChild(elem);
   }

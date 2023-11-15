@@ -213,6 +213,8 @@ void mj_fwdVelocity(const mjModel* m, mjData* d) {
   TM_END(mjTIMER_VELOCITY);
 }
 
+
+
 // returns the next act given the current act_dot, after clamping
 static mjtNum nextActivation(const mjModel* m, const mjData* d,
                              int actuator_id, int act_adr, mjtNum act_dot) {
@@ -239,6 +241,8 @@ static mjtNum nextActivation(const mjModel* m, const mjData* d,
   return act;
 }
 
+
+
 // (qpos, qvel, ctrl, act) => (qfrc_actuator, actuator_force, act_dot)
 void mj_fwdActuation(const mjModel* m, mjData* d) {
   TM_START;
@@ -246,12 +250,12 @@ void mj_fwdActuation(const mjModel* m, mjData* d) {
   mjtNum gain, bias, tau;
   mjtNum *prm, *moment = d->actuator_moment, *force = d->actuator_force;
 
-  // clear outputs
-  mju_zero(d->qfrc_actuator, nv);
-  mju_zero(d->actuator_force, nu);
+  // clear actuator_force
+  mju_zero(force, nu);
 
   // disabled or no actuation: return
   if (nu == 0 || mjDISABLED(mjDSBL_ACTUATION)) {
+    mju_zero(d->qfrc_actuator, nv);
     return;
   }
 
@@ -328,6 +332,11 @@ void mj_fwdActuation(const mjModel* m, mjData* d) {
 
   // force = gain .* [ctrl/act] + bias
   for (int i=0; i < nu; i++) {
+    // skip if disabled
+    if (mj_actuatorDisabled(m, i)) {
+      continue;
+    }
+
     // skip actuator plugins -- these are handled after builtin actuator types
     if (m->actuator_plugin[i] >= 0) {
       continue;
@@ -457,7 +466,6 @@ void mj_fwdActuation(const mjModel* m, mjData* d) {
 
 // add up all non-constraint forces, compute qacc_smooth
 void mj_fwdAcceleration(const mjModel* m, mjData* d) {
-  mj_markStack(d);
   int nv = m->nv;
 
   // qforce = sum of all non-constraint forces
@@ -468,8 +476,6 @@ void mj_fwdAcceleration(const mjModel* m, mjData* d) {
 
   // qacc_smooth = M \ qfr_smooth
   mj_solveM(m, d, d->qacc_smooth, d->qfrc_smooth, 1);
-
-  mj_freeStack(d);
 }
 
 
@@ -685,7 +691,8 @@ static void mj_advance(const mjModel* m, mjData* d,
       int actadr = m->actuator_actadr[i];
       int actadr_end = actadr + m->actuator_actnum[i];
       for (int j=actadr; j < actadr_end; j++) {
-        d->act[j] = nextActivation(m, d, i, j, act_dot[j]);
+        // if disabled, set act_dot to 0
+        d->act[j] = nextActivation(m, d, i, j, mj_actuatorDisabled(m, i) ? 0 : act_dot[j]);
       }
     }
   }

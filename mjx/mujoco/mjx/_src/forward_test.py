@@ -14,8 +14,6 @@
 # ==============================================================================
 """Tests for forward functions."""
 
-import itertools
-
 from absl.testing import absltest
 from absl.testing import parameterized
 import jax
@@ -38,13 +36,12 @@ def _assert_attr_eq(a, b, attr, step, fname, atol=1e-3, rtol=1e-3):
 
 class ForwardTest(parameterized.TestCase):
 
-  @parameterized.parameters(enumerate(test_util.TEST_FILES))
-  def test_forward(self, seed, fname):
+  @parameterized.parameters(
+      filter(lambda s: s not in ('equality.xml',), test_util.TEST_FILES)
+  )
+  def test_forward(self, fname):
     """Test mujoco mj forward function matches mujoco_mjx forward function."""
-    if fname in ('weld.xml',):
-      return
-
-    np.random.seed(seed)
+    np.random.seed(test_util.TEST_FILES.index(fname))
 
     m = test_util.load_test_file(fname)
     d = mujoco.MjData(m)
@@ -62,36 +59,20 @@ class ForwardTest(parameterized.TestCase):
       _assert_attr_eq(d, dx, 'qfrc_smooth', i, fname)
       _assert_attr_eq(d, dx, 'qacc_smooth', i, fname)
 
-  @parameterized.parameters(itertools.product(test_util.TEST_FILES, (0, 1)))
-  def test_step(self, fname, integrator_type):
+  @parameterized.parameters(
+      filter(lambda s: s not in ('equality.xml',), test_util.TEST_FILES)
+  )
+  def test_step(self, fname):
     """Test mujoco mj step matches mujoco_mjx step."""
-    if fname in (
-        'mixed_joint_pendulum.xml',
-        'ball_pendulum.xml',
-        'convex.xml',
-        'humanoid.xml',
-        'triple_pendulum.xml',  # TODO(b/301485081)
-        'weld.xml',
-    ):
-      # skip models with big constraint violations at step 0 or too slow to run
-      return
-
-    np.random.seed(integrator_type)
+    np.random.seed(test_util.TEST_FILES.index(fname))
     m = test_util.load_test_file(fname)
     step_jit_fn = jax.jit(forward.step)
-
-    m.opt.integrator = integrator_type
-    int_typ = 'euler' if integrator_type == 0 else 'rk4'
-    test_name = f'{fname} - {int_typ}'
-    steps = 100 if int_typ == 'euler' else 30
-    dt = m.opt.timestep
-    m.opt.timestep = dt if int_typ == 'euler' else dt * 3
 
     mx = mjx.device_put(m)
     d = mujoco.MjData(m)
     # give the system a little kick to ensure we have non-identity rotations
     d.qvel = np.random.normal(m.nv) * 0.05
-    for i in range(steps):
+    for i in range(100):
       # in order to avoid re-jitting, reuse the same mj_data shape
       qpos, qvel = d.qpos, d.qvel
       d = mujoco.MjData(m)
@@ -101,10 +82,51 @@ class ForwardTest(parameterized.TestCase):
       mujoco.mj_step(m, d)
       dx = step_jit_fn(mx, dx)
 
-      _assert_attr_eq(d, dx, 'qpos', i, test_name, atol=1e-2)
-      _assert_attr_eq(d, dx, 'qvel', i, test_name, atol=1e-2)
-      _assert_attr_eq(d, dx, 'act', i, test_name)
-      _assert_attr_eq(d, dx, 'time', i, test_name)
+      _assert_attr_eq(d, dx, 'qvel', i, fname, atol=1e-2)
+      _assert_attr_eq(d, dx, 'qpos', i, fname, atol=1e-2)
+      _assert_attr_eq(d, dx, 'act', i, fname)
+      _assert_attr_eq(d, dx, 'time', i, fname)
+
+  def test_rk4(self):
+    m = mujoco.MjModel.from_xml_string("""
+        <mujoco>
+          <option integrator="RK4">
+            <flag constraint="disable"/>
+          </option>
+          <worldbody>
+            <light pos="0 0 1"/>
+            <geom type="plane" size="1 1 .01" pos="0 0 -1"/>
+            <body pos="0.15 0 0">
+              <joint type="hinge" axis="0 1 0"/>
+              <geom type="capsule" size="0.02" fromto="0 0 0 .1 0 0"/>
+              <body pos="0.1 0 0">
+                <joint type="slide" axis="1 0 0" stiffness="200"/>
+                <geom type="capsule" size="0.015" fromto="-.1 0 0 .1 0 0"/>
+              </body>
+            </body>
+          </worldbody>
+        </mujoco>
+        """)
+    step_jit_fn = jax.jit(forward.step)
+
+    mx = mjx.device_put(m)
+    d = mujoco.MjData(m)
+    # give the system a little kick to ensure we have non-identity rotations
+    d.qvel = np.random.normal(m.nv) * 0.05
+    for i in range(100):
+      # in order to avoid re-jitting, reuse the same mj_data shape
+      qpos, qvel = d.qpos, d.qvel
+      d = mujoco.MjData(m)
+      d.qpos, d.qvel = qpos, qvel
+      dx = mjx.device_put(d)
+
+      mujoco.mj_step(m, d)
+      dx = step_jit_fn(mx, dx)
+
+      _assert_attr_eq(d, dx, 'qvel', i, 'test_rk4', atol=1e-2)
+      _assert_attr_eq(d, dx, 'qpos', i, 'test_rk4', atol=1e-2)
+      _assert_attr_eq(d, dx, 'act', i, 'test_rk4')
+      _assert_attr_eq(d, dx, 'time', i, 'test_rk4')
 
   def test_disable_eulerdamp(self):
     m = test_util.load_test_file('ant.xml')

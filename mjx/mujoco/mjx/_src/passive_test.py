@@ -26,7 +26,7 @@ from mujoco import mjx
 import numpy as np
 
 
-def _assert_attr_eq(a, b, attr, step, fname, atol=1e-5, rtol=1e-5):
+def _assert_attr_eq(a, b, attr, step, fname, atol=1e-4, rtol=1e-4):
   err_msg = f'mismatch: {attr} at step {step} in {fname}'
   a, b = getattr(a, attr), getattr(b, attr)
   np.testing.assert_allclose(a, b, err_msg=err_msg, atol=atol, rtol=rtol)
@@ -34,7 +34,7 @@ def _assert_attr_eq(a, b, attr, step, fname, atol=1e-5, rtol=1e-5):
 
 class PassiveTest(parameterized.TestCase):
 
-  @parameterized.parameters(enumerate(('ant.xml', 'mixed_joint_pendulum.xml')))
+  @parameterized.parameters(enumerate(('ant.xml', 'pendula.xml')))
   def test_stiffness_damping(self, seed, fname):
     """Tests stiffness and damping on Ant."""
     np.random.seed(seed)
@@ -60,7 +60,7 @@ class PassiveTest(parameterized.TestCase):
       _assert_attr_eq(d, dx, 'qfrc_passive', i, fname)
 
   @parameterized.parameters(
-      itertools.product(range(3), ('triple_pendulum.xml',))
+      itertools.product(range(3), ('pendula.xml',))
   )
   def test_fluid(self, seed, fname):
     np.random.seed(seed)

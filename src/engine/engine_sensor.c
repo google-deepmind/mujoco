@@ -688,12 +688,12 @@ void mj_sensorAcc(const mjModel* m, mjData* d) {
       adr = m->sensor_adr[i];
 
       // call mj_rnePostConstraint when first relevant sensor is encountered
-      if (rnePost == 0                  &&
-          type != mjSENS_TOUCH          &&
-          type != mjSENS_ACTUATORFRC    &&
-          type != mjSENS_JOINTACTFRC    &&
-          type != mjSENS_JOINTLIMITFRC  &&
-          type != mjSENS_TENDONLIMITFRC) {
+      if (rnePost == 0  && (type == mjSENS_ACCELEROMETER ||
+                            type == mjSENS_FORCE         ||
+                            type == mjSENS_TORQUE        ||
+                            type == mjSENS_FRAMELINACC   ||
+                            type == mjSENS_FRAMEANGACC   ||
+                            type == mjSENS_USER)) {
         // compute cacc, cfrc_int, cfrc_ext
         mj_rnePostConstraint(m, d);
 
@@ -956,10 +956,14 @@ void mj_energyPos(const mjModel* m, mjData* d) {
         continue;
       }
 
-      // process edges of this flex
-      for (int e=m->flex_edgeadr[i]; e < m->flex_edgeadr[i]+m->flex_edgenum[i]; e++) {
-        mjtNum displacement = m->flexedge_length0[e] - d->flexedge_length[e];
-        d->energy[0] += 0.5*stiffness*displacement*displacement;
+      // process non-rigid edges of this flex
+      int flex_edgeadr = m->flex_edgeadr[i];
+      int flex_edgenum = m->flex_edgenum[i];
+      for (int e=flex_edgeadr; e < flex_edgeadr+flex_edgenum; e++) {
+        if (!m->flexedge_rigid[e]) {
+          mjtNum displacement = m->flexedge_length0[e] - d->flexedge_length[e];
+          d->energy[0] += 0.5*stiffness*displacement*displacement;
+        };
       }
     }
   }

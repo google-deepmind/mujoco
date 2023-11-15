@@ -4,6 +4,8 @@
 <mujoco>
   <visual>
     <map znear="0.01"/>
+    <rgba frustum="1. 1. 0 0.2"/>
+    <scale frustum="3"/>
   </visual>
 
   <asset>

@@ -25,7 +25,6 @@
 #include <absl/container/flat_hash_map.h>
 #include <mujoco/mjxmacro.h>
 #include "indexer_xmacro.h"
-#include "mjdata_meta.h"
 #include "raw.h"
 #include <pybind11/numpy.h>
 #include <pybind11/pybind11.h>
@@ -35,9 +34,7 @@ using NameToID = absl::flat_hash_map<std::string, int>;
 using IDToName = std::vector<std::string>;
 
 struct NameToIDMappings {
-  // M is either a raw::MjModel or MjDataMetadata.
-  template <typename M>
-  explicit NameToIDMappings(const M& m);
+  explicit NameToIDMappings(const raw::MjModel& m);
 
   NameToID body;
   NameToID jnt;
@@ -63,9 +60,7 @@ struct NameToIDMappings {
 };
 
 struct IDToNameMappings {
-  // M is either a raw::MjModel or MjDataMetadata.
-  template <typename M>
-  explicit IDToNameMappings(const M& m);
+  explicit IDToNameMappings(const raw::MjModel& m);
 
   IDToName body;
   IDToName jnt;
@@ -163,7 +158,7 @@ class MjModelIndexer {
 class MjDataGroupedViewsBase {
  public:
   MjDataGroupedViewsBase(int index, std::string_view name, raw::MjData* d,
-                         const MjDataMetadata* m,
+                         const raw::MjModel* m,
                          pybind11::handle owner)
       : index_(index), name_(name), d_(d), m_(m), owner_(owner) {}
 
@@ -175,7 +170,7 @@ class MjDataGroupedViewsBase {
   int index_;
   std::string name_;
   raw::MjData* d_;
-  const MjDataMetadata* m_;
+  const raw::MjModel* m_;
   pybind11::handle owner_;
 };
 
@@ -201,7 +196,7 @@ MJDATA_VIEW_GROUPS
 // (e.g. a particular geom or joint) either by name or by ID.
 class MjDataIndexer {
  public:
-  MjDataIndexer(raw::MjData* d, const MjDataMetadata* m,
+  MjDataIndexer(raw::MjData* d, const raw::MjModel* m,
                 pybind11::handle owner);
 
 #define XGROUP(MjDataGroupedViews, field, nfield, FIELD_XMACROS) \
@@ -213,7 +208,7 @@ class MjDataIndexer {
 
  private:
   raw::MjData* d_;
-  const MjDataMetadata* m_;
+  const raw::MjModel* m_;
   pybind11::handle owner_;
   NameToIDMappings name_to_id_;
   IDToNameMappings id_to_name_;

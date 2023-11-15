@@ -191,8 +191,15 @@ favicons = [
 # -- Options for katex ------------------------------------------------------
 
 # See: https://sphinxcontrib-katex.readthedocs.io/en/0.4.1/macros.html
+# {ar au, ac} are {reference, unconstrained, constrained} acceleration, resp.
 latex_macros = r"""
     \def \d              #1{\operatorname{#1}}
+    \def \ar             {a_{\rm ref}}
+    \def \au             {a_0}
+    \def \ac             {a_1}
+    \def \ari            {a_{{\rm ref},i}}
+    \def \aui            {a_{0,i}}
+    \def \aci            {a_{1,i}}
 """
 
 # Translate LaTeX macros to KaTeX and add to options for HTML builder

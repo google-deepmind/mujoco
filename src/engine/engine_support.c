@@ -1784,7 +1784,15 @@ void mj_local2Global(mjData* d, mjtNum xpos[3], mjtNum xmat[9],
   }
 }
 
-
+// return 1 if actuator i is disabled, 0 otherwise
+int mj_actuatorDisabled(const mjModel* m, int i) {
+  int group = m->actuator_group[i];
+  if (group < 0 || group > 30) {
+    return 0;
+  } else {
+    return m->opt.disableactuator & (1 << group) ? 1 : 0;
+  }
+}
 
 // sum all body masses
 mjtNum mj_getTotalmass(const mjModel* m) {

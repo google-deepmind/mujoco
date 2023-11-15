@@ -984,5 +984,79 @@ TEST_F(ActEarlyTest, DoesntChangeStateInMjForward) {
   mj_deleteModel(model);
 }
 
+TEST_F(ActuatorTest, DisableActuator) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <joint name="slide" type="slide" axis="1 0 0"/>
+        <geom size="1" mass="1"/>
+      </body>
+    </worldbody>
+
+    <actuator>
+      <motor joint="slide" gear="2"  group="0"/>
+      <position joint="slide" kp="1" group="1"/>
+    </actuator>
+  </mujoco>
+  )";
+  mjModel* model = LoadModelFromString(xml);
+  mjData* data = mj_makeData(model);
+
+  data->ctrl[0] = 1.0;
+  data->ctrl[1] = 1.0;
+
+  mj_forward(model, data);
+  EXPECT_EQ(data->qfrc_actuator[0], 3.0);
+
+  model->opt.disableactuator = 1 << 0;
+  mj_forward(model, data);
+  EXPECT_EQ(data->qfrc_actuator[0], 1.0);
+
+  model->opt.disableactuator = 1 << 1;
+  mj_forward(model, data);
+  EXPECT_EQ(data->qfrc_actuator[0], 2.0);
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
+TEST_F(ActuatorTest, DisableActuatorOutOfRange) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <joint name="slide" type="slide" axis="1 0 0"/>
+        <geom size="1" mass="1"/>
+      </body>
+    </worldbody>
+
+    <actuator>
+      <motor joint="slide" gear="-1" group="-1"/>
+      <motor joint="slide" gear="5"  group="0"/>
+      <motor joint="slide" gear="31" group="31"/>
+    </actuator>
+  </mujoco>
+  )";
+  mjModel* model = LoadModelFromString(xml);
+  mjData* data = mj_makeData(model);
+
+  data->ctrl[0] = 1.0;
+  data->ctrl[1] = 1.0;
+  data->ctrl[2] = 1.0;
+
+  // all actuators active
+  mj_forward(model, data);
+  EXPECT_EQ(data->qfrc_actuator[0], 35.0);
+
+  // set all bits of disableactuator, only group 1 is disabled
+  model->opt.disableactuator = ~0;
+  mj_forward(model, data);
+  EXPECT_EQ(data->qfrc_actuator[0], 30.0);
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
 }  // namespace
 }  // namespace mujoco

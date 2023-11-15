@@ -43,6 +43,7 @@
     X( int,     mpr_iterations    ) \
     X( int,     disableflags      ) \
     X( int,     enableflags       ) \
+    X( int,     disableactuator   ) \
     X( int,     sdf_initpoints    ) \
     X( int,     sdf_iterations    )
 
@@ -86,7 +87,7 @@
     X   ( nflexelemdata )      \
     X   ( nflexshelldata )     \
     X   ( nflexevpair )        \
-    X   ( nflextexcoord )      \
+    XMJV( nflextexcoord )      \
     XMJV( nmesh )              \
     X   ( nmeshvert )          \
     X   ( nmeshnormal )        \
@@ -276,7 +277,7 @@
     X   ( int,     cam_targetbodyid,      ncam,          1                    ) \
     X   ( int,     cam_resolution,        ncam,          2                    ) \
     XMJV( float,   cam_sensorsize,        ncam,          2                    ) \
-    X   ( float,   cam_intrinsic,         ncam,          4                    ) \
+    XMJV( float,   cam_intrinsic,         ncam,          4                    ) \
     X   ( mjtNum,  cam_pos,               ncam,          3                    ) \
     X   ( mjtNum,  cam_quat,              ncam,          4                    ) \
     X   ( mjtNum,  cam_poscom0,           ncam,          3                    ) \
@@ -329,7 +330,7 @@
     XMJV( int,     flex_shelldataadr,     nflex,         1                    ) \
     X   ( int,     flex_evpairadr,        nflex,         1                    ) \
     X   ( int,     flex_evpairnum,        nflex,         1                    ) \
-    X   ( int,     flex_texcoordadr,      nflex,         1                    ) \
+    XMJV( int,     flex_texcoordadr,      nflex,         1                    ) \
     X   ( int,     flex_vertbodyid,       nflexvert,     1                    ) \
     X   ( int,     flex_edge,             nflexedge,     2                    ) \
     XMJV( int,     flex_elem,             nflexelemdata, 1                    ) \
@@ -345,6 +346,7 @@
     X   ( mjtNum,  flex_edgedamping,      nflex,         1                    ) \
     X   ( mjtByte, flex_edgeequality,     nflex,         1                    ) \
     X   ( mjtByte, flex_rigid,            nflex,         1                    ) \
+    X   ( mjtByte, flexedge_rigid,        nflexedge,     1                    ) \
     X   ( mjtByte, flex_centered,         nflex,         1                    ) \
     XMJV( mjtByte, flex_flatskin,         nflex,         1                    ) \
     XMJV( int,     flex_bvhadr,           nflex,         1                    ) \
@@ -617,6 +619,10 @@
     X   ( mjtNum,    cvel,              nbody,       6           ) \
     X   ( mjtNum,    cdof_dot,          nv,          6           ) \
     X   ( mjtNum,    qfrc_bias,         nv,          1           ) \
+    X   ( mjtNum,    qfrc_spring,       nv,          1           ) \
+    X   ( mjtNum,    qfrc_damper,       nv,          1           ) \
+    X   ( mjtNum,    qfrc_gravcomp,     nv,          1           ) \
+    X   ( mjtNum,    qfrc_fluid,        nv,          1           ) \
     X   ( mjtNum,    qfrc_passive,      nv,          1           ) \
     X   ( mjtNum,    subtree_linvel,    nbody,       3           ) \
     X   ( mjtNum,    subtree_angmom,    nbody,       3           ) \

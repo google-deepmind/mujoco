@@ -336,10 +336,10 @@ MJAPI void mj_solveM2(const mjModel* m, mjData* d, mjtNum* x, const mjtNum* y, i
 // Compute cvel, cdof_dot.
 MJAPI void mj_comVel(const mjModel* m, mjData* d);
 
-// Compute qfrc_passive from spring-dampers, viscosity and density.
+// Compute qfrc_passive from spring-dampers, gravity compensation and fluid forces.
 MJAPI void mj_passive(const mjModel* m, mjData* d);
 
-// subtree linear velocity and angular momentum
+// Sub-tree linear velocity and angular momentum: compute subtree_linvel, subtree_angmom.
 MJAPI void mj_subtreeVel(const mjModel* m, mjData* d);
 
 // RNE: compute M(qpos)*qacc + C(qpos,qvel); flg_acc=0 removes inertial term.

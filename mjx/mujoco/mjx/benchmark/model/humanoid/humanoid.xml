@@ -14,7 +14,7 @@
 -->
 
 <mujoco model="Humanoid">
-  <option timestep="0.005" solver="CG" iterations="6" ls_iterations="6">
+  <option timestep="0.005" iterations="1" ls_iterations="4">
     <flag eulerdamp="disable"/>
   </option>
 
@@ -195,7 +195,7 @@
     <pair geom1="foot2_right" geom2="floor"/>
   </contact>
 
-  <tendon>
+  <!-- <tendon>
     <fixed name="hamstring_right" limited="true" range="-0.3 2">
       <joint joint="hip_y_right" coef=".5"/>
       <joint joint="knee_right" coef="-.5"/>
@@ -204,7 +204,7 @@
       <joint joint="hip_y_left" coef=".5"/>
       <joint joint="knee_left" coef="-.5"/>
     </fixed>
-  </tendon>
+  </tendon> -->
 
   <actuator>
     <motor name="abdomen_y"       gear="40"  joint="abdomen_y"/>

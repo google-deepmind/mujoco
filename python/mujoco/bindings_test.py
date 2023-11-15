@@ -74,10 +74,21 @@ TEST_XML_SENSOR = r"""
 """
 
 TEST_XML_PLUGIN = r"""
-<mujoco model="test">
+<mujoco>
+  <option gravity="0 0 0"/>
   <extension>
     <plugin plugin="mujoco.elasticity.cable"/>
   </extension>
+  <worldbody>
+    <composite type="cable" curve="s" count="41 1 1" size="1" offset="0 0 1" initial="none">
+      <plugin plugin="mujoco.elasticity.cable">
+        <config key="twist" value="1e6"/>
+        <config key="bend" value="1e9"/>
+      </plugin>
+      <joint kind="main" damping="2"/>
+      <geom type="capsule" size=".005" density="1"/>
+    </composite>
+  </worldbody>
 </mujoco>
 """
 
@@ -1048,9 +1059,23 @@ Euler integrator, semi-implicit in velocity.
     while data_instances:
       d = data_instances.pop()
       self.assertEqual(sys.getrefcount(d), 2)
+      del d
     while model_instances:
       m = model_instances.pop()
       self.assertEqual(sys.getrefcount(m), 2)
+
+  # This test is disabled on PyPy as it uses sys.getrefcount
+  # However PyPy is not officially supported by MuJoCo
+  @absltest.skipIf(sys.implementation.name == 'pypy',
+                   reason='requires sys.getrefcount')
+  def test_mjdata_holds_ref_to_model(self):
+    data = mujoco.MjData(mujoco.MjModel.from_xml_string('<mujoco/>'))
+    model = data.model
+    # references: one in `data.model, one in `model`, one in the temporary ref
+    # passed to getrefcount.
+    self.assertEqual(sys.getrefcount(data.model), 3)
+    del data
+    self.assertEqual(sys.getrefcount(model), 2)
 
   def test_can_initialize_mjv_structs(self):
     self.assertIsInstance(mujoco.MjvScene(), mujoco.MjvScene)
@@ -1109,6 +1134,41 @@ Euler integrator, semi-implicit in velocity.
         flg_static=0,
         bodyexclude=0,
         geomid=geomid)
+
+  def test_mj_multi_ray(self):
+    nray = 3
+    geom1 = np.zeros(1, np.int32)
+    pnt = np.array([-0.3, 0, 0.1])
+    vec = np.array([[1, 0, 0], [0, 0, 1], [0, 0, -1]], np.float64)
+    dist_ex = np.array([0.2, -1, 0.1])
+    geom_ex = np.array([1, -1, 0])
+    geomid = np.zeros(nray, np.int32)
+    dist = np.zeros(nray, np.float64)
+
+    mujoco.mj_forward(self.model, self.data)
+    mujoco.mj_multiRay(
+        m=self.model,
+        d=self.data,
+        pnt=pnt,
+        vec=vec.flatten(),
+        geomgroup=None,
+        flg_static=1,
+        bodyexclude=-1,
+        geomid=geomid,
+        dist=dist,
+        nray=nray,
+        cutoff=mujoco.mjMAXVAL)
+
+    for i in range(0, 3):
+      self.assertEqual(
+          dist[i],
+          mujoco.mj_ray(
+              self.model, self.data, pnt, vec[i], None, 1, -1, geom1
+          ),
+      )
+      self.assertEqual(geomid[i], geom1)
+      self.assertEqual(geomid[i], geom_ex[i])
+      self.assertAlmostEqual(dist[i], dist_ex[i])
 
   def test_inverse_fd_none(self):
     eps = 1e-6
@@ -1287,6 +1347,34 @@ Euler integrator, semi-implicit in velocity.
     self.assertEqual(data.geom(3).xpos[2], 4)
     self.assertEqual(data.geom(4).xpos[2], 5)
 
+  def test_load_plugin(self):
+    model = mujoco.MjModel.from_xml_string(TEST_XML_PLUGIN)
+    data = mujoco.MjData(model)
+    mujoco.mj_forward(model, data)
+
+  def test_copy_mjdata_with_plugin(self):
+    model = mujoco.MjModel.from_xml_string(TEST_XML_PLUGIN)
+    data1 = mujoco.MjData(model)
+    self.assertIs(data1.model, model)
+    mujoco.mj_step(model, data1)
+    data2 = copy.copy(data1)
+    mujoco.mj_step(model, data1)
+    mujoco.mj_step(model, data2)
+    np.testing.assert_array_equal(data1.qpos, data2.qpos)
+    self.assertIs(data1.model, data2.model)
+
+  def test_deepcopy_mjdata_with_plugin(self):
+    model = mujoco.MjModel.from_xml_string(TEST_XML_PLUGIN)
+    data1 = mujoco.MjData(model)
+    self.assertIs(data1.model, model)
+    mujoco.mj_step(model, data1)
+    data2 = copy.deepcopy(data1)
+    mujoco.mj_step(model, data1)
+    mujoco.mj_step(model, data2)
+    np.testing.assert_array_equal(data1.qpos, data2.qpos)
+    self.assertIsNot(data1.model, data2.model)
+    self.assertNotEqual(data1.model._address, data2.model._address)
+
   def _assert_attributes_equal(self, actual_obj, expected_obj, attr_to_compare):
     for name in attr_to_compare:
       actual_value = getattr(actual_obj, name)
@@ -1299,9 +1387,6 @@ Euler integrator, semi-implicit in velocity.
       except AssertionError as e:
         self.fail("Attribute '{}' differs from expected value: {}".format(
             name, str(e)))
-
-  def test_load_plugin(self):
-    mujoco.MjModel.from_xml_string(TEST_XML_PLUGIN)
 
 
 if __name__ == '__main__':

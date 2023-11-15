@@ -84,7 +84,7 @@ struct mjContact_ {                // result of collision detection functions
   // contact parameters set by near-phase collision function
   mjtNum  dist;                    // distance between nearest points; neg: penetration
   mjtNum  pos[3];                  // position of contact point: midpoint between geoms
-  mjtNum  frame[9];                // normal is in [0-2]
+  mjtNum  frame[9];                // normal is in [0-2], points from geom[0] to geom[1]
 
   // contact parameters set by mj_collideGeoms
   mjtNum  includemargin;           // include if dist<includemargin=margin-gap
@@ -99,8 +99,8 @@ struct mjContact_ {                // result of collision detection functions
 
   // contact descriptors set by mj_collideXXX
   int     dim;                     // contact space dimensionality: 1, 3, 4 or 6
-  int     geom1;                   // id of geom 1
-  int     geom2;                   // id of geom 2
+  int     geom1;                   // id of geom 1; deprecated, use geom[0]
+  int     geom2;                   // id of geom 2; deprecated, use geom[1]
   int     geom[2];                 // geom ids; -1 for flex
   int     flex[2];                 // flex ids; -1 for geom
   int     elem[2];                 // element ids; -1 for geom or flex vertex
@@ -292,7 +292,11 @@ struct mjData_ {
   mjtNum* qfrc_bias;         // C(qpos,qvel)                                     (nv x 1)
 
   // computed by mj_fwdVelocity/mj_passive
-  mjtNum* qfrc_passive;      // passive force                                    (nv x 1)
+  mjtNum* qfrc_spring;       // passive spring force                             (nv x 1)
+  mjtNum* qfrc_damper;       // passive damper force                             (nv x 1)
+  mjtNum* qfrc_gravcomp;     // passive gravity compensation force               (nv x 1)
+  mjtNum* qfrc_fluid;        // passive fluid force                              (nv x 1)
+  mjtNum* qfrc_passive;      // total passive force                              (nv x 1)
 
   // computed by mj_sensorVel/mj_subtreeVel if needed
   mjtNum* subtree_linvel;    // linear velocity of subtree com                   (nbody x 3)
@@ -728,6 +732,7 @@ struct mjOption_ {                // physics options
   int mpr_iterations;             // maximum number of MPR solver iterations
   int disableflags;               // bit flags for disabling standard features
   int enableflags;                // bit flags for enabling optional features
+  int disableactuator;            // bit flags for disabling actuators by group id
 
   // sdf collision settings
   int sdf_initpoints;             // number of starting points for gradient descent
@@ -796,6 +801,7 @@ struct mjVisual_ {                // visualization options
     float framewidth;             // bodyframe axis width
     float constraint;             // constraint width
     float slidercrank;            // slidercrank width
+    float frustum;                // frustum zfar plane
   } scale;
 
   struct {                        // color of decor elements
@@ -821,6 +827,7 @@ struct mjVisual_ {                // visualization options
     float constraint[4];          // constraint
     float slidercrank[4];         // slidercrank
     float crankbroken[4];         // used when crank must be stretched/broken
+    float frustum[4];             // camera frustum
   } rgba;
 };
 typedef struct mjVisual_ mjVisual;
@@ -944,7 +951,7 @@ struct mjModel_ {
   int*      body_treeid;          // id of body's kinematic tree; -1: static  (nbody x 1)
   int*      body_geomnum;         // number of geoms                          (nbody x 1)
   int*      body_geomadr;         // start addr of geoms; -1: no geoms        (nbody x 1)
-  mjtByte*  body_simple;          // 1: diagonal M; 2: diag M, no rotations   (nbody x 1)
+  mjtByte*  body_simple;          // 1: diag M; 2: diag M, sliders only       (nbody x 1)
   mjtByte*  body_sameframe;       // inertial frame is same as body frame     (nbody x 1)
   mjtNum*   body_pos;             // position offset rel. to parent body      (nbody x 3)
   mjtNum*   body_quat;            // orientation offset rel. to parent body   (nbody x 4)
@@ -1122,6 +1129,7 @@ struct mjModel_ {
   mjtNum*   flex_edgedamping;     // edge damping                             (nflex x 1)
   mjtByte*  flex_edgeequality;    // is edge equality constraint defined      (nflex x 1)
   mjtByte*  flex_rigid;           // are all verices in the same body         (nflex x 1)
+  mjtByte*  flexedge_rigid;       // are both edge vertices in same body      (nflexedge x 1)
   mjtByte*  flex_centered;        // are all vertex coordinates (0,0,0)       (nflex x 1)
   mjtByte*  flex_flatskin;        // render flex skin with flat shading       (nflex x 1)
   int*      flex_bvhadr;          // address of bvh root; -1: no bvh          (nflex x 1)
@@ -1424,6 +1432,9 @@ struct mjpPlugin_ {
 
   // called during compilation for marching cubes
   mjtNum (*sdf_staticdistance)(const mjtNum point[3], const mjtNum* attributes);
+
+  // convert attributes and provide defaults if not present
+  void (*sdf_attribute)(mjtNum attribute[], const char* name[], const char* value[]);
 
   // bounding box of implicit surface
   void (*sdf_aabb)(mjtNum aabb[6], const mjtNum* attributes);
@@ -2130,6 +2141,7 @@ struct mjvSceneState_ {
     int nskin;
     int nflex;
     int nflexvert;
+    int nflextexcoord;
     int nskinvert;
     int nskinface;
     int nskinbone;
@@ -2194,6 +2206,7 @@ struct mjvSceneState_ {
 
     mjtNum* cam_fovy;
     mjtNum* cam_ipd;
+    float* cam_intrinsic;
     float* cam_sensorsize;
 
     mjtByte* light_directional;
@@ -2219,6 +2232,7 @@ struct mjvSceneState_ {
     int* flex_shell;
     int* flex_shellnum;
     int* flex_shelldataadr;
+    int* flex_texcoordadr;
     int* flex_bvhadr;
     int* flex_bvhnum;
     mjtNum* flex_radius;

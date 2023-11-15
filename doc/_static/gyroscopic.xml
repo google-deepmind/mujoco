@@ -1,0 +1,22 @@
+<mujoco>
+  <asset>
+    <texture type="skybox" builtin="gradient" rgb1=".3 .5 .7" rgb2="0 0 0" width="32" height="512"/>
+    <texture name="grid" type="2d" builtin="checker" width="512" height="512" rgb1=".1 .2 .3" rgb2=".2 .3 .4"/>
+    <material name="grid" texture="grid" texrepeat="1 1" texuniform="true" reflectance=".2"/>
+  </asset>
+
+  <statistic extent="1"/>
+
+  <!-- switch the integrator to "implicit" for better gyroscopic stabillity -->
+  <option timestep="0.01" integrator="implicitfast"/>
+
+  <worldbody>
+    <geom pos="0 0 -.5" type="plane" size="100 100 .1" zaxis=".5 0 1" material="grid"/>
+    <body pos="0 0 .3">
+      <freejoint/>
+      <geom type="ellipsoid" size="0.15 0.1 0.07" euler="20 40 60"/>
+      <light pos="0 0 1.5" mode="track"/>
+      <camera pos="0 -1.498 0.1" xyaxes="1 0 0 0 0 1" mode="track"/>
+    </body>
+  </worldbody>
+</mujoco>

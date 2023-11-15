@@ -1,6 +1,8 @@
-==========
-MuJoCo XLA
-==========
+.. _Mjx:
+
+================
+MuJoCo XLA (MJX)
+================
 
 Starting with version 3.0.0, MuJoCo includes MuJoCo XLA (MJX) under the
 `mjx <https://github.com/google-deepmind/mujoco/tree/main/mjx>`__ directory.  MJX allows MuJoCo to run on compute
@@ -94,7 +96,7 @@ Neither ``mjx.Model`` nor ``mjx.Data`` are meant to be constructed manually.  An
    mjx_model = mjx.device_put(model)
    mjx_data = mjx.make_data(model)
 
-Using ``mx.make_data`` may be preferable when constructing batched ``mjx.Data`` structures inside of a ``vmap``.
+Using ``mjx.make_data`` may be preferable when constructing batched ``mjx.Data`` structures inside of a ``vmap``.
 
 .. _MjxFunctions:
 
@@ -186,7 +188,9 @@ The following features are **fully supported** in MJX:
    * - :ref:`Geom <mjtGeom>`
      - ``PLANE``, ``SPHERE``, ``CAPSULE``, ``BOX``, ``MESH``
    * - :ref:`Constraint <mjtConstraint>`
-     - ``EQUALITY``, ``FRICTION_DOF``, ``LIMIT_JOINT``, ``CONTACT_PYRAMIDAL``
+     - ``EQUALITY``, ``LIMIT_JOINT``, ``CONTACT_PYRAMIDAL``
+   * - :ref:`Equality <mjtEq>`
+     - ``CONNECT``, ``WELD``, ``JOINT``
    * - :ref:`Integrator <mjtIntegrator>`
      - ``EULER``, ``RK4``
    * - :ref:`Cone <mjtCone>`
@@ -194,7 +198,7 @@ The following features are **fully supported** in MJX:
    * - :ref:`Condim <coContact>`
      - 3
    * - :ref:`Solver <mjtSolver>`
-     - ``CG``
+     - ``CG``, ``NEWTON``
    * - Fluid Model
      - :ref:`flInertia`
 
@@ -214,18 +218,22 @@ The following features are **in development** and coming soon:
      - ``TRN_TENDON``
    * - :ref:`Geom <mjtGeom>`
      - ``HFIELD``, ``ELLIPSOID``, ``CYLINDER``, ``SDF``
+   * - :ref:`Constraint <mjtConstraint>`
+     - ``CONTACT_FRICTIONLESS``, ``CONTACT_ELLIPTIC``, ``FRICTION_DOF``
    * - :ref:`Integrator <mjtIntegrator>`
      - ``IMPLICIT``, ``IMPLICITFAST``
    * - :ref:`Cone <mjtCone>`
      - ``ELLIPTIC``
    * - :ref:`Condim <coContact>`
      - 1, 4, 6
-   * - :ref:`Solver <mjtSolver>`
-     - ``NEWTON``
    * - Fluid Model
      - :ref:`flEllipsoid`
    * - :ref:`Tendons <tendon>`
      - :ref:`Spatial <tendon-spatial>`, :ref:`Fixed <tendon-fixed>`
+   * - :ref:`Equality <mjtEq>`
+     - ``TENDON``
+   * - :ref:`Sensors <mjtSensor>`
+     - All except ``mjSENS_PLUGIN``, ``mjSENS_USER``
 
 The following features are **unsupported**:
 
@@ -296,10 +304,11 @@ Performance tuning
 For MJX to perform well, some configuration parameters should be adjusted from their default MuJoCo values:
 
 :ref:`option` element
-  For now, solver must be set to ``CG`` (but Newton is on its way!).  The ``iterations`` and ``ls_iterations``
-  attributes---which control solver and linesearch iterations, respectively---should be brought down to just low enough
-  that the simulation remains stable.  Accurate solver forces are not so important in reinforcement learning in which
-  domain randomization is often used to add noise to physics for sim2real.
+  The ``iterations`` and ``ls_iterations`` attributes---which control solver and linesearch iterations, respectively---
+  should be brought down to just low enough that the simulation remains stable.  Accurate solver forces are not so
+  important in reinforcement learning in which domain randomization is often used to add noise to physics for sim-to-real.
+  The ``NEWTON`` :ref:`Solver <mjtSolver>` often delivers reasonable convergence with one solver iteration, and performs
+  well on GPU.  ``CG`` is currently a better choice for TPU.
 
 :ref:`contact-pair` element
   Consider explicitly marking geoms for collision detection to reduce the number of contacts that MJX must consider

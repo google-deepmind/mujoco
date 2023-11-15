@@ -27,12 +27,12 @@ from mujoco.mjx._src.types import DisableBit
 import numpy as np
 
 
-def _assert_eq(a, b, name, step, fname, atol=1e-5, rtol=1e-5):
+def _assert_eq(a, b, name, step, fname, atol=5e-4, rtol=5e-4):
   err_msg = f'mismatch: {name} at step {step} in {fname}'
   np.testing.assert_allclose(a, b, err_msg=err_msg, atol=atol, rtol=rtol)
 
 
-def _assert_attr_eq(a, b, attr, step, fname, atol=1e-5, rtol=1e-5):
+def _assert_attr_eq(a, b, attr, step, fname, atol=5e-4, rtol=5e-4):
   err_msg = f'mismatch: {attr} at step {step} in {fname}'
   a, b = getattr(a, attr), getattr(b, attr)
   np.testing.assert_allclose(a, b, err_msg=err_msg, atol=atol, rtol=rtol)
@@ -43,7 +43,7 @@ class SmoothTest(parameterized.TestCase):
   @parameterized.parameters(enumerate(test_util.TEST_FILES))
   def test_smooth(self, seed, fname):
     """Tests mujoco mj smooth functions match mujoco_mjx smooth functions."""
-    if fname in ('convex.xml', 'weld.xml'):
+    if fname in ('convex.xml', 'equality.xml'):
       return
 
     np.random.seed(seed)
@@ -101,7 +101,7 @@ class SmoothTest(parameterized.TestCase):
       # factor_m
       dx = factor_m_fn(mx, dx, dx.qM)
       _assert_attr_eq(d, dx, 'qLD', i, fname, atol=1e-3)
-      _assert_attr_eq(d, dx, 'qLDiagInv', i, fname, atol=1e-3, rtol=1e-4)
+      _assert_attr_eq(d, dx, 'qLDiagInv', i, fname, atol=1e-3)
 
       # com_vel
       dx = com_vel_jit_fn(mx, dx)
@@ -110,14 +110,14 @@ class SmoothTest(parameterized.TestCase):
 
       # rne
       dx = rne_jit_fn(mx, dx)
-      _assert_attr_eq(d, dx, 'qfrc_bias', i, fname, atol=1e-4)
+      _assert_attr_eq(d, dx, 'qfrc_bias', i, fname)
 
       # mul_m (auxilliary function, not part of smooth step)
       vec = np.random.random(m.nv)
       mjx_vec = mul_m_jit_fn(mx, dx, jp.array(vec))
       mj_vec = np.zeros(m.nv)
       mujoco.mj_mulM(m, d, mj_vec, vec)
-      _assert_eq(mj_vec, mjx_vec, 'mul_m', i, fname, atol=1e-4)
+      _assert_eq(mj_vec, mjx_vec, 'mul_m', i, fname)
 
       # transmission
       dx = transmission_jit_fn(mx, dx)

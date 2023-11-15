@@ -131,8 +131,9 @@ class SolverType(enum.IntEnum):
   Attributes:
     CG: Conjugate gradient (primal)
   """
-  # unsupported: PGS, NEWTON
+  # unsupported: PGS
   CG = mujoco.mjtSolver.mjSOL_CG
+  NEWTON = mujoco.mjtSolver.mjSOL_NEWTON
 
 
 class EqType(enum.IntEnum):
@@ -145,7 +146,8 @@ class EqType(enum.IntEnum):
   """
   CONNECT = mujoco.mjtEq.mjEQ_CONNECT
   WELD = mujoco.mjtEq.mjEQ_WELD
-  # unsupported: JOINT, TENDON, DISTANCE
+  JOINT = mujoco.mjtEq.mjEQ_JOINT
+  # unsupported: TENDON, DISTANCE
 
 
 class TrnType(enum.IntEnum):
@@ -380,7 +382,7 @@ class Model(PyTreeNode):
   nexclude: int
   neq: int
   nnumeric: int
-  nM: int
+  nM: int  # pylint:disable=invalid-name
   opt: Option
   stat: Statistic
   qpos0: jax.Array
@@ -419,14 +421,14 @@ class Model(PyTreeNode):
   dof_bodyid: np.ndarray
   dof_jntid: np.ndarray
   dof_parentid: np.ndarray
-  dof_Madr: np.ndarray
+  dof_Madr: np.ndarray  # pylint:disable=invalid-name
   dof_solref: jax.Array
   dof_solimp: jax.Array
   dof_frictionloss: jax.Array
   dof_armature: jax.Array
   dof_damping: jax.Array
   dof_invweight0: jax.Array
-  dof_M0: jax.Array
+  dof_M0: jax.Array  # pylint:disable=invalid-name
   geom_type: np.ndarray
   geom_contype: np.ndarray
   geom_conaffinity: np.ndarray
@@ -635,14 +637,14 @@ class Data(PyTreeNode):
   crb: jax.Array
   actuator_length: jax.Array
   actuator_moment: jax.Array
-  qM: jax.Array
-  qLD: jax.Array
-  qLDiagInv: jax.Array
-  qLDiagSqrtInv: jax.Array
+  qM: jax.Array  # pylint:disable=invalid-name
+  qLD: jax.Array  # pylint:disable=invalid-name
+  qLDiagInv: jax.Array  # pylint:disable=invalid-name
+  qLDiagSqrtInv: jax.Array  # pylint:disable=invalid-name
   contact: Contact
-  efc_J: jax.Array
+  efc_J: jax.Array  # pylint:disable=invalid-name
   efc_frictionloss: jax.Array
-  efc_D: jax.Array
+  efc_D: jax.Array  # pylint:disable=invalid-name
   # position, velocity dependent:
   actuator_velocity: jax.Array
   cvel: jax.Array

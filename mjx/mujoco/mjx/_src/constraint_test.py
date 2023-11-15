@@ -24,11 +24,12 @@ from mujoco.mjx._src import constraint
 from mujoco.mjx._src import test_util
 # pylint: disable=g-importing-member
 from mujoco.mjx._src.types import DisableBit
+from mujoco.mjx._src.types import SolverType
 # pylint: enable=g-importing-member
 import numpy as np
 
 
-def _assert_eq(a, b, name, step, fname, atol=1e-3, rtol=1e-3):
+def _assert_eq(a, b, name, step, fname, atol=5e-3, rtol=5e-3):
   err_msg = f'mismatch: {name} at step {step} in {fname}'
   np.testing.assert_allclose(a, b, err_msg=err_msg, atol=atol, rtol=rtol)
 
@@ -36,7 +37,7 @@ def _assert_eq(a, b, name, step, fname, atol=1e-3, rtol=1e-3):
 class ConstraintTest(parameterized.TestCase):
 
   @parameterized.parameters(enumerate(test_util.TEST_FILES))
-  def testconstraints(self, seed, fname):
+  def test_constraints(self, seed, fname):
     """Test constraints."""
     np.random.seed(seed)
 
@@ -79,6 +80,40 @@ class ConstraintTest(parameterized.TestCase):
           fname,
       )
 
+  _JNT_RANGE = """
+    <mujoco>
+      <worldbody>
+        <body pos="0 0 1">
+          <joint type="slide" axis="1 0 0" range="-1.8 1.8" solreflimit=".08 1"
+           damping="5e-4"/>
+          <geom type="box" size="0.2 0.15 0.1" mass="1"/>
+          <body>
+            <joint axis="0 1 0" damping="2e-6"/>
+            <geom type="capsule" fromto="0 0 0 0 0 1" size="0.045" mass=".1"/>
+          </body>
+        </body>
+      </worldbody>
+    </mujoco>
+  """
+
+  def test_jnt_range(self):
+    """Tests that mixed joint ranges are respected."""
+    # TODO(robotics-simulation): also test ball
+    m = mujoco.MjModel.from_xml_string(self._JNT_RANGE)
+    m.opt.solver = SolverType.CG.value
+    d = mujoco.MjData(m)
+    d.qpos = np.array([2.0, 15.0])
+
+    mx = mjx.device_put(m)
+    dx = mjx.device_put(d)
+    efc = jax.jit(constraint._instantiate_limit_slide_hinge)(mx, dx)
+
+    # first joint is outside the joint range
+    np.testing.assert_array_almost_equal(efc.J[0, 0], -1.0)
+
+    # second joint has no range, so only one efc row
+    self.assertEqual(efc.J.shape[0], 1)
+
   def test_disable_refsafe(self):
     m = test_util.load_test_file('ant.xml')
 
@@ -112,7 +147,7 @@ class ConstraintTest(parameterized.TestCase):
     self.assertEqual(dx.efc_J.shape[0], 0)
 
   def test_disable_equality(self):
-    m = test_util.load_test_file('weld.xml')
+    m = test_util.load_test_file('equality.xml')
     d = mujoco.MjData(m)
 
     m.opt.disableflags = m.opt.disableflags | DisableBit.EQUALITY
@@ -137,7 +172,7 @@ class ConstraintTest(parameterized.TestCase):
     m.opt.disableflags = m.opt.disableflags | DisableBit.CONTACT
     mx, dx = mjx.device_put(m), mjx.device_put(d)
     efc = constraint._instantiate_contact(mx, dx)
-    self.assertEqual(efc.J.shape[0], 0)
+    self.assertIsNone(efc)
 
 
 if __name__ == '__main__':

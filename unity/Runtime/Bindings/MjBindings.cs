@@ -64,7 +64,7 @@ public const bool mjUSEDOUBLE = true;
 public const double mjMINVAL = 1e-15;
 public const bool THIRD_PARTY_MUJOCO_MJUI_H_ = true;
 public const int mjMAXUISECT = 10;
-public const int mjMAXUIITEM = 100;
+public const int mjMAXUIITEM = 200;
 public const int mjMAXUITEXT = 300;
 public const int mjMAXUINAME = 40;
 public const int mjMAXUIMULTI = 35;
@@ -4849,6 +4849,10 @@ public unsafe struct mjData_ {
   public double* cvel;
   public double* cdof_dot;
   public double* qfrc_bias;
+  public double* qfrc_spring;
+  public double* qfrc_damper;
+  public double* qfrc_gravcomp;
+  public double* qfrc_fluid;
   public double* qfrc_passive;
   public double* subtree_linvel;
   public double* subtree_angmom;
@@ -4964,6 +4968,7 @@ public unsafe struct mjOption_ {
   public int mpr_iterations;
   public int disableflags;
   public int enableflags;
+  public int disableactuator;
   public int sdf_initpoints;
   public int sdf_iterations;
 }
@@ -5034,6 +5039,7 @@ public unsafe struct scale {
   public float framewidth;
   public float constraint;
   public float slidercrank;
+  public float frustum;
 }
 
 [StructLayout(LayoutKind.Sequential)]
@@ -5060,6 +5066,7 @@ public unsafe struct rgba {
   public fixed float constraint[4];
   public fixed float slidercrank[4];
   public fixed float crankbroken[4];
+  public fixed float frustum[4];
 }
 
 [StructLayout(LayoutKind.Sequential)]
@@ -5337,6 +5344,7 @@ public unsafe struct mjModel_ {
   public double* flex_edgedamping;
   public byte* flex_edgeequality;
   public byte* flex_rigid;
+  public byte* flexedge_rigid;
   public byte* flex_centered;
   public byte* flex_flatskin;
   public int* flex_bvhadr;
@@ -6068,6 +6076,7 @@ public unsafe struct model {
   public int nskin;
   public int nflex;
   public int nflexvert;
+  public int nflextexcoord;
   public int nskinvert;
   public int nskinface;
   public int nskinbone;
@@ -6125,6 +6134,7 @@ public unsafe struct model {
   public float* site_rgba;
   public double* cam_fovy;
   public double* cam_ipd;
+  public float* cam_intrinsic;
   public float* cam_sensorsize;
   public byte* light_directional;
   public byte* light_castshadow;
@@ -6148,6 +6158,7 @@ public unsafe struct model {
   public int* flex_shell;
   public int* flex_shellnum;
   public int* flex_shelldataadr;
+  public int* flex_texcoordadr;
   public int* flex_bvhadr;
   public int* flex_bvhnum;
   public double* flex_radius;

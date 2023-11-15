@@ -130,8 +130,8 @@ const mjuiDef defFile[] = {
 const char help_content[] =
   "Space\n"
   "+  -\n"
-  "Right arrow\n"
-  "Left arrow\n"
+  "Left / Right arrow\n"
+  "Tab / Shift-Tab\n"
   "[  ]\n"
   "Esc\n"
   "Double-click\n"
@@ -148,25 +148,25 @@ const char help_content[] =
   "F3\n"
   "F4\n"
   "F5\n"
-  "UI right hold\n"
+  "UI right-button hold\n"
   "UI title double-click";
 
 const char help_title[] =
   "Play / Pause\n"
-  "Speed up / down\n"
-  "Step forward\n"
-  "Step back\n"
+  "Speed Up / Down\n"
+  "Step Back / Forward\n"
+  "Toggle Left / Right UI\n"
   "Cycle cameras\n"
   "Free camera\n"
   "Select\n"
   "Select parent\n"
-  "Center\n"
+  "Center camera\n"
   "Tracking camera\n"
   "Zoom\n"
-  "View rotate\n"
-  "View translate\n"
-  "Object rotate\n"
-  "Object translate\n"
+  "View Orbit\n"
+  "View Pan\n"
+  "Object Rotate\n"
+  "Object Translate\n"
   "Help\n"
   "Info\n"
   "Profiler\n"
@@ -716,6 +716,16 @@ void MakePhysicsSection(mj::Simulate* sim, int oldstate) {
     {mjITEM_EDITNUM,   "Friction",      2, &(opt->o_friction),        "5"},
     {mjITEM_END}
   };
+  mjuiDef defDisableActuator[] = {
+    {mjITEM_SEPARATOR, "Actuator Group Enable", 1},
+    {mjITEM_CHECKBYTE,  "Act Group 0",  2, sim->enableactuator+0,    " 0"},
+    {mjITEM_CHECKBYTE,  "Act Group 1",  2, sim->enableactuator+1,    " 1"},
+    {mjITEM_CHECKBYTE,  "Act Group 2",  2, sim->enableactuator+2,    " 2"},
+    {mjITEM_CHECKBYTE,  "Act Group 3",  2, sim->enableactuator+3,    " 3"},
+    {mjITEM_CHECKBYTE,  "Act Group 4",  2, sim->enableactuator+4,    " 4"},
+    {mjITEM_CHECKBYTE,  "Act Group 5",  2, sim->enableactuator+5,    " 5"},
+    {mjITEM_END}
+  };
 
   // add physics
   mjui_add(&sim->ui0, defPhysics);
@@ -736,9 +746,11 @@ void MakePhysicsSection(mj::Simulate* sim, int oldstate) {
     defFlag[0].pdata = sim->enable + i;
     mjui_add(&sim->ui0, defFlag);
   }
-
   // add contact override
   mjui_add(&sim->ui0, defOverride);
+
+  // add actuator group enable/disable
+  mjui_add(&sim->ui0, defDisableActuator);
 }
 
 
@@ -1002,7 +1014,7 @@ void MakeJointSection(mj::Simulate* sim, int oldstate) {
 
   // add scalar joints, exit if UI limit reached
   int itemcnt = 0;
-  for (int i=0; i < sim->jnt_type_.size() && itemcnt<mjMAXUIITEM; i++)
+  for (int i=0; i < sim->jnt_type_.size() && itemcnt<mjMAXUIITEM; i++) {
     if ((sim->jnt_type_[i]==mjJNT_HINGE || sim->jnt_type_[i]==mjJNT_SLIDE)) {
       // skip if joint group is disabled
       if (!sim->opt.jointgroup[mjMAX(0, mjMIN(mjNGROUP-1, sim->jnt_group_[i]))]) {
@@ -1035,6 +1047,7 @@ void MakeJointSection(mj::Simulate* sim, int oldstate) {
       mjui_add(&sim->ui1, defSlider);
       itemcnt++;
     }
+  }
 }
 
 // make control section of UI
@@ -1051,14 +1064,20 @@ void MakeControlSection(mj::Simulate* sim, int oldstate) {
 
   // add section
   mjui_add(&sim->ui1, defControl);
-  defSlider[0].state = 2;
 
   // add controls, exit if UI limit reached (Clear button already added)
   int itemcnt = 1;
   for (int i=0; i < sim->actuator_ctrlrange_.size() && itemcnt<mjMAXUIITEM; i++) {
-    // skip if actuator group is disabled
-    if (!sim->opt.actuatorgroup[mjMAX(0, mjMIN(mjNGROUP-1, sim->actuator_group_[i]))]) {
+    // skip if actuator vis group is disabled
+    int group = sim->actuator_group_[i];
+    if (!sim->opt.actuatorgroup[mjMAX(0, mjMIN(mjNGROUP-1, group))]) {
       continue;
+    }
+    // grey out if actuator group is disabled
+    if (group >= 0 && group <= 30 && sim->m_->opt.disableactuator & (1 << group)) {
+      defSlider[0].state = 0;
+    } else {
+      defSlider[0].state = 2;
     }
 
     // set data and name
@@ -1189,17 +1208,25 @@ void CopyCamera(mj::Simulate* sim) {
 void UpdateSettings(mj::Simulate* sim, const mjModel* m) {
   // physics flags
   for (int i=0; i<mjNDISABLE; i++) {
-    int new_value = ((m->opt.disableflags & (1<<i)) !=0);
+    int new_value = ((m->opt.disableflags & (1<<i)) != 0);
     if (sim->disable[i] != new_value) {
       sim->disable[i] = new_value;
       sim->pending_.ui_update_physics = true;
     }
   }
   for (int i=0; i<mjNENABLE; i++) {
-    int new_value = ((m->opt.enableflags & (1<<i)) !=0);
+    int new_value = ((m->opt.enableflags & (1<<i)) != 0);
     if (sim->enable[i] != new_value) {
       sim->enable[i] = new_value;
       sim->pending_.ui_update_physics = true;
+    }
+  }
+  for (int i=0; i<mjNGROUP; i++) {
+    int enabled = ((m->opt.disableactuator & (1<<i)) == 0);
+    if (sim->enableactuator[i] != enabled) {
+      sim->enableactuator[i] = enabled;
+      sim->pending_.ui_update_physics = true;
+      sim->pending_.ui_remake_ctrl = true;
     }
   }
 
@@ -1254,7 +1281,7 @@ int UiPredicate(int category, void* userdata) {
     return sim->m_ || sim->is_passive_;
 
   case 3:                 // require model and nkey
-    return !sim->is_passive_ && sim->nkey_;
+    return (sim->m_ || sim->is_passive_) && sim->nkey_;
 
   case 4:                 // require model and paused
     return sim->m_ && !sim->run;
@@ -1404,17 +1431,39 @@ void UiEvent(mjuiState* state) {
 
       // update disable flags in mjOption
       opt->disableflags = 0;
-      for (int i=0; i<mjNDISABLE; i++)
+      for (int i=0; i<mjNDISABLE; i++) {
         if (sim->disable[i]) {
           opt->disableflags |= (1<<i);
         }
+      }
 
       // update enable flags in mjOption
       opt->enableflags = 0;
-      for (int i=0; i<mjNENABLE; i++)
+      for (int i=0; i<mjNENABLE; i++) {
         if (sim->enable[i]) {
           opt->enableflags |= (1<<i);
         }
+      }
+
+      // update disableactuator bitflag in mjOption
+      bool group_changed = false;
+      for (int i=0; i<mjNGROUP; i++) {
+        if ((!sim->enableactuator[i]) != (opt->disableactuator & (1<<i))) {
+          group_changed = true;
+          if (!sim->enableactuator[i]) {
+            // disable actuator group i
+            opt->disableactuator |= (1<<i);
+          } else {
+            // enable actuator group i
+            opt->disableactuator &= ~(1<<i);
+          }
+        }
+      }
+
+      // remake control section if actuator disable group changed
+      if (group_changed) {
+        sim->pending_.ui_remake_ctrl = true;
+      }
     }
 
     // rendering section
@@ -1461,10 +1510,7 @@ void UiEvent(mjuiState* state) {
 
       // remake control section if actuator group changed
       if (it->name[0]=='A' && it->name[1]=='c') {
-        sim->ui1.nsect = SECT_CONTROL;
-        MakeControlSection(sim, sim->ui1.sect[SECT_CONTROL].state);
-        sim->ui1.nsect = NSECT1;
-        UiModify(&sim->ui1, state, &sim->platform_ui->mjr_context());
+        sim->pending_.ui_remake_ctrl = true;
       }
     }
 
@@ -1625,6 +1671,18 @@ void UiEvent(mjuiState* state) {
         sim->speed_changed = true;
       }
       break;
+
+    case mjKEY_TAB:             // toggle left/right UI
+      if (!state->shift) {
+        // toggle left UI
+        sim->ui0_enable = !sim->ui0_enable;
+        UiModify(&sim->ui0, state, &sim->platform_ui->mjr_context());
+      } else {
+        // toggle right UI
+        sim->ui1_enable = !sim->ui1_enable;
+        UiModify(&sim->ui1, state, &sim->platform_ui->mjr_context());
+      }
+      break;
     }
 
     return;
@@ -1778,7 +1836,7 @@ void Simulate::Sync() {
       range.emplace(m_->actuator_ctrlrange[2*i], m_->actuator_ctrlrange[2*i + 1]);
     }
     if (actuator_ctrlrange_[i] != range) {
-      pending_.ui_update_ctrl = true;
+      pending_.ui_remake_ctrl = true;
       actuator_ctrlrange_[i].swap(range);
     }
   }
@@ -1839,6 +1897,7 @@ void Simulate::Sync() {
     X(mpr_iterations);
     X(disableflags);
     X(enableflags);
+    X(disableactuator);
     X(sdf_initpoints);
     X(sdf_iterations);
 
@@ -2385,6 +2444,16 @@ void Simulate::Render() {
       mjui_update(SECT_JOINT, -1, &this->ui1, &this->uistate, &this->platform_ui->mjr_context());
     }
     pending_.ui_update_joint = false;
+  }
+
+  if (pending_.ui_remake_ctrl) {
+    if (this->ui1_enable && this->ui1.sect[SECT_CONTROL].state) {
+      this->ui1.nsect = SECT_CONTROL;
+      MakeControlSection(this, this->ui1.sect[SECT_CONTROL].state);
+      this->ui1.nsect = NSECT1;
+      UiModify(&this->ui1, &this->uistate, &this->platform_ui->mjr_context());
+    }
+    pending_.ui_remake_ctrl = false;
   }
 
   if (pending_.ui_update_ctrl) {

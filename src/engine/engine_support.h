@@ -204,6 +204,9 @@ MJAPI void mj_local2Global(mjData* d, mjtNum xpos[3], mjtNum xmat[9],
                            const mjtNum pos[3], const mjtNum quat[4],
                            int body, mjtByte sameframe);
 
+// return 1 if actuator i is disabled, 0 otherwise
+MJAPI int mj_actuatorDisabled(const mjModel* m, int i);
+
 // sum all body masses
 MJAPI mjtNum mj_getTotalmass(const mjModel* m);
 

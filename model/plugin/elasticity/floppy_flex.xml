@@ -22,7 +22,7 @@
 
   <compiler autolimits="true"/>
 
-  <option solver="CG" tolerance="1e-6" timestep=".001" integrator="implicitfast"/>
+  <option solver="CG" tolerance="1e-6" timestep=".001"/>
 
   <size memory="100M"/>
 
@@ -32,13 +32,13 @@
 
   <worldbody>
     <flexcomp type="grid" count="24 4 4" spacing=".1 .1 .1" pos=".1 0 1.5"
-              radius=".0" rgba="0 .7 .7 1" name="softbody" dim="3" mass="7">
+              radius=".0" rgba="0 .7 .7 1" name="softbody" dim="3" mass="25">
       <contact condim="3" solref="0.01 1" solimp=".95 .99 .0001" selfcollide="none"/>
-      <edge damping="1"/>
       <plugin plugin="mujoco.elasticity.solid">
         <config key="poisson" value="0.2"/>
         <!--Units are in Pa (SI)-->
         <config key="young" value="5e4"/>
+        <config key="damping" value="0.002"/>
       </plugin>
     </flexcomp>
 

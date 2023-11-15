@@ -28,6 +28,12 @@ namespace mujoco::plugin::sdf {
 // this plugin implements a modification of the signed distance function
 // from https://www.shadertoy.com/view/XtffzX  of a bolt with a hexagonal head
 
+struct BoltAttribute {
+  static constexpr int nattribute = 1;
+  static constexpr char const* names[nattribute] = {"radius"};
+  static constexpr mjtNum defaults[nattribute] = {0.26};
+};
+
 class Bolt {
  public:
   // Creates a new Bolt instance (allocated with `new`) or
@@ -45,7 +51,7 @@ class Bolt {
 
   static void RegisterPlugin();
 
-  mjtNum radius;
+  mjtNum attribute[BoltAttribute::nattribute];
 
  private:
   Bolt(const mjModel* m, mjData* d, int instance);

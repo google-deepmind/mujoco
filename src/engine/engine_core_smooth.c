@@ -541,6 +541,11 @@ void mj_flex(const mjModel* m, mjData* d) {
       continue;
     }
 
+    // skip Jacobian if no built-in passive force is needed
+    int skipjacobian = !m->flex_edgeequality[f] &&
+                       !m->flex_edgedamping[f] &&
+                       !m->flex_edgestiffness[f];
+
     // process edges of this flex
     int vbase = m->flex_vertadr[f];
     int ebase = m->flex_edgeadr[f];
@@ -556,6 +561,11 @@ void mj_flex(const mjModel* m, mjData* d) {
       mjtNum vec[3];
       mju_sub3(vec, pos2, pos1);
       d->flexedge_length[ebase+e] = mju_normalize3(vec);
+
+      // skip Jacobian if not needed
+      if (skipjacobian) {
+        continue;
+      }
 
       // sparse edge Jacobian
       if (issparse) {
@@ -1857,8 +1867,16 @@ void mj_rnePostConstraint(const mjModel* m, mjData* d) {
       break;
 
     case mjEQ_FLEX:
-      // increment edgenum rows
-      i += m->flex_edgenum[m->eq_obj1id[id]];
+      // increment with number of non-rigid edges
+      k = m->eq_obj1id[id];
+      int flex_edgeadr = m->flex_edgeadr[k];
+      int flex_edgenum = m->flex_edgenum[k];
+
+      for (int e=flex_edgeadr; e < flex_edgeadr+flex_edgenum; e++) {
+        if (!m->flexedge_rigid[e]) {
+          i++;
+        }
+      }
       break;
 
     default:

@@ -302,14 +302,20 @@ void mjCMesh::LoadSDF() {
     throw mjCError(this, "plugin '%s' does not support signed distance fields", plugin->name);
   }
 
-  int i=0;
-  mjtNum attributes[10] = {0};
-  for (auto const& pair : plugin_instance->config_attribs) {
-    attributes[i++] = std::stod(pair.second);
+  std::vector<mjtNum> attributes(plugin->nattribute, 0);
+  std::vector<const char*> names(plugin->nattribute, 0);
+  std::vector<const char*> values(plugin->nattribute, 0);
+  for (int i=0; i < plugin->nattribute; i++) {
+    names[i] = plugin->attributes[i];
+    values[i] = plugin_instance->config_attribs[names[i]].c_str();
+  }
+
+  if (plugin->sdf_attribute) {
+    plugin->sdf_attribute(attributes.data(), names.data(), values.data());
   }
 
   mjtNum aabb[6] = {0};
-  plugin->sdf_aabb(aabb, attributes);
+  plugin->sdf_aabb(aabb, attributes.data());
   mjtNum total = aabb[3] + aabb[4] + aabb[5];
 
   const mjtNum n = 300;
@@ -325,7 +331,7 @@ void mjCMesh::LoadSDF() {
         mjtNum point[] = {aabb[0]-aabb[3] + 2 * aabb[3] * i / (nx-1),
                           aabb[1]-aabb[4] + 2 * aabb[4] * j / (ny-1),
                           aabb[2]-aabb[5] + 2 * aabb[5] * k / (nz-1)};
-        field[(k * ny + j) * nx + i] =  plugin->sdf_staticdistance(point, attributes);
+        field[(k * ny + j) * nx + i] =  plugin->sdf_staticdistance(point, attributes.data());
       }
     }
   }

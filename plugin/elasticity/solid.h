@@ -54,6 +54,7 @@ class Solid {
   std::vector<mjtNum> reference;            // reference lengths      (ne x 1)
   std::vector<mjtNum> deformed;             // deformed lengths       (ne x 1)
   std::vector<mjtNum> previous;             // previous-step lengths  (ne x 1)
+  std::vector<mjtNum> elongation;           // edge elongation        (ne x 1)
 
   mjtNum damping;
 

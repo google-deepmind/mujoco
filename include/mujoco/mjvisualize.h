@@ -422,6 +422,7 @@ struct mjvSceneState_ {
     int nskin;
     int nflex;
     int nflexvert;
+    int nflextexcoord;
     int nskinvert;
     int nskinface;
     int nskinbone;
@@ -486,6 +487,7 @@ struct mjvSceneState_ {
 
     mjtNum* cam_fovy;
     mjtNum* cam_ipd;
+    float* cam_intrinsic;
     float* cam_sensorsize;
 
     mjtByte* light_directional;
@@ -511,6 +513,7 @@ struct mjvSceneState_ {
     int* flex_shell;
     int* flex_shellnum;
     int* flex_shelldataadr;
+    int* flex_texcoordadr;
     int* flex_bvhadr;
     int* flex_bvhnum;
     mjtNum* flex_radius;

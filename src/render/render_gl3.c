@@ -215,8 +215,8 @@ static void renderGeom(const mjvGeom* geom, int mode, const float* headpos,
   float rgba[4] = {geom->rgba[0], geom->rgba[1], geom->rgba[2], geom->rgba[3]};
   int behind, whichface, lighting;
 
-  // lines to do not cast shadows
-  if (mode == mjrRND_SHADOWCAST && geom->type == mjGEOM_LINE) {
+  // lines and triangles do not cast shadows
+  if (mode == mjrRND_SHADOWCAST && (geom->type == mjGEOM_LINE || geom->category == mjCAT_DECOR)) {
     return;
   }
 

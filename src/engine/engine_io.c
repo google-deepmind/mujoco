@@ -161,6 +161,7 @@ void mj_defaultOption(mjOption* opt) {
   opt->mpr_iterations     = 50;
   opt->disableflags       = 0;
   opt->enableflags        = 0;
+  opt->disableactuator    = 0;
 
   // sdf collisions
   opt->sdf_initpoints     = 40;
@@ -245,6 +246,7 @@ void mj_defaultVisual(mjVisual* vis) {
   vis->scale.framewidth           = 0.1;
   vis->scale.constraint           = 0.1;
   vis->scale.slidercrank          = 0.2;
+  vis->scale.frustum             = 10.0;
 
   // colors
   setf4(vis->rgba.fog,              0., 0., 0., 1.);
@@ -269,6 +271,7 @@ void mj_defaultVisual(mjVisual* vis) {
   setf4(vis->rgba.constraint,       .9, .0, .0, 1.);
   setf4(vis->rgba.slidercrank,      .5, .3, .8, 1.);
   setf4(vis->rgba.crankbroken,      .9, .0, .0, 1.);
+  setf4(vis->rgba.frustum,          1., 1., .0, .2);
 }
 
 
@@ -1230,7 +1233,7 @@ mjData* mj_copyData(mjData* dest, const mjModel* m, const mjData* src) {
   // restore plugin_data
   if (plugin_data_size) {
     memcpy(dest->plugin_data, save_plugin_data, plugin_data_size);
-    free(save_plugin_data);
+    mju_free(save_plugin_data);
     save_plugin_data = NULL;
   }
 
@@ -1829,79 +1832,90 @@ const char* mj_validateReferences(const mjModel* m) {
 
   // add flex fields (b/303056369)
 
-#define MJMODEL_REFERENCES                                                       \
-  X(body_parentid,      nbody,         nbody        , 0                      ) \
-  X(body_rootid,        nbody,         nbody        , 0                      ) \
-  X(body_weldid,        nbody,         nbody        , 0                      ) \
-  X(body_mocapid,       nbody,         nmocap       , 0                      ) \
-  X(body_jntadr,        nbody,         njnt         , m->body_jntnum         ) \
-  X(body_dofadr,        nbody,         nv           , m->body_dofnum         ) \
-  X(body_geomadr,       nbody,         ngeom        , m->body_geomnum        ) \
-  X(body_bvhadr,        nbody,         nbvh         , m->body_bvhnum         ) \
-  X(body_plugin,        nbody,         nplugin      , 0                      ) \
-  X(jnt_qposadr,        njnt,          nq           , 0                      ) \
-  X(jnt_dofadr,         njnt,          nv           , 0                      ) \
-  X(jnt_bodyid,         njnt,          nbody        , 0                      ) \
-  X(dof_bodyid,         nv,            nbody        , 0                      ) \
-  X(dof_jntid,          nv,            njnt         , 0                      ) \
-  X(dof_parentid,       nv,            nv           , 0                      ) \
-  X(dof_Madr,           nv,            nM           , 0                      ) \
-  X(geom_bodyid,        ngeom,         nbody        , 0                      ) \
-  X(geom_matid,         ngeom,         nmat         , 0                      ) \
-  X(site_bodyid,        nsite,         nbody        , 0                      ) \
-  X(site_matid,         nsite,         nmat         , 0                      ) \
-  X(cam_bodyid,         ncam,          nbody        , 0                      ) \
-  X(cam_targetbodyid,   ncam,          nbody        , 0                      ) \
-  X(light_bodyid,       nlight,        nbody        , 0                      ) \
-  X(light_targetbodyid, nlight,        nbody        , 0                      ) \
-  X(mesh_vertadr,       nmesh,         nmeshvert    , m->mesh_vertnum        ) \
-  X(mesh_normaladr,     nmesh,         nmeshnormal  , m->mesh_normalnum      ) \
-  X(mesh_texcoordadr,   nmesh,         nmeshtexcoord, m->mesh_texcoordnum    ) \
-  X(mesh_faceadr,       nmesh,         nmeshface    , m->mesh_facenum        ) \
-  X(mesh_bvhadr,        nmesh,         nbvh         , m->mesh_bvhnum         ) \
-  X(mesh_graphadr,      nmesh,         nmeshgraph   , 0                      ) \
-  X(skin_matid,         nskin,         nmat         , 0                      ) \
-  X(skin_vertadr,       nskin,         nskinvert    , m->skin_vertnum        ) \
-  X(skin_texcoordadr,   nskin,         nskintexvert , 0                      ) \
-  X(skin_faceadr,       nskin,         nskinface    , m->skin_facenum        ) \
-  X(skin_boneadr,       nskin,         nskinbone    , m->skin_bonenum        ) \
-  X(skin_bonevertadr,   nskinbone,     nskinbonevert, m->skin_bonevertnum    ) \
-  X(skin_bonebodyid,    nskinbone,     nbody        , 0                      ) \
-  X(skin_bonevertid,    nskinbonevert, nskinvert    , 0                      ) \
-  X(pair_geom1,         npair,         ngeom        , 0                      ) \
-  X(pair_geom2,         npair,         ngeom        , 0                      ) \
-  X(actuator_plugin,    nu,            nplugin      , 0                      ) \
-  X(actuator_actadr,    nu,            na           , m->actuator_actnum     ) \
-  X(sensor_plugin,      nsensor,       nplugin      , 0                      ) \
-  X(plugin_stateadr,    nplugin,       npluginstate , m->plugin_statenum     ) \
-  X(plugin_attradr,     nplugin,       npluginattr  , 0                      ) \
-  X(tendon_adr,         ntendon,       nwrap        , m->tendon_num          ) \
-  X(tendon_matid,       ntendon,       nmat         , 0                      ) \
-  X(numeric_adr,        nnumeric,      nnumericdata , m->numeric_size        ) \
-  X(text_adr,           ntext,         ntextdata    , m->text_size           ) \
-  X(tuple_adr,          ntuple,        ntupledata   , m->tuple_size          ) \
-  X(name_bodyadr,       nbody,         nnames       , 0                      ) \
-  X(name_jntadr,        njnt,          nnames       , 0                      ) \
-  X(name_geomadr,       ngeom,         nnames       , 0                      ) \
-  X(name_siteadr,       nsite,         nnames       , 0                      ) \
-  X(name_camadr,        ncam,          nnames       , 0                      ) \
-  X(name_lightadr,      nlight,        nnames       , 0                      ) \
-  X(name_meshadr,       nmesh,         nnames       , 0                      ) \
-  X(name_skinadr,       nskin,         nnames       , 0                      ) \
-  X(name_hfieldadr,     nhfield,       nnames       , 0                      ) \
-  X(name_texadr,        ntex,          nnames       , 0                      ) \
-  X(name_matadr,        nmat,          nnames       , 0                      ) \
-  X(name_pairadr,       npair,         nnames       , 0                      ) \
-  X(name_excludeadr,    nexclude,      nnames       , 0                      ) \
-  X(name_eqadr,         neq,           nnames       , 0                      ) \
-  X(name_tendonadr,     ntendon,       nnames       , 0                      ) \
-  X(name_actuatoradr,   nu,            nnames       , 0                      ) \
-  X(name_sensoradr,     nsensor,       nnames       , 0                      ) \
-  X(name_numericadr,    nnumeric,      nnames       , 0                      ) \
-  X(name_textadr,       ntext,         nnames       , 0                      ) \
-  X(name_tupleadr,      ntuple,        nnames       , 0                      ) \
-  X(name_keyadr,        nkey,          nnames       , 0                      ) \
-  X(mesh_pathadr,       nmesh,         npaths       , 0                      )
+#define MJMODEL_REFERENCES                                                         \
+  X(body_parentid,      nbody,          nbody         , 0                      ) \
+  X(body_rootid,        nbody,          nbody         , 0                      ) \
+  X(body_weldid,        nbody,          nbody         , 0                      ) \
+  X(body_mocapid,       nbody,          nmocap        , 0                      ) \
+  X(body_jntadr,        nbody,          njnt          , m->body_jntnum         ) \
+  X(body_dofadr,        nbody,          nv            , m->body_dofnum         ) \
+  X(body_geomadr,       nbody,          ngeom         , m->body_geomnum        ) \
+  X(body_bvhadr,        nbody,          nbvh          , m->body_bvhnum         ) \
+  X(body_plugin,        nbody,          nplugin       , 0                      ) \
+  X(jnt_qposadr,        njnt,           nq            , 0                      ) \
+  X(jnt_dofadr,         njnt,           nv            , 0                      ) \
+  X(jnt_bodyid,         njnt,           nbody         , 0                      ) \
+  X(dof_bodyid,         nv,             nbody         , 0                      ) \
+  X(dof_jntid,          nv,             njnt          , 0                      ) \
+  X(dof_parentid,       nv,             nv            , 0                      ) \
+  X(dof_Madr,           nv,             nM            , 0                      ) \
+  X(geom_bodyid,        ngeom,          nbody         , 0                      ) \
+  X(geom_matid,         ngeom,          nmat          , 0                      ) \
+  X(site_bodyid,        nsite,          nbody         , 0                      ) \
+  X(site_matid,         nsite,          nmat          , 0                      ) \
+  X(cam_bodyid,         ncam,           nbody         , 0                      ) \
+  X(cam_targetbodyid,   ncam,           nbody         , 0                      ) \
+  X(light_bodyid,       nlight,         nbody         , 0                      ) \
+  X(light_targetbodyid, nlight,         nbody         , 0                      ) \
+  X(mesh_vertadr,       nmesh,          nmeshvert     , m->mesh_vertnum        ) \
+  X(mesh_normaladr,     nmesh,          nmeshnormal   , m->mesh_normalnum      ) \
+  X(mesh_texcoordadr,   nmesh,          nmeshtexcoord , m->mesh_texcoordnum    ) \
+  X(mesh_faceadr,       nmesh,          nmeshface     , m->mesh_facenum        ) \
+  X(mesh_bvhadr,        nmesh,          nbvh          , m->mesh_bvhnum         ) \
+  X(mesh_graphadr,      nmesh,          nmeshgraph    , 0                      ) \
+  X(flex_vertadr,       nflex,          nflexvert     , m->flex_vertnum        ) \
+  X(flex_edgeadr,       nflex,          nflexedge     , m->flex_edgenum        ) \
+  X(flex_elemadr,       nflex,          nflexelem     , m->flex_elemnum        ) \
+  X(flex_evpairadr,     nflex,          nflexevpair   , m->flex_evpairnum      ) \
+  X(flex_texcoordadr,   nflex,          nflextexcoord , 0                      ) \
+  X(flex_elemdataadr,   nflex,          nflexelemdata , 0                      ) \
+  X(flex_shelldataadr,  nflex,          nflexshelldata, 0                      ) \
+  X(flex_edge,          nflexedge*2,    nflexvert     , 0                      ) \
+  X(flex_elem,          nflexelemdata,  nflexvert     , 0                      ) \
+  X(flex_shell,         nflexshelldata, nflexvert     , 0                      ) \
+  X(flex_bvhadr,        nflex,          nbvh          , m->flex_bvhnum         ) \
+  X(skin_matid,         nskin,          nmat          , 0                      ) \
+  X(skin_vertadr,       nskin,          nskinvert     , m->skin_vertnum        ) \
+  X(skin_texcoordadr,   nskin,          nskintexvert  , 0                      ) \
+  X(skin_faceadr,       nskin,          nskinface     , m->skin_facenum        ) \
+  X(skin_boneadr,       nskin,          nskinbone     , m->skin_bonenum        ) \
+  X(skin_bonevertadr,   nskinbone,      nskinbonevert , m->skin_bonevertnum    ) \
+  X(skin_bonebodyid,    nskinbone,      nbody         , 0                      ) \
+  X(skin_bonevertid,    nskinbonevert,  nskinvert     , 0                      ) \
+  X(pair_geom1,         npair,          ngeom         , 0                      ) \
+  X(pair_geom2,         npair,          ngeom         , 0                      ) \
+  X(actuator_plugin,    nu,             nplugin       , 0                      ) \
+  X(actuator_actadr,    nu,             na            , m->actuator_actnum     ) \
+  X(sensor_plugin,      nsensor,        nplugin       , 0                      ) \
+  X(plugin_stateadr,    nplugin,        npluginstate  , m->plugin_statenum     ) \
+  X(plugin_attradr,     nplugin,        npluginattr   , 0                      ) \
+  X(tendon_adr,         ntendon,        nwrap         , m->tendon_num          ) \
+  X(tendon_matid,       ntendon,        nmat          , 0                      ) \
+  X(numeric_adr,        nnumeric,       nnumericdata  , m->numeric_size        ) \
+  X(text_adr,           ntext,          ntextdata     , m->text_size           ) \
+  X(tuple_adr,          ntuple,         ntupledata    , m->tuple_size          ) \
+  X(name_bodyadr,       nbody,          nnames        , 0                      ) \
+  X(name_jntadr,        njnt,           nnames        , 0                      ) \
+  X(name_geomadr,       ngeom,          nnames        , 0                      ) \
+  X(name_siteadr,       nsite,          nnames        , 0                      ) \
+  X(name_camadr,        ncam,           nnames        , 0                      ) \
+  X(name_lightadr,      nlight,         nnames        , 0                      ) \
+  X(name_meshadr,       nmesh,          nnames        , 0                      ) \
+  X(name_skinadr,       nskin,          nnames        , 0                      ) \
+  X(name_hfieldadr,     nhfield,        nnames        , 0                      ) \
+  X(name_texadr,        ntex,           nnames        , 0                      ) \
+  X(name_matadr,        nmat,           nnames        , 0                      ) \
+  X(name_pairadr,       npair,          nnames        , 0                      ) \
+  X(name_excludeadr,    nexclude,       nnames        , 0                      ) \
+  X(name_eqadr,         neq,            nnames        , 0                      ) \
+  X(name_tendonadr,     ntendon,        nnames        , 0                      ) \
+  X(name_actuatoradr,   nu,             nnames        , 0                      ) \
+  X(name_sensoradr,     nsensor,        nnames        , 0                      ) \
+  X(name_numericadr,    nnumeric,       nnames        , 0                      ) \
+  X(name_textadr,       ntext,          nnames        , 0                      ) \
+  X(name_tupleadr,      ntuple,         nnames        , 0                      ) \
+  X(name_keyadr,        nkey,           nnames        , 0                      ) \
+  X(mesh_pathadr,       nmesh,          npaths        , 0                      )
 
   #define X(adrarray, nadrs, ntarget, numarray) {             \
     int *nums = (numarray);                                   \

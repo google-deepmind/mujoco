@@ -29,10 +29,10 @@
 #include <mujoco/mujoco.h>
 #include <mujoco/mjxmacro.h>
 #include "indexers.h"
-#include "mjdata_meta.h"
 #include "raw.h"
 #include <pybind11/numpy.h>
 #include <pybind11/pybind11.h>
+#include <pybind11/pytypes.h>
 
 namespace mujoco::python {
 namespace _impl {
@@ -232,6 +232,7 @@ class MjWrapper<raw::MjVisualRgba> : public WrapperBase<raw::MjVisualRgba> {
   X(constraint);
   X(slidercrank);
   X(crankbroken);
+  X(frustum);
   #undef X
 };
 
@@ -446,7 +447,8 @@ class MjWrapper<raw::MjModel> : public WrapperBase<raw::MjModel> {
   MjModelIndexer& indexer() { return indexer_; }
 
   void Serialize(std::ostream& output) const;
-  static MjWrapper<raw::MjModel> Deserialize(std::istream& input);
+  static std::unique_ptr<MjWrapper<raw::MjModel>> Deserialize(
+      std::istream& input);
 
   static MjWrapper LoadXMLFile(
       const std::string& filename,
@@ -563,12 +565,14 @@ struct is_mj_struct_list<raw::MjContact> {
 template <>
 class MjWrapper<raw::MjData>: public WrapperBase<raw::MjData> {
  public:
-  explicit MjWrapper(const MjModelWrapper& model);
+  explicit MjWrapper(MjModelWrapper* model);
   MjWrapper(const MjWrapper& other);
   MjWrapper(MjWrapper&&);
+  // Used for deepcopy
+  MjWrapper(const MjWrapper& other, MjModelWrapper* model);
   ~MjWrapper();
 
-  const MjDataMetadata& metadata() const { return metadata_; }
+  const MjModelWrapper& model() const { return *model_; }
   MjDataIndexer& indexer() { return indexer_; }
 
   void Serialize(std::ostream& output) const;
@@ -597,10 +601,14 @@ class MjWrapper<raw::MjData>: public WrapperBase<raw::MjData> {
  protected:
   // Internal constructor which takes ownership of given mjData pointer.
   // Used for deserialization.
-  explicit MjWrapper(MjDataMetadata&& metadata, raw::MjData* d);
+  explicit MjWrapper(MjModelWrapper* model, raw::MjData* d);
   raw::MjData* Copy() const;
 
-  MjDataMetadata metadata_;
+  // A reference to the model that was used to create this mjData.
+  MjModelWrapper* model_;
+  // A py::object pointing to the same model as model_, to make sure Python
+  // doesn't doesn't garbage collect it until this mjData is released.
+  pybind11::object model_ref_;
   MjDataIndexer indexer_;
 };
 

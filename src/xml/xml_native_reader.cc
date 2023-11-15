@@ -93,13 +93,13 @@ static const char* MJCF[nMJCF][mjXATTRNUM] = {
             "inttotal", "interval", "tolrange"},
     {">"},
 
-    {"option", "*", "26",
+    {"option", "*", "27",
         "timestep", "apirate", "impratio", "tolerance", "ls_tolerance", "noslip_tolerance",
         "mpr_tolerance", "gravity", "wind", "magnetic", "density", "viscosity",
         "o_margin", "o_solref", "o_solimp", "o_friction",
         "integrator", "cone", "jacobian",
         "solver", "iterations", "ls_iterations", "noslip_iterations", "mpr_iterations",
-        "sdf_iterations", "sdf_initpoints"},
+        "sdf_iterations", "sdf_initpoints", "actuatorgroupdisable"},
     {"<"},
         {"flag", "?", "22", "constraint", "equality", "frictionloss", "limit", "contact",
             "passive", "gravity", "clampctrl", "warmstart",
@@ -121,14 +121,14 @@ static const char* MJCF[nMJCF][mjXATTRNUM] = {
         {"map", "?", "13", "stiffness", "stiffnessrot", "force", "torque", "alpha",
             "fogstart", "fogend", "znear", "zfar", "haze", "shadowclip", "shadowscale",
             "actuatortendon"},
-        {"scale", "?", "16", "forcewidth", "contactwidth", "contactheight", "connect", "com",
+        {"scale", "?", "17", "forcewidth", "contactwidth", "contactheight", "connect", "com",
             "camera", "light", "selectpoint", "jointlength", "jointwidth", "actuatorlength",
-            "actuatorwidth", "framelength", "framewidth", "constraint", "slidercrank"},
-        {"rgba", "?", "22", "fog", "haze", "force", "inertia", "joint",
+            "actuatorwidth", "framelength", "framewidth", "constraint", "slidercrank", "frustum"},
+        {"rgba", "?", "23", "fog", "haze", "force", "inertia", "joint",
             "actuator", "actuatornegative", "actuatorpositive", "com",
             "camera", "light", "selectpoint", "connect", "contactpoint", "contactforce",
             "contactfriction", "contacttorque", "contactgap", "rangefinder",
-            "constraint", "slidercrank", "crankbroken"},
+            "constraint", "slidercrank", "crankbroken", "frustum"},
     {">"},
 
     {"statistic", "*", "5", "meaninertia", "meanmass", "meansize", "extent", "center"},
@@ -293,7 +293,7 @@ static const char* MJCF[nMJCF][mjXATTRNUM] = {
               {"config", "*", "2", "key", "value"},
             {">"},
         {">"},
-        {"flexcomp", "*", "25", "name", "class", "type", "group", "dim",
+        {"flexcomp", "*", "24", "name", "type", "group", "dim",
             "count", "spacing", "radius", "rigid", "mass", "inertiabox",
             "scale", "file", "point", "element", "texcoord", "material", "rgba",
             "flatskin", "pos", "quat", "axisangle", "xyaxes", "zaxis", "euler"},
@@ -1035,6 +1035,22 @@ void mjXReader::Option(XMLElement* section, mjOption* opt) {
   ReadAttrInt(section, "mpr_iterations", &opt->mpr_iterations);
   ReadAttrInt(section, "sdf_iterations", &opt->sdf_iterations);
   ReadAttrInt(section, "sdf_initpoints", &opt->sdf_initpoints);
+
+  // actuatorgroupdisable
+  constexpr int num_bitflags = 31;
+  int disabled_act_groups[num_bitflags];
+  int num_found = ReadAttr(section, "actuatorgroupdisable", num_bitflags, disabled_act_groups,
+                           text, false, false);
+  for (int i=0; i < num_found; i++) {
+    int group = disabled_act_groups[i];
+    if (group < 0 ) {
+      throw mjXError(section, "disabled actuator group value must be non-negative");
+    }
+    if (group > num_bitflags - 1) {
+      throw mjXError(section, "disabled actuator group value cannot exceed 30");
+    }
+    opt->disableactuator |= (1 << group);
+  }
 
   // read disable sub-element
   XMLElement* elem = FindSubElem(section, "flag");
@@ -2765,6 +2781,7 @@ void mjXReader::Visual(XMLElement* section) {
       ReadAttr(elem, "framewidth",     1, &vis->scale.framewidth,     text);
       ReadAttr(elem, "constraint",     1, &vis->scale.constraint,     text);
       ReadAttr(elem, "slidercrank",    1, &vis->scale.slidercrank,    text);
+      ReadAttr(elem, "frustum",        1, &vis->scale.frustum,        text);
     }
 
     // rgba sub-element
@@ -2791,6 +2808,7 @@ void mjXReader::Visual(XMLElement* section) {
       ReadAttr(elem, "constraint",       4, vis->rgba.constraint,      text);
       ReadAttr(elem, "slidercrank",      4, vis->rgba.slidercrank,     text);
       ReadAttr(elem, "crankbroken",      4, vis->rgba.crankbroken,     text);
+      ReadAttr(elem, "frustum",          4, vis->rgba.frustum,         text);
     }
 
     // advance to next element

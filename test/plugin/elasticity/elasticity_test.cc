@@ -303,6 +303,29 @@ TEST_F(ElasticityTest, InvalidMixedAttribute) {
   ASSERT_THAT(m, testing::IsNull());
 }
 
+TEST_F(ElasticityTest, InvalidThickness) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+  <extension>
+    <plugin plugin="mujoco.elasticity.shell"/>
+  </extension>
+
+  <worldbody>
+    <composite type="particle" count="2 2 1" spacing="1">
+      <geom size=".025"/>
+      <plugin plugin="mujoco.elasticity.shell">
+        <config key="thickness" value="hello"/>
+      </plugin>
+    </composite>
+  </worldbody>
+  </mujoco>
+  )";
+
+  char error[1024] = {0};
+  mjModel* m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m, testing::IsNull());
+}
+
 TEST_F(ElasticityTest, ValidAttributes) {
   static constexpr char cantilever_xml[] = R"(
   <mujoco>
