@@ -6244,6 +6244,11 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                              doc='',
                          ),
                          StructFieldDecl(
+                             name='nflextexcoord',
+                             type=ValueType(name='int'),
+                             doc='',
+                         ),
+                         StructFieldDecl(
                              name='nskinvert',
                              type=ValueType(name='int'),
                              doc='',
@@ -6773,6 +6778,13 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                          ),
                          StructFieldDecl(
                              name='flex_shelldataadr',
+                             type=PointerType(
+                                 inner_type=ValueType(name='int'),
+                             ),
+                             doc='',
+                         ),
+                         StructFieldDecl(
+                             name='flex_texcoordadr',
                              type=PointerType(
                                  inner_type=ValueType(name='int'),
                              ),

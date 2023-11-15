@@ -87,7 +87,7 @@
     X   ( nflexelemdata )      \
     X   ( nflexshelldata )     \
     X   ( nflexevpair )        \
-    X   ( nflextexcoord )      \
+    XMJV( nflextexcoord )      \
     XMJV( nmesh )              \
     X   ( nmeshvert )          \
     X   ( nmeshnormal )        \
@@ -330,7 +330,7 @@
     XMJV( int,     flex_shelldataadr,     nflex,         1                    ) \
     X   ( int,     flex_evpairadr,        nflex,         1                    ) \
     X   ( int,     flex_evpairnum,        nflex,         1                    ) \
-    X   ( int,     flex_texcoordadr,      nflex,         1                    ) \
+    XMJV( int,     flex_texcoordadr,      nflex,         1                    ) \
     X   ( int,     flex_vertbodyid,       nflexvert,     1                    ) \
     X   ( int,     flex_edge,             nflexedge,     2                    ) \
     XMJV( int,     flex_elem,             nflexelemdata, 1                    ) \

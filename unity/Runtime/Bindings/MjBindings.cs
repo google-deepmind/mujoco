@@ -6076,6 +6076,7 @@ public unsafe struct model {
   public int nskin;
   public int nflex;
   public int nflexvert;
+  public int nflextexcoord;
   public int nskinvert;
   public int nskinface;
   public int nskinbone;
@@ -6157,6 +6158,7 @@ public unsafe struct model {
   public int* flex_shell;
   public int* flex_shellnum;
   public int* flex_shelldataadr;
+  public int* flex_texcoordadr;
   public int* flex_bvhadr;
   public int* flex_bvhnum;
   public double* flex_radius;
