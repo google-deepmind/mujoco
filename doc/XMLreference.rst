@@ -3730,21 +3730,18 @@ saving the XML:
 .. _body-flexcomp-point:
 
 :at:`point`: :at-val:`real(3*npoint), optional`
-
    The 3D coordinates of the points. This attribute is only used with type **direct**. All other flexcomp types generate
    their own points. The points are used to construct bodies and vertices as explained earlier.
 
 .. _body-flexcomp-element:
 
 :at:`element`: :at-val:`int((dim+1)*npoint), optional`
-
    The zero-based point ids forming each flex elements. This attribute is only used with type **direct**. All other
    flexcomp types generate their own elements. This data is passed through to the automatically-generated flex.
 
 .. _body-flexcomp-texcoord:
 
 :at:`texcoord`: :at-val:`real(2*npoint), optional`
-
    Texture coordinates of each point, passed through to the automatically-generated flex. Note that flexcomp does not
    generate texture coordinates automatically, except for 2D grids. For all other types, the user can specify explicit
    texture coordinates here, even if the points themselves were generated automatically. This requires understanding of
@@ -3794,7 +3791,6 @@ saving the XML:
 .. _body-flexcomp-euler:
 
 :at:`axisangle`, :at:`xyaxes`, :at:`zaxis`, :at:`euler`
-
    Alternative specification of rotation, that can be used instead of :at:`quat`.
 
 .. _body-flexcomp-scale:
@@ -3810,9 +3806,8 @@ saving the XML:
 .. _body-flexcomp-flatskin:
 
 :at:`radius`, :at:`material`, :at:`rgba`, :at:`group`, :at:`flatskin`
-
-These attributes are directly passed through to the automatically-generated :ref:`flex<deformable-flex>` object and have
-the same meaning.
+   These attributes are directly passed through to the automatically-generated :ref:`flex<deformable-flex>` object and
+   have the same meaning.
 
 .. _flexcomp-contact:
 
@@ -3833,10 +3828,12 @@ the same meaning.
 .. _flexcomp-contact-margin:
 .. _flexcomp-contact-gap:
 
-:at:`internal`, :at:`selfcollide`, :at:`activelayers`, :at:`contype`, :at:`conaffinity`, :at:`condim`, :at:`priority`,
-:at:`friction`, :at:`solmix`, :at:`solimp`, :at:`margin`, :at:`gap`
+.. |body/flexcomp/contact attrib list| replace::
+   :at:`internal`, :at:`selfcollide`, :at:`activelayers`, :at:`contype`, :at:`conaffinity`, :at:`condim`,
+   :at:`priority`, :at:`friction`, :at:`solmix`, :at:`solimp`, :at:`margin`, :at:`gap`
 
-Same as in :ref:`flex/contact<flex-contact>`. All attributes are passed through to the automatically-generated flex.
+|body/flexcomp/contact attrib list|
+   Same as in :ref:`flex/contact<flex-contact>`. All attributes are passed through to the automatically-generated flex.
 
 .. _flexcomp-edge:
 
@@ -4134,7 +4131,7 @@ cases, the user will specify a :el:`flexcomp` which will then automatically cons
 .. _flex-edge:
 
 :el-prefix:`flex/` |-| **edge** (?)
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+'''''''''''''''''''''''''''''''''''
 
 This element adjusts the passive or constraint properties of all edges of the flex. A flex edge can have a damping
 passive force and an :ref:`equality constraint<equality-flex>` associated with it, resulting in edge constraint forces.
@@ -4156,7 +4153,7 @@ these mechanisms to be combined as desired.
 .. _flex-contact:
 
 :el-prefix:`flex/` |-| **contact** (?)
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+''''''''''''''''''''''''''''''''''''''
 
 This element adjusts the contact properties of the flex. It is mostly identical to geom contact properties, with some
 extensions specific to flexes.
