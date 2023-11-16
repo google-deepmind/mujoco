@@ -34,7 +34,7 @@ def _assert_attr_eq(a, b, attr, step, fname, atol=1e-5, rtol=1e-5):
   np.testing.assert_allclose(a, b, err_msg=err_msg, atol=atol, rtol=rtol)
 
 
-class TransmissionTest(parameterized.TestCase):
+class TransmissionIntegrationTest(parameterized.TestCase):
 
   @parameterized.parameters(list(range(30)))
   def test_transmission(self, seed):
