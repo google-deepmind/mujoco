@@ -22,7 +22,7 @@ namespace Mujoco {
 
 [CustomEditor(typeof(MjShapeComponent), true)]
 [CanEditMultipleObjects]
-public class MjShapeComponentEditor : Editor {
+public class MjShapeComponentEditor : MjMouseSpring {
 
   public override void OnInspectorGUI() {
 
