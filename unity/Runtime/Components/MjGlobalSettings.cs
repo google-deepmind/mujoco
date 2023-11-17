@@ -147,7 +147,7 @@ public struct MjSizeStruct {
   };
 
   public void ParseMjcf(XmlElement mjcf) {
-    Memory = mjcf.GetAttribute("memory");
+    Memory = mjcf.GetStringAttribute("memory", "-1");
   }
 
   public XmlElement ToMjcf(XmlElement mjcf) {
