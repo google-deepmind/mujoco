@@ -34,10 +34,6 @@ public enum IntegratorType {
   @implicitfast
 }
 
-public enum CollisionCheckType {
-  all
-}
-
 public enum FrictionConeType {
   pyramidal,
   elliptic
@@ -151,7 +147,7 @@ public struct MjSizeStruct {
   };
 
   public void ParseMjcf(XmlElement mjcf) {
-    Memory = mjcf.GetAttribute("memory");
+    Memory = mjcf.GetStringAttribute("memory", "-1");
   }
 
   public XmlElement ToMjcf(XmlElement mjcf) {
@@ -183,8 +179,6 @@ public struct MjOptionStruct {
   public SolverImpedance OverrideSolImp;
   [Tooltip("Numerical integrator.")]
   public IntegratorType Integrator;
-  [Tooltip("What collision types should be checked.")]
-  public CollisionCheckType Collision;
   [Tooltip("How to model the friction cone.")]
   public FrictionConeType Cone;
   [Tooltip("How to represent the constraint Jacobian.")]
@@ -217,7 +211,6 @@ public struct MjOptionStruct {
     OverrideSolRef = SolverReference.Default,
     OverrideSolImp = SolverImpedance.Default,
     Integrator = IntegratorType.Euler,
-    Collision = CollisionCheckType.all,
     Cone = FrictionConeType.pyramidal,
     Jacobian = JacobianType.auto,
     Solver = ConstraintSolverType.Newton,
@@ -260,7 +253,6 @@ public struct MjOptionStruct {
     OverrideSolImp.FromMjcf(mjcf, "o_solimp");
 
     Integrator = mjcf.GetEnumAttribute<IntegratorType>("integrator", localDefault.Integrator);
-    Collision = mjcf.GetEnumAttribute<CollisionCheckType>("collision", localDefault.Collision);
     Cone = mjcf.GetEnumAttribute<FrictionConeType>("cone", localDefault.Cone);
     Jacobian = mjcf.GetEnumAttribute<JacobianType>("jacobian", localDefault.Jacobian);
     Solver = mjcf.GetEnumAttribute<ConstraintSolverType>("solver", localDefault.Solver);
@@ -295,7 +287,6 @@ public struct MjOptionStruct {
     OverrideSolImp.ToMjcf(mjcf, "o_solimp");
 
     mjcf.SetAttribute("integrator", Integrator.ToString());
-    mjcf.SetAttribute("collision", Collision.ToString());
     mjcf.SetAttribute("cone", Cone.ToString());
     mjcf.SetAttribute("jacobian", Jacobian.ToString());
     mjcf.SetAttribute("solver", Solver.ToString());

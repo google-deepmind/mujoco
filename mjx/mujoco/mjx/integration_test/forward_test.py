@@ -30,7 +30,7 @@ def _assert_attr_eq(a, b, attr, step, fname, atol=1e-3, rtol=1e-3):
   np.testing.assert_allclose(a, b, err_msg=err_msg, atol=atol, rtol=rtol)
 
 
-class ActuationTest(parameterized.TestCase):
+class ActuationIntegrationTest(parameterized.TestCase):
 
   @parameterized.parameters(list(range(30)))
   def test_actuation(self, seed):

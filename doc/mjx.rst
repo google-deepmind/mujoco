@@ -171,7 +171,7 @@ The following features are **fully supported** in MJX:
 .. list-table::
    :width: 90%
    :align: left
-   :widths: 1 5
+   :widths: 2 5
    :header-rows: 1
 
    * - Category
@@ -182,9 +182,12 @@ The following features are **fully supported** in MJX:
      - ``FREE``, ``BALL``, ``SLIDE``, ``HINGE``
    * - :ref:`Transmission <mjtTrn>`
      - ``TRN_JOINT``
-   * - :ref:`Actuation <geactuation>`
-     - ``DYN_NONE``, ``DYN_INTEGRATOR``, ``DYN_FILTER``, ``GAIN_FIXED``, ``GAIN_AFFINE``, ``BIAS_NONE``,
-       ``BIAS_AFFINE``
+   * - :ref:`Actuator Dynamics <mjtDyn>`
+     - ``NONE``, ``INTEGRATOR``, ``FILTER``
+   * - :ref:`Actuator Gain <mjtGain>`
+     - ``FIXED``, ``AFFINE``
+   * - :ref:`Actuator Bias <mjtBias>`
+     - ``NONE``, ``AFFINE``
    * - :ref:`Geom <mjtGeom>`
      - ``PLANE``, ``SPHERE``, ``CAPSULE``, ``BOX``, ``MESH``
    * - :ref:`Constraint <mjtConstraint>`
@@ -207,7 +210,7 @@ The following features are **in development** and coming soon:
 .. list-table::
    :width: 90%
    :align: left
-   :widths: 1 5
+   :widths: 2 5
    :header-rows: 1
 
    * - Category
@@ -216,8 +219,16 @@ The following features are **in development** and coming soon:
      - :ref:`Inverse <mj_inverse>`
    * - :ref:`Transmission <mjtTrn>`
      - ``TRN_TENDON``
+   * - :ref:`Actuator Dynamics <mjtDyn>`
+     - ``MUSCLE``
+   * - :ref:`Actuator Gain <mjtGain>`
+     - ``MUSCLE``
+   * - :ref:`Actuator Bias <mjtBias>`
+     - ``MUSCLE``
+   * - :ref:`Tendon Wrapping <mjtWrap>`
+     - ``NONE``, ``JOINT``, ``PULLEY``, ``SITE``, ``SPHERE``, ``CYLINDER``
    * - :ref:`Geom <mjtGeom>`
-     - ``HFIELD``, ``ELLIPSOID``, ``CYLINDER``, ``SDF``
+     - ``HFIELD``, ``ELLIPSOID``, ``CYLINDER``
    * - :ref:`Constraint <mjtConstraint>`
      - ``CONTACT_FRICTIONLESS``, ``CONTACT_ELLIPTIC``, ``FRICTION_DOF``
    * - :ref:`Integrator <mjtIntegrator>`
@@ -233,24 +244,32 @@ The following features are **in development** and coming soon:
    * - :ref:`Equality <mjtEq>`
      - ``TENDON``
    * - :ref:`Sensors <mjtSensor>`
-     - All except ``mjSENS_PLUGIN``, ``mjSENS_USER``
+     - All except ``PLUGIN``, ``USER``
 
 The following features are **unsupported**:
 
 .. list-table::
    :width: 90%
    :align: left
-   :widths: 1 5
+   :widths: 2 5
    :header-rows: 1
 
    * - Category
      - Feature
    * - :ref:`Transmission <mjtTrn>`
-     - ``TRN_JOINTINPARENT``, ``TRN_SLIDERCRANK``, ``TRN_SITE``, ``TRN_BODY``, ``MUSCLE``
+     - ``TRN_JOINTINPARENT``, ``TRN_SLIDERCRANK``, ``TRN_SITE``, ``TRN_BODY``
+   * - :ref:`Actuator Dynamics <mjtDyn>`
+     - ``FILTEREXACT``, ``USER``
+   * - :ref:`Actuator Gain <mjtGain>`
+     - ``USER``
+   * - :ref:`Actuator Bias <mjtBias>`
+     - ``USER``
    * - :ref:`Solver <mjtSolver>`
      - ``PGS``
-   * - :ref:`Callbacks <glphysics>`
-     - ``mjDYN_USER``, ``mjGAIN_USER``, ``mjBIAS_USER``, ``mjSENS_USER``
+   * - :ref:`Sensors <mjtSensor>`
+     - ``PLUGIN``, ``USER``
+   * - :ref:`Geom <mjtGeom>`
+     - ``SDF``
 
 .. _MjxSharpBits:
 
@@ -276,17 +295,20 @@ Large, complex scenes with many contacts
   bodies in a scene.  MJX ships with a simple branchless broad-phase algorithm (see performance tuning) but it is not as
   powerful as the one in MuJoCo.
 
-  To see how this affects simulation, let us consider a physics scene with increasing numbers of physics bodies.  We
-  simulate a scene with a variable number of humanoids (from 1 to 10) and then compare MJX's performance on an Nvidia
-  A100 GPU to MuJoCo on a 12-core workstation:
+  To see how this affects simulation, let us consider a physics scene with increasing numbers of humanoid bodies,
+  varied from 1 to 10. We simulate this scene using CPU MuJoCo on an Apple M1 Pro and a 64-core AMD 3995WX and time
+  it using :ref:`testspeed<saTestspeed>`, using ``2 x numcore`` threads. We time the MJX simulation on an Nvidia
+  A100 GPU using a batch size of 8192 and an 8-chip
+  `v5 TPU <https://cloud.google.com/blog/products/compute/announcing-cloud-tpu-v5e-and-a3-gpus-in-ga>`__
+  machine using a batch size of 16384. Note the vertical scale is logarithmic.
 
-  .. figure:: images/mjx/mujoco_vs_mjx_large_scene.png
-   :width: 658px
-   :align: center
+  .. figure:: images/mjx/SPS.svg
+     :width: 95%
+     :align: center
 
-  Notice that as we increase the number of humanoids (which increases the number of potential contacts in a scene), MJX
-  performance degrades more rapidly than MuJoCo.  At the limit, for such a large scene, MuJoCo performance nearly
-  matches MJX.
+  The values for a single humanoid (leftmost datapoints) for the four timed architectures are **320K**, **1.8M**,
+  **950K** and **2.7M** steps per second, respectively. Note that as we increase the number of humanoids (which
+  increases the number of potential contacts in a scene), MJX throughput decreases more rapidly than MuJoCo.
 
 Scenes with collisions between meshes with many vertices
   MJX supports mesh geometries and can determine if two meshes are colliding using branchless versions of

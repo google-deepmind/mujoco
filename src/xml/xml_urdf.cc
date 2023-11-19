@@ -367,7 +367,7 @@ void mjXURDF::Joint(XMLElement* joint_elem) {
     throw mjXError(joint_elem, "invalid joint type in URDF joint definition");
   }
   ReadAttrTxt(joint_elem, "name", jntname, true);
-
+  jntname = GetPrefixedName(jntname);
   // get parent, check
   elem = FindSubElem(joint_elem, "parent", true);
   ReadAttrTxt(elem, "link", name, true);

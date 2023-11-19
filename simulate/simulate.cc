@@ -718,12 +718,12 @@ void MakePhysicsSection(mj::Simulate* sim, int oldstate) {
   };
   mjuiDef defDisableActuator[] = {
     {mjITEM_SEPARATOR, "Actuator Group Enable", 1},
-    {mjITEM_CHECKBYTE,  "Act Group 0",  2, sim->enableactuator+0,    " 0"},
-    {mjITEM_CHECKBYTE,  "Act Group 1",  2, sim->enableactuator+1,    " 1"},
-    {mjITEM_CHECKBYTE,  "Act Group 2",  2, sim->enableactuator+2,    " 2"},
-    {mjITEM_CHECKBYTE,  "Act Group 3",  2, sim->enableactuator+3,    " 3"},
-    {mjITEM_CHECKBYTE,  "Act Group 4",  2, sim->enableactuator+4,    " 4"},
-    {mjITEM_CHECKBYTE,  "Act Group 5",  2, sim->enableactuator+5,    " 5"},
+    {mjITEM_CHECKBYTE,  "Act Group 0",  2, sim->enableactuator+0,     ""},
+    {mjITEM_CHECKBYTE,  "Act Group 1",  2, sim->enableactuator+1,     ""},
+    {mjITEM_CHECKBYTE,  "Act Group 2",  2, sim->enableactuator+2,     ""},
+    {mjITEM_CHECKBYTE,  "Act Group 3",  2, sim->enableactuator+3,     ""},
+    {mjITEM_CHECKBYTE,  "Act Group 4",  2, sim->enableactuator+4,     ""},
+    {mjITEM_CHECKBYTE,  "Act Group 5",  2, sim->enableactuator+5,     ""},
     {mjITEM_END}
   };
 

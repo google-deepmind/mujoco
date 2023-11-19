@@ -41,7 +41,7 @@ def _assert_attr_eq(mjx_d, mj_d, attr, name, atol):
   np.testing.assert_allclose(mjx_d, mj_d, err_msg=err_msg, atol=atol)
 
 
-class CollisionDriverTest(parameterized.TestCase):
+class CollisionDriverIntegrationTest(parameterized.TestCase):
 
   @parameterized.parameters(list(range(256)))
   def test_collision_driver(self, seed):
