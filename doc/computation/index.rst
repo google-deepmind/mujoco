@@ -656,6 +656,11 @@ MoCap poses: ``mocap_pos`` and ``mocap_quat``
   6D poses from a motion-capture device. The default values set by :ref:`mj_resetData` are the poses of the bodies at
   the default configuration.
 
+Equality constraint toggle: ``eq_active``
+  ``mjData.eq_active`` is a byte-valued array that allows the user to toggle the state of equality constraints at
+  runtime. The initial value of this array is ``mjModel.eq_active0`` which can be set in XML using the
+  :ref:`active<equality-connect-active>` attribute of :ref:`equality constraints<coEquality>`.
+
 User data: ``userdata``
   ``mjData.userdata`` acts as a user-defined memory space untouched by the engine. For example it can be used by
   callbacks. This is described in more detail in the :ref:`Programming chapter<siSimulation>`.
