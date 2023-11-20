@@ -269,7 +269,7 @@ Currently, there are three directories of first-party plugins:
   <https://github.com/google-deepmind/mujoco/blob/main/plugin/sdf/README.md>`__. The rest of this section will give more
   detail concerning the collision algorithm and the plugin engine interface.
 
-  Collision points are found by minimizing the maximum of the two colliding SDFs via gradient descent.
+  Collision points are found by minimizing a quadratic form of the two colliding SDFs via gradient descent.
   Because SDFs are non-convex, multiple starting points are required in order to converge to multiple local minima.
   The number of starting points is set using :ref:`sdf_initpoints<option-sdf_initpoints>`, and are
   initialized using the Halton sequence inside the intersection of the axis-aligned bounding boxes.

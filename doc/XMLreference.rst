@@ -1877,7 +1877,7 @@ adjust it properly through the XML.
 .. _option-sdf_initpoints:
 
 :at:`sdf_initpoints`: :at-val:`int, "40"`
-   Number of starting points used for fining contacts with Signed Distance Field collisions.
+   Number of starting points used for finding contacts with Signed Distance Field collisions.
 
 .. _option-actuatorgroupdisable:
 

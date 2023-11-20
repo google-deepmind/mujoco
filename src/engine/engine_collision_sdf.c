@@ -186,6 +186,18 @@ mjtNum mjc_distance(const mjModel* m, const mjData* d, const mjSDF* s, const mjt
     mju_addTo3(y, s->relpos);
     return mju_max(geomDistance(m, d, s->plugin[0], s->id[0], x, s->geomtype[0]),
                    geomDistance(m, d, s->plugin[1], s->id[1], y, s->geomtype[1]));
+  case mjSDFTYPE_MIDSURFACE:
+    mju_rotVecMat(y, x, s->relmat);
+    mju_addTo3(y, s->relpos);
+    return geomDistance(m, d, s->plugin[0], s->id[0], x, s->geomtype[0]) -
+           geomDistance(m, d, s->plugin[1], s->id[1], y, s->geomtype[1]);
+  case mjSDFTYPE_QUADRATIC:
+    mju_rotVecMat(y, x, s->relmat);
+    mju_addTo3(y, s->relpos);
+    mjtNum A = geomDistance(m, d, s->plugin[0], s->id[0], x, s->geomtype[0]);
+    mjtNum B = geomDistance(m, d, s->plugin[1], s->id[1], y, s->geomtype[1]);
+    return .5 * mju_max(A, 0) * mju_max(A, 0) +
+           .5 * mju_max(B, 0) * mju_max(B, 0) - mju_min(A, 0) * mju_min(B, 0);
   default:
     mjERROR("SDF type not available");
     return 0;
@@ -197,6 +209,7 @@ void mjc_gradient(const mjModel* m, const mjData* d, const mjSDF* s,
                   mjtNum gradient[3], const mjtNum x[3]) {
   mjtNum y[3];
   const mjtNum* point[2] = {x, y};
+  mjtNum grad1[3], grad2[3];
 
   switch (s->type) {
   case mjSDFTYPE_INTERSECTION:
@@ -209,16 +222,33 @@ void mjc_gradient(const mjModel* m, const mjData* d, const mjSDF* s,
       mju_rotVecMatT(gradient, gradient, s->relmat);
     }
     break;
-  case mjSDFTYPE_AVERAGE:
+  case mjSDFTYPE_MIDSURFACE:
     mju_rotVecMat(y, x, s->relmat);
     mju_addTo3(y, s->relpos);
-    mjtNum grad1[3], grad2[3];
     geomGradient(grad1, m, d, s->plugin[0], s->id[0], x, s->geomtype[0]);
     mju_normalize3(grad1);
     geomGradient(grad2, m, d, s->plugin[1], s->id[1], y, s->geomtype[1]);
     mju_rotVecMatT(grad2, grad2, s->relmat);
     mju_normalize3(grad2);
     mju_sub3(gradient, grad1, grad2);
+    mju_normalize3(gradient);
+    break;
+  case mjSDFTYPE_QUADRATIC:
+    mju_rotVecMat(y, x, s->relmat);
+    mju_addTo3(y, s->relpos);
+    mjtNum A = geomDistance(m, d, s->plugin[0], s->id[0], x, s->geomtype[0]);
+    mjtNum B = geomDistance(m, d, s->plugin[1], s->id[1], y, s->geomtype[1]);
+    geomGradient(grad1, m, d, s->plugin[0], s->id[0], x, s->geomtype[0]);
+    geomGradient(grad2, m, d, s->plugin[1], s->id[1], y, s->geomtype[1]);
+    mju_rotVecMatT(grad2, grad2, s->relmat);
+    gradient[0] = grad1[0] * mju_max(A, 0) + grad2[0] * mju_max(B, 0);
+    gradient[1] = grad1[1] * mju_max(A, 0) + grad2[1] * mju_max(B, 0);
+    gradient[2] = grad1[2] * mju_max(A, 0) + grad2[2] * mju_max(B, 0);
+    if (A < 0 && B < 0) {
+      gradient[0] = - grad1[0] * B - grad2[0] * A;
+      gradient[1] = - grad1[1] * B - grad2[1] * A;
+      gradient[2] = - grad1[2] * B - grad2[2] * A;
+    }
     mju_normalize3(gradient);
     break;
   case mjSDFTYPE_SINGLE:
@@ -716,10 +746,12 @@ int mjc_SDF(const mjModel* m, const mjData* d, mjContact* con, int g1, int g2, m
     // start counters
     sdf_ptr[0]->compute(m, (mjData*)d, instance[0], mjPLUGIN_SDF);
 
-    // gradient descent
-    sdf.type = mjSDFTYPE_INTERSECTION;
+    // gradient descent - we use a quadratic form of the two SDF as objective
+    sdf.type = mjSDFTYPE_QUADRATIC;
     dist = stepGradient(x, m, &sdf, (mjData*)d);
-    sdf.type = mjSDFTYPE_AVERAGE;
+
+    // contact point and normal - we use the midsurface where SDF1=SDF2 as zero level set
+    sdf.type = mjSDFTYPE_MIDSURFACE;
     cnt = addContact(contacts, con, x, pos2true, squat2, dist, cnt, m, &sdf, (mjData*)d);
 
     // SHOULD NOT OCCUR
