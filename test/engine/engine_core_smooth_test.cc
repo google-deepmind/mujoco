@@ -294,6 +294,30 @@ TEST_F(CoreSmoothTest, RefsiteBringsToPose) {
   mj_deleteModel(model);
 }
 
+// Test Cartesian position control w.r.t moving refsite
+TEST_F(CoreSmoothTest, RefsiteConservesMomentum) {
+  constexpr char kRefsitePath[] = "engine/testdata/actuation/refsite_free.xml";
+  const std::string xml_path = GetTestDataFilePath(kRefsitePath);
+  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, 0, 0);
+  ASSERT_THAT(model, NotNull());
+  mjData* data = mj_makeData(model);
+
+  data->ctrl[0] = 1;
+  data->ctrl[1] = -1;
+
+  // simulate, assert that momentum is conserved
+  mjtNum eps = 1e-9;
+  while (data->time < 1) {
+    mj_step(model, data);
+    for (int i=0; i < 6; i++) {
+      EXPECT_LT(mju_abs(data->sensordata[i]), eps);
+    }
+  }
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
 static const char* const kIlslandEfcPath =
     "engine/testdata/island/island_efc.xml";
 

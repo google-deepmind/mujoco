@@ -1032,6 +1032,34 @@ void mj_transmission(const mjModel* m, mjData* d) {
         int refid = m->actuator_trnid[2*i+1];
         if (!jacref) jacref = mj_stackAllocNum(d, 3*nv);
 
+        // intialize last dof address for each body
+        int b0 = m->body_weldid[m->site_bodyid[id]];
+        int b1 = m->body_weldid[m->site_bodyid[refid]];
+        int dofadr0 = m->body_dofadr[b0] + m->body_dofnum[b0] - 1;
+        int dofadr1 = m->body_dofadr[b1] + m->body_dofnum[b1] - 1;
+
+        // find common ancestral dof, if any
+        int dofadr_common = -1;
+        if (dofadr0 >= 0 && dofadr1 >= 0) {
+          // traverse up the tree until common ancestral dof is found
+          while (dofadr0 != dofadr1) {
+            if (dofadr0 < dofadr1) {
+              dofadr1 = m->dof_parentid[dofadr1];
+            } else {
+              dofadr0 = m->dof_parentid[dofadr0];
+            }
+            if (dofadr0 == -1 || dofadr1 == -1) {
+              // reached tree root, no common ancestral dof
+              break;
+            }
+          }
+
+          // found common ancestral dof
+          if (dofadr0 == dofadr1) {
+            dofadr_common = dofadr0;
+          }
+        }
+
         // clear moment
         mju_zero(moment+i*nv, nv);
 
@@ -1049,6 +1077,15 @@ void mj_transmission(const mjModel* m, mjData* d) {
 
           // subtract jacref from jac
           mju_subFrom(jac, jacref, 3*nv);
+
+          // if common ancestral dof was found, clear the columns of its parental chain
+          int da = dofadr_common;
+          while (da >= 0) {
+            jac[nv*0 + da] = 0;
+            jac[nv*1 + da] = 0;
+            jac[nv*2 + da] = 0;
+            da = m->dof_parentid[da];
+          }
 
           // wrench: translational gear expressed in global frame
           mju_rotVecMat(wrench, gear, d->site_xmat+9*refid);
@@ -1076,6 +1113,15 @@ void mj_transmission(const mjModel* m, mjData* d) {
 
           // subtract jacref from jacS
           mju_subFrom(jacS, jacref, 3*nv);
+
+          // if common ancestral dof was found, clear the columns of its parental chain
+          int da = dofadr_common;
+          while (da >= 0) {
+            jacS[nv*0 + da] = 0;
+            jacS[nv*1 + da] = 0;
+            jacS[nv*2 + da] = 0;
+            da = m->dof_parentid[da];
+          }
 
           // wrench: rotational gear expressed in global frame
           mju_rotVecMat(wrench, gear+3, d->site_xmat+9*refid);
