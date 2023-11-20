@@ -2,6 +2,16 @@
 Changelog
 =========
 
+Upcoming version (not yet released)
+-----------------------------------
+
+General
+^^^^^^^
+
+- Improved convergence of Signed Distance Function (SDF) collisions by using line search and a new objective function
+  for the optimization. This allows to decrease the number of initial points needed for finding the contacts and is more
+  robust for very small or large geom sizes.
+
 Version 3.0.1 (November 15, 2023)
 ---------------------------------
 

@@ -249,7 +249,6 @@ void mjc_gradient(const mjModel* m, const mjData* d, const mjSDF* s,
       gradient[1] = - grad1[1] * B - grad2[1] * A;
       gradient[2] = - grad1[2] * B - grad2[2] * A;
     }
-    mju_normalize3(gradient);
     break;
   case mjSDFTYPE_SINGLE:
     geomGradient(gradient, m, d, s->plugin[0], s->id[0], point[0], s->geomtype[0]);
@@ -388,10 +387,15 @@ static mjtNum stepFrankWolfe(mjtNum x[3], const mjtNum* corners, int ncorners,
 // finds minimum using gradient descent
 static mjtNum stepGradient(mjtNum x[3], const mjModel* m, const mjSDF* s,
                            mjData* d) {
-  mjtNum alpha = 0.2;    // step along the gradient direction
+  const mjtNum c = .1;       // reduction factor for the target decrease in the objective function
+  const mjtNum rho = .5;     // reduction factor for the gradient scaling (alpha)
+  const mjtNum amin = 1e-4;  // minimum value for alpha
+  mjtNum dist = mjMAXVAL;
 
   for (int step=0; step < m->opt.sdf_iterations; step++) {
     mjtNum grad[3];
+    mjtNum alpha = 2.;  // initial line search factor scaling the gradient
+                        // the units of the gradient depend on s->type
 
     // evaluate gradient
     mjc_gradient(m, d, s, grad, x);
@@ -403,12 +407,29 @@ static mjtNum stepGradient(mjtNum x[3], const mjModel* m, const mjSDF* s,
       return mjMAXVAL;
     }
 
-    // update solution
-    mju_addToScl3(x, grad, -alpha/(mjtNum)(step+1));
+    // save current solution
+    mjtNum x0[] = {x[0], x[1], x[2]};
+
+    // evaluate distance
+    mjtNum dist0 = mjc_distance(m, d, s, x0);
+    mjtNum wolfe = - c * alpha * mju_dot3(grad, grad);
+
+    // backtracking line search
+    do {
+      alpha *= rho;
+      wolfe *= rho;
+      mju_addScl3(x, x0, grad, -alpha);
+      dist = mjc_distance(m, d, s, x);
+    } while (alpha > amin && dist - dist0 > wolfe);
+
+    // if no improvement, early stop
+    if (dist0 < dist) {
+      return dist;
+    }
   }
 
-  // compute distance
-  return mjc_distance(m, d, s, x);
+  // the distance will be used for the contact creation
+  return dist;
 }
 
 //---------------------------- bounding box vs sdf -------------------------------------------------
