@@ -216,11 +216,11 @@ any effect. The settings here are global and apply to the entire model.
 .. _compiler-eulerseq:
 
 :at:`eulerseq`: :at-val:`string, "xyz"`
-   This attribute specifies the sequence of Euler rotations for all euler attributes of elements that have spatial
-   frames, as explained in :ref:`COrientation`. This must be a string with exactly 3
-   characters from the set {'x', 'y', 'z', 'X', 'Y', 'Z'}. The character at position n determines the axis around which
-   the n-th rotation is performed. Lower case denotes axes that rotate with the frame, while upper case denotes axes
-   that remain fixed in the parent frame. The "rpy" convention used in URDF corresponds to the default "xyz" in MJCF.
+   This attribute specifies the sequence of Euler rotations for all :at:`euler` attributes of elements that have spatial
+   frames, as explained in :ref:`COrientation`. This must be a string with exactly 3 characters from the set {x, y, z,
+   X, Y, Z}. The character at position n determines the axis around which the n-th rotation is performed. Lower case
+   letters denote axes that rotate with the frame (intrinsic), while upper case letters denote axes that remain fixed in
+   the parent frame (extrinsic). The "rpy" convention used in URDF corresponds to "XYZ" in MJCF.
 
 .. _compiler-meshdir:
 
