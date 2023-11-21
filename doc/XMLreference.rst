@@ -1924,7 +1924,7 @@ from its default.
 .. _option-flag-contact:
 
 :at:`contact`: :at-val:`[disable, enable], "enable"`
-   This flag disables all standard computations related to contact constraints.
+   This flag disables collision detection and all standard computations related to contact constraints.
 
 .. _option-flag-passive:
 
