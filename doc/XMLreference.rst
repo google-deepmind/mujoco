@@ -5787,10 +5787,10 @@ Associate this actuator with an :ref:`engine plugin<exPlugin>`. Either :at:`plug
 .. _actuator-plugin-dyntype:
 
 :at:`dyntype`: :at-val:`[none, integrator, filter, filterexact, muscle, user], "none"`
-   Activation dynamics type for the actuator. The available dynamics types were already described in the
-   :ref:`Actuation model <geActuation>` section. See also :ref:`actuator-general-dyntype`. If dyntype is
-   not none, an activation variable will be added to the actuator. This variable will be added after
-   any activation state computed by the plugin (see :ref:`actuator plugin activations<exActuatorAct>`).
+   Activation dynamics type for the actuator. The available dynamics types were already described in the :ref:`Actuation
+   model <geActuation>` section. If :ref:`dyntype<actuator-general-dyntype>` is not "none", an activation variable will
+   be added to the actuator. This variable will be added after any activation state computed by the plugin (see
+   :ref:`actuator plugin activations<exActuatorAct>`).
 
 .. _actuator-plugin-actrange:
 

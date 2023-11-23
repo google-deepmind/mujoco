@@ -296,7 +296,7 @@ Large, complex scenes with many contacts
   powerful as the one in MuJoCo.
 
   To see how this affects simulation, let us consider a physics scene with increasing numbers of humanoid bodies,
-  varied from 1 to 10. We simulate this scene using CPU MuJoCo on an Apple M1 Pro and a 64-core AMD 3995WX and time
+  varied from 1 to 10. We simulate this scene using CPU MuJoCo on an Apple M3 Max and a 64-core AMD 3995WX and time
   it using :ref:`testspeed<saTestspeed>`, using ``2 x numcore`` threads. We time the MJX simulation on an Nvidia
   A100 GPU using a batch size of 8192 and an 8-chip
   `v5 TPU <https://cloud.google.com/blog/products/compute/announcing-cloud-tpu-v5e-and-a3-gpus-in-ga>`__
@@ -306,7 +306,7 @@ Large, complex scenes with many contacts
      :width: 95%
      :align: center
 
-  The values for a single humanoid (leftmost datapoints) for the four timed architectures are **320K**, **1.8M**,
+  The values for a single humanoid (leftmost datapoints) for the four timed architectures are **650K**, **1.8M**,
   **950K** and **2.7M** steps per second, respectively. Note that as we increase the number of humanoids (which
   increases the number of potential contacts in a scene), MJX throughput decreases more rapidly than MuJoCo.
 

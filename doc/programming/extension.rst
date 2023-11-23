@@ -206,7 +206,7 @@ Actuator activations
 
 When writing stateful actuator plugins, there are two choices for where to save the actuator state. One option is using
 ``plugin_state`` as described above, and the other is to use ``mjData.act`` by implementing the ``actuator_actdim`` and
- ``actuator_act_dot`` callbacks on :ref:`mjpPlugin`.
+``actuator_act_dot`` callbacks on :ref:`mjpPlugin`.
 
 When using the latter option, the actuator plugin's state will be added to ``mjData.act``, and MuJoCo will
 automatically integrate ``mjData.act_dot`` values between timesteps. One advantage of this approach is that
