@@ -1099,6 +1099,7 @@ class mjCActuator : public mjCBase {
   int forcelimited;               // are force limits defined: 0 false, 1 true, 2 auto
   int actlimited;                 // are activation limits defined: 0 false, 1 true, 2 auto
   int actdim;                     // dimension of associated activations
+  int plugin_actdim;              // actuator state size for plugins
   mjtDyn dyntype;                 // dynamics type
   mjtTrn trntype;                 // transmission type
   mjtGain gaintype;               // gain type

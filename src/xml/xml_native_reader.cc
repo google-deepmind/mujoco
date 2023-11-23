@@ -413,10 +413,10 @@ static const char* MJCF[nMJCF][mjXATTRNUM] = {
             "lmin", "lmax", "vmax", "fpmax", "fvmax"},
         {"adhesion", "*", "9", "name", "class", "group",
             "forcelimited", "ctrlrange", "forcerange", "user", "body", "gain"},
-        {"plugin", "*", "19", "name", "class",  "plugin", "instance", "group",
-            "ctrllimited", "forcelimited", "ctrlrange", "forcerange",
+        {"plugin", "*", "24", "name", "class",  "plugin", "instance", "group",
+            "ctrllimited", "forcelimited", "actlimited", "ctrlrange", "forcerange", "actrange",
             "lengthrange", "gear", "cranklength", "joint", "jointinparent",
-            "site", "tendon", "cranksite", "slidersite", "user"},
+            "site", "dyntype", "dynprm", "tendon", "cranksite", "slidersite", "user", "actearly"},
         {"<"},
           {"config", "*", "2", "key", "value"},
         {">"},
@@ -2043,6 +2043,14 @@ void mjXReader::OneActuator(XMLElement* elem, mjCActuator* pact) {
 
   else if (type == "plugin") {
     OnePlugin(elem, pact);
+    int n;
+    if (MapValue(elem, "dyntype", &n, dyn_map, dyn_sz)) {
+      pact->dyntype = (mjtDyn)n;
+    }
+    if (MapValue(elem, "actearly", &n, bool_map, 2)) {
+      pact->actearly = (n==1);
+    }
+    ReadAttr(elem, "dynprm", mjNDYN, pact->dynprm, text, false, false);
   }
 
   else {          // SHOULD NOT OCCUR

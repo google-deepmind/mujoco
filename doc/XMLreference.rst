@@ -4942,21 +4942,21 @@ specify them independently.
 .. _actuator-general-ctrlrange:
 
 :at:`ctrlrange`: :at-val:`real(2), "0 0"`
-   Range for clamping the control input. The compiler expects the first value to be smaller than the second value.
+   Range for clamping the control input. The first value must be smaller than the second value.
    |br| Setting this attribute without specifying :at:`ctrllimited` is an error, unless :at:`autolimits` is set in
    :ref:`compiler <compiler>`.
 
 .. _actuator-general-forcerange:
 
 :at:`forcerange`: :at-val:`real(2), "0 0"`
-   Range for clamping the force output. The compiler expects the first value to be no greater than the second value.
+   Range for clamping the force output. The first value must be no greater than the second value.
    |br| Setting this attribute without specifying :at:`forcelimited` is an error, unless :at:`autolimits` is set in
    :ref:`compiler <compiler>`.
 
 .. _actuator-general-actrange:
 
 :at:`actrange`: :at-val:`real(2), "0 0"`
-   Range for clamping the activation state. The compiler expects the first value to be no greater than the second value.
+   Range for clamping the activation state. The first value must be no greater than the second value.
    See the :ref:`Activation clamping <CActRange>` section for more details.
    |br| Setting this attribute without specifying :at:`actlimited` is an error, unless :at:`autolimits` is set in
    :ref:`compiler <compiler>`.
@@ -5784,11 +5784,28 @@ Associate this actuator with an :ref:`engine plugin<exPlugin>`. Either :at:`plug
 :at:`instance`: :at-val:`string, optional`
    Instance name, used for explicit plugin instantiation.
 
+.. _actuator-plugin-dyntype:
+
+:at:`dyntype`: :at-val:`[none, integrator, filter, filterexact, muscle, user], "none"`
+   Activation dynamics type for the actuator. The available dynamics types were already described in the
+   :ref:`Actuation model <geActuation>` section. See also :ref:`actuator-general-dyntype`. If dyntype is
+   not none, an activation variable will be added to the actuator. This variable will be added after
+   any activation state computed by the plugin (see :ref:`actuator plugin activations<exActuatorAct>`).
+
+.. _actuator-plugin-actrange:
+
+:at:`actrange`: :at-val:`real(2), "0 0"`
+   Range for clamping the activation state associated with this actuator's dyntype. The limit doesn't apply to
+   activations computed by the plugin. The first value must be no greater than the second value.
+   See the :ref:`Activation clamping <CActRange>` section for more details.
+
 .. _actuator-plugin-name:
 
 .. _actuator-plugin-class:
 
 .. _actuator-plugin-group:
+
+.. _actuator-plugin-actlimited:
 
 .. _actuator-plugin-ctrllimited:
 
@@ -5818,9 +5835,14 @@ Associate this actuator with an :ref:`engine plugin<exPlugin>`. Either :at:`plug
 
 .. _actuator-plugin-user:
 
-.. |actuator/plugin attrib list| replace:: :at:`name`, :at:`class`, :at:`group`, :at:`ctrllimited`,
+.. _actuator-plugin-dynprm:
+
+.. _actuator-plugin-actearly:
+
+.. |actuator/plugin attrib list| replace:: :at:`name`, :at:`class`, :at:`group`, :at:`actlimited`, :at:`ctrllimited`,
    :at:`forcelimited`, :at:`ctrlrange`, :at:`forcerange`, :at:`lengthrange`, :at:`gear`, :at:`cranklength`,
-   :at:`joint`, :at:`jointinparent`, :at:`site`, :at:`tendon`, :at:`cranksite`, :at:`slidersite`, :at:`user`
+   :at:`joint`, :at:`jointinparent`, :at:`site`, :at:`tendon`, :at:`cranksite`, :at:`slidersite`, :at:`user`,
+   :at:`dynprm`, :at:`actearly`
 
 |actuator/plugin attrib list|
    Same as in actuator/ :ref:`general <actuator-general>`.

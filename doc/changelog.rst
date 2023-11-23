@@ -12,6 +12,13 @@ General
   for the optimization. This allows to decrease the number of initial points needed for finding the contacts and is more
   robust for very small or large geom sizes.
 
+Plugins
+^^^^^^^
+
+- Allow actuator plugins to use activation variables in ``mjData.act`` as their internal state, rather than
+  ``mjData.plugin_state``. Actuator plugins can now specify :ref:`callbacks<mjpPlugin>` that compute activation
+  variables, and they can be used with built-in :ref:`dyntype<actuator-plugin-dyntype>` actuator dynamics.
+
 Bug fixes
 ^^^^^^^^^
 - Fix bug in Cartesian actuation with movable refsite, as when using body-centric Cartesian actuators on a quadruped.

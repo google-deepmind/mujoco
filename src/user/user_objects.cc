@@ -3775,6 +3775,7 @@ mjCActuator::mjCActuator(mjCModel* _model, mjCDef* _def) {
   forcelimited = 2;
   actlimited = 2;
   actdim = -1;
+  plugin_actdim = 0;
   trntype = mjTRN_UNDEFINED;
   dyntype = mjDYN_NONE;
   gaintype = mjGAIN_FIXED;

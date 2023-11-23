@@ -944,13 +944,9 @@ void mjCModel::SetSizes(void) {
   }
 
   // nu, na
-  for (int i=0; i<(int)actuators.size(); i++) {
-    if (actuators[i]->dyntype == mjDYN_NONE) {
-      nu++;
-    } else {
-      nu++;
-      na += actuators[i]->actdim;
-    }
+  for (int i=0; i<actuators.size(); i++) {
+    nu++;
+    na += actuators[i]->actdim + actuators[i]->plugin_actdim;
   }
 
   // nbvh, nbvhstatic, nbvhdynamic
@@ -1811,6 +1807,7 @@ void mjCModel::CopyObjects(mjModel* m) {
   m->nconmax = nconmax;
   m->nsensordata = nsensordata;
   m->nuserdata = nuserdata;
+  m->na = na;
 
   // find bvh_adr after bodies
   bvh_adr = 0;
@@ -2205,9 +2202,9 @@ void mjCModel::CopyObjects(mjModel* m) {
     m->actuator_biastype[i] = pac->biastype;
     m->actuator_trnid[2*i] = pac->trnid[0];
     m->actuator_trnid[2*i+1] = pac->trnid[1];
-    m->actuator_actadr[i] = pac->dyntype == mjDYN_NONE ? -1 : adr;
-    adr += pac->actdim;
-    m->actuator_actnum[i] = pac->actdim;
+    m->actuator_actnum[i] = pac->actdim + pac->plugin_actdim;
+    m->actuator_actadr[i] = m->actuator_actnum[i] ? adr : -1;
+    adr += m->actuator_actnum[i];
     m->actuator_group[i] = pac->group;
     m->actuator_ctrllimited[i] = pac->ctrllimited;
     m->actuator_forcelimited[i] = pac->forcelimited;
@@ -2982,9 +2979,12 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
   // query and set plugin-related information
   {
     // set actuator_plugin to the plugin instance ID
+    std::vector<std::vector<int>> plugin_to_actuators(nplugin);
     for (int i = 0; i < nu; ++i) {
       if (actuators[i]->is_plugin) {
-        m->actuator_plugin[i] = actuators[i]->plugin_instance->id;
+        int actuator_plugin = actuators[i]->plugin_instance->id;
+        m->actuator_plugin[i] = actuator_plugin;
+        plugin_to_actuators[actuator_plugin].push_back(i);
       } else {
         m->actuator_plugin[i] = -1;
       }
@@ -3039,6 +3039,13 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
           sensors[sensor_id]->needstage =
               static_cast<mjtStage>(plugin->needstage);
           this->nsensordata += nsensordata;
+        }
+      }
+      if ((plugin->capabilityflags & mjPLUGIN_ACTUATOR) && plugin->actuator_actdim) {
+        for (int actuator_id : plugin_to_actuators[i]) {
+          int plugin_actdim = plugin->actuator_actdim(m, i, actuator_id);
+          actuators[actuator_id]->plugin_actdim = plugin_actdim;
+          this->na += plugin_actdim;
         }
       }
     }

@@ -199,6 +199,25 @@ When :ref:`mjData` is being copied via :ref:`mj_copyData`, MuJoCo will copy over
 code is responsible for setting up the plugin data for the newly copied :ref:`mjData`. To facilitate this, MuJoCo calls
 the ``copy`` callback from :ref:`mjpPlugin` for each plugin instance present.
 
+.. _exActuatorAct:
+
+Actuator activations
+""""""""""""""""""""
+
+When writing stateful actuator plugins, there are two choices for where to save the actuator state. One option is using
+``plugin_state`` as described above, and the other is to use ``mjData.act`` by implementing the ``actuator_actdim`` and
+ ``actuator_act_dot`` callbacks on :ref:`mjpPlugin`.
+
+When using the latter option, the actuator plugin's state will be added to ``mjData.act``, and MuJoCo will
+automatically integrate ``mjData.act_dot`` values between timesteps. One advantage of this approach is that
+finite-differencing functions like :ref:`mjd_transitionFD` will work as they do for native actuators. The
+``mjpPlugin.advance`` callback will be called after ``act_dot`` is integrated, and actuator plugins may overwrite
+the ``act`` values at that point, if Euler integration isn't appropriate.
+
+Users may specify the :ref:`dyntype<actuator-plugin-dyntype>` attribute on actuator plugins, to introduce a filter or
+an integrator between user inputs and actuator activations. When they do, the activation variable introduced by
+``dyntype`` will be placed *after* the plugin's activation variables in the ``act`` array.
+
 .. _exRegistration:
 
 Registration
