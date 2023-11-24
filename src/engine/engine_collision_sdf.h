@@ -28,7 +28,7 @@ typedef enum mjtSDFType_ {        // signed distance function (SDF) type
   mjSDFTYPE_SINGLE     = 0,       // single SDF
   mjSDFTYPE_INTERSECTION,         // max(A, B)
   mjSDFTYPE_MIDSURFACE,           // A - B
-  mjSDFTYPE_QUADRATIC,            // max(A, 0)^2/2 + max(B, 0)^2/2 + min(A, 0)*min(B, 0)
+  mjSDFTYPE_COLLISION,            // A + B + abs(max(A, B))
 } mjtSDFType;
 
 struct mjSDF_ {
