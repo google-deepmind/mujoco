@@ -267,8 +267,11 @@ A future version of this section will include:
 * Things that developers need to keep in mind in order to ensure that plugins function correctly when :ref:`mjData` is
   copied, stepped, or reset.
 
-Currently, there are three directories of first-party plugins:
+There are several first-party plugin directories:
 
+* **actuator:** The plugins in the `actuator/ <https://github.com/google-deepmind/mujoco/tree/main/plugin/actuator>`__
+  directory implement custom actuators, so far only a PID controller. See the
+  `README <https://github.com/google-deepmind/mujoco/blob/main/plugin/actuator/README.md>`__ for details.
 * **elasticity:** The plugins in the `elasticity/
   <https://github.com/google-deepmind/mujoco/tree/main/plugin/elasticity>`__ directory are passive forces based on
   continuum mechanics for 1-dimensional and 3-dimensional bodies. The 1D model is invariant under rotations and captures
@@ -342,7 +345,6 @@ loading functions. The :ref:`mjpResourceProvider` struct stores three types of f
 .. _Uniform Resource Identifier: https://en.wikipedia.org/wiki/Uniform_Resource_Identifier
 
 Resource prefix
-
   Resources are identified by prefixes in their name. The chosen prefix should have a valid `Uniform Resource
   Identifier`_ (URI) scheme syntax. Resource names should also have a valid URI syntax, however this isn't enforced. A
   resource name with the syntax ``{prefix}:{filename}`` will match a provider using the scheme ``prefix``.  For

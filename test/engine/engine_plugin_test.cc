@@ -36,7 +36,7 @@ using ::testing::DoubleNear;
 using ::testing::HasSubstr;
 using ::testing::NotNull;
 
-constexpr int kNumTruePlugins = 11;
+constexpr int kNumTruePlugins = 12;
 constexpr int kNumFakePlugins = 30;
 constexpr int kNumTestPlugins = 3;
 

@@ -83,6 +83,7 @@ target_include_directories(
 )
 
 add_subdirectory(plugin/elasticity)
+add_subdirectory(plugin/actuator)
 add_subdirectory(plugin/sensor)
 add_subdirectory(plugin/sdf)
 add_subdirectory(src/engine)
