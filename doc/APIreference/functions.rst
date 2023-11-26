@@ -3011,10 +3011,10 @@ outputs (optional):
 
 notes:
   The initial value of ``res`` is used to warmstart the solver.
-  ``R`` must have allocatd size ``n*(n+7)``, but only ``nfree*nfree`` values are used in output.
-  ``index`` (if given) must have allocated size ``n``, but only ``nfree`` values are used in output.
+  ``R`` must have allocated size ``n*(n+7)``, but only ``nfree*nfree`` values are used as output.
+  ``index`` (if given) must have allocated size ``n``, but only ``nfree`` values are used as output.
   The convenience function :ref:`mju_boxQPmalloc` allocates the required data structures.
-  Only the lower triangles of H and R and are read from and written to, respectively.
+  Only the lower triangles of H and R are read from and written to, respectively.
 
 .. _mju_boxQPmalloc:
 
