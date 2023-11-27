@@ -162,11 +162,7 @@ mjCModel::mjCModel() {
   //------------------------ world body
   mjCBody* world = new mjCBody(this);
   mjuu_zerovec(world->pos, 3);
-  mjuu_zerovec(world->locpos, 3);
-  mjuu_zerovec(world->locipos, 3);
   mjuu_setvec(world->quat, 1, 0, 0, 0);
-  mjuu_setvec(world->locquat, 1, 0, 0, 0);
-  mjuu_setvec(world->lociquat, 1, 0, 0, 0);
   world->mass = 0;
   mjuu_zerovec(world->inertia, 3);
   world->id = 0;
@@ -1414,10 +1410,10 @@ void mjCModel::CopyTree(mjModel* m) {
     m->body_dofadr[i] = (pb->dofnum ? dofadr : -1);
     m->body_geomnum[i] = (int)pb->geoms.size();
     m->body_geomadr[i] = (!pb->geoms.empty() ? pb->geoms[0]->id : -1);
-    copyvec(m->body_pos+3*i, pb->locpos, 3);
-    copyvec(m->body_quat+4*i, pb->locquat, 4);
-    copyvec(m->body_ipos+3*i, pb->locipos, 3);
-    copyvec(m->body_iquat+4*i, pb->lociquat, 4);
+    copyvec(m->body_pos+3*i, pb->pos, 3);
+    copyvec(m->body_quat+4*i, pb->quat, 4);
+    copyvec(m->body_ipos+3*i, pb->ipos, 3);
+    copyvec(m->body_iquat+4*i, pb->iquat, 4);
     m->body_mass[i] = (mjtNum)pb->mass;
     copyvec(m->body_inertia+3*i, pb->inertia, 3);
     m->body_gravcomp[i] = pb->gravcomp;
@@ -1492,8 +1488,8 @@ void mjCModel::CopyTree(mjModel* m) {
       m->jnt_qposadr[jid] = qposadr;
       m->jnt_dofadr[jid] = dofadr;
       m->jnt_bodyid[jid] = pj->body->id;
-      copyvec(m->jnt_pos+3*jid, pj->locpos, 3);
-      copyvec(m->jnt_axis+3*jid, pj->locaxis, 3);
+      copyvec(m->jnt_pos+3*jid, pj->pos, 3);
+      copyvec(m->jnt_axis+3*jid, pj->axis, 3);
       m->jnt_stiffness[jid] = (mjtNum)pj->stiffness;
       copyvec(m->jnt_range+2*jid, pj->range, 2);
       copyvec(m->jnt_actfrcrange+2*jid, pj->actfrcrange, 2);
@@ -1506,9 +1502,9 @@ void mjCModel::CopyTree(mjModel* m) {
       if (rotfound ||
           !IsNullPose(m->jnt_pos+3*jid, NULL) ||
           ((pj->type==mjJNT_HINGE || pj->type==mjJNT_SLIDE) &&
-           ((mju_abs(pj->locaxis[0])>mjEPS) +
-            (mju_abs(pj->locaxis[1])>mjEPS) +
-            (mju_abs(pj->locaxis[2])>mjEPS)) > 1)) {
+           ((mju_abs(pj->axis[0])>mjEPS) +
+            (mju_abs(pj->axis[1])>mjEPS) +
+            (mju_abs(pj->axis[2])>mjEPS)) > 1)) {
         m->body_simple[i] = 0;
       }
 
@@ -1602,8 +1598,8 @@ void mjCModel::CopyTree(mjModel* m) {
       m->geom_priority[gid] = pg->priority;
       copyvec(m->geom_size+3*gid, pg->size, 3);
       copyvec(m->geom_aabb+6*gid, pg->aabb, 6);
-      copyvec(m->geom_pos+3*gid, pg->locpos, 3);
-      copyvec(m->geom_quat+4*gid, pg->locquat, 4);
+      copyvec(m->geom_pos+3*gid, pg->pos, 3);
+      copyvec(m->geom_quat+4*gid, pg->quat, 4);
       copyvec(m->geom_friction+3*gid, pg->friction, 3);
       m->geom_solmix[gid] = (mjtNum)pg->solmix;
       copyvec(m->geom_solref+mjNREF*gid, pg->solref, mjNREF);
@@ -1617,13 +1613,13 @@ void mjCModel::CopyTree(mjModel* m) {
       // determine sameframe
       if (IsNullPose(m->geom_pos+3*gid, m->geom_quat+4*gid)) {
         m->geom_sameframe[gid] = 1;
-      } else if (pg->locpos[0]==pb->locipos[0] &&
-                 pg->locpos[1]==pb->locipos[1] &&
-                 pg->locpos[2]==pb->locipos[2] &&
-                 pg->locquat[0]==pb->lociquat[0] &&
-                 pg->locquat[1]==pb->lociquat[1] &&
-                 pg->locquat[2]==pb->lociquat[2] &&
-                 pg->locquat[3]==pb->lociquat[3]) {
+      } else if (pg->pos[0]==pb->ipos[0] &&
+                 pg->pos[1]==pb->ipos[1] &&
+                 pg->pos[2]==pb->ipos[2] &&
+                 pg->quat[0]==pb->iquat[0] &&
+                 pg->quat[1]==pb->iquat[1] &&
+                 pg->quat[2]==pb->iquat[2] &&
+                 pg->quat[3]==pb->iquat[3]) {
         m->geom_sameframe[gid] = 2;
       } else {
         m->geom_sameframe[gid] = 0;
@@ -1645,21 +1641,21 @@ void mjCModel::CopyTree(mjModel* m) {
       m->site_matid[sid] = ps->matid;
       m->site_group[sid] = ps->group;
       copyvec(m->site_size+3*sid, ps->size, 3);
-      copyvec(m->site_pos+3*sid, ps->locpos, 3);
-      copyvec(m->site_quat+4*sid, ps->locquat, 4);
+      copyvec(m->site_pos+3*sid, ps->pos, 3);
+      copyvec(m->site_quat+4*sid, ps->quat, 4);
       copyvec(m->site_user+nuser_site*sid, ps->userdata.data(), nuser_site);
       copyvec(m->site_rgba+4*sid, ps->rgba, 4);
 
       // determine sameframe
       if (IsNullPose(m->site_pos+3*sid, m->site_quat+4*sid)) {
         m->site_sameframe[sid] = 1;
-      } else if (ps->locpos[0]==pb->locipos[0] &&
-                 ps->locpos[1]==pb->locipos[1] &&
-                 ps->locpos[2]==pb->locipos[2] &&
-                 ps->locquat[0]==pb->lociquat[0] &&
-                 ps->locquat[1]==pb->lociquat[1] &&
-                 ps->locquat[2]==pb->lociquat[2] &&
-                 ps->locquat[3]==pb->lociquat[3]) {
+      } else if (ps->pos[0]==pb->ipos[0] &&
+                 ps->pos[1]==pb->ipos[1] &&
+                 ps->pos[2]==pb->ipos[2] &&
+                 ps->quat[0]==pb->iquat[0] &&
+                 ps->quat[1]==pb->iquat[1] &&
+                 ps->quat[2]==pb->iquat[2] &&
+                 ps->quat[3]==pb->iquat[3]) {
         m->site_sameframe[sid] = 2;
       } else {
         m->site_sameframe[sid] = 0;
@@ -1676,8 +1672,8 @@ void mjCModel::CopyTree(mjModel* m) {
       m->cam_bodyid[cid] = pc->body->id;
       m->cam_mode[cid] = pc->mode;
       m->cam_targetbodyid[cid] = pc->targetbodyid;
-      copyvec(m->cam_pos+3*cid, pc->locpos, 3);
-      copyvec(m->cam_quat+4*cid, pc->locquat, 4);
+      copyvec(m->cam_pos+3*cid, pc->pos, 3);
+      copyvec(m->cam_quat+4*cid, pc->quat, 4);
       m->cam_fovy[cid] = (mjtNum)pc->fovy;
       m->cam_ipd[cid] = (mjtNum)pc->ipd;
       copyvec(m->cam_resolution+2*cid, pc->resolution, 2);
@@ -1699,8 +1695,8 @@ void mjCModel::CopyTree(mjModel* m) {
       m->light_directional[lid] = (mjtByte)pl->directional;
       m->light_castshadow[lid] = (mjtByte)pl->castshadow;
       m->light_active[lid] = (mjtByte)pl->active;
-      copyvec(m->light_pos+3*lid, pl->locpos, 3);
-      copyvec(m->light_dir+3*lid, pl->locdir, 3);
+      copyvec(m->light_pos+3*lid, pl->pos, 3);
+      copyvec(m->light_dir+3*lid, pl->dir, 3);
       copyvec(m->light_attenuation+3*lid, pl->attenuation, 3);
       m->light_cutoff[lid] = pl->cutoff;
       m->light_exponent[lid] = pl->exponent;
@@ -2419,8 +2415,7 @@ void mjCModel::FuseStatic(void) {
 
     if (body->parentid>0 && body->mass>=mjMINVAL) {
       // body_ipose = body_pose * body_ipose
-      changeframe(body->locipos, body->lociquat,
-                  body->locpos, body->locquat);
+      changeframe(body->ipos, body->iquat, body->pos, body->quat);
 
       // organize data
       double mass[2] = {
@@ -2432,47 +2427,47 @@ void mjCModel::FuseStatic(void) {
         {body->inertia[0], body->inertia[1], body->inertia[2]}
       };
       double ipos[2][3] = {
-        {par->locipos[0], par->locipos[1], par->locipos[2]},
-        {body->locipos[0], body->locipos[1], body->locipos[2]}
+        {par->ipos[0], par->ipos[1], par->ipos[2]},
+        {body->ipos[0], body->ipos[1], body->ipos[2]}
       };
       double iquat[2][4] = {
-        {par->lociquat[0], par->lociquat[1], par->lociquat[2], par->lociquat[3]},
-        {body->lociquat[0], body->lociquat[1], body->lociquat[2], body->lociquat[3]}
+        {par->iquat[0], par->iquat[1], par->iquat[2], par->iquat[3]},
+        {body->iquat[0], body->iquat[1], body->iquat[2], body->iquat[3]}
       };
 
       // compute total mass
       par->mass = 0;
-      mjuu_setvec(par->locipos, 0, 0, 0);
+      mjuu_setvec(par->ipos, 0, 0, 0);
       for (int j=0; j<2; j++) {
         par->mass += mass[j];
-        par->locipos[0] += mass[j]*ipos[j][0];
-        par->locipos[1] += mass[j]*ipos[j][1];
-        par->locipos[2] += mass[j]*ipos[j][2];
+        par->ipos[0] += mass[j]*ipos[j][0];
+        par->ipos[1] += mass[j]*ipos[j][1];
+        par->ipos[2] += mass[j]*ipos[j][2];
       }
 
       // small mass: allow for now, check for errors later
       if (par->mass<mjMINVAL) {
         par->mass = 0;
         mjuu_setvec(par->inertia, 0, 0, 0);
-        mjuu_setvec(par->locipos, 0, 0, 0);
-        mjuu_setvec(par->lociquat, 1, 0, 0, 0);
+        mjuu_setvec(par->ipos, 0, 0, 0);
+        mjuu_setvec(par->iquat, 1, 0, 0, 0);
       }
 
       // proceed with regular computation
       else {
         // locipos = center-of-mass
-        par->locipos[0] /= par->mass;
-        par->locipos[1] /= par->mass;
-        par->locipos[2] /= par->mass;
+        par->ipos[0] /= par->mass;
+        par->ipos[1] /= par->mass;
+        par->ipos[2] /= par->mass;
 
         // add inertias
         double toti[6] = {0, 0, 0, 0, 0, 0};
         for (int j=0; j<2; j++) {
           double inertA[6], inertB[6];
           double dpos[3] = {
-            ipos[j][0] - par->locipos[0],
-            ipos[j][1] - par->locipos[1],
-            ipos[j][2] - par->locipos[2]
+            ipos[j][0] - par->ipos[0],
+            ipos[j][1] - par->ipos[1],
+            ipos[j][2] - par->ipos[2]
           };
 
           mjuu_globalinertia(inertA, inertia[j], iquat[j]);
@@ -2485,7 +2480,7 @@ void mjCModel::FuseStatic(void) {
         // compute principal axes of inertia
         mjCAlternative alt;
         mjuu_copyvec(alt.fullinertia, toti, 6);
-        const char* err1 = alt.Set(par->lociquat, par->inertia, degree, euler);
+        const char* err1 = alt.Set(par->iquat, par->inertia, degree, euler);
         if (err1) {
           throw mjCError(NULL, "error '%s' in fusing static body inertias", err1);
         }
@@ -2496,8 +2491,8 @@ void mjCModel::FuseStatic(void) {
 
     // change frames of child bodies
     for (int j=0; j<body->bodies.size(); j++)
-      changeframe(body->bodies[j]->locpos, body->bodies[j]->locquat,
-                  body->locpos, body->locquat);
+      changeframe(body->bodies[j]->pos, body->bodies[j]->quat,
+                  body->pos, body->quat);
 
     // find body in parent list, insert children before it
     bool found = false;
@@ -2534,7 +2529,7 @@ void mjCModel::FuseStatic(void) {
       par->geoms.push_back(body->geoms[j]);
 
       // change frame
-      changeframe(body->geoms[j]->locpos, body->geoms[j]->locquat, body->locpos, body->locquat);
+      changeframe(body->geoms[j]->pos, body->geoms[j]->quat, body->pos, body->quat);
     }
 
     // sites
@@ -2544,7 +2539,7 @@ void mjCModel::FuseStatic(void) {
       par->sites.push_back(body->sites[j]);
 
       // change frame
-      changeframe(body->sites[j]->locpos, body->sites[j]->locquat, body->locpos, body->locquat);
+      changeframe(body->sites[j]->pos, body->sites[j]->quat, body->pos, body->quat);
     }
 
     //------------- remove from global body list, reduce global counts
@@ -3223,10 +3218,10 @@ bool mjCModel::CopyBack(const mjModel* m) {
   for (int i=0; i<nbody; i++) {
     pb = bodies[i];
 
-    copyvec(pb->locpos, m->body_pos+3*i, 3);
-    copyvec(pb->locquat, m->body_quat+4*i, 4);
-    copyvec(pb->locipos, m->body_ipos+3*i, 3);
-    copyvec(pb->lociquat, m->body_iquat+4*i, 4);
+    copyvec(pb->pos, m->body_pos+3*i, 3);
+    copyvec(pb->quat, m->body_quat+4*i, 4);
+    copyvec(pb->ipos, m->body_ipos+3*i, 3);
+    copyvec(pb->iquat, m->body_iquat+4*i, 4);
     pb->mass = (double)m->body_mass[i];
     copyvec(pb->inertia, m->body_inertia+3*i, 3);
 
@@ -3241,8 +3236,8 @@ bool mjCModel::CopyBack(const mjModel* m) {
     pj = joints[i];
 
     // joint data
-    copyvec(pj->locpos, m->jnt_pos+3*i, 3);
-    copyvec(pj->locaxis, m->jnt_axis+3*i, 3);
+    copyvec(pj->pos, m->jnt_pos+3*i, 3);
+    copyvec(pj->axis, m->jnt_axis+3*i, 3);
     pj->stiffness = (double)m->jnt_stiffness[i];
     copyvec(pj->range, m->jnt_range+2*i, 2);
     copyvec(pj->solref_limit, m->jnt_solref+mjNREF*i, mjNREF);
@@ -3268,8 +3263,8 @@ bool mjCModel::CopyBack(const mjModel* m) {
     pg = geoms[i];
 
     copyvec(pg->size, m->geom_size+3*i, 3);
-    copyvec(pg->locpos, m->geom_pos+3*i, 3);
-    copyvec(pg->locquat, m->geom_quat+4*i, 4);
+    copyvec(pg->pos, m->geom_pos+3*i, 3);
+    copyvec(pg->quat, m->geom_quat+4*i, 4);
     copyvec(pg->friction, m->geom_friction+3*i, 3);
     copyvec(pg->solref, m->geom_solref+mjNREF*i, mjNREF);
     copyvec(pg->solimp, m->geom_solimp+mjNIMP*i, mjNIMP);
@@ -3295,8 +3290,8 @@ bool mjCModel::CopyBack(const mjModel* m) {
   // sites
   for (int i=0; i<nsite; i++) {
     copyvec(sites[i]->size, m->site_size + 3 * i, 3);
-    copyvec(sites[i]->locpos, m->site_pos+3*i, 3);
-    copyvec(sites[i]->locquat, m->site_quat+4*i, 4);
+    copyvec(sites[i]->pos, m->site_pos+3*i, 3);
+    copyvec(sites[i]->quat, m->site_quat+4*i, 4);
     copyvec(sites[i]->rgba, m->site_rgba+4*i, 4);
 
     if (nuser_site) {

@@ -280,10 +280,10 @@ void mjXWriter::OneJoint(XMLElement* elem, mjCJoint* pjoint, mjCDef* def) {
     WriteAttrTxt(elem, "name", pjoint->name);
     WriteAttrTxt(elem, "class", pjoint->classname);
     if (pjoint->type != mjJNT_FREE) {
-      WriteAttr(elem, "pos", 3, pjoint->locpos);
+      WriteAttr(elem, "pos", 3, pjoint->pos);
     }
     if (pjoint->type != mjJNT_FREE && pjoint->type != mjJNT_BALL) {
-      WriteAttr(elem, "axis", 3, pjoint->locaxis);
+      WriteAttr(elem, "axis", 3, pjoint->axis);
     }
   }
 
@@ -350,12 +350,12 @@ void mjXWriter::OneGeom(XMLElement* elem, mjCGeom* pgeom, mjCDef* def) {
       mjCMesh* pmesh = model->meshes[pgeom->meshid];
 
       // write pos/quat if there is a difference
-      if (!SameVector(pgeom->locpos, pmesh->GetPosPtr(pgeom->typeinertia), 3) ||
-          !SameVector(pgeom->locquat, pmesh->GetQuatPtr(pgeom->typeinertia), 4)) {
+      if (!SameVector(pgeom->pos, pmesh->GetPosPtr(pgeom->typeinertia), 3) ||
+          !SameVector(pgeom->quat, pmesh->GetQuatPtr(pgeom->typeinertia), 4)) {
         // recover geom pos/quat before mesh frame transformation
         double p[3], q[4];
-        mjuu_copyvec(p, pgeom->locpos, 3);
-        mjuu_copyvec(q, pgeom->locquat, 4);
+        mjuu_copyvec(p, pgeom->pos, 3);
+        mjuu_copyvec(q, pgeom->quat, 4);
         mjuu_frameaccuminv(p, q, pmesh->GetPosPtr(pgeom->typeinertia),
                            pmesh->GetQuatPtr(pgeom->typeinertia));
 
@@ -367,8 +367,8 @@ void mjXWriter::OneGeom(XMLElement* elem, mjCGeom* pgeom, mjCDef* def) {
 
     // non-mesh geom
     else {
-      WriteAttr(elem, "pos", 3, pgeom->locpos, unitq+1);
-      WriteAttr(elem, "quat", 4, pgeom->locquat, unitq);
+      WriteAttr(elem, "pos", 3, pgeom->pos, unitq+1);
+      WriteAttr(elem, "quat", 4, pgeom->quat, unitq);
     }
   } else {
     WriteAttr(elem, "size", 3, pgeom->size, def->geom.size);
@@ -432,8 +432,8 @@ void mjXWriter::OneSite(XMLElement* elem, mjCSite* psite, mjCDef* def) {
   if (!writingdefaults) {
     WriteAttrTxt(elem, "name", psite->name);
     WriteAttrTxt(elem, "class", psite->classname);
-    WriteAttr(elem, "pos", 3, psite->locpos);
-    WriteAttr(elem, "quat", 4, psite->locquat, unitq);
+    WriteAttr(elem, "pos", 3, psite->pos);
+    WriteAttr(elem, "quat", 4, psite->quat, unitq);
     if (mjGEOMINFO[psite->type]) {
       WriteAttr(elem, "size", mjGEOMINFO[psite->type], psite->size, def->site.size);
     }
@@ -468,8 +468,8 @@ void mjXWriter::OneCamera(XMLElement* elem, mjCCamera* pcam, mjCDef* def) {
     WriteAttrTxt(elem, "name", pcam->name);
     WriteAttrTxt(elem, "class", pcam->classname);
     WriteAttrTxt(elem, "target", pcam->targetbody);
-    WriteAttr(elem, "pos", 3, pcam->locpos);
-    WriteAttr(elem, "quat", 4, pcam->locquat, unitq);
+    WriteAttr(elem, "pos", 3, pcam->pos);
+    WriteAttr(elem, "quat", 4, pcam->quat, unitq);
   }
 
   // defaults and regular
@@ -508,8 +508,8 @@ void mjXWriter::OneLight(XMLElement* elem, mjCLight* plight, mjCDef* def) {
     WriteAttrTxt(elem, "name", plight->name);
     WriteAttrTxt(elem, "class", plight->classname);
     WriteAttrTxt(elem, "target", plight->targetbody);
-    WriteAttr(elem, "pos", 3, plight->locpos);
-    WriteAttr(elem, "dir", 3, plight->locdir);
+    WriteAttr(elem, "pos", 3, plight->pos);
+    WriteAttr(elem, "dir", 3, plight->dir);
   }
 
   // defaults and regular
@@ -1466,10 +1466,10 @@ void mjXWriter::Body(XMLElement* elem, mjCBody* body) {
     WriteAttrTxt(elem, "childclass", body->classname);
 
     // write pos if it's not {0, 0, 0}
-    if (body->locpos[0] || body->locpos[1] || body->locpos[2]) {
-      WriteAttr(elem, "pos", 3, body->locpos);
+    if (body->pos[0] || body->pos[1] || body->pos[2]) {
+      WriteAttr(elem, "pos", 3, body->pos);
     }
-    WriteAttr(elem, "quat", 4, body->locquat, unitq);
+    WriteAttr(elem, "quat", 4, body->quat, unitq);
     if (body->mocap) {
       WriteAttrKey(elem, "mocap", bool_map, 2, 1);
     }
@@ -1485,8 +1485,8 @@ void mjXWriter::Body(XMLElement* elem, mjCBody* body) {
     if (body->explicitinertial &&
         model->inertiafromgeom!=mjINERTIAFROMGEOM_TRUE) {
       XMLElement* inertial = InsertEnd(elem, "inertial");
-      WriteAttr(inertial, "pos", 3, body->locipos);
-      WriteAttr(inertial, "quat", 4, body->lociquat, unitq);
+      WriteAttr(inertial, "pos", 3, body->ipos);
+      WriteAttr(inertial, "quat", 4, body->iquat, unitq);
       WriteAttr(inertial, "mass", 1, &body->mass);
       WriteAttr(inertial, "diaginertia", 3, body->inertia);
     }
@@ -2036,9 +2036,9 @@ void mjXWriter::Keyframe(XMLElement* root) {
         if (model->bodies[j]->mocap) {
           mjCBody* pb = model->bodies[j];
           int id = pb->mocapid;
-          if (pb->locpos[0] != pk->mpos[3*id] ||
-              pb->locpos[1] != pk->mpos[3*id+1] ||
-              pb->locpos[2] != pk->mpos[3*id+2]) {
+          if (pb->pos[0] != pk->mpos[3*id] ||
+              pb->pos[1] != pk->mpos[3*id+1] ||
+              pb->pos[2] != pk->mpos[3*id+2]) {
             WriteAttr(elem, "mpos", 3*model->nmocap, pk->mpos.data());
             change = true;
             break;
@@ -2053,10 +2053,10 @@ void mjXWriter::Keyframe(XMLElement* root) {
         if (model->bodies[j]->mocap) {
           mjCBody* pb = model->bodies[j];
           int id = pb->mocapid;
-          if (pb->locquat[0] != pk->mquat[4*id] ||
-              pb->locquat[1] != pk->mquat[4*id+1] ||
-              pb->locquat[2] != pk->mquat[4*id+2] ||
-              pb->locquat[3] != pk->mquat[4*id+3]) {
+          if (pb->quat[0] != pk->mquat[4*id] ||
+              pb->quat[1] != pk->mquat[4*id+1] ||
+              pb->quat[2] != pk->mquat[4*id+2] ||
+              pb->quat[3] != pk->mquat[4*id+3]) {
             WriteAttr(elem, "mquat", 4*model->nmocap, pk->mquat.data());
             change = true;
             break;

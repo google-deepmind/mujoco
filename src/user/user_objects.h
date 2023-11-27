@@ -232,9 +232,6 @@ class mjCBody : public mjCBase {
   mjCBase* GetObject(mjtObj type, int id);
   mjCBase* FindObject(mjtObj type, std::string name, bool recursive = true);
 
-  // setup child local frame, take into account change
-  void MakeLocal(double* locpos, double* locquat, const double* pos, const double* quat);
-
   // set explicitinertial to true
   void MakeInertialExplicit();
 
@@ -259,10 +256,6 @@ class mjCBody : public mjCBase {
 
   void GeomFrame(void);               // get inertial info from geoms
 
-  double locpos[3];               // position relative to parent
-  double locquat[4];              // orientation relative to parent
-  double locipos[3];              // inertial position frame, rel. to local frame
-  double lociquat[4];             // inertial frame orientation
   int parentid;                   // parent index in global array
   int weldid;                     // top index of body we are welded to
   int dofnum;                     // number of motion dofs for body
@@ -359,8 +352,6 @@ class mjCJoint : public mjCBase {
   int Compile(void);                  // compiler; return dofnum
 
   mjCBody* body;                  // joint's body
-  double locpos[3];               // anchor position in child or parent
-  double locaxis[3];              // joint axis in child or parent
 };
 
 
@@ -436,8 +427,6 @@ class mjCGeom : public mjCBase {
   int hfieldid;                   // id of geom's hfield (-1: none)
   double mass;                    // mass
   double inertia[3];              // local diagonal inertia
-  double locpos[3];               // local position
-  double locquat[4];              // local orientation
   double aabb[6];                 // axis-aligned bounding box (center, size)
   mjCBody* body;                  // geom's body
 };
@@ -473,8 +462,6 @@ class mjCSite : public mjCBase {
   void Compile(void);                     // compiler
 
   mjCBody* body;                  // site's body
-  double locpos[3];               // local position
-  double locquat[4];              // local orientation
   int matid;                      // material id for rendering
 };
 
@@ -512,8 +499,6 @@ class mjCCamera : public mjCBase {
   void Compile(void);                     // compiler
 
   mjCBody* body;                  // camera's body
-  double locpos[3];               // local position
-  double locquat[4];              // local orientation
   int targetbodyid;               // id of target body; -1: none
 };
 
@@ -549,8 +534,6 @@ class mjCLight : public mjCBase {
   void Compile(void);                     // compiler
 
   mjCBody* body;                  // light's body
-  double locpos[3];               // local position
-  double locdir[3];               // local direction
   int targetbodyid;               // id of target body; -1: none
 };
 
