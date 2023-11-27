@@ -32,7 +32,6 @@
 #include "engine/engine_io.h"
 #include "engine/engine_plugin.h"
 #include "engine/engine_setconst.h"
-#include "engine/engine_resource.h"
 #include "engine/engine_support.h"
 #include "engine/engine_util_blas.h"
 #include "engine/engine_util_errmem.h"
@@ -3100,11 +3099,12 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
   // create data
   int disableflags = m->opt.disableflags;
   m->opt.disableflags |= mjDSBL_CONTACT;
-  d = mj_makeData(m);
+  d = mj_makeRawData(m);
   if (!d) {
     mj_deleteModel(m);
     throw mjCError(0, "could not create mjData");
   }
+  mj_resetData(m, d);
 
   // normalize keyframe quaternions
   for (int i=0; i<m->nkey; i++) {
@@ -3134,8 +3134,17 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
     mj_deleteModel(m);
     throw mjCError(0, validationerr);
   }
+
+  // delete partial mjData (no plugins), make a complete one
+  mj_deleteData(d);
+  d = nullptr;
+  d = mj_makeData(m);
+  if (!d) {
+    mj_deleteModel(m);
+    throw mjCError(0, "could not create mjData");
+  }
+
   // test forward simulation
-  mj_resetData(m, d);
   mj_step(m, d);
 
   // delete data
