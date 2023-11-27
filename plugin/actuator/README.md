@@ -50,6 +50,4 @@ The available options are:
 :         :        :                                                                                                                                     :
 :         :        :If a bigger change is requested between two timesteps, it will be clipped to the range `[ctrl - slewmax * dt, ctrl + slewmax * dt]`  :
 :         :        :                                                                                                                                     :
-:         :        :If specified, one activation variable will be added to `mjData.act` containing the previous value of `ctrl`. One state variable will :
-:         :        :be added to `mjData.plugin_state`, to indicate whether the previous value of `ctrl` should be used (0 on first step, 1           :
-:         :        :otherwise).                                                                                                                          :
+:         :        :If specified, one activation variable will be added to `mjData.act` containing the previous value of `ctrl`.                         :

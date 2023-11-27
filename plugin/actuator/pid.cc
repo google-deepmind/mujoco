@@ -128,9 +128,6 @@ std::unique_ptr<Pid> Pid::Create(const mjModel* m, int instance) {
 void Pid::Reset(mjtNum* plugin_state) {
   integral_ = 0.0;
   previous_ctrl_ = 0.0;
-  if (config_.slew_max.has_value()) {
-    plugin_state[0] = false;  // previous_ctrl_exists
-  }
 }
 
 mjtNum Pid::GetCtrl(const mjModel* m, const mjData* d, const State& state,
@@ -208,15 +205,11 @@ void Pid::Compute(const mjModel* m, mjData* d, int instance) {
 }
 
 void Pid::Advance(const mjModel* m, mjData* d, int instance) const {
-  if (config_.slew_max.has_value()) {
-    // previous_ctrl_exists = true
-    d->plugin_state[m->plugin_stateadr[instance]] = true;
-  }
   // act variables already updated by MuJoCo integrating act_dot
 }
 
 int Pid::StateSize(const mjModel* m, int instance) {
-  return HasSlew(m, instance) ? 1 : 0;
+  return 0;
 }
 
 int Pid::ActDim(const mjModel* m, int instance, int actuator_id) {
@@ -232,7 +225,7 @@ Pid::State Pid::GetState(const mjModel* m, mjData* d, int instance) const {
   }
   if (config_.slew_max.has_value()) {
     state.previous_ctrl = d->act[state_idx++];
-    state.previous_ctrl_exists = d->plugin_state[m->plugin_stateadr[instance]];
+    state.previous_ctrl_exists = d->time > 0;
   }
   return state;
 }
