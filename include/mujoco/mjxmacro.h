@@ -334,7 +334,7 @@
     X   ( int,     flex_vertbodyid,       nflexvert,     1                    ) \
     X   ( int,     flex_edge,             nflexedge,     2                    ) \
     XMJV( int,     flex_elem,             nflexelemdata, 1                    ) \
-    X   ( int,     flex_elemlayer,        nflexelem,     1                    ) \
+    XMJV( int,     flex_elemlayer,        nflexelem,     1                    ) \
     XMJV( int,     flex_shell,            nflexshelldata,1                    ) \
     X   ( int,     flex_evpair,           nflexevpair,   2                    ) \
     X   ( mjtNum,  flex_vert,             nflexvert,     3                    ) \

@@ -2235,6 +2235,7 @@ struct mjvSceneState_ {
     int* flex_vertadr;
     int* flex_vertnum;
     int* flex_elem;
+    int* flex_elemlayer;
     int* flex_elemadr;
     int* flex_elemnum;
     int* flex_elemdataadr;

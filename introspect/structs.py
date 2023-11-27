@@ -6742,6 +6742,13 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                              doc='',
                          ),
                          StructFieldDecl(
+                             name='flex_elemlayer',
+                             type=PointerType(
+                                 inner_type=ValueType(name='int'),
+                             ),
+                             doc='',
+                         ),
+                         StructFieldDecl(
                              name='flex_elemadr',
                              type=PointerType(
                                  inner_type=ValueType(name='int'),

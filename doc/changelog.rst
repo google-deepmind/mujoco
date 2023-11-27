@@ -28,6 +28,7 @@ Bug fixes
 ^^^^^^^^^
 - Fix bug in Cartesian actuation with movable refsite, as when using body-centric Cartesian actuators on a quadruped.
   Before this fix such actuators could lead to non-conservation of momentum.
+- Fix bug that prevented using flex with the :ref:`passive viewer<PyViewerPassive>`.
 
 Version 3.0.1 (November 15, 2023)
 ---------------------------------
