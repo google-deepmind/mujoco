@@ -20,10 +20,8 @@ Plugins
   ``mjData.plugin_state``. Actuator plugins can now specify :ref:`callbacks<mjpPlugin>` that compute activation
   variables, and they can be used with built-in :ref:`dyntype<actuator-plugin-dyntype>` actuator dynamics.
 
-- Added `pid <https://github.com/deepmind/mujoco/blob/main/plugin/actuator/README.md>`__ actuator plugin:
-
-   - A configurable PID controller that implements an integral term, which is not available with the default MuJoCo
-     actuators.
+- Added the `pid <https://github.com/deepmind/mujoco/blob/main/plugin/actuator/README.md>`__ actuator plugin, a
+  configurable PID controller that implements the Integral term, which is not available with native MuJoCo actuators.
 
 Bug fixes
 ^^^^^^^^^
