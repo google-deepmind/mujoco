@@ -1566,9 +1566,10 @@ void UiEvent(mjuiState* state) {
           mjui0_update_section(sim, SECT_SIMULATION);
         }
 
-        // not in scrubber: step
+        // not in scrubber: step, add to history buffer
         else {
           mj_step(sim->m_, sim->d_);
+          sim->AddToHistory();
         }
 
         UpdateProfiler(sim, sim->m_, sim->d_);
