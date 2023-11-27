@@ -23,6 +23,11 @@ Plugins
 - Added the `pid <https://github.com/deepmind/mujoco/blob/main/plugin/actuator/README.md>`__ actuator plugin, a
   configurable PID controller that implements the Integral term, which is not available with native MuJoCo actuators.
 
+MJX
+^^^
+
+- Added ``site_xpos`` and ``site_xmat`` to MJX.
+
 Bug fixes
 ^^^^^^^^^
 - Fix bug in Cartesian actuation with movable refsite, as when using body-centric Cartesian actuators on a quadruped.

@@ -260,6 +260,7 @@ class Model(PyTreeNode):
     nbody: number of bodies
     njnt: number of joints
     ngeom: number of geoms
+    nsite: number of sites
     nmesh: number of meshes
     npair: number of predefined geom pairs
     nexclude: number of excluded geom pairs
@@ -327,6 +328,9 @@ class Model(PyTreeNode):
     geom_friction: friction for (slide, spin, roll)           (ngeom, 3)
     geom_margin: include in solver if dist<margin-gap         (ngeom,)
     geom_gap: include in solver if dist<margin-gap            (ngeom,)
+    site_bodyid: id of site's body                            (nsite,)
+    site_pos: local position offset rel. to body              (nsite,3)
+    site_quat: local orientation offset rel. to body          (nsite,4)
     geom_convex_face: vertex face data, MJX only              (ngeom,)
     geom_convex_vert: vertex data, MJX only                   (ngeom,)
     geom_convex_edge: unique edge data, MJX only              (ngeom,)
@@ -377,6 +381,7 @@ class Model(PyTreeNode):
   nbody: int
   njnt: int
   ngeom: int
+  nsite: int
   nmesh: int
   npair: int
   nexclude: int
@@ -444,6 +449,9 @@ class Model(PyTreeNode):
   geom_friction: jax.Array
   geom_margin: jax.Array
   geom_gap: jax.Array
+  site_bodyid: np.ndarray
+  site_pos: jax.Array
+  site_quat: jax.Array
   pair_dim: np.ndarray
   pair_geom1: np.ndarray
   pair_geom2: np.ndarray
@@ -569,6 +577,8 @@ class Data(PyTreeNode):
     xaxis: Cartesian joint axis                                   (njnt, 3)
     geom_xpos: Cartesian geom position                            (ngeom, 3)
     geom_xmat: Cartesian geom orientation                         (ngeom, 3, 3)
+    site_xpos: Cartesian site position                            (nsite, 3)
+    site_xmat: Cartesian site orientation                         (nsite, 9)
     subtree_com: center of mass of each subtree                   (nbody, 3)
     cdof: com-based motion axis of each dof                       (nv, 6)
     cinert: com-based body inertia and mass                       (nbody, 10)
@@ -631,6 +641,8 @@ class Data(PyTreeNode):
   xaxis: jax.Array
   geom_xpos: jax.Array
   geom_xmat: jax.Array
+  site_xpos: jax.Array
+  site_xmat: jax.Array
   subtree_com: jax.Array
   cdof: jax.Array
   cinert: jax.Array

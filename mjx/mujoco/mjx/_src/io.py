@@ -56,6 +56,8 @@ def make_data(m: Model) -> Data:
       xaxis=jp.zeros((m.njnt, 3), dtype=jp.float32),
       geom_xpos=jp.zeros((m.ngeom, 3), dtype=jp.float32),
       geom_xmat=jp.zeros((m.ngeom, 3, 3), dtype=jp.float32),
+      site_xpos=jp.zeros((m.nsite, 3), dtype=jp.float32),
+      site_xmat=jp.zeros((m.nsite, 3, 3), dtype=jp.float32),
       subtree_com=jp.zeros((m.nbody, 3), dtype=jp.float32),
       cdof=jp.zeros((m.nv, 6), dtype=jp.float32),
       cinert=jp.zeros((m.nbody, 10), dtype=jp.float32),

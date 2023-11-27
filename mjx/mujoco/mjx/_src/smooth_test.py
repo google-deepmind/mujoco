@@ -162,5 +162,40 @@ class DisableGravityTest(absltest.TestCase):
     )
 
 
+class SiteTest(absltest.TestCase):
+
+  def test_site(self):
+    """Tests that site positions and orientations match MuJoCo."""
+    m = mujoco.MjModel.from_xml_string("""
+      <mujoco>
+        <worldbody>
+          <site name="origin"/>
+          <body>
+            <joint type="free"/>
+            <geom pos="1 0 1" type="box" size="0.1 0.01 0.01"/>
+            <site name="s1" pos="1.3 0 0"/>     <!-- pos only -->
+            <site name="s2"/>                   <!-- no pos, no quat -->
+            <site name="s3" quat="1 0 1 0"/>    <!- quat only -->
+            <site name="s4" pos="0 1.5 0" quat="1 0 1 0"/>
+            <site name="s5" pos="1 0 1"/>       <!-- same as ipos -->
+            <site/>
+          </body>
+        </worldbody>
+      </mujoco>
+      """)
+    d = mujoco.MjData(m)
+
+    mx = mjx.device_put(m)
+    dx = mjx.device_put(d)
+
+    mujoco.mj_forward(m, d)
+    dx = mjx.forward(mx, dx)
+
+    np.testing.assert_array_almost_equal(dx.site_xpos, d.site_xpos)
+    np.testing.assert_array_almost_equal(
+        dx.site_xmat, d.site_xmat.reshape((-1, 3, 3))
+    )
+
+
 if __name__ == '__main__':
   absltest.main()

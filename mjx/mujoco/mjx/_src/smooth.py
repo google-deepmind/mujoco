@@ -101,13 +101,20 @@ def kinematics(m: Model, d: Data) -> Data:
 
   # TODO(erikfrey): confirm that quats are more performant for mjx than mats
   xipos, ximat = local_to_global(xpos, xquat, m.body_ipos, m.body_iquat)
-  geom_xpos, geom_xmat = local_to_global(
-      xpos[m.geom_bodyid], xquat[m.geom_bodyid], m.geom_pos, m.geom_quat
-  )
-
   d = d.replace(qpos=qpos, xanchor=xanchor, xaxis=xaxis, xpos=xpos)
   d = d.replace(xquat=xquat, xmat=xmat, xipos=xipos, ximat=ximat)
-  d = d.replace(geom_xpos=geom_xpos, geom_xmat=geom_xmat)
+
+  if m.ngeom:
+    geom_xpos, geom_xmat = local_to_global(
+        xpos[m.geom_bodyid], xquat[m.geom_bodyid], m.geom_pos, m.geom_quat
+    )
+    d = d.replace(geom_xpos=geom_xpos, geom_xmat=geom_xmat)
+
+  if m.nsite:
+    site_xpos, site_xmat = local_to_global(
+        xpos[m.site_bodyid], xquat[m.site_bodyid], m.site_pos, m.site_quat
+    )
+    d = d.replace(site_xpos=site_xpos, site_xmat=site_xmat)
 
   return d
 

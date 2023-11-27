@@ -67,6 +67,7 @@ _TRANSFORMS = {
     (types.Data, 'ximat'): lambda x: x.reshape(x.shape[:-1] + (3, 3)),
     (types.Data, 'xmat'): lambda x: x.reshape(x.shape[:-1] + (3, 3)),
     (types.Data, 'geom_xmat'): lambda x: x.reshape(x.shape[:-1] + (3, 3)),
+    (types.Data, 'site_xmat'): lambda x: x.reshape(x.shape[:-1] + (3, 3)),
     (types.Model, 'actuator_trnid'): lambda x: x[:, 0],
     (types.Contact, 'frame'): (
         lambda x: x.reshape(x.shape[:-1] + (3, 3))  # pylint: disable=g-long-lambda
@@ -78,6 +79,7 @@ _INVERSE_TRANSFORMS = {
     (types.Data, 'ximat'): lambda x: x.reshape(x.shape[:-2] + (9,)),
     (types.Data, 'xmat'): lambda x: x.reshape(x.shape[:-2] + (9,)),
     (types.Data, 'geom_xmat'): lambda x: x.reshape(x.shape[:-2] + (9,)),
+    (types.Data, 'site_xmat'): lambda x: x.reshape(x.shape[:-2] + (9,)),
     (types.Contact, 'frame'): (
         lambda x: x.reshape(x.shape[:-2] + (9,))  # pylint: disable=g-long-lambda
         if x is not None and x.shape[0] else jp.zeros((0, 9))
