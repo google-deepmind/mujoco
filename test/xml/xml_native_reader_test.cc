@@ -407,6 +407,39 @@ TEST_F(XMLReaderTest, InvalidDoubleOrientation) {
   }
 }
 
+// ---------------------- test frame parsing ---------------------------------
+TEST_F(XMLReaderTest, ParseFrame) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <frame euler="0 0 30">
+        <geom size=".1" euler="0 0 20"/>
+      </frame>
+
+      <body>
+        <frame pos="0 1 0">
+          <geom size=".1" pos="0 1 0"/>
+          <body pos="1 0 0">
+            <geom size=".1" pos="0 0 1"/>
+          </body>
+        </frame>
+      </body>
+
+      <frame euler="0 0 30">
+        <frame euler="0 0 20">
+          <geom size=".1"/>
+        </frame>
+      </frame>
+    </worldbody>
+  </mujoco>
+
+  )";
+  std::array<char, 1024> error;
+  mjModel* m = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(m, testing::NotNull()) << error.data();
+  mj_deleteModel(m);
+}
+
 // ---------------------- test camera parsing ---------------------------------
 
 TEST_F(XMLReaderTest, CameraInvalidFovyAndSensorsize) {

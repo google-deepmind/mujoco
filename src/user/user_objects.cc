@@ -491,6 +491,7 @@ mjCBase::mjCBase() {
   xmlpos[0] = xmlpos[1] = -1;
   model = 0;
   def = 0;
+  frame = nullptr;
 
   // plugin variables
   is_plugin = false;
@@ -534,6 +535,15 @@ std::string mjCBase::GetAssetContentType(std::string_view resource_name,
 }
 
 
+void mjCBase::SetFrame(mjCFrame* _frame) {
+  if (!_frame) {
+    return;
+  }
+  frame = _frame;
+  frame->Compile();
+}
+
+
 //------------------ class mjCBody implementation --------------------------------------------------
 
 // constructor
@@ -574,6 +584,7 @@ mjCBody::mjCBody(mjCModel* _model) {
   // clear object lists
   bodies.clear();
   geoms.clear();
+  frames.clear();
   joints.clear();
   sites.clear();
   cameras.clear();
@@ -587,6 +598,7 @@ mjCBody::~mjCBody() {
   // delete objects allocated here
   for (int i=0; i<bodies.size(); i++) delete bodies[i];
   for (int i=0; i<geoms.size(); i++) delete geoms[i];
+  for (int i=0; i<frames.size(); i++) delete frames[i];
   for (int i=0; i<joints.size(); i++) delete joints[i];
   for (int i=0; i<sites.size(); i++) delete sites[i];
   for (int i=0; i<cameras.size(); i++) delete cameras[i];
@@ -594,6 +606,7 @@ mjCBody::~mjCBody() {
 
   bodies.clear();
   geoms.clear();
+  frames.clear();
   joints.clear();
   sites.clear();
   cameras.clear();
@@ -611,6 +624,15 @@ mjCBody* mjCBody::AddBody(mjCDef* _def) {
   obj->def = _def ? _def : def;
 
   bodies.push_back(obj);
+  return obj;
+}
+
+
+
+// create new frame and add it to body
+mjCFrame* mjCBody::AddFrame(mjCFrame* _frame) {
+  mjCFrame* obj = new mjCFrame(model, _frame ? _frame : NULL);
+  frames.push_back(obj);
   return obj;
 }
 
@@ -938,7 +960,7 @@ void mjCBody::Compile(void) {
     GeomFrame();
   }
 
-  // both pos and ipos undefiend: error
+  // both pos and ipos undefined: error
   if (!mjuu_defined(ipos[0]) && !mjuu_defined(pos[0])) {
     throw mjCError(this, "body pos and ipos are both undefined");
   }
@@ -978,6 +1000,11 @@ void mjCBody::Compile(void) {
         throw mjCError(this, "inertia must satisfy A + B >= C; use 'balanceinertia' to fix");
       }
     }
+  }
+
+  // frame
+  if (frame) {
+    mjuu_frameaccum(pos, quat, frame->pos, frame->quat);
   }
 
   // compute local frame rel. to parent body
@@ -1072,6 +1099,39 @@ void mjCBody::Compile(void) {
       throw mjCError(this, "plugin '%s' does not support passive forces", plugin->name);
     }
   }
+}
+
+
+
+//------------------ class mjCFrame implementation -------------------------------------------------
+
+// initialize frame
+mjCFrame::mjCFrame(mjCModel* _model, mjCFrame* _frame) {
+  compiled = false;
+  model = _model;
+  frame = _frame ? _frame : NULL;
+  mju_zero3(pos);
+  mjuu_setvec(quat, 1, 0, 0, 0);
+}
+
+void mjCFrame::Compile() {
+  if (compiled) {
+    return;
+  }
+
+  const char* err = alt.Set(quat, 0, model->degree, model->euler);
+  if (err) {
+    throw mjCError(this, "orientation specification error '%s' in site %d", err, id);
+  }
+
+  // compile parents and accumulate result
+  if (frame) {
+    frame->Compile();
+    mjuu_frameaccum(pos, quat, frame->pos, frame->quat);
+  }
+
+  mjuu_normvec(quat, 4);
+  compiled = true;
 }
 
 
@@ -1197,6 +1257,13 @@ int mjCJoint::Compile(void) {
     }
   }
 
+  // frame
+  if (frame) {
+    double mat[9];
+    mjuu_quat2mat(mat, frame->quat);
+    mjuu_mulvecmat(axis, axis, mat);
+  }
+
   // FREE or BALL: set axis to (0,0,1)
   if (type==mjJNT_FREE || type==mjJNT_BALL) {
     axis[0] = axis[1] = 0;
@@ -1223,6 +1290,9 @@ int mjCJoint::Compile(void) {
   if (type!=mjJNT_FREE) {
     double qunit[4] = {1, 0, 0, 0};
     double qloc[4];
+    if (frame) {
+      mjuu_frameaccum(pos, qunit, frame->pos, frame->quat);
+    }
     body->MakeLocal(locpos, qloc, pos, qunit);
   } else {
     mjuu_zerovec(locpos, 3);
@@ -1842,6 +1912,11 @@ void mjCGeom::Compile(void) {
       throw mjCError(this, "plugin '%s' does not support sign distance fields", plugin->name);
     }
   }
+
+  // frame
+  if (frame) {
+    mjuu_frameaccum(pos, quat, frame->pos, frame->quat);
+  }
 }
 
 
@@ -1952,6 +2027,11 @@ void mjCSite::Compile(void) {
     }
   }
 
+  // frame
+  if (frame) {
+    mjuu_frameaccum(pos, quat, frame->pos, frame->quat);
+  }
+
   // normalize quaternion
   mjuu_normvec(quat, 4);
 
@@ -2015,6 +2095,11 @@ void mjCCamera::Compile(void) {
   const char* err = alt.Set(quat, 0, model->degree, model->euler);
   if (err) {
     throw mjCError(this, "orientation specification error '%s' in camera %d", err, id);
+  }
+
+  // frame
+  if (frame) {
+    mjuu_frameaccum(pos, quat, frame->pos, frame->quat);
   }
 
   // normalize quaternion
@@ -2120,6 +2205,11 @@ mjCLight::mjCLight(mjCModel* _model, mjCDef* _def) {
 // compiler
 void mjCLight::Compile(void) {
   double locquat[4], quat[4]= {1, 0, 0, 0};
+
+  // frame
+  if (frame) {
+    mjuu_frameaccum(pos, quat, frame->pos, frame->quat);
+  }
 
   // normalize direction, make sure it is not zero
   if (mjuu_normvec(dir, 3)<mjMINVAL) {

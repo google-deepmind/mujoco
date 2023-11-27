@@ -30,6 +30,7 @@ class mjCError;
 class mjCAlternative;
 class mjCBase;
 class mjCBody;
+class mjCFrame;
 class mjCJoint;
 class mjCGeom;
 class mjCSite;
@@ -176,12 +177,16 @@ class mjCBase {
   // content type from resource_name; throw on failure
   std::string GetAssetContentType(std::string_view resource_name, std::string_view raw_text);
 
+  // Add frame transformation
+  void SetFrame(mjCFrame* _frame);
+
   std::string name;               // object name
   std::string classname;          // defaults class name
   int id;                         // object id
   int xmlpos[2];                  // row and column in xml file
   mjCDef* def;                    // defaults class used to init this object
   mjCModel* model;                // pointer to model that created object
+  mjCFrame* frame;                // pointer to frame transformation
 
   // plugin support
   bool is_plugin;
@@ -215,6 +220,7 @@ class mjCBody : public mjCBase {
  public:
   // API for adding objects to body
   mjCBody*    AddBody(mjCDef* = 0);
+  mjCFrame*   AddFrame(mjCFrame* = 0);
   mjCJoint*   AddJoint(mjCDef* = 0, bool isfree = false);
   mjCGeom*    AddGeom(mjCDef* = 0);
   mjCSite*    AddSite(mjCDef* = 0);
@@ -278,10 +284,33 @@ class mjCBody : public mjCBase {
   // objects allocated by Add functions
   std::vector<mjCBody*>    bodies;     // child bodies
   std::vector<mjCGeom*>    geoms;      // geoms attached to this body
+  std::vector<mjCFrame*>   frames;     // frames attached to this body
   std::vector<mjCJoint*>   joints;     // joints allowing motion relative to parent
   std::vector<mjCSite*>    sites;      // sites attached to this body
   std::vector<mjCCamera*>  cameras;    // cameras attached to this body
   std::vector<mjCLight*>   lights;     // lights attached to this body
+};
+
+
+
+//------------------------- class mjCFrame ---------------------------------------------------------
+// Describes a coordinate transformation relative to its parent
+
+class mjCFrame : public mjCBase {
+  friend class mjCBase;
+  friend class mjCBody;
+  friend class mjCModel;
+
+ public:
+  double pos[3];                           // frame position
+  double quat[4];                          // frame orientation
+  mjCAlternative alt;                      // alternative orientation specification
+
+ private:
+  bool compiled;                           // frame already compiled
+
+  mjCFrame(mjCModel* = 0, mjCFrame* = 0);  // constructor
+  void Compile(void);                      // compiler
 };
 
 

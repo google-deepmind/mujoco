@@ -7,10 +7,11 @@ Upcoming version (not yet released)
 
 General
 ^^^^^^^
-
 - Improved convergence of Signed Distance Function (SDF) collisions by using line search and a new objective function
   for the optimization. This allows to decrease the number of initial points needed for finding the contacts and is more
   robust for very small or large geom sizes.
+- Added :ref:`frame<frame>` to MJCF, a :ref:`meta-element<meta-element>` which defines a pure coordinate transformation
+  on its direct children, without requiring a :ref:`body<body>`.
 
 Plugins
 ^^^^^^^

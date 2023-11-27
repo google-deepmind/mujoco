@@ -372,7 +372,9 @@ bool mjXSchema::NameMatch(XMLElement* elem, int level) {
       return true;
     }
 
-    return false;
+    if (level>=1 && !strcmp(elem->Value(), "frame")) {
+      return true;
+    }
   }
 
   // regular check

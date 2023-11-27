@@ -204,16 +204,21 @@ cameras and lights.
 A related attribute is :ref:`compiler/angle<compiler-angle>`. It specifies whether angles in the MJCF file are expressed
 in degrees or radians (after compilation, angles are always expressed in radians).
 
+Positions are specified using
+
+:at:`pos`: :at-val:`real(3), "0 0 0"`
+   Position relative to parent.
+
 .. _COrientation:
 
 Frame orientations
-~~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^^
 
 Several model elements have right-handed spatial frames associated with them. These are all the elements defined in the
 kinematic tree except for joints. A spatial frame is defined by its position and orientation. Specifying 3D positions is
 straightforward, but specifying 3D orientations can be challenging. This is why MJCF provides several alternative
-mechanisms. No matter which mechanism the user chooses, the frame orientation is always represented as a unit quaternion
-after compilation. Recall that a 3D rotation by angle :math:`a` around axis given by the unit vector :math:`(x, y, z)`
+mechanisms. No matter which mechanism the user chooses, the frame orientation is always converted internally to a unit
+quaternion. Recall that a 3D rotation by angle :math:`a` around axis given by the unit vector :math:`(x, y, z)`
 corresponds to the quaternion :math:`(\cos(a/2), \: \sin(a/2) \cdot (x, y, z))`. Also recall that every 3D orientation
 can be uniquely specified by a single 3D rotation by some angle around some axis.
 

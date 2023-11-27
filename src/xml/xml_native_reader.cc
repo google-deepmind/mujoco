@@ -872,7 +872,7 @@ void mjXReader::Parse(XMLElement* root) {
 
   for (XMLElement* section = root->FirstChildElement("worldbody"); section;
        section = section->NextSiblingElement("worldbody")) {
-    Body(section, model->GetWorld());
+    Body(section, model->GetWorld(), nullptr);
   }
 
   for (XMLElement* section = root->FirstChildElement("contact"); section;
@@ -2949,7 +2949,7 @@ void mjXReader::Asset(XMLElement* section) {
 
 
 // body/world section parser; recursive
-void mjXReader::Body(XMLElement* section, mjCBody* pbody) {
+void mjXReader::Body(XMLElement* section, mjCBody* pbody, mjCFrame* frame) {
   string text, name;
   XMLElement* elem;
   int n;
@@ -2960,7 +2960,7 @@ void mjXReader::Body(XMLElement* section, mjCBody* pbody) {
   }
 
   // no attributes allowed in world body
-  if (pbody->id==0 && section->FirstAttribute()) {
+  if (pbody->id==0 && section->FirstAttribute() && !frame) {
     throw mjXError(section, "World body cannot have attributes");
   }
 
@@ -3000,6 +3000,7 @@ void mjXReader::Body(XMLElement* section, mjCBody* pbody) {
       // create joint and parse
       mjCJoint* pjoint = pbody->AddJoint(def);
       OneJoint(elem, pjoint);
+      pjoint->SetFrame(frame);
     }
 
     // freejoint sub-element
@@ -3011,6 +3012,7 @@ void mjXReader::Body(XMLElement* section, mjCBody* pbody) {
 
       // create free joint without defaults
       mjCJoint* pjoint = pbody->AddJoint(NULL, true);
+      pjoint->SetFrame(frame);
 
       // save defaults after creation, to make sure writing is ok
       pjoint->def = def;
@@ -3025,6 +3027,7 @@ void mjXReader::Body(XMLElement* section, mjCBody* pbody) {
       // create geom and parse
       mjCGeom* pgeom = pbody->AddGeom(def);
       OneGeom(elem, pgeom);
+      pgeom->SetFrame(frame);
 
       // discard visual
       if (!pgeom->contype && !pgeom->conaffinity && model->discardvisual) {
@@ -3038,6 +3041,7 @@ void mjXReader::Body(XMLElement* section, mjCBody* pbody) {
       // create site and parse
       mjCSite* psite = pbody->AddSite(def);
       OneSite(elem, psite);
+      psite->SetFrame(frame);
     }
 
     // camera sub-element
@@ -3045,6 +3049,7 @@ void mjXReader::Body(XMLElement* section, mjCBody* pbody) {
       // create camera and parse
       mjCCamera* pcam = pbody->AddCamera(def);
       OneCamera(elem, pcam);
+      pcam->SetFrame(frame);
     }
 
     // light sub-element
@@ -3052,6 +3057,7 @@ void mjXReader::Body(XMLElement* section, mjCBody* pbody) {
       // create light and parse
       mjCLight* plight = pbody->AddLight(def);
       OneLight(elem, plight);
+      plight->SetFrame(frame);
     }
 
     // plugin sub-element
@@ -3069,6 +3075,18 @@ void mjXReader::Body(XMLElement* section, mjCBody* pbody) {
     else if (name=="flexcomp") {
       // parse flexcomp
       OneFlexcomp(elem, pbody);
+    }
+
+    // frame sub-element
+    else if (name=="frame") {
+      mjCFrame* pframe = pbody->AddFrame(frame);
+      GetXMLPos(elem, pframe);
+
+      ReadAttr(elem, "pos", 3, pframe->pos, text);
+      ReadQuat(elem, "quat", pframe->quat, text);
+      ReadAlternative(elem, pframe->alt);
+
+      Body(elem, pbody, pframe);
     }
 
     // body sub-element
@@ -3102,8 +3120,11 @@ void mjXReader::Body(XMLElement* section, mjCBody* pbody) {
       // read userdata
       ReadVector(elem, "user", pchild->userdata, text);
 
+      // add frame
+      pchild->SetFrame(frame);
+
       // make recursive call
-      Body(elem, pchild);
+      Body(elem, pchild, nullptr);
     }
 
     // no match

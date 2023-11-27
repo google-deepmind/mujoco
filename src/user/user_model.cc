@@ -1506,7 +1506,9 @@ void mjCModel::CopyTree(mjModel* m) {
       if (rotfound ||
           !IsNullPose(m->jnt_pos+3*jid, NULL) ||
           ((pj->type==mjJNT_HINGE || pj->type==mjJNT_SLIDE) &&
-           ((pj->locaxis[0]!=0) + (pj->locaxis[1]!=0) + (pj->locaxis[2]!=0))>1)) {
+           ((mju_abs(pj->locaxis[0])>mjEPS) +
+            (mju_abs(pj->locaxis[1])>mjEPS) +
+            (mju_abs(pj->locaxis[2])>mjEPS)) > 1)) {
         m->body_simple[i] = 0;
       }
 

@@ -103,13 +103,72 @@ In the remainder of this chapter we describe all valid MJCF elements and their a
 multiple contexts, in which case their meaning depends on the parent element. This is why we always show the parent as a
 prefix in the documentation below.
 
+.. _meta-element:
+
+Meta elements
+~~~~~~~~~~~~~
+
+These elements are not strictly part of the low-level MJCF format definition, but rather instruct the compiler to
+perform some operation on the model. A general property of meta-elements is that they disappear from the model upon
+saving the XML. There are currently four meta-elements in MJCF:
+
+- :ref:`include<include>` and :ref:`frame<frame>`, which are outside of the schema.
+- :ref:`composite<body-composite>` and :ref:`flexcomp<body-flexcomp>` which are part of the schema, but serve to
+  procedurally generate other MJCF elements.
+
+.. _frame:
+
+**frame** (R)
+^^^^^^^^^^^^^
+
+The frame meta-element is a pure coordinate transformation that can wrap any group of elements in the kinematic tree
+(under :ref:`worldbody<body>`). After compilation, frame elements disappear and their transformation is accumulated
+in their direct children. The attributes of the frame meta-element are documented :ref:`below<body-frame>`.
+
+.. collapse:: Usage example of frame
+
+   Loading this model and saving it:
+
+   .. code-block:: xml
+
+      <mujoco>
+        <worldbody>
+          <frame quat="0 0 1 0">
+             <geom name="Alice" quat="0 1 0 0" size="1"/>
+          </frame>
+
+          <frame pos="0 1 0">
+            <geom name="Bob" pos="0 1 0" size="1"/>
+            <body name="Carl" pos="1 0 0">
+              ...
+            </body>
+          </frame>
+        </worldbody>
+      </mujoco>
+
+   Results in this model:
+
+   .. code-block:: xml
+
+      <mujoco>
+        <worldbody>
+          <geom name="Alice" quat="0 0 0 1" size="1"/>
+          <geom name="Bob" pos="0 2 0" size="1"/>
+          <body name="Carl" pos="1 1 0">
+            ...
+          </body>
+        </worldbody>
+      </mujoco>
+
+   Note that in the saved model, the frame elements have disappeared but their transformation was accumulated with those
+   of their child elements.
 
 .. _include:
 
 **include** (*)
-~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^
 
-This element does not strictly speaking belong to MJCF. Instead it is a meta-element, used to assemble multiple XML
+This element does not strictly belong to MJCF. Instead it is a meta-element, used to assemble multiple XML
 files in a single document object model (DOM) before parsing. The included file must be a valid XML file with a unique
 top-level element. This top-level element is removed by the parser, and the elements below it are inserted at the
 location of the :el:`include` element. At least one element must be inserted as a result of this procedure. The
@@ -3912,6 +3971,35 @@ Associate this flexcomp with an :ref:`engine plugin<exPlugin>`. Either :at:`plug
 
 :at:`instance`: :at-val:`string, optional`
    Instance name, used for explicit plugin instantiation.
+
+
+.. _body-frame:
+
+:el-prefix:`body/` |-| **frame** (*)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Frames specify a coordinate transformation which is applied to all child elements. They disappear during compilation
+and the transformation they encode is accumulated in their direct children. See :ref:`frame<frame>` for examples.
+
+.. _frame-pos:
+
+:at:`pos`: :at-val:`real(3), "0 0 0"`
+   The 3D position of the frame, in the parent coordinate system.
+
+.. _frame-quat:
+
+.. _frame-axisangle:
+
+.. _frame-xyaxes:
+
+.. _frame-zaxis:
+
+.. _frame-euler:
+
+:at:`quat`, :at:`axisangle`, :at:`xyaxes`, :at:`zaxis`, :at:`euler`
+   See :ref:`COrientation`.
+
+
 
 .. _contact:
 
