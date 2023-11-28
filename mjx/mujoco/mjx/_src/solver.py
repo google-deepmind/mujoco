@@ -128,7 +128,7 @@ class _LSPoint(PyTreeNode):
 
     cost = alpha * alpha * quad_total[2] + alpha * quad_total[1] + quad_total[0]
     deriv_0 = 2 * alpha * quad_total[2] + quad_total[1]
-    deriv_1 = 2 * quad_total[2]
+    deriv_1 = 2 * quad_total[2] + (quad_total[2] == 0) * mujoco.mjMINVAL
     return _LSPoint(alpha=alpha, cost=cost, deriv_0=deriv_0, deriv_1=deriv_1)
 
 
