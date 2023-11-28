@@ -90,6 +90,8 @@ inline void ComputeForce(mjtNum* qfrc_passive,
                          const std::vector<T>& elements,
                          const std::vector<mjtNum>& metric,
                          const std::vector<mjtNum>& elongationglob,
+                         const mjModel* m,
+                         const int* vertbodyid,
                          const mjtNum* xpos) {
   for (int t = 0; t < elements.size(); t++)  {
     const int* v = elements[t].vertices;
@@ -126,8 +128,14 @@ inline void ComputeForce(mjtNum* qfrc_passive,
 
     // insert into global force
     for (int i = 0; i < T::kNumVerts; i++) {
-      for (int x = 0; x < 3; x++) {
-        qfrc_passive[3*v[i]+x] -= force[3*i+x];
+      int body_dofnum = 3;
+      int body_dofadr = 3*v[i];
+      if (vertbodyid) {
+        body_dofnum = m->body_dofnum[vertbodyid[v[i]]];
+        body_dofadr = m->body_dofadr[vertbodyid[v[i]]];
+      }
+      for (int x = 0; x < body_dofnum; x++) {
+        qfrc_passive[body_dofadr+x] -= force[3*i+x];
       }
     }
   }
