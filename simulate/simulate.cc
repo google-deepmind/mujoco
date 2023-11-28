@@ -17,6 +17,7 @@
 #include <algorithm>
 #include <atomic>
 #include <chrono>
+#include <climits>
 #include <cstdio>
 #include <cstring>
 #include <memory>
@@ -2228,13 +2229,13 @@ void Simulate::LoadOnRenderThread() {
 
   // allocate history buffer: smaller of {2000 states, 100 MB}
   if (!this->is_passive_) {
-    constexpr int kHistoryLength = 2000;
     constexpr int kMaxHistoryBytes = 1e8;
 
     // get state size, size of history buffer
     state_size_ = mj_stateSize(this->m_, mjSTATE_INTEGRATION);
     int state_bytes = state_size_ * sizeof(mjtNum);
-    int history_bytes = mjMIN(state_bytes * kHistoryLength, kMaxHistoryBytes);
+    int history_length = mjMIN(INT_MAX / state_bytes, 2000);
+    int history_bytes = mjMIN(state_bytes * history_length, kMaxHistoryBytes);
     nhistory_ = history_bytes / state_bytes;
 
     // allocate history buffer, reset cursor and UI slider
