@@ -264,6 +264,9 @@ MJAPI void mj_Euler(const mjModel* m, mjData* d);
 // Runge-Kutta explicit order-N integrator.
 MJAPI void mj_RungeKutta(const mjModel* m, mjData* d, int N);
 
+// Implicit-in-velocity integrators.
+MJAPI void mj_implicit(const mjModel* m, mjData* d);
+
 // Run position-dependent computations in inverse dynamics.
 MJAPI void mj_invPosition(const mjModel* m, mjData* d);
 

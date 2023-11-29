@@ -69,6 +69,12 @@ These functions can be used to print various quantities to the screen for debugg
 These are components of the simulation pipeline, called internally from :ref:`mj_step`, :ref:`mj_forward` and
 :ref:`mj_inverse`. It is unlikely that the user will need to call them.
 
+.. _mj_implicit:
+
+Integrates the simulation state using an implicit-in-velocity integrator (either "implicit" or "implicitfast", see
+:ref:`Numerical Integration<geIntegration>`), and advances simulation time. See `mjdata.h
+<https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjdata.h>`__ for fields computed by this function.
+
 .. _Subcomponents:
 
 These are sub-components of the simulation pipeline, called internally from the components above. It is very unlikely

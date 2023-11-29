@@ -1538,44 +1538,59 @@ be used to skip default steps and to enable optional steps respectively. Callbac
 Forward dynamics
 ~~~~~~~~~~~~~~~~
 
-The top-level function :ref:`mj_step` invokes the sequence of computations below. Alternatively one can call
-:ref:`mj_forward` which invokes only steps 2-21.
+The source file `engine_forward.c <https://github.com/google-deepmind/mujoco/blob/main/src/engine/engine_forward.c>`__
+contains the high-level forward dynamics pipeline:
 
-#. Check the positions and velocities for invalid or unacceptably large real values indicating divergence. If divergence
-   is detected, the state is automatically reset and the corresponding warning is raised.
-#. Compute the forward kinematics. This yields the global positions and orientations of all bodies, geoms, sites,
-   cameras and lights. It also normalizes all quaternions, just in case.
-#. Compute the body inertias and joint axes, in global frames centered at the centers of mass of the corresponding
-   kinematic subtrees (to improve floating-point accuracy).
-#. Compute the actuator lengths and moment arms.
-#. Compute the composite rigid body inertias and construct the joint-space inertia matrix.
-#. Compute the sparse factorization of the joint-space inertia matrix.
-#. Construct the list of active contacts. This includes both broad-phase and near-phase collision detection.
-#. Construct the constraint Jacobian and compute the constraint residuals.
-#. Compute the matrices and vectors needed by the constraint solvers.
-#. Compute the tendon lengths and moment arms. This includes the computation of minimal-length paths for spatial
-   tendons.
-#. Compute sensor data that only depends on position, and the potential energy if enabled.
-#. Compute the tendon and actuator velocities.
-#. Compute the body velocities and rates of change of the joint axes, again in the global coordinate frames centered at
-   the subtree centers of mass.
-#. Compute all passive forces: spring-dampers in joints and tendons, and fluid dynamics forces.
-#. Compute sensor data that depends on velocity, and the kinetic energy if enabled.
-   If required by sensors, call :ref:`mj_subtreeVel`.
-#. Compute the reference constraint acceleration.
-#. Compute the vector of Coriolis, centrifugal and gravitational forces.
-#. Compute the actuator forces and activation dynamics if defined.
-#. Compute the joint acceleration resulting from all forces except for the (still unknown) constraint forces.
-#. Compute the constraint forces with the selected solver, and update the joint acceleration so as to account for the
-   constraint forces. This yields the vector ``mjData.qacc`` which is the main output of forward dynamics.
-#. Compute sensor data that depends on force and acceleration if enabled.
-   If required by sensors, call :ref:`mj_rnePostConstraint`.
-#. Check the acceleration for invalid or unacceptably large real values. If divergence is detected, the state is
-   automatically reset and the corresponding warning is raised.
-#. Compare the results of forward and inverse dynamics, so as to diagnose poor solver convergence in the forward
-   dynamics. This is an optional step, and is performed only when enabled.
-#. Advance the simulation state by one time step, using the selected integrator. Note that the Runge-Kutta integrator
-   repeats the above sequence three more times, except for the optional computations which are performed only once.
+- The top-level function :ref:`mj_step` invokes the entire sequence of computations below.
+- :ref:`mj_forward` invokes only stages **2-22**, computing the continuous-time forward dynamics, ending with the
+  acceleration ``mjData.qacc``.
+- :ref:`mj_step1` invokes stages **1-18** and :ref:`mj_step2` invokes stages **19-25**, breaking :ref:`mj_step` into two
+  distinct phases. This allows the user to write controllers that depend on quantities derived from the positions and
+  velocities (but not forces, since those have not yet been computed). Note that the :ref:`mj_step1` → :ref:`mj_step2`
+  pipeline does not support the Runge Kutta integrator.
+
+1. Check the positions and velocities for invalid or unacceptably large real values indicating divergence. If divergence
+   is detected, the state is automatically reset and the corresponding warning is raised:
+   :ref:`mj_checkPos`, :ref:`mj_checkVel`
+2. Compute the forward kinematics. This yields the global positions and orientations of all bodies, geoms, sites,
+   cameras and lights. It also normalizes all quaternions: :ref:`mj_kinematics`, :ref:`mj_camLight`
+3. Compute the body inertias and joint axes, in global frames centered at the centers of mass of the corresponding
+   kinematic subtrees: :ref:`mj_comPos`
+4. Compute quantities related to :ref:`flex<deformable-flex>` objects: :ref:`mj_flex`
+5. Compute the actuator lengths and moment arms: :ref:`mj_tendon`
+6. Compute the composite rigid body inertias and joint-space inertia matrix: :ref:`mj_crb`
+7. Compute the sparse factorization of the joint-space inertia matrix: :ref:`mj_factorM`
+8. Construct the list of active contacts. This includes both broad-phase and near-phase collision detection:
+   :ref:`mj_collision`
+9. Construct the constraint Jacobian and compute the constraint residuals: :ref:`mj_makeConstraint`
+10. Compute the matrices and vectors needed by the constraint solvers: :ref:`mj_projectConstraint`
+11. Compute the tendon lengths and moment arms. This includes the computation of minimal-length paths for spatial
+    tendons: :ref:`mj_transmission`
+12. Compute sensor data that only depends on position, and the potential energy if enabled: :ref:`mj_sensorPos`,
+    :ref:`mj_energyPos`
+13. Compute the tendon, flex edge and actuator velocities: :ref:`mj_fwdVelocity`
+14. Compute the body velocities and rates of change of the joint axes, again in the global coordinate frames centered at
+    the subtree centers of mass: :ref:`mj_comVel`
+15. Compute passive forces -- spring-dampers in joints and tendons, and fluid forces: :ref:`mj_passive`
+16. Compute sensor data that depends on velocity, and the kinetic energy if enabled
+    (if required by sensors, call :ref:`mj_subtreeVel`): :ref:`mj_sensorVel`
+17. Compute the reference constraint acceleration: :ref:`mj_referenceConstraint`
+18. Compute the vector of Coriolis, centrifugal and gravitational forces: :ref:`mj_rne`
+19. Compute the actuator forces and activation dynamics if defined: :ref:`mj_fwdActuation`
+20. Compute the joint acceleration resulting from all forces except for the (still unknown) constraint forces:
+    :ref:`mj_fwdAcceleration`
+21. Compute the constraint forces with the selected solver, and update the joint acceleration so as to account for the
+    constraint forces. This yields the vector ``mjData.qacc`` which is the main output of forward dynamics:
+    :ref:`mj_fwdConstraint`
+22. Compute sensor data that depends on force and acceleration if enabled
+    (if required by sensors, call :ref:`mj_rnePostConstraint`): :ref:`mj_sensorAcc`
+23. Check the acceleration for invalid or unacceptably large real values. If divergence is detected, the state is
+    automatically reset and the corresponding warning is raised: :ref:`mj_checkAcc`
+24. Compare the results of forward and inverse dynamics, so as to diagnose poor solver convergence in the forward
+    dynamics. This is an optional step, and is performed only when enabled: :ref:`mj_compareFwdInv`
+25. Advance the simulation state by one time step, using the selected integrator. Note that the Runge-Kutta integrator
+    repeats the above sequence three more times, except for the optional computations which are performed only once:
+    one of :ref:`mj_Euler`, :ref:`mj_RungeKutta`, :ref:`mj_implicit`
 
 .. _piInverse:
 

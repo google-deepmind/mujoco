@@ -2445,6 +2445,7 @@ void mj_fwdAcceleration(const mjModel* m, mjData* d);
 void mj_fwdConstraint(const mjModel* m, mjData* d);
 void mj_Euler(const mjModel* m, mjData* d);
 void mj_RungeKutta(const mjModel* m, mjData* d, int N);
+void mj_implicit(const mjModel* m, mjData* d);
 void mj_invPosition(const mjModel* m, mjData* d);
 void mj_invVelocity(const mjModel* m, mjData* d);
 void mj_invConstraint(const mjModel* m, mjData* d);

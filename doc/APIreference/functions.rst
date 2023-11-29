@@ -583,6 +583,17 @@ mj_RungeKutta
 
 Runge-Kutta explicit order-N integrator.
 
+.. _mj_implicit:
+
+mj_implicit
+~~~~~~~~~~~
+
+.. mujoco-include:: mj_implicit
+
+Integrates the simulation state using an implicit-in-velocity integrator (either "implicit" or "implicitfast", see
+:ref:`Numerical Integration<geIntegration>`), and advances simulation time. See `mjdata.h
+<https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjdata.h>`__ for fields computed by this function.
+
 .. _mj_invPosition:
 
 mj_invPosition

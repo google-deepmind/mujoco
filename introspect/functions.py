@@ -1156,6 +1156,26 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
          ),
          doc='Runge-Kutta explicit order-N integrator.',
      )),
+    ('mj_implicit',
+     FunctionDecl(
+         name='mj_implicit',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='m',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjModel', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='d',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjData'),
+                 ),
+             ),
+         ),
+         doc='Implicit-in-velocity integrators.',
+     )),
     ('mj_invPosition',
      FunctionDecl(
          name='mj_invPosition',

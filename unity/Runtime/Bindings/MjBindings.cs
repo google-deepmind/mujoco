@@ -6462,6 +6462,9 @@ public static unsafe extern void mj_Euler(mjModel_* m, mjData_* d);
 public static unsafe extern void mj_RungeKutta(mjModel_* m, mjData_* d, int N);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern void mj_implicit(mjModel_* m, mjData_* d);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern void mj_invPosition(mjModel_* m, mjData_* d);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]

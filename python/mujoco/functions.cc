@@ -185,6 +185,7 @@ PYBIND11_MODULE(_functions, pymodule) {
   Def<traits::mj_fwdConstraint>(pymodule);
   Def<traits::mj_Euler>(pymodule);
   Def<traits::mj_RungeKutta>(pymodule);
+  Def<traits::mj_implicit>(pymodule);
   Def<traits::mj_invPosition>(pymodule);
   Def<traits::mj_invVelocity>(pymodule);
   Def<traits::mj_invConstraint>(pymodule);
