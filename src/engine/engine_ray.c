@@ -730,6 +730,7 @@ mjtNum ray_sdf(const mjModel* m, const mjData* d, int g,
                const mjtNum* pnt, const mjtNum* vec) {
   mjtNum distance_total = 0;
   mjtNum p[3];
+  mjtNum kMinDist = 1e-7;
 
   // exclude using bounding box
   if (ray_box(d->geom_xpos+3*g, d->geom_xmat+9*g, m->geom_size+3*g, pnt, vec, NULL) < 0) {
@@ -753,28 +754,30 @@ mjtNum ray_sdf(const mjModel* m, const mjData* d, int g,
   mjtNum sdf_quat[4], sdf_xmat[9], sdf_xpos[9];
   mjtNum negpos[3], negquat[4], xquat[4];
   mjtNum* xpos = d->geom_xpos + 3*g;
-  mjtNum* pos = m->geom_pos + 3*g;
-  mjtNum* quat = m->geom_quat + 4*g;
+  mjtNum* pos = m->mesh_pos + 3*m->geom_dataid[g];
+  mjtNum* quat = m->mesh_quat + 4*m->geom_dataid[g];
   mju_mat2Quat(xquat, d->geom_xmat + 9*g);
   mju_negPose(negpos, negquat, pos, quat);
   mju_mulPose(sdf_xpos, sdf_quat, xpos, xquat, negpos, negquat);
   mju_quat2Mat(sdf_xmat, sdf_quat);
 
-  // unit direction
-  mjtNum dir[3] = {vec[0], vec[1], vec[2]};
-  mju_normalize3(dir);
+  // map to local frame
+  mjtNum lpnt[3], lvec[3];
+  ray_map(sdf_xpos, sdf_xmat, pnt, vec, lpnt, lvec);
 
-  // ray marching
+  // unit direction
+  mju_normalize3(lvec);
+
+  // ray marching, see e.g. https://en.wikipedia.org/wiki/Ray_marching
   for (int i=0; i < 40; i++) {
-    mju_addScl3(p, pnt, dir, distance_total);
-    mju_subFrom3(p, sdf_xpos);
-    mju_rotVecMatT(p, p, sdf_xmat);
+    mju_addScl3(p, lpnt, lvec, distance_total);
     mjtNum distance = sdf->sdf_distance(p, (mjData*)d, instance);
     distance_total += distance;
-    if (distance < 1e-8) {
+    if (mju_abs(distance) < kMinDist) {
       return distance_total;
     }
     if (distance > 1e6) {
+      // no intersection
       break;
     }
   }
