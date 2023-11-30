@@ -14,11 +14,12 @@
 # ==============================================================================
 """Core non-smooth constraint functions."""
 
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Union
 
 import jax
 from jax import numpy as jp
 import mujoco
+from mujoco.mjx._src import collision_driver
 from mujoco.mjx._src import math
 from mujoco.mjx._src import support
 # pylint: disable=g-importing-member
@@ -276,7 +277,7 @@ def _instantiate_limit_slide_hinge(m: Model, d: Data) -> Optional[_Efc]:
 def _instantiate_contact(m: Model, d: Data) -> Optional[_Efc]:
   """Calculates constraint rows for contacts."""
 
-  if (m.opt.disableflags & DisableBit.CONTACT) or d.ncon == 0:
+  if collision_driver.ncon(m) == 0:
     return None
 
   @jax.vmap
@@ -313,7 +314,9 @@ def _instantiate_contact(m: Model, d: Data) -> Optional[_Efc]:
   return _Efc(j, pos, pos, invweight, solref, solimp, frictionloss)
 
 
-def count_constraints(m: Model, d: Data) -> Tuple[int, int, int, int]:
+def count_constraints(
+    m: Union[Model, mujoco.MjModel]
+) -> Tuple[int, int, int, int]:
   """Returns equality, friction, limit, and contact constraint counts."""
   if m.opt.disableflags & DisableBit.CONSTRAINT:
     return 0, 0, 0, 0
@@ -333,20 +336,13 @@ def count_constraints(m: Model, d: Data) -> Tuple[int, int, int, int]:
   else:
     nl = int(m.jnt_limited.sum())
 
-  if m.opt.disableflags & DisableBit.CONTACT:
-    nc = 0
-  else:
-    nc = d.ncon * 4
+  nc = collision_driver.ncon(m) * 4
 
   return ne, nf, nl, nc
 
 
 def make_constraint(m: Model, d: Data) -> Data:
   """Creates constraint jacobians and other supporting data."""
-
-  ns = sum(count_constraints(m, d)[:-1])
-  # TODO(robotics-simulation): make device_put set nefc/efc_address instead
-  d = d.tree_replace({'contact.efc_address': np.arange(ns, ns + d.ncon * 4, 4)})
 
   if m.opt.disableflags & DisableBit.CONSTRAINT:
     efcs = ()
@@ -364,7 +360,7 @@ def make_constraint(m: Model, d: Data) -> Data:
   if not efcs:
     z = jp.empty(0)
     d = d.replace(efc_J=jp.empty((0, m.nv)))
-    d = d.replace(efc_D=z, efc_aref=z, efc_frictionloss=z, nefc=0)
+    d = d.replace(efc_D=z, efc_aref=z, efc_frictionloss=z)
     return d
 
   efc = jax.tree_map(lambda *x: jp.concatenate(x), *efcs)
@@ -378,6 +374,6 @@ def make_constraint(m: Model, d: Data) -> Data:
 
   aref, r = fn(efc)
   d = d.replace(efc_J=efc.J, efc_D=1 / r, efc_aref=aref)
-  d = d.replace(efc_frictionloss=efc.frictionloss, nefc=r.shape[0])
+  d = d.replace(efc_frictionloss=efc.frictionloss)
 
   return d

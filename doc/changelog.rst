@@ -27,6 +27,9 @@ MJX
 ^^^
 
 - Added ``site_xpos`` and ``site_xmat`` to MJX.
+- Added ``put_data``, ``put_model``, ``get_data`` to replace ``device_put`` and ``device_get_into``, which will be
+  deprecated. These new functions correctly translate fields that are the result of intermediate calculations such as
+  ``efc_J``.
 
 Bug fixes
 ^^^^^^^^^

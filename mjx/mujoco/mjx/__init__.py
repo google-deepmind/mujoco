@@ -21,7 +21,10 @@ from mujoco.mjx._src.device import device_get_into
 from mujoco.mjx._src.device import device_put
 from mujoco.mjx._src.forward import forward
 from mujoco.mjx._src.forward import step
+from mujoco.mjx._src.io import get_data
 from mujoco.mjx._src.io import make_data
+from mujoco.mjx._src.io import put_data
+from mujoco.mjx._src.io import put_model
 from mujoco.mjx._src.passive import passive
 from mujoco.mjx._src.smooth import com_pos
 from mujoco.mjx._src.smooth import com_vel

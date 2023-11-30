@@ -21,6 +21,7 @@ import jax
 import jax.numpy as jp
 import mujoco
 # pylint: disable=g-importing-member
+from mujoco.mjx._src import dataclasses
 from mujoco.mjx._src.dataclasses import PyTreeNode
 # pylint: enable=g-importing-member
 import numpy as np
@@ -213,7 +214,6 @@ class Option(PyTreeNode):
     integrator:       integration mode
     cone:             type of friction cone
     solver:           solver algorithm
-    integrator:       integration mode
     iterations:       number of main solver iterations
     ls_iterations:    maximum number of CG/Newton linesearch iterations
     disableflags:     bit flags for disabling standard features
@@ -329,8 +329,8 @@ class Model(PyTreeNode):
     geom_margin: include in solver if dist<margin-gap         (ngeom,)
     geom_gap: include in solver if dist<margin-gap            (ngeom,)
     site_bodyid: id of site's body                            (nsite,)
-    site_pos: local position offset rel. to body              (nsite,3)
-    site_quat: local orientation offset rel. to body          (nsite,4)
+    site_pos: local position offset rel. to body              (nsite, 3)
+    site_quat: local orientation offset rel. to body          (nsite, 4)
     geom_convex_face: vertex face data, MJX only              (ngeom,)
     geom_convex_vert: vertex data, MJX only                   (ngeom,)
     geom_convex_edge: unique edge data, MJX only              (ngeom,)
@@ -508,10 +508,8 @@ class Contact(PyTreeNode):
     solref: constraint solver reference, normal direction             (mjNREF,)
     solreffriction: constraint solver reference, friction directions  (mjNREF,)
     solimp: constraint solver impedance                               (mjNIMP,)
-    dim: contact space dimensionality: 1, 3, 4 or 6
     geom1: id of geom 1
     geom2: id of geom 2
-    efc_address: address in efc; -1: not included
   """
   dist: jax.Array
   pos: jax.Array
@@ -521,29 +519,25 @@ class Contact(PyTreeNode):
   solref: jax.Array
   solreffriction: jax.Array
   solimp: jax.Array
-  # unsupported: mu, H
-  dim: np.ndarray
+  # unsupported: mu, H, dim
   geom1: jax.Array
   geom2: jax.Array
-  efc_address: np.ndarray
-  # unsupported: exclude
+  # unsupported: efc_address, exclude
 
   @classmethod
-  def zero(cls, shape=(0,)) -> 'Contact':
+  def zero(cls, ncon: int = 0) -> 'Contact':
     """Returns a contact filled with zeros."""
     return Contact(
-        dist=jp.zeros(shape),
-        pos=jp.zeros(shape + (3,)),
-        frame=jp.zeros(shape + (3, 3)),
-        includemargin=jp.zeros(shape),
-        friction=jp.zeros(shape + (5,)),
-        solref=jp.zeros(shape + (mujoco.mjNREF,)),
-        solreffriction=jp.zeros(shape + (mujoco.mjNREF,)),
-        solimp=jp.zeros(shape + (mujoco.mjNIMP,)),
-        dim=np.zeros(shape, dtype=np.int32),
-        geom1=jp.zeros(shape, dtype=jp.int32),
-        geom2=jp.zeros(shape, dtype=jp.int32),
-        efc_address=np.zeros(shape, dtype=np.int32),
+        dist=jp.zeros(ncon),
+        pos=jp.zeros((ncon, 3,)),
+        frame=jp.zeros((ncon, 3, 3)),
+        includemargin=jp.zeros(ncon),
+        friction=jp.zeros((ncon, 5)),
+        solref=jp.zeros((ncon, mujoco.mjNREF)),
+        solreffriction=jp.zeros((ncon, mujoco.mjNREF)),
+        solimp=jp.zeros((ncon, mujoco.mjNIMP,)),
+        geom1=jp.zeros(ncon, dtype=jp.int32),
+        geom2=jp.zeros(ncon, dtype=jp.int32),
     )
 
 
@@ -552,11 +546,6 @@ class Data(PyTreeNode):
 
   Attributes:
     solver_niter: number of solver iterations, per island         (mjNISLAND,)
-    ne: number of equality constraints
-    nf: number of friction constraints
-    nl: number of limit constraints
-    nefc: number of constraints
-    ncon: nubmer of contacts
     time: simulation time
     qpos: position                                                (nq,)
     qvel: velocity                                                (nv,)
@@ -610,12 +599,6 @@ class Data(PyTreeNode):
   """
   # solver statistics:
   solver_niter: jax.Array
-  # sizes (variable in MJ, constant in MJX)
-  ne: int
-  nf: int
-  nl: int
-  nefc: int
-  ncon: int
   # global properties:
   time: jax.Array
   # state:

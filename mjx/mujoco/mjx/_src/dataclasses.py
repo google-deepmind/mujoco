@@ -18,7 +18,7 @@ import copy
 import dataclasses
 
 import typing
-from typing import Dict, Optional, Sequence, TypeVar
+from typing import Any, Dict, Optional, Sequence, TypeVar
 import jax
 import numpy as np
 
@@ -112,6 +112,10 @@ class PyTreeNode:
   def replace(self: TNode, **overrides) -> TNode:
     # stub for pytype
     raise NotImplementedError
+
+  @classmethod
+  def fields(cls) -> tuple[dataclasses.Field[Any], ...]:
+    return dataclasses.fields(cls)
 
   def tree_replace(
       self, params: Dict[str, Optional[jax.typing.ArrayLike]]

@@ -82,7 +82,6 @@ class CollisionDriverIntegrationTest(parameterized.TestCase):
     mjx_contact = jax.tree_map(
         lambda x: x.take(np.array(idx), axis=0), dx.contact
     )
-    mjx_contact = mjx_contact.replace(dim=mjx_contact.dim[idx])
     for field in dataclasses.fields(Contact):
       _assert_attr_eq(mjx_contact, d.contact, field.name, seed, 1e-7)
 

@@ -19,6 +19,7 @@ from typing import Optional
 import jax
 from jax import numpy as jp
 import mujoco
+from mujoco.mjx._src import constraint
 from mujoco.mjx._src import math
 from mujoco.mjx._src import smooth
 # pylint: disable=g-importing-member
@@ -69,12 +70,12 @@ class _Context(PyTreeNode):
     # TODO(robotics-team): determine nv at which sparse mul is faster
     M = smooth.dense_m(m, d) if m.nv < 100 else None  # pylint: disable=invalid-name
     ma = smooth.mul_m(m, d, d.qacc) if M is None else M @ d.qacc
-    nv_0 = jp.zeros((m.nv,))
+    nv_0 = jp.zeros(m.nv)
     ctx = _Context(
         qacc=d.qacc,
         qfrc_constraint=d.qfrc_constraint,
         Jaref=jaref,
-        efc_force=jp.zeros(d.nefc),
+        efc_force=d.efc_force,
         M=M,
         Ma=ma,
         grad=nv_0,
@@ -111,7 +112,7 @@ class _LSPoint(PyTreeNode):
   @classmethod
   def create(
       cls,
-      d: Data,
+      m: Model,
       ctx: _Context,
       alpha: jax.Array,
       jv: jax.Array,
@@ -122,7 +123,8 @@ class _LSPoint(PyTreeNode):
     # roughly corresponds to CGEval in mujoco/src/engine/engine_solver.c
 
     # TODO(robotics-team): change this to support friction constraints
-    active = ((ctx.Jaref + alpha * jv) < 0).at[:d.ne + d.nf].set(True)
+    ne, nf, *_ = constraint.count_constraints(m)
+    active = ((ctx.Jaref + alpha * jv) < 0).at[:ne + nf].set(True)
     quad = jax.vmap(jp.multiply)(quad, active)  # only active
     quad_total = quad_gauss + jp.sum(quad, axis=0)
 
@@ -177,12 +179,11 @@ def _update_constraint(m: Model, d: Data, ctx: _Context) -> _Context:
   Returns:
     context with new constraint force and costs
   """
-  del m
-
   # TODO(robotics-team): add friction constraints
 
   # only count active constraints
-  active = (ctx.Jaref < 0).at[:d.ne + d.nf].set(True)
+  ne, nf, *_ = constraint.count_constraints(m)
+  active = (ctx.Jaref < 0).at[:ne + nf].set(True)
 
   efc_force = d.efc_D * -ctx.Jaref * active
   qfrc_constraint = d.efc_J.T @ efc_force
@@ -221,7 +222,8 @@ def _update_gradient(m: Model, d: Data, ctx: _Context) -> _Context:
   if m.opt.solver == SolverType.CG:
     mgrad = smooth.solve_m(m, d, grad)
   elif m.opt.solver == SolverType.NEWTON:
-    active = (ctx.Jaref < 0).at[:d.ne + d.nf].set(True)
+    ne, nf, *_ = constraint.count_constraints(m)
+    active = (ctx.Jaref < 0).at[:ne + nf].set(True)
     h = (d.efc_J.T * d.efc_D * active) @ d.efc_J
     h = smooth.dense_m(m, d) + h
     h_ = jax.scipy.linalg.cho_factor(h)
@@ -265,7 +267,7 @@ def _linesearch(m: Model, d: Data, ctx: _Context) -> _Context:
   quad = jp.stack((0.5 * ctx.Jaref * ctx.Jaref, jv * ctx.Jaref, 0.5 * jv * jv))
   quad = (quad * d.efc_D).T
 
-  point_fn = lambda alpha: _LSPoint.create(d, ctx, alpha, jv, quad, quad_gauss)
+  point_fn = lambda a: _LSPoint.create(m, ctx, a, jv, quad, quad_gauss)
 
   def cond(ctx: _LSContext) -> jax.Array:
     done = ctx.ls_iter >= m.opt.ls_iterations

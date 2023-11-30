@@ -221,7 +221,7 @@ def flat(
         'u': i,
         'a': m.actuator_actadr[i],
         'j': (
-            m.actuator_trnid[i]
+            m.actuator_trnid[i, 0]
             if m.actuator_trntype[i] == TrnType.JOINT
             else np.array(-1)
         ),

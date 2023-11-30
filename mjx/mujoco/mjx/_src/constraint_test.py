@@ -136,13 +136,8 @@ class ConstraintTest(parameterized.TestCase):
     m = test_util.load_test_file('ant.xml')
     d = mujoco.MjData(m)
 
-    m.opt.disableflags = m.opt.disableflags & ~DisableBit.CONSTRAINT
-    mx, dx = mjx.device_put(m), mjx.device_put(d)
-    dx = constraint.make_constraint(mx, dx)
-    self.assertGreater(dx.efc_J.shape[0], 1)
-
     m.opt.disableflags = m.opt.disableflags | DisableBit.CONSTRAINT
-    mx = mjx.device_put(m)
+    mx, dx = mjx.device_put(m), mjx.device_put(d)
     dx = constraint.make_constraint(mx, dx)
     self.assertEqual(dx.efc_J.shape[0], 0)
 
