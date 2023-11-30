@@ -30,6 +30,7 @@
 #include "engine/engine_util_misc.h"
 #include "engine/engine_util_spatial.h"
 #include "engine/engine_vis_init.h"
+#include "engine/engine_vis_interact.h"
 
 //----------------------------- utility functions and macros ---------------------------------------
 
@@ -2087,6 +2088,12 @@ void mjv_makeLights(const mjModel* m, mjData* d, mjvScene* scn) {
     thislight->directional = 1;
     thislight->castshadow = 0;
 
+    // compute head position and gaze direction in model space
+    mjtNum hpos[3], hfwd[3];
+    mjv_cameraInModel(hpos, hfwd, NULL, scn);
+    mju_n2f(thislight->pos, hpos, 3);
+    mju_n2f(thislight->dir, hfwd, 3);
+
     // copy colors
     f2f(thislight->ambient, m->vis.headlight.ambient, 3);
     f2f(thislight->diffuse, m->vis.headlight.diffuse, 3);
@@ -2723,11 +2730,11 @@ void mjv_updateScene(const mjModel* m, mjData* d, const mjvOption* opt,
   // add all categories
   mjv_addGeoms(m, d, opt, pert, catmask, scn);
 
-  // add lights
-  mjv_makeLights(m, d, scn);
-
   // update camera
   mjv_updateCamera(m, d, cam, scn);
+
+  // add lights
+  mjv_makeLights(m, d, scn);
 
   // update flexes
   if (opt->flags[mjVIS_FLEXVERT] || opt->flags[mjVIS_FLEXEDGE] ||

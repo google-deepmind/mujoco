@@ -613,7 +613,7 @@ static void initGL3(const mjvScene* scn, const mjrContext* con) {
 
 
 // init lights
-static void initLights(mjvScene* scn, const float* headpos, const float* gazedir) {
+static void initLights(mjvScene* scn) {
   // create some ambient light if no ligths are present
   float global = scn->nlight ? 0 : 0.3f;
   float rgba_global[4] = {global, global, global, 1};
@@ -622,14 +622,6 @@ static void initLights(mjvScene* scn, const float* headpos, const float* gazedir
   glLightModelfv(GL_LIGHT_MODEL_AMBIENT, rgba_global);
   glLightModeli(GL_LIGHT_MODEL_TWO_SIDE, 0);
   glLightModeli(GL_LIGHT_MODEL_LOCAL_VIEWER, 1);
-
-  // headlight: set pos and dir
-  if (scn->lights[0].headlight) {
-    for (int i=0; i < 3; i++) {
-      scn->lights[0].pos[i] = headpos[i];
-      scn->lights[0].dir[i] = gazedir[i];
-    }
-  }
 
   // set light properties
   for (int i=0; i < scn->nlight; i++) {
@@ -762,8 +754,8 @@ void mjr_render(mjrRect viewport, mjvScene* scn, const mjrContext* con) {
   int stereo, nt, ngeom = scn->ngeom, nlight = mjMIN(mjMAXLIGHT, scn->nlight);
   unsigned int drawbuffer;
   mjvGLCamera cam;
-  mjtNum hpos[3], hfwd[3];
-  float temp[4], headpos[3], forward[3], skyboxdst;
+  mjtNum hpos[3];
+  float temp[4], headpos[3], skyboxdst;
   float camProject[16], camView[16], lightProject[16], lightView[16];
   double clipplane[4];
   float biasMatrix[16] = {
@@ -827,13 +819,12 @@ void mjr_render(mjrRect viewport, mjvScene* scn, const mjrContext* con) {
     drawbuffer = GL_COLOR_ATTACHMENT0;
   }
 
-  // compute head position and gaze direction in model space
-  mjv_cameraInModel(hpos, hfwd, NULL, scn);
-  mju_n2f(headpos, hpos, 3);
-  mju_n2f(forward, hfwd, 3);
-
   // init lights
-  initLights(scn, headpos, forward);
+  initLights(scn);
+
+  // compute head position in model space
+  mjv_cameraInModel(hpos, NULL, NULL, scn);
+  mju_n2f(headpos, hpos, 3);
 
   // make list of transparent geoms
   nt = 0;

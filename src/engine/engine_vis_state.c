@@ -241,11 +241,11 @@ int mjv_updateSceneFromState(const mjvSceneState* scnstate, const mjvOption* opt
   // add all categories
   mjv_addGeoms(&m, &d, opt, pert, catmask, scn);
 
-  // add lights
-  mjv_makeLights(&m, &d, scn);
-
   // update camera
   mjv_updateCamera(&m, &d, cam, scn);
+
+  // add lights
+  mjv_makeLights(&m, &d, scn);
 
   // update flexes
   if (opt->flags[mjVIS_FLEXVERT] || opt->flags[mjVIS_FLEXEDGE] ||
