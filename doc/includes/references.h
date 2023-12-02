@@ -1182,20 +1182,23 @@ struct mjModel_ {
   int*      skin_bonebodyid;      // body id of each bone                     (nskinbone x 1)
   int*      skin_bonevertid;      // mesh ids of vertices in each bone        (nskinbonevert x 1)
   float*    skin_bonevertweight;  // weights of vertices in each bone         (nskinbonevert x 1)
+  int*      skin_pathadr;         // address of asset path for skin; -1: none (nskin x 1)
 
   // height fields
-  mjtNum*   hfield_size;          // (x, y, z_top, z_bottom)                  (nhfield x 4)
-  int*      hfield_nrow;          // number of rows in grid                   (nhfield x 1)
-  int*      hfield_ncol;          // number of columns in grid                (nhfield x 1)
-  int*      hfield_adr;           // address in hfield_data                   (nhfield x 1)
-  float*    hfield_data;          // elevation data                           (nhfielddata x 1)
+  mjtNum*   hfield_size;          // (x, y, z_top, z_bottom)                    (nhfield x 4)
+  int*      hfield_nrow;          // number of rows in grid                     (nhfield x 1)
+  int*      hfield_ncol;          // number of columns in grid                  (nhfield x 1)
+  int*      hfield_adr;           // address in hfield_data                     (nhfield x 1)
+  float*    hfield_data;          // elevation data                             (nhfielddata x 1)
+  int*      hfield_pathadr;       // address of asset path for hfield; -1: none (nhfield x 1)
 
   // textures
-  int*      tex_type;             // texture type (mjtTexture)                (ntex x 1)
-  int*      tex_height;           // number of rows in texture image          (ntex x 1)
-  int*      tex_width;            // number of columns in texture image       (ntex x 1)
-  int*      tex_adr;              // address in rgb                           (ntex x 1)
-  mjtByte*  tex_rgb;              // rgb (alpha = 1)                          (ntexdata x 1)
+  int*      tex_type;             // texture type (mjtTexture)                  (ntex x 1)
+  int*      tex_height;           // number of rows in texture image            (ntex x 1)
+  int*      tex_width;            // number of columns in texture image         (ntex x 1)
+  int*      tex_adr;              // address in rgb                             (ntex x 1)
+  mjtByte*  tex_rgb;              // rgb (alpha = 1)                            (ntexdata x 1)
+  int*      tex_pathadr;         // address of asset path for texture; -1: none (ntex x 1)
 
   // materials
   int*      mat_texid;            // texture id; -1: none                     (nmat x 1)
@@ -2248,6 +2251,8 @@ struct mjvSceneState_ {
     mjtNum* flex_radius;
     float* flex_rgba;
 
+    int* hfield_pathadr;
+
     int* mesh_bvhadr;
     int* mesh_bvhnum;
     int* mesh_texcoordadr;
@@ -2274,6 +2279,9 @@ struct mjvSceneState_ {
     int* skin_bonebodyid;
     int* skin_bonevertid;
     float* skin_bonevertweight;
+    int* skin_pathadr;
+
+    int* tex_pathadr;
 
     int* mat_texid;
     mjtByte* mat_texuniform;

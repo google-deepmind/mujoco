@@ -615,6 +615,7 @@ class mjCMesh: public mjCBase {
   // public getters
   const std::string& content_type() const { return content_type_; }
   const std::string& file() const { return file_; }
+  const std::string& get_file() const { return file_; }
   const double* refpos() const { return refpos_; }
   const double* refquat() const { return refquat_; }
   const double* scale() const { return scale_; }
@@ -766,6 +767,8 @@ class mjCSkin: public mjCBase {
   friend class mjXWriter;
 
  public:
+  std::string get_file() const { return file; }
+
   std::string file;                   // skin file
   std::string material;               // name of material used for rendering
   float rgba[4];                      // rgba when material is omitted
@@ -804,6 +807,8 @@ class mjCHField : public mjCBase {
   friend class mjXWriter;
 
  public:
+  std::string get_file() const { return file; }
+
   std::string content_type;       // content type of file
   std::string file;               // file: (nrow, ncol, [elevation data])
   double size[4];                 // hfield size (ignore referencing geom size)
@@ -831,6 +836,8 @@ class mjCTexture : public mjCBase {
   friend class mjXWriter;
 
  public:
+  std::string get_file() const { return file; }
+
   mjtTexture type;                // texture type
 
   // method 1: builtin

@@ -906,6 +906,18 @@ void mjCModel::SetDefaultNames(void) {
 const int nPOS[4] = {7, 4, 1, 1};
 const int nVEL[4] = {6, 3, 1, 1};
 
+template <typename T>
+static size_t getpathslength(std::vector<T> list) {
+  size_t result = 0;
+  for (const auto& element : list) {
+    if (!element->get_file().empty()) {
+      result += element->get_file().length() + 1;
+    }
+  }
+
+  return result;
+}
+
 // set array sizes
 void mjCModel::SetSizes(void) {
   // set from object list sizes
@@ -1038,18 +1050,16 @@ void mjCModel::SetSizes(void) {
 
   // npaths
   npaths = 0;
-  for (int i=0; i<nmesh; i++) {
-    if (meshes[i]->file().empty()) {
-      continue;
-    }
-    npaths += (int)meshes[i]->file().length() + 1;
-  }
+  npaths += getpathslength(hfields);
+  npaths += getpathslength(meshes);
+  npaths += getpathslength(skins);
+  npaths += getpathslength(textures);
   if (npaths == 0) {
     npaths = 1;
   }
 
   // nemax
-  for (int i=0; i<neq; i++)
+  for (int i=0; i<neq; i++) {
     if (equalities[i]->type==mjEQ_CONNECT) {
       nemax += 3;
     } else if (equalities[i]->type==mjEQ_WELD) {
@@ -1057,6 +1067,7 @@ void mjCModel::SetSizes(void) {
     } else {
       nemax += 1;
     }
+  }
 }
 
 
@@ -1243,6 +1254,25 @@ void mjCModel::LengthRange(mjModel* m, mjData* data) {
 }
 
 
+// Add items to a generic list. This enables the names and paths to be stored.
+// input - string to add
+// adr - current address in the list
+// output_adr_field - the field where the address should be stored (name_meshadr)
+// output_buffer - the field where the data should be stored (i.e. names or paths)
+static int addtolist(const std::string& input, int adr, int* output_adr_field, char* output_buffer) {
+  *output_adr_field = adr;
+
+  // copy input
+  memcpy(output_buffer+adr, input.c_str(), input.size());
+  adr += (int)input.size();
+
+  // append 0
+  output_buffer[adr] = 0;
+  adr++;
+
+  return adr;
+}
+
 // process names from one list: concatenate, compute addresses
 template <class T>
 static int namelist(vector<T*>& list, int adr, int* name_adr, char* names, int* map) {
@@ -1262,15 +1292,7 @@ static int namelist(vector<T*>& list, int adr, int* name_adr, char* names, int* 
   }
 
   for (unsigned int i=0; i<list.size(); i++) {
-    name_adr[i] = adr;
-
-    // copy name
-    memcpy(names+adr, list[i]->name.c_str(), list[i]->name.size());
-    adr += (int)list[i]->name.size();
-
-    // append 0
-    names[adr] = 0;
-    adr++;
+    adr = addtolist(list[i]->name, adr, &name_adr[i], names);
   }
 
   return adr;
@@ -1360,28 +1382,28 @@ void mjCModel::CopyNames(mjModel* m) {
   }
 }
 
-
-void mjCModel::CopyPaths(mjModel* m) {
-  // start with 0 address.
-  size_t adr = 0;
-  m->paths[0] = 0;
-
-  for (unsigned int i=0; i<meshes.size(); i++) {
-    if (meshes[i]->file().empty()) {
-      m->mesh_pathadr[i] = -1;
+// process paths from one list: concatenate, compute addresses
+template <class T>
+static int pathlist(vector<T*>& list, int adr, int* path_adr, char* paths) {
+  for (unsigned int i = 0; i < list.size(); ++i) {
+    path_adr[i] = -1;
+    if (!list[i] || list[i]->get_file().empty()) {
       continue;
     }
-    m->mesh_pathadr[i] = adr;
-
-    // copy path
-    size_t path_size = meshes[i]->file().size();
-    memcpy(m->paths+adr, meshes[i]->file().c_str(), path_size);
-    adr += path_size;
-
-    // append 0
-    m->paths[adr] = 0;
-    adr++;
+    adr = addtolist(list[i]->get_file(), adr, &path_adr[i], paths);
   }
+
+  return adr;
+}
+
+void mjCModel::CopyPaths(mjModel* m) {
+  // start with 0 address, unlike m->names m->paths might be empty
+  size_t adr = 0;
+  m->paths[0] = 0;
+  adr = pathlist(hfields, adr, m->hfield_pathadr, m->paths);
+  adr = pathlist(meshes, adr, m->mesh_pathadr, m->paths);
+  adr = pathlist(skins, adr, m->skin_pathadr, m->paths);
+  adr = pathlist(textures, adr, m->tex_pathadr, m->paths);
 }
 
 
@@ -2891,7 +2913,6 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
   // resolve asset references, compute sizes
   IndexAssets();
   SetSizes();
-
   // fuse static if enabled
   if (fusestatic) {
     FuseStatic();

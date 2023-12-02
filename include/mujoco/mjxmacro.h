@@ -395,16 +395,19 @@
     XMJV( int,     skin_bonebodyid,       nskinbone,     1                    ) \
     XMJV( int,     skin_bonevertid,       nskinbonevert, 1                    ) \
     XMJV( float,   skin_bonevertweight,   nskinbonevert, 1                    ) \
+    XMJV( int,     skin_pathadr,          nskin,         1                    ) \
     X   ( mjtNum,  hfield_size,           nhfield,       4                    ) \
     X   ( int,     hfield_nrow,           nhfield,       1                    ) \
     X   ( int,     hfield_ncol,           nhfield,       1                    ) \
     X   ( int,     hfield_adr,            nhfield,       1                    ) \
     X   ( float,   hfield_data,           nhfielddata,   1                    ) \
+    XMJV( int,     hfield_pathadr,        nhfield,       1                    ) \
     X   ( int,     tex_type,              ntex,          1                    ) \
     X   ( int,     tex_height,            ntex,          1                    ) \
     X   ( int,     tex_width,             ntex,          1                    ) \
     X   ( int,     tex_adr,               ntex,          1                    ) \
     X   ( mjtByte, tex_rgb,               ntexdata,      1                    ) \
+    XMJV( int,     tex_pathadr,           ntex,          1                    ) \
     XMJV( int,     mat_texid,             nmat,          1                    ) \
     XMJV( mjtByte, mat_texuniform,        nmat,          1                    ) \
     XMJV( float,   mat_texrepeat,         nmat,          2                    ) \

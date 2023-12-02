@@ -5393,16 +5393,19 @@ public unsafe struct mjModel_ {
   public int* skin_bonebodyid;
   public int* skin_bonevertid;
   public float* skin_bonevertweight;
+  public int* skin_pathadr;
   public double* hfield_size;
   public int* hfield_nrow;
   public int* hfield_ncol;
   public int* hfield_adr;
   public float* hfield_data;
+  public int* hfield_pathadr;
   public int* tex_type;
   public int* tex_height;
   public int* tex_width;
   public int* tex_adr;
   public byte* tex_rgb;
+  public int* tex_pathadr;
   public int* mat_texid;
   public byte* mat_texuniform;
   public float* mat_texrepeat;
@@ -6164,6 +6167,7 @@ public unsafe struct model {
   public int* flex_bvhnum;
   public double* flex_radius;
   public float* flex_rgba;
+  public int* hfield_pathadr;
   public int* mesh_bvhadr;
   public int* mesh_bvhnum;
   public int* mesh_texcoordadr;
@@ -6189,6 +6193,8 @@ public unsafe struct model {
   public int* skin_bonebodyid;
   public int* skin_bonevertid;
   public float* skin_bonevertweight;
+  public int* skin_pathadr;
+  public int* tex_pathadr;
   public int* mat_texid;
   public byte* mat_texuniform;
   public float* mat_texrepeat;

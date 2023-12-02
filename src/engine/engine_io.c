@@ -1957,7 +1957,10 @@ const char* mj_validateReferences(const mjModel* m) {
   X(name_textadr,       ntext,          nnames        , 0                      ) \
   X(name_tupleadr,      ntuple,         nnames        , 0                      ) \
   X(name_keyadr,        nkey,           nnames        , 0                      ) \
-  X(mesh_pathadr,       nmesh,          npaths        , 0                      )
+  X(hfield_pathadr,     nhfield,        npaths        , 0                      ) \
+  X(mesh_pathadr,       nmesh,          npaths        , 0                      ) \
+  X(skin_pathadr,       nskin,          npaths        , 0                      ) \
+  X(tex_pathadr,        ntex,           npaths        , 0                      )
 
   #define X(adrarray, nadrs, ntarget, numarray) {             \
     int *nums = (numarray);                                   \
