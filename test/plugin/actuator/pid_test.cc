@@ -562,6 +562,67 @@ TEST_F(PidTest, CopyData) {
   EXPECT_EQ(d1->qpos[1], d2->qpos[1]);
 }
 
+TEST_F(PidTest, MultipleActuatorsSamePlugin) {
+  constexpr absl::string_view kModelXml = R"(
+  <mujoco>
+  <extension>
+    <plugin plugin="mujoco.pid">
+      <instance name="pid">
+        <config key="kp" value="4.0"/>
+        <config key="slewmax" value="0.75"/>
+      </instance>
+    </plugin>
+  </extension>
+
+  <option gravity="0 0 0" timestep="0.001"/>
+
+  <worldbody>
+    <body>
+      <joint name="j1" type="slide"/>
+      <geom size="0.01"/>
+    </body>
+    <body pos="0.04 0 0" >
+      <joint name="j2" type="slide"/>
+      <geom size="0.01"/>
+    </body>
+  </worldbody>
+
+  <actuator>
+    <plugin joint="j1" plugin="mujoco.pid" instance="pid" />
+    <plugin joint="j2" plugin="mujoco.pid" instance="pid" />
+  </actuator>
+  </mujoco>
+  )";
+
+  char error[1024] = {0};
+  mjModel* m = LoadModelFromString(kModelXml, error, sizeof(error));
+  ASSERT_THAT(m, NotNull()) << error;
+  absl::Cleanup m_deleter = [m] { mj_deleteModel(m); };
+
+  // having a slew rate means that there should be one extra state variable
+  // for the plugin.
+  EXPECT_EQ(m->actuator_actnum[0], 1);
+  EXPECT_EQ(m->actuator_actnum[1], 1);
+
+  mjData* d = mj_makeData(m);
+  absl::Cleanup d_deleter = [d] { mj_deleteData(d); };
+
+  // Set different ctrls for the two actuators, and check that they're
+  // independent.
+  d->ctrl[0] = 1.0;
+  d->ctrl[1] = -1.0;
+
+  for (int i = 0; i < 2; i++) {
+    mj_step(m, d);
+
+    EXPECT_EQ(d->actuator_force[0], -d->actuator_force[1])
+        << "actuator_force mismatch at step " << i;
+    EXPECT_EQ(d->qfrc_actuator[0], -d->qfrc_actuator[1])
+        << "qfrc_actuator mismatch at step " << i;
+    EXPECT_EQ(d->qpos[0], -d->qpos[1]) << "qpos mismatch at step " << i;
+  }
+}
+
 TEST_F(PidTest, InvalidClamp) {
   constexpr absl::string_view kModelXml = R"(
   <mujoco>

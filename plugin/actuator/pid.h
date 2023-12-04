@@ -17,6 +17,7 @@
 
 #include <memory>
 #include <optional>
+#include <vector>
 
 #include <mujoco/mjdata.h>
 #include <mujoco/mjmodel.h>
@@ -73,7 +74,7 @@ class Pid {
   static void RegisterPlugin();
 
  private:
-  Pid(PidConfig config, int actuator_idx);
+  Pid(PidConfig config, std::vector<int> actuators);
 
   struct State {
     mjtNum previous_ctrl = 0;
@@ -88,14 +89,12 @@ class Pid {
 
   // Returns the PID setpoint, which is normally d->ctrl, but can be d->act for
   // actuators with dyntype != none.
-  mjtNum GetCtrl(const mjModel* m, const mjData* d, const State& state,
-                 bool actearly) const;
+  mjtNum GetCtrl(const mjModel* m, const mjData* d, int actuator_idx,
+                 const State& state, bool actearly) const;
 
   PidConfig config_;
-  int actuator_idx_ = 0;
-
-  mjtNum integral_ = 0.0;
-  mjtNum previous_ctrl_ = 0.0;
+  // set of actuator IDs controlled by this plugin instance.
+  std::vector<int> actuators_;
 };
 
 }  // namespace mujoco::plugin::actuator
