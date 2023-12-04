@@ -24,7 +24,6 @@ namespace Mujoco
 [Serializable]
 public class MjHeightFieldShape : IMjShape
 {
-
   public Terrain terrain;
 
   [Tooltip("The path, relative to Application.dataPath, where the heightmap data will be save in PNG format.")]
@@ -35,21 +34,18 @@ public class MjHeightFieldShape : IMjShape
   public int HeightMapHeight => terrain.terrainData.heightmapTexture.height;
   public Vector3 HeightMapScale => terrain.terrainData.heightmapScale;
 
-  public void ToMjcf(XmlElement mjcf, Transform transform)
-  {
+  public void ToMjcf(XmlElement mjcf, Transform transform){
     ExportHeightMap();
     var scene = MjScene.Instance;
     var assetName = scene.GenerationContext.AddHeightFieldAsset(this);
     mjcf.SetAttribute("hfield", assetName);
   }
 
-  public void FromMjcf(XmlElement mjcf)
-  {
+  public void FromMjcf(XmlElement mjcf){
 
   }
 
-  public void ExportHeightMap()
-  {
+  public void ExportHeightMap(){
     RenderTexture.active = terrain.terrainData.heightmapTexture;
     Texture2D texture = new Texture2D(RenderTexture.active.width, RenderTexture.active.height);
     texture.ReadPixels(new Rect(0, 0, RenderTexture.active.width, RenderTexture.active.height), 0, 0);
@@ -58,18 +54,15 @@ public class MjHeightFieldShape : IMjShape
   }
 
 
-  public Vector4 GetChangeStamp()
-  {
+  public Vector4 GetChangeStamp(){
     return Vector4.one;
   }
 
-  public Tuple<Vector3[], int[]> BuildMesh()
-  {
+  public Tuple<Vector3[], int[]> BuildMesh(){
     return Tuple.Create(new Vector3[]{}, new int[]{});
   }
 
-  public void DebugDraw(Transform transform)
-  {
+  public void DebugDraw(Transform transform){
   }
 }
 }
