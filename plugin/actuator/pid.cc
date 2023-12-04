@@ -160,7 +160,7 @@ mjtNum Pid::GetCtrl(const mjModel* m, const mjData* d, const State& state,
 }
 
 void Pid::ActDot(const mjModel* m, mjData* d, int instance) const {
-  State state = GetState(m, d, instance);
+  State state = GetState(m, d, actuator_idx_);
   mjtNum ctrl = GetCtrl(m, d, state, /*actearly=*/false);
   mjtNum error = ctrl - d->actuator_length[actuator_idx_];
 
@@ -180,7 +180,7 @@ void Pid::ActDot(const mjModel* m, mjData* d, int instance) const {
 }
 
 void Pid::Compute(const mjModel* m, mjData* d, int instance) {
-  State state = GetState(m, d, instance);
+  State state = GetState(m, d, actuator_idx_);
   mjtNum ctrl = GetCtrl(m, d, state, m->actuator_actearly[actuator_idx_]);
 
   mjtNum error = ctrl - d->actuator_length[actuator_idx_];
@@ -217,9 +217,9 @@ int Pid::ActDim(const mjModel* m, int instance, int actuator_id) {
   return (i_gain ? 1 : 0) + (HasSlew(m, instance) ? 1 : 0);
 }
 
-Pid::State Pid::GetState(const mjModel* m, mjData* d, int instance) const {
+Pid::State Pid::GetState(const mjModel* m, mjData* d, int actuator_idx) const {
   State state;
-  int state_idx = m->actuator_actadr[instance];
+  int state_idx = m->actuator_actadr[actuator_idx];
   if (config_.i_gain) {
     state.integral = d->act[state_idx++];
   }

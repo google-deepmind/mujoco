@@ -84,7 +84,7 @@ class Pid {
     mjtNum integral = 0;
   };
   // Reads data from d->act and returns it as a State struct.
-  State GetState(const mjModel* m, mjData* d, int instance) const;
+  State GetState(const mjModel* m, mjData* d, int actuator_idx) const;
 
   // Returns the PID setpoint, which is normally d->ctrl, but can be d->act for
   // actuators with dyntype != none.

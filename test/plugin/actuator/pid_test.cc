@@ -322,10 +322,6 @@ TEST_F(PidTest, ITerm) {
   <mujoco>
   <extension>
     <plugin plugin="mujoco.pid">
-      <instance name="pid1">
-        <config key="kp" value="40.0"/>
-        <config key="kd" value="4"/>
-      </instance>
       <instance name="pid2">
         <config key="kp" value="40.0"/>
         <config key="ki" value="40"/>
@@ -336,6 +332,14 @@ TEST_F(PidTest, ITerm) {
         <config key="ki" value="40"/>
         <config key="kd" value="4"/>
         <config key="imax" value="5"/>
+      </instance>
+      <!-- intentionally put the plugin instances out of order, to test
+           any accidentaly dependency on the plugin definition order matching
+           the actuator order.
+      -->
+      <instance name="pid1">
+        <config key="kp" value="40.0"/>
+        <config key="kd" value="4"/>
       </instance>
     </plugin>
   </extension>
