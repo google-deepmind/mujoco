@@ -60,11 +60,13 @@ public class StlMeshParser {
         reader.ReadBytes(_headerLength);
         var numTriangles = reader.ReadUInt32();
         var numVertices = numTriangles * _verticesPerTriangle;
+        /*
         if (numVertices > _unityLimitNumVerticesPerMesh) {
           throw new IndexOutOfRangeException(
               "The mesh exceeds the number of vertices per mesh allowed by Unity. " +
               $"({numVertices} > {_unityLimitNumVerticesPerMesh})");
         }
+        */
         var triangleIndices = new List<int>(capacity: (int)numVertices);
         var vertices = new List<Vector3>(capacity: (int)numVertices);
         var normals = new List<Vector3>(capacity: (int)numVertices);
@@ -80,6 +82,7 @@ public class StlMeshParser {
         }
 
         var mesh = new Mesh();
+        mesh.indexFormat = UnityEngine.Rendering.IndexFormat.UInt32;
         mesh.vertices = vertices.ToArray();
         mesh.normals = normals.ToArray();
         mesh.triangles = triangleIndices.ToArray();
