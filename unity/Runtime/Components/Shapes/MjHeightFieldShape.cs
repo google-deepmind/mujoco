@@ -36,8 +36,11 @@ public class MjHeightFieldShape : IMjShape
 
   public void ToMjcf(XmlElement mjcf, Transform transform){
     ExportHeightMap();
+    if(terrain.transform.parent != transform) Debug.LogWarning($"The terrain of heightfield {transform.name} needs to be parented to the Geom for proper rendering.");
+    else terrain.transform.localPosition = new Vector3(-HeightMapHeight*HeightMapScale.x / 2, terrain.transform.localPosition.y, -HeightMapWidth*HeightMapScale.z / 2);
     var scene = MjScene.Instance;
     var assetName = scene.GenerationContext.AddHeightFieldAsset(this);
+
     mjcf.SetAttribute("hfield", assetName);
   }
 
@@ -59,7 +62,7 @@ public class MjHeightFieldShape : IMjShape
   }
 
   public Tuple<Vector3[], int[]> BuildMesh(){
-    return Tuple.Create(new Vector3[]{}, new int[]{});
+    return null;
   }
 
   public void DebugDraw(Transform transform){

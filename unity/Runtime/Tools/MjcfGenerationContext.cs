@@ -121,7 +121,7 @@ public class MjcfGenerationContext {
     mjcf.SetAttribute("content_type", "image/png");
     mjcf.SetAttribute("file", hFieldComponent.FullHeightMapPath);
             
-    mjcf.SetAttribute("size", MjEngineTool.MakeLocaleInvariant($"{hFieldComponent.HeightMapScale.x*hFieldComponent.HeightMapHeight/2} {hFieldComponent.HeightMapScale.z * hFieldComponent.HeightMapWidth/2} {hFieldComponent.HeightMapScale.y*2} {hFieldComponent.terrain.transform.position.y}"));
+    mjcf.SetAttribute("size", MjEngineTool.MakeLocaleInvariant($"{hFieldComponent.HeightMapScale.x*hFieldComponent.HeightMapHeight/2} {hFieldComponent.HeightMapScale.z * hFieldComponent.HeightMapWidth/2} {hFieldComponent.HeightMapScale.y} {hFieldComponent.terrain.transform.localPosition.y}"));
 
   }
 }
