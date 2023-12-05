@@ -37,6 +37,9 @@ Bug fixes
   Before this fix such actuators could lead to non-conservation of momentum.
 - Fix bug that prevented using flex with the :ref:`passive viewer<PyViewerPassive>`.
 - Fix bug that prevented the use of elasticity plugins in combination with pinned flex vertices.
+- Release Python wheels targeting macOS 10.16 to support x86_64 systems where SYSTEM_VERSION_COMPAT is set. The minimum
+  supported version is still 11.0, but we release these wheels to fix compatibility for those users. See
+  :github:issue:`1213`.
 
 Version 3.0.1 (November 15, 2023)
 ---------------------------------
