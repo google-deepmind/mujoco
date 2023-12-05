@@ -4620,7 +4620,7 @@ joint types (slide and hinge) can be used.
 :at:`polycoef`: :at-val:`real(5), "0 1 0 0 0"`
    Coefficients a0 ... a4 of the quartic polynomial. If the two joint values are y and x, and their reference positions
    (corresponding to the joint values in the initial model configuration) are y0 and x0, the constraint is:
-   y-y0 = a0 + a1*(x-x0) + a2*(x-x0)^2 + a3*(x-x0)^3 + a4*(x-x0)^4
+   y-y0 = a0 + a1*(x-x0) + a2*(x-x0)^2 + a3*(x-x0)^3 + a4*(x-x0)^4.
    Omitting the second joint is equivalent to setting x = x0, in which case the constraint is y = y0 + a0.
 
 
