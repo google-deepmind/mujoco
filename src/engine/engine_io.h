@@ -35,7 +35,7 @@ extern "C" {
 // Set default options for length range computation.
 MJAPI void mj_defaultLROpt(mjLROpt* opt);
 
-// set default solver paramters
+// set default solver parameters
 MJAPI void mj_defaultSolRefImp(mjtNum* solref, mjtNum* solimp);
 
 // set options to default values

@@ -163,7 +163,7 @@ static mjtNum wrap_circle(mjtNum* pnt, const mjtNum* d, const mjtNum* sd, mjtNum
 //  input: pair of 2D points in d[4], radius
 //  output: pair of 2D points in pnt[4]; return 0 if wrap, -1 if no wrap
 static mjtNum wrap_inside(mjtNum* pnt, const mjtNum* d, mjtNum rad) {
-  // algorithm paramters
+  // algorithm parameters
   const int maxiter = 20;
   const mjtNum zinit = 1 - 1e-7;
   const mjtNum tolerance = 1e-6;

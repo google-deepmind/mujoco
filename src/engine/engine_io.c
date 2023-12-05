@@ -94,7 +94,7 @@ void mj_defaultLROpt(mjLROpt* opt) {
 
 //------------------------------- mjOption ---------------------------------------------------------
 
-// set default solver paramters
+// set default solver parameters
 void mj_defaultSolRefImp(mjtNum* solref, mjtNum* solimp) {
   if (solref) {
     solref[0] = 0.02;       // timeconst
