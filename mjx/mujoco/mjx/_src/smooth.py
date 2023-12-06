@@ -435,40 +435,38 @@ def transmission(m: Model, d: Data) -> Data:
   if not m.nu:
     return d
 
-  def fn(gear, jnt_typ, m_i, m_j, qpos):
+  def fn(gear, jnt_typ, m_j, qpos):
     # handles joint transmissions only
     if jnt_typ == JointType.FREE:
       length = jp.zeros(1)
       moment = gear
-      m_i = jp.repeat(m_i, 6)
       m_j = m_j + jp.arange(6)
     elif jnt_typ == JointType.BALL:
-      axis, _ = math.quat_to_axis_angle(qpos)
-      length = jp.dot(axis, gear[:3])[None]
+      axis, angle = math.quat_to_axis_angle(qpos)
+      length = jp.dot(axis * angle, gear[:3])[None]
       moment = gear[:3]
-      m_i = jp.repeat(m_i, 3)
       m_j = m_j + jp.arange(3)
     elif jnt_typ in (JointType.SLIDE, JointType.HINGE):
       length = qpos * gear[0]
       moment = gear[:1]
-      m_i, m_j = m_i[None], m_j[None]
+      m_j = m_j[None]
     else:
       raise RuntimeError(f'unrecognized joint type: {jnt_typ}')
-    return length, moment, m_i, m_j
+    moment = jp.zeros((m.nv,)).at[m_j].set(moment)
+    return length, moment
 
-  length, m_val, m_i, m_j = scan.flat(
+  length, moment = scan.flat(
       m,
       fn,
-      'ujujq',
-      'uvvv',
+      'ujjq',
+      'uuuu',
       m.actuator_gear,
       m.jnt_type,
-      jp.arange(m.nu),
       jp.array(m.jnt_dofadr),
       d.qpos,
       group_by='u',
   )
-  moment = jp.zeros((m.nu, m.nv)).at[m_i, m_j].set(m_val)
   length = length.reshape((m.nu,))
+  moment = moment.reshape((m.nu, m.nv))
   d = d.replace(actuator_length=length, actuator_moment=moment)
   return d

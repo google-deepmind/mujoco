@@ -77,6 +77,7 @@ def _put_statistic(s: mujoco.MjStatistic, device=None) -> types.Statistic:
 
 def put_model(m: mujoco.MjModel, device=None) -> types.Model:
   """Puts mujoco.MjModel onto a device, resulting in mjx.Model."""
+
   if m.ntendon:
     raise NotImplementedError('tendons are not supported')
 
@@ -150,7 +151,7 @@ def make_data(m: Union[types.Model, mujoco.MjModel]) -> types.Data:
   d = types.Data(
       solver_niter=jp.array(0, dtype=jp.int32),
       time=jp.array(0.0),
-      qpos=m.qpos0,
+      qpos=jp.array(m.qpos0),
       qvel=zero_nv,
       act=zero_na,
       qacc_warmstart=zero_nv,

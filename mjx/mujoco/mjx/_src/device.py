@@ -184,6 +184,11 @@ def device_put(value):
   Returns:
     on-device MJX struct reflecting the input value
   """
+  warnings.warn(
+      'device_put is deprecated, use put_model and put_data instead',
+      category=DeprecationWarning,
+  )
+
   clz = _TYPE_MAP.get(type(value))
   if clz is None:
     raise NotImplementedError(f'{type(value)} is not supported for device_put.')
@@ -242,6 +247,10 @@ def device_get_into(result, value):
   Raises:
     RuntimeError: if result length doesn't match data batch size
   """
+  warnings.warn(
+      'device_get_into is deprecated, use get_data instead',
+      category=DeprecationWarning,
+  )
 
   value = jax.device_get(value)
 

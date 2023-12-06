@@ -34,8 +34,8 @@ class SupportTest(parameterized.TestCase):
     m = test_util.load_test_file(fname)
     d = mujoco.MjData(m)
     mujoco.mj_step(m, d)
-    mx = mjx.device_put(m)
-    dx = mjx.device_put(d)
+    mx = mjx.put_model(m)
+    dx = mjx.put_data(m, d)
     point = np.random.randn(3)
     body = np.random.choice(m.nbody)
     jacp, jacr = jax.jit(support.jac)(mx, dx, point, body)
@@ -49,11 +49,11 @@ class SupportTest(parameterized.TestCase):
     """Tests that xfrc_accumulate ouput matches mj_xfrcAccumulate."""
     np.random.seed(0)
 
-    m = test_util.load_test_file('ant.xml')
+    m = test_util.load_test_file('pendula.xml')
     d = mujoco.MjData(m)
     mujoco.mj_step(m, d)
-    mx = mjx.device_put(m)
-    dx = mjx.device_put(d)
+    mx = mjx.put_model(m)
+    dx = mjx.put_data(m, d)
     self.assertFalse((dx.xipos == 0.0).all())
 
     xfrc = np.random.rand(*dx.xfrc_applied.shape)

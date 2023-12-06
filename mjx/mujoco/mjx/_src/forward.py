@@ -60,7 +60,7 @@ def named_scope(fn, name: str = ''):
 
 
 @named_scope
-def _position(m: Model, d: Data) -> Data:
+def fwd_position(m: Model, d: Data) -> Data:
   """Position-dependent computations."""
   # TODO(robotics-simulation): tendon
   d = smooth.kinematics(m, d)
@@ -74,7 +74,7 @@ def _position(m: Model, d: Data) -> Data:
 
 
 @named_scope
-def _velocity(m: Model, d: Data) -> Data:
+def fwd_velocity(m: Model, d: Data) -> Data:
   """Velocity-dependent computations."""
   d = d.replace(actuator_velocity=d.actuator_moment @ d.qvel)
   d = smooth.com_vel(m, d)
@@ -84,7 +84,7 @@ def _velocity(m: Model, d: Data) -> Data:
 
 
 @named_scope
-def _actuation(m: Model, d: Data) -> Data:
+def fwd_actuation(m: Model, d: Data) -> Data:
   """Actuation-dependent computations."""
   if not m.nu or m.opt.disableflags & DisableBit.ACTUATION:
     return d.replace(
@@ -190,7 +190,7 @@ def _actuation(m: Model, d: Data) -> Data:
 
 
 @named_scope
-def _acceleration(m: Model, d: Data) -> Data:
+def fwd_acceleration(m: Model, d: Data) -> Data:
   """Add up all non-constraint forces, compute qacc_smooth."""
   qfrc_applied = d.qfrc_applied + support.xfrc_accumulate(m, d)
   qfrc_smooth = d.qfrc_passive - d.qfrc_bias + d.qfrc_actuator + qfrc_applied
@@ -263,7 +263,7 @@ def _advance(
 
 
 @named_scope
-def _euler(m: Model, d: Data) -> Data:
+def euler(m: Model, d: Data) -> Data:
   """Euler integrator, semi-implicit in velocity."""
   # integrate damping implicitly
   qacc = d.qacc
@@ -277,7 +277,7 @@ def _euler(m: Model, d: Data) -> Data:
 
 
 @named_scope
-def _rungekutta4(m: Model, d: Data) -> Data:
+def rungekutta4(m: Model, d: Data) -> Data:
   """Runge-Kutta explicit order 4 integrator."""
   d_t0 = d
   # pylint: disable=invalid-name
@@ -323,10 +323,10 @@ def _rungekutta4(m: Model, d: Data) -> Data:
 @named_scope
 def forward(m: Model, d: Data) -> Data:
   """Forward dynamics."""
-  d = _position(m, d)
-  d = _velocity(m, d)
-  d = _actuation(m, d)
-  d = _acceleration(m, d)
+  d = fwd_position(m, d)
+  d = fwd_velocity(m, d)
+  d = fwd_actuation(m, d)
+  d = fwd_acceleration(m, d)
 
   if d.efc_J.size == 0:
     d = d.replace(qacc=d.qacc_smooth)
@@ -343,9 +343,9 @@ def step(m: Model, d: Data) -> Data:
   d = forward(m, d)
 
   if m.opt.integrator == IntegratorType.EULER:
-    d = _euler(m, d)
+    d = euler(m, d)
   elif m.opt.integrator == IntegratorType.RK4:
-    d = _rungekutta4(m, d)
+    d = rungekutta4(m, d)
   else:
     raise NotImplementedError(f'integrator {m.opt.integrator} not implemented.')
 
