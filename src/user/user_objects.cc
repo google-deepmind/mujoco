@@ -3876,7 +3876,7 @@ void mjCActuator::Compile(void) {
     throw mjCError(this, "invalid control range for actuator '%s' (id = %d)", name.c_str(), id);
   }
   if (actrange[0]>=actrange[1] && actlimited) {
-    throw mjCError(this, "invalid activation range for actuator '%s' (id = %d)", name.c_str(), id);
+    throw mjCError(this, "invalid actrange for actuator '%s' (id = %d)", name.c_str(), id);
   }
   if (actlimited && dyntype == mjDYN_NONE) {
     throw mjCError(this, "actrange specified but dyntype is 'none' in actuator '%s' (id = %d)",

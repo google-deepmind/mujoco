@@ -12,6 +12,10 @@ General
   robust for very small or large geom sizes.
 - Added :ref:`frame<frame>` to MJCF, a :ref:`meta-element<meta-element>` which defines a pure coordinate transformation
   on its direct children, without requiring a :ref:`body<body>`.
+- Added the :at:`kv` attribute to the :ref:`position<actuator-position>` and :ref:`intvelocity<actuator-intvelocity>`
+  actuators, for specifying actuator-applied damping. This can be used to implement a PD controller with 0 reference
+  velocity. When using this attribute, it is recommended to use the implicitfast or implicit
+  :ref:`integrators<geIntegration>`.
 
 Plugins
 ^^^^^^^

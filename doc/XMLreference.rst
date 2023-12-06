@@ -5317,13 +5317,13 @@ This element does not have custom attributes. It only has common attributes, whi
 
 This element creates a position servo. The underlying :el:`general` attributes are set as follows:
 
-========= ======= ========= =======
+========= ======= ========= =========
 Attribute Setting Attribute Setting
-========= ======= ========= =======
+========= ======= ========= =========
 dyntype   none    dynprm    1 0 0
 gaintype  fixed   gainprm   kp 0 0
-biastype  affine  biasprm   0 -kp 0
-========= ======= ========= =======
+biastype  affine  biasprm   0 -kp -kv
+========= ======= ========= =========
 
 
 This element has one custom attribute in addition to the common attributes:
@@ -5377,6 +5377,11 @@ This element has one custom attribute in addition to the common attributes:
 :at:`kp`: :at-val:`real, "1"`
    Position feedback gain.
 
+.. _actuator-position-kv:
+
+:at:`kv`: :at-val:`real, "0"`
+   Damping applied by the actuator.
+   When using this attribute, it is recommended to use the implicitfast or implicit :ref:`integrators<geIntegration>`.
 
 .. _actuator-velocity:
 
@@ -5385,7 +5390,9 @@ This element has one custom attribute in addition to the common attributes:
 
 This element creates a velocity servo. Note that in order create a PD controller, one has to define two actuators: a
 position servo and a velocity servo. This is because MuJoCo actuators are SISO while a PD controller takes two control
-inputs (reference position and reference velocity). The underlying :el:`general` attributes are set as follows:
+inputs (reference position and reference velocity).
+When using this actuator, it is recommended to use the implicitfast or implicit :ref:`integrators<geIntegration>`.
+The underlying :el:`general` attributes are set as follows:
 
 ========= ======= ========= =======
 Attribute Setting Attribute Setting
@@ -5456,14 +5463,14 @@ This element creates an integrated-velocity servo. For more information, see the
 :ref:`Activation clamping <CActRange>` section of the Modeling chapter. The underlying
 :el:`general` attributes are set as follows:
 
-==========   =========== ========= =======
+==========   =========== ========= =========
 Attribute    Setting     Attribute Setting
-==========   =========== ========= =======
+==========   =========== ========= =========
 dyntype      integrator  dynprm    1 0 0
 gaintype     fixed       gainprm   kp 0 0
-biastype     affine      biasprm   0 -kp 0
+biastype     affine      biasprm   0 -kp -kv
 actlimited   true
-==========   =========== ========= =======
+==========   =========== ========= =========
 
 This element has one custom attribute in addition to the common attributes:
 
@@ -5518,6 +5525,11 @@ This element has one custom attribute in addition to the common attributes:
 :at:`kp`: :at-val:`real, "1"`
    Position feedback gain.
 
+.. _actuator-intvelocity-kv:
+
+:at:`kv`: :at-val:`real, "0"`
+   Damping applied by the actuator.
+   When using this attribute, it is recommended to use the implicitfast or implicit :ref:`integrators<geIntegration>`.
 
 .. _actuator-damper:
 
@@ -5525,8 +5537,9 @@ This element has one custom attribute in addition to the common attributes:
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element is an active damper which produces a force proportional to both velocity and control: ``F = - kv * velocity
-* control``, where ``kv`` must be nonnegative. :at:`ctrlrange` is required and must also be nonnegative. The underlying
-:el:`general` attributes are set as follows:
+* control``, where ``kv`` must be nonnegative. :at:`ctrlrange` is required and must also be nonnegative.
+When using this actuator, it is recommended to use the implicitfast or implicit :ref:`integrators<geIntegration>`.
+The underlying :el:`general` attributes are set as follows:
 
 =========== ======= ========= =======
 Attribute   Setting Attribute Setting
@@ -7680,6 +7693,8 @@ slidersite, cranksite.
 
 .. _default-position-kp:
 
+.. _default-position-kv:
+
 :el-prefix:`default/` |-| **position** (?)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -7735,6 +7750,8 @@ tendon, slidersite, cranksite.
 .. _default-intvelocity-group:
 
 .. _default-intvelocity-kp:
+
+.. _default-intvelocity-kv:
 
 :el-prefix:`default/` |-| **intvelocity** (?)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

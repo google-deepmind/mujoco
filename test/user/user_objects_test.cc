@@ -940,7 +940,7 @@ TEST_F(ActRangeTest, ActRangeBad) {
   std::array<char, 1024> error;
   mjModel* model = LoadModelFromString(xml, error.data(), error.size());
   ASSERT_THAT(model, IsNull());
-  EXPECT_THAT(error.data(), HasSubstr("invalid activation range"));
+  EXPECT_THAT(error.data(), HasSubstr("invalid actrange"));
 }
 
 TEST_F(ActRangeTest, ActRangeUndefined) {
@@ -960,7 +960,7 @@ TEST_F(ActRangeTest, ActRangeUndefined) {
   std::array<char, 1024> error;
   mjModel* model = LoadModelFromString(xml, error.data(), error.size());
   ASSERT_THAT(model, IsNull());
-  EXPECT_THAT(error.data(), HasSubstr("invalid activation range"));
+  EXPECT_THAT(error.data(), HasSubstr("invalid actrange"));
 }
 
 TEST_F(ActRangeTest, ActRangeNoDyntype) {
