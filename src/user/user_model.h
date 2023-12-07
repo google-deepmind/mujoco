@@ -176,10 +176,13 @@ class mjCModel {
   template <class T>              // add object of any type, with def parameter
   T* AddObjectDef(std::vector<T*>& list, std::string type, mjCDef* def);
 
+  template<class T>              // if asset name is missing, set to filename
+  void SetDefaultNames(std::vector<T*>& assets);
+
   //------------------------ compile phases
   void MakeLists(mjCBody* body);  // make lists of bodies, geoms, joints, sites
   void IndexAssets(void);         // convert asset names into indices
-  void SetDefaultNames(void);     // if mesh or hfield name is missing, set to filename
+  void CheckEmptyNames(void);     // check empty names
   void SetSizes(void);            // compute sizes
   void AutoSpringDamper(mjModel*);// automatic stiffness and damping computation
   void LengthRange(mjModel*, mjData*); // compute actuator lengthrange

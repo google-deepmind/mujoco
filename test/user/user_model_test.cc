@@ -14,6 +14,7 @@
 
 // Tests for user/user_model.cc.
 
+#include <array>
 #include <string>
 
 #include <gmock/gmock.h>
@@ -21,6 +22,7 @@
 #include <absl/strings/str_format.h>
 #include <mujoco/mjmodel.h>
 #include <mujoco/mujoco.h>
+#include "src/cc/array_safety.h"
 #include "test/fixture.h"
 
 namespace mujoco {
@@ -187,6 +189,26 @@ TEST_F(UserDataTest, AutoNUserSensor) {
   ASSERT_EQ(m->nuser_sensor, 3);
   EXPECT_THAT(GetRow(m->sensor_user, m->nuser_sensor, 0), ElementsAre(1, 2, 3));
   EXPECT_THAT(GetRow(m->sensor_user, m->nuser_sensor, 1), ElementsAre(2, 3, 0));
+  mj_deleteModel(m);
+}
+
+// ------------- test duplicate names ------------------------------------------
+TEST_F(UserDataTest, DuplicateNames) {
+  static const char* const kFilePath = "user/testdata/load_twice.xml";
+  const std::string xml_path = GetTestDataFilePath(kFilePath);
+
+  std::array<char, 1024> error;
+  mjModel* m = mj_loadXML(xml_path.c_str(), 0, error.data(), error.size());
+
+  EXPECT_THAT(m, NotNull()) << error.data();
+  EXPECT_THAT(m->nmesh, 2);
+
+  for (int i = 0; i < m->nmesh; i++) {
+    char mesh_name[mjMAXUINAME] = "";
+    util::strcat_arr(mesh_name, m->names + m->name_meshadr[i]);
+    EXPECT_THAT(std::string(mesh_name), "cube_" + std::to_string(i));
+  }
+
   mj_deleteModel(m);
 }
 

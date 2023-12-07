@@ -19,6 +19,7 @@
 #include <cstddef>
 #include <cstdlib>
 #include <cstring>
+#include <map>
 #include <string>
 #include <vector>
 
@@ -842,57 +843,56 @@ void mjCModel::IndexAssets(void) {
 
 
 // if asset name is missing, set to filename
-void mjCModel::SetDefaultNames(void) {
+template <typename T>
+void mjCModel::SetDefaultNames(std::vector<T*>& assets) {
   string stripped;
+  std::map<string, std::vector<int>> names;
 
-  // meshes
-  for (int i=0; i<meshes.size(); i++) {
-    if (meshes[i]->name.empty()) {
-      stripped = mjuu_strippath(meshes[i]->file());
-      meshes[i]->name = mjuu_stripext(stripped);
-
-      // name cannot be empty
-      if (meshes[i]->name.empty()) {
-        throw mjCError(meshes[i], "empty name in mesh");
-      }
+  // use filename if name is missing
+  for (int i=0; i<assets.size(); i++) {
+    if (assets[i]->name.empty()) {
+      stripped = mjuu_strippath(assets[i]->get_file());
+      assets[i]->name = mjuu_stripext(stripped);
+      names[assets[i]->name].push_back(i);
     }
   }
 
-  // skins
-  for (int i=0; i<skins.size(); i++) {
-    if (skins[i]->name.empty()) {
-      stripped = mjuu_strippath(skins[i]->file);
-      skins[i]->name = mjuu_stripext(stripped);
+  // add suffix if duplicates
+  for (auto const& [name, indices] : names) {
+    if (indices.size() > 1) {
+      for (int i=0; i<indices.size(); i++) {
+        assets[indices[i]]->name += "_" + std::to_string(i);
+      }
+    }
+  }
+}
+
+
+
+// throw error if a name is missing
+void mjCModel::CheckEmptyNames(void) {
+  // meshes
+  for (int i=0; i<meshes.size(); i++) {
+    if (meshes[i]->name.empty()) {
+      throw mjCError(meshes[i], "empty name in mesh");
     }
   }
 
   // hfields
   for (int i=0; i<hfields.size(); i++) {
     if (hfields[i]->name.empty()) {
-      stripped = mjuu_strippath(hfields[i]->file);
-      hfields[i]->name = mjuu_stripext(stripped);
-
-      // name cannot be empty
-      if (hfields[i]->name.empty()) {
-        throw mjCError(hfields[i], "empty name in height field");
-      }
+      throw mjCError(hfields[i], "empty name in height field");
     }
   }
 
   // textures
   for (int i=0; i<textures.size(); i++) {
-    if (textures[i]->name.empty()) {
-      stripped = mjuu_strippath(textures[i]->file);
-      textures[i]->name = mjuu_stripext(stripped);
-
-      // name cannot be empty, except for skybox
-      if (textures[i]->name.empty() && textures[i]->type!=mjTEXTURE_SKYBOX) {
-        throw mjCError(textures[i], "empty name in texture");
-      }
+    if (textures[i]->name.empty() && textures[i]->type!=mjTEXTURE_SKYBOX) {
+      throw mjCError(textures[i], "empty name in texture");
     }
   }
 
-  // materials: name check only
+  // materials
   for (int i=0; i<materials.size(); i++) {
     if (materials[i]->name.empty()) {
       throw mjCError(materials[i], "empty name in material");
@@ -2785,6 +2785,13 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
   // make lists of objects created in kinematic tree
   MakeLists(bodies[0]);
 
+  // fill missing names and check that they are all filled
+  SetDefaultNames(meshes);
+  SetDefaultNames(skins);
+  SetDefaultNames(hfields);
+  SetDefaultNames(textures);
+  CheckEmptyNames();
+
   // set object ids and default names, check for repeated names
   processlist(bodies, "body");
   processlist(joints, "joint");
@@ -2810,8 +2817,7 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
   processlist(keys, "key");
   processlist(plugins, "plugin");
 
-  // set default names, convert names into indices
-  SetDefaultNames();
+  // convert names into indices
   IndexAssets();
 
   // mark meshes that need convex hull
