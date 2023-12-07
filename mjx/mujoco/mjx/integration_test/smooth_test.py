@@ -60,8 +60,8 @@ class TransmissionIntegrationTest(parameterized.TestCase):
     d.qvel = np.random.random(m.nv)
 
     # put on device
-    mx = mjx.device_put(m)
-    dx = mjx.device_put(d)
+    mx = mjx.put_model(m)
+    dx = mjx.put_data(m, d)
 
     mujoco.mj_transmission(m, d)
     dx = transmission_jit_fn(mx, dx)

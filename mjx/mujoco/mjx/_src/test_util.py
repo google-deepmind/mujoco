@@ -23,10 +23,8 @@ import mujoco
 import numpy as np
 
 TEST_FILES: List[str] = [
-    'ant.xml',
+    'constraints.xml',
     'convex.xml',
-    'equality.xml',
-    'humanoid.xml',
     'pendula.xml',
 ]
 

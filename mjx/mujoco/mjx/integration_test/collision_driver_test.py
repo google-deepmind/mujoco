@@ -58,9 +58,9 @@ class CollisionDriverIntegrationTest(parameterized.TestCase):
     )
 
     m = mujoco.MjModel.from_xml_string(mjcf)
-    mx = mjx.device_put(m)
+    mx = mjx.put_model(m)
     d = mujoco.MjData(m)
-    dx = mjx.device_put(d)
+    dx = mjx.put_data(m, d)
 
     mujoco.mj_step(m, d)
     collision_jit_fn = jax.jit(mjx.collision)

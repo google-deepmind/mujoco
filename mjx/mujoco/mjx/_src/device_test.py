@@ -130,31 +130,31 @@ class ValidateInputTest(absltest.TestCase):
       mjx.device_put(m)
 
   def test_trn(self):
-    m = test_util.load_test_file('ant.xml')
+    m = test_util.load_test_file('pendula.xml')
     m.actuator_trntype[0] = mujoco.mjtTrn.mjTRN_SITE
     with self.assertRaises(NotImplementedError):
       mjx.device_put(m)
 
   def test_dyn(self):
-    m = test_util.load_test_file('ant.xml')
+    m = test_util.load_test_file('pendula.xml')
     m.actuator_dyntype[0] = mujoco.mjtDyn.mjDYN_MUSCLE
     with self.assertRaises(NotImplementedError):
       mjx.device_put(m)
 
   def test_gain(self):
-    m = test_util.load_test_file('ant.xml')
+    m = test_util.load_test_file('pendula.xml')
     m.actuator_gaintype[0] = mujoco.mjtGain.mjGAIN_MUSCLE
     with self.assertRaises(NotImplementedError):
       mjx.device_put(m)
 
   def test_bias(self):
-    m = test_util.load_test_file('ant.xml')
+    m = test_util.load_test_file('pendula.xml')
     m.actuator_gaintype[0] = mujoco.mjtGain.mjGAIN_MUSCLE
     with self.assertRaises(NotImplementedError):
       mjx.device_put(m)
 
   def test_condim(self):
-    m = test_util.load_test_file('ant.xml')
+    m = test_util.load_test_file('constraints.xml')
     for i in [1, 4, 6]:
       m.geom_condim[0] = i
       with self.assertRaises(NotImplementedError):
