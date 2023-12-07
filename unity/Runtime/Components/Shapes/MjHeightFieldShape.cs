@@ -40,9 +40,9 @@ public class MjHeightFieldShape : IMjShape
   private int updateCountdown;
 
   [HideInInspector]
-  public float MinimumHeight;
+  public float MinimumHeight { get; private set; }
   [HideInInspector]
-  public float MaximumHeight;
+  public float MaximumHeight { get; private set; }
 
   public int HeightFieldId { get; private set; }
 
