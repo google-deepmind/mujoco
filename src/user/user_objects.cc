@@ -993,7 +993,7 @@ void mjCBody::Compile(void) {
 
   // frame
   if (frame) {
-    mjuu_frameaccum(pos, quat, frame->pos, frame->quat);
+    mjuu_frameaccumChild(frame->pos, frame->quat, pos, quat);
   }
 
   // accumulate rbound, contype, conaffinity over geoms
@@ -1101,7 +1101,7 @@ void mjCFrame::Compile() {
   // compile parents and accumulate result
   if (frame) {
     frame->Compile();
-    mjuu_frameaccum(pos, quat, frame->pos, frame->quat);
+    mjuu_frameaccumChild(frame->pos, frame->quat, pos, quat);
   }
 
   mjuu_normvec(quat, 4);
@@ -1263,7 +1263,7 @@ int mjCJoint::Compile(void) {
     mjuu_zerovec(pos, 3);
   } else if (frame) {
     double qunit[4] = {1, 0, 0, 0};
-    mjuu_frameaccum(pos, qunit, frame->pos, frame->quat);
+    mjuu_frameaccumChild(frame->pos, frame->quat, pos, qunit);
   }
 
   // convert reference angles to radians for hinge joints
@@ -1878,7 +1878,7 @@ void mjCGeom::Compile(void) {
 
   // frame
   if (frame) {
-    mjuu_frameaccum(pos, quat, frame->pos, frame->quat);
+    mjuu_frameaccumChild(frame->pos, frame->quat, pos, quat);
   }
 }
 
@@ -1990,7 +1990,7 @@ void mjCSite::Compile(void) {
 
   // frame
   if (frame) {
-    mjuu_frameaccum(pos, quat, frame->pos, frame->quat);
+    mjuu_frameaccumChild(frame->pos, frame->quat, pos, quat);
   }
 
   // normalize quaternion
@@ -2055,7 +2055,7 @@ void mjCCamera::Compile(void) {
 
   // frame
   if (frame) {
-    mjuu_frameaccum(pos, quat, frame->pos, frame->quat);
+    mjuu_frameaccumChild(frame->pos, frame->quat, pos, quat);
   }
 
   // normalize quaternion
@@ -2159,7 +2159,7 @@ void mjCLight::Compile(void) {
 
   // frame
   if (frame) {
-    mjuu_frameaccum(pos, quat, frame->pos, frame->quat);
+    mjuu_frameaccumChild(frame->pos, frame->quat, pos, quat);
   }
 
   // normalize direction, make sure it is not zero

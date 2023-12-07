@@ -1404,38 +1404,47 @@ TEST_F(MujocoTest, Frame) {
   <mujoco>
     <worldbody>
       <frame euler="0 0 30">
-        <geom size=".1" euler="0 0 20"/>
+        <geom name="0" size=".1" euler="0 0 20"/>
       </frame>
 
-      <frame axisangle="0 0 1 90">
-        <frame axisangle="0 1 0 90">
-          <geom size=".1"/>
+      <frame axisangle="0 1 0 90">
+        <frame axisangle="0 0 1 90">
+          <geom name="1" size=".1"/>
         </frame>
       </frame>
 
       <body>
         <frame pos="0 1 0">
-          <geom size=".1" pos="0 1 0"/>
+          <geom name="3" size=".1" pos="0 1 0"/>
           <body pos="1 0 0">
-            <geom size=".1" pos="0 0 1"/>
+            <geom name="4" size=".1" pos="0 0 1"/>
           </body>
         </frame>
       </body>
 
       <body>
-        <geom size=".1"/>
+        <geom name="5" size=".1"/>
         <frame euler="90 0 0">
           <joint type="hinge" axis="0 0 1"/>
         </frame>
       </body>
+
+      <body pos="0 1 0" euler="0 20 0">
+        <geom name="6" pos=".5 .6 .7" size=".1" euler="30 0 0"/>
+      </body>
+
+      <frame pos="0 1 0" euler="0 20 0">
+        <geom name="2" pos=".5 .6 .7" size=".1" euler="30 0 0"/>
+      </frame>
     </worldbody>
   </mujoco>
 
   )";
+  constexpr mjtNum eps = 1e-14;
   std::array<char, 1024> error;
   mjModel* m = LoadModelFromString(xml, error.data(), error.size());
   EXPECT_THAT(m, testing::NotNull()) << error.data();
-  EXPECT_EQ(m->nbody, 4);
+  EXPECT_EQ(m->nbody, 5);
 
   // geom quat transformed to euler = 0 0 50
   EXPECT_NEAR(m->geom_quat[0], mju_cos(25. * mjPI / 180.), 1e-3);
@@ -1444,15 +1453,15 @@ TEST_F(MujocoTest, Frame) {
   EXPECT_NEAR(m->geom_quat[3], mju_sin(25. * mjPI / 180.), 1e-3);
 
   // geom transformed to frame 0 1 0, 0 0 1, 1 0 0
-  EXPECT_NEAR(m->geom_quat[4], .5, 1e-6);
-  EXPECT_NEAR(m->geom_quat[5], .5, 1e-6);
-  EXPECT_NEAR(m->geom_quat[6], .5, 1e-6);
-  EXPECT_NEAR(m->geom_quat[7], .5, 1e-6);
+  EXPECT_NEAR(m->geom_quat[4], .5, eps);
+  EXPECT_NEAR(m->geom_quat[5], .5, eps);
+  EXPECT_NEAR(m->geom_quat[6], .5, eps);
+  EXPECT_NEAR(m->geom_quat[7], .5, eps);
 
   // geom pos transformed from 0 1 0 to 0 2 0
-  EXPECT_EQ(m->geom_pos[6], 0);
-  EXPECT_EQ(m->geom_pos[7], 2);
-  EXPECT_EQ(m->geom_pos[8], 0);
+  EXPECT_EQ(m->geom_pos[ 9], 0);
+  EXPECT_EQ(m->geom_pos[10], 2);
+  EXPECT_EQ(m->geom_pos[11], 0);
 
   // body pos transformed from 1 0 0 to 1 1 0
   EXPECT_EQ(m->body_pos[6], 1);
@@ -1460,16 +1469,29 @@ TEST_F(MujocoTest, Frame) {
   EXPECT_EQ(m->body_pos[8], 0);
 
   // nested geom pos not transformed
-  EXPECT_EQ(m->geom_pos[ 9], 0);
-  EXPECT_EQ(m->geom_pos[10], 0);
-  EXPECT_EQ(m->geom_pos[11], 1);
+  EXPECT_EQ(m->geom_pos[12], 0);
+  EXPECT_EQ(m->geom_pos[13], 0);
+  EXPECT_EQ(m->geom_pos[14], 1);
 
   // joint axis transformed to 0 -1 0
-  EXPECT_NEAR(m->jnt_axis[0],  0, 1e-6);
-  EXPECT_NEAR(m->jnt_axis[1], -1, 1e-6);
-  EXPECT_NEAR(m->jnt_axis[2],  0, 1e-6);
+  EXPECT_NEAR(m->jnt_axis[0],  0, eps);
+  EXPECT_NEAR(m->jnt_axis[1], -1, eps);
+  EXPECT_NEAR(m->jnt_axis[2],  0, eps);
+
+  mjData* d = mj_makeData(m);
+  mj_kinematics(m, d);
+
+  // body and frame equivalence geom 2 vs 6
+  EXPECT_NEAR(d->geom_xpos[6], d->geom_xpos[18], eps);
+  EXPECT_NEAR(d->geom_xpos[7], d->geom_xpos[19], eps);
+  EXPECT_NEAR(d->geom_xpos[8], d->geom_xpos[20], eps);
+  EXPECT_NEAR(d->geom_xmat[18], d->geom_xmat[54], eps);
+  EXPECT_NEAR(d->geom_xmat[19], d->geom_xmat[55], eps);
+  EXPECT_NEAR(d->geom_xmat[20], d->geom_xmat[56], eps);
+  EXPECT_NEAR(d->geom_xmat[21], d->geom_xmat[57], eps);
 
   mj_deleteModel(m);
+  mj_deleteData(d);
 }
 
 }  // namespace
