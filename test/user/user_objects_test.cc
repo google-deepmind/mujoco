@@ -1413,6 +1413,10 @@ TEST_F(MujocoTest, Frame) {
         </frame>
       </frame>
 
+      <frame pos="0 1 0" euler="0 20 0">
+        <geom name="2" pos=".5 .6 .7" size=".1" euler="30 0 0"/>
+      </frame>
+
       <body>
         <frame pos="0 1 0">
           <geom name="3" size=".1" pos="0 1 0"/>
@@ -1432,10 +1436,6 @@ TEST_F(MujocoTest, Frame) {
       <body pos="0 1 0" euler="0 20 0">
         <geom name="6" pos=".5 .6 .7" size=".1" euler="30 0 0"/>
       </body>
-
-      <frame pos="0 1 0" euler="0 20 0">
-        <geom name="2" pos=".5 .6 .7" size=".1" euler="30 0 0"/>
-      </frame>
     </worldbody>
   </mujoco>
 
