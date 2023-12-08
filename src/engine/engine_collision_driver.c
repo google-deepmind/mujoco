@@ -1444,6 +1444,9 @@ static void mj_makeCapsule(const mjModel* m, mjData* d, int f, const int vid[2],
 
 // test two geoms for collision, apply filters, add to contact list
 void mj_collideGeoms(const mjModel* m, mjData* d, int g1, int g2) {
+  // relative distance (1%) outside of which box-box contacts are removed
+  static mjtNum kBoxRemoveMargin = 1.01;
+
   TM_START;
 
   int num, type1, type2, condim;
@@ -1524,16 +1527,44 @@ void mj_collideGeoms(const mjModel* m, mjData* d, int g1, int g2) {
     mjERROR("too many contacts returned by collision function");
   }
 
-  // remove repeated contacts in box-box
+  // remove bad and repeated contacts in box-box
   if (type1 == mjGEOM_BOX && type2 == mjGEOM_BOX) {
     // use dim field to mark: -1: bad, 0: good
     for (int i=0; i < num; i++) {
       con[i].dim = 0;
     }
 
-    // find bad
+    // get box info
+    const mjtNum* pos1 =  d->geom_xpos + 3 * g1;
+    const mjtNum* mat1 =  d->geom_xmat + 9 * g1;
+    const mjtNum* size1 = m->geom_size + 3 * g1;
+    const mjtNum* pos2 =  d->geom_xpos + 3 * g2;
+    const mjtNum* mat2 =  d->geom_xmat + 9 * g2;
+    const mjtNum* size2 = m->geom_size + 3 * g2;
+
+    // find bad: contacts outside one of the boxes
+    for (int i=0; i < num; i++) {
+      // box sizes with margin
+      mjtNum sz1[3] = {size1[0] + margin, size1[1] + margin, size1[2] + margin};
+      mjtNum sz2[3] = {size2[0] + margin, size2[1] + margin, size2[2] + margin};
+      mju_scl3(sz1, sz1, kBoxRemoveMargin);
+      mju_scl3(sz2, sz2, kBoxRemoveMargin);
+      // mark as bad if outside box
+      if (mju_outsideBox(con[i].pos, pos1, mat1, sz1) ||
+          mju_outsideBox(con[i].pos, pos2, mat2, sz2)) {
+        con[i].dim = -1;
+      }
+    }
+
+    // find duplicates
     for (int i=0; i < num-1; i++) {
+      if (con[i].dim == -1) {
+        continue;  // already marked bad: skip
+      }
       for (int j=i+1; j < num; j++) {
+        if (con[j].dim == -1) {
+          continue;  // already marked bad: skip
+        }
         if (con[i].pos[0] == con[j].pos[0] &&
             con[i].pos[1] == con[j].pos[1] &&
             con[i].pos[2] == con[j].pos[2]) {
@@ -1546,6 +1577,7 @@ void mj_collideGeoms(const mjModel* m, mjData* d, int g1, int g2) {
     // consolidate good
     int i = 0;
     for (int j=0; j < num; j++) {
+      // good: maybe copy
       if (con[j].dim == 0) {
         // different: copy
         if (i < j) {

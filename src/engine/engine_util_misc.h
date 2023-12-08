@@ -78,6 +78,10 @@ MJAPI void mju_decodePyramid(mjtNum* force, const mjtNum* pyramid,
 // integrate spring-damper analytically, return pos(dt)
 MJAPI mjtNum mju_springDamper(mjtNum pos0, mjtNum vel0, mjtNum Kp, mjtNum Kv, mjtNum dt);
 
+// return 1 if point is outside box given by pos, mat, size
+MJAPI int mju_outsideBox(const mjtNum point[3], const mjtNum pos[3], const mjtNum mat[9],
+                         const mjtNum size[3]);
+
 // print matrix
 MJAPI void mju_printMat(const mjtNum* mat, int nr, int nc);
 

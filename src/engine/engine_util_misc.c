@@ -837,6 +837,26 @@ mjtNum mju_springDamper(mjtNum pos0, mjtNum vel0, mjtNum k, mjtNum b, mjtNum t) 
 
 
 
+// return 1 if point is outside box given by pos, mat, size
+int mju_outsideBox(const mjtNum point[3], const mjtNum pos[3], const mjtNum mat[9],
+                   const mjtNum size[3]) {
+  // vector from pos to point, projected to box frame
+  mjtNum vec[3] = {point[0]-pos[0], point[1]-pos[1], point[2]-pos[2]};
+  mju_rotVecMatT(vec, vec, mat);
+
+  // outside
+  if (vec[0] > size[0] || vec[0] < -size[0] ||
+      vec[1] > size[1] || vec[1] < -size[1] ||
+      vec[2] > size[2] || vec[2] < -size[2]) {
+    return 1;
+  }
+
+  // inside
+  return 0;
+}
+
+
+
 // print matrix to screen
 void mju_printMat(const mjtNum* mat, int nr, int nc) {
   for (int r=0; r < nr; r++) {

@@ -12,6 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+mujoco_test(engine_collision_box_test)
+target_link_libraries(engine_collision_box_test fixture gmock)
+
 mujoco_test(engine_collision_convex_test)
 target_link_libraries(engine_collision_convex_test fixture gmock)
 
