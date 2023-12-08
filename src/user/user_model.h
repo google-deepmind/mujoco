@@ -15,6 +15,8 @@
 #ifndef MUJOCO_SRC_USER_USER_MODEL_H_
 #define MUJOCO_SRC_USER_USER_MODEL_H_
 
+#include <functional>
+#include <map>
 #include <string>
 #include <utility>
 #include <vector>
@@ -29,6 +31,10 @@ typedef enum _mjtInertiaFromGeom {
   mjINERTIAFROMGEOM_TRUE,         // always use; overwrite inertial element
   mjINERTIAFROMGEOM_AUTO          // use only if inertial element is missing
 } mjtInertiaFromGeom;
+
+// TODO: convert mjListKeyMap to mjKeyMap[mjNOBJECT] by adding mjNOBJECT to mjtObj
+typedef std::map<std::string, int, std::less<> > mjKeyMap;
+typedef std::map<std::string, mjKeyMap, std::less<> > mjListKeyMap;
 
 
 
@@ -285,6 +291,9 @@ class mjCModel {
   std::vector<mjCSite*>   sites;    // list of sites attached to this body
   std::vector<mjCCamera*> cameras;  // list of cameras
   std::vector<mjCLight*>  lights;   // list of lights
+
+  // map from object names to ids
+  mjListKeyMap ids;
 
   //------------------------ internal variables
   bool hasImplicitPluginElem;     // already encountered an implicit plugin sensor/actuator

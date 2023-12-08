@@ -21,6 +21,7 @@
 #include <cstring>
 #include <map>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include <mujoco/mjdata.h>
@@ -136,6 +137,7 @@ mjCModel::mjCModel() {
   nuser_sensor = -1;
 
   //------------------------ private variables
+  ids.clear();
   cameras.clear();
   lights.clear();
   flexes.clear();
@@ -201,6 +203,7 @@ mjCModel::~mjCModel() {
   for (int i=0; i<defaults.size(); i++) delete defaults[i];
 
   // clear pointer lists created in model construction
+  ids.clear();
   flexes.clear();
   meshes.clear();
   skins.clear();
@@ -632,14 +635,23 @@ mjCDef* mjCModel::AddDef(string name, int parentid) {
 
 // find object by name in given list
 template <class T>
-static T* findobject(string name, vector<T*>& list) {
-  for (unsigned int i=0; i<list.size(); i++) {
-    if (list[i]->name == name) {
-      return list[i];
+static T* findobject(std::string_view name, const vector<T*>& list, const mjKeyMap& ids) {
+  // this can occur in the URDF parser
+  if (ids.empty()) {
+    for (unsigned int i=0; i<list.size(); i++) {
+      if (list[i]->name == name) {
+        return list[i];
+      }
     }
+    return nullptr;
   }
 
-  return 0;
+  // during model compilation
+  auto id = ids.find(name);
+  if (id == ids.end()) {
+    return nullptr;
+  }
+  return list[id->second];
 }
 
 // find object in global lists given string type and name
@@ -647,49 +659,49 @@ mjCBase* mjCModel::FindObject(mjtObj type, string name) {
   switch (type) {
   case mjOBJ_BODY:
   case mjOBJ_XBODY:
-    return findobject(name, bodies);
+    return findobject(name, bodies, ids["body"]);
   case mjOBJ_JOINT:
-    return findobject(name, joints);
+    return findobject(name, joints, ids["joint"]);
   case mjOBJ_GEOM:
-    return findobject(name, geoms);
+    return findobject(name, geoms, ids["geom"]);
   case mjOBJ_SITE:
-    return findobject(name, sites);
+    return findobject(name, sites, ids["site"]);
   case mjOBJ_CAMERA:
-    return findobject(name, cameras);
+    return findobject(name, cameras, ids["camera"]);
   case mjOBJ_LIGHT:
-    return findobject(name, lights);
+    return findobject(name, lights, ids["light"]);
   case mjOBJ_FLEX:
-    return findobject(name, flexes);
+    return findobject(name, flexes, ids["flex"]);
   case mjOBJ_MESH:
-    return findobject(name, meshes);
+    return findobject(name, meshes, ids["mesh"]);
   case mjOBJ_SKIN:
-    return findobject(name, skins);
+    return findobject(name, skins, ids["skin"]);
   case mjOBJ_HFIELD:
-    return findobject(name, hfields);
+    return findobject(name, hfields, ids["hfield"]);
   case mjOBJ_TEXTURE:
-    return findobject(name, textures);
+    return findobject(name, textures, ids["texture"]);
   case mjOBJ_MATERIAL:
-    return findobject(name, materials);
+    return findobject(name, materials, ids["material"]);
   case mjOBJ_PAIR:
-    return findobject(name, pairs);
+    return findobject(name, pairs, ids["pair"]);
   case mjOBJ_EXCLUDE:
-    return findobject(name, excludes);
+    return findobject(name, excludes, ids["exclude"]);
   case mjOBJ_EQUALITY:
-    return findobject(name, equalities);
+    return findobject(name, equalities, ids["equality"]);
   case mjOBJ_TENDON:
-    return findobject(name, tendons);
+    return findobject(name, tendons, ids["tendon"]);
   case mjOBJ_ACTUATOR:
-    return findobject(name, actuators);
+    return findobject(name, actuators, ids["actuator"]);
   case mjOBJ_SENSOR:
-    return findobject(name, sensors);
+    return findobject(name, sensors, ids["sensor"]);
   case mjOBJ_NUMERIC:
-    return findobject(name, numerics);
+    return findobject(name, numerics, ids["numeric"]);
   case mjOBJ_TEXT:
-    return findobject(name, texts);
+    return findobject(name, texts, ids["text"]);
   case mjOBJ_TUPLE:
-    return findobject(name, tuples);
+    return findobject(name, tuples, ids["tuple"]);
   case mjOBJ_PLUGIN:
-    return findobject(name, plugins);
+    return findobject(name, plugins, ids["plugin"]);
   default:
     return 0;
   }
@@ -2357,6 +2369,14 @@ void mjCModel::CopyObjects(mjModel* m) {
 
 //------------------------------- FUSE STATIC ------------------------------------------------------
 
+template <class T>
+static void makelistid(std::vector<T*>& dest, std::vector<T*>& source) {
+  for (int i=0; i<source.size(); i++) {
+    source[i]->id = (int)dest.size();
+    dest.push_back(source[i]);
+  }
+}
+
 // change frame to parent body
 static void changeframe(double childpos[3], double childquat[4],
                         const double bodypos[3], const double bodyquat[4]) {
@@ -2379,23 +2399,9 @@ void mjCModel::FuseReindex(mjCBody* body) {
                                body->bodies[i]->id : body->weldid);
   }
 
-  // joints
-  for (int i=0; i<body->joints.size(); i++) {
-    body->joints[i]->id = (int)joints.size();
-    joints.push_back(body->joints[i]);
-  }
-
-  // geoms
-  for (int i=0; i<body->geoms.size(); i++) {
-    body->geoms[i]->id = (int)geoms.size();
-    geoms.push_back(body->geoms[i]);
-  }
-
-  // sites
-  for (int i=0; i<body->sites.size(); i++) {
-    body->sites[i]->id = (int)sites.size();
-    sites.push_back(body->sites[i]);
-  }
+  makelistid(joints, body->joints);
+  makelistid(geoms, body->geoms);
+  makelistid(sites, body->sites);
 
   // process children recursively
   for (int i=0; i<body->bodies.size(); i++) {
@@ -2632,7 +2638,8 @@ static void reassignid(vector<T*>& list) {
 
 // set ids, check for repeated names
 template <class T>
-static void processlist(vector<T*>& list, string defname, bool checkrepeat=true) {
+static void processlist(mjListKeyMap& ids, vector<T*>& list,
+                        string defname, bool checkrepeat = true) {
   // loop over list elements
   for (int i=0; i<(int)list.size(); i++) {
     // check for incompatible id setting; SHOULD NOT OCCUR
@@ -2642,6 +2649,9 @@ static void processlist(vector<T*>& list, string defname, bool checkrepeat=true)
 
     // id equals position in array
     list[i]->id = i;
+
+    // add to ids map
+    ids[defname][list[i]->name] = i;
   }
 
   // check for repeated names
@@ -2792,30 +2802,30 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
   SetDefaultNames(textures);
   CheckEmptyNames();
 
-  // set object ids and default names, check for repeated names
-  processlist(bodies, "body");
-  processlist(joints, "joint");
-  processlist(geoms, "geom");
-  processlist(sites, "site");
-  processlist(cameras, "camera");
-  processlist(lights, "light");
-  processlist(flexes, "flex");
-  processlist(meshes, "mesh");
-  processlist(skins, "skin");
-  processlist(hfields, "hfield");
-  processlist(textures, "texture");
-  processlist(materials, "material");
-  processlist(pairs, "pair");
-  processlist(excludes, "exclude");
-  processlist(equalities, "equality");
-  processlist(tendons, "tendon");
-  processlist(actuators, "actuator");
-  processlist(sensors, "sensor");
-  processlist(numerics, "numeric");
-  processlist(texts, "text");
-  processlist(tuples, "tuple");
-  processlist(keys, "key");
-  processlist(plugins, "plugin");
+  // set object ids, check for repeated names
+  processlist(ids, bodies, "body");
+  processlist(ids, joints, "joint");
+  processlist(ids, geoms, "geom");
+  processlist(ids, sites, "site");
+  processlist(ids, cameras, "camera");
+  processlist(ids, lights, "light");
+  processlist(ids, flexes, "flex");
+  processlist(ids, meshes, "mesh");
+  processlist(ids, skins, "skin");
+  processlist(ids, hfields, "hfield");
+  processlist(ids, textures, "texture");
+  processlist(ids, materials, "material");
+  processlist(ids, pairs, "pair");
+  processlist(ids, excludes, "exclude");
+  processlist(ids, equalities, "equality");
+  processlist(ids, tendons, "tendon");
+  processlist(ids, actuators, "actuator");
+  processlist(ids, sensors, "sensor");
+  processlist(ids, numerics, "numeric");
+  processlist(ids, texts, "text");
+  processlist(ids, tuples, "tuple");
+  processlist(ids, keys, "key");
+  processlist(ids, plugins, "plugin");
 
   // convert names into indices
   IndexAssets();
