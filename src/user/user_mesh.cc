@@ -296,6 +296,11 @@ void mjCMesh::LoadSDF() {
         name.c_str(), id);
   }
 
+  if (scale_[0] != 1 || scale_[1] != 1 || scale_[2] != 1) {
+    throw mjCError(this, "attribute scale is not compatible with SDFs in mesh '%s', (id = %d)",
+                   name.c_str(), id);
+  }
+
   model->ResolvePlugin(this, plugin_name, plugin_instance_name, &plugin_instance);
   const mjpPlugin* plugin = mjp_getPluginAtSlot(plugin_instance->plugin_slot);
   if (!(plugin->capabilityflags & mjPLUGIN_SDF)) {
