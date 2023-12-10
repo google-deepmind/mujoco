@@ -292,10 +292,18 @@ class mjCModel {
   std::vector<mjCCamera*> cameras;  // list of cameras
   std::vector<mjCLight*>  lights;   // list of lights
 
+  //------------------------ internal variables
+
+  // statistics, as computed by mj_setConst
+  double meaninertia_auto;        // mean diagonal inertia, as computed by mj_setConst
+  double meanmass_auto;           // mean body mass, as computed by mj_setConst
+  double meansize_auto;           // mean body size, as computed by mj_setConst
+  double extent_auto;             // spatial extent, as computed by mj_setConst
+  double center_auto[3];          // center of model, as computed by mj_setConst
+
   // map from object names to ids
   mjListKeyMap ids;
 
-  //------------------------ internal variables
   bool hasImplicitPluginElem;     // already encountered an implicit plugin sensor/actuator
   bool compiled;                  // already compiled flag (cannot be compiled again)
   mjCError errInfo;               // last error info

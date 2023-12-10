@@ -114,6 +114,16 @@ mjCModel::mjCModel() {
   center[0] = mjNAN;
   center[1] = center[2] = 0;
 
+  //------------------------ auto-computed statistics
+#ifndef MEMORY_SANITIZER
+  // initializing as best practice, but want MSAN to catch unintialized use
+  meaninertia_auto = 0;
+  meanmass_auto = 0;
+  meansize_auto = 0;
+  extent_auto = 0;
+  center_auto[0] = center_auto[1] = center_auto[2] = 0;
+#endif
+
   //------------------------ engine data
   modelname = "MuJoCo Model";
   mj_defaultOption(&option);
@@ -3157,6 +3167,13 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
   // actuator lengthrange computation
   LengthRange(m, d);
 
+  // save automatically-computed statistics, to disambiguate when saving
+  extent_auto = m->stat.extent;
+  meaninertia_auto = m->stat.meaninertia;
+  meanmass_auto = m->stat.meanmass;
+  meansize_auto = m->stat.meansize;
+  copyvec(center_auto, m->stat.center, 3);
+
   // override model statistics if defined by user
   if (mjuu_defined(extent)) m->stat.extent = (mjtNum)extent;
   if (mjuu_defined(meaninertia)) m->stat.meaninertia = (mjtNum)meaninertia;
@@ -3233,10 +3250,16 @@ bool mjCModel::CopyBack(const mjModel* m) {
   option = m->opt;
   visual = m->vis;
 
-  // runtime-modifiable members of mjStatistic
-  meansize = m->stat.meansize;
-  extent = m->stat.extent;
-  mju_copy3(center, m->stat.center);
+  // runtime-modifiable members of mjStatistic, if different from computed values
+  if (m->stat.meaninertia != meaninertia_auto) meaninertia = m->stat.meaninertia;
+  if (m->stat.meanmass != meanmass_auto) meanmass = m->stat.meanmass;
+  if (m->stat.meansize != meansize_auto) meansize = m->stat.meansize;
+  if (m->stat.extent != extent_auto) extent = m->stat.extent;
+  if (m->stat.center[0] != center_auto[0] ||
+      m->stat.center[1] != center_auto[1] ||
+      m->stat.center[2] != center_auto[2]) {
+    mju_copy3(center, m->stat.center);
+  }
 
   // qpos0, qpos_spring
   for (int i=0; i<njnt; i++) {
