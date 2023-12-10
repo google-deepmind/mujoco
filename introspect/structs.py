@@ -4493,7 +4493,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  type=PointerType(
                      inner_type=ValueType(name='mjtNum'),
                  ),
-                 doc='com-based motion axis of each dof                (nv x 6)',  # pylint: disable=line-too-long
+                 doc='com-based motion axis of each dof (rot:lin)      (nv x 6)',  # pylint: disable=line-too-long
              ),
              StructFieldDecl(
                  name='cinert',
@@ -4703,14 +4703,14 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  type=PointerType(
                      inner_type=ValueType(name='mjtNum'),
                  ),
-                 doc='com-based velocity [3D rot; 3D tran]             (nbody x 6)',  # pylint: disable=line-too-long
+                 doc='com-based velocity (rot:lin)                     (nbody x 6)',  # pylint: disable=line-too-long
              ),
              StructFieldDecl(
                  name='cdof_dot',
                  type=PointerType(
                      inner_type=ValueType(name='mjtNum'),
                  ),
-                 doc='time-derivative of cdof                          (nv x 6)',  # pylint: disable=line-too-long
+                 doc='time-derivative of cdof (rot:lin)                (nv x 6)',  # pylint: disable=line-too-long
              ),
              StructFieldDecl(
                  name='qfrc_bias',
