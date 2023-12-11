@@ -14,100 +14,65 @@
 # ==============================================================================
 """Tests passive forces."""
 
-import itertools
-
 from absl.testing import absltest
-from absl.testing import parameterized
-from etils import epath
 import jax
-import jax.numpy as jp
 import mujoco
 from mujoco import mjx
+from mujoco.mjx._src import test_util
 import numpy as np
 
-
-def _assert_attr_eq(a, b, attr, step, fname, atol=1e-4, rtol=1e-4):
-  err_msg = f'mismatch: {attr} at step {step} in {fname}'
-  a, b = getattr(a, attr), getattr(b, attr)
-  np.testing.assert_allclose(a, b, err_msg=err_msg, atol=atol, rtol=rtol)
+# tolerance for difference between MuJoCo and MJX passive calculations - mostly
+# due to float precision
+_TOLERANCE = 1e-7
 
 
-class PassiveTest(parameterized.TestCase):
+def _assert_eq(a, b, name):
+  tol = _TOLERANCE * 10  # avoid test noise
+  err_msg = f'mismatch: {name}'
+  np.testing.assert_allclose(a, b, err_msg=err_msg, atol=tol, rtol=tol)
 
-  @parameterized.parameters(enumerate(('ant.xml', 'pendula.xml')))
-  def test_stiffness_damping(self, seed, fname):
-    """Tests stiffness and damping on Ant."""
-    np.random.seed(seed)
-    path = epath.resource_path('mujoco.mjx') / 'test_data'
-    path /= fname
-    m = mujoco.MjModel.from_xml_string(path.read_text())
 
-    # set stiffness/damping
-    m.jnt_stiffness = np.random.uniform(size=m.njnt)
-    m.dof_damping = np.random.uniform(size=m.nv)
+def _assert_attr_eq(a, b, attr):
+  _assert_eq(getattr(a, attr), getattr(b, attr), attr)
+
+
+class PassiveTest(absltest.TestCase):
+
+  def test_passive(self):
+    m = test_util.load_test_file('pendula.xml')
     d = mujoco.MjData(m)
-    d.qvel = np.random.random(m.nv)  # random kick
+    # give the system a little kick to ensure we have non-identity rotations
+    d.ctrl = np.array([0.1, -0.1, 0.2, 0.3, -0.4])
+    mujoco.mj_step(m, d, 10)  # let dynamics get state significantly non-zero
+    mujoco.mj_forward(m, d)
+    mx = mjx.put_model(m)
 
-    mx = mjx.device_put(m)
-    dx = mjx.make_data(mx)
+    dx = jax.jit(mjx.passive)(mx, mjx.put_data(m, d))
+    _assert_attr_eq(d, dx, 'qfrc_passive')
 
-    passive_jit_fn = jax.jit(mjx.passive)
+    # test with fluid forces
+    m.opt.density = 0.01
+    mujoco.mj_forward(m, d)
+    mx = mjx.put_model(m)
+    dx = jax.jit(mjx.passive)(mx, mjx.put_data(m, d))
+    _assert_attr_eq(d, dx, 'qfrc_passive')
 
-    for i in range(100):
-      qpos, qvel = d.qpos.copy(), d.qvel.copy()
-      mujoco.mj_step(m, d)
-      dx = passive_jit_fn(mx, dx.replace(qpos=qpos, qvel=qvel))
-      _assert_attr_eq(d, dx, 'qfrc_passive', i, fname)
+    m.opt.viscosity = 0.02
+    mujoco.mj_forward(m, d)
+    mx = mjx.put_model(m)
+    dx = jax.jit(mjx.passive)(mx, mjx.put_data(m, d))
+    _assert_attr_eq(d, dx, 'qfrc_passive')
 
-  @parameterized.parameters(
-      itertools.product(range(3), ('pendula.xml',))
-  )
-  def test_fluid(self, seed, fname):
-    np.random.seed(seed)
-    path = epath.resource_path('mujoco.mjx') / 'test_data'
-    path /= fname
-    m = mujoco.MjModel.from_xml_string(path.read_text())
+    m.opt.wind = np.array([0.03, 0.04, 0.05])
+    mujoco.mj_forward(m, d)
+    mx = mjx.put_model(m)
+    dx = jax.jit(mjx.passive)(mx, mjx.put_data(m, d))
+    _assert_attr_eq(d, dx, 'qfrc_passive')
 
-    # set density/viscosity/wind
-    m.opt.density = np.random.uniform()
-    m.opt.viscosity = np.random.uniform()
-    m.opt.wind = np.random.uniform()
-
-    passive_jit_fn = jax.jit(mjx.passive)
-
-    mx = mjx.device_put(m)
-    d = mujoco.MjData(m)
-    d.qvel = np.random.random(m.nv)  # random kick
-
-    for i in range(100):
-      mujoco.mj_step(m, d)
-      dx = mjx.device_put(d)
-      mujoco.mj_passive(m, d)
-      dx = passive_jit_fn(mx, dx)
-      _assert_attr_eq(d, dx, 'qfrc_passive', i, fname)
-
-  def test_disable_passive(self):
-    m = mujoco.MjModel.from_xml_string("""
-        <mujoco>
-          <option density="1" viscosity="2" wind="0.1 0.2 0.3">
-            <flag passive="disable"/>
-          </option>
-          <worldbody>
-            <body>
-              <joint damping="1" axis="1 0 0" type="ball"/>
-              <geom pos="0 0.5 0" size=".15" mass="1" type="sphere"/>
-            </body>
-          </worldbody>
-        </mujoco>
-        """)
-    mx = mjx.device_put(m)
-    d = mujoco.MjData(m)
-    dx = mjx.device_put(d)
-    dx = dx.replace(qvel=jp.ones(mx.nv))
-
-    passive_jit_fn = jax.jit(mjx.passive)
-    dx = passive_jit_fn(mx, dx)
-    np.testing.assert_equal(dx.qfrc_passive, np.zeros(mx.nv))
+    # test disable passive
+    mx = mx.tree_replace({'opt.disableflags': mjx.DisableBit.PASSIVE})
+    dx = jax.jit(mjx.passive)(mx, mjx.put_data(m, d))
+    np.testing.assert_allclose(dx.qfrc_passive, 0)
 
 
 if __name__ == '__main__':

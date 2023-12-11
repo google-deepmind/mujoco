@@ -166,16 +166,16 @@ static const char* MJCF[nMJCF][mjXATTRNUM] = {
             "dyntype", "gaintype", "biastype", "dynprm", "gainprm", "biasprm", "actearly"},
         {"motor", "?", "8", "ctrllimited", "forcelimited", "ctrlrange", "forcerange",
             "gear", "cranklength", "user", "group"},
-        {"position", "?", "9", "ctrllimited", "forcelimited", "ctrlrange", "forcerange",
+        {"position", "?", "10", "ctrllimited", "forcelimited", "ctrlrange", "forcerange",
             "gear", "cranklength", "user", "group",
-            "kp"},
+            "kp", "kv"},
         {"velocity", "?", "9", "ctrllimited", "forcelimited", "ctrlrange", "forcerange",
             "gear", "cranklength", "user", "group",
             "kv"},
-        {"intvelocity", "?", "10", "ctrllimited", "forcelimited",
+        {"intvelocity", "?", "11", "ctrllimited", "forcelimited",
             "ctrlrange", "forcerange", "actrange",
             "gear", "cranklength", "user", "group",
-            "kp"},
+            "kp", "kv"},
         {"damper", "?", "8", "forcelimited", "ctrlrange", "forcerange",
             "gear", "cranklength", "user", "group",
             "kv"},
@@ -379,22 +379,22 @@ static const char* MJCF[nMJCF][mjXATTRNUM] = {
             "ctrllimited", "forcelimited", "ctrlrange", "forcerange",
             "lengthrange", "gear", "cranklength", "user",
             "joint", "jointinparent", "tendon", "slidersite", "cranksite", "site", "refsite"},
-        {"position", "*", "19", "name", "class", "group",
+        {"position", "*", "20", "name", "class", "group",
             "ctrllimited", "forcelimited", "ctrlrange", "forcerange",
             "lengthrange", "gear", "cranklength", "user",
             "joint", "jointinparent", "tendon", "slidersite", "cranksite", "site", "refsite",
-            "kp"},
+            "kp", "kv"},
         {"velocity", "*", "19", "name", "class", "group",
             "ctrllimited", "forcelimited", "ctrlrange", "forcerange",
             "lengthrange", "gear", "cranklength", "user",
             "joint", "jointinparent", "tendon", "slidersite", "cranksite", "site", "refsite",
             "kv"},
-        {"intvelocity", "*", "20", "name", "class", "group",
+        {"intvelocity", "*", "21", "name", "class", "group",
             "ctrllimited", "forcelimited",
             "ctrlrange", "forcerange", "actrange", "lengthrange",
             "gear", "cranklength", "user",
             "joint", "jointinparent", "tendon", "slidersite", "cranksite", "site", "refsite",
-            "kp"},
+            "kp", "kv"},
         {"damper", "*", "18", "name", "class", "group",
             "forcelimited", "ctrlrange", "forcerange",
             "lengthrange", "gear", "cranklength", "user",
@@ -1895,19 +1895,26 @@ void mjXReader::OneActuator(XMLElement* elem, mjCActuator* pact) {
     pact->biastype = mjBIAS_NONE;
   }
 
-  // position servo
-  else if (type=="position") {
-    // clear bias
-    mjuu_zerovec(pact->biasprm, mjNBIAS);
-
+  // position or integrated velocity servo
+  else if (type=="position" || type=="intvelocity") {
     // explicit attributes
     ReadAttr(elem, "kp", 1, pact->gainprm, text);
     pact->biasprm[1] = -pact->gainprm[0];
 
+    if (ReadAttr(elem, "kv", 1, pact->biasprm + 2, text)) {
+      if (pact->biasprm[2] < 0)
+        throw mjXError(elem, "kv cannot be negative");
+      pact->biasprm[2] *= -1;
+    }
+
     // implied parameters
-    pact->dyntype = mjDYN_NONE;
     pact->gaintype = mjGAIN_FIXED;
     pact->biastype = mjBIAS_AFFINE;
+
+    if (type=="intvelocity") {
+      pact->dyntype = mjDYN_INTEGRATOR;
+      pact->actlimited = 1;
+    }
   }
 
   // velocity servo
@@ -1923,22 +1930,6 @@ void mjXReader::OneActuator(XMLElement* elem, mjCActuator* pact) {
     pact->dyntype = mjDYN_NONE;
     pact->gaintype = mjGAIN_FIXED;
     pact->biastype = mjBIAS_AFFINE;
-  }
-
-  // integrated velocity
-  else if (type=="intvelocity") {
-    // clear bias
-    mjuu_zerovec(pact->biasprm, mjNBIAS);
-
-    // explicit attributes
-    ReadAttr(elem, "kp", 1, pact->gainprm, text);
-
-    // implied parameters
-    pact->dyntype = mjDYN_INTEGRATOR;
-    pact->gaintype = mjGAIN_FIXED;
-    pact->biastype = mjBIAS_AFFINE;
-    pact->actlimited = 1;
-    pact->biasprm[1] = -pact->gainprm[0];
   }
 
   // damper

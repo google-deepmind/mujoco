@@ -193,7 +193,7 @@ class ScanTest(absltest.TestCase):
     </mujoco>
   """
 
-  def testscan_actuators(self):
+  def test_scan_actuators(self):
     """Tests scanning over actuators."""
     m = mujoco.MjModel.from_xml_string(self._MULTI_ACT_XML)
     m = mjx.device_put(m)

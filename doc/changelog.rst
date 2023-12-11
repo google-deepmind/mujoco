@@ -12,6 +12,10 @@ General
   robust for very small or large geom sizes.
 - Added :ref:`frame<frame>` to MJCF, a :ref:`meta-element<meta-element>` which defines a pure coordinate transformation
   on its direct children, without requiring a :ref:`body<body>`.
+- Added the :at:`kv` attribute to the :ref:`position<actuator-position>` and :ref:`intvelocity<actuator-intvelocity>`
+  actuators, for specifying actuator-applied damping. This can be used to implement a PD controller with 0 reference
+  velocity. When using this attribute, it is recommended to use the implicitfast or implicit
+  :ref:`integrators<geIntegration>`.
 
 Plugins
 ^^^^^^^
@@ -37,6 +41,9 @@ Bug fixes
   Before this fix such actuators could lead to non-conservation of momentum.
 - Fix bug that prevented using flex with the :ref:`passive viewer<PyViewerPassive>`.
 - Fix bug that prevented the use of elasticity plugins in combination with pinned flex vertices.
+- Release Python wheels targeting macOS 10.16 to support x86_64 systems where SYSTEM_VERSION_COMPAT is set. The minimum
+  supported version is still 11.0, but we release these wheels to fix compatibility for those users. See
+  :github:issue:`1213`.
 
 Version 3.0.1 (November 15, 2023)
 ---------------------------------

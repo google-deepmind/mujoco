@@ -52,9 +52,9 @@ def _collide(
     mjcf: str, assets: Optional[Dict[str, str]] = None
 ) -> Tuple[mujoco.MjModel, mujoco.MjData, Model, Data]:
   m = mujoco.MjModel.from_xml_string(mjcf, assets or {})
-  mx = mjx.device_put(m)
+  mx = mjx.put_model(m)
   d = mujoco.MjData(m)
-  dx = mjx.device_put(d)
+  dx = mjx.put_data(m, d)
 
   mujoco.mj_step(m, d)
   collision_jit_fn = jax.jit(mjx.collision)
@@ -418,9 +418,9 @@ class BodyPairFilterTest(absltest.TestCase):
   def test_filter_parent_child(self):
     """Tests that parent-child collisions get filtered."""
     m = mujoco.MjModel.from_xml_string(self._PARENT_CHILD)
-    mx = mjx.device_put(m)
+    mx = mjx.put_model(m)
     d = mujoco.MjData(m)
-    dx = mjx.device_put(d)
+    dx = mjx.put_data(m, d)
 
     mujoco.mj_step(m, d)
     collision_jit_fn = jax.jit(mjx.collision)
@@ -435,9 +435,9 @@ class BodyPairFilterTest(absltest.TestCase):
     """Tests that filterparent flag disables parent-child filtering."""
     m = mujoco.MjModel.from_xml_string(self._PARENT_CHILD)
     m.opt.disableflags |= mujoco.mjtDisableBit.mjDSBL_FILTERPARENT
-    mx = mjx.device_put(m)
+    mx = mjx.put_model(m)
     d = mujoco.MjData(m)
-    dx = mjx.device_put(d)
+    dx = mjx.put_data(m, d)
 
     mujoco.mj_step(m, d)
     collision_jit_fn = jax.jit(mjx.collision)
@@ -454,22 +454,14 @@ class NconTest(parameterized.TestCase):
   """Tests ncon."""
 
   def test_ncon(self):
-    m = test_util.load_test_file('ant.xml')
-    d = mujoco.MjData(m)
-    d.qpos[2] = 0.0
-
-    mx = mjx.device_put(m)
-    ncon = collision_driver.ncon(mx)
-    self.assertEqual(ncon, 4)
+    m = test_util.load_test_file('constraints.xml')
+    ncon = collision_driver.ncon(m)
+    self.assertEqual(ncon, 16)
 
   def test_disable_contact(self):
-    m = test_util.load_test_file('ant.xml')
-    d = mujoco.MjData(m)
-    d.qpos[2] = 0.0
-
-    m.opt.disableflags = m.opt.disableflags | DisableBit.CONTACT
-    mx = mjx.device_put(m)
-    ncon = collision_driver.ncon(mx)
+    m = test_util.load_test_file('constraints.xml')
+    m.opt.disableflags |= DisableBit.CONTACT
+    ncon = collision_driver.ncon(m)
     self.assertEqual(ncon, 0)
 
 
@@ -500,12 +492,12 @@ class TopKContactTest(absltest.TestCase):
 
   def test_top_k_contacts(self):
     m = mujoco.MjModel.from_xml_string(self._CAPSULES)
-    mx_top_k = mjx.device_put(m)
+    mx_top_k = mjx.put_model(m)
     mx_all = mx_top_k.replace(
         nnumeric=0, name_numericadr=np.array([]), numeric_data=np.array([])
     )
     d = mujoco.MjData(m)
-    dx = mjx.device_put(d)
+    dx = mjx.put_data(m, d)
 
     collision_jit_fn = jax.jit(mjx.collision)
     kinematics_jit_fn = jax.jit(mjx.kinematics)
