@@ -31,7 +31,7 @@ public class MjHeightFieldShape : IMjShape
   public string heightMapExportPath;
 
   public string FullHeightMapPath => Path.GetFullPath(Path.Combine(Application.dataPath, heightMapExportPath));
-  public int HeightMapWidth => terrain.terrainData.heightmapTexture.width; 
+  public int HeightMapWidth => terrain.terrainData.heightmapTexture.width;
   public int HeightMapLength => terrain.terrainData.heightmapTexture.height;
   public Vector3 HeightMapScale => terrain.terrainData.heightmapScale;
 
@@ -46,7 +46,7 @@ public class MjHeightFieldShape : IMjShape
 
   public int HeightFieldId { get; private set; }
 
-  public unsafe void ToMjcf(XmlElement mjcf, Transform transform){
+  public unsafe void ToMjcf(XmlElement mjcf, Transform transform) {
     ExportHeightMap();
     if(terrain.transform.parent != transform) Debug.LogWarning($"The terrain of heightfield {transform.name} needs to be parented to the Geom for proper rendering.");
     else {
@@ -60,7 +60,7 @@ public class MjHeightFieldShape : IMjShape
 
     scene.postInitEvent += (_,_) => HeightFieldId = MujocoLib.mj_name2id(scene.Model, (int)MujocoLib.mjtObj.mjOBJ_HFIELD, assetName);
 
-    
+
     if(UpdateLimit>0){
       updateCountdown = UpdateLimit;
       scene.preUpdateEvent += (_, _) => CountdownUpdateCondition();
@@ -70,11 +70,11 @@ public class MjHeightFieldShape : IMjShape
     mjcf.SetAttribute("hfield", assetName);
   }
 
-  public void FromMjcf(XmlElement mjcf){
+  public void FromMjcf(XmlElement mjcf) {
 
   }
 
-  public void ExportHeightMap(){
+  public void ExportHeightMap() {
     RenderTexture.active = terrain.terrainData.heightmapTexture;
     Texture2D texture = new Texture2D(RenderTexture.active.width, RenderTexture.active.height);
     texture.ReadPixels(new Rect(0, 0, RenderTexture.active.width, RenderTexture.active.height), 0, 0);
@@ -90,22 +90,22 @@ public class MjHeightFieldShape : IMjShape
     updateCountdown -= 1;
   }
 
-  public void RebuildScene(Terrain terrain, RectInt heightRegion, bool synched){ 
+  public void RebuildScene(Terrain terrain, RectInt heightRegion, bool synched) {
     if(updateCountdown > 0) return;
     if(!Application.isPlaying || !MjScene.InstanceExists) return;
     MjScene.Instance.SceneRecreationAtLateUpdateRequested = true;
     updateCountdown = UpdateLimit;
   }
 
-  public Vector4 GetChangeStamp(){
+  public Vector4 GetChangeStamp() {
     return Vector4.one;
   }
 
-  public Tuple<Vector3[], int[]> BuildMesh(){
+  public Tuple<Vector3[], int[]> BuildMesh() {
     return null;
   }
 
-  public void DebugDraw(Transform transform){
+  public void DebugDraw(Transform transform) {
   }
 }
 }
