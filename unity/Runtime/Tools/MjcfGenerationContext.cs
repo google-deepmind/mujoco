@@ -125,9 +125,9 @@ public class MjcfGenerationContext {
     mjcf.SetAttribute(
       "size",
       MjEngineTool.MakeLocaleInvariant(
-        $@"{hFieldComponent.HeightMapScale.x*hFieldComponent.HeightMapLength/2} 
-        {hFieldComponent.HeightMapScale.z * hFieldComponent.HeightMapWidth/2} 
-        {heightRange} 
+        $@"{hFieldComponent.HeightMapScale.x*hFieldComponent.HeightMapLength/2}
+        {hFieldComponent.HeightMapScale.z * hFieldComponent.HeightMapWidth/2}
+        {heightRange}
         {baseHeight}"));
   }
 }
