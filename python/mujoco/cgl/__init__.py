@@ -57,15 +57,18 @@ class GLContext:
 
   def free(self):
     """Frees resources associated with this context."""
-    if self._context:
-      cgl.CGLUnlockContext(self._context)
-      cgl.CGLSetCurrentContext(None)
-      cgl.CGLReleaseContext(self._context)
-    self._context = None
+    try:
+      if self._context:
+        cgl.CGLUnlockContext(self._context)
+        cgl.CGLSetCurrentContext(None)
+        cgl.CGLReleaseContext(self._context)
+      self._context = None
 
-    if self._pix:
-      cgl.CGLReleasePixelFormat(self._pix)
-    self._context = None
+      if self._pix:
+        cgl.CGLReleasePixelFormat(self._pix)
+      self._pix = None
+    except Exception:  # pylint: disable=broad-exception-caught
+      pass
 
   def __del__(self):
     self.free()
