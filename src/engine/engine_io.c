@@ -1858,6 +1858,8 @@ static int numObjects(const mjModel* m, mjtObj objtype) {
     return m->nkey;
   case mjOBJ_PLUGIN:
     return m->nplugin;
+  case mjNOBJECT:
+    return -2;
   }
   return -2;
 }

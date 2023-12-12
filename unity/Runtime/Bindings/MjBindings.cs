@@ -301,6 +301,7 @@ public enum mjtObj : int{
   mjOBJ_TUPLE = 23,
   mjOBJ_KEY = 24,
   mjOBJ_PLUGIN = 25,
+  mjNOBJECT = 26,
 }
 public enum mjtConstraint : int{
   mjCNSTR_EQUALITY = 0,

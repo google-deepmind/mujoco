@@ -570,7 +570,9 @@ typedef enum mjtObj_ {            // type of MujoCo object
   mjOBJ_TEXT,                     // text
   mjOBJ_TUPLE,                    // tuple
   mjOBJ_KEY,                      // keyframe
-  mjOBJ_PLUGIN                    // plugin instance
+  mjOBJ_PLUGIN,                   // plugin instance
+
+  mjNOBJECT                       // number of object types
 } mjtObj;
 typedef enum mjtConstraint_ {     // type of constraint
   mjCNSTR_EQUALITY    = 0,        // equality constraint
