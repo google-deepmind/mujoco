@@ -1178,5 +1178,29 @@ TEST_F(DecompilerTest, DoesntSaveInferredStatitics) {
   mj_deleteModel(model);
 }
 
+TEST_F(DecompilerTest, VeryLargeNumbers) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <compiler angle="radian"/>
+    <worldbody>
+      <camera focal="16777217 1" sensorsize="1 1" resolution="100 100"/>
+      <body pos="1e+20 0 0">
+        <geom size="1"/>
+        <joint axis="1 0 0" range="-1e+10 1e+10"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, NotNull()) << error.data();
+  std::string saved_xml = SaveAndReadXml(model);
+  // note, focal is float and loses precision 16777217 -> 16777216
+  EXPECT_THAT(saved_xml, HasSubstr("focal=\"16777216 1\""));
+  EXPECT_THAT(saved_xml, HasSubstr("pos=\"1e+20 0 0\""));
+  EXPECT_THAT(saved_xml, HasSubstr("range=\"-1e+10 1e+10\""));
+  mj_deleteModel(model);
+}
+
 }  // namespace
 }  // namespace mujoco
