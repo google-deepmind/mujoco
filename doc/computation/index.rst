@@ -300,19 +300,22 @@ is attached; the possible attachment object types are :at:`joint`, :at:`tendon`,
    Slider-cranks can also be modeled explicitly by creating MuJoCo bodies and coupling them with equality constraints to
    the rest of the system, but that would be less efficient.
 
-:at:`site`
-   :at:`site` transmission (without a :at:`refsite`, see below) and :at:`body` transmission targets have a fixed zero
-   length :math:`l_i(q) = 0`. They can therefore not be used to maintain a desired length, but can be used to apply
-   forces. Site transmissions correspond to applying a Cartsian force/torque at the site, and are useful for modeling
-   jets and propellors. :el:`body` transmissions correspond to applying forces at contact points belonging to a body, in
+:at:`body`
+   :el:`body` transmission corresponds to applying forces at contact points belonging to a body, in
    order to model vacuum grippers and biomechanical adhesive appendages. For more information about adhesion, see the
-   :ref:`adhesion<actuator-adhesion>` actuator documentation.
+   :ref:`adhesion<actuator-adhesion>` actuator documentation. These transmission targets have a fixed zero length
+   :math:`l_i(q) = 0`.
 
-   If a :at:`site` transmission target is defined with the optional :at:`refsite` attribute, forces and torques are
-   applied in the frame of the reference site rather than the site's own frame. If a reference site is defined then
-   the length of the actuator is nonzero and corresponds to the pose difference of the two sites. This length can then
-   be controlled with a :el:`position` actuator, enabling Cartesian end-effector control. See the
-   :ref:`refsite<actuator-general-refsite>` documentation for more details.
+:at:`site`
+   Site transmissions correspond to applying a Cartsian force/torque in the frame of a site, and are useful for
+   modeling jets and propellors. When a :at:`refsite` is not defined (see below), these targets have a fixed zero
+   length :math:`l_i(q) = 0`.
+
+   If a :at:`site` transmission is defined with the optional :at:`refsite` attribute, forces and torques are applied in
+   the frame of the reference site rather than the site's own frame. If a reference site is defined, the length of the
+   actuator is nonzero and corresponds to the pose difference of the two sites, projected onto a chosen direction in the
+   reference frame. This length can then be controlled with a :el:`position` actuator, allowing for Cartesian
+   end-effector control. See the :ref:`refsite<actuator-general-refsite>` documentation for more details.
 
 .. _geActivation:
 
