@@ -1444,9 +1444,6 @@ static void mj_makeCapsule(const mjModel* m, mjData* d, int f, const int vid[2],
 
 // test two geoms for collision, apply filters, add to contact list
 void mj_collideGeoms(const mjModel* m, mjData* d, int g1, int g2) {
-  // relative distance (1%) outside of which box-box contacts are removed
-  static mjtNum kBoxRemoveMargin = 1.01;
-
   TM_START;
 
   int num, type1, type2, condim;
@@ -1547,11 +1544,16 @@ void mj_collideGeoms(const mjModel* m, mjData* d, int g1, int g2) {
       // box sizes with margin
       mjtNum sz1[3] = {size1[0] + margin, size1[1] + margin, size1[2] + margin};
       mjtNum sz2[3] = {size2[0] + margin, size2[1] + margin, size2[2] + margin};
-      mju_scl3(sz1, sz1, kBoxRemoveMargin);
-      mju_scl3(sz2, sz2, kBoxRemoveMargin);
-      // mark as bad if outside box
-      if (mju_outsideBox(con[i].pos, pos1, mat1, sz1) ||
-          mju_outsideBox(con[i].pos, pos2, mat2, sz2)) {
+
+      // relative distance from surface (1%) outside of which box-box contacts are removed
+      static mjtNum kRemoveRatio = 1.01;
+
+      // is the contact outside: 1, inside: -1, within the removal width: 0
+      int out1 = mju_outsideBox(con[i].pos, pos1, mat1, sz1, kRemoveRatio);
+      int out2 = mju_outsideBox(con[i].pos, pos2, mat2, sz2, kRemoveRatio);
+
+      // mark as bad if outside one box and not inside the other box
+      if ((out1 == 1 && out2 != -1) || (out2 == 1 && out1 != -1)) {
         con[i].dim = -1;
       }
     }

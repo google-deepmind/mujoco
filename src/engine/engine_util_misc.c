@@ -837,21 +837,47 @@ mjtNum mju_springDamper(mjtNum pos0, mjtNum vel0, mjtNum k, mjtNum b, mjtNum t) 
 
 
 
-// return 1 if point is outside box given by pos, mat, size
+// return 1 if point is outside box given by pos, mat, size * inflate
+// return -1 if point is inside box given by pos, mat, size / inflate
+// return 0 if point is between the inflated and deflated boxes
 int mju_outsideBox(const mjtNum point[3], const mjtNum pos[3], const mjtNum mat[9],
-                   const mjtNum size[3]) {
+                   const mjtNum size[3], mjtNum inflate) {
+  // check inflation coefficient
+  if (inflate < 1) {
+    mjERROR("inflation coefficient must be >= 1")
+  }
+
   // vector from pos to point, projected to box frame
   mjtNum vec[3] = {point[0]-pos[0], point[1]-pos[1], point[2]-pos[2]};
   mju_rotVecMatT(vec, vec, mat);
 
-  // outside
-  if (vec[0] > size[0] || vec[0] < -size[0] ||
-      vec[1] > size[1] || vec[1] < -size[1] ||
-      vec[2] > size[2] || vec[2] < -size[2]) {
+  // big: inflated box
+  mjtNum big[3] = {size[0], size[1], size[2]};
+  if (inflate > 1) {
+    mju_scl3(big, big, inflate);
+  }
+
+  // check if outside big box
+  if (vec[0] > big[0] || vec[0] < -big[0] ||
+      vec[1] > big[1] || vec[1] < -big[1] ||
+      vec[2] > big[2] || vec[2] < -big[2]) {
     return 1;
   }
 
-  // inside
+  // quick return if no inflation
+  if (inflate == 1) {
+    return -1;
+  }
+
+  // check if inside small (deflated) box
+  mjtNum small[3] = {size[0]/inflate, size[1]/inflate, size[2]/inflate};
+  if (vec[0] < small[0] && vec[0] > -small[0] &&
+      vec[1] < small[1] && vec[1] > -small[1] &&
+      vec[2] < small[2] && vec[2] > -small[2]) {
+    return -1;
+  }
+
+  // within margin between small and big box
   return 0;
 }
 

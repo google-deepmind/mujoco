@@ -94,7 +94,7 @@ TEST_F(MjCollisionBoxTest, BadContacts) {
       }
 
       // expect some contacts to have been removed
-      EXPECT_LT(nmatched, num);
+      EXPECT_LT(nmatched, num) << local_path;
 
       // get box info
       const mjtNum* pos1 =  data->geom_xpos  + 3 * g1;
@@ -103,23 +103,27 @@ TEST_F(MjCollisionBoxTest, BadContacts) {
       const mjtNum* pos2 =  data->geom_xpos  + 3 * g2;
       const mjtNum* mat2 =  data->geom_xmat  + 9 * g2;
       const mjtNum* size2 = model->geom_size + 3 * g2;
+      mjtNum margin = mju_max(model->geom_margin[g1], model->geom_margin[g2]);
 
       // loop over raw contacts, find removed
       for (int i = 0; i < num; i++) {
         if (!match_raw[i]) {
           // === check if outside
 
-          // get margin and adjusted sizes
-          const mjtNum kBoxRemoveMargin = 1.01;
-          mjtNum sz1[3], sz2[3];
-          mju_scl3(sz1, size1, kBoxRemoveMargin);
-          mju_scl3(sz2, size2, kBoxRemoveMargin);
+          mjtNum sz1[3] = {size1[0]+margin, size1[1]+margin, size1[2]+margin};
+          mjtNum sz2[3] = {size2[0]+margin, size2[1]+margin, size2[2]+margin};
 
-          // is contact outside one of the boxes
-          bool outside = mju_outsideBox(con_raw[i].pos, pos1, mat1, sz1) ||
-                         mju_outsideBox(con_raw[i].pos, pos2, mat2, sz2);
+          // relative distance (1%) outside of which contacts are removed
+          static mjtNum kRatio = 1.01;
 
-          // expect that removed contact was either outside
+          // is the contact outside: 1, inside: -1, within the removal width: 0
+          int out1 = mju_outsideBox(con_raw[i].pos, pos1, mat1, sz1, kRatio);
+          int out2 = mju_outsideBox(con_raw[i].pos, pos2, mat2, sz2, kRatio);
+
+          // mark as bad if outside one box and not inside the other box
+          bool outside = (out1 == 1 && out2 != -1) || (out2 == 1 && out1 != -1);
+
+          // expect that removed contact was outside
           EXPECT_TRUE(outside);
         }
       }
@@ -217,6 +221,24 @@ TEST_F(MjCollisionBoxTest, DuplicateContacts) {
   }
 
   mj_freeStack(data);
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
+
+static const char* const kDeepFilePath =
+    "engine/testdata/collision_box/boxbox_deep.xml";
+
+TEST_F(MjCollisionBoxTest, DeepPenetration) {
+  const std::string xml_path = GetTestDataFilePath(kDeepFilePath);
+  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, 0, 0);
+  ASSERT_THAT(model, NotNull());
+  mjData* data = mj_makeData(model);
+  mj_forward(model, data);
+
+  // expect 4 contact
+  EXPECT_EQ(data->ncon ,4);
+
   mj_deleteData(data);
   mj_deleteModel(model);
 }
