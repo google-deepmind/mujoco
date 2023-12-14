@@ -32,9 +32,8 @@ typedef enum _mjtInertiaFromGeom {
   mjINERTIAFROMGEOM_AUTO          // use only if inertial element is missing
 } mjtInertiaFromGeom;
 
-// TODO: convert mjListKeyMap to mjKeyMap[mjNOBJECT] by adding mjNOBJECT to mjtObj
 typedef std::map<std::string, int, std::less<> > mjKeyMap;
-typedef std::map<std::string, mjKeyMap, std::less<> > mjListKeyMap;
+typedef std::array<mjKeyMap, mjNOBJECT> mjListKeyMap;
 
 
 
@@ -293,6 +292,9 @@ class mjCModel {
   std::vector<mjCLight*>  lights;   // list of lights
 
   //------------------------ internal variables
+
+  // array of pointers to each object list (enumerated by type)
+  std::array<std::vector<mjCBase*>*, mjNOBJECT> object_lists;
 
   // statistics, as computed by mj_setConst
   double meaninertia_auto;        // mean diagonal inertia, as computed by mj_setConst
