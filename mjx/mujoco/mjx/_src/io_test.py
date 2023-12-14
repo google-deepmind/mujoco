@@ -71,6 +71,7 @@ _MULTIPLE_CONSTRAINTS = """
           <joint axis="0 1 0" type="hinge" range="-45 45"/>
           <joint axis="1 0 0" type="hinge" range="-0.001 0.001"/>
           <geom type="capsule" size=".2 .05"/>
+          <site pos="-0.214 -0.078 0" quat="0.664 0.664 -0.242 -0.242"/>
         </body>
       </body>
     </worldbody>
@@ -318,9 +319,11 @@ class IoTest(parameterized.TestCase):
     self.assertEqual(dx.xmat.shape, (3, 3, 3))
     self.assertEqual(dx.ximat.shape, (3, 3, 3))
     self.assertEqual(dx.geom_xmat.shape, (3, 3, 3))
+    self.assertEqual(dx.site_xmat.shape, (1, 3, 3))
     np.testing.assert_allclose(dx.xmat.reshape((3, 9)), d.xmat)
     np.testing.assert_allclose(dx.ximat.reshape((3, 9)), d.ximat)
     np.testing.assert_allclose(dx.geom_xmat.reshape((3, 9)), d.geom_xmat)
+    np.testing.assert_allclose(dx.site_xmat.reshape((1, 9)), d.site_xmat)
 
     # efc_ are also shape transformed and padded
     self.assertEqual(dx.efc_J.shape, (21, 8))  # nefc, nv
@@ -369,13 +372,15 @@ class IoTest(parameterized.TestCase):
     self.assertEqual(d_2.contact.frame.shape, (1, 9))
     np.testing.assert_allclose(d_2.contact.frame, d.contact.frame)
 
-    # xmat, ximat, geom_xmat are all shape transformed
+    # xmat, ximat, geom_xmat, site_xmat are all shape transformed
     self.assertEqual(d_2.xmat.shape, (3, 9))
     self.assertEqual(d_2.ximat.shape, (3, 9))
     self.assertEqual(d_2.geom_xmat.shape, (3, 9))
+    self.assertEqual(d_2.site_xmat.shape, (1, 9))
     np.testing.assert_allclose(d_2.xmat, d.xmat)
     np.testing.assert_allclose(d_2.ximat, d.ximat)
     np.testing.assert_allclose(d_2.geom_xmat, d.geom_xmat)
+    np.testing.assert_allclose(d_2.site_xmat, d.site_xmat)
 
     # efc_* are also shape transformed and filtered
     self.assertEqual(d_2.efc_J.shape, (64,))  # nefc * nv
