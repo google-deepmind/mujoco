@@ -2479,7 +2479,7 @@ void Simulate::Render() {
     char label[30] = {'\0'};
     if (this->loadrequest) {
       std::snprintf(label, sizeof(label), "LOADING...");
-    } if (this->scrub_index == 0) {
+    } else if (this->scrub_index == 0) {
       std::snprintf(label, sizeof(label), "PAUSE");
     } else {
       std::snprintf(label, sizeof(label), "PAUSE (%d)", this->scrub_index);
