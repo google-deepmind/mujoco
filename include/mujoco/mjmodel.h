@@ -109,10 +109,11 @@ typedef enum mjtGeom_ {           // type of geometric shape
   mjGEOM_ARROW1,                  // arrow without wedges
   mjGEOM_ARROW2,                  // arrow in both directions
   mjGEOM_LINE,                    // line
+  mjGEOM_LINEBOX,                 // box with line edges
   mjGEOM_FLEX,                    // flex
   mjGEOM_SKIN,                    // skin
   mjGEOM_LABEL,                   // text label
-  mjGEOM_TRIANGLE,                // triangle connecting a frame
+  mjGEOM_TRIANGLE,                // triangle
 
   mjGEOM_NONE         = 1001      // missing geom type
 } mjtGeom;
