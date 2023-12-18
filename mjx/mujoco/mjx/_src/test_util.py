@@ -29,6 +29,8 @@ TEST_FILES: List[str] = [
 ]
 
 _ACTUATOR_TYPES = ['motor', 'velocity', 'position', 'general', 'intvelocity']
+_DYN_TYPES = ['none', 'integrator', 'filter', 'filterexact']
+_DYN_PRMS = ['0.189', '2.1']
 _JOINT_TYPES = ['free', 'hinge', 'slide', 'ball']
 _JOINT_AXES = ['1 0 0', '0 1 0', '0 0 1']
 _FRICTIONS = ['1.2 0.003 0.0002', '0.2 0.0001 0.0005']
@@ -124,6 +126,8 @@ def _make_geom(
 def _make_actuator(actuator_type: str, joint: str) -> Dict[str, str]:
   """Returns attributes for an actuator."""
   attr = {'joint': joint}
+
+  # set actuator type
   if actuator_type == 'motor':
     attr['gear'] = np.random.choice(_GEARS)
   elif actuator_type == 'position':
@@ -139,10 +143,18 @@ def _make_actuator(actuator_type: str, joint: str) -> Dict[str, str]:
   elif actuator_type == 'velocity':
     attr['kv'] = np.random.choice(_KV_VEL)
 
+  # set dyntype
+  if actuator_type == 'general':
+    attr['dyntype'] = np.random.choice(_DYN_TYPES)
+    if attr['dyntype'] != 'none':
+      attr['dynprm'] = np.random.choice(_DYN_PRMS)
+
+  # ctrlrange
   if p(50) and actuator_type != 'intvelocity':
     lb, ub = -np.random.uniform(), np.random.uniform()
     attr['ctrlrange'] = f'{lb:.2f} {ub:.2f}'
 
+  # forcerange
   if p(50):
     lb, ub = -np.random.uniform(), np.random.uniform()
     attr['forcerange'] = f'{lb*10:.2f} {ub*10:.2f}'

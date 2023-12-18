@@ -20,10 +20,7 @@ from typing import Sequence
 import jax
 import jax.numpy as jp
 import mujoco
-# pylint: disable=g-importing-member
-from mujoco.mjx._src import dataclasses
-from mujoco.mjx._src.dataclasses import PyTreeNode
-# pylint: enable=g-importing-member
+from mujoco.mjx._src.dataclasses import PyTreeNode  # pylint: disable=g-importing-member
 import numpy as np
 
 
@@ -167,11 +164,14 @@ class DynType(enum.IntEnum):
   Attributes:
     NONE: no internal dynamics; ctrl specifies force
     INTEGRATOR: integrator: da/dt = u
+    FILTER: linear filter: da/dt = (u-a) / tau
+    FILTEREXACT: linear filter: da/dt = (u-a) / tau, with exact integration
   """
   NONE = mujoco.mjtDyn.mjDYN_NONE
   INTEGRATOR = mujoco.mjtDyn.mjDYN_INTEGRATOR
   FILTER = mujoco.mjtDyn.mjDYN_FILTER
-  # unsupported: FILTEREXACT, MUSCLE, USER
+  FILTEREXACT = mujoco.mjtDyn.mjDYN_FILTEREXACT
+  # unsupported: MUSCLE, USER
 
 
 class GainType(enum.IntEnum):

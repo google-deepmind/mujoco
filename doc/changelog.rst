@@ -2,6 +2,14 @@
 Changelog
 =========
 
+Upcoming version (not yet released)
+-----------------------------------
+
+MJX
+^^^
+
+1. Add :ref:`dyntype<actuator-general-dyntype>` ``filterexact``.
+
 
 Version 3.1.1 (December 18, 2023)
 -----------------------------------

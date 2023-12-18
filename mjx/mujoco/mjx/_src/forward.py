@@ -107,7 +107,7 @@ def fwd_actuation(m: Model, d: Data) -> Data:
       act_dot = jp.array(0.0)
     elif dyn_typ == DynType.INTEGRATOR:
       act_dot = ctrl
-    elif dyn_typ == DynType.FILTER:
+    elif dyn_typ in (DynType.FILTER, DynType.FILTEREXACT):
       act_dot = (ctrl - act) / jp.clip(dyn_prm[0], mujoco.mjMINVAL)
     else:
       raise NotImplementedError(f'dyntype {dyn_typ.name} not implemented.')
@@ -228,6 +228,34 @@ def _integrate_pos(
   return jp.concatenate(qs) if qs else jp.empty((0,))
 
 
+def _next_activation(m: Model, d: Data, act_dot: jax.Array) -> jax.Array:
+  """Returns the next act given the current act_dot, after clamping."""
+  act = d.act
+
+  if not m.na:
+    return act
+
+  actrange = jp.where(
+      m.actuator_actlimited[:, None],
+      m.actuator_actrange,
+      jp.array([-jp.inf, jp.inf]),
+  )
+
+  def fn(dyntype, dynprm, act, act_dot, actrange):
+    if dyntype == DynType.FILTEREXACT:
+      tau = jp.clip(dynprm[0], a_min=mujoco.mjMINVAL)
+      act = act + act_dot * tau * (1 - jp.exp(-m.opt.timestep / tau))
+    else:
+      act = act + act_dot * m.opt.timestep
+    act = jp.clip(act, actrange[0], actrange[1])
+    return act
+
+  args = (m.actuator_dyntype, m.actuator_dynprm, act, act_dot, actrange)
+  act = scan.flat(m, fn, 'uuaau', 'a', *args, group_by='u')
+
+  return act.reshape(m.na)
+
+
 @named_scope
 def _advance(
     m: Model,
@@ -237,16 +265,7 @@ def _advance(
     qvel: Optional[jax.Array] = None,
 ) -> Data:
   """Advance state and time given activation derivatives and acceleration."""
-  act = d.act
-  if m.na:
-    act = d.act + act_dot * m.opt.timestep
-    actrange = jp.where(
-        m.actuator_actlimited[:, None],
-        m.actuator_actrange,
-        jp.array([-jp.inf, jp.inf]),
-    )
-    fn = lambda act, actrange: jp.clip(act, actrange[0], actrange[1])
-    act = scan.flat(m, fn, 'au', 'a', act, actrange, group_by='u')
+  act = _next_activation(m, d, act_dot)
 
   # advance velocities
   d = d.replace(qvel=d.qvel + qacc * m.opt.timestep)
