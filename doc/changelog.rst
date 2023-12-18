@@ -3,17 +3,17 @@ Changelog
 =========
 
 
-Upcoming version (not yet released)
+Version 3.1.1 (December 18, 2023)
 -----------------------------------
 
 Bug fixes
 ^^^^^^^^^
-- Fixed a bug (introduced in 3.1.0) where box-box collisions produced no contacts is one box was deeply embedded in the
+1. Fixed a bug (introduced in 3.1.0) where box-box collisions produced no contacts is one box was deeply embedded in the
   other.
-- Fixed a bug in :ref:`simulate<saSimulate>` where the "LOADING..." message was not showing correctly.
-- Fixed a crash in the Python :ref:`passive viewer<PyViewerPassive>`, when used with models containing Flex objects.
-- Fixed a bug in MJX where ``site_xmat`` was ignored in ``get_data`` and ``put_data``
-- Fixed a bug in MJX where ``efc_address`` was sometimes incorrectly calculated in ``get_data``.
+2. Fixed a bug in :ref:`simulate<saSimulate>` where the "LOADING..." message was not showing correctly.
+3. Fixed a crash in the Python :ref:`passive viewer<PyViewerPassive>`, when used with models containing Flex objects.
+4. Fixed a bug in MJX where ``site_xmat`` was ignored in ``get_data`` and ``put_data``
+5. Fixed a bug in MJX where ``efc_address`` was sometimes incorrectly calculated in ``get_data``.
 
 
 Version 3.1.0 (December 12, 2023)
