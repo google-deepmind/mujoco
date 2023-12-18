@@ -2,8 +2,22 @@
 Changelog
 =========
 
-Version 3.1.0 (December 12, 2023)
+
+Upcoming version (not yet released)
 -----------------------------------
+
+Bug fixes
+^^^^^^^^^
+- Fixed a bug (introduced in 3.1.0) where box-box collisions produced no contacts is one box was deeply embedded in the
+  other.
+- Fixed a bug in :ref:`simulate<saSimulate>` where the "LOADING..." message was not showing correctly.
+- Fixed a crash in the Python :ref:`passive viewer<PyViewerPassive>`, when used with models containing Flex objects.
+- Fixed a bug in MJX where ``site_xmat`` was ignored in ``get_data`` and ``put_data``
+- Fixed a bug in MJX where ``efc_address`` was sometimes incorrectly calculated in ``get_data``.
+
+
+Version 3.1.0 (December 12, 2023)
+---------------------------------
 
 General
 ^^^^^^^
@@ -39,7 +53,7 @@ Bug fixes
 ^^^^^^^^^
 8. Fix bug in Cartesian actuation with movable refsite, as when using body-centric Cartesian actuators on a quadruped.
    Before this fix such actuators could lead to non-conservation of momentum.
-9. Fix bug that prevented using flex with the :ref:`passive viewer<PyViewerPassive>`.
+9. Fix bug that prevented using flex with :ref:`simulate<saSimulate>`.
 10. Fix bug that prevented the use of elasticity plugins in combination with pinned flex vertices.
 11. Release Python wheels targeting macOS 10.16 to support x86_64 systems where SYSTEM_VERSION_COMPAT is set. The minimum
     supported version is still 11.0, but we release these wheels to fix compatibility for those users. See
