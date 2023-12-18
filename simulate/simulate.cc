@@ -1817,6 +1817,9 @@ void Simulate::Sync() {
   if (!m_) {
     return;
   }
+  if (this->exitrequest.load()) {
+    return;
+  }
 
   bool update_profiler = this->profiler && (this->pause_update || this->run);
   bool update_sensor = this->sensor && (this->pause_update || this->run);
@@ -2714,9 +2717,9 @@ void Simulate::RenderLoop() {
     }
   }
 
-  if (!is_passive_){
-    mjv_freeScene(&this->scn);
-  } else {
+  const MutexLock lock(this->mtx);
+  mjv_freeScene(&this->scn);
+  if (is_passive_) {
     mjv_freeSceneState(&scnstate_);
   }
 

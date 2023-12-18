@@ -99,5 +99,10 @@ target_link_libraries(engine_util_spatial_test fixture gmock)
 mujoco_test(engine_vfs_test)
 target_link_libraries(engine_vfs_test fixture gmock)
 
-mujoco_test(engine_vis_state_test)
+mujoco_test(
+  engine_vis_state_test
+  PROPERTIES
+  ENVIRONMENT
+  "MUJOCO_PLUGIN_DIR=$<TARGET_FILE_DIR:elasticity>"
+)
 target_link_libraries(engine_vis_state_test fixture gmock)

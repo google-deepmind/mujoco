@@ -6095,6 +6095,7 @@ public unsafe struct model {
   public int nnames;
   public int npaths;
   public int nsensordata;
+  public int narena;
   public mjOption_ opt;
   public mjVisual_ vis;
   public mjStatistic_ stat;
@@ -6287,6 +6288,7 @@ public unsafe struct data {
   public int* wrap_obj;
   public double* ten_length;
   public double* wrap_xpos;
+  public double* bvh_aabb_dyn;
   public byte* bvh_active;
   public int* island_dofadr;
   public int* island_dofind;
@@ -6296,6 +6298,7 @@ public unsafe struct data {
   public double* flexvert_xpos;
   public mjContact_* contact;
   public double* efc_force;
+  public void* arena;
 }
 
 [StructLayout(LayoutKind.Sequential)]

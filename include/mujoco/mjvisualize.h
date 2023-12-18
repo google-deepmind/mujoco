@@ -436,6 +436,7 @@ struct mjvSceneState_ {
     int nnames;
     int npaths;
     int nsensordata;
+    int narena;
 
     mjOption opt;
     mjVisual vis;
@@ -649,6 +650,7 @@ struct mjvSceneState_ {
     mjtNum* ten_length;
     mjtNum* wrap_xpos;
 
+    mjtNum* bvh_aabb_dyn;
     mjtByte* bvh_active;
     int* island_dofadr;
     int* island_dofind;
@@ -660,6 +662,7 @@ struct mjvSceneState_ {
 
     mjContact* contact;
     mjtNum* efc_force;
+    void* arena;
   } data;
 };
 typedef struct mjvSceneState_ mjvSceneState;

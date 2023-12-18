@@ -6335,6 +6335,11 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                              doc='',
                          ),
                          StructFieldDecl(
+                             name='narena',
+                             type=ValueType(name='int'),
+                             doc='',
+                         ),
+                         StructFieldDecl(
                              name='opt',
                              type=ValueType(name='mjOption'),
                              doc='',
@@ -7597,6 +7602,13 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                              doc='',
                          ),
                          StructFieldDecl(
+                             name='bvh_aabb_dyn',
+                             type=PointerType(
+                                 inner_type=ValueType(name='mjtNum'),
+                             ),
+                             doc='',
+                         ),
+                         StructFieldDecl(
                              name='bvh_active',
                              type=PointerType(
                                  inner_type=ValueType(name='mjtByte'),
@@ -7656,6 +7668,13 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                              name='efc_force',
                              type=PointerType(
                                  inner_type=ValueType(name='mjtNum'),
+                             ),
+                             doc='',
+                         ),
+                         StructFieldDecl(
+                             name='arena',
+                             type=PointerType(
+                                 inner_type=ValueType(name='void'),
                              ),
                              doc='',
                          ),
