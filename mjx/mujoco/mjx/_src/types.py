@@ -153,9 +153,11 @@ class TrnType(enum.IntEnum):
 
   Attributes:
     JOINT: force on joint
+    SITE: force on site
   """
   JOINT = mujoco.mjtTrn.mjTRN_JOINT
-  # unsupported: JOINTINPARENT, SLIDERCRANK, TENDON, SITE, BODY
+  SITE = mujoco.mjtTrn.mjTRN_SITE
+  # unsupported: JOINTINPARENT, SLIDERCRANK, TENDON, BODY
 
 
 class DynType(enum.IntEnum):

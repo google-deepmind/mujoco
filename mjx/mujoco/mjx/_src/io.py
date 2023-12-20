@@ -103,6 +103,10 @@ def put_model(m: mujoco.MjModel, device=None) -> types.Model:
           f'{[mj_type(m) for m in missing]} not supported'
       )
 
+  # TODO: implement reference sites.
+  if any(m.actuator_trnid[:, 1] != -1):
+    raise NotImplementedError('refsite is not supported')
+
   opt = _put_option(m.opt, device=device)
   stat = _put_statistic(m.stat, device=device)
 

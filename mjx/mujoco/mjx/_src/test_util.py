@@ -47,7 +47,7 @@ _SOLIMPS = [
 _DIMS = ['3']
 _MARGINS = ['0.0', '0.01', '0.02']
 _GAPS = ['0.0', '0.005']
-_GEARS = ['20', '50', '100']
+_GEARS = ['2.1 0.0 3.3 0 2.3 0', '5.0 3.1 0 2.3 0.0 1.1']
 
 
 def p(pct: int) -> bool:
@@ -123,14 +123,21 @@ def _make_geom(
   return attr
 
 
-def _make_actuator(actuator_type: str, joint: str) -> Dict[str, str]:
+def _make_actuator(
+    actuator_type: str, joint: str | None = None, site: str | None = None
+) -> Dict[str, str]:
   """Returns attributes for an actuator."""
-  attr = {'joint': joint}
+  if joint:
+    attr = {'joint': joint}
+  elif site:
+    attr = {'site': site}
+  else:
+    raise ValueError('must provide a joint or site name')
+
+  attr['gear'] = np.random.choice(_GEARS)
 
   # set actuator type
-  if actuator_type == 'motor':
-    attr['gear'] = np.random.choice(_GEARS)
-  elif actuator_type == 'position':
+  if actuator_type == 'position':
     attr['kp'] = np.random.choice(_KP_POS)
   elif actuator_type == 'general':
     attr['biastype'] = 'affine'
@@ -245,6 +252,7 @@ def create_mjcf(
     pos = f'{body_pos[0]:.3f} {body_pos[1]:.3f} {body_pos[2] + z_pos:.3f}'
     n_bodies = len(list(mjcf.iter('body')))
     child = ET.SubElement(body, 'body', {'pos': pos, 'name': f'body{n_bodies}'})
+    ET.SubElement(child, 'site', {'name': f'site{n_bodies}'})
 
     n_joints = len(list(mjcf.iter('joint')))
     for nj in range(np.random.randint(1, max_stacked_joints + 1)):
@@ -282,15 +290,26 @@ def create_mjcf(
   for _ in range(num_trees):
     make_tree(world, 0)
 
+  bodies = list(mjcf.iter('body'))
+  n_bodies = len(bodies)
+
   # actuators
   if add_actuators:
     actuator = ET.SubElement(mjcf, 'actuator')
     n_joints = len(list(mjcf.iter('joint')))
     nu = np.random.randint(1, n_joints + 1)
     actuators = []
+
+    # joint transmission
     for i in range(nu):
       actuator_type = np.random.choice(_ACTUATOR_TYPES)
       attr = _make_actuator(actuator_type, joint=f'joint{i}')
+      actuators.append((actuator_type, attr))
+
+    # site transmission
+    for i in range(np.random.randint(0, n_bodies)):
+      actuator_type = np.random.choice(_ACTUATOR_TYPES)
+      attr = _make_actuator(actuator_type, site=f'site{i}')
       actuators.append((actuator_type, attr))
 
     np.random.shuffle(actuators)
@@ -320,9 +339,7 @@ def create_mjcf(
     ET.SubElement(contact, 'pair', attr)
 
   # exclude contacts
-  bodies = list(mjcf.iter('body'))
   body_names = [b.get('name') for b in bodies]
-  n_bodies = len(bodies)
   for _ in range(min(max_contact_excludes, (n_bodies * (n_bodies - 1) // 2))):
     if p(50):
       continue

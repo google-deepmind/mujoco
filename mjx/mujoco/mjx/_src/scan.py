@@ -49,7 +49,9 @@ def _take(obj: Y, idx: np.ndarray) -> Y:
 
   def take(x):
     # TODO(erikfrey): if this helps perf, add support for striding too
-    if (
+    if not x.shape[0]:
+      return x
+    elif (
         len(idx.shape) == 1
         and idx.size > 0
         and (idx == np.arange(idx[0], idx[0] + idx.size)).all()
@@ -113,8 +115,12 @@ def _nvmap(f: Callable[..., Y], *args) -> Y:
     if isinstance(arg, np.ndarray) and not np.all(arg == arg[0]):
       raise RuntimeError(f'numpy arg elements do not match: {arg}')
 
+  # split out numpy and jax args
   np_args = [a[0] if isinstance(a, np.ndarray) else None for a in args]
   args = [a if n is None else None for n, a in zip(np_args, args)]
+
+  # remove empty args that we should not vmap over
+  args = jax.tree_map(lambda a: a if a.shape[0] else None, args)
   in_axes = [None if a is None else 0 for a in args]
 
   def outer_f(*args, np_args=np_args):
@@ -126,7 +132,15 @@ def _nvmap(f: Callable[..., Y], *args) -> Y:
 
 def _check_input(m: Model, args: Any, in_types: str) -> None:
   """Checks that scan input has the right shape."""
-  size = {'b': m.nbody, 'j': m.njnt, 'q': m.nq, 'v': m.nv, 'u': m.nu, 'a': m.na}
+  size = {
+      'b': m.nbody,
+      'j': m.njnt,
+      'q': m.nq,
+      'v': m.nv,
+      'u': m.nu,
+      'a': m.na,
+      's': m.nsite,
+  }
   for idx, (arg, typ) in enumerate(zip(args, in_types)):
     if len(arg) != size[typ]:
       raise IndexError(
@@ -162,7 +176,7 @@ def flat(
 ) -> Y:
   r"""Scan a function across bodies or actuators.
 
-  Scan group data according to type and batch shape then calls vmap(f) on it.
+  Scan group data according to type and batch shape then calls vmap(f) on it.\
 
   Args:
     m: an mjx model
@@ -223,14 +237,22 @@ def flat(
         'j': (
             m.actuator_trnid[i, 0]
             if m.actuator_trntype[i] == TrnType.JOINT
-            else np.array(-1)
+            else -1
+        ),
+        's': (
+            m.actuator_trnid[i, 0]
+            if m.actuator_trntype[i] == TrnType.SITE
+            else -1
         ),
     }
-    # v/q associated with joint transmissions
-    typ_ids.update({
-        'v': np.nonzero(m.dof_jntid == typ_ids['j'])[0],
-        'q': np.nonzero(_q_jointid(m) == typ_ids['j'])[0],
-    })
+    v, q = np.array([-1]), np.array([-1])
+    if m.actuator_trntype[i] == TrnType.JOINT:
+      # v/q are associated with the joint transmissions only
+      v = np.nonzero(m.dof_jntid == typ_ids['j'])[0]
+      q = np.nonzero(_q_jointid(m) == typ_ids['j'])[0]
+
+    typ_ids.update({'v': v, 'q': q})
+
     return typ_ids
 
   # build up a grouping of type take-ids in body/actuator order

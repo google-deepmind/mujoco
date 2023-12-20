@@ -9,6 +9,7 @@ MJX
 ^^^
 
 1. Add :ref:`dyntype<actuator-general-dyntype>` ``filterexact``.
+2. Add :at:`site` transmission.
 
 
 Version 3.1.1 (December 18, 2023)

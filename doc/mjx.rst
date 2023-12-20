@@ -181,7 +181,7 @@ The following features are **fully supported** in MJX:
    * - :ref:`Joint <mjtJoint>`
      - ``FREE``, ``BALL``, ``SLIDE``, ``HINGE``
    * - :ref:`Transmission <mjtTrn>`
-     - ``TRN_JOINT``
+     - ``TRN_JOINT``, ``TRN_SITE``
    * - :ref:`Actuator Dynamics <mjtDyn>`
      - ``NONE``, ``INTEGRATOR``, ``FILTER``, ``FILTEREXACT``
    * - :ref:`Actuator Gain <mjtGain>`
@@ -218,7 +218,7 @@ The following features are **in development** and coming soon:
    * - Dynamics
      - :ref:`Inverse <mj_inverse>`
    * - :ref:`Transmission <mjtTrn>`
-     - ``TRN_SITE``, ``TRN_TENDON``
+     - ``TRN_TENDON``
    * - :ref:`Actuator Dynamics <mjtDyn>`
      - ``MUSCLE``
    * - :ref:`Actuator Gain <mjtGain>`

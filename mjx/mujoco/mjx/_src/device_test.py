@@ -129,12 +129,6 @@ class ValidateInputTest(absltest.TestCase):
     with self.assertRaises(NotImplementedError):
       mjx.device_put(m)
 
-  def test_trn(self):
-    m = test_util.load_test_file('pendula.xml')
-    m.actuator_trntype[0] = mujoco.mjtTrn.mjTRN_SITE
-    with self.assertRaises(NotImplementedError):
-      mjx.device_put(m)
-
   def test_dyn(self):
     m = test_util.load_test_file('pendula.xml')
     m.actuator_dyntype[0] = mujoco.mjtDyn.mjDYN_MUSCLE
