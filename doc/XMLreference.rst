@@ -1378,9 +1378,9 @@ also known as terrain map, is a 2D matrix of elevation data. The data can be spe
 | For collision detection, a height field is treated as a union of triangular prisms. Collisions between height fields
   and other geoms (except for planes and other height fields which are not supported) are computed by first selecting
   the sub-grid of prisms that could collide with the geom based on its bounding box, and then using the general convex
-  collider. The number of possible contacts between a height field and a geom is limited to 9; any contacts beyond that
-  are discarded. To avoid penetration due to discarded contacts, the spatial features of the height field should be
-  large compared to the geoms it collides with.
+  collider. The number of possible contacts between a height field and a geom is limited to 50
+  (:ref:`mjMAXCONPAIR <glNumeric>`); any contacts beyond that are discarded. To avoid penetration due to discarded
+  contacts, the spatial features of the height field should be large compared to the geoms it collides with.
 
 .. _asset-hfield-name:
 
