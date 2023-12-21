@@ -26,8 +26,11 @@ public class MjHeightFieldShape : IMjShape {
   public Terrain Terrain;
 
   [Tooltip("The path, relative to Application.dataPath, where the heightmap " +
-           "data will be save in PNG format.")]
+           "data will be saved/exported in PNG format. Leave blank if hfield data should " +
+           "be set instead programmatically (faster).")]
   public string HeightMapExportPath;
+
+  public bool ExportImage => !string.IsNullOrEmpty(HeightMapExportPath);
 
   public string FullHeightMapPath => Path.GetFullPath(Path.Combine(Application.dataPath,
       HeightMapExportPath));
@@ -38,57 +41,59 @@ public class MjHeightFieldShape : IMjShape {
 
   [Tooltip("At least this many frames will have to pass before the scene is rebuilt with an " +
            "updated heightmap. Leave as 0 to not update the hfield during simulation. " +
-           "Increasing this can improve performance.")]
+           "If nonzero, increasing this can improve performance.")]
   public int UpdateLimit;
 
   private int _updateCountdown;
 
-  [HideInInspector] 
+  [HideInInspector]
   public float MinimumHeight { get; private set; }
 
-  [HideInInspector] 
+  [HideInInspector]
   public float MaximumHeight { get; private set; }
 
   public int HeightFieldId { get; private set; }
 
   public unsafe void ToMjcf(XmlElement mjcf, Transform transform) {
-    ExportHeightMap();
     if (Terrain.transform.parent != transform)
       Debug.LogWarning(
           $"The terrain of heightfield {transform.name} needs to be parented to the Geom " +
           "for proper rendering.");
     else {
-      if ((Terrain.transform.localPosition - new Vector3(-HeightMapLength * HeightMapScale.x / 2,
+      if ((Terrain.transform.localPosition - new Vector3(
+              -(HeightMapLength - 1) * HeightMapScale.x / 2f,
               Terrain.transform.localPosition.y,
-              -HeightMapWidth * HeightMapScale.z / 2)).magnitude > 0.001) {
+              -(HeightMapWidth - 1) * HeightMapScale.z / 2)).magnitude > 0.001) {
         Debug.LogWarning($"Terrain of heightfield {transform.name} not aligned with geom. The " +
                          " terrain will be moved to accurately represent the simulated position.");
       }
-      Terrain.transform.localPosition = new Vector3(-HeightMapLength * HeightMapScale.x / 2,
+      Terrain.transform.localPosition = new Vector3(-(HeightMapLength - 1) * HeightMapScale.x / 2,
           Terrain.transform.localPosition.y,
-          -HeightMapWidth * HeightMapScale.z / 2);
+          -(HeightMapWidth - 1) * HeightMapScale.z / 2);
     }
     var scene = MjScene.Instance;
     var assetName = scene.GenerationContext.AddHeightFieldAsset(this);
 
-    scene.postInitEvent += (_, _) =>
-        HeightFieldId =
-            MujocoLib.mj_name2id(scene.Model, (int)MujocoLib.mjtObj.mjOBJ_HFIELD, assetName);
-
+    if (Application.isPlaying) {
+      scene.postInitEvent += (_, _) =>
+          HeightFieldId =
+              MujocoLib.mj_name2id(scene.Model, (int)MujocoLib.mjtObj.mjOBJ_HFIELD, assetName);
+    }
 
     if (UpdateLimit > 0) {
       _updateCountdown = UpdateLimit;
-      scene.preUpdateEvent += (_, _) => CountdownUpdateCondition();
-      TerrainCallbacks.heightmapChanged += RebuildScene;
+      if (UpdateLimit > 1) scene.preUpdateEvent += (_, _) => CountdownUpdateCondition();
+      TerrainCallbacks.heightmapChanged += (_, _, _) => RebuildHeightField();
     }
 
     mjcf.SetAttribute("hfield", assetName);
+    PrepareHeightMap();
   }
 
   public void FromMjcf(XmlElement mjcf) {
   }
 
-  public void ExportHeightMap() {
+  public void PrepareHeightMap() {
     RenderTexture.active = Terrain.terrainData.heightmapTexture;
     Texture2D texture = new Texture2D(RenderTexture.active.width, RenderTexture.active.height);
     texture.ReadPixels(new Rect(0, 0, RenderTexture.active.width, RenderTexture.active.height),
@@ -96,11 +101,32 @@ public class MjHeightFieldShape : IMjShape {
         0);
     MaximumHeight = texture.GetPixels().Select(c => c.r).Max() * HeightMapScale.y * 2;
     var minimumHeight = texture.GetPixels().Select(c => c.r).Min() * HeightMapScale.y * 2;
-    if (minimumHeight > 0.0001)
-      Debug.LogWarning("Due to assumptions in MuJoCo heightfields, terrains should have a " +
-                       "minimum heightmap value of 0.");
+
     RenderTexture.active = null;
-    File.WriteAllBytes(FullHeightMapPath, texture.EncodeToPNG());
+    if (ExportImage) {
+      if (minimumHeight > 0.0001)
+        Debug.LogWarning("Due to assumptions in MuJoCo heightfields, terrains should have a " +
+                         "minimum heightmap value of 0.");
+      File.WriteAllBytes(FullHeightMapPath, texture.EncodeToPNG());
+    } else if (Application.isPlaying) {
+      MjScene.Instance.postInitEvent += (_, _) => UpdateHeightFieldData();
+    }
+  }
+
+  public unsafe void UpdateHeightFieldData() {
+    RenderTexture.active = Terrain.terrainData.heightmapTexture;
+    Texture2D texture = new Texture2D(RenderTexture.active.width, RenderTexture.active.height);
+    texture.ReadPixels(new Rect(0, 0, RenderTexture.active.width, RenderTexture.active.height),
+        0,
+        0);
+    RenderTexture.active = null;
+
+    float[] curData = texture.GetPixels(0, 0, texture.width, texture.height)
+        .Select(c => c.r * 2).ToArray();
+    int adr = MjScene.Instance.Model->hfield_adr[HeightFieldId];
+    for (int i = 0; i < curData.Length; i++) {
+      MjScene.Instance.Model->hfield_data[adr + i] = curData[i];
+    }
   }
 
   public void CountdownUpdateCondition() {
@@ -108,11 +134,18 @@ public class MjHeightFieldShape : IMjShape {
     _updateCountdown -= 1;
   }
 
-  public void RebuildScene(Terrain terrain, RectInt heightRegion, bool synched) {
-    if (_updateCountdown > 0) return;
+  public void RebuildHeightField() {
+    // The update rate limiting countdown goes from UpdateLimit + 1 to 1, since if the Update
+    // limit is at 1, we can update on every frame and don't need a countdown.
+    if (_updateCountdown > 1) return;
     if (!Application.isPlaying || !MjScene.InstanceExists) return;
-    MjScene.Instance.SceneRecreationAtLateUpdateRequested = true;
-    _updateCountdown = UpdateLimit;
+    if (ExportImage) {
+      // If we export an image, it needs to be read by the compiler so we might as well rebuild the scene.
+      MjScene.Instance.SceneRecreationAtLateUpdateRequested = true;
+    } else {
+      UpdateHeightFieldData();
+    }
+    _updateCountdown = UpdateLimit + 1;
   }
 
   public Vector4 GetChangeStamp() {

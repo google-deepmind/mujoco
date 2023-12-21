@@ -118,20 +118,29 @@ public class MjcfGenerationContext {
   }
 
   private static void GenerateHeightFieldMjcf(MjHeightFieldShape hFieldComponent, XmlElement mjcf) {
-    mjcf.SetAttribute("nrow", "0");
-    mjcf.SetAttribute("ncol", "0");
-    mjcf.SetAttribute("content_type", "image/png");
-    mjcf.SetAttribute("file", hFieldComponent.FullHeightMapPath);
+    if (hFieldComponent.ExportImage) {
+      mjcf.SetAttribute("content_type", "image/png");
+      mjcf.SetAttribute("file", hFieldComponent.FullHeightMapPath);
+      mjcf.SetAttribute("nrow", "0");
+      mjcf.SetAttribute("ncol", "0");
+    } else {
+      mjcf.SetAttribute("nrow", hFieldComponent.HeightMapLength.ToString());
+      mjcf.SetAttribute("ncol", hFieldComponent.HeightMapWidth.ToString());
+    }
+
     var baseHeight = hFieldComponent.Terrain.transform.localPosition.y +
                      hFieldComponent.MinimumHeight;
     var heightRange = Mathf.Clamp(
-        hFieldComponent.MaximumHeight - hFieldComponent.MinimumHeight, 0.00001f, Mathf.Infinity);
+        hFieldComponent.MaximumHeight - hFieldComponent.MinimumHeight,
+        0.00001f,
+        Mathf.Infinity);
     mjcf.SetAttribute(
         "size",
         MjEngineTool.MakeLocaleInvariant(
-            $@"{hFieldComponent.HeightMapScale.x * hFieldComponent.HeightMapLength / 2} {
-              hFieldComponent.HeightMapScale.z * hFieldComponent.HeightMapWidth / 2} {heightRange} {
-              baseHeight}"));
+            $@"{hFieldComponent.HeightMapScale.x * (hFieldComponent.HeightMapLength - 1) / 2f} {
+              hFieldComponent.HeightMapScale.z * (hFieldComponent.HeightMapWidth - 1) / 2f} {
+                heightRange} {
+                  baseHeight}"));
   }
 }
 }
