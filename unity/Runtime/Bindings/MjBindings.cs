@@ -108,7 +108,7 @@ public const int mjMAXLINEPNT = 1000;
 public const int mjMAXPLANEGRID = 200;
 public const bool THIRD_PARTY_MUJOCO_MJXMACRO_H_ = true;
 public const bool THIRD_PARTY_MUJOCO_MUJOCO_H_ = true;
-public const int mjVERSION_HEADER = 302;
+public const int mjVERSION_HEADER = 312;
 
 
 // ------------------------------------Enums------------------------------------
@@ -191,10 +191,11 @@ public enum mjtGeom : int{
   mjGEOM_ARROW1 = 101,
   mjGEOM_ARROW2 = 102,
   mjGEOM_LINE = 103,
-  mjGEOM_FLEX = 104,
-  mjGEOM_SKIN = 105,
-  mjGEOM_LABEL = 106,
-  mjGEOM_TRIANGLE = 107,
+  mjGEOM_LINEBOX = 104,
+  mjGEOM_FLEX = 105,
+  mjGEOM_SKIN = 106,
+  mjGEOM_LABEL = 107,
+  mjGEOM_TRIANGLE = 108,
   mjGEOM_NONE = 1001,
 }
 public enum mjtCamLight : int{
@@ -301,6 +302,7 @@ public enum mjtObj : int{
   mjOBJ_TUPLE = 23,
   mjOBJ_KEY = 24,
   mjOBJ_PLUGIN = 25,
+  mjNOBJECT = 26,
 }
 public enum mjtConstraint : int{
   mjCNSTR_EQUALITY = 0,
@@ -6093,6 +6095,7 @@ public unsafe struct model {
   public int nnames;
   public int npaths;
   public int nsensordata;
+  public int narena;
   public mjOption_ opt;
   public mjVisual_ vis;
   public mjStatistic_ stat;
@@ -6285,6 +6288,7 @@ public unsafe struct data {
   public int* wrap_obj;
   public double* ten_length;
   public double* wrap_xpos;
+  public double* bvh_aabb_dyn;
   public byte* bvh_active;
   public int* island_dofadr;
   public int* island_dofind;
@@ -6294,6 +6298,7 @@ public unsafe struct data {
   public double* flexvert_xpos;
   public mjContact_* contact;
   public double* efc_force;
+  public void* arena;
 }
 
 [StructLayout(LayoutKind.Sequential)]

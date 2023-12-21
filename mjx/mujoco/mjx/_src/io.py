@@ -103,6 +103,10 @@ def put_model(m: mujoco.MjModel, device=None) -> types.Model:
           f'{[mj_type(m) for m in missing]} not supported'
       )
 
+  # TODO: implement reference sites.
+  if any(m.actuator_trnid[:, 1] != -1):
+    raise NotImplementedError('refsite is not supported')
+
   opt = _put_option(m.opt, device=device)
   stat = _put_statistic(m.stat, device=device)
 
@@ -217,7 +221,7 @@ def _get_contact(
       value = value.reshape((-1, 9))
     getattr(c, field.name)[:] = value
 
-  ncon = con_id.shape[0]
+  ncon = cx.dist.shape[0]
   c.efc_address[:] = np.arange(efc_start, efc_start + ncon * 4, 4)[con_id]
 
 
@@ -257,7 +261,7 @@ def get_data(
 
       value = getattr(dx_i, field.name)
 
-      if field.name in ('xmat', 'ximat', 'geom_xmat'):
+      if field.name in ('xmat', 'ximat', 'geom_xmat', 'site_xmat'):
         value = value.reshape((-1, 9))
 
       if field.name in ('efc_frictionloss', 'efc_D', 'efc_aref', 'efc_force'):
@@ -318,7 +322,7 @@ def put_data(m: mujoco.MjModel, d: mujoco.MjData, device=None) -> types.Data:
       if f.type is jax.Array
   }
 
-  for fname in ('xmat', 'ximat', 'geom_xmat'):
+  for fname in ('xmat', 'ximat', 'geom_xmat', 'site_xmat'):
     fields[fname] = fields[fname].reshape((-1, 3, 3))
 
   # pad efc fields: MuJoCo efc arrays are sparse for inactive constraints.

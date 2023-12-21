@@ -265,7 +265,7 @@ struct mjData_ {
 
   // computed by mj_fwdPosition/mj_comPos
   mjtNum* subtree_com;       // center of mass of each subtree                   (nbody x 3)
-  mjtNum* cdof;              // com-based motion axis of each dof                (nv x 6)
+  mjtNum* cdof;              // com-based motion axis of each dof (rot:lin)      (nv x 6)
   mjtNum* cinert;            // com-based body inertia and mass                  (nbody x 10)
 
   // computed by mj_fwdPosition/mj_flex
@@ -313,8 +313,8 @@ struct mjData_ {
   mjtNum* actuator_velocity; // actuator velocities                              (nu x 1)
 
   // computed by mj_fwdVelocity/mj_comVel
-  mjtNum* cvel;              // com-based velocity [3D rot; 3D tran]             (nbody x 6)
-  mjtNum* cdof_dot;          // time-derivative of cdof                          (nv x 6)
+  mjtNum* cvel;              // com-based velocity (rot:lin)                     (nbody x 6)
+  mjtNum* cdof_dot;          // time-derivative of cdof (rot:lin)                (nv x 6)
 
   // computed by mj_fwdVelocity/mj_rne (without acceleration)
   mjtNum* qfrc_bias;         // C(qpos,qvel)                                     (nv x 1)

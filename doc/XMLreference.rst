@@ -172,7 +172,7 @@ This element does not strictly belong to MJCF. Instead it is a meta-element, use
 files in a single document object model (DOM) before parsing. The included file must be a valid XML file with a unique
 top-level element. This top-level element is removed by the parser, and the elements below it are inserted at the
 location of the :el:`include` element. At least one element must be inserted as a result of this procedure. The
-:el:`include` element can be used where ever an XML element is expected in the MJFC file. Nested includes are allowed,
+:el:`include` element can be used where ever an XML element is expected in the MJCF file. Nested includes are allowed,
 however a given XML file can be included at most once in the entire model. After all the included XML files have been
 assembled into a single DOM, it must correspond to a valid MJCF model. Other than that, it is up to the user to decide
 how to use includes and how to modularize large files if desired.
@@ -1378,9 +1378,9 @@ also known as terrain map, is a 2D matrix of elevation data. The data can be spe
 | For collision detection, a height field is treated as a union of triangular prisms. Collisions between height fields
   and other geoms (except for planes and other height fields which are not supported) are computed by first selecting
   the sub-grid of prisms that could collide with the geom based on its bounding box, and then using the general convex
-  collider. The number of possible contacts between a height field and a geom is limited to 9; any contacts beyond that
-  are discarded. To avoid penetration due to discarded contacts, the spatial features of the height field should be
-  large compared to the geoms it collides with.
+  collider. The number of possible contacts between a height field and a geom is limited to 50
+  (:ref:`mjMAXCONPAIR <glNumeric>`); any contacts beyond that are discarded. To avoid penetration due to discarded
+  contacts, the spatial features of the height field should be large compared to the geoms it collides with.
 
 .. _asset-hfield-name:
 

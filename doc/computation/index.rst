@@ -300,19 +300,22 @@ is attached; the possible attachment object types are :at:`joint`, :at:`tendon`,
    Slider-cranks can also be modeled explicitly by creating MuJoCo bodies and coupling them with equality constraints to
    the rest of the system, but that would be less efficient.
 
-:at:`site`
-   :at:`site` transmission (without a :at:`refsite`, see below) and :at:`body` transmission targets have a fixed zero
-   length :math:`l_i(q) = 0`. They can therefore not be used to maintain a desired length, but can be used to apply
-   forces. Site transmissions correspond to applying a Cartsian force/torque at the site, and are useful for modeling
-   jets and propellors. :el:`body` transmissions correspond to applying forces at contact points belonging to a body, in
+:at:`body`
+   :el:`body` transmission corresponds to applying forces at contact points belonging to a body, in
    order to model vacuum grippers and biomechanical adhesive appendages. For more information about adhesion, see the
-   :ref:`adhesion<actuator-adhesion>` actuator documentation.
+   :ref:`adhesion<actuator-adhesion>` actuator documentation. These transmission targets have a fixed zero length
+   :math:`l_i(q) = 0`.
 
-   If a :at:`site` transmission target is defined with the optional :at:`refsite` attribute, forces and torques are
-   applied in the frame of the reference site rather than the site's own frame. If a reference site is defined then
-   the length of the actuator is nonzero and corresponds to the pose difference of the two sites. This length can then
-   be controlled with a :el:`position` actuator, enabling Cartesian end-effector control. See the
-   :ref:`refsite<actuator-general-refsite>` documentation for more details.
+:at:`site`
+   Site transmissions correspond to applying a Cartsian force/torque in the frame of a site. When a :at:`refsite` is not
+   defined (see below), these targets have a fixed zero length :math:`l_i(q) = 0` and are useful for modeling jets and
+   propellors: forces and torques which are fixed to the site frame.
+
+   If a :at:`site` transmission is defined with the optional :at:`refsite` attribute, forces and torques are applied in
+   the frame of the reference site rather than the site's own frame. If a reference site is defined, the length of the
+   actuator is nonzero and corresponds to the pose difference of the two sites, projected onto a chosen direction in the
+   reference frame. This length can then be controlled with a :el:`position` actuator, allowing for Cartesian
+   end-effector control. See the :ref:`refsite<actuator-general-refsite>` documentation for more details.
 
 .. _geActivation:
 
@@ -1455,48 +1458,45 @@ others can be pruned quickly without a detailed check. MuJoCo has flexible mecha
 checked in detail. The decision process involves two stages: generation and filtering.
 
 Generation
-   First we generate a list of candidate geom pairs in one of two ways: "pair" or "dynamic". The user can also specify
-   "all" which merges both sources (and is the default). This is done via the setting ``mjModel.opt.collision``. "Pair"
-   refers to an explicit list of geom pairs defined with the :ref:`pair <contact-pair>` element in MJCF. It gives the
-   user full control, however it is a static mechanism (independent of the spatial arrangement of the geoms at runtime)
-   and can be tedious for large models. It is normally used to supplement the output of the "dynamic" mechanism. Dynamic
-   generation works with bodies rather than geoms; when a body pair is included this means that all geoms attached to
-   one body can collide with all geoms attached to the other body.
+   First we generate a list of candidate geom pairs by merging from two sources: pairs of bodies that might contain
+   colliding geoms and the explicit list of geom pairs defined with the :ref:`pair <contact-pair>` element in MJCF.
 
    The body pairs are generated via broad-phase collision detection based on a modified sweep-and-prune algorithm. The
    modification is that the axis for sorting is chosen as the principal eigenvector of the covariance matrix of all geom
-   centers - which maximizes the spread. Then, for each body pair, a mid-phase collision detection using a static
-   bounding volume hierarchy (a BVH binary tree) of axis-aligned bounding boxes (AABB) is performed. Each body is
-   equipped with an AABB tree of its geoms, aligned with the body inertial or geom frames for all inner or leaf nodes,
+   centers -- which maximizes the spread. Then, for each body pair, mid-phase collision detection is performed using a
+   static bounding volume hierarchy (a BVH binary tree) of axis-aligned bounding boxes (AABB). Each body is equipped
+   with an AABB tree of its geoms, aligned with the body inertial or geom frames for all inner or leaf nodes,
    respectively.
 
-   Finally, the user can explicitly exclude certain body pairs using the :ref:`exclude <contact-exclude>` element
-   in MJCF. Exclusion is applied when "dynamic" or "all" are selected, but not when "pair" is selected. At the end of
-   this step we have a list of geoms pairs that is typically much smaller than :math:`n (n-1)/2`, but can still be
-   pruned further before detailed collision checking.
+   Finally, the user can explicitly exclude certain body pairs using the :ref:`exclude <contact-exclude>` element in
+   MJCF. At the end of this step we have a list of geoms pairs that is typically much smaller than :math:`n (n-1)/2`,
+   but can still be pruned further before detailed collision checking.
 
 Filtering
    Next we apply four filters to the list generated in the previous step. Filters 1 and 2 are applied to all geom pairs.
-   Filters 3 and 4 are applied only to pairs generated by the "dynamic" mechanism, thereby allowing the user to bypass
+   Filters 3 and 4 are applied only to pairs generated by the body-pair mechanism, thereby allowing the user to bypass
    those filters by specifying geom pairs explicitly.
 
-   #. The types of the two geoms must correspond to a collision function that is capable of performing the detailed
+   1. The types of the two geoms must correspond to a collision function that is capable of performing the detailed
       check. This is usually the case but there are exceptions (for example plane-plane collisions are not supported),
       and furthermore the user may override the default table of collision functions with NULL pointers, effectively
       disabling collisions between certain geom types.
-   #. A bounding sphere test is applied, taking into account the contact margin. If one of the geoms in the pair is a
+   2. A bounding sphere test is applied, taking into account the contact margin. If one of the geoms in the pair is a
       plane, this becomes a plane-sphere test.
-   #. The two geoms cannot belong to the same body. Furthermore, they cannot belong to a parent and a child body, unless
+   3. The two geoms cannot belong to the same body. Furthermore, they cannot belong to a parent and a child body, unless
       the parent is the world body. The motivation is to avoid permanent contacts within bodies and joints. Note that if
       several bodies are welded together in the sense that there are no joints between them, they are treated as a
       single body for the purposes of this test. The parent-filter test can be disabled by the user, while the same-body
       test cannot be disabled.
-   #. The two geoms must be "compatible" in the following sense. Each geom has integer parameters ``contype`` and
+   4. The two geoms must be "compatible" in the following sense. Each geom has integer parameters ``contype`` and
       ``conaffinity``. The boolean expression below must be true for the test to pass:
-      ``(contype1 & conaffinity2) || (contype2 & conaffinity1)`` This requires the ``contype`` of one geom and the
-      ``conaffinity`` of the other geom to have a common bit set to 1. This is a powerful mechanism borrowed from the
-      Open Dynamics Engine. The default setting for all geoms is ``contype = conaffinity = 1`` which always passes the
-      test, so the user can ignore this mechanism if it is confusing at first.
+
+      ``(contype1 & conaffinity2) || (contype2 & conaffinity1)``
+
+      This requires the ``contype`` of one geom and the ``conaffinity`` of the other geom to have a common bit set to 1.
+      This is a powerful mechanism borrowed from Open Dynamics Engine. The default setting for all geoms is
+      ``contype = conaffinity = 1`` which always passes the test, so the user can ignore this mechanism if it is
+      confusing at first.
 
 .. _coChecking:
 

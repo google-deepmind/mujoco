@@ -403,7 +403,7 @@ and the damping ratio is ignored. Equivalently, in the direct format, the :math:
    .. math::
       \begin{aligned}
       b &= \text{damping} / d_\text{width} \\
-      k &= \text{stiffness} / d_\text{width}^2 \\
+      k &= \text{stiffness} \cdot d(r) / d_\text{width}^2 \\
       \end{aligned}
 
 .. tip::

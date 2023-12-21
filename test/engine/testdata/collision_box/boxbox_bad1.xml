@@ -1,0 +1,24 @@
+<mujoco>
+  <!-- This model leads to bad contacts from mjc_BoxBox -->
+  <statistic meansize=".01" center="-.3 -.14 .055" extent=".2"/>
+
+  <worldbody>
+    <light pos="-.3 -.14 1"/>
+
+    <geom type="plane" size="3 3 .01" pos="-0.025 -0.295  0"/>
+
+    <body pos="-.23 -.1 0" euler="0 0 30">
+      <geom type="cylinder" size=".01 .0175" pos="-.09 0 .0175"/>
+      <body pos="0 0 .03">
+        <joint axis="0 1 0"/>
+        <geom type="cylinder" size=".005 .039" zaxis="0 1 0" rgba=".84 .15 .33 1"/>
+        <geom type="box" size=".1 .02 .005" pos="0 0 .01" rgba=".84 .15 .33 1"/>
+      </body>
+    </body>
+
+    <body pos="-.3 -.14 .055" euler="0 0 -30">
+      <freejoint/>
+      <geom type="box" size=".01 .01 .01" rgba=".0 .7 .79 1"/>
+    </body>
+  </worldbody>
+</mujoco>

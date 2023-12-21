@@ -132,5 +132,40 @@ class SmoothTest(absltest.TestCase):
     dx = jax.jit(mjx.rne)(mx, dx)
     np.testing.assert_allclose(dx.qfrc_bias, 0)
 
+  def test_site_transmission(self):
+    m = mujoco.MjModel.from_xml_string("""
+        <mujoco>
+        <compiler autolimits="true"/>
+        <worldbody>
+          <body>
+            <joint type="free"/>
+            <geom type="box" size=".05 .05 .05" mass="1"/>
+            <site name="site1"/>
+            <site name="site2" pos="0.1 0.2 0.3"/>
+          </body>
+          <body pos="1 0 0">
+            <joint name="slide" type="hinge"/>
+            <geom type="box" size=".05 .05 .05" mass="1"/>
+          </body>
+        </worldbody>
+        <actuator>
+          <position site="site1" gear="1 2 3 0 0 0"/>
+          <position site="site1" gear="0 0 0 1 2 3"/>
+          <position site="site2" gear="0 3 0 0 0 1"/>
+          <position joint="slide"/>
+        </actuator>
+        </mujoco>
+      """)
+    d = mujoco.MjData(m)
+    mujoco.mj_forward(m, d)
+    mx = mjx.put_model(m)
+    dx = mjx.put_data(m, d)
+
+    mujoco.mj_transmission(m, d)
+    dx = mjx.transmission(mx, dx)
+    _assert_attr_eq(d, dx, 'actuator_length')
+    _assert_attr_eq(d, dx, 'actuator_moment')
+
+
 if __name__ == '__main__':
   absltest.main()

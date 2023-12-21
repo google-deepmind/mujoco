@@ -19,11 +19,13 @@ from jax import numpy as jp
 import mujoco
 from mujoco.mjx._src import math
 from mujoco.mjx._src import scan
+from mujoco.mjx._src import support
 # pylint: disable=g-importing-member
 from mujoco.mjx._src.types import Data
 from mujoco.mjx._src.types import DisableBit
 from mujoco.mjx._src.types import JointType
 from mujoco.mjx._src.types import Model
+from mujoco.mjx._src.types import TrnType
 # pylint: enable=g-importing-member
 
 
@@ -432,38 +434,55 @@ def rne(m: Model, d: Data) -> Data:
 
 def transmission(m: Model, d: Data) -> Data:
   """Computes actuator/transmission lengths and moments."""
+  # TODO: consider combining transmission calculation into fwd_actuation.
   if not m.nu:
     return d
 
-  def fn(gear, jnt_typ, m_j, qpos):
-    # handles joint transmissions only
-    if jnt_typ == JointType.FREE:
+  def fn(trntype, trnid, gear, jnt_typ, m_j, qpos, site_xpos, site_xmat):
+    if trntype == TrnType.JOINT:
+      if jnt_typ == JointType.FREE:
+        length = jp.zeros(1)
+        moment = gear
+        m_j = m_j + jp.arange(6)
+      elif jnt_typ == JointType.BALL:
+        axis, angle = math.quat_to_axis_angle(qpos)
+        length = jp.dot(axis * angle, gear[:3])[None]
+        moment = gear[:3]
+        m_j = m_j + jp.arange(3)
+      elif jnt_typ in (JointType.SLIDE, JointType.HINGE):
+        length = qpos * gear[0]
+        moment = gear[:1]
+        m_j = m_j[None]
+      else:
+        raise RuntimeError(f'unrecognized joint type: {JointType(jnt_typ)}')
+
+      moment = jp.zeros((m.nv,)).at[m_j].set(moment)
+    elif trntype == TrnType.SITE:
       length = jp.zeros(1)
-      moment = gear
-      m_j = m_j + jp.arange(6)
-    elif jnt_typ == JointType.BALL:
-      axis, angle = math.quat_to_axis_angle(qpos)
-      length = jp.dot(axis * angle, gear[:3])[None]
-      moment = gear[:3]
-      m_j = m_j + jp.arange(3)
-    elif jnt_typ in (JointType.SLIDE, JointType.HINGE):
-      length = qpos * gear[0]
-      moment = gear[:1]
-      m_j = m_j[None]
+      jacp, jacr = support.jac(
+          m, d, site_xpos, jp.array(m.site_bodyid)[trnid[0]]
+      )
+      jac = jp.concatenate((jacp, jacr), axis=1)
+      wrench = jp.concatenate((site_xmat @ gear[:3], site_xmat @ gear[3:]))
+      moment = jac @ wrench
     else:
-      raise RuntimeError(f'unrecognized joint type: {jnt_typ}')
-    moment = jp.zeros((m.nv,)).at[m_j].set(moment)
+      raise RuntimeError(f'unrecognized trntype: {TrnType(trntype)}')
+
     return length, moment
 
   length, moment = scan.flat(
       m,
       fn,
-      'ujjq',
-      'uuuu',
+      'uuujjqss',
+      'uu',
+      m.actuator_trntype,
+      jp.array(m.actuator_trnid),
       m.actuator_gear,
       m.jnt_type,
       jp.array(m.jnt_dofadr),
       d.qpos,
+      d.site_xpos,
+      d.site_xmat,
       group_by='u',
   )
   length = length.reshape((m.nu,))

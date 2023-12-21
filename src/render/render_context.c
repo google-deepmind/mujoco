@@ -1675,8 +1675,17 @@ void mjr_addAux(int index, int width, int height, int samples, mjrContext* con) 
   // check max size
   int maxSize = 0;
   glGetIntegerv(GL_MAX_RENDERBUFFER_SIZE, &maxSize);
-  if (width > maxSize || height > maxSize) {
-    mju_error("Auxiliary buffer size exceeds maximum allowed by OpenGL implementation");
+  if (width > maxSize) {
+    mju_error(
+        "Auxiliary buffer width exceeds maximum allowed by OpenGL "
+        "implementation: %d > %d",
+        width, maxSize);
+  }
+  if (height > maxSize) {
+    mju_error(
+        "Auxiliary buffer height exceeds maximum allowed by OpenGL "
+        "implementation: %d > %d",
+        height, maxSize);
   }
 
   // clamp samples request

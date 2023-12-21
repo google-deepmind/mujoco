@@ -19,7 +19,9 @@
 #include <cstddef>
 #include <cstdlib>
 #include <cstring>
+#include <map>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include <mujoco/mjdata.h>
@@ -112,6 +114,16 @@ mjCModel::mjCModel() {
   center[0] = mjNAN;
   center[1] = center[2] = 0;
 
+  //------------------------ auto-computed statistics
+#ifndef MEMORY_SANITIZER
+  // initializing as best practice, but want MSAN to catch unintialized use
+  meaninertia_auto = 0;
+  meanmass_auto = 0;
+  meansize_auto = 0;
+  extent_auto = 0;
+  center_auto[0] = center_auto[1] = center_auto[2] = 0;
+#endif
+
   //------------------------ engine data
   modelname = "MuJoCo Model";
   mj_defaultOption(&option);
@@ -170,6 +182,35 @@ mjCModel::mjCModel() {
   world->name = "world";
   world->def = defaults[0];
   bodies.push_back(world);
+
+  for (int i = 0; i < mjNOBJECT; ++i) {
+    object_lists[i] = nullptr;
+  }
+
+  object_lists[mjOBJ_BODY]     = (std::vector<mjCBase*>*) &bodies;
+  object_lists[mjOBJ_XBODY]    = (std::vector<mjCBase*>*) &bodies;
+  object_lists[mjOBJ_JOINT]    = (std::vector<mjCBase*>*) &joints;
+  object_lists[mjOBJ_GEOM]     = (std::vector<mjCBase*>*) &geoms;
+  object_lists[mjOBJ_SITE]     = (std::vector<mjCBase*>*) &sites;
+  object_lists[mjOBJ_CAMERA]   = (std::vector<mjCBase*>*) &cameras;
+  object_lists[mjOBJ_LIGHT]    = (std::vector<mjCBase*>*) &lights;
+  object_lists[mjOBJ_FLEX]     = (std::vector<mjCBase*>*) &flexes;
+  object_lists[mjOBJ_MESH]     = (std::vector<mjCBase*>*) &meshes;
+  object_lists[mjOBJ_SKIN]     = (std::vector<mjCBase*>*) &skins;
+  object_lists[mjOBJ_HFIELD]   = (std::vector<mjCBase*>*) &hfields;
+  object_lists[mjOBJ_TEXTURE]  = (std::vector<mjCBase*>*) &textures;
+  object_lists[mjOBJ_MATERIAL] = (std::vector<mjCBase*>*) &materials;
+  object_lists[mjOBJ_PAIR]     = (std::vector<mjCBase*>*) &pairs;
+  object_lists[mjOBJ_EXCLUDE]  = (std::vector<mjCBase*>*) &excludes;
+  object_lists[mjOBJ_EQUALITY] = (std::vector<mjCBase*>*) &equalities;
+  object_lists[mjOBJ_TENDON]   = (std::vector<mjCBase*>*) &tendons;
+  object_lists[mjOBJ_ACTUATOR] = (std::vector<mjCBase*>*) &actuators;
+  object_lists[mjOBJ_SENSOR]   = (std::vector<mjCBase*>*) &sensors;
+  object_lists[mjOBJ_NUMERIC]  = (std::vector<mjCBase*>*) &numerics;
+  object_lists[mjOBJ_TEXT]     = (std::vector<mjCBase*>*) &texts;
+  object_lists[mjOBJ_TUPLE]    = (std::vector<mjCBase*>*) &tuples;
+  object_lists[mjOBJ_KEY]      = (std::vector<mjCBase*>*) &keys;
+  object_lists[mjOBJ_PLUGIN]   = (std::vector<mjCBase*>*) &plugins;
 }
 
 
@@ -442,118 +483,20 @@ mjCPlugin* mjCModel::AddPlugin(void) {
 
 // get number of objects of specified type
 int mjCModel::NumObjects(mjtObj type) {
-  switch (type) {
-  case mjOBJ_BODY:
-  case mjOBJ_XBODY:
-    return (int)bodies.size();
-  case mjOBJ_JOINT:
-    return (int)joints.size();
-  case mjOBJ_GEOM:
-    return (int)geoms.size();
-  case mjOBJ_SITE:
-    return (int)sites.size();
-  case mjOBJ_CAMERA:
-    return (int)cameras.size();
-  case mjOBJ_LIGHT:
-    return (int)lights.size();
-  case mjOBJ_FLEX:
-    return (int)flexes.size();
-  case mjOBJ_MESH:
-    return (int)meshes.size();
-  case mjOBJ_SKIN:
-    return (int)skins.size();
-  case mjOBJ_HFIELD:
-    return (int)hfields.size();
-  case mjOBJ_TEXTURE:
-    return (int)textures.size();
-  case mjOBJ_MATERIAL:
-    return (int)materials.size();
-  case mjOBJ_PAIR:
-    return (int)pairs.size();
-  case mjOBJ_EXCLUDE:
-    return (int)excludes.size();
-  case mjOBJ_EQUALITY:
-    return (int)equalities.size();
-  case mjOBJ_TENDON:
-    return (int)tendons.size();
-  case mjOBJ_ACTUATOR:
-    return (int)actuators.size();
-  case mjOBJ_SENSOR:
-    return (int)sensors.size();
-  case mjOBJ_NUMERIC:
-    return (int)numerics.size();
-  case mjOBJ_TEXT:
-    return (int)texts.size();
-  case mjOBJ_TUPLE:
-    return (int)tuples.size();
-  case mjOBJ_KEY:
-    return (int)keys.size();
-  case mjOBJ_PLUGIN:
-    return (int)plugins.size();
-  default:
+  if (!object_lists[type]) {
     return 0;
   }
+  return (int) object_lists[type]->size();
 }
 
 
 
 // get pointer to specified object
 mjCBase* mjCModel::GetObject(mjtObj type, int id) {
-  if (id>=0 && id<NumObjects(type)) {
-    switch (type) {
-    case mjOBJ_BODY:
-    case mjOBJ_XBODY:
-      return bodies[id];
-    case mjOBJ_JOINT:
-      return joints[id];
-    case mjOBJ_GEOM:
-      return geoms[id];
-    case mjOBJ_SITE:
-      return sites[id];
-    case mjOBJ_CAMERA:
-      return cameras[id];
-    case mjOBJ_LIGHT:
-      return lights[id];
-    case mjOBJ_FLEX:
-      return flexes[id];
-    case mjOBJ_MESH:
-      return meshes[id];
-    case mjOBJ_SKIN:
-      return skins[id];
-    case mjOBJ_HFIELD:
-      return hfields[id];
-    case mjOBJ_TEXTURE:
-      return textures[id];
-    case mjOBJ_MATERIAL:
-      return materials[id];
-    case mjOBJ_PAIR:
-      return pairs[id];
-    case mjOBJ_EXCLUDE:
-      return excludes[id];
-    case mjOBJ_EQUALITY:
-      return equalities[id];
-    case mjOBJ_TENDON:
-      return tendons[id];
-    case mjOBJ_ACTUATOR:
-      return actuators[id];
-    case mjOBJ_SENSOR:
-      return sensors[id];
-    case mjOBJ_NUMERIC:
-      return numerics[id];
-    case mjOBJ_TEXT:
-      return texts[id];
-    case mjOBJ_TUPLE:
-      return tuples[id];
-    case mjOBJ_KEY:
-      return keys[id];
-    case mjOBJ_PLUGIN:
-      return plugins[id];
-    default:
-      return 0;
-    }
+  if (id < 0 || id >= NumObjects(type)) {
+    return nullptr;
   }
-
-  return 0;
+  return (*object_lists[type])[id];
 }
 
 
@@ -631,67 +574,31 @@ mjCDef* mjCModel::AddDef(string name, int parentid) {
 
 // find object by name in given list
 template <class T>
-static T* findobject(string name, vector<T*>& list) {
-  for (unsigned int i=0; i<list.size(); i++) {
-    if (list[i]->name == name) {
-      return list[i];
+static T* findobject(std::string_view name, const vector<T*>& list, const mjKeyMap& ids) {
+  // this can occur in the URDF parser
+  if (ids.empty()) {
+    for (unsigned int i=0; i<list.size(); i++) {
+      if (list[i]->name == name) {
+        return list[i];
+      }
     }
+    return nullptr;
   }
 
-  return 0;
+  // during model compilation
+  auto id = ids.find(name);
+  if (id == ids.end()) {
+    return nullptr;
+  }
+  return list[id->second];
 }
 
 // find object in global lists given string type and name
 mjCBase* mjCModel::FindObject(mjtObj type, string name) {
-  switch (type) {
-  case mjOBJ_BODY:
-  case mjOBJ_XBODY:
-    return findobject(name, bodies);
-  case mjOBJ_JOINT:
-    return findobject(name, joints);
-  case mjOBJ_GEOM:
-    return findobject(name, geoms);
-  case mjOBJ_SITE:
-    return findobject(name, sites);
-  case mjOBJ_CAMERA:
-    return findobject(name, cameras);
-  case mjOBJ_LIGHT:
-    return findobject(name, lights);
-  case mjOBJ_FLEX:
-    return findobject(name, flexes);
-  case mjOBJ_MESH:
-    return findobject(name, meshes);
-  case mjOBJ_SKIN:
-    return findobject(name, skins);
-  case mjOBJ_HFIELD:
-    return findobject(name, hfields);
-  case mjOBJ_TEXTURE:
-    return findobject(name, textures);
-  case mjOBJ_MATERIAL:
-    return findobject(name, materials);
-  case mjOBJ_PAIR:
-    return findobject(name, pairs);
-  case mjOBJ_EXCLUDE:
-    return findobject(name, excludes);
-  case mjOBJ_EQUALITY:
-    return findobject(name, equalities);
-  case mjOBJ_TENDON:
-    return findobject(name, tendons);
-  case mjOBJ_ACTUATOR:
-    return findobject(name, actuators);
-  case mjOBJ_SENSOR:
-    return findobject(name, sensors);
-  case mjOBJ_NUMERIC:
-    return findobject(name, numerics);
-  case mjOBJ_TEXT:
-    return findobject(name, texts);
-  case mjOBJ_TUPLE:
-    return findobject(name, tuples);
-  case mjOBJ_PLUGIN:
-    return findobject(name, plugins);
-  default:
-    return 0;
+  if (!object_lists[type]) {
+    return nullptr;
   }
+  return findobject(name, *object_lists[type], ids[type]);
 }
 
 
@@ -842,57 +749,56 @@ void mjCModel::IndexAssets(void) {
 
 
 // if asset name is missing, set to filename
-void mjCModel::SetDefaultNames(void) {
+template <typename T>
+void mjCModel::SetDefaultNames(std::vector<T*>& assets) {
   string stripped;
+  std::map<string, std::vector<int>> names;
 
-  // meshes
-  for (int i=0; i<meshes.size(); i++) {
-    if (meshes[i]->name.empty()) {
-      stripped = mjuu_strippath(meshes[i]->file());
-      meshes[i]->name = mjuu_stripext(stripped);
-
-      // name cannot be empty
-      if (meshes[i]->name.empty()) {
-        throw mjCError(meshes[i], "empty name in mesh");
-      }
+  // use filename if name is missing
+  for (int i=0; i<assets.size(); i++) {
+    if (assets[i]->name.empty()) {
+      stripped = mjuu_strippath(assets[i]->get_file());
+      assets[i]->name = mjuu_stripext(stripped);
+      names[assets[i]->name].push_back(i);
     }
   }
 
-  // skins
-  for (int i=0; i<skins.size(); i++) {
-    if (skins[i]->name.empty()) {
-      stripped = mjuu_strippath(skins[i]->file);
-      skins[i]->name = mjuu_stripext(stripped);
+  // add suffix if duplicates
+  for (auto const& [name, indices] : names) {
+    if (indices.size() > 1) {
+      for (int i=0; i<indices.size(); i++) {
+        assets[indices[i]]->name += "_" + std::to_string(i);
+      }
+    }
+  }
+}
+
+
+
+// throw error if a name is missing
+void mjCModel::CheckEmptyNames(void) {
+  // meshes
+  for (int i=0; i<meshes.size(); i++) {
+    if (meshes[i]->name.empty()) {
+      throw mjCError(meshes[i], "empty name in mesh");
     }
   }
 
   // hfields
   for (int i=0; i<hfields.size(); i++) {
     if (hfields[i]->name.empty()) {
-      stripped = mjuu_strippath(hfields[i]->file);
-      hfields[i]->name = mjuu_stripext(stripped);
-
-      // name cannot be empty
-      if (hfields[i]->name.empty()) {
-        throw mjCError(hfields[i], "empty name in height field");
-      }
+      throw mjCError(hfields[i], "empty name in height field");
     }
   }
 
   // textures
   for (int i=0; i<textures.size(); i++) {
-    if (textures[i]->name.empty()) {
-      stripped = mjuu_strippath(textures[i]->file);
-      textures[i]->name = mjuu_stripext(stripped);
-
-      // name cannot be empty, except for skybox
-      if (textures[i]->name.empty() && textures[i]->type!=mjTEXTURE_SKYBOX) {
-        throw mjCError(textures[i], "empty name in texture");
-      }
+    if (textures[i]->name.empty() && textures[i]->type!=mjTEXTURE_SKYBOX) {
+      throw mjCError(textures[i], "empty name in texture");
     }
   }
 
-  // materials: name check only
+  // materials
   for (int i=0; i<materials.size(); i++) {
     if (materials[i]->name.empty()) {
       throw mjCError(materials[i], "empty name in material");
@@ -2357,6 +2263,14 @@ void mjCModel::CopyObjects(mjModel* m) {
 
 //------------------------------- FUSE STATIC ------------------------------------------------------
 
+template <class T>
+static void makelistid(std::vector<T*>& dest, std::vector<T*>& source) {
+  for (int i=0; i<source.size(); i++) {
+    source[i]->id = (int)dest.size();
+    dest.push_back(source[i]);
+  }
+}
+
 // change frame to parent body
 static void changeframe(double childpos[3], double childquat[4],
                         const double bodypos[3], const double bodyquat[4]) {
@@ -2379,23 +2293,9 @@ void mjCModel::FuseReindex(mjCBody* body) {
                                body->bodies[i]->id : body->weldid);
   }
 
-  // joints
-  for (int i=0; i<body->joints.size(); i++) {
-    body->joints[i]->id = (int)joints.size();
-    joints.push_back(body->joints[i]);
-  }
-
-  // geoms
-  for (int i=0; i<body->geoms.size(); i++) {
-    body->geoms[i]->id = (int)geoms.size();
-    geoms.push_back(body->geoms[i]);
-  }
-
-  // sites
-  for (int i=0; i<body->sites.size(); i++) {
-    body->sites[i]->id = (int)sites.size();
-    sites.push_back(body->sites[i]);
-  }
+  makelistid(joints, body->joints);
+  makelistid(geoms, body->geoms);
+  makelistid(sites, body->sites);
 
   // process children recursively
   for (int i=0; i<body->bodies.size(); i++) {
@@ -2632,34 +2532,38 @@ static void reassignid(vector<T*>& list) {
 
 // set ids, check for repeated names
 template <class T>
-static void processlist(vector<T*>& list, string defname, bool checkrepeat=true) {
+static void processlist(mjListKeyMap& ids, vector<T*>& list,
+                        mjtObj type, bool checkrepeat = true) {
   // loop over list elements
-  for (int i=0; i<(int)list.size(); i++) {
+  for (size_t i=0; i < list.size(); i++) {
     // check for incompatible id setting; SHOULD NOT OCCUR
     if (list[i]->id!=-1 && list[i]->id!=i) {
-      throw mjCError(list[i], "incompatible id in %s array, position %d", defname.c_str(), i);
+      throw mjCError(list[i], "incompatible id in %s array, position %d", mju_type2Str(type), i);
     }
 
     // id equals position in array
     list[i]->id = i;
+
+    // add to ids map
+    ids[type][list[i]->name] = i;
   }
 
   // check for repeated names
   if (checkrepeat) {
     // created vectors with all names
     vector<string> allnames;
-    for (int i=0; i<(int)list.size(); i++) {
+    for (size_t i=0; i < list.size(); i++) {
       if (!list[i]->name.empty()) {
         allnames.push_back(list[i]->name);
       }
     }
 
     // sort and check for duplicates
-    if (allnames.size()>1) {
+    if (allnames.size() > 1) {
       std::sort(allnames.begin(), allnames.end());
       auto adjacent = std::adjacent_find(allnames.begin(), allnames.end());
-      if (adjacent!=allnames.end()) {
-        string msg = "repeated name '" + *adjacent + "' in " + defname;
+      if (adjacent != allnames.end()) {
+        string msg = "repeated name '" + *adjacent + "' in " + mju_type2Str(type);
         throw mjCError(NULL, msg.c_str());
       }
     }
@@ -2785,33 +2689,21 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
   // make lists of objects created in kinematic tree
   MakeLists(bodies[0]);
 
-  // set object ids and default names, check for repeated names
-  processlist(bodies, "body");
-  processlist(joints, "joint");
-  processlist(geoms, "geom");
-  processlist(sites, "site");
-  processlist(cameras, "camera");
-  processlist(lights, "light");
-  processlist(flexes, "flex");
-  processlist(meshes, "mesh");
-  processlist(skins, "skin");
-  processlist(hfields, "hfield");
-  processlist(textures, "texture");
-  processlist(materials, "material");
-  processlist(pairs, "pair");
-  processlist(excludes, "exclude");
-  processlist(equalities, "equality");
-  processlist(tendons, "tendon");
-  processlist(actuators, "actuator");
-  processlist(sensors, "sensor");
-  processlist(numerics, "numeric");
-  processlist(texts, "text");
-  processlist(tuples, "tuple");
-  processlist(keys, "key");
-  processlist(plugins, "plugin");
+  // fill missing names and check that they are all filled
+  SetDefaultNames(meshes);
+  SetDefaultNames(skins);
+  SetDefaultNames(hfields);
+  SetDefaultNames(textures);
+  CheckEmptyNames();
 
-  // set default names, convert names into indices
-  SetDefaultNames();
+  // set object ids, check for repeated names
+  for (int i = 0; i < mjNOBJECT; i++) {
+    if (i != mjOBJ_XBODY && object_lists[i]) {
+      processlist(ids, *object_lists[i], (mjtObj) i);
+    }
+  }
+
+  // convert names into indices
   IndexAssets();
 
   // mark meshes that need convex hull
@@ -3141,6 +3033,13 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
   // actuator lengthrange computation
   LengthRange(m, d);
 
+  // save automatically-computed statistics, to disambiguate when saving
+  extent_auto = m->stat.extent;
+  meaninertia_auto = m->stat.meaninertia;
+  meanmass_auto = m->stat.meanmass;
+  meansize_auto = m->stat.meansize;
+  copyvec(center_auto, m->stat.center, 3);
+
   // override model statistics if defined by user
   if (mjuu_defined(extent)) m->stat.extent = (mjtNum)extent;
   if (mjuu_defined(meaninertia)) m->stat.meaninertia = (mjtNum)meaninertia;
@@ -3217,10 +3116,16 @@ bool mjCModel::CopyBack(const mjModel* m) {
   option = m->opt;
   visual = m->vis;
 
-  // runtime-modifiable members of mjStatistic
-  meansize = m->stat.meansize;
-  extent = m->stat.extent;
-  mju_copy3(center, m->stat.center);
+  // runtime-modifiable members of mjStatistic, if different from computed values
+  if (m->stat.meaninertia != meaninertia_auto) meaninertia = m->stat.meaninertia;
+  if (m->stat.meanmass != meanmass_auto) meanmass = m->stat.meanmass;
+  if (m->stat.meansize != meansize_auto) meansize = m->stat.meansize;
+  if (m->stat.extent != extent_auto) extent = m->stat.extent;
+  if (m->stat.center[0] != center_auto[0] ||
+      m->stat.center[1] != center_auto[1] ||
+      m->stat.center[2] != center_auto[2]) {
+    mju_copy3(center, m->stat.center);
+  }
 
   // qpos0, qpos_spring
   for (int i=0; i<njnt; i++) {

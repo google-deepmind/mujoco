@@ -404,6 +404,41 @@ static void renderGeom(const mjvGeom* geom, int mode, const float* headpos,
     }
     break;
 
+  case mjGEOM_LINEBOX:                        // box with line edges
+    glLineWidth(1.5*con->lineWidth);
+    lighting = glIsEnabled(GL_LIGHTING);
+    glDisable(GL_LIGHTING);
+    // bottom face
+    glBegin(GL_LINE_LOOP);
+    glVertex3f(-size[0], -size[1], -size[2]);
+    glVertex3f( size[0], -size[1], -size[2]);
+    glVertex3f( size[0],  size[1], -size[2]);
+    glVertex3f(-size[0],  size[1], -size[2]);
+    glEnd();
+    // top face
+    glBegin(GL_LINE_LOOP);
+    glVertex3f(-size[0], -size[1], size[2]);
+    glVertex3f( size[0], -size[1], size[2]);
+    glVertex3f( size[0],  size[1], size[2]);
+    glVertex3f(-size[0],  size[1], size[2]);
+    glEnd();
+    // vertical edges
+    glBegin(GL_LINES);
+    glVertex3f(-size[0], -size[1], -size[2]);
+    glVertex3f(-size[0], -size[1],  size[2]);
+    glVertex3f( size[0], -size[1], -size[2]);
+    glVertex3f( size[0], -size[1],  size[2]);
+    glVertex3f( size[0],  size[1], -size[2]);
+    glVertex3f( size[0],  size[1],  size[2]);
+    glVertex3f(-size[0],  size[1], -size[2]);
+    glVertex3f(-size[0],  size[1],  size[2]);
+    glEnd();
+    glLineWidth(con->lineWidth);
+    if (lighting) {
+      glEnable(GL_LIGHTING);
+    }
+    break;
+
   case mjGEOM_TRIANGLE:                       // triangle
     glBegin(GL_TRIANGLES);
     glVertex3f(0, 0, 0);

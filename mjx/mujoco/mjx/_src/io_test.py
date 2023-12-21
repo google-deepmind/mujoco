@@ -71,6 +71,7 @@ _MULTIPLE_CONSTRAINTS = """
           <joint axis="0 1 0" type="hinge" range="-45 45"/>
           <joint axis="1 0 0" type="hinge" range="-0.001 0.001"/>
           <geom type="capsule" size=".2 .05"/>
+          <site pos="-0.214 -0.078 0" quat="0.664 0.664 -0.242 -0.242"/>
         </body>
       </body>
     </worldbody>
@@ -81,7 +82,8 @@ _MULTIPLE_CONSTRAINTS = """
 """
 
 
-class IoTest(parameterized.TestCase):
+class ModelIOTest(parameterized.TestCase):
+  """IO tests for mjx.Model."""
 
   def test_put_model(self):
     m = mujoco.MjModel.from_xml_string(_MULTIPLE_CONVEX_OBJECTS)
@@ -132,7 +134,7 @@ class IoTest(parameterized.TestCase):
     )
     self.assertTrue(m.opt.has_fluid_params)
 
-  def test_put_model_implicit_not_implemented(self):
+  def test_implicit_not_implemented(self):
     """Test that MJX guards against models with unimplemented features."""
 
     with self.assertRaises(NotImplementedError):
@@ -142,7 +144,7 @@ class IoTest(parameterized.TestCase):
           )
       )
 
-  def test_put_model_cone_not_implemented(self):
+  def test_cone_not_implemented(self):
     with self.assertRaises(NotImplementedError):
       mjx.put_model(
           mujoco.MjModel.from_xml_string(
@@ -150,7 +152,7 @@ class IoTest(parameterized.TestCase):
           )
       )
 
-  def test_put_model_pgs_not_implemented(self):
+  def test_pgs_not_implemented(self):
     with self.assertRaises(NotImplementedError):
       mjx.put_model(
           mujoco.MjModel.from_xml_string(
@@ -158,7 +160,7 @@ class IoTest(parameterized.TestCase):
           )
       )
 
-  def test_put_model_site_actuator_not_implemented(self):
+  def test_site_actuator_not_implemented(self):
     with self.assertRaises(NotImplementedError):
       mjx.put_model(mujoco.MjModel.from_xml_string("""
         <mujoco>
@@ -173,7 +175,7 @@ class IoTest(parameterized.TestCase):
           </actuator>
         </mujoco>"""))
 
-  def test_put_model_tendon_not_implemented(self):
+  def test_tendon_not_implemented(self):
     with self.assertRaises(NotImplementedError):
       mjx.put_model(mujoco.MjModel.from_xml_string("""
         <mujoco>
@@ -190,7 +192,7 @@ class IoTest(parameterized.TestCase):
           </tendon>
         </mujoco>"""))
 
-  def test_put_model_condim_not_implemented(self):
+  def test_condim_not_implemented(self):
     with self.assertRaises(NotImplementedError):
       mjx.put_model(mujoco.MjModel.from_xml_string("""
         <mujoco>
@@ -206,7 +208,7 @@ class IoTest(parameterized.TestCase):
           </worldbody>
         </mujoco>"""))
 
-  def test_put_model_cylinder_not_implemented(self):
+  def test_cylinder_not_implemented(self):
     with self.assertRaises(NotImplementedError):
       mjx.put_model(mujoco.MjModel.from_xml_string("""
         <mujoco>
@@ -221,6 +223,29 @@ class IoTest(parameterized.TestCase):
             </body>
           </worldbody>
         </mujoco>"""))
+
+  def test_refsite_not_implemented(self):
+    """Tests that site transmissions with refsites are not implemented."""
+    with self.assertRaises(NotImplementedError):
+      mjx.put_model(mujoco.MjModel.from_xml_string("""
+        <mujoco>
+        <compiler autolimits="true"/>
+        <worldbody>
+          <body name="box">
+            <site name="site1"/>
+            <site name="site2" pos="0.2 0.1 0.05"/>
+            <joint name="slide" type="slide" axis="1 0 0" />
+            <geom type="box" size=".05 .05 .05" mass="1"/>
+          </body>
+        </worldbody>
+        <actuator>
+          <position site="site2" refsite="site1"/>
+        </actuator>
+        </mujoco>"""))
+
+
+class DataIOTest(parameterized.TestCase):
+  """IO tests for mjx.Data."""
 
   def test_make_data(self):
     """Test that make_data returns the correct shapes."""
@@ -318,9 +343,11 @@ class IoTest(parameterized.TestCase):
     self.assertEqual(dx.xmat.shape, (3, 3, 3))
     self.assertEqual(dx.ximat.shape, (3, 3, 3))
     self.assertEqual(dx.geom_xmat.shape, (3, 3, 3))
+    self.assertEqual(dx.site_xmat.shape, (1, 3, 3))
     np.testing.assert_allclose(dx.xmat.reshape((3, 9)), d.xmat)
     np.testing.assert_allclose(dx.ximat.reshape((3, 9)), d.ximat)
     np.testing.assert_allclose(dx.geom_xmat.reshape((3, 9)), d.geom_xmat)
+    np.testing.assert_allclose(dx.site_xmat.reshape((1, 9)), d.site_xmat)
 
     # efc_ are also shape transformed and padded
     self.assertEqual(dx.efc_J.shape, (21, 8))  # nefc, nv
@@ -369,13 +396,15 @@ class IoTest(parameterized.TestCase):
     self.assertEqual(d_2.contact.frame.shape, (1, 9))
     np.testing.assert_allclose(d_2.contact.frame, d.contact.frame)
 
-    # xmat, ximat, geom_xmat are all shape transformed
+    # xmat, ximat, geom_xmat, site_xmat are all shape transformed
     self.assertEqual(d_2.xmat.shape, (3, 9))
     self.assertEqual(d_2.ximat.shape, (3, 9))
     self.assertEqual(d_2.geom_xmat.shape, (3, 9))
+    self.assertEqual(d_2.site_xmat.shape, (1, 9))
     np.testing.assert_allclose(d_2.xmat, d.xmat)
     np.testing.assert_allclose(d_2.ximat, d.ximat)
     np.testing.assert_allclose(d_2.geom_xmat, d.geom_xmat)
+    np.testing.assert_allclose(d_2.site_xmat, d.site_xmat)
 
     # efc_* are also shape transformed and filtered
     self.assertEqual(d_2.efc_J.shape, (64,))  # nefc * nv
@@ -401,6 +430,7 @@ class IoTest(parameterized.TestCase):
     np.testing.assert_allclose(ds[1].qpos, d.qpos + 0.05, atol=1e-8)
     self.assertEqual(ds[0].ncon, 1)
     self.assertEqual(ds[1].ncon, 0)
+
 
 if __name__ == '__main__':
   absltest.main()

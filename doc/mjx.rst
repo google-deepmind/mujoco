@@ -181,9 +181,9 @@ The following features are **fully supported** in MJX:
    * - :ref:`Joint <mjtJoint>`
      - ``FREE``, ``BALL``, ``SLIDE``, ``HINGE``
    * - :ref:`Transmission <mjtTrn>`
-     - ``TRN_JOINT``
+     - ``TRN_JOINT``, ``TRN_SITE``
    * - :ref:`Actuator Dynamics <mjtDyn>`
-     - ``NONE``, ``INTEGRATOR``, ``FILTER``
+     - ``NONE``, ``INTEGRATOR``, ``FILTER``, ``FILTEREXACT``
    * - :ref:`Actuator Gain <mjtGain>`
      - ``FIXED``, ``AFFINE``
    * - :ref:`Actuator Bias <mjtBias>`
@@ -257,9 +257,9 @@ The following features are **unsupported**:
    * - Category
      - Feature
    * - :ref:`Transmission <mjtTrn>`
-     - ``TRN_JOINTINPARENT``, ``TRN_SLIDERCRANK``, ``TRN_SITE``, ``TRN_BODY``
+     - ``TRN_JOINTINPARENT``, ``TRN_SLIDERCRANK``, ``TRN_BODY``
    * - :ref:`Actuator Dynamics <mjtDyn>`
-     - ``FILTEREXACT``, ``USER``
+     - ``USER``
    * - :ref:`Actuator Gain <mjtGain>`
      - ``USER``
    * - :ref:`Actuator Bias <mjtBias>`

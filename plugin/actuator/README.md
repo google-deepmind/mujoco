@@ -38,16 +38,10 @@ You can use it like:
 
 The available options are:
 
-|Attribute|Default |Meaning                                                                                                                              |
-|---------|--------|-------------------------------------------------------------------------------------------------------------------------------------|
-|`kp`     |0       |**P** gain for the controller.                                                                                                       |
-|`ki`     |0       |**I** gain for the controller.                                                                                                       |
-:         :        :                                                                                                                                     :
-:         :        :If nonzero, one activation variable will be added to `mjData.act`, containing the current I term (in units of force).                :
-|`kd`     |0       |**D** gain for the controller.                                                                                                       |
-|`imax`   |Optional|If specified, the force produced by the I term will be clipped to the range `[-imax, -imax]`.                                        |
-|`slewmax`|Optional|The maximum rate at which the setpoint for the PID controller can change.                                                            |
-:         :        :                                                                                                                                     :
-:         :        :If a bigger change is requested between two timesteps, it will be clipped to the range `[ctrl - slewmax * dt, ctrl + slewmax * dt]`  :
-:         :        :                                                                                                                                     :
-:         :        :If specified, one activation variable will be added to `mjData.act` containing the previous value of `ctrl`.                         :
+|Attribute | Default | Meaning |
+|----------|---------|---------|
+|`kp` | 0 | **P** gain for the controller. |
+|`ki` | 0 | **I** gain for the controller.<p/>If nonzero, one activation variable will be added to `mjData.act`, containing the current I term (in units of force). |
+|`kd` | 0 | **D** gain for the controller. |
+|`imax` | Optional | If specified, the force produced by the I term will be clipped to the range `[-imax, -imax]`. |
+|`slewmax` | Optional | The maximum rate at which the setpoint for the PID controller can change.<p/>If a bigger change is requested between two timesteps, it will be clipped to the range `[ctrl - slewmax * dt, ctrl + slewmax * dt]`<p/>If specified, one activation variable will be added to `mjData.act` containing the previous value of `ctrl`. |

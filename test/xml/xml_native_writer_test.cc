@@ -1135,7 +1135,7 @@ using DecompilerTest = MujocoTest;
 TEST_F(DecompilerTest, SavesStatitics) {
   static constexpr char xml[] = R"(
   <mujoco>
-    <statistic meansize="2" extent="3" center="4 5 6"/>
+    <statistic meansize="2" extent="3" center="4 5 6" meanmass="7" meaninertia="8"/>
   </mujoco>
   )";
   mjModel* model = LoadModelFromString(xml);
@@ -1145,10 +1145,60 @@ TEST_F(DecompilerTest, SavesStatitics) {
   model->stat.center[0] = 9;
   model->stat.center[1] = 10;
   model->stat.center[2] = 11;
+  model->stat.meanmass = 12;
+  model->stat.meaninertia = 13;
   std::string saved_xml = SaveAndReadXml(model);
   EXPECT_THAT(saved_xml, HasSubstr("meansize=\"7\""));
   EXPECT_THAT(saved_xml, HasSubstr("extent=\"8\""));
   EXPECT_THAT(saved_xml, HasSubstr("center=\"9 10 11\""));
+  EXPECT_THAT(saved_xml, HasSubstr("meanmass=\"12\""));
+  EXPECT_THAT(saved_xml, HasSubstr("meaninertia=\"13\""));
+  mj_deleteModel(model);
+}
+
+TEST_F(DecompilerTest, DoesntSaveInferredStatitics) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <geom size="0.2"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  mjModel* model = LoadModelFromString(xml);
+  ASSERT_THAT(model, NotNull());
+  std::string saved_xml = SaveAndReadXml(model);
+  EXPECT_THAT(saved_xml, Not(HasSubstr("meansize")));
+  EXPECT_THAT(saved_xml, Not(HasSubstr("meanmass")));
+  EXPECT_THAT(saved_xml, Not(HasSubstr("meaninertia")));
+  EXPECT_THAT(saved_xml, Not(HasSubstr("center")));
+  EXPECT_THAT(saved_xml, Not(HasSubstr("extent")));
+  EXPECT_THAT(saved_xml, Not(HasSubstr("statistic")));
+  mj_deleteModel(model);
+}
+
+TEST_F(DecompilerTest, VeryLargeNumbers) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <compiler angle="radian"/>
+    <worldbody>
+      <camera focal="16777217 1" sensorsize="1 1" resolution="100 100"/>
+      <body pos="1e+20 0 0">
+        <geom size="1"/>
+        <joint axis="1 0 0" range="-1e+10 1e+10"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, NotNull()) << error.data();
+  std::string saved_xml = SaveAndReadXml(model);
+  // note, focal is float and loses precision 16777217 -> 16777216
+  EXPECT_THAT(saved_xml, HasSubstr("focal=\"16777216 1\""));
+  EXPECT_THAT(saved_xml, HasSubstr("pos=\"1e+20 0 0\""));
+  EXPECT_THAT(saved_xml, HasSubstr("range=\"-1e+10 1e+10\""));
   mj_deleteModel(model);
 }
 
