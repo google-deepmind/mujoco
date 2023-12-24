@@ -822,7 +822,7 @@ Euler integrator, semi-implicit in velocity.
     self.assertLen(mujoco.mjRNDSTRING, mujoco.mjtRndFlag.mjNRNDFLAG)
     self.assertEqual(mujoco.mjDISABLESTRING[11], 'Refsafe')
     self.assertEqual(mujoco.mjVISSTRING[mujoco.mjtVisFlag.mjVIS_INERTIA],
-                     ('&Inertia', '0', 'I'))
+                     ('Inertia', '0', 'I'))
 
   def test_enum_values(self):
     self.assertEqual(mujoco.mjtJoint.mjJNT_FREE, 0)
