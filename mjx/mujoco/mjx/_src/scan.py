@@ -220,6 +220,7 @@ def flat(
         m.actuator_dyntype[ids_u],
         m.actuator_trntype[ids_u],
         m.jnt_type[ids_j],
+        m.actuator_trnid[ids_u, 1] == -1,  # key by refsite being present
     )
 
   def type_ids_j(m, i):
@@ -240,9 +241,9 @@ def flat(
             else -1
         ),
         's': (
-            m.actuator_trnid[i, 0]
+            m.actuator_trnid[i]
             if m.actuator_trntype[i] == TrnType.SITE
-            else -1
+            else np.array([-1, -1])
         ),
     }
     v, q = np.array([-1]), np.array([-1])

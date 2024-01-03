@@ -36,7 +36,7 @@ _JOINT_AXES = ['1 0 0', '0 1 0', '0 0 1']
 _FRICTIONS = ['1.2 0.003 0.0002', '0.2 0.0001 0.0005']
 _KP_POS = ['1', '2']
 _KP_INTVEL = ['10000', '2000']
-_KV_VEL = ['123', '1']
+_KV_VEL = ['12', '1', '0', '0.1']
 _PAIR_FRICTIONS = ['1.2 0.9 0.003 0.0002 0.0001']
 _SOLREFS = ['0.04 1.01', '0.05 1.02', '0.03 1.1', '0.015 1.0']
 _SOLIMPS = [
@@ -124,7 +124,10 @@ def _make_geom(
 
 
 def _make_actuator(
-    actuator_type: str, joint: str | None = None, site: str | None = None
+    actuator_type: str,
+    joint: str | None = None,
+    site: str | None = None,
+    refsite: str | None = None,
 ) -> Dict[str, str]:
   """Returns attributes for an actuator."""
   if joint:
@@ -134,11 +137,15 @@ def _make_actuator(
   else:
     raise ValueError('must provide a joint or site name')
 
+  if refsite:
+    attr['refsite'] = refsite
+
   attr['gear'] = np.random.choice(_GEARS)
 
   # set actuator type
   if actuator_type == 'position':
     attr['kp'] = np.random.choice(_KP_POS)
+    attr['kv'] = np.random.choice(_KV_VEL)
   elif actuator_type == 'general':
     attr['biastype'] = 'affine'
     attr['gainprm'] = '35 0 0'
@@ -310,6 +317,13 @@ def create_mjcf(
     for i in range(np.random.randint(0, n_bodies)):
       actuator_type = np.random.choice(_ACTUATOR_TYPES)
       attr = _make_actuator(actuator_type, site=f'site{i}')
+      actuators.append((actuator_type, attr))
+
+    # site transmission with refsite
+    for i in range(np.random.randint(0, n_bodies)):
+      j = np.random.randint(0, n_bodies)
+      actuator_type = np.random.choice(_ACTUATOR_TYPES)
+      attr = _make_actuator(actuator_type, site=f'site{i}', refsite=f'site{j}')
       actuators.append((actuator_type, attr))
 
     np.random.shuffle(actuators)

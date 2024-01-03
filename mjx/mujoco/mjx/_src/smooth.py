@@ -27,6 +27,7 @@ from mujoco.mjx._src.types import JointType
 from mujoco.mjx._src.types import Model
 from mujoco.mjx._src.types import TrnType
 # pylint: enable=g-importing-member
+import numpy as np
 
 
 def kinematics(m: Model, d: Data) -> Data:
@@ -432,13 +433,54 @@ def rne(m: Model, d: Data) -> Data:
   return d
 
 
+def _site_dof_mask(m: Model) -> np.ndarray:
+  """Creates a dof mask for site transmissions."""
+  mask = np.ones((m.nu, m.nv))
+  for i in np.nonzero(m.actuator_trnid[:, 1] != -1)[0]:
+    id_, refid = m.actuator_trnid[i]
+    # intialize last dof address for each body
+    b0 = m.body_weldid[m.site_bodyid[id_]]
+    b1 = m.body_weldid[m.site_bodyid[refid]]
+    dofadr0 = m.body_dofadr[b0] + m.body_dofnum[b0] - 1
+    dofadr1 = m.body_dofadr[b1] + m.body_dofnum[b1] - 1
+
+    # find common ancestral dof, if any
+    while dofadr0 != dofadr1:
+      if dofadr0 < dofadr1:
+        dofadr1 = m.dof_parentid[dofadr1]
+      else:
+        dofadr0 = m.dof_parentid[dofadr0]
+      if dofadr0 == -1 or dofadr1 == -1:
+        break
+
+    # if common ancestral dof was found, clear the columns of its parental chain
+    da = dofadr0 if dofadr0 == dofadr1 else -1
+    while da >= 0:
+      mask[i, da] = 0.0
+      da = m.dof_parentid[da]
+
+  return mask
+
+
 def transmission(m: Model, d: Data) -> Data:
   """Computes actuator/transmission lengths and moments."""
   # TODO: consider combining transmission calculation into fwd_actuation.
   if not m.nu:
     return d
 
-  def fn(trntype, trnid, gear, jnt_typ, m_j, qpos, site_xpos, site_xmat):
+  def fn(
+      trntype,
+      trnid,
+      gear,
+      jnt_typ,
+      m_j,
+      qpos,
+      has_refsite,
+      site_dof_mask,
+      site_xpos,
+      site_xmat,
+      site_quat,
+  ):
     if trntype == TrnType.JOINT:
       if jnt_typ == JointType.FREE:
         length = jp.zeros(1)
@@ -459,21 +501,34 @@ def transmission(m: Model, d: Data) -> Data:
       moment = jp.zeros((m.nv,)).at[m_j].set(moment)
     elif trntype == TrnType.SITE:
       length = jp.zeros(1)
-      jacp, jacr = support.jac(
-          m, d, site_xpos, jp.array(m.site_bodyid)[trnid[0]]
-      )
-      jac = jp.concatenate((jacp, jacr), axis=1)
-      wrench = jp.concatenate((site_xmat @ gear[:3], site_xmat @ gear[3:]))
+      id_, refid = jp.array(m.site_bodyid)[trnid]
+      jacp, jacr = support.jac(m, d, site_xpos[0], id_)
+      frame_xmat = site_xmat[0]
+      if has_refsite:
+        vecp = site_xmat[1].T @ (site_xpos[0] - site_xpos[1])
+        vecr = math.quat_sub(site_quat[0], site_quat[1])
+        length += jp.dot(jp.concatenate([vecp, vecr]), gear)
+        jacrefp, jacrefr = support.jac(m, d, site_xpos[1], refid)
+        jacp, jacr = jacp - jacrefp, jacr - jacrefr
+        frame_xmat = site_xmat[1]
+
+      jac = jp.concatenate((jacp, jacr), axis=1) * site_dof_mask[:, None]
+      wrench = jp.concatenate((frame_xmat @ gear[:3], frame_xmat @ gear[3:]))
       moment = jac @ wrench
     else:
       raise RuntimeError(f'unrecognized trntype: {TrnType(trntype)}')
 
     return length, moment
 
+  # pre-compute values for site transmissions
+  has_refsite = m.actuator_trnid[:, 1] != -1
+  site_dof_mask = _site_dof_mask(m)
+  site_quat = jax.vmap(math.quat_mul)(m.site_quat, d.xquat[m.site_bodyid])
+
   length, moment = scan.flat(
       m,
       fn,
-      'uuujjqss',
+      'uuujjquusss',
       'uu',
       m.actuator_trntype,
       jp.array(m.actuator_trnid),
@@ -481,11 +536,15 @@ def transmission(m: Model, d: Data) -> Data:
       m.jnt_type,
       jp.array(m.jnt_dofadr),
       d.qpos,
+      has_refsite,
+      jp.array(site_dof_mask),
       d.site_xpos,
       d.site_xmat,
+      site_quat,
       group_by='u',
   )
   length = length.reshape((m.nu,))
   moment = moment.reshape((m.nu, m.nv))
+
   d = d.replace(actuator_length=length, actuator_moment=moment)
   return d

@@ -103,10 +103,6 @@ def put_model(m: mujoco.MjModel, device=None) -> types.Model:
           f'{[mj_type(m) for m in missing]} not supported'
       )
 
-  # TODO: implement reference sites.
-  if any(m.actuator_trnid[:, 1] != -1):
-    raise NotImplementedError('refsite is not supported')
-
   opt = _put_option(m.opt, device=device)
   stat = _put_statistic(m.stat, device=device)
 
@@ -196,7 +192,6 @@ def make_data(m: Union[types.Model, mujoco.MjModel]) -> types.Data:
       qfrc_bias=zero_nv,
       qfrc_passive=zero_nv,
       efc_aref=zero_nefc,
-      actuator_force=zero_nu,
       qfrc_actuator=zero_nv,
       qfrc_smooth=zero_nv,
       qacc_smooth=zero_nv,

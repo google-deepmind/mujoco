@@ -57,7 +57,9 @@ class TransmissionIntegrationTest(parameterized.TestCase):
     d = mujoco.MjData(m)
     d.ctrl = np.random.normal(scale=10, size=m.nu)
     d.act = np.random.normal(scale=10, size=m.na)
+    d.qpos = np.random.normal(m.nq)
     d.qvel = np.random.random(m.nv)
+    mujoco.mj_forward(m, d)
 
     # put on device
     mx = mjx.put_model(m)
@@ -67,7 +69,9 @@ class TransmissionIntegrationTest(parameterized.TestCase):
     dx = transmission_jit_fn(mx, dx)
 
     _assert_attr_eq(d, dx, 'actuator_length', seed, f'transmission{seed}')
-    _assert_attr_eq(d, dx, 'actuator_moment', seed, f'transmission{seed}')
+    _assert_attr_eq(
+        d, dx, 'actuator_moment', seed, f'transmission{seed}', atol=1e-4
+    )
 
 
 if __name__ == '__main__':

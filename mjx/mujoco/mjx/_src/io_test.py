@@ -160,21 +160,6 @@ class ModelIOTest(parameterized.TestCase):
           )
       )
 
-  def test_site_actuator_not_implemented(self):
-    with self.assertRaises(NotImplementedError):
-      mjx.put_model(mujoco.MjModel.from_xml_string("""
-        <mujoco>
-          <worldbody>
-            <site name="ref"/>
-            <body>
-              <site name="end"/>
-            </body>
-          </worldbody>
-          <actuator>
-            <general site="end" refsite="ref"/>
-          </actuator>
-        </mujoco>"""))
-
   def test_tendon_not_implemented(self):
     with self.assertRaises(NotImplementedError):
       mjx.put_model(mujoco.MjModel.from_xml_string("""
@@ -222,25 +207,6 @@ class ModelIOTest(parameterized.TestCase):
               <geom size="0.05"/>
             </body>
           </worldbody>
-        </mujoco>"""))
-
-  def test_refsite_not_implemented(self):
-    """Tests that site transmissions with refsites are not implemented."""
-    with self.assertRaises(NotImplementedError):
-      mjx.put_model(mujoco.MjModel.from_xml_string("""
-        <mujoco>
-        <compiler autolimits="true"/>
-        <worldbody>
-          <body name="box">
-            <site name="site1"/>
-            <site name="site2" pos="0.2 0.1 0.05"/>
-            <joint name="slide" type="slide" axis="1 0 0" />
-            <geom type="box" size=".05 .05 .05" mass="1"/>
-          </body>
-        </worldbody>
-        <actuator>
-          <position site="site2" refsite="site1"/>
-        </actuator>
         </mujoco>"""))
 
 
@@ -305,7 +271,6 @@ class DataIOTest(parameterized.TestCase):
     self.assertEqual(d.qfrc_bias.shape, (nv,))
     self.assertEqual(d.qfrc_passive.shape, (nv,))
     self.assertEqual(d.efc_aref.shape, (nefc,))
-    self.assertEqual(d.actuator_force.shape, (1,))
     self.assertEqual(d.qfrc_actuator.shape, (nv,))
     self.assertEqual(d.qfrc_smooth.shape, (nv,))
     self.assertEqual(d.qacc_smooth.shape, (nv,))

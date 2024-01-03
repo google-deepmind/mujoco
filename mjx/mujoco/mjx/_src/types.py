@@ -590,7 +590,6 @@ class Data(PyTreeNode):
     qfrc_bias: C(qpos,qvel)                                       (nv,)
     qfrc_passive: passive force                                   (nv,)
     efc_aref: reference pseudo-acceleration                       (nefc,)
-    actuator_force: actuator force in actuation space             (nu,)
     qfrc_actuator: actuator force                                 (nv,)
     qfrc_smooth: net unconstrained force                          (nv,)
     qacc_smooth: unconstrained acceleration                       (nv,)
@@ -650,7 +649,6 @@ class Data(PyTreeNode):
   qfrc_passive: jax.Array
   efc_aref: jax.Array
   # position, velcoity, control & acceleration dependent:
-  actuator_force: jax.Array
   qfrc_actuator: jax.Array
   qfrc_smooth: jax.Array
   qacc_smooth: jax.Array

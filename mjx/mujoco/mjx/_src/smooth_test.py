@@ -141,7 +141,11 @@ class SmoothTest(absltest.TestCase):
             <joint type="free"/>
             <geom type="box" size=".05 .05 .05" mass="1"/>
             <site name="site1"/>
-            <site name="site2" pos="0.1 0.2 0.3"/>
+            <body>
+              <joint type="hinge"/>
+              <geom size="0.1" mass="1"/>
+              <site name="site2" pos="0.1 0.2 0.3"/>
+            </body>
           </body>
           <body pos="1 0 0">
             <joint name="slide" type="hinge"/>
@@ -149,10 +153,11 @@ class SmoothTest(absltest.TestCase):
           </body>
         </worldbody>
         <actuator>
-          <position site="site1" gear="1 2 3 0 0 0"/>
-          <position site="site1" gear="0 0 0 1 2 3"/>
-          <position site="site2" gear="0 3 0 0 0 1"/>
-          <position joint="slide"/>
+          <position site="site1" kv="0.1" gear="1 2 3 0 0 0"/>
+          <position site="site1" kv="0.2" gear="0 0 0 1 2 3"/>
+          <position site="site2" kv="0.3" gear="0 3 0 0 0 1"/>
+          <position joint="slide" kv="0.05" />
+          <position site="site2" refsite="site1" gear="1 2 3 0.5 0.4 0.6"/>
         </actuator>
         </mujoco>
       """)
@@ -162,7 +167,7 @@ class SmoothTest(absltest.TestCase):
     dx = mjx.put_data(m, d)
 
     mujoco.mj_transmission(m, d)
-    dx = mjx.transmission(mx, dx)
+    dx = jax.jit(mjx.transmission)(mx, dx)
     _assert_attr_eq(d, dx, 'actuator_length')
     _assert_attr_eq(d, dx, 'actuator_moment')
 
