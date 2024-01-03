@@ -7,9 +7,12 @@ Upcoming version (not yet released)
 
 MJX
 ^^^
+1. Added :ref:`dyntype<actuator-general-dyntype>` ``filterexact``.
+2. Added :at:`site` transmission.
 
-1. Add :ref:`dyntype<actuator-general-dyntype>` ``filterexact``.
-2. Add :at:`site` transmission.
+Bug fixes
+^^^^^^^^^
+3. Fixed a bug that prevented the use of pins with plugins if flexes are not in the worldbody. Fixes :github:issue:`1270`.
 
 
 Version 3.1.1 (December 18, 2023)

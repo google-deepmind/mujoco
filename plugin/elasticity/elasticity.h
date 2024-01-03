@@ -133,6 +133,9 @@ inline void ComputeForce(mjtNum* qfrc_passive,
       if (vertbodyid) {
         body_dofnum = m->body_dofnum[vertbodyid[v[i]]];
         body_dofadr = m->body_dofadr[vertbodyid[v[i]]];
+        if (body_dofnum && m->body_simple[vertbodyid[v[i]]] != 2) {
+          mju_error("Non-simple or non-static bodies are not yet supported");
+        }
       }
       for (int x = 0; x < body_dofnum; x++) {
         qfrc_passive[body_dofadr+x] -= force[3*i+x];
