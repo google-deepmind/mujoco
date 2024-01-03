@@ -7368,7 +7368,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  ),
              ),
          ),
-         doc='Eigenvalue decomposition of symmetric 3x3 matrix.',
+         doc="Eigenvalue decomposition of symmetric 3x3 matrix, mat = eigvec * diag(eigval) * eigvec'.",  # pylint: disable=line-too-long
      )),
     ('mju_boxQP',
      FunctionDecl(

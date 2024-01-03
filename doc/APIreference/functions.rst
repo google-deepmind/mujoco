@@ -2985,7 +2985,7 @@ mju_eig3
 
 .. mujoco-include:: mju_eig3
 
-Eigenvalue decomposition of symmetric 3x3 matrix.
+Eigenvalue decomposition of symmetric 3x3 matrix, mat = eigvec * diag(eigval) * eigvec'.
 
 .. _mju_boxQP:
 
