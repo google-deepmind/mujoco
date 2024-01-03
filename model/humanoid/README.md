@@ -29,7 +29,6 @@ in the DeepMind Control Suite [2], which has fairly realistic actuator gains.
 
 ## References
 
-[1] [Synthesis and Stabilization of Complex Behaviors through Online Trajectory Optimization]
-     (https://doi.org/10.1109/IROS.2012.6386025).
+[1] [Synthesis and Stabilization of Complex Behaviors through Online Trajectory Optimization](https://doi.org/10.1109/IROS.2012.6386025).
 
 [2] [DeepMind Control Suite](https://arxiv.org/abs/1801.00690).
