@@ -272,6 +272,7 @@ approximately
 
 .. math::
    \ac + d \cdot (b v + k r) = (1 - d)\cdot \au
+   :label: eq:constraint
 
 Again, the parameters that are under the user's control are :math:`d, b, k`. The remaining quantities are functions of
 the system state and are computed automatically at each time step.
@@ -343,12 +344,9 @@ Next we explain the setting of the stiffness :math:`k` and damping :math:`b` whi
 
 .. admonition:: Intuitive description of the **reference acceleration**
 
-   The *reference acceleration* :math:`\ar` determines the **motion that constraint is trying to achieve** in
-   order to rectify violation. For example, consider a contact between a motionless free body pulled down by gravity
-   onto a static plane geom. Since there is no motion, the penetration will be entirely determined by the impedance
-   while the reference has no effect. Now imagine that the body is dropped onto the plane. Upon impact the constraint
-   will generate a normal force which attempts to rectify the penetration using a particular motion; this motion is
-   the reference acceleration.
+   The *reference acceleration* :math:`\ar` determines the **motion that constraint is trying to achieve** in order to
+   rectify violation. Imagine a body dropped onto the plane. Upon impact the constraint will generate a normal force
+   which attempts to rectify the penetration using a particular motion; this motion is the reference acceleration.
 
    Another way of understanding the reference acceleration is to think of the unmodeled deformation variables
    described in the :ref:`Computation chapter<soPrimal>`. Imagine two bodies pressed together, leading to deformation at
@@ -393,7 +391,12 @@ and the damping ratio is ignored. Equivalently, in the direct format, the :math:
    can go unstable. This is enforced internally, unless the :ref:`refsafe<option-flag-refsafe>` attribute of :ref:`flag
    <option-flag>` is set to false. The :math:`\text{dampratio}` parameter would normally be set to 1, corresponding to
    critical damping. Smaller values result in under-damped or bouncy constraints, while larger values result in
-   over-damped constraints.
+   over-damped constraints. Combining the above formula with :eq:`eq:constraint`, we can derive the following result.
+   If the reference acceleration is given using the positive number format and the impedance is constant
+   :math:`d = d_0 = d_\text{width}`, then the penetration depth at rest is
+
+   .. math::
+      r = \au \cdot (1 - d) \cdot \text{timeconst}^2 \cdot \text{dampratio}^2
 
    Next we describe the direct format where the two numbers are :math:`(-\text{stiffness}, -\text{damping})`. This
    allows direct control over restitution in particular. We still apply some scaling so that the same numbers can be
@@ -405,6 +408,12 @@ and the damping ratio is ignored. Equivalently, in the direct format, the :math:
       b &= \text{damping} / d_\text{width} \\
       k &= \text{stiffness} \cdot d(r) / d_\text{width}^2 \\
       \end{aligned}
+
+   Similarly to the above derivation, if the reference acceleration is given using the negative number format and the
+   impedance is constant, then the penetration depth at rest is
+
+   .. math::
+      r = \au \cdot (1 - d) \cdot \text{stiffness}
 
 .. tip::
    In the positive-value default format, the :math:`\text{timeconst}` parameter controls constraint **softness**.
