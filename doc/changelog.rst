@@ -9,10 +9,12 @@ MJX
 ^^^
 1. Added :ref:`dyntype<actuator-general-dyntype>` ``filterexact``.
 2. Added :at:`site` transmission.
+3. Updated MJX colab tutorial with more stable quadruped environment.
+4. Added ``mjx.ray`` which mirrors :ref:`mj_ray` for planes, spheres, capsules, and boxes.
 
 Bug fixes
 ^^^^^^^^^
-3. Fixed a bug that prevented the use of pins with plugins if flexes are not in the worldbody. Fixes :github:issue:`1270`.
+5. Fixed a bug that prevented the use of pins with plugins if flexes are not in the worldbody. Fixes :github:issue:`1270`.
 
 
 Version 3.1.1 (December 18, 2023)

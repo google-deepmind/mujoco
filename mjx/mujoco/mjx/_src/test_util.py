@@ -26,6 +26,7 @@ TEST_FILES: List[str] = [
     'constraints.xml',
     'convex.xml',
     'pendula.xml',
+    'ray.xml',
 ]
 
 _ACTUATOR_TYPES = ['motor', 'velocity', 'position', 'general', 'intvelocity']

@@ -333,7 +333,7 @@ def put_data(m: mujoco.MjModel, d: mujoco.MjData, device=None) -> types.Data:
         efc_j[i, d.efc_J_colind[rowadr + j]] = fields['efc_J'][rowadr + j]
     fields['efc_J'] = efc_j
   else:
-    fields['efc_J'] = fields['efc_J'].reshape((-1, m.nv))
+    fields['efc_J'] = fields['efc_J'].reshape((-1 if m.nv else 0, m.nv))
 
   for fname in ('efc_J', 'efc_frictionloss', 'efc_D', 'efc_aref', 'efc_force'):
     value = np.zeros((nefc, m.nv)) if fname == 'efc_J' else np.zeros(nefc)
