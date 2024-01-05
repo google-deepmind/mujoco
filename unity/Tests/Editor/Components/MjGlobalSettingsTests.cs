@@ -69,7 +69,6 @@ public class MjGlobalSettingsGenerationTests {
     Assert.That(_doc.OuterXml, Does.Contain(@"o_margin=""4.5"""));
     Assert.That(_doc.OuterXml, Does.Contain(@"integrator=""RK4"""));
     Assert.That(_doc.OuterXml, Does.Contain(@"cone=""elliptic"""));
-    Assert.That(_doc.OuterXml, Does.Contain(@"collision=""all"""));  // the default value.
     Assert.That(_doc.OuterXml, Does.Contain(@"jacobian=""dense"""));
     Assert.That(_doc.OuterXml, Does.Contain(@"o_solref="));
     Assert.That(_doc.OuterXml, Does.Contain(@"o_solimp="));
@@ -143,7 +142,6 @@ public class MjGlobalSettingsParsingTests {
     _option.SetAttribute("o_margin", "4.5");
     _option.SetAttribute("integrator", "RK4");
     _option.SetAttribute("cone", "elliptic");
-    _option.SetAttribute("collisionchecktype", "all");
     _option.SetAttribute("jacobian", "dense");
     _option.SetAttribute("solver", "PGS");
     _option.SetAttribute("iterations", "12");

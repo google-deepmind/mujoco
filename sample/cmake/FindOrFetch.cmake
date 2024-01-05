@@ -118,6 +118,7 @@ macro(FindOrFetch)
         GIT_TAG ${_ARGS_GIT_TAG}
         GIT_SHALLOW FALSE
         PATCH_COMMAND ${_ARGS_PATCH_COMMAND}
+        UPDATE_DISCONNECTED TRUE
       )
       if(${_ARGS_EXCLUDE_FROM_ALL})
         FetchContent_GetProperties(${_ARGS_LIBRARY_NAME})

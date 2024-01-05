@@ -50,18 +50,21 @@ public const int mjNBIAS = 10;
 public const int mjNFLUID = 12;
 public const int mjNREF = 2;
 public const int mjNIMP = 5;
-public const int mjNSOLVER = 1000;
+public const int mjNSOLVER = 200;
+public const int mjNISLAND = 20;
 public const bool THIRD_PARTY_MUJOCO_INCLUDE_MJPLUGIN_H_ = true;
 public const bool mjEXTERNC = true;
 public const bool THIRD_PARTY_MUJOCO_MJRENDER_H_ = true;
 public const int mjNAUX = 10;
 public const int mjMAXTEXTURE = 1000;
+public const bool THIRD_PARTY_MUJOCO_INCLUDE_MJTHREAD_H_ = true;
+public const int mjMAXTHREADS = 128;
 public const bool THIRD_PARTY_MUJOCO_INCLUDE_MJTNUM_H_ = true;
 public const bool mjUSEDOUBLE = true;
 public const double mjMINVAL = 1e-15;
 public const bool THIRD_PARTY_MUJOCO_MJUI_H_ = true;
 public const int mjMAXUISECT = 10;
-public const int mjMAXUIITEM = 100;
+public const int mjMAXUIITEM = 200;
 public const int mjMAXUITEXT = 300;
 public const int mjMAXUINAME = 40;
 public const int mjMAXUIMULTI = 35;
@@ -105,7 +108,7 @@ public const int mjMAXLINEPNT = 1000;
 public const int mjMAXPLANEGRID = 200;
 public const bool THIRD_PARTY_MUJOCO_MJXMACRO_H_ = true;
 public const bool THIRD_PARTY_MUJOCO_MUJOCO_H_ = true;
-public const int mjVERSION_HEADER = 236;
+public const int mjVERSION_HEADER = 312;
 
 
 // ------------------------------------Enums------------------------------------
@@ -127,14 +130,17 @@ public enum mjtTimer : int{
   mjTIMER_POSITION = 3,
   mjTIMER_VELOCITY = 4,
   mjTIMER_ACTUATION = 5,
-  mjTIMER_ACCELERATION = 6,
-  mjTIMER_CONSTRAINT = 7,
+  mjTIMER_CONSTRAINT = 6,
+  mjTIMER_ADVANCE = 7,
   mjTIMER_POS_KINEMATICS = 8,
   mjTIMER_POS_INERTIA = 9,
   mjTIMER_POS_COLLISION = 10,
   mjTIMER_POS_MAKE = 11,
   mjTIMER_POS_PROJECT = 12,
-  mjNTIMER = 13,
+  mjTIMER_COL_BROAD = 13,
+  mjTIMER_COL_MID = 14,
+  mjTIMER_COL_NARROW = 15,
+  mjNTIMER = 16,
 }
 public enum mjtDisableBit : int{
   mjDSBL_CONSTRAINT = 1,
@@ -151,15 +157,18 @@ public enum mjtDisableBit : int{
   mjDSBL_REFSAFE = 2048,
   mjDSBL_SENSOR = 4096,
   mjDSBL_MIDPHASE = 8192,
-  mjNDISABLE = 14,
+  mjDSBL_EULERDAMP = 16384,
+  mjNDISABLE = 15,
 }
 public enum mjtEnableBit : int{
   mjENBL_OVERRIDE = 1,
   mjENBL_ENERGY = 2,
   mjENBL_FWDINV = 4,
-  mjENBL_SENSORNOISE = 8,
-  mjENBL_MULTICCD = 16,
-  mjNENABLE = 5,
+  mjENBL_INVDISCRETE = 8,
+  mjENBL_SENSORNOISE = 16,
+  mjENBL_MULTICCD = 32,
+  mjENBL_ISLAND = 64,
+  mjNENABLE = 7,
 }
 public enum mjtJoint : int{
   mjJNT_FREE = 0,
@@ -176,13 +185,17 @@ public enum mjtGeom : int{
   mjGEOM_CYLINDER = 5,
   mjGEOM_BOX = 6,
   mjGEOM_MESH = 7,
-  mjNGEOMTYPES = 8,
+  mjGEOM_SDF = 8,
+  mjNGEOMTYPES = 9,
   mjGEOM_ARROW = 100,
   mjGEOM_ARROW1 = 101,
   mjGEOM_ARROW2 = 102,
   mjGEOM_LINE = 103,
-  mjGEOM_SKIN = 104,
-  mjGEOM_LABEL = 105,
+  mjGEOM_LINEBOX = 104,
+  mjGEOM_FLEX = 105,
+  mjGEOM_SKIN = 106,
+  mjGEOM_LABEL = 107,
+  mjGEOM_TRIANGLE = 108,
   mjGEOM_NONE = 1001,
 }
 public enum mjtCamLight : int{
@@ -203,11 +216,6 @@ public enum mjtIntegrator : int{
   mjINT_IMPLICIT = 2,
   mjINT_IMPLICITFAST = 3,
 }
-public enum mjtCollision : int{
-  mjCOL_ALL = 0,
-  mjCOL_PAIR = 1,
-  mjCOL_DYNAMIC = 2,
-}
 public enum mjtCone : int{
   mjCONE_PYRAMIDAL = 0,
   mjCONE_ELLIPTIC = 1,
@@ -227,7 +235,8 @@ public enum mjtEq : int{
   mjEQ_WELD = 1,
   mjEQ_JOINT = 2,
   mjEQ_TENDON = 3,
-  mjEQ_DISTANCE = 4,
+  mjEQ_FLEX = 4,
+  mjEQ_DISTANCE = 5,
 }
 public enum mjtWrap : int{
   mjWRAP_NONE = 0,
@@ -250,8 +259,9 @@ public enum mjtDyn : int{
   mjDYN_NONE = 0,
   mjDYN_INTEGRATOR = 1,
   mjDYN_FILTER = 2,
-  mjDYN_MUSCLE = 3,
-  mjDYN_USER = 4,
+  mjDYN_FILTEREXACT = 3,
+  mjDYN_MUSCLE = 4,
+  mjDYN_USER = 5,
 }
 public enum mjtGain : int{
   mjGAIN_FIXED = 0,
@@ -275,22 +285,24 @@ public enum mjtObj : int{
   mjOBJ_SITE = 6,
   mjOBJ_CAMERA = 7,
   mjOBJ_LIGHT = 8,
-  mjOBJ_MESH = 9,
-  mjOBJ_SKIN = 10,
-  mjOBJ_HFIELD = 11,
-  mjOBJ_TEXTURE = 12,
-  mjOBJ_MATERIAL = 13,
-  mjOBJ_PAIR = 14,
-  mjOBJ_EXCLUDE = 15,
-  mjOBJ_EQUALITY = 16,
-  mjOBJ_TENDON = 17,
-  mjOBJ_ACTUATOR = 18,
-  mjOBJ_SENSOR = 19,
-  mjOBJ_NUMERIC = 20,
-  mjOBJ_TEXT = 21,
-  mjOBJ_TUPLE = 22,
-  mjOBJ_KEY = 23,
-  mjOBJ_PLUGIN = 24,
+  mjOBJ_FLEX = 9,
+  mjOBJ_MESH = 10,
+  mjOBJ_SKIN = 11,
+  mjOBJ_HFIELD = 12,
+  mjOBJ_TEXTURE = 13,
+  mjOBJ_MATERIAL = 14,
+  mjOBJ_PAIR = 15,
+  mjOBJ_EXCLUDE = 16,
+  mjOBJ_EQUALITY = 17,
+  mjOBJ_TENDON = 18,
+  mjOBJ_ACTUATOR = 19,
+  mjOBJ_SENSOR = 20,
+  mjOBJ_NUMERIC = 21,
+  mjOBJ_TEXT = 22,
+  mjOBJ_TUPLE = 23,
+  mjOBJ_KEY = 24,
+  mjOBJ_PLUGIN = 25,
+  mjNOBJECT = 26,
 }
 public enum mjtConstraint : int{
   mjCNSTR_EQUALITY = 0,
@@ -318,36 +330,38 @@ public enum mjtSensor : int{
   mjSENS_TORQUE = 5,
   mjSENS_MAGNETOMETER = 6,
   mjSENS_RANGEFINDER = 7,
-  mjSENS_JOINTPOS = 8,
-  mjSENS_JOINTVEL = 9,
-  mjSENS_TENDONPOS = 10,
-  mjSENS_TENDONVEL = 11,
-  mjSENS_ACTUATORPOS = 12,
-  mjSENS_ACTUATORVEL = 13,
-  mjSENS_ACTUATORFRC = 14,
-  mjSENS_BALLQUAT = 15,
-  mjSENS_BALLANGVEL = 16,
-  mjSENS_JOINTLIMITPOS = 17,
-  mjSENS_JOINTLIMITVEL = 18,
-  mjSENS_JOINTLIMITFRC = 19,
-  mjSENS_TENDONLIMITPOS = 20,
-  mjSENS_TENDONLIMITVEL = 21,
-  mjSENS_TENDONLIMITFRC = 22,
-  mjSENS_FRAMEPOS = 23,
-  mjSENS_FRAMEQUAT = 24,
-  mjSENS_FRAMEXAXIS = 25,
-  mjSENS_FRAMEYAXIS = 26,
-  mjSENS_FRAMEZAXIS = 27,
-  mjSENS_FRAMELINVEL = 28,
-  mjSENS_FRAMEANGVEL = 29,
-  mjSENS_FRAMELINACC = 30,
-  mjSENS_FRAMEANGACC = 31,
-  mjSENS_SUBTREECOM = 32,
-  mjSENS_SUBTREELINVEL = 33,
-  mjSENS_SUBTREEANGMOM = 34,
-  mjSENS_CLOCK = 35,
-  mjSENS_PLUGIN = 36,
-  mjSENS_USER = 37,
+  mjSENS_CAMPROJECTION = 8,
+  mjSENS_JOINTPOS = 9,
+  mjSENS_JOINTVEL = 10,
+  mjSENS_TENDONPOS = 11,
+  mjSENS_TENDONVEL = 12,
+  mjSENS_ACTUATORPOS = 13,
+  mjSENS_ACTUATORVEL = 14,
+  mjSENS_ACTUATORFRC = 15,
+  mjSENS_JOINTACTFRC = 16,
+  mjSENS_BALLQUAT = 17,
+  mjSENS_BALLANGVEL = 18,
+  mjSENS_JOINTLIMITPOS = 19,
+  mjSENS_JOINTLIMITVEL = 20,
+  mjSENS_JOINTLIMITFRC = 21,
+  mjSENS_TENDONLIMITPOS = 22,
+  mjSENS_TENDONLIMITVEL = 23,
+  mjSENS_TENDONLIMITFRC = 24,
+  mjSENS_FRAMEPOS = 25,
+  mjSENS_FRAMEQUAT = 26,
+  mjSENS_FRAMEXAXIS = 27,
+  mjSENS_FRAMEYAXIS = 28,
+  mjSENS_FRAMEZAXIS = 29,
+  mjSENS_FRAMELINVEL = 30,
+  mjSENS_FRAMEANGVEL = 31,
+  mjSENS_FRAMELINACC = 32,
+  mjSENS_FRAMEANGACC = 33,
+  mjSENS_SUBTREECOM = 34,
+  mjSENS_SUBTREELINVEL = 35,
+  mjSENS_SUBTREEANGMOM = 36,
+  mjSENS_CLOCK = 37,
+  mjSENS_PLUGIN = 38,
+  mjSENS_USER = 39,
 }
 public enum mjtStage : int{
   mjSTAGE_NONE = 0,
@@ -367,20 +381,36 @@ public enum mjtLRMode : int{
   mjLRMODE_MUSCLEUSER = 2,
   mjLRMODE_ALL = 3,
 }
+public enum mjtFlexSelf : int{
+  mjFLEXSELF_NONE = 0,
+  mjFLEXSELF_NARROW = 1,
+  mjFLEXSELF_BVH = 2,
+  mjFLEXSELF_SAP = 3,
+  mjFLEXSELF_AUTO = 4,
+}
 public enum mjtPluginCapabilityBit : int{
   mjPLUGIN_ACTUATOR = 1,
   mjPLUGIN_SENSOR = 2,
   mjPLUGIN_PASSIVE = 4,
+  mjPLUGIN_SDF = 8,
 }
 public enum mjtGridPos : int{
   mjGRID_TOPLEFT = 0,
   mjGRID_TOPRIGHT = 1,
   mjGRID_BOTTOMLEFT = 2,
   mjGRID_BOTTOMRIGHT = 3,
+  mjGRID_TOP = 4,
+  mjGRID_BOTTOM = 5,
+  mjGRID_LEFT = 6,
+  mjGRID_RIGHT = 7,
 }
 public enum mjtFramebuffer : int{
   mjFB_WINDOW = 0,
   mjFB_OFFSCREEN = 1,
+}
+public enum mjtDepthMap : int{
+  mjDEPTH_ZERONEAR = 0,
+  mjDEPTH_ZEROFAR = 1,
 }
 public enum mjtFontScale : int{
   mjFONTSCALE_50 = 50,
@@ -394,6 +424,11 @@ public enum mjtFont : int{
   mjFONT_NORMAL = 0,
   mjFONT_SHADOW = 1,
   mjFONT_BIG = 2,
+}
+public enum mjtTaskStatus : int{
+  mjTASK_NEW = 0,
+  mjTASK_QUEUED = 1,
+  mjTASK_COMPLETED = 2,
 }
 public enum mjtButton : int{
   mjBUTTON_NONE = 0,
@@ -448,12 +483,14 @@ public enum mjtLabel : int{
   mjLABEL_TENDON = 7,
   mjLABEL_ACTUATOR = 8,
   mjLABEL_CONSTRAINT = 9,
-  mjLABEL_SKIN = 10,
-  mjLABEL_SELECTION = 11,
-  mjLABEL_SELPNT = 12,
-  mjLABEL_CONTACTPOINT = 13,
-  mjLABEL_CONTACTFORCE = 14,
-  mjNLABEL = 15,
+  mjLABEL_FLEX = 10,
+  mjLABEL_SKIN = 11,
+  mjLABEL_SELECTION = 12,
+  mjLABEL_SELPNT = 13,
+  mjLABEL_CONTACTPOINT = 14,
+  mjLABEL_CONTACTFORCE = 15,
+  mjLABEL_ISLAND = 16,
+  mjNLABEL = 17,
 }
 public enum mjtFrame : int{
   mjFRAME_NONE = 0,
@@ -482,17 +519,24 @@ public enum mjtVisFlag : int{
   mjVIS_PERTFORCE = 12,
   mjVIS_PERTOBJ = 13,
   mjVIS_CONTACTPOINT = 14,
-  mjVIS_CONTACTFORCE = 15,
-  mjVIS_CONTACTSPLIT = 16,
-  mjVIS_TRANSPARENT = 17,
-  mjVIS_AUTOCONNECT = 18,
-  mjVIS_COM = 19,
-  mjVIS_SELECT = 20,
-  mjVIS_STATIC = 21,
-  mjVIS_SKIN = 22,
-  mjVIS_MIDPHASE = 23,
-  mjVIS_MESHBVH = 24,
-  mjNVISFLAG = 25,
+  mjVIS_ISLAND = 15,
+  mjVIS_CONTACTFORCE = 16,
+  mjVIS_CONTACTSPLIT = 17,
+  mjVIS_TRANSPARENT = 18,
+  mjVIS_AUTOCONNECT = 19,
+  mjVIS_COM = 20,
+  mjVIS_SELECT = 21,
+  mjVIS_STATIC = 22,
+  mjVIS_SKIN = 23,
+  mjVIS_FLEXVERT = 24,
+  mjVIS_FLEXEDGE = 25,
+  mjVIS_FLEXFACE = 26,
+  mjVIS_FLEXSKIN = 27,
+  mjVIS_BODYBVH = 28,
+  mjVIS_FLEXBVH = 29,
+  mjVIS_MESHBVH = 30,
+  mjVIS_SDFITER = 31,
+  mjNVISFLAG = 32,
 }
 public enum mjtRndFlag : int{
   mjRND_SHADOW = 0,
@@ -531,6 +575,10 @@ public unsafe struct mjContact_ {
   public int dim;
   public int geom1;
   public int geom2;
+  public fixed int geom[2];
+  public fixed int flex[2];
+  public fixed int elem[2];
+  public fixed int vert[2];
   public int exclude;
   public int efc_address;
 }
@@ -560,12 +608,141 @@ public unsafe struct mjSolverStat_ {
 
 [StructLayout(LayoutKind.Sequential)]
 public unsafe struct mjData_ {
-  public int nstack;
-  public int nbuffer;
+  public UIntPtr narena;
+  public UIntPtr nbuffer;
   public int nplugin;
   public UIntPtr pstack;
+  public UIntPtr pbase;
   public UIntPtr parena;
-  public int maxuse_stack;
+  public UIntPtr maxuse_stack;
+  public UIntPtr maxuse_threadstack0;
+  public UIntPtr maxuse_threadstack1;
+  public UIntPtr maxuse_threadstack2;
+  public UIntPtr maxuse_threadstack3;
+  public UIntPtr maxuse_threadstack4;
+  public UIntPtr maxuse_threadstack5;
+  public UIntPtr maxuse_threadstack6;
+  public UIntPtr maxuse_threadstack7;
+  public UIntPtr maxuse_threadstack8;
+  public UIntPtr maxuse_threadstack9;
+  public UIntPtr maxuse_threadstack10;
+  public UIntPtr maxuse_threadstack11;
+  public UIntPtr maxuse_threadstack12;
+  public UIntPtr maxuse_threadstack13;
+  public UIntPtr maxuse_threadstack14;
+  public UIntPtr maxuse_threadstack15;
+  public UIntPtr maxuse_threadstack16;
+  public UIntPtr maxuse_threadstack17;
+  public UIntPtr maxuse_threadstack18;
+  public UIntPtr maxuse_threadstack19;
+  public UIntPtr maxuse_threadstack20;
+  public UIntPtr maxuse_threadstack21;
+  public UIntPtr maxuse_threadstack22;
+  public UIntPtr maxuse_threadstack23;
+  public UIntPtr maxuse_threadstack24;
+  public UIntPtr maxuse_threadstack25;
+  public UIntPtr maxuse_threadstack26;
+  public UIntPtr maxuse_threadstack27;
+  public UIntPtr maxuse_threadstack28;
+  public UIntPtr maxuse_threadstack29;
+  public UIntPtr maxuse_threadstack30;
+  public UIntPtr maxuse_threadstack31;
+  public UIntPtr maxuse_threadstack32;
+  public UIntPtr maxuse_threadstack33;
+  public UIntPtr maxuse_threadstack34;
+  public UIntPtr maxuse_threadstack35;
+  public UIntPtr maxuse_threadstack36;
+  public UIntPtr maxuse_threadstack37;
+  public UIntPtr maxuse_threadstack38;
+  public UIntPtr maxuse_threadstack39;
+  public UIntPtr maxuse_threadstack40;
+  public UIntPtr maxuse_threadstack41;
+  public UIntPtr maxuse_threadstack42;
+  public UIntPtr maxuse_threadstack43;
+  public UIntPtr maxuse_threadstack44;
+  public UIntPtr maxuse_threadstack45;
+  public UIntPtr maxuse_threadstack46;
+  public UIntPtr maxuse_threadstack47;
+  public UIntPtr maxuse_threadstack48;
+  public UIntPtr maxuse_threadstack49;
+  public UIntPtr maxuse_threadstack50;
+  public UIntPtr maxuse_threadstack51;
+  public UIntPtr maxuse_threadstack52;
+  public UIntPtr maxuse_threadstack53;
+  public UIntPtr maxuse_threadstack54;
+  public UIntPtr maxuse_threadstack55;
+  public UIntPtr maxuse_threadstack56;
+  public UIntPtr maxuse_threadstack57;
+  public UIntPtr maxuse_threadstack58;
+  public UIntPtr maxuse_threadstack59;
+  public UIntPtr maxuse_threadstack60;
+  public UIntPtr maxuse_threadstack61;
+  public UIntPtr maxuse_threadstack62;
+  public UIntPtr maxuse_threadstack63;
+  public UIntPtr maxuse_threadstack64;
+  public UIntPtr maxuse_threadstack65;
+  public UIntPtr maxuse_threadstack66;
+  public UIntPtr maxuse_threadstack67;
+  public UIntPtr maxuse_threadstack68;
+  public UIntPtr maxuse_threadstack69;
+  public UIntPtr maxuse_threadstack70;
+  public UIntPtr maxuse_threadstack71;
+  public UIntPtr maxuse_threadstack72;
+  public UIntPtr maxuse_threadstack73;
+  public UIntPtr maxuse_threadstack74;
+  public UIntPtr maxuse_threadstack75;
+  public UIntPtr maxuse_threadstack76;
+  public UIntPtr maxuse_threadstack77;
+  public UIntPtr maxuse_threadstack78;
+  public UIntPtr maxuse_threadstack79;
+  public UIntPtr maxuse_threadstack80;
+  public UIntPtr maxuse_threadstack81;
+  public UIntPtr maxuse_threadstack82;
+  public UIntPtr maxuse_threadstack83;
+  public UIntPtr maxuse_threadstack84;
+  public UIntPtr maxuse_threadstack85;
+  public UIntPtr maxuse_threadstack86;
+  public UIntPtr maxuse_threadstack87;
+  public UIntPtr maxuse_threadstack88;
+  public UIntPtr maxuse_threadstack89;
+  public UIntPtr maxuse_threadstack90;
+  public UIntPtr maxuse_threadstack91;
+  public UIntPtr maxuse_threadstack92;
+  public UIntPtr maxuse_threadstack93;
+  public UIntPtr maxuse_threadstack94;
+  public UIntPtr maxuse_threadstack95;
+  public UIntPtr maxuse_threadstack96;
+  public UIntPtr maxuse_threadstack97;
+  public UIntPtr maxuse_threadstack98;
+  public UIntPtr maxuse_threadstack99;
+  public UIntPtr maxuse_threadstack100;
+  public UIntPtr maxuse_threadstack101;
+  public UIntPtr maxuse_threadstack102;
+  public UIntPtr maxuse_threadstack103;
+  public UIntPtr maxuse_threadstack104;
+  public UIntPtr maxuse_threadstack105;
+  public UIntPtr maxuse_threadstack106;
+  public UIntPtr maxuse_threadstack107;
+  public UIntPtr maxuse_threadstack108;
+  public UIntPtr maxuse_threadstack109;
+  public UIntPtr maxuse_threadstack110;
+  public UIntPtr maxuse_threadstack111;
+  public UIntPtr maxuse_threadstack112;
+  public UIntPtr maxuse_threadstack113;
+  public UIntPtr maxuse_threadstack114;
+  public UIntPtr maxuse_threadstack115;
+  public UIntPtr maxuse_threadstack116;
+  public UIntPtr maxuse_threadstack117;
+  public UIntPtr maxuse_threadstack118;
+  public UIntPtr maxuse_threadstack119;
+  public UIntPtr maxuse_threadstack120;
+  public UIntPtr maxuse_threadstack121;
+  public UIntPtr maxuse_threadstack122;
+  public UIntPtr maxuse_threadstack123;
+  public UIntPtr maxuse_threadstack124;
+  public UIntPtr maxuse_threadstack125;
+  public UIntPtr maxuse_threadstack126;
+  public UIntPtr maxuse_threadstack127;
   public UIntPtr maxuse_arena;
   public int maxuse_con;
   public int maxuse_efc;
@@ -590,6 +767,9 @@ public unsafe struct mjData_ {
   public mjTimerStat_ timer10;
   public mjTimerStat_ timer11;
   public mjTimerStat_ timer12;
+  public mjTimerStat_ timer13;
+  public mjTimerStat_ timer14;
+  public mjTimerStat_ timer15;
   public mjSolverStat_ solver0;
   public mjSolverStat_ solver1;
   public mjSolverStat_ solver2;
@@ -1590,18 +1770,3017 @@ public unsafe struct mjData_ {
   public mjSolverStat_ solver997;
   public mjSolverStat_ solver998;
   public mjSolverStat_ solver999;
-  public int solver_iter;
-  public int solver_nnz;
+  public mjSolverStat_ solver1000;
+  public mjSolverStat_ solver1001;
+  public mjSolverStat_ solver1002;
+  public mjSolverStat_ solver1003;
+  public mjSolverStat_ solver1004;
+  public mjSolverStat_ solver1005;
+  public mjSolverStat_ solver1006;
+  public mjSolverStat_ solver1007;
+  public mjSolverStat_ solver1008;
+  public mjSolverStat_ solver1009;
+  public mjSolverStat_ solver1010;
+  public mjSolverStat_ solver1011;
+  public mjSolverStat_ solver1012;
+  public mjSolverStat_ solver1013;
+  public mjSolverStat_ solver1014;
+  public mjSolverStat_ solver1015;
+  public mjSolverStat_ solver1016;
+  public mjSolverStat_ solver1017;
+  public mjSolverStat_ solver1018;
+  public mjSolverStat_ solver1019;
+  public mjSolverStat_ solver1020;
+  public mjSolverStat_ solver1021;
+  public mjSolverStat_ solver1022;
+  public mjSolverStat_ solver1023;
+  public mjSolverStat_ solver1024;
+  public mjSolverStat_ solver1025;
+  public mjSolverStat_ solver1026;
+  public mjSolverStat_ solver1027;
+  public mjSolverStat_ solver1028;
+  public mjSolverStat_ solver1029;
+  public mjSolverStat_ solver1030;
+  public mjSolverStat_ solver1031;
+  public mjSolverStat_ solver1032;
+  public mjSolverStat_ solver1033;
+  public mjSolverStat_ solver1034;
+  public mjSolverStat_ solver1035;
+  public mjSolverStat_ solver1036;
+  public mjSolverStat_ solver1037;
+  public mjSolverStat_ solver1038;
+  public mjSolverStat_ solver1039;
+  public mjSolverStat_ solver1040;
+  public mjSolverStat_ solver1041;
+  public mjSolverStat_ solver1042;
+  public mjSolverStat_ solver1043;
+  public mjSolverStat_ solver1044;
+  public mjSolverStat_ solver1045;
+  public mjSolverStat_ solver1046;
+  public mjSolverStat_ solver1047;
+  public mjSolverStat_ solver1048;
+  public mjSolverStat_ solver1049;
+  public mjSolverStat_ solver1050;
+  public mjSolverStat_ solver1051;
+  public mjSolverStat_ solver1052;
+  public mjSolverStat_ solver1053;
+  public mjSolverStat_ solver1054;
+  public mjSolverStat_ solver1055;
+  public mjSolverStat_ solver1056;
+  public mjSolverStat_ solver1057;
+  public mjSolverStat_ solver1058;
+  public mjSolverStat_ solver1059;
+  public mjSolverStat_ solver1060;
+  public mjSolverStat_ solver1061;
+  public mjSolverStat_ solver1062;
+  public mjSolverStat_ solver1063;
+  public mjSolverStat_ solver1064;
+  public mjSolverStat_ solver1065;
+  public mjSolverStat_ solver1066;
+  public mjSolverStat_ solver1067;
+  public mjSolverStat_ solver1068;
+  public mjSolverStat_ solver1069;
+  public mjSolverStat_ solver1070;
+  public mjSolverStat_ solver1071;
+  public mjSolverStat_ solver1072;
+  public mjSolverStat_ solver1073;
+  public mjSolverStat_ solver1074;
+  public mjSolverStat_ solver1075;
+  public mjSolverStat_ solver1076;
+  public mjSolverStat_ solver1077;
+  public mjSolverStat_ solver1078;
+  public mjSolverStat_ solver1079;
+  public mjSolverStat_ solver1080;
+  public mjSolverStat_ solver1081;
+  public mjSolverStat_ solver1082;
+  public mjSolverStat_ solver1083;
+  public mjSolverStat_ solver1084;
+  public mjSolverStat_ solver1085;
+  public mjSolverStat_ solver1086;
+  public mjSolverStat_ solver1087;
+  public mjSolverStat_ solver1088;
+  public mjSolverStat_ solver1089;
+  public mjSolverStat_ solver1090;
+  public mjSolverStat_ solver1091;
+  public mjSolverStat_ solver1092;
+  public mjSolverStat_ solver1093;
+  public mjSolverStat_ solver1094;
+  public mjSolverStat_ solver1095;
+  public mjSolverStat_ solver1096;
+  public mjSolverStat_ solver1097;
+  public mjSolverStat_ solver1098;
+  public mjSolverStat_ solver1099;
+  public mjSolverStat_ solver1100;
+  public mjSolverStat_ solver1101;
+  public mjSolverStat_ solver1102;
+  public mjSolverStat_ solver1103;
+  public mjSolverStat_ solver1104;
+  public mjSolverStat_ solver1105;
+  public mjSolverStat_ solver1106;
+  public mjSolverStat_ solver1107;
+  public mjSolverStat_ solver1108;
+  public mjSolverStat_ solver1109;
+  public mjSolverStat_ solver1110;
+  public mjSolverStat_ solver1111;
+  public mjSolverStat_ solver1112;
+  public mjSolverStat_ solver1113;
+  public mjSolverStat_ solver1114;
+  public mjSolverStat_ solver1115;
+  public mjSolverStat_ solver1116;
+  public mjSolverStat_ solver1117;
+  public mjSolverStat_ solver1118;
+  public mjSolverStat_ solver1119;
+  public mjSolverStat_ solver1120;
+  public mjSolverStat_ solver1121;
+  public mjSolverStat_ solver1122;
+  public mjSolverStat_ solver1123;
+  public mjSolverStat_ solver1124;
+  public mjSolverStat_ solver1125;
+  public mjSolverStat_ solver1126;
+  public mjSolverStat_ solver1127;
+  public mjSolverStat_ solver1128;
+  public mjSolverStat_ solver1129;
+  public mjSolverStat_ solver1130;
+  public mjSolverStat_ solver1131;
+  public mjSolverStat_ solver1132;
+  public mjSolverStat_ solver1133;
+  public mjSolverStat_ solver1134;
+  public mjSolverStat_ solver1135;
+  public mjSolverStat_ solver1136;
+  public mjSolverStat_ solver1137;
+  public mjSolverStat_ solver1138;
+  public mjSolverStat_ solver1139;
+  public mjSolverStat_ solver1140;
+  public mjSolverStat_ solver1141;
+  public mjSolverStat_ solver1142;
+  public mjSolverStat_ solver1143;
+  public mjSolverStat_ solver1144;
+  public mjSolverStat_ solver1145;
+  public mjSolverStat_ solver1146;
+  public mjSolverStat_ solver1147;
+  public mjSolverStat_ solver1148;
+  public mjSolverStat_ solver1149;
+  public mjSolverStat_ solver1150;
+  public mjSolverStat_ solver1151;
+  public mjSolverStat_ solver1152;
+  public mjSolverStat_ solver1153;
+  public mjSolverStat_ solver1154;
+  public mjSolverStat_ solver1155;
+  public mjSolverStat_ solver1156;
+  public mjSolverStat_ solver1157;
+  public mjSolverStat_ solver1158;
+  public mjSolverStat_ solver1159;
+  public mjSolverStat_ solver1160;
+  public mjSolverStat_ solver1161;
+  public mjSolverStat_ solver1162;
+  public mjSolverStat_ solver1163;
+  public mjSolverStat_ solver1164;
+  public mjSolverStat_ solver1165;
+  public mjSolverStat_ solver1166;
+  public mjSolverStat_ solver1167;
+  public mjSolverStat_ solver1168;
+  public mjSolverStat_ solver1169;
+  public mjSolverStat_ solver1170;
+  public mjSolverStat_ solver1171;
+  public mjSolverStat_ solver1172;
+  public mjSolverStat_ solver1173;
+  public mjSolverStat_ solver1174;
+  public mjSolverStat_ solver1175;
+  public mjSolverStat_ solver1176;
+  public mjSolverStat_ solver1177;
+  public mjSolverStat_ solver1178;
+  public mjSolverStat_ solver1179;
+  public mjSolverStat_ solver1180;
+  public mjSolverStat_ solver1181;
+  public mjSolverStat_ solver1182;
+  public mjSolverStat_ solver1183;
+  public mjSolverStat_ solver1184;
+  public mjSolverStat_ solver1185;
+  public mjSolverStat_ solver1186;
+  public mjSolverStat_ solver1187;
+  public mjSolverStat_ solver1188;
+  public mjSolverStat_ solver1189;
+  public mjSolverStat_ solver1190;
+  public mjSolverStat_ solver1191;
+  public mjSolverStat_ solver1192;
+  public mjSolverStat_ solver1193;
+  public mjSolverStat_ solver1194;
+  public mjSolverStat_ solver1195;
+  public mjSolverStat_ solver1196;
+  public mjSolverStat_ solver1197;
+  public mjSolverStat_ solver1198;
+  public mjSolverStat_ solver1199;
+  public mjSolverStat_ solver1200;
+  public mjSolverStat_ solver1201;
+  public mjSolverStat_ solver1202;
+  public mjSolverStat_ solver1203;
+  public mjSolverStat_ solver1204;
+  public mjSolverStat_ solver1205;
+  public mjSolverStat_ solver1206;
+  public mjSolverStat_ solver1207;
+  public mjSolverStat_ solver1208;
+  public mjSolverStat_ solver1209;
+  public mjSolverStat_ solver1210;
+  public mjSolverStat_ solver1211;
+  public mjSolverStat_ solver1212;
+  public mjSolverStat_ solver1213;
+  public mjSolverStat_ solver1214;
+  public mjSolverStat_ solver1215;
+  public mjSolverStat_ solver1216;
+  public mjSolverStat_ solver1217;
+  public mjSolverStat_ solver1218;
+  public mjSolverStat_ solver1219;
+  public mjSolverStat_ solver1220;
+  public mjSolverStat_ solver1221;
+  public mjSolverStat_ solver1222;
+  public mjSolverStat_ solver1223;
+  public mjSolverStat_ solver1224;
+  public mjSolverStat_ solver1225;
+  public mjSolverStat_ solver1226;
+  public mjSolverStat_ solver1227;
+  public mjSolverStat_ solver1228;
+  public mjSolverStat_ solver1229;
+  public mjSolverStat_ solver1230;
+  public mjSolverStat_ solver1231;
+  public mjSolverStat_ solver1232;
+  public mjSolverStat_ solver1233;
+  public mjSolverStat_ solver1234;
+  public mjSolverStat_ solver1235;
+  public mjSolverStat_ solver1236;
+  public mjSolverStat_ solver1237;
+  public mjSolverStat_ solver1238;
+  public mjSolverStat_ solver1239;
+  public mjSolverStat_ solver1240;
+  public mjSolverStat_ solver1241;
+  public mjSolverStat_ solver1242;
+  public mjSolverStat_ solver1243;
+  public mjSolverStat_ solver1244;
+  public mjSolverStat_ solver1245;
+  public mjSolverStat_ solver1246;
+  public mjSolverStat_ solver1247;
+  public mjSolverStat_ solver1248;
+  public mjSolverStat_ solver1249;
+  public mjSolverStat_ solver1250;
+  public mjSolverStat_ solver1251;
+  public mjSolverStat_ solver1252;
+  public mjSolverStat_ solver1253;
+  public mjSolverStat_ solver1254;
+  public mjSolverStat_ solver1255;
+  public mjSolverStat_ solver1256;
+  public mjSolverStat_ solver1257;
+  public mjSolverStat_ solver1258;
+  public mjSolverStat_ solver1259;
+  public mjSolverStat_ solver1260;
+  public mjSolverStat_ solver1261;
+  public mjSolverStat_ solver1262;
+  public mjSolverStat_ solver1263;
+  public mjSolverStat_ solver1264;
+  public mjSolverStat_ solver1265;
+  public mjSolverStat_ solver1266;
+  public mjSolverStat_ solver1267;
+  public mjSolverStat_ solver1268;
+  public mjSolverStat_ solver1269;
+  public mjSolverStat_ solver1270;
+  public mjSolverStat_ solver1271;
+  public mjSolverStat_ solver1272;
+  public mjSolverStat_ solver1273;
+  public mjSolverStat_ solver1274;
+  public mjSolverStat_ solver1275;
+  public mjSolverStat_ solver1276;
+  public mjSolverStat_ solver1277;
+  public mjSolverStat_ solver1278;
+  public mjSolverStat_ solver1279;
+  public mjSolverStat_ solver1280;
+  public mjSolverStat_ solver1281;
+  public mjSolverStat_ solver1282;
+  public mjSolverStat_ solver1283;
+  public mjSolverStat_ solver1284;
+  public mjSolverStat_ solver1285;
+  public mjSolverStat_ solver1286;
+  public mjSolverStat_ solver1287;
+  public mjSolverStat_ solver1288;
+  public mjSolverStat_ solver1289;
+  public mjSolverStat_ solver1290;
+  public mjSolverStat_ solver1291;
+  public mjSolverStat_ solver1292;
+  public mjSolverStat_ solver1293;
+  public mjSolverStat_ solver1294;
+  public mjSolverStat_ solver1295;
+  public mjSolverStat_ solver1296;
+  public mjSolverStat_ solver1297;
+  public mjSolverStat_ solver1298;
+  public mjSolverStat_ solver1299;
+  public mjSolverStat_ solver1300;
+  public mjSolverStat_ solver1301;
+  public mjSolverStat_ solver1302;
+  public mjSolverStat_ solver1303;
+  public mjSolverStat_ solver1304;
+  public mjSolverStat_ solver1305;
+  public mjSolverStat_ solver1306;
+  public mjSolverStat_ solver1307;
+  public mjSolverStat_ solver1308;
+  public mjSolverStat_ solver1309;
+  public mjSolverStat_ solver1310;
+  public mjSolverStat_ solver1311;
+  public mjSolverStat_ solver1312;
+  public mjSolverStat_ solver1313;
+  public mjSolverStat_ solver1314;
+  public mjSolverStat_ solver1315;
+  public mjSolverStat_ solver1316;
+  public mjSolverStat_ solver1317;
+  public mjSolverStat_ solver1318;
+  public mjSolverStat_ solver1319;
+  public mjSolverStat_ solver1320;
+  public mjSolverStat_ solver1321;
+  public mjSolverStat_ solver1322;
+  public mjSolverStat_ solver1323;
+  public mjSolverStat_ solver1324;
+  public mjSolverStat_ solver1325;
+  public mjSolverStat_ solver1326;
+  public mjSolverStat_ solver1327;
+  public mjSolverStat_ solver1328;
+  public mjSolverStat_ solver1329;
+  public mjSolverStat_ solver1330;
+  public mjSolverStat_ solver1331;
+  public mjSolverStat_ solver1332;
+  public mjSolverStat_ solver1333;
+  public mjSolverStat_ solver1334;
+  public mjSolverStat_ solver1335;
+  public mjSolverStat_ solver1336;
+  public mjSolverStat_ solver1337;
+  public mjSolverStat_ solver1338;
+  public mjSolverStat_ solver1339;
+  public mjSolverStat_ solver1340;
+  public mjSolverStat_ solver1341;
+  public mjSolverStat_ solver1342;
+  public mjSolverStat_ solver1343;
+  public mjSolverStat_ solver1344;
+  public mjSolverStat_ solver1345;
+  public mjSolverStat_ solver1346;
+  public mjSolverStat_ solver1347;
+  public mjSolverStat_ solver1348;
+  public mjSolverStat_ solver1349;
+  public mjSolverStat_ solver1350;
+  public mjSolverStat_ solver1351;
+  public mjSolverStat_ solver1352;
+  public mjSolverStat_ solver1353;
+  public mjSolverStat_ solver1354;
+  public mjSolverStat_ solver1355;
+  public mjSolverStat_ solver1356;
+  public mjSolverStat_ solver1357;
+  public mjSolverStat_ solver1358;
+  public mjSolverStat_ solver1359;
+  public mjSolverStat_ solver1360;
+  public mjSolverStat_ solver1361;
+  public mjSolverStat_ solver1362;
+  public mjSolverStat_ solver1363;
+  public mjSolverStat_ solver1364;
+  public mjSolverStat_ solver1365;
+  public mjSolverStat_ solver1366;
+  public mjSolverStat_ solver1367;
+  public mjSolverStat_ solver1368;
+  public mjSolverStat_ solver1369;
+  public mjSolverStat_ solver1370;
+  public mjSolverStat_ solver1371;
+  public mjSolverStat_ solver1372;
+  public mjSolverStat_ solver1373;
+  public mjSolverStat_ solver1374;
+  public mjSolverStat_ solver1375;
+  public mjSolverStat_ solver1376;
+  public mjSolverStat_ solver1377;
+  public mjSolverStat_ solver1378;
+  public mjSolverStat_ solver1379;
+  public mjSolverStat_ solver1380;
+  public mjSolverStat_ solver1381;
+  public mjSolverStat_ solver1382;
+  public mjSolverStat_ solver1383;
+  public mjSolverStat_ solver1384;
+  public mjSolverStat_ solver1385;
+  public mjSolverStat_ solver1386;
+  public mjSolverStat_ solver1387;
+  public mjSolverStat_ solver1388;
+  public mjSolverStat_ solver1389;
+  public mjSolverStat_ solver1390;
+  public mjSolverStat_ solver1391;
+  public mjSolverStat_ solver1392;
+  public mjSolverStat_ solver1393;
+  public mjSolverStat_ solver1394;
+  public mjSolverStat_ solver1395;
+  public mjSolverStat_ solver1396;
+  public mjSolverStat_ solver1397;
+  public mjSolverStat_ solver1398;
+  public mjSolverStat_ solver1399;
+  public mjSolverStat_ solver1400;
+  public mjSolverStat_ solver1401;
+  public mjSolverStat_ solver1402;
+  public mjSolverStat_ solver1403;
+  public mjSolverStat_ solver1404;
+  public mjSolverStat_ solver1405;
+  public mjSolverStat_ solver1406;
+  public mjSolverStat_ solver1407;
+  public mjSolverStat_ solver1408;
+  public mjSolverStat_ solver1409;
+  public mjSolverStat_ solver1410;
+  public mjSolverStat_ solver1411;
+  public mjSolverStat_ solver1412;
+  public mjSolverStat_ solver1413;
+  public mjSolverStat_ solver1414;
+  public mjSolverStat_ solver1415;
+  public mjSolverStat_ solver1416;
+  public mjSolverStat_ solver1417;
+  public mjSolverStat_ solver1418;
+  public mjSolverStat_ solver1419;
+  public mjSolverStat_ solver1420;
+  public mjSolverStat_ solver1421;
+  public mjSolverStat_ solver1422;
+  public mjSolverStat_ solver1423;
+  public mjSolverStat_ solver1424;
+  public mjSolverStat_ solver1425;
+  public mjSolverStat_ solver1426;
+  public mjSolverStat_ solver1427;
+  public mjSolverStat_ solver1428;
+  public mjSolverStat_ solver1429;
+  public mjSolverStat_ solver1430;
+  public mjSolverStat_ solver1431;
+  public mjSolverStat_ solver1432;
+  public mjSolverStat_ solver1433;
+  public mjSolverStat_ solver1434;
+  public mjSolverStat_ solver1435;
+  public mjSolverStat_ solver1436;
+  public mjSolverStat_ solver1437;
+  public mjSolverStat_ solver1438;
+  public mjSolverStat_ solver1439;
+  public mjSolverStat_ solver1440;
+  public mjSolverStat_ solver1441;
+  public mjSolverStat_ solver1442;
+  public mjSolverStat_ solver1443;
+  public mjSolverStat_ solver1444;
+  public mjSolverStat_ solver1445;
+  public mjSolverStat_ solver1446;
+  public mjSolverStat_ solver1447;
+  public mjSolverStat_ solver1448;
+  public mjSolverStat_ solver1449;
+  public mjSolverStat_ solver1450;
+  public mjSolverStat_ solver1451;
+  public mjSolverStat_ solver1452;
+  public mjSolverStat_ solver1453;
+  public mjSolverStat_ solver1454;
+  public mjSolverStat_ solver1455;
+  public mjSolverStat_ solver1456;
+  public mjSolverStat_ solver1457;
+  public mjSolverStat_ solver1458;
+  public mjSolverStat_ solver1459;
+  public mjSolverStat_ solver1460;
+  public mjSolverStat_ solver1461;
+  public mjSolverStat_ solver1462;
+  public mjSolverStat_ solver1463;
+  public mjSolverStat_ solver1464;
+  public mjSolverStat_ solver1465;
+  public mjSolverStat_ solver1466;
+  public mjSolverStat_ solver1467;
+  public mjSolverStat_ solver1468;
+  public mjSolverStat_ solver1469;
+  public mjSolverStat_ solver1470;
+  public mjSolverStat_ solver1471;
+  public mjSolverStat_ solver1472;
+  public mjSolverStat_ solver1473;
+  public mjSolverStat_ solver1474;
+  public mjSolverStat_ solver1475;
+  public mjSolverStat_ solver1476;
+  public mjSolverStat_ solver1477;
+  public mjSolverStat_ solver1478;
+  public mjSolverStat_ solver1479;
+  public mjSolverStat_ solver1480;
+  public mjSolverStat_ solver1481;
+  public mjSolverStat_ solver1482;
+  public mjSolverStat_ solver1483;
+  public mjSolverStat_ solver1484;
+  public mjSolverStat_ solver1485;
+  public mjSolverStat_ solver1486;
+  public mjSolverStat_ solver1487;
+  public mjSolverStat_ solver1488;
+  public mjSolverStat_ solver1489;
+  public mjSolverStat_ solver1490;
+  public mjSolverStat_ solver1491;
+  public mjSolverStat_ solver1492;
+  public mjSolverStat_ solver1493;
+  public mjSolverStat_ solver1494;
+  public mjSolverStat_ solver1495;
+  public mjSolverStat_ solver1496;
+  public mjSolverStat_ solver1497;
+  public mjSolverStat_ solver1498;
+  public mjSolverStat_ solver1499;
+  public mjSolverStat_ solver1500;
+  public mjSolverStat_ solver1501;
+  public mjSolverStat_ solver1502;
+  public mjSolverStat_ solver1503;
+  public mjSolverStat_ solver1504;
+  public mjSolverStat_ solver1505;
+  public mjSolverStat_ solver1506;
+  public mjSolverStat_ solver1507;
+  public mjSolverStat_ solver1508;
+  public mjSolverStat_ solver1509;
+  public mjSolverStat_ solver1510;
+  public mjSolverStat_ solver1511;
+  public mjSolverStat_ solver1512;
+  public mjSolverStat_ solver1513;
+  public mjSolverStat_ solver1514;
+  public mjSolverStat_ solver1515;
+  public mjSolverStat_ solver1516;
+  public mjSolverStat_ solver1517;
+  public mjSolverStat_ solver1518;
+  public mjSolverStat_ solver1519;
+  public mjSolverStat_ solver1520;
+  public mjSolverStat_ solver1521;
+  public mjSolverStat_ solver1522;
+  public mjSolverStat_ solver1523;
+  public mjSolverStat_ solver1524;
+  public mjSolverStat_ solver1525;
+  public mjSolverStat_ solver1526;
+  public mjSolverStat_ solver1527;
+  public mjSolverStat_ solver1528;
+  public mjSolverStat_ solver1529;
+  public mjSolverStat_ solver1530;
+  public mjSolverStat_ solver1531;
+  public mjSolverStat_ solver1532;
+  public mjSolverStat_ solver1533;
+  public mjSolverStat_ solver1534;
+  public mjSolverStat_ solver1535;
+  public mjSolverStat_ solver1536;
+  public mjSolverStat_ solver1537;
+  public mjSolverStat_ solver1538;
+  public mjSolverStat_ solver1539;
+  public mjSolverStat_ solver1540;
+  public mjSolverStat_ solver1541;
+  public mjSolverStat_ solver1542;
+  public mjSolverStat_ solver1543;
+  public mjSolverStat_ solver1544;
+  public mjSolverStat_ solver1545;
+  public mjSolverStat_ solver1546;
+  public mjSolverStat_ solver1547;
+  public mjSolverStat_ solver1548;
+  public mjSolverStat_ solver1549;
+  public mjSolverStat_ solver1550;
+  public mjSolverStat_ solver1551;
+  public mjSolverStat_ solver1552;
+  public mjSolverStat_ solver1553;
+  public mjSolverStat_ solver1554;
+  public mjSolverStat_ solver1555;
+  public mjSolverStat_ solver1556;
+  public mjSolverStat_ solver1557;
+  public mjSolverStat_ solver1558;
+  public mjSolverStat_ solver1559;
+  public mjSolverStat_ solver1560;
+  public mjSolverStat_ solver1561;
+  public mjSolverStat_ solver1562;
+  public mjSolverStat_ solver1563;
+  public mjSolverStat_ solver1564;
+  public mjSolverStat_ solver1565;
+  public mjSolverStat_ solver1566;
+  public mjSolverStat_ solver1567;
+  public mjSolverStat_ solver1568;
+  public mjSolverStat_ solver1569;
+  public mjSolverStat_ solver1570;
+  public mjSolverStat_ solver1571;
+  public mjSolverStat_ solver1572;
+  public mjSolverStat_ solver1573;
+  public mjSolverStat_ solver1574;
+  public mjSolverStat_ solver1575;
+  public mjSolverStat_ solver1576;
+  public mjSolverStat_ solver1577;
+  public mjSolverStat_ solver1578;
+  public mjSolverStat_ solver1579;
+  public mjSolverStat_ solver1580;
+  public mjSolverStat_ solver1581;
+  public mjSolverStat_ solver1582;
+  public mjSolverStat_ solver1583;
+  public mjSolverStat_ solver1584;
+  public mjSolverStat_ solver1585;
+  public mjSolverStat_ solver1586;
+  public mjSolverStat_ solver1587;
+  public mjSolverStat_ solver1588;
+  public mjSolverStat_ solver1589;
+  public mjSolverStat_ solver1590;
+  public mjSolverStat_ solver1591;
+  public mjSolverStat_ solver1592;
+  public mjSolverStat_ solver1593;
+  public mjSolverStat_ solver1594;
+  public mjSolverStat_ solver1595;
+  public mjSolverStat_ solver1596;
+  public mjSolverStat_ solver1597;
+  public mjSolverStat_ solver1598;
+  public mjSolverStat_ solver1599;
+  public mjSolverStat_ solver1600;
+  public mjSolverStat_ solver1601;
+  public mjSolverStat_ solver1602;
+  public mjSolverStat_ solver1603;
+  public mjSolverStat_ solver1604;
+  public mjSolverStat_ solver1605;
+  public mjSolverStat_ solver1606;
+  public mjSolverStat_ solver1607;
+  public mjSolverStat_ solver1608;
+  public mjSolverStat_ solver1609;
+  public mjSolverStat_ solver1610;
+  public mjSolverStat_ solver1611;
+  public mjSolverStat_ solver1612;
+  public mjSolverStat_ solver1613;
+  public mjSolverStat_ solver1614;
+  public mjSolverStat_ solver1615;
+  public mjSolverStat_ solver1616;
+  public mjSolverStat_ solver1617;
+  public mjSolverStat_ solver1618;
+  public mjSolverStat_ solver1619;
+  public mjSolverStat_ solver1620;
+  public mjSolverStat_ solver1621;
+  public mjSolverStat_ solver1622;
+  public mjSolverStat_ solver1623;
+  public mjSolverStat_ solver1624;
+  public mjSolverStat_ solver1625;
+  public mjSolverStat_ solver1626;
+  public mjSolverStat_ solver1627;
+  public mjSolverStat_ solver1628;
+  public mjSolverStat_ solver1629;
+  public mjSolverStat_ solver1630;
+  public mjSolverStat_ solver1631;
+  public mjSolverStat_ solver1632;
+  public mjSolverStat_ solver1633;
+  public mjSolverStat_ solver1634;
+  public mjSolverStat_ solver1635;
+  public mjSolverStat_ solver1636;
+  public mjSolverStat_ solver1637;
+  public mjSolverStat_ solver1638;
+  public mjSolverStat_ solver1639;
+  public mjSolverStat_ solver1640;
+  public mjSolverStat_ solver1641;
+  public mjSolverStat_ solver1642;
+  public mjSolverStat_ solver1643;
+  public mjSolverStat_ solver1644;
+  public mjSolverStat_ solver1645;
+  public mjSolverStat_ solver1646;
+  public mjSolverStat_ solver1647;
+  public mjSolverStat_ solver1648;
+  public mjSolverStat_ solver1649;
+  public mjSolverStat_ solver1650;
+  public mjSolverStat_ solver1651;
+  public mjSolverStat_ solver1652;
+  public mjSolverStat_ solver1653;
+  public mjSolverStat_ solver1654;
+  public mjSolverStat_ solver1655;
+  public mjSolverStat_ solver1656;
+  public mjSolverStat_ solver1657;
+  public mjSolverStat_ solver1658;
+  public mjSolverStat_ solver1659;
+  public mjSolverStat_ solver1660;
+  public mjSolverStat_ solver1661;
+  public mjSolverStat_ solver1662;
+  public mjSolverStat_ solver1663;
+  public mjSolverStat_ solver1664;
+  public mjSolverStat_ solver1665;
+  public mjSolverStat_ solver1666;
+  public mjSolverStat_ solver1667;
+  public mjSolverStat_ solver1668;
+  public mjSolverStat_ solver1669;
+  public mjSolverStat_ solver1670;
+  public mjSolverStat_ solver1671;
+  public mjSolverStat_ solver1672;
+  public mjSolverStat_ solver1673;
+  public mjSolverStat_ solver1674;
+  public mjSolverStat_ solver1675;
+  public mjSolverStat_ solver1676;
+  public mjSolverStat_ solver1677;
+  public mjSolverStat_ solver1678;
+  public mjSolverStat_ solver1679;
+  public mjSolverStat_ solver1680;
+  public mjSolverStat_ solver1681;
+  public mjSolverStat_ solver1682;
+  public mjSolverStat_ solver1683;
+  public mjSolverStat_ solver1684;
+  public mjSolverStat_ solver1685;
+  public mjSolverStat_ solver1686;
+  public mjSolverStat_ solver1687;
+  public mjSolverStat_ solver1688;
+  public mjSolverStat_ solver1689;
+  public mjSolverStat_ solver1690;
+  public mjSolverStat_ solver1691;
+  public mjSolverStat_ solver1692;
+  public mjSolverStat_ solver1693;
+  public mjSolverStat_ solver1694;
+  public mjSolverStat_ solver1695;
+  public mjSolverStat_ solver1696;
+  public mjSolverStat_ solver1697;
+  public mjSolverStat_ solver1698;
+  public mjSolverStat_ solver1699;
+  public mjSolverStat_ solver1700;
+  public mjSolverStat_ solver1701;
+  public mjSolverStat_ solver1702;
+  public mjSolverStat_ solver1703;
+  public mjSolverStat_ solver1704;
+  public mjSolverStat_ solver1705;
+  public mjSolverStat_ solver1706;
+  public mjSolverStat_ solver1707;
+  public mjSolverStat_ solver1708;
+  public mjSolverStat_ solver1709;
+  public mjSolverStat_ solver1710;
+  public mjSolverStat_ solver1711;
+  public mjSolverStat_ solver1712;
+  public mjSolverStat_ solver1713;
+  public mjSolverStat_ solver1714;
+  public mjSolverStat_ solver1715;
+  public mjSolverStat_ solver1716;
+  public mjSolverStat_ solver1717;
+  public mjSolverStat_ solver1718;
+  public mjSolverStat_ solver1719;
+  public mjSolverStat_ solver1720;
+  public mjSolverStat_ solver1721;
+  public mjSolverStat_ solver1722;
+  public mjSolverStat_ solver1723;
+  public mjSolverStat_ solver1724;
+  public mjSolverStat_ solver1725;
+  public mjSolverStat_ solver1726;
+  public mjSolverStat_ solver1727;
+  public mjSolverStat_ solver1728;
+  public mjSolverStat_ solver1729;
+  public mjSolverStat_ solver1730;
+  public mjSolverStat_ solver1731;
+  public mjSolverStat_ solver1732;
+  public mjSolverStat_ solver1733;
+  public mjSolverStat_ solver1734;
+  public mjSolverStat_ solver1735;
+  public mjSolverStat_ solver1736;
+  public mjSolverStat_ solver1737;
+  public mjSolverStat_ solver1738;
+  public mjSolverStat_ solver1739;
+  public mjSolverStat_ solver1740;
+  public mjSolverStat_ solver1741;
+  public mjSolverStat_ solver1742;
+  public mjSolverStat_ solver1743;
+  public mjSolverStat_ solver1744;
+  public mjSolverStat_ solver1745;
+  public mjSolverStat_ solver1746;
+  public mjSolverStat_ solver1747;
+  public mjSolverStat_ solver1748;
+  public mjSolverStat_ solver1749;
+  public mjSolverStat_ solver1750;
+  public mjSolverStat_ solver1751;
+  public mjSolverStat_ solver1752;
+  public mjSolverStat_ solver1753;
+  public mjSolverStat_ solver1754;
+  public mjSolverStat_ solver1755;
+  public mjSolverStat_ solver1756;
+  public mjSolverStat_ solver1757;
+  public mjSolverStat_ solver1758;
+  public mjSolverStat_ solver1759;
+  public mjSolverStat_ solver1760;
+  public mjSolverStat_ solver1761;
+  public mjSolverStat_ solver1762;
+  public mjSolverStat_ solver1763;
+  public mjSolverStat_ solver1764;
+  public mjSolverStat_ solver1765;
+  public mjSolverStat_ solver1766;
+  public mjSolverStat_ solver1767;
+  public mjSolverStat_ solver1768;
+  public mjSolverStat_ solver1769;
+  public mjSolverStat_ solver1770;
+  public mjSolverStat_ solver1771;
+  public mjSolverStat_ solver1772;
+  public mjSolverStat_ solver1773;
+  public mjSolverStat_ solver1774;
+  public mjSolverStat_ solver1775;
+  public mjSolverStat_ solver1776;
+  public mjSolverStat_ solver1777;
+  public mjSolverStat_ solver1778;
+  public mjSolverStat_ solver1779;
+  public mjSolverStat_ solver1780;
+  public mjSolverStat_ solver1781;
+  public mjSolverStat_ solver1782;
+  public mjSolverStat_ solver1783;
+  public mjSolverStat_ solver1784;
+  public mjSolverStat_ solver1785;
+  public mjSolverStat_ solver1786;
+  public mjSolverStat_ solver1787;
+  public mjSolverStat_ solver1788;
+  public mjSolverStat_ solver1789;
+  public mjSolverStat_ solver1790;
+  public mjSolverStat_ solver1791;
+  public mjSolverStat_ solver1792;
+  public mjSolverStat_ solver1793;
+  public mjSolverStat_ solver1794;
+  public mjSolverStat_ solver1795;
+  public mjSolverStat_ solver1796;
+  public mjSolverStat_ solver1797;
+  public mjSolverStat_ solver1798;
+  public mjSolverStat_ solver1799;
+  public mjSolverStat_ solver1800;
+  public mjSolverStat_ solver1801;
+  public mjSolverStat_ solver1802;
+  public mjSolverStat_ solver1803;
+  public mjSolverStat_ solver1804;
+  public mjSolverStat_ solver1805;
+  public mjSolverStat_ solver1806;
+  public mjSolverStat_ solver1807;
+  public mjSolverStat_ solver1808;
+  public mjSolverStat_ solver1809;
+  public mjSolverStat_ solver1810;
+  public mjSolverStat_ solver1811;
+  public mjSolverStat_ solver1812;
+  public mjSolverStat_ solver1813;
+  public mjSolverStat_ solver1814;
+  public mjSolverStat_ solver1815;
+  public mjSolverStat_ solver1816;
+  public mjSolverStat_ solver1817;
+  public mjSolverStat_ solver1818;
+  public mjSolverStat_ solver1819;
+  public mjSolverStat_ solver1820;
+  public mjSolverStat_ solver1821;
+  public mjSolverStat_ solver1822;
+  public mjSolverStat_ solver1823;
+  public mjSolverStat_ solver1824;
+  public mjSolverStat_ solver1825;
+  public mjSolverStat_ solver1826;
+  public mjSolverStat_ solver1827;
+  public mjSolverStat_ solver1828;
+  public mjSolverStat_ solver1829;
+  public mjSolverStat_ solver1830;
+  public mjSolverStat_ solver1831;
+  public mjSolverStat_ solver1832;
+  public mjSolverStat_ solver1833;
+  public mjSolverStat_ solver1834;
+  public mjSolverStat_ solver1835;
+  public mjSolverStat_ solver1836;
+  public mjSolverStat_ solver1837;
+  public mjSolverStat_ solver1838;
+  public mjSolverStat_ solver1839;
+  public mjSolverStat_ solver1840;
+  public mjSolverStat_ solver1841;
+  public mjSolverStat_ solver1842;
+  public mjSolverStat_ solver1843;
+  public mjSolverStat_ solver1844;
+  public mjSolverStat_ solver1845;
+  public mjSolverStat_ solver1846;
+  public mjSolverStat_ solver1847;
+  public mjSolverStat_ solver1848;
+  public mjSolverStat_ solver1849;
+  public mjSolverStat_ solver1850;
+  public mjSolverStat_ solver1851;
+  public mjSolverStat_ solver1852;
+  public mjSolverStat_ solver1853;
+  public mjSolverStat_ solver1854;
+  public mjSolverStat_ solver1855;
+  public mjSolverStat_ solver1856;
+  public mjSolverStat_ solver1857;
+  public mjSolverStat_ solver1858;
+  public mjSolverStat_ solver1859;
+  public mjSolverStat_ solver1860;
+  public mjSolverStat_ solver1861;
+  public mjSolverStat_ solver1862;
+  public mjSolverStat_ solver1863;
+  public mjSolverStat_ solver1864;
+  public mjSolverStat_ solver1865;
+  public mjSolverStat_ solver1866;
+  public mjSolverStat_ solver1867;
+  public mjSolverStat_ solver1868;
+  public mjSolverStat_ solver1869;
+  public mjSolverStat_ solver1870;
+  public mjSolverStat_ solver1871;
+  public mjSolverStat_ solver1872;
+  public mjSolverStat_ solver1873;
+  public mjSolverStat_ solver1874;
+  public mjSolverStat_ solver1875;
+  public mjSolverStat_ solver1876;
+  public mjSolverStat_ solver1877;
+  public mjSolverStat_ solver1878;
+  public mjSolverStat_ solver1879;
+  public mjSolverStat_ solver1880;
+  public mjSolverStat_ solver1881;
+  public mjSolverStat_ solver1882;
+  public mjSolverStat_ solver1883;
+  public mjSolverStat_ solver1884;
+  public mjSolverStat_ solver1885;
+  public mjSolverStat_ solver1886;
+  public mjSolverStat_ solver1887;
+  public mjSolverStat_ solver1888;
+  public mjSolverStat_ solver1889;
+  public mjSolverStat_ solver1890;
+  public mjSolverStat_ solver1891;
+  public mjSolverStat_ solver1892;
+  public mjSolverStat_ solver1893;
+  public mjSolverStat_ solver1894;
+  public mjSolverStat_ solver1895;
+  public mjSolverStat_ solver1896;
+  public mjSolverStat_ solver1897;
+  public mjSolverStat_ solver1898;
+  public mjSolverStat_ solver1899;
+  public mjSolverStat_ solver1900;
+  public mjSolverStat_ solver1901;
+  public mjSolverStat_ solver1902;
+  public mjSolverStat_ solver1903;
+  public mjSolverStat_ solver1904;
+  public mjSolverStat_ solver1905;
+  public mjSolverStat_ solver1906;
+  public mjSolverStat_ solver1907;
+  public mjSolverStat_ solver1908;
+  public mjSolverStat_ solver1909;
+  public mjSolverStat_ solver1910;
+  public mjSolverStat_ solver1911;
+  public mjSolverStat_ solver1912;
+  public mjSolverStat_ solver1913;
+  public mjSolverStat_ solver1914;
+  public mjSolverStat_ solver1915;
+  public mjSolverStat_ solver1916;
+  public mjSolverStat_ solver1917;
+  public mjSolverStat_ solver1918;
+  public mjSolverStat_ solver1919;
+  public mjSolverStat_ solver1920;
+  public mjSolverStat_ solver1921;
+  public mjSolverStat_ solver1922;
+  public mjSolverStat_ solver1923;
+  public mjSolverStat_ solver1924;
+  public mjSolverStat_ solver1925;
+  public mjSolverStat_ solver1926;
+  public mjSolverStat_ solver1927;
+  public mjSolverStat_ solver1928;
+  public mjSolverStat_ solver1929;
+  public mjSolverStat_ solver1930;
+  public mjSolverStat_ solver1931;
+  public mjSolverStat_ solver1932;
+  public mjSolverStat_ solver1933;
+  public mjSolverStat_ solver1934;
+  public mjSolverStat_ solver1935;
+  public mjSolverStat_ solver1936;
+  public mjSolverStat_ solver1937;
+  public mjSolverStat_ solver1938;
+  public mjSolverStat_ solver1939;
+  public mjSolverStat_ solver1940;
+  public mjSolverStat_ solver1941;
+  public mjSolverStat_ solver1942;
+  public mjSolverStat_ solver1943;
+  public mjSolverStat_ solver1944;
+  public mjSolverStat_ solver1945;
+  public mjSolverStat_ solver1946;
+  public mjSolverStat_ solver1947;
+  public mjSolverStat_ solver1948;
+  public mjSolverStat_ solver1949;
+  public mjSolverStat_ solver1950;
+  public mjSolverStat_ solver1951;
+  public mjSolverStat_ solver1952;
+  public mjSolverStat_ solver1953;
+  public mjSolverStat_ solver1954;
+  public mjSolverStat_ solver1955;
+  public mjSolverStat_ solver1956;
+  public mjSolverStat_ solver1957;
+  public mjSolverStat_ solver1958;
+  public mjSolverStat_ solver1959;
+  public mjSolverStat_ solver1960;
+  public mjSolverStat_ solver1961;
+  public mjSolverStat_ solver1962;
+  public mjSolverStat_ solver1963;
+  public mjSolverStat_ solver1964;
+  public mjSolverStat_ solver1965;
+  public mjSolverStat_ solver1966;
+  public mjSolverStat_ solver1967;
+  public mjSolverStat_ solver1968;
+  public mjSolverStat_ solver1969;
+  public mjSolverStat_ solver1970;
+  public mjSolverStat_ solver1971;
+  public mjSolverStat_ solver1972;
+  public mjSolverStat_ solver1973;
+  public mjSolverStat_ solver1974;
+  public mjSolverStat_ solver1975;
+  public mjSolverStat_ solver1976;
+  public mjSolverStat_ solver1977;
+  public mjSolverStat_ solver1978;
+  public mjSolverStat_ solver1979;
+  public mjSolverStat_ solver1980;
+  public mjSolverStat_ solver1981;
+  public mjSolverStat_ solver1982;
+  public mjSolverStat_ solver1983;
+  public mjSolverStat_ solver1984;
+  public mjSolverStat_ solver1985;
+  public mjSolverStat_ solver1986;
+  public mjSolverStat_ solver1987;
+  public mjSolverStat_ solver1988;
+  public mjSolverStat_ solver1989;
+  public mjSolverStat_ solver1990;
+  public mjSolverStat_ solver1991;
+  public mjSolverStat_ solver1992;
+  public mjSolverStat_ solver1993;
+  public mjSolverStat_ solver1994;
+  public mjSolverStat_ solver1995;
+  public mjSolverStat_ solver1996;
+  public mjSolverStat_ solver1997;
+  public mjSolverStat_ solver1998;
+  public mjSolverStat_ solver1999;
+  public mjSolverStat_ solver2000;
+  public mjSolverStat_ solver2001;
+  public mjSolverStat_ solver2002;
+  public mjSolverStat_ solver2003;
+  public mjSolverStat_ solver2004;
+  public mjSolverStat_ solver2005;
+  public mjSolverStat_ solver2006;
+  public mjSolverStat_ solver2007;
+  public mjSolverStat_ solver2008;
+  public mjSolverStat_ solver2009;
+  public mjSolverStat_ solver2010;
+  public mjSolverStat_ solver2011;
+  public mjSolverStat_ solver2012;
+  public mjSolverStat_ solver2013;
+  public mjSolverStat_ solver2014;
+  public mjSolverStat_ solver2015;
+  public mjSolverStat_ solver2016;
+  public mjSolverStat_ solver2017;
+  public mjSolverStat_ solver2018;
+  public mjSolverStat_ solver2019;
+  public mjSolverStat_ solver2020;
+  public mjSolverStat_ solver2021;
+  public mjSolverStat_ solver2022;
+  public mjSolverStat_ solver2023;
+  public mjSolverStat_ solver2024;
+  public mjSolverStat_ solver2025;
+  public mjSolverStat_ solver2026;
+  public mjSolverStat_ solver2027;
+  public mjSolverStat_ solver2028;
+  public mjSolverStat_ solver2029;
+  public mjSolverStat_ solver2030;
+  public mjSolverStat_ solver2031;
+  public mjSolverStat_ solver2032;
+  public mjSolverStat_ solver2033;
+  public mjSolverStat_ solver2034;
+  public mjSolverStat_ solver2035;
+  public mjSolverStat_ solver2036;
+  public mjSolverStat_ solver2037;
+  public mjSolverStat_ solver2038;
+  public mjSolverStat_ solver2039;
+  public mjSolverStat_ solver2040;
+  public mjSolverStat_ solver2041;
+  public mjSolverStat_ solver2042;
+  public mjSolverStat_ solver2043;
+  public mjSolverStat_ solver2044;
+  public mjSolverStat_ solver2045;
+  public mjSolverStat_ solver2046;
+  public mjSolverStat_ solver2047;
+  public mjSolverStat_ solver2048;
+  public mjSolverStat_ solver2049;
+  public mjSolverStat_ solver2050;
+  public mjSolverStat_ solver2051;
+  public mjSolverStat_ solver2052;
+  public mjSolverStat_ solver2053;
+  public mjSolverStat_ solver2054;
+  public mjSolverStat_ solver2055;
+  public mjSolverStat_ solver2056;
+  public mjSolverStat_ solver2057;
+  public mjSolverStat_ solver2058;
+  public mjSolverStat_ solver2059;
+  public mjSolverStat_ solver2060;
+  public mjSolverStat_ solver2061;
+  public mjSolverStat_ solver2062;
+  public mjSolverStat_ solver2063;
+  public mjSolverStat_ solver2064;
+  public mjSolverStat_ solver2065;
+  public mjSolverStat_ solver2066;
+  public mjSolverStat_ solver2067;
+  public mjSolverStat_ solver2068;
+  public mjSolverStat_ solver2069;
+  public mjSolverStat_ solver2070;
+  public mjSolverStat_ solver2071;
+  public mjSolverStat_ solver2072;
+  public mjSolverStat_ solver2073;
+  public mjSolverStat_ solver2074;
+  public mjSolverStat_ solver2075;
+  public mjSolverStat_ solver2076;
+  public mjSolverStat_ solver2077;
+  public mjSolverStat_ solver2078;
+  public mjSolverStat_ solver2079;
+  public mjSolverStat_ solver2080;
+  public mjSolverStat_ solver2081;
+  public mjSolverStat_ solver2082;
+  public mjSolverStat_ solver2083;
+  public mjSolverStat_ solver2084;
+  public mjSolverStat_ solver2085;
+  public mjSolverStat_ solver2086;
+  public mjSolverStat_ solver2087;
+  public mjSolverStat_ solver2088;
+  public mjSolverStat_ solver2089;
+  public mjSolverStat_ solver2090;
+  public mjSolverStat_ solver2091;
+  public mjSolverStat_ solver2092;
+  public mjSolverStat_ solver2093;
+  public mjSolverStat_ solver2094;
+  public mjSolverStat_ solver2095;
+  public mjSolverStat_ solver2096;
+  public mjSolverStat_ solver2097;
+  public mjSolverStat_ solver2098;
+  public mjSolverStat_ solver2099;
+  public mjSolverStat_ solver2100;
+  public mjSolverStat_ solver2101;
+  public mjSolverStat_ solver2102;
+  public mjSolverStat_ solver2103;
+  public mjSolverStat_ solver2104;
+  public mjSolverStat_ solver2105;
+  public mjSolverStat_ solver2106;
+  public mjSolverStat_ solver2107;
+  public mjSolverStat_ solver2108;
+  public mjSolverStat_ solver2109;
+  public mjSolverStat_ solver2110;
+  public mjSolverStat_ solver2111;
+  public mjSolverStat_ solver2112;
+  public mjSolverStat_ solver2113;
+  public mjSolverStat_ solver2114;
+  public mjSolverStat_ solver2115;
+  public mjSolverStat_ solver2116;
+  public mjSolverStat_ solver2117;
+  public mjSolverStat_ solver2118;
+  public mjSolverStat_ solver2119;
+  public mjSolverStat_ solver2120;
+  public mjSolverStat_ solver2121;
+  public mjSolverStat_ solver2122;
+  public mjSolverStat_ solver2123;
+  public mjSolverStat_ solver2124;
+  public mjSolverStat_ solver2125;
+  public mjSolverStat_ solver2126;
+  public mjSolverStat_ solver2127;
+  public mjSolverStat_ solver2128;
+  public mjSolverStat_ solver2129;
+  public mjSolverStat_ solver2130;
+  public mjSolverStat_ solver2131;
+  public mjSolverStat_ solver2132;
+  public mjSolverStat_ solver2133;
+  public mjSolverStat_ solver2134;
+  public mjSolverStat_ solver2135;
+  public mjSolverStat_ solver2136;
+  public mjSolverStat_ solver2137;
+  public mjSolverStat_ solver2138;
+  public mjSolverStat_ solver2139;
+  public mjSolverStat_ solver2140;
+  public mjSolverStat_ solver2141;
+  public mjSolverStat_ solver2142;
+  public mjSolverStat_ solver2143;
+  public mjSolverStat_ solver2144;
+  public mjSolverStat_ solver2145;
+  public mjSolverStat_ solver2146;
+  public mjSolverStat_ solver2147;
+  public mjSolverStat_ solver2148;
+  public mjSolverStat_ solver2149;
+  public mjSolverStat_ solver2150;
+  public mjSolverStat_ solver2151;
+  public mjSolverStat_ solver2152;
+  public mjSolverStat_ solver2153;
+  public mjSolverStat_ solver2154;
+  public mjSolverStat_ solver2155;
+  public mjSolverStat_ solver2156;
+  public mjSolverStat_ solver2157;
+  public mjSolverStat_ solver2158;
+  public mjSolverStat_ solver2159;
+  public mjSolverStat_ solver2160;
+  public mjSolverStat_ solver2161;
+  public mjSolverStat_ solver2162;
+  public mjSolverStat_ solver2163;
+  public mjSolverStat_ solver2164;
+  public mjSolverStat_ solver2165;
+  public mjSolverStat_ solver2166;
+  public mjSolverStat_ solver2167;
+  public mjSolverStat_ solver2168;
+  public mjSolverStat_ solver2169;
+  public mjSolverStat_ solver2170;
+  public mjSolverStat_ solver2171;
+  public mjSolverStat_ solver2172;
+  public mjSolverStat_ solver2173;
+  public mjSolverStat_ solver2174;
+  public mjSolverStat_ solver2175;
+  public mjSolverStat_ solver2176;
+  public mjSolverStat_ solver2177;
+  public mjSolverStat_ solver2178;
+  public mjSolverStat_ solver2179;
+  public mjSolverStat_ solver2180;
+  public mjSolverStat_ solver2181;
+  public mjSolverStat_ solver2182;
+  public mjSolverStat_ solver2183;
+  public mjSolverStat_ solver2184;
+  public mjSolverStat_ solver2185;
+  public mjSolverStat_ solver2186;
+  public mjSolverStat_ solver2187;
+  public mjSolverStat_ solver2188;
+  public mjSolverStat_ solver2189;
+  public mjSolverStat_ solver2190;
+  public mjSolverStat_ solver2191;
+  public mjSolverStat_ solver2192;
+  public mjSolverStat_ solver2193;
+  public mjSolverStat_ solver2194;
+  public mjSolverStat_ solver2195;
+  public mjSolverStat_ solver2196;
+  public mjSolverStat_ solver2197;
+  public mjSolverStat_ solver2198;
+  public mjSolverStat_ solver2199;
+  public mjSolverStat_ solver2200;
+  public mjSolverStat_ solver2201;
+  public mjSolverStat_ solver2202;
+  public mjSolverStat_ solver2203;
+  public mjSolverStat_ solver2204;
+  public mjSolverStat_ solver2205;
+  public mjSolverStat_ solver2206;
+  public mjSolverStat_ solver2207;
+  public mjSolverStat_ solver2208;
+  public mjSolverStat_ solver2209;
+  public mjSolverStat_ solver2210;
+  public mjSolverStat_ solver2211;
+  public mjSolverStat_ solver2212;
+  public mjSolverStat_ solver2213;
+  public mjSolverStat_ solver2214;
+  public mjSolverStat_ solver2215;
+  public mjSolverStat_ solver2216;
+  public mjSolverStat_ solver2217;
+  public mjSolverStat_ solver2218;
+  public mjSolverStat_ solver2219;
+  public mjSolverStat_ solver2220;
+  public mjSolverStat_ solver2221;
+  public mjSolverStat_ solver2222;
+  public mjSolverStat_ solver2223;
+  public mjSolverStat_ solver2224;
+  public mjSolverStat_ solver2225;
+  public mjSolverStat_ solver2226;
+  public mjSolverStat_ solver2227;
+  public mjSolverStat_ solver2228;
+  public mjSolverStat_ solver2229;
+  public mjSolverStat_ solver2230;
+  public mjSolverStat_ solver2231;
+  public mjSolverStat_ solver2232;
+  public mjSolverStat_ solver2233;
+  public mjSolverStat_ solver2234;
+  public mjSolverStat_ solver2235;
+  public mjSolverStat_ solver2236;
+  public mjSolverStat_ solver2237;
+  public mjSolverStat_ solver2238;
+  public mjSolverStat_ solver2239;
+  public mjSolverStat_ solver2240;
+  public mjSolverStat_ solver2241;
+  public mjSolverStat_ solver2242;
+  public mjSolverStat_ solver2243;
+  public mjSolverStat_ solver2244;
+  public mjSolverStat_ solver2245;
+  public mjSolverStat_ solver2246;
+  public mjSolverStat_ solver2247;
+  public mjSolverStat_ solver2248;
+  public mjSolverStat_ solver2249;
+  public mjSolverStat_ solver2250;
+  public mjSolverStat_ solver2251;
+  public mjSolverStat_ solver2252;
+  public mjSolverStat_ solver2253;
+  public mjSolverStat_ solver2254;
+  public mjSolverStat_ solver2255;
+  public mjSolverStat_ solver2256;
+  public mjSolverStat_ solver2257;
+  public mjSolverStat_ solver2258;
+  public mjSolverStat_ solver2259;
+  public mjSolverStat_ solver2260;
+  public mjSolverStat_ solver2261;
+  public mjSolverStat_ solver2262;
+  public mjSolverStat_ solver2263;
+  public mjSolverStat_ solver2264;
+  public mjSolverStat_ solver2265;
+  public mjSolverStat_ solver2266;
+  public mjSolverStat_ solver2267;
+  public mjSolverStat_ solver2268;
+  public mjSolverStat_ solver2269;
+  public mjSolverStat_ solver2270;
+  public mjSolverStat_ solver2271;
+  public mjSolverStat_ solver2272;
+  public mjSolverStat_ solver2273;
+  public mjSolverStat_ solver2274;
+  public mjSolverStat_ solver2275;
+  public mjSolverStat_ solver2276;
+  public mjSolverStat_ solver2277;
+  public mjSolverStat_ solver2278;
+  public mjSolverStat_ solver2279;
+  public mjSolverStat_ solver2280;
+  public mjSolverStat_ solver2281;
+  public mjSolverStat_ solver2282;
+  public mjSolverStat_ solver2283;
+  public mjSolverStat_ solver2284;
+  public mjSolverStat_ solver2285;
+  public mjSolverStat_ solver2286;
+  public mjSolverStat_ solver2287;
+  public mjSolverStat_ solver2288;
+  public mjSolverStat_ solver2289;
+  public mjSolverStat_ solver2290;
+  public mjSolverStat_ solver2291;
+  public mjSolverStat_ solver2292;
+  public mjSolverStat_ solver2293;
+  public mjSolverStat_ solver2294;
+  public mjSolverStat_ solver2295;
+  public mjSolverStat_ solver2296;
+  public mjSolverStat_ solver2297;
+  public mjSolverStat_ solver2298;
+  public mjSolverStat_ solver2299;
+  public mjSolverStat_ solver2300;
+  public mjSolverStat_ solver2301;
+  public mjSolverStat_ solver2302;
+  public mjSolverStat_ solver2303;
+  public mjSolverStat_ solver2304;
+  public mjSolverStat_ solver2305;
+  public mjSolverStat_ solver2306;
+  public mjSolverStat_ solver2307;
+  public mjSolverStat_ solver2308;
+  public mjSolverStat_ solver2309;
+  public mjSolverStat_ solver2310;
+  public mjSolverStat_ solver2311;
+  public mjSolverStat_ solver2312;
+  public mjSolverStat_ solver2313;
+  public mjSolverStat_ solver2314;
+  public mjSolverStat_ solver2315;
+  public mjSolverStat_ solver2316;
+  public mjSolverStat_ solver2317;
+  public mjSolverStat_ solver2318;
+  public mjSolverStat_ solver2319;
+  public mjSolverStat_ solver2320;
+  public mjSolverStat_ solver2321;
+  public mjSolverStat_ solver2322;
+  public mjSolverStat_ solver2323;
+  public mjSolverStat_ solver2324;
+  public mjSolverStat_ solver2325;
+  public mjSolverStat_ solver2326;
+  public mjSolverStat_ solver2327;
+  public mjSolverStat_ solver2328;
+  public mjSolverStat_ solver2329;
+  public mjSolverStat_ solver2330;
+  public mjSolverStat_ solver2331;
+  public mjSolverStat_ solver2332;
+  public mjSolverStat_ solver2333;
+  public mjSolverStat_ solver2334;
+  public mjSolverStat_ solver2335;
+  public mjSolverStat_ solver2336;
+  public mjSolverStat_ solver2337;
+  public mjSolverStat_ solver2338;
+  public mjSolverStat_ solver2339;
+  public mjSolverStat_ solver2340;
+  public mjSolverStat_ solver2341;
+  public mjSolverStat_ solver2342;
+  public mjSolverStat_ solver2343;
+  public mjSolverStat_ solver2344;
+  public mjSolverStat_ solver2345;
+  public mjSolverStat_ solver2346;
+  public mjSolverStat_ solver2347;
+  public mjSolverStat_ solver2348;
+  public mjSolverStat_ solver2349;
+  public mjSolverStat_ solver2350;
+  public mjSolverStat_ solver2351;
+  public mjSolverStat_ solver2352;
+  public mjSolverStat_ solver2353;
+  public mjSolverStat_ solver2354;
+  public mjSolverStat_ solver2355;
+  public mjSolverStat_ solver2356;
+  public mjSolverStat_ solver2357;
+  public mjSolverStat_ solver2358;
+  public mjSolverStat_ solver2359;
+  public mjSolverStat_ solver2360;
+  public mjSolverStat_ solver2361;
+  public mjSolverStat_ solver2362;
+  public mjSolverStat_ solver2363;
+  public mjSolverStat_ solver2364;
+  public mjSolverStat_ solver2365;
+  public mjSolverStat_ solver2366;
+  public mjSolverStat_ solver2367;
+  public mjSolverStat_ solver2368;
+  public mjSolverStat_ solver2369;
+  public mjSolverStat_ solver2370;
+  public mjSolverStat_ solver2371;
+  public mjSolverStat_ solver2372;
+  public mjSolverStat_ solver2373;
+  public mjSolverStat_ solver2374;
+  public mjSolverStat_ solver2375;
+  public mjSolverStat_ solver2376;
+  public mjSolverStat_ solver2377;
+  public mjSolverStat_ solver2378;
+  public mjSolverStat_ solver2379;
+  public mjSolverStat_ solver2380;
+  public mjSolverStat_ solver2381;
+  public mjSolverStat_ solver2382;
+  public mjSolverStat_ solver2383;
+  public mjSolverStat_ solver2384;
+  public mjSolverStat_ solver2385;
+  public mjSolverStat_ solver2386;
+  public mjSolverStat_ solver2387;
+  public mjSolverStat_ solver2388;
+  public mjSolverStat_ solver2389;
+  public mjSolverStat_ solver2390;
+  public mjSolverStat_ solver2391;
+  public mjSolverStat_ solver2392;
+  public mjSolverStat_ solver2393;
+  public mjSolverStat_ solver2394;
+  public mjSolverStat_ solver2395;
+  public mjSolverStat_ solver2396;
+  public mjSolverStat_ solver2397;
+  public mjSolverStat_ solver2398;
+  public mjSolverStat_ solver2399;
+  public mjSolverStat_ solver2400;
+  public mjSolverStat_ solver2401;
+  public mjSolverStat_ solver2402;
+  public mjSolverStat_ solver2403;
+  public mjSolverStat_ solver2404;
+  public mjSolverStat_ solver2405;
+  public mjSolverStat_ solver2406;
+  public mjSolverStat_ solver2407;
+  public mjSolverStat_ solver2408;
+  public mjSolverStat_ solver2409;
+  public mjSolverStat_ solver2410;
+  public mjSolverStat_ solver2411;
+  public mjSolverStat_ solver2412;
+  public mjSolverStat_ solver2413;
+  public mjSolverStat_ solver2414;
+  public mjSolverStat_ solver2415;
+  public mjSolverStat_ solver2416;
+  public mjSolverStat_ solver2417;
+  public mjSolverStat_ solver2418;
+  public mjSolverStat_ solver2419;
+  public mjSolverStat_ solver2420;
+  public mjSolverStat_ solver2421;
+  public mjSolverStat_ solver2422;
+  public mjSolverStat_ solver2423;
+  public mjSolverStat_ solver2424;
+  public mjSolverStat_ solver2425;
+  public mjSolverStat_ solver2426;
+  public mjSolverStat_ solver2427;
+  public mjSolverStat_ solver2428;
+  public mjSolverStat_ solver2429;
+  public mjSolverStat_ solver2430;
+  public mjSolverStat_ solver2431;
+  public mjSolverStat_ solver2432;
+  public mjSolverStat_ solver2433;
+  public mjSolverStat_ solver2434;
+  public mjSolverStat_ solver2435;
+  public mjSolverStat_ solver2436;
+  public mjSolverStat_ solver2437;
+  public mjSolverStat_ solver2438;
+  public mjSolverStat_ solver2439;
+  public mjSolverStat_ solver2440;
+  public mjSolverStat_ solver2441;
+  public mjSolverStat_ solver2442;
+  public mjSolverStat_ solver2443;
+  public mjSolverStat_ solver2444;
+  public mjSolverStat_ solver2445;
+  public mjSolverStat_ solver2446;
+  public mjSolverStat_ solver2447;
+  public mjSolverStat_ solver2448;
+  public mjSolverStat_ solver2449;
+  public mjSolverStat_ solver2450;
+  public mjSolverStat_ solver2451;
+  public mjSolverStat_ solver2452;
+  public mjSolverStat_ solver2453;
+  public mjSolverStat_ solver2454;
+  public mjSolverStat_ solver2455;
+  public mjSolverStat_ solver2456;
+  public mjSolverStat_ solver2457;
+  public mjSolverStat_ solver2458;
+  public mjSolverStat_ solver2459;
+  public mjSolverStat_ solver2460;
+  public mjSolverStat_ solver2461;
+  public mjSolverStat_ solver2462;
+  public mjSolverStat_ solver2463;
+  public mjSolverStat_ solver2464;
+  public mjSolverStat_ solver2465;
+  public mjSolverStat_ solver2466;
+  public mjSolverStat_ solver2467;
+  public mjSolverStat_ solver2468;
+  public mjSolverStat_ solver2469;
+  public mjSolverStat_ solver2470;
+  public mjSolverStat_ solver2471;
+  public mjSolverStat_ solver2472;
+  public mjSolverStat_ solver2473;
+  public mjSolverStat_ solver2474;
+  public mjSolverStat_ solver2475;
+  public mjSolverStat_ solver2476;
+  public mjSolverStat_ solver2477;
+  public mjSolverStat_ solver2478;
+  public mjSolverStat_ solver2479;
+  public mjSolverStat_ solver2480;
+  public mjSolverStat_ solver2481;
+  public mjSolverStat_ solver2482;
+  public mjSolverStat_ solver2483;
+  public mjSolverStat_ solver2484;
+  public mjSolverStat_ solver2485;
+  public mjSolverStat_ solver2486;
+  public mjSolverStat_ solver2487;
+  public mjSolverStat_ solver2488;
+  public mjSolverStat_ solver2489;
+  public mjSolverStat_ solver2490;
+  public mjSolverStat_ solver2491;
+  public mjSolverStat_ solver2492;
+  public mjSolverStat_ solver2493;
+  public mjSolverStat_ solver2494;
+  public mjSolverStat_ solver2495;
+  public mjSolverStat_ solver2496;
+  public mjSolverStat_ solver2497;
+  public mjSolverStat_ solver2498;
+  public mjSolverStat_ solver2499;
+  public mjSolverStat_ solver2500;
+  public mjSolverStat_ solver2501;
+  public mjSolverStat_ solver2502;
+  public mjSolverStat_ solver2503;
+  public mjSolverStat_ solver2504;
+  public mjSolverStat_ solver2505;
+  public mjSolverStat_ solver2506;
+  public mjSolverStat_ solver2507;
+  public mjSolverStat_ solver2508;
+  public mjSolverStat_ solver2509;
+  public mjSolverStat_ solver2510;
+  public mjSolverStat_ solver2511;
+  public mjSolverStat_ solver2512;
+  public mjSolverStat_ solver2513;
+  public mjSolverStat_ solver2514;
+  public mjSolverStat_ solver2515;
+  public mjSolverStat_ solver2516;
+  public mjSolverStat_ solver2517;
+  public mjSolverStat_ solver2518;
+  public mjSolverStat_ solver2519;
+  public mjSolverStat_ solver2520;
+  public mjSolverStat_ solver2521;
+  public mjSolverStat_ solver2522;
+  public mjSolverStat_ solver2523;
+  public mjSolverStat_ solver2524;
+  public mjSolverStat_ solver2525;
+  public mjSolverStat_ solver2526;
+  public mjSolverStat_ solver2527;
+  public mjSolverStat_ solver2528;
+  public mjSolverStat_ solver2529;
+  public mjSolverStat_ solver2530;
+  public mjSolverStat_ solver2531;
+  public mjSolverStat_ solver2532;
+  public mjSolverStat_ solver2533;
+  public mjSolverStat_ solver2534;
+  public mjSolverStat_ solver2535;
+  public mjSolverStat_ solver2536;
+  public mjSolverStat_ solver2537;
+  public mjSolverStat_ solver2538;
+  public mjSolverStat_ solver2539;
+  public mjSolverStat_ solver2540;
+  public mjSolverStat_ solver2541;
+  public mjSolverStat_ solver2542;
+  public mjSolverStat_ solver2543;
+  public mjSolverStat_ solver2544;
+  public mjSolverStat_ solver2545;
+  public mjSolverStat_ solver2546;
+  public mjSolverStat_ solver2547;
+  public mjSolverStat_ solver2548;
+  public mjSolverStat_ solver2549;
+  public mjSolverStat_ solver2550;
+  public mjSolverStat_ solver2551;
+  public mjSolverStat_ solver2552;
+  public mjSolverStat_ solver2553;
+  public mjSolverStat_ solver2554;
+  public mjSolverStat_ solver2555;
+  public mjSolverStat_ solver2556;
+  public mjSolverStat_ solver2557;
+  public mjSolverStat_ solver2558;
+  public mjSolverStat_ solver2559;
+  public mjSolverStat_ solver2560;
+  public mjSolverStat_ solver2561;
+  public mjSolverStat_ solver2562;
+  public mjSolverStat_ solver2563;
+  public mjSolverStat_ solver2564;
+  public mjSolverStat_ solver2565;
+  public mjSolverStat_ solver2566;
+  public mjSolverStat_ solver2567;
+  public mjSolverStat_ solver2568;
+  public mjSolverStat_ solver2569;
+  public mjSolverStat_ solver2570;
+  public mjSolverStat_ solver2571;
+  public mjSolverStat_ solver2572;
+  public mjSolverStat_ solver2573;
+  public mjSolverStat_ solver2574;
+  public mjSolverStat_ solver2575;
+  public mjSolverStat_ solver2576;
+  public mjSolverStat_ solver2577;
+  public mjSolverStat_ solver2578;
+  public mjSolverStat_ solver2579;
+  public mjSolverStat_ solver2580;
+  public mjSolverStat_ solver2581;
+  public mjSolverStat_ solver2582;
+  public mjSolverStat_ solver2583;
+  public mjSolverStat_ solver2584;
+  public mjSolverStat_ solver2585;
+  public mjSolverStat_ solver2586;
+  public mjSolverStat_ solver2587;
+  public mjSolverStat_ solver2588;
+  public mjSolverStat_ solver2589;
+  public mjSolverStat_ solver2590;
+  public mjSolverStat_ solver2591;
+  public mjSolverStat_ solver2592;
+  public mjSolverStat_ solver2593;
+  public mjSolverStat_ solver2594;
+  public mjSolverStat_ solver2595;
+  public mjSolverStat_ solver2596;
+  public mjSolverStat_ solver2597;
+  public mjSolverStat_ solver2598;
+  public mjSolverStat_ solver2599;
+  public mjSolverStat_ solver2600;
+  public mjSolverStat_ solver2601;
+  public mjSolverStat_ solver2602;
+  public mjSolverStat_ solver2603;
+  public mjSolverStat_ solver2604;
+  public mjSolverStat_ solver2605;
+  public mjSolverStat_ solver2606;
+  public mjSolverStat_ solver2607;
+  public mjSolverStat_ solver2608;
+  public mjSolverStat_ solver2609;
+  public mjSolverStat_ solver2610;
+  public mjSolverStat_ solver2611;
+  public mjSolverStat_ solver2612;
+  public mjSolverStat_ solver2613;
+  public mjSolverStat_ solver2614;
+  public mjSolverStat_ solver2615;
+  public mjSolverStat_ solver2616;
+  public mjSolverStat_ solver2617;
+  public mjSolverStat_ solver2618;
+  public mjSolverStat_ solver2619;
+  public mjSolverStat_ solver2620;
+  public mjSolverStat_ solver2621;
+  public mjSolverStat_ solver2622;
+  public mjSolverStat_ solver2623;
+  public mjSolverStat_ solver2624;
+  public mjSolverStat_ solver2625;
+  public mjSolverStat_ solver2626;
+  public mjSolverStat_ solver2627;
+  public mjSolverStat_ solver2628;
+  public mjSolverStat_ solver2629;
+  public mjSolverStat_ solver2630;
+  public mjSolverStat_ solver2631;
+  public mjSolverStat_ solver2632;
+  public mjSolverStat_ solver2633;
+  public mjSolverStat_ solver2634;
+  public mjSolverStat_ solver2635;
+  public mjSolverStat_ solver2636;
+  public mjSolverStat_ solver2637;
+  public mjSolverStat_ solver2638;
+  public mjSolverStat_ solver2639;
+  public mjSolverStat_ solver2640;
+  public mjSolverStat_ solver2641;
+  public mjSolverStat_ solver2642;
+  public mjSolverStat_ solver2643;
+  public mjSolverStat_ solver2644;
+  public mjSolverStat_ solver2645;
+  public mjSolverStat_ solver2646;
+  public mjSolverStat_ solver2647;
+  public mjSolverStat_ solver2648;
+  public mjSolverStat_ solver2649;
+  public mjSolverStat_ solver2650;
+  public mjSolverStat_ solver2651;
+  public mjSolverStat_ solver2652;
+  public mjSolverStat_ solver2653;
+  public mjSolverStat_ solver2654;
+  public mjSolverStat_ solver2655;
+  public mjSolverStat_ solver2656;
+  public mjSolverStat_ solver2657;
+  public mjSolverStat_ solver2658;
+  public mjSolverStat_ solver2659;
+  public mjSolverStat_ solver2660;
+  public mjSolverStat_ solver2661;
+  public mjSolverStat_ solver2662;
+  public mjSolverStat_ solver2663;
+  public mjSolverStat_ solver2664;
+  public mjSolverStat_ solver2665;
+  public mjSolverStat_ solver2666;
+  public mjSolverStat_ solver2667;
+  public mjSolverStat_ solver2668;
+  public mjSolverStat_ solver2669;
+  public mjSolverStat_ solver2670;
+  public mjSolverStat_ solver2671;
+  public mjSolverStat_ solver2672;
+  public mjSolverStat_ solver2673;
+  public mjSolverStat_ solver2674;
+  public mjSolverStat_ solver2675;
+  public mjSolverStat_ solver2676;
+  public mjSolverStat_ solver2677;
+  public mjSolverStat_ solver2678;
+  public mjSolverStat_ solver2679;
+  public mjSolverStat_ solver2680;
+  public mjSolverStat_ solver2681;
+  public mjSolverStat_ solver2682;
+  public mjSolverStat_ solver2683;
+  public mjSolverStat_ solver2684;
+  public mjSolverStat_ solver2685;
+  public mjSolverStat_ solver2686;
+  public mjSolverStat_ solver2687;
+  public mjSolverStat_ solver2688;
+  public mjSolverStat_ solver2689;
+  public mjSolverStat_ solver2690;
+  public mjSolverStat_ solver2691;
+  public mjSolverStat_ solver2692;
+  public mjSolverStat_ solver2693;
+  public mjSolverStat_ solver2694;
+  public mjSolverStat_ solver2695;
+  public mjSolverStat_ solver2696;
+  public mjSolverStat_ solver2697;
+  public mjSolverStat_ solver2698;
+  public mjSolverStat_ solver2699;
+  public mjSolverStat_ solver2700;
+  public mjSolverStat_ solver2701;
+  public mjSolverStat_ solver2702;
+  public mjSolverStat_ solver2703;
+  public mjSolverStat_ solver2704;
+  public mjSolverStat_ solver2705;
+  public mjSolverStat_ solver2706;
+  public mjSolverStat_ solver2707;
+  public mjSolverStat_ solver2708;
+  public mjSolverStat_ solver2709;
+  public mjSolverStat_ solver2710;
+  public mjSolverStat_ solver2711;
+  public mjSolverStat_ solver2712;
+  public mjSolverStat_ solver2713;
+  public mjSolverStat_ solver2714;
+  public mjSolverStat_ solver2715;
+  public mjSolverStat_ solver2716;
+  public mjSolverStat_ solver2717;
+  public mjSolverStat_ solver2718;
+  public mjSolverStat_ solver2719;
+  public mjSolverStat_ solver2720;
+  public mjSolverStat_ solver2721;
+  public mjSolverStat_ solver2722;
+  public mjSolverStat_ solver2723;
+  public mjSolverStat_ solver2724;
+  public mjSolverStat_ solver2725;
+  public mjSolverStat_ solver2726;
+  public mjSolverStat_ solver2727;
+  public mjSolverStat_ solver2728;
+  public mjSolverStat_ solver2729;
+  public mjSolverStat_ solver2730;
+  public mjSolverStat_ solver2731;
+  public mjSolverStat_ solver2732;
+  public mjSolverStat_ solver2733;
+  public mjSolverStat_ solver2734;
+  public mjSolverStat_ solver2735;
+  public mjSolverStat_ solver2736;
+  public mjSolverStat_ solver2737;
+  public mjSolverStat_ solver2738;
+  public mjSolverStat_ solver2739;
+  public mjSolverStat_ solver2740;
+  public mjSolverStat_ solver2741;
+  public mjSolverStat_ solver2742;
+  public mjSolverStat_ solver2743;
+  public mjSolverStat_ solver2744;
+  public mjSolverStat_ solver2745;
+  public mjSolverStat_ solver2746;
+  public mjSolverStat_ solver2747;
+  public mjSolverStat_ solver2748;
+  public mjSolverStat_ solver2749;
+  public mjSolverStat_ solver2750;
+  public mjSolverStat_ solver2751;
+  public mjSolverStat_ solver2752;
+  public mjSolverStat_ solver2753;
+  public mjSolverStat_ solver2754;
+  public mjSolverStat_ solver2755;
+  public mjSolverStat_ solver2756;
+  public mjSolverStat_ solver2757;
+  public mjSolverStat_ solver2758;
+  public mjSolverStat_ solver2759;
+  public mjSolverStat_ solver2760;
+  public mjSolverStat_ solver2761;
+  public mjSolverStat_ solver2762;
+  public mjSolverStat_ solver2763;
+  public mjSolverStat_ solver2764;
+  public mjSolverStat_ solver2765;
+  public mjSolverStat_ solver2766;
+  public mjSolverStat_ solver2767;
+  public mjSolverStat_ solver2768;
+  public mjSolverStat_ solver2769;
+  public mjSolverStat_ solver2770;
+  public mjSolverStat_ solver2771;
+  public mjSolverStat_ solver2772;
+  public mjSolverStat_ solver2773;
+  public mjSolverStat_ solver2774;
+  public mjSolverStat_ solver2775;
+  public mjSolverStat_ solver2776;
+  public mjSolverStat_ solver2777;
+  public mjSolverStat_ solver2778;
+  public mjSolverStat_ solver2779;
+  public mjSolverStat_ solver2780;
+  public mjSolverStat_ solver2781;
+  public mjSolverStat_ solver2782;
+  public mjSolverStat_ solver2783;
+  public mjSolverStat_ solver2784;
+  public mjSolverStat_ solver2785;
+  public mjSolverStat_ solver2786;
+  public mjSolverStat_ solver2787;
+  public mjSolverStat_ solver2788;
+  public mjSolverStat_ solver2789;
+  public mjSolverStat_ solver2790;
+  public mjSolverStat_ solver2791;
+  public mjSolverStat_ solver2792;
+  public mjSolverStat_ solver2793;
+  public mjSolverStat_ solver2794;
+  public mjSolverStat_ solver2795;
+  public mjSolverStat_ solver2796;
+  public mjSolverStat_ solver2797;
+  public mjSolverStat_ solver2798;
+  public mjSolverStat_ solver2799;
+  public mjSolverStat_ solver2800;
+  public mjSolverStat_ solver2801;
+  public mjSolverStat_ solver2802;
+  public mjSolverStat_ solver2803;
+  public mjSolverStat_ solver2804;
+  public mjSolverStat_ solver2805;
+  public mjSolverStat_ solver2806;
+  public mjSolverStat_ solver2807;
+  public mjSolverStat_ solver2808;
+  public mjSolverStat_ solver2809;
+  public mjSolverStat_ solver2810;
+  public mjSolverStat_ solver2811;
+  public mjSolverStat_ solver2812;
+  public mjSolverStat_ solver2813;
+  public mjSolverStat_ solver2814;
+  public mjSolverStat_ solver2815;
+  public mjSolverStat_ solver2816;
+  public mjSolverStat_ solver2817;
+  public mjSolverStat_ solver2818;
+  public mjSolverStat_ solver2819;
+  public mjSolverStat_ solver2820;
+  public mjSolverStat_ solver2821;
+  public mjSolverStat_ solver2822;
+  public mjSolverStat_ solver2823;
+  public mjSolverStat_ solver2824;
+  public mjSolverStat_ solver2825;
+  public mjSolverStat_ solver2826;
+  public mjSolverStat_ solver2827;
+  public mjSolverStat_ solver2828;
+  public mjSolverStat_ solver2829;
+  public mjSolverStat_ solver2830;
+  public mjSolverStat_ solver2831;
+  public mjSolverStat_ solver2832;
+  public mjSolverStat_ solver2833;
+  public mjSolverStat_ solver2834;
+  public mjSolverStat_ solver2835;
+  public mjSolverStat_ solver2836;
+  public mjSolverStat_ solver2837;
+  public mjSolverStat_ solver2838;
+  public mjSolverStat_ solver2839;
+  public mjSolverStat_ solver2840;
+  public mjSolverStat_ solver2841;
+  public mjSolverStat_ solver2842;
+  public mjSolverStat_ solver2843;
+  public mjSolverStat_ solver2844;
+  public mjSolverStat_ solver2845;
+  public mjSolverStat_ solver2846;
+  public mjSolverStat_ solver2847;
+  public mjSolverStat_ solver2848;
+  public mjSolverStat_ solver2849;
+  public mjSolverStat_ solver2850;
+  public mjSolverStat_ solver2851;
+  public mjSolverStat_ solver2852;
+  public mjSolverStat_ solver2853;
+  public mjSolverStat_ solver2854;
+  public mjSolverStat_ solver2855;
+  public mjSolverStat_ solver2856;
+  public mjSolverStat_ solver2857;
+  public mjSolverStat_ solver2858;
+  public mjSolverStat_ solver2859;
+  public mjSolverStat_ solver2860;
+  public mjSolverStat_ solver2861;
+  public mjSolverStat_ solver2862;
+  public mjSolverStat_ solver2863;
+  public mjSolverStat_ solver2864;
+  public mjSolverStat_ solver2865;
+  public mjSolverStat_ solver2866;
+  public mjSolverStat_ solver2867;
+  public mjSolverStat_ solver2868;
+  public mjSolverStat_ solver2869;
+  public mjSolverStat_ solver2870;
+  public mjSolverStat_ solver2871;
+  public mjSolverStat_ solver2872;
+  public mjSolverStat_ solver2873;
+  public mjSolverStat_ solver2874;
+  public mjSolverStat_ solver2875;
+  public mjSolverStat_ solver2876;
+  public mjSolverStat_ solver2877;
+  public mjSolverStat_ solver2878;
+  public mjSolverStat_ solver2879;
+  public mjSolverStat_ solver2880;
+  public mjSolverStat_ solver2881;
+  public mjSolverStat_ solver2882;
+  public mjSolverStat_ solver2883;
+  public mjSolverStat_ solver2884;
+  public mjSolverStat_ solver2885;
+  public mjSolverStat_ solver2886;
+  public mjSolverStat_ solver2887;
+  public mjSolverStat_ solver2888;
+  public mjSolverStat_ solver2889;
+  public mjSolverStat_ solver2890;
+  public mjSolverStat_ solver2891;
+  public mjSolverStat_ solver2892;
+  public mjSolverStat_ solver2893;
+  public mjSolverStat_ solver2894;
+  public mjSolverStat_ solver2895;
+  public mjSolverStat_ solver2896;
+  public mjSolverStat_ solver2897;
+  public mjSolverStat_ solver2898;
+  public mjSolverStat_ solver2899;
+  public mjSolverStat_ solver2900;
+  public mjSolverStat_ solver2901;
+  public mjSolverStat_ solver2902;
+  public mjSolverStat_ solver2903;
+  public mjSolverStat_ solver2904;
+  public mjSolverStat_ solver2905;
+  public mjSolverStat_ solver2906;
+  public mjSolverStat_ solver2907;
+  public mjSolverStat_ solver2908;
+  public mjSolverStat_ solver2909;
+  public mjSolverStat_ solver2910;
+  public mjSolverStat_ solver2911;
+  public mjSolverStat_ solver2912;
+  public mjSolverStat_ solver2913;
+  public mjSolverStat_ solver2914;
+  public mjSolverStat_ solver2915;
+  public mjSolverStat_ solver2916;
+  public mjSolverStat_ solver2917;
+  public mjSolverStat_ solver2918;
+  public mjSolverStat_ solver2919;
+  public mjSolverStat_ solver2920;
+  public mjSolverStat_ solver2921;
+  public mjSolverStat_ solver2922;
+  public mjSolverStat_ solver2923;
+  public mjSolverStat_ solver2924;
+  public mjSolverStat_ solver2925;
+  public mjSolverStat_ solver2926;
+  public mjSolverStat_ solver2927;
+  public mjSolverStat_ solver2928;
+  public mjSolverStat_ solver2929;
+  public mjSolverStat_ solver2930;
+  public mjSolverStat_ solver2931;
+  public mjSolverStat_ solver2932;
+  public mjSolverStat_ solver2933;
+  public mjSolverStat_ solver2934;
+  public mjSolverStat_ solver2935;
+  public mjSolverStat_ solver2936;
+  public mjSolverStat_ solver2937;
+  public mjSolverStat_ solver2938;
+  public mjSolverStat_ solver2939;
+  public mjSolverStat_ solver2940;
+  public mjSolverStat_ solver2941;
+  public mjSolverStat_ solver2942;
+  public mjSolverStat_ solver2943;
+  public mjSolverStat_ solver2944;
+  public mjSolverStat_ solver2945;
+  public mjSolverStat_ solver2946;
+  public mjSolverStat_ solver2947;
+  public mjSolverStat_ solver2948;
+  public mjSolverStat_ solver2949;
+  public mjSolverStat_ solver2950;
+  public mjSolverStat_ solver2951;
+  public mjSolverStat_ solver2952;
+  public mjSolverStat_ solver2953;
+  public mjSolverStat_ solver2954;
+  public mjSolverStat_ solver2955;
+  public mjSolverStat_ solver2956;
+  public mjSolverStat_ solver2957;
+  public mjSolverStat_ solver2958;
+  public mjSolverStat_ solver2959;
+  public mjSolverStat_ solver2960;
+  public mjSolverStat_ solver2961;
+  public mjSolverStat_ solver2962;
+  public mjSolverStat_ solver2963;
+  public mjSolverStat_ solver2964;
+  public mjSolverStat_ solver2965;
+  public mjSolverStat_ solver2966;
+  public mjSolverStat_ solver2967;
+  public mjSolverStat_ solver2968;
+  public mjSolverStat_ solver2969;
+  public mjSolverStat_ solver2970;
+  public mjSolverStat_ solver2971;
+  public mjSolverStat_ solver2972;
+  public mjSolverStat_ solver2973;
+  public mjSolverStat_ solver2974;
+  public mjSolverStat_ solver2975;
+  public mjSolverStat_ solver2976;
+  public mjSolverStat_ solver2977;
+  public mjSolverStat_ solver2978;
+  public mjSolverStat_ solver2979;
+  public mjSolverStat_ solver2980;
+  public mjSolverStat_ solver2981;
+  public mjSolverStat_ solver2982;
+  public mjSolverStat_ solver2983;
+  public mjSolverStat_ solver2984;
+  public mjSolverStat_ solver2985;
+  public mjSolverStat_ solver2986;
+  public mjSolverStat_ solver2987;
+  public mjSolverStat_ solver2988;
+  public mjSolverStat_ solver2989;
+  public mjSolverStat_ solver2990;
+  public mjSolverStat_ solver2991;
+  public mjSolverStat_ solver2992;
+  public mjSolverStat_ solver2993;
+  public mjSolverStat_ solver2994;
+  public mjSolverStat_ solver2995;
+  public mjSolverStat_ solver2996;
+  public mjSolverStat_ solver2997;
+  public mjSolverStat_ solver2998;
+  public mjSolverStat_ solver2999;
+  public mjSolverStat_ solver3000;
+  public mjSolverStat_ solver3001;
+  public mjSolverStat_ solver3002;
+  public mjSolverStat_ solver3003;
+  public mjSolverStat_ solver3004;
+  public mjSolverStat_ solver3005;
+  public mjSolverStat_ solver3006;
+  public mjSolverStat_ solver3007;
+  public mjSolverStat_ solver3008;
+  public mjSolverStat_ solver3009;
+  public mjSolverStat_ solver3010;
+  public mjSolverStat_ solver3011;
+  public mjSolverStat_ solver3012;
+  public mjSolverStat_ solver3013;
+  public mjSolverStat_ solver3014;
+  public mjSolverStat_ solver3015;
+  public mjSolverStat_ solver3016;
+  public mjSolverStat_ solver3017;
+  public mjSolverStat_ solver3018;
+  public mjSolverStat_ solver3019;
+  public mjSolverStat_ solver3020;
+  public mjSolverStat_ solver3021;
+  public mjSolverStat_ solver3022;
+  public mjSolverStat_ solver3023;
+  public mjSolverStat_ solver3024;
+  public mjSolverStat_ solver3025;
+  public mjSolverStat_ solver3026;
+  public mjSolverStat_ solver3027;
+  public mjSolverStat_ solver3028;
+  public mjSolverStat_ solver3029;
+  public mjSolverStat_ solver3030;
+  public mjSolverStat_ solver3031;
+  public mjSolverStat_ solver3032;
+  public mjSolverStat_ solver3033;
+  public mjSolverStat_ solver3034;
+  public mjSolverStat_ solver3035;
+  public mjSolverStat_ solver3036;
+  public mjSolverStat_ solver3037;
+  public mjSolverStat_ solver3038;
+  public mjSolverStat_ solver3039;
+  public mjSolverStat_ solver3040;
+  public mjSolverStat_ solver3041;
+  public mjSolverStat_ solver3042;
+  public mjSolverStat_ solver3043;
+  public mjSolverStat_ solver3044;
+  public mjSolverStat_ solver3045;
+  public mjSolverStat_ solver3046;
+  public mjSolverStat_ solver3047;
+  public mjSolverStat_ solver3048;
+  public mjSolverStat_ solver3049;
+  public mjSolverStat_ solver3050;
+  public mjSolverStat_ solver3051;
+  public mjSolverStat_ solver3052;
+  public mjSolverStat_ solver3053;
+  public mjSolverStat_ solver3054;
+  public mjSolverStat_ solver3055;
+  public mjSolverStat_ solver3056;
+  public mjSolverStat_ solver3057;
+  public mjSolverStat_ solver3058;
+  public mjSolverStat_ solver3059;
+  public mjSolverStat_ solver3060;
+  public mjSolverStat_ solver3061;
+  public mjSolverStat_ solver3062;
+  public mjSolverStat_ solver3063;
+  public mjSolverStat_ solver3064;
+  public mjSolverStat_ solver3065;
+  public mjSolverStat_ solver3066;
+  public mjSolverStat_ solver3067;
+  public mjSolverStat_ solver3068;
+  public mjSolverStat_ solver3069;
+  public mjSolverStat_ solver3070;
+  public mjSolverStat_ solver3071;
+  public mjSolverStat_ solver3072;
+  public mjSolverStat_ solver3073;
+  public mjSolverStat_ solver3074;
+  public mjSolverStat_ solver3075;
+  public mjSolverStat_ solver3076;
+  public mjSolverStat_ solver3077;
+  public mjSolverStat_ solver3078;
+  public mjSolverStat_ solver3079;
+  public mjSolverStat_ solver3080;
+  public mjSolverStat_ solver3081;
+  public mjSolverStat_ solver3082;
+  public mjSolverStat_ solver3083;
+  public mjSolverStat_ solver3084;
+  public mjSolverStat_ solver3085;
+  public mjSolverStat_ solver3086;
+  public mjSolverStat_ solver3087;
+  public mjSolverStat_ solver3088;
+  public mjSolverStat_ solver3089;
+  public mjSolverStat_ solver3090;
+  public mjSolverStat_ solver3091;
+  public mjSolverStat_ solver3092;
+  public mjSolverStat_ solver3093;
+  public mjSolverStat_ solver3094;
+  public mjSolverStat_ solver3095;
+  public mjSolverStat_ solver3096;
+  public mjSolverStat_ solver3097;
+  public mjSolverStat_ solver3098;
+  public mjSolverStat_ solver3099;
+  public mjSolverStat_ solver3100;
+  public mjSolverStat_ solver3101;
+  public mjSolverStat_ solver3102;
+  public mjSolverStat_ solver3103;
+  public mjSolverStat_ solver3104;
+  public mjSolverStat_ solver3105;
+  public mjSolverStat_ solver3106;
+  public mjSolverStat_ solver3107;
+  public mjSolverStat_ solver3108;
+  public mjSolverStat_ solver3109;
+  public mjSolverStat_ solver3110;
+  public mjSolverStat_ solver3111;
+  public mjSolverStat_ solver3112;
+  public mjSolverStat_ solver3113;
+  public mjSolverStat_ solver3114;
+  public mjSolverStat_ solver3115;
+  public mjSolverStat_ solver3116;
+  public mjSolverStat_ solver3117;
+  public mjSolverStat_ solver3118;
+  public mjSolverStat_ solver3119;
+  public mjSolverStat_ solver3120;
+  public mjSolverStat_ solver3121;
+  public mjSolverStat_ solver3122;
+  public mjSolverStat_ solver3123;
+  public mjSolverStat_ solver3124;
+  public mjSolverStat_ solver3125;
+  public mjSolverStat_ solver3126;
+  public mjSolverStat_ solver3127;
+  public mjSolverStat_ solver3128;
+  public mjSolverStat_ solver3129;
+  public mjSolverStat_ solver3130;
+  public mjSolverStat_ solver3131;
+  public mjSolverStat_ solver3132;
+  public mjSolverStat_ solver3133;
+  public mjSolverStat_ solver3134;
+  public mjSolverStat_ solver3135;
+  public mjSolverStat_ solver3136;
+  public mjSolverStat_ solver3137;
+  public mjSolverStat_ solver3138;
+  public mjSolverStat_ solver3139;
+  public mjSolverStat_ solver3140;
+  public mjSolverStat_ solver3141;
+  public mjSolverStat_ solver3142;
+  public mjSolverStat_ solver3143;
+  public mjSolverStat_ solver3144;
+  public mjSolverStat_ solver3145;
+  public mjSolverStat_ solver3146;
+  public mjSolverStat_ solver3147;
+  public mjSolverStat_ solver3148;
+  public mjSolverStat_ solver3149;
+  public mjSolverStat_ solver3150;
+  public mjSolverStat_ solver3151;
+  public mjSolverStat_ solver3152;
+  public mjSolverStat_ solver3153;
+  public mjSolverStat_ solver3154;
+  public mjSolverStat_ solver3155;
+  public mjSolverStat_ solver3156;
+  public mjSolverStat_ solver3157;
+  public mjSolverStat_ solver3158;
+  public mjSolverStat_ solver3159;
+  public mjSolverStat_ solver3160;
+  public mjSolverStat_ solver3161;
+  public mjSolverStat_ solver3162;
+  public mjSolverStat_ solver3163;
+  public mjSolverStat_ solver3164;
+  public mjSolverStat_ solver3165;
+  public mjSolverStat_ solver3166;
+  public mjSolverStat_ solver3167;
+  public mjSolverStat_ solver3168;
+  public mjSolverStat_ solver3169;
+  public mjSolverStat_ solver3170;
+  public mjSolverStat_ solver3171;
+  public mjSolverStat_ solver3172;
+  public mjSolverStat_ solver3173;
+  public mjSolverStat_ solver3174;
+  public mjSolverStat_ solver3175;
+  public mjSolverStat_ solver3176;
+  public mjSolverStat_ solver3177;
+  public mjSolverStat_ solver3178;
+  public mjSolverStat_ solver3179;
+  public mjSolverStat_ solver3180;
+  public mjSolverStat_ solver3181;
+  public mjSolverStat_ solver3182;
+  public mjSolverStat_ solver3183;
+  public mjSolverStat_ solver3184;
+  public mjSolverStat_ solver3185;
+  public mjSolverStat_ solver3186;
+  public mjSolverStat_ solver3187;
+  public mjSolverStat_ solver3188;
+  public mjSolverStat_ solver3189;
+  public mjSolverStat_ solver3190;
+  public mjSolverStat_ solver3191;
+  public mjSolverStat_ solver3192;
+  public mjSolverStat_ solver3193;
+  public mjSolverStat_ solver3194;
+  public mjSolverStat_ solver3195;
+  public mjSolverStat_ solver3196;
+  public mjSolverStat_ solver3197;
+  public mjSolverStat_ solver3198;
+  public mjSolverStat_ solver3199;
+  public mjSolverStat_ solver3200;
+  public mjSolverStat_ solver3201;
+  public mjSolverStat_ solver3202;
+  public mjSolverStat_ solver3203;
+  public mjSolverStat_ solver3204;
+  public mjSolverStat_ solver3205;
+  public mjSolverStat_ solver3206;
+  public mjSolverStat_ solver3207;
+  public mjSolverStat_ solver3208;
+  public mjSolverStat_ solver3209;
+  public mjSolverStat_ solver3210;
+  public mjSolverStat_ solver3211;
+  public mjSolverStat_ solver3212;
+  public mjSolverStat_ solver3213;
+  public mjSolverStat_ solver3214;
+  public mjSolverStat_ solver3215;
+  public mjSolverStat_ solver3216;
+  public mjSolverStat_ solver3217;
+  public mjSolverStat_ solver3218;
+  public mjSolverStat_ solver3219;
+  public mjSolverStat_ solver3220;
+  public mjSolverStat_ solver3221;
+  public mjSolverStat_ solver3222;
+  public mjSolverStat_ solver3223;
+  public mjSolverStat_ solver3224;
+  public mjSolverStat_ solver3225;
+  public mjSolverStat_ solver3226;
+  public mjSolverStat_ solver3227;
+  public mjSolverStat_ solver3228;
+  public mjSolverStat_ solver3229;
+  public mjSolverStat_ solver3230;
+  public mjSolverStat_ solver3231;
+  public mjSolverStat_ solver3232;
+  public mjSolverStat_ solver3233;
+  public mjSolverStat_ solver3234;
+  public mjSolverStat_ solver3235;
+  public mjSolverStat_ solver3236;
+  public mjSolverStat_ solver3237;
+  public mjSolverStat_ solver3238;
+  public mjSolverStat_ solver3239;
+  public mjSolverStat_ solver3240;
+  public mjSolverStat_ solver3241;
+  public mjSolverStat_ solver3242;
+  public mjSolverStat_ solver3243;
+  public mjSolverStat_ solver3244;
+  public mjSolverStat_ solver3245;
+  public mjSolverStat_ solver3246;
+  public mjSolverStat_ solver3247;
+  public mjSolverStat_ solver3248;
+  public mjSolverStat_ solver3249;
+  public mjSolverStat_ solver3250;
+  public mjSolverStat_ solver3251;
+  public mjSolverStat_ solver3252;
+  public mjSolverStat_ solver3253;
+  public mjSolverStat_ solver3254;
+  public mjSolverStat_ solver3255;
+  public mjSolverStat_ solver3256;
+  public mjSolverStat_ solver3257;
+  public mjSolverStat_ solver3258;
+  public mjSolverStat_ solver3259;
+  public mjSolverStat_ solver3260;
+  public mjSolverStat_ solver3261;
+  public mjSolverStat_ solver3262;
+  public mjSolverStat_ solver3263;
+  public mjSolverStat_ solver3264;
+  public mjSolverStat_ solver3265;
+  public mjSolverStat_ solver3266;
+  public mjSolverStat_ solver3267;
+  public mjSolverStat_ solver3268;
+  public mjSolverStat_ solver3269;
+  public mjSolverStat_ solver3270;
+  public mjSolverStat_ solver3271;
+  public mjSolverStat_ solver3272;
+  public mjSolverStat_ solver3273;
+  public mjSolverStat_ solver3274;
+  public mjSolverStat_ solver3275;
+  public mjSolverStat_ solver3276;
+  public mjSolverStat_ solver3277;
+  public mjSolverStat_ solver3278;
+  public mjSolverStat_ solver3279;
+  public mjSolverStat_ solver3280;
+  public mjSolverStat_ solver3281;
+  public mjSolverStat_ solver3282;
+  public mjSolverStat_ solver3283;
+  public mjSolverStat_ solver3284;
+  public mjSolverStat_ solver3285;
+  public mjSolverStat_ solver3286;
+  public mjSolverStat_ solver3287;
+  public mjSolverStat_ solver3288;
+  public mjSolverStat_ solver3289;
+  public mjSolverStat_ solver3290;
+  public mjSolverStat_ solver3291;
+  public mjSolverStat_ solver3292;
+  public mjSolverStat_ solver3293;
+  public mjSolverStat_ solver3294;
+  public mjSolverStat_ solver3295;
+  public mjSolverStat_ solver3296;
+  public mjSolverStat_ solver3297;
+  public mjSolverStat_ solver3298;
+  public mjSolverStat_ solver3299;
+  public mjSolverStat_ solver3300;
+  public mjSolverStat_ solver3301;
+  public mjSolverStat_ solver3302;
+  public mjSolverStat_ solver3303;
+  public mjSolverStat_ solver3304;
+  public mjSolverStat_ solver3305;
+  public mjSolverStat_ solver3306;
+  public mjSolverStat_ solver3307;
+  public mjSolverStat_ solver3308;
+  public mjSolverStat_ solver3309;
+  public mjSolverStat_ solver3310;
+  public mjSolverStat_ solver3311;
+  public mjSolverStat_ solver3312;
+  public mjSolverStat_ solver3313;
+  public mjSolverStat_ solver3314;
+  public mjSolverStat_ solver3315;
+  public mjSolverStat_ solver3316;
+  public mjSolverStat_ solver3317;
+  public mjSolverStat_ solver3318;
+  public mjSolverStat_ solver3319;
+  public mjSolverStat_ solver3320;
+  public mjSolverStat_ solver3321;
+  public mjSolverStat_ solver3322;
+  public mjSolverStat_ solver3323;
+  public mjSolverStat_ solver3324;
+  public mjSolverStat_ solver3325;
+  public mjSolverStat_ solver3326;
+  public mjSolverStat_ solver3327;
+  public mjSolverStat_ solver3328;
+  public mjSolverStat_ solver3329;
+  public mjSolverStat_ solver3330;
+  public mjSolverStat_ solver3331;
+  public mjSolverStat_ solver3332;
+  public mjSolverStat_ solver3333;
+  public mjSolverStat_ solver3334;
+  public mjSolverStat_ solver3335;
+  public mjSolverStat_ solver3336;
+  public mjSolverStat_ solver3337;
+  public mjSolverStat_ solver3338;
+  public mjSolverStat_ solver3339;
+  public mjSolverStat_ solver3340;
+  public mjSolverStat_ solver3341;
+  public mjSolverStat_ solver3342;
+  public mjSolverStat_ solver3343;
+  public mjSolverStat_ solver3344;
+  public mjSolverStat_ solver3345;
+  public mjSolverStat_ solver3346;
+  public mjSolverStat_ solver3347;
+  public mjSolverStat_ solver3348;
+  public mjSolverStat_ solver3349;
+  public mjSolverStat_ solver3350;
+  public mjSolverStat_ solver3351;
+  public mjSolverStat_ solver3352;
+  public mjSolverStat_ solver3353;
+  public mjSolverStat_ solver3354;
+  public mjSolverStat_ solver3355;
+  public mjSolverStat_ solver3356;
+  public mjSolverStat_ solver3357;
+  public mjSolverStat_ solver3358;
+  public mjSolverStat_ solver3359;
+  public mjSolverStat_ solver3360;
+  public mjSolverStat_ solver3361;
+  public mjSolverStat_ solver3362;
+  public mjSolverStat_ solver3363;
+  public mjSolverStat_ solver3364;
+  public mjSolverStat_ solver3365;
+  public mjSolverStat_ solver3366;
+  public mjSolverStat_ solver3367;
+  public mjSolverStat_ solver3368;
+  public mjSolverStat_ solver3369;
+  public mjSolverStat_ solver3370;
+  public mjSolverStat_ solver3371;
+  public mjSolverStat_ solver3372;
+  public mjSolverStat_ solver3373;
+  public mjSolverStat_ solver3374;
+  public mjSolverStat_ solver3375;
+  public mjSolverStat_ solver3376;
+  public mjSolverStat_ solver3377;
+  public mjSolverStat_ solver3378;
+  public mjSolverStat_ solver3379;
+  public mjSolverStat_ solver3380;
+  public mjSolverStat_ solver3381;
+  public mjSolverStat_ solver3382;
+  public mjSolverStat_ solver3383;
+  public mjSolverStat_ solver3384;
+  public mjSolverStat_ solver3385;
+  public mjSolverStat_ solver3386;
+  public mjSolverStat_ solver3387;
+  public mjSolverStat_ solver3388;
+  public mjSolverStat_ solver3389;
+  public mjSolverStat_ solver3390;
+  public mjSolverStat_ solver3391;
+  public mjSolverStat_ solver3392;
+  public mjSolverStat_ solver3393;
+  public mjSolverStat_ solver3394;
+  public mjSolverStat_ solver3395;
+  public mjSolverStat_ solver3396;
+  public mjSolverStat_ solver3397;
+  public mjSolverStat_ solver3398;
+  public mjSolverStat_ solver3399;
+  public mjSolverStat_ solver3400;
+  public mjSolverStat_ solver3401;
+  public mjSolverStat_ solver3402;
+  public mjSolverStat_ solver3403;
+  public mjSolverStat_ solver3404;
+  public mjSolverStat_ solver3405;
+  public mjSolverStat_ solver3406;
+  public mjSolverStat_ solver3407;
+  public mjSolverStat_ solver3408;
+  public mjSolverStat_ solver3409;
+  public mjSolverStat_ solver3410;
+  public mjSolverStat_ solver3411;
+  public mjSolverStat_ solver3412;
+  public mjSolverStat_ solver3413;
+  public mjSolverStat_ solver3414;
+  public mjSolverStat_ solver3415;
+  public mjSolverStat_ solver3416;
+  public mjSolverStat_ solver3417;
+  public mjSolverStat_ solver3418;
+  public mjSolverStat_ solver3419;
+  public mjSolverStat_ solver3420;
+  public mjSolverStat_ solver3421;
+  public mjSolverStat_ solver3422;
+  public mjSolverStat_ solver3423;
+  public mjSolverStat_ solver3424;
+  public mjSolverStat_ solver3425;
+  public mjSolverStat_ solver3426;
+  public mjSolverStat_ solver3427;
+  public mjSolverStat_ solver3428;
+  public mjSolverStat_ solver3429;
+  public mjSolverStat_ solver3430;
+  public mjSolverStat_ solver3431;
+  public mjSolverStat_ solver3432;
+  public mjSolverStat_ solver3433;
+  public mjSolverStat_ solver3434;
+  public mjSolverStat_ solver3435;
+  public mjSolverStat_ solver3436;
+  public mjSolverStat_ solver3437;
+  public mjSolverStat_ solver3438;
+  public mjSolverStat_ solver3439;
+  public mjSolverStat_ solver3440;
+  public mjSolverStat_ solver3441;
+  public mjSolverStat_ solver3442;
+  public mjSolverStat_ solver3443;
+  public mjSolverStat_ solver3444;
+  public mjSolverStat_ solver3445;
+  public mjSolverStat_ solver3446;
+  public mjSolverStat_ solver3447;
+  public mjSolverStat_ solver3448;
+  public mjSolverStat_ solver3449;
+  public mjSolverStat_ solver3450;
+  public mjSolverStat_ solver3451;
+  public mjSolverStat_ solver3452;
+  public mjSolverStat_ solver3453;
+  public mjSolverStat_ solver3454;
+  public mjSolverStat_ solver3455;
+  public mjSolverStat_ solver3456;
+  public mjSolverStat_ solver3457;
+  public mjSolverStat_ solver3458;
+  public mjSolverStat_ solver3459;
+  public mjSolverStat_ solver3460;
+  public mjSolverStat_ solver3461;
+  public mjSolverStat_ solver3462;
+  public mjSolverStat_ solver3463;
+  public mjSolverStat_ solver3464;
+  public mjSolverStat_ solver3465;
+  public mjSolverStat_ solver3466;
+  public mjSolverStat_ solver3467;
+  public mjSolverStat_ solver3468;
+  public mjSolverStat_ solver3469;
+  public mjSolverStat_ solver3470;
+  public mjSolverStat_ solver3471;
+  public mjSolverStat_ solver3472;
+  public mjSolverStat_ solver3473;
+  public mjSolverStat_ solver3474;
+  public mjSolverStat_ solver3475;
+  public mjSolverStat_ solver3476;
+  public mjSolverStat_ solver3477;
+  public mjSolverStat_ solver3478;
+  public mjSolverStat_ solver3479;
+  public mjSolverStat_ solver3480;
+  public mjSolverStat_ solver3481;
+  public mjSolverStat_ solver3482;
+  public mjSolverStat_ solver3483;
+  public mjSolverStat_ solver3484;
+  public mjSolverStat_ solver3485;
+  public mjSolverStat_ solver3486;
+  public mjSolverStat_ solver3487;
+  public mjSolverStat_ solver3488;
+  public mjSolverStat_ solver3489;
+  public mjSolverStat_ solver3490;
+  public mjSolverStat_ solver3491;
+  public mjSolverStat_ solver3492;
+  public mjSolverStat_ solver3493;
+  public mjSolverStat_ solver3494;
+  public mjSolverStat_ solver3495;
+  public mjSolverStat_ solver3496;
+  public mjSolverStat_ solver3497;
+  public mjSolverStat_ solver3498;
+  public mjSolverStat_ solver3499;
+  public mjSolverStat_ solver3500;
+  public mjSolverStat_ solver3501;
+  public mjSolverStat_ solver3502;
+  public mjSolverStat_ solver3503;
+  public mjSolverStat_ solver3504;
+  public mjSolverStat_ solver3505;
+  public mjSolverStat_ solver3506;
+  public mjSolverStat_ solver3507;
+  public mjSolverStat_ solver3508;
+  public mjSolverStat_ solver3509;
+  public mjSolverStat_ solver3510;
+  public mjSolverStat_ solver3511;
+  public mjSolverStat_ solver3512;
+  public mjSolverStat_ solver3513;
+  public mjSolverStat_ solver3514;
+  public mjSolverStat_ solver3515;
+  public mjSolverStat_ solver3516;
+  public mjSolverStat_ solver3517;
+  public mjSolverStat_ solver3518;
+  public mjSolverStat_ solver3519;
+  public mjSolverStat_ solver3520;
+  public mjSolverStat_ solver3521;
+  public mjSolverStat_ solver3522;
+  public mjSolverStat_ solver3523;
+  public mjSolverStat_ solver3524;
+  public mjSolverStat_ solver3525;
+  public mjSolverStat_ solver3526;
+  public mjSolverStat_ solver3527;
+  public mjSolverStat_ solver3528;
+  public mjSolverStat_ solver3529;
+  public mjSolverStat_ solver3530;
+  public mjSolverStat_ solver3531;
+  public mjSolverStat_ solver3532;
+  public mjSolverStat_ solver3533;
+  public mjSolverStat_ solver3534;
+  public mjSolverStat_ solver3535;
+  public mjSolverStat_ solver3536;
+  public mjSolverStat_ solver3537;
+  public mjSolverStat_ solver3538;
+  public mjSolverStat_ solver3539;
+  public mjSolverStat_ solver3540;
+  public mjSolverStat_ solver3541;
+  public mjSolverStat_ solver3542;
+  public mjSolverStat_ solver3543;
+  public mjSolverStat_ solver3544;
+  public mjSolverStat_ solver3545;
+  public mjSolverStat_ solver3546;
+  public mjSolverStat_ solver3547;
+  public mjSolverStat_ solver3548;
+  public mjSolverStat_ solver3549;
+  public mjSolverStat_ solver3550;
+  public mjSolverStat_ solver3551;
+  public mjSolverStat_ solver3552;
+  public mjSolverStat_ solver3553;
+  public mjSolverStat_ solver3554;
+  public mjSolverStat_ solver3555;
+  public mjSolverStat_ solver3556;
+  public mjSolverStat_ solver3557;
+  public mjSolverStat_ solver3558;
+  public mjSolverStat_ solver3559;
+  public mjSolverStat_ solver3560;
+  public mjSolverStat_ solver3561;
+  public mjSolverStat_ solver3562;
+  public mjSolverStat_ solver3563;
+  public mjSolverStat_ solver3564;
+  public mjSolverStat_ solver3565;
+  public mjSolverStat_ solver3566;
+  public mjSolverStat_ solver3567;
+  public mjSolverStat_ solver3568;
+  public mjSolverStat_ solver3569;
+  public mjSolverStat_ solver3570;
+  public mjSolverStat_ solver3571;
+  public mjSolverStat_ solver3572;
+  public mjSolverStat_ solver3573;
+  public mjSolverStat_ solver3574;
+  public mjSolverStat_ solver3575;
+  public mjSolverStat_ solver3576;
+  public mjSolverStat_ solver3577;
+  public mjSolverStat_ solver3578;
+  public mjSolverStat_ solver3579;
+  public mjSolverStat_ solver3580;
+  public mjSolverStat_ solver3581;
+  public mjSolverStat_ solver3582;
+  public mjSolverStat_ solver3583;
+  public mjSolverStat_ solver3584;
+  public mjSolverStat_ solver3585;
+  public mjSolverStat_ solver3586;
+  public mjSolverStat_ solver3587;
+  public mjSolverStat_ solver3588;
+  public mjSolverStat_ solver3589;
+  public mjSolverStat_ solver3590;
+  public mjSolverStat_ solver3591;
+  public mjSolverStat_ solver3592;
+  public mjSolverStat_ solver3593;
+  public mjSolverStat_ solver3594;
+  public mjSolverStat_ solver3595;
+  public mjSolverStat_ solver3596;
+  public mjSolverStat_ solver3597;
+  public mjSolverStat_ solver3598;
+  public mjSolverStat_ solver3599;
+  public mjSolverStat_ solver3600;
+  public mjSolverStat_ solver3601;
+  public mjSolverStat_ solver3602;
+  public mjSolverStat_ solver3603;
+  public mjSolverStat_ solver3604;
+  public mjSolverStat_ solver3605;
+  public mjSolverStat_ solver3606;
+  public mjSolverStat_ solver3607;
+  public mjSolverStat_ solver3608;
+  public mjSolverStat_ solver3609;
+  public mjSolverStat_ solver3610;
+  public mjSolverStat_ solver3611;
+  public mjSolverStat_ solver3612;
+  public mjSolverStat_ solver3613;
+  public mjSolverStat_ solver3614;
+  public mjSolverStat_ solver3615;
+  public mjSolverStat_ solver3616;
+  public mjSolverStat_ solver3617;
+  public mjSolverStat_ solver3618;
+  public mjSolverStat_ solver3619;
+  public mjSolverStat_ solver3620;
+  public mjSolverStat_ solver3621;
+  public mjSolverStat_ solver3622;
+  public mjSolverStat_ solver3623;
+  public mjSolverStat_ solver3624;
+  public mjSolverStat_ solver3625;
+  public mjSolverStat_ solver3626;
+  public mjSolverStat_ solver3627;
+  public mjSolverStat_ solver3628;
+  public mjSolverStat_ solver3629;
+  public mjSolverStat_ solver3630;
+  public mjSolverStat_ solver3631;
+  public mjSolverStat_ solver3632;
+  public mjSolverStat_ solver3633;
+  public mjSolverStat_ solver3634;
+  public mjSolverStat_ solver3635;
+  public mjSolverStat_ solver3636;
+  public mjSolverStat_ solver3637;
+  public mjSolverStat_ solver3638;
+  public mjSolverStat_ solver3639;
+  public mjSolverStat_ solver3640;
+  public mjSolverStat_ solver3641;
+  public mjSolverStat_ solver3642;
+  public mjSolverStat_ solver3643;
+  public mjSolverStat_ solver3644;
+  public mjSolverStat_ solver3645;
+  public mjSolverStat_ solver3646;
+  public mjSolverStat_ solver3647;
+  public mjSolverStat_ solver3648;
+  public mjSolverStat_ solver3649;
+  public mjSolverStat_ solver3650;
+  public mjSolverStat_ solver3651;
+  public mjSolverStat_ solver3652;
+  public mjSolverStat_ solver3653;
+  public mjSolverStat_ solver3654;
+  public mjSolverStat_ solver3655;
+  public mjSolverStat_ solver3656;
+  public mjSolverStat_ solver3657;
+  public mjSolverStat_ solver3658;
+  public mjSolverStat_ solver3659;
+  public mjSolverStat_ solver3660;
+  public mjSolverStat_ solver3661;
+  public mjSolverStat_ solver3662;
+  public mjSolverStat_ solver3663;
+  public mjSolverStat_ solver3664;
+  public mjSolverStat_ solver3665;
+  public mjSolverStat_ solver3666;
+  public mjSolverStat_ solver3667;
+  public mjSolverStat_ solver3668;
+  public mjSolverStat_ solver3669;
+  public mjSolverStat_ solver3670;
+  public mjSolverStat_ solver3671;
+  public mjSolverStat_ solver3672;
+  public mjSolverStat_ solver3673;
+  public mjSolverStat_ solver3674;
+  public mjSolverStat_ solver3675;
+  public mjSolverStat_ solver3676;
+  public mjSolverStat_ solver3677;
+  public mjSolverStat_ solver3678;
+  public mjSolverStat_ solver3679;
+  public mjSolverStat_ solver3680;
+  public mjSolverStat_ solver3681;
+  public mjSolverStat_ solver3682;
+  public mjSolverStat_ solver3683;
+  public mjSolverStat_ solver3684;
+  public mjSolverStat_ solver3685;
+  public mjSolverStat_ solver3686;
+  public mjSolverStat_ solver3687;
+  public mjSolverStat_ solver3688;
+  public mjSolverStat_ solver3689;
+  public mjSolverStat_ solver3690;
+  public mjSolverStat_ solver3691;
+  public mjSolverStat_ solver3692;
+  public mjSolverStat_ solver3693;
+  public mjSolverStat_ solver3694;
+  public mjSolverStat_ solver3695;
+  public mjSolverStat_ solver3696;
+  public mjSolverStat_ solver3697;
+  public mjSolverStat_ solver3698;
+  public mjSolverStat_ solver3699;
+  public mjSolverStat_ solver3700;
+  public mjSolverStat_ solver3701;
+  public mjSolverStat_ solver3702;
+  public mjSolverStat_ solver3703;
+  public mjSolverStat_ solver3704;
+  public mjSolverStat_ solver3705;
+  public mjSolverStat_ solver3706;
+  public mjSolverStat_ solver3707;
+  public mjSolverStat_ solver3708;
+  public mjSolverStat_ solver3709;
+  public mjSolverStat_ solver3710;
+  public mjSolverStat_ solver3711;
+  public mjSolverStat_ solver3712;
+  public mjSolverStat_ solver3713;
+  public mjSolverStat_ solver3714;
+  public mjSolverStat_ solver3715;
+  public mjSolverStat_ solver3716;
+  public mjSolverStat_ solver3717;
+  public mjSolverStat_ solver3718;
+  public mjSolverStat_ solver3719;
+  public mjSolverStat_ solver3720;
+  public mjSolverStat_ solver3721;
+  public mjSolverStat_ solver3722;
+  public mjSolverStat_ solver3723;
+  public mjSolverStat_ solver3724;
+  public mjSolverStat_ solver3725;
+  public mjSolverStat_ solver3726;
+  public mjSolverStat_ solver3727;
+  public mjSolverStat_ solver3728;
+  public mjSolverStat_ solver3729;
+  public mjSolverStat_ solver3730;
+  public mjSolverStat_ solver3731;
+  public mjSolverStat_ solver3732;
+  public mjSolverStat_ solver3733;
+  public mjSolverStat_ solver3734;
+  public mjSolverStat_ solver3735;
+  public mjSolverStat_ solver3736;
+  public mjSolverStat_ solver3737;
+  public mjSolverStat_ solver3738;
+  public mjSolverStat_ solver3739;
+  public mjSolverStat_ solver3740;
+  public mjSolverStat_ solver3741;
+  public mjSolverStat_ solver3742;
+  public mjSolverStat_ solver3743;
+  public mjSolverStat_ solver3744;
+  public mjSolverStat_ solver3745;
+  public mjSolverStat_ solver3746;
+  public mjSolverStat_ solver3747;
+  public mjSolverStat_ solver3748;
+  public mjSolverStat_ solver3749;
+  public mjSolverStat_ solver3750;
+  public mjSolverStat_ solver3751;
+  public mjSolverStat_ solver3752;
+  public mjSolverStat_ solver3753;
+  public mjSolverStat_ solver3754;
+  public mjSolverStat_ solver3755;
+  public mjSolverStat_ solver3756;
+  public mjSolverStat_ solver3757;
+  public mjSolverStat_ solver3758;
+  public mjSolverStat_ solver3759;
+  public mjSolverStat_ solver3760;
+  public mjSolverStat_ solver3761;
+  public mjSolverStat_ solver3762;
+  public mjSolverStat_ solver3763;
+  public mjSolverStat_ solver3764;
+  public mjSolverStat_ solver3765;
+  public mjSolverStat_ solver3766;
+  public mjSolverStat_ solver3767;
+  public mjSolverStat_ solver3768;
+  public mjSolverStat_ solver3769;
+  public mjSolverStat_ solver3770;
+  public mjSolverStat_ solver3771;
+  public mjSolverStat_ solver3772;
+  public mjSolverStat_ solver3773;
+  public mjSolverStat_ solver3774;
+  public mjSolverStat_ solver3775;
+  public mjSolverStat_ solver3776;
+  public mjSolverStat_ solver3777;
+  public mjSolverStat_ solver3778;
+  public mjSolverStat_ solver3779;
+  public mjSolverStat_ solver3780;
+  public mjSolverStat_ solver3781;
+  public mjSolverStat_ solver3782;
+  public mjSolverStat_ solver3783;
+  public mjSolverStat_ solver3784;
+  public mjSolverStat_ solver3785;
+  public mjSolverStat_ solver3786;
+  public mjSolverStat_ solver3787;
+  public mjSolverStat_ solver3788;
+  public mjSolverStat_ solver3789;
+  public mjSolverStat_ solver3790;
+  public mjSolverStat_ solver3791;
+  public mjSolverStat_ solver3792;
+  public mjSolverStat_ solver3793;
+  public mjSolverStat_ solver3794;
+  public mjSolverStat_ solver3795;
+  public mjSolverStat_ solver3796;
+  public mjSolverStat_ solver3797;
+  public mjSolverStat_ solver3798;
+  public mjSolverStat_ solver3799;
+  public mjSolverStat_ solver3800;
+  public mjSolverStat_ solver3801;
+  public mjSolverStat_ solver3802;
+  public mjSolverStat_ solver3803;
+  public mjSolverStat_ solver3804;
+  public mjSolverStat_ solver3805;
+  public mjSolverStat_ solver3806;
+  public mjSolverStat_ solver3807;
+  public mjSolverStat_ solver3808;
+  public mjSolverStat_ solver3809;
+  public mjSolverStat_ solver3810;
+  public mjSolverStat_ solver3811;
+  public mjSolverStat_ solver3812;
+  public mjSolverStat_ solver3813;
+  public mjSolverStat_ solver3814;
+  public mjSolverStat_ solver3815;
+  public mjSolverStat_ solver3816;
+  public mjSolverStat_ solver3817;
+  public mjSolverStat_ solver3818;
+  public mjSolverStat_ solver3819;
+  public mjSolverStat_ solver3820;
+  public mjSolverStat_ solver3821;
+  public mjSolverStat_ solver3822;
+  public mjSolverStat_ solver3823;
+  public mjSolverStat_ solver3824;
+  public mjSolverStat_ solver3825;
+  public mjSolverStat_ solver3826;
+  public mjSolverStat_ solver3827;
+  public mjSolverStat_ solver3828;
+  public mjSolverStat_ solver3829;
+  public mjSolverStat_ solver3830;
+  public mjSolverStat_ solver3831;
+  public mjSolverStat_ solver3832;
+  public mjSolverStat_ solver3833;
+  public mjSolverStat_ solver3834;
+  public mjSolverStat_ solver3835;
+  public mjSolverStat_ solver3836;
+  public mjSolverStat_ solver3837;
+  public mjSolverStat_ solver3838;
+  public mjSolverStat_ solver3839;
+  public mjSolverStat_ solver3840;
+  public mjSolverStat_ solver3841;
+  public mjSolverStat_ solver3842;
+  public mjSolverStat_ solver3843;
+  public mjSolverStat_ solver3844;
+  public mjSolverStat_ solver3845;
+  public mjSolverStat_ solver3846;
+  public mjSolverStat_ solver3847;
+  public mjSolverStat_ solver3848;
+  public mjSolverStat_ solver3849;
+  public mjSolverStat_ solver3850;
+  public mjSolverStat_ solver3851;
+  public mjSolverStat_ solver3852;
+  public mjSolverStat_ solver3853;
+  public mjSolverStat_ solver3854;
+  public mjSolverStat_ solver3855;
+  public mjSolverStat_ solver3856;
+  public mjSolverStat_ solver3857;
+  public mjSolverStat_ solver3858;
+  public mjSolverStat_ solver3859;
+  public mjSolverStat_ solver3860;
+  public mjSolverStat_ solver3861;
+  public mjSolverStat_ solver3862;
+  public mjSolverStat_ solver3863;
+  public mjSolverStat_ solver3864;
+  public mjSolverStat_ solver3865;
+  public mjSolverStat_ solver3866;
+  public mjSolverStat_ solver3867;
+  public mjSolverStat_ solver3868;
+  public mjSolverStat_ solver3869;
+  public mjSolverStat_ solver3870;
+  public mjSolverStat_ solver3871;
+  public mjSolverStat_ solver3872;
+  public mjSolverStat_ solver3873;
+  public mjSolverStat_ solver3874;
+  public mjSolverStat_ solver3875;
+  public mjSolverStat_ solver3876;
+  public mjSolverStat_ solver3877;
+  public mjSolverStat_ solver3878;
+  public mjSolverStat_ solver3879;
+  public mjSolverStat_ solver3880;
+  public mjSolverStat_ solver3881;
+  public mjSolverStat_ solver3882;
+  public mjSolverStat_ solver3883;
+  public mjSolverStat_ solver3884;
+  public mjSolverStat_ solver3885;
+  public mjSolverStat_ solver3886;
+  public mjSolverStat_ solver3887;
+  public mjSolverStat_ solver3888;
+  public mjSolverStat_ solver3889;
+  public mjSolverStat_ solver3890;
+  public mjSolverStat_ solver3891;
+  public mjSolverStat_ solver3892;
+  public mjSolverStat_ solver3893;
+  public mjSolverStat_ solver3894;
+  public mjSolverStat_ solver3895;
+  public mjSolverStat_ solver3896;
+  public mjSolverStat_ solver3897;
+  public mjSolverStat_ solver3898;
+  public mjSolverStat_ solver3899;
+  public mjSolverStat_ solver3900;
+  public mjSolverStat_ solver3901;
+  public mjSolverStat_ solver3902;
+  public mjSolverStat_ solver3903;
+  public mjSolverStat_ solver3904;
+  public mjSolverStat_ solver3905;
+  public mjSolverStat_ solver3906;
+  public mjSolverStat_ solver3907;
+  public mjSolverStat_ solver3908;
+  public mjSolverStat_ solver3909;
+  public mjSolverStat_ solver3910;
+  public mjSolverStat_ solver3911;
+  public mjSolverStat_ solver3912;
+  public mjSolverStat_ solver3913;
+  public mjSolverStat_ solver3914;
+  public mjSolverStat_ solver3915;
+  public mjSolverStat_ solver3916;
+  public mjSolverStat_ solver3917;
+  public mjSolverStat_ solver3918;
+  public mjSolverStat_ solver3919;
+  public mjSolverStat_ solver3920;
+  public mjSolverStat_ solver3921;
+  public mjSolverStat_ solver3922;
+  public mjSolverStat_ solver3923;
+  public mjSolverStat_ solver3924;
+  public mjSolverStat_ solver3925;
+  public mjSolverStat_ solver3926;
+  public mjSolverStat_ solver3927;
+  public mjSolverStat_ solver3928;
+  public mjSolverStat_ solver3929;
+  public mjSolverStat_ solver3930;
+  public mjSolverStat_ solver3931;
+  public mjSolverStat_ solver3932;
+  public mjSolverStat_ solver3933;
+  public mjSolverStat_ solver3934;
+  public mjSolverStat_ solver3935;
+  public mjSolverStat_ solver3936;
+  public mjSolverStat_ solver3937;
+  public mjSolverStat_ solver3938;
+  public mjSolverStat_ solver3939;
+  public mjSolverStat_ solver3940;
+  public mjSolverStat_ solver3941;
+  public mjSolverStat_ solver3942;
+  public mjSolverStat_ solver3943;
+  public mjSolverStat_ solver3944;
+  public mjSolverStat_ solver3945;
+  public mjSolverStat_ solver3946;
+  public mjSolverStat_ solver3947;
+  public mjSolverStat_ solver3948;
+  public mjSolverStat_ solver3949;
+  public mjSolverStat_ solver3950;
+  public mjSolverStat_ solver3951;
+  public mjSolverStat_ solver3952;
+  public mjSolverStat_ solver3953;
+  public mjSolverStat_ solver3954;
+  public mjSolverStat_ solver3955;
+  public mjSolverStat_ solver3956;
+  public mjSolverStat_ solver3957;
+  public mjSolverStat_ solver3958;
+  public mjSolverStat_ solver3959;
+  public mjSolverStat_ solver3960;
+  public mjSolverStat_ solver3961;
+  public mjSolverStat_ solver3962;
+  public mjSolverStat_ solver3963;
+  public mjSolverStat_ solver3964;
+  public mjSolverStat_ solver3965;
+  public mjSolverStat_ solver3966;
+  public mjSolverStat_ solver3967;
+  public mjSolverStat_ solver3968;
+  public mjSolverStat_ solver3969;
+  public mjSolverStat_ solver3970;
+  public mjSolverStat_ solver3971;
+  public mjSolverStat_ solver3972;
+  public mjSolverStat_ solver3973;
+  public mjSolverStat_ solver3974;
+  public mjSolverStat_ solver3975;
+  public mjSolverStat_ solver3976;
+  public mjSolverStat_ solver3977;
+  public mjSolverStat_ solver3978;
+  public mjSolverStat_ solver3979;
+  public mjSolverStat_ solver3980;
+  public mjSolverStat_ solver3981;
+  public mjSolverStat_ solver3982;
+  public mjSolverStat_ solver3983;
+  public mjSolverStat_ solver3984;
+  public mjSolverStat_ solver3985;
+  public mjSolverStat_ solver3986;
+  public mjSolverStat_ solver3987;
+  public mjSolverStat_ solver3988;
+  public mjSolverStat_ solver3989;
+  public mjSolverStat_ solver3990;
+  public mjSolverStat_ solver3991;
+  public mjSolverStat_ solver3992;
+  public mjSolverStat_ solver3993;
+  public mjSolverStat_ solver3994;
+  public mjSolverStat_ solver3995;
+  public mjSolverStat_ solver3996;
+  public mjSolverStat_ solver3997;
+  public mjSolverStat_ solver3998;
+  public mjSolverStat_ solver3999;
+  public int solver_nisland;
+  public fixed int solver_niter[20];
+  public fixed int solver_nnz[20];
   public fixed double solver_fwdinv[2];
-  public int nbodypair_broad;
-  public int nbodypair_narrow;
-  public int ngeompair_mid;
-  public int ngeompair_narrow;
   public int ne;
   public int nf;
+  public int nl;
   public int nefc;
   public int nnzJ;
   public int ncon;
+  public int nisland;
   public double time;
   public fixed double energy[2];
   public void* buffer;
@@ -1614,6 +4793,7 @@ public unsafe struct mjData_ {
   public double* ctrl;
   public double* qfrc_applied;
   public double* xfrc_applied;
+  public byte* eq_active;
   public double* mocap_pos;
   public double* mocap_quat;
   public double* qacc;
@@ -1640,13 +4820,20 @@ public unsafe struct mjData_ {
   public double* subtree_com;
   public double* cdof;
   public double* cinert;
+  public double* flexvert_xpos;
+  public double* flexelem_aabb;
+  public int* flexedge_J_rownnz;
+  public int* flexedge_J_rowadr;
+  public int* flexedge_J_colind;
+  public double* flexedge_J;
+  public double* flexedge_length;
   public int* ten_wrapadr;
   public int* ten_wrapnum;
   public int* ten_J_rownnz;
   public int* ten_J_rowadr;
   public int* ten_J_colind;
-  public double* ten_length;
   public double* ten_J;
+  public double* ten_length;
   public int* wrap_obj;
   public double* wrap_xpos;
   public double* actuator_length;
@@ -1656,15 +4843,19 @@ public unsafe struct mjData_ {
   public double* qLD;
   public double* qLDiagInv;
   public double* qLDiagSqrtInv;
+  public double* bvh_aabb_dyn;
   public byte* bvh_active;
+  public double* flexedge_velocity;
   public double* ten_velocity;
   public double* actuator_velocity;
   public double* cvel;
   public double* cdof_dot;
   public double* qfrc_bias;
+  public double* qfrc_spring;
+  public double* qfrc_damper;
+  public double* qfrc_gravcomp;
+  public double* qfrc_fluid;
   public double* qfrc_passive;
-  public double* efc_vel;
-  public double* efc_aref;
   public double* subtree_linvel;
   public double* subtree_angmom;
   public double* qH;
@@ -1706,13 +4897,26 @@ public unsafe struct mjData_ {
   public double* efc_KBIP;
   public double* efc_D;
   public double* efc_R;
-  public double* efc_b;
-  public double* efc_force;
-  public int* efc_state;
+  public int* tendon_efcadr;
+  public int* dof_island;
+  public int* island_dofnum;
+  public int* island_dofadr;
+  public int* island_dofind;
+  public int* dof_islandind;
+  public int* efc_island;
+  public int* island_efcnum;
+  public int* island_efcadr;
+  public int* island_efcind;
   public int* efc_AR_rownnz;
   public int* efc_AR_rowadr;
   public int* efc_AR_colind;
   public double* efc_AR;
+  public double* efc_vel;
+  public double* efc_aref;
+  public double* efc_b;
+  public double* efc_force;
+  public int* efc_state;
+  public UIntPtr threadpool;
 }
 
 [StructLayout(LayoutKind.Sequential)]
@@ -1734,7 +4938,7 @@ public unsafe struct _mjVFS
 {
   public int nfile;
   [MarshalAs(UnmanagedType.ByValArray, SizeConst = 2000 * 1000)] public char[] filename;
-  [MarshalAs(UnmanagedType.ByValArray, SizeConst = 2000)] public int[] filesize;
+  [MarshalAs(UnmanagedType.ByValArray, SizeConst = 2000)] public UIntPtr[] filesize;
   [MarshalAs(UnmanagedType.ByValArray, SizeConst = 2000)] public IntPtr[] filedata;
 }
 
@@ -1744,6 +4948,7 @@ public unsafe struct mjOption_ {
   public double apirate;
   public double impratio;
   public double tolerance;
+  public double ls_tolerance;
   public double noslip_tolerance;
   public double mpr_tolerance;
   public fixed double gravity[3];
@@ -1754,16 +4959,20 @@ public unsafe struct mjOption_ {
   public double o_margin;
   public fixed double o_solref[2];
   public fixed double o_solimp[5];
+  public fixed double o_friction[5];
   public int integrator;
-  public int collision;
   public int cone;
   public int jacobian;
   public int solver;
   public int iterations;
+  public int ls_iterations;
   public int noslip_iterations;
   public int mpr_iterations;
   public int disableflags;
   public int enableflags;
+  public int disableactuator;
+  public int sdf_initpoints;
+  public int sdf_iterations;
 }
 
 [StructLayout(LayoutKind.Sequential)]
@@ -1832,6 +5041,7 @@ public unsafe struct scale {
   public float framewidth;
   public float constraint;
   public float slidercrank;
+  public float frustum;
 }
 
 [StructLayout(LayoutKind.Sequential)]
@@ -1858,6 +5068,7 @@ public unsafe struct rgba {
   public fixed float constraint[4];
   public fixed float slidercrank[4];
   public fixed float crankbroken[4];
+  public fixed float frustum[4];
 }
 
 [StructLayout(LayoutKind.Sequential)]
@@ -1887,11 +5098,21 @@ public unsafe struct mjModel_ {
   public int na;
   public int nbody;
   public int nbvh;
+  public int nbvhstatic;
+  public int nbvhdynamic;
   public int njnt;
   public int ngeom;
   public int nsite;
   public int ncam;
   public int nlight;
+  public int nflex;
+  public int nflexvert;
+  public int nflexedge;
+  public int nflexelem;
+  public int nflexelemdata;
+  public int nflexshelldata;
+  public int nflexevpair;
+  public int nflextexcoord;
   public int nmesh;
   public int nmeshvert;
   public int nmeshnormal;
@@ -1935,17 +5156,19 @@ public unsafe struct mjModel_ {
   public int nuser_sensor;
   public int nnames;
   public int nnames_map;
+  public int npaths;
   public int nM;
   public int nD;
   public int nB;
+  public int ntree;
   public int nemax;
   public int njmax;
   public int nconmax;
-  public int nstack;
   public int nuserdata;
   public int nsensordata;
   public int npluginstate;
-  public int nbuffer;
+  public UIntPtr narena;
+  public UIntPtr nbuffer;
   public mjOption_ opt;
   public mjVisual_ vis;
   public mjStatistic_ stat;
@@ -1960,6 +5183,7 @@ public unsafe struct mjModel_ {
   public int* body_jntadr;
   public int* body_dofnum;
   public int* body_dofadr;
+  public int* body_treeid;
   public int* body_geomnum;
   public int* body_geomadr;
   public byte* body_simple;
@@ -1973,13 +5197,16 @@ public unsafe struct mjModel_ {
   public double* body_inertia;
   public double* body_invweight0;
   public double* body_gravcomp;
+  public double* body_margin;
   public double* body_user;
   public int* body_plugin;
+  public int* body_contype;
+  public int* body_conaffinity;
   public int* body_bvhadr;
   public int* body_bvhnum;
   public int* bvh_depth;
   public int* bvh_child;
-  public int* bvh_geomid;
+  public int* bvh_nodeid;
   public double* bvh_aabb;
   public int* jnt_type;
   public int* jnt_qposadr;
@@ -1987,17 +5214,20 @@ public unsafe struct mjModel_ {
   public int* jnt_bodyid;
   public int* jnt_group;
   public byte* jnt_limited;
+  public byte* jnt_actfrclimited;
   public double* jnt_solref;
   public double* jnt_solimp;
   public double* jnt_pos;
   public double* jnt_axis;
   public double* jnt_stiffness;
   public double* jnt_range;
+  public double* jnt_actfrcrange;
   public double* jnt_margin;
   public double* jnt_user;
   public int* dof_bodyid;
   public int* dof_jntid;
   public int* dof_parentid;
+  public int* dof_treeid;
   public int* dof_Madr;
   public int* dof_simplenum;
   public double* dof_solref;
@@ -2016,6 +5246,7 @@ public unsafe struct mjModel_ {
   public int* geom_matid;
   public int* geom_group;
   public int* geom_priority;
+  public int* geom_plugin;
   public byte* geom_sameframe;
   public double* geom_solmix;
   public double* geom_solref;
@@ -2049,7 +5280,10 @@ public unsafe struct mjModel_ {
   public double* cam_poscom0;
   public double* cam_pos0;
   public double* cam_mat0;
+  public int* cam_resolution;
   public double* cam_fovy;
+  public float* cam_intrinsic;
+  public float* cam_sensorsize;
   public double* cam_ipd;
   public double* cam_user;
   public int* light_mode;
@@ -2069,6 +5303,56 @@ public unsafe struct mjModel_ {
   public float* light_ambient;
   public float* light_diffuse;
   public float* light_specular;
+  public int* flex_contype;
+  public int* flex_conaffinity;
+  public int* flex_condim;
+  public int* flex_priority;
+  public double* flex_solmix;
+  public double* flex_solref;
+  public double* flex_solimp;
+  public double* flex_friction;
+  public double* flex_margin;
+  public double* flex_gap;
+  public byte* flex_internal;
+  public int* flex_selfcollide;
+  public int* flex_activelayers;
+  public int* flex_dim;
+  public int* flex_matid;
+  public int* flex_group;
+  public int* flex_vertadr;
+  public int* flex_vertnum;
+  public int* flex_edgeadr;
+  public int* flex_edgenum;
+  public int* flex_elemadr;
+  public int* flex_elemnum;
+  public int* flex_elemdataadr;
+  public int* flex_shellnum;
+  public int* flex_shelldataadr;
+  public int* flex_evpairadr;
+  public int* flex_evpairnum;
+  public int* flex_texcoordadr;
+  public int* flex_vertbodyid;
+  public int* flex_edge;
+  public int* flex_elem;
+  public int* flex_elemlayer;
+  public int* flex_shell;
+  public int* flex_evpair;
+  public double* flex_vert;
+  public double* flex_xvert0;
+  public double* flexedge_length0;
+  public double* flexedge_invweight0;
+  public double* flex_radius;
+  public double* flex_edgestiffness;
+  public double* flex_edgedamping;
+  public byte* flex_edgeequality;
+  public byte* flex_rigid;
+  public byte* flexedge_rigid;
+  public byte* flex_centered;
+  public byte* flex_flatskin;
+  public int* flex_bvhadr;
+  public int* flex_bvhnum;
+  public float* flex_rgba;
+  public float* flex_texcoord;
   public int* mesh_vertadr;
   public int* mesh_vertnum;
   public int* mesh_faceadr;
@@ -2080,6 +5364,8 @@ public unsafe struct mjModel_ {
   public int* mesh_texcoordadr;
   public int* mesh_texcoordnum;
   public int* mesh_graphadr;
+  public double* mesh_pos;
+  public double* mesh_quat;
   public float* mesh_vert;
   public float* mesh_normal;
   public float* mesh_texcoord;
@@ -2087,6 +5373,7 @@ public unsafe struct mjModel_ {
   public int* mesh_facenormal;
   public int* mesh_facetexcoord;
   public int* mesh_graph;
+  public int* mesh_pathadr;
   public int* skin_matid;
   public int* skin_group;
   public float* skin_rgba;
@@ -2108,16 +5395,19 @@ public unsafe struct mjModel_ {
   public int* skin_bonebodyid;
   public int* skin_bonevertid;
   public float* skin_bonevertweight;
+  public int* skin_pathadr;
   public double* hfield_size;
   public int* hfield_nrow;
   public int* hfield_ncol;
   public int* hfield_adr;
   public float* hfield_data;
+  public int* hfield_pathadr;
   public int* tex_type;
   public int* tex_height;
   public int* tex_width;
   public int* tex_adr;
   public byte* tex_rgb;
+  public int* tex_pathadr;
   public int* mat_texid;
   public byte* mat_texuniform;
   public float* mat_texrepeat;
@@ -2140,7 +5430,7 @@ public unsafe struct mjModel_ {
   public int* eq_type;
   public int* eq_obj1id;
   public int* eq_obj2id;
-  public byte* eq_active;
+  public byte* eq_active0;
   public double* eq_solref;
   public double* eq_solimp;
   public double* eq_data;
@@ -2181,6 +5471,7 @@ public unsafe struct mjModel_ {
   public double* actuator_dynprm;
   public double* actuator_gainprm;
   public double* actuator_biasprm;
+  public byte* actuator_actearly;
   public double* actuator_ctrlrange;
   public double* actuator_forcerange;
   public double* actuator_actrange;
@@ -2233,6 +5524,7 @@ public unsafe struct mjModel_ {
   public int* name_siteadr;
   public int* name_camadr;
   public int* name_lightadr;
+  public int* name_flexadr;
   public int* name_meshadr;
   public int* name_skinadr;
   public int* name_hfieldadr;
@@ -2251,6 +5543,7 @@ public unsafe struct mjModel_ {
   public int* name_pluginadr;
   public char* names;
   public int* names_map;
+  public char* paths;
 }
 
 [StructLayout(LayoutKind.Sequential)]
@@ -2320,6 +5613,7 @@ public unsafe struct mjrContext_ {
   public int windowDoublebuffer;
   public int currentBuffer;
   public int readPixelFormat;
+  public int readDepthMap;
 }
 
 [StructLayout(LayoutKind.Sequential)]
@@ -2498,6 +5792,7 @@ public unsafe struct mjuiDef_ {
 [StructLayout(LayoutKind.Sequential)]
 public unsafe struct mjvPerturb_ {
   public int select;
+  public int flexselect;
   public int skinselect;
   public int active;
   public int active2;
@@ -2526,6 +5821,7 @@ public unsafe struct mjvGLCamera_ {
   public fixed float forward[3];
   public fixed float up[3];
   public float frustum_center;
+  public float frustum_width;
   public float frustum_bottom;
   public float frustum_top;
   public float frustum_near;
@@ -2582,9 +5878,11 @@ public unsafe struct mjvOption_ {
   public fixed byte jointgroup[6];
   public fixed byte tendongroup[6];
   public fixed byte actuatorgroup[6];
+  public fixed byte flexgroup[6];
   public fixed byte skingroup[6];
-  public fixed byte flags[25];
+  public fixed byte flags[32];
   public int bvh_depth;
+  public int flex_layer;
 }
 
 [StructLayout(LayoutKind.Sequential)]
@@ -2593,6 +5891,23 @@ public unsafe struct mjvScene_ {
   public int ngeom;
   public mjvGeom_* geoms;
   public int* geomorder;
+  public int nflex;
+  public int* flexedgeadr;
+  public int* flexedgenum;
+  public int* flexvertadr;
+  public int* flexvertnum;
+  public int* flexfaceadr;
+  public int* flexfacenum;
+  public int* flexfaceused;
+  public int* flexedge;
+  public float* flexvert;
+  public float* flexface;
+  public float* flexnormal;
+  public float* flextexcoord;
+  public byte flexvertopt;
+  public byte flexedgeopt;
+  public byte flexfaceopt;
+  public byte flexskinopt;
   public int nskin;
   public int* skinfacenum;
   public int* skinvertadr;
@@ -2751,10 +6066,12 @@ public unsafe struct mjvFigure_ {
 
 [StructLayout(LayoutKind.Sequential)]
 public unsafe struct model {
+  public int nv;
   public int nu;
   public int na;
   public int nbody;
   public int nbvh;
+  public int nbvhstatic;
   public int njnt;
   public int ngeom;
   public int nsite;
@@ -2762,6 +6079,9 @@ public unsafe struct model {
   public int nlight;
   public int nmesh;
   public int nskin;
+  public int nflex;
+  public int nflexvert;
+  public int nflextexcoord;
   public int nskinvert;
   public int nskinface;
   public int nskinbone;
@@ -2769,10 +6089,13 @@ public unsafe struct model {
   public int nmat;
   public int neq;
   public int ntendon;
+  public int ntree;
   public int nwrap;
   public int nsensor;
   public int nnames;
+  public int npaths;
   public int nsensordata;
+  public int narena;
   public mjOption_ opt;
   public mjVisual_ vis;
   public mjStatistic_ stat;
@@ -2782,6 +6105,8 @@ public unsafe struct model {
   public int* body_mocapid;
   public int* body_jntnum;
   public int* body_jntadr;
+  public int* body_dofnum;
+  public int* body_dofadr;
   public int* body_geomnum;
   public int* body_geomadr;
   public double* body_iquat;
@@ -2791,13 +6116,15 @@ public unsafe struct model {
   public int* body_bvhnum;
   public int* bvh_depth;
   public int* bvh_child;
-  public int* bvh_geomid;
+  public int* bvh_nodeid;
   public double* bvh_aabb;
   public int* jnt_type;
   public int* jnt_bodyid;
   public int* jnt_group;
   public int* geom_type;
   public int* geom_bodyid;
+  public int* geom_contype;
+  public int* geom_conaffinity;
   public int* geom_dataid;
   public int* geom_matid;
   public int* geom_group;
@@ -2813,6 +6140,8 @@ public unsafe struct model {
   public float* site_rgba;
   public double* cam_fovy;
   public double* cam_ipd;
+  public float* cam_intrinsic;
+  public float* cam_sensorsize;
   public byte* light_directional;
   public byte* light_castshadow;
   public byte* light_active;
@@ -2822,8 +6151,31 @@ public unsafe struct model {
   public float* light_ambient;
   public float* light_diffuse;
   public float* light_specular;
+  public byte* flex_flatskin;
+  public int* flex_dim;
+  public int* flex_matid;
+  public int* flex_group;
+  public int* flex_vertadr;
+  public int* flex_vertnum;
+  public int* flex_elem;
+  public int* flex_elemlayer;
+  public int* flex_elemadr;
+  public int* flex_elemnum;
+  public int* flex_elemdataadr;
+  public int* flex_shell;
+  public int* flex_shellnum;
+  public int* flex_shelldataadr;
+  public int* flex_texcoordadr;
+  public int* flex_bvhadr;
+  public int* flex_bvhnum;
+  public double* flex_radius;
+  public float* flex_rgba;
+  public int* hfield_pathadr;
+  public int* mesh_bvhadr;
+  public int* mesh_bvhnum;
   public int* mesh_texcoordadr;
   public int* mesh_graphadr;
+  public int* mesh_pathadr;
   public int* skin_matid;
   public int* skin_group;
   public float* skin_rgba;
@@ -2844,6 +6196,8 @@ public unsafe struct model {
   public int* skin_bonebodyid;
   public int* skin_bonevertid;
   public float* skin_bonevertweight;
+  public int* skin_pathadr;
+  public int* tex_pathadr;
   public int* mat_texid;
   public byte* mat_texuniform;
   public float* mat_texrepeat;
@@ -2855,7 +6209,6 @@ public unsafe struct model {
   public int* eq_type;
   public int* eq_obj1id;
   public int* eq_obj2id;
-  public byte* eq_active;
   public double* eq_data;
   public int* tendon_num;
   public int* tendon_matid;
@@ -2892,6 +6245,7 @@ public unsafe struct model {
   public int* name_tendonadr;
   public int* name_actuatoradr;
   public char* names;
+  public char* paths;
 }
 
 [StructLayout(LayoutKind.Sequential)]
@@ -2906,10 +6260,12 @@ public unsafe struct data {
   public mjWarningStat_ warning7;
   public int nefc;
   public int ncon;
+  public int nisland;
   public double time;
   public double* act;
   public double* ctrl;
   public double* xfrc_applied;
+  public byte* eq_active;
   public double* sensordata;
   public double* xpos;
   public double* xquat;
@@ -2930,10 +6286,19 @@ public unsafe struct data {
   public int* ten_wrapadr;
   public int* ten_wrapnum;
   public int* wrap_obj;
+  public double* ten_length;
   public double* wrap_xpos;
+  public double* bvh_aabb_dyn;
   public byte* bvh_active;
+  public int* island_dofadr;
+  public int* island_dofind;
+  public int* dof_island;
+  public int* efc_island;
+  public int* tendon_efcadr;
+  public double* flexvert_xpos;
   public mjContact_* contact;
   public double* efc_force;
+  public void* arena;
 }
 
 [StructLayout(LayoutKind.Sequential)]
@@ -2941,7 +6306,7 @@ public unsafe struct mjvSceneState_ {
   public int nbuffer;
   public void* buffer;
   public int maxgeom;
-  public mjvScene_ plugincache;
+  public mjvScene_ scratch;
   public model model;
   public data data;
 }public struct mjuiItem_ {}public struct mjfItemEnable {}
@@ -3042,7 +6407,16 @@ public static unsafe extern void mj_resetDataDebug(mjModel_* m, mjData_* d, byte
 public static unsafe extern void mj_resetDataKeyframe(mjModel_* m, mjData_* d, int key);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
-public static unsafe extern double* mj_stackAlloc(mjData_* d, int size);
+public static unsafe extern void mj_markStack(mjData_* d);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern void mj_freeStack(mjData_* d);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern void* mj_stackAllocByte(mjData_* d, UIntPtr bytes, UIntPtr alignment);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern double* mj_stackAllocNum(mjData_* d, int size);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern int* mj_stackAllocInt(mjData_* d, int size);
@@ -3099,6 +6473,9 @@ public static unsafe extern void mj_Euler(mjModel_* m, mjData_* d);
 public static unsafe extern void mj_RungeKutta(mjModel_* m, mjData_* d, int N);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern void mj_implicit(mjModel_* m, mjData_* d);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern void mj_invPosition(mjModel_* m, mjData_* d);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
@@ -3144,6 +6521,9 @@ public static unsafe extern void mj_comPos(mjModel_* m, mjData_* d);
 public static unsafe extern void mj_camlight(mjModel_* m, mjData_* d);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern void mj_flex(mjModel_* m, mjData_* d);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern void mj_tendon(mjModel_* m, mjData_* d);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
@@ -3181,6 +6561,9 @@ public static unsafe extern void mj_collision(mjModel_* m, mjData_* d);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern void mj_makeConstraint(mjModel_* m, mjData_* d);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern void mj_island(mjModel_* m, mjData_* d);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern void mj_projectConstraint(mjModel_* m, mjData_* d);
@@ -3299,6 +6682,10 @@ public static unsafe extern void mj_loadPluginLibrary([MarshalAs(UnmanagedType.L
 public static unsafe extern int mj_version();
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+[return: MarshalAs(UnmanagedType.LPStr)]
+public static unsafe extern string mj_versionString();
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern void mj_multiRay(mjModel_* m, mjData_* d, double* pnt, double* vec, byte* geomgroup, byte flg_static, int bodyexclude, int* geomid, double* dist, int nray, double cutoff);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
@@ -3312,6 +6699,9 @@ public static unsafe extern double mj_rayMesh(mjModel_* m, mjData_* d, int geomi
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern double mju_rayGeom(double* pos, double* mat, double* size, double* pnt, double* vec, int geomtype);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern double mju_rayFlex(mjModel_* m, mjData_* d, int flex_layer, byte flg_vert, byte flg_edge, byte flg_face, byte flg_skin, int flexid, double* pnt, double* vec, int* vertid);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern double mju_raySkin(int nface, int nvert, int* face, float* vert, double* pnt, double* vec, int* vertid);
@@ -3371,7 +6761,7 @@ public static unsafe extern void mjv_applyPerturbForce(mjModel_* m, mjData_* d, 
 public static unsafe extern mjvGLCamera_* mjv_averageCamera(mjvGLCamera_* cam1, mjvGLCamera_* cam2);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
-public static unsafe extern int mjv_select(mjModel_* m, mjData_* d, mjvOption_* vopt, double aspectratio, double relx, double rely, mjvScene_* scn, double* selpnt, int* geomid, int* skinid);
+public static unsafe extern int mjv_select(mjModel_* m, mjData_* d, mjvOption_* vopt, double aspectratio, double relx, double rely, mjvScene_* scn, double* selpnt, int* geomid, int* flexid, int* skinid);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern void mjv_defaultOption(mjvOption_* opt);
@@ -3384,6 +6774,9 @@ public static unsafe extern void mjv_initGeom(mjvGeom_* geom, int type, double* 
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern void mjv_makeConnector(mjvGeom_* geom, int type, double width, double a0, double a1, double a2, double b0, double b1, double b2);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern void mjv_connector(mjvGeom_* geom, int type, double width, double* from, double* to);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern void mjv_defaultScene(mjvScene_* scn);
@@ -3581,7 +6974,7 @@ public static unsafe extern void mju_addToScl3(double* res, double* vec, double 
 public static unsafe extern void mju_addScl3(double* res, double* vec1, double* vec2, double scl);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
-public static unsafe extern double mju_normalize3(double* res);
+public static unsafe extern double mju_normalize3(double* vec);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern double mju_norm3(double* vec);
@@ -3611,7 +7004,7 @@ public static unsafe extern void mju_unit4(double* res);
 public static unsafe extern void mju_copy4(double* res, double* data);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
-public static unsafe extern double mju_normalize4(double* res);
+public static unsafe extern double mju_normalize4(double* vec);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern void mju_zero(double* res, int n);
@@ -3620,7 +7013,7 @@ public static unsafe extern void mju_zero(double* res, int n);
 public static unsafe extern void mju_fill(double* res, double val, int n);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
-public static unsafe extern void mju_copy(double* res, double* data, int n);
+public static unsafe extern void mju_copy(double* res, double* vec, int n);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern double mju_sum(double* vec, int n);
@@ -3862,5 +7255,14 @@ public static unsafe extern void mjd_transitionFD(mjModel_* m, mjData_* d, doubl
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern void mjd_inverseFD(mjModel_* m, mjData_* d, double eps, byte flg_actuation, double* DfDq, double* DfDv, double* DfDa, double* DsDq, double* DsDv, double* DsDa, double* DmDq);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern void mjd_subQuat(double* qa, double* qb, double* Da, double* Db);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern void mjd_quatIntegrate(double* vel, double scale, double* Dquat, double* Dvel, double* Dscale);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern void mju_bindThreadPool(mjData_* d, void* thread_pool);
 }
 }

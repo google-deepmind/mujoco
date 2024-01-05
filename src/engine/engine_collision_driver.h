@@ -21,22 +21,7 @@
 
 #ifdef __cplusplus
 extern "C" {
-#elif !defined(__STDC_VERSION__) || __STDC_VERSION__ < 201112L
-// No C11 support in Visual Studio 2019 update 7 and earlier.
-// However, MSVC allows C++ alignas to be used in C code, so
-// we can just skip the #include <stdalign.h>.
-#ifndef _MSC_VER
-#error "Compiler does not support C11."
 #endif
-#else
-#include <stdalign.h>
-#endif
-
-struct mjCollisionTree_ {
-  alignas(mjtNum) int node1;
-  int node2;
-};
-typedef struct mjCollisionTree_ mjCollisionTree;
 
 // collision function pointers and max contact pairs
 MJAPI extern mjfCollision mjCOLLISIONFUNC[mjNGEOMTYPES][mjNGEOMTYPES];
@@ -47,20 +32,44 @@ MJAPI void mj_collision(const mjModel* m, mjData* d);
 // applies Separating Axis Theorem for rotated AABBs
 MJAPI int mj_collideOBB(const mjtNum aabb1[6], const mjtNum aabb2[6],
                         const mjtNum xpos1[3], const mjtNum xmat1[9],
-                        const mjtNum xpos2[3], const mjtNum xmat2[9],
+                        const mjtNum xpos2[3], const mjtNum xmat2[9], mjtNum margin,
                         mjtNum product[36], mjtNum offset[12], mjtByte* initialize);
 
-// broad phase collision detection; return list of body pairs for narrow phase
-int mj_broadphase(const mjModel* m, mjData* d, int* bodypair, int maxpair);
+// is element active (for collisions)
+MJAPI int mj_isElemActive(const mjModel* m, int f, int e);
+
+// checks if pair is already present in pair_geom and calls narrow phase
+void mj_collideGeomPair(const mjModel* m, mjData* d, int g1, int g2, int merged,
+                        int startadr, int pairadr);
+
+// binary search between two bodyflex trees
+void mj_collideTree(const mjModel* m, mjData* d, int bf1, int bf2,
+                    int merged, int startadr, int pairadr);
+
+// broad phase collision detection; return list of bodyflex pairs
+int mj_broadphase(const mjModel* m, mjData* d, int* bfpair, int maxpair);
 
 // test two geoms for collision, apply filters, add to contact list
-//  flg_user disables filters and uses usermargin
-void mj_collideGeoms(const mjModel* m, mjData* d,
-                     int g1, int g2, int flg_user, mjtNum usermargin);
+void mj_collideGeoms(const mjModel* m, mjData* d, int g1, int g2);
 
-// number of possible collisions based on filters and geom types
-int mj_contactFilter(int contype1, int conaffinity1,
-                     int contype2, int conaffinity2);
+// test a plane geom and a flex for collision, add to contact list
+void mj_collidePlaneFlex(const mjModel* m, mjData* d, int g, int f);
+
+// test for internal flex collisions, add to contact list
+void mj_collideFlexInternal(const mjModel* m, mjData* d, int f);
+
+// test active element self-collisions with SAP
+void mj_collideFlexSAP(const mjModel* m, mjData* d, int f);
+
+// test a geom and an elem for collision, add to contact list
+void mj_collideGeomElem(const mjModel* m, mjData* d, int g, int f, int e);
+
+// test two elems for collision, add to contact list
+void mj_collideElems(const mjModel* m, mjData* d, int f1, int e1, int f2, int e2);
+
+// test element and vertex for collision, add to contact list
+void mj_collideElemVert(const mjModel* m, mjData* d, int f, int e, int v);
+
 
 #ifdef __cplusplus
 }

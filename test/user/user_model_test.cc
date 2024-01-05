@@ -14,6 +14,7 @@
 
 // Tests for user/user_model.cc.
 
+#include <array>
 #include <string>
 
 #include <gmock/gmock.h>
@@ -21,6 +22,7 @@
 #include <absl/strings/str_format.h>
 #include <mujoco/mjmodel.h>
 #include <mujoco/mujoco.h>
+#include "src/cc/array_safety.h"
 #include "test/fixture.h"
 
 namespace mujoco {
@@ -28,15 +30,40 @@ namespace {
 
 using ::testing::DoubleNear;
 using ::testing::ElementsAre;
+using ::testing::HasSubstr;
+using ::testing::IsNull;
 using ::testing::NotNull;
-using UserDataTest = MujocoTest;
 
 static std::vector<mjtNum> GetRow(const mjtNum* array, int ncolumn, int row) {
   return std::vector<mjtNum>(array + ncolumn * row,
                              array + ncolumn * (row + 1));
 }
 
+// ----------------------------- test mjCModel  --------------------------------
+
+using UserCModelTest = MujocoTest;
+
+TEST_F(UserCModelTest, RepeatedNames) {
+  static constexpr char xml[] = R"(
+   <mujoco>
+     <worldbody>
+       <body name="body1">
+         <joint axis="0 1 0" name="joint1"/>
+         <geom size="1" name="geom1"/>
+         <geom size="1" name="geom1"/>
+        </body>
+      </worldbody>
+    </mujoco>)";
+
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(model, IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("repeated name 'geom1' in geom"));
+}
+
 // ------------- test automatic inference of nuser_xxx -------------------------
+
+using UserDataTest = MujocoTest;
 
 TEST_F(UserDataTest, AutoNUserBody) {
   static constexpr char xml[] = R"(
@@ -187,6 +214,26 @@ TEST_F(UserDataTest, AutoNUserSensor) {
   ASSERT_EQ(m->nuser_sensor, 3);
   EXPECT_THAT(GetRow(m->sensor_user, m->nuser_sensor, 0), ElementsAre(1, 2, 3));
   EXPECT_THAT(GetRow(m->sensor_user, m->nuser_sensor, 1), ElementsAre(2, 3, 0));
+  mj_deleteModel(m);
+}
+
+// ------------- test duplicate names ------------------------------------------
+TEST_F(UserDataTest, DuplicateNames) {
+  static const char* const kFilePath = "user/testdata/load_twice.xml";
+  const std::string xml_path = GetTestDataFilePath(kFilePath);
+
+  std::array<char, 1024> error;
+  mjModel* m = mj_loadXML(xml_path.c_str(), 0, error.data(), error.size());
+
+  EXPECT_THAT(m, NotNull()) << error.data();
+  EXPECT_THAT(m->nmesh, 2);
+
+  for (int i = 0; i < m->nmesh; i++) {
+    char mesh_name[mjMAXUINAME] = "";
+    util::strcat_arr(mesh_name, m->names + m->name_meshadr[i]);
+    EXPECT_THAT(std::string(mesh_name), "cube_" + std::to_string(i));
+  }
+
   mj_deleteModel(m);
 }
 

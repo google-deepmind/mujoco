@@ -368,9 +368,9 @@ Numeric constants
 
 Many integer constants were already documented in the primitive types above. In addition, the header files define
 several other constants documented here. Unless indicated otherwise, each entry in the table below is defined in
-`mjmodel.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjmodel.h>`_. Note that some extended key codes
-are defined in `mjui.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjui.h>`_ which are not shown in the
-table below. Their names are in the format ``mjKEY_XXX``. They correspond to GLFW key codes.
+`mjmodel.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjmodel.h>`_. Note that some extended key
+codes are defined in `mjui.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjui.h>`_ which are not
+shown in the table below. Their names are in the format ``mjKEY_XXX``. They correspond to GLFW key codes.
 
 .. list-table::
    :widths: 2 1 8
@@ -450,69 +450,79 @@ table below. Their names are in the format ``mjKEY_XXX``. They correspond to GLF
      - The maximal number of real-valued parameters used to define the impedance of each scalar constraint.
        Determines the size of all ``mjModel.XXX_solimp`` fields.
    * - ``mjNSOLVER``
-     - 1000
-     - The size of the preallocated array ``mjData.solver``. This is used to store diagnostic information about each
-       iteration of the constraint solver. The actual number of iterations is given by ``mjData.solver_iter``.
+     - 200
+     - The number of iterations where solver statistics can be stored in ``mjData.solver``. This array is used
+       to store diagnostic information about each iteration of the constraint solver.
+       The actual number of iterations is given by ``mjData.solver_iter``.
+   * - ``mjNISLAND``
+     - 20
+     - The number of islands for which solver statistics can be stored in ``mjData.solver``. This array is
+       used to store diagnostic information about each iteration of the constraint solver.
+       The actual number of islands for which the solver was run is given by ``mjData.nsolver_island``.
    * - ``mjNGROUP``
      - 6
      - The number of geom, site, joint, tendon and actuator groups whose rendering can be enabled and disabled via
        :ref:`mjvOption`.
-       Defined in `mjvisualize.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjvisualize.h>`_.
+       Defined in `mjvisualize.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjvisualize.h>`_.
    * - ``mjMAXOVERLAY``
      - 500
      - The maximal number of characters in overlay text for rendering.
-       Defined in `mjvisualize.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjvisualize.h>`_.
+       Defined in `mjvisualize.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjvisualize.h>`_.
    * - ``mjMAXLINE``
      - 100
      - The maximal number of lines per 2D figure (:ref:`mjvFigure`).
-       Defined in `mjvisualize.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjvisualize.h>`_.
+       Defined in `mjvisualize.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjvisualize.h>`_.
    * - ``mjMAXLINEPNT``
      - 1000
      - The maximal number of points in each line in a 2D figure. Note that the buffer ``mjvFigure.linepnt`` has length
        ``2*mjMAXLINEPNT`` because each point has X and Y coordinates.
-       Defined in `mjvisualize.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjvisualize.h>`_.
+       Defined in `mjvisualize.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjvisualize.h>`_.
    * - ``mjMAXPLANEGRID``
      - 200
      - The maximal number of grid lines in each dimension for rendering planes.
-       Defined in `mjvisualize.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjvisualize.h>`_.
+       Defined in `mjvisualize.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjvisualize.h>`_.
    * - ``mjNAUX``
      - 10
      - Number of auxiliary buffers that can be allocated in mjrContext.
-       Defined in `mjrender.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjrender.h>`_.
+       Defined in `mjrender.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjrender.h>`_.
    * - ``mjMAXTEXTURE``
      - 1000
      - Maximum number of textures allowed.
-       Defined in `mjrender.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjrender.h>`_.
+       Defined in `mjrender.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjrender.h>`_.
+   * - ``mjMAXTHREADS``
+     - 128
+     - Maximum number OS threads that can be used in a thread pool.
+       Defined in `mjthread.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjthread.h>`_.
    * - ``mjMAXUISECT``
      - 10
      - Maximum number of UI sections.
-       Defined in `mjui.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjui.h>`_.
+       Defined in `mjui.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjui.h>`_.
    * - ``mjMAXUIITEM``
-     - 80
+     - 200
      - Maximum number of items per UI section.
-       Defined in `mjui.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjui.h>`_.
+       Defined in `mjui.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjui.h>`_.
    * - ``mjMAXUITEXT``
      - 500
      - Maximum number of characters in UI fields 'edittext' and 'other'.
-       Defined in `mjui.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjui.h>`_.
+       Defined in `mjui.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjui.h>`_.
    * - ``mjMAXUINAME``
      - 40
      - Maximum number of characters in any UI name.
-       Defined in `mjui.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjui.h>`_.
+       Defined in `mjui.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjui.h>`_.
    * - ``mjMAXUIMULTI``
      - 20
      - Maximum number of radio and select items in UI group.
-       Defined in `mjui.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjui.h>`_.
+       Defined in `mjui.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjui.h>`_.
    * - ``mjMAXUIEDIT``
      - 5
      - Maximum number of elements in UI edit list.
-       Defined in `mjui.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjui.h>`_.
+       Defined in `mjui.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjui.h>`_.
    * - ``mjMAXUIRECT``
      - 15
      - Maximum number of UI rectangles.
-       Defined in `mjui.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjui.h>`_.
+       Defined in `mjui.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjui.h>`_.
    * - ``mjVERSION_HEADER``
-     - 236
+     - 312
      - The version of the MuJoCo headers; changes with every release. This is an integer equal to 100x the software
        version, so 210 corresponds to version 2.1. Defined in  mujoco.h. The API function :ref:`mj_version` returns a
        number with the same meaning but for the compiled library.
@@ -525,6 +535,6 @@ X Macros
 
 The X Macros are not needed in most user projects. They are used internally to allocate the model, and are also
 available for users who know how to use this programming technique. See the header file `mjxmacro.h
-<https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjxmacro.h>`_ for the actual definitions. They are
+<https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjxmacro.h>`_ for the actual definitions. They are
 particularly useful in writing MuJoCo wrappers for scripting languages, where dynamic structures matching the MuJoCo
 data structures need to be constructed programmatically.

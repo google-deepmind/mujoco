@@ -46,23 +46,21 @@ static void run_step_benchmark(const mjModel* model, benchmark::State& state) {
   int nsteps = kNumWarmupSteps+kNumBenchmarkSteps;
   std::vector<mjtNum> ctrl = GetCtrlNoise(model, nsteps);
 
-  // warm-up rollout to get a typcal state
+  // warm-up rollout to get a typical state
   for (int i=0; i < kNumWarmupSteps; i++) {
     mju_copy(data->ctrl, ctrl.data()+model->nu*i, model->nu);
     mj_step(model, data);
   }
+
   // save state
-  std::vector<mjtNum> qpos = AsVector(data->qpos, model->nq);
-  std::vector<mjtNum> qvel = AsVector(data->qvel, model->nv);
-  std::vector<mjtNum> act = AsVector(data->act, model->na);
-  std::vector<mjtNum> warmstart = AsVector(data->qacc_warmstart, model->nv);
+  int spec = mjSTATE_INTEGRATION;
+  int size = mj_stateSize(model, spec);
+  std::vector<mjtNum> initial_state(size);
+  mj_getState(model, data, initial_state.data(), spec);
 
   // reset state, benchmark subsequent kNumBenchmarkSteps steps
   while (state.KeepRunningBatch(kNumBenchmarkSteps)) {
-    mju_copy(data->qpos, qpos.data(), model->nq);
-    mju_copy(data->qvel, qvel.data(), model->nv);
-    mju_copy(data->act, act.data(), model->na);
-    mju_copy(data->qacc_warmstart, warmstart.data(), model->nv);
+    mj_setState(model, data, initial_state.data(), spec);
 
     for (int i=kNumWarmupSteps; i < nsteps; i++) {
       mju_copy(data->ctrl, ctrl.data()+model->nu*i, model->nu);
@@ -79,16 +77,24 @@ static void run_step_benchmark(const mjModel* model, benchmark::State& state) {
 // separately in CPU profiles (and don't get replaced with raw calls to
 // run_step_benchmark).
 
-void ABSL_ATTRIBUTE_NO_TAIL_CALL BM_StepCloth(benchmark::State& state) {
+void ABSL_ATTRIBUTE_NO_TAIL_CALL BM_StepFlagPlugin(benchmark::State& state) {
   MujocoErrorTestGuard guard;
-  static mjModel* model = LoadModelFromPath("composite/cloth.xml");
+  static mjModel* model = LoadModelFromPath("plugin/elasticity/flag.xml");
   run_step_benchmark(model, state);
 }
-BENCHMARK(BM_StepCloth);
+BENCHMARK(BM_StepFlagPlugin);
+
+void ABSL_ATTRIBUTE_NO_TAIL_CALL BM_StepParticle(benchmark::State& state) {
+  MujocoErrorTestGuard guard;
+  static mjModel* model = LoadModelFromPath("composite/particle.xml");
+  run_step_benchmark(model, state);
+}
+BENCHMARK(BM_StepParticle);
 
 void ABSL_ATTRIBUTE_NO_TAIL_CALL BM_StepFlag(benchmark::State& state) {
   MujocoErrorTestGuard guard;
-  static mjModel* model = LoadModelFromPath("flag/flag.xml");
+  static mjModel* model =
+      LoadModelFromPath("../test/benchmark/testdata/flag.xml");
   run_step_benchmark(model, state);
 }
 BENCHMARK(BM_StepFlag);

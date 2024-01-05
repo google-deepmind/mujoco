@@ -17,6 +17,7 @@
 #include <array>
 #include <limits>
 #include <string>
+#include <vector>
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
@@ -43,12 +44,12 @@ TEST_F(XMLReaderTest, MemorySize) {
   {
     static constexpr char xml[] = R"(
     <mujoco>
-      <size memory="256"/>
+      <size memory="512"/>
     </mujoco>
     )";
     mjModel* model = LoadModelFromString(xml, error.data(), error.size());
     ASSERT_THAT(model, NotNull()) << error.data();
-    EXPECT_EQ(model->nstack, 256 / sizeof(mjtNum));
+    EXPECT_EQ(model->narena, 512);
     mj_deleteModel(model);
   }
   {
@@ -59,7 +60,7 @@ TEST_F(XMLReaderTest, MemorySize) {
     )";
     mjModel* model = LoadModelFromString(xml, error.data(), error.size());
     ASSERT_THAT(model, NotNull()) << error.data();
-    EXPECT_EQ(model->nstack, 1024 / sizeof(mjtNum));
+    EXPECT_EQ(model->narena, 1024);
     mj_deleteModel(model);
   }
   {
@@ -70,7 +71,7 @@ TEST_F(XMLReaderTest, MemorySize) {
     )";
     mjModel* model = LoadModelFromString(xml, error.data(), error.size());
     ASSERT_THAT(model, NotNull()) << error.data();
-    EXPECT_EQ(model->nstack, 10240 / sizeof(mjtNum));
+    EXPECT_EQ(model->narena, 10240);
     mj_deleteModel(model);
   }
   {
@@ -81,7 +82,7 @@ TEST_F(XMLReaderTest, MemorySize) {
     )";
     mjModel* model = LoadModelFromString(xml, error.data(), error.size());
     ASSERT_THAT(model, NotNull()) << error.data();
-    EXPECT_EQ(model->nstack, 4*1024*1024 / sizeof(mjtNum));
+    EXPECT_EQ(model->narena, 4*1024*1024);
     mj_deleteModel(model);
   }
   {
@@ -92,7 +93,7 @@ TEST_F(XMLReaderTest, MemorySize) {
     )";
     mjModel* model = LoadModelFromString(xml, error.data(), error.size());
     ASSERT_THAT(model, NotNull()) << error.data();
-    EXPECT_EQ(model->nstack, 1024*1024*1024 / sizeof(mjtNum));
+    EXPECT_EQ(model->narena, 1024*1024*1024);
     mj_deleteModel(model);
   }
   {
@@ -103,7 +104,7 @@ TEST_F(XMLReaderTest, MemorySize) {
     )";
     mjModel* model = LoadModelFromString(xml, error.data(), error.size());
     ASSERT_THAT(model, NotNull()) << error.data();
-    EXPECT_EQ(model->nstack, 1024*1024*1024 / sizeof(mjtNum));
+    EXPECT_EQ(model->narena, 1024*1024*1024);
     mj_deleteModel(model);
   }
 }
@@ -317,7 +318,7 @@ TEST_F(XMLReaderTest, InvalidArrayLength) {
   <mujoco>
     <worldbody>
       <body>
-        <geom size="1" axisangle="1 0 0 0 asd"/>
+        <geom size="1" axisangle="1 0 0 0 1"/>
       </body>
     </worldbody>
   </mujoco>
@@ -326,6 +327,22 @@ TEST_F(XMLReaderTest, InvalidArrayLength) {
   mjModel* model = LoadModelFromString(xml, error.data(), error.size());
   ASSERT_THAT(model, IsNull());
   EXPECT_THAT(error.data(), HasSubstr("has too much data"));
+}
+
+TEST_F(XMLReaderTest, InvalidQuaternion) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <geom size="1" quat="0 0 0 0"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("zero quaternion is not allowed"));
 }
 
 TEST_F(XMLReaderTest, InvalidNumber) {
@@ -390,6 +407,94 @@ TEST_F(XMLReaderTest, InvalidDoubleOrientation) {
   }
 }
 
+// ---------------------- test frame parsing ---------------------------------
+TEST_F(XMLReaderTest, ParseFrame) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <frame euler="0 0 30">
+        <geom size=".1" euler="0 0 20"/>
+      </frame>
+
+      <body>
+        <frame pos="0 1 0">
+          <geom size=".1" pos="0 1 0"/>
+          <body pos="1 0 0">
+            <geom size=".1" pos="0 0 1"/>
+          </body>
+        </frame>
+      </body>
+
+      <frame euler="0 0 30">
+        <frame euler="0 0 20">
+          <geom size=".1"/>
+        </frame>
+      </frame>
+    </worldbody>
+  </mujoco>
+
+  )";
+  std::array<char, 1024> error;
+  mjModel* m = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(m, testing::NotNull()) << error.data();
+  mj_deleteModel(m);
+}
+
+// ---------------------- test camera parsing ---------------------------------
+
+TEST_F(XMLReaderTest, CameraInvalidFovyAndSensorsize) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <geom size="1"/>
+        <camera fovy="1" sensorsize="1 1" resolution="100 100"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* m = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(m, testing::IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("either 'fovy' or 'sensorsize'"));
+}
+
+TEST_F(XMLReaderTest, CameraPricipalRequiresSensorsize) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <geom size="1"/>
+        <camera principal="1 1"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* m = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(m, testing::IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("attribute missing: 'sensorsize'"));
+}
+
+TEST_F(XMLReaderTest, CameraSensorsizeRequiresResolution) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <geom size="1"/>
+        <camera sensorsize="1 1"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* m = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(m, testing::IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("attribute missing: 'resolution'"));
+}
+
+// ---------------------- test inertia parsing --------------------------------
+
 TEST_F(XMLReaderTest, InvalidInertialOrientation) {
   static constexpr char xml[] = R"(
   <mujoco>
@@ -426,92 +531,6 @@ TEST_F(XMLReaderTest, ReadShellParameter) {
   mj_deleteModel(model);
 }
 
-TEST_F(XMLReaderTest, ReadsDamper) {
-  static constexpr char xml[] = R"(
-  <mujoco>
-    <compiler autolimits="true"/>
-    <worldbody>
-      <body>
-        <geom size="1"/>
-        <joint name="jnt" type="slide" axis="1 0 0" range="-10 10"/>
-      </body>
-    </worldbody>
-    <actuator>
-      <damper joint="jnt" ctrlrange="0 1"/>
-      <general joint="jnt" ctrllimited="true" ctrlrange="0 1" gaintype="affine" biastype="none"/>
-    </actuator>
-  </mujoco>
-  )";
-  std::array<char, 1024> error;
-  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
-  ASSERT_THAT(model, NotNull());
-  EXPECT_THAT(model->actuator_gaintype[0], Eq(mjGAIN_AFFINE));
-  EXPECT_THAT(model->actuator_gaintype[1], Eq(mjGAIN_AFFINE));
-  EXPECT_THAT(model->actuator_biastype[0], Eq(mjBIAS_NONE));
-  EXPECT_THAT(model->actuator_biastype[1], Eq(mjBIAS_NONE));
-  mj_deleteModel(model);
-}
-
-TEST_F(XMLReaderTest, RequiresPoisitiveDamping) {
-  static constexpr char xml[] = R"(
-  <mujoco>
-    <worldbody>
-      <body>
-        <geom size="1"/>
-        <joint name="jnt" type="slide" axis="1 0 0" range="-10 10"/>
-      </body>
-    </worldbody>
-    <actuator>
-      <damper joint="jnt" kv="-1"/>
-    </actuator>
-  </mujoco>
-  )";
-  std::array<char, 1024> error;
-  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
-  ASSERT_THAT(model, IsNull());
-  EXPECT_THAT(error.data(),
-              HasSubstr("damping coefficient cannot be negative"));
-}
-
-TEST_F(XMLReaderTest, RequiresControlRange) {
-  static constexpr char xml[] = R"(
-  <mujoco>
-    <worldbody>
-      <body>
-        <geom size="1"/>
-        <joint name="jnt" type="slide" axis="1 0 0" range="-10 10" limited="true"/>
-      </body>
-    </worldbody>
-    <actuator>
-      <damper joint="jnt" kv="1"/>
-    </actuator>
-  </mujoco>
-  )";
-  std::array<char, 1024> error;
-  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
-  ASSERT_THAT(model, IsNull());
-  EXPECT_THAT(error.data(), HasSubstr("invalid control range"));
-}
-
-TEST_F(XMLReaderTest, PositiveControlRange) {
-  static constexpr char xml[] = R"(
-  <mujoco>
-    <worldbody>
-      <body>
-        <geom size="1"/>
-        <joint name="jnt" type="slide" axis="1 0 0" range="-10 10"/>
-      </body>
-    </worldbody>
-    <actuator>
-      <damper joint="jnt" kv="1" ctrlrange="-1 0"/>
-    </actuator>
-  </mujoco>
-  )";
-  std::array<char, 1024> error;
-  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
-  ASSERT_THAT(model, IsNull());
-  EXPECT_THAT(error.data(), HasSubstr("control range cannot be negative"));
-}
 
 TEST_F(XMLReaderTest, ReadsSkinGroups) {
   static constexpr char xml[] = R"(
@@ -559,7 +578,7 @@ TEST_F(XMLReaderTest, InvalidSkinGroup) {
   )";
   std::array<char, 1024> error;
   mjModel* model = LoadModelFromString(xml, error.data(), error.size());
-  ASSERT_THAT(model, IsNull());
+  EXPECT_THAT(model, IsNull());
   EXPECT_THAT(
       error.data(),
       HasSubstr("skin group must be between 0 and 5\nElement 'skin', line 7"));
@@ -674,6 +693,186 @@ TEST_F(ActuatorTest, ReadsByte) {
 
 using ActuatorParseTest = MujocoTest;
 
+TEST_F(ActuatorParseTest, ReadsDamper) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <geom size="1"/>
+        <joint name="jnt" type="slide" axis="1 0 0" range="-10 10"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <damper joint="jnt" ctrlrange="0 1"/>
+      <general joint="jnt" ctrllimited="true" ctrlrange="0 1" gaintype="affine" biastype="none"/>
+    </actuator>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, NotNull());
+  EXPECT_THAT(model->actuator_gaintype[0], Eq(mjGAIN_AFFINE));
+  EXPECT_THAT(model->actuator_gaintype[1], Eq(mjGAIN_AFFINE));
+  EXPECT_THAT(model->actuator_biastype[0], Eq(mjBIAS_NONE));
+  EXPECT_THAT(model->actuator_biastype[1], Eq(mjBIAS_NONE));
+  mj_deleteModel(model);
+}
+
+TEST_F(ActuatorParseTest, DamperRequiresPositiveDamping) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <geom size="1"/>
+        <joint name="jnt" type="slide" axis="1 0 0" range="-10 10"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <damper joint="jnt" kv="-1"/>
+    </actuator>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, IsNull());
+  EXPECT_THAT(error.data(),
+              HasSubstr("damping coefficient cannot be negative"));
+}
+
+TEST_F(ActuatorParseTest, DamperRequiresControlRange) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <geom size="1"/>
+        <joint name="jnt" type="slide" axis="1 0 0" range="-10 10" limited="true"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <damper joint="jnt" kv="1"/>
+    </actuator>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("invalid control range"));
+}
+
+TEST_F(ActuatorParseTest, DamperPositiveControlRange) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <geom size="1"/>
+        <joint name="jnt" type="slide" axis="1 0 0" range="-10 10"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <damper joint="jnt" kv="1" ctrlrange="-1 0"/>
+    </actuator>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("control range cannot be negative"));
+}
+
+TEST_F(ActuatorParseTest, ReadsPositionIntvelKv) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <geom size="1"/>
+        <joint name="jnt" type="slide" axis="1 0 0"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <position joint="jnt" kv="2"/>
+      <intvelocity joint="jnt" actrange="-1 1" kv="3"/>
+    </actuator>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, NotNull());
+  EXPECT_THAT(model->actuator_biasprm[0*mjNBIAS + 2], Eq(-2.0));
+  EXPECT_THAT(model->actuator_biasprm[1*mjNBIAS + 2], Eq(-3.0));
+  mj_deleteModel(model);
+}
+
+TEST_F(ActuatorParseTest, RequirePositiveKv) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <geom size="1"/>
+        <joint name="jnt" type="slide" axis="1 0 0"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <position joint="jnt" kv="-2"/>
+    </actuator>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("kv cannot be negative"));
+}
+
+TEST_F(ActuatorParseTest, PositionIntvelocityVelocityDefaultsPropagate) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <default>
+      <default class="position">
+        <position kp="3" kv="4"/>
+      </default>
+      <default class="intvelocity">
+        <intvelocity kp="5" kv="6" actrange="-1 1"/>
+      </default>
+      <default class="velocity">
+        <velocity kv="7"/>
+      </default>
+    </default>
+    <worldbody>
+      <body>
+        <geom size="1"/>
+        <joint name="jnt" type="slide" axis="1 0 0"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <position joint="jnt" class="position"/>
+      <intvelocity joint="jnt" class="intvelocity"/>
+      <velocity joint="jnt" class="velocity"/>
+    </actuator>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, NotNull()) << error.data();
+  EXPECT_EQ(model->actuator_gainprm[0*mjNGAIN + 0], 3.0);
+  EXPECT_EQ(model->actuator_biasprm[0*mjNBIAS + 1], -3.0);
+  EXPECT_EQ(model->actuator_biasprm[0*mjNBIAS + 2], -4.0);
+  EXPECT_EQ(model->actuator_gainprm[1*mjNGAIN + 0], 5.0);
+  EXPECT_EQ(model->actuator_biasprm[1*mjNBIAS + 1], -5.0);
+  EXPECT_EQ(model->actuator_biasprm[1*mjNBIAS + 2], -6.0);
+  EXPECT_EQ(model->actuator_gainprm[2*mjNGAIN + 0], 7.0);
+  EXPECT_EQ(model->actuator_biasprm[2*mjNBIAS + 1], 0.0);
+  EXPECT_EQ(model->actuator_biasprm[2*mjNBIAS + 2], -7.0);
+  for (int i = 0; i < model->nu; i++) {
+    for (int j = 3; j < mjNBIAS; j++) {
+      EXPECT_EQ(model->actuator_biasprm[i*mjNBIAS + j], 0.0);
+    }
+    for (int j = 3; j < mjNGAIN; j++) {
+      EXPECT_EQ(model->actuator_gainprm[i*mjNGAIN + j], 0.0);
+    }
+  }
+  mj_deleteModel(model);
+}
+
+
 TEST_F(ActuatorParseTest, IntvelocityCheckEquivalence) {
   static constexpr char xml[] = R"(
   <mujoco>
@@ -766,7 +965,7 @@ TEST_F(ActuatorParseTest, IntvelocityNoActrangeThrowsError) {
   std::array<char, 1024> error;
   mjModel* model = LoadModelFromString(xml, error.data(), error.size());
   ASSERT_THAT(model, IsNull());
-  EXPECT_THAT(error.data(), HasSubstr("invalid activation range for actuator"));
+  EXPECT_THAT(error.data(), HasSubstr("invalid actrange for actuator"));
 }
 
 TEST_F(ActuatorParseTest, IntvelocityDefaultsPropagate) {
@@ -975,6 +1174,44 @@ TEST_F(ActuatorParseTest, MusclesSmoothdynNegative) {
   mjModel* model = LoadModelFromString(xml, error.data(), error.size());
   ASSERT_THAT(model, IsNull());
   EXPECT_THAT(error.data(), HasSubstr("muscle tausmooth cannot be negative"));
+}
+
+TEST_F(ActuatorParseTest, GroupDisable) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option actuatorgroupdisable="0 3 8 3"/>
+    <!-- note: repeated numbers are okay -->
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, NotNull());
+  EXPECT_EQ(model->opt.disableactuator, (1<<0) + (1<<3) + (1<<8));
+  mj_deleteModel(model);
+}
+
+TEST_F(ActuatorParseTest, GroupDisableNegative) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option actuatorgroupdisable="0 -3 5"/>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("must be non-negative"));
+}
+
+TEST_F(ActuatorParseTest, GroupDisableTooBig) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option actuatorgroupdisable="0 31"/>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("cannot exceed 30"));
 }
 
 // ------------- test sensor parsing -------------------------------------------

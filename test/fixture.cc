@@ -14,6 +14,7 @@
 
 #include "test/fixture.h"
 
+#include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <memory>
@@ -79,10 +80,11 @@ mjModel* LoadModelFromString(std::string_view xml, char* error,
       resource->data = &(resource->name[strlen("LoadModelFromString:")]);
       return 1;
     };
-    resourceProvider.read = +[](mjResource* resource, const void** buffer) {
-      *buffer = resource->data;
-      return (int) strlen((const char*) resource->data);
-    };
+    resourceProvider.read =
+        +[](mjResource* resource, const void** buffer) {
+          *buffer = resource->data;
+          return (int) strlen((const char*) resource->data);
+        };
     resourceProvider.close = +[](mjResource* resource) {};
     mjp_registerResourceProvider(&resourceProvider);
   }

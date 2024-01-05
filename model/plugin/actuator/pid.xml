@@ -1,0 +1,68 @@
+<mujoco model="PID Controllers">
+  <size memory="10M"/>
+
+  <visual>
+    <headlight diffuse=".2 .2 .2"/>
+    <global elevation="-30" />
+  </visual>
+  <statistic extent="0.50" />
+
+  <extension>
+    <plugin plugin="mujoco.pid">
+      <!-- pure proportional gain, bounces up and down -->
+      <instance name="pid1">
+        <config key="kp" value="4.0"/>
+      </instance>
+      <!-- PD controller - settles below setpoint -->
+      <instance name="pid2">
+        <config key="kp" value="4.0"/>
+        <config key="kd" value="0.4"/>
+      </instance>
+      <!-- PID controller - reaches setpoint -->
+      <instance name="pid3">
+        <config key="kp" value="4.0"/>
+        <config key="ki" value="4"/>
+        <config key="kd" value="0.4"/>
+      </instance>
+      <!-- PID controller with clamped I term. -->
+      <instance name="pid4">
+        <config key="kp" value="4.0"/>
+        <config key="ki" value="4"/>
+        <config key="kd" value="0.4"/>
+        <config key="imax" value=".5"/>
+      </instance>
+    </plugin>
+  </extension>
+
+  <default>
+    <geom type="sphere" size="0.01" rgba="1 1 1 1" />
+  </default>
+
+  <worldbody>
+    <light pos="0.4 -.15 .6" dir="-1 .5 -1" diffuse=".7 .7 .7"/>
+    <light pos="-.4 -.15 .6" dir="1 .5 -1" diffuse=".7 .7 .7"/>
+    <geom name="floor" type="plane" pos="0 0 -0.1" size="0 0 100" />
+    <body pos="-0.06 0 0">
+      <joint name="j1" type="slide" axis="0 0 1" />
+      <geom/>
+    </body>
+    <body pos="-0.02 0 0" >
+      <joint name="j2" type="slide" axis="0 0 1" />
+      <geom/>
+    </body>
+    <body pos="0.02 0 0" >
+      <joint name="j3" type="slide" axis="0 0 1" />
+      <geom/>
+    </body>
+    <body pos="0.06 0 0" >
+      <joint name="j4" type="slide" axis="0 0 1" />
+      <geom/>
+    </body>
+  </worldbody>
+  <actuator>
+    <plugin joint="j1" plugin="mujoco.pid" instance="pid1" ctrlrange="0 0.15" />
+    <plugin joint="j2" plugin="mujoco.pid" instance="pid2" ctrlrange="0 0.15" />
+    <plugin joint="j3" plugin="mujoco.pid" instance="pid3" ctrlrange="0 0.15" />
+    <plugin joint="j4" plugin="mujoco.pid" instance="pid4" ctrlrange="0 0.15" />
+  </actuator>
+</mujoco>

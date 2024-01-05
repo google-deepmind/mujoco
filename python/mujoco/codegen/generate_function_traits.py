@@ -14,6 +14,7 @@
 # ==============================================================================
 """Code generator for function_traits.h."""
 
+import keyword
 from typing import Mapping, Sequence
 
 from absl import app
@@ -22,6 +23,12 @@ from introspect import ast_nodes
 from introspect import functions
 
 FUNCTIONS: Mapping[str, ast_nodes.FunctionDecl] = functions.FUNCTIONS
+
+
+def _sanitize_keyword(s: str) -> str:
+  if keyword.iskeyword(s):
+    return s + '_'
+  return s
 
 
 def main(argv: Sequence[str]) -> None:
@@ -59,7 +66,9 @@ def main(argv: Sequence[str]) -> None:
     else:
       getfunc = f'::{func.name}'
 
-    param_names = ', '.join(f'"{p.name}"' for p in parameters)
+    param_names = ', '.join(
+        f'"{_sanitize_keyword(p.name)}"' for p in parameters
+    )
 
     struct_decls.append(f"""
 struct {func.name} {{

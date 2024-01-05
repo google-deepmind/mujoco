@@ -20,7 +20,7 @@ namespace Mujoco {
 
   // The component represents a joint with 1 degree of translational freedom.
   public class MjBallJoint : MjBaseJoint {
-    [Tooltip("In radians.")]
+    [Tooltip("In degrees.")]
     public float RangeUpper;
 
     [Tooltip("Joint settings.")]

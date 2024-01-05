@@ -23,10 +23,10 @@
 // Top level API
 
 // Main writer function
-bool mjWriteXML(mjCModel* model, std::string filename, char* error, int error_sz);
+std::string mjWriteXML(mjCModel* model, char* error, int error_sz);
 
 // Main parser function
-mjCModel* mjParseXML(const char* filename, int vfs_provider, char* error, int error_sz);
+mjCModel* mjParseXML(const char* filename, const mjVFS* vfs, char* error, int error_sz);
 
 
 #endif  // MUJOCO_SRC_XML_XML_H_

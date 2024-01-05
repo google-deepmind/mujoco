@@ -15,6 +15,8 @@
 #ifndef MUJOCO_SRC_USER_USER_MODEL_H_
 #define MUJOCO_SRC_USER_USER_MODEL_H_
 
+#include <functional>
+#include <map>
 #include <string>
 #include <utility>
 #include <vector>
@@ -30,6 +32,9 @@ typedef enum _mjtInertiaFromGeom {
   mjINERTIAFROMGEOM_AUTO          // use only if inertial element is missing
 } mjtInertiaFromGeom;
 
+typedef std::map<std::string, int, std::less<> > mjKeyMap;
+typedef std::array<mjKeyMap, mjNOBJECT> mjListKeyMap;
+
 
 
 //---------------------------------- class mjCModel ------------------------------------------------
@@ -44,6 +49,7 @@ class mjCModel {
   friend class mjCBody;
   friend class mjCJoint;
   friend class mjCGeom;
+  friend class mjCFlex;
   friend class mjCMesh;
   friend class mjCSkin;
   friend class mjCHField;
@@ -65,13 +71,14 @@ class mjCModel {
   mjCModel();                                          // constructor
   ~mjCModel();                                         // destructor
 
-  mjModel*    Compile(int vfs_provider = 0);           // COMPILER: construct mjModel
+  mjModel*    Compile(const mjVFS* vfs = 0);           // COMPILER: construct mjModel
   bool        CopyBack(const mjModel*);                // DECOMPILER: copy numeric back
   void        FuseStatic(void);                        // fuse static bodies with parent
   void        FuseReindex(mjCBody* body);              // reindex elements during fuse
 
 
   //------------------------ API for adding model elements
+  mjCFlex*     AddFlex(void);                          // flex
   mjCMesh*     AddMesh(mjCDef* def = 0);               // mesh
   mjCSkin*     AddSkin(void);                          // skin
   mjCHField*   AddHField(void);                        // heightfield
@@ -151,7 +158,7 @@ class mjCModel {
   int nemax;                      // max number of equality constraints
   int njmax;                      // max number of constraints (Jacobian rows)
   int nconmax;                    // max number of detected contacts (mjContact array size)
-  int nstack;                     // (deprecated) number of fields in mjData stack
+  size_t nstack;                  // (deprecated) number of fields in mjData stack
   int nuserdata;                  // number extra fields in mjData
   int nuser_body;                 // number of mjtNums in body_user
   int nuser_jnt;                  // number of mjtNums in jnt_user
@@ -163,8 +170,8 @@ class mjCModel {
   int nuser_sensor;               // number of mjtNums in sensor_user
 
  private:
-  void TryCompile(mjModel*& m, mjData*& d, int vfs_provider);
-  mjModel* _Compile(int vfs_provider);
+  void TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs);
+  mjModel* _Compile(const mjVFS* vfs);
 
   void Clear(void);               // clear objects allocated by Compile
 
@@ -174,14 +181,18 @@ class mjCModel {
   template <class T>              // add object of any type, with def parameter
   T* AddObjectDef(std::vector<T*>& list, std::string type, mjCDef* def);
 
+  template<class T>              // if asset name is missing, set to filename
+  void SetDefaultNames(std::vector<T*>& assets);
+
   //------------------------ compile phases
   void MakeLists(mjCBody* body);  // make lists of bodies, geoms, joints, sites
   void IndexAssets(void);         // convert asset names into indices
-  void SetDefaultNames(void);     // if mesh or hfield name is missing, set to filename
+  void CheckEmptyNames(void);     // check empty names
   void SetSizes(void);            // compute sizes
   void AutoSpringDamper(mjModel*);// automatic stiffness and damping computation
   void LengthRange(mjModel*, mjData*); // compute actuator lengthrange
   void CopyNames(mjModel*);       // copy names, compute name addresses
+  void CopyPaths(mjModel*);       // copy paths, compute path addresses
   void CopyObjects(mjModel*);     // copy objects outside kinematic tree
   void CopyTree(mjModel*);        // copy objects inside kinematic tree
 
@@ -193,6 +204,7 @@ class mjCModel {
   int nsite;                      // number of sites
   int ncam;                       // number of cameras
   int nlight;                     // number of lights
+  int nflex;                      // number of flexes
   int nmesh;                      // number of meshes
   int nskin;                      // number of skins
   int nhfield;                    // number of height fields
@@ -215,7 +227,16 @@ class mjCModel {
   int nv;                         // number of degrees of freedom = dim(qvel)
   int nu;                         // number of actuators/controls
   int na;                         // number of activation variables
-  int nbvh;                       // number of boundary volume hierarchies
+  int nbvh;                       // number of total boundary volume hierarchies
+  int nbvhstatic;                 // number of static boundary volume hierarchies
+  int nbvhdynamic;                // number of dynamic boundary volume hierarchies
+  int nflexvert;                  // number of vertices in all flexes
+  int nflexedge;                  // number of edges in all flexes
+  int nflexelem;                  // number of elements in all flexes
+  int nflexelemdata;              // number of element vertex ids in all flexes
+  int nflexshelldata;             // number of shell fragment vertex ids in all flexes
+  int nflexevpair;                // number of element-vertex pairs in all flexes
+  int nflextexcoord;              // number of vertex texture coordinates in all flexes
   int nmeshvert;                  // number of vertices in all meshes
   int nmeshnormal;                // number of normals in all meshes
   int nmeshtexcoord;              // number of texture coordinates in all meshes
@@ -235,12 +256,14 @@ class mjCModel {
   int ntupledata;                 // number of objects in all tuple fields
   int npluginattr;                // number of chars in all plugin config attributes
   int nnames;                     // number of chars in all names
+  int npaths;                     // number of chars in all paths
   int nM;                         // number of non-zeros in sparse inertia matrix
   int nD;                         // number of non-zeros in sparse dof-dof matrix
   int nB;                         // number of non-zeros in sparse body-dof matrix
 
   //------------------------ object lists
   // objects created here
+  std::vector<mjCFlex*>     flexes;      // list of flexes
   std::vector<mjCMesh*>     meshes;      // list of meshes
   std::vector<mjCSkin*>     skins;       // list of skins
   std::vector<mjCHField*>   hfields;     // list of height fields
@@ -269,6 +292,20 @@ class mjCModel {
   std::vector<mjCLight*>  lights;   // list of lights
 
   //------------------------ internal variables
+
+  // array of pointers to each object list (enumerated by type)
+  std::array<std::vector<mjCBase*>*, mjNOBJECT> object_lists;
+
+  // statistics, as computed by mj_setConst
+  double meaninertia_auto;        // mean diagonal inertia, as computed by mj_setConst
+  double meanmass_auto;           // mean body mass, as computed by mj_setConst
+  double meansize_auto;           // mean body size, as computed by mj_setConst
+  double extent_auto;             // spatial extent, as computed by mj_setConst
+  double center_auto[3];          // center of model, as computed by mj_setConst
+
+  // map from object names to ids
+  mjListKeyMap ids;
+
   bool hasImplicitPluginElem;     // already encountered an implicit plugin sensor/actuator
   bool compiled;                  // already compiled flag (cannot be compiled again)
   mjCError errInfo;               // last error info

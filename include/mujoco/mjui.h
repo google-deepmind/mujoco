@@ -18,7 +18,7 @@
 #include <mujoco/mjrender.h>
 
 #define mjMAXUISECT     10      // maximum number of sections
-#define mjMAXUIITEM     100     // maximum number of items per section
+#define mjMAXUIITEM     200     // maximum number of items per section
 #define mjMAXUITEXT     300     // maximum number of chars in edittext and other
 #define mjMAXUINAME     40      // maximum number of chars in name
 #define mjMAXUIMULTI    35      // maximum number of radio/select items in group

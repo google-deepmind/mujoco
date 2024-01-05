@@ -1,0 +1,17 @@
+-f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
+
+jax[cuda12_local]==0.4.13; python_version == '3.8' \
+    --hash=sha256:03bfe6749dfe647f16f15f6616638adae6c4a7ca7167c75c21961ecfd3a3baaa
+jax[cuda12_local]==0.4.18; python_version >= '3.9' \
+    --hash=sha256:c3ab72ea2f1c5d8ccf2561e79f6562fb2964629f3e55b3ac1c11c48b64c20336
+jaxlib==0.4.13+cuda12.cudnn89; python_version == '3.8' \
+    --hash=sha256:31372f41dc28ecb11a5cc5573ae632e8ee9cfb63788edc8ad8a77e8d3279f569
+jaxlib==0.4.18+cuda12.cudnn89; python_version >= '3.9' \
+    --hash=sha256:14f74ff081882ea091c121e355051b35932e39cb7ff7242b88a87f3690f3ca90 \
+    --hash=sha256:7c87dc2d68257b02e83c04be88a3c447373ee7077d65f43545bcbda5bfe2231d \
+    --hash=sha256:4d16e9c7592e1aaca0b3d28d2c8beba415a2721bb7001f2947728247951a250d \
+    --hash=sha256:759c08c69f4a5b1e6b39c3e4eff908a04ce3b2b483bb594ed624407c7d12d110 \
+    --hash=sha256:a7a04dbe1851cd50d07691282116aee49a2f0be7838e55b76d7ada86db06be62 \
+    --hash=sha256:2bf842db3d58c8c6c52fbc8ed3fabefd7b91a21746cd59d3eaf3522eea229b53 \
+    --hash=sha256:35d265ef9bb3835a14580cbaa9402060f117e46056f80e0996405fff3964667a \
+    --hash=sha256:0e4352f24d629e912965e6435e140c1b06086243a098651f2d01b75f3738b51c

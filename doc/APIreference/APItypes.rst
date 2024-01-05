@@ -34,6 +34,8 @@ MuJoCo defines a large number of types:
   - Structs used by :ref:`engine plugins<tyPluginStructure>`.
 
 - Several :ref:`tyFunction` for user-defined callbacks.
+- :ref:`tyNotes` regarding specific data structures that require detailed description.
+
 
 
 .. _tyPrimitive:
@@ -41,7 +43,7 @@ MuJoCo defines a large number of types:
 Primitive types
 ---------------
 
-The two types below are defined in `mjtnum.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjtnum.h>`_.
+The two types below are defined in `mjtnum.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjtnum.h>`_.
 
 
 .. _mjtNum:
@@ -93,7 +95,7 @@ Enum types
 Model
 ^^^^^
 
-The enums below are defined in `mjmodel.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjmodel.h>`_.
+The enums below are defined in `mjmodel.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjmodel.h>`_.
 
 
 .. _mjtDisableBit:
@@ -173,18 +175,6 @@ mjtIntegrator
 Numerical integrator types. These values are used in ``m->opt.integrator``.
 
 .. mujoco-include:: mjtIntegrator
-
-
-.. _mjtCollision:
-
-mjtCollision
-~~~~~~~~~~~~
-
-Collision modes specifying how candidate geom pairs are generated for near-phase collision checking. These values are
-used in ``m->opt.collision``.
-
-.. mujoco-include:: mjtCollision
-
 
 .. _mjtCone:
 
@@ -343,7 +333,7 @@ These are the possible sensor data types, used in ``mjData.sensor_datatype``.
 Data
 ^^^^
 
-The enums below are defined in `mjdata.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjdata.h>`_.
+The enums below are defined in `mjdata.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjdata.h>`_.
 
 
 
@@ -386,7 +376,7 @@ Timer types. The number of timer types is given by ``mjNTIMER`` which is also th
 Visualization
 ^^^^^^^^^^^^^
 
-The enums below are defined in `mjvisualize.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjvisualize.h>`_.
+The enums below are defined in `mjvisualize.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjvisualize.h>`_.
 
 
 .. _mjtCatBit:
@@ -490,7 +480,7 @@ These are the possible stereo rendering types. They are used in ``mjvScene.stere
 Rendering
 ^^^^^^^^^
 
-The enums below are defined in `mjrender.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjrender.h>`_.
+The enums below are defined in `mjrender.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjrender.h>`_.
 
 
 .. _mjtGridPos:
@@ -512,6 +502,18 @@ mjtFramebuffer
 These are the possible framebuffers. They are used as an argument to the function :ref:`mjr_setBuffer`.
 
 .. mujoco-include:: mjtFramebuffer
+
+
+.. _mjtDepthMap:
+
+mjtDepthMap
+~~~~~~~~~~~
+
+These are the depth mapping options. They are used as a value for the ``readPixelDepth`` attribute of the
+:ref:`mjrContext` struct, to control how the depth returned by :ref:`mjr_readPixels` is mapped from
+``znear`` to ``zfar``.
+
+.. mujoco-include:: mjtDepthMap
 
 
 .. _mjtFontScale:
@@ -540,7 +542,7 @@ These are the possible font types.
 User Interface
 ^^^^^^^^^^^^^^
 
-The enums below are defined in `mjui.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjui.h>`_.
+The enums below are defined in `mjui.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjui.h>`_.
 
 
 .. _mjtButton:
@@ -578,7 +580,7 @@ Item types used in the UI framework.
 Plugins
 ^^^^^^^
 
-The enums below are defined in `mjplugin.h <https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjplugin.h>`_.
+The enums below are defined in `mjplugin.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjplugin.h>`_.
 See :ref:`exPlugin` for details.
 
 
@@ -712,7 +714,26 @@ Options for configuring the automatic :ref:`actuator length-range computation<CL
 
 .. mujoco-include:: mjLROpt
 
+.. _mjTask:
 
+mjTask
+~~~~~~
+
+This is a representation of a task to be run asynchronously inside of an :ref:`mjThreadPool` . It is created in the
+:ref:`mju_threadPoolEnqueue` method of the :ref:`mjThreadPool`  and is used to join the task at completion.
+
+.. mujoco-include:: mjTask
+
+.. _mjThreadPool:
+
+mjThreadPool
+~~~~~~~~~~~~
+
+This is the data structure of the threadpool. It can only be constructed programmatically, and does not
+have an analog in MJCF. In order to enable multi-threaded calculations, a pointer to an existing :ref:`mjThreadPool`
+should be assigned to the ``mjData.threadpool``.
+
+.. mujoco-include:: mjThreadPool
 
 .. _tyStatStructure:
 
@@ -890,6 +911,7 @@ This structure contains the custom OpenGL rendering context, with the ids of all
 User Interface
 ^^^^^^^^^^^^^^
 
+For a high-level description of the UI framework, see :ref:`UI`.
 The names of these struct types are prefixed with ``mjui``, except for the main :ref:`mjUI` struct itself.
 
 
@@ -898,7 +920,9 @@ The names of these struct types are prefixed with ``mjui``, except for the main 
 mjuiState
 ~~~~~~~~~
 
-This structure contains the keyboard and mouse state used by the UI framework.
+This C struct represents the global state of the window, keyboard and mouse, input event descriptors, and all window
+rectangles (including the visible UI rectangles). There is only one ``mjuiState`` per application, even if there are
+multiple UIs. This struct would normally be defined as a global variable.
 
 .. mujoco-include:: mjuiState
 
@@ -948,7 +972,9 @@ This structure defines one section of the UI.
 mjuiDef
 ~~~~~~~
 
-This structure defines one entry in the definition table used for simplified UI construction.
+This structure defines one entry in the definition table used for simplified UI construction. It contains everything
+needed to define one UI item. Some translation is performed by the helper functions, so that multiple mjuiDefs can be
+defined as a static table.
 
 .. mujoco-include:: mjuiDef
 
@@ -958,7 +984,12 @@ This structure defines one entry in the definition table used for simplified UI 
 mjUI
 ~~~~
 
-This structure defines the entire UI.
+This C struct represents an entire UI. The same application could have multiple UIs, for example on the left and the
+right of the window. This would normally be defined as a global variable. As explained earlier, it contains static
+allocation for a maximum number of supported UI sections (:ref:`mjuiSection<mjuiSection>`) each with a maximum number
+of supported items (:ref:`mjuiItem<mjuiItem>`). It also contains the color and spacing themes, enable/disable
+callback, virtual window descriptor, text edit state, mouse focus. Some of these fields are set only once when the UI
+is initialized, others change at runtime.
 
 .. mujoco-include:: mjUI
 
@@ -997,8 +1028,8 @@ Function types
 --------------
 
 MuJoCo callbacks have corresponding function types. They are defined in `mjdata.h
-<https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjdata.h>`_ and in `mjui.h
-<https://github.com/deepmind/mujoco/blob/main/include/mujoco/mjui.h>`_. The actual callback functions are documented
+<https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjdata.h>`_ and in `mjui.h
+<https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjui.h>`_. The actual callback functions are documented
 in the :doc:`globals<APIglobals>` page.
 
 
@@ -1155,12 +1186,52 @@ mjfGetResourceDir
 This callback is for returning the directory of a resource, by setting dir to the directory string with ndir being size
 of directory string.
 
+.. _mjfResourceModified:
+
+mjfResourceModified
+~~~~~~~~~~~~~~~~~~~
+
+.. code-block:: C
+
+   typedef int (*mjfResourceModified)(const mjResource* resource);
+
+This callback is for checking if a resource was modified since it was last read.
+Returns positive value if the resource was modified since last open, 0 if resource was not modified,
+and negative value if inconclusive.
+
+
 .. _tyNotes:
 
 Notes
 -----
 
 This section contains miscellaneous notes regarding data-structure conventions in MuJoCo struct types.
+
+
+.. _tyNotesCom:
+
+c-frame variables
+^^^^^^^^^^^^^^^^^
+
+:ref:`mjData` contains two arrays with the ``c`` prefix, which are used for internal calculations: ``cdof`` and
+``cinert``, both computed by :ref:`mj_comPos`. The ``c`` prefix means that quantities are with respect to the "c-frame",
+a frame at the center-of-mass of the local kinematic subtree (``mjData.subtree_com``), oriented like the world frame.
+This choice increases the precision of kinematic computations for mechanisms that are distant from the global origin.
+
+``cdof``:
+  These 6D motion vectors (3 rotation, 3 translation) describe the instantaneous axis of a degree-of-freedom and are
+  used by all Jacobian functions. The minimal computation required for analytic Jacobians is :ref:`mj_kinematics`
+  followed by :ref:`mj_comPos`.
+
+``cinert``:
+  These 10-vectors describe the inertial properties of a body in the c-frame and are used by the Composite Rigid Body
+  algorithm (:ref:`mj_crb`). The 10 numbers are packed arrays of lengths (6, 3, 1) with semantics:
+
+  ``cinert[0-5]``: Upper triangle of the body's inertia matrix.
+
+  ``cinert[6-8]``: Body mass multiplied by the body CoM's offset from the c-frame origin.
+
+  ``cinert[9]``: Body mass.
 
 .. _tyNotesConvex:
 

@@ -677,9 +677,61 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
          ),
          doc='Reset data, set fields from specified keyframe.',
      )),
-    ('mj_stackAlloc',
+    ('mj_markStack',
      FunctionDecl(
-         name='mj_stackAlloc',
+         name='mj_markStack',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='d',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjData'),
+                 ),
+             ),
+         ),
+         doc='Mark a new frame on the mjData stack.',
+     )),
+    ('mj_freeStack',
+     FunctionDecl(
+         name='mj_freeStack',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='d',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjData'),
+                 ),
+             ),
+         ),
+         doc='Free the current mjData stack frame. All pointers returned by mj_stackAlloc since the last call to mj_markStack must no longer be used afterwards.',  # pylint: disable=line-too-long
+     )),
+    ('mj_stackAllocByte',
+     FunctionDecl(
+         name='mj_stackAllocByte',
+         return_type=PointerType(
+             inner_type=ValueType(name='void'),
+         ),
+         parameters=(
+             FunctionParameterDecl(
+                 name='d',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjData'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='bytes',
+                 type=ValueType(name='size_t'),
+             ),
+             FunctionParameterDecl(
+                 name='alignment',
+                 type=ValueType(name='size_t'),
+             ),
+         ),
+         doc='Allocate a number of bytes on mjData stack at a specific alignment. Call mju_error on stack overflow.',  # pylint: disable=line-too-long
+     )),
+    ('mj_stackAllocNum',
+     FunctionDecl(
+         name='mj_stackAllocNum',
          return_type=PointerType(
              inner_type=ValueType(name='mjtNum'),
          ),
@@ -1104,6 +1156,26 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
          ),
          doc='Runge-Kutta explicit order-N integrator.',
      )),
+    ('mj_implicit',
+     FunctionDecl(
+         name='mj_implicit',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='m',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjModel', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='d',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjData'),
+                 ),
+             ),
+         ),
+         doc='Implicit-in-velocity integrators.',
+     )),
     ('mj_invPosition',
      FunctionDecl(
          name='mj_invPosition',
@@ -1404,6 +1476,26 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
          ),
          doc='Compute camera and light positions and orientations.',
      )),
+    ('mj_flex',
+     FunctionDecl(
+         name='mj_flex',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='m',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjModel', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='d',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjData'),
+                 ),
+             ),
+         ),
+         doc='Compute flex-related quantities.',
+     )),
     ('mj_tendon',
      FunctionDecl(
          name='mj_tendon',
@@ -1594,7 +1686,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  ),
              ),
          ),
-         doc='Compute qfrc_passive from spring-dampers, viscosity and density.',
+         doc='Compute qfrc_passive from spring-dampers, gravity compensation and fluid forces.',  # pylint: disable=line-too-long
      )),
     ('mj_subtreeVel',
      FunctionDecl(
@@ -1614,7 +1706,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  ),
              ),
          ),
-         doc='subtree linear velocity and angular momentum',
+         doc='Sub-tree linear velocity and angular momentum: compute subtree_linvel, subtree_angmom.',  # pylint: disable=line-too-long
      )),
     ('mj_rne',
      FunctionDecl(
@@ -1705,6 +1797,26 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
              ),
          ),
          doc='Construct constraints.',
+     )),
+    ('mj_island',
+     FunctionDecl(
+         name='mj_island',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='m',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjModel', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='d',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjData'),
+                 ),
+             ),
+         ),
+         doc='Find constraint islands.',
      )),
     ('mj_projectConstraint',
      FunctionDecl(
@@ -1943,7 +2055,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
              FunctionParameterDecl(
                  name='d',
                  type=PointerType(
-                     inner_type=ValueType(name='mjData'),
+                     inner_type=ValueType(name='mjData', is_const=True),
                  ),
              ),
              FunctionParameterDecl(
@@ -1975,7 +2087,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
              FunctionParameterDecl(
                  name='d',
                  type=PointerType(
-                     inner_type=ValueType(name='mjData'),
+                     inner_type=ValueType(name='mjData', is_const=True),
                  ),
              ),
              FunctionParameterDecl(
@@ -3089,6 +3201,69 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
          ),
          doc='Intersect ray with pure geom, return nearest distance or -1 if no intersection.',  # pylint: disable=line-too-long
      )),
+    ('mju_rayFlex',
+     FunctionDecl(
+         name='mju_rayFlex',
+         return_type=ValueType(name='mjtNum'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='m',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjModel', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='d',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjData', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='flex_layer',
+                 type=ValueType(name='int'),
+             ),
+             FunctionParameterDecl(
+                 name='flg_vert',
+                 type=ValueType(name='mjtByte'),
+             ),
+             FunctionParameterDecl(
+                 name='flg_edge',
+                 type=ValueType(name='mjtByte'),
+             ),
+             FunctionParameterDecl(
+                 name='flg_face',
+                 type=ValueType(name='mjtByte'),
+             ),
+             FunctionParameterDecl(
+                 name='flg_skin',
+                 type=ValueType(name='mjtByte'),
+             ),
+             FunctionParameterDecl(
+                 name='flexid',
+                 type=ValueType(name='int'),
+             ),
+             FunctionParameterDecl(
+                 name='pnt',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='vec',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='vertid',
+                 type=ArrayType(
+                     inner_type=ValueType(name='int'),
+                     extents=(1,),
+                 ),
+             ),
+         ),
+         doc='Intersect ray with flex, return nearest distance or -1 if no intersection, and also output nearest vertex id.',  # pylint: disable=line-too-long
+     )),
     ('mju_raySkin',
      FunctionDecl(
          name='mju_raySkin',
@@ -3744,6 +3919,13 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  ),
              ),
              FunctionParameterDecl(
+                 name='flexid',
+                 type=ArrayType(
+                     inner_type=ValueType(name='int'),
+                     extents=(1,),
+                 ),
+             ),
+             FunctionParameterDecl(
                  name='skinid',
                  type=ArrayType(
                      inner_type=ValueType(name='int'),
@@ -3751,7 +3933,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  ),
              ),
          ),
-         doc='Select geom or skin with mouse, return bodyid; -1: none selected.',  # pylint: disable=line-too-long
+         doc='Select geom, flex or skin with mouse, return bodyid; -1: none selected.',  # pylint: disable=line-too-long
      )),
     ('mjv_defaultOption',
      FunctionDecl(
@@ -3869,6 +4051,42 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
              FunctionParameterDecl(
                  name='b2',
                  type=ValueType(name='mjtNum'),
+             ),
+         ),
+         doc='Set (type, size, pos, mat) for connector-type geom between given points. Assume that mjv_initGeom was already called to set all other properties. Width of mjGEOM_LINE is denominated in pixels. Deprecated: use mjv_connector.',  # pylint: disable=line-too-long
+     )),
+    ('mjv_connector',
+     FunctionDecl(
+         name='mjv_connector',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='geom',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjvGeom'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='type',
+                 type=ValueType(name='int'),
+             ),
+             FunctionParameterDecl(
+                 name='width',
+                 type=ValueType(name='mjtNum'),
+             ),
+             FunctionParameterDecl(
+                 name='from',
+                 type=ArrayType(
+                     inner_type=ValueType(name='mjtNum', is_const=True),
+                     extents=(3,),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='to',
+                 type=ArrayType(
+                     inner_type=ValueType(name='mjtNum', is_const=True),
+                     extents=(3,),
+                 ),
              ),
          ),
          doc='Set (type, size, pos, mat) for connector-type geom between given points. Assume that mjv_initGeom was already called to set all other properties. Width of mjGEOM_LINE is denominated in pixels.',  # pylint: disable=line-too-long
@@ -5450,7 +5668,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
          return_type=ValueType(name='mjtNum'),
          parameters=(
              FunctionParameterDecl(
-                 name='res',
+                 name='vec',
                  type=ArrayType(
                      inner_type=ValueType(name='mjtNum'),
                      extents=(3,),
@@ -5663,7 +5881,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
          return_type=ValueType(name='mjtNum'),
          parameters=(
              FunctionParameterDecl(
-                 name='res',
+                 name='vec',
                  type=ArrayType(
                      inner_type=ValueType(name='mjtNum'),
                      extents=(4,),
@@ -5724,7 +5942,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  ),
              ),
              FunctionParameterDecl(
-                 name='data',
+                 name='vec',
                  type=PointerType(
                      inner_type=ValueType(name='mjtNum', is_const=True),
                  ),
@@ -7150,7 +7368,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  ),
              ),
          ),
-         doc='Eigenvalue decomposition of symmetric 3x3 matrix.',
+         doc="Eigenvalue decomposition of symmetric 3x3 matrix, mat = eigvec * diag(eigval) * eigvec'.",  # pylint: disable=line-too-long
      )),
     ('mju_boxQP',
      FunctionDecl(
@@ -7937,6 +8155,82 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
          ),
          doc='Finite differenced Jacobians of (force, sensors) = mj_inverse(state, acceleration)   All outputs are optional. Output dimensions (transposed w.r.t Control Theory convention):     DfDq: (nv x nv)     DfDv: (nv x nv)     DfDa: (nv x nv)     DsDq: (nv x nsensordata)     DsDv: (nv x nsensordata)     DsDa: (nv x nsensordata)     DmDq: (nv x nM)   single-letter shortcuts:     inputs: q=qpos, v=qvel, a=qacc     outputs: f=qfrc_inverse, s=sensordata, m=qM   notes:     optionally computes mass matrix Jacobian DmDq     flg_actuation specifies whether to subtract qfrc_actuator from qfrc_inverse',  # pylint: disable=line-too-long
      )),
+    ('mjd_subQuat',
+     FunctionDecl(
+         name='mjd_subQuat',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='qa',
+                 type=ArrayType(
+                     inner_type=ValueType(name='mjtNum', is_const=True),
+                     extents=(4,),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='qb',
+                 type=ArrayType(
+                     inner_type=ValueType(name='mjtNum', is_const=True),
+                     extents=(4,),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='Da',
+                 type=ArrayType(
+                     inner_type=ValueType(name='mjtNum'),
+                     extents=(9,),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='Db',
+                 type=ArrayType(
+                     inner_type=ValueType(name='mjtNum'),
+                     extents=(9,),
+                 ),
+             ),
+         ),
+         doc='Derivatives of mju_subQuat.',
+     )),
+    ('mjd_quatIntegrate',
+     FunctionDecl(
+         name='mjd_quatIntegrate',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='vel',
+                 type=ArrayType(
+                     inner_type=ValueType(name='mjtNum', is_const=True),
+                     extents=(3,),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='scale',
+                 type=ValueType(name='mjtNum'),
+             ),
+             FunctionParameterDecl(
+                 name='Dquat',
+                 type=ArrayType(
+                     inner_type=ValueType(name='mjtNum'),
+                     extents=(9,),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='Dvel',
+                 type=ArrayType(
+                     inner_type=ValueType(name='mjtNum'),
+                     extents=(9,),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='Dscale',
+                 type=ArrayType(
+                     inner_type=ValueType(name='mjtNum'),
+                     extents=(3,),
+                 ),
+             ),
+         ),
+         doc='Derivatives of mju_quatIntegrate.',
+     )),
     ('mjp_defaultPlugin',
      FunctionDecl(
          name='mjp_defaultPlugin',
@@ -8072,5 +8366,101 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
              ),
          ),
          doc='Look up a resource provider by slot number returned by mjp_registerResourceProvider. If invalid slot number, return NULL.',  # pylint: disable=line-too-long
+     )),
+    ('mju_threadPoolCreate',
+     FunctionDecl(
+         name='mju_threadPoolCreate',
+         return_type=PointerType(
+             inner_type=ValueType(name='mjThreadPool'),
+         ),
+         parameters=(
+             FunctionParameterDecl(
+                 name='number_of_threads',
+                 type=ValueType(name='size_t'),
+             ),
+         ),
+         doc='Create a thread pool with the specified number of threads running.',  # pylint: disable=line-too-long
+     )),
+    ('mju_bindThreadPool',
+     FunctionDecl(
+         name='mju_bindThreadPool',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='d',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjData'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='thread_pool',
+                 type=PointerType(
+                     inner_type=ValueType(name='void'),
+                 ),
+             ),
+         ),
+         doc='Adds a thread pool to mjData and configures it for multi-threaded use.',  # pylint: disable=line-too-long
+     )),
+    ('mju_threadPoolEnqueue',
+     FunctionDecl(
+         name='mju_threadPoolEnqueue',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='thread_pool',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjThreadPool'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='task',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjTask'),
+                 ),
+             ),
+         ),
+         doc='Enqueue a task in a thread pool.',
+     )),
+    ('mju_threadPoolDestroy',
+     FunctionDecl(
+         name='mju_threadPoolDestroy',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='thread_pool',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjThreadPool'),
+                 ),
+             ),
+         ),
+         doc='Destroy a thread pool.',
+     )),
+    ('mju_defaultTask',
+     FunctionDecl(
+         name='mju_defaultTask',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='task',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjTask'),
+                 ),
+             ),
+         ),
+         doc='Initialize an mjTask.',
+     )),
+    ('mju_taskJoin',
+     FunctionDecl(
+         name='mju_taskJoin',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='task',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjTask'),
+                 ),
+             ),
+         ),
+         doc='Wait for a task to complete.',
      )),
 ])

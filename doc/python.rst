@@ -12,11 +12,11 @@ low-level bindings that are meant to give as close to a direct access to the MuJ
 order to provide an API and semantics that developers would expect in a typical Python library, the bindings
 deliberately diverge from the raw MuJoCo API in a number of places, which are documented throughout this page.
 
-Google DeepMind’s `dm_control <https://github.com/deepmind/dm_control>`__ reinforcement learning library (which prior to
-version 1.0.0 implemented its own MuJoCo bindings based on ``ctypes``) has been updated to depend on the ``mujoco``
-package and continues to be supported by Google DeepMind. Changes in dm_control should be largely transparent to users
-of previous versions, however code that depended directly on its low-level API may need to be updated. Consult the
-`migration guide <https://github.com/deepmind/dm_control/blob/main/migration_guide_1.0.md>`__ for detail.
+Google DeepMind’s `dm_control <https://github.com/google-deepmind/dm_control>`__ reinforcement learning library (which
+prior to version 1.0.0 implemented its own MuJoCo bindings based on ``ctypes``) has been updated to depend on the
+``mujoco`` package and continues to be supported by Google DeepMind. Changes in dm_control should be largely transparent
+to users of previous versions, however code that depended directly on its low-level API may need to be updated. Consult
+the `migration guide <https://github.com/google-deepmind/dm_control/blob/main/migration_guide_1.0.md>`__ for detail.
 
 For mujoco-py users, we include :ref:`notes <PyMjpy_migration>` below to aid migration.
 
@@ -28,7 +28,7 @@ Tutorial notebook
 A MuJoCo tutorial using the Python bindings is available here: |colab|
 
 .. |colab| image:: https://colab.research.google.com/assets/colab-badge.svg
-           :target: https://colab.research.google.com/github/deepmind/mujoco/blob/main/python/tutorial.ipynb
+           :target: https://colab.research.google.com/github/google-deepmind/mujoco/blob/main/python/tutorial.ipynb
 
 .. _PyInstallation:
 
@@ -96,13 +96,13 @@ perturbations will not work unless the user explicitly synchronizes incoming eve
 The ``launch_passive`` function returns a handle which can be used to interact with the viewer. It has the following
 attributes:
 
-- ``scn``, ``cam``, ``opt``, and ``pert`` properties: correspond to :ref:`mjvScene`, :ref:`mjvCamera`,
-  :ref:`mjvOption`, and :ref:`mjvPerturb` structs, respectively.
+- ``cam``, ``opt``, and ``pert`` properties: correspond to :ref:`mjvCamera`, :ref:`mjvOption`, and :ref:`mjvPerturb`
+  structs, respectively.
 
 - ``lock()``: provides a mutex lock for the viewer as a context manager. Since the viewer operates its own
   thread, user code must ensure that it is holding the viewer lock before modifying any physics or visualization
-  state. These include the ``mjModel`` and ``mjData`` instance passed to ``launch_passive``, and also the ``scn``,
-  ``cam``, ``opt``, and ``pert`` properties of the viewer handle.
+  state. These include the ``mjModel`` and ``mjData`` instance passed to ``launch_passive``, and also the ``cam``,
+  ``opt``, and ``pert`` properties of the viewer handle.
 
 - ``sync()``: synchronizes state between ``mjModel``, ``mjData``, and GUI user inputs since the previous call to
   ``sync``. In order to allow user scripts to make arbitrary modifications to ``mjModel`` and ``mjData`` without
@@ -113,10 +113,47 @@ attributes:
   also transfers user inputs from the GUI back into ``mjOption`` (inside ``mjModel``) and ``mjData``, including
   enable/disable flags, control inputs, and mouse perturbations.
 
+- ``update_hfield(hfieldid)``: updates the height field data at the specified ``hfieldid`` for subsequent renderings.
+
+- ``update_mesh(meshid)``: updates the mesh data at the specified ``meshid`` for subsequent renderings.
+
+- ``update_texture(texid)``: updates the texture data at the specified ``texid`` for subsequent renderings.
+
 - ``close()``: programmatically closes the viewer window. This method can be safely called without locking.
 
 - ``is_running()``: returns ``True`` if the viewer window is running and ``False`` if it is closed.
   This method can be safely called without locking.
+
+- ``user_scn``: an :ref:`mjvScene` object that allows users to add custom visualization geoms to the rendered scene.
+  This is separate from the ``mjvScene`` that the viewer uses internally to render the final scene, and is entirely
+  under the user's control. User scripts can call e.g. :ref:`mjv_initGeom` or :ref:`mjv_makeConnector` to add
+  visualization geoms to ``user_scn``, and upon the next call to ``sync()``, the viewer will incorporate
+  these geoms to future rendered images. For example:
+
+  .. code-block:: python
+
+    with mujoco.viewer.launch_passive(m, d, key_callback=key_callback) as viewer:
+      while viewer.is_running():
+        ...
+        # Step the physics.
+        mujoco.mj_step(m, d)
+
+        # Add a 3x3x3 grid of variously colored spheres to the middle of the scene.
+        viewer.user_scn.ngeom = 0
+        i = 0
+        for x, y, z in itertools.product(*((range(-1, 2),) * 3)):
+          mujoco.mjv_initGeom(
+              viewer.user_scn.geoms[i],
+              type=mujoco.mjtGeom.mjGEOM_SPHERE,
+              size=[0.02, 0, 0],
+              pos=0.1*np.array([x, y, z]),
+              mat=np.eye(3).flatten(),
+              rgba=0.5*np.array([x + 1, y + 1, z + 1, 2])
+          )
+          i += 1
+        viewer.user_scn.ngeom = i
+        viewer.sync()
+        ...
 
 The viewer handle can also be used as a context manager which calls ``close()`` automatically upon exit. A minimal
 example of a user script that uses ``launch_passive`` might look like the following. (Note that example is a simple
@@ -154,6 +191,33 @@ illustrative example that does **not** necessarily keep the physics ticking at t
       if time_until_next_step > 0:
         time.sleep(time_until_next_step)
 
+Optionally, ``viewer.launch_passive`` accepts the following keyword arguments.
+
+- ``key_callback``: A callable which gets called each time a keyboard event occurs in the viewer window. This allows
+  user scripts to react to various key presses, e.g., pause or resume the run loop when the spacebar is pressed.
+
+  .. code-block:: python
+
+    paused = False
+
+    def key_callback(keycode):
+      if chr(keycode) == ' ':
+        nonlocal paused
+        paused = not paused
+
+    ...
+
+    with mujoco.viewer.launch_passive(m, d, key_callback=key_callback) as viewer:
+      while viewer.is_running():
+        ...
+        if not paused:
+          mujoco.mj_step(m, d)
+          viewer.sync()
+        ...
+
+- ``show_left_ui`` and ``show_right_ui``: Boolean arguments indicating whether UI panels should be visible
+  or hidden when the viewer is launched. Note that regardless of the values specified, the user can still toggle the
+  visibility of these panels after launch by pressing Tab or Shift+Tab.
 
 .. _PyUsage:
 
@@ -421,7 +485,7 @@ all inputs including ``time`` and ``qacc_warmstart`` are set to default values, 
 
 Since the Global Interpreter Lock can be released, this function can be efficiently threaded using Python threads. See
 the ``test_threading`` function in
-`rollout_test.py <https://github.com/deepmind/mujoco/blob/main/python/mujoco/rollout_test.py>`_ for an example of
+`rollout_test.py <https://github.com/google-deepmind/mujoco/blob/main/python/mujoco/rollout_test.py>`_ for an example of
 threaded operation.
 
 .. _PyMjpy_migration:
@@ -488,7 +552,7 @@ Building from source
 
 1. Make sure you have CMake and a C++17 compiler installed.
 
-2. Download the `latest binary release <https://github.com/deepmind/mujoco/releases>`__
+2. Download the `latest binary release <https://github.com/google-deepmind/mujoco/releases>`__
    from GitHub. On macOS, the download corresponds to a DMG file from which you
    can drag ``MuJoCo.app`` into your ``/Applications`` folder.
 
@@ -497,7 +561,7 @@ Building from source
 
    .. code-block:: shell
 
-      git clone https://github.com/deepmind/mujoco.git
+      git clone https://github.com/google-deepmind/mujoco.git
       cd mujoco/python
 
 4. Create a virtual environment:
@@ -534,7 +598,7 @@ Building from source
    .. code-block:: shell
 
       cd dist
-      MUJOCO_PATH=/PATH/TO/MUJOCO pip install mujoco-x.y.z.tar.gz
+      MUJOCO_PATH=/PATH/TO/MUJOCO MUJOCO_PLUGIN_PATH=/PATH/TO/MUJOCO_PLUGIN pip install mujoco-x.y.z.tar.gz
 
 The Python bindings should now be installed! To check that they've been
 successfully installed, ``cd`` outside of the ``mujoco`` directory and run
@@ -542,4 +606,5 @@ successfully installed, ``cd`` outside of the ``mujoco`` directory and run
 
 .. tip::
    As a reference, a working build configuration can be found in MuJoCo's
-   `continuous integration setup <https://github.com/deepmind/mujoco/blob/main/.github/workflows/build.yml>`_ on GitHub.
+   `continuous integration setup <https://github.com/google-deepmind/mujoco/blob/main/.github/workflows/build.yml>`_ on
+   GitHub.

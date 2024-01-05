@@ -25,6 +25,8 @@ import ctypes
 import importlib.util
 import os
 import platform
+import re
+import subprocess
 import sys
 
 if platform.system() != 'Darwin':
@@ -48,7 +50,32 @@ def main(argv):
 
   # Conda doesn't create a separate shared library for Python.
   # We instead use the Python binary itself, which can be dlopened just as well.
-  os.environ['MJPYTHON_LIBPYTHON'] = get_executable_path()
+  libpython_path = get_executable_path()
+  os.environ['MJPYTHON_LIBPYTHON'] = libpython_path
+
+  # In some installations (e.g. CommandLineTools), the Python interpreter loads
+  # dylibs from @executable_path-relative paths. This will not resolve
+  # correctly since @executable_path will be the directory containing the
+  # mjpython binary when we execve. We therefore preemptively resolve all
+  # @executable_path-relative paths now and add them to
+  # DYLD_FALLBACK_LIBRARY_PATH.
+  libpython_dir = os.path.dirname(libpython_path)
+  dyld_fallback_paths = (
+      os.environ.get('DYLD_FALLBACK_LIBRARY_PATH', '').split(':'))
+  pattern = re.compile(r'@executable_path/(.+) \(offset \d+\)\Z')
+  otool_out = subprocess.run(
+      ['otool', '-l', libpython_path],
+      capture_output=True,
+      check=True,
+  ).stdout.decode()
+  for line in otool_out.split('\n'):
+    m = pattern.search(line)
+    if m is not None:
+      new_path = os.path.dirname(os.path.join(libpython_dir, m.group(1)))
+      if new_path not in dyld_fallback_paths:
+        dyld_fallback_paths.insert(0, new_path)
+
+  os.environ['DYLD_FALLBACK_LIBRARY_PATH'] = ':'.join(dyld_fallback_paths)
 
   # argv[0] is currently the path to this script.
   # Replace it with sys.executable to preserve e.g. virtualenv path.

@@ -14,6 +14,7 @@
 
 #include "render/render_gl2.h"
 
+#include <math.h>
 #include <string.h>
 #include <stdio.h>
 
@@ -92,6 +93,23 @@ void mjr_restoreBuffer(const mjrContext* con) {
 
 
 
+static inline void flipDepthIfRequired(float* depth, mjrRect viewport, const mjrContext* con) {
+  if (con->readDepthMap == mjDEPTH_ZERONEAR) {
+    int npixel = viewport.width * viewport.height;
+    for (int i = 0; i < npixel; i++) {
+      depth[i] = 1.0 - depth[i];  // Reverse the reversed Z buffer
+    }
+  } else if (!mjGLAD_GL_ARB_clip_control) {
+    mju_warning("ARB_clip_control unavailable while mjDEPTH_ZEROFAR requested, "
+                "depth accuracy will be limited");
+  } else if (!mjGLAD_GL_ARB_depth_buffer_float) {
+    mju_warning("ARB_depth_buffer_float unavailable while mjDEPTH_ZEROFAR requested, "
+                "depth accuracy will be limited");
+  }
+}
+
+
+
 // read pixels from current OpenGL framebuffer to client buffer
 //  viewport is in OpenGL framebuffer; client buffer starts at (0,0)
 void mjr_readPixels(unsigned char* rgb, float* depth,
@@ -115,6 +133,7 @@ void mjr_readPixels(unsigned char* rgb, float* depth,
     if (depth) {
       glReadPixels(viewport.left, viewport.bottom, viewport.width, viewport.height,
                    GL_DEPTH_COMPONENT, GL_FLOAT, depth);
+      flipDepthIfRequired(depth, viewport, con);
     }
   }
 
@@ -159,6 +178,7 @@ void mjr_readPixels(unsigned char* rgb, float* depth,
     if (depth) {
       glReadPixels(viewport.left, viewport.bottom, viewport.width, viewport.height,
                    GL_DEPTH_COMPONENT, GL_FLOAT, depth);
+      flipDepthIfRequired(depth, viewport, con);
     }
 
     // restore currentBuffer
@@ -432,7 +452,6 @@ void mjr_text(int font, const char* txt, const mjrContext* con,
 static int draw_overlay(int font, mjrRect viewport, int skip, int gridpos,
                         float red, float green, float blue,
                         const char* overlay, const mjrContext* con) {
-
   int pos, ncthis, nc, nr, W, H, flg_big = (font == mjFONT_BIG);
   int PAD = 5, sz = mjMIN(mjMAXOVERLAY, (int)strlen(overlay));
   char text[mjMAXOVERLAY];
@@ -479,6 +498,26 @@ static int draw_overlay(int font, mjrRect viewport, int skip, int gridpos,
   case mjGRID_BOTTOMRIGHT:
     glViewport(viewport.left+viewport.width-skip-1-PAD-W,
                viewport.bottom+PAD, W, H);
+    break;
+
+  case mjGRID_TOP:
+    glViewport(viewport.left+(viewport.width-skip-W)/2-1-PAD,
+               viewport.bottom+viewport.height-1-PAD-H, W, H);
+    break;
+
+  case mjGRID_BOTTOM:
+    glViewport(viewport.left+(viewport.width-skip-W)/2-1-PAD,
+               viewport.bottom+PAD, W, H);
+    break;
+
+  case mjGRID_LEFT:
+    glViewport(viewport.left+skip+PAD,
+               viewport.bottom+(viewport.height-H)/2-1-PAD, W, H);
+    break;
+
+  case mjGRID_RIGHT:
+    glViewport(viewport.left+viewport.width-skip-1-PAD-W,
+               viewport.bottom+(viewport.height-H)/2-1-PAD, W, H);
   }
 
   // set projection in pixels

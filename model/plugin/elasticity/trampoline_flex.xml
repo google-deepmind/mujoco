@@ -1,0 +1,56 @@
+<!-- Copyright 2021 DeepMind Technologies Limited
+
+     Licensed under the Apache License, Version 2.0 (the "License");
+     you may not use this file except in compliance with the License.
+     You may obtain a copy of the License at
+
+         http://www.apache.org/licenses/LICENSE-2.0
+
+     Unless required by applicable law or agreed to in writing, software
+     distributed under the License is distributed on an "AS IS" BASIS,
+     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+     See the License for the specific language governing permissions and
+     limitations under the License.
+-->
+
+<mujoco model="Trampoline">
+  <include file="scene.xml"/>
+
+  <extension>
+    <plugin plugin="mujoco.elasticity.shell"/>
+    <plugin plugin="mujoco.elasticity.membrane"/>
+  </extension>
+
+  <option timestep="0.001" solver="CG" tolerance="1e-6" integrator="implicitfast"/>
+
+  <size memory="10M"/>
+
+  <visual>
+    <map stiffness="100"/>
+  </visual>
+
+  <default>
+    <default class="wall">
+      <geom type="plane" size=".5 .5 .05"/>
+    </default>
+  </default>
+
+  <worldbody>
+    <body pos=".2 0 1.5">
+      <freejoint/>
+      <geom type="sphere" size=".1"/>
+    </body>
+    <flexcomp type="grid" count="16 16 1" spacing=".1 .1 .1" pos="0 0 1"
+              radius=".001" mass="10" name="plate" dim="2">
+      <contact condim="3" solref="0.01 1" solimp=".95 .99 .0001"/>
+      <edge equality="false" damping="10"/>
+      <pin id="0 15 240 255"/>
+      <plugin plugin="mujoco.elasticity.membrane">
+        <config key="poisson" value="0"/>
+        <config key="thickness" value="1e-2"/>
+        <!--Units are in Pa (SI)-->
+        <config key="young" value="3e5"/>
+      </plugin>
+    </flexcomp>
+  </worldbody>
+</mujoco>

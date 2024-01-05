@@ -66,6 +66,7 @@ class ValueType:
   def __init__(self, name: str, is_const: bool = False,
                is_volatile: bool = False):
     is_valid_type_name = (
+        name == 'void *(*)(void *)' or
         VALID_TYPE_NAME_PATTERN.fullmatch(name) or
         _is_valid_integral_type(name)) and name not in C_INVALID_TYPE_NAMES
     if not is_valid_type_name:

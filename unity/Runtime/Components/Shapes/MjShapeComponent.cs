@@ -34,7 +34,8 @@ public abstract class MjShapeComponent : MjComponent {
     Cylinder,
     Box,
     Plane,
-    Mesh
+    Mesh,
+    HField
   }
 
   public ShapeTypes ShapeType;
@@ -46,6 +47,7 @@ public abstract class MjShapeComponent : MjComponent {
   public MjEllipsoidShape Ellipsoid = new MjEllipsoidShape();
   public MjPlaneShape Plane = new MjPlaneShape();
   public MjMeshShape Mesh = new MjMeshShape();
+  public MjHeightFieldShape HField = new MjHeightFieldShape();
 
   public IMjShape Shape {
     get {
@@ -58,6 +60,7 @@ public abstract class MjShapeComponent : MjComponent {
         case ShapeTypes.Box: return Box;
         case ShapeTypes.Plane: return Plane;
         case ShapeTypes.Mesh: return Mesh;
+        case ShapeTypes.HField: return HField;
       }
     }
   }

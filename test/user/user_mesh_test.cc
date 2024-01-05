@@ -88,7 +88,7 @@ TEST_F(MjCMeshTest, UnknownMeshFormat) {
         LoadModelFromString(xml.c_str(), error.data(), error.size());
     ASSERT_THAT(model, testing::IsNull())
         << "Should fail to load a mesh named: " << name;
-    EXPECT_THAT(error.data(), HasSubstr("Unknown mesh file type"));
+    EXPECT_THAT(error.data(), HasSubstr("unknown mesh content type for file"));
     EXPECT_THAT(error.data(), HasSubstr(name));
   }
 }
@@ -165,6 +165,133 @@ TEST_F(MjCMeshTest, LoadSTLWithVFS) {
   mj_defaultVFS(vfs.get());
 
   // should fallback to OS filesystem
+  mjModel* model = LoadModelFromString(xml, error, error_sz, vfs.get());
+  EXPECT_THAT(model, IsNull());
+  EXPECT_THAT(error, HasSubstr("resource not found via provider or OS filesystem"));
+}
+
+// ------------- test content_type attributes ----------------------------------
+
+TEST_F(MjCMeshTest, LoadMSHWithContentType) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="mesh1" content_type="model/vnd.mujoco.msh" file="some_file"/>
+    </asset>
+    <worldbody>
+      <geom type="mesh" mesh="mesh1"/>
+    </worldbody>
+  </mujoco>
+  )";
+
+  char error[1024];
+  size_t error_sz = 1024;
+
+  // load VFS on the heap
+  auto vfs = std::make_unique<mjVFS>();
+  mj_defaultVFS(vfs.get());
+
+  // should try opening the file (not found obviously)
+  mjModel* model = LoadModelFromString(xml, error, error_sz, vfs.get());
+  EXPECT_THAT(model, IsNull());
+  EXPECT_THAT(error, HasSubstr("resource not found via provider or OS filesystem"));
+}
+
+TEST_F(MjCMeshTest, LoadOBJWithContentType) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="mesh1" content_type="model/obj" file="some_file"/>
+    </asset>
+    <worldbody>
+      <geom type="mesh" mesh="mesh1"/>
+    </worldbody>
+  </mujoco>
+  )";
+
+  char error[1024];
+  size_t error_sz = 1024;
+
+  // load VFS on the heap
+  auto vfs = std::make_unique<mjVFS>();
+  mj_defaultVFS(vfs.get());
+
+  // should try opening the file (not found obviously)
+  mjModel* model = LoadModelFromString(xml, error, error_sz, vfs.get());
+  EXPECT_THAT(model, IsNull());
+  EXPECT_THAT(error, HasSubstr("resource not found via provider or OS filesystem"));
+}
+
+TEST_F(MjCMeshTest, LoadSTLWithContentType) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="mesh1" content_type="model/stl" file="some_file"/>
+    </asset>
+    <worldbody>
+      <geom type="mesh" mesh="mesh1"/>
+    </worldbody>
+  </mujoco>
+  )";
+
+  char error[1024];
+  size_t error_sz = 1024;
+
+  // load VFS on the heap
+  auto vfs = std::make_unique<mjVFS>();
+  mj_defaultVFS(vfs.get());
+
+  // should try opening the file (not found obviously)
+  mjModel* model = LoadModelFromString(xml, error, error_sz, vfs.get());
+  EXPECT_THAT(model, IsNull());
+  EXPECT_THAT(error, HasSubstr("resource not found via provider or OS filesystem"));
+}
+
+TEST_F(MjCMeshTest, LoadMSHWithContentTypeError) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="mesh1" content_type="model/unknown" file="some_file"/>
+    </asset>
+    <worldbody>
+      <geom type="mesh" mesh="mesh1"/>
+    </worldbody>
+  </mujoco>
+  )";
+
+  char error[1024];
+  size_t error_sz = 1024;
+
+  // load VFS on the heap
+  auto vfs = std::make_unique<mjVFS>();
+  mj_defaultVFS(vfs.get());
+
+  // should error with unknown file type
+  mjModel* model = LoadModelFromString(xml, error, error_sz, vfs.get());
+  EXPECT_THAT(model, IsNull());
+  EXPECT_THAT(error, HasSubstr("unsupported content type: 'model/unknown'"));
+}
+
+TEST_F(MjCMeshTest, LoadMSHWithContentTypeParam) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="mesh1" content_type="model/vnd.mujoco.msh;parameter=value" file="some_file"/>
+    </asset>
+    <worldbody>
+      <geom type="mesh" mesh="mesh1"/>
+    </worldbody>
+  </mujoco>
+  )";
+
+  char error[1024];
+  size_t error_sz = 1024;
+
+  // load VFS on the heap
+  auto vfs = std::make_unique<mjVFS>();
+  mj_defaultVFS(vfs.get());
+
+  // should try opening the file (not found obviously)
   mjModel* model = LoadModelFromString(xml, error, error_sz, vfs.get());
   EXPECT_THAT(model, IsNull());
   EXPECT_THAT(error, HasSubstr("resource not found via provider or OS filesystem"));
@@ -248,6 +375,9 @@ TEST_F(MjCMeshTest, SaveMeshOnce) {
   const std::string xml_path = GetTestDataFilePath(kCubePath);
   std::array<char, 1024> error;
   mjModel* model = mj_loadXML(xml_path.c_str(), 0, error.data(), error.size());
+  // Confirm the mesh file is loaded and stored in paths
+  EXPECT_EQ(
+      std::string(&model->paths[model->mesh_pathadr[0]]), "cube.obj");
   std::string saved_xml = SaveAndReadXml(model);
   EXPECT_THAT(saved_xml, Not(testing::HasSubstr("vertex")));
   mj_deleteModel(model);
@@ -672,6 +802,63 @@ TEST_F(MjCMeshTest, ExactShellInertia) {
   EXPECT_LE(fabs(model->body_inertia[3] - I_hollow_cube), max_abs_err);
   EXPECT_LE(fabs(model->body_inertia[4] - I_hollow_cube), max_abs_err);
   EXPECT_LE(fabs(model->body_inertia[5] - I_hollow_cube), max_abs_err);
+  mj_deleteModel(model);
+}
+
+TEST_F(MjCMeshTest, MeshPosQuat) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="pyramid" vertex="0 0 0  1 0 0  0 1 0  0 0 1"/>
+    </asset>
+    <worldbody>
+      <geom type="mesh" name="geom1" mesh="pyramid"/>
+      <geom type="mesh" name="geom2" pos="1 2 3" quat="0.5 0.5 0.5 0.5" mesh="pyramid"/>
+    </worldbody>
+  </mujoco>
+  )";
+  mjModel* model = LoadModelFromString(xml);
+  ASSERT_THAT(model, testing::NotNull());
+  // Loading the mesh results in an offset of the geom's pos and quat due to the
+  // fact that the geom's center is not the volumetric center of the mesh. To
+  // recover the geom's originally specified pose, the offset used is stored in
+  // mesh_pos and mesh_quat. In order to recover the originally specified pose
+  // and orientation, first invert the specified mesh_pos and mesh_quat.
+  mjtNum inverse_mesh_pos[3];
+  mjtNum inverse_mesh_quat[4];
+  mju_negPose(inverse_mesh_pos, inverse_mesh_quat,
+              &model->mesh_pos[0], &model->mesh_quat[0]);
+
+  // Apply the inverted mesh_pos and inverted mesh_quat to the geom's pos and
+  // quat. It should match the originally specified values.
+  double recovered_pos[3];
+  double recovered_quat[4];
+  mju_mulPose(recovered_pos, recovered_quat,
+              &model->geom_pos[0], &model->geom_quat[0],
+              inverse_mesh_pos, inverse_mesh_quat);
+  EXPECT_NEAR(recovered_pos[0], 0, 1e-12);
+  EXPECT_NEAR(recovered_pos[1], 0, 1e-12);
+  EXPECT_NEAR(recovered_pos[2], 0, 1e-12);
+
+  EXPECT_NEAR(recovered_quat[0], 1, 1e-12);
+  EXPECT_NEAR(recovered_quat[1], 0, 1e-12);
+  EXPECT_NEAR(recovered_quat[2], 0, 1e-12);
+  EXPECT_NEAR(recovered_quat[3], 0, 1e-12);
+
+  // Same test on the other geom.
+  mju_negPose(inverse_mesh_pos, inverse_mesh_quat,
+              &model->mesh_pos[0], &model->mesh_quat[0]);
+  mju_mulPose(recovered_pos, recovered_quat,
+              &model->geom_pos[3], &model->geom_quat[4],
+              inverse_mesh_pos, inverse_mesh_quat);
+  EXPECT_NEAR(recovered_pos[0], 1, 1e-12);
+  EXPECT_NEAR(recovered_pos[1], 2, 1e-12);
+  EXPECT_NEAR(recovered_pos[2], 3, 1e-12);
+
+  EXPECT_NEAR(recovered_quat[0], 0.5, 1e-12);
+  EXPECT_NEAR(recovered_quat[1], 0.5, 1e-12);
+  EXPECT_NEAR(recovered_quat[2], 0.5, 1e-12);
+  EXPECT_NEAR(recovered_quat[3], 0.5, 1e-12);
   mj_deleteModel(model);
 }
 

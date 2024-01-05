@@ -1,0 +1,49 @@
+<mujoco model="flex">
+  <option timestep="0.01" integrator="implicitfast"/>
+
+  <asset>
+    <texture type="skybox" builtin="gradient" rgb1=".3 .5 .7" rgb2="0 0 0" width="512" height="512"/>
+    <texture name="grid" type="2d" builtin="checker" width="512" height="512" rgb1=".1 .2 .3" rgb2=".2 .3 .4"/>
+    <material name="grid" texture="grid" texrepeat="1 1" texuniform="true" reflectance=".2"/>
+  </asset>
+
+  <visual>
+    <scale contactwidth="20" contactheight="10" jointlength="30" jointwidth="1"/>
+    <map force="0.1" zfar="30"/>
+    <rgba haze="0.15 0.25 0.35 1"/>
+    <quality shadowsize="4096"/>
+    <global offwidth="800" offheight="800"/>
+  </visual>
+
+  <worldbody>
+    <geom name="floor" size="5 5 .05" type="plane" material="grid" condim="3"/>
+    <light specular="0 0 0" pos="0 0 2" dir="0 0 -1"/>
+
+    <body pos="0 0 1">
+      <freejoint/>
+      <geom type="capsule" size="0.05 0.03" rgba=".6 .6 .6 1"/>
+    </body>
+
+    <body name="sphere" pos="0 0 0.8">
+      <inertial pos="0 0 0" mass="1" diaginertia="0.01 0.01 0.01"/>
+      <freejoint/>
+
+      <flexcomp name="f1" type="ellipsoid" rgba=".8 .2 .2 1" radius="0.001" count="4 4 4"
+                spacing=".025 .025 .025" dim="3" mass="1">
+        <edge equality="true" solref="0.15 0.2" stiffness="0" damping="0"/>
+      </flexcomp>
+    </body>
+
+    <flexcomp name="f2" type="grid" rgba="1 1 0 1" radius="0.003" dim="2" pos="0 0 .1"
+              zaxis="0 0 1" count="6 6 1" mass="1" spacing="0.02 0.03 0.04" material="grid">
+      <edge equality="true" solref="0.15 0.2" stiffness="0" damping="0"/>
+      <pin id="0"/>
+    </flexcomp>
+
+    <flexcomp name="f3" type="grid" rgba=".6 .5 .1 1" radius="0.003" dim="3" pos="0 0 .3"
+              zaxis="1 1 1" count="3 3 3" mass="1" spacing="0.02 0.03 0.04">
+      <edge equality="true" solref="0.15 0.2" stiffness="0" damping="0"/>
+    </flexcomp>
+  </worldbody>
+
+</mujoco>

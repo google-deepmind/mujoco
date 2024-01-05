@@ -50,13 +50,13 @@ export PYTHONPATH="${old_pythonpath}"
 cp "${package_dir}"/../LICENSE .
 
 # Copy over CMake scripts.
-mkdir cmake
-cp "${package_dir}"/../cmake/*.cmake cmake
+mkdir mujoco/cmake
+cp "${package_dir}"/../cmake/*.cmake mujoco/cmake
 
 # Copy over Simulate source code.
 cp -r "${package_dir}"/../simulate mujoco
 
-python setup.py sdist --formats=gztar
+python -m build . --sdist
 tar -tf dist/mujoco-*.tar.gz
 popd
 

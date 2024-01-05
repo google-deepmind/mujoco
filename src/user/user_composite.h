@@ -74,7 +74,6 @@ class mjCComposite {
   bool MakeGrid(mjCModel* model, mjCBody* body, char* error, int error_sz);
   bool MakeRope(mjCModel* model, mjCBody* body, char* error, int error_sz);
   bool MakeCable(mjCModel* model, mjCBody* body, char* error, int error_sz);
-  bool MakeCloth(mjCModel* model, mjCBody* body, char* error, int error_sz);
   bool MakeBox(mjCModel* model, mjCBody* body, char* error, int error_sz);
   void MakeShear(mjCModel* model);
 
@@ -106,8 +105,12 @@ class mjCComposite {
   // currently used only for cable
   std::string initial;            // root boundary type
   std::vector<float> uservert;    // user-specified vertex positions
+  std::string userface;           // connectivity
   mjtNum size[3];                 // rope size (meaning depends on the shape)
   mjtCompShape curve[3];          // geometric shape
+
+  // body names used in the skin
+  std::vector<std::string> username;
 
   // plugin support
   bool is_plugin;
@@ -134,7 +137,6 @@ class mjCComposite {
 
  private:
   mjCBody* AddRopeBody(mjCModel* model, mjCBody* body, int ix, int ix1);
-  mjCBody* AddClothBody(mjCModel* model, mjCBody* body, int ix, int iy, int ix1, int iy1);
   mjCBody* AddCableBody(mjCModel* model, mjCBody* body, int ix, mjtNum normal[3], mjtNum prev_quat[4]);
 };
 

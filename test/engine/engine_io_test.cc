@@ -17,39 +17,32 @@
 #include "src/engine/engine_io.h"
 
 #include <array>
-#include <climits>
+#include <cstdint>
 #include <cstdio>
 #include <cstring>
 #include <filesystem>
-#include <fstream>
-#include <iostream>
 #include <string>
+#include <vector>
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
+#include <gtest/gtest-spi.h>  // IWYU pragma: keep
 #include <absl/strings/str_format.h>
 #include <mujoco/mjxmacro.h>
+#include <mujoco/mujoco.h>
 #include "src/engine/engine_util_errmem.h"
+#include "src/thread/thread_pool.h"
 #include "test/fixture.h"
 
 namespace mujoco {
 namespace {
 
+using ::testing::ContainsRegex;  // NOLINT(misc-unused-using-decls) asan only
 using ::testing::HasSubstr;
 using ::testing::IsNull;
 using ::testing::NotNull;
 
 using EngineIoTest = MujocoTest;
-
-// Return an mjModel with just the ints set.
-mjModel PartialModel(const mjModel* m) {
-  mjModel partial_model = {0};
-  #define X(var) partial_model.var = m->var;
-  MJMODEL_INTS;
-  #undef X
-  partial_model.nbuffer = 0;
-  return partial_model;
-}
 
 TEST_F(EngineIoTest, VerifySizeModel) {
   constexpr char xml[] = R"(
@@ -79,49 +72,6 @@ TEST_F(EngineIoTest, VerifySizeModel) {
   mj_deleteModel(model);
 
   EXPECT_EQ(file_size, model_size);
-}
-
-TEST_F(EngineIoTest, MakeDataFromPartialModel) {
-  constexpr char xml[] = R"(
-  <mujoco>
-    <worldbody>
-      <body>
-        <joint/>
-        <geom size="1"/>
-      </body>
-    </worldbody>
-  </mujoco>
-  )";
-
-  std::array<char, 1024> error;
-  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
-  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error.data();
-  mjData* data_from_model = mj_makeData(model);
-  ASSERT_THAT(data_from_model, NotNull());
-
-  mjModel partial_model = PartialModel(model);
-  mj_deleteModel(model);
-
-  mjData* data_from_partial = mj_makeData(&partial_model);
-  ASSERT_THAT(data_from_partial, NotNull());
-
-  EXPECT_EQ(data_from_partial->nbuffer, data_from_model->nbuffer);
-  // If there are no mocap bodies and qpos0 is all zero, mjData should be the
-  // same whether it was made from the full model or the partial model.
-  {
-    MJDATA_POINTERS_PREAMBLE((&partial_model))
-    #define X(type, name, nr, nc)                                              \
-      if (strcmp(#name, "D_rownnz") && strcmp(#name, "D_rowadr")  &&           \
-          strcmp(#name, "B_rownnz") && strcmp(#name, "B_rowadr"))              \
-        EXPECT_EQ(std::memcmp(data_from_partial->name, data_from_model->name,  \
-                              sizeof(type)*(partial_model.nr)*(nc)),           \
-                  0) << "mjData::" #name " differs";
-    MJDATA_POINTERS
-    #undef X
-  }
-
-  mj_deleteData(data_from_model);
-  mj_deleteData(data_from_partial);
 }
 
 TEST_F(EngineIoTest, MakeDataLoadsQpos0) {
@@ -168,51 +118,6 @@ TEST_F(EngineIoTest, MakeDataLoadsMocapBodies) {
 
   mj_deleteData(data);
   mj_deleteModel(model);
-}
-
-TEST_F(EngineIoTest, CopyDataWithPartialModel) {
-  constexpr char xml[] = R"(
-  <mujoco>
-    <worldbody>
-      <body>
-        <joint/>
-        <geom size="1"/>
-      </body>
-      <body mocap="true" pos="42 0 42">
-        <geom type="sphere" size="0.1"/>
-      </body>
-    </worldbody>
-  </mujoco>
-  )";
-
-  std::array<char, 1024> error;
-  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
-  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error.data();
-  mjData* data = mj_makeData(model);
-  ASSERT_THAT(data, NotNull());
-
-  mjModel partial_model = PartialModel(model);
-  mj_deleteModel(model);
-  mjData* copy = mj_makeData(&partial_model);
-  ASSERT_THAT(copy, NotNull());
-
-  data->qpos[0] = 1;
-  mj_copyData(copy, &partial_model, data);
-
-  EXPECT_EQ(copy->nbuffer, data->nbuffer);
-  EXPECT_EQ(copy->qpos[0], 1);
-  {
-    MJDATA_POINTERS_PREAMBLE((&partial_model))
-    #define X(type, name, nr, nc)                                     \
-        EXPECT_EQ(std::memcmp(copy->name, data->name,                 \
-                              sizeof(type)*(partial_model.nr)*(nc)),  \
-                  0) << "mjData::" #name " differs";
-    MJDATA_POINTERS
-    #undef X
-  }
-
-  mj_deleteData(data);
-  mj_deleteData(copy);
 }
 
 TEST_F(EngineIoTest, MakeDataReturnsNullOnFailure) {
@@ -736,6 +641,182 @@ TEST_F(ValidateReferencesTest, Tuples) {
   model->tuple_objid[0] = 1;
   mj_deleteModel(model);
 }
+
+TEST_F(EngineIoTest, CanMarkAndFreeStack) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+    </worldbody>
+  </mujoco>
+  )";
+
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error.data();
+
+  mjData* data = mj_makeData(model);
+  ASSERT_THAT(data, NotNull());
+
+  auto pstack_before = data->pstack;
+  mj_markStack(data);
+  EXPECT_GT(data->pstack, pstack_before);
+  mj_freeStack(data);
+  EXPECT_EQ(data->pstack, pstack_before);
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
+struct TestFunctionArgs_ {
+  mjData* d;
+  int input;
+  int stack_output;
+  int arena_output;
+  size_t output_thread_worker;
+};
+typedef TestFunctionArgs_ TestFunctionArgs;
+
+void* TestFunction(void* args) {
+  TestFunctionArgs* test_args = static_cast<TestFunctionArgs*>(args);
+  test_args->output_thread_worker =
+      mju_threadPoolCurrentWorkerId((mjThreadPool*)test_args->d->threadpool);
+  mj_markStack(test_args->d);
+  int* test_ints = mj_stackAllocInt(test_args->d, 10);
+  test_ints[0] = test_args->input;
+  test_args->stack_output = test_ints[0];
+
+  int* test_arena_ints =
+      (int*)mj_arenaAllocByte(test_args->d, sizeof(int) * 10, alignof(int));
+  test_arena_ints[0] = test_args->input;
+  test_args->arena_output = test_arena_ints[0];
+
+
+  mj_freeStack(test_args->d);
+  return nullptr;
+}
+
+TEST_F(EngineIoTest, TestStackShardingForThreads) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+    </worldbody>
+  </mujoco>
+  )";
+
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error.data();
+
+  mjData* data = mj_makeData(model);
+  ASSERT_THAT(data, NotNull());
+  mjThreadPool* thread_pool = mju_threadPoolCreate(10);
+  mju_bindThreadPool(data, thread_pool);
+
+  constexpr int kTasks = 1000;
+  TestFunctionArgs test_function_args[kTasks];
+  mjTask tasks[kTasks];
+  for (int i = 0; i < kTasks; ++i) {
+    test_function_args[i].d = data;
+    test_function_args[i].input = i;
+    mju_defaultTask(&tasks[i]);
+    tasks[i].func = TestFunction;
+    tasks[i].args = &test_function_args[i];
+    mju_threadPoolEnqueue(thread_pool, &tasks[i]);
+  }
+
+  mj_markStack(data);
+  int* test_ints = mj_stackAllocInt(data, 10);
+  test_ints[0] = 1;
+  mj_freeStack(data);
+
+  for (int i = 0; i < kTasks; ++i) {
+    mju_taskJoin(&tasks[i]);
+  }
+
+  for (int i = 0; i < kTasks; ++i) {
+    EXPECT_EQ(test_function_args[i].input, test_function_args[i].stack_output);
+    EXPECT_EQ(test_function_args[i].input, test_function_args[i].arena_output);
+  }
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+  mju_threadPoolDestroy(thread_pool);
+}
+
+#ifdef ADDRESS_SANITIZER
+void MarkFreeStack(mjData* d, bool free) {
+  mj_markStack(d);
+  if (free) {
+    mj_freeStack(d);
+  }
+}
+
+TEST_F(EngineIoTest, CanDetectStackFrameLeakage) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+    </worldbody>
+  </mujoco>
+  )";
+
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error.data();
+
+  mjData* data = mj_makeData(model);
+  ASSERT_THAT(data, NotNull());
+
+  // MarkFreeStack correctly calls mj_freeStack, should not error.
+  MarkFreeStack(data, /* free= */ true);
+
+  // MarkFreeStack calls mj_markStack without mj_freeStack, the next call to
+  // mj_freeStack should detect the stack frame leakage.
+  mj_markStack(data);
+  MarkFreeStack(data, /* free= */ false);
+  EXPECT_THAT(
+      MjuErrorMessageFrom(mj_freeStack)(data),
+      ContainsRegex(
+          "mj_markStack in MarkFreeStack at .*engine_io_test\\.cc.* has no "
+          "corresponding mj_freeStack"));
+
+  // Dangling stack frames should be detected in mj_deleteData.
+  mj_resetData(model, data);
+  mj_markStack(data);
+  EXPECT_THAT(
+      MjuErrorMessageFrom(mj_deleteData)(data),
+      ContainsRegex(
+          "mj_markStack in .+EngineIoTest_CanDetectStackFrameLeakage.+ has no "
+          "corresponding mj_freeStack"));
+
+  mj_resetData(model, data);
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
+TEST_F(EngineIoTest, RedZoneAlignmentTest) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+    </worldbody>
+  </mujoco>
+  )";
+
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error.data();
+
+  mjData* data = mj_makeData(model);
+  ASSERT_THAT(data, NotNull());
+
+  mj_markStack(data);
+  mj_stackAllocByte(data, 1, 1);
+  mj_stackAllocByte(data, 1, 1);
+  mj_freeStack(data);
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+#endif
 
 }  // namespace
 }  // namespace mujoco

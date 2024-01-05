@@ -42,14 +42,24 @@ master_doc = 'index'
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
 extensions = [
+    'sphinxcontrib.bibtex',
     'sphinxcontrib.katex',
     'sphinxcontrib.youtube',
     'sphinx_copybutton',
     'sphinx_favicon',
     'sphinx_reredirects',
     'sphinx_toolbox.collapse',
+    'sphinx_toolbox.github',
+    'sphinx_toolbox.sidebar_links',
     'mujoco_include',
 ]
+
+# GitHub-related options
+github_username = 'google-deepmind'
+github_repository = 'mujoco'
+
+# Bibtex references for sphinxcontrib.bibtex
+bibtex_bibfiles = ['references.bib']
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['templates']
@@ -70,6 +80,9 @@ exclude_patterns = [
 redirects = {
     # index.rst just contains the table of contents definition.
     'index': 'overview.html',
+    'computation': 'computation/index.html',
+    'programming': 'programming/index.html',
+    'APIreference': 'APIreference/index.html',
 }
 
 rst_prolog = """
@@ -178,8 +191,15 @@ favicons = [
 # -- Options for katex ------------------------------------------------------
 
 # See: https://sphinxcontrib-katex.readthedocs.io/en/0.4.1/macros.html
+# {ar au, ac} are {reference, unconstrained, constrained} acceleration, resp.
 latex_macros = r"""
     \def \d              #1{\operatorname{#1}}
+    \def \ar             {a_{\rm ref}}
+    \def \au             {a_0}
+    \def \ac             {a_1}
+    \def \ari            {a_{{\rm ref},i}}
+    \def \aui            {a_{0,i}}
+    \def \aci            {a_{1,i}}
 """
 
 # Translate LaTeX macros to KaTeX and add to options for HTML builder

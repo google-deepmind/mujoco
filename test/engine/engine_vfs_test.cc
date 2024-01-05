@@ -26,7 +26,7 @@ using ::testing::NotNull;
 using EngineVfsTest = MujocoTest;
 
 TEST_F(EngineVfsTest, AddFileVFS) {
-  constexpr char path[] = "engine/testdata/";
+  constexpr char path[] = "engine/testdata/actuation/";
   const std::string dir = GetTestDataFilePath(path);
   std::string file1 = "activation.xml";
   std::string file2 = "damper.xml";

@@ -3,14 +3,14 @@
 </h1>
 
 <p>
-  <a href="https://github.com/deepmind/mujoco/actions/workflows/build.yml?query=branch%3Amain" alt="GitHub Actions">
-    <img src="https://img.shields.io/github/actions/workflow/status/deepmind/mujoco/build.yml?branch=main">
+  <a href="https://github.com/google-deepmind/mujoco/actions/workflows/build.yml?query=branch%3Amain" alt="GitHub Actions">
+    <img src="https://img.shields.io/github/actions/workflow/status/google-deepmind/mujoco/build.yml?branch=main">
   </a>
   <a href="https://mujoco.readthedocs.io/" alt="Documentation">
     <img src="https://readthedocs.org/projects/mujoco/badge/?version=latest">
   </a>
-  <a href="https://github.com/deepmind/mujoco/blob/main/LICENSE" alt="License">
-    <img src="https://img.shields.io/github/license/deepmind/mujoco">
+  <a href="https://github.com/google-deepmind/mujoco/blob/main/LICENSE" alt="License">
+    <img src="https://img.shields.io/github/license/google-deepmind/mujoco">
   </a>
 </p>
 
@@ -29,12 +29,12 @@ includes interactive visualization with a native GUI, rendered in OpenGL. MuJoCo
 further exposes a large number of utility functions for computing
 physics-related quantities.
 
-We also provide Python bindings and a plug-in for the [Unity] game engine.
+We also provide [Python bindings] and a plug-in for the [Unity] game engine.
 
 ## Documentation
 
-MuJoCo's documentation is available at [mujoco.readthedocs.io], which serves
-webpages derived from the [documentation source files].
+MuJoCo's documentation can be found at [mujoco.readthedocs.io]. Upcoming features due for the next
+release can be found in the [changelog] in the latest branch.
 
 ## Getting Started
 
@@ -50,10 +50,15 @@ your machine.
 If you are a Python user, you might want to start with our tutorial notebooks
 running on Google Colab:
 
- - The first tutorial focuses on the basics of MuJoCo: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/deepmind/mujoco/blob/main/python/tutorial.ipynb)
+ - The first tutorial focuses on the basics of MuJoCo:
+   [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/google-deepmind/mujoco/blob/main/python/tutorial.ipynb)
  - For a more advanced example, see the LQR tutorial which creates an LQR
    controller to balance a humanoid on one leg using MuJoCo's dynamics
-   derivatives: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/deepmind/mujoco/blob/main/python/LQR.ipynb)
+   derivatives: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/google-deepmind/mujoco/blob/main/python/LQR.ipynb)
+ - The MJX tutorial provides usage examples of
+   [MuJoCo XLA](https://mujoco.readthedocs.io/en/stable/mjx.html), a branch of MuJoCo written in
+   JAX:
+   [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/google-deepmind/mujoco/blob/main/mjx/tutorial.ipynb)
 
 ## Installation
 
@@ -69,7 +74,7 @@ Users who wish to build MuJoCo from source should consult the [build from
 source] section of the documentation. However, please note that the commit at
 the tip of the `main` branch may be unstable.
 
-### Python (>= 3.7)
+### Python (>= 3.8)
 
 The native Python bindings, which come pre-packaged with a copy of MuJoCo, can
 be installed from [PyPI] via:
@@ -80,19 +85,23 @@ pip install mujoco
 
 Note that Pre-built Linux wheels target `manylinux2014`, see
 [here](https://github.com/pypa/manylinux) for compatible distributions. For more
-information such as building the bindings from source, see the [Python Bindings]
+information such as building the bindings from source, see the [Python bindings]
 section of the documentation.
 
-## Asking Questions
+## Contributing
 
 We welcome community engagement: questions, requests for help, bug reports and
 feature requests. To read more about bug reports, feature requests and more
-ambitious contributions, please see our [contributors guide](CONTRIBUTING.md).
+ambitious contributions, please see our [contributors guide](CONTRIBUTING.md)
+and [style guide](STYLEGUIDE.md).
 
-Questions and requests for help are welcome on the
-GitHub [issues](https://github.com/deepmind/mujoco/issues) and
-[discussions](https://github.com/deepmind/mujoco/discussions) pages. Issues
-should be focused on a specific problem or question, while discussions should
+## Asking Questions
+
+Questions and requests for help are welcome on the GitHub
+[Issues](https://github.com/google-deepmind/mujoco/issues) page and should focus
+on a specific problem or question.
+
+[Discussions](https://github.com/google-deepmind/mujoco/discussions) should
 address wider concerns that might require input from multiple participants.
 
 Here are some guidelines for asking good questions:
@@ -138,10 +147,10 @@ These packages give users of various languages access to MuJoCo functionality:
 #### First-party bindings:
 
 - [Python bindings](https://mujoco.readthedocs.io/en/stable/python.html)
-  - [dm_control](https://github.com/deepmind/dm_control), Google DeepMind's
-  related environment stack, includes
-  [PyMJCF](https://github.com/deepmind/dm_control/blob/main/dm_control/mjcf/README.md),
-  a module for procedural manipulation of MuJoCo models.
+  - [dm_control](https://github.com/google-deepmind/dm_control), Google
+    DeepMind's related environment stack, includes
+    [PyMJCF](https://github.com/google-deepmind/dm_control/blob/main/dm_control/mjcf/README.md),
+    a module for procedural manipulation of MuJoCo models.
 - [C# bindings and Unity plug-in](https://mujoco.readthedocs.io/en/stable/unity.html)
 
 #### Third-party bindings:
@@ -151,15 +160,17 @@ These packages give users of various languages access to MuJoCo functionality:
   [@stillonearth](https://github.com/stillonearth).
 
   :arrow_right: [Click here](https://zalo.github.io/mujoco_wasm/) for a live demo of MuJoCo running in your browser.
+- **MATLAB Simulink**: [Simulink Blockset for MuJoCo Simulator](https://github.com/mathworks-robotics/mujoco-simulink-blockset)
+  by [Manoj Velmurugan](https://github.com/vmanoj1996).
 - **Swift**: [swift-mujoco](https://github.com/liuliu/swift-mujoco)
 - **Java**: [mujoco-java](https://github.com/CommonWealthRobotics/mujoco-java)
-- **Julia**: [Lyceum](https://github.com/Lyceum/MuJoCo.jl) (unmaintained)
+- **Julia**: [MuJoCo.jl](https://github.com/JamieMair/MuJoCo.jl)
 
 
 ### Converters
 
-- **OpenSim**: [O2MConverter](https://github.com/aikkala/O2MConverter) converts
-  openSIM models to MJCF.
+- **OpenSim**: [MyoConverter](https://github.com/MyoHub/myoconverter) converts
+  OpenSim models to MJCF.
 - **SDFormat**: [gz-mujoco](https://github.com/gazebosim/gz-mujoco/) is a
   two-way SDFormat <-> MJCF conversion tool.
 - **OBJ**: [obj2mjcf](https://github.com/kevinzakka/obj2mjcf)
@@ -185,7 +196,7 @@ If you use MuJoCo for published research, please cite:
 
 Copyright 2021 DeepMind Technologies Limited.
 
-Box collision code ([`engine_collision_box.c`](https://github.com/deepmind/mujoco/blob/main/src/engine/engine_collision_box.c))
+Box collision code ([`engine_collision_box.c`](https://github.com/google-deepmind/mujoco/blob/main/src/engine/engine_collision_box.c))
 is Copyright 2016 Svetoslav Kolev.
 
 ReStructuredText documents, images, and videos in the `doc` directory are made
@@ -201,9 +212,9 @@ This is not an officially supported Google product.
 [build from source]: https://mujoco.readthedocs.io/en/latest/programming#building-mujoco-from-source
 [Getting Started]: https://mujoco.readthedocs.io/en/latest/programming#getting-started
 [Unity]: https://unity.com/
-[releases page]: https://github.com/deepmind/mujoco/releases
-[GitHub Issues]: https://github.com/deepmind/mujoco/issues
-[documentation source files]: https://github.com/deepmind/mujoco/tree/main/doc
+[releases page]: https://github.com/google-deepmind/mujoco/releases
+[GitHub Issues]: https://github.com/google-deepmind/mujoco/issues
 [mujoco.readthedocs.io]: https://mujoco.readthedocs.io
-[Python Bindings]: https://mujoco.readthedocs.io/en/stable/python.html#python-bindings
+[changelog]: https://mujoco.readthedocs.io/en/latest/changelog.html
+[Python bindings]: https://mujoco.readthedocs.io/en/stable/python.html#python-bindings
 [PyPI]: https://pypi.org/project/mujoco/

@@ -16,7 +16,6 @@
 
 #include <math.h>
 #include <stdio.h>
-#include <string.h>
 
 #include <mujoco/mjdata.h>
 #include <mujoco/mjmacro.h>
@@ -148,9 +147,9 @@ int mju_cholFactorSparse(mjtNum* mat, int n, mjtNum mindiag,
                          mjData* d) {
   int rank = n;
 
-  mjMARKSTACK;
-  int* buf_ind = (int*) mj_stackAlloc(d, n);
-  mjtNum* sparse_buf = mj_stackAlloc(d, n);
+  mj_markStack(d);
+  int* buf_ind = mj_stackAllocInt(d, n);
+  mjtNum* sparse_buf = mj_stackAllocNum(d, n);
 
   // shrink rows so that rownnz ends at diagonal
   for (int r=0; r < n; r++) {
@@ -190,7 +189,7 @@ int mju_cholFactorSparse(mjtNum* mat, int n, mjtNum mindiag,
       int c = colind[adr+i];
 
       // mat(c,0:c) = mat(c,0:c) - mat(r,c) * mat(r,0:c)
-      int nnz_c = mju_combineSparse(mat + rowadr[c], mat+rowadr[r], c + 1, 1, -mat[adr+i],
+      int nnz_c = mju_combineSparse(mat + rowadr[c], mat+rowadr[r], 1, -mat[adr+i],
                                     rownnz[c], i+1, colind+rowadr[c], colind+rowadr[r],
                                     sparse_buf, buf_ind);
 
@@ -199,7 +198,7 @@ int mju_cholFactorSparse(mjtNum* mat, int n, mjtNum mindiag,
     }
   }
 
-  mjFREESTACK;
+  mj_freeStack(d);
   return rank;
 }
 
@@ -235,7 +234,7 @@ void mju_cholSolveSparse(mjtNum* res, const mjtNum* mat, const mjtNum* vec, int 
 
     // x(i) -= sum_j L(i,j)*x(j), j=0:i-1
     if (nnz > 1) {
-      res[i] -= mju_dotSparse(mat+adr, res, nnz-1, colind+adr);
+      res[i] -= mju_dotSparse(mat+adr, res, nnz-1, colind+adr, /*flg_unc1=*/0);
       // modulo AVX, the above line does
       // for (int j=0; j<nnz-1; j++)
       //   res[i] -= mat[adr+j]*res[colind[adr+j]];
@@ -254,9 +253,9 @@ void mju_cholSolveSparse(mjtNum* res, const mjtNum* mat, const mjtNum* vec, int 
 int mju_cholUpdateSparse(mjtNum* mat, mjtNum* x, int n, int flg_plus,
                          int* rownnz, int* rowadr, int* colind, int x_nnz, int* x_ind,
                          mjData* d) {
-  mjMARKSTACK;
-  int* buf_ind = (int*) mj_stackAlloc(d, n);
-  mjtNum* sparse_buf = mj_stackAlloc(d, n);
+  mj_markStack(d);
+  int* buf_ind = mj_stackAllocInt(d, n);
+  mjtNum* sparse_buf = mj_stackAllocNum(d, n);
 
   // backpass over rows corresponding to non-zero x(r)
   int rank = n, i = x_nnz - 1;
@@ -278,7 +277,7 @@ int mju_cholUpdateSparse(mjtNum* mat, mjtNum* x, int n, int flg_plus,
     mat[adr+nnz-1] = r;
 
     // update row:  mat(r,1:r-1) = (mat(r,1:r-1) + s*x(1:r-1)) / c
-    int new_nnz = mju_combineSparse(mat + adr, x, n, 1 / c, (flg_plus ? s / c : -s / c),
+    int new_nnz = mju_combineSparse(mat + adr, x, 1 / c, (flg_plus ? s / c : -s / c),
                                     nnz-1, i, colind + adr, x_ind,
                                     sparse_buf, buf_ind);
 
@@ -288,15 +287,14 @@ int mju_cholUpdateSparse(mjtNum* mat, mjtNum* x, int n, int flg_plus,
     }
 
     // update x:  x(1:r-1) = c*x(1:r-1) - s*mat(r,1:r-1)
-    int new_x_nnz = mju_combineSparse(x, mat+adr, n, c, -s,
-                                      i, nnz-1, x_ind, colind+adr,
-                                      sparse_buf, buf_ind);
+    int new_x_nnz = mju_combineSparse(x, mat+adr, c, -s, i, nnz-1, x_ind,
+                                      colind+adr, sparse_buf, buf_ind);
 
     // update i, correct for changing x
     i = i - 1 + (new_x_nnz - i);
   }
 
-  mjFREESTACK;
+  mj_freeStack(d);
   return rank;
 }
 
@@ -593,7 +591,7 @@ void mju_factorLUSparse(mjtNum* LU, int n, int* scratch,
   int* remaining = scratch;
 
   // set remaining = rownnz
-  memcpy(remaining, rownnz, n*sizeof(int));
+  mju_copyInt(remaining, rownnz, n);
 
   // diagonal elements (i,i)
   for (int i=n-1; i >= 0; i--) {
@@ -710,7 +708,7 @@ void mju_solveLUSparse(mjtNum* res, const mjtNum* LU, const mjtNum* vec, int n,
 
 // eigenvalue decomposition of symmetric 3x3 matrix
 static const mjtNum eigEPS = 1E-12;
-int mju_eig3(mjtNum* eigval, mjtNum* eigvec, mjtNum quat[4], const mjtNum mat[9]) {
+int mju_eig3(mjtNum eigval[3], mjtNum eigvec[9], mjtNum quat[4], const mjtNum mat[9]) {
   mjtNum D[9], tmp[9];
   mjtNum tau, t, c;
   int iter, rk, ck, rotk;
@@ -783,7 +781,8 @@ int mju_eig3(mjtNum* eigval, mjtNum* eigvec, mjtNum quat[4], const mjtNum mat[9]
   for (int j=0; j < 3; j++) {
     int j1 = j%2;       // lead index
 
-    if (eigval[j1] < eigval[j1+1]) {
+    // only swap if the eigenvalues are different
+    if (eigval[j1]+eigEPS < eigval[j1+1]) {
       // swap eigenvalues
       t = eigval[j1];
       eigval[j1] = eigval[j1+1];

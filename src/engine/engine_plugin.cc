@@ -24,6 +24,7 @@
 #include <cctype>
 #include <cstddef>
 #include <cstdlib>
+#include <cstdio>
 #include <cstring>
 #include <memory>
 #include <mutex>
@@ -43,13 +44,6 @@ extern "C" {
 #endif
 }
 
-#ifdef __APPLE__
-#include <Availability.h>
-#if !defined(MAC_OS_X_VERSION_MIN_REQUIRED) && defined(__MAC_OS_X_VERSION_MIN_REQUIRED)
-#define MAC_OS_X_VERSION_MIN_REQUIRED __MAC_OS_X_VERSION_MIN_REQUIRED
-#endif
-#endif
-
 #include <mujoco/mjplugin.h>
 #include "engine/engine_util_errmem.h"
 
@@ -62,10 +56,7 @@ namespace {
 constexpr int kMaxNameLength = 1024;
 constexpr int kMaxAttributes = 255;
 
-constexpr int kCacheLine = 64;
-
-// vfs prefix
-constexpr const char* kVfsPrefix = mjVFS_PREFIX;
+constexpr int kCacheLine = 256;
 
 // A table of registered plugins, implemented as a linked list of array "blocks".
 // This is a compromise that maintains a good degree of memory locality while not invalidating
@@ -163,15 +154,7 @@ template<typename T>
 PluginTable<T>* AddNewTableBlock(PluginTable<T>* table) {
   char err[512];
   err[0] = '\0';
-
-#if defined(MAC_OS_X_VERSION_MIN_REQUIRED) && MAC_OS_X_VERSION_MIN_REQUIRED < MAC_OS_X_VERSION_10_14
-  // aligned nothrow new is not available until macOS 10.14
-  posix_memalign(reinterpret_cast<void**>(&table->next),
-                 alignof(PluginTable<T>), sizeof(PluginTable<T>));
-  if (table->next) new(table->next) PluginTable<T>;
-#else
   table->next = new(std::nothrow) PluginTable<T>;
-#endif
   if (!table->next) {
     std::snprintf(err, sizeof(err), "failed to allocate memory for the global plugin table");
     return nullptr;
@@ -285,6 +268,8 @@ bool ResourceProvidersAreIdentical(const mjpResourceProvider* p1, const mjpResou
           p1->open == p2->open &&
           p1->read == p2->read &&
           p1->close == p2->close &&
+          p1->getdir == p2->getdir &&
+          p1->modified == p2->modified &&
           p1->data == p2->data);
 }
 
@@ -547,18 +532,7 @@ void mjp_defaultResourceProvider(mjpResourceProvider* provider) {
 
 // globally register a resource provider (thread-safe), return new slot id
 int mjp_registerResourceProvider(const mjpResourceProvider* provider) {
-  // check against reserved prefixes
-  if (PrefixesAreIdentical(kVfsPrefix, provider->prefix)) {
-    mju_warning("provider->prefix is '%s' which is reserved", provider->prefix);
-    return -1;
-  }
-
-  return mjp_registerResourceProviderInternal(provider);
-}
-
-// internal version of mjp_registerResourceProvider without prechecks on reserved prefixes
-int mjp_registerResourceProviderInternal(const mjpResourceProvider* provider) {
-    // check if prefix is valid URI scheme format
+  // check if prefix is valid URI scheme format
   if (!IsValidURISchemeFormat(provider->prefix)) {
     mju_warning("provider->prefix is '%s' which is not a valid URI scheme format",
                 provider->prefix);
@@ -577,35 +551,25 @@ int mjp_registerResourceProviderInternal(const mjpResourceProvider* provider) {
   // Do not handle objects with nontrivial destructors outside of this lambda.
   // Do not call mju_error inside this lambda.
   int slot = [&]() -> int {
-    bool vfs_provider = false;
     std::unique_ptr<char[]> prefix;
 
-    // check if this is a VFS provider
-    if (PrefixesAreIdentical(mjVFS_PREFIX, provider->prefix)) {
-      vfs_provider = true;
-    }
-
     // copy prefix
-    if (!vfs_provider) {
-      prefix = CopyName(provider->prefix);
-      if (!prefix) {
-        if (strklen(provider->prefix) == -1) {
-          std::snprintf(err, sizeof(err),
-                        "provider->prefix length exceeds the maximum limit of %d", kMaxNameLength);
-        } else {
-          std::snprintf(err, sizeof(err), "failed to allocate memory for resource provider prefix");
-        }
-        return -1;
+    prefix = CopyName(provider->prefix);
+    if (!prefix) {
+      if (strklen(provider->prefix) == -1) {
+        std::snprintf(err, sizeof(err),
+                     "provider->prefix length exceeds the maximum limit of %d", kMaxNameLength);
+      } else {
+        std::snprintf(err, sizeof(err), "failed to allocate memory for resource provider prefix");
       }
+      return -1;
     }
 
     Global<mjpResourceProvider>& global = GetGlobal<mjpResourceProvider>();
     auto lock = global.lock_mutex_exclusively();
     int count = global.count().load(std::memory_order_acquire);
     int local_idx = 0;
-    int free_idx = -1, free_local_idx = -1;
     PluginTable<mjpResourceProvider>* table = &global.table();
-    PluginTable<mjpResourceProvider>* free_table = nullptr;
 
     // check if a non-identical provider with the same name has already been registered
     for (int i = 0; i < count; ++i, ++local_idx) {
@@ -615,17 +579,7 @@ int mjp_registerResourceProviderInternal(const mjpResourceProvider* provider) {
       }
       mjpResourceProvider& existing = table->plugins[local_idx];
 
-      // VFS providers can safely go in open slots
-      if (vfs_provider && existing.prefix == nullptr && free_idx == -1) {
-        free_table = table;
-        free_idx = i;
-        free_local_idx = local_idx;
-
-        // can skip the rest
-        break;
-      }
-
-      if (!vfs_provider && existing.prefix != nullptr) {
+      if (existing.prefix != nullptr) {
         // if identical then return slot number
         if (PrefixesAreIdentical(provider->prefix, existing.prefix)) {
           if (ResourceProvidersAreIdentical(provider, &existing)) {
@@ -641,7 +595,7 @@ int mjp_registerResourceProviderInternal(const mjpResourceProvider* provider) {
     }
 
     // allocate a new block of PluginTable if the last allocated block is full
-    if (free_local_idx == -1 && local_idx == PluginTable<mjpResourceProvider>::kBlockSize) {
+    if (local_idx == PluginTable<mjpResourceProvider>::kBlockSize) {
       local_idx = 0;
       table = AddNewTableBlock<mjpResourceProvider>(table);
       if (!table) {
@@ -651,19 +605,12 @@ int mjp_registerResourceProviderInternal(const mjpResourceProvider* provider) {
 
     // all checks passed, register the plugin into the global table
     mjpResourceProvider& registered_provider = table->plugins[local_idx];
-    if (free_local_idx != -1) {
-      registered_provider = free_table->plugins[free_local_idx];
-    }
-
     registered_provider = *provider;
-    registered_provider.prefix = (!vfs_provider) ? prefix.release() : kVfsPrefix;
+    registered_provider.prefix = prefix.release();
 
     // increment the global plugin count with a release memory barrier
-    if (free_idx == -1) {
-      free_idx = count;
-      global.count().store(count + 1, std::memory_order_release);
-    }
-    return free_idx;
+    global.count().store(count + 1, std::memory_order_release);
+    return count;
   }();
 
   // ========= ATTENTION! ==========================================================================
@@ -676,46 +623,6 @@ int mjp_registerResourceProviderInternal(const mjpResourceProvider* provider) {
   }
 
   return slot+1;
-}
-
-// globally unregister resource provider (thread-safe)
-// only used for VFS resource providers
-void mjp_unregisterResourceProvider(int slot) {
-  // shift slot to zero-index
-  slot--;
-
-  if (slot < 0) {
-    return;
-  }
-
-  // get global table, acquire lock
-  Global<mjpResourceProvider>& global = GetGlobal<mjpResourceProvider>();
-  auto lock = global.lock_mutex_exclusively();
-  int count = global.count().load(std::memory_order_acquire);
-
-  if (slot >= count) {
-    return;
-  }
-
-  PluginTable<mjpResourceProvider>* table = &global.table();
-
-  // iterate over blocks in the global table until the local index is less than the block size
-  int local_idx = slot;
-  while (local_idx >= PluginTable<mjpResourceProvider>::kBlockSize) {
-    local_idx -= PluginTable<mjpResourceProvider>::kBlockSize;
-    table = table->next;
-    if (!table) {
-      return;
-    }
-  }
-
-  // local_idx is now a valid index into the current block
-  mjpResourceProvider& provider = table->plugins[local_idx];
-
-  // no-op for anything other than VFS resource providers
-  if (provider.prefix == kVfsPrefix) {
-    provider.prefix = nullptr;
-  }
 }
 
 // return the number of globally registered resource providers
@@ -743,12 +650,6 @@ const mjpResourceProvider* mjp_getResourceProvider(const char* resource_name) {
     return nullptr;
   }
 
-  // since multiple VFS resource providers can be registered with the same
-  // prefix, it doesn't make sense to try to match against them
-  if (PrefixesAreIdentical(kVfsPrefix, file_prefix.c_str())) {
-    return nullptr;
-  }
-
   Global<mjpResourceProvider>& global = GetGlobal<mjpResourceProvider>();
   auto lock = global.lock_mutex_exclusively();
   PluginTable<mjpResourceProvider>* table = &global.table();
@@ -758,7 +659,6 @@ const mjpResourceProvider* mjp_getResourceProvider(const char* resource_name) {
     for (int i = 0;
          i < PluginTable<mjpPlugin>::kBlockSize && found_slot < count;
          ++i, ++found_slot) {
-
       const mjpResourceProvider& provider = table->plugins[i];
       const char *prefix = provider.prefix;
 

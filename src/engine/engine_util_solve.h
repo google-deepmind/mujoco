@@ -84,7 +84,7 @@ void mju_solveLUSparse(mjtNum *res, const mjtNum *LU, const mjtNum* vec, int n,
                        const int *rownnz, const int *rowadr, const int *colind);
 
 // eigenvalue decomposition of symmetric 3x3 matrix
-MJAPI int mju_eig3(mjtNum* eigval, mjtNum* eigvec, mjtNum quat[4], const mjtNum mat[9]);
+MJAPI int mju_eig3(mjtNum eigval[3], mjtNum eigvec[9], mjtNum quat[4], const mjtNum mat[9]);
 
 // solve QCQP in 2 dimensions:
 //  min  0.5*x'*A*x + x'*b  s.t.  sum (xi/di)^2 <= r^2

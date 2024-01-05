@@ -69,7 +69,7 @@ Note the following:
  <img src="http://img.youtube.com/vi/0LOJ3WMnqeA/hqdefault.jpg" alt="Watch the video" width="560" height="315"/>
 </a>
 
-See [touch_grid.xml](../../model/plugin/touch_grid.xml) to play with the model above.
+See [touch_grid.xml](../../model/plugin/sensor/touch_grid.xml) to play with the model above.
 
 ### Illustration of fields-of-view in spherical coordinates
 

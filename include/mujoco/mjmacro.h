@@ -30,13 +30,12 @@
 #define mjMAX(a, b) (((a) > (b)) ? (a) : (b))
 #define mjMIN(a, b) (((a) < (b)) ? (a) : (b))
 
-// mjData stack frame management
-#define mjMARKSTACK   int _mark = d->pstack;
-#define mjFREESTACK   d->pstack = _mark;
-
 // return current value of mjOption enable/disable flags
 #define mjDISABLED(x) (m->opt.disableflags & (x))
 #define mjENABLED(x)  (m->opt.enableflags & (x))
+
+// is actuator disabled
+#define mjACTUATORDISABLED(i) (m->opt.disableactuator & (1 << m->actuator_group[i]))
 
 // annotation for functions that accept printf-like variadic arguments
 #ifndef mjPRINTFLIKE
@@ -45,17 +44,6 @@
   #else
     #define mjPRINTFLIKE(n, m)
   #endif
-#endif
-
-// implementation of mjFREESTACK when using the address sanitizer
-#ifdef ADDRESS_SANITIZER
-  #undef mjFREESTACK
-  #define mjFREESTACK {                                          \
-    d->pstack = _mark;                                           \
-    ASAN_POISON_MEMORY_REGION(                                   \
-        (char*)d->arena + d->parena,                             \
-        (d->nstack - d->pstack) * sizeof(mjtNum) - d->parena );  \
-  }
 #endif
 
 #endif  // MUJOCO_MJMACRO_H_

@@ -14,7 +14,10 @@
 
 // Tests for engine/engine_derivative.c.
 
+#include <iomanip>
+#include <iostream>
 #include <random>
+#include <string>
 #include <vector>
 
 #include <gmock/gmock.h>
@@ -70,9 +73,9 @@ static mjtNum CompareMatrices(mjtNum* Actual, mjtNum* Expected,
   return max_error;
 }
 
-// utility function for matrix printing
+// utility function for matrix printing (debug)
+// NOLINTNEXTLINE(clang-diagnostic-unused-function)
 static void PrintMatrix(mjtNum* mat, int nrow, int ncol) {
-  // NOLINT(clang-diagnostic-unused-function)
   std::cerr.precision(5);
   std::cerr << "\n";
   for (int r=0; r < nrow; r++) {
@@ -97,7 +100,7 @@ static const char* const kTumblingThinObjectEllipsoidPath =
 static const char* const kDampedActuatorsPath =
     "engine/testdata/derivative/damped_actuators.xml";
 static const char* const kDamperActuatorsPath =
-    "engine/testdata/damper.xml";
+    "engine/testdata/actuation/damper.xml";
 static const char* const kDampedPendulumPath =
     "engine/testdata/derivative/damped_pendulum.xml";
 static const char* const kLinearPath =
@@ -287,11 +290,11 @@ TEST_F(DerivativeTest, StepSkip) {
 static void LinearSystem(const mjModel* m, mjData* d, mjtNum* A, mjtNum* B) {
   int nv = m->nv, nu = m->nu;
   mjtNum dt = m->opt.timestep;
-  mjMARKSTACK;
+  mj_markStack(d);
 
   // === state-transition matrix A
   if (A) {
-    mjtNum *Ac = mj_stackAlloc(d, 2*nv*nv);
+    mjtNum *Ac = mj_stackAllocNum(d, 2*nv*nv);
     // Ac = H^-1 [diag(-stiffness) diag(-damping)]
     mju_zero(Ac, 2*nv*nv);
     for (int i=0; i < nv; i++) {
@@ -321,8 +324,8 @@ static void LinearSystem(const mjModel* m, mjData* d, mjtNum* A, mjtNum* B) {
 
   // === control-transition matrix B
   if (B) {
-    mjtNum *Bc = mj_stackAlloc(d, nu*nv);
-    mjtNum *BcT = mj_stackAlloc(d, nv*nu);
+    mjtNum *Bc = mj_stackAllocNum(d, nu*nv);
+    mjtNum *BcT = mj_stackAllocNum(d, nv*nu);
     mju_copy(Bc, d->actuator_moment, nv*nu);
     mj_solveLD(m, Bc, nu, d->qH, d->qHDiagInv);
     mju_transpose(BcT, Bc, nu, nv);
@@ -330,7 +333,7 @@ static void LinearSystem(const mjModel* m, mjData* d, mjtNum* A, mjtNum* B) {
     mju_scl(B+nu*nv, BcT, dt, nu*nv);
   }
 
-  mjFREESTACK;
+  mj_freeStack(d);
 }
 
 // compare FD derivatives to analytic derivatives of linear dynamical system
@@ -832,6 +835,118 @@ TEST_F(DerivativeTest, SubQuat) {
                   Pointwise(DoubleNear(eps), AsVector(Da, 9)));
       EXPECT_THAT(AsVector(DbFD, 9),
                   Pointwise(DoubleNear(eps), AsVector(Db, 9)));
+    }
+  }
+}
+
+// utility: random quaternion, 3D velocity
+void randomQuatVel(mjtNum quat[4], mjtNum vel[3], int seed) {
+  // make distribution using seed
+  std::mt19937_64 rng;
+  rng.seed(seed);
+  std::normal_distribution<double> dist(0, 1);
+
+  // sample quat
+  for (int i=0; i < 4; i++) {
+    quat[i] = dist(rng);
+  }
+  mju_normalize4(quat);
+
+  // sample vel
+  for (int i=0; i < 3; i++) {
+    vel[i] = dist(rng);
+  }
+}
+
+// utility: finite-difference Jacobians of mju_quatIntegrate
+void mjd_quatIntegrateFD(mjtNum Dquat[9], mjtNum Ds[9],
+                         mjtNum Dvel[9], mjtNum Dh[3],
+                         const mjtNum quat[4], const mjtNum vel[3],
+                         mjtNum h, mjtNum eps) {
+  // compute y, output of mju_quatIntegrate(quat, vel, h)
+  mjtNum y[4] = {quat[0], quat[1], quat[2], quat[3]};
+  mju_quatIntegrate(y, vel, h);
+
+  mjtNum dx[3];      // nudged tangent-space input
+  mjtNum dq[4];      // quat output
+  mjtNum dy[3];      // nudged tangent-space output
+  mjtNum DquatT[9];  // Dquat transposed
+  mjtNum DsT[9];     // Ds transposed
+  mjtNum DvelT[9];   // Dvel transposed
+
+  for (int i = 0; i < 3; i++) {
+    // perturbation
+    mju_zero3(dx);
+    dx[i] = 1.0;
+
+    // d_y / d_quat
+    mju_copy4(dq, quat);
+    mju_quatIntegrate(dq, dx, eps);  // nudge dq
+    mju_quatIntegrate(dq, vel, h);  // compute nudged
+    mju_subQuat(dy, dq, y);          // subtract
+    mju_scl3(DquatT + i * 3, dy, 1.0 / eps);
+
+    // d_y / d_sv (scaled velocity)
+    mju_copy4(dq, quat);
+    mjtNum dsv[3] = {vel[0]*h, vel[1]*h, vel[2]*h};
+    mju_addToScl3(dsv, dx, eps);      // nudge dsv
+    mju_quatIntegrate(dq, dsv, 1.0);  // compute nudged
+    mju_subQuat(dy, dq, y);           // subtract
+    mju_scl3(DsT + i * 3, dy, 1.0 / eps);
+
+    // d_y / d_v (unscaled velocity)
+    mju_copy4(dq, quat);
+    mjtNum dv[3] = {vel[0], vel[1], vel[2]};
+    mju_addToScl3(dv, dx, eps);    // nudge dv
+    mju_quatIntegrate(dq, dv, h);  // compute nudged
+    mju_subQuat(dy, dq, y);        // subtract
+    mju_scl3(DvelT + i * 3, dy, 1.0 / eps);
+  }
+
+  // d_y / d_h (unscaled velocity)
+  mju_copy4(dq, quat);
+  mju_quatIntegrate(dq, vel, h + eps);  // compute nudged
+  mju_subQuat(dy, dq, y);               // subtract
+  mju_scl3(Dh, dy, 1.0 / eps);
+
+  // transpose
+  mju_transpose(Dquat, DquatT, 3, 3);
+  mju_transpose(Ds, DsT, 3, 3);
+  mju_transpose(Dvel, DsT, 3, 3);
+}
+
+TEST_F(DerivativeTest, quatIntegrate) {
+  const int nrepeats = 10;  // number of repeats
+  const mjtNum eps = 1e-7;  // epsilon for finite-differencing and comparison
+
+  int seed = 1;
+  for (int i = 0; i < nrepeats; i++) {
+    for (mjtNum h : {0.0, 1e-9, 1e-5, 1e-2, 1.0, 4.0}) {
+      // make random quaternion and velocity
+      mjtNum quat[4];
+      mjtNum vel[3];
+      randomQuatVel(quat, vel, seed++);
+
+      // analytic Jacobians
+      mjtNum Dquat[9];  // d_quatIntegrate(quat, vel, h) / d_quat
+      mjtNum Dvel[9];   // d_quatIntegrate(quat, vel, h) / d_vel
+      mjtNum Dh[3];     // d_quatIntegrate(quat, vel, h) / d_h
+      mjd_quatIntegrate(vel, h, Dquat, Dvel, Dh);
+
+      // finite-differenced Jacobians
+      mjtNum DquatFD[9];
+      mjtNum DsFD[9];
+      mjtNum DvelFD[9];
+      mjtNum DhFD[3];
+      mjd_quatIntegrateFD(DquatFD, DsFD, DvelFD, DhFD, quat, vel, h, eps);
+
+      // expect numerical equality of un/scaled velocity derivatives
+      EXPECT_THAT(AsVector(DvelFD, 9), Pointwise(DoubleNear(eps), DsFD));
+
+      // expect numerical equality of analytic and FD derivatives
+      EXPECT_THAT(AsVector(DquatFD, 9), Pointwise(DoubleNear(eps), Dquat));
+      EXPECT_THAT(AsVector(DvelFD, 9), Pointwise(DoubleNear(eps), Dvel));
+      EXPECT_THAT(AsVector(DhFD, 3), Pointwise(DoubleNear(eps), Dh));
     }
   }
 }

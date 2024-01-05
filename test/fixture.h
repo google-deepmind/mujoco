@@ -15,10 +15,22 @@
 #ifndef MUJOCO_TEST_FIXTURE_H_
 #define MUJOCO_TEST_FIXTURE_H_
 
+#include <csetjmp>
+#include <cstring>
+#include <optional>
+#include <string>
+#include <vector>
+
 #include <gtest/gtest.h>
 #include <absl/strings/string_view.h>
 #include <mujoco/mjdata.h>
 #include <mujoco/mjmodel.h>
+#include <mujoco/mujoco.h>
+
+extern "C" {
+MJAPI void _mjPRIVATE__set_tls_error_fn(decltype(mju_user_error));
+MJAPI decltype(mju_user_error)  _mjPRIVATE__get_tls_error_fn();
+}
 
 namespace mujoco {
 
@@ -43,6 +55,30 @@ class MujocoTest : public ::testing::Test {
   MujocoErrorTestGuard error_guard;
 };
 
+template <typename Return, typename... Args>
+auto MjuErrorMessageFrom(Return (*func)(Args...)) {
+  thread_local std::jmp_buf current_jmp_buf;
+  thread_local char err_msg[1000];
+
+  auto* old_error_handler = _mjPRIVATE__get_tls_error_fn();
+  auto* new_error_handler = +[](const char* msg) -> void {
+    std::strncpy(err_msg, msg, sizeof(err_msg));
+    std::longjmp(current_jmp_buf, 1);
+  };
+
+  return [func, old_error_handler,
+          new_error_handler](Args... args) -> std::string {
+    if (setjmp(current_jmp_buf) == 0) {
+      err_msg[0] = '\0';
+      _mjPRIVATE__set_tls_error_fn(new_error_handler);
+      func(args...);
+    }
+
+    _mjPRIVATE__set_tls_error_fn(old_error_handler);
+    return err_msg;
+  };
+}
+
 // Returns a path to a data file, under the mujoco/test directory.
 const std::string GetTestDataFilePath(absl::string_view path);
 
@@ -64,6 +100,21 @@ const std::string SaveAndReadXml(const mjModel* model);
 // Adds control noise.
 std::vector<mjtNum> GetCtrlNoise(const mjModel* m, int nsteps,
                                  mjtNum ctrlnoise = 0.01);
+
+// Installs all plugins
+class PluginTest : public MujocoTest {
+ public:
+  // load plugin library
+  PluginTest() : MujocoTest() {
+    mj_loadAllPluginLibraries(
+      std::string(std::getenv("MUJOCO_PLUGIN_DIR")).c_str(), +[](const char* filename, int first, int count) {
+        std::printf("Plugins registered by library '%s':\n", filename);
+        for (int i = first; i < first + count; ++i) {
+          std::printf("    %s\n", mjp_getPluginAtSlot(i)->name);
+        }
+      });
+  }
+};
 
 }  // namespace mujoco
 #endif  // MUJOCO_TEST_FIXTURE_H_

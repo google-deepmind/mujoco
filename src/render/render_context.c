@@ -140,7 +140,7 @@ static void makePlane(const mjModel* m, mjrContext* con) {
 
             // record
             grid[k][x] = left;
-            grid[k][x+1] = mjMAX(left, right); // just in case
+            grid[k][x+1] = mjMAX(left, right);  // just in case
           }
         }
 
@@ -1062,7 +1062,7 @@ static void makeShadow(const mjModel* m, mjrContext* con) {
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_MODE, GL_COMPARE_R_TO_TEXTURE);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_FUNC, GL_LEQUAL);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_FUNC, GL_GEQUAL);
   glTexParameteri(GL_TEXTURE_2D, GL_DEPTH_TEXTURE_MODE, GL_INTENSITY);
   glTexGeni(GL_S, GL_TEXTURE_GEN_MODE, GL_EYE_LINEAR);
   glTexGeni(GL_T, GL_TEXTURE_GEN_MODE, GL_EYE_LINEAR);
@@ -1126,11 +1126,14 @@ static void makeOff(mjrContext* con) {
     mju_error("Could not allocate offscreen depth and stencil buffer");
   }
   glBindRenderbuffer(GL_RENDERBUFFER, con->offDepthStencil);
+
+  GLenum depth_buffer_format =
+      mjGLAD_GL_ARB_depth_buffer_float ? GL_DEPTH32F_STENCIL8 : GL_DEPTH24_STENCIL8;
   if (con->offSamples) {
-    glRenderbufferStorageMultisample(GL_RENDERBUFFER, con->offSamples, GL_DEPTH24_STENCIL8,
+    glRenderbufferStorageMultisample(GL_RENDERBUFFER, con->offSamples, depth_buffer_format,
                                      con->offWidth, con->offHeight);
   } else {
-    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, con->offWidth, con->offHeight);
+    glRenderbufferStorage(GL_RENDERBUFFER, depth_buffer_format, con->offWidth, con->offHeight);
   }
   glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT,
                             GL_RENDERBUFFER, con->offDepthStencil);
@@ -1169,7 +1172,7 @@ static void makeOff(mjrContext* con) {
       mju_error("Could not allocate offscreen depth and stencil buffer_r");
     }
     glBindRenderbuffer(GL_RENDERBUFFER, con->offDepthStencil_r);
-    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, con->offWidth, con->offHeight);
+    glRenderbufferStorage(GL_RENDERBUFFER, depth_buffer_format, con->offWidth, con->offHeight);
     glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT,
                               GL_RENDERBUFFER, con->offDepthStencil_r);
 
@@ -1458,7 +1461,7 @@ void GLAPIENTRY debugCallback(GLenum source,
 
 
 // returns 1 if MUJOCO_GL_DEBUG environment variable is set to 1
-static int glDebugEnabled() {
+static int glDebugEnabled(void) {
   char* debug = getenv("MUJOCO_GL_DEBUG");
   return debug && strcmp(debug, "1") == 0;
 }
@@ -1535,7 +1538,6 @@ void mjr_makeContext_offSize(const mjModel* m, mjrContext* con, int fontscale,
   glPixelStorei(GL_PACK_ALIGNMENT, 1);
   glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
 
-  // free previous context
   mjr_freeContext(con);
 
   // no model: offscreen and font only
@@ -1607,6 +1609,9 @@ void mjr_makeContext_offSize(const mjModel* m, mjrContext* con, int fontscale,
 
   // set default color pixel format for mjr_readPixels
   con->readPixelFormat = GL_RGB;
+
+  // set default depth mapping for mjr_readPixels
+  con->readDepthMap = mjDEPTH_ZERONEAR;
 }
 
 
@@ -1670,8 +1675,17 @@ void mjr_addAux(int index, int width, int height, int samples, mjrContext* con) 
   // check max size
   int maxSize = 0;
   glGetIntegerv(GL_MAX_RENDERBUFFER_SIZE, &maxSize);
-  if (width > maxSize || height > maxSize) {
-    mju_error("Auxiliary buffer size exceeds maximum allowed by OpenGL implementation");
+  if (width > maxSize) {
+    mju_error(
+        "Auxiliary buffer width exceeds maximum allowed by OpenGL "
+        "implementation: %d > %d",
+        width, maxSize);
+  }
+  if (height > maxSize) {
+    mju_error(
+        "Auxiliary buffer height exceeds maximum allowed by OpenGL "
+        "implementation: %d > %d",
+        height, maxSize);
   }
 
   // clamp samples request
@@ -1830,10 +1844,10 @@ MJAPI void mjr_resizeOffscreen(int width, int height, mjrContext* con) {
 
   glBindRenderbuffer(GL_RENDERBUFFER, con->offDepthStencil);
   if (con->offSamples) {
-    glRenderbufferStorageMultisample(GL_RENDERBUFFER, con->offSamples, GL_DEPTH24_STENCIL8,
+    glRenderbufferStorageMultisample(GL_RENDERBUFFER, con->offSamples, GL_DEPTH32F_STENCIL8,
                                      con->offWidth, con->offHeight);
   } else {
-    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, con->offWidth, con->offHeight);
+    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH32F_STENCIL8, con->offWidth, con->offHeight);
   }
 
   if (con->offSamples) {
@@ -1841,6 +1855,6 @@ MJAPI void mjr_resizeOffscreen(int width, int height, mjrContext* con) {
     glRenderbufferStorage(GL_RENDERBUFFER, GL_RGBA8, con->offWidth, con->offHeight);
 
     glBindRenderbuffer(GL_RENDERBUFFER, con->offDepthStencil_r);
-    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, con->offWidth, con->offHeight);
+    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH32F_STENCIL8, con->offWidth, con->offHeight);
   }
 }

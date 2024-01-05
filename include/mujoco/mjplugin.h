@@ -17,12 +17,18 @@
 
 #include <mujoco/mjdata.h>
 #include <mujoco/mjmodel.h>
+#include <mujoco/mjtnum.h>
 #include <mujoco/mjvisualize.h>
 
 
 //---------------------------------- Resource Provider ---------------------------------------------
 
-#define mjVFS_PREFIX    "vfs"  // prefix for VFS providers
+struct mjResource_ {
+  char* name;                                   // name of resource (filename, etc)
+  void* data;                                   // opaque data pointer
+  const struct mjpResourceProvider* provider;   // pointer to the provider
+};
+typedef struct mjResource_ mjResource;
 
 // callback for opeing a resource, returns zero on failure
 typedef int (*mjfOpenResource)(mjResource* resource);
@@ -38,16 +44,22 @@ typedef void (*mjfCloseResource)(mjResource* resource);
 // sets dir to directory string with ndir being size of directory string
 typedef void (*mjfGetResourceDir)(mjResource* resource, const char** dir, int* ndir);
 
+// callback for checking if a resource was modified since last read
+// returns > 0 if resource was modified since last open, 0 if resource was not
+// modified, and < 0 if inconclusive
+typedef int (*mjfResourceModified)(const mjResource* resource);
+
 // struct describing a single resource provider
-struct mjpResourceProvider_ {
-  const char* prefix;                // prefix for match against a resource name
-  mjfOpenResource open;              // opening callback
-  mjfReadResource read;              // reading callback
-  mjfCloseResource close;            // closing callback
-  mjfGetResourceDir getdir;          // getdir callback (optional)
-  void* data;                        // opaque data pointer (resource invariant)
+struct mjpResourceProvider {
+  const char* prefix;               // prefix for match against a resource name
+  mjfOpenResource open;             // opening callback
+  mjfReadResource read;             // reading callback
+  mjfCloseResource close;           // closing callback
+  mjfGetResourceDir getdir;         // get directory callback (optional)
+  mjfResourceModified modified;     // resource modified callback (optional)
+  void* data;                       // opaque data pointer (resource invariant)
 };
-typedef struct mjpResourceProvider_ mjpResourceProvider;
+typedef struct mjpResourceProvider mjpResourceProvider;
 
 
 //---------------------------------- Plugins -------------------------------------------------------
@@ -56,6 +68,7 @@ typedef enum mjtPluginCapabilityBit_ {
   mjPLUGIN_ACTUATOR = 1<<0,       // actuator forces
   mjPLUGIN_SENSOR   = 1<<1,       // sensor measurements
   mjPLUGIN_PASSIVE  = 1<<2,       // passive forces
+  mjPLUGIN_SDF      = 1<<3,       // signed distance fields
 } mjtPluginCapabilityBit;
 
 struct mjpPlugin_ {
@@ -93,6 +106,32 @@ struct mjpPlugin_ {
 
   // called by mjv_updateScene (optional)
   void (*visualize)(const mjModel*m, mjData* d, const mjvOption* opt, mjvScene* scn, int instance);
+
+  // methods specific to actuators (optional)
+
+  // dimension of the actuator state for the plugin (excluding state from actuator's dyntype)
+  int (*actuator_actdim)(const mjModel*m, int instance, int actuator_id);
+
+  // updates the actuator plugin's entries in act_dot
+  // called after native act_dot is computed and before the compute callback
+  void (*actuator_act_dot)(const mjModel* m, mjData* d, int instance);
+
+  // methods specific to signed distance fields (optional)
+
+  // signed distance from the surface
+  mjtNum (*sdf_distance)(const mjtNum point[3], const mjData* d, int instance);
+
+  // gradient of distance with respect to local coordinates
+  void (*sdf_gradient)(mjtNum gradient[3], const mjtNum point[3], const mjData* d, int instance);
+
+  // called during compilation for marching cubes
+  mjtNum (*sdf_staticdistance)(const mjtNum point[3], const mjtNum* attributes);
+
+  // convert attributes and provide defaults if not present
+  void (*sdf_attribute)(mjtNum attribute[], const char* name[], const char* value[]);
+
+  // bounding box of implicit surface
+  void (*sdf_aabb)(mjtNum aabb[6], const mjtNum* attributes);
 };
 typedef struct mjpPlugin_ mjpPlugin;
 

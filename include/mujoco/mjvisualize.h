@@ -74,11 +74,13 @@ typedef enum mjtLabel_ {          // object labeling
   mjLABEL_TENDON,                 // tendon labels
   mjLABEL_ACTUATOR,               // actuator labels
   mjLABEL_CONSTRAINT,             // constraint labels
+  mjLABEL_FLEX,                   // flex labels
   mjLABEL_SKIN,                   // skin labels
   mjLABEL_SELECTION,              // selected object
   mjLABEL_SELPNT,                 // coordinates of selection point
   mjLABEL_CONTACTPOINT,           // contact information
   mjLABEL_CONTACTFORCE,           // magnitude of contact force
+  mjLABEL_ISLAND,                 // id of island
 
   mjNLABEL                        // number of label types
 } mjtLabel;
@@ -114,6 +116,7 @@ typedef enum mjtVisFlag_ {        // flags enabling model element visualization
   mjVIS_PERTFORCE,                // perturbation force
   mjVIS_PERTOBJ,                  // perturbation object
   mjVIS_CONTACTPOINT,             // contact points
+  mjVIS_ISLAND,                   // constraint islands
   mjVIS_CONTACTFORCE,             // contact force
   mjVIS_CONTACTSPLIT,             // split contact force into normal and tangent
   mjVIS_TRANSPARENT,              // make dynamic geoms more transparent
@@ -122,8 +125,14 @@ typedef enum mjtVisFlag_ {        // flags enabling model element visualization
   mjVIS_SELECT,                   // selection point
   mjVIS_STATIC,                   // static bodies
   mjVIS_SKIN,                     // skin
-  mjVIS_MIDPHASE,                 // mid-phase bounding volume hierarchy
+  mjVIS_FLEXVERT,                 // flex vertices
+  mjVIS_FLEXEDGE,                 // flex edges
+  mjVIS_FLEXFACE,                 // flex element faces
+  mjVIS_FLEXSKIN,                 // flex smooth skin (disables the rest)
+  mjVIS_BODYBVH,                  // body bounding volume hierarchy
+  mjVIS_FLEXBVH,                  // flex bounding volume hierarchy
   mjVIS_MESHBVH,                  // mesh bounding volume hierarchy
+  mjVIS_SDFITER,                  // iterations of SDF gradient descent
 
   mjNVISFLAG                      // number of visualization flags
 } mjtVisFlag;
@@ -156,6 +165,7 @@ typedef enum mjtStereo_ {         // type of stereo rendering
 
 struct mjvPerturb_ {              // object selection and perturbation
   int      select;                // selected body id; non-positive: none
+  int      flexselect;            // selected flex id; negative: none
   int      skinselect;            // selected skin id; negative: none
   int      active;                // perturbation bitmask (mjtPertBit)
   int      active2;               // secondary perturbation bitmask (mjtPertBit)
@@ -196,6 +206,7 @@ struct mjvGLCamera_ {             // OpenGL camera
 
   // camera projection
   float    frustum_center;        // hor. center (left,right set to match aspect)
+  float    frustum_width;         // width (not used for rendering)
   float    frustum_bottom;        // bottom
   float    frustum_top;           // top
   float    frustum_near;          // near
@@ -215,7 +226,7 @@ struct mjvGeom_ {                 // abstract geom
   int      category;              // visual category
   int      texid;                 // texture id; -1: no texture
   int      texuniform;            // uniform cube mapping
-  int      texcoord;              // mesh geom has texture coordinates
+  int      texcoord;              // mesh or flex geom has texture coordinates
   int      segid;                 // segmentation id; -1: not shown
 
   // OpenGL info
@@ -266,9 +277,11 @@ struct mjvOption_ {                  // abstract visualization options
   mjtByte  jointgroup[mjNGROUP];     // joint visualization by group
   mjtByte  tendongroup[mjNGROUP];    // tendon visualization by group
   mjtByte  actuatorgroup[mjNGROUP];  // actuator visualization by group
+  mjtByte  flexgroup[mjNGROUP];      // flex visualization by group
   mjtByte  skingroup[mjNGROUP];      // skin visualization by group
   mjtByte  flags[mjNVISFLAG];        // visualization flags (indexed by mjtVisFlag)
-  int bvh_depth;                     // depth of the bounding volume hierarchy to be visualized
+  int      bvh_depth;                // depth of the bounding volume hierarchy to be visualized
+  int      flex_layer;               // element layer to be visualized for 3D flex
 };
 typedef struct mjvOption_ mjvOption;
 
@@ -282,13 +295,32 @@ struct mjvScene_ {                // abstract scene passed to OpenGL renderer
   mjvGeom* geoms;                 // buffer for geoms (ngeom)
   int*     geomorder;             // buffer for ordering geoms by distance to camera (ngeom)
 
+  // flex data
+  int      nflex;                 // number of flexes
+  int*     flexedgeadr;           // address of flex edges (nflex)
+  int*     flexedgenum;           // number of edges in flex (nflex)
+  int*     flexvertadr;           // address of flex vertices (nflex)
+  int*     flexvertnum;           // number of vertices in flex (nflex)
+  int*     flexfaceadr;           // address of flex faces (nflex)
+  int*     flexfacenum;           // number of flex faces allocated (nflex)
+  int*     flexfaceused;          // number of flex faces currently in use (nflex)
+  int*     flexedge;              // flex edge data (2*nflexedge)
+  float*   flexvert;              // flex vertices (3*nflexvert)
+  float*   flexface;              // flex faces vertices (9*sum(flexfacenum))
+  float*   flexnormal;            // flex face normals (9*sum(flexfacenum))
+  float*   flextexcoord;          // flex face texture coordinates (6*sum(flexfacenum))
+  mjtByte  flexvertopt;           // copy of mjVIS_FLEXVERT mjvOption flag
+  mjtByte  flexedgeopt;           // copy of mjVIS_FLEXEDGE mjvOption flag
+  mjtByte  flexfaceopt;           // copy of mjVIS_FLEXFACE mjvOption flag
+  mjtByte  flexskinopt;           // copy of mjVIS_FLEXSKIN mjvOption flag
+
   // skin data
   int      nskin;                 // number of skins
   int*     skinfacenum;           // number of faces in skin (nskin)
   int*     skinvertadr;           // address of skin vertices (nskin)
   int*     skinvertnum;           // number of vertices in skin (nskin)
-  float*   skinvert;              // skin vertex data (nskin)
-  float*   skinnormal;            // skin normal data (nskin)
+  float*   skinvert;              // skin vertex data (3*nskinvert)
+  float*   skinnormal;            // skin normal data (3*nskinvert)
 
   // OpenGL lights
   int      nlight;                // number of lights currently in buffer
@@ -371,14 +403,16 @@ struct mjvSceneState_ {
   int nbuffer;                     // size of the buffer in bytes
   void* buffer;                    // heap-allocated memory for all arrays in this struct
   int maxgeom;                     // maximum number of mjvGeom supported by this state object
-  mjvScene plugincache;            // scratch space for vis geoms inserted by plugins
+  mjvScene scratch;                // scratch space for vis geoms inserted by the user and plugins
 
   // fields in mjModel that are necessary to re-render a scene
   struct {
+    int nv;
     int nu;
     int na;
     int nbody;
     int nbvh;
+    int nbvhstatic;
     int njnt;
     int ngeom;
     int nsite;
@@ -386,6 +420,9 @@ struct mjvSceneState_ {
     int nlight;
     int nmesh;
     int nskin;
+    int nflex;
+    int nflexvert;
+    int nflextexcoord;
     int nskinvert;
     int nskinface;
     int nskinbone;
@@ -393,10 +430,13 @@ struct mjvSceneState_ {
     int nmat;
     int neq;
     int ntendon;
+    int ntree;
     int nwrap;
     int nsensor;
     int nnames;
+    int npaths;
     int nsensordata;
+    int narena;
 
     mjOption opt;
     mjVisual vis;
@@ -408,6 +448,8 @@ struct mjvSceneState_ {
     int* body_mocapid;
     int* body_jntnum;
     int* body_jntadr;
+    int* body_dofnum;
+    int* body_dofadr;
     int* body_geomnum;
     int* body_geomadr;
     mjtNum* body_iquat;
@@ -418,7 +460,7 @@ struct mjvSceneState_ {
 
     int* bvh_depth;
     int* bvh_child;
-    int* bvh_geomid;
+    int* bvh_nodeid;
     mjtNum* bvh_aabb;
 
     int* jnt_type;
@@ -427,6 +469,8 @@ struct mjvSceneState_ {
 
     int* geom_type;
     int* geom_bodyid;
+    int* geom_contype;
+    int* geom_conaffinity;
     int* geom_dataid;
     int* geom_matid;
     int* geom_group;
@@ -444,6 +488,8 @@ struct mjvSceneState_ {
 
     mjtNum* cam_fovy;
     mjtNum* cam_ipd;
+    float* cam_intrinsic;
+    float* cam_sensorsize;
 
     mjtByte* light_directional;
     mjtByte* light_castshadow;
@@ -455,8 +501,33 @@ struct mjvSceneState_ {
     float* light_diffuse;
     float* light_specular;
 
+    mjtByte* flex_flatskin;
+    int* flex_dim;
+    int* flex_matid;
+    int* flex_group;
+    int* flex_vertadr;
+    int* flex_vertnum;
+    int* flex_elem;
+    int* flex_elemlayer;
+    int* flex_elemadr;
+    int* flex_elemnum;
+    int* flex_elemdataadr;
+    int* flex_shell;
+    int* flex_shellnum;
+    int* flex_shelldataadr;
+    int* flex_texcoordadr;
+    int* flex_bvhadr;
+    int* flex_bvhnum;
+    mjtNum* flex_radius;
+    float* flex_rgba;
+
+    int* hfield_pathadr;
+
+    int* mesh_bvhadr;
+    int* mesh_bvhnum;
     int* mesh_texcoordadr;
     int* mesh_graphadr;
+    int* mesh_pathadr;
 
     int* skin_matid;
     int* skin_group;
@@ -478,6 +549,9 @@ struct mjvSceneState_ {
     int* skin_bonebodyid;
     int* skin_bonevertid;
     float* skin_bonevertweight;
+    int* skin_pathadr;
+
+    int* tex_pathadr;
 
     int* mat_texid;
     mjtByte* mat_texuniform;
@@ -491,7 +565,6 @@ struct mjvSceneState_ {
     int* eq_type;
     int* eq_obj1id;
     int* eq_obj2id;
-    mjtByte* eq_active;
     mjtNum* eq_data;
 
     int* tendon_num;
@@ -532,6 +605,7 @@ struct mjvSceneState_ {
     int* name_tendonadr;
     int* name_actuatoradr;
     char* names;
+    char* paths;
   } model;
 
   // fields in mjData that are necessary to re-render a scene
@@ -540,6 +614,7 @@ struct mjvSceneState_ {
 
     int nefc;
     int ncon;
+    int nisland;
 
     mjtNum time;
 
@@ -547,6 +622,7 @@ struct mjvSceneState_ {
 
     mjtNum* ctrl;
     mjtNum* xfrc_applied;
+    mjtByte* eq_active;
 
     mjtNum* sensordata;
 
@@ -571,12 +647,22 @@ struct mjvSceneState_ {
     int* ten_wrapadr;
     int* ten_wrapnum;
     int* wrap_obj;
+    mjtNum* ten_length;
     mjtNum* wrap_xpos;
 
+    mjtNum* bvh_aabb_dyn;
     mjtByte* bvh_active;
+    int* island_dofadr;
+    int* island_dofind;
+    int* dof_island;
+    int* efc_island;
+    int* tendon_efcadr;
+
+    mjtNum* flexvert_xpos;
 
     mjContact* contact;
     mjtNum* efc_force;
+    void* arena;
   } data;
 };
 typedef struct mjvSceneState_ mjvSceneState;

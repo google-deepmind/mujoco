@@ -14,12 +14,14 @@
 
 // Tests for engine/engine_support.c.
 
+#include "src/engine/engine_support.h"
+
 #include <random>
 #include <string>
+#include <vector>
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
-
 #include <mujoco/mujoco.h>
 #include "test/fixture.h"
 
@@ -34,6 +36,7 @@ using ::testing::DoubleNear;
 using ::testing::ContainsRegex;
 using ::testing::MatchesRegex;
 using ::testing::Pointwise;
+using ::testing::ElementsAreArray;
 using JacobianTest = MujocoTest;
 static const mjtNum max_abs_err = std::numeric_limits<float>::epsilon();
 
@@ -366,6 +369,7 @@ TEST_F(SupportTest, GetSetStateStepEqual) {
   // set controls and applied joint forces to random values
   for (int i=0; i < model->nu; i++) data->ctrl[i] = dist(rng);
   for (int i=0; i < model->nv; i++) data->qfrc_applied[i] = dist(rng);
+  for (int i=0; i < model->neq; i++) data->eq_active[i] = dist(rng) > 0;
 
   // take one step
   mj_step(model, data);
@@ -401,6 +405,124 @@ TEST_F(SupportTest, GetSetStateStepEqual) {
   // expect the state to be the same after re-stepping
   EXPECT_EQ(state1a, state1b);
 
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
+using AddMTest = MujocoTest;
+
+TEST_F(AddMTest, DenseSameAsSparse) {
+  mjModel* m = LoadModelFromPath("humanoid100/humanoid100.xml");
+  mjData* d = mj_makeData(m);
+  int nv = m->nv;
+
+  // force use of sparse matrices
+  m->opt.jacobian = mjJAC_SPARSE;
+
+  // warm-up rollout to get a typical state
+  while (d->time < 2) {
+    mj_step(m, d);
+  }
+
+  // dense zero matrix
+  std::vector<mjtNum> dst_sparse = std::vector(nv * nv, 0.0);
+
+  // sparse zero matrix
+  std::vector<mjtNum> dst_dense = std::vector(nv * nv, 0.0);
+  std::vector<int> rownnz = std::vector(nv, nv);
+  std::vector<int> rowadr = std::vector(nv, 0);
+  std::vector<int> colind = std::vector(nv * nv, 0);
+
+  // set sparse structure
+  for (int i = 0; i < nv; i++) {
+    rowadr[i] = i * nv;
+    for (int j = 0; j < nv; j++) {
+      colind[rowadr[i] + j] = j;
+    }
+  }
+
+  // sparse addM
+  mj_addM(m, d, dst_sparse.data(), rownnz.data(),
+          rowadr.data(), colind.data());
+
+  // dense addM
+  mj_addM(m, d, dst_dense.data(), NULL, NULL, NULL);
+
+  // dense comparison, should be same matrix
+  EXPECT_THAT(dst_dense, ElementsAreArray(dst_sparse));
+
+  // clean up
+  mj_deleteData(d);
+  mj_deleteModel(m);
+}
+
+static const char* const kIlslandEfcPath =
+    "engine/testdata/island/island_efc.xml";
+
+TEST_F(SupportTest, MulMIsland) {
+  const std::string xml_path = GetTestDataFilePath(kIlslandEfcPath);
+  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, nullptr, 0);
+  mjData* data = mj_makeData(model);
+
+  // allocate vec, fill with arbitrary values
+  mjtNum* vec = (mjtNum*) mju_malloc(sizeof(mjtNum)*model->nv);
+  for (int i=0; i < model->nv; i++) {
+    vec[i] = 0.2 + 0.3*i;
+  }
+
+  // simulate for 0.2 seconds
+  mj_resetData(model, data);
+  while (data->time < 0.2) {
+    mj_step(model, data);
+  }
+  mj_forward(model, data);
+
+  // multiply by Mass matrix: Mvec = M * vec
+  mjtNum* Mvec = (mjtNum*) mju_malloc(sizeof(mjtNum)*data->nefc);
+  mj_mulM(model, data, Mvec, vec);
+
+  // iterate over islands
+  for (int i=0; i < data->nisland; i++) {
+    // allocate dof vectors for island
+    int dofnum = data->island_dofnum[i];
+    mjtNum* vec_i = (mjtNum*)mju_malloc(sizeof(mjtNum) * dofnum);
+    mjtNum* Mvec_i = (mjtNum*)mju_malloc(sizeof(mjtNum) * dofnum);
+
+    // copy values into vec_i
+    int* dofind = data->island_dofind + data->island_dofadr[i];
+    for (int j=0; j < dofnum; j++) {
+      vec_i[j] = vec[dofind[j]];
+    }
+
+    // === compressed: use vec_i
+
+    // multiply by Jacobian, for this island
+    int flg_vecunc = 0;
+    mj_mulM_island(model, data, Mvec_i, vec_i, i, flg_vecunc);
+
+    // expect corresponding values to match
+    for (int j=0; j < dofnum; j++) {
+      EXPECT_THAT(Mvec_i[j], DoubleNear(Mvec[dofind[j]], 1e-12));
+    }
+
+    // === uncompressed: use vec
+    mju_zero(Mvec_i, dofnum);  // clear output
+
+    // multiply by Jacobian, for this island
+    flg_vecunc = 1;
+    mj_mulM_island(model, data, Mvec_i, vec, i, flg_vecunc);
+
+    // expect corresponding values to match
+    for (int j=0; j < dofnum; j++) {
+      EXPECT_THAT(Mvec_i[j], DoubleNear(Mvec[dofind[j]], 1e-12));
+    }
+
+    mju_free(vec_i);
+    mju_free(Mvec_i);
+  }
+
+  mju_free(Mvec);
+  mju_free(vec);
   mj_deleteData(data);
   mj_deleteModel(model);
 }

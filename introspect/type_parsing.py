@@ -68,6 +68,8 @@ def _parse_maybe_pointer(
                                                    ast_nodes.PointerType]]
 ) -> Union[ast_nodes.ValueType, ast_nodes.PointerType, ast_nodes.ArrayType]:
   """Internal-only helper that parses a type that may be a pointer type."""
+  if type_name == 'void *(*)(void *)':
+    return ast_nodes.ValueType(name=type_name)
   p = type_name.rfind('*')
   if p != -1:
     leftover, is_qualifier = _parse_qualifiers(
@@ -107,6 +109,9 @@ def _peel_nested_parens(input_str: str) -> MutableSequence[str]:
     A sequence of substrings enclosed with in respective parentheses. See the
     description above for the precise detail of the output.
   """
+  if input_str == 'void *(*)(void *)':
+    return ['void *(*)(void *)']
+
   start = input_str.find('(')
   end = input_str.rfind(')')
 
@@ -146,4 +151,4 @@ def parse_type(
 def parse_function_return_type(
     type_name: str
 ) -> Union[ast_nodes.ValueType, ast_nodes.PointerType, ast_nodes.ArrayType]:
-  return parse_type(type_name[:type_name.rfind('(')])
+  return parse_type(type_name[:type_name.find('(')])

@@ -150,6 +150,224 @@ TEST_F(VfsTest, TextureCustomWithVFS) {
   EXPECT_THAT(error, HasSubstr("resource not found via provider or OS filesystem"));
  }
 
+// ------------------------ test content_type attribute ------------------------
+
+using ContentTypeTest = MujocoTest;
+
+TEST_F(ContentTypeTest, HFieldPngWithContentType) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <hfield name="hfield" content_type="image/png"
+              file="some_file.png" size="0.5 0.5 1 0.1"/>
+    </asset>
+
+    <worldbody>
+      <geom type="hfield" hfield="hfield" pos="-.4 .6 .05"/>
+    </worldbody>
+  </mujoco>
+  )";
+
+  char error[1024];
+  size_t error_sz = 1024;
+
+  // load VFS on the heap
+  auto vfs = std::make_unique<mjVFS>();
+  mj_defaultVFS(vfs.get());
+
+  // should try loading the file
+  mjModel* model = LoadModelFromString(xml, error, error_sz, vfs.get());
+  EXPECT_THAT(model, IsNull());
+  EXPECT_THAT(error, HasSubstr("resource not found via provider or OS filesystem"));
+}
+
+TEST_F(ContentTypeTest, HFieldCustomWithContentType) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <hfield name="hfield" content_type="image/vnd.mujoco.hfield"
+              file="some_file" size="0.5 0.5 1 0.1"/>
+    </asset>
+
+    <worldbody>
+      <geom type="hfield" hfield="hfield" pos="-.4 .6 .05"/>
+    </worldbody>
+  </mujoco>
+  )";
+
+  char error[1024];
+  size_t error_sz = 1024;
+
+  // load VFS on the heap
+  auto vfs = std::make_unique<mjVFS>();
+  mj_defaultVFS(vfs.get());
+
+  // should try loading the file
+  mjModel* model = LoadModelFromString(xml, error, error_sz, vfs.get());
+  EXPECT_THAT(model, IsNull());
+  EXPECT_THAT(error, HasSubstr("resource not found via provider or OS filesystem"));
+}
+
+TEST_F(ContentTypeTest, HFieldWithContentTypeError) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <hfield name="hfield" content_type="image/jpeg"
+              file="some_file" size="0.5 0.5 1 0.1"/>
+    </asset>
+
+    <worldbody>
+      <geom type="hfield" hfield="hfield" pos="-.4 .6 .05"/>
+    </worldbody>
+  </mujoco>
+  )";
+
+  char error[1024];
+  size_t error_sz = 1024;
+
+  // load VFS on the heap
+  auto vfs = std::make_unique<mjVFS>();
+  mj_defaultVFS(vfs.get());
+
+  // should try loading the file
+  mjModel* model = LoadModelFromString(xml, error, error_sz, vfs.get());
+  EXPECT_THAT(model, IsNull());
+  EXPECT_THAT(error, HasSubstr("unsupported content type: 'image/jpeg'"));
+}
+
+TEST_F(ContentTypeTest, TexturePngWithContentType) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <texture name="texture" content_type="image/png" file="some_file" type="2d"/>
+      <material name="material" texture="texture"/>
+    </asset>
+
+    <worldbody>
+      <geom type="plane" material="material" size="4 4 4"/>
+    </worldbody>
+  </mujoco>
+  )";
+
+  char error[1024];
+  size_t error_sz = 1024;
+
+  // load VFS on the heap
+  auto vfs = std::make_unique<mjVFS>();
+  mj_defaultVFS(vfs.get());
+
+  // should try loading the file
+  mjModel* model = LoadModelFromString(xml, error, error_sz, vfs.get());
+  EXPECT_THAT(model, IsNull());
+  EXPECT_THAT(error, HasSubstr("resource not found via provider or OS filesystem"));
+ }
+
+TEST_F(ContentTypeTest, TextureCustomWithContentType) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <texture name="texture" content_type="image/vnd.mujoco.texture"
+              file="some_file" type="2d"/>
+      <material name="material" texture="texture"/>
+    </asset>
+
+    <worldbody>
+      <geom type="plane" material="material" size="4 4 4"/>
+    </worldbody>
+  </mujoco>
+  )";
+
+  char error[1024];
+  size_t error_sz = 1024;
+
+  // load VFS on the heap
+  auto vfs = std::make_unique<mjVFS>();
+  mj_defaultVFS(vfs.get());
+
+  // should try loading the file
+  mjModel* model = LoadModelFromString(xml, error, error_sz, vfs.get());
+  EXPECT_THAT(model, IsNull());
+  EXPECT_THAT(error, HasSubstr("resource not found via provider or OS filesystem"));
+ }
+
+TEST_F(ContentTypeTest, TextureWithContentTypeError) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <texture name="texture" content_type="image/jpeg"
+              file="some_file" type="2d"/>
+      <material name="material" texture="texture"/>
+    </asset>
+
+    <worldbody>
+      <geom type="plane" material="material" size="4 4 4"/>
+    </worldbody>
+  </mujoco>
+  )";
+
+  char error[1024];
+  size_t error_sz = 1024;
+
+  // load VFS on the heap
+  auto vfs = std::make_unique<mjVFS>();
+  mj_defaultVFS(vfs.get());
+
+  // should try loading the file
+  mjModel* model = LoadModelFromString(xml, error, error_sz, vfs.get());
+  EXPECT_THAT(model, IsNull());
+  EXPECT_THAT(error, HasSubstr("unsupported content type: 'image/jpeg'"));
+ }
+
+TEST_F(ContentTypeTest, TextureLoadPng) {
+  static constexpr char filename[] = "tiny";
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <texture content_type="image/png" file="tiny" type="2d"/>
+      <material name="material" texture="tiny"/>
+    </asset>
+
+    <worldbody>
+      <geom type="plane" material="material" size="4 4 4"/>
+    </worldbody>
+  </mujoco>
+  )";
+
+  // credit: https://www.mjt.me.uk/posts/smallest-png/
+  static constexpr unsigned char tiny[] =
+      { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00,
+        0x00, 0x00, 0x0D, 0x49, 0x48, 0x44, 0x52, 0x00, 0x00,
+        0x01, 0x00, 0x00, 0x00, 0x01, 0x00, 0x01, 0x03, 0x00,
+        0x00, 0x00, 0x66, 0xBC, 0x3A, 0x25, 0x00, 0x00, 0x00,
+        0x03, 0x50, 0x4C, 0x54, 0x45, 0xB5, 0xD0, 0xD0, 0x63,
+        0x04, 0x16, 0xEA, 0x00, 0x00, 0x00, 0x1F, 0x49, 0x44,
+        0x41, 0x54, 0x68, 0x81, 0xED, 0xC1, 0x01, 0x0D, 0x00,
+        0x00, 0x00, 0xC2, 0xA0, 0xF7, 0x4F, 0x6D, 0x0E, 0x37,
+        0xA0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0xBE, 0x0D, 0x21, 0x00, 0x00, 0x01, 0x9A, 0x60, 0xE1,
+        0xD5, 0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4E, 0x44,
+        0xAE, 0x42, 0x60, 0x82 };
+  size_t tiny_sz = sizeof(tiny);
+
+  char error[1024];
+  size_t error_sz = 1024;
+
+
+  // load VFS on the heap
+  auto vfs = std::make_unique<mjVFS>();
+  mj_defaultVFS(vfs.get());
+  mj_makeEmptyFileVFS(vfs.get(), filename, 105);
+  int i = mj_findFileVFS(vfs.get(), filename);
+  memcpy(vfs->filedata[i], tiny, tiny_sz);
+
+  // loading the file should be successful
+  mjModel* model = LoadModelFromString(xml, error, error_sz, vfs.get());
+  EXPECT_THAT(model, NotNull());
+
+  mj_deleteModel(model);
+  mj_deleteFileVFS(vfs.get(), filename);
+ }
+
 // ------------------------ test keyframes -------------------------------------
 
 using KeyframeTest = MujocoTest;
@@ -440,6 +658,27 @@ TEST_F(MjCGeomTest, IgnoreBadGeomOutsideInertiagrouprange) {
   mj_deleteModel(m);
 }
 
+// ------------- test invalid size values --------------------------------------
+
+TEST_F(MjCGeomTest, NanSize) {
+  // even if the caller ignores warnings, models shouldn't compile with NaN
+  // geom sizes
+  mju_user_warning = nullptr;
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <geom type="box" size="1 1 nan" mass="1" />
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1000> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, testing::IsNull());
+  ASSERT_THAT(error.data(), HasSubstr("nan"));
+}
+
 // ------------- test height fields --------------------------------------------
 
 using MjCHFieldTest = MujocoTest;
@@ -490,6 +729,103 @@ TEST_F(QuatNorm, QuatNotNormalized) {
   EXPECT_THAT(AsVector(m->geom_quat, 4), ElementsAre(1./5, 2./5, 2./5, 4./5));
   EXPECT_THAT(AsVector(m->site_quat, 4), ElementsAre(1./5, 2./5, 2./5, 4./5));
   EXPECT_THAT(AsVector(m->cam_quat, 4), ElementsAre(1./5, 2./5, 2./5, 4./5));
+  mj_deleteModel(m);
+}
+
+// ------------- test camera specifications ------------------------------------
+
+using CameraSpecTest = MujocoTest;
+
+TEST_F(CameraSpecTest, FovyLimits) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <geom size="1"/>
+        <camera fovy="180"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* m = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(m, IsNull()) << error.data();
+  EXPECT_THAT(error.data(), HasSubstr("fovy too large"));
+  mj_deleteModel(m);
+}
+
+TEST_F(CameraSpecTest, DuplicatedFocalIgnorePixel) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <visual>
+      <map znear="0.01"/>
+    </visual>
+    <worldbody>
+      <body>
+        <geom size="1"/>
+        <camera focal="8e-3 8e-3" focalpixel="100 100"
+                resolution="1920 1200" sensorsize="9.6e-3 6e-3"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* m = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(m, NotNull()) << error.data();
+  EXPECT_NEAR(m->cam_intrinsic[0], 5e-4, 1e-6);  // focal length in meters (x)
+  EXPECT_NEAR(m->cam_intrinsic[1], 5e-4, 1e-6);  // focal length in meters (y)
+  mj_deleteModel(m);
+}
+
+TEST_F(CameraSpecTest, FovyFromResolution) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <visual>
+      <map znear="0.01"/>
+    </visual>
+    <worldbody>
+      <body>
+        <geom size="1"/>
+        <!-- 8mm focal length lenses -->
+        <camera focal="8e-3 8e-3" resolution="1920 1200" sensorsize="9.6e-3 6e-3"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* m = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(m, NotNull()) << error.data();
+  EXPECT_NEAR(m->cam_fovy[0], 41.112, 1e-3);
+  EXPECT_NEAR(m->cam_intrinsic[0], 8e-3, 1e-6);  // focal length in meters (x)
+  EXPECT_NEAR(m->cam_intrinsic[1], 8e-3, 1e-6);  // focal length in meters (y)
+  EXPECT_EQ(m->cam_intrinsic[2], 0);  // principal point in meters (x)
+  EXPECT_EQ(m->cam_intrinsic[3], 0);  // principal point in meters (y)
+  mj_deleteModel(m);
+}
+
+TEST_F(CameraSpecTest, FovyFromResolutionPixel) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <visual>
+      <map znear="0.01"/>
+    </visual>
+    <worldbody>
+      <body>
+        <geom size="1"/>
+        <!-- 8mm focal length lenses -->
+        <camera focalpixel="1600 1600" resolution="1920 1200" sensorsize="9.6e-3 6e-3"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* m = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(m, NotNull()) << error.data();
+  EXPECT_NEAR(m->cam_fovy[0], 41.112, 1e-3);
+  EXPECT_NEAR(m->cam_intrinsic[0], 8e-3, 1e-6);  // focal length in meters (x)
+  EXPECT_NEAR(m->cam_intrinsic[1], 8e-3, 1e-6);  // focal length in meters (y)
+  EXPECT_EQ(m->cam_intrinsic[2], 0);  // principal point in meters (x)
+  EXPECT_EQ(m->cam_intrinsic[3], 0);  // principal point in meters (y)
   mj_deleteModel(m);
 }
 
@@ -604,7 +940,7 @@ TEST_F(ActRangeTest, ActRangeBad) {
   std::array<char, 1024> error;
   mjModel* model = LoadModelFromString(xml, error.data(), error.size());
   ASSERT_THAT(model, IsNull());
-  EXPECT_THAT(error.data(), HasSubstr("invalid activation range"));
+  EXPECT_THAT(error.data(), HasSubstr("invalid actrange"));
 }
 
 TEST_F(ActRangeTest, ActRangeUndefined) {
@@ -624,7 +960,7 @@ TEST_F(ActRangeTest, ActRangeUndefined) {
   std::array<char, 1024> error;
   mjModel* model = LoadModelFromString(xml, error.data(), error.size());
   ASSERT_THAT(model, IsNull());
-  EXPECT_THAT(error.data(), HasSubstr("invalid activation range"));
+  EXPECT_THAT(error.data(), HasSubstr("invalid actrange"));
 }
 
 TEST_F(ActRangeTest, ActRangeNoDyntype) {
@@ -1060,6 +1396,102 @@ TEST_F(SpringrangeTest, InvalidRange) {
   mjModel* model = LoadModelFromString(xml, error.data(), error.size());
   ASSERT_THAT(model, IsNull());
   EXPECT_THAT(error.data(), HasSubstr("invalid springlength in tendon"));
+}
+
+// ------------- test frame ----------------------------------------------------
+TEST_F(MujocoTest, Frame) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <frame euler="0 0 30">
+        <geom name="0" size=".1" euler="0 0 20"/>
+      </frame>
+
+      <frame axisangle="0 1 0 90">
+        <frame axisangle="0 0 1 90">
+          <geom name="1" size=".1"/>
+        </frame>
+      </frame>
+
+      <frame pos="0 1 0" euler="0 20 0">
+        <geom name="2" pos=".5 .6 .7" size=".1" euler="30 0 0"/>
+      </frame>
+
+      <body>
+        <frame pos="0 1 0">
+          <geom name="3" size=".1" pos="0 1 0"/>
+          <body pos="1 0 0">
+            <geom name="4" size=".1" pos="0 0 1"/>
+          </body>
+        </frame>
+      </body>
+
+      <body>
+        <geom name="5" size=".1"/>
+        <frame euler="90 0 0">
+          <joint type="hinge" axis="0 0 1"/>
+        </frame>
+      </body>
+
+      <body pos="0 1 0" euler="0 20 0">
+        <geom name="6" pos=".5 .6 .7" size=".1" euler="30 0 0"/>
+      </body>
+    </worldbody>
+  </mujoco>
+
+  )";
+  constexpr mjtNum eps = 1e-14;
+  std::array<char, 1024> error;
+  mjModel* m = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(m, testing::NotNull()) << error.data();
+  EXPECT_EQ(m->nbody, 5);
+
+  // geom quat transformed to euler = 0 0 50
+  EXPECT_NEAR(m->geom_quat[0], mju_cos(25. * mjPI / 180.), 1e-3);
+  EXPECT_NEAR(m->geom_quat[1], 0, 0);
+  EXPECT_NEAR(m->geom_quat[2], 0, 0);
+  EXPECT_NEAR(m->geom_quat[3], mju_sin(25. * mjPI / 180.), 1e-3);
+
+  // geom transformed to frame 0 1 0, 0 0 1, 1 0 0
+  EXPECT_NEAR(m->geom_quat[4], .5, eps);
+  EXPECT_NEAR(m->geom_quat[5], .5, eps);
+  EXPECT_NEAR(m->geom_quat[6], .5, eps);
+  EXPECT_NEAR(m->geom_quat[7], .5, eps);
+
+  // geom pos transformed from 0 1 0 to 0 2 0
+  EXPECT_EQ(m->geom_pos[ 9], 0);
+  EXPECT_EQ(m->geom_pos[10], 2);
+  EXPECT_EQ(m->geom_pos[11], 0);
+
+  // body pos transformed from 1 0 0 to 1 1 0
+  EXPECT_EQ(m->body_pos[6], 1);
+  EXPECT_EQ(m->body_pos[7], 1);
+  EXPECT_EQ(m->body_pos[8], 0);
+
+  // nested geom pos not transformed
+  EXPECT_EQ(m->geom_pos[12], 0);
+  EXPECT_EQ(m->geom_pos[13], 0);
+  EXPECT_EQ(m->geom_pos[14], 1);
+
+  // joint axis transformed to 0 -1 0
+  EXPECT_NEAR(m->jnt_axis[0],  0, eps);
+  EXPECT_NEAR(m->jnt_axis[1], -1, eps);
+  EXPECT_NEAR(m->jnt_axis[2],  0, eps);
+
+  mjData* d = mj_makeData(m);
+  mj_kinematics(m, d);
+
+  // body and frame equivalence geom 2 vs 6
+  EXPECT_NEAR(d->geom_xpos[6], d->geom_xpos[18], eps);
+  EXPECT_NEAR(d->geom_xpos[7], d->geom_xpos[19], eps);
+  EXPECT_NEAR(d->geom_xpos[8], d->geom_xpos[20], eps);
+  EXPECT_NEAR(d->geom_xmat[18], d->geom_xmat[54], eps);
+  EXPECT_NEAR(d->geom_xmat[19], d->geom_xmat[55], eps);
+  EXPECT_NEAR(d->geom_xmat[20], d->geom_xmat[56], eps);
+  EXPECT_NEAR(d->geom_xmat[21], d->geom_xmat[57], eps);
+
+  mj_deleteModel(m);
+  mj_deleteData(d);
 }
 
 }  // namespace

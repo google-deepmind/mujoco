@@ -23,11 +23,13 @@ set(MUJOCO_ENGINE_SRCS
     engine_collision_driver.h
     engine_collision_primitive.c
     engine_collision_primitive.h
+    engine_collision_sdf.c
+    engine_collision_sdf.h
     engine_core_constraint.c
     engine_core_constraint.h
     engine_core_smooth.c
     engine_core_smooth.h
-    engine_crossplatform.c
+    engine_crossplatform.cc
     engine_crossplatform.h
     engine_derivative.c
     engine_derivative.h
@@ -37,6 +39,8 @@ set(MUJOCO_ENGINE_SRCS
     engine_forward.h
     engine_inverse.c
     engine_inverse.h
+    engine_island.c
+    engine_island.h
     engine_io.c
     engine_io.h
     engine_macro.h

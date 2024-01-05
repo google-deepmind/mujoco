@@ -17,12 +17,14 @@
 
 #include <mujoco/mjexport.h>
 #include <mujoco/mjmodel.h>
+#include <mujoco/mjtnum.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 #include <stddef.h>
+#include <stdint.h>
 
 //------------------------------ tendons and actuators ---------------------------------------------
 
@@ -49,7 +51,21 @@ MJAPI mjtNum mju_muscleDynamics(mjtNum ctrl, mjtNum act, const mjtNum prm[3]);
 // all 3 semi-axes of a geom
 MJAPI void mju_geomSemiAxes(const mjModel* m, int geom_id, mjtNum semiaxes[3]);
 
-//------------------------------ misclellaneous ----------------------------------------------------
+// ----------------------------- Base64 -----------------------------------------------------------
+
+// encode data as Base64 into buf (including padding and null char)
+// returns number of chars written in buf: 4 * [(ndata + 2) / 3] + 1
+MJAPI size_t mju_encodeBase64(char* buf, const uint8_t* data, size_t ndata);
+
+// return size in decoded bytes if s is a valid Base64 encoding
+// return 0 if s is empty or invalid Base64 encoding
+MJAPI size_t mju_isValidBase64(const char* s);
+
+// decode valid Base64 in string s into buf, undefined behavior if s is not valid Base64
+// returns number of bytes decoded (upper limit of 3 * (strlen(s) / 4))
+MJAPI size_t mju_decodeBase64(uint8_t* buf, const char* s);
+
+//------------------------------ miscellaneous ----------------------------------------------------
 
 // convert contact force to pyramid representation
 MJAPI void mju_encodePyramid(mjtNum* pyramid, const mjtNum* force,
@@ -61,6 +77,12 @@ MJAPI void mju_decodePyramid(mjtNum* force, const mjtNum* pyramid,
 
 // integrate spring-damper analytically, return pos(dt)
 MJAPI mjtNum mju_springDamper(mjtNum pos0, mjtNum vel0, mjtNum Kp, mjtNum Kv, mjtNum dt);
+
+// return 1 if point is outside box given by pos, mat, size * inflate
+// return -1 if point is inside box given by pos, mat, size / inflate
+// return 0 if point is between the inflated and deflated boxes
+MJAPI int mju_outsideBox(const mjtNum point[3], const mjtNum pos[3], const mjtNum mat[9],
+                         const mjtNum size[3], mjtNum inflate);
 
 // print matrix
 MJAPI void mju_printMat(const mjtNum* mat, int nr, int nc);
@@ -103,6 +125,15 @@ MJAPI int mju_isBad(mjtNum x);
 // return 1 if all elements are 0
 MJAPI int mju_isZero(mjtNum* vec, int n);
 
+// set integer vector to 0
+MJAPI void mju_zeroInt(int* res, int n);
+
+// set size_t vector to 0
+MJAPI void mju_zeroSizeT(size_t* res, size_t n);
+
+// copy int vector vec into res
+MJAPI void mju_copyInt(int* res, const int* vec, int n);
+
 // standard normal random number generator (optional second number)
 MJAPI mjtNum mju_standardNormal(mjtNum* num2);
 
@@ -129,6 +160,10 @@ MJAPI mjtNum mju_Halton(int index, int base);
 
 // call strncpy, then set dst[n-1] = 0
 MJAPI char* mju_strncpy(char *dst, const char *src, int n);
+
+// assemble full filename from directory and filename, return 0 on success
+MJAPI int mju_makefullname(char* full, size_t nfull,
+                           const char* dir, const char* file);
 
 // sigmoid function over 0<=x<=1 using quintic polynomial
 MJAPI mjtNum mju_sigmoid(mjtNum x);

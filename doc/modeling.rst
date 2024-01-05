@@ -190,7 +190,7 @@ element, it must be undefined in the active defaults class.
 
 A final twist here is actuators. They are different because some of the actuator-related elements are actually
 shortcuts, and shortcuts interact with the defaults setting mechanism in a non-obvious way. This is explained in the
-:ref:`Actuator shortcuts <CActuator>` section below.
+:ref:`Actuator shortcuts <CActShortcuts>` section below.
 
 .. _CFrame:
 
@@ -198,22 +198,27 @@ Coordinate frames
 ~~~~~~~~~~~~~~~~~
 
 The positions and orientations of all elements defined in the kinematic tree are expressed in local coordinates,
-relative to the parent body for bodies, and relative to the body that owns the element for geoms, joints, sites, cameras
-and lights.
+relative to the parent body for bodies, and relative to the body that contains the element for geoms, joints, sites,
+cameras and lights.
 
 A related attribute is :ref:`compiler/angle<compiler-angle>`. It specifies whether angles in the MJCF file are expressed
 in degrees or radians (after compilation, angles are always expressed in radians).
 
+Positions are specified using
+
+:at:`pos`: :at-val:`real(3), "0 0 0"`
+   Position relative to parent.
+
 .. _COrientation:
 
 Frame orientations
-~~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^^
 
 Several model elements have right-handed spatial frames associated with them. These are all the elements defined in the
 kinematic tree except for joints. A spatial frame is defined by its position and orientation. Specifying 3D positions is
 straightforward, but specifying 3D orientations can be challenging. This is why MJCF provides several alternative
-mechanisms. No matter which mechanism the user chooses, the frame orientation is always represented as a unit quaternion
-after compilation. Recall that a 3D rotation by angle :math:`a` around axis given by the unit vector :math:`(x, y, z)`
+mechanisms. No matter which mechanism the user chooses, the frame orientation is always converted internally to a unit
+quaternion. Recall that a 3D rotation by angle :math:`a` around axis given by the unit vector :math:`(x, y, z)`
 corresponds to the quaternion :math:`(\cos(a/2), \: \sin(a/2) \cdot (x, y, z))`. Also recall that every 3D orientation
 can be uniquely specified by a single 3D rotation by some angle around some axis.
 
@@ -259,14 +264,15 @@ available in :ref:`option <option>`; it can be used to change all contact-relate
 experiment interactively with parameter settings or implement continuation methods for numerical optimization.
 
 Here we focus on a single scalar constraint. Using slightly different notation from the Computation chapter, let
-:math:`a_1` denote the acceleration, :math:`v` the velocity, :math:`r` the position or residual (defined as 0 in
+:math:`\ac` denote the acceleration, :math:`v` the velocity, :math:`r` the position or residual (defined as 0 in
 friction dimensions), :math:`k` and :math:`b` the stiffness and damping of the virtual spring used to define the
-reference acceleration :math:`a_{\rm ref} = -b v - k r`. Let :math:`d` be the constraint impedance, and :math:`a_0` the
+reference acceleration :math:`\ar = -b v - k r`. Let :math:`d` be the constraint impedance, and :math:`\au` the
 acceleration in the absence of constraint force. Our earlier analysis revealed that the dynamics in constraint space are
 approximately
 
 .. math::
-   a_1 + d \cdot (b v + k r) = (1 - d)\cdot a_0
+   \ac + d \cdot (b v + k r) = (1 - d)\cdot \au
+   :label: eq:constraint
 
 Again, the parameters that are under the user's control are :math:`d, b, k`. The remaining quantities are functions of
 the system state and are computed automatically at each time step.
@@ -278,15 +284,16 @@ Impedance
 
 We begin by explaining the constraint impedance :math:`d`.
 
-.. admonition:: Intuitive description
+.. admonition:: Intuitive description of the **impedance**
 
-   The *impedance* :math:`d \in (0, 1)` determines a constraint's **ability to generate force**.
+   The *impedance* :math:`d \in (0, 1)` corresponds to a constraint's **ability to generate force**.
    Small values of :math:`d` correspond to weak constraints while large values of :math:`d`
-   correspond to strong constraints. Impedance is set using the :at:`solimp` attribute.
+   correspond to strong constraints. The impedance affects the constraint at all times, in particular when the system is
+   at rest. Impedance is set using the :at:`solimp` attribute.
 
 Recall that :math:`d` must lie between 0 and 1; internally MuJoCo clamps it to the range [:ref:`mjMINIMP mjMAXIMP
 <glNumeric>`] which is currently set to [0.0001 0.9999]. It causes the solver to interpolate between the unforced
-acceleration :math:`a_0` and reference acceleration :math:`a_{\rm ref}`. The user can set :math:`d` to a constant, or
+acceleration :math:`\au` and reference acceleration :math:`\ar`. The user can set :math:`d` to a constant, or
 take advantage of its interpolating property and make it position-dependent, i.e., a function of the constraint
 violation :math:`r`. Position-dependent impedance can be used to model soft contact layers around objects, or define
 equality constraints that become stronger with larger violation (so as to approximate backlash, for example). The shape
@@ -333,15 +340,23 @@ Reference
 ^^^^^^^^^
 
 Next we explain the setting of the stiffness :math:`k` and damping :math:`b` which control the reference acceleration
-:math:`a_{\rm ref}`.
+:math:`\ar`.
 
-.. admonition:: Intuitive description
+.. admonition:: Intuitive description of the **reference acceleration**
 
-   The *reference acceleration* :math:`a_{\rm ref}` determines **what the constraint is trying to achieve** (as opposed
-   to how well it can achieve it). This acceleration is defined by two numbers, a stiffness :math:`k` and damping
-   :math:`b` which can be set directly or re-parameterized as the time-constant and damping ratio of a
-   mass-spring-damper system (a `harmonic oscillator <https://en.wikipedia.org/wiki/Harmonic_oscillator>`__).
-   The reference acceleration is controlled by the :at:`solref` attribute.
+   The *reference acceleration* :math:`\ar` determines the **motion that constraint is trying to achieve** in order to
+   rectify violation. Imagine a body dropped onto the plane. Upon impact the constraint will generate a normal force
+   which attempts to rectify the penetration using a particular motion; this motion is the reference acceleration.
+
+   Another way of understanding the reference acceleration is to think of the unmodeled deformation variables
+   described in the :ref:`Computation chapter<soPrimal>`. Imagine two bodies pressed together, leading to deformation at
+   the contact. Now pull the bodies apart very quickly; the motion of the deformation as it settles into its undeformed
+   state is the reference acceleration.
+
+   This acceleration is defined by two numbers, a stiffness :math:`k` and damping :math:`b` which can be set directly or
+   re-parameterized as the time-constant and damping ratio of a mass-spring-damper system (a `harmonic oscillator
+   <https://en.wikipedia.org/wiki/Harmonic_oscillator>`__). The reference acceleration is controlled by the :at:`solref`
+   attribute.
 
 There are two formats for this attribute, determined by the sign of the numbers. If both numbers are positive the
 specification is considered to be in the :math:`(\text{timeconst}, \text{dampratio})` format. If negative it is in the
@@ -376,7 +391,12 @@ and the damping ratio is ignored. Equivalently, in the direct format, the :math:
    can go unstable. This is enforced internally, unless the :ref:`refsafe<option-flag-refsafe>` attribute of :ref:`flag
    <option-flag>` is set to false. The :math:`\text{dampratio}` parameter would normally be set to 1, corresponding to
    critical damping. Smaller values result in under-damped or bouncy constraints, while larger values result in
-   over-damped constraints.
+   over-damped constraints. Combining the above formula with :eq:`eq:constraint`, we can derive the following result.
+   If the reference acceleration is given using the positive number format and the impedance is constant
+   :math:`d = d_0 = d_\text{width}`, then the penetration depth at rest is
+
+   .. math::
+      r = \au \cdot (1 - d) \cdot \text{timeconst}^2 \cdot \text{dampratio}^2
 
    Next we describe the direct format where the two numbers are :math:`(-\text{stiffness}, -\text{damping})`. This
    allows direct control over restitution in particular. We still apply some scaling so that the same numbers can be
@@ -386,8 +406,14 @@ and the damping ratio is ignored. Equivalently, in the direct format, the :math:
    .. math::
       \begin{aligned}
       b &= \text{damping} / d_\text{width} \\
-      k &= \text{stiffness} / d_\text{width}^2 \\
+      k &= \text{stiffness} \cdot d(r) / d_\text{width}^2 \\
       \end{aligned}
+
+   Similarly to the above derivation, if the reference acceleration is given using the negative number format and the
+   impedance is constant, then the penetration depth at rest is
+
+   .. math::
+      r = \au \cdot (1 - d) \cdot \text{stiffness}
 
 .. tip::
    In the positive-value default format, the :math:`\text{timeconst}` parameter controls constraint **softness**.
@@ -441,7 +467,7 @@ solref, solimp
    If one of the two geoms has higher priority, its solref and solimp parameters are used. If both geoms have the same
    priority, the weighted average is used. The weights are proportional to the solmix attributes, i.e., weight1 =
    solmix1 / (solmix1 + solmix2) and similarly for weight2. There is one important exception to this weighted averaging
-   rule. If solref for either geom is non-positive, i.e., it relies on the new direct format introduced in MuJoCo 2.0,
+   rule. If solref for either geom is non-positive, i.e., it relies on the direct format,
    then the element-wise minimum is used regardless of solmix. This is because averaging solref parameters in different
    formats would be meaningless.
 
@@ -555,10 +581,44 @@ general guidelines and observations:
    setup operation for the main PGS and Noslip PGS is the same, thus the setup cost is paid only once when both are
    enabled.
 
-.. _CActuator:
+.. _CActuators:
 
-Actuator shortcuts
-~~~~~~~~~~~~~~~~~~
+Actuators
+~~~~~~~~~
+
+This section describes various aspects of using actuators in MuJoCo. See the :ref:`Actuation model <geActuation>`
+regarding the computational model.
+
+.. _CActDisable:
+
+Group disable
+^^^^^^^^^^^^^
+
+The :ref:`actuatorgroupdisable<option-actuatorgroupdisable>` attribute, which can be changed at runtime by setting the
+:ref:`mjOption.disableactuator<mjOption>` integer bitfield, allows the user to disable sets of actuators according to
+their :ref:`group<actuator-general-group>`. This feature is convenient when one would like to use multiple types of
+actuators for the same kinematic tree. For example consider a robot with firmware that supports mutiple control modes
+e.g., torque-control and position-control. In this case, one can define both types of actuators in the same MJCF
+model, assigning one type of actuator to group 0 and the other to group 1.
+
+.. youtube:: H9qG9Zf2W44
+   :align: right
+   :width: 40%
+
+The :ref:`actuatorgroupdisable<option-actuatorgroupdisable>` MJCF attribute selects which groups are disabled by
+default, and :ref:`mjOption.disableactuator<mjOption>` can be set at runtime to switch the active set. Note that the
+total number of actuators ``mjModel.nu`` remains unchanged, as do the actuator indices, so it is up to the user to know
+that the respective ``mjData.ctrl`` values of disabled actuators will be ignored and produce no force. `This example
+model <https://github.com/google-deepmind/mujoco/blob/main/test/engine/testdata/actuation/actuator_group_disable.xml>`__
+has three actuator groups which can be toggled at runtime in the :ref:`simulate<saSimulate>` interactive viewer.
+See `example model
+<https://github.com/google-deepmind/mujoco/blob/main/test/engine/testdata/actuation/actuator_group_disable.xml>`__
+and associated screen-capture on the right.
+
+.. _CActShortcuts:
+
+Shortcuts
+^^^^^^^^^
 
 As explained in the :ref:`Actuation model <geActuation>` section of the Computation chapter, MuJoCo offers a flexible
 actuator model with transmission, activation dynamics and force generation components that can be specified
@@ -591,62 +651,56 @@ defaults class and in the creation of actual model elements. If a given model re
 create multiple defaults classes, or avoid using defaults for actuators and instead specify all their attributes
 explicitly.
 
-.. _CActRange:
+.. _CForceRange:
 
-Activation clamping
-~~~~~~~~~~~~~~~~~~~
+Force limits
+^^^^^^^^^^^^
 
-As described in the :ref:`Actuation model <geActuation>` section of the Computation chapter, MuJoCo supports actuators
-with internal dynamics whose states are called "activations". One useful application of these stateful actuators is the
-"integrated-velocity" actuator, implemented by the :ref:`intvelocity<actuator-intvelocity>` shortcut. Different from the
-:ref:`pure velocity<actuator-velocity>` actuators, which implement direct feedback on transmission target's velocity,
-*integrated-velocity* actuators couple an *integrator* with a *position-feedback* actuator. In this case the semantics
-of the activation state are "the target of the position actuator", and the semantics of the control signal are "the
-velocity of the target of the position actuator". Note that in real robotic systems this integrated-velocity actuator is
-the most common implementation of actuators with velocity semantics, rather than pure feedback on velocity which is
-often quite unstable (both in real life and in simulation).
+Actuator forces are usually limited between lower and upper bounds. These limits can be enforced in three ways:
 
-In the case of integrated-velocity actuators, it is often desirable to *clamp* the activation state, since otherwise the
-position target would keep integrating beyond the joint limits, leading to loss of controllabillity. To see the effect
-of activation clamping, load the example model below:
+Control clamping with :ref:`ctrlrange<actuator-general-ctrlrange>`:
+  If this actuator attribute is set, the input control value will be clamped. For simple :ref:`motors<actuator-motor>`,
+  clamping the control input is equivalent to clamping the force output.
 
-.. code-block:: xml
+Force clamping at actuator output with :ref:`forcerange<actuator-general-forcerange>`:
+  If this actuator attribute is set, the actuator's output force will be clamped. This attribute is useful for e.g.
+  :ref:`position actuators<actuator-position>`, to keep the forces within bounds. Note that position actuators
+  usually also require control range clamping to avoid hitting joint limits.
 
-   <mujoco>
-     <default>
-       <joint axis="0 0 1" limited="true" range="-90 90" damping="0.3"/>
-       <geom size=".1 .1 .1" type="box"/>
-     </default>
+Force clamping at joint input with :ref:`joint/actuatorfrcrange<body-joint-actuatorfrcrange>`:
+  This joint attribute clamps input forces from all actuators acting on the joint, after passing through the
+  :ref:`transmission<geTransmission>`. Clamping actuator forces at the joint is equivalent to clamping them at the
+  actuator if the transmission is trivial (there is a one-to-one relationship between the actuator and the joint).
+  However, in situations where multiple actuators act on one joint or one actuator acts on multiple joints---yet the
+  actual torque is applied by a single physical actuator at the joint---it is desirable to clamp the forces at the joint
+  itself. Below are three examples where it is desirable to clamp actuator forces at the joint, rather than the
+  actuator:
 
-     <worldbody>
-       <body>
-         <joint name="joint1"/>
-         <geom/>
-       </body>
-       <body pos=".3 0 0">
-         <joint name="joint2"/>
-         <geom/>
-       </body>
-     </worldbody>
+  - In `this example model
+    <https://github.com/google-deepmind/mujoco/blob/main/test/engine/testdata/actuation/joint_force_clamp.xml>`__ ,
+    two actuators, a :ref:`motor<actuator-motor>` and a :ref:`damper<actuator-damper>`, act on a single joint.
+  - In `this example model <https://github.com/google-deepmind/mujoco/blob/main/model/car/car.xml>`__ (similar to a "Dubin's
+    Car"), two actuators act on two wheels via a :ref:`fixed tendon<tendon-fixed>` transmission in order to apply
+    symmetric (roll forward/back) and antisymmetric (turn right/left) torques.
+  - In `this example model <https://github.com/google-deepmind/mujoco/tree/main/test/engine/testdata/actuation/refsite.xml>`__,
+    a :ref:`site transmission<actuator-general-refsite>` implements a Cartesian controller of an arm end-effector.
+    In order for the computed torques to be realisable by individual, torque-limited joint motors, they need to be
+    clamped at the joints.
 
-     <actuator>
-       <general name="unclamped" joint="joint1" gainprm="1" biastype="affine"
-         biasprm="0 -1" dyntype="integrator"/>
-       <intvelocity name="clamped" joint="joint2" actrange="-1.57 1.57"/>
-     </actuator>
-   </mujoco>
+  Note that in this case, where forces/torques are combined by the transmission, one should use the
+  :ref:`jointactuatorfrc<sensor-jointactuatorfrc>` sensor to report the total actuator force acting on a joint.
+  The standard :ref:`actuatorfrc<sensor-actuatorfrc>` sensor will continue to report the pre-clamped actuator force.
 
-Note that the :at:`actrange` attribute is always specified in native units (radians), even though the joint range
-can be either in degrees (the default) or radians, depending on the :ref:`compiler/angle <compiler>` attribute.
+The three clamping options above are non-exclusive and can be combined as required.
 
 .. _CLengthRange:
 
-Actuator length range
-~~~~~~~~~~~~~~~~~~~~~
+Length range
+^^^^^^^^^^^^
 
-As of MuJoCo 2.0, the field mjModel.actuator_lengthrange contains the range of feasible actuator lengths (or more
-precisely, lengths of the actuator's transmission). This is needed to simulate :ref:`muscle actuators <CMuscle>` as
-explained below. Here we focus on what actuator_lengthrange means and how to set it.
+The field ``mjModel.actuator_lengthrange`` contains the range of feasible actuator lengths (or more
+precisely, lengths of the actuator's transmission). This is needed to simulate :ref:`muscle actuators <CMuscle>`.
+Here we focus on what actuator_lengthrange means and how to set it.
 
 Unlike all other fields of mjModel which are exact physical or geometric quantities, actuator_lengthrange is an
 approximation. Intuitively it corresponds to the minimum and maximum length that the actuator's transmission can reach
@@ -690,12 +744,69 @@ practice length ranges will almost always be used with muscle actuators attached
 joint limits defined in the model, effectively limiting the lengths of the muscle actuators. If you get a convergence
 error in such a model, the most likely explanation is that you forgot to include joint limits.
 
+.. _CActivation:
+
+Stateful actuators
+^^^^^^^^^^^^^^^^^^
+
+As described in the :ref:`Actuation model <geActuation>` section of the Computation chapter, MuJoCo supports actuators
+with internal dynamics whose states are called "activations".
+
+.. _CActRange:
+
+Activation limits
+'''''''''''''''''
+
+One useful application of stateful actuators is the
+"integrated-velocity" actuator, implemented by the :ref:`intvelocity<actuator-intvelocity>` shortcut. Different from the
+:ref:`pure velocity<actuator-velocity>` actuators, which implement direct feedback on transmission target's velocity,
+*integrated-velocity* actuators couple an *integrator* with a *position-feedback* actuator. In this case the semantics
+of the activation state are "the setpoint of the position actuator", and the semantics of the control signal are "the
+velocity of the setpoint of the position actuator". Note that in real robotic systems this integrated-velocity actuator
+is the most common implementation of actuators with velocity semantics, rather than pure feedback on velocity which is
+often quite unstable (both in real life and in simulation).
+
+In the case of integrated-velocity actuators, it is often desirable to *clamp* the activation state, since otherwise the
+position target would keep integrating beyond the joint limits, leading to loss of controllabillity. To see the effect
+of activation clamping, load the example model below:
+
+.. collapse:: Example model with activation limits
+
+   .. code-block:: xml
+
+      <mujoco>
+      <default>
+         <joint axis="0 0 1" limited="true" range="-90 90" damping="0.3"/>
+         <geom size=".1 .1 .1" type="box"/>
+      </default>
+
+      <worldbody>
+         <body>
+            <joint name="joint1"/>
+            <geom/>
+         </body>
+         <body pos=".3 0 0">
+            <joint name="joint2"/>
+            <geom/>
+         </body>
+      </worldbody>
+
+      <actuator>
+         <general name="unclamped" joint="joint1" gainprm="1" biastype="affine"
+            biasprm="0 -1" dyntype="integrator"/>
+         <intvelocity name="clamped" joint="joint2" actrange="-1.57 1.57"/>
+      </actuator>
+      </mujoco>
+
+Note that the :at:`actrange` attribute is always specified in native units (radians), even though the joint range
+can be either in degrees (the default) or radians, depending on the :ref:`compiler/angle <compiler>` attribute.
+
 .. _CMuscle:
 
-Muscle actuators
-~~~~~~~~~~~~~~~~
+Muscles
+'''''''
 
-As of MuJoCo 2.0, we provide a set of tools for modeling biological muscles. Users who want to add muscles with minimum
+We provide a set of tools for modeling biological muscles. Users who want to add muscles with minimum
 effort can do so with a single line of XML in the actuator section:
 
 .. code-block:: xml
@@ -895,13 +1006,13 @@ be 0. This effect can be approximated by scaling down the muscle force and also 
 
 Tendon wrapping is also more limited in MuJoCo. We allow spheres and infinite cylinders as wrapping objects, and require
 two wrapping objects to be separated by a fixed site in the tendon path. This is to avoid the need for iterative
-computations of tendon paths. As of MuJoCo 2.0 we also allow "side sites" to be placed inside the sphere or cylinder,
+computations of tendon paths. We also allow "side sites" to be placed inside the sphere or cylinder,
 which causes an inverse wrap: the tendon path is constrained to pass through the object instead of going around it. This
 can replace torus wrapping objects used in OpenSim to keep the tendon path within a given area. Overall, tendon wrapping
 is the most challenging part of converting an OpenSim model to a MuJoCo model, and requires some manual work. On the
 bright side, there is a small number of high-quality OpenSim models in use, so once they are converted we are done.
 
-Below we illustrate the four types of tendon wrapping available in MuJoCo 2.0. Note that the curved sections of the
+Below we illustrate the four types of tendon wrapping available. Note that the curved sections of the
 wrapping tendons are rendered as straight, but the geometry pipeline works with the actual curves and computes their
 lengths and moments analytically:
 
@@ -931,13 +1042,37 @@ Here we describe the XML attributes common to all sensor types, so as to avoid r
 :at:`user`: :at-val:`real(nuser_sensor), "0 0 ..."`
    See :ref:`User parameters <CUser>`.
 
+.. _CCamera:
+
+Cameras
+~~~~~~~
+
+Besides the default, user-controllable, free camera, "fixed" cameras can be attached to the kinematic tree.
+
+Extrinsics
+   By default, camera frames are attached to the containing body. The optional :ref:`mode<body-camera-mode>` and
+   :ref:`target<body-camera-target>` attributes can be used to specify camera that track (move with) or target (look at)
+   a body or subtree. Cameras look towards the negative Z axis of the camera frame, while positive X and Y correspond to
+   *right* and *up* in the image plane, respectively.
+
+Intrinsics
+   Camera intrinsics are specified using :ref:`ipd<body-camera-ipd>` (inter-pupilary distance, required for
+   stereoscopic rendering and VR) and :ref:`fovy<body-camera-fovy>` (vertical field of view, in degrees).
+
+   The above specification implies a perfect point camera with no aberrations. However when calibrating real cameras,
+   two types of linear aberration can be expressed using standard rendering pipelines. The first is different focal
+   lengths in the vertical and horizontal directions (axis-aligned astigmatism). The second is a non-centered principal
+   point. These can be specified using the :ref:`focal<body-camera-focal>` and :ref:`principal<body-camera-principal>`
+   attributes. When these calibration-related attributes are used, the physical
+   :ref:`sensor size<body-camera-sensorsize>` and camera :ref:`resolution<body-camera-resolution>` must also be
+   specified. In this case, the rendering frustum can be visualized.
+
 .. _CComposite:
 
 Composite objects
 ~~~~~~~~~~~~~~~~~
 
-Composite objects were introduced in MuJoCo 2.0, along with solver optimizations to speed up the simulation of such
-objects. They are not new model elements. Instead, they are (large) collections of existing elements designed to
+Composite objects are not new model elements. Instead, they are (large) collections of existing elements designed to
 simulate particle systems, ropes, cloth, and soft bodies. These collections are generated by the model compiler
 automatically. The user configures the automatic generator on a high level, using the new XML element
 :ref:`composite <body-composite>` and its attributes and sub-elements, as described in the XML reference
@@ -959,7 +1094,7 @@ of these equality constraints can be adjusted by the user, thereby adjusting the
 composite objects.
 
 In addition to setting up the physics, the composite object generator creates suitable rendering. 2D and 3D objects
-can be rendered as :ref:`skins <asset-skin>` which are also new in MuJoCo 2.0. The skin is generated
+can be rendered as :ref:`skins <asset-skin>`. The skin is generated
 automatically, and can be textured as well as subdivided using bi-cubic interpolation. The actual physics and in
 particular the collision detection are based on the element bodies and their geoms, while the skin is purely a
 visualization object. Yet in most situations we prefer to look at the skin representation. To facilitate this, the
@@ -967,13 +1102,12 @@ generator places all geoms, sites and tendons in group 3 whose visualization is 
 a 2D grid for example, you will see a continuous flexible surface and not a collection of spheres connected with
 tendons. However when fine-tuning the model and trying to understand the physics behind it, it is useful to be able to
 render the spheres and tendons. To switch the rendering style, disable the rendering of skins and enable group 3 for
-geoms and tendons (note that starting with MuJoCo 2.0 we have added a group property to sites, tendons and joints in
-addition to geoms).
+geoms and tendons.
 
 We have designed the composite object generator to have intuitive high-level controls as much as possible, but at the
 same time it exposes a large number of options that interact with each other and can profoundly affect the resulting
 physics. So at some point users should read the :ref:`reference documentation <body-composite>` carefully.
-As a quick start though, MuJoCo 2.0 comes with an example of each composite object type. Below we go over these
+As a quick start though, MuJoCo comes with an example of each composite object type. Below we go over these
 examples and explain the less obvious aspects. In all examples we have a static scene which is included in the model,
 followed by a single composite object. The static scene has a mocap body (large capsule) that can be moved around with
 the mouse to probe the behavior of the system. The XML snippets below are just the definition of the composite object;
@@ -1001,6 +1135,14 @@ automatically so that they make frictionless contacts with each other and with t
 has 1000 bodies (each with a geom), 3000 degrees of freedom and around 1000 active contacts. Evaluating the dynamics
 takes around 1 ms on a single core of a modern processor. As with most other MuJoCo models, the soft constraints allow
 simulation at much larger timesteps (this model is stable at 30 ms timestep and even higher).
+
+Particles are also compatible with the passive forces 2D and 3D plugins, discussed in the :ref:`deformable
+<CDeformable>` section. However, collisions are limited to the particle themselves and not to the whole boundary of the
+skin that encloses them. This makes contacts very fast but does not guarantee that all penetrations can be avoided. For
+a more complete treatment, see again the :ref:`deformable <CDeformable>` section, which outlines how to use
+:ref:`flexcomp<body-flexcomp>` to create such an object. It is easy to port models create with composite particles to
+flex, see the folder `elasticity/ <https://github.com/google-deepmind/mujoco/tree/main/model/plugin/elasticity>`__ for
+several examples.
 
 **1D grid**.
 
@@ -1044,59 +1186,51 @@ coordinates. The plot on the right shows a cloth pinned to the world body at the
 capsule probe. The skin on the right is subdivided using bi-cubic interpolation, which increases visual quality in the
 absence of textures. When textures are present (left) the benefits of subdivision are less visible.
 
-**Rope and loop**.
+**Cable**.
 
-|image10| |image11|
+|coil|
 
 .. code-block:: xml
 
-   <body name="B10" pos="0 0 1">
-     <freejoint/>
-     <composite type="rope" count="21 1 1" spacing="0.04" offset="0 0 2">
-       <joint kind="main" damping="0.005"/>
-       <geom type="capsule" size=".01 .015" rgba=".8 .2 .1 1"/>
-     </composite>
-   </body>
+   <extension>
+      <plugin plugin="mujoco.elasticity.cable"/>
+   </extension>
 
-The remaining composite object types create kinematic trees of element bodies, and the parent body becomes the root of
-the tree. This is why :el:`composite` appears inside a moving body, and not inside the world body as in particle and
-grid objects. If it appeared inside the world body, the root of the composite object would not move. Unlike grids and
-particles, the orientation of the element bodies here can change. The kinematic tree is constructed using (mostly)
-hinge joints. In the case of rope and loop objects illustrated here, the tree is a chain. Note the naming of the
-parent body. This name must correspond to one of the automatically-generated names of the element bodies. This
-mechanism is used to specify where the composite object should attach to the parent. Compared to 1D grids, the rope
-and loop are less jittery and can use capsule and ellipsoid geoms in addition to spheres (thus filling the gaps for
-collision detection). However this comes at a price. Because we have long kinematic chains, the resulting differential
-equations become stiff and can no longer be integrated at large timesteps. The examples we provide illustrate
-comfortable timesteps where the models are stable. The rope can be easily tied into a knot using mouse perturbations,
-as shown in the left plot. Using a larger number of smaller elements makes knots and other manipulations even easier.
-The loop is similar to a rope but the first and last element bodies are connected with an equality constraint.
+   <worldbody>
+      <composite prefix="actuated" type="cable" curve="cos(s) sin(s) s" count="41 1 1"
+                 size="0.25 .1 4" offset="0.25 0 .05" initial="none">
+         <plugin plugin="mujoco.elasticity.cable">
+            <!--Units are in Pa (SI)-->
+            <config key="twist" value="5e8"/>
+            <config key="bend" value="15e8"/>
+            <config key="vmax" value="0"/>
+         </plugin>
+         <joint kind="main" damping="0.15" armature="0.01"/>
+         <geom type="capsule" size=".005" rgba=".8 .2 .1 1"/>
+      </composite>
+   </worldbody>
+
+The cable simulates an inextensible elastic 1D object having twist and bending stiffness. It is discretized using a
+sequence of capsules or boxes. Its stiffness and inertia properties are computed directly from the given parameters and
+the shape of the cross section, which allows for anisotropic behaviors, which can be found in e.g. belts or computer
+cables. It is a single kinematic tree, so it is exactly inextensible without the use of additional constraints, enabling
+the use of large time steps. The elastic model is geometrically exact and based on computing the Bishop or twist-free
+frame of the centerline, i.e., the line passing through the center of the cross section. The orientations of the geoms
+are expressed with respect to this frame and then decomposed into twist and bending components, hence different
+stiffnesses can be set independently. Moreover, it is possible to specify if the stress-free configuration is flat or
+curve, such as in the case of coil springs. The cable requires using a first-party :ref:`engine plugin<exPlugin>`, which
+may be integrated directly into the engine in the future.
+
+**Rope and loop**.
+
+The rope and loop are deprecated. It is recommended to use the cable for simulating inextensible elastic rods that are
+bent and twisted and 1D flex :ref:`deformable objects <CDeformable>` for extensible strings in a tensile loading
+scenario (e.g. a stretched rubber band).
 
 **Cloth**.
 
-|image12| |image13|
-
-.. code-block:: xml
-
-   <body name="B3_5" pos="0 0 1">
-     <freejoint/>
-     <composite type="cloth" count="9 9 1" spacing="0.05" flatinertia="0.01">
-       <joint kind="main" damping="0.001"/>
-       <skin material="matcarpet" texcoord="true" inflate="0.005" subgrid="2"/>
-       <geom type="capsule" size="0.015 0.01" rgba=".8 .2 .1 1"/>
-     </composite>
-   </body>
-
-The cloth type is an alternative to a 2D grid, and has somewhat different properties. Similar to rope vs. 1D grid, the
-cloth is less jittery than a 2D grid and can also fill collision holes better. This is done by using capsules or
-ellipsoids, and arranging them in the pattern shown on the right. The geom capsules are shown in red, the kinematic
-tree in thick blue, the equality-constrained tendons holding the cloth together in thin gray, and the joints in cyan.
-The element body corresponding to the parent body has a floating joint rendered as a cube, while the rest of the tree
-is constructed using pairs of hinge joints that form universal joints. Note the naming of the parent body: similar to
-rope, it must coincide with one of the automatically-generated element body names in the composite object. Explicit
-pinning is not possible. However if the parent is a static body, the cloth is essentially pinned but only at one
-point. Similar to rope, the cloth object involves long kinematic chains that require relatively small timesteps and
-some damping for stable integration. The parameters can be found in the XML model files in the software distribution.
+The cloth is deprecated. It is recommended to use 2D flex :ref:`deformable objects <CDeformable>` for simulating thin
+elastic structures.
 
 **Box**.
 
@@ -1154,6 +1288,96 @@ solref and solimp attributes of the equality constraints that hold the soft obje
 of the system making it softer or harder, damped or springy, etc. Note that box, cylinder and ellipsoid objects do not
 involve long kinematic chains, and can be simulated at large timesteps - similar to particle and grid, and unlike rope
 and cloth.
+
+.. _CDeformable:
+
+Deformable objects
+~~~~~~~~~~~~~~~~~~
+
+The :ref:`composite objects <CComposite>` described earlier were intended to emulate soft bodies in what is effectively
+a rigid-body simulator. This was possible because MuJoCo constraints are soft, but nevertheless it was limited in
+functionality and modeling power. In MuJoCo 3.0 we have introduced true deformable objects involving new model elements.
+The :ref:`skin<deformable-skin>` described earlier was actually one such element, but it is merely used for
+visualization. We now have a related element :ref:`flex<deformable-flex>` which generates contact forces, constraint
+forces and passive forces as needed to model a wide range of deformable entities. Both skins and flexes are now defined
+within a new grouping element in the XML called :ref:`deformable<deformable>`. A flex is a low-level element that
+specifies everything needed at runtime, but is difficult to design at modeling time. To aid with modeling, we have
+further introduced the element :ref:`flexcomp<body-flexcomp>` which automates the creation of the low-level flex,
+similar to how :ref:`composite<body-composite>` automates the creation of (collections of) MuJoCo objects needed to
+emulate a soft body. Flexes may eventually supersede composites, but for now both are useful for somewhat different
+purposes.
+
+A flex is a collection of MuJoCo bodies that are connected with massless stretchable elements. These elements can be
+capsules (1D flex), triangles (2D flex), or tetrahedra (3D flex). In all cases we allow a radius, which makes the
+elements smooth and also volumetric in 1D and 2D. The primitive elements are illustrated below:
+
+|flexelem|
+
+Thus far these look like geoms. But the key difference is that they deform: as the bodies (vertices) move independently
+of each other, the shape of the elements changes in real time. Collisions and contact forces are now generalized to
+handle these deformable geometric elements. Note that when two such elements collide, the contact no longer involves
+just two bodies, but can involve up to 8 bodies (if both elements are tetrahedra). Contact forces are computed as
+before, given the contact frame and relevant quantities expressed in that frame. But then the contact force is
+distributed among all interacting bodies. The notion of contact Jacobian is complicated because the contact point cannot
+be considered fixed in any body frame. Instead we use a weighting scheme to "assign" each contact point to multiple
+bodies. It is also possible to create a rigid flex, by assigning all vertices to the same body. This is a way to
+re-purpose the new flex collision machinery to implement rigid non-convex mesh collisions (unlike mesh geoms which are
+convexified for collision purposes).
+
+**Deformation model**.
+
+In order to preserve the shape of the flex (in a soft sense), we need to generate passive or constraint forces. Prior to
+MuJoCo 3.0 this would involve a large number of tendons plus constraints on tendons and joints. This is still possible
+here, but inefficient both in terms of modeling and in terms of simulation when the flex is large. Instead, the design
+philosophy is to use a single set of parameters and provide two modeling choices: a new (soft) equality constraint type
+that applies to all edges of a given flex, which permits large time steps, or a discretized continuum representation,
+where each element is in a constant stress state, which is equivalent to piecewise linear finite elements and achieves
+improved realism and accuracy. The edge-based model could be seen as a "lumped" stiffness model, where the correct
+coupling of deformation modes (e.g. shear and volumetric) is averaged in a single quantity. The continuum model enables
+instead to specify shear and volumetic stiffnesses separately using the `Poisson's ratio
+<https://en.wikipedia.org/wiki/Poisson%27s_ratio>`__ of the material. For more details, see the `Saint Venant-Kirchhoff
+<https://en.wikipedia.org/wiki/Hyperelastic_material#Saint_Venant%E2%80%93Kirchhoff_model>`__ hyperelastic model. This
+functionality is currently based on first-party :ref:`engine plugins<exPlugin>` as of MuJoCo 3.0 but may be integrated
+into the engine in future releases.
+
+**Creation and visualization**.
+
+.. code-block:: xml
+
+   <option timestep=".001"/>
+
+   <extension>
+      <plugin plugin="mujoco.elasticity.solid"/>
+   </extension>
+
+   <worldbody>
+      <flexcomp type="grid" count="24 4 4" spacing=".1 .1 .1" pos=".1 0 1.5"
+                radius=".0" rgba="0 .7 .7 1" name="softbody" dim="3" mass="7">
+         <contact condim="3" solref="0.01 1" solimp=".95 .99 .0001" selfcollide="none"/>
+         <edge damping="1"/>
+         <plugin plugin="mujoco.elasticity.solid">
+            <config key="poisson" value="0.2"/>
+            <!--Units are in Pa (SI)-->
+            <config key="young" value="5e4"/>
+         </plugin>
+      </flexcomp>
+   </worldbody>
+
+Using the :ref:`flexcomp<body-flexcomp>` element, we can create flexes from meshes, including tetrahedral meshes, and
+automatically generate all the bodies/vertices and connect them with suitable elements. We can also create grids and
+other topologies automatically. This machinery makes it easy to create very large flexes, involving thousands or even
+tens of thousands of bodies, elements and edges. Obviously such simulations will not be fast. Even for medium-sized
+flexes, pruning of collision pairs and essential. This is why we have developed elaborate methods for pruning
+self-collisions; see XML reference.
+
+In case of 3D flexes made of tetrahedra, it may be useful to examine how the flex is "triangulated" internally. We have
+a special visualization mode that peels off the outer layers. Below is an example with the Stanford Bunny. Note how it
+has smaller tetrahedra on the outside and larger ones on the inside. This mesh design makes sense, because we want the
+collision surface to be accurate, but on the inside we just need soft material properties - which require less spatial
+resolution.
+
+|bunny1| |bunny2|
+
 
 .. _CInclude:
 
@@ -1280,7 +1504,7 @@ mocap bodies around:
 The key thing to understand about mocap bodies is that the simulator treats them as being fixed. We are causing them
 to move from one simulation time step to the next by updating their position and orientation directly, but as far as
 the physics model is concerned their position and orientation are constant. So what happens if we make contact with a
-regular dynamic body, as in the composite object examples provided with the MuJoCo 2.0 distribution (recall that in
+regular dynamic body, as in the composite object examples provided with the MuJoCo distribution (recall that in
 those example we have a capsule probe which is a mocap body that we move with the mouse). A contact between two
 regular bodies will experience penetration as well as relative velocity, while contact with a mocap body is missing
 the relative velocity component because the simulator does not know that the mocap body itself is moving. So the
@@ -1432,7 +1656,7 @@ the same yet the damping component of the force is integrated implicitly.
 Restitution
 ~~~~~~~~~~~
 
-MuJoCo 2.0 introduced a new mechanism for specifying :at:`solref` as explained in :ref:`Solver parameters <CSolver>`.
+Another mechanism exists for specifying :at:`solref`, as explained in :ref:`Solver parameters <CSolver>`.
 When both numbers are non-positive, they are interpreted as (-stiffness, -damping) and scaled by the constraint
 impedance. To achieve perfect restitution for contacts and other constraints, set stiffness to some reasonably large
 value and damping to zero. Below is an example of a sphere bouncing on a plane with restitution coefficient of 1, so
@@ -1495,3 +1719,11 @@ in a visible way, and the energy fluctuates around the initial value instead of 
    :height: 250px
 .. |particle| image:: images/models/particle.gif
    :width: 270px
+.. |flexelem| image:: images/modeling/flexelem.png
+   :width: 400px
+.. |bunny1| image:: images/modeling/bunny1.png
+   :width: 300px
+.. |bunny2| image:: images/modeling/bunny2.png
+   :width: 300px
+.. |coil| image:: images/modeling/coil.png
+   :width: 300px

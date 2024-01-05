@@ -1,6 +1,7 @@
 <mujoco>
   <compiler autolimits="true" />
   <default>
+    <joint armature="0.1"/>
     <default class="limited_false">
       <joint limited="false"/>
     </default>

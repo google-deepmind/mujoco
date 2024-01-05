@@ -70,20 +70,23 @@ static std::mutex themutex;
 
 //---------------------------------- Functions -----------------------------------------------------
 
-// mj_loadXML helper function
-mjModel* _loadXML(const char* filename, int vfs_provider,
-                  char* error, int error_sz) {
+// parse XML file in MJCF or URDF format, compile it, return low-level model
+//  if vfs is not NULL, look up files in vfs before reading from disk
+//  error can be NULL; otherwise assumed to have size error_sz
+mjModel* mj_loadXML(const char* filename, const mjVFS* vfs,
+                    char* error, int error_sz) {
+
   // serialize access to themodel
   std::lock_guard<std::mutex> lock(themutex);
 
   // parse new model
-  mjCModel* newmodel = mjParseXML(filename, vfs_provider, error, error_sz);
+  mjCModel* newmodel = mjParseXML(filename, vfs, error, error_sz);
   if (!newmodel) {
     return nullptr;
   }
 
   // compile new model
-  mjModel* m = newmodel->Compile(vfs_provider);
+  mjModel* m = newmodel->Compile(vfs);
   if (!m) {
     mjCopyError(error, newmodel->GetError().message, error_sz);
     delete newmodel;
@@ -106,53 +109,41 @@ mjModel* _loadXML(const char* filename, int vfs_provider,
 
 
 
-// parse XML file in MJCF or URDF format, compile it, return low-level model
-//  if vfs is not NULL, look up files in vfs before reading from disk
-//  error can be NULL; otherwise assumed to have size error_sz
-mjModel* mj_loadXML(const char* filename, const mjVFS* vfs,
-                    char* error, int error_sz) {
-
-  if (vfs == nullptr) {
-    return _loadXML(filename, 0, error, error_sz);
-  }
-
-  int index = mj_registerVfsProvider(vfs);
-  if (index < 1) {
-    if (error) {
-      snprintf(error, error_sz, "mj_loadXML: could not register VFS");
-    }
-    return nullptr;
-  }
-
-  mjModel* model = _loadXML(filename, index, error, error_sz);
-  mjp_unregisterResourceProvider(index);
-  return model;
-}
-
-
-
 // update XML data structures with info from low-level model, save as MJCF
 //  returns 1 if successful, 0 otherwise
 //  error can be NULL; otherwise assumed to have size error_sz
 int mj_saveLastXML(const char* filename, const mjModel* m, char* error, int error_sz) {
   // serialize access to themodel
   std::lock_guard<std::mutex> lock(themutex);
+  FILE *fp = stdout;
 
   if (!themodel.model) {
     mjCopyError(error, "No XML model loaded", error_sz);
     return 0;
   }
 
-  themodel.model->CopyBack(m);
-  if (mjWriteXML(themodel.model, filename, error, error_sz)) {
-    if (error) {
-      error[0] = 0;
+  if (filename != nullptr && filename[0] != '\0') {
+    fp = fopen(filename, "w");
+    if (!fp) {
+      mjCopyError(error, "File not found", error_sz);
+      return 0;
     }
-    return 1;
-  } else {
-    return 0;
   }
+
+  themodel.model->CopyBack(m);
+  std::string result = mjWriteXML(themodel.model, error, error_sz);
+
+  if (!result.empty()) {
+    fprintf(fp, "%s", result.c_str());
+  }
+
+  if (fp != stdout) {
+    fclose(fp);
+  }
+
+  return !result.empty();
 }
+
 
 
 // free last XML

@@ -17,6 +17,7 @@
 
 #include <mujoco/mjexport.h>
 #include <mujoco/mjmodel.h>
+#include <mujoco/mjplugin.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -40,8 +41,8 @@ MJAPI int mj_deleteFileVFS(mjVFS* vfs, const char* filename);
 // delete all files from VFS
 MJAPI void mj_deleteVFS(mjVFS* vfs);
 
-// registers a VFS resource provider; returns the index of the provider
-MJAPI int mj_registerVfsProvider(const mjVFS* vfs);
+// open VFS resource
+MJAPI mjResource* mju_openVfsResource(const char* name, const mjVFS* vfs);
 
 #ifdef __cplusplus
 }

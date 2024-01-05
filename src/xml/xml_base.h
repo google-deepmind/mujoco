@@ -15,6 +15,7 @@
 #ifndef MUJOCO_SRC_XML_XML_BASE_H_
 #define MUJOCO_SRC_XML_XML_BASE_H_
 
+#include <cstdlib>
 #include <string>
 
 #include "tinyxml2.h"
@@ -69,6 +70,7 @@ extern const mjMap bias_map[];
 extern const mjMap stage_map[];
 extern const mjMap datatype_map[];
 extern const mjMap meshtype_map[];
+extern const mjMap flexself_map[];
 
 
 //---------------------------------- Base XML class ------------------------------------------------
@@ -82,7 +84,9 @@ class mjXBase : public mjXUtil {
   virtual void Parse(tinyxml2::XMLElement* root) {};
 
   // write: implemented in derived writer class
-  virtual void Write(FILE* fp) {};
+  virtual std::string Write(char *error, std::size_t error_sz) {
+    return "";
+  };
 
   // set the model allocated externally
   void SetModel(mjCModel*);

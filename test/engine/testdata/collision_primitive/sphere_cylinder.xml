@@ -1,0 +1,44 @@
+<mujoco>
+  <statistic meansize="0.15"/>
+
+  <visual>
+    <map force="0.02"/>
+    <scale contactheight=".05" contactwidth=".2"/>
+    <headlight ambient=".4 .4 .4"/>
+  </visual>
+
+  <option>
+    <flag gravity="disable"/>
+  </option>
+
+  <worldbody>
+    <light pos="0 0 1"/>
+
+    <body pos="0 0 .3">
+      <freejoint/>
+      <geom type="sphere" size=".05" rgba=".5 .5 .5 .5" margin="0.1" gap="0.1"/>
+    </body>
+
+    <body pos="-.5 0 .3">
+      <freejoint/>
+      <geom type="sphere" size=".1" rgba=".5 .5 .5 .5"/>
+    </body>
+
+    <body mocap="true"  pos="-1 0 0">
+      <geom type="cylinder" size=".2 .01" rgba=".5 .5 .5 .3" margin=".04"/>
+    </body>
+
+    <body mocap="true"  pos="-.5 0 0">
+      <geom type="cylinder" size=".2 .04" rgba=".5 .5 .5 .3"/>
+    </body>
+
+    <body mocap="true">
+      <geom type="cylinder" size=".2 .2" rgba=".5 .5 .5 .3"/>
+    </body>
+
+    <body mocap="true" pos=".5 0 0">
+      <geom type="cylinder" size=".02 .1" rgba=".5 .5 .5 .3"/>
+    </body>
+
+  </worldbody>
+</mujoco>

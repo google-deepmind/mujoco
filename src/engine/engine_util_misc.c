@@ -14,7 +14,9 @@
 
 #include "engine/engine_util_misc.h"
 
+#include <ctype.h>
 #include <math.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -161,7 +163,7 @@ static mjtNum wrap_circle(mjtNum* pnt, const mjtNum* d, const mjtNum* sd, mjtNum
 //  input: pair of 2D points in d[4], radius
 //  output: pair of 2D points in pnt[4]; return 0 if wrap, -1 if no wrap
 static mjtNum wrap_inside(mjtNum* pnt, const mjtNum* d, mjtNum rad) {
-  // algorithm paramters
+  // algorithm parameters
   const int maxiter = 20;
   const mjtNum zinit = 1 - 1e-7;
   const mjtNum tolerance = 1e-6;
@@ -423,7 +425,7 @@ mjtNum mju_wrap(mjtNum* wpnt, const mjtNum* x0, const mjtNum* x1,
 // all 3 semi-axes of a geom
 void mju_geomSemiAxes(const mjModel* m, int geom_id, mjtNum semiaxes[3]) {
   mjtNum* size = m->geom_size + 3*geom_id;
-  switch (m->geom_type[geom_id]) {
+  switch ((mjtGeom) m->geom_type[geom_id]) {
   case mjGEOM_SPHERE:
     semiaxes[0] = size[0];
     semiaxes[1] = size[0];
@@ -595,6 +597,151 @@ mjtNum mju_muscleDynamics(mjtNum ctrl, mjtNum act, const mjtNum prm[3]) {
 
 
 
+//---------------------------------------- Base64 --------------------------------------------------
+
+// decoding function for Base64
+static uint32_t _decode(char ch) {
+  if (ch >= 'A' && ch <= 'Z') {
+    return ch - 'A';
+  }
+
+  if (ch >= 'a' && ch <= 'z') {
+    return (ch - 'a') + 26;
+  }
+
+  if (ch >= '0' && ch <= '9') {
+    return (ch - '0') + 52;
+  }
+
+  if (ch == '+') {
+    return 62;
+  }
+
+  if (ch == '/') {
+    return 63;
+  }
+
+  return 0;
+}
+
+
+
+// encode data as Base64 into buf (including padding and null char)
+// returns number of chars written in buf: 4 * [(ndata + 2) / 3] + 1
+size_t mju_encodeBase64(char* buf, const uint8_t* data, size_t ndata) {
+  static const char *table =
+    "ABCDEFGHIJKLMNOPQRSTUBWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+
+  int i = 0, j = 0;
+
+  // loop over 24 bit chunks
+  while (i + 3 <= ndata) {
+    // take next 24 bit chunk (3 bytes)
+    uint32_t byte_1 = data[i++];
+    uint32_t byte_2 = data[i++];
+    uint32_t byte_3 = data[i++];
+
+    // merge bytes into one 32 bit int
+    uint32_t k = (byte_1 << 16) | (byte_2 << 8) | byte_3;
+
+    // encode 6 bit chucks into four chars
+    buf[j++] = table[(k >> 18) & 63];
+    buf[j++] = table[(k >> 12) & 63];
+    buf[j++] = table[(k >>  6) & 63];
+    buf[j++] = table[(k >>  0) & 63];
+  }
+
+  // one byte left
+  if (i + 1 == ndata) {
+    uint32_t byte_1 = data[i];
+    uint32_t k = byte_1 << 16;
+    buf[j++] = table[(k >> 18) & 63];
+    buf[j++] = table[(k >> 12) & 63];
+    buf[j++] = '=';  // padding
+    buf[j++] = '=';  // padding
+  }
+
+  // two bytes left
+  if (i + 2 == ndata) {
+    uint32_t byte_1 = data[i++];
+    uint32_t byte_2 = data[i];
+
+    uint32_t k = (byte_1 << 16) + (byte_2 << 8);
+
+    buf[j++] = table[(k >> 18) & 63];
+    buf[j++] = table[(k >> 12) & 63];
+    buf[j++] = table[(k >>  6) & 63];
+    buf[j++] = '=';  // padding
+  }
+
+  buf[j] = '\0';
+  return 4 * ((ndata + 2) / 3) + 1;
+}
+
+
+
+// return size in decoded bytes if s is a valid Base64 encoding
+// return 0 if s is empty or invalid Base64 encoding
+size_t mju_isValidBase64(const char* s) {
+  size_t i = 0;
+  int pad = 0;  // 0, 1, or 2 zero padding at the end of s
+
+  // validate chars
+  for (; s[i] && s[i] != '='; i++) {
+    if (!isalnum(s[i]) && s[i] != '/' && s[i] != '+') {
+      return 0;
+    }
+  }
+
+  // padding at end
+  if (s[i] == '=') {
+    if (!s[i + 1]) {
+      pad = 1;  // one '=' padding at end
+    } else if (s[i + 1] == '=' && !s[i + 2]) {
+      pad = 2;  // two '=' padding at end
+    } else {
+      return 0;
+    }
+  }
+
+  // strlen(s) must be a multiple of 4
+  int len = i + pad;
+  return len % 4 ? 0 : 3 * (len / 4) - pad;
+}
+
+
+
+// decode valid Base64 in string s into buf, undefined behavior if s is not valid Base64
+// returns number of bytes decoded (upper limit of 3 * (strlen(s) / 4))
+size_t mju_decodeBase64(uint8_t* buf, const char* s) {
+  size_t i = 0, j = 0;
+
+  // loop over 24 bit chunks
+  while (s[i] != '\0') {
+    // take next 24 bit chuck (4 chars; 6 bits each)
+    uint32_t char_1 = _decode(s[i++]);
+    uint32_t char_2 = _decode(s[i++]);
+    uint32_t char_3 = _decode(s[i++]);
+    uint32_t char_4 = _decode(s[i++]);
+
+    // merge into 32 bit int
+    uint32_t k = (char_1 << 18) | (char_2 << 12) | (char_3 << 6) | char_4;
+
+
+    // write up to three bytes (exclude padding at end)
+    buf[j++] = (k >> 16) & 0xFF;
+    if (s[i - 2] != '=') {
+      buf[j++] = (k >> 8) & 0xFF;
+    }
+    if (s[i - 1] != '=') {
+      buf[j++] =  k & 0xFF;
+    }
+  }
+  return j;
+}
+
+
+
 //------------------------------ miscellaneous -----------------------------------------------------
 
 // convert contact force to pyramid representation
@@ -603,7 +750,7 @@ mjtNum mju_muscleDynamics(mjtNum ctrl, mjtNum act, const mjtNum prm[3]) {
 void mju_encodePyramid(mjtNum* pyramid, const mjtNum* force, const mjtNum* mu, int dim) {
   mjtNum a = force[0]/(dim-1), b;
 
-  // arbitary redundancy resolution:
+  // arbitrary redundancy resolution:
   //  pyramid0_i + pyramid1_i = force_normal/(dim-1) = a
   //  pyramid0_i - pyramid1_i = force_tangent_i/mu_i = b
   for (int i=0; i < dim-1; i++) {
@@ -686,6 +833,52 @@ mjtNum mju_springDamper(mjtNum pos0, mjtNum vel0, mjtNum k, mjtNum b, mjtNum t) 
     // evaluate result
     return mju_exp(-b*t/2) * (c1*mju_cos(w*t) + c2*mju_sin(w*t));
   }
+}
+
+
+
+// return 1 if point is outside box given by pos, mat, size * inflate
+// return -1 if point is inside box given by pos, mat, size / inflate
+// return 0 if point is between the inflated and deflated boxes
+int mju_outsideBox(const mjtNum point[3], const mjtNum pos[3], const mjtNum mat[9],
+                   const mjtNum size[3], mjtNum inflate) {
+  // check inflation coefficient
+  if (inflate < 1) {
+    mjERROR("inflation coefficient must be >= 1")
+  }
+
+  // vector from pos to point, projected to box frame
+  mjtNum vec[3] = {point[0]-pos[0], point[1]-pos[1], point[2]-pos[2]};
+  mju_rotVecMatT(vec, vec, mat);
+
+  // big: inflated box
+  mjtNum big[3] = {size[0], size[1], size[2]};
+  if (inflate > 1) {
+    mju_scl3(big, big, inflate);
+  }
+
+  // check if outside big box
+  if (vec[0] > big[0] || vec[0] < -big[0] ||
+      vec[1] > big[1] || vec[1] < -big[1] ||
+      vec[2] > big[2] || vec[2] < -big[2]) {
+    return 1;
+  }
+
+  // quick return if no inflation
+  if (inflate == 1) {
+    return -1;
+  }
+
+  // check if inside small (deflated) box
+  mjtNum small[3] = {size[0]/inflate, size[1]/inflate, size[2]/inflate};
+  if (vec[0] < small[0] && vec[0] > -small[0] &&
+      vec[1] < small[1] && vec[1] > -small[1] &&
+      vec[2] < small[2] && vec[2] > -small[2]) {
+    return -1;
+  }
+
+  // within margin between small and big box
+  return 0;
 }
 
 
@@ -782,7 +975,7 @@ int mju_round(mjtNum x) {
 
 // convert type id to type name
 const char* mju_type2Str(int type) {
-  switch (type) {
+  switch ((mjtObj) type) {
   case mjOBJ_BODY:
     return "body";
 
@@ -806,6 +999,9 @@ const char* mju_type2Str(int type) {
 
   case mjOBJ_LIGHT:
     return "light";
+
+  case mjOBJ_FLEX:
+    return "flex";
 
   case mjOBJ_MESH:
     return "mesh";
@@ -894,6 +1090,10 @@ int mju_str2Type(const char* str) {
 
   else if (!strcmp(str, "light")) {
     return mjOBJ_LIGHT;
+  }
+
+  else if (!strcmp(str, "flex")) {
+    return mjOBJ_FLEX;
   }
 
   else if (!strcmp(str, "mesh")) {
@@ -992,7 +1192,7 @@ const char* mju_writeNumBytes(size_t nbytes) {
 const char* mju_warningText(int warning, size_t info) {
   static mjTHREADLOCAL char str[1000];
 
-  switch (warning) {
+  switch ((mjtWarning) warning) {
   case mjWARN_INERTIA:
     mjSNPRINTF(str, "Inertia matrix is too close to singular at DOF %zu. Check model.", info);
     break;
@@ -1056,6 +1256,24 @@ int mju_isZero(mjtNum* vec, int n) {
   }
 
   return 1;
+}
+
+
+
+// set integer vector to 0
+void mju_zeroInt(int* res, int n) {
+  memset(res, 0, n*sizeof(int));
+}
+
+
+void mju_zeroSizeT(size_t* res, size_t n) {
+  memset(res, 0, n*sizeof(size_t));
+}
+
+
+// copy int vector vec into res
+void mju_copyInt(int* res, const int* vec, int n) {
+  memcpy(res, vec, n*sizeof(int));
 }
 
 
@@ -1173,6 +1391,51 @@ char* mju_strncpy(char *dst, const char *src, int n) {
   }
 
   return dst;
+}
+
+
+
+// assemble full filename from directory and filename, return 0 on success
+int mju_makefullname(char* full, size_t nfull, const char* dir, const char* file) {
+  int dirlen = (!dir) ? 0 : strlen(dir);
+  int filelen = (!file) ? 0 : strlen(file);
+  char* filepos = full + dirlen;
+
+  // missing filename
+  if (!filelen) {
+    return -1;
+  }
+
+  // no directory then just copy filename over
+  if (!dirlen) {
+    // make sure full has space
+    if (filelen >= nfull) {
+      return -1;
+    }
+    strcpy(full, file);
+    return 0;
+  }
+
+  // make sure full has space
+  if (dirlen + filelen >= nfull) {
+    return -1;
+  }
+
+  // dir doesn't end with a slash
+  if (dir[dirlen - 1] != '\\' && dir[dirlen - 1] != '/') {
+    // need extra space for forward slash
+    if ((dirlen + filelen + 1) >= nfull) {
+      return -1;
+    }
+
+    // add forward slash
+    *filepos++ = '/';
+  }
+
+  // copy directory and file over
+  memcpy(full, dir, sizeof(char) * dirlen);
+  strcpy(filepos, file);
+  return 0;
 }
 
 

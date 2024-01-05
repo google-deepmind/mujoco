@@ -24,7 +24,7 @@
 extern "C" {
 #endif
 
-//------------------------------ standard library fuctions -----------------------------------------
+//------------------------------ standard library functions ----------------------------------------
 
 #ifdef mjUSEDOUBLE
   #define mju_sqrt    sqrt

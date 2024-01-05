@@ -15,6 +15,7 @@
 #ifndef MUJOCO_SRC_USER_USER_UTIL_H_
 #define MUJOCO_SRC_USER_USER_UTIL_H_
 
+#include <optional>
 #include <string>
 #include <string_view>
 
@@ -22,7 +23,6 @@
 extern const double mjNAN;                      // used to mark undefined fields
 const double mjEPS = 1E-14;                     // minimum value in various calculations
 const double mjMINMASS = 1E-6;                  // minimum mass allowed
-
 
 // check if numeric variable is defined:  !_isnan(num)
 bool mjuu_defined(const double num);
@@ -104,16 +104,20 @@ void mjuu_z2quat(double* quat, const double* vec);
 void mjuu_frame2quat(double* quat, const double* x, const double* y, const double* z);
 
 // invert frame transformation
-void mjuu_frameinvert(double* newpos, double* newquat,
-                      const double* oldpos, const double* oldquat);
+void mjuu_frameinvert(double newpos[3], double newquat[4],
+                      const double oldpos[3], const double oldquat[4]);
 
-// accumulate frame transformations
-void mjuu_frameaccum(double* pos, double* quat,
-                     const double* addpos, const double* addquat);
+// accumulate frame transformation into parent frame
+void mjuu_frameaccum(double pos[3], double quat[4],
+                     const double childpos[3], const double childquat[4]);
+
+// accumulate frame transformation into child frame
+void mjuu_frameaccumChild(const double pos[3], const double quat[4],
+                          double childpos[3], double childquat[4]);
 
 // invert frame accumulation
-void mjuu_frameaccuminv(double* pos, double* quat,
-                        const double* addpos, const double* addquat);
+void mjuu_frameaccuminv(double pos[3], double quat[4],
+                        const double childpos[3], const double childquat[4]);
 
 // convert local_inertia[3] to global_inertia[6]
 void mjuu_globalinertia(double* global, const double* local, const double* quat);
@@ -151,5 +155,14 @@ bool mjuu_isabspath(std::string path);
 
 // assemble full filename
 std::string mjuu_makefullname(std::string filedir, std::string meshdir, std::string filename);
+
+// return type from content_type format {type}/{subtype}[;{parameter}={value}]
+std::optional<std::string_view> mjuu_parseContentTypeAttrType(std::string_view text);
+
+// return subtype from content_type format {type}/{subtype}[;{parameter}={value}]
+std::optional<std::string_view> mjuu_parseContentTypeAttrSubtype(std::string_view text);
+
+// convert filename extension to content type; return empty string if not found
+std::string mjuu_extToContentType(std::string_view filename);
 
 #endif  // MUJOCO_SRC_USER_USER_UTIL_H_

@@ -244,12 +244,13 @@ mj_jac
 
 .. mujoco-include:: mj_jac
 
-This function computes an "end-effector" Jacobian, which is unrelated to the constraint Jacobian above. Any MuJoCo body
-can be treated as end-effector, and the point for which the Jacobian is computed can be anywhere in space (it is treated
-as attached to the body). The Jacobian has translational (jacp) and rotational (jacr) components. Passing NULL for
-either pointer will skip part of the computation. Each component is a 3-by-nv matrix. Each row of this matrix is the
-gradient of the corresponding 3D coordinate of the specified point with respect to the degrees of freedom. The ability
-to compute end-effector Jacobians analytically is one of the advantages of working in minimal coordinates - so use it!
+This function computes an end-effector kinematic Jacobian, describing the local linear relationship between the
+degrees-of-freedom and a given point. Given a body specified by its integer id (``body``) and a 3D point in the world
+frame (``point``) treated as attached to the body, the Jacobian has both translational (``jacp``) and rotational
+(``jacr``) components. Passing ``NULL`` for either pointer will skip that part of the computation. Each component is a
+3-by-nv matrix. Each row of this matrix is the gradient of the corresponding coordinate of the specified point with
+respect to the degrees-of-freedom. The ability to compute end-effector Jacobians efficiently and analytically is one of
+the advantages of working in minimal coordinates.
 
 .. _mj_jacBody:
 
@@ -391,7 +392,9 @@ mj_objectAcceleration
 
 .. mujoco-include:: mj_objectAcceleration
 
-Compute object 6D acceleration (rot:lin) in object-centered frame, world/local orientation.
+Compute object 6D acceleration (rot:lin) in object-centered frame, world/local orientation. If acceleration or force
+sensors are not present in the model, :ref:`mj_rnePostConstraint` must be manually called in order to calculate
+:ref:`mjData`.cacc -- the total body acceleration, including contributions from the constraint solver.
 
 .. _mj_contactForce:
 
@@ -412,7 +415,7 @@ mj_differentiatePos
 This function subtracts two vectors in the format of qpos (and divides the result by dt), while respecting the
 properties of quaternions. Recall that unit quaternions represent spatial orientations. They are points on the unit
 sphere in 4D. The tangent to that sphere is a 3D plane of rotational velocities. Thus when we subtract two quaternions
-in the right way, the result is a 3D vector and not a 4D vector. This the output qvel has dimensionality nv while the
+in the right way, the result is a 3D vector and not a 4D vector. Thus the output qvel has dimensionality nv while the
 inputs have dimensionality nq.
 
 .. _mj_integratePos:
@@ -580,6 +583,17 @@ mj_RungeKutta
 
 Runge-Kutta explicit order-N integrator.
 
+.. _mj_implicit:
+
+mj_implicit
+~~~~~~~~~~~
+
+.. mujoco-include:: mj_implicit
+
+Integrates the simulation state using an implicit-in-velocity integrator (either "implicit" or "implicitfast", see
+:ref:`Numerical Integration<geIntegration>`), and advances simulation time. See `mjdata.h
+<https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjdata.h>`__ for fields computed by this function.
+
 .. _mj_invPosition:
 
 mj_invPosition
@@ -723,6 +737,15 @@ mj_camlight
 
 Compute camera and light positions and orientations.
 
+.. _mj_flex:
+
+mj_flex
+~~~~~~~
+
+.. mujoco-include:: mj_flex
+
+Compute flex-related quantities.
+
 .. _mj_tendon:
 
 mj_tendon
@@ -793,7 +816,7 @@ mj_passive
 
 .. mujoco-include:: mj_passive
 
-Compute qfrc_passive from spring-dampers, viscosity and density.
+Compute qfrc_passive from spring-dampers, gravity compensation and fluid forces.
 
 .. _mj_subtreeVel:
 
@@ -802,7 +825,10 @@ mj_subtreeVel
 
 .. mujoco-include:: mj_subtreeVel
 
-subtree linear velocity and angular momentum
+Sub-tree linear velocity and angular momentum: compute ``subtree_linvel``, ``subtree_angmom``.
+This function is triggered automatically if the subtree :ref:`velocity<sensor-subtreelinvel>` or
+:ref:`momentum<sensor-subtreeangmom>` sensors are present in the model.
+It is also triggered for :ref:`user sensors<sensor-user>` of :ref:`stage<sensor-user-needstage>` "vel".
 
 .. _mj_rne:
 
@@ -811,7 +837,8 @@ mj_rne
 
 .. mujoco-include:: mj_rne
 
-RNE: compute M(qpos)*qacc + C(qpos,qvel); flg_acc=0 removes inertial term.
+Recursive Newton Euler: compute :math:`M(q) \ddot q + C(q,\dot q)`. ``flg_acc=0`` removes the inertial term (i.e.
+assumes :math:`\ddot q = 0`).
 
 .. _mj_rnePostConstraint:
 
@@ -820,7 +847,21 @@ mj_rnePostConstraint
 
 .. mujoco-include:: mj_rnePostConstraint
 
-RNE with complete data: compute cacc, cfrc_ext, cfrc_int.
+Recursive Newton Euler with final computed forces and accelerations.
+Computes three body-level ``nv x 6`` arrays, all defined in the subtreecom-based
+:ref:`c-frame<tyNotesCom>` and arranged in ``[rotation(3), translation(3)]`` order.
+
+- ``cacc``: Body acceleration, required for :ref:`mj_objectAcceleration`.
+- ``cfrc_int``: Interaction force with the parent body.
+- ``cfrc_ext``: External force acting on the body.
+
+This function is triggered automatically if the following sensors are present in the model:
+:ref:`accelerometer<sensor-accelerometer>`, :ref:`force<sensor-force>`, :ref:`torque<sensor-torque>`,
+:ref:`framelinacc<sensor-framelinacc>`, :ref:`frameangacc<sensor-frameangacc>`.
+It is also triggered for :ref:`user sensors<sensor-user>` of :ref:`stage<sensor-user-needstage>` "acc".
+
+The computed force arrays ``cfrc_int`` and ``cfrc_ext`` currently suffer from a know bug, they do not take into account
+the effect of spatial tendons, see :github:issue:`832`.
 
 .. _mj_collision:
 
@@ -839,6 +880,15 @@ mj_makeConstraint
 .. mujoco-include:: mj_makeConstraint
 
 Construct constraints.
+
+.. _mj_island:
+
+mj_island
+~~~~~~~~~
+
+.. mujoco-include:: mj_island
+
+Find constraint islands.
 
 .. _mj_projectConstraint:
 
@@ -865,8 +915,8 @@ mj_constraintUpdate
 
 .. mujoco-include:: mj_constraintUpdate
 
-Compute efc_state, efc_force, qfrc_constraint, and (optionally) cone Hessians. If cost is not NULL, set \*cost = s(jar)
-where jar = Jac*qacc-aref.
+Compute ``efc_state``, ``efc_force``, ``qfrc_constraint``, and (optionally) cone Hessians.
+If ``cost`` is not ``NULL``, set ``*cost = s(jar)`` where ``jar = Jac*qacc - aref``.
 
 .. _Raycollisions:
 
@@ -937,6 +987,16 @@ mju_rayGeom
 .. mujoco-include:: mju_rayGeom
 
 Intersect ray with pure geom, return nearest distance or -1 if no intersection.
+
+.. _mju_rayFlex:
+
+mju_rayFlex
+~~~~~~~~~~~
+
+.. mujoco-include:: mju_rayFlex
+
+Intersect ray with flex, return nearest distance or -1 if no intersection,
+and also output nearest vertex id.
 
 .. _mju_raySkin:
 
@@ -1046,7 +1106,8 @@ mj_addFileVFS
 
 .. mujoco-include:: mj_addFileVFS
 
-Add file to VFS, return 0: success, 1: full, 2: repeated name, -1: failed to load.
+Add file to VFS. The directory argument is optional and can be NULL or empty. Returns 0 on success, 1 when VFS is full,
+2 on name collision, or -1 when an internal error occurs.
 
 .. _mj_makeEmptyFileVFS:
 
@@ -1221,12 +1282,41 @@ mj_resetDataKeyframe
 
 Reset data, set fields from specified keyframe.
 
-.. _mj_stackAlloc:
+.. _mj_markStack:
 
-mj_stackAlloc
-~~~~~~~~~~~~~
+mj_markStack
+~~~~~~~~~~~~
 
-.. mujoco-include:: mj_stackAlloc
+.. mujoco-include:: mj_markStack
+
+Mark a new frame on the :ref:`mjData` stack.
+
+.. _mj_freeStack:
+
+mj_freeStack
+~~~~~~~~~~~~
+
+.. mujoco-include:: mj_freeStack
+
+Free the current :ref:`mjData` stack frame. All pointers returned by mj_stackAlloc since the last call
+to mj_markStack must no longer be used afterwards.
+
+.. _mj_stackAllocByte:
+
+mj_stackAllocByte
+~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mj_stackAllocByte
+
+Allocate a number of bytes on :ref:`mjData` stack at a specific alignment.
+Call mju_error on stack overflow.
+
+.. _mj_stackAllocNum:
+
+mj_stackAllocNum
+~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mj_stackAllocNum
 
 Allocate array of mjtNums on :ref:`mjData` stack. Call mju_error on stack overflow.
 
@@ -1501,6 +1591,18 @@ mjv_makeConnector
 ~~~~~~~~~~~~~~~~~
 
 .. mujoco-include:: mjv_makeConnector
+
+Set (type, size, pos, mat) for connector-type geom between given points.
+Assume that mjv_initGeom was already called to set all other properties.
+Width of mjGEOM_LINE is denominated in pixels.
+Deprecated: use mjv_connector.
+
+.. _mjv_connector:
+
+mjv_connector
+~~~~~~~~~~~~~
+
+.. mujoco-include:: mjv_connector
 
 Set (type, size, pos, mat) for connector-type geom between given points.
 Assume that mjv_initGeom was already called to set all other properties.
@@ -1874,6 +1976,8 @@ Find first rectangle containing mouse, -1: not found.
 UI framework
 ^^^^^^^^^^^^
 
+For a high-level description of the UI framework, see :ref:`UI`.
+
 .. _mjui_themeSpacing:
 
 mjui_themeSpacing
@@ -1899,7 +2003,12 @@ mjui_add
 
 .. mujoco-include:: mjui_add
 
-Add definitions to UI.
+This is the helper function used to construct a UI. The second argument points to an array of :ref:`mjuiDef` structs,
+each corresponding to one item. The last (unused) item has its type set to -1, to mark termination. The items are added
+after the end of the last used section. There is also another version of this function
+(:ref:`mjui_addToSection<mjui_addToSection>`) which adds items to a specified section instead of adding them at the end
+of the UI. Keep in mind that there is a maximum preallocated number of sections and items per section, given by
+:ref:`mjMAXUISECT<glNumeric>` and :ref:`mjMAXUIITEM<glNumeric>`. Exceeding these maxima results in low-level errors.
 
 .. _mjui_addToSection:
 
@@ -1926,7 +2035,12 @@ mjui_update
 
 .. mujoco-include:: mjui_update
 
-Update specific section/item; -1: update all.
+This is the main UI update function. It needs to be called whenever the user data (pointed to by the item data pointers)
+changes, or when the UI state itself changes. It is normally called by a higher-level function implemented by the user
+(``UiModify`` in :ref:`simulate.cc <saSimulate>`) which also recomputes the layout of all rectangles and associated
+auxiliary buffers. The function updates the pixels in the offscreen OpenGL buffer. To perform minimal updates, the user
+specifies the section and the item that was modified. A value of -1 means all items and/or sections need to be updated
+(which is needed following major changes.)
 
 .. _mjui_event:
 
@@ -1935,7 +2049,10 @@ mjui_event
 
 .. mujoco-include:: mjui_event
 
-Handle UI event, return pointer to changed item, NULL if no change.
+This function is the low-level event handler. It makes the necessary changes in the UI and returns a pointer to the item
+that received the event (or ``NULL`` if no valid event was recorded). This is normally called within the event handler
+implemented by the user (``UiEvent`` in :ref:`simulate.cc <saSimulate>`), and then some action is taken by user code
+depending on which UI item was modified and what the state of that item is after the event is handled.
 
 .. _mjui_render:
 
@@ -1944,7 +2061,9 @@ mjui_render
 
 .. mujoco-include:: mjui_render
 
-Copy UI image to current buffer.
+This function is called in the screen refresh loop. It copies the offscreen OpenGL buffer to the window framebuffer. If
+there are multiple UIs in the application, it should be called once for each UI. Thus ``mjui_render`` is called all the
+time, while :ref:`mjui_update` is called only when changes in the UI take place.
 
 .. _Errorandmemory:
 
@@ -2866,7 +2985,7 @@ mju_eig3
 
 .. mujoco-include:: mju_eig3
 
-Eigenvalue decomposition of symmetric 3x3 matrix.
+Eigenvalue decomposition of symmetric 3x3 matrix, mat = eigvec * diag(eigval) * eigvec'.
 
 .. _mju_boxQP:
 
@@ -2903,10 +3022,10 @@ outputs (optional):
 
 notes:
   The initial value of ``res`` is used to warmstart the solver.
-  ``R`` must have allocatd size ``n*(n+7)``, but only ``nfree*nfree`` values are used in output.
-  ``index`` (if given) must have allocated size ``n``, but only ``nfree`` values are used in output.
+  ``R`` must have allocated size ``n*(n+7)``, but only ``nfree*nfree`` values are used as output.
+  ``index`` (if given) must have allocated size ``n``, but only ``nfree`` values are used as output.
   The convenience function :ref:`mju_boxQPmalloc` allocates the required data structures.
-  Only the lower triangles of H and R and are read from and written to, respectively.
+  Only the lower triangles of H and R are read from and written to, respectively.
 
 .. _mju_boxQPmalloc:
 
@@ -3172,6 +3291,10 @@ Sigmoid function over 0<=x<=1 using quintic polynomial.
 Derivatives
 ^^^^^^^^^^^
 
+The functions below provide useful derivatives of various functions, both analytic and
+finite-differenced. The latter have names with the suffix ``FD``. Note that unlike much of the API,
+outputs of derivative functions are the trailing rather than leading arguments.
+
 .. _mjd_transitionFD:
 
 mjd_transitionFD
@@ -3200,6 +3323,9 @@ These matrices and their dimensions are:
 - All outputs are optional (can be NULL).
 - ``eps`` is the finite-differencing epsilon.
 - ``flg_centered`` denotes whether to use forward (0) or centered (1) differences.
+- Accuracy can be somewhat improved if solver :ref:`iterations<option-iterations>` are set to a
+  fixed (small) value and solver :ref:`tolerance<option-tolerance>` is set to 0. This insures that
+  all calls to the solver will perform exactly the same number of iterations.
 
 .. _mjd_inverseFD:
 
@@ -3237,6 +3363,42 @@ using finite-differencing. These matrices and their dimensions are:
 - ``eps`` is the (forward) finite-differencing epsilon.
 - ``flg_actuation`` denotes whether to subtract actuation forces (``qfrc_actuator``) from the output of the inverse
   dynamics. If this flag is positive, actuator forces are not considered as external.
+
+.. _mjd_subQuat:
+
+mjd_subQuat
+~~~~~~~~~~~
+
+.. mujoco-include:: mjd_subQuat
+
+Derivatives of :ref:`mju_subQuat` (quaternion difference).
+
+.. _mjd_quatIntegrate:
+
+mjd_quatIntegrate
+~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjd_quatIntegrate
+
+Derivatives of :ref:`mju_quatIntegrate`.
+
+:math:`{\tt \small mju\_quatIntegrate}(q, v, h)` performs the in-place rotation :math:`q \leftarrow q + v h`,
+where :math:`q \in \mathbf{S}^3` is a unit quaternion, :math:`v \in \mathbf{R}^3` is a 3D angular velocity and
+:math:`h \in \mathbf{R^+}` is a timestep. This is equivalent to :math:`{\tt \small mju\_quatIntegrate}(q, s, 1.0)`,
+where :math:`s` is the scaled velocity :math:`s = h v`.
+
+:math:`{\tt \small mjd\_quatIntegrate}(v, h, D_q, D_v, D_h)` computes the Jacobians of the output :math:`q` with respect
+to the inputs. Below, :math:`\bar q` denotes the pre-modified quaternion:
+
+.. math::
+   \begin{aligned}
+      D_q &= \partial q / \partial \bar q \\
+      D_v &= \partial q / \partial v \\
+      D_h &= \partial q / \partial h
+   \end{aligned}
+
+Note that derivatives depend only on :math:`h` and :math:`v` (in fact, on :math:`s = h v`).
+All outputs are optional.
 
 .. _Plugins-api:
 
@@ -3340,4 +3502,62 @@ mjp_getResourceProviderAtSlot
 
 Look up a resource provider by slot number returned by mjp_registerResourceProvider.
 If invalid slot number, return NULL.
+
+.. _Thread:
+
+Thread
+^^^^^^
+.. _mju_threadPoolCreate:
+
+mju_threadPoolCreate
+~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mju_threadPoolCreate
+
+Create a thread pool with the specified number of threads running.
+
+.. _mju_bindThreadPool:
+
+mju_bindThreadPool
+~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mju_bindThreadPool
+
+Adds a thread pool to :ref:`mjData` and configures it for multi-threaded use.
+
+.. _mju_threadPoolEnqueue:
+
+mju_threadPoolEnqueue
+~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mju_threadPoolEnqueue
+
+Enqueue a task in a thread pool.
+
+.. _mju_threadPoolDestroy:
+
+mju_threadPoolDestroy
+~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mju_threadPoolDestroy
+
+Destroy a thread pool.
+
+.. _mju_defaultTask:
+
+mju_defaultTask
+~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mju_defaultTask
+
+Initialize an mjTask.
+
+.. _mju_taskJoin:
+
+mju_taskJoin
+~~~~~~~~~~~~
+
+.. mujoco-include:: mju_taskJoin
+
+Wait for a task to complete.
 

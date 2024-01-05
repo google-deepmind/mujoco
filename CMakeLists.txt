@@ -28,7 +28,7 @@ set(MSVC_INCREMENTAL_DEFAULT ON)
 
 project(
   mujoco
-  VERSION 2.3.6
+  VERSION 3.1.2
   DESCRIPTION "MuJoCo Physics Simulator"
   HOMEPAGE_URL "https://mujoco.org"
 )
@@ -59,6 +59,7 @@ set(MUJOCO_HEADERS
     include/mujoco/mjmodel.h
     include/mujoco/mjplugin.h
     include/mujoco/mjrender.h
+    include/mujoco/mjthread.h
     include/mujoco/mjtnum.h
     include/mujoco/mjui.h
     include/mujoco/mjvisualize.h
@@ -82,14 +83,17 @@ target_include_directories(
 )
 
 add_subdirectory(plugin/elasticity)
+add_subdirectory(plugin/actuator)
 add_subdirectory(plugin/sensor)
+add_subdirectory(plugin/sdf)
 add_subdirectory(src/engine)
 add_subdirectory(src/user)
 add_subdirectory(src/xml)
 add_subdirectory(src/render)
+add_subdirectory(src/thread)
 add_subdirectory(src/ui)
 
-target_compile_definitions(mujoco PRIVATE _GNU_SOURCE MUJOCO_DLL_EXPORTS)
+target_compile_definitions(mujoco PRIVATE _GNU_SOURCE MUJOCO_DLL_EXPORTS -DMC_IMPLEM_ENABLE)
 if(MUJOCO_ENABLE_AVX_INTRINSICS)
   target_compile_definitions(mujoco PUBLIC mjUSEPLATFORMSIMD)
 endif()

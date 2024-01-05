@@ -16,6 +16,7 @@
 #define MUJOCO_PYTHON_STRUCTS_H_
 
 #include <array>
+#include <cstddef>
 #include <istream>
 #include <memory>
 #include <optional>
@@ -28,10 +29,10 @@
 #include <mujoco/mujoco.h>
 #include <mujoco/mjxmacro.h>
 #include "indexers.h"
-#include "mjdata_meta.h"
 #include "raw.h"
 #include <pybind11/numpy.h>
 #include <pybind11/pybind11.h>
+#include <pybind11/pytypes.h>
 
 namespace mujoco::python {
 namespace _impl {
@@ -231,6 +232,7 @@ class MjWrapper<raw::MjVisualRgba> : public WrapperBase<raw::MjVisualRgba> {
   X(constraint);
   X(slidercrank);
   X(crankbroken);
+  X(frustum);
   #undef X
 };
 
@@ -445,7 +447,8 @@ class MjWrapper<raw::MjModel> : public WrapperBase<raw::MjModel> {
   MjModelIndexer& indexer() { return indexer_; }
 
   void Serialize(std::ostream& output) const;
-  static MjWrapper<raw::MjModel> Deserialize(std::istream& input);
+  static std::unique_ptr<MjWrapper<raw::MjModel>> Deserialize(
+      std::istream& input);
 
   static MjWrapper LoadXMLFile(
       const std::string& filename,
@@ -476,6 +479,7 @@ class MjWrapper<raw::MjModel> : public WrapperBase<raw::MjModel> {
   // TODO(nimrod): Exclude text_data and names from the MJMODEL_POINTERS macro.
   pybind11::bytes text_data_bytes;
   pybind11::bytes names_bytes;
+  pybind11::bytes paths_bytes;
 
  protected:
   explicit MjWrapper(raw::MjModel* ptr);
@@ -506,6 +510,10 @@ class MjWrapper<raw::MjContact> : public WrapperBase<raw::MjContact> {
   X(solreffriction);
   X(solimp);
   X(H);
+  X(geom);
+  X(flex);
+  X(elem);
+  X(vert);
   #undef X
 };
 
@@ -557,12 +565,14 @@ struct is_mj_struct_list<raw::MjContact> {
 template <>
 class MjWrapper<raw::MjData>: public WrapperBase<raw::MjData> {
  public:
-  explicit MjWrapper(const MjModelWrapper& model);
+  explicit MjWrapper(MjModelWrapper* model);
   MjWrapper(const MjWrapper& other);
   MjWrapper(MjWrapper&&);
+  // Used for deepcopy
+  MjWrapper(const MjWrapper& other, MjModelWrapper* model);
   ~MjWrapper();
 
-  const MjDataMetadata& metadata() const { return metadata_; }
+  const MjModelWrapper& model() const { return *model_; }
   MjDataIndexer& indexer() { return indexer_; }
 
   void Serialize(std::ostream& output) const;
@@ -579,19 +589,26 @@ class MjWrapper<raw::MjData>: public WrapperBase<raw::MjData> {
 
   py_array_or_tuple_t<mjContact> contact;
 
+  py_array_or_tuple_t<size_t> maxuse_threadstack;
   py_array_or_tuple_t<raw::MjWarningStat> warning;
   py_array_or_tuple_t<raw::MjTimerStat> timer;
   py_array_or_tuple_t<raw::MjSolverStat> solver;
+  py_array_or_tuple_t<int> solver_niter;
+  py_array_or_tuple_t<int> solver_nnz;
   py_array_or_tuple_t<mjtNum> solver_fwdinv;
   py_array_or_tuple_t<mjtNum> energy;
 
  protected:
   // Internal constructor which takes ownership of given mjData pointer.
   // Used for deserialization.
-  explicit MjWrapper(MjDataMetadata&& metadata, raw::MjData* d);
+  explicit MjWrapper(MjModelWrapper* model, raw::MjData* d);
   raw::MjData* Copy() const;
 
-  MjDataMetadata metadata_;
+  // A reference to the model that was used to create this mjData.
+  MjModelWrapper* model_;
+  // A py::object pointing to the same model as model_, to make sure Python
+  // doesn't doesn't garbage collect it until this mjData is released.
+  pybind11::object model_ref_;
   MjDataIndexer indexer_;
 };
 
@@ -728,6 +745,7 @@ class MjWrapper<raw::MjvOption> : public WrapperBase<raw::MjvOption> {
   X(jointgroup);
   X(tendongroup);
   X(actuatorgroup);
+  X(flexgroup);
   X(skingroup);
   X(flags);
   #undef X
@@ -749,10 +767,23 @@ class MjWrapper<raw::MjvScene> : public WrapperBase<raw::MjvScene> {
   ~MjWrapper() = default;
 
   int nskinvert;
+  int nflexface, nflexedge, nflexvert;
 
   #define X(dtype, var) py_array_or_tuple_t<dtype> var
   X(mjvGeom, geoms);
   X(int, geomorder);
+  X(int, flexedgeadr);
+  X(int, flexedgenum);
+  X(int, flexvertadr);
+  X(int, flexvertnum);
+  X(int, flexfaceadr);
+  X(int, flexfacenum);
+  X(int, flexfaceused);
+  X(int, flexedge);
+  X(float, flexvert);
+  X(float, flexface);
+  X(float, flexnormal);
+  X(float, flextexcoord);
   X(int, skinfacenum);
   X(int, skinvertadr);
   X(int, skinvertnum);

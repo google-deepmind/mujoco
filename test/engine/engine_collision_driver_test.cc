@@ -41,28 +41,12 @@ static std::vector<GeomPair> colliding_pairs(
     const mjModel* model, const mjData* data) {
   std::vector<GeomPair> result;
   for (int i = 0; i < data->ncon; i++) {
-    std::string geom1 = mj_id2name(model, mjOBJ_GEOM, data->contact[i].geom1);
-    std::string geom2 = mj_id2name(model, mjOBJ_GEOM, data->contact[i].geom2);
+    std::string geom1 = mj_id2name(model, mjOBJ_GEOM, data->contact[i].geom[0]);
+    std::string geom2 = mj_id2name(model, mjOBJ_GEOM, data->contact[i].geom[1]);
     result.push_back(GeomPair(std::min(geom1, geom2), std::max(geom1, geom2)));
   }
   std::sort(result.begin(), result.end());
   return result;
-}
-
-TEST_F(MjCollisionTest, PredefinedPairsOnly) {
-  static const char* const kModelFilePath =
-      "engine/testdata/collisions.xml";
-  const std::string xml_path = GetTestDataFilePath(kModelFilePath);
-  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, 0, 0);
-
-  model->opt.collision = mjCOL_PAIR;
-  mjData* data = mj_makeData(model);
-  mj_fwdPosition(model, data);
-  EXPECT_THAT(colliding_pairs(model, data), ElementsAre(
-      GeomPair("box", "sphere_predefined")));
-
-  mj_deleteData(data);
-  mj_deleteModel(model);
 }
 
 TEST_F(MjCollisionTest, AllCollisions) {
@@ -227,14 +211,37 @@ TEST_F(MjCollisionTest, TestOBB) {
   mjtNum mat2[9] = {1, 0, 0, 0, 1, 0, 0, 0, 1};
 
   EXPECT_THAT(
-    mj_collideOBB(bvh1, bvh2, pos1, mat1, pos2, mat2, NULL, NULL, 0), true);
+    mj_collideOBB(bvh1, bvh2, pos1, mat1, pos2, mat2, 0, NULL, NULL, 0), true);
 
   // rotate by 45 degrees
   mat2[0] = 1./mju_sqrt(2.); mat2[1] = -1./mju_sqrt(2.);
   mat2[3] = 1./mju_sqrt(2.); mat2[4] =  1./mju_sqrt(2.);
 
   EXPECT_THAT(
-    mj_collideOBB(bvh1, bvh2, pos1, mat1, pos2, mat2, NULL, NULL, 0), false);
+    mj_collideOBB(bvh1, bvh2, pos1, mat1, pos2, mat2, 0, NULL, NULL, 0), false);
+}
+
+TEST_F(MjCollisionTest, PlaneInBody) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <geom pos="0 0 0" type="plane" size="1 1 .01"/>
+      </body>
+      <body pos="0 0 .0499">
+        <joint type="slide" axis="0 0 1"/>
+        <geom size=".05"/>
+      </body>
+    </worldbody>
+    </mujoco>
+  )";
+  mjModel* m = LoadModelFromString(xml);
+  ASSERT_THAT(m, NotNull());
+  mjData* d = mj_makeData(m);
+  ASSERT_THAT(d, NotNull());
+  mj_step(m, d);
+  mj_deleteData(d);
+  mj_deleteModel(m);
 }
 
 }  // namespace

@@ -16,7 +16,6 @@
 
 #include <string.h>
 
-#include <mujoco/mjmacro.h>
 #include <mujoco/mjtnum.h>
 
 #ifdef mjUSEPLATFORMSIMD
@@ -221,7 +220,7 @@ mjtNum mju_normalize4(mjtNum vec[4]) {
     vec[1] = 0;
     vec[2] = 0;
     vec[3] = 0;
-  } else {
+  } else if (mju_abs(norm - 1) > mjMINVAL) {
     mjtNum normInv = 1/norm;
     vec[0] *= normInv;
     vec[1] *= normInv;
@@ -238,9 +237,7 @@ mjtNum mju_normalize4(mjtNum vec[4]) {
 
 // res = 0
 void mju_zero(mjtNum* res, int n) {
-  if (n > 0) {
-    memset(res, 0, n*sizeof(mjtNum));
-  }
+  memset(res, 0, n*sizeof(mjtNum));
 }
 
 
@@ -256,9 +253,7 @@ void mju_fill(mjtNum* res, mjtNum val, int n) {
 
 // res = vec
 void mju_copy(mjtNum* res, const mjtNum* vec, int n) {
-  if (n > 0) {
-    memcpy(res, vec, n*sizeof(mjtNum));
-  }
+  memcpy(res, vec, n*sizeof(mjtNum));
 }
 
 

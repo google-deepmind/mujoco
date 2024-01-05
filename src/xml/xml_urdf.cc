@@ -79,14 +79,13 @@ std::string mjXURDF::GetPrefixedName(const std::string& name) {
 }
 
 // actual parser
-void mjXURDF::Parse(XMLElement* root, const std::string& prefix, double* pos, double* quat) {
+void mjXURDF::Parse(
+    XMLElement* root, const std::string& prefix, double* pos, double* quat,
+    const bool static_body) {
   std::string name, text;
   XMLElement *elem, *temp;
   int id_parent, id_child;
   urPrefix = prefix;
-
-  // set compiler defaults suitable for URDF
-  model->discardvisual = true;
 
   // parse MuJoCo sections (not part of URDF)
   XMLElement* mjc = FindSubElem(root, "mujoco");
@@ -208,7 +207,7 @@ void mjXURDF::Parse(XMLElement* root, const std::string& prefix, double* pos, do
 
       // add a free joint to allow motion of the body
       // if the mass is 0, assume the object is static
-      if (pbody->mass > 0) {
+      if (!static_body && pbody->mass > 0) {
         auto pjoint = pbody->AddJoint();
         pjoint->name = urName[i] + "_free_joint";
         pjoint->type = mjJNT_FREE;
@@ -350,7 +349,7 @@ void mjXURDF::Parse(XMLElement* root) {
   mjuu_setvec(pos, 0, 0, 0);
   double quat[4] = {1, 0, 0, 0};
   mjuu_setvec(quat, 1, 0, 0, 0);
-  Parse(root, /*prefix=*/"", pos, quat);
+  Parse(root, /*prefix=*/"", pos, quat, true);
 }
 
 // parse joint
@@ -368,7 +367,7 @@ void mjXURDF::Joint(XMLElement* joint_elem) {
     throw mjXError(joint_elem, "invalid joint type in URDF joint definition");
   }
   ReadAttrTxt(joint_elem, "name", jntname, true);
-
+  jntname = GetPrefixedName(jntname);
   // get parent, check
   elem = FindSubElem(joint_elem, "parent", true);
   ReadAttrTxt(elem, "link", name, true);
@@ -540,10 +539,11 @@ mjCGeom* mjXURDF::Geom(XMLElement* geom_elem, mjCBody* pbody, bool collision) {
   // mesh
   else if ((temp = FindSubElem(elem, "mesh"))) {
     // set geom type and read mesh attributes
-    double meshscale[3] = {1, 1, 1};
     pgeom->type = mjGEOM_MESH;
-    ReadAttrTxt(temp, "filename", meshfile, true);
-    ReadAttr(temp, "scale", 3, meshscale, text);
+    meshfile = ReadAttrStr(temp, "filename", true).value();
+    std::array<double, 3> default_meshscale = {1, 1, 1};
+    std::array<double, 3> meshscale = ReadAttrArr<double, 3>(temp, "scale")
+                                      .value_or(default_meshscale);
 
     // strip file name if necessary
     if (model->strippath) {
@@ -563,18 +563,18 @@ mjCGeom* mjXURDF::Geom(XMLElement* geom_elem, mjCBody* pbody, bool collision) {
     }
 
     // exists with different scale: append name with '1', create
-    else if (pmesh->scale[0]!=meshscale[0] ||
-             pmesh->scale[1]!=meshscale[1] ||
-             pmesh->scale[2]!=meshscale[2]) {
+    else if (pmesh->scale()[0]!=meshscale[0] ||
+             pmesh->scale()[1]!=meshscale[1] ||
+             pmesh->scale()[2]!=meshscale[2]) {
       pmesh = model->AddMesh();
       meshname = meshname + "1";
     }
 
     // set fields
-    pmesh->file = meshfile;
+    pmesh->set_file(meshfile);
     pmesh->name = meshname;
     pgeom->mesh = meshname;
-    mjuu_copyvec(pmesh->scale, meshscale, 3);
+    pmesh->set_scale(meshscale);
   }
 
   else {

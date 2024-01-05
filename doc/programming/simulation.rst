@@ -61,7 +61,7 @@ function are incompatible (or NULL) the resulting behavior is unpredictable. mjD
 
 .. code-block:: C
 
-   // option 1: create mjDada corresponding to given mjModel
+   // option 1: create mjData corresponding to given mjModel
    mjData* d = mj_makeData(m);
 
    // option 2: deep copy from existing mjData
@@ -428,9 +428,7 @@ However, MuJoCo is designed not only for simulation but also for more advanced a
 optimization, machine learning etc. In such settings one often needs to sample the dynamics at a cloud of nearby
 states, or approximate derivatives via finite differences - which is another form of sampling. If the samples are
 arranged on a grid, where only the position or only the velocity or only the control is different from the center
-point, then the above mechanism can improve performance by about a factor of 2. The code sample :ref:`derivative.cc
-<saDerivative>` illustrates this approach, and also shows how :ref:`multi-threading <siMultithread>` can be used for
-additional speedup.
+point, then the above mechanism can improve performance by about a factor of 2.
 
 .. _siInverse:
 
@@ -494,10 +492,7 @@ bodies, we may eventually implement within-step multi-threading, but for now thi
 Rather than speed up a single simulation, we prefer to use multi-threading to speed up sampling operations that are
 common in more advanced applications. Simulation is inherently serial over time (the output of one mj_step is the
 input to the next), while in sampling many calls to either forward or inverse dynamics can be executed in parallel
-since there are no dependencies among them, except perhaps for a common initial state. The code sample
-:ref:`derivative.cc <saDerivative>` illustrates one important example of sampling, namely the approximation of
-dynamics derivatives via finite differences. Here we will not repeat the material from that section, but will instead
-explain MuJoCo's general approach to parallel processing.
+since there are no dependencies among them, except perhaps for a common initial state.
 
 MuJoCo was designed for multi-threading from its beginning. Unlike most existing simulators where the notion of
 dynamical system state is difficult to map to the software state and is often distributed among multiple objects, in
@@ -515,7 +510,7 @@ management.
 
    // allocate per-thread mjData
    mjData* d[64];
-   for( int n=0; n<nthread; n++ )
+   for( int n=0; n < nthread; n++ )
        d[n] = mj_makeData(m);
 
    // ... serial code, perhaps using its own mjData* dmain
@@ -541,8 +536,8 @@ writes to its own mjData. Therefore no further synchronization among threads is 
 The above template reflects a particular style of parallel processing. Instead of creating a large number of threads,
 one for each work item, and letting OpenMP distribute them among processors, we rely on manual scheduling. More
 precisely, we create as many threads as there are processors, and then within the ``worker`` function we distribute the
-work explicitly among threads (not shown here, but see :ref:`derivative.cc <saDerivative>` for an example). This
-approach is more efficient because the thread-specific mjData is large compared to the processor cache.
+work explicitly among threads. This approach is more efficient because the thread-specific mjData is large compared to
+the processor cache.
 
 We also use a shared mjModel for cache-efficiency. In some situations it may not be possible to use the same mjModel
 for all threads. One obvious reason is that mjModel may need to be modified within the thread function. Another reason
@@ -676,10 +671,7 @@ correct way to do it is the hard way:
    mju_copy(myqposqvel, d->qpos, m->nq + m->nv);
 
 The :ref:`X Macros <tyXMacro>` defined in the optional header file ``mjxmacro.h`` can be used to automate allocation of
-data structure that match mjModel and mjData, for example when writing a MuJoCo wrapper for a scripting language. In
-the code sample :ref:`testxml.cc <saTestXML>` we use these unusual macros to compare all data arrays from two instances
-of mjModel and find the one with the largest difference. Apparently X Macros were invented in the 1960's for assembly
-language, and remain a great idea.
+data structure that match mjModel and mjData, for example when writing a MuJoCo wrapper for a scripting language.
 
 .. _siStack:
 
@@ -703,27 +695,25 @@ internally when an instability is detected in :ref:`mj_step`, :ref:`mj_step1` an
 take advantage of the custom stack, this needs to be done in-between MuJoCo calls that have the potential to reset the
 simulation.
 
-Below is the general template for using the custom stack in user code. This assumes that ``mjData\* d`` is defined in
-the scope. If not, saving and restoring the stack pointer should be done manually instead of using the
-:ref:`mjMARKSTACK` and :ref:`mjFREESTACK` macros.
+Below is the general template for using the custom stack in user code.
 
 .. code-block:: C
 
-   // save stack pointer in the "hidden" variable _mark
-   mjMARKSTACK;
+   // mark an mjData stack frame
+   mj_markStack(d);
 
    // allocate space
-   mjtNum* myqpos = mj_stackAlloc(d, m->nq);
-   mjtNum* myqvel = mj_stackAlloc(d, m->nv);
+   mjtNum* myqpos = mj_stackAllocNum(d, m->nq);
+   mjtNum* myqvel = mj_stackAllocNum(d, m->nv);
 
-   // restore stack from _mark
-   mjFREESTACK;
+   // restore the mjData stack frame
+   mj_freeStack(d);
 
-The function :ref:`mj_stackAlloc` checks if there is enough space, and if so it advances the stack pointer, otherwise it
-triggers an error. It also keeps track of the maximum stack allocation; see :ref:`diagnostics <siDiagnostics>` below.
-Note that :ref:`mj_stackAlloc` is only used for allocating ``mjtNum`` arrays, the most common type of array.
-:ref:`mj_stackAllocInt` is provided for integer array allocation. Allocators for other types are also possible, as in
-`engine_collision_driver.c <https://github.com/deepmind/mujoco/blob/main/src/engine/engine_collision_driver.c>`__.
+The function :ref:`mj_stackAllocNum` checks if there is enough space, and if so it advances the stack pointer,
+otherwise it triggers an error. It also keeps track of the maximum stack allocation;
+see :ref:`diagnostics <siDiagnostics>` below. Note that :ref:`mj_stackAllocNum` is only used for allocating
+``mjtNum`` arrays, the most common type of array. :ref:`mj_stackAllocInt` is provided for integer array allocation,
+and :ref:`mj_stackAllocByte` is provided for allocation of arbitrary number of bytes and alignment.
 
 .. _siError:
 
@@ -843,13 +833,6 @@ forces are disabled) the underlying physical system is energy-conserving. In tha
 the total energy indicate inaccuracies in numerical integration. For such systems the Runge-Kutta integrator has much
 better performance than the default semi-implicit Euler integrator.
 
-Finally, the user can implement additional diagnostics as needed. Two examples were provided in the code samples
-``testxml.cc`` and ``derivative.cc``, where we computed model mismatches after save and load, and assessed the accuracy
-of the numerical derivatives respectively. Key to such diagnostics is to implement two different algorithms or
-simulation paths that compute the same quantity, and compare the results numerically. This type of sanity check is
-essential when dealing with complex dynamical systems where we do not really know what the numerical output should be;
-if we knew that, we would not be using a simulator in the first place.
-
 .. _siJacobian:
 
 Jacobians
@@ -890,8 +873,8 @@ function is essentially free in terms of CPU cost; so do not hesitate to use thi
 Contacts
 ~~~~~~~~
 
-Collision detection and solving for contact forces were explained in detail in the :doc:`../computation` chapter. Here
-we further clarify contact processing from a programming perspective.
+Collision detection and solving for contact forces were explained in detail in the :doc:`../computation/index` chapter.
+Here we further clarify contact processing from a programming perspective.
 
 The collision detection stage finds contacts between geoms, and records them in the array ``mjData.contact`` of
 :ref:`mjContact` data structures. They are sorted such that multiple contacts between the same pair of bodies are

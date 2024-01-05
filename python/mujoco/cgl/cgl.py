@@ -17,7 +17,7 @@
 import ctypes
 import enum
 
-_CGL = ctypes.CDLL('/System/Library/OpenGL.framework/OpenGL')
+_CGL = ctypes.CDLL('/System/Library/Frameworks/OpenGL.framework/OpenGL')
 
 CGLContextObj = ctypes.c_void_p
 CGLPixelFormatObj = ctypes.c_void_p

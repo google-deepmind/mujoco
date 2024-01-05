@@ -78,14 +78,14 @@
   X( mjtNum, cam_, ipd,          ncam, 1               ) \
   X( mjtNum, cam_, user,         ncam, MJ_M(nuser_cam) )
 
-#define MJMODEL_EQUALITY                    \
-  X( int,     eq_, type,   neq, 1         ) \
-  X( int,     eq_, obj1id, neq, 1         ) \
-  X( int,     eq_, obj2id, neq, 1         ) \
-  X( mjtByte, eq_, active, neq, 1         ) \
-  X( mjtNum,  eq_, solref, neq, mjNREF    ) \
-  X( mjtNum,  eq_, solimp, neq, mjNIMP    ) \
-  X( mjtNum,  eq_, data,   neq, mjNEQDATA )
+#define MJMODEL_EQUALITY                     \
+  X( int,     eq_, type,    neq, 1         ) \
+  X( int,     eq_, obj1id,  neq, 1         ) \
+  X( int,     eq_, obj2id,  neq, 1         ) \
+  X( mjtByte, eq_, active0, neq, 1         ) \
+  X( mjtNum,  eq_, solref,  neq, mjNREF    ) \
+  X( mjtNum,  eq_, solimp,  neq, mjNIMP    ) \
+  X( mjtNum,  eq_, data,    neq, mjNEQDATA )
 
 #define MJMODEL_EXCLUDE                      \
   X( int, exclude_, signature, nexclude, 1 )
@@ -281,7 +281,8 @@
   X( mjtNum, key_, qvel,  nkey, MJ_M(nv)       ) \
   X( mjtNum, key_, act,   nkey, MJ_M(na)       ) \
   X( mjtNum, key_, mpos,  nkey, MJ_M(nmocap)*3 ) \
-  X( mjtNum, key_, mquat, nkey, MJ_M(nmocap)*4 )
+  X( mjtNum, key_, mquat, nkey, MJ_M(nmocap)*4 ) \
+  X( mjtNum, key_, ctrl,  nkey, MJ_M(nu)       )
 
 #define MJMODEL_VIEW_GROUPS                                            \
   XGROUP( MjModelActuatorViews, actuator, nu,       MJMODEL_ACTUATOR ) \

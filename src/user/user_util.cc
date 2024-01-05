@@ -18,12 +18,14 @@
 #include <cstddef>
 #include <cstdio>
 #include <limits>
+#include <optional>
 #include <string>
 #include <string_view>
 
-#include <mujoco/mjmacro.h>
 #include <mujoco/mjtnum.h>
 #include <mujoco/mujoco.h>
+#include "engine/engine_crossplatform.h"
+#include "engine/engine_util_misc.h"
 #include "engine/engine_util_spatial.h"
 
 using std::isnan;
@@ -189,9 +191,14 @@ void mjuu_mulquat(double* res, const double* qa, const double* qb) {
 
 // multiply vector by 3-by-3 matrix
 void mjuu_mulvecmat(double* res, const double* vec, const double* mat) {
-  res[0] = mat[0]*vec[0] + mat[1]*vec[1] + mat[2]*vec[2];
-  res[1] = mat[3]*vec[0] + mat[4]*vec[1] + mat[5]*vec[2];
-  res[2] = mat[6]*vec[0] + mat[7]*vec[1] + mat[8]*vec[2];
+  double tmp[3] = {
+    mat[0]*vec[0] + mat[1]*vec[1] + mat[2]*vec[2],
+    mat[3]*vec[0] + mat[4]*vec[1] + mat[5]*vec[2],
+    mat[6]*vec[0] + mat[7]*vec[1] + mat[8]*vec[2]
+  };
+  res[0] = tmp[0];
+  res[1] = tmp[1];
+  res[2] = tmp[2];
 }
 
 
@@ -360,8 +367,8 @@ void mjuu_frame2quat(double* quat, const double* x, const double* y, const doubl
 
 
 // invert frame transformation
-void mjuu_frameinvert(double* newpos, double* newquat,
-                      const double* oldpos, const double* oldquat) {
+void mjuu_frameinvert(double newpos[3], double newquat[4],
+                      const double oldpos[3], const double oldquat[4]) {
   // position
   mjuu_localaxis(newpos, oldpos, oldquat);
   newpos[0] = -newpos[0];
@@ -377,28 +384,39 @@ void mjuu_frameinvert(double* newpos, double* newquat,
 
 
 // accumulate frame transformations (forward kinematics)
-void mjuu_frameaccum(double* pos, double* quat,
-                     const double* addpos, const double* addquat) {
+void mjuu_frameaccum(double pos[3], double quat[4],
+                     const double childpos[3], const double childquat[4]) {
   double mat[9], vec[3], qtmp[4];
   mjuu_quat2mat(mat, quat);
-  mjuu_mulvecmat(vec, addpos, mat);
+  mjuu_mulvecmat(vec, childpos, mat);
   pos[0] += vec[0];
   pos[1] += vec[1];
   pos[2] += vec[2];
-  mjuu_mulquat(qtmp, quat, addquat);
+  mjuu_mulquat(qtmp, quat, childquat);
   mjuu_copyvec(quat, qtmp, 4);
 }
 
 
+// accumulate frame transformation in second frame
+void mjuu_frameaccumChild(const double pos[3], const double quat[4],
+                          double childpos[3], double childquat[4]) {
+  double p[] = {pos[0], pos[1], pos[2]};
+  double q[] = {quat[0], quat[1], quat[2], quat[3]};
+  mjuu_frameaccum(p, q, childpos, childquat);
+  mjuu_copyvec(childpos, p, 3);
+  mjuu_copyvec(childquat, q, 4);
+}
+
+
 // invert frame accumulation
-void mjuu_frameaccuminv(double* pos, double* quat,
-                        const double* addpos, const double* addquat) {
+void mjuu_frameaccuminv(double pos[3], double quat[4],
+                        const double childpos[3], const double childquat[4]) {
   double mat[9], vec[3], qtmp[4];
-  double qneg[4] = {addquat[0], -addquat[1], -addquat[2], -addquat[3]};
+  double qneg[4] = {childquat[0], -childquat[1], -childquat[2], -childquat[3]};
   mjuu_mulquat(qtmp, quat, qneg);
   mjuu_copyvec(quat, qtmp, 4);
   mjuu_quat2mat(mat, quat);
-  mjuu_mulvecmat(vec, addpos, mat);
+  mjuu_mulvecmat(vec, childpos, mat);
   pos[0] -= vec[0];
   pos[1] -= vec[1];
   pos[2] -= vec[2];
@@ -441,9 +459,9 @@ void mjuu_offcenter(double* res, const double mass, const double* vec) {
 void mjuu_visccoef(double* visccoef, double mass, const double* inertia, double scl) {
   // compute equivalent box
   double equivbox[3];
-  equivbox[0] = sqrt(mjMAX(mjMINVAL, (inertia[1] + inertia[2] - inertia[0])) / mass * 6.0);
-  equivbox[1] = sqrt(mjMAX(mjMINVAL, (inertia[0] + inertia[2] - inertia[1])) / mass * 6.0);
-  equivbox[2] = sqrt(mjMAX(mjMINVAL, (inertia[0] + inertia[1] - inertia[2])) / mass * 6.0);
+  equivbox[0] = sqrt(mju_max(mjMINVAL, (inertia[1] + inertia[2] - inertia[0])) / mass * 6.0);
+  equivbox[1] = sqrt(mju_max(mjMINVAL, (inertia[0] + inertia[2] - inertia[1])) / mass * 6.0);
+  equivbox[2] = sqrt(mju_max(mjMINVAL, (inertia[0] + inertia[1] - inertia[2])) / mass * 6.0);
 
   // apply formula for box (or rather cross) viscosity
 
@@ -595,4 +613,85 @@ string mjuu_makefullname(string filedir, string meshdir, string filename) {
 
   // default
   return filedir + meshdir + filename;
+}
+
+
+// return true if the text is in a valid content type format:
+// {type}/{subtype}[;{parameter}={value}]
+static bool mjuu_isValidContentType(std::string_view text) {
+  // find a forward slash that's not the last character
+  size_t n = text.find('/');
+  if (n == std::string::npos || n == text.size() - 1) {
+    return false;
+  }
+
+  size_t m = text.find(';');
+  if (m == std::string::npos) {
+    return true;
+  }
+
+  if (m + 1 <= n) {
+    return false;
+  }
+
+  // just check if there's an equal sign; this isn't robust enough for general
+  // validation, but works for our scope, hence this is a private helper
+  // function
+  size_t s = text.find('=');
+  if (s == std::string::npos || s + 1 <= m) {
+    return false;
+  }
+
+  return true;
+}
+
+
+
+// return type from content_type format {type}/{subtype}[;{parameter}={value}]
+// return empty string on invalid format
+std::optional<std::string_view> mjuu_parseContentTypeAttrType(std::string_view text) {
+  if (!mjuu_isValidContentType(text)) {
+    return std::nullopt;
+  }
+
+  return { text.substr(0, text.find('/')) };
+}
+
+
+
+// return subtype from content_type format {type}/{subtype}[;{parameter}={value}]
+// return empty string on invalid format
+std::optional<std::string_view> mjuu_parseContentTypeAttrSubtype(std::string_view text) {
+  if (!mjuu_isValidContentType(text)) {
+    return std::nullopt;
+  }
+
+  size_t n = text.find('/');
+  size_t m = text.find(';', n + 1);
+  if (m == std::string::npos) {
+    return { text.substr(n+1) };
+  }
+
+  return { text.substr(n + 1, m - n - 1) };
+}
+
+
+
+// convert filename extension to content type; return empty string if not found
+std::string mjuu_extToContentType(std::string_view filename) {
+  std::string ext = mjuu_getext(filename);
+
+  if (!strcasecmp(ext.c_str(), ".stl")) {
+    return "model/stl";
+  } else if (!strcasecmp(ext.c_str(), ".obj")) {
+    return "model/obj";
+  } else if (!strcasecmp(ext.c_str(), ".ply")) {
+    return "model/ply";
+  } else if (!strcasecmp(ext.c_str(), ".msh")) {
+    return "model/vnd.mujoco.msh";
+  } else if (!strcasecmp(ext.c_str(), ".png")) {
+    return "image/png";
+  } else {
+    return "";
+  }
 }

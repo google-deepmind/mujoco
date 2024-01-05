@@ -27,12 +27,8 @@ import sys
 import sysconfig
 
 import setuptools
-from setuptools import find_packages
-from setuptools import setup
 from setuptools.command import build_ext
 from setuptools.command import install_scripts
-
-__version__ = '2.3.6'
 
 MUJOCO_CMAKE = 'MUJOCO_CMAKE'
 MUJOCO_CMAKE_ARGS = 'MUJOCO_CMAKE_ARGS'
@@ -242,7 +238,8 @@ class BuildCMakeExtension(build_ext.build_ext):
     """Check for CMake."""
     cmake = os.environ.get(MUJOCO_CMAKE, 'cmake')
     build_cfg = 'Debug' if self.debug else 'Release'
-    cmake_module_path = os.path.join(os.path.dirname(__file__), 'cmake')
+    cmake_module_path = os.path.join(
+        os.path.dirname(__file__), 'mujoco', 'cmake')
     cmake_args = [
         f'-DPython3_ROOT_DIR:PATH={sys.prefix}',
         f'-DPython3_EXECUTABLE:STRING={sys.executable}',
@@ -334,42 +331,9 @@ class InstallScripts(install_scripts.install_scripts):
       else:
         self.outfiles.append(oldfile)
 
-
-def find_data_files(package_dir, patterns):
-  """Recursively finds files whose names match the given shell patterns."""
-  paths = set()
-  for directory, _, filenames in os.walk(package_dir):
-    for pattern in patterns:
-      for filename in fnmatch.filter(filenames, pattern):
-        # NB: paths must be relative to the package directory.
-        relative_dirpath = os.path.relpath(directory, package_dir)
-        paths.add(os.path.join(relative_dirpath, filename))
-  return list(paths)
-
-SETUP_KWARGS = dict(
-    name='mujoco',
-    version=__version__,
-    author='Google DeepMind',
-    author_email='mujoco@deepmind.com',
-    description='MuJoCo Physics Simulator',
+setuptools.setup(
     long_description=get_long_description(),
     long_description_content_type='text/markdown',
-    url='https://github.com/deepmind/mujoco',
-    license='Apache License 2.0',
-    classifiers=[
-        'Development Status :: 5 - Production/Stable',
-        'Intended Audience :: Developers',
-        'Intended Audience :: Science/Research',
-        'License :: OSI Approved :: Apache Software License',
-        'Natural Language :: English',
-        'Programming Language :: Python :: 3',
-        'Programming Language :: Python :: 3.7',
-        'Programming Language :: Python :: 3.8',
-        'Programming Language :: Python :: 3.9',
-        'Programming Language :: Python :: 3.10',
-        'Programming Language :: Python :: 3.11',
-        'Topic :: Scientific/Engineering',
-    ],
     cmdclass=dict(
         build_ext=BuildCMakeExtension,
         install_scripts=InstallScripts,
@@ -385,35 +349,7 @@ SETUP_KWARGS = dict(
         CMakeExtension('mujoco._simulate'),
         CMakeExtension('mujoco._structs'),
     ],
-    python_requires='>=3.7',
-    install_requires=[
-        'absl-py',
-        'glfw',
-        'numpy',
-        'pyopengl',
-    ],
-    tests_require=[
-        'absl-py',
-        'glfw',
-        'numpy',
-        'pyopengl',
-    ],
-    test_suite='mujoco',
-    packages=find_packages(),
-    package_data={
-        'mujoco':
-            find_data_files(
-                package_dir='mujoco',
-                patterns=[
-                    'libmujoco.*.dylib',
-                    'libmujoco*.so.*',
-                    'mujoco.dll',
-                    'include/mujoco/*.h',
-                ]),
-    },
+    scripts=[
+        'mujoco/mjpython/mjpython.py'
+    ] if platform.system() == 'Darwin' else [],
 )
-
-if platform.system() == 'Darwin':
-  SETUP_KWARGS['scripts'] = ['mujoco/mjpython/mjpython.py']
-
-setup(**SETUP_KWARGS)

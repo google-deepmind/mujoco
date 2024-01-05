@@ -42,7 +42,6 @@ __attribute__((used)) void mjpython_show_dock_icon() {
 }
 }  // extern "C"
 
-// TODO(b/273744079): Remove Python 3.7 code after end-of-life (27 Jun 2023).
 namespace {
 // 16MiB is the default Python thread stack size on macOS as of Python 3.11
 // https://bugs.python.org/issue18075
@@ -51,29 +50,16 @@ constexpr rlim_t kThreadStackSize = 0x1000000;
 struct {
 #define CPYTHON_FN(fname) decltype(&::fname) fname
 
-#if PY_MINOR_VERSION >= 8
   // go/keep-sorted start
   CPYTHON_FN(PyConfig_Clear);
   CPYTHON_FN(PyConfig_InitPythonConfig);
   CPYTHON_FN(PyConfig_SetBytesArgv);
-  CPYTHON_FN(Py_InitializeFromConfig);
-  CPYTHON_FN(Py_RunMain);
-  // go/keep-sorted end
-#else
-  // go/keep-sorted start
-  CPYTHON_FN(PyMem_RawFree);
-  CPYTHON_FN(Py_DecodeLocale);
-  CPYTHON_FN(Py_Initialize);
-  CPYTHON_FN(Py_Main);
-  CPYTHON_FN(Py_SetProgramName);
-  // go/keep-sorted end
-#endif
-
-  // go/keep-sorted start
   CPYTHON_FN(PyGILState_Ensure);
   CPYTHON_FN(PyGILState_Release);
   CPYTHON_FN(PyRun_SimpleStringFlags);
   CPYTHON_FN(Py_FinalizeEx);
+  CPYTHON_FN(Py_InitializeFromConfig);
+  CPYTHON_FN(Py_RunMain);
   // go/keep-sorted end
 
 #undef CPYTHON_FN
@@ -92,21 +78,11 @@ void* mjpython_pymain(void* vargs) {
   PyGILState_STATE gil;
 
   // Initialize the Python interpreter.
-#if PY_MINOR_VERSION >= 8
   PyConfig config;
   cpython.PyConfig_InitPythonConfig(&config);
   cpython.PyConfig_SetBytesArgv(&config, args->argc, args->argv);
   cpython.Py_InitializeFromConfig(&config);
   cpython.PyConfig_Clear(&config);
-#else
-  // Convert each argv to wchar_t* (needed for Py_Main).
-  wchar_t** wargv = static_cast<wchar_t**>(std::calloc(args->argc, sizeof(wchar_t*)));
-  for (int i = 0; i < args->argc; ++i) {
-    wargv[i] = cpython.Py_DecodeLocale(args->argv[i], nullptr);
-  }
-  cpython.Py_SetProgramName(wargv[0]);
-  cpython.Py_Initialize();
-#endif
 
   // Set up the condition variable to pass control back to the macOS main thread.
   gil = cpython.PyGILState_Ensure();
@@ -139,12 +115,27 @@ class _MjPythonImpl(mujoco.viewer._MjPythonBase):
     self._termination = self.__class__.NOT_TERMINATED
     self._busy = False
 
-  def launch_on_ui_thread(self, model, data, handle_return):
+  def launch_on_ui_thread(
+      self,
+      model,
+      data,
+      handle_return,
+      key_callback,
+      show_left_ui,
+      show_right_ui,
+  ):
     with self._cond:
       if self._busy or self._task is not None:
         raise RuntimeError('another MuJoCo viewer is already open')
       else:
-        self._task = (model, data, handle_return)
+        self._task = (
+            model,
+            data,
+            handle_return,
+            key_callback,
+            show_left_ui,
+            show_right_ui,
+        )
         self._cond.notify()
 
   def terminate(self):
@@ -187,22 +178,10 @@ del cond  # Don't pollute globals for user script.
 )", nullptr);
 
   // Run the Python interpreter main loop.
-#if PY_MINOR_VERSION >= 8
   cpython.Py_RunMain();
-#else
-  cpython.Py_Main(args->argc, wargv);
-#endif
 
   // Tear down the interpreter.
   cpython.Py_FinalizeEx();
-#if PY_MINOR_VERSION < 8
-  for (int i = 0; i < args->argc; ++i) {
-    cpython.PyMem_RawFree(wargv[i]);
-    wargv[i] = nullptr;
-  }
-  std::free(wargv);
-  wargv = nullptr;
-#endif
   return nullptr;
 }
 }  // namespace
@@ -260,29 +239,16 @@ int main(int argc, char** argv) {
     }                                                                                    \
   }
 
-#if PY_MINOR_VERSION >= 8
   // go/keep-sorted start
   CPYTHON_INITFN(PyConfig_Clear);
   CPYTHON_INITFN(PyConfig_InitPythonConfig);
   CPYTHON_INITFN(PyConfig_SetBytesArgv);
-  CPYTHON_INITFN(Py_InitializeFromConfig);
-  CPYTHON_INITFN(Py_RunMain);
-  // go/keep-sorted end
-#else
-  // go/keep-sorted start
-  CPYTHON_INITFN(PyMem_RawFree);
-  CPYTHON_INITFN(Py_DecodeLocale);
-  CPYTHON_INITFN(Py_Initialize);
-  CPYTHON_INITFN(Py_Main);
-  CPYTHON_INITFN(Py_SetProgramName);
-  // go/keep-sorted end
-#endif
-
-  // go/keep-sorted start
   CPYTHON_INITFN(PyGILState_Ensure);
   CPYTHON_INITFN(PyGILState_Release);
   CPYTHON_INITFN(PyRun_SimpleStringFlags);
   CPYTHON_INITFN(Py_FinalizeEx);
+  CPYTHON_INITFN(Py_InitializeFromConfig);
+  CPYTHON_INITFN(Py_RunMain);
   // go/keep-sorted end
 
 #undef CPYTHON_INITFN
@@ -343,10 +309,17 @@ while True:
       break
 
     # Otherwise, launch the viewer.
-    model, data, handle_return = task
+    model, data, handle_return, key_callback, show_left_ui, show_right_ui = task
     ctypes.CDLL(None).mjpython_show_dock_icon()
     mujoco.viewer._launch_internal(
-        model, data, run_physics_thread=False, handle_return=handle_return)
+        model,
+        data,
+        run_physics_thread=False,
+        handle_return=handle_return,
+        key_callback=key_callback,
+        show_left_ui=show_left_ui,
+        show_right_ui=show_right_ui,
+    )
     ctypes.CDLL(None).mjpython_hide_dock_icon()
 
   finally:
