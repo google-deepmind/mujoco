@@ -57,7 +57,6 @@ target_compile_definitions(fixture PUBLIC MJSTATIC)
 target_link_libraries(
   fixture
   PUBLIC absl::core_headers
-         absl::strings
          absl::synchronization
          gtest
          gmock
