@@ -318,7 +318,15 @@ of the function :math:`d(r)` is determined by the element-specific parameter vec
    units of :math:`\text{width}`. Note that when :math:`\text{power}` is 1, the function is linear regardless of the
    :math:`\text{midpoint}`.
 
-   |image0|
+   .. image:: images/modeling/impedance.png
+      :width: 600px
+      :align: center
+      :class: only-light
+
+   .. image:: images/modeling/impedance_dark.png
+      :width: 600px
+      :align: center
+      :class: only-dark
 
    These plots show the impedance :math:`d(r)` on the vertical axis, as a function of the constraint violation :math:`r`
    on the horizontal axis.
@@ -865,7 +873,15 @@ The advantage of the scaled quantities is that all muscles behave similarly in t
 captured by the Force-Length-Velocity (:math:`\text{\small FLV}`) function measured in many experimental papers. We
 approximate this function as follows:
 
-|image1|
+.. image:: images/modeling/musclemodel.png
+   :width: 650px
+   :align: center
+   :class: only-light
+
+.. image:: images/modeling/musclemodel_dark.png
+   :width: 650px
+   :align: center
+   :class: only-dark
 
 The function is in the form:
 
@@ -907,7 +923,15 @@ Before embarking on a mission to design more accurate :math:`\text{\small FLV}` 
 operating range of the muscle has a bigger effect than the shape of the :math:`\text{\small FLV}` function, and in many
 cases this parameter is unknown. Below is a graphical illustration:
 
-|image2|
+.. image:: images/modeling/musclerange.png
+   :width: 500px
+   :align: center
+   :class: only-light
+
+.. image:: images/modeling/musclerange_dark.png
+   :width: 500px
+   :align: center
+   :class: only-dark
 
 This figure format is common in the biomechanics literature, showing the operating range of each muscle superimposed on
 the normalized :math:`\text{FL}` curve (ignore the vertical displacement). Our default range is shown in black. The blue
@@ -1311,7 +1335,9 @@ A flex is a collection of MuJoCo bodies that are connected with massless stretch
 capsules (1D flex), triangles (2D flex), or tetrahedra (3D flex). In all cases we allow a radius, which makes the
 elements smooth and also volumetric in 1D and 2D. The primitive elements are illustrated below:
 
-|flexelem|
+.. image:: images/modeling/flexelem.png
+   :width: 600px
+   :align: center
 
 Thus far these look like geoms. But the key difference is that they deform: as the bodies (vertices) move independently
 of each other, the shape of the elements changes in real time. Collisions and contact forces are now generalized to
@@ -1677,12 +1703,6 @@ in a visible way, and the energy fluctuates around the initial value instead of 
    </worldbody>
 
 
-.. |image0| image:: images/modeling/impedance.png
-   :width: 600px
-.. |image1| image:: images/modeling/musclemodel.png
-   :width: 650px
-.. |image2| image:: images/modeling/musclerange.png
-   :width: 400px
 .. |image3| image:: images/modeling/tendonwraps.png
    :width: 500px
 .. |image4| image:: images/modeling/particle.png
@@ -1719,8 +1739,6 @@ in a visible way, and the energy fluctuates around the initial value instead of 
    :height: 250px
 .. |particle| image:: images/models/particle.gif
    :width: 270px
-.. |flexelem| image:: images/modeling/flexelem.png
-   :width: 400px
 .. |bunny1| image:: images/modeling/bunny1.png
    :width: 300px
 .. |bunny2| image:: images/modeling/bunny2.png

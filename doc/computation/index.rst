@@ -966,6 +966,12 @@ is :math:`E f`. The matrix of basis vectors is constructed as follows.
 .. image:: ../images/computation/contact_frame.svg
    :width: 700px
    :align: center
+   :class: only-light
+
+.. image:: ../images/computation/contact_frame_dark.svg
+   :width: 700px
+   :align: center
+   :class: only-dark
 
 The figure illustrates the full basis set corresponding to the case :math:`n = 6`. Otherwise we use only the first
 :math:`n` or :math:`2(n-1)` columns depending on the cone type. Elliptic cones are easier to understand. Since the
@@ -1325,6 +1331,12 @@ representations of the constraint Jacobian and related matrices.
    .. image:: ../images/computation/gPGS.svg
       :width: 500px
       :align: center
+      :class: only-light
+
+   .. image:: ../images/computation/gPGS_dark.svg
+      :width: 500px
+      :align: center
+      :class: only-dark
 
    When using pyramidal friction cones, the problem involves box constraints to which PGS has traditionally been
    applied. If we applied PGS directly to the conic constraints resulting from elliptic friction cones, it would get
@@ -1424,12 +1436,18 @@ approximations, no matter how accurate the approximation is. The figure below il
 where the pyramid is not even an approximation, but represents the same constraint set as the elliptic cone. We plot the
 contours of the penalty/shadow for the pyramidal (red) and elliptic (dashed blue) cones, for different friction
 coefficients varying from left to right. Mathematically, the penalty in the pyramidal case is a quadratic spline, while
-the penalty in the elliptic case contains pieces that are quadratics minus square roots of quadratics - allowing
+the penalty in the elliptic case contains pieces that are quadratics minus square roots of quadratics -- allowing
 circular contours around the tip of the cone.
 
 .. image:: ../images/computation/softcontact.png
    :width: 600px
    :align: center
+   :class: only-light
+
+.. image:: ../images/computation/softcontact_dark.png
+   :width: 600px
+   :align: center
+   :class: only-dark
 
 In summary, elliptic and pyramidal friction cones define different soft-contact dynamics (although they are usually very
 close). The elliptic model is more principled and more consistent with physical intuition, and the corresponding solvers

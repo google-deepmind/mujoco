@@ -1,0 +1,124 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg id="Layer_1" data-name="Layer 1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 792.59 237.27">
+  <defs>
+    <style>
+      .cls-1 {
+        stroke-miterlimit: 4;
+        stroke-width: 16px;
+      }
+
+      .cls-1, .cls-2, .cls-3, .cls-4, .cls-5, .cls-6, .cls-7, .cls-8 {
+        fill: none;
+      }
+
+      .cls-1, .cls-5, .cls-6, .cls-8 {
+        stroke: #fff;
+      }
+
+      .cls-9 {
+        clip-path: url(#clippath);
+      }
+
+      .cls-2 {
+        stroke: #007b76;
+        stroke-miterlimit: 4;
+        stroke-width: 2px;
+      }
+
+      .cls-3 {
+        stroke-miterlimit: 4;
+        stroke-width: 2px;
+      }
+
+      .cls-3, .cls-7 {
+        stroke: #0076ba;
+      }
+
+      .cls-4, .cls-10, .cls-11, .cls-12 {
+        stroke-width: 0px;
+      }
+
+      .cls-5 {
+        stroke-miterlimit: 4;
+        stroke-width: 2px;
+      }
+
+      .cls-6 {
+        stroke-miterlimit: 4;
+        stroke-width: 2px;
+      }
+
+      .cls-7, .cls-8 {
+        stroke-width: 2px;
+      }
+
+      .cls-13 {
+        font-family: ArialMT, Arial;
+        font-size: 32px;
+      }
+
+      .cls-13, .cls-14, .cls-15 {
+        isolation: isolate;
+      }
+
+      .cls-13, .cls-15, .cls-11 {
+        fill: #fff;
+      }
+
+      .cls-15 {
+        font-family: STIXGeneral-Italic, STIXGeneral;
+        font-size: 32.22px;
+        font-style: italic;
+      }
+
+      .cls-10 {
+        fill: #99195e;
+      }
+
+      .cls-12 {
+        fill: #0076ba;
+      }
+    </style>
+    <clipPath id="clippath">
+      <rect class="cls-4" x="520.61" y="100.37" width="16.82" height="14.57"/>
+    </clipPath>
+  </defs>
+  <g>
+    <path class="cls-1" d="M153.2,197.67L659.31,46.23"/>
+    <path class="cls-2" d="M653.5,38.16c-69.23-65.09-392.9,103.98-501.22,149.95"/>
+    <path class="cls-7" d="M792.58,52.6c-39.16-.63-79.53-1.41-113.82-20.52-11.37-6.34-21.66-14.59-33.61-19.79-20.67-9-42.42-8.25-64.46-5.66C410.68,26.63,262.71,144.22,96.39,182.57c-31.65,7.3-63.9,11.55-96.37,12.26"/>
+    <path class="cls-7" d="M788.09,72.98c-34.82-2.64-69.65,1.7-103.92,8.29-25.81,4.96-51.35,11.2-76.72,18.09-154.05,41.88-302.08,108.19-461.01,125.56-47.05,5.14-94.43,5.87-141.68,8.47"/>
+    <path class="cls-12" d="M787.39,47.75l-9.6,4.8,9.6,4.8v-9.6Z"/>
+    <path class="cls-12" d="M783.33,67.36l-9.6,4.8,9.6,4.8v-9.6Z"/>
+    <path class="cls-12" d="M29.24,188.93l-9.6,4.8,9.6,4.8v-9.6Z"/>
+    <path class="cls-12" d="M30.24,227.67l-9.6,4.8,9.6,4.8v-9.6Z"/>
+    <path class="cls-12" d="M615.4,0l-9.6,4.8,9.6,4.8V0Z"/>
+    <path class="cls-12" d="M349.27,77.03l-6.8,8.3,10.72.46-3.92-8.76Z"/>
+    <path class="cls-12" d="M473.5,26.47l-7.5,7.68,10.64,1.39-3.15-9.07Z"/>
+    <path class="cls-3" d="M195.07,151.07l-1.58.58-.94.34"/>
+    <path class="cls-12" d="M191.84,147.14l-7.36,7.81,10.67,1.2-3.3-9.01Z"/>
+    <path class="cls-12" d="M613.28,92.82l-8.06,7.09,10.51,2.19-2.45-9.28Z"/>
+    <path class="cls-12" d="M442.34,145.91l-8.06,7.09,10.51,2.19-2.45-9.28Z"/>
+    <path class="cls-12" d="M212.2,210.07l-8.53,6.51,10.33,2.92-1.8-9.43Z"/>
+    <path class="cls-7" d="M553.05,59.87c11.3-6.46,36.25-12.77,22.33-20.73-17.28-9.89-181.61,49.61-169.38,59.08,8.52,6.6,46.77-6.02,72.27-14.91l.95-.33"/>
+    <path class="cls-12" d="M479.86,87.84l7.47-7.7-10.65-1.36,3.17,9.06Z"/>
+    <path class="cls-8" d="M405.92,122.4h219.45"/>
+    <path class="cls-11" d="M624.38,127.2l9.6-4.8-9.6-4.8v9.6Z"/>
+    <text class="cls-13" transform="translate(637.08 131.54)"><tspan x="0" y="0">v</tspan></text>
+    <path class="cls-6" d="M141.34,157.03l38.77-11.63.96-.29"/>
+    <path class="cls-11" d="M181.49,149.99l7.82-7.36-10.57-1.84,2.76,9.2Z"/>
+    <path class="cls-5" d="M141.31,157.86l-11.63-38.77-.29-.96"/>
+    <path class="cls-11" d="M134.28,117.7l-7.36-7.82-1.84,10.57,9.2-2.76Z"/>
+    <text class="cls-13" transform="translate(135.06 107.05)"><tspan x="0" y="0">y</tspan></text>
+    <text class="cls-13" transform="translate(181.5 131.54)"><tspan x="0" y="0">x</tspan></text>
+    <path class="cls-10" d="M672.67,54.95c2.03,1.97,2.03,5.17,0,7.14-2.03,1.97-5.32,1.97-7.35,0-2.03-1.97-2.03-5.17,0-7.14,2.03-1.97,5.32-1.97,7.35,0Z"/>
+    <path class="cls-10" d="M147.18,196.95c2.03,1.97,2.03,5.17,0,7.14s-5.32,1.97-7.35,0-2.03-5.17,0-7.14c2.03-1.97,5.32-1.97,7.35,0Z"/>
+    <path class="cls-8" d="M508.05,122.3c.72-19.73-3.57-30.4-12.89-31.99"/>
+    <text/>
+  </g>
+  <g class="cls-9">
+    <g class="cls-14">
+      <text class="cls-15" transform="translate(519.74 114.58)"><tspan x="0" y="0">α</tspan></text>
+    </g>
+  </g>
+</svg>
