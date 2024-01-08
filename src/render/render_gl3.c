@@ -225,7 +225,7 @@ static void renderGeom(const mjvGeom* geom, int mode, const float* headpos,
   if (mode == mjrRND_SHADOWCAST && (geom->type == mjGEOM_LINE || geom->category == mjCAT_DECOR)) {
     return;
   }
-
+  glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "renderGeom");
   // make transformation matrix
   float mat[16] = {
     geom->mat[0], geom->mat[3], geom->mat[6], 0.0f,
@@ -582,6 +582,8 @@ static void renderGeom(const mjvGeom* geom, int mode, const float* headpos,
       (mode == mjrRND_NORMAL || mode == mjrRND_SHADOWMAP)) {
     settexture(mjtexREGULAR, 0, con, geom);
   }
+  glPopDebugGroup();
+  
 }
 
 
@@ -859,6 +861,8 @@ void mjr_render(mjrRect viewport, mjvScene* scn, const mjrContext* con) {
     }
   }
 
+  glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "render");
+  
   // upload dynamic skin data to GPU
   for (int i=0; i < scn->nskin; i++) {
     // upload positions to VBO
@@ -962,6 +966,7 @@ void mjr_render(mjrRect viewport, mjvScene* scn, const mjrContext* con) {
 
   // render with stereo
   for (int view = (stereo ? 0 : -1); view < (stereo ? 2 : 0); view++) {
+    glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "view render pass");
     // change drawbuffer for QUADBUFFERED stereo
     if (stereo == mjSTEREO_QUADBUFFERED) {
       if (con->windowDoublebuffer) {
@@ -1045,6 +1050,7 @@ void mjr_render(mjrRect viewport, mjvScene* scn, const mjrContext* con) {
           }
 
           // prepare to render plane in stencil buffer
+          glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "stencil buffer");
           glDisable(GL_DEPTH_TEST);
           glColorMask(0, 0, 0, 0);
           glEnable(GL_STENCIL_TEST);
@@ -1085,6 +1091,7 @@ void mjr_render(mjrRect viewport, mjvScene* scn, const mjrContext* con) {
             glEnable(GL_LIGHT0+j);
           }
 
+          glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "reflected objects"); 
           // render reflected non-transparent geoms, except for thisgeom
           for (int j=0; j < ngeom; j++) {
             if (!scn->geoms[j].transparent && i != j) {
@@ -1125,12 +1132,15 @@ void mjr_render(mjrRect viewport, mjvScene* scn, const mjrContext* con) {
           glDisable(GL_CLIP_PLANE0);
           glPopMatrix();
           glFrontFace(GL_CCW);
+          glPopDebugGroup(); // "reflected objects"
+          glPopDebugGroup(); // "stencil buffer"
+
         }
       }
     }
 
     //---------------------------------- regular rendering
-
+    glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "regular rendering");
     // set light position and direction, enable non-shadow lights
     for (int i=0; i < nlight; i++) {
       // set light
@@ -1164,7 +1174,8 @@ void mjr_render(mjrRect viewport, mjvScene* scn, const mjrContext* con) {
     for (int i=0; i < nlight; i++) {
       glDisable(GL_LIGHT0+i);
     }
-
+    glPopDebugGroup(); // end regular rendering
+    
     //------------------------------------ shadow rendering
 
     // black fog, to avoid glow
@@ -1173,6 +1184,7 @@ void mjr_render(mjrRect viewport, mjvScene* scn, const mjrContext* con) {
 
     // shadow map rendering
     if (scn->flags[mjRND_SHADOW] && con->shadowFBO) {
+      glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "shadow rendering");
       for (int i=0; i < nlight; i++) {
         // get pointer
         thislight = scn->lights + i;
@@ -1300,6 +1312,7 @@ void mjr_render(mjrRect viewport, mjvScene* scn, const mjrContext* con) {
           settexture(mjtexSHADOW, 0, con, 0);
         }
       }
+      glPopDebugGroup(); // end shadow rendering
     }
 
     // restore fog color
@@ -1308,6 +1321,7 @@ void mjr_render(mjrRect viewport, mjvScene* scn, const mjrContext* con) {
     //------------------------------------ skybox rendering
 
     if (scn->flags[mjRND_SKYBOX]) {
+      glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "skybox");
       // skybox always filled
       glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 
@@ -1392,12 +1406,14 @@ void mjr_render(mjrRect viewport, mjvScene* scn, const mjrContext* con) {
         }
       }
 
+      glPopDebugGroup(); // end skybox
       // wireframe or filled depending on flag
       glPolygonMode(GL_FRONT_AND_BACK, scn->flags[mjRND_WIREFRAME] ? GL_LINE : GL_FILL);
     }
 
     //------------------------------------ transparent regular rendering
-
+    glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "transparent regular rendering");
+    
     // enable lights
     for (int i=0; i < nlight; i++) {
       glEnable(GL_LIGHT0+i);
@@ -1432,9 +1448,11 @@ void mjr_render(mjrRect viewport, mjvScene* scn, const mjrContext* con) {
     for (int i=0; i < nlight; i++) {
       glDisable(GL_LIGHT0+i);
     }
-
+    glPopDebugGroup(); // end transparent regular rendering
+   
     //------------------------------------ label rendering
-
+    glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "label rendering");
+   
     // render text labels if present
     glDisable(GL_DEPTH_TEST);
     glDisable(GL_LIGHTING);
@@ -1448,6 +1466,8 @@ void mjr_render(mjrRect viewport, mjvScene* scn, const mjrContext* con) {
     }
     glEnable(GL_DEPTH_TEST);
     glEnable(GL_LIGHTING);
+    glPopDebugGroup(); // end label rendering
+    glPopDebugGroup(); // end view
   }
 
   // frame
@@ -1482,6 +1502,8 @@ void mjr_render(mjrRect viewport, mjvScene* scn, const mjrContext* con) {
 
   // restore currentBuffer
   mjr_restoreBuffer(con);
+  glPopDebugGroup(); // end rendering
+  
 }
 
 
