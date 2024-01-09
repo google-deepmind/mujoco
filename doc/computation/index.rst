@@ -1535,12 +1535,12 @@ convex hull implicitly, however pre-computing that hull can substantially improv
 model compiler does that by default, using the `qhull <http://www.qhull.org/>`__ library.
 
 In order to model a non-convex object other than a height field, the user must decompose it into a union of convex geoms
-(which can be primitive shapes or meshes) and attach them to the same body. Tools such as the
-`HACD <https://github.com/kmammou/v-hacd>`__ library can be used outside MuJoCo to automate this process. Finally, all
-built-in collision functions can be replaced with custom callbacks. This can be used to incorporate a general-purpose
-"triangle soup" collision detector for example. However we do not recommend such an approach. Pre-processing the
-geometry and representing it as a union of convex geoms takes some work, but it pays off at runtime and yields both
-faster and more stable simulation.
+(which can be primitive shapes or meshes) and attach them to the same body. Open tools like the `CoACD library
+<https://github.com/SarahWeiii/CoACD>`__ can be used outside MuJoCo to automate this process. Finally, all built-in
+collision functions can be replaced with custom callbacks. This can be used to incorporate a general-purpose "triangle
+soup" collision detector for example. However we do not recommend such an approach. Pre-processing the geometry and
+representing it as a union of convex geoms takes some work, but it pays off at runtime and yields both faster and more
+stable simulation.
 
 .. _Pipeline:
 
