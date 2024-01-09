@@ -1049,6 +1049,7 @@ static void makeShadow(const mjModel* m, mjrContext* con) {
     mju_error("Could not allocate shadow framebuffer");
   }
   glBindFramebuffer(GL_FRAMEBUFFER, con->shadowFBO);
+  glObjectLabel(GL_FRAMEBUFFER, con->shadowFBO, -1, "mjr_shadow_fbo");
 
   // Create a shadow depth texture in TEXTURE1 and explicitly select an int24
   // depth buffer. A depth stencil format is used because that appears to be
@@ -1059,6 +1060,7 @@ static void makeShadow(const mjModel* m, mjrContext* con) {
   glActiveTexture(GL_TEXTURE1);
   glEnable(GL_TEXTURE_2D);
   glBindTexture(GL_TEXTURE_2D, con->shadowTex);
+  glObjectLabel(GL_TEXTURE, con->shadowTex, -1, "mjr_shadow_texture");
   glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH24_STENCIL8,
                con->shadowSize, con->shadowSize, 0, GL_DEPTH_STENCIL, GL_UNSIGNED_INT_24_8, NULL);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
@@ -1102,6 +1104,7 @@ static void makeOff(mjrContext* con) {
     mju_error("Could not allocate offscreen framebuffer");
   }
   glBindFramebuffer(GL_FRAMEBUFFER, con->offFBO);
+  glObjectLabel(GL_FRAMEBUFFER, con->offFBO, -1, "mjr_offscreen_fbo");
 
   // clamp samples request
   int sMax = 0;
@@ -1116,6 +1119,8 @@ static void makeOff(mjrContext* con) {
     mju_error("Could not allocate offscreen color buffer");
   }
   glBindRenderbuffer(GL_RENDERBUFFER, con->offColor);
+  glObjectLabel(GL_RENDERBUFFER, con->offColor, -1, "mjr_rb_offscreen_color");
+   
   if (con->offSamples) {
     glRenderbufferStorageMultisample(GL_RENDERBUFFER, con->offSamples, GL_RGBA8,
                                      con->offWidth, con->offHeight);
@@ -1130,6 +1135,7 @@ static void makeOff(mjrContext* con) {
     mju_error("Could not allocate offscreen depth and stencil buffer");
   }
   glBindRenderbuffer(GL_RENDERBUFFER, con->offDepthStencil);
+  glObjectLabel(GL_RENDERBUFFER, con->offDepthStencil, -1, "mjr_rb_offscreen_depth_stencil");
 
   GLenum depth_buffer_format =
       mjGLAD_GL_ARB_depth_buffer_float ? GL_DEPTH32F_STENCIL8 : GL_DEPTH24_STENCIL8;
@@ -1166,6 +1172,8 @@ static void makeOff(mjrContext* con) {
       mju_error("Could not allocate offscreen color buffer_r");
     }
     glBindRenderbuffer(GL_RENDERBUFFER, con->offColor_r);
+    glObjectLabel(GL_RENDERBUFFER, con->offColor_r, -1, "mjr_rb_offscreen_color_r");
+
     glRenderbufferStorage(GL_RENDERBUFFER, GL_RGBA8, con->offWidth, con->offHeight);
     glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
                               GL_RENDERBUFFER, con->offColor_r);
@@ -1176,6 +1184,8 @@ static void makeOff(mjrContext* con) {
       mju_error("Could not allocate offscreen depth and stencil buffer_r");
     }
     glBindRenderbuffer(GL_RENDERBUFFER, con->offDepthStencil_r);
+    glObjectLabel(GL_RENDERBUFFER, con->offDepthStencil_r, -1, "mjr_rb_offscreen_depth_stencil_r");
+
     glRenderbufferStorage(GL_RENDERBUFFER, depth_buffer_format, con->offWidth, con->offHeight);
     glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT,
                               GL_RENDERBUFFER, con->offDepthStencil_r);
@@ -1370,6 +1380,8 @@ void mjr_uploadTexture(const mjModel* m, const mjrContext* con, int texid) {
     glActiveTexture(GL_TEXTURE0);
     glEnable(GL_TEXTURE_2D);
     glBindTexture(GL_TEXTURE_2D, con->texture[texid]);
+    glObjectLabel(GL_TEXTURE, con->texture[texid], -1, m->names + m->name_texadr[texid]);
+
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
@@ -1411,6 +1423,8 @@ void mjr_uploadTexture(const mjModel* m, const mjrContext* con, int texid) {
     glActiveTexture(GL_TEXTURE0);
     glEnable(GL_TEXTURE_CUBE_MAP);
     glBindTexture(GL_TEXTURE_CUBE_MAP, con->texture[texid]);
+    glObjectLabel(GL_TEXTURE, con->texture[texid], -1, m->names + m->name_texadr[texid]);
+
     glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
@@ -1764,6 +1778,7 @@ void mjr_addAux(int index, int width, int height, int samples, mjrContext* con) 
     mju_error("Could not allocate auxiliary framebuffer");
   }
   glBindFramebuffer(GL_FRAMEBUFFER, con->auxFBO[index]);
+  glObjectLabel(GL_FRAMEBUFFER, con->auxFBO[index], -1, "mjr_fb_aux");
 
   // create color buffer with multisamples
   glGenRenderbuffers(1, con->auxColor + index);
@@ -1771,6 +1786,8 @@ void mjr_addAux(int index, int width, int height, int samples, mjrContext* con) 
     mju_error("Could not allocate auxiliary color buffer");
   }
   glBindRenderbuffer(GL_RENDERBUFFER, con->auxColor[index]);
+  glObjectLabel(GL_RENDERBUFFER, con->auxColor[index], -1, "mjr_rb_aux_color");
+
   glRenderbufferStorageMultisample(GL_RENDERBUFFER, con->auxSamples[index], GL_RGBA8,
                                    con->auxWidth[index], con->auxHeight[index]);
   glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
@@ -1788,6 +1805,7 @@ void mjr_addAux(int index, int width, int height, int samples, mjrContext* con) 
     mju_error("Could not allocate auxiliary resolve framebuffer");
   }
   glBindFramebuffer(GL_FRAMEBUFFER, con->auxFBO_r[index]);
+  glObjectLabel(GL_FRAMEBUFFER, con->auxFBO_r[index], -1, "mjr_fb_aux_resolve");
 
   // create color buffer for resolving multisamples
   glGenRenderbuffers(1, con->auxColor_r + index);
@@ -1795,6 +1813,8 @@ void mjr_addAux(int index, int width, int height, int samples, mjrContext* con) 
     mju_error("Could not allocate auxiliary color resolve buffer");
   }
   glBindRenderbuffer(GL_RENDERBUFFER, con->auxColor_r[index]);
+  glObjectLabel(GL_RENDERBUFFER, con->auxColor_r[index], -1, "mjr_fb_aux_color_r");
+
   glRenderbufferStorage(GL_RENDERBUFFER, GL_RGBA8,
                         con->auxWidth[index], con->auxHeight[index]);
   glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
