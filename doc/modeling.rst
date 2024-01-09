@@ -1400,7 +1400,8 @@ In case of 3D flexes made of tetrahedra, it may be useful to examine how the fle
 a special visualization mode that peels off the outer layers. Below is an example with the Stanford Bunny. Note how it
 has smaller tetrahedra on the outside and larger ones on the inside. This mesh design makes sense, because we want the
 collision surface to be accurate, but on the inside we just need soft material properties - which require less spatial
-resolution.
+resolution. In order to convert a surface mesh to a tetrahedral mesh, we recommend open tools like the
+`fTetWild library <https://github.com/wildmeshing/fTetWild>`__.
 
 |bunny1| |bunny2|
 
