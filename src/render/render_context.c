@@ -1507,7 +1507,11 @@ void GLAPIENTRY debugCallback(GLenum source,
                               GLsizei length,
                               const GLchar* message,
                               const void* userParam) {
-  printf("GL DEBUG: source = 0x%x, type = 0x%x, severity = 0x%x, id = 0x%x\nmessage = %s\n\n",
+    // (33385/33386 ) supress warnings about ogl debug group push/pop
+    if ( type == 33385 || type == 33386) {
+        return;
+    }
+    printf("GL DEBUG: source = 0x%x, type = 0x%x, severity = 0x%x, id = 0x%x\nmessage = %s\n\n",
          source, type, severity, id, message);
 }
 
