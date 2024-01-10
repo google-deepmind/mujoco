@@ -1648,34 +1648,27 @@ void mjXWriter::Tendon(XMLElement* root) {
     OneTendon(elem, pten, pten->def);
 
     // write wraps
-    mjCBase* pobj;
     XMLElement* wrap;
     for (int j=0; j<pten->NumWraps(); j++) {
       mjCWrap* pw = pten->GetWrap(j);
       switch (pw->type) {
       case mjWRAP_JOINT:
-        if ((pobj = model->GetObject(mjOBJ_JOINT, pw->objid))) {
-          wrap = InsertEnd(elem, "joint");
-          WriteAttrTxt(wrap, "joint", pobj->name);
-          WriteAttr(wrap, "coef", 1, &pw->prm);
-        }
+        wrap = InsertEnd(elem, "joint");
+        WriteAttrTxt(wrap, "joint", pw->obj->name);
+        WriteAttr(wrap, "coef", 1, &pw->prm);
         break;
 
       case mjWRAP_SITE:
-        if ((pobj = model->GetObject(mjOBJ_SITE, pw->objid))) {
-          wrap = InsertEnd(elem, "site");
-          WriteAttrTxt(wrap, "site", pobj->name);
-        }
+        wrap = InsertEnd(elem, "site");
+        WriteAttrTxt(wrap, "site", pw->obj->name);
         break;
 
       case mjWRAP_SPHERE:
       case mjWRAP_CYLINDER:
-        if ((pobj = model->GetObject(mjOBJ_GEOM, pw->objid))) {
-          wrap = InsertEnd(elem, "geom");
-          WriteAttrTxt(wrap, "geom", pobj->name);
-          if (!pw->sidesite.empty()) {
-            WriteAttrTxt(wrap, "sidesite", pw->sidesite);
-          }
+        wrap = InsertEnd(elem, "geom");
+        WriteAttrTxt(wrap, "geom", pw->obj->name);
+        if (!pw->sidesite.empty()) {
+          WriteAttrTxt(wrap, "sidesite", pw->sidesite);
         }
         break;
 

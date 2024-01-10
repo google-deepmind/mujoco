@@ -2105,7 +2105,7 @@ void mjCModel::CopyObjects(mjModel* m) {
     // set wraps
     for (int j=0; j<(int)pte->path.size(); j++) {
       m->wrap_type[adr+j] = pte->path[j]->type;
-      m->wrap_objid[adr+j] = pte->path[j]->objid;
+      m->wrap_objid[adr+j] = pte->path[j]->obj ? pte->path[j]->obj->id : -1;
       m->wrap_prm[adr+j] = (mjtNum)pte->path[j]->prm;
       if (pte->path[j]->type==mjWRAP_SPHERE || pte->path[j]->type==mjWRAP_CYLINDER) {
         m->wrap_prm[adr+j] = (mjtNum)pte->path[j]->sideid;
@@ -2160,7 +2160,7 @@ void mjCModel::CopyObjects(mjModel* m) {
     m->sensor_datatype[i] = psen->datatype;
     m->sensor_needstage[i] = psen->needstage;
     m->sensor_objtype[i] = psen->objtype;
-    m->sensor_objid[i] = psen->objid;
+    m->sensor_objid[i] = psen->obj ? psen->obj->id : -1;
     m->sensor_reftype[i] = psen->reftype;
     m->sensor_refid[i] = psen->refid;
     m->sensor_dim[i] = psen->dim;
@@ -2219,7 +2219,7 @@ void mjCModel::CopyObjects(mjModel* m) {
     m->tuple_size[i] = (int)ptu->objtype.size();
     for (int j=0; j<m->tuple_size[i]; j++) {
       m->tuple_objtype[adr+j] = (int)ptu->objtype[j];
-      m->tuple_objid[adr+j] = ptu->objid[j];
+      m->tuple_objid[adr+j] = ptu->obj[j]->id;
       m->tuple_objprm[adr+j] = (mjtNum)ptu->objprm[j];
     }
 

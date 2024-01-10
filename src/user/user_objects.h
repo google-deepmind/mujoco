@@ -1069,7 +1069,7 @@ class mjCWrap : public mjCBase {
 
  public:
   mjtWrap type;                   // wrap object type
-  int objid;                      // wrap object id (in array corresponding to type)
+  mjCBase* obj;                   // wrap object pointer
   int sideid;                     // side site id; -1 if not applicable
   double prm;                     // parameter: divisor, coefficient
   std::string sidesite;           // name of side site
@@ -1179,7 +1179,7 @@ class mjCSensor : public mjCBase {
   mjCSensor(mjCModel*);           // constructor
   void Compile(void);             // compiler
 
-  int objid;                      // id of sensorized object
+  mjCBase* obj;                   // sensorized object
   int refid;                      // id of reference frame
 };
 
@@ -1239,7 +1239,7 @@ class mjCTuple : public mjCBase {
   ~mjCTuple();                    // destructor
   void Compile(void);             // compiler
 
-  std::vector<int> objid;         // object ids
+  std::vector<mjCBase*> obj;         // object pointers
 };
 
 

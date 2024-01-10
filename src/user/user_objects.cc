@@ -3637,7 +3637,7 @@ void mjCTendon::Compile(void) {
         }
 
         // site cannot be repeated
-        if (i<sz-1 && path[i+1]->type==mjWRAP_SITE && path[i]->objid==path[i+1]->objid) {
+        if (i<sz-1 && path[i+1]->type==mjWRAP_SITE && path[i]->obj->id==path[i+1]->obj->id) {
           throw mjCError(this,
                          "tendon '%s' (id = %d): site %d is repeated",
                          name.c_str(), id, i);
@@ -3698,7 +3698,7 @@ mjCWrap::mjCWrap(mjCModel* _model, mjCTendon* _tendon) {
 
   // clear variables
   type = mjWRAP_NONE;
-  objid = -1;
+  obj = nullptr;
   sideid = -1;
   prm = 0;
   sidesite.clear();
@@ -3708,14 +3708,14 @@ mjCWrap::mjCWrap(mjCModel* _model, mjCTendon* _tendon) {
 
 // compiler
 void mjCWrap::Compile(void) {
-  mjCBase *ptr = 0, *pside;
+  mjCBase *pside;
 
   // handle wrap object types
   switch (type) {
   case mjWRAP_JOINT:                          // joint
     // find joint by name
-    ptr = model->FindObject(mjOBJ_JOINT, name);
-    if (!ptr) {
+    obj = model->FindObject(mjOBJ_JOINT, name);
+    if (!obj) {
       throw mjCError(this,
                      "joint '%s' not found in tendon %d, wrap %d",
                      name.c_str(), tendon->id, id);
@@ -3725,17 +3725,17 @@ void mjCWrap::Compile(void) {
 
   case mjWRAP_SPHERE:                         // geom (cylinder type set here)
     // find geom by name
-    ptr = model->FindObject(mjOBJ_GEOM, name);
-    if (!ptr) {
+    obj = model->FindObject(mjOBJ_GEOM, name);
+    if (!obj) {
       throw mjCError(this,
                      "geom '%s' not found in tendon %d, wrap %d",
                      name.c_str(), tendon->id, id);
     }
 
     // set/check geom type
-    if (((mjCGeom*)ptr)->type == mjGEOM_CYLINDER) {
+    if (((mjCGeom*)obj)->type == mjGEOM_CYLINDER) {
       type = mjWRAP_CYLINDER;
-    } else if (((mjCGeom*)ptr)->type != mjGEOM_SPHERE) {
+    } else if (((mjCGeom*)obj)->type != mjGEOM_SPHERE) {
       throw mjCError(this,
                      "geom '%s' in tendon %d, wrap %d is not sphere or cylinder",
                      name.c_str(), tendon->id, id);
@@ -3768,19 +3768,14 @@ void mjCWrap::Compile(void) {
 
   case mjWRAP_SITE:                           // site
     // find site by name
-    ptr = model->FindObject(mjOBJ_SITE, name);
-    if (!ptr) {
+    obj = model->FindObject(mjOBJ_SITE, name);
+    if (!obj) {
       throw mjCError(this, "site '%s' not found in wrap %d", name.c_str(), id);
     }
     break;
 
   default:                                    // SHOULD NOT OCCUR
     throw mjCError(this, "unknown wrap type in tendon %d, wrap %d", 0, tendon->id, id);
-  }
-
-  // set object id
-  if (ptr) {
-    objid = ptr->id;
   }
 }
 
@@ -4053,7 +4048,7 @@ mjCSensor::mjCSensor(mjCModel* _model) {
   dim = 0;
 
   // clear private variables
-  objid = -1;
+  obj = nullptr;
   refid = -1;
 
   plugin_instance = nullptr;
@@ -4065,8 +4060,6 @@ mjCSensor::mjCSensor(mjCModel* _model) {
 
 // compiler
 void mjCSensor::Compile(void) {
-  const mjCBase* pobj;
-
   // resize userdata
   if (userdata.size() > model->nuser_sensor) {
     throw mjCError(this, "user has more values than nuser_sensor in sensor '%s' (id = %d)",
@@ -4094,15 +4087,14 @@ void mjCSensor::Compile(void) {
     }
 
     // find name
-    pobj = model->FindObject(objtype, objname);
-    if (!pobj) {
+    obj = model->FindObject(objtype, objname);
+    if (!obj) {
       throw mjCError(this,
                      "unrecognized name of sensorized object in sensor '%s' (id = %d)",
                      name.c_str(), id);
     }
 
     // get sensorized object id
-    objid = pobj->id;
   } else if (type != mjSENS_CLOCK && type != mjSENS_PLUGIN && type != mjSENS_USER) {
     throw mjCError(this, "invalid type in sensor '%s' (id = %d)", name.c_str(), id);
   }
@@ -4195,7 +4187,7 @@ void mjCSensor::Compile(void) {
     }
 
     // make sure joint is slide or hinge
-    if (((mjCJoint*)pobj)->type!=mjJNT_SLIDE && ((mjCJoint*)pobj)->type!=mjJNT_HINGE) {
+    if (((mjCJoint*)obj)->type!=mjJNT_SLIDE && ((mjCJoint*)obj)->type!=mjJNT_HINGE) {
       throw mjCError(this,
                      "joint must be slide or hinge in sensor '%s' (id = %d)", name.c_str(), id);
     }
@@ -4260,7 +4252,7 @@ void mjCSensor::Compile(void) {
     }
 
     // make sure joint is ball
-    if (((mjCJoint*)pobj)->type!=mjJNT_BALL) {
+    if (((mjCJoint*)obj)->type!=mjJNT_BALL) {
       throw mjCError(this,
                      "joint must be ball in sensor '%s' (id = %d)", name.c_str(), id);
     }
@@ -4287,7 +4279,7 @@ void mjCSensor::Compile(void) {
     }
 
     // make sure joint has limit
-    if (!((mjCJoint*)pobj)->limited) {
+    if (!((mjCJoint*)obj)->limited) {
       throw mjCError(this, "joint must be limited in sensor '%s' (id = %d)", name.c_str(), id);
     }
 
@@ -4313,7 +4305,7 @@ void mjCSensor::Compile(void) {
     }
 
     // make sure tendon has limit
-    if (!((mjCTendon*)pobj)->limited) {
+    if (!((mjCTendon*)obj)->limited) {
       throw mjCError(this, "tendon must be limited in sensor '%s' (id = %d)", name.c_str(), id);
     }
 
@@ -4535,7 +4527,7 @@ mjCTuple::mjCTuple(mjCModel* _model) {
   objtype.clear();
   objname.clear();
   objprm.clear();
-  objid.clear();
+  obj.clear();
 }
 
 
@@ -4545,7 +4537,7 @@ mjCTuple::~mjCTuple() {
   objtype.clear();
   objname.clear();
   objprm.clear();
-  objid.clear();
+  obj.clear();
 }
 
 
@@ -4564,7 +4556,7 @@ void mjCTuple::Compile(void) {
   }
 
   // resize objid to correct size
-  objid.resize(objtype.size());
+  obj.resize(objtype.size());
 
   // find objects, fill in ids
   for (int i=0; i<objtype.size(); i++) {
@@ -4575,7 +4567,7 @@ void mjCTuple::Compile(void) {
     }
 
     // assign id
-    objid[i] = res->id;
+    obj[i] = res;
   }
 }
 
