@@ -17,6 +17,8 @@
 #include <algorithm>
 #include <array>
 #include <cstddef>
+#include <cstring>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -25,7 +27,6 @@
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjtnum.h>
 #include <mujoco/mujoco.h>
-#include "src/cc/array_safety.h"
 #include "test/fixture.h"
 
 namespace mujoco {
@@ -67,7 +68,8 @@ TEST_F(VfsTest, HFieldPngWithVFS) {
   // should fallback to OS filesystem
   mjModel* model = LoadModelFromString(xml, error, error_sz, vfs.get());
   EXPECT_THAT(model, IsNull());
-  EXPECT_THAT(error, HasSubstr("resource not found via provider or OS filesystem"));
+  EXPECT_THAT(error,
+              HasSubstr("resource not found via provider or OS filesystem"));
 }
 
 TEST_F(VfsTest, HFieldCustomWithVFS) {
@@ -93,7 +95,8 @@ TEST_F(VfsTest, HFieldCustomWithVFS) {
   // should fallback to OS filesystem
   mjModel* model = LoadModelFromString(xml, error, error_sz, vfs.get());
   EXPECT_THAT(model, IsNull());
-  EXPECT_THAT(error, HasSubstr("resource not found via provider or OS filesystem"));
+  EXPECT_THAT(error,
+              HasSubstr("resource not found via provider or OS filesystem"));
 }
 
 TEST_F(VfsTest, TexturePngWithVFS) {
@@ -120,8 +123,9 @@ TEST_F(VfsTest, TexturePngWithVFS) {
   // should fallback to OS filesystem
   mjModel* model = LoadModelFromString(xml, error, error_sz, vfs.get());
   EXPECT_THAT(model, IsNull());
-  EXPECT_THAT(error, HasSubstr("resource not found via provider or OS filesystem"));
- }
+  EXPECT_THAT(error,
+              HasSubstr("resource not found via provider or OS filesystem"));
+}
 
 TEST_F(VfsTest, TextureCustomWithVFS) {
   static constexpr char xml[] = R"(
@@ -147,8 +151,9 @@ TEST_F(VfsTest, TextureCustomWithVFS) {
   // should fallback to OS filesystem
   mjModel* model = LoadModelFromString(xml, error, error_sz, vfs.get());
   EXPECT_THAT(model, IsNull());
-  EXPECT_THAT(error, HasSubstr("resource not found via provider or OS filesystem"));
- }
+  EXPECT_THAT(error,
+              HasSubstr("resource not found via provider or OS filesystem"));
+}
 
 // ------------------------ test content_type attribute ------------------------
 
@@ -178,7 +183,8 @@ TEST_F(ContentTypeTest, HFieldPngWithContentType) {
   // should try loading the file
   mjModel* model = LoadModelFromString(xml, error, error_sz, vfs.get());
   EXPECT_THAT(model, IsNull());
-  EXPECT_THAT(error, HasSubstr("resource not found via provider or OS filesystem"));
+  EXPECT_THAT(error,
+              HasSubstr("resource not found via provider or OS filesystem"));
 }
 
 TEST_F(ContentTypeTest, HFieldCustomWithContentType) {
@@ -205,7 +211,8 @@ TEST_F(ContentTypeTest, HFieldCustomWithContentType) {
   // should try loading the file
   mjModel* model = LoadModelFromString(xml, error, error_sz, vfs.get());
   EXPECT_THAT(model, IsNull());
-  EXPECT_THAT(error, HasSubstr("resource not found via provider or OS filesystem"));
+  EXPECT_THAT(error,
+              HasSubstr("resource not found via provider or OS filesystem"));
 }
 
 TEST_F(ContentTypeTest, HFieldWithContentTypeError) {
@@ -259,8 +266,9 @@ TEST_F(ContentTypeTest, TexturePngWithContentType) {
   // should try loading the file
   mjModel* model = LoadModelFromString(xml, error, error_sz, vfs.get());
   EXPECT_THAT(model, IsNull());
-  EXPECT_THAT(error, HasSubstr("resource not found via provider or OS filesystem"));
- }
+  EXPECT_THAT(error,
+              HasSubstr("resource not found via provider or OS filesystem"));
+}
 
 TEST_F(ContentTypeTest, TextureCustomWithContentType) {
   static constexpr char xml[] = R"(
@@ -287,8 +295,9 @@ TEST_F(ContentTypeTest, TextureCustomWithContentType) {
   // should try loading the file
   mjModel* model = LoadModelFromString(xml, error, error_sz, vfs.get());
   EXPECT_THAT(model, IsNull());
-  EXPECT_THAT(error, HasSubstr("resource not found via provider or OS filesystem"));
- }
+  EXPECT_THAT(error,
+              HasSubstr("resource not found via provider or OS filesystem"));
+}
 
 TEST_F(ContentTypeTest, TextureWithContentTypeError) {
   static constexpr char xml[] = R"(
@@ -316,7 +325,7 @@ TEST_F(ContentTypeTest, TextureWithContentTypeError) {
   mjModel* model = LoadModelFromString(xml, error, error_sz, vfs.get());
   EXPECT_THAT(model, IsNull());
   EXPECT_THAT(error, HasSubstr("unsupported content type: 'image/jpeg'"));
- }
+}
 
 TEST_F(ContentTypeTest, TextureLoadPng) {
   static constexpr char filename[] = "tiny";
@@ -366,7 +375,7 @@ TEST_F(ContentTypeTest, TextureLoadPng) {
 
   mj_deleteModel(model);
   mj_deleteFileVFS(vfs.get(), filename);
- }
+}
 
 // ------------------------ test keyframes -------------------------------------
 
@@ -980,7 +989,8 @@ TEST_F(ActRangeTest, ActRangeNoDyntype) {
   std::array<char, 1024> error;
   mjModel* model = LoadModelFromString(xml, error.data(), error.size());
   ASSERT_THAT(model, IsNull());
-  EXPECT_THAT(error.data(), HasSubstr("actrange specified but dyntype is 'none'"));
+  EXPECT_THAT(error.data(),
+              HasSubstr("actrange specified but dyntype is 'none'"));
 }
 
 TEST_F(ActRangeTest, ActRangeDefaultsPropagate) {
