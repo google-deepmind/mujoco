@@ -288,6 +288,22 @@ Single scene simulation
   Simulating a single scene (1 instance of :ref:`mjData`), MJX can be **10x** slower than MuJoCo, which has been
   carefully optimized for CPU.  MJX works best when simulating thousands or tens of thousands of scenes in parallel.
 
+Collisions between large meshes
+  MJX supports collisions between convex mesh geometries. However the convex collision algorithms
+  in MJX are implemented differently than in MuJoCo. MJX uses a branchless version of the
+  `Separating Axis Test <https://ubm-twvideo01.s3.amazonaws.com/o1/vault/gdc2013/slides/822403Gregorius_Dirk_TheSeparatingAxisTest.pdf>`__
+  (SAT) to determine if geometries are colliding with convex meshes, while MuJoCo uses the Minkowski Portal Refinement (MPR)
+  algorithm as implemented in `libccd <https://github.com/danfis/libccd>`__.
+  SAT works well for smaller meshes but suffers in both runtime and memory for larger meshes.
+
+  For
+  collisions between convex meshes and primitives (spheres, capsules, planes), use **3000 vertices or less** for your convex meshes.
+  For collisions between convex meshes and other convex meshes, use **30 vertices or less**.
+  With careful
+  tuning, MJX can simulate scenes with mesh collisions -- see the MJX
+  `shadow hand <https://github.com/google-deepmind/mujoco/tree/main/mjx/mujoco/mjx/benchmark/model/shadow_hand>`__
+  config for an example. Speeding up mesh collision detection is an active area of development for MJX.
+
 Large, complex scenes with many contacts
   Accelerators exhibit poor performance for
   `branching code <https://aschrein.github.io/jekyll/update/2019/06/13/whatsup-with-my-branches-on-gpu.html#tldr>`__.
@@ -309,14 +325,6 @@ Large, complex scenes with many contacts
   The values for a single humanoid (leftmost datapoints) for the four timed architectures are **650K**, **1.8M**,
   **950K** and **2.7M** steps per second, respectively. Note that as we increase the number of humanoids (which
   increases the number of potential contacts in a scene), MJX throughput decreases more rapidly than MuJoCo.
-
-Scenes with collisions between meshes with many vertices
-  MJX supports mesh geometries and can determine if two meshes are colliding using branchless versions of
-  `mesh collision algorithms <https://ubm-twvideo01.s3.amazonaws.com/o1/vault/gdc2013/slides/822403Gregorius_Dirk_TheSeparatingAxisTest.pdf>`__.
-  These algorithms work well for smaller meshes (with hundreds of vertices) but suffer with large meshes. With careful
-  tuning, MJX can simulate scenes with mesh collisions well -- see the MJX
-  `shadow hand <https://github.com/google-deepmind/mujoco/tree/main/mjx/mujoco/mjx/benchmark/model/shadow_hand>`__
-  config for an example.
 
 .. _MjxPerformance:
 
