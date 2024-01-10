@@ -14,7 +14,7 @@
 # ==============================================================================
 """Functions for ray interesection testing."""
 
-from typing import Tuple
+from typing import Sequence, Tuple
 
 import jax
 from jax import numpy as jp
@@ -149,32 +149,60 @@ _RAY_FUNC = {
 
 
 def ray(
-    m: Model, d: Data, pnt: jax.Array, vec: jax.Array
+    m: Model,
+    d: Data,
+    pnt: jax.Array,
+    vec: jax.Array,
+    geomgroup: Sequence[int] = (),
+    flg_static: bool = True,
+    bodyexclude: int = -1,
 ) -> Tuple[jax.Array, jax.Array]:
-  """Returns the geom id and distance at which a ray intersects with a geom."""
+  """Returns the geom id and distance at which a ray intersects with a geom.
 
-  ids = []
-  dists = []
+  Args:
+    m: MJX model
+    d: MJX data
+    pnt: ray origin point (3,)
+    vec: ray direction    (3,)
+    geomgroup: group inclusion/exclusion mask, or empty to ignore
+    flg_static: if True, allows rays to intersect with static geoms
+    bodyexclude: ignore geoms on specified body id
+
+  Returns:
+    dist: distance from ray origin to geom surface (or -1.0 for no intersection)
+    id: id of intersected geom (or -1 for no intersection)
+  """
+
+  dists, ids = [], []
+  geom_filter = m.geom_bodyid != bodyexclude
+  geom_filter &= (m.geom_matid != -1) | (m.geom_rgba[:, 3] != 0)
+  geom_filter &= (m.geom_matid == -1) | (m.mat_rgba[m.geom_matid, 3] != 0)
+  geom_filter &= flg_static | (m.body_weldid[m.geom_bodyid] != 0)
+  if geomgroup:
+    geomgroup = np.array(geomgroup, dtype=bool)
+    geom_filter &= geomgroup[np.clip(m.geom_group, 0, mujoco.mjNGROUP)]
 
   # map ray to local geom frames
   geom_pnts = jax.vmap(lambda x, y: x.T @ (pnt - y))(d.geom_xmat, d.geom_xpos)
   geom_vecs = jax.vmap(lambda x: x.T @ vec)(d.geom_xmat)
 
   for geom_type, fn in _RAY_FUNC.items():
-    if not np.any(m.geom_type == geom_type):
+    id_, = np.nonzero(geom_filter & (m.geom_type == geom_type))
+
+    if id_.size == 0:
       continue
 
-    geom_ids = jp.array(np.nonzero(m.geom_type == geom_type)[0])
-    geom_dists = jax.vmap(fn)(
-        m.geom_size[geom_ids], geom_pnts[geom_ids], geom_vecs[geom_ids]
-    )
-    ids.append(geom_ids)
-    dists.append(geom_dists)
+    size, pnt, vec = m.geom_size[id_], geom_pnts[id_], geom_vecs[id_]
+    dist = jax.vmap(fn)(size, pnt, vec)
+    dists, ids = dists + [dist], ids + [id_]
 
-  ids = jp.concatenate(ids)
+  if not ids:
+    return jp.array(-1), jp.array(-1.0)
+
   dists = jp.concatenate(dists)
+  ids = jp.concatenate(ids)
   min_id = jp.argmin(dists)
-  id_ = jp.where(jp.isinf(dists[min_id]), -1, ids[min_id])
   dist = jp.where(jp.isinf(dists[min_id]), -1, dists[min_id])
+  id_ = jp.where(jp.isinf(dists[min_id]), -1, ids[min_id])
 
-  return id_, dist
+  return dist, id_

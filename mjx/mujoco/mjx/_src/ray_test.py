@@ -43,9 +43,9 @@ class RayTest(absltest.TestCase):
     mx, dx = mjx.put_model(m), mjx.put_data(m, d)
 
     pnt, vec = jp.array([12.146, 1.865, 3.895]), jp.array([0, 0, -1.0])
-    geomid, dist = jax.jit(mjx.ray)(mx, dx, pnt, vec)
-    _assert_eq(geomid, jp.array([-1]), 'geom_id')
-    _assert_eq(dist, jp.array([-1]), 'dist')
+    dist, geomid = jax.jit(mjx.ray)(mx, dx, pnt, vec)
+    _assert_eq(geomid, -1, 'geom_id')
+    _assert_eq(dist, -1, 'dist')
 
   def test_ray_plane(self):
     """Tests MJX ray<>plane matches MuJoCo."""
@@ -57,17 +57,17 @@ class RayTest(absltest.TestCase):
     # looking down at a slight angle
     pnt, vec = jp.array([2, 1, 3.0]), jp.array([0.1, 0.2, -1.0])
     vec /= jp.linalg.norm(vec)
-    geomid, dist = jax.jit(mjx.ray)(mx, dx, pnt, vec)
-    _assert_eq(geomid, jp.array([0]), 'geom_id')
+    dist, geomid = jax.jit(mjx.ray)(mx, dx, pnt, vec)
+    _assert_eq(geomid, 0, 'geom_id')
     pnt, vec, unused = np.array(pnt), np.array(vec), np.zeros(1, dtype=np.int32)
     mj_dist = mujoco.mj_ray(m, d, pnt, vec, None, 1, -1, unused)
     _assert_eq(dist, mj_dist, 'dist')
 
     # looking on wrong side of plane
     pnt = jp.array([0, 0, -0.5])
-    geomid, dist = jax.jit(mjx.ray)(mx, dx, pnt, vec)
-    _assert_eq(geomid, jp.array([-1]), 'geom_id')
-    _assert_eq(dist, jp.array([-1]), 'dist')
+    dist, geomid = jax.jit(mjx.ray)(mx, dx, pnt, vec)
+    _assert_eq(geomid, -1, 'geom_id')
+    _assert_eq(dist, -1, 'dist')
 
   def test_ray_sphere(self):
     """Tests MJX ray<>sphere matches MuJoCo."""
@@ -79,8 +79,8 @@ class RayTest(absltest.TestCase):
     # looking down at sphere at a slight angle
     pnt, vec = jp.array([0, 0, 1.6]), jp.array([0.1, 0.2, -1.0])
     vec /= jp.linalg.norm(vec)
-    geomid, dist = jax.jit(mjx.ray)(mx, dx, pnt, vec)
-    _assert_eq(geomid, jp.array([1]), 'geom_id')
+    dist, geomid = jax.jit(mjx.ray)(mx, dx, pnt, vec)
+    _assert_eq(geomid, 1, 'geom_id')
     pnt, vec, unused = np.array(pnt), np.array(vec), np.zeros(1, dtype=np.int32)
     mj_dist = mujoco.mj_ray(m, d, pnt, vec, None, 1, -1, unused)
     _assert_eq(dist, mj_dist, 'dist')
@@ -95,8 +95,8 @@ class RayTest(absltest.TestCase):
     # looking down at capsule at a slight angle
     pnt, vec = jp.array([0.5, 1, 1.6]), jp.array([0, 0.05, -1.0])
     vec /= jp.linalg.norm(vec)
-    geomid, dist = jax.jit(mjx.ray)(mx, dx, pnt, vec)
-    _assert_eq(geomid, jp.array([2]), 'geom_id')
+    dist, geomid = jax.jit(mjx.ray)(mx, dx, pnt, vec)
+    _assert_eq(geomid, 2, 'geom_id')
     pnt, vec, unused = np.array(pnt), np.array(vec), np.zeros(1, dtype=np.int32)
     mj_dist = mujoco.mj_ray(m, d, pnt, vec, None, 1, -1, unused)
     _assert_eq(dist, mj_dist, 'dist')
@@ -104,8 +104,8 @@ class RayTest(absltest.TestCase):
     # looking up at capsule from below
     pnt, vec = jp.array([-0.5, 1, 0.05]), jp.array([0, 0.05, 1.0])
     vec /= jp.linalg.norm(vec)
-    geomid, dist = jax.jit(mjx.ray)(mx, dx, pnt, vec)
-    _assert_eq(geomid, jp.array([2]), 'geom_id')
+    dist, geomid = jax.jit(mjx.ray)(mx, dx, pnt, vec)
+    _assert_eq(geomid, 2, 'geom_id')
     pnt, vec, unused = np.array(pnt), np.array(vec), np.zeros(1, dtype=np.int32)
     mj_dist = mujoco.mj_ray(m, d, pnt, vec, None, 1, -1, unused)
     _assert_eq(dist, mj_dist, 'dist')
@@ -113,8 +113,8 @@ class RayTest(absltest.TestCase):
     # looking at cylinder of capsule from the side
     pnt, vec = jp.array([0, 1, 0.75]), jp.array([1, 0, 0])
     vec /= jp.linalg.norm(vec)
-    geomid, dist = jax.jit(mjx.ray)(mx, dx, pnt, vec)
-    _assert_eq(geomid, jp.array([2]), 'geom_id')
+    dist, geomid = jax.jit(mjx.ray)(mx, dx, pnt, vec)
+    _assert_eq(geomid, 2, 'geom_id')
     pnt, vec, unused = np.array(pnt), np.array(vec), np.zeros(1, dtype=np.int32)
     mj_dist = mujoco.mj_ray(m, d, pnt, vec, None, 1, -1, unused)
     _assert_eq(dist, mj_dist, 'dist')
@@ -129,8 +129,8 @@ class RayTest(absltest.TestCase):
     # looking down at box at a slight angle
     pnt, vec = jp.array([1, 0, 1.6]), jp.array([0, 0.05, -1.0])
     vec /= jp.linalg.norm(vec)
-    geomid, dist = jax.jit(mjx.ray)(mx, dx, pnt, vec)
-    _assert_eq(geomid, jp.array([3]), 'geom_id')
+    dist, geomid = jax.jit(mjx.ray)(mx, dx, pnt, vec)
+    _assert_eq(geomid, 3, 'geom_id')
     pnt, vec, unused = np.array(pnt), np.array(vec), np.zeros(1, dtype=np.int32)
     mj_dist = mujoco.mj_ray(m, d, pnt, vec, None, 1, -1, unused)
     _assert_eq(dist, mj_dist, 'dist')
@@ -138,11 +138,82 @@ class RayTest(absltest.TestCase):
     # looking up at box from below
     pnt, vec = jp.array([1, 0, 0.05]), jp.array([0, 0.05, 1.0])
     vec /= jp.linalg.norm(vec)
-    geomid, dist = jax.jit(mjx.ray)(mx, dx, pnt, vec)
-    _assert_eq(geomid, jp.array([3]), 'geom_id')
+    dist, geomid = jax.jit(mjx.ray)(mx, dx, pnt, vec)
+    _assert_eq(geomid, 3, 'geom_id')
     pnt, vec, unused = np.array(pnt), np.array(vec), np.zeros(1, dtype=np.int32)
     mj_dist = mujoco.mj_ray(m, d, pnt, vec, None, 1, -1, unused)
     _assert_eq(dist, mj_dist, 'dist')
+
+  def test_ray_geomgroup(self):
+    """Tests ray geomgroup filter."""
+    m = test_util.load_test_file('ray.xml')
+    d = mujoco.MjData(m)
+    mujoco.mj_forward(m, d)
+    mx, dx = mjx.put_model(m), mjx.put_data(m, d)
+    ray_fn = jax.jit(mjx.ray, static_argnums=(4,))
+
+    # hits plane with geom_group[0] = 1
+    pnt, vec = jp.array([2, 1, 3.0]), jp.array([0.1, 0.2, -1.0])
+    vec /= jp.linalg.norm(vec)
+    geomgroup = (1, 0, 0, 0, 0, 0)
+    dist, geomid = ray_fn(mx, dx, pnt, vec, geomgroup)
+    _assert_eq(geomid, 0, 'geom_id')
+    pnt, vec, unused = np.array(pnt), np.array(vec), np.zeros(1, dtype=np.int32)
+    mj_dist = mujoco.mj_ray(m, d, pnt, vec, None, 1, -1, unused)
+    _assert_eq(dist, mj_dist, 'dist')
+
+    # nothing hit with geom_group[0] = 0
+    pnt, vec = jp.array([2, 1, 3.0]), jp.array([0.1, 0.2, -1.0])
+    vec /= jp.linalg.norm(vec)
+    geomgroup = (0, 0, 0, 0, 0, 0)
+    dist, geomid = ray_fn(mx, dx, pnt, vec, geomgroup)
+    _assert_eq(geomid, -1, 'geom_id')
+    _assert_eq(dist, -1, 'dist')
+
+  def test_ray_flg_static(self):
+    """Tests ray flg_static filter."""
+    m = test_util.load_test_file('ray.xml')
+    d = mujoco.MjData(m)
+    mujoco.mj_forward(m, d)
+    mx, dx = mjx.put_model(m), mjx.put_data(m, d)
+    ray_fn = jax.jit(mjx.ray, static_argnames=('flg_static',))
+
+    # nothing hit with flg_static = False
+    pnt, vec = jp.array([2, 1, 3.0]), jp.array([0.1, 0.2, -1.0])
+    vec /= jp.linalg.norm(vec)
+    dist, geomid = ray_fn(mx, dx, pnt, vec, flg_static=False)
+    _assert_eq(geomid, -1, 'geom_id')
+    _assert_eq(dist, -1, 'dist')
+
+  def test_ray_bodyexclude(self):
+    """Tests ray bodyexclude filter."""
+    m = test_util.load_test_file('ray.xml')
+    d = mujoco.MjData(m)
+    mujoco.mj_forward(m, d)
+    mx, dx = mjx.put_model(m), mjx.put_data(m, d)
+    ray_fn = jax.jit(mjx.ray, static_argnames=('bodyexclude',))
+
+    # nothing hit with bodyexclude = 0 (world body)
+    pnt, vec = jp.array([2, 1, 3.0]), jp.array([0.1, 0.2, -1.0])
+    vec /= jp.linalg.norm(vec)
+    dist, geomid = ray_fn(mx, dx, pnt, vec, bodyexclude=0)
+    _assert_eq(geomid, -1, 'geom_id')
+    _assert_eq(dist, -1, 'dist')
+
+  def test_ray_invisible(self):
+    """Tests ray doesn't hit transparent geoms."""
+    m = test_util.load_test_file('ray.xml')
+    # nothing hit with transparent geoms:
+    m.geom_rgba = 0
+    d = mujoco.MjData(m)
+    mujoco.mj_forward(m, d)
+    mx, dx = mjx.put_model(m), mjx.put_data(m, d)
+
+    pnt, vec = jp.array([2, 1, 3.0]), jp.array([0.1, 0.2, -1.0])
+    vec /= jp.linalg.norm(vec)
+    dist, geomid = jax.jit(mjx.ray)(mx, dx, pnt, vec)
+    _assert_eq(geomid, -1, 'geom_id')
+    _assert_eq(dist, -1, 'dist')
 
 
 if __name__ == '__main__':

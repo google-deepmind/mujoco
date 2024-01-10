@@ -264,6 +264,7 @@ class Model(PyTreeNode):
     ngeom: number of geoms
     nsite: number of sites
     nmesh: number of meshes
+    nmat: number of materials
     npair: number of predefined geom pairs
     nexclude: number of excluded geom pairs
     neq: number of equality constraints
@@ -320,6 +321,8 @@ class Model(PyTreeNode):
     geom_conaffinity: geom contact affinity                   (ngeom,)
     geom_condim: contact dimensionality (1, 3, 4, 6)          (ngeom,)
     geom_bodyid: id of geom's body                            (ngeom,)
+    geom_group: group for visibility                          (ngeom,)
+    geom_matid: material id for rendering                     (ngeom,)
     geom_priority: geom contact priority                      (ngeom,)
     geom_solmix: mixing coef for solref/imp in geom pair      (ngeom,)
     geom_solref: constraint solver reference: contact         (ngeom, mjNREF)
@@ -330,9 +333,11 @@ class Model(PyTreeNode):
     geom_friction: friction for (slide, spin, roll)           (ngeom, 3)
     geom_margin: include in solver if dist<margin-gap         (ngeom,)
     geom_gap: include in solver if dist<margin-gap            (ngeom,)
+    geom_rgba: rgba when material is omitted                  (ngeom, 4)
     site_bodyid: id of site's body                            (nsite,)
     site_pos: local position offset rel. to body              (nsite, 3)
     site_quat: local orientation offset rel. to body          (nsite, 4)
+    mat_rgba: rgba                                            (nmat, 4)
     geom_convex_face: vertex face data, MJX only              (ngeom,)
     geom_convex_vert: vertex data, MJX only                   (ngeom,)
     geom_convex_edge: unique edge data, MJX only              (ngeom,)
@@ -385,6 +390,7 @@ class Model(PyTreeNode):
   ngeom: int
   nsite: int
   nmesh: int
+  nmat: int
   npair: int
   nexclude: int
   neq: int
@@ -441,6 +447,8 @@ class Model(PyTreeNode):
   geom_conaffinity: np.ndarray
   geom_condim: np.ndarray
   geom_bodyid: np.ndarray
+  geom_group: np.ndarray
+  geom_matid: np.ndarray
   geom_priority: np.ndarray
   geom_solmix: jax.Array
   geom_solref: jax.Array
@@ -451,9 +459,11 @@ class Model(PyTreeNode):
   geom_friction: jax.Array
   geom_margin: jax.Array
   geom_gap: jax.Array
+  geom_rgba: np.ndarray
   site_bodyid: np.ndarray
   site_pos: jax.Array
   site_quat: jax.Array
+  mat_rgba: np.ndarray
   pair_dim: np.ndarray
   pair_geom1: np.ndarray
   pair_geom2: np.ndarray

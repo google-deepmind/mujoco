@@ -111,6 +111,8 @@ def put_model(m: mujoco.MjModel, device=None) -> types.Model:
       for f in types.Model.fields()
       if f.type in (int, bytes, np.ndarray)
   }
+  static_fields['geom_rgba'] = static_fields['geom_rgba'].reshape((-1, 4))
+  static_fields['mat_rgba'] = static_fields['mat_rgba'].reshape((-1, 4))
 
   device_fields = {
       f.name: copy.copy(getattr(m, f.name))  # copy because device_put is async
