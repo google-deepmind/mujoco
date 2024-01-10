@@ -347,7 +347,7 @@ void mjXWriter::OneGeom(XMLElement* elem, mjCGeom* pgeom, mjCDef* def) {
 
     // mesh geom
     if (pgeom->type==mjGEOM_MESH || pgeom->type==mjGEOM_SDF) {
-      mjCMesh* pmesh = model->meshes[pgeom->meshid];
+      mjCMesh* pmesh = pgeom->mesh;
 
       // write pos/quat if there is a difference
       if (!SameVector(pgeom->pos, pmesh->GetPosPtr(pgeom->typeinertia), 3) ||
@@ -403,10 +403,10 @@ void mjXWriter::OneGeom(XMLElement* elem, mjCGeom* pgeom, mjCDef* def) {
 
   // hfield and mesh attributes
   if (pgeom->type==mjGEOM_HFIELD) {
-    WriteAttrTxt(elem, "hfield", pgeom->hfield);
+    WriteAttrTxt(elem, "hfield", pgeom->hfieldname);
   }
   if (pgeom->type==mjGEOM_MESH || pgeom->type==mjGEOM_SDF) {
-    WriteAttrTxt(elem, "mesh", pgeom->mesh);
+    WriteAttrTxt(elem, "mesh", pgeom->meshname);
   }
 
   // userdata

@@ -36,6 +36,7 @@ class mjCGeom;
 class mjCSite;
 class mjCCamera;
 class mjCLight;
+class mjCHField;
 class mjCFlex;                        // defined in user_mesh
 class mjCMesh;                        // defined in user_mesh
 class mjCSkin;                        // defined in user_mesh
@@ -397,8 +398,8 @@ class mjCGeom : public mjCBase {
   mjtNum fluid_switch;            // whether ellipsoid-fluid model is active
   mjtNum fluid_coefs[5];          // tunable ellipsoid-fluid interaction coefs
   mjtNum fluid[mjNFLUID];         // compile-time fluid-interaction parameters
-  std::string hfield;             // hfield attached to geom
-  std::string mesh;               // mesh attached to geom
+  std::string hfieldname;         // hfield attached to geom
+  std::string meshname;           // mesh attached to geom
   double fitscale;                // scale mesh uniformly
   std::string material;           // name of material used for rendering
   std::vector<double> userdata;   // user data
@@ -423,8 +424,8 @@ class mjCGeom : public mjCBase {
   void ComputeAABB(void);             // compute axis-aligned bounding box
 
   int matid;                      // id of geom's material
-  int meshid;                     // id of geom's mesh (-1: none)
-  int hfieldid;                   // id of geom's hfield (-1: none)
+  mjCMesh* mesh;                  // geom's mesh
+  mjCHField* hfield;              // geom's hfield
   double mass;                    // mass
   double inertia[3];              // local diagonal inertia
   double aabb[6];                 // axis-aligned bounding box (center, size)

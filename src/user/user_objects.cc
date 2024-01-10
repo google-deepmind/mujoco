@@ -1317,7 +1317,7 @@ mjCGeom::mjCGeom(mjCModel* _model, mjCDef* _def) {
     fluid[i] = 0;
   }
   density = 1000;             // water density (1000 kg / m^3)
-  mesh.clear();
+  meshname.clear();
   fitscale = 1;
   material.clear();
   rgba[0] = rgba[1] = rgba[2] = 0.5f;
@@ -1333,8 +1333,8 @@ mjCGeom::mjCGeom(mjCModel* _model, mjCDef* _def) {
   mjuu_setvec(inertia, 0, 0, 0);
   body = 0;
   matid = -1;
-  meshid = -1;
-  hfieldid = -1;
+  mesh = nullptr;
+  hfield = nullptr;
 
   // reset to default if given
   if (_def) {
@@ -1360,12 +1360,11 @@ double mjCGeom::GetVolume(void) {
 
   // get from mesh
   if (type==mjGEOM_MESH || type==mjGEOM_SDF) {
-    if (meshid<0 || meshid>=(int)model->meshes.size()) {
-      throw mjCError(this, "invalid meshid in mesh geom '%s' (id = %d)", name.c_str(), id);
+    if (mesh->id<0 || !((std::size_t) mesh->id <= model->meshes.size())) {
+      throw mjCError(this, "invalid mesh id in mesh geom '%s' (id = %d)", name.c_str(), id);
     }
 
-    mjCMesh* pmesh = model->meshes[meshid];
-    return pmesh->GetVolumeRef(typeinertia);
+    return mesh->GetVolumeRef(typeinertia);
   }
 
   // compute from geom shape
@@ -1416,12 +1415,11 @@ void mjCGeom::SetInertia(void) {
 
   // get from mesh
   if (type==mjGEOM_MESH || type==mjGEOM_SDF) {
-    if (meshid<0 || meshid>=(int)model->meshes.size()) {
-      throw mjCError(this, "invalid meshid in mesh geom '%s' (id = %d)", name.c_str(), id);
+    if (mesh->id<0 || !((std::size_t) mesh->id <= model->meshes.size())) {
+      throw mjCError(this, "invalid mesh id in mesh geom '%s' (id = %d)", name.c_str(), id);
     }
 
-    mjCMesh* pmesh = model->meshes[meshid];
-    double* boxsz = pmesh->GetInertiaBoxPtr(typeinertia);
+    double* boxsz = mesh->GetInertiaBoxPtr(typeinertia);
     inertia[0] = mass*(boxsz[1]*boxsz[1] + boxsz[2]*boxsz[2]) / 3;
     inertia[1] = mass*(boxsz[0]*boxsz[0] + boxsz[2]*boxsz[2]) / 3;
     inertia[2] = mass*(boxsz[0]*boxsz[0] + boxsz[1]*boxsz[1]) / 3;
@@ -1488,7 +1486,7 @@ double mjCGeom::GetRBound(void) {
 
   switch (type) {
   case mjGEOM_HFIELD:
-    hsize = model->hfields[hfieldid]->size;
+    hsize = hfield->size;
     return sqrt(hsize[0]*hsize[0] + hsize[1]*hsize[1] +
                 mjMAX(hsize[2]*hsize[2], hsize[3]*hsize[3]));
 
@@ -1509,7 +1507,7 @@ double mjCGeom::GetRBound(void) {
 
   case mjGEOM_MESH:
   case mjGEOM_SDF:
-    aamm = model->meshes[meshid]->aamm();
+    aamm = mesh->aamm();
     haabb[0] = mju_max(fabs(aamm[0]), fabs(aamm[3]));
     haabb[1] = mju_max(fabs(aamm[1]), fabs(aamm[4]));
     haabb[2] = mju_max(fabs(aamm[2]), fabs(aamm[5]));
@@ -1638,12 +1636,12 @@ void mjCGeom::ComputeAABB(void) {
   double aamm[6]; // axis-aligned bounding box in (min, max) format
   switch (type) {
   case mjGEOM_HFIELD:
-    aamm[0] = -model->hfields[hfieldid]->size[0];
-    aamm[1] = -model->hfields[hfieldid]->size[1];
-    aamm[2] = -model->hfields[hfieldid]->size[3];
-    aamm[3] = model->hfields[hfieldid]->size[0];
-    aamm[4] = model->hfields[hfieldid]->size[1];
-    aamm[5] = model->hfields[hfieldid]->size[2];
+    aamm[0] = -hfield->size[0];
+    aamm[1] = -hfield->size[1];
+    aamm[2] = -hfield->size[3];
+    aamm[3] = hfield->size[0];
+    aamm[4] = hfield->size[1];
+    aamm[5] = hfield->size[2];
     break;
 
   case mjGEOM_SPHERE:
@@ -1665,7 +1663,7 @@ void mjCGeom::ComputeAABB(void) {
 
   case mjGEOM_MESH:
   case mjGEOM_SDF:
-    mjuu_copyvec(aamm, model->meshes[meshid]->aamm(), 6);
+    mjuu_copyvec(aamm, mesh->aamm(), 6);
     break;
 
   case mjGEOM_PLANE:
@@ -1711,12 +1709,12 @@ void mjCGeom::Compile(void) {
   }
 
   // check mesh
-  if ((type==mjGEOM_MESH || type==mjGEOM_SDF) && meshid<0) {
+  if ((type==mjGEOM_MESH || type==mjGEOM_SDF) && !mesh) {
     throw mjCError(this, "mesh geom '%s' (id = %d) must have valid meshid", name.c_str(), id);
   }
 
   // check hfield
-  if ((type==mjGEOM_HFIELD && hfieldid<0) || (type!=mjGEOM_HFIELD && hfieldid>=0)) {
+  if ((type==mjGEOM_HFIELD && !hfield) || (type!=mjGEOM_HFIELD && hfield)) {
     throw mjCError(this, "hfield geom '%s' (id = %d) must have valid hfieldid", name.c_str(), id);
   }
 
@@ -1783,25 +1781,25 @@ void mjCGeom::Compile(void) {
   }
 
   // mesh: accumulate frame, fit geom if needed
-  if (meshid!=-1) {
+  if (mesh) {
     // check for inapplicable fromto
     if (mjuu_defined(fromto[0])) {
       throw mjCError(this, "fromto cannot be used with mesh geom '%s' (id = %d)", name.c_str(), id);
     }
 
-    // get associated mesh
-    mjCMesh* pmesh = model->meshes[meshid];
+    // save reference in case this is not an mjGEOM_MESH
+    mjCMesh* pmesh = mesh;
 
     // fit geom if type is not mjGEOM_MESH
     double meshpos[3];
     if (type!=mjGEOM_MESH && type!=mjGEOM_SDF) {
-      pmesh->FitGeom(this, meshpos);
+      mesh->FitGeom(this, meshpos);
 
       // remove reference to mesh
-      mesh.clear();
-      meshid = -1;
+      meshname.clear();
+      mesh = nullptr;
     } else {
-      mjuu_copyvec(meshpos, pmesh->GetPosPtr(typeinertia), 3);
+      mjuu_copyvec(meshpos, mesh->GetPosPtr(typeinertia), 3);
     }
 
     // apply geom pos/quat as offset
@@ -1815,12 +1813,12 @@ void mjCGeom::Compile(void) {
 
   // set hfield sizes in geom.size
   if (type==mjGEOM_HFIELD) {
-    size[0] = model->hfields[hfieldid]->size[0];
-    size[1] = model->hfields[hfieldid]->size[1];
-    size[2] = 0.5*(0.5*model->hfields[hfieldid]->size[2] +
-                   model->hfields[hfieldid]->size[3]);
+    size[0] = hfield->size[0];
+    size[1] = hfield->size[1];
+    size[2] = 0.5*(0.5*hfield->size[2] +
+                   hfield->size[3]);
   } else if (type==mjGEOM_MESH || type==mjGEOM_SDF) {
-    const double* aamm = model->meshes[meshid]->aamm();
+    const double* aamm = mesh->aamm();
     size[0] = mju_max(fabs(aamm[0]), fabs(aamm[3]));
     size[1] = mju_max(fabs(aamm[1]), fabs(aamm[4]));
     size[2] = mju_max(fabs(aamm[2]), fabs(aamm[5]));

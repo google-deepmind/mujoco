@@ -667,22 +667,22 @@ void mjCModel::IndexAssets(void) {
     }
 
     // find mesh by name
-    if (!pgeom->mesh.empty()) {
-      mjCBase* m = FindObject(mjOBJ_MESH, pgeom->mesh);
+    if (!pgeom->meshname.empty()) {
+      mjCBase* m = FindObject(mjOBJ_MESH, pgeom->meshname);
       if (m) {
-        pgeom->meshid = m->id;
+        pgeom->mesh = (mjCMesh*)m;
       } else {
-        throw mjCError(pgeom, "mesh '%s' not found in geom %d", pgeom->mesh.c_str(), i);
+        throw mjCError(pgeom, "mesh '%s' not found in geom %d", pgeom->meshname.c_str(), i);
       }
     }
 
     // find hfield by name
-    if (!pgeom->hfield.empty()) {
-      mjCBase* m = FindObject(mjOBJ_HFIELD, pgeom->hfield);
+    if (!pgeom->hfieldname.empty()) {
+      mjCBase* m = FindObject(mjOBJ_HFIELD, pgeom->hfieldname);
       if (m) {
-        pgeom->hfieldid = m->id;
+        pgeom->hfield = (mjCHField*)m;
       } else {
-        throw mjCError(pgeom, "hfield '%s' not found in geom %d", pgeom->hfield.c_str(), i);
+        throw mjCError(pgeom, "hfield '%s' not found in geom %d", pgeom->hfieldname.c_str(), i);
       }
     }
   }
@@ -1515,10 +1515,10 @@ void mjCModel::CopyTree(mjModel* m) {
       m->geom_conaffinity[gid] = pg->conaffinity;
       m->geom_condim[gid] = pg->condim;
       m->geom_bodyid[gid] = pg->body->id;
-      if (pg->meshid>=0) {
-        m->geom_dataid[gid] = pg->meshid;
-      } else if (pg->hfieldid>=0) {
-        m->geom_dataid[gid] = pg->hfieldid;
+      if (pg->mesh) {
+        m->geom_dataid[gid] = pg->mesh->id;
+      } else if (pg->hfield) {
+        m->geom_dataid[gid] = pg->hfield->id;
       } else {
         m->geom_dataid[gid] = -1;
       }
@@ -2710,9 +2710,9 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
 
   // mark meshes that need convex hull
   for (int i=0; i<geoms.size(); i++) {
-    if (geoms[i]->meshid>=0 && geoms[i]->type==mjGEOM_MESH &&
+    if (geoms[i]->mesh && geoms[i]->type==mjGEOM_MESH &&
         (geoms[i]->contype || geoms[i]->conaffinity)) {
-      meshes[geoms[i]->meshid]->set_needhull(true);
+      geoms[i]->mesh->set_needhull(true);
     }
   }
 

@@ -1525,8 +1525,8 @@ void mjXReader::OneGeom(XMLElement* elem, mjCGeom* pgeom) {
   ReadAttr(elem, "solimp", mjNIMP, pgeom->solimp, text, false, false);
   ReadAttr(elem, "margin", 1, &pgeom->margin, text);
   ReadAttr(elem, "gap", 1, &pgeom->gap, text);
-  ReadAttrTxt(elem, "hfield", pgeom->hfield);
-  ReadAttrTxt(elem, "mesh", pgeom->mesh);
+  ReadAttrTxt(elem, "hfield", pgeom->hfieldname);
+  ReadAttrTxt(elem, "mesh", pgeom->meshname);
   ReadAttr(elem, "fitscale", 1, &pgeom->fitscale, text);
   ReadAttrTxt(elem, "material", pgeom->material);
   ReadAttr(elem, "rgba", 4, pgeom->rgba, text);
