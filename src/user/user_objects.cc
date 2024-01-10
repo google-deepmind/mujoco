@@ -4732,6 +4732,6 @@ void mjCPlugin::Compile(void) {
     std::string error =
         "unrecognized attribute 'plugin:" + config_attribs.begin()->first +
         "' for plugin " + std::string(plugin->name) + "'";
-    throw mjCError(parent, error.c_str());
+    throw mjCError(parent, "%s", error.c_str());
   }
 }

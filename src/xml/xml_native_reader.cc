@@ -57,7 +57,7 @@ void ReadPluginConfigs(tinyxml2::XMLElement* elem, mjCPlugin* pp) {
       mjXUtil::ReadAttrTxt(child, "key", key, /* required = */ true);
       if (config_attribs.find(key) != config_attribs.end()) {
         std::string err = "duplicate config key: " + key;
-        throw mjXError(child, err.c_str());
+        throw mjXError(child, "%s", err.c_str());
       }
       mjXUtil::ReadAttrTxt(child, "value", value, /* required = */ true);
       config_attribs[key] = value;
@@ -1117,7 +1117,7 @@ void mjXReader::Size(XMLElement* section, mjCModel* mod) {
         std::string trailing;
         strm >> trailing;
         if (!trailing.empty() || !strm.eof()) {
-          throw mjXError(section, err_msg);
+          throw mjXError(section, "%s", err_msg);
         }
 
         // allow explicit specification of the default "-1" value
@@ -1130,14 +1130,14 @@ void mjXReader::Size(XMLElement* section, mjCModel* mod) {
 
       // check that the number is not negative
       if (strm.peek() == '-') {
-        throw mjXError(section, err_msg);
+        throw mjXError(section, "%s", err_msg);
       }
 
       std::size_t base_size;
       strm >> base_size;
       if (strm.fail()) {
         // either not an integer or the number without the suffix is already bigger than size_t
-        throw mjXError(section, err_msg);
+        throw mjXError(section, "%s", err_msg);
       }
 
       // parse the multiplier suffix
@@ -1161,20 +1161,20 @@ void mjXReader::Size(XMLElement* section, mjCModel* mod) {
         // check for invalid suffix, or suffix longer than one character
         strm.get();
         if (!multiplier_bit || !strm.eof()) {
-          throw mjXError(section, err_msg);
+          throw mjXError(section, "%s", err_msg);
         }
       }
 
       // check that the specified suffix isn't bigger than size_t
       if (multiplier_bit + 1 > std::numeric_limits<std::size_t>::digits) {
-        throw mjXError(section, err_msg);
+        throw mjXError(section, "%s", err_msg);
       }
 
       // check that the suffix won't take the total size beyond size_t
       const std::size_t max_base_size =
           (std::numeric_limits<std::size_t>::max() << multiplier_bit) >> multiplier_bit;
       if (base_size > max_base_size) {
-        throw mjXError(section, err_msg);
+        throw mjXError(section, "%s", err_msg);
       }
 
       const std::size_t total_size = base_size << multiplier_bit;
@@ -1183,7 +1183,7 @@ void mjXReader::Size(XMLElement* section, mjCModel* mod) {
 
     if (memory.has_value()) {
       if (*memory / sizeof(mjtNum) > std::numeric_limits<int>::max()) {
-        throw mjXError(section, err_msg);
+        throw mjXError(section, "%s", err_msg);
       }
       mod->memory = *memory;
     }
@@ -2183,7 +2183,7 @@ void mjXReader::OneComposite(XMLElement* elem, mjCBody* pbody, mjCDef* def) {
     if (comp.add[kind]) {
       char error[200];
       if (!comp.AddDefaultJoint(error, 200)) {
-        throw mjXError(elem, error);
+        throw mjXError(elem, "%s", error);
       }
     }
     comp.add[kind] = true;
@@ -2276,7 +2276,7 @@ void mjXReader::OneComposite(XMLElement* elem, mjCBody* pbody, mjCDef* def) {
 
   // throw error
   if (!res) {
-    throw mjXError(elem, error);
+    throw mjXError(elem, "%s", error);
   }
 }
 
@@ -2408,7 +2408,7 @@ void mjXReader::OneFlexcomp(XMLElement* elem, mjCBody* pbody) {
 
   // throw error
   if (!res) {
-    throw mjXError(elem, error);
+    throw mjXError(elem, "%s", error);
   }
 }
 

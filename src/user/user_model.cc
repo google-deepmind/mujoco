@@ -17,6 +17,7 @@
 #include <algorithm>
 #include <csetjmp>
 #include <cstddef>
+#include <cstdint>
 #include <cstdlib>
 #include <cstring>
 #include <map>
@@ -27,6 +28,7 @@
 #include <mujoco/mjdata.h>
 #include <mujoco/mjmacro.h>
 #include <mujoco/mjmodel.h>
+#include <mujoco/mjtnum.h>
 #include <mujoco/mjplugin.h>
 #include <mujoco/mjvisualize.h>
 #include "cc/array_safety.h"
@@ -1087,7 +1089,7 @@ void mjCModel::LengthRange(mjModel* m, mjData* data) {
     char err[200];
     for (int i=0; i<m->nu; i++) {
       if (!mj_setLengthRange(m, data, i, &LRopt, err, 200)) {
-        throw mjCError(0, err);
+        throw mjCError(0, "%s", err);
       }
     }
   }
@@ -1150,7 +1152,7 @@ void mjCModel::LengthRange(mjModel* m, mjData* data) {
     // report first error
     for (int i=0; i<nthread; i++) {
       if (err[i][0]) {
-        throw mjCError(0, err[i]);
+        throw mjCError(0, "%s", err[i]);
       }
     }
   }
@@ -2564,7 +2566,7 @@ static void processlist(mjListKeyMap& ids, vector<T*>& list,
       auto adjacent = std::adjacent_find(allnames.begin(), allnames.end());
       if (adjacent != allnames.end()) {
         string msg = "repeated name '" + *adjacent + "' in " + mju_type2Str(type);
-        throw mjCError(NULL, msg.c_str());
+        throw mjCError(NULL, "%s", msg.c_str());
       }
     }
   }
@@ -3052,7 +3054,7 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
   if (validationerr) {  // SHOULD NOT OCCUR
     mj_deleteData(d);
     mj_deleteModel(m);
-    throw mjCError(0, validationerr);
+    throw mjCError(0, "%s", validationerr);
   }
 
   // delete partial mjData (no plugins), make a complete one
