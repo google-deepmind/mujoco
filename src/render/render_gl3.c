@@ -1017,6 +1017,7 @@ void mjr_render(mjrRect viewport, mjvScene* scn, const mjrContext* con) {
       }
 
       // skip the remaining passes
+      glPopDebugGroup(); // end regular rendering early
       continue;
     }
 
