@@ -35,9 +35,6 @@
 
 // forward kinematics
 void mj_kinematics(const mjModel* m, mjData* d) {
-  mjtNum pos[3], quat[4], *bodypos, *bodyquat;
-  mjtNum qloc[4], vec[3], vec1[3], xanchor[3], xaxis[3];
-
   // set world position and orientation
   mju_zero3(d->xpos);
   mju_unit4(d->xquat);
@@ -57,24 +54,22 @@ void mj_kinematics(const mjModel* m, mjData* d) {
 
   // compute global cartesian positions and orientations of all bodies
   for (int i=1; i < m->nbody; i++) {
+    mjtNum xpos[3], xquat[4];
+    int jntadr = m->body_jntadr[i];
+    int jntnum = m->body_jntnum[i];
+
     // free joint
-    if (m->body_jntnum[i] == 1 && m->jnt_type[m->body_jntadr[i]] == mjJNT_FREE) {
-      // get addresses
-      int jid = m->body_jntadr[i];
-      int qadr = m->jnt_qposadr[jid];
+    if (jntnum == 1 && m->jnt_type[jntadr] == mjJNT_FREE) {
+      // get qpos address
+      int qadr = m->jnt_qposadr[jntadr];
 
       // copy pos and quat from qpos
-      mju_copy3(pos, d->qpos+qadr);
-      mju_copy4(quat, d->qpos+qadr+3);
-
-      // set xanchor = 0, xaxis = (0,0,1)
-      mju_copy3(xanchor, pos);
-      xaxis[0] = xaxis[1] = 0;
-      xaxis[2] = 1;
+      mju_copy3(xpos, d->qpos+qadr);
+      mju_copy4(xquat, d->qpos+qadr+3);
 
       // assign xanchor and xaxis
-      mju_copy3(d->xanchor+3*jid, xanchor);
-      mju_copy3(d->xaxis+3*jid, xaxis);
+      mju_copy3(d->xanchor+3*jntadr, xpos);
+      mju_copy3(d->xaxis+3*jntadr, m->jnt_axis+3*jntadr);
     }
 
     // regular or no joint
@@ -82,6 +77,7 @@ void mj_kinematics(const mjModel* m, mjData* d) {
       int pid = m->body_parentid[i];
 
       // get body pos and quat: from model or mocap
+      mjtNum *bodypos, *bodyquat;
       if (m->body_mocapid[i] >= 0) {
         bodypos = d->mocap_pos + 3*m->body_mocapid[i];
         bodyquat = d->mocap_quat + 4*m->body_mocapid[i];
@@ -91,48 +87,56 @@ void mj_kinematics(const mjModel* m, mjData* d) {
       }
 
       // apply fixed translation and rotation relative to parent
-      mju_rotVecMat(vec, bodypos, d->xmat+9*pid);
-      mju_add3(pos, d->xpos+3*pid, vec);
-      mju_mulQuat(quat, d->xquat+4*pid, bodyquat);
+      if (pid) {
+        mju_rotVecMat(xpos, bodypos, d->xmat+9*pid);
+        mju_addTo3(xpos, d->xpos+3*pid);
+        mju_mulQuat(xquat, d->xquat+4*pid, bodyquat);
+      } else {
+        // parent is the world
+        mju_copy3(xpos, bodypos);
+        mju_copy4(xquat, bodyquat);
+      }
 
-      // accumulate joints, compute pos and quat for this body
-      for (int j=0; j < m->body_jntnum[i]; j++) {
+      // accumulate joints, compute xpos and xquat for this body
+      mjtNum xanchor[3], xaxis[3];
+      for (int j=0; j < jntnum; j++) {
         // get joint id, qpos address, joint type
-        int jid = m->body_jntadr[i] + j;
+        int jid = jntadr + j;
         int qadr = m->jnt_qposadr[jid];
         mjtJoint jtype = m->jnt_type[jid];
 
         // compute axis in global frame; ball jnt_axis is (0,0,1), set by compiler
-        mju_rotVecQuat(xaxis, m->jnt_axis+3*jid, quat);
+        mju_rotVecQuat(xaxis, m->jnt_axis+3*jid, xquat);
 
         // compute anchor in global frame
-        mju_rotVecQuat(xanchor, m->jnt_pos+3*jid, quat);
-        mju_addTo3(xanchor, pos);
+        mju_rotVecQuat(xanchor, m->jnt_pos+3*jid, xquat);
+        mju_addTo3(xanchor, xpos);
 
         // apply joint transformation
         switch (jtype) {
         case mjJNT_SLIDE:
-          mju_addToScl3(pos, xaxis, d->qpos[qadr] - m->qpos0[qadr]);
+          mju_addToScl3(xpos, xaxis, d->qpos[qadr] - m->qpos0[qadr]);
           break;
 
         case mjJNT_BALL:
         case mjJNT_HINGE:
-          // compute local quaternion rotation (qloc)
-          if (jtype == mjJNT_BALL) {
-            mju_copy4(qloc, d->qpos+qadr);
-          } else {
-            mju_axisAngle2Quat(qloc, m->jnt_axis+3*jid, d->qpos[qadr] - m->qpos0[qadr]);
+          {
+            // compute local quaternion rotation
+            mjtNum qloc[4];
+            if (jtype == mjJNT_BALL) {
+              mju_copy4(qloc, d->qpos+qadr);
+            } else {
+              mju_axisAngle2Quat(qloc, m->jnt_axis+3*jid, d->qpos[qadr] - m->qpos0[qadr]);
+            }
+
+            // apply rotation
+            mju_mulQuat(xquat, xquat, qloc);
+
+            // correct for off-center rotation
+            mjtNum vec[3];
+            mju_rotVecQuat(vec, m->jnt_pos+3*jid, xquat);
+            mju_sub3(xpos, xanchor, vec);
           }
-
-          // apply rotation
-          mju_mulQuat(quat, quat, qloc);
-
-          // correct for off-center rotation
-          mju_sub3(vec, xanchor, pos);
-          mju_rotVecQuat(vec1, m->jnt_pos+3*jid, quat);
-          pos[0] += (vec[0] - vec1[0]);
-          pos[1] += (vec[1] - vec1[1]);
-          pos[2] += (vec[2] - vec1[2]);
           break;
 
         default:
@@ -146,10 +150,10 @@ void mj_kinematics(const mjModel* m, mjData* d) {
     }
 
     // assign xquat and xpos, construct xmat
-    mju_normalize4(quat);
-    mju_copy4(d->xquat+4*i, quat);
-    mju_copy3(d->xpos+3*i, pos);
-    mju_quat2Mat(d->xmat+9*i, quat);
+    mju_normalize4(xquat);
+    mju_copy4(d->xquat+4*i, xquat);
+    mju_copy3(d->xpos+3*i, xpos);
+    mju_quat2Mat(d->xmat+9*i, xquat);
   }
 
   // compute/copy Cartesian positions and orientations of body inertial frames
