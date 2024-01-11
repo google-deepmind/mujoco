@@ -167,7 +167,7 @@ namespace Mujoco {
 
       bool defaultLimited = false;
       if (mjcf.OwnerDocument.GetElementsByTagName("compiler")[0] is not XmlElement
-              compilerElement || !compilerElement.GetBoolAttribute("autolimits").Equals("false")) {
+              compilerElement || compilerElement.GetBoolAttribute("autolimits", true)) {
         defaultLimited = mjcf.HasAttribute("range");
       }
 
