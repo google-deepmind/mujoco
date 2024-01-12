@@ -93,8 +93,12 @@ std::optional<SdfLib> SdfLib::Create(const mjModel* m, mjData* d,
 
 // plugin constructor
 SdfLib::SdfLib(sdflib::Mesh&& mesh) {
+  sdflib::BoundingBox box = mesh.getBoundingBox();
+  const glm::vec3 modelBBsize = box.getSize();
+  box.addMargin(
+      0.1f * glm::max(glm::max(modelBBsize.x, modelBBsize.y), modelBBsize.z));
   sdf_func_ =
-      sdflib::OctreeSdf(mesh, mesh.getBoundingBox(), 8, 3, 1e-3,
+      sdflib::OctreeSdf(mesh, box, 8, 3, 1e-3,
                         sdflib::OctreeSdf::InitAlgorithm::CONTINUITY, 1);
 }
 
@@ -125,10 +129,29 @@ mjtNum SdfLib::Distance(const mjtNum p[3]) const {
 void SdfLib::Gradient(mjtNum grad[3], const mjtNum point[3]) const {
   glm::vec3 gradient;
   glm::vec3 p(point[0], point[1], point[2]);
-  sdf_func_.getDistance(p, gradient);
-  grad[0] = gradient[0];
-  grad[1] = gradient[1];
-  grad[2] = gradient[2];
+
+  // analytic in the interior
+  if (boxProjection(p, sdf_func_.getGridBoundingBox()) <= 0) {
+    sdf_func_.getDistance(p, gradient);
+    grad[0] = gradient[0];
+    grad[1] = gradient[1];
+    grad[2] = gradient[2];
+    return;
+  }
+
+  // finite difference in the exterior
+  mjtNum eps = 1e-8;
+  mjtNum dist0 = Distance(point);
+  mjtNum pointX[3] = {point[0]+eps, point[1], point[2]};
+  mjtNum distX = Distance(pointX);
+  mjtNum pointY[3] = {point[0], point[1]+eps, point[2]};
+  mjtNum distY = Distance(pointY);
+  mjtNum pointZ[3] = {point[0], point[1], point[2]+eps};
+  mjtNum distZ = Distance(pointZ);
+
+  grad[0] = (distX - dist0) / eps;
+  grad[1] = (distY - dist0) / eps;
+  grad[2] = (distZ - dist0) / eps;
 }
 
 // plugin registration
