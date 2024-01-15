@@ -33,10 +33,10 @@ class MuJoCoRendererTest(parameterized.TestCase):
 """
     model = mujoco.MjModel.from_xml_string(xml)
     data = mujoco.MjData(model)
-    renderer = mujoco.Renderer(model, 50, 50)
-    mujoco.mj_forward(model, data)
-    with self.assertRaisesRegex(ValueError, r'camera "b" does not exist'):
-      renderer.update_scene(data, 'b')
+    with mujoco.Renderer(model, 50, 50) as renderer:
+      mujoco.mj_forward(model, data)
+      with self.assertRaisesRegex(ValueError, r'camera "b" does not exist'):
+        renderer.update_scene(data, 'b')
 
   def test_renderer_camera_under_range(self):
     xml = """
@@ -48,10 +48,10 @@ class MuJoCoRendererTest(parameterized.TestCase):
 """
     model = mujoco.MjModel.from_xml_string(xml)
     data = mujoco.MjData(model)
-    renderer = mujoco.Renderer(model, 50, 50)
-    mujoco.mj_forward(model, data)
-    with self.assertRaisesRegex(ValueError, '-2 is out of range'):
-      renderer.update_scene(data, -2)
+    with mujoco.Renderer(model, 50, 50) as renderer:
+      mujoco.mj_forward(model, data)
+      with self.assertRaisesRegex(ValueError, '-2 is out of range'):
+        renderer.update_scene(data, -2)
 
   def test_renderer_camera_over_range(self):
     xml = """
@@ -63,10 +63,10 @@ class MuJoCoRendererTest(parameterized.TestCase):
 """
     model = mujoco.MjModel.from_xml_string(xml)
     data = mujoco.MjData(model)
-    renderer = mujoco.Renderer(model, 50, 50)
-    mujoco.mj_forward(model, data)
-    with self.assertRaisesRegex(ValueError, '1 is out of range'):
-      renderer.update_scene(data, 1)
+    with mujoco.Renderer(model, 50, 50) as renderer:
+      mujoco.mj_forward(model, data)
+      with self.assertRaisesRegex(ValueError, '1 is out of range'):
+        renderer.update_scene(data, 1)
 
   def test_renderer_renders_scene(self):
     xml = """
@@ -79,19 +79,19 @@ class MuJoCoRendererTest(parameterized.TestCase):
 """
     model = mujoco.MjModel.from_xml_string(xml)
     data = mujoco.MjData(model)
-    renderer = mujoco.Renderer(model, 50, 50)
-    mujoco.mj_forward(model, data)
-    renderer.update_scene(data, 'closeup')
+    with mujoco.Renderer(model, 50, 50) as renderer:
+      mujoco.mj_forward(model, data)
+      renderer.update_scene(data, 'closeup')
 
-    pixels = renderer.render().flatten()
-    not_all_black = False
+      pixels = renderer.render().flatten()
+      not_all_black = False
 
-    # Pixels should all be a neutral color.
-    for pixel in pixels:
-      if pixel > 0:
-        not_all_black = True
-        break
-    self.assertTrue(not_all_black)
+      # Pixels should all be a neutral color.
+      for pixel in pixels:
+        if pixel > 0:
+          not_all_black = True
+          break
+      self.assertTrue(not_all_black)
 
   def test_renderer_output_without_out(self):
     xml = """
@@ -105,25 +105,25 @@ class MuJoCoRendererTest(parameterized.TestCase):
     model = mujoco.MjModel.from_xml_string(xml)
     data = mujoco.MjData(model)
     mujoco.mj_forward(model, data)
-    renderer = mujoco.Renderer(model, 50, 50)
-    renderer.update_scene(data, 'closeup')
-    pixels = [renderer.render()]
-
-    colors = (
-        (1.0, 0.0, 0.0, 1.0),
-        (0.0, 1.0, 0.0, 1.0),
-        (0.0, 0.0, 1.0, 1.0),
-    )
-
-    for i, color in enumerate(colors):
-      model.geom_rgba[0, :] = color
-      mujoco.mj_forward(model, data)
+    with mujoco.Renderer(model, 50, 50) as renderer:
       renderer.update_scene(data, 'closeup')
-      pixels.append(renderer.render())
-      self.assertIsNot(pixels[-2], pixels[-1])
+      pixels = [renderer.render()]
 
-      # Pixels should change over steps.
-      self.assertFalse((pixels[i + 1] == pixels[i]).all())
+      colors = (
+          (1.0, 0.0, 0.0, 1.0),
+          (0.0, 1.0, 0.0, 1.0),
+          (0.0, 0.0, 1.0, 1.0),
+      )
+
+      for i, color in enumerate(colors):
+        model.geom_rgba[0, :] = color
+        mujoco.mj_forward(model, data)
+        renderer.update_scene(data, 'closeup')
+        pixels.append(renderer.render())
+        self.assertIsNot(pixels[-2], pixels[-1])
+
+        # Pixels should change over steps.
+        self.assertFalse((pixels[i + 1] == pixels[i]).all())
 
   def test_renderer_output_with_out(self):
     xml = """
@@ -139,23 +139,21 @@ class MuJoCoRendererTest(parameterized.TestCase):
     model = mujoco.MjModel.from_xml_string(xml)
     data = mujoco.MjData(model)
     mujoco.mj_forward(model, data)
-    renderer = mujoco.Renderer(model, *render_size)
-    renderer.update_scene(data, 'closeup')
+    with mujoco.Renderer(model, *render_size) as renderer:
+      renderer.update_scene(data, 'closeup')
 
-    self.assertTrue(np.all(render_out == 0))
+      self.assertTrue(np.all(render_out == 0))
 
-    pixels = renderer.render(out=render_out)
+      pixels = renderer.render(out=render_out)
 
-    # Pixels should always refer to the same `render_out` array.
-    self.assertIs(pixels, render_out)
-    self.assertFalse(np.all(render_out == 0))
+      # Pixels should always refer to the same `render_out` array.
+      self.assertIs(pixels, render_out)
+      self.assertFalse(np.all(render_out == 0))
 
-    failing_render_size = (10, 10)
-    self.assertNotEqual(failing_render_size, render_size)
-    with self.assertRaises(ValueError):
-      pixels = renderer.render(
-          out=np.zeros((*failing_render_size, 3), np.uint8)
-      )
+      failing_render_size = (10, 10)
+      self.assertNotEqual(failing_render_size, render_size)
+      with self.assertRaises(ValueError):
+        renderer.render(out=np.zeros((*failing_render_size, 3), np.uint8))
 
 
 if __name__ == '__main__':

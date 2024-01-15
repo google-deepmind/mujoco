@@ -164,6 +164,7 @@ jobs:
       if: ${{ runner.os != 'Windows' }}
       working-directory: build
       run: mkdir -p ${{ matrix.tmpdir }}/mujoco_install/mujoco_plugin &&
+           cp lib/libactuator.* ${{ matrix.tmpdir }}/mujoco_install/mujoco_plugin &&
            cp lib/libelasticity.* ${{ matrix.tmpdir }}/mujoco_install/mujoco_plugin &&
            cp lib/libsensor.* ${{ matrix.tmpdir }}/mujoco_install/mujoco_plugin &&
            cp lib/libsdf.* ${{ matrix.tmpdir }}/mujoco_install/mujoco_plugin
@@ -171,6 +172,7 @@ jobs:
       if: ${{ runner.os == 'Windows' }}
       working-directory: build
       run: mkdir -p ${{ matrix.tmpdir }}/mujoco_install/mujoco_plugin &&
+           cp bin/Release/actuator.dll ${{ matrix.tmpdir }}/mujoco_install/mujoco_plugin &&
            cp bin/Release/elasticity.dll ${{ matrix.tmpdir }}/mujoco_install/mujoco_plugin &&
            cp bin/Release/sensor.dll ${{ matrix.tmpdir }}/mujoco_install/mujoco_plugin
     - name: Configure samples

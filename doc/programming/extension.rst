@@ -199,6 +199,25 @@ When :ref:`mjData` is being copied via :ref:`mj_copyData`, MuJoCo will copy over
 code is responsible for setting up the plugin data for the newly copied :ref:`mjData`. To facilitate this, MuJoCo calls
 the ``copy`` callback from :ref:`mjpPlugin` for each plugin instance present.
 
+.. _exActuatorAct:
+
+Actuator activations
+""""""""""""""""""""
+
+When writing stateful actuator plugins, there are two choices for where to save the actuator state. One option is using
+``plugin_state`` as described above, and the other is to use ``mjData.act`` by implementing the ``actuator_actdim`` and
+``actuator_act_dot`` callbacks on :ref:`mjpPlugin`.
+
+When using the latter option, the actuator plugin's state will be added to ``mjData.act``, and MuJoCo will
+automatically integrate ``mjData.act_dot`` values between timesteps. One advantage of this approach is that
+finite-differencing functions like :ref:`mjd_transitionFD` will work as they do for native actuators. The
+``mjpPlugin.advance`` callback will be called after ``act_dot`` is integrated, and actuator plugins may overwrite
+the ``act`` values at that point, if Euler integration isn't appropriate.
+
+Users may specify the :ref:`dyntype<actuator-plugin-dyntype>` attribute on actuator plugins, to introduce a filter or
+an integrator between user inputs and actuator activations. When they do, the activation variable introduced by
+``dyntype`` will be placed *after* the plugin's activation variables in the ``act`` array.
+
 .. _exRegistration:
 
 Registration
@@ -248,8 +267,11 @@ A future version of this section will include:
 * Things that developers need to keep in mind in order to ensure that plugins function correctly when :ref:`mjData` is
   copied, stepped, or reset.
 
-Currently, there are three directories of first-party plugins:
+There are several first-party plugin directories:
 
+* **actuator:** The plugins in the `actuator/ <https://github.com/google-deepmind/mujoco/tree/main/plugin/actuator>`__
+  directory implement custom actuators, so far only a PID controller. See the
+  `README <https://github.com/google-deepmind/mujoco/blob/main/plugin/actuator/README.md>`__ for details.
 * **elasticity:** The plugins in the `elasticity/
   <https://github.com/google-deepmind/mujoco/tree/main/plugin/elasticity>`__ directory are passive forces based on
   continuum mechanics for 1-dimensional and 3-dimensional bodies. The 1D model is invariant under rotations and captures
@@ -269,11 +291,11 @@ Currently, there are three directories of first-party plugins:
   <https://github.com/google-deepmind/mujoco/blob/main/plugin/sdf/README.md>`__. The rest of this section will give more
   detail concerning the collision algorithm and the plugin engine interface.
 
-  Collision points are found by minimizing the maximum of the two colliding SDFs via gradient descent.
-  Because SDFs are non-convex, multiple starting points are required in order to converge to multiple local minima.
-  The number of starting points is set using :ref:`sdf_initpoints<option-sdf_initpoints>`, and are
-  initialized using the Halton sequence inside the intersection of the axis-aligned bounding boxes.
-  The number of gradient descent iterations is set using :ref:`sdf_iterations<option-sdf_iterations>`.
+  Collision points are found by minimizing the function A + B + abs(max(A, B)), where A and B are the two colliding
+  SDFs, via gradient descent. Because SDFs are non-convex, multiple starting points are required in order to converge to
+  multiple local minima. The number of starting points is set using :ref:`sdf_initpoints<option-sdf_initpoints>`, and
+  are initialized using the Halton sequence inside the intersection of the axis-aligned bounding boxes. The number of
+  gradient descent iterations is set using :ref:`sdf_iterations<option-sdf_iterations>`.
 
   While *exact* SDFs---encoding the precise signed distance to the surface---are preferred, collisions are possible with
   any function whose value vanishes at the surface and grows monotonically away from it, with a negative sign in the
@@ -323,7 +345,6 @@ loading functions. The :ref:`mjpResourceProvider` struct stores three types of f
 .. _Uniform Resource Identifier: https://en.wikipedia.org/wiki/Uniform_Resource_Identifier
 
 Resource prefix
-
   Resources are identified by prefixes in their name. The chosen prefix should have a valid `Uniform Resource
   Identifier`_ (URI) scheme syntax. Resource names should also have a valid URI syntax, however this isn't enforced. A
   resource name with the syntax ``{prefix}:{filename}`` will match a provider using the scheme ``prefix``.  For

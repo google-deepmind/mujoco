@@ -108,7 +108,7 @@ public const int mjMAXLINEPNT = 1000;
 public const int mjMAXPLANEGRID = 200;
 public const bool THIRD_PARTY_MUJOCO_MJXMACRO_H_ = true;
 public const bool THIRD_PARTY_MUJOCO_MUJOCO_H_ = true;
-public const int mjVERSION_HEADER = 302;
+public const int mjVERSION_HEADER = 312;
 
 
 // ------------------------------------Enums------------------------------------
@@ -191,10 +191,11 @@ public enum mjtGeom : int{
   mjGEOM_ARROW1 = 101,
   mjGEOM_ARROW2 = 102,
   mjGEOM_LINE = 103,
-  mjGEOM_FLEX = 104,
-  mjGEOM_SKIN = 105,
-  mjGEOM_LABEL = 106,
-  mjGEOM_TRIANGLE = 107,
+  mjGEOM_LINEBOX = 104,
+  mjGEOM_FLEX = 105,
+  mjGEOM_SKIN = 106,
+  mjGEOM_LABEL = 107,
+  mjGEOM_TRIANGLE = 108,
   mjGEOM_NONE = 1001,
 }
 public enum mjtCamLight : int{
@@ -301,6 +302,7 @@ public enum mjtObj : int{
   mjOBJ_TUPLE = 23,
   mjOBJ_KEY = 24,
   mjOBJ_PLUGIN = 25,
+  mjNOBJECT = 26,
 }
 public enum mjtConstraint : int{
   mjCNSTR_EQUALITY = 0,
@@ -5393,16 +5395,19 @@ public unsafe struct mjModel_ {
   public int* skin_bonebodyid;
   public int* skin_bonevertid;
   public float* skin_bonevertweight;
+  public int* skin_pathadr;
   public double* hfield_size;
   public int* hfield_nrow;
   public int* hfield_ncol;
   public int* hfield_adr;
   public float* hfield_data;
+  public int* hfield_pathadr;
   public int* tex_type;
   public int* tex_height;
   public int* tex_width;
   public int* tex_adr;
   public byte* tex_rgb;
+  public int* tex_pathadr;
   public int* mat_texid;
   public byte* mat_texuniform;
   public float* mat_texrepeat;
@@ -6090,6 +6095,7 @@ public unsafe struct model {
   public int nnames;
   public int npaths;
   public int nsensordata;
+  public int narena;
   public mjOption_ opt;
   public mjVisual_ vis;
   public mjStatistic_ stat;
@@ -6152,6 +6158,7 @@ public unsafe struct model {
   public int* flex_vertadr;
   public int* flex_vertnum;
   public int* flex_elem;
+  public int* flex_elemlayer;
   public int* flex_elemadr;
   public int* flex_elemnum;
   public int* flex_elemdataadr;
@@ -6163,6 +6170,7 @@ public unsafe struct model {
   public int* flex_bvhnum;
   public double* flex_radius;
   public float* flex_rgba;
+  public int* hfield_pathadr;
   public int* mesh_bvhadr;
   public int* mesh_bvhnum;
   public int* mesh_texcoordadr;
@@ -6188,6 +6196,8 @@ public unsafe struct model {
   public int* skin_bonebodyid;
   public int* skin_bonevertid;
   public float* skin_bonevertweight;
+  public int* skin_pathadr;
+  public int* tex_pathadr;
   public int* mat_texid;
   public byte* mat_texuniform;
   public float* mat_texrepeat;
@@ -6278,6 +6288,7 @@ public unsafe struct data {
   public int* wrap_obj;
   public double* ten_length;
   public double* wrap_xpos;
+  public double* bvh_aabb_dyn;
   public byte* bvh_active;
   public int* island_dofadr;
   public int* island_dofind;
@@ -6287,6 +6298,7 @@ public unsafe struct data {
   public double* flexvert_xpos;
   public mjContact_* contact;
   public double* efc_force;
+  public void* arena;
 }
 
 [StructLayout(LayoutKind.Sequential)]
@@ -6459,6 +6471,9 @@ public static unsafe extern void mj_Euler(mjModel_* m, mjData_* d);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern void mj_RungeKutta(mjModel_* m, mjData_* d, int N);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern void mj_implicit(mjModel_* m, mjData_* d);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern void mj_invPosition(mjModel_* m, mjData_* d);

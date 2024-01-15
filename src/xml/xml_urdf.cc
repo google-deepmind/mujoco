@@ -573,7 +573,7 @@ mjCGeom* mjXURDF::Geom(XMLElement* geom_elem, mjCBody* pbody, bool collision) {
     // set fields
     pmesh->set_file(meshfile);
     pmesh->name = meshname;
-    pgeom->mesh = meshname;
+    pgeom->meshname = meshname;
     pmesh->set_scale(meshscale);
   }
 

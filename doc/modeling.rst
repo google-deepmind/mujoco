@@ -204,16 +204,21 @@ cameras and lights.
 A related attribute is :ref:`compiler/angle<compiler-angle>`. It specifies whether angles in the MJCF file are expressed
 in degrees or radians (after compilation, angles are always expressed in radians).
 
+Positions are specified using
+
+:at:`pos`: :at-val:`real(3), "0 0 0"`
+   Position relative to parent.
+
 .. _COrientation:
 
 Frame orientations
-~~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^^
 
 Several model elements have right-handed spatial frames associated with them. These are all the elements defined in the
 kinematic tree except for joints. A spatial frame is defined by its position and orientation. Specifying 3D positions is
 straightforward, but specifying 3D orientations can be challenging. This is why MJCF provides several alternative
-mechanisms. No matter which mechanism the user chooses, the frame orientation is always represented as a unit quaternion
-after compilation. Recall that a 3D rotation by angle :math:`a` around axis given by the unit vector :math:`(x, y, z)`
+mechanisms. No matter which mechanism the user chooses, the frame orientation is always converted internally to a unit
+quaternion. Recall that a 3D rotation by angle :math:`a` around axis given by the unit vector :math:`(x, y, z)`
 corresponds to the quaternion :math:`(\cos(a/2), \: \sin(a/2) \cdot (x, y, z))`. Also recall that every 3D orientation
 can be uniquely specified by a single 3D rotation by some angle around some axis.
 
@@ -267,6 +272,7 @@ approximately
 
 .. math::
    \ac + d \cdot (b v + k r) = (1 - d)\cdot \au
+   :label: eq:constraint
 
 Again, the parameters that are under the user's control are :math:`d, b, k`. The remaining quantities are functions of
 the system state and are computed automatically at each time step.
@@ -312,7 +318,15 @@ of the function :math:`d(r)` is determined by the element-specific parameter vec
    units of :math:`\text{width}`. Note that when :math:`\text{power}` is 1, the function is linear regardless of the
    :math:`\text{midpoint}`.
 
-   |image0|
+   .. image:: images/modeling/impedance.png
+      :width: 600px
+      :align: center
+      :class: only-light
+
+   .. image:: images/modeling/impedance_dark.png
+      :width: 600px
+      :align: center
+      :class: only-dark
 
    These plots show the impedance :math:`d(r)` on the vertical axis, as a function of the constraint violation :math:`r`
    on the horizontal axis.
@@ -338,12 +352,9 @@ Next we explain the setting of the stiffness :math:`k` and damping :math:`b` whi
 
 .. admonition:: Intuitive description of the **reference acceleration**
 
-   The *reference acceleration* :math:`\ar` determines the **motion that constraint is trying to achieve** in
-   order to rectify violation. For example, consider a contact between a motionless free body pulled down by gravity
-   onto a static plane geom. Since there is no motion, the penetration will be entirely determined by the impedance
-   while the reference has no effect. Now imagine that the body is dropped onto the plane. Upon impact the constraint
-   will generate a normal force which attempts to rectify the penetration using a particular motion; this motion is
-   the reference acceleration.
+   The *reference acceleration* :math:`\ar` determines the **motion that constraint is trying to achieve** in order to
+   rectify violation. Imagine a body dropped onto the plane. Upon impact the constraint will generate a normal force
+   which attempts to rectify the penetration using a particular motion; this motion is the reference acceleration.
 
    Another way of understanding the reference acceleration is to think of the unmodeled deformation variables
    described in the :ref:`Computation chapter<soPrimal>`. Imagine two bodies pressed together, leading to deformation at
@@ -388,7 +399,12 @@ and the damping ratio is ignored. Equivalently, in the direct format, the :math:
    can go unstable. This is enforced internally, unless the :ref:`refsafe<option-flag-refsafe>` attribute of :ref:`flag
    <option-flag>` is set to false. The :math:`\text{dampratio}` parameter would normally be set to 1, corresponding to
    critical damping. Smaller values result in under-damped or bouncy constraints, while larger values result in
-   over-damped constraints.
+   over-damped constraints. Combining the above formula with :eq:`eq:constraint`, we can derive the following result.
+   If the reference acceleration is given using the positive number format and the impedance is constant
+   :math:`d = d_0 = d_\text{width}`, then the penetration depth at rest is
+
+   .. math::
+      r = \au \cdot (1 - d) \cdot \text{timeconst}^2 \cdot \text{dampratio}^2
 
    Next we describe the direct format where the two numbers are :math:`(-\text{stiffness}, -\text{damping})`. This
    allows direct control over restitution in particular. We still apply some scaling so that the same numbers can be
@@ -398,8 +414,14 @@ and the damping ratio is ignored. Equivalently, in the direct format, the :math:
    .. math::
       \begin{aligned}
       b &= \text{damping} / d_\text{width} \\
-      k &= \text{stiffness} / d_\text{width}^2 \\
+      k &= \text{stiffness} \cdot d(r) / d_\text{width}^2 \\
       \end{aligned}
+
+   Similarly to the above derivation, if the reference acceleration is given using the negative number format and the
+   impedance is constant, then the penetration depth at rest is
+
+   .. math::
+      r = \au \cdot (1 - d) \cdot \text{stiffness}
 
 .. tip::
    In the positive-value default format, the :math:`\text{timeconst}` parameter controls constraint **softness**.
@@ -851,7 +873,15 @@ The advantage of the scaled quantities is that all muscles behave similarly in t
 captured by the Force-Length-Velocity (:math:`\text{\small FLV}`) function measured in many experimental papers. We
 approximate this function as follows:
 
-|image1|
+.. image:: images/modeling/musclemodel.png
+   :width: 650px
+   :align: center
+   :class: only-light
+
+.. image:: images/modeling/musclemodel_dark.png
+   :width: 650px
+   :align: center
+   :class: only-dark
 
 The function is in the form:
 
@@ -893,7 +923,15 @@ Before embarking on a mission to design more accurate :math:`\text{\small FLV}` 
 operating range of the muscle has a bigger effect than the shape of the :math:`\text{\small FLV}` function, and in many
 cases this parameter is unknown. Below is a graphical illustration:
 
-|image2|
+.. image:: images/modeling/musclerange.png
+   :width: 500px
+   :align: center
+   :class: only-light
+
+.. image:: images/modeling/musclerange_dark.png
+   :width: 500px
+   :align: center
+   :class: only-dark
 
 This figure format is common in the biomechanics literature, showing the operating range of each muscle superimposed on
 the normalized :math:`\text{FL}` curve (ignore the vertical displacement). Our default range is shown in black. The blue
@@ -1297,7 +1335,9 @@ A flex is a collection of MuJoCo bodies that are connected with massless stretch
 capsules (1D flex), triangles (2D flex), or tetrahedra (3D flex). In all cases we allow a radius, which makes the
 elements smooth and also volumetric in 1D and 2D. The primitive elements are illustrated below:
 
-|flexelem|
+.. image:: images/modeling/flexelem.png
+   :width: 600px
+   :align: center
 
 Thus far these look like geoms. But the key difference is that they deform: as the bodies (vertices) move independently
 of each other, the shape of the elements changes in real time. Collisions and contact forces are now generalized to
@@ -1360,7 +1400,8 @@ In case of 3D flexes made of tetrahedra, it may be useful to examine how the fle
 a special visualization mode that peels off the outer layers. Below is an example with the Stanford Bunny. Note how it
 has smaller tetrahedra on the outside and larger ones on the inside. This mesh design makes sense, because we want the
 collision surface to be accurate, but on the inside we just need soft material properties - which require less spatial
-resolution.
+resolution. In order to convert a surface mesh to a tetrahedral mesh, we recommend open tools like the
+`fTetWild library <https://github.com/wildmeshing/fTetWild>`__.
 
 |bunny1| |bunny2|
 
@@ -1663,12 +1704,6 @@ in a visible way, and the energy fluctuates around the initial value instead of 
    </worldbody>
 
 
-.. |image0| image:: images/modeling/impedance.png
-   :width: 600px
-.. |image1| image:: images/modeling/musclemodel.png
-   :width: 650px
-.. |image2| image:: images/modeling/musclerange.png
-   :width: 400px
 .. |image3| image:: images/modeling/tendonwraps.png
    :width: 500px
 .. |image4| image:: images/modeling/particle.png
@@ -1705,8 +1740,6 @@ in a visible way, and the energy fluctuates around the initial value instead of 
    :height: 250px
 .. |particle| image:: images/models/particle.gif
    :width: 270px
-.. |flexelem| image:: images/modeling/flexelem.png
-   :width: 400px
 .. |bunny1| image:: images/modeling/bunny1.png
    :width: 300px
 .. |bunny2| image:: images/modeling/bunny2.png

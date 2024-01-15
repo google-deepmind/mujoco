@@ -24,10 +24,11 @@
 extern "C" {
 #endif
 
-typedef enum mjtSDFType_ {
-  mjSDFTYPE_SINGLE     = 0,
-  mjSDFTYPE_INTERSECTION,
-  mjSDFTYPE_AVERAGE,
+typedef enum mjtSDFType_ {        // signed distance function (SDF) type
+  mjSDFTYPE_SINGLE     = 0,       // single SDF
+  mjSDFTYPE_INTERSECTION,         // max(A, B)
+  mjSDFTYPE_MIDSURFACE,           // A - B
+  mjSDFTYPE_COLLISION,            // A + B + abs(max(A, B))
 } mjtSDFType;
 
 struct mjSDF_ {

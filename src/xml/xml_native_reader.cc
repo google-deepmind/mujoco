@@ -57,7 +57,7 @@ void ReadPluginConfigs(tinyxml2::XMLElement* elem, mjCPlugin* pp) {
       mjXUtil::ReadAttrTxt(child, "key", key, /* required = */ true);
       if (config_attribs.find(key) != config_attribs.end()) {
         std::string err = "duplicate config key: " + key;
-        throw mjXError(child, err.c_str());
+        throw mjXError(child, "%s", err.c_str());
       }
       mjXUtil::ReadAttrTxt(child, "value", value, /* required = */ true);
       config_attribs[key] = value;
@@ -166,16 +166,16 @@ static const char* MJCF[nMJCF][mjXATTRNUM] = {
             "dyntype", "gaintype", "biastype", "dynprm", "gainprm", "biasprm", "actearly"},
         {"motor", "?", "8", "ctrllimited", "forcelimited", "ctrlrange", "forcerange",
             "gear", "cranklength", "user", "group"},
-        {"position", "?", "9", "ctrllimited", "forcelimited", "ctrlrange", "forcerange",
+        {"position", "?", "10", "ctrllimited", "forcelimited", "ctrlrange", "forcerange",
             "gear", "cranklength", "user", "group",
-            "kp"},
+            "kp", "kv"},
         {"velocity", "?", "9", "ctrllimited", "forcelimited", "ctrlrange", "forcerange",
             "gear", "cranklength", "user", "group",
             "kv"},
-        {"intvelocity", "?", "10", "ctrllimited", "forcelimited",
+        {"intvelocity", "?", "11", "ctrllimited", "forcelimited",
             "ctrlrange", "forcerange", "actrange",
             "gear", "cranklength", "user", "group",
-            "kp"},
+            "kp", "kv"},
         {"damper", "?", "8", "forcelimited", "ctrlrange", "forcerange",
             "gear", "cranklength", "user", "group",
             "kv"},
@@ -379,22 +379,22 @@ static const char* MJCF[nMJCF][mjXATTRNUM] = {
             "ctrllimited", "forcelimited", "ctrlrange", "forcerange",
             "lengthrange", "gear", "cranklength", "user",
             "joint", "jointinparent", "tendon", "slidersite", "cranksite", "site", "refsite"},
-        {"position", "*", "19", "name", "class", "group",
+        {"position", "*", "20", "name", "class", "group",
             "ctrllimited", "forcelimited", "ctrlrange", "forcerange",
             "lengthrange", "gear", "cranklength", "user",
             "joint", "jointinparent", "tendon", "slidersite", "cranksite", "site", "refsite",
-            "kp"},
+            "kp", "kv"},
         {"velocity", "*", "19", "name", "class", "group",
             "ctrllimited", "forcelimited", "ctrlrange", "forcerange",
             "lengthrange", "gear", "cranklength", "user",
             "joint", "jointinparent", "tendon", "slidersite", "cranksite", "site", "refsite",
             "kv"},
-        {"intvelocity", "*", "20", "name", "class", "group",
+        {"intvelocity", "*", "21", "name", "class", "group",
             "ctrllimited", "forcelimited",
             "ctrlrange", "forcerange", "actrange", "lengthrange",
             "gear", "cranklength", "user",
             "joint", "jointinparent", "tendon", "slidersite", "cranksite", "site", "refsite",
-            "kp"},
+            "kp", "kv"},
         {"damper", "*", "18", "name", "class", "group",
             "forcelimited", "ctrlrange", "forcerange",
             "lengthrange", "gear", "cranklength", "user",
@@ -413,10 +413,10 @@ static const char* MJCF[nMJCF][mjXATTRNUM] = {
             "lmin", "lmax", "vmax", "fpmax", "fvmax"},
         {"adhesion", "*", "9", "name", "class", "group",
             "forcelimited", "ctrlrange", "forcerange", "user", "body", "gain"},
-        {"plugin", "*", "19", "name", "class",  "plugin", "instance", "group",
-            "ctrllimited", "forcelimited", "ctrlrange", "forcerange",
+        {"plugin", "*", "24", "name", "class",  "plugin", "instance", "group",
+            "ctrllimited", "forcelimited", "actlimited", "ctrlrange", "forcerange", "actrange",
             "lengthrange", "gear", "cranklength", "joint", "jointinparent",
-            "site", "tendon", "cranksite", "slidersite", "user"},
+            "site", "dyntype", "dynprm", "tendon", "cranksite", "slidersite", "user", "actearly"},
         {"<"},
           {"config", "*", "2", "key", "value"},
         {">"},
@@ -872,7 +872,7 @@ void mjXReader::Parse(XMLElement* root) {
 
   for (XMLElement* section = root->FirstChildElement("worldbody"); section;
        section = section->NextSiblingElement("worldbody")) {
-    Body(section, model->GetWorld());
+    Body(section, model->GetWorld(), nullptr);
   }
 
   for (XMLElement* section = root->FirstChildElement("contact"); section;
@@ -1117,7 +1117,7 @@ void mjXReader::Size(XMLElement* section, mjCModel* mod) {
         std::string trailing;
         strm >> trailing;
         if (!trailing.empty() || !strm.eof()) {
-          throw mjXError(section, err_msg);
+          throw mjXError(section, "%s", err_msg);
         }
 
         // allow explicit specification of the default "-1" value
@@ -1130,14 +1130,14 @@ void mjXReader::Size(XMLElement* section, mjCModel* mod) {
 
       // check that the number is not negative
       if (strm.peek() == '-') {
-        throw mjXError(section, err_msg);
+        throw mjXError(section, "%s", err_msg);
       }
 
       std::size_t base_size;
       strm >> base_size;
       if (strm.fail()) {
         // either not an integer or the number without the suffix is already bigger than size_t
-        throw mjXError(section, err_msg);
+        throw mjXError(section, "%s", err_msg);
       }
 
       // parse the multiplier suffix
@@ -1161,20 +1161,20 @@ void mjXReader::Size(XMLElement* section, mjCModel* mod) {
         // check for invalid suffix, or suffix longer than one character
         strm.get();
         if (!multiplier_bit || !strm.eof()) {
-          throw mjXError(section, err_msg);
+          throw mjXError(section, "%s", err_msg);
         }
       }
 
       // check that the specified suffix isn't bigger than size_t
       if (multiplier_bit + 1 > std::numeric_limits<std::size_t>::digits) {
-        throw mjXError(section, err_msg);
+        throw mjXError(section, "%s", err_msg);
       }
 
       // check that the suffix won't take the total size beyond size_t
       const std::size_t max_base_size =
           (std::numeric_limits<std::size_t>::max() << multiplier_bit) >> multiplier_bit;
       if (base_size > max_base_size) {
-        throw mjXError(section, err_msg);
+        throw mjXError(section, "%s", err_msg);
       }
 
       const std::size_t total_size = base_size << multiplier_bit;
@@ -1183,7 +1183,7 @@ void mjXReader::Size(XMLElement* section, mjCModel* mod) {
 
     if (memory.has_value()) {
       if (*memory / sizeof(mjtNum) > std::numeric_limits<int>::max()) {
-        throw mjXError(section, err_msg);
+        throw mjXError(section, "%s", err_msg);
       }
       mod->memory = *memory;
     }
@@ -1525,8 +1525,8 @@ void mjXReader::OneGeom(XMLElement* elem, mjCGeom* pgeom) {
   ReadAttr(elem, "solimp", mjNIMP, pgeom->solimp, text, false, false);
   ReadAttr(elem, "margin", 1, &pgeom->margin, text);
   ReadAttr(elem, "gap", 1, &pgeom->gap, text);
-  ReadAttrTxt(elem, "hfield", pgeom->hfield);
-  ReadAttrTxt(elem, "mesh", pgeom->mesh);
+  ReadAttrTxt(elem, "hfield", pgeom->hfieldname);
+  ReadAttrTxt(elem, "mesh", pgeom->meshname);
   ReadAttr(elem, "fitscale", 1, &pgeom->fitscale, text);
   ReadAttrTxt(elem, "material", pgeom->material);
   ReadAttr(elem, "rgba", 4, pgeom->rgba, text);
@@ -1895,19 +1895,26 @@ void mjXReader::OneActuator(XMLElement* elem, mjCActuator* pact) {
     pact->biastype = mjBIAS_NONE;
   }
 
-  // position servo
-  else if (type=="position") {
-    // clear bias
-    mjuu_zerovec(pact->biasprm, mjNBIAS);
-
+  // position or integrated velocity servo
+  else if (type=="position" || type=="intvelocity") {
     // explicit attributes
     ReadAttr(elem, "kp", 1, pact->gainprm, text);
     pact->biasprm[1] = -pact->gainprm[0];
 
+    if (ReadAttr(elem, "kv", 1, pact->biasprm + 2, text)) {
+      if (pact->biasprm[2] < 0)
+        throw mjXError(elem, "kv cannot be negative");
+      pact->biasprm[2] *= -1;
+    }
+
     // implied parameters
-    pact->dyntype = mjDYN_NONE;
     pact->gaintype = mjGAIN_FIXED;
     pact->biastype = mjBIAS_AFFINE;
+
+    if (type=="intvelocity") {
+      pact->dyntype = mjDYN_INTEGRATOR;
+      pact->actlimited = 1;
+    }
   }
 
   // velocity servo
@@ -1923,22 +1930,6 @@ void mjXReader::OneActuator(XMLElement* elem, mjCActuator* pact) {
     pact->dyntype = mjDYN_NONE;
     pact->gaintype = mjGAIN_FIXED;
     pact->biastype = mjBIAS_AFFINE;
-  }
-
-  // integrated velocity
-  else if (type=="intvelocity") {
-    // clear bias
-    mjuu_zerovec(pact->biasprm, mjNBIAS);
-
-    // explicit attributes
-    ReadAttr(elem, "kp", 1, pact->gainprm, text);
-
-    // implied parameters
-    pact->dyntype = mjDYN_INTEGRATOR;
-    pact->gaintype = mjGAIN_FIXED;
-    pact->biastype = mjBIAS_AFFINE;
-    pact->actlimited = 1;
-    pact->biasprm[1] = -pact->gainprm[0];
   }
 
   // damper
@@ -2043,6 +2034,14 @@ void mjXReader::OneActuator(XMLElement* elem, mjCActuator* pact) {
 
   else if (type == "plugin") {
     OnePlugin(elem, pact);
+    int n;
+    if (MapValue(elem, "dyntype", &n, dyn_map, dyn_sz)) {
+      pact->dyntype = (mjtDyn)n;
+    }
+    if (MapValue(elem, "actearly", &n, bool_map, 2)) {
+      pact->actearly = (n==1);
+    }
+    ReadAttr(elem, "dynprm", mjNDYN, pact->dynprm, text, false, false);
   }
 
   else {          // SHOULD NOT OCCUR
@@ -2184,7 +2183,7 @@ void mjXReader::OneComposite(XMLElement* elem, mjCBody* pbody, mjCDef* def) {
     if (comp.add[kind]) {
       char error[200];
       if (!comp.AddDefaultJoint(error, 200)) {
-        throw mjXError(elem, error);
+        throw mjXError(elem, "%s", error);
       }
     }
     comp.add[kind] = true;
@@ -2277,7 +2276,7 @@ void mjXReader::OneComposite(XMLElement* elem, mjCBody* pbody, mjCDef* def) {
 
   // throw error
   if (!res) {
-    throw mjXError(elem, error);
+    throw mjXError(elem, "%s", error);
   }
 }
 
@@ -2409,7 +2408,7 @@ void mjXReader::OneFlexcomp(XMLElement* elem, mjCBody* pbody) {
 
   // throw error
   if (!res) {
-    throw mjXError(elem, error);
+    throw mjXError(elem, "%s", error);
   }
 }
 
@@ -2941,7 +2940,7 @@ void mjXReader::Asset(XMLElement* section) {
 
 
 // body/world section parser; recursive
-void mjXReader::Body(XMLElement* section, mjCBody* pbody) {
+void mjXReader::Body(XMLElement* section, mjCBody* pbody, mjCFrame* frame) {
   string text, name;
   XMLElement* elem;
   int n;
@@ -2952,7 +2951,7 @@ void mjXReader::Body(XMLElement* section, mjCBody* pbody) {
   }
 
   // no attributes allowed in world body
-  if (pbody->id==0 && section->FirstAttribute()) {
+  if (pbody->id==0 && section->FirstAttribute() && !frame) {
     throw mjXError(section, "World body cannot have attributes");
   }
 
@@ -2992,6 +2991,7 @@ void mjXReader::Body(XMLElement* section, mjCBody* pbody) {
       // create joint and parse
       mjCJoint* pjoint = pbody->AddJoint(def);
       OneJoint(elem, pjoint);
+      pjoint->SetFrame(frame);
     }
 
     // freejoint sub-element
@@ -3003,6 +3003,7 @@ void mjXReader::Body(XMLElement* section, mjCBody* pbody) {
 
       // create free joint without defaults
       mjCJoint* pjoint = pbody->AddJoint(NULL, true);
+      pjoint->SetFrame(frame);
 
       // save defaults after creation, to make sure writing is ok
       pjoint->def = def;
@@ -3017,12 +3018,7 @@ void mjXReader::Body(XMLElement* section, mjCBody* pbody) {
       // create geom and parse
       mjCGeom* pgeom = pbody->AddGeom(def);
       OneGeom(elem, pgeom);
-
-      // discard visual
-      if (!pgeom->contype && !pgeom->conaffinity && model->discardvisual) {
-        delete pbody->geoms.back();
-        pbody->geoms.pop_back();
-      }
+      pgeom->SetFrame(frame);
     }
 
     // site sub-element
@@ -3030,6 +3026,7 @@ void mjXReader::Body(XMLElement* section, mjCBody* pbody) {
       // create site and parse
       mjCSite* psite = pbody->AddSite(def);
       OneSite(elem, psite);
+      psite->SetFrame(frame);
     }
 
     // camera sub-element
@@ -3037,6 +3034,7 @@ void mjXReader::Body(XMLElement* section, mjCBody* pbody) {
       // create camera and parse
       mjCCamera* pcam = pbody->AddCamera(def);
       OneCamera(elem, pcam);
+      pcam->SetFrame(frame);
     }
 
     // light sub-element
@@ -3044,6 +3042,7 @@ void mjXReader::Body(XMLElement* section, mjCBody* pbody) {
       // create light and parse
       mjCLight* plight = pbody->AddLight(def);
       OneLight(elem, plight);
+      plight->SetFrame(frame);
     }
 
     // plugin sub-element
@@ -3061,6 +3060,18 @@ void mjXReader::Body(XMLElement* section, mjCBody* pbody) {
     else if (name=="flexcomp") {
       // parse flexcomp
       OneFlexcomp(elem, pbody);
+    }
+
+    // frame sub-element
+    else if (name=="frame") {
+      mjCFrame* pframe = pbody->AddFrame(frame);
+      GetXMLPos(elem, pframe);
+
+      ReadAttr(elem, "pos", 3, pframe->pos, text);
+      ReadQuat(elem, "quat", pframe->quat, text);
+      ReadAlternative(elem, pframe->alt);
+
+      Body(elem, pbody, pframe);
     }
 
     // body sub-element
@@ -3094,8 +3105,11 @@ void mjXReader::Body(XMLElement* section, mjCBody* pbody) {
       // read userdata
       ReadVector(elem, "user", pchild->userdata, text);
 
+      // add frame
+      pchild->SetFrame(frame);
+
       // make recursive call
-      Body(elem, pchild);
+      Body(elem, pchild, nullptr);
     }
 
     // no match

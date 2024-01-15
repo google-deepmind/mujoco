@@ -92,12 +92,13 @@ class GLContext:
     del max_width, max_height  # unused
     num_configs = ctypes.c_long()
     config_size = 1
-    config = EGL.EGLConfig()
+    # ctypes syntax for making an array of length config_size.
+    configs = (EGL.EGLConfig * config_size)()
     EGL.eglReleaseThread()
     EGL.eglChooseConfig(
         EGL_DISPLAY,
         EGL_ATTRIBUTES,
-        ctypes.byref(config),
+        configs,
         config_size,
         num_configs)
     if num_configs.value < 1:
@@ -106,7 +107,7 @@ class GLContext:
           'desired attributes: {}'.format(EGL_ATTRIBUTES))
     EGL.eglBindAPI(EGL.EGL_OPENGL_API)
     self._context = EGL.eglCreateContext(
-        EGL_DISPLAY, config, EGL.EGL_NO_CONTEXT, None)
+        EGL_DISPLAY, configs[0], EGL.EGL_NO_CONTEXT, None)
     if not self._context:
       raise RuntimeError('Cannot create an EGL context.')
 

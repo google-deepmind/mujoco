@@ -42,7 +42,8 @@ class mjXReader : public mjXBase {
   void Visual(tinyxml2::XMLElement* section);                          // visual section
   void Statistic(tinyxml2::XMLElement* section);                       // statistic section
   void Asset(tinyxml2::XMLElement* section);                           // asset section
-  void Body(tinyxml2::XMLElement* section, mjCBody* pbody);            // body/world section
+  void Body(tinyxml2::XMLElement* section, mjCBody* pbody,
+            mjCFrame* pframe);                                         // body/world section
   void Contact(tinyxml2::XMLElement* section);                         // contact section
   void Deformable(tinyxml2::XMLElement* section);                      // deformable section
   void Equality(tinyxml2::XMLElement* section);                        // equality section

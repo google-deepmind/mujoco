@@ -103,17 +103,76 @@ In the remainder of this chapter we describe all valid MJCF elements and their a
 multiple contexts, in which case their meaning depends on the parent element. This is why we always show the parent as a
 prefix in the documentation below.
 
+.. _meta-element:
+
+Meta elements
+~~~~~~~~~~~~~
+
+These elements are not strictly part of the low-level MJCF format definition, but rather instruct the compiler to
+perform some operation on the model. A general property of meta-elements is that they disappear from the model upon
+saving the XML. There are currently four meta-elements in MJCF:
+
+- :ref:`include<include>` and :ref:`frame<frame>`, which are outside of the schema.
+- :ref:`composite<body-composite>` and :ref:`flexcomp<body-flexcomp>` which are part of the schema, but serve to
+  procedurally generate other MJCF elements.
+
+.. _frame:
+
+**frame** (R)
+^^^^^^^^^^^^^
+
+The frame meta-element is a pure coordinate transformation that can wrap any group of elements in the kinematic tree
+(under :ref:`worldbody<body>`). After compilation, frame elements disappear and their transformation is accumulated
+in their direct children. The attributes of the frame meta-element are documented :ref:`below<body-frame>`.
+
+.. collapse:: Usage example of frame
+
+   Loading this model and saving it:
+
+   .. code-block:: xml
+
+      <mujoco>
+        <worldbody>
+          <frame quat="0 0 1 0">
+             <geom name="Alice" quat="0 1 0 0" size="1"/>
+          </frame>
+
+          <frame pos="0 1 0">
+            <geom name="Bob" pos="0 1 0" size="1"/>
+            <body name="Carl" pos="1 0 0">
+              ...
+            </body>
+          </frame>
+        </worldbody>
+      </mujoco>
+
+   Results in this model:
+
+   .. code-block:: xml
+
+      <mujoco>
+        <worldbody>
+          <geom name="Alice" quat="0 0 0 1" size="1"/>
+          <geom name="Bob" pos="0 2 0" size="1"/>
+          <body name="Carl" pos="1 1 0">
+            ...
+          </body>
+        </worldbody>
+      </mujoco>
+
+   Note that in the saved model, the frame elements have disappeared but their transformation was accumulated with those
+   of their child elements.
 
 .. _include:
 
 **include** (*)
-~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^
 
-This element does not strictly speaking belong to MJCF. Instead it is a meta-element, used to assemble multiple XML
+This element does not strictly belong to MJCF. Instead it is a meta-element, used to assemble multiple XML
 files in a single document object model (DOM) before parsing. The included file must be a valid XML file with a unique
 top-level element. This top-level element is removed by the parser, and the elements below it are inserted at the
 location of the :el:`include` element. At least one element must be inserted as a result of this procedure. The
-:el:`include` element can be used where ever an XML element is expected in the MJFC file. Nested includes are allowed,
+:el:`include` element can be used where ever an XML element is expected in the MJCF file. Nested includes are allowed,
 however a given XML file can be included at most once in the entire model. After all the included XML files have been
 assembled into a single DOM, it must correspond to a valid MJCF model. Other than that, it is up to the user to decide
 how to use includes and how to modularize large files if desired.
@@ -216,11 +275,11 @@ any effect. The settings here are global and apply to the entire model.
 .. _compiler-eulerseq:
 
 :at:`eulerseq`: :at-val:`string, "xyz"`
-   This attribute specifies the sequence of Euler rotations for all euler attributes of elements that have spatial
-   frames, as explained in :ref:`COrientation`. This must be a string with exactly 3
-   characters from the set {'x', 'y', 'z', 'X', 'Y', 'Z'}. The character at position n determines the axis around which
-   the n-th rotation is performed. Lower case denotes axes that rotate with the frame, while upper case denotes axes
-   that remain fixed in the parent frame. The "rpy" convention used in URDF corresponds to the default "xyz" in MJCF.
+   This attribute specifies the sequence of Euler rotations for all :at:`euler` attributes of elements that have spatial
+   frames, as explained in :ref:`COrientation`. This must be a string with exactly 3 characters from the set {x, y, z,
+   X, Y, Z}. The character at position n determines the axis around which the n-th rotation is performed. Lower case
+   letters denote axes that rotate with the frame (intrinsic), while upper case letters denote axes that remain fixed in
+   the parent frame (extrinsic). The "rpy" convention used in URDF corresponds to "XYZ" in MJCF.
 
 .. _compiler-meshdir:
 
@@ -247,14 +306,20 @@ any effect. The settings here are global and apply to the entire model.
 .. _compiler-discardvisual:
 
 :at:`discardvisual`: :at-val:`[false, true], "false" for MJCF, "true" for URDF`
-   This attribute instructs the parser to discard "visual geoms", defined as geoms whose contype and conaffinity
-   attributes are both set to 0. This functionality is useful for models that contain two sets of geoms, one for
-   collisions and the other for visualization. Note that URDF models are usually constructed in this way. It rarely
-   makes sense to have two sets of geoms in the model, especially since MuJoCo uses convex hulls for collisions, so we
-   recommend using this feature to discard redundant geoms. Keep in mind however that geoms considered visual per the
-   above definition can still participate in collisions, if they appear in the explicit list of contact
-   :ref:`pairs <contact-pair>`. The parser does not check this list before discarding geoms; it relies solely on the geom
-   attributes to make the determination.
+   This attribute instructs the compiler to discard all model elements which are purely visual and have no effect on the
+   physics (with one exception, see below). This often enables smaller :ref:`mjModel` structs and faster simulation.
+
+   - All materials are discarded.
+   - All textures are discarded.
+   - All geoms with :ref:`contype<body-geom-contype>`=:ref:`conaffinity<body-geom-conaffinity>`=0 are discarded, if they
+     are not referenced in another MJCF element. If a discarded geom was used for inferring body inertia, an explicit
+     :ref:`inertial<body-inertial>` element is added to the body.
+   - All meshes which are not referenced by any geom (in particular those discarded above) are discarded.
+
+   The resulting compiled model will have exactly the same dynamics as the original model, with the exception of
+   raycasting, as used for example by :ref:`rangefinder<sensor-rangefinder>`, since raycasting reports distances to
+   visual geoms. When visualizing models compiled with this flag, it is important to remember that colliding geoms are
+   often placed in a :ref:`group<body-geom-group>` which is invisible by default.
 
 .. _compiler-convexhull:
 
@@ -1319,9 +1384,9 @@ also known as terrain map, is a 2D matrix of elevation data. The data can be spe
 | For collision detection, a height field is treated as a union of triangular prisms. Collisions between height fields
   and other geoms (except for planes and other height fields which are not supported) are computed by first selecting
   the sub-grid of prisms that could collide with the geom based on its bounding box, and then using the general convex
-  collider. The number of possible contacts between a height field and a geom is limited to 9; any contacts beyond that
-  are discarded. To avoid penetration due to discarded contacts, the spatial features of the height field should be
-  large compared to the geoms it collides with.
+  collider. The number of possible contacts between a height field and a geom is limited to 50
+  (:ref:`mjMAXCONPAIR <glNumeric>`); any contacts beyond that are discarded. To avoid penetration due to discarded
+  contacts, the spatial features of the height field should be large compared to the geoms it collides with.
 
 .. _asset-hfield-name:
 
@@ -1877,7 +1942,7 @@ adjust it properly through the XML.
 .. _option-sdf_initpoints:
 
 :at:`sdf_initpoints`: :at-val:`int, "40"`
-   Number of starting points used for fining contacts with Signed Distance Field collisions.
+   Number of starting points used for finding contacts with Signed Distance Field collisions.
 
 .. _option-actuatorgroupdisable:
 
@@ -1924,7 +1989,7 @@ from its default.
 .. _option-flag-contact:
 
 :at:`contact`: :at-val:`[disable, enable], "enable"`
-   This flag disables all standard computations related to contact constraints.
+   This flag disables collision detection and all standard computations related to contact constraints.
 
 .. _option-flag-passive:
 
@@ -3913,6 +3978,35 @@ Associate this flexcomp with an :ref:`engine plugin<exPlugin>`. Either :at:`plug
 :at:`instance`: :at-val:`string, optional`
    Instance name, used for explicit plugin instantiation.
 
+
+.. _body-frame:
+
+:el-prefix:`body/` |-| **frame** (*)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Frames specify a coordinate transformation which is applied to all child elements. They disappear during compilation
+and the transformation they encode is accumulated in their direct children. See :ref:`frame<frame>` for examples.
+
+.. _frame-pos:
+
+:at:`pos`: :at-val:`real(3), "0 0 0"`
+   The 3D position of the frame, in the parent coordinate system.
+
+.. _frame-quat:
+
+.. _frame-axisangle:
+
+.. _frame-xyaxes:
+
+.. _frame-zaxis:
+
+.. _frame-euler:
+
+:at:`quat`, :at:`axisangle`, :at:`xyaxes`, :at:`zaxis`, :at:`euler`
+   See :ref:`COrientation`.
+
+
+
 .. _contact:
 
 **contact** (*)
@@ -4532,7 +4626,7 @@ joint types (slide and hinge) can be used.
 :at:`polycoef`: :at-val:`real(5), "0 1 0 0 0"`
    Coefficients a0 ... a4 of the quartic polynomial. If the two joint values are y and x, and their reference positions
    (corresponding to the joint values in the initial model configuration) are y0 and x0, the constraint is:
-   y-y0 = a0 + a1*(x-x0) + a2*(x-x0)^2 + a3*(x-x0)^3 + a4*(x-x0)^4
+   y-y0 = a0 + a1*(x-x0) + a2*(x-x0)^2 + a3*(x-x0)^3 + a4*(x-x0)^4.
    Omitting the second joint is equivalent to setting x = x0, in which case the constraint is y = y0 + a0.
 
 
@@ -4942,21 +5036,21 @@ specify them independently.
 .. _actuator-general-ctrlrange:
 
 :at:`ctrlrange`: :at-val:`real(2), "0 0"`
-   Range for clamping the control input. The compiler expects the first value to be smaller than the second value.
+   Range for clamping the control input. The first value must be smaller than the second value.
    |br| Setting this attribute without specifying :at:`ctrllimited` is an error, unless :at:`autolimits` is set in
    :ref:`compiler <compiler>`.
 
 .. _actuator-general-forcerange:
 
 :at:`forcerange`: :at-val:`real(2), "0 0"`
-   Range for clamping the force output. The compiler expects the first value to be no greater than the second value.
+   Range for clamping the force output. The first value must be no greater than the second value.
    |br| Setting this attribute without specifying :at:`forcelimited` is an error, unless :at:`autolimits` is set in
    :ref:`compiler <compiler>`.
 
 .. _actuator-general-actrange:
 
 :at:`actrange`: :at-val:`real(2), "0 0"`
-   Range for clamping the activation state. The compiler expects the first value to be no greater than the second value.
+   Range for clamping the activation state. The first value must be no greater than the second value.
    See the :ref:`Activation clamping <CActRange>` section for more details.
    |br| Setting this attribute without specifying :at:`actlimited` is an error, unless :at:`autolimits` is set in
    :ref:`compiler <compiler>`.
@@ -5229,13 +5323,13 @@ This element does not have custom attributes. It only has common attributes, whi
 
 This element creates a position servo. The underlying :el:`general` attributes are set as follows:
 
-========= ======= ========= =======
+========= ======= ========= =========
 Attribute Setting Attribute Setting
-========= ======= ========= =======
+========= ======= ========= =========
 dyntype   none    dynprm    1 0 0
 gaintype  fixed   gainprm   kp 0 0
-biastype  affine  biasprm   0 -kp 0
-========= ======= ========= =======
+biastype  affine  biasprm   0 -kp -kv
+========= ======= ========= =========
 
 
 This element has one custom attribute in addition to the common attributes:
@@ -5289,6 +5383,11 @@ This element has one custom attribute in addition to the common attributes:
 :at:`kp`: :at-val:`real, "1"`
    Position feedback gain.
 
+.. _actuator-position-kv:
+
+:at:`kv`: :at-val:`real, "0"`
+   Damping applied by the actuator.
+   When using this attribute, it is recommended to use the implicitfast or implicit :ref:`integrators<geIntegration>`.
 
 .. _actuator-velocity:
 
@@ -5297,7 +5396,9 @@ This element has one custom attribute in addition to the common attributes:
 
 This element creates a velocity servo. Note that in order create a PD controller, one has to define two actuators: a
 position servo and a velocity servo. This is because MuJoCo actuators are SISO while a PD controller takes two control
-inputs (reference position and reference velocity). The underlying :el:`general` attributes are set as follows:
+inputs (reference position and reference velocity).
+When using this actuator, it is recommended to use the implicitfast or implicit :ref:`integrators<geIntegration>`.
+The underlying :el:`general` attributes are set as follows:
 
 ========= ======= ========= =======
 Attribute Setting Attribute Setting
@@ -5368,14 +5469,14 @@ This element creates an integrated-velocity servo. For more information, see the
 :ref:`Activation clamping <CActRange>` section of the Modeling chapter. The underlying
 :el:`general` attributes are set as follows:
 
-==========   =========== ========= =======
+==========   =========== ========= =========
 Attribute    Setting     Attribute Setting
-==========   =========== ========= =======
+==========   =========== ========= =========
 dyntype      integrator  dynprm    1 0 0
 gaintype     fixed       gainprm   kp 0 0
-biastype     affine      biasprm   0 -kp 0
+biastype     affine      biasprm   0 -kp -kv
 actlimited   true
-==========   =========== ========= =======
+==========   =========== ========= =========
 
 This element has one custom attribute in addition to the common attributes:
 
@@ -5430,6 +5531,11 @@ This element has one custom attribute in addition to the common attributes:
 :at:`kp`: :at-val:`real, "1"`
    Position feedback gain.
 
+.. _actuator-intvelocity-kv:
+
+:at:`kv`: :at-val:`real, "0"`
+   Damping applied by the actuator.
+   When using this attribute, it is recommended to use the implicitfast or implicit :ref:`integrators<geIntegration>`.
 
 .. _actuator-damper:
 
@@ -5437,8 +5543,9 @@ This element has one custom attribute in addition to the common attributes:
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element is an active damper which produces a force proportional to both velocity and control: ``F = - kv * velocity
-* control``, where ``kv`` must be nonnegative. :at:`ctrlrange` is required and must also be nonnegative. The underlying
-:el:`general` attributes are set as follows:
+* control``, where ``kv`` must be nonnegative. :at:`ctrlrange` is required and must also be nonnegative.
+When using this actuator, it is recommended to use the implicitfast or implicit :ref:`integrators<geIntegration>`.
+The underlying :el:`general` attributes are set as follows:
 
 =========== ======= ========= =======
 Attribute   Setting Attribute Setting
@@ -5784,11 +5891,28 @@ Associate this actuator with an :ref:`engine plugin<exPlugin>`. Either :at:`plug
 :at:`instance`: :at-val:`string, optional`
    Instance name, used for explicit plugin instantiation.
 
+.. _actuator-plugin-dyntype:
+
+:at:`dyntype`: :at-val:`[none, integrator, filter, filterexact, muscle, user], "none"`
+   Activation dynamics type for the actuator. The available dynamics types were already described in the :ref:`Actuation
+   model <geActuation>` section. If :ref:`dyntype<actuator-general-dyntype>` is not "none", an activation variable will
+   be added to the actuator. This variable will be added after any activation state computed by the plugin (see
+   :ref:`actuator plugin activations<exActuatorAct>`).
+
+.. _actuator-plugin-actrange:
+
+:at:`actrange`: :at-val:`real(2), "0 0"`
+   Range for clamping the activation state associated with this actuator's dyntype. The limit doesn't apply to
+   activations computed by the plugin. The first value must be no greater than the second value.
+   See the :ref:`Activation clamping <CActRange>` section for more details.
+
 .. _actuator-plugin-name:
 
 .. _actuator-plugin-class:
 
 .. _actuator-plugin-group:
+
+.. _actuator-plugin-actlimited:
 
 .. _actuator-plugin-ctrllimited:
 
@@ -5818,9 +5942,14 @@ Associate this actuator with an :ref:`engine plugin<exPlugin>`. Either :at:`plug
 
 .. _actuator-plugin-user:
 
-.. |actuator/plugin attrib list| replace:: :at:`name`, :at:`class`, :at:`group`, :at:`ctrllimited`,
+.. _actuator-plugin-dynprm:
+
+.. _actuator-plugin-actearly:
+
+.. |actuator/plugin attrib list| replace:: :at:`name`, :at:`class`, :at:`group`, :at:`actlimited`, :at:`ctrllimited`,
    :at:`forcelimited`, :at:`ctrlrange`, :at:`forcerange`, :at:`lengthrange`, :at:`gear`, :at:`cranklength`,
-   :at:`joint`, :at:`jointinparent`, :at:`site`, :at:`tendon`, :at:`cranksite`, :at:`slidersite`, :at:`user`
+   :at:`joint`, :at:`jointinparent`, :at:`site`, :at:`tendon`, :at:`cranksite`, :at:`slidersite`, :at:`user`,
+   :at:`dynprm`, :at:`actearly`
 
 |actuator/plugin attrib list|
    Same as in actuator/ :ref:`general <actuator-general>`.
@@ -7570,6 +7699,8 @@ slidersite, cranksite.
 
 .. _default-position-kp:
 
+.. _default-position-kv:
+
 :el-prefix:`default/` |-| **position** (?)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -7625,6 +7756,8 @@ tendon, slidersite, cranksite.
 .. _default-intvelocity-group:
 
 .. _default-intvelocity-kp:
+
+.. _default-intvelocity-kv:
 
 :el-prefix:`default/` |-| **intvelocity** (?)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

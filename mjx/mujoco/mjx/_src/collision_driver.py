@@ -40,7 +40,6 @@ from mujoco.mjx._src.types import DisableBit
 from mujoco.mjx._src.types import GeomType
 from mujoco.mjx._src.types import Model
 # pylint: enable=g-importing-member
-import numpy as np
 
 
 # pair-wise collision functions
@@ -80,6 +79,12 @@ def _add_candidate(
   t1, t2 = m.geom_type[g1], m.geom_type[g2]
   if t1 > t2:
     t1, t2, g1, g2 = t2, t1, g2, g1
+
+  # MuJoCo does not collide planes with other planes or hfields
+  if t1 == GeomType.PLANE and t2 == GeomType.PLANE:
+    return
+  if t1 == GeomType.PLANE and t2 == GeomType.HFIELD:
+    return
 
   def mesh_key(i):
     convex_data = [[None] * m.ngeom] * 3
@@ -284,13 +289,11 @@ def _collide_geoms(
       solimp=params.solimp,
       geom1=geom1,
       geom2=geom2,
-      dim=np.array([]),
-      efc_address=np.array([]),
   )
   return con
 
 
-def _max_contact_points(m: Model) -> int:
+def _max_contact_points(m: Union[Model, mujoco.MjModel]) -> int:
   """Returns the maximum number of contact points when set as a numeric."""
   for i in range(m.nnumeric):
     name = m.names[m.name_numericadr[i] :].decode('utf-8').split('\x00', 1)[0]
@@ -334,7 +337,7 @@ def collision_candidates(m: Union[Model, mujoco.MjModel]) -> CandidateSet:
   return candidate_set
 
 
-def ncon(m: Model) -> int:
+def ncon(m: Union[Model, mujoco.MjModel]) -> int:
   """Returns the number of contacts computed in MJX given a model."""
   if m.opt.disableflags & DisableBit.CONTACT:
     return 0
@@ -354,9 +357,8 @@ def ncon(m: Model) -> int:
 
 def collision(m: Model, d: Data) -> Data:
   """Collides geometries."""
-  ncon_ = ncon(m)
-  if ncon_ == 0:
-    return d.replace(contact=Contact.zero(), ncon=0)
+  if ncon(m) == 0:
+    return d.replace(contact=Contact.zero())
 
   candidate_set = collision_candidates(m)
 
@@ -376,13 +378,4 @@ def collision(m: Model, d: Data) -> Data:
     _, idx = jax.lax.top_k(-contact.dist, k=max_contact_points)
     contact = jax.tree_map(lambda x, idx=idx: jp.take(x, idx, axis=0), contact)
 
-  if ncon_ != contact.dist.shape[0]:
-    raise RuntimeError('Number of contacts does not match ncon.')
-
-  # TODO(robotics-simulation): move this logic to device_put
-  ns = d.ne + d.nf + d.nl
-  contact = contact.replace(efc_address=np.arange(ns, ns + ncon_ * 4, 4))
-  # TODO(robotics-simulation): add support for other friction dimensions
-  contact = contact.replace(dim=3 * np.ones(ncon_, dtype=np.int32))
-
-  return d.replace(contact=contact, ncon=ncon_)
+  return d.replace(contact=contact)

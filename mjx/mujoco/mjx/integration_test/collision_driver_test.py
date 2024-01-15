@@ -58,9 +58,9 @@ class CollisionDriverIntegrationTest(parameterized.TestCase):
     )
 
     m = mujoco.MjModel.from_xml_string(mjcf)
-    mx = mjx.device_put(m)
+    mx = mjx.put_model(m)
     d = mujoco.MjData(m)
-    dx = mjx.device_put(d)
+    dx = mjx.put_data(m, d)
 
     mujoco.mj_step(m, d)
     collision_jit_fn = jax.jit(mjx.collision)
@@ -82,7 +82,6 @@ class CollisionDriverIntegrationTest(parameterized.TestCase):
     mjx_contact = jax.tree_map(
         lambda x: x.take(np.array(idx), axis=0), dx.contact
     )
-    mjx_contact = mjx_contact.replace(dim=mjx_contact.dim[idx])
     for field in dataclasses.fields(Contact):
       _assert_attr_eq(mjx_contact, d.contact, field.name, seed, 1e-7)
 

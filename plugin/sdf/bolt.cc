@@ -166,12 +166,12 @@ void Bolt::RegisterPlugin() {
   plugin.sdf_distance =
       +[](const mjtNum point[3], const mjData* d, int instance) {
         auto* sdf = reinterpret_cast<Bolt*>(d->plugin_data[instance]);
-        sdf->visualizer_.AddPoint(point);
         return sdf->Distance(point);
       };
   plugin.sdf_gradient = +[](mjtNum gradient[3], const mjtNum point[3],
                         const mjData* d, int instance) {
     auto* sdf = reinterpret_cast<Bolt*>(d->plugin_data[instance]);
+    sdf->visualizer_.AddPoint(point);
     sdf->Gradient(gradient, point);
   };
   plugin.sdf_staticdistance =

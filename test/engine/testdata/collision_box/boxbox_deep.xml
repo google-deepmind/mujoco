@@ -1,0 +1,11 @@
+<mujoco>
+  <!-- Box deeply penetrating another box -->
+
+  <worldbody>
+    <geom type="box" size="1 1 1" rgba=".5 .5 .5 .5"/>
+    <body pos=".1 .2 .3">
+      <freejoint/>
+      <geom type="box" size=".2 .2 .2"/>
+    </body>
+  </worldbody>
+</mujoco>

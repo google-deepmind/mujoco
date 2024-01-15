@@ -30,6 +30,7 @@
 #include "engine/engine_util_misc.h"
 #include "engine/engine_util_spatial.h"
 #include "engine/engine_vis_init.h"
+#include "engine/engine_vis_interact.h"
 
 //----------------------------- utility functions and macros ---------------------------------------
 
@@ -61,7 +62,7 @@ static void makeLabel(const mjModel* m, mjtObj type, int id, char* label) {
   }
 
   // copy result into label
-  strncpy(label, txt, 99);
+  strncpy(label, txt, 100);
   label[99] = '\0';
 }
 
@@ -508,56 +509,6 @@ static int bodycategory(const mjModel* m, int bodyid) {
 
 
 
-// draw bounding box
-static void drawBoundingBox(mjData* d, mjvScene* scn,
-                            const mjtNum aabb[6], const mjtNum xpos[3],
-                            const mjtNum xmat[9], const float rgba[4]) {
-  mjtNum x[3];
-  mjtNum dist[3][3];
-  mjvGeom* thisgeom;
-  int category = mjCAT_DECOR;
-  int objtype = mjOBJ_UNKNOWN;
-  int i = -1;
-
-  if (xmat != NULL) {
-    mju_rotVecMat(x, aabb, xmat);
-    mju_addTo3(x, xpos);
-    for (int j=0; j < 3; j++) {
-      for (int k=0; k < 3; k++) {
-        dist[k][j] = aabb[k+3] * xmat[3*j+k];
-      }
-    }
-  } else {
-    mju_copy3(x, aabb);
-    mju_addTo3(x, xpos);
-    for (int j=0; j < 3; j++) {
-      mju_zero3(dist[j]);
-      dist[j][j] = aabb[j+3];
-    }
-  }
-
-  int split[3] = {1, 2, 4};
-  for (int v=0; v < 8; v++) {
-    mjtNum from[3] = {x[0], x[1], x[2]};
-    for (int k=0; k < 3; k++) {
-      mju_addToScl3(from, dist[k], v&split[k] ? 1 : -1);
-    }
-
-    mjtNum to[3];
-    for (int k=0; k < 3; k++) {
-      mju_addScl3(to, from, dist[k], 2);
-      if (!(v&split[k])) {
-        START
-        mjv_connector(thisgeom, mjGEOM_LINE, 2, from, to);
-        f2f(thisgeom->rgba, rgba, 4);
-        FINISH
-      }
-    }
-  }
-}
-
-
-
 // computes the camera frustum
 static void getFrustum(float zver[2], float zhor[2], float znear,
                        const float K[4], const float sensorsize[2]) {
@@ -682,6 +633,8 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
   }
 
   // body BVH
+  category = mjCAT_DECOR;
+  objtype = mjOBJ_UNKNOWN;
   if (vopt->flags[mjVIS_BODYBVH]) {
     float rgba[] = {1, 0, 0, 1};
     for (int i = 0; i < m->nbvhstatic; i++) {
@@ -707,20 +660,30 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
         break;
       }
 
-      // compute transformation
-      mjtNum *aabb = isleaf ? m->geom_aabb + 6*geomid : m->bvh_aabb + 6*i;
-
+      // get xpos, xmat, size
       const mjtNum* xpos = isleaf ? d->geom_xpos + 3 * geomid : d->xipos + 3 * bodyid;
       const mjtNum* xmat = isleaf ? d->geom_xmat + 9 * geomid : d->ximat + 9 * bodyid;
+      const mjtNum *size = isleaf ? m->geom_aabb + 6*geomid + 3 : m->bvh_aabb + 6*i + 3;
+
+      // offset xpos with aabb center (not always at frame origin)
+      const mjtNum *center = isleaf ? m->geom_aabb + 6*geomid : m->bvh_aabb + 6*i;
+      mjtNum pos[3];
+      mju_rotVecMat(pos, center, xmat);
+      mju_addTo3(pos, xpos);
 
       rgba[0] = d->bvh_active[i] ? 1 : 0;
       rgba[1] = d->bvh_active[i] ? 0 : 1;
 
-      drawBoundingBox(d, scn, aabb, xpos, xmat, rgba);
+      START
+      mjv_initGeom(thisgeom, mjGEOM_LINEBOX, size, pos, xmat, rgba);
+      FINISH
+
     }
   }
 
   // flex BVH
+  category = mjCAT_DECOR;
+  objtype = mjOBJ_UNKNOWN;
   if (vopt->flags[mjVIS_FLEXBVH]) {
     float rgba[] = {1, 0, 0, 0.1};
     for (int f=0; f < m->nflex; f++) {
@@ -740,10 +703,8 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
           rgba[0] = d->bvh_active[i] ? 1 : 0;
           rgba[1] = d->bvh_active[i] ? 0 : 1;
 
-          // b/304453879 : add LINEBOX geom for bounding box visualization
-
           START
-          mjv_initGeom(thisgeom, mjGEOM_BOX, aabb+3, aabb, NULL, rgba);
+          mjv_initGeom(thisgeom, mjGEOM_LINEBOX, aabb+3, aabb, NULL, rgba);
           FINISH
         }
       }
@@ -751,6 +712,8 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
   }
 
   // mesh BVH
+  category = mjCAT_DECOR;
+  objtype = mjOBJ_UNKNOWN;
   if (vopt->flags[mjVIS_MESHBVH]) {
     float rgba[] = {1, 0, 0, 1};
     for (int geomid = 0; geomid < m->ngeom; geomid++) {
@@ -769,11 +732,6 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
           }
         }
 
-        // compute transformation
-        const mjtNum *aabb = m->bvh_aabb + 6*i;
-        const mjtNum* xpos = d->geom_xpos + 3 * geomid;
-        const mjtNum* xmat = d->geom_xmat + 9 * geomid;
-
         if (!d->bvh_active[i]) {
           continue;
         }
@@ -781,7 +739,20 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
         rgba[0] = d->bvh_active[i] ? 1 : 0;
         rgba[1] = d->bvh_active[i] ? 0 : 1;
 
-        drawBoundingBox(d, scn, aabb, xpos, xmat, rgba);
+        // get xpos, xmat, size
+        const mjtNum* xpos = d->geom_xpos + 3 * geomid;
+        const mjtNum* xmat = d->geom_xmat + 9 * geomid;
+        const mjtNum *size = m->bvh_aabb + 6*i + 3;
+
+        // offset xpos with aabb center (not always at geom origin)
+        const mjtNum *center = m->bvh_aabb + 6*i;
+        mjtNum pos[3];
+        mju_rotVecMat(pos, center, xmat);
+        mju_addTo3(pos, xpos);
+
+        START
+        mjv_initGeom(thisgeom, mjGEOM_LINEBOX, size, pos, xmat, rgba);
+        FINISH
       }
     }
   }
@@ -2087,6 +2058,12 @@ void mjv_makeLights(const mjModel* m, mjData* d, mjvScene* scn) {
     thislight->directional = 1;
     thislight->castshadow = 0;
 
+    // compute head position and gaze direction in model space
+    mjtNum hpos[3], hfwd[3];
+    mjv_cameraInModel(hpos, hfwd, NULL, scn);
+    mju_n2f(thislight->pos, hpos, 3);
+    mju_n2f(thislight->dir, hfwd, 3);
+
     // copy colors
     f2f(thislight->ambient, m->vis.headlight.ambient, 3);
     f2f(thislight->diffuse, m->vis.headlight.diffuse, 3);
@@ -2723,11 +2700,11 @@ void mjv_updateScene(const mjModel* m, mjData* d, const mjvOption* opt,
   // add all categories
   mjv_addGeoms(m, d, opt, pert, catmask, scn);
 
-  // add lights
-  mjv_makeLights(m, d, scn);
-
   // update camera
   mjv_updateCamera(m, d, cam, scn);
+
+  // add lights
+  mjv_makeLights(m, d, scn);
 
   // update flexes
   if (opt->flags[mjVIS_FLEXVERT] || opt->flags[mjVIS_FLEXEDGE] ||

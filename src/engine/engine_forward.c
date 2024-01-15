@@ -287,45 +287,66 @@ void mj_fwdActuation(const mjModel* m, mjData* d) {
 
   // act_dot for stateful actuators
   for (int i=0; i < nu; i++) {
-    if (m->actuator_plugin[i] >= 0) {
+    int act_first = m->actuator_actadr[i];
+    if (act_first < 0) {
       continue;
     }
 
-    int j = m->actuator_actadr[i];
-    if (j < 0) {
-      continue;
+    // zero act_dot for actuator plugins
+    if (m->actuator_actnum[i]) {
+      mju_zero(d->act_dot + act_first, m->actuator_actnum[i]);
     }
 
     // extract info
     prm = m->actuator_dynprm + i*mjNDYN;
 
+    // index into the last element in act. For most actuators it's also the
+    // first element, but actuator plugins might store their own state in act.
+    int act_last = act_first + m->actuator_actnum[i] - 1;
+
     // compute act_dot according to dynamics type
     switch ((mjtDyn) m->actuator_dyntype[i]) {
     case mjDYN_INTEGRATOR:          // simple integrator
-      d->act_dot[j] = ctrl[i];
+      d->act_dot[act_last] = ctrl[i];
       break;
 
     case mjDYN_FILTER:              // linear filter: prm = tau
     case mjDYN_FILTEREXACT:
       tau = mju_max(mjMINVAL, prm[0]);
-      d->act_dot[j] = (ctrl[i] - d->act[j]) / tau;
+      d->act_dot[act_last] = (ctrl[i] - d->act[act_last]) / tau;
       break;
 
     case mjDYN_MUSCLE:              // muscle model: prm = (tau_act, tau_deact)
-      d->act_dot[j] = mju_muscleDynamics(ctrl[i], d->act[j], prm);
+      d->act_dot[act_last] = mju_muscleDynamics(
+          ctrl[i], d->act[act_last], prm);
       break;
 
     default:                        // user dynamics
       if (mjcb_act_dyn) {
         if (m->actuator_actnum[i] == 1) {
           // scalar activation dynamics, get act_dot
-          d->act_dot[j] = mjcb_act_dyn(m, d, i);
+          d->act_dot[act_last] = mjcb_act_dyn(m, d, i);
         } else {
           // higher-order dynamics, mjcb_act_dyn writes into act_dot directly
           mjcb_act_dyn(m, d, i);
         }
-      } else {
-        mju_zero(d->act_dot + j, m->actuator_actnum[i]);
+      }
+    }
+  }
+
+  // get act_dot from actuator plugins
+  if (m->nplugin) {
+    const int nslot = mjp_pluginCount();
+    for (int i=0; i < m->nplugin; i++) {
+      const int slot = m->plugin[i];
+      const mjpPlugin* plugin = mjp_getPluginAtSlotUnsafe(slot, nslot);
+      if (!plugin) {
+        mjERROR("invalid plugin slot: %d", slot);
+      }
+      if (plugin->capabilityflags & mjPLUGIN_ACTUATOR) {
+        if (plugin->actuator_act_dot) {
+          plugin->actuator_act_dot(m, d, i);
+        }
       }
     }
   }

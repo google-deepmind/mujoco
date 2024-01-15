@@ -1156,6 +1156,26 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
          ),
          doc='Runge-Kutta explicit order-N integrator.',
      )),
+    ('mj_implicit',
+     FunctionDecl(
+         name='mj_implicit',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='m',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjModel', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='d',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjData'),
+                 ),
+             ),
+         ),
+         doc='Implicit-in-velocity integrators.',
+     )),
     ('mj_invPosition',
      FunctionDecl(
          name='mj_invPosition',
@@ -7348,7 +7368,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  ),
              ),
          ),
-         doc='Eigenvalue decomposition of symmetric 3x3 matrix.',
+         doc="Eigenvalue decomposition of symmetric 3x3 matrix, mat = eigvec * diag(eigval) * eigvec'.",  # pylint: disable=line-too-long
      )),
     ('mju_boxQP',
      FunctionDecl(

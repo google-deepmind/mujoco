@@ -57,7 +57,6 @@ target_compile_definitions(fixture PUBLIC MJSTATIC)
 target_link_libraries(
   fixture
   PUBLIC absl::core_headers
-         absl::strings
          absl::synchronization
          gtest
          gmock
@@ -80,3 +79,4 @@ add_subdirectory(sample)
 add_subdirectory(user)
 add_subdirectory(xml)
 add_subdirectory(plugin/elasticity)
+add_subdirectory(plugin/actuator)

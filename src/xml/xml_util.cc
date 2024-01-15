@@ -14,6 +14,7 @@
 
 #include <algorithm>
 #include <array>
+#include <climits>
 #include <cmath>
 #include <cstddef>
 #include <cstdio>
@@ -372,7 +373,9 @@ bool mjXSchema::NameMatch(XMLElement* elem, int level) {
       return true;
     }
 
-    return false;
+    if (level>=1 && !strcmp(elem->Value(), "frame")) {
+      return true;
+    }
   }
 
   // regular check
@@ -1002,7 +1005,8 @@ void mjXUtil::WriteAttr(XMLElement* elem, string name, int n, const T* data, con
     }
 
     // append number
-    if (isint(data[i])) {
+    double doubledata = static_cast<double>(data[i]);
+    if (doubledata < INT_MAX && doubledata > -INT_MAX && isint(data[i])) {
       stream << Round(data[i]);
     } else {
       stream << data[i];

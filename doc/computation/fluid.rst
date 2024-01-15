@@ -520,8 +520,14 @@ in the surrounding flow a circulation of sufficient strength to hold the rear st
 This is the Kutta condition, a fluid dynamic phenomenon that can be observed for solid bodies with sharp corners, such
 as slender bodies or the trailing edges of airfoils.
 
-.. cssclass:: caption-small
 .. figure:: ../images/computation/kutta_cond_plate.svg
+   :class: only-light
+   :figwidth: 95%
+   :align: left
+
+.. cssclass:: caption-small
+.. figure:: ../images/computation/kutta_cond_plate_dark.svg
+   :class: only-dark
    :figwidth: 95%
    :align: left
 

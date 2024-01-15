@@ -15,6 +15,8 @@
 #ifndef MUJOCO_SRC_USER_USER_MODEL_H_
 #define MUJOCO_SRC_USER_USER_MODEL_H_
 
+#include <functional>
+#include <map>
 #include <string>
 #include <utility>
 #include <vector>
@@ -29,6 +31,9 @@ typedef enum _mjtInertiaFromGeom {
   mjINERTIAFROMGEOM_TRUE,         // always use; overwrite inertial element
   mjINERTIAFROMGEOM_AUTO          // use only if inertial element is missing
 } mjtInertiaFromGeom;
+
+typedef std::map<std::string, int, std::less<> > mjKeyMap;
+typedef std::array<mjKeyMap, mjNOBJECT> mjListKeyMap;
 
 
 
@@ -90,6 +95,14 @@ class mjCModel {
   mjCTuple*    AddTuple(void);                         // custom tuple
   mjCKey*      AddKey(void);                           // keyframe
   mjCPlugin*   AddPlugin(void);                        // plugin instance
+
+  //------------------------ API for deleting model elements
+  template <class T>
+  void Delete(std::vector<T*>& elements,
+              const std::vector<bool>& discard);       // delete elements marked as discard=true
+
+  template <class T>
+  void DeleteAll(std::vector<T*>& elements);           // delete all elements
 
   //------------------------ API for access to model elements (outside tree)
   int         NumObjects(mjtObj type);                // number of objects in specified list
@@ -176,17 +189,20 @@ class mjCModel {
   template <class T>              // add object of any type, with def parameter
   T* AddObjectDef(std::vector<T*>& list, std::string type, mjCDef* def);
 
+  template<class T>              // if asset name is missing, set to filename
+  void SetDefaultNames(std::vector<T*>& assets);
+
   //------------------------ compile phases
-  void MakeLists(mjCBody* body);  // make lists of bodies, geoms, joints, sites
-  void IndexAssets(void);         // convert asset names into indices
-  void SetDefaultNames(void);     // if mesh or hfield name is missing, set to filename
-  void SetSizes(void);            // compute sizes
-  void AutoSpringDamper(mjModel*);// automatic stiffness and damping computation
-  void LengthRange(mjModel*, mjData*); // compute actuator lengthrange
-  void CopyNames(mjModel*);       // copy names, compute name addresses
-  void CopyPaths(mjModel*);       // copy paths, compute path addresses
-  void CopyObjects(mjModel*);     // copy objects outside kinematic tree
-  void CopyTree(mjModel*);        // copy objects inside kinematic tree
+  void MakeLists(mjCBody* body);        // make lists of bodies, geoms, joints, sites
+  void IndexAssets(bool discard);       // convert asset names into indices
+  void CheckEmptyNames(void);           // check empty names
+  void SetSizes(void);                  // compute sizes
+  void AutoSpringDamper(mjModel*);      // automatic stiffness and damping computation
+  void LengthRange(mjModel*, mjData*);  // compute actuator lengthrange
+  void CopyNames(mjModel*);             // copy names, compute name addresses
+  void CopyPaths(mjModel*);             // copy paths, compute path addresses
+  void CopyObjects(mjModel*);           // copy objects outside kinematic tree
+  void CopyTree(mjModel*);              // copy objects inside kinematic tree
 
   //------------------------ sizes
   // sizes set from object list lengths
@@ -284,6 +300,20 @@ class mjCModel {
   std::vector<mjCLight*>  lights;   // list of lights
 
   //------------------------ internal variables
+
+  // array of pointers to each object list (enumerated by type)
+  std::array<std::vector<mjCBase*>*, mjNOBJECT> object_lists;
+
+  // statistics, as computed by mj_setConst
+  double meaninertia_auto;        // mean diagonal inertia, as computed by mj_setConst
+  double meanmass_auto;           // mean body mass, as computed by mj_setConst
+  double meansize_auto;           // mean body size, as computed by mj_setConst
+  double extent_auto;             // spatial extent, as computed by mj_setConst
+  double center_auto[3];          // center of model, as computed by mj_setConst
+
+  // map from object names to ids
+  mjListKeyMap ids;
+
   bool hasImplicitPluginElem;     // already encountered an implicit plugin sensor/actuator
   bool compiled;                  // already compiled flag (cannot be compiled again)
   mjCError errInfo;               // last error info
