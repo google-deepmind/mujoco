@@ -82,9 +82,9 @@ public class MjActuator : MjComponent {
       LengthRange = mjcf.GetVector2Attribute("lengthrange", defaultValue: Vector2.zero);
       Gear = mjcf.GetFloatArrayAttribute("gear", defaultValue: new float[] { 1.0f }).ToList();
 
-      bool autolimits = (mjcf.OwnerDocument.GetElementsByTagName("compiler")[0]["compiler"])
+      bool autolimits = (mjcf.OwnerDocument.GetElementsByTagName("compiler")[0]?["compiler"])
                             ?.GetBoolAttribute("autolimits", true) ??
-                        true;
+                        false;
       CtrlLimited = mjcf.GetBoolAttribute("ctrllimited",
           defaultValue: autolimits ? CtrlRange != Vector2.zero : false);
       ForceLimited = mjcf.GetBoolAttribute("forcelimited",

@@ -166,7 +166,7 @@ namespace Mujoco {
       FrictionLoss = mjcf.GetFloatAttribute("frictionloss", 0.0f);
 
       bool defaultLimited = false;
-      if ((mjcf.OwnerDocument.GetElementsByTagName("compiler") [0]["compiler"])
+      if ((mjcf.OwnerDocument.GetElementsByTagName("compiler")[0]?["compiler"])
               ?.GetBoolAttribute("autolimits", true) ??
           true) {
         defaultLimited = mjcf.HasAttribute("range");
