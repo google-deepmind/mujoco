@@ -3019,12 +3019,6 @@ void mjXReader::Body(XMLElement* section, mjCBody* pbody, mjCFrame* frame) {
       mjCGeom* pgeom = pbody->AddGeom(def);
       OneGeom(elem, pgeom);
       pgeom->SetFrame(frame);
-
-      // discard visual
-      if (!pgeom->contype && !pgeom->conaffinity && model->discardvisual) {
-        delete pbody->geoms.back();
-        pbody->geoms.pop_back();
-      }
     }
 
     // site sub-element

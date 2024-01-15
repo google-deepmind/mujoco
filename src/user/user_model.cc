@@ -649,9 +649,126 @@ void mjCModel::MakeLists(mjCBody* body) {
 }
 
 
+// delete material with given name or all materials if the name is omitted
+template <class T>
+static void DeleteMaterial(std::vector<T*>& list, std::string_view name = "") {
+  for (T* plist : list) {
+    if (name.empty() || plist->material == name) {
+      plist->material.clear();
+    }
+  }
+}
+
+
+// delete texture with given name or all textures if the name is omitted
+template <class T>
+static void DeleteTexture(std::vector<T*>& list, std::string_view name = "") {
+  for (T* plist : list) {
+    if (name.empty() || plist->texture == name) {
+      plist->texture.clear();
+    }
+  }
+}
+
+
+// delete all texture coordinates
+template <class T>
+static void DeleteTexcoord(std::vector<T*>& list) {
+  for (T* plist : list) {
+    if (plist->HasTexcoord()) {
+      plist->DelTexcoord();
+    }
+  }
+}
+
+
+// returns a vector that stores the reference correction for each entry
+template <class T>
+static void DeleteElements(std::vector<T*>& elements,
+                                       const std::vector<bool>& discard) {
+  if (elements.empty()) {
+    return;
+  }
+
+  std::vector<int> ndiscard(elements.size(), 0);
+
+  int i = 0;
+  for (int j=0; j<elements.size(); j++) {
+    if (discard[j]) {
+      delete elements[j];
+    } else {
+      elements[i] = elements[j];
+      i++;
+    }
+  }
+
+  // count cumulative discarded elements
+  for (int i=0; i<elements.size()-1; i++) {
+    ndiscard[i+1] = ndiscard[i] + discard[i];
+  }
+
+  // erase elements from vector
+  if (i < elements.size()) {
+    elements.erase(elements.begin() + i, elements.end());
+  }
+
+  // update elements
+  for (T* element : elements) {
+    if (element->id > 0) {
+      element->id -= ndiscard[element->id];
+    }
+  }
+}
+
+
+template <>
+void mjCModel::Delete<mjCGeom>(std::vector<mjCGeom*>& elements,
+                               const std::vector<bool>& discard) {
+  // update bodies
+  for (mjCBody* body : bodies) {
+    body->geoms.erase(
+        std::remove_if(body->geoms.begin(), body->geoms.end(),
+                       [&discard](mjCGeom* geom) { return discard[geom->id]; }),
+        body->geoms.end());
+  }
+
+  // remove geoms from the main vector
+  DeleteElements(elements, discard);
+}
+
+
+template <>
+void mjCModel::Delete<mjCMesh>(std::vector<mjCMesh*>& elements,
+                               const std::vector<bool>& discard) {
+  DeleteElements(elements, discard);
+}
+
+
+template <>
+void mjCModel::DeleteAll<mjCMaterial>(std::vector<mjCMaterial*>& elements) {
+  DeleteMaterial(geoms);
+  DeleteMaterial(skins);
+  DeleteMaterial(sites);
+  DeleteMaterial(tendons);
+  for (mjCMaterial* element : elements) {
+    delete element;
+  }
+  elements.clear();
+}
+
+
+template <>
+void mjCModel::DeleteAll<mjCTexture>(std::vector<mjCTexture*>& elements) {
+  DeleteTexture(materials);
+  for (mjCTexture* element : elements) {
+    delete element;
+  }
+  elements.clear();
+}
+
 
 // index assets
-void mjCModel::IndexAssets(void) {
+void mjCModel::IndexAssets(bool discard) {
   // assets referenced in geoms
   for (int i=0; i<geoms.size(); i++) {
     mjCGeom* pgeom = geoms[i];
@@ -670,7 +787,19 @@ void mjCModel::IndexAssets(void) {
     if (!pgeom->meshname.empty()) {
       mjCBase* m = FindObject(mjOBJ_MESH, pgeom->meshname);
       if (m) {
-        pgeom->mesh = (mjCMesh*)m;
+        if (discard && geoms[i]->visual_) {
+          // do not associate with a mesh
+          pgeom->mesh = nullptr;
+        } else {
+          // associate mesh with geom
+          pgeom->mesh = (mjCMesh*)m;
+
+          // mark mesh as not visual
+          // this is irreversible so only performed when IndexAssets is called with discard
+          if (discard) {
+            pgeom->mesh->SetNotVisual();
+          }
+        }
       } else {
         throw mjCError(pgeom, "mesh '%s' not found in geom %d", pgeom->meshname.c_str(), i);
       }
@@ -745,6 +874,20 @@ void mjCModel::IndexAssets(void) {
         throw mjCError(pmat, "texture '%s' not found in material %d", pmat->texture.c_str(), i);
       }
     }
+  }
+
+  // discard visual meshes and geoms
+  if (discard) {
+    std::vector<bool> discard_mesh(meshes.size(), false);
+    std::vector<bool> discard_geom(geoms.size(), false);
+
+    std::transform(meshes.begin(), meshes.end(), discard_mesh.begin(),
+                  [](const mjCMesh* mesh) { return mesh->IsVisual(); });
+    std::transform(geoms.begin(), geoms.end(), discard_geom.begin(),
+                  [](const mjCGeom* geom) { return geom->IsVisual(); });
+
+    Delete(meshes, discard_mesh);
+    Delete(geoms, discard_geom);
   }
 }
 
@@ -2049,8 +2192,8 @@ void mjCModel::CopyObjects(mjModel* m) {
   // geom pairs to include
   for (int i=0; i<npair; i++) {
     m->pair_dim[i] = pairs[i]->condim;
-    m->pair_geom1[i] = pairs[i]->geom1;
-    m->pair_geom2[i] = pairs[i]->geom2;
+    m->pair_geom1[i] = pairs[i]->geom1->id;
+    m->pair_geom2[i] = pairs[i]->geom2->id;
     m->pair_signature[i] = pairs[i]->signature;
     copyvec(m->pair_solref+mjNREF*i, pairs[i]->solref, mjNREF);
     copyvec(m->pair_solreffriction+mjNREF*i, pairs[i]->solreffriction, mjNREF);
@@ -2711,8 +2854,16 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
     }
   }
 
+  // delete visual assets
+  if (discardvisual) {
+    DeleteAll(materials);
+    DeleteTexcoord(flexes);
+    DeleteTexcoord(meshes);
+    DeleteAll(textures);
+  }
+
   // convert names into indices
-  IndexAssets();
+  IndexAssets(false);
 
   // mark meshes that need convex hull
   for (int i=0; i<geoms.size(); i++) {
@@ -2811,7 +2962,7 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
   reassignid(excludes);
 
   // resolve asset references, compute sizes
-  IndexAssets();
+  IndexAssets(discardvisual);
   SetSizes();
   // fuse static if enabled
   if (fusestatic) {

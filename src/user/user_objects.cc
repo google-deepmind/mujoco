@@ -314,6 +314,7 @@ int mjCBoundingVolumeHierarchy::MakeBVH(std::vector<const mjCBoundingVolume*>& e
     return -1;
   }
 
+  bool is_visual = true;
   int nelements = elements.size();
   mjtNum AAMM[6] = {mjMAXVAL, mjMAXVAL, mjMAXVAL, -mjMAXVAL, -mjMAXVAL, -mjMAXVAL};
 
@@ -325,6 +326,8 @@ int mjCBoundingVolumeHierarchy::MakeBVH(std::vector<const mjCBoundingVolume*>& e
     // skip visual objects
     if (elements[i]->conaffinity==0 && elements[i]->contype==0) {
       continue;
+    } else {
+      is_visual = false;
     }
 
     // transform element aabb to aamm format
@@ -358,6 +361,11 @@ int mjCBoundingVolumeHierarchy::MakeBVH(std::vector<const mjCBoundingVolume*>& e
       AAMM[4] = mjMAX(AAMM[4], vert[1]);
       AAMM[5] = mjMAX(AAMM[5], vert[2]);
     }
+  }
+
+  // a body with only visual geoms does not have a bvh
+  if (is_visual) {
+    return nbvh;
   }
 
   // inflate flat AABBs
@@ -1088,6 +1096,18 @@ void mjCBody::Compile(void) {
       throw mjCError(this, "plugin '%s' does not support passive forces", plugin->name);
     }
   }
+
+  if (!model->discardvisual) {
+    return;
+  }
+
+  // set inertial to explicit for bodies containing visual geoms
+  for (int j=0; j<geoms.size(); j++) {
+    if (geoms[j]->IsVisual()) {
+      explicitinertial = true;
+      break;
+    }
+  }
 }
 
 
@@ -1350,6 +1370,7 @@ mjCGeom::mjCGeom(mjCModel* _model, mjCDef* _def) {
   matid = -1;
   mesh = nullptr;
   hfield = nullptr;
+  visual_ = false;
 
   // reset to default if given
   if (_def) {
@@ -1736,6 +1757,9 @@ void mjCGeom::Compile(void) {
     throw mjCError(this, "plane only allowed in static bodies: geom '%s' (id = %d)",
                    name.c_str(), id);
   }
+
+  // check if can collide
+  visual_ = !contype && !conaffinity;
 
   // normalize quaternion
   mjuu_normvec(quat, 4);
@@ -3145,7 +3169,9 @@ mjCPair::mjCPair(mjCModel* _model, mjCDef* _def) {
   friction[4] = 0.0001;
 
   // clear internal variables
-  geom1 = geom2 = signature = -1;
+  geom1 = nullptr;
+  geom2 = nullptr;
+  signature = -1;
 
   // reset to default if given
   if (_def) {
@@ -3167,46 +3193,48 @@ void mjCPair::Compile(void) {
   }
 
   // find geom 1
-  mjCGeom* pg1 = (mjCGeom*)model->FindObject(mjOBJ_GEOM, geomname1);
-  if (!pg1) {
+  geom1 = (mjCGeom*)model->FindObject(mjOBJ_GEOM, geomname1);
+  if (!geom1) {
     throw mjCError(this, "geom '%s' not found in collision %d", geomname1.c_str(), id);
   }
 
   // find geom 2
-  mjCGeom* pg2 = (mjCGeom*)model->FindObject(mjOBJ_GEOM, geomname2);
-  if (!pg2) {
+  geom2 = (mjCGeom*)model->FindObject(mjOBJ_GEOM, geomname2);
+  if (!geom2) {
     throw mjCError(this, "geom '%s' not found in collision %d", geomname2.c_str(), id);
   }
 
+  // mark geoms as not visual
+  geom1->SetNotVisual();
+  geom2->SetNotVisual();
+
   // swap if body1 > body2
-  if (pg1->body->id > pg2->body->id) {
+  if (geom1->body->id > geom2->body->id) {
     string nametmp = geomname1;
     geomname1 = geomname2;
     geomname2 = nametmp;
 
-    mjCGeom* geomtmp = pg1;
-    pg1 = pg2;
-    pg2 = geomtmp;
+    mjCGeom* geomtmp = geom1;
+    geom1 = geom2;
+    geom2 = geomtmp;
   }
 
   // get geom ids and body signature
-  geom1 = pg1->id;
-  geom2 = pg2->id;
-  signature = ((pg1->body->id)<<16) + pg2->body->id;
+  signature = ((geom1->body->id)<<16) + geom2->body->id;
 
   // set undefined margin: max
   if (!mjuu_defined(margin)) {
-    margin = mjMAX(pg1->margin, pg2->margin);
+    margin = mjMAX(geom1->margin, geom2->margin);
   }
 
   // set undefined gap: max
   if (!mjuu_defined(gap)) {
-    gap = mjMAX(pg1->gap, pg2->gap);
+    gap = mjMAX(geom1->gap, geom2->gap);
   }
 
   // set undefined condim, friction, solref, solimp: different priority
-  if (pg1->priority!=pg2->priority) {
-    mjCGeom* pgh = (pg1->priority>pg2->priority ? pg1 : pg2);
+  if (geom1->priority!=geom2->priority) {
+    mjCGeom* pgh = (geom1->priority>geom2->priority ? geom1 : geom2);
 
     // condim
     if (condim<0) {
@@ -3239,23 +3267,23 @@ void mjCPair::Compile(void) {
   else {
     // condim: max
     if (condim<0) {
-      condim = mjMAX(pg1->condim, pg2->condim);
+      condim = mjMAX(geom1->condim, geom2->condim);
     }
 
     // friction: max
     if (!mjuu_defined(friction[0])) {
-      friction[0] = friction[1] = mju_max(pg1->friction[0], pg2->friction[0]);
-      friction[2] =               mju_max(pg1->friction[1], pg2->friction[1]);
-      friction[3] = friction[4] = mju_max(pg1->friction[2], pg2->friction[2]);
+      friction[0] = friction[1] = mju_max(geom1->friction[0], geom2->friction[0]);
+      friction[2] =               mju_max(geom1->friction[1], geom2->friction[1]);
+      friction[3] = friction[4] = mju_max(geom1->friction[2], geom2->friction[2]);
     }
 
     // solver mix factor
     double mix;
-    if (pg1->solmix>=mjMINVAL && pg2->solmix>=mjMINVAL) {
-      mix = pg1->solmix / (pg1->solmix + pg2->solmix);
-    } else if (pg1->solmix<mjMINVAL && pg2->solmix<mjMINVAL) {
+    if (geom1->solmix>=mjMINVAL && geom2->solmix>=mjMINVAL) {
+      mix = geom1->solmix / (geom1->solmix + geom2->solmix);
+    } else if (geom1->solmix<mjMINVAL && geom2->solmix<mjMINVAL) {
       mix = 0.5;
-    } else if (pg1->solmix<mjMINVAL) {
+    } else if (geom1->solmix<mjMINVAL) {
       mix = 0.0;
     } else {
       mix = 1.0;
@@ -3266,14 +3294,14 @@ void mjCPair::Compile(void) {
       // standard: mix
       if (solref[0]>0) {
         for (int i=0; i<mjNREF; i++) {
-          solref[i] = mix*pg1->solref[i] + (1-mix)*pg2->solref[i];
+          solref[i] = mix*geom1->solref[i] + (1-mix)*geom2->solref[i];
         }
       }
 
       // direct: min
       else {
         for (int i=0; i<mjNREF; i++) {
-          solref[i] = mju_min(pg1->solref[i], pg2->solref[i]);
+          solref[i] = mju_min(geom1->solref[i], geom2->solref[i]);
         }
       }
     }
@@ -3281,7 +3309,7 @@ void mjCPair::Compile(void) {
     // impedance
     if (!mjuu_defined(solimp[0])) {
       for (int i=0; i<mjNIMP; i++) {
-        solimp[i] = mix*pg1->solimp[i] + (1-mix)*pg2->solimp[i];
+        solimp[i] = mix*geom1->solimp[i] + (1-mix)*geom2->solimp[i];
       }
     }
   }
@@ -3666,6 +3694,9 @@ void mjCTendon::Compile(void) {
                          "tendon '%s' (id = %d): geom at pos %d not bracketed by sites",
                          name.c_str(), id, i);
         }
+
+        // mark geoms as non visual
+        model->geoms[path[i]->obj->id]->SetNotVisual();
         break;
 
       case mjWRAP_JOINT:
@@ -4105,6 +4136,11 @@ void mjCSensor::Compile(void) {
       throw mjCError(this,
                      "unrecognized name of sensorized object in sensor '%s' (id = %d)",
                      name.c_str(), id);
+    }
+
+    // if geom mark it as non visual
+    if (objtype == mjOBJ_GEOM) {
+      ((mjCGeom*)obj)->SetNotVisual();
     }
 
     // get sensorized object id
@@ -4577,6 +4613,11 @@ void mjCTuple::Compile(void) {
     mjCBase* res = model->FindObject(objtype[i], objname[i]);
     if (!res) {
       throw mjCError(this, "unrecognized object '%s' in tuple %d", objname[i].c_str(), id);
+    }
+
+    // if geom mark it as non visual
+    if (objtype[i] == mjOBJ_GEOM) {
+      ((mjCGeom*)res)->SetNotVisual();
     }
 
     // assign id

@@ -5,16 +5,22 @@ Changelog
 Upcoming version (not yet released)
 -----------------------------------
 
+General
+^^^^^^^
+1. Improved the :ref:discardvisual<compiler-discardvisual> compiler flag, which now discards all visual-only assets. See
+   :ref:discardvisual<compiler-discardvisual> for details.
+
 MJX
 ^^^
-1. Added :ref:`dyntype<actuator-general-dyntype>` ``filterexact``.
-2. Added :at:`site` transmission.
-3. Updated MJX colab tutorial with more stable quadruped environment.
-4. Added ``mjx.ray`` which mirrors :ref:`mj_ray` for planes, spheres, capsules, and boxes.
+2. Added :ref:`dyntype<actuator-general-dyntype>` ``filterexact``.
+3. Added :at:`site` transmission.
+4. Updated MJX colab tutorial with more stable quadruped environment.
+5. Added ``mjx.ray`` which mirrors :ref:`mj_ray` for planes, spheres, capsules, and boxes.
 
 Bug fixes
 ^^^^^^^^^
-5. Fixed a bug that prevented the use of pins with plugins if flexes are not in the worldbody. Fixes :github:issue:`1270`.
+6. Fixed a bug that prevented the use of pins with plugins if flexes are not in the worldbody. Fixes
+   :github:issue:`1270`.
 
 
 Version 3.1.1 (December 18, 2023)

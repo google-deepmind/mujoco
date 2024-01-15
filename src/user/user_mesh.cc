@@ -166,6 +166,7 @@ mjCMesh::mjCMesh(mjCModel* _model, mjCDef* _def) {
   valideigenvalue_ = true;
   validinequality_ = true;
   processed_ = false;
+  visual_ = true;
 
   // reset to default if given
   if (_def) {
@@ -704,6 +705,13 @@ void mjCMesh::CopyTexcoord(float* arr) const {
 
 void mjCMesh::CopyGraph(int* arr) const {
   std::copy(graph_, graph_+szgraph_, arr);
+}
+
+
+
+void mjCMesh::DelTexcoord() {
+  if (texcoord_) mju_free(texcoord_);
+  ntexcoord_ = 0;
 }
 
 
@@ -2228,6 +2236,15 @@ mjCFlex::mjCFlex(mjCModel* _model) {
   centered = false;
 }
 
+
+bool mjCFlex::HasTexcoord() const {
+  return !texcoord.empty();
+}
+
+
+void mjCFlex::DelTexcoord() {
+  texcoord.clear();
+}
 
 
 // compiler

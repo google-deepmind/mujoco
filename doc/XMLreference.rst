@@ -306,14 +306,20 @@ any effect. The settings here are global and apply to the entire model.
 .. _compiler-discardvisual:
 
 :at:`discardvisual`: :at-val:`[false, true], "false" for MJCF, "true" for URDF`
-   This attribute instructs the parser to discard "visual geoms", defined as geoms whose contype and conaffinity
-   attributes are both set to 0. This functionality is useful for models that contain two sets of geoms, one for
-   collisions and the other for visualization. Note that URDF models are usually constructed in this way. It rarely
-   makes sense to have two sets of geoms in the model, especially since MuJoCo uses convex hulls for collisions, so we
-   recommend using this feature to discard redundant geoms. Keep in mind however that geoms considered visual per the
-   above definition can still participate in collisions, if they appear in the explicit list of contact
-   :ref:`pairs <contact-pair>`. The parser does not check this list before discarding geoms; it relies solely on the geom
-   attributes to make the determination.
+   This attribute instructs the compiler to discard all model elements which are purely visual and have no effect on the
+   physics (with one exception, see below). This often enables smaller :ref:`mjModel` structs and faster simulation.
+
+   - All materials are discarded.
+   - All textures are discarded.
+   - All geoms with :ref:`contype<body-geom-contype>`=:ref:`conaffinity<body-geom-conaffinity>`=0 are discarded, if they
+     are not referenced in another MJCF element. If a discarded geom was used for inferring body inertia, an explicit
+     :ref:`inertial<body-inertial>` element is added to the body.
+   - All meshes which are not referenced by any geom (in particular those discarded above) are discarded.
+
+   The resulting compiled model will have exactly the same dynamics as the original model, with the exception of
+   raycasting, as used for example by :ref:`rangefinder<sensor-rangefinder>`, since raycasting reports distances to
+   visual geoms. When visualizing models compiled with this flag, it is important to remember that colliding geoms are
+   often placed in a :ref:`group<body-geom-group>` which is invisible by default.
 
 .. _compiler-convexhull:
 

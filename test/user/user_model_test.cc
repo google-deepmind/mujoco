@@ -15,6 +15,7 @@
 // Tests for user/user_model.cc.
 
 #include <array>
+#include <cstddef>
 #include <string>
 
 #include <gmock/gmock.h>
@@ -281,6 +282,117 @@ TEST_F(FuseStaticTest, FuseStaticEquivalent) {
   mj_deleteData(d_no_fuse);
   mj_deleteModel(m_fuse);
   mj_deleteModel(m_no_fuse);
+}
+
+// ------------- test discardvisual --------------------------------------------
+
+using DiscardVisualTest = MujocoTest;
+TEST_F(DiscardVisualTest, DiscardVisualKeepsInertia) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <compiler discardvisual="true"/>
+
+    <asset>
+      <mesh name="visual_mesh"
+        vertex="0 0 0  1 0 0  0 1 0  0 0 1"
+        normal="1 0 0  0 1 0  0 0 1  0.707 0 0.707"
+        face="0 2 1  0 3 2" />
+
+      <mesh name="collision_mesh"
+        vertex="0 0 0  1 0 0  0 1 0  0 0 1"
+        normal="1 0 0  0 1 0  0 0 1  0.707 0 0.707"
+        face="0 2 1  0 3 2" />
+    </asset>
+
+    <worldbody>
+      <body>
+        <geom type="mesh" mesh="visual_mesh" contype="0" conaffinity="0"/>
+      </body>
+      <body>
+        <geom type="mesh" mesh="collision_mesh"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(model, NotNull()) << error.data();
+  EXPECT_THAT(model->nmesh, 1);
+  EXPECT_THAT(model->body_inertia[3], model->body_inertia[6]);
+  EXPECT_THAT(model->body_inertia[4], model->body_inertia[7]);
+  EXPECT_THAT(model->body_inertia[5], model->body_inertia[8]);
+  mj_deleteModel(model);
+}
+
+TEST_F(DiscardVisualTest, DiscardVisualEquivalent) {
+  char error[1024];
+  size_t error_sz = 1024;
+
+  static const char* const kDiscardvisualPath =
+      "user/testdata/discardvisual.xml";
+  static const char* const kDiscardvisualFalsePath =
+      "user/testdata/discardvisual_false.xml";
+
+  const std::string xml_path1 = GetTestDataFilePath(kDiscardvisualPath);
+  mjModel* model1 = mj_loadXML(xml_path1.c_str(), 0, error, error_sz);
+  EXPECT_THAT(model1, NotNull()) << error;
+
+  const std::string xml_path2 = GetTestDataFilePath(kDiscardvisualFalsePath);
+  mjModel* model2 = mj_loadXML(xml_path2.c_str(), 0, error, error_sz);
+  EXPECT_THAT(model2, NotNull()) << error;
+
+  EXPECT_THAT(model1->nq, model2->nq);
+  EXPECT_THAT(model1->nmat, 0);
+  EXPECT_THAT(model1->ntex, 0);
+  EXPECT_THAT(model2->ngeom-model1->ngeom, 3);
+  EXPECT_THAT(model2->nmesh-model1->nmesh, 2);
+  EXPECT_THAT(model1->npair, model2->npair);
+  EXPECT_THAT(model1->nsensor, model2->nsensor);
+  EXPECT_THAT(model1->nwrap, model2->nwrap);
+
+  for (int i = 0; i < model1->ngeom; i++) {
+    std::string name = std::string(model1->names + model1->name_geomadr[i]);
+    EXPECT_NE(name.find("kept"), std::string::npos);
+    EXPECT_EQ(name.find("discard"), std::string::npos);
+  }
+
+  for (int i = 0; i < model1->npair; i++) {
+    int adr1 = model1->name_geomadr[model1->pair_geom1[i]];
+    int adr2 = model2->name_geomadr[model2->pair_geom1[i]];
+    EXPECT_STREQ(model1->names + adr1, model2->names + adr2);
+    adr1 = model1->name_geomadr[model1->pair_geom2[i]];
+    adr2 = model2->name_geomadr[model2->pair_geom2[i]];
+    EXPECT_STREQ(model1->names + adr1, model2->names + adr2);
+  }
+
+  for (int i = 0; i < model1->nsensor; i++) {
+    int adr1 = model1->name_geomadr[model1->sensor_objid[i]];
+    int adr2 = model2->name_geomadr[model2->sensor_objid[i]];
+    EXPECT_STREQ(model1->names + adr1, model2->names + adr2);
+  }
+
+  for (int i = 0; i < model1->nwrap; i++) {
+    int adr1 = model1->name_geomadr[model1->wrap_objid[i]];
+    int adr2 = model2->name_geomadr[model2->wrap_objid[i]];
+    EXPECT_STREQ(model1->names + adr1, model2->names + adr2);
+  }
+
+  mjData *d1 = mj_makeData(model1);
+  mjData *d2 = mj_makeData(model2);
+  for (int i = 0; i < 100; i++) {
+    mj_step(model1, d1);
+    mj_step(model2, d2);
+  }
+
+  for (int i = 0; i < model1->nq; i++) {
+    EXPECT_THAT(d1->qpos[i], d2->qpos[i]);
+  }
+
+  mj_deleteModel(model1);
+  mj_deleteModel(model2);
+  mj_deleteData(d1);
+  mj_deleteData(d2);
 }
 
 }  // namespace

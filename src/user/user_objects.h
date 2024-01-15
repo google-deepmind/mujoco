@@ -381,6 +381,8 @@ class mjCGeom : public mjCBase {
  public:
   double GetVolume(void);             // compute geom volume
   void SetInertia(void);              // compute and set geom inertia
+  bool IsVisual(void) const { return visual_; }
+  void SetNotVisual(void) { visual_ = false; }
 
   // Compute all coefs modeling the interaction with the surrounding fluid.
   void SetFluidCoefs(void);
@@ -432,6 +434,7 @@ class mjCGeom : public mjCBase {
   double GetRBound(void);             // compute bounding sphere radius
   void ComputeAABB(void);             // compute axis-aligned bounding box
 
+  bool visual_;                   // true: geom does not collide and is unreferenced
   int matid;                      // id of geom's material
   mjCMesh* mesh;                  // geom's mesh
   mjCHField* hfield;              // geom's hfield
@@ -591,6 +594,9 @@ class mjCFlex: public mjCBase {
   std::vector<int> elem;              // element vertex ids
   std::vector<float> texcoord;        // vertex texture coordinates
 
+  bool HasTexcoord() const;           // texcoord not null
+  void DelTexcoord();                 // delete texcoord
+
  private:
   mjCFlex(mjCModel* = 0);                     // constructor
   void Compile(const mjVFS* vfs);             // compiler
@@ -680,6 +686,9 @@ class mjCMesh: public mjCBase {
   double& GetVolumeRef(mjtMeshType type);           // get volume
   void FitGeom(mjCGeom* geom, double* meshpos);     // approximate mesh with simple geom
   bool HasTexcoord() const;                         // texcoord not null
+  void DelTexcoord();                               // delete texcoord
+  bool IsVisual(void) const { return visual_; }     // is geom visual
+  void SetNotVisual(void) { visual_ = false; }      // mark mesh as not visual
 
   void CopyVert(float* arr) const;                  // copy vert data into array
   void CopyNormal(float* arr) const;                // copy normal data into array
@@ -693,6 +702,7 @@ class mjCMesh: public mjCBase {
   void SetBoundingVolume(int faceid);
 
  private:
+  bool visual_;                       // true: the mesh is only visual
   std::string content_type_;          // content type of file
   std::string file_;                  // mesh file
   double refpos_[3];                  // reference position (translate)
@@ -847,6 +857,8 @@ class mjCTexture : public mjCBase {
   friend class mjXWriter;
 
  public:
+  ~mjCTexture();                  // destructor
+
   std::string get_file() const { return file; }
 
   mjtTexture type;                // texture type
@@ -876,7 +888,6 @@ class mjCTexture : public mjCBase {
 
  private:
   mjCTexture(mjCModel*);                  // constructor
-  ~mjCTexture();                          // destructior
   void Compile(const mjVFS* vfs);         // compiler
 
   void Builtin2D(void);                   // make builtin 2D
@@ -959,8 +970,8 @@ class mjCPair : public mjCBase {
   mjCPair(mjCModel* = 0, mjCDef* = 0);  // constructor
   void Compile(void);                   // compiler
 
-  int geom1;                      // id of geom1
-  int geom2;                      // id of geom2
+  mjCGeom* geom1;                 // geom1
+  mjCGeom* geom2;                 // geom2
   int signature;                  // body1<<16 + body2
 };
 
