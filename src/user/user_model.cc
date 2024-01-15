@@ -1358,8 +1358,10 @@ void mjCModel::CopyTree(mjModel* m) {
     if (pb->tree.nbvh) {
       memcpy(m->bvh_aabb + 6*bvh_adr, pb->tree.bvh.data(), 6*pb->tree.nbvh*sizeof(mjtNum));
       memcpy(m->bvh_child + 2*bvh_adr, pb->tree.child.data(), 2*pb->tree.nbvh*sizeof(int));
-      memcpy(m->bvh_nodeid + bvh_adr, pb->tree.nodeid.data(), pb->tree.nbvh*sizeof(int));
       memcpy(m->bvh_depth + bvh_adr, pb->tree.level.data(), pb->tree.nbvh*sizeof(int));
+      for (int i=0; i<pb->tree.nbvh; i++) {
+        m->bvh_nodeid[i + bvh_adr] = pb->tree.nodeid[i] ? *(pb->tree.nodeid[i]) : -1;
+      }
     }
     bvh_adr += pb->tree.nbvh;
 
@@ -1787,7 +1789,9 @@ void mjCModel::CopyObjects(mjModel* m) {
       memcpy(m->bvh_aabb + 6*bvh_adr, pme->tree().bvh.data(), 6*pme->tree().nbvh*sizeof(mjtNum));
       memcpy(m->bvh_child + 2*bvh_adr, pme->tree().child.data(), 2*pme->tree().nbvh*sizeof(int));
       memcpy(m->bvh_depth + bvh_adr, pme->tree().level.data(), pme->tree().nbvh*sizeof(int));
-      memcpy(m->bvh_nodeid + bvh_adr, pme->tree().nodeid.data(), pme->tree().nbvh*sizeof(int));
+      for (int j=0; j<pme->tree().nbvh; j++) {
+        m->bvh_nodeid[j + bvh_adr] = pme->tree().nodeid[j] ? *(pme->tree().nodeid[j]) : -1;
+      }
     }
 
     // advance counters
@@ -1882,7 +1886,9 @@ void mjCModel::CopyObjects(mjModel* m) {
     if (pfl->tree.nbvh) {
       memcpy(m->bvh_child + 2*bvh_adr, pfl->tree.child.data(), 2*pfl->tree.nbvh*sizeof(int));
       memcpy(m->bvh_depth + bvh_adr, pfl->tree.level.data(), pfl->tree.nbvh*sizeof(int));
-      memcpy(m->bvh_nodeid + bvh_adr, pfl->tree.nodeid.data(), pfl->tree.nbvh*sizeof(int));
+      for (int i=0; i<pfl->tree.nbvh; i++) {
+        m->bvh_nodeid[i+ bvh_adr] = pfl->tree.nodeid[i] ? *(pfl->tree.nodeid[i]) : -1;
+      }
     }
 
     // copy or set vert

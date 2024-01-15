@@ -372,7 +372,7 @@ int mjCBoundingVolumeHierarchy::MakeBVH(std::vector<const mjCBoundingVolume*>& e
   int index = nbvh++;
   child.push_back(-1);
   child.push_back(-1);
-  nodeid.push_back(-1);
+  nodeid.push_back(nullptr);
   level.push_back(lev);
 
   // store bounding box of the current node
@@ -388,7 +388,7 @@ int mjCBoundingVolumeHierarchy::MakeBVH(std::vector<const mjCBoundingVolume*>& e
     for (int i=0; i<2; i++) {
       child[2*index+i] = -1;
     }
-    nodeid[index] = elements[0]->id;
+    nodeid[index] = (int*)elements[0]->GetId();
     return index;
   }
 
@@ -1412,7 +1412,7 @@ double mjCGeom::GetVolume(void) {
 
 
 void mjCGeom::SetBoundingVolume(mjCBoundingVolume* bv) const {
-  bv->id = id;
+  bv->SetId(&id);
   bv->contype = contype;
   bv->conaffinity = conaffinity;
   bv->aabb = aabb;

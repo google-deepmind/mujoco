@@ -600,7 +600,7 @@ void mjCMesh::Compile(const mjVFS* vfs) {
 // get bounding volume
 void mjCMesh::SetBoundingVolume(int faceid) {
   mjCBoundingVolume* node = tree_.GetBoundingVolume(faceid);
-  node->id = faceid;
+  node->SetId(faceid);
   node->conaffinity = 1;
   node->contype = 1;
   node->pos = center_ + 3*faceid;
@@ -2467,7 +2467,7 @@ void mjCFlex::CreateBVH(void) {
     bv->contype = contype;
     bv->conaffinity = conaffinity;
     bv->quat = NULL;
-    bv->id = e;
+    bv->SetId(e);
     bv->aabb = elemaabb.data() + 6*e;
     bv->pos = bv->aabb;
   }

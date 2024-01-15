@@ -125,14 +125,21 @@ class mjCAlternative {
 // bounding volume
 class mjCBoundingVolume {
  public:
-  mjCBoundingVolume() = default;
+  mjCBoundingVolume() { id_ = nullptr; };
 
-  int id;                       // object id
   int contype;                  // contact type
   int conaffinity;              // contact affinity
   const mjtNum* aabb;           // axis-aligned bounding box (center, size)
   const mjtNum* pos;            // position (set by user or Compile1)
   const mjtNum* quat;           // orientation (set by user or Compile1)
+
+  const int* GetId() const { if (id_) return id_; else return &idval_; }
+  void SetId(const int* id) { id_ = id; }
+  void SetId(int val) { idval_ = val; }
+
+ private:
+  int idval_;                   // local id copy for nodes not storing their id's (e.g. faces)
+  const int* id_;               // pointer to object id
 };
 
 
@@ -144,7 +151,7 @@ class mjCBoundingVolumeHierarchy {
   int nbvh;
   std::vector<mjtNum> bvh;            // bounding boxes                                (nbvh x 6)
   std::vector<int> child;             // children of each node                         (nbvh x 2)
-  std::vector<int> nodeid;            // geom of elem id contained by the node         (nbvh x 1)
+  std::vector<int*> nodeid;           // geom of elem id contained by the node         (nbvh x 1)
   std::vector<int> level;             // levels of each node                           (nbvh x 1)
 
   // make bounding volume hierarchy
