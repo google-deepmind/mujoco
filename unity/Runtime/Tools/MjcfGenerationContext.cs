@@ -34,7 +34,9 @@ public class MjcfGenerationContext {
   private int _nuserSensor;
   private int _numGeneratedNames = 0;
   private Dictionary<Mesh, string> _meshAssets = new Dictionary<Mesh, string>();
-  private Dictionary<MjHeightFieldShape, string> _hFieldAssets = new Dictionary<MjHeightFieldShape, string>();
+
+  private Dictionary<MjHeightFieldShape, string> _hFieldAssets =
+      new Dictionary<MjHeightFieldShape, string>();
 
   public void GenerateMjcf(XmlElement mjcf) {
     GenerateConfigurationMjcf(mjcf);
@@ -98,7 +100,7 @@ public class MjcfGenerationContext {
       meshMjcf.SetAttribute("name", meshAsset.Value);
       GenerateMeshMjcf(meshAsset.Key, meshMjcf);
     }
-   foreach (var hFieldAsset in _hFieldAssets) {
+    foreach (var hFieldAsset in _hFieldAssets) {
       var hFieldMjcf = (XmlElement)assetMjcf.AppendChild(doc.CreateElement("hfield"));
       hFieldMjcf.SetAttribute("name", hFieldAsset.Value);
       GenerateHeightFieldMjcf(hFieldAsset.Key, hFieldMjcf);
@@ -116,17 +118,29 @@ public class MjcfGenerationContext {
   }
 
   private static void GenerateHeightFieldMjcf(MjHeightFieldShape hFieldComponent, XmlElement mjcf) {
-    mjcf.SetAttribute("nrow", "0");
-    mjcf.SetAttribute("ncol", "0");
-    mjcf.SetAttribute("content_type", "image/png");
-    mjcf.SetAttribute("file", hFieldComponent.FullHeightMapPath);
+    if (hFieldComponent.ExportImage) {
+      mjcf.SetAttribute("content_type", "image/png");
+      mjcf.SetAttribute("file", hFieldComponent.FullHeightMapPath);
+      mjcf.SetAttribute("nrow", "0");
+      mjcf.SetAttribute("ncol", "0");
+    } else {
+      mjcf.SetAttribute("nrow", hFieldComponent.HeightMapLength.ToString());
+      mjcf.SetAttribute("ncol", hFieldComponent.HeightMapWidth.ToString());
+    }
+
+    var baseHeight = hFieldComponent.Terrain.transform.localPosition.y +
+                     hFieldComponent.MinimumHeight;
+    var heightRange = Mathf.Clamp(
+        hFieldComponent.MaximumHeight - hFieldComponent.MinimumHeight,
+        0.00001f,
+        Mathf.Infinity);
     mjcf.SetAttribute(
         "size",
         MjEngineTool.MakeLocaleInvariant(
-            $@"{hFieldComponent.HeightMapScale.x * hFieldComponent.HeightMapHeight / 2}
-            {hFieldComponent.HeightMapScale.z * hFieldComponent.HeightMapWidth / 2}
-            {hFieldComponent.HeightMapScale.y * 2}
-            {hFieldComponent.terrain.transform.position.y}"));
+            $@"{hFieldComponent.HeightMapScale.x * (hFieldComponent.HeightMapLength - 1) / 2f} {
+              hFieldComponent.HeightMapScale.z * (hFieldComponent.HeightMapWidth - 1) / 2f} {
+                heightRange} {
+                  baseHeight}"));
   }
 }
 }
