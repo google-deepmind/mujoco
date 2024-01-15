@@ -150,10 +150,12 @@ class mjCBoundingVolumeHierarchy {
   // make bounding volume hierarchy
   void CreateBVH(void);
   void Set(mjtNum ipos_element[3], mjtNum iquat_element[4]);
-  void AddBoundingVolume(const mjCBoundingVolume& bv);
+  void AllocateBoundingVolumes(int nbvh);
+  void RemoveInactiveVolumes(int nmax);
+  mjCBoundingVolume* GetBoundingVolume(int id);
 
  private:
-  int MakeBVH(std::vector<mjCBoundingVolume>& elements, int lev = 0);
+  int MakeBVH(std::vector<const mjCBoundingVolume*>& elements, int lev = 0);
 
   std::vector<mjCBoundingVolume> bvh_;
   std::string name_;
@@ -378,8 +380,8 @@ class mjCGeom : public mjCBase {
   // Compute the kappa coefs of the added inertia due to the surrounding fluid.
   double GetAddedMassKappa(double dx, double dy, double dz);
 
-  // returns a bounding volume
-  mjCBoundingVolume GetBoundingVolume() const;
+  // sets properties of a bounding volume
+  void SetBoundingVolume(mjCBoundingVolume* bv) const;
 
   // variables set by user and copied into mjModel
   mjtGeom type;                   // geom type
@@ -578,6 +580,7 @@ class mjCFlex: public mjCBase {
 
   std::vector<std::string> vertbody;  // vertex body names
   std::vector<mjtNum> vert;           // vertex positions
+  std::vector<mjtNum> elemaabb;       // element bounding volume
   std::vector<int> elem;              // element vertex ids
   std::vector<float> texcoord;        // vertex texture coordinates
 
@@ -679,8 +682,8 @@ class mjCMesh: public mjCBase {
   void CopyTexcoord(float* arr) const;              // copy texcoord data into array
   void CopyGraph(int* arr) const;                   // copy graph data into array
 
-  // returns a bounding volume given a face
-  mjCBoundingVolume GetBoundingVolume(int faceid);
+  // sets properties of a bounding volume given a face id
+  void SetBoundingVolume(int faceid);
 
  private:
   std::string content_type_;          // content type of file

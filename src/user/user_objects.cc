@@ -282,20 +282,34 @@ void mjCBoundingVolumeHierarchy::Set(mjtNum ipos_element[3], mjtNum iquat_elemen
 }
 
 
-// add geom to bvh
-void mjCBoundingVolumeHierarchy::AddBoundingVolume(const mjCBoundingVolume& bv) {
-  bvh_.push_back(bv);
+
+void mjCBoundingVolumeHierarchy::AllocateBoundingVolumes(int nbvh) {
+  bvh_.resize(nbvh);
+}
+
+
+void mjCBoundingVolumeHierarchy::RemoveInactiveVolumes(int nmax) {
+  bvh_.erase(bvh_.begin() + nmax, bvh_.end());
+}
+
+
+mjCBoundingVolume* mjCBoundingVolumeHierarchy::GetBoundingVolume(int id) {
+  return bvh_.data() + id;
 }
 
 
 // create bounding volume hierarchy
 void mjCBoundingVolumeHierarchy::CreateBVH() {
-  MakeBVH(bvh_);
+  std::vector<const mjCBoundingVolume*> elements(bvh_.size());
+  for (int i=0; i<bvh_.size(); i++) {
+    elements[i] = bvh_.data() + i;
+  }
+  MakeBVH(elements);
 }
 
 
 // compute bounding volume hierarchy
-int mjCBoundingVolumeHierarchy::MakeBVH(std::vector<mjCBoundingVolume>& elements, int lev) {
+int mjCBoundingVolumeHierarchy::MakeBVH(std::vector<const mjCBoundingVolume*>& elements, int lev) {
   if (elements.empty()) {
     return -1;
   }
@@ -309,17 +323,17 @@ int mjCBoundingVolumeHierarchy::MakeBVH(std::vector<mjCBoundingVolume>& elements
   // accumulate AAMM over elements
   for (int i=0; i<nelements; i++) {
     // skip visual objects
-    if (elements[i].conaffinity==0 && elements[i].contype==0) {
+    if (elements[i]->conaffinity==0 && elements[i]->contype==0) {
       continue;
     }
 
     // transform element aabb to aamm format
-    mjtNum aamm[6] = {elements[i].aabb[0] - elements[i].aabb[3],
-                      elements[i].aabb[1] - elements[i].aabb[4],
-                      elements[i].aabb[2] - elements[i].aabb[5],
-                      elements[i].aabb[0] + elements[i].aabb[3],
-                      elements[i].aabb[1] + elements[i].aabb[4],
-                      elements[i].aabb[2] + elements[i].aabb[5]};
+    mjtNum aamm[6] = {elements[i]->aabb[0] - elements[i]->aabb[3],
+                      elements[i]->aabb[1] - elements[i]->aabb[4],
+                      elements[i]->aabb[2] - elements[i]->aabb[5],
+                      elements[i]->aabb[0] + elements[i]->aabb[3],
+                      elements[i]->aabb[1] + elements[i]->aabb[4],
+                      elements[i]->aabb[2] + elements[i]->aabb[5]};
 
     // update node AAMM
     for (int v=0; v<8; v++) {
@@ -329,11 +343,11 @@ int mjCBoundingVolumeHierarchy::MakeBVH(std::vector<mjCBoundingVolume>& elements
       vert[2] = (v&4 ? aamm[5] : aamm[2]);
 
       // rotate to the body inertial frame if specified
-      if (elements[i].quat) {
-        mju_rotVecQuat(box, vert, elements[i].quat);
-        box[0] += elements[i].pos[0] - ipos_[0];
-        box[1] += elements[i].pos[1] - ipos_[1];
-        box[2] += elements[i].pos[2] - ipos_[2];
+      if (elements[i]->quat) {
+        mju_rotVecQuat(box, vert, elements[i]->quat);
+        box[0] += elements[i]->pos[0] - ipos_[0];
+        box[1] += elements[i]->pos[1] - ipos_[1];
+        box[2] += elements[i]->pos[2] - ipos_[2];
         mju_rotVecQuat(vert, box, qinv);
       }
 
@@ -374,7 +388,7 @@ int mjCBoundingVolumeHierarchy::MakeBVH(std::vector<mjCBoundingVolume>& elements
     for (int i=0; i<2; i++) {
       child[2*index+i] = -1;
     }
-    nodeid[index] = elements[0].id;
+    nodeid[index] = elements[0]->id;
     return index;
   }
 
@@ -388,9 +402,9 @@ int mjCBoundingVolumeHierarchy::MakeBVH(std::vector<mjCBoundingVolume>& elements
 
   for (int i=0; i<nelements; i++) {
     // get position in the body inertial frame
-    mjtNum vert[3] = {elements[i].pos[0] - ipos_[0],
-                      elements[i].pos[1] - ipos_[1],
-                      elements[i].pos[2] - ipos_[2]};
+    mjtNum vert[3] = {elements[i]->pos[0] - ipos_[0],
+                      elements[i]->pos[1] - ipos_[1],
+                      elements[i]->pos[2] - ipos_[2]};
     mjtNum lpos[3];
     mju_rotVecQuat(lpos, vert, qinv);
     pos[i] = lpos[axis];
@@ -401,20 +415,20 @@ int mjCBoundingVolumeHierarchy::MakeBVH(std::vector<mjCBoundingVolume>& elements
   mjtNum threshold = pos[m];
 
   // split using median
-  std::vector<mjCBoundingVolume> left;
-  std::vector<mjCBoundingVolume> right;
+  std::vector<const mjCBoundingVolume*> left;
+  std::vector<const mjCBoundingVolume*> right;
   int skipped = 0;
 
   for (int i=0; i<nelements; i++) {
     // get position in the body inertial frame
-    mjtNum vert[3] = {elements[i].pos[0] - ipos_[0],
-                      elements[i].pos[1] - ipos_[1],
-                      elements[i].pos[2] - ipos_[2]};
+    mjtNum vert[3] = {elements[i]->pos[0] - ipos_[0],
+                      elements[i]->pos[1] - ipos_[1],
+                      elements[i]->pos[2] - ipos_[2]};
     mjtNum lpos[3];
     mju_rotVecQuat(lpos, vert, qinv);
 
     // skip visual objects
-    if (elements[i].conaffinity==0 && elements[i].contype==0) {
+    if (elements[i]->conaffinity==0 && elements[i]->contype==0) {
       skipped++;
       continue;
     }
@@ -1008,8 +1022,9 @@ void mjCBody::Compile(void) {
   // compute bounding volume hierarchy
   if (!geoms.empty()) {
     tree.Set(ipos, iquat);
+    tree.AllocateBoundingVolumes(geoms.size());
     for (int i=0; i<geoms.size(); i++) {
-      tree.AddBoundingVolume(geoms[i]->GetBoundingVolume());
+      geoms[i]->SetBoundingVolume(tree.GetBoundingVolume(i));
     }
     tree.CreateBVH();
   }
@@ -1396,15 +1411,13 @@ double mjCGeom::GetVolume(void) {
 
 
 
-mjCBoundingVolume mjCGeom::GetBoundingVolume() const {
-  mjCBoundingVolume bv;
-  bv.id = id;
-  bv.contype = contype;
-  bv.conaffinity = conaffinity;
-  bv.aabb = aabb;
-  bv.pos = pos;
-  bv.quat = quat;
-  return bv;
+void mjCGeom::SetBoundingVolume(mjCBoundingVolume* bv) const {
+  bv->id = id;
+  bv->contype = contype;
+  bv->conaffinity = conaffinity;
+  bv->aabb = aabb;
+  bv->pos = pos;
+  bv->quat = quat;
 }
 
 
