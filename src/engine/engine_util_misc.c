@@ -486,7 +486,9 @@ mjtNum mju_muscleGain(mjtNum len, mjtNum vel, const mjtNum lengthrange[2],
 
   // length curve
   mjtNum FL = 0;
-  if (L >= lmin && L <= a) {
+  if (L < lmin){
+    FL = 0;
+  } else if (L >= lmin && L <= a) {
     x = (L-lmin) / mjMAX(mjMINVAL, a-lmin);
     FL = 0.5*x*x;
   } else if (L <= 1) {
