@@ -117,6 +117,7 @@ Membrane::Membrane(const mjModel* m, mjData* d, int instance, mjtNum nu,
     for (int j = 0; j < m->flex_vertnum[i]; j++) {
       if (m->flex_vertbodyid[m->flex_vertadr[i]+j] == i0) {
         f0 = i;
+        nv = m->flex_vertnum[f0];
       }
     }
   }
@@ -168,6 +169,7 @@ Membrane::Membrane(const mjModel* m, mjData* d, int instance, mjtNum nu,
   deformed.assign(ne, 0);
   previous.assign(ne, 0);
   elongation.assign(ne, 0);
+  force.assign(3*nv, 0);
 
   // compute edge lengths at equilibrium (m->flexedge_length0 not yet available)
   UpdateSquaredLengths(reference, edges, body_pos);
@@ -198,11 +200,17 @@ void Membrane::Compute(const mjModel* m, mjData* d, int instance) {
 
   // compute gradient of elastic energy and insert into passive force
   int flex_vertadr = f0 < 0 ? -1 : m->flex_vertadr[f0];
-  int* bodyid = f0 < 0 ? nullptr : m->flex_vertbodyid + flex_vertadr;
   mjtNum* xpos = f0 < 0 ? d->xpos + 3*i0 : d->flexvert_xpos + 3*flex_vertadr;
   mjtNum* qfrc = d->qfrc_passive + (f0 < 0 ? m->body_dofadr[i0] : 0);
 
-  ComputeForce<Stencil2D>(qfrc, elements, metric, elongation, m, bodyid, xpos);
+  ComputeForce<Stencil2D>(force, elements, metric, elongation, m, xpos);
+
+  // insert into passive force
+  if (f0 < 0) {
+    mju_addTo(qfrc, force.data(), force.size());
+  } else {
+    AddFlexForce(qfrc, force, m, d, xpos, f0);
+  }
 
   // update stored lengths
   if (kD > 0) {

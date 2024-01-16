@@ -55,6 +55,7 @@ class Solid {
   std::vector<mjtNum> deformed;             // deformed lengths       (ne x 1)
   std::vector<mjtNum> previous;             // previous-step lengths  (ne x 1)
   std::vector<mjtNum> elongation;           // edge elongation        (ne x 1)
+  std::vector<mjtNum> force;                // force at all vertices  (nv x 3)
 
   mjtNum damping;
 
