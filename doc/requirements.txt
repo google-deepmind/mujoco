@@ -1,4 +1,4 @@
-Sphinx==4.5.0
+Sphinx==5.3.0
 furo==2022.9.29
 sphinxcontrib-bibtex==2.6.1
 sphinxcontrib-katex==0.9.4
@@ -11,7 +11,7 @@ nbsphinx==0.9.1
 pandoc==1.1.0
 pygments==2.15.0
 jq==1.4.1
-Jinja2==2.11.3
+Jinja2~=3.0
 wheel
 # see https://github.com/aws/aws-sam-cli/issues/3661 regarding markupsafe
 markupsafe==2.0.1
