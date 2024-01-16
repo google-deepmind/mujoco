@@ -311,15 +311,16 @@ any effect. The settings here are global and apply to the entire model.
 
    - All materials are discarded.
    - All textures are discarded.
-   - All geoms with :ref:`contype<body-geom-contype>`=:ref:`conaffinity<body-geom-conaffinity>`=0 are discarded, if they
-     are not referenced in another MJCF element. If a discarded geom was used for inferring body inertia, an explicit
-     :ref:`inertial<body-inertial>` element is added to the body.
+   - All geoms with :ref:`contype<body-geom-contype>` |-| = |-| :ref:`conaffinity<body-geom-conaffinity>` |-| =0 are
+     discarded, if they are not referenced in another MJCF element. If a discarded geom was used for inferring body
+     inertia, an explicit :ref:`inertial<body-inertial>` element is added to the body.
    - All meshes which are not referenced by any geom (in particular those discarded above) are discarded.
 
-   The resulting compiled model will have exactly the same dynamics as the original model, with the exception of
-   raycasting, as used for example by :ref:`rangefinder<sensor-rangefinder>`, since raycasting reports distances to
-   visual geoms. When visualizing models compiled with this flag, it is important to remember that colliding geoms are
-   often placed in a :ref:`group<body-geom-group>` which is invisible by default.
+   The resulting compiled model will have exactly the same dynamics as the original model. The only engine-level
+   computation which might change is the output of :ref:`raycasting<mj_ray>` computations, as used for example by
+   :ref:`rangefinder<sensor-rangefinder>` sensors, since raycasting reports distances to visual geoms. When visualizing
+   models compiled with this flag, it is important to remember that collision geoms are often placed in a
+   :ref:`group<body-geom-group>` which is invisible by default.
 
 .. _compiler-convexhull:
 
