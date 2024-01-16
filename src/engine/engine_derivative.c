@@ -804,7 +804,10 @@ static mjtNum mjd_muscleGain_vel(mjtNum len, mjtNum vel, const mjtNum lengthrang
 
   // length curve
   mjtNum FL = 0;
-  if (L >= lmin && L <= a) {
+  if (L < lmin){
+  FL = 0;
+  }
+  else if (L >= lmin && L <= a) {
     x = (L-lmin) / mju_max(mjMINVAL, a-lmin);
     FL = 0.5*x*x;
   } else if (L <= 1) {
