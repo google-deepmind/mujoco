@@ -291,11 +291,8 @@ void mj_collision(const mjModel* m, mjData* d) {
   unsigned int last_signature = -1;
   TM_END(mjTIMER_COL_BROAD);
 
-  // midphase collision detector
+  // narrowphase and midphase collision detector
   TM_RESTART;
-
-  // save current narrowphase duration
-  mjtNum tmNarrow = d->timer[mjTIMER_COL_NARROW].duration;
 
   // process bodyflex pairs returned by broadphase, merge with predefined geom pairs
   int pairadr = 0;
@@ -471,14 +468,8 @@ void mj_collision(const mjModel* m, mjData* d) {
     }
   }
 
-  // end midphase timer
-  TM_END(mjTIMER_COL_MID);
-
-  // subtract nested narrowphase timing from midphase timer
-  d->timer[mjTIMER_COL_MID].duration -= (d->timer[mjTIMER_COL_NARROW].duration - tmNarrow);
-
-  // increment narrowphase counter
-  d->timer[mjTIMER_COL_NARROW].number++;
+  // end narrowphase and midphase timer
+  TM_END(mjTIMER_COL_NARROW);
 
   mj_freeStack(d);
   TM_END1(mjTIMER_POS_COLLISION);
@@ -1444,8 +1435,6 @@ static void mj_makeCapsule(const mjModel* m, mjData* d, int f, const int vid[2],
 
 // test two geoms for collision, apply filters, add to contact list
 void mj_collideGeoms(const mjModel* m, mjData* d, int g1, int g2) {
-  TM_START;
-
   int num, type1, type2, condim;
   mjtNum margin, gap, friction[5], solref[mjNREF], solimp[mjNIMP];
   mjtNum solreffriction[mjNREF] = {0};
@@ -1635,9 +1624,6 @@ void mj_collideGeoms(const mjModel* m, mjData* d, int g1, int g2) {
 
   // move arena pointer back to the end of the contact array
   resetArena(d);
-
-  // add duration without incrementing counter
-  TM_ADD(mjTIMER_COL_NARROW);
 }
 
 
@@ -1850,8 +1836,6 @@ void mj_collideFlexSAP(const mjModel* m, mjData* d, int f) {
 
 // test a geom and an elem for collision, add to contact list
 void mj_collideGeomElem(const mjModel* m, mjData* d, int g, int f, int e) {
-  TM_START;
-
   mjtNum margin = mj_assignMargin(m, mju_max(m->geom_margin[g], m->flex_margin[f]));
   int dim = m->flex_dim[f], type = m->geom_type[g];
   int num;
@@ -1965,17 +1949,12 @@ void mj_collideGeomElem(const mjModel* m, mjData* d, int g, int f, int e) {
 
   // move arena pointer back to the end of the contact array
   resetArena(d);
-
-  // add duration without incrementing counter
-  TM_ADD(mjTIMER_COL_NARROW);
 }
 
 
 
 // test two elems for collision, add to contact list
 void mj_collideElems(const mjModel* m, mjData* d, int f1, int e1, int f2, int e2) {
-  TM_START;
-
   mjtNum margin = mj_assignMargin(m, mju_max(m->flex_margin[f1], m->flex_margin[f2]));
   int dim1 = m->flex_dim[f1], dim2 = m->flex_dim[f2];
   int num;
@@ -2070,9 +2049,6 @@ void mj_collideElems(const mjModel* m, mjData* d, int f1, int e1, int f2, int e2
 
   // move arena pointer back to the end of the contact array
   resetArena(d);
-
-  // add duration without incrementing counter
-  TM_ADD(mjTIMER_COL_NARROW);
 }
 
 

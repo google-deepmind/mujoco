@@ -87,7 +87,6 @@ typedef enum mjtTimer_ {     // internal timers
 
   // breakdown of mj_collision
   mjTIMER_COL_BROAD,         // broadphase
-  mjTIMER_COL_MID,           // midphase
   mjTIMER_COL_NARROW,        // narrowphase
 
   mjNTIMER                   // number of timers

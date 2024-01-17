@@ -89,7 +89,6 @@ const char* mjTIMERSTRING[mjNTIMER]= {
   "pos_make",
   "pos_project",
   "col_broadphase",
-  "col_midphase",
   "col_narrowphase"
 };
 

@@ -138,9 +138,8 @@ public enum mjtTimer : int{
   mjTIMER_POS_MAKE = 11,
   mjTIMER_POS_PROJECT = 12,
   mjTIMER_COL_BROAD = 13,
-  mjTIMER_COL_MID = 14,
-  mjTIMER_COL_NARROW = 15,
-  mjNTIMER = 16,
+  mjTIMER_COL_NARROW = 14,
+  mjNTIMER = 15,
 }
 public enum mjtDisableBit : int{
   mjDSBL_CONSTRAINT = 1,
@@ -769,7 +768,6 @@ public unsafe struct mjData_ {
   public mjTimerStat_ timer12;
   public mjTimerStat_ timer13;
   public mjTimerStat_ timer14;
-  public mjTimerStat_ timer15;
   public mjSolverStat_ solver0;
   public mjSolverStat_ solver1;
   public mjSolverStat_ solver2;
