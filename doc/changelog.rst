@@ -21,6 +21,8 @@ Bug fixes
 ^^^^^^^^^
 6. Fixed a bug that prevented the use of pins with plugins if flexes are not in the worldbody. Fixes
    :github:issue:`1270`.
+7. Fixed a bug in the :ref:`muscle model<CMuscle>` that led to non-zero values outside the lower
+   bound of the length range. Fixes :github:issue:`1342`.
 
 
 Version 3.1.1 (December 18, 2023)
