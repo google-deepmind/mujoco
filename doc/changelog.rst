@@ -15,7 +15,7 @@ MJX
 2. Added :ref:`dyntype<actuator-general-dyntype>` ``filterexact``.
 3. Added :at:`site` transmission.
 4. Updated MJX colab tutorial with more stable quadruped environment.
-5. Added ``mjx.ray`` which mirrors :ref:`mj_ray` for planes, spheres, capsules, and boxes.
+5. Added ``mjx.ray`` which mirrors :ref:`mj_ray` for planes, spheres, capsules, boxes, and meshes.
 
 Bug fixes
 ^^^^^^^^^

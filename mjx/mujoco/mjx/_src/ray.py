@@ -19,6 +19,7 @@ from typing import Sequence, Tuple
 import jax
 from jax import numpy as jp
 import mujoco
+from mujoco.mjx._src import math
 # pylint: disable=g-importing-member
 from mujoco.mjx._src.types import Data
 from mujoco.mjx._src.types import GeomType
@@ -129,14 +130,79 @@ def _ray_box(
   return jp.min(jp.where(valid, x, jp.inf))
 
 
-def _ray_mesh(
-    size: jax.Array,
+def _ray_triangle(
+    vert: jax.Array,
     pnt: jax.Array,
     vec: jax.Array,
+    b0: jax.Array,
+    b1: jax.Array,
 ) -> jax.Array:
-  """Returns the distance at which a ray intersects with a mesh."""
-  del size, pnt, vec
-  raise NotImplementedError("ray <> mesh not implemented yet")
+  """Returns the distance at which a ray intersects with a triangle."""
+  # project difference vectors in ray normal plane
+  planar = jp.dot(jp.array([b0, b1]), (vert - pnt).T)
+
+  # determine if origin is inside planar projection of triangle
+  # A = (p0-p2, p1-p2), b = -p2, solve A*t = b
+  A = jp.array(  # pylint: disable=invalid-name
+      [planar[:, 0] - planar[:, 2], planar[:, 1] - planar[:, 2]]
+  ).T.flatten()
+  b = -planar[:, 2]
+  det = A[0] * A[3] - A[1] * A[2]
+  valid = jp.abs(det) >= mujoco.mjMINVAL
+
+  t0 = (A[3] * b[0] - A[1] * b[1]) / det
+  t1 = (-A[2] * b[0] + A[0] * b[1]) / det
+  valid &= (t0 >= 0) & (t1 >= 0) & (t0 + t1 <= 1)
+
+  # intersect ray with plane of triangle
+  nrm = jp.cross(vert[0] - vert[2], vert[1] - vert[2])
+  denom = jp.dot(vec, nrm)
+  valid &= jp.abs(denom) >= mujoco.mjMINVAL
+
+  dist = jp.where(valid, -jp.dot(pnt - vert[2], nrm) / denom, jp.inf)
+
+  return dist
+
+
+def _ray_mesh(
+    m: Model,
+    geom_id: np.ndarray,
+    unused_size: jax.Array,
+    pnt: jax.Array,
+    vec: jax.Array,
+) -> Tuple[jax.Array, jax.Array]:
+  """Returns the best distance and geom_id for ray mesh intersections."""
+  data_id = m.geom_dataid[geom_id]
+
+  ray_basis = lambda x: math.orthogonals(math.normalize(x))
+  b0, b1 = jax.vmap(ray_basis)(vec)
+
+  faceadr = np.append(m.mesh_faceadr, m.nmeshface)
+  vertadr = np.append(m.mesh_vertadr, m.nmeshvert)
+
+  dists = []
+  for i, id_ in enumerate(data_id):
+    face = m.mesh_face[faceadr[id_] : faceadr[id_ + 1]]
+    vert = m.mesh_vert[vertadr[id_] : vertadr[id_ + 1]]
+    dist = jax.vmap(_ray_triangle, in_axes=(0, None, None, None, None))(
+        vert[face], pnt[i], vec[i], b0[i], b1[i]
+    )
+    dists.append(dist)
+
+  # map the triangle id to data id
+  tri_id = np.append(0, (faceadr[data_id + 1] - faceadr[data_id]).cumsum())
+  tri_data_id = np.zeros(tri_id[-1], dtype=np.int32)
+  tri_data_id[tri_id[:-1]] = 1
+  tri_data_id = tri_data_id.cumsum() - 1
+
+  dists = jp.concatenate(dists)
+  min_id = jp.argmin(dists)
+  # Grab the best distance amongst all meshes, bypassing the argmin in `ray`.
+  # This avoids having to compute the best distance per mesh.
+  dist = dists[min_id, None]
+  id_ = jp.array(geom_id)[jp.array(tri_data_id)[min_id], None]
+
+  return dist, id_
 
 
 _RAY_FUNC = {
@@ -144,7 +210,7 @@ _RAY_FUNC = {
     GeomType.SPHERE: _ray_sphere,
     GeomType.CAPSULE: _ray_capsule,
     GeomType.BOX: _ray_box,
-    # GeomType.MESH: _ray_mesh,
+    GeomType.MESH: _ray_mesh,
 }
 
 
@@ -192,8 +258,13 @@ def ray(
     if id_.size == 0:
       continue
 
-    size, pnt, vec = m.geom_size[id_], geom_pnts[id_], geom_vecs[id_]
-    dist = jax.vmap(fn)(size, pnt, vec)
+    args = m.geom_size[id_], geom_pnts[id_], geom_vecs[id_]
+
+    if geom_type == GeomType.MESH:
+      dist, id_ = fn(m, id_, *args)
+    else:
+      dist = jax.vmap(fn)(*args)
+
     dists, ids = dists + [dist], ids + [id_]
 
   if not ids:

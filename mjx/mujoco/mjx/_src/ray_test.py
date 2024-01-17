@@ -144,6 +144,43 @@ class RayTest(absltest.TestCase):
     mj_dist = mujoco.mj_ray(m, d, pnt, vec, None, 1, -1, unused)
     _assert_eq(dist, mj_dist, 'dist')
 
+  def test_ray_mesh(self):
+    """Tests MJX ray<>mesh matches MuJoCo."""
+    m = test_util.load_test_file('ray.xml')
+    d = mujoco.MjData(m)
+    mujoco.mj_forward(m, d)
+    mx, dx = mjx.put_model(m), mjx.put_data(m, d)
+
+    # look at the tetrahedron
+    pnt, vec = jp.array([2.0, 2.0, 2.0]), -jp.array([
+        1.0,
+        1.0,
+        1.0,
+    ])
+    vec /= jp.linalg.norm(vec)
+    dist, geomid = jax.jit(mjx.ray)(mx, dx, pnt, vec)
+    _assert_eq(geomid, 4, 'geom_id')
+
+    pnt, vec, geomid = np.array(pnt), np.array(vec), np.zeros(1, dtype=np.int32)
+    mj_dist = mujoco.mj_ray(m, d, pnt, vec, None, 1, -1, geomid)
+    _assert_eq(geomid, 4, 'geom_id')
+    _assert_eq(dist, mj_dist, 'dist-tetrahedron')
+
+    # look at the dodecahedron
+    pnt, vec = jp.array([4.0, 2.0, 2.0]), -jp.array([
+        2.0,
+        1.0,
+        1.0,
+    ])
+    vec /= jp.linalg.norm(vec)
+    dist, geomid = jax.jit(mjx.ray)(mx, dx, pnt, vec)
+    _assert_eq(geomid, 5, 'geom_id')
+
+    pnt, vec, geomid = np.array(pnt), np.array(vec), np.zeros(1, dtype=np.int32)
+    mj_dist = mujoco.mj_ray(m, d, pnt, vec, None, 1, -1, geomid)
+    _assert_eq(geomid, 5, 'geom_id')
+    _assert_eq(dist, mj_dist, 'dist-dodecahedron')
+
   def test_ray_geomgroup(self):
     """Tests ray geomgroup filter."""
     m = test_util.load_test_file('ray.xml')

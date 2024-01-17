@@ -264,6 +264,8 @@ class Model(PyTreeNode):
     ngeom: number of geoms
     nsite: number of sites
     nmesh: number of meshes
+    nmeshvert: number of vertices in all meshes
+    nmeshface: number of triangular faces in all meshes
     nmat: number of materials
     npair: number of predefined geom pairs
     nexclude: number of excluded geom pairs
@@ -321,6 +323,7 @@ class Model(PyTreeNode):
     geom_conaffinity: geom contact affinity                   (ngeom,)
     geom_condim: contact dimensionality (1, 3, 4, 6)          (ngeom,)
     geom_bodyid: id of geom's body                            (ngeom,)
+    geom_dataid: id of geom's mesh/hfield; -1: none           (ngeom,)
     geom_group: group for visibility                          (ngeom,)
     geom_matid: material id for rendering                     (ngeom,)
     geom_priority: geom contact priority                      (ngeom,)
@@ -338,6 +341,10 @@ class Model(PyTreeNode):
     site_pos: local position offset rel. to body              (nsite, 3)
     site_quat: local orientation offset rel. to body          (nsite, 4)
     mat_rgba: rgba                                            (nmat, 4)
+    mesh_vertadr: first vertex address                        (nmesh x 1)
+    mesh_faceadr: first face address                          (nmesh x 1)
+    mesh_vert: vertex positions for all meshes                (nmeshvert, 3)
+    mesh_face: vertex face data                               (nmeshface, 3)
     geom_convex_face: vertex face data, MJX only              (ngeom,)
     geom_convex_vert: vertex data, MJX only                   (ngeom,)
     geom_convex_edge: unique edge data, MJX only              (ngeom,)
@@ -390,6 +397,8 @@ class Model(PyTreeNode):
   ngeom: int
   nsite: int
   nmesh: int
+  nmeshvert: int
+  nmeshface: int
   nmat: int
   npair: int
   nexclude: int
@@ -447,6 +456,7 @@ class Model(PyTreeNode):
   geom_conaffinity: np.ndarray
   geom_condim: np.ndarray
   geom_bodyid: np.ndarray
+  geom_dataid: np.ndarray
   geom_group: np.ndarray
   geom_matid: np.ndarray
   geom_priority: np.ndarray
@@ -463,6 +473,10 @@ class Model(PyTreeNode):
   site_bodyid: np.ndarray
   site_pos: jax.Array
   site_quat: jax.Array
+  mesh_vertadr: np.ndarray
+  mesh_faceadr: np.ndarray
+  mesh_vert: np.ndarray
+  mesh_face: np.ndarray
   mat_rgba: np.ndarray
   pair_dim: np.ndarray
   pair_geom1: np.ndarray
