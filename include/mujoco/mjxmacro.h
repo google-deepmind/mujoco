@@ -739,7 +739,7 @@
 
 // vector fields of mjData
 #define MJDATA_VECTOR                                                \
-    X( size_t,         maxuse_threadstack, mjMAXTHREADS, 1         ) \
+    X( size_t,         maxuse_threadstack, mjMAXTHREAD,  1         ) \
     X( mjWarningStat,  warning,            mjNWARNING,   1         ) \
     X( mjTimerStat,    timer,              mjNTIMER,     1         ) \
     X( mjSolverStat,   solver,             mjNILSAND,    mjNSOLVER ) \

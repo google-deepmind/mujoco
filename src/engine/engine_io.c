@@ -1568,7 +1568,7 @@ static void _resetData(const mjModel* m, mjData* d, unsigned char debug_value) {
 
   // clear memory utilization stats
   d->maxuse_stack = 0;
-  mju_zeroSizeT(d->maxuse_threadstack, mjMAXTHREADS);
+  mju_zeroSizeT(d->maxuse_threadstack, mjMAXTHREAD);
   d->maxuse_arena = 0;
   d->maxuse_con = 0;
   d->maxuse_efc = 0;

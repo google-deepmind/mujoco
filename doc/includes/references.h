@@ -148,7 +148,7 @@ struct mjData_ {
 
   // memory utilization stats
   size_t  maxuse_stack;                      // maximum stack allocation in bytes
-  size_t  maxuse_threadstack[mjMAXTHREADS];  // maximum stack allocation per thread in bytes
+  size_t  maxuse_threadstack[mjMAXTHREAD];   // maximum stack allocation per thread in bytes
   size_t  maxuse_arena;                      // maximum arena allocation in bytes
   int     maxuse_con;                        // maximum number of contacts
   int     maxuse_efc;                        // maximum number of scalar constraints
