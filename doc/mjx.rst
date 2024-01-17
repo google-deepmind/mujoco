@@ -230,7 +230,7 @@ The following features are **in development** and coming soon:
    * - :ref:`Geom <mjtGeom>`
      - ``HFIELD``, ``ELLIPSOID``, ``CYLINDER``
    * - :ref:`Constraint <mjtConstraint>`
-     - ``CONTACT_FRICTIONLESS``, ``CONTACT_ELLIPTIC``, ``FRICTION_DOF``
+     - :ref:`Frictionloss <coFriction>`, ``CONTACT_FRICTIONLESS``, ``CONTACT_ELLIPTIC``, ``FRICTION_DOF``
    * - :ref:`Integrator <mjtIntegrator>`
      - ``IMPLICIT``, ``IMPLICITFAST``
    * - :ref:`Cone <mjtCone>`
