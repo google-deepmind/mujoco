@@ -7,8 +7,8 @@ Upcoming version (not yet released)
 
 General
 ^^^^^^^
-1. Improved the :ref:discardvisual<compiler-discardvisual> compiler flag, which now discards all visual-only assets. See
-   :ref:discardvisual<compiler-discardvisual> for details.
+1. Improved the :ref:`discardvisual<compiler-discardvisual>` compiler flag, which now discards all visual-only assets.
+   See :ref:`discardvisual<compiler-discardvisual>` for details.
 2. Removed the :ref:`timer<mjtTimer>` for midphase colllision detection, it is now folded in with the narrowphase
    timer. This is because timing the two phases seperately required fine-grained timers inside the collision
    functions; these functions are so small and fast that the timer itself was incurring a measurable cost.
