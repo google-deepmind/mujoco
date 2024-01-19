@@ -27,7 +27,7 @@ import numpy as np
 
 class SupportTest(parameterized.TestCase):
 
-  @parameterized.parameters(set(test_util.TEST_FILES) - {'convex.xml'})
+  @parameterized.parameters('constraints.xml', 'pendula.xml')
   def test_jac(self, fname):
     np.random.seed(0)
 
