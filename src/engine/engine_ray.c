@@ -627,6 +627,7 @@ int mju_raySlab(const mjtNum aabb[6], const mjtNum xpos[3],
 // ray vs tree intersection
 mjtNum mju_rayTree(const mjModel* m, const mjData* d, int id, const mjtNum* pnt,
                    const mjtNum* vec) {
+  int mark_active = m->vis.global.bvactive;
   const int meshid = m->geom_dataid[id];
   const int bvhadr = m->mesh_bvhadr[meshid];
   const int* faceid = m->bvh_nodeid + bvhadr;
@@ -701,12 +702,17 @@ mjtNum mju_rayTree(const mjModel* m, const mjData* d, int id, const mjtNum* pnt,
       // update
       if (sol >= 0 && (x < 0 || sol < x)) {
         x = sol;
+        if (mark_active) {
+          d->bvh_active[node + bvhadr] = 1;
+        }
       }
       continue;
     }
 
     // used for rendering
-    d->bvh_active[node + bvhadr] = 1;
+    if (mark_active) {
+      d->bvh_active[node + bvhadr] = 1;
+    }
 
     // add children to the stack
     for (int i=0; i < 2; i++) {

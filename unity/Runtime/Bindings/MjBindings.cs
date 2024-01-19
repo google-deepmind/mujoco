@@ -4985,6 +4985,7 @@ public unsafe struct global {
   public int offwidth;
   public int offheight;
   public int ellipsoidinertia;
+  public int bvactive;
 }
 
 [StructLayout(LayoutKind.Sequential)]
@@ -5067,6 +5068,8 @@ public unsafe struct rgba {
   public fixed float slidercrank[4];
   public fixed float crankbroken[4];
   public fixed float frustum[4];
+  public fixed float bv[4];
+  public fixed float bvactive[4];
 }
 
 [StructLayout(LayoutKind.Sequential)]

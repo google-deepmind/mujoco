@@ -896,6 +896,7 @@ void MakeVisualizationSection(mj::Simulate* sim, const mjModel* m, int oldstate)
     {mjITEM_EDITNUM,   "Extent",          2, &(stat->extent),              "1"},
     {mjITEM_EDITFLOAT, "Field of view",   2, &(vis->global.fovy),          "1"},
     {mjITEM_RADIO,     "Inertia",         5, &(vis->global.ellipsoidinertia), "Box\nEllipsoid"},
+    {mjITEM_RADIO,     "BVH active",      5, &(vis->global.bvactive), "False\nTrue"},
     {mjITEM_SEPARATOR, "Map",  1},
     {mjITEM_EDITFLOAT, "Stiffness",       2, &(vis->map.stiffness),        "1"},
     {mjITEM_EDITFLOAT, "Rot stiffness",   2, &(vis->map.stiffnessrot),     "1"},

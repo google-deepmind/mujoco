@@ -715,6 +715,12 @@ is effectively a miscellaneous subsection.
    This attribute specifies how the equivalent inertia is visualized. "false":
    use box, "true": use ellipsoid.
 
+.. _visual-global-bvactive:
+
+:at:`bvactive`: :at-val:`[false, true], "true"`
+   This attribute specifies whether collision and raycasting code should mark elements of Bounding Volume Hierarchies
+   as intersecting, for the purpose of visualization. Setting this attribute to "false" can speed up simulation for
+   models with high-resolution meshes.
 
 .. _visual-quality:
 
@@ -1122,6 +1128,15 @@ disables the rendering of the corresponding object.
 :at:`frustum`: :at-val:`real(4), "1 1 0 0.2"`
    Color used to render the camera frustum.
 
+.. _visual-rgba-bv:
+
+:at:`bv`: :at-val:`real(4), "0 1 0 0.5"`
+   Color used to render bounding volumes.
+
+.. _visual-rgba-bvactive:
+
+:at:`bvactive`: :at-val:`real(4), "1 0 0 0.5"`
+   Color used to render active bounding volumes, if the :ref:`bvactive<visual-global-bvactive>` flag is "true".
 
 .. _asset:
 

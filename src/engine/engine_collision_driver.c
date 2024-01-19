@@ -273,7 +273,9 @@ void mj_collision(const mjModel* m, mjData* d) {
   mj_clearEfc(d);
 
   // reset the visualization flags
-  memset(d->bvh_active, 0, m->nbvh);
+  if (m->vis.global.bvactive) {
+    memset(d->bvh_active, 0, m->nbvh);
+  }
 
   // return if disabled
   if (mjDISABLED(mjDSBL_CONSTRAINT) || mjDISABLED(mjDSBL_CONTACT)
@@ -634,6 +636,7 @@ void mj_collideTree(const mjModel* m, mjData* d, int bf1, int bf2,
   mjtByte isbody2 = (bf2 < nbody);
   int f1 = isbody1 ? -1 : bf1 - nbody;
   int f2 = isbody2 ? -1 : bf2 - nbody;
+  int mark_active = m->vis.global.bvactive;
   const int bvhadr1 = isbody1 ? m->body_bvhadr[bf1] : m->flex_bvhadr[f1];
   const int bvhadr2 = isbody2 ? m->body_bvhadr[bf2] : m->flex_bvhadr[f2];
   const int* child1 = m->bvh_child + 2*bvhadr1;
@@ -705,8 +708,10 @@ void mj_collideTree(const mjModel* m, mjData* d, int bf1, int bf2,
                             d->geom_xpos + 3*nodeid2, d->geom_xmat + 9*nodeid2,
                             margin, NULL, NULL, &initialize)) {
             mj_collideGeomPair(m, d, nodeid1, nodeid2, merged, startadr, pairadr);
-            d->bvh_active[node1 + bvhadr1] = 1;
-            d->bvh_active[node2 + bvhadr2] = 1;
+            if (mark_active) {
+              d->bvh_active[node1 + bvhadr1] = 1;
+              d->bvh_active[node2 + bvhadr2] = 1;
+            }
           }
         }
         continue;
@@ -742,8 +747,10 @@ void mj_collideTree(const mjModel* m, mjData* d, int bf1, int bf2,
             if (m->geom_type[nodeid1] != mjGEOM_PLANE) {
               mj_collideGeomElem(m, d, nodeid1, f2, nodeid2);
             }
-            d->bvh_active[node1 + bvhadr1] = 1;
-            d->bvh_active[node2 + bvhadr2] = 1;
+            if (mark_active) {
+              d->bvh_active[node1 + bvhadr1] = 1;
+              d->bvh_active[node2 + bvhadr2] = 1;
+            }
           }
         }
         continue;
@@ -771,8 +778,10 @@ void mj_collideTree(const mjModel* m, mjData* d, int bf1, int bf2,
       // box filter applied in mj_collideElems, bitmask filter applied earlier
       if (isleaf1 && isleaf2) {
         mj_collideElems(m, d, f1, nodeid1, f2, nodeid2);
-        d->bvh_active[node1 + bvhadr1] = 1;
-        d->bvh_active[node2 + bvhadr2] = 1;
+        if (mark_active) {
+          d->bvh_active[node1 + bvhadr1] = 1;
+          d->bvh_active[node2 + bvhadr2] = 1;
+        }
         continue;
       }
 
@@ -784,8 +793,10 @@ void mj_collideTree(const mjModel* m, mjData* d, int bf1, int bf2,
       }
     }
 
-    d->bvh_active[node1 + bvhadr1] = 1;
-    d->bvh_active[node2 + bvhadr2] = 1;
+    if (mark_active) {
+      d->bvh_active[node1 + bvhadr1] = 1;
+      d->bvh_active[node2 + bvhadr2] = 1;
+    }
 
     // keep traversing the tree
     if (!isleaf1 && isleaf2) {

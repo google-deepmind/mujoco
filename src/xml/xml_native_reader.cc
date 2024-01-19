@@ -113,8 +113,8 @@ static const char* MJCF[nMJCF][mjXATTRNUM] = {
 
     {"visual", "*", "0"},
     {"<"},
-        {"global", "?", "10", "fovy", "ipd", "azimuth", "elevation", "linewidth", "glow",
-            "offwidth", "offheight", "realtime", "ellipsoidinertia"},
+        {"global", "?", "11", "fovy", "ipd", "azimuth", "elevation", "linewidth", "glow",
+            "offwidth", "offheight", "realtime", "ellipsoidinertia", "bvactive"},
         {"quality", "?", "5", "shadowsize", "offsamples", "numslices", "numstacks",
             "numquads"},
         {"headlight", "?", "4", "ambient", "diffuse", "specular", "active"},
@@ -124,11 +124,11 @@ static const char* MJCF[nMJCF][mjXATTRNUM] = {
         {"scale", "?", "17", "forcewidth", "contactwidth", "contactheight", "connect", "com",
             "camera", "light", "selectpoint", "jointlength", "jointwidth", "actuatorlength",
             "actuatorwidth", "framelength", "framewidth", "constraint", "slidercrank", "frustum"},
-        {"rgba", "?", "23", "fog", "haze", "force", "inertia", "joint",
+        {"rgba", "?", "25", "fog", "haze", "force", "inertia", "joint",
             "actuator", "actuatornegative", "actuatorpositive", "com",
             "camera", "light", "selectpoint", "connect", "contactpoint", "contactforce",
             "contactfriction", "contacttorque", "contactgap", "rangefinder",
-            "constraint", "slidercrank", "crankbroken", "frustum"},
+            "constraint", "slidercrank", "crankbroken", "frustum", "bv", "bvactive"},
     {">"},
 
     {"statistic", "*", "5", "meaninertia", "meanmass", "meansize", "extent", "center"},
@@ -2723,6 +2723,10 @@ void mjXReader::Visual(XMLElement* section) {
       if (MapValue(elem, "ellipsoidinertia", &ellipsoidinertia, bool_map, 2)) {
         vis->global.ellipsoidinertia = (ellipsoidinertia==1);
       }
+      int bvactive;
+      if (MapValue(elem, "bvactive", &bvactive, bool_map, 2)) {
+        vis->global.bvactive = (bvactive==1);
+      }
     }
 
     // quality sub-element
@@ -2808,6 +2812,8 @@ void mjXReader::Visual(XMLElement* section) {
       ReadAttr(elem, "slidercrank",      4, vis->rgba.slidercrank,     text);
       ReadAttr(elem, "crankbroken",      4, vis->rgba.crankbroken,     text);
       ReadAttr(elem, "frustum",          4, vis->rgba.frustum,         text);
+      ReadAttr(elem, "bv",               4, vis->rgba.bv,              text);
+      ReadAttr(elem, "bvactive",         4, vis->rgba.bvactive,        text);
     }
 
     // advance to next element

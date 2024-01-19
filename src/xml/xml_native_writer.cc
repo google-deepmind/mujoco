@@ -1030,6 +1030,7 @@ void mjXWriter::Visual(XMLElement* root) {
   WriteAttrInt(elem, "offwidth",       vis->global.offwidth,    visdef.global.offwidth);
   WriteAttrInt(elem, "offheight",      vis->global.offheight,   visdef.global.offheight);
   WriteAttrKey(elem, "ellipsoidinertia", bool_map, 2, vis->global.ellipsoidinertia, visdef.global.ellipsoidinertia);
+  WriteAttrKey(elem, "bvactive", bool_map, 2, vis->global.bvactive, visdef.global.bvactive);
   if (!elem->FirstAttribute()) {
     section->DeleteChild(elem);
   }
@@ -1122,6 +1123,8 @@ void mjXWriter::Visual(XMLElement* root) {
   WriteAttr(elem, "slidercrank",      4, vis->rgba.slidercrank,      visdef.rgba.slidercrank);
   WriteAttr(elem, "crankbroken",      4, vis->rgba.crankbroken,      visdef.rgba.crankbroken);
   WriteAttr(elem, "frustum",          4, vis->rgba.frustum,          visdef.rgba.frustum);
+  WriteAttr(elem, "bv",               4, vis->rgba.bv,               visdef.rgba.bv);
+  WriteAttr(elem, "bvactive",         4, vis->rgba.bvactive,         visdef.rgba.bvactive);
   if (!elem->FirstAttribute()) {
     section->DeleteChild(elem);
   }

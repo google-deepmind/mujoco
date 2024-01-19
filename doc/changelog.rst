@@ -12,19 +12,26 @@ General
 2. Removed the :ref:`timer<mjtTimer>` for midphase colllision detection, it is now folded in with the narrowphase
    timer. This is because timing the two phases seperately required fine-grained timers inside the collision
    functions; these functions are so small and fast that the timer itself was incurring a measurable cost.
+3. Added the flag :ref:`bvactive<visual-global-bvactive>` to ``visual/global``, allowing users to turn off
+   visualisation of active bounding volumes (the red/green boxes in this :ref:`this changelog item<midphase>`). For
+   models with very high-resolution meshes, the computation required for this visualization can slow down simulation
+   speed. Fixes :github:issue:`1279`.
+
+   - Added color of :ref:`bounding volumes<visual-rgba-bv>` and :ref:`active bounding volumes<visual-rgba-bvactive>`
+     to :ref:`visual/rgba<visual-rgba>`.
 
 MJX
 ^^^
-3. Added :ref:`dyntype<actuator-general-dyntype>` ``filterexact``.
-4. Added :at:`site` transmission.
-5. Updated MJX colab tutorial with more stable quadruped environment.
-6. Added ``mjx.ray`` which mirrors :ref:`mj_ray` for planes, spheres, capsules, boxes, and meshes.
+4. Added :ref:`dyntype<actuator-general-dyntype>` ``filterexact``.
+5. Added :at:`site` transmission.
+6. Updated MJX colab tutorial with more stable quadruped environment.
+7. Added ``mjx.ray`` which mirrors :ref:`mj_ray` for planes, spheres, capsules, boxes, and meshes.
 
 Bug fixes
 ^^^^^^^^^
-7. Fixed a bug that prevented the use of pins with plugins if flexes are not in the worldbody. Fixes
+8. Fixed a bug that prevented the use of pins with plugins if flexes are not in the worldbody. Fixes
    :github:issue:`1270`.
-7. Fixed a bug in the :ref:`muscle model<CMuscle>` that led to non-zero values outside the lower
+9. Fixed a bug in the :ref:`muscle model<CMuscle>` that led to non-zero values outside the lower
    bound of the length range. Fixes :github:issue:`1342`.
 
 
@@ -623,6 +630,8 @@ General
 .. image:: images/computation/midphase.gif
    :align: right
    :width: 350px
+
+.. _midphase:
 
 2. Added a collision mid-phase for pruning geoms in body pairs, see :ref:`documentation<coSelection>` for more details.
    This is based on static AABB bounding volume hierarchy (a BVH binary tree) in the body inertial frame. The GIF on

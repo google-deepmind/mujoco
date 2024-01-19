@@ -194,6 +194,7 @@ void mj_defaultVisual(mjVisual* vis) {
   vis->global.offheight           = 480;
   vis->global.realtime            = 1.0;
   vis->global.ellipsoidinertia    = 0;
+  vis->global.bvactive            = 1;
 
   // rendering quality
   vis->quality.shadowsize         = 4096;
@@ -272,6 +273,8 @@ void mj_defaultVisual(mjVisual* vis) {
   setf4(vis->rgba.slidercrank,      .5, .3, .8, 1.);
   setf4(vis->rgba.crankbroken,      .9, .0, .0, 1.);
   setf4(vis->rgba.frustum,          1., 1., .0, .2);
+  setf4(vis->rgba.bv,               0., 1., .0, .5);
+  setf4(vis->rgba.bvactive,         1., 0., .0, .5);
 }
 
 

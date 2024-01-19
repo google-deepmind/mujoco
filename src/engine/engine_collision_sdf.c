@@ -496,7 +496,7 @@ static void collideBVH(const mjModel* m, mjData* d, int g,
   const int* faceid = m->bvh_nodeid + bvhadr;
   const mjtNum* bvh = m->bvh_aabb + 6*bvhadr;
   const int* child = m->bvh_child + 2*bvhadr;
-  mjtByte* visited = d->bvh_active + bvhadr;
+  mjtByte* bvh_active = m->vis.global.bvactive ? d->bvh_active + bvhadr : NULL;
 
   mj_markStack(d);
   // TODO(quaglino): Store bvh max depths to make this bound tighter.
@@ -521,9 +521,6 @@ static void collideBVH(const mjModel* m, mjData* d, int g,
 
     // node1 is a leaf
     if (faceid[node] != -1) {
-      if (visited[node]) {
-        continue;
-      }
       if (boxIntersect(bvh+6*node, offset, rotation, m, sdf, d)) {
         faces[*npoints] = faceid[node];
         if (++(*npoints) == MAXSDFFACE) {
@@ -531,7 +528,7 @@ static void collideBVH(const mjModel* m, mjData* d, int g,
           mj_freeStack(d);
           return;
         }
-        visited[node] = 1;
+        if (bvh_active) bvh_active[node] = 1;
       }
       continue;
     }
@@ -541,7 +538,7 @@ static void collideBVH(const mjModel* m, mjData* d, int g,
       continue;
     }
 
-    visited[node] = 1;
+    if (bvh_active) bvh_active[node] = 1;
 
     // recursive call
     for (int i=0; i < 2; i++) {
