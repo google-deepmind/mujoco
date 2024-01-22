@@ -27,12 +27,21 @@ MJX
 6. Updated MJX colab tutorial with more stable quadruped environment.
 7. Added ``mjx.ray`` which mirrors :ref:`mj_ray` for planes, spheres, capsules, boxes, and meshes.
 
+Python bindings
+^^^^^^^^^^^^^^^
+8. Improved the implmentation of the :ref:`rollout<PySample>` module. Note the changes below are breaking, dependent
+   code will require modification.
+
+   - Uses :ref:`mjSTATE_FULLPHYSICS<geFullPhysics>` as state spec, enabling divergence detection by inspecting time.
+   - Allows user-defined control spec for any combination of :ref:`user input<geInput>` fields as controls.
+   - Outputs are no longer squeezed and always have dim=3.
+
 Bug fixes
 ^^^^^^^^^
-8. Fixed a bug that prevented the use of pins with plugins if flexes are not in the worldbody. Fixes
+9. Fixed a bug that prevented the use of pins with plugins if flexes are not in the worldbody. Fixes
    :github:issue:`1270`.
-9. Fixed a bug in the :ref:`muscle model<CMuscle>` that led to non-zero values outside the lower
-   bound of the length range. Fixes :github:issue:`1342`.
+10. Fixed a bug in the :ref:`muscle model<CMuscle>` that led to non-zero values outside the lower
+    bound of the length range. Fixes :github:issue:`1342`.
 
 
 Version 3.1.1 (December 18, 2023)
@@ -40,7 +49,8 @@ Version 3.1.1 (December 18, 2023)
 
 Bug fixes
 ^^^^^^^^^
-1. Fixed a bug (introduced in 3.1.0) where box-box collisions produced no contacts if one box was deeply embedded in the other.
+1. Fixed a bug (introduced in 3.1.0) where box-box collisions produced no contacts if one box was deeply embedded in the
+   other.
 2. Fixed a bug in :ref:`simulate<saSimulate>` where the "LOADING..." message was not showing correctly.
 3. Fixed a crash in the Python :ref:`passive viewer<PyViewerPassive>`, when used with models containing Flex objects.
 4. Fixed a bug in MJX where ``site_xmat`` was ignored in ``get_data`` and ``put_data``
@@ -53,8 +63,8 @@ Version 3.1.0 (December 12, 2023)
 General
 ^^^^^^^
 1. Improved convergence of Signed Distance Function (SDF) collisions by using line search and a new objective function
-   for the optimization. This allows to decrease the number of initial points needed for finding the contacts and is more
-   robust for very small or large geom sizes.
+   for the optimization. This allows to decrease the number of initial points needed for finding the contacts and is
+   more robust for very small or large geom sizes.
 2. Added :ref:`frame<frame>` to MJCF, a :ref:`meta-element<meta-element>` which defines a pure coordinate transformation
    on its direct children, without requiring a :ref:`body<body>`.
 3. Added the :at:`kv` attribute to the :ref:`position<actuator-position>` and :ref:`intvelocity<actuator-intvelocity>`
@@ -64,17 +74,14 @@ General
 
 Plugins
 ^^^^^^^
-
 4. Allow actuator plugins to use activation variables in ``mjData.act`` as their internal state, rather than
    ``mjData.plugin_state``. Actuator plugins can now specify :ref:`callbacks<mjpPlugin>` that compute activation
    variables, and they can be used with built-in :ref:`dyntype<actuator-plugin-dyntype>` actuator dynamics.
-
 5. Added the `pid <https://github.com/deepmind/mujoco/blob/main/plugin/actuator/README.md>`__ actuator plugin, a
    configurable PID controller that implements the Integral term, which is not available with native MuJoCo actuators.
 
 MJX
 ^^^
-
 6.  Added ``site_xpos`` and ``site_xmat`` to MJX.
 7. Added ``put_data``, ``put_model``, ``get_data`` to replace ``device_put`` and ``device_get_into``, which will be
    deprecated. These new functions correctly translate fields that are the result of intermediate calculations such as
@@ -86,8 +93,8 @@ Bug fixes
    Before this fix such actuators could lead to non-conservation of momentum.
 9. Fix bug that prevented using flex with :ref:`simulate<saSimulate>`.
 10. Fix bug that prevented the use of elasticity plugins in combination with pinned flex vertices.
-11. Release Python wheels targeting macOS 10.16 to support x86_64 systems where SYSTEM_VERSION_COMPAT is set. The minimum
-    supported version is still 11.0, but we release these wheels to fix compatibility for those users. See
+11. Release Python wheels targeting macOS 10.16 to support x86_64 systems where ``SYSTEM_VERSION_COMPAT`` is set.
+    The minimum supported version is still 11.0, but we release these wheels to fix compatibility for those users. See
     :github:issue:`1213`.
 
 Version 3.0.1 (November 15, 2023)
