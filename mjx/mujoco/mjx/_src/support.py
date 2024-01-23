@@ -14,15 +14,122 @@
 # ==============================================================================
 """Engine support functions."""
 
-from typing import Tuple
+from typing import Optional, Tuple, Union
 
 import jax
 from jax import numpy as jp
+import mujoco
 from mujoco.mjx._src import scan
 # pylint: disable=g-importing-member
 from mujoco.mjx._src.types import Data
+from mujoco.mjx._src.types import JacobianType
 from mujoco.mjx._src.types import Model
 # pylint: enable=g-importing-member
+
+
+def is_sparse(m: Union[mujoco.MjModel, Model]) -> bool:
+  """Return True if this model should create sparse mass matrices.
+
+  Args:
+    m: a MuJoCo or MJX model
+
+  Returns:
+    True if provided model should create sparse mass matrices
+
+  Modern TPUs have specialized hardware for rapidly operating over sparse
+  matrices, whereas GPUs tend to be faster with dense matrices as long as they
+  fit onto the device.  As such, the default behavior in MJX (via
+  ``JacobianType.AUTO``) is sparse if ``nv`` is >= 60 or MJX detects a TPU as
+  the default backend, otherwise dense.
+  """
+  # AUTO is a rough heuristic - you may see better performance for your workload
+  # and compute by explicitly setting jacobian to dense or sparse
+  if m.opt.jacobian == JacobianType.AUTO:
+    return m.nv >= 60 or jax.default_backend() == 'tpu'
+  return m.opt.jacobian == JacobianType.SPARSE
+
+
+def make_m(
+    m: Model, a: jax.Array, b: jax.Array, d: Optional[jax.Array] = None
+) -> jax.Array:
+  """Computes M = a @ b.T + diag(d)."""
+
+  ij = []
+  for i in range(m.nv):
+    j = i
+    while j > -1:
+      ij.append((i, j))
+      j = m.dof_parentid[j]
+
+  i, j = (jp.array(x) for x in zip(*ij))
+
+  if not is_sparse(m):
+    qm = a @ b.T
+    if d is not None:
+      qm += jp.diag(d)
+    mask = jp.zeros((m.nv, m.nv), dtype=bool).at[(i, j)].set(True)
+    qm = qm * mask
+    qm = qm + jp.tril(qm, -1).T
+    return qm
+
+  a_i = jp.take(a, i, axis=0)
+  b_j = jp.take(b, j, axis=0)
+  qm = jax.vmap(jp.dot)(a_i, b_j)
+
+  # add diagonal
+  if d is not None:
+    qm = qm.at[m.dof_Madr].add(d)
+
+  return qm
+
+
+def full_m(m: Model, d: Data) -> jax.Array:
+  """Reconstitute dense mass matrix from qM."""
+
+  if not is_sparse(m):
+    return d.qM
+
+  ij = []
+  for i in range(m.nv):
+    j = i
+    while j > -1:
+      ij.append((i, j))
+      j = m.dof_parentid[j]
+
+  i, j = (jp.array(x) for x in zip(*ij))
+
+  mat = jp.zeros((m.nv, m.nv)).at[(i, j)].set(d.qM)
+
+  # also set upper triangular
+  mat = mat + jp.tril(mat, -1).T
+
+  return mat
+
+
+def mul_m(m: Model, d: Data, vec: jax.Array) -> jax.Array:
+  """Multiply vector by inertia matrix."""
+
+  if not is_sparse(m):
+    return d.qM @ vec
+
+  diag_mul = d.qM[jp.array(m.dof_Madr)] * vec
+
+  is_, js, madr_ijs = [], [], []
+  for i in range(m.nv):
+    madr_ij, j = m.dof_Madr[i], i
+
+    while True:
+      madr_ij, j = madr_ij + 1, m.dof_parentid[j]
+      if j == -1:
+        break
+      is_, js, madr_ijs = is_ + [i], js + [j], madr_ijs + [madr_ij]
+
+  i, j, madr_ij = (jp.array(x, dtype=jp.int32) for x in (is_, js, madr_ijs))
+
+  out = diag_mul.at[i].add(d.qM[madr_ij] * vec[j])
+  out = out.at[j].add(d.qM[madr_ij] * vec[i])
+
+  return out
 
 
 def jac(

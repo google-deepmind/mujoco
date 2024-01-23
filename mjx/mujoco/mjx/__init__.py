@@ -39,8 +39,10 @@ from mujoco.mjx._src.smooth import com_vel
 from mujoco.mjx._src.smooth import crb
 from mujoco.mjx._src.smooth import factor_m
 from mujoco.mjx._src.smooth import kinematics
-from mujoco.mjx._src.smooth import mul_m
 from mujoco.mjx._src.smooth import rne
 from mujoco.mjx._src.smooth import transmission
 from mujoco.mjx._src.solver import solve
+from mujoco.mjx._src.support import is_sparse
+from mujoco.mjx._src.support import full_m
+from mujoco.mjx._src.support import mul_m
 from mujoco.mjx._src.types import *

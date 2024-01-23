@@ -26,21 +26,23 @@ MJX
 5. Added :at:`site` transmission.
 6. Updated MJX colab tutorial with more stable quadruped environment.
 7. Added ``mjx.ray`` which mirrors :ref:`mj_ray` for planes, spheres, capsules, boxes, and meshes.
+8. Added ``mjx.is_sparse`` which mirrors :ref:`mj_isSparse` and ``mjx.full_m`` which mirrors :ref:`mj_fullM`.
+9. Added support for specifying sparse or dense mass matrices via :ref:`option-jacobian`.
 
 Python bindings
 ^^^^^^^^^^^^^^^
-8. Improved the implmentation of the :ref:`rollout<PySample>` module. Note the changes below are breaking, dependent
-   code will require modification.
+10. Improved the implmentation of the :ref:`rollout<PySample>` module. Note the changes below are breaking, dependent
+    code will require modification.
 
-   - Uses :ref:`mjSTATE_FULLPHYSICS<geFullPhysics>` as state spec, enabling divergence detection by inspecting time.
-   - Allows user-defined control spec for any combination of :ref:`user input<geInput>` fields as controls.
-   - Outputs are no longer squeezed and always have dim=3.
+    - Uses :ref:`mjSTATE_FULLPHYSICS<geFullPhysics>` as state spec, enabling divergence detection by inspecting time.
+    - Allows user-defined control spec for any combination of :ref:`user input<geInput>` fields as controls.
+    - Outputs are no longer squeezed and always have dim=3.
 
 Bug fixes
 ^^^^^^^^^
-9. Fixed a bug that prevented the use of pins with plugins if flexes are not in the worldbody. Fixes
-   :github:issue:`1270`.
-10. Fixed a bug in the :ref:`muscle model<CMuscle>` that led to non-zero values outside the lower
+11. Fixed a bug that prevented the use of pins with plugins if flexes are not in the worldbody. Fixes
+    :github:issue:`1270`.
+12. Fixed a bug in the :ref:`muscle model<CMuscle>` that led to non-zero values outside the lower
     bound of the length range. Fixes :github:issue:`1342`.
 
 

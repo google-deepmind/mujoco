@@ -75,6 +75,7 @@ class DeviceTest(parameterized.TestCase):
   def testdevice_get(self, fname):
     """Test getting MjData from a device."""
     m = test_util.load_test_file(fname)
+    m.opt.jacobian = mujoco.mjtJacobian.mjJAC_SPARSE  # force sparse for testing
     mx = device.device_put(m)
     dx = mjx.make_data(mx)
     d = mujoco.MjData(m)
@@ -85,6 +86,7 @@ class DeviceTest(parameterized.TestCase):
   def testdevice_get_batched(self, fname):
     """Test getting MjData from a device."""
     m = test_util.load_test_file(fname)
+    m.opt.jacobian = mujoco.mjtJacobian.mjJAC_SPARSE  # force sparse for testing
     mx = device.device_put(m)
     batch_size = 32
 

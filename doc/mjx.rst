@@ -349,3 +349,11 @@ For MJX to perform well, some configuration parameters should be adjusted from t
 
 :ref:`option-flag` element
   Disabling ``eulerdamp`` can help performance and is often not needed for stability.
+
+:ref:`option-jacobian` element
+  Explicitly setting "dense" or "sparse" may speed up simulation depending on your device. Modern TPUs have specialized
+  hardware for rapidly operating over sparse matrices, whereas GPUs tend to be faster with dense matrices as long as
+  they fit onto the device. As such, the behavior in MJX for the default "auto" setting is sparse if ``nv`` is 60 or
+  greater, or if MJX detects a TPU as the default backend, otherwise "dense". For TPU, using "sparse" with the
+  Newton solver can speed up simulation by 2x to 3x. For GPU, choosing "dense" may impart a more modest speedup of 10%
+  to 20%, as long as the dense matrices can fit on the device.

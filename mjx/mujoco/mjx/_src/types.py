@@ -123,6 +123,19 @@ class ConeType(enum.IntEnum):
   # unsupported: ELLIPTIC
 
 
+class JacobianType(enum.IntEnum):
+  """Type of constraint Jacobian.
+
+  Attributes:
+    DENSE: dense
+    SPARSE: sparse
+    AUTO: sparse if nv>60 and device is TPU, dense otherwise
+  """
+  DENSE = mujoco.mjtJacobian.mjJAC_DENSE
+  SPARSE = mujoco.mjtJacobian.mjJAC_SPARSE
+  AUTO = mujoco.mjtJacobian.mjJAC_AUTO
+
+
 class SolverType(enum.IntEnum):
   """Constraint solver algorithm.
 
@@ -215,6 +228,10 @@ class Option(PyTreeNode):
       nonzero. Not used by mj
     integrator:       integration mode
     cone:             type of friction cone
+    jacobian:         matrix layout for mass matrices (dense or sparse)
+                      (note that this is different from MuJoCo, where jacobian
+                      specifies whether efc_J and its accompanying matrices
+                      are dense or sparse.
     solver:           solver algorithm
     iterations:       number of main solver iterations
     ls_iterations:    maximum number of CG/Newton linesearch iterations
@@ -232,7 +249,7 @@ class Option(PyTreeNode):
   # unsupported: magnetic, o_margin, o_solref, o_solimp
   integrator: IntegratorType
   cone: ConeType
-  # unsupported: jacobian
+  jacobian: JacobianType
   solver: SolverType
   iterations: int
   ls_iterations: int
@@ -600,10 +617,12 @@ class Data(PyTreeNode):
     actuator_length: actuator lengths                             (nu,)
     actuator_moment: actuator moments                             (nu, nv)
     crb: com-based composite inertia and mass                     (nbody, 10)
-    qM: total inertia (sparse)                                    (nM,)
-    qLD: L'*D*L factorization of M (sparse)                       (nM,)
-    qLDiagInv: 1/diag(D)                                          (nv,)
-    qLDiagSqrtInv: 1/sqrt(diag(D))                                (nv,)
+    qM: total inertia                                  if sparse: (nM,)
+                                                       if dense:  (nv, nv)
+    qLD: L'*D*L (or Cholesky) factorization of M.      if sparse: (nM,)
+                                                       if dense:  (nv, nv)
+    qLDiagInv: 1/diag(D)                               if sparse: (nv,)
+                                                       if dense:  (0,)
     contact: list of all detected contacts                        (ncon,)
     efc_J: constraint Jacobian                                    (nefc, nv)
     efc_frictionloss: frictionloss (friction)                     (nefc,)
@@ -660,7 +679,6 @@ class Data(PyTreeNode):
   qM: jax.Array  # pylint:disable=invalid-name
   qLD: jax.Array  # pylint:disable=invalid-name
   qLDiagInv: jax.Array  # pylint:disable=invalid-name
-  qLDiagSqrtInv: jax.Array  # pylint:disable=invalid-name
   contact: Contact
   efc_J: jax.Array  # pylint:disable=invalid-name
   efc_frictionloss: jax.Array

@@ -23,8 +23,10 @@ import mujoco
 from mujoco.mjx._src import collision_driver
 from mujoco.mjx._src import constraint
 from mujoco.mjx._src import mesh
+from mujoco.mjx._src import support
 from mujoco.mjx._src import types
 import numpy as np
+import scipy
 
 
 def _put_option(o: mujoco.MjOption, device=None) -> types.Option:
@@ -34,6 +36,9 @@ def _put_option(o: mujoco.MjOption, device=None) -> types.Option:
 
   if o.cone not in set(types.ConeType):
     raise NotImplementedError(f'{mujoco.mjtCone(o.cone)}')
+
+  if o.jacobian not in set(types.JacobianType):
+    raise NotImplementedError(f'{mujoco.mjtJacobian(o.jacobian)}')
 
   if o.solver not in set(types.SolverType):
     raise NotImplementedError(f'{mujoco.mjtSolver(o.solver)}')
@@ -49,6 +54,7 @@ def _put_option(o: mujoco.MjOption, device=None) -> types.Option:
   }
   static_fields['integrator'] = types.IntegratorType(o.integrator)
   static_fields['cone'] = types.ConeType(o.cone)
+  static_fields['jacobian'] = types.JacobianType(o.jacobian)
   static_fields['solver'] = types.SolverType(o.solver)
   static_fields['disableflags'] = types.DisableBit(o.disableflags)
 
@@ -137,8 +143,10 @@ def make_data(m: Union[types.Model, mujoco.MjModel]) -> types.Data:
   ne, nf, nl, nc = constraint.count_constraints(m)
   nefc = ne + nf + nl + nc
 
+  zero_0 = jp.zeros(0, dtype=jp.float32)
   zero_nv = jp.zeros(m.nv, dtype=jp.float32)
   zero_nv_6 = jp.zeros((m.nv, 6), dtype=jp.float32)
+  zero_nv_nv = jp.zeros((m.nv, m.nv), dtype=jp.float32)
   zero_nbody_3 = jp.zeros((m.nbody, 3), dtype=jp.float32)
   zero_nbody_6 = jp.zeros((m.nbody, 6), dtype=jp.float32)
   zero_nbody_10 = jp.zeros((m.nbody, 10), dtype=jp.float32)
@@ -180,10 +188,9 @@ def make_data(m: Union[types.Model, mujoco.MjModel]) -> types.Data:
       actuator_length=zero_nu,
       actuator_moment=jp.zeros((m.nu, m.nv), dtype=jp.float32),
       crb=zero_nbody_10,
-      qM=zero_nm,
-      qLD=zero_nm,
-      qLDiagInv=zero_nv,
-      qLDiagSqrtInv=zero_nv,
+      qM=zero_nm if support.is_sparse(m) else zero_nv_nv,
+      qLD=zero_nm if support.is_sparse(m) else zero_nv_nv,
+      qLDiagInv=zero_nv if support.is_sparse(m) else zero_0,
       contact=types.Contact.zero(ncon),
       efc_J=jp.zeros((nefc, m.nv), dtype=jp.float32),
       efc_frictionloss=zero_nefc,
@@ -237,6 +244,14 @@ def get_data(
       mujoco.mjtConstraint.mjCNSTR_CONTACT_PYRAMIDAL,
   ]).repeat([ne, nf, nl, nc])
 
+  dof_i, dof_j = [], []
+  for i in range(m.nv):
+    j = i
+    while j > -1:
+      dof_i.append(i)
+      dof_j.append(j)
+      j = m.dof_parentid[j]
+
   ds = []
   for i in range(batch_size):
     dx_i = jax.tree_map(lambda x, i=i: x[i], dx) if batched else d
@@ -266,6 +281,15 @@ def get_data(
 
       if field.name == 'efc_J':
         value = value[efc_active].reshape(-1)
+
+      if field.name == 'qM' and not support.is_sparse(m):
+        value = value[dof_i, dof_j]
+
+      if field.name == 'qLD' and not support.is_sparse(m):
+        value = value[dof_i, dof_j]
+
+      if field.name == 'qLDiagInv' and not support.is_sparse(m):
+        value = np.ones(m.nv)
 
       if value.shape:
         getattr(d_i, field.name)[:] = value
@@ -345,6 +369,18 @@ def put_data(m: mujoco.MjModel, d: mujoco.MjData, device=None) -> types.Data:
       size = [d.ne, d.nf, d.nl, d.nefc - d.nl - d.nf - d.ne][i]
       value[value_beg:value_beg+size] = fields[fname][d_beg:d_beg+size]
     fields[fname] = value
+
+  # convert qM and qLD if jacobian is dense
+  if not support.is_sparse(m):
+    fields['qM'] = np.zeros((m.nv, m.nv))
+    mujoco.mj_fullM(m, fields['qM'], d.qM)
+    # TODO(erikfrey): derive L*L' from L'*D*L instead of recomputing
+    try:
+      fields['qLD'], _ = scipy.linalg.cho_factor(fields['qM'])
+    except scipy.linalg.LinAlgError:
+      # this happens when qM is empty or unstable simulation
+      fields['qLD'] = np.zeros((m.nv, m.nv))
+    fields['qLDiagInv'] = np.zeros(0)
 
   fields = jax.device_put(fields, device=device)
   fields['contact'] = _put_contact(d.contact, ncon, device=device)

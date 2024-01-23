@@ -14,14 +14,13 @@
 # ==============================================================================
 """Constraint solvers."""
 
-from typing import Optional
-
 import jax
 from jax import numpy as jp
 import mujoco
 from mujoco.mjx._src import constraint
 from mujoco.mjx._src import math
 from mujoco.mjx._src import smooth
+from mujoco.mjx._src import support
 # pylint: disable=g-importing-member
 from mujoco.mjx._src.dataclasses import PyTreeNode
 from mujoco.mjx._src.types import Data
@@ -39,7 +38,6 @@ class _Context(PyTreeNode):
     qfrc_constraint: constraint force (from Data)     (nv,)
     Jaref: Jac*qacc - aref                            (nefc,)
     efc_force: constraint force in constraint space   (nefc,)
-    M: dense mass matrix, populated for nv < 100      (nv, nv)
     Ma: M*qacc                                        (nv,)
     grad: gradient of master cost                     (nv,)
     Mgrad: M / grad                                   (nv,)
@@ -54,7 +52,6 @@ class _Context(PyTreeNode):
   qfrc_constraint: jax.Array
   Jaref: jax.Array  # pylint: disable=invalid-name
   efc_force: jax.Array
-  M: Optional[jax.Array]
   Ma: jax.Array  # pylint: disable=invalid-name
   grad: jax.Array
   Mgrad: jax.Array  # pylint: disable=invalid-name
@@ -68,15 +65,13 @@ class _Context(PyTreeNode):
   def create(cls, m: Model, d: Data, grad: bool = True) -> '_Context':
     jaref = d.efc_J @ d.qacc - d.efc_aref
     # TODO(robotics-team): determine nv at which sparse mul is faster
-    M = smooth.dense_m(m, d) if m.nv < 100 else None  # pylint: disable=invalid-name
-    ma = smooth.mul_m(m, d, d.qacc) if M is None else M @ d.qacc
+    ma = support.mul_m(m, d, d.qacc)
     nv_0 = jp.zeros(m.nv)
     ctx = _Context(
         qacc=d.qacc,
         qfrc_constraint=d.qfrc_constraint,
         Jaref=jaref,
         efc_force=d.efc_force,
-        M=M,
         Ma=ma,
         grad=nv_0,
         Mgrad=nv_0,
@@ -224,10 +219,10 @@ def _update_gradient(m: Model, d: Data, ctx: _Context) -> _Context:
   elif m.opt.solver == SolverType.NEWTON:
     ne, nf, *_ = constraint.count_constraints(m)
     active = (ctx.Jaref < 0).at[:ne + nf].set(True)
-    h = (d.efc_J.T * d.efc_D * active) @ d.efc_J
-    h = smooth.dense_m(m, d) + h
-    h_ = jax.scipy.linalg.cho_factor(h)
-    mgrad = jax.scipy.linalg.cho_solve(h_, grad)
+    h = d.qM + support.make_m(m, d.efc_J.T * d.efc_D * active, d.efc_J.T)
+    dh = d.replace(qM=h)
+    dh = smooth.factor_m(m, dh)
+    mgrad = smooth.solve_m(m, dh, grad)
   else:
     raise NotImplementedError(f"unsupported solver type: {m.opt.solver}")
 
@@ -255,7 +250,7 @@ def _linesearch(m: Model, d: Data, ctx: _Context) -> _Context:
   gtol = m.opt.tolerance * m.opt.ls_tolerance * smag
 
   # compute Mv, Jv
-  mv = smooth.mul_m(m, d, ctx.search) if ctx.M is None else ctx.M @ ctx.search
+  mv = support.mul_m(m, d, ctx.search)
   jv = d.efc_J @ ctx.search
 
   # prepare quadratics
