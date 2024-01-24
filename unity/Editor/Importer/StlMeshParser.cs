@@ -142,11 +142,11 @@ public class StlMeshParser {
           var i2 = triangles[i + 1];
           var i3 = triangles[i + 2];
           var faceNormal = (normals[i1] + normals[i2] + normals[i3]).normalized;
-          writer.Write(faceNormal);
+          writer.Write(ToXZY(faceNormal));
 
-          writer.Write(vertices[i1]);
-          writer.Write(vertices[i2]);
-          writer.Write(vertices[i3]);
+          writer.Write(ToXZY(vertices[i1]));
+          writer.Write(ToXZY(vertices[i3]));
+          writer.Write(ToXZY(vertices[i2]));
 
           writer.Write((short)0);
         }
