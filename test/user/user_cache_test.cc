@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Tests for user/user_asset_cache.cc
+// Tests for user/user_cache.cc
 
 #include <cstddef>
 #include <string>
@@ -22,7 +22,7 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 #include "test/fixture.h"
-#include "src/user/user_asset_cache.h"
+#include "src/user/user_cache.h"
 
 namespace mujoco {
 
@@ -31,18 +31,18 @@ using ::testing::IsNull;
 using ::testing::NotNull;
 using ::testing::StrEq;
 
-using AssetCacheTest = MujocoTest;
+using CacheTest = MujocoTest;
 
 namespace {
 
 constexpr int kMaxSize = 100;  // in bytes
 
-TEST(AssetCacheTest, SizeTest) {
+TEST(CacheTest, SizeTest) {
   mjCCache cache(kMaxSize);
   EXPECT_EQ(cache.Size(), 0);
 }
 
-TEST(AssetCacheTest, HasAssetSuccessTest) {
+TEST(CacheTest, HasAssetSuccessTest) {
   mjCCache cache(kMaxSize);
 
   mjCAsset asset("file.xml", "foo.obj", "now");
@@ -51,7 +51,7 @@ TEST(AssetCacheTest, HasAssetSuccessTest) {
   EXPECT_THAT(*(cache.HasAsset("foo.obj")), StrEq("now"));
 }
 
-TEST(AssetCacheTest, HasAssetFailureTest) {
+TEST(CacheTest, HasAssetFailureTest) {
   mjCCache cache(kMaxSize);
 
   mjCAsset asset("file.xml", "foo.obj", "now");
@@ -60,7 +60,7 @@ TEST(AssetCacheTest, HasAssetFailureTest) {
   EXPECT_THAT(cache.HasAsset("file2.xml"), nullptr);
 }
 
-TEST(AssetCacheTest, AddSuccessTest) {
+TEST(CacheTest, AddSuccessTest) {
   mjCCache cache(kMaxSize);
   std::vector<int> v1 = {1, 2, 3};
   std::vector<double> v2 = {1.0, 2.0, 3.0};
@@ -75,7 +75,7 @@ TEST(AssetCacheTest, AddSuccessTest) {
   ASSERT_EQ(cache.Size(), 36);
 }
 
-TEST(AssetCacheTest, AddFailureTest) {
+TEST(CacheTest, AddFailureTest) {
   mjCCache cache(kMaxSize);
   std::vector<int> v1 = {1, 2, 3};
   std::vector<double> v2 = {1.0, 2.0, 3.0};
@@ -89,7 +89,7 @@ TEST(AssetCacheTest, AddFailureTest) {
   ASSERT_EQ(cache.Size(), 12);
 }
 
-TEST(AssetCacheTest, InsertReplaceTest) {
+TEST(CacheTest, InsertReplaceTest) {
   mjCCache cache(kMaxSize);
   std::vector<int> v1 = {1, 2, 3};
   std::vector<double> v2 = {1.0, 2.0, 3.0};
@@ -112,7 +112,7 @@ TEST(AssetCacheTest, InsertReplaceTest) {
   ASSERT_EQ(cache.Size(), 24);
 }
 
-TEST(AssetCacheTest, MoveInsertNewTest) {
+TEST(CacheTest, MoveInsertNewTest) {
   mjCCache cache(kMaxSize);
   std::vector<int> v1 = {1, 2, 3};
   std::vector<double> v2 = {1.0, 2.0, 3.0};
@@ -127,7 +127,7 @@ TEST(AssetCacheTest, MoveInsertNewTest) {
   ASSERT_EQ(cache.Size(), 36);
 }
 
-TEST(AssetCacheTest, MoveInsertReplaceTest) {
+TEST(CacheTest, MoveInsertReplaceTest) {
   mjCCache cache(kMaxSize);
   std::vector<int> v1 = {1, 2, 3};
   std::vector<double> v2 = {1.0, 2.0, 3.0};
@@ -150,7 +150,7 @@ TEST(AssetCacheTest, MoveInsertReplaceTest) {
   ASSERT_EQ(cache.Size(), 24);
 }
 
-TEST(AssetCacheTest, GetSuccessTest) {
+TEST(CacheTest, GetSuccessTest) {
   mjCCache cache(kMaxSize);
   std::vector<int> v1 = {1, 2, 3};
   std::vector<double> v2 = {1.0, 2.0, 3.0};
@@ -174,7 +174,7 @@ TEST(AssetCacheTest, GetSuccessTest) {
   EXPECT_THAT(v4, ElementsAreArray(v3));
 }
 
-TEST(AssetCacheTest, GetFailueTest) {
+TEST(CacheTest, GetFailueTest) {
   mjCCache cache(kMaxSize);
   std::vector<int> v = {1, 2, 3};
   mjCAsset asset("file.xml", "foo.obj", "now");
@@ -190,7 +190,7 @@ TEST(AssetCacheTest, GetFailueTest) {
 }
 
 // Trim cache based off of access count
-TEST(AssetCacheTest, LimitTest1) {
+TEST(CacheTest, LimitTest1) {
   mjCCache cache(kMaxSize);
   EXPECT_THAT(cache.MaxSize(), kMaxSize);
   std::vector<int> v = {1, 2, 3};
@@ -218,7 +218,7 @@ TEST(AssetCacheTest, LimitTest1) {
 }
 
 // Trim cache based off of insert order
-TEST(AssetCacheTest, LimitTest2) {
+TEST(CacheTest, LimitTest2) {
   mjCCache cache(kMaxSize);
   std::vector<int> v = {1, 2, 3};
   mjCAsset asset1("file.xml", "foo.obj", "now");
@@ -243,7 +243,7 @@ TEST(AssetCacheTest, LimitTest2) {
   EXPECT_THAT(cache.HasAsset("bar.obj"), NotNull());
 }
 
-TEST(AssetCacheTest, ResetAllTest) {
+TEST(CacheTest, ResetAllTest) {
   mjCCache cache(kMaxSize);
   mjCAsset asset1("file1.xml", "foo.obj", "now");
   mjCAsset asset2("file2.xml", "bar.obj", "now");
@@ -259,7 +259,7 @@ TEST(AssetCacheTest, ResetAllTest) {
   EXPECT_THAT(cache.HasAsset("bar.obj"), IsNull());
 }
 
-TEST(AssetCacheTest, ResetModelTest1) {
+TEST(CacheTest, ResetModelTest1) {
   mjCCache cache(kMaxSize);
   mjCAsset asset("file1.xml", "foo.obj", "now");
   mjCAsset asset2("file1.xml", "bar.obj", "now");
@@ -274,7 +274,7 @@ TEST(AssetCacheTest, ResetModelTest1) {
   EXPECT_THAT(cache.HasAsset("bar.obj"), IsNull());
 }
 
-TEST(AssetCacheTest, ResetModelTest2) {
+TEST(CacheTest, ResetModelTest2) {
   mjCCache cache(kMaxSize);
   mjCAsset asset("file1.xml", "foo.obj", "now");
   mjCAsset asset2("file2.xml", "foo.obj", "now");
@@ -289,7 +289,7 @@ TEST(AssetCacheTest, ResetModelTest2) {
   EXPECT_THAT(cache.HasAsset("bar.obj"), IsNull());
 }
 
-TEST(AssetCacheTest, RemoveModelTest1) {
+TEST(CacheTest, RemoveModelTest1) {
   mjCCache cache(kMaxSize);
   mjCAsset asset("file1.xml", "foo.obj", "now");
   mjCAsset asset2("file1.xml", "bar.obj", "now");
@@ -304,7 +304,7 @@ TEST(AssetCacheTest, RemoveModelTest1) {
   EXPECT_THAT(cache.HasAsset("bar.obj"), NotNull());
 }
 
-TEST(AssetCacheTest, RemoveModelTest2) {
+TEST(CacheTest, RemoveModelTest2) {
   mjCCache cache(kMaxSize);
   mjCAsset asset("file1.xml", "foo.obj", "now");
   mjCAsset asset2("file2.xml", "bar.obj", "now");
@@ -317,7 +317,7 @@ TEST(AssetCacheTest, RemoveModelTest2) {
   EXPECT_THAT(cache.HasAsset("bar.obj"), IsNull());
 }
 
-TEST(AssetCacheTest, DeleteAssetSuccessTest) {
+TEST(CacheTest, DeleteAssetSuccessTest) {
   mjCCache cache(kMaxSize);
   mjCAsset asset("file1.xml", "foo.obj", "now");
   cache.Insert(asset);
@@ -327,7 +327,7 @@ TEST(AssetCacheTest, DeleteAssetSuccessTest) {
   EXPECT_THAT(cache.HasAsset("foo.obj"), IsNull());
 }
 
-TEST(AssetCacheTest, DeleteAssetFailureTest) {
+TEST(CacheTest, DeleteAssetFailureTest) {
   mjCCache cache(kMaxSize);
   mjCAsset asset("file.xml", "foo.obj", "now");
   cache.Insert(asset);

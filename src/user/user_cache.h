@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef MUJOCO_SRC_USER_ASSET_CACHE_H_
-#define MUJOCO_SRC_USER_ASSET_CACHE_H_
+#ifndef MUJOCO_SRC_USER_CACHE_H_
+#define MUJOCO_SRC_USER_CACHE_H_
 
 #include <cstddef>
 #include <cstdint>
@@ -192,4 +192,4 @@ class mjCCache {
   std::unordered_map<std::string, std::unordered_set<mjCAsset*>> models_;
 };
 
-#endif  // MUJOCO_SRC_USER_ASSET_CACHE_H_
+#endif  // MUJOCO_SRC_USER_CACHE_H_

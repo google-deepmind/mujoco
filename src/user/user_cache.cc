@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "user/user_asset_cache.h"
+#include "user/user_cache.h"
 
 #include <algorithm>
 #include <cstdint>
