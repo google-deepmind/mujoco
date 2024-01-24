@@ -908,7 +908,7 @@ void mj_instantiateContact(const mjModel* m, mjData* d) {
   mjContact* con;
   mjtNum cpos[6], cmargin[6], *jac, *jacdif, *jacdifp, *jacdifr, *jac1p, *jac2p, *jac1r, *jac2r;
 
-  if (mjDISABLED(mjDSBL_CONTACT) || ncon == 0) {
+  if (mjDISABLED(mjDSBL_CONTACT) || ncon == 0 || nv == 0) {
     return;
   }
 
