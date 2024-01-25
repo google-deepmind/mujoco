@@ -26,35 +26,54 @@
 #include <utility>
 #include <vector>
 
-// adds a block of data for the asset and returns number of bytes stored
-template<typename T>
-std::size_t mjCAsset::Add(const std::string& name, const std::vector<T>& v) {
+// copies a block of data into the asset and returns number of bytes stored
+// loading data into an asset should happen in a single thread
+template<typename T> std::size_t mjCAsset::Add(const std::string& name,
+                                               const T* data, std::size_t n) {
   auto [it, inserted] = blocks_.insert({name, mjCAssetData()});
   if (!inserted) {
     return 0;
   }
 
-  std::size_t n = v.size() * sizeof(T);
-  const uint8_t* ptr = reinterpret_cast<const uint8_t*>(v.data());
+  std::size_t nbytes = n * sizeof(T);
+  const uint8_t* ptr = reinterpret_cast<const uint8_t*>(data);
   mjCAssetData& block = it->second;
 
-  block.bytes = std::make_shared<uint8_t[]>(n);
-  std::copy(ptr, ptr + n, block.bytes.get());
-  block.nbytes = n;
-  nbytes_ += n;
-  return n;
+  block.bytes = std::make_shared<uint8_t[]>(nbytes);
+  std::copy(ptr, ptr + nbytes, block.bytes.get());
+  block.nbytes = nbytes;
+  nbytes_ += nbytes;
+  return nbytes;
 }
-
 template std::size_t mjCAsset::Add(const std::string& name,
-                                   const std::vector<int>& v);
+                                   const uint8_t* data, std::size_t n);
 template std::size_t mjCAsset::Add(const std::string& name,
-                                   const std::vector<float>& v);
+                                   const int* data, std::size_t n);
 template std::size_t mjCAsset::Add(const std::string& name,
-                                   const std::vector<double>& v);
+                                   const float* data, std::size_t n);
+template std::size_t mjCAsset::Add(const std::string& name,
+                                   const double* data, std::size_t n);
 
 
 
-// fetches a block of data, sets n to size of data
+// copies a vector into the asset and returns number of bytes stored
+// loading data into an asset should happen in a single thread
+template<typename T> std::size_t mjCAsset::AddVector(const std::string& name,
+                                                     const std::vector<T>& v) {
+  return Add<T>(name, v.data(), v.size());
+}
+template std::size_t mjCAsset::AddVector(const std::string& name,
+                                         const std::vector<uint8_t>& v);
+template std::size_t mjCAsset::AddVector(const std::string& name,
+                                         const std::vector<int>& v);
+template std::size_t mjCAsset::AddVector(const std::string& name,
+                                         const std::vector<float>& v);
+template std::size_t mjCAsset::AddVector(const std::string& name,
+                                         const std::vector<double>& v);
+
+
+
+// returns a pointer to a block of data, sets n to size of data
 template<typename T>
 const T* mjCAsset::Get(const std::string& name, std::size_t* n) const {
   auto it = blocks_.find(name);
@@ -77,11 +96,35 @@ const T* mjCAsset::Get(const std::string& name, std::size_t* n) const {
 }
 
 template
+const uint8_t* mjCAsset::Get(const std::string& name, std::size_t* n) const;
+template
 const int* mjCAsset::Get(const std::string& name, std::size_t* n) const;
 template
 const float* mjCAsset::Get(const std::string& name, std::size_t* n) const;
 template
 const double* mjCAsset::Get(const std::string& name, std::size_t* n) const;
+
+
+
+// copies a block of data into a vector
+template<typename T> std::optional<std::vector<T>>
+mjCAsset::GetVector(const std::string& name) const {
+  std::size_t n;
+  const T* ptr = Get<T>(name, &n);
+  if (ptr == nullptr) {
+    return std::nullopt;
+  }
+  return std::vector<T>(ptr, ptr + n);
+}
+
+template std::optional<std::vector<uint8_t>>
+mjCAsset::GetVector(const std::string& name) const;
+template std::optional<std::vector<int>>
+mjCAsset::GetVector(const std::string& name) const;
+template std::optional<std::vector<float>>
+mjCAsset::GetVector(const std::string& name) const;
+template std::optional<std::vector<double>>
+mjCAsset::GetVector(const std::string& name) const;
 
 
 

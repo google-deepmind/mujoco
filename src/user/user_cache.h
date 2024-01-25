@@ -56,16 +56,29 @@ class mjCAsset {
   mjCAsset(const mjCAsset& other) = default;
   mjCAsset& operator=(const mjCAsset& other) = default;
 
-  // adds a block of data for the asset and returns number of bytes stored
-  // loading data into an asset should happen single thread
+  // copies a block of data into the asset and returns number of bytes stored
+  // loading data into an asset should happen in a single thread
   template<typename T> std::size_t Add(const std::string& name,
-                                       const std::vector<T>& v);
+                                       const T* data, std::size_t n);
 
-  // fetches a block of data, sets n to size of data
-  // TODO(kylebayes): The C++ span utility doesn't seem to be supported by
-  // Google C++ coding standards.  For now, we fallback to an C style API.
+
+  // copies a vector into the asset and returns number of bytes stored
+  // loading data into an asset should happen in a single thread
+  template<typename T> std::size_t AddVector(const std::string& name,
+                                             const std::vector<T>& v);
+
+  // returns a pointer to a block of data, sets n to size of data
   template<typename T>
   const T* Get(const std::string& name, std::size_t* n) const;
+
+  // copies a block of data into a vector
+  template<typename T>
+  std::optional<std::vector<T>> GetVector(const std::string& name) const;
+
+  // returns true if a block of data by the given name is stored in the asset
+  bool HasData(const std::string& name) const {
+    return blocks_.find(name) != blocks_.end();
+  }
 
  private:
   mjCAsset() = default;

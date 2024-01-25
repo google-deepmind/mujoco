@@ -66,8 +66,8 @@ TEST(CacheTest, AddSuccessTest) {
   std::vector<double> v2 = {1.0, 2.0, 3.0};
 
   mjCAsset asset("file.xml", "foo.obj", "now");
-  std::size_t nbytes1 = asset.Add("v1", v1);
-  std::size_t nbytes2 = asset.Add("v2", v2);
+  std::size_t nbytes1 = asset.AddVector("v1", v1);
+  std::size_t nbytes2 = asset.AddVector("v2", v2);
   cache.Insert(asset);
 
   ASSERT_EQ(nbytes1, 12);
@@ -81,8 +81,8 @@ TEST(CacheTest, AddFailureTest) {
   std::vector<double> v2 = {1.0, 2.0, 3.0};
 
   mjCAsset asset("file.xml", "foo.obj", "now");
-  asset.Add("v1", v1);
-  std::size_t nbytes = asset.Add("v1", v2);
+  asset.AddVector("v1", v1);
+  std::size_t nbytes = asset.AddVector("v1", v2);
   cache.Insert(asset);
 
   ASSERT_EQ(nbytes, 0);
@@ -95,18 +95,16 @@ TEST(CacheTest, InsertReplaceTest) {
   std::vector<double> v2 = {1.0, 2.0, 3.0};
 
   mjCAsset asset("file.xml", "foo.obj", "now");
-  asset.Add("v", v1);
+  asset.AddVector("v", v1);
   cache.Insert(asset);
 
   mjCAsset asset2("file.xml", "foo.obj", "nower");
-  asset2.Add("v", v2);
+  asset2.AddVector("v", v2);
   bool inserted = cache.Insert(asset2);
   EXPECT_TRUE(inserted);
 
   mjCAsset asset3 = *(cache.Get("foo.obj"));
-  std::size_t n = 0;
-  const double* ptr = asset3.Get<double>("v", &n);
-  std::vector<double> v3 = std::vector<double>(ptr, ptr + n);
+  std::vector<double> v3 = asset3.GetVector<double>("v").value();
   EXPECT_THAT(v3, ElementsAreArray(v2));
 
   ASSERT_EQ(cache.Size(), 24);
@@ -118,8 +116,8 @@ TEST(CacheTest, MoveInsertNewTest) {
   std::vector<double> v2 = {1.0, 2.0, 3.0};
 
   mjCAsset asset("file.xml", "foo.obj", "now");
-  std::size_t nbytes1 = asset.Add("v1", v1);
-  std::size_t nbytes2 = asset.Add("v2", v2);
+  std::size_t nbytes1 = asset.AddVector("v1", v1);
+  std::size_t nbytes2 = asset.AddVector("v2", v2);
   cache.Insert(std::move(asset));
 
   ASSERT_EQ(nbytes1, 12);
@@ -133,18 +131,16 @@ TEST(CacheTest, MoveInsertReplaceTest) {
   std::vector<double> v2 = {1.0, 2.0, 3.0};
 
   mjCAsset asset("file.xml", "foo.obj", "now");
-  asset.Add("v", v1);
+  asset.AddVector("v", v1);
   cache.Insert(std::move(asset));
 
   mjCAsset asset2("file.xml", "foo.obj", "nower");
-  asset2.Add("v", v2);
+  asset2.AddVector("v", v2);
   bool inserted = cache.Insert(std::move(asset2));
   EXPECT_TRUE(inserted);
 
   mjCAsset asset3 = *(cache.Get("foo.obj"));
-  std::size_t n = 0;
-  const double* ptr = asset3.Get<double>("v", &n);
-  std::vector<double> v3 = std::vector<double>(ptr, ptr + n);
+  std::vector<double> v3 = asset3.GetVector<double>("v").value();
   EXPECT_THAT(v3, ElementsAreArray(v2));
 
   ASSERT_EQ(cache.Size(), 24);
@@ -153,40 +149,33 @@ TEST(CacheTest, MoveInsertReplaceTest) {
 TEST(CacheTest, GetSuccessTest) {
   mjCCache cache(kMaxSize);
   std::vector<int> v1 = {1, 2, 3};
-  std::vector<double> v2 = {1.0, 2.0, 3.0};
+  std::vector<double> v2 = {4.0, 5.0, 6.0};
   mjCAsset asset("file.xml", "foo.obj", "now");
-  asset.Add("v1", v1);
-  asset.Add("v2", v2);
+  asset.AddVector("v1", v1);
+  asset.AddVector("v2", v2);
   cache.Insert(asset);
-
-  std::size_t n = 0;
 
   mjCAsset asset2 = *(cache.Get("foo.obj"));
 
-  const int* ptr1 = asset2.Get<int>("v1", &n);
-  EXPECT_EQ(n, 3);
-  std::vector<int> v3 = std::vector<int>(ptr1, ptr1 + n);
+  std::vector<int> v3 = asset2.GetVector<int>("v1").value();
   EXPECT_THAT(v3, ElementsAreArray(v1));
 
-  const double* ptr2 = asset2.Get<double>("v2", &n);
-  EXPECT_EQ(n, 3);
-  std::vector<double> v4 = std::vector<double>(ptr2, ptr2 + n);
-  EXPECT_THAT(v4, ElementsAreArray(v3));
+  std::vector<double> v4 = asset2.GetVector<double>("v2").value();
+  EXPECT_THAT(v4, ElementsAreArray(v2));
 }
 
 TEST(CacheTest, GetFailueTest) {
   mjCCache cache(kMaxSize);
   std::vector<int> v = {1, 2, 3};
   mjCAsset asset("file.xml", "foo.obj", "now");
-  asset.Add("v", v);
+  asset.AddVector("v", v);
   cache.Insert(asset);
 
   mjCAsset asset2 = *(cache.Get("foo.obj"));
   EXPECT_EQ(cache.Get("bar.obj").has_value(), false);
 
-  std::size_t n = 0;
-  const int* ptr = asset.Get<int>("v2", &n);
-  EXPECT_THAT(ptr, IsNull());
+  auto v2 = asset2.GetVector<int>("v2");
+  EXPECT_EQ(v2.has_value(), false);
 }
 
 // Trim cache based off of access count
@@ -197,8 +186,8 @@ TEST(CacheTest, LimitTest1) {
 
   mjCAsset asset1 = mjCAsset("file.xml", "foo.obj", "now");
   mjCAsset asset2 = mjCAsset("file.xml", "bar.obj", "now");
-  asset1.Add("foo.obj", v);
-  asset2.Add("bar.obj", v);
+  asset1.AddVector("foo.obj", v);
+  asset2.AddVector("bar.obj", v);
   cache.Insert(asset1);
   cache.Insert(asset2);
 
@@ -223,8 +212,8 @@ TEST(CacheTest, LimitTest2) {
   std::vector<int> v = {1, 2, 3};
   mjCAsset asset1("file.xml", "foo.obj", "now");
   mjCAsset asset2("file.xml", "bar.obj", "now");
-  asset1.Add("v", v);
-  asset2.Add("v", v);
+  asset1.AddVector("v", v);
+  asset2.AddVector("v", v);
 
   cache.Insert(asset1);
   cache.Insert(asset2);
