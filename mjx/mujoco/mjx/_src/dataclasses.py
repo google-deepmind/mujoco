@@ -45,6 +45,7 @@ def dataclass(clz: _T) -> _T:
         field.type is jax.Array,
         dataclasses.is_dataclass(field.type),
         jax.Array in typing.get_args(field.type),
+        any(dataclasses.is_dataclass(a) for a in typing.get_args(field.type)),
     )):
       data_fields.append(field)
     else:
