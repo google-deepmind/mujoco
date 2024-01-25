@@ -233,8 +233,33 @@ def get_data(
     m: mujoco.MjModel, d: types.Data
 ) -> Union[mujoco.MjData, List[mujoco.MjData]]:
   """Gets mjx.Data from a device, resulting in mujoco.MjData or List[MjData]."""
-  dx = jax.device_get(d)
   batched = len(d.qpos.shape) > 1
+  batch_size = d.qpos.shape[0] if batched else 1
+
+  if batched:
+    result = [mujoco.MjData(m) for _ in range(batch_size)]
+  else:
+    result = mujoco.MjData(m)
+
+  get_data_into(result, m, d)
+
+  return result
+
+
+def get_data_into(
+    result: Union[mujoco.MjData, List[mujoco.MjData]],
+    m: mujoco.MjModel,
+    d: types.Data,
+):
+  """Gets mjx.Data from a device into an existing mujoco.MjData or list."""
+  batched = isinstance(result, list)
+  if batched and len(d.qpos.shape) < 2:
+    raise ValueError('dst is a list, but d is not batched.')
+  if not batched and len(d.qpos.shape) >= 2:
+    raise ValueError('dst is a an MjData, but d is batched.')
+
+  d = jax.device_get(d)
+
   batch_size = d.qpos.shape[0] if batched else 1
   ne, nf, nl, nc = constraint.count_constraints(m)
   efc_type = np.array([
@@ -252,26 +277,25 @@ def get_data(
       dof_j.append(j)
       j = m.dof_parentid[j]
 
-  ds = []
   for i in range(batch_size):
-    dx_i = jax.tree_map(lambda x, i=i: x[i], dx) if batched else d
-    ncon = (dx_i.contact.dist <= 0).sum()
-    efc_active = (dx_i.efc_J != 0).any(axis=1)
+    d_i = jax.tree_map(lambda x, i=i: x[i], d) if batched else d
+    result_i = result[i] if batched else result
+    ncon = (d_i.contact.dist <= 0).sum()
+    efc_active = (d_i.efc_J != 0).any(axis=1)
     efc_con = efc_type == mujoco.mjtConstraint.mjCNSTR_CONTACT_PYRAMIDAL
     nefc, nc = efc_active.sum(), (efc_active & efc_con).sum()
-    d_i = mujoco.MjData(m)
-    d_i.nnzJ = nefc * m.nv
-    mujoco._functions._realloc_con_efc(d_i, ncon=ncon, nefc=nefc)  # pylint: disable=protected-access
-    d_i.efc_J_rownnz[:] = np.repeat(m.nv, nefc)
-    d_i.efc_J_rowadr[:] = np.arange(0, nefc * m.nv, m.nv)
-    d_i.efc_J_colind[:] = np.tile(np.arange(m.nv), nefc)
+    result_i.nnzJ = nefc * m.nv
+    mujoco._functions._realloc_con_efc(result_i, ncon=ncon, nefc=nefc)  # pylint: disable=protected-access
+    result_i.efc_J_rownnz[:] = np.repeat(m.nv, nefc)
+    result_i.efc_J_rowadr[:] = np.arange(0, nefc * m.nv, m.nv)
+    result_i.efc_J_colind[:] = np.tile(np.arange(m.nv), nefc)
 
     for field in types.Data.fields():
       if field.name == 'contact':
-        _get_contact(d_i.contact, dx_i.contact, nefc - nc)
+        _get_contact(result_i.contact, d_i.contact, nefc - nc)
         continue
 
-      value = getattr(dx_i, field.name)
+      value = getattr(d_i, field.name)
 
       if field.name in ('xmat', 'ximat', 'geom_xmat', 'site_xmat'):
         value = value.reshape((-1, 9))
@@ -292,14 +316,11 @@ def get_data(
         value = np.ones(m.nv)
 
       if value.shape:
-        getattr(d_i, field.name)[:] = value
+        getattr(result_i, field.name)[:] = value
       else:
-        setattr(d_i, field.name, value)
+        setattr(result_i, field.name, value)
 
-    d_i.efc_type[:] = efc_type[efc_active]
-    ds.append(d_i)
-
-  return ds if batched else ds[0]
+    result_i.efc_type[:] = efc_type[efc_active]
 
 
 def _put_contact(

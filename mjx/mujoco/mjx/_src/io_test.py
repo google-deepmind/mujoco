@@ -412,6 +412,27 @@ class DataIOTest(parameterized.TestCase):
     self.assertEqual(ds[0].ncon, 1)
     self.assertEqual(ds[1].ncon, 0)
 
+  def test_get_data_into(self):
+    """Test that get_data_into correctly populates an MjData."""
+
+    m = mujoco.MjModel.from_xml_string(_MULTIPLE_CONSTRAINTS)
+    d = mujoco.MjData(m)
+    mujoco.mj_step(m, d, 2)
+    dx = mjx.put_data(m, d)
+    d_2 = mujoco.MjData(m)
+    mjx.get_data_into(d_2, m, dx)
+
+    # check a few fields
+    np.testing.assert_allclose(d_2.qpos, d.qpos)
+    np.testing.assert_allclose(d_2.xpos, d.xpos)
+    np.testing.assert_allclose(d_2.qM, d.qM)
+
+    # only 1 contact active
+    self.assertEqual(d_2.contact.dist.shape, (1,))
+    self.assertEqual(d_2.ncon, 1)
+    np.testing.assert_allclose(d_2.contact.dist, d.contact.dist)
+    self.assertEqual(d_2.contact.frame.shape, (1, 9))
+    np.testing.assert_allclose(d_2.contact.frame, d.contact.frame)
 
 if __name__ == '__main__':
   absltest.main()

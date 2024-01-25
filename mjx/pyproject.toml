@@ -36,6 +36,10 @@ dependencies = [
     "trimesh",
 ]
 
+[project.scripts]
+mjx-testspeed = "mujoco.mjx.testspeed:main"
+mjx-viewer = "mujoco.mjx.viewer:main"
+
 [project.urls]
 Homepage = "https://github.com/google-deepmind/mujoco/tree/main/mjx"
 Documentation = "https://mujoco.readthedocs.io/en/3.1.2"

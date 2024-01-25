@@ -29,6 +29,7 @@ from mujoco.mjx._src.forward import fwd_velocity
 from mujoco.mjx._src.forward import rungekutta4
 from mujoco.mjx._src.forward import step
 from mujoco.mjx._src.io import get_data
+from mujoco.mjx._src.io import get_data_into
 from mujoco.mjx._src.io import make_data
 from mujoco.mjx._src.io import put_data
 from mujoco.mjx._src.io import put_model
