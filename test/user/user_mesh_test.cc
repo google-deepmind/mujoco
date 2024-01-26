@@ -923,6 +923,28 @@ TEST_F(MjCMeshTest, MissingTexCoord) {
   EXPECT_THAT(error.data(), HasSubstr("texcoord must be 2*nv"));
 }
 
+// ----------------------------- qhull ----------------------------------------
+
+TEST_F(MjCMeshTest, NaNConvexHullDisallowed) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="mesh"vertex="nan 0 0  0 1 0  0 1 0  0 0 1"/>
+    </asset>
+  </mujoco>
+    )";
+  static char warning[1024];
+  warning[0] = '\0';
+  mju_user_warning = [](const char* msg) {
+    util::strcpy_arr(warning, msg);
+  };
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(model, testing::IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("vertex coordinate 0 is not finite"));
+  mj_deleteModel(model);
+}
+
 
 }  // namespace
 }  // namespace mujoco

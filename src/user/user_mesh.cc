@@ -1506,6 +1506,10 @@ void mjCMesh::MakeGraph(void) {
     throw mjCError(this, "could not allocate data for qhull");
   }
   for (int i=0; i<3*nvert_; i++) {
+    if (!std::isfinite(vert_[i])) {
+      mju_free(data);
+      throw mjCError(this, "vertex coordinate %d is not finite", NULL, i);
+    }
     data[i] = (double)vert_[i];
   }
 
