@@ -293,7 +293,7 @@ General
 
        - For models which have ``<option collision="all"/>``, delete the attribute.
        - For models which have ``<option collision="dynamic"/>``, delete all :ref:`pair<contact-pair>` elements.
-       - For models which have ``<option collision="pair"/>``, disable all dynamic collisions (determined
+       - For models which have ``<option collision="predefined"/>``, disable all dynamic collisions (determined
          via contype/conaffinity) by first deleting all :ref:`contype<body-geom-contype>` and
          :ref:`conaffinity<body-geom-conaffinity>` attributes in the model and then setting them globally to ``0`` using
          |br| ``<default> <geom contype="0" conaffinity="0"/> </default>``.
