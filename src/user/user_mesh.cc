@@ -463,6 +463,12 @@ void mjCMesh::Compile(const mjVFS* vfs) {
       throw mjCError(this, "texcoord must be a multiple of 2");
     }
 
+    // check size if no face texcoord indices are given
+    if (usertexcoord_.size() != 2*nvert_ && userfacetexcoord_.empty()) {
+      throw mjCError(this,
+          "texcoord must be 2*nv if face texcoord indices are not provided in an OBJ file");
+    }
+
     // copy from user
     ntexcoord_ = (int)usertexcoord_.size()/2;
     texcoord_ = VecToArray(usertexcoord_, !file_.empty());
@@ -568,6 +574,12 @@ void mjCMesh::Compile(const mjVFS* vfs) {
     }
 
     facetexcoord_ = VecToArray(userfacetexcoord_, !file_.empty());
+  }
+
+  // no facetexcoord: copy from faces
+  if (!facetexcoord_ && texcoord_) {
+    facetexcoord_ = (int*) mju_malloc(3*nface_*sizeof(int));
+    memcpy(facetexcoord_, face_, 3*nface_*sizeof(int));
   }
 
   // facenormal might not exist if usernormal was specified
