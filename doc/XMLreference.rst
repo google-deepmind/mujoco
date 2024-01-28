@@ -1138,6 +1138,8 @@ disables the rendering of the corresponding object.
 :at:`bvactive`: :at-val:`real(4), "1 0 0 0.5"`
    Color used to render active bounding volumes, if the :ref:`bvactive<visual-global-bvactive>` flag is "true".
 
+
+
 .. _asset:
 
 **asset** (*)
@@ -1149,6 +1151,331 @@ chapter. Assets opened from a file can be identified in two different ways: file
 attribute. MuJoCo will attempt to open a file specified by the content type provided, and only defaults to the filename
 extension if no ``content_type`` attribute is specified. The content type is ignored if the asset isn't loaded from a
 file.
+
+
+.. _asset-mesh:
+
+:el-prefix:`asset/` |-| **mesh** (*)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+This element creates a mesh asset, which can then be referenced from geoms. If the referencing geom type is
+:at-val:`mesh` the mesh is instantiated in the model, otherwise a geometric primitive is automatically fitted to it; see
+the :ref:`geom <body-geom>` element below.
+
+MuJoCo works with triangulated meshes. They can be loaded from binary STL files, OBJ files or MSH files with custom
+format described below, or vertex and face data specified directly in the XML. Software such as MeshLab can be used to
+convert from other mesh formats to STL or OBJ. While any collection of triangles can be loaded as a mesh and rendered,
+collision detection works with the convex hull of the mesh as explained in :ref:`Collision`. See also the convexhull
+attribute of the :ref:`compiler <compiler>` element which controls the automatic generation of convex hulls. The mesh
+appearance (including texture mapping) is controlled by the :at:`material` and :at:`rgba` attributes of the referencing
+geom, similarly to height fields.
+
+Meshes can have explicit texture coordinates instead of relying on the automated texture
+mapping mechanism. When provided, these explicit coordinates have priority. Note that texture coordinates can be
+specified with OBJ files and MSH files, as well as explicitly in the XML with the :at:`texcoord` attribute, but not via
+STL files. These mechanism cannot be mixed. So if you have an STL mesh, the only way to add texture coordinates to it is
+to convert to one of the other supported formats.
+
+MSH file format
+   The binary MSH file starts with 4 integers specifying the number of vertex positions (nvertex), vertex normals
+   (nnormal), vertex texture coordinates (ntexcoord), and vertex indices making up the faces (nface), followed by the
+   numeric data. nvertex must be at least 4. nnormal and ntexcoord can be zero (in which case the corresponding data is
+   not defined) or equal to nvertex. nface can also be zero, in which case faces are constructed automatically from the
+   convex hull of the vertex positions. The file size in bytes must be exactly: 16 + 12*(nvertex + nnormal + nface) +
+   8*ntexcoord. The contents of the file must be as follows:
+
+   .. code:: Text
+
+          (int32)   nvertex
+          (int32)   nnormal
+          (int32)   ntexcoord
+          (int32)   nface
+          (float)   vertex_positions[3*nvertex]
+          (float)   vertex_normals[3*nnormal]
+          (float)   vertex_texcoords[2*ntexcoord]
+          (int32)   face_vertex_indices[3*nface]
+
+Poorly designed meshes can display rendering artifacts. In particular, the shadow mapping mechanism relies on having
+some distance between front and back-facing triangle faces. If the faces are repeated, with opposite normals as
+determined by the vertex order in each triangle, this causes shadow aliasing. The solution is to remove the repeated
+faces (which can be done in MeshLab) or use a better designed mesh. Flipped faces are checked by MuJoCo for meshes
+specified as OBJ or XML and an error message is returned.
+
+The size of the mesh is determined by the 3D coordinates of the vertex data in the mesh file, multiplied by the
+components of the :at:`scale` attribute below. Scaling is applied separately for each coordinate axis. Note that
+negative scaling values can be used to flip the mesh; this is a legitimate operation. The size parameters of the
+referening geoms are ignored, similarly to height fields. We also provide a mechanism to translate and
+rotate the 3D coordinates, using the attributes :ref:`refpos<asset-mesh-refpos>` and :ref:`refquat<asset-mesh-refquat>`.
+
+A mesh can also be defined without faces (a point cloud essentially). In that case
+the convex hull is constructed automatically, even if the compiler attribute convexhull is false. This makes it easy to
+construct simple shapes directly in the XML. For example, a pyramid can be created as:
+
+.. code-block:: xml
+
+   <asset>
+       <mesh name="tetrahedron" vertex="0 0 0  1 0 0  0 1 0  0 0 1"/>
+   </asset>
+
+Positioning and orienting is complicated by the fact that vertex data are often designed relative to coordinate frames
+whose origin is not inside the mesh. In contrast, MuJoCo expects the origin of a geom's local frame to coincide with the
+geometric center of the shape. We resolve this discrepancy by pre-processing the mesh in the compiler, so that it is
+centered around (0,0,0) and its principal axes of inertia are the coordinate axes. We also save the translation and
+rotation offsets needed to achieve such alignment in :ref:`mjModel.mesh_pos<mjModel>` and
+:ref:`mjModel.mesh_quat<mjModel>`. These offsets are then applied to the referencing geom's position and orientation; see
+also :at:`mesh` attribute of :ref:`geom <body-geom>` below. Fortunately most meshes used in robot models are designed in
+a coordinate frame centered at the joint. This makes the corresponding MJCF model intuitive: we set the body frame at the
+joint, so that the joint position is (0,0,0) in the body frame, and simply reference the mesh. Below is an MJCF model
+fragment of a forearm, containing all the information needed to put the mesh where one would expect it to be. The body
+position is specified relative to the parent body, namely the upper arm (not shown). It is offset by 35 cm which is the
+typical length of the human upper arm. If the mesh vertex data were not designed in the above convention, we would have
+to use the geom position and orientation (or the new refpos, refquat mechanism) to compensate, but in practice this is
+rarely needed.
+
+.. code-block:: xml
+
+   <asset>
+       <mesh file="forearm.stl"/>
+   </asset>
+
+   <body pos="0 0 0.35"/>
+       <joint type="hinge" axis="1 0 0"/>
+       <geom type="mesh" mesh="forearm"/>
+   </body>
+
+The inertial computation mentioned above is part of an algorithm used not only to center and align the mesh, but also to
+infer the mass and inertia of the body to which it is attached. This is done by computing the centroid of the triangle
+faces, connecting each face with the centroid to form a triangular pyramid, computing the mass and signed inertia of all
+pyramids (considered solid or hollow if :at:`shellinertia` is true) and accumulating them. The sign ensures that
+pyramids on the outside of the surfaces are subtracted, as it can occur with concave geometries. This algorithm can be
+found in section 1.3.8 of Computational Geometry in C (Second Edition) by Joseph O'Rourke.
+
+The full list of processing steps applied by the compiler to each mesh is as follows:
+
+#. For STL meshes, remove any repeated vertices and re-index the faces if needed. If the mesh is not STL, we assume that
+   the desired vertices and faces have already been generated and do not apply removal or re-indexing;
+#. If vertex normals are not provided, generate normals automatically, using a weighted average of the surrounding face
+   normals. If sharp edges are encountered, the renderer uses the face normals to preserve the visual information about
+   the edge, unless smoothnormal is true. Note that normals cannot be provided with STL meshes;
+#. Scale, translate and rotate the vertices and normals, re-normalize the normals in case of scaling;
+#. Construct the convex hull if specified;
+#. Find the centroid of all triangle faces, and construct the union-of-pyramids representation. Triangles whose area is
+   too small (below the :ref:`mjMINVAL <glNumeric>` value of 1E-14) result in compile error;
+#. Compute the center of mass and inertia matrix of the union-of-pyramids. Use eigenvalue decomposition to find the
+   principal axes of inertia. Center and align the mesh, saving the translational and rotational offsets for subsequent
+   geom-related computations.
+
+.. _asset-mesh-name:
+
+:at:`name`: :at-val:`string, optional`
+   Name of the mesh, used for referencing. If omitted, the mesh name equals the file name without the path and
+   extension.
+
+.. _asset-mesh-class:
+
+:at:`class`: :at-val:`string, optional`
+   Defaults class for setting unspecified attributes (only scale in this case).
+
+.. _asset-mesh-content_type:
+
+:at:`content_type`: :at-val:`string, optional`
+   If the file attribute is specified, then this sets the
+   `Media Type <https://www.iana.org/assignments/media-types/media-types.xhtml>`_ (formerly known as MIME type) of the
+   file to be loaded. Any filename extensions will be overloaded.  Currently ``model/vnd.mujoco.msh``, ``model/obj``,
+   and ``model/stl`` are supported.
+
+.. _asset-mesh-file:
+
+:at:`file`: :at-val:`string, optional`
+   The file from which the mesh will be loaded. The path is determined as described in the meshdir attribute of
+   :ref:`compiler <compiler>`. The file extension must be "stl", "msh", or "obj" (not case sensitive) specifying the
+   file type.  If the file name is omitted, the vertex attribute becomes required.
+
+.. _asset-mesh-scale:
+
+:at:`scale`: :at-val:`real(3), "1 1 1"`
+   This attribute specifies the scaling that will be applied to the vertex data along each coordinate axis. Negative
+   values are allowed, resulting in flipping the mesh along the corresponding axis.
+
+.. _asset-mesh-smoothnormal:
+
+:at:`smoothnormal`: :at-val:`[false, true], "false"`
+   Controls the automatic generation of vertex normals when normals are not given explicitly. If true, smooth normals
+   are generated by averaging the face normals at each vertex, with weight proportional to the face area. If false,
+   faces at large angles relative to the average normal are excluded from the average. In this way, sharp edges (as in
+   cube edges) are not smoothed.
+
+.. _asset-mesh-vertex:
+
+:at:`vertex`: :at-val:`real(3*nvert), optional`
+   Vertex 3D position data. You can specify position data in the XML using this attribute, or using a binary file, but
+   not both.
+
+.. _asset-mesh-normal:
+
+:at:`normal`: :at-val:`real(3*nvert), optional`
+   Vertex 3D normal data. If specified, the number of normals must equal the number of vertices. The model compiler
+   normalizes the normals automatically.
+
+.. _asset-mesh-texcoord:
+
+:at:`texcoord`: :at-val:`real(2*nvert), optional`
+   Vertex 2D texture coordinates, which are numbers between 0 and 1. If specified, the number of texture coordinate
+   pairs must equal the number of vertices.
+
+.. _asset-mesh-face:
+
+:at:`face`: :at-val:`int(3*nface), optional`
+   Faces of the mesh. Each face is a sequence of 3 vertex indices, in counter-clockwise order. The indices must be
+   integers between 0 and nvert-1.
+
+.. _asset-mesh-refpos:
+
+:at:`refpos`: :at-val:`real(3), "0 0 0"`
+   Reference position relative to which the 3D vertex coordinates are defined. This vector is subtracted from the
+   positions.
+
+.. _asset-mesh-refquat:
+
+:at:`refquat`: :at-val:`real(4), "1 0 0 0"`
+   Reference orientation relative to which the 3D vertex coordinates and normals are defined. The conjugate of this
+   quaternion is used to rotate the positions and normals. The model compiler normalizes the quaternion automatically.
+
+.. _mesh-plugin:
+
+:el-prefix:`mesh/` |-| **plugin** (?)
+'''''''''''''''''''''''''''''''''''''
+
+Associate this mesh with an :ref:`engine plugin<exPlugin>`. Either :at:`plugin` or :at:`instance` are required.
+
+.. _mesh-plugin-plugin:
+
+:at:`plugin`: :at-val:`string, optional`
+   Plugin identifier, used for implicit plugin instantiation.
+
+.. _mesh-plugin-instance:
+
+:at:`instance`: :at-val:`string, optional`
+   Instance name, used for explicit plugin instantiation.
+
+
+
+.. _asset-hfield:
+
+:el-prefix:`asset/` |-| **hfield** (*)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+This element creates a height field asset, which can then be referenced from geoms with type "hfield". A height field,
+also known as terrain map, is a 2D matrix of elevation data. The data can be specified in one of three ways:
+
+#. The elevation data can be loaded from a PNG file. The image is converted internally to gray scale, and the intensity
+   of each pixel is used to define elevation; white is high and black is low.
+
+#. The elevation data can be loaded from a binary file in the custom format described below. As with all other matrices
+   used in MuJoCo, the data ordering is row-major, like pixels in an image. If the data size is nrow-by-ncol, the file
+   must have 4*(2+nrow*ncol) bytes:
+
+   ::
+
+              (int32)   nrow
+              (int32)   ncol
+              (float32) data[nrow*ncol]
+
+
+#. The elevation data can be left undefined at compile time. This is done by specifying the attributes nrow and ncol.
+   The compiler allocates space for the height field data in mjModel and sets it to 0. The user can then generate a
+   custom height field at runtime, either programmatically or using sensor data.
+
+| Regardless of which method is used to specify the elevation data, the compiler always normalizes it to the range [0
+  1]. However if the data is left undefined at compile time and generated later at runtime, it is the user's
+  responsibility to normalize it.
+| The position and orientation of the height field is determined by the geom that references it. The spatial extent on
+  the other hand is specified by the height field asset itself via the size attribute, and cannot be modified by the
+  referencing geom (the geom size parameters are ignored in this case). The same approach is used for meshes below:
+  positioning is done by the geom while sizing is done by the asset. This is because height fields and meshes involve
+  sizing operations that are not common to other geoms.
+| For collision detection, a height field is treated as a union of triangular prisms. Collisions between height fields
+  and other geoms (except for planes and other height fields which are not supported) are computed by first selecting
+  the sub-grid of prisms that could collide with the geom based on its bounding box, and then using the general convex
+  collider. The number of possible contacts between a height field and a geom is limited to 50
+  (:ref:`mjMAXCONPAIR <glNumeric>`); any contacts beyond that are discarded. To avoid penetration due to discarded
+  contacts, the spatial features of the height field should be large compared to the geoms it collides with.
+
+.. _asset-hfield-name:
+
+:at:`name`: :at-val:`string, optional`
+   Name of the height field, used for referencing. If the name is omitted and a file name is specified, the height field
+   name equals the file name without the path and extension.
+
+.. _asset-hfield-content_type:
+
+:at:`content_type`: :at-val:`string, optional`
+   If the file attribute is specified, then this sets the
+   `Media Type <https://www.iana.org/assignments/media-types/media-types.xhtml>`__ (formerly known as MIME types) of the
+   file to be loaded. Any filename extensions will be overloaded.  Currently ``image/png`` and
+   ``image/vnd.mujoco.hfield`` are supported.
+
+.. _asset-hfield-file:
+
+:at:`file`: :at-val:`string, optional`
+   If this attribute is specified, the elevation data is loaded from the given file. If the file extension is ".png",
+   not case-sensitive, the file is treated as a PNG file. Otherwise it is treated as a binary file in the above custom
+   format. The number of rows and columns in the data are determined from the file contents. Loading data from a file
+   and setting nrow or ncol below to non-zero values results is compile error, even if these settings are consistent
+   with the file contents.
+
+.. _asset-hfield-nrow:
+
+:at:`nrow`: :at-val:`int, "0"`
+   This attribute and the next are used to allocate a height field in mjModel and leave the elevation data undefined
+   (i.e., set to 0). This attribute specifies the number of rows in the elevation data matrix. The default value of 0
+   means that the data will be loaded from a file, which will be used to infer the size of the matrix.
+
+.. _asset-hfield-ncol:
+
+:at:`ncol`: :at-val:`int, "0"`
+   This attribute specifies the number of columns in the elevation data matrix.
+
+.. _asset-hfield-size:
+
+:at:`size`: :at-val:`real(4), required`
+   .. figure:: images/XMLreference/peaks.png
+      :width: 350px
+      :align: right
+
+   The four numbers here are (radius_x, radius_y, elevation_z, base_z). The height field is centered at the referencing
+   geom's local frame. Elevation is in the +Z direction. The first two numbers specify the X and Y extent (or "radius")
+   of the rectangle over which the height field is defined. This may seem unnatural for rectangles, but it is natural
+   for spheres and other geom types, and we prefer to use the same convention throughout the model. The third number is
+   the maximum elevation; it scales the elevation data which is normalized to [0-1]. Thus the minimum elevation point is
+   at Z=0 and the maximum elevation point is at Z=elevation_z. The last number is the depth of a box in the -Z direction
+   serving as a "base" for the height field. Without this automatically generated box, the height field would have zero
+   thickness at places there the normalized elevation data is zero. Unlike planes which impose global unilateral
+   constraints, height fields are treated as unions of regular geoms, so there is no notion of being "under" the height
+   field. Instead a geom is either inside or outside the height field - which is why the inside part must have non-zero
+   thickness. The example on the right is the MATLAB "peaks" surface saved in our custom height field format, and loaded
+   as an asset with size = "1 1 1 0.1". The horizontal size of the box is 2, the difference between the maximum and
+   minimum elevation is 1, and the depth of the base added below the minimum elevation point is 0.1.
+
+
+.. _asset-skin:
+
+:el-prefix:`asset/` |-| **skin** (*)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. _asset-skin-name:
+.. _asset-skin-file:
+.. _asset-skin-vertex:
+.. _asset-skin-texcoord:
+.. _asset-skin-face:
+.. _asset-skin-inflate:
+.. _asset-skin-material:
+.. _asset-skin-rgba:
+.. _asset-skin-group:
+
+:ref:`Skins<deformable-skin>` have been moved under the new grouping element :ref:`deformable<deformable>`. They can
+still be specified here but this functionality is now deprecated and will be removed in the future.
+
 
 
 .. _asset-texture:
@@ -1362,328 +1689,6 @@ file.
 :at:`vflip`: :at-val:`[false, true], "false"`
    If true, images loaded from file are flipped in the vertical direction. Does not affect procedural textures.
 
-
-.. _asset-hfield:
-
-:el-prefix:`asset/` |-| **hfield** (*)
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-This element creates a height field asset, which can then be referenced from geoms with type "hfield". A height field,
-also known as terrain map, is a 2D matrix of elevation data. The data can be specified in one of three ways:
-
-#. The elevation data can be loaded from a PNG file. The image is converted internally to gray scale, and the intensity
-   of each pixel is used to define elevation; white is high and black is low.
-
-#. The elevation data can be loaded from a binary file in the custom format described below. As with all other matrices
-   used in MuJoCo, the data ordering is row-major, like pixels in an image. If the data size is nrow-by-ncol, the file
-   must have 4*(2+nrow*ncol) bytes:
-
-   ::
-
-              (int32)   nrow
-              (int32)   ncol
-              (float32) data[nrow*ncol]
-
-
-#. The elevation data can be left undefined at compile time. This is done by specifying the attributes nrow and ncol.
-   The compiler allocates space for the height field data in mjModel and sets it to 0. The user can then generate a
-   custom height field at runtime, either programmatically or using sensor data.
-
-| Regardless of which method is used to specify the elevation data, the compiler always normalizes it to the range [0
-  1]. However if the data is left undefined at compile time and generated later at runtime, it is the user's
-  responsibility to normalize it.
-| The position and orientation of the height field is determined by the geom that references it. The spatial extent on
-  the other hand is specified by the height field asset itself via the size attribute, and cannot be modified by the
-  referencing geom (the geom size parameters are ignored in this case). The same approach is used for meshes below:
-  positioning is done by the geom while sizing is done by the asset. This is because height fields and meshes involve
-  sizing operations that are not common to other geoms.
-| For collision detection, a height field is treated as a union of triangular prisms. Collisions between height fields
-  and other geoms (except for planes and other height fields which are not supported) are computed by first selecting
-  the sub-grid of prisms that could collide with the geom based on its bounding box, and then using the general convex
-  collider. The number of possible contacts between a height field and a geom is limited to 50
-  (:ref:`mjMAXCONPAIR <glNumeric>`); any contacts beyond that are discarded. To avoid penetration due to discarded
-  contacts, the spatial features of the height field should be large compared to the geoms it collides with.
-
-.. _asset-hfield-name:
-
-:at:`name`: :at-val:`string, optional`
-   Name of the height field, used for referencing. If the name is omitted and a file name is specified, the height field
-   name equals the file name without the path and extension.
-
-.. _asset-hfield-content_type:
-
-:at:`content_type`: :at-val:`string, optional`
-   If the file attribute is specified, then this sets the
-   `Media Type <https://www.iana.org/assignments/media-types/media-types.xhtml>`__ (formerly known as MIME types) of the
-   file to be loaded. Any filename extensions will be overloaded.  Currently ``image/png`` and
-   ``image/vnd.mujoco.hfield`` are supported.
-
-.. _asset-hfield-file:
-
-:at:`file`: :at-val:`string, optional`
-   If this attribute is specified, the elevation data is loaded from the given file. If the file extension is ".png",
-   not case-sensitive, the file is treated as a PNG file. Otherwise it is treated as a binary file in the above custom
-   format. The number of rows and columns in the data are determined from the file contents. Loading data from a file
-   and setting nrow or ncol below to non-zero values results is compile error, even if these settings are consistent
-   with the file contents.
-
-.. _asset-hfield-nrow:
-
-:at:`nrow`: :at-val:`int, "0"`
-   This attribute and the next are used to allocate a height field in mjModel and leave the elevation data undefined
-   (i.e., set to 0). This attribute specifies the number of rows in the elevation data matrix. The default value of 0
-   means that the data will be loaded from a file, which will be used to infer the size of the matrix.
-
-.. _asset-hfield-ncol:
-
-:at:`ncol`: :at-val:`int, "0"`
-   This attribute specifies the number of columns in the elevation data matrix.
-
-.. _asset-hfield-size:
-
-:at:`size`: :at-val:`real(4), required`
-   .. figure:: images/XMLreference/peaks.png
-      :width: 350px
-      :align: right
-
-   The four numbers here are (radius_x, radius_y, elevation_z, base_z). The height field is centered at the referencing
-   geom's local frame. Elevation is in the +Z direction. The first two numbers specify the X and Y extent (or "radius")
-   of the rectangle over which the height field is defined. This may seem unnatural for rectangles, but it is natural
-   for spheres and other geom types, and we prefer to use the same convention throughout the model. The third number is
-   the maximum elevation; it scales the elevation data which is normalized to [0-1]. Thus the minimum elevation point is
-   at Z=0 and the maximum elevation point is at Z=elevation_z. The last number is the depth of a box in the -Z direction
-   serving as a "base" for the height field. Without this automatically generated box, the height field would have zero
-   thickness at places there the normalized elevation data is zero. Unlike planes which impose global unilateral
-   constraints, height fields are treated as unions of regular geoms, so there is no notion of being "under" the height
-   field. Instead a geom is either inside or outside the height field - which is why the inside part must have non-zero
-   thickness. The example on the right is the MATLAB "peaks" surface saved in our custom height field format, and loaded
-   as an asset with size = "1 1 1 0.1". The horizontal size of the box is 2, the difference between the maximum and
-   minimum elevation is 1, and the depth of the base added below the minimum elevation point is 0.1.
-
-
-.. _asset-mesh:
-
-:el-prefix:`asset/` |-| **mesh** (*)
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-This element creates a mesh asset, which can then be referenced from geoms. If the referencing geom type is
-:at-val:`mesh` the mesh is instantiated in the model, otherwise a geometric primitive is automatically fitted to it; see
-the :ref:`geom <body-geom>` element below.
-
-MuJoCo works with triangulated meshes. They can be loaded from binary STL files, OBJ files or MSH files with custom
-format described below, or vertex and face data specified directly in the XML. Software such as MeshLab can be used to
-convert from other mesh formats to STL or OBJ. While any collection of triangles can be loaded as a mesh and rendered,
-collision detection works with the convex hull of the mesh as explained in :ref:`Collision`. See also the convexhull
-attribute of the :ref:`compiler <compiler>` element which controls the automatic generation of convex hulls. The mesh
-appearance (including texture mapping) is controlled by the :at:`material` and :at:`rgba` attributes of the referencing
-geom, similarly to height fields.
-
-Meshes can have explicit texture coordinates instead of relying on the automated texture
-mapping mechanism. When provided, these explicit coordinates have priority. Note that texture coordinates can be
-specified with OBJ files and MSH files, as well as explicitly in the XML with the :at:`texcoord` attribute, but not via
-STL files. These mechanism cannot be mixed. So if you have an STL mesh, the only way to add texture coordinates to it is
-to convert to one of the other supported formats.
-
-MSH file format
-   The binary MSH file starts with 4 integers specifying the number of vertex positions (nvertex), vertex normals
-   (nnormal), vertex texture coordinates (ntexcoord), and vertex indices making up the faces (nface), followed by the
-   numeric data. nvertex must be at least 4. nnormal and ntexcoord can be zero (in which case the corresponding data is
-   not defined) or equal to nvertex. nface can also be zero, in which case faces are constructed automatically from the
-   convex hull of the vertex positions. The file size in bytes must be exactly: 16 + 12*(nvertex + nnormal + nface) +
-   8*ntexcoord. The contents of the file must be as follows:
-
-   .. code:: Text
-
-          (int32)   nvertex
-          (int32)   nnormal
-          (int32)   ntexcoord
-          (int32)   nface
-          (float)   vertex_positions[3*nvertex]
-          (float)   vertex_normals[3*nnormal]
-          (float)   vertex_texcoords[2*ntexcoord]
-          (int32)   face_vertex_indices[3*nface]
-
-Poorly designed meshes can display rendering artifacts. In particular, the shadow mapping mechanism relies on having
-some distance between front and back-facing triangle faces. If the faces are repeated, with opposite normals as
-determined by the vertex order in each triangle, this causes shadow aliasing. The solution is to remove the repeated
-faces (which can be done in MeshLab) or use a better designed mesh. Flipped faces are checked by MuJoCo for meshes
-specified as OBJ or XML and an error message is returned.
-
-The size of the mesh is determined by the 3D coordinates of the vertex data in the mesh file, multiplied by the
-components of the :at:`scale` attribute below. Scaling is applied separately for each coordinate axis. Note that
-negative scaling values can be used to flip the mesh; this is a legitimate operation. The size parameters of the
-referening geoms are ignored, similarly to height fields. We also provide a mechanism to translate and
-rotate the 3D coordinates, using the attributes :ref:`refpos<asset-mesh-refpos>` and :ref:`refquat<asset-mesh-refquat>`.
-
-A mesh can also be defined without faces (a point cloud essentially). In that case
-the convex hull is constructed automatically, even if the compiler attribute convexhull is false. This makes it easy to
-construct simple shapes directly in the XML. For example, a pyramid can be created as:
-
-.. code-block:: xml
-
-   <asset>
-       <mesh name="tetrahedron" vertex="0 0 0  1 0 0  0 1 0  0 0 1"/>
-   </asset>
-
-Positioning and orienting is complicated by the fact that vertex data are often designed relative to coordinate frames
-whose origin is not inside the mesh. In contrast, MuJoCo expects the origin of a geom's local frame to coincide with the
-geometric center of the shape. We resolve this discrepancy by pre-processing the mesh in the compiler, so that it is
-centered around (0,0,0) and its principal axes of inertia are the coordinate axes. We also save the translation and
-rotation offsets needed to achieve such alignment in :ref:`mjModel.mesh_pos<mjModel>` and
-:ref:`mjModel.mesh_quat<mjModel>`. These offsets are then applied to the referencing geom's position and orientation; see
-also :at:`mesh` attribute of :ref:`geom <body-geom>` below. Fortunately most meshes used in robot models are designed in
-a coordinate frame centered at the joint. This makes the corresponding MJCF model intuitive: we set the body frame at the
-joint, so that the joint position is (0,0,0) in the body frame, and simply reference the mesh. Below is an MJCF model
-fragment of a forearm, containing all the information needed to put the mesh where one would expect it to be. The body
-position is specified relative to the parent body, namely the upper arm (not shown). It is offset by 35 cm which is the
-typical length of the human upper arm. If the mesh vertex data were not designed in the above convention, we would have
-to use the geom position and orientation (or the new refpos, refquat mechanism) to compensate, but in practice this is
-rarely needed.
-
-.. code-block:: xml
-
-   <asset>
-       <mesh file="forearm.stl"/>
-   </asset>
-
-   <body pos="0 0 0.35"/>
-       <joint type="hinge" axis="1 0 0"/>
-       <geom type="mesh" mesh="forearm"/>
-   </body>
-
-The inertial computation mentioned above is part of an algorithm used not only to center and align the mesh, but also to
-infer the mass and inertia of the body to which it is attached. This is done by computing the centroid of the triangle
-faces, connecting each face with the centroid to form a triangular pyramid, computing the mass and signed inertia of all
-pyramids (considered solid or hollow if :at:`shellinertia` is true) and accumulating them. The sign ensures that
-pyramids on the outside of the surfaces are subtracted, as it can occur with concave geometries. This algorithm can be
-found in section 1.3.8 of Computational Geometry in C (Second Edition) by Joseph O'Rourke.
-
-The full list of processing steps applied by the compiler to each mesh is as follows:
-
-#. For STL meshes, remove any repeated vertices and re-index the faces if needed. If the mesh is not STL, we assume that
-   the desired vertices and faces have already been generated and do not apply removal or re-indexing;
-#. If vertex normals are not provided, generate normals automatically, using a weighted average of the surrounding face
-   normals. If sharp edges are encountered, the renderer uses the face normals to preserve the visual information about
-   the edge, unless smoothnormal is true. Note that normals cannot be provided with STL meshes;
-#. Scale, translate and rotate the vertices and normals, re-normalize the normals in case of scaling;
-#. Construct the convex hull if specified;
-#. Find the centroid of all triangle faces, and construct the union-of-pyramids representation. Triangles whose area is
-   too small (below the :ref:`mjMINVAL <glNumeric>` value of 1E-14) result in compile error;
-#. Compute the center of mass and inertia matrix of the union-of-pyramids. Use eigenvalue decomposition to find the
-   principal axes of inertia. Center and align the mesh, saving the translational and rotational offsets for subsequent
-   geom-related computations.
-
-.. _asset-mesh-name:
-
-:at:`name`: :at-val:`string, optional`
-   Name of the mesh, used for referencing. If omitted, the mesh name equals the file name without the path and
-   extension.
-
-.. _asset-mesh-class:
-
-:at:`class`: :at-val:`string, optional`
-   Defaults class for setting unspecified attributes (only scale in this case).
-
-.. _asset-mesh-content_type:
-
-:at:`content_type`: :at-val:`string, optional`
-   If the file attribute is specified, then this sets the
-   `Media Type <https://www.iana.org/assignments/media-types/media-types.xhtml>`_ (formerly known as MIME type) of the
-   file to be loaded. Any filename extensions will be overloaded.  Currently ``model/vnd.mujoco.msh``, ``model/obj``,
-   and ``model/stl`` are supported.
-
-.. _asset-mesh-file:
-
-:at:`file`: :at-val:`string, optional`
-   The file from which the mesh will be loaded. The path is determined as described in the meshdir attribute of
-   :ref:`compiler <compiler>`. The file extension must be "stl", "msh", or "obj" (not case sensitive) specifying the
-   file type.  If the file name is omitted, the vertex attribute becomes required.
-
-.. _asset-mesh-scale:
-
-:at:`scale`: :at-val:`real(3), "1 1 1"`
-   This attribute specifies the scaling that will be applied to the vertex data along each coordinate axis. Negative
-   values are allowed, resulting in flipping the mesh along the corresponding axis.
-
-.. _asset-mesh-smoothnormal:
-
-:at:`smoothnormal`: :at-val:`[false, true], "false"`
-   Controls the automatic generation of vertex normals when normals are not given explicitly. If true, smooth normals
-   are generated by averaging the face normals at each vertex, with weight proportional to the face area. If false,
-   faces at large angles relative to the average normal are excluded from the average. In this way, sharp edges (as in
-   cube edges) are not smoothed.
-
-.. _asset-mesh-vertex:
-
-:at:`vertex`: :at-val:`real(3*nvert), optional`
-   Vertex 3D position data. You can specify position data in the XML using this attribute, or using a binary file, but
-   not both.
-
-.. _asset-mesh-normal:
-
-:at:`normal`: :at-val:`real(3*nvert), optional`
-   Vertex 3D normal data. If specified, the number of normals must equal the number of vertices. The model compiler
-   normalizes the normals automatically.
-
-.. _asset-mesh-texcoord:
-
-:at:`texcoord`: :at-val:`real(2*nvert), optional`
-   Vertex 2D texture coordinates, which are numbers between 0 and 1. If specified, the number of texture coordinate
-   pairs must equal the number of vertices.
-
-.. _asset-mesh-face:
-
-:at:`face`: :at-val:`int(3*nface), optional`
-   Faces of the mesh. Each face is a sequence of 3 vertex indices, in counter-clockwise order. The indices must be
-   integers between 0 and nvert-1.
-
-.. _asset-mesh-refpos:
-
-:at:`refpos`: :at-val:`real(3), "0 0 0"`
-   Reference position relative to which the 3D vertex coordinates are defined. This vector is subtracted from the
-   positions.
-
-.. _asset-mesh-refquat:
-
-:at:`refquat`: :at-val:`real(4), "1 0 0 0"`
-   Reference orientation relative to which the 3D vertex coordinates and normals are defined. The conjugate of this
-   quaternion is used to rotate the positions and normals. The model compiler normalizes the quaternion automatically.
-
-.. _mesh-plugin:
-
-:el-prefix:`mesh/` |-| **plugin** (?)
-'''''''''''''''''''''''''''''''''''''
-
-Associate this mesh with an :ref:`engine plugin<exPlugin>`. Either :at:`plugin` or :at:`instance` are required.
-
-.. _mesh-plugin-plugin:
-
-:at:`plugin`: :at-val:`string, optional`
-   Plugin identifier, used for implicit plugin instantiation.
-
-.. _mesh-plugin-instance:
-
-:at:`instance`: :at-val:`string, optional`
-   Instance name, used for explicit plugin instantiation.
-
-
-.. _asset-skin:
-
-:el-prefix:`asset/` |-| **skin** (*)
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-.. _asset-skin-name:
-.. _asset-skin-file:
-.. _asset-skin-vertex:
-.. _asset-skin-texcoord:
-.. _asset-skin-face:
-.. _asset-skin-inflate:
-.. _asset-skin-material:
-.. _asset-skin-rgba:
-.. _asset-skin-group:
-
-:ref:`Skins<deformable-skin>` have been moved under the new grouping element :ref:`deformable<deformable>`. They can
-still be specified here but this functionality is now deprecated and will be removed in the future.
 
 
 .. _asset-material:
