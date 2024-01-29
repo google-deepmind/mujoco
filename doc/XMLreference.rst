@@ -2647,7 +2647,7 @@ helps clarify the role of bodies and geoms in MuJoCo.
    | capsule | 1 or 2 | Radius of the capsule; half-length of the cylinder part when not using the :at:`fromto`        |
    |         |        | specification.                                                                                 |
    +---------+--------+------------------------------------------------------------------------------------------------+
-   |ellipsoid| 1      | X radius; Y radius; Z radius.                                                                  |
+   |ellipsoid| 3      | X radius; Y radius; Z radius.                                                                  |
    +---------+--------+------------------------------------------------------------------------------------------------+
    |cylinder | 1 or 2 | Radius of the cylinder; half-length of the cylinder when not using the :at:`fromto`            |
    |         |        | specification.                                                                                 |
