@@ -137,7 +137,9 @@ def com_pos(m: Model, d: Data) -> Data:
       m, subtree_sum, 'bb', 'bb', d.xipos, m.body_mass, reverse=True
   )
   cond = jp.tile(mass < mujoco.mjMINVAL, (3, 1)).T
-  subtree_com = jp.where(cond, d.xipos, jax.vmap(jp.divide)(pos, mass))
+  # take maximum to avoid NaN in gradient of jp.where
+  subtree_com = jax.vmap(jp.divide)(pos, jp.maximum(mass, mujoco.mjMINVAL))
+  subtree_com = jp.where(cond, d.xipos, subtree_com)
   d = d.replace(subtree_com=subtree_com)
 
   # map inertias to frame centered at subtree_com
