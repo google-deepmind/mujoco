@@ -164,6 +164,9 @@ def _validate(m: mujoco.MjModel):
     if f & m.opt.enableflags:
       warnings.warn(f'Ignoring enable flag {f.name}.')
 
+  if not np.allclose(m.dof_frictionloss, 0):
+    raise NotImplementedError('dof_frictionloss is not implemented.')
+
 
 @overload
 def device_put(value: mujoco.MjData) -> types.Data:

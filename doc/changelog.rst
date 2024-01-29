@@ -31,6 +31,7 @@ MJX
 8. Added ``mjx.ray`` which mirrors :ref:`mj_ray` for planes, spheres, capsules, boxes, and meshes.
 9. Added ``mjx.is_sparse`` which mirrors :ref:`mj_isSparse` and ``mjx.full_m`` which mirrors :ref:`mj_fullM`.
 10. Added support for specifying sparse or dense mass matrices via :ref:`option-jacobian`.
+11. Raise a not implemented error when nonzero frictionloss is present. Fixes :github:issue:`1344`.
 
 Python bindings
 ^^^^^^^^^^^^^^^

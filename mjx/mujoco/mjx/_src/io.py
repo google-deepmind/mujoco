@@ -109,6 +109,9 @@ def put_model(m: mujoco.MjModel, device=None) -> types.Model:
           f'{[mj_type(m) for m in missing]} not supported'
       )
 
+  if not np.allclose(m.dof_frictionloss, 0):
+    raise NotImplementedError('dof_frictionloss is not implemented.')
+
   opt = _put_option(m.opt, device=device)
   stat = _put_statistic(m.stat, device=device)
 

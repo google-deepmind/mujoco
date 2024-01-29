@@ -12,7 +12,7 @@
   <default>
     <default class="right_hand">
       <mesh scale="0.001 0.001 0.001"/>
-      <joint axis="1 0 0" damping="0.05" armature="0.0002" frictionloss="0.01"/>
+      <joint axis="1 0 0" damping="0.05" armature="0.0002"/>
       <position forcerange="-1 1"/>
 
       <default class="wrist">
