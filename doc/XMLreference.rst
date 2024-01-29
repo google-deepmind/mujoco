@@ -1427,14 +1427,22 @@ also known as terrain map, is a 2D matrix of elevation data. The data can be spe
 .. _asset-hfield-nrow:
 
 :at:`nrow`: :at-val:`int, "0"`
-   This attribute and the next are used to allocate a height field in mjModel and leave the elevation data undefined
-   (i.e., set to 0). This attribute specifies the number of rows in the elevation data matrix. The default value of 0
-   means that the data will be loaded from a file, which will be used to infer the size of the matrix.
+   This attribute and the next are used to allocate a height field in mjModel. If the :at:`elevation` attribute is not
+   set, the elevation data is set to 0. This attribute specifies the number of rows in the elevation data matrix. The
+   default value of 0 means that the data will be loaded from a file, which will be used to infer the size of the
+   matrix.
 
 .. _asset-hfield-ncol:
 
 :at:`ncol`: :at-val:`int, "0"`
    This attribute specifies the number of columns in the elevation data matrix.
+
+.. _asset-hfield-elevation:
+
+:at:`elevation`: :at-val:`real(nrow*ncol), optional`
+   This attribute specifies the elevation data matrix. Values are automatically normalized to lie between 0 and 1 by
+   first subtracting the minimum value and then dividing by the (maximum-minimum) difference, if not 0. If not provided,
+   values are set to 0.
 
 .. _asset-hfield-size:
 

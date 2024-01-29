@@ -843,9 +843,16 @@ class mjCHField : public mjCBase {
   int ncol;                       // number of columns
   float* data;                    // elevation data, row-major format
 
+  // getter for user data
+  std::vector<float>& userdata() { return userdata_; }
+
+  // setter for user data
+  void set_userdata(std::optional<std::vector<float>>&& userdata);
+
  private:
   mjCHField(mjCModel* model);             // constructor
   ~mjCHField();                           // destructor
+  std::vector<float> userdata_;           // user-provided elevation data
   void Compile(const mjVFS* vfs);         // compiler
 
   void LoadCustom(mjResource* resource);  // load from custom format

@@ -43,6 +43,7 @@ namespace {
 using ::testing::HasSubstr;
 using ::testing::Not;
 using ::testing::NotNull;
+using ::testing::FloatEq;
 
 using XMLWriterTest = PluginTest;
 
@@ -826,6 +827,49 @@ TEST_F(XMLWriterTest, WritesSkin) {
 
   mj_deleteModel(model);
   mj_deleteModel(mtemp);
+}
+
+TEST_F(XMLWriterTest, WritesHfield) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <hfield name="hf" nrow="3" ncol="2" size="0.5 0.5 1 0.1"
+              elevation="1 2
+                         3 4
+                         5 6"/>
+    </asset>
+  </mujoco>
+  )";
+  // load model
+  mjModel* model = LoadModelFromString(xml);
+  ASSERT_THAT(model, NotNull());
+  int size = model->hfield_nrow[0]*model->hfield_ncol[0];
+  EXPECT_EQ(size, 6);
+
+  // save and read, compare data
+  mjModel* mtemp = LoadModelFromString(SaveAndReadXml(model));
+  ASSERT_THAT(mtemp, NotNull());
+  for (int i = 0; i < size; ++i) {
+    EXPECT_THAT(mtemp->hfield_data[i], FloatEq(model->hfield_data[i]));
+  }
+  mj_deleteModel(mtemp);
+
+  // modify data, save read and compare
+  model->hfield_data[0] = 0.25;
+  model->hfield_data[1] = 0.0;
+  model->hfield_data[2] = 0.5;
+  model->hfield_data[3] = 0.0;
+  model->hfield_data[4] = 1.0;
+  model->hfield_data[5] = 0.0;
+
+  mtemp = LoadModelFromString(SaveAndReadXml(model));
+  ASSERT_THAT(mtemp, NotNull());
+  for (int i = 0; i < size; ++i) {
+    EXPECT_THAT(mtemp->hfield_data[i], FloatEq(model->hfield_data[i]));
+  }
+  mj_deleteModel(mtemp);
+
+  mj_deleteModel(model);
 }
 
 TEST_F(XMLWriterTest, SpringlengthOneValue) {

@@ -20,9 +20,11 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <optional>
 #include <sstream>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include "lodepng.h"
@@ -2233,6 +2235,7 @@ mjCHField::mjCHField(mjCModel* _model) {
   nrow = 0;
   ncol = 0;
   data = 0;
+  userdata_.clear();
 }
 
 
@@ -2333,6 +2336,14 @@ void mjCHField::LoadPNG(mjResource* resource) {
   image.clear();
 }
 
+
+
+// user data setter
+void mjCHField::set_userdata(std::optional<std::vector<float>>&& userdata) {
+  if (userdata.has_value()) {
+    userdata_ = std::move(userdata.value());
+  }
+}
 
 
 // compiler

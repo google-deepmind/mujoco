@@ -694,7 +694,7 @@ using MjCHFieldTest = MujocoTest;
 
 TEST_F(MjCHFieldTest, PngMap) {
   const std::string xml_path =
-      GetTestDataFilePath("user/testdata/png_hfield.xml");
+      GetTestDataFilePath("user/testdata/hfield_png.xml");
   std::array<char, 1024> error;
   mjModel* model =
       mj_loadXML(xml_path.c_str(), nullptr, error.data(), error.size());

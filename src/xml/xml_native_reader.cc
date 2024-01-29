@@ -217,7 +217,7 @@ static const char* MJCF[nMJCF][mjXATTRNUM] = {
             "fileright", "fileleft", "fileup", "filedown", "filefront", "fileback",
             "builtin", "rgb1", "rgb2", "mark", "markrgb", "random", "width", "height",
             "hflip", "vflip"},
-        {"hfield", "*", "6", "name", "content_type", "file", "nrow", "ncol", "size"},
+        {"hfield", "*", "7", "name", "content_type", "file", "nrow", "ncol", "size", "elevation"},
         {"mesh", "*", "12", "name", "class", "content_type", "file", "vertex", "normal",
             "texcoord", "face", "refpos", "refquat", "scale", "smoothnormal"},
         {"<"},
@@ -2931,10 +2931,33 @@ void mjXReader::Asset(XMLElement* section) {
       ReadAttrInt(elem, "ncol", &phf->ncol);
       ReadAttr(elem, "size", 4, phf->size, text, true);
 
-      // allocate buffer for dynamic hfield
+      // allocate buffer for dynamic hfield, copy user data if given
       if (phf->file.empty() && phf->nrow>0 && phf->ncol>0) {
-        phf->data = (float*) mju_malloc(phf->nrow*phf->ncol*sizeof(float));
-        memset(phf->data, 0, phf->nrow*phf->ncol*sizeof(float));
+        int nrow = phf->nrow;
+        int ncol = phf->ncol;
+        phf->data = (float*) mju_malloc(nrow*ncol*sizeof(float));
+
+        // read user data
+        phf->set_userdata(ReadAttrVec<float>(elem, "elevation"));
+
+        // user data given, copy into data
+        if (!phf->userdata().empty()) {
+          if (phf->userdata().size() != nrow*ncol) {
+            throw mjXError(elem, "elevation data length must match nrow*ncol");
+          }
+
+          // copy in reverse row order, so XML string is top-to-bottom
+          const float* userdata = phf->userdata().data();
+          for (int i = 0; i < nrow; i++) {
+            int flip = nrow-1-i;
+            memcpy(phf->data + flip*ncol, userdata + i*ncol, ncol*sizeof(float));
+          }
+        }
+
+        // user data not given, set to 0
+        else {
+          memset(phf->data, 0, phf->nrow*phf->ncol*sizeof(float));
+        }
       }
     }
 

@@ -179,7 +179,7 @@ class mjXUtil {
   static void Vector2String(std::string& txt, const std::vector<double>& vec);
 
   // write vector<float> to string
-  static void Vector2String(std::string& txt, const std::vector<float>& vec);
+  static void Vector2String(std::string& txt, const std::vector<float>& vec, int ncol = 0);
 
   // write vector<int> to string
   static void Vector2String(std::string& txt, const std::vector<int>& vec);

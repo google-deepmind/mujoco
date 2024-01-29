@@ -19,19 +19,22 @@ General
 
    - Added color of :ref:`bounding volumes<visual-rgba-bv>` and :ref:`active bounding volumes<visual-rgba-bvactive>`
      to :ref:`visual/rgba<visual-rgba>`.
+4. Height-field elevation data can now be specified directly in XML with the :ref:`elevation<asset-hfield-elevation>`
+   attribute (and not only with PNG files).
+   See `example model <https://github.com/google-deepmind/mujoco/blob/main/test/user/testdata/hfield_xml.xml>`__.
 
 MJX
 ^^^
-4. Added :ref:`dyntype<actuator-general-dyntype>` ``filterexact``.
-5. Added :at:`site` transmission.
-6. Updated MJX colab tutorial with more stable quadruped environment.
-7. Added ``mjx.ray`` which mirrors :ref:`mj_ray` for planes, spheres, capsules, boxes, and meshes.
-8. Added ``mjx.is_sparse`` which mirrors :ref:`mj_isSparse` and ``mjx.full_m`` which mirrors :ref:`mj_fullM`.
-9. Added support for specifying sparse or dense mass matrices via :ref:`option-jacobian`.
+5. Added :ref:`dyntype<actuator-general-dyntype>` ``filterexact``.
+6. Added :at:`site` transmission.
+7. Updated MJX colab tutorial with more stable quadruped environment.
+8. Added ``mjx.ray`` which mirrors :ref:`mj_ray` for planes, spheres, capsules, boxes, and meshes.
+9. Added ``mjx.is_sparse`` which mirrors :ref:`mj_isSparse` and ``mjx.full_m`` which mirrors :ref:`mj_fullM`.
+10. Added support for specifying sparse or dense mass matrices via :ref:`option-jacobian`.
 
 Python bindings
 ^^^^^^^^^^^^^^^
-10. Improved the implmentation of the :ref:`rollout<PySample>` module. Note the changes below are breaking, dependent
+11. Improved the implmentation of the :ref:`rollout<PySample>` module. Note the changes below are breaking, dependent
     code will require modification.
 
     - Uses :ref:`mjSTATE_FULLPHYSICS<geFullPhysics>` as state spec, enabling divergence detection by inspecting time.
@@ -40,9 +43,9 @@ Python bindings
 
 Bug fixes
 ^^^^^^^^^
-11. Fixed a bug that prevented the use of pins with plugins if flexes are not in the worldbody. Fixes
+12. Fixed a bug that prevented the use of pins with plugins if flexes are not in the worldbody. Fixes
     :github:issue:`1270`.
-12. Fixed a bug in the :ref:`muscle model<CMuscle>` that led to non-zero values outside the lower
+13. Fixed a bug in the :ref:`muscle model<CMuscle>` that led to non-zero values outside the lower
     bound of the length range. Fixes :github:issue:`1342`.
 
 

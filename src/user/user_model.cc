@@ -3376,9 +3376,26 @@ bool mjCModel::CopyBack(const mjModel* m) {
   mjCMesh* pm;
   for (int i=0; i<nmesh; i++) {
     pm = meshes[i];
-
     copyvec(pm->GetOffsetPosPtr(), m->mesh_pos+3*i, 3);
     copyvec(pm->GetOffsetQuatPtr(), m->mesh_quat+4*i, 4);
+  }
+
+  // heightfield
+  mjCHField* phf;
+  for (int i=0; i<nhfield; i++) {
+    phf = hfields[i];
+    int size = phf->userdata().size();
+    if (size) {
+      int nrow = m->hfield_nrow[i];
+      int ncol = m->hfield_ncol[i];
+      float* userdata = phf->userdata().data();
+      float* modeldata = m->hfield_data + m->hfield_adr[i];
+      // copy back in reverse row order
+      for (int j=0; j<nrow; j++) {
+        int flip = nrow-1-j;
+        copyvec(userdata + flip*ncol, modeldata+j*ncol, ncol);
+      }
+    }
   }
 
   // sites

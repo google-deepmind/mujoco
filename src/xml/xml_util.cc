@@ -875,11 +875,13 @@ void mjXUtil::Vector2String(string& txt, const vector<double>& vec) {
 
 
 // write vector<float> to string
-void mjXUtil::Vector2String(string& txt, const vector<float>& vec) {
+void mjXUtil::Vector2String(string& txt, const vector<float>& vec, int ncol) {
   stringstream strm;
 
   for (size_t i=0; i<vec.size(); i++) {
-    if (i>0) {
+    if (ncol && (i % ncol) == 0) {
+      strm << "\n            ";
+    } else if (i>0) {
       strm << " ";
     }
     strm << vec[i];

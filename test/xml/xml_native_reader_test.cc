@@ -36,6 +36,7 @@ using ::testing::HasSubstr;
 using ::testing::IsNan;
 using ::testing::IsNull;
 using ::testing::NotNull;
+using ::testing::FloatEq;
 
 using XMLReaderTest = MujocoTest;
 
@@ -436,7 +437,7 @@ TEST_F(XMLReaderTest, ParseFrame) {
   )";
   std::array<char, 1024> error;
   mjModel* m = LoadModelFromString(xml, error.data(), error.size());
-  EXPECT_THAT(m, testing::NotNull()) << error.data();
+  EXPECT_THAT(m, NotNull()) << error.data();
   mj_deleteModel(m);
 }
 
@@ -455,7 +456,7 @@ TEST_F(XMLReaderTest, CameraInvalidFovyAndSensorsize) {
   )";
   std::array<char, 1024> error;
   mjModel* m = LoadModelFromString(xml, error.data(), error.size());
-  EXPECT_THAT(m, testing::IsNull());
+  EXPECT_THAT(m, IsNull());
   EXPECT_THAT(error.data(), HasSubstr("either 'fovy' or 'sensorsize'"));
 }
 
@@ -472,7 +473,7 @@ TEST_F(XMLReaderTest, CameraPricipalRequiresSensorsize) {
   )";
   std::array<char, 1024> error;
   mjModel* m = LoadModelFromString(xml, error.data(), error.size());
-  EXPECT_THAT(m, testing::IsNull());
+  EXPECT_THAT(m, IsNull());
   EXPECT_THAT(error.data(), HasSubstr("attribute missing: 'sensorsize'"));
 }
 
@@ -489,7 +490,7 @@ TEST_F(XMLReaderTest, CameraSensorsizeRequiresResolution) {
   )";
   std::array<char, 1024> error;
   mjModel* m = LoadModelFromString(xml, error.data(), error.size());
-  EXPECT_THAT(m, testing::IsNull());
+  EXPECT_THAT(m, IsNull());
   EXPECT_THAT(error.data(), HasSubstr("attribute missing: 'resolution'"));
 }
 
@@ -584,6 +585,83 @@ TEST_F(XMLReaderTest, InvalidSkinGroup) {
       HasSubstr("skin group must be between 0 and 5\nElement 'skin', line 7"));
   mj_deleteModel(model);
 }
+
+// ------------- test height-field parsing -------------------------------------
+
+using HfieldParsingTest = MujocoTest;
+
+TEST_F(HfieldParsingTest, NoData) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <hfield name="hf" nrow="4" ncol="3" size="0.5 0.5 1 0.1"/>
+    </asset>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(model, NotNull()) << error.data();
+  EXPECT_EQ(model->hfield_nrow[0], 4);
+  EXPECT_EQ(model->hfield_ncol[0], 3);
+  EXPECT_EQ(model->hfield_size[0], 0.5);
+  EXPECT_EQ(model->hfield_size[1], 0.5);
+  EXPECT_EQ(model->hfield_size[2], 1);
+  EXPECT_EQ(model->hfield_size[3], 0.1);
+  mj_deleteModel(model);
+}
+
+TEST_F(HfieldParsingTest, HasDataBadSize) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <hfield name="hf" nrow="3" ncol="2" size="0.5 0.5 1 0.1"
+              elevation="1 2
+                         3 4
+                         5 6 7"/>
+    </asset>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(model, IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("data length must match nrow*ncol"));
+}
+
+TEST_F(HfieldParsingTest, HasData) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <hfield name="hf" nrow="3" ncol="2" size="0.5 0.5 1 0.1"
+              elevation="1 2
+                         3 4
+                         5 6"/>
+    </asset>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(model, NotNull()) << error.data();
+  EXPECT_EQ(model->hfield_nrow[0], 3);
+  EXPECT_EQ(model->hfield_ncol[0], 2);
+  EXPECT_EQ(model->hfield_size[0], 0.5);
+  EXPECT_EQ(model->hfield_size[1], 0.5);
+  EXPECT_EQ(model->hfield_size[2], 1);
+  EXPECT_EQ(model->hfield_size[3], 0.1);
+
+  // offset (minimum) and scaling (maximum) from normalizing operation
+  float offset = 1.0;
+  float scale = 6.0 - offset;
+
+  // compare data, note: reverse row order
+  EXPECT_THAT(model->hfield_data[0], FloatEq((5-offset)/scale));
+  EXPECT_THAT(model->hfield_data[1], FloatEq((6-offset)/scale));
+  EXPECT_THAT(model->hfield_data[2], FloatEq((3-offset)/scale));
+  EXPECT_THAT(model->hfield_data[3], FloatEq((4-offset)/scale));
+  EXPECT_THAT(model->hfield_data[4], FloatEq((1-offset)/scale));
+  EXPECT_THAT(model->hfield_data[5], FloatEq((2-offset)/scale));
+  mj_deleteModel(model);
+}
+
 
 // ------------- test relative frame sensor parsing ----------------------------
 

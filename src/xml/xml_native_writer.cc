@@ -1449,6 +1449,11 @@ void mjXWriter::Asset(XMLElement* root) {
     } else {
       WriteAttrInt(elem, "nrow", phf->nrow);
       WriteAttrInt(elem, "ncol", phf->ncol);
+      if (!phf->userdata().empty()) {
+        string text;
+        Vector2String(text, phf->userdata(), phf->ncol);
+        WriteAttrTxt(elem, "elevation", text);
+      }
     }
   }
 }
