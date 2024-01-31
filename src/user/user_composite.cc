@@ -137,7 +137,7 @@ void mjCComposite::SetDefault(void) {
   // set all deafult groups to 3
   for (int i=0; i<mjNCOMPKINDS; i++) {
     def[i].geom.group = 3;
-    def[i].site.group = 3;
+    def[i].site.spec.group = 3;
     def[i].tendon.group = 3;
   }
 
@@ -480,7 +480,7 @@ bool mjCComposite::MakeParticle(mjCModel* model, mjCBody* body, char* error, int
     // add site
     mjCSite* s = b->AddSite(def);
     s->def = body->def;
-    s->type = mjGEOM_SPHERE;
+    s->spec.type = mjGEOM_SPHERE;
     mju::sprintf_arr(txt, "%sS%d", prefix.c_str(), i);
     s->name = txt;
 
@@ -607,7 +607,7 @@ bool mjCComposite::MakeGrid(mjCModel* model, mjCBody* body, char* error, int err
       // add site
       mjCSite* s = b->AddSite(def);
       s->def = body->def;
-      s->type = mjGEOM_SPHERE;
+      s->spec.type = mjGEOM_SPHERE;
       mju::sprintf_arr(txt, "%sS%d_%d", prefix.c_str(), ix, iy);
       s->name = txt;
 
@@ -871,8 +871,8 @@ mjCBody* mjCComposite::AddCableBody(mjCModel* model, mjCBody* body, int ix, mjtN
     mjCSite* site = body->AddSite(def);
     site->def = body->def;
     site->name = txt_site;
-    mjuu_setvec(site->pos, last ? length : 0, 0, 0);
-    mjuu_setvec(site->quat, 1, 0, 0, 0);
+    mjuu_setvec(site->spec.pos, last ? length : 0, 0, 0);
+    mjuu_setvec(site->spec.quat, 1, 0, 0, 0);
   }
 
   return body;

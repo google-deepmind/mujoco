@@ -1926,24 +1926,28 @@ void mjCGeom::Compile(void) {
 // initialize default site
 mjCSite::mjCSite(mjCModel* _model, mjCDef* _def) {
   // set defaults
-  type = mjGEOM_SPHERE;
-  mjuu_setvec(size, 0.005, 0.005, 0.005);
-  group = 0;
-  mjuu_setvec(quat, 1, 0, 0, 0);
-  mjuu_setvec(pos, 0, 0, 0);
-  material.clear();
-  rgba[0] = rgba[1] = rgba[2] = 0.5f;
-  rgba[3] = 1.0f;
-  fromto[0] = mjNAN;
-  userdata.clear();
+  spec.type = mjGEOM_SPHERE;
+  mjuu_setvec(spec.size, 0.005, 0.005, 0.005);
+  spec.group = 0;
+  mjuu_setvec(spec.quat, 1, 0, 0, 0);
+  mjuu_setvec(spec.pos, 0, 0, 0);
+  spec.material.clear();
+  spec.rgba[0] = spec.rgba[1] = spec.rgba[2] = 0.5f;
+  spec.rgba[3] = 1.0f;
+  spec.fromto[0] = mjNAN;
+  spec.userdata.clear();
 
   // clear internal variables
-  material.clear();
+  spec.material.clear();
   body = 0;
   matid = -1;
 
+  // initialize private attributes
+  CopyFromSpec();
+
   // reset to default if given
   if (_def) {
+    _def->site.CopyFromSpec();
     *this = _def->site;
   }
 
@@ -1954,8 +1958,16 @@ mjCSite::mjCSite(mjCModel* _model, mjCDef* _def) {
 
 
 
+void mjCSite::CopyFromSpec() {
+  *static_cast<mjmSite*>(this) = spec;
+}
+
+
+
 // compiler
 void mjCSite::Compile(void) {
+  CopyFromSpec();
+
   // resize userdata
   if (userdata.size() > model->nuser_site) {
     throw mjCError(this, "user has more values than nuser_site in site '%s' (id = %d)",

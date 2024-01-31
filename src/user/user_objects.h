@@ -455,15 +455,7 @@ class mjCGeom : public mjCBase {
 //------------------------- class mjCSite ----------------------------------------------------------
 // Describes a site on a body
 
-class mjCSite : public mjCBase {
-  friend class mjCDef;
-  friend class mjCBody;
-  friend class mjCModel;
-  friend class mjXWriter;
-  friend class mjXURDF;
-
- public:
-  // variables set by user
+typedef struct _mjmSite {
   mjtGeom type;                   // geom type for rendering
   int group;                      // group id, used for visualization
   double size[3];                 // geom size for rendering
@@ -474,11 +466,23 @@ class mjCSite : public mjCBase {
   float rgba[4];                  // rgba when material is omitted
   double fromto[6];               // alternative for capsule, cylinder, box, ellipsoid
   mjCAlternative alt;             // alternative orientation specification
+} mjmSite;
+
+class mjCSite : public mjCBase, private mjmSite {
+  friend class mjCDef;
+  friend class mjCBody;
+  friend class mjCModel;
+  friend class mjXWriter;
+  friend class mjXURDF;
+
+ public:
+  mjmSite spec;                   // variables set by user
 
   // variables computed by 'compile' and 'mjCBody::addSite'
  private:
   mjCSite(mjCModel* = 0, mjCDef* = 0);    // constructor
   void Compile(void);                     // compiler
+  void CopyFromSpec();                    // copy spec into attributes
 
   mjCBody* body;                  // site's body
   int matid;                      // material id for rendering

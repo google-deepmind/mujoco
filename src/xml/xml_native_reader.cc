@@ -1563,13 +1563,14 @@ void mjXReader::OneGeom(XMLElement* elem, mjCGeom* pgeom) {
 
 
 // site element parser
-void mjXReader::OneSite(XMLElement* elem, mjCSite* psite) {
+void mjXReader::OneSite(XMLElement* elem, mjCSite* site) {
   int n;
   string text;
+  mjmSite* psite = &site->spec;
 
   // read attributes
-  ReadAttrTxt(elem, "name", psite->name);
-  ReadAttrTxt(elem, "class", psite->classname);
+  ReadAttrTxt(elem, "name", site->name);
+  ReadAttrTxt(elem, "class", site->classname);
   if (MapValue(elem, "type", &n, geom_map, mjNGEOMTYPES)) {
     psite->type = (mjtGeom)n;
   }
@@ -1585,7 +1586,7 @@ void mjXReader::OneSite(XMLElement* elem, mjCSite* psite) {
   // read userdata
   ReadVector(elem, "user", psite->userdata, text);
 
-  GetXMLPos(elem, psite);
+  GetXMLPos(elem, site);
 }
 
 
@@ -2166,10 +2167,11 @@ void mjXReader::OneComposite(XMLElement* elem, mjCBody* pbody, mjCDef* def) {
   // site
   XMLElement* esite = elem->FirstChildElement("site");
   if (esite) {
-    ReadAttr(esite, "size", 3, comp.def[0].site.size, text, false, false);
-    ReadAttrInt(esite, "group", &comp.def[0].site.group);
-    ReadAttrTxt(esite, "material", comp.def[0].site.material);
-    ReadAttr(esite, "rgba", 4, comp.def[0].site.rgba, text);
+    mjmSite& dsite = comp.def[0].site.spec;
+    ReadAttr(esite, "size", 3, dsite.size, text, false, false);
+    ReadAttrInt(esite, "group", &dsite.group);
+    ReadAttrTxt(esite, "material", dsite.material);
+    ReadAttr(esite, "rgba", 4, dsite.rgba, text);
   }
 
   // joint

@@ -651,13 +651,14 @@ void mjCModel::MakeLists(mjCBody* body) {
 
 // delete material with given name or all materials if the name is omitted
 template <class T>
-static void DeleteMaterial(std::vector<T*>& list, std::string_view name = "") {
+void mjCModel::DeleteMaterial(std::vector<T*>& list, std::string_view name) {
   for (T* plist : list) {
     if (name.empty() || plist->material == name) {
       plist->material.clear();
     }
   }
 }
+
 
 
 // delete texture with given name or all textures if the name is omitted
@@ -2900,7 +2901,7 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
   if (nuser_site == -1) {
     nuser_site = 0;
     for (int i=0; i<sites.size(); i++) {
-      nuser_site = mjMAX(nuser_site, sites[i]->userdata.size());
+      nuser_site = mjMAX(nuser_site, sites[i]->spec.userdata.size());
     }
   }
   if (nuser_cam == -1) {

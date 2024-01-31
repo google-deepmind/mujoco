@@ -18,6 +18,7 @@
 #include <functional>
 #include <map>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -191,6 +192,9 @@ class mjCModel {
 
   template<class T>              // if asset name is missing, set to filename
   void SetDefaultNames(std::vector<T*>& assets);
+
+  template <class T>             // delete material from object
+  void DeleteMaterial(std::vector<T*>& list, std::string_view name = "");
 
   //------------------------ compile phases
   void MakeLists(mjCBody* body);        // make lists of bodies, geoms, joints, sites
