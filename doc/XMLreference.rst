@@ -4590,7 +4590,7 @@ of the other body, without any joint elements in the child body.
 
 :at:`body2`: :at-val:`string, optional`
    Name of the second body. If this attribute is omitted, the second body is the world body. Welding a body to the world
-   and changing the corresponding component of mjModel.eq_active at runtime can be used to fix the body temporarily.
+   and changing the corresponding component of mjData.eq_active at runtime can be used to fix the body temporarily.
 
 .. _equality-weld-relpose:
 
