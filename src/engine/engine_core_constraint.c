@@ -1325,6 +1325,19 @@ static void getposdim(const mjModel* m, const mjData* d, int i, mjtNum* pos, int
 
 
 
+// return a to the power of b, quick return for powers 1 and 2
+// solimp[4] == 2 is the default, so these branches are common
+static mjtNum power(mjtNum a, mjtNum b) {
+  if (b == 1) {
+    return a;
+  } else if (b == 2) {
+    return a*a;
+  }
+  return mju_pow(a, b);
+}
+
+
+
 // compute impedance and derivative for one constraint
 static void getimpedance(const mjtNum* solimp, mjtNum pos, mjtNum margin,
                          mjtNum* imp, mjtNum* impP) {
@@ -1359,16 +1372,16 @@ static void getimpedance(const mjtNum* solimp, mjtNum pos, mjtNum margin,
 
   // y(x) = a*x^p if x<=midpoint
   else if (x <= solimp[3]) {
-    mjtNum a = 1/mju_pow(solimp[3], solimp[4]-1);
-    y = a*mju_pow(x, solimp[4]);
-    yP = solimp[4] * a*mju_pow(x, solimp[4]-1);
+    mjtNum a = 1/power(solimp[3], solimp[4]-1);
+    y = a*power(x, solimp[4]);
+    yP = solimp[4] * a*power(x, solimp[4]-1);
   }
 
   // y(x) = 1-b*(1-x)^p is x>midpoint
   else {
-    mjtNum b = 1/mju_pow(1-solimp[3], solimp[4]-1);
-    y = 1-b*mju_pow(1-x, solimp[4]);
-    yP = solimp[4] * b*mju_pow(1-x, solimp[4]-1);
+    mjtNum b = 1/power(1-solimp[3], solimp[4]-1);
+    y = 1-b*power(1-x, solimp[4]);
+    yP = solimp[4] * b*power(1-x, solimp[4]-1);
   }
 
   // scale

@@ -24,7 +24,7 @@ extern "C" {
 #endif
 
 // header version; should match the library version as returned by mj_version()
-#define mjVERSION_HEADER 302
+#define mjVERSION_HEADER 312
 
 // needed to define size_t, fabs and log10
 #include <stdlib.h>
@@ -263,6 +263,9 @@ MJAPI void mj_Euler(const mjModel* m, mjData* d);
 
 // Runge-Kutta explicit order-N integrator.
 MJAPI void mj_RungeKutta(const mjModel* m, mjData* d, int N);
+
+// Implicit-in-velocity integrators.
+MJAPI void mj_implicit(const mjModel* m, mjData* d);
 
 // Run position-dependent computations in inverse dynamics.
 MJAPI void mj_invPosition(const mjModel* m, mjData* d);
@@ -1115,7 +1118,7 @@ MJAPI void mju_bandMulMatVec(mjtNum* res, const mjtNum* mat, const mjtNum* vec,
 // Address of diagonal element i in band-dense matrix representation.
 MJAPI int mju_bandDiag(int i, int ntotal, int nband, int ndense);
 
-// Eigenvalue decomposition of symmetric 3x3 matrix.
+// Eigenvalue decomposition of symmetric 3x3 matrix, mat = eigvec * diag(eigval) * eigvec'.
 MJAPI int mju_eig3(mjtNum eigval[3], mjtNum eigvec[9], mjtNum quat[4], const mjtNum mat[9]);
 
 // minimize 0.5*x'*H*x + x'*g  s.t. lower <= x <= upper, return rank or -1 if failed

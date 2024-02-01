@@ -583,6 +583,17 @@ mj_RungeKutta
 
 Runge-Kutta explicit order-N integrator.
 
+.. _mj_implicit:
+
+mj_implicit
+~~~~~~~~~~~
+
+.. mujoco-include:: mj_implicit
+
+Integrates the simulation state using an implicit-in-velocity integrator (either "implicit" or "implicitfast", see
+:ref:`Numerical Integration<geIntegration>`), and advances simulation time. See `mjdata.h
+<https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjdata.h>`__ for fields computed by this function.
+
 .. _mj_invPosition:
 
 mj_invPosition
@@ -2974,7 +2985,7 @@ mju_eig3
 
 .. mujoco-include:: mju_eig3
 
-Eigenvalue decomposition of symmetric 3x3 matrix.
+Eigenvalue decomposition of symmetric 3x3 matrix, mat = eigvec * diag(eigval) * eigvec'.
 
 .. _mju_boxQP:
 
@@ -3011,10 +3022,10 @@ outputs (optional):
 
 notes:
   The initial value of ``res`` is used to warmstart the solver.
-  ``R`` must have allocatd size ``n*(n+7)``, but only ``nfree*nfree`` values are used in output.
-  ``index`` (if given) must have allocated size ``n``, but only ``nfree`` values are used in output.
+  ``R`` must have allocated size ``n*(n+7)``, but only ``nfree*nfree`` values are used as output.
+  ``index`` (if given) must have allocated size ``n``, but only ``nfree`` values are used as output.
   The convenience function :ref:`mju_boxQPmalloc` allocates the required data structures.
-  Only the lower triangles of H and R and are read from and written to, respectively.
+  Only the lower triangles of H and R are read from and written to, respectively.
 
 .. _mju_boxQPmalloc:
 

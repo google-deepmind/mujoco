@@ -16,7 +16,7 @@ Parameters:
 
    - `twist` [Pa]: twisting stiffness.
    - `bend` [Pa]: bending stiffness.
-   - `flat` [bool]: if true, the stress-equilibrium configuration is that of a straight cable; if true, it is the configuration defined in the XML.
+   - `flat` [bool]: if true, the stress-equilibrium configuration is that of a straight cable; if false or unspecified, it is the configuration defined in the XML.
    - `vmax` [N/m^2]: If greater than zero, the cable is colored using mechanical stresses; the value represent the maximum stress in the color scale.
 
 ### Shell

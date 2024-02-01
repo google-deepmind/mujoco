@@ -31,6 +31,34 @@ inline unsigned int* MakeNonConstUnsigned(const int* ptr) {
   return reinterpret_cast<unsigned int*>(const_cast<int*>(ptr));
 }
 
+mjtNum boxProjection(glm::vec3& point, const sdflib::BoundingBox& box) {
+  glm::vec3 r = point - box.getCenter();
+  glm::vec3 q = glm::abs(r) - 0.5f * box.getSize();
+  mjtNum dist_sqr = 0;
+  mjtNum eps = 1e-6;
+
+  // skip the projection if inside
+  if (q.x <= 0 && q.y <= 0 && q.z <= 0) {
+    return glm::max(q.x, glm::max(q.y, q.z));
+  }
+
+  // in-place projection inside the box if outside
+  if ( q.x >= 0 ) {
+    dist_sqr += q.x * q.x;
+    point.x -= r.x > 0 ? (q.x+eps) : -(q.x+eps);
+  }
+  if ( q.y >= 0 ) {
+    dist_sqr += q.y * q.y;
+    point.y -= r.y > 0 ? (q.y+eps) : -(q.y+eps);
+  }
+  if ( q.z >= 0 ) {
+    dist_sqr += q.z * q.z;
+    point.z -= r.z > 0 ? (q.z+eps) : -(q.z+eps);
+  }
+
+  return mju_sqrt(dist_sqr);
+}
+
 }  // namespace
 
 // factory function
@@ -65,8 +93,12 @@ std::optional<SdfLib> SdfLib::Create(const mjModel* m, mjData* d,
 
 // plugin constructor
 SdfLib::SdfLib(sdflib::Mesh&& mesh) {
+  sdflib::BoundingBox box = mesh.getBoundingBox();
+  const glm::vec3 modelBBsize = box.getSize();
+  box.addMargin(
+      0.1f * glm::max(glm::max(modelBBsize.x, modelBBsize.y), modelBBsize.z));
   sdf_func_ =
-      sdflib::OctreeSdf(mesh, mesh.getBoundingBox(), 8, 3, 1e-3,
+      sdflib::OctreeSdf(mesh, box, 8, 3, 1e-3,
                         sdflib::OctreeSdf::InitAlgorithm::CONTINUITY, 1);
 }
 
@@ -89,17 +121,37 @@ void SdfLib::Visualize(const mjModel* m, mjData* d, const mjvOption* opt,
 // sdf
 mjtNum SdfLib::Distance(const mjtNum p[3]) const {
   glm::vec3 point(p[0], p[1], p[2]);
-  return sdf_func_.getDistance(point);
+  mjtNum boxDist = boxProjection(point, sdf_func_.getGridBoundingBox());
+  return sdf_func_.getDistance(point) + (boxDist <= 0 ? 0 : boxDist);
 }
 
 // gradient of sdf
 void SdfLib::Gradient(mjtNum grad[3], const mjtNum point[3]) const {
   glm::vec3 gradient;
   glm::vec3 p(point[0], point[1], point[2]);
-  sdf_func_.getDistance(p, gradient);
-  grad[0] = gradient[0];
-  grad[1] = gradient[1];
-  grad[2] = gradient[2];
+
+  // analytic in the interior
+  if (boxProjection(p, sdf_func_.getGridBoundingBox()) <= 0) {
+    sdf_func_.getDistance(p, gradient);
+    grad[0] = gradient[0];
+    grad[1] = gradient[1];
+    grad[2] = gradient[2];
+    return;
+  }
+
+  // finite difference in the exterior
+  mjtNum eps = 1e-8;
+  mjtNum dist0 = Distance(point);
+  mjtNum pointX[3] = {point[0]+eps, point[1], point[2]};
+  mjtNum distX = Distance(pointX);
+  mjtNum pointY[3] = {point[0], point[1]+eps, point[2]};
+  mjtNum distY = Distance(pointY);
+  mjtNum pointZ[3] = {point[0], point[1], point[2]+eps};
+  mjtNum distZ = Distance(pointZ);
+
+  grad[0] = (distX - dist0) / eps;
+  grad[1] = (distY - dist0) / eps;
+  grad[2] = (distZ - dist0) / eps;
 }
 
 // plugin registration
@@ -146,12 +198,12 @@ void SdfLib::RegisterPlugin() {
   plugin.sdf_distance =
       +[](const mjtNum point[3], const mjData* d, int instance) {
         auto* sdf = reinterpret_cast<SdfLib*>(d->plugin_data[instance]);
-        sdf->visualizer_.AddPoint(point);
         return sdf->Distance(point);
       };
   plugin.sdf_gradient = +[](mjtNum gradient[3], const mjtNum point[3],
                         const mjData* d, int instance) {
     auto* sdf = reinterpret_cast<SdfLib*>(d->plugin_data[instance]);
+    sdf->visualizer_.AddPoint(point);
     sdf->Gradient(gradient, point);
   };
 

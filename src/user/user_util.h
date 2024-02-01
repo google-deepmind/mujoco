@@ -104,16 +104,20 @@ void mjuu_z2quat(double* quat, const double* vec);
 void mjuu_frame2quat(double* quat, const double* x, const double* y, const double* z);
 
 // invert frame transformation
-void mjuu_frameinvert(double* newpos, double* newquat,
-                      const double* oldpos, const double* oldquat);
+void mjuu_frameinvert(double newpos[3], double newquat[4],
+                      const double oldpos[3], const double oldquat[4]);
 
-// accumulate frame transformations
-void mjuu_frameaccum(double* pos, double* quat,
-                     const double* addpos, const double* addquat);
+// accumulate frame transformation into parent frame
+void mjuu_frameaccum(double pos[3], double quat[4],
+                     const double childpos[3], const double childquat[4]);
+
+// accumulate frame transformation into child frame
+void mjuu_frameaccumChild(const double pos[3], const double quat[4],
+                          double childpos[3], double childquat[4]);
 
 // invert frame accumulation
-void mjuu_frameaccuminv(double* pos, double* quat,
-                        const double* addpos, const double* addquat);
+void mjuu_frameaccuminv(double pos[3], double quat[4],
+                        const double childpos[3], const double childquat[4]);
 
 // convert local_inertia[3] to global_inertia[6]
 void mjuu_globalinertia(double* global, const double* local, const double* quat);

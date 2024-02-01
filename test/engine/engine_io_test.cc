@@ -44,16 +44,6 @@ using ::testing::NotNull;
 
 using EngineIoTest = MujocoTest;
 
-// Return an mjModel with just the ints set.
-mjModel PartialModel(const mjModel* m) {
-  mjModel partial_model = {0};
-  #define X(var) partial_model.var = m->var;
-  MJMODEL_INTS;
-  #undef X
-  partial_model.nbuffer = 0;
-  return partial_model;
-}
-
 TEST_F(EngineIoTest, VerifySizeModel) {
   constexpr char xml[] = R"(
   <mujoco>
@@ -82,49 +72,6 @@ TEST_F(EngineIoTest, VerifySizeModel) {
   mj_deleteModel(model);
 
   EXPECT_EQ(file_size, model_size);
-}
-
-TEST_F(EngineIoTest, MakeDataFromPartialModel) {
-  constexpr char xml[] = R"(
-  <mujoco>
-    <worldbody>
-      <body>
-        <joint/>
-        <geom size="1"/>
-      </body>
-    </worldbody>
-  </mujoco>
-  )";
-
-  std::array<char, 1024> error;
-  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
-  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error.data();
-  mjData* data_from_model = mj_makeData(model);
-  ASSERT_THAT(data_from_model, NotNull());
-
-  mjModel partial_model = PartialModel(model);
-  mj_deleteModel(model);
-
-  mjData* data_from_partial = mj_makeData(&partial_model);
-  ASSERT_THAT(data_from_partial, NotNull());
-
-  EXPECT_EQ(data_from_partial->nbuffer, data_from_model->nbuffer);
-  // If there are no mocap bodies and qpos0 is all zero, mjData should be the
-  // same whether it was made from the full model or the partial model.
-  {
-    MJDATA_POINTERS_PREAMBLE((&partial_model))
-    #define X(type, name, nr, nc)                                              \
-      if (strcmp(#name, "D_rownnz") && strcmp(#name, "D_rowadr")  &&           \
-          strcmp(#name, "B_rownnz") && strcmp(#name, "B_rowadr"))              \
-        EXPECT_EQ(std::memcmp(data_from_partial->name, data_from_model->name,  \
-                              sizeof(type)*(partial_model.nr)*(nc)),           \
-                  0) << "mjData::" #name " differs";
-    MJDATA_POINTERS
-    #undef X
-  }
-
-  mj_deleteData(data_from_model);
-  mj_deleteData(data_from_partial);
 }
 
 TEST_F(EngineIoTest, MakeDataLoadsQpos0) {
@@ -171,51 +118,6 @@ TEST_F(EngineIoTest, MakeDataLoadsMocapBodies) {
 
   mj_deleteData(data);
   mj_deleteModel(model);
-}
-
-TEST_F(EngineIoTest, CopyDataWithPartialModel) {
-  constexpr char xml[] = R"(
-  <mujoco>
-    <worldbody>
-      <body>
-        <joint/>
-        <geom size="1"/>
-      </body>
-      <body mocap="true" pos="42 0 42">
-        <geom type="sphere" size="0.1"/>
-      </body>
-    </worldbody>
-  </mujoco>
-  )";
-
-  std::array<char, 1024> error;
-  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
-  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error.data();
-  mjData* data = mj_makeData(model);
-  ASSERT_THAT(data, NotNull());
-
-  mjModel partial_model = PartialModel(model);
-  mj_deleteModel(model);
-  mjData* copy = mj_makeData(&partial_model);
-  ASSERT_THAT(copy, NotNull());
-
-  data->qpos[0] = 1;
-  mj_copyData(copy, &partial_model, data);
-
-  EXPECT_EQ(copy->nbuffer, data->nbuffer);
-  EXPECT_EQ(copy->qpos[0], 1);
-  {
-    MJDATA_POINTERS_PREAMBLE((&partial_model))
-    #define X(type, name, nr, nc)                                     \
-        EXPECT_EQ(std::memcmp(copy->name, data->name,                 \
-                              sizeof(type)*(partial_model.nr)*(nc)),  \
-                  0) << "mjData::" #name " differs";
-    MJDATA_POINTERS
-    #undef X
-  }
-
-  mj_deleteData(data);
-  mj_deleteData(copy);
 }
 
 TEST_F(EngineIoTest, MakeDataReturnsNullOnFailure) {

@@ -1219,9 +1219,9 @@ a frame at the center-of-mass of the local kinematic subtree (``mjData.subtree_c
 This choice increases the precision of kinematic computations for mechanisms that are distant from the global origin.
 
 ``cdof``:
-  These 6D motion vectors describe the instantaneous axis of a degree-of-freedom and are used by all Jacobian functions.
-  Therefore, the minimal computation required for analytic Jacobians is :ref:`mj_kinematics` followed by
-  :ref:`mj_comPos`.
+  These 6D motion vectors (3 rotation, 3 translation) describe the instantaneous axis of a degree-of-freedom and are
+  used by all Jacobian functions. The minimal computation required for analytic Jacobians is :ref:`mj_kinematics`
+  followed by :ref:`mj_comPos`.
 
 ``cinert``:
   These 10-vectors describe the inertial properties of a body in the c-frame and are used by the Composite Rigid Body

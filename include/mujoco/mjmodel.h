@@ -109,10 +109,11 @@ typedef enum mjtGeom_ {           // type of geometric shape
   mjGEOM_ARROW1,                  // arrow without wedges
   mjGEOM_ARROW2,                  // arrow in both directions
   mjGEOM_LINE,                    // line
+  mjGEOM_LINEBOX,                 // box with line edges
   mjGEOM_FLEX,                    // flex
   mjGEOM_SKIN,                    // skin
   mjGEOM_LABEL,                   // text label
-  mjGEOM_TRIANGLE,                // triangle connecting a frame
+  mjGEOM_TRIANGLE,                // triangle
 
   mjGEOM_NONE         = 1001      // missing geom type
 } mjtGeom;
@@ -246,7 +247,9 @@ typedef enum mjtObj_ {            // type of MujoCo object
   mjOBJ_TEXT,                     // text
   mjOBJ_TUPLE,                    // tuple
   mjOBJ_KEY,                      // keyframe
-  mjOBJ_PLUGIN                    // plugin instance
+  mjOBJ_PLUGIN,                   // plugin instance
+
+  mjNOBJECT                       // number of object types
 } mjtObj;
 
 
@@ -895,20 +898,23 @@ struct mjModel_ {
   int*      skin_bonebodyid;      // body id of each bone                     (nskinbone x 1)
   int*      skin_bonevertid;      // mesh ids of vertices in each bone        (nskinbonevert x 1)
   float*    skin_bonevertweight;  // weights of vertices in each bone         (nskinbonevert x 1)
+  int*      skin_pathadr;         // address of asset path for skin; -1: none (nskin x 1)
 
   // height fields
-  mjtNum*   hfield_size;          // (x, y, z_top, z_bottom)                  (nhfield x 4)
-  int*      hfield_nrow;          // number of rows in grid                   (nhfield x 1)
-  int*      hfield_ncol;          // number of columns in grid                (nhfield x 1)
-  int*      hfield_adr;           // address in hfield_data                   (nhfield x 1)
-  float*    hfield_data;          // elevation data                           (nhfielddata x 1)
+  mjtNum*   hfield_size;          // (x, y, z_top, z_bottom)                    (nhfield x 4)
+  int*      hfield_nrow;          // number of rows in grid                     (nhfield x 1)
+  int*      hfield_ncol;          // number of columns in grid                  (nhfield x 1)
+  int*      hfield_adr;           // address in hfield_data                     (nhfield x 1)
+  float*    hfield_data;          // elevation data                             (nhfielddata x 1)
+  int*      hfield_pathadr;       // address of asset path for hfield; -1: none (nhfield x 1)
 
   // textures
-  int*      tex_type;             // texture type (mjtTexture)                (ntex x 1)
-  int*      tex_height;           // number of rows in texture image          (ntex x 1)
-  int*      tex_width;            // number of columns in texture image       (ntex x 1)
-  int*      tex_adr;              // address in rgb                           (ntex x 1)
-  mjtByte*  tex_rgb;              // rgb (alpha = 1)                          (ntexdata x 1)
+  int*      tex_type;             // texture type (mjtTexture)                  (ntex x 1)
+  int*      tex_height;           // number of rows in texture image            (ntex x 1)
+  int*      tex_width;            // number of columns in texture image         (ntex x 1)
+  int*      tex_adr;              // address in rgb                             (ntex x 1)
+  mjtByte*  tex_rgb;              // rgb (alpha = 1)                            (ntexdata x 1)
+  int*      tex_pathadr;         // address of asset path for texture; -1: none (ntex x 1)
 
   // materials
   int*      mat_texid;            // texture id; -1: none                     (nmat x 1)

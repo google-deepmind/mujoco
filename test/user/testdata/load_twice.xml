@@ -1,0 +1,10 @@
+<mujoco>
+  <asset>
+    <mesh file="cube.obj"/>
+    <mesh file="cube.obj"/>
+  </asset>
+  <worldbody>
+    <geom type="mesh" mesh="cube_0"/>
+    <geom type="mesh" mesh="cube_1"/>
+  </worldbody>
+</mujoco>

@@ -399,6 +399,14 @@ bool mjCFlexcomp::Make(mjCModel* model, mjCBody* body, char* error, int error_sz
     // pinned: parent body
     if (pinned[i]) {
       pf->vertbody.push_back(body->name);
+
+      // add plugin
+      if (plugin_instance) {
+        body->is_plugin = true;
+        body->plugin_name = plugin_name;
+        body->plugin_instance = plugin_instance;
+        body->plugin_instance_name = plugin_instance_name;
+      }
     }
 
     // not pinned: new body

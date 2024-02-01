@@ -161,6 +161,62 @@ TEST_F(CoreConstraintTest, WeldRotJacobian) {
   mj_deleteModel(model);
 }
 
+// test formulas for penetration at rest
+TEST_F(CoreConstraintTest, RestPenetration) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <geom type="plane" size="1 1 1"/>
+      <body pos="0 0 .2">
+        <joint type="slide" axis="0 0 1"/>
+        <geom size=".1"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  mjModel* model = LoadModelFromString(xml);
+  ASSERT_THAT(model, testing::NotNull());
+  mjtNum gravity = -model->opt.gravity[2];
+  mjtNum damping_ratio = 0.8;
+  mjData* data = mj_makeData(model);
+
+  for (const mjtNum reference : {-100.0, -10.0, 0.1, 0.01}) {
+    for (const mjtNum impedance : {0.3, 0.9, 0.99}) {
+      // set solimp
+      for (int i=0; i < model->ngeom; i++) {
+        model->geom_solimp[i*mjNIMP + 0] = impedance;
+        model->geom_solimp[i*mjNIMP + 1] = impedance;
+      }
+
+      // set solref
+      for (int i=0; i < model->ngeom; i++) {
+        model->geom_solref[i*mjNREF + 0] = reference;
+        model->geom_solref[i*mjNREF + 1] = reference < 0 ? -10 : damping_ratio;
+      }
+
+      // simulate for 50 seconds
+      mj_resetData(model, data);
+      while (data->time < 50) {
+        mj_step(model, data);
+      }
+
+      mjtNum depth = -data->contact[0].dist;
+      mjtNum expected_depth;
+      if (reference < 0) {
+        expected_depth = gravity * (1 - impedance) / -reference;
+      } else {
+        mjtNum tc_dr = reference * damping_ratio;
+        expected_depth = gravity * (1 - impedance) * tc_dr * tc_dr;
+      }
+
+      EXPECT_THAT(depth, DoubleNear(expected_depth, 1e-10));
+    }
+  }
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
 static const char* const kDoflessContactPath =
     "engine/testdata/core_constraint/dofless_contact.xml";
 static const char* const kDoflessTendonFrictionalPath =

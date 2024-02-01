@@ -166,6 +166,7 @@ mjCMesh::mjCMesh(mjCModel* _model, mjCDef* _def) {
   valideigenvalue_ = true;
   validinequality_ = true;
   processed_ = false;
+  visual_ = true;
 
   // reset to default if given
   if (_def) {
@@ -294,6 +295,11 @@ void mjCMesh::LoadSDF() {
     throw mjCError(
         this, "neither 'plugin' nor 'instance' is specified for mesh '%s', (id = %d)",
         name.c_str(), id);
+  }
+
+  if (scale_[0] != 1 || scale_[1] != 1 || scale_[2] != 1) {
+    throw mjCError(this, "attribute scale is not compatible with SDFs in mesh '%s', (id = %d)",
+                   name.c_str(), id);
   }
 
   model->ResolvePlugin(this, plugin_name, plugin_instance_name, &plugin_instance);
@@ -582,8 +588,9 @@ void mjCMesh::Compile(const mjVFS* vfs) {
   // make bounding volume hierarchy
   if (tree_.bvh.empty()) {
     face_aabb_.assign(6*nface_, 0);
+    tree_.AllocateBoundingVolumes(nface_);
     for (int i=0; i<nface_; i++) {
-      tree_.AddBoundingVolume(GetBoundingVolume(i));
+      SetBoundingVolume(i);
     }
     tree_.CreateBVH();
   }
@@ -592,13 +599,13 @@ void mjCMesh::Compile(const mjVFS* vfs) {
 
 
 // get bounding volume
-mjCBoundingVolume mjCMesh::GetBoundingVolume(int faceid) {
-  mjCBoundingVolume node;
-  node.id = faceid;
-  node.conaffinity = 1;
-  node.contype = 1;
-  node.pos = center_ + 3*faceid;
-  node.quat = NULL;
+void mjCMesh::SetBoundingVolume(int faceid) {
+  mjCBoundingVolume* node = tree_.GetBoundingVolume(faceid);
+  node->SetId(faceid);
+  node->conaffinity = 1;
+  node->contype = 1;
+  node->pos = center_ + 3*faceid;
+  node->quat = NULL;
   mjtNum face_aamm[6] = {1E+10, 1E+10, 1E+10, -1E+10, -1E+10, -1E+10};
   for (int j=0; j<3; j++) {
     int vertid = face_[3*faceid+j];
@@ -615,8 +622,7 @@ mjCBoundingVolume mjCMesh::GetBoundingVolume(int faceid) {
   face_aabb_[6*faceid+3] = .5 * (face_aamm[3] - face_aamm[0]);
   face_aabb_[6*faceid+4] = .5 * (face_aamm[4] - face_aamm[1]);
   face_aabb_[6*faceid+5] = .5 * (face_aamm[5] - face_aamm[2]);
-  node.aabb = face_aabb_.data() + 6*faceid;
-  return node;
+  node->aabb = face_aabb_.data() + 6*faceid;
 }
 
 
@@ -699,6 +705,13 @@ void mjCMesh::CopyTexcoord(float* arr) const {
 
 void mjCMesh::CopyGraph(int* arr) const {
   std::copy(graph_, graph_+szgraph_, arr);
+}
+
+
+
+void mjCMesh::DelTexcoord() {
+  if (texcoord_) mju_free(texcoord_);
+  ntexcoord_ = 0;
 }
 
 
@@ -2224,6 +2237,15 @@ mjCFlex::mjCFlex(mjCModel* _model) {
 }
 
 
+bool mjCFlex::HasTexcoord() const {
+  return !texcoord.empty();
+}
+
+
+void mjCFlex::DelTexcoord() {
+  texcoord.clear();
+}
+
 
 // compiler
 void mjCFlex::Compile(const mjVFS* vfs) {
@@ -2423,14 +2445,11 @@ void mjCFlex::Compile(const mjVFS* vfs) {
 
 // create flex BVH
 void mjCFlex::CreateBVH(void) {
-  // init bounding volume object
-  mjCBoundingVolume bv;
-  bv.contype = contype;
-  bv.conaffinity = conaffinity;
-  bv.quat = NULL;
+  int nbvh = 0;
 
   // allocate element bounding boxes
-  vector<mjtNum> elemaabb(6*nelem);
+  elemaabb.resize(6*nelem);
+  tree.AllocateBoundingVolumes(nelem);
 
   // construct element bounding boxes, add to hierarchy
   for (int e=0; e<nelem; e++) {
@@ -2461,13 +2480,17 @@ void mjCFlex::CreateBVH(void) {
     elemaabb[6*e+5] = 0.5*(xmax[2]-xmin[2]) + radius;
 
     // add bounding volume for this element
-    bv.id = e;
-    bv.aabb = elemaabb.data() + 6*e;
-    bv.pos = bv.aabb;
-    tree.AddBoundingVolume(bv);
+    mjCBoundingVolume* bv = tree.GetBoundingVolume(nbvh++);
+    bv->contype = contype;
+    bv->conaffinity = conaffinity;
+    bv->quat = NULL;
+    bv->SetId(e);
+    bv->aabb = elemaabb.data() + 6*e;
+    bv->pos = bv->aabb;
   }
 
   // create hierarchy
+  tree.RemoveInactiveVolumes(nbvh);
   tree.CreateBVH();
 }
 

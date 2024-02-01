@@ -300,19 +300,22 @@ is attached; the possible attachment object types are :at:`joint`, :at:`tendon`,
    Slider-cranks can also be modeled explicitly by creating MuJoCo bodies and coupling them with equality constraints to
    the rest of the system, but that would be less efficient.
 
-:at:`site`
-   :at:`site` transmission (without a :at:`refsite`, see below) and :at:`body` transmission targets have a fixed zero
-   length :math:`l_i(q) = 0`. They can therefore not be used to maintain a desired length, but can be used to apply
-   forces. Site transmissions correspond to applying a Cartsian force/torque at the site, and are useful for modeling
-   jets and propellors. :el:`body` transmissions correspond to applying forces at contact points belonging to a body, in
+:at:`body`
+   :el:`body` transmission corresponds to applying forces at contact points belonging to a body, in
    order to model vacuum grippers and biomechanical adhesive appendages. For more information about adhesion, see the
-   :ref:`adhesion<actuator-adhesion>` actuator documentation.
+   :ref:`adhesion<actuator-adhesion>` actuator documentation. These transmission targets have a fixed zero length
+   :math:`l_i(q) = 0`.
 
-   If a :at:`site` transmission target is defined with the optional :at:`refsite` attribute, forces and torques are
-   applied in the frame of the reference site rather than the site's own frame. If a reference site is defined then
-   the length of the actuator is nonzero and corresponds to the pose difference of the two sites. This length can then
-   be controlled with a :el:`position` actuator, enabling Cartesian end-effector control. See the
-   :ref:`refsite<actuator-general-refsite>` documentation for more details.
+:at:`site`
+   Site transmissions correspond to applying a Cartsian force/torque in the frame of a site. When a :at:`refsite` is not
+   defined (see below), these targets have a fixed zero length :math:`l_i(q) = 0` and are useful for modeling jets and
+   propellors: forces and torques which are fixed to the site frame.
+
+   If a :at:`site` transmission is defined with the optional :at:`refsite` attribute, forces and torques are applied in
+   the frame of the reference site rather than the site's own frame. If a reference site is defined, the length of the
+   actuator is nonzero and corresponds to the pose difference of the two sites, projected onto a chosen direction in the
+   reference frame. This length can then be controlled with a :el:`position` actuator, allowing for Cartesian
+   end-effector control. See the :ref:`refsite<actuator-general-refsite>` documentation for more details.
 
 .. _geActivation:
 
@@ -963,6 +966,12 @@ is :math:`E f`. The matrix of basis vectors is constructed as follows.
 .. image:: ../images/computation/contact_frame.svg
    :width: 700px
    :align: center
+   :class: only-light
+
+.. image:: ../images/computation/contact_frame_dark.svg
+   :width: 700px
+   :align: center
+   :class: only-dark
 
 The figure illustrates the full basis set corresponding to the case :math:`n = 6`. Otherwise we use only the first
 :math:`n` or :math:`2(n-1)` columns depending on the cone type. Elliptic cones are easier to understand. Since the
@@ -1322,6 +1331,12 @@ representations of the constraint Jacobian and related matrices.
    .. image:: ../images/computation/gPGS.svg
       :width: 500px
       :align: center
+      :class: only-light
+
+   .. image:: ../images/computation/gPGS_dark.svg
+      :width: 500px
+      :align: center
+      :class: only-dark
 
    When using pyramidal friction cones, the problem involves box constraints to which PGS has traditionally been
    applied. If we applied PGS directly to the conic constraints resulting from elliptic friction cones, it would get
@@ -1421,12 +1436,18 @@ approximations, no matter how accurate the approximation is. The figure below il
 where the pyramid is not even an approximation, but represents the same constraint set as the elliptic cone. We plot the
 contours of the penalty/shadow for the pyramidal (red) and elliptic (dashed blue) cones, for different friction
 coefficients varying from left to right. Mathematically, the penalty in the pyramidal case is a quadratic spline, while
-the penalty in the elliptic case contains pieces that are quadratics minus square roots of quadratics - allowing
+the penalty in the elliptic case contains pieces that are quadratics minus square roots of quadratics -- allowing
 circular contours around the tip of the cone.
 
 .. image:: ../images/computation/softcontact.png
    :width: 600px
    :align: center
+   :class: only-light
+
+.. image:: ../images/computation/softcontact_dark.png
+   :width: 600px
+   :align: center
+   :class: only-dark
 
 In summary, elliptic and pyramidal friction cones define different soft-contact dynamics (although they are usually very
 close). The elliptic model is more principled and more consistent with physical intuition, and the corresponding solvers
@@ -1455,48 +1476,45 @@ others can be pruned quickly without a detailed check. MuJoCo has flexible mecha
 checked in detail. The decision process involves two stages: generation and filtering.
 
 Generation
-   First we generate a list of candidate geom pairs in one of two ways: "pair" or "dynamic". The user can also specify
-   "all" which merges both sources (and is the default). This is done via the setting ``mjModel.opt.collision``. "Pair"
-   refers to an explicit list of geom pairs defined with the :ref:`pair <contact-pair>` element in MJCF. It gives the
-   user full control, however it is a static mechanism (independent of the spatial arrangement of the geoms at runtime)
-   and can be tedious for large models. It is normally used to supplement the output of the "dynamic" mechanism. Dynamic
-   generation works with bodies rather than geoms; when a body pair is included this means that all geoms attached to
-   one body can collide with all geoms attached to the other body.
+   First we generate a list of candidate geom pairs by merging from two sources: pairs of bodies that might contain
+   colliding geoms and the explicit list of geom pairs defined with the :ref:`pair <contact-pair>` element in MJCF.
 
    The body pairs are generated via broad-phase collision detection based on a modified sweep-and-prune algorithm. The
    modification is that the axis for sorting is chosen as the principal eigenvector of the covariance matrix of all geom
-   centers - which maximizes the spread. Then, for each body pair, a mid-phase collision detection using a static
-   bounding volume hierarchy (a BVH binary tree) of axis-aligned bounding boxes (AABB) is performed. Each body is
-   equipped with an AABB tree of its geoms, aligned with the body inertial or geom frames for all inner or leaf nodes,
+   centers -- which maximizes the spread. Then, for each body pair, mid-phase collision detection is performed using a
+   static bounding volume hierarchy (a BVH binary tree) of axis-aligned bounding boxes (AABB). Each body is equipped
+   with an AABB tree of its geoms, aligned with the body inertial or geom frames for all inner or leaf nodes,
    respectively.
 
-   Finally, the user can explicitly exclude certain body pairs using the :ref:`exclude <contact-exclude>` element
-   in MJCF. Exclusion is applied when "dynamic" or "all" are selected, but not when "pair" is selected. At the end of
-   this step we have a list of geoms pairs that is typically much smaller than :math:`n (n-1)/2`, but can still be
-   pruned further before detailed collision checking.
+   Finally, the user can explicitly exclude certain body pairs using the :ref:`exclude <contact-exclude>` element in
+   MJCF. At the end of this step we have a list of geoms pairs that is typically much smaller than :math:`n (n-1)/2`,
+   but can still be pruned further before detailed collision checking.
 
 Filtering
    Next we apply four filters to the list generated in the previous step. Filters 1 and 2 are applied to all geom pairs.
-   Filters 3 and 4 are applied only to pairs generated by the "dynamic" mechanism, thereby allowing the user to bypass
+   Filters 3 and 4 are applied only to pairs generated by the body-pair mechanism, thereby allowing the user to bypass
    those filters by specifying geom pairs explicitly.
 
-   #. The types of the two geoms must correspond to a collision function that is capable of performing the detailed
+   1. The types of the two geoms must correspond to a collision function that is capable of performing the detailed
       check. This is usually the case but there are exceptions (for example plane-plane collisions are not supported),
       and furthermore the user may override the default table of collision functions with NULL pointers, effectively
       disabling collisions between certain geom types.
-   #. A bounding sphere test is applied, taking into account the contact margin. If one of the geoms in the pair is a
+   2. A bounding sphere test is applied, taking into account the contact margin. If one of the geoms in the pair is a
       plane, this becomes a plane-sphere test.
-   #. The two geoms cannot belong to the same body. Furthermore, they cannot belong to a parent and a child body, unless
+   3. The two geoms cannot belong to the same body. Furthermore, they cannot belong to a parent and a child body, unless
       the parent is the world body. The motivation is to avoid permanent contacts within bodies and joints. Note that if
       several bodies are welded together in the sense that there are no joints between them, they are treated as a
       single body for the purposes of this test. The parent-filter test can be disabled by the user, while the same-body
       test cannot be disabled.
-   #. The two geoms must be "compatible" in the following sense. Each geom has integer parameters ``contype`` and
+   4. The two geoms must be "compatible" in the following sense. Each geom has integer parameters ``contype`` and
       ``conaffinity``. The boolean expression below must be true for the test to pass:
-      ``(contype1 & conaffinity2) || (contype2 & conaffinity1)`` This requires the ``contype`` of one geom and the
-      ``conaffinity`` of the other geom to have a common bit set to 1. This is a powerful mechanism borrowed from the
-      Open Dynamics Engine. The default setting for all geoms is ``contype = conaffinity = 1`` which always passes the
-      test, so the user can ignore this mechanism if it is confusing at first.
+
+      ``(contype1 & conaffinity2) || (contype2 & conaffinity1)``
+
+      This requires the ``contype`` of one geom and the ``conaffinity`` of the other geom to have a common bit set to 1.
+      This is a powerful mechanism borrowed from Open Dynamics Engine. The default setting for all geoms is
+      ``contype = conaffinity = 1`` which always passes the test, so the user can ignore this mechanism if it is
+      confusing at first.
 
 .. _coChecking:
 
@@ -1517,12 +1535,12 @@ convex hull implicitly, however pre-computing that hull can substantially improv
 model compiler does that by default, using the `qhull <http://www.qhull.org/>`__ library.
 
 In order to model a non-convex object other than a height field, the user must decompose it into a union of convex geoms
-(which can be primitive shapes or meshes) and attach them to the same body. Tools such as the
-`HACD <https://github.com/kmammou/v-hacd>`__ library can be used outside MuJoCo to automate this process. Finally, all
-built-in collision functions can be replaced with custom callbacks. This can be used to incorporate a general-purpose
-"triangle soup" collision detector for example. However we do not recommend such an approach. Pre-processing the
-geometry and representing it as a union of convex geoms takes some work, but it pays off at runtime and yields both
-faster and more stable simulation.
+(which can be primitive shapes or meshes) and attach them to the same body. Open tools like the `CoACD library
+<https://github.com/SarahWeiii/CoACD>`__ can be used outside MuJoCo to automate this process. Finally, all built-in
+collision functions can be replaced with custom callbacks. This can be used to incorporate a general-purpose "triangle
+soup" collision detector for example. However we do not recommend such an approach. Pre-processing the geometry and
+representing it as a union of convex geoms takes some work, but it pays off at runtime and yields both faster and more
+stable simulation.
 
 .. _Pipeline:
 
@@ -1538,44 +1556,59 @@ be used to skip default steps and to enable optional steps respectively. Callbac
 Forward dynamics
 ~~~~~~~~~~~~~~~~
 
-The top-level function :ref:`mj_step` invokes the sequence of computations below. Alternatively one can call
-:ref:`mj_forward` which invokes only steps 2-21.
+The source file `engine_forward.c <https://github.com/google-deepmind/mujoco/blob/main/src/engine/engine_forward.c>`__
+contains the high-level forward dynamics pipeline:
 
-#. Check the positions and velocities for invalid or unacceptably large real values indicating divergence. If divergence
-   is detected, the state is automatically reset and the corresponding warning is raised.
-#. Compute the forward kinematics. This yields the global positions and orientations of all bodies, geoms, sites,
-   cameras and lights. It also normalizes all quaternions, just in case.
-#. Compute the body inertias and joint axes, in global frames centered at the centers of mass of the corresponding
-   kinematic subtrees (to improve floating-point accuracy).
-#. Compute the actuator lengths and moment arms.
-#. Compute the composite rigid body inertias and construct the joint-space inertia matrix.
-#. Compute the sparse factorization of the joint-space inertia matrix.
-#. Construct the list of active contacts. This includes both broad-phase and near-phase collision detection.
-#. Construct the constraint Jacobian and compute the constraint residuals.
-#. Compute the matrices and vectors needed by the constraint solvers.
-#. Compute the tendon lengths and moment arms. This includes the computation of minimal-length paths for spatial
-   tendons.
-#. Compute sensor data that only depends on position, and the potential energy if enabled.
-#. Compute the tendon and actuator velocities.
-#. Compute the body velocities and rates of change of the joint axes, again in the global coordinate frames centered at
-   the subtree centers of mass.
-#. Compute all passive forces: spring-dampers in joints and tendons, and fluid dynamics forces.
-#. Compute sensor data that depends on velocity, and the kinetic energy if enabled.
-   If required by sensors, call :ref:`mj_subtreeVel`.
-#. Compute the reference constraint acceleration.
-#. Compute the vector of Coriolis, centrifugal and gravitational forces.
-#. Compute the actuator forces and activation dynamics if defined.
-#. Compute the joint acceleration resulting from all forces except for the (still unknown) constraint forces.
-#. Compute the constraint forces with the selected solver, and update the joint acceleration so as to account for the
-   constraint forces. This yields the vector ``mjData.qacc`` which is the main output of forward dynamics.
-#. Compute sensor data that depends on force and acceleration if enabled.
-   If required by sensors, call :ref:`mj_rnePostConstraint`.
-#. Check the acceleration for invalid or unacceptably large real values. If divergence is detected, the state is
-   automatically reset and the corresponding warning is raised.
-#. Compare the results of forward and inverse dynamics, so as to diagnose poor solver convergence in the forward
-   dynamics. This is an optional step, and is performed only when enabled.
-#. Advance the simulation state by one time step, using the selected integrator. Note that the Runge-Kutta integrator
-   repeats the above sequence three more times, except for the optional computations which are performed only once.
+- The top-level function :ref:`mj_step` invokes the entire sequence of computations below.
+- :ref:`mj_forward` invokes only stages **2-22**, computing the continuous-time forward dynamics, ending with the
+  acceleration ``mjData.qacc``.
+- :ref:`mj_step1` invokes stages **1-18** and :ref:`mj_step2` invokes stages **19-25**, breaking :ref:`mj_step` into two
+  distinct phases. This allows the user to write controllers that depend on quantities derived from the positions and
+  velocities (but not forces, since those have not yet been computed). Note that the :ref:`mj_step1` → :ref:`mj_step2`
+  pipeline does not support the Runge Kutta integrator.
+
+1. Check the positions and velocities for invalid or unacceptably large real values indicating divergence. If divergence
+   is detected, the state is automatically reset and the corresponding warning is raised:
+   :ref:`mj_checkPos`, :ref:`mj_checkVel`
+2. Compute the forward kinematics. This yields the global positions and orientations of all bodies, geoms, sites,
+   cameras and lights. It also normalizes all quaternions: :ref:`mj_kinematics`, :ref:`mj_camLight`
+3. Compute the body inertias and joint axes, in global frames centered at the centers of mass of the corresponding
+   kinematic subtrees: :ref:`mj_comPos`
+4. Compute quantities related to :ref:`flex<deformable-flex>` objects: :ref:`mj_flex`
+5. Compute the actuator lengths and moment arms: :ref:`mj_tendon`
+6. Compute the composite rigid body inertias and joint-space inertia matrix: :ref:`mj_crb`
+7. Compute the sparse factorization of the joint-space inertia matrix: :ref:`mj_factorM`
+8. Construct the list of active contacts. This includes both broad-phase and near-phase collision detection:
+   :ref:`mj_collision`
+9. Construct the constraint Jacobian and compute the constraint residuals: :ref:`mj_makeConstraint`
+10. Compute the matrices and vectors needed by the constraint solvers: :ref:`mj_projectConstraint`
+11. Compute the tendon lengths and moment arms. This includes the computation of minimal-length paths for spatial
+    tendons: :ref:`mj_transmission`
+12. Compute sensor data that only depends on position, and the potential energy if enabled: :ref:`mj_sensorPos`,
+    :ref:`mj_energyPos`
+13. Compute the tendon, flex edge and actuator velocities: :ref:`mj_fwdVelocity`
+14. Compute the body velocities and rates of change of the joint axes, again in the global coordinate frames centered at
+    the subtree centers of mass: :ref:`mj_comVel`
+15. Compute passive forces -- spring-dampers in joints and tendons, and fluid forces: :ref:`mj_passive`
+16. Compute sensor data that depends on velocity, and the kinetic energy if enabled
+    (if required by sensors, call :ref:`mj_subtreeVel`): :ref:`mj_sensorVel`
+17. Compute the reference constraint acceleration: :ref:`mj_referenceConstraint`
+18. Compute the vector of Coriolis, centrifugal and gravitational forces: :ref:`mj_rne`
+19. Compute the actuator forces and activation dynamics if defined: :ref:`mj_fwdActuation`
+20. Compute the joint acceleration resulting from all forces except for the (still unknown) constraint forces:
+    :ref:`mj_fwdAcceleration`
+21. Compute the constraint forces with the selected solver, and update the joint acceleration so as to account for the
+    constraint forces. This yields the vector ``mjData.qacc`` which is the main output of forward dynamics:
+    :ref:`mj_fwdConstraint`
+22. Compute sensor data that depends on force and acceleration if enabled
+    (if required by sensors, call :ref:`mj_rnePostConstraint`): :ref:`mj_sensorAcc`
+23. Check the acceleration for invalid or unacceptably large real values. If divergence is detected, the state is
+    automatically reset and the corresponding warning is raised: :ref:`mj_checkAcc`
+24. Compare the results of forward and inverse dynamics, so as to diagnose poor solver convergence in the forward
+    dynamics. This is an optional step, and is performed only when enabled: :ref:`mj_compareFwdInv`
+25. Advance the simulation state by one time step, using the selected integrator. Note that the Runge-Kutta integrator
+    repeats the above sequence three more times, except for the optional computations which are performed only once:
+    one of :ref:`mj_Euler`, :ref:`mj_RungeKutta`, :ref:`mj_implicit`
 
 .. _piInverse:
 

@@ -44,6 +44,7 @@
               radius=".001" mass="10" name="plate" dim="2">
       <contact condim="3" solref="0.01 1" solimp=".95 .99 .0001"/>
       <edge equality="false" damping="10"/>
+      <pin id="0 15 240 255"/>
       <plugin plugin="mujoco.elasticity.membrane">
         <config key="poisson" value="0"/>
         <config key="thickness" value="1e-2"/>
@@ -52,11 +53,4 @@
       </plugin>
     </flexcomp>
   </worldbody>
-
-  <equality>
-    <connect body1="plate_0" anchor="0 0 0"/>
-    <connect body1="plate_15" anchor="0 0 0"/>
-    <connect body1="plate_240" anchor="0 0 0"/>
-    <connect body1="plate_255" anchor="0 0 0"/>
-  </equality>
 </mujoco>

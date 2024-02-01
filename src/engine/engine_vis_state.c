@@ -86,6 +86,11 @@ void mjv_makeSceneState(const mjModel* m, const mjData* d, mjvSceneState* scnsta
 #undef XMJV
 #undef X
 
+  // create an arena in the scnstate, to allow visualization code to use the stack.
+  // TODO: Consider allocating way less than narena, since stack allocations in
+  // visualization code are much smaller than the arena space required by the model,
+  // typically.
+  scnstate->nbuffer += roundUpToCacheLine(m->narena);
   // buffer space required for contacts
   int condimmax = mj_isPyramidal(m) ? 10 : 6;
   scnstate->nbuffer += roundUpToCacheLine(sizeof(*d->contact) * maxgeom);
@@ -117,6 +122,10 @@ void mjv_makeSceneState(const mjModel* m, const mjData* d, mjvSceneState* scnsta
   MJDATA_POINTERS
 #undef XMJV
 #undef X
+
+  scnstate->model.narena = m->narena;
+  scnstate->data.arena = (void*)ptr;
+  ptr += roundUpToCacheLine(m->narena);
 
   scnstate->data.contact = (mjContact*)ptr;
   ptr += roundUpToCacheLine(sizeof(*scnstate->data.contact) * scnstate->maxgeom);
@@ -177,6 +186,7 @@ void mjv_assignFromSceneState(const mjvSceneState* scnstate, mjModel* m, mjData*
     m->opt = scnstate->model.opt;
     m->vis = scnstate->model.vis;
     m->stat = scnstate->model.stat;
+    m->narena = scnstate->model.narena;
 
 #define X(dtype, var, dim0, dim1)
 #define XMJV(dtype, var, dim0, dim1) m->var = scnstate->model.var;
@@ -194,10 +204,16 @@ void mjv_assignFromSceneState(const mjvSceneState* scnstate, mjModel* m, mjData*
 #endif
 
     memcpy(d->warning, scnstate->data.warning, sizeof(d->warning));
+    d->threadpool = 0;
     d->nefc = scnstate->data.nefc;
     d->ncon = scnstate->data.ncon;
     d->nisland = scnstate->data.nisland;
     d->time = scnstate->data.time;
+    d->narena = scnstate->model.narena;
+    d->arena = scnstate->data.arena;
+    d->parena = 0;
+    d->pbase = 0;
+    d->pstack = 0;
 
   #define X(dtype, var, dim0, dim1)
   #define XMJV(dtype, var, dim0, dim1) d->var = scnstate->data.var;
@@ -241,11 +257,11 @@ int mjv_updateSceneFromState(const mjvSceneState* scnstate, const mjvOption* opt
   // add all categories
   mjv_addGeoms(&m, &d, opt, pert, catmask, scn);
 
-  // add lights
-  mjv_makeLights(&m, &d, scn);
-
   // update camera
   mjv_updateCamera(&m, &d, cam, scn);
+
+  // add lights
+  mjv_makeLights(&m, &d, scn);
 
   // update flexes
   if (opt->flags[mjVIS_FLEXVERT] || opt->flags[mjVIS_FLEXEDGE] ||

@@ -17,6 +17,7 @@
 #include <algorithm>
 #include <atomic>
 #include <chrono>
+#include <climits>
 #include <cstdio>
 #include <cstring>
 #include <memory>
@@ -836,15 +837,8 @@ void MakeRenderingSection(mj::Simulate* sim, const mjModel* m, int oldstate) {
     {mjITEM_END}
   };
   for (int i=0; i<mjNVISFLAG; i++) {
-    // set name, remove "&"
+    // set name
     mju::strcpy_arr(defFlag[0].name, mjVISSTRING[i][0]);
-    for (int j=0; j<strlen(mjVISSTRING[i][0]); j++) {
-      if (mjVISSTRING[i][0][j]=='&') {
-        mju_strncpy(
-          defFlag[0].name+j, mjVISSTRING[i][0]+j+1, mju::sizeof_arr(defFlag[0].name)-j);
-        break;
-      }
-    }
 
     // set shortcut and data
     if (mjVISSTRING[i][2][0]) {
@@ -867,7 +861,10 @@ void MakeRenderingSection(mj::Simulate* sim, const mjModel* m, int oldstate) {
   // add rendering flags
   mjui_add(&sim->ui0, defOpenGL);
   for (int i=0; i<mjNRNDFLAG; i++) {
+    // set name
     mju::strcpy_arr(defFlag[0].name, mjRNDSTRING[i][0]);
+
+    // set shortcut and data
     if (mjRNDSTRING[i][2][0]) {
       mju::sprintf_arr(defFlag[0].other, " %s", mjRNDSTRING[i][2]);
     } else {
@@ -1566,9 +1563,10 @@ void UiEvent(mjuiState* state) {
           mjui0_update_section(sim, SECT_SIMULATION);
         }
 
-        // not in scrubber: step
+        // not in scrubber: step, add to history buffer
         else {
           mj_step(sim->m_, sim->d_);
+          sim->AddToHistory();
         }
 
         UpdateProfiler(sim, sim->m_, sim->d_);
@@ -1813,6 +1811,9 @@ void Simulate::Sync() {
   MutexLock lock(this->mtx);
 
   if (!m_) {
+    return;
+  }
+  if (this->exitrequest.load()) {
     return;
   }
 
@@ -2227,13 +2228,13 @@ void Simulate::LoadOnRenderThread() {
 
   // allocate history buffer: smaller of {2000 states, 100 MB}
   if (!this->is_passive_) {
-    constexpr int kHistoryLength = 2000;
     constexpr int kMaxHistoryBytes = 1e8;
 
     // get state size, size of history buffer
     state_size_ = mj_stateSize(this->m_, mjSTATE_INTEGRATION);
     int state_bytes = state_size_ * sizeof(mjtNum);
-    int history_bytes = mjMIN(state_bytes * kHistoryLength, kMaxHistoryBytes);
+    int history_length = mjMIN(INT_MAX / state_bytes, 2000);
+    int history_bytes = mjMIN(state_bytes * history_length, kMaxHistoryBytes);
     nhistory_ = history_bytes / state_bytes;
 
     // allocate history buffer, reset cursor and UI slider
@@ -2474,7 +2475,14 @@ void Simulate::Render() {
 
   // show pause/loading label
   if (!this->run || this->loadrequest) {
-    const char* label = this->loadrequest ? "LOADING..." : "PAUSE";
+    char label[30] = {'\0'};
+    if (this->loadrequest) {
+      std::snprintf(label, sizeof(label), "LOADING...");
+    } else if (this->scrub_index == 0) {
+      std::snprintf(label, sizeof(label), "PAUSE");
+    } else {
+      std::snprintf(label, sizeof(label), "PAUSE (%d)", this->scrub_index);
+    }
     mjr_overlay(mjFONT_BIG, mjGRID_TOP, smallrect, label, nullptr,
                 &this->platform_ui->mjr_context());
   }
@@ -2705,9 +2713,9 @@ void Simulate::RenderLoop() {
     }
   }
 
-  if (!is_passive_){
-    mjv_freeScene(&this->scn);
-  } else {
+  const MutexLock lock(this->mtx);
+  mjv_freeScene(&this->scn);
+  if (is_passive_) {
     mjv_freeSceneState(&scnstate_);
   }
 

@@ -436,6 +436,7 @@ struct mjvSceneState_ {
     int nnames;
     int npaths;
     int nsensordata;
+    int narena;
 
     mjOption opt;
     mjVisual vis;
@@ -507,6 +508,7 @@ struct mjvSceneState_ {
     int* flex_vertadr;
     int* flex_vertnum;
     int* flex_elem;
+    int* flex_elemlayer;
     int* flex_elemadr;
     int* flex_elemnum;
     int* flex_elemdataadr;
@@ -518,6 +520,8 @@ struct mjvSceneState_ {
     int* flex_bvhnum;
     mjtNum* flex_radius;
     float* flex_rgba;
+
+    int* hfield_pathadr;
 
     int* mesh_bvhadr;
     int* mesh_bvhnum;
@@ -545,6 +549,9 @@ struct mjvSceneState_ {
     int* skin_bonebodyid;
     int* skin_bonevertid;
     float* skin_bonevertweight;
+    int* skin_pathadr;
+
+    int* tex_pathadr;
 
     int* mat_texid;
     mjtByte* mat_texuniform;
@@ -643,6 +650,7 @@ struct mjvSceneState_ {
     mjtNum* ten_length;
     mjtNum* wrap_xpos;
 
+    mjtNum* bvh_aabb_dyn;
     mjtByte* bvh_active;
     int* island_dofadr;
     int* island_dofind;
@@ -654,6 +662,7 @@ struct mjvSceneState_ {
 
     mjContact* contact;
     mjtNum* efc_force;
+    void* arena;
   } data;
 };
 typedef struct mjvSceneState_ mjvSceneState;

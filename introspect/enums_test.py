@@ -61,7 +61,7 @@ class EnumsTest(absltest.TestCase):
     self.assertEqual(enum_decl.values['mjGEOM_ARROW'], 100)
     self.assertEqual(enum_decl.values['mjGEOM_ARROW1'], 101)
     self.assertEqual(enum_decl.values['mjGEOM_ARROW2'], 102)
-    self.assertEqual(enum_decl.values['mjGEOM_TRIANGLE'], 107)
+    self.assertEqual(enum_decl.values['mjGEOM_TRIANGLE'], 108)
     # Skip a few...
 
     self.assertEqual(enum_decl.values['mjGEOM_NONE'], 1001)

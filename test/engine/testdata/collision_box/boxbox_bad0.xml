@@ -1,0 +1,36 @@
+<mujoco>
+  <!-- This model leads to bad contacts from mjc_BoxBox -->
+
+  <default>
+    <geom rgba="1 1 1 1" margin="1e-3" gap="1e-3"/>
+    <site type="sphere" rgba="0 0 0 0" size="0.001"/>
+  </default>
+
+  <worldbody>
+    <light diffuse="1 1 1" pos="-5 -17.5 15" dir="0.24 0.84 -0.48"/>
+    <camera name="fixed" pos="0 -25 8" euler="90 0 0"/>
+    <geom name="ground" pos="0 0 0" quat="1 0 0 0" rgba="0.770 0.670 0.490 1" size="50 50 1" type="plane"/>
+    <body name="block01" pos="-0.9 0 1.5" quat="1 0 0 0">
+      <freejoint/>
+      <geom mass="1" name="geom01" rgba="0.5 0 0 1" size="0.5 0.5 1.5" type="box"/>
+    </body>
+    <body name="block02" pos="-0.7 0 3.5" quat="1 0 0 0">
+      <freejoint/>
+      <geom mass="1" name="geom02" rgba="0.5 0 0.350 1" size="1.5 0.5 0.5" type="box"/>
+    </body>
+    <body name="block03" pos="0.3 0 5.5" quat="1 0 0 0">
+      <freejoint/>
+      <geom mass="1" name="geom03" rgba="0 0.5 0.450 1" size="0.5 0.5 1.5" type="box"/>
+    </body>
+    <body name="block04" pos="0.200 1e-9 7.5" quat="1 0 0 0">
+      <freejoint/>
+      <geom mass="1" name="geom04" rgba="0 0.5 0.099 1" size="1.5 0.5 0.5" type="box"/>
+    </body>
+  </worldbody>
+
+  <contact>
+    <exclude body1="world" body2="block01"/>
+    <exclude body1="block03" body2="block02"/>
+  </contact>
+
+</mujoco>
