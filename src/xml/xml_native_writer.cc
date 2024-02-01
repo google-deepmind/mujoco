@@ -90,8 +90,8 @@ void mjXWriter::OneFlex(XMLElement* elem, mjCFlex* pflex) {
   // common attributes
   WriteAttrTxt(elem, "name", pflex->name);
   WriteAttr(elem, "radius", 1, &pflex->radius, &defflex.radius);
-  if (pflex->material != defflex.material) {
-    WriteAttrTxt(elem, "material", pflex->material);
+  if (pflex->get_material() != defflex.get_material()) {
+    WriteAttrTxt(elem, "material", pflex->get_material());
   }
   WriteAttr(elem, "rgba", 4, pflex->rgba, defflex.rgba);
   WriteAttrKey(elem, "flatskin", bool_map, 2, pflex->flatskin, defflex.flatskin);
@@ -204,7 +204,7 @@ void mjXWriter::OneSkin(XMLElement* elem, mjCSkin* pskin) {
   // write attributes
   WriteAttrTxt(elem, "name", pskin->name);
   WriteAttrTxt(elem, "file", pskin->file);
-  WriteAttrTxt(elem, "material", pskin->material);
+  WriteAttrTxt(elem, "material", pskin->get_material());
   WriteAttrInt(elem, "group", pskin->group, 0);
   WriteAttr(elem, "rgba", 4, pskin->rgba, mydef.geom.rgba);
   WriteAttr(elem, "inflate", 1, &pskin->inflate, &zero);
@@ -396,8 +396,8 @@ void mjXWriter::OneGeom(XMLElement* elem, mjCGeom* pgeom, mjCDef* def) {
   } else {
     WriteAttr(elem, "density", 1, &pgeom->density, &def->geom.density);
   }
-  if (pgeom->material != def->geom.material) {
-    WriteAttrTxt(elem, "material", pgeom->material);
+  if (pgeom->get_material() != def->geom.get_material()) {
+    WriteAttrTxt(elem, "material", pgeom->get_material());
   }
   WriteAttr(elem, "rgba", 4, pgeom->rgba, def->geom.rgba);
 
@@ -444,16 +444,16 @@ void mjXWriter::OneSite(XMLElement* elem, mjCSite* psite, mjCDef* def) {
   // defaults and regular
   WriteAttrInt(elem, "group", psite->group, def->site.group);
   WriteAttrKey(elem, "type", geom_map, mjNGEOMTYPES, psite->type, def->site.type);
-  if (psite->material != def->site.material) {
-    WriteAttrTxt(elem, "material", psite->material);
+  if (psite->get_material() != def->site.get_material()) {
+    WriteAttrTxt(elem, "material", psite->get_material());
   }
   WriteAttr(elem, "rgba", 4, psite->rgba, def->site.rgba);
 
   // userdata
   if (writingdefaults) {
-    WriteVector(elem, "user", psite->userdata);
+    WriteVector(elem, "user", psite->get_userdata());
   } else {
-    WriteVector(elem, "user", psite->userdata, def->site.userdata);
+    WriteVector(elem, "user", psite->get_userdata(), def->site.get_userdata());
   }
 }
 
@@ -636,8 +636,8 @@ void mjXWriter::OneTendon(XMLElement* elem, mjCTendon* pten, mjCDef* def) {
   }
   // spatial only
   if (!fixed) {
-    if (pten->material!=def->tendon.material) {
-      WriteAttrTxt(elem, "material", pten->material);
+    if (pten->get_material()!=def->tendon.get_material()) {
+      WriteAttrTxt(elem, "material", pten->get_material());
     }
     WriteAttr(elem, "width", 1, &pten->width, &def->tendon.width);
     WriteAttr(elem, "rgba", 4, pten->rgba, def->tendon.rgba);

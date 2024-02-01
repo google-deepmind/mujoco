@@ -1878,7 +1878,7 @@ mjCSkin::mjCSkin(mjCModel* _model) {
 
   // clear data
   file.clear();
-  material.clear();
+  material_.clear();
   rgba[0] = rgba[1] = rgba[2] = 0.5f;
   rgba[3] = 1.0f;
   inflate = 0;
@@ -1903,7 +1903,7 @@ mjCSkin::mjCSkin(mjCModel* _model) {
 // destructor
 mjCSkin::~mjCSkin() {
   file.clear();
-  material.clear();
+  material_.clear();
   vert.clear();
   texcoord.clear();
   face.clear();
@@ -2005,11 +2005,11 @@ void mjCSkin::Compile(const mjVFS* vfs) {
   }
 
   // resolve material name
-  mjCBase* pmat = model->FindObject(mjOBJ_MATERIAL, material);
+  mjCBase* pmat = model->FindObject(mjOBJ_MATERIAL, material_);
   if (pmat) {
     matid = pmat->id;
-  } else if (!material.empty()) {
-      throw mjCError(this, "unkown material '%s' in skin", material.c_str());
+  } else if (!material_.empty()) {
+      throw mjCError(this, "unkown material '%s' in skin", material_.c_str());
   }
 
   // set total vertex weights to 0
@@ -2239,7 +2239,7 @@ mjCFlex::mjCFlex(mjCModel* _model) {
   group = 0;
   edgestiffness = 0;
   edgedamping = 0;
-  material.clear();
+  material_.clear();
   rgba[0] = rgba[1] = rgba[2] = 0.5f;
   rgba[3] = 1.0f;
 
@@ -2314,11 +2314,11 @@ void mjCFlex::Compile(const mjVFS* vfs) {
   }
 
   // resolve material name
-  mjCBase* pmat = model->FindObject(mjOBJ_MATERIAL, material);
+  mjCBase* pmat = model->FindObject(mjOBJ_MATERIAL, material_);
   if (pmat) {
     matid = pmat->id;
-  } else if (!material.empty()) {
-      throw mjCError(this, "unkown material '%s' in flex", material.c_str());
+  } else if (!material_.empty()) {
+      throw mjCError(this, "unkown material '%s' in flex", material_.c_str());
   }
 
   // resolve body ids

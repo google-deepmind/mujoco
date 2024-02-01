@@ -390,6 +390,9 @@ class mjCGeom : public mjCBase {
   bool IsVisual(void) const { return visual_; }
   void SetNotVisual(void) { visual_ = false; }
 
+  void set_material(std::string _material) { material_ = _material; }
+  std::string& get_material() { return material_; }
+
   // Compute all coefs modeling the interaction with the surrounding fluid.
   void SetFluidCoefs(void);
   // Compute the kappa coefs of the added inertia due to the surrounding fluid.
@@ -418,7 +421,6 @@ class mjCGeom : public mjCBase {
   std::string hfieldname;         // hfield attached to geom
   std::string meshname;           // mesh attached to geom
   double fitscale;                // scale mesh uniformly
-  std::string material;           // name of material used for rendering
   std::vector<double> userdata;   // user data
   float rgba[4];                  // rgba when material is omitted
   mjtMeshType typeinertia;        // selects between surface and volume inertia
@@ -440,6 +442,7 @@ class mjCGeom : public mjCBase {
   double GetRBound(void);             // compute bounding sphere radius
   void ComputeAABB(void);             // compute axis-aligned bounding box
 
+  std::string material_;              // name of material used for rendering
   bool visual_;                       // true: geom does not collide and is unreferenced
   int matid;                          // id of geom's material
   mjCMesh* mesh;                      // geom's mesh
@@ -461,8 +464,8 @@ typedef struct _mjmSite {
   double size[3];                 // geom size for rendering
   double pos[3];                  // position
   double quat[4];                 // orientation
-  std::string material;           // name of material for rendering
-  std::vector<double> userdata;   // user data
+  char* material;                 // name of material for rendering
+  double* userdata;               // user data
   float rgba[4];                  // rgba when material is omitted
   double fromto[6];               // alternative for capsule, cylinder, box, ellipsoid
   mjCAlternative alt;             // alternative orientation specification
@@ -478,11 +481,29 @@ class mjCSite : public mjCBase, private mjmSite {
  public:
   mjmSite spec;                   // variables set by user
 
+  void set_material(std::string _material) {
+    spec_material_ = _material;
+    spec.material = spec_material_.data();
+  }
+  void set_userdata(std::vector<double> _userdata) {
+    spec_userdata_ = _userdata;
+    spec.userdata = spec_userdata_.data();
+  }
+  std::vector<double>& get_userdata() { return userdata_; }
+  std::string& get_material() { return material_; }
+
   // variables computed by 'compile' and 'mjCBody::addSite'
  private:
   mjCSite(mjCModel* = 0, mjCDef* = 0);    // constructor
   void Compile(void);                     // compiler
   void CopyFromSpec();                    // copy spec into attributes
+
+  // variable-size data
+  std::string material_;
+  std::vector<double> userdata_;
+
+  std::string spec_material_;
+  std::vector<double> spec_userdata_;
 
   mjCBody* body;                  // site's body
   int matid;                      // material id for rendering
@@ -573,6 +594,9 @@ class mjCFlex: public mjCBase {
   friend class mjXWriter;
 
  public:
+  void set_material(std::string _material) { material_ = _material; }
+  std::string& get_material() { return material_; }
+
   // contact properties
   int contype;                    // contact type
   int conaffinity;                // contact affinity
@@ -595,7 +619,6 @@ class mjCFlex: public mjCBase {
   int group;                      // group for visualizatioh
   double edgestiffness;           // edge stiffness
   double edgedamping;             // edge damping
-  std::string material;           // name of material used for rendering
   float rgba[4];                  // rgba when material is omitted
 
   std::vector<std::string> vertbody;  // vertex body names
@@ -626,6 +649,7 @@ class mjCFlex: public mjCBase {
   std::vector<int> evpair;                // element-vertex pairs
   std::vector<mjtNum> vertxpos;           // global vertex positions
   mjCBoundingVolumeHierarchy tree;        // bounding volume hierarchy
+  std::string material_;                  // name of material used for rendering
 };
 
 
@@ -799,9 +823,10 @@ class mjCSkin: public mjCBase {
 
  public:
   std::string get_file() const { return file; }
+  void set_material(std::string _material) { material_ = _material; }
+  std::string& get_material() { return material_; }
 
   std::string file;                   // skin file
-  std::string material;               // name of material used for rendering
   float rgba[4];                      // rgba when material is omitted
   float inflate;                      // inflate in normal direction
   int group;                          // group for visualization
@@ -824,6 +849,7 @@ class mjCSkin: public mjCBase {
   void Compile(const mjVFS* vfs);             // compiler
   void LoadSKN(mjResource* resource);         // load skin in SKN BIN format
 
+  std::string material_;              // name of material used for rendering
   int matid;                          // material id
   std::vector<int> bodyid;            // body ids
 };
@@ -1059,6 +1085,9 @@ class mjCTendon : public mjCBase {
   friend class mjXWriter;
 
  public:
+  void set_material(std::string _material) { material_ = _material; }
+  std::string& get_material() { return material_; }
+
   // API for adding wrapping objects
   void WrapSite(std::string name, int row=-1, int col=-1);                    // site
   void WrapGeom(std::string name, std::string side, int row=-1, int col=-1);  // geom
@@ -1071,7 +1100,6 @@ class mjCTendon : public mjCBase {
 
   // variables set by user
   int group;                       // group for visualization
-  std::string material;            // name of material for rendering
   int limited;                     // does tendon have limits: 0 false, 1 true, 2 auto
   double width;                    // width for rendering
   mjtNum solref_limit[mjNREF];     // solver reference: tendon limits
@@ -1092,6 +1120,7 @@ class mjCTendon : public mjCBase {
   ~mjCTendon();                               // destructor
   void Compile(void);                         // compiler
 
+  std::string material_;          // name of material for rendering
   int matid;                      // material id for rendering
   std::vector<mjCWrap*> path;     // wrapping objects
 };

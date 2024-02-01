@@ -1243,7 +1243,7 @@ void mjCComposite::MakeSkin2(mjCModel* model, mjtNum inflate) {
   mjCSkin* skin = model->AddSkin();
   mju::sprintf_arr(txt, "%sSkin", prefix.c_str());
   skin->name = txt;
-  skin->material = skinmaterial;
+  skin->set_material(skinmaterial);
   mjuu_copyvec(skin->rgba, skinrgba, 4);
   skin->inflate = inflate;
   skin->group = skingroup;
@@ -1845,7 +1845,7 @@ void mjCComposite::MakeSkin2Subgrid(mjCModel* model, mjtNum inflate) {
   mjCSkin* skin = model->AddSkin();
   mju::sprintf_arr(txt, "%sSkin", prefix.c_str());
   skin->name = txt;
-  skin->material = skinmaterial;
+  skin->set_material(skinmaterial);
   mjuu_copyvec(skin->rgba, skinrgba, 4);
   skin->inflate = inflate;
   skin->group = skingroup;
@@ -1998,7 +1998,7 @@ void mjCComposite::MakeSkin3(mjCModel* model) {
   mjCSkin* skin = model->AddSkin();
   mju::sprintf_arr(txt, "%sSkin", prefix.c_str());
   skin->name = txt;
-  skin->material = skinmaterial;
+  skin->set_material(skinmaterial);
   mjuu_copyvec(skin->rgba, skinrgba, 4);
   skin->inflate = skininflate;
   skin->group = skingroup;

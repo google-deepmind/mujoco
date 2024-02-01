@@ -653,8 +653,8 @@ void mjCModel::MakeLists(mjCBody* body) {
 template <class T>
 void mjCModel::DeleteMaterial(std::vector<T*>& list, std::string_view name) {
   for (T* plist : list) {
-    if (name.empty() || plist->material == name) {
-      plist->material.clear();
+    if (name.empty() || plist->material_ == name) {
+      plist->material_.clear();
     }
   }
 }
@@ -775,12 +775,12 @@ void mjCModel::IndexAssets(bool discard) {
     mjCGeom* pgeom = geoms[i];
 
     // find material by name
-    if (!pgeom->material.empty()) {
-      mjCBase* m = FindObject(mjOBJ_MATERIAL, pgeom->material);
+    if (!pgeom->material_.empty()) {
+      mjCBase* m = FindObject(mjOBJ_MATERIAL, pgeom->material_);
       if (m) {
         pgeom->matid = m->id;
       } else {
-        throw mjCError(pgeom, "material '%s' not found in geom %d", pgeom->material.c_str(), i);
+        throw mjCError(pgeom, "material '%s' not found in geom %d", pgeom->material_.c_str(), i);
       }
     }
 
@@ -822,12 +822,12 @@ void mjCModel::IndexAssets(bool discard) {
     mjCSkin* pskin = skins[i];
 
     // find material by name
-    if (!pskin->material.empty()) {
-      mjCBase* m = FindObject(mjOBJ_MATERIAL, pskin->material);
+    if (!pskin->material_.empty()) {
+      mjCBase* m = FindObject(mjOBJ_MATERIAL, pskin->material_);
       if (m) {
         pskin->matid = m->id;
       } else {
-        throw mjCError(pskin, "material '%s' not found in skin %d", pskin->material.c_str(), i);
+        throw mjCError(pskin, "material '%s' not found in skin %d", pskin->material_.c_str(), i);
       }
     }
   }
@@ -837,12 +837,12 @@ void mjCModel::IndexAssets(bool discard) {
     mjCSite* psite = sites[i];
 
     // find material by name
-    if (!psite->material.empty()) {
-      mjCBase* m = FindObject(mjOBJ_MATERIAL, psite->material);
+    if (!psite->material_.empty()) {
+      mjCBase* m = FindObject(mjOBJ_MATERIAL, psite->get_material());
       if (m) {
         psite->matid = m->id;
       } else {
-        throw mjCError(psite, "material '%s' not found in site %d", psite->material.c_str(), i);
+        throw mjCError(psite, "material '%s' not found in site %d", psite->material_.c_str(), i);
       }
     }
   }
@@ -852,12 +852,12 @@ void mjCModel::IndexAssets(bool discard) {
     mjCTendon* pten = tendons[i];
 
     // find material by name
-    if (!pten->material.empty()) {
-      mjCBase* m = FindObject(mjOBJ_MATERIAL, pten->material);
+    if (!pten->material_.empty()) {
+      mjCBase* m = FindObject(mjOBJ_MATERIAL, pten->material_);
       if (m) {
         pten->matid = m->id;
       } else {
-        throw mjCError(pten, "material '%s' not found in tendon %d", pten->material.c_str(), i);
+        throw mjCError(pten, "material '%s' not found in tendon %d", pten->material_.c_str(), i);
       }
     }
   }
@@ -1718,7 +1718,7 @@ void mjCModel::CopyTree(mjModel* m) {
       copyvec(m->site_size+3*sid, ps->size, 3);
       copyvec(m->site_pos+3*sid, ps->pos, 3);
       copyvec(m->site_quat+4*sid, ps->quat, 4);
-      copyvec(m->site_user+nuser_site*sid, ps->userdata.data(), nuser_site);
+      copyvec(m->site_user+nuser_site*sid, ps->userdata_.data(), nuser_site);
       copyvec(m->site_rgba+4*sid, ps->rgba, 4);
 
       // determine sameframe
@@ -2901,7 +2901,7 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
   if (nuser_site == -1) {
     nuser_site = 0;
     for (int i=0; i<sites.size(); i++) {
-      nuser_site = mjMAX(nuser_site, sites[i]->spec.userdata.size());
+      nuser_site = mjMAX(nuser_site, sites[i]->spec_userdata_.size());
     }
   }
   if (nuser_cam == -1) {
@@ -3407,7 +3407,7 @@ bool mjCModel::CopyBack(const mjModel* m) {
     copyvec(sites[i]->rgba, m->site_rgba+4*i, 4);
 
     if (nuser_site) {
-      copyvec(sites[i]->userdata.data(), m->site_user + nuser_site*i, nuser_site);
+      copyvec(sites[i]->userdata_.data(), m->site_user + nuser_site*i, nuser_site);
     }
   }
 

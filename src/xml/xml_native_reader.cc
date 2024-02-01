@@ -1279,7 +1279,7 @@ void mjXReader::OneFlex(XMLElement* elem, mjCFlex* pflex) {
   // read attributes
   ReadAttrTxt(elem, "name", pflex->name);
   ReadAttr(elem, "radius", 1, &pflex->radius, text);
-  ReadAttrTxt(elem, "material", pflex->material);
+  ReadAttrTxt(elem, "material", pflex->get_material());
   ReadAttr(elem, "rgba", 4, pflex->rgba, text);
   if (MapValue(elem, "flatskin", &n, bool_map, 2)) {
     pflex->flatskin = (n==1);
@@ -1381,7 +1381,7 @@ void mjXReader::OneSkin(XMLElement* elem, mjCSkin* pskin) {
   // read attributes
   ReadAttrTxt(elem, "name", pskin->name);
   ReadAttrTxt(elem, "file", pskin->file);
-  ReadAttrTxt(elem, "material", pskin->material);
+  ReadAttrTxt(elem, "material", pskin->get_material());
   ReadAttrInt(elem, "group", &pskin->group);
   if (pskin->group<0 || pskin->group>=mjNGROUP) {
     throw mjXError(elem, "skin group must be between 0 and 5");
@@ -1528,7 +1528,7 @@ void mjXReader::OneGeom(XMLElement* elem, mjCGeom* pgeom) {
   ReadAttrTxt(elem, "hfield", pgeom->hfieldname);
   ReadAttrTxt(elem, "mesh", pgeom->meshname);
   ReadAttr(elem, "fitscale", 1, &pgeom->fitscale, text);
-  ReadAttrTxt(elem, "material", pgeom->material);
+  ReadAttrTxt(elem, "material", pgeom->get_material());
   ReadAttr(elem, "rgba", 4, pgeom->rgba, text);
   if (MapValue(elem, "fluidshape", &n, fluid_map, 2)) {
     pgeom->fluid_switch = (n == 1);
@@ -1567,6 +1567,8 @@ void mjXReader::OneSite(XMLElement* elem, mjCSite* site) {
   int n;
   string text;
   mjmSite* psite = &site->spec;
+  std::vector<double> userdata;
+  std::string material;
 
   // read attributes
   ReadAttrTxt(elem, "name", site->name);
@@ -1578,13 +1580,15 @@ void mjXReader::OneSite(XMLElement* elem, mjCSite* site) {
   ReadAttrInt(elem, "group", &psite->group);
   ReadAttr(elem, "pos", 3, psite->pos, text);
   ReadQuat(elem, "quat", psite->quat, text);
-  ReadAttrTxt(elem, "material", psite->material);
+  ReadAttrTxt(elem, "material", material);
   ReadAttr(elem, "rgba", 4, psite->rgba, text);
   ReadAttr(elem, "fromto", 6, psite->fromto, text);
   ReadAlternative(elem, psite->alt);
+  ReadVector(elem, "user", userdata, text);
 
-  // read userdata
-  ReadVector(elem, "user", psite->userdata, text);
+  // set variable-size attributes
+  site->set_userdata(userdata);
+  site->set_material(material);
 
   GetXMLPos(elem, site);
 }
@@ -1773,7 +1777,7 @@ void mjXReader::OneTendon(XMLElement* elem, mjCTendon* pten) {
   ReadAttrTxt(elem, "name", pten->name);
   ReadAttrTxt(elem, "class", pten->classname);
   ReadAttrInt(elem, "group", &pten->group);
-  ReadAttrTxt(elem, "material", pten->material);
+  ReadAttrTxt(elem, "material", pten->get_material());
   MapValue(elem, "limited", &pten->limited, TFAuto_map, 3);
   ReadAttr(elem, "width", 1, &pten->width, text);
   ReadAttr(elem, "solreflimit", mjNREF, pten->solref_limit, text, false, false);
@@ -2158,7 +2162,7 @@ void mjXReader::OneComposite(XMLElement* elem, mjCBody* pbody, mjCDef* def) {
     ReadAttr(egeom, "solimp", mjNIMP, comp.def[0].geom.solimp, text, false, false);
     ReadAttr(egeom, "margin", 1, &comp.def[0].geom.margin, text);
     ReadAttr(egeom, "gap", 1, &comp.def[0].geom.gap, text);
-    ReadAttrTxt(egeom, "material", comp.def[0].geom.material);
+    ReadAttrTxt(egeom, "material", comp.def[0].geom.get_material());
     ReadAttr(egeom, "rgba", 4, comp.def[0].geom.rgba, text);
     ReadAttr(egeom, "mass", 1, &comp.def[0].geom._mass, text);
     ReadAttr(egeom, "density", 1, &comp.def[0].geom.density, text);
@@ -2167,11 +2171,13 @@ void mjXReader::OneComposite(XMLElement* elem, mjCBody* pbody, mjCDef* def) {
   // site
   XMLElement* esite = elem->FirstChildElement("site");
   if (esite) {
+    std::string material;
     mjmSite& dsite = comp.def[0].site.spec;
     ReadAttr(esite, "size", 3, dsite.size, text, false, false);
     ReadAttrInt(esite, "group", &dsite.group);
-    ReadAttrTxt(esite, "material", dsite.material);
+    ReadAttrTxt(esite, "material", material);
     ReadAttr(esite, "rgba", 4, dsite.rgba, text);
+    comp.def[0].site.set_material(material);
   }
 
   // joint
@@ -2249,7 +2255,7 @@ void mjXReader::OneComposite(XMLElement* elem, mjCBody* pbody, mjCDef* def) {
     ReadAttr(eten, "stiffness", 1, &comp.def[kind].tendon.stiffness, text);
     ReadAttr(eten, "damping", 1, &comp.def[kind].tendon.damping, text);
     ReadAttr(eten, "frictionloss", 1, &comp.def[kind].tendon.frictionloss, text);
-    ReadAttrTxt(eten, "material", comp.def[kind].tendon.material);
+    ReadAttrTxt(eten, "material", comp.def[kind].tendon.get_material());
     ReadAttr(eten, "rgba", 4, comp.def[kind].tendon.rgba, text);
     ReadAttr(eten, "width", 1, &comp.def[kind].tendon.width, text);
 
@@ -2303,7 +2309,7 @@ void mjXReader::OneFlexcomp(XMLElement* elem, mjCBody* pbody) {
   ReadAttr(elem, "mass", 1, &fcomp.mass, text);
   ReadAttr(elem, "inertiabox", 1, &fcomp.inertiabox, text);
   ReadAttrTxt(elem, "file", fcomp.file);
-  ReadAttrTxt(elem, "material", fcomp.def.flex.material);
+  ReadAttrTxt(elem, "material", fcomp.def.flex.get_material());
   ReadAttr(elem, "rgba", 4, fcomp.def.flex.rgba, text);
   if (MapValue(elem, "flatskin", &n, bool_map, 2)) {
     fcomp.def.flex.flatskin = (n==1);

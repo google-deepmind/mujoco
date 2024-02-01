@@ -497,7 +497,7 @@ void mjCDef::Compile(const mjCModel* model) {
   // enforce length of all default userdata arrays
   joint.userdata.resize(model->nuser_jnt);
   geom.userdata.resize(model->nuser_geom);
-  site.userdata.resize(model->nuser_site);
+  site.userdata_.resize(model->nuser_site);
   camera.userdata.resize(model->nuser_cam);
   tendon.userdata.resize(model->nuser_tendon);
   actuator.userdata.resize(model->nuser_actuator);
@@ -1356,7 +1356,7 @@ mjCGeom::mjCGeom(mjCModel* _model, mjCDef* _def) {
   density = 1000;             // water density (1000 kg / m^3)
   meshname.clear();
   fitscale = 1;
-  material.clear();
+  material_.clear();
   rgba[0] = rgba[1] = rgba[2] = 0.5f;
   rgba[3] = 1.0f;
   userdata.clear();
@@ -1931,14 +1931,13 @@ mjCSite::mjCSite(mjCModel* _model, mjCDef* _def) {
   spec.group = 0;
   mjuu_setvec(spec.quat, 1, 0, 0, 0);
   mjuu_setvec(spec.pos, 0, 0, 0);
-  spec.material.clear();
+  spec.material = nullptr;
   spec.rgba[0] = spec.rgba[1] = spec.rgba[2] = 0.5f;
   spec.rgba[3] = 1.0f;
   spec.fromto[0] = mjNAN;
-  spec.userdata.clear();
+  spec.userdata = nullptr;
 
   // clear internal variables
-  spec.material.clear();
   body = 0;
   matid = -1;
 
@@ -1960,6 +1959,10 @@ mjCSite::mjCSite(mjCModel* _model, mjCDef* _def) {
 
 void mjCSite::CopyFromSpec() {
   *static_cast<mjmSite*>(this) = spec;
+  userdata_ = spec_userdata_;
+  material_ = spec_material_;
+  userdata = userdata_.data();
+  material = material_.data();
 }
 
 
@@ -1969,11 +1972,11 @@ void mjCSite::Compile(void) {
   CopyFromSpec();
 
   // resize userdata
-  if (userdata.size() > model->nuser_site) {
+  if (userdata_.size() > model->nuser_site) {
     throw mjCError(this, "user has more values than nuser_site in site '%s' (id = %d)",
                    name.c_str(), id);
   }
-  userdata.resize(model->nuser_site);
+  userdata_.resize(model->nuser_site);
 
   // check type
   if (type<0 || type>=mjNGEOMTYPES) {
@@ -3500,7 +3503,7 @@ void mjCEquality::Compile(void) {
 mjCTendon::mjCTendon(mjCModel* _model, mjCDef* _def) {
   // tendon defaults
   group = 0;
-  material.clear();
+  material_.clear();
   width = 0.003;
   limited = 2;
   range[0] = 0;
