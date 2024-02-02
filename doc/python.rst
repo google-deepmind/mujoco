@@ -137,7 +137,8 @@ attributes:
     with mujoco.viewer.launch_passive(m, d, key_callback=key_callback) as viewer:
 
       # Enable wireframe rendering of the entire scene.
-      v.user_scn.flags[mujoco.mjtRndFlag.mjRND_WIREFRAME] = 1
+      viewer.user_scn.flags[mujoco.mjtRndFlag.mjRND_WIREFRAME] = 1
+      viewer.sync()
 
       while viewer.is_running():
         ...
