@@ -3293,7 +3293,7 @@ void mjXReader::Tendon(XMLElement* section) {
       // read attributes depending on type
       if (wrap=="site") {
         ReadAttrTxt(sub, "site", text, true);
-        pten->WrapSite(text, sub->GetLineNum());
+        pten->WrapSite(text, "line = " + std::to_string(sub->GetLineNum()));
       }
 
       else if (wrap=="geom") {
@@ -3301,18 +3301,18 @@ void mjXReader::Tendon(XMLElement* section) {
         if (!ReadAttrTxt(sub, "sidesite", text1)) {
           text1.clear();
         }
-        pten->WrapGeom(text, text1, sub->GetLineNum());
+        pten->WrapGeom(text, text1, "line = " + std::to_string(sub->GetLineNum()));
       }
 
       else if (wrap=="pulley") {
         ReadAttr(sub, "divisor", 1, &data, text, true);
-        pten->WrapPulley(data, sub->GetLineNum());
+        pten->WrapPulley(data, "line = " + std::to_string(sub->GetLineNum()));
       }
 
       else if (wrap=="joint") {
         ReadAttrTxt(sub, "joint", text, true);
         ReadAttr(sub, "coef", 1, &data, text1, true);
-        pten->WrapJoint(text, data, sub->GetLineNum());
+        pten->WrapJoint(text, data, "line = " + std::to_string(sub->GetLineNum()));
       }
 
       else {
@@ -3743,6 +3743,5 @@ mjCDef* mjXReader::GetClass(XMLElement* section) {
 
 // get xml position
 void mjXReader::GetXMLPos(XMLElement* elem, mjCBase* obj) {
-  obj->xmlpos[0] = elem->GetLineNum();
-  obj->xmlpos[1] = -1;
+  obj->info = "line = " + std::to_string(elem->GetLineNum());
 }

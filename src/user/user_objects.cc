@@ -114,9 +114,9 @@ mjCError::mjCError(const mjCBase* obj, const char* msg, const char* str, int pos
   // append info from mjCBase object
   if (obj) {
     // with or without xml position
-    if (obj->xmlpos[0]>= 0) {
-      mju::sprintf_arr(temp, "Object name = %s, id = %d, line = %d, column = %d",
-                       obj->name.c_str(), obj->id, obj->xmlpos[0], obj->xmlpos[1]);
+    if (!obj->info.empty()) {
+      mju::sprintf_arr(temp, "Object name = %s, id = %d, %s",
+                       obj->name.c_str(), obj->id, obj->info.c_str());
     } else {
       mju::sprintf_arr(temp, "Object name = %s, id = %d", obj->name.c_str(), obj->id);
     }
@@ -512,7 +512,7 @@ mjCBase::mjCBase() {
   name.clear();
   classname.clear();
   id = -1;
-  xmlpos[0] = xmlpos[1] = -1;
+  info = "";
   model = 0;
   def = 0;
   frame = nullptr;
@@ -3548,11 +3548,10 @@ mjCTendon::~mjCTendon() {
 
 
 // add site as wrap object
-void mjCTendon::WrapSite(string name, int row, int col) {
+void mjCTendon::WrapSite(string name, std::string_view info) {
   // create wrap object
   mjCWrap* wrap = new mjCWrap(model, this);
-  wrap->xmlpos[0] = row;
-  wrap->xmlpos[1] = col;
+  wrap->info = info;
 
   // set parameters, add to path
   wrap->type = mjWRAP_SITE;
@@ -3564,11 +3563,10 @@ void mjCTendon::WrapSite(string name, int row, int col) {
 
 
 // add geom (with side site) as wrap object
-void mjCTendon::WrapGeom(string name, string sidesite, int row, int col) {
+void mjCTendon::WrapGeom(string name, string sidesite, std::string_view info) {
   // create wrap object
   mjCWrap* wrap = new mjCWrap(model, this);
-  wrap->xmlpos[0] = row;
-  wrap->xmlpos[1] = col;
+  wrap->info = info;
 
   // set parameters, add to path
   wrap->type = mjWRAP_SPHERE;         // replace with cylinder later if needed
@@ -3581,11 +3579,10 @@ void mjCTendon::WrapGeom(string name, string sidesite, int row, int col) {
 
 
 // add joint as wrap object
-void mjCTendon::WrapJoint(string name, double coef, int row, int col) {
+void mjCTendon::WrapJoint(string name, double coef, std::string_view info) {
   // create wrap object
   mjCWrap* wrap = new mjCWrap(model, this);
-  wrap->xmlpos[0] = row;
-  wrap->xmlpos[1] = col;
+  wrap->info = info;
 
   // set parameters, add to path
   wrap->type = mjWRAP_JOINT;
@@ -3598,11 +3595,10 @@ void mjCTendon::WrapJoint(string name, double coef, int row, int col) {
 
 
 // add pulley
-void mjCTendon::WrapPulley(double divisor, int row, int col) {
+void mjCTendon::WrapPulley(double divisor, std::string_view info) {
   // create wrap object
   mjCWrap* wrap = new mjCWrap(model, this);
-  wrap->xmlpos[0] = row;
-  wrap->xmlpos[1] = col;
+  wrap->info = info;
 
   // set parameters, add to path
   wrap->type = mjWRAP_PULLEY;

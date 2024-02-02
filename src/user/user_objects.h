@@ -198,7 +198,7 @@ class mjCBase {
   std::string name;               // object name
   std::string classname;          // defaults class name
   int id;                         // object id
-  int xmlpos[2];                  // row and column in xml file
+  std::string info;               // error message info set by the user
   mjCDef* def;                    // defaults class used to init this object
   mjCModel* model;                // pointer to model that created object
   mjCFrame* frame;                // pointer to frame transformation
@@ -1089,10 +1089,10 @@ class mjCTendon : public mjCBase {
   std::string& get_material() { return material_; }
 
   // API for adding wrapping objects
-  void WrapSite(std::string name, int row=-1, int col=-1);                    // site
-  void WrapGeom(std::string name, std::string side, int row=-1, int col=-1);  // geom
-  void WrapJoint(std::string name, double coef, int row=-1, int col=-1);      // joint
-  void WrapPulley(double divisor, int row=-1, int col=-1);                    // pulley
+  void WrapSite(std::string name, std::string_view info = "");                    // site
+  void WrapGeom(std::string name, std::string side, std::string_view info = "");  // geom
+  void WrapJoint(std::string name, double coef, std::string_view info = "");      // joint
+  void WrapPulley(double divisor, std::string_view info = "");                    // pulley
 
   // API for access to wrapping objects
   int NumWraps(void);                         // number of wraps
