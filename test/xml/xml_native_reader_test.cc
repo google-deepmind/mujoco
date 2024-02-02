@@ -160,6 +160,7 @@ TEST_F(XMLReaderTest, InvalidNUserBody) {
   mjModel* model = LoadModelFromString(xml, error.data(), error.size());
   ASSERT_THAT(model, IsNull());
   EXPECT_THAT(error.data(), HasSubstr("nuser_body"));
+  EXPECT_THAT(error.data(), HasSubstr("line 3"));
 }
 
 TEST_F(XMLReaderTest, InvalidNUserJoint) {
@@ -172,6 +173,7 @@ TEST_F(XMLReaderTest, InvalidNUserJoint) {
   mjModel* model = LoadModelFromString(xml, error.data(), error.size());
   ASSERT_THAT(model, IsNull());
   EXPECT_THAT(error.data(), HasSubstr("nuser_jnt"));
+  EXPECT_THAT(error.data(), HasSubstr("line 3"));
 }
 
 TEST_F(XMLReaderTest, InvalidNUserGeom) {
@@ -184,6 +186,7 @@ TEST_F(XMLReaderTest, InvalidNUserGeom) {
   mjModel* model = LoadModelFromString(xml, error.data(), error.size());
   ASSERT_THAT(model, IsNull());
   EXPECT_THAT(error.data(), HasSubstr("nuser_geom"));
+  EXPECT_THAT(error.data(), HasSubstr("line 3"));
 }
 
 TEST_F(XMLReaderTest, InvalidNUserSite) {
@@ -196,6 +199,7 @@ TEST_F(XMLReaderTest, InvalidNUserSite) {
   mjModel* model = LoadModelFromString(xml, error.data(), error.size());
   ASSERT_THAT(model, IsNull());
   EXPECT_THAT(error.data(), HasSubstr("nuser_site"));
+  EXPECT_THAT(error.data(), HasSubstr("line 3"));
 }
 
 TEST_F(XMLReaderTest, InvalidNUserCamera) {
@@ -208,6 +212,7 @@ TEST_F(XMLReaderTest, InvalidNUserCamera) {
   mjModel* model = LoadModelFromString(xml, error.data(), error.size());
   ASSERT_THAT(model, IsNull());
   EXPECT_THAT(error.data(), HasSubstr("nuser_cam"));
+  EXPECT_THAT(error.data(), HasSubstr("line 3"));
 }
 
 TEST_F(XMLReaderTest, InvalidNUserTendon) {
@@ -220,6 +225,7 @@ TEST_F(XMLReaderTest, InvalidNUserTendon) {
   mjModel* model = LoadModelFromString(xml, error.data(), error.size());
   ASSERT_THAT(model, IsNull());
   EXPECT_THAT(error.data(), HasSubstr("nuser_tendon"));
+  EXPECT_THAT(error.data(), HasSubstr("line 3"));
 }
 
 TEST_F(XMLReaderTest, InvalidNUserActuator) {
@@ -232,6 +238,7 @@ TEST_F(XMLReaderTest, InvalidNUserActuator) {
   mjModel* model = LoadModelFromString(xml, error.data(), error.size());
   ASSERT_THAT(model, IsNull());
   EXPECT_THAT(error.data(), HasSubstr("nuser_actuator"));
+  EXPECT_THAT(error.data(), HasSubstr("line 3"));
 }
 
 TEST_F(XMLReaderTest, InvalidNUserSensor) {
@@ -244,6 +251,7 @@ TEST_F(XMLReaderTest, InvalidNUserSensor) {
   mjModel* model = LoadModelFromString(xml, error.data(), error.size());
   ASSERT_THAT(model, IsNull());
   EXPECT_THAT(error.data(), HasSubstr("nuser_sensor"));
+  EXPECT_THAT(error.data(), HasSubstr("line 3"));
 }
 
 TEST_F(XMLReaderTest, CanParseInf) {
@@ -312,6 +320,7 @@ TEST_F(XMLReaderTest, InvalidArrayElement) {
   mjModel* model = LoadModelFromString(xml, error.data(), error.size());
   ASSERT_THAT(model, IsNull());
   EXPECT_THAT(error.data(), HasSubstr("problem reading attribute 'axisangle'"));
+  EXPECT_THAT(error.data(), HasSubstr("line 5"));
 }
 
 TEST_F(XMLReaderTest, InvalidArrayLength) {
@@ -328,6 +337,7 @@ TEST_F(XMLReaderTest, InvalidArrayLength) {
   mjModel* model = LoadModelFromString(xml, error.data(), error.size());
   ASSERT_THAT(model, IsNull());
   EXPECT_THAT(error.data(), HasSubstr("has too much data"));
+  EXPECT_THAT(error.data(), HasSubstr("line 5"));
 }
 
 TEST_F(XMLReaderTest, InvalidQuaternion) {
@@ -344,6 +354,7 @@ TEST_F(XMLReaderTest, InvalidQuaternion) {
   mjModel* model = LoadModelFromString(xml, error.data(), error.size());
   ASSERT_THAT(model, IsNull());
   EXPECT_THAT(error.data(), HasSubstr("zero quaternion is not allowed"));
+  EXPECT_THAT(error.data(), HasSubstr("line 5"));
 }
 
 TEST_F(XMLReaderTest, InvalidNumber) {
@@ -360,6 +371,7 @@ TEST_F(XMLReaderTest, InvalidNumber) {
   mjModel* model = LoadModelFromString(xml, error.data(), error.size());
   ASSERT_THAT(model, IsNull());
   EXPECT_THAT(error.data(), HasSubstr("problem reading attribute"));
+  EXPECT_THAT(error.data(), HasSubstr("line 5"));
 }
 
 TEST_F(XMLReaderTest, AllowsSpaces) {
@@ -458,6 +470,7 @@ TEST_F(XMLReaderTest, CameraInvalidFovyAndSensorsize) {
   mjModel* m = LoadModelFromString(xml, error.data(), error.size());
   EXPECT_THAT(m, IsNull());
   EXPECT_THAT(error.data(), HasSubstr("either 'fovy' or 'sensorsize'"));
+  EXPECT_THAT(error.data(), HasSubstr("line 6"));
 }
 
 TEST_F(XMLReaderTest, CameraPricipalRequiresSensorsize) {
@@ -475,6 +488,7 @@ TEST_F(XMLReaderTest, CameraPricipalRequiresSensorsize) {
   mjModel* m = LoadModelFromString(xml, error.data(), error.size());
   EXPECT_THAT(m, IsNull());
   EXPECT_THAT(error.data(), HasSubstr("attribute missing: 'sensorsize'"));
+  EXPECT_THAT(error.data(), HasSubstr("line 6"));
 }
 
 TEST_F(XMLReaderTest, CameraSensorsizeRequiresResolution) {
@@ -492,6 +506,7 @@ TEST_F(XMLReaderTest, CameraSensorsizeRequiresResolution) {
   mjModel* m = LoadModelFromString(xml, error.data(), error.size());
   EXPECT_THAT(m, IsNull());
   EXPECT_THAT(error.data(), HasSubstr("attribute missing: 'resolution'"));
+  EXPECT_THAT(error.data(), HasSubstr("line 6"));
 }
 
 // ---------------------- test inertia parsing --------------------------------
@@ -625,6 +640,7 @@ TEST_F(HfieldParsingTest, HasDataBadSize) {
   mjModel* model = LoadModelFromString(xml, error.data(), error.size());
   EXPECT_THAT(model, IsNull());
   EXPECT_THAT(error.data(), HasSubstr("data length must match nrow*ncol"));
+  EXPECT_THAT(error.data(), HasSubstr("line 4"));
 }
 
 TEST_F(HfieldParsingTest, HasData) {
@@ -682,6 +698,7 @@ TEST_F(RelativeFrameSensorParsingTest, RefNameButNoType) {
   std::array<char, 1024> error;
   LoadModelFromString(xml, error.data(), error.size());
   EXPECT_THAT(error.data(), HasSubstr("but reftype is missing"));
+  EXPECT_THAT(error.data(), HasSubstr("line 8"));
 }
 
 TEST_F(RelativeFrameSensorParsingTest, RefTypeButNoName) {
@@ -699,6 +716,7 @@ TEST_F(RelativeFrameSensorParsingTest, RefTypeButNoName) {
   std::array<char, 1024> error;
   LoadModelFromString(xml, error.data(), error.size());
   EXPECT_THAT(error.data(), HasSubstr("attribute missing: 'refname'"));
+  EXPECT_THAT(error.data(), HasSubstr("line 8"));
 }
 
 // ------------- test actlimited parsing ---------------------------------------
@@ -723,6 +741,7 @@ TEST_F(ActuatorTest, InvalidActlimited) {
   mjModel* model = LoadModelFromString(xml, error.data(), error.size());
   ASSERT_THAT(model, IsNull());
   EXPECT_THAT(error.data(), HasSubstr("unrecognized attribute"));
+  EXPECT_THAT(error.data(), HasSubstr("line 10"));
 }
 
 TEST_F(ActuatorTest, IncompleteActlimited) {
@@ -835,6 +854,7 @@ TEST_F(ActuatorParseTest, DamperRequiresControlRange) {
   mjModel* model = LoadModelFromString(xml, error.data(), error.size());
   ASSERT_THAT(model, IsNull());
   EXPECT_THAT(error.data(), HasSubstr("invalid control range"));
+  EXPECT_THAT(error.data(), HasSubstr("line = 10"));
 }
 
 TEST_F(ActuatorParseTest, DamperPositiveControlRange) {
@@ -855,6 +875,7 @@ TEST_F(ActuatorParseTest, DamperPositiveControlRange) {
   mjModel* model = LoadModelFromString(xml, error.data(), error.size());
   ASSERT_THAT(model, IsNull());
   EXPECT_THAT(error.data(), HasSubstr("control range cannot be negative"));
+  EXPECT_THAT(error.data(), HasSubstr("line 10"));
 }
 
 TEST_F(ActuatorParseTest, ReadsPositionIntvelKv) {
@@ -898,6 +919,7 @@ TEST_F(ActuatorParseTest, RequirePositiveKv) {
   mjModel* model = LoadModelFromString(xml, error.data(), error.size());
   ASSERT_THAT(model, IsNull());
   EXPECT_THAT(error.data(), HasSubstr("kv cannot be negative"));
+  EXPECT_THAT(error.data(), HasSubstr("line 10"));
 }
 
 TEST_F(ActuatorParseTest, PositionIntvelocityVelocityDefaultsPropagate) {
@@ -1044,6 +1066,7 @@ TEST_F(ActuatorParseTest, IntvelocityNoActrangeThrowsError) {
   mjModel* model = LoadModelFromString(xml, error.data(), error.size());
   ASSERT_THAT(model, IsNull());
   EXPECT_THAT(error.data(), HasSubstr("invalid actrange for actuator"));
+  EXPECT_THAT(error.data(), HasSubstr("line = 10"));
 }
 
 TEST_F(ActuatorParseTest, IntvelocityDefaultsPropagate) {
@@ -1252,6 +1275,7 @@ TEST_F(ActuatorParseTest, MusclesSmoothdynNegative) {
   mjModel* model = LoadModelFromString(xml, error.data(), error.size());
   ASSERT_THAT(model, IsNull());
   EXPECT_THAT(error.data(), HasSubstr("muscle tausmooth cannot be negative"));
+  EXPECT_THAT(error.data(), HasSubstr("line 10"));
 }
 
 TEST_F(ActuatorParseTest, GroupDisable) {
@@ -1278,6 +1302,7 @@ TEST_F(ActuatorParseTest, GroupDisableNegative) {
   mjModel* model = LoadModelFromString(xml, error.data(), error.size());
   ASSERT_THAT(model, IsNull());
   EXPECT_THAT(error.data(), HasSubstr("must be non-negative"));
+  EXPECT_THAT(error.data(), HasSubstr("line 3"));
 }
 
 TEST_F(ActuatorParseTest, GroupDisableTooBig) {
@@ -1290,6 +1315,7 @@ TEST_F(ActuatorParseTest, GroupDisableTooBig) {
   mjModel* model = LoadModelFromString(xml, error.data(), error.size());
   ASSERT_THAT(model, IsNull());
   EXPECT_THAT(error.data(), HasSubstr("cannot exceed 30"));
+  EXPECT_THAT(error.data(), HasSubstr("line 3"));
 }
 
 // ------------- test sensor parsing -------------------------------------------
@@ -1308,6 +1334,7 @@ TEST_F(SensorParseTest, UserObjTypeNoName) {
   mjModel* model = LoadModelFromString(xml, error.data(), error.size());
   ASSERT_THAT(model, IsNull());
   EXPECT_THAT(error.data(), HasSubstr("objtype 'site' given but"));
+  EXPECT_THAT(error.data(), HasSubstr("line 4"));
 }
 
 TEST_F(SensorParseTest, UserObjNameNoType) {
@@ -1322,6 +1349,7 @@ TEST_F(SensorParseTest, UserObjNameNoType) {
   mjModel* model = LoadModelFromString(xml, error.data(), error.size());
   ASSERT_THAT(model, IsNull());
   EXPECT_THAT(error.data(), HasSubstr("objname 'kevin' given but"));
+  EXPECT_THAT(error.data(), HasSubstr("line 4"));
 }
 
 TEST_F(SensorParseTest, UserNeedstageAcc) {
@@ -1357,6 +1385,7 @@ TEST_F(XMLReaderTest, ZnearZeroNotAllowed) {
   mjModel* model = LoadModelFromString(xml, error.data(), error.size());
   ASSERT_THAT(model, IsNull());
   EXPECT_THAT(error.data(), HasSubstr("znear must be strictly positive"));
+  EXPECT_THAT(error.data(), HasSubstr("line 4"));
 }
 
 TEST_F(XMLReaderTest, ZnearNegativeNotAllowed) {
@@ -1371,6 +1400,7 @@ TEST_F(XMLReaderTest, ZnearNegativeNotAllowed) {
   mjModel* model = LoadModelFromString(xml, error.data(), error.size());
   ASSERT_THAT(model, IsNull());
   EXPECT_THAT(error.data(), HasSubstr("znear must be strictly positive"));
+  EXPECT_THAT(error.data(), HasSubstr("line 4"));
 }
 
 TEST_F(XMLReaderTest, ExtentZeroNotAllowed) {
@@ -1383,6 +1413,7 @@ TEST_F(XMLReaderTest, ExtentZeroNotAllowed) {
   mjModel* model = LoadModelFromString(xml, error.data(), error.size());
   ASSERT_THAT(model, IsNull());
   EXPECT_THAT(error.data(), HasSubstr("extent must be strictly positive"));
+  EXPECT_THAT(error.data(), HasSubstr("line 3"));
 }
 
 TEST_F(XMLReaderTest, ExtentNegativeNotAllowed) {
@@ -1395,6 +1426,7 @@ TEST_F(XMLReaderTest, ExtentNegativeNotAllowed) {
   mjModel* model = LoadModelFromString(xml, error.data(), error.size());
   ASSERT_THAT(model, IsNull());
   EXPECT_THAT(error.data(), HasSubstr("extent must be strictly positive"));
+  EXPECT_THAT(error.data(), HasSubstr("line 3"));
 }
 
 }  // namespace

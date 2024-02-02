@@ -522,6 +522,7 @@ TEST_F(RelativeFrameSensorParsingTest, BadRefName) {
   std::array<char, 1024> error;
   LoadModelFromString(xml, error.data(), error.size());
   EXPECT_THAT(error.data(), HasSubstr("unrecognized name of reference frame"));
+  EXPECT_THAT(error.data(), HasSubstr("line = 8"));
 }
 
 TEST_F(RelativeFrameSensorParsingTest, BadRefType) {
@@ -540,6 +541,7 @@ TEST_F(RelativeFrameSensorParsingTest, BadRefType) {
   std::array<char, 1024> error;
   LoadModelFromString(xml, error.data(), error.size());
   EXPECT_THAT(error.data(), HasSubstr("reference frame object must be"));
+  EXPECT_THAT(error.data(), HasSubstr("line = 8"));
 }
 
 // ------------- sensor compilation --------------------------------------------
@@ -686,6 +688,7 @@ TEST_F(MjCGeomTest, NanSize) {
   mjModel* model = LoadModelFromString(xml, error.data(), error.size());
   ASSERT_THAT(model, testing::IsNull());
   ASSERT_THAT(error.data(), HasSubstr("nan"));
+  EXPECT_THAT(error.data(), HasSubstr("line = 5"));
 }
 
 // ------------- test height fields --------------------------------------------
@@ -760,6 +763,7 @@ TEST_F(CameraSpecTest, FovyLimits) {
   mjModel* m = LoadModelFromString(xml, error.data(), error.size());
   EXPECT_THAT(m, IsNull()) << error.data();
   EXPECT_THAT(error.data(), HasSubstr("fovy too large"));
+  EXPECT_THAT(error.data(), HasSubstr("line = 6"));
   mj_deleteModel(m);
 }
 
@@ -950,6 +954,7 @@ TEST_F(ActRangeTest, ActRangeBad) {
   mjModel* model = LoadModelFromString(xml, error.data(), error.size());
   ASSERT_THAT(model, IsNull());
   EXPECT_THAT(error.data(), HasSubstr("invalid actrange"));
+  EXPECT_THAT(error.data(), HasSubstr("line = 10"));
 }
 
 TEST_F(ActRangeTest, ActRangeUndefined) {
@@ -970,6 +975,7 @@ TEST_F(ActRangeTest, ActRangeUndefined) {
   mjModel* model = LoadModelFromString(xml, error.data(), error.size());
   ASSERT_THAT(model, IsNull());
   EXPECT_THAT(error.data(), HasSubstr("invalid actrange"));
+  EXPECT_THAT(error.data(), HasSubstr("line = 10"));
 }
 
 TEST_F(ActRangeTest, ActRangeNoDyntype) {
@@ -1076,6 +1082,7 @@ TEST_F(ActDimTest, NonzeroNotAllowedInStateless) {
 
   ASSERT_THAT(model, IsNull());
   EXPECT_THAT(error.data(), HasSubstr("invalid actdim 1 in stateless"));
+  EXPECT_THAT(error.data(), HasSubstr("line = 10"));
 }
 
 TEST_F(ActDimTest, ZeroNotAllowedInStateful) {
@@ -1097,6 +1104,7 @@ TEST_F(ActDimTest, ZeroNotAllowedInStateful) {
 
   ASSERT_THAT(model, IsNull());
   EXPECT_THAT(error.data(), HasSubstr("invalid actdim 0 in stateful"));
+  EXPECT_THAT(error.data(), HasSubstr("line = 10"));
 }
 
 // ------------- test nuser_xxx fields -----------------------------------------
@@ -1116,6 +1124,7 @@ TEST_F(UserDataTest, NBodyTooSmall) {
   mjModel* model = LoadModelFromString(xml, error.data(), error.size());
   ASSERT_THAT(model, IsNull());
   EXPECT_THAT(error.data(), HasSubstr("nuser_body"));
+  EXPECT_THAT(error.data(), HasSubstr("line = 5"));
 }
 
 TEST_F(UserDataTest, NJointTooSmall) {
@@ -1134,6 +1143,7 @@ TEST_F(UserDataTest, NJointTooSmall) {
   mjModel* model = LoadModelFromString(xml, error.data(), error.size());
   ASSERT_THAT(model, IsNull());
   EXPECT_THAT(error.data(), HasSubstr("nuser_jnt"));
+  EXPECT_THAT(error.data(), HasSubstr("line = 7"));
 }
 
 TEST_F(UserDataTest, NGeomTooSmall) {
@@ -1149,6 +1159,7 @@ TEST_F(UserDataTest, NGeomTooSmall) {
   mjModel* model = LoadModelFromString(xml, error.data(), error.size());
   ASSERT_THAT(model, IsNull());
   EXPECT_THAT(error.data(), HasSubstr("nuser_geom"));
+  EXPECT_THAT(error.data(), HasSubstr("line = 5"));
 }
 
 TEST_F(UserDataTest, NSiteTooSmall) {
@@ -1164,6 +1175,7 @@ TEST_F(UserDataTest, NSiteTooSmall) {
   mjModel* model = LoadModelFromString(xml, error.data(), error.size());
   ASSERT_THAT(model, IsNull());
   EXPECT_THAT(error.data(), HasSubstr("nuser_site"));
+  EXPECT_THAT(error.data(), HasSubstr("line = 5"));
 }
 
 TEST_F(UserDataTest, NCameraTooSmall) {
@@ -1179,6 +1191,7 @@ TEST_F(UserDataTest, NCameraTooSmall) {
   mjModel* model = LoadModelFromString(xml, error.data(), error.size());
   ASSERT_THAT(model, IsNull());
   EXPECT_THAT(error.data(), HasSubstr("nuser_cam"));
+  EXPECT_THAT(error.data(), HasSubstr("line = 5"));
 }
 
 TEST_F(UserDataTest, NTendonTooSmall) {
@@ -1201,6 +1214,7 @@ TEST_F(UserDataTest, NTendonTooSmall) {
   mjModel* model = LoadModelFromString(xml, error.data(), error.size());
   ASSERT_THAT(model, IsNull());
   EXPECT_THAT(error.data(), HasSubstr("nuser_tendon"));
+  EXPECT_THAT(error.data(), HasSubstr("line = 9"));
 }
 
 TEST_F(UserDataTest, NActuatorTooSmall) {
@@ -1222,6 +1236,7 @@ TEST_F(UserDataTest, NActuatorTooSmall) {
   mjModel* model = LoadModelFromString(xml, error.data(), error.size());
   ASSERT_THAT(model, IsNull());
   EXPECT_THAT(error.data(), HasSubstr("nuser_actuator"));
+  EXPECT_THAT(error.data(), HasSubstr("line = 11"));
 }
 
 TEST_F(UserDataTest, NSensorTooSmall) {
@@ -1240,6 +1255,7 @@ TEST_F(UserDataTest, NSensorTooSmall) {
   mjModel* model = LoadModelFromString(xml, error.data(), error.size());
   ASSERT_THAT(model, IsNull());
   EXPECT_THAT(error.data(), HasSubstr("nuser_sensor"));
+  EXPECT_THAT(error.data(), HasSubstr("line = 8"));
 }
 
 // ------------- test for auto parsing of *limited fields ----------------------
@@ -1279,6 +1295,7 @@ TEST_F(LimitedTest, ErrorIfLimitedMissingOnJoint) {
   mjModel* model = LoadModelFromString(xml, error.data(), error.size());
   ASSERT_THAT(model, IsNull());
   EXPECT_THAT(error.data(), HasSubstr("limited"));
+  EXPECT_THAT(error.data(), HasSubstr("line = 6"));
 }
 
 TEST_F(LimitedTest, ExplicitLimitedFalseIsOk) {
@@ -1328,6 +1345,7 @@ TEST_F(LimitedTest, ErrorIfLimitedMissingOnTendon) {
   ASSERT_THAT(model, IsNull());
   EXPECT_THAT(error.data(), HasSubstr("limited"));
   EXPECT_THAT(error.data(), HasSubstr("tendon"));
+  EXPECT_THAT(error.data(), HasSubstr("line = 13"));
 }
 
 TEST_F(LimitedTest, ErrorIfForceLimitedMissingOnActuator) {
@@ -1352,6 +1370,35 @@ TEST_F(LimitedTest, ErrorIfForceLimitedMissingOnActuator) {
   EXPECT_THAT(error.data(), HasSubstr("forcelimited"));
   EXPECT_THAT(error.data(), HasSubstr("forcerange"));
   EXPECT_THAT(error.data(), HasSubstr("actuator"));
+  EXPECT_THAT(error.data(), HasSubstr("line = 11"));
+}
+
+// ------------- tests for tendon ----------------------------------------------
+
+using TendonTest = MujocoTest;
+
+TEST_F(TendonTest, SiteBetweenPulleyNotAllowed) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <site name="1"/>
+      <site name="2"/>
+      <site name="3"/>
+    </worldbody>
+    <tendon>
+      <spatial>
+        <site site="1"/>
+        <pulley divisor="1"/>
+        <site site="3"/>
+      </spatial>
+    </tendon>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(model, IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("needs a neighbor that is not a pulley"));
+  EXPECT_THAT(error.data(), HasSubstr("line = 9"));
 }
 
 // ------------- tests for tendon springrange ----------------------------------
@@ -1406,6 +1453,7 @@ TEST_F(SpringrangeTest, InvalidRange) {
   mjModel* model = LoadModelFromString(xml, error.data(), error.size());
   ASSERT_THAT(model, IsNull());
   EXPECT_THAT(error.data(), HasSubstr("invalid springlength in tendon"));
+  EXPECT_THAT(error.data(), HasSubstr("line = 9"));
 }
 
 // ------------- test frame ----------------------------------------------------
