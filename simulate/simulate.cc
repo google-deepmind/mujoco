@@ -2096,6 +2096,7 @@ void Simulate::Sync() {
       for (int i = 0; i < mjNRNDFLAG; ++i) {
         if (user_scn->flags[i] != user_scn_flags_prev_[i]) {
           scn.flags[i] = user_scn->flags[i];
+          pending_.ui_update_rendering = true;
         }
       }
       Copy(user_scn->flags, scn.flags);
