@@ -41,12 +41,14 @@ Python bindings
     - Uses :ref:`mjSTATE_FULLPHYSICS<geFullPhysics>` as state spec, enabling divergence detection by inspecting time.
     - Allows user-defined control spec for any combination of :ref:`user input<geInput>` fields as controls.
     - Outputs are no longer squeezed and always have dim=3.
+12. The ``sync`` function for the :ref:`passive viewer<PyViewerPassive>` can now pick up changes to rendering flags in
+    ``user_scn``, as requested in :github:issue:`1190`.
 
 Bug fixes
 ^^^^^^^^^
-12. Fixed a bug that prevented the use of pins with plugins if flexes are not in the worldbody. Fixes
+13. Fixed a bug that prevented the use of pins with plugins if flexes are not in the worldbody. Fixes
     :github:issue:`1270`.
-13. Fixed a bug in the :ref:`muscle model<CMuscle>` that led to non-zero values outside the lower
+14. Fixed a bug in the :ref:`muscle model<CMuscle>` that led to non-zero values outside the lower
     bound of the length range. Fixes :github:issue:`1342`.
 
 
