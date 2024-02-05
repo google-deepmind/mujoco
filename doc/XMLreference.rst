@@ -7676,8 +7676,8 @@ if omitted.
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 | This element sets the attributes of the dummy :ref:`general <actuator-general>` element of the defaults class.
-| All general attributes are available here except: name, class, joint, jointinparent, site, tendon, slidersite,
-  cranksite.
+| All general attributes are available here except: name, class, joint, jointinparent, site, refsite, tendon,
+  slidersite, cranksite.
 
 
 .. _default-motor:
@@ -7704,8 +7704,8 @@ if omitted.
 This and the next three elements set the attributes of the :ref:`general <actuator-general>` element using
 :ref:`Actuator shortcuts <CActShortcuts>`. It does not make sense to use more than one such shortcut in the same defaults
 class, because they set the same underlying attributes, replacing any previous settings. All
-:ref:`motor <actuator-motor>` attributes are available here except: name, class, joint, jointinparent, site, tendon,
-slidersite, cranksite.
+:ref:`motor <actuator-motor>` attributes are available here except: name, class, joint, jointinparent, site, refsite,
+tendon, slidersite, cranksite.
 
 
 .. _default-position:
@@ -7734,7 +7734,7 @@ slidersite, cranksite.
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 All :ref:`position <actuator-position>` attributes are available here except: name, class, joint, jointinparent, site,
-tendon, slidersite, cranksite.
+refsite, tendon, slidersite, cranksite.
 
 
 .. _default-velocity:
@@ -7761,7 +7761,7 @@ tendon, slidersite, cranksite.
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 All :ref:`velocity <actuator-velocity>` attributes are available here except: name, class, joint, jointinparent, site,
-tendon, slidersite, cranksite.
+refsite, tendon, slidersite, cranksite.
 
 
 .. _default-intvelocity:
@@ -7792,7 +7792,7 @@ tendon, slidersite, cranksite.
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 All :ref:`intvelocity <actuator-intvelocity>` attributes are available here except: name, class, joint, jointinparent,
-site, tendon, slidersite, cranksite.
+site, refsite, tendon, slidersite, cranksite.
 
 
 .. _default-damper:
@@ -7817,7 +7817,7 @@ site, tendon, slidersite, cranksite.
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 All :ref:`damper <actuator-damper>` attributes are available here except: name, class, joint, jointinparent, site,
-tendon, slidersite, cranksite.
+refsite, tendon, slidersite, cranksite.
 
 
 .. _default-cylinder:
@@ -7850,7 +7850,7 @@ tendon, slidersite, cranksite.
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 All :ref:`cylinder <actuator-cylinder>` attributes are available here except: name, class, joint, jointinparent, site,
-tendon, slidersite, cranksite.
+refsite, tendon, slidersite, cranksite.
 
 
 .. _default-muscle:
@@ -7893,7 +7893,7 @@ tendon, slidersite, cranksite.
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 All :ref:`muscle <actuator-muscle>` attributes are available here except: name, class, joint, jointinparent, site,
-tendon, slidersite, cranksite.
+refsite, tendon, slidersite, cranksite.
 
 
 .. _default-adhesion:
