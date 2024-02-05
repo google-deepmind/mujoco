@@ -14,6 +14,7 @@
 
 // Tests for user/user_model.cc.
 
+#include <array>
 #include <cstddef>
 #include <string>
 
