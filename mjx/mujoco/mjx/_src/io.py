@@ -286,7 +286,7 @@ def get_data_into(
     ncon = (d_i.contact.dist <= 0).sum()
     efc_active = (d_i.efc_J != 0).any(axis=1)
     efc_con = efc_type == mujoco.mjtConstraint.mjCNSTR_CONTACT_PYRAMIDAL
-    nefc, nc = efc_active.sum(), (efc_active & efc_con).sum()
+    nefc, nc = int(efc_active.sum()), int((efc_active & efc_con).sum())
     result_i.nnzJ = nefc * m.nv
     mujoco._functions._realloc_con_efc(result_i, ncon=ncon, nefc=nefc)  # pylint: disable=protected-access
     result_i.efc_J_rownnz[:] = np.repeat(m.nv, nefc)
