@@ -1973,12 +1973,19 @@ adjust it properly through the XML.
 :at:`sdf_initpoints`: :at-val:`int, "40"`
    Number of starting points used for finding contacts with Signed Distance Field collisions.
 
+.. youtube:: H9qG9Zf2W44
+   :align: right
+   :width: 240px
+
 .. _option-actuatorgroupdisable:
 
-:at:`actuatorgroupdisable`: :at-val:`int(30), ""`
+:at:`actuatorgroupdisable`: :at-val:`int(31), optional`
    List of actuator groups to disable. Actuators whose :ref:`group<actuator-general-group>` is in this list will produce
    no force. If they are stateful, their activation states will not be integrated. Internally this list is
-   implemented as an integer bitfield, so values must be in the range ``0 <= group <= 30``.
+   implemented as an integer bitfield, so values must be in the range ``0 <= group <= 30``. If not set, all actuator
+   groups are enabled. See `example model
+   <https://github.com/google-deepmind/mujoco/blob/main/test/engine/testdata/actuation/actuator_group_disable.xml>`__
+   and associated screen-capture on the right.
 
 .. _option-flag:
 
