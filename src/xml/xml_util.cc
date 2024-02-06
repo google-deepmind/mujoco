@@ -1034,7 +1034,7 @@ template void mjXUtil::WriteAttr(XMLElement* elem, string name, int n,
 
 
 // write vector<double> attribute, default = zero array
-void mjXUtil::WriteVector(XMLElement* elem, string name, vector<double>& vec) {
+void mjXUtil::WriteVector(XMLElement* elem, string name, const vector<double>& vec) {
   // proceed only if non-zero found
   bool ok = false;
   for (size_t i=0; i<vec.size(); i++) {
@@ -1053,8 +1053,8 @@ void mjXUtil::WriteVector(XMLElement* elem, string name, vector<double>& vec) {
 
 
 // write vector<double> attribute, default with same size
-void mjXUtil::WriteVector(XMLElement* elem, string name, vector<double>& vec,
-                          vector<double>& def) {
+void mjXUtil::WriteVector(XMLElement* elem, string name, const vector<double>& vec,
+                          const vector<double>& def) {
   // proceed only if non-zero found
   bool ok = false;
   for (size_t i=0; i<vec.size(); i++) {

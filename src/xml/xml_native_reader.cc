@@ -33,6 +33,7 @@
 #include "engine/engine_plugin.h"
 #include "engine/engine_util_errmem.h"
 #include "engine/engine_util_misc.h"
+#include "user/user_api.h"
 #include "user/user_composite.h"
 #include "user/user_flexcomp.h"
 #include "user/user_model.h"
@@ -1563,34 +1564,39 @@ void mjXReader::OneGeom(XMLElement* elem, mjCGeom* pgeom) {
 
 
 // site element parser
-void mjXReader::OneSite(XMLElement* elem, mjCSite* site) {
+void mjXReader::OneSite(XMLElement* elem, mjmSite& site) {
   int n;
-  string text;
-  mjmSite* psite = &site->spec;
+  string text, name, classname;
   std::vector<double> userdata;
   std::string material;
 
   // read attributes
-  ReadAttrTxt(elem, "name", site->name);
-  ReadAttrTxt(elem, "class", site->classname);
+  ReadAttrTxt(elem, "name", name);
+  ReadAttrTxt(elem, "class", classname);
   if (MapValue(elem, "type", &n, geom_map, mjNGEOMTYPES)) {
-    psite->type = (mjtGeom)n;
+    site.type = (mjtGeom)n;
   }
-  ReadAttr(elem, "size", 3, psite->size, text, false, false);
-  ReadAttrInt(elem, "group", &psite->group);
-  ReadAttr(elem, "pos", 3, psite->pos, text);
-  ReadQuat(elem, "quat", psite->quat, text);
+  ReadAttr(elem, "size", 3, site.size, text, false, false);
+  ReadAttrInt(elem, "group", &site.group);
+  ReadAttr(elem, "pos", 3, site.pos, text);
+  ReadQuat(elem, "quat", site.quat, text);
   ReadAttrTxt(elem, "material", material);
-  ReadAttr(elem, "rgba", 4, psite->rgba, text);
-  ReadAttr(elem, "fromto", 6, psite->fromto, text);
-  ReadAlternative(elem, psite->alt);
+  ReadAttr(elem, "rgba", 4, site.rgba, text);
+  ReadAttr(elem, "fromto", 6, site.fromto, text);
+  ReadAlternative(elem, site.alt);
   ReadVector(elem, "user", userdata, text);
 
-  // set variable-size attributes
-  site->set_userdata(userdata);
-  site->set_material(material);
+  // set strings
+  mjm_setString(site.name, name.c_str());
+  mjm_setString(site.classname, classname.c_str());
+  mjm_setString(site.material, material.c_str());
 
-  GetXMLPos(elem, site);
+  // set pointers
+  mjm_setDouble(site.userdata, userdata.data(), userdata.size());
+
+  // set info
+  mjm_setString(site.info,
+      std::string("line = " + std::to_string(elem->GetLineNum()) + ", column = -1").c_str());
 }
 
 
@@ -2177,7 +2183,7 @@ void mjXReader::OneComposite(XMLElement* elem, mjCBody* pbody, mjCDef* def) {
     ReadAttrInt(esite, "group", &dsite.group);
     ReadAttrTxt(esite, "material", material);
     ReadAttr(esite, "rgba", 4, dsite.rgba, text);
-    comp.def[0].site.set_material(material);
+    mjm_setString(dsite.material, material.c_str());
   }
 
   // joint
@@ -2487,7 +2493,7 @@ void mjXReader::Default(XMLElement* section, int parentid) {
     else if (name=="geom") OneGeom(elem, &def->geom);
 
     // read site
-    else if (name=="site") OneSite(elem, &def->site);
+    else if (name=="site") OneSite(elem, def->site.spec);
 
     // read camera
     else if (name=="camera") OneCamera(elem, &def->camera);
@@ -3061,9 +3067,9 @@ void mjXReader::Body(XMLElement* section, mjCBody* pbody, mjCFrame* frame) {
     // site sub-element
     else if (name=="site") {
       // create site and parse
-      mjCSite* psite = pbody->AddSite(def);
-      OneSite(elem, psite);
-      psite->SetFrame(frame);
+      mjmSite* site = mjm_addSite(pbody,  def);
+      OneSite(elem, *site);
+      mjm_setFrame(site, frame);
     }
 
     // camera sub-element

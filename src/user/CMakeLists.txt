@@ -13,6 +13,8 @@
 # limitations under the License.
 
 set(MUJOCO_USER_SRCS
+    user_api.cc
+    user_api.h
     user_composite.cc
     user_composite.h
     user_flexcomp.cc

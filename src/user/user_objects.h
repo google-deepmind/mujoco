@@ -24,11 +24,10 @@
 #include <utility>
 #include <vector>
 
-#include "lodepng.h"
-
 #include <mujoco/mjtnum.h>
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjplugin.h>
+#include "user/user_api.h"
 
 // forward declarations of all mjC/X classes
 class mjCError;
@@ -109,18 +108,12 @@ class [[nodiscard]] mjCError {
 
 
 // alternative specifications of frame orientation
-class mjCAlternative {
+class mjCAlternative : public mjmOrientation {
  public:
   mjCAlternative();                               // constuctor
   const char* Set(double* quat, double* inertia,  // set frame quat and diag. inertia
                   bool degree,                    //  angle format: degree/radian
                   const char* sequence);          //  euler sequence format: "xyz"
-
-  double axisangle[4];            // rotation axis and angle
-  double xyaxes[6];               // x and y axes
-  double zaxis[3];                // z axis (use minimal rotation)
-  double euler[3];                // euler rotations
-  double fullinertia[6];          // non-axis-aligned inertia matrix
 };
 
 
@@ -458,19 +451,6 @@ class mjCGeom : public mjCBase {
 //------------------------- class mjCSite ----------------------------------------------------------
 // Describes a site on a body
 
-typedef struct _mjmSite {
-  mjtGeom type;                   // geom type for rendering
-  int group;                      // group id, used for visualization
-  double size[3];                 // geom size for rendering
-  double pos[3];                  // position
-  double quat[4];                 // orientation
-  char* material;                 // name of material for rendering
-  double* userdata;               // user data
-  float rgba[4];                  // rgba when material is omitted
-  double fromto[6];               // alternative for capsule, cylinder, box, ellipsoid
-  mjCAlternative alt;             // alternative orientation specification
-} mjmSite;
-
 class mjCSite : public mjCBase, private mjmSite {
   friend class mjCDef;
   friend class mjCBody;
@@ -481,30 +461,30 @@ class mjCSite : public mjCBase, private mjmSite {
  public:
   mjmSite spec;                   // variables set by user
 
-  void set_material(std::string _material) {
-    spec_material_ = _material;
-    spec.material = spec_material_.data();
-  }
-  void set_userdata(std::vector<double> _userdata) {
-    spec_userdata_ = _userdata;
-    spec.userdata = spec_userdata_.data();
-  }
-  std::vector<double>& get_userdata() { return userdata_; }
-  std::string& get_material() { return material_; }
+  // use strings from mjCBase rather than mjStrings from mjmSite
+  using mjCBase::name;
+  using mjCBase::classname;
+  using mjCBase::info;
 
-  // variables computed by 'compile' and 'mjCBody::addSite'
+  // used by mjXWriter and mjCModel
+  const std::vector<double>& get_userdata() { return userdata_; }
+  const std::string& get_material() { return material_; }
+
  private:
   mjCSite(mjCModel* = 0, mjCDef* = 0);    // constructor
   void Compile(void);                     // compiler
   void CopyFromSpec();                    // copy spec into attributes
 
+  mjCAlternative alt_;
+  mjCAlternative spec_alt_;
+
   // variable-size data
   std::string material_;
   std::vector<double> userdata_;
-
   std::string spec_material_;
   std::vector<double> spec_userdata_;
 
+  // variables computed by 'compile' and 'mjCBody::addSite'
   mjCBody* body;                  // site's body
   int matid;                      // material id for rendering
 };

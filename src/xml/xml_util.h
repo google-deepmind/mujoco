@@ -198,9 +198,10 @@ class mjXUtil {
                         const T* def = 0);
 
   // write vector<double> attribute, with and without default
-  static void WriteVector(tinyxml2::XMLElement* elem, std::string name, std::vector<double>& vec);
-  static void WriteVector(tinyxml2::XMLElement* elem, std::string name, std::vector<double>& vec,
-                          std::vector<double>& def);
+  static void WriteVector(tinyxml2::XMLElement* elem, std::string name,
+                          const std::vector<double>& vec);
+  static void WriteVector(tinyxml2::XMLElement* elem, std::string name,
+                          const std::vector<double>& vec, const std::vector<double>& def);
 
   // write attribute- string
   static void WriteAttrTxt(tinyxml2::XMLElement* elem, std::string name, std::string value);

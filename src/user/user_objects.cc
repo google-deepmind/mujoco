@@ -43,6 +43,7 @@
 #include "engine/engine_util_solve.h"
 #include "engine/engine_util_spatial.h"
 #include "engine/engine_vfs.h"
+#include "user/user_api.h"
 #include "user/user_model.h"
 #include "user/user_util.h"
 
@@ -1931,24 +1932,34 @@ mjCSite::mjCSite(mjCModel* _model, mjCDef* _def) {
   spec.group = 0;
   mjuu_setvec(spec.quat, 1, 0, 0, 0);
   mjuu_setvec(spec.pos, 0, 0, 0);
-  spec.material = nullptr;
+  spec_material_.clear();
   spec.rgba[0] = spec.rgba[1] = spec.rgba[2] = 0.5f;
   spec.rgba[3] = 1.0f;
   spec.fromto[0] = mjNAN;
-  spec.userdata = nullptr;
+  spec_userdata_.clear();
+  spec.alt.axisangle[0] = spec.alt.xyaxes[0] = spec.alt.zaxis[0] =
+      spec.alt.euler[0] = spec.alt.fullinertia[0] = mjNAN;
 
   // clear internal variables
   body = 0;
   matid = -1;
-
-  // initialize private attributes
-  CopyFromSpec();
 
   // reset to default if given
   if (_def) {
     _def->site.CopyFromSpec();
     *this = _def->site;
   }
+
+  // point to local, not to default
+  spec.element = (mjElement)this;
+  spec.name = (mjString)&name;
+  spec.info = (mjString)&info;
+  spec.classname = (mjString)&classname;
+  spec.material = (mjString)&spec_material_;
+  spec.userdata = (mjDouble)&spec_userdata_;
+
+  // initialize private attributes in case object won't be compiled
+  CopyFromSpec();
 
   // set model, def
   model = _model;
@@ -1961,8 +1972,13 @@ void mjCSite::CopyFromSpec() {
   *static_cast<mjmSite*>(this) = spec;
   userdata_ = spec_userdata_;
   material_ = spec_material_;
-  userdata = userdata_.data();
-  material = material_.data();
+  userdata = (mjDouble)&userdata_;
+  material = (mjString)&material_;
+  mju_copy4(alt_.axisangle, alt.axisangle);
+  mju_copy(alt_.xyaxes, alt.xyaxes, 6);
+  mju_copy3(alt_.zaxis, alt.zaxis);
+  mju_copy3(alt_.euler, alt.euler);
+  mju_copy(alt_.fullinertia, alt.fullinertia, 6);
 }
 
 
@@ -2034,7 +2050,7 @@ void mjCSite::Compile(void) {
 
   // alternative orientation
   else {
-    const char* err = alt.Set(quat, 0, model->degree, model->euler);
+    const char* err = alt_.Set(quat, 0, model->degree, model->euler);
     if (err) {
       throw mjCError(this, "orientation specification error '%s' in site %d", err, id);
     }
