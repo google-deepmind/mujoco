@@ -659,16 +659,25 @@ mjCFrame* mjCBody::AddFrame(mjCFrame* _frame) {
 
 
 
-// create new joint and add it to body
-//  _def==NULL means no defaults, unlike all others which inherit from body
-mjCJoint* mjCBody::AddJoint(mjCDef* _def, bool isfree) {
-  // create joint
-  mjCJoint* obj = new mjCJoint(model, _def ? _def : (isfree ? NULL : def));
+// create new free joint (no default inheritance) and add it to body
+mjCJoint* mjCBody::AddFreeJoint() {
+  // create free joint, don't inherit from defaults
+  mjCJoint* obj = new mjCJoint(model, NULL);
+  obj->type = mjJNT_FREE;
 
-  // set free type if specified
-  if (isfree) {
-    obj->type = mjJNT_FREE;
-  }
+  // set body pointer, add
+  obj->body = this;
+
+  joints.push_back(obj);
+  return obj;
+}
+
+
+
+// create new joint and add it to body
+mjCJoint* mjCBody::AddJoint(mjCDef* _def) {
+  // create joint
+  mjCJoint* obj = new mjCJoint(model, _def ? _def : def);
 
   // set body pointer, add
   obj->body = this;

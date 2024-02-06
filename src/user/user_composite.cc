@@ -456,7 +456,7 @@ bool mjCComposite::MakeParticle(mjCModel* model, mjCBody* body, char* error, int
     // add slider joints if none defined
     if (!add[mjCOMPKIND_PARTICLE]) {
       for (int i=0; i<3; i++) {
-        mjCJoint* jnt = b->AddJoint(&defjoint[mjCOMPKIND_JOINT][0], false);
+        mjCJoint* jnt = b->AddJoint(&defjoint[mjCOMPKIND_JOINT][0]);
         jnt->def = body->def;
         jnt->type = mjJNT_SLIDE;
         mjuu_setvec(jnt->pos, 0, 0, 0);
@@ -468,7 +468,7 @@ bool mjCComposite::MakeParticle(mjCModel* model, mjCBody* body, char* error, int
     // add user-specified joints
     else {
       for (auto defjnt : defjoint[mjCOMPKIND_PARTICLE]) {
-        mjCJoint* jnt = b->AddJoint(&defjnt, false);
+        mjCJoint* jnt = b->AddJoint(&defjnt);
         jnt->def = body->def;
       }
     }

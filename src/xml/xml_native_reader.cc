@@ -3045,7 +3045,7 @@ void mjXReader::Body(XMLElement* section, mjCBody* pbody, mjCFrame* frame) {
       }
 
       // create free joint without defaults
-      mjCJoint* pjoint = pbody->AddJoint(NULL, true);
+      mjCJoint* pjoint = pbody->AddFreeJoint();
       pjoint->SetFrame(frame);
 
       // save defaults after creation, to make sure writing is ok

@@ -229,7 +229,8 @@ class mjCBody : public mjCBase {
   // API for adding objects to body
   mjCBody*    AddBody(mjCDef* = 0);
   mjCFrame*   AddFrame(mjCFrame* = 0);
-  mjCJoint*   AddJoint(mjCDef* = 0, bool isfree = false);
+  mjCJoint*   AddJoint(mjCDef* = 0);
+  mjCJoint*   AddFreeJoint();
   mjCGeom*    AddGeom(mjCDef* = 0);
   mjCSite*    AddSite(mjCDef* = 0);
   mjCCamera*  AddCamera(mjCDef* = 0);
