@@ -242,19 +242,17 @@ void mjXURDF::Body(XMLElement* body_elem) {
 
     // inertia
     temp = FindSubElem(elem, "inertia", true);
-    mjCAlternative alt;
-    ReadAttr(temp, "ixx", 1, alt.fullinertia+0, text, true);
-    ReadAttr(temp, "iyy", 1, alt.fullinertia+1, text, true);
-    ReadAttr(temp, "izz", 1, alt.fullinertia+2, text, true);
-    ReadAttr(temp, "ixy", 1, alt.fullinertia+3, text, true);
-    ReadAttr(temp, "ixz", 1, alt.fullinertia+4, text, true);
-    ReadAttr(temp, "iyz", 1, alt.fullinertia+5, text, true);
+    ReadAttr(temp, "ixx", 1, pbody->fullinertia+0, text, true);
+    ReadAttr(temp, "iyy", 1, pbody->fullinertia+1, text, true);
+    ReadAttr(temp, "izz", 1, pbody->fullinertia+2, text, true);
+    ReadAttr(temp, "ixy", 1, pbody->fullinertia+3, text, true);
+    ReadAttr(temp, "ixz", 1, pbody->fullinertia+4, text, true);
+    ReadAttr(temp, "iyz", 1, pbody->fullinertia+5, text, true);
 
     // process inertia
     //  lquat = rotation from specified to default (joint/body) inertial frame
     double lquat[4], tmpquat[4];
-    const char* altres =
-      alt.Set(lquat, pbody->inertia, model->degree, model->euler);
+    const char* altres = pbody->FullInertia(lquat, pbody->inertia);
 
     // inertia are sometimes 0 in URDF files: ignore error in altres, fix later
     (void) altres;
@@ -606,7 +604,7 @@ void mjXURDF::Origin(XMLElement* origin_elem, double* pos, double* quat) {
     // orientation
     mjCAlternative alt;
     if (ReadAttr(temp, "rpy", 3, alt.euler, text)) {
-      alt.Set(quat, 0, 0, "XYZ");
+      alt.Set(quat, 0, "XYZ");
     }
   }
 }

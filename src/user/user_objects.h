@@ -111,9 +111,9 @@ class [[nodiscard]] mjCError {
 class mjCAlternative : public mjmOrientation {
  public:
   mjCAlternative();                               // constuctor
-  const char* Set(double* quat, double* inertia,  // set frame quat and diag. inertia
-                  bool degree,                    //  angle format: degree/radian
-                  const char* sequence);          //  euler sequence format: "xyz"
+  const char* Set(double* quat,                   // set frame quat
+                  bool degree,                    // angle format: degree/radian
+                  const char* sequence);          // euler sequence format: "xyz"
 };
 
 
@@ -244,6 +244,10 @@ class mjCBody : public mjCBase {
   // set explicitinertial to true
   void MakeInertialExplicit();
 
+  // compute quat and diag inertia from fullinertia
+  // return nullptr on success, error string on failure
+  const char* FullInertia(double quat[4], double inertia[3]);
+
   // variables set by user or 'Compile'
   bool mocap;                     // is this a mocap body
   double pos[3];                  // frame position
@@ -254,16 +258,17 @@ class mjCBody : public mjCBase {
   double inertia[3];              // diagonal inertia (in i-frame)
   double gravcomp;                // gravity compensation
   std::vector<double> userdata;   // user data
+  double fullinertia[6];          // non-axis-aligned inertia matrix
   mjCAlternative alt;             // alternative orientation specification
   mjCAlternative ialt;            // alternative for inertial frame
 
   // variables computed by 'Compile' and 'AddXXX'
  private:
-  mjCBody(mjCModel*);                 // constructor
-  ~mjCBody();                         // destructor
+  mjCBody(mjCModel*);             // constructor
+  ~mjCBody();                     // destructor
   void Compile(void);                 // compiler
 
-  void GeomFrame(void);               // get inertial info from geoms
+  void GeomFrame(void);           // get inertial info from geoms
 
   int parentid;                   // parent index in global array
   int weldid;                     // top index of body we are welded to

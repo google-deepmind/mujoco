@@ -2551,9 +2551,8 @@ void mjCModel::FuseStatic(void) {
         }
 
         // compute principal axes of inertia
-        mjCAlternative alt;
-        mjuu_copyvec(alt.fullinertia, toti, 6);
-        const char* err1 = alt.Set(par->iquat, par->inertia, degree, euler);
+        mjuu_copyvec(par->fullinertia, toti, 6);
+        const char* err1 = par->FullInertia(par->iquat, par->inertia);
         if (err1) {
           throw mjCError(NULL, "error '%s' in fusing static body inertias", err1);
         }

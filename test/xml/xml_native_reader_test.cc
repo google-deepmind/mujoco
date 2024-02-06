@@ -414,7 +414,7 @@ TEST_F(XMLReaderTest, InvalidDoubleOrientation) {
         ASSERT_THAT(model, IsNull());
         EXPECT_THAT(
             error.data(),
-            HasSubstr("multiple orientation specifiers for the same field"));
+            HasSubstr("multiple orientation specifiers are not allowed"));
       }
     }
   }
@@ -525,7 +525,7 @@ TEST_F(XMLReaderTest, InvalidInertialOrientation) {
   mjModel* model = LoadModelFromString(xml, error.data(), error.size());
   ASSERT_THAT(model, IsNull());
   EXPECT_THAT(error.data(),
-              HasSubstr("multiple orientation specifiers for the same field"));
+              HasSubstr("multiple orientation specifiers are not allowed"));
 }
 
 TEST_F(XMLReaderTest, ReadShellParameter) {
