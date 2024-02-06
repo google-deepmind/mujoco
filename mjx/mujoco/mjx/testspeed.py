@@ -14,6 +14,7 @@
 # ==============================================================================
 """Run benchmarks on various devices."""
 
+import os
 import time
 from typing import Sequence, Tuple
 
@@ -55,6 +56,10 @@ def _measure(fn, *args) -> Tuple[float, float]:
 
 def _main(argv: Sequence[str]):
   """Benchmark a model."""
+
+  xla_flags = os.environ.get('XLA_FLAGS', '')
+  xla_flags += ' --xla_gpu_triton_gemm_any=True'
+  os.environ['XLA_FLAGS'] = xla_flags
 
   f = epath.resource_path('mujoco.mjx') / 'test_data' / FLAGS.mjcf
   m = mujoco.MjModel.from_xml_path(f.as_posix())
