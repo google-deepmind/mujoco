@@ -134,13 +134,14 @@ mjCError::mjCError(const mjCBase* obj, const char* msg, const char* str, int pos
 
 // constructor
 mjCAlternative::mjCAlternative() {
-  axisangle[0] = xyaxes[0] = zaxis[0] = euler[0] = mjNAN;
+  axisangle[0] = xyaxes[0] = zaxis[0] = euler[0] = fullinertia[0] = mjNAN;
 }
 
 
 // compute frame orientation given alternative specifications
 // used for geom, site, body and camera frames
-const char* mjCAlternative::Set(double* quat, bool degree, const char* sequence) {
+const char* mjCAlternative::Set(double* quat, double* inertia,
+                                bool degree, const char* sequence) {
   // set quat using axisangle
   if (mjuu_defined(axisangle[0])) {
     // convert to radians if necessary, normalize axis
@@ -194,6 +195,32 @@ const char* mjCAlternative::Set(double* quat, bool degree, const char* sequence)
     mjuu_z2quat(quat, zaxis);
   }
 
+  // handle fullinertia
+  if (mjuu_defined(fullinertia[0])) {
+    mjtNum eigval[3], eigvec[9], quattmp[4];
+    mjtNum full[9] = {
+      fullinertia[0], fullinertia[3], fullinertia[4],
+      fullinertia[3], fullinertia[1], fullinertia[5],
+      fullinertia[4], fullinertia[5], fullinertia[2]
+    };
+
+    mju_eig3(eigval, eigvec, quattmp, full);
+
+    // copy
+    for (int i=0; i<4; i++) {
+      quat[i] = quattmp[i];
+    }
+    if (inertia) {
+      for (int i=0; i<3; i++) {
+        inertia[i] = eigval[i];
+      }
+    }
+
+    // check mimimal eigenvalue
+    if (eigval[2]<mjEPS) {
+      return "inertia must have positive eigenvalues";
+    }
+  }
 
   // handle euler
   if (mjuu_defined(euler[0])) {
@@ -553,7 +580,6 @@ mjCBody::mjCBody(mjCModel* _model) {
   pos[0] = ipos[0] = mjNAN;
 
   // clear variables
-  fullinertia[0] = mjNAN;
   explicitinertial = false;
   mocap = false;
   mjuu_setvec(quat, 1, 0, 0, 0);
@@ -889,44 +915,13 @@ void mjCBody::GeomFrame(void) {
     }
 
     // compute principal axes of inertia
-    mjuu_copyvec(fullinertia, toti, 6);
-    const char* errq = FullInertia(iquat, inertia);
-    if (errq) {
-      throw mjCError(this, "error '%s' in alternative for principal axes", errq);
+    mjCAlternative alt;
+    mjuu_copyvec(alt.fullinertia, toti, 6);
+    const char* err1 = alt.Set(iquat, inertia, model->degree, model->euler);
+    if (err1) {
+      throw mjCError(this, "error '%s' in alternative for principal axes", err1);
     }
   }
-}
-
-
-
-// compute full inertia
-const char* mjCBody::FullInertia(double quat[4], double inertia[3]) {
-  if (mjuu_defined(fullinertia[0])) {
-    mjtNum eigval[3], eigvec[9], quattmp[4];
-    mjtNum full[9] = {
-      fullinertia[0], fullinertia[3], fullinertia[4],
-      fullinertia[3], fullinertia[1], fullinertia[5],
-      fullinertia[4], fullinertia[5], fullinertia[2]
-    };
-
-    mju_eig3(eigval, eigvec, quattmp, full);
-
-    // copy
-    for (int i=0; i<4; i++) {
-      quat[i] = quattmp[i];
-    }
-    if (inertia) {
-      for (int i=0; i<3; i++) {
-        inertia[i] = eigval[i];
-      }
-    }
-
-    // check mimimal eigenvalue
-    if (eigval[2]<mjEPS) {
-      return "inertia must have positive eigenvalues";
-    }
-  }
-  return 0;
 }
 
 
@@ -962,13 +957,13 @@ void mjCBody::Compile(void) {
   }
 
   // check and process orientation alternatives for body
-  const char* err = alt.Set(quat, model->degree, model->euler);
+  const char* err = alt.Set(quat, inertia, model->degree, model->euler);
   if (err) {
     throw mjCError(this, "error '%s' in frame alternative", err);
   }
 
   // check and process orientation alternatives for inertia
-  const char* ierr = FullInertia(iquat, inertia);
+  const char* ierr = ialt.Set(iquat, inertia, model->degree, model->euler);
   if (ierr) {
     throw mjCError(this, "error '%s' in inertia alternative", ierr);
   }
@@ -1145,7 +1140,7 @@ void mjCFrame::Compile() {
     return;
   }
 
-  const char* err = alt.Set(quat, model->degree, model->euler);
+  const char* err = alt.Set(quat, 0, model->degree, model->euler);
   if (err) {
     throw mjCError(this, "orientation specification error '%s' in site %d", err, id);
   }
@@ -1828,7 +1823,7 @@ void mjCGeom::Compile(void) {
 
   // not 'fromto': try alternative
   else {
-    const char* err = alt.Set(quat, model->degree, model->euler);
+    const char* err = alt.Set(quat, inertia, model->degree, model->euler);
     if (err) {
       throw mjCError(this, "orientation specification error '%s' in geom %d", err, id);
     }
@@ -1952,7 +1947,7 @@ mjCSite::mjCSite(mjCModel* _model, mjCDef* _def) {
   spec.fromto[0] = mjNAN;
   spec_userdata_.clear();
   spec.alt.axisangle[0] = spec.alt.xyaxes[0] = spec.alt.zaxis[0] =
-      spec.alt.euler[0] = mjNAN;
+      spec.alt.euler[0] = spec.alt.fullinertia[0] = mjNAN;
 
   // clear internal variables
   body = 0;
@@ -1992,6 +1987,7 @@ void mjCSite::CopyFromSpec() {
   mju_copy(alt_.xyaxes, alt.xyaxes, 6);
   mju_copy3(alt_.zaxis, alt.zaxis);
   mju_copy3(alt_.euler, alt.euler);
+  mju_copy(alt_.fullinertia, alt.fullinertia, 6);
 }
 
 
@@ -2063,7 +2059,7 @@ void mjCSite::Compile(void) {
 
   // alternative orientation
   else {
-    const char* err = alt_.Set(quat, model->degree, model->euler);
+    const char* err = alt_.Set(quat, 0, model->degree, model->euler);
     if (err) {
       throw mjCError(this, "orientation specification error '%s' in site %d", err, id);
     }
@@ -2129,7 +2125,7 @@ void mjCCamera::Compile(void) {
   userdata.resize(model->nuser_cam);
 
   // process orientation specifications
-  const char* err = alt.Set(quat, model->degree, model->euler);
+  const char* err = alt.Set(quat, 0, model->degree, model->euler);
   if (err) {
     throw mjCError(this, "orientation specification error '%s' in camera %d", err, id);
   }
