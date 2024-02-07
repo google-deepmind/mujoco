@@ -146,7 +146,8 @@ def com_pos(m: Model, d: Data) -> Data:
   @jax.vmap
   def inert_com(inert, ximat, off, mass):
     h = jp.cross(off, -jp.eye(3))
-    inert = (ximat * inert) @ ximat.T + h @ h.T * mass
+    inert = math.matmul_unroll((ximat * inert), ximat.T)
+    inert += math.matmul_unroll(h, h.T) * mass
     # cinert is triu(inert), mass * off, mass
     inert = inert[([0, 1, 2, 0, 0, 1], [0, 1, 2, 1, 2, 2])]
     return jp.concatenate([inert, off * mass, mass[None]])

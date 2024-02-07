@@ -20,6 +20,30 @@ import jax
 from jax import numpy as jp
 
 
+def matmul_unroll(a: jax.Array, b: jax.Array) -> jax.Array:
+  """Calculates a @ b via explicit cell value operations.
+
+  This is faster than XLA matmul for small matrices (e.g. 3x3, 4x4).
+
+  Args:
+    a: left hand of matmul operand
+    b: right hand of matmul operand
+  Returns:
+    the matrix product of the inputs.
+  """
+  c = []
+  for i in range(a.shape[0]):
+    row = []
+    for j in range(b.shape[1]):
+      s = 0.0
+      for k in range(a.shape[1]):
+        s += a[i, k] * b[k, j]
+      row.append(s)
+    c.append(row)
+
+  return jp.array(c)
+
+
 def norm(
     x: jax.Array, axis: Optional[Union[Tuple[int, ...], int]] = None
 ) -> jax.Array:
