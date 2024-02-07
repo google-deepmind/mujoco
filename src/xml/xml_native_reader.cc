@@ -3021,7 +3021,11 @@ void mjXReader::Body(XMLElement* section, mjCBody* pbody, mjCFrame* frame) {
       ReadQuat(elem, "quat", pbody->iquat, text);
       ReadAttr(elem, "mass", 1, &pbody->mass, text, true);
       ReadAttr(elem, "diaginertia", 3, pbody->inertia, text);
-      ReadAlternative(elem, pbody->ialt);
+      bool alt = ReadAlternative(elem, pbody->ialt);
+      bool full = ReadAttr(elem, "fullinertia", 6, pbody->fullinertia, text);
+      if (alt && full) {
+        throw mjXError(elem, "multiple orientation specifiers are not allowed");
+      }
     }
 
     // joint sub-element

@@ -30,7 +30,6 @@ typedef struct _mjmOrientation {
   double xyaxes[6];               // x and y axes
   double zaxis[3];                // z axis (use minimal rotation)
   double euler[3];                // euler rotations
-  double fullinertia[6];          // non-axis-aligned inertia matrix
 } mjmOrientation;
 
 typedef struct _mjmSite {

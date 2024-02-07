@@ -117,7 +117,7 @@ bool mjCFlexcomp::Make(mjCModel* model, mjCBody* body, char* error, int error_sz
   }
 
   // compute orientation
-  const char* alterr = alt.Set(quat, NULL, model->degree, model->euler);
+  const char* alterr = alt.Set(quat, model->degree, model->euler);
   if (alterr) {
     return comperr(error, alterr, error_sz);
   }
